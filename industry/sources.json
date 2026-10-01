@@ -1,0 +1,865 @@
+{
+  "$comment": "GEOHOT 信源河（地理热点）。首次启动由 scripts/seed.ts 导入；ON CONFLICT (id) DO NOTHING，只增不改，之后在后台「信源」里增删改。字段说明见 docs/sources.md，配置项白名单见 packages/backend/src/sources/config-keys.ts（本文件 44 条记录的每个 config 键都过一遍 assertSupportedConfig，seed 与后台预览都会拒绝白名单外的键）。 分层（决策 6「国际为主 + 国内官方尽力适配」）：T1 = 官方一手监测与数据机构（15 个，含 2 个新登记的 external 人工投递通道）；T1_5 = 一手研究出版方与准官方媒体（13 个轮询 + 地理学报 external）；T2 = 媒体、刊物、项目频道与转载层（10 个轮询 + 5 个 external）。合计 44 条，其中 36 条可轮询、8 条 external。 关于 json_list 的 urlTemplate（WAVE1-FINDINGS §2 的第二条是错的，不要照它改配置）：packages/backend/src/sources/json-list.ts:29-40 renderTemplate() 只对「被替换进模板的那个值」做 encodeURIComponent（且把 %2F 还原成 /），模板字面量本身原样输出，所以完整外部 URL 是可以写的；{raw:路径} 取原始值不编码。三条实测反证（项目自己的 fetchJsonList，2026-09-30）：json-usgs-quake-m45 的 https://earthquake.usgs.gov/earthquakes/eventpage/{id} 渲染出 https://earthquake.usgs.gov/earthquakes/eventpage/us6000tycv（125 条）；json-nmc-weather-alarm 的 https://www.nmc.cn{raw:url} 渲染出 https://www.nmc.cn/publish/alarm/21142141600000_20260930010800.html（40 条）；json-ceic-earthquake 320 条（2026-10-01 复跑；这一条的模板字面量本轮换过主机，理由见下面「关于 M7」一段，renderTemplate 的能力没有变，它照样能渲染完整外部 URL）。本文件没有任何一条按那条错误建议被改成相对片段。 关于 kind=external：collect.ts:88 跳过 external，永不轮询；条目只能由人工脚本 POST /api/ingest/items 投递（config 必须是空对象，config-keys.ts:23 给 external 的白名单是 []，任何键都会被 seed 拒）。8 个 external 里 6 个旧登记与 2 个新增（ext-qtp-expedition、ext-polar-voyage）的 participation_mode 都是 isolated，依据是 publication/publish.ts:185 —— participation_mode==='isolated' 时 visibility 一律算 withdrawn（不看 editorial_overrides），publication/rules.ts:25 isPoolEligible 只让 editorial 进公开池、rules.ts:34 hasItemPage 对 withdrawn 直接不给详情页，jobs/content.ts:102 还让非 editorial 的材料不走精选写法。也就是说「先登记、人工投递、编辑在后台确认质量后手动切 editorial」这条流程里，真正让它不公开的就是 isolated；切到 editorial 的瞬间 visibility 变 public、进入 /all 与精选评分。 关于本次新增的 8 条（WAVE3 §H、§G）：web-mwr-news 是必需的——web-mwr-data 的 allowUrlPrefixes 只放行 /sj/，水利部 /xw/slyw/ 的赣江、韩江洪水通报会被 allowed()（web-list.ts:73）拦掉，实测两个端点各自出 156 / 25 条。rss-gsc-europa 用 https://www.gsc-europa.eu/rss.xml（站点没有 /feed、/rss.xml 之外的公开入口，逐条猜过 6 个路径），RSS 里三成是 NAGU 例行通告，按决策 5「例行更新」用 ingestNoiseFilter.dropMarkersTitleOnly 在入口丢掉。atom-gdal-releases / rss-qgis-blog / rss-osm-blog / web-spacemapper-news 一律 T2：它们是自身项目的一手渠道（first_party=true），但典型产出是版本通告与盘点稿，按 industry/selection.ts 的算式这两类天花板是 60 分，只有 T2(63) 关得住，T1_5(59) 关不住——tier 在这里表达的是「这类稿件的验证记录与事件覆盖度」，不是国籍。web-spacemapper-news 明确非一手（first_party=false），只作热度参与者与「全部动态」供给。两个青藏/极地 external 补的是 WAVE3 §G 的 fieldwork 缺口（25 个可轮询 feed 里没有任何科考队或航次主办方）。 关于 owner_entity_id：sources.owner_entity_id 没有外键（database/migrations/0001_core.sql:17），seed 也不校验它，所以悬空值不会报错，只会在 packages/backend/src/editorial/writing.ts:190 identityContext() 里静默解析成「无主体」——owner 为 null 就是身份守卫的放行集合少一格（读者卡片上的 entity:<id> 标签来自 analyses.subjects，不看这一列）。2026-10-01 把这里原有的 10 个悬空值清完，现在每个非 null 值都是 industry/taxonomy.ts 的 ENTITIES 键：nmc→cma（ENTITIES.cma 的别名里逐字有「中央气象台」「国家气象中心」，PUBLISHER_DOMAINS 又把 nmc.cn 判给 cma）、nbs→stats（ENTITIES.stats 别名含 NBS，stats.gov.cn→stats，taxonomy.ts:147 的注释点名的就是这一对）、12379→cma（国家预警信息发布中心是中国气象局的发布口，同一机构的另一块牌子；这是三处里唯一按组织关系而非逐字别名定的一处，taxonomy 的 owner 若要给它单开条目就改指那个 id）。其余 7 个出版方（agu 与 Eos、springer-nature 的四个 Nature 刊、rgs 的 Geographical、cagp《地理研究》、geores《地理学报》、geodata 国家地球系统科学数据中心、cng《中国国家地理》）在 ENTITIES 里既无条目也无别名可归，一律留 null，不挂到形似的 cas 上：taxonomy.ts:270 已写明把《地理研究》刊站判给「中国科学院」会让身份守卫允许摘要写原文没写的机构名，同一条理由适用于另外两刊与数据中心。要恢复这 7 条的归属，请 taxonomy 的 owner 往 ENTITIES/IDENTITY_LEXICON/PUBLISHER_DOMAINS 补条目（建议 id：agu、springer-nature、rgs、cagp（中国地理学会，两刊共用）、geodata、cng），而不是在本文件里再造一个没人认领的字符串。自查是只读的脚本 .brief/owner-entity-crosscheck.mts（2026-10-01 跑）：它把本文件的 owner_entity_id 与 ENTITIES、IDENTITY_LEXICON 两张表分别求差，并同时检查 PUBLISHER_DOMAINS 的 entityId，结果 44 条 / 18 个非 null 值 / 对 ENTITIES 悬空 0 / 对 IDENTITY_LEXICON 悬空 0 / PUBLISHER_DOMAINS 悬空 0，退出码 0。要看的那段消费代码是 writing.ts:133 的 lexiconName()——**运行时查的是 IDENTITY_LEXICON 而不是 ENTITIES**，所以「只在 IDENTITY_LEXICON 里有、ENTITIES 里没条目」的 id（qtp 青藏科考、polar 极地研究中心、nsmc、jma、geofon、osgeo、tianditu、planet、unhabitat、nsidc、amap、metoffice、ecmwf、isro）现在拿来当 owner 技术上不报错，但会破坏本文件刚立下的单一规则；ext-qtp-expedition 与 ext-polar-voyage 因此写的是母管机构 cas 与 mnr（第二次青藏科考首席科学家单位是中国科学院青藏高原研究所，中国极地研究中心是自然资源部直属），不是这两个只对得上中文名的悬空 id。注意 scripts/seed.ts:44 的 INSERT 是 ON CONFLICT (id) DO NOTHING，只增不改——改完已登记记录的这一列之后，必须按本文件把那几行重放进库（UPDATE sources SET owner_entity_id = …，本轮需要的整段语句已随工单交给主控），否则运行时读到的还是旧值。 关于 M7（灾害一手信源点开即空，AUDIT-FACTS M7，本轮逐条 curl 复现并把 json-ceic-earthquake 的 urlTemplate 改掉）： 1）原来那个链接不只是 SPA 壳，它是**假深链**。www.ceic.ac.cn 的地震目录是 Vite/React 单页应用：GET /?id=CC.20260926050908.8 回 HTTP 200 + 400 字节（title 地震目录，body 只有 div#root 一个空容器），加不加 ?id= 响应完全一样；把页面自己引的 bundle assets/index-Ch-7ZlqD.js（200,914 B）读完，里面没有 URLSearchParams、没有 location.search、没有路由表，它只做一件事——fetch 同目录下的 ./data/data.json 然后客户端按 30 条/页分页，所以 ?id= 连 SPA 自己都不读，读者永远停在目录第 1 页。ceic.ac.cn 下 /speedsearch /earthquake /detail /catalog /data /news /about /index.shtml 和 legacy /ajax/speedsearch 全部回同一张 8,088 B 的服务端「页面未找到 - CEIC」页，而且回的是 **HTTP 200 不是 404**（只看状态码会误判可用）。唯一有内容的一手端点还是 /data/data.json（HTTP 200，211,671 B），但它是整张目录不是某一条；记录字段只有 id/time/latitude/longitude/depth/magnitude/location，**没有任何 link 或详情字段**，所以「用记录自带的链接」这条路不存在。 2）id 内嵌的时刻不是发震时刻，是目录记录的生成/发布时刻。885 条全量实测：CD. 前缀的 id 时刻减 time 为 0～1,167 秒（中位 216 秒），CC. 前缀为 191～2,705 秒（中位 1,242 秒）。审计说的「05:09:08 与发震 05:01:27 不符」由此解释，不是数据错；花莲 CD.20260929022046.517 恰好差 0 秒所以看着「完全吻合」。规则：id 里的时间戳一律不得当发震时刻引用，本站引用发震时刻只认 time 字段。 3）中国地震台网中心有一张**服务端渲染**的逐事件公告，但不给机器可推的深链。www.cenc.ac.cn 首页（HTTP 200，331,910 B，不开 JS 也在）挂着 909 条「X月X日X时X分＋地点＋X级地震」链接，指向 /cenc/<YYYY-MM>/<DD>/article_<id>.html 静态页；实测高县那条 18,932 B、花莲那条 18,678 B，正文分别是「据中国地震台网测定，北京时间9月26日5时01分四川宜宾市高县（北纬28.52度，东经104.67度）发生4.5级地震，震源深度5.0千米」与花莲 4.7 级／23.0 千米／北纬23.85度东经121.78度——震级、深度、经纬度、发震时刻（到分）四样都在 HTML 里，与 data.json 逐字相等（顺带印证 B1：05时23分那条在列表里是「洛亚蒂群岛 6.6 级」的独立公告，不是高县的第二次测定）。但 article_<id> 里的数字是 CMS 批量发布时刻（高县 9-26 05:01 的地震，公告文件是 9-27 22:02:55 生成的，同批还有 05:23 洛亚蒂 6.6 与 05:08 高县 3.4），data.json 里没有这个时刻，也无法检索：cenc.ac.cn 无 RSS（/rss.xml、/feed 404）、无服务端搜索（/search、/plus/search.php 404）、无按日归档索引（/cenc/2026-09/26/index.html 404）。另一条看着像深链的 /earthquake-manage-publish-web/product-list/<发震时刻>/summarize 用的确实是 time（20260926050127、20260929022046 都对得上），但它回 1,352 B 的「You need to enable JavaScript to run this app」壳；而且 json_list 的 renderTemplate 只会把字段原值填进模板，不能把 time 字段的 2026-09-26 05:01:27 格式化成 YYYYMMDDHHMMSS 路径段，config-keys.ts 也没给 json_list 任何日期格式化键——所以只改本文件的权限内它同样不可用。 4）现在的选择：urlTemplate = https://www.cenc.ac.cn/?cenc={id}，这是**诚实的列表级落地页，不是深链**——它不假装能定位到某一条，但读者落在同一机构那页 JS-free、服务端渲染的速报列表上（cenc.ac.cn 与 ceic.ac.cn 的主办单位都是中国地震台网中心，taxonomy 的 PUBLISHER_DOMAINS 早把两个域都判给 cenc，所以身份守卫与 owner 归属一个字都不变），他要核对的那一行就在页面上（审计那条高县 M4.5 实测在，列表覆盖 2026-01-28～10-01、909 条公告，其中 M≥4.0 有 326 条，而本源的 M≥4.0 过滤出 320 条——两侧集合基本重合），点进去就是带深度与经纬度的公告正文；原来的 ?id= 链接读者什么都看不到。保留 {id} 是**必需**而不是装饰：json_list 不填 identityKey，身份走 lib/url.ts identityKeyForUrl() → normalizeUrl()，而 normalizeUrl 会**丢掉 fragment**（实测 https://www.cenc.ac.cn/#CC.20260926050908.8 归一化成 url:https://cenc.ac.cn/，全源 320 条会塌成 1 条），只保留非跟踪类 query 参数（?cenc=CC.20260930184025.5 → url:https://cenc.ac.cn/?cenc=CC.20260930184025.5，逐条唯一，2026-10-01 实跑 320 条 URL 零重复）；cenc 不在 TRACKING_PARAMS 名单里，不会被归一化吃掉。**限制照实写**：这条信源仍然不支持逐条深链；公告正文的发震时刻只到分，读者核对得了震级/深度/经纬度/到分的发震时刻，核对不了秒——秒级数字唯一的一手出处是 https://www.ceic.ac.cn/data/data.json 本身（机器可读、人不易读）。所以灾害数值仍以抓取到的记录正文为准引用，链接只负责把读者送到那页能自证的列表；要真正的逐条深链，需要给 json_list 加日期格式化模板键或写一个 cenc 专用 fetcher，那是 packages/backend/src/sources/ 的活，不在本文件权限内。 关于热度去重：events/group.ts:77 participantKey() 只认 signal_group_id，不认 owner_entity_id。同一出版方的多个出口（Eos 与 AGU Newsroom 同属 AGU；四个 Nature 刊同属 Springer Nature）默认各算一票，要合并计票必须在后台给它们填 signal_group_id——该列不在 seed.ts 的插入字段里，sources.json 表达不了。 关于日期：json_list（USGS/CENC/NMC）的 publishedAt 按服务器时区 Date.parse，后端必须跑在 Asia/Shanghai 否则偏 8 小时（D10）；web_list 有 publishedAtUtcOffset 保护。web-thepaper-topnews 与 web-dlyj-toc 的目录页不给日期（publishedAt=null），靠 detail.publishedAtUtcOffset 与 discoveredAt 兜。 复核实测 2026-09-30：用项目自己的三个 fetcher（fetchRss/fetchJsonList/fetchWebList，即后台「试抓一次」走的同一段代码）逐条跑完 44 条记录，36 个轮询源全部出条目（初轮 GDACS/NOAA/Mongabay/New Scientist/MIT Tech Review/Geographical 六个网络抖动，重试后 252/10/32/10/10/10 条）。 2026-10-01 因 M7 改了 json-ceic-earthquake 的 urlTemplate，用同一段代码（.brief/verify-sources.mts，只读、不写库、不建 articles 行）把 44 条重跑一遍：**36 个轮询源全部出条目，0 条零条目源，8 条 external 按 collect.ts:88 不可轮询**；json-ceic-earthquake 320 / json-usgs-quake-m45 127 / json-nmc-weather-alarm 40 / rss-gdacs-alerts 211 / web-mwr-data 156 / rss-sciencedaily-earth-climate 60 / rss-phys-org-earth 30 / web-mem-press 20 / web-stats-latest 15 / web-thepaper-topnews 15 / rss-eos-org 15 / rss-esa-earth-observation 15 / rss-guardian-environment 25 / rss-mongabay 32 / web-dlyj-toc 18 / rss-carbon-brief 12 / web-mwr-news 25 / web-spacemapper-news 6 / rss-grist 20 / rss-inside-climate-news 10 / rss-gsc-europa 10 / rss-noaa-news 10 / rss-nasa-news-releases 10 / rss-new-scientist 10 / rss-mit-tech-review-climate 10 / rss-geographical 10 / rss-agu-newsroom 10 / rss-copernicus-c3s 10 / rss-qgis-blog 10 / rss-osm-blog 10 / rss-science-news 10 / atom-gdal-releases 10 / 四个 Nature 刊各 8——每条的 item URL 都逐条唯一，无塌缩。裸 curl 的 200 只当辅助证据：rss-science-news 的 /rss/news_current.xml 走的是不挨 Cloudflare 挑战的路径（母站 HTML 根路径会 403）；noaa.gov 与 science.nasa.gov 对 bot UA 的拦截发生在正文层不在 feed 层。全部源保持 site_fulltext=false / syndicate_fulltext=false：Carbon Brief、Grist、Guardian、Mongabay、SpaceMapper 的订阅里带全文也不放开（AGENTS.md 铁律）。",
+  "sources": [
+    {
+      "id": "json-usgs-quake-m45",
+      "name": "USGS 全球地震目录 M4.5+（近一周）",
+      "kind": "json_list",
+      "config": {
+        "url": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_week.geojson",
+        "itemsPath": "features",
+        "titlePaths": ["properties.title"],
+        "summaryPaths": ["properties.place"],
+        "urlTemplate": "https://earthquake.usgs.gov/earthquakes/eventpage/{id}",
+        "externalIdPath": "id",
+        "publishedAtPath": "properties.time",
+        "publishedAtUnit": "epoch_ms",
+        "sortByPublishedAt": true,
+        "_aihot": { "initialBackfillLimit": 20 }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": "usgs",
+      "participation_mode": "editorial",
+      "interval_minutes": 30,
+      "tags": ["官方", "英文", "灾害事件", "自然地理", "观测数据"],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "json-ceic-earthquake",
+      "name": "中国地震台网中心 CENC 地震速报目录",
+      "kind": "json_list",
+      "config": {
+        "url": "https://www.ceic.ac.cn/data/data.json",
+        "titlePaths": ["location"],
+        "publishedAtPath": "time",
+        "externalIdPath": "id",
+        "urlTemplate": "https://www.cenc.ac.cn/?cenc={id}",
+        "minNumeric": { "path": "magnitude", "min": 4.0 },
+        "_aihot": { "initialBackfillLimit": 10 }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": "cenc",
+      "participation_mode": "editorial",
+      "interval_minutes": 30,
+      "tags": ["官方", "中文", "灾害事件", "自然地理", "区域地理"],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "json-nmc-weather-alarm",
+      "name": "中央气象台 气象灾害预警",
+      "kind": "json_list",
+      "config": {
+        "url": "https://www.nmc.cn/rest/findAlarm?pageNo=1&pageSize=40&signaltype=&signallevel=&province=",
+        "headers": { "referer": "https://www.nmc.cn/" },
+        "itemsPath": "data.page.list",
+        "titlePaths": ["title"],
+        "publishedAtPath": "issuetime",
+        "externalIdPath": "alertid",
+        "urlTemplate": "https://www.nmc.cn{raw:url}",
+        "_aihot": { "initialBackfillLimit": 20 }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": "cma",
+      "participation_mode": "editorial",
+      "interval_minutes": 30,
+      "tags": ["官方", "中文", "灾害事件", "预警", "自然地理"],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-gdacs-alerts",
+      "name": "GDACS 多灾种预警",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.gdacs.org/xml/rss.xml",
+        "_aihot": { "initialBackfillLimit": 12 }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": "gdacs",
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": ["官方", "英文", "灾害事件", "预警", "区域地理"],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-noaa-news",
+      "name": "NOAA 美国国家海洋和大气管理局",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.noaa.gov/rss.xml",
+        "_aihot": { "initialBackfillLimit": 8 }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": "noaa",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": ["官方", "英文", "气象", "海洋", "自然地理"],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-esa-earth-observation",
+      "name": "ESA 对地观测",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.esa.int/rssfeed/Our_Activities/Observing_the_Earth",
+        "_aihot": { "initialBackfillLimit": 8 }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": "esa",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": ["官方", "英文", "地理信息技术", "卫星影像"],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-copernicus-c3s",
+      "name": "哥白尼气候变化服务 C3S",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://climate.copernicus.eu/rss.xml",
+        "_aihot": { "initialBackfillLimit": 8 }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": "copernicus",
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": ["官方", "英文", "气候", "观测数据", "区域地理"],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-gsc-europa",
+      "name": "欧洲 GNSS 服务中心 GSC（Galileo 官方新闻与性能报告）",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.gsc-europa.eu/rss.xml",
+        "allowUrlPrefixes": ["https://www.gsc-europa.eu/"],
+        "ingestNoiseFilter": { "dropMarkersTitleOnly": ["NOTICE ADVISORY TO GALILEO USERS", "NAGU"] },
+        "_aihot": { "initialBackfillLimit": 8 }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": ["官方", "英文", "卫星导航", "观测/数据发布", "技术与软件", "机构/动态"],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-nasa-news-releases",
+      "name": "NASA 新闻发布（地球观测向）",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.nasa.gov/news-release/feed/",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "mars",
+            "james webb",
+            "webb telescope",
+            "hubble",
+            "exoplanet",
+            "galaxy",
+            "asteroid",
+            "comet",
+            "moon",
+            "artemis",
+            "starliner",
+            "night sky"
+          ]
+        },
+        "_aihot": { "initialBackfillLimit": 8 }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": "nasa",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": ["官方", "英文", "卫星影像", "地理信息技术"],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "web-stats-latest",
+      "name": "国家统计局 最新发布",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.stats.gov.cn/sj/zxfb/",
+        "parseMode": "html",
+        "itemSelector": ".wrapper-content li:has(a[title])",
+        "publishedAtSelector": "span",
+        "allowUrlPrefixes": ["https://www.stats.gov.cn/sj/zxfb/"],
+        "_aihot": { "initialBackfillLimit": 10 }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": "stats",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": ["官方", "中文", "人口", "城镇化", "人文地理", "区域地理", "观测数据"],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "web-mwr-data",
+      "name": "水利部 数据（水资源公报 / 三峡工程公报 / 水旱灾害）",
+      "kind": "web_list",
+      "config": {
+        "url": "http://www.mwr.gov.cn/sj/",
+        "parseMode": "html",
+        "itemSelector": "li:has(> a[href$='.html'])",
+        "publishedAtSelector": "span.date",
+        "allowUrlPrefixes": ["http://www.mwr.gov.cn/sj/"],
+        "_aihot": { "initialBackfillLimit": 8 }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": "mwr",
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": ["官方", "中文", "水文", "灾害事件", "自然地理", "区域地理", "观测数据"],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "web-mwr-news",
+      "name": "水利部 水利要闻（水旱灾害防御与汛情动态）",
+      "kind": "web_list",
+      "config": {
+        "url": "http://www.mwr.gov.cn/xw/slyw/",
+        "parseMode": "html",
+        "itemSelector": "li:has(> a[href$='.html'])",
+        "publishedAtSelector": "span",
+        "allowUrlPrefixes": ["http://www.mwr.gov.cn/xw/slyw/"],
+        "_aihot": { "initialBackfillLimit": 10 }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": "mwr",
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": ["官方", "中文", "灾害事件", "洪水与干旱", "预警/响应", "水资源", "水利部"],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "web-mem-press",
+      "name": "应急管理部 新闻发布会",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.mem.gov.cn/xw/xwfbh/",
+        "parseMode": "html",
+        "itemSelector": ".cont li",
+        "publishedAtSelector": "span",
+        "allowUrlPrefixes": ["https://www.mem.gov.cn/xw/xwfbh/"],
+        "_aihot": { "initialBackfillLimit": 8 }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": "mem",
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": ["官方", "中文", "灾害事件", "区划规划与政策"],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-science-news",
+      "name": "Science · 最新消息",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.science.org/rss/news_current.xml",
+        "_aihot": { "initialBackfillLimit": 8 }
+      },
+      "tier": "T1_5",
+      "first_party": false,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": ["英文", "研究", "科学媒体", "观点与解读"],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-eos-org",
+      "name": "Eos（AGU 会刊·科普与观点）",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://eos.org/feed",
+        "_aihot": { "initialBackfillLimit": 8 }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": ["英文", "研究", "科学媒体", "观点与解读", "自然地理"],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-agu-newsroom",
+      "name": "AGU Newsroom 美国地球物理联合会",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://news.agu.org/feed/",
+        "_aihot": { "initialBackfillLimit": 8 }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 180,
+      "tags": ["英文", "机构", "观测与数据发布", "自然地理"],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-nature-geoscience",
+      "name": "Nature Geoscience · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.nature.com/ngeo.rss",
+        "allowUrlPrefixes": ["https://www.nature.com/articles/"],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": ["Author Correction", "Corrigendum", "Publisher Correction", "Editorial Note"]
+        },
+        "_aihot": { "initialBackfillLimit": 8 }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": ["英文", "期刊", "自然地理", "研究"],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-nature-comm-earth-environment",
+      "name": "Communications Earth & Environment",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.nature.com/commsenv.rss",
+        "allowUrlPrefixes": ["https://www.nature.com/articles/"],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": ["Author Correction", "Corrigendum", "Publisher Correction", "Editorial Note"]
+        },
+        "_aihot": { "initialBackfillLimit": 8 }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": ["英文", "期刊", "开放获取", "自然地理", "环境"],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-nature-climate-change",
+      "name": "Nature Climate Change · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.nature.com/nclimate.rss",
+        "allowUrlPrefixes": ["https://www.nature.com/articles/"],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": ["Author Correction", "Corrigendum", "Publisher Correction", "Editorial Note"]
+        },
+        "_aihot": { "initialBackfillLimit": 6 }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": ["英文", "期刊", "气候", "区域地理", "研究"],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-nature-cities",
+      "name": "Nature Cities · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.nature.com/natcities.rss",
+        "allowUrlPrefixes": ["https://www.nature.com/articles/"],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": ["Author Correction", "Corrigendum", "Publisher Correction", "Editorial Note"]
+        },
+        "_aihot": { "initialBackfillLimit": 6 }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": ["英文", "期刊", "人文地理", "城市", "区域地理"],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-sciencedaily-earth-climate",
+      "name": "ScienceDaily · 地球与气候",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.sciencedaily.com/rss/earth_climate.xml",
+        "allowUrlPrefixes": ["https://www.sciencedaily.com/releases/"],
+        "_aihot": { "initialBackfillLimit": 10 }
+      },
+      "tier": "T1_5",
+      "first_party": false,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": ["英文", "科研快讯", "自然地理", "气候"],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-carbon-brief",
+      "name": "Carbon Brief（分析·问答·图解）",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.carbonbrief.org/feed/",
+        "_aihot": { "initialBackfillLimit": 8 }
+      },
+      "tier": "T1_5",
+      "first_party": false,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": ["英文", "气候", "数据分析", "观点与解读"],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-inside-climate-news",
+      "name": "Inside Climate News 深度调查",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://insideclimatenews.org/feed/",
+        "_aihot": { "initialBackfillLimit": 8 }
+      },
+      "tier": "T1_5",
+      "first_party": false,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": ["英文", "调查报道", "气候", "人文地理", "观点与解读"],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-mongabay",
+      "name": "Mongabay 热带与生态前线报道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://news.mongabay.com/feed/",
+        "denyUrlPrefixes": ["https://news.mongabay.com/video"],
+        "_aihot": { "initialBackfillLimit": 8 }
+      },
+      "tier": "T1_5",
+      "first_party": false,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": ["英文", "区域地理", "生态", "遥感", "前线报道"],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-phys-org-earth",
+      "name": "Phys.org · 地球科学",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://phys.org/rss-feed/earth-news/",
+        "allowCategories": ["Earth Sciences", "Environment"],
+        "_aihot": { "initialBackfillLimit": 10 }
+      },
+      "tier": "T2",
+      "first_party": false,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": ["英文", "媒体", "研究", "观测数据"],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-guardian-environment",
+      "name": "The Guardian · 环境",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.theguardian.com/environment/rss",
+        "_aihot": { "initialBackfillLimit": 10 }
+      },
+      "tier": "T2",
+      "first_party": false,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": ["英文", "媒体", "气候", "灾害事件", "区域地理"],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-grist",
+      "name": "Grist 气候与城市",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://grist.org/feed/",
+        "_aihot": { "initialBackfillLimit": 8 }
+      },
+      "tier": "T2",
+      "first_party": false,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": ["英文", "媒体", "气候迁移", "交通与城市", "人文地理", "观点与解读"],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-new-scientist",
+      "name": "New Scientist",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.newscientist.com/rss/",
+        "allowUrlPrefixes": ["https://www.newscientist.com/article/"],
+        "_aihot": { "initialBackfillLimit": 8 }
+      },
+      "tier": "T2",
+      "first_party": false,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": ["英文", "科普媒体", "气候", "地球科学", "观点与解读"],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-mit-tech-review-climate",
+      "name": "MIT Technology Review · 气候",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.technologyreview.com/topic/climate-change/feed",
+        "allowUrlPrefixes": ["https://www.technologyreview.com/"],
+        "_aihot": { "initialBackfillLimit": 6 }
+      },
+      "tier": "T2",
+      "first_party": false,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": ["英文", "媒体", "气候治理", "技术", "观点与解读"],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-geographical",
+      "name": "Geographical（英国皇家地理学会会刊）",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://geographical.co.uk/feed",
+        "denyUrlPrefixes": ["https://geographical.co.uk/quizzes"],
+        "_aihot": { "initialBackfillLimit": 8 }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": ["英文", "地理杂志", "人文地理", "区域地理", "考察"],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "web-thepaper-topnews",
+      "name": "澎湃新闻·滚动新闻",
+      "kind": "web_list",
+      "config": {
+        "url": "https://m.thepaper.cn/",
+        "parseMode": "html",
+        "itemSelector": "a[href^='/newsDetail_forward_']",
+        "allowUrlPrefixes": ["https://m.thepaper.cn/newsDetail_forward_"],
+        "detail": {
+          "maxFetches": 10,
+          "publishedAtRegex": "\"pubTime\":\"(\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2})\"",
+          "publishedAtUtcOffset": "+08:00"
+        },
+        "_aihot": { "initialBackfillLimit": 6 }
+      },
+      "tier": "T2",
+      "first_party": false,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": ["中文", "综合媒体", "灾害事件", "区划规划与政策", "国内信源"],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "web-dlyj-toc",
+      "name": "地理研究 当期目录",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.dlyj.ac.cn/CN/1000-0585/home.shtml",
+        "parseMode": "html",
+        "itemSelector": "a[href*='/CN/10.']",
+        "allowUrlPrefixes": ["https://www.dlyj.ac.cn/CN/10."],
+        "_aihot": { "initialBackfillLimit": 15 }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": ["中文", "期刊", "人文地理", "自然地理", "区域地理", "野外与考察"],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "atom-gdal-releases",
+      "name": "GDAL 版本发布（OSGeo GitHub Releases）",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://github.com/OSGeo/gdal/releases.atom",
+        "allowUrlPrefixes": ["https://github.com/OSGeo/gdal/releases/"],
+        "_aihot": { "initialBackfillLimit": 6 }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 360,
+      "tags": ["英文", "技术与软件", "GIS与空间数据", "开源"],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-qgis-blog",
+      "name": "QGIS 官方博客",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://blog.qgis.org/feed/",
+        "allowUrlPrefixes": ["https://blog.qgis.org/"],
+        "_aihot": { "initialBackfillLimit": 6 }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": ["英文", "技术与软件", "GIS与空间数据", "科普/教程"],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-osm-blog",
+      "name": "OpenStreetMap 基金会博客",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://blog.openstreetmap.org/feed/",
+        "allowUrlPrefixes": ["https://blog.openstreetmap.org/"],
+        "_aihot": { "initialBackfillLimit": 6 }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": "osm",
+      "participation_mode": "editorial",
+      "interval_minutes": 360,
+      "tags": ["英文", "技术与软件", "GIS与空间数据", "机构/动态", "OpenStreetMap"],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "web-spacemapper-news",
+      "name": "SpaceMapper 资讯（中文航天与对地观测转载层）",
+      "kind": "web_list",
+      "config": {
+        "url": "https://spacemapper.cn/zh-cn/info/news/",
+        "parseMode": "html",
+        "itemSelector": "a.news-item",
+        "allowUrlPrefixes": ["https://spacemapper.cn/zh-cn/info/news/"],
+        "_aihot": { "initialBackfillLimit": 6 }
+      },
+      "tier": "T2",
+      "first_party": false,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": ["中文", "转载层", "遥感影像", "卫星导航", "技术与软件"],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "ext-12379-alerts",
+      "name": "国家预警信息发布中心 12379（人工投递 · 切 editorial 前不公开）",
+      "kind": "external",
+      "config": {},
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": "cma",
+      "participation_mode": "isolated",
+      "interval_minutes": 1440,
+      "tags": ["官方", "中文", "预警", "外部投递", "暂不公开"],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "ext-mca-division-changes",
+      "name": "民政部 县级以上行政区划变更公告（人工投递 · 切 editorial 前不公开）",
+      "kind": "external",
+      "config": {},
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": "mca",
+      "participation_mode": "isolated",
+      "interval_minutes": 1440,
+      "tags": ["官方", "中文", "行政区划", "区划规划与政策", "外部投递", "暂不公开"],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "ext-mnr-news",
+      "name": "自然资源部 新闻发布与地质灾害通报（人工投递 · 切 editorial 前不公开）",
+      "kind": "external",
+      "config": {},
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": "mnr",
+      "participation_mode": "isolated",
+      "interval_minutes": 1440,
+      "tags": ["官方", "中文", "地质灾害", "海洋", "外部投递", "暂不公开"],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "ext-acta-geographica-toc",
+      "name": "地理学报 当期目录（人工投递 · 切 editorial 前不公开）",
+      "kind": "external",
+      "config": {},
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "isolated",
+      "interval_minutes": 1440,
+      "tags": ["中文", "期刊", "自然地理", "人文地理", "外部投递", "暂不公开"],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "ext-geodata-releases",
+      "name": "国家地球系统科学数据中心 数据发布（人工投递 · 切 editorial 前不公开）",
+      "kind": "external",
+      "config": {},
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "isolated",
+      "interval_minutes": 1440,
+      "tags": ["中文", "观测数据", "地理信息技术", "外部投递", "暂不公开"],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "ext-cng-dili360",
+      "name": "《中国国家地理》dili360 编辑部精选（人工投递 · 切 editorial 前不公开）",
+      "kind": "external",
+      "config": {},
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "isolated",
+      "interval_minutes": 1440,
+      "tags": ["中文", "地理杂志", "区域地理", "野外与考察", "外部投递", "暂不公开"],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "ext-qtp-expedition",
+      "name": "第二次青藏高原综合科学考察 队站与航次记录（人工投递 · 切 editorial 前不公开）",
+      "kind": "external",
+      "config": {},
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": "cas",
+      "participation_mode": "isolated",
+      "interval_minutes": 1440,
+      "tags": ["官方", "中文", "考察/记录", "高原", "冰川与冻土", "观测/数据发布", "外部投递", "暂不公开"],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "ext-polar-voyage",
+      "name": "中国极地考察 雪龙航次与站区观测记录（人工投递 · 切 editorial 前不公开）",
+      "kind": "external",
+      "config": {},
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": "mnr",
+      "participation_mode": "isolated",
+      "interval_minutes": 1440,
+      "tags": ["官方", "中文", "考察/记录", "海洋", "冰川与冻土", "海平面", "外部投递", "暂不公开"],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    }
+  ]
+}

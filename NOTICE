@@ -1,0 +1,47 @@
+AIHOT
+Copyright (c) 2026 数字生命卡兹克. The code is licensed under the MIT License (LICENSE).
+
+The name "AIHOT" and the AIHOT logo are not licensed under the MIT License. Please use your own name
+and logo for your site.
+
+This repository also contains third-party material under its own terms:
+
+- assets/og-fonts/: Noto Sans SC, SIL Open Font License 1.1 (assets/og-fonts/LICENSE).
+- assets/model-providers/: model and provider marks, mostly from Lobe Icons (MIT). The marks remain
+  trademarks of their respective owners and are used only to identify them (assets/model-providers/NOTICE.md).
+- assets/leaderboard-sources/: the published marks of each evaluation operator, used only to identify
+  them (assets/leaderboard-sources/NOTICE.md).
+
+The demo sources in industry/sources.json are public feeds of their publishers. Their content belongs
+to them; by default the site shows only a summary and a link to the original.
+
+Derivative notice - GEOHOT (地理热点)
+
+Everything above is the upstream notice and is kept unchanged. This working copy is a modified
+derivative of that AIHOT framework: the framework's copyright and this notice remain those of
+数字生命卡兹克 under the MIT License (LICENSE). Nothing here re-licenses upstream code or claims it
+as original work of this fork.
+
+- What this derivative changed is the industry layer (`industry/`: site strings, taxonomy, topics,
+  prompts, selection thresholds, sources, brand, policy pages) plus a small number of
+  reader-facing strings in `apps/`. The framework in `apps/` and `packages/` is upstream as modified;
+  the selection, grouping, publication and receipt machinery was not rewritten.
+- As the paragraph above requires, this site does not use the name "AIHOT" or the AIHOT logo. The
+  site name, logo, icons, report nameplates and all reader-facing strings are this fork's own work
+  (`industry/site.ts`, `industry/brand/`). The npm workspace names `@aihot/*`, the directory name
+  `industry/`, the `aihot-*` browser-storage keys and the `links.aihot` field name are retained as
+  internal code identifiers only - they are never shown to readers, and renaming them would touch
+  more than 100 imports for no gain. They are not an attempt to trade on the upstream name.
+- The third-party items listed above are still present and still under their own terms, including the
+  model/provider marks in `assets/model-providers/` and the evaluation-operator marks in
+  `assets/leaderboard-sources/`. Those marks are referenced only by the model leaderboard and the
+  Codex reset monitor, which this derivative disables (`industry/features.ts`); they are kept so the
+  upstream modules still work if someone re-enables them, and this notice does not license them to
+  you - their own NOTICE files do.
+- The feeds in `industry/sources.json` are 44 geography sources of their publishers (public RSS,
+  public web listings, public JSON endpoints, and empty manual-ingest channels), not the upstream AI
+  demo feeds. Their content belongs to those publishers; this site shows a summary and a link to the
+  original, and `site_fulltext`/`syndicate_fulltext` are off for every source.
+- `docs/` still holds the upstream reference documentation, including the banner and screenshot files
+  under `docs/assets/`. Those describe the upstream AIHOT demo site and are not claims about this
+  deployment; `README.md` states what this tree actually runs.

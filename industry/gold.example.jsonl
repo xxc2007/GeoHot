@@ -1,0 +1,42 @@
+// industry/gold.example.jsonl — 精选评测样本的格式示例（docs/selection.md）。
+// 下面 12 条是 GEOHOT 的示范模板行：标题与正文都是按真实信源形状编造的示意材料，不是已核实的新闻，
+// 不要当作事实引用，也不要直接拿去做线上内容。用法：复制成 .data/gold.jsonl，由读这个站的人逐条改标
+// 自己真实信源里的资料（100–200 条），再跑 scripts/eval-selection.ts（该脚本会跳过以 // 开头的行）。
+// 覆盖 7 个内容类型与两种结论；每条后面的“预期”是按 industry/selection.ts 的算法给出的分带，供对答案时参考。
+// 拒例包含简报决定 5 点名的六类噪声：旅游软文 / 研学招生 / 教研课件推销 / 景区宣传稿 / 未经核实的地理传闻 / GIS 厂商版本通告。
+
+// 强震：sig=10 是锚点，台网正式测定 + 卫星影像 + 多方核实 → 3·10+1·6+3·9+3·8=87（最省 70）。预期 select。
+{"caseId":"geo-earthquake-001","material":{"title":"中国地震台网正式测定：西藏林芝市墨脱县发生6.5级地震，震源深度10千米","originalTitle":null,"publishedAt":"2026-09-12T14:30:00+08:00","sourceName":"中国地震台网中心","bodyZh":"据中国地震台网正式测定，2026年9月12日14时07分在西藏林芝市墨脱县（北纬28.9度，东经95.3度）发生6.5级地震，震源深度10千米。震中5千米范围内平均海拔约3200米，20千米范围内无大中城市。自治区地震局已派出现场工作队；卫星遥感影像显示震中周边出现两处滑坡，雅鲁藏布江一级支流局部受阻，经核实未形成堰塞湖。截至18时记录余震47次，最大余震4.1级。","bodyOriginal":null},"sourceFacts":{"sourceKind":"json_list","sourceTier":"T1","firstParty":true,"language":"zh"},"samplingContext":{"benchmarkSplit":"development","samplingStratum":"灾害事件"},"gold":{"decision":"select"}}
+
+// 国家级观测成果发布：sig=10、nov=10（重新测定的高程）→ 2·10+2·10+3·9+3·7=88。预期 select。
+{"caseId":"geo-elevation-002","material":{"title":"2026珠峰高程测量成果发布：岩面高程8848.86米，雪深3.46米","originalTitle":null,"publishedAt":"2026-09-05T10:00:00+08:00","sourceName":"自然资源部","bodyZh":"自然资源部5日公布2026年珠穆朗玛峰高程测量成果：在气象站实测峰顶气压、温度的基础上，综合运用GNSS卫星定位、雪深雷达探测与重力测量，确定峰顶岩面海拔高程8848.86米，雪深3.46米，与尼泊尔方面联合发布。高程基准采用1985国家高程基准，双方大地水准面模型统一后精度优于5厘米。成果数据集与区域似大地水准面模型可在国家地理信息公共服务平台下载。","bodyOriginal":null},"sourceFacts":{"sourceKind":"web_list","sourceTier":"T1","firstParty":true,"language":"zh"},"samplingContext":{"benchmarkSplit":"holdout","samplingStratum":"观测与数据发布"},"gold":{"decision":"select"}}
+
+// 区划与规划：直接改变公众生活地图，sig=8、reson=8 → 3·8+2·5+2·7+2·8+1·4=68。预期 select。
+{"caseId":"geo-planning-003","material":{"title":"国务院批复《云南省国土空间规划（2026—2035年）》：明确滇中城市群开发边界与生态安全格局","originalTitle":null,"publishedAt":"2026-08-28T17:00:00+08:00","sourceName":"云南省人民政府门户网站","bodyZh":"国务院批复原则同意《云南省国土空间规划（2026—2035年）》。规划明确到2035年全省耕地保有量不低于990万公顷、永久基本农田保护面积不低于750万公顷；生态保护红线面积占全省国土面积比例稳定在28%左右；滇中城市群城镇开发边界控制在4000平方千米以内；构建以三江并流、哀牢山—无量山为主体的生态安全格局，并给出省级以上自然保护地优化调整清单。","bodyOriginal":null},"sourceFacts":{"sourceKind":"external","sourceTier":"T1","firstParty":true,"language":"zh"},"samplingContext":{"benchmarkSplit":"development","samplingStratum":"区划规划与政策"},"gold":{"decision":"select"}}
+
+// 考察与发现记：路线、剖面、样品与数据齐备 → 2·7+3·8+2·7+2·6+1·8=72（T1_5 也够）。预期 select。
+{"caseId":"geo-plateau-004","material":{"title":"第二次青藏科考：札达盆地312米连续钻孔剖面重建300万年来季风演化","originalTitle":null,"publishedAt":"2026-09-08T09:20:00+08:00","sourceName":"第二次青藏高原综合科学考察队","bodyZh":"第二次青藏高原综合科学考察队公布札达盆地科考进展：在海拔4200米处完成连续钻探剖面312米，取得上新世—早更新世湖相沉积序列。碳氧同位素与孢粉分析显示，300万年前该区仍为半干旱湖泊环境，亚洲季风显著增强的时间比此前公认结论晚约40万年。航次路线、样方位置、岩芯扫描与测年数据已上传科考数据共享平台，可下载复现。","bodyOriginal":null},"sourceFacts":{"sourceKind":"mp_account","sourceTier":"T1_5","firstParty":true,"language":"zh"},"samplingContext":{"benchmarkSplit":"development","samplingStratum":"考察与科考"},"gold":{"decision":"select"}}
+
+// 数据支撑的解读：reson=9、nov=8 → 1·7+3·8+1·7+3·9+2·7=72。预期 select（T1_5）。
+{"caseId":"geo-coldwave-005","material":{"title":"这一轮寒潮为什么走偏东路径：500百帕位势场与极涡分裂的实况对照","originalTitle":null,"publishedAt":"2026-09-15T20:10:00+08:00","sourceName":"中国气象学会科普专栏","bodyZh":"对比1月两次寒潮的500百帕高度场，本次极涡在西伯利亚分裂为两个中心，引导气流使冷空气沿105°E以东南下，48小时降温幅度最大值出现在江淮与江南北侧，而非偏西路径对应的西北与华北西部。文中给出逐日500百帕等压线、850百帕温度平流与地面气压距平三组图件，数据可自ERA5再分析复现。","bodyOriginal":null},"sourceFacts":{"sourceKind":"rss","sourceTier":"T1_5","firstParty":false,"language":"zh"},"samplingContext":{"benchmarkSplit":"holdout","samplingStratum":"观点与解读"},"gold":{"decision":"select"}}
+
+// 噪声①GIS厂商版本通告（sig≤3；act 按锚点至多 8）→ 2·3+2·5+1·6+2·4+3·8=54 < T1。预期 reject。
+{"caseId":"geo-qgis-006","material":{"title":"QGIS 3.42.1 released with layout template and CRS fixes","originalTitle":null,"publishedAt":"2026-09-10T11:00:00+08:00","sourceName":"QGIS News","bodyZh":null,"bodyOriginal":"The QGIS project announced version 3.42.1, a point release fixing label rendering in layout templates, adding two bundled layer templates, and updating the embedded PROJ database to pick up a new coordinate reference system. Users of 3.42 are encouraged to upgrade."},"sourceFacts":{"sourceKind":"rss","sourceTier":"T2","firstParty":true,"language":"en"},"samplingContext":{"benchmarkSplit":"development","samplingStratum":"厂商版本通告"},"gold":{"decision":"reject"}}
+
+// 噪声②例行期刊目录条目：单一小流域参数率定，硬上限 sig≤4、reson≤3 → 4·4+3·5+2·7+1·3=48 < T1，也低于 understandFloor 之外。预期 reject。
+{"caseId":"geo-toc-007","material":{"title":"《地理学报》第81卷第9期目录：改进SWMI模型在岷江上游单一小流域的土壤水分反演参数率定","originalTitle":null,"publishedAt":"2026-09-02T08:00:00+08:00","sourceName":"《地理学报》当期目录","bodyZh":"本期收录论文：以岷江上游12.6平方千米小流域为对象，改进SWMI流域模型的产汇流与土壤水分参数，率定期Nash-Sutcliffe效率系数由0.71提高至0.74，验证期0.68；全文含8幅图件与3张参数表。","bodyOriginal":null},"sourceFacts":{"sourceKind":"web_list","sourceTier":"T1","firstParty":true,"language":"zh"},"samplingContext":{"benchmarkSplit":"development","samplingStratum":"方法性论文目录条目"},"gold":{"decision":"reject"}}
+
+// 噪声③景区宣传稿（sig≤2、nov≤3、act≤3）→ 上限 1·2+3·3+1·10+3·10+2·3=57 < T1。预期 reject（预筛亦 BLOCK）。
+{"caseId":"geo-scenic-008","material":{"title":"秋日限定｜来太行山大峡谷看层林尽染，玻璃栈道与云端秋千等你打卡","originalTitle":null,"publishedAt":"2026-09-14T09:00:00+08:00","sourceName":"某省文旅推荐官","bodyZh":"秋风起，峡谷里枫树与黄栌正红。乘观光车可直达观景台，玻璃栈道、云端秋千与崖壁民宿一次玩遍，双人套票限时优惠中。欢迎来拍照，把整个秋天装进手机。","bodyOriginal":null},"sourceFacts":{"sourceKind":"mp_account","sourceTier":"T2","firstParty":false,"language":"zh"},"samplingContext":{"benchmarkSplit":"holdout","samplingStratum":"景区宣传稿"},"gold":{"decision":"reject"}}
+
+// 噪声④多主题盘点式旅游软文（软文 sig≤2 且盘点稿 sig≤3、无数据故 nov≤3）。预期 reject（预筛 BLOCK）。
+{"caseId":"geo-listicle-009","material":{"title":"一生必去的8座中国小城，第5个美到窒息（附交通攻略）","originalTitle":null,"publishedAt":"2026-09-11T18:30:00+08:00","sourceName":"旅行种草机","bodyZh":"从西北的戈壁小城到东南的安静渔港，我们盘点了8座容易被忽略的小城。第5座藏在雪山脚下，随手一拍就是壁纸；第3座的海鲜便宜到哭。建议收藏，趁着人少赶紧出发。","bodyOriginal":null},"sourceFacts":{"sourceKind":"rss","sourceTier":"T2","firstParty":false,"language":"zh"},"samplingContext":{"benchmarkSplit":"development","samplingStratum":"旅游软文"},"gold":{"decision":"reject"}}
+
+// 噪声⑤研学与营地招生（sig≤2；无空间事实与数据）。预期 reject（预筛 BLOCK）。
+{"caseId":"geo-studytour-010","material":{"title":"寒假研学招募｜走一趟黄河三角洲，看湿地与候鸟，早鸟立减800","originalTitle":null,"publishedAt":"2026-09-09T12:00:00+08:00","sourceName":"某研学教育","bodyZh":"4天3晚走进黄河三角洲国家级自然保护区，观鸟、采水样、做盐碱地拓印，名师带队，结营发放研学证书。费用5980元/人，1月10日前报名立减800元，仅限30席，家长群已开启咨询。","bodyOriginal":null},"sourceFacts":{"sourceKind":"mp_account","sourceTier":"T2","firstParty":false,"language":"zh"},"samplingContext":{"benchmarkSplit":"development","samplingStratum":"研学招生"},"gold":{"decision":"reject"}}
+
+// 噪声⑥教研培训与课件推销（sig≤2；教材常识无增量 nov≤3）。预期 reject（预筛 BLOCK）。
+{"caseId":"geo-courseware-011","material":{"title":"高中地理必修一《常见的天气系统》同步课件+20套试题包，限时五折","originalTitle":null,"publishedAt":"2026-09-06T15:40:00+08:00","sourceName":"教研资源站","bodyZh":"配套新人教版教材，含42页PPT、12段短视频讲解与20套单元测试，教师下载即用。本周五前团购五折，附赠说课模板与公开课评分表。","bodyOriginal":null},"sourceFacts":{"sourceKind":"rss","sourceTier":"T2","firstParty":false,"language":"zh"},"samplingContext":{"benchmarkSplit":"holdout","samplingStratum":"教研课件推销"},"gold":{"decision":"reject"}}
+
+// 噪声⑦未经核实的地理传闻：cred≤2，且预筛直接 BLOCK（即使带着地名与图件）。预期 reject。
+{"caseId":"geo-rumor-012","material":{"title":"黄河将要改道？网传济南以下河段将整体北移，多县面临搬迁","originalTitle":null,"publishedAt":"2026-09-13T22:05:00+08:00","sourceName":"某某财经观察","bodyZh":"近日有网帖称，因小浪底调水调沙与河床持续抬高，黄河主干将在济南以下整体北移改道，沿岸多个县区面临搬迁。帖文称“消息来自业内人士”，并配一张示意图，未给出水文断面数据、测算过程与时间尺度，记者截至发稿未获水利部门回应。","bodyOriginal":null},"sourceFacts":{"sourceKind":"rss","sourceTier":"T2","firstParty":false,"language":"zh"},"samplingContext":{"benchmarkSplit":"development","samplingStratum":"未经核实的地理传闻"},"gold":{"decision":"reject"}}

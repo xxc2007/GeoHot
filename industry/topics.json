@@ -1,0 +1,771 @@
+{
+  "exportedAt": "2026-09-30T01:40:00Z",
+  "groups": [
+    {
+      "key": "company",
+      "name": "区域与机构",
+      "blurb": "按地区与观测发布主体追踪：地球哪一片、由谁在测和在说"
+    },
+    {
+      "key": "field",
+      "name": "自然与人文领域",
+      "blurb": "按地理领域深挖：灾害与气候、水系与地貌、城市与产业、地理信息技术与野外考察……"
+    },
+    {
+      "key": "genre",
+      "name": "内容与题材",
+      "blurb": "按内容形态浏览：灾害速报、观测数据、区划政策、研究发现、考察记录与影像图集……"
+    }
+  ],
+  "topics": [
+    {
+      "slug": "qinghai-tibet-plateau",
+      "name": "青藏高原",
+      "group": "company",
+      "tags": [
+        "高原",
+        "冰川与冻土",
+        "生态与保护",
+        "考察/记录"
+      ],
+      "definition": "青藏高原及其边缘山系：亚洲水塔的冰川与冻土、隆升与强震、高原季风与生态屏障变化的统一观察单元。",
+      "related": [
+        "cryosphere",
+        "earthquakes",
+        "fieldwork",
+        "landforms"
+      ]
+    },
+    {
+      "slug": "arctic-ocean",
+      "name": "北极与北冰洋",
+      "group": "company",
+      "tags": [
+        "海洋",
+        "冰川与冻土",
+        "气候异常"
+      ],
+      "definition": "北极海冰、格陵兰冰盖与新增航道：全球增暖放大最明显、几乎完全依赖卫星与浮标观测的一片区域。",
+      "related": [
+        "cryosphere",
+        "ocean-coast",
+        "climate-anomaly"
+      ]
+    },
+    {
+      "slug": "ring-of-fire",
+      "name": "环太平洋火山地震带",
+      "group": "company",
+      "tags": [
+        "地震",
+        "火山",
+        "海啸与风暴潮"
+      ],
+      "definition": "环绕太平洋的板块俯冲边界：全球约九成大地震与多数活火山集中于此，也是海啸预警的主战场。",
+      "related": [
+        "earthquakes",
+        "volcanoes",
+        "ocean-coast",
+        "disaster-events"
+      ]
+    },
+    {
+      "slug": "arid-west-asia-north-africa",
+      "name": "中东与北非干旱区",
+      "group": "company",
+      "tags": [
+        "水资源",
+        "洪水与干旱",
+        "能源与资源",
+        "政治地理"
+      ],
+      "definition": "从撒哈拉到伊朗高原的干旱地带：缺水、油气区位与边界争端如何互相放大，并外溢为迁移与通道风险。",
+      "related": [
+        "river-basins",
+        "energy-resources",
+        "geopolitics",
+        "population-migration"
+      ]
+    },
+    {
+      "slug": "east-china-coastal-city-region",
+      "name": "东部沿海城市群",
+      "group": "company",
+      "tags": [
+        "城市化",
+        "城市地理",
+        "台风与寒潮",
+        "交通地理"
+      ],
+      "definition": "中国东部沿海的城市密集带：台风与风暴潮的第一线、经济与交通密度最高，也是沉降与海平面上升风险叠加的地区。",
+      "related": [
+        "urban-geography",
+        "tropical-cyclones",
+        "transport-geography"
+      ]
+    },
+    {
+      "slug": "cenc",
+      "name": "中国地震台网中心",
+      "group": "company",
+      "entityId": "cenc",
+      "tags": [
+        "中国地震台网",
+        "地震",
+        "预警/响应"
+      ],
+      "definition": "中国地震台网中心（CENC）：中国大陆地震的正式速报与台网测定震级的权威出口，国内官方灾害信息适配的主要锚点。",
+      "related": [
+        "earthquakes",
+        "usgs",
+        "disaster-events"
+      ]
+    },
+    {
+      "slug": "usgs",
+      "name": "USGS 美国地质调查局",
+      "group": "company",
+      "entityId": "usgs",
+      "tags": [
+        "USGS",
+        "地震",
+        "地质灾害",
+        "观测/数据发布"
+      ],
+      "definition": "美国地质调查局：全球地震速报目录、滑坡与地质灾害评估、地球资源与地形数据的头号一手来源，常被用来独立核验震级与位置。",
+      "related": [
+        "earthquakes",
+        "landforms",
+        "ring-of-fire"
+      ]
+    },
+    {
+      "slug": "cma",
+      "name": "中国气象局",
+      "group": "company",
+      "entityId": "cma",
+      "tags": [
+        "中国气象局",
+        "台风与寒潮",
+        "气候异常",
+        "预警/响应"
+      ],
+      "definition": "中国气象局及中央气象台：国内台风路径预报、暴雨与高温预警、气候业务通报的官方发布方。",
+      "related": [
+        "tropical-cyclones",
+        "climate-anomaly",
+        "disaster-events"
+      ]
+    },
+    {
+      "slug": "noaa",
+      "name": "NOAA 美国海洋大气管理局",
+      "group": "company",
+      "entityId": "noaa",
+      "tags": [
+        "NOAA",
+        "台风与寒潮",
+        "海平面",
+        "气候异常"
+      ],
+      "definition": "美国国家海洋和大气管理局：热带气旋路径与强度、海表温度与厄尔尼诺监测、气象卫星影像的公开发布方。",
+      "related": [
+        "tropical-cyclones",
+        "ocean-coast",
+        "observation-releases"
+      ]
+    },
+    {
+      "slug": "nasa",
+      "name": "NASA 地球观测",
+      "group": "company",
+      "entityId": "nasa",
+      "tags": [
+        "NASA",
+        "遥感影像",
+        "冰川与冻土",
+        "观测/数据发布"
+      ],
+      "definition": "NASA 的地球科学项目：卫星影像、气候变化与灾害遥感图件最集中的开放出处，公众看到的“地球照片”多来自这里。",
+      "related": [
+        "remote-sensing",
+        "climate-anomaly",
+        "cryosphere"
+      ]
+    },
+    {
+      "slug": "copernicus",
+      "name": "哥白尼地球观测计划",
+      "group": "company",
+      "entityId": "copernicus",
+      "tags": [
+        "哥白尼计划",
+        "遥感影像",
+        "灾害事件",
+        "技术与软件"
+      ],
+      "definition": "欧盟哥白尼计划：Sentinel 系列卫星影像与应急制图服务的开放出口，多数可免费商用的地球观测数据由它提供。",
+      "related": [
+        "remote-sensing",
+        "observation-releases",
+        "disaster-events"
+      ]
+    },
+    {
+      "slug": "wmo",
+      "name": "世界气象组织",
+      "group": "company",
+      "entityId": "wmo",
+      "tags": [
+        "世界气象组织",
+        "气候异常",
+        "观测/数据发布"
+      ],
+      "definition": "世界气象组织：温度、降水等天气气候纪录的国际确认方，也制定台风命名规则与全球数据交换制度。",
+      "related": [
+        "climate-anomaly",
+        "tropical-cyclones",
+        "observation-releases"
+      ]
+    },
+    {
+      "slug": "ipcc",
+      "name": "IPCC",
+      "group": "company",
+      "entityId": "ipcc",
+      "tags": [
+        "IPCC",
+        "气候异常",
+        "研究/发现"
+      ],
+      "definition": "政府间气候变化专门委员会：以评估报告汇总全球气候研究并给出结论可信度分级，是媒体报道气候结论时的权威依据。",
+      "related": [
+        "climate-anomaly",
+        "research-findings",
+        "cryosphere"
+      ]
+    },
+    {
+      "slug": "osm",
+      "name": "OpenStreetMap",
+      "group": "company",
+      "entityId": "osm",
+      "tags": [
+        "OpenStreetMap",
+        "地图与制图",
+        "GIS与空间数据"
+      ],
+      "definition": "OpenStreetMap：志愿者共建的开放地图数据库，许多专题图、导航底图与人道主义制图项目的数据底座。",
+      "related": [
+        "cartography",
+        "gis-spatial-analysis",
+        "fieldwork"
+      ]
+    },
+    {
+      "slug": "fao",
+      "name": "联合国粮农组织",
+      "group": "company",
+      "entityId": "fao",
+      "tags": [
+        "联合国粮农组织",
+        "土壤",
+        "生态与保护",
+        "观测/数据发布"
+      ],
+      "definition": "联合国粮农组织：全球土壤、土地利用、作物产量与粮食安全的统计与制图出口，世界土壤资源参考库的维护方。",
+      "related": [
+        "soil-land",
+        "ecosystems",
+        "economic-geography"
+      ]
+    },
+    {
+      "slug": "earthquakes",
+      "name": "地震",
+      "group": "field",
+      "tags": [
+        "地震",
+        "预警/响应",
+        "地质灾害"
+      ],
+      "definition": "岩石圈应力突然释放造成的地面震动，读一条震情要同时看震级、震源深度、震中位置与地震触发的次生灾害。",
+      "related": [
+        "volcanoes",
+        "landforms",
+        "ring-of-fire",
+        "disaster-events"
+      ]
+    },
+    {
+      "slug": "volcanoes",
+      "name": "火山",
+      "group": "field",
+      "tags": [
+        "火山",
+        "地貌",
+        "灾害事件"
+      ],
+      "definition": "岩浆活动造成的喷发、火山灰扩散与熔岩流，既是最具破坏力的地理灾害之一，也是观察地球内部最直接的窗口。",
+      "related": [
+        "earthquakes",
+        "landforms",
+        "ring-of-fire"
+      ]
+    },
+    {
+      "slug": "tropical-cyclones",
+      "name": "台风与气旋",
+      "group": "field",
+      "tags": [
+        "台风与寒潮",
+        "海洋",
+        "海啸与风暴潮"
+      ],
+      "definition": "生成于热带洋面的强气旋系统，按海域称台风、飓风或气旋，核心信息是路径、中心风力、移动速度与风暴潮风险。",
+      "related": [
+        "ocean-coast",
+        "climate-anomaly",
+        "disaster-events",
+        "east-china-coastal-city-region"
+      ]
+    },
+    {
+      "slug": "climate-anomaly",
+      "name": "气候异常",
+      "group": "field",
+      "tags": [
+        "气候异常",
+        "洪水与干旱",
+        "海平面"
+      ],
+      "definition": "偏离常年气候平均态的暖、冷、干、湿极端事件，如破纪录高温、持续干旱与异常暴雨——气候变化的日常表征。",
+      "related": [
+        "river-basins",
+        "tropical-cyclones",
+        "observation-releases",
+        "cryosphere"
+      ]
+    },
+    {
+      "slug": "river-basins",
+      "name": "河流与流域",
+      "group": "field",
+      "tags": [
+        "水资源",
+        "洪水与干旱",
+        "地貌"
+      ],
+      "definition": "以分水岭为界的淡水系统：流量与汛期、泥沙与河道变迁、跨行政区用水分配，决定流域内城市、农业与生态的格局。",
+      "related": [
+        "landforms",
+        "climate-anomaly",
+        "ecosystems",
+        "arid-west-asia-north-africa"
+      ]
+    },
+    {
+      "slug": "landforms",
+      "name": "地貌与地表过程",
+      "group": "field",
+      "tags": [
+        "地貌",
+        "高原",
+        "平原",
+        "地质灾害"
+      ],
+      "definition": "地表形态及其成因：构造抬升与流水、风力、冰川的侵蚀堆积如何塑造高原、平原与峡谷，并以滑坡等形式不断改写它。",
+      "related": [
+        "cryosphere",
+        "earthquakes",
+        "fieldwork",
+        "qinghai-tibet-plateau"
+      ]
+    },
+    {
+      "slug": "cryosphere",
+      "name": "冰川与冻土",
+      "group": "field",
+      "tags": [
+        "冰川与冻土",
+        "海平面",
+        "气候异常"
+      ],
+      "definition": "以冰和冻结土体形式储存的淡水圈，包括山岳冰川、冰盖、海冰与多年冻土，对增暖响应滞后但消退后难以逆转。",
+      "related": [
+        "climate-anomaly",
+        "ocean-coast",
+        "qinghai-tibet-plateau",
+        "arctic-ocean"
+      ]
+    },
+    {
+      "slug": "ocean-coast",
+      "name": "海洋与海岸",
+      "group": "field",
+      "tags": [
+        "海洋",
+        "海平面",
+        "气候异常"
+      ],
+      "definition": "海温、洋流、海平面与海岸线的变化，关系渔场与港口布局、岛国存续，也决定台风能从洋面取走多少能量。",
+      "related": [
+        "tropical-cyclones",
+        "river-basins",
+        "arctic-ocean"
+      ]
+    },
+    {
+      "slug": "ecosystems",
+      "name": "生态与植被",
+      "group": "field",
+      "tags": [
+        "生态与保护",
+        "植被",
+        "土壤"
+      ],
+      "definition": "植被类型、生物多样性与生态系统服务的空间分布，以及退化、恢复与保护地管理如何改变地表面貌。",
+      "related": [
+        "soil-land",
+        "climate-anomaly",
+        "fieldwork"
+      ]
+    },
+    {
+      "slug": "soil-land",
+      "name": "土壤与土地退化",
+      "group": "field",
+      "tags": [
+        "土壤",
+        "植被",
+        "生态与保护"
+      ],
+      "definition": "土壤类型、耕地质量与土地退化的分布：荒漠化、黑土变薄与污染地块，是粮食安全与生态问题的共同底盘。",
+      "related": [
+        "ecosystems",
+        "river-basins",
+        "economic-geography",
+        "remote-sensing"
+      ]
+    },
+    {
+      "slug": "urban-geography",
+      "name": "城市化与城市地理",
+      "group": "field",
+      "tags": [
+        "城市化",
+        "城市地理",
+        "交通地理"
+      ],
+      "definition": "人口向城市集聚的过程与城市内部空间结构：城市群、通勤圈、旧城更新与城市热岛如何叠加成一张空间账本。",
+      "related": [
+        "population-migration",
+        "transport-geography",
+        "administrative-divisions",
+        "east-china-coastal-city-region"
+      ]
+    },
+    {
+      "slug": "population-migration",
+      "name": "人口与迁移",
+      "group": "field",
+      "tags": [
+        "人口迁移",
+        "城市化",
+        "乡村地理"
+      ],
+      "definition": "人口总量、结构与空间分布的变化，以及为就业、环境或安全而发生的迁移、回流与乡村人口流失。",
+      "related": [
+        "urban-geography",
+        "economic-geography",
+        "geopolitics"
+      ]
+    },
+    {
+      "slug": "economic-geography",
+      "name": "产业与经济地理",
+      "group": "field",
+      "tags": [
+        "产业区位",
+        "经济地理",
+        "能源与资源"
+      ],
+      "definition": "产业为什么落在某处：资源、劳动力、运输成本与市场距离如何决定区域分工、产业转移与经济走廊的走向。",
+      "related": [
+        "transport-geography",
+        "energy-resources",
+        "urban-geography"
+      ]
+    },
+    {
+      "slug": "transport-geography",
+      "name": "交通与枢纽",
+      "group": "field",
+      "tags": [
+        "交通地理",
+        "经济地理",
+        "城市化"
+      ],
+      "definition": "铁路、公路、港口、机场与管道构成的网络如何压缩时空距离、决定枢纽城市的兴衰与贸易通道归属。",
+      "related": [
+        "economic-geography",
+        "urban-geography",
+        "geopolitics"
+      ]
+    },
+    {
+      "slug": "administrative-divisions",
+      "name": "行政区划与边界",
+      "group": "field",
+      "tags": [
+        "行政区划调整",
+        "政治地理",
+        "政策/规划"
+      ],
+      "definition": "国家与地方的区划设置和边界调整：撤县设区、设市、界线变更，会直接改写统计口径、规划权限与地图内容。",
+      "related": [
+        "geopolitics",
+        "urban-geography",
+        "policy-planning"
+      ]
+    },
+    {
+      "slug": "geopolitics",
+      "name": "政治地理与地缘格局",
+      "group": "field",
+      "tags": [
+        "政治地理",
+        "能源与资源",
+        "行政区划调整"
+      ],
+      "definition": "空间与权力的关系：边界、海峡、通道与资源分布如何成为国家间博弈的筹码，并投射到航运、能源与迁移之上。",
+      "related": [
+        "administrative-divisions",
+        "energy-resources",
+        "arid-west-asia-north-africa"
+      ]
+    },
+    {
+      "slug": "energy-resources",
+      "name": "能源与矿产",
+      "group": "field",
+      "tags": [
+        "能源与资源",
+        "产业区位",
+        "政治地理"
+      ],
+      "definition": "化石能源、水电、风光与矿产的空间分布和开发条件，决定区域财富、电网走向与出口通道的政治敏感度。",
+      "related": [
+        "economic-geography",
+        "geopolitics",
+        "climate-anomaly"
+      ]
+    },
+    {
+      "slug": "remote-sensing",
+      "name": "遥感与卫星影像",
+      "group": "field",
+      "tags": [
+        "遥感影像",
+        "卫星导航",
+        "地图与图集"
+      ],
+      "definition": "从卫星与航空平台在不接触目标的前提下获取地表信息，是大范围变化检测、灾害评估与制图最主要的数据来源。",
+      "related": [
+        "gis-spatial-analysis",
+        "satellite-navigation",
+        "nasa",
+        "copernicus"
+      ]
+    },
+    {
+      "slug": "satellite-navigation",
+      "name": "卫星导航与定位",
+      "group": "field",
+      "tags": [
+        "卫星导航",
+        "GIS与空间数据",
+        "考察/记录"
+      ],
+      "definition": "以北斗、GPS 等星座完成位置与时间测定，厘米级高精度定位已成为测绘、形变监测与野外考察的基础设施。",
+      "related": [
+        "fieldwork",
+        "gis-spatial-analysis",
+        "landforms"
+      ]
+    },
+    {
+      "slug": "gis-spatial-analysis",
+      "name": "GIS 与空间分析",
+      "group": "field",
+      "tags": [
+        "GIS与空间数据",
+        "技术与软件",
+        "遥感影像"
+      ],
+      "definition": "在计算机中存储、叠加并统计分析地理数据的方法，选址论证、流域划分与灾害风险区划都由它完成。",
+      "related": [
+        "remote-sensing",
+        "cartography",
+        "urban-geography"
+      ]
+    },
+    {
+      "slug": "cartography",
+      "name": "地图与制图",
+      "group": "field",
+      "tags": [
+        "地图与制图",
+        "地图与图集",
+        "GIS与空间数据"
+      ],
+      "definition": "按投影与符号规则把地表画成图：比例尺、坐标系与配色决定读者能否正确比较距离、面积与密度。",
+      "related": [
+        "gis-spatial-analysis",
+        "administrative-divisions",
+        "osm"
+      ]
+    },
+    {
+      "slug": "fieldwork",
+      "name": "野外考察",
+      "group": "field",
+      "tags": [
+        "考察/记录",
+        "地貌",
+        "生态与保护"
+      ],
+      "definition": "到实地观测、采样、剖面测量与定位记录，是检验遥感与模型结论、建立地理空间直觉的不可替代环节。",
+      "related": [
+        "landforms",
+        "ecosystems",
+        "satellite-navigation",
+        "exploration-reports"
+      ]
+    },
+    {
+      "slug": "disaster-events",
+      "name": "灾害事件速报",
+      "group": "genre",
+      "tags": [
+        "灾害事件",
+        "预警/响应"
+      ],
+      "definition": "以具体灾害事件为对象的即时信息：测定参数、预警与响应级别、灾情统计与处置进展的时间线记录。",
+      "related": [
+        "earthquakes",
+        "tropical-cyclones",
+        "observation-releases",
+        "volcanoes"
+      ]
+    },
+    {
+      "slug": "observation-releases",
+      "name": "观测与数据发布",
+      "group": "genre",
+      "tags": [
+        "观测/数据发布",
+        "遥感影像"
+      ],
+      "definition": "观测机构定期或即时放出的成果：台网目录、卫星影像、气候监测通报与数据集更新，是可靠度最高的一类信息。",
+      "related": [
+        "remote-sensing",
+        "research-findings",
+        "satellite-navigation"
+      ]
+    },
+    {
+      "slug": "policy-planning",
+      "name": "区划规划与政策",
+      "group": "genre",
+      "tags": [
+        "政策/规划",
+        "行政区划调整"
+      ],
+      "definition": "与空间有关的政府动作：区划变更、国土空间规划、保护区设立与设防标准调整，往往改动一个地区的长期变量。",
+      "related": [
+        "administrative-divisions",
+        "urban-geography",
+        "geopolitics"
+      ]
+    },
+    {
+      "slug": "research-findings",
+      "name": "研究与科学发现",
+      "group": "genre",
+      "tags": [
+        "研究/发现",
+        "科普/教程"
+      ],
+      "definition": "地理学研究成果：论文、考察报告与模型结论，判断时看数据来源、样本尺度与方法能否支撑得起结论。",
+      "related": [
+        "observation-releases",
+        "climate-anomaly",
+        "cryosphere"
+      ]
+    },
+    {
+      "slug": "tech-releases",
+      "name": "技术与软件",
+      "group": "genre",
+      "tags": [
+        "技术与软件",
+        "GIS与空间数据"
+      ],
+      "definition": "地理信息工具与平台的更新：软件版本、算法模型、卫星载荷与测绘设备的新品发布与能力变化。",
+      "related": [
+        "gis-spatial-analysis",
+        "remote-sensing",
+        "satellite-navigation"
+      ]
+    },
+    {
+      "slug": "exploration-reports",
+      "name": "考察与发现记",
+      "group": "genre",
+      "tags": [
+        "考察/记录",
+        "地貌",
+        "冰川与冻土"
+      ],
+      "definition": "第一视角的实地记录：科考航次、极地与登山、剖面与路线描述，把观测数据和现场体验写在一起。",
+      "related": [
+        "fieldwork",
+        "qinghai-tibet-plateau",
+        "arctic-ocean"
+      ]
+    },
+    {
+      "slug": "opinion-analysis",
+      "name": "观点与解读",
+      "group": "genre",
+      "tags": [
+        "评论/解读",
+        "科普/教程",
+        "政治地理"
+      ],
+      "definition": "围绕地理议题的分析与争论：专家评论、趋势判断与对政策的解读，提供的是视角而不是新的事实。",
+      "related": [
+        "geopolitics",
+        "urban-geography",
+        "climate-anomaly"
+      ]
+    },
+    {
+      "slug": "imagery-collections",
+      "name": "影像与图集",
+      "group": "genre",
+      "tags": [
+        "遥感影像",
+        "地图与图集",
+        "灾害事件"
+      ],
+      "definition": "以图为主的选题：卫星对比影像、灾前灾后图件与空间数据可视化，一张合适的图往往胜过一段说明。",
+      "related": [
+        "remote-sensing",
+        "cartography",
+        "disaster-events"
+      ]
+    }
+  ]
+}

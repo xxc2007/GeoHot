@@ -1,0 +1,8 @@
+// tooling/fixtures/group_signal.jsonl — 帖子（X / 公众号 / 列表项）与候选事实的关系。
+// 契约：{"decisions":[{"candidateIncludes"|"id","relation","confidence"}]}（这个能力没有 note 字段）
+// 帖子往往不写全事件名，所以这里的 match 主要用 candidateIncludes（这条事实进了候选才适用），
+// 需要更窄时再叠 queryIncludes。SAME_STORY 要 confidence ≥ 0.8 才会被当作“对这次事件的反应”接进去
+// （relate.ts signalTarget）。
+{"id":"signal-typhoon-reaction","capability":"group_signal","what":"帖子在评论这次台风登陆（同一事件的反应，不是同一次发生）。","match":{"candidateIncludes":"台风“桦加沙”在广东阳江登陆","queryIncludes":["阳江"]},"reply":{"decisions":[{"candidateIncludes":"台风“桦加沙”在广东阳江登陆","relation":"SAME_STORY","confidence":0.86}]},"author":"tooling 示例（未核验）"}
+{"id":"signal-eu-drought-water-cutoff","capability":"group_signal","author":"地理编辑（气候与观测数据 beat）","what":"网友帖（关于限水与内河驳船停航）必须接到已有事件；默认策略 BRAIN_GROUP_DEFAULT=unrelated 时找不到任何事件，只有这条人工判断才接得上","match":{"queryIncludes":["限水","驳船"],"candidateIncludes":"欧洲2026年夏季土壤湿度"},"reply":{"decisions":[{"candidateIncludes":"欧洲2026年夏季土壤湿度与河流量持续偏低","relation":"SAME_STORY","confidence":0.87},{"candidateIncludes":"2026年8月全球地表气温并列有记录最高","relation":"UNRELATED","confidence":0.2},{"candidateIncludes":"NOAA河流洪水淹没制图覆盖近100%美国人口","relation":"UNRELATED","confidence":0.1}]}}
+{"id":"signal-noaa-fim-navigation-post","capability":"group_signal","author":"地理编辑（气候与观测数据 beat）","what":"反例：网友说密西西比河航段封航，与本 beat 的 FIM 覆盖发布无关（工具覆盖通告不是一次水文事件），必须接不上","match":{"queryIncludes":["封航","密西西比"],"candidateIncludes":"NOAA"},"reply":{"decisions":[{"candidateIncludes":"NOAA河流洪水淹没制图覆盖近100%美国人口","relation":"UNRELATED","confidence":0.25},{"candidateIncludes":"欧洲2026年夏季土壤湿度与河流量持续偏低","relation":"UNRELATED","confidence":0.05}]}}

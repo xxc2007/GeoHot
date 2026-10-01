@@ -1,0 +1,69 @@
+# geohot 反代片段（已在 xxc2007.me 上实装并验证，2026-10-01）
+# =============================================================================
+# 用法：把下面标了 ADD 的两段，整体注入 /etc/nginx/sites-available/xxc2007.me 里
+# **每一个** server_name 恰为 xxc2007.me 的 server 块——注意是每一个，且是 `:80` 与 `:443` 两个
+# 监听都要，原因见下面「为什么两个监听都要」。注入脚本按花括号配平定位，不要手工找位置。
+#
+# 生效顺序（不可换）：备份 → 注入 → nginx -t → **通过才 reload**（reload，不是 restart）
+#   sudo cp -a /etc/nginx/sites-available/xxc2007.me /etc/nginx/sites-available/xxc2007.me.bak-$(date +%F-%H%M%S)
+#   sudo nginx -t && sudo systemctl reload nginx
+# 回滚：
+#   sudo cp -a <备份> /etc/nginx/sites-available/xxc2007.me && sudo nginx -t && sudo systemctl reload nginx
+#
+# ── 三条来自实装的硬约束（都会静默地坏掉，只看状态码发现不了）──────────────────────────
+#
+# 1) 必须用 `location ^~ /geohot/`，不能用 `location /geohot/`。
+#    该 vhost 里本来就有一条 `location ~* \.(css|js|mjs|map|woff2?|ttf|otf|png|jpe?g|gif|svg|ico|webp|avif)$`
+#    的静态资源正则。nginx 的匹配顺序是「前缀最长优先，但正则一旦命中就覆盖前缀」——于是
+#    `/geohot/assets/*.js` 会被那条正则接走，去主站的静态根里找文件，**404**。
+#    `^~` 的意思是「前缀命中即停，不再看正则」。表现为：页面 HTML 200，但样式与 JS 全 404。
+#
+# 2) 不剥前缀：proxy_pass 不带尾部 URI（`proxy_pass http://127.0.0.1:3000;`）。
+#    应用构建时带 BASE_PATH=/geohot，并且自己会归一化入站路径（apps/web/server.ts）。
+#    剥前缀会让它在 `/assets/...` 上 404 —— 同样是 HTML 200、静态资源全丢。
+#
+# 3) 两个监听都要注入：Cloudflare 以 **80 端口明文**回源（浏览器↔CF 是 HTTPS，CF↔源站是 http）。
+#    只给 `:443` 加 location，直连 https 正常，公网却 404，而且返回的是主站自己的 404 页。
+#    这是最容易误判成「nginx 没生效」的一种。
+#
+# 其余依据：上传上限取反馈截图 8 MB（feedback.ts:64）与 Fastify 10 MB bodyLimit（app.ts:26）之间的
+# 10m；MCP 走 Streamable-HTTP 的长寿命 SSE（mcp.ts:283-285 带 X-Accel-Buffering: no），故该
+# location 关缓冲、读超时拉到 1h。
+# =============================================================================
+
+# ---- ADD ----
+location = /geohot {
+    return 308 /geohot/;
+}
+
+location ^~ /geohot/ {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_http_version 1.1;
+    proxy_set_header Connection        "";
+    proxy_set_header Host              $host;
+    proxy_set_header X-Real-IP         $remote_addr;
+    proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header Upgrade           $http_upgrade;
+    client_max_body_size 10m;
+    proxy_connect_timeout 5s;
+    proxy_send_timeout    60s;
+    proxy_read_timeout    60s;
+}
+
+location ^~ /geohot/api/mcp {
+    proxy_pass http://127.0.0.1:3000/geohot/api/mcp;
+    proxy_http_version 1.1;
+    proxy_set_header Connection        "";
+    proxy_set_header Host              $host;
+    proxy_set_header X-Real-IP         $remote_addr;
+    proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header Upgrade           $http_upgrade;
+    proxy_buffering    off;
+    proxy_cache        off;
+    proxy_read_timeout 1h;
+    proxy_send_timeout 1h;
+    chunked_transfer_encoding on;
+    client_max_body_size 1m;
+}

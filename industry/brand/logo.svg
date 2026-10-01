@@ -1,0 +1,43 @@
+<!--
+  GEOHOT / 地理热点 — original brand mark, 经纬之交 (the graticule crossing).
+  An ink planet cut by one meridian and three parallels, with the single hot spot sitting exactly
+  where the north parallel meets the meridian — a place, located. No gradients, no type, no raster,
+  no external fonts, and no geometric relation to the upstream four-point star.
+
+  Palette (fixed brand hexes, from apps/web/app/app.css):
+    #202a30  ink tile      #faf9f6  paper globe      #176b75  the one accent (light --accent)
+
+  WHY THE HOT SPOT IS TEAL, NOT CYAN (measured, WCAG 2.x relative luminance; self-tested against
+  #000/#fff = 21.00:1 and #767676/#fff = 4.54:1):
+  the spot lies wholly inside the paper disc — its centre is 104.35 units from the disc centre and
+  r=40, so its outer edge is 23.65 units short of the r=168 limb. It never touches the ink tile, so
+  the pair that decides whether it is visible is spot-vs-PAPER, not spot-vs-tile:
+      #176b75 on #faf9f6  5.87:1   passes 3:1 for graphics and 4.5:1 for text  -> shipped
+      #12ccd8 on #faf9f6  1.87:1   the cyan ramp is a DARK-surface accent; on paper it is invisible
+      #176b75 on #202a30  2.37:1   a pair that does not occur in this drawing (the cyan ramp answers
+                                    only for an accent that actually sits on the ink tile: #12ccd8
+                                    there is 7.42:1, #2ce2e8 9.16:1)
+  The accent follows its own ground, which is also the site's rule — teal in the light UI, cyan in
+  the dark UI: the globe is the light ground, so the spot is the light accent.
+
+  THE REAL 16px DEFECT IS RASTER, NOT COLOUR. A hairline of 34 units is 1.06 device px at 16px, so it
+  straddles two pixel rows and averages to mid grey: in the shipped 16px ICO entry 31% of the tile's
+  opaque pixels matched no brand colour at all (the master drawing at 16px: 33%, and only 2 pixels of
+  hot spot survived), and the paper disc was down to 7.2% of the tile. The 16/24/32 entries are
+  therefore cut on the 32-unit device grid (512/16): parallels on whole pixel rows, hairlines exactly
+  32 units = 1 px at 16px and 2 px at 32px, hot spot 64 units = 2 px radius. That cut reads 18%
+  no-brand-colour with 10 spot pixels at 16px and 42 at 32px, paper back up to 9.3%, and the spot
+  keeps 7.21:1 against the paper beside it. The master drawing above is for >=48px, where a 20-unit
+  stroke is already >=1.9 px and reads clean (10% mush, 38 spot pixels). Built by a one-off render script that is not shipped; the committed SVG is the source of truth.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="GEOHOT 地理热点">
+  <rect width="512" height="512" rx="116" fill="#202a30"/>
+  <circle cx="256" cy="256" r="168" fill="#faf9f6"/>
+  <g fill="none" stroke="#202a30" stroke-width="20">
+    <path d="M108 176H404"/>
+    <path d="M88 256H424"/>
+    <path d="M108 336H404"/>
+    <ellipse cx="256" cy="256" rx="76" ry="168"/>
+  </g>
+  <circle cx="323" cy="176" r="40" fill="#176b75"/>
+</svg>

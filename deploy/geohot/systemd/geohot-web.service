@@ -1,0 +1,53 @@
+# /etc/systemd/system/geohot-web.service
+# GEOHOT web 进程（React Router SSR 生产服务器）。代码依据：
+#   apps/web/server.ts:12-13 —— PORT = WEB_PORT || PORT || 3000，HOST = WEB_HOST || "127.0.0.1"
+#   ⇒ 默认只绑回环；nginx 反代的正是 127.0.0.1:3000（见 geohot.nginx.conf片段）。
+#   server.ts:135-149 把 api-owned 路径（contracts/http-policy.ts:110-122）转给 127.0.0.1:3001，
+#   所以 nginx 只需要这一个口。
+#   server.ts:45-66 直接发 build/client 静态文件，/assets/* 带 immutable 长缓存（:57-61）
+#   ⇒ 必须先 npm run build -w @aihot/web，本 unit 才起得来（:39 import build/server/index.js）。
+[Unit]
+Description=GEOHOT web (SSR, 127.0.0.1:3000)
+After=network.target geohot-api.service
+Requires=geohot-api.service
+
+[Service]
+Type=simple
+User=geohot
+Group=geohot
+WorkingDirectory=/opt/geohot/GEOHOT/apps/web
+EnvironmentFile=/opt/geohot/GEOHOT/.env
+Environment=NODE_ENV=production
+Environment=AIHOT_ENVIRONMENT=production
+Environment=WEB_HOST=127.0.0.1
+# 生产命令按 docs/deploy.md:105：在 apps/web 下、env 指回仓库根
+ExecStart=/usr/bin/node --env-file=/opt/geohot/GEOHOT/.env server.ts
+Restart=on-failure
+RestartSec=5
+# server.close 在 drain（keepAliveTimeout 65 s，server.ts:161）；给 90 s
+TimeoutStopSec=90
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/opt/geohot/GEOHOT/.data
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target
+
+# -----------------------------------------------------------------------------
+# 启用命令（顺序执行）：
+#   sudo cp deploy/geohot/systemd/*.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now geohot-api geohot-worker geohot-web
+#   systemctl is-active geohot-api geohot-worker geohot-web
+#   curl -fsS http://127.0.0.1:3000/api/health        # 应为 {"ok":true,...}（apps/api/src/app.ts:60）
+# 停用（回滚前半段）：
+#   sudo systemctl disable --now geohot-web geohot-worker geohot-api
+# -----------------------------------------------------------------------------

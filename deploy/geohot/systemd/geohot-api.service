@@ -1,0 +1,45 @@
+# /etc/systemd/system/geohot-api.service
+# GEOHOT 接口进程（Fastify）。代码依据：apps/api/src/main.ts:17 监听
+#   port=API_PORT(缺省 3001, packages/backend/src/config.ts:38)、
+#   host=API_HOST(缺省 "127.0.0.1") ⇒ 只绑回环，不对外。
+# 启动即执行 assertProductionSecrets(["auth","SESSION_SECRET"],["auth","IMG_PROXY_SIGN_SECRET"])
+#   （main.ts:7-10），且 AIHOT_ENVIRONMENT=production 时缺 ADMIN_PASSWORD(≥12) 直接拒启（main.ts:12-14）。
+#   ⇒ 起不来通常就是 env 不对，看 `journalctl -u geohot-api -n 50`。
+
+[Unit]
+Description=GEOHOT api (Fastify, 127.0.0.1:3001)
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=geohot
+Group=geohot
+WorkingDirectory=/opt/geohot/GEOHOT
+EnvironmentFile=/opt/geohot/GEOHOT/.env
+# 硬覆盖三个关键值，防止 .env 被误改回开发态（config.ts:12,55 与 main.ts:12 都读它们）
+Environment=NODE_ENV=production
+Environment=AIHOT_ENVIRONMENT=production
+Environment=API_HOST=127.0.0.1
+ExecStart=/usr/bin/node --env-file=.env apps/api/src/main.ts
+Restart=on-failure
+RestartSec=5
+# api 关闭时要 drain HTTP（app.close → closeDb，main.ts:26-32），给足 30 s
+TimeoutStopSec=30
+
+# 加固：只绑 127.0.0.1 不需要任何特权（1024 以下端口才需要），因此以下全部可开
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/opt/geohot/GEOHOT/.data
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+# 注意：不加 PrivateNetwork= IPAddressAllow= —— 应用要连 127.0.0.1:5432 的 Postgres 和外网信源，
+# NetworkNamespace 类限制会同时掐死这两条；上面这组是「不禁网、只禁提权与系统目录写」的折中。
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,48 @@
+# /etc/systemd/system/geohot-worker.service
+# GEOHOT worker（pg-boss 队列消费者 + 全部定时任务）。
+# ★★ 必须单实例 ★★ —— 依据（代码实测）：
+#   1) 每个 cron 任务注册在独立队列上且 policy:"singleton"（apps/worker/src/schedules.ts:102），
+#      并用 boss.schedule(...) 以 tz:"Asia/Shanghai" 挂表（:103）；worker 启动时还会把不在
+#      SCHEDULES 表里的旧 cron 队列 unschedule 掉（:108-111）——两个 worker 会互相踩这张表。
+#   2) 采集/翻译/热度等 handler 只应在一个进程里注册（apps/worker/src/main.ts:18-24）；
+#      pg-boss 本身允许竞争消费，但 singleton cron + recordRun 记账（jobs/queue.ts:95-106）
+#      在双进程下会出现同一分钟两次入队 job_runs、以及 missed:"once" 补跑被两个实例各跑一次。
+#   3) 停机语义：worker 收 SIGTERM 后等在途付费调用最多 STOP_TIMEOUT_MS=195 s
+#      （jobs/queue.ts:62-63,67；docker-compose.yml:58-60 同样给 210 s grace），
+#      所以 TimeoutStopSec 必须 ≥ 210，否则 systemd 中途 SIGKILL，留下 outcome-unknown 回执被重复付费。
+#   ⇒ 不许 `systemctl scale`、不许第二个 unit 指同一 EnvironmentFile。
+[Unit]
+Description=GEOHOT worker (pg-boss queues + schedules; SINGLE INSTANCE ONLY)
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=geohot
+Group=geohot
+WorkingDirectory=/opt/geohot/GEOHOT
+EnvironmentFile=/opt/geohot/GEOHOT/.env
+Environment=NODE_ENV=production
+Environment=AIHOT_ENVIRONMENT=production
+# 阀门不在这里硬覆盖：COLLECT_ENABLED / MODEL_CALLS_ENABLED 属编辑决策，.env 里逐条写死。
+ExecStart=/usr/bin/node --env-file=.env apps/worker/src/main.ts
+Restart=on-failure
+RestartSec=10
+# 195 s 优雅停机上限 + 15 s 余量（jobs/queue.ts:63；compose 的 stop_grace_period 210s 同义）
+TimeoutStopSec=210
+KillMode=mixed
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/opt/geohot/GEOHOT/.data
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+# 同样不禁网：worker 要出网抓 44 个信源、连本机 Postgres、调 LLM_BASE_URL。
+
+[Install]
+WantedBy=multi-user.target

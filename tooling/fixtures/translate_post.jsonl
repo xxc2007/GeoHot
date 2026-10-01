@@ -1,0 +1,2 @@
+// tooling/fixtures/translate_post.jsonl — 引用帖（X 帖子）的单条翻译。契约同 translate_body：{"t":["译文"]}
+{"id":"translate-post-typhoon-quote","capability":"translate_post","what":"示例稿：一条被引用的英文台风通报帖。","match":{"textIncludes":["Landfall","typhoon"]},"reply":{"t":["台风已在广东阳江沿海登陆，中心附近最大风力 14 级（42 米/秒）；未来 12 小时向西偏北移动，时速约 18 公里。"]},"author":"tooling 示例（未核验）"}
