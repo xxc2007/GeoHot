@@ -53,6 +53,39 @@ sudo journalctl -u geohot-web -n 3                                              
 | 页面 200，CSS/JS 全 404 | 同 vhost 的 `~* \.(css\|js\|…)$` 正则覆盖了普通前缀 location，要用 `^~` |
 | 页面 200，资源 404（另一种） | 反向剥了 `/geohot` 前缀，而应用带 BASE_PATH 构建、自己归一化路径，不能剥 |
 | 改完 nginx 仍 404 | 注入了 `www.xxc2007.me` 那个 vhost——`www.xxc2007.me` 的字符串里含 `xxc2007.me`，必须按 server_name **整词**匹配 |
+| 浏览器打开 `xxc2007.me/geohot`（无尾斜杠）看到应用的 404 | 那条 `return 308 /geohot/` 把 https 访客送去 **http**（CF 明文回源，Location 按连接协议拼）。已删除该跳转并把手位放宽为 `^~ /geohot`；应用对两种写法返回同一份页面，不需要跳转 |
+
+## 二次修复：无尾斜杠的 404（2026-10-01 晚）
+
+线上症状：访问 `https://xxc2007.me/geohot`（不带斜杠）看到应用自己的 404「这里没有内容」。
+
+排查（都是实测，不是推断）：
+
+```bash
+curl -sI https://xxc2007.me/geohot | grep -i location    # Location: http://xxc2007.me/geohot/
+curl -s -o /dev/null -w '%{http_code} %{num_redirects}\n' -L https://xxc2007.me/geohot   # 200 但 redirects=1
+# 源站绕过 CF：
+curl -k --resolve xxc2007.me:443:20.194.28.128 https://xxc2007.me/geohot   # 308 → https://…（443 直连时是对的）
+# 应用本身：
+curl http://127.0.0.1:3000/geohot  | wc -c    # 147116，标题与首页一致，无 404 标记
+curl http://127.0.0.1:3000/geohot/ | wc -c    # 147116，同一份
+```
+
+结论：404 不是应用的错——应用对两种写法返回**同一份**首页。问题在那条 308：它按连接协议拼成 `http://`，
+而本站的 Cloudflare 是明文回源、且没有强制 http→https，于是访客被送到一个明文 URL，链路在这里断掉。
+
+修复：`sudo bash deploy/geohot/fix-bare-path.sh` —— 删掉 `location = /geohot` 跳转，把主 location 由
+`^~ /geohot/` 放宽成 `^~ /geohot`，两种写法都由应用直答。修完实测：
+
+```bash
+curl -s -o /dev/null -w '%{http_code} %{num_redirects} %{url_effective}\n' -L https://xxc2007.me/geohot
+# 200 0 https://xxc2007.me/geohot     ← 零跳转，全程 https
+```
+
+浏览器端复核（真实 Chrome，非 curl）：`h1=精选`、无 404 文案、25 个条目链接、样式表
+`/geohot/assets/root-*.css` 已加载（`cssRulesLoaded: true`）、body 底色 `rgb(250,249,246)` 即站点米白。
+
+**给访客的提醒**：修好前浏览器可能缓存了那个 404，需要硬刷新（Ctrl+F5 / Cmd+Shift+R）才会看到新结果。
 
 ## 还没做的
 
