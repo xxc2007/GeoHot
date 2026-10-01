@@ -36,7 +36,11 @@ export const SITE = {
    * TODO（站长）：这是按 geohot.local 编的占位地址，上线前换成编辑部真正收信的邮箱；
    * 换之前别对外部署，security.txt 会直接把它公开。
    */
-  contactEmail: "editor@geohot.local" as string | null,
+  /**
+   * 安全联系邮箱（选填）。留 null 时 `/.well-known/security.txt` 返回 404、`llms.txt` 省略联系一行——
+   * 这比挂一个没人看的假地址诚实。站主填上真实地址后两个出口会自动出现。
+   */
+  contactEmail: null as string | null,
   /** 页脚的一行小字（选填）。 */
   footerNote: "基于开源的热点聚合框架搭建",
   /**
