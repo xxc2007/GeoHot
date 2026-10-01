@@ -5,7 +5,7 @@
   no external fonts, and no geometric relation to the upstream four-point star.
 
   Palette (fixed brand hexes, from apps/web/app/app.css):
-    #202a30  ink tile      #faf9f6  paper globe      #176b75  the one accent (light --accent)
+    #202a30  ink tile      #faf9f6  paper globe      #176b75  the one accent (the light theme's accent token)
 
   WHY THE HOT SPOT IS TEAL, NOT CYAN (measured, WCAG 2.x relative luminance; self-tested against
   #000/#fff = 21.00:1 and #767676/#fff = 4.54:1):
