@@ -2,7 +2,7 @@
 
 <div align="center">
 
-<img src="industry/brand/logo.svg" alt="经纬之交：墨色地球被一条经线与三条纬线切开，青色热点落在北纬与经线的交点上" width="72">
+<img src="https://raw.githubusercontent.com/xxc2007/GeoHot/main/industry/brand/logo.svg?v=2" alt="经纬之交：墨色地球被一条经线与三条纬线切开，青色热点落在北纬与经线的交点上" width="72">
 
 # GEOHOT · 地理热点
 
@@ -236,5 +236,5 @@ npm run dev:web                                                      # http://lo
 ---
 
 <div align="center">
-  <sub>献给每一条有坐标、有数据、有人回去核对的消息。<br><a href="docs/manual.md">docs/manual.md</a> · <a href="docs/geohot-runbook.md">docs/geohot-runbook.md</a> · 本站尚未部署上线</sub>
+  <sub>献给每一条有坐标、有数据、有人回去核对的消息。<br><a href="docs/manual.md">docs/manual.md</a> · <a href="docs/geohot-runbook.md">docs/geohot-runbook.md</a> · 已上线 <a href="https://xxc2007.me/geohot/">xxc2007.me/geohot/</a></sub>
 </div>
