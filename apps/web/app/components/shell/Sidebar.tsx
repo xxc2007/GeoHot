@@ -5,6 +5,7 @@ import { Wordmark } from "../Logo";
 import { useChangelogSeen } from "../../lib/local-state";
 import { SIDEBAR, tabIsActive, type NavItem } from "./nav";
 import { ThemeSwitch } from "./ThemeSwitch";
+import { publicPath } from "../../lib/public-path";
 
 /** True while the changelog has an entry newer than the one this reader last opened. */
 export function useChangelogDot(latestVersion: string | null): boolean {
@@ -20,15 +21,17 @@ function SideLink({ item, dot }: { item: NavItem; dot: boolean }) {
   // Weekly and monthly reports belong to the daily report entry, as the phone tab bar has it.
   const isActive = tabIsActive(item, pathname);
   const Icon = item.icon;
-  return (
-    <Link
-      to={item.to}
-      prefetch="intent"
-      aria-current={isActive ? "page" : undefined}
-      className={`flex h-10 items-center gap-2.5 rounded-control px-2.5 text-[14px] transition-colors duration-150 ${
-        isActive ? "bg-accent/10 font-semibold text-ink dark:bg-accent-soft" : "font-medium text-ink-3 hover:bg-bg-sunk hover:text-ink"
-      }`}
-    >
+  // React Router cannot match the bare base path: with basename `/geohot`, the client router resolves
+  // `/geohot` to an empty path and falls through to the 404 route, so the home tab broke the moment a
+  // reader navigated away and came back (the server was fine — SSR normalises the path). Its own
+  // href is `/geohot` because `to="/"` + basename has no trailing slash. So the home entry gets a real
+  // anchor onto `<base>/`, which is exactly the URL the router can match.
+  const home = item.to === "/";
+  const className = `flex h-10 items-center gap-2.5 rounded-control px-2.5 text-[14px] transition-colors duration-150 ${
+    isActive ? "bg-accent/10 font-semibold text-ink dark:bg-accent-soft" : "font-medium text-ink-3 hover:bg-bg-sunk hover:text-ink"
+  }`;
+  const body = (
+    <>
       <span className={`flex w-[22px] shrink-0 justify-center ${isActive ? "text-accent" : ""}`}>
         <Icon size={17} />
       </span>
@@ -41,6 +44,18 @@ function SideLink({ item, dot }: { item: NavItem; dot: boolean }) {
           <span className="sr-only">，有新的更新</span>
         </>
       )}
+    </>
+  );
+  if (home) {
+    return (
+      <a href={publicPath("/")} aria-current={isActive ? "page" : undefined} className={className}>
+        {body}
+      </a>
+    );
+  }
+  return (
+    <Link to={item.to} prefetch="intent" aria-current={isActive ? "page" : undefined} className={className}>
+      {body}
     </Link>
   );
 }
@@ -49,9 +64,9 @@ export function Sidebar({ changelogVersion }: { changelogVersion: string | null 
   const dot = useChangelogDot(changelogVersion);
   return (
     <aside className="sticky top-0 hidden h-dvh w-[180px] shrink-0 flex-col border-r border-line bg-sidebar px-3 pb-3.5 pt-6 lg:flex">
-      <Link to="/" className="mb-4 flex h-[50px] items-center px-1 text-ink" aria-label={`${SITE.name} 首页`}>
+      <a href={publicPath("/")} className="mb-4 flex h-[50px] items-center px-1 text-ink" aria-label={`${SITE.name} 首页`}>
         <Wordmark size={24} />
-      </Link>
+      </a>
       <nav className="-mx-1 flex-1 overflow-y-auto px-1" aria-label="主导航">
         {SIDEBAR.map((section) => (
           <div key={section.title}>
