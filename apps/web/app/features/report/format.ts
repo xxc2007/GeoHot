@@ -8,9 +8,15 @@ export const KINDS: ReportKind[] = ["daily", "weekly", "monthly"];
 export const KIND_PATH: Record<ReportKind, string> = { daily: "/daily", weekly: "/weekly", monthly: "/monthly" };
 export const KIND_LABEL: Record<ReportKind, string> = { daily: "日报", weekly: "周报", monthly: "月报" };
 
+/** Which report tab a location belongs to, whatever prefix the site is deployed under.
+ *  The caller hands us the raw request path, so under a sub-path deployment it is `/geohot/weekly`,
+ *  and a bare `startsWith("/weekly")` silently fell through to the daily paper. Matching a whole path
+ *  segment keeps this correct without depending on a build-time base path being present in the server
+ *  bundle — a first attempt using `appPath()` still resolved to the daily paper in production. */
 export function kindFromPath(pathname: string): ReportKind {
-  if (pathname.startsWith("/weekly")) return "weekly";
-  if (pathname.startsWith("/monthly")) return "monthly";
+  const segments = pathname.split("/").filter(Boolean);
+  if (segments.includes("weekly")) return "weekly";
+  if (segments.includes("monthly")) return "monthly";
   return "daily";
 }
 
