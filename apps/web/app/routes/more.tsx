@@ -6,7 +6,7 @@ import type { loader as rootLoader } from "../root";
 import { useChangelogDot } from "../components/shell/Sidebar";
 import { pageMeta } from "../lib/seo";
 import { ThemeSwitch } from "../components/shell/ThemeSwitch";
-import { IconBookmark, IconChart, IconChevronRight, IconFlame, IconGrid, IconHeart, IconHistory, IconMessage, IconMoon, IconPlug } from "../components/icons";
+import { IconBookmark, IconChart, IconChevronRight, IconFlame, IconGitHub, IconGrid, IconHeart, IconHistory, IconMessage, IconMoon, IconPlug } from "../components/icons";
 
 /** Shared caches may keep this page for five minutes. */
 export function headers() {
@@ -17,7 +17,7 @@ export function meta() {
   return pageMeta({ title: "更多", path: "/more", noindex: true });
 }
 
-type Row = { to: string; label: string; icon: ReactNode };
+type Row = { to: string; label: string; icon: ReactNode; external?: boolean };
 
 const GROUPS: Array<{ title: string; rows: Row[] }> = [
   {
@@ -42,6 +42,8 @@ const GROUPS: Array<{ title: string; rows: Row[] }> = [
       { to: "/about", label: `关于 ${SITE.name}`, icon: <IconHeart size={18} /> },
       { to: "/changelog", label: "更新日志", icon: <IconHistory size={18} /> },
       { to: "/feedback", label: "意见反馈", icon: <IconMessage size={18} /> },
+      // The sidebar carries this on desktop; on phones the sidebar is hidden, so the list carries it.
+      ...(SITE.repoUrl ? [{ to: SITE.repoUrl, label: "GitHub 开源", icon: <IconGitHub size={18} />, external: true }] : []),
     ],
   },
 ];
@@ -64,15 +66,25 @@ export default function MorePage() {
       <div className="space-y-3 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0 2xl:grid-cols-3">
         {GROUPS.map((g) => (
           <Group key={g.title} title={g.title}>
-            {g.rows.map((r) => (
-              <li key={r.to}>
-                <Link to={r.to} className="flex h-[50px] items-center gap-3 px-4 text-[15px] font-medium text-ink transition-colors active:bg-bg-sunk lg:hover:bg-bg-sunk">
+            {g.rows.map((r) => {
+              const inner = (
+                <>
                   <span className="text-ink-3">{r.icon}</span>
                   <span className="flex flex-1 items-center gap-2">{r.label}{r.to === "/changelog" && changelogDot && <span className="size-1.5 rounded-full bg-hot" aria-label="有新的更新" />}</span>
                   <IconChevronRight size={16} className="text-ink-4" />
-                </Link>
-              </li>
-            ))}
+                </>
+              );
+              const cls = "flex h-[50px] items-center gap-3 px-4 text-[15px] font-medium text-ink transition-colors active:bg-bg-sunk lg:hover:bg-bg-sunk";
+              return (
+                <li key={r.to}>
+                  {r.external ? (
+                    <a href={r.to} target="_blank" rel="noopener noreferrer" className={cls}>{inner}</a>
+                  ) : (
+                    <Link to={r.to} className={cls}>{inner}</Link>
+                  )}
+                </li>
+              );
+            })}
             {g.title === "偏好" && (
               <li className="flex h-[58px] items-center gap-3 px-4 text-[15px] font-medium text-ink">
                 <span className="text-ink-3">
