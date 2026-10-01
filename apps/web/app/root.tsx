@@ -14,7 +14,34 @@ import { RingMark } from "./components/Logo";
 import { buttonClass } from "./components/ui/Controls";
 import { THEME_BOOT_SCRIPT } from "./lib/local-state";
 import { apiGet } from "./lib/api.server";
-import { appPath, publicPath } from "./lib/public-path";
+import { appPath, basePath, publicPath } from "./lib/public-path";
+
+/**
+ * React Router resolves a root target under a basename to the *bare* base — `to="/"` or `/?category=x`
+ * becomes `/geohot` — and its own matcher then fails on that exact string, so the reader lands on the
+ * 404 route. That one behaviour produced three separate bugs on this site (the home tab, the report
+ * tabs, the home filter chips), each fixed at its call site.
+ *
+ * This is the general guard: normalise the bare base in the history API itself, so any link, loader
+ * redirect or programmatic navigation that hands over `/geohot` is stored as `/geohot/`. Only an exact
+ * match is rewritten — a deeper path like `/geohot/all` is left alone — and it only runs in the
+ * browser, so the server keeps rendering whatever path it was asked for.
+ */
+if (typeof window !== "undefined" && basePath) {
+  for (const method of ["pushState", "replaceState"] as const) {
+    const original = window.history[method].bind(window.history);
+    window.history[method] = ((data: unknown, unused: string, url?: string | URL | null) => {
+      if (url != null) {
+        const next = new URL(String(url), window.location.origin);
+        if (next.pathname === basePath) {
+          next.pathname = `${basePath}/`;
+          url = `${next.pathname}${next.search}${next.hash}`;
+        }
+      }
+      return original(data, unused, url as string | URL | null);
+    }) as History[typeof method];
+  }
+}
 import { useHydratedFlag } from "./lib/hydration";
 
 export const links: Route.LinksFunction = () => [
