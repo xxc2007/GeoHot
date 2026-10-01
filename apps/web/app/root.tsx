@@ -124,7 +124,7 @@ export function ErrorBoundary() {
           {notFound ? "你访问的页面不存在，或内容已不再公开。" : "服务暂时繁忙，请稍后再试。已经加载过的内容不受影响。"}
         </p>
         <div className="mt-6 flex justify-center gap-2.5">
-          <Link to="/" className={buttonClass("primary")}>
+          <Link to="/" reloadDocument className={buttonClass("primary")}>
             回到精选
           </Link>
           <Link to="/all" className={buttonClass("secondary")}>
