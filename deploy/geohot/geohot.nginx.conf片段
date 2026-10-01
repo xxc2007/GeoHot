@@ -32,11 +32,10 @@
 # =============================================================================
 
 # ---- ADD ----
-location = /geohot {
-    return 308 /geohot/;
-}
-
-location ^~ /geohot/ {
+# 没有「无斜杠 → 补斜杠」的 308：早先那版有，结果把 https 的访客送去 http（Cloudflare 明文回源，
+# nginx 按连接协议拼 Location），浏览器跟过去就撞 404。应用本身对 /geohot 与 /geohot/ 返回**同一份**
+# 页面（实测都是 147116 字节、同标题），所以直接不跳转、让应用答两种写法即可，少一跳少一种坏法。
+location ^~ /geohot {
     proxy_pass http://127.0.0.1:3000;
     proxy_http_version 1.1;
     proxy_set_header Connection        "";
