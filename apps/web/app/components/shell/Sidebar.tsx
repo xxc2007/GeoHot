@@ -6,6 +6,7 @@ import { useChangelogSeen } from "../../lib/local-state";
 import { SIDEBAR, tabIsActive, type NavItem } from "./nav";
 import { ThemeSwitch } from "./ThemeSwitch";
 import { publicPath } from "../../lib/public-path";
+import { IconGitHub } from "../icons";
 
 /** True while the changelog has an entry newer than the one this reader last opened. */
 export function useChangelogDot(latestVersion: string | null): boolean {
@@ -80,6 +81,17 @@ export function Sidebar({ changelogVersion }: { changelogVersion: string | null 
         ))}
       </nav>
       <div className="mt-2 space-y-2.5 px-1 pt-1">
+        {SITE.repoUrl && (
+          <a
+            href={SITE.repoUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex h-9 items-center justify-center gap-1.5 rounded-control border border-line-soft bg-surface text-[12.5px] font-medium text-ink-2 transition-colors hover:bg-bg-sunk hover:text-ink"
+          >
+            <IconGitHub size={14} />
+            GitHub 开源
+          </a>
+        )}
         <ThemeSwitch className="mx-1" />
         {SITE.icp && (
           <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer" className="block px-2 text-[10px] text-ink-4 hover:text-ink-3">
