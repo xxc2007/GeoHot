@@ -9,7 +9,7 @@
 - 主站：`https://xxc2007.me/` = **51432 字节，sha256 `4edf0fc53636a680…`**，与开工前基线逐字节一致
 - 四个常驻单元全部 `active`：`geohot-brain`(3055) · `geohot-api`(3001) · `geohot-worker` · `geohot-web`(3000)，
   只监听 `127.0.0.1`，每个都带 `MemoryMax`（160/200/240/320 MB），OOM 只会杀自己
-- 服务器：Ubuntu 22.04，`xxc@20.194.28.128`，Node v24.21.0，PostgreSQL 17 本机，
+- 服务器：Ubuntu 22.04，`<ssh-user>@<server-ip>`，Node v24.21.0，PostgreSQL 17 本机，
   swap 2 GB（**部署前就存在**，不是这次加的）
 
 ## 验证过的证据（可复跑）
@@ -47,7 +47,7 @@ sudo journalctl -u geohot-web -n 3                                              
 
 | 症状 | 真正原因 |
 |---|---|
-| `ssh ubuntu@…` 被拒 | 登录用户是 **`xxc@`**，不是 `ubuntu@` |
+| `ssh ubuntu@…` 被拒 | 登录用户不是默认的 `ubuntu`（按你的机器填） |
 | `node: .env: not found` + 单元反复重启 | 相对 `--env-file=.env` 相对的是单元自己的 `WorkingDirectory` |
 | 公网 404、直连 443 却 200 | Cloudflare **80 端口明文回源**，`:80` 的 vhost 没有 location |
 | 页面 200，CSS/JS 全 404 | 同 vhost 的 `~* \.(css\|js\|…)$` 正则覆盖了普通前缀 location，要用 `^~` |
@@ -66,7 +66,7 @@ sudo journalctl -u geohot-web -n 3                                              
 curl -sI https://xxc2007.me/geohot | grep -i location    # Location: http://xxc2007.me/geohot/
 curl -s -o /dev/null -w '%{http_code} %{num_redirects}\n' -L https://xxc2007.me/geohot   # 200 但 redirects=1
 # 源站绕过 CF：
-curl -k --resolve xxc2007.me:443:20.194.28.128 https://xxc2007.me/geohot   # 308 → https://…（443 直连时是对的）
+curl -k --resolve xxc2007.me:443:<server-ip> https://xxc2007.me/geohot   # 308 → https://…（443 直连时是对的）
 # 应用本身：
 curl http://127.0.0.1:3000/geohot  | wc -c    # 147116，标题与首页一致，无 404 标记
 curl http://127.0.0.1:3000/geohot/ | wc -c    # 147116，同一份
