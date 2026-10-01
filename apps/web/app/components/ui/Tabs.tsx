@@ -60,6 +60,8 @@ export interface TabItem {
   label: ReactNode;
   /** Link target; tabs without one call onSelect. */
   to?: string;
+  /** Target is already a full public path: render a real anchor instead of a router Link. */
+  hard?: boolean;
   prefetch?: "intent";
   replace?: boolean;
   count?: number | null;
@@ -122,9 +124,15 @@ export function PillTabs({
           const cls = `relative inline-flex shrink-0 select-none items-center justify-center whitespace-nowrap rounded-full font-medium outline-offset-1 transition-colors duration-150 active:scale-[0.98] ${SIZES[size]} ${on ? "text-ink" : "text-ink-3 hover:text-ink"}`;
           const TabLink = t.prefetch === "intent" ? IntentLink : Link;
           return t.to ? (
-            <TabLink key={t.key} to={t.to} replace={t.replace} preventScrollReset aria-current={on ? "page" : undefined} className={cls}>
-              {inner}
-            </TabLink>
+            t.hard ? (
+              <a key={t.key} href={t.to} aria-current={on ? "page" : undefined} className={cls}>
+                {inner}
+              </a>
+            ) : (
+              <TabLink key={t.key} to={t.to} replace={t.replace} preventScrollReset aria-current={on ? "page" : undefined} className={cls}>
+                {inner}
+              </TabLink>
+            )
           ) : (
             <button
               key={t.key}
