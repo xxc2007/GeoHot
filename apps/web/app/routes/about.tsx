@@ -228,7 +228,7 @@ export default function AboutPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-3 lg:pb-2">
-          <Link to="/" prefetch="intent" className={buttonClass("primary", "lg")}>
+          <Link to="/" reloadDocument prefetch="intent" className={buttonClass("primary", "lg")}>
             看今天的精选 <IconArrowRight size={15} />
           </Link>
           <Link to="/daily" prefetch="intent" className={buttonClass("secondary", "lg")}>
