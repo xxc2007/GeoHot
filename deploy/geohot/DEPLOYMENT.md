@@ -53,6 +53,7 @@ sudo journalctl -u geohot-web -n 3                                              
 | 页面 200，CSS/JS 全 404 | 同 vhost 的 `~* \.(css\|js\|…)$` 正则覆盖了普通前缀 location，要用 `^~` |
 | 页面 200，资源 404（另一种） | 反向剥了 `/geohot` 前缀，而应用带 BASE_PATH 构建、自己归一化路径，不能剥 |
 | 改完 nginx 仍 404 | 注入了 `www.xxc2007.me` 那个 vhost——`www.xxc2007.me` 的字符串里含 `xxc2007.me`，必须按 server_name **整词**匹配 |
+| 挂在子路径后，`/geohot/weekly` 与 `/geohot/monthly` 渲染成日报 | 服务端拿**原始请求路径**做前缀判断：`pathname.startsWith("/weekly")` 对 `/geohot/weekly` 永远不成立，于是静默退回日报（`apps/web/app/features/report/format.ts` 的 `kindFromPath`）。已改成按**路径段**匹配（`segments.includes("weekly")`），与挂在哪个前缀无关。注意先用 `appPath()` 剥前缀的写法在服务端 bundle 里**没有生效**，所以不要退回那种依赖构建期 base 的写法——`root.tsx` 的 `isAdminPath` 用的是 `appPath()`，它依赖服务端 bundle 里存在 `import.meta.env.BASE_URL` |
 | 浏览器打开 `xxc2007.me/geohot`（无尾斜杠）看到应用的 404 | 那条 `return 308 /geohot/` 把 https 访客送去 **http**（CF 明文回源，Location 按连接协议拼）。已删除该跳转并把手位放宽为 `^~ /geohot`；应用对两种写法返回同一份页面，不需要跳转 |
 | 进去正常，点热点榜再点回来就 404 | **客户端路由匹配不了裸 basename**：basename 是 `/geohot`，客户端路由把 `/geohot` 解析成空路径，落到 404 路由（服务端 SSR 会归一化，所以直接打开是好的——这就是「一开始能看，点出去再点回来就不行」）。且客户端跳转不过 nginx，那条 308 救不了它。修法：首页入口（侧栏「精选」、移动底栏、Logo、各处「回到精选」）改成真实锚点指向 `<base>/`，即 `/geohot/`；实测 `pushState` 到 `/geohot` 渲染 404、`/geohot/` 渲染精选，是路由层面的确定性行为，不是猜测 |
 
