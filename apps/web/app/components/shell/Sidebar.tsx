@@ -86,7 +86,7 @@ export function Sidebar({ changelogVersion }: { changelogVersion: string | null 
             href={SITE.repoUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex h-9 items-center justify-center gap-1.5 rounded-control border border-line-soft bg-surface text-[12.5px] font-medium text-ink-2 transition-colors hover:bg-bg-sunk hover:text-ink"
+            className="flex h-9 items-center justify-center gap-1.5 rounded-control border border-line-soft text-[12.5px] font-medium text-ink-2 transition-colors hover:bg-bg-sunk hover:text-ink"
           >
             <IconGitHub size={14} />
             GitHub 开源
