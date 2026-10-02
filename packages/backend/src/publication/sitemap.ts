@@ -10,6 +10,7 @@ import { sql } from "../db.ts";
 import { cached } from "../lib/cache.ts";
 import { escapeXml } from "../lib/text.ts";
 import { siteUrl } from "./links.ts";
+import { listReports } from "./reports.ts";
 import { leaderboardUrls } from "../leaderboard/read.ts";
 import { topicPageCounts } from "./topics.ts";
 
@@ -34,7 +35,14 @@ interface Entry {
 async function build(): Promise<string> {
   const entries: Entry[] = [];
   const [latestItem] = await sql<{ t: Date | null }[]>`SELECT max(timeline_at) AS t FROM publications WHERE visibility = 'public' AND selected`;
-  const [latestDaily] = await sql<{ key: string | null; t: Date | null }[]>`SELECT max(key) AS key, max(generated_at) AS t FROM reports WHERE kind = 'daily'`;
+  // Editions come through the same gate every other outlet uses. Reading the table raw advertised blank
+  // issues: eight `/daily/<日期>` locs of which seven opened onto 「本期没有入选内容」.
+  const [dailyIndex, weeklyIndex, monthlyIndex] = await Promise.all([
+    listReports("daily"),
+    listReports("weekly"),
+    listReports("monthly"),
+  ]);
+  const latestDaily = dailyIndex[0] ? { key: dailyIndex[0].key, t: new Date(dailyIndex[0].generatedAt) } : null;
   const now = latestItem?.t ?? new Date();
   entries.push(
     { loc: "/", lastmod: now, changefreq: "hourly", priority: 1 },
@@ -60,8 +68,13 @@ async function build(): Promise<string> {
     for (const board of ["coding", "reasoning", "knowledge", "professional"]) entries.push({ loc: `/leaderboard/category/${board}`, changefreq: "daily", priority: 0.6 });
   }
   if (FEATURES.codexResetMonitor) entries.push({ loc: "/codex-reset", changefreq: "hourly", priority: 0.6 });
-  const reports = await sql<{ kind: string; key: string; generated_at: Date }[]>`SELECT kind, key, generated_at FROM reports ORDER BY kind, key DESC`;
-  for (const r of reports) entries.push({ loc: `/${r.kind}/${r.key}`, lastmod: r.generated_at, changefreq: r.kind === "daily" ? "never" : "monthly", priority: r.kind === "daily" ? 0.6 : 0.6 });
+  for (const r of [
+    ...dailyIndex.map((e) => ({ kind: "daily" as const, key: e.key, at: e.generatedAt })),
+    ...weeklyIndex.map((e) => ({ kind: "weekly" as const, key: e.key, at: e.generatedAt })),
+    ...monthlyIndex.map((e) => ({ kind: "monthly" as const, key: e.key, at: e.generatedAt })),
+  ]) {
+    entries.push({ loc: `/${r.kind}/${r.key}`, lastmod: new Date(r.at), changefreq: r.kind === "daily" ? "never" : "monthly", priority: 0.6 });
+  }
   for (const t of await topicPageCounts()) {
     if (!t.indexable) continue;
     entries.push({ loc: `/topics/${t.slug}`, lastmod: t.latest, changefreq: "daily", priority: 0.6 });

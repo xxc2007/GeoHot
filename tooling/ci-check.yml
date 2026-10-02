@@ -1,0 +1,115 @@
+# Checks on GitHub-hosted runners: install, typecheck, web build, the web and backend tests on a fresh
+# PostgreSQL, the built site's smoke check, and the Docker image brought up with docker compose.
+# Only GitHub-owned actions, pinned to a full commit SHA.
+#
+# 为什么它在 `tooling/` 而不是 `.github/workflows/`：发布用的 token 没有 `workflow` 作用域，GitHub 拒绝
+# 它创建或更新工作流文件（实测 push 报 "refusing to allow an OAuth App to create or update workflow …"）。
+# 放在 `.github/` 下就进不了公开仓库，读者 clone 到的就不是同一套东西。所以这里存正本，
+# 要用 GitHub Actions 的人把它复制回去即可：
+#   mkdir -p .github/workflows && cp tooling/ci-check.yml .github/workflows/check.yml
+# 复制回去需要带 `workflow` 作用域的 token。docker 那个 job 需要 runner 上有 Docker，且比 check 慢。
+name: Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: check-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: aihot_ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 2s --health-timeout 5s --health-retries 30
+    env:
+      DATABASE_URL: postgres://postgres:ci@127.0.0.1:5432/aihot_ci
+      SITE_URL: http://127.0.0.1:3000
+      API_BASE_URL: http://127.0.0.1:3001
+      SESSION_SECRET: ci-session-secret-0123456789abcdef
+      IMG_PROXY_SIGN_SECRET: ci-img-secret-0123456789abcdef
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Install
+        run: npm ci --no-audit --no-fund
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Build web
+        run: npm run build -w @aihot/web
+      - name: Web tests
+        run: node --test apps/web/tests/*.test.ts
+
+      - name: Migrate and seed topics
+        run: |
+          node scripts/migrate.ts
+          node scripts/seed.ts --topics-only
+      - name: Smoke check of the built site
+        # The site itself runs with collection and model calls off (the tests below use local stubs).
+        env:
+          COLLECT_ENABLED: "false"
+          MODEL_CALLS_ENABLED: "false"
+        run: |
+          node apps/api/src/main.ts > "$RUNNER_TEMP/api.log" 2>&1 &
+          (cd apps/web && NODE_ENV=production exec node server.ts) > "$RUNNER_TEMP/web.log" 2>&1 &
+          for i in $(seq 1 60); do curl -fsS -o /dev/null http://127.0.0.1:3000/api/health 2>/dev/null && break; sleep 1; done
+          node scripts/smoke.ts --base http://127.0.0.1:3000
+      # After the smoke check, which reads an empty database: these write their own rows.
+      - name: Backend tests
+        run: npm test
+      - name: Server logs
+        if: failure()
+        run: tail -n 60 "$RUNNER_TEMP/api.log" "$RUNNER_TEMP/web.log" 2>/dev/null || true
+
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Configure a throwaway site
+        run: |
+          node scripts/init-env.ts
+          # No outside calls in CI: nothing is collected and no model is asked.
+          sed -i 's/^COLLECT_ENABLED=.*/COLLECT_ENABLED=false/; s/^MODEL_CALLS_ENABLED=.*/MODEL_CALLS_ENABLED=false/' .env
+          # The smoke check reaches the site by its compose service name.
+          echo "MCP_ALLOWED_HOSTS=web" >> .env
+      - name: Build and start with docker compose
+        run: docker compose up -d --build
+      - name: Smoke check
+        run: |
+          for i in $(seq 1 90); do curl -fsS -o /dev/null http://127.0.0.1:3000/api/health 2>/dev/null && break; sleep 2; done
+          docker compose ps
+          docker compose run --rm --no-deps --entrypoint node setup scripts/smoke.ts --base http://web:3000
+          docker compose exec -T db psql -U aihot -d aihot -Atc "select count(*) from sources" | grep -q '^44$'
+      - name: Logs
+        if: failure()
+        run: docker compose logs --tail 80
+      - name: Stop
+        if: always()
+        run: docker compose down -v

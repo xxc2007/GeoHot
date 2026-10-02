@@ -7,9 +7,9 @@ import { InvalidCursorError } from "@aihot/backend/lib/cursor";
 import { SearchBusyError } from "@aihot/backend/publication/pool";
 import { selectedChanges, selectedSnapshot, SnapshotRequiredError, v1Items } from "@aihot/backend/publication/v1";
 import { resolveStory, v1HotTopics, v1Story } from "@aihot/backend/publication/stories";
-import { v1Dailies, v1Daily } from "@aihot/backend/publication/reports";
+import { v1Dailies, v1Daily, v1Reports, v1Report, PERIOD_FEED_LIMIT } from "@aihot/backend/publication/reports";
 import { codexResetsRecent, codexResetsSnapshot } from "@aihot/backend/monitor/read";
-import { isValidDate } from "@aihot/contracts/time";
+import { isValidDate, isoWeekRange } from "@aihot/contracts/time";
 import { applyPublicHeaders, QueryError, sendJsonWithEtag, sendProblem, strictQuery } from "../http/respond.ts";
 
 type Handler = (req: FastifyRequest, reply: FastifyReply) => Promise<unknown>;
@@ -117,6 +117,32 @@ export function registerV1(app: FastifyInstance) {
     if (!body) return sendProblem(req, reply, { status: 404, code: "not_found", detail: `No daily report exists for ${date}.`, cacheControl: "public, max-age=60" });
     return sendJsonWithEtag(req, reply, body, { etagPrefix: "v1-daily", cacheControl: V1_CACHE_CONTROL.dailyByDate });
   }));
+
+  const PERIODS = [
+    { kind: "weekly", plural: "weeklies", idName: "week", sample: "2026-W39", notReal: "week must be a real ISO week such as 2026-W39.", isValid: (v: string) => isoWeekRange(v) !== null, listCache: V1_CACHE_CONTROL.weeklies, latestCache: V1_CACHE_CONTROL.latestWeekly, byKeyCache: V1_CACHE_CONTROL.weeklyByKey },
+    { kind: "monthly", plural: "monthlies", idName: "month", sample: "2026-09", notReal: "month must be a real month such as 2026-09.", isValid: (v: string) => /^\d{4}-(0[1-9]|1[0-2])$/.test(v), listCache: V1_CACHE_CONTROL.monthlies, latestCache: V1_CACHE_CONTROL.latestMonthly, byKeyCache: V1_CACHE_CONTROL.monthlyByKey },
+  ] as const;
+  for (const p of PERIODS) {
+    app.get(`/api/v1/${p.plural}`, publicHandler(async (req, reply) => {
+      const q = strictQuery(req, ["limit"]);
+      const limit = intParam(q.limit, "limit", 1, 60, PERIOD_FEED_LIMIT);
+      return sendJsonWithEtag(req, reply, await v1Reports(p.kind, limit), { etagPrefix: `v1-${p.plural}`, cacheControl: p.listCache });
+    }));
+    app.get(`/api/v1/${p.plural}/latest`, publicHandler(async (req, reply) => {
+      strictQuery(req, []);
+      const body = await v1Report(p.kind, "latest");
+      if (!body) return sendProblem(req, reply, { status: 404, code: "not_found", detail: `No ${p.kind} report has been published yet.` });
+      return sendJsonWithEtag(req, reply, body, { etagPrefix: `v1-${p.kind}`, cacheControl: p.latestCache });
+    }));
+    app.get(`/api/v1/${p.plural}/:${p.idName}`, publicHandler(async (req, reply) => {
+      strictQuery(req, []);
+      const value = (req.params as Record<string, string>)[p.idName];
+      if (!p.isValid(value)) throw new QueryError(p.notReal);
+      const body = await v1Report(p.kind, value);
+      if (!body) return sendProblem(req, reply, { status: 404, code: "not_found", detail: `No ${p.kind} report exists for ${value}.`, cacheControl: "public, max-age=60" });
+      return sendJsonWithEtag(req, reply, body, { etagPrefix: `v1-${p.kind}`, cacheControl: p.byKeyCache });
+    }));
+  }
 
   app.get("/api/v1/selected/snapshot", publicHandler(async (req, reply) => {
     const q = strictQuery(req, ["fields", "limit", "page"]);

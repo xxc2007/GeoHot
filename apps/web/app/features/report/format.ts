@@ -183,8 +183,17 @@ export function chipLabel(kind: ReportKind, key: string, index: ReportNavigation
   return group && entry ? `${Number(group.id.slice(5))}月${entry.short}` : key;
 }
 
-/** "第 N 期": the issue's place in its series, counted from the first report that exists. */
+/**
+ * "第 N 期": the issue's place in its series. There is no number in the data to read — the page is handed
+ * the newest {@link INDEX_WINDOW} issues of the kind and nothing older (the read layer's `INDEX_LIMIT`,
+ * `publication/reports.ts`), so this can only count back from what it is given. That is right while the
+ * whole series still fits the window and turns into a number that stops rising, then falls, after it:
+ * past that the honest answer is no number at all, and the 报眼 gives the date alone. Getting the real
+ * sequence needs a `count(*)` from the read layer, which a page cannot invent.
+ */
+const INDEX_WINDOW = 400;
 export function issueNumber(index: ReportNavigationEntry[], key: string): number | null {
+  if (index.length >= INDEX_WINDOW) return null;
   const at = index.findIndex((e) => e.key === key);
   return at < 0 ? null : index.length - at;
 }
@@ -264,8 +273,11 @@ function isoWeek(day: string): number {
 export function periodGrid(kind: ReportKind, key: string, index: ReportNavigationEntry[]): { title: string; note: string; columns: number; heads: string[] | null; cells: PeriodCell[] } {
   const exists = new Set(index.map((e) => e.key));
   const cell = (k: string, name: string): PeriodCell => {
+    const state: PeriodCell["state"] = k === key ? "current" : exists.has(k) ? "issue" : "none";
     const n = issueNumber(index, k);
-    return { key: k, label: n ? `${name} · 第 ${n} 期` : `${name} · 未出刊`, state: k === key ? "current" : exists.has(k) ? "issue" : "none" };
+    // 未出刊 is for a day with no issue. A day that has one but cannot be numbered (see issueNumber) says
+    // its date and nothing else — an unnumbered issue is not an issue that did not come out.
+    return { key: k, label: state === "none" ? `${name} · 未出刊` : n ? `${name} · 第 ${n} 期` : name, state };
   };
   const count = (cells: PeriodCell[]) => cells.filter((c) => c.state === "issue" || c.state === "current").length;
   const year = key.slice(0, 4);

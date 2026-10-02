@@ -4,7 +4,7 @@ import type { ReportCitation, ReportDetail, ReportIndexEntry, ReportNavigationEn
 import { sql } from "../db.ts";
 import { cached, type Cached } from "../lib/cache.ts";
 import { proxiedImage, proxiedImageSet } from "../media/imgproxy.ts";
-import { dailyUrl, itemUrl, siteUrl } from "./links.ts";
+import { dailyUrl, itemUrl, reportUrl, siteUrl } from "./links.ts";
 import { SITE, withSubject } from "@aihot/industry/site";
 
 export type { ReportKind };
@@ -61,15 +61,30 @@ export async function unavailableIds(ids: string[]): Promise<Set<string>> {
 
 /** Directory/feed metadata only: citation summaries and full report prose stay in the detail read. */
 export async function reportIndexRows(kind: ReportKind, limit: number) {
+  // The three names below used to be one CASE-per-use inside a hand-nested jsonb expression whose
+  // parenthesis count I got wrong twice while adding the weekly shape — the aggregate's ORDER BY landed
+  // outside the call and every periodic read answered 503. Naming them once, and writing the aggregation
+  // as two plainly nested subqueries, keeps each paren next to its partner. `kind` is a three-value union,
+  // so inlining it is an enum, not user input.
+  const groupedKey = kind === "daily" ? "sections" : "themes";
+  const labelKey = kind === "daily" ? "label" : "heading";
+  const itemsKey = kind === "daily" ? "items" : "storyRefs";
   return sql<{ key: string; content: Record<string, any>; generated_at: Date }[]>`
     SELECT key, generated_at, jsonb_build_object(
       'lead', content->'lead', 'headline', content->'headline', 'title', content->'title',
-      CASE WHEN kind = 'daily' THEN 'sections' ELSE 'themes' END,
-      jsonb_build_array(jsonb_build_object(CASE WHEN kind = 'daily' THEN 'items' ELSE 'storyRefs' END,
-        (SELECT coalesce(jsonb_agg(jsonb_build_object('itemId', item->'itemId', 'title', item->'title') ORDER BY ord), '[]'::jsonb)
-         FROM jsonb_array_elements(jsonb_path_query_array(content,
-           CASE WHEN kind = 'daily' THEN '$.sections[*].items[*]'::jsonpath ELSE '$.themes[*].storyRefs[*]'::jsonpath END
-         )) WITH ORDINALITY AS cited(item, ord))))) AS content
+      'overview', content->'overview', 'periodStart', content->'periodStart', 'periodEnd', content->'periodEnd',
+      ${groupedKey}::text,
+      coalesce((
+        SELECT jsonb_agg(jsonb_build_object(
+          ${labelKey}::text, grp ->> ${labelKey}::text,
+          ${itemsKey}::text, coalesce((
+            SELECT jsonb_agg(jsonb_build_object('itemId', item -> 'itemId', 'title', item -> 'title') ORDER BY item_ord)
+            FROM jsonb_array_elements(coalesce(grp -> ${itemsKey}::text, '[]'::jsonb)) WITH ORDINALITY AS cited(item, item_ord)
+          ), '[]'::jsonb)
+        ) ORDER BY grp_ord)
+        FROM jsonb_array_elements(coalesce(content -> ${groupedKey}::text, '[]'::jsonb)) WITH ORDINALITY AS grouped(grp, grp_ord)
+      ), '[]'::jsonb)
+    ) AS content
     FROM reports WHERE kind = ${kind} ORDER BY key DESC LIMIT ${limit}`;
 }
 
@@ -190,11 +205,17 @@ function readingMinutes(text: string): number {
   return chars === 0 ? 0 : Math.max(1, Math.round(chars / 450));
 }
 
+/**
+ * The editions a reader can actually turn to. The raw table also holds blank issues (the gate published
+ * nothing that day, or every citation has since been withdrawn) — /daily/2026-10-02 used to offer 「前一日 ·
+ * 10月1日」 pointing at one of those, while the archive listed a single issue. Blank editions stay reachable
+ * by their own URL (they say so honestly), they just stop being advertised as neighbouring pages.
+ */
 async function neighbors(kind: ReportKind, key: string): Promise<{ prev: string | null; next: string | null }> {
-  const [row] = await sql<{ prev: string | null; next: string | null }[]>`
-    SELECT (SELECT key FROM reports WHERE kind = ${kind} AND key < ${key} ORDER BY key DESC LIMIT 1) AS prev,
-      (SELECT key FROM reports WHERE kind = ${kind} AND key > ${key} ORDER BY key ASC LIMIT 1) AS next`;
-  return { prev: row?.prev ?? null, next: row?.next ?? null };
+  const entries = await listReports(kind); // newest first
+  const older = entries.filter((e) => e.key < key);   // descending, so [0] is the closest older edition
+  const newer = entries.filter((e) => e.key > key);   // descending, so the last one is the closest newer
+  return { prev: older[0]?.key ?? null, next: newer[newer.length - 1]?.key ?? null };
 }
 
 export async function loadReport(kind: ReportKind, key: string): Promise<ReportDetail | null> {
@@ -276,13 +297,22 @@ export async function listReports(kind: ReportKind, limit = INDEX_LIMIT): Promis
   const index = await reportIndex(kind);
   const shape = kind === "daily" ? "daily" : "periodic";
   const gone = index.gone;
+  const idsOf = (content: Record<string, any>): string[] =>
+    (kind === "daily"
+      ? (content.sections ?? []).flatMap((s: any) => s.items ?? [])
+      : (content.themes ?? []).flatMap((t: any) => t.storyRefs ?? []))
+      .map((i: any) => i.itemId).filter(Boolean);
+  // A citation whose item has since been withdrawn is not something a reader can read, so one query over
+  // the whole index decides every edition's count. Counting raw citations kept blank editions listed:
+  // /daily/archive said 「共 8 期」, 归档写「N 件大事」, and the page behind it was a row of struck-through titles.
+  const hidden = await unavailableIds(index.rows.flatMap((r) => idsOf(r.content)));
   const entries = index.rows.map((r) => {
-    const items = kind === "daily" ? (r.content.sections ?? []).flatMap((s: any) => s.items ?? []) : (r.content.themes ?? []).flatMap((t: any) => t.storyRefs ?? []);
+    const ids = idsOf(r.content);
     return {
       key: r.key,
       title: reportHeadline(r.content, shape, gone),
       generatedAt: r.generated_at.toISOString(),
-      count: items.length,
+      count: ids.filter((id) => !hidden.has(id)).length,
     };
   });
   // An edition with nothing left to read — the gate published no pick, or every citation has since been
@@ -298,79 +328,199 @@ export async function listReports(kind: ReportKind, limit = INDEX_LIMIT): Promis
 const attribution = (url: string) => ({ name: SITE.name, url });
 
 /**
- * An edition a reader can actually read: at least one item survived the visibility filter. The same
- * predicate gates the site index, the v1 list and the v1 "latest", so no public exit advertises a
- * blank newspaper.
+ * How many weekly/monthly issues the public exits advertise: the retention of their RSS feeds and the
+ * default limit of their v1 lists. One number, not one copy per exit.
  */
-function hasReadableItems(content: Record<string, any>, kind: ReportKind): boolean {
+export const PERIOD_FEED_LIMIT = 12;
+
+interface V1Attribution { name: string; url: string }
+interface V1ContentLinks { aihot: string | null; original: string }
+interface V1PeriodicEntryFields {
+  periodStart: string | null;
+  periodEnd: string | null;
+  generatedAt: string;
+  headline: string | null;
+  links: { aihot: string };
+  attribution: V1Attribution;
+}
+interface V1PeriodicItem {
+  title: string;
+  summary: string;
+  source: { name: string };
+  links: V1ContentLinks;
+  publishedAt: string | null;
+  attribution: V1Attribution;
+}
+interface V1PeriodicReportFields extends V1PeriodicEntryFields {
+  windowStart: string;
+  windowEnd: string;
+  overview: string | null;
+  sections: Array<{ label: string; summary: string | null; items: V1PeriodicItem[] }>;
+}
+/** The dailies list body, field-for-field as it has always shipped. */
+export interface V1DailiesBody {
+  schemaVersion: 1;
+  count: number;
+  items: Array<{ date: string; generatedAt: string; leadTitle: string | null; leadParagraph: string | null; links: { aihot: string }; attribution: V1Attribution }>;
+}
+export interface V1DailyBody {
+  schemaVersion: 1;
+  report: {
+    date: string;
+    generatedAt: string;
+    windowStart: string;
+    windowEnd: string;
+    links: { aihot: string };
+    attribution: V1Attribution;
+    lead: { title: string; leadParagraph: string } | null;
+    sections: Array<{ label: string; items: Array<{ title: string; summary: string; source: { name: string }; links: V1ContentLinks; attribution: V1Attribution }> }>;
+    flashes: Array<{ title: string; source: { name: string }; links: V1ContentLinks; publishedAt: string; attribution: V1Attribution }>;
+  };
+}
+export interface V1PeriodicListBody {
+  schemaVersion: 1;
+  count: number;
+  items: Array<({ week: string } | { month: string }) & V1PeriodicEntryFields>;
+}
+export interface V1WeeklyBody { schemaVersion: 1; report: { week: string } & V1PeriodicReportFields }
+export interface V1MonthlyBody { schemaVersion: 1; report: { month: string } & V1PeriodicReportFields }
+
+/**
+ * An edition a reader can actually read: at least one item survived the visibility filter. The same
+ * predicate gates the site index, the v1 lists, the v1 "latest" and the report feeds, so no public
+ * exit advertises a blank newspaper.
+ */
+export function hasReadableItems(content: Record<string, any>, kind: ReportKind): boolean {
   const items = kind === "daily"
     ? (content.sections ?? []).flatMap((s: any) => s.items ?? [])
     : (content.themes ?? []).flatMap((t: any) => t.storyRefs ?? []);
   return items.length > 0;
 }
 
-export async function v1Dailies(limit: number) {
-  const index = await reportIndex("daily");
-  const rows = index.rows.filter((r) => hasReadableItems(r.content, "daily")).slice(0, limit);
+/** The newest readable issues of a kind; dailies keep the field names they have always sent. */
+export function v1Reports(kind: "daily", limit: number): Promise<V1DailiesBody>;
+export function v1Reports(kind: "weekly" | "monthly", limit: number): Promise<V1PeriodicListBody>;
+export async function v1Reports(kind: ReportKind, limit: number): Promise<V1DailiesBody | V1PeriodicListBody> {
+  const index = await reportIndex(kind);
+  const rows = index.rows.filter((r) => hasReadableItems(r.content, kind)).slice(0, limit);
   const gone = index.gone;
+  if (kind === "daily") {
+    const items = rows.map((r) => {
+      const url = dailyUrl(r.key);
+      return {
+        date: r.key,
+        generatedAt: r.generated_at.toISOString(),
+        leadTitle: reportHeadline(r.content, "daily", gone),
+        leadParagraph: r.content.lead?.leadParagraph ?? null,
+        links: { aihot: url },
+        attribution: attribution(url),
+      };
+    });
+    return { schemaVersion: 1 as const, count: items.length, items };
+  }
   const items = rows.map((r) => {
-    const url = dailyUrl(r.key);
-    return {
-      date: r.key,
+    const url = reportUrl(kind, r.key);
+    const fields: V1PeriodicEntryFields = {
+      periodStart: r.content.periodStart ?? null,
+      periodEnd: r.content.periodEnd ?? null,
       generatedAt: r.generated_at.toISOString(),
-      leadTitle: reportHeadline(r.content, "daily", gone),
-      leadParagraph: r.content.lead?.leadParagraph ?? null,
+      headline: reportHeadline(r.content, "periodic", gone),
       links: { aihot: url },
       attribution: attribution(url),
     };
+    return kind === "weekly" ? { week: r.key, ...fields } : { month: r.key, ...fields };
   });
   return { schemaVersion: 1 as const, count: items.length, items };
 }
 
-export async function v1Daily(date: string | "latest") {
-  const rows = date === "latest"
-    // The newest row is not necessarily the newest edition with something in it; a day the gate left
+/** One issue by key, or the newest readable one for "latest"; null when no such issue exists. */
+export function v1Report(kind: "daily", key: string): Promise<V1DailyBody | null>;
+export function v1Report(kind: "weekly", key: string): Promise<V1WeeklyBody | null>;
+export function v1Report(kind: "monthly", key: string): Promise<V1MonthlyBody | null>;
+export function v1Report(kind: "weekly" | "monthly", key: string): Promise<V1WeeklyBody | V1MonthlyBody | null>;
+export async function v1Report(kind: ReportKind, key: string): Promise<V1DailyBody | V1WeeklyBody | V1MonthlyBody | null> {
+  const rows = key === "latest"
+    // The newest row is not necessarily the newest edition with something in it; a period the gate left
     // empty must not become "latest" and serve a blank paper to every machine consumer.
-    ? (await sql<ReportRow[]>`SELECT kind, key, window_start, window_end, content, generated_at, revision FROM reports WHERE kind = 'daily' ORDER BY key DESC LIMIT 20`).filter((x) => hasReadableItems(x.content, "daily"))
-    : await sql<ReportRow[]>`SELECT kind, key, window_start, window_end, content, generated_at, revision FROM reports WHERE kind = 'daily' AND key = ${date}`;
+    ? (await sql<ReportRow[]>`SELECT kind, key, window_start, window_end, content, generated_at, revision FROM reports WHERE kind = ${kind} ORDER BY key DESC LIMIT 20`).filter((x) => hasReadableItems(x.content, kind))
+    : await sql<ReportRow[]>`SELECT kind, key, window_start, window_end, content, generated_at, revision FROM reports WHERE kind = ${kind} AND key = ${key}`;
   const [r] = rows;
   if (!r) return null;
   const c = r.content;
-  const raw = [...(c.sections ?? []).flatMap((s: any) => s.items ?? []), ...(c.flashes ?? [])];
-  const avail = await availability([...new Set(raw.map((i: any) => i.itemId).filter(Boolean))] as string[]);
-  const ok = (i: any) => !i.itemId || (avail.get(i.itemId)?.available ?? true);
-  const links = (i: any) => ({ aihot: i.itemId ? itemUrl(i.itemId) : null, original: String(i.sourceUrl ?? "") });
-  const url = dailyUrl(r.key);
-  return {
-    schemaVersion: 1 as const,
-    report: {
-      date: r.key,
-      generatedAt: r.generated_at.toISOString(),
-      windowStart: r.window_start.toISOString(),
-      windowEnd: r.window_end.toISOString(),
-      links: { aihot: url },
-      attribution: attribution(url),
-      lead: c.lead ? { title: String(c.lead.title), leadParagraph: String(c.lead.leadParagraph) } : null,
-      sections: (c.sections ?? []).map((s: any) => ({
-        label: String(s.label),
-        items: (s.items ?? []).filter(ok).map((i: any) => ({
+  const url = kind === "daily" ? dailyUrl(r.key) : reportUrl(kind, r.key);
+  if (kind === "daily") {
+    const raw = [...(c.sections ?? []).flatMap((s: any) => s.items ?? []), ...(c.flashes ?? [])];
+    const avail = await availability([...new Set(raw.map((i: any) => i.itemId).filter(Boolean))] as string[]);
+    const ok = (i: any) => !i.itemId || (avail.get(i.itemId)?.available ?? true);
+    const links = (i: any) => ({ aihot: i.itemId ? itemUrl(i.itemId) : null, original: String(i.sourceUrl ?? "") });
+    return {
+      schemaVersion: 1 as const,
+      report: {
+        date: r.key,
+        generatedAt: r.generated_at.toISOString(),
+        windowStart: r.window_start.toISOString(),
+        windowEnd: r.window_end.toISOString(),
+        links: { aihot: url },
+        attribution: attribution(url),
+        lead: c.lead ? { title: String(c.lead.title), leadParagraph: String(c.lead.leadParagraph) } : null,
+        sections: (c.sections ?? []).map((s: any) => ({
+          label: String(s.label),
+          items: (s.items ?? []).filter(ok).map((i: any) => ({
+            title: String(i.title),
+            summary: String(i.summary ?? ""),
+            source: { name: String(i.sourceName ?? "") },
+            links: links(i),
+            attribution: attribution(i.itemId ? itemUrl(i.itemId) : url),
+          })),
+        })),
+        flashes: (c.flashes ?? []).filter(ok).map((i: any) => ({
           title: String(i.title),
-          summary: String(i.summary ?? ""),
           source: { name: String(i.sourceName ?? "") },
           links: links(i),
+          publishedAt: new Date(i.publishedAt ?? r.generated_at).toISOString(),
           attribution: attribution(i.itemId ? itemUrl(i.itemId) : url),
         })),
-      })),
-      flashes: (c.flashes ?? []).filter(ok).map((i: any) => ({
+      },
+    };
+  }
+  const raw: Array<Record<string, any>> = (c.themes ?? []).flatMap((t: any) => t.storyRefs ?? []);
+  const avail = await availability([...new Set(raw.map((i: any) => i.itemId).filter(Boolean))] as string[]);
+  const ok = (i: any) => !i.itemId || (avail.get(i.itemId)?.available ?? true);
+  // The headline fallback sees this issue's own withdrawn candidates, the way the list sees the index's.
+  const gone = await unavailableHeadlineIds([r], "periodic");
+  const fields: V1PeriodicReportFields = {
+    periodStart: c.periodStart ?? null,
+    periodEnd: c.periodEnd ?? null,
+    generatedAt: r.generated_at.toISOString(),
+    windowStart: r.window_start.toISOString(),
+    windowEnd: r.window_end.toISOString(),
+    links: { aihot: url },
+    attribution: attribution(url),
+    headline: reportHeadline(c, "periodic", gone),
+    overview: c.overview ?? null,
+    sections: (c.themes ?? []).map((t: any) => ({
+      label: String(t.heading ?? ""),
+      summary: t.summary ?? null,
+      items: (t.storyRefs ?? []).filter(ok).map((i: any) => ({
         title: String(i.title),
+        summary: String(i.summary ?? ""),
         source: { name: String(i.sourceName ?? "") },
-        links: links(i),
-        publishedAt: new Date(i.publishedAt ?? r.generated_at).toISOString(),
+        links: { aihot: i.itemId ? itemUrl(i.itemId) : null, original: String(i.sourceUrl ?? "") },
+        publishedAt: i.publishedAt ? new Date(i.publishedAt).toISOString() : null,
         attribution: attribution(i.itemId ? itemUrl(i.itemId) : url),
       })),
-    },
+    })),
   };
+  // Two shapes, not one ternary inside a literal: TypeScript resolves the contextual type of a conditional
+  // expression against a union return type by picking a member, so `{ month: … }` was checked against
+  // `V1WeeklyBody` and the monthly branch would not compile.
+  if (kind === "weekly") return { schemaVersion: 1 as const, report: { week: r.key, ...fields } };
+  return { schemaVersion: 1 as const, report: { month: r.key, ...fields } };
 }
+
+// Call sites (the routes, the MCP server) keep reading these names; they are thin wrappers now.
+export const v1Dailies = (limit: number): Promise<V1DailiesBody> => v1Reports("daily", limit);
+export const v1Daily = (date: string | "latest"): Promise<V1DailyBody | null> => v1Report("daily", date);
 
 export { siteUrl };
 

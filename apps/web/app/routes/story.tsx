@@ -1,11 +1,12 @@
 import { SITE, withSubject } from "@aihot/industry/site";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Link, redirect, useLoaderData } from "react-router";
+import { Link, redirect, useLoaderData, useSearchParams } from "react-router";
 import type { Route } from "./+types/story";
 import type { StoryDetail, StoryReportView } from "@aihot/contracts/site";
 import { data as routeData } from "react-router";
 import { breadcrumbLd, pageMeta, titled } from "../lib/seo";
 import { beijingDate, beijingTime, monthDayTime, relativeTime, shortSourceName } from "../lib/format";
+import { appPath } from "../lib/public-path";
 import { HeatChart } from "../features/story/HeatChart";
 import { Badge, SelectedBadge } from "../components/ui/Badge";
 import { PillTabs } from "../components/ui/Tabs";
@@ -152,8 +153,48 @@ function TimelineRow({ r }: { r: StoryReportView }) {
 
 type Filter = "all" | "official" | "selected";
 
+/** 事件页认得的来路 → 左上角那几个字。表外的路径不写去处，沿用热点榜。 */
+const PLACES: Record<string, string> = { "/": "精选", "/all": "全部动态", "/hot": "热点榜", "/starred": "收藏", "/topics": "主题", "/about": "关于", "/changelog": "更新日志" };
+const PERIODS: Record<string, string> = { daily: "日报", weekly: "周报", monthly: "月报" };
+
+/**
+ * 把一个「来路」值折成去处和它的名字：必须是站内绝对路径（`//host` 是协议相对的站外地址，挡掉），
+ * 并且先过 `appPath()` 剥掉部署前缀——`/geohot/topics/xxx` 认成 `/topics/xxx`，否则子路径部署下
+ * 这条链接会跳到同域名上的另一个站（`docs/known-issues.md`「子路径链接退化」）。
+ */
+function backPlace(value: string | null): { name: string; to: string } | null {
+  if (!value?.startsWith("/") || value.startsWith("//")) return null;
+  const cut = value.indexOf("?");
+  const pathname = appPath(cut < 0 ? value : value.slice(0, cut)).replace(/(.)\/+$/, "$1");
+  const period = /^\/(daily|weekly|monthly)(\/|$)/.exec(pathname);
+  const name = PLACES[pathname] ?? (pathname.startsWith("/topics/") ? "主题页" : period ? PERIODS[period[1]!] ?? null : null);
+  return name ? { name, to: cut < 0 ? pathname : `${pathname}${value.slice(cut)}` } : null;
+}
+
+/**
+ * 左上角写明返回到哪里（源站 2026-10-02 的规则）：`?from=` 优先，其次站内 `document.referrer`，
+ * 都判不出就还是热点榜。`from` 读自 `useSearchParams`，服务端与水合后的第一帧是同一个值；
+ * `referrer` 服务端读不到，只在 effect 里读，所以它最多晚一帧把文案改准，不会让两端首帧不同。
+ */
+function useBackPlace(): { name: string; to: string } {
+  const [params] = useSearchParams();
+  const from = params.get("from");
+  const [referred, setReferred] = useState<string | null>(null);
+  useEffect(() => {
+    if (from) return;
+    try {
+      const ref = new URL(document.referrer);
+      if (ref.origin === window.location.origin) setReferred(`${ref.pathname}${ref.search}`);
+    } catch {
+      // 直接打开，或来路解析不出：留在热点榜
+    }
+  }, [from]);
+  return backPlace(from) ?? backPlace(referred) ?? { name: "热点榜", to: "/hot" };
+}
+
 export default function StoryPage() {
   const { story } = useLoaderData<typeof loader>();
+  const back = useBackPlace();
   const [filter, setFilter] = useState<Filter>("all");
   const [order, setOrder] = useState<"desc" | "asc">("desc");
   const status = STATUS[story.status];
@@ -194,8 +235,8 @@ export default function StoryPage() {
   return (
     <div className="mx-auto max-w-[var(--page-max-reading)] pb-10">
       <nav aria-label="位置" className="flex items-center gap-2.5 pb-4 pt-5 text-[12px] text-ink-4 lg:pb-5 lg:pt-4">
-        <Link to="/hot" className="inline-flex items-center gap-1.5 transition-colors hover:text-ink">
-          <IconArrowLeft size={15} /> 热点榜
+        <Link to={back.to} className="inline-flex items-center gap-1.5 whitespace-nowrap transition-colors hover:text-ink">
+          <IconArrowLeft size={15} /> {back.name}
         </Link>
         <span className="h-3 w-px bg-line-strong" aria-hidden="true" />
         <span>事件详情</span>

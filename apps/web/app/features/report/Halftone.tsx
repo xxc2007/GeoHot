@@ -294,7 +294,17 @@ export function Halftone({ seed, className = "", children }: { seed: string; cla
       redraw();
     };
 
-    const resize = new ResizeObserver(() => rebuild());
+    // One rebuild per frame. `redraw` already coalesced its paints, but this callback did the layout work
+    // straight away, and a rebuild lays the glyph mask out again and reads it back with `getImageData` —
+    // for every step of a window drag, and for every keyboard-driven scroll of the container.
+    let resizeFrame = 0;
+    const resize = new ResizeObserver(() => {
+      if (resizeFrame) return;
+      resizeFrame = requestAnimationFrame(() => {
+        resizeFrame = 0;
+        rebuild();
+      });
+    });
     const recolour = () => {
       readColors();
       paintTint();
@@ -323,6 +333,7 @@ export function Halftone({ seed, className = "", children }: { seed: string; cla
     return () => {
       disposed = true;
       if (frame) cancelAnimationFrame(frame);
+      if (resizeFrame) cancelAnimationFrame(resizeFrame);
       resize.disconnect();
       theme.disconnect();
       scheme.removeEventListener("change", onScheme);

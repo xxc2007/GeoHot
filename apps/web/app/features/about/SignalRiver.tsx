@@ -9,6 +9,7 @@
 import { SITE, withSubject } from "@aihot/industry/site";
 import { useEffect, useRef, type ReactNode } from "react";
 import { shortSourceName } from "../../lib/format";
+import { strandCount, strandsUnderHover, type RiverHover } from "./river-strands";
 
 export interface RiverSource {
   name: string;
@@ -71,7 +72,7 @@ interface Layout {
 
 function layout(w: number, h: number, sources: RiverSource[]): Layout {
   const rand = prng(20260928 + sources.length);
-  const n = Math.max(40, Math.min(160, Math.round(w / 7.5)));
+  const n = strandCount(w);
   const B = w >= 900 ? 9 : w >= 560 ? 7 : 5;
   const K = B >= 9 ? 3 : 2;
   const kept = new Set(Array.from({ length: K }, (_, k) => Math.round(((k + 0.5) * B) / K - 0.5)));
@@ -321,7 +322,7 @@ export function SignalRiver({
     let passing: number[] = [];
     let spawnDebt = 0;
     let flashAt = -Infinity;
-    let hover: { s: number | null; bundle: number | null; paper: boolean } | null = null;
+    let hover: RiverHover | null = null;
     let frame = 0;
     let last = 0;
     // The intro starts the first time the river is seen.
@@ -343,6 +344,9 @@ export function SignalRiver({
       L = layout(w, h, sources);
       passing = L.strands.flatMap((s, i) => (s.pass ? [i] : []));
       pulses = [];
+      // The new river has a different number of lines, so every index the old one handed out is stale.
+      hover = null;
+      label.hidden = true;
       lctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       paintStatic(lctx, L, col);
     };
@@ -374,8 +378,8 @@ export function SignalRiver({
       ctx.lineJoin = "round";
       ctx.lineCap = "round";
 
-      if (hover && (hover.s !== null || hover.bundle !== null)) {
-        const lit = hover.bundle !== null ? L.strands.filter((s) => s.bundle === hover!.bundle) : [L.strands[hover.s!]!];
+      const lit = strandsUnderHover(L.strands, hover);
+      if (lit.length > 0) {
         ctx.lineWidth = lit.length > 1 ? 1 : 1.5;
         for (const s of lit) {
           const kept = L.bundles[s.bundle]!.kept;
@@ -521,9 +525,16 @@ export function SignalRiver({
       redraw();
     };
 
+    // One rebuild per frame: ResizeObserver fires for every step of a drag, and a rebuild lays out up to
+    // 160 strands and repaints the static layer at full size — twice over with the redraw below.
+    let resizeFrame = 0;
     const resize = new ResizeObserver(() => {
-      build();
-      redraw();
+      if (resizeFrame) return;
+      resizeFrame = requestAnimationFrame(() => {
+        resizeFrame = 0;
+        build();
+        redraw();
+      });
     });
     const recolour = () => {
       col = readColors(probe);
@@ -555,6 +566,7 @@ export function SignalRiver({
     return () => {
       disposed = true;
       if (frame) cancelAnimationFrame(frame);
+      if (resizeFrame) cancelAnimationFrame(resizeFrame);
       redrawRef.current = () => {};
       resize.disconnect();
       seen.disconnect();

@@ -5,7 +5,8 @@
 import { config } from "@aihot/backend/config";
 import { CATEGORY_LABELS } from "@aihot/contracts/taxonomy";
 import { beijingDate } from "@aihot/contracts/time";
-import { withSubject } from "@aihot/industry/site";
+import { MCP_TOOL_NAMES } from "@aihot/contracts/mcp";
+import { SITE, withSubject } from "@aihot/industry/site";
 import { ogEtag } from "../apps/api/src/og/render.ts";
 import { posterEtag } from "../apps/api/src/og/poster.ts";
 import { tag } from "./setup.ts";
@@ -27,6 +28,10 @@ const T = tag();
 const SOURCE = `test-publication-${T}`;
 const BODY = `FULLTEXT-${T} `.repeat(40);
 const REPORT_KEY = `2099-12-${String(10 + Math.floor(Math.random() * 19))}`;
+const WEEK_KEY = "2099-W01";
+const WEEK_EMPTY = "2099-W02";
+const MONTH_KEY = "2099-02";
+const MONTH_EMPTY = "2099-03";
 const app = await buildApp();
 
 before(async () => {
@@ -37,6 +42,7 @@ before(async () => {
 });
 after(async () => {
   await sql`DELETE FROM reports WHERE kind = 'daily' AND key = ${REPORT_KEY}`;
+  await sql`DELETE FROM reports WHERE (kind = 'weekly' AND key IN (${WEEK_KEY}, ${WEEK_EMPTY})) OR (kind = 'monthly' AND key IN (${MONTH_KEY}, ${MONTH_EMPTY}))`;
   await app.close();
   await stopBoss();
   await closeDb();
@@ -393,4 +399,133 @@ test("minimal sync projection preserves snapshot fields, pagination bindings and
   await setVisibility(id, { visibility: 'withdrawn', reason: 'sync test', version: 0 }, 'test');
   const removed = await getChanges(minimalChanges.cursor);
   assert.ok(removed.changes.some((c: any) => c.op === 'remove' && c.id === id));
+});
+
+/** A compose-shaped periodical row: the fields v1 and the feeds read are the ones the composer writes. */
+async function insertPeriodReport(kind: "weekly" | "monthly", key: string, content: Record<string, unknown>) {
+  await sql`INSERT INTO reports (kind, key, window_start, window_end, content, generated_at, origin)
+            VALUES (${kind}, ${key}, now() - interval '10 days', now() - interval '3 days', ${sql.json(content as never)}, now(), 'manual')
+            ON CONFLICT (kind, key) DO UPDATE SET content = EXCLUDED.content`;
+}
+
+test("weeklies and monthlies v1 serve published content, gate blank issues and validate keys", async () => {
+  const wItem = await article();
+  await publishArticle(wItem, released());
+  const mItem = await article();
+  await publishArticle(mItem, released());
+  await insertPeriodReport("weekly", WEEK_KEY, {
+    kind: "weekly", title: `${SITE.name} 周报 · ${WEEK_KEY}`, isoLabel: WEEK_KEY,
+    periodStart: "2098-12-29", periodEnd: "2099-01-04", headline: `周报头条-${T}`, overview: `周报总述-${T}`,
+    themes: [{ heading: "自然与资源", summary: `栏目小结-${T}`, storyRefs: [{ itemId: wItem, title: `周报大事-${T}`, summary: `WSUM-${T}`, sourceName: "Test", sourceUrl: `https://example.com/week-${T}`, publishedAt: new Date().toISOString() }] }],
+    storyOrder: [wItem], metrics: {},
+  });
+  await insertPeriodReport("weekly", WEEK_EMPTY, {
+    kind: "weekly", title: `${SITE.name} 周报 · ${WEEK_EMPTY}`, periodStart: "2099-01-05", periodEnd: "2099-01-11",
+    overview: "", themes: [], storyOrder: [], metrics: {},
+  });
+  await insertPeriodReport("monthly", MONTH_KEY, {
+    kind: "monthly", title: `${SITE.name} 月报 · ${MONTH_KEY}`, monthLabel: MONTH_KEY,
+    periodStart: "2099-02-01", periodEnd: "2099-02-28", headline: `月报头条-${T}`, overview: `月报总述-${T}`,
+    themes: [{ heading: "区域与城乡", summary: null, storyRefs: [{ itemId: mItem, title: `月报大事-${T}`, summary: `MSUM-${T}`, sourceName: "Test", sourceUrl: `https://example.com/month-${T}`, publishedAt: new Date().toISOString() }] }],
+    storyOrder: [mItem], metrics: {},
+  });
+  await insertPeriodReport("monthly", MONTH_EMPTY, {
+    kind: "monthly", title: `${SITE.name} 月报 · ${MONTH_EMPTY}`, periodStart: "2099-03-01", periodEnd: "2099-03-31",
+    overview: "", themes: [], storyOrder: [], metrics: {},
+  });
+
+  const list = JSON.parse((await get("/api/v1/weeklies")).body);
+  assert.equal(list.schemaVersion, 1);
+  assert.equal(list.count, list.items.length);
+  const entry = list.items.find((i: any) => i.week === WEEK_KEY);
+  assert.ok(entry, "the readable issue is listed");
+  assert.ok(!list.items.some((i: any) => i.week === WEEK_EMPTY), "an issue with nothing in it is not advertised");
+  assert.equal(entry.periodStart, "2098-12-29");
+  assert.equal(entry.periodEnd, "2099-01-04");
+  assert.equal(entry.headline, `周报头条-${T}`);
+  assert.ok(String(entry.links.aihot).endsWith(`/weekly/${WEEK_KEY}`), "the entry links to its own site page");
+  assert.equal(entry.attribution.url, entry.links.aihot);
+  assert.equal(entry.attribution.name, SITE.name);
+  assert.ok(typeof entry.generatedAt === "string" && !Number.isNaN(Date.parse(entry.generatedAt)));
+
+  assert.equal(JSON.parse((await get("/api/v1/weeklies/latest")).body).report.week, WEEK_KEY, "latest skips the newer blank issue");
+  const single = JSON.parse((await get(`/api/v1/weeklies/${WEEK_KEY}`)).body).report;
+  assert.equal(single.week, WEEK_KEY);
+  assert.equal(single.overview, `周报总述-${T}`);
+  assert.ok(typeof single.windowStart === "string" && typeof single.windowEnd === "string");
+  assert.equal(single.sections[0].label, "自然与资源");
+  assert.equal(single.sections[0].summary, `栏目小结-${T}`);
+  const cited = single.sections[0].items[0];
+  assert.equal(cited.summary, `WSUM-${T}`);
+  assert.equal(cited.links.aihot, `${config.siteUrl}/items/${wItem}`);
+  assert.equal(cited.links.original, `https://example.com/week-${T}`);
+  assert.ok(cited.publishedAt, "the item keeps its publish time");
+
+  const blank = await get(`/api/v1/weeklies/${WEEK_EMPTY}`);
+  assert.equal(blank.status, 200, "a named blank issue is an honest empty state, not a 500");
+  assert.equal(JSON.parse(blank.body).report.sections.length, 0);
+  assert.equal(JSON.parse(blank.body).report.headline, null, "the generic issue name is not a headline");
+
+  assert.match((await get("/api/v1/weeklies/2026-W54")).body, /week must be a real ISO week such as 2026-W39/);
+  assert.equal((await get("/api/v1/weeklies/2026-W54")).status, 400);
+  const gone = await get("/api/v1/weeklies/1999-W01");
+  assert.equal(gone.status, 404);
+  assert.match(gone.body, /No weekly report exists for 1999-W01/);
+  assert.equal((await get("/api/v1/weeklies?limit=0")).status, 400);
+  assert.equal((await get("/api/v1/weeklies?limit=61")).status, 400);
+  assert.equal((await get("/api/v1/weeklies?x=1")).status, 400, "strict query applies to the new lists too");
+  assert.equal(JSON.parse((await get("/api/v1/weeklies?limit=1")).body).count, 1);
+
+  const mlist = JSON.parse((await get("/api/v1/monthlies")).body);
+  const mentry = mlist.items.find((i: any) => i.month === MONTH_KEY);
+  assert.ok(mentry, "the readable monthly issue is listed");
+  assert.ok(!mlist.items.some((i: any) => i.month === MONTH_EMPTY), "a blank monthly issue is not advertised");
+  assert.equal(mentry.headline, `月报头条-${T}`);
+  assert.ok(String(mentry.links.aihot).endsWith(`/monthly/${MONTH_KEY}`));
+  assert.equal(JSON.parse((await get("/api/v1/monthlies/latest")).body).report.month, MONTH_KEY);
+  const msingle = JSON.parse((await get(`/api/v1/monthlies/${MONTH_KEY}`)).body).report;
+  assert.equal(msingle.sections[0].items[0].links.aihot, `${config.siteUrl}/items/${mItem}`);
+  assert.equal(msingle.sections[0].summary, null, "a theme without an editor's note stays honest about it");
+  assert.equal((await get("/api/v1/monthlies/2099-13")).status, 400);
+  assert.match((await get("/api/v1/monthlies/2099-13")).body, /month must be a real month such as 2026-09/);
+  assert.equal((await get("/api/v1/monthlies/1999-01")).status, 404);
+
+  const first = await get("/api/v1/weeklies");
+  assert.ok(first.etag, "the weeklies list carries an ETag");
+  assert.equal((await get("/api/v1/weeklies", { "if-none-match": first.etag! })).status, 304);
+
+  const llms = await get("/llms.txt");
+  assert.ok(llms.body.includes(`${SITE.mcpPrefix}_get_weekly`), "llms.txt lists the new MCP tool");
+  assert.ok(llms.body.includes("/api/v1/weeklies/latest"));
+  assert.ok(llms.body.includes("/feed/monthly.xml"));
+
+  await setVisibility(wItem, { visibility: "withdrawn", reason: "test", version: 0 }, "test");
+  const withdrawn = await get(`/api/v1/weeklies/${WEEK_KEY}`);
+  assert.ok(!withdrawn.body.includes(`WSUM-${T}`), "a withdrawn item leaves the v1 weekly");
+  assert.equal(withdrawn.status, 200, "the issue itself stays readable around its remaining content");
+});
+
+test("the MCP server lists and answers the weekly and monthly tools through the read layer", async () => {
+  const call = async (method: string, params: Record<string, unknown>) => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/mcp",
+      headers: { "content-type": "application/json", accept: "application/json, text/event-stream" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 2, method, params }),
+    });
+    const raw = res.headers["content-type"]?.toString().startsWith("text/event-stream")
+      ? res.body.split("\n").find((l) => l.startsWith("data: "))?.slice(6) ?? ""
+      : res.body;
+    return JSON.parse(raw);
+  };
+  const listed = await call("tools/list", {});
+  const names: string[] = listed.result.tools.map((t: any) => t.name);
+  assert.ok(names.includes(`${SITE.mcpPrefix}_get_weekly`) && names.includes(`${SITE.mcpPrefix}_get_monthly`), "the seven tools include the periodicals");
+  assert.equal(names.length, 7);
+  const monthly = await call("tools/call", { name: `${SITE.mcpPrefix}_get_monthly`, arguments: { month: MONTH_KEY } });
+  assert.ok(!monthly.result.isError, JSON.stringify(monthly.result?.error ?? monthly.result));
+  assert.ok(monthly.result.content[0].text.includes(`月报总述-${T}`), "the tool answer carries the published overview");
+  assert.ok(monthly.result.content[0].text.includes(`月报大事-${T}`));
+  const bad = await call("tools/call", { name: `${SITE.mcpPrefix}_get_weekly`, arguments: { week: "2026-W54" } });
+  assert.ok(bad.result.isError, "an impossible ISO week is a tool error, never a 500");
 });

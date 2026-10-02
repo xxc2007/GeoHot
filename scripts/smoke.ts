@@ -9,14 +9,18 @@ const at = process.argv.indexOf("--base");
 // URL below is built as `base + path` with `path` already starting at the root — keep one slash.
 const base = ((at > 0 ? process.argv[at + 1] : process.env.SITE_URL) ?? "http://localhost:3000").replace(/\/+$/, "");
 
-const PAGES = ["/", "/all", "/hot", "/daily", "/daily/archive", "/topics", "/starred", "/agent", "/about", "/changelog", "/feedback", "/terms", "/privacy", "/more", "/admin/login"];
+const PAGES = ["/", "/all", "/hot", "/daily", "/daily/archive", "/weekly", "/monthly", "/topics", "/starred", "/agent", "/about", "/changelog", "/feedback", "/terms", "/privacy", "/more", "/admin/login"];
 const MACHINE: Array<[path: string, type: RegExp]> = [
   ["/api/health", /json/],
   ["/api/v1/items", /json/],
   ["/api/v1/hot-topics", /json/],
   ["/api/v1/selected/snapshot", /json/],
+  ["/api/v1/weeklies", /json/],
   ["/feed.xml", /xml/],
   ["/feed/all.xml", /xml/],
+  ["/feed/daily.xml", /xml/],
+  ["/feed/weekly.xml", /xml/],
+  ["/feed/monthly.xml", /xml/],
   ["/llms.txt", /text\/plain/],
   ["/robots.txt", /text\/plain/],
   ["/sitemap.xml", /xml/],
@@ -104,6 +108,59 @@ if (prefix) {
   }
   console.log(`${escaping ? "✗" : "✓"} root-absolute URLs stay under ${prefix}`);
   failed += escaping;
+}
+
+/**
+ * The outlets must agree about which issues exist. They read the same table through different caches, and
+ * they drifted twice in one day: /sitemap.xml listed eight `/daily/<日期>` locs while /api/site/reports/daily
+ * listed one, and /feed/daily.xml carried the same eight — every blank issue the read-layer gate was written
+ * to hide. Status codes cannot see that (all eight answered 200 with an honest 「本期没有入选内容」), so this
+ * compares the key sets themselves: what the sitemap and the feed advertise must be what the site index and
+ * the public API list. Red here means one outlet is publishing a period the others filtered out.
+ */
+const getText = async (path: string) => (await fetch(base + path, { signal: AbortSignal.timeout(30_000) })).text();
+const jsonKeys = (body: string, field: "key" | "date" | "week" | "month") => {
+  const parsed = JSON.parse(body) as { items?: Array<Record<string, unknown>> };
+  return (parsed.items ?? []).map((i) => String(i[field] ?? i.key ?? "")).filter(Boolean);
+};
+try {
+  const [sitemap, dailyFeed, siteIndex, v1Dailies] = await Promise.all([
+    getText("/sitemap.xml"),
+    getText("/feed/daily.xml"),
+    getText("/api/site/reports/daily"),
+    getText("/api/v1/dailies"),
+  ]);
+  // Keys look like a date, an ISO week or a month. `/daily/archive` is a page, not an edition — matching it
+  // by prefix counted the archive itself as a missing issue (a red on a correct deployment, which is its own
+  // kind of wrong: the first draft of this check reported "sitemap 4 / feed 3" against the fixed build).
+  const sitemapKeys = [...sitemap.matchAll(/<loc>[^<]*\/(daily|weekly|monthly)\/([^<]+)<\/loc>/g)]
+    .map(([, kind, key]) => `${kind}/${key}`)
+    .filter((k) => /^daily\/\d{4}-\d{2}-\d{2}$/.test(k) || /^weekly\/\d{4}-W\d{2}$/.test(k) || /^monthly\/\d{4}-\d{2}$/.test(k));
+  const feedKeys = [...dailyFeed.matchAll(/<link>([^<]+)<\/link>/g)]
+    .map((m) => m[1]!.match(/\/(daily\/\d{4}-\d{2}-\d{2})$/)?.[1])
+    .filter((k): k is string => Boolean(k));
+  const siteDaily = new Set(jsonKeys(siteIndex, "key").map((k) => `daily/${k}`));
+  const apiDaily = new Set(jsonKeys(v1Dailies, "date").map((k) => `daily/${k}`));
+  const problems: string[] = [];
+  const sitemapDaily = sitemapKeys.filter((k) => k.startsWith("daily/"));
+  // Advertising an issue the gate filtered out is the failure this check exists for — the sitemap is held
+  // to it strictly, but only to it: its own cache is ~5 minutes by design, so a *missing* key right after a
+  // publish is lag, not a bug.
+  for (const k of sitemapDaily) if (!siteDaily.has(k) || !apiDaily.has(k)) problems.push(`sitemap advertises ${k}, the indexes do not`);
+  for (const k of feedKeys) if (!siteDaily.has(k) || !apiDaily.has(k)) problems.push(`/feed/daily.xml advertises ${k}, the indexes do not`);
+  // The three live reads (feed, site index, v1) share a ≤60 s cache, so they must agree exactly.
+  if (feedKeys.length !== siteDaily.size || siteDaily.size !== apiDaily.size) {
+    problems.push(`counts disagree: daily feed ${feedKeys.length} / site index ${siteDaily.size} / v1 ${apiDaily.size}`);
+  }
+  if (sitemapDaily.length !== siteDaily.size) {
+    console.log(`– cross-outlet  sitemap lists ${sitemapDaily.length} daily issue(s) vs ${siteDaily.size} in the indexes（sitemap 自己的缓存约 5 分钟，可能是刚出刊）`);
+  }
+  for (const p of problems) console.log(`✗ cross-outlet  ${p}`);
+  if (!problems.length) console.log(`✓ cross-outlet  sitemap, daily feed, site index and v1 agree on ${siteDaily.size} issue(s)`);
+  failed += problems.length;
+} catch (error) {
+  console.log(`✗ cross-outlet  ${String(error)}`);
+  failed += 1;
 }
 
 console.log(failed ? `\n${failed} check(s) failed` : "\nall checks passed");

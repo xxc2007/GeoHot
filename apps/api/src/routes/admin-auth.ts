@@ -1,6 +1,7 @@
 // Admin sign-in and the /api/admin guard. Public routes never read the session.
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { config } from "@aihot/backend/config";
+import { deployBase, toPublicPath } from "@aihot/contracts/http-policy";
 import {
   completeLogin,
   cookie,
@@ -41,6 +42,13 @@ function tooManyAttempts(ip: string): boolean {
 }
 
 const loginPage = (returnTo: string, error?: string) => `/admin/login?${new URLSearchParams({ return: safeReturn(returnTo), ...(error ? { error } : {}) })}`;
+
+/**
+ * The login page as an address written into a response body. A `Location` header gets the deployment
+ * prefix back from the web proxy (apps/web/server.ts:168); a URL inside a body does not, and under a
+ * sub-path deployment a root-relative one resolves to the neighbouring site on the same domain.
+ */
+const publicLoginPage = (returnTo: string, error?: string) => toPublicPath(loginPage(returnTo, error), deployBase(config.siteUrl));
 
 export type AdminHandler = (req: FastifyRequest, reply: FastifyReply, admin: AdminPrincipal) => Promise<unknown>;
 
@@ -115,7 +123,7 @@ export function registerAdminAuth(app: FastifyInstance) {
     } catch (error) {
       const message = error instanceof LoginRejected ? error.message : "登录失败，请稍后再试";
       if (!(error instanceof LoginRejected)) req.log.error({ err: error }, "admin login failed");
-      return reply.code(403).type("text/html; charset=utf-8").send(`<!doctype html><meta charset="utf-8"><title>登录失败</title><p style="font:16px system-ui;padding:40px">${message}。<a href="/admin/login">重新登录</a></p>`);
+      return reply.code(403).type("text/html; charset=utf-8").send(`<!doctype html><meta charset="utf-8"><title>登录失败</title><p style="font:16px system-ui;padding:40px">${message}。<a href="${publicLoginPage("/admin")}">重新登录</a></p>`);
     }
   });
 

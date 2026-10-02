@@ -1,0 +1,13 @@
+# publish-excludes — 发布树里刻意不带的路径（每行一个前缀，# 之后算注释）
+#
+# 这个文件是 publish-to-github.sh 与 verify-github-sync.sh 唯一的排除清单来源：两处读同一份，
+# 不会出现「发布带了、校验没算」或者反过来。
+#
+# 现在是空的，也就是说：**公开仓库的内容与本地 HEAD 逐字节一致，一个文件都不缺**。
+#
+# 为什么这里曾经有过一条 `.github`：发布用的 token 没有 `workflow` 作用域，GitHub 拒绝它创建或更新
+# `.github/workflows/*`（实测 push 报 "refusing to allow an OAuth App to create or update workflow …"）。
+# 与其在公开仓库里长期缺一个文件、让「同步」这句话打折，正本已经搬到 `tooling/ci-check.yml`——
+# 它在仓库里、能被读者看到、复制回 `.github/workflows/check.yml` 就能用（那一步需要带 workflow 作用域的 token）。
+#
+# 以后如果真的必须排除某个路径，在这里加一行，并在同一行写清「为什么」和「读者怎么拿到它」。

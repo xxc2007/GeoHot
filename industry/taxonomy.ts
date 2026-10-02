@@ -141,6 +141,14 @@ export const TAG_SYNONYMS: Readonly<Record<string, string>> = {
   制图: "地图与制图", 地图集: "地图与制图", 三维地图: "地图与制图", 数字孪生地球: "地图与制图",
   中国地震台网中心: "中国地震台网", 地震台网: "中国地震台网", 台网中心: "中国地震台网", cenc: "中国地震台网",
   美国地质调查局: "USGS", usgs: "USGS",
+  // ⚠ 有意为之的**父子归并**（不是形似碰撞）：中央气象台＝国家气象中心，是中国气象局直属事业单位；
+  // 国家气象局／中央气象台在本站词表里合成一格，读者可见的实体标签只有「中国气象局」这一格（ENTITY_TAGS 没有「中央气象台」）。
+  // 后果要如实写清：**凡原文只写「中央气象台」「国家气象中心」的条目，摘要与标题被允许写上级机构名「中国气象局」**，
+  // 反向同理（写「中国气象局发布」而原文是县气象台的不算张冠李戴）。这一格与下面「应急部／国家防总」那格是同一类决定，
+  // 理由、代价与要拆开需要同时改的地方都写在 ENTITIES.cma 与 IDENTITY_LEXICON 的 cma 条目注释里；
+  // tests/industry-vocabulary.test.ts 有一条哨兵盯着这个合并，拆的时候必须同时改那张表。
+  // 「气象局」单独成键是为了省写法（河北省气象局→中国气象局那格是**标签口径**，不是身份声明：
+  // structure 的 subjects 由人写定，这批省级预警语料的 subjects 一律留空，见 corpus-hazards-brain 的 structure-alarm-nmc-*）。
   气象局: "中国气象局", 中央气象台: "中国气象局", 国家气象中心: "中国气象局", cma: "中国气象局", nmc: "中国气象局",
   美国国家海洋和大气管理局: "NOAA", 国家飓风中心: "NOAA", noaa: "NOAA", nhc: "NOAA",
   美国宇航局: "NASA", 美国国家航空航天局: "NASA", nasa: "NASA",
@@ -149,6 +157,8 @@ export const TAG_SYNONYMS: Readonly<Record<string, string>> = {
   日本宇宙航空研究开发机构: "JAXA", jaxa: "JAXA",
   中科院: "中国科学院", 地理资源所: "中国科学院", 中国科学院地理科学与资源研究所: "中国科学院",
   国土部: "自然资源部", 国家地理信息中心: "自然资源部",
+  // 同为**父子/归口合并**（见上面 cma 那段的说明）：国家防总＝国家防汛抗旱总指挥部，其办公室设在应急管理部，
+  // 本站把它归到「应急管理部」这一格，摘要因此可以写上级口径；这不是拼写形似，是组织关系。
   应急部: "应急管理部", 国家防总: "应急管理部", 国家防汛抗旱总指挥部: "应急管理部",
   区划地名: "民政部",
   // 水利部是 T1 信源 web-mwr-news / web-mwr-data 的发布方（“赣江发生2026年第1号洪水”“乡村振兴水利保障工作简报”），标签必须落得下来。
@@ -176,6 +186,7 @@ export const CATEGORY_BY_ITEM_TYPE: Readonly<Record<string, string>> = {
 export const ENTITIES: Record<string, { name: string; displayTag: string | null; aliases: string[] }> = {
   cenc: { name: "中国地震台网中心", displayTag: "中国地震台网", aliases: ["中国地震台网中心", "中国地震台网", "CENC", "地震速报"] },
   usgs: { name: "美国地质调查局 USGS", displayTag: "USGS", aliases: ["USGS", "美国地质调查局", "ShakeAlert"] },
+  // aliases 里的「中央气象台」「国家气象中心」是有意的父子归并（上级名可代下级名），不是别名表写松了；详见 TAG_SYNONYMS 里 cma 那一段的注释。
   cma: { name: "中国气象局", displayTag: "中国气象局", aliases: ["中国气象局", "CMA", "中央气象台", "国家气象中心"] },
   noaa: { name: "NOAA", displayTag: "NOAA", aliases: ["NOAA", "美国国家海洋和大气管理局", "国家飓风中心", "NHC"] },
   nasa: { name: "NASA", displayTag: "NASA", aliases: ["NASA", "美国宇航局", "JPL", "Landsat"] },
@@ -184,6 +195,7 @@ export const ENTITIES: Record<string, { name: string; displayTag: string | null;
   jaxa: { name: "JAXA", displayTag: "JAXA", aliases: ["JAXA", "日本宇宙航空研究开发机构", "ALOS"] },
   cas: { name: "中国科学院", displayTag: "中国科学院", aliases: ["中国科学院", "中科院", "中国科学院地理资源所"] },
   mnr: { name: "自然资源部", displayTag: "自然资源部", aliases: ["自然资源部", "国土部", "国家地理信息中心"] },
+  // 同上：国家防总归口应急管理部，aliases 里的这一项是有意的父子归并。
   mem: { name: "应急管理部", displayTag: "应急管理部", aliases: ["应急管理部", "应急部", "国家防总"] },
   mca: { name: "民政部", displayTag: "民政部", aliases: ["民政部", "区划地名司"] },
   wmo: { name: "世界气象组织 WMO", displayTag: "世界气象组织", aliases: ["世界气象组织", "WMO", "World Meteorological Organization", "世界天气监视网", "联合国世界气象组织"] },
@@ -222,6 +234,17 @@ export const IDENTITY_LEXICON: ReadonlyArray<{ id: string; name: string; pattern
   { id: "cea", name: "中国地震局", patterns: [/中国地震局/i] },
   { id: "emsc", name: "欧洲-地中海地震中心", patterns: [/\bemsc\b|欧洲地中海地震/i] },
   { id: "geofon", name: "德国地学中心 GFZ", patterns: [/\bgfz\b|德国地学中心|geofon/i] },
+  // 这一格是**父子归并**，不是词典写宽了：中央气象台＝国家气象中心＝中国气象局直属事业单位，本站把三个写法收进同一个 id。
+  // 守卫的实际后果（写清楚，别让它当秘密）：原文只写「中央气象台」的条目，标题与摘要允许写上级名「中国气象局」，反向也一样。
+  // 本轮（2026-10-02）评估过给 NMC 单列 id 的方案，判定**不改**，理由三条，都在报告里：
+  // ① 只拆这一格拦不住事发的那批条目——json-nmc-weather-alarm 的 owner_entity_id 是 cma、PUBLISHER_DOMAINS 又把 nmc.cn 判给 cma，
+  //    而 writing.ts:195-196 是拿 publisher+owner 直接加进放行集合的，与原文用词无关；要真拦住得把域与 owner 一起搬到新的 nmc 实体。
+  // ② 搬到新实体要付两笔账：机构主题页按 entity:<id> 收条目（topics.json 的中国气象局主题会漏掉改判后的条目），
+  //    而守卫失配时是**整条摘要丢弃**（writing.ts:224），本站已经因为同类"会删掉忠实内容的校验器"撤下过综述溯源器（docs/known-issues.md）。
+  // ③ 上级名代下级名是"精度不够"，不是"无中生有"，与这道守卫要防的两个不相关机构张冠李戴（见 tests/identity-guard.test.ts 钉住的
+  //    地质调查局碰撞）不是同一类缺陷。要拆的话：ENTITIES 加 nmc（displayTag 仍 null）、IDENTITY_LEXICON 拆两行并把 cma 的 name 改回
+  //    「中国气象局」（否则 tests/identity-guard.test.ts:108 那条 collision 断言会变红）、PUBLISHER_DOMAINS 把 nmc.cn 改判 nmc、
+  //    sources.json 的 owner_entity_id 同步，并让 tests/industry-vocabulary.test.ts 那条哨兵断言一起改。
   { id: "cma", name: "中国气象局 / 中央气象台", patterns: [/中国气象局|中央气象台|国家气象中心|\bnmc\b|\bcma\b/i] },
   { id: "nsmc", name: "国家卫星气象中心（风云卫星）", patterns: [/国家卫星气象中心|\bnsmc\b|风云卫星|风云[一二三四五六七八九十\d]/i] },
   { id: "jma", name: "日本气象厅", patterns: [/日本气象厅|\bjma\b/i] },
@@ -241,6 +264,7 @@ export const IDENTITY_LEXICON: ReadonlyArray<{ id: string; name: string; pattern
   { id: "polar", name: "中国极地研究中心", patterns: [/极地研究中心|雪龙|中国南极考察|中国北极考察|中山站|昆仑站|泰山站|黄河站|长城站/i] },
   { id: "mnr", name: "自然资源部", patterns: [/自然资源部|国土变更调查|地理国情监测|国土调查/i] },
   { id: "cgs", name: "中国地质调查局", patterns: [/地质调查局|中国地质调查|\bcgs\b/i] },
+  // 与 cma 那格同类：国家防总（国家防汛抗旱总指挥部）归口应急管理部，属**有意的父子/归口合并**，摘要允许写上级机构名。
   { id: "mem", name: "应急管理部", patterns: [/应急管理部|国家防汛抗旱总指挥部|国家防总|应急救援|安全生产/i] },
   { id: "mwr", name: "水利部", patterns: [/水利部|水文水资源|河长制|水利普查/i] },
   { id: "mca", name: "民政部", patterns: [/民政部|行政区划管理|地名普查/i] },

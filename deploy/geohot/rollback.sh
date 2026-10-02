@@ -2,6 +2,17 @@
 # rollback.sh — GEOHOT 部署的回滚（幂等，默认 DRY-RUN，--apply 执行）
 # 原则：每一步只做 bootstrap/deploy 的逆操作；对主站零写操作。
 #
+# 可用环境变量（与 bootstrap-server.sh / fix-bare-path.sh 同一套，默认值 = 这台机器上的真实取值）：
+#   GEOHOT_APP_ROOT=/opt/geohot/app                    安装目录（unit 文件、备份文件的位置）
+#   GEOHOT_NGINX_SITE=/etc/nginx/sites-available/xxc2007.me
+#                                                      ★ 主站 nginx 站点文件——换域名就改这一个变量。
+#                                                         R1 那步是 `cp -a <备份> <站点文件>`：路径写死的话，
+#                                                         搬到新域名时它会去覆盖一个不存在的文件、
+#                                                         新域名的站点配置永远回滚不掉（这就是"搬家必崩"那条）。
+#   GEOHOT_BASE_PATH=/geohot                           本次部署的 location 前缀（R1 找不到备份时，
+#                                                         手工删哪三块的提示按这个前缀印；根路径部署写空串）
+#   MAIN_SITE=https://xxc2007.me                       主站地址（R5 那组验证命令按它印）
+#
 # ██████████████████████████████████████████████████████████████████████████
 # █ ★★ 绝对禁止：docker compose down -v ★★                                   █
 # █   compose 的 db/data/caddy 卷里是数据库、上传截图与证书（卷配置见 docker-  █
@@ -25,7 +36,13 @@ for arg in "$@"; do
 done
 PURGE="${PURGE:-0}"
 
-NGINX_SITE="/etc/nginx/sites-available/xxc2007.me"
+# 主站 nginx 站点文件：与 bootstrap-server.sh / fix-bare-path.sh 同一个变量、同一个默认值。
+# 以前这一行是硬编码，而本脚本 R1 用 cp -a 往它写内容 —— 换域名时那一条会把备份写进一个**别人家**的
+# 站点文件（或者干脆 no such file），回滚这一步在新域名上根本走不通。
+NGINX_SITE="${GEOHOT_NGINX_SITE:-/etc/nginx/sites-available/xxc2007.me}"
+PREFIX="${GEOHOT_BASE_PATH-/geohot}"          # `-` 而不是 `:-`：空串合法（域名根部署）
+PREFIX="${PREFIX%/}"; [[ -n "$PREFIX" ]] && PREFIX="/${PREFIX#/}"
+MAIN="${MAIN_SITE:-https://xxc2007.me}"
 APP_USER="geohot"
 # One install path for the whole deploy package (GEOHOT_APP_ROOT — bootstrap / install-units /
 # verify-deploy and the systemd/ templates all default to this same value).
@@ -40,12 +57,37 @@ run() { local d="$1"; shift
   if [[ "$APPLY" == "1" ]]; then echo "[APPLY] $d"; "$@"; else echo "[DRY ] $d"; echo "       \$ $*"; fi
 }
 step() { echo; echo "==== $* ===="; }
+# R1 是本脚本唯一会覆盖系统文件的一步（cp -a <备份> <站点文件>），而它的目标现在来自变量。
+# 两道硬守卫 + 一句提醒：必须绝对路径、必须不在 git 仓库里；不在常见 nginx 配置目录下只警告，
+# 因为源码装的 nginx（/usr/local/nginx）与测试用的临时路径都是合法取值。
+# "不在仓库里"那一条是这次加的规矩：安装目录本身就是一个 git checkout（APP_ROOT），搬家时有人会把
+# 站点配置拷进仓库再让变量指过去，那样 `cp -a` 会拿一份备份去覆盖受版本控制的文件。
+HERE="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(git -C "$HERE" rev-parse --show-toplevel 2>/dev/null || true)"
+assert_site_path() {
+  case "$NGINX_SITE" in
+    /*) ;;
+    *) echo "!! GEOHOT_NGINX_SITE='$NGINX_SITE' 不是绝对路径 —— R1 要 cp -a 覆盖它，相对路径会落在 \$PWD 里。" >&2; exit 2 ;;
+  esac
+  if [[ -n "$REPO_ROOT" && "$NGINX_SITE" == "$REPO_ROOT"/* ]]; then
+    echo "!! GEOHOT_NGINX_SITE='$NGINX_SITE' 在 git 仓库里（$REPO_ROOT）—— 拒绝把备份 cp -a 到受版本控制的文件上。" >&2
+    exit 2
+  fi
+  case "$NGINX_SITE" in
+    /etc/nginx/*|/usr/local/nginx/*|/opt/nginx/*) ;;
+    *) echo "⚠ GEOHOT_NGINX_SITE='$NGINX_SITE' 不在 nginx 的常见配置目录（/etc/nginx、/usr/local/nginx、/opt/nginx）下面 —— 继续，但请确认这是你要的那个站点文件（默认值 /etc/nginx/sites-available/xxc2007.me，换域名就改这一个变量）。" ;;
+  esac
+}
+assert_site_path
 
 echo "回滚 GEOHOT 部署。模式: $([[ $APPLY == 1 ]] && echo 'APPLY（真正执行）' || echo 'DRY-RUN（只打印）')"
+echo "三个坐标（都与 bootstrap-server.sh 同一套变量，默认值 = 这台机器上的真实取值）:"
+echo "  站点文件 $NGINX_SITE · 前缀 ${PREFIX:-（空 = 域名根）} · 安装目录 $APP_ROOT · 主站 $MAIN"
 echo "顺序与部署相反：nginx → 进程 → （可选）数据库 → （可选）文件。"
 
 # ---------------------------------------------------------------------------
 step "R1. nginx：恢复部署前备份并 reload（reload，绝不 restart）"
+echo "站点文件: $NGINX_SITE （GEOHOT_NGINX_SITE，换域名就改这一个变量）"
 bak=$(ls -1 "${NGINX_SITE}.bak-"* 2>/dev/null | tail -1 || true)
 if [[ -n "$bak" ]]; then
   echo "找到备份: $bak"
@@ -64,12 +106,17 @@ else
   echo "!! 未找到 ${NGINX_SITE}.bak-* 备份。"
   # 名字要跟 geohot.nginx.conf片段 里真正写的那三块一致 —— 上一版写的是 `location /geohot/` 与
   # `location /geohot/api/mcp`，站点文件里根本没有这两个串（真实的是 `^~` 那两条），照着一份对不上
-  # 名字的清单去删，很容易删错行。
-  echo "   手工方案：编辑站点文件，删除 geohot.nginx.conf片段 中标注 ADD 的三块（名字按片段原文）："
-  echo "     location = /geohot { return 308 https://\$host/geohot/; }"
-  echo "     location ^~ /geohot { … }"
-  echo "     location ^~ /geohot/api/mcp { … }"
-  echo "   —— /geohot 必须等于本次构建的 GEOHOT_BASE_PATH；两处（:80 与 :443 两个 server 块）都要删。"
+  # 名字的清单去删，很容易删错行。前缀也不许再写死：它必须等于本次构建的 GEOHOT_BASE_PATH。
+  echo "   手工方案：编辑站点文件（$NGINX_SITE），删除 geohot.nginx.conf片段 中标注 ADD 的三块（名字按片段原文）："
+  if [[ -n "$PREFIX" ]]; then
+    echo "     location = $PREFIX { return 308 https://\$host$PREFIX/; }"
+    echo "     location ^~ $PREFIX { … }"
+    echo "     location ^~ $PREFIX/api/mcp { … }"
+    echo "   —— $PREFIX 必须等于本次构建的 GEOHOT_BASE_PATH（默认 /geohot）；两处（:80 与 :443 两个 server 块）都要删。"
+  else
+    echo "     —— 本次是域名根部署（GEOHOT_BASE_PATH=\"\"）：片段那三块 location 本来就不该存在，"
+    echo "        要撤的是把 / 反代到 127.0.0.1:3000 的那一组 proxy_* 行，对照你当初贴进去的那一份删。"
+  fi
   echo "   —— 除这三块外不得删任何行；根 location/、Artalk、ACME 一律不动。"
   echo "   改完: sudo nginx -t && sudo systemctl reload nginx（reload，绝不 restart）"
 fi
@@ -125,8 +172,11 @@ fi
 # ---------------------------------------------------------------------------
 step "R5. 主站完好性验证（回滚后必跑）"
 echo "与本脚本同目录的 verify-deploy.sh 的第 1、2 节，或直接："
-echo "    curl -s https://xxc2007.me/ | sha256sum   # 与 baseline-main.txt 的 main_home_sha256 一致"
+echo "    curl -s $MAIN/ | sha256sum   # 与 baseline-main.txt 的 main_home_sha256 一致"
 echo "    systemctl is-active nginx                  # active"
-echo "    curl -sI https://xxc2007.me/comment/ | head -1   # Artalk 照旧"
+echo "    curl -sI $MAIN/comment/ | head -1   # Artalk 照旧"
+echo "（主站地址来自 MAIN_SITE，默认 https://xxc2007.me —— 与 bootstrap/verify 的默认值同一套，换域名改它。）"
+echo "★ 新机器/新域名：baseline-main.txt 里那份哈希属于**采集它时的那个主站**。回滚前后都要按新主站重采一次"
+echo "  （MAIN_SITE=<新主站> bash verify-deploy.sh --save-baseline），否则 verify 第 1 节会一直红。"
 echo
 echo "回滚流程结束。docker 从未出现在本脚本中；若你另用了容器部署，只允许 docker compose stop（无 -v）。"

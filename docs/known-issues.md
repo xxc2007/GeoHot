@@ -16,11 +16,14 @@
    `industry/taxonomy.ts` 的 `RISK_NOTICE_CATEGORIES` / `RISK_NOTICE_TAGS`，日报的发布数量指标改用
    `RELEASE_CATEGORY_KEY`，`apps/` 与 `packages/` 里不再有地理类别 key。
 3. **Cloudflare 回源是明文 80**：浏览器↔CF 是 HTTPS，CF↔源站是 http。与主站同策略，改 Full(strict) 属于主站配置变更，未动。
-4. **发布不是一个脚本，是一条条 API 调用**：`build-release.sh` 已经随 `.brief/` 一起删掉了，现在发布是
-   对每个变更文件调 `gh api --method PUT repos/…/contents/<path>`，线上历史因此是一串按文件的提交，
-   而不是一个被反复强制推的干净提交。这个变化要记在这里，因为下面那张审计表里「唯一成立的一条」说的就是旧做法。
-   已知副作用：contents API 上传的是工作区字节，绕过 `.gitattributes` 的换行归一化，所以发布后必须
-   在上传前把 `\r` 去掉，否则线上 blob 与本地索引会差在 CRLF 上（内容等价，哈希不等）。
+4. **发布已收成一条命令（2026-10-02 更新）**：`deploy/geohot/publish-to-github.sh` 在一个临时索引里从
+   HEAD 造发布树（排除清单只认 `deploy/geohot/publish-excludes`），以远端当前 HEAD 为父做一次快进推送
+   ——不 force、不改写线上历史——然后当场交给 `deploy/geohot/verify-github-sync.sh` 逐字节验收：每个 blob
+   哈希相等、每张配图再从远端取回来验签名与尺寸、SVG 过严格 XML 解析、README 的相对引用逐个命中。
+   这一条以前写的是「发布不是一个脚本，是一条条 API 调用」，而那正是两次字节事故的来源：按文件 PUT 把
+   工作区的 CRLF 写进 41 个线上 blob（内容等价、哈希不等），随后为了修它加上的换行归一化又吃掉了
+   8 张 PNG 里天然的 `\r\n` 字节对。两种失败都不会让「我觉得已经同步了」这句话自己露馅，所以**验收脚本
+   比发布脚本更重要**。旧的 `build-release.sh` 已随 `.brief/` 删除，正本换成上面这两个。
 
 ## 独立审计的复核结果（2026-10-01）
 

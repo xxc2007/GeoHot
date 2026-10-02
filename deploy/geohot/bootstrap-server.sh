@@ -7,6 +7,10 @@
 # 可用的环境变量（都有默认值，一次性装完就不用再传）:
 #   GEOHOT_APP_ROOT=/opt/geohot/app      代码与 .env 所在的目录（整个部署包共用这一个值）
 #   GEOHOT_BASE_PATH=/geohot             站点前缀；根路径部署要显式写成 GEOHOT_BASE_PATH=""
+#   GEOHOT_NGINX_SITE=/etc/nginx/sites-available/xxc2007.me
+#                                        ★ 主站 nginx 站点文件——换域名就改这一个变量。
+#                                        bootstrap / rollback / fix-bare-path 三个脚本共用它（默认值 =
+#                                        这台机器上的真实路径，不改就与上一版逐字节等价）。
 #   GEOHOT_REPO_URL=…                    clone 来源，默认就是下面那个公开仓库本体（不是占位串）
 #   GEOHOT_PG_PASSWORD=…                 CREATE ROLE 用的口令；不传就本次随机生成并写进 .env。
 #                                        只允许 [A-Za-z0-9._+-]（含 ' 会让 CREATE ROLE 坏掉、含 : 或 %
@@ -43,6 +47,15 @@ APP_ROOT="${APP_ROOT%/}"                    # 尾斜杠会污染下面那个 %/*
 APP_HOME="${APP_ROOT%/*}"                   # /opt/geohot —— geohot 账户的 HOME=（它没有登录 shell）与备份目录
 [[ -n "$APP_HOME" && "$APP_HOME" != "/" ]] || { echo "!! GEOHOT_APP_ROOT='$APP_ROOT' 推不出一个安全的父目录当 HOME（APP_HOME='${APP_HOME:-空}'）—— 用 /opt/geohot/app 这种两段以上的路径" >&2; exit 2; }
 ENV_PATH="$APP_ROOT/.env"
+# 主站（同域名根上那个站）的 nginx 站点文件。本包以前把 /etc/nginx/sites-available/xxc2007.me 写死在
+# 三个脚本的六个位置上（本脚本第 0 节两处、rollback.sh 的备份恢复、DEPLOYMENT.md 的那几条命令），
+# 于是"搬到新域名"这件事要求改代码而不是改变量。现在与同目录 fix-bare-path.sh 用同一个变量名、
+# 同一个默认值：换域名只改 GEOHOT_NGINX_SITE，本包不再有任何第二处写死的路径。
+NGINX_SITE="${GEOHOT_NGINX_SITE:-/etc/nginx/sites-available/xxc2007.me}"
+case "$NGINX_SITE" in
+  /*) ;;
+  *) echo "!! GEOHOT_NGINX_SITE='$NGINX_SITE' 不是绝对路径 —— 它是 nginx 站点文件的路径（默认 /etc/nginx/sites-available/xxc2007.me；新域名就写 /etc/nginx/sites-available/<新站点>）。" >&2; exit 2 ;;
+esac
 # 公开仓库本体 —— 这就是开发机上 `git remote -v` 看到的 origin，所以在干净机器上是**能用的默认值**，
 # 不是占位串。以前这一行末尾写着"占位远端，公开仓库建好后替换"，而仓库早就建好了：结果是 --apply
 # 在第 2 节的 clone 上死掉，整个脚本从来没跑到过第 3 节。要装 fork 或离线搬运就用 GEOHOT_REPO_URL 覆盖；
@@ -168,14 +181,17 @@ pg_admin_works() { [[ -n "$(pg_probe 'SELECT 1')" ]]; }
 # ----------------------------------------------------------------------------
 step "0. PREFLIGHT（只读探测）"
 
-echo "--- 本次部署的两个坐标 ---"
+echo "--- 本次部署的三个坐标（搬到新机器/新域名就是改这三行，其余一律跟着它们走）---"
 echo "安装目录: $APP_ROOT  （GEOHOT_APP_ROOT，四个脚本与 systemd 模板共用这一个值）"
 echo "站点前缀: ${GEOHOT_BASE_PATH:-（空 = 域名根，不挂子路径）}  （GEOHOT_BASE_PATH，构建期写进 bundle）"
+echo "站点文件: $NGINX_SITE  （GEOHOT_NGINX_SITE，换域名就改这一个变量；bootstrap/rollback/fix-bare-path 共用）"
 if [[ -z "$GEOHOT_BASE_PATH" ]]; then
   echo "  域名根部署：nginx 不需要 /geohot 那组 location，也不要有那条补斜杠的 308。"
 else
   echo "  构建命令会带 BASE_PATH=$GEOHOT_BASE_PATH；nginx 片段的 location 前缀与 SITE_URL 的路径都得是同一个。"
 fi
+echo "  ★ 这个值只在第 9 节的 npm run build 里用一次（构建期）。四个单元文件里都没有 Environment=BASE_PATH= 这一条，"
+echo "    运行时给 web 进程它是惰性的（apps/web/server.ts:46-49 的前缀取自构建产物）—— 改前缀 = 重新构建 + 改 nginx + 改 SITE_URL。"
 
 echo "--- clone 来源（第 2 节用；已 clone 过就不再需要它）---"
 # 占位串一律在这里当场炸掉，不要让 --apply 跑到第 2 节去看 git 的凭据提示。
@@ -196,8 +212,8 @@ fi
 echo "--- 身份 ---"
 echo "当前用户: $(id -un) (uid=$(id -u))  主机: $(hostname)"
 
-echo "--- 现有 nginx 站点文件哈希（改动前后对比用）---"
-for f in /etc/nginx/sites-available/xxc2007.me /etc/nginx/nginx.conf; do
+echo "--- 现有 nginx 站点文件哈希（改动前后对比用；站点文件 = GEOHOT_NGINX_SITE）---"
+for f in "$NGINX_SITE" /etc/nginx/nginx.conf; do
   if [[ -f "$f" ]]; then sha256sum "$f"; else echo "缺失: $f"; fi
 done
 echo "（记录上面的哈希；部署后 verify-deploy.sh 会再要一次基线对比）"
@@ -226,7 +242,7 @@ if command -v nginx >/dev/null 2>&1; then
 else
   echo "nginx: 未安装 —— 那这台机器前面就没有反代，第 5 节把 TRUST_PROXY 写成 false（除非你用 GEOHOT_TRUST_PROXY=true 声明有别的东西在前面）"
 fi
-[[ -f /etc/nginx/sites-available/xxc2007.me ]] || echo "（提示：/etc/nginx/sites-available/xxc2007.me 不在 —— 上面那个哈希对比与 README-deploy.md 第 2 节 ⑦ 的贴片段都指望着它）"
+[[ -f "$NGINX_SITE" ]] || echo "（提示：$NGINX_SITE 不在 —— 上面那个哈希对比与 README-deploy.md 第 2 节 ⑦ 的贴片段都指望着它。新域名就 GEOHOT_NGINX_SITE=/etc/nginx/sites-available/<新站点> 重跑本脚本）"
 if command -v psql >/dev/null 2>&1; then echo "psql: $(psql --version)"; else echo "psql: 未安装（★ pg_dump 备份路线与第 6~7 节的建角色都依赖它，见 README-deploy.md 第 6 节）"; fi
 if command -v pg_dump >/dev/null 2>&1; then echo "pg_dump: $(pg_dump --version)"; else echo "pg_dump: 未安装"; fi
 if systemctl is-active --quiet postgresql 2>/dev/null; then
@@ -749,3 +765,6 @@ step "完成。下一步：按 geohot.nginx.conf片段 头部那四条硬约束�
 echo "（前缀 ${GEOHOT_BASE_PATH:-（域名根，无需 location）}；备份 → 注入 → nginx -t 通过才 reload，绝不 restart）"
 echo "然后：sudo systemctl start ${UNITS[*]} → bash verify-deploy.sh 全绿。"
 echo "★ 如果还没跑过 bash verify-deploy.sh --save-baseline：它必须在**任何 nginx 改动之前**跑，现在补已经晚了（见 README-deploy.md 第 1 节）。"
+echo "★ 新机器 / 新域名：仓库里那份 deploy/geohot/baseline-main.txt 是**旧域名主站**的哈希基线，对这台机器没有意义，"
+echo "   必须先 MAIN_SITE=<这台的新主站> bash verify-deploy.sh --save-baseline 重采一次，否则 verify 第 1 节恒红。"
+echo "   （它会记录自己属于哪个域名；域名不匹配时第 1 节报'基线属于另一个域名'，不再谎报'主站被改动'。）"

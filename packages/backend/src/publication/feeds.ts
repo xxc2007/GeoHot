@@ -7,10 +7,10 @@ import { config } from "../config.ts";
 import { sql } from "../db.ts";
 import { escapeXml } from "../lib/text.ts";
 import { proxyBodyImages } from "../media/imgproxy.ts";
-import { reportHeadline, reportIndex } from "./reports.ts";
+import { hasReadableItems, PERIOD_FEED_LIMIT, reportHeadline, reportIndex, unavailableIds, type ReportKind } from "./reports.ts";
 import { textToHtml } from "../content/sanitize.ts";
 import { categoryCondition, listedCondition, selectedCondition, xView, type ItemRow } from "./items.ts";
-import { dailyUrl, itemUrl, siteUrl } from "./links.ts";
+import { dailyUrl, itemUrl, reportUrl, siteUrl } from "./links.ts";
 
 interface FeedMeta {
   id: string;
@@ -21,11 +21,13 @@ interface FeedMeta {
   pollHintMinutes: number;
 }
 
-const FEEDS: Record<"selected" | "selectedFull" | "all" | "daily", FeedMeta> = {
+const FEEDS: Record<"selected" | "selectedFull" | "all" | "daily" | "weekly" | "monthly", FeedMeta> = {
   selected: { id: "selected", path: "/feed.xml", title: `${SITE.name} — 精选`, description: `最新 50 条 ${SITE.name} 精选摘要，保留标题、站内阅读与原文入口；需要阅读器内全文可改订 /feed/full.xml。`, homePath: "/", pollHintMinutes: 30 },
   selectedFull: { id: "selected-full", path: "/feed/full.xml", title: `${SITE.name} — 精选全文`, description: "与精选摘要相同的最新 50 条；仅对明确允许再分发的来源内联正文，其余仍提供摘要和阅读入口。", homePath: "/", pollHintMinutes: 30 },
   all: { id: "all", path: "/feed/all.xml", title: `${SITE.name} — 全部动态`, description: "最近 7 天公开动态，按真实发布时间倒序；不含未审内容、低相关条目和已合并的重复条目。", homePath: "/all", pollHintMinutes: 30 },
   daily: { id: "daily", path: "/feed/daily.xml", title: `${SITE.name} ${withSubject("日报")}`, description: `${SITE.name} 每天 08:00 北京时间发布的${withSubject("日报")}，保留最近 30 期。`, homePath: "/daily", pollHintMinutes: 30 },
+  weekly: { id: "weekly", path: "/feed/weekly.xml", title: `${SITE.name} ${withSubject("周报")}`, description: `${SITE.name} 每周一 10:00 北京时间发布的${withSubject("周报")}，每期附本期头条、整期总述和按栏目分好的目录；保留最近 ${PERIOD_FEED_LIMIT} 期。`, homePath: "/weekly", pollHintMinutes: 180 },
+  monthly: { id: "monthly", path: "/feed/monthly.xml", title: `${SITE.name} ${withSubject("月报")}`, description: `${SITE.name} 每月 1 日 10:30 北京时间发布的${withSubject("月报")}，每期附本期头条、整期总述和按栏目分好的目录；保留最近 ${PERIOD_FEED_LIMIT} 期。`, homePath: "/monthly", pollHintMinutes: 360 },
 };
 
 /** RSS <author> needs an address; a no-reply one on the site's own domain. */
@@ -151,22 +153,86 @@ export async function itemFeed(kind: ItemFeedKind, category: PublicApiCategoryKe
   return channel(meta, rows.map((r) => itemXml(r, includeContent)));
 }
 
+/**
+ * An issue's own table of contents: the groups the editors wrote (a daily's section labels, a weekly
+ * or monthly theme headings), each with the items under it that are still public. Titles are carried
+ * as published; a group whose items have all been withdrawn goes with them.
+ */
+function tocHtml(content: Record<string, any>, kind: ReportKind, gone: Set<string>): string {
+  const groups: Array<Record<string, any>> = kind === "daily" ? (content.sections ?? []) : (content.themes ?? []);
+  return groups
+    .map((g) => {
+      const listed = ((kind === "daily" ? g.items : g.storyRefs) ?? []).filter((i: any) => !i.itemId || !gone.has(i.itemId));
+      if (!listed.length) return "";
+      const label = String((kind === "daily" ? g.label : g.heading) ?? "");
+      const entries = listed.map((i: any) => `<li>${i.itemId ? `<a href="${itemUrl(String(i.itemId))}">${escapeXml(String(i.title ?? ""))}</a>` : escapeXml(String(i.title ?? ""))}</li>`).join("");
+      return `<p><strong>${escapeXml(label)}</strong></p>\n<ul>${entries}</ul>`;
+    })
+    .filter(Boolean)
+    .join("\n");
+}
+
+/** The items the fed issues cite; whether each is still public is asked of the database once per build. */
+function citedIds(rows: Array<{ content: Record<string, any> }>, kind: ReportKind): string[] {
+  return rows
+    .flatMap((r) => (kind === "daily" ? (r.content.sections ?? []).flatMap((s: any) => s.items ?? []) : (r.content.themes ?? []).flatMap((t: any) => t.storyRefs ?? [])))
+    .map((i: any) => i.itemId)
+    .filter(Boolean) as string[];
+}
+
 export async function dailyFeed(): Promise<string> {
   const index = await reportIndex("daily");
-  const rows = index.rows.slice(0, 30);
+  // An edition with nothing readable in it is not a newspaper: the same gate the archive and the v1
+  // list apply, so the feed never offers a blank issue either.
+  const rows = index.rows.filter((r) => hasReadableItems(r.content, "daily")).slice(0, 30);
   const m = FEEDS.daily;
   const gone = index.gone;
+  const tocGone = await unavailableIds(citedIds(rows, "daily"));
   const items = rows.map((r) => {
     const url = dailyUrl(r.key);
     const lead = reportHeadline(r.content, "daily", gone);
     const title = lead ? `${SITE.name} ${withSubject("日报")} · ${r.key} — ${lead}` : `${SITE.name} ${withSubject("日报")} · ${r.key}`;
-    const description = `<p>${escapeXml(r.content.lead?.leadParagraph ?? lead ?? "")} — 点击查看完整日报</p>\n<p>via ${escapeXml(SITE.name)} · <a href="${url}">${url}</a></p>`;
+    const description = [`<p>${escapeXml(r.content.lead?.leadParagraph ?? lead ?? "")} — 点击查看完整日报</p>`, tocHtml(r.content, "daily", tocGone), `<p>via ${escapeXml(SITE.name)} · <a href="${url}">${url}</a></p>`].filter(Boolean).join("\n");
     return `    <item>
       <title>${cdata(title)}</title>
       <link>${url}</link>
       <description>${cdata(description)}</description>
       <pubDate>${rfc822(r.generated_at)}</pubDate>
       <guid isPermaLink="false">daily-${escapeXml(r.key)}</guid>
+      <author>${AUTHOR} (${escapeXml(SITE.name)})</author>
+    </item>`;
+  });
+  return channel({ title: m.title, description: m.description, homePath: m.homePath, selfPath: m.path, ttl: m.pollHintMinutes }, items);
+}
+
+/**
+ * The weekly or monthly feed: one item per readable issue (the newest twelve), each carrying the
+ * headline, the whole issue's overview and its table of contents — all of it copied from the
+ * published report, nothing added.
+ */
+export async function reportFeed(kind: "weekly" | "monthly"): Promise<string> {
+  const index = await reportIndex(kind);
+  const rows = index.rows.filter((r) => hasReadableItems(r.content, kind)).slice(0, PERIOD_FEED_LIMIT);
+  const m = FEEDS[kind];
+  const gone = index.gone;
+  const tocGone = await unavailableIds(citedIds(rows, kind));
+  const items = rows.map((r) => {
+    const url = reportUrl(kind, r.key);
+    const headline = reportHeadline(r.content, "periodic", gone);
+    const title = headline ? `${m.title} · ${r.key} — ${headline}` : `${m.title} · ${r.key}`;
+    const overview = r.content.overview ? String(r.content.overview) : "";
+    const description = [
+      headline ? `<p><strong>${escapeXml(headline)}</strong></p>` : "",
+      overview ? `<p>${escapeXml(overview)}</p>` : "",
+      tocHtml(r.content, kind, tocGone),
+      `<p>via ${escapeXml(SITE.name)} · <a href="${url}">${url}</a></p>`,
+    ].filter(Boolean).join("\n");
+    return `    <item>
+      <title>${cdata(title)}</title>
+      <link>${url}</link>
+      <description>${cdata(description)}</description>
+      <pubDate>${rfc822(r.generated_at)}</pubDate>
+      <guid isPermaLink="false">${kind}-${escapeXml(r.key)}</guid>
       <author>${AUTHOR} (${escapeXml(SITE.name)})</author>
     </item>`;
   });

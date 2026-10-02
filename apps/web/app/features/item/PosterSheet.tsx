@@ -4,9 +4,12 @@ import { useEffect, useState } from "react";
 import { SITE } from "@aihot/industry/site";
 import { Presence } from "../../components/ui/Presence";
 import { IconClose, IconDownload, IconShare } from "../../components/icons";
+import { publicPath } from "../../lib/public-path";
 
 export default function PosterSheet({ id, title, open, onClose }: { id: string; title: string; open: boolean; onClose: () => void }) {
-  const src = `/og/posters/${id}.png`;
+  // One address, three uses (<img src>, the download <a href>, the blob fetch behind 分享). It is
+  // root-absolute, so it has to carry the deployment prefix — bare /og/… is not this app's path.
+  const src = publicPath(`/og/posters/${id}.png`);
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
   const [canShareFile, setCanShareFile] = useState(false);

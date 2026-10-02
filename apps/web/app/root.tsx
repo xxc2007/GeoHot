@@ -1,7 +1,7 @@
 import { titled } from "./lib/seo";
 import { SITE } from "@aihot/industry/site";
 import {
-  isRouteErrorResponse, Link, Links, Meta, Outlet, Scripts, ScrollRestoration, useLoaderData, useLocation, useNavigation, useRouteError, useRouteLoaderData,
+  isRouteErrorResponse, Link, Links, Meta, Outlet, Scripts, ScrollRestoration, useLoaderData, useLocation, useNavigation, useRevalidator, useRouteError, useRouteLoaderData,
   type ShouldRevalidateFunction,
 } from "react-router";
 import type { ReactNode } from "react";
@@ -10,12 +10,35 @@ import type { Route } from "./+types/root";
 import "./app.css";
 import { Sidebar } from "./components/shell/Sidebar";
 import { MobileTabBar } from "./components/shell/MobileTabBar";
-import { BackToTop, NavigationProgress } from "./components/shell/Chrome";
+import { BackToTop, NavigationProgress, PageBoundary } from "./components/shell/Chrome";
 import { RingMark } from "./components/Logo";
 import { buttonClass } from "./components/ui/Controls";
 import { THEME_BOOT_SCRIPT } from "./lib/local-state";
 import { apiGet } from "./lib/api.server";
 import { appPath, basePath, publicPath } from "./lib/public-path";
+import { useHydratedFlag } from "./lib/hydration";
+
+/**
+ * The page background of each theme, for the two `<meta name="theme-color">` tags a browser paints into
+ * its own chrome before any CSS is loaded. `app.css` is the truth for the page: light `--bg` (its line 93)
+ * and dark `--bg` (line 153). SSR cannot read a custom property, so these are the one copy outside that
+ * file, and the web manifest (`apps/api/src/routes/static.ts`) names the light value as its `theme_color`.
+ */
+const THEME_COLORS = { light: "#faf9f6", dark: "#13191c" } as const;
+
+/**
+ * The `<noscript>` notice as raw markup.
+ *
+ * React treats `<noscript>` as a text host (`shouldSetTextContent`,
+ * react-dom-client.development.js:23891 — which is also why `dangerouslySetInnerHTML` is safe there), and
+ * the HTML parser reads its content as rawtext, so JSX *children* never survive intact: the server writes
+ * a real `<p>`, the browser keeps one text node holding that markup as text, and the client abandons the
+ * child while hydrating and mounts a second paragraph on the first re-render of this shell — which is
+ * every pathname change. With `dangerouslySetInnerHTML` the fiber has no children in either path, the
+ * served string and the parsed text node are the same bytes, and there is nothing left to reconcile. The
+ * cost is that this one paragraph is a string rather than JSX.
+ */
+const NOSCRIPT_NOTICE = `<p class="mt-3 rounded-control border border-line bg-raised p-3 text-[12.5px] leading-relaxed text-ink-2">当前浏览器未启用 JavaScript：正文、日报、事件页与全部链接照常可读，但卡片上的「另有 N 家信源报道」「展开 N 条进展」这类按需加载的列表、筛选控件与走势图无法使用。</p>`;
 
 /**
  * React Router resolves a root target under a basename to the *bare* base — `to="/"` or `/?category=x`
@@ -27,6 +50,13 @@ import { appPath, basePath, publicPath } from "./lib/public-path";
  * redirect or programmatic navigation that hands over `/geohot` is stored as `/geohot/`. Only an exact
  * match is rewritten — a deeper path like `/geohot/all` is left alone — and it only runs in the
  * browser, so the server keeps rendering whatever path it was asked for.
+ *
+ * It used to sit between two imports, which bought nothing: every module imported by this file is
+ * evaluated before its first statement runs, so the guard can only patch calls the router makes later
+ * either way. The remaining step is to move it into `lib/public-path.ts` and delete the four call sites
+ * that hand-write the trailing slash (`shell/Sidebar`, `shell/MobileTabBar`, `ui/Tabs` via its `hard`
+ * option, `features/feed/Filters`) behind one exported `homeHref()`; that file has another owner this
+ * round, so `shell/nav.ts:homeHref` is the interim home for the call sites in the shell.
  */
 if (typeof window !== "undefined" && basePath) {
   for (const method of ["pushState", "replaceState"] as const) {
@@ -43,7 +73,7 @@ if (typeof window !== "undefined" && basePath) {
     }) as History[typeof method];
   }
 }
-import { useHydratedFlag } from "./lib/hydration";
+
 
 export const links: Route.LinksFunction = () => [
   { rel: "icon", href: publicPath("/favicon.ico"), sizes: "any" },
@@ -65,6 +95,19 @@ export async function loader({ request }: Route.LoaderArgs) {
   }
 }
 
+/**
+ * The shell's loader is deliberately read once per document.
+ *
+ * Cost, stated so nobody rediscovers it: `changelogVersion` freezes for the session, so the "更新日志"
+ * red dot can only appear on a full load, and a meta fetch that failed at SSR leaves it off until the
+ * reader reloads. The alternative is worse than the bug. React Router has no per-route revalidation
+ * surface — `useRevalidator().revalidate()` re-runs the loaders of *every* matched route, so a
+ * focus-triggered refresh of one string would refetch the page's list, its charts and the api behind
+ * them each time the reader alt-tabs. Making it cheap means a separate client-side poll of
+ * `/api/site/meta`, i.e. a second data path for the chrome and a new store to keep in step with the
+ * server value; `local-state.ts` already owns the reader-side half (`changelogSeen`).
+ * The dot marks "since you last looked", and a reader who cares opens /changelog. Decided: keep.
+ */
 export const shouldRevalidate: ShouldRevalidateFunction = () => false;
 
 /** Whether a location belongs to the admin, with or without the deployment's path prefix. */
@@ -79,8 +122,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-        <meta name="theme-color" media="(prefers-color-scheme: light)" content="#faf9f6" />
-        <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#13191c" />
+        <meta name="theme-color" media="(prefers-color-scheme: light)" content={THEME_COLORS.light} />
+        <meta name="theme-color" media="(prefers-color-scheme: dark)" content={THEME_COLORS.dark} />
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
         <Meta />
         <Links />
@@ -122,21 +165,21 @@ function SiteShell({ changelogVersion, children }: { changelogVersion: string | 
         跳到正文
       </a>
       <Sidebar changelogVersion={changelogVersion} />
-      {/* The one thing said out loud when scripts are off. Expansions ("另有 N 家信源报道", "展开 N 条
-          进展"), the filter controls and the canvas charts fetch or draw on the client, so their buttons
-          are inert without JavaScript — the lists they open are never in the served HTML, so no CSS
-          could reveal them either. Everything a reader came for is still here: every card is a real
-          anchor, the daily issue, a story and its sources read top to bottom, and /all answers by form.
-          Saying which half is missing is cheaper than letting someone hunt for a broken button. */}
-      <noscript>
-        <p className="mx-4 mt-3 rounded-control border border-line bg-raised p-3 text-[12.5px] leading-relaxed text-ink-2">
-          当前浏览器未启用 JavaScript：正文、日报、事件页与全部链接照常可读，但卡片上的「另有 N 家信源报道」「展开 N 条进展」这类按需加载的列表、筛选控件与走势图无法使用。
-        </p>
-      </noscript>
       {/* Mobile shell (≤ 960px): one centred column, the tab bar below. Desktop: the page fills the main area
           up to the list width (--page-max-wide), centred beyond it. */}
       <main id="main" tabIndex={-1} className="min-w-0 flex-1 pb-[calc(72px+env(safe-area-inset-bottom))] outline-none lg:px-7 lg:pb-[72px] lg:pt-6">
-        <div className="mx-auto w-full max-w-[640px] px-4 lg:max-w-[var(--page-max-wide)] lg:px-0">{children}</div>
+        {/* The one thing said out loud when scripts are off. Expansions ("另有 N 家信源报道", "展开 N 条
+            进展"), the filter controls and the canvas charts fetch or draw on the client, so their buttons
+            are inert without JavaScript — the lists they open are never in the served HTML, so no CSS
+            could reveal them either. Everything a reader came for is still here: every card is a real
+            anchor, the daily issue, a story and its sources read top to bottom, and /all answers by form.
+            Saying which half is missing is cheaper than letting someone hunt for a broken button.
+            It lives inside <main>, not beside it: the shell's wrapper is `flex`, and a flex item is
+            blockified into its own *column*, so a sibling <noscript> sat to the left of the whole page. */}
+        <div className="mx-auto w-full max-w-[640px] px-4 lg:max-w-[var(--page-max-wide)] lg:px-0">
+          <noscript dangerouslySetInnerHTML={{ __html: NOSCRIPT_NOTICE }} />
+          <PageBoundary resetKey={pathname}>{children}</PageBoundary>
+        </div>
       </main>
       <MobileTabBar changelogVersion={changelogVersion} />
       <BackToTop />

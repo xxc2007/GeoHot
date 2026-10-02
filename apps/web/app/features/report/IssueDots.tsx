@@ -117,9 +117,16 @@ export function IssueDots({ kind, reportKey, index, className = "" }: { kind: Re
       if (c?.key && c.state === "issue") navigate(`${KIND_PATH[kind]}/${c.key}`);
     };
 
+    // One size-and-paint per frame: the observer fires for every step of a drag, and `size` resizes the
+    // canvas backing store (which clears it) and redraws the whole grid.
+    let resizeFrame = 0;
     const resize = new ResizeObserver(() => {
-      size();
-      redraw();
+      if (resizeFrame) return;
+      resizeFrame = requestAnimationFrame(() => {
+        resizeFrame = 0;
+        size();
+        redraw();
+      });
     });
     const recolour = () => {
       readColors();
@@ -141,6 +148,7 @@ export function IssueDots({ kind, reportKey, index, className = "" }: { kind: Re
     return () => {
       disposed = true;
       if (frame) cancelAnimationFrame(frame);
+      if (resizeFrame) cancelAnimationFrame(resizeFrame);
       resize.disconnect();
       theme.disconnect();
       scheme.removeEventListener("change", recolour);

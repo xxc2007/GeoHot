@@ -6,17 +6,10 @@ import { Collapse } from "../../components/ui/Presence";
 import type { Development, GroupInfo, GroupReport, TimelineFilters } from "@aihot/contracts/site";
 import { IconArrowUpRight, IconChevronDown } from "../../components/icons";
 import { monthDayTime, shortSourceName } from "../../lib/format";
+import { publicPath } from "../../lib/public-path";
+import { groupReportsUrl, storyDevelopmentsUrl } from "./group-urls";
 import { isReload } from "./restore";
 import { sessionCache } from "./session-cache";
-
-function filterParams(filters: TimelineFilters | undefined, cursor: string | null) {
-  const sp = new URLSearchParams();
-  if (filters?.channel && filters.channel !== "all") sp.set("channel", filters.channel);
-  if (filters?.category) sp.set("category", filters.category);
-  if (filters?.tag) sp.set("tag", filters.tag);
-  if (cursor) sp.set("cursor", cursor);
-  return sp;
-}
 
 type Paged<T> = { loading: boolean; items: T[]; error: boolean; next: string | null; loaded: boolean };
 const EMPTY = { loading: false, items: [], error: false, next: null, loaded: false };
@@ -149,7 +142,7 @@ function LoadState({ loading, error, next, onMore, onRetry, empty }: { loading: 
 export function GroupSources({ group, filters, parentId }: { group: GroupInfo; filters?: TimelineFilters; parentId: string }) {
   const { open, setOpen, state, load } = useGroupState<GroupReport>(
     `sources|${group.factId}|${parentId}`,
-    (cursor) => `/api/site/groups/${encodeURIComponent(group.factId)}/reports?${filterParams(filters, cursor)}`,
+    (cursor) => groupReportsUrl(publicPath, group.factId, filters, cursor),
     (b) => b.reports as GroupReport[],
   );
   const others = state.items.filter((r) => r.id !== parentId);
@@ -189,7 +182,7 @@ export function GroupSources({ group, filters, parentId }: { group: GroupInfo; f
 export function GroupDevelopments({ group, filters, parentId }: { group: GroupInfo & { story: NonNullable<GroupInfo["story"]> }; filters?: TimelineFilters; parentId: string }) {
   const { open, setOpen, state, load } = useGroupState<Development>(
     `developments|${group.story.publicId}|${parentId}`,
-    (cursor) => `/api/site/stories/${encodeURIComponent(group.story.publicId)}/developments?${filterParams(filters, cursor)}`,
+    (cursor) => storyDevelopmentsUrl(publicPath, group.story.publicId, filters, cursor),
     (b) => b.developments as Development[],
   );
   return (

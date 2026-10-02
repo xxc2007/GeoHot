@@ -6,15 +6,35 @@
 
 ## 这是什么 / 不是什么
 
-- **是**：地理编辑（语料 agent）在 2026-09-29 至 2026-10-01 期间**逐条人工撰写**的判断与文案——
+- **是**：地理编辑与编辑指挥下的采集/补全 agent 在 2026-09-29 至 2026-10-01 期间**逐条写下**的判断与文案——
   预筛结论、五维关注度打分、中文标题与摘要、事实结构、归组与日/周/月报的头条与综述。
-  每一行 brain 片段的 `author` 就是署名的人，`tooling/fixtures/*.jsonl` 现有 548 行、**每行都有署名**
-  （0 行空 author），署名人共 9 位（另有 44 行是 `tooling 示例（未核验）`，即 stub 自带的样例，不是语料）：
-  `GEOHOT 灾害事件策划（已核对信源原文）`、`地理编辑（气候与观测数据 beat）`、`GEOHOT 中国区域策划（已核对信源原文）`、
-  `野外与考察语料 agent（2026-09-29 实抓核验）`、`GEOHOT 地理信息技术语料 agent（Wave 2）`、
-  `地理编辑（研究与科学发现口）`、`覆盖补全 agent（2026-09-30 实抓核验）`、
-  `GEOHOT 覆盖补全语料 agent（2026-10-01 逐条 curl 实抓核验）`、`值主编 GEOHOT 地理日报`。
-  按 AGENTS.md 的所有权边界：读者看到的每一条"编辑判断"都能在这里回溯到署名的人；stub 不是作者。
+  `tooling/fixtures/*.jsonl` 现有 **550 行判断、0 行空 author、10 个署名**（2026-10-02 实测，见下面的复现命令），
+  但这 10 个署名**不都是人**，读者侧的说法必须按这三层区分：
+
+  1. **人写的 332 行**（5 个署名）：`GEOHOT 灾害事件策划（已核对信源原文）` 143、`地理编辑（气候与观测数据 beat）` 71、
+     `GEOHOT 中国区域策划（已核对信源原文）` 71、`地理编辑（研究与科学发现口）` 32、`值主编 GEOHOT 地理日报` 15。
+     这一层才是"署名的人"，也是 `industry/site.ts` 关于页与条款页第 2 条对读者承诺的那一层。
+  2. **编辑指挥的采集/补全 agent 写的 174 行**（4 个署名）：`野外与考察语料 agent（2026-09-29 实抓核验）` 56、
+     `GEOHOT 地理信息技术语料 agent（Wave 2…）` 46、`覆盖补全 agent（2026-09-30 实抓核验）` 44、
+     `GEOHOT 覆盖补全语料 agent（2026-10-01 逐条 curl 实抓核验）` 28。这些不是自然人，是按编辑部写定的口径
+     （`industry/prompts/**` 的规则、`industry/selection.ts` 的门槛）去实抓、填表的角色名。它们的**可追溯性不来自署名本身**，
+     而来自逐行的对拍材料：174 行里 173 行的 `match` 键指向同目录 `*-materials.jsonl` 的某条实抓材料（`url` + 逐字 `bodyText`），
+     另有 35 行自带 `guard`（原文摘录 + URL，stub 会用它拒绝答错材料）。本轮审计**没有查到**这 174 行另有一位编辑逐条复核的登记，
+     所以不要把它们的署名读成"某个人签过字"；署名自陈的核验手段是实抓比对原文，不是个人签核。
+  3. **`tooling 示例（未核验）` 的 44 行**：stub 自带的样例，不是语料、不代表任何编辑判断；`--rebuild` 把它们当种子行原样保留。
+
+  按 AGENTS.md 的所有权边界与"stub 不是作者"这条红线：读者看到的每一条"编辑判断"应当能回溯到**署名的人**；
+  第 2 层那 174 行属于"人定的规则 + 机器按规则采集"，第 3 层是示例。要对外说"都是编辑部写定的"，
+  以第 1 层（人工署名）与规则/门槛文本为限。
+
+  复现这三个数：
+
+  ```bash
+  node -e "const fs=require('fs');const c={};let n=0;for(const f of fs.readdirSync('tooling/fixtures')){if(!f.endsWith('.jsonl'))continue;
+  for(const l of fs.readFileSync('tooling/fixtures/'+f,'utf8').split(/\r?\n/)){const t=l.trim();if(!t||t.startsWith('//'))continue;n++;
+  const o=JSON.parse(t);const a=(o.author??'').trim()||'(空)';c[a]=(c[a]||0)+1;}}console.log('总行数',n,'署名数',Object.keys(c).length);
+  for(const[k,v]of Object.entries(c).sort((x,y)=>y[1]-x[1]))console.log(v,k);"
+  ```
 - **材料的数字是真的**：`*-materials.jsonl` 的 `url` 与 `bodyText` 来自当天 `curl` 实抓并逐条验证过 HTTP 200
   的真实信源（USGS / CENC / GDACS / Copernicus C3S / WMO / Carbon Brief / Mongabay / ESA / NOAA / 水利部 /
   应急部 / 统计局 / 澎湃新闻 等，全部登记在 `industry/sources.json`），正文是抓取文本的逐字摘录，
@@ -27,10 +47,10 @@
 
 | 文件 | 主题（分类口径） | 数据行（brain + materials） |
 |---|---|---|
-| `corpus-hazards-materials.jsonl` / `-brain.jsonl` | 灾害事件（自然地理 / disaster_event） | 142 + 25 |
+| `corpus-hazards-materials.jsonl` / `-brain.jsonl` | 灾害事件（自然地理 / disaster_event） | 143 + 25 |
 | `corpus-china-materials.jsonl` / `-brain.jsonl` | 中国区域·政策·人文地理（区域/人文） | 71 + 18 |
 | `corpus-climate-materials.jsonl` / `-brain.jsonl` | 气候与观测数据发布 | 71 + 13 |
-| `corpus-fill-materials.jsonl` / `-brain.jsonl` | 覆盖补全桌（把缺口材料补进各分类） | 71 + 19 |
+| `corpus-fill-materials.jsonl` / `-brain.jsonl` | 覆盖补全桌（把缺口材料补进各分类） | 72 + 19 |
 | `corpus-fieldwork-materials.jsonl` / `-brain.jsonl` | 野外与考察 + 观点与解读 | 56 + 14 |
 | `corpus-geotech-materials.jsonl` / `-brain.jsonl` | 地理信息技术 | 46 + 15 |
 | `corpus-science-materials.jsonl` / `-brain.jsonl` | 研究与科学发现 | 32 + 13 |
@@ -38,7 +58,8 @@
 | `curated-materials.jsonl` | **产物**，由 `merge-corpus.mjs` 写出，入库脚本的输入 | 117 |
 | `merge-conflicts.md` | **产物**，`merge-corpus.mjs` 每次非 dry-run 重写的冲突账本（见下） | — |
 
-片段合计 621 行数据（判断 504 行 + 材料 117 行）；`tooling/fixtures/*.jsonl` 合并去重后 548 行。
+片段合计 623 行数据（判断 506 行 + 材料 117 行）；`tooling/fixtures/*.jsonl` 合并去重后 550 行判断。
+（2026-10-02 用 `node -e` 逐文件数非注释行实测；这份表以前写的是 621/548，是 10-01 之后并进两条判断造成的差。）
 
 ## 现在跑合并是什么结果（以及怎么自己核对）
 
