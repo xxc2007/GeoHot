@@ -3,7 +3,7 @@
 // the industry pack (industry/prompts/report-*.md), the sections follow its categories.
 import { z } from "zod";
 import { SITE } from "@aihot/industry/site";
-import { CATEGORIES } from "@aihot/industry/taxonomy";
+import { CATEGORIES, RELEASE_CATEGORY_KEY } from "@aihot/industry/taxonomy";
 import { promptText, promptVersion } from "../editorial/prompts.ts";
 import { modelFor } from "../editorial/models.ts";
 import { addDays, beijingDate, beijingMidnight, isoWeekLabel, isoWeekRange } from "@aihot/contracts/time";
@@ -19,7 +19,7 @@ const SECTION_ORDER = [...new Set(CATEGORIES.map((c) => c.section))];
 /** Where an item without a category goes: this pack has no industry key, so it is the last section. */
 const DEFAULT_SECTION = SECTION_ORDER.at(-1)!;
 /** The release metric counts this section, the data and observation releases. Keys are stable identities; section names follow the vocabulary pack. */
-const RELEASE_SECTION = CATEGORIES.find((c) => c.key === "geotech")?.section ?? "";
+const RELEASE_SECTION = CATEGORIES.find((c) => c.key === RELEASE_CATEGORY_KEY)?.section ?? "";
 /** How many of the day's entries the lead writer is shown. Longer editions are introduced by their real size. */
 const LEAD_BRIEF_LIMIT = 30;
 
