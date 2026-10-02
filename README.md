@@ -11,7 +11,7 @@
 [![Status](https://img.shields.io/badge/%F0%9F%8C%90_线上访问-xxc2007.me%2Fgeohot-D97757)](https://xxc2007.me/geohot/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Derived from AIHOT](https://img.shields.io/badge/派生自-AIHOT_框架-1F1E1D)](NOTICE)
-[![Node](https://img.shields.io/badge/运行时-Node_24-1F1E1D)](#-技术栈)
+[![Node](https://img.shields.io/badge/运行时-Node_24-1F1E1D)](#技术栈)
 [![Categories](https://img.shields.io/badge/分类-六个-D97757)](#-六个分类一条标准)
 [![Sources](https://img.shields.io/badge/信源-45_个-D97757)](#-现状与边界)
 [![Editorial brain](https://img.shields.io/badge/编辑大脑-人工策划_无_LLM_Key-1F1E1D)](#-编辑大脑是人工写的判断这一点不遮掩)
@@ -153,7 +153,7 @@ GEOHOT/
 └── LICENSE · NOTICE · AGENTS.md
 ```
 
-## ⚙ 技术栈
+## 技术栈
 
 | 层 | 选型 | 为什么 |
 |---|---|---|
