@@ -107,7 +107,37 @@ async function openApiJson(): Promise<string> {
     for (const v of Object.values(o)) walk(v);
   };
   walk(doc);
-  if (!FEATURES.codexResetMonitor) for (const p of Object.keys(doc.paths)) if (p.startsWith("/api/v1/codex-resets")) delete doc.paths[p];
+  if (!FEATURES.codexResetMonitor) {
+    for (const p of Object.keys(doc.paths)) if (p.startsWith("/api/v1/codex-resets")) delete doc.paths[p];
+    // Deleting the paths alone left the response schema behind: the document advertised a shape for an
+    // endpoint that does not exist, which a code generator happily emits a client for.
+    const referenced = new Set<string>();
+    (function collect(n: unknown): void {
+      if (Array.isArray(n)) return n.forEach(collect);
+      if (n && typeof n === "object") for (const [k, v] of Object.entries(n)) {
+        if (k === "$ref" && typeof v === "string") referenced.add(v.split("/").pop()!);
+        else collect(v);
+      }
+    })(doc);
+    const schemas = (doc.components as Record<string, unknown> | undefined)?.schemas as Record<string, unknown> | undefined;
+    // To a fixed point: dropping CodexResetsResponse orphaned the shapes only it referenced, so a single
+    // pass left two more unreferenced schemas behind.
+    if (schemas) {
+      for (let removed = 0; ; ) {
+        referenced.clear();
+        (function collect(n: unknown): void {
+          if (Array.isArray(n)) return n.forEach(collect);
+          if (n && typeof n === "object") for (const [k, v] of Object.entries(n)) {
+            if (k === "$ref" && typeof v === "string") referenced.add(v.split("/").pop()!);
+            else collect(v);
+          }
+        })(doc);
+        removed = 0;
+        for (const name of Object.keys(schemas)) if (!referenced.has(name)) { delete schemas[name]; removed += 1; }
+        if (!removed) break;
+      }
+    }
+  }
   openApi = JSON.stringify(doc, null, 2);
   return openApi;
 }
