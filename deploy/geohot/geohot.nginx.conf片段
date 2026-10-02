@@ -1,8 +1,9 @@
 # geohot 反代片段（已在 xxc2007.me 上实装并验证，2026-10-01）
 # =============================================================================
-# 用法：把下面标了 ADD 的两段，整体注入 /etc/nginx/sites-available/xxc2007.me 里
+# 用法：把下面 # ---- ADD ---- 之后的**三块**（一条 exact-match 308、一条 ^~ 主 location、一条 ^~ 的
+# /api/mcp 专用 location），整体注入 /etc/nginx/sites-available/xxc2007.me 里
 # **每一个** server_name 恰为 xxc2007.me 的 server 块——注意是每一个，且是 `:80` 与 `:443` 两个
-# 监听都要，原因见下面「为什么两个监听都要」。注入脚本按花括号配平定位，不要手工找位置。
+# 监听都要，原因见下面第 3 条。注入脚本按花括号配平定位，不要手工找位置。
 #
 # 生效顺序（不可换）：备份 → 注入 → nginx -t → **通过才 reload**（reload，不是 restart）
 #   sudo cp -a /etc/nginx/sites-available/xxc2007.me /etc/nginx/sites-available/xxc2007.me.bak-$(date +%F-%H%M%S)
@@ -10,7 +11,7 @@
 # 回滚：
 #   sudo cp -a <备份> /etc/nginx/sites-available/xxc2007.me && sudo nginx -t && sudo systemctl reload nginx
 #
-# ── 三条来自实装的硬约束（都会静默地坏掉，只看状态码发现不了）──────────────────────────
+# ── 四条来自实装的硬约束（都会静默地坏掉，只看状态码发现不了）──────────────────────────
 #
 # 1) 必须用 `location ^~ /geohot/`，不能用 `location /geohot/`。
 #    该 vhost 里本来就有一条 `location ~* \.(css|js|mjs|map|woff2?|ttf|otf|png|jpe?g|gif|svg|ico|webp|avif)$`
@@ -39,7 +40,8 @@
 # =============================================================================
 
 # ---- ADD ----
-# 裸路径必须补斜杠，这一条是**承重**的，不是装饰（fix-bare-path.sh:10-13 解释为什么它不能被"删掉跳转"
+# 裸路径必须补斜杠，这一条是**承重**的，不是装饰（fix-bare-path.sh 开头那段 "the trailing-slash
+# redirect is load-bearing and must stay" 解释了为什么它不能被"删掉跳转"
 # 那版取代）：
 #   客户端路由的 basename 是 /geohot，它匹配不了裸的 /geohot（把 /geohot 解析成空路径后落到 404 路由）。
 #   直接打开是好的，因为服务端 SSR 会归一化路径；但站内点「精选」是客户端跳转，不过 nginx，
