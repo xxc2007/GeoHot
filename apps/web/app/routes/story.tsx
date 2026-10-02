@@ -219,9 +219,17 @@ export default function StoryPage() {
     }
     return out;
   }, [story.timeline, filter, order]);
+  // Same control as the timeline, extended to the developments panel (upstream 3343fe2): the newest event
+  // was always first, so a reader following an old story had to scroll to the bottom of its history.
+  // The highlight is chosen by date, not by array index — a page fetched for an archived story may not
+  // have its newest development at position 0.
+  const developments = useMemo(() => [...story.developments].sort((a, b) =>
+    order === "desc" ? Date.parse(b.firstReportAt) - Date.parse(a.firstReportAt) : Date.parse(a.firstReportAt) - Date.parse(b.firstReportAt)
+  ), [story.developments, order]);
+  const newestDevelopmentAt = story.developments.reduce((at, d) => (Date.parse(d.firstReportAt) > Date.parse(at) ? d.firstReportAt : at), story.developments[0]?.firstReportAt ?? "");
   const newest = story.timeline.reduce<StoryReportView | null>((a, b) => (!a || Date.parse(b.publishedAt) > Date.parse(a.publishedAt) ? b : a), null);
   const overview = story.digest
-    ? { label: "AI 综述", text: story.digest, note: story.digestUpdatedAt ? `AI 根据报道生成 · ${relativeTime(story.digestUpdatedAt)}更新` : "AI 根据报道生成" }
+    ? { label: "事件提要", text: story.digest, note: story.digestUpdatedAt ? `按报道时间整理 · ${relativeTime(story.digestUpdatedAt)}更新` : "按报道时间整理" }
     : story.summary
       ? { label: "事实说明", text: story.summary, note: null }
       : story.excerpt
@@ -316,11 +324,21 @@ export default function StoryPage() {
           </Panel>
 
           {story.developments.length > 1 && (
-            <Panel title="事件进展" right={`${story.developments.length} 个进展`} className="order-3">
+            <Panel
+              title="事件进展"
+              sub={`${story.developments.length} 个进展`}
+              className="order-3"
+              right={
+                <Select value={order} onChange={(e) => setOrder(e.target.value as "desc" | "asc")} aria-label="事件进展排序">
+                  <option value="desc">最新在前</option>
+                  <option value="asc">最早在前</option>
+                </Select>
+              }
+            >
               <ol className="relative space-y-4 pl-5 before:absolute before:bottom-2 before:left-[3px] before:top-2 before:w-px before:bg-line">
-                {story.developments.map((d, i) => (
+                {developments.map((d) => (
                   <li key={d.factId} className="relative">
-                    <span className={`absolute -left-5 top-[7px] size-[7px] rounded-full ring-4 ring-surface ${i === 0 ? "bg-accent" : "bg-line-strong"}`} aria-hidden="true" />
+                    <span className={`absolute -left-5 top-[7px] size-[7px] rounded-full ring-4 ring-surface ${d.firstReportAt === newestDevelopmentAt ? "bg-accent" : "bg-line-strong"}`} aria-hidden="true" />
                     <div className="num text-[12px] text-ink-4">
                       {monthDayTime(d.firstReportAt)} · {d.reportCount} 篇报道
                     </div>

@@ -176,7 +176,9 @@ export async function exportMarkdown(id: string): Promise<{ filename: string; bo
     if (!isZh && row.tr_html && row.tr_complete) lines.push("## 正文 · 中文译文", "", turndown.turndown(row.tr_html), "");
     lines.push(isZh ? "## 正文" : "## 正文 · 原文", "", turndown.turndown(row.body_html), "");
   }
-  return { filename: `aihot-${row.id}.md`, body: lines.join("\n").replace(/\n{3,}/g, "\n\n") };
+  // The download carries the site's own identity, not the framework's (upstream a75140b): `aihot-…md`
+  // in a reader's Downloads folder is the upstream name, which this deployment must not use.
+  return { filename: `${SITE.mcpPrefix}-${row.id}.md`, body: lines.join("\n").replace(/\n{3,}/g, "\n\n") };
 }
 
 /** Site reading projection: default text remains SSR, a second language has its own readable URL. */

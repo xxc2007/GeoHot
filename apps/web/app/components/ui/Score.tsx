@@ -9,9 +9,13 @@ const TIERS = [
 ];
 
 /**
- * "AI 评分 · 88" on desktop cards; `compact` keeps only the number (phones). The pill is a labelled image:
+ * "入选分 · 88" on desktop cards; `compact` keeps only the number (phones). The pill is a labelled image:
  * an `aria-label` on a bare <span> is dropped by assistive tech, so without `role="img"` a screen reader
  * announces only "88" (or nothing at all in compact mode, where 88 is the whole pill).
+ *
+ * 措辞是本站相对上游的刻意偏离：上游那一版跑模型、写「AI 评分」，这个部署没有任何模型密钥，
+ * 分数是两道闸门（预筛 + 两次独立打分）算出来的入选分，判断由人在 tooling/fixtures 里署名写过。
+ * 叫「AI 评分」会让读者以为机器读了原文并作出判断——那是本站不该说的话（docs/known-issues.md）。
  */
 export function ScoreLabel({ score, compact = false }: { score: number | null; compact?: boolean }) {
   if (score === null) return null;
@@ -20,13 +24,13 @@ export function ScoreLabel({ score, compact = false }: { score: number | null; c
   return (
     <span
       role="img"
-      title={`AI 评分 ${value}/100`}
-      aria-label={`AI 评分 ${value} 分`}
+      title={`入选分 ${value}/100`}
+      aria-label={`入选分 ${value} 分`}
       className={`inline-flex h-[20px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2 ring-1 ring-inset ${tier.className}`}
     >
       {!compact && (
         <>
-          <span className="text-[11px] font-medium leading-none">AI 评分</span>
+          <span className="text-[11px] font-medium leading-none">入选分</span>
           <span className="h-2.5 w-px bg-current opacity-25" aria-hidden="true" />
         </>
       )}

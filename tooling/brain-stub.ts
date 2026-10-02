@@ -29,8 +29,16 @@ const PROMPTS_DIR = process.env.BRAIN_PROMPTS_DIR ?? path.join(ROOT, "industry/p
 const LOG_SIZE = int(process.env.BRAIN_LOG_SIZE, 500);
 /** Un-curated material: a low, honest score. 两次之和 ≥ 2×门槛 才精选，所以这个值永远进不了精选。 */
 const SCORE_DEFAULT = clampInt(process.env.BRAIN_SCORE_DEFAULT, 20, 0, 100);
-/** summarize 缺人工稿件时的做法：condense（规则压缩正文）| echo（只回原标题）| empty（不写，条目等待）。 */
-const SUMMARIZE_DEFAULT = process.env.BRAIN_SUMMARIZE_DEFAULT ?? "condense";
+/**
+ * summarize 缺人工稿件时的做法：empty（不写，条目等待人工中文稿）| condense（规则压缩正文）| echo（只回原标题）。
+ *
+ * 出货默认是 empty，理由是 2026-10-02 的一条线上事故：默认值曾是 condense，于是 stub 把**英文原标题与
+ * 英文正文的机械截断**填进了 title_zh / summary_zh，`analyze.ts` 的中文闸门（缺标题或摘要判 unknown）
+ * 因此形同虚设，12 条只有英文的条目直接进了公开池、精选和日报——中文站上出现了整条英文的卡片。
+ * 这个 stub 不是作者，它没有能力"翻译"；把原文回显成中文稿是伪造署名。没有人工稿就不发布。
+ * condense / echo 只留给开发与测试显式打开（BRAIN_SUMMARIZE_DEFAULT=condense|echo）。
+ */
+const SUMMARIZE_DEFAULT = process.env.BRAIN_SUMMARIZE_DEFAULT ?? "empty";
 /** group 缺人工判断时的做法：unrelated（不合并，安全）| lexical（字面相似才合并，需人工确认）。 */
 const GROUP_DEFAULT = process.env.BRAIN_GROUP_DEFAULT ?? "unrelated";
 const GROUP_LEXICAL_MIN = Number(process.env.BRAIN_GROUP_LEXICAL_MIN ?? 0.55);
@@ -624,9 +632,11 @@ const buildDefault: Record<string, (ctx: Ctx) => { reply: Record<string, unknown
   },
   understand: (ctx) => {
     const body = /【正文】\s*([\s\S]+?)(?:【材料质量】|$)/.exec(ctx.user)?.[1] ?? ctx.user;
+    // 与 summarize 同一条规则：没有人工中文稿时不回显原文（回显 = 把英文当中文发布）。
+    // itemType / authorRole / tags 不是读者可见文案，保留确定性默认值。
     return {
-      reply: { itemType: process.env.BRAIN_UNDERSTAND_ITEM_TYPE ?? VOCAB.itemTypes[0] ?? "", authorRole: "relayer", tags: [], editorialJudgment: "", titleZh: ctx.titles[0] ?? "", summaryZh: condense(body) },
-      rule: "rule:condense-understand",
+      reply: { itemType: process.env.BRAIN_UNDERSTAND_ITEM_TYPE ?? VOCAB.itemTypes[0] ?? "", authorRole: "relayer", tags: [], editorialJudgment: "", titleZh: "", summaryZh: "" },
+      rule: `rule:wait-for-human-copy-understand(summarize=${SUMMARIZE_DEFAULT})`,
     };
   },
   group_batch: (ctx) => ({ reply: { query: ctx.titles[0] ?? "", decisions: [] }, rule: `rule:group-${GROUP_DEFAULT}` }),

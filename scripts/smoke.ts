@@ -163,5 +163,29 @@ try {
   failed += 1;
 }
 
+/**
+ * Every reader-facing item must carry Chinese copy. This is the invariant the 2026-10-02 leak violated: the
+ * local editing brain echoed English source titles into `title_zh`, so twelve untranslated items reached the
+ * public pool, the front page and the daily paper while the pipeline believed they were translated. The
+ * pipeline holds such items as `unknown` until a human writes the Chinese (editorial/analyze.ts), and the
+ * stub no longer manufactures one; this check makes the promise machine-visible instead of hoping the
+ * default stays honest.
+ */
+try {
+  const itemsBody = JSON.parse(await getText("/api/v1/items?limit=100")) as { items?: Array<{ title?: string }> };
+  const all = itemsBody.items ?? [];
+  const english = all.filter((i) => typeof i.title === "string" && /[A-Za-z]{3,}/.test(i.title) && !/[一-鿿]/.test(i.title));
+  if (english.length) {
+    for (const i of english.slice(0, 5)) console.log(`✗ reader copy  ${String(i.title).slice(0, 80)}`);
+    console.log(`✗ reader copy  ${english.length} public item(s) have no Chinese title`);
+    failed += english.length;
+  } else {
+    console.log(`✓ reader copy  all ${all.length} public item(s) carry a Chinese title`);
+  }
+} catch (error) {
+  console.log(`✗ reader copy  ${String(error)}`);
+  failed += 1;
+}
+
 console.log(failed ? `\n${failed} check(s) failed` : "\nall checks passed");
 process.exit(failed ? 1 : 0);
