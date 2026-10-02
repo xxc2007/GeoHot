@@ -17,7 +17,7 @@ GEOHOT（中文站名 **地理热点**）建在开源框架 AIHOT 之上，行�
 
 对外有四个出口：网站、RSS（`/feed.xml`、`/feed/all.xml`、`/feed/full.xml`、`/feed/daily.xml`、按分类的 `/feed/category/<key>.xml`）、公开 API（`/api/v1/`，文档 `/openapi-v1.json`，说明页 `/agent`）、MCP（`/api/mcp`）。四个出口读的都是 `packages/backend/src/publication/` 这一个读取层，所以内容一致。读者打开页面不触发任何模型调用；模型调用只发生在 worker 的任务里，并且每一次都走回执与预算熔断（`packages/backend/src/providers/receipts.ts`）。
 
-进程形状：api（Fastify，`API_PORT`，默认 127.0.0.1:3001）、worker（pg-boss 队列与定时任务）、web（React Router 服务端渲染，`WEB_PORT`，默认 localhost:3000）、编辑大脑 stub（`BRAIN_PORT`，默认 127.0.0.1:3055）、PostgreSQL 17（`DATABASE_URL`，默认 127.0.0.1:5433）。四个端口在这台机器上全都能改、也全都得改——本机 3001 被无关进程占着，本站的 api 实际跑在 3199；细节与并排跑法见 3.7。后端没有构建步骤，Node 24 直接跑 TypeScript。
+进程形状：api（Fastify，`API_PORT`，默认 127.0.0.1:3001）、worker（pg-boss 队列与定时任务）、web（React Router 服务端渲染，`WEB_PORT`，默认 localhost:3000）、编辑大脑 stub（`BRAIN_PORT`，默认 127.0.0.1:3055）、PostgreSQL 17（`DATABASE_URL`，默认 127.0.0.1:5433）。四个端口在这台机器上全都能改、也全都得改——早期 3001 被无关进程占着，本站的 api 就固定跑在 3199（**2026-10-02 实测 3001 已空闲**，但 3199 是沿用下来的惯例，`.env.ports` 里写的就是它）；细节与并排跑法见 3.7。后端没有构建步骤，Node 24 直接跑 TypeScript。
 
 ---
 
@@ -114,7 +114,7 @@ node scripts/smoke.ts --base http://localhost:3000
 |---|---|---|
 | 网站 | <http://localhost:3000> | <http://localhost:3000>（3000 被本站占着） |
 | 后台 | <http://localhost:3000/admin>——**要登录**：`/admin` 未登录时 302 跳到 `/admin/login`，密码是 `.env` 里的 `ADMIN_PASSWORD`（`npm run env:init` 生成并打印一次）。旧的 `DEV_AUTH_ROLE=admin` 免登录后门已经摘掉了，别再装回去，理由与实测见第 11 节 | 同一个 |
-| 接口 | <http://127.0.0.1:3001>（`API_PORT`，`API_BASE_URL` 指过来） | <http://127.0.0.1:3199>（3001 被无关进程占着，本机实测 EADDRINUSE） |
+| 接口 | <http://127.0.0.1:3001>（`API_PORT`，`API_BASE_URL` 指过来） | <http://127.0.0.1:3199>（本机惯例；3001 早期被占过，2026-10-02 已空闲） |
 | 编辑大脑 stub | <http://127.0.0.1:3055/v1>，审计日志 `GET /__brain/log`，自检 `GET /healthz` | 3055 |
 | 数据库 | `postgres://geohot:geohot@127.0.0.1:5433/geohot`（`.env` 的 `DATABASE_URL`） | 5433 |
 
@@ -181,6 +181,12 @@ node --env-file=.env tooling/brain-stub.ts                        # 3065
 node --env-file=.env --env-file=.env.pipeline apps/api/src/main.ts    # 3288
 node --env-file=.env --env-file=.env.pipeline apps/worker/src/main.ts
 npm run build -w @aihot/web && node --env-file=.env apps/web/server.ts   # 3090
+
+# ★ 2026-10-02 实测补充两条，都会安静地骗过状态码：
+#   1) 重建 web（`npm run build -w @aihot/web`）之后**必须重启 web**：server.ts 启动时把构建 import 进内存，
+#      静态资源却按请求读盘——只重建不重启，页面 200 而它引用的 assets 哈希全是旧的（实测 12 个里 10 个 404）。
+#   2) 在子路径形态本地跑，`SITE_URL` 必须带前缀（`SITE_URL=http://127.0.0.1:3000/geohot`）：不带时
+#      canonical / og:url / 图片代理会逃出 `/geohot`，smoke 会红 61 项（web 启动日志只有一行 warn）。
 
 # B. 端口单独记在第三个 env 文件里（本机现在用的就是这个办法，.env.ports 同样被 gitignore 排除）
 printf 'API_PORT=3199\nAPI_HOST=127.0.0.1\nWEB_PORT=3000\nWEB_HOST=127.0.0.1\nAPI_BASE_URL=http://127.0.0.1:3199\n' > .env.ports
@@ -269,7 +275,7 @@ stub 是开发工具，不是站点的一部分：不在 `docker-compose.yml` �
 
 **六种信源**：`rss`、`web_list`（网页列表 + 选择器）、`json_list`（JSON 接口 + 字段路径）、`x_search`（X 账号，要 `SOCIALDATA_API_KEY`）、`mp_account`（微信公众号，要 `DAJIALA_KEY`）、`external`（你自己的脚本推进来）。每种信源认哪些配置键写在 `packages/backend/src/sources/config-keys.ts`，白名单外的键在保存、预览和 seed 时都会被**明确拒绝**，不会悄悄退回通用解析。`industry/sources.json` 当前 44 条：`rss` 26、`web_list` 7、`json_list` 3、`external` 8；后两种付费信源本部署没有 key，一条都没登记。
 
-**后台**（`/admin`，**本机也要登录**：未访问 `/admin` 会被 302 到 `/admin/login`，密码是 `.env` 里的 `ADMIN_PASSWORD`——`npm run env:init` 生成并在终端打印一次，登录以后 30 天不用再来（会话 cookie `aihot_admin`，库里只存令牌哈希）。cookie 按主机绑定，`localhost:3000` 和 `127.0.0.1:3000` 混用会"看起来登录不上"。命令行怎么拿 cookie 见 `scripts/README-ingest.md`）。旧写法说的"`DEV_AUTH_ROLE=admin` 直接进、不用密码"已经作废：那个开关被从 `.env` 与 `.env.pipeline` 双双摘掉，它存在时后台所有写接口等于不鉴权，别再装回去（第 11 节有实测对比）。`industry/features.ts` 两个开关关掉以后，侧栏里剩这几项（`apps/web/app/routes/admin/layout.tsx:26-46`）：`/admin`（概览）、`/admin/content` 内容诊断与可见性、`/admin/sources` 信源（列表按健康度排序、失败的在最前；详情有"预览抓取"（不入库）、"立即采集"、改频率/分级/参与方式；`/admin/sources/new` 新建）、`/admin/feedback` 反馈、`/admin/runs` 定时任务最近结果、`/admin/models` 每一步单独换模型与成功率/token、`/admin/selectbench` 精选评测版本对比、`/admin/settings` 预算熔断与安全项、`/admin/audit` 审计记录。**`/admin/monitor`（Codex 重置）从侧栏消失了**（`layout.tsx:32` 按 `FEATURES.codexResetMonitor` 门掉），但**路由和接口都还没摘**：直接敲 `/admin/monitor` 仍然渲染，`/api/admin/monitor/*`（`apps/api/src/routes/admin.ts:99-105`）照样应答，只是底下那几张表已经空了（原来的行在 `monitor_*_bak_20260930`，见第 7 节第 9 条）。`/leaderboard`、`/codex-reset` 是真的 404。
+**后台**（`/admin`，**本机也要登录**：未访问 `/admin` 会被 302 到 `/admin/login`，密码是 `.env` 里的 `ADMIN_PASSWORD`——`npm run env:init` 生成并在终端打印一次，登录以后 30 天不用再来（会话 cookie `aihot_admin`，库里只存令牌哈希）。cookie 按主机绑定，`localhost:3000` 和 `127.0.0.1:3000` 混用会"看起来登录不上"。命令行怎么拿 cookie 见 `scripts/README-ingest.md`）。旧写法说的"`DEV_AUTH_ROLE=admin` 直接进、不用密码"已经作废：那个开关被从 `.env` 与 `.env.pipeline` 双双摘掉，它存在时后台所有写接口等于不鉴权，别再装回去（第 11 节有实测对比）。`industry/features.ts` 两个开关关掉以后，侧栏里剩这几项（`apps/web/app/routes/admin/layout.tsx:26-46`）：`/admin`（概览）、`/admin/content` 内容诊断与可见性、`/admin/sources` 信源（列表按健康度排序、失败的在最前；详情有"预览抓取"（不入库）、"立即采集"、改频率/分级/参与方式；`/admin/sources/new` 新建）、`/admin/feedback` 反馈、`/admin/runs` 定时任务最近结果、`/admin/models` 每一步单独换模型与成功率/token、`/admin/selectbench` 精选评测版本对比、`/admin/settings` 预算熔断与安全项、`/admin/audit` 审计记录。**`/admin/monitor`（Codex 重置）从侧栏消失了**（`layout.tsx:32` 按 `FEATURES.codexResetMonitor` 门掉），而且**路由与接口都真的关着**：`apps/api/src/routes/admin.ts:100-102` 用同一个开关包住了七个 monitor 端点（带会话访问 `/api/admin/monitor/events` 实测 404），页面路由本身是死路由（`apps/web/app/routes.ts:48`），直接敲 `/admin/monitor` 得到的是 404 页面（2026-10-02 实测）。底下那几张表已经空了（原来的行在 `monitor_*_bak_20260930`，见第 7 节第 9 条）。`/leaderboard`、`/codex-reset` 也是真的 404。
 
 **人工投递**（野外与考察、采不到的国内官方一手记录就是这样进站的）：`POST /api/ingest/items`，`Authorization: Bearer <INGEST_TOKEN>`，每次最多 50 条（超出 413）、每 IP 每分钟 10 次（超出 429）；正文靠回源抓取，所以一手记录建议同时写进语料文件用 `npm run seed:curated` 带正文入库。完整做法、参数和 48 小时陷阱写在 **`scripts/README-ingest.md`**。`INGEST_TOKEN` 由 `npm run env:init` 生成（48 位十六进制），所以这条路在干净克隆里也是通的；留空、少于 16 位、或写成 `changeme/placeholder/xxx/test/dev/your-token` 这类占位词时接口一律 401（`apps/api/src/routes/ingest.ts:9-19`），改完 `.env` 必须重启 api。2026-10-01 干净克隆实测：不带 `Authorization` → 401，带 env:init 生成的 token → `200 {"ok":true,"created":1}`，同一 URL 重投 → `created:0`。
 
@@ -442,7 +448,7 @@ node scripts/smoke.ts --base http://127.0.0.1:3000 # 起 api+web 之后（跑法
 **本节与部署包（README-deploy.md，随交付、不在仓库树内）第 5 节的"生产 env 逐项核对表"逐行对齐（2026-10-01 核对）；那张表是键级细则，本节是动作清单，两处不一致时以对着代码复核后的那处为准并同步改另一处。** 生产必须与本 `.env` 不同的取值，一句话版：`NODE_ENV` 与 `AIHOT_ENVIRONMENT` **两个都是** `production`（第 11 节第 2 条解释了为什么只改一个等于没改）；任何 `DEV_AUTH_*` 整行删除；`SITE_URL=https://xxc2007.me/geohot`（https 前缀让会话 cookie 自动加 `Secure`；路径部分必须等于构建期的前缀。2026-10-02 起生产**不再容忍缺值或 localhost**——`NODE_ENV` 或 `AIHOT_ENVIRONMENT` 有一个是 production 就拒启，`config.ts:54-68`，因为那个安静的回落会把 localhost 写进 canonical/OG/RSS/sitemap/robots/security.txt 并让 MCP 的 host 锁拒掉真域名）；`TRUST_PROXY=true`（**web 与 api 两个进程都读这一行**，写法一致：`server.ts:20` 与 `app.ts:28`；不开就把全体访客的登录/反馈限速算到代理那一个 IP 上。api 侧以前是写死 `trustProxy: true`、与这行无关，所以那时"false 保护 api 限流"并不成立——现在成立了，也意味着**这行漏写会让 api 不再信 XFF**，两个进程都要显式写）；`SESSION_SECRET`/`IMG_PROXY_SIGN_SECRET` 服务器上新生成（Linux 可用 `openssl rand -hex 32`，本机没有才用 node 一行）；`ADMIN_PASSWORD` ≥12；`INGEST_TOKEN` ≥16 或留空（留空=入口关死，比弱值安全，见第 7 条）；`DATABASE_URL` 指向生产的系统 PostgreSQL，**不要搬本机 127.0.0.1:5433 的 embedded 串**（§3.6 那套是 Windows 开发机专用）；`COLLECT_ENABLED=true` 显式写；`MODEL_CALLS_ENABLED` 二选一——生产留 stub 进程则 `true` 且 `LLM_BASE_URL=http://127.0.0.1:3055/v1`（只听回环、绝不公网），不留则 `false` 并接受"新料只进全部、不进精选"；`FEISHU_*` 与 `INDEXNOW_SUBMIT_ENABLED=false`（子路径部署下 IndexNow key 文件落 `/geohot/<key>.txt` 的可达性未确认）；`TZ=Asia/Shanghai`（§11.1 讲过 json_list 不带时区的坑）。注意 `LLM_API_KEY=local-brain` **不在**占位黑名单里（11 字符、不匹配 `config.ts:124` 的正则），代码拦不住它——这一行必须人工核对。
 
 1. **开发登录后门：已经摘掉了，别装回去，并证明它还关着。** 本机 `.env` 与 `.env.pipeline` 都不再有 `DEV_AUTH_ROLE`（旧版这一节写的"删掉 DEV_AUTH_ROLE"已经完成，本文件与 `AGENTS.md` 里"本机免登录后台"那句是当时的旧话，本轮已改正）。剩下的动作是切生产：`NODE_ENV=production`，同时注意 `AIHOT_ENVIRONMENT`（第 11 节第 2 条讲这两者的分工）。代码里有拒启检查（`packages/backend/src/config.ts:127-137`）：任何 `DEV_AUTH_*` 键、`changeme/placeholder/test/xxx/your-*` 这类占位密钥、长度不足 8 的密钥、`ALLOW_PRIVATE_NETWORK_FETCH` 都会让 api/worker 拒绝启动——但它只在真的用 `NODE_ENV=production` 启动时才起作用，所以**验证方式是起进程看不肯起，而不是"觉得应该没问题"**。同一道闸门现在也管 `SITE_URL`（`config.ts:54-68`：生产下缺值或 localhost 直接拒启）。生产密码与密钥重新生成一轮（`SESSION_SECRET`、`ADMIN_PASSWORD` ≥12 位、`IMG_PROXY_SIGN_SECRET`、`INGEST_TOKEN` ≥16 位）：`node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`（本机 Git Bash 里没有 `openssl`，别照 `docs/deploy.md` 抄那条）。最后 `curl -i https://<host>/api/admin/sources` 必须 401 才算过关。
-2. **`/api/admin/monitor/*` 仍挂着。** `apps/api/src/routes/admin.ts:99-105` 那七个端点没有随 `features.ts` 的 `codexResetMonitor` 关掉，`/admin/monitor` 直接敲 URL 仍能渲染。底表已经空（行在 `monitor_*_bak_20260930`），风险低，但第 1 条没做好的话它就是个无鉴权的写接口。
+2. ~~**`/api/admin/monitor/*` 仍挂着。**~~ **2026-10-02 更正：已经关着。** `apps/api/src/routes/admin.ts:100-102` 的七个端点由 `FEATURES.codexResetMonitor` 整体门控（带会话访问实测 404），`/admin/monitor` 是死路由、直接敲 URL 得到 404 页面（`docs/known-issues.md` 里那条"死路由"登记的是 routes.ts:48 的注册本身，不是"仍能渲染"）。底表已空（行在 `monitor_*_bak_20260930`）。
 3. **安全阀在生产上要一个个决定，不要整份搬 `.env.pipeline`。** `.env.pipeline` 是本机一次性文件，不是生产模板。`COLLECT_ENABLED=true` 才会真的去抓信源；`MODEL_CALLS_ENABLED=true` 只在你已经给 `LLM_BASE_URL/LLM_API_KEY/LLM_MODEL` 填了真东西之后才打开——本站现在指向 `tooling/brain-stub.ts`（127.0.0.1:3055，无鉴权、只监听回环）。**不要把 stub 暴露到公网**，也不要用它冒充"模型已经在工作"上线。`FEISHU_*_ENABLED`、`INDEXNOW_SUBMIT_ENABLED` 按你确实接了哪些外部服务来开。
 4. **站长的身份信息只能他本人填。** `industry/site.ts`：`contactEmail`（现在是按 `geohot.local` 编的占位地址，`security.txt` 会把它公开出去）、`icp`（备案号必须由主办者申请，别人不能代填）、`organization.founder`、`SITE_URL`、域名与托管地（境内还是境外决定适用法域）。`industry/pages/terms.md`、`privacy.md` 现在还是模板，需要本人确认措辞。**这一条以前还写着"灾害与预警的安全声明只在 `/terms` 出现、条目页看不到"，那是错的**：`apps/web/app/routes/item.tsx:317` 会在命中灾害标签的条目页上直接渲染"本站不是预警信息的发布机构，本页内容不构成预警依据……"，本机实测 `curl -s http://localhost:3000/items/china-L11 | grep -c 不构成预警依据` → 1（非灾害条目是 0，这是刻意的）。读者要行动的地方就有这句话，别在部署时把它删掉。
 5. **HTTPS 走 Caddy profile，但本机跑不了它。** 官方路径是 `docker compose --profile https up -d --build`（`docker-compose.yml:78-89` 的 `caddy:2-alpine` + `deploy/Caddyfile`，证书存在 `caddy` 卷）。这台机器没有 Docker，所以这一条要在真正的部署主机上做；换别的反代时记得 `.env` 里 `TRUST_PROXY=true`——**web 与 api 都读它**（`apps/web/server.ts:20`、`apps/api/src/app.ts:28`；api 那个写死的 `trustProxy: true` 已在 2026-10-02 改成跟随这一行，直接对外时保持 `false` 才是安全的）。
@@ -487,8 +493,11 @@ curl -sS -o /dev/null -w '%{http_code}\n' http://<api>/api/admin/sources        
 curl -sS http://<api>/api/admin/me                                                        # {"…","detail":"Sign in to the admin first."} [401]
 curl -sS -o /dev/null -w '%{http_code} %{redirect_url}\n' http://<web>/admin               # 302 http://<web>/admin/login?return=%2Fadmin
 curl -sS -o /dev/null -w '%{http_code}\n' http://<web>/admin/login                         # 200
-curl -sS -o /dev/null -w '%{http_code}\n' -X POST http://<api>/api/admin/feedback/1 \
-  -H 'x-csrf-token: dev' -H 'content-type: application/json' -d '{}'                       # 401/403，绝不能是 2xx/404-with-auth-bypassed
+# 用真存在、且需要鉴权的写路由。POST /api/admin/feedback/1 在本代码里没有处理器：它在鉴权之前
+# 就命中兜底 404，因此无论后台锁没锁都回 404，证明不了任何事（2026-10-02 实测）。PATCH 这条无会话 401，
+# 有会话但没有 CSRF 头时 403。
+curl -sS -o /dev/null -w '%{http_code}\n' -X PATCH http://<api>/api/admin/feedback/1 \
+  -H 'content-type: application/json' -d '{}'                                        # 401，绝不能是 2xx
 PW=$(node -e "const fs=require('fs');const l=fs.readFileSync('.env','utf8').split(/\r?\n/).find(x=>x.startsWith('ADMIN_PASSWORD='));console.log(l.slice(15))")
 curl -sS -c /tmp/jar -o /dev/null -w 'login=%{http_code}\n' -X POST http://<api>/api/auth/password \
   -H 'content-type: application/x-www-form-urlencoded' --data-urlencode "password=$PW" --data-urlencode 'return=/admin'   # 303 + Set-Cookie: aihot_admin=…

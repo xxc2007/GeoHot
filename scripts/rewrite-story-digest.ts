@@ -9,8 +9,9 @@
 //
 //   node --env-file=.env --env-file=.env.pipeline scripts/rewrite-story-digest.ts --story <public-id>
 //   node --env-file=.env --env-file=.env.pipeline scripts/rewrite-story-digest.ts --story <public-id> --apply
-// 两个 env 文件不能省：模型端点（本地是脑干 stub 的 3055）在 `.env.pipeline` 里，缺了它会报
-// "Model default is not configured"。--apply 必须显式给 --story；它从不扫全库。
+// 本地开发机要带两个 env 文件（模型端点——本地是编辑大脑 stub 的 3055——写在 `.env.pipeline` 里，
+// 缺了会报 "Model default is not configured"）；生产只有 `.env` 一个（LLM_* 就在里面），带上不存在的
+// `.env.pipeline` 会让 node 直接以 "file not found" 退出。--apply 必须显式给 --story；它从不扫全库。
 import { parseArgs } from "node:util";
 import { closeDb, sql } from "@aihot/backend/db";
 import { composeStoryDigest } from "@aihot/backend/events/digest";

@@ -8,8 +8,9 @@
 //   node --env-file=.env --env-file=.env.pipeline scripts/recompose-report.ts --kind daily --key 2026-10-02
 //   node --env-file=.env --env-file=.env.pipeline scripts/recompose-report.ts --kind daily --key 2026-10-02 --apply
 //
-// The two env files are not optional: the model endpoint (the local brain stub on 3055) lives in
-// `.env.pipeline`; without it the lead-writing step fails with "Model default is not configured".
+// Local dev needs both env files (the model endpoint — the brain stub on 3055 — lives in `.env.pipeline`;
+// without it the call fails with "Model default is not configured"). Production has a single `.env` with the
+// LLM_* values inside it; passing a missing `.env.pipeline` there makes node exit with "file not found".
 import { parseArgs } from "node:util";
 import { closeDb, sql } from "@aihot/backend/db";
 import { candidates, composeDaily, composeWeekly, composeMonthly } from "@aihot/backend/reports/compose";

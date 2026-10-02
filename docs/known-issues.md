@@ -313,3 +313,46 @@ Australia / Angola / Paraguay / Suriname, Brazil）的事件下，读者在中�
 - 迁移 0039-0041 涉及 `articles`/`story_digests`/`admin_sessions` 三张在用的表；按仓库规则，迁移只做
   向后兼容的增量，且要先在本机集群整库演练（`npm run db:up -- --port=xxxx` + `db:migrate` + 回滚验证），
   这类演练占用的是整台机器的资源，不适合与发布同批做。
+
+## 2026-10-02 全站体检（第六轮）：三类真问题与两条刻意保留的口径
+
+五个只读子智能体（机器出口逐条实测 / 后台与鉴权 / 1717 条公开内容核对 / 本机全栈从零起 / 桌面与移动
+两轮真实浏览器）加上主控的修复与复验。修掉的三类：
+
+1. **成刊快照会停在旧文案上**（日报版面、`/og` 分享卡、`<meta description>` 一起脏）。修法有两层：
+   `reports/compose.ts` 的候选加**中文标题门槛**（中文报纸不印没人写过中文的标题）；`scripts/recompose-report.ts`
+   按当前文案重排指定一期（默认 dry-run；旧版进 `report_revisions`，可回滚）。**下一轮遇到"改完文案对不对得上"，
+   先查版面/OG/meta 这三处快照，别只看条目页。**
+2. **列表层放行了没有中文稿的条目**（`/all` 曾出现 351 张英文卡片，全部动态总数 1829 → 1013）。
+   `publication/items.ts` 的 `listedCondition` 现在要求标题含 CJK。**条目自己的页面保留**并在页顶如实说明
+   （藏起真内容比少几条更糟）；它们在后台等待有人写中文，写完后自己回到列表。
+3. **红线：一条事件提要留着它自己的报道里没有的数字**（洛亚蒂 M6.6 的「矩张量反演震级 6.7」、按旧成员数写的
+   「三家机构」）。fixture 的 `guard` 当时是空的，所以没有任何一层能发现。已更正为两家目录各自给出的测定值，
+   并**刻意不写成员机构数量**（本地与线上的成员集不同，写死数量必有一边错）。`composeStoryDigest` 新增
+   `force`，且被 force 的重写会带 `attemptTag`——**没有它，回执缓存会把你想替换的那个答案原样还回来**
+   （实测：重写"成功"而页面仍是 6.7）。工具：`scripts/rewrite-story-digest.ts`。
+
+两条**刻意保留**的口径（别再当新发现重复调查）：
+
+4. **指名一期空刊 = 诚实的空态（200），不是 404。** 这是上一轮的决定，并由
+   `tests/publication.test.ts`「a named blank issue is an honest empty state, not a 500」钉住；列表、`latest`、
+   feed、sitemap 一律不宣传空刊。**唯一的例外是 MCP**：`geohot_get_weekly/monthly` 遇到空刊直接报
+   `not_found`（Agent 分不清"空壳"与"内容"）。
+5. **fixture 的键要与 stub 真正读的一致**：digest 读 `reply.digest`，`reply.body` 是历史遗留（曾让"改过了"
+   看起来没生效）。写完 fixture 先跑一次真实路径，别只看文件。
+
+顺带记下这轮发现、暂未改的：
+
+6. **`docs/manual.md` 的自检命令有两处已失效**（R6-B/R6-D 实测）：§11 的
+   `POST /api/admin/feedback/1` 在**鉴权之前**就命中兜底 404（无处理器），因此它无论鉴权好坏都回 404，
+   证明不了"后台锁着"——改用 `PATCH /api/admin/feedback/1`（无会话 401）或 `POST /api/admin/sources`（401）；
+   §10 第 2 条说七个 monitor 端点没关，实际 `apps/api/src/routes/admin.ts:100-102` 已按
+   `FEATURES.codexResetMonitor` 整体关闭（带会话访问也 404）。
+7. **本机环境说明过时两处**：3001 现在是空闲的（manual 说被无关进程占着）；子路径本地形态还必须把
+   `SITE_URL` 带上前缀（`.env` 里是 `http://localhost:3000`，不带前缀时 canonical/og:url/img-proxy 会逃出
+   `/geohot`，smoke 61 项红）；**重建 web 之后必须重启 web**（`server.ts` 启动时 import 构建、静态文件按请求
+   读盘，20:03 重建而进程还是 19:15 的旧构建 → 首页 12 个资源里 10 个 404）。
+8. **`publishedAt=null` 的条目（49 条，SpaceMapper 人工投递）在卡片上只显示时刻**，没有日期；其中一条的
+   `<title>` 是整段导语（超长）。属于展示层小课，留待下一轮（要把"无日期"的卡片样式与标题截断一起做）。
+9. **后台会话 cookie 的 `Path=/`** 在 `xxc2007.me` 这种共域子路径部署下会送到主站（HttpOnly，只是卫生
+   问题）；要收紧需要改 `admin/auth.ts` 与主站同域行为的验证，值不值得做由站长定。
