@@ -13,7 +13,7 @@
 |---|---|---|
 | 1 | **保留人工策划的编辑大脑**（`tooling/brain-stub.ts` fixture 判断，不接真 LLM Key） | 精选只随人工语料增长；新采材料落默认值（打分 20、归组 UNRELATED），站点会随 48 h 窗口变旧（`packages/backend/src/events/hot.ts:8-10`）。阀的取值见 §5 |
 | 2 | **about 页/`site.ts` 措辞改为诚实口径**（不再声称"用模型打分"，或明示判断由人写） | 纯代码/文案改动，随公开仓库一起部署，不涉及服务器操作 |
-| 3 | **公开仓库用干净单初始提交**（放弃 5 提交波次历史，删 `docs/assets/*.png`） | bootstrap 的 clone 地址以 GitHub 新仓库为准（脚本里的 `REPO_URL` 是占位） |
+| 3 | **公开仓库用干净单初始提交**（放弃 5 提交波次历史，删 `docs/assets/*.png`） | 仓库已经建好：`bootstrap-server.sh` 的 `REPO_URL` 默认值就是 `https://github.com/xxc2007/GeoHot.git`（开发机 `git remote -v` 看到的 origin），不再是占位串。要装 fork 或离线搬运就 `GEOHOT_REPO_URL=…` 覆盖，第 2 节 clone 前会实测可达性 |
 | 4 | **站点挂在 `/geohot/` 子路径下**（2026-10-01 已上线并逐条验证；前缀是**构建期**变量） | 前缀由 bootstrap-server.sh 的 `GEOHOT_BASE_PATH`（默认 `/geohot`）作为 `BASE_PATH` 传给 `npm run build`，烧进 bundle；nginx 的 location 前缀与 `SITE_URL` 的路径必须与它一致。**要挂域名根就显式 `GEOHOT_BASE_PATH=""`**（空串是合法取值，含义是"这个站占域名根"：构建不带 BASE_PATH、nginx 不需要前缀 location、那条补斜杠的 308 也不要）。`verify-deploy.sh` 第 3 节会硬断言资源不回落根 |
 
 ## 1. 动手前先备份（owner 在服务器上执行）
@@ -31,8 +31,10 @@
 → ③ 人工核对 .env（§5 清单！bootstrap 第 5 节会逐项断言，过不去就 exit 1，数据库一个字节都不碰）
 → ④ PostgreSQL 版本与 pg_trgm 预检（同脚本第 6 节）→ ⑤ 建角色与库 + 用 .env 实测连接（第 7 节）
 → ⑥ migrate/seed/seed:curated + 带 BASE_PATH 构建 web（第 8~9 节）
-→ ⑦ 贴 nginx 片段：nginx -t 过了才 reload（片段尾部流程）
-→ ⑧ systemctl enable --now 四个 unit（brain/api/worker/web）→ ⑨ bash verify-deploy.sh 全绿
+→ ⑦ 贴 nginx 片段：nginx -t 过了才 reload（片段头部那段"生效顺序"，不是尾部）
+→ ⑧ 启动四个 unit（brain/api/worker/web）—— bootstrap 第 10 节只 `enable` 不 `--now`，核对完 .env 再
+      `sudo systemctl start …`；自己贴模板装的那台机器上才用 `systemctl enable --now`
+→ ⑨ bash verify-deploy.sh 全绿
 → ⑩ 每日备份 cron（§6），并且按 §6.1 当场演练一次恢复
 ```
 
@@ -45,7 +47,9 @@
 - `reload` 永远不是 `restart`；`nginx -t` 不过就停手，不许带病 reload。
 - 回滚一律走 `rollback.sh`（默认 DRY-RUN；`--purge-database` 才会删库，且删前强制 pg_dump）。
 - 安装目录只有一个变量：`GEOHOT_APP_ROOT`（默认 `/opt/geohot/app`）。bootstrap、install-units、
-  verify-deploy、rollback 与 `systemd/` 模板都读它，别再往脚本里写第二条路径。
+  verify-deploy、rollback 四个脚本都读它；`systemd/` 里那批 `*.service` 是文本模板（systemd 没有变量插值），
+  写死的是同一个默认值 —— 换过路径就不能用模板，`bootstrap-server.sh` 第 10 节会当场拦住并让你改走
+  `install-units.sh`（它按变量渲染）。别再往脚本里写第二条路径。
 
 ## 3. 需要 owner 提供 / 确认的（脚本里全部做成 PREFLIGHT CHECK，不假定）
 
@@ -55,16 +59,16 @@
 | 有没有 Docker/Compose；PostgreSQL 是否已装、**版本是否 16/17**、`pg_trgm` 是否可用、`psql`/`pg_dump` 是否可用 | bootstrap 预检只读探测；--apply 时第 6 节硬断言（Ubuntu 22.04 自带 14，contrib 是另一个包） |
 | 3000/3001 是否空闲（纪念册站口占用则改 `WEB_PORT/API_PORT` 并同步 nginx 片段） | 预检 `ss -ltnp` |
 | 允许 `CREATE ROLE geohot` + `CREATE DATABASE geohot`（非 superuser，不改 pg_hba 现有行） | bootstrap 第 7 节 |
-| 机器规格（上游建议 2c/4G，`docs/deploy.md:5`）与常驻进程数（**四个** Node 进程：brain/api/worker/web，见 §5 与 `systemd/`） | 预检打印，人工判 |
+| 机器规格（上游建议 2c/4G，见 `docs/deploy.md`「用 Docker（推荐）」第一句）与常驻进程数（**四个** Node 进程：brain/api/worker/web，见 §5 与 `systemd/`） | 预检打印，人工判 |
 | 子域 `geohot.xxc2007.me` 是否可作退路（若 §0-4 那条子路径路线出问题） | 决定权在 owner |
 
 ## 4. 组件与端口（代码实测）
 
-- api：`apps/api/src/main.ts:17` 绑 `API_HOST||127.0.0.1`，`API_PORT` 缺省 3001（`config.ts:38`）。健康路径 `GET /api/health`（`app.ts:64`）。
-- web：`apps/web/server.ts:12-13` 绑 `WEB_HOST||127.0.0.1:3000`；api-owned 路径由 web 自己转给 3001（`server.ts:135-149` × `contracts/http-policy.ts:110-122`）⇒ **nginx 只需指向 3000**。
-- worker：无监听口；pg-boss 全 cron 队列 `policy:"singleton"`（`schedules.ts:102`）⇒ **只许一个实例**（详见 unit 文件注释）。停机 grace 195 s（`jobs/queue.ts:63`），`TimeoutStopSec=210`。
-- brain（编辑大脑 stub）：`tooling/brain-stub.ts:26` 读 `BRAIN_PORT`（缺省 3055），`:1012` 只绑 `127.0.0.1`、无鉴权。它是第四个常驻进程，`systemd/geohot-brain.service` 就是它的 unit（以前只有 install-units.sh 会写它，模板目录里缺文件）。
-- 上传：截图 ≤ 8 MB（`operations/feedback.ts:64`）< Fastify bodyLimit 10 MB（`app.ts:30`）⇒ `client_max_body_size 10m`。
+- api：`apps/api/src/main.ts:17` 绑 `API_HOST||127.0.0.1`，`API_PORT` 缺省 3001（`packages/backend/src/config.ts:72` 的 `apiPort: int("API_PORT", 3001)`）。健康路径 `GET /api/health`（`apps/api/src/app.ts` 里 `app.get("/api/health", …)` 那一条）。
+- web：`apps/web/server.ts:12-13` 绑 `WEB_HOST||127.0.0.1:3000`；api-owned 路径由 web 自己转给 3001（`server.ts` 里 `if (isApiOwned(appPath))` 那一整块 × `packages/contracts/src/http-policy.ts` 的 `API_OWNED_PATTERNS`）⇒ **nginx 只需指向 3000**。
+- worker：无监听口；pg-boss 全 cron 队列 `policy:"singleton"`（`apps/worker/src/schedules.ts:102`）⇒ **只许一个实例**（详见 unit 文件注释）。停机 grace 195 s（`packages/backend/src/jobs/queue.ts:63` 的 `STOP_TIMEOUT_MS`），`TimeoutStopSec=210`。
+- brain（编辑大脑 stub）：`tooling/brain-stub.ts:26` 读 `BRAIN_PORT`（缺省 3055），`:1012` 的 `server.listen(PORT, "127.0.0.1")` 只绑回环、无鉴权。它是第四个常驻进程，`systemd/geohot-brain.service` 就是它的 unit（以前只有 install-units.sh 会写它，模板目录里缺文件）。
+- 上传：截图 ≤ 8 MB（`packages/backend/src/operations/feedback.ts:64`）< Fastify bodyLimit 10 MB（`apps/api/src/app.ts:30`）⇒ `client_max_body_size 10m`。
 - MCP：`/api/mcp` 方法集 GET/POST/DELETE(+OPTIONS 204, PUT/PATCH→405)（`routes/mcp.ts:293-305`）；SSE 订阅流带 `X-Accel-Buffering: no`（`mcp.ts:285`）⇒ 专用 location 关缓冲、读超时 1 h；host 锁只比 hostname（`mcp.ts:219-220,254-255`），前缀路径不需要 `MCP_ALLOWED_HOSTS`。
 
 ## 5. `.env`：生产必须与本机不同的取值（逐项核对表）
@@ -75,8 +79,8 @@
 | `AIHOT_ENVIRONMENT` | `production` | **另一个**门禁：开发免登录后门看它（`config.ts:90` + `admin/auth.ts`），`ADMIN_PASSWORD≥12` 的启动检查也看它（`apps/api/src/main.ts:12-14`）。只设 NODE_ENV 不设它 = 后门还在。`SITE_URL` 那道新闸门两个都看（`config.ts:20`） |
 | `DEV_AUTH_ROLE` 等 | **整行删除** | 残留即拒启（`config.ts:134`）——这是特性：以"起进程看不肯起"验证，README §10.1。bootstrap 第 5 节也会把它当场挑出来 |
 | `SITE_URL` | `https://xxc2007.me/geohot` | 一切绝对链接唯一来源（`config.ts:77`）；cookie `Secure` 随 https 前缀自动正确（`routes/admin-auth.ts:23`）。**2026-10-02 起生产不再容忍缺值或 localhost**：`NODE_ENV`/`AIHOT_ENVIRONMENT` 有一个是 production 时，缺值或 `http://localhost:3000` 直接拒启（`config.ts:54-68`），因为回落会把 localhost 写进 canonical/OG/RSS/sitemap/robots/security.txt，并让 MCP 的 host 锁（`routes/mcp.ts:219`）拒掉真域名。路径部分必须等于 `GEOHOT_BASE_PATH`（bootstrap 第 5 节实测这一条） |
-| `TRUST_PROXY` | `true` | **两个进程都读它**，写法一致（只有字符串 `true` 算开）：`apps/web/server.ts:20` 与 `apps/api/src/app.ts:28` 的 `trustProxy`。api 侧以前是写死 `true`、与这一行无关，2026-10-02 起改成读同一个开关——于是"设 false 就保护登录与反馈限流"这句话第一次变成真的，反过来**这一行没写 = api 也不再信 XFF**，反代同机时全体访客都算成 127.0.0.1（`routes/admin-auth.ts:26-41` 的每地址 10 次会变成全局共用）。bootstrap 第 5 节会把它显式写成 `true` |
-| `SESSION_SECRET` `IMG_PROXY_SIGN_SECRET` | `openssl rand -hex 32` 各一 | 生产占位/短值拒启（`config.ts:132`）；`init-env.ts:15-18` 生成等价随机 |
+| `TRUST_PROXY` | 本站这台：`true`（前面确实有 nginx）。**它是拓扑事实，不是一律 true** —— 前面没有反代就必须 `false` | **两个进程都读它**，写法一致（只有字符串 `true` 算开）：`apps/web/server.ts:20` 与 `apps/api/src/app.ts:28` 的 `trustProxy`。api 侧以前是写死 `true`、与这一行无关，2026-10-02 起改成读同一个开关——于是"设 false 就保护登录与反馈限流"这句话第一次变成真的，反过来**这一行没写 = api 也不再信 XFF**，反代同机时全体访客都算成 127.0.0.1（`routes/admin-auth.ts:26-41` 的每地址 10 次会变成全局共用）。写 true 而前面没有反代同样有代价：那等于允许客户端自报 `X-Forwarded-For`，这两个限流当场失效（`docs/deploy.md`「配域名和 HTTPS」一节写明了两端取舍）。bootstrap 第 5 节因此不再无条件写 `true`：给了 `GEOHOT_TRUST_PROXY` 就用给的，否则实测 `nginx.service` 在不在跑再决定，判成 `false` 时会大声提示 |
+| `SESSION_SECRET` `IMG_PROXY_SIGN_SECRET` | `openssl rand -hex 32` 各一 | 生产占位/短值拒启（`config.ts:132`）；`scripts/init-env.ts` 里的 `secret()`（`randomBytes(32).toString("hex")`）生成等价随机 |
 | `ADMIN_PASSWORD` | ≥12 位真值 | `main.ts:12-14`；`changeme/placeholder/test/xxx/your-*` 会被 `PLACEHOLDER` 正则拦（`config.ts:124`） |
 | `INGEST_TOKEN` | `openssl rand -hex 16` 起（≥16 位） | 人工投递通道（README §5）；本机现在没配所以一律 401，上线按内容计划要不要开 |
 | `DATABASE_URL` | `postgres://geohot:<新密码>@127.0.0.1:5432/geohot` | **不要搬本机 5433 embedded 串**（README §3.6 那套是 Windows 开发机专用）。现在这一行由 `bootstrap-server.sh` 第 5 节按它自己建角色用的 `PG_*` 值写回，第 7 节再拿它真连一次（`psql … SELECT version()`），连不上就 exit 1 —— 以前只打印一句"照着抄"，两边各说各话 |
@@ -99,7 +103,7 @@
   ```
   反馈截图目录（`.data/feedback-screenshots`，`feedback.ts:67`）不进 pg_dump；应用备份逻辑本来就排除它（`backup.ts:90`），量小可整目录 rsync 或不管。
 - 若决定用应用内建路线：装对象存储凭据进 `.env`，cron 自动注册，无需上面的 crontab。二选一，不要都做。
-- **每周再加一份 custom format**（`-Fc`），因为下面 6.1 的恢复用的是 `pg_restore`：纯文本 `.sql.gz` 只能 `psql -f`整库灌回去，`-Fc` 才能按表挑、能并行、而且 dump 里带压缩级别与 `--if-not-exists` 之类的余地。上面那条 cron 是 owner 已有的作业，不改它；另加一条：
+- **每周再加一份 custom format**（`-Fc`），因为下面 6.1 的恢复用的是 `pg_restore`：纯文本 `.sql.gz` 只能 `psql -f` 整库灌回去，`-Fc` 才能按表挑（`pg_restore -l` / `-n` / `-e`）、自带压缩、而且 dump 里有 `--if-not-exists` 之类的余地。**`-Fc` 也支持 `pg_restore -j` 并行恢复**（本站支持的 PostgreSQL 16 与 17 的 pg_restore 文档都写着 "Only the custom and directory archive formats are supported with this option"）—— 有资料说"并行只能 `-Fd`"，那是旧版本的口径，别照着它把这条改回去。上面那条 cron 是 owner 已有的作业，不改它；另加一条：
   ```cron
   45 4 * * 0 sudo -u postgres pg_dump -Fc geohot -f /opt/geohot/backups/geohot-weekly-$(date +\%F).dump && <git-lfs 或 rsync 推离线>
   ```
@@ -127,12 +131,13 @@
    sudo -u postgres psql -v ON_ERROR_STOP=1 -c "CREATE DATABASE geohot OWNER geohot"
    ```
    库名与属主要和 `.env` 的 `DATABASE_URL` 一致；新库必须是**空的**（`pg_restore` 不会先清表，往有表的库里灌会 duplicate/冲突）。
-4. **灌进去**（`-j` 并行度按核数，但别超过 4，900 MB 的机器吃不消）：
+4. **灌进去**。`-j` 对 `-Fc` 是有效的（见上面 §6 那条：PG 16/17 的 pg_restore 都支持 custom 与 directory 两种格式并行恢复），并行度按核数但别超过 4 —— 891 MB 的机器上每个 job 是一条独立连接、各自吃一份工作内存：
    ```bash
    sudo -u geohot pg_restore -d postgres://geohot:<口令>@127.0.0.1:5432/geohot -j 2 --no-owner --no-privileges /tmp/geohot-<date>.dump
    ```
+   `-j` 的三条真限制（不是格式）：**输入必须是磁盘上的文件或目录**（管道与 stdin 会让它被忽略）、不能与 `--single-transaction` 同用、只在与数据库直连时生效（`--file` 出脚本时它被忽略）。上面这条命令三条都满足。
    报 `extension "pg_trgm" does not available` 之类的话 → 就是 §2 第 ④ 步那个坑（contrib 没装 / 版本不在 16–17），先按第 6 节那个消息装包再重来。
-5. **数一遍四张关键表**（数量与旧机对得上才算恢复成功，不是"没报错"就算）：
+5. **数一遍七张关键表**（数量与旧机对得上才算恢复成功，不是"没报错"就算）。这七张表都实测存在于 `database/migrations/`：`topics`（0002）、`sources`/`publications`/`articles`/`selected_ledger`（0001）、`story_digests`/`reports`（0002）：
    ```bash
    sudo -u postgres psql -d geohot -tAc "SELECT 'topics',       count(*) FROM topics
                                        UNION ALL SELECT 'sources',       count(*) FROM sources
@@ -169,7 +174,7 @@
 | web 崩溃循环 | `ERR_MODULE_NOT_FOUND ... build/server/index.js`（`server.ts:39` 动态 import） | 忘了 `npm run build -w @aihot/web`，或 build 后 `npm ci` 清了目录 |
 | 端口冲突 | `EADDRINUSE 127.0.0.1:3000` | 预检没做/主站占了口：改 `WEB_PORT` 并同步 nginx 片段 |
 | 页面 200 但全站无样式、控制台 MIME/404 | nginx access log 里 `/assets/...` 打到主站根 location | **构建没带 BASE_PATH**（或带了但和 nginx 前缀不一致）：verify §3 会红。用 `GEOHOT_BASE_PATH=<前缀>` 重新构建（bootstrap 第 9 节），别去改 nginx 的前缀凑数 |
-| 首页能开、点进 `/all` 再点回来 404 | 浏览器地址栏是裸 `/geohot`（无尾斜杠），控制台是应用自己的 404 | 那条 `location = /geohot { return 308 … }` 不在了 —— 它是承重的（`fix-bare-path.sh:10-13,28-44`）。按片段 `:41-43` 补回去，`nginx -t` 通过才 reload |
+| 首页能开、点进 `/all` 再点回来 404 | 浏览器地址栏是裸 `/geohot`（无尾斜杠），控制台是应用自己的 404 | 那条 `location = /geohot { return 308 … }` 不在了 —— 它是承重的（`fix-bare-path.sh` 开头那段 "the trailing-slash redirect is load-bearing and must stay"）。按 `geohot.nginx.conf片段` 里 `# ---- ADD ----` 之后第一块补回去（**:80 与 :443 两个 server 块都要**，见片段第 3 条），或跑 `bash fix-bare-path.sh` 先看计划再 `--apply`；`nginx -t` 通过才 reload |
 | 带截图的反馈 413 | nginx error `client request body ... too large`（默认 1 m） | 忘贴 `client_max_body_size 10m`（上限依据 `feedback.ts:64`+`app.ts:30`） |
 | MCP 客户端报 misdirected | 应用返回 `{"error":"misdirected_request"}` 421（`mcp.ts:255`） | location 没传 `proxy_set_header Host $host`；X-Forwarded-Host 被改写；或 `SITE_URL` 的域名与实际访问域名不同（`mcp.ts:219`） |
 | MCP 订阅流几分钟就断 | 客户端见流中断，nginx 无错误 | 没给 `/geohot/api/mcp` 单独 location：`proxy_buffering off; proxy_read_timeout 1h` 缺失（SSE 依据 `mcp.ts:285`） |
@@ -192,11 +197,15 @@ bash bootstrap-server.sh --apply   # ② 建用户/目录/clone/npm ci/生成 .e
 vim /opt/geohot/app/.env           # ③ §5 清单逐项核对（尤其两个 production 变量、SITE_URL 的前缀、各阀）
 bash bootstrap-server.sh --apply   # 重跑：幂等，已建好的都跳过；这次第 5 节的断言应当全过并继续 ④~⑩
                                    #    非交互环境用 GEOHOT_I_REVIEWED_ENV=1 bash bootstrap-server.sh --apply
-# 想改安装目录或前缀就在环境里带上：GEOHOT_APP_ROOT=… GEOHOT_BASE_PATH=… （根路径部署写 GEOHOT_BASE_PATH=""）
+# 想改安装目录或前缀就在环境里带上：GEOHOT_APP_ROOT=… GEOHOT_BASE_PATH=… （根路径部署写 GEOHOT_BASE_PATH=""）；
+# 拓扑不是"nginx 在前面"这一套时再带上 GEOHOT_TRUST_PROXY=true|false（见 §5 那一行的说明）
 sudo -u postgres psql -d geohot -tAc "SELECT similarity('三角洲','河流三角洲')"   # locale 实测
-# ⑦ 贴 nginx 片段 → sudo nginx -t → sudo systemctl reload nginx（片段尾部流程；前缀必须与 GEOHOT_BASE_PATH 一致）
+# ⑦ 贴 nginx 片段 → sudo nginx -t → sudo systemctl reload nginx（片段头部那段"生效顺序"；
+#   前缀必须与 GEOHOT_BASE_PATH 一致，且 :80 与 :443 两个 server 块都要 —— 片段第 3 条）
 sudo systemctl start geohot-brain geohot-api geohot-worker geohot-web   # ⑧ 四个，顺序 brain→api→worker→web
 bash verify-deploy.sh              # ⑨ 全绿才算上线完成（第 2 节会逐个断言四个单元 active）
+                                   #    上线当天日报/热榜为空只记 note；过了第一个 08:00 就要带
+                                   #    GEOHOT_DEPLOYED_AT=<上线日> 重跑，那两项会变成硬失败
 node /opt/geohot/app/scripts/smoke.ts --base https://xxc2007.me/geohot
 # ⑩ 备份 cron（§6）+ 当场按 §6.1 演练一次恢复，别等真出事才第一次跑它
 ```
@@ -205,7 +214,7 @@ node /opt/geohot/app/scripts/smoke.ts --base https://xxc2007.me/geohot
 
 ## 9. 明确不做的事
 
-- 不 `docker compose down -v`（会删 db/data/caddy 卷，`docs/deploy.md:63`）；本包根本不用 Docker，除非预检发现服务器有且 owner 选容器路线。
+- 不 `docker compose down -v`（会删 db/data/caddy 卷，出处是 `docs/deploy.md`「备份」一节末尾那句「`docker compose down` 不会删除它们；`docker compose down -v` 会」）；本包根本不用 Docker，除非预检发现服务器有且 owner 选容器路线。
 - 不改 `pg_hba.conf` 现有行、不建其它 role/database、不 DROP 任何非 geohot 对象。
 - 不 restart nginx、不动根 location、不动 Artalk 与 ACME stanza。
 - 不把 brain stub 暴露公网（无鉴权，`README §4`）；不删主站任何文件。
