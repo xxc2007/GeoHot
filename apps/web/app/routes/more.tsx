@@ -5,6 +5,7 @@ import { Link, useRouteLoaderData } from "react-router";
 import type { loader as rootLoader } from "../root";
 import { useChangelogDot } from "../components/shell/Sidebar";
 import { pageMeta } from "../lib/seo";
+import { publicPath } from "../lib/public-path";
 import { ThemeSwitch } from "../components/shell/ThemeSwitch";
 import { IconBookmark, IconChart, IconChevronRight, IconFlame, IconGitHub, IconGrid, IconHeart, IconHistory, IconMessage, IconMoon, IconPlug } from "../components/icons";
 
@@ -100,7 +101,7 @@ export default function MorePage() {
       <div className="mt-5 flex flex-wrap justify-center gap-x-4 gap-y-1 text-[12px] text-ink-4">
         <Link to="/terms" className="hover:text-ink-2">使用规则</Link>
         <Link to="/privacy" className="hover:text-ink-2">隐私说明</Link>
-        <a href="/feed.xml" className="hover:text-ink-2">RSS</a>
+        <a href={publicPath("/feed.xml")} className="hover:text-ink-2">RSS</a>
         {SITE.icp && <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer" className="hover:text-ink-2">{SITE.icp}</a>}
       </div>
     </div>
