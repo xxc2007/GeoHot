@@ -296,7 +296,7 @@ function FrontPage({ report, pages, leadStory, count, now }: { report: ReportDet
 /** A page of the report: its number in the accent beside its name. */
 export function SectionPage({ id, no, label, children }: { id: string; no?: number; label: string; children: ReactNode }) {
   return (
-    <section id={id} aria-labelledby={`${id}-t`} className="scroll-mt-6 pt-12 @[880px]:pt-16">
+    <section id={id} aria-labelledby={`${id}-t`} tabIndex={-1} className="scroll-mt-6 pt-12 @[880px]:pt-16">
       <header className="flex items-baseline gap-3 border-b border-line-strong pb-3 @[880px]:gap-4">
         {no !== undefined && <span className="num text-[26px] font-black leading-none tracking-[-0.03em] text-accent @[880px]:text-[30px]">{pad(no)}</span>}
         <h2 id={`${id}-t`} className="min-w-0 text-[24px] font-black leading-[1.25] tracking-[-0.02em] text-ink @[880px]:text-[28px]">
