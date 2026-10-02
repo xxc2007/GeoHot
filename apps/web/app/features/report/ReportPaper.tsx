@@ -69,7 +69,7 @@ function Masthead({ report, index, now }: { report: ReportDetail; index: ReportN
             <span className="text-[12px] text-ink-4">{m.unit}</span>
           </span>
         ))}
-        <span className="ml-auto whitespace-nowrap text-[12px] text-ink-4">约 {report.readingMinutes} 分钟读完</span>
+        {report.readingMinutes > 0 && <span className="ml-auto whitespace-nowrap text-[12px] text-ink-4">约 {report.readingMinutes} 分钟读完</span>}
       </div>
     </header>
   );
@@ -414,7 +414,7 @@ export function ReportPaper({ report, index, now }: { report: ReportDetail; inde
       <footer className="py-10 text-center">
         <div className="text-[13px] font-semibold tracking-[0.6em] text-ink-4">（本期完）</div>
         <p className="mt-3 text-[12px] text-ink-4">
-          {SITE.name} {KIND_LABEL[report.kind]}由编辑系统根据公开来源自动{daily ? "编辑" : "综合"}，每条均附原文 ·{" "}
+          {SITE.name} {KIND_LABEL[report.kind]}由编辑系统按编辑部写定的标准从公开来源筛选编排，每条均附原文 ·{" "}
           <Link to={daily ? "/daily/archive" : "#report-history"} className="font-medium text-ink-3 transition-colors hover:text-accent">
             {daily ? "日报合订本" : `往期${KIND_LABEL[report.kind]}`}
           </Link>
