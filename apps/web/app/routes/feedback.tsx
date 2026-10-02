@@ -235,7 +235,9 @@ export default function FeedbackPage() {
                 </span>
               </button>
             )}
-            <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={(e) => pick(e.target.files?.[0])} />
+            {/* The visible button is the control; this input is how it opens the OS picker. Leaving it in
+                the tab order gave an unnamed 1×1 control a focus stop of its own. */}
+            <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" tabIndex={-1} aria-hidden="true" onChange={(e) => pick(e.target.files?.[0])} />
           </div>
 
           <Presence show={state.kind === "error"} enter="anim-notice-in" exit="anim-fade-out" duration={160}>
