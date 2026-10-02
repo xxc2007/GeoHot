@@ -395,8 +395,15 @@ export default function ItemPage() {
               </span>
             )}
           </div>
+          {/* 没有中文稿的条目不再出现在列表与日报里（读取层闸门），但它自己的页面还留着 —— 藏起真内容
+              比少几条更糟。这里如实说清为什么它不在别处，以及标题与提要就是原文。 */}
+          {!isX && !/[一-鿿]/.test(item.title) && (
+            <p className="mb-3 rounded-control border border-line bg-raised px-3 py-2 text-[12.5px] leading-relaxed text-ink-3">
+              这一条还没有中文稿：以下标题与提要是原文；编辑判断表里尚未登记它，所以它不出现在全部动态、精选与日报里。
+            </p>
+          )}
           {!isX && <h1 className="text-[26px] font-bold leading-[1.38] tracking-[-0.01em] text-ink lg:text-[32px] lg:leading-[1.34] xl:text-[36px] xl:leading-[1.3]">{item.title}</h1>}
-          {!isX && item.originalTitle && <p className="mt-2.5 text-[14px] leading-relaxed text-ink-4">{item.originalTitle}</p>}
+          {!isX && item.originalTitle && item.originalTitle !== item.title && <p className="mt-2.5 text-[14px] leading-relaxed text-ink-4">{item.originalTitle}</p>}
 
           {item.summary && (
             <section className={isX ? "mt-4" : "mt-7 xl:mt-8"}>

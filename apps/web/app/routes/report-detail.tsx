@@ -32,7 +32,7 @@ export function meta({ loaderData }: Route.MetaArgs) {
   if (!loaderData) return [{ title: titled("报告不存在") }, { name: "robots", content: "noindex" }];
   const r = loaderData.report;
   return pageMeta({
-    title: r.kind === "daily" ? `${withSubject("日报")} ${r.key}` : r.title.replace(`${SITE.name} `, `${SITE.subject} `),
+    title: r.kind === "daily" ? `${withSubject("日报")} ${r.key}` : `${withSubject(KIND_LABEL[r.kind])} ${r.key}`,
     description: r.lead?.leadParagraph ?? r.overview?.slice(0, 150) ?? `${SITE.name} ${r.key} 的${withSubject(KIND_LABEL[r.kind])}。`,
     path: `/${r.kind}/${r.key}`,
     image: `/og/reports/${r.kind}/${r.key}.png`,

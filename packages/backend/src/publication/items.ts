@@ -76,9 +76,15 @@ export const ITEM_FROM = sql`
   LEFT JOIN translations tr ON tr.article_id = p.article_id AND tr.lang = 'zh' AND tr.revision >= a.revision
   LEFT JOIN quote_translations qt ON p.channel = 'x' AND qt.tweet_id = substring(a.x_post->'quoted'->>'url' from '/status/([0-9]+)')`;
 
-/** Listed items: public, and a selected item only after its release gate. */
+/**
+ * Listed items: public, and a selected item only after its release gate. A title without a single CJK
+ * character is not listed at all: it means no Chinese copy exists for that item yet, and a Chinese site
+ * cannot hand readers a card whose title and summary are the English source text (2026-10-02: 351 legacy
+ * rows built by an echoing brain stub showed up in /all exactly that way). The item keeps its page and its
+ * row; it simply waits in the back office until someone writes the Chinese, then it lists itself.
+ */
 export function listedCondition(now: Date) {
-  return sql`p.visibility = 'public' AND (NOT p.selected OR p.visible_after <= ${now})`;
+  return sql`p.visibility = 'public' AND (NOT p.selected OR p.visible_after <= ${now}) AND p.title ~ '[一-鿿]'`;
 }
 
 /** Selected set as shown on the home timeline, v1 selected mode and RSS. */

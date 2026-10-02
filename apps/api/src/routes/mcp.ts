@@ -235,6 +235,11 @@ export function buildMcpServer(): McpServer {
       const res = await recent(`weekly:${args.week ?? "latest"}`, () => v1Report("weekly", args.week ?? "latest"));
       if (!res) return fail("not_found", args.week ? `没有 ${args.week} 的公开${withSubject("周报")}。` : `还没有公开的${withSubject("周报")}。`);
       const r = res.report;
+      // A named blank issue exists in the database but has nothing to read. The REST/page side answers it with
+      // an honest empty state; an agent must instead be told outright, or it reports "这一期是空的" as content.
+      if (r.sections.every((s) => (s.items ?? []).length === 0)) {
+        return fail("not_found", `${r.week} 这一期没有入选内容（该期已出刊，但没有可读条目）。`);
+      }
       const lines = [`${SITE.name} ${withSubject("周报")} · ${r.week}`];
       if (r.headline) lines.push("", `头条：${r.headline}`);
       if (r.overview) lines.push("", `总述：${r.overview}`);
@@ -260,6 +265,10 @@ export function buildMcpServer(): McpServer {
       const res = await recent(`monthly:${args.month ?? "latest"}`, () => v1Report("monthly", args.month ?? "latest"));
       if (!res) return fail("not_found", args.month ? `没有 ${args.month} 的公开${withSubject("月报")}。` : `还没有公开的${withSubject("月报")}。`);
       const r = res.report;
+      // Same rule as the weekly tool: a blank issue is not an answer.
+      if (r.sections.every((s) => (s.items ?? []).length === 0)) {
+        return fail("not_found", `${r.month} 这一期没有入选内容（该期已出刊，但没有可读条目）。`);
+      }
       const lines = [`${SITE.name} ${withSubject("月报")} · ${r.month}`];
       if (r.headline) lines.push("", `头条：${r.headline}`);
       if (r.overview) lines.push("", `总述：${r.overview}`);

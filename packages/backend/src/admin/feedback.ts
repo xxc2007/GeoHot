@@ -27,8 +27,15 @@ export async function listFeedback(f: { status?: string; q?: string; page?: numb
   return { page, rows, counts: Object.fromEntries(counts.map((c) => [c.status, c.n])), bans };
 }
 
+/** A malformed request from the back office: mapped to 400 by the admin handler, not logged as a 500. */
+export class InvalidInput extends Error {
+  readonly statusCode = 400;
+}
+
 export async function updateFeedback(id: number, input: { status?: string; note?: string | null; version: string }, actor: string) {
-  if (input.status && !FEEDBACK_STATUSES.includes(input.status as FeedbackStatus)) throw new Error(`unknown status ${input.status}`);
+  // 2026-10-02: this used to throw a bare Error, so a typo in the status reached the reader as
+  // "500 internal_error / unknown status done" — an input mistake reported as a server fault.
+  if (input.status && !FEEDBACK_STATUSES.includes(input.status as FeedbackStatus)) throw new InvalidInput(`unknown status ${input.status}`);
   return sql.begin(async (tx) => {
     const [before] = await tx`SELECT id, status, note, updated_at FROM feedback WHERE id = ${id} FOR UPDATE`;
     if (!before) return null;

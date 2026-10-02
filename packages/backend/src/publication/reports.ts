@@ -446,6 +446,12 @@ export async function v1Report(kind: ReportKind, key: string): Promise<V1DailyBo
     : await sql<ReportRow[]>`SELECT kind, key, window_start, window_end, content, generated_at, revision FROM reports WHERE kind = ${kind} AND key = ${key}`;
   const [r] = rows;
   if (!r) return null;
+  // A *named* blank issue answers with an honest empty state (200 + 「本期没有入选内容」的版面), not 404 and
+  // never a 500 — that is a deliberate choice from the round that added these routes (tests/publication.test.ts
+  // 「a named blank issue is an honest empty state, not a 500」). What must not happen is an outlet *advertising*
+  // one: lists, latest, feeds and the sitemap all go through the `count > 0` gate instead. MCP's by-week tool is
+  // the exception to the exception: it refuses a blank issue outright, because an agent cannot tell an empty
+  // shell from content (apps/api/src/routes/mcp.ts).
   const c = r.content;
   const url = kind === "daily" ? dailyUrl(r.key) : reportUrl(kind, r.key);
   if (kind === "daily") {
