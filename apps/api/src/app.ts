@@ -21,7 +21,11 @@ export async function buildApp(): Promise<FastifyInstance> {
     logger: { level: process.env.LOG_LEVEL || "info", redact: ["req.headers.authorization", "req.headers.cookie"] },
     // Access logs never record query strings (tokens, actors).
     disableRequestLogging: true,
-    trustProxy: true,
+    // Same flag, same reading as the web server (apps/web/server.ts:20): the per-IP caps on sign-in
+    // attempts and feedback (routes/admin-auth.ts:36) only mean something when they key on the real
+    // visitor, and a process exposed directly — with no proxy to set X-Forwarded-For — must not believe
+    // a header any client can name. Off unless TRUST_PROXY=true says there is a proxy in front.
+    trustProxy: process.env.TRUST_PROXY === "true",
     genReqId: () => randomUUID(),
     bodyLimit: 10 * 1024 * 1024,
     routerOptions: { ignoreTrailingSlash: false, maxParamLength: 300 },
