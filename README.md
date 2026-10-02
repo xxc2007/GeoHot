@@ -8,7 +8,7 @@
 
 > *「关于这片土地的消息每天都有，有依据、值得写的，只有几条。」*
 
-[![Status](https://img.shields.io/badge/🌐_线上访问-xxc2007.me%2Fgeohot-D97757)](https://xxc2007.me/geohot/)
+[![Status](https://img.shields.io/badge/%F0%9F%8C%90_线上访问-xxc2007.me%2Fgeohot-D97757)](https://xxc2007.me/geohot/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Derived from AIHOT](https://img.shields.io/badge/派生自-AIHOT_框架-1F1E1D)](NOTICE)
 [![Node](https://img.shields.io/badge/运行时-Node_24-1F1E1D)](#️-技术栈)
