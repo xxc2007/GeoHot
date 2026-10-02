@@ -1,26 +1,36 @@
 # /etc/systemd/system/geohot-api.service
 # GEOHOT 接口进程（Fastify）。代码依据：apps/api/src/main.ts:17 监听
-#   port=API_PORT(缺省 3001, packages/backend/src/config.ts:38)、
+#   port=API_PORT(缺省 3001, packages/backend/src/config.ts:72)、
 #   host=API_HOST(缺省 "127.0.0.1") ⇒ 只绑回环，不对外。
 # 启动即执行 assertProductionSecrets(["auth","SESSION_SECRET"],["auth","IMG_PROXY_SIGN_SECRET"])
 #   （main.ts:7-10），且 AIHOT_ENVIRONMENT=production 时缺 ADMIN_PASSWORD(≥12) 直接拒启（main.ts:12-14）。
 #   ⇒ 起不来通常就是 env 不对，看 `journalctl -u geohot-api -n 50`。
-
+# 限流按谁计数：api 现在也读 TRUST_PROXY（app.ts:28，与 web 同一个写法、同一个缺省 false），
+#   所以 .env 里那一行必须是 true，否则反代同机时 req.ip 恒为 127.0.0.1，登录与反馈的每地址额度
+#   会被全体访客共用（routes/admin-auth.ts:26-41）。这一行由 bootstrap-server.sh 第 5 节写。
+# ★ 下面三处路径写死的是默认安装目录 APP_ROOT=/opt/geohot/app（GEOHOT_APP_ROOT，四个脚本共用）。
+#   换目录就用 bash install-units.sh 渲染，别把手工改过的文件放回仓库。
 [Unit]
 Description=GEOHOT api (Fastify, 127.0.0.1:3001)
-After=network.target postgresql.service
+After=network.target postgresql.service geohot-brain.service
 Wants=postgresql.service
 
 [Service]
 Type=simple
 User=geohot
 Group=geohot
-WorkingDirectory=/opt/geohot/GEOHOT
-EnvironmentFile=/opt/geohot/GEOHOT/.env
-# 硬覆盖三个关键值，防止 .env 被误改回开发态（config.ts:12,55 与 main.ts:12 都读它们）
+WorkingDirectory=/opt/geohot/app
+EnvironmentFile=/opt/geohot/app/.env
+# 硬覆盖三个关键值，防止 .env 被误改回开发态（config.ts:12,90 与 main.ts:12 都读它们）
 Environment=NODE_ENV=production
 Environment=AIHOT_ENVIRONMENT=production
 Environment=API_HOST=127.0.0.1
+# geohot 是 --system 用户、没有登录 shell：HOME 要给，否则 node 找不到可写的家目录（install-units.sh 头里那三条修正之一）
+Environment=HOME=/opt/geohot
+Environment=TZ=Asia/Shanghai
+# 每个单元都带 MemoryMax：900 MB 的机器上跑第二个服务，靠的就是 OOM 只杀自己（DEPLOYMENT.md:11）
+MemoryMax=200M
+MemorySwapMax=600M
 ExecStart=/usr/bin/node --env-file=.env apps/api/src/main.ts
 Restart=on-failure
 RestartSec=5
@@ -32,7 +42,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/opt/geohot/GEOHOT/.data
+ReadWritePaths=/opt/geohot/app/.data
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
