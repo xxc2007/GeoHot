@@ -26,8 +26,11 @@ PURGE="${PURGE:-0}"
 
 NGINX_SITE="/etc/nginx/sites-available/xxc2007.me"
 APP_USER="geohot"
-APP_ROOT="/opt/geohot"
-REPO_DIR="${APP_ROOT}/GEOHOT"
+# One install path for the whole deploy package (GEOHOT_APP_ROOT — bootstrap / install-units /
+# verify-deploy and the systemd/ templates all default to this same value).
+APP_ROOT="${GEOHOT_APP_ROOT:-/opt/geohot/app}"
+APP_HOME="${APP_ROOT%/*}"                    # /opt/geohot —— 备份文件落这里，不在代码目录里
+UNITS=(geohot-brain geohot-api geohot-worker geohot-web)
 PG_DATABASE="geohot"
 PG_ROLE="geohot"
 TS="$(date +%F-%H%M)"
@@ -65,8 +68,9 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-step "R2. systemd：停用并移除三个 unit（不碰 nginx/artalk 的服务）"
-for u in geohot-web geohot-worker geohot-api; do
+step "R2. systemd：停用并移除四个 unit（不碰 nginx/artalk 的服务）"
+# 停用顺序与启动相反：web → worker → api → brain（api/worker 的 After= 里点了 geohot-brain）。
+for u in geohot-web geohot-worker geohot-api geohot-brain; do
   if systemctl list-unit-files "$u.service" >/dev/null 2>&1 && [[ -n "$(systemctl list-unit-files "$u.service" --no-legend 2>/dev/null)" ]]; then
     run "stop+disable $u" sudo systemctl disable --now "$u"
   else
@@ -74,12 +78,12 @@ for u in geohot-web geohot-worker geohot-api; do
   fi
 done
 if [[ "$PURGE" == "1" ]]; then
-  for u in geohot-api geohot-worker geohot-web; do
+  for u in "${UNITS[@]}"; do
     run "删除 unit 文件 $u" sudo rm -f "/etc/systemd/system/$u.service"
   done
   run "daemon-reload" sudo systemctl daemon-reload
 else
-  echo "（unit 文件保留在 /etc/systemd/system/，重启用: sudo systemctl enable --now geohot-api geohot-worker geohot-web；彻底删请加 --purge-database 一并处理或手工删）"
+  echo "（unit 文件保留在 /etc/systemd/system/，重启用: sudo systemctl enable --now ${UNITS[*]}；彻底删请加 --purge-database 一并处理或手工删）"
 fi
 
 # ---------------------------------------------------------------------------
@@ -87,8 +91,9 @@ step "R3. PostgreSQL：默认什么都不做（保留数据就是保留回滚余
 if [[ "$PURGE" == "1" ]]; then
   echo "!! --purge-database：将删除库 $PG_DATABASE 与角色 $PG_ROLE。先备份再删。"
   if command -v pg_dump >/dev/null 2>&1; then
-    run "pg_dump 备份到 $APP_ROOT/geohot-before-purge-$TS.sql.gz" \
-      bash -c "sudo -u postgres pg_dump '$PG_DATABASE' | gzip > '$APP_ROOT/geohot-before-purge-$TS.sql.gz'"
+    run "pg_dump 备份到 $APP_HOME/geohot-before-purge-$TS.sql.gz" \
+      bash -c "sudo -u postgres pg_dump '$PG_DATABASE' | gzip > '$APP_HOME/geohot-before-purge-$TS.sql.gz'"
+    echo "   这一份就是以后恢复的输入 —— 用法见 README-deploy.md 第 6.1 节（恢复），别把它留在服务器上就忘了。"
   else
     echo "!! 没有 pg_dump —— 拒绝在无法备份时删库。先装 postgresql-client 再来。" >&2
     exit 1
