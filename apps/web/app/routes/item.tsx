@@ -1,4 +1,5 @@
 import { SITE, withSubject } from "@aihot/industry/site";
+import { RISK_NOTICE_CATEGORIES, RISK_NOTICE_TAGS } from "@aihot/industry/taxonomy";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLoaderData, useNavigate } from "react-router";
 import type { Route } from "./+types/item";
@@ -7,6 +8,7 @@ import { loadOr404 } from "../lib/api.server";
 import { breadcrumbLd, pageMeta, siteUrl, titled } from "../lib/seo";
 import { fullDateTime, relativeTime } from "../lib/format";
 import { markRead } from "../lib/local-state";
+import { publicPath } from "../lib/public-path";
 import { SelectedBadge } from "../components/ui/Badge";
 import { ScoreLabel } from "../components/ui/Score";
 import { PillTabs } from "../components/ui/Tabs";
@@ -127,7 +129,7 @@ export default function ItemPage() {
   const showOutline = item.outline.length >= 3;
   const originalLabel = isX ? "在 X 查看原推" : "打开原文";
   // 使用规则第 3 条（/terms#s4）对全站一体适用，但灾害与预警类条目要在读者决定行动的那一段话下面指回去一次。
-  const riskNotice = item.category === "physical" || item.tags.includes("预警/响应") || item.tags.includes("灾害事件");
+  const riskNotice = RISK_NOTICE_CATEGORIES.includes(item.category ?? "") || item.tags.some((t) => RISK_NOTICE_TAGS.includes(t));
 
   const related = item.relatedStories.filter((s) => s.publicId !== item.story?.publicId);
 
@@ -161,7 +163,7 @@ export default function ItemPage() {
             复制链接
           </MenuItem>
           {item.markdownAvailable && (
-            <MenuItem icon={<IconDownload size={15} />} href={`/items/${item.id}/markdown`} download onSelect={close}>
+            <MenuItem icon={<IconDownload size={15} />} href={publicPath(`/items/${item.id}/markdown`)} download onSelect={close}>
               导出 Markdown
             </MenuItem>
           )}
