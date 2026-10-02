@@ -4,6 +4,7 @@ import { useLoaderData, useRevalidator } from "react-router";
 import type { CodexResetEvent, CodexResetSitePage, CodexResetDay } from "@aihot/contracts/monitor";
 import { loadOr404 } from "../lib/api.server";
 import { pageMeta } from "../lib/seo";
+import { publicPath } from "../lib/public-path";
 import { PostCard } from "../features/monitor/PostCard";
 import { ResetCalendar } from "../features/monitor/ResetCalendar";
 import { bjDate, bjTime, dayWord, durationText, monthDay, stamp, typeName, windowText } from "../features/monitor/format";
@@ -43,7 +44,7 @@ function useVersionPolling(version: string) {
       if (document.visibilityState !== "visible" || request) return;
       request = new AbortController();
       try {
-        const res = await fetch("/api/site/codex-reset/version", { cache: "no-store", signal: request.signal });
+        const res = await fetch(publicPath("/api/site/codex-reset/version"), { cache: "no-store", signal: request.signal });
         if (!res.ok) return;
         const v = (await res.json()) as { version: string };
         if (!stopped && v.version !== version) revalidator.revalidate();
