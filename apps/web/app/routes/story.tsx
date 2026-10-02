@@ -360,7 +360,7 @@ export default function StoryPage() {
             sub="沿着报道，了解事件的不同侧面。"
             className="order-4"
             right={
-              <Select value={order} onChange={(e) => setOrder(e.target.value as "desc" | "asc")} aria-label="排序">
+              <Select value={order} onChange={(e) => setOrder(e.target.value as "desc" | "asc")} aria-label="报道时间线排序">
                 <option value="desc">最新在前</option>
                 <option value="asc">最早在前</option>
               </Select>
