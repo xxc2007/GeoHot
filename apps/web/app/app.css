@@ -97,7 +97,11 @@
   --surface-2: #fdfdfb;
   --raised: #ffffff;
   --sidebar: #fdfdfb;
-  --daybar: #f0f2ee;
+  /* #f0f2ee put --ink-4 at 4.46:1 on this bar (it passes at 4.78:1 on paper, which is the surface the
+     token was tuned against) and Lighthouse failed the mobile day bar's 12.5px weekday label on it.
+     Two units lighter clears AA at 4.54:1 without touching any text token — same remedy already used
+     for --rank-rest below. */
+  --daybar: #f2f4f0;
   --field: #eef1ed;
   --ink: #202a30;
   --ink-2: #303c42;
@@ -542,6 +546,12 @@
   aside:has(nav[aria-label="主导航"]), nav[aria-label="底部导航"], button[aria-label="回到顶部"] { display: none !important; }
   html, body { background: #fff !important; color: #000 !important; }
   main { max-width: none !important; margin: 0 !important; padding: 0 !important; }
+  /* A4 portrait is ~794 CSS px, under the site's 961px desktop breakpoint, so the phone layout is what
+     prints and the real width cap sits on the inner wrapper, not on <main>. */
+  main > div { max-width: none !important; padding-inline: 0 !important; }
+  /* Canvas pixels are content, not backgrounds: the halftone dot field would print as the darkest thing
+     on the page, and "Background graphics" does not touch it. */
+  canvas { display: none !important; }
   .card { background: #fff !important; box-shadow: none !important; border-color: #b8b8b8 !important; }
   .sticky, [class*="backdrop-blur"] { position: static !important; backdrop-filter: none !important; }
   h1, h2, h3, h4 { break-after: avoid-page; }
