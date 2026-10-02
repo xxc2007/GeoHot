@@ -87,7 +87,7 @@ export default function AllPage() {
       {/* Phones: title with today's count, the search bar, then the same filter row as 精选. */}
       <div className="lg:hidden">
         <div className="flex items-baseline justify-between pb-3 pt-5">
-          <h1 className="text-[22px] font-bold text-ink">{title ?? "全部动态"}</h1>
+          <h1 className="text-[22px] font-bold text-ink">{title ?? `全部${withSubject("动态")}`}</h1>
           {!f.q && (
             <span className="text-[12.5px] text-ink-4">
               今日 <span className="num">{data.todayCount}</span> 条
