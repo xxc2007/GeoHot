@@ -5,6 +5,7 @@ import {
   type ShouldRevalidateFunction,
 } from "react-router";
 import type { ReactNode } from "react";
+import { useEffect, useRef } from "react";
 import type { Route } from "./+types/root";
 import "./app.css";
 import { Sidebar } from "./components/shell/Sidebar";
@@ -103,6 +104,17 @@ export function meta({ error }: Route.MetaArgs) {
 /** Sidebar, main column and phone tab bar around a page (or an error). */
 function SiteShell({ changelogVersion, children }: { changelogVersion: string | null; children: ReactNode }) {
   const navigation = useNavigation();
+  const { pathname } = useLocation();
+  // A client-side navigation removes the link the reader just activated, so focus falls back to
+  // <body>: the next Tab restarts at the skip link and walks the whole sidebar again, on every page
+  // change. Moving focus to the main region is also what makes "跳到正文" actually land somewhere —
+  // a bare fragment target only moves the sequential-focus starting point. The first render is
+  // skipped: on a cold load the reader belongs at the top of the document, not inside main.
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) { first.current = false; return; }
+    document.getElementById("main")?.focus({ preventScroll: true });
+  }, [pathname]);
   return (
     <div className="flex min-h-dvh">
       <NavigationProgress active={navigation.state === "loading"} />
@@ -112,7 +124,7 @@ function SiteShell({ changelogVersion, children }: { changelogVersion: string | 
       <Sidebar changelogVersion={changelogVersion} />
       {/* Mobile shell (≤ 960px): one centred column, the tab bar below. Desktop: the page fills the main area
           up to the list width (--page-max-wide), centred beyond it. */}
-      <main id="main" className="min-w-0 flex-1 pb-[calc(72px+env(safe-area-inset-bottom))] lg:px-7 lg:pb-[72px] lg:pt-6">
+      <main id="main" tabIndex={-1} className="min-w-0 flex-1 pb-[calc(72px+env(safe-area-inset-bottom))] outline-none lg:px-7 lg:pb-[72px] lg:pt-6">
         <div className="mx-auto w-full max-w-[640px] px-4 lg:max-w-[var(--page-max-wide)] lg:px-0">{children}</div>
       </main>
       <MobileTabBar changelogVersion={changelogVersion} />
