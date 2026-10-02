@@ -1,0 +1,59 @@
+# /etc/systemd/system/geohot-brain.service
+# GEOHOT「编辑大脑」stub（tooling/brain-stub.ts）—— 本站的"模型"其实是人工写的 fixture 判断。
+# 代码依据：tooling/brain-stub.ts:26 端口 BRAIN_PORT(缺省 3055)、:27-28 读 tooling/fixtures 与
+#   industry/prompts、:1012 `server.listen(PORT, "127.0.0.1")` ⇒ 只听回环、**没有任何鉴权**。
+#   所以这一条绝不能用 nginx 暴露到公网（README-deploy.md 第 9 节"明确不做的事"）。
+# 为什么它必须有 unit（2026-10-02 补上的那一条）：packages/backend/src/config.ts:92 把
+#   MODEL_CALLS_ENABLED 的缺省写成 **true**。这一行没写进 .env、这个进程又没起时，worker 会安静地
+#   对着已经死掉的 127.0.0.1:3055 发每一次分析请求——站点起得来、/api/health 全绿，只有精选、事件
+#   归组和日报在空转。bootstrap-server.sh 第 5 节把这一行显式写进 .env（不留 stub 就写 false），
+#   本单元则保证写 true 时后面真有一个进程在听。
+# 内存：160M，四个单元里最小（DEPLOYMENT.md:11 记的 160/200/240/320 这一组）——它按请求查 fixture，
+#   没有连接池也不写盘，OOM 只会杀它自己，杀不到 nginx 与 Artalk。
+[Unit]
+Description=GEOHOT editorial brain (local OpenAI-compatible stub, 127.0.0.1:3055)
+After=network.target
+
+[Service]
+Type=simple
+User=geohot
+Group=geohot
+WorkingDirectory=/opt/geohot/app
+EnvironmentFile=/opt/geohot/app/.env
+# 与另外三个单元同一套硬覆盖：geohot 账户没有登录 shell，HOME 必须给（install-units.sh 头里那三条修正之一）
+Environment=NODE_ENV=production
+Environment=AIHOT_ENVIRONMENT=production
+Environment=HOME=/opt/geohot
+Environment=TZ=Asia/Shanghai
+# 端口写死在这里，换口要连 .env 的 LLM_BASE_URL 一起换（两处不一致就是"调用全失败但没有报错"）
+Environment=BRAIN_PORT=3055
+# stub 不读任何 --env-file（AGENTS.md：`npm run brain` 就是 `node tooling/brain-stub.ts`），
+# 上面那组 Environment= 就是它的全部环境。
+MemoryMax=160M
+MemorySwapMax=400M
+ExecStart=/usr/bin/node tooling/brain-stub.ts
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/opt/geohot/app/.data
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+# 不禁网：同机的 api/worker 要能连到它的回环端口（ProtectSystem 这一组不碰网络）。
+
+[Install]
+WantedBy=multi-user.target
+
+# -----------------------------------------------------------------------------
+# 顺序上它在 api/worker 之前起：那两个单元的 After=geohot-brain.service 就是这个意思。
+#   sudo cp deploy/geohot/systemd/geohot-brain.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now geohot-brain
+#   curl -s http://127.0.0.1:3055/v1/models   # 有响应就说明 stub 在听（只从回环拿得到）
+# -----------------------------------------------------------------------------
