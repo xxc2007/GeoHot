@@ -202,3 +202,18 @@ curl -s -o /dev/null -w '%{http_code} %{num_redirects} %{url_effective}\n' -L ht
   `ProtectSystem=strict` 等加固，且 `TimeoutStopSec` 按进程分档（api/brain 30、web 90、worker 210——
   只有 worker 有 195 s 的 in-flight drain），而 `install-units.sh` 给四个单元一律 210（多给不伤，少给才会
   在 drain 中途 SIGKILL）。走哪条就用哪条，别混。
+
+## 热更新：改了什么就重启谁（2026-10-02 踩到的一次）
+
+- **`industry/changelog.json` 是 api 进程在启动时读入的**：只改它（比如补一条发版说明）也必须
+  `systemctl restart geohot-api`，否则 `/changelog` 与 `/api/site/changelog` 继续发旧内容。2026-10-02
+  的一次热更新只重启了 web，页面 200、内容没变——状态码看不出这一类问题，要按内容断言（例如
+  `curl …/api/site/changelog | grep <新标题>`）。
+- 只改前端（`apps/web/**`）→ 重建 web（带 `BASE_PATH=/geohot`）并重启 `geohot-web`。
+- 只改后端（`apps/api`、`packages/backend/**`）→ 重启 `geohot-api` 与 `geohot-worker`。
+- 改 `tooling/fixtures/**` → 不重启任何单元（编辑大脑 stub 按文件 mtime 热读），但要**重跑分析**：
+  回执缓存会让同一个 revision 复用旧答案。用 `node scripts/refill-copy.ts --apply --ids …`（默认
+  dry-run）或后台的「重跑分析」；两者都走 attemptTag 这条真新请求路径。
+- 新增 npm 依赖 → 提取代码后先在应用目录装依赖再构建：
+  `sudo systemd-run --quiet --pipe --wait --uid=geohot --gid=geohot --property=MemoryMax=700M --property=MemorySwapMax=1500M --property=WorkingDirectory=/opt/geohot/app env HOME=/opt/geohot NODE_ENV=production npm install <pkg> -w @aihot/backend --no-audit --no-fund`
+  只提取不装依赖，api/worker 会倒在 import 上（2026-10-02 新增 `marked` 时走的就是这条）。
