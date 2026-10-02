@@ -80,7 +80,10 @@
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.gdacs.org/xml/rss.xml",
-        "_aihot": { "initialBackfillLimit": 12 }
+        "_aihot": { "initialBackfillLimit": 12 },
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": ["green forest fire notification"]
+        }
       },
       "tier": "T1",
       "first_party": true,

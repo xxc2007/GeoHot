@@ -19,6 +19,9 @@ REPO="${GEOHOT_REPO:-$(git remote get-url origin | sed -E 's#.*github\.com[:/]##
 REF="${GEOHOT_SYNC_REF:-main}"
 EXCLUDES="${GEOHOT_EXCLUDES_FILE:-deploy/geohot/publish-excludes}"
 WORK=$(mktemp -d)
+# Node 与 Git Bash 对 `/tmp` 的解释不是同一个目录（bash 走 MSYS 的映射，node 把它当当前盘符下的 \tmp），
+# 所以交给 node 的路径必须换成 Windows 形式；换不了（非 Git Bash）就原样用。
+WORK_WIN=$(cygpath -w "$WORK" 2>/dev/null || printf '%s' "$WORK")
 trap 'rm -rf "$WORK"' EXIT
 
 fails=0
@@ -55,7 +58,9 @@ excluded() {
 # core.quotepath=off：本站有中文文件名（deploy/geohot/geohot.nginx.conf片段），默认输出会把它们转义。
 git -c core.quotepath=off ls-tree -r HEAD | awk -F'\t' '{split($1,a," "); print $2"\t"a[3]}' > "$WORK/local.raw"
 : > "$WORK/local.tsv"
-while IFS=$'\t' read -r sha path; do
+# 读的顺序必须和 awk 打印的顺序一致（path 在前、sha 在后）。上一版读成 `sha path`，于是 local.tsv 的两列
+# 反了：所有路径都"不在本地"、所有 sha 都"不在远端"，一次报了 1105 条假差异。
+while IFS=$'\t' read -r path sha; do
   excluded "$path" || printf '%s\t%s\n' "$path" "$sha" >> "$WORK/local.tsv"
 done < "$WORK/local.raw"
 LC_ALL=C sort -o "$WORK/local.tsv" "$WORK/local.tsv"
@@ -107,7 +112,7 @@ while IFS=$'\t' read -r path lsha rsha; do
         printf '  · %s：远端与本地内容不同（已在上面记为"内容不同"），这里只验远端那份是不是合法图片\n' "$path" >&2
       fi
       cp "$WORK/dl.bin" "$WORK/img.$n"
-      printf '%s\n' "$WORK/img.$n" >> "$WORK/img.list"
+      printf '%s\n' "$WORK_WIN/img.$n" >> "$WORK/img.list"
       printf '%s\n' "$path" >> "$WORK/img.names" ;;
   esac
 done < "$WORK/join.tsv"
