@@ -10,6 +10,9 @@
 set -uo pipefail   # 不用 -e：要收集所有失败再统一退出
 
 BASE="${GEOHOT_BASE:-https://xxc2007.me/geohot}"
+# Asset hrefs scraped from the page already carry the prefix, so they are requested against the origin.
+# Appending them to $BASE produced /geohot/geohot/assets/… and failed a correct deployment.
+ORIGIN=$(printf '%s' "$BASE" | sed -E 's#^(https?://[^/]+).*#\1#')
 MAIN="${MAIN_SITE:-https://xxc2007.me}"
 # 站点前缀跟着 BASE 走，两处不可能对不上（要单独指定就设 GEOHOT_BASE_PATH；根路径部署留空）。
 # 下面第 3、4 节那些断言曾经把 /geohot 写死在 grep 里，那对根路径部署是必然红的。
@@ -108,13 +111,13 @@ res=$(echo "$page" | grep -Eo "(href|src)=\"$PREFIX/[^\"]*\"" | sed -E 's/.*"([^
 if [[ -z "$res" ]]; then note "页面里没抽到 $PREFIX/assets 资源（若改造走 <Links/> 注入属正常，跳过）"
 else
   for r in $res; do
-    c=$(status_of "${BASE%/}$r"); [[ "$c" == "200" ]] && ok "asset $r -> 200" || bad "asset $r -> $c"
+    c=$(status_of "${ORIGIN}$r"); [[ "$c" == "200" ]] && ok "asset $r -> 200" || bad "asset $r -> $c"
   done
 fi
 else
   res=$(echo "$page" | grep -Eo '(href|src)="/(assets|_routes)/[^"]*"' | sed -E 's/.*"([^"]*)".*/\1/' | head -8)
   for r in $res; do
-    c=$(status_of "${BASE%/}$r"); [[ "$c" == "200" ]] && ok "asset $r -> 200" || bad "asset $r -> $c"
+    c=$(status_of "${ORIGIN}$r"); [[ "$c" == "200" ]] && ok "asset $r -> 200" || bad "asset $r -> $c"
   done
 fi
 
