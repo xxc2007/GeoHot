@@ -26,7 +26,7 @@ export function ScoreLabel({ score, compact = false }: { score: number | null; c
     >
       {!compact && (
         <>
-          <span className="text-[11px] font-medium leading-none opacity-80">AI 评分</span>
+          <span className="text-[11px] font-medium leading-none">AI 评分</span>
           <span className="h-2.5 w-px bg-current opacity-25" aria-hidden="true" />
         </>
       )}
