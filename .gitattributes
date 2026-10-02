@@ -1,0 +1,19 @@
+# Line endings are normalised in the index, so a clone on Windows and a clone on a Linux server
+# produce byte-identical files. Without this, `core.autocrlf=true` on the publishing machine writes
+# CRLF into the working tree and the published blobs stop matching the committed ones.
+* text=auto eol=lf
+
+# Binary: never rewrite, never diff.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.ico binary
+*.avif binary
+*.woff binary
+*.woff2 binary
+*.pdf binary
+
+# Docs and JSON read better with the diff on whole lines.
+*.md diff
+*.json diff
