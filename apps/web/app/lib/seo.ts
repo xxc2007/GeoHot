@@ -2,13 +2,21 @@
 // and wording come from the industry pack (industry/site.ts); its address from SITE_URL.
 import type { MetaDescriptor } from "react-router";
 import { SITE } from "@aihot/industry/site";
+import { basePath } from "./public-path";
 
 /**
- * The site's address: SITE_URL while rendering on the server (what crawlers and share previews read),
- * the page's own origin in the browser.
+ * The site's address, identical on the server and in the browser.
+ *
+ * The obvious browser answer — `window.location.origin` — is wrong behind a prefixing deployment:
+ * this site lives at `xxc2007.me/geohot/`, whose origin is `xxc2007.me`, which is a **different
+ * website**. React Router re-runs every route's `meta()` during hydration, so an origin-only base
+ * appended a second `rel=canonical` (plus `og:url`, `og:image` and the JSON-LD URLs) pointing at the
+ * neighbouring site — Lighthouse failed the canonical audit on it, and a JS-rendering crawler sees
+ * our pages as canonicalising to someone else's. The build-time base path is the same value the
+ * server reads out of `SITE_URL`, so the two now agree.
  */
 export function siteUrl(): string {
-  if (typeof window !== "undefined") return window.location.origin;
+  if (typeof window !== "undefined") return window.location.origin + basePath;
   return (process.env.SITE_URL || SITE.defaultUrl).replace(/\/+$/, "");
 }
 
@@ -61,6 +69,7 @@ export function pageMeta(input: PageMetaInput): MetaDescriptor[] {
     { property: "og:description", content: description },
     { property: "og:url", content: url },
     { property: "og:image", content: image },
+    { property: "og:image:alt", content: `${input.title ?? HOME_TITLE} — ${SITE.name}` },
     { property: "og:image:width", content: "1200" },
     { property: "og:image:height", content: "630" },
     { property: "og:locale", content: SITE.locale.replace("-", "_") },
