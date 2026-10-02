@@ -7,11 +7,22 @@
 ```bash
 git clone https://github.com/KKKKhazix/AIHOT.git myhot
 cd myhot
-node scripts/init-env.ts --llm-key <你的模型 API Key>
+npm run env:init                       # 写出 .env 与 .env.pipeline，已存在就不覆盖；管理员密码只打印一次
 docker compose up -d --build
 ```
 
-`init-env.ts` 会生成 `.env`，填好随机密钥和管理员密码，并把密码打印一次。机器上没有 Node 的话，把 `.env.example` 复制成 `.env`，自己填 `ADMIN_PASSWORD`（至少 12 位）、`SESSION_SECRET`、`IMG_PROXY_SIGN_SECRET`、`POSTGRES_PASSWORD`（各用 `openssl rand -hex 32` 生成）和 `LLM_API_KEY`。
+`init-env.ts` 会生成 `.env`，填好随机密钥和管理员密码，并把密码打印一次。它**只认四个端口开关**
+`--db-port / --api-port / --web-port / --brain-port`（`scripts/init-env.ts:35-40`）——**没有 `--llm-key` 这种参数，
+未知参数会被静默忽略**：写 `--llm-key <key>` 不报错，但那个 key 一个字节都不会落进 `.env`。模型接口要用
+真服务商时，生成完再手工改 `.env` 的 `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` 三行（本机默认指向
+`tooling/brain-stub.ts` 那个本地"编辑大脑"，`LLM_API_KEY=local-brain` 是占位串）。
+
+`.env` 里 `SITE_URL` 这一行在 `NODE_ENV=production`（compose 已写死，`docker-compose.yml:11`）时**不能留空也不能留
+`http://localhost:3000`**：现在会直接拒绝启动（`packages/backend/src/config.ts:54-68`），因为那个回落会把 localhost
+写进 canonical、OpenGraph、RSS、sitemap、robots 的 Sitemap 行和 security.txt，还会让 MCP 的 host 锁拒掉真域名。
+第一次起容器前就把它改成读者实际访问的地址（下面"配域名和 HTTPS"那一节）。
+
+机器上没有 Node 的话，把 `.env.example` 复制成 `.env`，自己填 `ADMIN_PASSWORD`（至少 12 位）、`SESSION_SECRET`、`IMG_PROXY_SIGN_SECRET`、`POSTGRES_PASSWORD`（各用 `openssl rand -hex 32` 生成）、`INGEST_TOKEN`、`SITE_URL` 和 `LLM_API_KEY`。
 
 启动后打开 `http://服务器地址:3000`，后台在 `/admin`，用管理员密码登录。第一次启动会导入示范信源，一两分钟后开始出现内容；第一次导入的一百多条资料大约半小时处理完（每条都要预筛、评分，入选的还要写标题摘要）。
 
@@ -32,7 +43,7 @@ docker compose up -d --build
 SITE_URL=https://example.com
 SITE_DOMAIN=example.com
 PORT=127.0.0.1:3000        # 3000 端口只给本机的 Caddy 用，不直接对外
-TRUST_PROXY=true           # 访客地址从 Caddy 转来的请求头里读
+TRUST_PROXY=true           # 访客地址从 Caddy 转来的请求头里读（web 与 api 两个进程都读这一行）
 ```
 
 再用带 HTTPS 的方式启动，Caddy 会自动申请和续期证书：
@@ -41,7 +52,7 @@ TRUST_PROXY=true           # 访客地址从 Caddy 转来的请求头里读
 docker compose --profile https up -d --build
 ```
 
-已经有 Nginx 的话，不用 Caddy，把站点反向代理到 `http://127.0.0.1:3000`，带上 `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`，并在 `.env` 里设 `TRUST_PROXY=true`。`SITE_URL` 一定要写成读者实际访问的地址：生成的链接、RSS、分享图和 MCP 都用它。
+已经有 Nginx 的话，不用 Caddy，把站点反向代理到 `http://127.0.0.1:3000`，带上 `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`，并在 `.env` 里设 `TRUST_PROXY=true`。这一行**两个进程都读、写法一致**（`apps/web/server.ts:20` 与 `apps/api/src/app.ts:28` 的 `trustProxy`）：不设为 `true`，登录与反馈的每地址限流就会把全体访客算成代理那一个 IP；直接对外（前面没有代理）时才保持 `false`，那时信 `X-Forwarded-For` 等于让客户端自报地址。`SITE_URL` 一定要写成读者实际访问的地址：生成的链接、RSS、分享图和 MCP 都用它；生产下留空或留 `localhost` 会拒绝启动（`packages/backend/src/config.ts:54-68`）。挂在子路径（如 `/geohot`）上还要带构建期变量 `BASE_PATH=/geohot` 重新 `npm run build -w @aihot/web`，并把 `SITE_URL` 写成带前缀的地址——`deploy/geohot/` 那一套（nginx 片段、systemd 单元、`bootstrap-server.sh` 的 `GEOHOT_BASE_PATH`）是这条路线的完整装法。
 
 ### 更新
 
@@ -58,9 +69,33 @@ docker compose up -d --build
 
 ```bash
 docker compose exec -T db pg_dump -U aihot aihot | gzip > myhot-$(date +%F).sql.gz
+docker compose exec -T db pg_dump -Fc -U aihot aihot > myhot-$(date +%F).dump   # 恢复用这一份
 ```
 
 数据都在三个 Docker 卷里：`db`（数据库）、`data`（上传的图片、图片缓存、本地备份）、`caddy`（证书）。`docker compose down` 不会删除它们；`docker compose down -v` 会。
+
+### 恢复（把数据搬到新机器也是这一套）
+
+备份一直有文档，恢复以前没有——真出事时就没有写下来的办法。编号做，别跳：
+
+1. 确认新机器上容器能起（`docker compose up -d db`），并且 `db` 卷是**空的**：`docker compose exec -T db psql -U aihot -d postgres -tAc "SELECT datname FROM pg_database"` 只应有 `postgres`/`template0`/`template1`/`aihot`（`aihot` 由镜像的 initdb 建好，空的就直接用）。
+2. 把 dump 放进容器能读到的地方：`docker compose cp myhot-<日期>.dump db:/tmp/d.dump`。
+3. 灌回去（custom format 用 `pg_restore`，不是 `psql`）：
+   ```bash
+   docker compose exec -T db pg_restore -U aihot -d aihot --no-owner --no-privileges /tmp/d.dump
+   ```
+   纯文本那份 `.sql.gz` 则是 `gunzip -c myhot-<日期>.sql.gz | docker compose exec -T db psql -U aihot -d aihot`。
+4. 数一遍关键表，跟旧机对得上才算成功（不是"没报错"就算）：
+   ```bash
+   docker compose exec -T db psql -U aihot -d aihot -tAc \
+     "SELECT 'topics',count(*) FROM topics UNION ALL SELECT 'sources',count(*) FROM sources
+      UNION ALL SELECT 'publications',count(*) FROM publications UNION ALL SELECT 'digests',count(*) FROM story_digests
+      UNION ALL SELECT 'articles',count(*) FROM articles UNION ALL SELECT 'reports',count(*) FROM reports"
+   ```
+5. `docker compose up -d` 起全栈，再跑仓库自带的冒烟：`node scripts/smoke.ts --base http://<服务器地址>:3000`。
+6. 搬家还必须**重新签发**`SESSION_SECRET`、`IMG_PROXY_SIGN_SECRET`、`ADMIN_PASSWORD`、`INGEST_TOKEN` 和数据库口令，
+   并把 `SITE_URL` 改成新地址——详见 `deploy/geohot/README-deploy.md` 第 6.1 与第 10 节（那份是 nginx/systemd 路线，
+   清单本身两条路线通用：改什么、重发什么、为什么改 `industry/**` 必须重建前端）。
 
 ### 看日志
 
@@ -78,15 +113,31 @@ docker compose logs -f --tail 100 api worker web
 
 ## 不用 Docker
 
-需要 Node.js 24.11 以上和 PostgreSQL 16 或 17。
+需要 Node.js 24.11 以上和 PostgreSQL **16 或 17**，而且集群里必须能用 `pg_trgm`
+（第一条迁移 `database/migrations/0001_core.sql:4` 就是 `CREATE EXTENSION IF NOT EXISTS pg_trgm`；事件归并与
+中文搜索靠它）。Ubuntu 22.04 自带的是 PostgreSQL 14、contrib 还拆成另一个包，两条都要先解决：
+
+```bash
+sudo apt install postgresql-contrib                       # 14 那条路：版本仍然不达标，迁移会报 pg_trgm.control 找不到
+# 推荐装 PGDG 源的 17：https://apt.postgresql.org/  → sudo apt install postgresql-17-pgdg postgresql-client-17-pgdg
+# （已上线那台机器的 17 就是这么装的）
+psql -tAc "SELECT 1 FROM pg_available_extensions WHERE name='pg_trgm'"   # 必须返回一行
+```
+
+`deploy/geohot/bootstrap-server.sh` 第 6 节把这两条做成了硬预检（不达标就 exit 1 并给出包名），
+`docs/manual.md` 第 3 节是本机开发机的跑法（embedded PostgreSQL 17，端口 5433），与这里的系统装法不同。
 
 ```bash
 npm ci
-node scripts/init-env.ts --llm-key <你的模型 API Key>
+npm run env:init                      # 生成 .env 与 .env.pipeline，已存在不覆盖；管理员密码只打印一次
 createdb myhot
 ```
 
-在 `.env` 里加上：
+`init-env.ts` 只接受 `--db-port / --api-port / --web-port / --brain-port` 四个开关（`scripts/init-env.ts:35-40`），
+**其它参数会被静默忽略、也不报错**——没有 `--llm-key`，模型 key 请在生成后的 `.env` 里改
+`LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` 三行。
+
+在 `.env` 里加上（`SITE_URL` 在 `NODE_ENV=production` 下必填、且不能是 localhost，否则拒绝启动，见上面第 10 行那段）：
 
 ```bash
 DATABASE_URL=postgres://你的用户名@127.0.0.1:5432/myhot
