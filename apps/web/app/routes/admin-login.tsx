@@ -6,6 +6,7 @@ import { SITE } from "@aihot/industry/site";
 import { apiGet } from "../lib/api.server";
 import { Wordmark } from "../components/Logo";
 import { buttonClass } from "../components/ui/Controls";
+import { publicPath } from "../lib/public-path";
 
 const ERRORS: Record<string, string> = {
   wrong: "密码不对，再试一次。",
@@ -37,7 +38,7 @@ export default function AdminLogin() {
           <Wordmark size={26} className="text-ink" />
           <span className="text-[15px] font-semibold text-ink-3">后台</span>
         </h1>
-        <form method="post" action="/api/auth/password" className="card mt-8 p-6">
+        <form method="post" action={publicPath("/api/auth/password")} className="card mt-8 p-6">
           <input type="hidden" name="return" value={returnTo} />
           <label htmlFor="password" className="block text-[13px] font-medium text-ink-2">
             管理员密码
@@ -60,13 +61,13 @@ export default function AdminLogin() {
             登录
           </button>
           {feishu && (
-            <a href={`/api/auth/feishu?${new URLSearchParams({ return: returnTo })}`} className={`${buttonClass("secondary", "lg")} mt-3 w-full`}>
+            <a href={publicPath(`/api/auth/feishu?${new URLSearchParams({ return: returnTo })}`)} className={`${buttonClass("secondary", "lg")} mt-3 w-full`}>
               用飞书登录
             </a>
           )}
         </form>
         <p className="mt-6 text-center text-[12px] text-ink-4">
-          <a href="/" className="hover:text-ink-2">
+          <a href={publicPath("/")} className="hover:text-ink-2">
             回到 {SITE.name}
           </a>
         </p>
