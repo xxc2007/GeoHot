@@ -4,8 +4,9 @@
 #
 # ██████████████████████████████████████████████████████████████████████████
 # █ ★★ 绝对禁止：docker compose down -v ★★                                   █
-# █   compose 的 db/data/caddy 卷里是数据库、上传截图与证书（docker-compose  █
-# █   .yml:93-96；docs/deploy.md:63 「down 不会删除它们；down -v 会」）。     █
+# █   compose 的 db/data/caddy 卷里是数据库、上传截图与证书（卷配置见 docker-  █
+# █   compose.yml；禁令的出处是 docs/deploy.md「备份」一节末尾那句「down 不会  █
+# █   删除它们；down -v 会」）。                                               █
 # █   本脚本不含任何 docker 命令；即便将来用容器部署，回滚也只用             █
 # █   docker compose stop/down（无 -v）。                                    █
 # █ 数据库侧：只 DROP geohot 自己的库和角色，且先备份；绝不触碰 postgres     █
@@ -61,10 +62,16 @@ if [[ -n "$bak" ]]; then
   fi
 else
   echo "!! 未找到 ${NGINX_SITE}.bak-* 备份。"
-  echo "   手工方案：编辑站点文件，删除 geohot.nginx.conf片段 中标注 ADD 的三块"
-  echo "   （location = /geohot、location /geohot/、location /geohot/api/mcp），"
-  echo "   然后 sudo nginx -t && sudo systemctl reload nginx。"
+  # 名字要跟 geohot.nginx.conf片段 里真正写的那三块一致 —— 上一版写的是 `location /geohot/` 与
+  # `location /geohot/api/mcp`，站点文件里根本没有这两个串（真实的是 `^~` 那两条），照着一份对不上
+  # 名字的清单去删，很容易删错行。
+  echo "   手工方案：编辑站点文件，删除 geohot.nginx.conf片段 中标注 ADD 的三块（名字按片段原文）："
+  echo "     location = /geohot { return 308 https://\$host/geohot/; }"
+  echo "     location ^~ /geohot { … }"
+  echo "     location ^~ /geohot/api/mcp { … }"
+  echo "   —— /geohot 必须等于本次构建的 GEOHOT_BASE_PATH；两处（:80 与 :443 两个 server 块）都要删。"
   echo "   —— 除这三块外不得删任何行；根 location/、Artalk、ACME 一律不动。"
+  echo "   改完: sudo nginx -t && sudo systemctl reload nginx（reload，绝不 restart）"
 fi
 
 # ---------------------------------------------------------------------------
