@@ -19,25 +19,37 @@
 #    `^~` 的意思是「前缀命中即停，不再看正则」。表现为：页面 HTML 200，但样式与 JS 全 404。
 #
 # 2) 不剥前缀：proxy_pass 不带尾部 URI（`proxy_pass http://127.0.0.1:3000;`）。
-#    应用构建时带 BASE_PATH=/geohot，并且自己会归一化入站路径（apps/web/server.ts）。
-#    剥前缀会让它在 `/assets/...` 上 404 —— 同样是 HTML 200、静态资源全丢。
+#    应用构建时带 BASE_PATH=/geohot（那是构建期变量，见 bootstrap-server.sh 第 9 节；运行时给 web 进程
+#    一个 BASE_PATH 什么都不做 —— apps/web/server.ts:46-49 的前缀取自构建产物里的 basename），
+#    并且自己会归一化入站路径。剥前缀会让它在 `/assets/...` 上 404 —— 同样是 HTML 200、静态资源全丢。
 #
 # 3) 两个监听（:80 与 :443）都要注入：Cloudflare 以 **80 端口明文**回源（浏览器↔CF 是 HTTPS，CF↔源站是 http）。
 #    只给 `:443` 加 location，直连 https 正常，公网却 404，而且返回的是主站自己的 404 页。
 #    这是最容易误判成「nginx 没生效」的一种。
 #
-# 其余依据：上传上限取反馈截图 8 MB（feedback.ts:64）与 Fastify 10 MB bodyLimit（app.ts:26）之间的
+# 4) 这里每一处 `/geohot` 都必须等于构建期的前缀 —— 也就是 bootstrap-server.sh 的 GEOHOT_BASE_PATH
+#    （默认 /geohot，它把它当 BASE_PATH 传进 npm run build，见该脚本第 9 节）。前缀烧在 bundle 里，
+#    nginx 换前缀而 bundle 没换 = HTML 200、每个 /geohot/assets/* 都 404；反过来也一样。
+#    **域名根部署（GEOHOT_BASE_PATH=""）时整组 location 都不需要**：直接把 :3000 反代到 / 就是全站，
+#    下面那条补斜杠的 308 也不要（应用对 / 与 // 都直答，没有裸 basename 可规范化）。
+#
+# 其余依据：上传上限取反馈截图 8 MB（feedback.ts:64）与 Fastify 10 MB bodyLimit（app.ts:30）之间的
 # 10m；MCP 走 Streamable-HTTP 的长寿命 SSE（mcp.ts:283-285 带 X-Accel-Buffering: no），故该
 # location 关缓冲、读超时拉到 1h。
 # =============================================================================
 
 # ---- ADD ----
-# 裸路径必须补斜杠，这一条是**承重**的，不是装饰：
+# 裸路径必须补斜杠，这一条是**承重**的，不是装饰（fix-bare-path.sh:10-13 解释为什么它不能被"删掉跳转"
+# 那版取代）：
 #   客户端路由的 basename 是 /geohot，它匹配不了裸的 /geohot（把 /geohot 解析成空路径后落到 404 路由）。
 #   直接打开是好的，因为服务端 SSR 会归一化路径；但站内点「精选」是客户端跳转，不过 nginx，
 #   于是「进去正常、点出去再点回来就 404」。所以要把 URL 规范化成 /geohot/。
 # 目标写死 https://$host，不要用相对路径：相对 Location 按**连接协议**拼接，而本站 Cloudflare 是明文回源，
 # 拼出来会是 http://，浏览器跟过去就断链。
+# ⚠️ 代价：scheme 写死成 https，这个 location 就**只能挂在真的有 TLS 的 vhost 上**。明文 staging vhost
+#   （只听 :80、没有证书）里留着它，访客会被送去一个打不开的 https 地址。那种环境要么删掉这一条
+#   （应用对两种写法返回同一份页面，只是客户端路由会踩上面那个坑），要么把目标改成随连接协议走并让
+#   上游真的带 X-Forwarded-Proto —— 别把这两条混在一个 location 里，改完必须 nginx -t 再 reload。
 location = /geohot {
     return 308 https://$host/geohot/;
 }
