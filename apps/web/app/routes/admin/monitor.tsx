@@ -5,6 +5,7 @@ import type { Route } from "./+types/monitor";
 import { adminGet } from "../../lib/admin.server";
 import { useAdminAction } from "../../features/admin/action";
 import { bj } from "../../features/admin/format";
+import { publicPath } from "../../lib/public-path";
 import { AdminPage, Badge, Button, Card, Empty, Field, FilterChips, Input, Json, Pager, ReasonDialog, Select } from "../../features/admin/ui";
 
 interface EventPost {
@@ -307,7 +308,7 @@ export default function MonitorAdmin({ loaderData }: Route.ComponentProps) {
     <AdminPage
       title="Codex 重置"
       subtitle="修正识别结果：事件类型、状态、时间与适用对象；没有“已完成”帖子时用回执核对确认；识别错的事件撤回；帖子挂错可以移动。"
-      actions={<a className="text-[13px] text-accent" href="/codex-reset" target="_blank" rel="noreferrer">打开公开页</a>}
+      actions={<a className="text-[13px] text-accent" href={publicPath("/codex-reset")} target="_blank" rel="noreferrer">打开公开页</a>}
     >
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex gap-1.5">
