@@ -209,10 +209,10 @@ export function Timeline({ initial, filters }: { initial: TimelineResponse; filt
     setLoadingMore(true);
     setLoadError(false);
     try {
-      const res = await fetch(publicPath(`/api/site/timeline?${filterQuery(filters, { cursor: s.nextCursor })}`), { signal: controller.signal });
+      const res = await fetch(publicPath(`/api/site/timeline?${filterQuery(filters, { cursor: s.nextCursor })}`), { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]) });
       if (res.status === 400) {
         // Cursor no longer fits: start over from the head.
-        const head = await fetch(publicPath(`/api/site/timeline?${key}`), { signal: controller.signal });
+        const head = await fetch(publicPath(`/api/site/timeline?${key}`), { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]) });
         if (head.ok && current()) setState(fromResponse((await head.json()) as TimelineResponse));
         return;
       }
