@@ -165,6 +165,9 @@ async function handle(req: import("node:http").IncomingMessage, res: import("nod
       up.pipe(res);
     });
     upstream.on("error", () => {
+      // The api can reset the socket after the response has started; ending it again would throw inside
+      // the listener, where neither handle()'s catch nor the rejection hook can reach it.
+      if (res.headersSent) return res.destroy();
       res.statusCode = 502;
       res.end("api unavailable");
     });
