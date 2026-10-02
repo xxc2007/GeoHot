@@ -53,10 +53,18 @@ export function titled(title: string): string {
   return `${title} · ${SITE.name}`;
 }
 
+/**
+ * Metadata is display, and some of what feeds it comes from material rather than from us: one ingested
+ * item's "title" is an entire lead paragraph, and it was going into `<title>`, `og:title` and the share
+ * image's alt text verbatim (2026-10-02 sweep). Clamp here — browser tabs and share cards truncate anyway,
+ * and a clamped metadata title never changes the page body, which still shows every character.
+ */
+const clampMeta = (s: string, max: number) => (s.length <= max ? s : `${s.slice(0, max - 1)}…`);
+
 export function pageMeta(input: PageMetaInput): MetaDescriptor[] {
   const base = siteUrl();
-  const title = input.title ? (input.rawTitle ? input.title : titled(input.title)) : HOME_TITLE;
-  const description = input.description ?? SITE_DESCRIPTION;
+  const title = input.title ? (input.rawTitle ? clampMeta(input.title, 60) : titled(clampMeta(input.title, 60))) : HOME_TITLE;
+  const description = clampMeta(input.description ?? SITE_DESCRIPTION, 160);
   const url = `${base}${input.path}`;
   const image = input.image ? (input.image.startsWith("http") ? input.image : `${base}${input.image}`) : `${base}/og/site.png`;
   const tags: MetaDescriptor[] = [
@@ -65,11 +73,11 @@ export function pageMeta(input: PageMetaInput): MetaDescriptor[] {
     { tagName: "link", rel: "canonical", href: url },
     { property: "og:site_name", content: SITE.name },
     { property: "og:type", content: input.type ?? "website" },
-    { property: "og:title", content: input.title ?? HOME_TITLE },
+    { property: "og:title", content: clampMeta(input.title ?? HOME_TITLE, 60) },
     { property: "og:description", content: description },
     { property: "og:url", content: url },
     { property: "og:image", content: image },
-    { property: "og:image:alt", content: `${input.title ?? HOME_TITLE} — ${SITE.name}` },
+    { property: "og:image:alt", content: clampMeta(`${input.title ?? HOME_TITLE} — ${SITE.name}`, 120) },
     { property: "og:image:width", content: "1200" },
     { property: "og:image:height", content: "630" },
     { property: "og:locale", content: SITE.locale.replace("-", "_") },

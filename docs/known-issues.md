@@ -356,3 +356,8 @@ Australia / Angola / Paraguay / Suriname, Brazil）的事件下，读者在中�
    `<title>` 是整段导语（超长）。属于展示层小课，留待下一轮（要把"无日期"的卡片样式与标题截断一起做）。
 9. **后台会话 cookie 的 `Path=/`** 在 `xxc2007.me` 这种共域子路径部署下会送到主站（HttpOnly，只是卫生
    问题）；要收紧需要改 `admin/auth.ts` 与主站同域行为的验证，值不值得做由站长定。
+10. **内容侧两条小账（已做显示层兜底，内容本身待编辑）**：`publishedAt=null` 的 49 条（SpaceMapper 人工
+   投递）按设计回落到 `timelineAt`/`discoveredAt`，在按天分组的列表里只显示时刻（分组头给日期，是设计
+   不是缺陷）；其中一条的"标题"其实是一整段导语（fixture 的 `titleZh` 写成了段落），页面正文照实显示，
+   但 `<title>` / `og:*` 会因此变成几百字——`lib/seo.ts` 现在对元数据做通用截断（标题 60 字、描述 160 字、
+   og alt 120 字），**只截元数据、不截正文**。那条 fixture 的 `titleZh` 应当由编辑改写成一句话标题。
