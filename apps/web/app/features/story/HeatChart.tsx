@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import type { HeatPoint } from "@aihot/contracts/site";
 import { monthDayTime } from "../../lib/format";
 import { useEntrance } from "../../lib/hydration";
@@ -19,6 +19,7 @@ function niceStep(max: number): number {
  * instead of being drawn as zero; with fewer than three observed hours there is no chart.
  */
 export function HeatChart({ points }: { points: HeatPoint[] }) {
+  const hintId = useId();
   const [active, setActive] = useState<number | null>(null);
   const entrance = useEntrance();
   const series = useMemo(() => {
@@ -98,11 +99,13 @@ export function HeatChart({ points }: { points: HeatPoint[] }) {
         </b>
       </p>
       <div className="relative mt-4">
+        <p id={hintId} className="sr-only">这张热度走势图可以用键盘操作：左右方向键逐点查看，Esc 退出。</p>
         <svg
           viewBox={`0 0 ${W} ${H}`}
-          className="block h-auto w-full touch-pan-y select-none outline-none"
-          role="img"
+          className="block h-auto w-full touch-pan-y select-none rounded-tile focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          role="group"
           aria-label={`热度走势：当前 ${Math.round(last.p!.heat)}，峰值 ${Math.round(peak.p!.heat)}`}
+          aria-describedby={hintId}
           tabIndex={0}
           onKeyDown={(e) => {
             if (e.key === "ArrowRight") setActive((a) => Math.min(seen.length - 1, a === null ? seen.length - 1 : a + 1));
