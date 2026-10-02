@@ -6,6 +6,7 @@ import { FEATURES } from "@aihot/industry/features";
 import { CATEGORY_KEYS } from "@aihot/contracts/taxonomy";
 import { MCP_TOOL_NAMES as T } from "@aihot/contracts/mcp";
 import { listPath, pageMeta, siteUrl } from "../lib/seo";
+import { publicPath } from "../lib/public-path";
 import { CodeBlock, CopyButton } from "../components/CodeBlock";
 import { IconArrowUpRight, IconChevronRight } from "../components/icons";
 import { AsideCard, ReadingLayout } from "../components/ui/Page";
@@ -167,7 +168,7 @@ function ApiTab({ base }: { base: string }) {
   return (
     <>
       <h2 className="text-[20px] font-bold text-ink">匿名 GET，不需要 token</h2>
-      <p className="mt-2 text-[14.5px] text-ink-3">浏览器跨域、curl 和默认 HTTP SDK 都可以直接用。临时查最近内容用 items；长期维护全部精选用一次快照加增量游标。字段与错误码以 <a href="/openapi-v1.json" className="text-accent hover:underline">OpenAPI 3.1</a> 为准。</p>
+      <p className="mt-2 text-[14.5px] text-ink-3">浏览器跨域、curl 和默认 HTTP SDK 都可以直接用。临时查最近内容用 items；长期维护全部精选用一次快照加增量游标。字段与错误码以 <a href={publicPath("/openapi-v1.json")} className="text-accent hover:underline">OpenAPI 3.1</a> 为准。</p>
       <CodeBlock title="第一个请求" lang="bash" code={`curl '${base}/api/v1/items?mode=selected&window=24h&limit=20'`} />
       <div className="overflow-x-auto rounded-card border border-line bg-surface">
         <table className="w-full min-w-[560px] text-left text-[13.5px]">
@@ -223,7 +224,7 @@ export default function AgentPage() {
       <AsideCard title="接入资源" className="hidden lg:block">
         <nav aria-label="接入资源" className="-mx-2 -mb-1">
           {RESOURCES.map(([l, h, note]) => (
-            <a key={h} href={h} className="group flex items-start gap-2 rounded-control px-2 py-2 transition-colors hover:bg-bg-sunk">
+            <a key={h} href={publicPath(h)} className="group flex items-start gap-2 rounded-control px-2 py-2 transition-colors hover:bg-bg-sunk">
               <span className="min-w-0 flex-1">
                 <span className="block text-[13.5px] text-ink-2 group-hover:text-ink">{l}</span>
                 <span className="mt-0.5 block text-[12px] text-ink-4">{note}</span>
@@ -259,7 +260,7 @@ export default function AgentPage() {
 
       <div className="mt-4 flex flex-wrap gap-x-5 gap-y-1.5 text-[12.5px] lg:hidden">
         {RESOURCES.map(([l, h]) => (
-          <a key={h} href={h} className="inline-flex items-center gap-1 text-ink-2 transition-colors hover:text-accent">
+          <a key={h} href={publicPath(h)} className="inline-flex items-center gap-1 text-ink-2 transition-colors hover:text-accent">
             {l} <IconArrowUpRight size={12} className="text-ink-4" />
           </a>
         ))}
