@@ -11,20 +11,28 @@
 #      （jobs/queue.ts:62-63,67；docker-compose.yml:58-60 同样给 210 s grace），
 #      所以 TimeoutStopSec 必须 ≥ 210，否则 systemd 中途 SIGKILL，留下 outcome-unknown 回执被重复付费。
 #   ⇒ 不许 `systemctl scale`、不许第二个 unit 指同一 EnvironmentFile。
+# ★ MODEL_CALLS_ENABLED 必须显式写在 .env 里：config.ts:92 的缺省是 true，靠缺省就等于让 worker 去调
+#   一个可能没在听的 127.0.0.1:3055（bootstrap-server.sh 第 5 节负责写它，geohot-brain.service 负责在听）。
+# ★ 下面三处路径写死的是默认安装目录 APP_ROOT=/opt/geohot/app（GEOHOT_APP_ROOT，四个脚本共用）。
 [Unit]
 Description=GEOHOT worker (pg-boss queues + schedules; SINGLE INSTANCE ONLY)
-After=network.target postgresql.service
+After=network.target postgresql.service geohot-brain.service
 Wants=postgresql.service
 
 [Service]
 Type=simple
 User=geohot
 Group=geohot
-WorkingDirectory=/opt/geohot/GEOHOT
-EnvironmentFile=/opt/geohot/GEOHOT/.env
+WorkingDirectory=/opt/geohot/app
+EnvironmentFile=/opt/geohot/app/.env
 Environment=NODE_ENV=production
 Environment=AIHOT_ENVIRONMENT=production
+Environment=HOME=/opt/geohot
+# cron 表按 Asia/Shanghai 注册（schedules.ts:103），日志与 beijingDate 口径要跟它一致（README-deploy.md 第 5 节）
+Environment=TZ=Asia/Shanghai
 # 阀门不在这里硬覆盖：COLLECT_ENABLED / MODEL_CALLS_ENABLED 属编辑决策，.env 里逐条写死。
+MemoryMax=240M
+MemorySwapMax=600M
 ExecStart=/usr/bin/node --env-file=.env apps/worker/src/main.ts
 Restart=on-failure
 RestartSec=10
@@ -36,7 +44,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/opt/geohot/GEOHOT/.data
+ReadWritePaths=/opt/geohot/app/.data
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
