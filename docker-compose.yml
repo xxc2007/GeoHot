@@ -9,6 +9,11 @@ x-app: &app
   restart: unless-stopped
   environment: &app-env
     NODE_ENV: production
+    # The api refuses to boot in production on a missing or localhost SITE_URL, because that address is
+    # what lands in canonical tags, OpenGraph URLs, RSS <link>, sitemap <loc> and the MCP host lock.
+    # Compose fails here with this message instead — a container that starts and publishes localhost
+    # URLs everywhere is a worse failure than one that does not start.
+    SITE_URL: ${SITE_URL:?SITE_URL must be the public address readers use, e.g. https://example.com}
     DATABASE_URL: postgres://aihot:${POSTGRES_PASSWORD:-aihot}@db:5432/aihot
     AIHOT_DATA_DIR: /data
     API_BASE_URL: http://api:3001
