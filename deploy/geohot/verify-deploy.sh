@@ -134,8 +134,10 @@ for f in /feed.xml /sitemap.xml /llms.txt; do
     elif echo "$body" | grep -qF "$PREFIX"; then ok "llms.txt 链接带前缀 $PREFIX"
     else bad "llms.txt 链接不带 $PREFIX（SITE_URL 没设对？config.ts:54-68）"; fi
   else
-    n_all=$(echo "$body" | grep -Eo '<(loc|url)>[^<]+' | wc -l)
-    n_pre=$(echo "$body" | grep -Eo "<(loc|url)>https://${site_host_re}${PREFIX}" | wc -l)
+    # RSS carries its URLs in <link>, <loc> is the sitemap's element — counting only the second made a
+    # correct feed read as "0 links".
+    n_all=$(echo "$body" | grep -Eo '<(loc|url|link)>[^<]+' | wc -l)
+    n_pre=$(echo "$body" | grep -Eo "<(loc|url|link)>https://${site_host_re}${PREFIX}" | wc -l)
     [[ "$n_all" -gt 0 && "$n_all" -eq "$n_pre" ]] && ok "$f：$n_pre/$n_all 条链接全部落在 https://${site_host}${PREFIX}" || bad "$f：带前缀 $n_pre / 共 $n_all"
   fi
 done
@@ -144,7 +146,12 @@ done
 echo "== 5. 后台鉴权：/api/admin/* 必须 401（DEV_AUTH 后门已摘）=="
 for p in /api/admin/sources /api/admin/runs /api/admin/monitor/events; do
   c=$(status_of "$BASE$p")
-  [[ "$c" == "401" || "$c" == "403" ]] && ok "$p -> $c" || bad "$p -> $c（期望 401/403；404 也可能是剥前缀路由问题）"
+  if [[ "$c" == "401" || "$c" == "403" ]]; then ok "$p -> $c"
+  # /api/admin/monitor/* is an AI-only module: with industry/features.ts codexResetMonitor off the routes
+  # are never registered (apps/api/src/routes/admin.ts:99-103), so 404 is that module's own gate, not a
+  # routing failure. The two always-registered paths above still have to answer 401.
+  elif [[ "$p" == "/api/admin/monitor/events" && "$c" == "404" ]]; then note "$p -> 404（codexResetMonitor 关闭，路由未注册，与 app.ts:67 的模型榜同一开关）"
+  else bad "$p -> $c（期望 401/403；404 也可能是剥前缀路由问题）"; fi
 done
 
 # ---------------------------------------------------------------------------
