@@ -6,6 +6,10 @@
 #   所以 nginx 只需要这一个口。
 #   server.ts:45-66 直接发 build/client 静态文件，/assets/* 带 immutable 长缓存（:57-61）
 #   ⇒ 必须先 npm run build -w @aihot/web，本 unit 才起得来（:39 import build/server/index.js）。
+# ★ 站点前缀不在这里配：server.ts:46-49 的 BASE 取自构建产物里的 basename，运行时给 BASE_PATH
+#   什么都不做（以前这一条带 Environment=BASE_PATH=/geohot，改它、重启、什么都没变）。要换前缀就
+#   重新构建：bootstrap-server.sh 第 9 节的 BASE_PATH='${GEOHOT_BASE_PATH}'。
+# ★ 下面四处路径写死的是默认安装目录 APP_ROOT=/opt/geohot/app（GEOHOT_APP_ROOT，四个脚本共用）。
 [Unit]
 Description=GEOHOT web (SSR, 127.0.0.1:3000)
 After=network.target geohot-api.service
@@ -15,23 +19,28 @@ Requires=geohot-api.service
 Type=simple
 User=geohot
 Group=geohot
-WorkingDirectory=/opt/geohot/GEOHOT/apps/web
-EnvironmentFile=/opt/geohot/GEOHOT/.env
+WorkingDirectory=/opt/geohot/app/apps/web
+EnvironmentFile=/opt/geohot/app/.env
 Environment=NODE_ENV=production
 Environment=AIHOT_ENVIRONMENT=production
 Environment=WEB_HOST=127.0.0.1
+Environment=HOME=/opt/geohot
+Environment=TZ=Asia/Shanghai
+# OOM 只杀自己，杀不到 nginx 与 Artalk（DEPLOYMENT.md:11 那一组里 web 最大）
+MemoryMax=320M
+MemorySwapMax=600M
 # 生产命令按 docs/deploy.md:105：在 apps/web 下、env 指回仓库根
-ExecStart=/usr/bin/node --env-file=/opt/geohot/GEOHOT/.env server.ts
+ExecStart=/usr/bin/node --env-file=/opt/geohot/app/.env server.ts
 Restart=on-failure
 RestartSec=5
-# server.close 在 drain（keepAliveTimeout 65 s，server.ts:161）；给 90 s
+# server.close 在 drain（keepAliveTimeout 65 s，server.ts:183）；给 90 s
 TimeoutStopSec=90
 
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/opt/geohot/GEOHOT/.data
+ReadWritePaths=/opt/geohot/app/.data
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
@@ -42,12 +51,12 @@ LockPersonality=true
 WantedBy=multi-user.target
 
 # -----------------------------------------------------------------------------
-# 启用命令（顺序执行）：
+# 启用命令（顺序执行；四个单元一起，brain 在最前——api/worker 的 After= 里点了它）：
 #   sudo cp deploy/geohot/systemd/*.service /etc/systemd/system/
 #   sudo systemctl daemon-reload
-#   sudo systemctl enable --now geohot-api geohot-worker geohot-web
-#   systemctl is-active geohot-api geohot-worker geohot-web
-#   curl -fsS http://127.0.0.1:3000/api/health        # 应为 {"ok":true,...}（apps/api/src/app.ts:60）
+#   sudo systemctl enable --now geohot-brain geohot-api geohot-worker geohot-web
+#   systemctl is-active geohot-brain geohot-api geohot-worker geohot-web
+#   curl -fsS http://127.0.0.1:3000/api/health        # 应为 {"ok":true,...}（apps/api/src/app.ts:64）
 # 停用（回滚前半段）：
-#   sudo systemctl disable --now geohot-web geohot-worker geohot-api
+#   sudo systemctl disable --now geohot-web geohot-worker geohot-api geohot-brain
 # -----------------------------------------------------------------------------
