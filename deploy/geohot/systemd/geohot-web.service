@@ -2,9 +2,11 @@
 # GEOHOT web 进程（React Router SSR 生产服务器）。代码依据：
 #   apps/web/server.ts:12-13 —— PORT = WEB_PORT || PORT || 3000，HOST = WEB_HOST || "127.0.0.1"
 #   ⇒ 默认只绑回环；nginx 反代的正是 127.0.0.1:3000（见 geohot.nginx.conf片段）。
-#   server.ts:135-149 把 api-owned 路径（contracts/http-policy.ts:110-122）转给 127.0.0.1:3001，
+#   server.ts 里 if (isApiOwned(appPath)) 那一整块把 api-owned 路径（packages/contracts/src/http-policy.ts
+#   的 API_OWNED_PATTERNS）转给 127.0.0.1:3001，
 #   所以 nginx 只需要这一个口。
-#   server.ts:45-66 直接发 build/client 静态文件，/assets/* 带 immutable 长缓存（:57-61）
+#   server.ts 的 serveStatic() 直接发 build/client 静态文件，/assets/* 带 immutable 长缓存（它写
+#   Cache-Control 的那两行）
 #   ⇒ 必须先 npm run build -w @aihot/web，本 unit 才起得来（:39 import build/server/index.js）。
 # ★ 站点前缀不在这里配：server.ts:46-49 的 BASE 取自构建产物里的 basename，运行时给 BASE_PATH
 #   什么都不做（以前这一条带 Environment=BASE_PATH=/geohot，改它、重启、什么都没变）。要换前缀就
@@ -29,11 +31,12 @@ Environment=TZ=Asia/Shanghai
 # OOM 只杀自己，杀不到 nginx 与 Artalk（DEPLOYMENT.md:11 那一组里 web 最大）
 MemoryMax=320M
 MemorySwapMax=600M
-# 生产命令按 docs/deploy.md:105：在 apps/web 下、env 指回仓库根
+# 生产命令按 docs/deploy.md「不用 Docker」一节最后那三条启动命令里的第三条：在 apps/web 下、
+# env 指回仓库根（cd apps/web && NODE_ENV=production node --env-file=../../.env server.ts）
 ExecStart=/usr/bin/node --env-file=/opt/geohot/app/.env server.ts
 Restart=on-failure
 RestartSec=5
-# server.close 在 drain（keepAliveTimeout 65 s，server.ts:183）；给 90 s
+# server.close 在 drain（keepAliveTimeout 65 s，server.ts:191）；给 90 s
 TimeoutStopSec=90
 
 NoNewPrivileges=true
