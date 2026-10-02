@@ -90,11 +90,11 @@ function usePaged<T>(url: (cursor: string | null) => string, pick: (body: Record
     const active = () => latest.current === at && !controller.signal.aborted;
     setState((s) => ({ ...(s.scope === at ? s : EMPTY), scope: at, loading: true, error: false }));
     try {
-      let res = await fetch(url(cursor), { signal: controller.signal });
+      let res = await fetch(url(cursor), { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]) });
       // An expired cursor gets one fresh first page, never an unbounded retry loop.
       if (res.status === 409 && cursor) {
         cursor = null;
-        res = await fetch(url(null), { signal: controller.signal });
+        res = await fetch(url(null), { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]) });
       }
       if (!res.ok) throw new Error(String(res.status));
       const body = (await res.json()) as Record<string, unknown> & { nextCursor: string | null };
