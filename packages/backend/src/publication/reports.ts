@@ -184,8 +184,10 @@ async function leadCover(itemId: string): Promise<{ url: string; srcSet?: string
   return { url, ...(proxiedImageSet(row.m.url, "hero") ? { srcSet: proxiedImageSet(row.m.url, "hero")! } : {}), width: typeof row.m.width === "number" ? row.m.width : null, height: typeof row.m.height === "number" ? row.m.height : null };
 }
 
+/** An edition with no prose reads in zero minutes; callers hide the claim rather than say 「约 1 分钟」. */
 function readingMinutes(text: string): number {
-  return Math.max(1, Math.round([...text].length / 450));
+  const chars = [...text].length;
+  return chars === 0 ? 0 : Math.max(1, Math.round(chars / 450));
 }
 
 async function neighbors(kind: ReportKind, key: string): Promise<{ prev: string | null; next: string | null }> {
@@ -272,10 +274,9 @@ export function reportIndex(kind: ReportKind) {
 
 export async function listReports(kind: ReportKind, limit = INDEX_LIMIT): Promise<ReportIndexEntry[]> {
   const index = await reportIndex(kind);
-  const rows = index.rows.slice(0, limit);
   const shape = kind === "daily" ? "daily" : "periodic";
   const gone = index.gone;
-  return rows.map((r) => {
+  const entries = index.rows.map((r) => {
     const items = kind === "daily" ? (r.content.sections ?? []).flatMap((s: any) => s.items ?? []) : (r.content.themes ?? []).flatMap((t: any) => t.storyRefs ?? []);
     return {
       key: r.key,
@@ -284,6 +285,10 @@ export async function listReports(kind: ReportKind, limit = INDEX_LIMIT): Promis
       count: items.length,
     };
   });
+  // An edition with nothing left to read — the gate published no pick, or every citation has since been
+  // withdrawn — is not a newspaper. Listing one advertises 「共 8 期」 of which seven read 0 件大事 while the
+  // masthead still offers a reading time, so the index carries only the editions a reader can read.
+  return entries.filter((e) => e.count > 0).slice(0, limit);
 }
 
 // ---------------------------------------------------------------------------
@@ -292,9 +297,21 @@ export async function listReports(kind: ReportKind, limit = INDEX_LIMIT): Promis
 
 const attribution = (url: string) => ({ name: SITE.name, url });
 
+/**
+ * An edition a reader can actually read: at least one item survived the visibility filter. The same
+ * predicate gates the site index, the v1 list and the v1 "latest", so no public exit advertises a
+ * blank newspaper.
+ */
+function hasReadableItems(content: Record<string, any>, kind: ReportKind): boolean {
+  const items = kind === "daily"
+    ? (content.sections ?? []).flatMap((s: any) => s.items ?? [])
+    : (content.themes ?? []).flatMap((t: any) => t.storyRefs ?? []);
+  return items.length > 0;
+}
+
 export async function v1Dailies(limit: number) {
   const index = await reportIndex("daily");
-  const rows = index.rows.slice(0, limit);
+  const rows = index.rows.filter((r) => hasReadableItems(r.content, "daily")).slice(0, limit);
   const gone = index.gone;
   const items = rows.map((r) => {
     const url = dailyUrl(r.key);
@@ -311,9 +328,12 @@ export async function v1Dailies(limit: number) {
 }
 
 export async function v1Daily(date: string | "latest") {
-  const [r] = date === "latest"
-    ? await sql<ReportRow[]>`SELECT kind, key, window_start, window_end, content, generated_at, revision FROM reports WHERE kind = 'daily' ORDER BY key DESC LIMIT 1`
+  const rows = date === "latest"
+    // The newest row is not necessarily the newest edition with something in it; a day the gate left
+    // empty must not become "latest" and serve a blank paper to every machine consumer.
+    ? (await sql<ReportRow[]>`SELECT kind, key, window_start, window_end, content, generated_at, revision FROM reports WHERE kind = 'daily' ORDER BY key DESC LIMIT 20`).filter((x) => hasReadableItems(x.content, "daily"))
     : await sql<ReportRow[]>`SELECT kind, key, window_start, window_end, content, generated_at, revision FROM reports WHERE kind = 'daily' AND key = ${date}`;
+  const [r] = rows;
   if (!r) return null;
   const c = r.content;
   const raw = [...(c.sections ?? []).flatMap((s: any) => s.items ?? []), ...(c.flashes ?? [])];
