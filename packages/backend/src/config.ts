@@ -11,6 +11,14 @@ const env = process.env;
 
 export const isProduction = env.NODE_ENV === "production";
 
+/**
+ * Whether this process is meant to answer public traffic. The two gates disagree by design today —
+ * `assertProductionSecrets` below keys off NODE_ENV, the dev-login bypass keys off AIHOT_ENVIRONMENT
+ * (`environmentName`, and `admin/auth.ts` with it) — so a deployment that sets only one of them is half
+ * hardened. Anything that would leak the deployment's own public address to readers checks both.
+ */
+const servesPublicTraffic = isProduction || env.AIHOT_ENVIRONMENT === "production";
+
 function str(name: string, fallback?: string): string {
   const value = env[name];
   if (value !== undefined && value !== "") return value;
@@ -32,14 +40,41 @@ function bool(name: string, fallback: boolean): boolean {
   return value === "1" || value.toLowerCase() === "true";
 }
 
+/** Loopback addresses: right on the developer's machine, wrong for anything a reader can reach. */
+const LOCAL_HOST = /^(?:localhost|127\.\d+\.\d+\.\d+|\[?::1\]?)$/i;
+
+/**
+ * Every generated absolute link uses this address, whatever Host a request arrives with. With no
+ * SITE_URL it falls back to the development address in `industry/site.ts`, which is correct in
+ * development and silently wrong in production: canonical tags, OpenGraph URLs, the RSS `<link>`, the
+ * sitemap `<loc>` entries, robots' Sitemap line and security.txt would all publish localhost, and the
+ * MCP host lock (apps/api/src/routes/mcp.ts:219) would then reject the real host. A public deployment
+ * that forgot the variable, or copied the template value, refuses to boot instead.
+ */
+function siteUrl(): string {
+  const value = str("SITE_URL", SITE.defaultUrl).replace(/\/+$/, "");
+  if (!servesPublicTraffic) return value;
+  let host = "";
+  try {
+    const url = new URL(value);
+    if (url.protocol === "http:" || url.protocol === "https:") host = url.hostname;
+  } catch {
+    host = "";
+  }
+  if (!host || LOCAL_HOST.test(host)) {
+    throw new Error(`Refusing to start in production: SITE_URL is ${JSON.stringify(value)} — set it to the address readers actually use (https://example.com, or https://example.com/<prefix> behind a prefixing proxy). A missing or localhost SITE_URL publishes localhost into canonical tags, OpenGraph URLs, RSS, sitemap <loc>, robots' Sitemap line and security.txt, and makes the MCP host lock reject the real host.`);
+  }
+  return value;
+}
 
 export const config = {
   databaseUrl: str("DATABASE_URL", "postgres://127.0.0.1:5432/aihot"),
   apiPort: int("API_PORT", 3001),
   webPort: int("WEB_PORT", 3000),
   apiBaseUrl: str("API_BASE_URL", "http://127.0.0.1:3001"),
-  // Every generated absolute link uses this address, whatever Host a request arrives with.
-  siteUrl: str("SITE_URL", SITE.defaultUrl).replace(/\/+$/, ""),
+  // Every generated absolute link uses this address, whatever Host a request arrives with. In
+  // production a missing or loopback value refuses to boot (see `siteUrl()` above).
+  siteUrl: siteUrl(),
   selectedVisibleAfterSeconds: int("SELECTED_VISIBLE_AFTER_SECONDS", 180),
   egressProxyUrl: env.EGRESS_PROXY_URL || null,
   allowPrivateNetworkFetch: bool("ALLOW_PRIVATE_NETWORK_FETCH", false),
