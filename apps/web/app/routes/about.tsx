@@ -255,7 +255,7 @@ export default function AboutPage() {
               onPointerLeave={() => setFocus(null)}
               onFocus={() => setFocus(i)}
               onBlur={() => setFocus(null)}
-              className={`border-line py-6 outline-none transition-colors ${STAGE_CELL[i]} ${focus === i ? "bg-accent-softer" : ""}`}
+              className={`border-line py-6 transition-colors ${STAGE_CELL[i]} ${focus === i ? "bg-accent-softer" : ""}`}
             >
               <div className="flex items-baseline gap-2.5">
                 <span className="num text-[12px] font-bold tracking-[0.12em] text-accent">{s.no}</span>
