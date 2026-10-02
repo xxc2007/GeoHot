@@ -233,6 +233,13 @@ function allowedOrigin(origin: string | undefined): boolean {
 // Browser clients on the site or on a local development address (the MCP inspector): a 204 preflight,
 // and the protocol headers readable on responses.
 const CORS_METHODS = "POST, GET, DELETE, OPTIONS";
+/**
+ * What `/api/mcp` actually answers. The server runs stateless, so it offers no GET stream and no
+ * session to delete: GET and DELETE both reach a 405. Advertising them in `Allow` invited clients to
+ * try them and retry on the contradiction, so the header now describes the behaviour, not the CORS
+ * surface above it.
+ */
+const MCP_ALLOWED_METHODS = "POST, OPTIONS";
 const CORS_HEADERS = "Content-Type, Accept, MCP-Protocol-Version, MCP-Session-Id, Last-Event-ID, MCP-Method, MCP-Name";
 const CORS_EXPOSE = "MCP-Protocol-Version, MCP-Session-Id, Link";
 
@@ -301,6 +308,6 @@ export function registerMcp(app: FastifyInstance) {
     method: ["PUT", "PATCH"],
     url: "/api/mcp",
     handler: async (_req, reply) =>
-      reply.code(405).header("Allow", CORS_METHODS).header("Cache-Control", "no-store").type("application/json").send({ jsonrpc: "2.0", error: { code: -32000, message: "Method not allowed" }, id: null }),
+      reply.code(405).header("Allow", MCP_ALLOWED_METHODS).header("Cache-Control", "no-store").type("application/json").send({ jsonrpc: "2.0", error: { code: -32000, message: "Method not allowed." }, id: null }),
   });
 }
