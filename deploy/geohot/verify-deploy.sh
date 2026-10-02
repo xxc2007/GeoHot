@@ -7,6 +7,14 @@
 #   它会把主站首页与主站 sitemap 的 sha256 记到 deploy/geohot/baseline-main.txt。
 #   部署后跑:  bash verify-deploy.sh          —— 逐项断言并比对基线。
 #   只想更新基线（确认主站本来就变了）：重新 --save-baseline 并写明原因。
+#   基线文件按 key=value 逐行读（不 source）：少一个键就是少一个键，不能让整个脚本以 unbound variable 死掉。
+#
+# 可用的环境变量:
+#   GEOHOT_BASE / MAIN_SITE / GEOHOT_BASE_PATH / BASELINE_FILE / GEOHOT_APP_ROOT
+#   GEOHOT_DEPLOYED_AT=<上线日，date -d 认的任意写法>
+#     第 7 节用它判断"上线后的第一个 08:00 档期到没到"：没到（或没给）时日报/热榜为空只记 note，
+#     过了就变成硬失败。上线当天这两项本来就是空的（见 README-deploy.md 第 0 节决定 1 与
+#     DEPLOYMENT.md「还没做的」第一条），不给这个变量又不许它红，才是对这台机器诚实的做法。
 set -uo pipefail   # 不用 -e：要收集所有失败再统一退出
 
 BASE="${GEOHOT_BASE:-https://xxc2007.me/geohot}"
@@ -50,13 +58,31 @@ fi
 # ---------------------------------------------------------------------------
 echo "== 1. 主站未受影响（与部署前基线比对）=="
 if [[ -f "$BASELINE_FILE" ]]; then
-  # shellcheck disable=SC1090
-  source "$BASELINE_FILE"
+  # 基线文件是给人看的 key=value，不是脚本；source 它有两个毛病：① 缺键时下面那些
+  # ${main_home_sha256:0:12} 会在 set -u 下直接以"unbound variable"死掉 —— 报告变成"脚本自己炸了"，
+  # 而真相是"基线里没有这一项"；② source 等于执行别人的文件。所以按键读出来，读不到就是空串。
+  baseline_get() { # baseline_get <KEY> —— 没有这个键 / 文件读不到 ⇒ 空串（绝不 unbound）
+    local line
+    line="$(grep -m1 -E "^[[:space:]]*$1[[:space:]]*=" "$BASELINE_FILE" 2>/dev/null | tr -d '\r' || true)"
+    printf '%s' "${line#*=}"
+  }
+  base_home="$(baseline_get main_home_sha256)"
+  base_sitemap="$(baseline_get main_sitemap_sha256)"
+  base_at="$(baseline_get captured_at)"
+  if [[ -z "$base_home" && -z "$base_sitemap" ]]; then
+    bad "基线文件 $BASELINE_FILE 里既没有 main_home_sha256 也没有 main_sitemap_sha256 —— 这不是\"主站变了\"，是基线根本没记上（被截断？手改过？）。重新跑 bash verify-deploy.sh --save-baseline"
+  fi
+  [[ -n "$base_at" ]] && note "基线采集于 $base_at" || note "基线没有 captured_at 这一行（旧版格式，或写入时被打断）"
   now_home=$(curl -s -A "$UA" "$MAIN/" | sha256sum | cut -d' ' -f1)
-  if [[ "$now_home" == "${main_home_sha256:-}" ]]; then ok "主站首页字节级一致（sha256=${now_home:0:12}…）"
-  else bad "主站首页哈希变了！基线=${main_home_sha256:0:12}… 现在=${now_home:0:12}… —— 立即执行 rollback.sh"; fi
+  if [[ -z "$base_home" ]]; then
+    bad "主站首页无法比对：基线缺 main_home_sha256（现在=${now_home:0:12}…）"
+  elif [[ "$now_home" == "$base_home" ]]; then ok "主站首页字节级一致（sha256=${now_home:0:12}…）"
+  else bad "主站首页哈希变了！基线=${base_home:0:12}… 现在=${now_home:0:12}… —— 立即执行 rollback.sh"; fi
   now_sm=$(curl -s -A "$UA" "$MAIN/sitemap.xml" | sha256sum | cut -d' ' -f1)
-  [[ "$now_sm" == "${main_sitemap_sha256:-}" ]] && ok "主站 sitemap 一致" || bad "主站 sitemap 哈希变了（基线已失效？先人工确认再更新基线）"
+  if [[ -z "$base_sitemap" ]]; then
+    bad "主站 sitemap 无法比对：基线缺 main_sitemap_sha256（现在=${now_sm:0:12}…）"
+  elif [[ "$now_sm" == "$base_sitemap" ]]; then ok "主站 sitemap 一致"
+  else bad "主站 sitemap 哈希变了（基线=${base_sitemap:0:12}… 现在=${now_sm:0:12}…；基线已失效？先人工确认再更新基线）"; fi
 else
   bad "没有基线文件 $BASELINE_FILE —— 无法证明主站未受影响。部署前应先 --save-baseline。"
 fi
@@ -85,12 +111,15 @@ for p in / /all /hot /daily /about /agent /terms /privacy /admin/login /feed.xml
 done
 hc=$(curl -s -A "$UA" --max-time 15 "$BASE/api/health")
 echo "$hc" | grep -q '"ok":true' && echo "$hc" | grep -q '"db":"ok"' && ok "/api/health $hc" || bad "/api/health 异常: $hc"
-# 裸前缀（无尾斜杠）：nginx 里那条 `location = $PREFIX` 的 308 是承重的（fix-bare-path.sh:28-44），
+# 裸前缀（无尾斜杠）：nginx 里那条 `location = $PREFIX` 的 308 是承重的（fix-bare-path.sh 里那段
+# "the trailing-slash redirect is load-bearing"的注释和它插入的 exact-match 块），
 # 客户端路由的 basename 匹配不了裸路径，只在服务端 SSR 是好的。跟随后要 200、跳转 ≤1、且落在 https 上
-# （`return 308 https://$host/...` 写死了 scheme，明文 staging vhost 会在这一点断掉 —— 见片段 :39-40）。
+# （`return 308 https://$host/...` 写死了 scheme，明文 staging vhost 会在这一点断掉 —— 见片段里那条
+# "⚠️ 代价：scheme 写死成 https"的注释）。
 if [[ -n "$PREFIX" ]]; then
   bare=$(curl -s -A "$UA" -o /dev/null -w '%{http_code} %{num_redirects} %{url_effective}' -L --max-time 30 "$MAIN$PREFIX")
-  if [[ "$bare" =~ ^200\ [01]\ https:// ]]; then ok "裸 $PREFIX -> ${bare}（补斜杠由 nginx 做）"; else bad "裸 $PREFIX -> $bare（期望 200、跳转 ≤1、https 收尾；见 geohot.nginx.conf片段:41-43）"; fi
+  if [[ "$bare" =~ ^200\ [01]\ https:// ]]; then ok "裸 $PREFIX -> ${bare}（补斜杠由 nginx 做）"
+  else bad "裸 $PREFIX -> $bare（期望 200、跳转 ≤1、https 收尾；缺的是 geohot.nginx.conf片段 里那条 location = /geohot 的 308 —— 它把目标写死成 https，见该片段与 fix-bare-path.sh）"; fi
 else
   note "域名根部署（GEOHOT_BASE_PATH=\"\"）：没有裸前缀要补斜杠，跳过这一条"
 fi
@@ -150,12 +179,12 @@ for p in /api/admin/sources /api/admin/runs /api/admin/monitor/events; do
   # /api/admin/monitor/* is an AI-only module: with industry/features.ts codexResetMonitor off the routes
   # are never registered (apps/api/src/routes/admin.ts:99-103), so 404 is that module's own gate, not a
   # routing failure. The two always-registered paths above still have to answer 401.
-  elif [[ "$p" == "/api/admin/monitor/events" && "$c" == "404" ]]; then note "$p -> 404（codexResetMonitor 关闭，路由未注册，与 app.ts:67 的模型榜同一开关）"
+  elif [[ "$p" == "/api/admin/monitor/events" && "$c" == "404" ]]; then note "$p -> 404（codexResetMonitor 关闭，路由未注册，与 api 的 registerLeaderboard 那一道同一开关：apps/api/src/routes/admin.ts 的 if (FEATURES.codexResetMonitor) 与 apps/api/src/app.ts 的 if (FEATURES.leaderboard)）"
   else bad "$p -> $c（期望 401/403；404 也可能是剥前缀路由问题）"; fi
 done
 
 # ---------------------------------------------------------------------------
-echo "== 6. MCP：initialize 不得 421（host 锁只比 hostname，mcp.ts:219-220,254-255）=="
+echo "== 6. MCP：initialize 不得 421（host 锁只比 hostname：apps/api/src/routes/mcp.ts 的 SITE_HOST / ALLOWED_HOSTS，421 在 ALLOWED_HOSTS.has(host) 那一行）=="
 mcp_http=$(curl -s -o /tmp/geohot_mcp.$$ -w '%{http_code}' -X POST \
   -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
   -H 'MCP-Protocol-Version: 2025-06-18' \
@@ -172,15 +201,57 @@ c=$(curl -s -o /dev/null -w '%{http_code}' -X PUT --max-time 15 "$BASE/api/mcp")
 [[ "$c" == "405" ]] && ok "MCP PUT -> 405" || bad "MCP PUT -> $c（期望 405，mcp.ts:300-305）"
 
 # ---------------------------------------------------------------------------
-echo "== 7. 内容面：日报非空、热榜非空、快照计数 =="
+echo "== 7. 内容面：日报、热榜、快照计数 =="
+# 上线当天后两项**本来就该是空的**，把它们算成红会把一次正确的部署判成失败：
+#   · reports.daily 的档期是 0 8 * * *（Asia/Shanghai，见 apps/worker/src/schedules.ts 的 SCHEDULES 表）。
+#     DEPLOYMENT.md「还没做的」第一条记的就是这个：worker 在 16:17 才起，当天 08:00 那一档已经过了。
+#   · 热榜要的是被归进同一事件的多条材料；新库里未筛选的默认 UNRELATED（README-deploy.md 第 0 节决定 1）。
+# 只有"这台机器已经跑过了它上线之后的第一个 08:00"，空日报才是真故障。判断要知道上线时刻，
+# 而那件事 HTTP 面查不到 —— 所以由 GEOHOT_DEPLOYED_AT 显式给（date -d 认的任意写法，如 2026-10-02）。
+# 没给就退回 note 并说清"不是不查，是查不到"，不假装知道。
+content_expected=0
+if [[ -z "${GEOHOT_DEPLOYED_AT:-}" ]]; then
+  content_reason="没有 GEOHOT_DEPLOYED_AT —— 无法判断上线后的第一个 08:00 档期到没到，这项只记 note。要它变成硬断言：GEOHOT_DEPLOYED_AT=2026-10-01 bash verify-deploy.sh"
+else
+  deployed_epoch="$(date -d "$GEOHOT_DEPLOYED_AT" +%s 2>/dev/null || true)"
+  bj_hour="$(TZ=Asia/Shanghai date +%-H 2>/dev/null || true)"
+  today_eight="$(TZ=Asia/Shanghai date -d "today 08:00" +%s 2>/dev/null || true)"
+  if [[ ! "$deployed_epoch" =~ ^[0-9]+$ ]]; then
+    content_reason="GEOHOT_DEPLOYED_AT='$GEOHOT_DEPLOYED_AT' 本机 date 解析不了，这项只记 note"
+  elif [[ ! "$bj_hour" =~ ^[0-9]+$ || ! "$today_eight" =~ ^[0-9]+$ ]]; then
+    content_reason="算不出北京时间的 08:00 边界（date 不支持 TZ=/-d？），这项只记 note"
+  else
+    # 最近一个**已经过去**的北京 08:00：现在不到 8 点就是昨天那一档，否则就是今天这一档。
+    if (( 10#$bj_hour < 8 )); then cutoff=$(( today_eight - 86400 )); else cutoff=$today_eight; fi
+    cutoff_h="$(TZ=Asia/Shanghai date -d "@$cutoff" +'%F %H:%M' 2>/dev/null || echo '?')"
+    if (( deployed_epoch <= cutoff )); then
+      content_expected=1
+      content_reason="上线于 $GEOHOT_DEPLOYED_AT，最近一档 $cutoff_h 已经过去 → 空日报/空热榜算硬失败"
+    else
+      content_reason="上线于 $GEOHOT_DEPLOYED_AT，最近一档 $cutoff_h 早于上线时刻 → 还没有 08:00 跑过，只记 note"
+    fi
+  fi
+fi
 snap=$(curl -s -A "$UA" --max-time 30 "$BASE/api/v1/selected/snapshot")
 cnt=$(echo "$snap" | grep -Eo '"count":[0-9]+' | head -1 | tr -dc 0-9)
-if [[ -n "${cnt:-}" && "$cnt" -ge 1 ]]; then ok "selected/snapshot count=$cnt"; else bad "selected/snapshot 无 count 或为 0: ${snap:0:200}"; fi
+# 这一项**不**跟着放宽：selected 是 seed:curated 当场灌进去的（bootstrap-server.sh 第 8 节），
+# 上线那一刻就该有。它是"管道与语料到底通没通"的那个信号，空了就是真出事。
+if [[ -n "${cnt:-}" && "$cnt" -ge 1 ]]; then ok "selected/snapshot count=$cnt"; else bad "selected/snapshot 无 count 或为 0（seed:curated 没进去？bootstrap 第 8 节）: ${snap:0:200}"; fi
+if [[ "$content_expected" == "1" ]]; then content_check=bad; else content_check=note; fi
+note "$content_reason"
 daily=$(curl -s -A "$UA" --max-time 30 "$BASE/api/v1/dailies/latest")
-echo "$daily" | grep -Eq '"sections":\s*\[\s*\{' \
-  && ok "最新日报含非空 sections（/api/v1/dailies/latest，v1.ts:105）" || bad "日报为空/缺 sections（reports.daily 08:00 未跑或语料没进窗口？schedules.ts:46）: ${daily:0:200}"
+if echo "$daily" | grep -Eq '"sections":\s*\[\s*\{'; then
+  ok "最新日报含非空 sections（/api/v1/dailies/latest，v1.ts:105）"
+else
+  $content_check "日报为空/缺 sections（reports.daily 的 08:00 档期没跑，或语料没进窗口？schedules.ts 的 reports.daily 那一行）: ${daily:0:200}"
+fi
 hot=$(curl -s -A "$UA" --max-time 30 "$BASE/api/v1/hot-topics")
-echo "$hot" | grep -Eq '"items":\s*\[\s*\{' && ok "热榜非空（/api/v1/hot-topics，v1.ts:80）" || bad "热榜为空（归组默认 UNRELATED —— 需要 fixture 判断覆盖，见 README-deploy.md 故障表）: ${hot:0:200}"
+if echo "$hot" | grep -Eq '"items":\s*\[\s*\{'; then
+  ok "热榜非空（/api/v1/hot-topics，v1.ts:80）"
+else
+  $content_check "热榜为空（新料默认 UNRELATED，要 fixture 判断覆盖 —— README-deploy.md 第 0 节决定 1 与故障表那一行）: ${hot:0:200}"
+fi
+[[ "$content_check" == "note" ]] && note "上面两项按 note 处理；确认已过第一个 08:00 还空着，就带 GEOHOT_DEPLOYED_AT=<上线日> 重跑，它们会变成硬失败"
 
 # ---------------------------------------------------------------------------
 echo "== 8. 仓库自带冒烟（只读，15 页 + 15 机器出口，scripts/smoke.ts:12 含 /api/health）=="
