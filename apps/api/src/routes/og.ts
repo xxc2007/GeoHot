@@ -108,7 +108,7 @@ export function registerOg(app: FastifyInstance) {
       kicker: `${REPORT_NAMES[r.kind]} · ${r.key}`,
       title: r.lead?.title ?? r.title,
       subtitle: r.lead?.leadParagraph ?? r.overview,
-      meta: `${r.stories.length} 条核心新闻 · 约 ${r.readingMinutes} 分钟读完`,
+      meta: `${r.stories.length} 条核心新闻${r.readingMinutes > 0 ? ` · 约 ${r.readingMinutes} 分钟读完` : ""}`,
     }, 86400);
   });
 
