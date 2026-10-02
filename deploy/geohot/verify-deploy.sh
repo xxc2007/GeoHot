@@ -11,10 +11,18 @@ set -uo pipefail   # 不用 -e：要收集所有失败再统一退出
 
 BASE="${GEOHOT_BASE:-https://xxc2007.me/geohot}"
 MAIN="${MAIN_SITE:-https://xxc2007.me}"
+# 站点前缀跟着 BASE 走，两处不可能对不上（要单独指定就设 GEOHOT_BASE_PATH；根路径部署留空）。
+# 下面第 3、4 节那些断言曾经把 /geohot 写死在 grep 里，那对根路径部署是必然红的。
+host_part="${BASE#*://}"; base_path=""
+[[ "$host_part" == */* ]] && base_path="/${host_part#*/}"
+PREFIX="${GEOHOT_BASE_PATH-$base_path}"
+PREFIX="${PREFIX%/}"; [[ -n "$PREFIX" ]] && PREFIX="/${PREFIX#/}"   # 归一化："" 或 /geohot
 UA="Mozilla/5.0 (Windows NT 10.0) Chrome/126"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 BASELINE_FILE="${BASELINE_FILE:-$HERE/baseline-main.txt}"
-REPO_DIR="${REPO_DIR:-/opt/geohot/GEOHOT}"
+# One install path for the whole deploy package (GEOHOT_APP_ROOT; bootstrap / install-units / rollback and
+# the systemd/ templates all default to the same value).
+APP_ROOT="${GEOHOT_APP_ROOT:-/opt/geohot/app}"
 FAILS=0
 FAIL_LIST=()
 
@@ -56,6 +64,14 @@ artalk=$(status_of "$MAIN/comment/")
 
 # ---------------------------------------------------------------------------
 echo "== 2. GEOHOT 路由状态（前缀下）=="
+# 常驻单元：DEPLOYMENT.md:10 记的是四个（brain/api/worker/web）。少一个 geohot-brain 不是"少个可选进程"，
+# 而是 config.ts:92 的 MODEL_CALLS_ENABLED 缺省 true 之下每一次分析请求都打到没人听的 127.0.0.1:3055。
+if command -v systemctl >/dev/null 2>&1 && [[ -n "$(systemctl list-unit-files 'geohot-*' --no-legend 2>/dev/null)" ]]; then
+  for u in geohot-brain geohot-api geohot-worker geohot-web; do
+    state=$(systemctl is-active "$u" 2>/dev/null || true)
+    [[ "$state" == "active" ]] && ok "$u active" || bad "$u 状态=$state —— 四个单元都要 active（见 deploy/geohot/systemd/）"
+  done
+fi
 for p in / /all /hot /daily /about /agent /terms /privacy /admin/login /feed.xml /sitemap.xml /llms.txt /openapi-v1.json /manifest.webmanifest /og/site.png /icon.png; do
   code=$(status_of "$BASE$p")
   case "$p" in
@@ -66,17 +82,37 @@ for p in / /all /hot /daily /about /agent /terms /privacy /admin/login /feed.xml
 done
 hc=$(curl -s -A "$UA" --max-time 15 "$BASE/api/health")
 echo "$hc" | grep -q '"ok":true' && echo "$hc" | grep -q '"db":"ok"' && ok "/api/health $hc" || bad "/api/health 异常: $hc"
+# 裸前缀（无尾斜杠）：nginx 里那条 `location = $PREFIX` 的 308 是承重的（fix-bare-path.sh:28-44），
+# 客户端路由的 basename 匹配不了裸路径，只在服务端 SSR 是好的。跟随后要 200、跳转 ≤1、且落在 https 上
+# （`return 308 https://$host/...` 写死了 scheme，明文 staging vhost 会在这一点断掉 —— 见片段 :39-40）。
+if [[ -n "$PREFIX" ]]; then
+  bare=$(curl -s -A "$UA" -o /dev/null -w '%{http_code} %{num_redirects} %{url_effective}' -L --max-time 30 "$MAIN$PREFIX")
+  if [[ "$bare" =~ ^200\ [01]\ https:// ]]; then ok "裸 $PREFIX -> ${bare}（补斜杠由 nginx 做）"; else bad "裸 $PREFIX -> $bare（期望 200、跳转 ≤1、https 收尾；见 geohot.nginx.conf片段:41-43）"; fi
+else
+  note "域名根部署（GEOHOT_BASE_PATH=\"\"）：没有裸前缀要补斜杠，跳过这一条"
+fi
 
 # ---------------------------------------------------------------------------
 echo "== 3. 页面内资源 URL 全部落在前缀下 =="
 page=$(curl -s -A "$UA" --max-time 30 "$BASE/")
-root_abs=$(echo "$page" | grep -Eo '(href|src)="/[^"]*"' | grep -vE '(href|src)="/geohot' || true)
-if [[ -z "$root_abs" ]]; then ok "无根绝对 href/src"
-else bad "发现根绝对资源（子路径改造未完成/构建未带 base）:"; echo "$root_abs" | head -10 | sed 's/^/      /'; fi
-# 抽前 8 个 /geohot/ 资源实际请求一遍
-res=$(echo "$page" | grep -Eo '(href|src)="/geohot/[^"]*"' | sed -E 's/.*"([^"]*)".*/\1/' | grep -E '^/geohot/(assets|_routes)' | head -8)
-if [[ -z "$res" ]]; then note "页面里没抽到 /geohot/assets 资源（若改造走 <Links/> 注入属正常，跳过）"
+if [[ -z "$PREFIX" ]]; then
+  note "跳过根绝对检查：域名根部署的资源本来就以 / 开头，没有前缀可比"
 else
+  root_abs=$(echo "$page" | grep -Eo '(href|src)="/[^"]*"' | grep -vE "(href|src)=\"$PREFIX" || true)
+  if [[ -z "$root_abs" ]]; then ok "无根绝对 href/src"
+  else bad "发现逃出前缀的绝对资源（构建没带 BASE_PATH=$PREFIX？）:"; echo "$root_abs" | head -10 | sed 's/^/      /'; fi
+fi
+# 抽前 8 个前缀下的资源实际请求一遍（这一条就是"HTML 200、每个 css/js 都 404"的那个网）
+if [[ -n "$PREFIX" ]]; then
+res=$(echo "$page" | grep -Eo "(href|src)=\"$PREFIX/[^\"]*\"" | sed -E 's/.*"([^"]*)".*/\1/' | grep -E "^$PREFIX/(assets|_routes)" | head -8)
+if [[ -z "$res" ]]; then note "页面里没抽到 $PREFIX/assets 资源（若改造走 <Links/> 注入属正常，跳过）"
+else
+  for r in $res; do
+    c=$(status_of "${BASE%/}$r"); [[ "$c" == "200" ]] && ok "asset $r -> 200" || bad "asset $r -> $c"
+  done
+fi
+else
+  res=$(echo "$page" | grep -Eo '(href|src)="/(assets|_routes)/[^"]*"' | sed -E 's/.*"([^"]*)".*/\1/' | head -8)
   for r in $res; do
     c=$(status_of "${BASE%/}$r"); [[ "$c" == "200" ]] && ok "asset $r -> 200" || bad "asset $r -> $c"
   done
@@ -84,16 +120,20 @@ fi
 
 # ---------------------------------------------------------------------------
 echo "== 4. feeds / sitemap 的 <loc> 带前缀 =="
+site_host="${BASE#*://}"; site_host="${site_host%%/*}"
+site_host_re="${site_host//./\\.}"        # 点要转义，否则 host 里任何一个字符都算匹配
 for f in /feed.xml /sitemap.xml /llms.txt; do
   body=$(curl -s -A "$UA" --max-time 30 "$BASE$f")
   hosts=$(echo "$body" | grep -Eo 'https?://[a-zA-Z0-9.-]+' | sort -u | tr '\n' ' ')
-  echo "$hosts" | grep -q 'xxc2007.me' && ok "$f 引用域名: $hosts" || bad "$f 没有任何 xxc2007.me 链接"
+  echo "$hosts" | grep -qF "$site_host" && ok "$f 引用域名: $hosts" || bad "$f 没有任何 $site_host 链接"
   if [[ "$f" == "/llms.txt" ]]; then
-    echo "$body" | grep -q '/geohot' && ok "llms.txt 链接带前缀" || bad "llms.txt 链接不带 /geohot（SITE_URL 没设对？config.ts:42）"
+    if [[ -z "$PREFIX" ]]; then note "llms.txt：域名根部署，前缀断言不适用（只比域名）"
+    elif echo "$body" | grep -qF "$PREFIX"; then ok "llms.txt 链接带前缀 $PREFIX"
+    else bad "llms.txt 链接不带 $PREFIX（SITE_URL 没设对？config.ts:54-68）"; fi
   else
     n_all=$(echo "$body" | grep -Eo '<(loc|url)>[^<]+' | wc -l)
-    n_pre=$(echo "$body" | grep -Eo '<(loc|url)>https://xxc2007\.me/geohot' | wc -l)
-    [[ "$n_all" -gt 0 && "$n_all" -eq "$n_pre" ]] && ok "$f：$n_pre/$n_all 条链接全部带 /geohot" || bad "$f：带前缀 $n_pre / 共 $n_all"
+    n_pre=$(echo "$body" | grep -Eo "<(loc|url)>https://${site_host_re}${PREFIX}" | wc -l)
+    [[ "$n_all" -gt 0 && "$n_all" -eq "$n_pre" ]] && ok "$f：$n_pre/$n_all 条链接全部落在 https://${site_host}${PREFIX}" || bad "$f：带前缀 $n_pre / 共 $n_all"
   fi
 done
 
@@ -134,10 +174,10 @@ echo "$hot" | grep -Eq '"items":\s*\[\s*\{' && ok "热榜非空（/api/v1/hot-to
 
 # ---------------------------------------------------------------------------
 echo "== 8. 仓库自带冒烟（只读，15 页 + 15 机器出口，scripts/smoke.ts:12 含 /api/health）=="
-if command -v node >/dev/null 2>&1 && [[ -f "$REPO_DIR/scripts/smoke.ts" ]]; then
-  if (cd "$REPO_DIR" && node scripts/smoke.ts --base "$BASE"); then ok "smoke.ts 全绿"; else bad "smoke.ts 有失败项（见上方输出）"; fi
+if command -v node >/dev/null 2>&1 && [[ -f "$APP_ROOT/scripts/smoke.ts" ]]; then
+  if (cd "$APP_ROOT" && node scripts/smoke.ts --base "$BASE"); then ok "smoke.ts 全绿"; else bad "smoke.ts 有失败项（见上方输出）"; fi
 else
-  note "跳过：本机没有 node 或缺 $REPO_DIR/scripts/smoke.ts（在服务器上跑才有效）"
+  note "跳过：本机没有 node 或缺 $APP_ROOT/scripts/smoke.ts（在服务器上跑才有效）"
 fi
 
 # ---------------------------------------------------------------------------
