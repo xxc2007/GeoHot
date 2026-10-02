@@ -5,8 +5,8 @@
 /**
  * 网页上的类别（筛选栏、卡片角标、RSS 分类订阅）。key 是网址和接口里的身份，上线后不要改。
  * section 是日报里的分节标题（几个类别可以共用一节，按这里的顺序排）；guide 告诉模型怎么归类。
- * section 只有三节，且最后一节必须留在数组末尾：reports/compose.ts:20 用 `SECTION_OF.industry` 找兜底分节，
- * 本站没有 industry 类别，所以它落到 `SECTION_ORDER.at(-1)`，也就是没有类别的资料进最后一节（实践）。
+ * section 只有三节，且最后一节必须留在数组末尾：reports/compose.ts 取 `SECTION_ORDER.at(-1)` 作为
+ * 「没有类别的资料」的兜底分节，而 SECTION_ORDER 就是本数组 section 字段的首现顺序（学科、技术、实践）。
  */
 export const CATEGORIES = [
   { key: "physical", label: "自然地理", section: "学科", guide: "地貌、气候、水文、土壤、植被等自然要素本身的变化，以及地震、火山、台风、洪涝干旱、冰川冻土、海平面与生态事件，要有观测数据、图件或影像支撑。卫星与算法本身归「地理信息技术」，区划与规划归「人文地理」" },
@@ -21,6 +21,16 @@ export const CATEGORIES = [
  * 内容理解一步给每篇资料判的“内容类型”（写在 prompts/content-understanding.md 里，改了类型要同步改那份提示词）。
  * 评分提示词（prompts/selection-score.md）按类型给五个维度不同的权重。
  */
+/**
+ * 防灾避险口径：这些类别或标签的条目，要在正文里给「本站不是预警信息发布机构」的安全提示留一个入口。
+ * 判定规则属于行业，不属于页面——换行业时改这里，不改 `routes/item.tsx`。
+ */
+export const RISK_NOTICE_CATEGORIES: string[] = ["physical"];
+export const RISK_NOTICE_TAGS: string[] = ["预警/响应", "灾害事件"];
+
+/** 日报的「发布数量」指标统计这一类（数据与观测发布）。key 是稳定身份，节名跟着词表走。 */
+export const RELEASE_CATEGORY_KEY = "geotech";
+
 export const ITEM_TYPES = ["disaster_event", "observation_release", "policy_planning", "research_finding", "technology_release", "exploration_report", "opinion_analysis"] as const;
 
 // ── 标签词表 ────────────────────────────────────────────────────────────────────────────
