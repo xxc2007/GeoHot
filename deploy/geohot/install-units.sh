@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # Writes the four long-lived systemd units for the /geohot/ deployment and reloads systemd.
 # Written after the first deployment attempt failed on three things, all of which are fixed here:
-#   1. the units pointed at a checkout that does not exist — see APP_ROOT below, both this script and the
-#      templates under systemd/ now take the one install path variable (GEOHOT_APP_ROOT);
+#   1. the units pointed at a checkout that does not exist — see APP_ROOT below. All four scripts read the
+#      one install-path variable (GEOHOT_APP_ROOT); the systemd/*.service templates under deploy/geohot/ are
+#      plain text (systemd has no variable interpolation here), so they hard-code the same default and are
+#      only correct for that path — bootstrap-server.sh step 10 refuses to install them otherwise.
 #   2. every unit needs HOME=/opt/geohot (the geohot account has no login shell) and an absolute
 #      --env-file path — a relative one resolves against the unit's own WorkingDirectory and the unit
 #      crash-loops with "node: .env: not found";
