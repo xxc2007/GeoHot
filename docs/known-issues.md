@@ -8,15 +8,19 @@
 `https://xxc2007.me/geohot/` 于 2026-10-01 上线（装法、验证命令、踩过的坑见
 `deploy/geohot/DEPLOYMENT.md`），主站首页逐字节未变。以下四项是上线时就知道的缺口：
 
-1. **日报尚未出刊**：worker 当天 16:17 才起，08:00 的档期已过，`reports` 表为空，`/daily` 到出刊前是诚实的空态。
+1. **日报已出刊（2026-10-02 更新）**：`/daily` 现在是「第 1 期 · 2026 年 10 月 2 日」，21 件大事、14 个来源、
+   12 件一手发布。上线首日（10-01）确实是诚实的空态，原因见下面「上线首日没有日报」一节。
 2. **两处地理文案没回到 `industry/`**：`apps/web/app/routes/topics.tsx`（把 `industry/topics.json` 里
    已有的分组名与说明又抄了一份常量）与 `apps/web/app/features/report/format.ts`（日报分页标题拼接）
    里写死了中文地理词。2026-10-02 已把另外两处**规则**搬回词表：条目页的防灾提示判定改用
    `industry/taxonomy.ts` 的 `RISK_NOTICE_CATEGORIES` / `RISK_NOTICE_TAGS`，日报的发布数量指标改用
    `RELEASE_CATEGORY_KEY`，`apps/` 与 `packages/` 里不再有地理类别 key。
 3. **Cloudflare 回源是明文 80**：浏览器↔CF 是 HTTPS，CF↔源站是 http。与主站同策略，改 Full(strict) 属于主站配置变更，未动。
-4. **发布流程会 force push**：`build-release.sh --push` 用强制推更新线上那一个干净提交，
-   线上历史因此不保留开发过程——这是刻意的，但确实意味着每次发布都重写线上历史。
+4. **发布不是一个脚本，是一条条 API 调用**：`build-release.sh` 已经随 `.brief/` 一起删掉了，现在发布是
+   对每个变更文件调 `gh api --method PUT repos/…/contents/<path>`，线上历史因此是一串按文件的提交，
+   而不是一个被反复强制推的干净提交。这个变化要记在这里，因为下面那张审计表里「唯一成立的一条」说的就是旧做法。
+   已知副作用：contents API 上传的是工作区字节，绕过 `.gitattributes` 的换行归一化，所以发布后必须
+   在上传前把 `\r` 去掉，否则线上 blob 与本地索引会差在 CRLF 上（内容等价，哈希不等）。
 
 ## 独立审计的复核结果（2026-10-01）
 
