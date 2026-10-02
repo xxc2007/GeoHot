@@ -152,10 +152,15 @@ async function handle(req: import("node:http").IncomingMessage, res: import("nod
   }
 
   if (isApiOwned(appPath)) {
-    // The visitor's address, decided here: the one the trusted proxy saw (the last X-Forwarded-For
-    // entry), or this connection's own. Both headers carry only that.
+    // The visitor's address, decided here: the one the trusted proxy saw, or this connection's own.
+    // Which header that is depends on who is in front. nginx appends its own `$remote_addr`, so with a
+    // CDN between (Cloudflare → nginx → here) the LAST X-Forwarded-For entry is the CDN's edge address,
+    // not the reader's, and every visitor would share one rate-limit bucket. A CDN that overwrites a
+    // dedicated header at the edge makes that header the honest answer, so it is configurable; the
+    // default stays the last hop, which is right for a plain reverse proxy.
     const forwarded = String(req.headers["x-forwarded-for"] ?? "").split(",").map((v) => v.trim()).filter(Boolean);
-    const client = TRUST_PROXY && forwarded.length ? forwarded[forwarded.length - 1]! : (req.socket.remoteAddress ?? "");
+    const named = TRUST_PROXY ? String(req.headers[(process.env.CLIENT_IP_HEADER ?? "").toLowerCase()] ?? "").trim() : "";
+    const client = named || (TRUST_PROXY && forwarded.length ? forwarded[forwarded.length - 1]! : (req.socket.remoteAddress ?? ""));
     const headers = { ...req.headers, "x-forwarded-for": client, "x-real-ip": client };
     const upstream = httpRequest({ hostname: API.hostname, port: API.port, path: appPath + search, method: req.method, headers }, (up) => {
       // The api knows nothing about the prefix, so its root-relative redirects get it here.
