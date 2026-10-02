@@ -8,6 +8,7 @@ import { useAdminAction } from "../../features/admin/action";
 import { bj, money } from "../../features/admin/format";
 import { KIND_LABEL, MODE_LABEL, VISIBILITY_LABEL } from "../../features/admin/labels";
 import { AdminPage, Badge, Button, Card, Empty, Field, Input, Json, KV, ReasonDialog, Select, Textarea } from "../../features/admin/ui";
+import { publicPath } from "../../lib/public-path";
 
 type Row = Record<string, any>;
 interface Chain {
@@ -88,7 +89,7 @@ export default function ContentItem({ loaderData }: Route.ComponentProps) {
           {p?.visibility !== "withdrawn" && p && (
             <>
               <span>·</span>
-              <a className="text-accent" href={`/items/${a.id}`} target="_blank" rel="noreferrer">公开页</a>
+              <a className="text-accent" href={publicPath(`/items/${a.id}`)} target="_blank" rel="noreferrer">公开页</a>
             </>
           )}
         </span>
@@ -232,7 +233,7 @@ export default function ContentItem({ loaderData }: Route.ComponentProps) {
                   </div>
                   {m.story_public_id && (
                     <div className="mt-0.5">
-                      事件 <a className="text-accent" href={`/story/${m.story_public_id}`} target="_blank" rel="noreferrer">{m.story_title}</a> <span className="font-mono text-[12px] text-ink-4">#{m.story_id}</span>
+                      事件 <a className="text-accent" href={publicPath(`/story/${m.story_public_id}`)} target="_blank" rel="noreferrer">{m.story_title}</a> <span className="font-mono text-[12px] text-ink-4">#{m.story_id}</span>
                     </div>
                   )}
                 </div>
