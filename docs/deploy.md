@@ -52,7 +52,7 @@ TRUST_PROXY=true           # 访客地址从 Caddy 转来的请求头里读（we
 docker compose --profile https up -d --build
 ```
 
-已经有 Nginx 的话，不用 Caddy，把站点反向代理到 `http://127.0.0.1:3000`，带上 `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`，并在 `.env` 里设 `TRUST_PROXY=true`。这一行**两个进程都读、写法一致**（`apps/web/server.ts:20` 与 `apps/api/src/app.ts:28` 的 `trustProxy`）：不设为 `true`，登录与反馈的每地址限流就会把全体访客算成代理那一个 IP；直接对外（前面没有代理）时才保持 `false`，那时信 `X-Forwarded-For` 等于让客户端自报地址。`SITE_URL` 一定要写成读者实际访问的地址：生成的链接、RSS、分享图和 MCP 都用它；生产下留空或留 `localhost` 会拒绝启动（`packages/backend/src/config.ts:54-68`）。挂在子路径（如 `/geohot`）上还要带构建期变量 `BASE_PATH=/geohot` 重新 `npm run build -w @aihot/web`，并把 `SITE_URL` 写成带前缀的地址——`deploy/geohot/` 那一套（nginx 片段、systemd 单元、`bootstrap-server.sh` 的 `GEOHOT_BASE_PATH`）是这条路线的完整装法。
+已经有 Nginx 的话，不用 Caddy，把站点反向代理到 `http://127.0.0.1:3000`，带上 `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`，并在 `.env` 里设 `TRUST_PROXY=true`。这一行**两个进程都读、写法一致**（`apps/web/server.ts:20` 与 `apps/api/src/app.ts:28` 的 `trustProxy`）：不设为 `true`，登录与反馈的每地址限流就会把全体访客算成代理那一个 IP；直接对外（前面没有代理）时才保持 `false`，那时信 `X-Forwarded-For` 等于让客户端自报地址。`SITE_URL` 一定要写成读者实际访问的地址：生成的链接、RSS、分享图和 MCP 都用它；生产下留空或留 `localhost` 会拒绝启动（`packages/backend/src/config.ts:54-68`）。挂在子路径（如 `/geohot`）上还要带构建期变量 `BASE_PATH=/geohot` 重新 `npm run build -w @aihot/web`，并把 `SITE_URL` 写成带前缀的地址——`deploy/geohot/` 那一套（nginx 片段、systemd 单元、`bootstrap-server.sh` 的 `GEOHOT_BASE_PATH`）是这条路线的完整装法；那一套装 `TRUST_PROXY` 时不写死值——第 5 节实测 `nginx.service` 在不在跑再决定，判断错了就用 `GEOHOT_TRUST_PROXY=true|false` 覆盖，正是上面那句"两端取舍"的工程化。
 
 ### 更新
 
@@ -85,13 +85,15 @@ docker compose exec -T db pg_dump -Fc -U aihot aihot > myhot-$(date +%F).dump   
    docker compose exec -T db pg_restore -U aihot -d aihot --no-owner --no-privileges /tmp/d.dump
    ```
    纯文本那份 `.sql.gz` 则是 `gunzip -c myhot-<日期>.sql.gz | docker compose exec -T db psql -U aihot -d aihot`。
-4. 数一遍关键表，跟旧机对得上才算成功（不是"没报错"就算）：
+4. 数一遍关键表，跟旧机对得上才算成功（不是"没报错"就算）。这七张表都实测存在于 `database/migrations/`：
    ```bash
    docker compose exec -T db psql -U aihot -d aihot -tAc \
      "SELECT 'topics',count(*) FROM topics UNION ALL SELECT 'sources',count(*) FROM sources
       UNION ALL SELECT 'publications',count(*) FROM publications UNION ALL SELECT 'digests',count(*) FROM story_digests
-      UNION ALL SELECT 'articles',count(*) FROM articles UNION ALL SELECT 'reports',count(*) FROM reports"
+      UNION ALL SELECT 'articles',count(*) FROM articles UNION ALL SELECT 'reports',count(*) FROM reports
+      UNION ALL SELECT 'selected',count(*) FROM selected_ledger"
    ```
+   （`deploy/geohot/README-deploy.md` 第 6.1 节第 5 步是同一个查询的 nginx/systemd 版，两张表清单现在一致。）
 5. `docker compose up -d` 起全栈，再跑仓库自带的冒烟：`node scripts/smoke.ts --base http://<服务器地址>:3000`。
 6. 搬家还必须**重新签发**`SESSION_SECRET`、`IMG_PROXY_SIGN_SECRET`、`ADMIN_PASSWORD`、`INGEST_TOKEN` 和数据库口令，
    并把 `SITE_URL` 改成新地址——详见 `deploy/geohot/README-deploy.md` 第 6.1 与第 10 节（那份是 nginx/systemd 路线，
@@ -137,7 +139,7 @@ createdb myhot
 **其它参数会被静默忽略、也不报错**——没有 `--llm-key`，模型 key 请在生成后的 `.env` 里改
 `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` 三行。
 
-在 `.env` 里加上（`SITE_URL` 在 `NODE_ENV=production` 下必填、且不能是 localhost，否则拒绝启动，见上面第 10 行那段）：
+在 `.env` 里加上（`SITE_URL` 在 `NODE_ENV=production` 下必填、且不能是 localhost，否则拒绝启动——见上面「用 Docker（推荐）」一节里那两段讲 `SITE_URL` 的话，同一条检查在两条路线上都生效）：
 
 ```bash
 DATABASE_URL=postgres://你的用户名@127.0.0.1:5432/myhot
