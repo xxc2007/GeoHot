@@ -69,6 +69,12 @@ if (!mcpOk) failed += 1;
  * whatever else lives on that domain — this one mistake produced six broken links (the RSS footer, the
  * three Agent-page resources, the OpenAPI link, and the whole no-JavaScript admin sign-in) before it got
  * a check. `<Link to>` is exempt: React Router prefixes those itself.
+ *
+ * Scope, and its blind spot: this reads the bytes the server sent. Anything a page only builds during
+ * hydration is invisible here — that is exactly how the second canonical survived this check for a day
+ * (`siteUrl()` answered `window.location.origin` in the browser, so React Router's client-side `meta()`
+ * appended one pointing at the neighbouring site). The hydrated meta surface is guarded by the
+ * Lighthouse canonical audit in `deploy/geohot/README-deploy.md`'s manual steps, not by this loop.
  */
 const prefix = new URL(base).pathname.replace(/\/+$/, "");
 if (prefix) {
@@ -82,6 +88,18 @@ if (prefix) {
       if (url === prefix || url.startsWith(`${prefix}/`) || url.startsWith(`${prefix}?`)) continue;
       console.log(`✗ ${path}  ${url}  escapes the "${prefix}" deployment`);
       escaping += 1;
+    }
+    // The absolute identity a page claims for itself. `siteUrl()` used to answer `window.location.origin`
+    // in the browser, which under a prefix is the *other* site on that domain; hydration then appended a
+    // second canonical pointing there. Root-relative checks above cannot see that — it is a full URL.
+    for (const m of html.matchAll(/<link rel="canonical" href="([^"]+)"|<meta property="og:url" content="([^"]+)"/g)) {
+      const abs = m[1] ?? m[2]!;
+      let u: URL;
+      try { u = new URL(abs); } catch { console.log(`✗ ${path}  canonical/og:url is not absolute: ${abs}`); escaping += 1; continue; }
+      if (u.pathname !== prefix && !u.pathname.startsWith(`${prefix}/`)) {
+        console.log(`✗ ${path}  ${abs}  claims an address outside the "${prefix}" deployment`);
+        escaping += 1;
+      }
     }
   }
   console.log(`${escaping ? "✗" : "✓"} root-absolute URLs stay under ${prefix}`);
