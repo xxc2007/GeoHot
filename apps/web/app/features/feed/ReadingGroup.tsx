@@ -122,7 +122,7 @@ function Toggle({ open, onToggle, children }: { open: boolean; onToggle: () => v
         e.stopPropagation();
         onToggle();
       }}
-      className="relative z-10 inline-flex items-center gap-0.5 text-[12.5px] text-ink-4 transition-colors hover:text-accent"
+      className="relative z-10 inline-flex min-h-6 items-center gap-0.5 text-[12.5px] text-ink-4 transition-colors hover:text-accent"
     >
       {children}
       <IconChevronDown size={13} className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`} />

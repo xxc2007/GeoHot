@@ -122,6 +122,17 @@ function SiteShell({ changelogVersion, children }: { changelogVersion: string | 
         跳到正文
       </a>
       <Sidebar changelogVersion={changelogVersion} />
+      {/* The one thing said out loud when scripts are off. Expansions ("另有 N 家信源报道", "展开 N 条
+          进展"), the filter controls and the canvas charts fetch or draw on the client, so their buttons
+          are inert without JavaScript — the lists they open are never in the served HTML, so no CSS
+          could reveal them either. Everything a reader came for is still here: every card is a real
+          anchor, the daily issue, a story and its sources read top to bottom, and /all answers by form.
+          Saying which half is missing is cheaper than letting someone hunt for a broken button. */}
+      <noscript>
+        <p className="mx-4 mt-3 rounded-control border border-line bg-raised p-3 text-[12.5px] leading-relaxed text-ink-2">
+          当前浏览器未启用 JavaScript：正文、日报、事件页与全部链接照常可读，但卡片上的「另有 N 家信源报道」「展开 N 条进展」这类按需加载的列表、筛选控件与走势图无法使用。
+        </p>
+      </noscript>
       {/* Mobile shell (≤ 960px): one centred column, the tab bar below. Desktop: the page fills the main area
           up to the list width (--page-max-wide), centred beyond it. */}
       <main id="main" tabIndex={-1} className="min-w-0 flex-1 pb-[calc(72px+env(safe-area-inset-bottom))] outline-none lg:px-7 lg:pb-[72px] lg:pt-6">

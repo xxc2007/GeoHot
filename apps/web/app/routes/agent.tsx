@@ -270,7 +270,9 @@ export default function AgentPage() {
         <PillTabs layoutId="agent-tab" label="接入方式" active={tab} onSelect={(k: string) => select(k as TabKey)} items={TABS.map((t) => ({ key: t.key, label: t.label }))} />
       </div>
 
-      <div className="mt-7" role="tabpanel">
+      {/* Not role=tabpanel: the switch above is a radiogroup, and a tabpanel without a tab is a
+          contract nothing satisfies. A named region carries the same "where am I" for a reader. */}
+      <div className="mt-7" role="region" aria-label="接入方式说明">
         {tab === "mcp" && <McpTab base={base} />}
         {tab === "rss" && <RssTab base={base} />}
         {tab === "api" && <ApiTab base={base} />}

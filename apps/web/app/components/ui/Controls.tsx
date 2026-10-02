@@ -1,4 +1,4 @@
-import { forwardRef, type ButtonHTMLAttributes, type SelectHTMLAttributes } from "react";
+import { forwardRef, useId, type ButtonHTMLAttributes, type SelectHTMLAttributes } from "react";
 import { IconChevronDown } from "../icons";
 
 type Variant = "primary" | "secondary" | "ghost" | "danger";
@@ -33,10 +33,14 @@ export const Button = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLBut
 
 /** Native select as a pill, like the site's other controls. */
 export function Select({ className = "", children, ...rest }: SelectHTMLAttributes<HTMLSelectElement>) {
+  // Every select gets an `id`, even when the caller did not pass one: Chrome flags a form field without
+  // an id or name ("should have an id or name attribute") and fires an autofill/scrape heuristic at it.
+  const autoId = useId();
   return (
     <span className={`relative inline-flex ${className}`}>
       <select
-        className="h-8 w-full cursor-pointer appearance-none rounded-full border border-line-strong bg-surface py-0 pl-3.5 pr-8 text-[12.5px] text-ink-2 outline-none transition-colors hover:border-ink-4 focus:border-accent"
+        id={rest.id ?? autoId}
+        className="h-8 w-full cursor-pointer appearance-none rounded-full border border-line-strong bg-surface py-0 pl-3.5 pr-8 text-[12.5px] text-ink-2 outline-none transition-[border-color,box-shadow] hover:border-ink-4 focus:border-accent focus:shadow-[0_0_0_3px_var(--accent-soft)]"
         {...rest}
       >
         {children}

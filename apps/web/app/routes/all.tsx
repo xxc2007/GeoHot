@@ -116,6 +116,12 @@ export default function AllPage() {
         </div>
       )}
 
+      {/* A section heading for the list itself. The cards are <h3>, and on every other board the level
+          above them is a real section title ("精选", "最新"); here the page title <h1> sat straight on
+          top of <h3>, which Lighthouse reads as a skipped level (the heading-order audit) and a screen
+          reader reading by headings reads as "no list section". Hidden, because the design has no label
+          at this spot — the page title above already says what the list is. */}
+      <h2 className="sr-only">{f.q ? "搜索结果" : "全部动态"}</h2>
       <div className={`transition-opacity duration-200 ${busy ? "opacity-50" : ""}`}>
         {data.items.length === 0 ? (
           <div className="mt-2 lg:card">

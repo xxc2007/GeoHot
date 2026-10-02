@@ -45,9 +45,24 @@ function FacesButton({ participants, total, names, children }: { participants: H
   const root = useRef<HTMLSpanElement>(null);
   const popup = useRef<HTMLSpanElement>(null);
   const id = useId();
+  // The popup is a non-modal dialog, so it needs the two things that make that honest: focus moves into
+  // it when it opens (a screen reader otherwise announces only `aria-expanded` and the names never get
+  // read), and focus comes back to the faces when it closes (otherwise Escape drops the reader on
+  // <body>, several tab stops away from where they were).
+  // The restore belongs in `close`, not in an effect watching `open`: unmounting the portal clears the
+  // popup ref before that effect runs, so by then there is nothing left to ask "was focus inside it?".
+  // Measured in a real browser — the effect version lost focus to <body> on every Escape.
+  const wasOpen = useRef(false);
+  const close = () => {
+    if (popup.current?.contains(document.activeElement)) root.current?.querySelector<HTMLButtonElement>("button")?.focus();
+    setAt(null);
+  };
+  useEffect(() => {
+    if (open && !wasOpen.current) popup.current?.focus({ preventScroll: true });
+    wasOpen.current = open;
+  }, [open]);
   useEffect(() => {
     if (!open) return;
-    const close = () => setAt(null);
     const onDown = (e: PointerEvent) => {
       if (!root.current?.contains(e.target as Node) && !popup.current?.contains(e.target as Node)) close();
     };
@@ -77,7 +92,7 @@ function FacesButton({ participants, total, names, children }: { participants: H
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
-          if (open) return setAt(null);
+          if (open) return close();
           const r = e.currentTarget.getBoundingClientRect();
           const below = window.innerHeight - r.bottom > 240;
           setAt({ top: below ? r.bottom + 6 : Math.max(8, r.top - 6 - 240), left: Math.min(Math.max(8, r.left), document.documentElement.clientWidth - 248) });
@@ -87,7 +102,15 @@ function FacesButton({ participants, total, names, children }: { participants: H
         {children}
       </button>
       {open && createPortal(
-        <span ref={popup} id={id} role="dialog" aria-label="参与讨论的来源" style={at} className="fixed z-50 max-h-[240px] w-[240px] overflow-y-auto rounded-control border border-line bg-raised p-3 text-[12.5px] leading-relaxed text-ink-2 shadow-[var(--shadow-pop)]">
+        // tabIndex makes it focusable (the dialog above) and reachable by Tab while it scrolls (WCAG 2.1.1:
+        // a scrollable region must be keyboard operable, and a name list can overflow on a short screen).
+        <span
+          ref={popup} id={id} role="dialog" aria-label="参与讨论的来源" tabIndex={-1} style={at}
+          onKeyDown={(e) => {
+            if (e.key === "Tab") { e.preventDefault(); root.current?.querySelector<HTMLButtonElement>("button")?.focus(); }
+          }}
+          className="fixed z-50 max-h-[240px] w-[240px] overflow-y-auto rounded-control border border-line bg-raised p-3 text-[12.5px] leading-relaxed text-ink-2 shadow-[var(--shadow-pop)] outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        >
           {editorial.length > 0 && (
             <>
               <span className="block text-[11.5px] font-semibold text-ink-4">精选组</span>

@@ -34,6 +34,10 @@ sudo journalctl -u geohot-web -n 3                                              
 1. **代码**：`git archive HEAD` 打包 → 服务器 `sudo tar -xzf … -C /opt/geohot/app --owner=geohot --group=geohot`。
    解包后必须 `sudo chown -R geohot:geohot /opt/geohot/app`——root 解出来的目录会让
    `npm run build` 在写 `apps/web/build/` 时拿到 `Permission denied (os error 13)`。
+   两个细节值得写下来，因为 2026-10-02 的一次热更把这两句都跳过了：`--owner/--group` 与那句 chown
+   **缺一个都会中招**，而报错点看着毫无关——构建删不掉 `build/` 是因为它是 `apps/web/` 里的一个条目，
+   要的是**父目录**的写权限，`build/` 自己是不是 geohot owned 毫无关系。只改几个源文件时，同一对命令
+   带上路径即可（`git archive HEAD apps/web/app/root.tsx …`），但第 2 步的带前缀构建一步都不能省。
    （这次实装走的是离线搬运；`bootstrap-server.sh` 第 2 节的默认路径是直接 clone 公开仓库
    `https://github.com/xxc2007/GeoHot.git`（`GEOHOT_REPO_URL` 可覆盖），并且它在 clone 前实测远端可达、
    连不上就把上面这套离线命令原样打给你 —— 不再拿一个占位地址去撞 git。）
@@ -57,8 +61,7 @@ sudo journalctl -u geohot-web -n 3                                              
    而 geohot 没有登录 shell，于是 npm 把缓存写进操作者的家目录、构建时以 EACCES 收场。
    同一个道理，第 3/4/8/9 节所有以 geohot 身份跑 node/npm/git 的地方现在都走一个带 `env HOME=$APP_HOME`
    的前缀，`install-units.sh` 与 `systemd/*.service` 里的 `Environment=HOME=` 是它的运行期对应物。
-3. **单元**：`bash deploy/geohot/install-units.sh`（见该脚本注释里的三条修正）。它写的是线上实际在跑的那组最小单元；
-   `deploy/geohot/systemd/*.service` 是同一批单元加一层 `ProtectSystem=strict` 等加固的版本，
+3. **单元**：`bash deploy/geohot/install-units.sh`（见该脚本注释里的三条修正）。它写的是线上实际在跑的那组最小单元；   `deploy/geohot/systemd/*.service` 是同一批单元加一层 `ProtectSystem=strict` 等加固的版本，
    bootstrap-server.sh 第 10 节装的是后者——**一台机器只走一条路**，两者的 `APP_ROOT` 都来自 `GEOHOT_APP_ROOT`。
    这一节以前只有三个 unit 文件（`geohot-brain.service` 是 2026-10-02 补的）：`install-units.sh` 一直会写它，
    而 `systemd/` 里没有，于是照模板装的那台机器上四个单元变成三个，`MODEL_CALLS_ENABLED` 的缺省又是
