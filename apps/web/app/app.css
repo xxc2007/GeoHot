@@ -535,3 +535,14 @@
 @keyframes cr-pulse {
   50% { box-shadow: 0 0 0 7px color-mix(in srgb, currentColor 6%, transparent); }
 }
+
+/* 日报是可以打印的报纸。没有这一段，打印稿会带上 180px 侧栏、手机上固定的底部标签栏、滚过就糊的
+   吸顶筛选条，以及所有下沉色卡片底——纸面上全是灰块。 */
+@media print {
+  aside:has(nav[aria-label="主导航"]), nav[aria-label="底部导航"], button[aria-label="回到顶部"] { display: none !important; }
+  html, body { background: #fff !important; color: #000 !important; }
+  main { max-width: none !important; margin: 0 !important; padding: 0 !important; }
+  .card { background: #fff !important; box-shadow: none !important; border-color: #b8b8b8 !important; }
+  .sticky, [class*="backdrop-blur"] { position: static !important; backdrop-filter: none !important; }
+  h1, h2, h3, h4 { break-after: avoid-page; }
+}
