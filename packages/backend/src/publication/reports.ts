@@ -23,6 +23,8 @@ interface ReportRow {
 
 interface Availability {
   available: boolean;
+  /** False only when the item itself is withdrawn or not public — see `citationFrom`'s struck-through branch. */
+  public?: boolean;
   firstParty: boolean;
   sourceId: string | null;
   sourceIcon: string | null;
@@ -153,7 +155,7 @@ function citationFrom(raw: Record<string, any>, avail: Map<string, Availability>
     //    so the reader sees a struck-through title and nothing else (tests/publication.test.ts pins this);
     //  · the item is public but its source left the editorial set — there is no site page, yet the paper
     //    still has to say where the claim came from, so title, source name and original address stay.
-    const struck = a && !a.public;
+    const struck = a?.public === false;
     return {
       itemId: id, title: String(raw.title ?? ""), summary: null,
       sourceName: struck ? "" : String(raw.sourceName ?? raw.source?.name ?? ""),

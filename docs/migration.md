@@ -198,9 +198,10 @@ curl -s https://<新域名>/<前缀>/api/v1/dailies | head -c 200
   （不是'没报错'就算）"是这一步的全部要点，别跳。
 
 不管哪条路：**`.env`、`.env.pipeline`、`.env.ports`、`.data/`、`.pgdata/` 都不进 git**（`.gitignore` 兜住了
-`.env*` 这一族）。但 `.gitignore` 目前**不**忽略 `prod.env`、`secrets.env`、`config/production.env`、
-`id_ed25519`、`server.pem` 这几类文件名（2026-10-03 `git check-ignore -v` 实测都不被忽略），
-搬家时新机器上生成的这些文件请放到仓库目录**之外**，或者先把补规则的那几行合进 `.gitignore`。
+`.env*` 这一族）。2026-10-03 起 `.gitignore` 还补了 `*.env`、`*.pem`、`*.key`、`*.p8`、`id_*`、
+`*deploy_key*`、`secrets*`、`credentials*`——此前 `prod.env`、`secrets.env`、`config/production.env`、
+`id_ed25519`、`server.pem` 这几类文件名**不被忽略**（`git check-ignore -v` 实测），新机器上顺手放在仓库里
+就会被提交。补规则之后仍建议把密钥文件放在仓库目录**之外**。
 
 ---
 
@@ -240,7 +241,18 @@ bash deploy/geohot/verify-github-sync.sh        # 独立复跑一遍逐字节核
 ### 7.3 三张配图重拍
 
 `docs/shots/` 下只有三张图，`scripts/check-shots.ts` 会保证"每张都被 README 引用、没有重复、明暗与命名一致"。
-搬家 + 文案变化之后按下面这张单子重拍（视口 **1440×900**，浅色主题，**桌面档**）：
+搬家 + 文案变化之后重拍一条命令即可（视口 **1440×900**，浅色主题，**桌面档**）：
+
+```bash
+npm run shots -- --base https://<新域名>/<前缀>          # 首页与热点榜
+# 日报要拍固定日期，不拍 /daily：
+"<chrome 路径>" --headless=new --hide-scrollbars --force-color-profile=srgb \
+  --window-size=1440,900 --screenshot=docs/shots/daily-light.png \
+  "https://<新域名>/<前缀>/daily/<一个固定日期>"
+node scripts/check-shots.ts                              # 引用、尺寸、命名一致
+```
+（`scripts/shoot.ts` 自己找 Chrome：Playwright 的浏览器缓存 → 系统 Chrome/Edge；也可以 `--chrome=` 指路。）
+按下面这张单子复核：
 
 | 文件 | 拍哪个地址 | 拍完必须复核的点 |
 |---|---|---|

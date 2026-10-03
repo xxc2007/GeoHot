@@ -194,16 +194,17 @@ try {
     ["v1 精选", titlesOfJson(await getText("/api/v1/items?mode=selected&limit=100"), (p) => p.items?.map((i: any) => i.title))],
     ["v1 全部", titlesOfJson(await getText("/api/v1/items?mode=all&limit=100"), (p) => p.items?.map((i: any) => i.title))],
     ["精选 RSS", titlesOfFeed(await getText("/feed.xml"))],
-    ["主题目录", (topics.topics ?? []).map((t) => t.name)],
+    // 主题目录本身不参与这条判定：/topics 上那 45 条是主题名，IPCC、OpenStreetMap 这类专有名词本来就没有
+    // 中文写法，把它们当"没有中文标题的条目"是这条检查的误报。条目标题由下面的主题页和上面的时间线覆盖。
     // 主题页只查内容最多的那一个：它一定有内容，也不会因为空主题页而假绿。
-    ...(busiest ? [`主题页 ${busiest.slug}`, titlesOfJson(await getText(`/api/site/topics/${busiest.slug}`), (p) => p.items?.map((i: any) => i.title))] as [string, string[]] : []),
+    ...(busiest ? [[`主题页 ${busiest.slug}`, titlesOfJson(await getText(`/api/site/topics/${busiest.slug}`), (p) => (p.items ?? []).map((i: any) => i.title))] as [string, string[]]] : []),
   ];
   // The paper is a machine exit too: an entry the reader cannot read in Chinese must not be set in it.
   const latestDaily = await fetch(`${base}/api/v1/dailies/latest`, { signal: AbortSignal.timeout(30_000) });
   if (latestDaily.status === 200) {
     outlets.push(["日报版面", titlesOfJson(await latestDaily.text(), (p) => [
-      ...(p.report?.sections ?? []).flatMap((s: any) => s.items ?? []).map((i: any) => i.title),
-      ...(p.report?.flashes ?? []).map((f: any) => f.title),
+      ...((p.report?.sections ?? []) as any[]).flatMap((s: any) => (Array.isArray(s?.items) ? s.items : [])).map((i: any) => i?.title ?? ""),
+      ...((p.report?.flashes ?? []) as any[]).map((f: any) => f?.title ?? ""),
     ])]);
   } else {
     console.log(`– reader copy  no daily paper yet (HTTP ${latestDaily.status})`);
@@ -211,6 +212,13 @@ try {
 
   let leaks = 0;
   for (const [name, titles] of outlets) {
+    // 取不到数组说明这一出口的形状变了——那是一次失败，不是一行崩溃：整段检查被 throw 打断时，
+    // 后面几个出口就再也没被看过，而输出看起来只像"最后一条报错了"。
+    if (!Array.isArray(titles)) {
+      console.log(`✗ reader copy  ${name}：取到的不是标题数组（这一出口的形状变了，检查没跑）`);
+      failed += 1;
+      continue;
+    }
     const bad = titles.filter(englishCopy);
     leaks += bad.length;
     if (bad.length) {
