@@ -55,14 +55,20 @@ async function sendFile(req: FastifyRequest, reply: FastifyReply, file: string, 
 }
 
 function robotsTxt(): string {
+  // Under a sub-path deployment the rules have to speak about this app's paths: `Disallow: /admin/`
+  // would otherwise describe a route that is not even this site's, while /geohot/admin/ stays unlisted.
+  // Crawlers read the domain-root file, so in the shared-domain deployment this copy is the one the
+  // operator mirrors there — it must still be correct on its own (docs/migration.md 第 2 节).
+  const prefix = new URL(config.siteUrl).pathname.replace(/\/+$/, "");
+  const at = (path: string) => `${prefix}${path}`;
   return [
     "User-agent: *",
-    "Allow: /api/v1/",
-    "Allow: /api/mcp",
-    "Disallow: /api/",
-    "Disallow: /admin/",
-    "Disallow: /starred",
-    "Disallow: /feedback",
+    `Allow: ${at("/api/v1/")}`,
+    `Allow: ${at("/api/mcp")}`,
+    `Disallow: ${at("/api/")}`,
+    `Disallow: ${at("/admin/")}`,
+    `Disallow: ${at("/starred")}`,
+    `Disallow: ${at("/feedback")}`,
     "",
     `Sitemap: ${config.siteUrl}/sitemap.xml`,
     "",

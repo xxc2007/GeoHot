@@ -98,9 +98,11 @@ async function build(readAt = new Date()): Promise<string> {
   // Indexable item pages — minus anything the release gate still holds back: `indexable` is a stored
   // projection (nothing recomputes it when an embargo lifts), so the gate has to be applied here. Listing
   // an embargoed item is how a URL that answers 404 for its first three minutes gets handed to a crawler.
+  // The table is aliased because `releasedCondition` qualifies its columns (`p.selected`): without the
+  // alias every build threw 42P01 and /sitemap.xml answered 503 on a fresh install.
   const items = await sql<{ id: string; t: Date }[]>`
-    SELECT article_id AS id, updated_at AS t FROM publications
-    WHERE visibility = 'public' AND indexable AND ${releasedCondition(readAt)} ORDER BY timeline_at DESC LIMIT ${MAX_URLS - entries.length}`;
+    SELECT p.article_id AS id, p.updated_at AS t FROM publications p
+    WHERE p.visibility = 'public' AND p.indexable AND ${releasedCondition(readAt)} ORDER BY p.timeline_at DESC LIMIT ${MAX_URLS - entries.length}`;
   for (const it of items) entries.push({ loc: `/items/${it.id}`, lastmod: it.t, changefreq: "monthly", priority: 0.5 });
 
   const body = entries

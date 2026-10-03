@@ -104,7 +104,7 @@ npm run build -w @aihot/web
 node scripts/smoke.ts --base http://localhost:3000
 ```
 
-`smoke.ts` 会打开 15 个页面和 15 个机器可读出口（含 MCP 握手），全部应当 ✓；最近一次实跑的逐条输出在第 8 节末尾。
+`smoke.ts` 会打开一批页面和机器可读出口（含 MCP 握手与几条跨出口不变量），全部应当 ✓。**条数以 `scripts/smoke.ts` 里的 `PAGES` 与 `MACHINE` 两张表为准**（2026-10-03 是 17 + 18，另加 2 项不变量）——不要把数字抄进文档再抄回来，那是这一条以前腐烂的原因。最近一次实跑的逐条输出在第 8 节末尾。
 
 ### 3.4 访问地址
 
@@ -400,7 +400,7 @@ $ node scripts/smoke.ts --base http://localhost:3000
 all checks passed                                          exit 0
 ```
 
-也就是 **15 个页面 + 15 个机器可读出口 = 30 项，全 ✓**。注意 `/admin/login` 在这 15 个页面里，而 `/admin` 本身不在——smoke 不测登录态，后台是否锁着要用第 11 节第 3 条那组命令。
+也就是 **`PAGES` + `MACHINE` 两张表里的全部条目（2026-10-03 是 17 + 18）再加两条跨出口不变量，全 ✓**。注意 `/admin/login` 在页面那张表里，而 `/admin` 本身不在——smoke 不测登录态，后台是否锁着要用第 11 节第 3 条那组命令。
 
 ### 8.1 CI 说明：上游工作流为什么不在发布树里，以及你自己的 CI 该跑什么
 

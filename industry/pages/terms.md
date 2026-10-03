@@ -74,7 +74,7 @@
 
 - RSS：精选摘要 `/feed.xml`、全部动态 `/feed/all.xml`、全文型 `/feed/full.xml`、当日日报 `/feed/daily.xml`、按分类 `/feed/category/{分类}.xml`。
 - 公开 API v1：`/api/v1/items`、`/api/v1/hot-topics`、`/api/v1/stories/{id}`、`/api/v1/dailies`，接口定义见 `/openapi-v1.json`。
-- MCP：`/api/mcp`（远程 Streamable HTTP），提供 `geohot_get_latest`、`geohot_search`、`geohot_get_hot_topics`、`geohot_get_story`、`geohot_get_daily` 5 个只读工具。
+- MCP：`/api/mcp`（远程 Streamable HTTP），提供 `geohot_get_latest`、`geohot_search`、`geohot_get_hot_topics`、`geohot_get_story`、`geohot_get_daily`、`geohot_get_weekly`、`geohot_get_monthly` 7 个只读工具（以 `tools/list` 的返回为准）。
 - 面向 Agent 的说明在 `/agent` 与 `/llms.txt`。
 
 请把接口当成阅读与检索用途。若你要把它接进自己的产品或服务，请先按第 4 条取得同意；接口形态可能调整，我们不承诺长期兼容未在本页列明的用法。
