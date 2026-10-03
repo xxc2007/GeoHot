@@ -19,7 +19,7 @@ docker compose up -d --build
 ```
 
 **克隆地址是 `xxc2007/GeoHot`，不是上游的 `KKKKhazix/AIHOT`。** 上游那个仓库是通用框架（AI 行业示例站），
-它的 `industry/` 里是 AI 信源、AI 提示词和 AIHOT 的品牌；从它克隆会部署成另一个站。本站的地理层——44 条信源、
+它的 `industry/` 里是 AI 信源、AI 提示词和 AIHOT 的品牌；从它克隆会部署成另一个站。本站的地理层——58 条信源、
 六个分类、提示词、门槛、品牌、条款页——只存在于 `xxc2007/GeoHot`。
 
 `env:init` 之后**先别急着 `up`**：它写出的 `.env` 里 `COLLECT_ENABLED=false`、`MODEL_CALLS_ENABLED=false`
@@ -36,7 +36,7 @@ docker compose up -d --build
 真服务商时，生成完再手工改 `.env` 的 `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` 三行（本机默认指向
 `tooling/brain-stub.ts` 那个本地"编辑大脑"，`LLM_API_KEY=local-brain` 是占位串）。**注意 Docker 容器里跑不到那个
 stub**：`LLM_BASE_URL=http://127.0.0.1:3055/v1` 指的是容器自己的回环，不是宿主机的 3055；要么显式
-`MODEL_CALLS_ENABLED=false`（新料只进"全部动态"、不进精选），要么在 compose 里另起一个 stub 服务并把地址指过去。
+`MODEL_CALLS_ENABLED=false`（**抓到的新料一条都不会公开**：`providers/llm.ts:157` 在任何付费步骤前就抛错，`jobs/content.ts` 走重试到 `failed`，永远到不了 `publishArticle`——2026-10-03 在真实代码里复核过，原文写的"只进全部动态、不进精选"是错的），要么在 compose 里另起一个 stub 服务并把地址指过去。生产实际跑的是后者：`MODEL_CALLS_ENABLED=true` + `LLM_BASE_URL=http://127.0.0.1:3055/v1` 指向本机 stub（`systemctl is-active geohot-brain`），所以条目当天就能公开。
 
 `.env` 里 `SITE_URL` 这一行在 `NODE_ENV=production`（compose 已写死，`docker-compose.yml:11`）时**不能留空也不能留
 `http://localhost:3000`**：留空时 compose 自己在解析阶段就报 `SITE_URL must be the public address readers use,
@@ -49,7 +49,7 @@ e.g. https://example.com`（`docker-compose.yml:16` 的 `${SITE_URL:?…}`），
 
 机器上没有 Node 的话，把 `.env.example` 复制成 `.env`，自己填 `ADMIN_PASSWORD`（至少 12 位）、`SESSION_SECRET`、`IMG_PROXY_SIGN_SECRET`、`POSTGRES_PASSWORD`（各用 `openssl rand -hex 32` 生成）、`INGEST_TOKEN`、`SITE_URL` 和 `LLM_API_KEY`。这条路只写 `.env` 一份：compose 的 `env_file` 也只读 `.env`，**`.env.pipeline` 在这条路线上根本不会被读到**（它是本机开发用来临时开阀的一次性文件，不属于部署）。
 
-启动后打开 `http://服务器地址:3000`，后台在 `/admin`，用管理员密码登录。**"多久有内容"取决于你上面有没有打开采集阀**：`setup` 容器只做 `scripts/migrate.ts` + `scripts/seed.ts`，也就是建表 + 导入 44 条地理信源、45 个主题与分类，**一条材料都还没有**；`COLLECT_ENABLED=true` 之后 worker 才会按各源的间隔去抓，第一次抓回来的东西要等预筛与打分跑完才见得到。人工策划的那份语料（`tooling/corpus/curated-materials.jsonl`，117 行）**不在这条路线上**——它要 `npm run seed:curated`，compose 里没有这一步；不跑它，站上就只有新采回来的材料，而新料没有对应的人工判断，进不了精选（这条设计的来由见 `README.md` 的「编辑大脑」一节）。想验证站点是否真的活着，用仓库自带的冒烟：`node scripts/smoke.ts --base http://服务器地址:3000`。
+启动后打开 `http://服务器地址:3000`，后台在 `/admin`，用管理员密码登录。**"多久有内容"取决于你上面有没有打开采集阀**：`setup` 容器只做 `scripts/migrate.ts` + `scripts/seed.ts`，也就是建表 + 导入 58 条地理信源、45 个主题与分类，**一条材料都还没有**；`COLLECT_ENABLED=true` 之后 worker 才会按各源的间隔去抓，第一次抓回来的东西要等预筛与打分跑完才见得到。人工策划的那份语料（`tooling/corpus/curated-materials.jsonl`，117 行）**不在这条路线上**——它要 `npm run seed:curated`，compose 里没有这一步；不跑它，站上就只有新采回来的材料，而新料没有对应的人工判断，进不了精选（这条设计的来由见 `README.md` 的「编辑大脑」一节）。想验证站点是否真的活着，用仓库自带的冒烟：`node scripts/smoke.ts --base http://服务器地址:3000`。
 
 `docker compose` 默认起五个容器：`db`（PostgreSQL 17）、`setup`（每次启动先跑数据库迁移和种子数据，然后退出）、`api`、`worker`（抓取、模型处理、定时任务）、`web`（网页）；带 `--profile https` 时多一个 `caddy`（自动申请并续期证书），共六个。
 

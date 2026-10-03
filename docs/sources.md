@@ -107,3 +107,45 @@ Content-Type: application/json
 - 返回 `{"ok": true, "created": <新建条数>}`。缺标题或网址的条目会被跳过，同一请求里重复的网址只取第一条。
 - `sourceId` 不存在时会自动建一个 `external` 信源，默认不进公开页面：到后台把它的参与方式改成 `editorial` 才会出现在站上。
 - 条目的 `raw._aihot.backfill` 为 `true` 时按历史回灌处理（不进入“今天”、不推送）。
+
+## 第八轮新增的 14 条（2026-10-03，逐条实测）
+
+四个新板块要落地，先要证明"这些源真的在发、采集器真的够得着"。下表每条都是**在采集器所在的那台服务器上**用
+`curl -sS -o /dev/null -w "%{http_code}|%{content_type}" -L --max-time 25 <url>` 当天实测过的；
+"最近条目"是当时从响应里读到的 `<pubDate>`/`<updated>`。加进 `industry/sources.json` 之后它们各自声明了
+`defaultCategory`，条目直接归到对应板块（见 `industry/boards.json`）。
+
+| id | 信源 | 类型 | 实测 | 归到 |
+|---|---|---|---|---|
+| `cn-chsi-kydt` | 研招网 政策与规定（教育部） | `web_list` | 200 · 80 条 · 最新 2026-09-24《2027 年全国硕士研究生招生工作管理规定》 | 考研 |
+| `intl-ogc-blog` | OGC 开放地理空间联盟 | `rss` | 200 · 10 条 · 2026-10-01 | 地理信息系统 |
+| `intl-qgis-releases` | QGIS 版本发布（官方 Atom） | `rss` | 200 · 10 条 · 2026-09-25 | 地理信息系统 |
+| `intl-thediplomat` | The Diplomat | `rss` | 200 · 96 条 · 2026-10-03 | 地理与政治 |
+| `intl-worldpoliticsreview` | World Politics Review | `rss` | 200 · 10 条 · 2026-10-02 | 地理与政治 |
+| `intl-foreignaffairs` | Foreign Affairs | `rss` | 200 · 20 条 · 2026-10-02 | 地理与政治 |
+| `intl-crisisgroup` | International Crisis Group | `rss` | 200 · 10 条 · 2026-09-25 | 地理与政治 |
+| `intl-chinadialogue-zh` | 对话地球 China Dialogue（中文版） | `rss` | 200 · 10 条 · 2026-10-01 | 地理与政治 |
+| `intl-unocha` | UN OCHA（人道协调厅） | `rss` | 200 · 10 条 · 2026-10-02 | 自然地理（灾害） |
+| `intl-theconversation-env` | The Conversation 环境话题（逐条 CC） | `rss` | 200 · 25 条 · 2026-10-02 | 自然地理 |
+| `intl-nasa-science` | NASA Science | `rss` | 200 · 10 条 · 2026-10-03 | 自然地理 |
+| `intl-loc-worlds-revealed` | 国会图书馆 · Worlds Revealed | `rss` | 200 · 10 条 · 2026-10-01 | 地理与历史 |
+| `intl-publicdomainreview` | The Public Domain Review | `rss` | 200 · 100 条 · 2026-09-30 | 地理与历史 |
+| `intl-eseh` | 欧洲环境史学会 ESEH | `rss` | 200 · 10 条 · 2026-09-30 | 地理与历史 |
+
+许可一律按最保守的一档登记：`site_fulltext` 与 `syndicate_fulltext` 都是 `false`，也就是只出标题、摘要与
+原文链接。其中三条的来源方自己写了更宽的条款（GDACS 已在用的 CC BY 4.0、The Conversation 逐条 CC BY、
+Public Domain Review 明说可自由分享与复用），**要不要放宽是站长的决定**，本轮没有替他改。
+
+### 看过但没有加的（点名记录，免得下一轮重新试一遍）
+
+- `www.mnr.gov.cn`（自然资源部）：内容活着（钉 CDN IP 后 200、2026-10-02 有新稿），但这台采集器的 DNS 解析不了
+  它，而**往配置里钉 IP 是不做的**（换机器就断）。要接它得先换网络出口或换解析。
+- `m.thepaper.cn` 的频道页：当天实测被 WAF 拦（403），且为定位频道号枚举过一次 `list_` id 之后整站持续 403
+  直到本轮结束——接入纪律就写在这儿：**固定 1–2 个频道号，绝不遍历**。
+- `alerts.weather.gov`：域名已注销（NXDOMAIN），替代是 `api.weather.gov/alerts`（`json_list` 可接，本轮未接）。
+- EMSC 的 RSS/JSON 三种写法全 404；`esri.com/arcgis-blog/feed/` 是 200 但 0 条目；`metrocosm.com/feed/` 已被人抢注
+  成别的内容——永不接入。
+- 停更超过 30 天的一律不加（`developers-blog` 915 天、Mapbox Medium 2179 天、CSIS 3865 天、
+  `gislounge` 71 天、`blog.qgis.org` 88.8 天〔已在用的保留〕）。
+- 考研分区剩下的候选：中国教育在线、知乎专栏、`chinakaoyan.com`（403）——要么前端渲染没有服务端列表，
+  要么没有机器可读形状，全部没接；这也是"考研板块目前只有政策一条源"的原因。

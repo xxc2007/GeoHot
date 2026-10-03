@@ -3,7 +3,7 @@
 // so, and a feed that garbles different characters on every load keeps one version. Before the
 // fixes all three became revisions of one article on every fetch. A changelog whose updates sit under
 // date headings (api-docs.deepseek.com/zh-cn/updates) yields its updates, not the headings.
-import { tag } from "./setup.ts";
+import { purgeTagged, tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import http from "node:http";
 import { after, before, test } from "node:test";
@@ -74,6 +74,7 @@ before(async () => {
 });
 after(async () => {
   await new Promise<void>((resolve) => server.close(() => resolve()));
+  await purgeTagged(T);
   await stopBoss();
   await closeDb();
 });

@@ -9,6 +9,8 @@ export interface SourceFacts {
   first_party: boolean;
   site_fulltext: boolean;
   syndicate_fulltext: boolean;
+  /** The section this source's items belong to when no explicit judgement exists (taxonomy key or null). */
+  default_category: string | null;
 }
 
 export function channelOf(sourceKind: string, hasXPost: boolean): "x" | "news" {

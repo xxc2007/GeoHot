@@ -114,7 +114,7 @@ npm run env:init                       # 写 .env 与 .env.pipeline；已存在�
    `if (process.env.COLLECT_ENABLED !== "false") await registerSourceJobs(boss)` 一见到 false 就**一个抓取任务都不注册**——
    站起来了但永远没有新内容。
    要真的采起来就显式写 `COLLECT_ENABLED=true`。模型侧三选一：
-   `MODEL_CALLS_ENABLED=false`（新料只进"全部动态"、不进精选）、或在新机器上起 `tooling/brain-stub.ts`
+   `MODEL_CALLS_ENABLED=false`（**抓到的条目一条都不会公开**——`providers/llm.ts:157` 直接抛错，见 `docs/deploy.md` 同一条更正）、或在新机器上起 `tooling/brain-stub.ts`
    并把 `LLM_BASE_URL` 指到它（**只听回环，绝不公网**）、或换成真服务商。
 
 **Docker 那条一条命令的路是域名根部署**，复现不了线上那个 `/geohot` 前缀：`Dockerfile:21` 构建 web 时
@@ -194,7 +194,7 @@ curl -s https://<新域名>/<前缀>/api/v1/dailies | head -c 200
 两条路都合法，选一条并写明：
 
 - **从零开始**（推荐，如果不需要历史）：新库跑 `npm run db:migrate` + `node --env-file-if-exists=.env scripts/seed.ts`
-  （导入 44 条信源与 45 个主题）+ `npm run seed:curated -- --enforce-source`（人工语料；**compose 路线不含这一步**）。
+  （导入 58 条信源与 45 个主题）+ `npm run seed:curated -- --enforce-source`（人工语料；**compose 路线不含这一步**）。
   验证：`node scripts/smoke.ts --base …` 全绿，`/api/v1/dailies` 的 `count` 从 0 开始重新长。
 - **整库搬走**：`docs/deploy.md` 的「恢复」一节六步（`pg_dump -Fc` → `pg_restore --no-owner --no-privileges` →
   **数七张关键表**跟旧机对得上 → 起全栈 → smoke → 重发密钥）。第 4 步那句"数一遍关键表，跟旧机对得上才算成功
@@ -233,7 +233,7 @@ bash deploy/geohot/verify-github-sync.sh        # 独立复跑一遍逐字节核
 
 | README 里的那句 | 复测命令 | 期望证据 |
 |---|---|---|
-| 信源「44+1」 | `node -e "console.log(require('./industry/sources.json').sources.length)"` | `44`（库里 `sources` 表多出的那一行是运维校验自动建的占位源） |
+| 信源「58+1」 | `node -e "console.log(require('./industry/sources.json').sources.length)"` | `58`（库里 `sources` 表多出的那一行是运维校验自动建的占位源） |
 | 主题 45 | `node -e "console.log(require('./industry/topics.json').topics.length)"` | 与新站 `/topics` 页自述的数一致 |
 | 日报期数 | `curl -s https://<新域名>/<前缀>/api/v1/dailies` | 看 `count` 与 `items[].date`（**介绍页不写这个数**，只写"看 `/daily/archive`"） |
 | 最新一期 | `curl -s https://<新域名>/<前缀>/daily \| grep -o '本期共 [0-9]* 条'` | 介绍页只写"最新一期"，具体期号属于 `/daily/<日期>` |

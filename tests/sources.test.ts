@@ -204,6 +204,31 @@ test("noise words match whatever their case", () => {
   assert.equal(noiseFiltered(c("iPhone 18 开售", ""), source), true);
 });
 
+test("a title whitelist keeps only what it names, and beats a drop marker", () => {
+  // 研招网政策栏目是全教育口径，只有带这些词的文章属于「考研」板块（2026-10-03 接入时定的口径）。
+  const source = {
+    config: {
+      ingestNoiseFilter: {
+        requireTitleMarkers: ["专业目录", "分数线", "管理规定"],
+        dropMarkersTitleOnly: ["MBA", "MPA"],
+      },
+    },
+  } as never;
+  const c = (title: string) => ({ url: "https://example.org/a", title, excerpt: "" }) as never;
+  assert.equal(noiseFiltered(c("教育部关于印发《2027年全国硕士研究生招生工作管理规定》的通知"), source), false);
+  assert.equal(noiseFiltered(c("某高校新增博士点：地理学一级学科专业目录调整"), source), false);
+  assert.equal(noiseFiltered(c("高校人事任免通知"), source), true, "白名单没命中就是噪声");
+  // 白名单是前置条件，不是豁免：命中白名单但命中丢弃表的（例如借「专业目录」讲 MBA 招生）照旧丢弃。
+  assert.equal(noiseFiltered(c("MBA 专业目录与分数线说明会"), source), true);
+});
+
+test("without a whitelist the old behaviour is unchanged", () => {
+  const source = { config: { ingestNoiseFilter: { dropMarkersTitleOnly: ["招生"] } } } as never;
+  const c = (title: string) => ({ url: "https://example.org/a", title, excerpt: "" }) as never;
+  assert.equal(noiseFiltered(c("某校招生公告"), source), true);
+  assert.equal(noiseFiltered(c("某地暴雨预警"), source), false);
+});
+
 test("dates in yyyymmdd and in JSON-LD are read", async () => {
   const days = await fetchJsonList({ id: "test-json", config: { url: `${site}/days.json`, itemsPath: "data.list", titlePaths: ["ttl"], urlTemplate: "https://example.org/blog/view?seq={seq}", publishedAtPath: "day", publishedAtUnit: "yyyymmdd" } } as never);
   assert.deepEqual(days.map((c) => c.publishedAt?.toISOString() ?? null), ["2026-09-22T00:00:00.000Z", null], "February 30 is no date");

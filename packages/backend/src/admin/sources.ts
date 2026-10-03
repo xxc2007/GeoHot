@@ -1,6 +1,7 @@
 // Source administration (F18): list, detail, preview (fetch without storing), edit, create with
 // duplicate checks, pause/resume and manual collection. Every change is audited.
 import { z } from "zod";
+import { isCategoryKey } from "@aihot/contracts/taxonomy";
 import { sql } from "../db.ts";
 import { enqueue, QUEUES } from "../jobs/queue.ts";
 import { republishKey } from "../jobs/publication.ts";
@@ -95,6 +96,8 @@ const EDITABLE = z
     owner_entity_id: z.string().max(120).nullable(),
     site_fulltext: z.boolean(),
     syndicate_fulltext: z.boolean(),
+    /** Section this source's items fall into when no explicit judgement exists; null clears it. */
+    default_category: z.string().refine(isCategoryKey, "不是有效的分类 key（见 industry/taxonomy.ts）").nullable(),
     tags: z.array(z.string().max(60)).max(30),
     config: z.record(z.string(), z.unknown()),
   })
@@ -128,7 +131,7 @@ export async function updateSource(id: string, input: { patch: unknown; version:
 }
 
 /** Source fields the public projection reads (publication/rules.ts and the v1 payload). */
-const PUBLICATION_FIELDS: string[] = ["participation_mode", "site_fulltext", "syndicate_fulltext", "tier", "name", "first_party"];
+const PUBLICATION_FIELDS: string[] = ["participation_mode", "site_fulltext", "syndicate_fulltext", "tier", "name", "first_party", "default_category"];
 
 const CreateSchema = z
   .object({
@@ -143,6 +146,7 @@ const CreateSchema = z
     tags: z.array(z.string()).default([]),
     site_fulltext: z.boolean().default(false),
     syndicate_fulltext: z.boolean().default(false),
+    default_category: z.string().refine(isCategoryKey, "不是有效的分类 key（见 industry/taxonomy.ts）").nullable().default(null),
   })
   .strict();
 
@@ -174,9 +178,9 @@ export async function createSource(input: unknown, actor: string) {
   const dup = await findDuplicateSource(s.kind, s.config);
   if (dup) return { created: false as const, duplicate: dup };
   const [row] = await sql`
-    INSERT INTO sources (id, name, kind, config, tier, participation_mode, interval_minutes, first_party, tags, site_fulltext, syndicate_fulltext, next_fetch_at)
+    INSERT INTO sources (id, name, kind, config, tier, participation_mode, interval_minutes, first_party, tags, site_fulltext, syndicate_fulltext, next_fetch_at, default_category)
     VALUES (${s.id}, ${s.name}, ${s.kind}, ${sql.json(s.config as never)}, ${s.tier}, ${s.participation_mode}, ${s.interval_minutes}, ${s.first_party}, ${s.tags},
-            ${s.site_fulltext}, ${s.syndicate_fulltext}, now())
+            ${s.site_fulltext}, ${s.syndicate_fulltext}, now(), ${s.default_category})
     ON CONFLICT (id) DO NOTHING RETURNING *`;
   if (!row) throw new Conflict(`信源 ID ${s.id} 已存在`);
   await audit(actor, "source.create", `source:${s.id}`, null, null, s);

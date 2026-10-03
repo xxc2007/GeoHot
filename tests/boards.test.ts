@@ -1,0 +1,88 @@
+// The four boards (考研 / 地理信息系统 / 地理与政治 / 地理与历史) are views over taxonomy categories, and
+// their whole value is that the two lanes never mix: 本站精选 is the human-curated set, 来源原文 is what the
+// read layer already publishes on its own. This file pins that separation, the per-source flood control, and
+// the paging contract. Measured 2026-10-03 (why the flood control exists): 100/100 of the freshest published
+// items came from a single 气象台预警 source, so an ungrouped lane would be one source's ticker.
+import { purgeTagged, tag } from "./setup.ts";
+import assert from "node:assert/strict";
+import { after, before, test } from "node:test";
+import { closeDb, sql } from "@aihot/backend/db";
+import { upsertMaterial } from "@aihot/backend/content/materials";
+import { BOARD_INDEX_PER_SOURCE, listBoardDefinitions, viewBoard } from "@aihot/backend/publication/boards";
+import { publishArticle } from "@aihot/backend/publication/publish";
+import { stopBoss } from "@aihot/backend/jobs/queue";
+
+const T = tag();
+const HIST = `${T}-hist`;
+const GIS = `${T}-gis`;
+const articles: string[] = [];
+
+async function publish(sourceId: string, suffix: string, selected: boolean) {
+  const { articleId } = await upsertMaterial({
+    sourceId, url: `https://example.com/${T}-${suffix}`, title: `板块材料 ${T} ${suffix}`,
+    bodyText: "测试正文。", bodyStatus: "ok", via: "fetch",
+  });
+  await sql`INSERT INTO analyses (article_id, input_revision, origin, relevance, category, title_zh, summary_zh, score, selected, output)
+            VALUES (${articleId}, 1, 'rule', 'pass', ${selected ? "histgeo" : "histgeo"}, ${`板块标题 ${T} ${suffix}`}, ${`${T} 的提要 ${suffix}`}, 70, ${selected}, ${sql.json({ fact: null })})`;
+  await publishArticle(articleId);
+  articles.push(articleId);
+  return articleId;
+}
+
+before(async () => {
+  await sql`INSERT INTO sources (id, name, kind, tier, participation_mode, enabled, next_fetch_at, default_category) VALUES
+            (${HIST}, ${`历史源 ${T}`}, 'rss', 'T1', 'editorial', true, '2100-01-01', 'histgeo'),
+            (${GIS}, ${`GIS 源 ${T}`}, 'rss', 'T1', 'editorial', true, '2100-01-01', 'gis')`;
+  for (let i = 0; i < 24; i++) await publish(HIST, `i${i}`, false);
+  await publish(GIS, "c0", true);
+});
+
+after(async () => {
+  await sql`DELETE FROM publications WHERE article_id = ANY(${articles})`;
+  await sql`DELETE FROM analyses WHERE article_id = ANY(${articles})`;
+  await sql`DELETE FROM articles WHERE id = ANY(${articles})`;
+  await purgeTagged(T);
+  await stopBoss();
+  await closeDb();
+});
+
+test("four boards with the agreed slugs and a plate mark each", async () => {
+  const boards = await listBoardDefinitions();
+  assert.deepEqual(boards.map((b) => b.slug).sort(), ["geopolitics", "gis", "histgeo", "kaoyan-geo"]);
+  for (const b of boards) assert.ok(b.description.length > 20, `${b.slug} 要有一句人话说明`);
+});
+
+test("index-lane rows keep their source and are capped per source (flood control)", async () => {
+  const view = await viewBoard("histgeo", 1);
+  assert.ok(view);
+  assert.equal(view.curated.items.length, 0, "没有精选就是空，不拿来源原文顶替");
+  assert.equal(view.index.items.length, BOARD_INDEX_PER_SOURCE, `一个来源在一页里最多 ${BOARD_INDEX_PER_SOURCE} 条`);
+  assert.equal(view.index.collapsed.length, 1);
+  assert.equal(view.index.collapsed[0]!.count, 20 - BOARD_INDEX_PER_SOURCE, "其余折叠成计数");
+  assert.equal(view.index.collapsed[0]!.sourceName, `历史源 ${T}`);
+});
+
+test("the two lanes never mix", async () => {
+  const view = await viewBoard("histgeo", 1);
+  assert.ok(view);
+  assert.ok(view.index.items.every((i) => i.selected === false), "来源原文里不能出现已精选的条目");
+  const gis = await viewBoard("gis", 1);
+  assert.ok(gis);
+  assert.ok(gis.curated.items.every((i) => i.selected === true), "精选里不能混入未精选条目");
+  assert.equal(gis.index.items.length, 0);
+});
+
+test("paging continues where the previous window ended", async () => {
+  const first = await viewBoard("histgeo", 1);
+  const second = await viewBoard("histgeo", 2);
+  assert.ok(first && second);
+  assert.equal(second.page, 2);
+  const seen = new Set(first.index.items.map((i) => i.id));
+  assert.ok(second.index.items.every((i) => !seen.has(i.id)), "第二页不能重复第一页的条目");
+});
+
+test("an unknown board and an out-of-range page are not pages", async () => {
+  assert.equal(await viewBoard("no-such-board", 1), null);
+  assert.equal(await viewBoard("histgeo", 0), null);
+  assert.equal(await viewBoard("histgeo", 99), null);
+});

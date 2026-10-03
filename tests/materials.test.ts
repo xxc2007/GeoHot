@@ -3,7 +3,7 @@
 // of one URL create one article; other sources' listings, returns to an earlier version and characters
 // lost in transit are no revision (articles used to flip between two versions on
 // every fetch, and a feed garbled a few characters differently on every load).
-import { tag } from "./setup.ts";
+import { purgeTagged, tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { closeDb, sql } from "@aihot/backend/db";
@@ -16,7 +16,10 @@ before(async () => {
   await sql`INSERT INTO sources (id, name, kind, next_fetch_at) VALUES (${SOURCE}, 'Test materials', 'rss', '2100-01-01'),
             (${OTHER}, 'Test aggregator', 'rss', '2100-01-01')`;
 });
-after(() => closeDb());
+after(async () => {
+  await purgeTagged(SOURCE);
+  await closeDb();
+});
 
 const state = async (id: string) =>
   (await sql<{ revision: number; title: string; content_hash: string | null; processing_state: string }[]>`

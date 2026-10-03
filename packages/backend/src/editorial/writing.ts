@@ -379,12 +379,22 @@ export function parseTranslateOutput(text: string): { titleZh: string; summaryZh
     if (parts.length) bodyZh = parts.join("\n");
   }
   if (!titleZh && !summaryZh && !bodyZh) {
-    const rest = text.trim().split(/\r?\n/).filter(Boolean);
+    // A labelled-but-empty answer ("title_zh: " with nothing after it) is an empty answer, not content:
+    // without this filter the label itself became the title (measured 2026-10-03 against the shipped stub,
+    // which answers exactly that way for a material it has no signed copy for). Two consequences were
+    // visible: 114 rows carried 「title_zh:」 as their headline, and the echo fallback in analyze.ts — which
+    // would have used a Chinese source's own headline — never got its chance, so those items were held out
+    // of every listing and the four new boards stayed empty.
+    const rest = text
+      .trim()
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter((l) => l && !/^(title_zh|summary_zh|body_zh)\s*[:：]\s*$/.test(l));
     if (rest.length >= 2) {
-      titleZh = rest[0]!.trim();
-      summaryZh = rest.slice(1).join("\n").trim();
+      titleZh = rest[0]!;
+      summaryZh = rest.slice(1).join("\n");
     } else if (rest.length === 1) {
-      titleZh = rest[0]!.trim();
+      titleZh = rest[0]!;
     }
   }
   return { titleZh, summaryZh: stripEcho(summaryZh), bodyZh: stripEcho(bodyZh) };

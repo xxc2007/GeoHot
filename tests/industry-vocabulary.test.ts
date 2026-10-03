@@ -93,7 +93,7 @@ test("structure.md injects its whitelist from the taxonomy, so it cannot drift f
   assert.equal(structureRendered.includes("{{"), false, "structure 渲染结果不遗留占位符");
 });
 
-test("the content types and the six categories the prompts name are the taxonomy's, verbatim", () => {
+test("the content types and the ten categories the prompts name are the taxonomy's, verbatim", () => {
   // The four checks the scratch validator ran here and the migration left out. A prompt that names a type or
   // a category the pack does not have is the same D3 defect as a bad tag: the model is told to answer with a
   // value nothing can store, and the item lands in the catch-all with no error anywhere.
@@ -113,6 +113,16 @@ test("the content types and the six categories the prompts name are the taxonomy
   // The guide the structure step is actually sent is built from the pack, so it cannot name a section no item has.
   for (const c of CATEGORIES) assert.ok(structureRendered.includes(`- ${c.key}（${c.label}）`), `类别指引缺 ${c.key}`);
   assert.ok(structureRendered.includes(CATEGORY_GUIDE), "渲染出的 structure 含完整 CATEGORY_GUIDE");
+  // Keys are DB text values, API/MCP enum members and RSS URL slugs (`/feed/category/gis.xml` is matched
+  // case-sensitively, nothing lowercases it), so they stay plain ASCII with no delimiter that would break the
+  // line above or a URL. Labels are the site's voice: pure Chinese noun phrases, no English, no emoji — and no
+  // space, 「/」 or 「、」, the three characters the parser of that key line splits on.
+  const keys = CATEGORIES.map((c) => c.key);
+  assert.equal(new Set(keys).size, keys.length, "类别 key 不重复");
+  for (const c of CATEGORIES) {
+    assert.match(c.key, /^[A-Za-z][A-Za-z0-9]{1,29}$/, `类别 key ${c.key} 必须是 2–30 位的 ASCII 字母数字（它进网址、enum 和库）`);
+    assert.match(c.label, /^[\u4e00-\u9fff]{2,7}$/, `类别 label「${c.label}」必须是二到七字的中文词组`);
+  }
 });
 
 test("the worked example inside the prompt is itself a valid answer", () => {

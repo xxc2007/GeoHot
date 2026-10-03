@@ -1,6 +1,6 @@
 // Exercise the real queue callback and process shutdown: already sent model answers must settle
 // before the DB closes, and the next process must recover using those receipts.
-import { gate, Reply, stub, tag, within } from "./setup.ts";
+import { gate, purgeTagged, Reply, stub, tag, within } from "./setup.ts";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
@@ -108,6 +108,7 @@ before(async () => {
 after(async () => {
   active?.scoreAnswer.open(); active?.structureAnswer.open(); active?.writingAnswer?.open();
   for (const child of children) child.kill("SIGTERM");
+  await purgeTagged(T);
   await provider.close(); await stopBoss(); await closeDb();
 });
 

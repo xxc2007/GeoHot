@@ -5,6 +5,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { FEATURES } from "@aihot/industry/features";
+import { isCategoryKey } from "@aihot/contracts/taxonomy";
 import { REPO_ROOT } from "@aihot/backend/config";
 import { closeDb, sql } from "@aihot/backend/db";
 import { importModelDirectory } from "@aihot/backend/leaderboard/directory";
@@ -25,6 +26,8 @@ interface SeedSource {
   site_fulltext?: boolean;
   syndicate_fulltext?: boolean;
   enabled?: boolean;
+  /** Section this source's items belong to when no explicit judgement exists (taxonomy key). */
+  defaultCategory?: string;
 }
 
 console.log(`topics: ${await seedTopics()}`);
@@ -37,11 +40,14 @@ const { sources } = JSON.parse(readFileSync(path.join(REPO_ROOT, "industry/sourc
 let added = 0;
 for (const s of sources) {
   assertSupportedConfig(s.kind, s.config);
+  if (s.defaultCategory !== undefined && !isCategoryKey(s.defaultCategory)) {
+    throw new Error(`${s.id}: defaultCategory "${s.defaultCategory}" is not a category key (see industry/taxonomy.ts)`);
+  }
   const inserted = await sql`
-    INSERT INTO sources (id, name, kind, config, tier, first_party, owner_entity_id, participation_mode, interval_minutes, tags, site_fulltext, syndicate_fulltext, enabled, next_fetch_at)
+    INSERT INTO sources (id, name, kind, config, tier, first_party, owner_entity_id, participation_mode, interval_minutes, tags, site_fulltext, syndicate_fulltext, enabled, next_fetch_at, default_category)
     VALUES (${s.id}, ${s.name}, ${s.kind}, ${sql.json(s.config as never)}, ${s.tier ?? "T2"}, ${s.first_party ?? false}, ${s.owner_entity_id ?? null},
             ${s.participation_mode ?? "editorial"}, ${s.interval_minutes ?? 60}, ${s.tags ?? []}, ${s.site_fulltext ?? false}, ${s.syndicate_fulltext ?? false},
-            ${s.enabled ?? true}, now())
+            ${s.enabled ?? true}, now(), ${s.defaultCategory ?? null})
     ON CONFLICT (id) DO NOTHING RETURNING id`;
   added += inserted.length;
 }

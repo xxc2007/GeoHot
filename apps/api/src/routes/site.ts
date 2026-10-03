@@ -14,6 +14,7 @@ import { loadTimeline } from "@aihot/backend/publication/timeline";
 import { loadStoryFollowups } from "@aihot/backend/publication/followups";
 import { loadDevelopments, loadGroupReports } from "@aihot/backend/publication/groups";
 import { loadTopicTags } from "@aihot/backend/publication/topics";
+import { boardCounts, listBoardDefinitions, viewBoard } from "@aihot/backend/publication/boards";
 import { loadHotStrip } from "@aihot/backend/events/hot-read";
 import { loadChangelog, siteMeta } from "@aihot/backend/site/meta";
 import { loadContact, loadMakerAvatar } from "@aihot/backend/site/contact";
@@ -93,7 +94,9 @@ export function registerSite(app: FastifyInstance) {
   app.get("/api/site/timeline", siteHandler(async (req, reply) => {
     const q = looseQuery(req);
     const filters = await parseFilters(q);
-    const limit = Math.min(Math.max(Number(q.limit) || 20, 1), 40);
+    // 40 is the ceiling the loader already allowed; showing 20 of 53 curated items left the first screen
+    // half empty for no reason (measured 2026-10-03: +12 KB raw / +6 KB gzip on the SSR payload).
+    const limit = Math.min(Math.max(Number(q.limit) || 40, 1), 40);
     const unfiltered = filters.channel === "all" && !filters.category && !filters.tag && !filters.topic && !q.cursor;
     const [data, hot] = await Promise.all([
       loadTimeline({ ...filters, cursor: q.cursor || null, limit }),
@@ -191,6 +194,20 @@ export function registerSite(app: FastifyInstance) {
   }));
 
   registerFeedback(app);
+
+  app.get("/api/site/boards", siteHandler(async (req, reply) => {
+    const [boards, counts] = await Promise.all([listBoardDefinitions(), boardCounts()]);
+    const payload = { boards: boards.map((b) => ({ ...b, counts: counts[b.slug] ?? { curated: 0, index: 0 } })) };
+    return sendJsonWithEtag(req, reply, payload, { etagPrefix: "boards", cacheControl: "public, max-age=300, s-maxage=300" });
+  }));
+
+  app.get("/api/site/boards/:slug", siteHandler(async (req, reply) => {
+    const slug = (req.params as { slug: string }).slug;
+    const page = Number(looseQuery(req).page ?? 1);
+    const data = Number.isInteger(page) ? await viewBoard(slug, page) : null;
+    if (!data) return sendProblem(req, reply, { status: 404, code: "not_found", detail: "board page not found", cacheControl: "public, max-age=60" });
+    return sendJsonWithEtag(req, reply, data, { etagPrefix: "board", cacheControl: "public, max-age=60, s-maxage=60" });
+  }));
 
 
   app.get("/api/site/hot", siteHandler(async (req, reply) => {

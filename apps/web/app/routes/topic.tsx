@@ -96,13 +96,14 @@ export default function TopicPage() {
               这个主题共有 {topic.total.toLocaleString("zh-CN")} 条精选，分 {pageCount} 页。
             </EmptyState>
           ) : (
-            // 空手而归要给出路：这一页只统计最近 30 天的入选条目，"没有"不等于"这个主题不存在"。
+            // 空手而归要给出路：这一页的「精选」是全部存量，没有时间窗口（读取层就是这样查的），
+            // 所以不能说「最近 30 天」——那句话在页面上与同一屏的「0 条精选」互相打脸（10-03 复核 /topics/ipcc）。
             <EmptyState
               as="h2"
-              title="这个主题最近 30 天没有入选条目"
+              title="这个主题还没有入选的精选"
               action={<Link to="/all" className="text-[13px] font-medium text-accent hover:underline">去全部动态里找找</Link>}
             >
-              主题页只看最近 30 天里入选精选的条目；更早的内容仍在「全部动态」和搜索里。
+              主题页只列入选精选的条目；其它信源原文仍在「全部动态」和板块页里。
             </EmptyState>
           )}
         </div>

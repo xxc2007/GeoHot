@@ -12,7 +12,7 @@
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Derived from AIHOT](https://img.shields.io/badge/派生自-AIHOT_框架-1F1E1D)](NOTICE)
 [![Node](https://img.shields.io/badge/运行时-Node_24-1F1E1D)](#技术栈)
-[![Categories](https://img.shields.io/badge/分类-六个-D97757)](#-六个分类一条标准)
+[![Categories](https://img.shields.io/badge/分类-十个-D97757)](#-十个分类一条标准)
 [![Sources](https://img.shields.io/badge/信源-44%2B1_个-D97757)](#-现状与边界)
 [![Editorial brain](https://img.shields.io/badge/编辑大脑-人工策划_无_LLM_Key-1F1E1D)](#-编辑大脑是人工写的判断这一点不遮掩)
 [![GitHub](https://img.shields.io/badge/GitHub-@xxc2007-1F1E1D)](https://github.com/xxc2007)
@@ -27,7 +27,7 @@
 
 它建在开源框架 [AIHOT](https://github.com/KKKKhazix/AIHOT)（MIT）之上，行业层换成了地理：引擎在 `apps/` 与 `packages/`，地理的一切——站名、分类、主题、信源、评分标准、门槛、品牌、条款页——都在 [`industry/`](industry/) 这一个文件夹里。
 
-[特色](#-特色) · [六个分类](#-六个分类一条标准) · [站点结构](#-站点结构) · [技术栈](#-技术栈) · [换成你的行业](#-换成你的行业) · [本地运行](#-本地运行) · [设计笔记](#-设计笔记) · [License](#-license) · [完整手册](docs/manual.md)
+[特色](#-特色) · [十个分类](#-十个分类一条标准) · [站点结构](#-站点结构) · [技术栈](#-技术栈) · [换成你的行业](#-换成你的行业) · [本地运行](#-本地运行) · [设计笔记](#-设计笔记) · [License](#-license) · [完整手册](docs/manual.md)
 
 <br>
 
@@ -49,7 +49,7 @@
 
 ## ✨ 特色
 
-### 🧭 六个分类，一条标准
+### 🧭 十个分类，一条标准
 
 分类是这个站的骨架（`industry/taxonomy.ts`，`key` 直接进 URL，上线后不再改）：
 
@@ -58,9 +58,15 @@
 | `physical` | 自然地理 | 地貌、气候、水文、土壤、植被与灾害事件，须有观测数据、图件或影像 |
 | `human` | 人文地理 | 人口与迁移、城市化、产业与交通区位、行政区划调整、城乡与区域政策 |
 | `regional` | 区域地理 | 以区域或流域为单位的整体性变化：极地、青藏高原、三角洲、城市群、跨境河流 |
-| `geotech` | 地理信息技术 | 遥感与影像、导航定位、GIS 与空间数据、制图平台，以及数据集与版本的发布 |
+| `geopolitics` | 地理与政治 | 主权、边界与领土的划定与争议，地缘格局、战略通道、跨境河流与海洋权益 |
+| `histgeo` | 地理与历史 | 历史时期的地理变迁与古今对照：河道海岸线、政区疆域沿革、城址兴废、古地图 |
+| `geoedu` | 考研 | 地理学科的招生政策与专业目录、学科与学位点、考试大纲与分数线、招考数据 |
+| `geotech` | 地理信息技术 | 遥感与影像、导航定位、观测数据集与标准的发布 |
+| `gis` | 地理信息系统 | GIS 软件与平台、空间数据库与标准、WebGIS 与三维引擎、开源生态与许可变更 |
 | `fieldwork` | 野外与考察 | 野外考察、科考航次、钻探与剖面测量的第一手记录，须有亲历者或现场材料 |
 | `comment` | 观点与解读 | 评论、深度分析、趋势解读与科普长文，必须有明确观点或论证 |
+
+**板块页**（`/boards`）把其中四个跨类别方向做成独立入口：考研 / 地理信息系统 / 地理与政治 / 地理与历史。一个板块是一到两个分类的视图，页面上两条线**永不混**：**本站精选**是人工签署的编辑判断；**来源原文**是各信源当天已公开、本站未作编辑判断的条目（标题与链接指向出处，卡片上写明这一点），并按来源折叠——同一条来源最多连出 3 条，其余折成「＋N 条来自同一来源」，免得一个预警源铺满整屏。板块与来源的对应写在 `industry/boards.json` 与每条源的 `defaultCategory`（`industry/sources.json`）。
 
 **入选标准只有一条：空间显著性优先**——影响尺度大、多方独立报道、有数据/图件/影像支撑，三件同时成立才排得靠前。这条既写进评分提示词，也写进五轴权重表，还写进热度算法（"多方独立报道 = 热"）。
 
@@ -99,7 +105,7 @@
 
 精选按分类：自然地理 32 · 区域地理 18 · 观点与解读 11 · 地理信息技术 9 · 人文地理 5 · 野外与考察 3（合计 78，其余条目没有分类字段）。
 
-**信源数量的唯一说法在这里**（其余文档一律指向本段，别再抄一份数字）：登记在 [`industry/sources.json`](industry/sources.json) 的是 **44 条**（`node -e "console.log(require('./industry/sources.json').sources.length)"` 当场可数），本机库里 `sources` 表是 **45 行**——多出的那一行是投递接口在运维校验时自动建的 `external` 占位源 `ext-opscheck-ingest-probe`（站上不可见，清理 SQL 在 `scripts/README-ingest.md` 末尾），所以顶上那枚徽标写「44+1」。这 44 条里 **36 条真在轮询**（26 `rss` + 7 `web_list` + 3 `json_list`）、**8 条 `external`** 是给人工投递预留的通道（`participation_mode=isolated`，站上暂不可见）。可轮询那 36 条以国际机构与英文媒体为主；国内机构与中文媒体那一层是 7 条：中国地震台网中心、中央气象台、国家统计局、水利部（两条）、应急管理部、澎湃新闻（另有《地理研究》当期目录与 SpaceMapper 两个中文刊物/转载层，不计入这 7 条）。本站没有任何 `x_search`/`mp_account`/按次计费的信源（现值 0 条），采集不产生账单。
+**信源数量的唯一说法在这里**（其余文档一律指向本段，别再抄一份数字）：登记在 [`industry/sources.json`](industry/sources.json) 的是 **58 条**（`node -e "console.log(require('./industry/sources.json').sources.length)"` 当场可数），本机库里 `sources` 表是 **59 行**——多出的那一行是投递接口在运维校验时自动建的 `external` 占位源 `ext-opscheck-ingest-probe`（站上不可见，清理 SQL 在 `scripts/README-ingest.md` 末尾），所以顶上那枚徽标写「58+1」。这 58 条里 **50 条真在轮询**（39 `rss` + 8 `web_list` + 3 `json_list`）、**8 条 `external`** 是给人工投递预留的通道（`participation_mode=isolated`，站上暂不可见）。可轮询那 50 条横跨中英两种语言与机构、媒体、期刊、软件发布四类来源：国际机构（USGS、NASA Science、NOAA、GDACS、UN OCHA、Copernicus）× 国际媒体与智库（The Diplomat、World Politics Review、Foreign Affairs、Crisis Group、对话地球、The Conversation）× 软件与标准（OGC、QGIS releases）× 历史与地图（国会图书馆地图部、Public Domain Review、欧洲环境史学会）× 国内一手层 9 条（中国地震台网中心、中央气象台、国家统计局、水利部两条、应急管理部、澎湃新闻、《地理研究》当期目录、研招网政策与规定）。本站没有任何 `x_search`/`mp_account`/按次计费的信源（现值 0 条），采集不产生账单。**50 条轮询源里 14 条声明了 `defaultCategory`**，把条目直接归到它所属的板块（见上）；其余按模型/人工判断归类。
 
 **已部署**：[`xxc2007.me/geohot/`](https://xxc2007.me/geohot/)（2026-10-01）。四个常驻单元只监听回环、各自带内存上限，装在同一台跑着主站与 Artalk 的机器上，主站首页逐字节未变（`51432` 字节 / `4edf0fc53636a680…`，2026-10-03 又用 `curl -s https://xxc2007.me/ | wc -c` 与 `sha256sum` 复核过一遍）。怎么装的、验证命令、以及部署时踩过的坑（那张「症状 → 真正原因」表），都在 [`deploy/geohot/DEPLOYMENT.md`](deploy/geohot/DEPLOYMENT.md)。**日报已出刊**：`/daily` 给的是**最新一期**（这一句不写期号与日期，每天 08:00 它都会变），下面那张图是 **2026-10-02 第 1 期**（`/daily/2026-10-02`）：21 件大事、14 个来源、12 件一手发布、约 10 分钟读完——这四个数字属于那一期，不属于"今天"。上线首日（10-01）`/daily` 确实是诚实的空态——worker 在当天 08:00 档期之后才起，那份日报本来就属于第二天，原因与空刊怎么被读取层过滤，写在 [`docs/known-issues.md`](docs/known-issues.md)。
 
@@ -181,7 +187,7 @@ GEOHOT/
 | 文件 | 管什么 |
 |---|---|
 | `site.ts` | 站名、行业词 `subject`（拼进"地理日报""全部地理动态"）、首页与关于页文案、MCP 工具名前缀、`contactEmail`、`icp` |
-| `taxonomy.ts` | 六个分类、七种内容类型、三个标签词表、机构名录、防张冠李戴的身份词典 |
+| `taxonomy.ts` | 十个分类、七种内容类型、三个标签词表、机构名录、防张冠李戴的身份词典 |
 | `topics.json` | 主题页目录（`/topics`）；条数以这个文件为准，别抄进文档（2026-10-03 文件与站上都是 45） |
 | `sources.json` | 首次启动导入的信源（`ON CONFLICT DO NOTHING`，只增不改，之后在后台增删） |
 | `prompts/` | 27 个文件：精选标准、写作要求、噪声例子——**行业 KnowHow 就写在这里**，改标准不用改代码 |

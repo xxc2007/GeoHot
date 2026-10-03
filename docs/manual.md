@@ -13,7 +13,7 @@
 
 GEOHOT（中文站名 **地理热点**）建在开源框架 AIHOT 之上，行业层换成了地理。一条资料进站后的路径是固定的：
 
-**采集**（44 个信源：RSS、网页列表、JSON 接口、外部推送）→ **判重入库**（规范化 URL 做身份，同一篇只留一份）→ **预筛**（是不是地理的事，`BLOCK` 的直接不进任何公开页面）→ **两次独立打分**（同一份评分标准串行调用两次，两次之和 ≥ 2 × 门槛才入选）→ **中文标题与摘要**（答案先行的摘要 + 推荐理由 + 标签，外文有全文翻译）→ **归组成事件**（多家报道同一件事并成一个事件，事件页有综述）→ **热度**（48 小时窗口、24 小时半衰期，每个独立来源只投一票，至少 2 个参与者且至少 1 个是编辑类信源）→ **每日 08:00（Asia/Shanghai）出刊**（周报周一 10:00，月报每月 1 日 10:30）。
+**采集**（58 个信源：RSS、网页列表、JSON 接口、外部推送）→ **判重入库**（规范化 URL 做身份，同一篇只留一份）→ **预筛**（是不是地理的事，`BLOCK` 的直接不进任何公开页面）→ **两次独立打分**（同一份评分标准串行调用两次，两次之和 ≥ 2 × 门槛才入选）→ **中文标题与摘要**（答案先行的摘要 + 推荐理由 + 标签，外文有全文翻译）→ **归组成事件**（多家报道同一件事并成一个事件，事件页有综述）→ **热度**（48 小时窗口、24 小时半衰期，每个独立来源只投一票，至少 2 个参与者且至少 1 个是编辑类信源）→ **每日 08:00（Asia/Shanghai）出刊**（周报周一 10:00，月报每月 1 日 10:30）。
 
 对外有四个出口：网站、RSS（`/feed.xml`、`/feed/all.xml`、`/feed/full.xml`、`/feed/daily.xml`、按分类的 `/feed/category/<key>.xml`）、公开 API（`/api/v1/`，文档 `/openapi-v1.json`，说明页 `/agent`）、MCP（`/api/mcp`）。四个出口读的都是 `packages/backend/src/publication/` 这一个读取层，所以内容一致。读者打开页面不触发任何模型调用；模型调用只发生在 worker 的任务里，并且每一次都走回执与预算熔断（`packages/backend/src/providers/receipts.ts`）。
 
@@ -263,7 +263,7 @@ stub 是开发工具，不是站点的一部分：不在 `docker-compose.yml` �
 | 文件 | 管什么 |
 |---|---|
 | `site.ts` | 站名、行业词（`subject`）、首页与关于页文案、MCP 工具名前缀、`contactEmail`、`icp` |
-| `taxonomy.ts` | 6 个分类（`key` 进 URL，上线后不可改）、7 个内容类型、三个标签词表、机构名录 `ENTITIES`、防张冠李戴的 `IDENTITY_LEXICON` |
+| `taxonomy.ts` | 10 个分类（`key` 进 URL，上线后不可改）、`industry/boards.json` 的四个板块、7 个内容类型、三个标签词表、机构名录 `ENTITIES`、防张冠李戴的 `IDENTITY_LEXICON` |
 | `topics.json` | 主题页目录（`/topics`，当前 45 个主题） |
 | `sources.json` | 首次启动导入的信源（`ON CONFLICT DO NOTHING`，只增不改，之后在后台增删） |
 | `prompts/` | 精选标准与写作要求，**行业 KnowHow 就写在这里**。27 个文件，改提示词不用改代码 |
@@ -273,7 +273,7 @@ stub 是开发工具，不是站点的一部分：不在 `docker-compose.yml` �
 | `pages/` | `terms.md`、`privacy.md`，**目前还是模板**，上线前要站长本人确认 |
 | `changelog.json` | 更新日志，新条目写最前，并同步 `latestVersion` |
 
-**六种信源**：`rss`、`web_list`（网页列表 + 选择器）、`json_list`（JSON 接口 + 字段路径）、`x_search`（X 账号，要 `SOCIALDATA_API_KEY`）、`mp_account`（微信公众号，要 `DAJIALA_KEY`）、`external`（你自己的脚本推进来）。每种信源认哪些配置键写在 `packages/backend/src/sources/config-keys.ts`，白名单外的键在保存、预览和 seed 时都会被**明确拒绝**，不会悄悄退回通用解析。`industry/sources.json` 当前 44 条：`rss` 26、`web_list` 7、`json_list` 3、`external` 8；后两种付费信源本部署没有 key，一条都没登记。
+**六种信源**：`rss`、`web_list`（网页列表 + 选择器）、`json_list`（JSON 接口 + 字段路径）、`x_search`（X 账号，要 `SOCIALDATA_API_KEY`）、`mp_account`（微信公众号，要 `DAJIALA_KEY`）、`external`（你自己的脚本推进来）。每种信源认哪些配置键写在 `packages/backend/src/sources/config-keys.ts`，白名单外的键在保存、预览和 seed 时都会被**明确拒绝**，不会悄悄退回通用解析。`industry/sources.json` 当前 58 条：`rss` 39、`web_list` 8、`json_list` 3、`external` 8；后两种付费信源本部署没有 key，一条都没登记。
 
 **后台**（`/admin`，**本机也要登录**：未访问 `/admin` 会被 302 到 `/admin/login`，密码是 `.env` 里的 `ADMIN_PASSWORD`——`npm run env:init` 生成并在终端打印一次，登录以后 30 天不用再来（会话 cookie `aihot_admin`，库里只存令牌哈希）。cookie 按主机绑定，`localhost:3000` 和 `127.0.0.1:3000` 混用会"看起来登录不上"。命令行怎么拿 cookie 见 `scripts/README-ingest.md`）。旧写法说的"`DEV_AUTH_ROLE=admin` 直接进、不用密码"已经作废：那个开关被从 `.env` 与 `.env.pipeline` 双双摘掉，它存在时后台所有写接口等于不鉴权，别再装回去（第 11 节有实测对比）。`industry/features.ts` 两个开关关掉以后，侧栏里剩这几项（`apps/web/app/routes/admin/layout.tsx:26-46`）：`/admin`（概览）、`/admin/content` 内容诊断与可见性、`/admin/sources` 信源（列表按健康度排序、失败的在最前；详情有"预览抓取"（不入库）、"立即采集"、改频率/分级/参与方式；`/admin/sources/new` 新建）、`/admin/feedback` 反馈、`/admin/runs` 定时任务最近结果、`/admin/models` 每一步单独换模型与成功率/token、`/admin/selectbench` 精选评测版本对比、`/admin/settings` 预算熔断与安全项、`/admin/audit` 审计记录。**`/admin/monitor`（Codex 重置）从侧栏消失了**（`layout.tsx:32` 按 `FEATURES.codexResetMonitor` 门掉），而且**路由与接口都真的关着**：`apps/api/src/routes/admin.ts:100-102` 用同一个开关包住了七个 monitor 端点（带会话访问 `/api/admin/monitor/events` 实测 404），页面路由本身是死路由（`apps/web/app/routes.ts:48`），直接敲 `/admin/monitor` 得到的是 404 页面（2026-10-02 实测）。底下那几张表已经空了（原来的行在 `monitor_*_bak_20260930`，见第 7 节第 9 条）。`/leaderboard`、`/codex-reset` 也是真的 404。
 
@@ -321,7 +321,7 @@ node --env-file=.env scripts/delete-sources.ts "<理由>" <source-id>...        
 
 **门槛拦不住什么——这一条必须写明白，别再把它当证明。** 上一版本文件（它当时还是仓库根的 README）在这里写过"营销软文数学上不可能入选（114 < 116）"，**那句话已经被独立审计推翻并且被 Wave 4 撤掉了**（撤掉的说明与新算术就写在 `industry/selection.ts:8-24`）：那 12 条硬上限只封住一到两轴，而**五轴从不回传代码**（`ScoreSchema` 只校验 `attentionScore` 是 0–100，`analyze.ts:71`），未封顶的轴按定义能给到 10。按字面重算，营销与景区稿的天花板是 **92 分**、盘点稿/例行更新/版本通告是 **93 分**、泛泛地方介绍 75、小流域方法微调 74——要关住 93 就得把 T1 抬到 ≥94，而人工语料最高一条（C3S 温度发布，两次之和 173）也进不来，精选会恒空。**所以这组门槛是经验护栏，不是证明。** 真在下限拦噪声的是两层别的东西：① `industry/prompts/prefilter.md` 的 `BLOCK`——Wave 4 把五类噪声（教育与文旅营销与景区宣传、无数据的泛泛介绍、未经核实的地理传闻、纯机关公文与会议通报、多主题盘点汇编）写成"即使带航拍影像、客流数字、坐标与官方图件也照样 BLOCK"（`prefilter.md:3`），它们到不了评分那一步；② 分级摆放——盘点与文旅向的转载层放 **T2**（`web-spacemapper-news` 就是这样登记的），这只决定"这个源的信材用哪一档线量"，**它本身挡不住 92–93 分**。还有一层诚实必须说：stub 的预筛兜底是 `PASS`（`tooling/brain-stub.ts:615`），所以①今天只在有人写过 BLOCK 判断的那些材料上真正成立。门槛的可行区间本身是被实测夹出来的（期刊层 119 不能被锁死、T1 上最高噪声 107 要关住、相邻档余量 ≥3 ⇒ T1 56 / T1_5 59 / T2 62），推演与双向核对全在 `industry/selection.ts:26-68`，那里也写着**这档最薄的一刀在 T1_5**：两条人工分正好压 118，最近的被拦者只差 2 分。
 
-**分类与分节。** 6 个分类（`taxonomy.ts:11-18`）：自然地理 `physical`、人文地理 `human`、区域地理 `regional`、地理信息技术 `geotech`、野外与考察 `fieldwork`、观点与解读 `comment`。日报分节是 3 节：学科（自然/人文/区域）、技术（地理信息技术）、实践（野外与考察/观点与解读）。
+**分类与分节。** 10 个分类（`taxonomy.ts`）：自然地理 `physical`、人文地理 `human`、区域地理 `regional`、地理与政治 `geopolitics`、地理与历史 `histgeo`、考研 `geoedu`、地理信息技术 `geotech`、地理信息系统 `gis`、野外与考察 `fieldwork`、观点与解读 `comment`。日报分节仍是 3 节：学科（自然/人文/区域/政治/历史/考研）、技术（地理信息技术/地理信息系统）、实践（野外与考察/观点与解读）——**新分类一律复用这三节**，因为 `reports/compose.ts` 把 `SECTION_ORDER` 的最后一节当作「没有分类的材料」的兜底，加第四个节名会把所有未分类条目一夜之间搬过去；这条不变量由 `tests/report-default-section.test.ts` 钉住。板块页（`/boards`）是四个跨类别方向：考研 / 地理信息系统 / 地理与政治 / 地理与历史，定义在 `industry/boards.json`。
 
 **热度模型没改**（`packages/backend/src/events/hot.ts:8-10,93`）：窗口 48 小时、半衰期 24 小时、每个 `participant_key` 只投一票、至少 2 个参与者、其中至少 1 个是编辑类参与者。
 

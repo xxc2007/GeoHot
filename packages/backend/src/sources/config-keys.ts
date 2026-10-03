@@ -31,7 +31,7 @@ const NESTED: Record<string, string[]> = {
   // intervalMinutesMax is the ceiling adaptIntervals may not poll above; intervalMinutesLocked keeps
   // the source at the interval an operator set, whatever its recent volume.
   _aihot: ["initialBackfillLimit", "initialBackfillMonths", "intervalMinutesMax", "intervalMinutesLocked"],
-  ingestNoiseFilter: ["dropMarkers", "dropMarkersTitleOnly", "keepIfMatches"],
+  ingestNoiseFilter: ["dropMarkers", "dropMarkersTitleOnly", "keepIfMatches", "requireTitleMarkers"],
   itemUrlPrefixRewrite: ["from", "to"],
   requireBoolean: ["path", "equals"],
   minNumeric: ["path", "min"],

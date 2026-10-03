@@ -1,0 +1,33 @@
+{
+  "$comment": "本站的四个跨类别板块（board）。板块页把同一个类别下的条目分成两条：人工精选（selected）与来源原文（未精选、但已通过读取层的公开与中文门槛）。键名与 industry/taxonomy.ts 的 category key 一致；换行业时改这里与那份词表。",
+  "boards": [
+    {
+      "slug": "kaoyan-geo",
+      "name": "考研",
+      "plate": "scale",
+      "categories": ["geoedu"],
+      "description": "地理学科的研究生招生政策与专业目录、学科设置与学位点增列评估、考试大纲与分数线、报考录取与调剂数据。只看发布方可指名、数字或文件可核验的学科事实，不收培训推销与课件教辅。"
+    },
+    {
+      "slug": "gis",
+      "name": "地理信息系统",
+      "plate": "graticule",
+      "categories": ["gis", "geotech"],
+      "description": "GIS 软件与平台、空间数据库与数据标准、WebGIS 与三维引擎、开源生态与许可变更，以及遥感影像、卫星数据产品、导航定位与制图平台的发布与版本变化。"
+    },
+    {
+      "slug": "geopolitics",
+      "name": "地理与政治",
+      "plate": "hachure",
+      "categories": ["geopolitics"],
+      "description": "主权、边界与领土的划定和争议，地缘格局、战略通道与能源路径，跨境河流、海洋权益与制裁封锁的空间含义。没有地点与尺度的时政评论不在这里。"
+    },
+    {
+      "slug": "histgeo",
+      "name": "地理与历史",
+      "plate": "strata",
+      "categories": ["histgeo"],
+      "description": "历史时期的地理变迁与古今对照：河道与海岸线摆动、政区与疆域沿革、城址与聚落兴废、古道与贸易网络的迁移、古地图与地名考证，须同时有年代依据与地点依据。"
+    }
+  ]
+}

@@ -3,7 +3,7 @@
 // understanding and the rest by the title/summary prompts, a structure step gives the category, subjects
 // and fact. Material with only a feed summary has its page fetched first. The steps run on the models
 // AIHOT assigns them (set through the environment here); every prompt in the pack renders.
-import { Reply, stub, tag } from "./setup.ts";
+import { purgeTagged, Reply, stub, tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { after, before, test } from "node:test";
@@ -69,6 +69,7 @@ before(async () => {
     (${X_SOURCE}, 'Test X account', 'x_search', 'T1', 'editorial', '2100-01-01')`;
 });
 after(async () => {
+  await purgeTagged(T);
   await provider.close();
   await stopBoss();
   await closeDb();

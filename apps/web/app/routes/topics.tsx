@@ -19,7 +19,8 @@ export async function loader({ request }: { request: Request }) {
 }
 
 export function meta() {
-  return pageMeta({ title: "主题", description: "按区域与机构、自然与人文领域、内容与题材聚合的地理主题页：青藏高原、环太平洋火山地震带、东部沿海城市群，中国地震台网、USGS、中国气象局、NOAA、NASA、哥白尼计划等发布主体，共 45 个方向。", path: "/topics", image: "/og/pages/topics.png" });
+  // 数不写死：主题随行业包增减，页面上那句「共 N 个方向」由数据自己数（这句曾写死 45，加一个主题就过期）。
+  return pageMeta({ title: "主题", description: "按区域与机构、自然与人文领域、内容与题材聚合的地理主题页：青藏高原、环太平洋火山地震带、东部沿海城市群，中国地震台网、USGS、中国气象局、NOAA、NASA、哥白尼计划等发布主体。", path: "/topics", image: "/og/pages/topics.png" });
 }
 
 export function headers() {
