@@ -68,6 +68,44 @@ export function gate<T = void>() {
 export const tag = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
 
 /**
+ * Delete everything the tagged fixture built on top of its stories: the stories, their facts, their
+ * hourly heat and the articles those facts report. Any file that writes `stories` must call this in
+ * `after()` — the `*_test` database outlives the run, and a leftover story is still a hot-board
+ * candidate for 48 hours. Measured 2026-10-03: 11 leftover stories from earlier runs left the board's
+ * 10 slots full, so `hot-heat.test.ts` found its own story missing from the ranking and failed on how
+ * many runs had come before it rather than on the code under test.
+ */
+export async function purgeTagged(...tags: string[]): Promise<void> {
+  // Imported here, not at the top of the file: `db.ts` must not run before the DATABASE_URL guard above.
+  const { sql } = await import("@aihot/backend/db");
+  const like = tags.map((t) => `%${t}%`);
+  const stories = await sql<{ id: number }[]>`
+    SELECT DISTINCT s.id FROM stories s
+    LEFT JOIN facts f ON f.story_id = s.id
+    WHERE s.title LIKE ANY(${like}::text[]) OR f.public_id LIKE ANY(${like}::text[])
+       OR s.merged_into = ANY(coalesce((
+            SELECT array_agg(DISTINCT s2.id) FROM stories s2
+            LEFT JOIN facts f2 ON f2.story_id = s2.id
+            WHERE s2.title LIKE ANY(${like}::text[]) OR f2.public_id LIKE ANY(${like}::text[])), '{}'))`;
+  if (stories.length === 0) return;
+  const ids = stories.map((s) => s.id);
+  const facts = await sql<{ id: number }[]>`SELECT id FROM facts WHERE story_id = ANY(${ids})`;
+  const factIds = facts.map((f) => f.id);
+  // An article is deleted once the fact that reported it is gone: the schema cascades publications,
+  // analyses, signals and the rest from `articles`, so this is the whole article-side cleanup.
+  const articles = factIds.length === 0 ? [] : (await sql<{ article_id: string }[]>`
+    SELECT DISTINCT article_id FROM fact_articles WHERE fact_id = ANY(${factIds})`).map((r) => r.article_id);
+  await sql`DELETE FROM story_aliases WHERE story_id = ANY(${ids})`;
+  if (articles.length > 0) await sql`DELETE FROM articles WHERE id = ANY(${articles}::text[])`;
+  await sql`DELETE FROM facts WHERE story_id = ANY(${ids})`;
+  await sql`DELETE FROM stories WHERE id = ANY(${ids})`;
+  // Its own sources and articles go too: an enabled leftover reads as a source that has fallen behind in
+  // sourceClocks(), which is the very state the heat tests reason about.
+  await sql`DELETE FROM articles WHERE source_id LIKE ANY(${like}::text[])`;
+  await sql`DELETE FROM sources WHERE id LIKE ANY(${like}::text[])`;
+}
+
+/**
  * Fail with a named reason instead of waiting forever. Every await on a stub's `gate()` goes through this:
  * a request the stub cannot route (a step whose system prompt stopped matching the module constant) would
  * otherwise leave the test blocked until the runner cancels the whole file at `--test-timeout` (120 s),

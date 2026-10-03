@@ -383,7 +383,8 @@ npm run build -w @aihot/web && node --test apps/web/tests/*.test.ts
 node scripts/smoke.ts --base http://localhost:3000
 ```
 
-前者是 web 的构建 + 5 个前端测试文件（`cache`、`local-state`、`markdown`、`request-cancellation`、`session-cache`）；后者要求站点已经在跑，覆盖页面、RSS、OpenAPI、`llms.txt`、分享图和 MCP。`smoke.ts` 只读，不写任何东西；它检查的条数写在它自己的输出里（`--base` 指哪套栈都行，本机 live 栈在 3000）。本轮改完文档之后的实跑结果（2026-10-01，同一台机器上 live 栈正在跑）：
+前者是 web 的构建 + 7 个前端测试文件（`admin-safe-link`、`cache`、`item-toolbar`、`local-state`、`markdown`、`request-cancellation`、`session-cache`）；后者要求站点已经在跑，覆盖页面、RSS、OpenAPI、`llms.txt`、分享图和 MCP。`smoke.ts` 只读，不写任何东西；它检查的条数写在它自己的输出里（`--base` 指哪套栈都行，本机 live 栈在 3000）。
+**那条 build 命令不要带 `BASE_PATH`**：这批测试读的是构建产物里的链接，`item-toolbar` 等三条明确断言"这一份构建是根部署，前缀为空"——用 `/geohot` 的构建去跑会得到 7 条假失败（2026-10-03 本机实测：带前缀 23/30，不带前缀 30/30；CI 走的正是不带前缀那条）。线上要验前缀，看 `deploy/geohot/verify-deploy.sh` 第 3 节。本轮改完文档之后的实跑结果（2026-10-01，同一台机器上 live 栈正在跑）：
 
 ```
 $ npm run typecheck

@@ -19,7 +19,7 @@ const HOUR = 3600_000;
 const at = new Date(Math.floor(Date.now() / HOUR) * HOUR);
 const prev = new Date(at.getTime() - 6 * HOUR);
 
-const sources = [1, 2, 3].map((n) => `${T}-s${n}`);
+const sources = [1, 2, 3, 4, 5, 6, 7, 8].map((n) => `${T}-s${n}`);
 const articles: string[] = [];
 let storyId = 0;
 
@@ -74,8 +74,10 @@ after(async () => {
 
 test("evidence the earlier hour still had, and the current one has lost, counts in prev", async () => {
   // Four outlets last spoke 50 hours ago: each is outside the current 48-hour window but inside the window
-  // the six-hour-earlier snapshot had. Two reported 4 hours ago: they are the whole current heat, and two
-  // independent participants are also what puts a story on the board at all.
+  // the six-hour-earlier snapshot had. Six reported 4 hours ago: they are the whole current heat.
+  // The board keeps ten stories (computeHotRanking), so the fixture is built to be first on it rather than
+  // merely qualified — six independent participants put its heat above anything another file's rows can
+  // produce, and the assertions below then read a real entry instead of `null` on a shared database.
   // The old reading computed prev from the *current* window's rows, so it saw none of those four and read
   // prev as 0 — which turned a cooling story into 「new」 with a rising badge. This fixture fails that way.
   await signal(sources[0]!, "old-a", new Date(at.getTime() - 50 * HOUR));
@@ -84,17 +86,22 @@ test("evidence the earlier hour still had, and the current one has lost, counts 
   await signal(sources[0]!, "old-d", new Date(at.getTime() - 50 * HOUR));
   await signal(sources[0]!, "now-a", new Date(at.getTime() - 4 * HOUR));
   await signal(sources[1]!, "now-b", new Date(at.getTime() - 4 * HOUR));
+  for (const [n, src] of sources.slice(2).entries()) {
+    await signal(src, `now-${n + 2}`, new Date(at.getTime() - 4 * HOUR));
+  }
 
   const ranking = await computeHotRanking(at);
   try {
     const entry = await entryOf(ranking.id);
-    assert.ok(entry, "两条独立参与就该进榜");
+    assert.ok(entry, "八个独立参与就该进榜");
     // The bug's signature is not the arrow's direction (that depends on how the decay weights land) but
     // `prev` being read as zero: with no earlier evidence at all a story is reported as brand new, and the
     // rising badge goes on a story that four outlets were already covering six hours ago.
     assert.notEqual(entry.trend, "new", `六小时前就有四条独立证据，不该被读成全新事件：trend=${entry.trend}, trendPct=${entry.trendPct}`);
     assert.ok(entry.trendPct !== null, "有可比历史，趋势要能算出来");
-    assert.equal(entry.badges.includes("rising"), entry.trend === "up", "热度 ↑ 只能挂在真的在涨的事件上");
+    // 「↑」徽章的前提是趋势真的在涨；反过来不成立——涨得够快的事件拿的是 surge（两者互斥，见 hot.ts 的
+    // badges），所以这里只断言单向：出现 rising 的时候趋势必须是 up。
+    if (entry.badges.includes("rising")) assert.equal(entry.trend, "up", `热度 ↑ 只能挂在真的在涨的事件上：trend=${entry.trend}, trendPct=${entry.trendPct}`);
   } finally {
     await sql`DELETE FROM hot_rankings WHERE id = ${ranking.id}`;
   }

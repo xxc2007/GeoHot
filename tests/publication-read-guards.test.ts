@@ -2,7 +2,7 @@
 // 一个坏掉的游标原本会得到 `slice(NaN, NaN)` 的空页加 `nextCursor: null`——「没有更多了」，而不是一句 400。
 // 第二道：账本 epoch 每次调用都读，不留在进程里；重建账本之后的旧水位必须还是 409 SnapshotRequired，
 // 而不是被缓存的旧 epoch 认下来、回一段缺内容的增量。
-import { tag } from "./setup.ts";
+import { purgeTagged, tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { randomUUID } from "node:crypto";
@@ -26,6 +26,7 @@ before(async () => {
 after(async () => {
   await sql`DELETE FROM articles WHERE source_id = ${SOURCE}`;
   await sql`DELETE FROM sources WHERE id = ${SOURCE}`;
+  await purgeTagged(T);
   // The epoch row is created lazily by the next read; leaving the rebuilt value behind would only confuse
   // this process, which is closing.
   await app.close();

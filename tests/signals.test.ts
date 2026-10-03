@@ -2,7 +2,7 @@
 // skips the analysis queue; history (a backfill that was already old when found) waits behind live
 // work and founds no event; a post that found no story is grouped again when a report founds a fact
 // close to it, or when the post it quotes arrives and joins a fact.
-import { stub, tag } from "./setup.ts";
+import { purgeTagged, stub, tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { closeDb, sql } from "@aihot/backend/db";
@@ -58,6 +58,7 @@ before(async () => {
             (${SIGNAL}, 'Test signal', 'rss', 'T2', 'hot_signal', '2100-01-01')`;
 });
 after(async () => {
+  await purgeTagged(T, TOPIC);
   await provider.close();
   await stopBoss();
   await closeDb();

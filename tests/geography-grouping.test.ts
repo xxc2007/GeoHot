@@ -5,7 +5,7 @@
 // what a magnitude, an epicentre or a county boundary is. So every test here states which half it pins: the
 // code-side gate (relation, confidence floors, story roots, the history gate), and where the gate plainly
 // does not exist it says so and asserts the gap instead of pretending to test the rule.
-import { stub, tag } from "./setup.ts";
+import { purgeTagged, stub, tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
@@ -60,6 +60,7 @@ before(async () => {
 after(async () => {
   await sql`DELETE FROM articles WHERE source_id LIKE ${`test-geo-${T}%`}`;
   await sql`DELETE FROM sources WHERE id LIKE ${`test-geo-${T}%`}`;
+  await purgeTagged(T);
   await provider.close();
   await stopBoss();
   await closeDb();

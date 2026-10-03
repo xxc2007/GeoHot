@@ -143,7 +143,7 @@ Australia / Angola / Paraguay / Suriname, Brazil）的事件下，读者在中�
 `KKKKhazix/AIHOT`，现已指向 `xxc2007/GeoHot`，并且补了「Docker 这条路是域名根部署」一节——它复现不了线上
 `/geohot` 那个前缀拓扑。搬家与换域名的可验证清单在 `docs/migration.md`。
 
-## 本站的 sitemap 目前对搜索引擎不可发现
+## 本站的 sitemap 对搜索引擎不可发现（已于 2026-10-02 关闭，留作历史）
 
 第二轮机器出口审计量出来的事实：`https://xxc2007.me/geohot/robots.txt` 返回 200，内容正确，
 `Sitemap:` 行也指向 `/geohot/sitemap.xml`。但 RFC 9309 规定 robots 文件**只在域名根生效**，
@@ -161,8 +161,13 @@ Australia / Angola / Paraguay / Suriname, Brazil）的事件下，读者在中�
 
 **这一条是"共用域名"这个前提的产物**：搬到自己的域名根上，它就不是"别人的文件"而是搬家清单的第一步
 （在新域名根放一份 `robots.txt`，带 `Sitemap:` 与不带前缀的 `Disallow`），逐条命令与验证方式写在
-[`docs/migration.md`](migration.md) 第 4 步。2026-10-03 复核：`/geohot/robots.txt` 仍返回 200 且 `Sitemap:`
-行正确指向本站，`https://xxc2007.me/robots.txt` 仍是主站那一份。
+[`docs/migration.md`](migration.md) 第 4 步。
+
+**已于 2026-10-02 经站长同意关闭**（改的是主站那份 `/var/www/nanchang15/robots.txt`，主站自己的规则与首页哈希未动）。
+2026-10-03 复核：域名根那一份里两条 `Sitemap:` 都在（主站 + 本站），`Disallow` 覆盖 `/geohot/admin`、`/geohot/starred`、
+`/geohot/feedback`，并放行 `/geohot/api/v1/` 与 `/geohot/api/mcp`。复核时同时修掉一处写错的规则：
+上一版把 `Disallow` 写成了带尾斜杠的 `/geohot/starred/` 与 `/geohot/feedback/`，而 RFC 9309 的规则按**前缀**匹配，
+真实地址 `/geohot/starred`（无尾斜杠，实测 200）并不以它开头——等于没拦。教训写进了 `docs/migration.md` 第 2 步。
 
 同一类限制还有一条：`/.well-known/security.txt` 按 RFC 8615 也只在域名根有效。本站把它注册在
 `/geohot/.well-known/security.txt`，现在因为 `industry/site.ts` 的 `contactEmail` 为 null 而返回 404
@@ -428,3 +433,17 @@ Australia / Angola / Paraguay / Suriname, Brazil）的事件下，读者在中�
 8. **后台看不到"等人写中文标题"的队列**：读取层现在有一条共用的中文门槛（`chineseCopyCondition`），
    但后台没有对应的筛选项，运维只能靠 `scripts/refill-copy.ts` 的 dry-run 输出。本轮把门槛做成了结构性的，
    队列的可视化仍缺。
+9. **写 `stories` 的测试文件必须调用 `purgeTagged()`**（本轮收尾时定下的规矩，违反过一次）。
+   `npm test` 的 46 个文件共用同一个 `*_test` 库，而这个库活过一次运行：`events` / `signals` / `publication` /
+   `geography-grouping` / `publication-read-guards` 五个文件只清 `articles` 与 `sources`，事件、事实、信号全留在库里。
+   留下的事件在 48 小时窗口内仍然是热榜候选，而 `computeHotRanking` 只保留十条——10-03 实测累计到 12 条合格事件，
+   `tests/hot-heat.test.ts` 因此查不到自己的夹具（`entry` 为 `null`）而报两条失败：它测的是代码，结果被"前面跑过几轮"决定。
+   已修：`tests/setup.ts` 的 `purgeTagged()` 按 tag 收回事件宇宙（含级联的文章与信源），五个文件在 `after()` 里调用它；
+   `hot-heat` 的夹具同时改成八家独立参与，使它在榜上必然排第一，不再依赖数据库干净与否。
+   验收方式：空库连跑两遍 `npm test`，两遍都必须是 `fail 0`（只跑一遍证明不了不留垃圾）。
+10. **`trend` 与 `rising` 徽章用的不是同一个门槛**（`events/hot.ts:132` 用 0.15，`:140` 用 0.1）：
+   `pct` 落在 0.10–0.15 之间时趋势写着"涨"却没有 ↑ 徽章；`surge` 成立时也不给 `rising`（两个徽章互斥）。
+   页面上的箭头来自 `trend`，所以读者看到的箭头是对的，徽章只是强调——**没有并成一个门槛**，因为"要不要给
+   快速上涨的事件再叠一个 ↑"是视觉口径决定。`tests/hot-heat.test.ts` 的断言因此是**单向**的：出现 `rising`
+   时趋势必须是 `up`，反向不成立。
+

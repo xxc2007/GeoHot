@@ -9,7 +9,7 @@ import { MCP_TOOL_NAMES } from "@aihot/contracts/mcp";
 import { SITE, withSubject } from "@aihot/industry/site";
 import { ogEtag } from "../apps/api/src/og/render.ts";
 import { posterEtag } from "../apps/api/src/og/poster.ts";
-import { tag } from "./setup.ts";
+import { purgeTagged, tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { after, before, test } from "node:test";
@@ -41,6 +41,7 @@ before(async () => {
             VALUES (${SOURCE}, 'Test publication', 'rss', 'T1', 'editorial', true, true, '2100-01-01')`;
 });
 after(async () => {
+  await purgeTagged(T);
   await sql`DELETE FROM reports WHERE kind = 'daily' AND key = ${REPORT_KEY}`;
   await sql`DELETE FROM reports WHERE (kind = 'weekly' AND key IN (${WEEK_KEY}, ${WEEK_EMPTY})) OR (kind = 'monthly' AND key IN (${MONTH_KEY}, ${MONTH_EMPTY}))`;
   await app.close();

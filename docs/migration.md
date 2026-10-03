@@ -82,6 +82,9 @@
    ```
    挂子路径就把上面每条路径都换成带前缀的写法（`Disallow: /<前缀>/admin/` …），
    `Sitemap:` 也指向 `https://<新域名>/<前缀>/sitemap.xml`。
+   **`Disallow` 按前缀匹配，别随手加尾斜杠**：`/starred` 与 `/feedback` 这两个页面本身就是无尾斜杠的地址，
+   写成 `Disallow: /<前缀>/starred/` 匹配不到它们（本站在 2026-10-02 的第一版就踩了这个，10-03 复核时改回无斜杠；
+   改完用 `curl -s https://<新域名>/robots.txt` 逐行比对真实路由，别凭形状判断）。
 2. **验证**：`curl -s https://<新域名>/robots.txt` → 200 且**这一份**里有 `Sitemap:` 行指向本站；
    `curl -s https://<新域名>/sitemap.xml | head -c 200` → 200 且 `<loc>` 全是新域名。
 3. `/.well-known/security.txt`（RFC 8615 同样只在域名根生效）：本站把它注册在 `<前缀>/.well-known/security.txt`，
