@@ -217,3 +217,30 @@ curl -s -o /dev/null -w '%{http_code} %{num_redirects} %{url_effective}\n' -L ht
 - 新增 npm 依赖 → 提取代码后先在应用目录装依赖再构建：
   `sudo systemd-run --quiet --pipe --wait --uid=geohot --gid=geohot --property=MemoryMax=700M --property=MemorySwapMax=1500M --property=WorkingDirectory=/opt/geohot/app env HOME=/opt/geohot NODE_ENV=production npm install <pkg> -w @aihot/backend --no-audit --no-fund`
   只提取不装依赖，api/worker 会倒在 import 上（2026-10-02 新增 `marked` 时走的就是这条）。
+
+## 整包升级（2026-10-03 第八轮上线时走的顺序，可照抄）
+
+```bash
+# 本机：导出被验收过的 HEAD（不含 .env / .data，tar 也不含 git 元数据）
+git archive HEAD | gzip > /tmp/geohot-src.tar.gz
+scp -i ~/.ssh/xxc.pem /tmp/geohot-src.tar.gz xxc@<主机>:/tmp/
+
+# 服务器
+sudo tar -czf /opt/geohot/backups/app-$(date +%Y%m%d-%H%M%S).tar.gz -C /opt/geohot app   # 先备份
+sudo tar -xzf /tmp/geohot-src.tar.gz -C /opt/geohot/app --owner=geohot --group=geohot
+sudo chown -R geohot:geohot /opt/geohot/app          # ★ 见下面那条坑
+sudo -u geohot bash -lc 'cd /opt/geohot/app && node --env-file=.env scripts/migrate.ts'   # 有新迁移就先跑
+sudo -u geohot bash -lc 'cd /opt/geohot/app && node --env-file=.env scripts/seed.ts'      # 只增不改，可重复
+sudo -u geohot bash -lc 'cd /opt/geohot/app && BASE_PATH=/geohot NODE_ENV=production npm run build -w @aihot/web'
+sudo systemctl restart geohot-api geohot-worker geohot-web      # brain 没动就不重启
+cd /opt/geohot/app && sudo -u geohot bash deploy/geohot/verify-deploy.sh   # 必须 ALL CHECKS PASSED
+```
+
+**那条 `chown -R` 不是例行公事**：2026-10-03 第一次构建倒在
+`EACCES: permission denied, rmdir '/opt/geohot/app/apps/web/build'`——`build/` 自己是 geohot 的，
+但它的**父目录 `apps/web` 是 root 的**（早先某次 root 身份解包留下的），而 `react-router build` 要
+先删旧产物，删子目录要的是父目录的写权限。整包升级后一律把应用树交回 geohot，别等构建报错再查。
+
+**只动文档或 `industry/changelog.json` 的最小更新**：`industry/changelog.json` 是 **api 进程启动时读入**，
+改了它必须 `systemctl restart geohot-api`（否则 `/changelog` 发旧内容，状态码看不出来）；纯前端改动
+只需重建 + 重启 web；后端改动重启 api 与 worker。
