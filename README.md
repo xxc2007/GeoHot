@@ -153,7 +153,7 @@ GEOHOT/
 │   └── contracts/    # 跨进程契约与 HTTP 策略
 ├── industry/         # ★ 行业层：换行业只动这里（见下面那节）
 ├── database/         # 迁移（只做向后兼容的增量，35 个）
-├── scripts/          # env:init · dev-db · migrate · seed · seed:curated · smoke · collect · eval-selection
+├── scripts/          # env:init · dev-db · migrate · seed · seed:curated · smoke · shoot（重拍本页配图）· collect · eval-selection
 ├── tooling/          # brain-stub.ts（编辑大脑 stub）· fixtures/（人工判断）· corpus/（人工语料）· ci-check.yml（CI 正本，见下面那节）
 ├── tests/            # node --test，串行、共享一个 *_test 库，不碰任何外部服务
 ├── docs/             # manual.md（操作手册）· migration.md（搬家清单）· runbook/selection/customize/… · shots/（本页配图）
