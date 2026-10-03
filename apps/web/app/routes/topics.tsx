@@ -51,7 +51,8 @@ export default function TopicsPage() {
             </h2>
             <p className="text-[12px] text-ink-4">{g.blurb}</p>
           </div>
-          <ul className="mt-3.5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {/* 宽屏（≥1536）从四列到五列：45 张卡在 1440 上要滚 11 行，多一列不藏任何信息、只是把空出来的右侧用上。 */}
+          <ul className="mt-3.5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
             {topics
               .filter((t) => t.group === g.key)
               .map((t) => (
