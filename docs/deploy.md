@@ -20,7 +20,7 @@ docker compose up -d --build
 
 **克隆地址是 `xxc2007/GeoHot`，不是上游的 `KKKKhazix/AIHOT`。** 上游那个仓库是通用框架（AI 行业示例站），
 它的 `industry/` 里是 AI 信源、AI 提示词和 AIHOT 的品牌；从它克隆会部署成另一个站。本站的地理层——58 条信源、
-十个分类、提示词、门槛、品牌、条款页——只存在于 `xxc2007/GeoHot`。
+九个分类、提示词、门槛、品牌、条款页——只存在于 `xxc2007/GeoHot`。
 
 `env:init` 之后**先别急着 `up`**：它写出的 `.env` 里 `COLLECT_ENABLED=false`、`MODEL_CALLS_ENABLED=false`
 （`.env.example:82-83` 就是 false，`scripts/init-env.ts` 只替换五个密钥与端口，**不动这两个阀**），而 compose 的

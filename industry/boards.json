@@ -12,8 +12,8 @@
       "slug": "gis",
       "name": "地理信息系统",
       "plate": "graticule",
-      "categories": ["gis", "geotech"],
-      "description": "GIS 软件与平台、空间数据库与数据标准、WebGIS 与三维引擎、开源生态与许可变更，以及遥感影像、卫星数据产品、导航定位与制图平台的发布与版本变化。"
+      "categories": ["geotech"],
+      "description": "遥感卫星与影像、导航定位、观测数据集与标准的发布，以及 GIS 软件与平台、空间数据库与标准、WebGIS 与三维引擎、开源生态与许可变更。2026-10-03 起「地理信息技术」与「地理信息系统」合并为这一个区域（分类 key 仍是 geotech）。"
     },
     {
       "slug": "geopolitics",

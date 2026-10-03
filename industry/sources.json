@@ -906,7 +906,7 @@
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
-      "defaultCategory": "gis"
+      "defaultCategory": "geotech"
     },
     {
       "id": "intl-qgis-releases",
@@ -922,7 +922,7 @@
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
-      "defaultCategory": "gis"
+      "defaultCategory": "geotech"
     },
     {
       "id": "intl-thediplomat",

@@ -19,7 +19,9 @@ const create = readFileSync(path.join(ROUTES, "source-new.tsx"), "utf8");
 const OPTIONS = "CATEGORY_KEYS.map((k) => <option key={k} value={k}>{CATEGORY_LABELS[k]}</option>)";
 
 test("选项表就是 taxonomy：每个 key 一个人话标签，key 不重复，标签不拿 key 顶替", () => {
-  assert.ok(CATEGORY_KEYS.length >= 10, "本站十个分类（industry/taxonomy.ts）都该在列表里");
+  // 精确钉住条数：2026-10-03 把「地理信息技术」与「地理信息系统」并成一个区域后是九个
+  // （这里原来写的是 `>= 10`，合并当天就红了——计数就该写成等于，红的时候才有人看一眼）。
+  assert.equal(CATEGORY_KEYS.length, 9, "本站九个分类（industry/taxonomy.ts）都该在列表里");
   assert.equal(new Set(CATEGORY_KEYS).size, CATEGORY_KEYS.length, "不能有重复的 key");
   assert.deepEqual(Object.keys(CATEGORY_LABELS).sort(), [...CATEGORY_KEYS].sort(), "每个 key 恰好一个标签");
   for (const key of CATEGORY_KEYS) {

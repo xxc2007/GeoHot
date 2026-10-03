@@ -263,7 +263,7 @@ stub 是开发工具，不是站点的一部分：不在 `docker-compose.yml` �
 | 文件 | 管什么 |
 |---|---|
 | `site.ts` | 站名、行业词（`subject`）、首页与关于页文案、MCP 工具名前缀、`contactEmail`、`icp` |
-| `taxonomy.ts` | 10 个分类（`key` 进 URL，上线后不可改）、`industry/boards.json` 的四个板块、7 个内容类型、三个标签词表、机构名录 `ENTITIES`、防张冠李戴的 `IDENTITY_LEXICON` |
+| `taxonomy.ts` | 9 个分类（`key` 进 URL，上线后不可改）、`industry/boards.json` 的四个板块、7 个内容类型、三个标签词表、机构名录 `ENTITIES`、防张冠李戴的 `IDENTITY_LEXICON` |
 | `topics.json` | 主题页目录（`/topics`，当前 45 个主题） |
 | `sources.json` | 首次启动导入的信源（`ON CONFLICT DO NOTHING`，只增不改，之后在后台增删） |
 | `prompts/` | 精选标准与写作要求，**行业 KnowHow 就写在这里**。27 个文件，改提示词不用改代码 |
@@ -321,7 +321,7 @@ node --env-file=.env scripts/delete-sources.ts "<理由>" <source-id>...        
 
 **门槛拦不住什么——这一条必须写明白，别再把它当证明。** 上一版本文件（它当时还是仓库根的 README）在这里写过"营销软文数学上不可能入选（114 < 116）"，**那句话已经被独立审计推翻并且被 Wave 4 撤掉了**（撤掉的说明与新算术就写在 `industry/selection.ts:8-24`）：那 12 条硬上限只封住一到两轴，而**五轴从不回传代码**（`ScoreSchema` 只校验 `attentionScore` 是 0–100，`analyze.ts:71`），未封顶的轴按定义能给到 10。按字面重算，营销与景区稿的天花板是 **92 分**、盘点稿/例行更新/版本通告是 **93 分**、泛泛地方介绍 75、小流域方法微调 74——要关住 93 就得把 T1 抬到 ≥94，而人工语料最高一条（C3S 温度发布，两次之和 173）也进不来，精选会恒空。**所以这组门槛是经验护栏，不是证明。** 真在下限拦噪声的是两层别的东西：① `industry/prompts/prefilter.md` 的 `BLOCK`——Wave 4 把五类噪声（教育与文旅营销与景区宣传、无数据的泛泛介绍、未经核实的地理传闻、纯机关公文与会议通报、多主题盘点汇编）写成"即使带航拍影像、客流数字、坐标与官方图件也照样 BLOCK"（`prefilter.md:3`），它们到不了评分那一步；② 分级摆放——盘点与文旅向的转载层放 **T2**（`web-spacemapper-news` 就是这样登记的），这只决定"这个源的信材用哪一档线量"，**它本身挡不住 92–93 分**。还有一层诚实必须说：stub 的预筛兜底是 `PASS`（`tooling/brain-stub.ts:615`），所以①今天只在有人写过 BLOCK 判断的那些材料上真正成立。门槛的可行区间本身是被实测夹出来的（期刊层 119 不能被锁死、T1 上最高噪声 107 要关住、相邻档余量 ≥3 ⇒ T1 56 / T1_5 59 / T2 62），推演与双向核对全在 `industry/selection.ts:26-68`，那里也写着**这档最薄的一刀在 T1_5**：两条人工分正好压 118，最近的被拦者只差 2 分。
 
-**分类与分节。** 10 个分类（`taxonomy.ts`）：自然地理 `physical`、人文地理 `human`、区域地理 `regional`、地理与政治 `geopolitics`、地理与历史 `histgeo`、考研 `geoedu`、地理信息技术 `geotech`、地理信息系统 `gis`、野外与考察 `fieldwork`、观点与解读 `comment`。日报分节仍是 3 节：学科（自然/人文/区域/政治/历史/考研）、技术（地理信息技术/地理信息系统）、实践（野外与考察/观点与解读）——**新分类一律复用这三节**，因为 `reports/compose.ts` 把 `SECTION_ORDER` 的最后一节当作「没有分类的材料」的兜底，加第四个节名会把所有未分类条目一夜之间搬过去；这条不变量由 `tests/report-default-section.test.ts` 钉住。板块页（`/boards`）是四个跨类别方向：考研 / 地理信息系统 / 地理与政治 / 地理与历史，定义在 `industry/boards.json`。
+**分类与分节。** 9 个分类（`taxonomy.ts`）：自然地理 `physical`、人文地理 `human`、区域地理 `regional`、地理与政治 `geopolitics`、地理与历史 `histgeo`、考研 `geoedu`、地理信息系统 `geotech`、野外与考察 `fieldwork`、观点与解读 `comment`（2026-10-03 把原来的「地理信息技术」与「地理信息系统」并成一个区域，key 保留 `geotech`，迁移 `0040`）。日报分节仍是 3 节：学科（自然/人文/区域/政治/历史/考研）、技术（地理信息系统）、实践（野外与考察/观点与解读）——**新分类一律复用这三节**，因为 `reports/compose.ts` 把 `SECTION_ORDER` 的最后一节当作「没有分类的材料」的兜底，加第四个节名会把所有未分类条目一夜之间搬过去；这条不变量由 `tests/report-default-section.test.ts` 钉住。板块页（`/boards`）是四个跨类别方向：考研 / 地理信息系统 / 地理与政治 / 地理与历史，定义在 `industry/boards.json`。
 
 **热度模型没改**（`packages/backend/src/events/hot.ts:8-10,93`）：窗口 48 小时、半衰期 24 小时、每个 `participant_key` 只投一票、至少 2 个参与者、其中至少 1 个是编辑类参与者。
 
@@ -426,7 +426,7 @@ node scripts/smoke.ts --base http://127.0.0.1:3000 # 起 api+web 之后（跑法
 
 | 文档 | 内容 | 状态 |
 |---|---|---|
-| `../README.md` | 面向读者的介绍页：这是什么、十个分类、板块页、精选标准、技术栈、`industry/` 换行业层、截图 | **本站写的，公开仓库的门面**。三张配图（`docs/shots/`）的说明都写死了拍摄日期、路由与视口，并明说"线上才是事实来源"——它们是 2026-10-02 14:02–14:03 的快照，其中两处英文文案当天 20:10 之后已修（2026-10-03 复核线上为中文）。介绍页里凡是"每天 08:00 就会变"的数字都不再写死：期数指向 `/daily/archive`，信源条数指向 `industry/sources.json`，热度指向 `/hot` |
+| `../README.md` | 面向读者的介绍页：这是什么、九个分类、板块页、精选标准、技术栈、`industry/` 换行业层、截图 | **本站写的，公开仓库的门面**。三张配图（`docs/shots/`）的说明都写死了拍摄日期、路由与视口，并明说"线上才是事实来源"——它们是 2026-10-02 14:02–14:03 的快照，其中两处英文文案当天 20:10 之后已修（2026-10-03 复核线上为中文）。介绍页里凡是"每天 08:00 就会变"的数字都不再写死：期数指向 `/daily/archive`，信源条数指向 `industry/sources.json`，热度指向 `/hot` |
 | 本文件（`docs/manual.md`） | 这是什么、怎么跑、内容从哪来、精选标准、已知边界 | **本站写的，操作口径以它为准** |
 | `docs/geohot-runbook.md` | 运营者的日常循环与故障排查表 | **本站写的** |
 | `tooling/brain-README.md` | 编辑大脑 stub 的能力契约、fixture 格式、补稿流程 | 本站写的 |

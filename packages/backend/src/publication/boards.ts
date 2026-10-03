@@ -1,5 +1,5 @@
 // Board data layer: the four cross-category sections the site owner asked for (考研 / 地理信息系统 /
-// 地理与政治 / 地理与历史). A board is a *view* over one or two taxonomy categories — it adds no new
+// 地理与政治 / 地理与历史). A board is a *view* over one (or more) taxonomy categories — it adds no new
 // visibility rule, and it deliberately keeps two lanes apart:
 //
 //   本站精选  — selected items (the human-curated set; the same gate topic pages use)

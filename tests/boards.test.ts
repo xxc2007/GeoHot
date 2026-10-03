@@ -32,7 +32,7 @@ async function publish(sourceId: string, suffix: string, selected: boolean) {
 before(async () => {
   await sql`INSERT INTO sources (id, name, kind, tier, participation_mode, enabled, next_fetch_at, default_category) VALUES
             (${HIST}, ${`历史源 ${T}`}, 'rss', 'T1', 'editorial', true, '2100-01-01', 'histgeo'),
-            (${GIS}, ${`GIS 源 ${T}`}, 'rss', 'T1', 'editorial', true, '2100-01-01', 'gis')`;
+            (${GIS}, ${`GIS 源 ${T}`}, 'rss', 'T1', 'editorial', true, '2100-01-01', 'geotech')`;
   for (let i = 0; i < 24; i++) await publish(HIST, `i${i}`, false);
   await publish(GIS, "c0", true);
 });
@@ -49,6 +49,11 @@ after(async () => {
 test("four boards with the agreed slugs and a plate mark each", async () => {
   const boards = await listBoardDefinitions();
   assert.deepEqual(boards.map((b) => b.slug).sort(), ["geopolitics", "gis", "histgeo", "kaoyan-geo"]);
+  // 2026-10-03：站长把「地理信息技术」与「地理信息系统」并成一个区域——板块名与分类 key 都要对上，
+  // 免得筛选栏里又出现两个并排的同类区域。
+  const gis = boards.find((b) => b.slug === "gis")!;
+  assert.equal(gis.name, "地理信息系统");
+  assert.deepEqual(gis.categories, ["geotech"], "合并后只挂一个分类");
   for (const b of boards) assert.ok(b.description.length > 20, `${b.slug} 要有一句人话说明`);
 });
 

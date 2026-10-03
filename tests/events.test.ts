@@ -34,7 +34,21 @@ const provider = await stub(async (_hit, req) => {
   const body = JSON.parse(req.body) as { messages: Array<{ content: string }> };
   const user = body.messages[1]!.content;
   const pair = user.includes("报道 A");
-  const ids = answerAll ? [...user.matchAll(/【候选 (C\d+)】/g)].map((m) => m[1]!) : ["C1"];
+  // Only the fixture's own candidates are answered. The candidate pool is every fact of the recall
+  // window in the shared test database, and a foreign row can be listed first — the lexical recall
+  // floor is 0.25 and a short leftover report text clears it easily. Answering 「C1」 then decides
+  // against a foreign fact: on 2026-10-03 running the same suite twice flipped this file's last test
+  // from `new-story` to `same-fact` once the pool had grown. The fixture's own candidates are the
+  // blocks whose described report text carries the query's title (fixtures keep distinctive titles:
+  // 16 random letters, or a tag); anything else is left unanswered, which verdictsByFact counts as
+  // UNRELATED.
+  const queryTitle = /(?:^|\n)标题：(.+)/.exec(user.split("【候选 C1】")[0] ?? "")?.[1] ?? "";
+  const mine = user
+    .split(/(?=【候选 C\d+】)/)
+    .filter((b) => /^【候选 C\d+】/.test(b))
+    .map((b) => ({ id: /【候选 (C\d+)】/.exec(b)![1]!, text: b }))
+    .filter((c) => queryTitle.length >= 6 && c.text.includes(queryTitle));
+  const ids = (answerAll ? mine : mine.slice(0, 1)).map((c) => c.id);
   const answer = pair
     ? { a: "发布", b: "发布", relation: pairRelation ?? relation, difference: "", confidence: 0.95 }
     : { query: "发布速报", decisions: ids.map((id) => ({ id, relation, confidence: 0.95, note: "" })) };
