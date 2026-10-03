@@ -89,6 +89,13 @@ function usePaged<T>(url: (cursor: string | null) => string, pick: (body: Record
         cursor = null;
         res = await fetch(url(null), { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]) });
       }
+      // 404 = 这条事实/事件已经不在了（合并走了、撤下了）：不是"暂时加载不了"，给一个永远点不通的重试
+      // 不如安静收尾——已经展开的留着，第一页就什么都没有的就不显示（同 StoryFollowups 的口径）。
+      if (res.status === 404) {
+        if (!active()) return;
+        setState((s) => ({ ...(cursor && s.scope === at ? s : EMPTY), scope: at, loading: false, error: false, loaded: true, next: null, items: cursor && s.scope === at ? s.items : [] }));
+        return;
+      }
       if (!res.ok) throw new Error(String(res.status));
       const body = (await res.json()) as Record<string, unknown> & { nextCursor: string | null };
       if (!active()) return;

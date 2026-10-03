@@ -27,7 +27,14 @@ export function StoryFollowups({ story, currentId }: { story: StoryRef; currentI
       if (started) return;
       started = true;
       fetch(publicPath(`/api/site/stories/${encodeURIComponent(story.publicId)}/followups`), { signal: controller.signal })
-        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+        .then((r) => {
+          // 404 = 这条事件不存在（比如已被并走）——不是"暂时加载不了"：给读者一个永远点不通的重试按钮
+          // 比什么都不显示更糟（线上 2026-10-03 的条目页就是这样）。真正会恢复的失败（5xx、断网）
+          // 才留重试。
+          if (r.status === 404) return { items: [], more: false } satisfies StoryFollowupsResponse;
+          if (!r.ok) throw new Error(String(r.status));
+          return r.json() as Promise<StoryFollowupsResponse>;
+        })
         .then((body: StoryFollowupsResponse) => {
           if (controller.signal.aborted) return;
           setItems(body.items.filter((d) => d.representative.id !== currentId));
