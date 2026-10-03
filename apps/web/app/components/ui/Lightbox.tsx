@@ -1,7 +1,8 @@
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Presence } from "./Presence";
-import { IconArrowLeft, IconArrowRight, IconClose } from "../icons";
+import { IconArrowLeft, IconArrowRight, IconClose } from "../icons.tsx";
+import { focusWhenReady } from "../../lib/focus-when-ready.ts";
 
 export interface LightboxImage {
   src: string;
@@ -26,7 +27,7 @@ export function Lightbox({ images, index, onIndex, onClose }: { images: Lightbox
     const root = document.documentElement;
     const overflow = root.style.overflow;
     root.style.overflow = "hidden";
-    closeButton.current?.focus({ preventScroll: true });
+    const stopFocusRetry = focusWhenReady(() => closeButton.current);
     const step = (by: number) => {
       const { index: at, count, onIndex: go } = state.current;
       if (at !== null && count > 1) go((at + by + count) % count);
@@ -46,6 +47,7 @@ export function Lightbox({ images, index, onIndex, onClose }: { images: Lightbox
     };
     document.addEventListener("keydown", onKey);
     return () => {
+      stopFocusRetry();
       document.removeEventListener("keydown", onKey);
       root.style.overflow = overflow;
       opener?.focus({ preventScroll: true });

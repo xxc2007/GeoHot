@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { SITE } from "@aihot/industry/site";
 import { Presence } from "../../components/ui/Presence";
 import { IconClose, IconDownload, IconShare } from "../../components/icons";
-import { publicPath } from "../../lib/public-path";
+import { publicPath } from "../../lib/public-path.ts";
+import { focusWhenReady } from "../../lib/focus-when-ready.ts";
 
 export default function PosterSheet({ id, title, open, onClose }: { id: string; title: string; open: boolean; onClose: () => void }) {
   // One address, three uses (<img src>, the download <a href>, the blob fetch behind 分享). It is
@@ -27,7 +28,9 @@ export default function PosterSheet({ id, title, open, onClose }: { id: string; 
     const root = document.documentElement;
     const overflow = root.style.overflow;
     root.style.overflow = "hidden";
-    closeButton.current?.focus({ preventScroll: true });
+    // Presence mounts its children one commit after `open` flips, so the close button does not exist yet
+    // in this effect's first pass — see lib/focus-when-ready.ts for what that looks like in a browser.
+    const stopFocusRetry = focusWhenReady(() => closeButton.current);
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         onClose();
@@ -48,6 +51,7 @@ export default function PosterSheet({ id, title, open, onClose }: { id: string; 
       setCanShareFile(false);
     }
     return () => {
+      stopFocusRetry();
       document.removeEventListener("keydown", onKey);
       root.style.overflow = overflow;
       opener?.focus({ preventScroll: true });

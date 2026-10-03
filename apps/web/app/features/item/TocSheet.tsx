@@ -11,7 +11,8 @@
 // 而那次 `matchMedia` 读在点击之后，不读在渲染里——SSR 与水合后的第一帧因此是同一份 HTML。
 import { useEffect, useRef } from "react";
 import type { OutlineEntry } from "@aihot/contracts/site";
-import { Presence } from "../../components/ui/Presence";
+import { Presence } from "../../components/ui/Presence.tsx";
+import { focusWhenReady } from "../../lib/focus-when-ready.ts";
 import { IconClose } from "../../components/icons";
 
 /** 遮罩退场的时长，和 app.css 里 `.anim-fade-out` 的默认 `--anim-ms` 对齐。 */
@@ -46,7 +47,7 @@ export default function TocSheet({ outline, open, onClose }: { outline: OutlineE
     const root = document.documentElement;
     const overflow = root.style.overflow;
     root.style.overflow = "hidden";
-    closeButton.current?.focus({ preventScroll: true });
+    const stopFocusRetry = focusWhenReady(() => closeButton.current);
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         onClose();
@@ -62,6 +63,7 @@ export default function TocSheet({ outline, open, onClose }: { outline: OutlineE
     };
     document.addEventListener("keydown", onKey);
     return () => {
+      stopFocusRetry();
       document.removeEventListener("keydown", onKey);
       root.style.overflow = overflow;
       opener?.focus({ preventScroll: true });
