@@ -86,3 +86,27 @@ test("an unknown board and an out-of-range page are not pages", async () => {
   assert.equal(await viewBoard("histgeo", 0), null);
   assert.equal(await viewBoard("histgeo", 99), null);
 });
+
+test("a non-editorial source's rows never reach a board", async () => {
+  // 独立审计（AUDIT-r8 m2）抓到的缺口：板块的两条线原本少了 `p.eligible` 这道与 /all、v1 相同的过滤，
+  // 而 mode !== editorial 的条目没有条目页（rules.ts 的 hasItemPage）——列出来就是给读者一条 404 的链接。
+  const signal = `${T}-sig`;
+  await sql`INSERT INTO sources (id, name, kind, tier, participation_mode, enabled, next_fetch_at, default_category)
+            VALUES (${signal}, ${`信号源 ${T}`}, 'rss', 'T2', 'hot_signal', true, '2100-01-01', 'histgeo')`;
+  const { articleId } = await upsertMaterial({
+    sourceId: signal, url: `https://example.com/${T}-signal`, title: `信号材料 ${T}`,
+    bodyText: "测试正文。", bodyStatus: "ok", via: "fetch",
+  });
+  await sql`INSERT INTO analyses (article_id, input_revision, origin, relevance, category, title_zh, summary_zh, score, selected, output)
+            VALUES (${articleId}, 1, 'rule', 'pass', 'histgeo', ${`信号标题 ${T}`}, ${`${T} 的信号提要`}, 60, false, ${sql.json({ fact: null })})`;
+  await publishArticle(articleId);
+  articles.push(articleId);
+  const [row] = await sql<{ eligible: boolean }[]>`SELECT eligible FROM publications WHERE article_id = ${articleId}`;
+  assert.equal(row?.eligible, false, "hot_signal 源不该进公开池");
+
+  const view = await viewBoard("histgeo", 1);
+  assert.ok(view);
+  assert.ok(!view.index.items.some((i) => i.id === articleId), "板块的『来源原文』不能出现没有条目页的行");
+  assert.ok(!view.curated.items.some((i) => i.id === articleId));
+  assert.equal(view.counts.index, 24, "计数与渲染同一条门槛：这条不计入");
+});

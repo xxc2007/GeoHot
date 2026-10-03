@@ -13,7 +13,7 @@
 [![Derived from AIHOT](https://img.shields.io/badge/派生自-AIHOT_框架-1F1E1D)](NOTICE)
 [![Node](https://img.shields.io/badge/运行时-Node_24-1F1E1D)](#技术栈)
 [![Categories](https://img.shields.io/badge/分类-十个-D97757)](#-十个分类一条标准)
-[![Sources](https://img.shields.io/badge/信源-44%2B1_个-D97757)](#-现状与边界)
+[![Sources](https://img.shields.io/badge/信源-58%2B1_个-D97757)](#-现状与边界)
 [![Editorial brain](https://img.shields.io/badge/编辑大脑-人工策划_无_LLM_Key-1F1E1D)](#-编辑大脑是人工写的判断这一点不遮掩)
 [![GitHub](https://img.shields.io/badge/GitHub-@xxc2007-1F1E1D)](https://github.com/xxc2007)
 
@@ -66,7 +66,7 @@
 | `fieldwork` | 野外与考察 | 野外考察、科考航次、钻探与剖面测量的第一手记录，须有亲历者或现场材料 |
 | `comment` | 观点与解读 | 评论、深度分析、趋势解读与科普长文，必须有明确观点或论证 |
 
-**板块页**（`/boards`）把其中四个跨类别方向做成独立入口：考研 / 地理信息系统 / 地理与政治 / 地理与历史。一个板块是一到两个分类的视图，页面上两条线**永不混**：**本站精选**是人工签署的编辑判断；**来源原文**是各信源当天已公开、本站未作编辑判断的条目（标题与链接指向出处，卡片上写明这一点），并按来源折叠——同一条来源最多连出 3 条，其余折成「＋N 条来自同一来源」，免得一个预警源铺满整屏。板块与来源的对应写在 `industry/boards.json` 与每条源的 `defaultCategory`（`industry/sources.json`）。
+**板块页**（`/boards`）把其中四个跨类别方向做成独立入口：考研 / 地理信息系统 / 地理与政治 / 地理与历史。一个板块是一到两个分类的视图，页面上两条线**永不混**：**本站精选**是人工签署的编辑判断；**来源原文**是各信源已公开、尚未经本站编辑判断的条目（按时间倒序取最近的若干条，不设"只看当天"的时间窗；标题与链接指向出处，卡片上写明这一点），并按来源折叠——同一条来源最多连出 3 条，其余折成「＋N 条来自同一来源」，免得一个预警源铺满整屏。板块与来源的对应写在 `industry/boards.json` 与每条源的 `defaultCategory`（`industry/sources.json`）。
 
 **入选标准只有一条：空间显著性优先**——影响尺度大、多方独立报道、有数据/图件/影像支撑，三件同时成立才排得靠前。这条既写进评分提示词，也写进五轴权重表，还写进热度算法（"多方独立报道 = 热"）。
 

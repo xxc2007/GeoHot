@@ -64,7 +64,7 @@ export async function boardCounts(at = new Date()): Promise<Record<string, Board
            count(*) FILTER (WHERE p.selected)::int AS curated,
            count(*) FILTER (WHERE NOT p.selected)::int AS index
     FROM publications p
-    WHERE p.visibility = 'public' AND ${listedCondition(at)} AND p.category = ANY(${boards.flatMap((b) => b.categories)}::text[])
+    WHERE p.visibility = 'public' AND p.eligible AND ${listedCondition(at)} AND p.category = ANY(${boards.flatMap((b) => b.categories)}::text[])
     GROUP BY 1`;
   const byCategory = new Map(rows.map((r) => [r.category, r]));
   const out: Record<string, BoardCounts> = {};
@@ -108,9 +108,11 @@ async function loadLane(
 ): Promise<BoardLane> {
   const gate = lane === "curated" ? sql`${selectedCondition(now)}` : sql`${listedCondition(now)} AND NOT p.selected`;
   const offset = (page - 1) * BOARD_PAGE_SIZE;
+  // `p.eligible` is the same filter every other list carries: a row from a non-editorial source has no
+  // item page (rules.ts), so listing it here would hand readers a link that 404s.
   const rows = await sql<ItemRow[]>`
     SELECT ${ITEM_COLUMNS} ${ITEM_FROM}
-    WHERE ${gate} AND p.category = ANY(${categories}::text[])
+    WHERE ${gate} AND p.eligible AND p.category = ANY(${categories}::text[])
     ORDER BY p.timeline_at DESC, p.article_id DESC
     LIMIT ${BOARD_PAGE_SIZE} OFFSET ${offset}`;
   if (lane === "curated") return { items: rows.map(toFeedItemSummary), collapsed: [] };

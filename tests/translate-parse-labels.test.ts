@@ -32,3 +32,12 @@ test("标签后紧跟真实内容时，标签行不参与兜底拼接", () => {
   const p = parseTranslateOutput("title_zh:\n广西多地暴雨");
   assert.equal(p.titleZh, "广西多地暴雨", "空标签行不该被当成标题");
 });
+
+test("空摘要标签下的正文不会把标签带进摘要，也不会重复一遍", () => {
+  // 独立审计（AUDIT-r8 m3）实测的形状：标题有值、摘要标签空着、正文在下一行。
+  // 修之前得到 "summary_zh:\n正文摘要。\n正文摘要。"——标签泄进读者可见的摘要里还多出一份。
+  const p = parseTranslateOutput("title_zh: 中文标题\nsummary_zh:\n正文摘要。");
+  assert.equal(p.titleZh, "中文标题");
+  assert.equal(p.summaryZh, "正文摘要。");
+  assert.equal(p.bodyZh, "");
+});

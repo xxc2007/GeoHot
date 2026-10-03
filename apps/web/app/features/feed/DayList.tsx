@@ -12,15 +12,23 @@ import { FeedItem } from "./FeedItem";
 export function DayList({ items, todayCount = null, showTags = true, animate = false }: { items: FeedItemSummary[]; todayCount?: number | null; showTags?: boolean; animate?: boolean }) {
   const readSet = useReadSet();
   const today = beijingDate(Date.now());
-  const days = useMemo(() => {
+  const { days, undated } = useMemo(() => {
     const out: Array<{ day: string; items: FeedItemSummary[] }> = [];
+    const undated: FeedItemSummary[] = [];
     for (const it of items) {
+      // 来源没给发布时间的条目单独排在最后：读取层把它们按历史处理（不进事件/推送/日报），但它们
+      // 的 timeline_at 只能是「我们找到它的时刻」，摆进「今天」就等于把 2019 年的页面内容当成今天
+      // 的新料（2026-10-03 实测：49 张卡就是这么落到「今天」组里的）。
+      if (!it.publishedAt) {
+        undated.push(it);
+        continue;
+      }
       const d = beijingDate(it.timelineAt);
       const last = out[out.length - 1];
       if (last && last.day === d) last.items.push(it);
       else out.push({ day: d, items: [it] });
     }
-    return out;
+    return { days: out, undated };
   }, [items]);
   let order = 0;
   return (
@@ -37,6 +45,21 @@ export function DayList({ items, todayCount = null, showTags = true, animate = f
           </ol>
         </section>
       ))}
+      {undated.length > 0 && (
+        <section aria-label="无发布日期" className="pt-7">
+          <div className="flex h-9 flex-wrap items-baseline gap-x-2">
+            <span className="text-[14px] font-bold text-ink">无发布日期</span>
+            <span className="text-[12.5px] text-ink-4">来源没有给出发布时间，按本站找到它的先后排列</span>
+          </div>
+          <ol className="lg:pt-1">
+            {undated.map((it) => (
+              <TimelineSlot key={it.id} at={it.timelineAt} fresh={false} delay={0}>
+                <FeedItem item={it} read={readSet.has(it.id)} onOpen={markRead} showTags={showTags} />
+              </TimelineSlot>
+            ))}
+          </ol>
+        </section>
+      )}
     </div>
   );
 }

@@ -19,7 +19,7 @@ export async function loader({ request }: { request: Request }) {
 export function meta() {
   return pageMeta({
     title: "板块",
-    description: "四个跨类别板块：考研、地理信息系统、地理与政治、地理与历史。每个板块分两条——本站精选与来源原文。",
+    description: "跨类别板块页：每个板块分「本站精选」（人工判断）与「来源原文」（各信源已公开、尚未经本站编辑判断的条目）两条线。",
     path: "/boards",
     jsonLd: breadcrumbLd([{ name: SITE.name, path: "/" }, { name: "板块", path: "/boards" }]),
   });
@@ -36,7 +36,7 @@ export default function BoardsPage() {
       <header className="pb-2 pt-5 lg:pt-1">
         <h1 className="text-[24px] font-semibold leading-[1.3] text-ink">按板块看地理</h1>
         <p className="mt-1.5 text-[13px] leading-relaxed text-ink-3">
-          四个跨类别板块，每个板块两条：<span className="text-ink-2">本站精选</span>是编辑判断，
+          <span className="num">{boards.length}</span> 个跨类别方向，每个板块两条：<span className="text-ink-2">本站精选</span>是编辑判断，
           <span className="text-ink-2">来源原文</span>是各信源当天已公开的条目——标题与链接指向出处，本站未对它作编辑判断。
         </p>
       </header>

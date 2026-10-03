@@ -1,3 +1,4 @@
+import { CATEGORY_KEYS, CATEGORY_LABELS } from "@aihot/contracts/taxonomy";
 import { SITE } from "@aihot/industry/site";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
@@ -27,7 +28,7 @@ interface Preview {
 export default function NewSource() {
   const navigate = useNavigate();
   const { run, pending } = useAdminAction();
-  const [form, setForm] = useState({ id: "", name: "", kind: "rss", tier: "T2", participation_mode: "editorial", interval_minutes: 30, first_party: false, site_fulltext: false, syndicate_fulltext: false, tags: "" });
+  const [form, setForm] = useState({ id: "", name: "", kind: "rss", tier: "T2", participation_mode: "editorial", interval_minutes: 30, first_party: false, site_fulltext: false, syndicate_fulltext: false, default_category: "", tags: "" });
   const [config, setConfig] = useState(JSON.stringify(TEMPLATES.rss, null, 2));
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -79,6 +80,12 @@ export default function NewSource() {
                 {Object.entries(TIER_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
               </Select>
             </Field>
+            <Field label="默认分类" hint="这条源的材料在模型与人工都没给出分类时，落到这个分类（人工与模型判断优先）">
+              <Select value={form.default_category} onChange={(e) => setForm({ ...form, default_category: e.target.value })}>
+                <option value="">不设</option>
+                {CATEGORY_KEYS.map((k) => <option key={k} value={k}>{CATEGORY_LABELS[k]}</option>)}
+              </Select>
+            </Field>
             <Field label="标签（逗号分隔）">
               <Input value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} />
             </Field>
@@ -128,7 +135,7 @@ export default function NewSource() {
                 const r = await run<{ created: boolean; duplicate?: { id: string; name: string }; source?: { id: string } }>(
                   "POST",
                   "/api/admin/sources",
-                  { ...form, tags: form.tags.split(/[,，]/).map((t) => t.trim()).filter(Boolean), config: c },
+                  { ...form, tags: form.tags.split(/[,，]/).map((t) => t.trim()).filter(Boolean), default_category: form.default_category || null, config: c },
                   { label: "create", revalidate: false },
                 );
                 if (!r) return;

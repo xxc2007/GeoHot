@@ -1,3 +1,4 @@
+import { CATEGORY_KEYS, CATEGORY_LABELS } from "@aihot/contracts/taxonomy";
 import { SITE } from "@aihot/industry/site";
 import { useState } from "react";
 import { Link } from "react-router";
@@ -22,6 +23,7 @@ interface Source {
   interval_minutes: number;
   site_fulltext: boolean;
   syndicate_fulltext: boolean;
+  default_category: string | null;
   enabled: boolean;
   health: string;
   fail_count: number;
@@ -61,7 +63,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 
 export const meta: Route.MetaFunction = ({ loaderData }) => [{ title: `${loaderData?.source.name ?? "信源"} · ${SITE.name} 后台` }];
 
-type Draft = Pick<Source, "name" | "interval_minutes" | "tier" | "participation_mode" | "signal_group_id" | "first_party" | "owner_entity_id" | "site_fulltext" | "syndicate_fulltext"> & { tags: string; config: string };
+type Draft = Pick<Source, "name" | "interval_minutes" | "tier" | "participation_mode" | "signal_group_id" | "first_party" | "owner_entity_id" | "site_fulltext" | "syndicate_fulltext" | "default_category"> & { tags: string; config: string };
 
 function draftOf(s: Source): Draft {
   return {
@@ -74,6 +76,7 @@ function draftOf(s: Source): Draft {
     owner_entity_id: s.owner_entity_id,
     site_fulltext: s.site_fulltext,
     syndicate_fulltext: s.syndicate_fulltext,
+    default_category: s.default_category,
     tags: s.tags.join(", "),
     config: JSON.stringify(s.config, null, 2),
   };
@@ -110,6 +113,7 @@ export default function SourceDetail({ loaderData }: Route.ComponentProps) {
       interval_minutes: Number(draft.interval_minutes),
       signal_group_id: draft.signal_group_id || null,
       owner_entity_id: draft.owner_entity_id || null,
+      default_category: draft.default_category || null,
     };
     const before = draftOf(s) as Record<string, unknown>;
     const changed: Record<string, unknown> = {};
@@ -217,6 +221,12 @@ export default function SourceDetail({ loaderData }: Route.ComponentProps) {
               </Field>
               <Field label="运营主体 ID">
                 <Input value={draft.owner_entity_id ?? ""} onChange={(e) => setDraft({ ...draft, owner_entity_id: e.target.value })} />
+              </Field>
+              <Field label="默认分类" hint="这条源的材料在模型与人工都没给出分类时，落到这个分类（人工与模型判断优先）">
+                <Select value={draft.default_category ?? ""} onChange={(e) => setDraft({ ...draft, default_category: e.target.value })}>
+                  <option value="">不设</option>
+                  {CATEGORY_KEYS.map((k) => <option key={k} value={k}>{CATEGORY_LABELS[k]}</option>)}
+                </Select>
               </Field>
               <Field label="标签（逗号分隔）">
                 <Input value={draft.tags} onChange={(e) => setDraft({ ...draft, tags: e.target.value })} />

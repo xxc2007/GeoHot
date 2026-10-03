@@ -332,6 +332,9 @@ export function stripEcho(text: string): string {
   return lines.join("\n").trim();
 }
 
+/** A labelled-but-empty line ("title_zh:" with nothing after it): an empty answer, never content. */
+const LABEL_ONLY = /^(title_zh|summary_zh|body_zh)\s*[:：]\s*$/;
+
 /** `title_zh:` / `summary_zh:` / `body_zh:` lines, with fallbacks for answers that drop the labels. */
 export function parseTranslateOutput(text: string): { titleZh: string; summaryZh: string; bodyZh: string } {
   let titleZh = "";
@@ -350,13 +353,19 @@ export function parseTranslateOutput(text: string): { titleZh: string; summaryZh
     const body = t.match(/^body_zh\s*[:：]\s*(.*)$/);
     if (body) { bodyZh = body[1]!.trim(); bodyLine = i; continue; }
   }
-  // A title without a labelled summary or body: the lines after it are the summary.
+  // The labelled value as the scan found it: an empty label must not trigger the "summary continues on
+  // following lines" join below, or the same line lands in the summary twice (once via the title fallback,
+  // once via this join — measured 2026-10-03 with 「title_zh: 标题\nsummary_zh:\n正文」).
+  const labelledSummary = summaryZh;
+  // A title without a labelled summary or body: the lines after it are the summary. Empty labels are
+  // dropped here too — otherwise 「title_zh: 标题\nsummary_zh:\n正文」 hands the summary back as
+  // 「summary_zh:\n正文\n正文」 (the label leaks and the text doubles; measured 2026-10-03).
   if (titleZh && !summaryZh && bodyLine < 0 && titleLine >= 0) {
-    const rest = lines.slice(titleLine + 1).map((l) => l.trim()).filter(Boolean);
+    const rest = lines.slice(titleLine + 1).map((l) => l.trim()).filter((l) => l && !LABEL_ONLY.test(l));
     if (rest.length) summaryZh = rest.join("\n");
   }
   // A summary split over lines: join the unlabelled lines after it.
-  if (summaryLine >= 0) {
+  if (summaryLine >= 0 && labelledSummary) {
     const more: string[] = [];
     for (let i = summaryLine + 1; i < lines.length; i += 1) {
       const t = lines[i]!.trim();
@@ -389,7 +398,7 @@ export function parseTranslateOutput(text: string): { titleZh: string; summaryZh
       .trim()
       .split(/\r?\n/)
       .map((l) => l.trim())
-      .filter((l) => l && !/^(title_zh|summary_zh|body_zh)\s*[:：]\s*$/.test(l));
+      .filter((l) => l && !LABEL_ONLY.test(l));
     if (rest.length >= 2) {
       titleZh = rest[0]!;
       summaryZh = rest.slice(1).join("\n");

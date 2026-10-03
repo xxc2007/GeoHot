@@ -1,6 +1,8 @@
 // 出口对称性：加一个分类时，机器可读的出口必须一起认得它。
 // 2026-10-03 本地实测：四个新分类在 v1 的 `category=`、`/feed/category/<key>.xml`、MCP 工具的枚举里都能用
-// （分类表是唯一来源，各处都从它推导）。这个文件把"推导"这件事钉住，免得下一轮有人在某处抄一份字面量。
+// （分类表是唯一来源，各处都从它推导）。这个文件把"推导"这件事钉住——它断言的是**共享的词表**
+// （v1/RSS 用的 `isFeedCategory`、MCP 工具用的 `PUBLIC_API_CATEGORY_KEYS` 都从 `CATEGORY_KEYS` 推导），
+// 而不是 MCP 的处理函数本身；MCP 那条链在本地是对着真接口 curl 验的（host 头 + tools/list）。
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
