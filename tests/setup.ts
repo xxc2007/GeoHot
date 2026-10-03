@@ -74,6 +74,11 @@ export const tag = () => `${Date.now().toString(36)}${Math.random().toString(36)
  * candidate for 48 hours. Measured 2026-10-03: 11 leftover stories from earlier runs left the board's
  * 10 slots full, so `hot-heat.test.ts` found its own story missing from the ranking and failed on how
  * many runs had come before it rather than on the code under test.
+ *
+ * The source sweep at the end runs even when the tag created no story. It used to sit behind an early
+ * return on an empty story list, so files that only insert an article and a source (analyze-shutdown
+ * does) cleaned up nothing: every run left three selected Chinese rows behind, each anchoring above
+ * later tests on the home timeline (measured 2026-10-03: 30 rows across ten runs).
  */
 export async function purgeTagged(...tags: string[]): Promise<void> {
   // Imported here, not at the top of the file: `db.ts` must not run before the DATABASE_URL guard above.
@@ -87,18 +92,17 @@ export async function purgeTagged(...tags: string[]): Promise<void> {
             SELECT array_agg(DISTINCT s2.id) FROM stories s2
             LEFT JOIN facts f2 ON f2.story_id = s2.id
             WHERE s2.title LIKE ANY(${like}::text[]) OR f2.public_id LIKE ANY(${like}::text[])), '{}'))`;
-  if (stories.length === 0) return;
   const ids = stories.map((s) => s.id);
-  const facts = await sql<{ id: number }[]>`SELECT id FROM facts WHERE story_id = ANY(${ids})`;
+  const facts = ids.length === 0 ? [] : await sql<{ id: number }[]>`SELECT id FROM facts WHERE story_id = ANY(${ids})`;
   const factIds = facts.map((f) => f.id);
   // An article is deleted once the fact that reported it is gone: the schema cascades publications,
   // analyses, signals and the rest from `articles`, so this is the whole article-side cleanup.
   const articles = factIds.length === 0 ? [] : (await sql<{ article_id: string }[]>`
     SELECT DISTINCT article_id FROM fact_articles WHERE fact_id = ANY(${factIds})`).map((r) => r.article_id);
-  await sql`DELETE FROM story_aliases WHERE story_id = ANY(${ids})`;
+  if (ids.length > 0) await sql`DELETE FROM story_aliases WHERE story_id = ANY(${ids})`;
   if (articles.length > 0) await sql`DELETE FROM articles WHERE id = ANY(${articles}::text[])`;
-  await sql`DELETE FROM facts WHERE story_id = ANY(${ids})`;
-  await sql`DELETE FROM stories WHERE id = ANY(${ids})`;
+  if (ids.length > 0) await sql`DELETE FROM facts WHERE story_id = ANY(${ids})`;
+  if (ids.length > 0) await sql`DELETE FROM stories WHERE id = ANY(${ids})`;
   // Its own sources and articles go too: an enabled leftover reads as a source that has fallen behind in
   // sourceClocks(), which is the very state the heat tests reason about.
   await sql`DELETE FROM articles WHERE source_id LIKE ANY(${like}::text[])`;

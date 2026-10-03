@@ -65,6 +65,14 @@ async function selected(title: string, opts: { gated?: boolean } = {}): Promise<
 }
 
 const filters = { channel: "all" as const, category: null, tag: null, topic: null };
+/**
+ * The home-timeline reads are scoped to the fixture's own tag. The shared test database keeps other files'
+ * selected rows — some anchored in the future on purpose (the translate fixtures are discovered "later"
+ * because `translatePending` picks newest first) — and an unscoped page of 40 is then a statement about
+ * pool composition, not about the gate under test. 2026-10-03: after a day of runs this item fell off page
+ * one. The Chinese-copy gate, which is what these assertions are about, is untouched by a tag filter.
+ */
+const mine = { ...filters, tag: TAG };
 
 /** Test 2 reads the released item's sitemap entry as its control, so the two share these ids. */
 let chinese = "";
@@ -76,7 +84,7 @@ test("an item no one has written up in Chinese is on no list, and keeps its own 
 
   // The front page: the item with Chinese copy is a card, the one without is not, and the absence is not
   // because the page is empty.
-  const timeline = await loadTimeline({ ...filters, limit: 40, now });
+  const timeline = await loadTimeline({ ...mine, limit: 40, now });
   const cards = timeline.cards.map((c) => c.item.id);
   assert.ok(cards.includes(chinese), "the Chinese item is on the home timeline");
   assert.ok(!cards.includes(english), "an item with no Chinese title is not on the home timeline");
@@ -111,7 +119,7 @@ test("an item no one has written up in Chinese is on no list, and keeps its own 
   // And with the Chinese written, it lists itself: the same row, no other change.
   await sql`UPDATE analyses SET title_zh = ${`赣江上游洪水与沿岸预警 ${T}`} WHERE article_id = ${english}`;
   await sql`UPDATE publications SET title = ${`赣江上游洪水与沿岸预警 ${T}`} WHERE article_id = ${english}`;
-  const relisted = await loadTimeline({ ...filters, limit: 40, now: new Date() });
+  const relisted = await loadTimeline({ ...mine, limit: 40, now: new Date() });
   assert.ok(relisted.cards.some((c) => c.item.id === english), "the item joins the front page once its Chinese copy exists");
 });
 
@@ -125,7 +133,7 @@ test("an item behind the release gate has no page, no share card and no sitemap 
   assert.equal((await loadItemDetail(held, now)).kind, "not_found", "the detail read refuses it until its release");
   assert.equal((await loadItemShare(held, now)), null, "no share card title or summary for a hidden item");
   assert.deepEqual(await itemAvailability([held], now), { [held]: "unavailable" }, "收藏 cannot open it either");
-  assert.ok(!(await loadTimeline({ ...filters, limit: 40, now })).cards.some((c) => c.item.id === held), "not on the front page");
+  assert.ok(!(await loadTimeline({ ...mine, limit: 40, now })).cards.some((c) => c.item.id === held), "not on the front page");
   assert.ok(!(await itemFeed("selected", null, now)).includes(held), "not in the selected feed");
 
   for (const url of [`/api/site/items/${held}`, `/items/${held}/markdown`, `/og/items/${held}.png`]) {
@@ -152,6 +160,6 @@ test("an item behind the release gate has no page, no share card and no sitemap 
   assert.ok((await loadItemShare(held, at))?.title, "so does its share card");
   assert.equal((await itemAvailability([held], at))[held], "public", "and 收藏 can open it");
   assert.equal((await app.inject({ method: "GET", url: `/api/site/items/${held}` })).statusCode, 200, "the route follows");
-  assert.ok((await loadTimeline({ ...filters, limit: 40, now: at })).cards.some((c) => c.item.id === held), "and the front page");
+  assert.ok((await loadTimeline({ ...mine, limit: 40, now: at })).cards.some((c) => c.item.id === held), "and the front page");
   assert.ok((await itemFeed("selected", null, at)).includes(held), "and the feed");
 });

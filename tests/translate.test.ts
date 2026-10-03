@@ -1,7 +1,7 @@
 // Full-text translations follow the text: an article corrected while the model was translating the old
 // wording is translated again, and a translation of an older revision is never shown as the current one.
 // Links and images inside a paragraph survive the model, and the post an X item quotes is translated.
-import { gate, stub, tag, within } from "./setup.ts";
+import { gate, purgeTagged, stub, tag, within } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { closeDb, sql } from "@aihot/backend/db";
@@ -61,6 +61,11 @@ before(async () => {
             VALUES (${SOURCE}, 'Test translate', 'rss', 'T1', 'editorial', true, false, '2100-01-01')`;
 });
 after(async () => {
+  // Clean up: this file's materials are discovered "later" than anything else so `translatePending` picks
+  // them; left behind they also outrank every later test in the home timeline's anchors (2026-10-03: a day
+  // of runs left 46 future-anchored selected rows in the shared database, and publication-copy-gate's
+  // front-page assertions began failing on pool composition alone).
+  await purgeTagged(T);
   await app.close();
   await provider.close();
   await stopBoss();

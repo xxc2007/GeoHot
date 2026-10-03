@@ -1,4 +1,4 @@
-import { gate, stub, tag, within } from './setup.ts';
+import { gate, purgeTagged, stub, tag, within } from './setup.ts';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { after, before, test } from 'node:test';
@@ -57,7 +57,15 @@ before(async () => {
   await sql`INSERT INTO sources (id,name,kind,tier,participation_mode,site_fulltext,next_fetch_at)
     VALUES (${SOURCE},'Translation shutdown','rss','T1','editorial',true,'2100-01-01')`;
 });
-after(async () => { await provider.close(); await stopBoss(); await closeDb(); });
+after(async () => {
+  // Same cleanup as translate.test.ts: the fixture is selected and Chinese with a discovery a day in the
+  // future, so a leftover row anchors above every later test on the home timeline (2026-10-03: 20 such rows
+  // accumulated and helped push publication-copy-gate's item off the front page).
+  await purgeTagged(T);
+  await provider.close();
+  await stopBoss();
+  await closeDb();
+});
 
 for (const misaligned of [false, true]) test(`SIGTERM finishes the sent ${misaligned ? 'misaligned' : 'normal'} batch and resumes from its receipt`, async () => {
   active = { asked: gate(), hold: gate(), calls: 0, misaligned };
