@@ -12,8 +12,18 @@ export async function beat(role: string, detail: Record<string, unknown> = {}) {
 
 /** Beats now and every minute until the process exits. */
 export function startHeartbeat(role: string): NodeJS.Timeout {
-  void beat(role).catch(() => {});
-  const timer = setInterval(() => void beat(role).catch(() => {}), 60_000);
+  // A failed beat says the watchdog will read a stale row: report the change of state once instead of
+  // once a minute, so a database blip is audible without becoming the only thing in the log.
+  let failing = false;
+  const beatOnce = () => void beat(role)
+    .then(() => { failing = false; })
+    .catch((error) => {
+      if (failing) return;
+      failing = true;
+      console.error(JSON.stringify({ level: "error", msg: `heartbeat ${role} stopped`, error: String((error as Error)?.message ?? error) }));
+    });
+  beatOnce();
+  const timer = setInterval(beatOnce, 60_000);
   timer.unref();
   return timer;
 }

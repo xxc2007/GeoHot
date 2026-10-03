@@ -22,12 +22,27 @@ export default function TocSheet({ outline, open, onClose }: { outline: OutlineE
   const closeButton = useRef<HTMLButtonElement>(null);
   /** 读者选中的那一节：关抽屉后要跳到它，而不是回到打开前的位置。 */
   const picked = useRef<string | null>(null);
+  /** 那次延后跳转的定时器：卸载要把它收掉，见下面的 cleanup。 */
+  const jump = useRef<number | null>(null);
+
+  // 解锁与跳转之间隔一帧，滚动才真的发生；但这一帧是借来的：读者可能已经走到另一页。
+  // markdown 的小节 id 每页都叫 s1…sN（lib/markdown.ts:24），所以 220ms 之内导航过去，
+  // getElementById 会在别人家的页面上找到同号的小节，把 URL 写成一个不属于这页的 #sN，还顺手滚一段。
+  // 卸载时（这一条 effect 的主 cleanup 之后跑）把定时器清掉，再按打开时记下的地址校验一次。
+  useEffect(
+    () => () => {
+      if (jump.current !== null) clearTimeout(jump.current);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!open) return;
     picked.current = null;
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const top = window.scrollY;
+    // 这一页的地址（含查询串）：延后跳转前用它确认读者还在这页。
+    const here = window.location.pathname + window.location.search;
     const root = document.documentElement;
     const overflow = root.style.overflow;
     root.style.overflow = "hidden";
@@ -56,8 +71,9 @@ export default function TocSheet({ outline, open, onClose }: { outline: OutlineE
         if (Math.abs(window.scrollY - top) > 1) window.scrollTo({ top, behavior: "auto" });
         return;
       }
-      // 解锁与跳转之间隔一帧，滚动才真的发生。
-      window.setTimeout(() => {
+      jump.current = window.setTimeout(() => {
+        jump.current = null;
+        if (window.location.pathname + window.location.search !== here) return;
         const el = document.getElementById(id);
         if (!el) return;
         const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;

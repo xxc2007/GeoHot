@@ -271,6 +271,21 @@ export function finalizeCopy(input: TranslateInput, copy: { titleZh: string; sum
   return enforceIdentity(input, { titleZh: copy.titleZh, summaryZh });
 }
 
+/**
+ * A story title that is an answer rather than signed copy: the digest step's `reply.title` and the fact
+ * title the grouping step inherits from the structure answer. Both become the event page heading and the
+ * hot-list entry, and no reader-layer gate stands between them, so they take the two checks the article
+ * copy takes — the identity guard, against the reports that are this event's evidence, and Chinese.
+ * Unlike the sentence-level digest checker that was withdrawn (docs/known-issues.md), candidate and
+ * evidence run the same lexicon patterns here, so an alias matching on one side matches on the other and
+ * cannot delete its own sentence. Returns null when the candidate fails: the caller keeps the title it has.
+ */
+export function guardedStoryTitle(candidate: string, evidence: TranslateInput): string | null {
+  const title = candidate.trim();
+  if (!title || !looksZh(title)) return null;
+  return enforceIdentity(evidence, { titleZh: title, summaryZh: "" }).identityGuard.outcome === "pass" ? title : null;
+}
+
 // ── Title/summary prompts for items the content understanding does not write ─────────────────
 
 const sourceName = (name?: string) => name?.trim() || "（未注明）";

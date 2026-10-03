@@ -1,10 +1,20 @@
 # Secrets & local env — never committed. The two *.example templates are the
 # tracked sources that scripts/init-env.ts copies from, so they stay in.
+# The broad lines below catch the names an operator reaches for when they add a
+# second environment (prod.env, secrets.env) or drop a key pair next to the repo.
 .env
 .env.*
 !.env.example
 !.env.pipeline.example
 .env.ports
+*.env
+*.pem
+*.key
+*.p8
+id_*
+*deploy_key*
+secrets*
+credentials*
 
 node_modules/
 dist/

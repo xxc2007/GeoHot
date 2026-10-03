@@ -45,11 +45,18 @@ export function ArticleLayout({ children, left, right, railTop = "top-6" }: { ch
   );
 }
 
-/** A titled block in an article rail: a hairline, a small grey title, then the content; no card. */
+/**
+ * A titled block in an article rail: a hairline, a small letterspaced label, then the content; no card.
+ * The label is an `h3`, not an `h2`: these rails sit next to the article's own `h2` sections, and an `h2`
+ * at 12px claimed the same document rank as a 24px headline. The letterspacing is what marks it as a
+ * label now, not the size alone. (At 2xl the left rail comes before the article in the tree, so a screen
+ * reader met it first — `ArticleLayout` places the rails by grid column so the page's `h1` stays the
+ * first heading in the document.)
+ */
 export function RailSection({ title, children, className = "" }: { title: ReactNode; children: ReactNode; className?: string }) {
   return (
     <section className={`border-t border-line pt-3.5 ${className}`}>
-      <h2 className="text-[12px] font-semibold text-ink-3">{title}</h2>
+      <h3 className="text-caption font-semibold tracking-[0.12em] text-ink-3">{title}</h3>
       <div className="mt-2.5">{children}</div>
     </section>
   );
@@ -59,7 +66,9 @@ export function RailSection({ title, children, className = "" }: { title: ReactN
 export function AsideCard({ title, children, className = "" }: { title: ReactNode; children: ReactNode; className?: string }) {
   return (
     <section className={`card p-5 ${className}`}>
-      <h2 className="text-[13px] font-semibold text-ink">{title}</h2>
+      {/* Stays an `h2`: on /feedback this card is the only heading below the page title, and demoting it
+          would skip a level. Only `RailSection`'s 12px rail labels were demoted. */}
+      <h2 className="text-ui font-semibold text-ink">{title}</h2>
       <div className="mt-3">{children}</div>
     </section>
   );
@@ -76,10 +85,17 @@ export function MoreLink({ to, children }: { to: string; children: ReactNode }) 
 }
 
 /** Quiet empty / unavailable state inside a card or list. */
-export function EmptyState({ title, children, action }: { title: ReactNode; children?: ReactNode; action?: ReactNode }) {
+/**
+ * An honest empty state. `as` decides the element because these appear in two different places: alone on
+ * a page (a periodical that has not published its first issue yet — then this IS the page's heading, and
+ * a reader using the keyboard or a screen reader needs the document to have one), and inside a page that
+ * already has its own title (a filtered feed with no matches — then it must not become a second h1).
+ */
+export function EmptyState({ title, children, action, as = "div" }: { title: ReactNode; children?: ReactNode; action?: ReactNode; as?: "div" | "h1" | "h2" }) {
+  const Title = as;
   return (
     <div className="flex flex-col items-center px-6 py-14 text-center">
-      <div className="text-[15px] font-semibold text-ink-2">{title}</div>
+      <Title className={as === "div" ? "text-[15px] font-semibold text-ink-2" : "text-[17px] font-bold text-ink"}>{title}</Title>
       {children && <p className="mt-1.5 max-w-sm text-[13px] leading-relaxed text-ink-4">{children}</p>}
       {action && <div className="mt-4">{action}</div>}
     </div>

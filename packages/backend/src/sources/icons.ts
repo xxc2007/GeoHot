@@ -27,13 +27,20 @@ async function refreshXAvatars(): Promise<number> {
   return rows.length;
 }
 
-/** A page's HTML; 公众号 article pages run to several megabytes, home pages rarely past four. */
-async function page(url: string, maxBytes = 4_000_000): Promise<{ html: string; url: string } | null> {
+/**
+ * A page's HTML, or the fact that there is none to read. `answered: true` means the site returned HTTP
+ * 200 — an answer about what it has. A timeout, a TLS failure, a refused connection or a 5xx is not: it
+ * says nothing about the site's icons, and must not start the retry clock (one 15-second blip used to
+ * leave a source without its icon for a whole month).
+ */
+type PageOutcome = { answered: true; html: string; url: string } | { answered: false };
+
+async function page(url: string, maxBytes = 4_000_000): Promise<PageOutcome> {
   try {
     const res = await guardedFetch(url, { timeoutMs: 15_000, maxBytes, headers: { "user-agent": DEFAULT_UA, accept: "text/html,*/*;q=0.8" } });
-    return res.status === 200 ? { html: res.text(), url: res.url } : null;
+    return res.status === 200 ? { answered: true, html: res.text(), url: res.url } : { answered: false };
   } catch {
-    return null;
+    return { answered: false };
   }
 }
 
@@ -91,25 +98,35 @@ function homeOf(articleUrls: string[], config: Record<string, unknown>): string 
   }
 }
 
-async function findIcon(kind: string, articleUrls: string[], config: Record<string, unknown>): Promise<string | null> {
+async function findIcon(kind: string, articleUrls: string[], config: Record<string, unknown>): Promise<{ icon: string | null; answered: boolean }> {
   if (kind === "mp_account") {
+    let answered = false;
     // WeChat answers bursts with "未知错误": take the account's two latest articles, slowly.
     for (const url of articleUrls.slice(0, 2)) {
       await new Promise((r) => setTimeout(r, MP_PAUSE_MS));
       const p = await page(url, 10_000_000);
-      const avatar = p && /round_head_img\s*[:=]\s*["']([^"']+)["']/.exec(p.html)?.[1];
-      if (avatar) return firstUsable([avatar.replace(/^http:/, "https:")]);
+      if (!p.answered) continue;
+      answered = true;
+      const avatar = /round_head_img\s*[:=]\s*["']([^"']+)["']/.exec(p.html)?.[1];
+      if (avatar) return { icon: await firstUsable([avatar.replace(/^http:/, "https:")]), answered };
     }
-    return null;
+    return { icon: null, answered };
   }
   const home = homeOf(articleUrls, config);
-  if (!home) return null;
+  // No address to ask: nothing was learned about this site, so the clock must not start.
+  if (!home) return { icon: null, answered: false };
   const p = await page(home);
-  return firstUsable(p ? iconCandidates(p.html, p.url) : [`${home}/favicon.ico`]);
+  if (!p.answered) {
+    // The home page did not answer, but the favicon may still be there: an icon found this way stops the
+    // search on its own, because a source with an icon_url is never picked up again.
+    const icon = await firstUsable([`${home}/favicon.ico`]);
+    return { icon, answered: icon !== null };
+  }
+  return { icon: await firstUsable(iconCandidates(p.html, p.url)), answered: true };
 }
 
 /** Sites and 公众号 without an icon: a batch per run, looking again after RETRY_DAYS (公众号: MP_RETRY_DAYS). */
-async function findMissingIcons(): Promise<{ checked: number; found: number }> {
+async function findMissingIcons(): Promise<{ checked: number; found: number; deferred: number }> {
   const due = await sql<{ id: string; kind: string; config: Record<string, unknown>; urls: string[] | null }[]>`
     SELECT s.id, s.kind, s.config, a.urls
     FROM sources s
@@ -119,12 +136,19 @@ async function findMissingIcons(): Promise<{ checked: number; found: number }> {
     ORDER BY s.icon_checked_at NULLS FIRST, s.id
     LIMIT ${BATCH}`;
   let found = 0;
+  let deferred = 0;
   for (const s of due) {
-    const icon = await findIcon(s.kind, s.urls ?? [], s.config ?? {}).catch(() => null);
-    if (icon) found++;
-    await sql`UPDATE sources SET icon_url = coalesce(${icon}, icon_url), icon_checked_at = now() WHERE id = ${s.id}`;
+    const outcome = await findIcon(s.kind, s.urls ?? [], s.config ?? {}).catch(() => ({ icon: null as string | null, answered: false }));
+    if (outcome.icon) found++;
+    if (!outcome.answered) deferred++;
+    // The retry clock starts on an answer, never on a timeout: the row is due again tomorrow until the
+    // site is actually reached, so one unreachable evening no longer costs a month of missing icons.
+    await sql`
+      UPDATE sources SET icon_url = coalesce(${outcome.icon}, icon_url),
+        icon_checked_at = CASE WHEN ${outcome.answered} THEN now() ELSE icon_checked_at END
+      WHERE id = ${s.id}`;
   }
-  return { checked: due.length, found };
+  return { checked: due.length, found, deferred };
 }
 
 export async function refreshSourceIcons() {

@@ -1,7 +1,10 @@
 // Hot ranking: attention over the last 48 hours from independent participants.
 // Each participant counts once per window (repeat collection does not add heat), decays with a
-// 24-hour half-life, and the source time (not collection time) places evidence in the window.
+// 24-hour half-life, and the source time (not collection time) places evidence in the window. The trend
+// compares that window with the window the same story had six hours earlier, each read over its own
+// 48 hours (see heatRows).
 import { sql } from "../db.ts";
+import { storyReports } from "./story-reports.ts";
 import { tierRank, type HotEntry } from "./hot-read.ts";
 
 export const HOT_RULE_VERSION = "heat-v1-48h-halflife24h";
@@ -55,28 +58,36 @@ async function heatRows(at: Date, behind: string[] = []): Promise<HeatRow[]> {
   const prev = new Date(at.getTime() - 6 * 3600 * 1000);
   const decayNow = sql`power(0.5, extract(epoch FROM (${at}::timestamptz - last_at)) / 3600.0 / ${HALF_LIFE_HOURS})`;
   const decayPrev = sql`power(0.5, extract(epoch FROM (${prev}::timestamptz - last_prev)) / 3600.0 / ${HALF_LIFE_HOURS})`;
-  const inPrevWindow = sql`last_prev IS NOT NULL AND last_prev > ${prev}::timestamptz - make_interval(hours => ${WINDOW_HOURS})`;
+  // One row per participant over the union of the two windows, each side's newest evidence kept apart:
+  // the earlier snapshot must see the 48 hours it actually had (`last_prev` over [prev-48h, prev]), not the
+  // 42 hours of the current window that happen to lie before prev. Reading the same `obs` set for both made
+  // `heat_prev` systematically low, so trendPct and the rising badge overstated growth — a flat or cooling
+  // story printed 热度 +N% ↑ (measured against snapshotHeat, which computes an hour over its own window).
+  const inNow = sql`observed_at > ${at}::timestamptz - make_interval(hours => ${WINDOW_HOURS}) AND observed_at <= ${at}`;
+  const inPrev = sql`observed_at > ${prev}::timestamptz - make_interval(hours => ${WINDOW_HOURS}) AND observed_at <= ${prev}`;
   return sql<HeatRow[]>`
-    WITH obs AS (
-      SELECT story_id, participant_key, max(observed_at) AS last_at, min(observed_at) AS first_at,
-             bool_or(kind = 'editorial') AS editorial,
-             max(observed_at) FILTER (WHERE observed_at <= ${prev}) AS last_prev,
-             bool_or(source_id = ANY(${behind}::text[])) AS behind
+    WITH part AS (
+      SELECT story_id, participant_key,
+             max(observed_at) FILTER (WHERE ${inNow}) AS last_at,
+             min(observed_at) FILTER (WHERE ${inNow}) AS first_at,
+             bool_or(kind = 'editorial') FILTER (WHERE ${inNow}) AS editorial,
+             bool_or(source_id = ANY(${behind}::text[])) FILTER (WHERE ${inNow}) AS behind,
+             max(observed_at) FILTER (WHERE ${inPrev}) AS last_prev
       FROM story_signals
-      WHERE observed_at > ${at}::timestamptz - make_interval(hours => ${WINDOW_HOURS}) AND observed_at <= ${at}
+      WHERE observed_at > ${prev}::timestamptz - make_interval(hours => ${WINDOW_HOURS}) AND observed_at <= ${at}
       GROUP BY story_id, participant_key
     ), agg AS (
       SELECT story_id,
-        count(*) AS participants,
-        sum(${decayNow}) AS heat,
-        coalesce(sum(${decayPrev}) FILTER (WHERE ${inPrevWindow}), 0) AS heat_prev,
-        coalesce(sum(${decayNow}) FILTER (WHERE NOT behind), 0) AS heat_obs,
-        coalesce(sum(${decayPrev}) FILTER (WHERE ${inPrevWindow} AND NOT behind), 0) AS heat_prev_obs,
-        count(*) FILTER (WHERE behind) AS behind_participants,
+        count(*) FILTER (WHERE last_at IS NOT NULL) AS participants,
+        coalesce(sum(${decayNow}) FILTER (WHERE last_at IS NOT NULL), 0) AS heat,
+        coalesce(sum(${decayPrev}) FILTER (WHERE last_prev IS NOT NULL), 0) AS heat_prev,
+        coalesce(sum(${decayNow}) FILTER (WHERE last_at IS NOT NULL AND NOT behind), 0) AS heat_obs,
+        coalesce(sum(${decayPrev}) FILTER (WHERE last_at IS NOT NULL AND last_prev IS NOT NULL AND NOT behind), 0) AS heat_prev_obs,
+        count(*) FILTER (WHERE last_at IS NOT NULL AND behind) AS behind_participants,
         count(*) FILTER (WHERE first_at > ${prev}) AS recent6h,
-        count(*) FILTER (WHERE editorial) AS editorial_participants,
-        count(*) FILTER (WHERE NOT editorial) AS signal_participants
-      FROM obs GROUP BY story_id
+        count(*) FILTER (WHERE last_at IS NOT NULL AND editorial) AS editorial_participants,
+        count(*) FILTER (WHERE last_at IS NOT NULL AND NOT editorial) AS signal_participants
+      FROM part GROUP BY story_id HAVING count(*) FILTER (WHERE last_at IS NOT NULL) > 0
     )
     SELECT a.story_id, st.public_id::text AS public_id, st.title, st.first_report_at, st.latest_at,
            a.participants, a.heat, a.heat_prev, a.heat_obs, a.heat_prev_obs, a.behind_participants, a.recent6h, a.editorial_participants, a.signal_participants
@@ -96,15 +107,9 @@ export async function computeHotRanking(at = new Date()): Promise<{ id: number; 
   const entries: HotEntry[] = [];
   for (const r of rows) {
     if (entries.length >= 10) break;
-    const reports = await sql<{ id: string; url: string; title: string; source_name: string; first_party: boolean; selected: boolean; score: number | null; at: Date }[]>`
-      SELECT DISTINCT ON (p.article_id) p.article_id AS id, p.url, p.title, s.name AS source_name, p.first_party, p.selected, p.score,
-             coalesce(p.published_at, p.discovered_at) AS at
-      FROM facts f JOIN fact_articles fa ON fa.fact_id = f.id JOIN publications p ON p.article_id = fa.article_id
-      JOIN sources s ON s.id = p.source_id
-      WHERE f.story_id = ${r.story_id} AND p.visibility = 'public' AND p.eligible AND (NOT p.selected OR p.visible_after <= ${at})
-      ORDER BY p.article_id`;
+    const reports = await storyReports(r.story_id, at);
     if (reports.length === 0) continue;
-    const rep = [...reports].sort((x, y) => Number(y.first_party) - Number(x.first_party) || Number(y.selected) - Number(x.selected) || (Number(y.score ?? 0) - Number(x.score ?? 0)))[0]!;
+    const rep = [...reports].sort((x, y) => Number(y.firstParty) - Number(x.firstParty) || Number(y.selected) - Number(x.selected) || (Number(y.score ?? 0) - Number(x.score ?? 0)))[0]!;
     const participants = await sql<{ name: string; kind: "editorial" | "signal"; tier: string; at: Date }[]>`
       SELECT DISTINCT ON (ss.participant_key) s.name, ss.kind, s.tier, ss.observed_at AS at
       FROM story_signals ss JOIN sources s ON s.id = ss.source_id
@@ -144,7 +149,7 @@ export async function computeHotRanking(at = new Date()): Promise<{ id: number; 
       firstReportAt: firstAt.toISOString(),
       representativeItemId: rep.id,
       representativeUrl: rep.url,
-      representativeSource: rep.source_name,
+      representativeSource: rep.sourceName,
       // Faces go to the 精选组 by tier, the most recently active first within a tier (ordered before the cap).
       participants: participants
         .sort((x, y) => Number(y.kind === "editorial") - Number(x.kind === "editorial") || tierRank(x.tier) - tierRank(y.tier) || y.at.getTime() - x.at.getTime())

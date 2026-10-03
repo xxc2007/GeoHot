@@ -1,7 +1,7 @@
 import { SITE, withSubject } from "@aihot/industry/site";
 import { Fragment, useEffect, useState } from "react";
 import { Link, useLoaderData } from "react-router";
-import { apiGet } from "../lib/api.server";
+import { loadOr404 } from "../lib/api.server";
 import { pageMeta } from "../lib/seo";
 import { setChangelogSeen } from "../lib/local-state";
 import { AsideCard, ReadingLayout } from "../components/ui/Page";
@@ -22,7 +22,8 @@ interface Release {
 }
 
 export async function loader({ request }: { request: Request }) {
-  return apiGet<{ latestVersion: string; releases: Release[] }>("/api/site/changelog", { signal: request.signal });
+  // 5xx 按约定报 503（并且不会被缓存成一个假的"没有更新"），而不是把加载器的异常抛成 500。
+  return loadOr404<{ latestVersion: string; releases: Release[] }>("/api/site/changelog", { signal: request.signal });
 }
 
 export function meta() {

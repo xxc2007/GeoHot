@@ -3,6 +3,7 @@
 // models on the same cases and browses each case.
 import { randomBytes } from "node:crypto";
 import { sql } from "../db.ts";
+import { InvalidInput } from "./invalid.ts";
 import { audit } from "./auth.ts";
 
 interface CaseIn {
@@ -30,7 +31,7 @@ export async function importSelectBenchRun(report: unknown, label: string, actor
   const r = report as { meta?: Record<string, unknown>; models?: Record<string, ModelReport> } & Record<string, ModelReport>;
   const models = (r.models ?? Object.fromEntries(Object.entries(r).filter(([k]) => k !== "meta"))) as Record<string, ModelReport>;
   const names = Object.keys(models).filter((m) => models[m]?.summary);
-  if (!names.length) throw new Error("report has no model summaries");
+  if (!names.length) throw new InvalidInput("report has no model summaries");
   const meta = r.meta ?? {};
   const id = `sb-${new Date().toISOString().slice(0, 10).replaceAll("-", "")}-${randomBytes(3).toString("hex")}`;
   const summary = Object.fromEntries(names.map((m) => [m, { ...models[m]!.summary, sweep: models[m]!.sweep ?? [] }]));

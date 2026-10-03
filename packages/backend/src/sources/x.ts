@@ -114,7 +114,10 @@ export interface XFetch extends Omit<XRead, "tweets"> {
  * the old watermark, so nothing in between is skipped. Without a watermark (a source's very first
  * fetch) one page is read: its import is bounded anyway.
  */
-export async function readXSearch(base: string, opts: { lastId: string | null; backlog: XBacklog[]; subject: string; type?: "Latest" | "Top" }): Promise<XRead> {
+export async function readXSearch(
+  base: string,
+  opts: { lastId: string | null; backlog: XBacklog[]; subject: string; type?: "Latest" | "Top"; stop?: () => boolean },
+): Promise<XRead> {
   const { lastId } = opts;
   const backlog = opts.backlog.map((b) => ({ ...b }));
   const window = windowKey();
@@ -126,6 +129,16 @@ export async function readXSearch(base: string, opts: { lastId: string | null; b
   let pages = 0;
   let truncated = false;
   for (;;) {
+    // A page can take the whole 60 s the provider is given, and a shard may want twenty of them: a round
+    // that stops at its own budget hands the rest of the search to the next rounds (the backlog) instead
+    // of running past the job's expiry, where a second round of the same accounts would start.
+    if (opts.stop?.()) {
+      if (cursor) {
+        truncated = true;
+        backlog.push({ query, next: cursor });
+      }
+      break;
+    }
     let res: Awaited<ReturnType<typeof search>>;
     try {
       res = await search(query, cursor);
@@ -155,7 +168,7 @@ export async function readXSearch(base: string, opts: { lastId: string | null; b
     dropped += 1;
   }
   let backlogPages = 0;
-  while (backlog.length > 0 && backlogPages < MAX_BACKLOG_PAGES) {
+  while (backlog.length > 0 && backlogPages < MAX_BACKLOG_PAGES && !opts.stop?.()) {
     const stretch = backlog[0]!;
     let res: Awaited<ReturnType<typeof search>>;
     try {
@@ -181,7 +194,7 @@ export async function readXSearch(base: string, opts: { lastId: string | null; b
 }
 
 /** One account's own search (its first fetch, a query of its own, or a manual run from the admin). */
-export async function fetchXSearch(source: SourceRow): Promise<XFetch> {
+export async function fetchXSearch(source: SourceRow, opts: { stop?: () => boolean } = {}): Promise<XFetch> {
   const base = String(source.config.query ?? "");
   if (!base) throw new FetchError("query missing");
   const { tweets, ...read } = await readXSearch(base, {
@@ -189,6 +202,7 @@ export async function fetchXSearch(source: SourceRow): Promise<XFetch> {
     backlog: Array.isArray(source.cursor?.xBacklog) ? source.cursor.xBacklog : [],
     subject: `source:${source.id}`,
     type: source.config.searchType ?? "Latest",
+    stop: opts.stop,
   });
   return { candidates: tweets.map(tweetToCandidate), ...read };
 }

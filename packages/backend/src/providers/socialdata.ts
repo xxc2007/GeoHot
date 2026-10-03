@@ -1,7 +1,7 @@
 // SocialData (X search). Paid per request: every call goes through receipts and the budget.
 import { credential } from "../config.ts";
 import { guardedFetch } from "../lib/http-fetch.ts";
-import { paidRequest, ProviderRejectedError } from "./receipts.ts";
+import { paidRequest, rejectReceivedResponse, ProviderRejectedError } from "./receipts.ts";
 
 export interface SdUser {
   name: string;
@@ -57,6 +57,17 @@ function apiBase(): string {
 }
 
 /**
+ * A 200 whose body is not what the endpoint promises (a wall served to a bot, a provider's error carried
+ * inside an OK response) would read as "nothing new": the watermark moves past posts that were never
+ * seen, and the receipt is reused for the rest of the window it was billed in. Fail the receipt instead,
+ * so a later attempt may pay for the real answer, and throw a retryable error so the caller backs off.
+ */
+async function refuseUnusable(receiptId: number, what: string): Promise<never> {
+  await rejectReceivedResponse(receiptId, `socialdata answer is not a ${what}`);
+  throw new ProviderRejectedError(`socialdata returned no ${what}`, 200, true);
+}
+
+/**
  * Searches recent tweets. `window` makes the receipt identity time-bucketed so a retry in the same
  * bucket reuses the stored response instead of paying again.
  */
@@ -87,7 +98,8 @@ export async function searchTweets(query: string, opts: { purpose: string; subje
     },
   );
   const json = receipt.response as { tweets?: SdTweet[]; next_cursor?: string | null };
-  return { tweets: json.tweets ?? [], nextCursor: json.next_cursor ?? null, receiptId: receipt.receiptId, reused: receipt.reused };
+  if (!Array.isArray(json?.tweets)) return refuseUnusable(receipt.receiptId, "search result");
+  return { tweets: json.tweets, nextCursor: json.next_cursor ?? null, receiptId: receipt.receiptId, reused: receipt.reused };
 }
 
 export function tweetText(t: SdTweet): string {
@@ -142,7 +154,12 @@ export async function getArticle(tweetId: string, opts: { purpose: string; subje
       return { response: article, usage: { articles: article ? 1 : 0 }, cost: objectsCost(1) };
     },
   );
-  return (receipt.response as SdArticle | null) ?? null;
+  const article = receipt.response as SdArticle | null;
+  // null is the honest "this post published no article"; a body with neither title nor blocks is no answer.
+  if (article !== null && article.title === undefined && article.content_state === undefined) {
+    return refuseUnusable(receipt.receiptId, "article");
+  }
+  return article;
 }
 
 /** One tweet by id (context for replies and quotes). Paid; the receipt makes retries free. */
@@ -167,5 +184,8 @@ export async function getTweet(id: string, opts: { purpose: string; subject: str
       return { response: JSON.parse(text) as SdTweet, usage: { tweets: 1 }, cost: objectsCost(1) };
     },
   );
-  return (receipt.response as SdTweet | null) ?? null;
+  const tweet = receipt.response as SdTweet | null;
+  // null is the 404 ("no such post"); an object without an id is something else being served back.
+  if (tweet !== null && typeof tweet.id_str !== "string") return refuseUnusable(receipt.receiptId, "tweet");
+  return tweet;
 }

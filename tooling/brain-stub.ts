@@ -57,72 +57,114 @@ function clampInt(value: string | undefined, fallback: number, min: number, max:
 // wording identifies it in a request, and the JSON contract the caller's zod schema requires. The schemas
 // live in packages/backend and are read from there at --lint time; here they are restated so the stub can
 // refuse to send an answer that would blow up a receipt.
+//
+// `fields` says what that step's request actually carries, read from the caller's own prompt builder — a
+// fixture keyed on something the request never contains is dead code that looks like a decision. --lint
+// fails `urlIncludes` where the step has no URL: a summarize rule keyed on the URL matched nothing for two
+// days while its signed Chinese copy sat unreachable, with no failed job and nothing in the admin to show.
+// `readerCopy` marks the capabilities whose answer is prose a reader reads: only a signed fixture may
+// produce those (see buildDefault).
 const CAPS: Record<string, Cap> = {
   prefilter: {
     prompts: ["prefilter"],
     contract: '{ "label": "PASS"|"BLOCK"|"UNKNOWN", "reason": "≤200字" }',
     note: "只有 BLOCK 会拦下材料；BLOCK 且材料缺失会被调用方降级为 UNKNOWN。",
+    // writing.ts renderContext：来源、【原文链接】、【标题】、【正文】。
+    fields: { url: true, title: true, body: true, sourceName: true },
   },
   scores: {
     prompts: ["selection-score"],
     contract: '{ "attentionScore": 0-100 整数, "scoreSecond"?: 0-100 整数 }',
     note: "框架独立调用两次（SCORE_CALLS=2）。第一次用 attentionScore，第二次用 scoreSecond ?? attentionScore。",
+    // analyze.ts buildScoreInput：发布时间 + 原始标题 + 完整正文。没有 URL，也没有来源名。
+    fields: { title: true, body: true },
   },
   understand: {
     prompts: ["understand", "content-understanding"],
     contract: '{ "itemType": ITEM_TYPES 之一, "authorRole": "principal"|"observer"|"relayer", "tags": [≤12], "editorialJudgment": "≤400", "titleZh": "1-200", "summaryZh": "1-4000" }',
     note: "只有入选或接近入选（sum > 2×understandFloor）的材料会走这步。summaryZh 会被 finalizeCopy 压到 ≤200 字。",
+    fields: { url: true, title: true, body: true, sourceName: true },
+    readerCopy: true,
+    copyFields: ["titleZh", "summaryZh", "editorialJudgment"],
   },
   summarize: {
     prompts: ["summarize-article", "summarize-short-post", "summarize-long-post"],
     contract: '纯文本： "title_zh: …\\nsummary_zh: …"（可选 body_zh: …），不是 JSON',
     note: "调用方 json:false + parseTranslateOutput，所以这一步的 content 必须是 title_zh/summary_zh 行。",
+    // writing.ts buildArticlePrompt / buildShort|LongTweetPrompt：日期、来源名、身份事实、原始标题、正文；
+    // cleanArticleTextForLLM 删掉了正文里的链接，所以这一步的请求里没有 URL。
     text: true,
+    fields: { title: true, body: true, sourceName: true },
+    readerCopy: true,
+    copyFields: ["titleZh", "summaryZh", "bodyZh"],
   },
   structure: {
     prompts: ["structure"],
     contract: '{ "category": CATEGORY_KEYS 之一|null, "tags": [≤12], "subjects": [≤6 个 ENTITIES id], "fact": {"title":"≤80","subject","action","object","occurredAt"}|null }',
-    note: "不写读者可见文字。subjects 不在 ENTITIES 里会被调用方丢掉。",
+    note: "不写读者可见文字，但 fact.title 会被 grouping 拿去当新事件的标题（events/group.ts），那一个字要过身份守卫与中文检查。subjects 不在 ENTITIES 里会被调用方丢掉。",
+    // input.ts buildMaterial：<material> 里有 标题、正文、原文链接。
+    fields: { url: true, title: true, body: true, sourceName: true },
   },
   group_batch: {
     prompts: ["group-batch"],
     contract: '{ "query": "≤400", "decisions": [{"candidateIncludes"|"id", "relation": "SAME_OCCURRENCE"|"SAME_STORY"|"UNRELATED"|"ROUNDUP", "confidence": 0-1, "note": "≤400"}] }',
     note: "decisions 里的 candidateIncludes 会和请求里每个候选块（【候选 C1】…）的文本比对，解析成真实 id。",
+    // relate.ts describeReport：标题、来源、发布时间、摘要、事实要素。没有 URL。
+    fields: { title: true, body: true, sourceName: true, candidates: true, query: true },
   },
   group_pair: {
     prompts: ["group-pair"],
     contract: '{ "a": "≤400", "b": "≤400", "relation": 同上, "difference": "≤400", "confidence": 0-1 }',
     note: "confirmMerge 与 story 合并复核都用它。默认 UNRELATED：没有人工判断绝不合并两个事件。",
+    fields: { title: true, body: true, sourceName: true },
   },
   group_signal: {
     prompts: ["group-signal"],
     contract: '{ "decisions": [{"candidateIncludes"|"id", "relation", "confidence"}] }',
     note: "帖子（社媒/列表）与候选事实的关系；SAME_STORY 需要 confidence ≥ 0.8 才算反应。",
+    fields: { title: true, body: true, sourceName: true, candidates: true, query: true },
   },
   digest: {
     prompts: ["story-digest"],
-    contract: '{ "title": "≤120", "digest": "10-2000", "latest": "≤300" }',
-    note: "事件综述。默认按时间把请求里的报道行压缩成综述，不补造事实。",
+    contract: '{ "title": "≤120", "digest": "≤2000", "latest": "≤300" }',
+    note: "事件综述，读者可见。没有签名的 fixture 就不回稿件：调用方保留上一版综述，并把 rule 记在回执上。",
+    // events/digest.ts 的请求：事件当前标题 + 每篇报道的 时间｜来源｜标题｜摘要。没有 URL。
+    fields: { title: true, body: true, sourceName: true },
+    readerCopy: true,
+    copyFields: ["title", "digest", "latest"],
   },
   report_lead: {
     prompts: ["report-daily-lead"],
     contract: '{ "title": "≤120", "leadParagraph": "≤600", "highlights": [≤6 个条目的 1-based 编号] }',
-    note: "日报导语与今日看点。",
+    note: "日报导语与今日看点。默认仍是机械列举（rule:list-lead）：读它的那一层（reports/compose.ts）不归本工具维护，--lint 会把「读者可见但默认由机器写」的能力列出来。",
+    // reports/compose.ts writeLead：编号 + 标题｜摘要。没有 URL。
+    fields: { title: true, body: true },
+    readerCopy: true,
+    copyFields: ["title", "leadParagraph"],
   },
   report_period: {
     prompts: ["report-period"],
     contract: '{ "headline": "≤60", "overview": "≤1500", "themes": [{"heading":"≤60","summary":"≤800","refs":[编号]}] }',
-    note: "周报/月报，themes 至少 1 个（调用方 .min(1) 没有兜底）。",
+    note: "周报/月报，themes 至少 1 个（调用方 .min(1) 没有兜底）。默认仍是机械分节（rule:list-themes）。",
+    fields: { title: true, body: true },
+    readerCopy: true,
+    copyFields: ["headline", "overview", "themes[].heading", "themes[].summary"],
   },
   translate_body: {
     prompts: ["translate-body"],
     contract: '{ "t": ["每个片段一句译文"] }',
     note: "t 的长度必须等于请求 segments 的长度，否则调用方会二分重试。默认原样返回片段（不假译）。",
+    fields: { body: true },
+    readerCopy: true,
+    copyFields: ["t"],
   },
   translate_post: {
     prompts: ["translate-post"],
     contract: '{ "t": ["一条帖子的译文"] }',
     note: "引用帖翻译，请求形状与 translate_body 相同。",
+    fields: { body: true },
+    readerCopy: true,
+    copyFields: ["t"],
   },
 };
 
@@ -133,6 +175,16 @@ interface Cap {
   /** summarize answers in the prompt's own text format instead of JSON. */
   text?: boolean;
   anchors?: string[];
+  /** What the caller's request for this step carries; --lint refuses a matcher keyed on anything else. */
+  fields?: { url?: boolean; title?: boolean; body?: boolean; sourceName?: boolean; candidates?: boolean; query?: boolean };
+  /** Its answer is prose a reader reads, so only a signed fixture may produce it. */
+  readerCopy?: boolean;
+  /**
+   * Which paths of the answer are the words a reader reads (`[]` walks every item of an array). Everything
+   * else an answer carries — itemType, authorRole, a relation, a confidence — is a judgement about the
+   * material, not a sentence, so the defaults for those are the stub's own deterministic choice.
+   */
+  copyFields?: string[];
 }
 
 const RELATIONS = ["SAME_OCCURRENCE", "SAME_STORY", "UNRELATED", "ROUNDUP"] as const;
@@ -328,19 +380,6 @@ function entryLines(user: string): Array<{ n: number; section: string; title: st
   }
   return out;
 }
-/** The report lines a digest is written from: 时间｜来源｜标题｜摘要. */
-function reportLines(user: string): Array<{ when: string; source: string; title: string; summary: string }> {
-  const out: Array<{ when: string; source: string; title: string; summary: string }> = [];
-  for (const raw of user.split(/\r?\n/)) {
-    const line = raw.replace(/^【新】/, "").trim();
-    if (!line.includes("｜")) continue;
-    const parts = line.split("｜").map((p) => p.trim());
-    if (parts.length < 3) continue;
-    out.push({ when: parts[0]!, source: parts[1]!, title: parts[2]!, summary: parts.slice(3).join("｜") });
-  }
-  return out;
-}
-
 /** Lexical stand-in used only when GROUP_DEFAULT=lexical: character bigram overlap (same as relate.ts). */
 function lexicalSimilarity(a: string, b: string): number {
   const grams = (s: string) => {
@@ -387,7 +426,7 @@ interface Fixture {
    * Fill it with the source title + body you wrote the copy from, and --lint tells you whether the
    * guard would throw the summary away because the copy names an institution the material does not.
    */
-  guard?: { title?: string; text?: string; sourceName?: string; sourceKind?: string; url?: string };
+  guard?: { title?: string; text?: string; sourceName?: string; sourceKind?: string; url?: string; publishedAt?: string };
   /**
    * Identity keys, never prompt hashes. `includes` / `urlIncludes` / `titleIncludes` / `textIncludes` are
    * substrings of the material as it appears in the user message (all of them must be present; they are
@@ -642,20 +681,22 @@ const buildDefault: Record<string, (ctx: Ctx) => { reply: Record<string, unknown
   group_batch: (ctx) => ({ reply: { query: ctx.titles[0] ?? "", decisions: [] }, rule: `rule:group-${GROUP_DEFAULT}` }),
   group_signal: (ctx) => ({ reply: { decisions: [] }, rule: `rule:group-${GROUP_DEFAULT}` }),
   group_pair: () => ({ reply: {}, rule: `rule:pair-${GROUP_DEFAULT}` }),
-  digest: (ctx) => {
-    const lines = reportLines(ctx.user);
-    const body = lines.length
-      ? clampStr(`本事件目前由 ${lines.length} 篇报道构成（按时间，只复述报道内容，不做推断）：${lines.map((l, i) => `${i + 1}. ${l.when} ${l.source}《${l.title}》`).join("；")}。`, 2000)
-      : "";
-    return {
-      reply: {
-        title: /事件当前标题[：:]\s*([^\n]+)/.exec(ctx.user)?.[1]?.trim() ?? "",
-        digest: body.length >= 10 ? body : "暂无可复述的报道内容，后续以各方报道为准。",
-        latest: clampStr(lines.length ? `${lines[lines.length - 1]!.when} ${lines[lines.length - 1]!.source}：${lines[lines.length - 1]!.title}` : "", 300),
-      },
-      rule: "rule:chronology",
-    };
-  },
+  /**
+   * The digest is reader-facing prose with an owner, so the stub does not write one: `rule:chronology`
+   * used to compress the request's report lines into a 综述 and `events/digest.ts` published it over a
+   * signed version the moment an editor's correction stopped matching the fixture's includes — unsigned
+   * prose replacing signed prose. The honest answer is no copy (the same choice `rule:empty` made for
+   * summarize, for exactly the reason in this file's header), and the caller keeps what it has and records
+   * the rule on the receipt so the admin can list the surfaces that still wait for a signature.
+   */
+  digest: () => ({ reply: { title: "", digest: "", latest: "" }, rule: "rule:no-signed-copy(digest)" }),
+  /**
+   * Same rule as the digest for anything a reader reads, but these two are consumed by reports/compose.ts
+   * (another owner this round) and its `themes` schema has no empty branch, so emptying them here would
+   * blank the daily's lead and the weekly's themes without the reader layer deciding to. Left as machine
+   * defaults, clearly labelled, and `--lint` lists them under `readerCopyDefaults` until that layer gates
+   * on `usage.brain.rule` the way events/digest.ts now does.
+   */
   report_lead: (ctx) => {
     const entries = entryLines(ctx.user);
     const top = entries.slice(0, 3).map((e) => e.title).filter(Boolean);
@@ -738,7 +779,8 @@ function log(entry: Omit<LogEntry, "seq" | "at">): LogEntry {
 }
 
 // ── The chat completion itself ───────────────────────────────────────────────────────────────────
-function answer(body: Record<string, unknown>): { content: string; entry: LogEntry } {
+/** One request in, one answer out (exported so a test can ask the stub directly, without a port). */
+export function answer(body: Record<string, unknown>): { content: string; entry: LogEntry } {
   const messages = Array.isArray(body.messages) ? (body.messages as Array<Record<string, unknown>>) : [];
   const system = messages.filter((m) => m.role === "system").map((m) => decodeContent(m.content).text).join("\n");
   const userMsgs = messages.filter((m) => m.role !== "system");
@@ -921,15 +963,21 @@ const anchorSignature = () => [...ANCHORS.entries()].map(([cap, list]) => `${cap
 
 // ── Modes ────────────────────────────────────────────────────────────────────────────────────────
 const mode = process.argv[2];
+/**
+ * Only `node tooling/brain-stub.ts …` is the tool: when a test or another script imports this file it must
+ * not open a port, print a mode's JSON or exit the process. `runLint` and `answer` are exported for that use.
+ */
+const samePath = (a: string, b: string) => path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase();
+const isMain = !!process.argv[1] && samePath(import.meta.filename, process.argv[1]);
 
-if (mode === "--schema") {
+if (isMain && mode === "--schema") {
   console.log(JSON.stringify({ capabilities: Object.fromEntries(Object.entries(CAPS).map(([k, c]) => [k, { fixtureFile: `tooling/fixtures/${k}.jsonl`, promptFiles: c.prompts, requiredJson: c.contract, notes: c.note, default: buildDefault[k] ? "有" : "无（必须人工撰写）" }])) }, null, 2));
   process.exit(0);
 }
 
 refreshClassification();
 
-if (mode === "--anchors") {
+if (isMain && mode === "--anchors") {
   console.log(JSON.stringify({
     promptsDir: PROMPTS_DIR,
     anchorCounts: Object.fromEntries([...ANCHORS].map(([cap, list]) => [cap, list.length])),
@@ -939,18 +987,178 @@ if (mode === "--anchors") {
   process.exit(0);
 }
 
-if (mode === "--lint") {
+// ── Lint ───────────────────────────────────────────────────────────────────────────────────────────
+/** The caller's own copy guards, loaded at lint time (a fixture can be silently undone by either of them). */
+type NormalizeTags = (v: unknown, o?: { max?: number; fallbackCategory?: string }) => string[];
+type FinalizeCopy = (
+  input: Record<string, unknown>,
+  copy: { titleZh: string; summaryZh: string },
+) => { titleZh: string; summaryZh: string; identityGuard: { outcome: string; unsupportedTitleEntityIds: string[]; unsupportedSummaryEntityIds: string[] } };
+/** The prompt builders of the one-article steps: --lint rebuilds the request the caller really sends. */
+type PromptBuilders = {
+  understandUser: (a: unknown) => string;
+  prefilterUser: (a: unknown) => string;
+  translateInputOf: (a: unknown) => Record<string, unknown>;
+  isShortTweetInput: (t: Record<string, unknown>) => boolean;
+  buildArticlePrompt: (t: Record<string, unknown>) => string;
+  buildShortTweetPrompt: (t: Record<string, unknown>) => string;
+  buildLongTweetPrompt: (t: Record<string, unknown>) => string;
+};
+
+const needlesOf = (value: string | string[] | undefined) =>
+  listToArray(value).map((s) => String(s)).filter((s) => s.trim()).map((s) => ({ raw: s, needle: norm(s) }));
+
+/**
+ * A `match` key the step's own request can never satisfy. `urlIncludes` on a step with no URL is the case
+ * that actually happened (signed Chinese copy that no reader could ever reach, with nothing failing), so it
+ * fails the lint; the siblings are warnings because they can still fire against the whole message.
+ */
+function matcherProblems(cap: string, m: Fixture["match"]): { problems: string[]; notes: string[] } {
+  const fields = CAPS[cap]?.fields ?? {};
+  const problems: string[] = [];
+  const notes: string[] = [];
+  if (needlesOf(m.urlIncludes).length && !fields.url) {
+    problems.push("`urlIncludes`：这一步的请求里没有 URL，这条 fixture 永远不会生效（match 只能用 titleIncludes/textIncludes/includes；这一步的输入见 CAPS.fields）");
+  }
+  if (needlesOf(m.candidateIncludes).length && !fields.candidates) notes.push("`candidateIncludes`：这一步的请求里没有【候选 Cn】块，这个条件永远不成立");
+  if (needlesOf(m.queryIncludes).length && !fields.query) notes.push("`queryIncludes`：这一步没有【新报道】/候选之分，它等于整条消息");
+  if (needlesOf(m.titleIncludes).length && !fields.title) notes.push("`titleIncludes`：这一步的请求里没有标题行");
+  if (needlesOf(m.textIncludes).length && !fields.body) notes.push("`textIncludes`：这一步的请求里没有正文/材料文本");
+  if (needlesOf(m.includes).length && !fields.title && !fields.body) notes.push("`includes`：这一步的请求里没有可对上它的文本");
+  return { problems, notes };
+}
+
+/** Authored prose the stub would cut with an ellipsis (clampStr): the reader loses words nobody wrote for them. */
+function truncatedFields(authored: unknown, built: unknown, at = ""): string[] {
+  if (typeof authored === "string" && typeof built === "string") {
+    return built !== authored && built.endsWith("…") && authored.startsWith(built.slice(0, -1)) ? [at || "reply"] : [];
+  }
+  if (Array.isArray(authored) && Array.isArray(built)) {
+    const out: string[] = [];
+    authored.forEach((x, i) => out.push(...truncatedFields(x, built[i], `${at}[${i}]`)));
+    return out;
+  }
+  if (authored && built && typeof authored === "object" && typeof built === "object") {
+    const out: string[] = [];
+    for (const [k, v] of Object.entries(authored as Record<string, unknown>)) {
+      out.push(...truncatedFields(v, (built as Record<string, unknown>)[k], at ? `${at}.${k}` : k));
+    }
+    return out;
+  }
+  return [];
+}
+
+/** Shortened arrays are authored content lost the same way, just not prose: reported as a note. */
+function droppedItems(authored: unknown, built: unknown, at = ""): string[] {
+  if (!Array.isArray(authored) || !Array.isArray(built)) return [];
+  const out = built.length < authored.length ? [`${at || "reply"}（${authored.length} → ${built.length} 项）`] : [];
+  authored.forEach((x, i) => out.push(...droppedItems(x, built[i], `${at}[${i}]`)));
+  return out;
+}
+
+/** The fixture's `guard`, shaped the way the caller loads an article (editorial/input.ts AnalyzeInputArticle). */
+function articleFromGuard(guard: NonNullable<Fixture["guard"]>): Record<string, unknown> {
+  return {
+    id: "lint", revision: 1, title: guard.title ?? "", url: guard.url ?? "", author: null,
+    publishedAt: guard.publishedAt ? new Date(guard.publishedAt) : null, discoveredAt: new Date(0),
+    bodyText: guard.text ?? null, excerpt: null, bodyStatus: guard.text ? "ok" : "pending",
+    xPost: null, media: [], translationZh: null,
+    source: { name: guard.sourceName ?? "", kind: guard.sourceKind ?? "rss", tier: "T2", firstParty: false, tags: [], ownerEntityId: null },
+  };
+}
+
+/** The request the caller would send for this material, built by that step's own prompt builder. */
+function requestOf(cap: string, guard: NonNullable<Fixture["guard"]>, B: PromptBuilders): string | null {
+  const a = articleFromGuard(guard);
+  if (cap === "understand") return B.understandUser(a);
+  if (cap === "prefilter") return B.prefilterUser(a);
+  if (cap === "summarize") {
+    const t = B.translateInputOf(a);
+    if (B.isShortTweetInput(t)) return B.buildShortTweetPrompt(t);
+    return t.sourceKind === "x_search" ? B.buildLongTweetPrompt(t) : B.buildArticlePrompt(t);
+  }
+  return null;
+}
+
+/**
+ * Would this fixture ever fire on the material it was written from? Checked against the caller's real
+ * prompt (not a paraphrase of it), because a fixture whose match can never be satisfied is silent: the
+ * answer falls back to the default, the copy nobody reads stays unread, and no job fails.
+ */
+function fixtureFiresOnItsMaterial(cap: string, fixture: Fixture, guard: NonNullable<Fixture["guard"]>, B: PromptBuilders): string[] {
+  const message = requestOf(cap, guard, B);
+  if (message === null) return [];
+  const user = norm(message);
+  const out: string[] = [];
+  for (const key of ["includes", "urlIncludes", "titleIncludes", "textIncludes"] as const) {
+    for (const { raw, needle } of needlesOf(fixture.match[key])) {
+      if (needle && !user.includes(needle)) out.push(`match.${key}「${raw}」不会出现在这一步为这条材料发出的请求里 —— 这条 fixture 永远不生效`);
+    }
+  }
+  const any = needlesOf(fixture.match.anyIncludes);
+  if (any.length && !any.some((n) => user.includes(n.needle))) out.push("match.anyIncludes 没有一个出现在这条材料里 —— 永远不生效");
+  for (const { raw, needle } of needlesOf(fixture.match.notIncludes)) {
+    if (needle && user.includes(needle)) out.push(`match.notIncludes「${raw}」其实出现在这条材料里 —— 永远不生效`);
+  }
+  return out;
+}
+
+export interface LintReport {
+  vocabulary: Vocabulary;
+  anchorProblems: string[];
+  fixturesWithProblems: number;
+  /** Reader-facing capabilities whose default still produces prose: the caller must refuse on `usage.brain.rule`. */
+  readerCopyDefaults: Array<{ cap: string; rule: string; prose: string[] }>;
+  report: Array<Record<string, unknown>>;
+}
+
+/** One path of an answer (`themes[].summary` walks every item); [] when the answer has no such field. */
+function pathValues(value: unknown, path: string[]): unknown[] {
+  if (path.length === 0) return [value];
+  const [head, ...rest] = path as [string, ...string[]];
+  if (value == null || typeof value !== "object") return [];
+  if (head.endsWith("[]")) {
+    const list = (value as Record<string, unknown>)[head.slice(0, -2)];
+    return Array.isArray(list) ? list.flatMap((item) => pathValues(item, rest)) : [];
+  }
+  const next = (value as Record<string, unknown>)[head];
+  return next === undefined ? [] : pathValues(next, rest);
+}
+
+/** Every reader-facing capability that a machine default still answers with words. */
+function readerCopyDefaults(): LintReport["readerCopyDefaults"] {
+  const out: LintReport["readerCopyDefaults"] = [];
+  // The probe is an empty request: it shows which defaults *compose* prose at all. A default that only
+  // echoes what it was handed (translate's passthrough) has nothing to say here and is judged by its rule.
+  const ctx: Ctx = { system: "", user: "", hay: "", titles: [], urls: [], pass: 1, warnings: [] };
+  for (const [cap, spec] of Object.entries(CAPS)) {
+    const makeDefault = buildDefault[cap];
+    if (!spec.readerCopy || !makeDefault || !spec.copyFields?.length) continue;
+    const built = buildReply[cap]!(makeDefault(ctx).reply, ctx);
+    const prose: string[] = [];
+    for (const field of spec.copyFields) {
+      for (const value of pathValues(built, field.split("."))) if (typeof value === "string" && value.trim()) prose.push(`${field}: ${value.slice(0, 40)}`);
+    }
+    if (prose.length) out.push({ cap, rule: makeDefault(ctx).rule, prose });
+  }
+  return out;
+}
+
+export async function runLint(): Promise<LintReport> {
   // --lint runs the app's own copy guards (they are the reason an authored summary can silently vanish).
   // Resolved through variables so the stub still lints when packages/backend is mid-edit.
   const vocabularySpec = "../packages/backend/src/editorial/vocabulary.ts";
   const writingSpec = "../packages/backend/src/editorial/writing.ts";
-  let normalizeTags: ((v: unknown, o?: Record<string, unknown>) => string[]) | null = null;
-  let finalizeCopy: ((input: Record<string, unknown>, copy: { titleZh: string; summaryZh: string }) => { titleZh: string; summaryZh: string; identityGuard: { outcome: string; unsupportedTitleEntityIds: string[]; unsupportedSummaryEntityIds: string[] } }) | null = null;
+  let normalizeTags: NormalizeTags | null = null;
+  let finalizeCopy: FinalizeCopy | null = null;
+  let builders: PromptBuilders | null = null;
   try {
     normalizeTags = (await import(vocabularySpec)).normalizeTags;
-    finalizeCopy = (await import(writingSpec)).finalizeCopy;
+    const writing = await import(writingSpec);
+    finalizeCopy = writing.finalizeCopy;
+    builders = writing as unknown as PromptBuilders;
   } catch (error) {
-    console.warn(`[brain] --lint 没能加载 apps 自身的词表/守卫（跳过这两项检查）：${String(error).slice(0, 160)}`);
+    console.warn(`[brain] --lint 没能加载 apps 自身的词表/守卫（跳过这几项检查）：${String(error).slice(0, 160)}`);
   }
   const report: Array<Record<string, unknown>> = [];
   let bad = 0;
@@ -962,6 +1170,10 @@ if (mode === "--lint") {
       const notes: string[] = [];
       if (fixture.capability && fixture.capability !== cap) problems.push(`capability 字段 ${fixture.capability} 与文件名 ${cap} 不一致`);
       if (!fixture.author) notes.push("没有 author 署名");
+      // 这一条挡住本次事故的那类写法：match 的键在这一步的请求里根本不存在（summarize 没有 URL）。
+      const field = matcherProblems(cap, fixture.match);
+      problems.push(...field.problems);
+      notes.push(...field.notes);
       const ctx: Ctx = { system: "", user: "", hay: "", titles: [], urls: [], pass: 1, warnings: [] };
       let built: Record<string, unknown> | null = null;
       try {
@@ -1007,19 +1219,41 @@ if (mode === "--lint") {
         }
         if (guarded.summaryZh && guarded.summaryZh !== copy.summaryZh) notes.push("摘要超过 answer-first 规则，会被压缩");
       }
+      // 人工稿被 clampStr 截短：读者拿到的是没人写完的句子，所以这算问题，不算提示。
+      if (built) {
+        const cut = truncatedFields(fixture.reply, built);
+        if (cut.length) problems.push(`人工稿件会被截断（省略号替换掉后半句）：${cut.join("、")}`);
+        const dropped = droppedItems(fixture.reply, built);
+        if (dropped.length) notes.push(`有作者写下的条目会被丢弃：${dropped.join("、")}`);
+      }
+      // 有 guard 的单篇步骤：用调用方自己的提示词构造出真实请求，看这条 fixture 的 match 能不能命中它
+      // 自己那份材料。命中不了的 fixture 是静死的：答案落回默认值，没有人会收到失败。
+      if (built && builders && fixture.guard && (cap === "understand" || cap === "summarize" || cap === "prefilter")) {
+        for (const dead of fixtureFiresOnItsMaterial(cap, fixture, fixture.guard, builders)) problems.push(dead);
+      }
       if (problems.length) bad++;
       report.push({ cap, id: fixture.id, author: fixture.author ?? null, problems, notes });
     }
     if (file.errors.length) { bad += file.errors.length; report.push({ cap, readErrors: file.errors }); }
   }
-  console.log(JSON.stringify({ vocabulary: VOCAB, anchorProblems: ANCHOR_PROBLEMS, fixturesWithProblems: bad, report }, null, 2));
-  process.exit(bad ? 1 : 0);
+  return { vocabulary: VOCAB, anchorProblems: ANCHOR_PROBLEMS, fixturesWithProblems: bad, readerCopyDefaults: readerCopyDefaults(), report };
 }
 
-if (!existsSync(PROMPTS_DIR)) {
+if (isMain && mode === "--lint") {
+  const out = await runLint();
+  console.log(JSON.stringify(out, null, 2));
+  for (const item of out.readerCopyDefaults) {
+    console.warn(`[brain] ⚠ ${item.cap} 的默认值仍会产出读者可见的文字（${item.rule}：${item.prose.join("；").slice(0, 80)}）—— 消费它的那一层必须按 usage.brain.rule 拒绝。`);
+  }
+  process.exit(out.fixturesWithProblems ? 1 : 0);
+}
+
+// Everything below is the process itself: an import (a test, another tool) must not open a port, arm the
+// prompt watcher or take over SIGINT/SIGTERM.
+if (isMain && !existsSync(PROMPTS_DIR)) {
   console.warn(`[brain] 找不到 ${PROMPTS_DIR}：所有能力只能靠内置 marker 识别（会把 via 标成 markers:*）。请检查 tooling/ 的位置。`);
 }
-server.listen(PORT, "127.0.0.1", () => {
+if (isMain) server.listen(PORT, "127.0.0.1", () => {
   console.log(`[brain] GEOHOT 编辑大脑 stub http://127.0.0.1:${PORT}/v1  (fixtures: ${FIXTURES_DIR})`);
   console.log(`[brain] 能力 ${Object.keys(CAPS).length} 个，锚点 ${[...ANCHORS.values()].reduce((n, a) => n + a.length, 0)} 条，词表 categories=[${VOCAB.categories.join(",")}] itemTypes=[${VOCAB.itemTypes.join(",")}]`);
   for (const problem of ANCHOR_PROBLEMS) console.warn(`[brain] ⚠ ${problem}`);
@@ -1032,25 +1266,27 @@ server.listen(PORT, "127.0.0.1", () => {
 
 // Prompt files are authored by another agent and can change while this runs: reload the fingerprints and
 // the fixtures when they do, so appending a fixture never needs a restart.
-let lastReload = Date.now();
-const timer = setInterval(() => {
-  const now = Date.now();
-  if (now - lastReload < 5_000) return;
-  lastReload = now;
-  const before = anchorSignature();
-  refreshClassification();
-  if (anchorSignature() !== before) console.log("[brain] 提示词锚点已更新");
-  for (const cap of Object.keys(CAPS)) {
-    const file = readFixtureFile(cap);
-    if (file.errors.length) console.warn(`[brain] ⚠ ${cap}.jsonl L${file.errors[0]!.line}: ${file.errors[0]!.error}`);
-  }
-}, 5_000);
-timer.unref?.();
+if (isMain) {
+  let lastReload = Date.now();
+  const timer = setInterval(() => {
+    const now = Date.now();
+    if (now - lastReload < 5_000) return;
+    lastReload = now;
+    const before = anchorSignature();
+    refreshClassification();
+    if (anchorSignature() !== before) console.log("[brain] 提示词锚点已更新");
+    for (const cap of Object.keys(CAPS)) {
+      const file = readFixtureFile(cap);
+      if (file.errors.length) console.warn(`[brain] ⚠ ${cap}.jsonl L${file.errors[0]!.line}: ${file.errors[0]!.error}`);
+    }
+  }, 5_000);
+  timer.unref?.();
 
-for (const signal of ["SIGINT", "SIGTERM"] as const) {
-  process.on(signal, () => {
-    console.log(`\n[brain] ${signal}：关闭`);
-    server.close(() => process.exit(0));
-    setTimeout(() => process.exit(0), 1_500).unref();
-  });
+  for (const signal of ["SIGINT", "SIGTERM"] as const) {
+    process.on(signal, () => {
+      console.log(`\n[brain] ${signal}：关闭`);
+      server.close(() => process.exit(0));
+      setTimeout(() => process.exit(0), 1_500).unref();
+    });
+  }
 }

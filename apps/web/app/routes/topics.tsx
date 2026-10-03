@@ -1,5 +1,5 @@
 import { Link, useLoaderData } from "react-router";
-import { apiGet } from "../lib/api.server";
+import { loadOr404 } from "../lib/api.server";
 import { pageMeta } from "../lib/seo";
 
 interface TopicSummary {
@@ -14,7 +14,8 @@ interface TopicSummary {
 }
 
 export async function loader({ request }: { request: Request }) {
-  return apiGet<{ topics: TopicSummary[] }>("/api/site/topics", { signal: request.signal });
+  // 接口的 5xx 走 loadOr404 的约定（503 + 不缓存），别让一次读不到变成页面 500。
+  return loadOr404<{ topics: TopicSummary[] }>("/api/site/topics", { signal: request.signal });
 }
 
 export function meta() {

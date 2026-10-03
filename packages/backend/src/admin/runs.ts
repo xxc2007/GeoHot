@@ -1,6 +1,7 @@
 // Runs view: task timeline, queue backlog, source lag, error classes, process
 // heartbeats, and the receipts and deliveries whose outcome needs an operator.
 import { sql } from "../db.ts";
+import { InvalidInput } from "./invalid.ts";
 import { audit } from "./auth.ts";
 import { Conflict } from "./sources.ts";
 import { failureGroupSql, queueProcessing, requeueFailed } from "../jobs/content.ts";
@@ -101,7 +102,7 @@ async function release(id: number, error: string, actor: string, note: string, b
 
 /** Admin, after checking the provider's console: records whether it was billed and releases it. */
 export async function releaseReceipt(id: number, input: { billed: boolean; note: string }, actor: string) {
-  if (!input.note?.trim()) throw new Error("note is required");
+  if (!input.note?.trim()) throw new InvalidInput("note is required");
   const [row] = await sql<{ status: string }[]>`SELECT status FROM receipts WHERE id = ${id}`;
   if (!row) return null;
   if (row.status !== "unknown") throw new Conflict("只有结果未知的回执需要人工核对");
@@ -135,7 +136,7 @@ export async function autoReleaseUnknownReceipts(now = Date.now()) {
 
 /** Failed articles (one failure group, or all of the last 30 days) back into processing. */
 export async function requeueFailedArticles(input: { group: string | null; reason: string }, actor: string) {
-  if (!input.reason?.trim()) throw new Error("reason is required");
+  if (!input.reason?.trim()) throw new InvalidInput("reason is required");
   const result = await requeueFailed(input.group);
   await audit(actor, "processing.requeue", input.group ? `failure:${input.group.slice(0, 80)}` : "failure:all", input.reason, null, result);
   return result;
@@ -143,7 +144,7 @@ export async function requeueFailedArticles(input: { group: string | null; reaso
 
 /** An in-doubt delivery: confirmed as arrived, given up, or sent again after checking the group. */
 export async function resolveDelivery(id: number, input: { outcome: "sent" | "drop" | "resend"; note: string }, actor: string) {
-  if (!input.note?.trim()) throw new Error("note is required");
+  if (!input.note?.trim()) throw new InvalidInput("note is required");
   const [before] = await sql<{ status: string }[]>`SELECT status FROM deliveries WHERE id = ${id}`;
   if (!before) return null;
   if (before.status !== "unknown" && before.status !== "failed") throw new Conflict("这条投递不需要处理");

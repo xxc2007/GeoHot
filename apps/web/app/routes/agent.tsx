@@ -206,12 +206,25 @@ function ApiTab({ base }: { base: string }) {
 }
 
 export default function AgentPage() {
-  const { tab: initialTab, healthy, base } = useLoaderData<typeof loader>();
+  const { tab: initialTab, healthy: healthyAtLoad, base } = useLoaderData<typeof loader>();
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const [tab, setTab] = useState<TabKey>(initialTab);
+  // 这一页可以缓存 300 秒，状态球不能：缓存里的那一句"服务正常"最坏能说五分钟前的实话。
+  // 首帧沿用页面加载时的判断（与服务端 HTML 一致，不多一次水合差异），到浏览器里再查一次。
+  const [healthy, setHealthy] = useState(healthyAtLoad);
 
   useEffect(() => setTab((params.get("tab") as TabKey) || "mcp"), [params]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(publicPath("/api/health"), { signal: controller.signal, cache: "no-store" })
+      .then((res) => setHealthy(res.ok))
+      .catch(() => {
+        // 查不动（被取消、离线）：留在页面加载时的那个判断上，不编一个新的。
+      });
+    return () => controller.abort();
+  }, []);
 
   const select = (key: TabKey) => {
     setTab(key);
@@ -251,7 +264,7 @@ export default function AgentPage() {
           <span className={pill}>匿名只读</span>
           <span className={`${pill} mono`}>API v1</span>
           <span className={`${pill} mono`}>MCP {MCP_VERSION}</span>
-          <span className={`${pill} gap-1.5 ${healthy ? "text-ok" : "text-hot"}`}>
+          <span className={`${pill} gap-1.5 ${healthy ? "text-ok" : "text-hot"}`} title="读这一页时在浏览器里查的 /api/health；不支持脚本的浏览器看到的就是打开这一页时的结果">
             <span className={`size-1.5 rounded-full ${healthy ? "bg-ok" : "bg-hot"}`} />
             {healthy ? "服务正常" : "服务异常"}
           </span>

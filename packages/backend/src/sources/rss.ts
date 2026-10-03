@@ -5,6 +5,7 @@ import { collapseWhitespace, stripTags } from "../lib/text.ts";
 import { sanitizeBody } from "../content/sanitize.ts";
 import { identityKeyForUrl } from "../lib/url.ts";
 import { sha256, stableJson } from "../lib/ids.ts";
+import { DEFAULT_UTC_OFFSET, parsePublishedAt } from "./dates.ts";
 import { FetchError, type Candidate, type SourceRow } from "./types.ts";
 
 const parser = new XMLParser({
@@ -37,14 +38,13 @@ function arr<T>(v: T | T[] | undefined | null): T[] {
   return Array.isArray(v) ? v : [v];
 }
 
-function parseDate(v: string): Date | null {
-  if (!v) return null;
-  const t = Date.parse(v);
-  if (Number.isFinite(t)) return new Date(t);
-  // RFC 822 variants with Chinese weekday or odd zones
-  const cleaned = v.replace(/星期[一二三四五六日天]/, "").replace(/\s+/g, " ").trim();
-  const t2 = Date.parse(cleaned);
-  return Number.isFinite(t2) ? new Date(t2) : null;
+/**
+ * A feed's date, through the shared rule of sources/dates.ts: a value with no zone of its own is read in
+ * the source's offset (publishedAtUtcOffset), never the host's, so the item lands on the day the source
+ * meant. Date.parse alone read "2026-09-26 10:00" eight hours away between the container and a machine.
+ */
+function parseDate(v: string, utcOffset: string | null | undefined = DEFAULT_UTC_OFFSET): Date | null {
+  return parsePublishedAt(v, { utcOffset });
 }
 
 function atomLink(links: unknown): string {
@@ -53,6 +53,36 @@ function atomLink(links: unknown): string {
   if (alt && typeof alt === "object") return alt["@href"] ?? "";
   const first = list[0];
   return typeof first === "string" ? first : first?.["@href"] ?? "";
+}
+
+/**
+ * The base a node's relative hrefs resolve against: its own `@xml:base` when it declares one, taken
+ * against the base above it (a feed-level value is inherited by its entries).
+ */
+function baseOf(node: unknown, parent: string): string {
+  const raw = String((node as Record<string, unknown> | undefined)?.["@xml:base"] ?? "").trim();
+  if (!raw) return parent;
+  try {
+    return new URL(raw, parent).toString();
+  } catch {
+    return parent;
+  }
+}
+
+/**
+ * An href as an absolute address, or null when it is not one (a `urn:` guid, a malformed link). The
+ * document's own address is the base, which after a redirect is where the bytes came from (`res.url`)
+ * and not the configured feed URL: the two differ whenever a feed moved, and a relative href resolved
+ * against the old address points somewhere the reader never lands.
+ */
+function resolveHref(href: string, base: string): string | null {
+  if (!href) return null;
+  try {
+    const u = new URL(href, base);
+    return u.protocol === "http:" || u.protocol === "https:" ? u.toString() : null;
+  } catch {
+    return null;
+  }
 }
 
 function imagesFrom(html: string, base: string): Array<{ kind: "image"; url: string }> {
@@ -148,12 +178,17 @@ export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}
   const identity = (link: string) =>
     source.config.preserveUrlFragment === true ? { identityKey: identityKeyForUrl(link, { keepFragment: true }) ?? undefined } : {};
   const out: Candidate[] = [];
+  // A relative href resolves against the address the bytes came from, not the configured feed URL.
+  const docUrl = res.url || url;
+  const publishedAtUtcOffset = source.config.publishedAtUtcOffset as string | null | undefined;
 
   const channel = doc.rss?.channel ?? doc["rdf:RDF"];
   if (channel) {
     const items = arr(doc.rss?.channel?.item ?? doc["rdf:RDF"]?.item);
+    const channelBase = baseOf(channel, docUrl);
     for (const it of items) {
-      const link = text(it.link) || text(it.guid);
+      const itemBase = baseOf(it, channelBase);
+      const link = resolveHref(text(it.link), itemBase) ?? resolveHref(text(it.guid), itemBase);
       const title = collapseWhitespace(stripTags(text(it.title)));
       if (!link || !title) continue;
       const contentEncoded = text(it["content:encoded"]);
@@ -161,8 +196,9 @@ export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}
       const bodyHtmlRaw = contentEncoded || (summaryIsBody ? description : "");
       const bodyHtml = bodyHtmlRaw ? sanitizeBody(bodyHtmlRaw, link) : null;
       const enclosure = arr(it.enclosure as Record<string, string> | Array<Record<string, string>>).find((e) => /^image\//.test(e?.["@type"] ?? ""));
+      const enclosureUrl = enclosure ? resolveHref(String(enclosure["@url"] ?? ""), link) : null;
       const media = [
-        ...(enclosure ? [{ kind: "image" as const, url: enclosure["@url"]! }] : []),
+        ...(enclosureUrl ? [{ kind: "image" as const, url: enclosureUrl }] : []),
         ...(bodyHtmlRaw ? imagesFrom(bodyHtmlRaw, link) : []),
       ];
       out.push({
@@ -170,7 +206,7 @@ export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}
         ...identity(link),
         title,
         author: text(it["dc:creator"]) || text(it.author) || null,
-        publishedAt: parseDate(text(it.pubDate) || text(it["dc:date"]) || text(it.published)),
+        publishedAt: parseDate(text(it.pubDate) || text(it["dc:date"]) || text(it.published), publishedAtUtcOffset),
         ...feedText(bodyHtml, description, source),
         media: media.slice(0, 6),
         categories: arr(it.category).map((c) => text(c)).filter(Boolean),
@@ -182,23 +218,26 @@ export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}
 
   const feed = doc.feed;
   if (feed) {
+    // A feed-level @xml:base is inherited by its entries; an entry's own replaces it for that entry.
+    const feedBase = baseOf(feed, docUrl);
     for (const e of arr(feed.entry)) {
       const link = atomLink(e.link);
       const title = collapseWhitespace(stripTags(text(e.title)));
-      if (!link || !title) continue;
+      const entryUrl = resolveHref(link, baseOf(e, feedBase));
+      if (!entryUrl || !title) continue;
       const content = text(e.content);
       const summary = text(e.summary);
-      const bodyHtml = content ? sanitizeBody(content, link) : null;
-      const entryUrl = new URL(link, url).toString();
+      // The body and its images resolve against the entry's own resolved address, the one the reader opens.
+      const bodyHtml = content ? sanitizeBody(content, entryUrl) : null;
       out.push({
         url: entryUrl,
         ...identity(entryUrl),
         title,
         author: text(arr(e.author)[0]?.name) || null,
-        publishedAt: parseDate(text(e.published) || text(e.updated)),
-        sourceUpdatedAt: parseDate(text(e.updated)),
+        publishedAt: parseDate(text(e.published) || text(e.updated), publishedAtUtcOffset),
+        sourceUpdatedAt: parseDate(text(e.updated), publishedAtUtcOffset),
         ...feedText(bodyHtml, summary, source),
-        media: content ? imagesFrom(content, link) : [],
+        media: content ? imagesFrom(content, entryUrl) : [],
         categories: arr(e.category).map((c: any) => c?.["@term"] ?? text(c)).filter(Boolean),
         raw: { id: text(e.id) || null },
       });

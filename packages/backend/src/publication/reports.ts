@@ -4,6 +4,8 @@ import type { ReportCitation, ReportDetail, ReportIndexEntry, ReportNavigationEn
 import { sql } from "../db.ts";
 import { cached, type Cached } from "../lib/cache.ts";
 import { proxiedImage, proxiedImageSet } from "../media/imgproxy.ts";
+import { releasedCondition } from "./items.ts";
+import { itemHasPage } from "./rules.ts";
 import { dailyUrl, itemUrl, reportUrl, siteUrl } from "./links.ts";
 import { SITE, withSubject } from "@aihot/industry/site";
 
@@ -28,17 +30,24 @@ interface Availability {
   publishedAt: Date | null;
 }
 
-async function availability(ids: string[]): Promise<Map<string, Availability>> {
+/** The same rule the item page itself answers with (rules.itemHasPage), so a paper never strikes through
+ *  a title that opens, and never links one that does not. */
+async function availability(ids: string[], now = new Date()): Promise<Map<string, Availability>> {
   const out = new Map<string, Availability>();
   if (ids.length === 0) return out;
-  const rows = await sql<{ id: string; visibility: string; eligible: boolean; first_party: boolean; source_id: string; icon_url: string | null; story_public_id: string | null; at: Date | null }[]>`
-    SELECT p.article_id AS id, p.visibility, p.eligible, p.first_party, p.source_id, s.icon_url, st.public_id::text AS story_public_id,
+  const rows = await sql<{ id: string; visibility: string; source_mode: string; selected: boolean; visible_after: Date | null;
+    first_party: boolean; source_id: string; icon_url: string | null; story_public_id: string | null; at: Date | null }[]>`
+    SELECT p.article_id AS id, p.visibility, s.participation_mode AS source_mode, p.selected, p.visible_after,
+      p.first_party, p.source_id, s.icon_url, st.public_id::text AS story_public_id,
       coalesce(p.published_at, p.discovered_at) AS at
     FROM publications p LEFT JOIN sources s ON s.id = p.source_id LEFT JOIN stories st ON st.id = p.story_id
     WHERE p.article_id IN ${sql(ids)}`;
   for (const r of rows) {
     out.set(r.id, {
-      available: r.visibility === "public" && r.eligible,
+      available: itemHasPage({ visibility: r.visibility, sourceMode: r.source_mode, selected: r.selected, visibleAfter: r.visible_after }, now),
+      // Why there is no page matters: a withdrawn or non-public item must not be quoted again anywhere,
+      // while a public item whose source simply left the editorial set still owes the reader its source.
+      public: r.visibility === "public",
       firstParty: r.first_party,
       sourceId: r.source_id,
       sourceIcon: r.icon_url,
@@ -49,14 +58,23 @@ async function availability(ids: string[]): Promise<Map<string, Availability>> {
   return out;
 }
 
-/** Ids among `ids` that are no longer public. Ids absent from this database stay cited as published. */
+/**
+ * Which of `ids` still open for a reader. Ids absent from this database are in neither set: they stay
+ * cited as published (an imported issue quotes items older than the imported window), but nothing links a
+ * page that does not exist — see `tocHtml`, which falls back to the original article for those.
+ */
+async function pageSets(ids: string[], now = new Date()): Promise<{ withPage: Set<string>; withoutPage: Set<string> }> {
+  const withPage = new Set<string>();
+  const withoutPage = new Set<string>();
+  if (ids.length === 0) return { withPage, withoutPage };
+  const avail = await availability([...new Set(ids.filter(Boolean))], now);
+  for (const [id, a] of avail) (a.available ? withPage : withoutPage).add(id);
+  return { withPage, withoutPage };
+}
+
+/** Ids among `ids` that no longer have a reader-facing page. Ids absent from this database stay cited as published. */
 export async function unavailableIds(ids: string[]): Promise<Set<string>> {
-  const unique = [...new Set(ids.filter(Boolean))];
-  if (!unique.length) return new Set();
-  const rows = await sql<{ id: string }[]>`
-    SELECT article_id AS id FROM publications
-    WHERE article_id = ANY(${unique}::text[]) AND (visibility <> 'public' OR NOT eligible)`;
-  return new Set(rows.map((r) => r.id));
+  return (await pageSets(ids)).withoutPage;
 }
 
 /** Directory/feed metadata only: citation summaries and full report prose stay in the detail read. */
@@ -130,10 +148,19 @@ function citationFrom(raw: Record<string, any>, avail: Map<string, Availability>
   // Items absent from this database (older than the imported window) stay cited as they were published.
   const available = id ? (a ? a.available : true) : true;
   if (!available) {
-    // Withdrawn since: the reader sees a marked title; the summary and links are not sent at all.
+    // No page to open any more. Two different reasons, two different answers:
+    //  · the item itself is withdrawn or not public — quoting it again anywhere re-exposes what was pulled,
+    //    so the reader sees a struck-through title and nothing else (tests/publication.test.ts pins this);
+    //  · the item is public but its source left the editorial set — there is no site page, yet the paper
+    //    still has to say where the claim came from, so title, source name and original address stay.
+    const struck = a && !a.public;
     return {
-      itemId: id, title: String(raw.title ?? ""), summary: null, sourceName: "", sourceUrl: "", sourceId: null, sourceIconUrl: null,
-      firstParty: false, role: raw.role ?? null, storyPublicId: null, publishedAt: null, available: false,
+      itemId: id, title: String(raw.title ?? ""), summary: null,
+      sourceName: struck ? "" : String(raw.sourceName ?? raw.source?.name ?? ""),
+      sourceUrl: struck ? "" : String(raw.sourceUrl ?? raw.links?.original ?? ""),
+      sourceId: struck ? null : raw.sourceId ?? a?.sourceId ?? null, sourceIconUrl: null,
+      firstParty: struck ? false : raw.firstParty ?? a?.firstParty ?? false, role: raw.role ?? null,
+      storyPublicId: null, publishedAt: struck ? null : a?.publishedAt?.toISOString() ?? null, available: false,
     };
   }
   return {
@@ -179,9 +206,10 @@ export function leadItemOf(leadTitle: string | undefined, highlights: ReportCita
 
 /**
  * A picture for the front page's lead item: its own first sizeable image, else one from another public
- * report of the same event (first-hand first). Items shown as summaries only lend no pictures.
+ * report of the same event (first-hand first). Items shown as summaries only lend no pictures, and an
+ * item still behind the release gate lends none either — its own page hides it, so its picture must too.
  */
-async function leadCover(itemId: string): Promise<{ url: string; srcSet?: string; width: number | null; height: number | null } | null> {
+async function leadCover(itemId: string, now = new Date()): Promise<{ url: string; srcSet?: string; width: number | null; height: number | null } | null> {
   const [row] = await sql<{ m: { url: string; width?: number; height?: number } }[]>`
     SELECT img.m
     FROM publications p JOIN articles a ON a.id = p.article_id
@@ -190,7 +218,7 @@ async function leadCover(itemId: string): Promise<{ url: string; srcSet?: string
       WHERE m->>'kind' = 'image' AND coalesce((m->>'width')::numeric, 800) >= 480 LIMIT 1
     ) img
     WHERE (p.article_id = ${itemId} OR p.story_id = (SELECT story_id FROM publications WHERE article_id = ${itemId}))
-      AND p.visibility = 'public' AND p.eligible AND p.body_mode <> 'summary'
+      AND p.visibility = 'public' AND p.eligible AND ${releasedCondition(now)} AND p.body_mode <> 'summary'
     ORDER BY (p.article_id = ${itemId}) DESC, p.first_party DESC, coalesce(p.score, 0) DESC, p.article_id
     LIMIT 1`;
   if (!row) return null;
@@ -275,50 +303,78 @@ export async function loadReport(kind: ReportKind, key: string): Promise<ReportD
 }
 
 /**
- * The newest 400 issues of a kind with their withdrawn headline candidates. Every archive, navigation
- * and feed of that kind reads this; it is rebuilt at most once a minute per process (a new issue or a
- * withdrawal shows within a minute, like the pages' own caches).
+ * The newest 400 issues of a kind, with everything every outlet needs to decide what a reader can turn to:
+ * the withdrawn headline candidates, and which citations still have a page. Every archive, navigation,
+ * feed and v1 list of that kind reads this one gate; it is rebuilt at most once a minute per process (a new
+ * issue or a withdrawal shows within a minute, like the pages' own caches). The page sets are part of the
+ * cached payload rather than read per request because an index of 400 issues cites thousands of items, and
+ * a report page used to ask it on every view (and again in `neighbors`, which reads this same index).
  */
 const INDEX_LIMIT = 400;
-const indexes = new Map<ReportKind, Cached<{ rows: Awaited<ReturnType<typeof reportIndexRows>>; gone: Set<string> }>>();
+const indexes = new Map<ReportKind, Cached<ReportIndex>>();
+interface ReportIndex {
+  rows: Awaited<ReturnType<typeof reportIndexRows>>;
+  gone: Set<string>;
+  /** Citations of these issues that still open for a reader, and those that no longer do. */
+  withPage: Set<string>;
+  withoutPage: Set<string>;
+}
 export function reportIndex(kind: ReportKind) {
   let entry = indexes.get(kind);
   if (!entry) {
-    entry = cached(async () => {
+    entry = cached(async (): Promise<ReportIndex> => {
       const rows = await reportIndexRows(kind, INDEX_LIMIT);
-      return { rows, gone: await unavailableHeadlineIds(rows, kind === "daily" ? "daily" : "periodic") };
+      const pages = await pageSets(rows.flatMap((r) => citedItemIds(r.content, kind === "daily" ? "daily" : "periodic")));
+      return { rows, gone: await unavailableHeadlineIds(rows, kind === "daily" ? "daily" : "periodic"), ...pages };
     }, { freshMs: 60_000, maxStaleMs: 10 * 60_000 });
     indexes.set(kind, entry);
   }
   return entry.get();
 }
 
+/** The items an index row cites: a daily's section items, a weekly or monthly's story refs. */
+function citedItemIds(content: Record<string, any>, shape: "daily" | "periodic"): string[] {
+  return (shape === "daily"
+    ? (content.sections ?? []).flatMap((s: any) => s.items ?? [])
+    : (content.themes ?? []).flatMap((t: any) => t.storyRefs ?? []))
+    .map((i: any) => i.itemId).filter(Boolean) as string[];
+}
+
+/**
+ * An index and the issues of it a reader can read, in one call: the feeds and the v1 lists take their
+ * rows, their headline candidates and their citation page sets from here, so no outlet can apply a second,
+ * looser gate than the site index does (`listReports` below is the same filter with the counts attached).
+ */
+export async function readableReports(kind: ReportKind, limit: number) {
+  const index = await reportIndex(kind);
+  const shape = kind === "daily" ? "daily" : "periodic";
+  return { index, shape, rows: readableRows(index, shape, limit) };
+}
+
+/**
+ * The issues a reader can actually read, newest first: an edition whose every citation lost its page — the
+ * gate published no pick, or everything it cited has since been withdrawn — is not a newspaper. Listing one
+ * advertises 「共 8 期」 of which seven read 0 件大事 while the masthead still offers a reading time, so this
+ * is the one gate every outlet shares: the site index, the feeds, the v1 lists, `latest`, the sitemap and
+ * the neighbouring-page links. A *named* blank issue is still served as its own honest empty state
+ * (`v1Report`/`loadReport`), it just is never advertised.
+ */
+function readableRows(index: ReportIndex, shape: "daily" | "periodic", limit: number) {
+  return index.rows
+    .filter((r) => citedItemIds(r.content, shape).some((id) => !index.withoutPage.has(id)))
+    .slice(0, limit);
+}
+
 export async function listReports(kind: ReportKind, limit = INDEX_LIMIT): Promise<ReportIndexEntry[]> {
   const index = await reportIndex(kind);
   const shape = kind === "daily" ? "daily" : "periodic";
-  const gone = index.gone;
-  const idsOf = (content: Record<string, any>): string[] =>
-    (kind === "daily"
-      ? (content.sections ?? []).flatMap((s: any) => s.items ?? [])
-      : (content.themes ?? []).flatMap((t: any) => t.storyRefs ?? []))
-      .map((i: any) => i.itemId).filter(Boolean);
-  // A citation whose item has since been withdrawn is not something a reader can read, so one query over
-  // the whole index decides every edition's count. Counting raw citations kept blank editions listed:
-  // /daily/archive said 「共 8 期」, 归档写「N 件大事」, and the page behind it was a row of struck-through titles.
-  const hidden = await unavailableIds(index.rows.flatMap((r) => idsOf(r.content)));
-  const entries = index.rows.map((r) => {
-    const ids = idsOf(r.content);
-    return {
-      key: r.key,
-      title: reportHeadline(r.content, shape, gone),
-      generatedAt: r.generated_at.toISOString(),
-      count: ids.filter((id) => !hidden.has(id)).length,
-    };
-  });
-  // An edition with nothing left to read — the gate published no pick, or every citation has since been
-  // withdrawn — is not a newspaper. Listing one advertises 「共 8 期」 of which seven read 0 件大事 while the
-  // masthead still offers a reading time, so the index carries only the editions a reader can read.
-  return entries.filter((e) => e.count > 0).slice(0, limit);
+  const entries = readableRows(index, shape, limit).map((r) => ({
+    key: r.key,
+    title: reportHeadline(r.content, shape, index.gone),
+    generatedAt: r.generated_at.toISOString(),
+    count: citedItemIds(r.content, shape).filter((id) => !index.withoutPage.has(id)).length,
+  }));
+  return entries;
 }
 
 // ---------------------------------------------------------------------------
@@ -386,23 +442,14 @@ export interface V1WeeklyBody { schemaVersion: 1; report: { week: string } & V1P
 export interface V1MonthlyBody { schemaVersion: 1; report: { month: string } & V1PeriodicReportFields }
 
 /**
- * An edition a reader can actually read: at least one item survived the visibility filter. The same
- * predicate gates the site index, the v1 lists, the v1 "latest" and the report feeds, so no public
- * exit advertises a blank newspaper.
+ * The newest readable issues of a kind; dailies keep the field names they have always sent. The rows come
+ * from {@link readableReports} — the one gate every outlet shares — never from a second, looser test of
+ * the raw citation count, so no exit can advertise a paper whose table of contents is empty.
  */
-export function hasReadableItems(content: Record<string, any>, kind: ReportKind): boolean {
-  const items = kind === "daily"
-    ? (content.sections ?? []).flatMap((s: any) => s.items ?? [])
-    : (content.themes ?? []).flatMap((t: any) => t.storyRefs ?? []);
-  return items.length > 0;
-}
-
-/** The newest readable issues of a kind; dailies keep the field names they have always sent. */
 export function v1Reports(kind: "daily", limit: number): Promise<V1DailiesBody>;
 export function v1Reports(kind: "weekly" | "monthly", limit: number): Promise<V1PeriodicListBody>;
 export async function v1Reports(kind: ReportKind, limit: number): Promise<V1DailiesBody | V1PeriodicListBody> {
-  const index = await reportIndex(kind);
-  const rows = index.rows.filter((r) => hasReadableItems(r.content, kind)).slice(0, limit);
+  const { index, rows } = await readableReports(kind, limit);
   const gone = index.gone;
   if (kind === "daily") {
     const items = rows.map((r) => {
@@ -439,12 +486,13 @@ export function v1Report(kind: "weekly", key: string): Promise<V1WeeklyBody | nu
 export function v1Report(kind: "monthly", key: string): Promise<V1MonthlyBody | null>;
 export function v1Report(kind: "weekly" | "monthly", key: string): Promise<V1WeeklyBody | V1MonthlyBody | null>;
 export async function v1Report(kind: ReportKind, key: string): Promise<V1DailyBody | V1WeeklyBody | V1MonthlyBody | null> {
-  const rows = key === "latest"
-    // The newest row is not necessarily the newest edition with something in it; a period the gate left
-    // empty must not become "latest" and serve a blank paper to every machine consumer.
-    ? (await sql<ReportRow[]>`SELECT kind, key, window_start, window_end, content, generated_at, revision FROM reports WHERE kind = ${kind} ORDER BY key DESC LIMIT 20`).filter((x) => hasReadableItems(x.content, kind))
-    : await sql<ReportRow[]>`SELECT kind, key, window_start, window_end, content, generated_at, revision FROM reports WHERE kind = ${kind} AND key = ${key}`;
-  const [r] = rows;
+  // "latest" is the newest edition the shared gate still calls readable — the same answer the site index,
+  // the feeds and the sitemap give. A period the gate left empty must not become "latest" and serve a blank
+  // paper to every machine consumer.
+  const wanted = key === "latest" ? (await listReports(kind, 1))[0]?.key ?? null : key;
+  if (!wanted) return null;
+  const [r] = await sql<ReportRow[]>`
+    SELECT kind, key, window_start, window_end, content, generated_at, revision FROM reports WHERE kind = ${kind} AND key = ${wanted}`;
   if (!r) return null;
   // A *named* blank issue answers with an honest empty state (200 + 「本期没有入选内容」的版面), not 404 and
   // never a 500 — that is a deliberate choice from the round that added these routes (tests/publication.test.ts

@@ -7,7 +7,7 @@ import { beijingDate } from "@aihot/contracts/time";
 import { sql } from "../db.ts";
 import { decodeCursor, encodeCursor, InvalidCursorError, queryBinding } from "../lib/cursor.ts";
 import {
-  ITEM_COLUMNS, ITEM_FROM, categoryCondition, channelCondition, selectedCondition, tagCondition, toFeedItemSummary, topicCondition,
+  ITEM_COLUMNS, ITEM_FROM, categoryCondition, channelCondition, chineseCopyCondition, releasedCondition, selectedCondition, tagCondition, toFeedItemSummary, topicCondition,
   type ItemRow,
 } from "./items.ts";
 
@@ -54,44 +54,68 @@ async function groupPool(q: TimelineQuery, now: Date, storyIds: number[], factId
     SELECT DISTINCT f.story_id, f.id AS fact_id, p.article_id, p.source_id, p.timeline_at AS at
     FROM facts f JOIN fact_articles fa ON fa.fact_id = f.id JOIN publications p ON p.article_id = fa.article_id
     WHERE (f.story_id IN ${sql(storyIds.length ? storyIds : [0])} OR f.id IN ${sql(factIds.length ? factIds : [0])})
-      AND p.visibility = 'public' AND p.eligible AND (NOT p.selected OR p.visible_after <= ${now}) ${filterSql(q)}`;
+      AND p.visibility = 'public' AND p.eligible AND ${releasedCondition(now)} ${filterSql(q)}`;
 }
 
 /**
  * The selected set grouped into cards (fact or standalone item) with their anchor times, newest
  * first. Every timeline page, day count and "new items" probe reads this list; it is kept for five
- * seconds per filter scope (a release becomes visible at most that much later).
+ * seconds per filter scope, and for no longer than the earliest release still waiting in that scope.
+ *
+ * The anchors and that deadline come from one read on purpose. Read separately, the deadline could be
+ * measured after the anchors and be earlier than the snapshot it described: a reader landing at that
+ * moment was told 「下一条 X 分发布」 while the five-second set still left X out.
  */
-const groupedCache = new Map<string, { at: number; rows: Array<{ gk: string; anchor: number }> }>();
-const groupedPending = new Map<string, Promise<Array<{ gk: string; anchor: number }>>>();
-async function groupedAnchors(q: TimelineQuery, now: Date): Promise<Array<{ gk: string; anchor: number }>> {
+interface GroupedSnapshot {
+  readAt: number;
+  /** When this snapshot stops being true: the 5 s window or the next release, whichever is sooner. */
+  until: number;
+  refreshAt: string | null;
+  rows: Array<{ gk: string; anchor: number }>;
+}
+const groupedCache = new Map<string, GroupedSnapshot>();
+const groupedPending = new Map<string, Promise<GroupedSnapshot>>();
+async function groupedSnapshot(q: TimelineQuery, now: Date): Promise<GroupedSnapshot> {
   const key = binding(q);
-  const cached = q.now ? undefined : groupedCache.get(key);
-  if (cached && Date.now() - cached.at < 5000) return cached.rows;
+  const held = q.now ? undefined : groupedCache.get(key);
+  if (held && Date.now() < held.until) return held;
   const pending = q.now ? undefined : groupedPending.get(key);
   if (pending) return pending;
   const load = queryGroupedAnchors(q, now);
   if (q.now) return load;
   groupedPending.set(key, load);
   try {
-    const rows = await load;
+    const snap = await load;
     if (groupedCache.size >= 50) groupedCache.delete(groupedCache.keys().next().value!);
-    groupedCache.set(key, { at: Date.now(), rows });
-    return rows;
+    groupedCache.set(key, snap);
+    return snap;
   } finally { groupedPending.delete(key); }
 }
 
-async function queryGroupedAnchors(q: TimelineQuery, now: Date) {
-  const rows = (
-    await sql<{ gk: string; anchor_at: Date }[]>`
-      WITH base AS (
-        SELECT p.sort_at, coalesce('s' || p.story_id::text, 'f' || p.fact_id::text, 'a' || p.article_id) AS gk
-        FROM publications p
-        WHERE ${selectedCondition(now)} ${filterSql(q)}
-      )
-      SELECT gk, max(sort_at) AS anchor_at FROM base GROUP BY gk ORDER BY anchor_at DESC, gk COLLATE "C" DESC`
-  ).map((r) => ({ gk: r.gk, anchor: r.anchor_at.getTime() }));
-  return rows;
+async function queryGroupedAnchors(q: TimelineQuery, now: Date): Promise<GroupedSnapshot> {
+  const rows = await sql<{ gk: string | null; anchor_at: Date | null; pending_at: Date | null }[]>`
+    WITH base AS (
+      SELECT p.sort_at, coalesce('s' || p.story_id::text, 'f' || p.fact_id::text, 'a' || p.article_id) AS gk
+      FROM publications p
+      WHERE ${selectedCondition(now)} ${filterSql(q)}
+    ),
+    waiting AS (
+      SELECT min(p.visible_after) AS t FROM publications p
+      WHERE p.visibility = 'public' AND p.selected AND p.visible_after > ${now} AND ${chineseCopyCondition()} ${filterSql(q)}
+    )
+    SELECT g.gk, g.anchor_at, waiting.t AS pending_at
+    FROM waiting LEFT JOIN (SELECT gk, max(sort_at) AS anchor_at FROM base GROUP BY gk) g ON true
+    ORDER BY g.anchor_at DESC NULLS LAST, g.gk COLLATE "C" DESC`;
+  const readAt = Date.now();
+  const waiting = rows[0]?.pending_at ?? null;
+  return {
+    readAt,
+    refreshAt: waiting ? waiting.toISOString() : null,
+    // A release a millisecond away must not turn every page view into a fresh grouped read; one second is
+    // far below the reader-visible difference and keeps the probe honest about the next one.
+    until: waiting ? Math.max(readAt + 1000, Math.min(readAt + 5000, waiting.getTime())) : readAt + 5000,
+    rows: rows.filter((r) => r.gk !== null && r.anchor_at !== null).map((r) => ({ gk: r.gk!, anchor: r.anchor_at!.getTime() })),
+  };
 }
 
 export async function loadTimeline(q: TimelineQuery): Promise<Omit<TimelineResponse, "hot" | "generatedAt">> {
@@ -105,12 +129,10 @@ export async function loadTimeline(q: TimelineQuery): Promise<Omit<TimelineRespo
     after = { a: c.a, g: c.g };
   }
 
-  // Independent of the page: read alongside it.
-  const refreshAtRead = nextRelease(q, now);
-  refreshAtRead.catch(() => {});
-  const grouped = await groupedAnchors(q, now);
-  const start = after ? grouped.findIndex((g) => g.anchor < after!.a || (g.anchor === after!.a && g.gk < after!.g)) : 0;
-  const groups: GroupRow[] = (start < 0 ? [] : grouped.slice(start, start + limit + 1)).map((g) => ({ gk: g.gk, anchor_at: new Date(g.anchor) }));
+  // The reading set and its expiry are one snapshot, read alongside this page.
+  const snapshot = await groupedSnapshot(q, now);
+  const start = after ? snapshot.rows.findIndex((g) => g.anchor < after.a || (g.anchor === after.a && g.gk < after.g)) : 0;
+  const groups: GroupRow[] = (start < 0 ? [] : snapshot.rows.slice(start, start + limit + 1)).map((g) => ({ gk: g.gk, anchor_at: new Date(g.anchor) }));
 
   const page = groups.slice(0, limit);
   const hasMore = groups.length > limit;
@@ -188,22 +210,13 @@ export async function loadTimeline(q: TimelineQuery): Promise<Omit<TimelineRespo
   const days = new Set(page.map((g) => beijingDate(g.anchor_at)));
   const dayCounts: Record<string, number> = {};
   if (days.size) {
-    for (const g of grouped) {
+    for (const g of snapshot.rows) {
       const day = beijingDate(g.anchor);
       if (days.has(day)) dayCounts[day] = (dayCounts[day] ?? 0) + 1;
     }
   }
 
-  const refreshAt = await refreshAtRead;
   const last = page[page.length - 1];
   const nextCursor = hasMore && last ? encodeCursor("tl1", { a: last.anchor_at.getTime(), g: last.gk, b: bind }) : null;
-  return { filters: { channel: q.channel, category: q.category, tag: q.tag, topic: q.topic ?? null }, cards, nextCursor, refreshAt, dayCounts };
-}
-
-/** Earliest pending release in this scope; caches of this scope must expire by then. */
-export async function nextRelease(q: TimelineQuery, now: Date): Promise<string | null> {
-  const [row] = await sql<{ t: Date | null }[]>`
-    SELECT min(p.visible_after) AS t FROM publications p
-    WHERE p.visibility = 'public' AND p.selected AND p.visible_after > ${now} ${filterSql(q)}`;
-  return row?.t ? row.t.toISOString() : null;
+  return { filters: { channel: q.channel, category: q.category, tag: q.tag, topic: q.topic ?? null }, cards, nextCursor, refreshAt: snapshot.refreshAt, dayCounts };
 }

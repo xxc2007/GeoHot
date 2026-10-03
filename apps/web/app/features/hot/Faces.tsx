@@ -17,12 +17,14 @@ export function Faces({ participants, total, size = 24, max = 6, interactive = t
   const faces = (
     <>
       {shown.map((p, i) => (
-        <span key={p.name} className={`rounded-full ring-2 ring-surface ${i ? "-ml-1.5" : ""}`}>
+        // 4px of overlap, not 6: at 20-22px a favicon is already only a few glyphs wide, and the tighter
+        // stack made two logos read as one smudged mark (measured in the 2026-10-03 screenshots).
+        <span key={p.name} className={`rounded-full ring-2 ring-surface ${i ? "-ml-1" : ""}`}>
           <SourceAvatar name={p.name} iconUrl={p.iconUrl} iconSrcSet={p.iconSrcSet} size={size} />
         </span>
       ))}
       {rest > 0 && (
-        <span className="-ml-1.5 inline-flex items-center justify-center rounded-full bg-bg-sunk px-1.5 text-[10.5px] font-medium text-ink-3 ring-2 ring-surface dark:bg-bg-muted" style={{ height: size, minWidth: size }}>
+        <span className="-ml-1 inline-flex items-center justify-center rounded-full bg-bg-sunk px-1.5 text-[10.5px] font-medium text-ink-3 ring-2 ring-surface dark:bg-bg-muted" style={{ height: size, minWidth: size }}>
           +{rest}
         </span>
       )}

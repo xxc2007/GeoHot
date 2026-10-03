@@ -12,21 +12,30 @@ import { publicPath } from "../../lib/public-path";
 export function StoryFollowups({ story, currentId }: { story: StoryRef; currentId: string }) {
   const [items, setItems] = useState<StoryFollowup[] | null>(null);
   const [more, setMore] = useState(false);
+  // A fetch that failed used to be indistinguishable from one that found nothing: `items` stayed null
+  // and the block rendered no markup at all. `failed` is set by the same request that sets `items`, and
+  // retrying re-runs it (the same 点此重试 the feed's expansions give).
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const anchor = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const controller = new AbortController();
     let started = false;
     setItems(null);
+    setFailed(false);
     const load = () => {
       if (started) return;
       started = true;
       fetch(publicPath(`/api/site/stories/${encodeURIComponent(story.publicId)}/followups`), { signal: controller.signal })
-        .then((r) => (r.ok ? r.json() : null))
-        .then((body: StoryFollowupsResponse | null) => {
-          if (!body || controller.signal.aborted) return;
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+        .then((body: StoryFollowupsResponse) => {
+          if (controller.signal.aborted) return;
           setItems(body.items.filter((d) => d.representative.id !== currentId));
           setMore(body.more);
-        }).catch(() => {});
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) setFailed(true);
+        });
     };
     const observer = typeof IntersectionObserver === "undefined" ? null : new IntersectionObserver((entries) => {
       if (entries.some((e) => e.isIntersecting)) { observer?.disconnect(); load(); }
@@ -34,10 +43,17 @@ export function StoryFollowups({ story, currentId }: { story: StoryRef; currentI
     if (observer && anchor.current) observer.observe(anchor.current);
     else load();
     return () => { observer?.disconnect(); controller.abort(); };
-  }, [story.publicId, currentId]);
+  }, [story.publicId, currentId, attempt]);
   return <div ref={anchor}>
     <noscript><a href={publicPath(`/story/${story.publicId}`)}>查看事件全部后续</a></noscript>
     {items && items.length > 0 && <Followups items={items} more={more} story={story} />}
+    {failed && (
+      <p className="mt-3 text-ui" aria-live="polite">
+        <button type="button" onClick={() => setAttempt((a) => a + 1)} className="text-hot-ink hover:underline">
+          事件后续暂时无法加载，点此重试
+        </button>
+      </p>
+    )}
   </div>;
 }
 
@@ -45,7 +61,7 @@ function Followups({items, more, story}: {items: StoryFollowup[]; more: boolean;
   return (
     <section className="mt-10 border-t border-line pt-5">
       <div className="mb-2 flex items-center justify-between">
-        <h2 className="text-[14px] font-semibold text-ink">
+        <h2 className="text-body font-semibold text-ink">
           事件后续 <span className="num font-normal text-ink-4">· {items.length}{more ? "+" : ""}</span>
         </h2>
         <MoreLink to={`/story/${story.publicId}`}>查看事件全部</MoreLink>

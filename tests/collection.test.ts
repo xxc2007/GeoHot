@@ -60,6 +60,11 @@ before(async () => {
 });
 after(async () => {
   for (const b of savedBudgets) await sql`UPDATE budgets SET per_minute = ${b.per_minute}, per_hour = ${b.per_hour}, per_day = ${b.per_day} WHERE service = ${b.service}`;
+  // The files share one database, and operations/alerts.test.ts counts unprocessed articles across the
+  // whole table: rows left behind here push that backlog over its threshold and silence a real alert.
+  await sql`DELETE FROM articles WHERE source_id IN (${X_SOURCE}, ${MP_SOURCE})`;
+  await sql`DELETE FROM fetch_runs WHERE source_id IN (${X_SOURCE}, ${MP_SOURCE})`;
+  await sql`DELETE FROM sources WHERE id IN (${X_SOURCE}, ${MP_SOURCE})`;
   await socialdata.close();
   await dajiala.close();
   await stopBoss();

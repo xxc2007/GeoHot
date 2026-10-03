@@ -16,11 +16,42 @@ export class ApiError extends Error {
   }
 }
 
-export async function apiGet<T>(path: string, init?: { signal?: AbortSignal; headers?: Record<string, string>; responseHeaders?: Headers }): Promise<T> {
+/**
+ * 接口回了 3xx 而调用方要自己决定怎么处理（`redirect: "manual"`）。
+ * 现在只有事件的合并会用：`/api/site/stories/:id` 对已合并的事件回 308，`Location` 与正文里的
+ * `mergedInto` 都给去处，页面要照着跳到新地址，而不是把跳转吞掉。
+ */
+export class ApiRedirect extends Error {
+  readonly status: number;
+  readonly location: string | null;
+  readonly body: unknown;
+  constructor(status: number, location: string | null, body: unknown) {
+    super(`api redirect ${status}`);
+    this.status = status;
+    this.location = location;
+    this.body = body;
+  }
+}
+
+export async function apiGet<T>(
+  path: string,
+  init?: { signal?: AbortSignal; headers?: Record<string, string>; responseHeaders?: Headers; redirect?: RequestRedirect },
+): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: { accept: "application/json", "x-aihot-ssr": "1", ...init?.headers },
+    redirect: init?.redirect ?? "follow",
     signal: init?.signal ? AbortSignal.any([init.signal, AbortSignal.timeout(15_000)]) : AbortSignal.timeout(15_000),
   });
+  if (res.status >= 300 && res.status < 400) {
+    // 只有明确要 manual 的调用才会走到这里；默认还是浏览器那条跟随跳转的路。
+    let body: unknown = null;
+    try {
+      body = await res.json();
+    } catch {
+      // 没有正文
+    }
+    throw new ApiRedirect(res.status, res.headers.get("location"), body);
+  }
   if (!res.ok) {
     let code: string | null = null;
     try {
@@ -36,11 +67,16 @@ export async function apiGet<T>(path: string, init?: { signal?: AbortSignal; hea
 }
 
 /** Maps API failures to route responses: real 404s, search-busy page, otherwise 503. */
-export async function loadOr404<T>(path: string, opts: { busyRedirect?: string; responseHeaders?: Headers; signal?: AbortSignal } = {}): Promise<T> {
+export async function loadOr404<T>(
+  path: string,
+  opts: { busyRedirect?: string; responseHeaders?: Headers; signal?: AbortSignal; redirect?: RequestRedirect } = {},
+): Promise<T> {
   try {
-    return await apiGet<T>(path, { responseHeaders: opts.responseHeaders, signal: opts.signal });
+    return await apiGet<T>(path, { responseHeaders: opts.responseHeaders, signal: opts.signal, redirect: opts.redirect });
   } catch (error) {
     if (opts.signal?.aborted) throw error;
+    // 跳转不是故障：调用方（要 manual 的那一个）自己决定跳去哪。
+    if (error instanceof ApiRedirect) throw error;
     if (error instanceof ApiError) {
       if (error.status === 404) throw data({ message: "not_found" }, { status: 404 });
       if (error.status === 503 && opts.busyRedirect) throw redirect(opts.busyRedirect);

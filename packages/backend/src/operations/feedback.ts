@@ -37,6 +37,23 @@ function rateLimit(source: string, perMinute = 5): void {
   if (recent.size > 5000) for (const [k, v] of recent) if (v.every((t) => now - t > 60_000)) recent.delete(k);
 }
 
+/**
+ * The page an anonymous visitor names, kept only in a form that is safe to show the operator as a link:
+ * an absolute http(s) address or a path on this site. "//host/x" is a protocol-relative address and
+ * `javascript:`/`data:` are the two ways a stored value becomes executable, so both are dropped.
+ */
+export function httpPageUrl(value: string | null | undefined): string | null {
+  const raw = value?.trim().slice(0, 500);
+  if (!raw) return null;
+  if (raw.startsWith("/")) return raw.startsWith("//") ? null : raw;
+  try {
+    const u = new URL(raw);
+    return u.protocol === "http:" || u.protocol === "https:" ? u.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 export interface FeedbackInput {
   content: string;
   email?: string | null;
@@ -52,7 +69,9 @@ export async function submitFeedback(input: FeedbackInput): Promise<{ id: number
   if (content.length > 5000) throw new FeedbackRejected(400, "invalid_request", "反馈内容最多 5000 字。");
   const email = input.email?.trim() || null;
   if (email && (email.length > 200 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) throw new FeedbackRejected(400, "invalid_request", "邮箱格式不正确。");
-  const pageUrl = input.pageUrl?.trim().slice(0, 500) || null;
+  // The page an anonymous visitor names is shown to the operator as a link, so only an absolute
+  // http(s) address is kept; anything else (javascript:, data:) is dropped rather than stored.
+  const pageUrl = httpPageUrl(input.pageUrl);
   const source = feedbackSourceHash(input.ip, input.userAgent);
   const [banned] = await sql`SELECT 1 FROM feedback_bans WHERE source_hash = ${source}`;
   if (banned) throw new FeedbackRejected(403, "forbidden", "暂时无法提交反馈。");

@@ -170,18 +170,57 @@ try {
  * pipeline holds such items as `unknown` until a human writes the Chinese (editorial/analyze.ts), and the
  * stub no longer manufactures one; this check makes the promise machine-visible instead of hoping the
  * default stays honest.
+ *
+ * It runs over the outlets, not one of them: the same rule is written as one SQL predicate shared by the
+ * lists (items.ts `chineseCopyCondition`), and a check on a single outlet would not notice the next outlet
+ * reading the other predicate — which is exactly how the front page kept leaking English cards while /all
+ * was already clean.
  */
+const HAN = /[一-鿿]/;
+/** An English source title that no one has rewritten in Chinese: Latin words, no Han character at all. */
+const englishCopy = (t: unknown): t is string => typeof t === "string" && /[A-Za-z]{3,}/.test(t) && !HAN.test(t);
+const titlesOfJson = (body: string, pick: (parsed: any) => unknown[]): string[] => {
+  try { return (pick(JSON.parse(body)) ?? []).filter(Boolean).map(String); } catch { return []; }
+};
+/** The `<item><title>` entries of an RSS feed, CDATA unwrapped (the channel title is not an item). */
+const titlesOfFeed = (xml: string): string[] =>
+  [...xml.matchAll(/<item>[\s\S]*?<title>(?:<!\[CDATA\[([\s\S]*?)\]\]>|([^<]*))<\/title>/g)].map((m) => (m[1] ?? m[2] ?? "").trim());
+
 try {
-  const itemsBody = JSON.parse(await getText("/api/v1/items?limit=100")) as { items?: Array<{ title?: string }> };
-  const all = itemsBody.items ?? [];
-  const english = all.filter((i) => typeof i.title === "string" && /[A-Za-z]{3,}/.test(i.title) && !/[一-鿿]/.test(i.title));
-  if (english.length) {
-    for (const i of english.slice(0, 5)) console.log(`✗ reader copy  ${String(i.title).slice(0, 80)}`);
-    console.log(`✗ reader copy  ${english.length} public item(s) have no Chinese title`);
-    failed += english.length;
+  const topics = JSON.parse(await getText("/api/site/topics")) as { topics?: Array<{ slug: string; name: string; total: number }> };
+  const busiest = (topics.topics ?? []).slice().sort((a, b) => b.total - a.total)[0];
+  const outlets: Array<[name: string, titles: string[]]> = [
+    ["首页时间线", titlesOfJson(await getText("/api/site/timeline?limit=40"), (p) => p.cards?.map((c: any) => c.item?.title))],
+    ["v1 精选", titlesOfJson(await getText("/api/v1/items?mode=selected&limit=100"), (p) => p.items?.map((i: any) => i.title))],
+    ["v1 全部", titlesOfJson(await getText("/api/v1/items?mode=all&limit=100"), (p) => p.items?.map((i: any) => i.title))],
+    ["精选 RSS", titlesOfFeed(await getText("/feed.xml"))],
+    ["主题目录", (topics.topics ?? []).map((t) => t.name)],
+    // 主题页只查内容最多的那一个：它一定有内容，也不会因为空主题页而假绿。
+    ...(busiest ? [`主题页 ${busiest.slug}`, titlesOfJson(await getText(`/api/site/topics/${busiest.slug}`), (p) => p.items?.map((i: any) => i.title))] as [string, string[]] : []),
+  ];
+  // The paper is a machine exit too: an entry the reader cannot read in Chinese must not be set in it.
+  const latestDaily = await fetch(`${base}/api/v1/dailies/latest`, { signal: AbortSignal.timeout(30_000) });
+  if (latestDaily.status === 200) {
+    outlets.push(["日报版面", titlesOfJson(await latestDaily.text(), (p) => [
+      ...(p.report?.sections ?? []).flatMap((s: any) => s.items ?? []).map((i: any) => i.title),
+      ...(p.report?.flashes ?? []).map((f: any) => f.title),
+    ])]);
   } else {
-    console.log(`✓ reader copy  all ${all.length} public item(s) carry a Chinese title`);
+    console.log(`– reader copy  no daily paper yet (HTTP ${latestDaily.status})`);
   }
+
+  let leaks = 0;
+  for (const [name, titles] of outlets) {
+    const bad = titles.filter(englishCopy);
+    leaks += bad.length;
+    if (bad.length) {
+      for (const t of bad.slice(0, 3)) console.log(`✗ reader copy  ${name}: ${t.slice(0, 80)}`);
+      console.log(`✗ reader copy  ${name} 有 ${bad.length}/${titles.length} 条没有中文标题`);
+    } else {
+      console.log(`✓ reader copy  ${name}：${titles.length} 条都有中文标题`);
+    }
+  }
+  failed += leaks;
 } catch (error) {
   console.log(`✗ reader copy  ${String(error)}`);
   failed += 1;

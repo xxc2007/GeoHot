@@ -4,6 +4,7 @@ import { unlink } from "node:fs/promises";
 import path from "node:path";
 import { config } from "../config.ts";
 import { sql } from "../db.ts";
+import { InvalidInput } from "./invalid.ts";
 import { audit } from "./auth.ts";
 import { Conflict } from "./sources.ts";
 
@@ -28,9 +29,6 @@ export async function listFeedback(f: { status?: string; q?: string; page?: numb
 }
 
 /** A malformed request from the back office: mapped to 400 by the admin handler, not logged as a 500. */
-export class InvalidInput extends Error {
-  readonly statusCode = 400;
-}
 
 export async function updateFeedback(id: number, input: { status?: string; note?: string | null; version: string }, actor: string) {
   // 2026-10-02: this used to throw a bare Error, so a typo in the status reached the reader as
@@ -50,7 +48,7 @@ export async function updateFeedback(id: number, input: { status?: string; note?
 
 /** Refuses further feedback from one source (an unreadable hash of IP and browser family). */
 export async function banSource(sourceHash: string, reason: string, actor: string) {
-  if (!reason.trim()) throw new Error("reason is required");
+  if (!reason.trim()) throw new InvalidInput("reason is required");
   await sql`INSERT INTO feedback_bans (source_hash, reason, created_by) VALUES (${sourceHash}, ${reason}, ${actor}) ON CONFLICT (source_hash) DO NOTHING`;
   await audit(actor, "feedback.ban", `feedback-source:${sourceHash}`, reason, null, null);
 }
@@ -73,7 +71,7 @@ export async function feedbackScreenshot(id: number): Promise<string | null> {
 
 /** Removes the sender's material (text, email, page, screenshot) and keeps only the handling record. */
 export async function eraseFeedback(id: number, reason: string, actor: string) {
-  if (!reason.trim()) throw new Error("reason is required");
+  if (!reason.trim()) throw new InvalidInput("reason is required");
   const [row] = await sql<{ screenshot_key: string | null }[]>`SELECT screenshot_key FROM feedback WHERE id = ${id}`;
   if (!row) return null;
   const file = screenshotPath(row.screenshot_key);

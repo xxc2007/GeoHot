@@ -1,32 +1,73 @@
 # 部署
 
+> **这份文档管的是"一台干净的 Linux 服务器 + Docker"**，本站线上那台机器不是这么装的（它是 nginx + systemd，
+> 装在子路径 `/geohot` 下，见 `deploy/geohot/DEPLOYMENT.md`）；**本机开发机的跑法更不是**（没有 Docker、
+> 数据库是 embedded PostgreSQL，见 `docs/manual.md` 第 3 节）。这份文档原本是上游 AIHOT 写的，本站逐条改过。
+> 它下面写的容器路线**只能把站起在域名根**，起不出线上那个 `/geohot` 拓扑——原因和补法在
+> [「Docker 这条路是域名根部署」](#docker-这条路是域名根部署) 一节，搬家与换域名逐条做在
+> [`docs/migration.md`](migration.md)。
+
 ## 用 Docker（推荐）
 
 需要一台装了 Docker（带 Compose）的机器。云服务器建议至少 2 核、4 GB 内存，构建镜像时要用到。
 
 ```bash
-git clone https://github.com/KKKKhazix/AIHOT.git myhot
+git clone https://github.com/xxc2007/GeoHot.git myhot
 cd myhot
 npm run env:init                       # 写出 .env 与 .env.pipeline，已存在就不覆盖；管理员密码只打印一次
 docker compose up -d --build
 ```
 
+**克隆地址是 `xxc2007/GeoHot`，不是上游的 `KKKKhazix/AIHOT`。** 上游那个仓库是通用框架（AI 行业示例站），
+它的 `industry/` 里是 AI 信源、AI 提示词和 AIHOT 的品牌；从它克隆会部署成另一个站。本站的地理层——44 条信源、
+六个分类、提示词、门槛、品牌、条款页——只存在于 `xxc2007/GeoHot`。
+
+`env:init` 之后**先别急着 `up`**：它写出的 `.env` 里 `COLLECT_ENABLED=false`、`MODEL_CALLS_ENABLED=false`
+（`.env.example:82-83` 就是 false，`scripts/init-env.ts` 只替换五个密钥与端口，**不动这两个阀**），而 compose 的
+`env_file: .env` 会把这两个 false 带进容器——`apps/worker/src/main.ts` 里那句
+`if (process.env.COLLECT_ENABLED !== "false") await registerSourceJobs(boss)`（本轮在 `:23`）就不注册
+任何抓取任务。于是"起容器→等内容出现"这一步会永远等不到。要真的采起来，先编辑 `.env` 把 `COLLECT_ENABLED=true`
+写进去（要用编辑大脑再单独起 stub 并写 `MODEL_CALLS_ENABLED=true` + `LLM_BASE_URL`，见下面那节），然后
+`docker compose up -d` 让容器重建。
+
 `init-env.ts` 会生成 `.env`，填好随机密钥和管理员密码，并把密码打印一次。它**只认四个端口开关**
 `--db-port / --api-port / --web-port / --brain-port`（`scripts/init-env.ts:35-40`）——**没有 `--llm-key` 这种参数，
 未知参数会被静默忽略**：写 `--llm-key <key>` 不报错，但那个 key 一个字节都不会落进 `.env`。模型接口要用
 真服务商时，生成完再手工改 `.env` 的 `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` 三行（本机默认指向
-`tooling/brain-stub.ts` 那个本地"编辑大脑"，`LLM_API_KEY=local-brain` 是占位串）。
+`tooling/brain-stub.ts` 那个本地"编辑大脑"，`LLM_API_KEY=local-brain` 是占位串）。**注意 Docker 容器里跑不到那个
+stub**：`LLM_BASE_URL=http://127.0.0.1:3055/v1` 指的是容器自己的回环，不是宿主机的 3055；要么显式
+`MODEL_CALLS_ENABLED=false`（新料只进"全部动态"、不进精选），要么在 compose 里另起一个 stub 服务并把地址指过去。
 
 `.env` 里 `SITE_URL` 这一行在 `NODE_ENV=production`（compose 已写死，`docker-compose.yml:11`）时**不能留空也不能留
-`http://localhost:3000`**：现在会直接拒绝启动（`packages/backend/src/config.ts:54-68`），因为那个回落会把 localhost
-写进 canonical、OpenGraph、RSS、sitemap、robots 的 Sitemap 行和 security.txt，还会让 MCP 的 host 锁拒掉真域名。
-第一次起容器前就把它改成读者实际访问的地址（下面"配域名和 HTTPS"那一节）。
+`http://localhost:3000`**：留空时 compose 自己在解析阶段就报 `SITE_URL must be the public address readers use,
+e.g. https://example.com`（`docker-compose.yml:16` 的 `${SITE_URL:?…}`），留 localhost 则容器起得来、api 反复重启，日志里是
+`Refusing to start in production: SITE_URL …`（`packages/backend/src/config.ts:54-68`）。之所以拦得这么狠，是因为
+那个回落会把 localhost 写进 canonical、OpenGraph、RSS、sitemap `<loc>`、robots 的 `Sitemap:` 行和 security.txt，
+还会让 MCP 的 host 锁拒掉真域名。**而 `npm run env:init` 默认不会替你改这一行**——它只在给了 `--web-port` 时才重写
+`SITE_URL`，否则照 `.env.example:34` 留 `http://localhost:3000`。所以第一次起容器前必须手工把它改成读者实际访问的
+地址（下面"配域名和 HTTPS"那一节）。
 
-机器上没有 Node 的话，把 `.env.example` 复制成 `.env`，自己填 `ADMIN_PASSWORD`（至少 12 位）、`SESSION_SECRET`、`IMG_PROXY_SIGN_SECRET`、`POSTGRES_PASSWORD`（各用 `openssl rand -hex 32` 生成）、`INGEST_TOKEN`、`SITE_URL` 和 `LLM_API_KEY`。
+机器上没有 Node 的话，把 `.env.example` 复制成 `.env`，自己填 `ADMIN_PASSWORD`（至少 12 位）、`SESSION_SECRET`、`IMG_PROXY_SIGN_SECRET`、`POSTGRES_PASSWORD`（各用 `openssl rand -hex 32` 生成）、`INGEST_TOKEN`、`SITE_URL` 和 `LLM_API_KEY`。这条路只写 `.env` 一份：compose 的 `env_file` 也只读 `.env`，**`.env.pipeline` 在这条路线上根本不会被读到**（它是本机开发用来临时开阀的一次性文件，不属于部署）。
 
-启动后打开 `http://服务器地址:3000`，后台在 `/admin`，用管理员密码登录。第一次启动会导入示范信源，一两分钟后开始出现内容；第一次导入的一百多条资料大约半小时处理完（每条都要预筛、评分，入选的还要写标题摘要）。
+启动后打开 `http://服务器地址:3000`，后台在 `/admin`，用管理员密码登录。**"多久有内容"取决于你上面有没有打开采集阀**：`setup` 容器只做 `scripts/migrate.ts` + `scripts/seed.ts`，也就是建表 + 导入 44 条地理信源、45 个主题与分类，**一条材料都还没有**；`COLLECT_ENABLED=true` 之后 worker 才会按各源的间隔去抓，第一次抓回来的东西要等预筛与打分跑完才见得到。人工策划的那份语料（`tooling/corpus/curated-materials.jsonl`，117 行）**不在这条路线上**——它要 `npm run seed:curated`，compose 里没有这一步；不跑它，站上就只有新采回来的材料，而新料没有对应的人工判断，进不了精选（这条设计的来由见 `README.md` 的「编辑大脑」一节）。想验证站点是否真的活着，用仓库自带的冒烟：`node scripts/smoke.ts --base http://服务器地址:3000`。
 
-`docker compose` 会起五个容器：`db`（PostgreSQL 17）、`setup`（每次启动先跑数据库迁移和种子数据，然后退出）、`api`、`worker`（抓取、模型处理、定时任务）、`web`（网页）。
+`docker compose` 默认起五个容器：`db`（PostgreSQL 17）、`setup`（每次启动先跑数据库迁移和种子数据，然后退出）、`api`、`worker`（抓取、模型处理、定时任务）、`web`（网页）；带 `--profile https` 时多一个 `caddy`（自动申请并续期证书），共六个。
+
+### Docker 这条路是域名根部署
+
+**照上面三条命令起起来的站，只能挂在域名根（`https://example.com/`），挂不到本站线上那个子路径
+（`https://xxc2007.me/geohot/`）**。原因有两处，都在构建期而不是运行期：
+
+- `Dockerfile:21` 构建 web 的那一行是 `npm run build -w @aihot/web`，**没有带 `BASE_PATH`**，也没有把它声明成
+  `ARG`/`ENV` 传进去；而前缀是构建期烧进 bundle 的（`apps/web/vite.config.ts:13` 与
+  `apps/web/react-router.config.ts:8` 读的都是构建时的 `process.env.BASE_PATH`）。
+- `docker-compose.yml:78` 把 web 发布成 `${PORT:-3000}:3000`，前面没有剥前缀的反代，所以应用收到的路径带着
+  `/geohot` 也认不出来。
+
+要挂子路径，两条路：① 走 `deploy/geohot/` 那一套（nginx + systemd，`GEOHOT_BASE_PATH` 会作为构建期变量传给
+`npm run build`，是线上实际在跑的装法，见 `deploy/geohot/DEPLOYMENT.md`）；② 自己给 Docker 加一层带前缀的反代，
+并**在镜像构建时**注入 `BASE_PATH`（改 Dockerfile 加 `ARG BASE_PATH` 或构建前先本地构建）。只改 `SITE_URL` 的路径
+部分不够——那一句在下一节里，配域名与 HTTPS 时也要记住这一条。
 
 ### 在中国大陆的服务器上
 
@@ -98,6 +139,8 @@ docker compose exec -T db pg_dump -Fc -U aihot aihot > myhot-$(date +%F).dump   
 6. 搬家还必须**重新签发**`SESSION_SECRET`、`IMG_PROXY_SIGN_SECRET`、`ADMIN_PASSWORD`、`INGEST_TOKEN` 和数据库口令，
    并把 `SITE_URL` 改成新地址——详见 `deploy/geohot/README-deploy.md` 第 6.1 与第 10 节（那份是 nginx/systemd 路线，
    清单本身两条路线通用：改什么、重发什么、为什么改 `industry/**` 必须重建前端）。
+   **换域名 + 换服务器的完整清单（含 MCP host 白名单、cookie 域、条款与隐私正文里的域名、新域名根的
+   `robots.txt`、配图与介绍页数字、公开仓库远端）在 [`docs/migration.md`](migration.md)**，那一份是逐步可验证的。
 
 ### 看日志
 
@@ -109,8 +152,15 @@ docker compose logs -f --tail 100 api worker web
 
 ## 花多少钱
 
-- **模型**：每条新资料至少预筛一次；可能入选的再评分两次，入选的还要写标题摘要、打标签、归组，另外还有日报和事件综述。我们用示范信源在本地试跑，第一次导入的 152 条资料一共用了大约 930 次模型调用。之后每天用多少，取决于你的信源每天更新多少条。后台“模型与评测”页能看到每一步的调用次数和输入输出 token 数。
-- **付费采集**（X、公众号、Jina）：按请求计费，默认不启用，填了 key 才会用。
+先说本站：**这个部署一分钱都不花**。它没有任何模型密钥（`.env` 里 `LLM_BASE_URL` 指向只听 127.0.0.1 的本地
+回放器 `tooling/brain-stub.ts`，`LLM_API_KEY=local-brain` 是占位串），44 条信源里 `x_search`、`mp_account`
+与带 `paid_listing` 的一条都没有（现值 0），所以模型调用与按次计费采集都不产生账单。闸门与回执照走，
+只是账单为零——这句在 `README.md` 的「编辑大脑」一节也是同样口径。
+
+下面是上游那份账单口径，**照搬过来会高估本站成本**，留着只因为你真换成服务商就又要面对它：
+
+- **模型**：每条新资料至少预筛一次；可能入选的再评分两次，入选的还要写标题摘要、打标签、归组，另外还有日报和事件综述。上游用它的 AI 示范信源在本地试跑，第一次导入的 152 条资料一共用了大约 930 次模型调用——**那是上游那个行业的量与价，不是本站的实测**，本站重跑同一批只会打到本地 stub。之后每天用多少，取决于你的信源每天更新多少条。后台"模型与评测"页能看到每一步的调用次数和输入输出 token 数。
+- **付费采集**（X、公众号、Jina）：按请求计费，默认不启用，填了 key 才会用。**本站这三类一条都没配**，所以这一项在现部署下是 0。
 - 所有付费服务都有每分钟、每小时、每天的调用上限（后台“设置 → 预算”），超过就暂停，不会一夜之间刷爆账单。填 0 表示立即停用这个服务。
 
 ## 不用 Docker

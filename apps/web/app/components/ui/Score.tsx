@@ -3,7 +3,7 @@
  * warm red, solid ones (70+) in the accent, the rest as quiet text. The score itself is unchanged.
  */
 const TIERS = [
-  { min: 85, className: "bg-hot/10 text-hot ring-hot/25" },
+  { min: 85, className: "bg-hot/10 text-hot-ink ring-hot/25" },
   { min: 70, className: "bg-accent-soft text-accent ring-accent/20" },
   { min: 0, className: "text-ink-4 ring-line-soft" },
 ];
@@ -18,9 +18,15 @@ const TIERS = [
  * 叫「AI 评分」会让读者以为机器读了原文并作出判断——那是本站不该说的话（docs/known-issues.md）。
  */
 export function ScoreLabel({ score, compact = false }: { score: number | null; compact?: boolean }) {
-  if (score === null) return null;
+  // The score arrives from JSON nobody has validated. A non-finite value is not a score: render nothing,
+  // the same answer as `null`, rather than a pill reading 「入选分 NaN」.
+  if (score === null || typeof score !== "number" || !Number.isFinite(score)) return null;
   const value = Math.round(score);
-  const tier = TIERS.find((t) => value >= t.min)!;
+  // …and an out-of-range one (a negative score from a bad write) still has to land somewhere: the last
+  // tier is the quiet one. `TIERS.find(...)!` returned undefined for anything below its final `min: 0`
+  // and the non-null assertion then threw on `.className`, which PageBoundary turned into
+  // 「这一页没能显示出来」 for the whole feed.
+  const tier = TIERS.find((t) => value >= t.min) ?? TIERS[TIERS.length - 1]!;
   return (
     <span
       role="img"
@@ -30,7 +36,7 @@ export function ScoreLabel({ score, compact = false }: { score: number | null; c
     >
       {!compact && (
         <>
-          <span className="text-[11px] font-medium leading-none">入选分</span>
+          <span className="text-label font-medium leading-none">入选分</span>
           <span className="h-2.5 w-px bg-current opacity-25" aria-hidden="true" />
         </>
       )}

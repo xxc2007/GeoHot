@@ -10,8 +10,17 @@
 #      新提交的父节点就是当前远端 HEAD，树换成发布树，快进一条。
 #
 # 排除清单只有一处来源：deploy/geohot/publish-excludes（与 verify-github-sync.sh 共用同一份）。
-# 目前唯一的排除项是 .github/：GitHub 拒绝没有 `workflow` 作用域的 token 创建或更新工作流文件
-# （实测 push 报 "refusing to allow an OAuth App to create or update workflow … without `workflow` scope"）。
+# **那份清单现在是空的**——也就是说公开仓库的内容与本地 HEAD 逐字节一致，一个文件都不缺。
+# 这里以前写着"唯一的排除项是 .github/"，那是 2026-10-02 之前的状态：GitHub 拒绝没有 `workflow` 作用域的
+# token 创建或更新 `.github/workflows/*`（实测 push 报 "refusing to allow an OAuth App to create or update
+# workflow … without `workflow` scope"），所以 CI 定义的正本搬到了 `tooling/ci-check.yml`，`.github/` 不再是
+# 被"排除"的东西——本地就没有这个目录。要跑 Actions 的人按 tooling/ci-check.yml 头部那两行复制回去。
+#
+# 跑之前必须满足的三件事（脚本自己会检查后两件，第一件不会）：
+#   1) `gh` 已登录且令牌有 repo 作用域：`gh auth status` 能看到账号；`gh api repos/$REPO --jq .permissions.push`
+#      必须返回 true。缺这一步时脚本会在读远端 HEAD 那一步（下面第 2 步）报 "✗ 读不到 <repo>@<branch>"。
+#   2) 工作区干净（下面第 1 步实测，脏就退出 1）：半改完的状态不该被发布，六个 agent 并发改这棵树时尤其。
+#   3) 本地 HEAD 就是你要发布的那一棵：先 `git log --oneline -3` 看一眼，发布是快进推送，不 force、不改历史。
 #
 # 用法：
 #   bash deploy/geohot/publish-to-github.sh --dry-run -m "提交信息"   # 只算树、只报差异，不推

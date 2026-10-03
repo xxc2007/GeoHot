@@ -4,7 +4,7 @@ import path from "node:path";
 import { REPO_ROOT } from "../config.ts";
 import { sql } from "../db.ts";
 import { cached } from "../lib/cache.ts";
-import { ITEM_COLUMNS, ITEM_FROM, selectedCondition, toFeedItemSummary, type ItemRow } from "./items.ts";
+import { ITEM_COLUMNS, ITEM_FROM, chineseCopyCondition, selectedCondition, toFeedItemSummary, type ItemRow } from "./items.ts";
 
 export interface TopicRow {
   slug: string;
@@ -22,8 +22,54 @@ const topicsCache = cached(
   () => sql<TopicRow[]>`SELECT slug, name, grp, entity_id, tags, definition, related, position FROM topics ORDER BY position`,
   { freshMs: 60_000, maxStaleMs: 10 * 60_000 },
 );
-// Counts may lag by about a minute, like the public directory cache; item reads always check visibility.
-const countsCache = cached(queryTopicCounts, { freshMs: 60_000, maxStaleMs: 10 * 60_000 });
+
+/** How far back a topic's "recent" figure looks, and the floor on how long a count stays held. */
+const RECENT_WINDOW_MS = 30 * 86400_000;
+const COUNTS_FRESH_MS = 60_000;
+const COUNTS_MIN_HOLD_MS = 5_000;
+
+/**
+ * Topic counts, held per process and read alongside the release gate. They may lag by about a minute,
+ * like the public directory cache, but never past the next release still waiting behind the gate: a topic
+ * page that advertised 「N 条」 including content no reader can open yet is a count of the wrong set.
+ * The held value also records the instant it was read, so a caller with a fixed clock (a test, a replay)
+ * can ask for the counts and the items at that same instant instead of two different ones.
+ */
+interface CountsSnapshot { readAt: number; until: number; counts: TopicCount[] }
+let countsSnapshot: CountsSnapshot | null = null;
+let countsPending: Promise<CountsSnapshot> | null = null;
+
+function clearTopicCounts() {
+  countsSnapshot = null;
+  countsPending = null;
+}
+
+async function loadCounts(now: Date): Promise<CountsSnapshot> {
+  const windowStart = new Date(now.getTime() - RECENT_WINDOW_MS);
+  const [rows, [gate]] = await Promise.all([
+    queryTopicCounts(now, windowStart),
+    sql<{ t: Date | null }[]>`
+      SELECT min(p.visible_after) AS t FROM publications p
+      WHERE p.visibility = 'public' AND p.selected AND p.visible_after > ${now} AND ${chineseCopyCondition()}`,
+  ]);
+  const readAt = Date.now();
+  const releasing = gate?.t ? gate.t.getTime() : Infinity;
+  return { readAt, until: Math.max(readAt + COUNTS_MIN_HOLD_MS, Math.min(readAt + COUNTS_FRESH_MS, releasing)), counts: rows };
+}
+
+async function countsHeld(now: Date | undefined): Promise<CountsSnapshot> {
+  // An explicit clock bypasses the held copy: the caller wants these numbers at the same instant as its items.
+  if (now) return loadCounts(now);
+  if (countsSnapshot && Date.now() < countsSnapshot.until) return countsSnapshot;
+  if (countsPending) return countsPending;
+  const load = loadCounts(new Date());
+  countsPending = load;
+  try {
+    const snap = await load;
+    countsSnapshot = snap;
+    return snap;
+  } finally { countsPending = null; }
+}
 
 /**
  * The topics (stable slugs, names, definitions, related topics) come from the industry pack
@@ -42,7 +88,7 @@ export async function seedTopics(): Promise<number> {
         tags = EXCLUDED.tags, definition = EXCLUDED.definition, related = EXCLUDED.related, position = EXCLUDED.position`;
   }
   topicsCache.clear();
-  countsCache.clear();
+  clearTopicCounts();
   return data.topics.length;
 }
 
@@ -69,34 +115,48 @@ export async function loadTopicTags(slug: string): Promise<string[] | null> {
 
 export const TOPIC_PAGE_SIZE = 20;
 
-/** Topic pages exist for every topic; only topics with enough content are listed and indexed. */
-export function topicPageCounts(): Promise<TopicCount[]> {
-  return countsCache.get();
+/**
+ * Topic pages exist for every topic; only topics with enough content are listed and indexed.
+ * `now` is the instant to count at: pass it when the counts must match items read at the same instant.
+ */
+export async function topicPageCounts(now?: Date): Promise<TopicCount[]> {
+  return (await countsHeld(now)).counts;
 }
 
 /**
- * One pass over the selected set (a few thousand rows from its partial index) instead of one
- * scan per topic; a topic counts an item when their tags overlap, as `p.tags && match` does.
+ * One pass over the selected set, counted inside PostgreSQL: a topic answers to the keys of
+ * `topicMatchTags` (its entity subject tag for a company, its own tags otherwise), so the tags are unnested
+ * and matched here rather than shipped to Node as one array per item and looped over topic by topic —
+ * quadratic once the selected set grows, and every 60 s. The read uses `selectedCondition`, so the counts
+ * cover exactly the items a topic page can list: released, public, and with Chinese copy.
  */
-async function queryTopicCounts(): Promise<TopicCount[]> {
-  const [topics, items] = await Promise.all([
-    sql<Array<Pick<TopicRow, "slug" | "entity_id" | "tags">>>`SELECT slug, entity_id, tags FROM topics ORDER BY position`,
-    sql<{ tags: string[]; timeline_at: Date }[]>`SELECT p.tags, p.timeline_at FROM publications p WHERE p.visibility = 'public' AND p.selected AND p.visible_after <= now()`,
-  ]);
-  const recentFrom = Date.now() - 30 * 86400_000;
-  return topics.map((t) => {
-    const match = new Set(topicMatchTags(t));
-    let total = 0;
-    let recent = 0;
-    let latest: Date | null = null;
-    for (const it of items) {
-      if (!it.tags.some((tag) => match.has(tag))) continue;
-      total += 1;
-      if (it.timeline_at.getTime() > recentFrom) recent += 1;
-      if (!latest || it.timeline_at > latest) latest = it.timeline_at;
-    }
-    return { slug: t.slug, total, recent, latest, pages: Math.max(1, Math.ceil(total / TOPIC_PAGE_SIZE)), indexable: total >= 50 || (total >= 20 && recent > 0) };
-  });
+async function queryTopicCounts(now: Date, windowStart: Date): Promise<TopicCount[]> {
+  const rows = await sql<{ slug: string; total: number; recent: number; latest: Date | null }[]>`
+    WITH listed AS (
+      SELECT p.article_id, p.timeline_at, u.tag
+      FROM publications p, unnest(p.tags) AS u(tag)
+      WHERE ${selectedCondition(now)}
+    ),
+    keys AS (
+      SELECT DISTINCT t.slug, CASE WHEN t.entity_id IS NOT NULL THEN 'entity:' || t.entity_id ELSE u.key END AS key
+      FROM topics t LEFT JOIN LATERAL unnest(t.tags) AS u(key) ON true
+    ),
+    counted AS (
+      SELECT k.slug,
+        count(DISTINCT l.article_id) AS total,
+        count(DISTINCT l.article_id) FILTER (WHERE l.timeline_at > ${windowStart}) AS recent,
+        max(l.timeline_at) AS latest
+      FROM keys k JOIN listed l ON l.tag = k.key
+      GROUP BY k.slug
+    )
+    SELECT t.slug, coalesce(c.total, 0)::int AS total, coalesce(c.recent, 0)::int AS recent, c.latest
+    FROM topics t LEFT JOIN counted c ON c.slug = t.slug
+    ORDER BY t.position`;
+  return rows.map((r) => ({
+    slug: r.slug, total: r.total, recent: r.recent, latest: r.latest,
+    pages: Math.max(1, Math.ceil(r.total / TOPIC_PAGE_SIZE)),
+    indexable: r.total >= 50 || (r.total >= 20 && r.recent > 0),
+  }));
 }
 
 export interface TopicSummary {
@@ -110,9 +170,9 @@ export interface TopicSummary {
   latestAt: string | null;
 }
 
-export async function listTopicSummaries(): Promise<TopicSummary[]> {
+export async function listTopicSummaries(now?: Date): Promise<TopicSummary[]> {
   const topics = await listTopics();
-  const counts = new Map((await topicPageCounts()).map((c) => [c.slug, c]));
+  const counts = new Map((await topicPageCounts(now)).map((c) => [c.slug, c]));
   return topics.map((t) => {
     const c = counts.get(t.slug);
     return { slug: t.slug, name: t.name, group: t.grp, definition: t.definition, total: c?.total ?? 0, recent: c?.recent ?? 0, indexable: c?.indexable ?? false, latestAt: c?.latest?.toISOString() ?? null };
@@ -126,10 +186,16 @@ export interface TopicPage {
   pageCount: number;
 }
 
-export async function loadTopicPage(slug: string, page: number, now = new Date()): Promise<TopicPage | null> {
+/**
+ * One topic page. `now` is optional: with a fixed clock the counts and this page's items are read at that
+ * same instant (a test, a replay); without one the counts come from the held copy, which never outlives the
+ * next release.
+ */
+export async function loadTopicPage(slug: string, page: number, now?: Date): Promise<TopicPage | null> {
+  const at = now ?? new Date();
   const row = await loadTopic(slug);
   if (!row || page < 1) return null;
-  const topics = await listTopicSummaries();
+  const topics = await listTopicSummaries(now);
   const topic = topics.find((t) => t.slug === slug);
   if (!topic) return null;
   const pageCount = Math.max(1, Math.ceil(topic.total / TOPIC_PAGE_SIZE));
@@ -138,7 +204,7 @@ export async function loadTopicPage(slug: string, page: number, now = new Date()
   const rows = await sql<ItemRow[]>`
     WITH page AS (
       SELECT p.article_id FROM publications p
-      WHERE ${selectedCondition(now)} AND p.tags && ${topicMatchTags(row)}::text[]
+      WHERE ${selectedCondition(at)} AND p.tags && ${topicMatchTags(row)}::text[]
       ORDER BY p.timeline_at DESC, p.article_id DESC
       LIMIT ${TOPIC_PAGE_SIZE} OFFSET ${(page - 1) * TOPIC_PAGE_SIZE})
     SELECT ${ITEM_COLUMNS} ${ITEM_FROM} WHERE p.article_id IN (SELECT article_id FROM page)

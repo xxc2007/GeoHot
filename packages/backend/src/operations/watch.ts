@@ -55,7 +55,8 @@ export async function checkWorkerHeartbeat(): Promise<void> {
 }
 
 export function startWorkerWatchdog(): NodeJS.Timeout {
-  const timer = setInterval(() => void checkWorkerHeartbeat().catch(() => {}), 5 * 60_000);
+  // This is the only thing that notices a dead worker, so its own failures must not be silent.
+  const timer = setInterval(() => void checkWorkerHeartbeat().catch((error) => console.error(JSON.stringify({ level: "error", msg: "worker watchdog failed", error: String((error as Error)?.message ?? error) }))), 5 * 60_000);
   timer.unref();
   return timer;
 }

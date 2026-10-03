@@ -20,8 +20,24 @@ export class SearchBusyError extends Error {
 
 // Search capacity guard: bounded concurrency with a short queue. Overflow answers 503 + Retry-After
 // instead of letting machine traffic drag list browsing down.
-const MAX_CONCURRENT_SEARCHES = Number(process.env.SEARCH_MAX_CONCURRENCY || 4);
-const MAX_QUEUED_SEARCHES = Number(process.env.SEARCH_MAX_QUEUE || 8);
+// The two limits are read from the environment, so they are validated here rather than trusted: an
+// unparseable value used to become NaN, which makes both guards false (`running >= NaN` is false), so the
+// 503 + Retry-After path could never fire and machine traffic had no ceiling at all; a zero or negative
+// one answered 503 for every search. A bad setting now falls back to the default with one line of output
+// naming the number actually in force.
+function capacityLimit(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (raw === undefined || raw.trim() === "") return fallback;
+  const n = Number(raw);
+  const value = Number.isFinite(n) && n >= 1 ? Math.floor(n) : fallback;
+  console.log(JSON.stringify({
+    level: value === fallback && !(Number.isFinite(n) && Math.floor(n) === fallback) ? "warn" : "info",
+    msg: `${name}=${raw}: using ${value}${value === fallback ? " (the default; the configured value is not a positive whole number)" : ""}`,
+  }));
+  return value;
+}
+const MAX_CONCURRENT_SEARCHES = capacityLimit("SEARCH_MAX_CONCURRENCY", 4);
+const MAX_QUEUED_SEARCHES = capacityLimit("SEARCH_MAX_QUEUE", 8);
 let running = 0;
 const waiters: Array<() => void> = [];
 

@@ -1,5 +1,6 @@
 import { SITE, withSubject } from "@aihot/industry/site";
 import { Link, useLoaderData } from "react-router";
+import type { Route } from "./+types/hot";
 import type { HotEntryView, HotResponse } from "@aihot/contracts/site";
 import { loadOr404 } from "../lib/api.server";
 import { pageMeta } from "../lib/seo";
@@ -15,10 +16,15 @@ export async function loader({ request }: { request: Request }) {
   return { hot: await loadOr404<HotResponse>("/api/site/hot", { signal: request.signal }) };
 }
 
-export function meta() {
+export function meta({ loaderData }: Route.MetaArgs) {
+  const hot = loaderData?.hot;
+  // 榜上空着的时候不能说"10 个事件"——那是一句数据不支持的话，页面元数据里也一样。
+  const description = hot && hot.entries.length > 0
+    ? `过去 ${hot.windowHours} 小时讨论最多的 ${hot.entries.length} 个${withSubject("事件")}：热度指数、趋势与组成热度的公开来源。`
+    : `过去 48 小时的${withSubject("热点榜")}：还没有足够多来源共同讨论的事件。`;
   return pageMeta({
     title: withSubject("热点榜"),
-    description: `过去 48 小时讨论最多的 10 个${withSubject("事件")}：热度指数、趋势与组成热度的公开来源。`,
+    description,
     path: "/hot",
     image: "/og/pages/hot.png",
   });
@@ -238,7 +244,12 @@ export default function HotPage() {
             实时热度
           </div>
           <h1 className="mt-1.5 text-[24px] font-bold leading-[1.3] tracking-[-0.01em] text-ink lg:text-[26px]">{withSubject("热点榜")}</h1>
-          <p className="mt-1.5 text-[13.5px] text-ink-3">过去 {hot.windowHours} 小时，讨论最多的 {hot.entries.length || 10} 个{withSubject("事件")}</p>
+          {/* 空榜时原来的 `|| 10` 会念出一句"讨论最多的 10 个事件"，而榜上什么也没有。 */}
+          <p className="mt-1.5 text-[13.5px] text-ink-3">
+            {hot.entries.length > 0
+              ? <>过去 {hot.windowHours} 小时，讨论最多的 <span className="num">{hot.entries.length}</span> 个{withSubject("事件")}</>
+              : <>过去 {hot.windowHours} 小时还没有讨论够热的{withSubject("事件")}</>}
+          </p>
         </div>
         {hot.computedAt && (
           <p className="text-[12px] text-ink-4">

@@ -2,7 +2,7 @@ import { SITE, withSubject } from "@aihot/industry/site";
 import { data as withHeaders, redirect, useLoaderData } from "react-router";
 import type { Route } from "./+types/home";
 import type { TimelineResponse } from "@aihot/contracts/site";
-import { isCategoryKey, isChannelKey } from "@aihot/contracts/taxonomy";
+import { CATEGORY_LABELS, CHANNEL_LABELS, isCategoryKey, isChannelKey } from "@aihot/contracts/taxonomy";
 import { loadOr404, queryString, releaseBoundCache } from "../lib/api.server";
 import { listPath, organizationLd, pageMeta } from "../lib/seo";
 import { Wordmark } from "../components/Logo";
@@ -26,10 +26,30 @@ export async function loader({ request }: Route.LoaderArgs) {
   return withHeaders({ data, filters: { channel, category, tag, topic: null } }, { headers: releaseBoundCache(data.refreshAt, 60, Date.now(), upstream) });
 }
 
+/**
+ * 筛选出来的那一页要自己报名。canonical 已经按 `listPath()` 把 category/channel/tag 写进地址，
+ * 标题却一直是默认的站点标题——读者停在 `/?category=hazard` 上，标签页、分享卡片和搜索结果说的
+ * 都是首页。标题、`og:title`、`twitter:title` 同源（`pageMeta` 只读 `title` 这一个入参），
+ * 所以改这一处三者一起跟上，canonical 与 og 不会各说各话。
+ */
+function filterLabel(f: { channel: string; category: string | null; tag: string | null } | undefined): string | null {
+  if (!f) return null;
+  const what = f.tag ? `#${f.tag}` : f.category && isCategoryKey(f.category) ? CATEGORY_LABELS[f.category] : null;
+  const where = f.channel !== "all" && isChannelKey(f.channel) ? CHANNEL_LABELS[f.channel] : null;
+  const parts = [what, where].filter(Boolean);
+  return parts.length ? `${parts.join(" · ")}精选` : null;
+}
+
 export function meta({ loaderData }: Route.MetaArgs) {
   const f = loaderData?.filters;
   const path = listPath("/", { channel: f && f.channel !== "all" ? f.channel : null, category: f?.category, tag: f?.tag });
-  return pageMeta({ path, jsonLd: path === "/" ? organizationLd() : undefined });
+  const label = filterLabel(f);
+  return pageMeta({
+    title: label,
+    description: label ? `${SITE.name} 的${label}：按这一筛选的精选与时间线。` : undefined,
+    path,
+    jsonLd: path === "/" ? organizationLd() : undefined,
+  });
 }
 
 export function headers({ loaderHeaders }: Route.HeadersArgs) {

@@ -3,8 +3,9 @@ import { type RouteConfig, index, layout, route } from "@react-router/dev/routes
 export default [
   index("routes/home.tsx"),
   route("all", "routes/all.tsx"),
+  // `/all` 的繁忙页是唯一被跳转到的那一个（`all.tsx` 的 busyRedirect）；根上那条 `/search-busy` 从来没有
+  // 任何链接或跳转指向它，读者只能从旧书签进来，是一份没人认领的副本，本轮删掉。
   route("all/search-busy", "routes/search-busy.tsx", { id: "all-search-busy" }),
-  route("search-busy", "routes/search-busy.tsx", { id: "search-busy" }),
   route("items/:id", "routes/item.tsx"),
   route("items/:id/original", "routes/item-original.tsx", { id: "item-original" }),
   route("hot", "routes/hot.tsx"),

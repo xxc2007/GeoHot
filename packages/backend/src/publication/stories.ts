@@ -7,6 +7,7 @@ import { latestHotRanking, rankingExtras } from "../events/hot-read.ts";
 import { behindSources, sourceClocks } from "../events/hot.ts";
 import { storyStatusFor } from "../events/digest.ts";
 import { itemUrl, storyApiUrl, storyUrl } from "./links.ts";
+import { releasedCondition } from "./items.ts";
 import { SITE } from "@aihot/industry/site";
 
 export type StoryLookup = { kind: "found"; storyId: number; publicId: string } | { kind: "merged"; target: string } | { kind: "not_found" };
@@ -51,7 +52,7 @@ interface ReportRow {
 }
 
 /**
- * Every report linked to the story's facts that has a public page (rules.hasItemPage: editorial source,
+ * Every report linked to the story's facts that has a public page (rules.itemHasPage: editorial source,
  * summarised or not), mentions included (an article's other events). New grouping only links
  * pool-eligible articles; imported hot stories also carry reports the AI pool leaves out, which the live
  * pages showed. hot_signal material only adds heat and is not listed, as on the live pages.
@@ -64,7 +65,7 @@ async function storyReports(storyId: number, now: Date): Promise<ReportRow[]> {
     FROM facts f JOIN fact_articles fa ON fa.fact_id = f.id JOIN publications p ON p.article_id = fa.article_id
     JOIN sources s ON s.id = p.source_id
     WHERE f.story_id = ${storyId} AND p.visibility = 'public' AND s.participation_mode = 'editorial'
-      AND (NOT p.selected OR p.visible_after <= ${now})
+      AND ${releasedCondition(now)}
     ORDER BY p.article_id, (fa.role = 'primary') DESC`;
 }
 

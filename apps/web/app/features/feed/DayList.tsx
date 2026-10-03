@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { Link } from "react-router";
 import type { FeedItemSummary } from "@aihot/contracts/site";
 import { IconChevronRight } from "../../components/icons";
-import { beijingDate } from "../../lib/format";
+import { beijingDate, dayLabel } from "../../lib/format";
 import { markRead, useReadSet } from "../../lib/local-state";
 import { DayHeader, TimelineSlot } from "./Timeline";
 import { FeedItem } from "./FeedItem";
@@ -26,7 +26,7 @@ export function DayList({ items, todayCount = null, showTags = true, animate = f
   return (
     <div>
       {days.map(({ day, items: list }) => (
-        <section key={day} aria-label={day}>
+        <section key={day} aria-label={dayLabel(day, today)}>
           <DayHeader day={day} today={today} count={day === today ? todayCount : null} />
           <ol className="lg:pt-1">
             {list.map((it) => (

@@ -10,6 +10,7 @@ import { sql } from "../db.ts";
 import { cached } from "../lib/cache.ts";
 import { escapeXml } from "../lib/text.ts";
 import { siteUrl } from "./links.ts";
+import { releasedCondition, selectedCondition } from "./items.ts";
 import { listReports } from "./reports.ts";
 import { leaderboardUrls } from "../leaderboard/read.ts";
 import { topicPageCounts } from "./topics.ts";
@@ -32,9 +33,13 @@ interface Entry {
   priority?: number;
 }
 
-async function build(): Promise<string> {
+async function build(readAt = new Date()): Promise<string> {
   const entries: Entry[] = [];
-  const [latestItem] = await sql<{ t: Date | null }[]>`SELECT max(timeline_at) AS t FROM publications WHERE visibility = 'public' AND selected`;
+  // The page timestamps describe what a reader can actually open, so they come from the same predicate the
+  // lists use: public, released, selected and with Chinese copy. A raw `max(timeline_at)` over every public
+  // selected row stamped the front page with an item that is not on it (still waiting behind the gate, or
+  // with no Chinese title), which is a lastmod a crawler can never reproduce.
+  const [latestItem] = await sql<{ t: Date | null }[]>`SELECT max(p.timeline_at) AS t FROM publications p WHERE ${selectedCondition(readAt)}`;
   // Editions come through the same gate every other outlet uses. Reading the table raw advertised blank
   // issues: eight `/daily/<日期>` locs of which seven opened onto 「本期没有入选内容」.
   const [dailyIndex, weeklyIndex, monthlyIndex] = await Promise.all([
@@ -90,8 +95,12 @@ async function build(): Promise<string> {
   for (const s of stories) entries.push({ loc: `/story/${s.public_id}`, lastmod: s.latest_at, changefreq: "daily", priority: 0.5 });
   // Model pages exist only for models on a public top-30 board; source pages for every registered source.
   if (FEATURES.leaderboard) for (const loc of await leaderboardDetailUrls()) entries.push({ loc, changefreq: "weekly", priority: 0.4 });
+  // Indexable item pages — minus anything the release gate still holds back: `indexable` is a stored
+  // projection (nothing recomputes it when an embargo lifts), so the gate has to be applied here. Listing
+  // an embargoed item is how a URL that answers 404 for its first three minutes gets handed to a crawler.
   const items = await sql<{ id: string; t: Date }[]>`
-    SELECT article_id AS id, updated_at AS t FROM publications WHERE visibility = 'public' AND indexable ORDER BY timeline_at DESC LIMIT ${MAX_URLS - entries.length}`;
+    SELECT article_id AS id, updated_at AS t FROM publications
+    WHERE visibility = 'public' AND indexable AND ${releasedCondition(readAt)} ORDER BY timeline_at DESC LIMIT ${MAX_URLS - entries.length}`;
   for (const it of items) entries.push({ loc: `/items/${it.id}`, lastmod: it.t, changefreq: "monthly", priority: 0.5 });
 
   const body = entries
@@ -118,7 +127,12 @@ async function refreshSitemap(): Promise<string> {
     const xml = await build();
     lastGood = xml;
     await mkdir(path.dirname(CACHE_FILE), { recursive: true });
-    await writeFile(CACHE_FILE, xml).catch(() => {});
+    // A read-only data directory is a real deployment state (the container mounts it ro), and the sitemap
+    // still serves from memory, so this must not fail the build. It must not be invisible either: the file
+    // is the fallback for the next restart, and a silently missing one is discovered at the worst time.
+    await writeFile(CACHE_FILE, xml).catch((error) => {
+      console.log(JSON.stringify({ level: "warn", msg: `sitemap cache file not written: ${CACHE_FILE}`, error: String(error) }));
+    });
     return xml;
   } catch (error) {
     if (lastGood) return lastGood;

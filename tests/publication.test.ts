@@ -145,7 +145,10 @@ test("a withdrawn item leaves every report exit", async () => {
   }
   for (const url of ["/api/v1/dailies"]) {
     const res = await get(url);
-    assert.ok(res.body.includes(REPORT_KEY), `${url} lists the report`);
+    // An edition whose only citation has been withdrawn has nothing left a reader can open, so it is not
+    // advertised (「共 8 期」 of which seven read 0 件大事 is how the 2026-10-02 blank-issue audit found it).
+    // The named URL above still answers 200 with its content stripped: hiding a page is not our call to make.
+    assert.ok(!res.body.includes(REPORT_KEY), `${url} still advertises an issue with nothing readable in it`);
     assert.ok(!res.body.includes(`LEAD-${T}`), `${url} headlines the withdrawn title`);
   }
 });

@@ -79,15 +79,20 @@ node --env-file=.env scripts/delete-sources.ts "源站已下线" <source-id> [<s
 
 这一类已经登记为 `kind=external`，**当前全部 `participation_mode=isolated`，所以在站上不可见**——这是刻意的：没有人投递之前，一个空壳源不该出现在信源河上。要启用某一条：后台把它改成 `editorial`，然后开始投递。
 
-投递接口 `POST /api/ingest/items`（本机实测：现在没配 token 一律 401，先用）：
+投递接口 `POST /api/ingest/items`（没有 token 或值不对一律 401）：
 
 ```bash
-# 一次性：在 .env 里加 INGEST_TOKEN=<≥16 位随机串>，重启 api
+# token 不用自己编：npm run env:init 已经写过一枚 48 位十六进制的 INGEST_TOKEN 进 .env
+# （scripts/init-env.ts:72 的 randomBytes(24).toString("hex")），下面这条 curl 就是当场从 .env 读它。
 curl -sS -X POST http://127.0.0.1:3001/api/ingest/items \
   -H "Authorization: Bearer $(node -e "console.log(require('fs').readFileSync('.env','utf8').match(/^INGEST_TOKEN=(.*)$/m)[1])")" \
   -H "Content-Type: application/json" \
   -d '{"sourceId":"ext-qtp-expedition","items":[{"title":"…","url":"https://…","publishedAt":"2026-09-30T09:00:00+08:00"}]}'
 ```
+
+**别手工往 `.env` 里"加"一枚你现编的 token**（这一行以前就是这么写的）：`env:init` 写的那枚和你在别处发出去的那枚
+一旦不同，接口就恒 401，而排查的人会先怀疑代码。要换值就换，但换完必须同一时间把新值同步给所有投递方，
+并且只用一个来源读它（上面那种从 `.env` 现读，或者用 `--env-file` 让进程自己读）。
 
 接口只送 `title/url/publishedAt/author/raw`，**正文靠回源抓取**；抓不到就只有标题。所以一手考察记录建议同时写进语料文件用 `npm run seed:curated` 带正文入库。批量与限速规则、48 小时陷阱、幂等语义都在 **`scripts/README-ingest.md`**。
 

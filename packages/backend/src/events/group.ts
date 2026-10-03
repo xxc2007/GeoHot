@@ -15,6 +15,7 @@
 // look when a report founds a fact close to them (rematchSignals); history (isHistorical) founds no
 // event. Runs serially (queue concurrency 1).
 import { modelFor } from "../editorial/models.ts";
+import { guardedStoryTitle, type TranslateInput } from "../editorial/writing.ts";
 import { sql, type Db } from "../db.ts";
 import { newShortId, newUuid, sha256 } from "../lib/ids.ts";
 import { chatJson } from "../providers/llm.ts";
@@ -650,7 +651,19 @@ async function decide(articleId: string, opts: GroupOptions): Promise<GroupResul
     title, source: a.source_name, firstParty: a.first_party, at: observedAt, summary: an.summary_zh,
     frame: frame ? { subject: frame.subject, action: frame.action, object: frame.object, occurredAt: frame.occurredAt } : null,
   };
-  const newTitle = String(frame?.title || title).slice(0, 60);
+  // The heading of the event this report founds (and of its fact) is an answer, not signed copy: the
+  // structure fixture writes `fact.title`. It takes the same two checks the article copy takes — the
+  // identity guard built from this report's own material, and Chinese — or it falls back to the report's
+  // title, which already passed them through finalizeCopy. Without it an answer naming an institution the
+  // report never mentioned, or written in English, would rename the event and the hot-list entry.
+  const evidence: TranslateInput = {
+    title: a.title,
+    text: [an.summary_zh, a.body_text, (a.x_post as { text?: string } | null)?.text].filter(Boolean).join("\n"),
+    sourceKind: a.x_post ? "x_search" : "rss",
+    sourceName: a.source_name,
+    documentUrl: a.url,
+  };
+  const newTitle = (guardedStoryTitle(String(frame?.title ?? ""), evidence) ?? title).slice(0, 60);
 
   const { sameUrl, referenced } = await relatedPosts(a);
   let verdict: GroupResult["verdict"] = "new-story";
@@ -704,6 +717,14 @@ async function decide(articleId: string, opts: GroupOptions): Promise<GroupResul
       // A failed identity call must not block publication: the report stays standalone for now.
       await markGrouped(articleId);
       await publishArticle(articleId);
+      // And it is recorded as waiting for a regroup: once the queue's retries are exhausted nothing else
+      // ever re-opens this decision, and readers would keep two event pages for one quake, counted apart
+      // in the heat list. The row is what the regroup pass works through (scripts/regroup-events.ts sends
+      // one forced group job per waiting report), and until then the report is not evidence for others.
+      await sql`INSERT INTO regroup_pending (article_id) VALUES (${articleId})
+                ON CONFLICT (article_id) DO UPDATE SET requested_at = now()`;
+      await sql`INSERT INTO regroup_pending (article_id) VALUES (${articleId})
+                ON CONFLICT (article_id) DO UPDATE SET requested_at = now()`;
       throw error;
     }
   }

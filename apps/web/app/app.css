@@ -1,9 +1,12 @@
 @import "tailwindcss";
 
 /* ---------------------------------------------------------------------------
-   AIHOT design tokens — the look of the original site: warm off-white paper,
-   ink text, one teal accent (cyan in dark), hairline borders, no gradients.
-   Components use the semantic names below; values change per theme only.
+   GEOHOT design tokens — 地理热点's own newsroom look: warm off-white paper, ink
+   text, one teal accent (cyan in dark), hairline borders, no gradients. Six
+   categories and a spatial-salience standard decide what gets on the page; these
+   variables decide how it is set. Components use the semantic names below; values
+   change per theme only. (Forked from an AI-hot-topics site's stylesheet; the
+   palette is inherited, the brand is not — see NOTICE and industry/brand/.)
    --------------------------------------------------------------------------- */
 
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
@@ -11,6 +14,39 @@
 @theme {
   --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  /* The display face for the paper: a nameplate, a headline, a section head. No webfont is downloaded —
+     this site is offline-first and Chinese webfonts run to megabytes — so the stack is built only from
+     faces already installed on the machine: Songti SC (macOS/iOS), Source Han / Noto Serif CJK SC
+     (Linux, Windows with the Chinese font pack), SimSun as the last CJK resort, then Georgia for Latin.
+     Every one of them is a serif, so a machine with none of the CJK faces still gets a serif, not a
+     silent fall back to the sans body text. */
+  --font-display: "Songti SC", "Noto Serif CJK SC", "Source Han Serif SC", "Source Han Serif CN", STSong, SimSun, Georgia, "Times New Roman", serif;
+
+  /* Type scale. The body sits at 14px (`@layer base` below), so these are named from the paper outward,
+     not from Tailwind's 16px default. Names avoid every colour word (`--color-note`, `--color-ink`, …):
+     `text-*` resolves against both the font-size and the colour namespace, so `text-note` would be an
+     ambiguous utility — this file already uses it as a colour. The old arbitrary `text-[Npx]` values are
+     converted here as the headline and label families are touched, not en masse. Sizes only: no paired
+     line-height, because every call site already sets its own leading. */
+  --text-micro: 10px; /* issue marks, 备案号, the smallest quiet meta */
+  --text-fine: 10.5px;
+  --text-label: 11px; /* badges, kbd hints, column footnotes */
+  --text-caption: 12px; /* rail labels, source and time meta */
+  --text-meta: 12.5px; /* the site's most-used small size after 12px */
+  --text-ui: 13px; /* controls, list meta, inline buttons */
+  --text-body: 14px; /* the size <body> is set at */
+  --text-lead: 15px; /* feed summaries, story bodies */
+  --text-subhead: 17px; /* feed titles, an article's first line */
+  --text-title: 19px; /* a story's headline in a column */
+  --text-heading: 24px; /* a page head in the paper */
+  --text-display: 32px; /* the front page's lead headline, on a narrow page */
+  --text-display-lg: 40px;
+  --text-display-xl: 48px;
+
+  /* The measure: 42 Chinese characters to a line, the site's own prose target (`--page-max-reading`
+     gives .prose about 42 at 1440px). A feed row inherits <body>'s 14px, so this caps the title and
+     summary column at 588px however wide the page gets. */
+  --measure-cjk: 42em;
 
   /* Brand (VI), fixed across themes. */
   --color-brand-teal: #176b75;
@@ -29,7 +65,6 @@
   --color-raised: var(--raised);
   --color-sidebar: var(--sidebar);
   --color-daybar: var(--daybar);
-  --color-field: var(--field);
   --color-ink: var(--ink);
   --color-ink-2: var(--ink-2);
   --color-ink-3: var(--ink-3);
@@ -44,6 +79,7 @@
   --color-accent-contrast: var(--accent-contrast);
   --color-note: var(--note);
   --color-hot: var(--hot);
+  --color-hot-ink: var(--hot-ink);
   --color-hot-soft: var(--hot-soft);
   --color-amber: var(--amber);
   --color-amber-ink: var(--amber-ink);
@@ -102,7 +138,6 @@
      Two units lighter clears AA at 4.54:1 without touching any text token — same remedy already used
      for --rank-rest below. */
   --daybar: #f2f4f0;
-  --field: #eef1ed;
   --ink: #202a30;
   --ink-2: #303c42;
   --ink-3: #59656b;
@@ -117,6 +152,10 @@
   --accent-contrast: #ffffff;
   --note: #526f72;
   --hot: #b3402a;
+  /* `--hot` is a fill (a wash, a dot, a ring); `--hot-ink` is the text that sits on that wash. Light
+     theme: the same red already clears AA wherever it is used as text (4.69:1 on `bg-hot/10` over --bg,
+     5.07:1 on `--hot-soft` over --surface), so the ink value is the base value and nothing moves. */
+  --hot-ink: #b3402a;
   --hot-soft: rgba(179, 64, 42, 0.08);
   --amber: #b8873a;
   --amber-ink: #7c5a24;
@@ -132,12 +171,16 @@
   --cal-key-announced: color-mix(in srgb, var(--amber-ink) 30%, var(--surface));
   --panel-quiet: color-mix(in srgb, var(--bg) 48%, var(--surface));
   --rank-1: #b3402a;
-  --rank-2: #a3642f;
-  --rank-3: #96702e;
-  /* The one deliberate deviation from upstream's stylesheet: reader-facing rank numbers (#4+) are text, not
-     decoration, and #6b7684 measured 4.38:1 on --bg — below AA. Darkened two steps to clear 4.5 (4.51:1 light,
-     4.75:1 on surface); the dark value likewise 4.40:1 -> 4.51:1 on --surface. Everything else here is byte-identical. */
-  --rank-rest: #697482;
+  /* Rank numbers are reader-facing text, not decoration, so they hold AA wherever they land: --bg,
+     --surface, --daybar, and the hover row (`bg-bg-sunk/70` over --bg, the tightest of them). The three
+     values below are the light-theme set measured against that row — #a3642f came to 4.34:1, #96702e
+     4.12:1 and #697482 4.34:1 (4.29:1 on --daybar), all under 4.5 for a 15px number. Darkening each to
+     #8d5522 / #7f5a1e / #5c6774 gives 5.56 / 5.67 / 5.26 on the hover row and 5.49 / 5.61 / 5.20 on
+     --daybar, so the worst case in the set is 5.20:1. #6b7684 was upstream's --rank-rest (4.38:1 on
+     --bg), which this file had already darkened once; the same remedy, taken further. */
+  --rank-2: #8d5522;
+  --rank-3: #7f5a1e;
+  --rank-rest: #5c6774;
   --shadow-card: 0 1px 2px rgba(32, 42, 48, 0.025);
   --shadow-card-hover: 0 3px 12px rgba(32, 42, 48, 0.055);
   --shadow-soft: 0 4px 12px rgba(28, 39, 51, 0.06);
@@ -158,7 +201,6 @@
   --raised: #202a2f;
   --sidebar: #161e21;
   --daybar: #182024;
-  --field: rgba(255, 255, 255, 0.06);
   --ink: #e7eceb;
   --ink-2: #d2dada;
   --ink-3: #a5b0b3;
@@ -173,6 +215,12 @@
   --accent-contrast: #000000;
   --note: #8fb8a8;
   --hot: #d86a52;
+  /* The same split as the light theme, and here it is the fix: #d86a52 as text on a hot wash is 4.05:1
+     on `--hot-soft` over --surface and 4.16:1 on `bg-hot/10` over --surface (a feed card, a badge, a
+     retry button), both under AA. Lightening the text half a step to #e2775f gives 4.68:1 and 4.80:1 on
+     those same two washes, 5.41:1 on bare --surface and 5.54:1 on --daybar — worst case 4.68:1. --hot
+     itself is untouched, so every fill, dot and ring keeps the colour the palette was built with. */
+  --hot-ink: #e2775f;
   --hot-soft: rgba(216, 106, 82, 0.12);
   --amber: #d3b26a;
   --amber-ink: #d3b26a;
@@ -323,6 +371,12 @@
     border-color: var(--line-strong);
     transform: translateY(-1px);
   }
+}
+/* The reading measure: a column of prose no wider than --measure-cjk (42 Chinese characters at the size
+   it is set at, the same target the 760px article column hits). Feed rows use it because the page they
+   sit on is allowed to be as wide as the window; the measure is not. */
+@utility measure {
+  max-width: var(--measure-cjk);
 }
 
 @keyframes skeleton-pulse {

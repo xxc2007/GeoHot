@@ -15,6 +15,7 @@
     "db:up": "node scripts/dev-db.ts",
     "db:down": "node scripts/dev-db-down.ts",
     "db:migrate": "node --env-file-if-exists=.env scripts/migrate.ts",
+    "shots": "node scripts/shoot.ts",
     "seed:curated": "node --env-file-if-exists=.env scripts/seed-curated.ts",
     "dev:api": "npm run dev -w @aihot/api",
     "dev:worker": "npm run dev -w @aihot/worker",

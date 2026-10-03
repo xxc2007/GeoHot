@@ -1,47 +1,23 @@
 // Web list pages: HTML with selectors, Markdown through Jina Reader, and Docusaurus changelogs.
 import * as cheerio from "cheerio";
 import { guardedFetch } from "../lib/http-fetch.ts";
+import { assertPublicUrl, identityKeyForUrl } from "../lib/url.ts";
+import { config } from "../config.ts";
 import { collapseWhitespace, stripTags } from "../lib/text.ts";
 import { readable, type ExtractedBody } from "../content/extract.ts";
 import { sanitizeBody } from "../content/sanitize.ts";
 import { jinaRead } from "../providers/jina.ts";
+import { DEFAULT_UTC_OFFSET, parsePublishedAt } from "./dates.ts";
 import { FetchError, type Candidate, type SourceRow } from "./types.ts";
 
 const JINA_PREFIX = "https://r.jina.ai/";
 
-/** A time followed by its zone: "10:00Z", "10:00:00+08:00", "10:00:00 +0000", "10:00:00 GMT". */
-const EXPLICIT_ZONE = /\d{1,2}:\d{2}(?::\d{2}(?:\.\d+)?)?\s*(?:Z|[+-]\d{2}:?\d{2}|GMT|UTC)\b/i;
-
-function atOffset(y: string | number, mo: string | number, d: string | number, h: string | number, mi: string | number, s: string | number, utcOffset: string): Date | null {
-  const p = (n: string | number) => String(n).padStart(2, "0");
-  const t = Date.parse(`${y}-${p(mo)}-${p(d)}T${p(h)}:${p(mi)}:${p(s)}${utcOffset}`);
-  return Number.isFinite(t) ? new Date(t) : null;
-}
-
 /**
- * A published date as a list page or article prints it. Date.parse is kept only where it reads the same
- * on every host: a time with its zone, and an ISO date alone (UTC midnight). Anything else it would read
- * in the server's local zone (UTC in Docker), so "2026-09-26 10:00" is read in the source's offset instead.
+ * A published date as a list page or article prints it: the shared rule of sources/dates.ts, with this
+ * source's own offset for the values that carry no zone of their own.
  */
-export function parseLooseDate(value: string | null | undefined, utcOffset = "+08:00"): Date | null {
-  if (!value) return null;
-  const v = value.trim();
-  if (!v) return null;
-  if (EXPLICIT_ZONE.test(v) || /^\d{4}-\d{2}-\d{2}$/.test(v)) {
-    const direct = Date.parse(v);
-    if (Number.isFinite(direct) && /\d{4}/.test(v)) return new Date(direct);
-  }
-  // 2026-09-26 / 2026/09/26 / 2026-09-26T10:00 / 2026年9月26日 (+ optional time), interpreted in the given offset.
-  const m = /(\d{4})[-/.年](\d{1,2})[-/.月](\d{1,2})日?(?:(?:T|\s*)(\d{1,2}):(\d{2})(?::(\d{2}))?)?/.exec(v);
-  if (m) {
-    const [, y, mo, d, h = "00", mi = "00", s = "00"] = m;
-    return atOffset(y!, mo!, d!, h, mi, s, utcOffset);
-  }
-  // "Sep 26, 2026": Date.parse reads it in the host's zone, so take its fields and place them in the offset.
-  const en = Date.parse(v.replace(/(\d)(st|nd|rd|th)/, "$1"));
-  if (!Number.isFinite(en)) return null;
-  const local = new Date(en);
-  return atOffset(local.getFullYear(), local.getMonth() + 1, local.getDate(), local.getHours(), local.getMinutes(), local.getSeconds(), utcOffset);
+export function parseLooseDate(value: string | null | undefined, utcOffset: string | null | undefined = DEFAULT_UTC_OFFSET): Date | null {
+  return parsePublishedAt(value, { utcOffset });
 }
 
 /** The datePublished of the page's structured data (JSON-LD, also inside @graph or embedded app state). */
@@ -81,6 +57,20 @@ export function allowed(url: string, source: SourceRow): boolean {
   return allow.length === 0 || allow.some((p) => target.startsWith(p));
 }
 
+/**
+ * Where a paid Jina request may be sent. guardedFetch only ever sees r.jina.ai, so the target of that
+ * request never passes the SSRF guard there: check it here (the address must be public, and Jina dials it
+ * abroad, so a poisoned local answer is not the source's refusal). A detail page's URL comes from a
+ * listing's own links — third-party text that ends up in the stored title and excerpt — so it must also
+ * be a prefix this source is allowed to publish, or the budget is spent on whatever a page decides to
+ * reflect.
+ */
+export async function assertPaidTarget(url: string, source?: SourceRow): Promise<string> {
+  await assertPublicUrl(url, config.allowPrivateNetworkFetch, true);
+  if (source && !allowed(url, source)) throw new FetchError(`refused a paid fetch of ${url}: outside this source's url prefixes`);
+  return url;
+}
+
 /** A link back to the listing page itself (skip links, in-page anchors such as #paper, #blog). */
 function listingItself(url: string, listing: string): boolean {
   const bare = (x: URL) => `${x.host}${x.pathname.replace(/\/$/, "")}`;
@@ -116,6 +106,9 @@ async function fetchListingText(source: SourceRow): Promise<{ text: string; viaJ
   if (!url) throw new FetchError("url missing");
   if (url.startsWith(JINA_PREFIX)) {
     const target = url.slice(JINA_PREFIX.length);
+    // The listing's own address is the operator's config, so only its reachability is checked: Jina is
+    // the one that dials it, and guardedFetch never sees this URL.
+    await assertPaidTarget(target);
     const page = await jinaRead(target, { purpose: "source_listing", subject: `source:${source.id}`, cacheToleranceSeconds: source.config.cacheToleranceSeconds, perRead: true });
     return { text: page.markdown, viaJina: true, base: source.config.baseUrl ?? target };
   }
@@ -188,7 +181,7 @@ export function fromHtml(html: string, base: string, source: SourceRow): Candida
 const DATE_HEADING = /^(?:[^\d:：]{1,12}[:：])?\s*(\d{4})[-/.年](\d{1,2})[-/.月](\d{1,2})日?$/;
 
 /** The day a date heading names, at midnight in the source's offset (Date.parse would read "时间: …" in the host's zone). */
-function headingDate(title: string, utcOffset = "+08:00"): Date | null | undefined {
+function headingDate(title: string, utcOffset: string | null | undefined = DEFAULT_UTC_OFFSET): Date | null | undefined {
   const m = DATE_HEADING.exec(title);
   if (!m) return undefined;
   const t = Date.parse(`${m[1]}-${m[2]!.padStart(2, "0")}-${m[3]!.padStart(2, "0")}T00:00:00${utcOffset}`);
@@ -221,7 +214,9 @@ function fromDocusaurusChangelog(html: string, base: string, source: SourceRow):
     if (!allowed(url.replace(/#.*$/, ""), source)) return;
     out.push({
       url,
-      identityKey: `url:${url}`,
+      // Canonical, like every other identity: the raw base plus the heading id would let the same
+      // update sit under two keys when the listing is configured with www., http:// or a slash.
+      identityKey: identityKeyForUrl(url, { keepFragment: true }) ?? `url:${url}`,
       title,
       publishedAt: parseLooseDate(title) ?? sectionDate ?? parseLooseDate(stripTags(bodyHtml).slice(0, 80)),
       bodyHtml,
@@ -333,7 +328,7 @@ export async function fetchDetail(url: string, source: SourceRow, need: DetailNe
   const jinaListing = String(source.config.url ?? "").startsWith(JINA_PREFIX);
   const dateInJina = need.date && jinaListing && !!d.publishedAtRegex;
   const titleInJina = need.title && jinaListing && !!d.titleRegex;
-  const jina = dateInJina || titleInJina ? (await jinaRead(url, { purpose: "source_detail", subject: `source:${source.id}` })).raw : null;
+  const jina = dateInJina || titleInJina ? (await jinaRead(await assertPaidTarget(url, source), { purpose: "source_detail", subject: `source:${source.id}` })).raw : null;
   let html: string | null = null;
   let body: ExtractedBody | null = null;
   if ((need.date && !dateInJina) || (need.title && !titleInJina) || need.summary) {

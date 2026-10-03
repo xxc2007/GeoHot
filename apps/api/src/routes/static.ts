@@ -81,8 +81,12 @@ function manifest() {
     start_url: `${base}/`,
     scope: `${base}/`,
     display: "standalone",
-    background_color: "#202a30",
-    theme_color: "#202a30",
+    // The install/splash colours are the page's own light background (`app.css`'s `:root { --bg }`, which
+    // `root.tsx`'s light `<meta name="theme-color">` repeats), not its ink. `#202a30` is `--ink`
+    // (app.css:106): a near-black splash for a warm-white paper site, and the comment here claimed the
+    // manifest named the light background. The dark value belongs only in the dark-theme `<meta>`.
+    background_color: "#faf9f6",
+    theme_color: "#faf9f6",
     icons: [
       { src: `${base}/icon-192.png`, sizes: "192x192", type: "image/png" },
       { src: `${base}/icon.png`, sizes: "512x512", type: "image/png" },

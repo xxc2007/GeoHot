@@ -5,6 +5,7 @@
 import { z } from "zod";
 import { ARTICLE_ID_PATTERN, CATEGORY_KEYS } from "@aihot/contracts/taxonomy";
 import { sql } from "../db.ts";
+import { InvalidInput } from "./invalid.ts";
 import { enqueue, QUEUES } from "../jobs/queue.ts";
 import { queueProcessing } from "../jobs/content.ts";
 import { normalizeUrl } from "../lib/url.ts";
@@ -82,7 +83,7 @@ async function overrideRow(id: string) {
  * search index through the one publication projection; ETags change with the content.
  */
 export async function setVisibility(id: string, input: { visibility: "public" | "summary-only" | "withdrawn"; reason: string; version: number }, actor: string) {
-  if (!input.reason?.trim()) throw new Error("reason is required");
+  if (!input.reason?.trim()) throw new InvalidInput("reason is required");
   const before = await overrideRow(id);
   if (before.version !== input.version) throw new Conflict(STALE);
   // The version check and the write are one statement: of two tabs saving the same version, one wins.
@@ -103,7 +104,7 @@ export async function setVisibility(id: string, input: { visibility: "public" | 
 
 /** Marks a detail page for search indexing (sitemap, IndexNow, robots) or removes the mark. */
 export async function setSeoIndexed(id: string, input: { indexed: boolean; reason: string }, actor: string) {
-  if (!input.reason?.trim()) throw new Error("reason is required");
+  if (!input.reason?.trim()) throw new InvalidInput("reason is required");
   const [before] = await sql<{ seo_indexed_at: Date | null; indexable: boolean }[]>`SELECT seo_indexed_at, indexable FROM publications WHERE article_id = ${id}`;
   if (!before) return null;
   // Marking indexes the page; unmarking excludes it, so a selected page is not indexed again automatically.
@@ -129,7 +130,7 @@ const FieldsSchema = z
 
 /** Manual corrections win over model output; null clears a correction. */
 export async function overrideFields(id: string, input: { fields: unknown; clear?: string[]; reason: string; version: number }, actor: string) {
-  if (!input.reason?.trim()) throw new Error("reason is required");
+  if (!input.reason?.trim()) throw new InvalidInput("reason is required");
   const fields = FieldsSchema.parse(input.fields ?? {});
   const before = await overrideRow(id);
   if (before.version !== input.version) throw new Conflict(STALE);
@@ -156,7 +157,7 @@ export async function overrideFields(id: string, input: { fields: unknown; clear
  * the request id, so submitting the same request twice neither enqueues nor pays twice.
  */
 export async function rerun(id: string, step: "extract" | "analyze" | "group", requestId: string, actor: string) {
-  if (!/^[\w-]{8,80}$/.test(requestId)) throw new Error("a stable request id is required");
+  if (!/^[\w-]{8,80}$/.test(requestId)) throw new InvalidInput("a stable request id is required");
   const [a] = await sql`SELECT id FROM articles WHERE id = ${id}`;
   if (!a) return null;
   let jobId: string | null;
@@ -207,10 +208,10 @@ export async function detachFromFact(id: string, reason: string, actor: string) 
 
 /** Merges one story into another: facts move, the old public id keeps working as an alias. */
 export async function mergeStories(fromId: number, intoId: number, reason: string, actor: string) {
-  if (fromId === intoId) throw new Error("cannot merge a story into itself");
+  if (fromId === intoId) throw new InvalidInput("cannot merge a story into itself");
   const done = await mergeStoryInto(fromId, intoId, reason, actor);
   if (done) return done;
   const found = await sql<{ id: number }[]>`SELECT id FROM stories WHERE id IN (${fromId}, ${intoId})`;
-  if (found.length < 2) throw new Error("story not found");
+  if (found.length < 2) throw new InvalidInput("story not found");
   throw new Conflict("两个事件都必须是未合并的事件");
 }

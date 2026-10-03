@@ -16,6 +16,19 @@
 # installs those. Pick one route per box; both read the same GEOHOT_APP_ROOT, and both keep the MemoryMax.
 #
 # Run as a user with sudo. Idempotent: it overwrites the unit files, which is the point.
+#
+# ★ 这个脚本没有 dry-run，而且和同目录另外三个不一样：**它一跑就直接 `sudo tee` 写
+#   /etc/systemd/system/geohot-{brain,api,worker,web}.service 并 `systemctl daemon-reload`**，
+#   没有 --apply 开关、也不先备份旧单元。对比：bootstrap-server.sh、fix-bare-path.sh、rollback.sh
+#   默认都是 DRY-RUN，要 `--apply` 才动手；verify-deploy.sh 是纯只读。也就是说"先看一眼会发生什么"
+#   这件事在本脚本里没有内置，得自己做：
+#       sudo systemctl cat geohot-web            # 现状（改之前留个底）
+#       sudo cp -a /etc/systemd/system/geohot-*.service /root/units-backup-$(date +%F)/
+#   写完确认：systemctl list-units 'geohot-*' 与 systemctl cat <单元> 两处都该看到你预期的
+#   APP_ROOT（GEOHOT_APP_ROOT，默认 /opt/geohot/app）与绝对 --env-file 路径。
+#   要装"带加固块（ProtectSystem=strict 等）"的那一份，别用本脚本，走 bootstrap-server.sh 第 10 节
+#   安装 deploy/geohot/systemd/*.service —— 一台机器只选一条路线，两条都读同一个 GEOHOT_APP_ROOT。
+#   （给本脚本加 --apply 是合理的下一步，但那是改脚本逻辑，不在改注释的范围内。）
 set -euo pipefail
 # One install path for the whole deploy package (bootstrap / install-units / verify-deploy / rollback and
 # the systemd/ templates all default to this value). Override with GEOHOT_APP_ROOT=/other/path.

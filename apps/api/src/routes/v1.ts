@@ -181,7 +181,7 @@ export function registerV1Fallbacks(app: FastifyInstance) {
   };
   for (const url of ["/api/v1", "/api/v1/*", "/api/public/*", "/openapi-v1.json", "/openapi.yaml"]) {
     app.options(url, preflight);
-    app.route({ method: ["POST", "PUT", "PATCH", "DELETE"], url, handler: notAllowed });
+    app.route({ method: ["POST", "PUT", "PATCH", "DELETE", "TRACE"], url, handler: notAllowed });
   }
   app.get("/api/v1", notFound);
   app.get("/api/v1/*", notFound);

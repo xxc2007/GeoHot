@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { FEATURES } from "@aihot/industry/features";
 import { actorOf } from "@aihot/backend/admin/auth";
+import { InvalidInput } from "@aihot/backend/admin/invalid";
 
 import { importSelectBenchRun, listSelectBenchRuns, selectBenchRun } from "@aihot/backend/admin/selectbench";
 import { modelsOverview, switchModel } from "@aihot/backend/admin/models";
@@ -26,6 +27,22 @@ const param = (req: FastifyRequest, name: string) => (req.params as Record<strin
 const notFound = (req: FastifyRequest, reply: FastifyReply) => sendProblem(req, reply, { status: 404, code: "not_found", detail: "Not found." });
 const orNotFound = <T>(req: FastifyRequest, reply: FastifyReply, value: T | null) => (value === null || value === undefined ? notFound(req, reply) : value);
 const page = (req: FastifyRequest) => Math.max(1, Number(q(req).page) || 1);
+
+/**
+ * A numeric :id from the path. Number() of "abc" is NaN, and a NaN compared against a bigint column is
+ * a Postgres error the operator would be told about as a server fault.
+ */
+const rowId = (req: FastifyRequest) => {
+  const raw = param(req, "id");
+  if (!/^\d{1,9}$/.test(raw)) throw new InvalidInput(`地址里的编号 ${raw.slice(0, 24)} 不是数字`);
+  return Number(raw);
+};
+const idOf = (value: unknown, name: string) => {
+  if (typeof value !== "number" && !(typeof value === "string" && /^\d+$/.test(value))) throw new InvalidInput(`${name} 必须是数字`);
+  const n = Number(value);
+  if (!Number.isInteger(n) || n <= 0) throw new InvalidInput(`${name} 必须是数字`);
+  return n;
+};
 
 function decodeImage(dataUrl: unknown): Buffer {
   const m = /^data:image\/(png|jpeg|webp);base64,(.+)$/s.exec(String(dataUrl ?? ""));
@@ -66,15 +83,15 @@ export function registerAdmin(app: FastifyInstance) {
   app.post("/api/admin/content/:id/detach", adminHandler(async (req, _reply, admin) => detachFromFact(param(req, "id"), String(body(req).reason ?? ""), actorOf(admin))));
   app.post("/api/admin/stories/merge", adminHandler(async (req, _reply, admin) => {
     const b = body<{ from: number; into: number; reason: string }>(req);
-    return mergeStories(Number(b.from), Number(b.into), b.reason, actorOf(admin));
+    return mergeStories(idOf(b.from, "from"), idOf(b.into, "into"), b.reason, actorOf(admin));
   }));
 
   // Feedback
   app.get("/api/admin/feedback", adminHandler(async (req) => listFeedback({ status: q(req).status, q: q(req).q, page: page(req) })));
-  app.patch("/api/admin/feedback/:id", adminHandler(async (req, reply, admin) => orNotFound(req, reply, await updateFeedback(Number(param(req, "id")), body(req) as never, actorOf(admin)))));
-  app.post("/api/admin/feedback/:id/erase", adminHandler(async (req, reply, admin) => orNotFound(req, reply, await eraseFeedback(Number(param(req, "id")), String(body(req).reason ?? ""), actorOf(admin)))));
+  app.patch("/api/admin/feedback/:id", adminHandler(async (req, reply, admin) => orNotFound(req, reply, await updateFeedback(rowId(req), body(req) as never, actorOf(admin)))));
+  app.post("/api/admin/feedback/:id/erase", adminHandler(async (req, reply, admin) => orNotFound(req, reply, await eraseFeedback(rowId(req), String(body(req).reason ?? ""), actorOf(admin)))));
   app.get("/api/admin/feedback/:id/screenshot", adminHandler(async (req, reply) => {
-    const file = await feedbackScreenshot(Number(param(req, "id")));
+    const file = await feedbackScreenshot(rowId(req));
     const data = file ? await readFile(file).catch(() => null) : null;
     if (!data) return notFound(req, reply);
     const ext = file!.split(".").pop();
@@ -92,8 +109,8 @@ export function registerAdmin(app: FastifyInstance) {
 
   // Runs (F20)
   app.get("/api/admin/runs", adminHandler(async () => runsOverview()));
-  app.post("/api/admin/receipts/:id/release", adminHandler(async (req, reply, admin) => orNotFound(req, reply, await releaseReceipt(Number(param(req, "id")), body(req) as never, actorOf(admin)))));
-  app.post("/api/admin/deliveries/:id/resolve", adminHandler(async (req, reply, admin) => orNotFound(req, reply, await resolveDelivery(Number(param(req, "id")), body(req) as never, actorOf(admin)))));
+  app.post("/api/admin/receipts/:id/release", adminHandler(async (req, reply, admin) => orNotFound(req, reply, await releaseReceipt(rowId(req), body(req) as never, actorOf(admin)))));
+  app.post("/api/admin/deliveries/:id/resolve", adminHandler(async (req, reply, admin) => orNotFound(req, reply, await resolveDelivery(rowId(req), body(req) as never, actorOf(admin)))));
   app.post("/api/admin/processing/requeue", adminHandler(async (req, _reply, admin) => requeueFailedArticles(body(req) as never, actorOf(admin))));
 
   // Reset monitor corrections (F12). An AI-only module: with codexResetMonitor off (industry/features.ts)
@@ -140,14 +157,15 @@ export function registerAdmin(app: FastifyInstance) {
     return importSelectBenchRun(b.report, String(b.label || "导入的对比运行"), actorOf(admin));
   }));
 
-  // Attention counts for the navigation.
+  // Attention counts for the navigation. The monitor column is gated like the routes above: counting
+  // rows in a module this site does not run would light up a badge the operator cannot clear.
   app.get("/api/admin/nav-counts", adminHandler(async () => {
     const [c] = await sql<Record<string, number>[]>`
       SELECT (SELECT count(*)::int FROM feedback WHERE status = 'new') AS feedback,
              (SELECT count(*)::int FROM sources WHERE enabled AND health = 'failing') AS sources,
              (SELECT count(*)::int FROM receipts WHERE status = 'unknown') + (SELECT count(*)::int FROM deliveries WHERE status = 'unknown') AS runs,
-             (SELECT count(*)::int FROM monitor_posts WHERE (recognition->>'needsReview')::boolean IS TRUE AND (recognition->>'reviewed')::boolean IS NOT TRUE AND processed_at > now() - interval '7 days')
-               + (SELECT count(*)::int FROM monitor_posts WHERE processed_at IS NULL AND collected_at < now() - interval '20 minutes') AS monitor`;
+             ${FEATURES.codexResetMonitor ? sql`(SELECT count(*)::int FROM monitor_posts WHERE (recognition->>'needsReview')::boolean IS TRUE AND (recognition->>'reviewed')::boolean IS NOT TRUE AND processed_at > now() - interval '7 days')
+               + (SELECT count(*)::int FROM monitor_posts WHERE processed_at IS NULL AND collected_at < now() - interval '20 minutes')` : sql`0`} AS monitor`;
     return c;
   }));
 

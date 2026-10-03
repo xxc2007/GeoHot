@@ -2,7 +2,10 @@ import { assertProductionSecrets, config } from "@aihot/backend/config";
 import { closeDb } from "@aihot/backend/db";
 import { startHeartbeat } from "@aihot/backend/operations/heartbeat";
 import { startWorkerWatchdog } from "@aihot/backend/operations/watch";
+import { guardProcessExit } from "@aihot/backend/operations/process-exit";
 import { buildApp } from "./app.ts";
+
+guardProcessExit("api");
 
 assertProductionSecrets([
   ["auth", "SESSION_SECRET"],

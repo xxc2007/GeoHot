@@ -2,7 +2,7 @@
 // proxy, always behind receipts and the per-minute/hour/day budget (any zero stops it).
 import { credential } from "../config.ts";
 import { guardedFetch } from "../lib/http-fetch.ts";
-import { paidRequest, ProviderRejectedError } from "./receipts.ts";
+import { paidRequest, rejectReceivedResponse, ProviderRejectedError } from "./receipts.ts";
 
 export interface JinaPage {
   title: string | null;
@@ -16,6 +16,21 @@ export function parseJinaText(text: string): JinaPage {
   const body = text.includes("\nMarkdown Content:\n") ? text.split(/\nMarkdown Content:\n/).slice(1).join("\nMarkdown Content:\n") : text;
   const field = (name: string) => new RegExp(`^${name}:\\s*(.+)$`, "m").exec(header)?.[1]?.trim() ?? null;
   return { title: field("Title"), url: field("URL Source"), publishedTime: field("Published Time"), markdown: body.trim() };
+}
+
+/** The words a page says to a bot it does not want, instead of its text. */
+const ANTI_BOT = /(enable\s+javascript|please\s+(?:log|sign)\s*in|access\s+denied|not\s+a\s+robot|robot\s+check|captcha|verify\s+you\s+are|抱歉|访问受限|安全验证)/i;
+
+/**
+ * Why an HTTP 200 is no article: nothing was rendered at all, or the whole document is a short wall.
+ * Text that merely mentions a captcha is the article, so the wall only counts when there is nothing
+ * else to read.
+ */
+export function unusableRendering(page: JinaPage): string | null {
+  const md = page.markdown.trim();
+  if (!md) return "empty markdown";
+  if (md.length < 400 && ANTI_BOT.test(md)) return "anti-bot wall";
+  return null;
 }
 
 /**
@@ -55,5 +70,14 @@ export async function jinaRead(
     },
   );
   const raw = String((receipt.response as { text?: string })?.text ?? "");
-  return { ...parseJinaText(raw), receiptId: receipt.receiptId, raw };
+  const page = parseJinaText(raw);
+  // A paid answer that carries no page is not a result: left as `received` it is reused for the rest of
+  // the day (that is what the day key is for), and the article silently loses its title and its date for
+  // 24 hours. Fail the receipt so the next attempt may pay for a real rendering, and say so out loud.
+  const broken = unusableRendering(page);
+  if (broken) {
+    await rejectReceivedResponse(receipt.receiptId, `jina rendering unusable (${broken})`);
+    throw new ProviderRejectedError(`jina returned no page for ${targetUrl} (${broken})`, 200, true);
+  }
+  return { ...page, receiptId: receipt.receiptId, raw };
 }

@@ -4,9 +4,9 @@ import TurndownService from "turndown";
 import { sql } from "../db.ts";
 import { proxyBodyImages } from "../media/imgproxy.ts";
 import { textToHtml } from "../content/sanitize.ts";
-import { ITEM_COLUMNS, ITEM_FROM, selectedCondition, toItemSummary, xView, type ItemRow } from "./items.ts";
+import { ITEM_COLUMNS, ITEM_FROM, releasedCondition, selectedCondition, toItemSummary, xView, type ItemRow } from "./items.ts";
 import { itemUrl } from "./links.ts";
-import { hasItemPage } from "./rules.ts";
+import { itemHasPage } from "./rules.ts";
 import { SITE } from "@aihot/industry/site";
 
 interface DetailRow extends ItemRow {
@@ -43,13 +43,18 @@ async function loadRow(id: string): Promise<DetailRow | null> {
   return row ?? null;
 }
 
+/** The four row fields the page rule reads; every exit that asks "does this item have a page" builds them the same way. */
+export function pageFacts(row: Pick<ItemRow, "visibility" | "source_mode" | "selected" | "visible_after">) {
+  return { visibility: row.visibility, sourceMode: row.source_mode, selected: row.selected, visibleAfter: row.visible_after };
+}
+
 /**
- * Public detail (rules.hasItemPage): items the lists leave out (low relevance, merged duplicates, no
- * Chinese summary yet) keep a noindex page; withdrawn and hot_signal items are a 404.
+ * Public detail (rules.itemHasPage): items the lists leave out (low relevance, merged duplicates, no
+ * Chinese summary yet) keep a noindex page; withdrawn, hot_signal and not-yet-released items are a 404.
  */
 export async function loadItemDetail(id: string, now = new Date()): Promise<DetailResult> {
   const row = await loadRow(id);
-  if (!row || !hasItemPage({ visibility: row.visibility, sourceMode: row.source_mode })) return { kind: "not_found" };
+  if (!row || !itemHasPage(pageFacts(row), now)) return { kind: "not_found" };
 
   const summary = toItemSummary(row);
   if (row.channel === "x") summary.x = xView(row, false, true);
@@ -107,7 +112,7 @@ export async function loadItemDetail(id: string, now = new Date()): Promise<Deta
     const [g] = await sql<{ public_id: string; reports: number; sources: number }[]>`
       SELECT f.public_id, count(p.article_id) AS reports, count(DISTINCT p.source_id) AS sources
       FROM facts f JOIN publications p ON p.fact_id = f.id
-      WHERE f.id = ${row.fact_id} AND p.visibility = 'public' AND p.eligible AND (NOT p.selected OR p.visible_after <= ${now})
+      WHERE f.id = ${row.fact_id} AND p.visibility = 'public' AND p.eligible AND ${releasedCondition(now)}
       GROUP BY f.public_id`;
     const [dev] = await sql<{ n: number }[]>`
       SELECT count(DISTINCT other.id) AS n FROM facts f
@@ -142,12 +147,14 @@ export async function loadItemDetail(id: string, now = new Date()): Promise<Deta
 
 /**
  * Same predicate for the export button and the export route: a public page with something to export
- * (a summary, the post, or a full-text body).
+ * (a summary, the post, or a full-text body). An item behind the release gate has no page, so it has no
+ * export either — the button and the route must not offer what the page itself refuses.
  */
 export function markdownAvailable(row: {
-  visibility: string; source_mode: string; summary: string | null; body_mode: string; body_html?: string | null; channel: string; x_post: Record<string, any> | null;
-}): boolean {
-  if (row.visibility !== "public" || !hasItemPage({ visibility: row.visibility, sourceMode: row.source_mode })) return false;
+  visibility: string; source_mode: string; selected: boolean; visible_after: Date | null;
+  summary: string | null; body_mode: string; body_html?: string | null; channel: string; x_post: Record<string, any> | null;
+}, now = new Date()): boolean {
+  if (row.visibility !== "public" || !itemHasPage(pageFacts(row), now)) return false;
   return !!row.summary || (row.channel === "x" && !!row.x_post?.text) || (row.body_mode === "full" && !!row.body_html);
 }
 

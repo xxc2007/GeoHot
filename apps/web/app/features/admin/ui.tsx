@@ -35,7 +35,11 @@ export function Card({ title, right, children, className = "", pad = true }: { t
 }
 
 export function Stat({ label, value, hint, tone }: { label: ReactNode; value: ReactNode; hint?: ReactNode; tone?: "ok" | "warn" | "bad" }) {
-  const color = tone === "bad" ? "text-hot" : tone === "warn" ? "text-amber" : tone === "ok" ? "text-ok" : "text-ink";
+  // The `-ink` half of each tone. On the admin card (--surface) the fills read 3.20:1 --amber, 4.99:1
+  // --ok, 5.70:1 --hot as a 22px number: only --amber clears AA by accident of size, and by 0.20. The
+  // same two tokens reappear at 11.5px inside `TONES` below, on their own 10% wash, where --amber is
+  // 2.90:1 and --ok 4.38:1 — both under AA for small text. The ink set is 6.28 / 5.68 / 5.07 there.
+  const color = tone === "bad" ? "text-hot-ink" : tone === "warn" ? "text-amber-ink" : tone === "ok" ? "text-ok-ink" : "text-ink";
   return (
     <div className="rounded-panel bg-surface px-4 py-3.5 ring-1 ring-line">
       <div className="text-[12.5px] text-ink-3">{label}</div>
@@ -47,9 +51,9 @@ export function Stat({ label, value, hint, tone }: { label: ReactNode; value: Re
 
 type Tone = "ok" | "warn" | "bad" | "muted" | "accent" | "info";
 const TONES: Record<Tone, string> = {
-  ok: "bg-ok/10 text-ok ring-ok/20",
-  warn: "bg-amber/10 text-amber ring-amber/25",
-  bad: "bg-hot-soft text-hot ring-hot/25",
+  ok: "bg-ok/10 text-ok-ink ring-ok/20",
+  warn: "bg-amber/10 text-amber-ink ring-amber/25",
+  bad: "bg-hot-soft text-hot-ink ring-hot/25",
   muted: "bg-bg-sunk text-ink-3 ring-line",
   accent: "bg-accent-soft text-accent ring-accent/20",
   info: "bg-surface-2 text-ink-2 ring-line-strong",

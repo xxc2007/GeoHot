@@ -1,8 +1,13 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { IconCheck, IconCopy } from "./icons";
 
 export function CopyButton({ text, label = "复制", className = "" }: { text: string; label?: string; className?: string }) {
   const [copied, setCopied] = useState(false);
+  // The "已复制" reset is a timer, and a timer an unmount never cancels fires `setCopied` on a component
+  // that is gone (React 19 drops it, but it also meant a navigation inside 1.5s kept a hidden page alive
+  // in the closure). One pending timer per button, cleared on the next copy and on unmount.
+  const reset = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (reset.current) clearTimeout(reset.current); }, []);
   return (
     <button
       type="button"
@@ -17,8 +22,9 @@ export function CopyButton({ text, label = "复制", className = "" }: { text: s
           document.execCommand("copy");
           ta.remove();
         }
+        if (reset.current) clearTimeout(reset.current);
         setCopied(true);
-        setTimeout(() => setCopied(false), 1500);
+        reset.current = setTimeout(() => setCopied(false), 1500);
       }}
       className={`inline-flex h-7 items-center gap-1 rounded-mark border border-line bg-surface px-2 text-[12px] transition-colors ${copied ? "text-ok" : "text-ink-3 hover:border-line-strong hover:text-ink"} ${className}`}
       aria-label={copied ? "已复制" : label}

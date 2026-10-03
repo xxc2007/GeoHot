@@ -13,7 +13,7 @@
 [![Derived from AIHOT](https://img.shields.io/badge/派生自-AIHOT_框架-1F1E1D)](NOTICE)
 [![Node](https://img.shields.io/badge/运行时-Node_24-1F1E1D)](#技术栈)
 [![Categories](https://img.shields.io/badge/分类-六个-D97757)](#-六个分类一条标准)
-[![Sources](https://img.shields.io/badge/信源-45_个-D97757)](#-现状与边界)
+[![Sources](https://img.shields.io/badge/信源-44%2B1_个-D97757)](#-现状与边界)
 [![Editorial brain](https://img.shields.io/badge/编辑大脑-人工策划_无_LLM_Key-1F1E1D)](#-编辑大脑是人工写的判断这一点不遮掩)
 [![GitHub](https://img.shields.io/badge/GitHub-@xxc2007-1F1E1D)](https://github.com/xxc2007)
 
@@ -31,7 +31,7 @@
 
 <br>
 
-> 这一页是介绍页。**操作手册**（本机跑法、端口对照、检查命令、已知边界、上线前清单）在 [`docs/manual.md`](docs/manual.md)——它就是这棵树原来的 README，内容一字未删地搬了过去。日常运营读 [`docs/geohot-runbook.md`](docs/geohot-runbook.md)，精选与校准读 [`docs/selection.md`](docs/selection.md)，换行业读 [`docs/customize.md`](docs/customize.md)，信源怎么配读 [`docs/sources.md`](docs/sources.md)，部署读 [`docs/deploy.md`](docs/deploy.md)，进程与目录读 [`docs/architecture.md`](docs/architecture.md)。后三份与 `docs/deploy.md` 是上游参考文档，若干命令与数字在本机不成立，逐条状态见 [`docs/manual.md` 第 9 节](docs/manual.md)。
+> 这一页是介绍页。**操作手册**（本机跑法、端口对照、检查命令、已知边界、上线前清单）在 [`docs/manual.md`](docs/manual.md)——它就是这棵树原来的 README，内容一字未删地搬了过去。日常运营读 [`docs/geohot-runbook.md`](docs/geohot-runbook.md)，精选与校准读 [`docs/selection.md`](docs/selection.md)，换行业读 [`docs/customize.md`](docs/customize.md)，信源怎么配读 [`docs/sources.md`](docs/sources.md)，部署读 [`docs/deploy.md`](docs/deploy.md)，**换域名或换服务器**读 [`docs/migration.md`](docs/migration.md)，进程与目录读 [`docs/architecture.md`](docs/architecture.md)。这份清单里只有 `README.md`、`docs/manual.md`、`docs/geohot-runbook.md`、`docs/migration.md` 是本站写的，其余（`customize/selection/sources/architecture/leaderboard/deploy`）都还是上游参考文档，若干命令与数字在本站不成立——**哪份文档该打折、逐条打到什么程度，看 [`docs/manual.md` 第 9 节那张"文档 × 状态"表](docs/manual.md)**（那张表是本仓库的反腐烂装置：它按文档逐条写明哪些说法已经不成立、哪些只是抄录）。
 
 </div>
 
@@ -41,7 +41,8 @@
   <img src="docs/shots/home-light.png" alt="首页精选：左侧导航、当前热点榜、按日期分组的精选卡片" width="100%">
 </p>
 <p align="center"><sub>
-  ▲ 首页「精选」· 顶部「当前热点」是那一刻的前五条：1 四川宜宾高县 M4.5 地震（热度 15）、2 巴布亚新几内亚近海 M5.6、3 新喀里多尼亚近海 M5.5、4 洛亚蒂群岛海域 M6.6、5 巴布亚新几内亚深源 M6 级（后四条各 10）· 下面按日期分组，每张卡片是来源、中文标题、摘要与编辑部写的推荐理由 —— 截图摄于 2026-10-02，这一屏每天在变
+  ▲ 首页「精选」· 截图摄于 **2026-10-02 14:02（+0800）**，路由 `/geohot/`，视口 1440×900，浅色主题 · 顶部「当前热点」是那一刻的前五条：1 四川宜宾高县 M4.5 地震（热度 15）、2 巴布亚新几内亚近海 M5.6、3 新喀里多尼亚近海 M5.5、4 洛亚蒂群岛海域 M6.6、5 巴布亚新几内亚深源 M6 级（后四条各 10）· 下面按日期分组，每张卡片是来源、标题、摘要与编辑部写的推荐理由。<br>
+  **这张图有一处已经不能代表本站**：图里第一张卡片（The Guardian·环境·入选分 83）整条是英文原文标题与英文摘要，那是当天 20:10 那一批文案修复（提交 `6bdb9fb`、`56c28d3`）之前的状态——2026-10-03 复核线上同一张卡片，标题已是中文（「像照顾宠物一样」：一款提醒你街区里的树是否缺水的应用），站上不再发布没有中文稿的条目。上面那句"每张卡片是来源、标题、摘要与推荐理由"因此是就代码现状说的，不是就这张图说的。**这一屏每天在变，线上地址才是事实来源**：`https://xxc2007.me/geohot/`。
 </sub></p>
 
 ---
@@ -94,11 +95,13 @@
 |---:|---:|---:|---:|---:|---:|
 | 1051 | 594 | 84 | 45 | 45 | 3 |
 
-（表里的「日报期数」是本机 `reports` 表的行数，含 0 件大事、已被读取层过滤不再列出的空刊；线上归档此刻只列 1 期——`/api/v1/dailies` 的 `count` 实测为 1。）
+（表里的「日报期数」是本机 `reports` 表的行数，含 0 件大事、已被读取层过滤不再列出的空刊。**线上出了几期不写在这里**——直接看 [`/daily/archive`](https://xxc2007.me/geohot/daily/archive) 或 `GET /api/v1/dailies` 的 `count`：每天 08:00 出刊后这个数字就会变，抄进介绍页只会过期。2026-10-03 复核：`count` 为 2，归档列 10-03 与 10-02 两期。）
 
-精选按分类：自然地理 32 · 区域地理 18 · 观点与解读 11 · 地理信息技术 9 · 人文地理 5 · 野外与考察 3（合计 78，其余条目没有分类字段）。45 个启用信源里 44 条登记在 `industry/sources.json`，另 1 条是投递接口在运维校验时自动建的 `external` 占位源；能真实轮询的以国际机构与英文媒体为主，国内一手层 7 个，另有 8 个 `external` 源是给人工投递预留的通道（`participation_mode=isolated`，站上暂不可见）。
+精选按分类：自然地理 32 · 区域地理 18 · 观点与解读 11 · 地理信息技术 9 · 人文地理 5 · 野外与考察 3（合计 78，其余条目没有分类字段）。
 
-**已部署**：[`xxc2007.me/geohot/`](https://xxc2007.me/geohot/)（2026-10-01）。四个常驻单元只监听回环、各自带内存上限，装在同一台跑着主站与 Artalk 的机器上，主站首页逐字节未变（`51432` 字节 / `4edf0fc53636a680…`）。怎么装的、验证命令、以及部署时踩过的六个坑，都在 [`deploy/geohot/DEPLOYMENT.md`](deploy/geohot/DEPLOYMENT.md)。**日报已出刊**：线上 `/daily` 是「2026-10-02 第 1 期」，21 件大事、14 个来源、12 件一手发布、约 10 分钟读完（就是下面那张图）。上线首日（10-01）`/daily` 确实是诚实的空态——worker 在当天 08:00 档期之后才起，那份日报本来就属于第二天，原因与空刊怎么被读取层过滤，写在 [`docs/known-issues.md`](docs/known-issues.md)。
+**信源数量的唯一说法在这里**（其余文档一律指向本段，别再抄一份数字）：登记在 [`industry/sources.json`](industry/sources.json) 的是 **44 条**（`node -e "console.log(require('./industry/sources.json').sources.length)"` 当场可数），本机库里 `sources` 表是 **45 行**——多出的那一行是投递接口在运维校验时自动建的 `external` 占位源 `ext-opscheck-ingest-probe`（站上不可见，清理 SQL 在 `scripts/README-ingest.md` 末尾），所以顶上那枚徽标写「44+1」。这 44 条里 **36 条真在轮询**（26 `rss` + 7 `web_list` + 3 `json_list`）、**8 条 `external`** 是给人工投递预留的通道（`participation_mode=isolated`，站上暂不可见）。可轮询那 36 条以国际机构与英文媒体为主；国内机构与中文媒体那一层是 7 条：中国地震台网中心、中央气象台、国家统计局、水利部（两条）、应急管理部、澎湃新闻（另有《地理研究》当期目录与 SpaceMapper 两个中文刊物/转载层，不计入这 7 条）。本站没有任何 `x_search`/`mp_account`/按次计费的信源（现值 0 条），采集不产生账单。
+
+**已部署**：[`xxc2007.me/geohot/`](https://xxc2007.me/geohot/)（2026-10-01）。四个常驻单元只监听回环、各自带内存上限，装在同一台跑着主站与 Artalk 的机器上，主站首页逐字节未变（`51432` 字节 / `4edf0fc53636a680…`，2026-10-03 又用 `curl -s https://xxc2007.me/ | wc -c` 与 `sha256sum` 复核过一遍）。怎么装的、验证命令、以及部署时踩过的坑（那张「症状 → 真正原因」表），都在 [`deploy/geohot/DEPLOYMENT.md`](deploy/geohot/DEPLOYMENT.md)。**日报已出刊**：`/daily` 给的是**最新一期**（这一句不写期号与日期，每天 08:00 它都会变），下面那张图是 **2026-10-02 第 1 期**（`/daily/2026-10-02`）：21 件大事、14 个来源、12 件一手发布、约 10 分钟读完——这四个数字属于那一期，不属于"今天"。上线首日（10-01）`/daily` 确实是诚实的空态——worker 在当天 08:00 档期之后才起，那份日报本来就属于第二天，原因与空刊怎么被读取层过滤，写在 [`docs/known-issues.md`](docs/known-issues.md)。
 
 还没做好的地方单独列了一份 [`docs/known-issues.md`](docs/known-issues.md)：被撤下的综述溯源校验器（会误删忠实内容）、GDACS 绿色通报的英文模板标题进了公开池、摘要质量闸门、以及上游文档与本站不符之处。这份清单不是免责声明，是待办列表。
 
@@ -106,14 +109,16 @@
   <img src="docs/shots/hot-light.png" alt="地理热点榜：NO.01 大卡片带 24 小时热度曲线，右侧两张次条卡片" width="100%">
 </p>
 <p align="center"><sub>
-  ▲ 热点榜 `/hot` · 图里这一刻（页面自述 2026-10-02 14:00 更新）过去 48 小时讨论最多的是 6 个事件 · 首位 NO.01 是四川宜宾高县 M4.5：中国地震台网中心速报目录、USGS 全球地震目录、澎湃三家对同一次破裂各报一次（台网 M4.5/5 千米，USGS mb 5.0/10 公里），并成一个事件，热度指数 15、3 位参与者 · 这个榜每天在动，2026-10-02 傍晚复核同一页已经是 10 个事件
+  ▲ 热点榜 `/hot` · 截图摄于 **2026-10-02 14:02（+0800）**，路由 `/geohot/hot`，视口 1440×900，浅色主题；图里页面自述「10月2日 14:00 更新」· 那一刻过去 48 小时讨论最多的是 6 个事件，首位 NO.01 是四川宜宾高县 M4.5：中国地震台网中心速报目录、USGS 全球地震目录、澎湃三家对同一次破裂各报一次（台网 M4.5/5 千米，USGS mb 5.0/10 公里），并成一个事件，热度指数 15、3 位参与者。<br>
+  **图里的热度数字几小时就作废**：`hot.rank` 在 `apps/worker/src/schedules.ts:42` 上是 `*/5 * * * *`——这个榜每 5 分钟重排一次。2026-10-02 傍晚复核同一页是 10 个事件；2026-10-03 09:40 再复核又回到 6 个事件、NO.01 仍是那次 M4.5 但热度指数已经掉到 9。所以这一屏以线上为准：`https://xxc2007.me/geohot/hot`（或 `GET /api/v1/hot-topics`）。
 </sub></p>
 
 <p align="center">
   <img src="docs/shots/daily-light.png" alt="地理日报头版：报头字、期号卡、导读与分节正文" width="100%">
 </p>
 <p align="center"><sub>
-  ▲ `/daily` · 2026-10-02 第 1 期（截图截至这一天，本站只出了这一期）· 报头字「地理日报」是本站自己生成的 SVG · 这一期 21 件大事、14 个来源、12 件一手发布、5 项技术与数据发布，约 10 分钟读完 · 头条是 ESA 报道的两极冰盖损失，右侧导读三条，本期版面三节 8 + 5 + 8 件
+  ▲ `/daily` · 截图摄于 **2026-10-02 14:03（+0800）**，视口 1440×900，浅色主题；图里那一版是 **2026-10-02 第 1 期**，要复现这张图请打开固定地址 `/daily/2026-10-02`，**不要打开 `/daily`**——`/daily` 是"最新一期"，2026-10-03 08:00 起它给的是第 2 期（本期只有 1 条入选）。报头字「地理日报」是本站自己生成的 SVG（`scripts/nameplates.ts` 按 `SITE.subject` 出图）。这一期 21 件大事、14 个来源、12 件一手发布、5 项技术与数据发布，约 10 分钟读完，头条是 ESA 报道的两极冰盖损失，右侧导读三条，本期版面三节 8 + 5 + 8 件。<br>
+  **这张图里有一处英文**：导读段末尾的「Sudden collapse of submarine volcano drives extreme hazards。」和右侧「今日看点 3」的整条英文标题，是当天 20:10 那一批文案修复之前的状态。2026-10-03 复核线上 `/daily/2026-10-02`，那两处都已是中文（「海底火山的突然坍塌会驱动极端灾害」），整页正文里已找不到成句的英文标题。**线上才是事实来源**：`https://xxc2007.me/geohot/daily`。
 </sub></p>
 
 ## 🗂 站点结构
@@ -125,15 +130,17 @@
 | `/` · `/all` | 精选 · 全部地理动态（含搜索） |
 | `/hot` | 地理热点榜（按事件排，不是按条目） |
 | `/daily` · `/daily/archive` · `/daily/:key` | 最新一期 · 存档 · 单期；`/weekly`、`/monthly` 同构 |
-| `/topics` · `/topics/:slug` | 主题目录（45 个）· 单个主题页 |
+| `/topics` · `/topics/:slug` | 主题目录（条数以 `industry/topics.json` 为准；2026-10-03 实测文件与站上都是 45）· 单个主题页 |
 | `/story/:publicId` · `/items/:id` | 事件页（多方报道并成一条）· 条目页，另有 `/items/:id/original` 原文跳转 |
 | `/about` · `/agent` · `/changelog` · `/feedback` · `/terms` · `/privacy` · `/more` | 关于 · Agent 接入 · 更新日志 · 反馈 · 条款 · 隐私 · 更多 |
 | `/starred` | 我的收藏——只存在这台设备的浏览器里，`noindex` |
 | `/admin/*` | 后台，**要登录**（密码是 `.env` 里 `npm run env:init` 生成的 `ADMIN_PASSWORD`） |
 
-`/leaderboard` 与 `/codex-reset` 还留在路由表里，但 `industry/features.ts` 把这两个 AI 专属模块关了，接口不注册，实际是 404。
+`/leaderboard` 与 `/codex-reset` 还留在路由表里，但这两个 AI 专属模块被关掉了，接口不注册，实际是 404。**这件事的唯一依据是 [`industry/features.ts`](industry/features.ts) 里那两个布尔值**（`leaderboard: false`、`codexResetMonitor: false`）；完整影响面——哪些端点不注册、后台还剩什么、底表搬去了哪里——只写在 [`docs/manual.md` 第 9 节](docs/manual.md) `docs/leaderboard.md` 那一行，其余文档一律指向它，不再各抄一遍。
 
-机器可读出口读的都是 `packages/backend/src/publication/` 这一个只读层，所以内容一致：RSS（`/feed.xml`、`/feed/full.xml`、`/feed/all.xml`、`/feed/daily.xml`、按分类的 `/feed/category/<key>.xml`）、公开 API（`/api/v1`，规范 `/openapi-v1.json`，说明页 `/agent`）、`/llms.txt`、`/sitemap.xml`、`/robots.txt`、`/.well-known/security.txt`，以及 MCP（`/api/mcp`，5 个只读工具：`geohot_get_latest`、`geohot_search`、`geohot_get_hot_topics`、`geohot_get_story`、`geohot_get_daily`）。读者打开页面不触发任何模型调用。
+机器可读出口读的都是 `packages/backend/src/publication/` 这一个只读层，所以内容一致：RSS（`/feed.xml`、`/feed/full.xml`、`/feed/all.xml`、`/feed/daily.xml`、`/feed/weekly.xml`、`/feed/monthly.xml`、按分类的 `/feed/category/<key>.xml`）、公开 API（`/api/v1/*` 一组只读端点，`/api/v1` 本身不是路由；规范 `/openapi-v1.json`，说明页 `/agent`）、`/llms.txt`、`/sitemap.xml`、`/robots.txt`，以及 MCP（`/api/mcp`，**7 个只读工具**：`geohot_get_latest`、`geohot_search`、`geohot_get_hot_topics`、`geohot_get_story`、`geohot_get_daily`、`geohot_get_weekly`、`geohot_get_monthly`；2026-10-03 用 `tools/list` 实测就是这 7 个，后两个是 10-02 那轮接上的）。
+
+`/.well-known/security.txt` 是**注册了但按设计返回 404** 的那一个：路由存在，只有当 `industry/site.ts` 的 `contactEmail` 有值时才渲染，现在它是 `null`（`site.ts:38`），所以线上 404——宁可不发布，也不挂一个没人看的地址。填上真实地址它就出现；子路径部署还有一层限制（RFC 8615 的 `/.well-known/` 只在域名根生效），写在 [`docs/known-issues.md`](docs/known-issues.md)。读者打开页面不触发任何模型调用。
 
 ```text
 GEOHOT/
@@ -147,9 +154,9 @@ GEOHOT/
 ├── industry/         # ★ 行业层：换行业只动这里（见下面那节）
 ├── database/         # 迁移（只做向后兼容的增量，35 个）
 ├── scripts/          # env:init · dev-db · migrate · seed · seed:curated · smoke · collect · eval-selection
-├── tooling/          # brain-stub.ts（编辑大脑 stub）· fixtures/（人工判断）· corpus/（人工语料）
+├── tooling/          # brain-stub.ts（编辑大脑 stub）· fixtures/（人工判断）· corpus/（人工语料）· ci-check.yml（CI 正本，见下面那节）
 ├── tests/            # node --test，串行、共享一个 *_test 库，不碰任何外部服务
-├── docs/             # manual.md（操作手册）· runbook/selection/customize/… · shots/（本页配图）
+├── docs/             # manual.md（操作手册）· migration.md（搬家清单）· runbook/selection/customize/… · shots/（本页配图）
 └── LICENSE · NOTICE · AGENTS.md
 ```
 
@@ -175,7 +182,7 @@ GEOHOT/
 |---|---|
 | `site.ts` | 站名、行业词 `subject`（拼进"地理日报""全部地理动态"）、首页与关于页文案、MCP 工具名前缀、`contactEmail`、`icp` |
 | `taxonomy.ts` | 六个分类、七种内容类型、三个标签词表、机构名录、防张冠李戴的身份词典 |
-| `topics.json` | 主题页目录（`/topics`，现在 45 个） |
+| `topics.json` | 主题页目录（`/topics`）；条数以这个文件为准，别抄进文档（2026-10-03 文件与站上都是 45） |
 | `sources.json` | 首次启动导入的信源（`ON CONFLICT DO NOTHING`，只增不改，之后在后台增删） |
 | `prompts/` | 27 个文件：精选标准、写作要求、噪声例子——**行业 KnowHow 就写在这里**，改标准不用改代码 |
 | `selection.ts` | 门槛与 `understandFloor`，文件头注释是它的算式与"未校准"声明 |
@@ -211,7 +218,15 @@ node --env-file=.env --env-file=.env.pipeline apps/worker/src/main.ts # 采集�
 npm run dev:web                                                      # http://localhost:3000
 ```
 
-验证：`npm run typecheck`（六个工程，无输出即通过），构建后 `npm run build -w @aihot/web && node scripts/smoke.ts --base http://localhost:3000`（15 个页面 + 15 个机器可读出口，只读）。
+验证：`npm run typecheck`（六个工程，无输出即通过），构建后 `npm run build -w @aihot/web && node scripts/smoke.ts --base http://localhost:3000`（**17 个页面 + 18 个机器可读出口**，逐条列在 `scripts/smoke.ts:12` 与 `:13-32` 的 `PAGES` / `MACHINE` 两张表里，只读不写；模型榜开着时它还会再追加三页，本站那两个模块是关的所以不追加）。
+
+**CI 的正本在 [`tooling/ci-check.yml`](tooling/ci-check.yml)，不在 `.github/`**——所以你在 GitHub 上看到的 Actions 页是空的，这不是没配检查。原因写在 `publish-excludes` 与那份文件自己的头部注释里：发布用的令牌没有 `workflow` 作用域，GitHub 拒绝它创建或更新 `.github/workflows/*`，把文件留在 `.github/` 下就永远进不了公开仓库，"仓库与源码同步"这句话就要打折。要跑 GitHub Actions 的人复制回去即可：
+
+```bash
+mkdir -p .github/workflows && cp tooling/ci-check.yml .github/workflows/check.yml   # 这一步需要带 workflow 作用域的 token
+```
+
+它跑的是：安装、typecheck、web 构建、web 与后端测试（全新的 PostgreSQL）、构建产物的 smoke，以及 Docker 镜像起一遍。
 
 > **`env:init` 为什么不能跳**：`.env` 与 `.env.pipeline` 都被 `.gitignore` 排除，克隆里一个都没有，而上面的启动命令写的是 `--env-file=.env`——文件不存在时 Node 直接以退出码 9 死掉。手工 `cp .env.example .env` 也不是条通路：`ADMIN_PASSWORD`、`SESSION_SECRET`、`INGEST_TOKEN` 等五个键全是空的，后台进不去、投递接口恒 401。
 > **`.env.pipeline` 是一次性文件**：`.env` 里四个安全阀一律 `false`（`npm test` 会继承 `.env`），只有叠这第二层才真的抓信源。**永远不要把它的内容合并进 `.env`。**
@@ -223,7 +238,7 @@ npm run dev:web                                                      # http://lo
 - **视觉语言刻意继承上游，但不是逐字节相同**：[`apps/web/app/app.css`](apps/web/app/app.css) 相对它进仓时的那一份（baseline 提交 `754191b`）有**三处**偏离，`git diff 754191b -- apps/web/app/app.css` 当场可查，逐处都有理由：① `--rank-rest`（第 4 名往后的排名数字，读者看得到的正文而不是装饰）浅色档从 `#6b7684` 调暗到 `#697482`、深色档从 `#7b869a` 到 `#7d889b`，原值实测 4.38:1 / 4.40:1，差在 WCAG AA 4.5:1 之下；② `--daybar` 浅色档从 `#f0f2ee` 提到 `#f2f4f0`（附 4 行注释说明为什么），这是 2026-10-02 那一轮对比度整改的一部分——手机日栏把 `--ink-4` 画在 `--daybar` 上实测 4.46:1，Lighthouse 的移动端 colour-contrast 审计因此失败，把底色提亮两档到 4.54:1 就能过，而不用去动任何文字令牌；③ 文件末尾**整段 `@media print` 是上游没有的**，本站把日报当报纸版式，取舍写在注释里：打印时收起侧栏与底部导航、去掉画布网点（它是内容不是背景，"关闭背景图形"管不住它）、卡片改白底灰框、标题不许落在页尾。除这三处之外一字未改。
 - **无障碍是照着审计做的**：每个视口宽度下恰好一个 `<h1>`（首页那个与视口无关，侧栏标题在源码顺序上排到它之后）；主题切换与"就地切换状态"的筛选器是 `role="radiogroup"` + roving tabindex，一组只有一个 Tab 停靠点，方向键与 `Home`/`End` 直接改选（它们的面板属于页面不属于控件，所以没用 `tablist`）；被辅助技术丢弃的 `aria-label` 换成真实名字——分数徽标补 `role="img"`，更新圆点标 `aria-hidden` 并配一句 `sr-only` 文字（颜色不能单独承载信息，WCAG 1.4.1）；移动端底部标签栏 54px 高、四等分，明显高于 44px 的最小热区，桌面侧栏行高 40px 走鼠标面。
 - **品牌是原创的，且刻意不像上游**：站点标记「经纬之交」——墨色地球切一条经线三条纬线，唯一的青色热点正落在北纬与经线的交点上（`industry/brand/logo.svg`，文件头写着几何与配色的理由）。不用上游的名字与 Logo。
-- **空状态是设计的一部分**：`野外与考察` 几乎没有供给（25 个可轮询 feed 里没有科考队），主题页里有一堆"0 条精选"的主题，日报薄的时候它就写着"本期共 1 条"。分类的 `key` 进 URL 所以不能删，空状态因此被当成页面认真做，而不是当成 bug。
+- **空状态是设计的一部分**：`野外与考察` 几乎没有供给（可轮询的 36 条信源里没有科考队——科考航次与国家预警那几条登记为 `external`，要人工投递才可见），主题页里有一堆"0 条精选"的主题，日报薄的时候它就写着"本期共 1 条"。分类的 `key` 进 URL 所以不能删，空状态因此被当成页面认真做，而不是当成 bug。
 - **读者要行动的地方就有免责声明**：命中灾害标签的条目页直接渲染"本站不是预警信息的发布机构，本页内容不构成预警依据……"，不是只在 `/terms` 里藏着。
 - **门槛是经验护栏，不是证明**：`industry/selection.ts` 的头注释自己算给你看——12 条噪声硬上限只封住一到两轴，五轴从不回传代码，按字面算营销稿的天花板是 92–93 分，任何可用门槛都关不住它；真在下限拦噪声的是预筛的 `BLOCK` 与信源分级摆放。把 56/59/62 读成"营销稿数学上不可能入选"就是误读了这份文档。
 

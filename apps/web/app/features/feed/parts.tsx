@@ -65,11 +65,14 @@ export function StarButton({ item, size = 26, className = "" }: { item: Pick<Fee
       onClick={(e) => {
         e.preventDefault();
         e.stopPropagation();
-        const added = toggleStar({
+        // The starred store is locked now (two tabs must not lose an entry), so the answer arrives later:
+        // the pulse has to follow the answer, not the click, or un-starring still animates.
+        void toggleStar({
           id: item.id, title: item.title, summary: item.summary, sourceName: item.source.name,
           publishedAt: item.publishedAt, score: item.score, aiSelected: item.selected,
+        }).then((added) => {
+          if (added) setPulse((p) => p + 1);
         });
-        if (added) setPulse((p) => p + 1);
       }}
       style={{ width: size, height: size }}
       className={`relative z-10 inline-flex shrink-0 items-center justify-center rounded-control transition-colors duration-150 ${on ? "text-accent" : "text-ink-4 hover:bg-bg-sunk hover:text-ink-2"} ${className}`}

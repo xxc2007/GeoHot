@@ -85,7 +85,26 @@ export default function TopicPage() {
       </div>
       {items.length === 0 ? (
         <div className="lg:card">
-          <EmptyState title="这个主题暂时还没有精选内容" />
+          {/* 分页越界时不能说「这个主题暂时还没有精选内容」——它明明有，只是不在这一页。
+             （读取层对越界页回 404，所以这条分支是 defence in depth：数据一旦给出空白页，页面自己认账。） */}
+          {page > 1 ? (
+            <EmptyState
+              as="h2"
+              title={`第 ${page} 页没有内容`}
+              action={<Link to={`/topics/${topic.slug}`} className="text-[13px] font-medium text-accent hover:underline">回到第 1 页</Link>}
+            >
+              这个主题共有 {topic.total.toLocaleString("zh-CN")} 条精选，分 {pageCount} 页。
+            </EmptyState>
+          ) : (
+            // 空手而归要给出路：这一页只统计最近 30 天的入选条目，"没有"不等于"这个主题不存在"。
+            <EmptyState
+              as="h2"
+              title="这个主题最近 30 天没有入选条目"
+              action={<Link to="/all" className="text-[13px] font-medium text-accent hover:underline">去全部动态里找找</Link>}
+            >
+              主题页只看最近 30 天里入选精选的条目；更早的内容仍在「全部动态」和搜索里。
+            </EmptyState>
+          )}
         </div>
       ) : (
         <DayList items={items} />

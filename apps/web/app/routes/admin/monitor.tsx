@@ -56,7 +56,8 @@ export async function loader({ request }: Route.LoaderArgs) {
   const url = new URL(request.url);
   const tab = url.searchParams.get("tab") ?? "events";
   if (tab === "posts") {
-    const posts = await adminGet<{ page: number; filter: string; rows: Post[] }>(request, `/api/admin/monitor/posts?filter=${url.searchParams.get("filter") ?? "relevant"}&page=${url.searchParams.get("page") ?? 1}`);
+    // 查询串要编码：`?filter=relevant&page=999` 这类值原样拼进去会多出调用方自己塞的参数。
+    const posts = await adminGet<{ page: number; filter: string; rows: Post[] }>(request, `/api/admin/monitor/posts?filter=${encodeURIComponent(url.searchParams.get("filter") ?? "relevant")}&page=${encodeURIComponent(url.searchParams.get("page") ?? "1")}`);
     return { tab, posts, events: null };
   }
   const events = await adminGet<{ events: MonitorEvent[] }>(request, `/api/admin/monitor/events${url.searchParams.get("withdrawn") ? "?withdrawn=1" : ""}`);

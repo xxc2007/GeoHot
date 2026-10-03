@@ -9,6 +9,8 @@ export const KEYS = {
   theme: "aihot-theme",
   changelogSeen: "aihot-changelog-seen-version",
   feedbackDraft: "aihot-feedback-draft-v1",
+  /** 事件页时间线的排序选择。本站自己的偏好键（源站宣传这个行为，公开仓库里没有实现）。 */
+  timelineOrder: "aihot-story-timeline-order",
 } as const;
 
 export const STARRED_LIMIT = 500;
@@ -100,6 +102,47 @@ function invalidate(key: string) {
   emit(key);
 }
 
+/**
+ * 一次"读—改—写"要是一个整体。两个标签页各拿着一份内存快照：A 收藏、B 取消收藏，后写的那一份
+ * 会整串覆盖前一份，读者就这么丢了条目（`storage` 事件到了也来不及，快照还是旧的）。Web Locks 把
+ * 这一串操作跨标签页排成队，并且一进锁就先丢掉快照——合并必须从存储里现在的值开始算。
+ * 浏览器隐私设置可能直接不给锁：取不到锁也不能不写，退回无锁的一次写入（同一台机器上仍然安全，
+ * 只是不再有跨页保证），而锁已经拿到手之后再出错就照原样抛出，不能假装没进过锁。
+ */
+const LOCAL_DATA_LOCK = "aihot:local-data";
+
+async function editLocalData<T>(change: () => T): Promise<T> {
+  const run = () => {
+    cache.clear();
+    return change();
+  };
+  const locks = typeof window !== "undefined" ? window.navigator?.locks : undefined;
+  if (!locks) return run();
+  let entered = false;
+  let result!: T;
+  await locks
+    .request(LOCAL_DATA_LOCK, async () => {
+      entered = true;
+      result = run();
+    })
+    .catch((error: unknown) => {
+      if (entered) throw error;
+      result = run();
+    });
+  return result;
+}
+
+/** 收藏那份存储自己坏了（不是没写过）：这时候任何"覆盖式"的写都会把读者的数据抹掉。 */
+function starredUnreadable(): boolean {
+  const raw = readRaw(KEYS.starred);
+  if (!raw) return false;
+  try {
+    return !Array.isArray(JSON.parse(raw));
+  } catch {
+    return true;
+  }
+}
+
 // --- starred ---
 function isStarredItem(v: unknown): v is LocalStarredItem {
   if (!v || typeof v !== "object") return false;
@@ -155,18 +198,25 @@ export function isStarred(id: string): boolean {
   return starredSetCache.ids.has(id);
 }
 
-export function toggleStar(item: Omit<LocalStarredItem, "savedAt">): boolean {
-  const list = getStarred();
-  const exists = list.some((s) => s.id === item.id);
-  const next = exists ? list.filter((s) => s.id !== item.id) : [{ ...item, savedAt: new Date().toISOString() }, ...list].slice(0, STARRED_LIMIT);
-  writeRaw(KEYS.starred, JSON.stringify(next));
-  invalidate(KEYS.starred);
-  return !exists;
+export function toggleStar(item: Omit<LocalStarredItem, "savedAt">): Promise<boolean> {
+  return editLocalData(() => {
+    if (starredUnreadable()) return false;
+    const list = getStarred();
+    const exists = list.some((s) => s.id === item.id);
+    const next = exists ? list.filter((s) => s.id !== item.id) : [{ ...item, savedAt: new Date().toISOString() }, ...list].slice(0, STARRED_LIMIT);
+    const saved = writeRaw(KEYS.starred, JSON.stringify(next));
+    invalidate(KEYS.starred);
+    // 写失败（存储满了或被挡）不能报"收藏好了"；坏掉的旧数据也不去覆盖它。
+    return saved && !exists;
+  });
 }
 
-export function removeStar(id: string) {
-  writeRaw(KEYS.starred, JSON.stringify(getStarred().filter((s) => s.id !== id)));
-  invalidate(KEYS.starred);
+export function removeStar(id: string): Promise<void> {
+  return editLocalData(() => {
+    if (starredUnreadable()) return;
+    writeRaw(KEYS.starred, JSON.stringify(getStarred().filter((s) => s.id !== id)));
+    invalidate(KEYS.starred);
+  });
 }
 
 // --- read items (LRU, newest first) ---
@@ -193,13 +243,15 @@ export function getReadSet(): Set<string> {
   return readSetCache.set;
 }
 
-export function markRead(id: string) {
-  if (!ID_PATTERN.test(id)) return;
-  const ids = getReadIds();
-  if (ids[0] === id) return;
-  const next = [id, ...ids.filter((v) => v !== id)].slice(0, READ_LIMIT);
-  writeRaw(KEYS.read, JSON.stringify(next));
-  invalidate(KEYS.read);
+export function markRead(id: string): Promise<void> {
+  return editLocalData(() => {
+    if (!ID_PATTERN.test(id)) return;
+    const ids = getReadIds();
+    if (ids[0] === id) return;
+    const next = [id, ...ids.filter((v) => v !== id)].slice(0, READ_LIMIT);
+    writeRaw(KEYS.read, JSON.stringify(next));
+    invalidate(KEYS.read);
+  });
 }
 
 // --- theme ---
@@ -229,6 +281,21 @@ export function resolvedTheme(pref: ThemePreference = getThemePreference()): "li
 
 /** Inline script run before paint so the first frame already has the reader's theme. */
 export const THEME_BOOT_SCRIPT = `(function(){try{var t=localStorage.getItem('${KEYS.theme}');if(t==='"light"'||t==='"dark"')t=JSON.parse(t);if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){document.documentElement.setAttribute('data-theme','light')}})();`;
+
+// --- story timeline order（事件页时间线的排序偏好）---
+// 诚实说明：源站把"记住排序选择"当成一个卖点宣传，但它的公开仓库里并没有实现（`useState("desc")`），
+// 所以这是本站自己补上的一站，不是上游同步；changelog 里不要写"与上游一致"。
+// 只有这一页的两个选项值得留下；不进导出包（那是收藏/已读/主题三样的格式，读者的旧文件还认得）。
+export type TimelineOrder = "desc" | "asc";
+
+/** 没有写过、值不认识、存储读不到，都回到默认的最新在前。 */
+export function getTimelineOrder(): TimelineOrder {
+  return readRaw(KEYS.timelineOrder) === "asc" ? "asc" : "desc";
+}
+
+export function setTimelineOrder(order: TimelineOrder) {
+  writeRaw(KEYS.timelineOrder, order);
+}
 
 // --- changelog red dot ---
 export function getChangelogSeen(): string | null {
@@ -265,7 +332,7 @@ export interface ImportReport {
 }
 
 /** Merge: existing stars are not overwritten, read ids are unioned, theme only if unset. */
-export function importBundle(text: string): ImportReport {
+export async function importBundle(text: string): Promise<ImportReport> {
   if (text.length > IMPORT_MAX_CHARS) throw new Error("文件过大（上限 2,000,000 字符）");
   let data: unknown;
   try {
@@ -282,45 +349,49 @@ export function importBundle(text: string): ImportReport {
   });
 }
 
-export function mergeLocalData(incoming: { starred: unknown[]; read: unknown[]; theme: unknown }): ImportReport {
-  const current = getStarred();
-  const have = new Set(current.map((s) => s.id));
-  const additions: LocalStarredItem[] = [];
-  let starredSkipped = 0;
-  for (const s of incoming.starred) {
-    if (!isStarredItem(s)) { starredSkipped++; continue; }
-    if (have.has(s.id)) continue;
-    have.add(s.id);
-    additions.push(normalizeStarred(s as unknown as Record<string, unknown>));
-  }
-  const room = Math.max(0, STARRED_LIMIT - current.length);
-  const accepted = additions.slice(0, room);
-  starredSkipped += additions.length - accepted.length;
-  const mergedStarred = [...current, ...accepted].sort((a, b) => Date.parse(b.savedAt) - Date.parse(a.savedAt));
-  // An import is reported only after it was written; a failure here leaves the browser as it was.
-  if (!writeRaw(KEYS.starred, JSON.stringify(mergedStarred))) throw new Error("浏览器存储已满或不可用，这次没有导入任何内容。");
+export function mergeLocalData(incoming: { starred: unknown[]; read: unknown[]; theme: unknown }): Promise<ImportReport> {
+  return editLocalData(() => {
+    // 读者自己的数据先想办法救（导出、修好），不被一次导入替换掉。
+    if (starredUnreadable()) throw new Error("这台设备上已有的收藏数据无法读取，为避免覆盖，这次没有导入。");
+    const current = getStarred();
+    const have = new Set(current.map((s) => s.id));
+    const additions: LocalStarredItem[] = [];
+    let starredSkipped = 0;
+    for (const s of incoming.starred) {
+      if (!isStarredItem(s)) { starredSkipped++; continue; }
+      if (have.has(s.id)) continue;
+      have.add(s.id);
+      additions.push(normalizeStarred(s as unknown as Record<string, unknown>));
+    }
+    const room = Math.max(0, STARRED_LIMIT - current.length);
+    const accepted = additions.slice(0, room);
+    starredSkipped += additions.length - accepted.length;
+    const mergedStarred = [...current, ...accepted].sort((a, b) => Date.parse(b.savedAt) - Date.parse(a.savedAt));
+    // An import is reported only after it was written; a failure here leaves the browser as it was.
+    if (!writeRaw(KEYS.starred, JSON.stringify(mergedStarred))) throw new Error("浏览器存储已满或不可用，这次没有导入任何内容。");
 
-  const readIds = getReadIds();
-  const readHave = new Set(readIds);
-  const readAdditions: string[] = [];
-  let readSkipped = 0;
-  for (const id of incoming.read) {
-    if (typeof id !== "string" || !ID_PATTERN.test(id)) { readSkipped++; continue; }
-    if (readHave.has(id)) continue;
-    readHave.add(id);
-    readAdditions.push(id);
-  }
-  const readRoom = Math.max(0, READ_LIMIT - readIds.length);
-  readSkipped += Math.max(0, readAdditions.length - readRoom);
-  const readFailed = !writeRaw(KEYS.read, JSON.stringify([...readIds, ...readAdditions.slice(0, readRoom)]));
+    const readIds = getReadIds();
+    const readHave = new Set(readIds);
+    const readAdditions: string[] = [];
+    let readSkipped = 0;
+    for (const id of incoming.read) {
+      if (typeof id !== "string" || !ID_PATTERN.test(id)) { readSkipped++; continue; }
+      if (readHave.has(id)) continue;
+      readHave.add(id);
+      readAdditions.push(id);
+    }
+    const readRoom = Math.max(0, READ_LIMIT - readIds.length);
+    readSkipped += Math.max(0, readAdditions.length - readRoom);
+    const readFailed = !writeRaw(KEYS.read, JSON.stringify([...readIds, ...readAdditions.slice(0, readRoom)]));
 
-  let themeApplied = false;
-  if (!getThemePreference() && (incoming.theme === "light" || incoming.theme === "dark")) {
-    themeApplied = writeRaw(KEYS.theme, incoming.theme);
-  }
-  cache.clear();
-  emit();
-  return { starredAdded: accepted.length, starredSkipped, readAdded: readFailed ? 0 : Math.min(readAdditions.length, readRoom), readSkipped, themeApplied, readFailed };
+    let themeApplied = false;
+    if (!getThemePreference() && (incoming.theme === "light" || incoming.theme === "dark")) {
+      themeApplied = writeRaw(KEYS.theme, incoming.theme);
+    }
+    cache.clear();
+    emit();
+    return { starredAdded: accepted.length, starredSkipped, readAdded: readFailed ? 0 : Math.min(readAdditions.length, readRoom), readSkipped, themeApplied, readFailed };
+  });
 }
 
 // --- React hooks ---

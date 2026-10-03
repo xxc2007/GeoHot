@@ -9,7 +9,7 @@ import { FeedItem } from "./FeedItem";
 import { IconChevronDown } from "../../components/icons";
 import { RingMark } from "../../components/Logo";
 import { EmptyState } from "../../components/ui/Page";
-import { beijingDate, beijingTime, beijingWeekday } from "../../lib/format";
+import { beijingDate, beijingTime, beijingWeekday, dayLabel } from "../../lib/format";
 import { publicPath } from "../../lib/public-path";
 import { markRead, useReadSet } from "../../lib/local-state";
 import { isHydrated, isReload, markHydrated, readSnapshot, restoreAnchor, saveSnapshot } from "./restore";
@@ -211,26 +211,37 @@ export function Timeline({ initial, filters }: { initial: TimelineResponse; filt
     try {
       const res = await fetch(publicPath(`/api/site/timeline?${filterQuery(filters, { cursor: s.nextCursor })}`), { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]) });
       if (res.status === 400) {
-        // Cursor no longer fits: start over from the head.
-        const head = await fetch(publicPath(`/api/site/timeline?${key}`), { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]) });
-        if (head.ok && current()) setState(fromResponse((await head.json()) as TimelineResponse));
+        // Cursor no longer fits: start over from the head. The head can fail too (offline, 500, the same
+        // timeout), and until now it simply returned — 加载更多 looked pressed but did nothing at all,
+        // with no error and no retry, because the `return` skipped the catch below.
+        try {
+          const head = await fetch(publicPath(`/api/site/timeline?${key}`), { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]) });
+          if (!head.ok) throw new Error(String(head.status));
+          const fresh = (await head.json()) as TimelineResponse;
+          if (current()) setState(fromResponse(fresh));
+        } catch {
+          if (current()) setLoadError(true);
+        }
         return;
       }
       if (!res.ok) throw new Error(String(res.status));
       const page = (await res.json()) as TimelineResponse;
       if (!current()) return;
-      setState((prev) => {
-        const seen = new Set(prev.cards.map((c) => c.key));
-        const added = page.cards.filter((c) => !seen.has(c.key));
-        setFreshKeys(new Set(added.map((c) => c.key)));
-        return {
-          ...prev,
-          cards: [...prev.cards, ...added],
-          nextCursor: page.nextCursor,
-          dayCounts: { ...prev.dayCounts, ...page.dayCounts },
-          batches: prev.batches + 1,
-        };
-      });
+      // Which keys are new is worked out here, not inside the updater: `setFreshKeys` in a `setState`
+      // callback is a second update fired from a function React may run twice (StrictMode calls updaters
+      // twice in development), which is exactly the impure-updater bug the animation was meant to avoid.
+      // `stateRef.current` is the same list the updater would have received — this callback holds the
+      // request lock, so nothing else can commit a card list while it is in flight.
+      const seen = new Set(s.cards.map((c) => c.key));
+      const added = page.cards.filter((c) => !seen.has(c.key));
+      setFreshKeys(new Set(added.map((c) => c.key)));
+      setState((prev) => ({
+        ...prev,
+        cards: [...prev.cards, ...added],
+        nextCursor: page.nextCursor,
+        dayCounts: { ...prev.dayCounts, ...page.dayCounts },
+        batches: prev.batches + 1,
+      }));
     } catch {
       if (current()) setLoadError(true);
     } finally {
@@ -281,7 +292,7 @@ export function Timeline({ initial, filters }: { initial: TimelineResponse; filt
         const collapsed = state.collapsed.includes(day);
         const count = state.dayCounts[day] ?? cards.length;
         return (
-          <section key={day} aria-label={day} className="lg:mb-1">
+          <section key={day} aria-label={dayLabel(day, today)} className="lg:mb-1">
             <DayHeader day={day} today={today} count={count} collapsed={collapsed} onToggle={() => toggleDay(day)} />
             <Collapse open={!collapsed}>
                 <ol className="lg:pt-1">
@@ -308,14 +319,18 @@ export function Timeline({ initial, filters }: { initial: TimelineResponse; filt
 
 /** The foot of a paged list: loading, retry, "加载更多" after a few automatic pages, or the end. */
 export function FeedEnd({ loading, error, hasMore, manual, empty, onMore }: { loading: boolean; error: boolean; hasMore: boolean; manual: boolean; empty: boolean; onMore: () => void }) {
+  // A live region, because all four states can arrive on their own: the automatic pages fire when the
+  // sentinel scrolls into view, and a reader who is parked at the bottom of the list hears nothing about
+  // "正在加载" / "加载失败" without it (WCAG 4.1.3). `aria-atomic` is off so only the state that changed
+  // is announced, not the whole footer.
   return (
-    <div className="flex justify-center py-6">
+    <div aria-live="polite" aria-atomic="false" className="flex justify-center py-6">
       {loading ? (
         <span className="inline-flex items-center gap-2 text-[12.5px] text-ink-4">
           <RingMark className="size-4 text-accent" spinning /> 正在加载
         </span>
       ) : error ? (
-        <button type="button" onClick={onMore} className="h-9 rounded-full border border-hot/30 px-4 text-[13px] text-hot hover:bg-hot-soft">
+        <button type="button" onClick={onMore} className="h-9 rounded-full border border-hot/30 px-4 text-[13px] text-hot-ink hover:bg-hot-soft">
           加载失败，点此重试
         </button>
       ) : hasMore ? (

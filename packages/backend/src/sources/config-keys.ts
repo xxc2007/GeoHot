@@ -3,8 +3,9 @@
 // articles, dates never found).
 import type { SourceRow } from "./types.ts";
 
-// Rules applied in collect.ts to every kind read through collectSource.
-const COLLECTED = ["_aihot", "allowUrlPrefixes", "denyUrlPrefixes", "ingestNoiseFilter", "itemUrlPrefixRewrite", "sortByPublishedAt", "detail", "fetchPublicContent"];
+// Rules applied in collect.ts to every kind read through collectSource, plus the date offset every
+// entrance now reads a zone-less timestamp in (sources/dates.ts).
+const COLLECTED = ["_aihot", "allowUrlPrefixes", "denyUrlPrefixes", "ingestNoiseFilter", "itemUrlPrefixRewrite", "sortByPublishedAt", "detail", "fetchPublicContent", "publishedAtUtcOffset"];
 
 const KEYS: Record<SourceRow["kind"], string[]> = {
   rss: [...COLLECTED, "feedUrl", "summaryIsBody", "preserveUrlFragment", "allowCategories", "denyCategories"],
@@ -20,12 +21,16 @@ const KEYS: Record<SourceRow["kind"], string[]> = {
   // X accounts are mostly read in shards, which apply only these.
   x_search: ["_aihot", "ingestNoiseFilter", "itemUrlPrefixRewrite", "query", "searchType"],
   mp_account: ["wxid", "ghid", "nickname"],
-  external: [],
+  // An external source is only written by the ingest endpoint, which reads the offset a report's
+  // zone-less publishedAt is to be taken in.
+  external: ["publishedAtUtcOffset"],
 };
 
 // Objects with fixed keys (headers and bodyJson are request data, free-form).
 const NESTED: Record<string, string[]> = {
-  _aihot: ["initialBackfillLimit", "initialBackfillMonths"],
+  // intervalMinutesMax is the ceiling adaptIntervals may not poll above; intervalMinutesLocked keeps
+  // the source at the interval an operator set, whatever its recent volume.
+  _aihot: ["initialBackfillLimit", "initialBackfillMonths", "intervalMinutesMax", "intervalMinutesLocked"],
   ingestNoiseFilter: ["dropMarkers", "dropMarkersTitleOnly", "keepIfMatches"],
   itemUrlPrefixRewrite: ["from", "to"],
   requireBoolean: ["path", "equals"],

@@ -42,6 +42,13 @@ as original work of this fork.
   public web listings, public JSON endpoints, and empty manual-ingest channels), not the upstream AI
   demo feeds. Their content belongs to those publishers; this site shows a summary and a link to the
   original, and `site_fulltext`/`syndicate_fulltext` are off for every source.
-- `docs/` still holds the upstream reference documentation, including the banner and screenshot files
-  under `docs/assets/`. Those describe the upstream AIHOT demo site and are not claims about this
-  deployment; `README.md` states what this tree actually runs.
+- `docs/` still holds the upstream reference documentation (`architecture.md`, `deploy.md`,
+  `leaderboard.md`, `selection.md`, `sources.md`, `customize.md`). Several of their commands and numbers
+  do not hold for this tree; `docs/manual.md` section 9 lists, doc by doc, which statements are stale and
+  which are only transcriptions of values that live in code.
+- The upstream banner and screenshot files that used to sit under `docs/assets/` were deleted (commit
+  `259ecf1`): nothing in this tree referenced them, and they described the upstream AIHOT demo site rather
+  than this deployment. The only images under `docs/` now are the three figures `README.md` embeds, in
+  `docs/shots/`; `scripts/check-shots.ts` fails if any file there is unreferenced by the README or
+  mislabelled. Each README caption states the capture date, the route and the viewport it came from, and
+  says plainly that the live site - not the screenshot - is the source of truth.

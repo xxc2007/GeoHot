@@ -3,6 +3,7 @@
 // move a post between events. Public exits (page, v1 snapshot, version probe) follow updated_at.
 import { z } from "zod";
 import { sql, type Tx } from "../db.ts";
+import { InvalidInput } from "./invalid.ts";
 import { manualSchedule } from "../monitor/time.ts";
 import { audit } from "./auth.ts";
 import { Conflict } from "./sources.ts";
@@ -47,8 +48,8 @@ export async function listMonitorPosts(opts: { filter?: "relevant" | "review" | 
  * were dealt with (the event edited or confirmed, or nothing to do), so it leaves the review list.
  */
 export async function resolveMonitorPost(id: string, input: { action: "skip" | "reviewed"; reason: string }, actor: string) {
-  if (!input.reason?.trim()) throw new Error("reason is required");
-  if (input.action !== "skip" && input.action !== "reviewed") throw new Error("action must be skip or reviewed");
+  if (!input.reason?.trim()) throw new InvalidInput("reason is required");
+  if (input.action !== "skip" && input.action !== "reviewed") throw new InvalidInput("action must be skip or reviewed");
   const [post] = await sql<{ processed_at: Date | null; recognition: Record<string, unknown> | null }[]>`SELECT processed_at, recognition FROM monitor_posts WHERE id = ${id}`;
   if (!post) return null;
   if (input.action === "skip") {
@@ -91,7 +92,7 @@ async function lockEvent(tx: Tx, id: string, version: string) {
 }
 
 export async function updateMonitorEvent(id: string, input: { patch: unknown; reason: string; version: string }, actor: string) {
-  if (!input.reason?.trim()) throw new Error("reason is required");
+  if (!input.reason?.trim()) throw new InvalidInput("reason is required");
   const patch = Patch.parse(input.patch);
   return sql.begin(async (tx) => {
     const before = await lockEvent(tx, id, input.version);
@@ -136,13 +137,13 @@ function pick(row: Record<string, unknown>, patch: Record<string, unknown>) {
  */
 export async function reviewReceipt(id: string, input: { occurredOn?: string | null; reason: string; version: string }, actor: string) {
   const day = input.occurredOn || null;
-  if (day && !/^\d{4}-\d{2}-\d{2}$/.test(day)) throw new Error("occurredOn must be YYYY-MM-DD");
+  if (day && !/^\d{4}-\d{2}-\d{2}$/.test(day)) throw new InvalidInput("occurredOn must be YYYY-MM-DD");
   const patch = { status: "confirmed", confirmationBasis: "receipt_review", ...(day ? { occurredOn: day } : {}) };
   return updateMonitorEvent(id, { patch, reason: input.reason, version: input.version }, actor);
 }
 
 export async function setWithdrawn(id: string, input: { withdrawn: boolean; reason: string; version: string }, actor: string) {
-  if (!input.reason?.trim()) throw new Error("reason is required");
+  if (!input.reason?.trim()) throw new InvalidInput("reason is required");
   return sql.begin(async (tx) => {
     const before = await lockEvent(tx, id, input.version);
     if (!before) return null;
@@ -154,13 +155,13 @@ export async function setWithdrawn(id: string, input: { withdrawn: boolean; reas
 
 /** Moves (or removes) one post's link; both events' versions change. */
 export async function relinkPost(input: { postId: string; fromEventId: string; toEventId: string | null; reason: string }, actor: string) {
-  if (!input.reason?.trim()) throw new Error("reason is required");
+  if (!input.reason?.trim()) throw new InvalidInput("reason is required");
   return sql.begin(async (tx) => {
     const [link] = await tx`SELECT * FROM monitor_event_posts WHERE event_id = ${input.fromEventId} AND post_id = ${input.postId} FOR UPDATE`;
     if (!link) throw new Conflict("这条帖子不在原事件里");
     if (input.toEventId) {
       const [to] = await tx`SELECT id FROM monitor_events WHERE id = ${input.toEventId}`;
-      if (!to) throw new Error(`event ${input.toEventId} not found`);
+      if (!to) throw new InvalidInput(`event ${input.toEventId} not found`);
       await tx`
         INSERT INTO monitor_event_posts (event_id, post_id, stage, action, text, original_text)
         VALUES (${input.toEventId}, ${input.postId}, ${link.stage}, ${link.action}, ${link.text}, ${link.original_text})

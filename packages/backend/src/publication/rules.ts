@@ -26,12 +26,32 @@ export function isPoolEligible(input: {
 }
 
 /**
- * Item detail page (and its Markdown export): every unwithdrawn item from an editorial source has one,
- * with or without a Chinese summary (noindex unless indexable). hot_signal material is heat evidence
- * only and has none. A paused source keeps its pages.
+ * The release gate for a row read on its own (the SQL twin is `releasedCondition` in items.ts, used by
+ * every list): a selected item stays private until its `visible_after` passes, ~180 s after it met the
+ * selection conditions. Everything not selected is already released.
  */
-export function hasItemPage(p: { visibility: string; sourceMode: string }): boolean {
-  return p.visibility !== "withdrawn" && p.sourceMode === "editorial";
+export function isReleased(p: { selected: boolean; visibleAfter: Date | null }, now: Date): boolean {
+  return !p.selected || (p.visibleAfter !== null && p.visibleAfter <= now);
+}
+
+/**
+ * One answer to "does this item have a page a reader can open?" — the detail page, its Markdown export, its
+ * share card, the starred-items check and the citations a daily or weekly shows all ask this, so none of
+ * them can disagree (a `summary-only` item used to open from 收藏 while the paper quoting it struck it
+ * through as if withdrawn). Every unwithdrawn item from an editorial source has one, with or without a
+ * Chinese summary (noindex unless indexable); a paused source keeps its pages; hot_signal material is heat
+ * evidence only and has none. A selected item waiting behind the release gate has none yet either: every
+ * list already hides it, so an item page, an og card and a sitemap entry answering 200 for it during the
+ * embargo are a leak, not a preview.
+ */
+export interface ItemPageFacts {
+  visibility: string;
+  sourceMode: string;
+  selected: boolean;
+  visibleAfter: Date | null;
+}
+export function itemHasPage(p: ItemPageFacts, now: Date = new Date()): boolean {
+  return p.visibility !== "withdrawn" && p.sourceMode === "editorial" && isReleased({ selected: p.selected, visibleAfter: p.visibleAfter }, now);
 }
 
 /** Selected: pool eligible, judged selected, and the source tier may enter the selection. */
@@ -55,6 +75,11 @@ export function mayRedistribute(source: SourceFacts, bodyMode: "full" | "summary
 /**
  * Detail pages are noindex by default. Selected items are indexed automatically; an editor
  * can mark any other public page for indexing, or exclude a page, which then stays out.
+ *
+ * This is the projection stored on the row, so it must not read a clock: nothing republishes an item when
+ * its embargo lifts, and a `visible_after` test here would leave the row noindex forever. The release gate
+ * is applied where the stored flag is read — `itemHasPage` for the page itself, `releasedCondition` for the
+ * sitemap entries built from this column.
  */
 export function isIndexable(p: { visibility: string; hasSummary: boolean; selected: boolean; seoIndexedAt: Date | null; seoExcludedAt: Date | null }): boolean {
   return p.visibility === "public" && p.hasSummary && p.seoExcludedAt === null && (p.selected || p.seoIndexedAt !== null);

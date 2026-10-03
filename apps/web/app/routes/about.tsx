@@ -23,11 +23,13 @@ interface ContactSettings {
 }
 
 export async function loader({ request }: { request: Request }) {
+  // 这两个都是装饰，读不到不能带走整页（所以不是 loadOr404）。但"读不到"和"没有"是两件事：
+  // 数字的位置空着会被读成"这个站没有内容"，所以把失败单独记下来，由页面自己说明。
   const [contact, stats] = await Promise.all([
     apiGet<ContactSettings>("/api/site/contact", { signal: request.signal }).catch((): ContactSettings => ({ wechatQr: null, feishuQr: null, makerAvatar: null })),
     apiGet<SiteStats>("/api/site/stats", { signal: request.signal }).catch(() => null),
   ]);
-  return { contact, stats };
+  return { contact, stats, statsFailed: stats === null };
 }
 
 export function meta() {
@@ -193,7 +195,7 @@ function Latest({ item, className = "" }: { item: SiteStats["latest"][number] | 
 }
 
 export default function AboutPage() {
-  const { contact, stats } = useLoaderData<typeof loader>();
+  const { contact, stats, statsFailed } = useLoaderData<typeof loader>();
   const [focus, setFocus] = useState<number | null>(null);
   const [at, setAt] = useState(0);
   const shown = useRef(0);
@@ -267,6 +269,8 @@ export default function AboutPage() {
             </li>
           ))}
         </ol>
+        {/* 数字这一栏空着会被读成"这个站没有内容"；读不到就说读不到。 */}
+        {statsFailed && <p className="mt-3 text-[12.5px] text-ink-4">这四格的统计数字这次没有读到，稍后刷新就有了；上面的流程说明与它们无关。</p>}
       </section>
 
       {ABOUT.maker && <Maker maker={ABOUT.maker} contact={contact} />}

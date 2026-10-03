@@ -167,7 +167,10 @@ export default function ItemPage() {
   const [tocRequested, setTocRequested] = useState(false);
   const [tocOpen, setTocOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  useEffect(() => markRead(item.id), [item.id]);
+  useEffect(() => {
+    // markRead 现在是一把跨标签页的写（lib/local-state.ts），返回 Promise：effect 里不能把它当清理函数交回去。
+    void markRead(item.id);
+  }, [item.id]);
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 1600);

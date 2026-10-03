@@ -17,7 +17,11 @@ export function ReportArchive({ kind, index, current }: { kind: ReportKind; inde
   const groups = archiveGroups(kind, index);
   const openId = groups.find((g) => g.entries.some((e) => e.key === current))?.id ?? groups[0]?.id;
   return (
-    <aside className="sticky top-0 hidden h-dvh w-[280px] shrink-0 flex-col border-r border-line bg-[color-mix(in_srgb,var(--sidebar)_50%,var(--surface))] pl-5 pr-3 lg:flex dark:bg-[color-mix(in_srgb,var(--sidebar)_50%,var(--bg))]">
+    // xl, not lg: 280px of rail on a 1024px laptop left a 484px single-column paper (ReportLayout). Below
+    // xl the issue switcher is `ReportPhoneNav`'s row above the page instead. `data-print="hide"` because
+    // a printed paper does not need a list of the other 400 issues — and on A4 landscape it took 280px of
+    // the 794 the page has.
+    <aside data-print="hide" className="sticky top-0 hidden h-dvh w-[280px] shrink-0 flex-col border-r border-line bg-[color-mix(in_srgb,var(--sidebar)_50%,var(--surface))] pl-5 pr-3 xl:flex dark:bg-[color-mix(in_srgb,var(--sidebar)_50%,var(--bg))]">
       <div className="pb-4 pt-8">
         <KindSwitch kind={kind} />
       </div>
@@ -43,58 +47,75 @@ function ArchiveGroup({ g, kind, current, initiallyOpen }: {
   const [open, setOpen] = useState(initiallyOpen);
   useEffect(() => setOpen(initiallyOpen), [initiallyOpen]);
   const [loaded, setLoaded] = useState<ReportNavigationEntry[] | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     if (!open || loaded || kind !== "daily" || !g.entries.some((e) => e.title === undefined)) return;
     const controller = new AbortController();
+    setFailed(false);
     fetch(publicPath(`/api/site/reports/daily/months/${g.id}`), { signal: controller.signal })
-      .then((r) => r.ok ? r.json() : null)
-      .then((data: { items: ReportNavigationEntry[] } | null) => { if (data && !controller.signal.aborted) setLoaded(data.items); })
-      .catch(() => {});
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((data: { items: ReportNavigationEntry[] }) => { if (!controller.signal.aborted) setLoaded(data.items); })
+      // A month that will not load used to be swallowed (`.catch(() => {})`), and the column carried on
+      // printing the key where a title belongs — 「日报 2026-09-28」 in a list that should read 台风. Say it
+      // failed and give the reader the same 点此重试 the feed's expansions use.
+      .catch(() => { if (!controller.signal.aborted) setFailed(true); });
     return () => controller.abort();
-  }, [open, kind, g.id, loaded]);
+  }, [open, kind, g.id, loaded, attempt]);
   const entries = loaded ?? g.entries;
   const mark = (key: string) => archiveMark(kind, key);
   return (
     <details open={open} onToggle={(event) => setOpen(event.currentTarget.open)} className="disclosure group/month border-b border-line">
-      <summary className="flex h-11 items-center gap-1.5 pl-1 pr-1.5 text-[13px] text-ink transition-colors hover:text-accent">
+      <summary className="flex h-11 items-center gap-1.5 pl-1 pr-1.5 text-ui text-ink transition-colors hover:text-accent">
         <IconChevronRight size={14} className="text-ink-4 transition-transform duration-200 group-open/month:rotate-90" />
         <span className="flex-1 font-semibold">{g.label}</span>
         <span className="num text-[11.5px] text-ink-4">{g.entries.length}</span>
       </summary>
-      {(kind !== "daily" || open) && <ul className="space-y-0.5 pb-3">
-        {entries.map((e) => {
-          const on = e.key === current;
-          return (
-            <li key={e.key}>
-              <Link
-                to={reportPath(kind, e.key)}
-                aria-current={on ? "page" : undefined}
-                title={e.title ?? undefined}
-                prefetch="intent"
-                className={`group flex gap-3 rounded-tile py-2.5 pl-2.5 pr-2 transition-colors ${on ? "bg-accent-soft" : "hover:bg-bg-sunk"}`}
-              >
-                <span className="flex w-8 shrink-0 flex-col items-center">
-                  <span className={`num text-[19px] font-black leading-none tracking-[-0.03em] ${on ? "text-accent" : "text-ink"}`}>{mark(e.key).big}</span>
-                  {mark(e.key).small && <span className="mt-1 whitespace-nowrap text-[10px] leading-none text-ink-4">{mark(e.key).small}</span>}
-                </span>
-                <span className={`line-clamp-2 min-w-0 text-[12.5px] leading-[18px] transition-colors ${on ? "font-semibold text-ink" : "text-ink-2 group-hover:text-ink"}`}>{e.title ?? `${KIND_LABEL[kind]} ${e.key}`}</span>
-              </Link>
-            </li>
-          );
-        })}
-      </ul>}
+      {kind !== "daily" || open ? (
+        failed ? (
+          <button type="button" onClick={() => setAttempt((a) => a + 1)} className="mb-2 ml-2.5 py-1 text-meta text-hot-ink hover:underline">
+            往期标题暂时无法加载，点此重试
+          </button>
+        ) : (
+          <ul className="space-y-0.5 pb-3">
+            {entries.map((e) => {
+              const on = e.key === current;
+              return (
+                <li key={e.key}>
+                  <Link
+                    to={reportPath(kind, e.key)}
+                    aria-current={on ? "page" : undefined}
+                    title={e.title ?? undefined}
+                    prefetch="intent"
+                    className={`group flex gap-3 rounded-tile py-2.5 pl-2.5 pr-2 transition-colors ${on ? "bg-accent-soft" : "hover:bg-bg-sunk"}`}
+                  >
+                    <span className="flex w-8 shrink-0 flex-col items-center">
+                      <span className={`num text-title font-black leading-none tracking-[-0.03em] ${on ? "text-accent" : "text-ink"}`}>{mark(e.key).big}</span>
+                      {mark(e.key).small && <span className="mt-1 whitespace-nowrap text-micro leading-none text-ink-4">{mark(e.key).small}</span>}
+                    </span>
+                    <span className={`line-clamp-2 min-w-0 text-meta leading-[18px] transition-colors ${on ? "font-semibold text-ink" : "text-ink-2 group-hover:text-ink"}`}>{e.title ?? `${KIND_LABEL[kind]} ${e.key}`}</span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        )
+      ) : null}
       {kind === "daily" && !open && <noscript><a href={publicPath("/daily/archive")}>查看完整日报归档</a></noscript>}
     </details>
   );
 }
 
-/** Phone header: kind tabs, then the three latest issues and a way further back. */
+/** Issue switcher above the page: kind tabs, then the three latest issues and a way further back. */
 export function ReportPhoneNav({ kind, index, current, today, now }: { kind: ReportKind; index: ReportNavigationEntry[]; current: string | null; today: string; now?: number }) {
   const recent = index.slice(0, 3);
   const earlier = kind === "daily" ? "/daily/archive" : "#report-history";
-  const chip = "inline-flex h-9 shrink-0 items-center rounded-full border px-4 text-[13px] transition-colors";
+  const chip = "inline-flex h-9 shrink-0 items-center rounded-full border px-4 text-ui transition-colors";
   return (
-    <div className="pt-3 lg:hidden">
+    // To xl now, not to lg: with the archive column starting at xl, a 961–1279px window needs this row as
+    // its only way between issues. `lg:max-w-[560px]` keeps the `fill` track from spreading three pills
+    // across a whole broadsheet column.
+    <div className="pt-3 xl:hidden lg:max-w-[560px]">
       <PillTabs fill layoutId="report-kind-phone" label="切换日报、周报、月报" active={kind} items={KINDS.map((k) => ({ key: k, label: KIND_LABEL[k], to: KIND_PATH[k] }))} />
       {recent.length > 0 && (
         <div className="scrollbar-none -mx-4 mt-3 flex gap-2 overflow-x-auto px-4 pb-1">

@@ -8,6 +8,13 @@
 #
 # 只读：不动 GitHub、不动工作区、不重启任何服务。
 #
+# 跑之前要满足的（它自己不会替你检查第一件）：
+#   1) `gh` 已登录、令牌有 repo 作用域（读远端树要它）：`gh auth status` 能出账号。
+#      没登录时报的是 "✗ 读不到 <repo>@<ref>"，不是"不同步"——别把它当成内容差异去改仓库。
+#   2) 本地 HEAD 就是你要比对的那一棵（默认比 HEAD 与 origin 的 main）。刚 publish 完直接跑它，
+#      这才是"发布成功"的定义：不是"命令返回 0"，而是两边每个 blob 哈希相等。
+#   3) 排除清单与发布脚本共用同一份 deploy/geohot/publish-excludes（现在是空的 ⇒ 要求逐字节全等）。
+#
 # 环境变量:
 #   GEOHOT_REPO=<owner/name>     默认从 origin 的 URL 里解析
 #   GEOHOT_SYNC_REF=<分支>       默认 main

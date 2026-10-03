@@ -3,10 +3,11 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode }
 import { Link, redirect, useLoaderData, useSearchParams } from "react-router";
 import type { Route } from "./+types/story";
 import type { StoryDetail, StoryReportView } from "@aihot/contracts/site";
-import { data as routeData } from "react-router";
+import { ApiRedirect, loadOr404 } from "../lib/api.server";
 import { breadcrumbLd, pageMeta, titled } from "../lib/seo";
 import { beijingDate, beijingTime, monthDayTime, relativeTime, shortSourceName } from "../lib/format";
 import { appPath } from "../lib/public-path";
+import { getTimelineOrder, setTimelineOrder, type TimelineOrder } from "../lib/local-state";
 import { HeatChart } from "../features/story/HeatChart";
 import { Badge, SelectedBadge } from "../components/ui/Badge";
 import { PillTabs } from "../components/ui/Tabs";
@@ -14,14 +15,17 @@ import { Select } from "../components/ui/Controls";
 import { IconArrowLeft, IconChevronRight, IconClock, IconDoc, IconUsers } from "../components/icons";
 
 export async function loader({ params, request }: Route.LoaderArgs) {
-  const res = await fetch(`${process.env.API_BASE_URL || "http://127.0.0.1:3001"}/api/site/stories/${encodeURIComponent(params.publicId)}`, { redirect: "manual", signal: AbortSignal.any([request.signal, AbortSignal.timeout(15000)]) });
-  if (res.status === 308) {
-    const target = (await res.json()) as { mergedInto: string };
-    throw redirect(`/story/${target.mergedInto}`, 308);
+  const path = `/api/site/stories/${encodeURIComponent(params.publicId)}`;
+  try {
+    // 404/503 的口径由 loadOr404 定（和其他页面同一套），这一页只多管一件事：已合并的事件要跳过去。
+    return { story: await loadOr404<StoryDetail>(path, { signal: request.signal, redirect: "manual" }) };
+  } catch (error) {
+    if (error instanceof ApiRedirect && error.status === 308) {
+      const target = (error.body as { mergedInto?: string } | null)?.mergedInto;
+      if (target) throw redirect(`/story/${encodeURIComponent(target)}`, 308);
+    }
+    throw error;
   }
-  if (res.status === 404) throw routeData({ message: "not_found" }, { status: 404 });
-  if (!res.ok) throw routeData({ message: "unavailable" }, { status: 503 });
-  return { story: (await res.json()) as StoryDetail };
 }
 
 export function meta({ loaderData }: Route.MetaArgs) {
@@ -196,7 +200,17 @@ export default function StoryPage() {
   const { story } = useLoaderData<typeof loader>();
   const back = useBackPlace();
   const [filter, setFilter] = useState<Filter>("all");
-  const [order, setOrder] = useState<"desc" | "asc">("desc");
+  // 排序选择存在这台浏览器里（lib/local-state.ts 的 timelineOrder）。首帧仍按默认的最新在前：
+  // 服务端不知道读者的偏好，客户端如果在水合的第一帧就换成「最早在前」，两边的 DOM 顺序就不一样了。
+  // 所以到挂载之后再把它接上，代价是那几百毫秒里列表还是默认顺序，换个事件页再看就一直是读者的选择了。
+  const [order, setOrder] = useState<TimelineOrder>("desc");
+  useEffect(() => {
+    setOrder(getTimelineOrder());
+  }, []);
+  const chooseOrder = (next: TimelineOrder) => {
+    setOrder(next);
+    setTimelineOrder(next);
+  };
   const status = STATUS[story.status];
   // A settled story nobody watched (history pages) has no heat to explain or chart.
   const observed = story.status !== "settled" || story.heat.length > 0 || story.whyHot.participants48h > 0 || story.whyHot.rank !== null;
@@ -329,7 +343,7 @@ export default function StoryPage() {
               sub={`${story.developments.length} 个进展`}
               className="order-3"
               right={
-                <Select value={order} onChange={(e) => setOrder(e.target.value as "desc" | "asc")} aria-label="事件进展排序">
+                <Select value={order} onChange={(e) => chooseOrder(e.target.value as TimelineOrder)} aria-label="事件进展排序">
                   <option value="desc">最新在前</option>
                   <option value="asc">最早在前</option>
                 </Select>
@@ -360,7 +374,7 @@ export default function StoryPage() {
             sub="沿着报道，了解事件的不同侧面。"
             className="order-4"
             right={
-              <Select value={order} onChange={(e) => setOrder(e.target.value as "desc" | "asc")} aria-label="报道时间线排序">
+              <Select value={order} onChange={(e) => chooseOrder(e.target.value as TimelineOrder)} aria-label="报道时间线排序">
                 <option value="desc">最新在前</option>
                 <option value="asc">最早在前</option>
               </Select>

@@ -84,17 +84,20 @@ export class SnapshotRequiredError extends Error {}
 
 const SYNC_PREFIX = "ax1"; // any other watermark answers 409
 
-let epochCache: string | null = null;
-
-/** Ledger epoch: changes whenever the ledger is rebuilt (e.g. after an import), invalidating old watermarks. */
+/**
+ * Ledger epoch: changes whenever the ledger is rebuilt (e.g. after an import), invalidating old watermarks.
+ * Read on every call rather than held in this process — a cached copy is exactly the bug it is meant to
+ * catch. A rebuild replaces the epoch, and a process still holding the old one would keep accepting
+ * watermarks from before it, so `selectedChanges` would answer a truncated diff where the honest answer is
+ * 409 SnapshotRequired. This is one lookup of one row by its primary key, on a route clients poll.
+ */
 export async function ledgerEpoch(): Promise<string> {
-  if (epochCache) return epochCache;
   const [row] = await sql<{ value: { epoch: string } }[]>`SELECT value FROM settings WHERE key = 'selected_ledger_epoch'`;
-  if (row) return (epochCache = row.value.epoch);
+  if (row) return row.value.epoch;
   const epoch = newShortId(6);
   await sql`INSERT INTO settings (key, value) VALUES ('selected_ledger_epoch', ${sql.json({ epoch })}) ON CONFLICT (key) DO NOTHING`;
   const [again] = await sql<{ value: { epoch: string } }[]>`SELECT value FROM settings WHERE key = 'selected_ledger_epoch'`;
-  return (epochCache = again!.value.epoch);
+  return again!.value.epoch;
 }
 
 /** Highest sequence whose entries (and all earlier ones) have passed the release gate. */

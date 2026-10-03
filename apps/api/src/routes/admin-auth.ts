@@ -18,6 +18,8 @@ import {
   STATE_COOKIE,
   type AdminPrincipal,
 } from "@aihot/backend/admin/auth";
+import { ZodError } from "zod";
+import { InvalidInput } from "@aihot/backend/admin/invalid";
 import { sendProblem } from "../http/respond.ts";
 
 /** Cookies are Secure whenever the site is served over HTTPS. */
@@ -36,7 +38,16 @@ function over(key: string, limit: number, now: number): boolean {
 }
 function tooManyAttempts(ip: string): boolean {
   const now = Date.now();
-  if (attempts.size > 5000) attempts.clear();
+  if (attempts.size > 5000) {
+    // Drop the expired clients, keeping the global window: clearing the whole map would also erase
+    // "all", and that is the cap which still holds when a client forges its address.
+    for (const [key, times] of attempts) {
+      if (key === "all") continue;
+      const live = times.filter((t) => now - t < 15 * 60_000);
+      if (live.length) attempts.set(key, live);
+      else attempts.delete(key);
+    }
+  }
   const perClient = over(`ip:${ip}`, 10, now);
   return over("all", 50, now) || perClient;
 }
@@ -64,12 +75,18 @@ export function adminHandler(fn: AdminHandler) {
     try {
       return await fn(req, reply, admin);
     } catch (error) {
-      if ((error as { statusCode?: number }).statusCode === 400 || error instanceof SyntaxError) {
+      if (error instanceof InvalidInput || (error as { statusCode?: number }).statusCode === 400 || error instanceof SyntaxError) {
         return sendProblem(req, reply, { status: 400, code: "invalid_request", detail: String((error as Error).message).slice(0, 300) });
+      }
+      if (error instanceof ZodError) {
+        // zod's own message is the whole issue list; the operator needs the field, not the schema dump.
+        return sendProblem(req, reply, { status: 400, code: "invalid_request", detail: `请求内容不符合格式：${error.issues.slice(0, 3).map((i) => i.path.join(".") || "正文").join("、")}` });
       }
       if ((error as { code?: string }).code === "conflict") return sendProblem(req, reply, { status: 409, code: "conflict", detail: (error as Error).message });
       req.log.error({ err: error, path: req.url.split("?")[0] }, "admin api error");
-      return sendProblem(req, reply, { status: 500, code: "internal_error", detail: String((error as Error).message).slice(0, 300) });
+      // The toast in the back office shows `detail`, and this operator is not a developer: Postgres,
+      // Feishu and sharp messages carry table names, tokens and file paths that must not leave the host.
+      return sendProblem(req, reply, { status: 500, code: "internal_error", detail: "后台操作没有完成，服务器日志里有这次的错误详情。" });
     }
   };
 }

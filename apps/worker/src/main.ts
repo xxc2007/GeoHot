@@ -11,6 +11,9 @@ import { registerPublicationJobs } from "@aihot/backend/jobs/publication";
 import { registerSchedules } from "./schedules.ts";
 import { ensureContentTargets } from "@aihot/backend/notify/deliver";
 import { startHeartbeat } from "@aihot/backend/operations/heartbeat";
+import { guardProcessExit } from "@aihot/backend/operations/process-exit";
+
+guardProcessExit("worker");
 
 assertProductionSecrets([["auth", "IMG_PROXY_SIGN_SECRET"]]);
 

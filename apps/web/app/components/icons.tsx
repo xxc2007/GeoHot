@@ -4,8 +4,16 @@ import type { SVGProps } from "react";
 type P = SVGProps<SVGSVGElement> & { size?: number };
 
 function Svg({ size = 18, children, ...rest }: P & { children: React.ReactNode }) {
+  // `aria-hidden` is a default here, not a constant. Spreading it after `{...rest}` (as this did) makes a
+  // caller's `aria-label` dead on arrival: the hidden attribute wins, the icon leaves the accessibility
+  // tree, and the home 当前热点 list announced nothing for 上升/回落/持平, where the arrow is the only carrier
+  // (WCAG 1.1.1, 1.4.1). A named icon is an image to assistive tech, so it also gets `role="img"` — a bare
+  // <svg> with only an `aria-label` is dropped by some screen readers. A caller can still opt out by
+  // passing `aria-hidden` itself, since `{...rest}` comes last.
+  const label = rest["aria-label"];
+  const named = typeof label === "string" && label !== "";
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...rest}>
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" {...(named ? { role: "img" } : { "aria-hidden": true })} {...rest}>
       {children}
     </svg>
   );

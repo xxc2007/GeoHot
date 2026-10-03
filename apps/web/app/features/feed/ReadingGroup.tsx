@@ -1,6 +1,6 @@
 // Reading-group expansions on a feed item: the other sources of the card's fact ("另有 N 家信源报道")
 // and the event's developments ("展开 N 条进展"). Each loads on first open and pages on demand.
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation } from "react-router";
 import { Collapse } from "../../components/ui/Presence";
 import type { Development, GroupInfo, GroupReport, TimelineFilters } from "@aihot/contracts/site";
@@ -105,11 +105,13 @@ function usePaged<T>(url: (cursor: string | null) => string, pick: (body: Record
   return { state: current, load, restore, raw: state };
 }
 
-function Toggle({ open, onToggle, children }: { open: boolean; onToggle: () => void; children: ReactNode }) {
+function Toggle({ open, onToggle, id, controls, children }: { open: boolean; onToggle: () => void; id: string; controls: string; children: ReactNode }) {
   return (
     <button
       type="button"
+      id={id}
       aria-expanded={open}
+      aria-controls={controls}
       onClick={(e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -123,23 +125,47 @@ function Toggle({ open, onToggle, children }: { open: boolean; onToggle: () => v
   );
 }
 
-function Panel({ open, children }: { open: boolean; children: ReactNode }) {
+/**
+ * The list a Toggle opens. It is a named region (the toggle's own words, "另有 3 家信源报道", name it) so
+ * a screen reader that lands inside knows what expanded, and `aria-controls` on the button points here so
+ * the two are tied in the accessibility tree (WCAG 4.1.2).
+ */
+function Panel({ open, id, labelledBy, children }: { open: boolean; id: string; labelledBy: string; children: ReactNode }) {
   return (
     <Collapse open={open} className="relative z-10">
-      <div className="mt-2 rounded-control bg-bg-sunk px-3 py-2 dark:bg-bg-muted/60">{children}</div>
+      <div id={id} role="region" aria-labelledby={labelledBy} className="mt-2 rounded-control bg-bg-sunk px-3 py-2 dark:bg-bg-muted/60">{children}</div>
     </Collapse>
   );
 }
 
-function LoadState({ loading, error, next, onMore, onRetry, empty }: { loading: boolean; error: boolean; next: string | null; onMore: () => void; onRetry: () => void; empty: boolean }) {
-  if (loading && empty) return <div className="space-y-2 py-1">{[0, 1].map((i) => <div key={i} className="skeleton h-4" />)}</div>;
-  if (error) return <button type="button" onClick={onRetry} className="py-1 text-[12.5px] text-hot">暂时无法加载，点此重试</button>;
-  if (next && !loading) return <button type="button" onClick={onMore} className="py-1 text-[12.5px] text-accent hover:underline">加载更多</button>;
-  return null;
+/**
+ * The foot of one expanded list. `aria-live="polite"` because it changes without the reader asking: the
+ * skeleton, the retry and the count all arrive after the click, and with no live region a screen reader
+ * gets no signal that the list it is parked in has finished loading (or failed to).
+ */
+function LoadState({ loading, error, next, onMore, onRetry, empty, loaded }: { loading: boolean; error: boolean; next: string | null; onMore: () => void; onRetry: () => void; empty: boolean; loaded: boolean }) {
+  return (
+    <div aria-live="polite" aria-atomic="false">
+      {loading && empty ? (
+        <div className="space-y-2 py-1">{[0, 1].map((i) => <div key={i} className="skeleton h-4" />)}</div>
+      ) : error ? (
+        <button type="button" onClick={onRetry} className="py-1 text-[12.5px] text-hot-ink">暂时无法加载，点此重试</button>
+      ) : next && !loading ? (
+        <button type="button" onClick={onMore} className="py-1 text-[12.5px] text-accent hover:underline">加载更多</button>
+      ) : loaded && empty ? (
+        // Loaded and there is genuinely nothing here: say so. Returning null left an empty grey well —
+        // a box that reads as broken rather than as an honest empty state.
+        <p className="py-1 text-[12.5px] text-ink-4">这里暂时没有更多内容。</p>
+      ) : null}
+    </div>
+  );
 }
 
 /** "另有 N 家信源报道": other reports of the fact the card stands for. */
 export function GroupSources({ group, filters, parentId }: { group: GroupInfo; filters?: TimelineFilters; parentId: string }) {
+  const ids = useId();
+  const toggleId = `${ids}-src-t`;
+  const panelId = `${ids}-src-p`;
   const { open, setOpen, state, load } = useGroupState<GroupReport>(
     `sources|${group.factId}|${parentId}`,
     (cursor) => groupReportsUrl(publicPath, group.factId, filters, cursor),
@@ -150,6 +176,8 @@ export function GroupSources({ group, filters, parentId }: { group: GroupInfo; f
   return (
     <div>
       <Toggle
+        id={toggleId}
+        controls={panelId}
         open={open}
         onToggle={() => {
           setOpen(!open);
@@ -158,7 +186,7 @@ export function GroupSources({ group, filters, parentId }: { group: GroupInfo; f
       >
         {label}
       </Toggle>
-      <Panel open={open}>
+      <Panel open={open} id={panelId} labelledBy={toggleId}>
         <ul className="divide-y divide-line-soft">
           {others.map((r) => (
             <li key={r.id} className="flex items-baseline gap-2 py-1.5 text-[13px]">
@@ -172,7 +200,7 @@ export function GroupSources({ group, filters, parentId }: { group: GroupInfo; f
             </li>
           ))}
         </ul>
-        <LoadState loading={state.loading} error={state.error} next={state.next} empty={others.length === 0} onMore={() => load(state.next)} onRetry={() => load(null)} />
+        <LoadState loading={state.loading} error={state.error} next={state.next} empty={others.length === 0} loaded={state.loaded} onMore={() => load(state.next)} onRetry={() => load(null)} />
       </Panel>
     </div>
   );
@@ -180,6 +208,9 @@ export function GroupSources({ group, filters, parentId }: { group: GroupInfo; f
 
 /** "展开 N 条进展": the other facts of the card's event, newest first. */
 export function GroupDevelopments({ group, filters, parentId }: { group: GroupInfo & { story: NonNullable<GroupInfo["story"]> }; filters?: TimelineFilters; parentId: string }) {
+  const ids = useId();
+  const toggleId = `${ids}-dev-t`;
+  const panelId = `${ids}-dev-p`;
   const { open, setOpen, state, load } = useGroupState<Development>(
     `developments|${group.story.publicId}|${parentId}`,
     (cursor) => storyDevelopmentsUrl(publicPath, group.story.publicId, filters, cursor),
@@ -188,6 +219,8 @@ export function GroupDevelopments({ group, filters, parentId }: { group: GroupIn
   return (
     <div>
       <Toggle
+        id={toggleId}
+        controls={panelId}
         open={open}
         onToggle={() => {
           setOpen(!open);
@@ -196,7 +229,7 @@ export function GroupDevelopments({ group, filters, parentId }: { group: GroupIn
       >
         展开 {group.developmentCount} 条进展
       </Toggle>
-      <Panel open={open}>
+      <Panel open={open} id={panelId} labelledBy={toggleId}>
         <ol className="relative space-y-2 py-1 pl-3.5 before:absolute before:bottom-2 before:left-[3px] before:top-2 before:w-px before:bg-line">
           {state.items.map((d) => (
             <li key={d.factId} className="relative">
@@ -211,7 +244,7 @@ export function GroupDevelopments({ group, filters, parentId }: { group: GroupIn
             </li>
           ))}
         </ol>
-        <LoadState loading={state.loading} error={state.error} next={state.next} empty={state.items.length === 0} onMore={() => load(state.next)} onRetry={() => load(null)} />
+        <LoadState loading={state.loading} error={state.error} next={state.next} empty={state.items.length === 0} loaded={state.loaded} onMore={() => load(state.next)} onRetry={() => load(null)} />
         <Link to={`/story/${group.story.publicId}`} className="mt-1 inline-flex items-center gap-0.5 py-1 text-[12.5px] font-medium text-accent hover:text-accent-ink">
           查看完整事件 <IconArrowUpRight size={12} />
         </Link>

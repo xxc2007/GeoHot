@@ -4,7 +4,9 @@ import { IconArrowRight, IconMinus, IconTrendDown, IconTrendUp } from "../../com
 import { Faces } from "../hot/Faces";
 
 // As on the original list: the top three in the ranking colours at the heaviest weight.
-const RANK_COLOR = ["text-[15px] font-black text-rank-1", "text-[15px] font-black text-rank-2", "text-[15px] font-black text-rank-3"];
+// Sizes come off the type scale (--text-lead 15px for the podium ranks, --text-body 14px for the rest);
+// the colours are the rank tokens, whose light set was darkened this round to hold AA on the hover row.
+const RANK_COLOR = ["text-lead font-black text-rank-1", "text-lead font-black text-rank-2", "text-lead font-black text-rank-3"];
 
 function hrefOf(e: HotStripEntry): string {
   return e.storyPublicId ? `/story/${e.storyPublicId}` : e.itemId ? `/items/${e.itemId}` : "/hot";
@@ -12,6 +14,9 @@ function hrefOf(e: HotStripEntry): string {
 
 /** Where the heat is heading, as a small arrow (a "新" mark for a story new to the ranking). */
 function TrendMark({ trend }: { trend: HotStripEntry["trend"] }) {
+  // The arrow is the only carrier of this, so it has to be named. `Svg` gives an icon that carries an
+  // `aria-label` a `role="img"` (a bare <svg> with only a label is dropped by some screen readers); the
+  // label was already being written here, and thrown away by the old hardcoded `aria-hidden` (WCAG 1.1.1).
   if (trend === "up") return <IconTrendUp size={14} strokeWidth={2.2} className="text-hot" aria-label="热度上升" />;
   if (trend === "down") return <IconTrendDown size={14} strokeWidth={2.2} className="text-ink-4" aria-label="热度回落" />;
   if (trend === "new") return <span className="rounded-full bg-accent-soft px-1.5 text-[10.5px] font-semibold leading-4 text-accent">新</span>;
@@ -32,14 +37,14 @@ export function HotTopics({ entries }: { entries: HotStripEntry[] }) {
       className="card relative mb-6 overflow-hidden bg-[radial-gradient(120%_90%_at_100%_0%,var(--hot-soft),transparent_55%)] px-4 pb-2 pt-3.5 lg:px-5"
     >
       <div className="mb-1 flex items-center justify-between">
-        <h2 id="hot-topics" className="flex items-center gap-2 text-[14px] font-semibold text-ink">
+        <h2 id="hot-topics" className="flex items-center gap-2 text-body font-semibold text-ink">
           <span className="relative flex size-2" aria-hidden="true">
             <span className="absolute inline-flex size-full animate-ping rounded-full bg-hot opacity-40" />
             <span className="relative inline-flex size-2 rounded-full bg-hot" />
           </span>
           当前热点
         </h2>
-        <Link to="/hot" className="group inline-flex items-center gap-1 text-[12.5px] text-ink-3 transition-colors hover:text-accent">
+        <Link to="/hot" className="group inline-flex items-center gap-1 text-meta text-ink-3 transition-colors hover:text-accent">
           完整榜单 <IconArrowRight size={13} className="transition-transform duration-200 group-hover:translate-x-0.5" />
         </Link>
       </div>
@@ -50,13 +55,13 @@ export function HotTopics({ entries }: { entries: HotStripEntry[] }) {
               to={hrefOf(e)}
               className="group -mx-2 grid grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-x-3 rounded-tile px-2 py-2 transition-colors hover:bg-bg-sunk/70 sm:grid-cols-[20px_minmax(0,1fr)_120px_64px_20px] sm:gap-x-4 dark:hover:bg-bg-muted/40"
             >
-              <span className={`num text-center leading-none ${RANK_COLOR[i] ?? "text-[14px] font-bold text-rank-rest"}`}>{e.rank}</span>
-              <span className="line-clamp-2 min-w-0 text-[14px] font-semibold leading-[1.5] text-ink transition-colors group-hover:text-accent lg:line-clamp-1">{e.title}</span>
+              <span className={`num text-center leading-none ${RANK_COLOR[i] ?? "text-body font-bold text-rank-rest"}`}>{e.rank}</span>
+              <span className="line-clamp-2 min-w-0 text-body font-semibold leading-[1.5] text-ink transition-colors group-hover:text-accent lg:line-clamp-1">{e.title}</span>
               <span className="hidden justify-end sm:flex">
-                <Faces interactive={false} participants={e.participants} total={e.participantCount} size={20} />
+                <Faces interactive={false} participants={e.participants} total={e.participantCount} size={22} max={3} />
               </span>
               <span className="flex items-center justify-end gap-2.5 sm:contents">
-                <span className="whitespace-nowrap text-right text-[12.5px] text-ink-4" title="热度指数">
+                <span className="whitespace-nowrap text-right text-meta text-ink-4" title="热度指数">
                   <span className="num text-[13.5px] font-semibold text-ink-2">{Math.round(e.heat)}</span> 热度
                 </span>
                 <span className="flex w-5 justify-center">

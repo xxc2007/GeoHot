@@ -32,7 +32,9 @@ export async function submitIndexNow(now = new Date()) {
     httpStatus = res.status;
     status = res.ok ? "sent" : "failed";
   }
-  if (status !== "failed") {
+  // Advancing the watermark while the valve is off would mark these URLs as reported: switching
+  // submission on later would then never tell search engines about them.
+  if (status === "sent" || status === "empty") {
     await sql`INSERT INTO settings (key, value, updated_by) VALUES ('indexnow.watermark', ${sql.json({ since: now.toISOString() })}, 'worker')
               ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`;
   }

@@ -3,7 +3,7 @@
 // as the actual cost. Docs: https://s.apifox.cn/410674f9-f451-4b4f-957a-5f54f243bc83
 import { credential } from "../config.ts";
 import { guardedFetch } from "../lib/http-fetch.ts";
-import { paidRequest, ProviderRejectedError, type CallOutcome } from "./receipts.ts";
+import { paidRequest, rejectReceivedResponse, ProviderRejectedError, type CallOutcome } from "./receipts.ts";
 
 export interface MpPost {
   position: number;
@@ -48,6 +48,16 @@ function outcomeOf(json: { code?: number; msg?: string; cost_money?: number }, l
   return typeof json.cost_money === "number" ? { amount: json.cost_money, currency: "CNY", basis: "actual" } : null;
 }
 
+/**
+ * A code-0 answer with nothing in it is no answer. Left as `received` it is reused for the rest of the
+ * window it was billed in, so the account looks checked while its post never arrived: fail the receipt
+ * and throw a retryable error, which mp.ts records as a body to try again.
+ */
+async function refuseUnusable(receiptId: number, what: string): Promise<never> {
+  await rejectReceivedResponse(receiptId, `dajiala answer is not a ${what}`);
+  throw new ProviderRejectedError(`dajiala returned no ${what}`, 200, true);
+}
+
 /** Latest posts of one account (first page, newest first). `window` buckets the receipt identity. */
 export async function mpHistory(ghid: string, opts: { subject: string; window: string }): Promise<MpHistory> {
   const { url, key } = base();
@@ -68,7 +78,9 @@ export async function mpHistory(ghid: string, opts: { subject: string; window: s
     },
   );
   const json = receipt.response as { data?: MpPost[]; nickname?: string; remain_money?: number };
-  return { posts: json.data ?? [], nickname: json.nickname ?? null, remainMoney: json.remain_money ?? null, receiptId: receipt.receiptId, reused: receipt.reused };
+  // An empty list is a real answer ("nothing new"); a body without the list is not this endpoint talking.
+  if (!Array.isArray(json?.data)) return refuseUnusable(receipt.receiptId, "post list");
+  return { posts: json.data, nickname: json.nickname ?? null, remainMoney: json.remain_money ?? null, receiptId: receipt.receiptId, reused: receipt.reused };
 }
 
 /** Plain-text body of one article (mode 1: text with image markers). */
@@ -90,5 +102,7 @@ export async function mpArticle(articleUrl: string, opts: { subject: string; ide
     },
   );
   const j = receipt.response as { title?: string; content?: string; author?: string; desc?: string; pubtime?: string };
+  // Neither a title nor a body: the provider answered with something that is not this article.
+  if (!String(j.title ?? "").trim() && !String(j.content ?? "").trim()) return refuseUnusable(receipt.receiptId, "article body");
   return { title: j.title ?? "", content: j.content ?? "", author: j.author || null, desc: j.desc || null, pubtime: j.pubtime ?? null, receiptId: receipt.receiptId };
 }

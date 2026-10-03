@@ -1,5 +1,6 @@
 // Minimal Markdown → HTML for our own static site copy (legal pages, about, agent guide).
 // Trusted input only: never used for third-party content.
+import { isSafeSitePath } from "./safe-url.ts";
 
 function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -10,6 +11,11 @@ function inline(s: string, site: string): string {
   out = out.replace(/`([^`]+)`/g, "<code>$1</code>");
   out = out.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
   out = out.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_m, text: string, href: string) => {
+    // 这份文案是自己写的，但写出来的地址仍然只该是 http(s) 或站内路径：scheme 在这里再判一次
+    // （lib/safe-url.ts）——`javascript:` 放进 `<a href>` 就会在读者这一页上执行，defence in depth
+    // 在这种地方是免费的。认不出的地址只留文字，不编一个能点的。
+    // 判的是 esc() 之后的那一串：引号已经写成 `&quot;`，属性不会被它截断。
+    if (!isSafeSitePath(href)) return text;
     // A link to this site's own address becomes an in-site path; any other address opens in a new tab.
     const own = href === site || href.startsWith(`${site}/`);
     const external = /^https?:\/\//.test(href) && !own;

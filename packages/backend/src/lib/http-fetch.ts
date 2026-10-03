@@ -59,6 +59,13 @@ export interface GuardedResponse {
 /** How the collectors introduce themselves: the site's own crawler name and address (industry/site.ts). */
 export const DEFAULT_UA = `Mozilla/5.0 (compatible; ${SITE.crawlerName}/1.0; +${config.siteUrl}/about)`;
 
+/** What opens a paid or logged-in first hop; none of it belongs to a host the caller did not choose. */
+const CREDENTIAL_HEADER = /^(authorization|proxy-authorization|cookie|x-api-key|api-key)$/i;
+
+function dropKeys(headers: Record<string, string>, name: RegExp): Record<string, string> {
+  return Object.fromEntries(Object.entries(headers).filter(([k]) => !name.test(k)));
+}
+
 export async function guardedFetch(input: string, opts: GuardedFetchOptions = {}): Promise<GuardedResponse> {
   // One budget includes DNS, every redirect and the body. Restarting it at each hop allowed a
   // nominal 20 s image request to occupy the API for minutes.
@@ -70,11 +77,20 @@ export async function guardedFetch(input: string, opts: GuardedFetchOptions = {}
   let url = await check(input);
   const maxRedirects = opts.maxRedirects ?? 5;
   const maxBytes = opts.maxBytes ?? 8 * 1024 * 1024;
-  for (let hop = 0; ; hop++) {
+  // Redirects are followed by hand, so what each hop sends is our decision rather than the runtime's.
+  let method = (opts.method ?? "GET").toUpperCase();
+  let payload = opts.body;
+  let headers: Record<string, string> = {
+    "user-agent": DEFAULT_UA,
+    "accept-language": "zh-CN,zh;q=0.9,en;q=0.8",
+    ...(opts.headers ?? {}),
+  };
+  let hop = new URL(url).host;
+  for (let redirect = 0; ; redirect++) {
     const res = await undiciFetch(url, {
-      method: opts.method ?? "GET",
-      headers: { "user-agent": DEFAULT_UA, "accept-language": "zh-CN,zh;q=0.9,en;q=0.8", ...(opts.headers ?? {}) },
-      body: opts.body,
+      method,
+      headers,
+      body: payload,
       redirect: "manual",
       dispatcher: dispatcherFor(proxied(url, route)),
       signal,
@@ -82,8 +98,20 @@ export async function guardedFetch(input: string, opts: GuardedFetchOptions = {}
     if (res.status >= 300 && res.status < 400 && res.headers.get("location")) {
       // Release the connection even when the next URL is refused or the redirect limit is reached.
       await res.body?.cancel();
-      if (hop >= maxRedirects) throw new Error(`Too many redirects for ${input}`);
-      url = await check(new URL(res.headers.get("location")!, url).toString());
+      if (redirect >= maxRedirects) throw new Error(`Too many redirects for ${input}`);
+      const next = new URL(res.headers.get("location")!, url);
+      if (res.status === 303 || ((res.status === 301 || res.status === 302) && method !== "GET" && method !== "HEAD")) {
+        // RFC 9110: the answer to these is meant to be read as a GET, so the submission does not follow.
+        method = "GET";
+        payload = undefined;
+        headers = dropKeys(headers, /^content-/i);
+      }
+      if (next.host !== hop) {
+        // A listing link that redirects elsewhere must not carry the token that opened the first host.
+        headers = dropKeys(headers, CREDENTIAL_HEADER);
+        hop = next.host;
+      }
+      url = await check(next.toString());
       continue;
     }
     const chunks: Buffer[] = [];

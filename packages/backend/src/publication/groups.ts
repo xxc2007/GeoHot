@@ -6,7 +6,7 @@ import { sql } from "../db.ts";
 import { decodeCursor, encodeCursor, InvalidCursorError, queryBinding } from "../lib/cursor.ts";
 import { shortHash } from "../lib/ids.ts";
 import { proxiedImage } from "../media/imgproxy.ts";
-import { ITEM_COLUMNS, ITEM_FROM, categoryCondition, channelCondition, selectedCondition, tagCondition, toItemSummary, topicCondition, type ItemRow } from "./items.ts";
+import { ITEM_COLUMNS, ITEM_FROM, categoryCondition, channelCondition, releasedCondition, selectedCondition, tagCondition, toItemSummary, topicCondition, type ItemRow } from "./items.ts";
 import { pickRepresentative } from "./timeline.ts";
 
 export interface GroupReportsQuery {
@@ -25,6 +25,9 @@ export type GroupReportsResult =
   | { kind: "not_found" }
   | { kind: "changed" };
 
+/** A page offset a client may hand back: a whole count of rows, never NaN, a fraction or a negative. */
+const isOffset = (o: unknown): o is number => Number.isInteger(o) && (o as number) >= 0;
+
 export async function loadGroupReports(q: GroupReportsQuery, now = new Date()): Promise<GroupReportsResult> {
   const [fact] = await sql<{ id: number }[]>`SELECT id FROM facts WHERE public_id = ${q.factPublicId}`;
   if (!fact) return { kind: "not_found" };
@@ -37,7 +40,7 @@ export async function loadGroupReports(q: GroupReportsQuery, now = new Date()): 
            s.id AS source_id, s.name AS source_name, s.kind AS source_kind, p.first_party, s.icon_url
     FROM publications p JOIN sources s ON s.id = p.source_id
     WHERE p.article_id IN (SELECT article_id FROM fact_articles WHERE fact_id = ${fact.id}) AND p.visibility = 'public' AND p.eligible
-      AND (NOT p.selected OR p.visible_after <= ${now}) ${filters}
+      AND ${releasedCondition(now)} ${filters}
     ORDER BY p.timeline_at DESC, p.article_id ASC`;
   if (members.length === 0) return { kind: "not_found" };
 
@@ -48,6 +51,9 @@ export async function loadGroupReports(q: GroupReportsQuery, now = new Date()): 
   if (q.cursor) {
     const c = decodeCursor<{ o: number; r: string; b: string }>("gr1", q.cursor);
     if (c.b !== binding) throw new InvalidCursorError("cursor does not match this group query");
+    // `c.o` is whatever the client sent: an unusable offset must be a 400, not `slice(NaN, NaN)`, which
+    // would answer an empty page with `nextCursor: null` — "there is nothing more" for a cursor lie.
+    if (!isOffset(c.o)) throw new InvalidCursorError("cursor offset is not a page offset");
     if (c.r !== revision) return { kind: "changed" };
     offset = c.o;
   } else if (q.revision && q.revision !== revision) {
@@ -106,7 +112,7 @@ export async function loadDevelopments(q: DevelopmentsQuery, now = new Date()): 
     (await sql<{ fact_id: number; n: number }[]>`
       SELECT fa.fact_id, count(DISTINCT p.article_id)::int AS n
       FROM facts f JOIN fact_articles fa ON fa.fact_id = f.id JOIN publications p ON p.article_id = fa.article_id
-      WHERE f.story_id = ${story.id} AND p.visibility = 'public' AND p.eligible AND (NOT p.selected OR p.visible_after <= ${now}) ${filters}
+      WHERE f.story_id = ${story.id} AND p.visibility = 'public' AND p.eligible AND ${releasedCondition(now)} ${filters}
       GROUP BY fa.fact_id`).map((c) => [c.fact_id, c.n]),
   );
   const byFact = new Map<number, Member[]>();
@@ -132,6 +138,7 @@ export async function loadDevelopments(q: DevelopmentsQuery, now = new Date()): 
   if (q.cursor) {
     const c = decodeCursor<{ o: number; r: string; b: string }>("dv1", q.cursor);
     if (c.b !== binding) throw new InvalidCursorError("cursor does not match this group query");
+    if (!isOffset(c.o)) throw new InvalidCursorError("cursor offset is not a page offset");
     if (c.r !== revision) return { kind: "changed" };
     offset = c.o;
   } else if (q.revision && q.revision !== revision) {

@@ -7,7 +7,7 @@ import { config } from "../config.ts";
 import { sql } from "../db.ts";
 import { escapeXml } from "../lib/text.ts";
 import { proxyBodyImages } from "../media/imgproxy.ts";
-import { hasReadableItems, PERIOD_FEED_LIMIT, reportHeadline, reportIndex, unavailableIds, type ReportKind } from "./reports.ts";
+import { PERIOD_FEED_LIMIT, readableReports, reportHeadline, type ReportKind } from "./reports.ts";
 import { textToHtml } from "../content/sanitize.ts";
 import { categoryCondition, listedCondition, selectedCondition, xView, type ItemRow } from "./items.ts";
 import { dailyUrl, itemUrl, reportUrl, siteUrl } from "./links.ts";
@@ -113,7 +113,17 @@ export type ItemFeedKind = "selected" | "selected-full" | "all";
 // Like the live feeds, items are the newest by their original publish time (the pubDate shown):
 // 50 per feed; a category feed holds only its last 7 days (by original publish time).
 
-export async function itemFeed(kind: ItemFeedKind, category: PublicApiCategoryKey | null, now = new Date()): Promise<string> {
+/**
+ * A category feed is always a *selected* feed: `/feed/category/<分类>.xml` and its full-text twin. The
+ * 全部动态 feed takes no category — its scope is the 7-day pool across every category, and the old
+ * signature accepted a category there and then silently ignored it — so the combination is refused by the
+ * type instead of quietly dropped.
+ */
+export async function itemFeed<K extends ItemFeedKind>(
+  kind: K,
+  category: K extends "all" ? null : PublicApiCategoryKey | null,
+  now = new Date(),
+): Promise<string> {
   const includeContent = kind === "selected-full";
   const scope = kind === "all"
     ? sql`${listedCondition(now)} AND p.eligible AND coalesce(p.published_at, p.discovered_at) > ${now}::timestamptz - interval '7 days'
@@ -154,45 +164,44 @@ export async function itemFeed(kind: ItemFeedKind, category: PublicApiCategoryKe
 }
 
 /**
- * An issue's own table of contents: the groups the editors wrote (a daily's section labels, a weekly
- * or monthly theme headings), each with the items under it that are still public. Titles are carried
- * as published; a group whose items have all been withdrawn goes with them.
+ * An issue's own table of contents: the groups the editors wrote (a daily's section labels, a weekly or
+ * monthly theme heading), each with the items under it that still have a page. Titles are carried as
+ * published; a group whose items have all lost their pages goes with them. The link follows the item:
+ * the site page when there is one, the original article when the citation is an imported item this
+ * database does not hold (quoting it as published is the documented rule, pointing a reader at a 404
+ * is not), and no link at all when the report carries neither.
  */
-function tocHtml(content: Record<string, any>, kind: ReportKind, gone: Set<string>): string {
+function tocHtml(content: Record<string, any>, kind: ReportKind, gone: Set<string>, withPage: Set<string>): string {
   const groups: Array<Record<string, any>> = kind === "daily" ? (content.sections ?? []) : (content.themes ?? []);
   return groups
     .map((g) => {
       const listed = ((kind === "daily" ? g.items : g.storyRefs) ?? []).filter((i: any) => !i.itemId || !gone.has(i.itemId));
       if (!listed.length) return "";
       const label = String((kind === "daily" ? g.label : g.heading) ?? "");
-      const entries = listed.map((i: any) => `<li>${i.itemId ? `<a href="${itemUrl(String(i.itemId))}">${escapeXml(String(i.title ?? ""))}</a>` : escapeXml(String(i.title ?? ""))}</li>`).join("");
+      const entries = listed.map((i: any) => {
+        const title = escapeXml(String(i.title ?? ""));
+        const href = i.itemId ? (withPage.has(i.itemId) ? itemUrl(String(i.itemId)) : String(i.sourceUrl ?? "")) : "";
+        return `<li>${href ? `<a href="${escapeXml(href)}">${title}</a>` : title}</li>`;
+      }).join("");
       return `<p><strong>${escapeXml(label)}</strong></p>\n<ul>${entries}</ul>`;
     })
     .filter(Boolean)
     .join("\n");
 }
 
-/** The items the fed issues cite; whether each is still public is asked of the database once per build. */
-function citedIds(rows: Array<{ content: Record<string, any> }>, kind: ReportKind): string[] {
-  return rows
-    .flatMap((r) => (kind === "daily" ? (r.content.sections ?? []).flatMap((s: any) => s.items ?? []) : (r.content.themes ?? []).flatMap((t: any) => t.storyRefs ?? [])))
-    .map((i: any) => i.itemId)
-    .filter(Boolean) as string[];
-}
-
 export async function dailyFeed(): Promise<string> {
-  const index = await reportIndex("daily");
   // An edition with nothing readable in it is not a newspaper: the same gate the archive and the v1
-  // list apply, so the feed never offers a blank issue either.
-  const rows = index.rows.filter((r) => hasReadableItems(r.content, "daily")).slice(0, 30);
+  // list apply, so the feed never offers a blank issue either. Its citation page sets come from that
+  // cached index too, so a feed build asks the database nothing extra.
+  const { index, rows } = await readableReports("daily", 30);
   const m = FEEDS.daily;
   const gone = index.gone;
-  const tocGone = await unavailableIds(citedIds(rows, "daily"));
+  const tocGone = index.withoutPage;
   const items = rows.map((r) => {
     const url = dailyUrl(r.key);
     const lead = reportHeadline(r.content, "daily", gone);
     const title = lead ? `${SITE.name} ${withSubject("日报")} · ${r.key} — ${lead}` : `${SITE.name} ${withSubject("日报")} · ${r.key}`;
-    const description = [`<p>${escapeXml(r.content.lead?.leadParagraph ?? lead ?? "")} — 点击查看完整日报</p>`, tocHtml(r.content, "daily", tocGone), `<p>via ${escapeXml(SITE.name)} · <a href="${url}">${url}</a></p>`].filter(Boolean).join("\n");
+    const description = [`<p>${escapeXml(r.content.lead?.leadParagraph ?? lead ?? "")} — 点击查看完整日报</p>`, tocHtml(r.content, "daily", tocGone, index.withPage), `<p>via ${escapeXml(SITE.name)} · <a href="${url}">${url}</a></p>`].filter(Boolean).join("\n");
     return `    <item>
       <title>${cdata(title)}</title>
       <link>${url}</link>
@@ -211,11 +220,10 @@ export async function dailyFeed(): Promise<string> {
  * published report, nothing added.
  */
 export async function reportFeed(kind: "weekly" | "monthly"): Promise<string> {
-  const index = await reportIndex(kind);
-  const rows = index.rows.filter((r) => hasReadableItems(r.content, kind)).slice(0, PERIOD_FEED_LIMIT);
+  const { index, rows } = await readableReports(kind, PERIOD_FEED_LIMIT);
   const m = FEEDS[kind];
   const gone = index.gone;
-  const tocGone = await unavailableIds(citedIds(rows, kind));
+  const tocGone = index.withoutPage;
   const items = rows.map((r) => {
     const url = reportUrl(kind, r.key);
     const headline = reportHeadline(r.content, "periodic", gone);
@@ -224,7 +232,7 @@ export async function reportFeed(kind: "weekly" | "monthly"): Promise<string> {
     const description = [
       headline ? `<p><strong>${escapeXml(headline)}</strong></p>` : "",
       overview ? `<p>${escapeXml(overview)}</p>` : "",
-      tocHtml(r.content, kind, tocGone),
+      tocHtml(r.content, kind, tocGone, index.withPage),
       `<p>via ${escapeXml(SITE.name)} · <a href="${url}">${url}</a></p>`,
     ].filter(Boolean).join("\n");
     return `    <item>

@@ -1,16 +1,18 @@
 import { SITE, withSubject } from "@aihot/industry/site";
 import { Link, useLoaderData } from "react-router";
 import type { ReportIndexEntry } from "@aihot/contracts/site";
-import { apiGet } from "../lib/api.server";
+import { loadOr404 } from "../lib/api.server";
 import { pageMeta } from "../lib/seo";
 import { beijingDate, beijingWeekday } from "../lib/format";
+import { EmptyState } from "../components/ui/Page";
 import { ReportLayout } from "../features/report/ReportLayout";
 import { archiveGroups } from "../features/report/format";
 import { Rows, SectionPage } from "../features/report/ReportPaper";
 import { Nameplate } from "../features/report/Nameplate";
 
 export async function loader({ request }: { request: Request }) {
-  const { items: index } = await apiGet<{ items: ReportIndexEntry[] }>("/api/site/reports/daily", { signal: request.signal });
+  // loadOr404 而不是裸 apiGet：接口 5xx 要按约定的 503 说话，不是把加载器抛出一个未捕获异常变成 500。
+  const { items: index } = await loadOr404<{ items: ReportIndexEntry[] }>("/api/site/reports/daily", { signal: request.signal });
   return { index, today: beijingDate(Date.now()) };
 }
 
@@ -43,6 +45,10 @@ export default function DailyArchive() {
           </div>
           <div aria-hidden="true" className="border-t border-line-strong" />
         </header>
+        {/* 一期都还没有时的样子：说没有，而不是留一张只有报头的白页。 */}
+        {months.length === 0 ? (
+          <EmptyState as="h1" title={`还没有${withSubject("日报")}存档`}>出刊之后，每一天的一期会按月份归到这里。</EmptyState>
+        ) : null}
         {months.map((m) => (
           <SectionPage key={m.id} id={`m-${m.id}`} label={m.label}>
             <Rows items={m.entries}>

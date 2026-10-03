@@ -11,6 +11,7 @@ import { sql } from "../db.ts";
 import { chatJson } from "../providers/llm.ts";
 import { completeReceipt } from "../providers/receipts.ts";
 import { shutdownSignal } from "../jobs/queue.ts";
+import { chineseCopyCondition } from "../publication/items.ts";
 
 export const REPORT_VERSION = promptVersion("report-daily-lead", "report-period");
 
@@ -64,9 +65,9 @@ export async function candidates(start: Date, end: Date): Promise<Candidate[]> {
       FROM publications p JOIN sources s ON s.id = p.source_id
       LEFT JOIN facts f ON f.id = p.fact_id LEFT JOIN stories st ON st.id = f.story_id
       -- Attribute each item by the later of arrival and release; either range can use its index.
-      -- 报纸是中文的：标题里没有一个汉字，说明还没有人写过这一条的中文稿（本地编辑大脑不会替人写）。
-      -- 2026-10-02 的日报曾把 7 条这样的条目照英文原文排进版面——闸门加在这里，成刊就不会再有整条英文。
-      WHERE p.visibility = 'public' AND p.selected AND NOT p.backfill AND p.title ~ '[一-鿿]'
+      -- 报纸是中文的：门槛用读取层那一条（items.chineseCopyCondition），不在这儿再抄一遍正则——
+      -- 列表和版面必须说同一句话，两份写法早晚不一致。
+      WHERE p.visibility = 'public' AND p.selected AND NOT p.backfill AND ${chineseCopyCondition()}
         AND (
           (p.visible_after <= p.timeline_at AND p.timeline_at >= ${start} AND p.timeline_at < ${end})
           OR (p.visible_after > p.timeline_at AND p.visible_after >= ${start} AND p.visible_after < ${end})
@@ -84,7 +85,12 @@ export async function candidates(start: Date, end: Date): Promise<Candidate[]> {
     const prev = byFact.get(key);
     if (!prev || Number(c.firstParty) - Number(prev.firstParty) > 0 || (c.firstParty === prev.firstParty && (c.score ?? 0) > (prev.score ?? 0))) byFact.set(key, c);
   }
-  return [...byFact.values()].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+  // Score, then the item's own moment, then its id. Sorting by score alone leaves ties in whatever order
+  // the row scan happened to return (this SELECT has no ORDER BY), and these entries are handed to the
+  // lead and period writers as a numbered list whose positions the editors' fixtures quote by number: an
+  // unreproducible order means a rerun of the same issue can number the same story 26 or 27.
+  return [...byFact.values()].sort((a, b) =>
+    (b.score ?? 0) - (a.score ?? 0) || a.publishedAt.localeCompare(b.publishedAt) || a.itemId.localeCompare(b.itemId));
 }
 
 /** Facts and items already covered by recent editions are not repeated. */

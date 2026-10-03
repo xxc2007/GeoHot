@@ -8,7 +8,7 @@ export function Delta({ trend, pct, className = "" }: { trend: HotEntryView["tre
   if (trend === "flat") return <span className={`${base} bg-bg-sunk text-ink-4 dark:bg-bg-muted/60`} title="较 6 小时前">持平</span>;
   const up = trend === "up";
   return (
-    <span className={`${base} ${up ? "bg-hot-soft text-hot" : "bg-bg-sunk text-ink-4 dark:bg-bg-muted/60"}`} title="较 6 小时前">
+    <span className={`${base} ${up ? "bg-hot-soft text-hot-ink" : "bg-bg-sunk text-ink-4 dark:bg-bg-muted/60"}`} title="较 6 小时前">
       {up ? "↑" : "↓"} {Math.abs(Math.round(pct))}%
     </span>
   );

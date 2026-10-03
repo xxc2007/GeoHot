@@ -47,10 +47,15 @@ export function CategoryTabs({ base, category, channel = "all", layoutId, size =
 function useSlashFocus(ref: React.RefObject<HTMLInputElement | null>) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "/" && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || (e.target as HTMLElement)?.isContentEditable)) {
-        e.preventDefault();
-        ref.current?.focus();
-      }
+      // Only a bare "/" is the shortcut. The old test asked nothing about modifiers, so Ctrl+/ (or Cmd+/
+      // on a Mac, and any browser or extension binding that uses "/" as its key) hit preventDefault and
+      // swallowed the chord while doing nothing for the reader (WCAG 2.1.1 — a shortcut must not steal a
+      // modifier combination it cannot handle).
+      if (e.key !== "/" || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+      const target = e.target as HTMLElement | null;
+      if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target?.isContentEditable) return;
+      e.preventDefault();
+      ref.current?.focus();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);

@@ -1,6 +1,6 @@
 // Share poster sheet: the server-rendered poster (with a QR code to the article), to save or hand to the
 // system share sheet. Loaded on demand from the article page; slides up on phones, centred on desktop.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SITE } from "@aihot/industry/site";
 import { Presence } from "../../components/ui/Presence";
 import { IconClose, IconDownload, IconShare } from "../../components/icons";
@@ -13,21 +13,44 @@ export default function PosterSheet({ id, title, open, onClose }: { id: string; 
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
   const [canShareFile, setCanShareFile] = useState(false);
+  const dialog = useRef<HTMLDivElement>(null);
+  const closeButton = useRef<HTMLButtonElement>(null);
 
+  // The sheet claims to be a modal dialog, so it has to behave like one: the same three things
+  // components/ui/Lightbox.tsx and features/item/TocSheet.tsx do (TocSheet's header records that this
+  // exact bug — Tab walking out into the article behind the scrim, Escape dropping the reader on <body> —
+  // was fixed here once already; the poster sheet never got it). Focus moves in on open, Tab and
+  // Shift-Tab stay inside, Escape closes, and focus goes back to the button that opened it.
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    const overflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", onKey);
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const root = document.documentElement;
+    const overflow = root.style.overflow;
+    root.style.overflow = "hidden";
+    closeButton.current?.focus({ preventScroll: true });
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (e.key !== "Tab") return;
+      const focusable = [...(dialog.current?.querySelectorAll<HTMLElement>("a[href], button") ?? [])];
+      if (!focusable.length) return;
+      const at = focusable.indexOf(document.activeElement as HTMLElement);
+      const next = e.shiftKey ? (at <= 0 ? focusable.length - 1 : at - 1) : at === focusable.length - 1 ? 0 : at + 1;
+      focusable[next]!.focus();
+      e.preventDefault();
+    };
+    document.addEventListener("keydown", onKey);
     try {
       setCanShareFile(!!navigator.canShare?.({ files: [new File([], "p.png", { type: "image/png" })] }));
     } catch {
       setCanShareFile(false);
     }
     return () => {
-      document.body.style.overflow = overflow;
-      window.removeEventListener("keydown", onKey);
+      document.removeEventListener("keydown", onKey);
+      root.style.overflow = overflow;
+      opener?.focus({ preventScroll: true });
     };
   }, [open, onClose]);
 
@@ -45,6 +68,7 @@ export default function PosterSheet({ id, title, open, onClose }: { id: string; 
       <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
         <button type="button" aria-label="关闭" className="absolute inset-0 bg-[rgba(8,14,15,0.55)] backdrop-blur-[3px]" onClick={onClose} />
         <div
+          ref={dialog}
           role="dialog"
           aria-modal="true"
           aria-label="分享海报"
@@ -53,7 +77,7 @@ export default function PosterSheet({ id, title, open, onClose }: { id: string; 
           <span className="mb-3 h-1 w-10 rounded-full bg-line-strong sm:hidden" aria-hidden="true" />
           <div className="mb-3 flex w-full items-center justify-between">
             <span className="text-[14px] font-semibold text-ink">分享海报</span>
-            <button type="button" onClick={onClose} className="grid size-8 place-items-center rounded-full text-ink-3 transition-colors hover:bg-bg-sunk hover:text-ink" aria-label="关闭">
+            <button ref={closeButton} type="button" onClick={onClose} className="grid size-8 place-items-center rounded-full text-ink-3 transition-colors hover:bg-bg-sunk hover:text-ink" aria-label="关闭">
               <IconClose size={16} />
             </button>
           </div>

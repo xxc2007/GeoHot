@@ -5,6 +5,13 @@ import { closeDb, sql } from "@aihot/backend/db";
 import { enqueue, QUEUES, stopBoss } from "@aihot/backend/jobs/queue";
 
 const { values } = parseArgs({ options: { all: { type: "boolean", default: false }, limit: { type: "string", default: "1000" } } });
+// LIMIT takes a bind value, so "abc" would reach Postgres as NaN and an empty --limit is worse than none:
+// this script enqueues paid work, and it must not be able to say "everything you have".
+const limit = Number(values.limit);
+if (!Number.isInteger(limit) || limit < 1 || limit > 5000) {
+  console.error(`--limit must be an integer between 1 and 5000 (got ${values.limit})`);
+  process.exit(2);
+}
 const rows = await sql<{ id: string }[]>`
   SELECT a.id FROM articles a JOIN sources s ON s.id = a.source_id
   WHERE s.participation_mode = 'editorial'

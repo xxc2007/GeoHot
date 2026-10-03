@@ -1,10 +1,14 @@
 // Collection run for one source: fetch listing → filter → store material → enqueue processing.
 // A failed fetch never advances the success cursor; the source's health reflects consecutive failures.
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { REPO_ROOT } from "../config.ts";
 import { sql } from "../db.ts";
 import { identityKeyFor, upsertMaterial } from "../content/materials.ts";
-import { enqueue, QUEUES } from "../jobs/queue.ts";
+import { enqueue, QUEUES, shutdownSignal } from "../jobs/queue.ts";
 import { queueProcessing } from "../jobs/content.ts";
 import { BudgetExceededError } from "../providers/receipts.ts";
+import { identityKeyForUrl } from "../lib/url.ts";
 import { fetchRss } from "./rss.ts";
 import { allowed, fetchDetail, fetchWebList, type DetailNeed } from "./web-list.ts";
 import { unsupportedConfig } from "./config-keys.ts";
@@ -18,10 +22,64 @@ export interface CollectResult {
   found: number;
   created: number;
   revised: number;
+  /** Candidates a listing offered that this round did not read (see takeListingRun). */
+  dropped?: number;
   error?: string;
 }
 
+/** The newest items one round reads, and the tail it reads on from below them. */
 const MAX_ITEMS_PER_RUN = 60;
+const MAX_TAIL_ITEMS_PER_RUN = 60;
+
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * A noise marker as it must be matched. An ASCII marker has to stand as a word: NASA's "mars" would
+ * otherwise drop a Marseille story, "galaxy" a product called GalaxyDock, gsc-europa's "NAGU" any longer
+ * Latin word that happens to contain it. A plural is still the same marker ("exoplanet" keeps matching
+ * "exoplanets"), and anything not a Latin letter is a word boundary, so a marker glued to Chinese
+ * ("全新iPhone手机") still fires — Chinese has no spaces to break on. A marker with a non-ASCII character
+ * in it keeps plain substring matching for the same reason.
+ */
+function markerPattern(marker: string): RegExp {
+  const k = marker.trim().toLowerCase();
+  const body = escapeRe(k);
+  return /^[\x20-\x7e]+$/.test(k) ? new RegExp(`(^|[^a-z])${body}s?([^a-z]|$)`, "i") : new RegExp(body, "i");
+}
+
+const markers = new Map<string, RegExp>();
+
+/** Whether one of the markers appears in this text, each compiled once per process. */
+function hasMarker(text: string, words: string[] | undefined): boolean {
+  return (words ?? []).some((k) => {
+    let re = markers.get(k);
+    if (!re) {
+      re = markerPattern(k);
+      markers.set(k, re);
+    }
+    return re.test(text);
+  });
+}
+
+/**
+ * How long one round may run. The queue expires a fetchSource job after 600 s and a shard after 900 s;
+ * pg-boss then releases the singleton key while this handler is still writing, so the +10-minute
+ * placeholder in scheduleDueSources starts a SECOND concurrent run of the same source, and the first one
+ * keeps storing. A round that stops inside its own budget finalises its run and its cursor, so the
+ * budget is what keeps one run per source. It is read per call so a deployment can change it without a
+ * restart, and the env value is a cap: whichever comes first, budget or work, ends the round.
+ */
+function roundBudgetMs(name: string, fallback: number): number {
+  const raw = Number(process.env[name]);
+  return Number.isFinite(raw) && raw > 0 ? raw : fallback;
+}
+
+/** Past the round's wall-clock budget, or the process is shutting down: stop taking more work. */
+function makeStopwatch(defaultMs: number, envName: string): { stop: () => boolean; budgetMs: number; deadlineAt: number } {
+  const started = Date.now();
+  const budgetMs = roundBudgetMs(envName, defaultMs);
+  return { budgetMs, deadlineAt: started + budgetMs, stop: () => Date.now() - started > budgetMs || shutdownSignal.signal.aborted };
+}
 
 export function noiseFiltered(c: Candidate, source: SourceRow): boolean {
   const f = source.config.ingestNoiseFilter;
@@ -29,12 +87,11 @@ export function noiseFiltered(c: Candidate, source: SourceRow): boolean {
   if (source.config.denyCategories?.some((d: string) => cats.includes(d))) return true;
   if (source.config.allowCategories?.length && !source.config.allowCategories.some((a: string) => cats.includes(a))) return true;
   if (!f) return false;
-  // Case-insensitive: the exemption "agent" keeps "Agent" (words in the lists are lower case).
-  const has = (text: string, words: string[] | undefined) => (words ?? []).some((k) => text.includes(k.toLowerCase()));
+  // Case-folded word matching, see markerPattern: the lists are written as words ("agent" keeps "Agent").
   const title = c.title.toLowerCase();
   const hay = `${title}\n${(c.excerpt ?? "").toLowerCase()}`;
-  if (has(hay, f.keepIfMatches)) return false;
-  return has(title, f.dropMarkersTitleOnly) || has(hay, f.dropMarkers);
+  if (hasMarker(hay, f.keepIfMatches)) return false;
+  return hasMarker(title, f.dropMarkersTitleOnly) || hasMarker(hay, f.dropMarkers);
 }
 
 function rewriteUrl(c: Candidate, source: SourceRow): Candidate {
@@ -61,11 +118,24 @@ const DAY_MS = 86_400_000;
 /** A listing title that is no headline: a label that swallowed its summary, or a call to action. */
 const needsTitle = (title: string) => title.length > 100 || /^(read more|learn more|continue reading|more|阅读全文|阅读更多|查看详情|了解更多)$/i.test(title.trim());
 
-async function store(sourceId: string, candidates: Candidate[], backfill: string | null): Promise<{ created: number; revised: number }> {
+/**
+ * Stores a round's candidates in the order the listing gave them. `stop` ends the round early (its
+ * budget is over, or the process is shutting down): how many were handled is what decides which read
+ * position the source may remember, so an item never counts as read before it is stored.
+ */
+async function store(
+  sourceId: string,
+  candidates: Candidate[],
+  backfill: string | null,
+  stop?: () => boolean,
+): Promise<{ created: number; revised: number; handled: number; stopped: boolean }> {
   let created = 0;
   let revised = 0;
+  let handled = 0;
   const seen = new Set<string>();
   for (const c of candidates) {
+    if (stop?.()) return { created, revised, handled, stopped: true };
+    handled += 1;
     const material = { ...c, sourceId, via: "fetch" as const, backfill };
     // A listing that names one article twice (a featured card and its list entry, a feed repeating an
     // item) stores its first entry only; the later ones would otherwise revise it on every fetch.
@@ -78,7 +148,48 @@ async function store(sourceId: string, candidates: Candidate[], backfill: string
     // Extraction first when the source wants full text and none came with the listing, else analysis.
     if (res.created || res.revised) await queueProcessing(res.articleId);
   }
-  return { created, revised };
+  return { created, revised, handled, stopped: false };
+}
+
+/** The identity a listing's read position is remembered by (the same key the material is stored under). */
+const listingKey = (c: Candidate): string => c.identityKey ?? identityKeyForUrl(c.url) ?? c.url;
+
+export interface ListingRun {
+  /** What this round reads: the newest items, then the tail of an earlier round if there is one left. */
+  read: Candidate[];
+  /** The oldest item read below the head: where the next round goes on. Null once the listing is covered. */
+  resumeAfter: string | null;
+  /** Items the listing offered that this round did not read (kept for the next rounds). */
+  unread: number;
+}
+
+/**
+ * What one round reads of a listing, and where the next round goes on.
+ *
+ * An RSS feed or a JSON API gives no watermark, so cutting every round to the first 60 items in listing
+ * order read the same newest 60 forever. Verified against the live USGS feed: its 4.5_week.geojson
+ * answers 135 M4.5+ earthquakes whose 60th is three and a half days old, so the 75 below it — half of a
+ * week of world seismicity — were unreachable for good, because the next round's first 60 are all newer.
+ * The position below the head is therefore kept in the source cursor and read on from, oldestwards, the
+ * way an X search keeps the stretch it did not finish, until the listing is covered.
+ */
+export function takeListingRun(
+  candidates: Candidate[],
+  resumeAfter: string | null | undefined,
+  head = MAX_ITEMS_PER_RUN,
+  tail = MAX_TAIL_ITEMS_PER_RUN,
+): ListingRun {
+  const items = candidates.slice(0, head);
+  if (candidates.length <= head) return { read: items, resumeAfter: null, unread: 0 };
+  const anchor = resumeAfter ? candidates.findIndex((c) => listingKey(c) === resumeAfter) : -1;
+  const start = anchor >= 0 ? anchor + 1 : head;
+  const rest = candidates.slice(start, start + tail);
+  const read = [...items, ...rest];
+  return {
+    read,
+    resumeAfter: rest.length ? listingKey(rest[rest.length - 1]!) : null,
+    unread: Math.max(0, candidates.length - Math.max(head, start + rest.length)),
+  };
 }
 
 export async function collectSource(sourceId: string, opts: { force?: boolean } = {}): Promise<CollectResult> {
@@ -92,9 +203,12 @@ export async function collectSource(sourceId: string, opts: { force?: boolean } 
 
   const [run] = await sql<{ id: number }[]>`INSERT INTO fetch_runs (source_id) VALUES (${sourceId}) RETURNING id`;
   const firstImport = !source.cursor?.initializedAt;
+  const outOfRound = makeStopwatch(420_000, "COLLECT_ROUND_BUDGET_MS");
   let created = 0;
   let revised = 0;
   let found = 0;
+  let filtered = 0;
+  let dropped = 0;
   try {
     // A config entry this kind does not implement fails the run, visibly, instead of being ignored.
     const unsupported = unsupportedConfig(source.kind, source.config);
@@ -102,6 +216,7 @@ export async function collectSource(sourceId: string, opts: { force?: boolean } 
     let candidates: Candidate[];
     let nextCursor: Record<string, unknown> = { ...(source.cursor ?? {}) };
     let detail: Record<string, unknown> | null = null;
+    let listing: ListingRun | null = null;
     if (source.kind === "rss") {
       const rss = await fetchRss(source, opts);
       candidates = rss.candidates;
@@ -114,7 +229,7 @@ export async function collectSource(sourceId: string, opts: { force?: boolean } 
     else if (source.kind === "web_list") candidates = await fetchWebList(source);
     else if (source.kind === "json_list") candidates = await fetchJsonList(source);
     else {
-      const x = await fetchXSearch(source);
+      const x = await fetchXSearch(source, { stop: () => outOfRound.stop() });
       candidates = x.candidates;
       if (x.lastId) nextCursor.lastTweetId = x.lastId;
       // A search longer than one run keeps its position for the next runs (shown in the admin).
@@ -122,8 +237,11 @@ export async function collectSource(sourceId: string, opts: { force?: boolean } 
       else delete nextCursor.xBacklog;
       detail = { pages: x.pages, truncated: x.truncated, backlog: x.backlog.length, backlogPages: x.backlogPages, dropped: x.dropped };
     }
+    // `found` is what the listing offered before any rule of ours was applied; the operator reads the
+    // three numbers against each other to see a fetch that returned nothing because of a filter.
     found = candidates.length;
     candidates = candidates.filter((c) => allowed(c.url, source)).map((c) => rewriteUrl(c, source)).filter((c) => !noiseFiltered(c, source));
+    filtered = candidates.length;
     if (source.config.sortByPublishedAt) candidates.sort((a, b) => (b.publishedAt?.getTime() ?? 0) - (a.publishedAt?.getTime() ?? 0));
 
     // First import of a new source: bounded, and archived by source time (never "today", never pushed).
@@ -131,20 +249,28 @@ export async function collectSource(sourceId: string, opts: { force?: boolean } 
     const backfillMonths = Number(source.config._aihot?.initialBackfillMonths ?? 12);
     if (firstImport) {
       const cutoff = Date.now() - backfillMonths * 30 * 86400000;
-      candidates = candidates.filter((c) => !c.publishedAt || c.publishedAt.getTime() >= cutoff).slice(0, backfillLimit);
+      const kept = candidates.filter((c) => !c.publishedAt || c.publishedAt.getTime() >= cutoff).slice(0, backfillLimit);
+      dropped = candidates.length - kept.length;
+      candidates = kept;
+      delete nextCursor.listingTailAfter;
     } else if (source.kind !== "x_search") {
-      // X keeps every post it read: its watermark already covers them, so a cut here would lose them.
-      candidates = candidates.slice(0, MAX_ITEMS_PER_RUN);
+      // A listing longer than the round keeps its unread tail in the cursor instead of losing it.
+      listing = takeListingRun(candidates, typeof source.cursor?.listingTailAfter === "string" ? source.cursor.listingTailAfter : null);
+      dropped = listing.unread;
+      candidates = listing.read;
     }
+    // X keeps every post it read: its watermark already covers them, so a cut there would lose them.
 
     // Detail pages only for material we have not seen (bounded per run), and only for what the listing lacks.
     const d = source.config.detail;
     const known = await storedTitles(candidates.map((c) => c.url));
     const detailBudget = Number(d?.maxFetches ?? 0);
     let detailUsed = 0;
+    let detailMissed = 0;
+    // Applied to every candidate before the paid loop: a round that stops for its budget must not leave
+    // the rest of them carrying a listing date this source says is unreliable.
+    if (d?.publishedAtAuthoritative === true) for (const c of candidates) c.publishedAt = null;
     for (const c of candidates) {
-      // Listing dates the source marks unreliable are dropped; the detail page's rule decides.
-      if (d?.publishedAtAuthoritative === true) c.publishedAt = null;
       const stored = known.get(c.url);
       if (stored !== undefined) {
         // The title came from the detail page: the listing's own rendering must not revise it back.
@@ -152,6 +278,12 @@ export async function collectSource(sourceId: string, opts: { force?: boolean } 
         continue;
       }
       if (!d || detailUsed >= detailBudget) continue;
+      // A detail page costs 20-60 s (and, for a Jina rule, a paid render). Past the round's budget the
+      // listing's own values are used and the queue's own extraction step still gets the page later.
+      if (outOfRound.stop()) {
+        detailMissed += 1;
+        continue;
+      }
       const need: DetailNeed = {
         date: !c.publishedAt || d.upgradeDatePrecision === true,
         title: !!(d.titleSelector || d.titleRegex) && (d.titleAuthoritative === true || needsTitle(c.title)),
@@ -179,7 +311,21 @@ export async function collectSource(sourceId: string, opts: { force?: boolean } 
       }
     }
 
-    ({ created, revised } = await store(sourceId, candidates, firstImport ? "first-import" : null));
+    const storedRun = await store(sourceId, candidates, firstImport ? "first-import" : null, () => outOfRound.stop());
+    ({ created, revised } = storedRun);
+    if (listing) {
+      // The remembered tail position moves only over items this round actually stored: a round that ran
+      // out of time must read them again, not lose them.
+      if (storedRun.handled >= listing.read.length) {
+        if (listing.resumeAfter) nextCursor.listingTailAfter = listing.resumeAfter;
+        else delete nextCursor.listingTailAfter;
+      } else if (storedRun.handled > 0) nextCursor.listingTailAfter = listingKey(listing.read[storedRun.handled - 1]!);
+      dropped += Math.max(0, listing.read.length - storedRun.handled);
+    }
+    // What the operator sees against `found`: what the filters took out, what was stored, what the round
+    // could not read. Without these a listing cut at 60 items looked like a healthy fetch. Only for a round
+    // that read something: a 304 is the common case, and five zeros in every such row is noise in the runs view.
+    if (found > 0) detail = { ...(detail ?? {}), found, filtered, stored: created + revised, dropped, detailFetched: detailUsed, ...(detailMissed ? { detailMissed } : {}) };
 
     if (firstImport) nextCursor.initializedAt = new Date().toISOString();
     nextCursor.lastOkAt = new Date().toISOString();
@@ -189,8 +335,8 @@ export async function collectSource(sourceId: string, opts: { force?: boolean } 
         next_fetch_at = now() + make_interval(mins => interval_minutes)
       WHERE id = ${sourceId}`;
     await sql`UPDATE fetch_runs SET status = 'ok', finished_at = now(), found_count = ${found}, new_count = ${created},
-                detail = ${detail ? sql.json(detail as never) : null} WHERE id = ${run!.id}`;
-    return { sourceId, status: "ok", found, created, revised };
+                detail = ${sql.json(detail as never)} WHERE id = ${run!.id}`;
+    return { sourceId, status: "ok", found, created, revised, dropped };
   } catch (error) {
     const message = String(error instanceof Error ? error.message : error).slice(0, 1000);
     const budget = error instanceof BudgetExceededError;
@@ -217,7 +363,13 @@ const xIdAt = (ms: number) => (BigInt(Math.max(0, ms - 1288834974657)) << 22n);
  * for posts that reach the search late.
  */
 function coveredTo(m: SourceRow): bigint {
-  const own = BigInt(m.cursor!.lastTweetId);
+  const raw = String(m.cursor?.lastTweetId ?? "");
+  let own: bigint;
+  try {
+    own = BigInt(raw);
+  } catch {
+    throw new FetchError(`${m.id}: cursor.lastTweetId is not a tweet id (${raw.slice(0, 40)})`);
+  }
   const checked = Date.parse(String(m.cursor?.lastOkAt ?? ""));
   if (!Number.isFinite(checked)) return own;
   const byTime = xIdAt(checked - 10 * 60_000);
@@ -235,7 +387,7 @@ const shardMinutes = (mode: string) => X_SHARD_MINUTES[mode] ?? 60;
  * every account is covered up to the newest post the search saw, and the stretches still unread are
  * kept in each account's cursor, so they survive a change of shards.
  */
-export async function collectXShard(key: string, sourceIds: string[]): Promise<{ key: string; status: "ok" | "failed" | "skipped"; accounts: number; found: number; created: number; error?: string }> {
+export async function collectXShard(key: string, sourceIds: string[]): Promise<{ key: string; status: "ok" | "failed" | "skipped"; accounts: number; found: number; created: number; stopped?: number; error?: string }> {
   const members = (
     await sql<SourceRow[]>`
       SELECT id, name, kind, config, tier, participation_mode, first_party, interval_minutes, enabled, cursor, fail_count
@@ -246,39 +398,69 @@ export async function collectXShard(key: string, sourceIds: string[]): Promise<{
   const runs = new Map<string, number>();
   for (const m of members) runs.set(m.id, (await sql<{ id: number }[]>`INSERT INTO fetch_runs (source_id) VALUES (${m.id}) RETURNING id`)[0]!.id);
 
-  const since = members.map(coveredTo).reduce((a, b) => (b < a ? b : a));
-  const backlog: XBacklog[] = [];
-  const stretches = new Set<string>();
-  for (const m of members) {
-    for (const b of (Array.isArray(m.cursor?.xBacklog) ? m.cursor.xBacklog : []) as XBacklog[]) {
-      if (!stretches.has(`${b.query} ${b.next}`)) backlog.push(b);
-      stretches.add(`${b.query} ${b.next}`);
-    }
-  }
-  let read: XRead;
-  try {
-    read = await readXSearch(shardQuery(members.map((m) => shardHandle(m)!)), { lastId: String(since), backlog, subject: `x-shard:${key}` });
-  } catch (error) {
-    const message = String(error instanceof Error ? error.message : error).slice(0, 1000);
-    const budget = error instanceof BudgetExceededError;
+  // A round that never got an answer still has to close the rows it opened and leave every member with
+  // its error, its fail_count and its health; the run row of a shard opened here is all the admin sees.
+  const failRound = async (message: string, budgetExceeded: boolean) => {
     for (const m of members) {
       await sql`
         UPDATE sources SET last_fetch_at = now(),
-          fail_count = CASE WHEN ${budget} THEN fail_count ELSE fail_count + 1 END,
+          fail_count = CASE WHEN ${budgetExceeded} THEN fail_count ELSE fail_count + 1 END,
           last_error = ${message},
-          health = CASE WHEN ${budget} THEN health WHEN fail_count + 1 >= 5 THEN 'failing' ELSE 'degraded' END,
-          next_fetch_at = now() + make_interval(mins => CASE WHEN ${budget} THEN 15 ELSE LEAST(${minutes} * (fail_count + 2), 360) END),
+          health = CASE WHEN ${budgetExceeded} THEN health WHEN fail_count + 1 >= 5 THEN 'failing' ELSE 'degraded' END,
+          next_fetch_at = now() + make_interval(mins => CASE WHEN ${budgetExceeded} THEN 15 ELSE LEAST(${minutes} * (fail_count + 2), 360) END),
           updated_at = now()
         WHERE id = ${m.id}`;
       await sql`UPDATE fetch_runs SET status = 'failed', finished_at = now(), error = ${message}, detail = ${sql.json({ shard: key, accounts: members.length })} WHERE id = ${runs.get(m.id)!}`;
     }
+  };
+
+  const outOfRound = makeStopwatch(600_000, "COLLECT_X_BUDGET_MS");
+  let since: bigint;
+  const backlog: XBacklog[] = [];
+  try {
+    // The members' watermarks are read here, inside the try: a malformed cursor used to throw out of this
+    // function after the run rows were inserted, and with retryLimit 0 nothing requeued the job, so the
+    // round vanished, no member got last_error or fail_count, and N rows stayed 'running' forever.
+    since = members.map(coveredTo).reduce((a, b) => (b < a ? b : a));
+    const stretches = new Set<string>();
+    for (const m of members) {
+      for (const b of (Array.isArray(m.cursor?.xBacklog) ? m.cursor.xBacklog : []) as XBacklog[]) {
+        if (!stretches.has(`${b.query} ${b.next}`)) backlog.push(b);
+        stretches.add(`${b.query} ${b.next}`);
+      }
+    }
+  } catch (error) {
+    const message = String(error instanceof Error ? error.message : error).slice(0, 1000);
+    await failRound(`unreadable cursor: ${message}`, false);
+    throw error;
+  }
+  let read: XRead;
+  try {
+    read = await readXSearch(shardQuery(members.map((m) => shardHandle(m)!)), {
+      lastId: String(since), backlog, subject: `x-shard:${key}`,
+      // Pages cost 60 s each and a shard may want twenty: stop inside the job's expiry and hand the rest
+      // of the search to the next rounds, which is what the backlog is for.
+      stop: () => outOfRound.stop(),
+    });
+  } catch (error) {
+    const message = String(error instanceof Error ? error.message : error).slice(0, 1000);
+    const budget = error instanceof BudgetExceededError;
+    await failRound(message, budget);
     return { key, status: "failed", accounts: members.length, found: 0, created: 0, error: message };
   }
 
   const detail = { shard: key, accounts: members.length, pages: read.pages, truncated: read.truncated, backlog: read.backlog.length, backlogPages: read.backlogPages, dropped: read.dropped };
   let found = 0;
   let created = 0;
+  let stopped = 0;
   for (const m of members) {
+    if (outOfRound.stop()) {
+      // An account whose posts were read but not stored keeps its own watermark, so the next round's
+      // search starts at the oldest one of them again and nothing that was not stored counts as seen.
+      stopped += 1;
+      await sql`UPDATE fetch_runs SET status = 'skipped', finished_at = now(), error = ${"round stopped before this account"} WHERE id = ${runs.get(m.id)!}`;
+      continue;
+    }
     const handle = shardHandle(m)!.toLowerCase();
     const mine = read.tweets.filter((t) => t.user.screen_name.toLowerCase() === handle);
     const stored = await store(m.id, mine.map(tweetToCandidate).map((c) => rewriteUrl(c, m)).filter((c) => !noiseFiltered(c, m)), null);
@@ -294,9 +476,9 @@ export async function collectXShard(key: string, sourceIds: string[]): Promise<{
         next_fetch_at = now() + make_interval(mins => ${minutes})
       WHERE id = ${m.id}`;
     await sql`UPDATE fetch_runs SET status = 'ok', finished_at = now(), found_count = ${mine.length}, new_count = ${stored.created},
-                detail = ${sql.json(detail as never)} WHERE id = ${runs.get(m.id)!}`;
+                detail = ${sql.json({ ...detail, stored: stored.created + stored.revised } as never)} WHERE id = ${runs.get(m.id)!}`;
   }
-  return { key, status: "ok", accounts: members.length, found, created };
+  return { key, status: stopped === members.length ? "skipped" : "ok", accounts: members.length - stopped, found, created, stopped };
 }
 
 /** X accounts read by shard: a plain query and a watermark (the first fetch of an account is its own). */
@@ -318,6 +500,17 @@ async function scheduleXShards(): Promise<number> {
   return enqueued;
 }
 
+/**
+ * A listing a Jina render is bought for, as SQL. Only the address the collector fetches counts: a source
+ * that merely names r.jina.ai in allowUrlPrefixes is not paid and must not be left out of a development
+ * round (which is what `config::text LIKE '%r.jina.ai%'` did to it).
+ */
+const paidListingSql = (alias = "") => {
+  const c = alias ? `${alias}.config` : "config";
+  return sql`${c}->>'url' LIKE ${JINA_LIST_PREFIX} OR ${c}->>'feedUrl' LIKE ${JINA_LIST_PREFIX}`;
+};
+const JINA_LIST_PREFIX = "https://r.jina.ai/%";
+
 /** Every minute: enqueue due sources (enabled, not WeChat/external), oldest due first; X accounts by shard. */
 export async function scheduleDueSources(limit = Number(process.env.FETCH_SCHEDULE_BATCH || 40)): Promise<{ enqueued: number; shards: number }> {
   const kinds: string[] = (process.env.COLLECT_KINDS || "rss,web_list,json_list,x_search").split(",");
@@ -326,7 +519,7 @@ export async function scheduleDueSources(limit = Number(process.env.FETCH_SCHEDU
   const rows = await sql<{ id: string }[]>`
     SELECT id FROM sources
     WHERE enabled AND kind IN ${sql(kinds)} AND (next_fetch_at IS NULL OR next_fetch_at <= now()) AND NOT (${sharded()})
-      ${skipJina ? sql`AND config::text NOT LIKE '%r.jina.ai%'` : sql``}
+      ${skipJina ? sql`AND NOT (${paidListingSql()})` : sql``}
     ORDER BY next_fetch_at NULLS FIRST LIMIT ${limit}`;
   for (const r of rows) {
     await enqueue(QUEUES.fetchSource, { sourceId: r.id }, { singletonKey: r.id });
@@ -337,27 +530,76 @@ export async function scheduleDueSources(limit = Number(process.env.FETCH_SCHEDU
 }
 
 /**
- * Daily: adapt each source's interval to its recent output (active 15 min … quiet 120 min).
- * hot_signal sources are allowed to be slower.
+ * The interval the industry pack curates for a source id, from industry/sources.json — the operator's own
+ * number, which no daily job may overtake. Read once per process: the file only changes with a deploy, and
+ * a deployment without it (nothing to read) simply has no curated ceiling.
  */
-export async function adaptIntervals(): Promise<{ updated: number }> {
-  const rows = await sql<Array<Pick<SourceRow, "id" | "participation_mode" | "kind" | "config" | "cursor"> & { paid_listing: boolean; per_day: number }>>`
-    SELECT s.id, s.participation_mode, s.kind, s.config, s.cursor, coalesce(s.config->>'url', '') LIKE 'https://r.jina.ai/%' AS paid_listing,
+let packIntervals: Map<string, number> | null = null;
+function curatedInterval(id: string): number | null {
+  packIntervals ??= readPackIntervals();
+  return packIntervals.get(id) ?? null;
+}
+
+function readPackIntervals(): Map<string, number> {
+  const out = new Map<string, number>();
+  try {
+    const pack = JSON.parse(readFileSync(path.join(REPO_ROOT, "industry/sources.json"), "utf8")) as { sources?: Array<{ id?: unknown; interval_minutes?: unknown }> };
+    for (const s of pack.sources ?? []) {
+      if (typeof s?.id === "string" && Number.isFinite(Number(s.interval_minutes))) out.set(s.id, Number(s.interval_minutes));
+    }
+  } catch {
+    // no pack in this deployment: adapt from what the row itself says
+  }
+  return out;
+}
+
+/**
+ * Daily: adapt each source's interval to its recent output, between the floor (15 min for a free source,
+ * 60 for one read through Jina) and the interval the operator curated for it. The curated value is the
+ * ceiling, not a starting point: this job used to rewrite all 36 collectable rows from a week's volume
+ * alone, so a ministry page curated at 240 minutes and a journal feed at 720 held their pace for one day
+ * and were then pulled to 60 — or to 15, sixteen times the crawl delay set for the statistics bureau.
+ * `_aihot.intervalMinutesLocked` takes a source out of the adaptation altogether.
+ */
+export async function adaptIntervals(): Promise<{ updated: number; ceilingRecorded: number }> {
+  const rows = await sql<Array<Pick<SourceRow, "id" | "participation_mode" | "kind" | "config" | "cursor" | "interval_minutes"> & { paid_listing: boolean; per_day: number }>>`
+    SELECT s.id, s.participation_mode, s.kind, s.config, s.cursor, s.interval_minutes,
+      coalesce(s.config->>'url', '') LIKE ${JINA_LIST_PREFIX} OR coalesce(s.config->>'feedUrl', '') LIKE ${JINA_LIST_PREFIX} AS paid_listing,
       (SELECT count(*) FROM articles a WHERE a.source_id = s.id AND a.discovered_at > now() - interval '7 days' AND NOT a.backfill) / 7.0 AS per_day
     FROM sources s WHERE s.enabled AND s.kind IN ('rss', 'web_list', 'json_list', 'x_search')`;
   let updated = 0;
+  let recorded = 0;
   for (const r of rows) {
+    if (r.config?._aihot?.intervalMinutesLocked === true) continue;
     const perDay = Number(r.per_day);
     // Editorial sites and feeds are looked at hourly at least (they cost nothing);
     // editorial X and listings read through Jina stop at two hours (paid per call, within their budgets);
-    // hot signals may wait longer.
-    const max = r.participation_mode === "hot_signal" ? 180 : r.kind === "x_search" || r.paid_listing ? 120 : 60;
+    // hot signals may wait longer. These are the defaults for a source nobody curated an interval for.
+    const quiet = r.participation_mode === "hot_signal" ? 180 : r.kind === "x_search" || r.paid_listing ? 120 : 60;
     // Listings read through Jina are not looked at more than hourly: busy ones would outrun its daily budget.
-    const min = r.paid_listing ? 60 : 15;
+    const floor = r.paid_listing ? 60 : 15;
+    // The operator's number: the pack's interval for this id, or the ceiling the source itself declares,
+    // and only for a source neither of them knows (an account added in the admin) the old volume default.
+    const declared = Number(r.config?._aihot?.intervalMinutesMax);
+    const curated = curatedInterval(r.id) ?? (Number.isFinite(declared) && declared > 0 ? declared : quiet);
+    // This job never writes an interval above the ceiling, so a row that sits higher was raised by a
+    // person — from the admin or the pack — and that decision becomes the ceiling from now on.
+    const remembered = Number(r.cursor?.intervalCeiling);
+    const ceiling = Math.max(Number.isFinite(remembered) && remembered > 0 ? remembered : 0, curated, r.interval_minutes);
+    // Remembered for a source the pack does not list, so a busy one can relax back to its own pace
+    // instead of being stuck at the fastest interval it ever had.
+    if ((!Number.isFinite(remembered) || remembered !== ceiling) && ceiling !== r.interval_minutes) {
+      await sql`UPDATE sources SET cursor = coalesce(cursor, '{}'::jsonb) || ${sql.json({ intervalCeiling: ceiling } as never)} WHERE id = ${r.id}`;
+      recorded += 1;
+    }
     // X accounts read by shard follow the shard's pace, whatever their own volume.
-    const target = shardHandle(r) ? shardMinutes(r.participation_mode) : perDay <= 0.15 ? max : Math.round(Math.min(max, Math.max(min, (24 * 60) / (perDay * 3))));
+    const target = shardHandle(r)
+      ? shardMinutes(r.participation_mode)
+      : perDay <= 0.15
+        ? ceiling
+        : Math.round(Math.min(ceiling, Math.max(Math.min(floor, ceiling), (24 * 60) / (perDay * 3))));
     const res = await sql`UPDATE sources SET interval_minutes = ${target} WHERE id = ${r.id} AND interval_minutes <> ${target}`;
     updated += res.count;
   }
-  return { updated };
+  return { updated, ceilingRecorded: recorded };
 }

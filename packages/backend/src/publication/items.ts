@@ -77,19 +77,43 @@ export const ITEM_FROM = sql`
   LEFT JOIN quote_translations qt ON p.channel = 'x' AND qt.tweet_id = substring(a.x_post->'quoted'->>'url' from '/status/([0-9]+)')`;
 
 /**
- * Listed items: public, and a selected item only after its release gate. A title without a single CJK
- * character is not listed at all: it means no Chinese copy exists for that item yet, and a Chinese site
- * cannot hand readers a card whose title and summary are the English source text (2026-10-02: 351 legacy
- * rows built by an echoing brain stub showed up in /all exactly that way). The item keeps its page and its
- * row; it simply waits in the back office until someone writes the Chinese, then it lists itself.
+ * The Chinese-copy gate, written once (2026-10-02: 351 legacy rows built by an echoing brain stub showed
+ * up in /all exactly that way). A title without a single CJK character means no Chinese copy exists for
+ * that item yet, and a Chinese site cannot hand readers a card whose title and summary are the English
+ * source text. The item keeps its page and its row; it simply waits in the back office until someone
+ * writes the Chinese, then it lists itself.
  */
-export function listedCondition(now: Date) {
-  return sql`p.visibility = 'public' AND (NOT p.selected OR p.visible_after <= ${now}) AND p.title ~ '[一-鿿]'`;
+export const CJK_TITLE_PATTERN = "[一-鿿]";
+export function chineseCopyCondition() {
+  return sql`p.title ~ ${CJK_TITLE_PATTERN}`;
 }
 
-/** Selected set as shown on the home timeline, v1 selected mode and RSS. */
+/**
+ * The release gate: a selected item reaches the public only once `visible_after` has passed (~180 s after
+ * it met the selection conditions, so a grouping decision can settle first). `visible_after IS NULL` never
+ * releases a selected row — the same three-valued logic the SQL has always had. The row-level twin of this
+ * is `rules.isReleased`, used where a page reads one item instead of a list.
+ */
+export function releasedCondition(now: Date) {
+  return sql`(NOT p.selected OR p.visible_after <= ${now})`;
+}
+
+/**
+ * Listed items: public, released, and with a Chinese title. See {@link chineseCopyCondition} and
+ * {@link releasedCondition}.
+ */
+export function listedCondition(now: Date) {
+  return sql`p.visibility = 'public' AND ${releasedCondition(now)} AND ${chineseCopyCondition()}`;
+}
+
+/**
+ * Selected set as shown on the home timeline, v1 selected mode and RSS. The Chinese-copy gate is part of
+ * it, not only of /all: an English card on the front page is the same defect the pool was fixed for
+ * (2026-10-02 left 11 released selected items with no CJK character listing on the home timeline while
+ * /all hid them).
+ */
 export function selectedCondition(now: Date) {
-  return sql`p.visibility = 'public' AND p.selected AND p.visible_after <= ${now}`;
+  return sql`p.visibility = 'public' AND p.selected AND p.visible_after <= ${now} AND ${chineseCopyCondition()}`;
 }
 
 export function channelCondition(channel: ChannelKey | null | undefined) {
