@@ -32,13 +32,16 @@ export async function loader({ request }: Route.LoaderArgs) {
         }
       } catch (error) {
         if (request.signal.aborted) throw error;
-        if (error instanceof ApiError && error.status >= 500) {
-          unreadable = true;
-          continue;
-        }
+        // 只有"这一期确实不存在"（4xx）才可以被跳过而不留痕。5xx、超时、连接被重置、客户端抛的任何
+        // 别的错，都只能是"读不到"——把它们一并吞掉，接口故障就会以「还没有发布」的样子出现在 200 页面上，
+        // 还被 s-maxage 缓存十分钟。
+        if (error instanceof ApiError && error.status < 500) continue;
+        unreadable = true;
       }
     }
-    if (!latest && unreadable) throw withHeaders({ message: "report_unavailable" }, { status: 503 });
+    // 抛出去的那一份自己带上 no-store：web 服务对非 200 也会改写，但"错误不被缓存"这件事应当由
+    // 产生错误的那一层说清楚，而不是依赖前面那台机器的行为。
+    if (!latest && unreadable) throw withHeaders({ message: "report_unavailable" }, { status: 503, headers: { "Cache-Control": "no-store" } });
   }
   // 一份都还没出刊（index 真是空的）与读不到最近几期是两件事：后者在上面抛错，不进这一份缓存。
   return withHeaders({ kind, report: latest, index, today: beijingDate(now), now }, { headers: { "Cache-Control": "public, max-age=0, s-maxage=600, stale-while-revalidate=300" } });

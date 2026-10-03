@@ -130,11 +130,11 @@ test("这一层的判定不依赖打包：routes 里发给浏览器的 /api 与 
   assert.deepEqual(offenders, [], `这些行把站内地址直接发给了浏览器，少了部署前缀：${offenders.join(", ")}`);
 });
 
-test("/weekly 在接口 5xx 时说「暂时读不到」，不是「还没有发布」，也不缓存", { skip: built ? "第七轮未收尾：对着真实构建跑这一条拿到的是 200，没走到 503 那一支（docs/known-issues.md 第七轮·未完成）" : "需要先 npm run build -w @aihot/web" }, async () => {
-  const closed = { ...REPORT_INDEX[1]! };
+test("/weekly 在接口 5xx 时说「暂时读不到」，不是「还没有发布」，也不缓存", { skip }, async () => {
+  const unclosed = { ...REPORT_INDEX[0]! };
   const weeklyApi = (url: string): Response => {
     if (url.includes("/api/site/meta")) return Response.json({ changelogVersion: null });
-    if (url.includes("/latest-page")) return Response.json({ index: REPORT_INDEX, report: { ...closed, windowEnd: REPORT_INDEX[0]!.windowEnd, overview: "这一期窗口还没合上。", sections: [], lead: null, nav: [] } });
+    if (url.includes("/latest-page")) return Response.json({ index: REPORT_INDEX, report: { ...unclosed, overview: "这一期窗口还没合上。", sections: [], lead: null, nav: [] } });
     if (url.includes("/api/site/reports/weekly/2026-W38")) return new Response(JSON.stringify({ status: 503, code: "temporarily_unavailable", detail: "db down" }), { status: 503, headers: { "content-type": "application/problem+json" } });
     throw new Error(`测试不放行任何真实请求：${url}`);
   };
