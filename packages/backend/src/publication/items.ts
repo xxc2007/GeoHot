@@ -118,7 +118,6 @@ export function selectedCondition(now: Date) {
 
 export function channelCondition(channel: ChannelKey | null | undefined) {
   if (!channel || channel === "all") return sql``;
-  if (channel === "firstParty") return sql`AND p.first_party`;
   return sql`AND p.channel = ${channel}`;
 }
 

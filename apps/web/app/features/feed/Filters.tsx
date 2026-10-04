@@ -1,7 +1,7 @@
 // Feed filters: the channel and category row, and search.
 import { useEffect, useRef, useState } from "react";
 import { Form, Link, useNavigation, useSearchParams } from "react-router";
-import { CATEGORY_KEYS, CATEGORY_LABELS, CHANNEL_LABELS, type CategoryKey, type ChannelKey } from "@aihot/contracts/taxonomy";
+import { CATEGORY_KEYS, CATEGORY_LABELS, type CategoryKey, type ChannelKey } from "@aihot/contracts/taxonomy";
 import { IconClose, IconSearch } from "../../components/icons";
 import { PillTabs } from "../../components/ui/Tabs";
 import { publicPath } from "../../lib/public-path";
@@ -15,14 +15,19 @@ export function hrefWith(base: string, params: URLSearchParams, patch: Record<st
   }
   sp.delete("page");
   sp.delete("cursor");
+  // `search=1` is the one-shot flag that opens the phone's search field and focuses it (`all.tsx` reads it
+  // into `autoFocus`). A chip click is a new intent, not "open the keyboard again": carrying the flag made
+  // every category tap on a phone re-focus the search input and pop the keyboard (found in the browser pass).
+  sp.delete("search");
   const s = sp.toString();
   return s ? `${base}?${s}` : base;
 }
 
 /**
- * The feed's one filter row (精选 and 全部动态 alike): 全部, 一手, then the categories. One choice at a
- * time: picking 一手 clears the category and picking a category clears 一手. Older 资讯 / X links
- * still filter; the row then shows 全部.
+ * The feed's one filter row (精选 and 全部动态 alike): 全部, then the seven categories. One choice at a time.
+ * Older 资讯 / X links still filter; the row then shows 全部. The「一手」chip that used to sit between
+ * 全部 and the categories was removed on 2026-10-04 晚 by the owner's request — `firstParty` is gone from
+ * `CHANNEL_KEYS`, so a link still carrying it lands on the unfiltered list instead of a half-lit row.
  */
 export function CategoryTabs({ base, category, channel = "all", layoutId, size = "md", className = "" }: { base: string; category: CategoryKey | null; channel?: ChannelKey; layoutId: string; size?: "md" | "sm"; className?: string }) {
   const [params] = useSearchParams();
@@ -37,10 +42,11 @@ export function CategoryTabs({ base, category, channel = "all", layoutId, size =
   };
   const items = [
     { key: "all", label: "全部", ...at({ category: null, channel: null }) },
-    { key: "firstParty", label: CHANNEL_LABELS.firstParty, ...at({ category: null, channel: "firstParty" }) },
     ...CATEGORY_KEYS.map((k) => ({ key: k, label: CATEGORY_LABELS[k], ...at({ category: k, channel: null }) })),
   ];
-  const active = channel === "firstParty" ? "firstParty" : (category ?? "all");
+  // 全部 is the row's only neutral chip, so a legacy `?channel=news|x` link lights it while the list
+  // keeps filtering — the same "row cannot express this" case the removed 一手 chip used to cover.
+  const active = channel === "all" ? (category ?? "all") : "all";
   return <PillTabs items={items} active={active} layoutId={layoutId} label="筛选" size={size} className={className} />;
 }
 

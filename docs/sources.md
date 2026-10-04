@@ -193,7 +193,7 @@ Public Domain Review 明说可自由分享与复用），**要不要放宽是站
 `interval_minutes` 登记为 240 分钟 19 条、360 分钟 6 条、120 与 180 分钟各 1 条（和别的源一样，这只是上限，
 `adaptIntervals` 会按产量往下调）。许可一律按最保守的一档：`site_fulltext` 与 `syndicate_fulltext` 全部 `false`，
 只出标题、摘要与原文链接。那一轮加完之后 `industry/sources.json` 是 **85 条**（`rss` 51 / `web_list` 23 / `json_list` 3 /
-`external` 8），其中 **77 条可轮询**、8 条 `external` 仍是人工投递通道（2026-10-04 又加到 87 条 / 79 条可轮询；条数的唯一口径在 `README.md`）。
+`external` 8），其中 **77 条可轮询**、8 条 `external` 仍是人工投递通道（那一轮之后又加了三条中文 `web_list`，2026-10-04 晚到 90 条 / 82 条可轮询；条数的唯一口径在 `README.md`）。
 
 三件要说明的口径：
 

@@ -6,7 +6,7 @@ import { loadOr404 } from "../lib/api.server";
 import { pageMeta } from "../lib/seo";
 import { monthDayTime, shortSourceName } from "../lib/format";
 import { Badge } from "../components/ui/Badge";
-import { EmptyState } from "../components/ui/Page";
+import { EmptyState, MoreLink } from "../components/ui/Page";
 import { IconChevronDown, IconInfo } from "../components/icons";
 import { Sparkline } from "../features/hot/Sparkline";
 import { Faces } from "../features/hot/Faces";
@@ -260,7 +260,20 @@ export default function HotPage() {
 
       {!lead ? (
         <div className="card rounded-sheet">
-          <EmptyState title="暂时没有热点">还没有足够多来源共同讨论的事件。</EmptyState>
+          {/* An empty board is a state, not a dead end: the strip on the home page has always offered
+              「看今天的全部地理动态 →」, and this page — the one that strip links to — used to answer with
+              two sentences and zero links (found by a real-browser pass, 2026-10-04). */}
+          <EmptyState
+            title="暂时没有热点"
+            action={
+              <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
+                <MoreLink to="/all">看今天的全部{withSubject("动态")}</MoreLink>
+                <MoreLink to="/daily">去最新一期{withSubject("日报")}</MoreLink>
+              </div>
+            }
+          >
+            还没有足够多来源共同讨论的事件。
+          </EmptyState>
         </div>
       ) : (
         <>

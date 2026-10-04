@@ -6,7 +6,7 @@ import { sql } from "../db.ts";
 import { decodeCursor, encodeCursor, InvalidCursorError, queryBinding } from "../lib/cursor.ts";
 import { shortHash } from "../lib/ids.ts";
 import { proxiedImage } from "../media/imgproxy.ts";
-import { ITEM_COLUMNS, ITEM_FROM, categoryCondition, channelCondition, releasedCondition, selectedCondition, tagCondition, toItemSummary, topicCondition, type ItemRow } from "./items.ts";
+import { ITEM_COLUMNS, ITEM_FROM, categoryCondition, channelCondition, chineseCopyCondition, releasedCondition, selectedCondition, tagCondition, toItemSummary, topicCondition, type ItemRow } from "./items.ts";
 import { pickRepresentative } from "./timeline.ts";
 
 export interface GroupReportsQuery {
@@ -40,7 +40,7 @@ export async function loadGroupReports(q: GroupReportsQuery, now = new Date()): 
            s.id AS source_id, s.name AS source_name, s.kind AS source_kind, p.first_party, s.icon_url
     FROM publications p JOIN sources s ON s.id = p.source_id
     WHERE p.article_id IN (SELECT article_id FROM fact_articles WHERE fact_id = ${fact.id}) AND p.visibility = 'public' AND p.eligible
-      AND ${releasedCondition(now)} ${filters}
+      AND ${releasedCondition(now)} AND ${chineseCopyCondition()} ${filters}
     ORDER BY p.timeline_at DESC, p.article_id ASC`;
   if (members.length === 0) return { kind: "not_found" };
 

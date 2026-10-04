@@ -10,7 +10,7 @@ import { sql } from "../db.ts";
 import { cached } from "../lib/cache.ts";
 import { escapeXml } from "../lib/text.ts";
 import { siteUrl } from "./links.ts";
-import { releasedCondition, selectedCondition } from "./items.ts";
+import { CJK_TITLE_PATTERN, releasedCondition, selectedCondition } from "./items.ts";
 import { listReports } from "./reports.ts";
 import { leaderboardUrls } from "../leaderboard/read.ts";
 import { topicPageCounts } from "./topics.ts";
@@ -86,9 +86,12 @@ async function build(readAt = new Date()): Promise<string> {
     for (let p = 2; p <= t.pages; p++) entries.push({ loc: `/topics/${t.slug}/page/${p}`, lastmod: t.latest, changefreq: "weekly", priority: 0.3 });
   }
   // Stories with reports of their own; pages that only gather reports grouped elsewhere (imported story
-  // levels, regrouped history) are reachable but not listed.
+  // levels, regrouped history) are reachable but not listed. `title ~ CJK` narrows "listed" to what the site
+  // can hand a crawler in Chinese: 2026-10-04 晚 measured 474 English-only story pages, and the page gate for
+  // them was tried and reverted (see `events/story-reports.ts` and `docs/known-issues.md`) — a page may stay
+  // reachable, but this list is the one place that *promises* content to search engines.
   const stories = await sql<{ public_id: string; latest_at: Date | null }[]>`
-    SELECT public_id::text, latest_at FROM stories WHERE merged_into IS NULL AND EXISTS (
+    SELECT public_id::text, latest_at FROM stories WHERE merged_into IS NULL AND title ~ ${CJK_TITLE_PATTERN} AND EXISTS (
       SELECT 1 FROM facts f JOIN fact_articles fa ON fa.fact_id = f.id JOIN publications p ON p.article_id = fa.article_id
       WHERE f.story_id = stories.id AND fa.role IN ('primary', 'report') AND p.visibility = 'public' AND p.eligible)
     ORDER BY latest_at DESC NULLS LAST LIMIT 500`;

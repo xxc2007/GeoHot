@@ -34,7 +34,9 @@ export function meta({ loaderData }: Route.MetaArgs) {
   const q = f?.q;
   const page = loaderData?.data.page ?? 1;
   return pageMeta({
-    title: q ? `搜索：${q}` : `全部${withSubject("动态")}`,
+    // The <h1> says `#tag` when a tag filtered the list (line 74); the tab title did not, so a tag page
+    // announced itself as 「全部地理动态」 to tabs and search engines alike (real-browser pass, 2026-10-04).
+    title: q ? `搜索“${q}”` : f?.tag ? `#${f.tag}` : `全部${withSubject("动态")}`,
     description: `${SITE.name} 收录的全部${withSubject("动态")}，可按类别与标签筛选，支持中英文搜索。`,
     path: listPath("/all", { channel: f && f.channel !== "all" ? f.channel : null, category: f?.category, tag: f?.tag, q, tab: f?.tab === "relevance" ? "relevance" : null, page: page > 1 ? page : null }),
     image: "/og/pages/all.png",
@@ -63,7 +65,7 @@ export default function AllPage() {
   const navigation = useNavigation();
   const f = data.filters;
   const busy = navigation.state === "loading" && navigation.location?.pathname === "/all";
-  const keep = { channel: f.channel === "all" ? null : f.channel, category: f.category };
+  const keep = { channel: f.channel === "all" ? null : f.channel, category: f.category, tag: f.tag };
   const searchTabHref = (tab: "time" | "relevance") => {
     const sp = new URLSearchParams(params);
     sp.delete("page");

@@ -25,7 +25,7 @@ export function meta({ loaderData }: Route.MetaArgs) {
   return pageMeta({
     title: board.title,
     rawTitle: true,
-    description: board.key === "overall" ? "汇总多家公开模型评测榜单，给出${SITE.name} 共识分、评测完整度、上线日期与 API 参考价格。" : board.description,
+    description: board.key === "overall" ? `汇总多家公开模型评测榜单，给出${SITE.name} 共识分、评测完整度、上线日期与 API 参考价格。` : board.description,
     path,
     image: "/og/pages/leaderboard.png",
     jsonLd: [

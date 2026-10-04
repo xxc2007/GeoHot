@@ -1685,6 +1685,80 @@
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
+    },
+    {
+      "id": "cn-web-moe-xwfb",
+      "name": "教育部·新闻发布",
+      "kind": "web_list",
+      "config": {
+        "url": "http://www.moe.gov.cn/jyb_xwfb/",
+        "parseMode": "html",
+        "itemSelector": "li",
+        "linkSelector": "a[href*='t20']",
+        "titleSelector": "p a",
+        "allowUrlPrefixes": ["http://www.moe.gov.cn/jyb_xwfb/"],
+        "detail": { "maxFetches": 8, "publishedAtRegex": "([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2})", "publishedAtUtcOffset": "+08:00" },
+        "_aihot": { "initialBackfillLimit": 15 }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": ["官方", "中文", "教育", "政策", "考研"],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "geoedu"
+    },
+    {
+      "id": "cn-web-stdaily",
+      "name": "中国科技网（科技日报）要闻",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.stdaily.com/",
+        "parseMode": "html",
+        "itemSelector": "li:has(a[href*='/web/'])",
+        "linkSelector": "a",
+        "allowUrlPrefixes": ["https://www.stdaily.com/web/"],
+        "detail": { "maxFetches": 8, "publishedAtRegex": "([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2})", "publishedAtUtcOffset": "+08:00" },
+        "_aihot": { "initialBackfillLimit": 15 }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": ["官方", "中文", "科研", "综合媒体", "国内信源"],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "cn-web-ndrc-xwdt",
+      "name": "国家发展改革委·新闻动态",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.ndrc.gov.cn/xwdt/",
+        "parseMode": "html",
+        "itemSelector": "li:has(a[href*='t20'])",
+        "linkSelector": "a",
+        "publishedAtSelector": "span",
+        "publishedAtUtcOffset": "+08:00",
+        "allowUrlPrefixes": ["https://www.ndrc.gov.cn/xwdt/", "https://www.ndrc.gov.cn/fzggw/"],
+        "_aihot": { "initialBackfillLimit": 20 }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 360,
+      "tags": ["官方", "中文", "政策", "区域", "规划"],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "regional"
     }
   ]
 }

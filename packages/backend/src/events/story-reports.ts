@@ -14,9 +14,14 @@
 // past the release gate (one expression, `releasedCondition` in publication/items.ts — this file used to
 // retype it by hand, which is how a fourth reading of the same rule could appear). It deliberately does not
 // ask `p.eligible`: that is a snapshot of the pool rule taken when the row was published, so it also leaves
-// out reports the AI pool never rated — imported hot stories carry them, and the live pages showed them. No
-// Chinese-copy gate either: CJK decides whether an item is *listed* in a feed, not whether this page can open
-// it, which is what `rules.itemHasPage` already settled. Reports that mention this event from an article
+// out reports the AI pool never rated — imported hot stories carry them, and the live pages showed them.
+// **It does not ask for Chinese, and that is a decision, not an omission** (2026-10-04 晚: a gate was tried
+// and reverted the same evening). Measured then: 1374 public editorial reports and 474 event pages were
+// English-only. The site's copy rule keeps those out of every *list* — the feeds, the hot strip, the sitemap —
+// but it has never decided that their pages stop opening: `rules.itemHasPage` says a public released row has a
+// page, and `tests/publication.test.ts` pins that ("a story whose only page is unsummarised still has a page").
+// Gating here turned four such tests red, so the leak stays visible and is recorded in `docs/known-issues.md`
+// as an owner decision (404 the page, or keep it reachable-but-unlisted) instead of a silent change. Reports that mention this event from an article
 // about something else are included (an article's other events), and `hot_signal` material is heat evidence
 // only — its source does not take part editorially, so it is neither listed here nor shown on the page.
 import { sql } from "../db.ts";
