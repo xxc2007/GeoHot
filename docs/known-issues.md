@@ -1005,4 +1005,12 @@ Cloudflare 从 3600 抬到 14400（`s-maxage` 未动），`/og/pages/hot.png` �
 `AGENTS.md:17` 的"六个决定"与 manual 的四个标号对不上、`AGENTS.md:51` 的安全阀清单漏了
 `EMBEDDINGS_ENABLED`。
 
+**6. 干净克隆的部署演练（A8）与它查出的文档缺口（已修）。** 十步走通：克隆 → `env:init` → 自己的集群
+（5455）→ migrate/seed → 构建 → 起栈 → 冒烟，页面与机器出口无 0 字节、无 4xx/5xx。**缺口是"内容"那一环**：
+只带 `.env` 时 `MODEL_CALLS_ENABLED=false`，就算跑了 `seed:curated`（117 行）库里也只有 `articles=117`、
+`publications=0`、`selected=0`——从材料到精选/事件/日报必须过模型那一步。把模型阀打开后同一套材料跑出
+**113 篇出版物 / 50 篇入选 / 81 个事件**（演练方在日额度耗尽前把这条验证留成了 Step 11，编排方接着跑完）。
+`README.md` 的「本地运行」与 `docs/deploy.md` 的「启动后」两处已按这条改写：**种子语料与采集阀都到位，
+还要模型阀到位，站上才会有内容**。
+
 

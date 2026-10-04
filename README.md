@@ -211,6 +211,8 @@ npm run seed:curated -- --dry-run --enforce-source          # 先看人工语料
 npm run seed:curated -- --enforce-source                    # 导入人工策划的语料
 ```
 
+**跑到这里还不等于站点有内容。** `scripts/seed.ts` 只导入信源与主题，`seed:curated` 只把 117 行人工语料写成 `articles` 并投进分析队列——从「材料」到「精选 / 事件 / 日报」必须过模型那一步，而 `npm run env:init` 写出的 `.env` 里 `MODEL_CALLS_ENABLED=false`。干净克隆上的实测（2026-10-04）：到此为止库里有 117 篇材料、`publications=0`、`selected=0`——站点起得来，但处处是诚实的空态。要让内容当天长出来，worker 要带着模型阀启动（`node --env-file=.env --env-file=.env.pipeline apps/worker/src/main.ts`，`.env.pipeline` 把 `MODEL_CALLS_ENABLED` 与 `COLLECT_ENABLED` 一起打开），或者在自己的 `.env` 里显式写 `true`；同一套材料在阀打开后跑完是 **113 篇出版物 / 50 篇入选 / 81 个事件**。
+
 然后三个进程，各占一个终端，顺序无所谓：
 
 ```bash
