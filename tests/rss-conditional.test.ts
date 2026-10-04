@@ -1,4 +1,4 @@
-import { tag } from './setup.ts';
+import { purgeTagged, tag } from './setup.ts';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { after, test } from 'node:test';
@@ -36,9 +36,8 @@ const app = await buildApp();
 after(async () => {
   await sql`DELETE FROM reports WHERE key LIKE '2097-%'`;
   // Leftover unprocessed articles poison tests/alerts.test.ts, which counts the backlog table-wide.
-  await sql`DELETE FROM articles WHERE source_id LIKE 'rss-conditional-%'`;
-  await sql`DELETE FROM fetch_runs WHERE source_id LIKE 'rss-conditional-%'`;
-  await sql`DELETE FROM sources WHERE id LIKE 'rss-conditional-%'`;
+  // purgeTagged sweeps articles and sources by tag, so the two later tests' prefixes go with this one.
+  await purgeTagged(T);
   await app.close();
   await new Promise<void>(resolve => server.close(() => resolve()));
   await stopBoss();

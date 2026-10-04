@@ -1,7 +1,7 @@
 // Every rule a source's config names is applied, and a name the collector does not implement fails the
 // fetch. Configs that carried adapters and detail rules a collector does not implement used to fall
 // back silently (junk titles, RSS entries outside the source's URL rules, dates from the wrong place).
-import { tag } from "./setup.ts";
+import { purgeTagged, tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import http from "node:http";
 import { after, before, test } from "node:test";
@@ -78,6 +78,9 @@ before(async () => {
 });
 after(async () => {
   for (const b of savedJina) await sql`UPDATE budgets SET per_minute = ${b.per_minute}, per_hour = ${b.per_hour}, per_day = ${b.per_day} WHERE service = 'jina'`;
+  // A leftover article still in processing_state = 'new' is counted by tests/alerts.test.ts, which reads
+  // the backlog table-wide, so it would fail in an unrelated file.
+  await purgeTagged(T);
   await new Promise<void>((resolve) => server.close(() => resolve()));
   await stopBoss();
   await closeDb();

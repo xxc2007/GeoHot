@@ -94,7 +94,7 @@ export function SearchField({ action = "/all", defaultValue = "", keep = {}, var
             maxLength={200}
             autoComplete="off"
             enterKeyHint="search"
-            className="h-11 w-full rounded-full border border-line-strong bg-surface pl-10 pr-9 text-[15px] text-ink outline-none transition-[border-color,box-shadow] placeholder:text-ink-4 focus:border-accent focus:shadow-[0_0_0_3px_var(--accent-soft)]"
+            className="h-11 w-full rounded-full border border-line-strong bg-surface pl-10 pr-9 text-[15px] text-ink outline-none transition-[border-color,box-shadow] placeholder:text-ink-4 focus:border-accent focus:ring-2 focus:ring-inset focus:ring-accent focus:shadow-[0_0_0_3px_var(--accent-soft)]"
           />
           {value && (
             <button type="button" aria-label="清空" onClick={() => { setValue(""); inputRef.current?.focus(); }} className="absolute right-2.5 top-1/2 grid size-7 -translate-y-1/2 place-items-center rounded-full text-ink-4">
@@ -125,7 +125,7 @@ export function SearchField({ action = "/all", defaultValue = "", keep = {}, var
         placeholder="搜索标题、摘要…"
         maxLength={200}
         autoComplete="off"
-        className="h-[42px] w-full rounded-full bg-bg-sunk pl-10 pr-10 text-[14px] text-ink outline-none ring-1 ring-inset ring-line-soft transition-[background-color,box-shadow] placeholder:text-ink-4 hover:ring-line-strong focus:bg-surface focus:shadow-[0_0_0_3px_var(--accent-soft)] focus:ring-accent dark:bg-bg-muted/60 dark:focus:bg-surface"
+        className="h-[42px] w-full rounded-full bg-bg-sunk pl-10 pr-10 text-[14px] text-ink outline-none ring-1 ring-inset ring-line-soft transition-[background-color,box-shadow] placeholder:text-ink-4 hover:ring-line-strong focus:bg-surface focus:shadow-[0_0_0_3px_var(--accent-soft)] focus:ring-2 focus:ring-accent dark:bg-bg-muted/60 dark:focus:bg-surface"
       />
       {value ? (
         <button

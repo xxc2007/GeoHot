@@ -35,7 +35,7 @@ export default function BoardsPage() {
     <div className="pb-10">
       <header className="pb-2 pt-5 lg:pt-1">
         <h1 className="text-[24px] font-semibold leading-[1.3] text-ink">按板块看地理</h1>
-        <p className="mt-1.5 text-[13px] leading-relaxed text-ink-3">
+        <p className="measure mt-1.5 text-[13px] leading-relaxed text-ink-3">
           <span className="num">{boards.length}</span> 个跨类别方向，每个板块两条：<span className="text-ink-2">本站精选</span>是编辑判断，
           <span className="text-ink-2">来源原文</span>是各信源当天已公开的条目——标题与链接指向出处，本站未对它作编辑判断。
         </p>
@@ -59,7 +59,7 @@ export default function BoardsPage() {
           </li>
         ))}
       </ul>
-      <p className="mt-6 text-[12.5px] leading-relaxed text-ink-4">
+      <p className="measure mt-6 text-[12.5px] leading-relaxed text-ink-4">
         主题页按区域、机构与领域串联同一件事的来龙去脉；板块页按学科与用途把当天的条目归到一处。两者都只读同一套公开门槛。
       </p>
     </div>

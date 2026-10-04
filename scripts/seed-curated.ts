@@ -16,7 +16,7 @@
 //     discovers everything at server "now".
 //   --route http              exercises the real webhook (POST /api/ingest/items, Bearer INGEST_TOKEN,
 //     ≤ 50 items per request, 10 requests per minute per IP). Use it for a single manual item; see
-//     scripts/README-ingest.md for the one-liner the fieldwork/考察 sources need.
+//     scripts/README-ingest.md for the one-liner the manual-ingest sources need.
 //
 // The 48 h rule (events/group.ts through STALE_ON_DISCOVERY_MS): material discovered more than 48 h
 // after its source time is archived as history — it founds no event and adds no heat, so 热点榜 and the

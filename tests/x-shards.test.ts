@@ -1,7 +1,7 @@
 // X accounts share searches: one request reads a shard of accounts, each post goes to
 // the source whose handle wrote it, every account keeps its own fetch run and watermark, and a failed
 // search moves no watermark.
-import { Reply, stub, tag } from "./setup.ts";
+import { Reply, purgeTagged, stub, tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { config } from "@aihot/backend/config";
@@ -66,7 +66,9 @@ before(async () => {
 after(async () => {
   const b = savedBudget[0];
   if (b) await sql`UPDATE budgets SET per_minute = ${b.per_minute}, per_hour = ${b.per_hour}, per_day = ${b.per_day} WHERE service = 'socialdata'`;
-  await sql`UPDATE sources SET enabled = false WHERE id IN ${sql(IDS)}`;
+  // A leftover article still in processing_state = 'new' is counted by tests/alerts.test.ts, which reads
+  // the backlog table-wide, so it would fail in an unrelated file.
+  await purgeTagged(T);
   await socialdata.close();
   await stopBoss();
   await closeDb();

@@ -272,7 +272,7 @@ await closeDb();"
 
 `entries: 0` 不是脚本坏了，是那一天窗口内**没有入选条目**。先回第 4 节补 fixture、或第 8 节确认那些材料没有被 48 小时闸门挡掉。周报/月报同理，入口是 `composeWeekly(isoWeekLabel)`、`composeMonthly('YYYY-MM')`。
 
-改了 `industry/taxonomy.ts` 的 `section` 之后要重出：日报分节读的是它（`reports/compose.ts:20` 用 `SECTION_OF.industry` 找兜底分节，本站没有 `industry` 类别，所以未分类的资料落进**最后一节"实践"**——这就是 `taxonomy.ts:8-10` 说"最后一节必须留在数组末尾"的原因）。
+改了 `industry/taxonomy.ts` 的 `section` 之后要重出：日报分节读的是它（`reports/compose.ts:18-21` 用 `SECTION_ORDER` 取分节顺序、`DEFAULT_SECTION` 取兜底分节；本站分类只剩**两节**「学科」「技术」，兜底就是**最后一节「技术」**——这就是 `taxonomy.ts` 说"最后一节必须留在数组末尾"的原因。2026-10-03 删掉「野外与考察」「观点与解读」两个分类之前，兜底是当年最后一节「实践」，所以 10-02、10-03 两期冻结的历史成刊里还留着「实践」分节，那是快照、不重写）。
 
 ---
 

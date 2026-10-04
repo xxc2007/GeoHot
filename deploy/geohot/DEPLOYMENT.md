@@ -203,12 +203,25 @@ curl -s -o /dev/null -w '%{http_code} %{num_redirects} %{url_effective}\n' -L ht
   只有 worker 有 195 s 的 in-flight drain），而 `install-units.sh` 给四个单元一律 210（多给不伤，少给才会
   在 drain 中途 SIGKILL）。走哪条就用哪条，别混。
 
-## 热更新：改了什么就重启谁（2026-10-02 踩到的一次）
+## 热更新：改了什么就重启谁（2026-10-02、2026-10-04 各踩到一次）
 
 - **`industry/changelog.json` 是 api 进程在启动时读入的**：只改它（比如补一条发版说明）也必须
   `systemctl restart geohot-api`，否则 `/changelog` 与 `/api/site/changelog` 继续发旧内容。2026-10-02
   的一次热更新只重启了 web，页面 200、内容没变——状态码看不出这一类问题，要按内容断言（例如
   `curl …/api/site/changelog | grep <新标题>`）。
+- **改了 `tooling/*.ts` 里的进程内代码（`tooling/brain-stub.ts`）→ 必须 `systemctl restart geohot-brain`。**
+  这是 2026-10-04 查出来的第二个「状态码全绿而行为是错的」：`geohot-brain` 从 2026-10-01 16:17 起
+  `active` 了三天，而这三天里 `tooling/brain-stub.ts` 被改过两次（`f35da0a` 2026-10-02 把 summarize
+  缺稿默认值从 `condense` 改成 `empty`、`c9f893b` 2026-10-03 把中文门槛做成结构性的）。Node 在启动时把
+  整个 `.ts` 读进内存，**它不热更新自己的代码**——`tooling/fixtures/**`、`industry/prompts/**`、
+  `industry/taxonomy.ts` 是 mtime 热读的，所以「改了 taxonomy 就生效」很容易让人误以为这个进程也是
+  热更新的。后果：进程一直按旧的 `condense` 行事，把**英文原标题与英文正文的机械截断**写进
+  `title_zh` / `summary_zh`（`analyze.ts` 的中文闸门因此形同虚设），每天一两百到五百条条目带着
+  拉丁文标题留在 `analyses` 里。
+  判据不能靠 mtime：`git archive` 给整棵树的每个文件盖上的是**提交时刻**，整包升级后源码 mtime 必然
+  晚于进程启动时刻。改用内容哈希——`brain-stub.ts` 在 healthz 里报出自己启动时读进内存那份代码的
+  `source.sha256`，`verify-deploy.sh` 拿磁盘上同一文件重算比对，不一致就是「在跑旧代码」（硬失败）。
+  这一条已在 `verify-deploy.sh` 第 2 节里落地，整包升级会自动查。
 - 只改前端（`apps/web/**`）→ 重建 web（带 `BASE_PATH=/geohot`）并重启 `geohot-web`。
 - 只改后端（`apps/api`、`packages/backend/**`）→ 重启 `geohot-api` 与 `geohot-worker`。
 - 改 `tooling/fixtures/**` → 不重启任何单元（编辑大脑 stub 按文件 mtime 热读），但要**重跑分析**：
@@ -217,6 +230,9 @@ curl -s -o /dev/null -w '%{http_code} %{num_redirects} %{url_effective}\n' -L ht
 - 新增 npm 依赖 → 提取代码后先在应用目录装依赖再构建：
   `sudo systemd-run --quiet --pipe --wait --uid=geohot --gid=geohot --property=MemoryMax=700M --property=MemorySwapMax=1500M --property=WorkingDirectory=/opt/geohot/app env HOME=/opt/geohot NODE_ENV=production npm install <pkg> -w @aihot/backend --no-audit --no-fund`
   只提取不装依赖，api/worker 会倒在 import 上（2026-10-02 新增 `marked` 时走的就是这条）。
+- **一句话记法**：`apps/`、`packages/` 里改的是「被 import 的模块」，进程重启才会重读；
+  `industry/**`、`tooling/fixtures/**` 里改的是「运行时按 mtime 热读的数据」，不重启也对——
+  而 `tooling/*.ts` **不属于后者**，它是程序本身。
 
 ## 整包升级（2026-10-03 第八轮上线时走的顺序，可照抄）
 
@@ -232,7 +248,12 @@ sudo chown -R geohot:geohot /opt/geohot/app          # ★ 见下面那条坑
 sudo -u geohot bash -lc 'cd /opt/geohot/app && node --env-file=.env scripts/migrate.ts'   # 有新迁移就先跑
 sudo -u geohot bash -lc 'cd /opt/geohot/app && node --env-file=.env scripts/seed.ts'      # 只增不改，可重复
 sudo -u geohot bash -lc 'cd /opt/geohot/app && BASE_PATH=/geohot NODE_ENV=production npm run build -w @aihot/web'
-sudo systemctl restart geohot-api geohot-worker geohot-web      # brain 没动就不重启
+sudo systemctl restart geohot-api geohot-worker geohot-web
+# 改了 tooling/brain-stub.ts（或任何 tooling/*.ts）就要连 brain 一起重启 —— 它不热更新自己的代码。
+# 整包升级几乎总会带上新的 brain-stub.ts，所以整包升级的默认动作是四个单元全重启：
+#   sudo systemctl restart geohot-brain geohot-api geohot-worker geohot-web
+# 只改前端/后端而 brain-stub.ts 确实没动时，才可以把 brain 从这一行去掉。verify-deploy.sh 会用
+# healthz 里的 source.sha256 与磁盘比对，漏重启 brain 会被它判成硬失败。
 cd /opt/geohot/app && sudo -u geohot bash deploy/geohot/verify-deploy.sh   # 必须 ALL CHECKS PASSED
 ```
 

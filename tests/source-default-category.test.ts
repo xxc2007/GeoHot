@@ -64,11 +64,11 @@ test("a human override wins over both", async () => {
             VALUES (${id}, ${DECLARED}, ${`${T}-c`}, ${`https://example.com/${T}-c`}, ${`材料 ${T} c`}, now(), now(), 1, 'ok', 'analyzed')`;
   await sql`INSERT INTO analyses (article_id, input_revision, origin, relevance, category, title_zh, summary_zh, score, selected, output)
             VALUES (${id}, 1, 'rule', 'pass', NULL, ${`标称 ${T} 的标题`}, ${`${T} 的提要。`}, 60, false, ${sql.json({ fact: null })})`;
-  await sql`INSERT INTO editorial_overrides (article_id, fields, visibility) VALUES (${id}, ${sql.json({ category: "comment" })}, 'public')`;
+  await sql`INSERT INTO editorial_overrides (article_id, fields, visibility) VALUES (${id}, ${sql.json({ category: "geotech" })}, 'public')`;
   articles.push(id);
   await publishArticle(id);
   const [row] = await sql<{ category: string | null }[]>`SELECT category FROM publications WHERE article_id = ${id}`;
-  assert.equal(row?.category, "comment", "人工判断优先于来源声明");
+  assert.equal(row?.category, "geotech", "人工判断优先于来源声明");
 });
 
 test("a source that declares nothing is unchanged", async () => {

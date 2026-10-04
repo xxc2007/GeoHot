@@ -73,9 +73,14 @@ function ArchiveGroup({ g, kind, current, initiallyOpen }: {
       </summary>
       {kind !== "daily" || open ? (
         failed ? (
-          <button type="button" onClick={() => setAttempt((a) => a + 1)} className="mb-2 ml-2.5 py-1 text-meta text-hot-ink hover:underline">
-            往期标题暂时无法加载，点此重试
-          </button>
+          // Without this the failure is completely silent to a screen reader: the list simply is not
+          // there and nothing says why. The live region is the wrapper, not the button — `role="alert"`
+          // on the button itself would replace its `button` role and cost the retry affordance.
+          <div role="alert">
+            <button type="button" onClick={() => setAttempt((a) => a + 1)} className="mb-2 ml-2.5 py-2 text-meta text-hot-ink hover:underline">
+              往期标题暂时无法加载，点此重试
+            </button>
+          </div>
         ) : (
           <ul className="space-y-0.5 pb-3">
             {entries.map((e) => {

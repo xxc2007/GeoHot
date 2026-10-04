@@ -175,10 +175,10 @@ curl -s https://<新域名>/<前缀>/api/v1/dailies | head -c 200
   Cloudflare 的那个统计信标"），与上一条**必须一起改**，否则隐私页自相矛盾。
 - `industry/pages/terms.md:63` 与 `:106`：两段都写着"这条路由注册在子路径 `/geohot/` 下，按 RFC 8615
   扫描器取的是域名根"。搬到域名根，这个限制就消失了，措辞要跟着变。
-- `industry/pages/terms.md:77`：MCP 工具清单。本站线上现在实测是 **7 个**（多了 `geohot_get_weekly`、
-  `geohot_get_monthly`，2026-10-02 19:10 那轮接上的），这一行还写着 5 个——**搬家时顺手改**，
-  并复测：`curl -s -X POST https://<新域名>/<前缀>/api/mcp … -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'`
-  数一数返回的 `name`。
+- `industry/pages/terms.md:77`：MCP 工具清单。**这一行已经是对的**（2026-10-02 19:10 那轮把
+  `geohot_get_weekly`、`geohot_get_monthly` 接上后一并改了，现在写着 7 个）。这一条留在这里是提醒
+  **搬家后复测**，别照着老账去改：`curl -s -X POST https://<新域名>/<前缀>/api/mcp … -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'`
+  数一数返回的 `name`，再和这一行对齐。
 - `industry/site.ts`：`contactEmail`（`:38`）、`icp`（`:50`，备案号只能由主办者本人申请）、
   `organization.founder`（`:59`，愿意署名才写真名）、`repoUrl`（`:43`）。
 - 托管地与适用法域：`docs/manual.md` 第 7 节第 7 条与第 10 节第 4 条按"境内还是境外没有决定"写着，
@@ -194,7 +194,7 @@ curl -s https://<新域名>/<前缀>/api/v1/dailies | head -c 200
 两条路都合法，选一条并写明：
 
 - **从零开始**（推荐，如果不需要历史）：新库跑 `npm run db:migrate` + `node --env-file-if-exists=.env scripts/seed.ts`
-  （导入 58 条信源与 45 个主题）+ `npm run seed:curated -- --enforce-source`（人工语料；**compose 路线不含这一步**）。
+  （导入 85 条信源与 43 个主题）+ `npm run seed:curated -- --enforce-source`（人工语料；**compose 路线不含这一步**）。
   验证：`node scripts/smoke.ts --base …` 全绿，`/api/v1/dailies` 的 `count` 从 0 开始重新长。
 - **整库搬走**：`docs/deploy.md` 的「恢复」一节六步（`pg_dump -Fc` → `pg_restore --no-owner --no-privileges` →
   **数七张关键表**跟旧机对得上 → 起全栈 → smoke → 重发密钥）。第 4 步那句"数一遍关键表，跟旧机对得上才算成功
@@ -233,8 +233,8 @@ bash deploy/geohot/verify-github-sync.sh        # 独立复跑一遍逐字节核
 
 | README 里的那句 | 复测命令 | 期望证据 |
 |---|---|---|
-| 信源「58+1」 | `node -e "console.log(require('./industry/sources.json').sources.length)"` | `58`（库里 `sources` 表多出的那一行是运维校验自动建的占位源） |
-| 主题 45 | `node -e "console.log(require('./industry/topics.json').topics.length)"` | 与新站 `/topics` 页自述的数一致 |
+| 信源「85+1」 | `node -e "console.log(require('./industry/sources.json').sources.length)"` | `85`（库里 `sources` 表多出的那一行是运维校验自动建的占位源 `ext-opscheck-ingest-probe`） |
+| 主题 43 | `node -e "console.log(require('./industry/topics.json').topics.length)"` | 与新站 `/topics` 页自述的数一致 |
 | 日报期数 | `curl -s https://<新域名>/<前缀>/api/v1/dailies` | 看 `count` 与 `items[].date`（**介绍页不写这个数**，只写"看 `/daily/archive`"） |
 | 最新一期 | `curl -s https://<新域名>/<前缀>/daily \| grep -o '本期共 [0-9]* 条'` | 介绍页只写"最新一期"，具体期号属于 `/daily/<日期>` |
 | MCP 7 个工具 | 上面第 5 节那条 `tools/list` | 数 `name` 的个数 |

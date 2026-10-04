@@ -141,7 +141,11 @@
   --ink: #202a30;
   --ink-2: #303c42;
   --ink-3: #59656b;
-  --ink-4: #657176;
+  /* #657176 was 4.48:1 on the selected day tile in /daily's left rail — that tile paints
+     --accent-soft over paper, and it was the one sampled pair under AA in a 1888-pair sweep
+     (1440/1024/768/390 x light/dark). #616d72 measures 4.76:1 there and still 4.9:1 on paper.
+     Dark theme's #89979d already passes at 4.74:1 on its own tile; leave it alone. */
+  --ink-4: #616d72;
   --line: #dfe4e1;
   --line-strong: #d1d9d5;
   --line-soft: #e9ede9;

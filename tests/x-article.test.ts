@@ -2,7 +2,7 @@
 // marks it for extraction, extraction fetches the article by the post's own id and stores it as a new
 // revision, and the judging steps read the article. A post whose article cannot be fetched is flagged
 // to the model instead of passing for a complete body. Reading the post again is no new revision.
-import { stub, tag } from "./setup.ts";
+import { purgeTagged, stub, tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { config } from "@aihot/backend/config";
@@ -56,7 +56,9 @@ before(async () => {
                     ${sql.json({ initializedAt: new Date().toISOString(), lastTweetId: String(BASE) })}, '2100-01-01')`;
 });
 after(async () => {
-  await sql`UPDATE sources SET enabled = false WHERE id = ${SOURCE}`;
+  // A leftover article still in processing_state = 'new' is counted by tests/alerts.test.ts, which reads
+  // the backlog table-wide, so it would fail in an unrelated file.
+  await purgeTagged(T);
   await socialdata.close();
   await stopBoss();
   await closeDb();

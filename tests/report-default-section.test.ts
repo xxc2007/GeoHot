@@ -1,10 +1,15 @@
 // The daily paper's fallback bucket is computed from the *position* of a field, not from a declared name:
 // `reports/compose.ts:19-21` builds SECTION_ORDER as the first-appearance order of `CATEGORIES[].section`
 // and takes `SECTION_ORDER.at(-1)` as DEFAULT_SECTION, the section every entry without a category is filed
-// under (`compose.ts:162` `?? DEFAULT_SECTION`). So appending a category that carries a fourth section name
-// — or that pushes 「实践」 off the end of that derived list — silently moves every uncategorised item into
-// the new section. No type and no other test notices. This file pins the three names and the fallback
-// itself, so such an append fails here instead of re-arranging tomorrow's edition.
+// under (`compose.ts:162` `?? DEFAULT_SECTION`). So appending a category that carries a third section name
+// silently moves every uncategorised item into the new section. No type and no other test notices. This file
+// pins the two names and the fallback itself, so such an append fails here instead of re-arranging
+// tomorrow's edition.
+//
+// 2026-10-03 (owner's request): 「野外与考察」与「观点与解读」两个类别连同它们那一节「实践」一起删掉，
+// 「地理信息系统」提到「考研」之前。分节因此只剩两节，兜底分节从「实践」变成「技术」。注意这一天的
+// 另一个后果：**末位类别（geoedu 考研）的 section 已经不再是兜底分节**——兜底由首现顺序决定，不由数组
+// 末位决定，两者在过去只是恰好重合。下面第 30 行那条断言因此改成「兜底分节必须真的被某个类别用着」。
 //
 // `compose.ts` is imported nowhere in this file: it pulls in `../db.ts`, and this check needs only the
 // vocabulary. The coupling is pinned by reading the source text instead — if that derivation is rewritten,
@@ -16,20 +21,21 @@ import { CATEGORIES, RELEASE_CATEGORY_KEY } from "@aihot/industry/taxonomy";
 import { CATEGORY_KEYS } from "@aihot/contracts/taxonomy";
 
 /** The sections this pack declares, in the order compose.ts derives them. Fixed on purpose. */
-const EXPECTED_SECTIONS = ["学科", "技术", "实践"];
+const EXPECTED_SECTIONS = ["学科", "技术"];
 /** The bucket for uncategorised entries: `SECTION_ORDER.at(-1)` in compose.ts:21. */
-const EXPECTED_DEFAULT_SECTION = "实践";
+const EXPECTED_DEFAULT_SECTION = "技术";
 
 /** compose.ts:19 — the same expression, not an import of the module's private constant. */
 const sectionOrder = [...new Set(CATEGORIES.map((c) => c.section))];
 
-test("the daily paper's section order and fallback bucket are the three declared names, in that order", () => {
+test("the daily paper's section order and fallback bucket are the two declared names, in that order", () => {
   assert.deepEqual(sectionOrder, EXPECTED_SECTIONS, `日报分节必须逐字等于 ${EXPECTED_SECTIONS.join("/")}（实际 ${sectionOrder.join("/")}）`);
   assert.equal(sectionOrder.at(-1), EXPECTED_DEFAULT_SECTION, `兜底分节必须是「${EXPECTED_DEFAULT_SECTION}」：compose.ts 把没有类别的资料都写进那一节`);
-  // The invariant the pack's own header comment states: the fallback section is still the one the array ends with.
-  assert.equal(CATEGORIES.at(-1)!.section, EXPECTED_DEFAULT_SECTION, `CATEGORIES 末位（${CATEGORIES.at(-1)!.key}）的 section 必须仍是「${EXPECTED_DEFAULT_SECTION}」，否则未分类资料一夜之间换节`);
+  // The fallback must be a section some category actually carries: a bucket no category declares would file
+  // uncategorised entries under a heading the rest of the paper never produces.
+  assert.equal(CATEGORIES.some((c) => c.section === EXPECTED_DEFAULT_SECTION), true, `兜底分节「${EXPECTED_DEFAULT_SECTION}」必须至少被一个类别用着，否则未分类资料会落进一节没人声明的节`);
   for (const c of CATEGORIES) {
-    assert.equal(EXPECTED_SECTIONS.includes(c.section), true, `类别 ${c.key} 带了第四个分节「${c.section}」——新类别必须复用 ${EXPECTED_SECTIONS.join("/")} 之一`);
+    assert.equal(EXPECTED_SECTIONS.includes(c.section), true, `类别 ${c.key} 带了第三个分节「${c.section}」——新类别必须复用 ${EXPECTED_SECTIONS.join("/")} 之一`);
   }
 });
 
@@ -46,5 +52,5 @@ test("compose.ts still derives the bucket from that order, and the release metri
   // `apps/web/tests/cache.test.ts:91` filters by `.at(-1)`. Both were stable when the four new categories
   // landed (they were inserted before 野外与考察, not appended), and this is what keeps that true.
   assert.equal(CATEGORY_KEYS[0], "physical", "llms.txt 的示例 slug 是首键，改成别的键等于对外的订阅示例换人");
-  assert.equal(CATEGORY_KEYS.at(-1), "comment", "cache.test.ts 用末键筛一遍，改成别的键它就不再覆盖「观点与解读」那条链");
+  assert.equal(CATEGORY_KEYS.at(-1), "geoedu", "cache.test.ts 用末键筛一遍；2026-10-03 换位与删类之后末键是 geoedu（考研）");
 });

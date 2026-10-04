@@ -47,7 +47,14 @@ function ReleaseBody({ lines }: { lines: string[] }) {
     else if (Array.isArray(last)) last.push(line.slice(2));
     else blocks.push([line.slice(2)]);
   }
-  const text = "mt-2 max-w-[52em] text-[13.5px] leading-[1.8] text-ink-3";
+  // `wrap-anywhere` is load-bearing, not decoration: a release note quotes real paths
+  // (`packages/backend/src/reports/compose.ts:135`), which is one unbreakable Latin run. The bullet is a
+  // flex child, so its `min-width: auto` was min-content — 364px on a 390px screen — and /changelog
+  // scrolled sideways at 390px (scrollWidth 400 vs clientWidth 390). `overflow-wrap: anywhere` is the one
+  // value that also shrinks min-content; `break-word` does not. Verified in the real browser at 390px.
+  // The measure is the site's own token rather than 52em: at this 13.5px the old cap measured 47 Han
+  // characters to a line, over the 42 the rest of the site's prose holds.
+  const text = "measure mt-2 text-[13.5px] leading-[1.8] text-ink-3 wrap-anywhere";
   return blocks.map((b, i) =>
     Array.isArray(b) ? (
       <ul key={i} className={`${text} space-y-1`}>

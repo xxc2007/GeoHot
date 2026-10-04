@@ -99,10 +99,10 @@ export default function MorePage() {
         ))}
       </div>
       <div className="mt-5 flex flex-wrap justify-center gap-x-4 gap-y-1 text-[12px] text-ink-4">
-        <Link to="/terms" className="hover:text-ink-2">使用规则</Link>
-        <Link to="/privacy" className="hover:text-ink-2">隐私说明</Link>
-        <a href={publicPath("/feed.xml")} className="hover:text-ink-2">RSS</a>
-        {SITE.icp && <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer" className="hover:text-ink-2">{SITE.icp}</a>}
+        <Link to="/terms" className="inline-flex min-h-6 items-center px-1.5 hover:text-ink-2">使用规则</Link>
+        <Link to="/privacy" className="inline-flex min-h-6 items-center px-1.5 hover:text-ink-2">隐私说明</Link>
+        <a href={publicPath("/feed.xml")} className="inline-flex min-h-6 items-center px-1.5 hover:text-ink-2">RSS</a>
+        {SITE.icp && <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer" className="inline-flex min-h-6 items-center px-1.5 hover:text-ink-2">{SITE.icp}</a>}
       </div>
     </div>
   );

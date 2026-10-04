@@ -122,10 +122,13 @@ export function channelCondition(channel: ChannelKey | null | undefined) {
   return sql`AND p.channel = ${channel}`;
 }
 
-export function categoryCondition(category: CategoryKey | null | undefined, v1 = false) {
+/**
+ * One category, exactly one column value. Until 2026-10-03 the public API and RSS published `comment` as
+ * `fieldwork` (the two shared a section and one public bucket); both keys were removed from the vocabulary
+ * by the owner's request, so the special case is gone with them.
+ */
+export function categoryCondition(category: CategoryKey | null | undefined) {
   if (!category) return sql``;
-  // v1 and RSS publish comment as fieldwork: the two share a section and one public bucket.
-  if (v1 && category === "fieldwork") return sql`AND p.category IN ('fieldwork', 'comment')`;
   return sql`AND p.category = ${category}`;
 }
 

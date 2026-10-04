@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { Link } from "react-router";
 import { IntentLink } from "./IntentLink";
 import { useEntrance } from "../../lib/hydration";
@@ -101,8 +101,30 @@ export function PillTabs({
   const Track = links ? "nav" : "div";
   // Which option carries the group's single tab stop; falls back to the first so the group is always reachable.
   const activeAt = Math.max(0, items.findIndex((t) => t.key === active));
+  // `scrollbar-none` plus clipped options is a trap: nine filters do not fit a 1024px window and there is
+  // no scrollbar to say so. The fade is attached from measurement rather than from a breakpoint, so a row
+  // with nothing past its right edge stays clean at every width.
+  const scroller = useRef<HTMLDivElement>(null);
+  const [fadeRight, setFadeRight] = useState(false);
+  useLayoutEffect(() => {
+    const el = scroller.current;
+    if (!el) return;
+    const measure = () => setFadeRight(el.scrollWidth - el.clientWidth - el.scrollLeft > 1);
+    measure();
+    el.addEventListener("scroll", measure, { passive: true });
+    // Both the box and the track can change size (window resize, web font, a label that grows).
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    if (el.firstElementChild) observer.observe(el.firstElementChild);
+    return () => {
+      el.removeEventListener("scroll", measure);
+      observer.disconnect();
+    };
+  }, [items.length, fill]);
+  const fadeClass =
+    "[mask-image:linear-gradient(to_right,#000_calc(100%_-_28px),transparent)] [-webkit-mask-image:linear-gradient(to_right,#000_calc(100%_-_28px),transparent)]";
   return (
-    <div className={`scrollbar-none max-w-full overflow-x-auto ${fill ? "w-full" : ""} ${className}`}>
+    <div ref={scroller} className={`scrollbar-none max-w-full overflow-x-auto ${fill ? "w-full" : ""} ${fadeRight ? fadeClass : ""} ${className}`}>
       <Track
         data-pill-track=""
         aria-label={label}
@@ -121,7 +143,13 @@ export function PillTabs({
               </span>
             </>
           );
-          const cls = `relative inline-flex shrink-0 select-none items-center justify-center whitespace-nowrap rounded-full font-medium outline-offset-1 transition-colors duration-150 active:scale-[0.98] ${SIZES[size]} ${on ? "text-ink" : "text-ink-3 hover:text-ink"}`;
+          // `outline-accent` is not decoration. `transition-colors` includes `outline-color`, and an
+          // option's unfocused outline-color is `currentColor` — the ring therefore faded in from the
+          // label's grey (measured rgb(89,101,107) at 0ms, accent only after 150ms). Declaring the colour
+          // unconditionally leaves the transition nothing to interpolate, so the ring is accent at once.
+          // `outline-offset-1` stays on purpose: the scroller clips at its padding edge and the track's
+          // p-[3px] is exactly the room a 2px ring at 1px offset needs.
+          const cls = `relative inline-flex shrink-0 select-none items-center justify-center whitespace-nowrap rounded-full font-medium outline-offset-1 outline-accent transition-colors duration-150 active:scale-[0.98] ${SIZES[size]} ${on ? "text-ink" : "text-ink-3 hover:text-ink"}`;
           const TabLink = t.prefetch === "intent" ? IntentLink : Link;
           return t.to ? (
             t.hard ? (

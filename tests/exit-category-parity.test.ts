@@ -37,11 +37,24 @@ test("板块声明的分类与标签都在词表里——加板块不能写一�
     assert.ok(b.categories.length > 0, `${b.slug} 至少要挂一个分类`);
     for (const c of b.categories) assert.ok(isCategoryKey(c), `${b.slug} 的分类 ${c} 不在词表里`);
   }
+  // /boards 的四块不按词表位置整体排序（板块顺序历来是站长的编排，不是词表的投影），但 2026-10-03 站长要求
+  // 「考研」与「地理信息系统」换位，筛选栏与板块页两处必须一起换——否则会出现「筛选栏里地理信息系统在前、
+  // 板块页里考研在前」。所以这里钉住的是这两块的相对次序，而不是四块的整体次序。
+  const order = boards.boards.map((b) => b.slug);
+  assert.ok(
+    order.indexOf("gis") < order.indexOf("kaoyan-geo"),
+    `板块页里「地理信息系统」必须排在「考研」之前（实际 ${order.join(" → ")}）`,
+  );
+  assert.ok(
+    CATEGORY_KEYS.indexOf("geotech" as never) < CATEGORY_KEYS.indexOf("geoedu" as never),
+    "筛选栏里「地理信息系统」必须排在「考研」之前（industry/taxonomy.ts 的 CATEGORIES 顺序）",
+  );
 });
 
-test("日报的分节没有被新分类挤动（兜底分节仍由数组末位决定）", () => {
-  // 与 tests/report-default-section.test.ts 同源：这里只复查 10 个分类之后的首现顺序仍是三节。
+test("日报的分节没有被新分类挤动（兜底分节仍由首现顺序决定）", () => {
+  // 与 tests/report-default-section.test.ts 同源：这里只复查七个分类之后的首现顺序仍是两节。
+  // 2026-10-03：「野外与考察」「观点与解读」连同「实践」那一节一起删掉，兜底分节由「实践」变成「技术」。
   const order = [...new Set(CATEGORIES.map((c) => c.section))];
-  assert.deepEqual(order, ["学科", "技术", "实践"]);
-  assert.equal(order.at(-1), "实践", "未分类条目的兜底分节");
+  assert.deepEqual(order, ["学科", "技术"]);
+  assert.equal(order.at(-1), "技术", "未分类条目的兜底分节");
 });

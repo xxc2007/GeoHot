@@ -23,6 +23,34 @@ import path from "node:path";
 const HERE = import.meta.dirname;
 const ROOT = path.resolve(HERE, "..");
 
+/**
+ * 本文件自己的指纹 —— 用来回答"这个进程跑的是不是磁盘上那一份代码"。
+ *
+ * 为什么需要它：Node 在启动时把整个 .ts 读进内存，**它不热更新自己的代码**（taxonomy / prompts /
+ * fixtures 是 mtime 热读的，所以"改了 taxonomy 就生效"很容易让人误以为这个进程也是热更新的）。
+ * 2026-10-04 的真实事故：进程从 2026-10-01 16:17 起一直是 active，而 brain-stub.ts 在这三天里被改过
+ * 两次（f35da0a、c9f893b），于是 summarize 缺人工稿时的默认值仍是旧的 condense，它把英文原标题与
+ * 英文正文的机械截断写进 title_zh / summary_zh —— 单元 active、healthz 200、日志无 error，状态码全绿
+ * 而行为是错的。`verify-deploy.sh` 现在比对 healthz 里的 `source.sha256` 与磁盘上这个文件的 sha256，
+ * 不一致就是"跑着旧代码"。
+ *
+ * 为什么不用 mtime 比较：`git archive` 给整棵树的每个文件都盖上**提交时刻**（不是文件真实修改时刻），
+ * 整包升级后源码 mtime 会晚于进程启动时刻，用 mtime 判"源码比进程新"会在每次部署后误报。
+ * 内容哈希没有这个问题。
+ *
+ * 取值方式与本进程"已读进内存"的字节一致：读的就是 import.meta.filename。理论上 Node 读完这个文件到
+ * 执行到这里之间文件可能被替换（微秒级窗口），实践中可忽略；比 mtime 可靠得多。
+ */
+const SOURCE_PATH = import.meta.filename;
+const SOURCE_SHA256 = (() => {
+  try {
+    return createHash("sha256").update(readFileSync(SOURCE_PATH)).digest("hex");
+  } catch {
+    return null; // 读不到自己的文件（被删/权限）就当"不知道"，不要让 healthz 挂掉
+  }
+})();
+const STARTED_AT = new Date().toISOString();
+
 const PORT = int(process.env.BRAIN_PORT, 3055);
 const FIXTURES_DIR = process.env.BRAIN_FIXTURES_DIR ?? path.join(HERE, "fixtures");
 const PROMPTS_DIR = process.env.BRAIN_PROMPTS_DIR ?? path.join(ROOT, "industry/prompts");
@@ -879,6 +907,10 @@ function summary(): Record<string, unknown> {
     ok: true,
     role: "geohot-brain-stub",
     port: PORT,
+    // 进程身份：source.sha256 是**启动时读进内存的那份代码**的哈希，startedAt 是进程启动时刻。
+    // 部署后拿磁盘上的 tooling/brain-stub.ts 重算一次 sha256 比对，不一致 ⇒ 这个进程在跑旧代码，
+    // 必须 systemctl restart geohot-brain（见 verify-deploy.sh 里那条断言与上面 SOURCE_SHA256 的注释）。
+    source: { path: SOURCE_PATH, sha256: SOURCE_SHA256, startedAt: STARTED_AT, pid: process.pid },
     fixturesDir: FIXTURES_DIR,
     promptsDir: PROMPTS_DIR,
     promptsPresent: Object.values(CAPS).every((c) => c.prompts.every((p) => existsSync(path.join(PROMPTS_DIR, `${p}.md`)))),

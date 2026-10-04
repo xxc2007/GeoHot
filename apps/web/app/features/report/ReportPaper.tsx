@@ -424,7 +424,7 @@ export function ReportPaper({ report, index, now }: { report: ReportDetail; inde
         <p className="mt-3 text-caption text-ink-4">
           {SITE.name} {KIND_LABEL[report.kind]}由编辑系统按编辑部写定的标准从公开来源筛选编排，每条均附原文 ·{" "}
           {daily || hasHistory ? (
-            <Link to={daily ? "/daily/archive" : "#report-history"} className="font-medium text-ink-3 transition-colors hover:text-accent">
+            <Link to={daily ? "/daily/archive" : "#report-history"} className="inline-flex min-h-6 items-center font-medium text-ink-3 transition-colors hover:text-accent">
               {daily ? "日报合订本" : `往期${KIND_LABEL[report.kind]}`}
             </Link>
           ) : (

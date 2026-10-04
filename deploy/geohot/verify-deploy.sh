@@ -101,6 +101,41 @@ if command -v systemctl >/dev/null 2>&1 && [[ -n "$(systemctl list-unit-files 'g
     [[ "$state" == "active" ]] && ok "$u active" || bad "$u 状态=$state —— 四个单元都要 active（见 deploy/geohot/systemd/）"
   done
 fi
+# 编辑大脑的代码是不是"进程里那一份"。
+# 2026-10-04 的真实漏检：geohot-brain 从 2026-10-01 16:17 起一直是 active，而这三天里
+# tooling/brain-stub.ts 被改过两次（f35da0a 2026-10-02、c9f893b 2026-10-03）。Node 启动时把整个
+# .ts 读进内存，所以进程一直在跑旧代码：summarize 缺人工稿时的默认值还是 condense，于是它把**英文
+# 原标题与英文正文的机械截断**写进 title_zh / summary_zh（analyze.ts 的中文闸门因此形同虚设），
+# 每天一两百到五百条条目带着拉丁文标题留在库里。单元是 active、healthz 是 200、日志没有 error——
+# 状态码这一类断言全绿，而行为是错的。
+# 唯一可靠的判据是内容哈希：进程在 healthz 里报出**它启动时读进内存那份代码**的 sha256
+# （tooling/brain-stub.ts 的 SOURCE_SHA256），这里拿磁盘上的同一文件重算一次比对。不一致就是跑旧代码。
+# 不用 mtime 比较：`git archive` 给整棵树盖上的是**提交时刻**，整包升级后源码 mtime 必然晚于进程
+# 启动时刻，用"源码比进程新"判会每次部署都误报。
+brain_hz="$(curl -s --max-time 10 http://127.0.0.1:3055/healthz || true)"
+brain_sha="$(printf '%s' "$brain_hz" | tr -d ' \n' | grep -oE '"sha256":"[0-9a-f]{64}"' | head -1 | sed -E 's/.*:"([0-9a-f]{64})"/\1/')"
+if [[ -z "$brain_sha" ]]; then
+  note "brain healthz 没报 source.sha256（stub 没答？或版本太旧），跳过这一条"
+else
+  disk_sha="$(sha256sum "$APP_ROOT/tooling/brain-stub.ts" 2>/dev/null | cut -d' ' -f1)"
+  if [[ -z "$disk_sha" ]]; then
+    note "读不到 $APP_ROOT/tooling/brain-stub.ts，无法比对 brain 代码指纹"
+  elif [[ "$brain_sha" == "$disk_sha" ]]; then
+    ok "geohot-brain 跑的就是磁盘上这份代码（sha256=${brain_sha:0:12}…）"
+  else
+    bad "geohot-brain 在跑旧代码：healthz 自报 ${brain_sha:0:12}…，磁盘上是 ${disk_sha:0:12}…。Node 不热更新自己的代码，必须 sudo systemctl restart geohot-brain —— 2026-10-04 就是这样让旧默认值 condense 把英文原标题写进 title_zh、并让公开池里出现整条英文卡片的"
+  fi
+fi
+# 出货契约：stub 只回空稿、等人工中文稿。condense/echo 是开发与测试显式打开的（tooling/brain-stub.ts:32-41
+# 记着 2026-10-02 那次"中文站出现整条英文卡片"的事故）。生产上这一项必须是 empty。
+hz_sum="$(printf '%s' "$brain_hz" | tr -d ' \n' | grep -oE '"summarize":"[a-z]+"' | head -1 | sed -E 's/.*:"([a-z]+)"/\1/')"
+if [[ -z "$hz_sum" ]]; then
+  note "读不到 brain healthz 的 defaults.summarize（stub 没在 127.0.0.1:3055 上答？），跳过这一条"
+elif [[ "$hz_sum" == "empty" ]]; then
+  ok "brain 缺人工稿时回空稿（summarize=empty）"
+else
+  bad "brain 的 summarize 默认值是 $hz_sum，不是 empty —— 生产上它会把英文原标题/正文截断成 title_zh / summary_zh，中文闸门形同虚设（见 tooling/brain-stub.ts:32-41 记的线上事故）"
+fi
 for p in / /all /hot /daily /about /agent /terms /privacy /admin/login /feed.xml /sitemap.xml /llms.txt /openapi-v1.json /manifest.webmanifest /og/site.png /icon.png; do
   code=$(status_of "$BASE$p")
   case "$p" in
@@ -237,6 +272,24 @@ cnt=$(echo "$snap" | grep -Eo '"count":[0-9]+' | head -1 | tr -dc 0-9)
 # 这一项**不**跟着放宽：selected 是 seed:curated 当场灌进去的（bootstrap-server.sh 第 8 节），
 # 上线那一刻就该有。它是"管道与语料到底通没通"的那个信号，空了就是真出事。
 if [[ -n "${cnt:-}" && "$cnt" -ge 1 ]]; then ok "selected/snapshot count=$cnt"; else bad "selected/snapshot 无 count 或为 0（seed:curated 没进去？bootstrap 第 8 节）: ${snap:0:200}"; fi
+# 载荷里的 category 必须落在当前词表内。这一项是照着一个真实的漏检补上的：
+# 0040/0041 改词表时只 UPDATE 了 publications，而 v1 同步接口读的是 selected_ledger.payload
+# 里写入时物化下来的那份拷贝（publish.ts 的 v1Payload + appendLedger）。于是网页全对、
+# 公开 API 连着两天对外发已删除的分类 key，直到 2026-10-04 手工 curl 快照才发现。
+# 判据不写死 key 表：从部署目录的 industry/taxonomy.ts 现读，词表再改也不会漏。
+if [[ -f "$APP_ROOT/industry/taxonomy.ts" ]]; then
+  cats=$(grep -oE '\{ key: "[a-z-]+"' "$APP_ROOT/industry/taxonomy.ts" | sed -E 's/.*"([a-z-]+)"/\1/' | sort -u | tr '\n' ' ')
+  if [[ -n "$cats" ]]; then
+    # 快照里每个 "category":"…" 的值都要在词表内；null 是允许的（未分类）。
+    bad_cats=$(echo "$snap" | grep -oE '"category":[[:space:]]*"[a-z-]+"' | sed -E 's/.*"([a-z-]+)"$/\1/' | sort -u | grep -vxF -f <(printf '%s\n' $cats) || true)
+    if [[ -z "$bad_cats" ]]; then
+      ok "selected/snapshot 的分类都在词表内（$(echo $cats | wc -w) 个 key）"
+    else
+      # 这是硬失败：机器可读出口发着词表里不存在的分类，客户端只能照单全收。
+      bad "selected/snapshot 里有词表外的分类：$(echo $bad_cats | tr '\n' ' ')——0040/0041 那类改词表的迁移漏了 selected_ledger.payload（补法见 0043 的注释）"
+    fi
+  fi
+fi
 if [[ "$content_expected" == "1" ]]; then content_check=bad; else content_check=note; fi
 note "$content_reason"
 daily=$(curl -s -A "$UA" --max-time 30 "$BASE/api/v1/dailies/latest")

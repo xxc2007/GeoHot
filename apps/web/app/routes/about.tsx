@@ -275,7 +275,7 @@ export default function AboutPage() {
 
       {ABOUT.maker && <Maker maker={ABOUT.maker} contact={contact} />}
 
-      <p className="mt-16 well rounded-card px-5 py-4 text-[13px] leading-[1.85] text-ink-3">
+      <p className="mt-16 well rounded-card measure px-5 py-4 text-[13px] leading-[1.85] text-ink-3">
         {ABOUT.copyright}
         <Link to="/feedback" className="text-accent hover:underline">
           反馈页

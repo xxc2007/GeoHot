@@ -231,8 +231,8 @@ grep -n DEV_AUTH .env .env.pipeline            # 期望：只有 .env.example �
 而 `NODE_ENV` 留 `development`，拒启检查根本不会跑**；两个都要 production 才是真生产形态。
 副作用清单：告警文案不再带部署名前缀；`SITE_URL` 若换成 https 则 cookie 自动加 `Secure`（`routes/admin-auth.ts:23`）。
 
-**3. 真实的联系与备案信息。** `industry/site.ts:39` 现在是 `contactEmail: "editor@geohot.local"`（占位域，
-发不出去），`:46` 是 `icp: ""`（页脚没有备案号）。上线前换成使用者本人确认真实邮箱与 ICP 号，
+**3. 真实的联系与备案信息。** `industry/site.ts:38` 现在是 `contactEmail: null`（按设计留空：`security.txt`
+返 404、`llms.txt` 省略联系一行，比挂假地址诚实），`:50` 是 `icp: ""`（页脚没有备案号）。上线前换成使用者本人确认真实邮箱与 ICP 号，
 同时把 `SITE_URL` 改成正式域名、`TRUST_PROXY=true`（前面挂了 Caddy/Nginx 时不开这个，登录限速和反馈限速
 会把所有人算成同一个 IP）、必要时补 `MCP_ALLOWED_HOSTS`。条款与隐私页（`industry/pages/`）仍是模板，
 内容归使用者本人确认。

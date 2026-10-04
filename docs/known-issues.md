@@ -454,7 +454,7 @@ Australia / Angola / Paraguay / Suriname, Brazil）的事件下，读者在中�
    `verdictsByFact` 把没答的算作 UNRELATED，判定因此与池子里还躺着什么无关。
    验收方式：该文件连跑两遍全绿；另用合成提示做过对照（旧桩答外来 C1、新桩答夹具自己那条）。
 12. **`purgeTagged` 的早退让"只建文章与信源"的夹具从不清库；首页时间线断言因此按池子组成说话**（2026-10-03 深夜修）。
-   `tests/setup.ts` 的清库函数在"这个 tag 没留下任何事件"时直接 `return`——`analyze-shutdown` 这类只写
+    `tests/setup.ts` 的清库函数在"这个 tag 没留下任何事件"时直接 `return`——`analyze-shutdown` 这类只写
    文章与信源的文件调用它等于没调用，每一轮留三条被精选的中文行（实测十轮 30 条）；`translate.test.ts`
    与 `translate-shutdown.test.ts` 根本不调用它，而夹具的 `discoveredAt` 刻意放在未来（好让
    `translatePending` 先拿到最新的），遗留行在首页时间线的锚点上排在所有后续测试之前。一天十几轮下来
@@ -463,6 +463,239 @@ Australia / Angola / Paraguay / Suriname, Brazil）的事件下，读者在中�
    `after()` 里调用它；`publication-copy-gate` 的首页断言按夹具自己的 tag 收窄（断言的是中文门槛，不是池子
    大小）。一次性清掉存量 50 篇文章 + 31 条信源；验收：单文件 10 连跑全绿、全套 235 tests 连跑两遍 fail 0，
    跑完池子里精选卡片归 0（这之前是 30–77 组）。
+
+## 第九轮（2026-10-03 夜）：删掉两个分类之后仍然开着的东西
+
+站长当晚第二次看首页筛选栏，要求把「考研」与「地理信息系统」换位、**彻底删掉**「野外与考察」与「观点与解读」。
+下面是**做完之后仍然开着**的，逐条带证据。
+
+1. **删分类真正的成本在库里，不在数组里。** 分类 `key` 进 URL（`/all?category=fieldwork`），也进了 `publications.category`、
+   `analyses.category`、`editorial_overrides.fields->>'category'`、`sources.default_category` 四处。只从 `CATEGORIES`
+   里拿掉一行，旧 key 就成了「不在词表里」的行：卡片角标空着、筛选栏点不到、RSS 分类订阅里查不到。所以这一轮
+   配了迁移 `0041`——线上实测 `publications` 21 行（精选 8 条：comment 6 + fieldwork 2）、`analyses` 30 行、
+   `editorial_overrides` 0 行、`sources` 0 行。**逐条映射**（21 行显式 VALUES 表）而不是一刀切进某个桶，因为这两个
+   分类当年是**跨学科的兜底桶**（`fieldwork-L1` 是历史现场、`fieldwork-L2` 是人文、`comment-L5` 是海平面……），
+   整桶搬进任何一类都会造出一批分类错的行。
+2. **`selectbench_results` 刻意不迁。** 那是历史模型答题的存档（当年拿 `comment` 当正确答案的那批），改写等于
+   伪造记录。它现在带着一个词表里没有的 category 值躺在库里——这是**有意保留的历史事实**，任何「全库扫一遍看有没有
+   孤儿分类」的脚本都会把它当问题报出来，别修。
+3. **`--rebuild` 会丢行，别拿它同步夹具。** `tooling/merge-corpus.mjs:851-853` 在 `--rebuild` 下把「非种子行且片段里
+   没有同 id」的行**整条丢弃**——`tooling/fixtures/understand.jsonl:108-119` 那 12 行 `understand-en-*`（英文条目编译轮
+   的成果）正属于这类。本轮同步夹具走的是手写脚本按 id 覆盖，不是 `--rebuild`。
+4. **片段不总是比夹具新——这是本轮最贵的教训。** 一度按「answerKey 不同就以片段为准」批量同步，结果把
+   `digest-loyalty-m66` 换成了旧版：HEAD 夹具的 `what` 明写着「2026-10-02 更正：删去在报道里核不到的『矩张量反演
+   震级 6.7』」，而片段版又把它写了回去。已全部 `git checkout --` 回退（`tooling/fixtures/summarize.jsonl`、
+   `understand.jsonl`、`digest.jsonl`、`group_pair.jsonl`、`tooling/corpus/curated-materials.jsonl` 五个文件），
+   只留分类同步。`merge-corpus.mjs:854-862` 那道 rebuild 守卫存在的理由就是这个。
+5. **`merge-corpus` 的既有账目没有变，退出码 1 不是回归。** 改动前后都是：`collision` 11 条（8 条 structure 同 id
+   两份答案、另 3 条无关）、`shadowed` 1 条（`summarize-rx18` 被自己吞）、分级漂移 20 条（以 `sources.json` 为准）。
+   夹具同步完成后 `node tooling/brain-stub.ts --lint` 的 **23 条 category note 清零**，剩下的 `fixturesWithProblems: 1`
+   仍是既有那条 `understand-fill-mongabay-elnino-evidence`（身份守卫会退回），`tests/brain-fixtures.test.ts:105-117`
+   明确允许这 1 条。
+6. **`tests/exit-category-parity.test.ts` 里我加错了一条断言。** 第一版写了「板块顺序必须与词表位置单调一致」，
+   实测红：板块顺序是 gis(geotech, 索引 5) → kaoyan-geo(geoedu, 6) → geopolitics(3) → histgeo(4)，**从来不是词表的
+   投影，而是站长的编排**。改成只钉「`gis` 排在 `kaoyan-geo` 之前」+「`geotech` 在词表里排在 `geoedu` 之前」两条相对
+   次序。以后要动板块顺序，改的是 `industry/boards.json`，不是去让词表迁就它。
+7. **「实践」这一节消失，兜底分节跟着从「实践」挪到「技术」。** `reports/compose.ts:19-21` 用 `section` 字段的**首现
+   顺序**建 `SECTION_ORDER`，再取 `at(-1)` 当「没有类别的资料」的兜底。`section` 从三节变两节，兜底就换了一节。
+   **加新分类时不要再起第三个节名**，否则全站未分类条目会一夜之间搬进那一节——`tests/report-default-section.test.ts`
+   与 `tests/exit-category-parity.test.ts` 把这条钉住了（后者连 `compose.ts` 的算式字符串一起断言）。
+8. **`docs/manual.md:306` 与 `industry/prompts/selection-score.md:30` 里的「观点与解读」是内容类型不是分类。**
+   `ITEM_TYPES` 里的 `opinion_analysis` 仍叫这个名字，`CATEGORY_TAGS` 里的「评论/解读」也仍在——删的是分类 key
+   `comment`，不是这类体裁。同理 `tooling/corpus/corpus-fieldwork-*.jsonl`、`scripts/README-ingest.md` 的
+   `"theme":"fieldwork"`、`industry/topics.json` 的 `fieldwork` / `opinion-analysis` 主题 slug 都是**另一层**，全部保留。
+   以后全库 grep「野外与考察 / 观点与解读 / fieldwork / comment」会命中这些，别顺手删。
+9. **README 的三张配图当晚已按新筛选栏重拍**（`node scripts/shoot.ts --base https://xxc2007.me/geohot --out docs/shots`），
+   因为首页筛选栏从九个格子变成七个、且「地理信息系统」挪到了「考研」前面。`scripts/check-shots.ts` 守图。
+10. **`/changelog` 在 390px 会横向溢出——已修，但根因值得记住。** 某条 release note 里引了一个真实路径
+    `packages/backend/src/reports/compose.ts:135`，那是一整段不可断行的拉丁串；装它的 `span` 是 flex 子项，
+    `min-width:auto` 解析成 min-content = 364px，390px 屏幕放不下，实测 `scrollW=400 clientW=390`。
+    `apps/web/app/routes/changelog.tsx:50` 改成 `wrap-anywhere` 后 `scrollW=390`。**注意 `break-word` 与
+    `min-width:0` 单独用都不行**（实测仍是 400），只有 `anywhere` 能收缩 min-content——因为 changelog 的
+    正文会引用路径，这个类在这里是承重的，不是装饰。
+11. **浅色 `--ink-4` 从 `#657176` 加深到 `#616d72`（AA 修复）。** 全站 1888 对颜色采样里只有一对不过 AA：
+    `/daily` 左栏**选中**日格的「周六」（`apps/web/app/features/report/ReportNav.tsx:94`）——那一格背景是
+    `bg-accent-soft`（`rgba(23,107,117,0.08)` 叠白 = `rgb(236,243,244)`），旧值在其上 **4.483:1**，差 0.017。
+    新值实测 **4.755:1**（真浏览器量得，见 `.round9/probe-ink4d.mjs`）；纸上仍是 4.9:1，暗色 `#89979d` 在同一格
+    本来就 4.737:1，未动。`app.css:136-139` 与 `:175-183` 记着同类先例（`--daybar` 与 `--rank-*` 都因对比度
+    调过），所以「加深 token 并注明实测比值」是本文件既定做法。**降 `accent-soft` 的 alpha 修不了这一条**——
+    实测 0.06/0.05/0.04 注入后仍是 4.483。
+12. **本地开发用 `127.0.0.1` 访问会报 React 水合不匹配，用 `localhost` 不会——这不是生产缺陷。**
+    `apps/web/app/lib/seo.ts:18-21` 的 `siteUrl()` 服务端读 `process.env.SITE_URL`、客户端用
+    `window.location.origin + basePath`。本地 `.env` 的 `SITE_URL=http://localhost:3000`，所以从
+    `127.0.0.1:3000` 打开时两边的 JSON-LD（`organizationLd()` 的 `url`/`logo`）不同，React 报
+    `A tree hydrated but some attributes of the server rendered HTML didn't match`，指到那个
+    `<script type="application/ld+json">`——**JSON-LD 是 React 修不了的一类**。实测：`127.0.0.1` 3 个错误、
+    `localhost` **0 个错误**。线上 `SITE_URL=https://xxc2007.me/geohot` 与 `window.location.origin + basePath`
+    算出同一个值，所以线上不会出现。**别为它加 `suppressHydrationWarning` 或改 `siteUrl()`**：那个设计是
+    故意的，注释里写着原因（`window.location.origin` 单独用会把子路径部署的 canonical 指到邻居站点）。
+
+## 第十轮（2026-10-04 上午）：主题层跟着分类层一起删，以及这一轮查出来还没改的
+
+第九轮只动了**分类层**（`industry/taxonomy.ts` 的九个 key 与迁移 `0041`）。站长随后指出：`/topics` 这一层还留着
+两个和已删分类同名/近名的主题页——`/topics/fieldwork` 的 h1 就是「野外考察」、`/topics/opinion-analysis` 是
+「观点与解读」，线上同样 200，读者会以为分类根本没删。站长的裁决是**删掉这两个主题页**，不是改名。
+
+1. **主题层的 `key` 是 `slug`，删它要配迁移。** `seedTopics()`（`packages/backend/src/publication/topics.ts:78-93`）
+   是 `INSERT ... ON CONFLICT (slug) DO UPDATE`，**只 upsert 不删除**：只从 `industry/topics.json` 里拿掉两条，
+   已有部署的 `topics` 表里那两行会原地留下，`/topics` 目录仍在、`/topics/<slug>` 仍 200——正是要消灭的状态。
+   所以配了 `database/migrations/0042_drop_fieldwork_and_opinion_topic_pages.sql`：`DELETE ... WHERE slug IN
+   ('fieldwork','opinion-analysis')`，外加两条 `array_remove(related, ...)` 清反向引用。新部署不受影响（迁移先于
+   seed，此时表还空着），老部署靠这条 DELETE 收敛。
+2. **改 `topics.json` 用的是按行文本操作，不是 `JSON.parse` → `stringify`。** 该文件是 CRLF + 两空格缩进 +
+   数组元素各占一行；`stringify` 会把每行末尾的 `\r` 抹掉，实测首行就 diff，等于一次全文件重排（4973 行的假 diff
+   会把这次真正的改动淹掉）。行操作只动该动的行：删 2 个对象块 + 6 处 `related` 元素行，`git diff --stat` 是
+   **2 insertions / 41 deletions**。
+3. **被清的 6 处反向引用**：`qinghai-tibet-plateau`、`osm`、`landforms`、`ecosystems`、`satellite-navigation`、
+   `exploration-reports`（`opinion-analysis` 没有被谁反向引用）。读取层本来就会对取不到的 slug 静默过滤
+   （`topics.ts:212` 的 `topics.find(...)` + `filter`），所以不修也不会显示出坏链接——但表里会存一个不存在的主题
+   引用，下次有人按表排查会困惑。
+4. **旧 URL 的 404 是既有的，不用写新代码。** `apps/web/app/routes/topic.tsx:27` 走 `loadOr404` →
+   `/api/site/topics/:slug`（`apps/api/src/routes/site.ts:188-194`）→ 行不存在即 404 → `loadOr404`
+   （`apps/web/app/lib/api.server.ts:70-87`）把它映射成路由 `data({message:"not_found"},{status:404})`。
+   `/og/topics/*.png`（`apps/api/src/routes/og.ts:115-120`）与 `/sitemap.xml`（`packages/backend/src/publication/
+   topics.ts:122-160` 的 `topicPageCounts()`）同样按表取行，行删掉就一起消失。
+5. **以下五层刻意不动，别顺手删。** ① `selectbench_results` 等基准存档里的 `fieldwork` / `comment` 是**历史答题
+   记录**，改写等于伪造；② `tooling/corpus/corpus-fieldwork-*.jsonl` 与材料里的 `"theme":"fieldwork"` 是**语料表名**；
+   ③ `industry/taxonomy.ts` 的 `ITEM_TYPES` 里 `exploration_report` / `opinion_analysis` 是**内容类型**（渲染成
+   「考察/发现记」「观点与解读」），与主题页重名的只是中文标签；④ 历史成刊的 `reports.content.sections[].label`
+   是写死的快照（`daily 2026-10-03` 那期只有 1 条入选、且那条在库里 `category=null`，所以落进了旧词表的兜底节
+   「实践」；见第九轮第 7 条，**不重排**——`recentlyCovered("daily", before, days=7)` 会把更早 7 天的成刊条目算作
+   「已覆盖」，重排 10-03 会让 10-04 那期排除掉这唯一一条）；⑤ `industry/topics.json` 里 `satellite-navigation`
+   definition 的「野外考察」是自然用词，不是分类名。
+6. **主题数 45 → 43，文档计数跟着改**：`docs/manual.md:267`、`docs/migration.md:197`、`docs/migration.md:237`、
+   `docs/deploy.md:52`。`tests/industry-vocabulary.test.ts:191-213` 只断言 `topics.length > 0`（不写死 45），
+   所以删两条主题不会让测试红——**这也是个隐患：没人拦着主题表被删空**。
+7. **`apps/web/app/routes/topics.tsx` 与 `industry/topics.json` 里的分组说明是两份**（第九轮「两处地理文案没回到
+   `industry/`」那条的延续）：`field` / `genre` 两组的 blurb 在这个文件里各抄了一份常量，所以改文案要同时改两处，
+   否则 `/topics` 页面与 JSON 讲的不一样。本轮两处都改了（「地理信息技术与野外考察」→「地理信息技术与空间数据」、
+   「考察记录与影像图集」→「技术发布与影像图集」）。
+8. **这一轮做完之后仍然开着的设计问题（已定位、未改，逐条带实测）**：
+   - **筛选栏在 1024 / 768 / 390 被裁切，而且滚动条被自己藏掉了。** `apps/web/app/components/ui/Tabs.tsx:105` 是
+     `scrollbar-none max-w-full overflow-x-auto`，`scrollbar-none`（`apps/web/app/app.css:319-324`）把唯一的视觉
+     线索也去掉：1440px 看得全 9 项，1024px 丢 3 项、390px 丢 5 项，读者不知道右边还有东西。
+   - **`/about` 版权块是全站唯一一行 66 个汉字的段落。** `apps/web/app/routes/about.tsx:278` 的
+     `p.mt-16.well.rounded-card` 漏了 `measure`（`apps/web/app/app.css:382` 已定义这个类），加上即降到约 40 字/行。
+   - **筛选 tab 与日期折叠按钮的焦点环起步颜色是灰的。** 全站只有一条 `:focus-visible` 规则
+     （`apps/web/app/app.css:268-270`，`outline: 2px solid var(--accent)`），但 `Tabs.tsx:124` 的
+     `transition-colors duration-150` 让 `outline-color` 从 `currentColor` 起步过渡：真 tab 聚焦后
+     **0ms 读到 `rgb(89,101,107)`、320ms 才读到 `rgb(23,107,117)`**；没有 transition 的卡片标题链接 0ms 就是 accent。
+   - **`/daily` 左栏「往期」标题加载失败时，读屏用户拿到零信息**：`apps/web/app/features/report/ReportNav.tsx:75-78`
+     的错误分支没有 `role="alert"` / `aria-live`，是全轮唯一「触发就静默」的可访问性问题。
+   - 其余较轻：`/boards` 导语 56 字/行（`apps/web/app/routes/boards.tsx:38-41`）、`/changelog` 段落 47 字/行
+     （`apps/web/app/routes/changelog.tsx:50-55`，`max-w-[52em]` 在 13.5px 下不是 52 字）、首页分节间距
+     `lg:mb-1` 只有 4px（`apps/web/app/features/feed/Timeline.tsx:295`）、搜索框焦点态与全站实线环不是一套语言
+     （`apps/web/app/features/feed/Filters.tsx:128`）、`/more` 页脚 RSS 热区 22×18px、`/daily` 手机端
+     「日报合订本」热区 60×15px。
+9. **三条探针假阳性，别照着改。** ① 「筛选」重复地标名是假的：CDP `Accessibility.getFullAXTree` 实测 1440px 只有
+   `[主导航, 筛选]`、390px 只有 `[底部导航, 筛选]`，**改成 `opacity-0` 隐藏反而会真的产生两个同名地标**；
+   ② 47 个 `<header>` 来自 `apps/web/app/features/feed/FeedItem.tsx:33` 的卡片头，作用域在 `<article>` 里、不进
+   无障碍树；③ 390px 下「7 条 21px 小热区」也是假的——`FeedItem.tsx:69` 的整卡点击层 `after:inset-0`，
+   `elementFromPoint` 证实实际可点区域是 310×207。**教训：量热区要量最上层可点元素，不是量 DOM 顺序里第一个 `a`。**
+10. **同一天下午，上面第 8 条里的界面问题逐条改完了**（改动都在 `apps/web/app` 内，`npm run typecheck` 两次 exit 0，
+    真实浏览器回归 8 页 × 4 视口 `bad: []`、横向溢出全为 0）：
+    - **筛选栏遮罩。** `apps/web/app/components/ui/Tabs.tsx` 加了 `scroller` ref + `fadeRight` state，`useLayoutEffect`
+      里量 `scrollWidth - clientWidth - scrollLeft > 1`，挂 `scroll`(passive) 与 `ResizeObserver`（同时观察容器与
+      `el.firstElementChild`），条件类在地整个 `[mask-image:linear-gradient(to_right,#000_calc(100%_-_28px),transparent)]`。
+      实测隐藏量 1440px `0`（mask 不挂）/ 1024px `254` / 768px `108` / 390px `358`，1024px 滚到最右 mask 回到 `none`；
+      1440px 两组 A/B 截图逐像素相同。注意 Tailwind v4 任意值里空格要写 `_`。
+    - **`/about` 版权块**（`apps/web/app/routes/about.tsx:278`）选择**直接加 `measure` 到 `<p>` 上**而不是内包
+      `<span>`：包 span 会让灰底撑满 1204px、文字只 546px，右侧留一大片空白更怪。实测最长行 66 → 34 个汉字。
+    - **焦点环起步色是灰的**（`Tabs.tsx:124` 与 `Timeline.tsx:68`）：两处插入 `outline-accent`，实测 0ms 就是
+      `rgb(23,107,117)`（改前 `rgb(89,101,107)` / `rgb(97,109,114)`），350ms 不变。机制是 `transition-colors` 的过渡
+      属性集含 `outline-color`，未聚焦时解析成 `currentColor`，无条件声明环色后就没有可插值的起点。
+    - **`/daily` 往期标题加载失败读屏零信息**（`ReportNav.tsx:75-81`）：把裸 `<button>` 包进 **`<div role="alert">`**，
+      `py-1` → `py-2`。**刻意不给 button 本身加 `role="alert"`**（会盖掉 `button` 角色、吃掉「点此重试」）。CDP
+      `Accessibility.getFullAXTree` 实测两个角色都在，按钮盒 187.5×34.8（改前约 21px 高）。
+    - 行长与热区：`/boards` 61→40 / 57→42 字（`boards.tsx:38`/`:62` 加 `measure`）；`/changelog` 48→42 字、超 42 字的
+      段落 14 → 0（`changelog.tsx:55` 的 `max-w-[52em]` 换 `measure`，**`wrap-anywhere` 原样保留**，它是 390px 防横向
+      滚动的承重类）；首页分节间距 `Timeline.tsx:295` 的 `lg:mb-1` → `lg:mb-3`（4px → 12px）；`/more` 页脚四个链接加
+      `inline-flex min-h-6 items-center px-1.5`、`/daily` 手机端「日报合订本」加 `inline-flex min-h-6 items-center`，
+      实测 `/more` 60×24 / 60×24 / 33.7×24（改前 48×18 / 48×18 / 21.7×18）、`/daily` 390px 60×24（改前 60×15）。
+    - **搜索框焦点态统一到全站实线环**（`apps/web/app/features/feed/Filters.tsx:128` 桌面、`:97` 手机）。理由：全站焦点
+      语言由 `app.css:268-272` 的 `:focus-visible { outline: 2px solid var(--accent) }` 定义，而**后台输入框
+      `apps/web/app/features/admin/ui.tsx:183` 早就写了 `focus:ring-2 focus:ring-accent`**，所以站内已有先例、这不是新
+      语言；键盘用户 Tab 过筛选栏 10 格落到搜索框会以为焦点丢了。改法是**保留软光环再叠实线环**：桌面
+      `focus:ring-accent` → `focus:ring-2 focus:ring-accent`；手机（input 外层本就有 `border-line-strong`，环不外缩会
+      压在边框上）加 `focus:ring-2 focus:ring-inset focus:ring-accent`。`outline` 仍是 `none`——焦点指示由 ring 承担。
+      实测两个变体都读到 `rgb(23,107,117) 0px 0px 0px 2px inset` + `rgba(23,107,117,0.08) 0px 0px 0px 3px`，与筛选栏
+      第一格的 `solid 2px offset=1px` 是同一套颜色与粗细。**其余 6 处 `outline-none` 不动**：`root.tsx:170` 的跳转锚点、
+      `Faces.tsx:114`（已用 `focus-visible:ring-2`）、`admin/ui.tsx:183`（已是 2px）、以及后台与低频表单控件
+      `feedback.tsx:153` / `admin-login.tsx:53` / `Controls.tsx:43`。
+    - **两条刻意不改，别当漏改。** ① 筛选 tab 的 `outline-offset:1px` **是承重的**：轨道上下余量各 3px，offset 1px 时
+      环 `reach=3` 不裁切，offset 2px 上下各裁 1px、3px 各裁 2px（`overflow-x:auto` 让 `overflow-y` 也算 auto）；
+      ② 搜索框的 `focus:shadow-[…var(--accent-soft)]` 软光环保留，只是在上面叠了实线 ring。
+11. **这一轮给界面新增了一处运行时依赖面**：`Tabs.tsx` 的 `ResizeObserver`。`PillTabs` 有 9 个调用方
+    （`all.tsx:106`、`story.tsx:292`/`:383`、`agent.tsx:283`、`item.tsx:445`、`ReportNav.tsx:12`/`:119`、
+    `Filters.tsx:44`、`BoardTabs.tsx:11`），未做压力测试排除 `ResizeObserver loop` 告警；SSR 期
+    `useLayoutEffect` 不执行，所以 1024px 首屏水合前那一帧没有遮罩（可接受；若要 SSR 直出得改成纯 CSS 容器查询）。
+    另外 `measure` 的 `42em` 相对元素自身 font-size，三处实测宽 546 / 525 / 567px，行长在 34~42 字浮动。
+
+## 第十一轮（2026-10-04 中午）：状态码全绿，而行为是错的
+
+这一轮的起点不是「哪里报错」，而是「哪里都对，但站上没东西」：第十轮上线后 `/daily` 一直停在 10-03，每天
+900~2300 条进料却**一条精选都选不出来**。查下来根因不在模型、不在配置、不在数据库，而在**一个从
+2026-10-01 16:17 起就没重启过的进程**。
+
+1. **`geohot-brain` 在跑十几天前那份代码。** `systemctl show geohot-brain` 的
+   `ActiveEnterTimestamp=Thu 2026-10-01 16:17:40 CST`、`ETIME 2-18:59:01`、`MainPID=503352`，
+   而 `tooling/brain-stub.ts` 在 10-02 与 10-03 各被改过一次。Node 在启动时把
+   `brain-stub.ts` **整个读进内存**，它只按 mtime 热读 `industry/taxonomy.ts`、`industry/prompts/**`
+   与 `tooling/fixtures/**` —— 也就是说**数据和程序是两套加载路径，只有数据热更新**。这正好制造了
+   最容易被误判的假象：`curl :3055/healthz` 报的 `categories` 早就是七键（taxonomy 热读了），
+   于是「改了词表就生效」让人以为整个 stub 都是热的。**真正决定性的是 journal 里那行启动日志**：
+   旧进程打的是 `[brain] 能力 13 个，锚点 221 条，词表 categories=[physical,human,regional,geotech,fieldwork,comment] itemTypes=[…]`
+   —— 六键旧词表，连 `geopolitics`/`histgeo`/`geoedu` 都没有；重启后同一行变成七个 key。
+   **查「进程在跑哪份代码」要看进程自己启动时说的话，不要看它在响应的那些热读值。**
+2. **旧进程造成的实际损害：`summarize` 的缺稿默认值。** `f35da0a`（2026-10-02 20:04）把
+   `BRAIN_SUMMARIZE_DEFAULT` 的默认值从 `condense` 改成 `empty`（`condense` 会把**英文原标题原样
+   写进 `title_zh`**、把英文正文机械截断写进 `summary_zh`，也就是「中文站上出现整条英文的卡片」那次
+   事故的成因），`c9f893b`（2026-10-03 11:45）又把中文门槛做成结构性的 —— **两次都只改了文件，没人
+   重启那个进程**。所以线上一直在跑 `condense`：`__brain/log?capability=summarize` 的 `rule` 全是
+   `rule:condense`。生产库实测的污染面：`analyses.title_zh` 纯拉丁文累计 **1430 条**（10-01 513 /
+   10-02 164 / 10-03 483 / 10-04 270）；其中 **1280 条**落成了 `publications.title`。
+   **`packages/backend/src/publication/publish.ts:173-177` 是放大器**：`zhTitle` 有值就直接当标题用，
+   **不检查它是不是中文**；真正兜住的是列表侧的 `chineseCopyCondition()`（`items.ts:86-89` 的
+   `p.title ~ '[一-鿿]'`），所以 1280 条里只有 4 条漏进精选。
+3. **判据不能用 mtime，要让对方自报内容哈希。** 第一反应是比「源码文件 mtime」与「进程启动时刻」，
+   但 `git archive` 会给整棵树每个文件盖上**提交时刻**：整包升级之后源码 mtime 必然晚于进程启动时刻，
+   这个判据每次部署都会误报。改成让 brain 自己算：`tooling/brain-stub.ts` 里
+   `const SOURCE_PATH = import.meta.filename;` + `createHash("sha256").update(readFileSync(SOURCE_PATH))`，
+   在 healthz 的 `source` 段报出 `{ path, sha256, startedAt, pid }`。**自报比外部推断稳**：它说的是
+   「我这个进程加载的是哪份文件、内容哈希是多少」，与部署方式无关。
+4. **`verify-deploy.sh` 新增两条断言，让「跑旧代码」变成硬失败。**
+   ① healthz 的 `source.sha256` 必须等于磁盘 `tooling/brain-stub.ts` 的 sha256，不等就 `bad`，坏消息
+   里直接写「必须 `sudo systemctl restart geohot-brain`」；② `defaults.summarize` 必须是 `empty`
+   （引 `brain-stub.ts:32-41` 记的那次事故）。**抽不到 sha256 或读不到文件时只 `note` 跳过**，不把整
+   脚本判红 —— 与文件里既有的 baseline 容错风格一致。踩坑：healthz 的 JSON 是 `"key": value`
+   （**冒号后有空格**），`grep -o '"categories":\['` 这类无空格正则全部落空，要先 `tr -d ' \n'`。
+5. **`DEPLOYMENT.md` 缺的正是这一类。** 原来的「热更新：改了什么就重启谁」只写了
+   `industry/changelog.json` 要重启 api、`tooling/fixtures/**` 不用重启任何单元，**没有任何一条覆盖
+   「改了 `tooling/*.ts` 这种进程内代码」**；整包升级那步的注释还写着 `# brain 没动就不重启`，而
+   `brain-stub.ts` 本身每次都在改动集里。现在补了一条并给了一句记法：`apps/`、`packages/` 里改的是
+   「被 import 的模块」，重启才重读；`industry/**`、`tooling/fixtures/**` 是「运行时按 mtime 热读的
+   数据」，不重启也对；**而 `tooling/*.ts` 不属于后者，它是程序本身**。整包升级那行改成四个单元全重启。
+6. **这一轮自己踩的假阳性（写下来免得下次再犯）：`/item/<id>` 不存在。** 我用单数路径去 curl
+   那 4 条非 CJK 精选，拿到四个 404，差点定成「sitemap 收录了 404 的 URL」这个大问题。实际上 sitemap
+   里发的是 `/items/<id>`（复数，`sitemap.ts:115` 的 `` `/items/${it.id}` ``），**四个都 200**。
+   教训：**自检脚本里手写的 URL 形状必须从路由表或生成端抄下来，别凭记忆拼**；先看 sitemap 里那一行
+   到底长什么样，再决定拿什么去 curl。
+7. **`/api/v1/selected/snapshot` 与站上列表的口径差 4 条（还没改）。** 生产库实测：
+   `selected_ledger` 73 行、`selected_state.in_set` 里快照返回 **57** 条，而站上列表口径
+   （`selectedCondition()`，含中文标题闸门）是 **53** 条 —— 差的就是上面那 4 条纯英文标题的条目。
+   原因在读取路径：`/api/v1/items?mode=selected`（`v1.ts:49`）走 `selectedCondition()`，**闸门在**；
+   而同步接口 `selectedSnapshot()`（`v1.ts:130-175`）读的是 `selected_ledger` 里物化的载荷，**只应用
+   发布闸门 `effectiveWatermark()`、不应用中文标题闸门**。于是「读者看得见的精选」是 53 条、「机器读
+   得到的精选」是 57 条。**要不要让同步出口也过中文闸门是个产品裁决**（同步给的是「编辑选了什么」，
+   与「现在能不能在页面上读到」不必然是同一件事），所以本轮只记录不改。
+8. **brain 重启后那 1430 条历史污染没有回填，这是刻意的。** 它们的 `analyses` 行已经是冻结的分析结果，
+   而标题已经写进 `publications`；重跑要么改历史快照，要么让同一篇文章在时间线上换标题。真正兜住读者
+   的是列表侧的 CJK 闸门（见第 2 条），所以这 4 条读者可见的英文标题条目**留在站上是已知的、有意的
+   结果**，不是漏改。要清就得走 `scripts/refill-copy.ts` 那条路并接受历史 revision 变化。
+9. **重启之后的观察窗口还没到。** 重启（`MainPID` 503352 → 596024，`defaults.summarize` 从 `condense`
+   变 `empty`）之后 `created_at > 2026-10-04 11:20+08` 的 `analyses` 是 **0** 条 —— 下一轮采集才看得出
+   效果。**「修好了」这句话在这一轮只能说「进程加载的代码对了」，不能说「精选恢复了」**：恢复取决于
+   新一轮分析跑完之后 `title_zh` 是不是中文。验收口径应该隔一轮再看 `analyses.title_zh` 的拉丁占比。
 
 ## 第八轮（2026-10-03 傍晚）：四个板块上线之后仍然开着的东西
 

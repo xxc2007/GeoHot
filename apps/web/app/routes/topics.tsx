@@ -29,8 +29,8 @@ export function headers() {
 
 const GROUPS = [
   { key: "company", name: "区域与机构", blurb: "按地区与观测发布主体追踪：地球哪一片、由谁在测和在说" },
-  { key: "field", name: "自然与人文领域", blurb: "按地理领域深挖：灾害与气候、水系与地貌、城市与产业、地理信息技术与野外考察……" },
-  { key: "genre", name: "内容与题材", blurb: "按内容形态浏览：灾害速报、观测数据、区划政策、研究发现、考察记录与影像图集……" },
+  { key: "field", name: "自然与人文领域", blurb: "按地理领域深挖：灾害与气候、水系与地貌、城市与产业、地理信息技术与空间数据……" },
+  { key: "genre", name: "内容与题材", blurb: "按内容形态浏览：灾害速报、观测数据、区划政策、研究发现、技术发布与影像图集……" },
 ] as const;
 
 export default function TopicsPage() {

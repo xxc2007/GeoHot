@@ -65,7 +65,7 @@ export function DayHeader({ day, today, count, collapsed, onToggle }: { day: str
             onClick={onToggle}
             aria-expanded={!collapsed}
             aria-label={collapsed ? `展开${date}` : `收起${date}`}
-            className="grid size-6 place-items-center justify-self-center rounded-full text-ink-4 transition-colors hover:bg-bg-sunk hover:text-ink"
+            className="grid size-6 place-items-center justify-self-center rounded-full text-ink-4 outline-accent transition-colors hover:bg-bg-sunk hover:text-ink"
           >
             <IconChevronDown size={14} className={`transition-transform duration-200 ${collapsed ? "-rotate-90" : ""}`} />
           </button>
@@ -292,7 +292,7 @@ export function Timeline({ initial, filters }: { initial: TimelineResponse; filt
         const collapsed = state.collapsed.includes(day);
         const count = state.dayCounts[day] ?? cards.length;
         return (
-          <section key={day} aria-label={dayLabel(day, today)} className="lg:mb-1">
+          <section key={day} aria-label={dayLabel(day, today)} className="lg:mb-3">
             <DayHeader day={day} today={today} count={count} collapsed={collapsed} onToggle={() => toggleDay(day)} />
             <Collapse open={!collapsed}>
                 <ol className="lg:pt-1">
