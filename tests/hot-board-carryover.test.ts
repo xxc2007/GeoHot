@@ -5,8 +5,8 @@
 // `latestHotRanking` reads published rows only — so the block went blank the moment the last qualifying story
 // aged out of the 48-hour window, and came back hours later. Measured on production 2026-10-04: 400 boards in
 // 72 hours, 127 of them with events in them, and the newest empty one was hiding a board with 4 events behind
-// it: the last non-empty board was 10-03 14:55 +0800 with 4 entries, and all 277 boards computed after it,
-// at a five-minute cadence, were empty.
+// it: the last non-empty board was 10-03 14:55 +0800 with 4 entries, and the 277 boards computed between
+// then and this fix going out (10-04 14:06 +0800) were all empty.
 //
 // Two rules are pinned here:
 //  · an empty board is still written (it is the evidence for why nothing qualified) but never published, and
@@ -93,22 +93,27 @@ test("一张空榜不顶掉最近一张有事件的榜，首页还带上它的�
   assert.equal(hot.entries.length, 3, "两处条数一致");
 });
 
-test("榜单里已被归并走的事件先掉出榜，名次接着排", async () => {
+test("榜单里已被归并走、页面已不在、标题还没有中文的事件都不上榜，名次接着排", async () => {
   const kept = await addStory(`热榜承载测试${T}留下`);
   const gone = await addStory(`热榜承载测试${T}被并走`);
+  const latin = await addStory(`Hot board carry-over ${T} latin heading`);
   const last = await addStory(`热榜承载测试${T}最后`);
-  await saveBoard(AHEAD, [entryOf(kept, 1), entryOf(gone, 2), entryOf(last, 3)]);
+  await saveBoard(AHEAD, [entryOf(kept, 1), entryOf(gone, 2), entryOf(latin, 3), entryOf(last, 4)]);
   // What the grouping step does to a story it folds into another one.
   const [target] = await sql<{ id: number }[]>`SELECT id FROM stories WHERE id = ${kept.id}`;
   await sql`UPDATE stories SET merged_into = ${target!.id} WHERE id = ${gone.id}`;
 
   const ranking = await latestHotRanking();
   assert.ok(ranking);
-  assert.deepEqual(ranking!.entries.map((e) => e.storyId), [kept.id, last.id], "指向已被并走的事件的条目不能再上榜");
-  assert.deepEqual(ranking!.entries.map((e) => e.rank), [1, 2], "掉出去之后名次要连着排，不能留下 1、3");
+  assert.deepEqual(ranking!.entries.map((e) => e.storyId), [kept.id, last.id], "指向已被并走的事件、以及标题没有中文的事件都不能再上榜");
+  assert.deepEqual(ranking!.entries.map((e) => e.rank), [1, 2], "掉出去之后名次要连着排，不能留下 1、4");
 
   const strip = await loadHotStrip();
   assert.deepEqual(strip!.entries.map((e) => e.storyPublicId), [kept.publicId, last.publicId], "首页同样不链到打不开的页面");
+  // The Latin heading is the one this file exists to keep off: heat is computed from `stories.title`, and
+  // 482 of the 4025 events on production still carry a Latin-only heading. Every other reader exit applies
+  // the Chinese gate; the ranking path was the exception (see `publishableStories` in hot-read.ts).
+  assert.equal(JSON.stringify(strip!.entries.map((e) => e.title)).includes("latin"), false, "英文标题不能出现在首页热点条里");
 });
 
 test("读侧的两条口径写在源码里：空榜跳过与 24 小时截止", () => {

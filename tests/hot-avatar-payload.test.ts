@@ -44,7 +44,7 @@ test('faces are 精选组 sources by tier (T1, T1.5, T2), at most 6; 氛围组 o
   const entries: HotEntry[] = [];
   const at = new Date('2099-01-01T00:00:00Z');
   for (let i=0;i<3;i++) {
-    const [story] = await sql<{id:number;public_id:string}[]>`INSERT INTO stories(public_id,title) VALUES(${randomUUID()},${t}) RETURNING id,public_id`;
+    const [story] = await sql<{id:number;public_id:string}[]>`INSERT INTO stories(public_id,title) VALUES(${randomUUID()},${`热榜头像测试${t}`}) RETURNING id,public_id`;
     storyIds.push(story!.id);
     for (const [p, person] of inputs.entries()) await sql`INSERT INTO story_signals(story_id,article_id,participant_key,source_id,kind,observed_at)
       VALUES(${story!.id},${sourceId(p)},${sourceId(p)},${sourceId(p)},${person.kind},${at})`;

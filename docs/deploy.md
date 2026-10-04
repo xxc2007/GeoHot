@@ -153,7 +153,7 @@ docker compose logs -f --tail 100 api worker web
 ## 花多少钱
 
 先说本站：**这个部署一分钱都不花**。它没有任何模型密钥（`.env` 里 `LLM_BASE_URL` 指向只听 127.0.0.1 的本地
-回放器 `tooling/brain-stub.ts`，`LLM_API_KEY=local-brain` 是占位串），90 条信源里 `x_search`、`mp_account`
+回放器 `tooling/brain-stub.ts`，`LLM_API_KEY=local-brain` 是占位串），87 条信源里 `x_search`、`mp_account`
 与带 `paid_listing` 的一条都没有（现值 0），所以模型调用与按次计费采集都不产生账单。闸门与回执照走，
 只是账单为零——这句在 `README.md` 的「编辑大脑」一节也是同样口径。
 

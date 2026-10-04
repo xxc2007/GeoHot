@@ -175,8 +175,11 @@ test("a withdrawal takes down only the stories citing it, including secondary me
 });
 
 test("a withdrawn item leaves the hot board and the hot APIs at once, not at the next ranking", async () => {
+  // The event heading is Chinese on purpose: `hot-read.ts` refuses to show a board entry whose own event
+  // heading has no Chinese (the one reader-facing exit that used to skip that gate), so a Latin-only fixture
+  // title would make this test fail for the wrong reason.
   const [story] = await sql<{ id: number }[]>`
-    INSERT INTO stories (public_id, title, first_report_at, latest_at) VALUES (${randomUUID()}, ${`HOT-${T}`}, now() - interval '2 hours', now()) RETURNING id`;
+    INSERT INTO stories (public_id, title, first_report_at, latest_at) VALUES (${randomUUID()}, ${`热榜撤下测试${T}事件`}, now() - interval '2 hours', now()) RETURNING id`;
   const [fact] = await sql<{ id: number }[]>`INSERT INTO facts (public_id, story_id, title) VALUES (${`fact-${T}`}, ${story!.id}, ${`HOT-${T}`}) RETURNING id`;
   for (const id of [await article(), await article()]) {
     await sql`INSERT INTO fact_articles (fact_id, article_id, role) VALUES (${fact!.id}, ${id}, 'report')`;

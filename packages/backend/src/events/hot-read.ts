@@ -1,6 +1,7 @@
 // Reading the latest published hot ranking. The web shows heat values; machine exits only ranks.
 import type { HotParticipant, HotStripEntry } from "@aihot/contracts/site";
 import { sql } from "../db.ts";
+import { CJK_TITLE_PATTERN } from "../publication/items.ts";
 import { proxiedImage, proxiedImageSet } from "../media/imgproxy.ts";
 
 export interface HotEntry {
@@ -68,19 +69,29 @@ async function queryLatestHotRanking(): Promise<HotRanking | null> {
   if (!row) return null;
   // `hot.ts` stopped publishing empty boards, and the length check also steps around the empty ones it
   // published before that — otherwise the newest empty row would hide the last board with events in it.
-  // Then drop the entries the board can no longer open: an event merged into another one (the group step
-  // rewrites `stories.merged_into`) or removed leaves a rank pointing at a page that is not there.
-  const live = await liveStories(row.entries.map((e) => e.storyId));
+  // Then drop the entries the board can no longer stand behind: an event merged into another one (the group
+  // step rewrites `stories.merged_into`), one whose page is gone, and one whose heading never got Chinese.
+  const live = await publishableStories(row.entries.map((e) => e.storyId));
   const entries = row.entries.filter((e) => live.has(e.storyId)).map((e, i) => (i === e.rank - 1 ? e : { ...e, rank: i + 1 }));
   if (entries.length === 0) return null;
   return { id: row.id, computedAt: row.computed_at.toISOString(), ruleVersion: row.rule_version, entries, coverage: row.evidence };
 }
 
-/** The ids in `storyIds` that still resolve to an event page of their own (not merged away, not deleted). */
-async function liveStories(storyIds: number[]): Promise<Set<number>> {
+/**
+ * The ids in `storyIds` that this board may still show to a reader: the event exists, has not been merged
+ * away, and its own heading carries Chinese.
+ *
+ * The Chinese check is the same gate every other reader-facing exit applies (`chineseCopyCondition` in
+ * `publication/items.ts`, reused here through its pattern constant rather than retyped). The ranking path
+ * was the one exit that never referenced it: heat is computed from `stories.title`, and 482 of the 4025
+ * events on production still carry a Latin-only heading — today none of them reaches two participants, but
+ * a board is exactly the surface where one would embarrass the site most, because it is the only place an
+ * event title is printed at 15px on the home page.
+ */
+async function publishableStories(storyIds: number[]): Promise<Set<number>> {
   if (storyIds.length === 0) return new Set();
   const rows = await sql<{ id: number }[]>`
-    SELECT id FROM stories WHERE id = ANY(${storyIds}::bigint[]) AND merged_into IS NULL`;
+    SELECT id FROM stories WHERE id = ANY(${storyIds}::bigint[]) AND merged_into IS NULL AND title ~ ${CJK_TITLE_PATTERN}`;
   return new Set(rows.map((r) => Number(r.id)));
 }
 

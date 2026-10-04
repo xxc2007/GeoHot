@@ -37,9 +37,11 @@ const PAGES: Record<string, OgCard> = {
  * development, a report's lead. An item card got this bound on purpose (2026-10-02: after a withdrawal or a
  * correction they are gone from any cache within the hour); the event and report cards print the same kind of
  * withdrawable text and were inheriting the long default below, which let a shared cache serve an event that
- * the origin already answers 404 for (a merged story, a corrected daily) for the better part of two days:
- * `s-maxage` 7× the origin max-age, plus 24 hours of serve-stale. Same hour for all three, so no card can be
- * older than the page it points at by more than an hour.
+ * the origin already answers 404 for (a merged story, a corrected daily): `s-maxage` was 7× the origin
+ * max-age plus 24 hours of serve-stale — about 31 hours on an event card, about eight days on a daily one.
+ * Same hour for all three now. One caveat measured on 2026-10-04 and recorded in `docs/known-issues.md`:
+ * Cloudflare's Browser Cache TTL rewrites the visitor-facing `max-age` to 4 hours whatever the origin sends,
+ * so this hour is enforced at the CDN tier (`s-maxage`), not in the reader's own cache.
  */
 export const EDITORIAL_IMAGE_CACHE = "public, max-age=3600, s-maxage=3600, stale-while-revalidate=600";
 /**
