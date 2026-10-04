@@ -299,7 +299,7 @@ curl -s https://<新域名>/<前缀>/   | grep -o 'src="[^"]*"' | head -3   # �
 两条路都合法，选一条并写明：
 
 - **从零开始**（推荐，如果不需要历史）：新库跑 `npm run db:migrate` + `node --env-file-if-exists=.env scripts/seed.ts`
-  （导入 85 条信源与 43 个主题）+ `npm run seed:curated -- --enforce-source`（人工语料；**compose 路线不含这一步**）。
+  （导入 `industry/sources.json` 里的全部信源与 43 个主题）+ `npm run seed:curated -- --enforce-source`（人工语料；**compose 路线不含这一步**）。
   验证：`node scripts/smoke.ts --base …` 全绿，`/api/v1/dailies` 的 `count` 从 0 开始重新长。
 - **整库搬走**：`docs/deploy.md` 的「恢复」一节六步（`pg_dump -Fc` → `pg_restore --no-owner --no-privileges` →
   **数七张关键表**跟旧机对得上 → 起全栈 → smoke → 重发密钥）。第 4 步那句"数一遍关键表，跟旧机对得上才算成功
@@ -367,7 +367,7 @@ bash deploy/geohot/verify-github-sync.sh        # 独立复跑一遍逐字节核
 
 | README 里的那句 | 复测命令 | 期望证据 |
 |---|---|---|
-| 信源「85+1」 | `node -e "console.log(require('./industry/sources.json').sources.length)"` | `85`（库里 `sources` 表多出的那一行是运维校验自动建的占位源 `ext-opscheck-ingest-probe`） |
+| 信源条数（与 README 徽章「87+1」同一口径） | `node -e "console.log(require('./industry/sources.json').sources.length)"` | 与 `README.md` 普查段一致（现 87）；`sources` 表可能另有运维校验自动建的占位源 `ext-opscheck-ingest-probe`，本机 88 行，生产 90 行（其中 3 行是已暂停的 `cn-people-*`） |
 | 主题 43 | `node -e "console.log(require('./industry/topics.json').topics.length)"` | 与新站 `/topics` 页自述的数一致 |
 | 日报期数 | `curl -s https://<新域名>/<前缀>/api/v1/dailies` | 看 `count` 与 `items[].date`（**介绍页不写这个数**，只写"看 `/daily/archive`"） |
 | 最新一期 | `curl -s https://<新域名>/<前缀>/daily \| grep -o '本期共 [0-9]* 条'` | 介绍页只写"最新一期"，具体期号属于 `/daily/<日期>` |

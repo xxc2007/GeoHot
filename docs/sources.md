@@ -72,7 +72,7 @@
 按次计费的信源最长 120–180 分钟"，把属于 `hot_signal` 的 180 说成了计费档，已改正。
 
 两条本站的实情：① 这个自动调整任务只在 `COLLECT_ENABLED` 不为 false 时才注册（`apps/worker/src/schedules.ts:82-87`），
-所以上面那三档在关着采集的机器上根本不会跑；② **本站一条按次计费的信源都没有**——`industry/sources.json` 的 85 条里
+所以上面那三档在关着采集的机器上根本不会跑；② **本站一条按次计费的信源都没有**——`industry/sources.json` 的信源里
 `x_search`、`mp_account`、带 `paid_listing` 的现值都是 0，所以"按次计费"这一档在现部署下是空集，采集不产生账单。
 登记间隔的现值最小 30 分钟（4 条 30、12 条 60、1 条 90、15 条 120、4 条 180、32 条 240、8 条 360、1 条 720、8 条 1440；
 `node -e` 一行可复测，命令见 `README.md` 的「现状与边界」）——**"最快的源 30 分钟看一次"是本站的口径，
@@ -192,8 +192,8 @@ Public Domain Review 明说可自由分享与复用），**要不要放宽是站
 这 27 条 = **12 条 `rss` + 15 条 `web_list`**，`tier` 是 **26 条 `T1` + 1 条 `T1_5`**（`rss-weeklyosm`）；
 `interval_minutes` 登记为 240 分钟 19 条、360 分钟 6 条、120 与 180 分钟各 1 条（和别的源一样，这只是上限，
 `adaptIntervals` 会按产量往下调）。许可一律按最保守的一档：`site_fulltext` 与 `syndicate_fulltext` 全部 `false`，
-只出标题、摘要与原文链接。加完之后 `industry/sources.json` 是 **85 条**（`rss` 51 / `web_list` 23 / `json_list` 3 /
-`external` 8），其中 **77 条可轮询**、8 条 `external` 仍是人工投递通道。
+只出标题、摘要与原文链接。那一轮加完之后 `industry/sources.json` 是 **85 条**（`rss` 51 / `web_list` 23 / `json_list` 3 /
+`external` 8），其中 **77 条可轮询**、8 条 `external` 仍是人工投递通道（2026-10-04 又加到 87 条 / 79 条可轮询；条数的唯一口径在 `README.md`）。
 
 三件要说明的口径：
 

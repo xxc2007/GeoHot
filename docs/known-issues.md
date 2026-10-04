@@ -918,3 +918,38 @@ Australia / Angola / Paraguay / Suriname, Brazil）的事件下，读者在中�
 第 4 条渲染在「继续看」那个 `ol.card > li` 里，是**计数口径**不一致而不是少画了一条，脚本按 `article`
 数数的检查项要连那个列表一起数。
 
+## 2026-10-04（下午·生产核验）：新信源的材料进不了事件层，所以加源不可能点亮首页
+
+一位只读核验智能体（E2）在生产库上逐条 SELECT，把"加了权威信源→跨信源事件→首页有榜"这条链量了一遍，
+结论是**链条在第二环就断了**，而断点是可以精确定位的：
+
+- 采集侧活着：`cn-chinanews-scroll` 37 篇、`intl-bbc-zhongwen` 38 篇，**全部**落在核验前的 60 分钟内，
+  75 篇里 74 篇 `body_status='ok'`（正文 204–5660 字）。
+- 出版物也拿到了：36 + 38 行 `visibility='public'`，但 `selected` **0 行**。
+- 事件层是空的：这 75 篇 `grouped_at IS NOT NULL` = **0**，`story_signals` 里这两个 source 的行数 = **0**。
+  它们从没进过事件层，因此**物理上不可能配对**。
+- 全站同一天也是 1:1：48 小时内 2532 条 signal / 2532 个 story / 2532 篇 article，参与者分布只有
+  `1|2534` 一行；有 ≥2 个不同信源的事件全历史只有 **6** 个，最近一个非空榜停在 10-03 14:55（4 条）。
+
+**根因不是归组算法，是 `analyses.relevance`。** 那 74 条分析全部是 `relevance='unknown'`（全站
+`pass` 5205 / `unknown` 1351 / `block` 17），而 `jobs/content.ts:119` 只在 `relevance === "pass"` 时才把
+文章投进 `QUEUES.group`——`unknown` 的文章会发布成条目，却永远不排队归组。`unknown` 的定义在
+`editorial/analyze.ts:373`：过了预筛却**没有可用的中文摘要**（`summary_zh` 空）就判 unknown，即"等材料，
+不硬发"。这 74 行实测 `title_zh` 有值（等于原标题，本来就是中文）、`summary_zh` **全空**、`score=20`。
+空摘要的来源不是异常，而是本站的编辑红线：`tooling/brain-stub.ts:69` 的 `BRAIN_SUMMARIZE_DEFAULT`
+在**生产里没有设**（2026-10-04 读 `/opt/geohot/app/.env` 的 30 个键与 `geohot-brain` 单元的
+`Environment=` 行，都没有这个变量），所以走默认档 `empty`——stub 不写任何读者要看的句子（"把原文回显成
+中文稿是伪造署名，没有人工稿就不发布"）。同一条线上还有一道会清空摘要的闸门：
+`editorial/writing.ts:218` 的身份守卫遇到词表之外的机构/人物名时把摘要丢掉、标题回退原标题。
+
+所以**"多接几家官方信源"这件事，在补齐对应的人工署名中文稿之前，只会加厚 `/all`，不会点亮首页**——
+与上面「信源体检」第 1 条是同一个瓶颈的两端（分数上限、署名判断），这次是它在事件层的表现。要动的是
+`tooling/fixtures/*.jsonl` 里给这两家（以及 `unknown` 那 1277 条的其它信源）补署名摘要与评分，
+那是站长的编辑决定；本轮没有替它写任何一条判断，也没有为了让榜有内容去放宽 `content.ts:119` 那道门。
+
+顺带三条口径修正：① `industry/sources.json` 的 87 是 **`enabled` 口径**，生产 `sources` 表实际
+**90 行**（56 `rss`，含三条已停用的 `cn-people-*`）——报数时别把两个口径混用；② 英文标题闸门
+（`events/hot-read.ts:94`）在位且历史所有已发布榜命中 0，但今天这个 0 是**空真**（24 小时内 269 个已发布
+榜 entries 全是 `[]`），要等有非空榜那天才算真被验证过；③ 单条事件分享图的浏览器 `max-age` 被
+Cloudflare 从 3600 抬到 14400（`s-maxage` 未动），`/og/pages/hot.png` 不受影响——与上面第 2 条同源。
+
