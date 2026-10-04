@@ -3,8 +3,7 @@ import { Link } from "react-router";
 import { IconChevronRight } from "../icons";
 
 /**
- * The reading template, one of the site's two page widths (the other is the full-width feeds and
- * boards): a main column and an aside (300px, 340px on wide screens) in a container that fills a 16:9
+ * The reading template, one of the site's two page widths (the other is the full-width feeds): a main column and an aside (300px, 340px on wide screens) in a container that fills a 16:9
  * screen and centres on wider ones (--page-max-reading); long text keeps its own reading measure
  * inside the main column.
  * On phones the aside follows the main column; the footer closes the whole frame.

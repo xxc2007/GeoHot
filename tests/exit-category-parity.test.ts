@@ -4,13 +4,10 @@
 // （v1/RSS 用的 `isFeedCategory`、MCP 工具用的 `PUBLIC_API_CATEGORY_KEYS` 都从 `CATEGORY_KEYS` 推导），
 // 而不是 MCP 的处理函数本身；MCP 那条链在本地是对着真接口 curl 验的（host 头 + tools/list）。
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import path from "node:path";
 import { test } from "node:test";
 import { CATEGORIES } from "@aihot/industry/taxonomy";
 import { CATEGORY_KEYS, CATEGORY_LABELS, PUBLIC_API_CATEGORY_KEYS, isCategoryKey, toPublicApiCategory } from "@aihot/contracts/taxonomy";
 import { isFeedCategory } from "@aihot/backend/publication/feeds";
-import { REPO_ROOT } from "@aihot/backend/config";
 
 test("每个分类都能进 v1、RSS 分类订阅与 MCP 的枚举，且只有它们能", () => {
   for (const key of CATEGORY_KEYS) {
@@ -24,30 +21,13 @@ test("每个分类都能进 v1、RSS 分类订阅与 MCP 的枚举，且只有�
   assert.deepEqual([...PUBLIC_API_CATEGORY_KEYS], [...CATEGORY_KEYS], "公开接口的枚举必须就是分类表本身");
 });
 
-test("板块声明的分类与标签都在词表里——加板块不能写一个不存在的分类", () => {
-  const boards = JSON.parse(readFileSync(path.join(REPO_ROOT, "industry/boards.json"), "utf8")) as {
-    boards: Array<{ slug: string; categories: string[]; plate: string }>;
-  };
-  assert.ok(boards.boards.length >= 4, "四个跨类别板块");
-  const slugs = boards.boards.map((b) => b.slug);
-  assert.equal(new Set(slugs).size, slugs.length, "板块 slug 不能重复");
-  const plates = new Set(boards.boards.map((b) => b.plate));
-  assert.equal(plates.size, boards.boards.length, "每个板块一枚图记，不能两处共用");
-  for (const b of boards.boards) {
-    assert.ok(b.categories.length > 0, `${b.slug} 至少要挂一个分类`);
-    for (const c of b.categories) assert.ok(isCategoryKey(c), `${b.slug} 的分类 ${c} 不在词表里`);
-  }
-  // /boards 的四块不按词表位置整体排序（板块顺序历来是站长的编排，不是词表的投影），但 2026-10-03 站长要求
-  // 「考研」与「地理信息系统」换位，筛选栏与板块页两处必须一起换——否则会出现「筛选栏里地理信息系统在前、
-  // 板块页里考研在前」。所以这里钉住的是这两块的相对次序，而不是四块的整体次序。
-  const order = boards.boards.map((b) => b.slug);
-  assert.ok(
-    order.indexOf("gis") < order.indexOf("kaoyan-geo"),
-    `板块页里「地理信息系统」必须排在「考研」之前（实际 ${order.join(" → ")}）`,
-  );
+test("筛选栏与各处出口的「地理信息系统」都排在「考研」之前", () => {
+  // 2026-10-03 站长看首页筛选栏要求把这两格换位。分类顺序的唯一来源是 `industry/taxonomy.ts` 的
+  // `CATEGORIES` 数组，筛选栏、卡片角标、RSS 分类订阅、公开 API 与 MCP 的枚举全部从它推导，
+  // 所以换位只需要改那一个数组——这条断言钉住的就是改完之后剩下的那个相对次序。
   assert.ok(
     CATEGORY_KEYS.indexOf("geotech" as never) < CATEGORY_KEYS.indexOf("geoedu" as never),
-    "筛选栏里「地理信息系统」必须排在「考研」之前（industry/taxonomy.ts 的 CATEGORIES 顺序）",
+    "「地理信息系统」必须排在「考研」之前（industry/taxonomy.ts 的 CATEGORIES 顺序）",
   );
 });
 

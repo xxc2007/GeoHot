@@ -119,10 +119,15 @@ export async function rankingExtras(ranking: HotRanking) {
   };
 }
 
-/** Home "current hot" strip: 3–5 entries from the same ranking, hidden when there are fewer than 3. */
+/**
+ * Home "current hot" strip: up to 5 entries from the same ranking. An empty ranking is not a reason to
+ * hide the block — the page then says so in one honest line and points at 全部动态 (see HotTopics). Only a
+ * missing ranking row (the job has never published one) returns null, because that is a different,
+ * worse state and the strip must not read as "no hot topics" when it is really "no ranking".
+ */
 export async function loadHotStrip(): Promise<HotStripEntry[] | null> {
   const ranking = await latestHotRanking();
-  if (!ranking || ranking.entries.length < 3) return null;
+  if (!ranking) return null;
   const extras = await rankingExtras(ranking);
   return ranking.entries.slice(0, 5).map((e) => ({
     rank: e.rank,

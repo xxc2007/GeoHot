@@ -389,7 +389,9 @@ test("minimal sync projection preserves snapshot fields, pagination bindings and
   const firstPage = JSON.parse((await get('/api/v1/selected/snapshot?fields=minimal&limit=1')).body);
   assert.ok(firstPage.nextPage);
   assert.equal((await get(`/api/v1/selected/snapshot?fields=default&page=${encodeURIComponent(firstPage.nextPage)}`)).status, 400, 'page tokens stay bound to the requested projection');
-  await sql`UPDATE analyses SET title_zh = 'Updated sync title', summary_zh = ${'large summary '.repeat(200)} WHERE article_id = ${id}`;
+  // The update stays Chinese on purpose: the sync ledger now carries the same Chinese-copy gate every
+  // list applies, so an entry whose public title has no Chinese leaves the selected set (asserted below).
+  await sql`UPDATE analyses SET title_zh = '更新后的同步标题', summary_zh = ${'large summary '.repeat(200)} WHERE article_id = ${id}`;
   await publishArticle(id, released());
   const getChanges = async (cursor: string) => {
     const response = await get(`/api/v1/selected/changes?cursor=${encodeURIComponent(cursor)}&limit=100`);
@@ -399,7 +401,13 @@ test("minimal sync projection preserves snapshot fields, pagination bindings and
   const fullChanges = await getChanges(full.cursor);
   const minimalChanges = await getChanges(minimal.cursor);
   assert.deepEqual(minimalChanges.changes, fullChanges.changes.map((c: any) => c.op === 'upsert' ? { ...c, item: project(c.item) } : c));
-  assert.equal(minimalChanges.changes.find((c: any) => c.item?.id === id)?.item.title, 'Updated sync title');
+  assert.equal(minimalChanges.changes.find((c: any) => c.item?.id === id)?.item.title, '更新后的同步标题');
+  // Losing the Chinese copy takes the entry out of the ledger, not just out of the lists: this is the
+  // parity the Agent exit used to break (59 entries in the snapshot against 48 on the home page).
+  await sql`UPDATE analyses SET title_zh = 'English only again' WHERE article_id = ${id}`;
+  await publishArticle(id, released());
+  const afterEnglish = await getChanges(minimalChanges.cursor);
+  assert.ok(afterEnglish.changes.some((c: any) => c.op === 'remove' && c.id === id), 'an entry without Chinese copy leaves the selected ledger too');
   await setVisibility(id, { visibility: 'withdrawn', reason: 'sync test', version: 0 }, 'test');
   const removed = await getChanges(minimalChanges.cursor);
   assert.ok(removed.changes.some((c: any) => c.op === 'remove' && c.id === id));

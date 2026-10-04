@@ -393,7 +393,7 @@ export function parseTranslateOutput(text: string): { titleZh: string; summaryZh
     // which answers exactly that way for a material it has no signed copy for). Two consequences were
     // visible: 114 rows carried 「title_zh:」 as their headline, and the echo fallback in analyze.ts — which
     // would have used a Chinese source's own headline — never got its chance, so those items were held out
-    // of every listing and the four new boards stayed empty.
+    // of every listing.
     const rest = text
       .trim()
       .split(/\r?\n/)

@@ -572,11 +572,17 @@ function resolveDecisions(reply: Record<string, unknown>, ctx: Ctx, withNote: bo
       decision.relation = relationOf(d.relation, (msg) => ctx.warnings.push(`${block.id}: ${msg}`));
       decision.confidence = confidenceOf(d.confidence);
     } else if (GROUP_DEFAULT === "lexical") {
+      // Title against title, never against the whole candidate block: the block also carries the source,
+      // the publish time and the summary, and bigram overlap takes the *smaller* set as its denominator —
+      // so a long block swallows almost any short query title and the rule would merge different events
+      // that merely share wording in their metadata. `标题：` at the start of a line is the candidate's
+      // representative report title (the 事实标题 sits on the block's first line, after the marker).
       const queryTitle = ctx.titles[0] ?? "";
-      const sim = lexicalSimilarity(queryTitle, block.text);
-      decision.relation = queryTitle && sim >= GROUP_LEXICAL_MIN ? "SAME_OCCURRENCE" : "UNRELATED";
+      const candTitle = /^标题：(.+)$/m.exec(block.text)?.[1]?.trim() ?? "";
+      const sim = lexicalSimilarity(queryTitle, candTitle);
+      decision.relation = queryTitle && candTitle && sim >= GROUP_LEXICAL_MIN ? "SAME_OCCURRENCE" : "UNRELATED";
       decision.confidence = Number(sim.toFixed(3));
-      ctx.warnings.push(`${block.id}: rule:lexical 相似度 ${sim.toFixed(3)} → ${decision.relation}`);
+      ctx.warnings.push(`${block.id}: rule:lexical 标题相似度 ${sim.toFixed(3)} → ${decision.relation}`);
     } else {
       decision.relation = "UNRELATED";
       decision.confidence = 0;

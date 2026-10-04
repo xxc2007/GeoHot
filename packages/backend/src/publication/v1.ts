@@ -139,7 +139,10 @@ export async function selectedSnapshot(q: SnapshotQuery, now = new Date()) {
         (q.fields !== undefined && p.f !== q.fields) || typeof p.w !== "number") throw new InvalidCursorError("page token does not match this snapshot");
     // Only the first page defaults to full fields; continuations inherit their original projection.
     fields = p.f;
-    w = p.w;
+    // The page token is unsigned base64 (see lib/cursor.ts), so `w` is whatever a client sent: clamp it
+    // to the watermark the release gate allows, or a hand-written token reads selected entries that are
+    // still inside their ~180 s embargo. `changes` already refuses a watermark it did not issue.
+    w = Math.min(p.w, await effectiveWatermark(now));
     afterId = p.a;
     asOf = p.t;
   } else {

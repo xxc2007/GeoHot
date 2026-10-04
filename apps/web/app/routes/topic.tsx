@@ -103,7 +103,7 @@ export default function TopicPage() {
               title="这个主题还没有入选的精选"
               action={<Link to="/all" className="text-[13px] font-medium text-accent hover:underline">去全部动态里找找</Link>}
             >
-              主题页只列入选精选的条目；其它信源原文仍在「全部动态」和板块页里。
+              主题页只列入选精选的条目；其它信源原文仍在「全部动态」里，按分类筛就能收到同一批。
             </EmptyState>
           )}
         </div>

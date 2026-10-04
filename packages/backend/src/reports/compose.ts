@@ -17,10 +17,15 @@ export const REPORT_VERSION = promptVersion("report-daily-lead", "report-period"
 
 const SECTION_OF: Record<string, string> = Object.fromEntries(CATEGORIES.map((c) => [c.key, c.section]));
 const SECTION_ORDER = [...new Set(CATEGORIES.map((c) => c.section))];
-/** Where an item without a category goes: this pack has no industry key, so it is the last section. */
-const DEFAULT_SECTION = SECTION_ORDER.at(-1)!;
-/** The release metric counts this section, the data and observation releases. Keys are stable identities; section names follow the vocabulary pack. */
-const RELEASE_SECTION = CATEGORIES.find((c) => c.key === RELEASE_CATEGORY_KEY)?.section ?? "";
+/**
+ * Where an item without a category goes. It used to be "the last section", which was harmless while
+ * every section had a category: after 2026-10-03 deleted 野外与考察 and 观点与解读 the last section
+ * became 技术, so a 碳排放解读 with no category was printed under a heading that expands to
+ * 「地理信息系统」 and counted as a data release. A bucket that belongs to no category says what it is.
+ */
+const DEFAULT_SECTION = "未归类";
+/** The sections the paper prints: the vocabulary pack's order, then the bucket for uncategorised items. */
+const REPORT_SECTIONS = [...SECTION_ORDER, DEFAULT_SECTION];
 /** How many of the day's entries the lead writer is shown. Longer editions are introduced by their real size. */
 const LEAD_BRIEF_LIMIT = 30;
 
@@ -165,7 +170,7 @@ export async function composeDaily(date: string, reason = "scheduled"): Promise<
     else if (flashes.length < 12) flashes.push({ itemId: c.itemId, title: c.title, sourceName: c.sourceName, sourceUrl: c.sourceUrl, publishedAt: c.publishedAt });
     perSection.set(label, list);
   }
-  const sections = SECTION_ORDER.filter((l) => perSection.get(l)?.length).map((label) => ({
+  const sections = REPORT_SECTIONS.filter((l) => perSection.get(l)?.length).map((label) => ({
     label,
     items: perSection.get(label)!.map(({ category: _c, factKey: _f, ...entry }) => entry),
   }));
@@ -181,7 +186,9 @@ export async function composeDaily(date: string, reason = "scheduled"): Promise<
     metrics: {
       totalEvents: ordered.length,
       sourcesCount: new Set(ordered.map((e) => e.sourceId)).size,
-      modelsReleased: perSection.get(RELEASE_SECTION)?.length ?? 0,
+      // Counted over the candidates by their own category, never by the section they were filed under:
+      // the bucket for uncategorised items is not a data release (`sections` above strips `category`).
+      modelsReleased: [...perSection.values()].flat().filter((c) => c.category === RELEASE_CATEGORY_KEY).length,
       firstPartyEvents: ordered.filter((e) => e.firstParty).length,
     },
     windowStart: start.toISOString(),

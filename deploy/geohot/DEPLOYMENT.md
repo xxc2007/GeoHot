@@ -239,7 +239,8 @@ curl -s -o /dev/null -w '%{http_code} %{num_redirects} %{url_effective}\n' -L ht
 ```bash
 # 本机：导出被验收过的 HEAD（不含 .env / .data，tar 也不含 git 元数据）
 git archive HEAD | gzip > /tmp/geohot-src.tar.gz
-scp -i ~/.ssh/xxc.pem /tmp/geohot-src.tar.gz xxc@<主机>:/tmp/
+# 密钥文件名与登录名一律用占位符：这份文档在公开仓库里，别把真实的用户名和密钥路径写进来。
+scp -i ~/.ssh/<你的密钥>.pem /tmp/geohot-src.tar.gz <ssh-user>@<主机>:/tmp/
 
 # 服务器
 sudo tar -czf /opt/geohot/backups/app-$(date +%Y%m%d-%H%M%S).tar.gz -C /opt/geohot app   # 先备份

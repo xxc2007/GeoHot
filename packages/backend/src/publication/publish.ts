@@ -302,8 +302,12 @@ export async function publishArticleTx(tx: Tx, articleId: string, options: Publi
     await enqueue(QUEUES.prepareMedia, { articleId }, { singletonKey: `media:${articleId}` }, tx);
   }
 
-  // Selected sync ledger: the public selected set is (selected AND visibility = public).
-  const inSet = selected && visibility === "public";
+  // Selected sync ledger: the public selected set is (selected AND visibility = public AND a Chinese
+  // title). The third condition is the same gate every list applies (`chineseCopyCondition`); leaving it
+  // out here made the Agent exit disagree with the site: 59 entries in the snapshot against 48 on the
+  // home timeline, the extra 11 being English-only rows no reader can be shown (measured 2026-10-04).
+  // An item that later gets its Chinese copy re-enters through this same write.
+  const inSet = selected && visibility === "public" && /[\u4e00-\u9fff]/.test(next.title ?? "");
   const [state] = await tx<{ in_set: boolean; payload_hash: string | null }[]>`SELECT in_set, payload_hash FROM selected_state WHERE article_id = ${articleId}`;
   let ledger: "upsert" | "remove" | null = null;
   if (inSet) {

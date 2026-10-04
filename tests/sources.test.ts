@@ -205,7 +205,7 @@ test("noise words match whatever their case", () => {
 });
 
 test("a title whitelist keeps only what it names, and beats a drop marker", () => {
-  // 研招网政策栏目是全教育口径，只有带这些词的文章属于「考研」板块（2026-10-03 接入时定的口径）。
+  // 研招网政策栏目是全教育口径，只有带这些词的文章属于「考研」分类（2026-10-03 接入时定的口径）。
   const source = {
     config: {
       ingestNoiseFilter: {

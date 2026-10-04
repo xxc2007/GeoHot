@@ -2,7 +2,7 @@
 // 2026-10-03 实测（线上那个 stub 对没有人工稿件的中文材料正是这样回答的）：`title_zh: ` 这种空标签行
 // 在没有其它内容时被兜底分支当成了标题，于是 analyses.title_zh 存下字符串「title_zh:」。
 // 两处后果：114 行带着这个标记；而 analyze.ts 本来会在 title_zh 为空时回落到「来源自己的中文标题」，
-// 那条回落因此永远没机会执行——这些条目进不了任何列表，四个新板块于是空着。
+// 那条回落因此永远没机会执行——这些条目进不了任何列表。
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { parseTranslateOutput } from "@aihot/backend/editorial/writing";

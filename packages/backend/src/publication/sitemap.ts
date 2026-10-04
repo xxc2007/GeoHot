@@ -14,7 +14,6 @@ import { releasedCondition, selectedCondition } from "./items.ts";
 import { listReports } from "./reports.ts";
 import { leaderboardUrls } from "../leaderboard/read.ts";
 import { topicPageCounts } from "./topics.ts";
-import { boardCounts, listBoardDefinitions } from "./boards.ts";
 
 async function leaderboardDetailUrls(): Promise<string[]> {
   const fixed = new Set(["/leaderboard", "/leaderboard/sources", "/leaderboard/rules"]);
@@ -85,14 +84,6 @@ async function build(readAt = new Date()): Promise<string> {
     if (!t.indexable) continue;
     entries.push({ loc: `/topics/${t.slug}`, lastmod: t.latest, changefreq: "daily", priority: 0.6 });
     for (let p = 2; p <= t.pages; p++) entries.push({ loc: `/topics/${t.slug}/page/${p}`, lastmod: t.latest, changefreq: "weekly", priority: 0.3 });
-  }
-  // 板块页：索引只列真的有内容的（空板块给了爬虫就是一条通往空页的地址，和日报那条教训同源）。
-  entries.push({ loc: "/boards", changefreq: "daily", priority: 0.7 });
-  const counts = await boardCounts();
-  for (const b of await listBoardDefinitions()) {
-    const c = counts[b.slug];
-    if (!c || c.curated + c.index === 0) continue;
-    entries.push({ loc: `/boards/${b.slug}`, changefreq: "daily", priority: 0.6 });
   }
   // Stories with reports of their own; pages that only gather reports grouped elsewhere (imported story
   // levels, regrouped history) are reachable but not listed.

@@ -83,8 +83,6 @@ export function llmsTxt(opts: { hasDailies: boolean; hasWeekly: boolean; hasMont
   if (opts.hasWeekly) lines.push(`- [${withSubject("周报")}](${u("/weekly")}): 每周综合回顾`);
   if (opts.hasMonthly) lines.push(`- [${withSubject("月报")}](${u("/monthly")}): 每月盘点`);
   lines.push(`- [主题](${u("/topics")}): 按公司、方向、内容形态聚合的主题页`);
-  // 板块是四个跨类别方向（考研 / 地理信息系统 / 地理与政治 / 地理与历史），两条线：人工精选与来源原文。
-  lines.push(`- [板块](${u("/boards")}): 跨类别方向页；每页分「本站精选」（人工判断）与「来源原文」（各信源当天已公开、本站未作编辑判断的条目）`);
   if (FEATURES.leaderboard && opts.hasLeaderboard) {
     lines.push(`- [模型榜](${u("/leaderboard")}): 汇总多家公开模型评测榜单的共识排名`);
     lines.push(`- [模型榜算法规则](${u("/leaderboard/rules")}): 模型身份统一、共同参评比较、缺失评测处理和共识指数计算方式`);

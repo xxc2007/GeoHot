@@ -110,10 +110,10 @@ Content-Type: application/json
 
 ## 第八轮新增的 14 条（2026-10-03，逐条实测）
 
-四个新板块要落地，先要证明"这些源真的在发、采集器真的够得着"。下表每条都是**在采集器所在的那台服务器上**用
+第八轮那四个板块页（`/boards`，2026-10-04 按站长要求已删）要落地，先要证明"这些源真的在发、采集器真的够得着"。下表每条都是**在采集器所在的那台服务器上**用
 `curl -sS -o /dev/null -w "%{http_code}|%{content_type}" -L --max-time 25 <url>` 当天实测过的；
 "最近条目"是当时从响应里读到的 `<pubDate>`/`<updated>`。加进 `industry/sources.json` 之后它们各自声明了
-`defaultCategory`，条目直接归到对应板块（见 `industry/boards.json`）。
+`defaultCategory`，条目直接归到对应的分类（分类词表 `industry/taxonomy.ts`；「归到」那一列写的就是分类名）。
 
 | id | 信源 | 类型 | 实测 | 归到 |
 |---|---|---|---|---|
@@ -148,7 +148,7 @@ Public Domain Review 明说可自由分享与复用），**要不要放宽是站
 - 停更超过 30 天的一律不加（`developers-blog` 915 天、Mapbox Medium 2179 天、CSIS 3865 天、
   `gislounge` 71 天、`blog.qgis.org` 88.8 天〔已在用的保留〕）。
 - 考研分区剩下的候选：中国教育在线、知乎专栏、`chinakaoyan.com`（403）——要么前端渲染没有服务端列表，
-  要么没有机器可读形状，全部没接；这也是"考研板块目前只有政策一条源"的原因。
+  要么没有机器可读形状，全部没接；这也是"考研分类目前只有政策一条源"的原因。
 
 ## 第九轮新增的 27 条（2026-10-03，逐条实测）
 
@@ -156,8 +156,8 @@ Public Domain Review 明说可自由分享与复用），**要不要放宽是站
 **用项目自己的抓取器**（`packages/backend/src/sources/rss.ts` 的 `fetchRss`、`packages/backend/src/sources/web-list.ts`
 的 `fetchWebList`，UA 用默认的 `GEOHOTBot`）跑出来的：`200` 是同一时刻裸 `curl` 在采集器所在那台服务器上拿到的状态码
 （原始状态码 / content-type / 字节数另记），「条」是抓取器解析出的条目数，「最新」是当次响应里读到的最新
-`<pubDate>` / 列表日期。加进 `industry/sources.json` 之后它们各自声明了 `defaultCategory`，条目直接归到对应板块
-（见 `industry/boards.json`）。完整的候选与淘汰过程在 `.round9/sources-proposal.md`（不在仓库里，随交付材料）。
+`<pubDate>` / 列表日期。加进 `industry/sources.json` 之后它们各自声明了 `defaultCategory`，条目直接归到对应的
+分类（分类词表 `industry/taxonomy.ts`）。完整的候选与淘汰过程在 `.round9/sources-proposal.md`（不在仓库里，随交付材料）。
 
 | id | 信源 | 类型 | 实测 | 归到 |
 |---|---|---|---|---|

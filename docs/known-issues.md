@@ -495,7 +495,9 @@ Australia / Angola / Paraguay / Suriname, Brazil）的事件下，读者在中�
 6. **`tests/exit-category-parity.test.ts` 里我加错了一条断言。** 第一版写了「板块顺序必须与词表位置单调一致」，
    实测红：板块顺序是 gis(geotech, 索引 5) → kaoyan-geo(geoedu, 6) → geopolitics(3) → histgeo(4)，**从来不是词表的
    投影，而是站长的编排**。改成只钉「`gis` 排在 `kaoyan-geo` 之前」+「`geotech` 在词表里排在 `geoedu` 之前」两条相对
-   次序。以后要动板块顺序，改的是 `industry/boards.json`，不是去让词表迁就它。
+   次序。以后要动板块顺序，改的是 `industry/boards.json`，不是去让词表迁就它。（**2026-10-04 追记**：板块层
+   整块删掉了，`industry/boards.json` 与这个文件里那两条板块断言一起消失，只剩「`geotech` 排在 `geoedu`
+   之前」那条分类次序的断言——见文末那一节。这一条当时犯的错照原样留着。）
 7. **「实践」这一节消失，兜底分节跟着从「实践」挪到「技术」。** `reports/compose.ts:19-21` 用 `section` 字段的**首现
    顺序**建 `SECTION_ORDER`，再取 `at(-1)` 当「没有类别的资料」的兜底。`section` 从三节变两节，兜底就换了一节。
    **加新分类时不要再起第三个节名**，否则全站未分类条目会一夜之间搬进那一节——`tests/report-default-section.test.ts`
@@ -697,10 +699,18 @@ Australia / Angola / Paraguay / Suriname, Brazil）的事件下，读者在中�
    效果。**「修好了」这句话在这一轮只能说「进程加载的代码对了」，不能说「精选恢复了」**：恢复取决于
    新一轮分析跑完之后 `title_zh` 是不是中文。验收口径应该隔一轮再看 `analyses.title_zh` 的拉丁占比。
 
-## 第八轮（2026-10-03 傍晚）：四个板块上线之后仍然开着的东西
+## 第八轮（2026-10-03 傍晚）：四个板块上线之后仍然开着的东西（板块层已于 2026-10-04 整块删除）
 
 这一轮做的是"加考研 / 地理信息系统 / 地理与政治 / 地理与历史四个板块 + 信源扩容 + 信息密度"。下面这些是
 **做完之后仍然开着**的，逐条带证据，免得下一轮重新发现或误以为已解决。
+
+> **2026-10-04 追记：板块层已经删掉了，这一轮的四条里前两条半换了承载、后两条半随功能一起消失。**
+> 站长看着 `/boards` 那一页判定它与主题页、筛选栏的分类重复，要求整块删除（详见文末那一节）。逐条对照：
+> 第 1、2 条讲的其实是**信源结构与读取层的中文闸门**——英文源进不了任何列表、考研方向只有一条源，
+> 这两件事在删除之后**依然成立**，只是不再有板块那条「来源原文」栏来暴露它们，读者现在在
+> `/all?category=…` 的分类层看同一批条目；第 3 条（板块页没有后台视图与 MCP/RSS 出口）和第 8 条的 ③
+> 不是被修好的，是**连同功能一起删掉的**——`/api/site/boards` 这个只有页面在用的私有接口已经不存在，
+> 这条待办因此关闭，不要再去找它。
 
 1. **英文源在板块的「来源原文」栏里一条都出不来。** 读取层的中文闸门（`chineseCopyCondition`）要求标题里有
    汉字；shipped stub 对没有人工稿的材料回答空值，而"回落到来源自己的中文标题"只对中文源成立。结果：The Diplomat、
@@ -742,6 +752,51 @@ Australia / Angola / Paraguay / Suriname, Brazil）的事件下，读者在中�
    「当天」措辞）一并处理，逐条写在 `industry/changelog.json` 的最新一条里。**仍未关掉**的是审计点到的
    三件小事与一件新决定：① `docs/manual.md:372` 与 `:377` 那几处"自检命令/环境说明过时"是更早的已知项，
    本轮没动；② 「无发布日期」这一节是新加的界面元素（站长的编辑口径可以再改：隐藏、还是就地标注）；
-   ③ 板块页仍没有 MCP/RSS 出口与后台视图（第 3 条）；④ 上游 issue #86 的 14 天年龄截断仍然没有照抄
+   ③ 板块页仍没有 MCP/RSS 出口与后台视图（第 3 条；**2026-10-04 随板块层整块删除而关闭**，不是补上了出口）；
+   ④ 上游 issue #86 的 14 天年龄截断仍然没有照抄
    （第 4 条的口径不变）。
+
+## 2026-10-04（下午）：板块层按站长要求整块删除——删了什么、没动什么、还剩什么
+
+站长看着 `https://xxc2007.me/geohot/boards` 说：「这个板块功能有点重复了，请你删去这个功能。」重复是实的：
+板块页按学科与用途把当天的条目归到一处，而主题页（`/topics`）与首页筛选栏的分类层做的是同一件事；四个方向
+（地理信息系统 / 考研 / 地理与政治 / 地理与历史）本来就都在分类层里，删掉这一层不丢入口。**决定是整块删干净**
+——不是隐藏、不是改名、不是留一个空壳页面。
+
+删掉的（代码 / 数据 / 测试）：
+
+- 前端路由 `apps/web/app/routes/boards.tsx`、`apps/web/app/routes/board.tsx`，与 `apps/web/app/routes.ts` 里
+  那三条注册（`/boards`、`/boards/:slug`、`/boards/:slug/page/:page`）。
+- 侧栏那一格「板块」入口与 `MORE_PATHS` 里的对应项（`apps/web/app/components/shell/nav.ts`）。
+- 读取层 `packages/backend/src/publication/boards.ts`（`listBoardDefinitions` / `boardCounts` / `viewBoard` /
+  `BOARD_PAGE_SIZE` / `BOARD_INDEX_PER_SOURCE`）。板块只是分类的视图，**没有自己的表、没有自己的可见性规则**，
+  所以删它不动任何数据。
+- 私有接口 `GET /api/site/boards` 与 `GET /api/site/boards/:slug`（`apps/api/src/routes/site.ts`）。它们从来
+  不在公开 API（`/api/v1`）里，也不在 RSS 与 MCP 里，所以这次删除没有破坏任何对外的接口承诺。
+- 数据文件 `industry/boards.json`，以及站点地图（`publication/sitemap.ts`）与 `llms.txt`
+  （`publication/llms.ts`）里对 `/boards*` 那批 URL 的广告。
+- 图记组件 `apps/web/app/features/board/PlateMark.tsx`（四枚图记只有板块页在用，`features/board/` 空了就一起
+  删）。注意 `apps/web/app/routes/leaderboard-boards.tsx` **不是**板块的页面，它是模型榜的外框，留着。
+- 测试 `tests/boards.test.ts`，以及 `tests/exit-category-parity.test.ts` 里那两条板块断言（同文的分类次序
+  断言保留，它钉的是 `industry/taxonomy.ts`，与板块无关）。
+
+**没有动的**：七个分类与它们的顺序、`section` 分节、库里的任何一行、`industry/sources.json` 那 41 条
+`defaultCategory`（这条机制服务的是分类）、公开 API、RSS、MCP、后台、`tests/report-default-section.test.ts`
+与 `tests/exit-category-parity.test.ts` 剩下的断言。`/boards` 与 `/boards/<slug>` 现在直接落 404，**没有做
+重定向**：板块 slug 与分类 key 有一半不相同（`gis` → `geotech`、`kaoyan-geo` → `geoedu`），为一个已判定重复的
+功能留一张永久映射表不值，旧书签由 404 页接住，那里有「全部动态」与主题页的出路。
+
+还开着的三件事：
+
+1. **改动目前只在这台机器上，线上还没有它。** 本地 `npm run typecheck`、`node --test apps/web/tests/*.test.ts`、
+   `npm test`（连跑两遍）与 `node scripts/check-shots.ts` 都跑过。上线按 `deploy/geohot/DEPLOYMENT.md` 走；
+   前端路由与 `industry/` 都改了，**必须重建 web**（`BASE_PATH=/geohot`）才生效，只重启 api 不够。
+2. **README 的三张配图因此过期**（首页那张的侧栏里有「板块」那一格，alt 已经改成不再提它）。**不要在本地
+   提前重拍**——`docs/manual.md:429` 那条「线上才是事实来源」的规矩还在：部署完成之后再跑
+   `node scripts/shoot.ts --base https://xxc2007.me/geohot` 重拍受影响的那几张，并用
+   `node scripts/check-shots.ts` 守图。
+3. **部署后的线上复验清单**：`/geohot/boards` 与 `/geohot/boards/gis` 返回 404；侧栏只剩
+   精选 / 全部动态 / 热点榜 / 日报 / 主题 / 收藏；`/geohot/sitemap.xml` 与 `/geohot/llms.txt` 里不再出现
+   `boards` 与「板块」；`/geohot/api/site/boards` 返回 404；`/geohot/topics/<slug>` 的空态文案不再指向板块页；
+   `deploy/geohot/verify-deploy.sh` 与站点 smoke 全绿。
 

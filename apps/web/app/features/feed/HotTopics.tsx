@@ -28,9 +28,13 @@ function TrendMark({ trend }: { trend: HotStripEntry["trend"] }) {
  * The top of the hot ranking on the home page, kept quiet: a live dot, coloured ranks and titles, then
  * columns of fixed width so every row lines up — who is talking (精选组 faces, from sm), "N 热度" and an arrow for
  * where it is heading. The whole row lights up on hover.
+ *
+ * The block is always there when a ranking exists. An empty ranking shows one honest line instead of
+ * vanishing: the strip used to disappear entirely, so on a site whose heat bar is 「两家以上独立信源同时
+ * 讨论」 the reader could never tell the difference between "nothing is hot" and "this page has no such
+ * feature" — and the block was invisible for weeks for the second reason (the merge step was off).
  */
 export function HotTopics({ entries }: { entries: HotStripEntry[] }) {
-  if (entries.length === 0) return null;
   return (
     <section
       aria-labelledby="hot-topics"
@@ -48,6 +52,12 @@ export function HotTopics({ entries }: { entries: HotStripEntry[] }) {
           完整榜单 <IconArrowRight size={13} className="transition-transform duration-200 group-hover:translate-x-0.5" />
         </Link>
       </div>
+      {entries.length === 0 ? (
+        <p className="flex flex-wrap items-baseline gap-x-2 py-2 text-body text-ink-3">
+          <span>过去 48 小时还没有两家以上信源同时讨论的事件。</span>
+          <Link to="/all" className="text-hot-ink hover:underline">看今天的全部地理动态 →</Link>
+        </p>
+      ) : (
       <ol>
         {entries.slice(0, 5).map((e, i) => (
           <li key={e.rank}>
@@ -72,6 +82,7 @@ export function HotTopics({ entries }: { entries: HotStripEntry[] }) {
           </li>
         ))}
       </ol>
+      )}
     </section>
   );
 }
