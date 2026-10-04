@@ -18,6 +18,8 @@ export function headers() {
 }
 
 const MCP_VERSION = "2.0.0";
+/** Counted, never written out: this page told agents about five tools while the server answered with seven. */
+const TOOL_COUNT = Object.keys(T).length;
 /** The machine-readable entry points, with what each one is for. */
 const RESOURCES: Array<[label: string, href: string, note: string]> = [
   ["llms.txt", "/llms.txt", "给大模型读的站点说明"],
@@ -79,7 +81,7 @@ function McpTab({ base }: { base: string }) {
   const name = SITE.mcpPrefix;
   return (
     <>
-      <h2 className="text-[20px] font-bold text-ink">加一个地址，Agent 直接调用五个工具</h2>
+      <h2 className="text-[20px] font-bold text-ink">加一个地址，Agent 直接调用 {TOOL_COUNT} 个工具</h2>
       <p className="mt-2 text-[14.5px] text-ink-3">适合支持远程 MCP 的 Agent 与开发工具。标准 Streamable HTTP，匿名只读，不需要 token；工具返回简洁文字与同一份结构化数据。</p>
       <div className="mt-6 flex items-center gap-2 rounded-card border border-line bg-surface p-3">
         <code className="min-w-0 flex-1 truncate font-mono text-[13px] text-ink">{url}</code>
@@ -87,13 +89,15 @@ function McpTab({ base }: { base: string }) {
       </div>
       <CodeBlock title="通用 MCP 配置" lang="json" code={JSON.stringify({ mcpServers: { [name]: { type: "http", url } } }, null, 2)} />
       <CodeBlock lang="bash" code={`# Claude Code\nclaude mcp add --transport http ${name} '${url}'\n# Codex\ncodex mcp add ${name} --url '${url}'`} />
-      <Section title="连上后应看到这五个工具">
+      <Section title={`连上后应看到这 ${TOOL_COUNT} 个工具`}>
         <Bullets items={[
           <><Mono>{T.latest}</Mono>：过去 24 小时或最近 7 天的精选／全部资讯</>,
           <><Mono>{T.search}</Mono>：搜索最近 7 天的公司、产品、人物或话题</>,
           <><Mono>{T.hot}</Mono>：当前热点榜与事件排名</>,
           <><Mono>{T.story}</Mono>：一个热点事件的时间线与持续更新的综述</>,
           <><Mono>{T.daily}</Mono>：最新或指定日期的{withSubject("日报")}</>,
+          <><Mono>{T.weekly}</Mono>：最新或指定 ISO 周的{withSubject("周报")}（按分节编排的一周要闻）</>,
+          <><Mono>{T.monthly}</Mono>：最新或指定月份的{withSubject("月报")}（同样按分节编排）</>,
         ]} />
         <p className="mt-4">验证一次真实调用：<span className="font-medium text-ink">请调用 {T.latest}，告诉我过去 24 小时最重要的 5 条动态，并附链接。</span></p>
       </Section>

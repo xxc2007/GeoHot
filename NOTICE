@@ -31,17 +31,22 @@ as original work of this fork.
   (`industry/site.ts`, `industry/brand/`). The npm workspace names `@aihot/*`, the directory name
   `industry/`, the `aihot-*` browser-storage keys and the `links.aihot` field name are retained as
   internal code identifiers only - they are never shown to readers, and renaming them would touch
-  more than 100 imports for no gain. They are not an attempt to trade on the upstream name.
+  hundreds of import specifiers for no gain (the measured count is stated once in `README.md`, in the
+  License section, and deliberately not copied here). They are not an attempt to trade on the upstream
+  name.
 - The third-party items listed above are still present and still under their own terms, including the
   model/provider marks in `assets/model-providers/` and the evaluation-operator marks in
   `assets/leaderboard-sources/`. Those marks are referenced only by the model leaderboard and the
   Codex reset monitor, which this derivative disables (`industry/features.ts`); they are kept so the
   upstream modules still work if someone re-enables them, and this notice does not license them to
   you - their own NOTICE files do.
-- The feeds in `industry/sources.json` are 44 geography sources of their publishers (public RSS,
-  public web listings, public JSON endpoints, and empty manual-ingest channels), not the upstream AI
-  demo feeds. Their content belongs to those publishers; this site shows a summary and a link to the
-  original, and `site_fulltext`/`syndicate_fulltext` are off for every source.
+- The feeds in `industry/sources.json` are the geography sources registered there - public RSS, public
+  web listings, public JSON endpoints, and empty manual-ingest channels - not the upstream AI demo
+  feeds. How many there are is stated once, in `README.md` §现状与边界, and is deliberately not copied
+  into this file (an earlier revision said "44": true when written on 2026-10-01, stale within two days
+  as the list grew - which is exactly why the count now lives in one place). Their
+  content belongs to those publishers; this site shows a summary and a link to the original, and
+  `site_fulltext`/`syndicate_fulltext` are off for every source.
 - `docs/` still holds the upstream reference documentation (`architecture.md`, `deploy.md`,
   `leaderboard.md`, `selection.md`, `sources.md`, `customize.md`). Several of their commands and numbers
   do not hold for this tree; `docs/manual.md` section 9 lists, doc by doc, which statements are stale and

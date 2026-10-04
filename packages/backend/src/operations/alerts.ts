@@ -5,14 +5,18 @@
 //   digest — follow-ups without reader impact: one 09:00 message a day, meant to be handed to the AI.
 // Delivery goes through sendAlert (ops chat, internal-chat fallback; off unless FEISHU_INTERNAL_ENABLED).
 import { beijingDate, beijingTime } from "@aihot/contracts/time";
+import { isCollectEnabled, isModelCallsEnabled } from "../config.ts";
 import { sql } from "../db.ts";
 import { beijingDay, beijingStamp, duration, formatAlert, formatRecovery, sendAlert, type Finding, type Level } from "../notify/feishu.ts";
 import { backupConfigured } from "./backup.ts";
 
 const REPEAT_MS: Record<Exclude<Level, "digest">, number> = { now: 3600_000, today: 24 * 3600_000 };
 
-const collecting = () => process.env.COLLECT_ENABLED !== "false";
-const modelsOn = () => process.env.MODEL_CALLS_ENABLED !== "false";
+// The valves are read through the one rule (`envFlag`), at the moment the alert is judged: an operator who
+// writes COLLECT_ENABLED=0 to stop the collection must not get a "网站停止收录新内容" alarm from a reader that
+// only recognised the literal word "false", and must not get a model-stall alarm either.
+const collecting = () => isCollectEnabled();
+const modelsOn = () => isModelCallsEnabled();
 /** How long the site may go without a new article before it counts as stalled (small source lists are quieter). */
 const QUIET_MS = Number(process.env.ALERT_QUIET_MINUTES || 360) * 60_000;
 

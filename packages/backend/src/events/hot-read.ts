@@ -45,6 +45,15 @@ export interface HotRanking {
 
 let rankingPending: Promise<HotRanking | null> | null = null;
 
+/**
+ * How old a board may be and still be shown as 当前热点. The job recomputes every five minutes
+ * (`hot.rank` in apps/worker/src/schedules.ts), so a board older than this is not "late": it means the twenty
+ * recomputes since it were all empty, i.e. nothing in the last 48 hours reached two independent participants.
+ * Showing it is the honest choice while it is within a day (the reader gets the last board the site can stand
+ * behind, together with its cut-off time); past a day the block says it has nothing.
+ */
+const MAX_BOARD_AGE_HOURS = 24;
+
 export function latestHotRanking(): Promise<HotRanking | null> {
   rankingPending ??= queryLatestHotRanking().finally(() => { rankingPending = null; });
   return rankingPending;
@@ -52,9 +61,27 @@ export function latestHotRanking(): Promise<HotRanking | null> {
 
 async function queryLatestHotRanking(): Promise<HotRanking | null> {
   const [row] = await sql<{ id: number; computed_at: Date; rule_version: string; entries: HotEntry[]; evidence: Record<string, unknown> | null }[]>`
-    SELECT id, computed_at, rule_version, entries, evidence FROM hot_rankings WHERE published ORDER BY computed_at DESC LIMIT 1`;
+    SELECT id, computed_at, rule_version, entries, evidence FROM hot_rankings
+    WHERE published AND jsonb_array_length(entries) > 0
+      AND computed_at > now() - make_interval(hours => ${MAX_BOARD_AGE_HOURS})
+    ORDER BY computed_at DESC LIMIT 1`;
   if (!row) return null;
-  return { id: row.id, computedAt: row.computed_at.toISOString(), ruleVersion: row.rule_version, entries: row.entries, coverage: row.evidence };
+  // `hot.ts` stopped publishing empty boards, and the length check also steps around the empty ones it
+  // published before that — otherwise the newest empty row would hide the last board with events in it.
+  // Then drop the entries the board can no longer open: an event merged into another one (the group step
+  // rewrites `stories.merged_into`) or removed leaves a rank pointing at a page that is not there.
+  const live = await liveStories(row.entries.map((e) => e.storyId));
+  const entries = row.entries.filter((e) => live.has(e.storyId)).map((e, i) => (i === e.rank - 1 ? e : { ...e, rank: i + 1 }));
+  if (entries.length === 0) return null;
+  return { id: row.id, computedAt: row.computed_at.toISOString(), ruleVersion: row.rule_version, entries, coverage: row.evidence };
+}
+
+/** The ids in `storyIds` that still resolve to an event page of their own (not merged away, not deleted). */
+async function liveStories(storyIds: number[]): Promise<Set<number>> {
+  if (storyIds.length === 0) return new Set();
+  const rows = await sql<{ id: number }[]>`
+    SELECT id FROM stories WHERE id = ANY(${storyIds}::bigint[]) AND merged_into IS NULL`;
+  return new Set(rows.map((r) => Number(r.id)));
 }
 
 // Faces and words change only with the ranking, so they are read once per ranking.
@@ -120,23 +147,31 @@ export async function rankingExtras(ranking: HotRanking) {
 }
 
 /**
- * Home "current hot" strip: up to 5 entries from the same ranking. An empty ranking is not a reason to
- * hide the block — the page then says so in one honest line and points at 全部动态 (see HotTopics). Only a
- * missing ranking row (the job has never published one) returns null, because that is a different,
- * worse state and the strip must not read as "no hot topics" when it is really "no ranking".
+ * Home "current hot" strip: up to 5 entries from the board the reader is shown, plus that board's cut-off
+ * time (`asOf`) so the page can say which hour the ranking is from. An empty board is not a reason to hide
+ * the block — the page then says so in one honest line and points at 全部动态 (see HotTopics). Only a
+ * database with no ranking rows at all returns null, because that is a different, worse state: the block
+ * must not read as "nothing is hot" when it is really "the ranking has never run here".
  */
-export async function loadHotStrip(): Promise<HotStripEntry[] | null> {
+export async function loadHotStrip(): Promise<{ entries: HotStripEntry[]; asOf: string | null } | null> {
   const ranking = await latestHotRanking();
-  if (!ranking) return null;
+  if (!ranking) {
+    const [{ any }] = await sql<{ any: boolean }[]>`SELECT EXISTS (SELECT 1 FROM hot_rankings) AS any`;
+    if (!any) return null;
+    return { entries: [], asOf: null };
+  }
   const extras = await rankingExtras(ranking);
-  return ranking.entries.slice(0, 5).map((e) => ({
-    rank: e.rank,
-    title: e.title,
-    heat: e.heat,
-    trend: e.trend,
-    storyPublicId: e.storyPublicId,
-    itemId: e.representativeItemId,
-    participants: extras.participants(e),
-    participantCount: e.participantCount,
-  }));
+  return {
+    asOf: ranking.computedAt,
+    entries: ranking.entries.slice(0, 5).map((e) => ({
+      rank: e.rank,
+      title: e.title,
+      heat: e.heat,
+      trend: e.trend,
+      storyPublicId: e.storyPublicId,
+      itemId: e.representativeItemId,
+      participants: extras.participants(e),
+      participantCount: e.participantCount,
+    })),
+  };
 }

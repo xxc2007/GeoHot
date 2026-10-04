@@ -12,6 +12,8 @@ import { buildApp } from '../apps/api/src/app.ts';
 
 const T = tag();
 let version = 1;
+/** The 150-entry listing's own ETag: bumping it answers 200 with the same bytes (a round that must read on). */
+let longVersion = 1;
 let broken = false;
 let redirectNew = false;
 const requests: Array<{ path: string; etag?: string; modified?: string }> = [];
@@ -20,6 +22,16 @@ const server = http.createServer((req, res) => {
   const path = req.url ?? '/';
   requests.push({ path, etag: req.headers['if-none-match'], modified: req.headers['if-modified-since'] });
   if (path === '/redirect') { res.writeHead(302, { location: redirectNew ? '/new.xml' : '/old.xml' }); res.end(); return; }
+  // A listing longer than one round reads (60 head + 60 tail): 150 entries, unchanged when the ETag moves.
+  if (path === '/long.xml') {
+    const longEtag = `"L${longVersion}"`;
+    if (req.headers['if-none-match'] === longEtag) { res.writeHead(304, { etag: longEtag, 'last-modified': modified }); res.end(); return; }
+    const entries = Array.from({ length: 150 }, (_, i) =>
+      `<item><title>Long ${i} ${T}</title><link>https://example.org/rss-long-${T}/${i}</link><pubDate>${new Date(Date.now() - 1000 * i).toUTCString()}</pubDate></item>`).join('');
+    res.writeHead(200, { 'content-type': 'application/rss+xml', etag: longEtag, 'last-modified': modified });
+    res.end(`<rss version="2.0"><channel><title>Long feed</title>${entries}</channel></rss>`);
+    return;
+  }
   const etag = path === '/modified.xml' ? undefined : path === '/feed.xml' ? `"v${version}"` : '"shared"';
   if ((etag && req.headers['if-none-match'] === etag) || (!etag && req.headers['if-modified-since'] === modified)) {
     res.writeHead(304, { ...(etag ? { etag } : {}), 'last-modified': modified }); res.end(); return;
@@ -80,6 +92,36 @@ test('RSS first backfill, ordinary window, 304, revision and config edits preser
   broken = false;
   assert.equal((await collectSource(id)).revised, 1);
   assert.equal(requests.at(-1)!.etag, '"v2"');
+});
+
+test('a 304 round leaves the remembered listing tail where it was, so nothing below the head is lost', async () => {
+  // The invariant is "how many items this round stored decides what the source may remember reading"
+  // (collect.ts). A round that stored nothing because the feed did not change used to clear `listingTailAfter`
+  // — `takeListingRun([])` answers "there was nothing below the head" — so the next 200 restarted its tail at
+  // item 61 and a feed alternating 200/304 never reached item 121. Five sources carry that cursor in the
+  // development database today (GDACS, USGS, CENC, MWR, Public Domain Review), each with listings of 96-321.
+  const id = `rss-long-tail-${T}`;
+  await source(id, '/long.xml', false);
+  const first = await collectSource(id);
+  assert.deepEqual([first.created, (await cursor(id)).listingTailAfter], [30, undefined], 'the first import is capped and bounded by source time');
+  const second = await collectSource(id);
+  assert.deepEqual([second.found, second.created, second.dropped], [150, 90, 30], 'a 150-item listing reads 120 and remembers the 30 below them');
+  const saved = (await cursor(id)).listingTailAfter;
+  assert.equal(typeof saved, 'string', 'the tail position is remembered (the listing key of item 120)');
+  const third = await collectSource(id);
+  assert.deepEqual([third.status, third.found, third.created, third.dropped], ['ok', 0, 0, 0], 'an unchanged feed is a 304: nothing read, nothing stored');
+  const [run] = await sql`SELECT detail FROM fetch_runs WHERE source_id=${id} ORDER BY id DESC LIMIT 1`;
+  assert.deepEqual(run!.detail, { notModified: true, httpStatus: 304 });
+  assert.equal((await cursor(id)).listingTailAfter, saved, 'and the round that read nothing does not decide what was read');
+  longVersion = 2;
+  const fourth = await collectSource(id);
+  assert.deepEqual([fourth.found, fourth.created], [150, 30], 'the next round goes on from item 121 instead of restarting at 61');
+  longVersion = 3;
+  const fifth = await collectSource(id);
+  assert.deepEqual([fifth.found, fifth.created], [150, 0], 'the listing is covered: nothing new left to read');
+  assert.equal((await cursor(id)).listingTailAfter, undefined, 'and the position retires on its own once covered');
+  const [stored] = await sql`SELECT count(*)::int AS n FROM articles WHERE source_id=${id}`;
+  assert.equal(stored!.n, 150, 'every entry of the listing reached the database, none silently skipped');
 });
 
 test('Last-Modified works without ETag and changing redirect targets cannot accept an unrelated 304', async () => {

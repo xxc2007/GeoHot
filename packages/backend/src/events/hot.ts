@@ -156,10 +156,16 @@ export async function computeHotRanking(at = new Date()): Promise<{ id: number; 
         .slice(0, 40).map(({ name, kind, tier }) => ({ name, kind, tier })),
     });
   }
+  // An empty board is still written — the row is the evidence for *why* nothing qualified (coverage, and the
+  // candidate count in `evidence`) — but it is not published. Publishing it used to swap a board that had
+  // events for one that had none, so the homepage went blank at the first five-minute recompute after the last
+  // two-source story aged out of the 48-hour window, and came back hours later. `latestHotRanking` reads
+  // published rows only, so the newest board with events
+  // stays the reader's board until a newer non-empty one lands (or the read horizon passes; see hot-read.ts).
   const [row] = await sql<{ id: number }[]>`
     INSERT INTO hot_rankings (computed_at, rule_version, entries, evidence, published)
     VALUES (${at}, ${HOT_RULE_VERSION}, ${sql.json(entries as never)},
-            ${sql.json({ windowHours: WINDOW_HOURS, halfLifeHours: HALF_LIFE_HOURS, minParticipants: MIN_PARTICIPANTS, candidates: rows.length } as never)}, true)
+            ${sql.json({ windowHours: WINDOW_HOURS, halfLifeHours: HALF_LIFE_HOURS, minParticipants: MIN_PARTICIPANTS, candidates: rows.length } as never)}, ${entries.length > 0})
     RETURNING id`;
   // Keep a bounded history of rankings.
   await sql`DELETE FROM hot_rankings WHERE computed_at < now() - interval '30 days'`;

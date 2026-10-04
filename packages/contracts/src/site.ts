@@ -78,11 +78,19 @@ export interface GroupInfo {
   additionalSourceCount: number;
   /** Distinct public reports across the group's facts. */
   reportCount: number;
-  /** Facts of the group (the card's own included) with at least one selected item under the current filters. */
+  /**
+   * Facts of the group (the card's own included) with at least one selected item under the current filters —
+   * exactly the rows the "展开 N 条进展" list then shows, which is why the card's own fact is inside the count.
+   * Defined once, in `publication/timeline.ts`; the item detail page has no development list and so does not
+   * compute it (see {@link ItemDetailGroup}).
+   */
   developmentCount: number;
   /** The newest development when it is not the card's own fact: why the card sits where it does. */
   latestDevelopment?: { factId: string; title: string; at: string } | null;
 }
+
+/** The group as an item detail page shows it: only "另有 N 家信源报道" is rendered there, so no development count exists to agree or disagree with. */
+export type ItemDetailGroup = Omit<GroupInfo, "developmentCount" | "latestDevelopment">;
 
 export interface TimelineCard {
   key: string;
@@ -116,6 +124,8 @@ export interface TimelineResponse {
   /** Absolute time when a pending item in this scope becomes visible; the page re-checks then. */
   refreshAt: string | null;
   hot: HotStripEntry[] | null;
+  /** Cut-off time of the board behind `hot` — the strip can be yesterday's last board with events in it, so the block says which hour it is from. */
+  hotAsOf: string | null;
   dayCounts: Record<string, number>;
   generatedAt: string;
 }
@@ -147,7 +157,7 @@ export interface ItemDetail extends ItemSummary {
   relatedStories: StoryRef[];
   indexable: boolean;
   markdownAvailable: boolean;
-  group: GroupInfo | null;
+  group: ItemDetailGroup | null;
 }
 
 export interface GroupReport {

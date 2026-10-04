@@ -2,7 +2,7 @@
 
 /* ---------------------------------------------------------------------------
    GEOHOT design tokens — 地理热点's own newsroom look: warm off-white paper, ink
-   text, one teal accent (cyan in dark), hairline borders, no gradients. Six
+   text, one teal accent (cyan in dark), hairline borders, no gradients. Seven
    categories and a spatial-salience standard decide what gets on the page; these
    variables decide how it is set. Components use the semantic names below; values
    change per theme only. (Forked from an AI-hot-topics site's stylesheet; the

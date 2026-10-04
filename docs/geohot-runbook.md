@@ -323,7 +323,9 @@ await a.end();"
 # 它是"重跑不重复花钱/不重复调用"的唯一凭据，删了就等于让所有材料重新问一次 stub。
 ```
 
-语料**已经在仓库里**（`tooling/corpus/`，2026-10-01 起）：`npm run seed:curated` 的默认输入是 `scripts/seed-curated.ts:41` 指向的 `tooling/corpus/curated-materials.jsonl`，行数以 `npm run seed:curated -- --dry-run --enforce-source` 打印的 `117 material line(s)` 为准（`wc -l` 因末尾空行会给 118）。早期版本在这里警告过"清理项目外的研究产物目录会打断重建演示数据"——那个坑已经随语料入库而消失，仓库外目录怎么删都不影响这条命令。
+语料**已经在仓库里**（`tooling/corpus/`，2026-10-01 起）：`npm run seed:curated` 的默认输入是 `scripts/seed-curated.ts:41` 指向的 `tooling/corpus/curated-materials.jsonl`，行数以 `npm run seed:curated -- --dry-run --enforce-source` 打印的 `117 material line(s)` 为准
+（2026-10-04 复核：`wc -l tooling/corpus/curated-materials.jsonl` 现在也是 **117**——文件以 `}` + 换行结尾、
+中间没有空行，早先写的"`wc -l` 因末尾空行会给 118"那档差一已经不成立）。早期版本在这里警告过"清理项目外的研究产物目录会打断重建演示数据"——那个坑已经随语料入库而消失，仓库外目录怎么删都不影响这条命令。
 
 ---
 

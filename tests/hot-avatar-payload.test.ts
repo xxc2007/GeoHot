@@ -57,7 +57,7 @@ test('faces are 精选组 sources by tier (T1, T1.5, T2), at most 6; 氛围组 o
   rankingId=saved!.id;
   const extras=await rankingExtras({id:rankingId,computedAt:at.toISOString(),ruleVersion:'test',entries,coverage:null});
   const full=extras.participants(entries[0]!);
-  const home=(await loadHotStrip())![0]!.participants;
+  const home=(await loadHotStrip())!.entries[0]!.participants;
 
   // T1 (face first), T1.5, T2 (faces first, then stored order), then 氛围组 whatever its tier.
   const order=[5,2,3,1,6,8,9,7,0,4];

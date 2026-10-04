@@ -1,5 +1,5 @@
 // Worker process: queues and schedules for collection, processing, events, reports, monitors and ops.
-import { assertProductionSecrets } from "@aihot/backend/config";
+import { assertProductionSecrets, isCollectEnabled } from "@aihot/backend/config";
 import { FEATURES } from "@aihot/industry/features";
 import { closeDb, sql } from "@aihot/backend/db";
 import { getBoss, stopBoss } from "@aihot/backend/jobs/queue";
@@ -20,7 +20,7 @@ assertProductionSecrets([["auth", "IMG_PROXY_SIGN_SECRET"]]);
 await ensureContentTargets();
 const boss = await getBoss();
 await registerContentJobs(boss);
-if (process.env.COLLECT_ENABLED !== "false") await registerSourceJobs(boss);
+if (isCollectEnabled()) await registerSourceJobs(boss);
 await registerEventJobs(boss);
 await registerNotifyJobs(boss);
 await registerPublicationJobs(boss);

@@ -4,7 +4,7 @@ import TurndownService from "turndown";
 import { sql } from "../db.ts";
 import { proxyBodyImages } from "../media/imgproxy.ts";
 import { textToHtml } from "../content/sanitize.ts";
-import { ITEM_COLUMNS, ITEM_FROM, releasedCondition, selectedCondition, toItemSummary, xView, type ItemRow } from "./items.ts";
+import { ITEM_COLUMNS, ITEM_FROM, releasedCondition, toItemSummary, xView, type ItemRow } from "./items.ts";
 import { itemUrl } from "./links.ts";
 import { itemHasPage } from "./rules.ts";
 import { SITE } from "@aihot/industry/site";
@@ -114,18 +114,16 @@ export async function loadItemDetail(id: string, now = new Date()): Promise<Deta
       FROM facts f JOIN publications p ON p.fact_id = f.id
       WHERE f.id = ${row.fact_id} AND p.visibility = 'public' AND p.eligible AND ${releasedCondition(now)}
       GROUP BY f.public_id`;
-    const [dev] = await sql<{ n: number }[]>`
-      SELECT count(DISTINCT other.id) AS n FROM facts f
-      JOIN facts other ON other.story_id = f.story_id AND other.id <> f.id
-      JOIN publications p ON p.fact_id = other.id
-      WHERE f.id = ${row.fact_id} AND f.story_id IS NOT NULL AND ${selectedCondition(now)}`;
     if (g) {
+      // No development count here: this page renders only "另有 N 家信源报道", and `developmentCount` means
+      // "the rows the 展开 N 条进展 list shows", a list only a feed card has (`timeline.ts` defines it).
+      // The detail page used to compute its own version — the same story's facts minus the card's own — and
+      // the two numbers differed by exactly one, which is how a second meaning for one field name appears.
       group = {
         factId: g.public_id,
         story: summary.story,
         reportCount: Number(g.reports),
         additionalSourceCount: Math.max(0, Number(g.sources) - 1),
-        developmentCount: Number(dev?.n ?? 0),
       };
     }
   }

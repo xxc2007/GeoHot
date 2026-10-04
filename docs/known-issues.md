@@ -736,6 +736,18 @@ Australia / Angola / Paraguay / Suriname, Brazil）的事件下，读者在中�
    窗口里没有任何事件达到「两个独立参与方且至少一个是编辑类」这条门槛，窗口内 2639 个事件只有 24 个参与方
    （预警各自成单来源事件），往前 48–96 小时那个窗口里有 6 个合格事件。榜空时首页的「当前热点」条
    一起消失，这是既有设计。
+   > **2026-10-04 追记：最后那半句作废。** `c9e1122` 把这块改成"榜空也说实话"——首页在榜空时显示一行
+   > 「过去 48 小时还没有两家以上信源同时讨论的事件。」加一个指向 `/all` 的入口（`apps/web/app/features/feed/HotTopics.tsx`
+   > 里 `entries.length === 0` 那一支）。**同一目录 `packages/backend/src/events/hot-read.ts` 的读法在当天下午又改了一次**
+   > （`3f7974f`）：空榜不再被发布（`hot.ts` 只在有条目时写 `published`），读侧取 **24 小时内最近一张有事件的榜**，
+   > 标题旁标「截至 X 时」，超过 24 小时才回到上面那行诚实说明；`loadHotStrip()` 返回 `null` 的判据也随之变成
+   > 「`hot_rankings` 整表一行都没有」（本机刚迁移完的库就是这种状态）。**这里不写行号**，那几天这几个文件一直在动，
+   > `grep -n "export async function loadHotStrip\|MAX_BOARD_AGE_HOURS" packages/backend/src/events/hot-read.ts` 现查。
+   > 回头看，"这是既有设计"把两件事混成了一件：`entries.length < 3` 整块隐藏是**实现选择**，而这几周榜之所以为空是
+   > **归并步骤没在跑**（新代码的注释把这两条都写下来了）。介绍页据此把"实现藏了整块"写成"数据恰好为空"，
+   > 是同一条错误叙述的下游——已随本轮改正，那一版说明的原文与错在哪都记在 README 首页那张图的说明里，不抹掉。
+   > **另外那两个数（2639 个事件 / 24 个参与方 / 6 个合格事件）属于线上库**，本机开发库按同一窗口口径复算对不上，
+   > 别拿本机复现（README 的 `/hot` 图说明已补上这一句环境说明）。
 6. **纪律记录（我自己的错）：** 本轮往 `docs/sources.md` 追加中文小节时用了一次 shell heredoc，违反了自己
    立的"中文文件只用 Edit/Write"的规矩。内容事后逐行核对过没有乱码，但这条执行纪律要守住——再犯就可能
    在编码转换里悄悄改坏正文。
@@ -788,15 +800,87 @@ Australia / Angola / Paraguay / Suriname, Brazil）的事件下，读者在中�
 
 还开着的三件事：
 
-1. **改动目前只在这台机器上，线上还没有它。** 本地 `npm run typecheck`、`node --test apps/web/tests/*.test.ts`、
-   `npm test`（连跑两遍）与 `node scripts/check-shots.ts` 都跑过。上线按 `deploy/geohot/DEPLOYMENT.md` 走；
-   前端路由与 `industry/` 都改了，**必须重建 web**（`BASE_PATH=/geohot`）才生效，只重启 api 不够。
-2. **README 的三张配图因此过期**（首页那张的侧栏里有「板块」那一格，alt 已经改成不再提它）。**不要在本地
-   提前重拍**——`docs/manual.md:429` 那条「线上才是事实来源」的规矩还在：部署完成之后再跑
-   `node scripts/shoot.ts --base https://xxc2007.me/geohot` 重拍受影响的那几张，并用
-   `node scripts/check-shots.ts` 守图。
-3. **部署后的线上复验清单**：`/geohot/boards` 与 `/geohot/boards/gis` 返回 404；侧栏只剩
-   精选 / 全部动态 / 热点榜 / 日报 / 主题 / 收藏；`/geohot/sitemap.xml` 与 `/geohot/llms.txt` 里不再出现
-   `boards` 与「板块」；`/geohot/api/site/boards` 返回 404；`/geohot/topics/<slug>` 的空态文案不再指向板块页；
+1. ~~**改动目前只在这台机器上，线上还没有它。**~~ **2026-10-04 下午已部署**（本机 curl 实测，两次一致）：
+   `/geohot/boards`、`/geohot/boards/gis`、`/geohot/api/site/boards` 全部 **404**，线上首页 HTML 里「板块」出现
+   **0 次**、`当前热点` 出现 1 次且带那行榜空的诚实状态。本地 `npm run typecheck`、`node --test apps/web/tests/*.test.ts`、
+   `npm test`（连跑两遍）与 `node scripts/check-shots.ts` 都跑过。前端路由与 `industry/` 都改了，**必须重建 web**
+   （`BASE_PATH=/geohot`）才生效，只重启 api 不够——这一条是这次部署踩过的老坑，写在这里免得下一次再忘。
+2. **README 的三张配图因此过期**（三张的侧栏里都有「板块」那一格——本轮用看图的方式复核过首页那张，
+   侧栏确实是 精选 / 全部地理动态 / 热点榜 / 地理日报 / 主题 / **板块** / 收藏 / 更多 / Agent 接入 / 关于 /
+   更新日志 / 反馈；alt 已经改成不再提它）。**"不要在本地提前拍"这个前提在 2026-10-04 下午已经解除**（第 1 条），
+   所以这一条现在是**部署后的待办**而不是被挡住的事：`node scripts/shoot.ts --base https://xxc2007.me/geohot`
+   重拍受影响的那几张，再用 `node scripts/check-shots.ts` 守图。**重拍之后必须回头改说明**——首页那张一旦拍到
+   榜空的诚实状态，README 里"画面里没有当前热点条"那一段就要跟着改，否则又是一次说明与画面不一致。
+3. **部署后的线上复验清单**（2026-10-04 下午逐条实测，结果写在后面）：`/geohot/boards` 与它的任何子页返回 404
+   （整层已删，不再逐个 slug 去试——旧 slug `gis`、`kaoyan-geo` 都不在词表里，列进清单只会让人以为它们还是地址）；
+   侧栏只剩精选 / 全部动态 / 热点榜 / 日报 / 主题 / 收藏；`/geohot/sitemap.xml` 与 `/geohot/llms.txt` 里不再出现
+   `boards` 与「板块」（实测 sitemap 580 条 URL 中 `boards` 前缀 **0** 条、`llms.txt` 里「板块」**0** 次）；
+   `/geohot/api/site/boards` 返回 404；`/geohot/topics/<slug>` 的空态文案不再指向板块页；
    `deploy/geohot/verify-deploy.sh` 与站点 smoke 全绿。
+
+## 2026-10-04（下午·文档整改）：介绍页的账清到哪一步，以及四条移交代码的文案
+
+一位只读审计智能体逐条实测了 `README.md`（报告在仓库外），本轮把**文档侧**的账落地：介绍页改了 13 处、
+`NOTICE` 2 处、`docs/manual.md` 正文 3 处加 §9 表 4 格（含新增的 `docs/known-issues.md` 一行）、
+`AGENTS.md` 1 处、`scripts/README-ingest.md` 3 处、`docs/migration.md` 补 7 项（另加三条演练里踩到的坑）。
+逐条都带当场命令，挑几条最容易复发的说：
+
+- **抄进介绍页的线上数字一定会过期**：上一版写的线上 `items` 5371 / `sources` 58 与"精选分类分布 53 条"
+  已整段删掉，只留端点。实测证据：`/api/site/stats` 的 `items` 在同一天两小时里从 5371 → 5792。
+- **"线上落后于本机"这句因果是错的**：2026-10-04 实测线上 `sources` 已是 85（与 `industry/sources.json`
+  的 kind 分布逐档相同）、`/topics` 链接数 43（= `industry/topics.json`）、`/topics/fieldwork` 与
+  `/topics/opinion-analysis` 都 404——整包早就升上去了。
+- **一份审计报告自己的替换数字也不能照抄**：它按当时的 snapshot 建议把分类分布改成"57 条：自然地理 29、
+  5 条无分类"，而 `12849a3` 部署之后 snapshot 回到 **53 条 / 2 条无分类**（13:35 实测），照抄反而会立刻错。
+  本轮的处理是**两边都不写死**，只给 `curl -s ".../api/v1/selected/snapshot?limit=200"` 与对账口径。
+- **`app.css` 的"三处偏离、其余一字未改"是夸大**：`git diff 754191b -- apps/web/app/app.css` 给的是
+  12 个 hunk、+94/−12；而且它列的浅色 `--rank-rest` 现值已经不是它写的那个值。介绍页改成"改到读者可见的
+  三组 + 其余是令牌扩充"，每个值都从 `git show 754191b:…` 与现版对拍过。
+
+**移交代码侧的四条文案账**（本轮文档智能体没有动任何代码文件，逐条给位置与实测）：
+
+1. `apps/web/app/routes/agent.tsx:82` 与 `:90` 都写着「五个工具」，而 MCP 实际暴露 7 个
+   （`grep -c "server.registerTool(" apps/api/src/routes/mcp.ts` = 7；线上 `tools/list` 实测也是这 7 个）。
+   **受害的正是这页的目标读者**——Agent 按页面文案找工具会以为少了两个。
+2. `apps/web/app/app.css:5` 的头注释还写着 "Six categories"，词表是七个（`industry/taxonomy.ts`）。
+3. `tests/industry-vocabulary.test.ts:96` 的测试名写着 "the ten categories"，断言本身逐字对拍的是七个 key；
+   同文件 `:116` 的注释拿 `/feed/category/gis.xml` 当"key 进 URL"的例子，而 `gis` 是只活了几小时的 key，
+   现在那个地址是 404（该换成 `/feed/category/geotech.xml`）。
+4. `scripts/shoot.ts:18` 给 `hot-light.png` 的 `label` 写的是「AI 热点榜」，页面标题是「地理热点榜」——
+   不影响产物，但它正是本站声明"不用 AIHOT 名义"那条红线附近的残留。
+
+**这四条已在 `3f7974f` 落地**（文档智能体没有动代码，逐条由编排方改）：`agent.tsx` 的工具数改成从
+`MCP_TOOL_NAMES` 算出（`Object.keys(T).length`），并加 `tests/agent-page-tools.test.ts` 钉住"七个工具在页面上
+逐个点名"；`app.css` 头注释、`industry-vocabulary` 的测试名（改成 `${CATEGORIES.length}` 派生）与 `gis.xml`
+例子、`scripts/shoot.ts` 的标签各改一处。**行号会漂**：那两条 `agent.tsx` 的引用现在落在 `:84` 与 `:92`。
+
+**三张配图已按线上重拍**（2026-10-04 14:07，`node scripts/shoot.ts --base https://xxc2007.me/geohot` +
+`node scripts/check-shots.ts` 三张全绿），首页那张现在画面上有「当前热点」四条与「截至 X 时」。
+
+## 2026-10-04（下午·信源体检）：加源救不了首页，缺的是分数与署名判断
+
+一位只读智能体把 85 条信源在生产库上按 7 天窗口逐条量了一遍（报告在仓库外 `.round9/agents/C1.md`，
+所有探测都从采集器那台机器做，本机 DNS 与它不一致）。三条结论值得单独记，因为它们和直觉相反：
+
+1. **首页那三个空分类不缺稿源。** `地理与政治 / 地理与历史 / 考研` 7 天内分别入库 104 / 121 / 43 行、
+   基本全部 eligible，但它们能拿到的分上限是 20~50，而精选门槛是 56；同时 `tooling/fixtures/*.jsonl`
+   （676 行署名判断）里 geopolitics 与 geoedu **一条都没有**。所以**加信源只填 `/all`，填不了首页精选**——
+   要动的是评分与署名判断，而那是站长的编辑决定，本轮没有替它改任何一个数。
+2. **热度门槛的一半是恒真的。** 库里 `participation_mode` 只有 `editorial`=77 与 `isolated`=8，
+   **`hot_signal` 零条**，于是 `events/hot.ts` 里"至少一个编辑类参与方"这一半永远成立、不起约束作用。
+   这条不是 bug（配置就是配置），但它意味着"门槛有四条参数"的说法只在地上成立三条——README 与手册
+   凡说"四个参数"的地方，读者要清楚第四条目前是空的。
+3. **采集器结构上接不进"要带浏览器 UA 才给 200"的官方站。** `config-keys.ts` 的 `KEYS.rss` 与
+   `KEYS.web_list` 不含 `headers`（只有 `json_list` 有），`http-fetch.ts` 硬发 `GEOHOTBot`。实测同一 URL
+   该 UA 403、换 Chrome UA 200。**要不要放开这个口子是一个决定**（放开等于允许在仓库配置里写任意请求头），
+   本轮没有改它，因此那几条靠 UA 才能进的候选一条都没写进 `industry/sources.json`。
+
+另外两条现场事实，省得下次再查：`cea.gov.cn` 从这台机器 403（换 UA 也 403，判死）、`cjw.gov.cn` 连接超时；
+`intl-worldpoliticsreview` 与 `intl-unocha` 是**假死**（VM 上 200、各 10 条），别再按本机的超时判它们下线。
+`web-mnr-ywbb` 是这台机器的解析器解不出 `mnr.gov.cn`（公网 DNS 能解），源本身没死。
+
+**一个容易误删的同名文件**：`apps/web/app/routes.ts:33` 那个
+`layout("routes/leaderboard-boards.tsx", …)` 与本轮删掉的「板块」层**无关**——它是 AIHOT 那套
+`/leaderboard/*` 榜单（`FEATURES.leaderboard`，本站默认关）的共用布局，文件名里的 boards 是"榜单"。
+按文件名找"板块残留"会把它一起删掉。
 

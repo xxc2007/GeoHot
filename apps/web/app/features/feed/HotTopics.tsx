@@ -1,6 +1,7 @@
 import { Link } from "react-router";
 import type { HotStripEntry } from "@aihot/contracts/site";
 import { IconArrowRight, IconMinus, IconTrendDown, IconTrendUp } from "../../components/icons";
+import { monthDayTime } from "../../lib/format";
 import { Faces } from "../hot/Faces";
 
 // As on the original list: the top three in the ranking colours at the heaviest weight.
@@ -24,6 +25,9 @@ function TrendMark({ trend }: { trend: HotStripEntry["trend"] }) {
   return <IconMinus size={14} strokeWidth={2.2} className="text-ink-4" aria-label="热度持平" />;
 }
 
+/** The board is recomputed every five minutes; one this old means every recompute since it came out empty. */
+const STALE_AFTER_MS = 2 * 3600_000;
+
 /**
  * The top of the hot ranking on the home page, kept quiet: a live dot, coloured ranks and titles, then
  * columns of fixed width so every row lines up — who is talking (精选组 faces, from sm), "N 热度" and an arrow for
@@ -33,8 +37,15 @@ function TrendMark({ trend }: { trend: HotStripEntry["trend"] }) {
  * vanishing: the strip used to disappear entirely, so on a site whose heat bar is 「两家以上独立信源同时
  * 讨论」 the reader could never tell the difference between "nothing is hot" and "this page has no such
  * feature" — and the block was invisible for weeks for the second reason (the merge step was off).
+ *
+ * `asOf` is the cut-off hour of the board being shown. The read layer keeps the newest board that has
+ * events in it for up to a day (an empty hourly recompute no longer blanks the page), so the pulsing dot —
+ * which claims "recomputed right now" — is only allowed while the board is from this hour; after that the
+ * block says 截至 X 时 and stops pulsing. Both timestamps come from the response body, never from the
+ * browser clock, so the server render and the hydration agree.
  */
-export function HotTopics({ entries }: { entries: HotStripEntry[] }) {
+export function HotTopics({ entries, asOf, generatedAt }: { entries: HotStripEntry[]; asOf: string | null; generatedAt: string }) {
+  const stale = entries.length > 0 && (asOf === null || Date.parse(asOf) < Date.parse(generatedAt) - STALE_AFTER_MS);
   return (
     <section
       aria-labelledby="hot-topics"
@@ -43,10 +54,11 @@ export function HotTopics({ entries }: { entries: HotStripEntry[] }) {
       <div className="mb-1 flex items-center justify-between">
         <h2 id="hot-topics" className="flex items-center gap-2 text-body font-semibold text-ink">
           <span className="relative flex size-2" aria-hidden="true">
-            <span className="absolute inline-flex size-full animate-ping rounded-full bg-hot opacity-40" />
-            <span className="relative inline-flex size-2 rounded-full bg-hot" />
+            {!stale && <span className="absolute inline-flex size-full animate-ping rounded-full bg-hot opacity-40" />}
+            <span className={`relative inline-flex size-2 rounded-full ${stale ? "bg-ink-4" : "bg-hot"}`} />
           </span>
           当前热点
+          {stale && asOf && <span className="num text-meta font-normal text-ink-4">截至 {monthDayTime(asOf)}</span>}
         </h2>
         <Link to="/hot" className="group inline-flex items-center gap-1 text-meta text-ink-3 transition-colors hover:text-accent">
           完整榜单 <IconArrowRight size={13} className="transition-transform duration-200 group-hover:translate-x-0.5" />

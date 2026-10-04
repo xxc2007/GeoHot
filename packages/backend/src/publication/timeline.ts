@@ -118,7 +118,7 @@ async function queryGroupedAnchors(q: TimelineQuery, now: Date): Promise<Grouped
   };
 }
 
-export async function loadTimeline(q: TimelineQuery): Promise<Omit<TimelineResponse, "hot" | "generatedAt">> {
+export async function loadTimeline(q: TimelineQuery): Promise<Omit<TimelineResponse, "hot" | "hotAsOf" | "generatedAt">> {
   const now = q.now ?? new Date();
   const limit = Math.min(Math.max(q.limit ?? 20, 1), 40);
   const bind = binding(q);

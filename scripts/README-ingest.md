@@ -77,10 +77,15 @@ identity 是规范化 URL（`normalizeUrl`：统一 https、去 `www.`、去跟�
 （`queueProcessing` 写的），作业进 `content.analyze` 队列；worker 起来（`.env.pipeline` 那两个阀）就往下跑
 prefilter → 打分 → understand → structure → 归组 → 成刊 → 日报。脚本不碰这些阶段，也不写任何评分。
 
-## 人工补一条（野外与考察 / 国内官方一手记录就是这样加）
+## 人工补一条（`external` 源 / 国内官方一手记录就是这样加）
 
-`WAVE3 §G` 的方案：`fieldwork` 与 12379／民政部／自然资源部 这类采不到的信源，登记成 `kind=external`，
-靠人工投递带路线、站位、样品、仪器、影像的记录。先用后台或 SQL 把信源建成
+`WAVE3 §G` 的方案：12379／民政部／自然资源部 这类**采不到**的信源登记成 `kind=external`，靠人工投递带路线、
+站位、样品、仪器、影像的记录。现成的八个 `external` 源就是这条路线的入口（`node -e` 数出来，2026-10-04）：
+`ext-12379-alerts`、`ext-mca-division-changes`、`ext-mnr-news`、`ext-acta-geographica-toc`、
+`ext-geodata-releases`、`ext-cng-dili360`、`ext-qtp-expedition`（第二次青藏高原综合科学考察）、
+`ext-polar-voyage`（中国极地考察 雪龙航次）——**这一层以前叫「野外与考察」，那个分类连同「观点与解读」已经在
+2026-10-03 被迁移 `0041` 整块删掉**，所以补条目时按**信源**说话，不要再按那两个已删的分类说话。
+先用后台或 SQL 把信源建成
 `participation_mode='editorial'`（脚本会警告非 editorial 的信源——那些条目会被
 `settleNonEditorial()` 标成 `skipped`，不分析、不进精选），然后：
 
@@ -113,10 +118,17 @@ curl -sS -X POST http://127.0.0.1:$API/api/ingest/items \
   -H "Content-Type: application/json" \
   --data-binary @item.json
 # item.json 的形状（正文只能回源抓，见下表 --route http 的局限）：
-# {"sourceId":"ext-second-qht-obs","sourceName":"第二次青藏科考（人工投递）",
+# {"sourceId":"ext-qtp-expedition","sourceName":"第二次青藏高原综合科学考察 队站与航次记录（人工投递）",
 #  "items":[{"title":"…（含站位与深度）","url":"https://itpcas.example.org/record/2026-0930",
-#            "publishedAt":"2026-10-01T09:00:00+08:00","raw":{"_geohot":{"theme":"fieldwork"}}}]}
+#            "publishedAt":"2026-10-01T09:00:00+08:00","raw":{"_geohot":{"route":"队站与航次记录"}}}]}
 ```
+
+**`raw._geohot` 那一块只是投递方自己的溯源标签，不是一条分类通道。** 写入侧：`scripts/seed-curated.ts:285-295`
+把整块原样并进 `articles.raw`；读取侧：全仓 grep `_geohot` 只有一处真的取值——`scripts/seed-curated.ts:121` 读
+`sourceName`，**没有任何代码读 `theme` 或 `route`**。条目进哪个分类只由两件事决定：分析步的
+`analyses.category`（`packages/backend/src/editorial/analyze.ts` 里 `category: z.enum(CATEGORY_KEYS).nullable().catch(null)`
+那一行，词表外的值一律 `.catch(null)` 变 NULL）与信源的 `default_category`（`industry/sources.json` 的 `defaultCategory`，八个 `external`
+源现值全是 NULL）。所以这里写什么标签都造不出词表外的分类，但也**别指望它能把条目归进某个分类**。
 
 实测（2026-09-30 本机 api；2026-10-01 在**干净克隆**里重跑一遍：`git clone` + `npm ci` +
 `npm run env:init -- --db-port 5455 --api-port 3288 --web-port 3090 --brain-port 3065` + 起栈，token 就是 env:init

@@ -27,21 +27,21 @@
 
 它建在开源框架 [AIHOT](https://github.com/KKKKhazix/AIHOT)（MIT）之上，行业层换成了地理：引擎在 `apps/` 与 `packages/`，地理的一切——站名、分类、主题、信源、评分标准、门槛、品牌、条款页——都在 [`industry/`](industry/) 这一个文件夹里。
 
-[特色](#-特色) · [七个分类](#-七个分类一条标准) · [星际历史](#-star-history) · [站点结构](#-站点结构) · [技术栈](#-技术栈) · [换成你的行业](#-换成你的行业) · [本地运行](#-本地运行) · [设计笔记](#-设计笔记) · [License](#-license) · [完整手册](docs/manual.md)
+[特色](#-特色) · [七个分类](#-七个分类一条标准) · [站点结构](#-站点结构) · [技术栈](#-技术栈) · [换成你的行业](#-换成你的行业) · [本地运行](#-本地运行) · [设计笔记](#-设计笔记) · [License](#-license) · [星际历史](#-star-history) · [完整手册](docs/manual.md)
 
 <br>
 
-> 这一页是介绍页。**操作手册**（本机跑法、端口对照、检查命令、已知边界、上线前清单）在 [`docs/manual.md`](docs/manual.md)——它就是这棵树原来的 README，内容一字未删地搬了过去。日常运营读 [`docs/geohot-runbook.md`](docs/geohot-runbook.md)，精选与校准读 [`docs/selection.md`](docs/selection.md)，换行业读 [`docs/customize.md`](docs/customize.md)，信源怎么配读 [`docs/sources.md`](docs/sources.md)，部署读 [`docs/deploy.md`](docs/deploy.md)，**换域名或换服务器**读 [`docs/migration.md`](docs/migration.md)，进程与目录读 [`docs/architecture.md`](docs/architecture.md)。这份清单里只有 `README.md`、`docs/manual.md`、`docs/geohot-runbook.md`、`docs/migration.md` 是本站写的，其余（`customize/selection/sources/architecture/leaderboard/deploy`）都还是上游参考文档，若干命令与数字在本站不成立——**哪份文档该打折、逐条打到什么程度，看 [`docs/manual.md` 第 9 节那张"文档 × 状态"表](docs/manual.md)**（那张表是本仓库的反腐烂装置：它按文档逐条写明哪些说法已经不成立、哪些只是抄录）。
+> 这一页是介绍页。**操作手册**（本机跑法、端口对照、检查命令、已知边界、上线前清单）在 [`docs/manual.md`](docs/manual.md)——它就是这棵树原来的 README，内容一字未删地搬了过去。日常运营读 [`docs/geohot-runbook.md`](docs/geohot-runbook.md)，精选与校准读 [`docs/selection.md`](docs/selection.md)，换行业读 [`docs/customize.md`](docs/customize.md)，信源怎么配读 [`docs/sources.md`](docs/sources.md)，部署读 [`docs/deploy.md`](docs/deploy.md)，**换域名或换服务器**读 [`docs/migration.md`](docs/migration.md)，进程与目录读 [`docs/architecture.md`](docs/architecture.md)。这份清单里只有 `README.md`、`docs/manual.md`、`docs/geohot-runbook.md`、`docs/migration.md` 与 `docs/known-issues.md`（下面引用了它四次的那份待办清单，按轮次追记）是本站写的，其余（`customize/selection/sources/architecture/leaderboard/deploy`）都还是上游参考文档，若干命令与数字在本站不成立——**哪份文档该打折、逐条打到什么程度，看 [`docs/manual.md` 第 9 节那张"文档 × 状态"表](docs/manual.md)**（那张表是本仓库的反腐烂装置：它按文档逐条写明哪些说法已经不成立、哪些只是抄录）。
 
 </div>
 
 ---
 
 <p align="center">
-  <img src="docs/shots/home-light.png" alt="首页精选：左侧导航、筛选栏含七个分类、按日期分组的精选卡片" width="100%">
+  <img src="docs/shots/home-light.png" alt="首页精选：顶部是「当前热点」四条（名次、标题、信源头像、热度与走势），左侧导航，筛选栏含七个分类，下面是按日期分组的精选卡片" width="100%">
 </p>
 <p align="center"><sub>
-  ▲ 首页「精选」· 截图摄于 **2026-10-04 11:08（+0800）**，路由 `/geohot/`，视口 1440×900，浅色主题 · 那一刻**没有「当前热点」条**，因为热点榜是空的（原因见下表 `/hot` 那张图的说明）；时间线是 10月2日 1 条、10月1日 49 条，第一条是 The Guardian·环境、入选分 83 的《「像照顾宠物一样」：一款提醒你街区里的树是否缺水的应用》。筛选栏 **9 格**：`全部`、`一手`，加**七个分类**，末尾两格是「地理信息系统」「考研」——2026-10-03 把这两格换位、并删掉了「野外与考察」与「观点与解读」，所以画面里已经没有那两格。**这一屏每天在变，线上地址才是事实来源**：`https://xxc2007.me/geohot/`。
+  ▲ 首页「精选」· 截图摄于 **2026-10-04 14:07（+0800）**，路由 `/geohot/`，视口 1440×900，浅色主题 · 画面顶部那一块是**当前热点**：四条事件按热度排开，每行是名次、标题、正在讨论它的信源头像（精选组，最多三枚 +N）、热度数值与走势箭头，右上角「完整榜单」进 `/hot`。标题旁边写着 **截至 10月3日 14:55**——这一张榜不是这一小时的。热榜每 5 分钟重算一次，某一轮算出空榜时不再把首页抹掉：`packages/backend/src/events/hot.ts` 只在有事件时把那一张发布出去，读侧 `packages/backend/src/events/hot-read.ts` 于是回落到最近一张有事件的榜（最长 24 小时），其中事件已被归并到别处的条目先掉出榜、名次接着排。榜不老于两小时时这里不写时刻，只有一颗跳动的红点。**如果打开首页看到的是另一行字**——「过去 48 小时还没有两家以上信源同时讨论的事件。」加一个 `/all` 入口——那不是故障，是这张榜已经老过一天，页面改说实话；两种样子的取舍写在 `apps/web/app/features/feed/HotTopics.tsx` 顶部的注释里。侧栏**没有**「板块」那一格：那一层 2026-10-04 整块删除，`/geohot/boards` 现在返回 404。时间线是 10月2日 1 条、10月1日 49 条，第一条是 The Guardian·环境、入选分 83 的《「像照顾宠物一样」：一款提醒你街区里的树是否缺水的应用》。筛选栏 **9 格**：`全部`、`一手`，加**七个分类**，末尾两格是「地理信息系统」「考研」——2026-10-03 把这两格换位、并删掉了「野外与考察」与「观点与解读」。（这一张图的上一版说明把"画面里没有当前热点条"归因于"热点榜是空的"，那时真正的原因是旧代码在榜少于 3 条时把整块隐藏——归因错了，错记留在 `docs/known-issues.md`，不抹掉。）**这一屏每天在变，线上地址才是事实来源**：`https://xxc2007.me/geohot/`。
 </sub></p>
 
 ---
@@ -66,7 +66,7 @@
 >
 > 删掉的两个分类原本共用日报的第三节「实践」。**这一节的消失有个不显眼的后果**：日报的分节表是从分类数组里 `section` 字段的**首现顺序**推导的，而「没有类别的资料」的兜底分节取的是末位那一节。`section` 从「学科 / 技术 / 实践」变成「学科 / 技术」，兜底分节因此从「实践」挪到「技术」。这不是可以随手改的装饰——给新分类起第三个节名，全站没有类别的资料会在下一次成刊时一夜之间搬进那一节。这条不变量由 `tests/report-default-section.test.ts` 与 `tests/exit-category-parity.test.ts` 两处钉住。
 
-**没有单独的「板块」页。** 这一层曾经存在过：2026-10-03 上线的四个跨类别方向页（`/boards`：地理信息系统 / 考研 / 地理与政治 / 地理与历史，当时与筛选栏同序）在 **2026-10-04 按站长要求整块删掉**——站长看着那一页说「这个板块功能有点重复了」，它按学科与用途把当天条目归到一处，而主题页与筛选栏的分类已经在做同一件事。现在 `/boards` 与 `/boards/<slug>` 都是 404。四个方向**没有丢入口**：它们本来就是首页筛选栏里的四个分类（`/all?category=geotech` / `geoedu` / `geopolitics` / `histgeo`），未精选的信源原文在「全部动态」里同样列得出来；主题页（`/topics`）继续按区域、机构与领域串联同一件事的来龙去脉。**删的只是视图**——条目、`category` 字段、分类词表与公开门槛一行都没动，`industry/sources.json` 里那 41 条 `defaultCategory` 照旧把条目归到它所属的分类。
+**没有单独的「板块」页。** 这一层曾经存在过：2026-10-03 上线的四个跨类别方向页（`/boards`：地理信息系统 / 考研 / 地理与政治 / 地理与历史，当时与筛选栏同序）在 **2026-10-04 按站长要求整块删掉**——站长看着那一页说「这个板块功能有点重复了」，它按学科与用途把条目归到一处（页面文案当时写的是"当天"，而它其实不设时间窗——按时间倒序取最近的若干条），而主题页与筛选栏的分类已经在做同一件事。现在 `/boards` 与 `/boards/<slug>` 都是 404。四个方向**没有丢入口**：它们本来就是首页筛选栏里的四个分类（`/all?category=geotech` / `geoedu` / `geopolitics` / `histgeo`），未精选的信源原文在「全部动态」里同样列得出来；主题页（`/topics`）继续按区域、机构与领域串联同一件事的来龙去脉。**删的只是视图**——条目、`category` 字段、分类词表与公开门槛一行都没动，`industry/sources.json` 里那 41 条 `defaultCategory` 照旧把条目归到它所属的分类。
 
 **入选标准只有一条：空间显著性优先**——影响尺度大、多方独立报道、有数据/图件/影像支撑，三件同时成立才排得靠前。这条既写进评分提示词，也写进五轴权重表，还写进热度算法（"多方独立报道 = 热"）。
 
@@ -101,39 +101,30 @@
 |---:|---:|---:|---:|---:|---:|
 | 2842 | 1627 | 48 | 86 | 43 | 4 |
 
-（「收录材料」是本机 `publications` 表里 `visibility <> 'withdrawn'` 的行数，「归并成的事件」是 `facts` 表的行数。「精选」这一列数是**读者真正看得到的**那些，算式与读取层同一份（`packages/backend/src/publication/items.ts` 的 `selectedCondition()`：公开、已选中、过释放时间、标题含中文）；库里 `selected` 标记为真的更多（本机 59 条），差的那部分是标题还没有中文副本、按设计先待在后台的条目。表里的「日报期数」是本机 `reports` 表的行数，含 0 件大事、已被读取层过滤不再列出的空刊。）
+（「收录材料」是本机 `publications` 表里 `visibility <> 'withdrawn'` 的行数，「归并成的事件」是 `facts` 表的行数。「精选」这一列数是**读者真正看得到的**那些，算式与读取层同一份（`packages/backend/src/publication/items.ts` 的 `selectedCondition()`：公开、已选中、过释放时间、标题含中文）；库里 `selected` 标记为真的更多（本机 59 条），差的那部分是标题还没有中文副本、按设计先待在后台的条目。表里的「日报期数」是本机 `reports` 表里 `kind = 'daily'` 的行数（算式就是 `packages/backend/src/site/stats.ts` 里 `AS dailies` 那一行的 `WHERE kind = 'daily'`；同一张表现有 7 行 = 4 份日报 + 1 份周报 + 2 份月报，`SELECT kind, count(*) FROM reports GROUP BY kind` 当场可查），含 0 件大事、已被读取层过滤不再列出的空刊。）
 
-**线上出了几期、有多少条精选，都不写在这里**——那是每天在变的量，抄进介绍页只会过期。要看当场数：`https://xxc2007.me/geohot/api/site/stats` 一次给全（`items` / `selected` / `dailies` / `sources` 与按 kind 的分布），归档期数看 [`/daily/archive`](https://xxc2007.me/geohot/daily/archive) 或 `GET /api/v1/dailies` 的 `items` 长度（这个接口**没有** `page.count` 字段，别看错）。2026-10-04 10:2x 复核：线上 `items` 5371、`selected` 53、`dailies` 10、`sources` 58，`/api/v1/dailies` 列出 10-03 与 10-02 两期——**线上这套数字落后于本机**，因为下面第 108 行那 27 条新信源与主题层删除还没随整包升上去。
+**线上出了几期、有多少条精选，都不写在这里**——那是每天在变的量，抄进介绍页只会过期。**这一版原先在这里抄过一组线上快照（`items` 5371、`sources` 58）并断言"线上这套数字落后于本机，因为那 27 条新信源与主题层删除还没随整包升上去"——两句都不成立**：2026-10-04 实测线上 `/api/site/stats` 的 `sources` 已是 **85**，按 kind 的分布（`rss` 51 / `web_list` 23 / `external` 8 / `json_list` 3）与 `industry/sources.json` 逐档相同；`/topics` 页面上的主题链接数与 `industry/topics.json` 一样是 **43**，被 0042 删掉的两页 `/topics/fieldwork`、`/topics/opinion-analysis` 现在都返回 404——整包早就升上去了。而 `items` 那一格在同一天两小时里就从 5371 漂到 5792（`curl -s https://xxc2007.me/geohot/api/site/stats` 现查），抄进介绍页必然过期；那句自指"下面第 108 行"当时也已经指错了行。所以这里只留端点：`https://xxc2007.me/geohot/api/site/stats` 一次给全（`items` / `selected` / `dailies` / `sources` 与按 kind 的分布），归档期数看 [`/daily/archive`](https://xxc2007.me/geohot/daily/archive) 或 `GET /api/v1/dailies` 的 `items` 长度（这个接口**没有** `page.count` 字段，别看错）。本机那一列不一样：`.env` 里 `COLLECT_ENABLED=false`，开发库是静态的，所以上面那张表当场可复算。
 
-精选按分类（**2026-10-03 删除两个分类并迁移之后**，线上 53 条）：自然地理 28 · 区域地理 12 · 人文地理 6 · 地理信息系统 5（合计 51，另 2 条没有分类字段）。删掉的两类名下的行没有消失，是按内容逐条改归到学科分类里——迁移 `0041` 的映射表把每条都写明了理由，不是一刀切进某个桶。
+精选按分类的**分布不在这里抄**——那是线上每天在变的量（上一版抄的"53 条：自然地理 28 · 区域地理 12 · 人文地理 6 · 地理信息系统 5 + 2 条无分类"恰好在 2026-10-04 13:35 又对了回来，但那是巧合不是维护，靠抄录追一个会动的数是追不住的）。现查：`curl -s "https://xxc2007.me/geohot/api/v1/selected/snapshot?limit=200"` 按 `items[].category` 数一遍，它应与 `/api/site/stats` 的 `selected` 相等（2026-10-04 实测两边都是 53；不一致就是出口之间又裂开了，见下面「站点结构」那一节讲的同一份门槛）。**删掉的两类名下的行没有消失**，是按内容逐条改归到剩下的分类里——迁移 `0041` 的映射表把每条都写明了理由，不是一刀切进某个桶；`fieldwork` 与 `comment` 这两个 key 现在库里一行都不剩（`SELECT category, count(*) FROM publications GROUP BY category` 可查，本机开发库实测只剩**六个** key 与 NULL——七个分类里的 `geoedu` 在库里一行都没有，`GROUP BY` 不会把零行的那一档列出来，所以"七个 key"是数词表不是数查询结果）。
 
 **信源数量的唯一说法在这里**（其余文档一律指向本段，别再抄一份数字）：登记在 [`industry/sources.json`](industry/sources.json) 的是 **85 条**（`node -e "console.log(require('./industry/sources.json').sources.length)"` 当场可数），本机库里 `sources` 表是 **86 行**——多出的那一行是投递接口在运维校验时自动建的 `external` 占位源 `ext-opscheck-ingest-probe`（站上不可见，清理 SQL 在 `scripts/README-ingest.md` 末尾），所以顶上那枚徽标写「85+1」。这 85 条里 **77 条真在轮询**（51 `rss` + 23 `web_list` + 3 `json_list`）、**8 条 `external`** 是给人工投递预留的通道（`participation_mode=isolated`，站上暂不可见）。轮询那 77 条按分级是 `T1` 45 / `T1_5` 14 / `T2` 18，按语种是中文 24 / 英文 53，其中 **50 条标了 `first_party`**（自己就是发布方，不是转述别家），中文一手层 20 条。可轮询的来源横跨中英两种语言与机构、媒体、期刊、软件发布四类：国际机构（USGS、NASA Science、NOAA、GDACS、UN OCHA、Copernicus、WMO、ESA）× 国际媒体与智库（The Diplomat、World Politics Review、Foreign Affairs、Crisis Group、对话地球、The Conversation）× 软件与标准（OGC、QGIS releases）× 历史与地图（国会图书馆地图部、Public Domain Review、欧洲环境史学会）× 国内部委与科研院所 20 条（中国地震台网中心、中央气象台、国家气候中心、国家统计局、自然资源部、中国地质调查局、生态环境部、国家林业和草原局、中国地震局、应急管理部、水利部本部及黄河/长江水利委员会、中科院地理科学与资源研究所两条、中国极地研究中心、澎湃新闻、《地理研究》当期目录等）。本站没有任何 `x_search`/`mp_account`/按次计费的信源（现值 0 条），采集不产生账单。**85 条里 41 条声明了 `defaultCategory`**，把条目直接归到它所属的分类（见上）；其余按模型/人工判断归类。
 
-**已部署**：[`xxc2007.me/geohot/`](https://xxc2007.me/geohot/)（2026-10-01）。四个常驻单元只监听回环、各自带内存上限，装在同一台跑着主站与 Artalk 的机器上，主站首页逐字节未变（`51432` 字节 / `4edf0fc53636a680…`，2026-10-03 又用 `curl -s https://xxc2007.me/ | wc -c` 与 `sha256sum` 复核过一遍）。怎么装的、验证命令、以及部署时踩过的坑（那张「症状 → 真正原因」表），都在 [`deploy/geohot/DEPLOYMENT.md`](deploy/geohot/DEPLOYMENT.md)。**日报已出刊**：`/daily` 给的是**最新一期**（这一句不写期号与日期，每天 08:00 它都会变），下面那张图是 **2026-10-02 第 1 期**（`/daily/2026-10-02`）：21 件大事、14 个来源、12 件一手发布、约 10 分钟读完——这四个数字属于那一期，不属于"今天"。上线首日（10-01）`/daily` 确实是诚实的空态——worker 在当天 08:00 档期之后才起，那份日报本来就属于第二天，原因与空刊怎么被读取层过滤，写在 [`docs/known-issues.md`](docs/known-issues.md)。
+**已部署**：[`xxc2007.me/geohot/`](https://xxc2007.me/geohot/)（2026-10-01）。四个常驻单元只监听回环、各自带内存上限，装在同一台跑着主站与 Artalk 的机器上，主站首页逐字节未变（`51432` 字节 / `4edf0fc53636a680…`，2026-10-03 又用 `curl -s https://xxc2007.me/ | wc -c` 与 `sha256sum` 复核过一遍）。怎么装的、验证命令、以及部署时踩过的坑（那张「症状 → 真正原因」表），都在 [`deploy/geohot/DEPLOYMENT.md`](deploy/geohot/DEPLOYMENT.md)。**日报已出刊**：`/daily` 给的是**最新一期**（这一句不写期号与日期，每天 08:00 它都会变），下面那张图拍的是 **2026-10-03 第 2 期**（`/daily/2026-10-03`，与那张图自己的说明同一期——上一版这里写成"2026-10-02 第 1 期"，与图说明对不上，同一张图给了两期）。另一期 `/daily/2026-10-02` 是 2026-10-02 第 1 期，线上现查的报眼五个指标是 **21 件大事、14 个来源、12 件一手发布、5 项技术与数据发布、约 9 分钟读完**（2026-10-04 实测 `curl -s https://xxc2007.me/geohot/daily/2026-10-02` 去标签即得；上一版这里写的"约 10 分钟"是错的，还漏了"技术与数据发布"那一格）——这些数字属于那一期，不属于"今天"。上线首日（10-01）`/daily` 确实是诚实的空态——worker 在当天 08:00 档期之后才起，那份日报本来就属于第二天，原因与空刊怎么被读取层过滤，写在 [`docs/known-issues.md`](docs/known-issues.md)。
 
 还没做好的地方单独列了一份 [`docs/known-issues.md`](docs/known-issues.md)：被撤下的综述溯源校验器（会误删忠实内容）、GDACS 绿色通报的英文模板标题进了公开池、摘要质量闸门、以及上游文档与本站不符之处。这份清单不是免责声明，是待办列表。
 
 <p align="center">
-  <img src="docs/shots/hot-light.png" alt="地理热点榜：那一刻的空状态——「暂时没有热点 · 还没有足够多来源共同讨论的事件」，页头写着更新时间" width="100%">
+  <img src="docs/shots/hot-light.png" alt="地理热点榜满榜的样子：NO.01 大卡带事件正文、最新进展与热度指数，右侧两张小卡各带 24 小时走势，页头同一行写着「过去 48 小时，讨论最多的 4 个地理事件」与更新时间" width="100%">
 </p>
 <p align="center"><sub>
-  ▲ 热点榜 `/hot` · 截图摄于 **2026-10-04 11:08（+0800）**，路由 `/geohot/hot`，视口 1440×900，浅色主题；那一刻榜是**空**的，页面自己写着「10月4日 11:05 更新 · 按讨论热度排序」与「暂时没有热点 · 还没有足够多来源共同讨论的事件」。这不是故障：48 小时窗口里没有任何事件达到「至少两个独立参与方且至少一个是编辑类信源」这条门槛——前一天同一时刻实测窗口内有 2639 个事件、24 个参与方，几乎每个预警各自成一个单来源事件；再往前推 48–96 小时的那个窗口里有 6 个合格事件，所以榜更早的时候是满的。榜单每 5 分钟重排，**这一屏以线上为准**：`https://xxc2007.me/geohot/hot`（或 `GET /api/v1/hot-topics`）。
+  ▲ 热点榜 `/hot` · 截图摄于 **2026-10-04 14:07（+0800）**，路由 `/geohot/hot`，视口 1440×900，浅色主题 · 画面里是**满榜**的样子：页头「过去 48 小时，讨论最多的 4 个地理事件」，同一行右边写着 **10月3日 14:55 更新 · 按讨论热度排序**——这一张榜不是这一小时算的，那行时刻就是它的截止时间（读侧最长保留 24 小时，超过就换成空态，与首页那张是同一张榜）。NO.01 是四川宜宾高县 M4.5 地震：三方测定读数不齐的正文、一行「最新进展」、「中国地震台网中心 CENC 地震速报目录、USGS 全球地震目录 M4.5+（近一周）等 3 个来源 · 3 位参与者」、热度指数 8 与 ↓15%；NO.02、NO.03 两张小卡各带 24 小时走势（2 个来源 · 2 位参与者），「继续看 No.04–04」下面是第 4 条洛亚蒂群岛海域 M6.6 地震，页脚有「热度是怎么算的？」入口。**热度门槛**：48 小时窗口内至少两个独立参与方、其中至少一家是编辑类信源（四个参数写在 `packages/backend/src/events/hot.ts`），达不到就是空榜。2026-10-03 上线当晚线上实测：窗口内 2639 个事件只有 24 个参与方，几乎每条预警各自成一个单来源事件；往前 48–96 小时那个窗口里有 6 个合格事件，所以榜更早的时候是满的（原始记录在 [`docs/known-issues.md`](docs/known-issues.md) 第八轮第 5 条）。**别拿本机复现那些数**：本机开发库的收录材料比线上少一半以上，按同一窗口口径复算对不上属正常。榜单每 5 分钟重排，**这一屏以线上为准**：`https://xxc2007.me/geohot/hot`（或 `GET /api/v1/hot-topics`）。
 </sub></p>
 
 <p align="center">
   <img src="docs/shots/daily-light.png" alt="地理日报头版（2026-10-03 第 2 期）：报头字、期号卡、导读与分节正文" width="100%">
 </p>
 <p align="center"><sub>
-  ▲ `/daily` · 截图摄于 **2026-10-04 11:08（+0800）**，视口 1440×900，浅色主题；拍的是**那一刻的最新一期**（`/daily` 每天都换，这一版是 **2026-10-03 第 2 期**，固定地址 `/daily/2026-10-03`，左侧「往期」里 10月3日 高亮）。这一期 **1 件大事、1 个来源、0 件一手发布，约 1 分钟读完**，头条是《「像照顾宠物一样」：一款提醒你街区里的树是否缺水的应用》，本期版面只有一节：**实践**，1 件——这一节是 2026-10-03 删除两个分类之前成的刊，日报分节名是**写死的历史快照**，不随词表回改（这一期唯一那条资料在库里没有分类，旧词表下按兜底分节落进「实践」；新刊不会再出现这一节）。顺便说清一件事：库里的 **10-04 那期确实生成了，但 0 个分节**（08:00:33 落库，`content.sections` 是空数组），读取层会跳过没有分节的期，所以当天 `/daily` 回落到 10-03。报头字「地理日报」是本站自己生成的 SVG（`scripts/nameplates.ts` 按 `SITE.subject` 出图）。**最新一期每天都换，线上才是事实来源**：`https://xxc2007.me/geohot/daily`。
-</sub></p>
-
-## 📈 Star History
-
-<p align="center">
-  <img src="https://api.star-history.com/svg?repos=xxc2007/GeoHot&type=Date" alt="Star History 星际历史：本仓库 GitHub Stars 随时间增长的曲线" width="100%">
-</p>
-<p align="center"><sub>
-  ▲ 曲线由 <a href="https://star-history.com">star-history.com</a> 动态生成，星数一变曲线就跟着长（GitHub 走图片代理缓存，更新会有几小时延迟）；仓库还年轻，这条线会从第一个星标开始有内容。
+  ▲ `/daily` · 截图摄于 **2026-10-04 14:07（+0800）**，视口 1440×900，浅色主题；拍的是**那一刻的最新一期**（`/daily` 每天都换，这一版是 **2026-10-03 第 2 期**，固定地址 `/daily/2026-10-03`，左侧「往期」里 10月3日 高亮）。这一期 **1 件大事、1 个来源、0 件一手发布，约 1 分钟读完**，头条是《「像照顾宠物一样」：一款提醒你街区里的树是否缺水的应用》，本期版面只有一节：**实践**，1 件——这一节是 2026-10-03 删除两个分类之前成的刊，日报分节名是**写死的历史快照**，不随词表回改（这一期唯一那条资料在库里没有分类，旧词表下按兜底分节落进「实践」；新刊不会再出现这一节）。顺便说清一件事，**并且写清是哪一边的库**：线上那期 **10-04 的日报确实生成了，但一个分节都没有**，读取层会跳过没有内容的期，所以当天 `/daily` 回落到 10-03。这一条当场可查：`curl -s -o /dev/null -w '%{http_code}' https://xxc2007.me/geohot/daily/2026-10-04` → **200**，页面上写着「本期没有入选内容」（指名一期空刊给 200 的空态而不是 404，是既有决定，记在 [`docs/known-issues.md`](docs/known-issues.md)），而 `/api/site/stats` 的 `dailies` 是 10、`GET /api/v1/dailies` 只列 2 期——差的就被这道过滤挡着。**本机库不是这样**：那里到 10-03 为止只有 4 份日报，没有 10-04 这一行（`SELECT key, jsonb_array_length(content->'sections') FROM reports WHERE kind='daily'` → 3/1/1/1）。报头字「地理日报」是本站自己生成的 SVG（`scripts/nameplates.ts` 按 `SITE.subject` 出图）。这张图的侧栏与首页那张一样，已经没有「板块」那一格（那一层 2026-10-04 整块删除）。**最新一期每天都换，线上才是事实来源**：`https://xxc2007.me/geohot/daily`。
 </sub></p>
 
 ## 🗂 站点结构
@@ -153,7 +144,7 @@
 
 `/leaderboard` 与 `/codex-reset` 还留在路由表里，但这两个 AI 专属模块被关掉了，接口不注册，实际是 404。**这件事的唯一依据是 [`industry/features.ts`](industry/features.ts) 里那两个布尔值**（`leaderboard: false`、`codexResetMonitor: false`）；完整影响面——哪些端点不注册、后台还剩什么、底表搬去了哪里——只写在 [`docs/manual.md` 第 9 节](docs/manual.md) `docs/leaderboard.md` 那一行，其余文档一律指向它，不再各抄一遍。
 
-机器可读出口读的都是 `packages/backend/src/publication/` 这一个只读层，所以内容一致：RSS（`/feed.xml`、`/feed/full.xml`、`/feed/all.xml`、`/feed/daily.xml`、`/feed/weekly.xml`、`/feed/monthly.xml`、按分类的 `/feed/category/<key>.xml`）、公开 API（`/api/v1/*` 一组只读端点，`/api/v1` 本身不是路由；规范 `/openapi-v1.json`，说明页 `/agent`）、`/llms.txt`、`/sitemap.xml`、`/robots.txt`，以及 MCP（`/api/mcp`，**7 个只读工具**：`geohot_get_latest`、`geohot_search`、`geohot_get_hot_topics`、`geohot_get_story`、`geohot_get_daily`、`geohot_get_weekly`、`geohot_get_monthly`；2026-10-03 用 `tools/list` 实测就是这 7 个，后两个是 10-02 那轮接上的）。
+机器可读出口读的都是 `packages/backend/src/publication/` 这一个只读层——**"所以内容一致"这句要分成两段说**：网页、RSS、`/api/v1/items`、MCP 用的是同一份 `selectedCondition()`（公开、已选中、过了释放时间、标题含中文，`packages/backend/src/publication/items.ts` 里那个导出），这一段是真的同源。**`/api/v1/selected/{snapshot,changes}` 那对同步账本曾经不是**：它读 `selected_ledger`，而写入时没套中文门槛这道门——2026-10-04 实测线上 snapshot 57 条、其余出口 53 条，多出的 4 条是读者在任何列表里都找不到的英文标题条目。`12849a3` 把同一道门槛补进了账本的入集条件（`packages/backend/src/publication/publish.ts` 里那句 `const inSet = selected && visibility === "public" && /[\u4e00-\u9fff]/…`），部署后 13:35 复测两边都是 53、snapshot 里无中文标题的条目 0 条。**仍然要知道的一条差别**：账本给的是**写入时的快照**，条目后来改了标题或换了分类不会自动回改（迁移 `0043` 就是为这类漂移补的一次修理），所以做跨出口对账要按 id 取交集，别把它的 `count` 当成"精选总数"。出口清单：RSS（`/feed.xml`、`/feed/full.xml`、`/feed/all.xml`、`/feed/daily.xml`、`/feed/weekly.xml`、`/feed/monthly.xml`、按分类的 `/feed/category/<key>.xml`）、公开 API（`/api/v1/*` 一组只读端点，`/api/v1` 本身不是路由；规范 `/openapi-v1.json`，说明页 `/agent`）、`/llms.txt`、`/sitemap.xml`、`/robots.txt`，以及 MCP（`/api/mcp`，**7 个只读工具**：`geohot_get_latest`、`geohot_search`、`geohot_get_hot_topics`、`geohot_get_story`、`geohot_get_daily`、`geohot_get_weekly`、`geohot_get_monthly`；2026-10-04 用 `tools/list` 打线上实测就是这 7 个，后两个是 10-02 那轮接上的）。**线上 `/agent` 那页的文案还写着"五个工具"，与这 7 个不符**——那是 `apps/web/app/routes/agent.tsx` 里两处硬编码，属于代码侧的待办，登记在 [`docs/known-issues.md`](docs/known-issues.md)。
 
 `/.well-known/security.txt` 是**注册了但按设计返回 404** 的那一个：路由存在，只有当 `industry/site.ts` 的 `contactEmail` 有值时才渲染，现在它是 `null`（`site.ts:38`），所以线上 404——宁可不发布，也不挂一个没人看的地址。填上真实地址它就出现；子路径部署还有一层限制（RFC 8615 的 `/.well-known/` 只在域名根生效），写在 [`docs/known-issues.md`](docs/known-issues.md)。读者打开页面不触发任何模型调用。
 
@@ -167,7 +158,7 @@ GEOHOT/
 │   ├── backend/      # 引擎：采集/预筛/打分/归组/热度/日报/公开只读层/回执与预算熔断
 │   └── contracts/    # 跨进程契约与 HTTP 策略
 ├── industry/         # ★ 行业层：换行业只动这里（见下面那节）；changelog.json 是 /changelog 的数据源，pages/ 是条款与说明页正文
-├── database/         # 迁移（只做向后兼容的增量，38 个）
+├── database/         # 迁移（只做向后兼容的增量，新迁移按编号加在末尾；2026-10-04 现值 40 个，条数用 ls database/migrations/*.sql | wc -l 现查；编号有跳号不等于漏跑）
 ├── deploy/geohot/    # 上线与搬家：systemd 单元、nginx 片段、DEPLOYMENT.md、publish-to-github.sh、verify-deploy.sh
 ├── scripts/          # env:init · dev-db · migrate · seed · seed:curated · smoke · shoot（重拍本页配图）· collect · eval-selection
 ├── tooling/          # brain-stub.ts（编辑大脑 stub）· fixtures/（人工判断）· corpus/（人工语料）· ci-check.yml（CI 正本，见下面那节）
@@ -176,7 +167,7 @@ GEOHOT/
 └── LICENSE · NOTICE · AGENTS.md
 ```
 
-## 技术栈
+## ⚙️ 技术栈
 
 | 层 | 选型 | 为什么 |
 |---|---|---|
@@ -219,7 +210,7 @@ npm ci
 npm run env:init            # ★ 关键第一步：写出 .env 与 .env.pipeline，五个键是真随机值，且拒绝覆盖已存在的文件
 npm run db:up -- --daemon   # embedded PostgreSQL 17，127.0.0.1:5433（前台跑法去掉 --daemon；停止 npm run db:down）
 
-npm run db:migrate          # 建表（38 个迁移）
+npm run db:migrate          # 建表（迁移条数以 database/migrations/ 现查为准，上面那棵目录树里给的是 2026-10-04 的现值；跑完用 SELECT count(*) FROM schema_migrations 对账，本机实测 40 = 40）
 node --env-file-if-exists=.env scripts/seed.ts              # 导入分类、主题、信源（这条没有 npm 别名）
 npm run seed:curated -- --dry-run --enforce-source          # 先看人工语料会不会落进未登记信源
 npm run seed:curated -- --enforce-source                    # 导入人工策划的语料
@@ -251,7 +242,7 @@ mkdir -p .github/workflows && cp tooling/ci-check.yml .github/workflows/check.ym
 
 ## 📝 设计笔记
 
-- **视觉语言刻意继承上游，但不是逐字节相同**：[`apps/web/app/app.css`](apps/web/app/app.css) 相对它进仓时的那一份（baseline 提交 `754191b`）有**三处**偏离，`git diff 754191b -- apps/web/app/app.css` 当场可查，逐处都有理由：① `--rank-rest`（第 4 名往后的排名数字，读者看得到的正文而不是装饰）浅色档从 `#6b7684` 调暗到 `#697482`、深色档从 `#7b869a` 到 `#7d889b`，原值实测 4.38:1 / 4.40:1，差在 WCAG AA 4.5:1 之下；② `--daybar` 浅色档从 `#f0f2ee` 提到 `#f2f4f0`（附 4 行注释说明为什么），这是 2026-10-02 那一轮对比度整改的一部分——手机日栏把 `--ink-4` 画在 `--daybar` 上实测 4.46:1，Lighthouse 的移动端 colour-contrast 审计因此失败，把底色提亮两档到 4.54:1 就能过，而不用去动任何文字令牌；③ 文件末尾**整段 `@media print` 是上游没有的**，本站把日报当报纸版式，取舍写在注释里：打印时收起侧栏与底部导航、去掉画布网点（它是内容不是背景，"关闭背景图形"管不住它）、卡片改白底灰框、标题不许落在页尾。除这三处之外一字未改。
+- **视觉语言刻意继承上游，但不是逐字节相同**：[`apps/web/app/app.css`](apps/web/app/app.css) 相对它进仓时的那一份（baseline 提交 `754191b`）有 **12 处改动**（`git diff --stat 754191b -- apps/web/app/app.css` → `94 insertions(+), 12 deletions(-)`；`git diff 754191b -- apps/web/app/app.css | grep -c "^@@"` → **12**）。**这一版原先写的是"三处偏离、除这三处之外一字未改"，那句话恰恰在它自己声称"当场可查"的命令下不成立**，现在按"改到读者可见"与"只是扩充"分开说。改到读者可见的是这三组：① 排名数字的对比度——浅色档 `--rank-2` `#a3642f→#8d5522`、`--rank-3` `#96702e→#7f5a1e`、`--rank-rest` `#6b7684→#5c6774`（旧说明只报了 `--rank-rest`，而且报的是中间值 `#697482`，现值又往暗走了一档），深色档只有 `--rank-rest` `#7b869a→#7d889b`；文件里那段注释给的就是这组数的实测比值（原值 4.12–4.34:1，改后这组最差 5.20:1，AA 线是 4.5:1）。② `--daybar` 浅色档从 `#f0f2ee` 提到 `#f2f4f0`（附 4 行注释说明为什么），这是 2026-10-02 那一轮对比度整改的一部分——手机日栏把 `--ink-4` 画在 `--daybar` 上实测 4.46:1，Lighthouse 的移动端 colour-contrast 审计因此失败，把底色提亮两档到 4.54:1 就能过，而不用去动任何文字令牌。③ 文件末尾**整段 `@media print` 是上游没有的**（`git show 754191b:apps/web/app/app.css | grep -c "@media print"` = 0，现版 = 1），本站把日报当报纸版式，取舍写在注释里：打印时收起侧栏与底部导航、去掉画布网点（它是内容不是背景，"关闭背景图形"管不住它）、卡片改白底灰框、标题不许落在页尾。剩下的 hunk 是**扩充而不是改道**：文件头注释整段重写（AIHOT → GEOHOT）、`--font-display`（五条 CJK 衬线栈）、**14 个 `--text-*` 字阶令牌**（`--text-micro` 10px 一路到 `--text-display-xl` 48px）、`--measure-cjk: 42em`、`--hot-ink`，以及若干注释与 `@theme` 接线。
 - **无障碍是照着审计做的**：每个视口宽度下恰好一个 `<h1>`（首页那个与视口无关，侧栏标题在源码顺序上排到它之后）；主题切换与"就地切换状态"的筛选器是 `role="radiogroup"` + roving tabindex，一组只有一个 Tab 停靠点，方向键与 `Home`/`End` 直接改选（它们的面板属于页面不属于控件，所以没用 `tablist`）；被辅助技术丢弃的 `aria-label` 换成真实名字——分数徽标补 `role="img"`，更新圆点标 `aria-hidden` 并配一句 `sr-only` 文字（颜色不能单独承载信息，WCAG 1.4.1）；移动端底部标签栏 54px 高、四等分，明显高于 44px 的最小热区，桌面侧栏行高 40px 走鼠标面。
 - **品牌是原创的，且刻意不像上游**：站点标记「经纬之交」——墨色地球切一条经线三条纬线，唯一的青色热点正落在北纬与经线的交点上（`industry/brand/logo.svg`，文件头写着几何与配色的理由）。不用上游的名字与 Logo。
 - **空状态是设计的一部分**：主题页里有一堆"0 条精选"的主题，日报薄的时候它就写着"本期共 1 条"。2026-10-03 删掉「野外与考察」与「观点与解读」两个分类时，**空状态也是这次决策的一部分**：前者几乎没有供给（可轮询的信源里没有科考队——科考航次与国家预警那几条登记为 `external`，要人工投递才可见），后者则是"评论与解读"这类内容在公开 feed 里长期与新闻正文混在一起、边界划不干净。分类的 `key` 进 URL，所以**删分类要配迁移**（`0041`），不能只是从数组里拿掉一行——那会让库里的旧 key 变成"不在词表里"的行，读者看到的是角标空着、筛选栏点不到它。空状态因此被当成页面认真做，而不是当成 bug。
@@ -264,7 +255,16 @@ mkdir -p .github/workflows && cp tooling/ci-check.yml .github/workflows/check.ym
 
 两点必须说明白：上游 `NOTICE` 写明 **"The name "AIHOT" and the AIHOT logo are not licensed under the MIT License"**，所以本站不复用它的名字与 Logo，只用文字声明衍生关系，这也不意味着上游认可或背书本站。第三方素材各自受自己的条款约束：`assets/og-fonts/`（Noto Sans SC，SIL OFL 1.1）、`assets/model-providers/` 与 `assets/leaderboard-sources/`（机构与评测方标识，只被本站已关闭的两个模块引用，商标归各自所有者）——`NOTICE` 不替你授权这些。`industry/sources.json` 里是各发布方的公开 feed，内容版权归他们，本站默认只显示摘要加原文链接（`site_fulltext` 对每个源都关着）。
 
-顺带一句：根 `package.json` 的 `name` 仍是 `aihot` 且 `"private": true`，工作区包名 `@aihot/*`、目录名 `industry/`、浏览器存储键 `aihot-*` 都是代码内部标识，不对读者显示；改名要动 100 多处 import 和 5 处硬编码路径，本站决定不改。
+顺带一句：根 `package.json` 的 `name` 仍是 `aihot` 且 `"private": true`，工作区包名 `@aihot/*`、目录名 `industry/`、浏览器存储键 `aihot-*` 都是代码内部标识，不对读者显示；改名要动的量级是**当场可数**的：`grep -rho "@aihot/[a-z-]*" --include=*.ts --include=*.tsx apps packages industry tests scripts tooling | wc -l` 给说明符处数，同一口径把 `-o` 换成 `-l` 给文件数（**这两个数每加一个测试文件就变，所以这里不抄死**——上一版抄的 635/218 在本轮加完四个测试文件后当场复算就成了 646/222，正是本段决定不再抄数的原因），另有 `package.json` 的脚本名、`Dockerfile:21`、`docker-compose.yml` 与 `apps/web/package.json` 里写死的包名——本站决定不改（`NOTICE` 里那句 "more than 100 imports" 严格为真但低报了一个数量级，数以命令为准）。
+
+## 📈 Star History
+
+<p align="center">
+  <img src="https://api.star-history.com/svg?repos=xxc2007/GeoHot&type=Date" alt="Star History 星际历史：本仓库 GitHub Stars 随时间增长的曲线" width="100%">
+</p>
+<p align="center"><sub>
+  ▲ 曲线由 <a href="https://star-history.com">star-history.com</a> 动态生成，星数一变曲线就跟着长（GitHub 走图片代理缓存，更新会有几小时延迟）；仓库还年轻，这条线会从第一个星标开始有内容。
+</sub></p>
 
 ---
 

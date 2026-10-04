@@ -318,7 +318,13 @@ export async function collectSource(sourceId: string, opts: { force?: boolean } 
 
     const storedRun = await store(sourceId, candidates, firstImport ? "first-import" : null, () => outOfRound.stop());
     ({ created, revised } = storedRun);
-    if (listing) {
+    // A round that read nothing keeps the remembered position untouched. An unchanged feed answers 304 and
+    // hands back an empty listing (`rss.ts` returns `{candidates: [], notModified: true}`), which
+    // `takeListingRun` reads as "the whole listing fit in the head, nothing below it" — `resumeAfter: null`.
+    // Writing that back deleted `listingTailAfter`, so the next 200 started its tail over at item 61 and a
+    // feed that alternated 200/304 never got past item 120: exactly the permanent loss this cursor exists to
+    // prevent, caused by the one round that stored nothing. Same reason for a listing emptied by the filters.
+    if (listing && listing.read.length > 0) {
       // The remembered tail position moves only over items this round actually stored: a round that ran
       // out of time must read them again, not lose them.
       if (storedRun.handled >= listing.read.length) {

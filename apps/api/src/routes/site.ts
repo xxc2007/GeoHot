@@ -97,13 +97,13 @@ export function registerSite(app: FastifyInstance) {
     // half empty for no reason (measured 2026-10-03: +12 KB raw / +6 KB gzip on the SSR payload).
     const limit = Math.min(Math.max(Number(q.limit) || 40, 1), 40);
     const unfiltered = filters.channel === "all" && !filters.category && !filters.tag && !filters.topic && !q.cursor;
-    const [data, hot] = await Promise.all([
+    const [data, strip] = await Promise.all([
       loadTimeline({ ...filters, cursor: q.cursor || null, limit }),
       unfiltered ? loadHotStrip() : null,
     ]);
-    const body = { ...data, hot, generatedAt: new Date().toISOString() };
+    const body = { ...data, hot: strip?.entries ?? null, hotAsOf: strip?.asOf ?? null, generatedAt: new Date().toISOString() };
     const cc = cacheUntil(reply, 60, data.refreshAt);
-    return sendJsonWithEtag(req, reply, body, { etagPrefix: "tl", cacheControl: cc, etagOf: { ...data, hot } });
+    return sendJsonWithEtag(req, reply, body, { etagPrefix: "tl", cacheControl: cc, etagOf: { ...data, hot: body.hot, hotAsOf: body.hotAsOf } });
   }));
 
   app.get("/api/site/pool", siteHandler(async (req, reply) => {

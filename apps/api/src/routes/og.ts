@@ -33,13 +33,25 @@ const PAGES: Record<string, OgCard> = {
 };
 
 /**
- * Article share images carry the title and summary, so shared caches keep them for an hour at most:
- * after a withdrawal or a correction they are gone from any cache within the hour.
+ * Cards that carry editorial text — an article's title and summary, an event's heading and latest
+ * development, a report's lead. An item card got this bound on purpose (2026-10-02: after a withdrawal or a
+ * correction they are gone from any cache within the hour); the event and report cards print the same kind of
+ * withdrawable text and were inheriting the long default below, which let a shared cache serve an event that
+ * the origin already answers 404 for (a merged story, a corrected daily) for the better part of two days:
+ * `s-maxage` 7× the origin max-age, plus 24 hours of serve-stale. Same hour for all three, so no card can be
+ * older than the page it points at by more than an hour.
  */
-export const ARTICLE_IMAGE_CACHE = "public, max-age=3600, s-maxage=3600, stale-while-revalidate=600";
+export const EDITORIAL_IMAGE_CACHE = "public, max-age=3600, s-maxage=3600, stale-while-revalidate=600";
+/**
+ * Cards whose text is the site's own — the front page, a terms page, a topic's name and definition. Nothing
+ * here is ever withdrawn from under a reader; it changes when the deployment changes, so a shared cache may
+ * hold it for a week and revalidate by ETag after that.
+ */
+export const STATIC_IMAGE_CACHE = "public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400";
 const ARTICLE_IMAGE_ORIGIN_SECONDS = "300";
 
-async function send(req: FastifyRequest, reply: FastifyReply, card: OgCard, maxAge: number, cacheControl = `public, max-age=${maxAge}, s-maxage=${maxAge * 7}, stale-while-revalidate=86400`) {
+/** Every card names the policy it wants: no route inherits a long shared-cache bound by forgetting an argument. */
+async function send(req: FastifyRequest, reply: FastifyReply, card: OgCard, cacheControl: string) {
   const tag = `"og-${ogEtag(card)}"`;
   reply.header("ETag", tag).header("Cache-Control", cacheControl);
   if (String(req.headers["if-none-match"] ?? "").split(",").some((t) => t.trim().replace(/^W\//, "") === tag)) return reply.code(304).send();
@@ -53,14 +65,14 @@ function notFound(reply: FastifyReply) {
 const REPORT_NAMES: Record<ReportKind, string> = { daily: withSubject("日报"), weekly: withSubject("周报"), monthly: withSubject("月报") };
 
 export function registerOg(app: FastifyInstance) {
-  app.get("/og/site.png", (req, reply) => send(req, reply, PAGES.site!, 86400));
+  app.get("/og/site.png", (req, reply) => send(req, reply, PAGES.site!, STATIC_IMAGE_CACHE));
 
   app.get("/og/pages/:file", async (req, reply) => {
     const name = (req.params as { file: string }).file.replace(/\.png$/, "");
     const card = PAGES[name];
     if ((name === "leaderboard" && !FEATURES.leaderboard) || (name === "codex-reset" && !FEATURES.codexResetMonitor)) return notFound(reply);
     if (!card || !(req.params as { file: string }).file.endsWith(".png")) return notFound(reply);
-    return send(req, reply, card, 86400);
+    return send(req, reply, card, STATIC_IMAGE_CACHE);
   });
 
   app.get("/og/items/:file", async (req, reply) => {
@@ -75,7 +87,7 @@ export function registerOg(app: FastifyInstance) {
       subtitle: d.summary,
       meta: `${d.source.name.replace(/（[^）]*）\s*$/, "")} · ${beijingDate(d.timelineAt)}`,
       badge: d.selected && d.score !== null ? { value: String(Math.round(d.score)), label: "精选评分" } : null,
-    }, 3600, ARTICLE_IMAGE_CACHE);
+    }, EDITORIAL_IMAGE_CACHE);
   });
 
   // Phone share poster for an article (1080×1440), generated on first request and cached by content.
@@ -94,7 +106,7 @@ export function registerOg(app: FastifyInstance) {
       score: d.selected ? d.score : null,
     };
     const tag = `"poster-${posterEtag(poster)}"`;
-    reply.header("ETag", tag).header("Cache-Control", ARTICLE_IMAGE_CACHE).header("X-Accel-Expires", ARTICLE_IMAGE_ORIGIN_SECONDS);
+    reply.header("ETag", tag).header("Cache-Control", EDITORIAL_IMAGE_CACHE).header("X-Accel-Expires", ARTICLE_IMAGE_ORIGIN_SECONDS);
     if (String(req.headers["if-none-match"] ?? "").split(",").some((t) => t.trim().replace(/^W\//, "") === tag)) return reply.code(304).send();
     return reply.type("image/png").send((await renderPoster(poster)).png);
   });
@@ -109,14 +121,14 @@ export function registerOg(app: FastifyInstance) {
       title: r.lead?.title ?? r.title,
       subtitle: r.lead?.leadParagraph ?? r.overview,
       meta: `${r.stories.length} 件大事${r.readingMinutes > 0 ? ` · 约 ${r.readingMinutes} 分钟读完` : ""}`,
-    }, 86400);
+    }, EDITORIAL_IMAGE_CACHE);
   });
 
   app.get("/og/topics/:file", async (req, reply) => {
     const file = (req.params as { file: string }).file;
     const t = file.endsWith(".png") ? await loadTopic(file.slice(0, -4)) : null;
     if (!t) return notFound(reply);
-    return send(req, reply, { kicker: "主题", title: t.name, subtitle: t.definition }, 86400);
+    return send(req, reply, { kicker: "主题", title: t.name, subtitle: t.definition }, STATIC_IMAGE_CACHE);
   });
 
   app.get("/og/stories/:file", async (req, reply) => {
@@ -132,6 +144,6 @@ export function registerOg(app: FastifyInstance) {
       subtitle: s.latest ?? s.digest,
       meta: `${s.sourceCount} 个来源 · ${s.reportCount} 篇报道`,
       accent: s.whyHot.rank ? "hot" : "teal",
-    }, 3600);
+    }, EDITORIAL_IMAGE_CACHE);
   });
 }

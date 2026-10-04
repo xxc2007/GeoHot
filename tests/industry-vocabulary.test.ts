@@ -93,7 +93,7 @@ test("structure.md injects its whitelist from the taxonomy, so it cannot drift f
   assert.equal(structureRendered.includes("{{"), false, "structure 渲染结果不遗留占位符");
 });
 
-test("the content types and the ten categories the prompts name are the taxonomy's, verbatim", () => {
+test(`the content types and the ${CATEGORIES.length} categories the prompts name are the taxonomy's, verbatim`, () => {
   // The four checks the scratch validator ran here and the migration left out. A prompt that names a type or
   // a category the pack does not have is the same D3 defect as a bad tag: the model is told to answer with a
   // value nothing can store, and the item lands in the catch-all with no error anywhere.
@@ -113,7 +113,7 @@ test("the content types and the ten categories the prompts name are the taxonomy
   // The guide the structure step is actually sent is built from the pack, so it cannot name a section no item has.
   for (const c of CATEGORIES) assert.ok(structureRendered.includes(`- ${c.key}（${c.label}）`), `类别指引缺 ${c.key}`);
   assert.ok(structureRendered.includes(CATEGORY_GUIDE), "渲染出的 structure 含完整 CATEGORY_GUIDE");
-  // Keys are DB text values, API/MCP enum members and RSS URL slugs (`/feed/category/gis.xml` is matched
+  // Keys are DB text values, API/MCP enum members and RSS URL slugs (`/feed/category/geotech.xml` is matched
   // case-sensitively, nothing lowercases it), so they stay plain ASCII with no delimiter that would break the
   // line above or a URL. Labels are the site's voice: pure Chinese noun phrases, no English, no emoji — and no
   // space, 「/」 or 「、」, the three characters the parser of that key line splits on.

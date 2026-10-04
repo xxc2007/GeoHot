@@ -5,6 +5,7 @@ import { sql } from "../db.ts";
 import { proxiedImage, proxiedImageSet } from "../media/imgproxy.ts";
 import { latestHotRanking, rankingExtras } from "../events/hot-read.ts";
 import { behindSources, sourceClocks } from "../events/hot.ts";
+import { storyReports, type StoryReport } from "../events/story-reports.ts";
 import { storyStatusFor } from "../events/digest.ts";
 import { itemUrl, storyApiUrl, storyUrl } from "./links.ts";
 import { releasedCondition } from "./items.ts";
@@ -35,53 +36,26 @@ export async function resolveStory(publicId: string): Promise<StoryLookup> {
   return { kind: "found", storyId: s!.id, publicId };
 }
 
-interface ReportRow {
-  id: string;
-  title: string;
-  summary: string | null;
-  url: string;
-  selected: boolean;
-  at: Date;
-  source_id: string;
-  source_name: string;
-  source_kind: string;
-  first_party: boolean;
-  icon_url: string | null;
-  fact_public_id: string;
-  fact_id: number;
-}
-
-/**
- * Every report linked to the story's facts that has a public page (rules.itemHasPage: editorial source,
- * summarised or not), mentions included (an article's other events). New grouping only links
- * pool-eligible articles; imported hot stories also carry reports the AI pool leaves out, which the live
- * pages showed. hot_signal material only adds heat and is not listed, as on the live pages.
- */
-async function storyReports(storyId: number, now: Date): Promise<ReportRow[]> {
-  return sql<ReportRow[]>`
-    SELECT DISTINCT ON (p.article_id) p.article_id AS id, p.title, p.summary, p.url, p.selected,
-      coalesce(p.published_at, p.discovered_at) AS at, s.id AS source_id, s.name AS source_name, s.kind AS source_kind,
-      p.first_party, s.icon_url, f.public_id AS fact_public_id, f.id AS fact_id
-    FROM facts f JOIN fact_articles fa ON fa.fact_id = f.id JOIN publications p ON p.article_id = fa.article_id
-    JOIN sources s ON s.id = p.source_id
-    WHERE f.story_id = ${storyId} AND p.visibility = 'public' AND s.participation_mode = 'editorial'
-      AND ${releasedCondition(now)}
-    ORDER BY p.article_id, (fa.role = 'primary') DESC`;
-}
-
-function reportView(r: ReportRow): StoryReportView {
+/** The page's own shape for one report; the query behind it is shared with the worker (see `storyContent`). */
+function reportView(r: StoryReport): StoryReportView {
   return {
     id: r.id,
     title: r.title,
     summary: r.summary,
-    source: { id: r.source_id, name: r.source_name, kind: r.source_kind as never, firstParty: r.first_party, iconUrl: proxiedImage(r.icon_url, "avatar") },
+    source: { id: r.sourceId, name: r.sourceName, kind: r.sourceKind as never, firstParty: r.firstParty, iconUrl: proxiedImage(r.iconUrl, "avatar") },
     publishedAt: r.at.toISOString(),
     originalUrl: r.url,
     selected: r.selected,
-    factId: r.fact_public_id,
+    factId: r.factPublicId,
   };
 }
 
+/**
+ * The event page and the worker read the same query (`events/story-reports.ts`): the 综述 and the event
+ * title's identity guard are written from exactly what this timeline lists, and the 报道数 on the page, in
+ * the ranking and on the share card is one number. It arrives oldest first (the order a digest is written
+ * in); the page reads it newest first.
+ */
 async function storyContent(storyId: number, now: Date) {
   const [s] = await sql<{ public_id: string; title: string; summary: string | null; first_report_at: Date | null; latest_at: Date | null; digest: string | null; digest_updated_at: Date | null; latest: string | null }[]>`
     SELECT public_id::text, title, summary, first_report_at, latest_at, digest, digest_updated_at, latest FROM stories WHERE id = ${storyId}`;
@@ -90,15 +64,15 @@ async function storyContent(storyId: number, now: Date) {
   if (reports.length === 0) return null;
   reports.sort((a, b) => b.at.getTime() - a.at.getTime());
 
-  const byFact = new Map<number, ReportRow[]>();
-  for (const r of reports) byFact.set(r.fact_id, [...(byFact.get(r.fact_id) ?? []), r]);
+  const byFact = new Map<number, StoryReport[]>();
+  for (const r of reports) byFact.set(r.factId, [...(byFact.get(r.factId) ?? []), r]);
   const facts = await sql<{ id: number; public_id: string; title: string; occurred_at: Date | null; created_at: Date }[]>`
     SELECT id, public_id, title, occurred_at, created_at FROM facts WHERE story_id = ${storyId}`;
   const developments = facts
     .filter((f) => byFact.has(f.id))
     .map((f) => {
       const members = byFact.get(f.id)!;
-      const rep = [...members].sort((a, b) => Number(b.first_party) - Number(a.first_party) || Number(b.selected) - Number(a.selected) || a.at.getTime() - b.at.getTime())[0]!;
+      const rep = [...members].sort((a, b) => Number(b.firstParty) - Number(a.firstParty) || Number(b.selected) - Number(a.selected) || a.at.getTime() - b.at.getTime())[0]!;
       const first = members.reduce((m, r) => (r.at < m ? r.at : m), members[0]!.at);
       return { factId: f.public_id, title: f.title, occurredAt: f.occurred_at?.toISOString() ?? null, firstReportAt: first.toISOString(), reportCount: members.length, representative: rep };
     })
@@ -143,13 +117,13 @@ export async function loadStoryDetail(storyId: number, now = new Date()): Promis
     title: s.title,
     status: storyStatusFor(latestAt, now.getTime()),
     reportCount: reports.length,
-    sourceCount: new Set(reports.map((r) => r.source_id)).size,
+    sourceCount: new Set(reports.map((r) => r.sourceId)).size,
     firstReportAt: (s.first_report_at ?? reports[reports.length - 1]!.at).toISOString(),
     latestAt: latestAt.toISOString(),
     digest: s.digest,
     digestUpdatedAt: s.digest_updated_at?.toISOString() ?? null,
     summary: s.summary,
-    excerpt: !s.digest && !s.summary && origin?.summary ? { text: origin.summary, sourceName: origin.source_name } : null,
+    excerpt: !s.digest && !s.summary && origin?.summary ? { text: origin.summary, sourceName: origin.sourceName } : null,
     latest: s.latest,
     whyHot: {
       participants48h: Number(why?.p48 ?? 0),
@@ -160,7 +134,7 @@ export async function loadStoryDetail(storyId: number, now = new Date()): Promis
       heat: entry?.heat ?? null,
     },
     developments: developments.map((d) => ({ ...d, representative: reportView(d.representative) })),
-    officialReports: reports.filter((r) => r.first_party).slice(0, 12).map(reportView),
+    officialReports: reports.filter((r) => r.firstParty).slice(0, 12).map(reportView),
     timeline: reports.slice(0, 100).map(reportView),
     heat: heat.map((h): HeatPoint => ({ hour: h.hour.toISOString(), heat: Number(h.heat), participants: h.participants })),
     related: related.map((r) => ({ publicId: r.public_id, title: r.title, relation: r.relation, latestAt: r.latest_at?.toISOString() ?? null })),
@@ -217,7 +191,7 @@ async function queryHotCovers(entries: Array<{ storyId: number; representativeIt
       WHERE m->>'kind' = 'image' AND coalesce((m->>'width')::numeric, 800) >= 480 LIMIT 1
     ) img
     WHERE p.story_id = ANY(${ids}::bigint[]) AND p.visibility = 'public' AND p.eligible AND p.body_mode <> 'summary'
-      AND (NOT p.selected OR p.visible_after <= ${at})
+      AND ${releasedCondition(at)}
     ORDER BY p.story_id, (p.article_id::text = ANY(${reps}::text[])) DESC, p.first_party DESC, p.selected DESC, coalesce(p.score, 0) DESC, p.article_id`;
   const covers = new Map(rows.map((c) => [Number(c.story_id), { url: c.m.url, width: typeof c.m.width === "number" ? c.m.width : null, height: typeof c.m.height === "number" ? c.m.height : null }]));
   return covers;
@@ -306,7 +280,7 @@ export async function v1Story(storyId: number) {
       publicId: s.public_id,
       title: s.title,
       status: storyStatusFor(latestAt, now.getTime()) === "settled" ? ("settled" as const) : ("active" as const),
-      sourceCount: new Set(reports.map((r) => r.source_id)).size,
+      sourceCount: new Set(reports.map((r) => r.sourceId)).size,
       reportCount: reports.length,
       firstReportAt: (s.first_report_at ?? reports[reports.length - 1]!.at).toISOString(),
       latestAt: latestAt.toISOString(),
@@ -318,7 +292,7 @@ export async function v1Story(storyId: number) {
         id: r.id,
         title: r.title,
         summary: r.summary,
-        source: { name: r.source_name, firstParty: r.first_party },
+        source: { name: r.sourceName, firstParty: r.firstParty },
         publishedAt: r.at.toISOString(),
         links: { aihot: itemUrl(r.id), original: r.url },
       })),

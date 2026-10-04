@@ -15,7 +15,7 @@ import { execFileSync } from "node:child_process";
 
 const SHOTS = [
   { file: "home-light.png", route: "/", label: "精选信息流" },
-  { file: "hot-light.png", route: "/hot", label: "AI 热点榜" },
+  { file: "hot-light.png", route: "/hot", label: "地理热点榜" },
   { file: "daily-light.png", route: "/daily", label: "日报头版" },
 ];
 

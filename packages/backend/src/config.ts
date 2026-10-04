@@ -34,11 +34,29 @@ function int(name: string, fallback: number): number {
   return parsed;
 }
 
-function bool(name: string, fallback: boolean): boolean {
+/**
+ * The one rule for a boolean environment valve, shared by every gate in the project. `1` and `true` (any
+ * case) mean on; every other non-empty value — `0`, `off`, `false`, `FALSE`, a typo — means off; an empty or
+ * missing value falls back to what the caller decides. Read it where the decision is made (`isCollectEnabled`
+ * below) rather than storing it, so a process never argues with itself about the same variable name.
+ */
+export function envFlag(name: string, fallback: boolean): boolean {
   const value = env[name];
   if (value === undefined || value === "") return fallback;
   return value === "1" || value.toLowerCase() === "true";
 }
+
+/**
+ * `COLLECT_ENABLED`: may this process reach the 85 upstream sources at all? Off means off — no
+ * `sources.schedule`, no source jobs, no alerting about a collection that was never asked to run.
+ * An empty or missing value means on, which is what a deployment writes down explicitly (`.env.example`
+ * ships `false`, and the deploy bootstrap refuses to rely on the default); development and tests therefore
+ * get "off" from the file, never from a default. `0`/`off`/`FALSE` all read as off, as the valve intends.
+ */
+export const isCollectEnabled = () => envFlag("COLLECT_ENABLED", true);
+
+/** The same rule as `config.modelCallsEnabled`, read where it is used (that field is a snapshot, and tests flip it). */
+export const isModelCallsEnabled = () => envFlag("MODEL_CALLS_ENABLED", true);
 
 /** Loopback addresses: right on the developer's machine, wrong for anything a reader can reach. */
 const LOCAL_HOST = /^(?:localhost|127\.\d+\.\d+\.\d+|\[?::1\]?)$/i;
@@ -77,19 +95,19 @@ export const config = {
   siteUrl: siteUrl(),
   selectedVisibleAfterSeconds: int("SELECTED_VISIBLE_AFTER_SECONDS", 180),
   egressProxyUrl: env.EGRESS_PROXY_URL || null,
-  allowPrivateNetworkFetch: bool("ALLOW_PRIVATE_NETWORK_FETCH", false),
-  feishuContentPushEnabled: bool("FEISHU_CONTENT_PUSH_ENABLED", false),
-  indexNowSubmitEnabled: bool("INDEXNOW_SUBMIT_ENABLED", false),
+  allowPrivateNetworkFetch: envFlag("ALLOW_PRIVATE_NETWORK_FETCH", false),
+  feishuContentPushEnabled: envFlag("FEISHU_CONTENT_PUSH_ENABLED", false),
+  indexNowSubmitEnabled: envFlag("INDEXNOW_SUBMIT_ENABLED", false),
   /** IndexNow key (32 hex characters); without one nothing is submitted and no key file is served. */
   indexNowKey: /^[0-9a-f]{32}$/.test(env.INDEXNOW_KEY ?? "") ? env.INDEXNOW_KEY! : null,
-  imgProxyRequireSig: bool("IMG_PROXY_REQUIRE_SIG", true),
+  imgProxyRequireSig: envFlag("IMG_PROXY_REQUIRE_SIG", true),
   /** Optional directory of per-group dotenv files (models.env, collectors.env, …); normally everything is in .env. */
   credentialsDir: env.AIHOT_CREDENTIALS_DIR || null,
   dataDir: str("AIHOT_DATA_DIR", path.join(REPO_ROOT, ".data")),
   // Name of this deployment in alerts ("production" sends them without a prefix).
   environmentName: str("AIHOT_ENVIRONMENT", isProduction ? "production" : "development"),
   // Model calls are live unless explicitly disabled (tests, replays).
-  modelCallsEnabled: bool("MODEL_CALLS_ENABLED", true),
+  modelCallsEnabled: envFlag("MODEL_CALLS_ENABLED", true),
   devAdmin: env.DEV_AUTH_ROLE === "admin" ? { displayName: env.DEV_AUTH_DISPLAY_NAME || "Dev Admin" } : null,
   /** The admin password (at least 12 characters). Feishu sign-in below is optional. */
   adminPassword: env.ADMIN_PASSWORD || null,

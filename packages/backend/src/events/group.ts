@@ -31,7 +31,6 @@ import {
   type CandidateView, type Relation, type ReportView, type Verdict,
 } from "./relate.ts";
 
-export const GROUP_PROMPT_VERSION = RELATE_PROMPT_VERSION;
 /** Reports discovered this recently are candidates (keyed on discovery, so an old page found today still meets its peers). */
 const RECALL_DAYS = 14;
 const RECALL_MIN_COSINE = 0.6;
@@ -721,8 +720,6 @@ async function decide(articleId: string, opts: GroupOptions): Promise<GroupResul
       // ever re-opens this decision, and readers would keep two event pages for one quake, counted apart
       // in the heat list. The row is what the regroup pass works through (scripts/regroup-events.ts sends
       // one forced group job per waiting report), and until then the report is not evidence for others.
-      await sql`INSERT INTO regroup_pending (article_id) VALUES (${articleId})
-                ON CONFLICT (article_id) DO UPDATE SET requested_at = now()`;
       await sql`INSERT INTO regroup_pending (article_id) VALUES (${articleId})
                 ON CONFLICT (article_id) DO UPDATE SET requested_at = now()`;
       throw error;

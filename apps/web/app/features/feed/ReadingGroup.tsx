@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation } from "react-router";
 import { Collapse } from "../../components/ui/Presence";
-import type { Development, GroupInfo, GroupReport, TimelineFilters } from "@aihot/contracts/site";
+import type { Development, GroupInfo, GroupReport, ItemDetailGroup, TimelineFilters } from "@aihot/contracts/site";
 import { IconArrowUpRight, IconChevronDown } from "../../components/icons";
 import { monthDayTime, shortSourceName } from "../../lib/format";
 import { publicPath } from "../../lib/public-path";
@@ -168,8 +168,8 @@ function LoadState({ loading, error, next, onMore, onRetry, empty, loaded }: { l
   );
 }
 
-/** "另有 N 家信源报道": other reports of the fact the card stands for. */
-export function GroupSources({ group, filters, parentId }: { group: GroupInfo; filters?: TimelineFilters; parentId: string }) {
+/** "另有 N 家信源报道": other reports of the fact the card stands for. Also the item page's only expansion, which has no development count to render. */
+export function GroupSources({ group, filters, parentId }: { group: ItemDetailGroup; filters?: TimelineFilters; parentId: string }) {
   const ids = useId();
   const toggleId = `${ids}-src-t`;
   const panelId = `${ids}-src-p`;

@@ -2,7 +2,7 @@
 // OpenAI-compatible /embeddings endpoint (EMBEDDING_BASE_URL, EMBEDDING_API_KEY, EMBEDDING_MODEL);
 // with a DashScope key and nothing else set, Aliyun text-embedding-v4 at 1024 dimensions. Without
 // either, recall falls back to the other signals (same address, replies and quotes).
-import { config, credential } from "../config.ts";
+import { config, credential, envFlag } from "../config.ts";
 import { sql } from "../db.ts";
 import { sha256 } from "../lib/ids.ts";
 import { paidRequest, ProviderRejectedError } from "./receipts.ts";
@@ -28,7 +28,7 @@ function cacheFact(id: string, textHash: string, vector: number[]) {
 
 /** Embeddings are paid model calls: MODEL_CALLS_ENABLED=false switches them off like every other call. */
 export function embeddingsAvailable(): boolean {
-  return config.modelCallsEnabled && !!(credential("models", "EMBEDDING_API_KEY") ?? credential("models", "DASHSCOPE_API_KEY")) && process.env.EMBEDDINGS_ENABLED !== "false";
+  return config.modelCallsEnabled && !!(credential("models", "EMBEDDING_API_KEY") ?? credential("models", "DASHSCOPE_API_KEY")) && envFlag("EMBEDDINGS_ENABLED", true);
 }
 
 async function embedBatch(texts: string[], subject: string): Promise<number[][]> {
