@@ -51,7 +51,7 @@ const range = kind === "daily"
     ? (() => { const r = isoWeekRange(key); return r ? { start: r.start, end: r.end } : null; })()
     : null;
 if (range) {
-  const list = await candidates(range.start, range.end);
+  const list = await candidates(new Date(range.start), new Date(range.end));
   console.log(`按当前语料重排会取到 ${list.length} 条候选（标题全部含中文：${list.every((c) => hasChineseCopy(c.title))}）`);
 } else {
   console.log("（周/月报的候选窗口由 composeWeekly/composeMonthly 内部计算，这里不预览）");

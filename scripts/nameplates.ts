@@ -7,7 +7,7 @@
 //   (fetch it with `npm pack @fontsource/noto-sans-sc@5.3.0` and untar; it is not a dependency)
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import opentype from "opentype.js";
+import opentype, { type Font } from "opentype.js";
 import { SITE } from "@aihot/industry/site";
 
 const pkg = process.argv[2];
@@ -52,8 +52,8 @@ const faces = [...css.matchAll(/url\(\.\/files\/([\w-]+)\.woff2\)[^;]*;\s*unicod
   file: `${m[1]}.woff`,
   ranges: m[2]!.split(",").map((r) => r.trim().replace("U+", "").split("-").map((h) => parseInt(h, 16))),
 }));
-const fonts = new Map<string, opentype.Font>();
-function fontFor(ch: string): opentype.Font {
+const fonts = new Map<string, Font>();
+function fontFor(ch: string): Font {
   const cp = ch.codePointAt(0)!;
   const face = faces.find((f) => f.ranges.some(([a, b]) => cp >= a! && cp <= (b ?? a!)));
   if (!face) throw new Error(`no slice holds ${ch}`);

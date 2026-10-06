@@ -1,6 +1,6 @@
 import * as cheerio from "cheerio";
 import { marked } from "marked";
-import { sanitizeBody, trimTrailingChrome } from "./sanitize.ts";
+import { sanitizeBody, stripChromeHtml, trimTrailingChrome } from "./sanitize.ts";
 
 /** Jina returns page Markdown, which can include the publisher's navigation and recommendations. */
 export function markdownBody(markdown: string, url: string): string {
@@ -39,5 +39,5 @@ export function markdownBody(markdown: string, url: string): string {
     }
     html = $.html();
   }
-  return trimTrailingChrome(sanitizeBody(html, url));
+  return stripChromeHtml(trimTrailingChrome(sanitizeBody(html, url)));
 }

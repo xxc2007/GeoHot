@@ -9,7 +9,7 @@ import { jinaRead } from "../providers/jina.ts";
 import { BudgetExceededError } from "../providers/receipts.ts";
 import { getArticle } from "../providers/socialdata.ts";
 import { onlyXArticleLink, xArticleText } from "../sources/x.ts";
-import { sanitizeBody, trimTrailingChrome } from "./sanitize.ts";
+import { sanitizeBody, stripChromeHtml, trimTrailingChrome } from "./sanitize.ts";
 import { markdownBody } from "./markdown.ts";
 import { contentHash } from "./materials.ts";
 
@@ -39,7 +39,7 @@ export function readable(html: string, url: string): ExtractedBody | null {
   }
   const article = new Readability(document as unknown as ConstructorParameters<typeof Readability>[0], { charThreshold: MIN_BODY_CHARS, keepClasses: false }).parse();
   if (!article?.content) return null;
-  const clean = trimTrailingChrome(sanitizeBody(article.content, url));
+  const clean = stripChromeHtml(trimTrailingChrome(sanitizeBody(article.content, url)));
   const text = stripBoilerplate(stripTags(clean));
   if (text.length < MIN_BODY_CHARS || isBoilerplateBody(text)) return null;
   const images: ExtractedBody["images"] = [];

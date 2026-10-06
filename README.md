@@ -119,11 +119,15 @@
 
 ### 其四 · STATE 现状与边界
 
-本机开发库内实测，**截至 2026-10-06 上午**（这些数字每天都在动，别当承诺读）：
+本机开发库内实测，**截至 2026-10-06 下午**复算过一遍（这些数字每天都在动，别当承诺读）：
 
 | 收录材料 | 归并成的事件 | 精选 | 启用信源 | 主题 | 日报期数 |
 |---:|---:|---:|---:|---:|---:|
 | 2842 | 1627 | 48 | 87 | 43 | 4 |
+
+（「启用信源」这一格是**本机库**里 `enabled` 的行数，比 `industry/sources.json` 的 85 多两行——多的就是上面
+交代过的两个库内遗留 `ext-opscheck-ingest-probe` 与 `cn-web-geog-toc`；顶上那枚徽章跟着信源包和线上写 **85**，
+`node scripts/set-source-state.ts --ids=…` 只管把包里的开关推到库里，不会替你清走库里多出来的行。）
 
 （「收录材料」是本机 `publications` 表里 `visibility <> 'withdrawn'` 的行数，「归并成的事件」是 `facts` 表的行数。「精选」这一列数是**读者真正看得到的**那些，算式与读取层同一份（`packages/backend/src/publication/items.ts` 的 `selectedCondition()`：公开、已选中、过释放时间、标题含中文）；库里 `selected` 标记为真的更多（本机 59 条），差的那部分是标题还没有中文副本、按设计先待在后台的条目。表里的「日报期数」是本机 `reports` 表里 `kind = 'daily'` 的行数（算式就是 `packages/backend/src/site/stats.ts` 里 `AS dailies` 那一行的 `WHERE kind = 'daily'`；同一张表现有 7 行 = 4 份日报 + 1 份周报 + 2 份月报，`SELECT kind, count(*) FROM reports GROUP BY kind` 当场可查），含 0 件大事、已被读取层过滤不再列出的空刊。）
 

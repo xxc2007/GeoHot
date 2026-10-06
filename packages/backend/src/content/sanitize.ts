@@ -2,6 +2,7 @@
 // External HTML is never executed; images keep their original src and are signed at read time.
 import * as cheerio from "cheerio";
 import sanitizeHtml from "sanitize-html";
+import { stripBoilerplate } from "../lib/text.ts";
 
 const ALLOWED_TAGS = [
   "p", "br", "hr", "h2", "h3", "h4", "h5", "ul", "ol", "li", "blockquote", "pre", "code", "table", "thead", "tbody",
@@ -144,6 +145,35 @@ export function trimTrailingChrome(html: string): string {
     removed = true;
   }
   return removed ? $.html() : html;
+}
+
+/**
+ * 页面外壳混在正文元素里时（中新网把「发稿时间 + 来源：链接」单独排成一段、字号控件各占一段、
+ * 编辑署名排在末尾），逐行删规则只在纯文本里管用，而读者看的是 HTML。线上实测存的正文长这样：
+ * `<p>2026年10月06日 14:02　来源：<a …>中国新闻网</a></p><p><span></span>大字体</p><p><span></span>小字体</p>`。
+ * 先整段删掉「只有时间行」的段（信源名在一个链接里，文本节点规则够不着），再对每个文本节点跑
+ * `lib/text.ts` 那一处规则，最后交给 `normalizeBlocks` 收掉因此变空的段。
+ */
+const CHROME_ONLY_BLOCK = /^\s*\d{4}年\d{1,2}月\d{1,2}日\s*\d{1,2}[:：]\d{2}\s*来源[：:]\s*\S{0,20}\s*$/;
+
+export function stripChromeHtml(html: string): string {
+  const $ = cheerio.load(html, null, false);
+  $("p, h2, h3, h4, h5, li, blockquote").each((_, el) => {
+    if (CHROME_ONLY_BLOCK.test($(el).text())) $(el).remove();
+  });
+  $.root()
+    .find("*")
+    .addBack()
+    .each((_, el) => {
+      // 代码块不动一行：`stripBoilerplate` 会删空行、并把连续空格压成一个，缩进和空行是代码自己的东西。
+      if ($(el).is("pre") || $(el).parents("pre").length) return;
+      $(el)
+        .contents()
+        .each((__, node) => {
+          if (node.type === "text") node.data = stripBoilerplate(node.data);
+        });
+    });
+  return normalizeBlocks($.html());
 }
 
 const collapse = (s: string) => s.replace(/\s+/g, " ").trim();

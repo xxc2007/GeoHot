@@ -49,14 +49,37 @@ const BOILERPLATE_LINE =
 const BOILERPLATE_SEGMENT =
   /[^。；;\n]{0,40}版权所有[^。；;\n]{0,120}|Copyright[^。；;\n]{0,120}|未经授权(?:禁止|不得)[^。；;\n]{0,60}|凡本网注明[^。；;\n]{0,120}|转载请注明出处|ICP[备证]\d+[^\n]{0,16}号|违法和不良信息举报电话[^\n]{0,24}|All rights reserved|【?免责声明】?[^\n]{0,60}|技术支持[：:][^\n]{0,40}/gi;
 
-/** 逐行、再按片段删掉页脚/版权话术，保留正文。 */
+/**
+ * 页面外壳的碎片。线上实测（cn-chinanews-scroll，458 条有正文的条目里 195 条带这套）：
+ * 字号控件是「大字体」「小字体」两个并排元素（折成一行时挨着，逐节点时被拆开），署名是 `【编辑:刘阳禾】`，
+ * 另一个信源用 `责任编辑：王一兰`。
+ */
+const PAGE_CHROME_SEGMENT =
+  /【(?:编辑|责编|排版|校对)[：:][^】]{1,20}】|大字体\s*小字体|^\s*[大小]字体\s*$|责任编辑[：:][^\s，。；]{1,10}/g;
+
+/**
+ * 开头整段是「2026年10月06日 14:02 来源： 中国新闻网」——日期和来源在条目页上已经各自单独显示。
+ * 信源名可以缺：页面里它是紧跟其后的一个链接，逐节点清洗时不在这段文字里。
+ */
+const PAGE_CHROME_LEAD = /^\d{4}年\d{1,2}月\d{1,2}日\s*\d{1,2}[:：]\d{2}(?:[:：]\d{2})?\s*来源[：:]\s*(?:[^\s，。；]{1,20}\s*)?/;
+
+/** 「(完)」是通讯社的电头收尾记号，只在末尾才算记号。 */
+const PAGE_CHROME_TAIL = /[（(]\s*(?:完|全文完)\s*[)）]\s*$/;
+
+/** 逐行、再按片段删掉页脚/版权话术和页面外壳，保留正文。 */
 export function stripBoilerplate(text: string): string {
   if (!text) return "";
   const byLine = text
     .split("\n")
     .filter((line) => line.trim() && !BOILERPLATE_LINE.test(line.trim()))
-    .join("\n");
-  return byLine.replace(BOILERPLATE_SEGMENT, " ").replace(/\n{3,}/g, "\n\n").replace(/[ \t]{2,}/g, " ").trim();
+    .join("\n")
+    .trim();
+  const body = byLine
+    .replace(BOILERPLATE_SEGMENT, " ")
+    .replace(PAGE_CHROME_SEGMENT, " ")
+    .replace(PAGE_CHROME_LEAD, "")
+    .replace(PAGE_CHROME_TAIL, "");
+  return body.replace(/\n{3,}/g, "\n\n").replace(/[ \t]{2,}/g, " ").trim();
 }
 
 /**
