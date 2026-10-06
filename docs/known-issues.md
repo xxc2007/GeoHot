@@ -2490,6 +2490,28 @@ Agent 分不清空壳与内容），不是缺陷。另记一笔我自己的调�
 `/geohot/geohot/…` 的 404——**拼地址前先看 href 的形状**；② `domcontentloaded` 之后 hydration 还没落地，
 键盘按下去没人接，看起来像"菜单坏了"——**线上做交互探针要先等 hydration**（`networkidle` + 约 1 秒）。
 
+## 第四十三轮（2026-10-07 凌晨）：两条旧工单结案——一条早在第 23 轮就修好了，一条量完才敢删
+
+**1. `admin/selectbench.ts`「report 未校验」是第 23 轮就已修好的旧账（结案）。** 第 21 轮第 5 条与第 22 轮
+第 8 条把它记成"类型错报 500 而不是 400"，但第 23 轮第 2 条已经修掉：cases 与 meta 各过一层 zod
+（`CaseSchema`/`MetaSchema`），`apps/api/src/routes/admin-auth.ts:81` 把 ZodError 统一映射成 400。
+这轮重读这两处代码确认仍在（没被后来的重构退回去），上面两处按记录保留、不再当工单。
+
+**2. `ITEM_COLUMNS` 里 `eligible`/`backfill` 两列删掉了（第 23 轮第 4 条"先不动"的三列里的两列）。**
+第 23 轮评审说这三列无人读，当时我只核到 `syndicate` 确实被 `feeds.ts` 用，剩下两个没量就没动。这轮逐个
+出口核完，这两列确实没有读者：
+
+- `ItemRow` 的消费者全是 `Pick<ItemRow, …>` 或 `toItemSummary()` 投影（detail / feeds / groups / pool /
+  timeline / topics / v1 七处），没有一处 `...row` 整体外传或序列化（grep 过）；
+- 唯一读 `.eligible` 的界面是后台 `routes/admin/content-item.tsx:109`（「不进公开面」徽标），它的数据来自
+  `admin/content.ts` 的 `contentChain()`（`SELECT * FROM publications WHERE article_id = …`），不走 `ITEM_COLUMNS`；
+- 写入侧 `publish.ts`、采集侧 `materials.ts`、通知侧 `notify/selected.ts` 里的 `.eligible`/`.backfill`
+  都是各自查询/参数，与读取层无关。
+
+删的是 `ItemRow` 两个字段与 SELECT 里 `p.eligible`/`p.backfill` 两列；`syndicate` 留下（feeds 在读）。
+证据：八份工程 typecheck 0 错——类型层有读者就编不过，这是最强的"无人读"证明；`npm test` **323 / 318 通过 /
+5 跳过 / 0 失败**，与改动前基线逐项一致。
+
 
 
 
