@@ -20,7 +20,13 @@ export interface ExtractedBody {
   via: "readability" | "jina";
 }
 
-const MIN_BODY_CHARS = 150;
+// Measured 2026-10-06 on twelve live 中央气象台 warning pages: their whole body is 126–308 characters
+// (发布单位 + 时刻 + 预警信号 + 预计), and `stripBoilerplate` removes nothing from them. A floor of 150
+// dropped 5 of those 12 — genuine alerts stuck at `body_status='unconfirmed'`, and a body-less item gets
+// no Chinese summary, so it can never enter the pool. 120 keeps the "not a stub" intent: the two guards
+// together still refuse footer-only pages, because `isBoilerplateBody` needs 60 real characters after
+// the footer is stripped.
+const MIN_BODY_CHARS = 120;
 
 export function readable(html: string, url: string): ExtractedBody | null {
   const { document } = parseHTML(html);

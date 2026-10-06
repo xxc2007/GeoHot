@@ -32,8 +32,21 @@ test("a footer-only page yields no body at all, not a footer body", () => {
   assert.equal(readable(html, "https://www.nmc.cn/publish/alarm/x.html"), null, "抽不出真正文就返回 null");
 });
 
-test("the Chinese fallback refuses to lead with a footer", () => {
-  const footerOnly = { title: "某县气象台发布大风蓝色预警信号", text: FOOTER, sourceKind: "json_list" } as TranslateInput;
+// 2026-10-06 在生产机上实测 12 条中央气象台预警详情页：整页正文 126–308 字，`stripBoilerplate` 一个字符都不删。
+// 下限 150 时其中 5 条被判「没有正文」——同一类官方预警，只因为预报那句短十几字就永久卡在 unconfirmed，
+// 而没有正文就没有中文摘要，条目进不了公开池（精选、热点榜、日报都因此空着）。下限降到 120。
+test("a one-paragraph official alert is a body; a bare headline still is not", () => {
+  const page = (main: string) =>
+    `<html><head><title>北安市气象台发布大风蓝色预警信号</title></head><body>` +
+    `<div id="nav">首页 预报 预警 服务</div><div class="article">${main}</div><div class="footer">${FOOTER}</div></body></html>`;
+  const alert = `${ALERT}请有关单位和个人注意做好预防工作，户外作业请暂停。`;
+  const got = readable(page(alert), "https://www.nmc.cn/publish/alarm/ba.html");
+  assert.ok(got, "120–150 字之间的真预警要出正文");
+  assert.ok(got!.text.includes("北安市气象台") && !/版权所有/.test(got!.text), "正文留着，页脚不进来");
+  assert.equal(readable(page("北安市气象台发布大风蓝色预警信号。"), "https://www.nmc.cn/publish/alarm/bb.html"), null, "只有一句标题仍然不算正文");
+});
+
+test("the Chinese fallback refuses to lead with a footer", () => {  const footerOnly = { title: "某县气象台发布大风蓝色预警信号", text: FOOTER, sourceKind: "json_list" } as TranslateInput;
   assert.equal(finalizeCopy(footerOnly, { titleZh: footerOnly.title, summaryZh: "" }).summaryZh, "", "页脚不能当摘要上屏");
   const realAlert = { title: "某县气象台发布大风蓝色预警信号", text: ALERT, sourceKind: "json_list" } as TranslateInput;
   const copy = finalizeCopy(realAlert, { titleZh: realAlert.title, summaryZh: "" });
