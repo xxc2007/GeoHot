@@ -199,8 +199,8 @@ curl -s -o /dev/null -w '%{http_code} %{num_redirects} %{url_effective}\n' -L ht
   那一节是写给下一次真要搬的人的，第一次跑要人在旁边。
 - `api`/`worker`/`web` 三个模板这轮补上了 `MemoryMax`（160/200/240/320 那一组，与 `install-units.sh`
   生成的线上单元一致）。`systemd/` 模板与 `install-units.sh` 生成的单元仍不完全相同：模板多一层
-  `ProtectSystem=strict` 等加固，且 `TimeoutStopSec` 按进程分档（api/brain 30、web 90、worker 210——
-  只有 worker 有 195 s 的 in-flight drain），而 `install-units.sh` 给四个单元一律 210（多给不伤，少给才会
+  `ProtectSystem=strict` 等加固，且 `TimeoutStopSec` 按进程分档（api/brain 30、web 90、worker 285——
+  只有 worker 有 255 s 的 in-flight drain），而 `install-units.sh` 给四个单元一律 285（多给不伤，少给才会
   在 drain 中途 SIGKILL）。走哪条就用哪条，别混。
 
 ## 热更新：改了什么就重启谁（2026-10-02、2026-10-04 各踩到一次）
@@ -224,6 +224,13 @@ curl -s -o /dev/null -w '%{http_code} %{num_redirects} %{url_effective}\n' -L ht
   这一条已在 `verify-deploy.sh` 第 2 节里落地，整包升级会自动查。
 - 只改前端（`apps/web/**`）→ 重建 web（带 `BASE_PATH=/geohot`）并重启 `geohot-web`。
 - 只改后端（`apps/api`、`packages/backend/**`）→ 重启 `geohot-api` 与 `geohot-worker`。
+- **改了 `jobs/queue.ts` 的 `QUEUE_OPTIONS`（任务重试次数、过期窗口）→ 也是重启 api/worker 就生效**，
+  但要知道它凭什么生效：pg-boss 的 `createQueue` 对已存在的队列是空操作（2026-10-06 实测：库里那一格
+  一直停在旧值，代码改了三次都没进库），现在由 `ensureQueue` 在进程第一次碰到该队列时用 `updateQueue`
+  把库里那行对齐代码——逐列 UPDATE，不重建队列，等待中的任务一条不掉。验收一条 SQL 就够：
+  `SELECT name, expire_seconds, retry_limit FROM pgboss.queue WHERE name='content.analyze'`。
+  两个例外：`policy` 与 `partition` 建好后改不了（只报 warn，要改得人工处理），对齐失败也只报不抛，
+  因为入队是在业务事务里 await 的，抛出去会连带发布回滚。
 - 改 `tooling/fixtures/**` → 不重启任何单元（编辑大脑 stub 按文件 mtime 热读），但要**重跑分析**：
   回执缓存会让同一个 revision 复用旧答案。用 `node scripts/refill-copy.ts --apply --ids …`（默认
   dry-run）或后台的「重跑分析」；两者都走 attemptTag 这条真新请求路径。

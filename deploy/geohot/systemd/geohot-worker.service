@@ -7,9 +7,10 @@
 #   2) 采集/翻译/热度等 handler 只应在一个进程里注册（apps/worker/src/main.ts:18-24）；
 #      pg-boss 本身允许竞争消费，但 singleton cron + recordRun 记账（jobs/queue.ts:95-106）
 #      在双进程下会出现同一分钟两次入队 job_runs、以及 missed:"once" 补跑被两个实例各跑一次。
-#   3) 停机语义：worker 收 SIGTERM 后等在途付费调用最多 STOP_TIMEOUT_MS=195 s
-#      （jobs/queue.ts:62-63,67；docker-compose.yml:58-60 同样给 210 s grace），
-#      所以 TimeoutStopSec 必须 ≥ 210，否则 systemd 中途 SIGKILL，留下 outcome-unknown 回执被重复付费。
+#   3) 停机语义：worker 收 SIGTERM 后等在途付费调用最多 STOP_TIMEOUT_MS=255 s
+#      （jobs/queue.ts；开了思考的调用单次上限 240 s，窗口比调用短就等于在调用中途收手），
+#      所以 TimeoutStopSec 必须比它再宽一些（285），否则 systemd 中途 SIGKILL，
+#      留下 outcome-unknown 回执：钱已经花出去，条目还要等 ops 释放。
 #   ⇒ 不许 `systemctl scale`、不许第二个 unit 指同一 EnvironmentFile。
 # ★ MODEL_CALLS_ENABLED 必须显式写在 .env 里：config.ts:92 的缺省是 true，靠缺省就等于让 worker 去调
 #   一个可能没在听的 127.0.0.1:3055（bootstrap-server.sh 第 5 节负责写它，geohot-brain.service 负责在听）。
@@ -36,8 +37,8 @@ MemorySwapMax=600M
 ExecStart=/usr/bin/node --env-file=.env apps/worker/src/main.ts
 Restart=on-failure
 RestartSec=10
-# 195 s 优雅停机上限 + 15 s 余量（jobs/queue.ts:63；compose 的 stop_grace_period 210s 同义）
-TimeoutStopSec=210
+# 255 s 优雅停机上限（= STOP_TIMEOUT_MS，比一次思考调用 240 s 还长）+ 30 s 余量；compose 的 stop_grace_period 同义
+TimeoutStopSec=285
 KillMode=mixed
 
 NoNewPrivileges=true

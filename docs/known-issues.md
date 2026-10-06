@@ -2193,6 +2193,59 @@ jina 的闸门是 5 次/分钟，兜底排队撞上窗口就永久定型（`wait
 `articles_processing_idx` 少了 `discovered_at`；`receipts`/`deliveries` 的保留期（见第二十一轮那条，
 现在多了一个前置依赖：`events/digest.ts` 读 `receipts.usage` 判断当期综述是不是机器写的，
 不先把这个标记搬到 `story_digests` 就不能删任何一行）。
+**其中前两条已由第二十五轮做掉**（预算分「速率」与「花费」两个口径、`expireInSeconds` 与停机窗口按一次思考调用重算），
+剩下几条仍是工单。
+
+## 第三十五轮（2026-10-06 傍晚）：改在代码里的队列参数，其实一直没进库
+
+**0. 这一轮做的是第三十四轮留下的两张工单（#78 预算口径、#79 时间窗口），但真正的收获是第三条没在清单上的**。
+`tests/` 跑全套时日志里一直有一行 `queue content.analyze: QUEUE_OPTIONS differs from the stored queue`，
+那行是我上一轮写的，写的时候只当成"已知不一致，报出来"；这次顺着它查下去才发现：**pg-boss 的
+`createQueue` 对一个已存在的队列是空操作**，所以第三十四轮把 `expireInSeconds` 从 600 提到 1500 这件事
+只存在于代码里，线上那一格至今是 600 秒。
+
+**1. 预算分成「速率」与「花费」两个口径（#78）**。`providers/receipts.ts:checkBudget` 原先三个窗口数的是
+同一件事——`receipt_attempts` 里的行数。429、连不上、超时这些**没花一分钱**的尝试也照样占位，
+于是代理故障能把当天 6000 次的额度烧光而不产出任何一条摘要，而这些条目本来就是我们要救的。
+现在分钟窗口仍数全部尝试（那是给上游限速用的），小时与天窗口只数真花了钱的：`status='failed' AND usage IS NULL`
+的行不再计入。`tests/receipts.test.ts` 用 300 条两小时前的失败尝试钉这条——旧写法在这里会直接判死。
+
+**2. 一次开了思考的调用是 240 秒，所有窗口都按它重算（#79）**。
+- `content.analyze` 的 `expireInSeconds` 600 → **1500**：一篇文章是 5 次串行调用（预筛 + 两次评分 + 写作 + 结构），
+  5 × 240 = 1200，再给余量。窗口比这短，pg-boss 会在调用还在跑的时候把任务判死，而 `policy:"short"` 的去重
+  只挡 `created` 状态——同一条目可能再跑一遍（钱花两次）。
+- `STOP_TIMEOUT_MS` 195 → **255**：注释原先写"最长付费调用 180 秒"，那是接 agnes-3.0-flash 之前的世界。
+  停机窗口比一次调用短，部署就会在调用中途收手，留下一张 outcome-unknown 回执：钱花了，条目还要等 ops 释放。
+- systemd 的 `TimeoutStopSec` 210 → **285**（四个单元模板里的 worker、`install-units.sh` 生成的两份、
+  `docker-compose.yml` 的 `stop_grace_period`、`DEPLOYMENT.md` 与 `README-deploy.md` 的说明）。
+  这一条是"链条上每一环都比下一环宽"的对齐，不是给 worker 加保险。
+
+**3. `ensureQueue` 现在自己把库里的行对齐代码（本轮新增，也是第 0 条的解）**。
+pg-boss 12 其实有公开的 `updateQueue`：逐列 `COALESCE` 的 `UPDATE pgboss.queue`，**不重建队列**，
+所以等待中的任务一条都不会掉——这正是我上一轮写"不能手工修，重建队列会丢掉等待中的任务"时漏掉的那个 API。
+两条边界：
+- `policy` 与 `partition` 它拒绝改（改了只能重建队列，那才是真会丢任务的动法），这两个键只报 warn；
+- 写不进去只 warn，不抛。`enqueue` 是在业务事务里被 await 的（`publishArticle` 把精选通知与媒体准备放进同一条 tx），
+  这里抛出去就等于那条发布回滚——第二十四轮刚修过一类"一次失败让之后每一次发布都回滚"的错，不重犯。
+
+实测证据（本机 CI 库跑全套时新增的一行日志）：
+`{"level":"info","msg":"queue content.analyze: stored options did not match QUEUE_OPTIONS, applied","wanted":{"expireInSeconds":1500},"stored":{"expireInSeconds":600}}`。
+`tests/queue-options-drift.test.ts` 钉三条：对齐生效且等待中的任务还在、`policy` 不动库也不假装改好、对齐失败只报不塌。
+
+**4. 部署含义**：这一格的对齐发生在**进程第一次碰到该队列时**，所以上线后必须重启 `geohot-api` 与 `geohot-worker`
+（本轮也改了 worker 的 `TimeoutStopSec`，需要重装单元或改现有 unit 再 `daemon-reload`）。
+要看线上是否真对齐，一条 SQL 就够：`SELECT name, expire_seconds FROM pgboss.queue WHERE name='content.analyze'`，
+期望 1500。幂等性也有实证：第二次跑全套时日志里不再有那行 `did not match QUEUE_OPTIONS`——库里已经是新值。
+
+**5. 顺带清掉一处测试泄漏（本轮发现）**。`tests/analyze-shutdown.test.ts` 每跑一次建三个真实的 pg-boss 队列
+（`-final`/`-false`/`-true`），而 `purgeTagged` 收的是本站的表、收不到 `pgboss` schema——开发库里数到 **108 行孤儿队列**。
+现在这个文件自己在收尾时按前缀删（`pgboss.job` 与 `pgboss.queue` 两张），顺带把泄漏存在期间攒下来的旧行一起清掉：
+本机实测跑前 108 行、跑后 0 行，三条断言不变。**这与第七轮那批夹具泄漏是同一族**：
+测试自建的共享基础设施（信源、队列）必须自己收回，否则红绿由"前面跑过几轮"决定。
+
+**6. 验证基线**：typecheck 八份工程 0 错；`npm test`（CI 库、串行）**314 项 / 309 通过 / 5 跳过 / 0 失败**
+（新增 4 条：预算两本账 1 条、队列对齐 3 条）。
+
 
 
 

@@ -85,12 +85,18 @@ async function checkBudget(tx: Db, service: string): Promise<void> {
   const [budget] = await tx<{ per_minute: number; per_hour: number; per_day: number }[]>`
     SELECT per_minute, per_hour, per_day FROM budgets WHERE service = ${service}`;
   if (!budget) return; // default rows come with the migrations; a service an operator removed is unlimited
-  // Every request sent counts, retries of the same logical request included.
+  // 三个窗保护的是两件不同的事，所以计数口径也不同：
+  // · 分钟窗是**速率**——只要真打出去了就算，429 也算（对方确实在被我们敲）。
+  // · 小时/天窗是**花费**——只有对方真答了（`usage` 有值）、或者结果说不清（`unknown`，可能已计费）、
+  //   或还在飞（`pending`）才算。连不上、DNS 失败、被 429 挡回来都不产生账单。
+  // 第三十四轮评审指出的后果：原先三个窗都数全部尝试，一次代理故障（每篇 5 步 × 重试 8 次）
+  // 就能把当天 6000 次的额度烧光而一条中文稿都不产出——那正是"全站停止更新"的形状。
+  const unbilled = sql`(status = 'failed' AND usage IS NULL)`;
   const [counts] = await tx<{ minute: number; hour: number; day: number }[]>`
     SELECT
       count(*) FILTER (WHERE started_at > now() - interval '1 minute') AS minute,
-      count(*) FILTER (WHERE started_at > now() - interval '1 hour') AS hour,
-      count(*) AS day
+      count(*) FILTER (WHERE started_at > now() - interval '1 hour' AND NOT ${unbilled}) AS hour,
+      count(*) FILTER (WHERE NOT ${unbilled}) AS day
     FROM receipt_attempts
     WHERE service = ${service} AND origin = 'live' AND started_at > now() - interval '1 day'`;
   const c = counts!;

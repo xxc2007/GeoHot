@@ -1,5 +1,6 @@
-// Paid requests: an answer already received is reused, every request actually sent counts against the
-// budget (retries of one logical request included), a lost answer is bought again at most once, an answer
+// Paid requests: an answer already received is reused, the rate window counts every request actually sent
+// (retries of one logical request included) while the spend windows count only what could have cost money,
+// a lost answer is bought again at most once, an answer
 // that parses but cannot be used is refused so the next round asks again, and the valve stops calls before
 // they are sent.
 import { stub, tag } from "./setup.ts";
@@ -153,4 +154,42 @@ test("an unknown outcome is released automatically once, so a lost answer costs 
   assert.equal(await status(), "unknown", "a second loss waits for the admin");
   await assert.rejects(paidRequest(req, lost), ReceiptUnknownError);
   assert.equal(sent, 2);
+});
+
+test("the spend windows count what cost money, not every attempt", async () => {
+  // 第三十四轮评审：三个窗原先都数全部尝试。连不上/DNS/429 不产生账单，
+  // 一次代理故障（每篇 5 步 × 重试 8 次）就能把当天额度烧光而一条中文稿都不产出。
+  answer = () => '{"ok":true}';
+  const t = tag();
+  const [seed] = await sql<{ id: number }[]>`
+    INSERT INTO receipts (logical_key, service, purpose, status, request, attempts)
+    VALUES (${`unbilled-${t}`}, 'deepseek', 'invariant_test', 'failed', '{}'::jsonb, 1) RETURNING id`;
+  const insert = (status: string, from: number, to: number) => sql`
+    INSERT INTO receipt_attempts (receipt_id, attempt, service, origin, status, started_at, finished_at)
+    SELECT ${seed!.id}, n, 'deepseek', 'live', ${status}::text, now() - interval '2 hours', now() - interval '2 hours'
+    FROM generate_series(${from}::int, ${to}::int) n`;
+  const billed = sql`NOT (status = 'failed' AND usage IS NULL)`;
+  const spend = async () => (await sql<{ hour: number; day: number }[]>`
+    SELECT count(*) FILTER (WHERE started_at > now() - interval '1 hour' AND ${billed})::int AS hour,
+           count(*) FILTER (WHERE ${billed})::int AS day
+    FROM receipt_attempts WHERE service = 'deepseek' AND origin = 'live' AND started_at > now() - interval '1 day'`)[0]!;
+
+  try {
+    await insert("failed", 1, 300);
+    const c = await spend();
+    await sql`UPDATE budgets SET per_minute = 1000, per_hour = ${c.hour + 1}, per_day = ${c.day + 1} WHERE service = 'deepseek'`;
+    const before = provider.hits();
+    await ask(`unbilled-call-${t}`);
+    assert.equal(provider.hits() - before, 1, "300 次没打到对方的尝试不该占花费额度");
+
+    // 同样这 300 行，换成「结果说不清」（可能已经计费）就必须立刻算数。
+    await sql`UPDATE receipt_attempts SET status = 'unknown' WHERE receipt_id = ${seed!.id}`;
+    const d = await spend();
+    await sql`UPDATE budgets SET per_hour = ${d.hour}, per_day = ${d.day} WHERE service = 'deepseek'`;
+    assert.ok(d.day >= 300, "unknown 是花费：usage 是空的也不能免掉");
+    await assert.rejects(() => ask(`unknown-call-${t}`), BudgetExceededError, "额度立刻不够，而不是被免单");
+  } finally {
+    await sql`DELETE FROM receipt_attempts WHERE receipt_id = ${seed!.id}`;
+    await sql`DELETE FROM receipts WHERE id = ${seed!.id}`;
+  }
 });

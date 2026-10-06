@@ -109,6 +109,11 @@ after(async () => {
   active?.scoreAnswer.open(); active?.structureAnswer.open(); active?.writingAnswer?.open();
   for (const child of children) child.kill("SIGTERM");
   await purgeTagged(T);
+  // `purgeTagged` 收的是本站的表，收不到 pg-boss 自己的 schema：这个文件每跑一次留下三个真实队列
+  // （`-final`/`-false`/`-true`），本轮在开发库里数到 108 行孤儿队列 + 它们的历史任务。
+  // 按前缀删，顺带把这条泄漏存在期间攒下来的旧行一起清掉。
+  await sql`DELETE FROM pgboss.job WHERE name LIKE 'test.analyze-stop-%'`;
+  await sql`DELETE FROM pgboss.queue WHERE name LIKE 'test.analyze-stop-%'`;
   await provider.close(); await stopBoss(); await closeDb();
 });
 

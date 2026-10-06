@@ -66,7 +66,7 @@
 
 - api：`apps/api/src/main.ts:17` 绑 `API_HOST||127.0.0.1`，`API_PORT` 缺省 3001（`packages/backend/src/config.ts:72` 的 `apiPort: int("API_PORT", 3001)`）。健康路径 `GET /api/health`（`apps/api/src/app.ts` 里 `app.get("/api/health", …)` 那一条）。
 - web：`apps/web/server.ts:12-13` 绑 `WEB_HOST||127.0.0.1:3000`；api-owned 路径由 web 自己转给 3001（`server.ts` 里 `if (isApiOwned(appPath))` 那一整块 × `packages/contracts/src/http-policy.ts` 的 `API_OWNED_PATTERNS`）⇒ **nginx 只需指向 3000**。
-- worker：无监听口；pg-boss 全 cron 队列 `policy:"singleton"`（`apps/worker/src/schedules.ts:102`）⇒ **只许一个实例**（详见 unit 文件注释）。停机 grace 195 s（`packages/backend/src/jobs/queue.ts:63` 的 `STOP_TIMEOUT_MS`），`TimeoutStopSec=210`。
+- worker：无监听口；pg-boss 全 cron 队列 `policy:"singleton"`（`apps/worker/src/schedules.ts:102`）⇒ **只许一个实例**（详见 unit 文件注释）。停机 grace 255 s（`packages/backend/src/jobs/queue.ts` 的 `STOP_TIMEOUT_MS`，一次开了思考的调用上限 240 s），`TimeoutStopSec=285`。
 - brain（编辑大脑 stub）：`tooling/brain-stub.ts:26` 读 `BRAIN_PORT`（缺省 3055），`:1012` 的 `server.listen(PORT, "127.0.0.1")` 只绑回环、无鉴权。它是第四个常驻进程，`systemd/geohot-brain.service` 就是它的 unit（以前只有 install-units.sh 会写它，模板目录里缺文件）。
 - 上传：截图 ≤ 8 MB（`packages/backend/src/operations/feedback.ts:64`）< Fastify bodyLimit 10 MB（`apps/api/src/app.ts:30`）⇒ `client_max_body_size 10m`。
 - MCP：`/api/mcp` 方法集 GET/POST/DELETE(+OPTIONS 204, PUT/PATCH→405)（`routes/mcp.ts:293-305`）；SSE 订阅流带 `X-Accel-Buffering: no`（`mcp.ts:285`）⇒ 专用 location 关缓冲、读超时 1 h；host 锁只比 hostname（`mcp.ts:219-220,254-255`），前缀路径不需要 `MCP_ALLOWED_HOSTS`。

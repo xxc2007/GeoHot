@@ -74,8 +74,9 @@ ExecStart=/usr/bin/node tooling/brain-stub.ts
 Restart=on-failure
 RestartSec=5
 # The worker drains in-flight jobs on stop; systemd's 90 s default SIGKILLs mid-drain, which is the
-# outcome-unknown path (a job that ran but never recorded). Give every unit the worker's budget.
-TimeoutStopSec=210
+# outcome-unknown path (a job that ran but never recorded). Give every unit the worker's budget:
+# STOP_TIMEOUT_MS = 255 s, itself longer than one reasoning call (240 s in providers/llm.ts) + margin.
+TimeoutStopSec=285
 
 [Install]
 WantedBy=multi-user.target
@@ -113,8 +114,9 @@ ExecStart=$exec
 Restart=on-failure
 RestartSec=5
 # The worker drains in-flight jobs on stop; systemd's 90 s default SIGKILLs mid-drain, which is the
-# outcome-unknown path (a job that ran but never recorded). Give every unit the worker's budget.
-TimeoutStopSec=210
+# outcome-unknown path (a job that ran but never recorded). Give every unit the worker's budget:
+# STOP_TIMEOUT_MS = 255 s, itself longer than one reasoning call (240 s in providers/llm.ts) + margin.
+TimeoutStopSec=285
 
 [Install]
 WantedBy=multi-user.target
