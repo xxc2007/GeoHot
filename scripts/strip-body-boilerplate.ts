@@ -103,7 +103,9 @@ if (candidates.length > maxApply) {
   process.exit(1);
 }
 
-const backup = path.join(config.dataDir, `boilerplate-backup-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, "")}.jsonl`);
+// 备份文件名精确到秒：只到分钟时，同一分钟里跑第二次会把记录**追加**进同一个文件，
+// 而还原脚本按行序回放、后写的覆盖先写的——第二次跑会把"已经洗过的文本"当成旧值还原回去。
+const backup = path.join(config.dataDir, `boilerplate-backup-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "")}.jsonl`);
 let done = 0;
 for (const c of candidates) {
   // One record per line, terminated: the file is advertised as `.jsonl`, and without the newline the whole

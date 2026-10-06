@@ -156,10 +156,19 @@ export function trimTrailingChrome(html: string): string {
  */
 const CHROME_ONLY_BLOCK = /^\s*\d{4}年\d{1,2}月\d{1,2}日\s*\d{1,2}[:：]\d{2}\s*来源[：:]\s*\S{0,20}\s*$/;
 
+/** 节点里前后那点空白是行内边界，不是脏东西：`at <a>NASA</a> said` 压成 `atNASA said` 就是改内容。 */
+function cleanTextNode(data: string): string {
+  const kept = /^\s*/.exec(data)?.[0] ?? "";
+  const tail = /\s*$/.exec(data)?.[0] ?? "";
+  const body = stripBoilerplate(data);
+  return body ? kept + body + tail : "";
+}
+
 export function stripChromeHtml(html: string): string {
   const $ = cheerio.load(html, null, false);
   $("p, h2, h3, h4, h5, li, blockquote").each((_, el) => {
-    if (CHROME_ONLY_BLOCK.test($(el).text())) $(el).remove();
+    // 和 `normalizeBlocks` 同一道判断：一段里还挂着图就不能整段删，时间行与图并排是真实存在的形状。
+    if (CHROME_ONLY_BLOCK.test($(el).text()) && !$(el).find("img, video, picture").length) $(el).remove();
   });
   $.root()
     .find("*")
@@ -170,7 +179,7 @@ export function stripChromeHtml(html: string): string {
       $(el)
         .contents()
         .each((__, node) => {
-          if (node.type === "text") node.data = stripBoilerplate(node.data);
+          if (node.type === "text") node.data = cleanTextNode(node.data);
         });
     });
   return normalizeBlocks($.html());

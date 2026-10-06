@@ -58,14 +58,14 @@ test("the Chinese fallback refuses to lead with a footer", () => {
   assert.ok(copy.summaryZh.includes("北安市气象台"), "数字很多的官方预警正文仍然过关（密度实测 0.7+，阈值 0.55）");
 });
 
-// 下面三条钉住第三十三轮的页面外壳。夹具是抄来的，不是编的：
+// 下面几条钉住第三十三轮的页面外壳。夹具是抄来的，不是编的：
 // · CN_TEXT 是线上 `body_text` 的形状（`stripTags` 把标签折成空格）；
 // · CN_RAW 是 https://www.chinanews.com.cn/sh/2026/10-06/10708416.shtml 抓下来的原文（2026-10-06 实测 200）；
-// · CN_HTML 是这条新闻在生产库里存的 `body_html` 开头三段。
+// · CN_HTML 是这条新闻在生产库里存的 `body_html`（外壳三段 + 三段正文 + 结尾署名）。
 // 实测范围：cn-chinanews-scroll 有正文的 458 条里 195 条带这套外壳。
 const CN_TEXT =
   "2026年10月06日 14:02　来源： 中国新闻网 大字体 小字体 　　中新网杭州10月6日电(记者 王逸飞)今年国庆假期，浙江水上出行需求集中释放，水上客运持续保持高位运行。" +
-  "记者10月6日从浙江海事部门获悉，截至10月5日，浙江水上客运总量最大的城市舟山已累计发送旅客超100万人次。(完) 【编辑:刘欢】";
+  "记者10月6日从浙江海事部门获悉，截至10月5日，舟山已累计发送旅客超100万人次。(完) 【编辑:刘欢】";
 
 const CN_RAW =
   '<div class="content_left_time">2026年10月06日 14:02　来源：<a href=\'/\' class=\'source\'>中国新闻网</a>' +
@@ -86,7 +86,34 @@ const CN_HTML =
 const CN_URL = "https://www.chinanews.com.cn/sh/2026/10-06/10708416.shtml";
 const CHROME = /大字体|小字体|【编辑|\(完\)|2026年10月06日|中国新闻网|来源：/;
 const CLEAN_TEXT =
-  "中新网杭州10月6日电(记者 王逸飞)今年国庆假期，浙江水上出行需求集中释放，水上客运持续保持高位运行。记者10月6日从浙江海事部门获悉，截至10月5日，浙江水上客运总量最大的城市舟山已累计发送旅客超100万人次。";
+  "中新网杭州10月6日电(记者 王逸飞)今年国庆假期，浙江水上出行需求集中释放，水上客运持续保持高位运行。记者10月6日从浙江海事部门获悉，截至10月5日，舟山已累计发送旅客超100万人次。";
+
+test("the chrome rules stop at the sentence boundary — three shapes that must survive", () => {
+  // 独立评审拿真句子证出来的三处：边界判断一丢，灾害数据与稿子里的话就会被当成控件删掉。
+  const quake = "2026年10月06日 14:02 来源：中国地震台网中心测定，云南德宏州盈江县发生5.1级地震。";
+  assert.equal(stripBoilerplate(quake), quake, "时刻与机构名是灾害数据：来源：后面紧跟「测定，」就不是外壳");
+  const editor = "对话商务印书馆的一位责任编辑：您如何判断一本书值不值得做？";
+  assert.equal(stripBoilerplate(editor), editor, "「责任编辑：」在句子里是职位，不是署名行");
+  const typography = "网页设计里常把大字体 小字体混排，是为了建立层级。";
+  assert.equal(stripBoilerplate(typography), typography, "谈字号的句子不是字号按钮");
+  // 真署名与真按钮仍然要删得掉（署名独占一段、按钮两侧是空格）。
+  assert.equal(stripBoilerplate("一处遗址完成回填保护。 责任编辑：王一兰"), "一处遗址完成回填保护。");
+  // 真按钮两侧是空格分隔的独立词元，照样删得掉；嵌在句子里的「大字体」不动。
+  assert.equal(stripBoilerplate("中国新闻网 大字体 小字体 中新网杭州电"), "中国新闻网 中新网杭州电");
+});
+
+test("inline spacing around links survives the HTML wash", () => {
+  const html = "<p>Researchers at <a href=\"https://www.nasa.gov/\">NASA</a> said the ice shelf calved on Monday, according to a report published this week.</p>";
+  const got = stripChromeHtml(html);
+  assert.ok(got.includes("Researchers at <a"), got);
+  assert.ok(got.includes("NASA</a> said"), got);
+  // 时间行与图并排时不能连图一起删（和 normalizeBlocks 同一道判断）。
+  const withImage = stripChromeHtml(
+    "<p>2026年10月06日 14:02　来源：<a href=\"https://www.chinanews.com.cn/\">中国新闻网</a><img src=\"https://i.chinanews.com.cn/a.jpg\" alt=\"图\"></p><p>正文正文正文在这一段里。</p>",
+  );
+  assert.ok(withImage.includes("<img"), "挂着图的那段不整段删");
+  assert.ok(withImage.includes("正文正文正文"), "正文留着");
+});
 
 test("the chrome folded into the stored text is stripped, the sentence survives", () => {
   assert.equal(stripBoilerplate(CN_TEXT), CLEAN_TEXT);
