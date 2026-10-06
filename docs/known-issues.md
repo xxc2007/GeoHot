@@ -2232,10 +2232,19 @@ pg-boss 12 其实有公开的 `updateQueue`：逐列 `COALESCE` 的 `UPDATE pgbo
 `{"level":"info","msg":"queue content.analyze: stored options did not match QUEUE_OPTIONS, applied","wanted":{"expireInSeconds":1500},"stored":{"expireInSeconds":600}}`。
 `tests/queue-options-drift.test.ts` 钉三条：对齐生效且等待中的任务还在、`policy` 不动库也不假装改好、对齐失败只报不塌。
 
-**4. 部署含义**：这一格的对齐发生在**进程第一次碰到该队列时**，所以上线后必须重启 `geohot-api` 与 `geohot-worker`
-（本轮也改了 worker 的 `TimeoutStopSec`，需要重装单元或改现有 unit 再 `daemon-reload`）。
-要看线上是否真对齐，一条 SQL 就够：`SELECT name, expire_seconds FROM pgboss.queue WHERE name='content.analyze'`，
-期望 1500。幂等性也有实证：第二次跑全套时日志里不再有那行 `did not match QUEUE_OPTIONS`——库里已经是新值。
+**4. 部署含义 + 线上实测（本轮第一次真的把单元装上去）**：
+- **那四个线上单元里根本没有 `TimeoutStopSec` 这一行**（`systemctl show` 全部是默认 `1min 30s`，文件日期停在 10-01 16:17）。
+  也就是说单元文件写过的窗口从来没在线上生效过：worker 一停就 90 秒 SIGKILL，而一次开了思考的调用允许 240 秒
+  ——过去每一次部署都在半途掐掉在途付费调用。本轮 `install-units.sh --apply` 之后四个单元都读到 `4min 45s`。
+- `pgboss.queue` 里 `content.analyze` 上线前实测 **600**，重启 api/worker 后自动变成 **1500**，journal 里留着那行：
+  `queue content.analyze: stored options did not match QUEUE_OPTIONS, applied wanted:{"expireInSeconds":1500} stored:{"expireInSeconds":600}`。
+  这条对齐发生在**进程第一次碰到该队列时**，所以上线必须重启 `geohot-api` 与 `geohot-worker`；
+  平时验收一条 SQL 就够：`SELECT name, expire_seconds FROM pgboss.queue WHERE name='content.analyze'`。
+  幂等性有实证：第二次跑全套时不再有那行日志。
+- 顺手记一笔免得下次吓一跳：线上 `geohot-web.service` 里有一行 `Environment=BASE_PATH=/geohot`，
+  而 `install-units.sh` 生成的单元没有——**那行是惰性的**（`apps/web/server.ts` 全文不读 `BASE_PATH`，
+  前缀来自构建时烘进 bundle 的值，见脚本里那段注释），重装单元不会把站点从 `/geohot` 挪走。
+  本轮重装前先把旧单元备份到 `/root/units-backup-<日期时刻>/`。
 
 **5. 顺带清掉一处测试泄漏（本轮发现）**。`tests/analyze-shutdown.test.ts` 每跑一次建三个真实的 pg-boss 队列
 （`-final`/`-false`/`-true`），而 `purgeTagged` 收的是本站的表、收不到 `pgboss` schema——开发库里数到 **108 行孤儿队列**。
@@ -2244,7 +2253,11 @@ pg-boss 12 其实有公开的 `updateQueue`：逐列 `COALESCE` 的 `UPDATE pgbo
 测试自建的共享基础设施（信源、队列）必须自己收回，否则红绿由"前面跑过几轮"决定。
 
 **6. 验证基线**：typecheck 八份工程 0 错；`npm test`（CI 库、串行）**314 项 / 309 通过 / 5 跳过 / 0 失败**
-（新增 4 条：预算两本账 1 条、队列对齐 3 条）。
+（新增 4 条：预算两本账 1 条、队列对齐 3 条）。上线后：`verify-deploy.sh` ALL CHECKS PASSED（含 `smoke.ts` 全绿、
+跨出口期数一致、六个出口每条都有中文标题），三端逐字节一致 **619 个 blob**（本地 HEAD = 服务器 = GitHub main），
+隔壁主站首页哈希 `4edf0fc53636a680` 动手前后未变。生产库当天实况：`content.analyze` 过期窗 1500、
+最近 30 分钟新入库 10 条、近 24 小时 753 条、近一小时真调用 248 次（小时闸 420）、
+近 24 小时 `failed` 且无 usage 的**不计费**尝试 76 次——这 76 次在改动前会照样占用当天的 6000 次额度。
 
 
 
