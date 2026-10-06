@@ -1,8 +1,7 @@
+import { UUID_PATTERN } from "@aihot/contracts/taxonomy";
 import type { StoryFollowupsResponse } from "@aihot/contracts/site";
 import { sql } from "../db.ts";
 import { loadDevelopments } from "./groups.ts";
-
-const PUBLIC_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * A short reading-page list, using the same publication/filter rules as the full event.
@@ -17,7 +16,7 @@ const PUBLIC_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
 export async function loadStoryFollowups(storyPublicId: string): Promise<StoryFollowupsResponse | null> {
   const result = await loadDevelopments({ storyPublicId, channel: "all", category: null, tag: null, topicTags: null, cursor: null, revision: null, take: 8 });
   if (result.kind === "not_found") {
-    if (!PUBLIC_ID.test(storyPublicId)) return null;
+    if (!UUID_PATTERN.test(storyPublicId)) return null;
     const [story] = await sql<{ id: number }[]>`SELECT id FROM stories WHERE public_id = ${storyPublicId} AND merged_into IS NULL`;
     return story ? { items: [], more: false } : null;
   }

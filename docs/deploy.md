@@ -41,7 +41,7 @@ stub**：`LLM_BASE_URL=http://127.0.0.1:3055/v1` 指的是容器自己的回环�
 `.env` 里 `SITE_URL` 这一行在 `NODE_ENV=production`（compose 已写死，`docker-compose.yml:11`）时**不能留空也不能留
 `http://localhost:3000`**：留空时 compose 自己在解析阶段就报 `SITE_URL must be the public address readers use,
 e.g. https://example.com`（`docker-compose.yml:16` 的 `${SITE_URL:?…}`），留 localhost 则容器起得来、api 反复重启，日志里是
-`Refusing to start in production: SITE_URL …`（`packages/backend/src/config.ts:54-68`）。之所以拦得这么狠，是因为
+`Refusing to start in production: SITE_URL …`（`packages/backend/src/config.ts` 的 SITE_URL 生产闸门）。之所以拦得这么狠，是因为
 那个回落会把 localhost 写进 canonical、OpenGraph、RSS、sitemap `<loc>`、robots 的 `Sitemap:` 行和 security.txt，
 还会让 MCP 的 host 锁拒掉真域名。**而 `npm run env:init` 默认不会替你改这一行**——它只在给了 `--web-port` 时才重写
 `SITE_URL`，否则照 `.env.example:34` 留 `http://localhost:3000`。所以第一次起容器前必须手工把它改成读者实际访问的
@@ -93,7 +93,7 @@ TRUST_PROXY=true           # 访客地址从 Caddy 转来的请求头里读（we
 docker compose --profile https up -d --build
 ```
 
-已经有 Nginx 的话，不用 Caddy，把站点反向代理到 `http://127.0.0.1:3000`，带上 `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`，并在 `.env` 里设 `TRUST_PROXY=true`。这一行**两个进程都读、写法一致**（`apps/web/server.ts:20` 与 `apps/api/src/app.ts:28` 的 `trustProxy`）：不设为 `true`，登录与反馈的每地址限流就会把全体访客算成代理那一个 IP；直接对外（前面没有代理）时才保持 `false`，那时信 `X-Forwarded-For` 等于让客户端自报地址。`SITE_URL` 一定要写成读者实际访问的地址：生成的链接、RSS、分享图和 MCP 都用它；生产下留空或留 `localhost` 会拒绝启动（`packages/backend/src/config.ts:54-68`）。挂在子路径（如 `/geohot`）上还要带构建期变量 `BASE_PATH=/geohot` 重新 `npm run build -w @aihot/web`，并把 `SITE_URL` 写成带前缀的地址——`deploy/geohot/` 那一套（nginx 片段、systemd 单元、`bootstrap-server.sh` 的 `GEOHOT_BASE_PATH`）是这条路线的完整装法；那一套装 `TRUST_PROXY` 时不写死值——第 5 节实测 `nginx.service` 在不在跑再决定，判断错了就用 `GEOHOT_TRUST_PROXY=true|false` 覆盖，正是上面那句"两端取舍"的工程化。
+已经有 Nginx 的话，不用 Caddy，把站点反向代理到 `http://127.0.0.1:3000`，带上 `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`，并在 `.env` 里设 `TRUST_PROXY=true`。这一行**两个进程都读、写法一致**（`apps/web/server.ts:20` 与 `apps/api/src/app.ts:28` 的 `trustProxy`）：不设为 `true`，登录与反馈的每地址限流就会把全体访客算成代理那一个 IP；直接对外（前面没有代理）时才保持 `false`，那时信 `X-Forwarded-For` 等于让客户端自报地址。`SITE_URL` 一定要写成读者实际访问的地址：生成的链接、RSS、分享图和 MCP 都用它；生产下留空或留 `localhost` 会拒绝启动（`packages/backend/src/config.ts` 的 SITE_URL 生产闸门）。挂在子路径（如 `/geohot`）上还要带构建期变量 `BASE_PATH=/geohot` 重新 `npm run build -w @aihot/web`，并把 `SITE_URL` 写成带前缀的地址——`deploy/geohot/` 那一套（nginx 片段、systemd 单元、`bootstrap-server.sh` 的 `GEOHOT_BASE_PATH`）是这条路线的完整装法；那一套装 `TRUST_PROXY` 时不写死值——第 5 节实测 `nginx.service` 在不在跑再决定，判断错了就用 `GEOHOT_TRUST_PROXY=true|false` 覆盖，正是上面那句"两端取舍"的工程化。
 
 ### 更新
 
@@ -152,10 +152,13 @@ docker compose logs -f --tail 100 api worker web
 
 ## 花多少钱
 
-先说本站：**这个部署一分钱都不花**。它没有任何模型密钥（`.env` 里 `LLM_BASE_URL` 指向只听 127.0.0.1 的本地
-回放器 `tooling/brain-stub.ts`，`LLM_API_KEY=local-brain` 是占位串），信源里没有 `x_search`、`mp_account`
-与带 `paid_listing` 的一条都没有（现值 0），所以模型调用与按次计费采集都不产生账单。闸门与回执照走，
-只是账单为零——这句在 `README.md` 的「编辑大脑」一节也是同样口径。
+先说本站：**线上这一份是要花钱的，本机与 CI 那一份一分不花**。2026-10-06 起生产部署的 `.env` 里
+`LLM_BASE_URL / LLM_API_KEY / LLM_MODEL` 指向第三方服务 Agnes AI（模型 `agnes-3.0-flash`），
+`MODEL_CALLS_ENABLED=true`，预算熔断设在每分钟 40 / 每小时 1500 / 每天 12000 次调用（后台
+「设置 → 预算」可改，填 0 立即停用该服务）。仓库里那个只听 127.0.0.1 的回放器
+`tooling/brain-stub.ts`（`LLM_API_KEY=local-brain` 是占位串）留给本机开发与 CI：同样的闸门与回执，
+零账单、零外发。信源里 `x_search`、`mp_account` 与带 `paid_listing` 的一条都没启用（现值 0），
+所以按次计费采集这一项仍是 0。
 
 下面是上游那份账单口径，**照搬过来会高估本站成本**，留着只因为你真换成服务商就又要面对它：
 

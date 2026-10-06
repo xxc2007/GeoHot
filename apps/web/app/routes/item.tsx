@@ -1,4 +1,5 @@
-import { SITE, withSubject } from "@aihot/industry/site";
+import { SITE } from "@aihot/industry/site";
+import { hasChineseCopy } from "@aihot/contracts/copy";
 import { RISK_NOTICE_CATEGORIES, RISK_NOTICE_TAGS } from "@aihot/industry/taxonomy";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLoaderData, useNavigate, useSearchParams } from "react-router";
@@ -8,7 +9,8 @@ import { loadOr404 } from "../lib/api.server";
 import { breadcrumbLd, pageMeta, siteUrl, titled } from "../lib/seo";
 import { fullDateTime, relativeTime } from "../lib/format";
 import { markRead } from "../lib/local-state";
-import { appPath, publicPath } from "../lib/public-path";
+import { publicPath } from "../lib/public-path";
+import { backPlace } from "../lib/back-place";
 import { SelectedBadge } from "../components/ui/Badge";
 import { ScoreLabel } from "../components/ui/Score";
 import { PillTabs } from "../components/ui/Tabs";
@@ -20,6 +22,7 @@ import { StoryFollowups } from "../features/item/StoryFollowups";
 import { MediaGallery } from "../features/item/MediaGallery";
 import { QuotedPost } from "../features/item/QuotedPost";
 import { IconArrowLeft, IconCopy, IconDownload, IconExternal, IconImage, IconList, IconMenu, IconShare } from "../components/icons";
+import { ChunkBoundary } from "../components/ui/ChunkBoundary";
 
 const PosterSheet = lazy(() => import("../features/item/PosterSheet"));
 const TocSheet = lazy(() => import("../features/item/TocSheet"));
@@ -84,7 +87,7 @@ function hostOf(url: string): string {
   }
 }
 
-async function shareOrCopy(item: Pick<SiteItemDetail, "id" | "title">): Promise<"shared" | "copied" | null> {
+async function shareOrCopy(item: Pick<SiteItemDetail, "id" | "title">): Promise<"shared" | "copied" | "cancelled" | "failed"> {
   const url = `${siteUrl()}/items/${item.id}`;
   try {
     if (navigator.share && matchMedia("(pointer: coarse)").matches) {
@@ -93,44 +96,11 @@ async function shareOrCopy(item: Pick<SiteItemDetail, "id" | "title">): Promise<
     }
     await navigator.clipboard.writeText(`${item.title}\n${url}`);
     return "copied";
-  } catch {
-    return null;
+  } catch (e) {
+    // 读者在系统分享面板上按「取消」不是故障；别的都不能装作什么都没发生。
+    if ((e as DOMException)?.name === "AbortError") return "cancelled";
+    return "failed";
   }
-}
-
-/**
- * 认得的目的地 → 「返回」后面的那几个字。这张表是唯一的认路来源：表外的路径一律不写去处，
- * 宁可只写「返回」，也不编一个可能跳错的落点。
- */
-const PLACES: Array<readonly [RegExp, string]> = [
-  [/^\/$/, "精选"],
-  [/^\/all$/, "全部动态"],
-  [/^\/hot$/, "热点榜"],
-  [/^\/starred$/, "收藏"],
-  [/^\/topics$/, "主题"],
-  [/^\/topics\/[^/]+$/, "主题页"],
-  [/^\/story\/[^/]+$/, "事件页"],
-  [/^\/daily(\/|$)/, "日报"],
-  [/^\/weekly(\/|$)/, "周报"],
-  [/^\/monthly(\/|$)/, "月报"],
-  [/^\/leaderboard(\/|$)/, "榜单"],
-  [/^\/about$/, "关于"],
-  [/^\/changelog$/, "更新日志"],
-  [/^\/more$/, "更多"],
-];
-
-/**
- * 把一个「来路」值折成一个去处和它的名字。值必须是站内绝对路径（`//host` 是协议相对的站外地址，
- * 挡掉），并且先过 `appPath()` 剥掉部署前缀——`/geohot/all` 认成 `/all`，否则子路径部署下这条链接
- * 会跳到同域名上的另一个站（`docs/known-issues.md`「子路径链接退化」）。查询串原样保留，所以从
- * `/all?tag=…` 进来就回到那个筛选结果，不是回到裸 `/all`。
- */
-function backPlace(value: string | null): { name: string; to: string } | null {
-  if (!value?.startsWith("/") || value.startsWith("//")) return null;
-  const cut = value.indexOf("?");
-  const pathname = appPath(cut < 0 ? value : value.slice(0, cut)).replace(/(.)\/+$/, "$1");
-  const hit = PLACES.find(([re]) => re.test(pathname));
-  return hit ? { name: hit[1], to: cut < 0 ? pathname : `${pathname}${value.slice(cut)}` } : null;
 }
 
 /**
@@ -189,6 +159,7 @@ export default function ItemPage() {
   const share = async () => {
     const r = await shareOrCopy(item);
     if (r === "copied") setToast("链接已复制");
+    else if (r === "failed") setToast("分享没成功，请手动复制地址栏");
   };
 
   const bodyHtml = lang === "zh" ? (item.body?.zh ?? item.body?.original) : (item.body?.original ?? item.body?.zh);
@@ -198,6 +169,8 @@ export default function ItemPage() {
   const summaryOnly = item.readingMode === "summary-only";
   const showOutline = item.outline.length >= 3;
   const originalLabel = isX ? "在 X 查看原推" : "打开原文";
+  // 视频块的可访问名跟着平台说：X 上是「原推」，视频频道上没有任何"推"可打开。
+  const videoLabel = isX ? "打开原推播放视频" : "打开原视频观看";
   // 使用规则第 3 条（/terms#s4）对全站一体适用，但灾害与预警类条目要在读者决定行动的那一段话下面指回去一次。
   const riskNotice = RISK_NOTICE_CATEGORIES.includes(item.category ?? "") || item.tags.some((t) => RISK_NOTICE_TAGS.includes(t));
 
@@ -237,7 +210,7 @@ export default function ItemPage() {
                 await navigator.clipboard.writeText(`${siteUrl()}/items/${item.id}`);
                 setToast("链接已复制");
               } catch {
-                // clipboard unavailable
+                setToast("复制没成功，请手动复制地址栏");
               }
             }}
           >
@@ -400,12 +373,15 @@ export default function ItemPage() {
           </div>
           {/* 没有中文稿的条目不再出现在列表与日报里（读取层闸门），但它自己的页面还留着 —— 藏起真内容
               比少几条更糟。这里如实说清为什么它不在别处，以及标题与提要就是原文。 */}
-          {!isX && !/[一-鿿]/.test(item.title) && (
+          {!isX && !hasChineseCopy(item.title) && (
             <p className="mb-3 rounded-control border border-line bg-raised px-3 py-2 text-[12.5px] leading-relaxed text-ink-3">
               这一条还没有中文稿：以下标题与提要是原文；编辑判断表里尚未登记它，所以它不出现在全部动态、精选与日报里。
             </p>
           )}
           {!isX && <h1 className="text-[26px] font-bold leading-[1.38] tracking-[-0.01em] text-ink lg:text-[32px] lg:leading-[1.34] xl:text-[36px] xl:leading-[1.3]">{item.title}</h1>}
+          {/* A post page has no visual headline (the post card is the page), but a reader on a screen reader
+              still needs one level-one heading to navigate by: name it after the same line the lists show. */}
+          {isX && <h1 className="sr-only">{item.title}</h1>}
           {!isX && item.originalTitle && item.originalTitle !== item.title && <p className="mt-2.5 text-[14px] leading-relaxed text-ink-4">{item.originalTitle}</p>}
 
           {item.summary && (
@@ -481,7 +457,8 @@ export default function ItemPage() {
             </section>
           )}
 
-          {isX && item.x!.media.length > 0 && <MediaGallery media={item.x!.media} postUrl={item.links.original} />}
+          {isX && item.x!.media.length > 0 && <MediaGallery media={item.x!.media} postUrl={item.links.original} videoLabel={videoLabel} />}
+          {!isX && item.media?.length ? <MediaGallery media={item.media} postUrl={item.links.original} videoLabel={videoLabel} /> : null}
           {isX && item.x!.quoted?.text && <QuotedPost quoted={item.x!.quoted} original={lang === "original"} />}
 
           <p className="mt-8 text-[13px] text-ink-4">
@@ -522,14 +499,18 @@ export default function ItemPage() {
       </ArticleLayout>
 
       {posterRequested && (
-        <Suspense fallback={null}>
-          <PosterSheet id={item.id} title={item.title} open={posterOpen} onClose={closePoster} />
-        </Suspense>
+        <ChunkBoundary label="分享海报" onDismiss={() => setPosterRequested(false)}>
+          <Suspense fallback={null}>
+            <PosterSheet id={item.id} title={item.title} open={posterOpen} onClose={closePoster} />
+          </Suspense>
+        </ChunkBoundary>
       )}
       {tocRequested && showOutline && (
-        <Suspense fallback={null}>
-          <TocSheet outline={item.outline} open={tocOpen} onClose={closeToc} />
-        </Suspense>
+        <ChunkBoundary label="目录" onDismiss={() => setTocRequested(false)}>
+          <Suspense fallback={null}>
+            <TocSheet outline={item.outline} open={tocOpen} onClose={closeToc} />
+          </Suspense>
+        </ChunkBoundary>
       )}
       {toast && (
         <div role="status" className="fixed bottom-[calc(80px+env(safe-area-inset-bottom))] left-1/2 z-50 -translate-x-1/2 rounded-full bg-ink px-4 py-2 text-[13px] text-bg shadow-[var(--shadow-pop)] lg:bottom-8">

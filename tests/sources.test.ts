@@ -11,6 +11,7 @@ import { config } from "@aihot/backend/config";
 import { sanitizeBody, trimTrailingChrome } from "@aihot/backend/content/sanitize";
 import { fetchDetail, fetchWebList, fromHtml, fromMarkdown } from "@aihot/backend/sources/web-list";
 import { fetchRss } from "@aihot/backend/sources/rss";
+import { pageFetchable } from "@aihot/backend/content/extract";
 import { fetchJsonList } from "@aihot/backend/sources/json-list";
 import { noiseFiltered } from "@aihot/backend/sources/collect";
 import { unsupportedConfig } from "@aihot/backend/sources/config-keys";
@@ -36,6 +37,38 @@ const pages: Record<string, (cdn: string) => string> = {
     `<content type="html"><![CDATA[<p>${"AMD announced today that it is acquiring World Labs in an all-stock deal. ".repeat(8)}</p><p>Read the full story at The Verge.</p>]]></content></entry>` +
     `<entry><title>A whole post</title><link rel="alternate" href="https://example.org/whole"/><published>2026-09-28T10:00:00Z</published>` +
     `<content type="html"><![CDATA[<p>${"The feed carries this post whole, paragraph after paragraph. ".repeat(30)}</p>]]></content></entry></feed>`,
+  // A video channel's Atom feed (the shape YouTube serves for `?channel_id=`): no `<content>`, no
+  // `<summary>` — the description and the still live in the media namespace.
+  "/video.xml": () =>
+    `<?xml version="1.0"?><feed xmlns:media="http://search.yahoo.com/mrss/" xmlns:yt="http://www.youtube.com/xml/schemas/2015">` +
+    `<entry><id>yt:video:pKJDW8oOXuU</id><yt:videoId>pKJDW8oOXuU</yt:videoId><title>What stinks in Yellowstone?</title>` +
+    `<link rel="alternate" href="https://www.youtube.com/watch?v=pKJDW8oOXuU"/><published>2026-10-01T21:17:46+00:00</published>` +
+    `<updated>2026-10-02T00:52:22+00:00</updated><author><name>USGS</name></author>` +
+    `<media:group><media:title>What stinks in Yellowstone?</media:title>` +
+    `<media:thumbnail url="https://i1.ytimg.com/vi/pKJDW8oOXuU/default.jpg" width="120" height="90"/>` +
+    `<media:thumbnail url="https://i1.ytimg.com/vi/pKJDW8oOXuU/hqdefault.jpg" width="480" height="360"/>` +
+    `<media:description>Yellowstone literally stinks! But from a volcanologist's point of view, that's a good thing.</media:description>` +
+    `<media:community><media:statistics views="12345"/></media:community></media:group>` +
+    `<yt:videoId>pKJDW8oOXuU</yt:videoId></entry>` +
+    // 一条既有 `<summary>` 又有 `media:description` 的：feed 自己写的那句赢（这是唯一会改动既有源摘要的一行）。
+    `<entry><title>With a summary too</title><link rel="alternate" href="https://example.org/v2"/><published>2026-10-02T10:00:00Z</published>` +
+    `<summary>The feed's own line.</summary><media:group><media:description>The long video description.</media:description>` +
+    `<media:thumbnail url="https://example.org/v2.jpg" width="320" height="180"/></media:group><yt:videoId>v2</yt:videoId></entry>` +
+    // 命名空间前缀换了名字也要读得到；这一条没有 videoId，所以是一张普通配图而不是视频块。
+    `<entry><title>Aliased namespace</title><link rel="alternate" href="https://example.org/v3"/><published>2026-10-03T10:00:00Z</published>` +
+    `<m:group><m:description>Bound to another prefix.</m:description><m:thumbnail url="https://example.org/v3.jpg" width="640" height="360"/></m:group></entry>` +
+    // 有 videoId 却没有封面：什么都不给，不给一张坏图。
+    `<entry><title>No still at all</title><link rel="alternate" href="https://example.org/v4"/><published>2026-10-04T10:00:00Z</published>` +
+    `<media:group><media:description>Nothing to show.</media:description></media:group><yt:videoId>v4</yt:videoId></entry></feed>`,
+  // 同一段 MRSS 出现在 RSS 2.0 的 `<item>` 里（无 enclosure、无 content）：两种方言必须同一种意思，
+  // 否则"视频源"只是被序列化格式碰巧支持。
+  "/video-rss2.xml": () =>
+    `<?xml version="1.0"?><rss xmlns:media="http://search.yahoo.com/mrss/" version="2.0"><channel><title>Channel</title>` +
+    `<item><title>An item with only media parts</title><link>https://example.org/rss2-video</link>` +
+    `<pubDate>Thu, 01 Oct 2026 21:17:46 +0000</pubDate>` +
+    `<media:group><media:description>Described by the media namespace only.</media:description>` +
+    `<media:thumbnail url="https://example.org/rss2.jpg" width="480" height="360"/></media:group>` +
+    `<guid isPermaLink="false">rss2-video</guid></item></channel></rss>`,
   // A list API that gives calendar days as yyyymmdd.
   "/days.json": () => JSON.stringify({ data: { list: [{ seq: 695, ttl: "MCFlow", day: "20260922" }, { seq: 1, ttl: "Bad day", day: "20260230" }] } }),
   // Google Developers Blog: no date in the feed or in meta tags, only in JSON-LD.
@@ -176,6 +209,32 @@ test("feed text that only teases the article is a summary: the page is fetched b
   assert.equal(signal.candidates[0]!.bodyStatus, "ok");
 });
 
+test("a video channel's feed gives a still and its description, and no page is chased for it", async () => {
+  const read = await fetchRss({ id: "test-video", config: { feedUrl: `${site}/video.xml` }, participation_mode: "editorial", cursor: null } as never, { force: true });
+  const c = read.candidates[0]!;
+  assert.equal(c.title, "What stinks in Yellowstone?");
+  assert.equal(c.url, "https://www.youtube.com/watch?v=pKJDW8oOXuU");
+  assert.equal(c.excerpt, "Yellowstone literally stinks! But from a volcanologist's point of view, that's a good thing.");
+  assert.deepEqual(c.media, [{ kind: "video", url: "https://www.youtube.com/watch?v=pKJDW8oOXuU", poster: "https://i1.ytimg.com/vi/pKJDW8oOXuU/hqdefault.jpg", width: 480, height: 360 }]);
+  // The watch page has no article body to extract: chasing it (or paying a renderer for it) would add
+  // nothing, so the item is judged on what the feed gave. `pending` + not fetchable is that state.
+  assert.equal(c.bodyStatus, "pending");
+  assert.equal(pageFetchable(c.url, "rss"), false);
+  assert.equal(pageFetchable("https://www.cenc.ac.cn/cenc/2026-10/05/article_1.html", "rss"), true);
+  // 上面那条断言用的是两张缩略图里较宽的那张（120 在前、480 在后）。其余三条各钉一条规则：
+  const [, withSummary, aliased, noStill] = read.candidates;
+  assert.equal(withSummary!.excerpt, "The feed's own line.", "media:description 不盖过 feed 自己写的 summary");
+  assert.equal(withSummary!.media![0]!.kind, "video");
+  assert.equal(withSummary!.url, "https://example.org/v2", "视频块指向条目自己的地址");
+  assert.equal(aliased!.excerpt, "Bound to another prefix.", "换前缀的命名空间也要读得到");
+  assert.equal(aliased!.media![0]!.kind, "image", "没有 videoId 就不是视频块");
+  assert.deepEqual(noStill!.media, [], "有 videoId 但没封面时什么都不给，不给一张坏图");
+  assert.equal(noStill!.excerpt, "Nothing to show.");
+  const rss2 = await fetchRss({ id: "test-video-2", config: { feedUrl: `${site}/video-rss2.xml` }, participation_mode: "editorial", cursor: null } as never, { force: true });
+  assert.equal(rss2.candidates[0]!.excerpt, "Described by the media namespace only.", "RSS 2.0 也读 media:description");
+  assert.deepEqual(rss2.candidates[0]!.media, [{ kind: "image", url: "https://example.org/rss2.jpg", poster: null, width: 480, height: 360 }], "两种方言同一语义");
+});
+
 test("hidden page parts are dropped whole, and a news page's closing blocks are trimmed", () => {
   // microsoft.ai posts carry <template> blocks of base64 that became 330,000 characters of "body".
   const html = sanitizeBody(
@@ -202,6 +261,18 @@ test("noise words match whatever their case", () => {
   assert.equal(noiseFiltered(c("Manus：正组建团队开发面向国内市场的产品", "与笔记本厂商合作的 Agent 产品"), source), false);
   assert.equal(noiseFiltered(c("新款笔记本开售", "首发价 4999 元"), source), true);
   assert.equal(noiseFiltered(c("iPhone 18 开售", ""), source), true);
+});
+
+test("空白标记不等于匹配一切", () => {
+  // `markerPattern("")` 走纯子串那一支，得到 `new RegExp("")`——对任何文本都是 true。于是 dropMarkers 里
+  // 一个空串会丢掉整条 feed，requireTitleMarkers 里一个空串会全放行。`config-keys.ts` 只校验这四个数组的
+  // 键名、不校验元素，所以这道判断必须落在 hasMarker 里（2026-10-05 补）。
+  const c = (title: string) => ({ url: "https://example.org/a", title, excerpt: "" }) as never;
+  const drop = { config: { ingestNoiseFilter: { dropMarkers: ["", "笔记本"] } } } as never;
+  assert.equal(noiseFiltered(c("哥白尼：2026 年 8 月为有记录以来最热月份"), drop), false, "空串不得把非噪声的条目一起丢掉");
+  assert.equal(noiseFiltered(c("新款笔记本开售"), drop), true, "同一条列表里的真噪声词照旧生效");
+  const whitelist = { config: { ingestNoiseFilter: { requireTitleMarkers: [""] } } } as never;
+  assert.equal(noiseFiltered(c("高校人事任免通知"), whitelist), true, "白名单里只有一个空串＝没有白名单，不能变成全放行");
 });
 
 test("a title whitelist keeps only what it names, and beats a drop marker", () => {

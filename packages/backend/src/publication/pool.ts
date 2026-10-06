@@ -1,6 +1,7 @@
 // Public pool (/all) with numeric pages, and search in its two orderings.
 import type { PoolResponse, TimelineFilters } from "@aihot/contracts/site";
 import { beijingDate, beijingMidnight } from "@aihot/contracts/time";
+import { positiveInt } from "../config.ts";
 import { one, sql, withCustomPlans, type Db } from "../db.ts";
 import {
   categoryCondition, channelCondition, ITEM_COLUMNS, ITEM_FROM, listedCondition, tagCondition, toFeedItemSummary, topicCondition,
@@ -20,49 +21,50 @@ export class SearchBusyError extends Error {
 
 // Search capacity guard: bounded concurrency with a short queue. Overflow answers 503 + Retry-After
 // instead of letting machine traffic drag list browsing down.
-// The two limits are read from the environment, so they are validated here rather than trusted: an
-// unparseable value used to become NaN, which makes both guards false (`running >= NaN` is false), so the
-// 503 + Retry-After path could never fire and machine traffic had no ceiling at all; a zero or negative
-// one answered 503 for every search. A bad setting now falls back to the default with one line of output
-// naming the number actually in force.
-function capacityLimit(name: string, fallback: number): number {
-  const raw = process.env[name];
-  if (raw === undefined || raw.trim() === "") return fallback;
-  const n = Number(raw);
-  const value = Number.isFinite(n) && n >= 1 ? Math.floor(n) : fallback;
-  console.log(JSON.stringify({
-    level: value === fallback && !(Number.isFinite(n) && Math.floor(n) === fallback) ? "warn" : "info",
-    msg: `${name}=${raw}: using ${value}${value === fallback ? " (the default; the configured value is not a positive whole number)" : ""}`,
-  }));
-  return value;
-}
-const MAX_CONCURRENT_SEARCHES = capacityLimit("SEARCH_MAX_CONCURRENCY", 4);
-const MAX_QUEUED_SEARCHES = capacityLimit("SEARCH_MAX_QUEUE", 8);
+// The two limits come from the environment, so they are validated rather than trusted: an unparseable
+// value used to become NaN, which makes both guards false (`running >= NaN` is false), so the 503 +
+// Retry-After path could never fire and machine traffic had no ceiling at all; a zero or negative one
+// answered 503 for every search. `config.positiveInt` is that rule now — a bad setting falls back to the
+// default with one line naming the number actually in force.
+const MAX_CONCURRENT_SEARCHES = positiveInt(process.env.SEARCH_MAX_CONCURRENCY, "SEARCH_MAX_CONCURRENCY", 4);
+const MAX_QUEUED_SEARCHES = positiveInt(process.env.SEARCH_MAX_QUEUE, "SEARCH_MAX_QUEUE", 8);
+const QUEUE_WAIT_MS = positiveInt(process.env.SEARCH_QUEUE_WAIT_MS, "SEARCH_QUEUE_WAIT_MS", 3_000);
+// Retry-After is derived from the wait window, not a number typed next to it: the hint we give a machine
+// is "wait about as long as we just waited". With `SEARCH_QUEUE_WAIT_MS=3000` that is 4 seconds.
+const RETRY_AFTER_SECONDS = Math.ceil(QUEUE_WAIT_MS / 1000) + 1;
 let running = 0;
 const waiters: Array<() => void> = [];
 
 export async function withSearchCapacity<T>(fn: (db: Db) => Promise<T>): Promise<T> {
+  // The slot is *handed over*, not released and then reacquired. Releasing first (`running -= 1` in the
+  // old finally, before the woken waiter reached its own `running += 1` one microtask later) let any
+  // arrival in that window see a free slot and take it, so the ceiling was soft: `MAX + whoever slipped
+  // through`. This guard exists precisely so machine traffic cannot raise the number of concurrent
+  // searches above the pool under it (`db.ts` max: 10), which is why the count moves with the wake-up.
+  let holdsSlot = false;
   if (running >= MAX_CONCURRENT_SEARCHES) {
-    if (waiters.length >= MAX_QUEUED_SEARCHES) throw new SearchBusyError(5);
+    if (waiters.length >= MAX_QUEUED_SEARCHES) throw new SearchBusyError(RETRY_AFTER_SECONDS);
     await new Promise<void>((resolve, reject) => {
       const timer = setTimeout(() => {
         const i = waiters.indexOf(go);
         if (i >= 0) waiters.splice(i, 1);
-        reject(new SearchBusyError(5));
-      }, 3000);
+        reject(new SearchBusyError(RETRY_AFTER_SECONDS));
+      }, QUEUE_WAIT_MS);
       const go = () => {
         clearTimeout(timer);
+        holdsSlot = true; // the holder that woke us is still counted; it will not decrement
         resolve();
       };
       waiters.push(go);
     });
   }
-  running += 1;
+  if (!holdsSlot) running += 1;
   try {
     return await withCustomPlans(fn);
   } finally {
-    running -= 1;
-    waiters.shift()?.();
+    const next = waiters.shift();
+    if (next) next();
+    else running -= 1;
   }
 }
 
@@ -206,10 +208,19 @@ export async function loadPool(query: PoolQuery): Promise<PoolResponse> {
 
   const { rows, total } = q ? await withSearchCapacity(run) : await run(sql);
   const today = beijingDate(now);
+  // 表头上那句「今日 N 条」必须与它下面真的分组同一套成员条件（`DayList.tsx` 按 `timelineAt` 分日、
+  // 把没有发布时间的行挪去「无发布日期」那一组）：
+  //  - 原来筛的是 `NOT p.backfill`，而按发现时间补录的条目确实会出现在「今天」这一组里 —— 数字比看到的小；
+  //  - 原来用 `timeline_at >= midnight` 但没有排除 `published_at IS NULL`，而那些行根本不在日组里 —— 数字比看到的大。
+  // 两个方向各差一点，所以本机今天看不出来（96 条 listed backfill 没有一条落在今天）。
+  // 「更新于」与「今日 N 条」「找到 N 条」是同一屏上的三句话，问的必须是同一批条目：以前它是全池的
+  // `max(updated_at)`，于是任何一条 eligible 更新都会打掉所有筛选页与搜索页的 ETag，而页面上的日期
+  // 说的是这一筛选之外发生的事。
   const meta = one(await sql<{ today_count: number; updated_at: Date | null }[]>`
     SELECT (SELECT count(*) FROM publications p
-      WHERE ${listedCondition(now)} AND p.eligible AND NOT p.backfill AND p.timeline_at >= ${beijingMidnight(today)} ${filters}) AS today_count,
-      (SELECT max(p.updated_at) FROM publications p WHERE p.eligible) AS updated_at`);
+      WHERE ${listedCondition(now)} AND p.eligible AND p.published_at IS NOT NULL AND p.timeline_at >= ${beijingMidnight(today)} ${filters}) AS today_count,
+      (SELECT max(p.updated_at) FROM publications p
+        WHERE ${listedCondition(now)} AND p.eligible ${filters}) AS updated_at`);
 
   return {
     filters: { channel: query.channel, category: query.category, tag: query.tag, topic: query.topic ?? null, q, tab },

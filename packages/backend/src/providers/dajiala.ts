@@ -40,6 +40,17 @@ function base(): { url: string; key: string } {
   return { url: (credential("collectors", "DAJIALA_BASE_URL") ?? "https://www.dajiala.com").replace(/\/$/, ""), key };
 }
 
+/**
+ * The transport answer before any body is read. 429/5xx are retryable rejections; any other non-OK —
+ * an HTML error wall behind a 404 included — is a plain rejection. Letting those fall into `JSON.parse`
+ * would book the receipt as `unknown` and park the logical key until an operator resolves it, for a
+ * request the provider never served (jina and socialdata already state this rule; this is the same one).
+ */
+function statusGuard(res: { status: number }): void {
+  if (res.status === 429 || res.status >= 500) throw new ProviderRejectedError(`dajiala HTTP ${res.status}`, res.status, true);
+  if (res.status < 200 || res.status >= 300) throw new ProviderRejectedError(`dajiala HTTP ${res.status}`, res.status, false);
+}
+
 /** Provider codes: -1 rate limit (retry later); 20001 balance; 101/104/107 account gone; others rejected. */
 function outcomeOf(json: { code?: number; msg?: string; cost_money?: number }, label: string): CallOutcome["cost"] {
   const code = Number(json.code ?? 0);
@@ -71,7 +82,7 @@ export async function mpHistory(ghid: string, opts: { subject: string; window: s
         timeoutMs: 30_000,
         route: "direct",
       });
-      if (res.status === 429 || res.status >= 500) throw new ProviderRejectedError(`dajiala HTTP ${res.status}`, res.status, true);
+      statusGuard(res);
       const json = JSON.parse(res.text()) as { code?: number; msg?: string; cost_money?: number };
       const cost = outcomeOf(json, "post_history");
       return { response: json, cost, usage: { posts: Array.isArray((json as { data?: unknown[] }).data) ? (json as { data: unknown[] }).data.length : 0 } };
@@ -95,7 +106,7 @@ export async function mpArticle(articleUrl: string, opts: { subject: string; ide
         maxBytes: 8 * 1024 * 1024,
         route: "direct",
       });
-      if (res.status === 429 || res.status >= 500) throw new ProviderRejectedError(`dajiala HTTP ${res.status}`, res.status, true);
+      statusGuard(res);
       const json = JSON.parse(res.text()) as { code?: number; msg?: string; cost_money?: number };
       const cost = outcomeOf(json, "article_detail");
       return { response: json, cost, usage: { chars: String((json as { content?: string }).content ?? "").length } };

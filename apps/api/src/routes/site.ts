@@ -1,12 +1,8 @@
 // First-party site API (/api/site/*). Not public, not versioned, never called /api/v2.
 // Reads through the same public read layer as v1; no cookies are read or set.
-import { readFileSync } from "node:fs";
-import path from "node:path";
 import { FEATURES } from "@aihot/industry/features";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import { isCategoryKey, isChannelKey, type CategoryKey, type ChannelKey } from "@aihot/contracts/taxonomy";
-import { isValidDate } from "@aihot/contracts/time";
-import { REPO_ROOT } from "@aihot/backend/config";
+import { ARTICLE_ID_PATTERN, isCategoryKey, isChannelKey, type CategoryKey, type ChannelKey } from "@aihot/contracts/taxonomy";
 import { InvalidCursorError } from "@aihot/backend/lib/cursor";
 import { exportMarkdown, loadItemDetail, siteItemDetail } from "@aihot/backend/publication/detail";
 import { loadPool, SearchBusyError } from "@aihot/backend/publication/pool";
@@ -35,13 +31,16 @@ const codexVersion = cached(() => codexResetVersion(), { freshMs: 5_000, maxStal
 
 class BadRequest extends Error {}
 
-/** Cache until the earliest pending release in scope (an absolute deadline shared with any proxy or CDN in front). */
+/**
+ * Cache until the earliest pending release in scope (an absolute deadline shared with any proxy or CDN in
+ * front). The header itself is the caller's to send — `sendJsonWithEtag` writes `Cache-Control` from the
+ * value this returns, so setting it here too only ever left a branch (`no-cache`) that no reader saw.
+ */
 export function cacheUntil(reply: FastifyReply, defaultSeconds: number, refreshAt: string | null, now = Date.now()) {
   let seconds = defaultSeconds;
   if (refreshAt) seconds = Math.max(0, Math.min(seconds, Math.floor((Date.parse(refreshAt) - now) / 1000)));
-  reply.header("Cache-Control", seconds > 0 ? `public, max-age=${seconds}, s-maxage=${seconds}` : "no-cache");
   reply.header("X-Accel-Expires", `@${Math.floor(now / 1000) + seconds}`);
-  return `public, max-age=${seconds}, s-maxage=${seconds}`;
+  return seconds > 0 ? `public, max-age=${seconds}, s-maxage=${seconds}` : "no-cache";
 }
 
 export function siteHandler(fn: Handler): Handler {
@@ -119,7 +118,7 @@ export function registerSite(app: FastifyInstance) {
 
   app.get("/api/site/items/:id", siteHandler(async (req, reply) => {
     const id = (req.params as { id: string }).id;
-    if (!/^[a-zA-Z0-9_-]{1,80}$/.test(id)) return sendProblem(req, reply, { status: 404, code: "not_found", detail: "item not found" });
+    if (!ARTICLE_ID_PATTERN.test(id)) return sendProblem(req, reply, { status: 404, code: "not_found", detail: "item not found" });
     const result = await loadItemDetail(id);
     if (result.kind === "not_found") return sendProblem(req, reply, { status: 404, code: "not_found", detail: "item not found", cacheControl: "public, max-age=60" });
     return sendJsonWithEtag(req, reply, siteItemDetail(result.detail), { etagPrefix: "item", cacheControl: "public, max-age=60, s-maxage=60" });
@@ -127,7 +126,7 @@ export function registerSite(app: FastifyInstance) {
 
   app.get("/api/site/items/:id/original", siteHandler(async (req, reply) => {
     const id = (req.params as { id: string }).id;
-    if (!/^[a-zA-Z0-9_-]{1,80}$/.test(id)) return sendProblem(req, reply, { status: 404, code: "not_found", detail: "item not found" });
+    if (!ARTICLE_ID_PATTERN.test(id)) return sendProblem(req, reply, { status: 404, code: "not_found", detail: "item not found" });
     const result = await loadItemDetail(id);
     if (result.kind === "not_found") return sendProblem(req, reply, { status: 404, code: "not_found", detail: "item not found", cacheControl: "public, max-age=60" });
     return sendJsonWithEtag(req, reply, siteItemDetail(result.detail, true), { etagPrefix: "item-original", cacheControl: "public, max-age=60, s-maxage=60" });
@@ -189,7 +188,9 @@ export function registerSite(app: FastifyInstance) {
     const page = Number(looseQuery(req).page ?? 1);
     const data = Number.isInteger(page) ? await loadTopicPage(slug, page) : null;
     if (!data) return sendProblem(req, reply, { status: 404, code: "not_found", detail: "topic page not found", cacheControl: "public, max-age=60" });
-    return sendJsonWithEtag(req, reply, data, { etagPrefix: "topic", cacheControl: "public, max-age=60, s-maxage=60" });
+    // The stamp tells the page which day is「今天」; it must not move the ETag, or the 60-second cache never hits.
+    const { generatedAt: _, ...content } = data;
+    return sendJsonWithEtag(req, reply, data, { etagPrefix: "topic", cacheControl: "public, max-age=60, s-maxage=60", etagOf: content });
   }));
 
   registerFeedback(app);
@@ -252,7 +253,7 @@ export function registerSite(app: FastifyInstance) {
   // Markdown export: attachment, 404 when there is nothing to export (same predicate as the button).
   app.get("/items/:id/markdown", siteHandler(async (req, reply) => {
     const id = (req.params as { id: string }).id;
-    if (!/^[a-zA-Z0-9_-]{1,80}$/.test(id)) return reply.code(404).type("text/plain; charset=utf-8").send("Not found");
+    if (!ARTICLE_ID_PATTERN.test(id)) return reply.code(404).type("text/plain; charset=utf-8").send("Not found");
     const md = await exportMarkdown(id);
     if (!md) return reply.code(404).header("Cache-Control", "public, max-age=60").type("text/plain; charset=utf-8").send("Not found");
     return reply

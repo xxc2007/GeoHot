@@ -23,11 +23,6 @@ export function inputFingerprint(inputs: RunInputs): string {
   return sha256(stableJson({ method: METHOD_VERSION, boards: inputs.boards }));
 }
 
-export async function lastCheck(): Promise<{ at: string; fingerprint: string } | null> {
-  const [row] = await sql<{ value: { at: string; fingerprint: string } }[]>`SELECT value FROM settings WHERE key = 'leaderboard.last_check'`;
-  return row?.value ?? null;
-}
-
 async function recordCheck(fingerprint: string, at: Date) {
   await sql`INSERT INTO settings (key, value, updated_by) VALUES ('leaderboard.last_check', ${sql.json({ at: at.toISOString(), fingerprint })}, 'worker')
             ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`;

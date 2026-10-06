@@ -320,7 +320,11 @@ function corsHeaders(reply: FastifyReply, origin: string | undefined) {
 }
 
 export function registerMcp(app: FastifyInstance) {
-  const handler = createMcpHandler(() => buildMcpServer(), { legacy: "stateless", maxRequestBodySize: 256 * 1024 });
+  // No `maxRequestBodySize` here: the SDK documents it as not applied to a body handed over as
+  // `parsedBody`, which is how `serve` always calls it for an object POST. The size that is actually
+  // enforced is the server-level body limit (app.ts), and naming a second one here only advertised a
+  // guard that never ran.
+  const handler = createMcpHandler(() => buildMcpServer(), { legacy: "stateless" });
   // SSE subscriptions otherwise keep Fastify's server.close waiting until systemd kills the slot.
   // preClose runs before HTTP draining; onClose would be too late for a never-ending stream.
   app.addHook("preClose", async () => { await handler.close(); });
@@ -371,7 +375,7 @@ export function registerMcp(app: FastifyInstance) {
     reply.header("Cache-Control", "no-store");
     if (!allowedOrigin(req.headers.origin)) return reply.code(403).type("application/json").send({ error: "origin_not_allowed" });
     corsHeaders(reply, req.headers.origin);
-    return reply.code(204).header("Access-Control-Allow-Methods", CORS_METHODS).header("Access-Control-Allow-Headers", CORS_HEADERS).header("Access-Control-Max-Age", "600").header("Allow", CORS_METHODS).send();
+    return reply.code(204).header("Access-Control-Allow-Methods", CORS_METHODS).header("Access-Control-Allow-Headers", CORS_HEADERS).header("Access-Control-Max-Age", "600").header("Allow", MCP_ALLOWED_METHODS).send();
   });
   app.route({
     method: ["PUT", "PATCH"],

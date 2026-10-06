@@ -9,7 +9,7 @@ import { FeedItem } from "./FeedItem";
 import { IconChevronDown } from "../../components/icons";
 import { RingMark } from "../../components/Logo";
 import { EmptyState } from "../../components/ui/Page";
-import { beijingDate, beijingTime, beijingWeekday, dayLabel } from "../../lib/format";
+import { beijingDate, beijingTime, beijingWeekday, dayLabel, todayOf } from "../../lib/format";
 import { publicPath } from "../../lib/public-path";
 import { markRead, useReadSet } from "../../lib/local-state";
 import { isHydrated, isReload, markHydrated, readSnapshot, restoreAnchor, saveSnapshot } from "./restore";
@@ -56,9 +56,15 @@ export function DayHeader({ day, today, count, collapsed, onToggle }: { day: str
       </div>
       {/* Desktop: the date ends where the times end, the fold toggle sits on the rail. */}
       <div className="hidden h-11 grid-cols-[64px_22px_minmax(0,1fr)] items-center lg:grid">
-        <button type="button" onClick={onToggle} disabled={!onToggle} className="justify-self-end whitespace-nowrap text-right text-[18px] font-semibold leading-6 text-ink">
-          {date}
-        </button>
+        {/* Without a fold to control (the paged lists), the date is text: a disabled button reads to AT as
+            something the reader could not use, and there was never anything to use. */}
+        {onToggle ? (
+          <button type="button" onClick={onToggle} className="justify-self-end cursor-pointer whitespace-nowrap text-right text-[18px] font-semibold leading-6 text-ink">
+            {date}
+          </button>
+        ) : (
+          <span className="justify-self-end whitespace-nowrap text-right text-[18px] font-semibold leading-6 text-ink">{date}</span>
+        )}
         {onToggle ? (
           <button
             type="button"
@@ -264,7 +270,9 @@ export function Timeline({ initial, filters }: { initial: TimelineResponse; filt
     return () => io.disconnect();
   }, [state.nextCursor, state.batches, loadMore]);
 
-  const today = beijingDate(Date.now());
+  // Which day is「今天」is decided by the clock that built these cards, not by the browser: the server render
+  // and the hydration can straddle Beijing midnight, and the day counts in this answer are for its own day.
+  const today = todayOf(initial.generatedAt);
   const days = useMemo(() => {
     const out: Array<{ day: string; cards: TimelineCard[] }> = [];
     for (const c of state.cards) {

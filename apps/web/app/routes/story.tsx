@@ -1,4 +1,4 @@
-import { SITE, withSubject } from "@aihot/industry/site";
+import { SITE } from "@aihot/industry/site";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, redirect, useLoaderData, useSearchParams } from "react-router";
 import type { Route } from "./+types/story";
@@ -6,7 +6,7 @@ import type { StoryDetail, StoryReportView } from "@aihot/contracts/site";
 import { ApiRedirect, loadOr404 } from "../lib/api.server";
 import { breadcrumbLd, pageMeta, titled } from "../lib/seo";
 import { beijingDate, beijingTime, monthDayTime, relativeTime, shortSourceName } from "../lib/format";
-import { appPath } from "../lib/public-path";
+import { backPlace } from "../lib/back-place";
 import { getTimelineOrder, setTimelineOrder, type TimelineOrder } from "../lib/local-state";
 import { HeatChart } from "../features/story/HeatChart";
 import { Badge, SelectedBadge } from "../components/ui/Badge";
@@ -36,6 +36,7 @@ export function meta({ loaderData }: Route.MetaArgs) {
     description: (s.digest ?? s.summary)?.slice(0, 150) ?? `${s.sourceCount} 个报道来源 ${s.reportCount} 篇报道，完整时间线与最新进展。`,
     path: `/story/${s.publicId}`,
     image: `/og/stories/${s.publicId}.png`,
+    noindex: !s.indexable,
     type: "article",
     jsonLd: breadcrumbLd([{ name: SITE.name, path: "/" }, { name: "热点榜", path: "/hot" }, { name: s.title, path: `/story/${s.publicId}` }]),
   });
@@ -157,24 +158,6 @@ function TimelineRow({ r }: { r: StoryReportView }) {
 
 type Filter = "all" | "official" | "selected";
 
-/** 事件页认得的来路 → 左上角那几个字。表外的路径不写去处，沿用热点榜。 */
-const PLACES: Record<string, string> = { "/": "精选", "/all": "全部动态", "/hot": "热点榜", "/starred": "收藏", "/topics": "主题", "/about": "关于", "/changelog": "更新日志" };
-const PERIODS: Record<string, string> = { daily: "日报", weekly: "周报", monthly: "月报" };
-
-/**
- * 把一个「来路」值折成去处和它的名字：必须是站内绝对路径（`//host` 是协议相对的站外地址，挡掉），
- * 并且先过 `appPath()` 剥掉部署前缀——`/geohot/topics/xxx` 认成 `/topics/xxx`，否则子路径部署下
- * 这条链接会跳到同域名上的另一个站（`docs/known-issues.md`「子路径链接退化」）。
- */
-function backPlace(value: string | null): { name: string; to: string } | null {
-  if (!value?.startsWith("/") || value.startsWith("//")) return null;
-  const cut = value.indexOf("?");
-  const pathname = appPath(cut < 0 ? value : value.slice(0, cut)).replace(/(.)\/+$/, "$1");
-  const period = /^\/(daily|weekly|monthly)(\/|$)/.exec(pathname);
-  const name = PLACES[pathname] ?? (pathname.startsWith("/topics/") ? "主题页" : period ? PERIODS[period[1]!] ?? null : null);
-  return name ? { name, to: cut < 0 ? pathname : `${pathname}${value.slice(cut)}` } : null;
-}
-
 /**
  * 左上角写明返回到哪里（源站 2026-10-02 的规则）：`?from=` 优先，其次站内 `document.referrer`，
  * 都判不出就还是热点榜。`from` 读自 `useSearchParams`，服务端与水合后的第一帧是同一个值；
@@ -270,6 +253,13 @@ export default function StoryPage() {
           <Badge tone={status.tone}>{status.label}</Badge>
         </div>
         <h1 className="mt-2.5 text-[27px] font-bold leading-[1.5] tracking-[-0.01em] text-ink lg:mt-3 lg:text-[36px] lg:font-[730]">{story.title}</h1>
+        {!story.indexable && (
+          // 事件页照旧能打开（下面的报道就是记录），但这句话得替读者说清楚：这一页没有任何本站写的中文。
+          <p className="mt-2.5 flex flex-wrap items-baseline gap-x-2 text-[12.5px] leading-[1.7] text-ink-3">
+            <span>这条事件还没有中文稿：上面的标题和下面的报道都按原文照录。</span>
+            <Link to="/hot" className="text-accent hover:underline">看已写成中文的热点事件</Link>
+          </p>
+        )}
         <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-[12.5px] text-ink-3">
           <span className="inline-flex items-center gap-1.5">
             <IconDoc size={15} className="text-ink-4" />

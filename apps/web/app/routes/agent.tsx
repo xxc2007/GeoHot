@@ -218,7 +218,14 @@ export default function AgentPage() {
   // 首帧沿用页面加载时的判断（与服务端 HTML 一致，不多一次水合差异），到浏览器里再查一次。
   const [healthy, setHealthy] = useState(healthyAtLoad);
 
-  useEffect(() => setTab((params.get("tab") as TabKey) || "mcp"), [params]);
+  // The loader validates `?tab=`; this effect is the same check for an address that changes in the
+  // browser. It used to cast the raw value, so one unknown `?tab=` (a typo, a stale bookmark, a crawled
+  // SEO variant) replaced the server's validated tab after hydration and blanked the panel — the content
+  // region only renders for the three known keys, so what was left was an empty box under the heading.
+  useEffect(() => {
+    const next = params.get("tab");
+    setTab(TABS.some((t) => t.key === next) ? (next as TabKey) : "mcp");
+  }, [params]);
 
   useEffect(() => {
     const controller = new AbortController();

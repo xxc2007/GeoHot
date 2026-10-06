@@ -5,18 +5,29 @@ import { SITE } from "@aihot/industry/site";
 import { basePath } from "./public-path";
 
 /**
- * The site's address, identical on the server and in the browser.
+ * The site's address — one value, decided by the server and read back by the browser.
  *
- * The obvious browser answer — `window.location.origin` — is wrong behind a prefixing deployment:
- * this site lives at `xxc2007.me/geohot/`, whose origin is `xxc2007.me`, which is a **different
- * website**. React Router re-runs every route's `meta()` during hydration, so an origin-only base
- * appended a second `rel=canonical` (plus `og:url`, `og:image` and the JSON-LD URLs) pointing at the
- * neighbouring site — Lighthouse failed the canonical audit on it, and a JS-rendering crawler sees
- * our pages as canonicalising to someone else's. The build-time base path is the same value the
- * server reads out of `SITE_URL`, so the two now agree.
+ * The obvious browser answer, `window.location.origin`, is wrong twice over. Behind a prefixing
+ * deployment the origin (`xxc2007.me`) is not where this site lives (`xxc2007.me/geohot`), and the bare
+ * origin is a **different website**: React Router re-runs every route's `meta()` during hydration, so an
+ * origin-only base appended a second `rel=canonical` (plus `og:url`, `og:image` and the JSON-LD
+ * addresses) pointing at the neighbour — Lighthouse failed the canonical audit on it, and a JS-rendering
+ * crawler saw our pages as canonicalising to someone else's. Second, whenever the page is opened at an
+ * address other than `SITE_URL` — a developer's `127.0.0.1:3000`, an alias host — the server and the
+ * client disagree on every absolute URL and React reports a hydration mismatch (measured on the home
+ * page's JSON-LD, 2026-10-05).
+ *
+ * So the server writes its own answer into `<html data-site-url>` from the root loader and the browser
+ * reads it instead of guessing. `basePath` remains only as the fallback for a document that never got
+ * root loader data (an error page).
  */
 export function siteUrl(): string {
-  if (typeof window !== "undefined") return window.location.origin + basePath;
+  if (typeof window === "undefined") return serverSiteUrl();
+  return document.documentElement.dataset.siteUrl ?? `${window.location.origin}${basePath}`;
+}
+
+/** What the server answers with, and what the browser is handed back. */
+export function serverSiteUrl(): string {
   return (process.env.SITE_URL || SITE.defaultUrl).replace(/\/+$/, "");
 }
 

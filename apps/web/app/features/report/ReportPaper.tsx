@@ -192,7 +192,7 @@ function pagesOf(report: ReportDetail, leadStory: ReportCitation | null): Page[]
  * The lead's picture; landscape pictures are cropped to between 16:10 and 2:1. A picture that is not
  * the lead's own (a weekly or monthly's, from its first highlight) is captioned with its story.
  */
-function LeadPicture({ cover, onError, priority = false, className = "" }: { cover: NonNullable<ReportDetail["cover"]>; onError: () => void; priority?: boolean; className?: string }) {
+function LeadPicture({ cover, title, onError, priority = false, className = "" }: { cover: NonNullable<ReportDetail["cover"]>; title: string; onError: () => void; priority?: boolean; className?: string }) {
   const ratio = cover.width && cover.height ? cover.width / cover.height : 16 / 9;
   const shown = ratio >= 1.25 ? Math.min(2, Math.max(1.6, ratio)) : Math.max(0.8, ratio);
   return (
@@ -201,7 +201,7 @@ function LeadPicture({ cover, onError, priority = false, className = "" }: { cov
         <img src={cover.url} srcSet={cover.srcSet}
           sizes={priority ? "(min-width: 1700px) 780px, (min-width: 1580px) calc(100vw - 920px), (min-width: 1420px) calc(100vw - 880px), (min-width: 1024px) calc(100vw - 540px), (min-width: 640px) 608px, calc(100vw - 32px)" : "auto, (min-width: 1180px) 300px, (min-width: 640px) 608px, calc(100vw - 32px)"}
           width={cover.width ?? undefined} height={cover.height ?? undefined}
-          alt="" loading={priority ? "eager" : "lazy"} fetchPriority={priority ? "high" : "auto"} decoding="async" onError={onError} className="size-full object-cover" />
+          alt={cover.caption ? "" : `《${title}》的配图`} loading={priority ? "eager" : "lazy"} fetchPriority={priority ? "high" : "auto"} decoding="async" onError={onError} className="size-full object-cover" />
       </div>
       {cover.caption && <figcaption className="mt-2.5 line-clamp-2 text-[12.5px] leading-[1.6] text-ink-4">图 · {cover.caption}</figcaption>}
     </figure>
@@ -229,7 +229,7 @@ function FrontPage({ report, pages, leadStory, count, now }: { report: ReportDet
     <section aria-label="头版" className="grid @[880px]:grid-cols-[minmax(0,1fr)_300px] @[1040px]:grid-cols-[minmax(0,1fr)_340px]">
       <div id={leadStory ? (anchorOf(leadStory) ?? undefined) : undefined} className="min-w-0 scroll-mt-6 py-7 @[880px]:border-r @[880px]:border-line @[880px]:py-10 @[880px]:pr-10">
         <Kicker>{daily ? "头条" : "本期导读"}</Kicker>
-        {cover && wide && <LeadPicture cover={cover} onError={() => setBroken(cover.url)} priority className="mt-5" />}
+        {cover && wide && <LeadPicture cover={cover} title={title} onError={() => setBroken(cover.url)} priority className="mt-5" />}
         <h2 className="mt-4 text-display font-display font-black leading-[1.28] tracking-[-0.03em] text-ink [text-wrap:balance] @[520px]:text-display-lg @[1040px]:text-display-xl @[1040px]:leading-[1.22]">
           {leadStory?.itemId ? (
             <Link to={`/items/${leadStory.itemId}`} prefetch="intent" className="transition-colors hover:text-accent">
@@ -242,7 +242,7 @@ function FrontPage({ report, pages, leadStory, count, now }: { report: ReportDet
         {dek && (
           <div className={cover && !wide ? "mt-6 grid gap-6 @[640px]:grid-cols-[minmax(0,1fr)_minmax(0,38%)] @[880px]:mt-7" : ""}>
             <p className={`text-[16.5px] leading-[1.9] text-ink-2 @[880px]:text-[17.5px] ${cover && !wide ? "" : "mt-6 @[560px]:text-justify @[880px]:mt-7"}`}>{dek}</p>
-            {cover && !wide && <LeadPicture cover={cover} onError={() => setBroken(cover.url)} />}
+            {cover && !wide && <LeadPicture cover={cover} title={title} onError={() => setBroken(cover.url)} />}
           </div>
         )}
         {leadStory && (

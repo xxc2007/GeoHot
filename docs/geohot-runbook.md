@@ -7,6 +7,7 @@
 ```bash
 npm run db:up -- --daemon                                              # 127.0.0.1:5433
 npm run brain                                                          # 127.0.0.1:3055
+# 实际长驻的那套栈还叠了第三层 --env-file=.env.ports（AGENTS.md 第 18/28 条），api 因此在 3199 而不是下面这行写的 3001：
 node --env-file=.env --env-file=.env.pipeline apps/api/src/main.ts     # 127.0.0.1:3001
 node --env-file=.env --env-file=.env.pipeline apps/worker/src/main.ts  # 队列与定时任务
 npm run dev:web                                                        # http://localhost:3000
@@ -341,7 +342,7 @@ await a.end();"
 | `npm run db:up` 说 `already listening`，但连接失败；或者端口没人听 | `netstat -ano \| grep 5433`；`type %TEMP%\geohot-dev-db.log`；`.pgdata/dev-db.pid` | 上一次进程被强杀，postgres 还在但 PID 文件是脏的 → `npm run db:down`（用 `pg_ctl stop -m fast`，只收 PID 文件指向、且确实是 node 的进程，`dev-db-down.ts:78-96`），再起。数据目录被占用/半截 initdb：`PG_VERSION` 是唯一的"集群存在"标记，缺了就重跑 initdb（会丢数据） |
 | `json_list` 源的日期差 8 小时 | 对比某条 `articles.published_at` 与源站上显示的时间 | 无时区的日期字符串由 `Date.parse` 按**进程本地时区**解释（`sources/json-list.ts:52`），`epoch_ms/epoch_s/yyyymmdd` 不受影响。解决：用 `.env.pipeline` 启动（里面有 `TZ=Asia/Shanghai`），或在命令前显式加 `TZ=Asia/Shanghai`。`web_list` 有 `publishedAtUtcOffset` 配置可以补（`config-keys.ts:11-19`）。定时任务的 tz 参数已经是 `Asia/Shanghai`（`schedules.ts:103`） |
 | 队列堆着不动，日志里有 `BudgetExceeded` / 任务显示等待 | 后台 `/admin/settings` 预算；`select service, count(*) from receipts group by 1` | 每个付费服务有每分钟/每小时/每天上限，超了就暂停（`providers/receipts.ts:98-102`，重试间隔分别 60/600/3600 秒）。填 0 表示立即停用该服务。本机模型是 stub、不花钱，但预算闸门照样生效：一次性灌太多材料时先调大预算或把 `ANALYZE_CONCURRENCY`（`.env`，现在 2）保持小值。`ReceiptBusyError` 是另一个原因——同一份回执正被别的进程占着，等它就行 |
-| 某条内容后台能看到、站上找不到 | `select visibility from publications where article_id=…`; `select participation_mode from sources where id=…` | 三层闸门：① 信源是 `isolated` 就不进任何公开页面；② 非 `editorial` 信源的条目会被 `settleNonEditorial()`（`jobs/content.ts:86`）标成不分析、不进精选；③ `publications.visibility` 可能是 `summary-only` 或 `withdrawn`（`migrations/0001_core.sql:215`），预筛 `BLOCK` 的也永远不出现在任何公开页面。改法在后台 `/admin/sources/<id>`（参与方式）与 `/admin/content/<id>`（可见性） |
+| 某条内容后台能看到、站上找不到 | `select visibility from publications where article_id=…`; `select participation_mode from sources where id=…` | 三层闸门：① 信源是 `isolated` 就不进任何公开页面；② 非 `editorial` 信源的条目会被 `settleNonEditorial()`（`jobs/content.ts:86`）标成不分析、不进精选；③ `publications.visibility`（`migrations/0001_core.sql:215`）**分两档**：`withdrawn` 哪里都没有；`summary-only` 不进列表、feed、sitemap（`items.ts:119/129` 要 `= 'public'`），但**条目页仍可打开、事件页的时间线与报道数仍列它、日报周报仍可引用它**（`rules.itemHasPage` 只排除 `withdrawn`）。预筛 `BLOCK` 的也永远不出现在任何公开页面。改法在后台 `/admin/sources/<id>`（参与方式）与 `/admin/content/<id>`（可见性） |
 | 改了 `industry/prompts/*.md` 之后 stub 回 400 | `npm run brain -- --anchors`；`curl -s http://127.0.0.1:3055/healthz \| grep anchorProblems` | 能力识别靠提示词锚点行（不含 `{{}}` 且唯一属于某能力的整行）。锚点变了它**直接 400 拒绝回答，绝不猜**。stub 每 5 秒重读 prompts 与 taxonomy、按 mtime 重载 fixture，不用重启；但提示词被改坏（锚点撞车）就要改回措辞 |
 | 精选卡片的摘要凭空没了、条目变成未发 | `__brain/log` 里看 `enforceIdentity`；`npm run brain -- --lint` 看该条 `problems` | 摘要里写了原文没有的机构名（`USGS` 写成"美国地质调查局"会撞上词表里的"地质调查局"=中国地质调查局），整段摘要丢弃。`summaryZh` 也建议 190 字、2–3 句内，否则被 `compactAnswerFirstSummary` 压缩（不报错，但你写的句子会没掉） |
 | `npm test` 一跑就抛 `Invariant tests write rows` | 看报错里的库名 | `tests/setup.ts:10` 要求 `DATABASE_URL` 的库名以 `_test` 或 `_ci` 结尾。本机没有 `createdb`，用 `docs/manual.md` 第 8 节那条 `CREATE DATABASE` 语句建 `geohot_test` |
@@ -398,4 +399,4 @@ await a.end();"
 
 所以"8 个 `external` 源在站上不可见"不是坏了，是 `isolated` 的定义（`docs/manual.md` 第 7 节第 1 条）。要它们出现：后台 `/admin/sources/<id>` 改 `editorial`（触发 2.3 的重推导）→ 材料带正文进站 → 分析 → 才有精选与事件。
 
-改完之后还是"后台看得到、站上找不到"时，按顺序查三层：① 源的 `participation_mode`；② `publications.visibility`（`public` / `summary-only` / `withdrawn`，人工覆盖在 `/admin/content/<id>`）；③ 预筛 `BLOCK` 的材料永远不进任何公开出口（`analyze.ts:343` 在预筛这一步就返回了，后面根本不走）。这三层都在 `packages/backend/src/publication/` 这一个读取层里落地，没有旁路。
+改完之后还是"后台看得到、站上找不到"时，按顺序查三层：① 源的 `participation_mode`；② `publications.visibility`（`public` / `summary-only` / `withdrawn`，人工覆盖在 `/admin/content/<id>`；`summary-only` 只是不上列表与 feed，条目页、事件时间线与报纸引用都还在，只有 `withdrawn` 才是全站消失）；③ 预筛 `BLOCK` 的材料永远不进任何公开出口（`analyze.ts:343` 在预筛这一步就返回了，后面根本不走）。这三层都在 `packages/backend/src/publication/` 这一个读取层里落地，没有旁路。

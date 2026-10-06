@@ -5,12 +5,15 @@
 import { readFile, unlink } from "node:fs/promises";
 import path from "node:path";
 import { beijingDate, beijingTime } from "@aihot/contracts/time";
-import { config, credential } from "../config.ts";
+import { config, credential, envFlag } from "../config.ts";
 import { sql } from "../db.ts";
 
 const API = "https://open.feishu.cn/open-apis";
 
-export const feishuInternalEnabled = () => process.env.FEISHU_INTERNAL_ENABLED === "true";
+// 同一个阀门只有一种读法（`envFlag`：`1` 与 `true` 都算开），但它必须在使用点现读环境——
+// 反馈与告警的测试是在运行时改 `process.env` 的，取成启动时的快照就会把它们全部改成"永远不发"。
+// 以前这里写的是 `=== "true"`，于是 `FEISHU_INTERNAL_ENABLED=1` 的意思是"内容照推、告警与反馈永不发"。
+export const feishuInternalEnabled = () => envFlag("FEISHU_INTERNAL_ENABLED", false);
 
 let tokenCache: { token: string; expires: number } | null = null;
 
@@ -192,12 +195,17 @@ export async function postWebhook(url: string, card: unknown): Promise<{ ok: boo
     signal: AbortSignal.timeout(15_000),
   });
   const body = await res.text();
-  let ok = res.ok;
+  // "送达"必须是一个答复，不是"没有反证"。原来写的是 `let ok = res.ok`，只有当 body 能解析成 JSON 时才
+  // 收紧——于是一张 HTTP 200 的 HTML 拦截页（代理、登录墙、风控）会被当成"已送达"结案，群里其实什么都没有，
+  // 而 `code === 0 || StatusCode === 0` 又允许"业务码非零、镜像码为 0"混过去。
+  // 现在：解析不出 JSON 就不是 ack；只有 code（老端点镜像在 StatusCode）为 0 才是 ack。
+  let ack: boolean;
   try {
     const json = JSON.parse(body) as { code?: number; StatusCode?: number };
-    ok = ok && (json.code === 0 || json.StatusCode === 0);
+    const verdict = json.code ?? json.StatusCode;
+    ack = res.ok && verdict === 0;
   } catch {
-    // non-JSON body
+    ack = false;
   }
-  return { ok, status: res.status, body: body.slice(0, 500) };
+  return { ok: ack, status: res.status, body: body.slice(0, 500) };
 }

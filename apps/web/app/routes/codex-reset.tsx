@@ -1,4 +1,4 @@
-import { SITE, withSubject } from "@aihot/industry/site";
+import { SITE } from "@aihot/industry/site";
 import { useEffect, useState } from "react";
 import { useLoaderData, useRevalidator } from "react-router";
 import type { CodexResetEvent, CodexResetSitePage, CodexResetDay } from "@aihot/contracts/monitor";

@@ -65,9 +65,3 @@ export function isValidDate(date: string): boolean {
   const t = Date.parse(`${date}T00:00:00Z`);
   return Number.isFinite(t) && new Date(t).toISOString().slice(0, 10) === date;
 }
-
-/** Formats an instant as RFC 3339 with the +08:00 offset (used by the reset monitor API). */
-export function toBeijingIso(instant: Date | string | number): string {
-  const d = new Date(new Date(instant).getTime() + OFFSET_MS);
-  return `${d.toISOString().slice(0, 19)}+08:00`;
-}

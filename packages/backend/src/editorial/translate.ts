@@ -9,12 +9,14 @@
 import * as cheerio from "cheerio";
 import type { AnyNode, Element } from "domhandler";
 import { z } from "zod";
+import { bodyIsChinese, hasChineseCopy } from "@aihot/contracts/copy";
 import { sql } from "../db.ts";
 import { sanitizeBody, textToHtml } from "../content/sanitize.ts";
 import { chatJson } from "../providers/llm.ts";
 import { collapseWhitespace } from "../lib/text.ts";
 import { sha256 } from "../lib/ids.ts";
 import { modelFor } from "./models.ts";
+import { looksZh } from "./writing.ts";
 import { shutdownSignal } from "../jobs/queue.ts";
 import { promptText, promptVersion } from "./prompts.ts";
 
@@ -45,7 +47,8 @@ export interface TranslateResult {
   reason?: string;
 }
 
-const isChinese = (language: string | null, sample: string) => language === "zh" || (/[一-鿿]/.test(sample.slice(0, 400)) && language !== "en");
+// The predicate itself is `@aihot/contracts/copy`'s: `publication/detail.ts` asks the same question about
+// the same rows, and the two used to spell the character class separately.
 
 /** Leaf text blocks of a sanitised body, in document order, skipping code. */
 function segmentsOf($: cheerio.CheerioAPI): Element[] {
@@ -165,7 +168,7 @@ export async function translateArticle(articleId: string): Promise<TranslateResu
   if (row.channel === "x") {
     const text = String(row.x_post?.text ?? row.body_text ?? "").trim();
     const meaningful = collapseWhitespace(text.replace(/https?:\/\/\S+/g, ""));
-    if (isChinese(row.language, text)) return result({ status: "skipped", reason: "already Chinese" });
+    if (bodyIsChinese(row.language, text)) return result({ status: "skipped", reason: "already Chinese" });
     if (meaningful.length < X_MIN_CHARS) return result({ status: "skipped", reason: "short post" });
     const [t] = await translateAll(articleId, row.revision, [text], SYSTEM_POST);
     if (!t) return result({ status: "skipped", reason: "translation did not line up" });
@@ -173,7 +176,7 @@ export async function translateArticle(articleId: string): Promise<TranslateResu
     return result({ status: "translated", segments: 1 });
   }
 
-  if (!row.body_html || isChinese(row.language, row.body_text ?? "")) return result({ status: "skipped", reason: "no foreign-language body" });
+  if (!row.body_html || bodyIsChinese(row.language, row.body_text ?? "")) return result({ status: "skipped", reason: "no foreign-language body" });
   const $ = cheerio.load(row.body_html, null, false);
   const blocks = segmentsOf($);
   if (!blocks.length) return result({ status: "skipped", reason: "no translatable text" });
@@ -223,7 +226,7 @@ async function store(articleId: string, revision: number, title: string, html: s
 /** A quoted post worth translating: at least a few letters beyond its links, and not already Chinese. */
 function quoteTranslatable(text: string): boolean {
   const words = collapseWhitespace(text.replace(/https?:\/\/\S+/g, " "));
-  return words.length >= 10 && (words.match(/\p{L}/gu) ?? []).length >= 2 && !/[一-鿿]/.test(words);
+  return words.length >= 10 && (words.match(/\p{L}/gu) ?? []).length >= 2 && !hasChineseCopy(words);
 }
 
 /**
@@ -249,7 +252,9 @@ export async function translateQuotes(opts: { days?: number; limit?: number; bud
     if (stored >= (opts.limit ?? 30) || Date.now() - started > (opts.budgetMs ?? 2 * 60_000) || shutdownSignal.signal.aborted) break;
     const hash = sha256(r.text);
     if (r.text_hash === hash || !quoteTranslatable(r.text)) continue;
-    let zh = r.own_zh;
+    // Reuse our own translation of that tweet only if it is Chinese; an English copy would be stored as a
+    // "译文" and shown as one.
+    let zh = r.own_zh && looksZh(r.own_zh) ? r.own_zh : null;
     let origin: "reused" | "model" = "reused";
     if (!zh) {
       origin = "model";
@@ -261,13 +266,16 @@ export async function translateQuotes(opts: { days?: number; limit?: number; bud
         });
         zh = res.data.t.length === 1 ? res.data.t[0]!.trim() : null;
       } catch (error) {
-        // Switched-off calls or an exhausted budget stop the run; one unusable answer skips its post (its
-        // receipt is reused next time, so a retry costs nothing).
+        // Switched-off calls or an exhausted budget stop the run; one unusable answer skips its post.
+        // A reply that did not parse left its receipt `failed`, so the next run pays for that one again;
+        // a reply that parsed but says nothing usable stays replayed for free (deliberate: this loop runs
+        // every few minutes over a rolling 3-day window, and an answer that is empty is empty tomorrow too
+        // — `chatJson`'s `usable` is for the paths where a human can decide to force a fresh ask).
         if (/disabled|not configured|budget/i.test((error as Error).message)) throw error;
         continue;
       }
     }
-    if (!zh) continue;
+    if (!zh || !looksZh(zh)) continue;
     await sql`
       INSERT INTO quote_translations (tweet_id, text_hash, text_zh, origin) VALUES (${r.tweet_id}, ${hash}, ${zh}, ${origin})
       ON CONFLICT (tweet_id) DO UPDATE SET text_hash = EXCLUDED.text_hash, text_zh = EXCLUDED.text_zh, origin = EXCLUDED.origin, created_at = now()`;

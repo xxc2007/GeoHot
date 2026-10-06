@@ -1,4 +1,4 @@
-import { SITE, withSubject } from "@aihot/industry/site";
+import { SITE } from "@aihot/industry/site";
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useLoaderData, useSearchParams } from "react-router";
 import { Collapse } from "../components/ui/Presence";

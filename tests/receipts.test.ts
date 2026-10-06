@@ -1,6 +1,7 @@
 // Paid requests: an answer already received is reused, every request actually sent counts against the
-// budget (retries of one logical request included), a lost answer is bought again at most once, and the
-// valve stops calls before they are sent.
+// budget (retries of one logical request included), a lost answer is bought again at most once, an answer
+// that parses but cannot be used is refused so the next round asks again, and the valve stops calls before
+// they are sent.
 import { stub, tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
@@ -9,7 +10,7 @@ import { config } from "@aihot/backend/config";
 import { closeDb, sql } from "@aihot/backend/db";
 import { chatJson, ModelOutputError } from "@aihot/backend/providers/llm";
 import { embeddingsAvailable } from "@aihot/backend/providers/embeddings";
-import { BudgetExceededError, paidRequest, ReceiptUnknownError } from "@aihot/backend/providers/receipts";
+import { BudgetExceededError, completeReceipt, paidRequest, ReceiptUnknownError, rejectReceivedResponse } from "@aihot/backend/providers/receipts";
 import { autoReleaseUnknownReceipts } from "@aihot/backend/admin/runs";
 
 const usage = { prompt_tokens: 80, completion_tokens: 20, total_tokens: 100 };
@@ -47,6 +48,40 @@ test("an answer already received is reused instead of bought again", async () =>
   assert.equal(first.reused, false);
   assert.equal(second.reused, true);
   assert.equal(second.receiptId, first.receiptId);
+});
+
+test("an answer that parses but cannot be used is refused, and the refusal outlives the caller completing it", async () => {
+  // Deliberately before the budget case below: that one reads the attempts counted so far and leaves room
+  // for exactly two sends, so this must not run after it.
+  const subject = `usable-${tag()}`;
+  const unusable = (d: { ok: boolean }) => (d.ok ? null : "结构对，但这条答复不能上版面");
+  const askUsable = (usable: (d: { ok: boolean }) => string | null) =>
+    chatJson({ model: "deepseek-flash", purpose: "invariant_test", subject, promptVersion: "t1", system: "s", user: `input ${subject}`, schema: z.object({ ok: z.boolean() }), usable });
+  const statusOf = async (id: number) => (await sql<{ status: string; error: string }[]>`SELECT status, error FROM receipts WHERE id = ${id}`)[0];
+
+  answer = () => '{"ok":false}';
+  const before = provider.hits();
+  const refused = await askUsable(unusable);
+  assert.equal(refused.reused, false);
+  assert.equal((await statusOf(refused.receiptId)).status, "failed", "形状对而不可用的答复不是可复放的好答案");
+  assert.match(String((await statusOf(refused.receiptId)).error), /answer refused/);
+  // Every caller completes the receipt it was handed; that must not book a refused answer as delivered.
+  await completeReceipt(sql, refused.receiptId);
+  assert.equal((await statusOf(refused.receiptId)).status, "failed");
+  await askUsable(unusable);
+  assert.equal(provider.hits() - before, 2, "拒收之后，同一份输入下一轮真的再问一次");
+
+  answer = () => '{"ok":true}';
+  const good = await askUsable(unusable);
+  await completeReceipt(sql, good.receiptId);
+  assert.equal((await statusOf(good.receiptId)).status, "completed");
+  // A refusal never downgrades an answer already booked as delivered: it backs content the site shows, and
+  // `failed` would make the same inputs be paid for a second time.
+  await rejectReceivedResponse(good.receiptId, "这条不该改");
+  assert.equal((await statusOf(good.receiptId)).status, "completed");
+  const replay = await askUsable(unusable);
+  assert.equal(replay.reused, true, "能用的好答案仍然复放，不重复付费");
+  assert.equal(provider.hits() - before, 3, "只有被拒收的那一步再花了一次钱");
 });
 
 test("retries of unusable answers stop at the budget, and every request sent is counted", async () => {

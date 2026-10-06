@@ -67,6 +67,19 @@ const SCORE_DEFAULT = clampInt(process.env.BRAIN_SCORE_DEFAULT, 20, 0, 100);
  * condense / echo 只留给开发与测试显式打开（BRAIN_SUMMARIZE_DEFAULT=condense|echo）。
  */
 const SUMMARIZE_DEFAULT = process.env.BRAIN_SUMMARIZE_DEFAULT ?? "empty";
+/**
+ * 日报导语、周报/月报的大标题与总述缺人工署名稿时的做法：empty（不发这段稿子）| list（机械列举）。
+ *
+ * 出货默认是 empty，与 summarize / digest 同一口径：`editorial/provenance.ts` 说读者可见的成稿只能出自
+ * 署名的那一份。本站的"模型"就是这个 stub，而成刊层曾经不问出处——2026-10-05 数生产库，四条成刊调用
+ * 全是 list 默认值写的（`rule:list-lead` ×3、`rule:list-themes` ×1），两条日报导语就是把当天的标题重抄
+ * 一遍（「本期共 1 条入选动态：〈那条标题〉。」）。现在 `reports/compose.ts` 会拒绝 rule 写的稿子，
+ * 版面退回无导语态、主题按本报分栏归置，条目一条不少。
+ * list 留给开发与测试显式打开（BRAIN_REPORT_LEAD_DEFAULT=list、BRAIN_REPORT_PERIOD_DEFAULT=list）：
+ * 那正是"有机器稿可拒"的输入，也是 `--lint` 的 readerCopyDefaults 会重新列出这两项的时候。
+ */
+const REPORT_LEAD_DEFAULT = process.env.BRAIN_REPORT_LEAD_DEFAULT ?? "empty";
+const REPORT_PERIOD_DEFAULT = process.env.BRAIN_REPORT_PERIOD_DEFAULT ?? "empty";
 /** group 缺人工判断时的做法：unrelated（不合并，安全）| lexical（字面相似才合并，需人工确认）。 */
 const GROUP_DEFAULT = process.env.BRAIN_GROUP_DEFAULT ?? "unrelated";
 const GROUP_LEXICAL_MIN = Number(process.env.BRAIN_GROUP_LEXICAL_MIN ?? 0.55);
@@ -704,7 +717,6 @@ const buildDefault: Record<string, (ctx: Ctx) => { reply: Record<string, unknown
     return { reply: { titleZh: title, summaryZh: condense(body), bodyZh: "" }, rule: "rule:condense" };
   },
   understand: (ctx) => {
-    const body = /【正文】\s*([\s\S]+?)(?:【材料质量】|$)/.exec(ctx.user)?.[1] ?? ctx.user;
     // 与 summarize 同一条规则：没有人工中文稿时不回显原文（回显 = 把英文当中文发布）。
     // itemType / authorRole / tags 不是读者可见文案，保留确定性默认值。
     return {
@@ -725,13 +737,18 @@ const buildDefault: Record<string, (ctx: Ctx) => { reply: Record<string, unknown
    */
   digest: () => ({ reply: { title: "", digest: "", latest: "" }, rule: "rule:no-signed-copy(digest)" }),
   /**
-   * Same rule as the digest for anything a reader reads, but these two are consumed by reports/compose.ts
-   * (another owner this round) and its `themes` schema has no empty branch, so emptying them here would
-   * blank the daily's lead and the weekly's themes without the reader layer deciding to. Left as machine
-   * defaults, clearly labelled, and `--lint` lists them under `readerCopyDefaults` until that layer gates
-   * on `usage.brain.rule` the way events/digest.ts now does.
+   * Same rule as the digest for anything a reader reads: with no signed fixture behind the answer, the
+   * honest reply is no copy. This changed on 2026-10-05, when `reports/compose.ts` started refusing an
+   * answer built by a rule the way `events/digest.ts` has — until that gate existed, emptying these two
+   * would have blanked the daily's lead and the weekly's themes without the reading layer agreeing to it,
+   * which is why the mechanical defaults were left here (clearly labelled, listed by `--lint`).
+   *
+   * The `list` mode stays reachable on purpose (`BRAIN_REPORT_LEAD_DEFAULT=list`): that is the input which
+   * proves the caller's refusal actually refuses, and `--lint`'s `readerCopyDefaults` reports it whenever a
+   * run turns it back on.
    */
   report_lead: (ctx) => {
+    if (REPORT_LEAD_DEFAULT === "empty") return { reply: { title: "", leadParagraph: "", highlights: [] }, rule: "rule:no-signed-copy(report_lead)" };
     const entries = entryLines(ctx.user);
     const top = entries.slice(0, 3).map((e) => e.title).filter(Boolean);
     return {
@@ -744,6 +761,7 @@ const buildDefault: Record<string, (ctx: Ctx) => { reply: Record<string, unknown
     };
   },
   report_period: (ctx) => {
+    if (REPORT_PERIOD_DEFAULT === "empty") return { reply: { headline: "", overview: "", themes: [] }, rule: "rule:no-signed-copy(report_period)" };
     const entries = entryLines(ctx.user);
     const bySection = new Map<string, number[]>();
     for (const e of entries) {

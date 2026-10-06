@@ -2,7 +2,7 @@
 // A failed fetch never advances the success cursor; the source's health reflects consecutive failures.
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { REPO_ROOT } from "../config.ts";
+import { positiveInt, REPO_ROOT } from "../config.ts";
 import { sql } from "../db.ts";
 import { identityKeyFor, upsertMaterial } from "../content/materials.ts";
 import { enqueue, QUEUES, shutdownSignal } from "../jobs/queue.ts";
@@ -51,7 +51,13 @@ const markers = new Map<string, RegExp>();
 
 /** Whether one of the markers appears in this text, each compiled once per process. */
 function hasMarker(text: string, words: string[] | undefined): boolean {
+  // A blank marker is not "no opinion", it is a pattern that matches everything: `markerPattern("")`
+  // falls to the plain-substring branch and builds `new RegExp("")`, which is true for any text. One
+  // empty string in `dropMarkers` would discard a whole feed, and one in `requireTitleMarkers` would let
+  // everything through (line ~97 asks for the negation of that). `config-keys.ts` validates the names of
+  // these arrays, not their elements, so the guard belongs here rather than in the key table.
   return (words ?? []).some((k) => {
+    if (!k.trim()) return false;
     let re = markers.get(k);
     if (!re) {
       re = markerPattern(k);
@@ -250,8 +256,13 @@ export async function collectSource(sourceId: string, opts: { force?: boolean } 
     if (source.config.sortByPublishedAt) candidates.sort((a, b) => (b.publishedAt?.getTime() ?? 0) - (a.publishedAt?.getTime() ?? 0));
 
     // First import of a new source: bounded, and archived by source time (never "today", never pushed).
-    const backfillLimit = Number(source.config._aihot?.initialBackfillLimit ?? 30);
-    const backfillMonths = Number(source.config._aihot?.initialBackfillMonths ?? 12);
+    // Both numbers are the operator's own free-form JSON (`admin/sources.ts` writes `config` without a
+    // schema; 77 sources in `industry/sources.json` carry `initialBackfillLimit`, counted 2026-10-05), so they go through
+    // `config.positiveInt`: read straight with `Number(...)`, a typo was NaN, `slice(0, NaN)` kept nothing,
+    // and the round still wrote `initializedAt` and health `ok` — closing that source's history window for
+    // good. What the round actually kept is on the run's `stored` / `dropped`.
+    const backfillLimit = positiveInt(source.config._aihot?.initialBackfillLimit, "initialBackfillLimit", 30);
+    const backfillMonths = positiveInt(source.config._aihot?.initialBackfillMonths, "initialBackfillMonths", 12);
     if (firstImport) {
       const cutoff = Date.now() - backfillMonths * 30 * 86400000;
       const kept = candidates.filter((c) => !c.publishedAt || c.publishedAt.getTime() >= cutoff).slice(0, backfillLimit);
@@ -307,7 +318,13 @@ export async function collectSource(sourceId: string, opts: { force?: boolean } 
           c.bodyHtml = got.body.html;
           c.bodyText = got.body.text;
           c.bodyStatus = "ok";
-          if (!c.media?.length) c.media = got.body.images;
+          // The feed's own media first — that is the picture the publisher chose to represent the item —
+          // then the page's, skipping repeats. Gating on "no media yet" used to throw the page's photos
+          // away for any item that arrived with a feed thumbnail or a video still.
+          if (got.body.images.length) {
+            const seen = new Set((c.media ?? []).map((m) => m.url));
+            c.media = [...(c.media ?? []), ...got.body.images.filter((m) => !seen.has(m.url))].slice(0, 6);
+          }
         }
         // A date-only listing value gives way to the detail page's time on the same day.
         if (got.publishedAt && (!c.publishedAt || Math.abs(got.publishedAt.getTime() - c.publishedAt.getTime()) < DAY_MS)) c.publishedAt = got.publishedAt;
@@ -511,26 +528,38 @@ async function scheduleXShards(): Promise<number> {
   return enqueued;
 }
 
+const JINA_LIST_PREFIX = "https://r.jina.ai/%";
 /**
  * A listing a Jina render is bought for, as SQL. Only the address the collector fetches counts: a source
  * that merely names r.jina.ai in allowUrlPrefixes is not paid and must not be left out of a development
  * round (which is what `config::text LIKE '%r.jina.ai%'` did to it).
+ *
+ * Two traps in one expression, both measured 2026-10-05 against a migrated database rather than reasoned
+ * about (an earlier review reasoned, and got the failure mode wrong twice over):
+ *  · The column used to be a `${c}` interpolated from a parameter, and postgres.js binds an interpolated
+ *    string as a *value* — the server was asked to resolve `$1 ->> 'url'`, which gives `->>` no type to
+ *    work on: `operator is not unique: unknown ->> unknown`. So `COLLECT_SKIP_JINA=true` never quietly
+ *    dropped anybody: every run of `scheduleDueSources` threw, and with it nothing was scheduled at all.
+ *    A name that has to be a SQL identifier is written as one, not passed in as a string.
+ *  · Once the column is a column, both sides do need `coalesce`, for the reason the valve exists to be
+ *    tested on: 39 of the 85 collectable sources carry only `feedUrl` (`industry/sources.json`, recounted
+ *    the same day), so `config->>'url'` is NULL, `NULL OR FALSE` is NULL, and the caller's `AND NOT (…)`
+ *    then drops exactly the sources the valve must keep. `adaptIntervals` below already spells it this
+ *    way — one rule, two spellings, and only one of them usable.
  */
-const paidListingSql = (alias = "") => {
-  const c = alias ? `${alias}.config` : "config";
-  return sql`${c}->>'url' LIKE ${JINA_LIST_PREFIX} OR ${c}->>'feedUrl' LIKE ${JINA_LIST_PREFIX}`;
-};
-const JINA_LIST_PREFIX = "https://r.jina.ai/%";
+const paidListingSql = sql`coalesce(config->>'url', '') LIKE ${JINA_LIST_PREFIX} OR coalesce(config->>'feedUrl', '') LIKE ${JINA_LIST_PREFIX}`;
+/** How many due sources one scheduling round may enqueue (`FETCH_SCHEDULE_BATCH=1` slows a pipeline to a walk). */
+const SCHEDULE_BATCH = positiveInt(process.env.FETCH_SCHEDULE_BATCH, "FETCH_SCHEDULE_BATCH", 40);
 
 /** Every minute: enqueue due sources (enabled, not WeChat/external), oldest due first; X accounts by shard. */
-export async function scheduleDueSources(limit = Number(process.env.FETCH_SCHEDULE_BATCH || 40)): Promise<{ enqueued: number; shards: number }> {
+export async function scheduleDueSources(limit = SCHEDULE_BATCH): Promise<{ enqueued: number; shards: number }> {
   const kinds: string[] = (process.env.COLLECT_KINDS || "rss,web_list,json_list,x_search").split(",");
   // Listings fetched through Jina Reader are paid; development can leave them out.
   const skipJina = process.env.COLLECT_SKIP_JINA === "true";
   const rows = await sql<{ id: string }[]>`
     SELECT id FROM sources
     WHERE enabled AND kind IN ${sql(kinds)} AND (next_fetch_at IS NULL OR next_fetch_at <= now()) AND NOT (${sharded()})
-      ${skipJina ? sql`AND NOT (${paidListingSql()})` : sql``}
+      ${skipJina ? sql`AND NOT (${paidListingSql})` : sql``}
     ORDER BY next_fetch_at NULLS FIRST LIMIT ${limit}`;
   for (const r of rows) {
     await enqueue(QUEUES.fetchSource, { sourceId: r.id }, { singletonKey: r.id });

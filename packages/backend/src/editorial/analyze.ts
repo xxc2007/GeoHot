@@ -13,6 +13,7 @@ import { CATEGORY_KEYS } from "@aihot/contracts/taxonomy";
 import { CATEGORIES } from "@aihot/industry/taxonomy";
 import { SELECTION } from "@aihot/industry/selection";
 import { sql } from "../db.ts";
+import { isCollectEnabled } from "../config.ts";
 import { chatJson, MODELS, type ContentPart } from "../providers/llm.ts";
 import { completeReceipt, ProviderRejectedError } from "../providers/receipts.ts";
 import { collapseWhitespace } from "../lib/text.ts";
@@ -21,7 +22,7 @@ import { buildMaterial, firstImagePart, loadAnalyzeInput, type AnalyzeInputArtic
 import { pageFetchable } from "../content/extract.ts";
 import { shutdownSignal } from "../jobs/queue.ts";
 import {
-  buildArticlePrompt, buildLongTweetPrompt, buildShortTweetPrompt, finalizeCopy, isShortTweetInput, looksZh, MAX_BODY_CHARS, missingEvidence,
+  buildArticlePrompt, buildLongTweetPrompt, buildShortTweetPrompt, finalizeCopy, guardedReason, isShortTweetInput, looksZh, MAX_BODY_CHARS, missingEvidence,
   needsShortTweetTranslation, parseTranslateOutput, PREFILTER_SYSTEM, prefilterUser, translateInputOf, UNDERSTAND_SYSTEM, understandUser,
   type IdentityGuard,
 } from "./writing.ts";
@@ -176,9 +177,18 @@ export interface AnalysisRun {
 
 const isContentFilter = (error: unknown) => error instanceof ProviderRejectedError && !error.retryable && /contentFilter|"1301"/.test(error.message);
 
-/** Only a title or a feed summary, and a page to fetch: the article is judged on the page. */
+/**
+ * Only a title or a feed summary, and a page that will actually be fetched: judge the article on its page.
+ *
+ * The collect valve is part of the question. The extraction consumer is registered behind that same valve
+ * (`apps/worker/src/main.ts` → `jobs/sources.ts` → `registerExtractionJobs`), so holding an article here
+ * while collection is off leaves it in `fetching-body` for good: the job it is queued into is never claimed,
+ * the 5-minute safety sweep re-enqueues it every round, and `publishArticle` is never reached. Judged from
+ * the excerpt it already has is what the extraction-failure branch does anyway — same outcome, one fewer
+ * reader-visible article rather than one stuck row.
+ */
 export function waitsForPage(a: AnalyzeInputArticle): boolean {
-  return a.bodyStatus === "pending" && !a.bodyText && !a.xPost && pageFetchable(a.url, a.source.kind);
+  return isCollectEnabled() && a.bodyStatus === "pending" && !a.bodyText && !a.xPost && pageFetchable(a.url, a.source.kind);
 }
 
 type StepOpts = { attemptTag?: string; scoreModel?: string };
@@ -288,9 +298,10 @@ async function runUnderstand(a: AnalyzeInputArticle, opts: StepOpts): Promise<An
     }
   }
   const d = res.data;
-  const copy = finalizeCopy(translateInputOf(a), { titleZh: d.titleZh, summaryZh: d.summaryZh });
+  const evidence = translateInputOf(a);
+  const copy = finalizeCopy(evidence, { titleZh: d.titleZh, summaryZh: d.summaryZh });
   return {
-    kind: "understand", model: res.model, titleZh: copy.titleZh, summaryZh: copy.summaryZh, reasonZh: d.editorialJudgment.trim() || null,
+    kind: "understand", model: res.model, titleZh: copy.titleZh, summaryZh: copy.summaryZh, reasonZh: guardedReason(d.editorialJudgment, evidence),
     tags: normalizeTags(d.tags, { fallbackCategory: CATEGORY_BY_ITEM_TYPE[d.itemType] }), itemType: d.itemType, authorRole: d.authorRole,
     identityGuard: copy.identityGuard, receiptIds: [res.receiptId], reused: res.reused,
   };

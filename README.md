@@ -13,8 +13,8 @@
 [![Derived from AIHOT](https://img.shields.io/badge/派生自-AIHOT_框架-1F1E1D)](NOTICE)
 [![Node](https://img.shields.io/badge/运行时-Node_24-1F1E1D)](#技术栈)
 [![Categories](https://img.shields.io/badge/分类-七个-D97757)](#-七个分类一条标准)
-[![Sources](https://img.shields.io/badge/信源-87%2B1_个-D97757)](#-现状与边界)
-[![Editorial brain](https://img.shields.io/badge/编辑大脑-人工策划_无_LLM_Key-1F1E1D)](#-编辑大脑是人工写的判断这一点不遮掩)
+[![Sources](https://img.shields.io/badge/信源-98%2B1_个-D97757)](#-现状与边界)
+[![Editorial brain](https://img.shields.io/badge/%E7%BC%96%E8%BE%91%E5%A4%A7%E8%84%91-Agnes%203.0%20flash%20%C2%B7%20%E6%A0%87%E5%87%86%E7%94%B1%E4%BA%BA%E5%AE%9A-1F1E1D)](#-编辑大脑标准是人定的逐条判断交给模型这一点写进条款)
 [![GitHub](https://img.shields.io/badge/GitHub-@xxc2007-1F1E1D)](https://github.com/xxc2007)
 
 <br>
@@ -65,7 +65,7 @@
 >
 > 删掉的两个分类原本共用日报的第三节「实践」。**兜底分节从那一节挪到了「未归类」**：没有类别的资料进日报时落在 `DEFAULT_SECTION` 这一节，它是 `packages/backend/src/reports/compose.ts:26` 的一个显式常量（`:28` 的 `REPORT_SECTIONS = [...SECTION_ORDER, DEFAULT_SECTION]`），不是"分类数组的末位"——早先的版本按末位推导，删一次分类就会把全站没归类的资料整体搬到别的一节去。这条不变量由 `tests/report-default-section.test.ts` 与 `tests/exit-category-parity.test.ts` 两处钉住。
 
-**没有单独的「板块」页。** 这一层曾经存在过：2026-10-03 上线的四个跨类别方向页（`/boards`：地理信息系统 / 考研 / 地理与政治 / 地理与历史，当时与筛选栏同序）在 **2026-10-04 按站长要求整块删掉**——站长看着那一页说「这个板块功能有点重复了」，它按学科与用途把条目归到一处（页面文案当时写的是"当天"，而它其实不设时间窗——按时间倒序取最近的若干条），而主题页与筛选栏的分类已经在做同一件事。现在 `/boards` 与 `/boards/<slug>` 都是 404。四个方向**没有丢入口**：它们本来就是首页筛选栏里的四个分类（`/all?category=geotech` / `geoedu` / `geopolitics` / `histgeo`），未精选的信源原文在「全部动态」里同样列得出来；主题页（`/topics`）继续按区域、机构与领域串联同一件事的来龙去脉。**删的只是视图**——条目、`category` 字段、分类词表与公开门槛一行都没动，`industry/sources.json` 里那 41 条 `defaultCategory` 照旧把条目归到它所属的分类。
+**没有单独的「板块」页。** 这一层曾经存在过：2026-10-03 上线的四个跨类别方向页（`/boards`：地理信息系统 / 考研 / 地理与政治 / 地理与历史，当时与筛选栏同序）在 **2026-10-04 按站长要求整块删掉**——站长看着那一页说「这个板块功能有点重复了」，它按学科与用途把条目归到一处（页面文案当时写的是"当天"，而它其实不设时间窗——按时间倒序取最近的若干条），而主题页与筛选栏的分类已经在做同一件事。现在 `/boards` 与 `/boards/<slug>` 都是 404。四个方向**没有丢入口**：它们本来就是首页筛选栏里的四个分类（`/all?category=geotech` / `geoedu` / `geopolitics` / `histgeo`），未精选的信源原文在「全部动态」里同样列得出来；主题页（`/topics`）继续按区域、机构与领域串联同一件事的来龙去脉。**删的只是视图**——条目、`category` 字段、分类词表与公开门槛一行都没动，`industry/sources.json` 里那 46 条 `defaultCategory` 照旧把条目归到它所属的分类。
 
 **入选标准只有一条：空间显著性优先**——影响尺度大、多方独立报道、有数据/图件/影像支撑，三件同时成立才排得靠前。这条既写进评分提示词，也写进五轴权重表，还写进热度算法（"多方独立报道 = 热"）。
 
@@ -82,23 +82,23 @@
 - **热度**：48 小时窗口、24 小时半衰期、每个独立来源只投一票，至少 2 位参与者且至少 1 位是编辑类信源。
 - **成刊**：日报每天 08:00，周报周一 10:00，月报每月 1 日 10:30；条目按热度排，分节是学科 / 技术两节（2026-10-03 删掉「实践」一节，见上面分类那节的说明）。
 
-### 🖋 编辑大脑是人工写的判断，这一点不遮掩
+### 🖋 编辑大脑：标准是人定的，逐条判断交给模型，这一点写进条款
 
-**本站没有配任何 LLM API Key，也没有自主运行的模型。** 框架只在真要调模型的那一刻读 `LLM_BASE_URL / LLM_API_KEY / LLM_MODEL`，本站把这三个指向一个只听 127.0.0.1 的本地 stub（[`tooling/brain-stub.ts`](tooling/brain-stub.ts)），它按"这条材料是哪一步、是哪一篇"返回**人工撰写的地理编辑判断**，判断存在 `tooling/fixtures/*.jsonl`（13 个能力文件）。
+**线上跑的是真模型**：2026-10-06 起，本站接入第三方大模型服务（Agnes AI 的 `agnes-3.0-flash`，OpenAI 兼容接口），由它完成预筛、两次独立打分、中文标题与摘要、事件归并。框架只在真要调模型的那一刻读 `LLM_BASE_URL / LLM_API_KEY / LLM_MODEL`，所以换服务商是改 `.env` 那三行，代码一行都不用动；`MODEL_CALLS_ENABLED` 是总闸，每一次付费调用都过回执表与每分钟/每小时/每天的预算熔断（现值 40 / 1500 / 12000，超了就暂停，不会一夜刷爆）。
 
-- 闸门是真的：预筛、两次独立打分、门槛、归组的三值关系、48 小时历史闸门、日报分节、公开读取层，**全部走真实代码，一句都没被绕过**。被替换掉的只有"模型今天怎么想"，不是"系统怎么裁决"。
-- **结构上产不出假精选**：没有 fixture 的材料落在确定性默认值上（打分 20，两次之和 40，过不了任何一档的 2× 线；归组默认 `UNRELATED`）。想让一篇材料进精选，必须有人在 `tooling/fixtures/scores.jsonl` 里写下过线分数。
-- 所以**精选只随人新写的判断增长**，不随抓取量增长。这是设计选择，不是缺陷：每一条编辑判断都能追到人，读者看到的立场是编辑部的，不是某个模型当天的。
-- 想换成真模型：改 `.env` 里那三行，代码一行都不用动（`MODEL_CALLS_ENABLED` 打开后才会真的发请求）。
+- **标准仍然是人定的**：分类表、重要性口径（空间显著性）、噪声清单、门槛分数、提示词全部写在 `industry/` 里，由站长逐条确认；模型按这套标准出逐条结论，站长在后台抽查并覆盖（`editorial_overrides`），读者也能通过「反馈」指出错误。
+- 闸门是真的：预筛、两次独立打分、门槛、归组的三值关系、48 小时历史闸门、日报分节、公开读取层，**全部走真实代码，一句都没被绕过**。
+- **本机开发与 CI 不花钱也不外发**：仓库保留一个只听 127.0.0.1 的本地 stub（[`tooling/brain-stub.ts`](tooling/brain-stub.ts)），它按"这条材料是哪一步、是哪一篇"回放 `tooling/fixtures/*.jsonl` 里人工写定的判断；没有 fixture 的材料落在确定性默认值上（打分 20，两次之和 40，过不了任何一档的 2× 线）。测试永远不访问任何外部服务，靠的就是这一层。
+- 中文一手信源有一条兜底：模型没给中文摘要时，摘要退回**来源自己那段话的开头**（同一处长度口径，不是改写；英文材料一律不给）。这条是 2026-10-05 那次"全站停更"的教训——反造假的闸门一旦没有稿子可回放，就会把本来就是中文的条目一起扣住。
 - 界面上那颗分数徽标仍写作「AI 评分」（沿用上游措辞），它显示的是两次独立评分的平均值——在本部署里，那两次分数来自人工写下的判断。
 
 ### 📊 现状与边界
 
-本机开发库内实测，**截至 2026-10-04**（这些数字每天都在动，别当承诺读）：
+本机开发库内实测，**截至 2026-10-05 深夜**（这些数字每天都在动，别当承诺读）：
 
 | 收录材料 | 归并成的事件 | 精选 | 启用信源 | 主题 | 日报期数 |
 |---:|---:|---:|---:|---:|---:|
-| 2842 | 1627 | 48 | 86 | 43 | 4 |
+| 2939 | 1627 | 48 | 95 | 43 | 4 |
 
 （「收录材料」是本机 `publications` 表里 `visibility <> 'withdrawn'` 的行数，「归并成的事件」是 `facts` 表的行数。「精选」这一列数是**读者真正看得到的**那些，算式与读取层同一份（`packages/backend/src/publication/items.ts` 的 `selectedCondition()`：公开、已选中、过释放时间、标题含中文）；库里 `selected` 标记为真的更多（本机 59 条），差的那部分是标题还没有中文副本、按设计先待在后台的条目。表里的「日报期数」是本机 `reports` 表里 `kind = 'daily'` 的行数（算式就是 `packages/backend/src/site/stats.ts` 里 `AS dailies` 那一行的 `WHERE kind = 'daily'`；同一张表现有 7 行 = 4 份日报 + 1 份周报 + 2 份月报，`SELECT kind, count(*) FROM reports GROUP BY kind` 当场可查），含 0 件大事、已被读取层过滤不再列出的空刊。）
 
@@ -106,7 +106,7 @@
 
 精选按分类的**分布不在这里抄**——那是线上每天在变的量（上一版抄的"53 条：自然地理 28 · 区域地理 12 · 人文地理 6 · 地理信息系统 5 + 2 条无分类"恰好在 2026-10-04 13:35 又对了回来，但那是巧合不是维护，靠抄录追一个会动的数是追不住的）。现查：`curl -s "https://xxc2007.me/geohot/api/v1/selected/snapshot?limit=200"` 按 `items[].category` 数一遍，它应与 `/api/site/stats` 的 `selected` 相等（2026-10-04 实测两边都是 53；不一致就是出口之间又裂开了，见下面「站点结构」那一节讲的同一份门槛）。**删掉的两类名下的行没有消失**，是按内容逐条改归到剩下的分类里——迁移 `0041` 的映射表把每条都写明了理由，不是一刀切进某个桶；`fieldwork` 与 `comment` 这两个 key 现在库里一行都不剩（`SELECT category, count(*) FROM publications GROUP BY category` 可查，本机开发库实测只剩**六个** key 与 NULL——七个分类里的 `geoedu` 在库里一行都没有，`GROUP BY` 不会把零行的那一档列出来，所以"七个 key"是数词表不是数查询结果）。
 
-**信源数量的唯一说法在这里**（其余文档一律指向本段，别再抄一份数字）：登记在 [`industry/sources.json`](industry/sources.json) 的是 **90 条**（`node -e "console.log(require('./industry/sources.json').sources.length)"` 当场可数；2026-10-04 下午从 85 加到 87——中新网·即时新闻与 BBC 中文（简体），两家都是在采集那台机器上用采集器自己的 UA 实测过、第一次抓取各入库 30 条才算数。当晚又从 87 加到 90，三条都是中文 `web_list`：**教育部·新闻发布**（分类「考研」，那一类此前只有一条源）、**中国科技网（科技日报）要闻**、**国家发展改革委·新闻动态**——每条都在部署后用 `scripts/collect.ts` 在生产库真抓过（首次入库 15 / 15 / 20 条）。同一批试过的**地理学报·当期目录**又退回了：本机能抓（15 条）、**采集器那台机器两次都 `fetch failed`**，接不进生产就不是信源；它原先的人工投递通道（`ext-acta-geographica-toc`）原样留着。同一批还试过人民网·时政/国际/科技三个 RSS，**又退回了**：feed 本身活着（200、`text/xml`、各 100 个 `<item>`），可里面最新一条分别是 2025-06-03 / 2025-06-04 / 2021-02-01——那是一个不再更新的快照，"200 加 100 条"骗过了探测，是第一次抓取入库 0 条才把它暴露出来），本机库里 `sources` 表是 **91 行**——多出的那一行是投递接口在运维校验时自动建的 `external` 占位源 `ext-opscheck-ingest-probe`（站上不可见，清理 SQL 在 `scripts/README-ingest.md` 末尾），所以顶上那枚徽标写「90+1」。这 90 条里 **82 条真在轮询**（53 `rss` + 26 `web_list` + 3 `json_list`）、**8 条 `external`** 是给人工投递预留的通道（`participation_mode=isolated`，站上暂不可见）。轮询那 82 条按分级是 `T1` 48 / `T1_5` 15 / `T2` 19，按语种是中文 29 / 英文 53，其中 **53 条标了 `first_party`**（自己就是发布方，不是转述别家），中文一手层 23 条。可轮询的来源横跨中英两种语言与机构、媒体、期刊、软件发布四类：国际机构（USGS、NASA Science、NOAA、GDACS、UN OCHA、Copernicus、WMO、ESA）× 国际媒体与智库（The Diplomat、World Politics Review、Foreign Affairs、Crisis Group、对话地球、The Conversation）× 软件与标准（OGC、QGIS releases）× 历史与地图（国会图书馆地图部、Public Domain Review、欧洲环境史学会）× 国内部委与科研院所 20 条（中国地震台网中心、中央气象台、国家气候中心、国家统计局、自然资源部、中国地质调查局、生态环境部、国家林业和草原局、中国地震局、应急管理部、水利部本部及黄河/长江水利委员会、中科院地理科学与资源研究所两条、中国极地研究中心、澎湃新闻、《地理研究》当期目录等）。本站没有任何 `x_search`/`mp_account`/按次计费的信源（现值 0 条），采集不产生账单。**90 条里 46 条声明了 `defaultCategory`**，把条目直接归到它所属的分类（见上）；其余按模型/人工判断归类。
+**信源数量的唯一说法在这里**（其余文档一律指向本段，别再抄一份数字）：登记在 [`industry/sources.json`](industry/sources.json) 的是 **98 条**（`node -e "console.log(require('./industry/sources.json').sources.length)"` 当场可数；2026-10-04 下午从 85 加到 87——中新网·即时新闻与 BBC 中文（简体），两家都是在采集那台机器上用采集器自己的 UA 实测过、第一次抓取各入库 30 条才算数。当晚又从 87 加到 90，三条都是中文 `web_list`：**教育部·新闻发布**（分类「考研」，那一类此前只有一条源）、**中国科技网（科技日报）要闻**、**国家发展改革委·新闻动态**——每条都在部署后用 `scripts/collect.ts` 在生产库真抓过（首次入库 15 / 15 / 20 条）。同一批试过的**地理学报·当期目录**又退回了：本机能抓（15 条）、**采集器那台机器两次都 `fetch failed`**，接不进生产就不是信源；它原先的人工投递通道（`ext-acta-geographica-toc`）原样留着。同一批还试过人民网·时政/国际/科技三个 RSS，**又退回了**：feed 本身活着（200、`text/xml`、各 100 个 `<item>`），可里面最新一条分别是 2025-06-03 / 2025-06-04 / 2021-02-01——那是一个不再更新的快照，"200 加 100 条"骗过了探测，是第一次抓取入库 0 条才把它暴露出来）。第二十四轮（2026-10-05）把出口试到了平台层：**8 个 X 官方账号**（`x_search`，账号存在性用 x.com 的页面标题逐个核过）登记在内、全部停用；**3 个 YouTube 官方频道**（USGS / NASA / NOAA）当轮实测通了又按要求撤下——视频文件从不下载，库里只存元数据，但条目页那张封面会和站内其它图片一起被签名代理渲染成小文件写进本地缓存目录，站长要的是本地磁盘不涨，所以信源包是 90 → 98。频道 id 与逐条实测记录留在 [`docs/sources.md`](docs/sources.md) 的「平台信源」一节，接回来照那一节做。本机库里 `sources` 表是 **100 行**——多出的两行都不在信源包里：一行是投递接口在运维校验时自动建的 `external` 占位源 `ext-opscheck-ingest-probe`（站上不可见，清理 SQL 在 `scripts/README-ingest.md` 末尾），另一行是试接地理学报时登记的 `cn-web-geog-toc`（包里已经把它退回，而 `scripts/seed.ts` 是 `ON CONFLICT (id) DO NOTHING` 只增不改，所以那行还留在库里、`enabled=true`；要清走用 `scripts/delete-sources.ts`，不要去改 `stats.ts` 让数字看起来对齐），所以顶上那枚徽标写「98+1」。这 98 条里 **82 条真在轮询**（53 `rss` + 26 `web_list` + 3 `json_list`）、**8 条 `external`** 是给人工投递预留的通道（`participation_mode=isolated`，站上暂不可见）。轮询那 82 条按分级是 `T1` 48 / `T1_5` 15 / `T2` 19，按语种是中文 29 / 英文 53，其中 **53 条标了 `first_party`**（自己就是发布方，不是转述别家），中文一手层 23 条。可轮询的来源横跨中英两种语言与机构、媒体、期刊、软件发布四类：国际机构（USGS、NASA Science、NOAA、GDACS、UN OCHA、Copernicus、WMO、ESA）× 国际媒体与智库（The Diplomat、World Politics Review、Foreign Affairs、Crisis Group、对话地球、The Conversation）× 软件与标准（OGC、QGIS releases）× 历史与地图（国会图书馆地图部、Public Domain Review、欧洲环境史学会）× 国内部委与科研院所 20 条（中国地震台网中心、中央气象台、国家气候中心、国家统计局、自然资源部、中国地质调查局、生态环境部、国家林业和草原局、中国地震局、应急管理部、水利部本部及黄河/长江水利委员会、中科院地理科学与资源研究所两条、中国极地研究中心、澎湃新闻、《地理研究》当期目录等）。本站唯一的按次计费出口是那 8 条 `x_search`：本部署没有 `SOCIALDATA_API_KEY`，它们全部登记为 `enabled=false`（`tests/industry-pack-sources.test.ts` 把「按请求计费必须登记为停用」钉成断言），所以轮询侧不产生账单。**98 条里 54 条声明了 `defaultCategory`**，把条目直接归到它所属的分类（见上）；其余按模型/人工判断归类。
 
 **已部署**：[`xxc2007.me/geohot/`](https://xxc2007.me/geohot/)（2026-10-01）。四个常驻单元只监听回环、各自带内存上限，装在同一台跑着主站与 Artalk 的机器上，主站首页逐字节未变（`51432` 字节 / `4edf0fc53636a680…`，2026-10-03 又用 `curl -s https://xxc2007.me/ | wc -c` 与 `sha256sum` 复核过一遍）。怎么装的、验证命令、以及部署时踩过的坑（那张「症状 → 真正原因」表），都在 [`deploy/geohot/DEPLOYMENT.md`](deploy/geohot/DEPLOYMENT.md)。**日报已出刊**：`/daily` 给的是**最新一期**（这一句不写期号与日期，每天 08:00 它都会变），下面那张图拍的是 **2026-10-03 第 2 期**（`/daily/2026-10-03`，与那张图自己的说明同一期——上一版这里写成"2026-10-02 第 1 期"，与图说明对不上，同一张图给了两期）。另一期 `/daily/2026-10-02` 是 2026-10-02 第 1 期，线上现查的报眼五个指标是 **21 件大事、14 个来源、12 件一手发布、5 项技术与数据发布、约 9 分钟读完**（2026-10-04 实测 `curl -s https://xxc2007.me/geohot/daily/2026-10-02` 去标签即得；上一版这里写的"约 10 分钟"是错的，还漏了"技术与数据发布"那一格）——这些数字属于那一期，不属于"今天"。上线首日（10-01）`/daily` 确实是诚实的空态——worker 在当天 08:00 档期之后才起，那份日报本来就属于第二天，原因与空刊怎么被读取层过滤，写在 [`docs/known-issues.md`](docs/known-issues.md)。
 
@@ -153,7 +153,7 @@ GEOHOT/
 │   ├── backend/      # 引擎：采集/预筛/打分/归组/热度/日报/公开只读层/回执与预算熔断
 │   └── contracts/    # 跨进程契约与 HTTP 策略
 ├── industry/         # ★ 行业层：换行业只动这里（见下面那节）；changelog.json 是 /changelog 的数据源，pages/ 是条款与说明页正文
-├── database/         # 迁移（只做向后兼容的增量，新迁移按编号加在末尾；2026-10-04 现值 40 个，条数用 ls database/migrations/*.sql | wc -l 现查；编号有跳号不等于漏跑）
+├── database/         # 迁移（只做向后兼容的增量，新迁移按编号加在末尾；2026-10-05 深夜现值 42 个，条数用 ls database/migrations/*.sql | wc -l 现查；编号有跳号不等于漏跑）
 ├── deploy/geohot/    # 上线与搬家：systemd 单元、nginx 片段、DEPLOYMENT.md、publish-to-github.sh、verify-deploy.sh
 ├── scripts/          # env:init · dev-db · migrate · seed · seed:curated · smoke · shoot（重拍本页配图）· collect · eval-selection
 ├── tooling/          # brain-stub.ts（编辑大脑 stub）· fixtures/（人工判断）· corpus/（人工语料）· ci-check.yml（CI 正本，见下面那节）
@@ -172,7 +172,7 @@ GEOHOT/
 | 接口 | **Fastify 5** | 公开读接口要能压量，后台写接口要能加校验 |
 | 任务 | **pg-boss 12** | 队列就建在 Postgres 里，少一个要运维的中间件 |
 | 数据 | **PostgreSQL 17** + `pg_trgm` | 事件归并要相似度检索；本机用 `embedded-postgres`，不依赖 Docker |
-| 编辑判断 | 本地 OpenAI 兼容 stub + `tooling/fixtures/*.jsonl` | **无 LLM Key**，见上面那一节 |
+| 编辑判断 | 线上：Agnes AI `agnes-3.0-flash`（OpenAI 兼容）；本机与 CI：本地 stub + `tooling/fixtures/*.jsonl` | 见上面那一节：付费调用过回执与预算熔断 |
 
 ## 🔁 换成你的行业
 
@@ -205,7 +205,7 @@ npm ci
 npm run env:init            # ★ 关键第一步：写出 .env 与 .env.pipeline，五个键是真随机值，且拒绝覆盖已存在的文件
 npm run db:up -- --daemon   # embedded PostgreSQL 17，127.0.0.1:5433（前台跑法去掉 --daemon；停止 npm run db:down）
 
-npm run db:migrate          # 建表（迁移条数以 database/migrations/ 现查为准，上面那棵目录树里给的是 2026-10-04 的现值；跑完用 SELECT count(*) FROM schema_migrations 对账，本机实测 40 = 40）
+npm run db:migrate          # 建表（迁移条数以 database/migrations/ 现查为准，上面那棵目录树里给的是 2026-10-05 的现值；跑完用 SELECT count(*) FROM schema_migrations 对账，本机实测 42 = 42）
 node --env-file-if-exists=.env scripts/seed.ts              # 导入分类、主题、信源（这条没有 npm 别名）
 npm run seed:curated -- --dry-run --enforce-source          # 先看人工语料会不会落进未登记信源
 npm run seed:curated -- --enforce-source                    # 导入人工策划的语料

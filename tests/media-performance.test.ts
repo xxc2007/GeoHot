@@ -15,7 +15,7 @@ const { guardedFetch } = await import("@aihot/backend/lib/http-fetch");
 const { produceImage } = await import("@aihot/backend/media/images");
 const { renderOg } = await import("../apps/api/src/og/render.ts");
 const { renderPoster } = await import("../apps/api/src/og/poster.ts");
-const { xView } = await import("@aihot/backend/publication/items");
+const { xView, videoMedia } = await import("@aihot/backend/publication/items");
 
 let imageHits = 0;
 let failureHits = 0;
@@ -23,8 +23,10 @@ const png = await sharp({ create: { width: 800, height: 400, channels: 3, backgr
 // Ten noisy 160×120 frames: a GIF that animated WebP clearly beats.
 const frames = await sharp({ create: { width: 160, height: 1200, channels: 3, background: "#808080", noise: { type: "gaussian", mean: 128, sigma: 40 } } }).raw().toBuffer();
 const animatedGif = await sharp(frames, { raw: { width: 160, height: 1200, channels: 3, pageHeight: 120 } }).gif({ loop: 0, delay: Array(10).fill(90) }).toBuffer();
+const staticGif = await sharp({ create: { width: 1200, height: 900, channels: 4, background: { r: 23, g: 107, b: 117, alpha: 0.6 } } }).gif().toBuffer();
 const server = createServer(async (req, res) => {
   if (req.url === "/anim.gif") { res.writeHead(200, { "content-type": "image/gif" }); return res.end(animatedGif); }
+  if (req.url === "/static.gif") { res.writeHead(200, { "content-type": "image/gif" }); return res.end(staticGif); }
   if (req.url?.startsWith("/redirect/")) {
     await new Promise((resolve) => setTimeout(resolve, 80));
     res.writeHead(302, { location: `/redirect/${Number(req.url.split("/").pop()) + 1}` });
@@ -167,6 +169,37 @@ test("responsive URLs and web body candidates retain exact signatures and stable
   assert.doesNotMatch(proxyBodyImages(html, true), /srcset=/);
 });
 
+test("one signature serves one (url, mode) pair, and URLs signed before the fix still load", async () => {
+  const { verifyProxyRequest, signature, proxiedImage } = await import("@aihot/backend/media/imgproxy");
+  const { createHmac } = await import("node:crypto");
+  const now = Date.parse("2026-09-28T08:00:00Z");
+  const exp = String(Math.ceil(now / 1000) + 3600);
+  const hex = (message: string) => createHmac("sha256", process.env.IMG_PROXY_SIGN_SECRET!).update(message).digest("hex");
+  // A `|` is legal in a URL path, so the old bare `url|mode|exp` concatenation is the same bytes as
+  // (url="https://example.org/a", mode="thumb.png|image-336", exp) — a mode that was never minted and
+  // that the width lookup would read as the biggest rendition.
+  const url = "https://example.org/a|thumb.png";
+  const signed = signature(url, "image-336", exp);
+  const verdict = (q: { u?: string; mode?: string; exp?: string; sig?: string }) => {
+    const v = verifyProxyRequest(q, now);
+    return v.ok ? "ok" : v.reason;
+  };
+  assert.deepEqual(verifyProxyRequest({ u: url, mode: "image-336", exp, sig: signed }, now), { ok: true, url, mode: "image-336" });
+  assert.equal(verdict({ u: "https://example.org/a", mode: "thumb.png|image-336", exp, sig: hex(`${url}|image-336|${exp}`).slice(0, 16) }), "bad-mode");
+  // Moving any other field out of the message fails on the signature, before the mode question.
+  assert.equal(verdict({ u: url, mode: "full", exp, sig: signed }), "bad-signature");
+  assert.equal(verdict({ u: url, mode: "image-336", exp: String(Number(exp) - 3600), sig: signed }), "bad-signature");
+  // RSS readers and the edge cache hold URLs minted with the old concatenation for days.
+  assert.equal(verdict({ u: url, mode: "image-336", exp, sig: hex(`${url}|image-336|${exp}`).slice(0, 16) }), "ok");
+  // Nothing mints them any more, and a mode outside the rendition table is refused.
+  const fresh = new URL(proxiedImage(url, "image-336", false, now)!, "http://localhost");
+  assert.equal(verdict(Object.fromEntries(fresh.searchParams)), "ok");
+  assert.notEqual(fresh.searchParams.get("sig"), hex(`${url}|image-336|${exp}`).slice(0, 16));
+  assert.equal(verdict({ u: url, mode: "image-48", exp, sig: hex(`${url}|image-48|${exp}`) }), "bad-mode");
+  // `in` would let an inherited name through the table check and hand sharp a function as a width.
+  assert.equal(verdict({ u: url, mode: "toString", exp, sig: hex(`${url}|toString|${exp}`) }), "bad-mode");
+});
+
 test("image HTTP responses keep issued URLs valid, reject tampering before fetching and do not vary on Accept", async () => {
   const { default: Fastify } = await import("fastify");
   const { registerMedia } = await import("../apps/api/src/routes/media.ts");
@@ -182,6 +215,13 @@ test("image HTTP responses keep issued URLs valid, reject tampering before fetch
   const invalid = await app.inject({ url: `/api/img-proxy?${invalidParams}` });
   assert.equal(invalid.statusCode, 403);
   assert.equal(imageHits, before);
+  // A request that cannot be honoured at all is the caller's mistake (400, and 401 to an nginx auth
+  // sub-request), not a refusal; a bad or expired signature stays 403.
+  assert.equal((await app.inject({ url: "/api/img-proxy" })).statusCode, 400, "缺参数");
+  assert.equal((await app.inject({ method: "HEAD", url: "/api/img-proxy", headers: { "x-aihot-img-proxy-auth": "1" } })).statusCode, 401, "鉴权子请求里的畸形查询");
+  const bogusMode = new URLSearchParams({ u: url, mode: "image-99999", exp, sig: signature(url, "image-99999", exp) });
+  assert.equal((await app.inject({ url: `/api/img-proxy?${bogusMode}` })).statusCode, 400, "没人签发过的 mode 也不该去取上游");
+  assert.equal(imageHits, before, "三种畸形与被拒的请求都没有出网");
   const first = await app.inject({ url: `/api/img-proxy?${params}`, headers: { accept: "image/avif" } });
   const second = await app.inject({ url: `/api/img-proxy?${params}`, headers: { accept: "image/webp" } });
   assert.equal(first.statusCode, 200);
@@ -214,6 +254,16 @@ test("background preparation turns a cached GIF into a smaller animated WebP wit
   assert.equal(await convertAnimated(`${base}/anim.gif`, "image-336"), 0);
 });
 
+test("a single-frame GIF is an ordinary still: it is resized instead of served at full size", async () => {
+  const avatar = await produceImage(`${base}/static.gif`, "avatar-48");
+  assert.equal(avatar.type, "image/webp");
+  const meta = await sharp(avatar.body).metadata();
+  assert.deepEqual([meta.width, meta.height], [48, 48]);
+  assert.ok(avatar.body.length < staticGif.length / 4);
+  const card = await produceImage(`${base}/static.gif`, "card");
+  assert.equal((await sharp(card.body).metadata()).width, 336);
+});
+
 test("preparation finds every rendition a card and a page ask for, including escaped body images", async () => {
   const { proxiedRenditions } = await import("@aihot/backend/media/prepare");
   const { proxiedImage, proxiedImageSet, proxyBodyImages } = await import("@aihot/backend/media/imgproxy");
@@ -231,4 +281,19 @@ test("preparation finds every rendition a card and a page ask for, including esc
     "image-720 https://example.org/b.png?q=1&r=2",
     "image-720 https://example.org/c.png",
   ]);
+});
+
+test("a video source lends its own still, and a text source's photographs stay out of the page", () => {
+  const media = videoMedia([
+    { kind: "video", url: "https://www.youtube.com/watch?v=pKJDW8oOXuU", poster: "https://i1.ytimg.com/vi/pKJDW8oOXuU/hqdefault.jpg", width: 480, height: 360 },
+    { kind: "image", url: "https://example.org/photo.jpg", width: 1200, height: 800 },
+    { kind: "video", url: "https://www.youtube.com/shorts/abcdefghijklmnopqrstuvwxyz" },
+    "not an object",
+  ]);
+  assert.equal(media.length, 1, "only a video entry with a poster qualifies");
+  assert.equal(media[0]!.kind, "video");
+  assert.equal(media[0]!.url, "https://www.youtube.com/watch?v=pKJDW8oOXuU", "the tile points at the platform, it is not a proxied image");
+  assert.match(media[0]!.poster!, /img-proxy\?u=https%3A%2F%2Fi1\.ytimg\.com/);
+  assert.deepEqual([media[0]!.width, media[0]!.height], [480, 360]);
+  assert.ok(media[0]!.srcSet, "the still gets responsive candidates like any other picture");
 });

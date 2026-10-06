@@ -5,22 +5,39 @@ import { Presence } from "./Presence";
 export function Menu({ trigger, label, children, align = "right" }: { trigger: ReactNode; label: string; children: (close: () => void) => ReactNode; align?: "left" | "right" }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  // 焦点曾经落在菜单里吗？只有键盘/触屏进来的那次才需要还回去，鼠标点空白处关掉不该抢焦点。
+  const hadFocus = useRef(false);
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      // 关菜单时把焦点交回触发按钮：菜单项跟着 Presence 的 140 ms 退出动画就卸载了，
+      // 还留在里面的键盘用户不该掉回 <body>（重头 Tab 一遍）。
+      if (hadFocus.current) {
+        hadFocus.current = false;
+        triggerRef.current?.focus({ preventScroll: true });
+      }
+      return;
+    }
     const onDown = (e: PointerEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    const onFocusIn = (e: FocusEvent) => {
+      if (ref.current?.contains(e.target as Node)) hadFocus.current = true;
+    };
     document.addEventListener("pointerdown", onDown);
     document.addEventListener("keydown", onKey);
+    ref.current?.addEventListener("focusin", onFocusIn);
     return () => {
       document.removeEventListener("pointerdown", onDown);
       document.removeEventListener("keydown", onKey);
+      ref.current?.removeEventListener("focusin", onFocusIn);
     };
   }, [open]);
   return (
     <div ref={ref} className="relative">
       <button
+        ref={triggerRef}
         type="button"
         aria-label={label}
         title={label}

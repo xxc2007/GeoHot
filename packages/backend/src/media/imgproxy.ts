@@ -1,8 +1,8 @@
 // Signed image proxy URLs. The address format and signing key stay stable, so proxy URLs
 // already cached in full RSS and readers keep working: /api/img-proxy?u=&mode=&exp=&sig=
-// sig = hex(HMAC-SHA256(IMG_PROXY_SIGN_SECRET, `${u}|${mode}|${exp}`)), sent as its first 16 hex
-// digits (64 bits): the random digits cannot be compressed, and the full 64 made up about a tenth
-// of a compressed list page. A full-length signature from an older URL is still accepted.
+// sig = hex(HMAC-SHA256(IMG_PROXY_SIGN_SECRET, 每段带长度的 `u|mode|exp`))，按请求发出前 16 个十六进制
+// 位（64 位）：随机位压不动，而完整长度曾占压缩后列表页的约十分之一。旧 URL 的全长签名仍然收，
+// 逐字段带长度之前的那种拼法也仍然验得过（见 `signedMessage`）。
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { deployBase } from "@aihot/contracts/http-policy";
 import { config, credential } from "../config.ts";
@@ -29,8 +29,21 @@ function secret(): string {
   return s;
 }
 
+/**
+ * The signed message. It used to be the bare concatenation `${url}|${mode}|${exp}`, and a `|` is legal in
+ * a URL path: one legitimate signature then re-splits into a *different* (url, mode) pair over the same
+ * bytes, and a mode nobody minted falls through to the full 1600 px rendition (`images.ts` looks the
+ * width up by name). Length-prefixing each field makes the boundary unambiguous.
+ *
+ * The old form is still accepted when *verifying*, because RSS readers and the edge cache hold URLs signed
+ * with it for days — that is the reason the address format is frozen. Nothing mints new ones.
+ */
+const signedMessage = (url: string, mode: string, exp: number | string) => `${url.length}:${url}|${mode.length}:${mode}|${exp}`;
+const legacyMessage = (url: string, mode: string, exp: number | string) => `${url}|${mode}|${exp}`;
+const hmacHex = (message: string) => createHmac("sha256", secret()).update(message).digest("hex");
+
 export function signature(url: string, mode: string, exp: number | string): string {
-  return createHmac("sha256", secret()).update(`${url}|${mode}|${exp}`).digest("hex");
+  return hmacHex(signedMessage(url, mode, exp));
 }
 
 /** Expiry rounded up to a day boundary at least `lifetime` (48 h) ahead, so URLs stay cacheable. */
@@ -53,7 +66,7 @@ export function proxiedImageSet(url: string | null | undefined, kind: Responsive
   return RESPONSIVE_MODES[kind].map((mode) => `${proxiedImage(url, mode, absolute, nowMs, lifetimeSeconds)} ${IMAGE_WIDTHS[mode]}w`).join(", ");
 }
 
-export type VerifyResult = { ok: true; url: string; mode: string } | { ok: false; reason: "missing" | "expired" | "bad-signature" | "bad-url" };
+export type VerifyResult = { ok: true; url: string; mode: string } | { ok: false; reason: "missing" | "expired" | "bad-signature" | "bad-url" | "bad-mode" };
 
 export function verifyProxyRequest(params: { u?: string; mode?: string; exp?: string; sig?: string }, nowMs = Date.now()): VerifyResult {
   const { u, mode, exp, sig } = params;
@@ -64,8 +77,19 @@ export function verifyProxyRequest(params: { u?: string; mode?: string; exp?: st
   // Legacy article pages signed body images without a mode (as "default"); those still in open tabs and
   // caches keep loading, as full images, until their signature expires.
   const given = Buffer.from(new RegExp(`^(?:[0-9a-f]{${SIG_HEX}}|[0-9a-f]{64})$`, "i").test(sig) ? sig : "", "hex");
-  const expected = Buffer.from(signature(u, mode ?? "default", exp), "hex").subarray(0, given.length);
-  if (given.length === 0 || !timingSafeEqual(given, expected)) return { ok: false, reason: "bad-signature" };
+  // Canonical form first, then the pre-2026-10-05 concatenation: URLs already sitting in RSS readers and
+  // in the edge cache were signed with it, and refusing them would break reader-visible images for days.
+  const signed = signedMessage(u, mode ?? "default", exp);
+  const verified = [signed, legacyMessage(u, mode ?? "default", exp)].some((message) => {
+    const expected = Buffer.from(hmacHex(message), "hex").subarray(0, given.length);
+    return expected.length === given.length && timingSafeEqual(given, expected);
+  });
+  if (given.length === 0 || !verified) return { ok: false, reason: "bad-signature" };
+  // A mode we never minted is not a request we serve: the width lookup falls back to 1600 px, so an
+  // unvalidated mode is a way to ask for the biggest rendition of a URL signed for a small one.
+  // `hasOwn`, not `in`: an inherited name like `toString` is `in` the table and would reach sharp as a width.
+  // ("default" is the legacy no-mode spelling still cached from old article pages.)
+  if (mode !== undefined && mode !== "default" && !Object.hasOwn(IMAGE_WIDTHS, mode)) return { ok: false, reason: "bad-mode" };
   return { ok: true, url: u, mode: mode ?? "full" };
 }
 

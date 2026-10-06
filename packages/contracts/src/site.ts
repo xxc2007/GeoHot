@@ -158,6 +158,13 @@ export interface ItemDetail extends ItemSummary {
   indexable: boolean;
   markdownAvailable: boolean;
   group: ItemDetailGroup | null;
+  /**
+   * A video source's own still (a YouTube channel's frame), rendered as one tile that opens the platform.
+   * Deliberately only video: a text source lends its summary to this site, not its photographs, so an
+   * article page keeps showing no pictures while a video page shows the one picture the platform itself
+   * uses to name that video.
+   */
+  media?: MediaView[];
 }
 
 export interface GroupReport {
@@ -190,16 +197,6 @@ export interface DevelopmentsResponse {
   revision: string;
   developments: Development[];
   nextCursor: string | null;
-}
-
-export interface ProblemBody {
-  type: string;
-  title: string;
-  status: number;
-  detail: string;
-  code: string;
-  requestId: string;
-  retryAfter?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -277,6 +274,13 @@ export interface StoryFactView {
 export interface StoryDetail {
   publicId: string;
   title: string;
+  /**
+   * Whether this page makes a promise a crawler can keep: the event's own title is Chinese, i.e. someone
+   * wrote this event up. An event whose title is still the source's original language keeps its page (the
+   * reports under it are the record) but is `noindex` and stays out of sitemap.xml — the same pair the item
+   * pages use, where `itemHasPage` decides "can it be opened" and `indexable` decides "may it be promised".
+   */
+  indexable: boolean;
   status: "active" | "watching" | "settled";
   reportCount: number;
   sourceCount: number;

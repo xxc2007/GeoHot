@@ -4,7 +4,8 @@ import TurndownService from "turndown";
 import { sql } from "../db.ts";
 import { proxyBodyImages } from "../media/imgproxy.ts";
 import { textToHtml } from "../content/sanitize.ts";
-import { ITEM_COLUMNS, ITEM_FROM, releasedCondition, toItemSummary, xView, type ItemRow } from "./items.ts";
+import { ITEM_COLUMNS, ITEM_FROM, chineseCopyCondition, releasedCondition, toItemSummary, videoMedia, xView, type ItemRow } from "./items.ts";
+import { bodyIsChinese } from "@aihot/contracts/copy";
 import { itemUrl } from "./links.ts";
 import { itemHasPage } from "./rules.ts";
 import { SITE } from "@aihot/industry/site";
@@ -15,6 +16,7 @@ interface DetailRow extends ItemRow {
   body_status: string;
   tr_html: string | null;
   tr_complete: boolean | null;
+  media: unknown;
 }
 
 export type DetailResult =
@@ -37,7 +39,7 @@ function withOutline(html: string): { html: string; outline: OutlineEntry[] } {
 
 async function loadRow(id: string): Promise<DetailRow | null> {
   const [row] = await sql<DetailRow[]>`
-    SELECT ${ITEM_COLUMNS}, a.body_html, a.body_text, a.body_status, tr.body_html AS tr_html, tr.complete AS tr_complete
+    SELECT ${ITEM_COLUMNS}, a.body_html, a.body_text, a.body_status, a.media, tr.body_html AS tr_html, tr.complete AS tr_complete
     ${ITEM_FROM}
     WHERE p.article_id = ${id}`;
   return row ?? null;
@@ -73,6 +75,7 @@ export async function loadItemDetail(id: string, now = new Date()): Promise<Deta
       indexable: false,
       markdownAvailable: false,
       group: null,
+      media: videoMedia(row.media),
     };
     return { kind: "found", detail, row };
   }
@@ -94,7 +97,7 @@ export async function loadItemDetail(id: string, now = new Date()): Promise<Deta
       complete: true,
     };
   } else if (row.body_mode === "full" && row.body_html) {
-    const isZh = row.language === "zh" || (/[一-鿿]/.test(row.body_text?.slice(0, 400) ?? "") && row.language !== "en");
+    const isZh = bodyIsChinese(row.language, row.body_text ?? "");
     const original = proxyBodyImages(row.body_html);
     const zh = isZh ? original : row.tr_html ? proxyBodyImages(row.tr_html) : null;
     const primary = withOutline(zh ?? original);
@@ -109,10 +112,13 @@ export async function loadItemDetail(id: string, now = new Date()): Promise<Deta
 
   let group: ItemDetail["group"] = null;
   if (row.fact_id) {
+    // The same predicate as the panel this number opens (groups.ts, and timeline.ts for the card): without
+    // the Chinese gate the page promised 「另有 3 家信源报道」 while the expansion listed two, because
+    // reports with no Chinese write-up are on no list — including this one.
     const [g] = await sql<{ public_id: string; reports: number; sources: number }[]>`
       SELECT f.public_id, count(p.article_id) AS reports, count(DISTINCT p.source_id) AS sources
       FROM facts f JOIN publications p ON p.fact_id = f.id
-      WHERE f.id = ${row.fact_id} AND p.visibility = 'public' AND p.eligible AND ${releasedCondition(now)}
+      WHERE f.id = ${row.fact_id} AND p.visibility = 'public' AND p.eligible AND ${releasedCondition(now)} AND ${chineseCopyCondition()}
       GROUP BY f.public_id`;
     if (g) {
       // No development count here: this page renders only "另有 N 家信源报道", and `developmentCount` means
@@ -139,6 +145,7 @@ export async function loadItemDetail(id: string, now = new Date()): Promise<Deta
     indexable: row.indexable,
     markdownAvailable: markdownAvailable(row),
     group,
+    media: videoMedia(row.media),
   };
   return { kind: "found", detail, row };
 }
@@ -177,7 +184,10 @@ export async function exportMarkdown(id: string): Promise<{ filename: string; bo
     if (q?.text) lines.push(`## 引用 @${q.handle ?? ""}`, "", ...String(q.text).split("\n").map((l) => `> ${l}`), "", ...(q.url ? [q.url, ""] : []));
     if (q?.text && row.quoted_zh) lines.push("### 引用中文译文", "", ...row.quoted_zh.split("\n").map((l) => `> ${l}`), "");
   } else if (row.body_mode === "full" && row.body_html) {
-    const isZh = row.language === "zh";
+    // The same question the page asks (`loadRow`'s reading projection above), spelled once
+    // (`contracts/copy.ts`): a declared language wins over a sample, and a declared `en` is an English
+    // body even when the article quotes a Chinese line.
+    const isZh = bodyIsChinese(row.language, row.body_text ?? "");
     if (!isZh && row.tr_html && row.tr_complete) lines.push("## 正文 · 中文译文", "", turndown.turndown(row.tr_html), "");
     lines.push(isZh ? "## 正文" : "## 正文 · 原文", "", turndown.turndown(row.body_html), "");
   }

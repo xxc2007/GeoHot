@@ -1,5 +1,5 @@
 import { Component, useEffect, useRef, useState, type ReactNode } from "react";
-import { useLocation, useRevalidator } from "react-router";
+import { useRevalidator } from "react-router";
 import { IconArrowUp, IconInfo } from "../icons";
 import { buttonClass } from "../ui/Controls";
 import { homeHref } from "./nav";

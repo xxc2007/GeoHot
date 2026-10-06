@@ -46,7 +46,7 @@ function Step({ title, meta, children, tone = "accent", last }: { title: ReactNo
   );
 }
 
-type Dialog = null | "visibility" | "seo" | "override" | "analyze" | "extract" | "group" | "detach" | "merge";
+type Dialog = null | "visibility" | "seo" | "override" | "analyze" | "extract" | "group" | "digest" | "detach" | "merge";
 
 export default function ContentItem({ loaderData }: Route.ComponentProps) {
   const c = loaderData;
@@ -254,6 +254,7 @@ export default function ContentItem({ loaderData }: Route.ComponentProps) {
                 <Button size="sm" onClick={() => setDialog("group")}>重新归组</Button>
                 {c.membership.length > 0 && <Button size="sm" onClick={() => setDialog("detach")}>移出事件</Button>}
                 {story?.story_id && <Button size="sm" onClick={() => setDialog("merge")}>把这个事件并入…</Button>}
+                {story?.story_id && <Button size="sm" onClick={() => setDialog("digest")}>重写事件综述</Button>}
               </div>
             </Step>
             <Step title="投递" last meta={`${c.deliveries.length} 条`} tone={c.deliveries.some((d) => d.status === "unknown") ? "bad" : c.deliveries.length ? "accent" : "muted"}>
@@ -398,30 +399,43 @@ export default function ContentItem({ loaderData }: Route.ComponentProps) {
         open={dialog === "analyze"}
         title="对当前修订重新评估"
         description="会发起一次新的模型调用（计费并记录回执）。同一次提交重复点击不会重复收费。"
-        requireReason={false}
+        requireReason
         confirmLabel="重新评估"
         busy={pending === "analyze"}
         onClose={() => setDialog(null)}
-        onSubmit={async () => (await run("POST", `${base}/rerun`, { step: "analyze" }, { label: "analyze", success: "已加入评估队列" })) !== null}
+        onSubmit={async (reason) => (await run("POST", `${base}/rerun`, { step: "analyze", reason }, { label: "analyze", success: "已加入评估队列" })) !== null}
       />
       <ReasonDialog
         open={dialog === "extract"}
         title="重新抽取正文"
-        requireReason={false}
+        description="会再向来源站点取一次原文（要出网，跟着采集阀门一起开关）。理由写进审计，说明为什么要重来一遍。"
+        requireReason
         confirmLabel="重新抽取"
         busy={pending === "extract"}
         onClose={() => setDialog(null)}
-        onSubmit={async () => (await run("POST", `${base}/rerun`, { step: "extract" }, { label: "extract", success: "已加入抽取队列" })) !== null}
+        onSubmit={async (reason) => (await run("POST", `${base}/rerun`, { step: "extract", reason }, { label: "extract", success: "已加入抽取队列" })) !== null}
       />
       <ReasonDialog
         open={dialog === "group"}
         title="重新归组"
-        description="人工归组的成员关系不会被覆盖。"
-        requireReason={false}
-        confirmLabel="重新归组"
+        description="会撤销这条内容上人工的“单独成条”决定（移出事件时留下的记录），并按当前文本重新判断归属。"
+        danger
+        requireReason
+        confirmLabel="撤销人工决定并重新归组"
         busy={pending === "group"}
         onClose={() => setDialog(null)}
-        onSubmit={async () => (await run("POST", `${base}/rerun`, { step: "group" }, { label: "group", success: "已加入归组队列" })) !== null}
+        onSubmit={async (reason) => (await run("POST", `${base}/rerun`, { step: "group", reason }, { label: "group", success: "已加入归组队列" })) !== null}
+      />
+      {/* 综述只问「输入变了没有」：改完署名的 fixture 不会改输入，所以重写必须由人点一下。 */}
+      <ReasonDialog
+        open={dialog === "digest"}
+        title="重写这条事件的综述"
+        description={`事件 #${story?.story_id}（${story?.story_title ?? ""}）会重新走一次写稿：署名稿在场就用署名稿，否则仍然保留现版并记下拒绝原因。`}
+        requireReason
+        confirmLabel="排队重写"
+        busy={pending === "digest"}
+        onClose={() => setDialog(null)}
+        onSubmit={async (reason) => (await run("POST", `/api/admin/stories/${story!.story_id}/digest`, { reason }, { label: "digest", success: "已排队重写事件综述" })) !== null}
       />
       <ReasonDialog
         open={dialog === "detach"}

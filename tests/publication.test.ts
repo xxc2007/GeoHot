@@ -5,7 +5,6 @@
 import { config } from "@aihot/backend/config";
 import { CATEGORY_LABELS } from "@aihot/contracts/taxonomy";
 import { beijingDate } from "@aihot/contracts/time";
-import { MCP_TOOL_NAMES } from "@aihot/contracts/mcp";
 import { SITE, withSubject } from "@aihot/industry/site";
 import { ogEtag } from "../apps/api/src/og/render.ts";
 import { posterEtag } from "../apps/api/src/og/poster.ts";
@@ -414,6 +413,29 @@ test("minimal sync projection preserves snapshot fields, pagination bindings and
   await setVisibility(id, { visibility: 'withdrawn', reason: 'sync test', version: 0 }, 'test');
   const removed = await getChanges(minimalChanges.cursor);
   assert.ok(removed.changes.some((c: any) => c.op === 'remove' && c.id === id));
+});
+
+test("an article row that is deleted leaves the Agent snapshot, not only the site", async () => {
+  // 2026-10-05: `selected_state` had no foreign key to `articles`, so a hard delete (the test purge, an
+  // operator script, retention) left `in_set=true` behind and the snapshot kept serving those entries —
+  // measured in the CI database as 1055 entries whose item 404s. Membership is now derived from the live
+  // publication, the same statement the home timeline and RSS make.
+  const id = await article();
+  // 游标要在水位推进之前取：changes 只回 seq 大于游标的行，取晚了就什么也重放不到。
+  const cursor = JSON.parse((await get('/api/v1/selected/snapshot?limit=1')).body).cursor;
+  const replay = async () => (JSON.parse((await get(`/api/v1/selected/changes?cursor=${encodeURIComponent(cursor)}&limit=100`)).body).changes ?? []).filter((c: any) => (c.id ?? c.item?.id) === id);
+  await publishArticle(id, released());
+  const snap = async () => JSON.parse((await get('/api/v1/selected/snapshot?limit=1000')).body);
+  assert.equal((await snap()).items.some((i: any) => i.id === id), true, 'a live selected entry is in the snapshot');
+  assert.ok((await replay()).some((c: any) => c.op === 'upsert'), 'an old cursor replays it as a live entry');
+  await sql`DELETE FROM articles WHERE id = ${id}`;
+  assert.equal((await snap()).items.some((i: any) => i.id === id), false, 'an item the site can no longer open is not in the snapshot');
+  // The same rule has to hold on `changes`: the ledger records what was *once* selected, and a hard delete
+  // never writes a remove (`publish.ts:154` returns before any ledger write when the article row is gone).
+  // Measured 2026-10-05 in the local database: 18 of 66 latest-upsert entries failed the site's own gate
+  // and not one of them had a remove anywhere — a lagging client kept 404s.
+  const after = await replay();
+  assert.ok(after.length > 0 && after.every((c: any) => c.op === 'remove'), 'and afterwards only ever as removed');
 });
 
 /** A compose-shaped periodical row: the fields v1 and the feeds read are the ones the composer writes. */

@@ -20,10 +20,11 @@ export async function registerEventJobs(boss: PgBoss) {
     return result;
   });
   await ensureQueue(QUEUES.digest);
-  await boss.work<{ storyId: number; afterCorrection?: boolean; force?: boolean }>(QUEUES.digest, { localConcurrency: 3, pollingIntervalSeconds: 5 }, async ([job]) => {
+  await boss.work<{ storyId: number; afterCorrection?: boolean; force?: boolean; requestId?: string }>(QUEUES.digest, { localConcurrency: 3, pollingIntervalSeconds: 5 }, async ([job]) => {
     if (!job) return;
     // `force` travels: an operator who queued a rewrite through the queue means it, and without the field
     // the job silently returns {updated:false} (the inputs hash matches) exactly like "nothing to fix".
-    return composeStoryDigest(job.data.storyId, { afterCorrection: job.data.afterCorrection, force: job.data.force });
+    // `requestId` travels with it, or the second rewrite replays the first one's receipt (see digest.ts).
+    return composeStoryDigest(job.data.storyId, { afterCorrection: job.data.afterCorrection, force: job.data.force, requestId: job.data.requestId });
   });
 }

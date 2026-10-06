@@ -5,7 +5,7 @@
 //   digest — follow-ups without reader impact: one 09:00 message a day, meant to be handed to the AI.
 // Delivery goes through sendAlert (ops chat, internal-chat fallback; off unless FEISHU_INTERNAL_ENABLED).
 import { beijingDate, beijingTime } from "@aihot/contracts/time";
-import { isCollectEnabled, isModelCallsEnabled } from "../config.ts";
+import { isCollectEnabled, isModelCallsEnabled, positiveInt } from "../config.ts";
 import { sql } from "../db.ts";
 import { beijingDay, beijingStamp, duration, formatAlert, formatRecovery, sendAlert, type Finding, type Level } from "../notify/feishu.ts";
 import { backupConfigured } from "./backup.ts";
@@ -18,7 +18,7 @@ const REPEAT_MS: Record<Exclude<Level, "digest">, number> = { now: 3600_000, tod
 const collecting = () => isCollectEnabled();
 const modelsOn = () => isModelCallsEnabled();
 /** How long the site may go without a new article before it counts as stalled (small source lists are quieter). */
-const QUIET_MS = Number(process.env.ALERT_QUIET_MINUTES || 360) * 60_000;
+const QUIET_MS = positiveInt(process.env.ALERT_QUIET_MINUTES, "ALERT_QUIET_MINUTES", 360) * 60_000;
 
 /** Everything wrong right now, with its level. */
 export async function collectFindings(now = Date.now()): Promise<Finding[]> {
@@ -254,29 +254,48 @@ export async function checkAlerts(now = Date.now()) {
   const [row] = await sql<{ value: AlertState }[]>`SELECT value FROM settings WHERE key = 'alerts.state'`;
   const state: AlertState = { ...(row?.value ?? {}) };
   const sent: string[] = [];
+  // `sent` 保持原来的形状（本轮"报过的问题"清单）；哪些其实没能离开这台机器，单列在这里给运营看。
+  const notDelivered: string[] = [];
+  // 发一条告警。发不出去本身就是要出声的事，但它不能带走后面的几条：原先 `sendAlert` 一抛（机器人被移出
+  // 群、网络断），异常直接跳出循环，末尾的状态写入门都不到 —— 于是 `REPEAT_MS` 永远不生效（每 10 分钟
+  // 重头再来一次），排在后面的问题一条也发不出，而已恢复的那条永远不会说"已恢复"。
+  const dispatch = async (label: string, msg: { title: string; lines: string[] }) => {
+    try {
+      const outcome = await sendAlert(msg.title, msg.lines);
+      // 阀门开着但没配会话 id 时，`sendAlert` 一声不响地回 "disabled"：这里替它出声。
+      if (outcome === "disabled") console.log(JSON.stringify({ level: "warn", msg: `alert not delivered: ${label}` }));
+      return outcome;
+    } catch (error) {
+      console.log(JSON.stringify({ level: "error", msg: `alert send failed: ${label}`, kind: error instanceof Error ? error.name : "unknown" }));
+      return "error" as const;
+    }
+  };
   for (const f of found) {
     const level = f.level as Exclude<Level, "digest">;
     const open = state[f.key]?.level ? state[f.key] : undefined;
     if (open && now - Date.parse(open.sentAt) <= REPEAT_MS[level]) continue;
     const since = open ? new Date(open.since) : (f.since ?? new Date(now));
     const msg = formatAlert(f, since, now, !!open);
-    await sendAlert(msg.title, msg.lines);
+    const outcome = await dispatch(f.key, msg);
+    // 无论发出去没有都记下 sentAt：没发出去时这正是重试的节拍器，不记就是每 10 分钟一次的风暴。
     state[f.key] = { title: f.title, level, since: since.toISOString(), sentAt: new Date(now).toISOString() };
     sent.push(f.key);
+    if (outcome !== "sent") notDelivered.push(`${f.key}:${outcome}`);
   }
   for (const key of Object.keys(state)) {
     if (found.some((f) => f.key === key)) continue;
     // Entries without a level predate this scheme (2026-09-29) and close without a message.
     if (state[key]!.level) {
       const msg = formatRecovery(state[key]!.title, new Date(state[key]!.since), now);
-      await sendAlert(msg.title, msg.lines);
+      const outcome = await dispatch(`${key} 恢复`, msg);
       sent.push(`${key}:recovered`);
+      if (outcome !== "sent") notDelivered.push(`${key}:recovered:${outcome}`);
     }
     delete state[key];
   }
   await sql`INSERT INTO settings (key, value, updated_by) VALUES ('alerts.state', ${sql.json(state as never)}, 'alerts')
             ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`;
-  return { open: Object.keys(state), sent };
+  return { open: Object.keys(state), sent, notDelivered };
 }
 
 /** 09:00: one message with the follow-ups that do not touch readers; nothing when there are none. */

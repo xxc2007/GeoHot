@@ -8,6 +8,7 @@ import { one, sql, type Tx } from "../db.ts";
 import { sha256, stableJson } from "../lib/ids.ts";
 import { collapseWhitespace } from "../lib/text.ts";
 import { itemUrl } from "./links.ts";
+import { hasChineseCopy } from "@aihot/contracts/copy";
 import { enqueue, QUEUES, shutdownSignal } from "../jobs/queue.ts";
 import {
   bodyModeOf, channelOf, displayTags, isIndexable, isPoolEligible, isSelectable, mayRedistribute, type SourceFacts,
@@ -170,7 +171,7 @@ export async function publishArticleTx(tx: Tx, articleId: string, options: Publi
   const [previous] = await tx<PublicationRow[]>`SELECT * FROM publications WHERE article_id = ${articleId}`;
 
   const f = override?.fields ?? {};
-  const isChineseTitle = article.language === "zh" || /[一-鿿]/.test(article.title);
+  const isChineseTitle = article.language === "zh" || hasChineseCopy(article.title);
   // An X post carries its Chinese in the summary and translation; without a Chinese title its own
   // text is the title, where an article would still be a half-finished card.
   const zhTitle = analysis?.title_zh?.trim() ? analysis.title_zh : null;
@@ -217,7 +218,7 @@ export async function publishArticleTx(tx: Tx, articleId: string, options: Publi
   }
 
   const indexable = isIndexable({
-    visibility, hasSummary: !!summary, selected, seoIndexedAt: previous?.seo_indexed_at ?? null, seoExcludedAt: previous?.seo_excluded_at ?? null,
+    visibility, title, hasSummary: !!summary, selected, seoIndexedAt: previous?.seo_indexed_at ?? null, seoExcludedAt: previous?.seo_excluded_at ?? null,
   });
   const searchText = collapseWhitespace(
     [title, originalTitle, summary, source.name, ...displayTags(tags), ...(analysis?.subjects ?? [])].filter(Boolean).join(" "),
@@ -303,11 +304,12 @@ export async function publishArticleTx(tx: Tx, articleId: string, options: Publi
   }
 
   // Selected sync ledger: the public selected set is (selected AND visibility = public AND a Chinese
-  // title). The third condition is the same gate every list applies (`chineseCopyCondition`); leaving it
-  // out here made the Agent exit disagree with the site: 59 entries in the snapshot against 48 on the
+  // title). The third condition is the same gate every list applies — `chineseCopyCondition`'s own pattern,
+  // read through `hasChineseCopy`, which replaced the hand-typed copy of it that used to sit here. Leaving
+  // it out made the Agent exit disagree with the site: 59 entries in the snapshot against 48 on the
   // home timeline, the extra 11 being English-only rows no reader can be shown (measured 2026-10-04).
   // An item that later gets its Chinese copy re-enters through this same write.
-  const inSet = selected && visibility === "public" && /[\u4e00-\u9fff]/.test(next.title ?? "");
+  const inSet = selected && visibility === "public" && hasChineseCopy(next.title);
   const [state] = await tx<{ in_set: boolean; payload_hash: string | null }[]>`SELECT in_set, payload_hash FROM selected_state WHERE article_id = ${articleId}`;
   let ledger: "upsert" | "remove" | null = null;
   if (inSet) {

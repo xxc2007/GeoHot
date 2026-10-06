@@ -8,7 +8,6 @@ let starting: Promise<PgBoss> | null = null;
 
 export const QUEUES = {
   analyze: "content.analyze",
-  translate: "content.translate",
   extractBody: "content.extract-body",
   group: "events.group",
   digest: "events.digest",
@@ -27,7 +26,6 @@ type QueueOptions = NonNullable<Parameters<PgBoss["createQueue"]>[1]>;
 /** Queue definitions in one place; created on first use by any process. */
 export const QUEUE_OPTIONS: Record<string, QueueOptions> = {
   [QUEUES.analyze]: { policy: "short", retryLimit: 4, retryDelay: 30, retryBackoff: true, expireInSeconds: 600 },
-  [QUEUES.translate]: { policy: "short", retryLimit: 3, retryDelay: 60, retryBackoff: true, expireInSeconds: 900 },
   [QUEUES.extractBody]: { policy: "short", retryLimit: 2, retryDelay: 120, expireInSeconds: 300 },
   [QUEUES.group]: { policy: "short", retryLimit: 4, retryDelay: 20, retryBackoff: true, expireInSeconds: 600 },
   [QUEUES.digest]: { policy: "short", retryLimit: 3, retryDelay: 60, retryBackoff: true, expireInSeconds: 900 },
@@ -44,13 +42,30 @@ const ensured = new Set<string>();
 
 export async function getBoss(): Promise<PgBoss> {
   if (boss) return boss;
-  starting ??= (async () => {
-    const b = new PgBoss({ connectionString: config.databaseUrl, max: 4, schema: "pgboss", application_name: "aihot-jobs" });
-    b.on("error", (err) => console.error("[pg-boss]", err));
-    await b.start();
-    boss = b;
-    return b;
-  })();
+  if (!starting) {
+    // A failed `start()` must not be remembered. pg-boss can fail to start on a transient database blip,
+    // and callers enqueue inside business transactions — `publishArticle` puts the selected-notify and
+    // media-preparation jobs in the same tx (publish.ts:300-303) — so a permanently rejected promise meant
+    // every later publish rolled back on the *first* failure, with no way back except restarting the
+    // process. Clear it so the next call tries again; the awaiting caller still receives this error.
+    starting = (async () => {
+      const b = new PgBoss({ connectionString: config.databaseUrl, max: 4, schema: "pgboss", application_name: "aihot-jobs" });
+      b.on("error", (err) => console.error("[pg-boss]", err));
+      try {
+        await b.start();
+      } catch (error) {
+        // The failed client holds a pooled connection attempt; leaving it alive makes a retry stack
+        // sockets on a corpse.
+        await b.stop({ graceful: false }).catch(() => {});
+        throw error;
+      }
+      boss = b;
+      return b;
+    })();
+    starting.catch(() => {
+      starting = null;
+    });
+  }
   return starting;
 }
 
@@ -73,7 +88,25 @@ export async function ensureQueue(name: string, options: QueueOptions = QUEUE_OP
   if (ensured.has(name)) return;
   const b = await getBoss();
   const existing = await b.getQueue(name);
-  if (!existing) await b.createQueue(name, options);
+  if (!existing) {
+    await b.createQueue(name, options);
+    ensured.add(name);
+    return;
+  }
+  // `createQueue` is a no-op for a queue that already exists — measured 2026-10-05 against a migrated
+  // database: creating `probe.queue` with retryLimit 4 and then again with retryLimit 9 leaves the stored
+  // row at 4, `updatedOn` unchanged. So editing QUEUE_OPTIONS changes nothing on a deployed site, silently,
+  // and "why is this job still retrying 0 times" has no answer in the code. Report the disagreement; do not
+  // fix it by hand, because replacing a queue would drop the jobs waiting in it.
+  const drift = Object.entries(options).filter(([key, want]) => want !== undefined && (existing as unknown as Record<string, unknown>)[key] !== want);
+  if (drift.length) {
+    console.log(JSON.stringify({
+      level: "warn",
+      msg: `queue ${name}: QUEUE_OPTIONS differs from the stored queue (pg-boss does not update an existing queue; run scripts/queue-sync.ts or set it in the database)`,
+      wanted: Object.fromEntries(drift),
+      stored: Object.fromEntries(drift.map(([key]) => [key, (existing as unknown as Record<string, unknown>)[key]])),
+    }));
+  }
   ensured.add(name);
 }
 
@@ -97,7 +130,15 @@ export async function recordRun<T>(job: string, fn: () => Promise<T>): Promise<T
   try {
     const result = await fn();
     const detail = result && typeof result === "object" ? result : { result };
-    await sql`UPDATE job_runs SET status = 'ok', finished_at = now(), detail = ${sql.json(detail as never)} WHERE id = ${row!.id}`;
+    // The work is finished at this point; writing the log line must not be able to downgrade it.
+    // `sql.json` throws on anything JSON cannot hold, and until 2026-10-05 such a result made this run
+    // land in the `catch` below — `/admin/runs` then showed a completed job as failed, and the operator
+    // re-ran work that had already succeeded. Fall back to a detail that always serialises.
+    try {
+      await sql`UPDATE job_runs SET status = 'ok', finished_at = now(), detail = ${sql.json(detail as never)} WHERE id = ${row!.id}`;
+    } catch {
+      await sql`UPDATE job_runs SET status = 'ok', finished_at = now(), detail = ${sql.json({ result: "ok", detailUnloggable: true } as never)} WHERE id = ${row!.id}`.catch(() => {});
+    }
     return result;
   } catch (error) {
     await sql`UPDATE job_runs SET status = 'failed', finished_at = now(), error = ${String(error).slice(0, 4000)} WHERE id = ${row!.id}`;

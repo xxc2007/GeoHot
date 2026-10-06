@@ -1,4 +1,4 @@
-import { SITE, withSubject } from "@aihot/industry/site";
+import { SITE } from "@aihot/industry/site";
 import { Link, useLoaderData } from "react-router";
 import type { LbSourcesResponse } from "@aihot/contracts/leaderboard";
 import { loadOr404 } from "../lib/api.server";

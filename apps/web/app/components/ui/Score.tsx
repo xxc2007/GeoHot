@@ -13,9 +13,10 @@ const TIERS = [
  * an `aria-label` on a bare <span> is dropped by assistive tech, so without `role="img"` a screen reader
  * announces only "88" (or nothing at all in compact mode, where 88 is the whole pill).
  *
- * 措辞是本站相对上游的刻意偏离：上游那一版跑模型、写「AI 评分」，这个部署没有任何模型密钥，
- * 分数是两道闸门（预筛 + 两次独立打分）算出来的入选分，判断由人在 tooling/fixtures 里署名写过。
- * 叫「AI 评分」会让读者以为机器读了原文并作出判断——那是本站不该说的话（docs/known-issues.md）。
+ * 措辞是本站相对上游的刻意偏离：这个分数是两道闸门（预筛 + 两次独立打分）算出来的入选分，
+ * 打分由第三方大模型给出（标准见 `industry/selection.ts` 与提示词），所以既叫「AI 评分」也叫得，
+ * 但读者更需要的信息是"它决定这条能不能入选"，而不是"哪个模型打的"。上游那个不跑模型的部署
+ * 曾用同一枚徽标写「AI 评分」而判断其实是人写定的——本站两头都不夸大。
  */
 export function ScoreLabel({ score, compact = false }: { score: number | null; compact?: boolean }) {
   // The score arrives from JSON nobody has validated. A non-finite value is not a score: render nothing,

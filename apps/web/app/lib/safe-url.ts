@@ -52,14 +52,3 @@ export function isSafeSitePath(value: string): boolean {
   }
   return value.startsWith("/") || value.startsWith("#") || value.startsWith("?");
 }
-
-/**
- * An address to put in front of the browser from a string we did not write: the absolute http(s) form
- * or a site-relative path as given, anything else `null`（渲染成纯文本）。
- */
-export function safeHref(value: string | null | undefined): string | null {
-  if (typeof value !== "string") return null;
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  return isSafeSitePath(trimmed) ? trimmed : null;
-}

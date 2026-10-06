@@ -152,13 +152,21 @@ export async function selectedSnapshot(q: SnapshotQuery, now = new Date()) {
   // The set as of the watermark, less anything taken out of the selected set since: a withdrawal waiting
   // behind a not-yet-released entry must not reach new snapshots. Its remove still follows in changes,
   // which the client applies as a no-op.
+  //
+  // Membership is read from `publications` through `selectedCondition` — the one expression every exit
+  // uses — and not from `selected_state`. The state table is a write-side diff (its `payload_hash` decides
+  // whether the next change appends a row); nothing ever cleaned it when an article row was deleted, so an
+  // entry could stay "in the set" after the item itself was gone. Measured 2026-10-05 in the CI database:
+  // 1055 `in_set` rows whose article no longer existed, which the snapshot handed to Agents as live items
+  // with pages that 404. Deriving the set from the live publication makes the same statement the site
+  // already makes: no page, no entry.
   const rows = await sql<{ article_id: string; payload: V1ItemPayload }[]>`
     SELECT latest.article_id, ${ledgerPayload(fields === "minimal", sql`latest.payload`)} AS payload FROM (
       SELECT DISTINCT ON (article_id) article_id, op, payload FROM selected_ledger
       WHERE seq <= ${w} AND article_id > ${afterId}
       ORDER BY article_id, seq DESC
     ) latest
-    JOIN selected_state st ON st.article_id = latest.article_id AND st.in_set
+    JOIN publications p ON p.article_id = latest.article_id AND ${selectedCondition(new Date(asOf))}
     WHERE latest.op = 'upsert'
     ORDER BY latest.article_id
     LIMIT ${q.limit + 1}`;
@@ -193,8 +201,18 @@ export async function selectedChanges(q: { cursor: string; limit: number }, now 
     const [max] = await sql<{ m: number }[]>`SELECT coalesce(max(seq), 0) AS m FROM selected_ledger`;
     if (c.w > Number(max?.m ?? 0)) throw new SnapshotRequiredError("watermark is ahead of this ledger");
   }
-  const rows = await sql<{ seq: number; article_id: string; op: "upsert" | "remove"; changed_at: Date; payload: V1ItemPayload | null }[]>`
-    SELECT seq, article_id, op, changed_at, ${ledgerPayload(c.f === "minimal")} AS payload FROM selected_ledger
+  // Membership is checked on the way out, exactly as the snapshot checks it: an `upsert` whose item no
+  // longer passes the site's own selected gate is delivered as a `remove`. Without this, the ledger was a
+  // record of what was once selected, and a client that missed the removal — because the article row was
+  // deleted (`publish.ts:154` returns before any ledger write when the article is gone, and
+  // `scripts/delete-sources.ts` deletes rows outright), or because a bare UPDATE retired it past
+  // `publishArticle` — kept an entry whose page 404s forever. Measured 2026-10-05 in the local database:
+  // 66 latest-`upsert` rows, 18 of them failing the gate (11 with the article still present, 7 with it
+  // deleted), and none of the 18 had a `remove` anywhere in the ledger.
+  const rows = await sql<{ seq: number; article_id: string; op: "upsert" | "remove"; changed_at: Date; payload: V1ItemPayload | null; live: boolean }[]>`
+    SELECT seq, article_id, op, changed_at, ${ledgerPayload(c.f === "minimal")} AS payload,
+           EXISTS (SELECT 1 FROM publications p WHERE p.article_id = selected_ledger.article_id AND ${selectedCondition(now)}) AS live
+    FROM selected_ledger
     WHERE seq > ${c.w} AND seq <= ${w}
     ORDER BY seq LIMIT ${q.limit + 1}`;
   const page = rows.slice(0, q.limit);
@@ -207,7 +225,7 @@ export async function selectedChanges(q: { cursor: string; limit: number }, now 
     count: page.length,
     hasMore,
     changes: page.map((r) =>
-      r.op === "remove"
+      r.op === "remove" || !r.live
         ? { op: "remove" as const, changedAt: r.changed_at.toISOString(), id: r.article_id }
         : { op: "upsert" as const, changedAt: r.changed_at.toISOString(), item: c.f === "minimal" ? minimalOf(r.payload!) : r.payload! },
     ),

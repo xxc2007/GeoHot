@@ -3,7 +3,7 @@
 // 原因是非首次导入、又没有日期的材料走 decideTimeline(claimed=null, …, explicitBackfill=null)，
 // backfill=false、timelineAt=发现时刻。这里把规则钉下来：无日期 ⇒ 历史（可读可检索，不进今天、不成立事件），
 // 而后来才拿到日期的条目必须把日期存住（coalesce），不能被下一次空值覆盖。
-import { purgeTagged, tag } from "./setup.ts";
+import { tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { closeDb, sql } from "@aihot/backend/db";

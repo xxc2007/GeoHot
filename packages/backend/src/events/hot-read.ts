@@ -1,7 +1,7 @@
 // Reading the latest published hot ranking. The web shows heat values; machine exits only ranks.
 import type { HotParticipant, HotStripEntry } from "@aihot/contracts/site";
 import { sql } from "../db.ts";
-import { CJK_TITLE_PATTERN } from "../publication/items.ts";
+import { CJK_COPY_PATTERN } from "@aihot/contracts/copy";
 import { proxiedImage, proxiedImageSet } from "../media/imgproxy.ts";
 
 export interface HotEntry {
@@ -48,10 +48,13 @@ let rankingPending: Promise<HotRanking | null> | null = null;
 
 /**
  * How old a board may be and still be shown as 当前热点. The job recomputes every five minutes
- * (`hot.rank` in apps/worker/src/schedules.ts), so a board older than this is not "late": it means the twenty
- * recomputes since it were all empty, i.e. nothing in the last 48 hours reached two independent participants.
- * Showing it is the honest choice while it is within a day (the reader gets the last board the site can stand
- * behind, together with its cut-off time); past a day the block says it has nothing.
+ * (`hot.rank` in apps/worker/src/schedules.ts), so a board older than this is not "late": 24 hours is
+ * **288** of those recomputes, and every one of them found nothing — i.e. nothing in the last 48 hours
+ * reached two independent participants. (This said "twenty" until 2026-10-05, which is 100 minutes: the
+ * number was left behind when the window was widened, and it is the only written account an operator has
+ * of how long the board has been empty.) Showing it is the honest choice while it is within a day (the
+ * reader gets the last board the site can stand behind, together with its cut-off time); past a day the
+ * block says it has nothing.
  */
 const MAX_BOARD_AGE_HOURS = 24;
 
@@ -91,7 +94,7 @@ async function queryLatestHotRanking(): Promise<HotRanking | null> {
 async function publishableStories(storyIds: number[]): Promise<Set<number>> {
   if (storyIds.length === 0) return new Set();
   const rows = await sql<{ id: number }[]>`
-    SELECT id FROM stories WHERE id = ANY(${storyIds}::bigint[]) AND merged_into IS NULL AND title ~ ${CJK_TITLE_PATTERN}`;
+    SELECT id FROM stories WHERE id = ANY(${storyIds}::bigint[]) AND merged_into IS NULL AND title ~ ${CJK_COPY_PATTERN}`;
   return new Set(rows.map((r) => Number(r.id)));
 }
 

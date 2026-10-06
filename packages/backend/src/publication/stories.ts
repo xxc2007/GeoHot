@@ -8,13 +8,15 @@ import { behindSources, sourceClocks } from "../events/hot.ts";
 import { storyReports, type StoryReport } from "../events/story-reports.ts";
 import { storyStatusFor } from "../events/digest.ts";
 import { itemUrl, storyApiUrl, storyUrl } from "./links.ts";
+import { hasChineseCopy } from "@aihot/contracts/copy";
 import { releasedCondition } from "./items.ts";
 import { SITE } from "@aihot/industry/site";
+import { UUID_PATTERN } from "@aihot/contracts/taxonomy";
 
 export type StoryLookup = { kind: "found"; storyId: number; publicId: string } | { kind: "merged"; target: string } | { kind: "not_found" };
 
 export async function resolveStory(publicId: string): Promise<StoryLookup> {
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(publicId)) return { kind: "not_found" };
+  if (!UUID_PATTERN.test(publicId)) return { kind: "not_found" };
   const [s] = await sql<{ id: number; merged_into: number | null }[]>`SELECT id, merged_into FROM stories WHERE public_id = ${publicId}`;
   let targetId: number | null = s ? (s.merged_into ?? null) : null;
   if (!s) {
@@ -115,6 +117,7 @@ export async function loadStoryDetail(storyId: number, now = new Date()): Promis
   return {
     publicId: s.public_id,
     title: s.title,
+    indexable: hasChineseCopy(s.title),
     status: storyStatusFor(latestAt, now.getTime()),
     reportCount: reports.length,
     sourceCount: new Set(reports.map((r) => r.sourceId)).size,

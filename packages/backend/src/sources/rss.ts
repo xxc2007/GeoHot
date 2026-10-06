@@ -99,6 +99,46 @@ function imagesFrom(html: string, base: string): Array<{ kind: "image"; url: str
 }
 
 /**
+ * The MRSS (`media:*`) parts of a feed node: the description, the widest still, and whether this is a
+ * video. Feeds bind the namespace to whatever prefix they like (`media:group`, `m:group`, or a
+ * default-namespace `group`), and a producer may put the parts on the node instead of inside the group,
+ * so both places are read and the `media:` spelling wins. A node carrying none of it yields nothing,
+ * exactly as before this function existed. Both the RSS 2.0 item and the Atom entry use it, so a video
+ * means the same thing in either dialect.
+ */
+function mrss(node: Record<string, unknown>): { description: string; thumb: Record<string, string> | null; videoId: string } {
+  const at = (n: Record<string, unknown>, name: string): unknown => {
+    const keys = Object.keys(n);
+    const key = keys.find((k) => k === `media:${name}`) ?? keys.find((k) => k === name) ?? keys.find((k) => k.endsWith(`:${name}`));
+    return key ? n[key] : undefined;
+  };
+  const groups = arr(at(node, "group") as Record<string, unknown> | Array<Record<string, unknown>>).filter(
+    (g) => !!g && typeof g === "object" && (at(g, "description") !== undefined || at(g, "thumbnail") !== undefined || at(g, "videoId") !== undefined),
+  ) as Array<Record<string, unknown>>;
+  const scopes = [...groups, node];
+  const description = scopes.map((s) => text(at(s, "description"))).find(Boolean) ?? "";
+  const thumbs = scopes
+    .flatMap((s) => arr(at(s, "thumbnail") as Record<string, string> | Array<Record<string, string>>))
+    .filter((t) => !!t && typeof t === "object" && typeof t["@url"] === "string" && t["@url"]);
+  const thumb = [...thumbs].sort((a, b) => (Number(b["@width"]) || 0) - (Number(a["@width"]) || 0))[0] ?? null;
+  const videoId = scopes.map((s) => text(at(s, "videoId"))).find(Boolean) ?? "";
+  return { description, thumb, videoId };
+}
+
+/**
+ * The media a video-capable node lends: its widest still, and — when the node names a video id — that
+ * still is booked as `kind: "video"` pointing at the item's own address, because the picture is a frame
+ * of something the reader has to go and watch. Without an addressable still it is nothing at all.
+ */
+function mrssMedia(node: Record<string, unknown>, url: string): Array<{ kind: "image" | "video"; url: string; poster: string | null; width: number | null; height: number | null }> {
+  const { thumb, videoId } = mrss(node);
+  if (!thumb) return [];
+  const still = resolveHref(String(thumb["@url"]), url);
+  if (!still) return [];
+  return [{ kind: videoId ? "video" : "image", url: videoId ? url : still, poster: videoId ? still : null, width: Number(thumb["@width"]) || null, height: Number(thumb["@height"]) || null }];
+}
+
+/**
  * Feed text of an editorial source that only teases the article: short and ending in a "read more"
  * mark (The Verge's "Read the full story at The Verge."). Treated as a summary, so extraction fetches
  * the page before the article is judged.
@@ -200,6 +240,9 @@ export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}
       const media = [
         ...(enclosureUrl ? [{ kind: "image" as const, url: enclosureUrl }] : []),
         ...(bodyHtmlRaw ? imagesFrom(bodyHtmlRaw, link) : []),
+        // An RSS 2.0 item with neither enclosure nor body HTML can still be a video: the same MRSS parts
+        // the Atom branch reads, so "this is a video with this still" means one thing in both dialects.
+        ...(enclosureUrl || bodyHtmlRaw ? [] : mrssMedia(it, link)),
       ];
       out.push({
         url: link,
@@ -207,7 +250,7 @@ export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}
         title,
         author: text(it["dc:creator"]) || text(it.author) || null,
         publishedAt: parseDate(text(it.pubDate) || text(it["dc:date"]) || text(it.published), publishedAtUtcOffset),
-        ...feedText(bodyHtml, description, source),
+        ...feedText(bodyHtml, description || mrss(it).description, source),
         media: media.slice(0, 6),
         categories: arr(it.category).map((c) => text(c)).filter(Boolean),
         raw: { guid: text(it.guid) || null },
@@ -227,6 +270,11 @@ export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}
       if (!entryUrl || !title) continue;
       const content = text(e.content);
       const summary = text(e.summary);
+      // A video feed (YouTube and other MRSS Atom feeds) has no `<content>` and no `<summary>`: its
+      // description and still live in the media namespace, and the still is the only picture a reader
+      // gets here. The Atom `<summary>` wins when a feed has both — it is what the publisher wrote for
+      // the feed itself.
+      const mediaText = mrss(e).description;
       // The body and its images resolve against the entry's own resolved address, the one the reader opens.
       const bodyHtml = content ? sanitizeBody(content, entryUrl) : null;
       out.push({
@@ -236,8 +284,8 @@ export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}
         author: text(arr(e.author)[0]?.name) || null,
         publishedAt: parseDate(text(e.published) || text(e.updated), publishedAtUtcOffset),
         sourceUpdatedAt: parseDate(text(e.updated), publishedAtUtcOffset),
-        ...feedText(bodyHtml, summary, source),
-        media: content ? imagesFrom(content, entryUrl) : [],
+        ...feedText(bodyHtml, summary || mediaText, source),
+        media: content ? imagesFrom(content, entryUrl) : mrssMedia(e, entryUrl),
         categories: arr(e.category).map((c: any) => c?.["@term"] ?? text(c)).filter(Boolean),
         raw: { id: text(e.id) || null },
       });

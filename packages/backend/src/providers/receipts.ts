@@ -206,11 +206,23 @@ export async function markStalePendingReceipts(): Promise<number> {
   return stale.length;
 }
 
+/**
+ * Book the receipt as delivered, unless the answer was refused: a refused answer must stay re-callable,
+ * even though the caller completes every receipt it was handed. A refusal never lands here on content that
+ * was published — the same words that failed the usability check failed the editorial gate too.
+ */
 export async function completeReceipt(db: Db, receiptId: number): Promise<void> {
-  await db`UPDATE receipts SET status = 'completed', completed_at = coalesce(completed_at, now()), updated_at = now() WHERE id = ${receiptId}`;
+  await db`UPDATE receipts SET status = 'completed', completed_at = coalesce(completed_at, now()), updated_at = now()
+           WHERE id = ${receiptId} AND status <> 'failed'`;
 }
 
-/** Marks a received response that could not be used (e.g. unparsable) so a fresh attempt can be made. */
+/**
+ * Marks a received response that could not be used (unparsable, or no usable words) so a fresh attempt can be
+ * made. Only a response still sitting unredeemed is refused: an answer already booked as delivered backs content
+ * the site shows, and a flip to `failed` would make the next attempt pay for the same inputs again; `unknown`
+ * belongs to the operator's resolve flow (admin/runs.ts).
+ */
 export async function rejectReceivedResponse(receiptId: number, reason: string): Promise<void> {
-  await sql`UPDATE receipts SET status = 'failed', error = ${reason.slice(0, 2000)}, updated_at = now() WHERE id = ${receiptId}`;
+  await sql`UPDATE receipts SET status = 'failed', error = ${reason.slice(0, 2000)}, updated_at = now()
+            WHERE id = ${receiptId} AND status IN ('received', 'pending')`;
 }

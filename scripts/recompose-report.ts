@@ -12,6 +12,7 @@
 // without it the call fails with "Model default is not configured"). Production has a single `.env` with the
 // LLM_* values inside it; passing a missing `.env.pipeline` there makes node exit with "file not found".
 import { parseArgs } from "node:util";
+import { hasChineseCopy } from "@aihot/contracts/copy";
 import { closeDb, sql } from "@aihot/backend/db";
 import { candidates, composeDaily, composeWeekly, composeMonthly } from "@aihot/backend/reports/compose";
 import { beijingMidnight, isoWeekRange } from "@aihot/contracts/time";
@@ -40,7 +41,7 @@ if (!row) {
 const items = (row.content.sections ?? []).flatMap((s: any) => s.items ?? []);
 const flashes = row.content.flashes ?? [];
 console.log(`${kind} ${key}：第 ${row.revision} 版（${row.generated_at.toISOString()}），正文 ${items.length} 条 / 快讯 ${flashes.length} 条`);
-const english = [...items, ...flashes].filter((i: any) => !/[一-鿿]/.test(String(i.title ?? "")));
+const english = [...items, ...flashes].filter((i: any) => !hasChineseCopy(String(i.title ?? "")));
 console.log(`其中标题不含中文的：${english.length} 条${english.length ? `（如「${String(english[0].title).slice(0, 50)}」）` : ""}`);
 
 // What the current material would yield — a preview that does not write anything.
@@ -51,7 +52,7 @@ const range = kind === "daily"
     : null;
 if (range) {
   const list = await candidates(range.start, range.end);
-  console.log(`按当前语料重排会取到 ${list.length} 条候选（标题全部含中文：${list.every((c) => /[一-鿿]/.test(c.title))}）`);
+  console.log(`按当前语料重排会取到 ${list.length} 条候选（标题全部含中文：${list.every((c) => hasChineseCopy(c.title))}）`);
 } else {
   console.log("（周/月报的候选窗口由 composeWeekly/composeMonthly 内部计算，这里不预览）");
 }

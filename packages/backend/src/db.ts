@@ -1,5 +1,5 @@
 import postgres from "postgres";
-import { config } from "./config.ts";
+import { config, positiveInt } from "./config.ts";
 
 // int8 and numeric come back as numbers: ids and scores in this schema stay far below 2^53.
 const numberType = (oid: number) => ({
@@ -10,7 +10,7 @@ const numberType = (oid: number) => ({
 });
 
 export const sql = postgres(config.databaseUrl, {
-  max: Number(process.env.DATABASE_POOL_MAX || 10),
+  max: positiveInt(process.env.DATABASE_POOL_MAX, "DATABASE_POOL_MAX", 10),
   // Keep connections through quiet minutes: a reconnect costs a SCRAM exchange on the next request.
   idle_timeout: 600,
   connect_timeout: 10,

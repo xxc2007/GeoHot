@@ -17,9 +17,10 @@
 #
 # Run as a user with sudo. Idempotent: it overwrites the unit files, which is the point.
 #
-# ★ 这个脚本没有 dry-run，而且和同目录另外三个不一样：**它一跑就直接 `sudo tee` 写
-#   /etc/systemd/system/geohot-{brain,api,worker,web}.service 并 `systemctl daemon-reload`**，
-#   没有 --apply 开关、也不先备份旧单元。对比：bootstrap-server.sh、fix-bare-path.sh、rollback.sh
+# ★ 2026-10-05 之前：这个脚本没有 dry-run，一跑就直接 `sudo tee` 写
+#   /etc/systemd/system/geohot-{brain,api,worker,web}.service 并 `systemctl daemon-reload`，
+#   没有开关、也不先备份旧单元。现在默认 DRY-RUN（与同目录三个脚本一个规矩）：不加 `--apply`
+#   就只把四个单元打进终端、一行 sudo 都不发；仍然不自动备份，要留底自己跑下面那条 cp。对比：bootstrap-server.sh、fix-bare-path.sh、rollback.sh
 #   默认都是 DRY-RUN，要 `--apply` 才动手；verify-deploy.sh 是纯只读。也就是说"先看一眼会发生什么"
 #   这件事在本脚本里没有内置，得自己做：
 #       sudo systemctl cat geohot-web            # 现状（改之前留个底）
@@ -28,17 +29,32 @@
 #   APP_ROOT（GEOHOT_APP_ROOT，默认 /opt/geohot/app）与绝对 --env-file 路径。
 #   要装"带加固块（ProtectSystem=strict 等）"的那一份，别用本脚本，走 bootstrap-server.sh 第 10 节
 #   安装 deploy/geohot/systemd/*.service —— 一台机器只选一条路线，两条都读同一个 GEOHOT_APP_ROOT。
-#   （给本脚本加 --apply 是合理的下一步，但那是改脚本逻辑，不在改注释的范围内。）
 set -euo pipefail
 # One install path for the whole deploy package (bootstrap / install-units / verify-deploy / rollback and
 # the systemd/ templates all default to this value). Override with GEOHOT_APP_ROOT=/other/path.
 APP_ROOT="${GEOHOT_APP_ROOT:-/opt/geohot/app}"
 APP_HOME="${APP_ROOT%/*}"          # /opt/geohot — HOME= for the units (the geohot account has none)
 
+# 默认 DRY-RUN，和同目录的 bootstrap-server.sh / fix-bare-path.sh / rollback.sh 一个规矩：不加 --apply 就
+# 只把四个单元打进终端，一行 sudo 都不发、不碰 /etc/systemd、不 daemon-reload。这台机器上正在跑的东西
+# 不会因为"先看一眼"被动到。
+APPLY=0
+for arg in "$@"; do
+  case "$arg" in
+    --apply) APPLY=1 ;;
+    *) echo "未知参数: $arg（可用: --apply）" >&2; exit 2 ;;
+  esac
+done
+
+emit_unit() {
+  if [[ $APPLY == 1 ]]; then sudo tee "$1" >/dev/null
+  else printf '\n---- 将写入 %s ----\n' "$1"; cat; fi
+}
+
 # The editorial-brain stub. It is load-bearing here: config.ts:92 defaults MODEL_CALLS_ENABLED to true, so
 # a box without this process makes every analysis call against a dead 127.0.0.1:3055 and reports nothing.
 # bootstrap-server.sh step 5 writes that valve into .env explicitly; this unit is the other leg of the deal.
-sudo tee /etc/systemd/system/geohot-brain.service >/dev/null <<UNIT
+emit_unit /etc/systemd/system/geohot-brain.service <<UNIT
 [Unit]
 Description=GEOHOT editorial brain (local OpenAI-compatible stub, 127.0.0.1:3055)
 After=network.target
@@ -76,7 +92,7 @@ for n in api worker web; do
   # No BASE_PATH here on purpose: apps/web/server.ts:46-49 takes the prefix from the built bundle, so a
   # runtime Environment=BASE_PATH= line is inert — editing it and restarting changes nothing. The prefix is
   # a build-time variable (bootstrap-server.sh step 9: BASE_PATH='${GEOHOT_BASE_PATH}' npm run build).
-  sudo tee /etc/systemd/system/geohot-$n.service >/dev/null <<UNIT
+  emit_unit "/etc/systemd/system/geohot-$n.service" <<UNIT
 [Unit]
 Description=$tag
 After=network.target $after
@@ -105,6 +121,11 @@ WantedBy=multi-user.target
 UNIT
 done
 
+if [[ $APPLY == 0 ]]; then
+  echo
+  echo "DRY-RUN 结束：上面就是将要写进 /etc/systemd/system 的四个单元。确认后：bash install-units.sh --apply"
+  exit 0
+fi
 sudo systemctl daemon-reload
 echo "installed: $(systemctl list-unit-files 'geohot*' --no-legend | wc -l) units (want 4, APP_ROOT=$APP_ROOT)"
 echo "the site prefix is baked into the web bundle — rebuild with BASE_PATH if it changes, do not edit these units"

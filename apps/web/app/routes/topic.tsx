@@ -1,10 +1,11 @@
-import { SITE, withSubject } from "@aihot/industry/site";
+import { SITE } from "@aihot/industry/site";
 import { Link, redirect, useLoaderData } from "react-router";
 import type { Route } from "./+types/topic";
 import type { FeedItemSummary } from "@aihot/contracts/site";
 import { loadOr404 } from "../lib/api.server";
 import { breadcrumbLd, pageMeta, titled } from "../lib/seo";
 import { DayList, Pagination } from "../features/feed/DayList";
+import { todayOf } from "../lib/format";
 import { EmptyState, MoreLink } from "../components/ui/Page";
 
 /** Selected items of a topic: shared caches keep the page as long as its api answer (one minute). */
@@ -17,6 +18,7 @@ interface TopicPageData {
   items: FeedItemSummary[];
   page: number;
   pageCount: number;
+  generatedAt: string;
 }
 
 export async function loader({ params, request }: Route.LoaderArgs) {
@@ -108,7 +110,7 @@ export default function TopicPage() {
           )}
         </div>
       ) : (
-        <DayList items={items} />
+        <DayList items={items} today={todayOf(data.generatedAt)} />
       )}
       <Pagination page={page} pageCount={pageCount} href={href} />
     </div>

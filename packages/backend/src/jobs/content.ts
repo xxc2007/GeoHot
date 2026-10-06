@@ -4,6 +4,7 @@
 // extraction first. A provider outage makes an article wait and retry with backoff; only a permanent
 // refusal or exhausted retries end in "failed", which the admin re-queues in bulk.
 import type { PgBoss } from "pg-boss";
+import { isCollectEnabled, positiveInt } from "../config.ts";
 import { sql, type Db } from "../db.ts";
 import { extractArticleBody, pageFetchable } from "../content/extract.ts";
 import { analyzeArticle, AnalysisInterruptedError } from "../editorial/analyze.ts";
@@ -49,7 +50,13 @@ async function route(articleId: string, db: Db): Promise<Route | null> {
   const wantsBody = row.config.fetchPublicContent === true || !!row.config.detail || row.kind === "web_list";
   const needsPage = !signal && (wantsBody || (row.bare && pageFetchable(row.url, row.kind)));
   const needsXArticle = row.kind === "x_search" && (!signal || (row.participation_mode === "hot_signal" && !historical));
-  return { step: pending && (needsPage || needsXArticle) ? "extract" : "analyze", signal, historical };
+  // 抽取正文的消费者（`registerExtractionJobs`）是跟着采集阀门一起开关的——那一步同样要出网。
+  // 于是阀门关着时把作业排进那个队列，排进去的就是一个永远没人领的作业：本机实测 54 个 job 停在
+  // `state='created'`、83 篇 `body_status='pending'` 一直不动，而 5 分钟一次的安全网每轮都重排它。
+  // 现在按"用手上已有的摘要判"走 —— 与抽取最终失败时本来就走的那一支同一个口径，读者侧最多少一条
+  // 内容，不会多出一条错的。
+  const extractable = pending && (needsPage || needsXArticle) && isCollectEnabled();
+  return { step: extractable ? "extract" : "analyze", signal, historical };
 }
 
 /**
@@ -157,7 +164,10 @@ async function afterFailure(articleId: string, error: unknown): Promise<{ state:
   return { state: "retrying", retryAt };
 }
 
-export async function registerContentJobs(boss: PgBoss, concurrency = Number(process.env.ANALYZE_CONCURRENCY || 6)) {
+/** Read once at startup: `ANALYZE_CONCURRENCY=two` used to reach pg-boss as `localConcurrency: NaN`. */
+const ANALYZE_CONCURRENCY = positiveInt(process.env.ANALYZE_CONCURRENCY, "ANALYZE_CONCURRENCY", 6);
+
+export async function registerContentJobs(boss: PgBoss, concurrency = ANALYZE_CONCURRENCY) {
   await ensureQueue(QUEUES.analyze);
   await boss.work<{ articleId: string; attemptTag?: string }>(QUEUES.analyze, { localConcurrency: concurrency, pollingIntervalSeconds: 2 }, async ([job]) => {
     if (!job) return;
@@ -204,6 +214,12 @@ export async function registerExtractionJobs(boss: PgBoss) {
 /**
  * Safety net: articles waiting for processing that no queue holds (crash between write and enqueue,
  * a lost job, a retry that came due). Articles already queued or running are left alone.
+ *
+ * Oldest first, and that order is the whole point: this net takes at most 500 rows a run, so ordering by
+ * `discovered_at DESC` (as it did until 2026-10-05) re-queued the newest 500 every five minutes and left
+ * everything older waiting forever — with `processing_state` still 'new', no `processing_error`, and
+ * therefore invisible on the admin page that lists exactly those stuck rows. One crash during a bulk
+ * import is enough to exceed 500.
  */
 export async function sweepUnprocessed(): Promise<{ enqueued: number }> {
   const rows = await sql<{ id: string }[]>`
@@ -211,14 +227,19 @@ export async function sweepUnprocessed(): Promise<{ enqueued: number }> {
     WHERE processing_state = 'new' AND created_at < now() - interval '3 minutes'
       AND (processing_retry_at IS NULL OR processing_retry_at <= now())
       AND (processing_queued_at IS NULL OR processing_queued_at < now() - ${QUEUED_STALE}::interval)
-    ORDER BY discovered_at DESC LIMIT 500`;
+    ORDER BY discovered_at ASC LIMIT 500`;
   for (const r of rows) await queueProcessing(r.id);
   return { enqueued: rows.length };
 }
 
-/** How the runs page groups failures: the message with ids and numbers masked. */
-export const failureGroupSql = (column = "processing_error") =>
-  sql.unsafe(`regexp_replace(left(coalesce(${column}, '(no message)'), 120), '[0-9a-f]{8,}|[0-9]{4,}', '…', 'g')`);
+/**
+ * How the runs page groups failures: the message with ids and numbers masked. Written as SQL text because
+ * it is a fixed expression, not a parameterised one — it used to take the column as an argument and build
+ * itself with `sql.unsafe`, which is a loaded gun handed to every caller (`admin/runs.ts:47` and
+ * `requeueFailed` below both used the default, and the next caller passing a `req.query` would be a
+ * straight injection). There is nothing left to hand it.
+ */
+export const failureGroupSql = sql`regexp_replace(left(coalesce(processing_error, '(no message)'), 120), '[0-9a-f]{8,}|[0-9]{4,}', '…', 'g')`;
 
 /**
  * Admin: failed articles of the last 30 days back into processing, all or one failure group. The
@@ -228,7 +249,7 @@ export async function requeueFailed(group: string | null): Promise<{ requeued: n
   const rows = await sql<{ id: string }[]>`
     UPDATE articles SET processing_state = 'new', processing_attempts = 0, processing_retry_at = NULL, processing_error = NULL
     WHERE processing_state = 'failed' AND discovered_at > now() - interval '30 days'
-      AND (${group}::text IS NULL OR ${failureGroupSql()} = ${group})
+      AND (${group}::text IS NULL OR ${failureGroupSql} = ${group})
     RETURNING id`;
   for (const r of rows.slice(0, 500)) await queueProcessing(r.id);
   return { requeued: rows.length };

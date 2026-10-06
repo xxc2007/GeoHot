@@ -114,7 +114,8 @@ export async function reportIndexRows(kind: ReportKind, limit: number) {
  */
 export function reportHeadline(content: Record<string, any>, kind: "daily" | "periodic", gone: Set<string>): string | null {
   if (kind === "daily" && content.lead?.title) return String(content.lead.title);
-  if (kind === "periodic" && periodicHeadline(content)) return periodicHeadline(content);
+  const own = kind === "periodic" ? periodicHeadline(content) : null;
+  if (own) return own;
   const items: Array<Record<string, any>> = kind === "daily" ? (content.sections ?? []).flatMap((s: any) => s.items ?? []) : (content.themes ?? []).flatMap((t: any) => t.storyRefs ?? []);
   const first = items.find((i) => !i.itemId || !gone.has(i.itemId));
   return first?.title ?? null;
@@ -374,7 +375,10 @@ export async function listReports(kind: ReportKind, limit = INDEX_LIMIT): Promis
     key: r.key,
     title: reportHeadline(r.content, shape, index.gone),
     generatedAt: r.generated_at.toISOString(),
-    count: citedItemIds(r.content, shape).filter((id) => !index.withoutPage.has(id)).length,
+    // 「本期 N 件大事」= 这份报纸真的排出来多少条：`pagesOf` 按 key 去重（头条与分栏里的同一条只算一次），
+    // 并且条目页面没了也仍然印着（划掉的那一行）。以前这里筛掉 withoutPage、又不查重，
+    // 于是同一期在归档里和在报头上可能是两个数（今天数据恰好一致：29 = 29）。
+    count: new Set(citedItemIds(r.content, shape)).size,
   }));
   return entries;
 }

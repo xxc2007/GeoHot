@@ -38,7 +38,11 @@ export function registerFeedback(app: FastifyInstance) {
   app.post("/api/site/feedback", { bodyLimit: 12 * 1024 * 1024 }, async (req, reply) => {
     try {
       const body = await readBody(req.body, String(req.headers["content-type"] ?? ""));
-      const ip = String(req.headers["x-real-ip"] ?? req.ip ?? "");
+      // The per-reader limit and the ban list key on the client address. `X-Real-IP` is a header any client
+      // can name, so it is believed only when TRUST_PROXY says a proxy in front overwrites it (app.ts sets
+      // Fastify's own trustProxy from the same value); otherwise the socket address is the truth.
+      const forwarded = process.env.TRUST_PROXY === "true" ? req.headers["x-real-ip"] : undefined;
+      const ip = String(forwarded ?? req.ip ?? "");
       const result = await submitFeedback({ ...body, ip, userAgent: String(req.headers["user-agent"] ?? "") });
       return reply.header("Cache-Control", "no-store").code(201).send(result);
     } catch (error) {

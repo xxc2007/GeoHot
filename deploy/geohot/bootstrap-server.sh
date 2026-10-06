@@ -687,8 +687,8 @@ fi
 # 8. 迁移与种子（只增不改，重复运行安全）
 # ----------------------------------------------------------------------------
 step "8. migrate + seed + seed:curated"
-run "迁移（database/migrations 35 个，向后兼容增量）" "${AS_APP[@]}" bash -c "cd '$APP_ROOT' && node --env-file=.env scripts/migrate.ts"
-run "种子（主题 + 44 信源，ON CONFLICT DO NOTHING）"  "${AS_APP[@]}" bash -c "cd '$APP_ROOT' && node --env-file=.env scripts/seed.ts"
+run "迁移（database/migrations 下的全部文件，向后兼容增量）" "${AS_APP[@]}" bash -c "cd '$APP_ROOT' && node --env-file=.env scripts/migrate.ts"
+run "种子（主题 + industry/sources.json 登记的全部信源，ON CONFLICT DO NOTHING）"  "${AS_APP[@]}" bash -c "cd '$APP_ROOT' && node --env-file=.env scripts/seed.ts"
 run "语料 dry-run 先行" "${AS_APP[@]}" bash -c "cd '$APP_ROOT' && npm run seed:curated -- --dry-run --enforce-source"
 run "语料正式导入（重锚到当下，精选立即可见）" "${AS_APP[@]}" bash -c "cd '$APP_ROOT' && npm run seed:curated -- --enforce-source"
 

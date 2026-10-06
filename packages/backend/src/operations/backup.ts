@@ -40,7 +40,7 @@ function store(): Store | null {
 const hex = (b: Buffer | string) => createHash("sha256").update(b).digest("hex");
 const hmac = (key: Buffer | string, data: string) => createHmac("sha256", key).update(data).digest();
 
-/** AWS Signature V4 headers for one request (exported for the test vector check). */
+/** AWS Signature V4 headers for one request (S3-compatible PUT; the object key and payload hash decide it). */
 export function signV4(opts: {
   method: string; url: URL; region: string; service?: string; accessKey: string; secretKey: string; payloadHash: string; headers?: Record<string, string>; now?: Date;
 }): Record<string, string> {

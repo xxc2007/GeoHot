@@ -39,8 +39,28 @@ export function storyStatusFor(latestAt: Date | null, now = Date.now()): "active
   return "settled";
 }
 
-/** The shortest digest a reader is served (the prompt asks 150–400 字; below this it is not a 综述). */
-const MIN_DIGEST_CHARS = 10;
+/**
+ * The shortest digest a reader is served. The prompt asks 150–400 字 (`industry/prompts/story-digest.md`),
+ * and this floor is deliberately far below that: it refuses *a sentence posing as a 综述*, not a short
+ * but real one. Set from the signed pack rather than by feel — the 19 authored digests in
+ * `tooling/fixtures/digest.jsonl` run 138–409 字 (measured 2026-10-05), so 60 rejects nothing anybody
+ * wrote while the old `10` rejected nothing at all (it was reached only by an answer of nine characters).
+ */
+const MIN_DIGEST_CHARS = 60;
+
+/**
+ * Why these words cannot go on the event page, or null when they can. One test, asked in two places: the
+ * writer uses it to keep the digest the story already has, and `chatJson` uses it to refuse the receipt, so
+ * an answer we would not publish is not served to us again for free on every later attempt.
+ */
+function unusableCopy(data: { digest: string; latest: string }): string | null {
+  const digest = data.digest.trim();
+  const latest = data.latest.trim();
+  if (digest.length < MIN_DIGEST_CHARS) return `综述只有 ${digest.length} 字，下限 ${MIN_DIGEST_CHARS}`;
+  if (!looksZh(digest)) return "综述不是中文";
+  if (latest && !looksZh(latest)) return "进展句不是中文";
+  return null;
+}
 
 /** What the event's own reports say: the only evidence a digest title may name. */
 function reportsIdentity(reports: StoryReport[]): TranslateInput {
@@ -56,24 +76,42 @@ function reportsIdentity(reports: StoryReport[]): TranslateInput {
  * `force`: rewrite although the reports and their copy are unchanged — the case is a corrected *writing
  * fixture* (the digest is served by the local stub) or an operator who decided the current version must go.
  * Without it the inputs hash matches and this returns early, which looked exactly like "nothing to fix".
+ *
+ * `requestId`: which operator action this forced rewrite is. It goes into the paid call's attempt tag, so
+ * two separate "重写综述" clicks are two separate questions. Without it the tag was
+ * `force-digest:<story>:<version>`, and a *refused* rewrite does not bump the version — so the second click
+ * replayed the first click's receipt and the rewrite could never happen at all (measured 2026-10-05 in the
+ * test database: three different forced calls sharing `force-digest:764:2`, all answering with the first
+ * one's discarded text). Double-click protection belongs on the queue's singleton key, not here.
  */
 export async function composeStoryDigest(
   storyId: number,
-  opts: { afterCorrection?: boolean; force?: boolean } = {},
+  opts: { afterCorrection?: boolean; force?: boolean; requestId?: string } = {},
 ): Promise<{ updated: boolean; version?: number; reason?: string }> {
-  const [story] = await sql<{ id: number; title: string; digest: string | null; version: number; origin: string }[]>`
-    SELECT id, title, digest, version, origin FROM stories WHERE id = ${storyId} AND merged_into IS NULL`;
+  const [story] = await sql<{ id: number; title: string; digest: string | null; version: number; origin: string; frame: unknown }[]>`
+    SELECT id, title, digest, version, origin, frame FROM stories WHERE id = ${storyId} AND merged_into IS NULL`;
   if (!story) return { updated: false, reason: "no-story" };
   const reports = await storyReports(storyId);
   if (reports.length === 0) return { updated: false, reason: "no-reports" };
   const ids = reports.map((r) => r.id).sort();
   // What this version is written from: the reports and what they currently say (corrections included).
   const inputsHash = sha256(stableJson([...reports].sort((a, b) => a.id.localeCompare(b.id)).map((r) => [r.id, r.title, r.summary ?? ""])));
-  const [last] = await sql<{ article_ids: string[]; inputs_hash: string | null }[]>`
-    SELECT article_ids, inputs_hash FROM story_digests WHERE story_id = ${storyId} ORDER BY version DESC LIMIT 1`;
+  const [last] = await sql<{ article_ids: string[]; inputs_hash: string | null; usage: Record<string, unknown> | null }[]>`
+    SELECT d.article_ids, d.inputs_hash, r.usage
+    FROM story_digests d LEFT JOIN receipts r ON r.id = d.receipt_id
+    WHERE d.story_id = ${storyId} ORDER BY d.version DESC LIMIT 1`;
   const sameReports = !!last && JSON.stringify([...last.article_ids].sort()) === JSON.stringify(ids);
+  // 在服务的那一版是谁写的，决定"要不要重算"。规则答的那一版**不算已经写过**：否则这一条永远
+  // 在 `unchanged` 上早退，人写的中文稿再也进不去，而运营手动重跑看到的是"没什么要改"。
+  // 本机实测 2026-10-05：在服务的 1265 份综述里 1245 份的回执带着 `usage.brain.rule`。
+  const servedIsMachine = !!last?.usage && !!machineRuleOf(last.usage);
+  // 上一轮为这批完全相同的输入试过并且被拒（机器答的）。不记这个 hash 的话，每次触发都重新付一次
+  // 一笔明知会被拒的调用（本机实测 302 条 `rule:no-signed-copy(digest)`，一个故事一笔）。
+  const refusal = (story.frame as { digest?: { refusedHash?: string } } | null | undefined)?.digest;
+  const refusedForTheseInputs = !!refusal?.refusedHash && refusal.refusedHash === inputsHash;
   // Versions written before inputs were recorded compare by report set only.
-  if (!opts.force && sameReports && (last!.inputs_hash === inputsHash || (last!.inputs_hash === null && !opts.afterCorrection))) return { updated: false, reason: "unchanged" };
+  if (!opts.force && sameReports && !servedIsMachine && (last!.inputs_hash === inputsHash || (last!.inputs_hash === null && !opts.afterCorrection))) return { updated: false, reason: "unchanged" };
+  if (!opts.force && refusedForTheseInputs) return { updated: false, reason: "unsigned-for-these-inputs" };
   // Same reports, different content: an editor corrected one. Rewrite from the reports as they are now,
   // without the previous digest, so a corrected fact does not survive as "earlier reports said".
   const corrected = sameReports;
@@ -86,17 +124,18 @@ export async function composeStoryDigest(
   const res = await chatJson({
     model: await modelFor("digest"), purpose: "story_digest", subject: `story:${storyId}@${ids.length}`, promptVersion: DIGEST_PROMPT_VERSION,
     system: SYSTEM, user, schema: Schema, temperature: 0.3, maxTokens: 1200,
+    usable: unusableCopy,
     // A forced rewrite must be a *new* request: the same prompt and report set hash to the same receipt,
     // so without an attempt tag the provider hands back the very answer the operator is trying to replace
     // (measured 2026-10-02: the rewrite "succeeded" and the page still showed the corrected number).
-    attemptTag: opts.force ? `force-digest:${storyId}:${story.version}` : undefined,
+    attemptTag: opts.force ? `force-digest:${storyId}:${opts.requestId ?? story.version}` : undefined,
   });
 
   // Whose words are these? A fixture answered (authored, signed) or a rule did (assembled from the request).
   const rule = machineRuleOf(res.usage);
   const digest = res.data.digest.trim();
   const latest = res.data.latest.trim();
-  const unsigned = !!rule || digest.length < MIN_DIGEST_CHARS || !looksZh(digest) || (!!latest && !looksZh(latest));
+  const unsigned = !!rule || !!unusableCopy(res.data);
   // The title is the event page heading and the hot-list entry: the identity guard built from this event's
   // reports decides it, Chinese or nothing, and a failure keeps the title the story already has.
   const nextTitle = rule ? null : guardedStoryTitle(res.data.title, reportsIdentity(reports));
@@ -111,9 +150,11 @@ export async function composeStoryDigest(
     if (!now) return { updated: false, reason: "merged" };
     await completeReceipt(tx, res.receiptId);
     if (unsigned) {
-      // Keep the served digest. Record why there is no new one, where an operator can find it.
+      // Keep the served digest. Record why there is no new one, where an operator can find it —
+      // including the hash of the inputs this refusal was about, so the same question is not paid for
+      // again on every trigger (only `force`, or changed inputs, asks the model again).
       await tx`UPDATE stories SET frame = coalesce(frame, '{}'::jsonb) || ${tx.json({
-        digest: { at: new Date().toISOString(), rule: rule ?? "no-signed-copy", receiptId: res.receiptId, reports: ids.length },
+        digest: { at: new Date().toISOString(), rule: rule ?? "no-signed-copy", receiptId: res.receiptId, reports: ids.length, refusedHash: inputsHash },
       } as never)} WHERE id = ${storyId}`;
       return { updated: false, reason: rule ? `unsigned:${rule}` : "no-usable-copy" };
     }

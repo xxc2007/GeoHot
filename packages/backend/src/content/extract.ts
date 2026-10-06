@@ -4,7 +4,7 @@ import { Readability } from "@mozilla/readability";
 import { parseHTML } from "linkedom";
 import { sql } from "../db.ts";
 import { guardedFetch } from "../lib/http-fetch.ts";
-import { collapseWhitespace, stripTags } from "../lib/text.ts";
+import { collapseWhitespace, isBoilerplateBody, stripBoilerplate, stripTags } from "../lib/text.ts";
 import { jinaRead } from "../providers/jina.ts";
 import { BudgetExceededError } from "../providers/receipts.ts";
 import { getArticle } from "../providers/socialdata.ts";
@@ -20,7 +20,7 @@ export interface ExtractedBody {
   via: "readability" | "jina";
 }
 
-const MIN_BODY_CHARS = 200;
+const MIN_BODY_CHARS = 150;
 
 export function readable(html: string, url: string): ExtractedBody | null {
   const { document } = parseHTML(html);
@@ -34,8 +34,8 @@ export function readable(html: string, url: string): ExtractedBody | null {
   const article = new Readability(document as unknown as ConstructorParameters<typeof Readability>[0], { charThreshold: MIN_BODY_CHARS, keepClasses: false }).parse();
   if (!article?.content) return null;
   const clean = trimTrailingChrome(sanitizeBody(article.content, url));
-  const text = stripTags(clean);
-  if (text.length < MIN_BODY_CHARS) return null;
+  const text = stripBoilerplate(stripTags(clean));
+  if (text.length < MIN_BODY_CHARS || isBoilerplateBody(text)) return null;
   const images: ExtractedBody["images"] = [];
   for (const m of clean.matchAll(/<img\b[^>]*\bsrc="([^"]+)"[^>]*>/gi)) {
     const w = /\bwidth="(\d+)"/.exec(m[0]);
@@ -64,8 +64,11 @@ export async function extractFromUrl(url: string, opts: { allowJina: boolean; su
     // that one broke on headings without a preceding blank line, nested lists and tables. `markdownBody`
     // still ends in the same sanitize → trim pipeline, so the HTML whitelist is unchanged.
     const html = markdownBody(page.markdown, url);
-    const text = stripTags(html);
-    if (text.length < MIN_BODY_CHARS) return null;
+    // Jina returns the whole rendered page, footer and all — measured 2026-10-06: 96 of the last 400
+    // stored bodies began with 「国家气象中心 版权所有…未经授权禁止下载使用」. Strip the boilerplate,
+    // and if nothing real is left, this page has no body (an unconfirmed item beats a footer item).
+    const text = stripBoilerplate(stripTags(html));
+    if (text.length < MIN_BODY_CHARS || isBoilerplateBody(text)) return null;
     return { html, text, images: [], via: "jina" };
   } catch (error) {
     if (error instanceof BudgetExceededError) return null;
@@ -73,12 +76,12 @@ export async function extractFromUrl(url: string, opts: { allowJina: boolean; su
   }
 }
 
-/** Pages extraction can fetch: ordinary web pages (X posts and WeChat articles arrive whole or not at all). */
+/** Pages extraction can fetch: ordinary web pages (X posts, WeChat articles and video pages arrive whole or not at all). */
 export function pageFetchable(url: string, sourceKind: string): boolean {
   if (sourceKind === "x_search" || sourceKind === "mp_account") return false;
   try {
     const u = new URL(url);
-    return /^https?:$/.test(u.protocol) && !/(^|\.)(x\.com|twitter\.com|mp\.weixin\.qq\.com)$/i.test(u.hostname);
+    return /^https?:$/.test(u.protocol) && !/(^|\.)(x\.com|twitter\.com|mp\.weixin\.qq\.com|youtube\.com|youtu\.be)$/i.test(u.hostname);
   } catch {
     return false;
   }

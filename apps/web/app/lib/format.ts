@@ -2,17 +2,19 @@ import { beijingDate, beijingTime, beijingWeekday } from "@aihot/contracts/time"
 
 export { beijingDate, beijingTime, beijingWeekday };
 
+/**
+ * Which Beijing day an api answer was read on. The「今天」headers and the day counts come from the same answer,
+ * so the page asks that instant instead of the browser's clock: a document rendered at 23:59:59.9 and hydrated a
+ * tick later would otherwise split into two different "today"s.
+ */
+export const todayOf = (generatedAt: string) => beijingDate(Date.parse(generatedAt));
+
 /** "9月1日" (Beijing). With `today` (YYYY-MM-DD) it keeps the year when the day is not this year's. */
 export function monthDay(iso: string, today?: string): string {
   const date = beijingDate(iso);
   const [, m, d] = date.split("-").map(Number) as [number, number, number];
   const base = `${m}月${d}日`;
   return today && date.slice(0, 4) !== today.slice(0, 4) ? `${date.slice(0, 4)}年${base}` : base;
-}
-
-/** "周六" — the short form of `beijingWeekday`'s "星期六", for day bars and labels with room for one word. */
-export function weekdayShort(date: string): string {
-  return beijingWeekday(date).replace("星期", "周");
 }
 
 export function dayLabel(date: string, today: string): string {

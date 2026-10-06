@@ -48,7 +48,9 @@ export async function updateFeedback(id: number, input: { status?: string; note?
 
 /** Refuses further feedback from one source (an unreadable hash of IP and browser family). */
 export async function banSource(sourceHash: string, reason: string, actor: string) {
-  if (!reason.trim()) throw new InvalidInput("reason is required");
+  // An empty hash would ban nothing and still leave a row; an empty reason is not a signed decision.
+  if (!sourceHash?.trim()) throw new InvalidInput("缺少要封禁的来源标识");
+  if (!reason?.trim()) throw new InvalidInput("reason is required");
   await sql`INSERT INTO feedback_bans (source_hash, reason, created_by) VALUES (${sourceHash}, ${reason}, ${actor}) ON CONFLICT (source_hash) DO NOTHING`;
   await audit(actor, "feedback.ban", `feedback-source:${sourceHash}`, reason, null, null);
 }
@@ -75,8 +77,11 @@ export async function eraseFeedback(id: number, reason: string, actor: string) {
   const [row] = await sql<{ screenshot_key: string | null }[]>`SELECT screenshot_key FROM feedback WHERE id = ${id}`;
   if (!row) return null;
   const file = screenshotPath(row.screenshot_key);
-  if (file) await unlink(file).catch(() => {});
+  // The row is cleared first. Unlinking first meant that a failing UPDATE left a feedback row still
+  // advertising a `screenshot_key` whose file was already gone — the 后台 thumbnail broken forever, and
+  // the privacy promise of this command is kept either way: only the path is removed here.
   await sql`UPDATE feedback SET content = '（已按要求删除）', email = NULL, page_url = NULL, screenshot_key = NULL, updated_at = now() WHERE id = ${id}`;
+  if (file) await unlink(file).catch(() => {});
   await audit(actor, "feedback.erase", `feedback:${id}`, reason, null, null);
   return { erased: true };
 }

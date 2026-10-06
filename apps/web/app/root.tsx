@@ -1,7 +1,7 @@
-import { titled } from "./lib/seo";
+import { serverSiteUrl, titled } from "./lib/seo";
 import { SITE } from "@aihot/industry/site";
 import {
-  isRouteErrorResponse, Link, Links, Meta, Outlet, Scripts, ScrollRestoration, useLoaderData, useLocation, useNavigation, useRevalidator, useRouteError, useRouteLoaderData,
+  isRouteErrorResponse, Link, Links, Meta, Outlet, Scripts, ScrollRestoration, useLoaderData, useLocation, useNavigation, useRouteError, useRouteLoaderData,
   type ShouldRevalidateFunction,
 } from "react-router";
 import type { ReactNode } from "react";
@@ -87,11 +87,17 @@ interface SiteMeta {
   changelogVersion: string | null;
 }
 
-export async function loader({ request }: Route.LoaderArgs) {
+/** The api's shell metadata plus the address this document was served from (see `lib/seo.ts` `siteUrl`). */
+interface RootData extends SiteMeta {
+  siteUrl: string;
+}
+
+export async function loader({ request }: Route.LoaderArgs): Promise<RootData> {
+  const siteUrl = serverSiteUrl();
   try {
-    return await apiGet<SiteMeta>("/api/site/meta", { signal: request.signal });
+    return { ...(await apiGet<SiteMeta>("/api/site/meta", { signal: request.signal })), siteUrl };
   } catch {
-    return { changelogVersion: null } satisfies SiteMeta;
+    return { changelogVersion: null, siteUrl };
   }
 }
 
@@ -117,8 +123,10 @@ function isAdminPath(pathname: string): boolean {
 }
 
 export function Layout({ children }: { children: React.ReactNode }) {
+  // Handed to `lib/seo.ts` `siteUrl()` on the browser side: the address is decided once, by the server.
+  const root = useRouteLoaderData<typeof loader>("root");
   return (
-    <html lang={SITE.locale} suppressHydrationWarning>
+    <html lang={SITE.locale} data-site-url={root?.siteUrl} suppressHydrationWarning>
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />

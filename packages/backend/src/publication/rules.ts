@@ -1,4 +1,5 @@
 // Publication rules. Each rule is defined once here and used by every exit.
+import { hasChineseCopy } from "@aihot/contracts/copy";
 
 export interface SourceFacts {
   id: string;
@@ -82,9 +83,14 @@ export function mayRedistribute(source: SourceFacts, bodyMode: "full" | "summary
  * its embargo lifts, and a `visible_after` test here would leave the row noindex forever. The release gate
  * is applied where the stored flag is read — `itemHasPage` for the page itself, `releasedCondition` for the
  * sitemap entries built from this column.
+ *
+ * The automatic branch follows the reader-facing rule: an item without Chinese copy is on no list, no feed
+ * and no daily (the gate in `items.ts`), so promising its page to a crawler advertised a page the site
+ * itself hides — measured 2026-10-05 with eleven selected-but-English items in the sitemap, one of them in
+ * the live one. An editor's explicit mark stays absolute: that is the whole point of the mark.
  */
-export function isIndexable(p: { visibility: string; hasSummary: boolean; selected: boolean; seoIndexedAt: Date | null; seoExcludedAt: Date | null }): boolean {
-  return p.visibility === "public" && p.hasSummary && p.seoExcludedAt === null && (p.selected || p.seoIndexedAt !== null);
+export function isIndexable(p: { visibility: string; title: string | null; hasSummary: boolean; selected: boolean; seoIndexedAt: Date | null; seoExcludedAt: Date | null }): boolean {
+  return p.visibility === "public" && p.hasSummary && p.seoExcludedAt === null && ((p.selected && hasChineseCopy(p.title)) || p.seoIndexedAt !== null);
 }
 
 /** Display tags exclude internal entity markers. */

@@ -30,7 +30,14 @@
 set -uo pipefail
 cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)" || exit 1
 
-REPO="${GEOHOT_REPO:-$(git remote get-url origin | sed -E 's#.*github\.com[:/]##; s#\.git$##')}"
+ORIGIN_REPO=$(git remote get-url origin | sed -E 's#.*github\.com[:/]##; s#\.git$##')
+# 下面 fetch 与 push 走的都是 origin，而 REPO 可以被 GEOHOT_REPO 换成另一个仓库：那样"与远端比对"的是
+# A 仓、推出去的是 B 仓，最后一行还报"发布完成"。要么不设，要么必须与 origin 是同一个仓库。
+if [[ -n "${GEOHOT_REPO:-}" && "${GEOHOT_REPO%/}" != "$ORIGIN_REPO" ]]; then
+  echo "✗ GEOHOT_REPO=$GEOHOT_REPO 与 origin ($ORIGIN_REPO) 不是同一个仓库，而本脚本 fetch/push 都走 origin" >&2
+  exit 1
+fi
+REPO="${GEOHOT_REPO:-$ORIGIN_REPO}"
 BRANCH="${GEOHOT_BRANCH:-main}"
 EXCLUDES="${GEOHOT_EXCLUDES_FILE:-deploy/geohot/publish-excludes}"
 message=""
@@ -74,6 +81,34 @@ if [[ -f "$EXCLUDES" ]]; then
 fi
 tree=$(git write-tree)
 unset GIT_INDEX_FILE
+# 3.5) 公开仓的底线检查。后面的逐字节验收只证明"发出去的就是这棵树"，它证明不了"这棵树里没有秘密"：
+#      源站地址、SSH 用户名、密钥文件名一旦进了公开仓，删掉历史也已经被爬过。所以在 commit-tree 之前拦。
+# 名字表跟 `.gitignore`  guard 的那一族对齐（`*.env*`、`*.key`、`*.p8`、`secrets*`、`credentials*`、`id_*`），
+# 只放过仓库里那两个 `.env.example` / `.env.pipeline.example` 空值模板——它们是文档，不是秘密。
+BAD_PATHS=$(git ls-tree -r --name-only "$tree" | grep -E '(^|/)(\.env(\.[a-z0-9-]+)?|\.data/|id_(rsa|ed25519|ecdsa|dsa|openssh)[^/]*|[^/]*\.(pem|key|p8)|secrets[^/]*|credentials[^/]*)$' | grep -vE '\.example$' || true)
+if [[ -n "$BAD_PATHS" ]]; then
+  echo "✗ 要发布的树里有 .env / 私钥 / *.pem 这类路径，公开仓不收：" >&2
+  printf '%s\n' "$BAD_PATHS" | sed 's/^/    /' >&2
+  exit 1
+fi
+# 内网/私有地址段（源站的局域网地址就属于这一类）。127.0.0.1、0.0.0.0 与文档惯用的 TEST-NET 三段放过。
+# 唯一的例外是 tests/url.test.ts：它是 SSRF 防护的测试夹具，必须用**真实存在**的私有段地址
+# （10/8、172.16/12、192.168/16、100.64/10、169.254/16）才能证明这些地址被挡住——换成 TEST-NET
+# 就测不到那几段，测试会失去意义。这个文件里没有任何一台真实机器的地址；要加第二个例外之前，
+# 先想清楚公开仓里到底该不该有那个地址。
+BAD_IP=$(git grep -I -n -E '(^|[^0-9])(10\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}|192\.168\.[0-9]{1,3}\.[0-9]{1,3}|172\.(1[6-9]|2[0-9]|3[01])\.[0-9]{1,3}\.[0-9]{1,3}|100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.[0-9]{1,3}\.[0-9]{1,3})[^0-9]' "$tree" -- . ':(exclude)tests/url.test.ts' 2>/dev/null | grep -v 'TEST-NET' | head -8 || true)
+if [[ -n "$BAD_IP" ]]; then
+  echo "✗ 要发布的树里出现内网/私有地址段字面量（前 8 行）：" >&2
+  printf '%s\n' "$BAD_IP" | sed 's/^/    /' >&2
+  echo "  测试里要用的话请改 127.0.0.1 或 TEST-NET（192.0.2.0/24、198.51.100.0/24、203.0.113.0/24）。" >&2
+  exit 1
+fi
+# 只提示不拦：这些形状出现在文档里通常是正当的，但它们正是"泄露源站访问方式"的形状，要看一眼。
+# 以前这一步把 deploy/geohot/ 与 docs/ 整目录排除掉了——恰恰是这些字符串最可能出现的地方，等于对
+# 自己看不见；现在只放过占位符形状（`<user>@<host>`）、加粗示例、`.gitignore` 与扫描器自己的正则。
+git grep -I -n -E '(ssh |scp |rsync )[a-z0-9_.-]+@|(^|[^a-z])(root|ubuntu|azure-admin)@|\.pem' "$tree" -- . 2>/dev/null \
+  | grep -vE '(<[^>]*@[^>]*>|\*\*|\.gitignore:|publish-to-github\.sh)' | head -8 | sed 's/^/  注意 /' || true
+
 commit=$(git commit-tree "$tree" -p "$remote_head" -m "$message") || { echo "✗ commit-tree 失败"; exit 1; }
 echo "发布树 $tree"
 echo "发布提交 $commit"

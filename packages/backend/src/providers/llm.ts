@@ -4,8 +4,7 @@
 import type { z } from "zod";
 import { config, credential } from "../config.ts";
 import { sha256 } from "../lib/ids.ts";
-import { completeReceipt, paidRequest, ProviderRejectedError, rejectReceivedResponse } from "./receipts.ts";
-import { sql } from "../db.ts";
+import { paidRequest, ProviderRejectedError, rejectReceivedResponse } from "./receipts.ts";
 
 export interface ModelSpec {
   key: string;
@@ -19,8 +18,12 @@ export interface ModelSpec {
   vision?: boolean;
 }
 
-function extraFromEnv(value: string | undefined): Record<string, unknown> | undefined {
-  if (!value) return undefined;
+/** 单次答复的上限：任何调用方要得再多也不越过这条线（现有最大的一档就是它）。 */
+const MAX_OUTPUT_TOKENS = 65_536;
+/** 开思考的模型要先花掉这一段才吐出可见答复（实测 Agnes 3.0 flash 一次 3.6k-4.1k）。 */
+const REASONING_HEADROOM = 6_000;
+
+function extraFromEnv(value: string | undefined): Record<string, unknown> | undefined {  if (!value) return undefined;
   try {
     return JSON.parse(value) as Record<string, unknown>;
   } catch {
@@ -99,6 +102,16 @@ export interface ChatJsonOptions<S extends z.ZodType> {
   /** false: the model answers in its own text format (no JSON mode); `parse` turns it into the schema's input. */
   json?: boolean;
   parse?: (content: string) => unknown;
+  /**
+   * Is this answer usable? Return the reason it is not, or null.
+   *
+   * A schema says the reply has the right shape; it cannot say the words are any good — an English digest or a
+   * one-line lead parses fine. Callers already refuse such answers, but the receipt stayed cached as a good one,
+   * so every later attempt for the same inputs got that same unusable reply for free, forever. Rejecting it makes
+   * the next attempt ask again (receipts.ts: a `failed` receipt is re-callable), which is the only way a story
+   * recovers without an operator forcing a rewrite.
+   */
+  usable?: (data: z.infer<S>) => string | null;
 }
 
 export interface ChatJsonResult<T> {
@@ -160,7 +173,13 @@ export async function chatJson<S extends z.ZodType>(opts: ChatJsonOptions<S>): P
   if (!baseUrl || !apiKey || !spec.model) throw new Error(`Model ${opts.model} is not configured (${spec.baseUrlEnv}, ${spec.apiKeyEnv}${spec.key === "default" ? ", LLM_MODEL" : ""})`);
 
   const temperature = opts.temperature ?? 0.2;
-  const maxTokens = Math.max(opts.maxTokens ?? 1500, 512) + (spec.key.endsWith("-think") ? 4000 : 0);
+  // A reasoning model spends the budget before it answers. Measured 2026-10-06 on Agnes 3.0 flash:
+  // `reasoning_effort: high` burned 4,094 hidden tokens and returned an **empty** `content` with
+  // `finish_reason: length` at max_tokens 512, then answered normally at 8,192 (52 s, 4,185 tokens).
+  // Reasoning therefore buys headroom on top of the caller's own size — capped at the largest output
+  // any caller already asks for, so a preset that sized itself (the selection call: 65,536) stays as is.
+  const reasoning = /reasoning_effort|"thinking"/.test(JSON.stringify(spec.extra ?? {})) || spec.key.endsWith("-think");
+  const maxTokens = Math.min(MAX_OUTPUT_TOKENS, Math.max(opts.maxTokens ?? 1500, 512) + (reasoning ? REASONING_HEADROOM : 0));
   const userText = typeof opts.user === "string" ? opts.user : JSON.stringify(opts.user);
   const body: Record<string, unknown> = {
     model: spec.model,
@@ -194,7 +213,7 @@ export async function chatJson<S extends z.ZodType>(opts: ChatJsonOptions<S>): P
           method: "POST",
           headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
           body: JSON.stringify(body),
-          signal: AbortSignal.timeout(opts.timeoutMs ?? 120_000),
+          signal: AbortSignal.timeout(opts.timeoutMs ?? (reasoning ? 240_000 : 120_000)),
         });
       } catch (error) {
         if (isConnectFailure(error)) throw new ProviderRejectedError(`connect failed: ${String(error)}`, null, true);
@@ -231,9 +250,9 @@ export async function chatJson<S extends z.ZodType>(opts: ChatJsonOptions<S>): P
     await rejectReceivedResponse(receipt.receiptId, `unusable output: ${String(error).slice(0, 500)}`);
     throw new ModelOutputError(`Model ${opts.model} returned unusable output for ${opts.subject}: ${String(error).slice(0, 300)}`);
   }
+  // Right shape, no usable words: hand the answer to the caller (it applies its own editorial gate and keeps
+  // what the page already has) but refuse the receipt, so the next attempt is a real request.
+  const unusable = opts.usable?.(parsed) ?? null;
+  if (unusable) await rejectReceivedResponse(receipt.receiptId, `answer refused: ${unusable.slice(0, 500)}`);
   return { data: parsed, receiptId: receipt.receiptId, reused: receipt.reused, model: spec.key, usage: response.usage ?? null };
-}
-
-export async function markReceiptsCompleted(ids: number[]): Promise<void> {
-  for (const id of ids) await completeReceipt(sql, id);
 }

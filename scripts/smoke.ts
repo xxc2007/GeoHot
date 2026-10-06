@@ -2,6 +2,7 @@
 // deploy, and CI's check of the built site on an empty database.
 //   node scripts/smoke.ts [--base http://localhost:3000]
 import { SITE } from "@aihot/industry/site";
+import { CJK_COPY_PATTERN } from "@aihot/contracts/copy";
 import { FEATURES } from "@aihot/industry/features";
 
 const at = process.argv.indexOf("--base");
@@ -176,7 +177,7 @@ try {
  * reading the other predicate — which is exactly how the front page kept leaking English cards while /all
  * was already clean.
  */
-const HAN = /[一-鿿]/;
+const HAN = new RegExp(CJK_COPY_PATTERN);
 /** An English source title that no one has rewritten in Chinese: Latin words, no Han character at all. */
 const englishCopy = (t: unknown): t is string => typeof t === "string" && /[A-Za-z]{3,}/.test(t) && !HAN.test(t);
 const titlesOfJson = (body: string, pick: (parsed: any) => unknown[]): string[] => {

@@ -235,11 +235,6 @@ async function buildRunView(runId: string): Promise<RunView> {
   };
 }
 
-/** Clears the in-memory run so the next read reloads (after a new run is published). */
-export function invalidateLeaderboard() {
-  cached = null;
-}
-
 function confidenceOf(entry: RankingRow): LbConfidence {
   // Reproduces the published labels: sensitive rankings are low confidence; otherwise broad coverage is high.
   if (entry.detail?.stability?.sensitive) return "LOW";

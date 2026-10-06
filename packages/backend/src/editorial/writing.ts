@@ -2,7 +2,9 @@
 // title/summary prompts for everything else, the output parsing and the deterministic guards. The
 // wording lives in the industry pack (industry/prompts/); a failed guard falls back without a repair call.
 import { IDENTITY_CONTEXT_ALIASES, IDENTITY_LEXICON, PUBLISHER_DOMAINS } from "@aihot/industry/taxonomy";
+import { cjkCount, hasChineseCopy, LABEL_ONLY_COPY, LABEL_PREFIX } from "@aihot/contracts/copy";
 import { onlyXArticleLink } from "../sources/x.ts";
+import { collapseWhitespace, stripBoilerplate } from "../lib/text.ts";
 import type { AnalyzeInputArticle } from "./input.ts";
 import { promptText } from "./prompts.ts";
 
@@ -21,7 +23,7 @@ export function clampText(s: string, maxChars: number): string {
 }
 
 export function looksZh(s: string): boolean {
-  if (!/[一-鿿]/.test(s)) return false;
+  if (!hasChineseCopy(s)) return false;
   if (/[぀-ヿ]/.test(s)) return false; // Japanese kana
   if (/[가-힯]/.test(s)) return false; // Hangul
   return true;
@@ -30,14 +32,14 @@ export function looksZh(s: string): boolean {
 /** Short tweet: under 100 characters of Chinese, under 500 of other text. */
 export function isShortTweet(text: string): boolean {
   if (!text) return false;
-  const cjk = (text.match(/[一-鿿]/g) || []).length;
+  const cjk = cjkCount(text);
   return text.length < (cjk > text.length * 0.3 ? 100 : 500);
 }
 
 /** HTML, URLs (whose /2025/ paths models took for years) and entities out of article text. */
 export function cleanArticleTextForLLM(s: string): string {
   if (!s) return "";
-  return s
+  return stripBoilerplate(s)
     .replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, " ")
     .replace(/<[^>]+>/g, " ")
     .replace(/https?:\/\/\S+/gi, " ")
@@ -54,7 +56,7 @@ export function cleanArticleTextForLLM(s: string): string {
 }
 
 function chineseDensity(s: string): number {
-  const chinese = (s.match(/[一-鿿]/g) ?? []).length;
+  const chinese = cjkCount(s);
   const total = s.replace(/\s+/g, "").length;
   return total === 0 ? 0 : chinese / total;
 }
@@ -132,10 +134,25 @@ export const understandUser = (a: AnalyzeInputArticle) =>
 
 const lexiconName = (id: string) => IDENTITY_LEXICON.find((e) => e.id === id)?.name ?? null;
 
-/** Known companies the texts name, by the pack's identity lexicon (each text on its own). */
+/**
+ * Known companies the texts name, by the pack's identity lexicon (each text on its own).
+ *
+ * Every text is matched twice: as written, and folded with `NFKC` and whitespace removed. A model that
+ * writes 「中国地震台 网中心」 or the full-width 「ＮＡＳＡ」 is naming a real agency, and a literal-only
+ * match answered "this name is not in the material" — inserted spacing is exactly how a fabricated
+ * attribution hides from a literal comparison, so the guard must not be that easy to blind.
+ * Both sides of the comparison come through this function (`identityContext`'s allowed set and
+ * `enforceIdentity`'s candidate checks), so a name that matches on one side matches on the other and
+ * still cannot delete its own sentence.
+ */
 export function matchEntityIds(texts: Array<string | null | undefined>): string[] {
   const list = texts.filter((t): t is string => typeof t === "string" && t.trim().length > 0);
-  return IDENTITY_LEXICON.filter((e) => e.patterns.some((p) => list.some((t) => p.test(t)))).map((e) => e.id);
+  if (!list.length) return [];
+  const forms = list.flatMap((t) => {
+    const folded = t.normalize("NFKC").replace(/\s+/g, "");
+    return folded === t ? [t] : [t, folded];
+  });
+  return IDENTITY_LEXICON.filter((e) => e.patterns.some((p) => forms.some((t) => p.test(t)))).map((e) => e.id);
 }
 
 /** A translation may rejoin a name (GPT 5.5 → GPT-5.5): the input counts in both spellings. */
@@ -264,9 +281,30 @@ function answerFirstSummaryLengthOk(summary: string, input: TranslateInput): boo
 
 export const isShortTweetInput = (input: TranslateInput) => input.sourceKind === "x_search" && isShortTweet(input.mainText || input.title);
 
+/**
+ * 没有中文稿时，摘要退回材料自己的中文开头。这是**来源原话的截断**，不是机器改写，也不新造事实：
+ * 本站的口径本来就是「摘要 + 原文链接」，而中文一手信源写出来的就是中文。
+ *
+ * 为什么要有这一条：模型（或本机的回放器）没有给出中文摘要时，中文一手信源也该能发布。2026-10-04 那次
+ * 上线把「没有中文稿就不写」带上生产之后，10-05 起每天一千多条分析全部停在 `relevance=unknown`
+ * （实测 10-05 pass 1 条 / unknown 1079 条，10-06 是 0/249），`isPoolEligible` 因此一律 false，
+ * 全部动态、分类页、主题页、RSS、sitemap 一起冻在 10-04 15:28。中文材料不需要翻译，不该被这道闸门扣住。
+ *
+ * 过关条件复用短帖那条「已经是中文就不用翻译」的密度判定（同一个 `chineseDensity`），所以英文稿里
+ * 引了一句中文不会蒙混过去——那正是 2026-10-02 英文泄漏走过的路。
+ */
+function ownChineseLead(input: TranslateInput): string {
+  if (isShortTweetInput(input)) return "";
+  const text = collapseWhitespace(stripBoilerplate(input.text || input.mainText || ""));
+  // 密度阈值按线上实测分布定：真中文正文（预警防御指南、部委稿）落在 0.7-0.9，页脚话术 0.49，
+  // 英文稿 0 —— 0.55 是这两群之间的空档，不是拍脑袋。
+  if (text.length < 40 || !looksZh(text) || chineseDensity(text) < 0.55) return "";
+  return compactAnswerFirstSummary(text);
+}
+
 /** The length rule (compacted without another call) and the identity guard, for any writing model. */
 export function finalizeCopy(input: TranslateInput, copy: { titleZh: string; summaryZh: string }) {
-  let summaryZh = copy.summaryZh;
+  let summaryZh = copy.summaryZh.trim() || ownChineseLead(input);
   if (!isShortTweetInput(input) && summaryZh && !answerFirstSummaryLengthOk(summaryZh, input)) summaryZh = compactAnswerFirstSummary(summaryZh);
   return enforceIdentity(input, { titleZh: copy.titleZh, summaryZh });
 }
@@ -284,6 +322,19 @@ export function guardedStoryTitle(candidate: string, evidence: TranslateInput): 
   const title = candidate.trim();
   if (!title || !looksZh(title)) return null;
   return enforceIdentity(evidence, { titleZh: title, summaryZh: "" }).identityGuard.outcome === "pass" ? title : null;
+}
+
+/**
+ * 「为什么选它」与标题、摘要是同一类东西：读者看得见的机器判断（条目页、精选 RSS、v1 API 都发）。
+ * 它此前一道检查都不过——`finalizeCopy` 只管 titleZh/summaryZh，于是 2026-10-05 实测能有一条理由写着
+ * 「图件来自 OSI SAF 与 ERA5 两套来源」，而那条材料的标题、摘要与正文里这三个名字一个也没有。
+ * 现在过同一道身份判定（不许点名原文没提过的机构）与中文判定；不过就整条不发。理由是可空字段，
+ * 少一句解释远好过留一句读者信以为真的假话。
+ */
+export function guardedReason(candidate: string, evidence: TranslateInput): string | null {
+  const text = candidate.trim();
+  if (!text || !looksZh(text)) return null;
+  return enforceIdentity(evidence, { titleZh: "", summaryZh: text }).summaryZh.trim() || null;
 }
 
 // ── Title/summary prompts for items the content understanding does not write ─────────────────
@@ -332,9 +383,6 @@ export function stripEcho(text: string): string {
   return lines.join("\n").trim();
 }
 
-/** A labelled-but-empty line ("title_zh:" with nothing after it): an empty answer, never content. */
-const LABEL_ONLY = /^(title_zh|summary_zh|body_zh)\s*[:：]\s*$/;
-
 /** `title_zh:` / `summary_zh:` / `body_zh:` lines, with fallbacks for answers that drop the labels. */
 export function parseTranslateOutput(text: string): { titleZh: string; summaryZh: string; bodyZh: string } {
   let titleZh = "";
@@ -361,7 +409,7 @@ export function parseTranslateOutput(text: string): { titleZh: string; summaryZh
   // dropped here too — otherwise 「title_zh: 标题\nsummary_zh:\n正文」 hands the summary back as
   // 「summary_zh:\n正文\n正文」 (the label leaks and the text doubles; measured 2026-10-03).
   if (titleZh && !summaryZh && bodyLine < 0 && titleLine >= 0) {
-    const rest = lines.slice(titleLine + 1).map((l) => l.trim()).filter((l) => l && !LABEL_ONLY.test(l));
+    const rest = lines.slice(titleLine + 1).map((l) => l.trim()).filter((l) => l && !LABEL_ONLY_COPY.test(l));
     if (rest.length) summaryZh = rest.join("\n");
   }
   // A summary split over lines: join the unlabelled lines after it.
@@ -370,7 +418,7 @@ export function parseTranslateOutput(text: string): { titleZh: string; summaryZh
     for (let i = summaryLine + 1; i < lines.length; i += 1) {
       const t = lines[i]!.trim();
       if (!t) continue;
-      if (/^(title_zh|summary_zh|body_zh)\s*[:：]/.test(t)) break;
+      if (LABEL_PREFIX.test(t)) break;
       more.push(t);
     }
     const parts = [summaryZh, ...more].filter(Boolean);
@@ -380,7 +428,7 @@ export function parseTranslateOutput(text: string): { titleZh: string; summaryZh
   if (bodyLine >= 0) {
     const more: string[] = [];
     for (let i = bodyLine + 1; i < lines.length; i += 1) {
-      if (/^(title_zh|summary_zh|body_zh)\s*[:：]/.test(lines[i]!.trim())) break;
+      if (LABEL_PREFIX.test(lines[i]!.trim())) break;
       more.push(lines[i]!);
     }
     while (more.length && more[more.length - 1]!.trim() === "") more.pop();
@@ -398,7 +446,7 @@ export function parseTranslateOutput(text: string): { titleZh: string; summaryZh
       .trim()
       .split(/\r?\n/)
       .map((l) => l.trim())
-      .filter((l) => l && !LABEL_ONLY.test(l));
+      .filter((l) => l && !LABEL_ONLY_COPY.test(l));
     if (rest.length >= 2) {
       titleZh = rest[0]!;
       summaryZh = rest.slice(1).join("\n");

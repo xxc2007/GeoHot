@@ -102,11 +102,13 @@ test("the lint refuses dead matchers, truncated copy, and stays silent on nothin
   assert.deepEqual(dead, [], "matcher 命中不了这一步的请求，或人工稿被截断：\n" + dead.join("\n"));
 });
 
-test("only the report steps still answer reader-facing prose from a rule", async () => {
-  // digest is fixed here and now; report_lead/report_period are read by reports/compose.ts, which is not
-  // gated on usage.brain.rule yet. When that lands, the empty answer goes in here and this list shrinks.
+test("no capability answers reader-facing prose from a rule any more", async () => {
+  // `digest` was fixed first; `reports/compose.ts` gated on `usage.brain.rule` on 2026-10-05, which let
+  // report_lead / report_period fall back to the same empty answer. The list is meant to stay empty from
+  // here on: an entry means some step is writing prose a reader will read out of a rule again, and whoever
+  // reads it has to relearn the refusal (`BRAIN_REPORT_LEAD_DEFAULT=list` is how a run does that on purpose).
   const out = await runLint();
-  assert.deepEqual(out.readerCopyDefaults.map((d) => d.cap).sort(), ["report_lead", "report_period"]);
+  assert.deepEqual(out.readerCopyDefaults.map((d) => d.cap).sort(), [], `这些能力又在用规则写读者要读的稿子：${out.readerCopyDefaults.map((d) => `${d.cap}(${d.rule})`).join(", ")}`);
   const knownUnsignedCopy = "understand-fill-mongabay-elnino-evidence";
   const problems = out.report.filter((r) => (r.problems as string[] | undefined)?.length).map((r) => `${r.cap}/${r.id}`);
   assert.deepEqual(problems.filter((p) => !p.endsWith(knownUnsignedCopy)), [], `fixture 里出现了新的问题：${problems.join(", ")}`);

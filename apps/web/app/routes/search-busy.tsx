@@ -1,5 +1,4 @@
 import { titled } from "../lib/seo";
-import { SITE, withSubject } from "@aihot/industry/site";
 import { SearchBusy } from "./all";
 
 export function meta() {

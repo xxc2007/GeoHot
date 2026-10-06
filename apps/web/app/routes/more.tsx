@@ -49,10 +49,13 @@ const GROUPS: Array<{ title: string; rows: Row[] }> = [
   },
 ];
 
-function Group({ title, children }: { title: string; children: ReactNode }) {
+function Group({ title, id, children }: { title: string; id: string; children: ReactNode }) {
   return (
-    <section className="card overflow-hidden">
-      <div className="px-4 pb-1 pt-3 text-[11.5px] text-ink-4">{title}</div>
+    // Each card on this page is a section of the site, so the eyebrow is its heading: a bare <div> left
+    // the <section> unnamed (no region in the landmark list) and gave keyboard/heading users nothing to
+    // navigate by. Same classes, so the same look; the id is what carries it to the assistive tech.
+    <section className="card overflow-hidden" aria-labelledby={id}>
+      <h2 id={id} className="px-4 pb-1 pt-3 text-[11.5px] text-ink-4">{title}</h2>
       <ul className="divide-y divide-line-soft">{children}</ul>
     </section>
   );
@@ -65,13 +68,13 @@ export default function MorePage() {
     <div className="mx-auto max-w-[var(--page-max-reading)] pb-8">
       <h1 className="pb-4 pt-5 text-[22px] font-bold text-ink lg:pt-1">更多</h1>
       <div className="space-y-3 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0 2xl:grid-cols-3">
-        {GROUPS.map((g) => (
-          <Group key={g.title} title={g.title}>
+        {GROUPS.map((g, i) => (
+          <Group key={g.title} id={`more-group-${i}`} title={g.title}>
             {g.rows.map((r) => {
               const inner = (
                 <>
                   <span className="text-ink-3">{r.icon}</span>
-                  <span className="flex flex-1 items-center gap-2">{r.label}{r.to === "/changelog" && changelogDot && <span className="size-1.5 rounded-full bg-hot" aria-label="有新的更新" />}</span>
+                  <span className="flex flex-1 items-center gap-2">{r.label}{r.to === "/changelog" && changelogDot && <><span aria-hidden className="size-1.5 rounded-full bg-hot" /><span className="sr-only">，有新的更新</span></>}</span>
                   <IconChevronRight size={16} className="text-ink-4" />
                 </>
               );

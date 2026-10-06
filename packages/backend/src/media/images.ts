@@ -189,8 +189,10 @@ export async function resizeImage(body: Buffer, upstreamType: string, mode: stri
   const input = ico && !Buffer.isBuffer(ico) ? ico.raw : ico ?? body;
   const meta = await sharp(input, { ...raw, failOn: "none" }).metadata();
   // A large animation can be hundreds of frames: do not silently replace it with a still or decode
-  // all its frames on an HTTP request. Keep frame timing, loop count and transparency unchanged.
-  if ((meta.pages ?? 1) > 1 || type === "image/gif") return { body, type };
+  // all its frames on an HTTP request. Keep frame timing, loop count and transparency unchanged, and let
+  // media.prepare re-encode it to animated WebP off the request path. A single-frame GIF is an ordinary
+  // still (libvips reports `pages` for GIFs without the `animated` input option), so it gets resized.
+  if ((meta.pages ?? 1) > 1) return { body, type };
   // Small vectors are already compact and remain sharp at every zoom level. Rasterize oversized
   // SVGs (often screenshots embedded as base64) and avatars at their actual display rendition.
   if (type === "image/svg+xml" && !avatar && body.length <= 128 * 1024) return { body, type };
@@ -199,7 +201,7 @@ export async function resizeImage(body: Buffer, upstreamType: string, mode: stri
   image = avatar ? image.resize(width, width, { fit: "cover" }) : image.resize({ width, withoutEnlargement: true });
   // Screenshots and transparent PNGs benefit most from modern encoding. Already lossy JPEGs
   // measured larger at WebP 88, so retain their established encoder/quality instead of growing them.
-  if (ico || type === "image/png" || type === "image/svg+xml") {
+  if (ico || type === "image/png" || type === "image/svg+xml" || type === "image/gif") {
     return { body: await image.webp({ quality: 88, alphaQuality: 100, smartSubsample: true, effort: 4 }).toBuffer(), type: "image/webp" };
   }
   if (type === "image/webp") return { body: await image.webp({ quality: 82 }).toBuffer(), type };

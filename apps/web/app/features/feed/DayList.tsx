@@ -9,9 +9,10 @@ import { markRead, useReadSet } from "../../lib/local-state";
 import { DayHeader, TimelineSlot } from "./Timeline";
 import { FeedItem } from "./FeedItem";
 
-export function DayList({ items, todayCount = null, showTags = true, animate = false }: { items: FeedItemSummary[]; todayCount?: number | null; showTags?: boolean; animate?: boolean }) {
+/** `today` comes from the api answer's own clock, not the browser's: the「今天」header and its server-counted
+ *  `todayCount` have to be the same day, and a page rendered at 23:59:59.9 must not hydrate into two answers. */
+export function DayList({ items, today, todayCount = null, showTags = true, animate = false }: { items: FeedItemSummary[]; today: string; todayCount?: number | null; showTags?: boolean; animate?: boolean }) {
   const readSet = useReadSet();
-  const today = beijingDate(Date.now());
   const { days, undated } = useMemo(() => {
     const out: Array<{ day: string; items: FeedItemSummary[] }> = [];
     const undated: FeedItemSummary[] = [];

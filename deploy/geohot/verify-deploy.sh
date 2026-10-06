@@ -46,9 +46,31 @@ status_of() { curl -s -A "$UA" -o /dev/null -w '%{http_code}' --max-time 30 "$1"
 # ---------------------------------------------------------------------------
 if [[ "${1:-}" == "--save-baseline" ]]; then
   echo "记录主站基线（部署前必做，只读）: $BASELINE_FILE"
+  # 基线是"邻居主站没被我动过"这条不变量的唯一凭据。原来这里是 `curl -s`（不看状态码、不看正文）直接
+  # 把管道喂给 sha256sum：主站正在 502、或者连接干脆失败时，写进去的是**空正文的哈希**（e3b0c442…），
+  # 脚本还 exit 0——于是第 1 节此后对一个坏掉的主站报"字节级一致"。最需要重取基线的那一刻（站点出问题了），
+  # 恰好是把这条不变量作废的那一刻。现在：非 2xx、空正文、空哈希，一律拒绝写盘。
+  EMPTY_SHA=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+  tmpbl=$(mktemp) || exit 1
+  baseline_hash() { # baseline_hash <url> —— 拿不到可信正文就返回非零
+    if ! curl -fsS -A "$UA" --max-time 30 -o "$tmpbl" "$1"; then
+      echo "✗ 取不到 $1（连接失败或非 2xx）—— 拒绝写基线" >&2; return 1
+    fi
+    [[ -s "$tmpbl" ]] || { echo "✗ $1 返回空正文 —— 拒绝写基线" >&2; return 1; }
+    local sum
+    sum=$(sha256sum < "$tmpbl" | cut -d' ' -f1)
+    [[ "$sum" == "$EMPTY_SHA" ]] && { echo "✗ $1 的正文哈希等于空输入 —— 拒绝写基线" >&2; return 1; }
+    printf '%s' "$sum"
+  }
+  # 先算再写：`echo "k=$(false)"` 的退出码是 echo 的，命令替换失败传不出来。
+  home_sum=$(baseline_hash "$MAIN/") || exit 1
+  sitemap_sum=$(baseline_hash "$MAIN/sitemap.xml") || exit 1
+  # 基线属于哪个域名也记下来：换域名部署时旧基线必然"哈希变了"，那不是回滚的理由
+  # （bootstrap-server.sh 的注释一直承诺有这道检查，脚本里以前没有）。
   {
-    echo "main_home_sha256=$(curl -s -A "$UA" "$MAIN/" | sha256sum | cut -d' ' -f1)"
-    echo "main_sitemap_sha256=$(curl -s -A "$UA" "$MAIN/sitemap.xml" | sha256sum | cut -d' ' -f1)"
+    echo "main_site=$MAIN"
+    echo "main_home_sha256=$home_sum"
+    echo "main_sitemap_sha256=$sitemap_sum"
     echo "captured_at=$(date -u +%FT%TZ)"
   } > "$BASELINE_FILE"
   cat "$BASELINE_FILE"
@@ -73,6 +95,12 @@ if [[ -f "$BASELINE_FILE" ]]; then
     bad "基线文件 $BASELINE_FILE 里既没有 main_home_sha256 也没有 main_sitemap_sha256 —— 这不是\"主站变了\"，是基线根本没记上（被截断？手改过？）。重新跑 bash verify-deploy.sh --save-baseline"
   fi
   [[ -n "$base_at" ]] && note "基线采集于 $base_at" || note "基线没有 captured_at 这一行（旧版格式，或写入时被打断）"
+  base_site="$(baseline_get main_site)"
+  if [[ -n "$base_site" && "$base_site" != "$MAIN" ]]; then
+    bad "基线是属于 $base_site 的，现在要比对的是 $MAIN —— 这不是主站被改，是拿错了基线：人工确认后重新 --save-baseline"
+  elif [[ -z "$base_site" ]]; then
+    note "基线没有 main_site 这一行（旧版格式），无法确认它属于哪个域名"
+  fi
   now_home=$(curl -s -A "$UA" "$MAIN/" | sha256sum | cut -d' ' -f1)
   if [[ -z "$base_home" ]]; then
     bad "主站首页无法比对：基线缺 main_home_sha256（现在=${now_home:0:12}…）"
@@ -229,8 +257,10 @@ body_head=$(head -c 160 /tmp/geohot_mcp.$$ 2>/dev/null); rm -f /tmp/geohot_mcp.$
 if [[ "$mcp_http" == "421" ]]; then bad "MCP 421 misdirected（X-Forwarded-Host/Host 传递有误？见 nginx 片段 proxy_set_header Host）"
 elif [[ "$mcp_http" == "200" || "$mcp_http" == "206" ]]; then ok "MCP initialize -> $mcp_http: ${body_head:0:120}"
 else bad "MCP initialize -> $mcp_http: $body_head"; fi
-# DELETE 会话与 OPTIONS 预检在方法集里（mcp.ts:293-299），PUT 应 405
-c=$(curl -s -o /dev/null -w '%{http_code}' -X OPTIONS -H 'Origin: https://xxc2007.me' --max-time 15 "$BASE/api/mcp")
+# DELETE 会话与 OPTIONS 预检在方法集里（mcp.ts:293-299），PUT 应 405。
+# Origin 取自 $BASE（第 23 行的 $ORIGIN），不写死部署者的域名：换域名迁移时这一行如果钉死旧域名，
+# CORS 预检会因为 Origin 与站点不匹配而回 403，把一次正确的部署判成红的。
+c=$(curl -s -o /dev/null -w '%{http_code}' -X OPTIONS -H "Origin: $ORIGIN" --max-time 15 "$BASE/api/mcp")
 [[ "$c" == "204" ]] && ok "MCP OPTIONS -> 204" || bad "MCP OPTIONS -> $c（期望 204，mcp.ts:298）"
 c=$(curl -s -o /dev/null -w '%{http_code}' -X PUT --max-time 15 "$BASE/api/mcp")
 [[ "$c" == "405" ]] && ok "MCP PUT -> 405" || bad "MCP PUT -> $c（期望 405，mcp.ts:300-305）"

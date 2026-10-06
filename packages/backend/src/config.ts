@@ -35,6 +35,27 @@ function int(name: string, fallback: number): number {
 }
 
 /**
+ * One rule for "a positive whole number somebody configured", for the numbers that are *tuning* rather
+ * than required: an unparseable or non-positive value keeps running on the default and prints one line
+ * naming the number actually in force. Taking a bad value literally here is not a crash-on-config — it is
+ * a silent shape change: `ANALYZE_CONCURRENCY=two` reached pg-boss as `localConcurrency: NaN`,
+ * `DATABASE_POOL_MAX=auto` would reach the pool as `max: NaN`, `ALERT_QUIET_MINUTES=` a NaN millisecond
+ * window, and `initialBackfillLimit=3O` (letter O) made `slice(0, NaN)` store nothing while the round still
+ * reported `ok` and closed that source's history window. `publication/pool.ts` wrote this rule for its two
+ * 503 guards after living through exactly that ("an unparseable value used to become NaN, which makes both
+ * guards false"); this is the same rule in one place, and it takes the value rather than only an
+ * environment name because the config that can be wrong is not always in the environment.
+ */
+export function positiveInt(raw: unknown, name: string, fallback: number): number {
+  if (raw === undefined || raw === null || raw === "") return fallback;
+  // A boolean is not a number wearing a costume: `true` would read as 1 and quietly halve a concurrency.
+  const value = typeof raw === "boolean" ? Number.NaN : Number(raw);
+  if (Number.isFinite(value) && value >= 1) return Math.floor(value);
+  console.log(JSON.stringify({ level: "warn", msg: `${name}=${JSON.stringify(raw)}: using ${fallback} (not a positive whole number)` }));
+  return fallback;
+}
+
+/**
  * The one rule for a boolean environment valve, shared by every gate in the project. `1` and `true` (any
  * case) mean on; every other non-empty value — `0`, `off`, `false`, `FALSE`, a typo — means off; an empty or
  * missing value falls back to what the caller decides. Read it where the decision is made (`isCollectEnabled`
@@ -47,7 +68,7 @@ export function envFlag(name: string, fallback: boolean): boolean {
 }
 
 /**
- * `COLLECT_ENABLED`: may this process reach the 85 upstream sources at all? Off means off — no
+ * `COLLECT_ENABLED`: may this process reach the 82 pollable upstream sources at all? Off means off — no
  * `sources.schedule`, no source jobs, no alerting about a collection that was never asked to run.
  * An empty or missing value means on, which is what a deployment writes down explicitly (`.env.example`
  * ships `false`, and the deploy bootstrap refuses to rely on the default); development and tests therefore
@@ -100,7 +121,6 @@ export const config = {
   indexNowSubmitEnabled: envFlag("INDEXNOW_SUBMIT_ENABLED", false),
   /** IndexNow key (32 hex characters); without one nothing is submitted and no key file is served. */
   indexNowKey: /^[0-9a-f]{32}$/.test(env.INDEXNOW_KEY ?? "") ? env.INDEXNOW_KEY! : null,
-  imgProxyRequireSig: envFlag("IMG_PROXY_REQUIRE_SIG", true),
   /** Optional directory of per-group dotenv files (models.env, collectors.env, …); normally everything is in .env. */
   credentialsDir: env.AIHOT_CREDENTIALS_DIR || null,
   dataDir: str("AIHOT_DATA_DIR", path.join(REPO_ROOT, ".data")),

@@ -6,7 +6,7 @@
 // the canvas, and `focus` lights one of them. On first sight the river flows in from the left once.
 // Theme-aware, paused off screen; reduced motion draws it still. The canvas only illustrates: what it
 // says is also written in the page.
-import { SITE, withSubject } from "@aihot/industry/site";
+import { withSubject } from "@aihot/industry/site";
 import { useEffect, useRef, type ReactNode } from "react";
 import { shortSourceName } from "../../lib/format";
 import { strandCount, strandsUnderHover, type RiverHover } from "./river-strands";

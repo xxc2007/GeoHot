@@ -2,6 +2,7 @@
 // publication time. Summary feeds never carry content:encoded; full feeds inline bodies only for
 // sources that explicitly allow redistribution. Titles come from the site's name and categories.
 import { CATEGORY_LABELS, PUBLIC_API_CATEGORY_KEYS, type PublicApiCategoryKey } from "@aihot/contracts/taxonomy";
+import { bodyIsChinese } from "@aihot/contracts/copy";
 import { SITE, withSubject } from "@aihot/industry/site";
 import { config } from "../config.ts";
 import { sql } from "../db.ts";
@@ -60,7 +61,7 @@ ${items.join("\n")}
 
 type FeedRow = Pick<ItemRow, "id" | "title" | "summary" | "url" | "category" | "published_at" | "discovered_at" | "source_name"> &
   Partial<Pick<ItemRow, "channel" | "x_post" | "zh_text" | "quoted_zh" | "language" | "syndicate"> & {
-    body_html: string | null; tr_html: string | null; tr_complete: boolean | null;
+    body_html: string | null; tr_html: string | null; tr_complete: boolean | null; body_text: string | null;
   }>;
 
 /** Readers keep feed items for days: body images in full RSS are signed for a week, not a day. */
@@ -80,7 +81,9 @@ function fullContent(r: FeedRow, aihot: string): string | null {
       html += `<blockquote><p>引用 @${escapeXml(x.quoted.handle)}：</p>${textToHtml(x.quoted.translation ?? x.quoted.text)}${x.quoted.url ? `<p><a href="${escapeXml(x.quoted.url)}">${escapeXml(x.quoted.url)}</a></p>` : ""}</blockquote>`;
     }
   } else if (r.body_html) {
-    html = r.language !== "zh" && r.tr_html && r.tr_complete ? r.tr_html : r.body_html;
+    // Whether the stored body is Chinese is one rule (`contracts/copy.ts`), asked the same way the item
+    // page asks it: a declared language decides, and a declared `en` stays English whatever it quotes.
+    html = !bodyIsChinese(r.language ?? null, r.body_text ?? "") && r.tr_html && r.tr_complete ? r.tr_html : r.body_html;
   }
   if (!html) return null;
   return `${proxyBodyImages(html, true, FEED_IMAGE_SECONDS)}<p>—— 本文由 ${escapeXml(SITE.name)} 聚合整理，完整版与更多动态见 <a href="${aihot}">${aihot}</a></p>`;
@@ -136,7 +139,7 @@ export async function itemFeed<K extends ItemFeedKind>(
       ORDER BY coalesce(p.published_at, p.discovered_at) DESC, p.article_id DESC LIMIT 50
     )
     SELECT p.article_id AS id, p.title, p.summary, p.url, p.category, p.published_at, p.discovered_at, s.name AS source_name
-      ${includeContent ? sql`, p.channel, p.syndicate, a.language, a.x_post,
+      ${includeContent ? sql`, p.channel, p.syndicate, a.language, a.x_post, a.body_text,
         CASE WHEN p.channel = 'x' THEN tr.body_text END AS zh_text, qt.text_zh AS quoted_zh,
         a.body_html, tr.body_html AS tr_html, tr.complete AS tr_complete` : sql``}
     FROM page JOIN publications p ON p.article_id = page.article_id JOIN sources s ON s.id = p.source_id

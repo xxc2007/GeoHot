@@ -12,7 +12,7 @@
 import { useEffect, useRef } from "react";
 import type { OutlineEntry } from "@aihot/contracts/site";
 import { Presence } from "../../components/ui/Presence.tsx";
-import { focusWhenReady } from "../../lib/focus-when-ready.ts";
+import { focusWhenReady, returnFocus } from "../../lib/focus-when-ready.ts";
 import { IconClose } from "../../components/icons";
 
 /** 遮罩退场的时长，和 app.css 里 `.anim-fade-out` 的默认 `--anim-ms` 对齐。 */
@@ -66,7 +66,7 @@ export default function TocSheet({ outline, open, onClose }: { outline: OutlineE
       stopFocusRetry();
       document.removeEventListener("keydown", onKey);
       root.style.overflow = overflow;
-      opener?.focus({ preventScroll: true });
+      returnFocus(opener);
       const id = picked.current;
       if (!id) {
         // 有些浏览器（iOS Safari）锁住背景滚动时把页面弹回顶部；关抽屉后送回读者原来在读的那一段。

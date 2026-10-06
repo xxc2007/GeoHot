@@ -8,6 +8,7 @@ import { listPath, pageMeta } from "../lib/seo";
 import { CategoryTabs, SearchField } from "../features/feed/Filters";
 import { PillTabs } from "../components/ui/Tabs";
 import { DayList, Pagination } from "../features/feed/DayList";
+import { beijingTime, todayOf } from "../lib/format";
 import { EmptyState } from "../components/ui/Page";
 import { RingMark } from "../components/Logo";
 
@@ -74,7 +75,9 @@ export default function AllPage() {
     return `/all?${sp}`;
   };
   const title = f.q ? `搜索“${f.q}”` : f.tag ? `#${f.tag}` : null;
-  const updated = new Date(data.freshness).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Shanghai" });
+  // The same clock the rest of the site prints times with (`/hot` shows 16:31 for this same concept);
+  // `toLocaleTimeString("zh-CN")` rendered it as 下午04:31 here and nowhere else.
+  const updated = beijingTime(data.freshness);
 
   return (
     <div className="pb-6">
@@ -141,7 +144,7 @@ export default function AllPage() {
             </EmptyState>
           </div>
         ) : (
-          <DayList items={data.items} todayCount={f.q ? null : data.todayCount} showTags />
+          <DayList items={data.items} today={todayOf(data.generatedAt)} todayCount={f.q ? null : data.todayCount} showTags />
         )}
       </div>
       <Pagination page={data.page} pageCount={data.pageCount} href={(p) => pageHref(params, p)} />

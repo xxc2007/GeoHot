@@ -1,11 +1,23 @@
 // Daily, weekly and monthly reports. Windows are Beijing calendar based and written into the report;
 // missed schedule points are caught up; regeneration creates a revision. The editors' prompts are in
 // the industry pack (industry/prompts/report-*.md), the sections follow its categories.
+//
+// Nothing here publishes prose nobody wrote. The lead, the headline and the overview are the paper speaking
+// to the reader — editorial judgement, so they follow the rule `editorial/provenance.ts` states and
+// `events/digest.ts` applies: an answer the stub assembled from a capability default (no fixture, no author)
+// is refused, and the edition keeps the honest shape it would have had with no writer at all (no lead, no
+// 大标题, stories filed under the paper's own sections). Which is not a rarer case than it sounds: as of
+// 2026-10-05 the production database had four report calls in it, all four machine defaults, and nine of
+// its eleven dailies already published with `lead: null`. The refusal is recorded on the edition
+// (`generator.leadRule` / `generator.proseRule`) and on the receipt, so the surfaces waiting for a
+// signature are listable rather than guessed at.
 import { z } from "zod";
 import { SITE } from "@aihot/industry/site";
 import { CATEGORIES, RELEASE_CATEGORY_KEY } from "@aihot/industry/taxonomy";
 import { promptText, promptVersion } from "../editorial/prompts.ts";
 import { modelFor } from "../editorial/models.ts";
+import { machineRuleOf } from "../editorial/provenance.ts";
+import { guardedStoryTitle, looksZh, type TranslateInput } from "../editorial/writing.ts";
 import { addDays, beijingDate, beijingMidnight, isoWeekLabel, isoWeekRange } from "@aihot/contracts/time";
 import { sql } from "../db.ts";
 import { chatJson } from "../providers/llm.ts";
@@ -114,11 +126,40 @@ async function recentlyCovered(kind: "daily", before: string, days = 7): Promise
 }
 
 const LeadSchema = z.object({
-  title: z.string().max(120),
-  leadParagraph: z.string().max(600),
+  title: z.string().max(120).catch(""),
+  leadParagraph: z.string().max(600).catch(""),
   highlights: z.array(z.union([z.number(), z.string()])).max(6).catch([]),
 });
 
+/** What an edition is written from: the entries it cites. A headline may only name what they name. */
+function entriesIdentity(entries: ReportEntry[]): TranslateInput {
+  return {
+    title: entries.map((e) => e.title).join("\n"),
+    text: entries.map((e) => `${e.sourceName}｜${e.title}｜${e.summary.slice(0, 220)}`).join("\n"),
+    sourceKind: "rss",
+  };
+}
+
+/** A period issue's prose, judged the same way: an empty theme list is an answer the composer can act on. */
+function unusablePeriod(d: { overview: string; themes: Array<{ heading: string; summary: string }> }): string | null {
+  return !looksZh(d.overview) || !d.themes.every((t) => looksZh(t.heading) && looksZh(t.summary)) ? "总述或主题不是可用的中文" : null;
+}
+
+/**
+ * Whether this answer has anything to print, in one place asked two ways: the writer keeps the edition
+ * without a lead, and `chatJson` refuses the receipt — so an English or empty 导语 is not handed back to us
+ * for free on every later run of this issue (see providers/llm.ts `usable`).
+ */
+function unusableLead(d: { title: string; leadParagraph: string }): string | null {
+  return !d.title.trim() || !d.leadParagraph.trim() || !looksZh(d.title) || !looksZh(d.leadParagraph) ? "标题或导语不是可用的中文" : null;
+}
+
+/**
+ * The day's 导语, or `refused` with the reason. `highlights` go with it: which three stories lead an edition
+ * is the same kind of editorial judgement, and the read layer already has a rule of its own for an edition
+ * without one (the three highest-scoring items), so refusing costs no layout — it only declines to print a
+ * choice nobody made.
+ */
 async function writeLead(kind: string, key: string, entries: ReportEntry[], model: string) {
   if (entries.length === 0) return null;
   const shown = entries.slice(0, LEAD_BRIEF_LIMIT);
@@ -130,12 +171,19 @@ async function writeLead(kind: string, key: string, entries: ReportEntry[], mode
     model, purpose: "report_lead", subject: `report:${kind}:${key}`, promptVersion: REPORT_VERSION,
     system: promptText("report-daily-lead"),
     user: brief, schema: LeadSchema, temperature: 0.3, maxTokens: 800,
+    usable: unusableLead,
   });
-  const highlights = res.data.highlights
-    .map((h) => entries[Number(h) - 1])
-    .filter((e): e is ReportEntry => !!e)
-    .map((e) => e.itemId);
-  return { lead: { title: res.data.title, leadParagraph: res.data.leadParagraph }, highlights, receiptId: res.receiptId };
+  const title = res.data.title.trim();
+  const leadParagraph = res.data.leadParagraph.trim();
+  const rule = machineRuleOf(res.usage);
+  const refused = rule ?? (unusableLead(res.data) ? "no-signed-copy" : null);
+  const highlights = refused
+    ? []
+    : res.data.highlights
+      .map((h) => entries[Number(h) - 1])
+      .filter((e): e is ReportEntry => !!e)
+      .map((e) => e.itemId);
+  return { lead: refused ? null : { title, leadParagraph }, highlights, receiptId: res.receiptId, refused };
 }
 
 async function saveReport(kind: "daily" | "weekly" | "monthly", key: string, start: Date, end: Date, content: Record<string, unknown>, reason: string, model: string) {
@@ -193,7 +241,7 @@ export async function composeDaily(date: string, reason = "scheduled"): Promise<
     },
     windowStart: start.toISOString(),
     windowEnd: end.toISOString(),
-    generator: { version: REPORT_VERSION, model, repeatsSuppressed: all.length - fresh.length },
+    generator: { version: REPORT_VERSION, model, leadRule: lead?.refused ?? null, repeatsSuppressed: all.length - fresh.length },
   };
   await saveReport("daily", date, start, end, content, reason, model);
   if (lead) await completeReceipt(sql, lead.receiptId);
@@ -203,13 +251,30 @@ export async function composeDaily(date: string, reason = "scheduled"): Promise<
 export const PeriodSchema = z.object({
   // A headline is asked for, but a missing or unusable one leaves the issue on its generic name.
   headline: z.string().max(60).catch(""),
-  overview: z.string().max(1500),
+  overview: z.string().max(1500).catch(""),
   themes: z
     // A theme cites at most eight entries; a model that lists more keeps its first eight rather than failing the issue.
+    // No `min(1)`: an edition whose prose nobody signed is filed under the paper's own sections instead (see
+    // `sectionsOf` below), so "no themes" is an answer the composer can act on rather than a failed call.
     .array(z.object({ heading: z.string().max(60), summary: z.string().max(800), refs: z.array(z.union([z.number(), z.string()])).transform((refs) => refs.slice(0, 8)) }))
-    .min(1)
+    .catch([])
     .transform((themes) => themes.slice(0, 6)),
 });
+
+/**
+ * The theme list for an edition whose model prose was refused: the paper's own sections, in the reading
+ * order it was going to print. Entries is not prose — the label comes from `CATEGORIES` in the industry
+ * pack, the same buckets the daily already files under — and filing the week's stories by it loses the
+ * reader nothing but the sentence.
+ */
+function sectionsOf(entries: Candidate[]): Array<{ heading: string; summary: string | null; storyRefs: ReportEntry[] }> {
+  const bySection = new Map<string, ReportEntry[]>();
+  for (const e of entries) {
+    const label = SECTION_OF[e.category ?? ""] ?? DEFAULT_SECTION;
+    bySection.set(label, [...(bySection.get(label) ?? []), (({ category: _c, factKey: _f, ...entry }) => entry)(e)]);
+  }
+  return [...bySection.entries()].map(([heading, storyRefs]) => ({ heading, summary: null, storyRefs }));
+}
 
 /** The editor's brief for a week or month: its top entries as a numbered list, each with its section. */
 export function periodPrompt(kind: "weekly" | "monthly", startDate: string, endDateInclusive: string, top: Candidate[]) {
@@ -226,24 +291,37 @@ async function composePeriod(kind: "weekly" | "monthly", key: string, startDate:
   const all = await candidates(start, end);
   const top = all.slice(0, kind === "weekly" ? 40 : 60);
   const dailyCount = (await sql<{ n: number }[]>`SELECT count(*) AS n FROM reports WHERE kind = 'daily' AND key >= ${startDate} AND key <= ${endDateInclusive}`)[0]?.n ?? 0;
-  let themes: Array<{ heading: string; summary: string; storyRefs: ReportEntry[] }> = [];
+  let themes: Array<{ heading: string; summary: string | null; storyRefs: ReportEntry[] }> = [];
   let headline = "";
   let overview = "";
   let receiptId: number | null = null;
+  let proseRule: string | null = null;
   const model = await modelFor("report");
   if (top.length) {
     const res = await chatJson({
       model, purpose: `report_${kind}`, subject: `report:${kind}:${key}`, promptVersion: REPORT_VERSION,
       ...periodPrompt(kind, startDate, endDateInclusive, top), schema: PeriodSchema, temperature: 0.3, maxTokens: 2500,
+      usable: unusablePeriod,
     });
     receiptId = res.receiptId;
-    headline = res.data.headline.trim();
-    overview = res.data.overview;
-    themes = res.data.themes.map((t) => ({
-      heading: t.heading,
-      summary: t.summary,
-      storyRefs: t.refs.map((r) => top[Number(r) - 1]).filter((e): e is Candidate => !!e).map(({ category: _c, factKey: _f, ...e }) => e),
-    }));
+    const rule = machineRuleOf(res.usage);
+    // One decision for the whole answer. An issue half published — its 总述 from a person, its 主题 from a
+    // rule — is a thing nobody could vouch for, so `digest.ts` refuses that shape too.
+    const signed = !rule && !unusablePeriod(res.data);
+    if (signed) {
+      overview = res.data.overview;
+      themes = res.data.themes.map((t) => ({
+        heading: t.heading,
+        summary: t.summary,
+        storyRefs: t.refs.map((r) => top[Number(r) - 1]).filter((e): e is Candidate => !!e).map(({ category: _c, factKey: _f, ...e }) => e),
+      }));
+      // The 大标题 names what the issue is about, which is the judgement the identity guard exists for: it
+      // may only say what this issue's own entries say, or the issue keeps its generic name.
+      headline = guardedStoryTitle(res.data.headline, entriesIdentity(top)) ?? "";
+    } else {
+      proseRule = rule ?? "no-signed-copy";
+    }
+    if (themes.length === 0) themes = sectionsOf(top);
   }
   const content = {
     kind,
@@ -252,11 +330,11 @@ async function composePeriod(kind: "weekly" | "monthly", key: string, startDate:
     periodStart: startDate,
     periodEnd: endDateInclusive,
     ...(headline ? { headline } : {}),
-    overview,
+    ...(overview ? { overview } : {}),
     themes,
     storyOrder: top.map((e) => e.itemId),
     metrics: { totalStories: themes.reduce((n, t) => n + t.storyRefs.length, 0), selectedCount: all.length, reportsCovered: Number(dailyCount) },
-    generator: { version: REPORT_VERSION, model },
+    generator: { version: REPORT_VERSION, model, proseRule },
   };
   await saveReport(kind, key, start, end, content, reason, model);
   if (receiptId) await completeReceipt(sql, receiptId);

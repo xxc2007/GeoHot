@@ -139,8 +139,3 @@ export function splitName(name: string): { base: string; descriptors: string[] }
   if (!m) return { base: name.trim(), descriptors: [] };
   return { base: m[1]!.trim(), descriptors: [m[2]!] };
 }
-
-/** Pre-release markers in a source's own naming. */
-export function isPreRelease(name: string): boolean {
-  return /\b(preview|experimental|exp)\b/i.test(name) && !/\bpreview[- ]?\d/i.test(name);
-}

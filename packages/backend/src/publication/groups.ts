@@ -1,6 +1,7 @@
 // Reading-group expansions: the reports behind "另有 N 家信源报道" and the developments behind
 // "展开 N 条进展". Members must pass the same visibility, pool eligibility and parent-page filters.
 import type { CategoryKey, ChannelKey } from "@aihot/contracts/taxonomy";
+import { UUID_PATTERN } from "@aihot/contracts/taxonomy";
 import type { DevelopmentsResponse, GroupReportsResponse } from "@aihot/contracts/site";
 import { sql } from "../db.ts";
 import { decodeCursor, encodeCursor, InvalidCursorError, queryBinding } from "../lib/cursor.ts";
@@ -98,7 +99,7 @@ export type DevelopmentsResult = { kind: "ok"; body: DevelopmentsResponse } | { 
  * page's filters, latest first, each with its first-party pick and its public report count.
  */
 export async function loadDevelopments(q: DevelopmentsQuery, now = new Date()): Promise<DevelopmentsResult> {
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(q.storyPublicId)) return { kind: "not_found" };
+  if (!UUID_PATTERN.test(q.storyPublicId)) return { kind: "not_found" };
   const [story] = await sql<{ id: number; public_id: string; title: string }[]>`
     SELECT id, public_id::text, title FROM stories WHERE public_id = ${q.storyPublicId} AND merged_into IS NULL`;
   if (!story) return { kind: "not_found" };
@@ -112,7 +113,7 @@ export async function loadDevelopments(q: DevelopmentsQuery, now = new Date()): 
     (await sql<{ fact_id: number; n: number }[]>`
       SELECT fa.fact_id, count(DISTINCT p.article_id)::int AS n
       FROM facts f JOIN fact_articles fa ON fa.fact_id = f.id JOIN publications p ON p.article_id = fa.article_id
-      WHERE f.story_id = ${story.id} AND p.visibility = 'public' AND p.eligible AND ${releasedCondition(now)} ${filters}
+      WHERE f.story_id = ${story.id} AND p.visibility = 'public' AND p.eligible AND ${releasedCondition(now)} AND ${chineseCopyCondition()} ${filters}
       GROUP BY fa.fact_id`).map((c) => [c.fact_id, c.n]),
   );
   const byFact = new Map<number, Member[]>();

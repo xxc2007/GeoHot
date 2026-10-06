@@ -2,6 +2,7 @@
 // silently. Keep the keys and formats once readers have data under them.
 import { useSyncExternalStore } from "react";
 import { beijingDate } from "@aihot/contracts/time";
+import { ARTICLE_ID_PATTERN } from "@aihot/contracts/taxonomy";
 
 export const KEYS = {
   starred: "aihot-starred-items",
@@ -16,7 +17,7 @@ export const KEYS = {
 export const STARRED_LIMIT = 500;
 export const READ_LIMIT = 5000;
 export const IMPORT_MAX_CHARS = 2_000_000;
-const ID_PATTERN = /^[a-zA-Z0-9_-]{1,80}$/;
+const ID_PATTERN = ARTICLE_ID_PATTERN;
 
 export interface LocalStarredItem {
   id: string;

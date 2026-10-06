@@ -184,6 +184,8 @@ export interface TopicPage {
   items: FeedItemSummary[];
   page: number;
   pageCount: number;
+  /** The clock this page was read at: the day headers ask the same instant which day is「今天」. */
+  generatedAt: string;
 }
 
 /**
@@ -210,5 +212,5 @@ export async function loadTopicPage(slug: string, page: number, now?: Date): Pro
     SELECT ${ITEM_COLUMNS} ${ITEM_FROM} WHERE p.article_id IN (SELECT article_id FROM page)
     ORDER BY p.timeline_at DESC, p.article_id DESC`;
   const related = row.related.map((r) => topics.find((t) => t.slug === r)).filter((t): t is TopicSummary => !!t).map((t) => ({ slug: t.slug, name: t.name }));
-  return { topic: { ...topic, related }, items: rows.map(toFeedItemSummary), page, pageCount };
+  return { topic: { ...topic, related }, items: rows.map(toFeedItemSummary), page, pageCount, generatedAt: at.toISOString() };
 }

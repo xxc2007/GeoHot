@@ -50,7 +50,7 @@ ProtectKernelModules=true
 ProtectControlGroups=true
 RestrictSUIDSGID=true
 LockPersonality=true
-# 同样不禁网：worker 要出网抓 44 个信源、连本机 Postgres、调 LLM_BASE_URL。
+# 同样不禁网：worker 要出网抓信源（现值 82 条可轮询，见 README 第 109 段）、连本机 Postgres、调 LLM_BASE_URL。
 
 [Install]
 WantedBy=multi-user.target

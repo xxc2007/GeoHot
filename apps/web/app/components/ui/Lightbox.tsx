@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Presence } from "./Presence";
 import { IconArrowLeft, IconArrowRight, IconClose } from "../icons.tsx";
-import { focusWhenReady } from "../../lib/focus-when-ready.ts";
+import { focusWhenReady, returnFocus } from "../../lib/focus-when-ready.ts";
 
 export interface LightboxImage {
   src: string;
@@ -50,7 +50,7 @@ export function Lightbox({ images, index, onIndex, onClose }: { images: Lightbox
       stopFocusRetry();
       document.removeEventListener("keydown", onKey);
       root.style.overflow = overflow;
-      opener?.focus({ preventScroll: true });
+      returnFocus(opener);
     };
   }, [open]);
 

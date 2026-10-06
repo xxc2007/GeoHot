@@ -9,7 +9,7 @@
 import "./setup.ts";
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { enforceIdentity, finalizeCopy, matchEntityIds, type TranslateInput } from "@aihot/backend/editorial/writing";
+import { enforceIdentity, finalizeCopy, guardedReason, matchEntityIds, type TranslateInput } from "@aihot/backend/editorial/writing";
 import { normalizeTags } from "@aihot/backend/editorial/vocabulary";
 import {
   CATEGORY_BY_ITEM_TYPE, CATEGORY_TAGS, ENTITY_TAGS, ENTITIES, IDENTITY_LEXICON, ITEM_TYPES, PUBLISHER_DOMAINS, TAG_SYNONYMS, TOPIC_TAGS,
@@ -165,3 +165,72 @@ test("tag vocabulary: a synonym that no longer points at a real tag would drop s
   assert.deepEqual(ENTITY_TAGS.slice().sort(), displayTags.slice().sort(), "entity tags and the entity roster are one list");
   assert.equal(new Set(displayTags).size, ENTITY_TAGS.length, "and no two agencies share a tag");
 });
+
+test("「为什么选它」过同一道身份判定：点名材料里没有的机构就不发，英文也不发", () => {
+  // 推荐理由是条目页、精选 RSS 与 v1 API 都会发的读者可见句子，此前一道检查都不过
+  // （`finalizeCopy` 只管标题与摘要，`analyze.ts` 把 editorialJudgment 原样写库）。
+  assert.equal(guardedReason("中国地震台网中心在速报里给出了修订后的震级。", usgsSource()), null, "材料里只有 USGS，台网中心的名字不能由机器替它说");
+  assert.equal(guardedReason("USGS 在自动速报之后把震级修订为 Mw 7.2，量值可核对。", usgsSource()), "USGS 在自动速报之后把震级修订为 Mw 7.2，量值可核对。", "点名材料里确实有的机构：留下");
+  assert.equal(guardedReason("magnitude revised after the first automatic bulletin", usgsSource()), null, "英文的判断不发出去——宁可不发");
+  assert.equal(guardedReason("   ", usgsSource()), null, "空白不是理由");
+});
+
+test("排版不是隐身衣：带空格或全角的机构名仍然算点名，材料一侧也一样折叠", () => {
+  // 守卫比较的是"这个名字在材料里出现过吗"。字面匹配会被插入的空格与全角字母绕过——
+  // 而那正是一个假署名藏起来的写法（本轮实测：`中国地震台 网中心` 与 `ＮＡＳＡ` 都判不出来）。
+  assert.deepEqual(matchEntityIds(["中国地震台 网中心发布速报"]), matchEntityIds(["中国地震台网中心发布速报"]), "空格写法与规范写法判到同一个机构");
+  assert.ok(matchEntityIds(["ＮＡＳＡ发布冰图"]).includes(NASA), "全角字母折叠之后命中 NASA");
+  assert.ok(matchEntityIds(["中国地震台 网中心发布速报"]).includes(CENC), "台网中心不再因为一个空格消失");
+
+  // 材料里是带空格的写法、摘要用规范写法：折叠两侧同一个口径，真句子不能被反过来删掉。
+  const spacedMaterial = usgsSource({ title: "速报发布", text: "中国地震台 网中心发布了速报，震级修订为 7.2。" });
+  const kept = enforceIdentity(spacedMaterial, { titleZh: "速报发布", summaryZh: "中国地震台网中心给出了修订后的震级。" });
+  assert.equal(kept.identityGuard.outcome, "pass", "材料提过（只是隔了空格）的名字，摘要可以写");
+  assert.equal(kept.summaryZh, "中国地震台网中心给出了修订后的震级。", "真句子原样保留");
+
+  // 反向：材料里只有 USGS，摘要用带空格的假署名同样被抓。
+  const fabricated = enforceIdentity(usgsSource(), { titleZh: "芦山地震震级获得修订", summaryZh: "中国地震台 网中心给出了修订后的震级。" });
+  assert.deepEqual(fabricated.summaryZh, "", "空格救不了一个凭空点名的机构");
+  assert.deepEqual(fabricated.identityGuard.unsupportedSummaryEntityIds, [CENC]);
+});
+
+// ── 中文一手信源的摘要兜底：本站没有模型密钥，回放器没稿子时中文条目不该被扣在等待态 ──────────
+// 2026-10-06 线上实测：10-05 起 relevance 几乎全是 unknown（pass 1 / unknown 1079），isPoolEligible
+// 一律 false，全部动态与所有列表出口冻在 10-04 15:28。中文材料不需要翻译，这里钉住三件事：
+// 中文的能放行、英文的一句都不放行、人写的稿子永远优先。
+const nmcSource = (over: Partial<TranslateInput> = {}): TranslateInput => ({
+  title: "河北省气象台发布寒潮蓝色预警信号",
+  text: "河北省气象台2026年10月6日09时22分发布寒潮蓝色预警信号：受蒙古国东移南下的冷空气影响，预计6日到8日全省大部分地区最低气温自北向南先后下降6到8摄氏度，部分地区下降8到10摄氏度。请有关单位做好防寒防冻准备工作。",
+  sourceKind: "json_list",
+  sourceName: "中央气象台 气象灾害预警",
+  documentUrl: "https://www.nmc.cn/publish/alarm/13000041300000_20261006092200.html",
+  ...over,
+} as TranslateInput);
+
+test("a Chinese first-party item with no signed copy still reaches the pool, on the source's own words", () => {
+  const copy = finalizeCopy(nmcSource(), { titleZh: "河北省气象台发布寒潮蓝色预警信号", summaryZh: "" });
+  assert.ok(copy.summaryZh.length > 0, "中文信源的摘要不该空着——空着就等于这条不存在");
+  assert.ok(nmcSource().text.startsWith(copy.summaryZh.slice(0, 20)), "兜底摘要就是来源自己那段话的开头，不是改写");
+  assert.ok(copy.summaryZh.length <= 200, `长度走的是同一处口径（实测 ${copy.summaryZh.length}）`);
+});
+
+test("an English item with no signed copy stays unpublished: the fallback never quotes English into summary_zh", () => {
+  const copy = finalizeCopy(usgsSource(), { titleZh: "", summaryZh: "" });
+  assert.equal(copy.summaryZh, "", "英文稿的截断不是中文摘要（2026-10-02 英文泄漏走过的路）");
+});
+
+test("one Chinese sentence inside an English report does not count as Chinese material", () => {
+  const mixed = usgsSource({
+    title: "Researchers cite 长江 in a new basin study",
+    text: "Researchers published a basin study this week. 长江是中国第一大河。 The paper reports sediment loads across forty monitoring stations and revises the earlier estimates by a fifth.",
+  });
+  assert.equal(finalizeCopy(mixed, { titleZh: "", summaryZh: "" }).summaryZh, "", "密度不够就还是英文稿");
+});
+
+test("a short post keeps its own rule, and a written summary always wins over the fallback", () => {
+  const x = nmcSource({ sourceKind: "x_search", mainText: "河北省气象台发布寒潮蓝色预警信号", text: "河北省气象台发布寒潮蓝色预警信号" });
+  assert.equal(finalizeCopy(x, { titleZh: "河北省气象台发布寒潮蓝色预警信号", summaryZh: "" }).summaryZh, "", "短帖那条路不由这一处兜底");
+  const signed = finalizeCopy(nmcSource(), { titleZh: "河北发布寒潮蓝色预警", summaryZh: "6日至8日全省最低气温自北向南下降6到8摄氏度。" });
+  assert.equal(signed.summaryZh, "6日至8日全省最低气温自北向南下降6到8摄氏度。", "有人写的稿子永远优先");
+});
+

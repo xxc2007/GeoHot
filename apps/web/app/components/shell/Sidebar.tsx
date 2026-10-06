@@ -69,16 +69,23 @@ export function Sidebar({ changelogVersion }: { changelogVersion: string | null 
         <Wordmark size={24} />
       </a>
       <nav className="-mx-1 flex-1 overflow-y-auto px-1" aria-label="主导航">
-        {SIDEBAR.map((section) => (
-          <div key={section.title}>
-            <div className="px-2.5 pb-1 pt-3.5 text-[11px] text-ink-4">{section.title}</div>
-            <div className="flex flex-col gap-1">
-              {section.items.map((item) => (
-                <SideLink key={item.to} item={item} dot={dot} />
-              ))}
+        {SIDEBAR.map((section, i) => {
+          const headingId = `sidebar-group-${i}`;
+          return (
+            // The group names ("内容"、"更多") were invisible to a screen reader: a bare <div> labels
+            // nothing, so navigating the nav announced a run of links with no structure. `role=group` +
+            // aria-labelledby says what they are without adding headings to a page that already has its
+            // own outline; the classes, and therefore the look, are unchanged.
+            <div key={section.title} role="group" aria-labelledby={headingId}>
+              <div id={headingId} className="px-2.5 pb-1 pt-3.5 text-[11px] text-ink-4">{section.title}</div>
+              <div className="flex flex-col gap-1">
+                {section.items.map((item) => (
+                  <SideLink key={item.to} item={item} dot={dot} />
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </nav>
       <div className="mt-2 space-y-2.5 px-1 pt-1">
         {SITE.repoUrl && (

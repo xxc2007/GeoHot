@@ -13,6 +13,8 @@ export interface SdMedia {
   type: "photo" | "video" | "animated_gif";
   media_url_https: string;
   original_info?: { width?: number; height?: number };
+  /** The author's own description of the picture (X's accessibility text); absent when they wrote none. */
+  alt_text?: string | null;
 }
 
 export interface SdTweet {
@@ -106,7 +108,8 @@ export function tweetText(t: SdTweet): string {
   let text = t.full_text ?? t.text ?? "";
   // Expand t.co links and drop trailing media links.
   for (const u of t.entities?.urls ?? []) text = text.replaceAll(u.url, u.expanded_url);
-  for (const m of t.extended_entities?.media ?? t.entities?.media ?? []) text = text.replace(/\s*https:\/\/t\.co\/\w+\s*$/, "");
+  // `_m` is never read: the loop only runs the trailing-link strip once per attached media item.
+  for (const _m of t.extended_entities?.media ?? t.entities?.media ?? []) text = text.replace(/\s*https:\/\/t\.co\/\w+\s*$/, "");
   return text.trim();
 }
 
@@ -116,6 +119,9 @@ export function tweetMedia(t: SdTweet) {
     url: m.media_url_https,
     width: m.original_info?.width ?? null,
     height: m.original_info?.height ?? null,
+    // The read side (publication/items.ts mediaView) shows this as the image's alt text; without the map
+    // every gallery image fell back to "no description" even when its author had written one.
+    alt: m.alt_text ?? null,
     poster: m.type === "photo" ? null : m.media_url_https,
   }));
 }

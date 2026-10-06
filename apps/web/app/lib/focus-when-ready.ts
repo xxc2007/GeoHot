@@ -18,3 +18,14 @@ export function focusWhenReady(target: () => HTMLElement | null | undefined, att
   raf = requestAnimationFrame(step);
   return () => cancelAnimationFrame(raf);
 }
+
+/**
+ * Hand focus back to wherever the reader came from — but only while that control is still on the page.
+ * An overlay opened from a dropdown records `document.activeElement` at mount, and the menu item that
+ * launched it unmounts 140 ms later (`Menu`'s exit animation): focusing that detached node is a no-op
+ * that leaves a keyboard reader on `<body>`, i.e. back at the top of the tab order. `Menu` returns focus
+ * to its own trigger as it closes, so leaving focus alone is the better answer when the opener is gone.
+ */
+export function returnFocus(el: HTMLElement | null): void {
+  if (el?.isConnected) el.focus({ preventScroll: true });
+}

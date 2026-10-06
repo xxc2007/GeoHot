@@ -56,8 +56,9 @@ export async function deliverContent(req: DeliveryRequest): Promise<Array<{ targ
     await sql`UPDATE deliveries SET status = 'sending', attempts = attempts + 1, updated_at = now() WHERE id = ${row.id}`;
     try {
       const res = await postWebhook(url, req.card);
-      // A Feishu error code on HTTP 200, or a 4xx, is a definite rejection; 5xx may have gone through.
-      const status = res.ok ? "sent" : res.status < 500 ? "failed" : "unknown";
+      // 三态而不是两态：只有机器人明确 ack 才算 sent；4xx 是明确拒绝 → failed；
+      // 2xx 但没有 ack（拦截页、奇怪的正文）与 5xx 一样是"不知道"——报成 failed 与报成 sent 都是撒谎。
+      const status = res.ok ? "sent" : res.status >= 400 && res.status < 500 ? "failed" : "unknown";
       await sql`UPDATE deliveries SET status = ${status}, response = ${res.body.slice(0, 500)}, sent_at = ${res.ok ? new Date() : null}, updated_at = now() WHERE id = ${row.id}`;
       results.push({ target: t.key, status });
     } catch (error) {
@@ -73,18 +74,40 @@ export async function deliverContent(req: DeliveryRequest): Promise<Array<{ targ
  * Sends a stored delivery again after an operator checked the group and found it missing. Only
  * for deliveries in doubt or definitely failed; the safety valve still applies.
  */
+/** 409：这一行现在不能被这次点击重发。`adminHandler` 按 `code === "conflict"` 转 409，文案直接给运营看。 */
+class Rejected extends Error {
+  readonly code = "conflict";
+}
+
+/** 人工重发的次数上限：超过就必须在后台改判（已送达 / 放弃），不能让一次点击无限重来。 */
+const MAX_RESENDS = 3;
+
 export async function resendDelivery(id: number): Promise<{ status: string }> {
-  const [d] = await sql<{ status: string; payload: unknown; target_key: string; config_ref: string | null; kind: string }[]>`
-    SELECT d.status, d.payload, d.target_key, t.config_ref, t.kind FROM deliveries d JOIN notify_targets t ON t.key = d.target_key WHERE d.id = ${id}`;
-  if (!d) throw new Error(`delivery ${id} not found`);
-  if (d.status !== "unknown" && d.status !== "failed") throw new Error(`delivery ${id} is ${d.status}`);
-  if (!config.feishuContentPushEnabled || d.kind !== "feishu_webhook") throw new Error("content push is disabled in this environment");
+  const [d] = await sql<{ status: string; payload: unknown; target_key: string; config_ref: string | null; kind: string; attempts: number; subject_kind: string; subject_id: string }[]>`
+    SELECT d.status, d.payload, d.target_key, t.config_ref, t.kind, d.attempts, d.subject_kind, d.subject_id
+    FROM deliveries d JOIN notify_targets t ON t.key = d.target_key WHERE d.id = ${id}`;
+  if (!d) throw new Rejected("这条投递记录不存在，请刷新列表");
+  if (d.status !== "unknown" && d.status !== "failed") throw new Rejected(`这条投递现在是「${d.status}」，不需要重发`);
+  if (d.attempts >= MAX_RESENDS) throw new Rejected(`这条已经试过 ${d.attempts} 次，请改判「已送达」或「放弃」，不要再重发`);
+  if (!config.feishuContentPushEnabled || d.kind !== "feishu_webhook") throw new Rejected("内容推送在这个环境是关闭的（FEISHU_CONTENT_PUSH_ENABLED=false），无法重发");
   const url = d.config_ref ? credential("integrations", d.config_ref) : undefined;
-  if (!url) throw new Error("webhook not configured");
-  await sql`UPDATE deliveries SET status = 'sending', attempts = attempts + 1, updated_at = now() WHERE id = ${id}`;
+  if (!url) throw new Rejected("这个群没有配 webhook 地址（凭据缺失），无法重发");
+  // 只推还在公开精选里的那条：编辑撤回之后重放旧卡片，等于把已经收回的东西再发给一群真人。
+  if (d.subject_kind === "selected") {
+    const [live] = await sql<{ article_id: string }[]>`
+      SELECT article_id FROM publications WHERE article_id = ${d.subject_id} AND visibility = 'public' AND selected`;
+    if (!live) throw new Rejected("这条内容已经不是公开精选了（被撤回或取消精选），不重发");
+  }
+  // 领取这一行：条件写在这里，两个标签页或一次双击只有一次能真的发出去。
+  // 以前是先读状态、再无条件 `status = 'sending'`——那正是 `resolveDelivery` 这一轮刚修掉的同一个洞，
+  // 而这里的后果不是数据难看，是真人群里收到两张一样的卡。
+  const claimed = await sql`
+    UPDATE deliveries SET status = 'sending', attempts = attempts + 1, updated_at = now()
+    WHERE id = ${id} AND status IN ('unknown', 'failed') RETURNING attempts`;
+  if (!claimed.count) throw new Rejected("这条投递刚刚被另一次操作领走了，请刷新后看它的结果");
   try {
     const res = await postWebhook(url, d.payload);
-    const status = res.ok ? "sent" : res.status < 500 ? "failed" : "unknown";
+    const status = res.ok ? "sent" : res.status >= 400 && res.status < 500 ? "failed" : "unknown";
     await sql`UPDATE deliveries SET status = ${status}, response = ${res.body.slice(0, 500)}, sent_at = ${res.ok ? new Date() : null}, updated_at = now() WHERE id = ${id}`;
     return { status };
   } catch (error) {

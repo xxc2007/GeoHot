@@ -45,6 +45,8 @@ test("an outage is announced once, repeated hourly, and closed with one recovery
 
   let r = await checkAlerts(t0);
   assert.deepEqual(stuck(r.sent), ["content.process"]);
+  // 状态机说"报过了"，还得说清有没有真的离开这台机器：这里没有会话 id，一条也没发出去。
+  assert.deepEqual(stuck(r.notDelivered), ["content.process:disabled"], "没发出去的那条要单列出来，不能只留一个 sent 清单");
   assert.ok(!r.sent.some((k) => k.startsWith("receipts.unknown")), "an entry from before the levels closes silently");
   assert.ok(!r.open.includes("receipts.unknown"));
   r = await checkAlerts(t0 + 50 * 60_000);

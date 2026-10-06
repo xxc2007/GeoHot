@@ -9,7 +9,7 @@ import { InvalidInput } from "@aihot/backend/admin/invalid";
 import { importSelectBenchRun, listSelectBenchRuns, selectBenchRun } from "@aihot/backend/admin/selectbench";
 import { modelsOverview, switchModel } from "@aihot/backend/admin/models";
 
-import { contentChain, detachFromFact, mergeStories, overrideFields, rerun, searchContent, setSeoIndexed, setVisibility } from "@aihot/backend/admin/content";
+import { contentChain, detachFromFact, mergeStories, overrideFields, rerun, rewriteStoryDigest, searchContent, setSeoIndexed, setVisibility } from "@aihot/backend/admin/content";
 import { banSource, eraseFeedback, feedbackScreenshot, listFeedback, unbanSource, updateFeedback } from "@aihot/backend/admin/feedback";
 import { listMonitorEvents, listMonitorPosts, relinkPost, resolveMonitorPost, reviewReceipt, setWithdrawn, updateMonitorEvent } from "@aihot/backend/admin/monitor";
 import { releaseReceipt, requeueFailedArticles, resolveDelivery, runsOverview } from "@aihot/backend/admin/runs";
@@ -72,18 +72,24 @@ export function registerAdmin(app: FastifyInstance) {
   // Content and events (F19)
   app.get("/api/admin/content", adminHandler(async (req) => ({ rows: await searchContent(q(req).q ?? "") })));
   app.get("/api/admin/content/:id", adminHandler(async (req, reply) => orNotFound(req, reply, await contentChain(param(req, "id")))));
-  app.post("/api/admin/content/:id/visibility", adminHandler(async (req, _reply, admin) => setVisibility(param(req, "id"), body(req) as never, actorOf(admin))));
-  app.post("/api/admin/content/:id/seo", adminHandler(async (req, reply, admin) => orNotFound(req, reply, await setSeoIndexed(param(req, "id"), body(req) as never, actorOf(admin)))));
-  app.post("/api/admin/content/:id/override", adminHandler(async (req, _reply, admin) => overrideFields(param(req, "id"), body(req) as never, actorOf(admin))));
+  app.post("/api/admin/content/:id/visibility", adminHandler(async (req, _reply, admin) => setVisibility(param(req, "id"), body(req), actorOf(admin))));
+  app.post("/api/admin/content/:id/seo", adminHandler(async (req, reply, admin) => orNotFound(req, reply, await setSeoIndexed(param(req, "id"), body(req), actorOf(admin)))));
+  app.post("/api/admin/content/:id/override", adminHandler(async (req, _reply, admin) => overrideFields(param(req, "id"), body(req), actorOf(admin))));
   app.post("/api/admin/content/:id/rerun", adminHandler(async (req, reply, admin) => {
-    const b = body<{ step: "extract" | "analyze" | "group" }>(req);
     const requestId = String(req.headers["idempotency-key"] ?? "");
-    return orNotFound(req, reply, await rerun(param(req, "id"), b.step, requestId, actorOf(admin)));
+    return orNotFound(req, reply, await rerun(param(req, "id"), body(req), requestId, actorOf(admin)));
   }));
   app.post("/api/admin/content/:id/detach", adminHandler(async (req, _reply, admin) => detachFromFact(param(req, "id"), String(body(req).reason ?? ""), actorOf(admin))));
+  app.post("/api/admin/stories/:id/digest", adminHandler(async (req, reply, admin) => {
+    const b = body<{ reason: string }>(req);
+    // The key the back office puts on every command is what makes two clicks two rewrites: the paid
+    // call's dedupe is keyed on it (see `composeStoryDigest`), the double-click guard is the queue's.
+    const requestId = String(req.headers["idempotency-key"] ?? "");
+    return orNotFound(req, reply, await rewriteStoryDigest(idOf(param(req, "id"), "id"), String(b.reason ?? ""), requestId, actorOf(admin)));
+  }));
   app.post("/api/admin/stories/merge", adminHandler(async (req, _reply, admin) => {
     const b = body<{ from: number; into: number; reason: string }>(req);
-    return mergeStories(idOf(b.from, "from"), idOf(b.into, "into"), b.reason, actorOf(admin));
+    return mergeStories(idOf(b.from, "from"), idOf(b.into, "into"), String(b.reason ?? ""), actorOf(admin));
   }));
 
   // Feedback
@@ -99,7 +105,7 @@ export function registerAdmin(app: FastifyInstance) {
   }));
   app.post("/api/admin/feedback-bans", adminHandler(async (req, reply, admin) => {
     const b = body<{ sourceHash: string; reason: string }>(req);
-    await banSource(b.sourceHash, b.reason, actorOf(admin));
+    await banSource(String(b.sourceHash ?? ""), String(b.reason ?? ""), actorOf(admin));
     return reply.code(204).send();
   }));
   app.delete("/api/admin/feedback-bans/:hash", adminHandler(async (req, reply, admin) => {

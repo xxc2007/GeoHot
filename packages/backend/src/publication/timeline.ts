@@ -47,6 +47,9 @@ export function pickRepresentative<T extends RepresentativeRow>(rows: T[]): T {
 /**
  * Public pool reports linked to the facts of the given stories and standalone facts, under the same
  * filters (non-selected included): the sets "另有 N 家信源报道" expands and the group counts come from.
+ * The Chinese-copy gate belongs here too, and it is the *same* one `loadGroupReports` applies
+ * (`groups.ts:43`) — otherwise the card promises a number the panel it opens cannot deliver: an
+ * English-only member counts here but is refused there, so 「另有 3 家」 expands to two.
  */
 async function groupPool(q: TimelineQuery, now: Date, storyIds: number[], factIds: number[]) {
   if (!storyIds.length && !factIds.length) return [];
@@ -54,7 +57,7 @@ async function groupPool(q: TimelineQuery, now: Date, storyIds: number[], factId
     SELECT DISTINCT f.story_id, f.id AS fact_id, p.article_id, p.source_id, p.timeline_at AS at
     FROM facts f JOIN fact_articles fa ON fa.fact_id = f.id JOIN publications p ON p.article_id = fa.article_id
     WHERE (f.story_id IN ${sql(storyIds.length ? storyIds : [0])} OR f.id IN ${sql(factIds.length ? factIds : [0])})
-      AND p.visibility = 'public' AND p.eligible AND ${releasedCondition(now)} ${filterSql(q)}`;
+      AND p.visibility = 'public' AND p.eligible AND ${releasedCondition(now)} AND ${chineseCopyCondition()} ${filterSql(q)}`;
 }
 
 /**

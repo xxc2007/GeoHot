@@ -5,7 +5,7 @@ import { SITE } from "@aihot/industry/site";
 import { Presence } from "../../components/ui/Presence";
 import { IconClose, IconDownload, IconShare } from "../../components/icons";
 import { publicPath } from "../../lib/public-path.ts";
-import { focusWhenReady } from "../../lib/focus-when-ready.ts";
+import { focusWhenReady, returnFocus } from "../../lib/focus-when-ready.ts";
 
 export default function PosterSheet({ id, title, open, onClose }: { id: string; title: string; open: boolean; onClose: () => void }) {
   // One address, three uses (<img src>, the download <a href>, the blob fetch behind 分享). It is
@@ -14,6 +14,7 @@ export default function PosterSheet({ id, title, open, onClose }: { id: string; 
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
   const [canShareFile, setCanShareFile] = useState(false);
+  const [shareFailed, setShareFailed] = useState(false);
   const dialog = useRef<HTMLDivElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
 
@@ -24,6 +25,7 @@ export default function PosterSheet({ id, title, open, onClose }: { id: string; 
   // Shift-Tab stay inside, Escape closes, and focus goes back to the button that opened it.
   useEffect(() => {
     if (!open) return;
+    setShareFailed(false);
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const root = document.documentElement;
     const overflow = root.style.overflow;
@@ -54,7 +56,7 @@ export default function PosterSheet({ id, title, open, onClose }: { id: string; 
       stopFocusRetry();
       document.removeEventListener("keydown", onKey);
       root.style.overflow = overflow;
-      opener?.focus({ preventScroll: true });
+      returnFocus(opener);
     };
   }, [open, onClose]);
 
@@ -62,8 +64,10 @@ export default function PosterSheet({ id, title, open, onClose }: { id: string; 
     try {
       const blob = await (await fetch(src)).blob();
       await navigator.share({ files: [new File([blob], `${SITE.mcpPrefix}-${id}.png`, { type: "image/png" })], title });
-    } catch {
-      // cancelled or unsupported: saving stays available
+      setShareFailed(false);
+    } catch (e) {
+      // 取图失败或系统分享面板拒绝，都要说出来；读者按「取消」关掉面板不算失败，保存那条路一直在。
+      if ((e as DOMException)?.name !== "AbortError") setShareFailed(true);
     }
   }
 
@@ -114,6 +118,7 @@ export default function PosterSheet({ id, title, open, onClose }: { id: string; 
               </button>
             )}
           </div>
+          {shareFailed && <p role="status" className="mt-2 text-center text-[12.5px] text-ink-3">分享没有成功，可以先「保存图片」再发给朋友。</p>}
         </div>
       </div>
     </Presence>

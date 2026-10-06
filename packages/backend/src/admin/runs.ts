@@ -1,6 +1,8 @@
 // Runs view: task timeline, queue backlog, source lag, error classes, process
 // heartbeats, and the receipts and deliveries whose outcome needs an operator.
+import { z } from "zod";
 import { sql } from "../db.ts";
+import { config } from "../config.ts";
 import { InvalidInput } from "./invalid.ts";
 import { audit } from "./auth.ts";
 import { Conflict } from "./sources.ts";
@@ -44,7 +46,7 @@ export async function runsOverview() {
       WHERE status IN ('unknown', 'failed') OR (status = 'sending' AND updated_at < now() - interval '15 minutes')
       ORDER BY status = 'unknown' DESC, updated_at DESC LIMIT 40`,
     sql`
-      SELECT ${failureGroupSql()} AS error, count(*)::int AS n, max(discovered_at) AS last,
+      SELECT ${failureGroupSql} AS error, count(*)::int AS n, max(discovered_at) AS last,
              (array_agg(id ORDER BY discovered_at DESC))[1] AS example
       FROM articles WHERE processing_state = 'failed' AND discovered_at > now() - interval '30 days' GROUP BY 1 ORDER BY 2 DESC LIMIT 20`,
     sql`SELECT client, kind, status, left(error, 200) AS error, summary, created_at FROM ingest_events ORDER BY created_at DESC LIMIT 20`,
@@ -143,22 +145,36 @@ export async function requeueFailedArticles(input: { group: string | null; reaso
 }
 
 /** An in-doubt delivery: confirmed as arrived, given up, or sent again after checking the group. */
-export async function resolveDelivery(id: number, input: { outcome: "sent" | "drop" | "resend"; note: string }, actor: string) {
-  if (!input.note?.trim()) throw new InvalidInput("note is required");
+const ResolveSchema = z.object({ outcome: z.enum(["sent", "drop", "resend"]), note: z.string().min(1) }).strict();
+const RESOLVED = "这条投递已经被处理过了，请刷新后再操作";
+
+export async function resolveDelivery(id: number, input: unknown, actor: string) {
+  const { outcome, note } = ResolveSchema.parse(input);
   const [before] = await sql<{ status: string }[]>`SELECT status FROM deliveries WHERE id = ${id}`;
   if (!before) return null;
   if (before.status !== "unknown" && before.status !== "failed") throw new Conflict("这条投递不需要处理");
   let status: string;
-  if (input.outcome === "sent") {
-    await sql`UPDATE deliveries SET status = 'sent', sent_at = coalesce(sent_at, now()), response = ${`人工确认已送达：${input.note}`}, updated_at = now() WHERE id = ${id}`;
+  if (outcome === "sent") {
+    // Each write re-checks the status it decided on. The read and the write used to be two steps with
+    // nothing between them, so two tabs on one row both "succeeded" and the row ended up recording a
+    // decision the other operator never made — a 放弃 landing on a message that was already sent.
+    const w = await sql`UPDATE deliveries SET status = 'sent', sent_at = coalesce(sent_at, now()), response = ${`人工确认已送达：${note}`}, updated_at = now()
+      WHERE id = ${id} AND status IN ('unknown', 'failed') RETURNING status`;
+    if (!w.count) throw new Conflict(RESOLVED);
     status = "sent";
-  } else if (input.outcome === "drop") {
-    await sql`UPDATE deliveries SET status = 'failed', response = ${`人工放弃：${input.note}`}, updated_at = now() WHERE id = ${id}`;
+  } else if (outcome === "drop") {
+    const w = await sql`UPDATE deliveries SET status = 'failed', response = ${`人工放弃：${note}`}, updated_at = now()
+      WHERE id = ${id} AND status IN ('unknown', 'failed') RETURNING status`;
+    if (!w.count) throw new Conflict(RESOLVED);
     status = "failed";
   } else {
+    // Checked here because `resendDelivery` answers with a bare Error, which the admin handler reports
+    // as a 500: pushing is off in this environment (`FEISHU_CONTENT_PUSH_ENABLED=false` in `.env`), and
+    // "服务器错误" tells the operator nothing about what to do instead.
+    if (!config.feishuContentPushEnabled) throw new InvalidInput("内容推送在这个环境是关闭的（FEISHU_CONTENT_PUSH_ENABLED=false），无法重发；改判“已送达”或“放弃”即可结案。");
     const { resendDelivery } = await import("../notify/deliver.ts");
     status = (await resendDelivery(id)).status;
   }
-  await audit(actor, `delivery.${input.outcome}`, `delivery:${id}`, input.note, { status: before.status }, { status });
+  await audit(actor, `delivery.${outcome}`, `delivery:${id}`, note, { status: before.status }, { status });
   return { id, status };
 }

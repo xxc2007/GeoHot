@@ -10,9 +10,13 @@
 // naming a company that appears only in the page's extra report was then refused as "an institution no report
 // of this story mentions", and the event kept a stale heading for good.
 //
-// The gate is `rules.itemHasPage` for a list: public, from a source that takes part editorially *now*, and
-// past the release gate (one expression, `releasedCondition` in publication/items.ts — this file used to
-// retype it by hand, which is how a fourth reading of the same rule could appear). It deliberately does not
+// The gate is `rules.itemHasPage` for a list: not withdrawn, from a source that takes part editorially
+// *now*, and past the release gate (one expression, `releasedCondition` in publication/items.ts — this file
+// used to retype it by hand, which is how a fourth reading of the same rule could appear). The SQL said
+// `visibility = 'public'` until 2026-10-05, which was a fifth reading and a stricter one: an item set to
+// `summary-only` in the admin still has a page (`availability.ts`, pinned by `tests/publication-issue-gate.test.ts`:
+// "a summary-only citation still opens"), so the paper could cite it while this page hid it — the timeline
+// lost a report, 报道数 and 来源数 read low, and the 综述 could not rest on it. It deliberately does not
 // ask `p.eligible`: that is a snapshot of the pool rule taken when the row was published, so it also leaves
 // out reports the AI pool never rated — imported hot stories carry them, and the live pages showed them.
 // **It does not ask for Chinese, and that is a decision, not an omission** (2026-10-04 晚: a gate was tried
@@ -73,7 +77,7 @@ export async function storyReports(storyId: number, at = new Date()): Promise<St
            coalesce(p.published_at, p.discovered_at) AS at
     FROM facts f JOIN fact_articles fa ON fa.fact_id = f.id JOIN publications p ON p.article_id = fa.article_id
     JOIN sources s ON s.id = p.source_id
-    WHERE f.story_id = ${storyId} AND p.visibility = 'public' AND s.participation_mode = 'editorial'
+    WHERE f.story_id = ${storyId} AND p.visibility <> 'withdrawn' AND s.participation_mode = 'editorial'
       AND ${releasedCondition(at)}
     ORDER BY p.article_id, (fa.role = 'primary') DESC`;
   return rows

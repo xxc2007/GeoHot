@@ -1,4 +1,4 @@
-import { SITE, withSubject } from "@aihot/industry/site";
+import { SITE } from "@aihot/industry/site";
 import { Link, Outlet } from "react-router";
 import { BoardTabs } from "../features/leaderboard/BoardTabs";
 import { IconArrowUpRight } from "../components/icons";

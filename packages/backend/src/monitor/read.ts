@@ -89,15 +89,6 @@ export function eventTitle(type: EventRow["type"], status: EventRow["status"], s
   return credit ? "Tibo 预告将发放重置卡" : "Tibo 预告将重置额度";
 }
 
-/** The Beijing day an event belongs to on the calendar. */
-export function eventDay(e: Pick<EventRow, "occurred_on" | "confirmed_at" | "estimate" | "schedule" | "created_at">): string {
-  if (e.occurred_on) return e.occurred_on.toISOString().slice(0, 10);
-  if (e.confirmed_at) return beijingDate(e.confirmed_at);
-  const window = e.estimate ?? e.schedule;
-  if (window) return beijingDate(window.from);
-  return beijingDate(e.created_at);
-}
-
 async function loadAll() {
   const events = await sql<EventRow[]>`
     SELECT id, type, status, title, scope, label, display_label, schedule, estimate, presentation, confirmed_at, occurred_on, confirmation_basis, created_at, updated_at
@@ -172,8 +163,6 @@ function eventJson(e: EventRow, links: LinkRow[], posts: Map<string, PostRow>, n
 function contextJson(context: PostRow["context"]) {
   return context.map((c) => ({ id: c.id, author: c.author, relation: c.relation, text: c.text, originalText: c.originalText, url: c.url }));
 }
-
-export type CodexResetEventJson = ReturnType<typeof eventJson>;
 
 function monitorJson(state: Map<string, any>, counts: { pending: number; review: number }, now: number) {
   const w = state.get("watermarks") as { lastAttemptAt?: string; lastCollectedAt?: string; lastVerifiedAt?: string } | undefined;

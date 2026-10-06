@@ -55,6 +55,32 @@
 
 每个公众号按它的抓取间隔检查一次（查列表按次计费），新文章的正文一并取回。
 
+## 平台信源（X、YouTube 等官方账号）
+
+同一机构的另一个出口也算信源：官方 X 账号、官方 YouTube 频道说的都是那家机构的原话，`first_party` 一律 true。
+
+### YouTube：技术上用 `rss` 接、不需要 key，但本站当前没有登记视频频道
+
+这一节写的是"怎么接"和"当初为什么撤"。视频频道会占本地磁盘：视频文件从不下载，`articles.media` 里只有观看地址、简介和封面 URL，可条目页那张封面和站内其它图片一样走签名代理，`packages/backend/src/media/images.ts:12` 把渲染结果写进 `data/imgcache`（`operations/retention.ts:37` 三十天后清）。第二十四轮（2026-10-05）接进来当晚，站长要求本地磁盘不涨，三条频道因此撤下；下面的 id 与实测结论留着，接回来加一条 `rss` 记录就行。每个频道都有一张服务端渲染的 Atom 列表：`https://www.youtube.com/feeds/videos.xml?channel_id=UC…`。频道 id 只能从频道「关于」页的 `channelMetadataRenderer.externalId` 取（同一页的 `<meta itemprop="channelId">` 给的是同一个值）——**在频道页 HTML 里抓第一个 `UC…` 会抓到侧栏推荐位上的别的频道**，本轮就踩过：这么取回来的 `@NASAEarth` 是一个人的私人频道、`@UNOSAT` 是一段 2010 年的雪景视频。取回还要对得上：feed 的 `<title>` 与 `<author><name>` 必须是这个 handle 的主人本人。第二十四轮（2026-10-05 本机实测，用项目自己的 `fetchRss`）试过三条，每条各回 15 项：
+
+| 频道 | 上传列表 channel_id | 实测 |
+|---|---|---|
+| `@usgs` | `UCeXH8GZyV3sVqAr45AvupOA` | 15 条，首条〈What stinks in Yellowstone? (Yellowstone monthly update, September 2026)〉，封面 480×360 |
+| `@NASA` | `UCLA_DiR1FfKNvjuUpBHmylQ` | 15 条，首条是 Crew-12 的告别与访谈（标题在本机打印时被截断过） |
+| `@NOAA` | `UCe9IxQeBttZIYl5c43ycf9g` | 15 条，首条是 1926 年迈阿密飓风百年回顾（同上） |
+
+试过但没登记的：`@esri` 频道存在（`UC_X6fM_9mDxpAUx7GHrD0cA`），可它的上传列表回 **0 条**——视频都排在播放列表里，接进来就是一条永远空的信源；`@CopernicusEU`、`@Britannica`、`@NatGeoLab` 的 handle 直接 404。
+
+视频 feed 不给 `<content>` 也不给 `<summary>`：简介在 `<media:group>/<media:description>`，封面在 `<media:thumbnail>`，`<yt:videoId>` 说明这是一条视频。`packages/backend/src/sources/rss.ts` 因此把这一组读成一条 `kind: "video"` 的媒体（`url` 是观看地址、`poster` 是封面、带上宽高），正文留空。`content/extract.ts` 的 `pageFetchable()` 也把 youtube.com / youtu.be 归进「要么整条到手，要么拿不到」那一类：不再为一条视频去抓 watch 页，也不再为它调用按次计费的渲染服务。读者拿到的就是封面 + 简介 + 回原站，这正是一条视频能给出的全部。频道撤下了，这段读取与解析没有跟着撤：`providers/socialdata.ts:118` 从 X 带回的视频走的是同一个 `publication/items.ts` 的 `videoMedia`，X 额度到位就要用它；`tests/sources.test.ts` 与 `tests/media-performance.test.ts` 一直盯着这条解析与渲染。
+
+### X：用 `x_search` 接，但要 `SOCIALDATA_API_KEY`
+
+SocialData 按请求计费，本部署没有这个 key，所以第二十四轮登记的 8 个账号**全部 `enabled=false`**：`@USGS`、`@NASA`、`@NOAA`、`@WMO`、`@CopernicusEU`、`@un_ocha`、`@Esri`、`@metoffice`。账号存在性是不花钱的——`https://x.com/<handle>` 的页面标题就是「名称 (@handle) / X」，八条逐个核过（`@un_ocha` 的显示名是「UN Ocha」、`@metoffice` 是「Met Office」，登记名按这个写）。猜的另外几个 `@esrigeo`、`@CMA_Weather`、`@china_meteo`、`@gdacs_asi` 全部 404，不进表。补上 key 之后在后台「信源」里逐条启用即可；`tests/industry-pack-sources.test.ts` 一直拦着「按次计费却登记为启用」这种写法。
+
+### 微信公众号：一条都没登记
+
+`mp_account` 需要 `DAJIALA_KEY`（极致了，按请求计费），而配置里的 `ghid` 只有在那个账号真正查一次列表时才拿得到。现在写进去的任何 `gh_xxxxxxxx` 都只能是编造，所以不写。要接就先补 key，再用后台「新建信源 → 微信公众号」按名称搜出来填。
+
 ## 分级、参与方式与全文
 
 - **分级** `tier`：`T1` 官方一手（官网、官方博客、机构）、`T1_5` 官方账号与准官方创作者、`T2` 媒体与个人、`EXCLUDE_MP` 不参与精选。入选门槛按分级不同（`industry/selection.ts`）。
@@ -68,13 +94,19 @@
 最短 15 分钟；上限按**信源类型**分三档，不是按"免不免费"分（`packages/backend/src/sources/collect.ts` 里
 `adaptIntervals` 的 `const max = …` 与 `const min = …` 两行）——
 `participation_mode=hot_signal` 最长 180 分钟，`x_search` 或带 `paid_listing` 的（真正按次计费的那两类）最长 120 分钟，
-其余 60 分钟；下限 15 分钟，按次计费的那两类不低于 60 分钟。这一句以前写的是"免费信源最长 60 分钟，
+其余 60 分钟；下限 15 分钟，带 `paid_listing` 的那类不低于 60 分钟。这一句以前写的是"免费信源最长 60 分钟，
 按次计费的信源最长 120–180 分钟"，把属于 `hot_signal` 的 180 说成了计费档，已改正。
 
+**一个例外要说清：按 shard 读的 X 账号不跟自己的量走，跟 shard 的节拍走。** 一次搜索最多带二十几个账号，所以
+`collect.ts:403` 的 `X_SHARD_MINUTES` 是 editorial 30 分钟、hot_signal 60 分钟，`adaptIntervals` 对分片源直接
+返回这个数（`:631`），每次成功抓取也会把 `interval_minutes` 写成它（`:497`）——**包里给 `x_search` 写的
+`interval_minutes` 与 `_aihot.intervalMinutesLocked` 在这条路上都不算数**（30 分钟低于上面那句"不低于 60"）。
+按请求计费看的是 shard 的次数而不是账号数，所以这是设计；但第二十四轮登记的 8 条 `x_search` 一旦补上 key 启用，
+实际节拍是每 30 分钟一次共享搜索，不是包里那个 120。要真按账号节流，得给 shard 路径也读 `intervalMinutesLocked`。
+
 两条本站的实情：① 这个自动调整任务只在 `COLLECT_ENABLED` 不为 false 时才注册（`apps/worker/src/schedules.ts:82-87`），
-所以上面那三档在关着采集的机器上根本不会跑；② **本站一条按次计费的信源都没有**——`industry/sources.json` 的信源里
-`x_search`、`mp_account`、带 `paid_listing` 的现值都是 0，所以"按次计费"这一档在现部署下是空集，采集不产生账单。
-登记间隔的现值最小 30 分钟（4 条 30、12 条 60、1 条 90、15 条 120、4 条 180、32 条 240、8 条 360、1 条 720、8 条 1440；
+所以上面那三档在关着采集的机器上根本不会跑；② **现站在跑的按次计费信源是 0 条**——`industry/sources.json` 里 `mp_account` 与带 `paid_listing` 的仍是 0，`x_search` 第二十四轮登记了 8 条但全部 `enabled=false`（本部署没有 `SOCIALDATA_API_KEY`），所以“按次计费”这一档在现部署下依然是空集，采集不产生账单。
+登记间隔的现值最小 30 分钟（98 条：6 条 30、12 条 60、1 条 90、23 条 120、4 条 180、34 条 240、9 条 360、1 条 720、8 条 1440；
 `node -e` 一行可复测，命令见 `README.md` 的「现状与边界」）——**"最快的源 30 分钟看一次"是本站的口径，
 15 分钟只是自适应下限，当前没有任何一条源达到触发它的产量**。
 

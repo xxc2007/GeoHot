@@ -22,9 +22,6 @@ export const BUDGETS = [
   { key: "professional", name: "行业专业任务", weight: 0.03 },
 ] as const;
 
-/** Budgets that count as a "专项" for the overall eligibility rule. */
-const SPECIALTY_EXCLUDED = new Set(["broad", "preference"]);
-
 export interface ScoringSource {
   key: string;
   /** Scored metric; multi-metric sources name the one metric that votes. */
@@ -73,7 +70,6 @@ export const ANCHORS = [
 ];
 
 export const BOARD_KEYS = ["overall", "coding", "aesthetics", "reasoning", "knowledge", "writing", "professional"] as const;
-export type BoardKey = (typeof BOARD_KEYS)[number];
 
 export interface Policy {
   sources: number;
@@ -92,9 +88,6 @@ export function categoryPolicy(units: number, operators: number): Policy {
 
 /** Models released more than this long before the run are not ranked (unknown dates stay). */
 export const RELEASE_WINDOW_MONTHS = 18;
-
-/** Categories need at least this many models to publish, besides the source rule. */
-export const CATEGORY_MIN_MODELS = 5;
 
 export interface SignalRow {
   score: number;

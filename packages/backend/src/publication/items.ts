@@ -1,6 +1,7 @@
 // Public read layer, item level. Every exit (site API, v1, RSS, MCP, sitemap) reads
 // items through these functions; visibility, release gate and body licences are applied here.
 import type { CategoryKey, ChannelKey } from "@aihot/contracts/taxonomy";
+import { CJK_COPY_PATTERN, isLabelOnlyCopy } from "@aihot/contracts/copy";
 import type { FeedItemSummary, ItemSummary, MediaView, SourceKind, XPostView } from "@aihot/contracts/site";
 import { sql } from "../db.ts";
 import { proxiedImage, proxiedImageSet } from "../media/imgproxy.ts";
@@ -82,12 +83,14 @@ export const ITEM_FROM = sql`
  * that item yet, and a Chinese site cannot hand readers a card whose title and summary are the English
  * source text. The item keeps its page and its row; it simply waits in the back office until someone
  * writes the Chinese, then it lists itself.
+ *
+ * The character class lives in `@aihot/contracts/copy` (`CJK_COPY_PATTERN`, and `hasChineseCopy` for a
+ * row already in memory): the web route that says "还没有中文稿" and the operator scripts ask the same
+ * question, and this file was one of six places that spelled the class out by hand.
  */
-export const CJK_TITLE_PATTERN = "[一-鿿]";
 export function chineseCopyCondition() {
-  return sql`p.title ~ ${CJK_TITLE_PATTERN}`;
+  return sql`p.title ~ ${CJK_COPY_PATTERN}`;
 }
-
 /**
  * The release gate: a selected item reaches the public only once `visible_after` has passed (~180 s after
  * it met the selection conditions, so a grouping decision can settle first). `visible_after IS NULL` never
@@ -136,8 +139,14 @@ export function tagCondition(tag: string | null | undefined) {
   return sql`AND p.tags @> ${[tag]}::text[]`;
 }
 
+/**
+ * A topic filter. `null`/`undefined` is "no topic asked for"; an empty list is "this topic has no tags",
+ * which must show nothing — it used to show everything, so a tag-less topic answered its list page with
+ * the whole pool while the topic page itself (`topics.ts`) answered zero.
+ */
 export function topicCondition(topicTags: string[] | null | undefined) {
-  if (!topicTags || topicTags.length === 0) return sql``;
+  if (topicTags === null || topicTags === undefined) return sql``;
+  if (topicTags.length === 0) return sql`AND false`;
   return sql`AND p.tags && ${topicTags}::text[]`;
 }
 
@@ -154,6 +163,34 @@ function mediaView(m: Record<string, any>, mode: "card" | "thumb" | "full" = "th
     alt: m.alt ?? null,
     poster: m.poster ? proxiedImage(m.poster, mode === "card" ? "card" : "thumb") : null,
   };
+}
+
+/**
+ * The one picture a video source lends: the still the platform itself uses for that video. Only a
+ * `kind: "video"` entry with a poster qualifies — the watch address is not an image, and a text source's
+ * photographs stay where they are, because this site republishes summaries rather than pictures.
+ */
+export function videoMedia(media: unknown): MediaView[] {
+  const out: MediaView[] = [];
+  for (const raw of Array.isArray(media) ? media : []) {
+    if (!raw || typeof raw !== "object") continue;
+    const m = raw as Record<string, unknown>;
+    if (m.kind !== "video" || typeof m.poster !== "string" || typeof m.url !== "string") continue;
+    const poster = proxiedImage(m.poster, "full");
+    if (!poster) continue;
+    const set = proxiedImageSet(m.poster, "body");
+    out.push({
+      kind: "video",
+      url: m.url,
+      poster,
+      ...(set ? { srcSet: set } : {}),
+      width: typeof m.width === "number" ? m.width : null,
+      height: typeof m.height === "number" ? m.height : null,
+      alt: typeof m.alt === "string" ? m.alt : null,
+    });
+    if (out.length >= 3) break;
+  }
+  return out;
 }
 
 export function xView(row: Pick<ItemRow, "x_post" | "zh_text"> & Partial<Pick<ItemRow, "quoted_zh">>, compact = false, responsive = compact): XPostView | null {
@@ -187,9 +224,13 @@ export function toItemSummary(row: ItemRow): ItemSummary {
   return {
     id: row.id,
     revision: row.revision,
-    title: row.title,
+    // A row written before the 10-03 guard (`editorial/writing.ts`, which refuses such answers now) can
+    // carry the machine's own label as its headline: `title_zh:` with nothing after it — 446 rows of them
+    // in the dev corpus. The item page says "以下标题与提要是原文" when there is no Chinese draft, so print
+    // the source's own title rather than the label, and no phantom 摘要 either.
+    title: isLabelOnlyCopy(row.title) ? (row.original_title ?? row.title) : row.title,
     originalTitle: row.original_title,
-    summary: row.summary,
+    summary: isLabelOnlyCopy(row.summary) ? null : row.summary,
     reason: row.selected ? row.reason : null,
     source: {
       id: row.source_id,

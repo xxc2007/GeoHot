@@ -1,4 +1,4 @@
-import { SITE, withSubject } from "@aihot/industry/site";
+import { SITE } from "@aihot/industry/site";
 import { Fragment, useEffect, useState } from "react";
 import { Link, useLoaderData } from "react-router";
 import { loadOr404 } from "../lib/api.server";
@@ -16,7 +16,12 @@ export function headers() {
 interface Release {
   date: string;
   time: string;
-  kind: "更新" | "优化" | "公告" | "下线";
+  /**
+   * Written by whoever adds the entry (`industry/changelog.json`), so it is not a closed set: a fixed
+   * union rotted the moment 修复/扩充/精简 appeared — those dots rendered `class="… undefined"` (no colour)
+   * and the sidebar could not filter them at all (measured 2026-10-05).
+   */
+  kind: string;
   title: string;
   body: string[];
 }
@@ -30,14 +35,17 @@ export function meta() {
   return pageMeta({ title: "更新日志", description: `${SITE.name} 的功能更新、优化、公告与下线记录。`, path: "/changelog", image: "/og/pages/changelog.png" });
 }
 
-const KIND_DOT: Record<Release["kind"], string> = {
+/** Known kinds get their own colour; an unseen one still gets a dot instead of a broken class. */
+const KIND_DOT: Record<string, string> = {
   更新: "bg-accent",
   优化: "bg-ok",
   公告: "bg-amber",
   下线: "bg-ink-4",
+  修复: "bg-ok",
+  扩充: "bg-accent",
+  精简: "bg-ink-2",
 };
-
-const KINDS = Object.keys(KIND_DOT) as Release["kind"][];
+const kindDot = (kind: string) => KIND_DOT[kind] ?? "bg-ink-2";
 
 function ReleaseBody({ lines }: { lines: string[] }) {
   const blocks: Array<string | string[]> = [];
@@ -78,7 +86,10 @@ function ReleaseBody({ lines }: { lines: string[] }) {
 export default function ChangelogPage() {
   const data = useLoaderData<typeof loader>();
   useEffect(() => setChangelogSeen(data.latestVersion), [data.latestVersion]);
-  const [kind, setKind] = useState<Release["kind"] | null>(null);
+  const [kind, setKind] = useState<string | null>(null);
+  // The filter offers the kinds the file actually contains, newest first: adding a new kind to
+  // `industry/changelog.json` then needs no code change to be colour-marked and filterable.
+  const kinds = [...new Set(data.releases.map((r) => r.kind))];
   const groups = new Map<string, Release[]>();
   for (const r of data.releases) if (!kind || r.kind === kind) groups.set(r.date, [...(groups.get(r.date) ?? []), r]);
   // Month → the newest date shown in it (the jump target) and how many entries it holds.
@@ -93,7 +104,7 @@ export default function ChangelogPage() {
     <>
       <AsideCard title="按类型看" className="hidden lg:block">
         <div className="-mx-2 -mb-1">
-          {[null, ...KINDS].map((k) => (
+          {[null, ...kinds].map((k) => (
             <button
               key={k ?? "all"}
               type="button"
@@ -101,7 +112,7 @@ export default function ChangelogPage() {
               aria-pressed={kind === k}
               className={`flex w-full items-center gap-2.5 rounded-control px-2 py-2 text-left text-[13.5px] transition-colors ${kind === k ? "bg-bg-sunk font-medium text-ink dark:bg-bg-muted/60" : "text-ink-2 hover:bg-bg-sunk hover:text-ink"}`}
             >
-              <span className={`size-1.5 rounded-full ${k ? KIND_DOT[k] : "bg-ink-2"}`} aria-hidden="true" />
+              <span className={`size-1.5 rounded-full ${k ? kindDot(k) : "bg-ink-2"}`} aria-hidden="true" />
               <span className="flex-1">{k ?? "全部"}</span>
               <span className="num text-[12px] text-ink-4">{k ? data.releases.filter((r) => r.kind === k).length : data.releases.length}</span>
             </button>
@@ -155,7 +166,7 @@ export default function ChangelogPage() {
                         <div className="flex items-center gap-3 sm:block">
                           <span className="mono block text-[12.5px] text-ink-3">{r.time}</span>
                           <span className="inline-flex items-center gap-1.5 text-[11.5px] text-ink-4 sm:mt-1.5">
-                            <span className={`size-1.5 rounded-full ${KIND_DOT[r.kind]}`} aria-hidden="true" />
+                            <span className={`size-1.5 rounded-full ${kindDot(r.kind)}`} aria-hidden="true" />
                             {r.kind}
                           </span>
                         </div>

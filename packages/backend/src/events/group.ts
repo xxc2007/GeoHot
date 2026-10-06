@@ -212,16 +212,21 @@ async function recallFacts(queryId: string, queryText: string, minScore: number,
         if (s >= 0.25) consider(r, s);
       }
     } else {
-      // Window members already in the cache keep their vector (a later revision of their text is
-      // picked up when the cache turns over); only new members and the query are embedded now.
+      // Read and hash *every* window member's current text. The prefilter used to skip the ones already
+      // in `vectorCache`, which meant `vectorsFor` never saw their text and its own `cached.hash === hash`
+      // check could not fire — a corrected headline kept being scored against the vector of the text it
+      // replaced until the cache turned over, and "turning over" only meant `size > 30_000` in a
+      // long-lived serial worker. Measured locally, the texts of a whole 30-day window (1 634 reports)
+      // cost ~20 ms, which is nothing next to the embedding calls this route avoids.
       const ids = [...new Set(pool.map((r) => r.article_id))];
-      const uncached = ids.filter((id) => !vectorCache.has(id));
-      const texts = await reportTexts(uncached);
-      const fresh = await vectorsFor([{ id: queryId, text: queryText }, ...uncached.map((id) => ({ id, text: texts.get(id) ?? "" })).filter((x) => x.text)]);
+      const texts = await reportTexts(ids);
+      const fresh = await vectorsFor([{ id: queryId, text: queryText }, ...ids.map((id) => ({ id, text: texts.get(id) ?? "" })).filter((x) => x.text)]);
       const mine = fresh.get(queryId);
       if (mine) {
         for (const r of pool) {
-          const v = fresh.get(r.article_id) ?? vectorCache.get(r.article_id)?.vector;
+          // No `?? vectorCache` fallback: a vector missing from `fresh` is one whose text has changed and
+          // could not be re-embedded just now. The cached copy belongs to the old text.
+          const v = fresh.get(r.article_id);
           if (!v) continue;
           const s = cosine32(mine, v);
           if (s >= minScore) consider(r, s);
@@ -400,12 +405,16 @@ async function relatedPosts(a: ArticleRow): Promise<{ sameUrl: PoolRow | null; r
     JOIN facts f ON f.id = fa.fact_id JOIN stories st ON st.id = f.story_id AND st.merged_into IS NULL
     WHERE b.url = ${a.url} AND b.id <> ${a.id} AND ${trusted("fa")} ORDER BY fa.created_at LIMIT 1`;
   const ids = [a.x_post?.replyTo ?? null, a.x_post?.quoted?.url ? (/\/status\/(\d+)/.exec(a.x_post.quoted.url)?.[1] ?? null) : null].filter((x): x is string => !!x);
+  // Ordered on purpose: `groupSignal` attaches to `referenced[0]`, and a quote that references two
+  // already-stored posts is otherwise attached to whichever PostgreSQL happens to return first (2026-10-05).
+  // Earliest link wins, the same rule the `sameUrl` lookup right above uses.
   const referenced = ids.length
     ? await sql<PoolRow[]>`
         SELECT fa.article_id, fa.fact_id, f.story_id, f.title AS fact_title
         FROM articles b JOIN fact_articles fa ON fa.article_id = b.id AND fa.role IN ('primary', 'report')
         JOIN facts f ON f.id = fa.fact_id JOIN stories st ON st.id = f.story_id AND st.merged_into IS NULL
-        WHERE b.identity_key = ANY(${ids.map((id) => `x:${id}`)}) AND b.id <> ${a.id} AND ${trusted("fa")}`
+        WHERE b.identity_key = ANY(${ids.map((id) => `x:${id}`)}) AND b.id <> ${a.id} AND ${trusted("fa")}
+        ORDER BY fa.created_at, fa.article_id`
     : [];
   return { sameUrl: sameUrl ?? null, referenced };
 }

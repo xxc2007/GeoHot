@@ -13,6 +13,7 @@
 //             … --ids id1,id2                                                    # 只重跑指定的条目
 // It refuses --apply without --ids when more than 50 candidates match, so a wide sweep is a conscious act.
 import { parseArgs } from "node:util";
+import { CJK_COPY_PATTERN } from "@aihot/contracts/copy";
 import { closeDb, sql } from "@aihot/backend/db";
 import { queueProcessing } from "@aihot/backend/jobs/content";
 import { stopBoss } from "@aihot/backend/jobs/queue";
@@ -34,7 +35,7 @@ const rows = explicit
       SELECT article_id, title FROM publications WHERE article_id = ANY(${explicit}::text[]) ORDER BY article_id`
   : await sql<{ article_id: string; title: string }[]>`
       SELECT article_id, title FROM publications
-      WHERE title ~ '[A-Za-z]{3,}' AND title !~ '[一-鿿]'
+      WHERE title ~ '[A-Za-z]{3,}' AND title !~ ${CJK_COPY_PATTERN}
       ORDER BY published_at DESC NULLS LAST LIMIT ${limit}`;
 
 console.log(`候选 ${rows.length} 条（标题里没有中文、但有拉丁字母）`);
