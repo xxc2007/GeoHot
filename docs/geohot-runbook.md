@@ -225,14 +225,14 @@ node --env-file=.env --env-file=.env.pipeline scripts/regroup-events.ts consolid
 
 ## 6. 重跑打分（改门槛之前必须先做这个）
 
-现值看 `industry/selection.ts:84,92`（Wave 4 重算后是 **56 / 59 / 62 + floor 46**，入选线之和 112 / 118 / 124），而它自己在 `:70-75` 就写着：这组数是**推出来的，不是校准出来的**。要变成校准过的：
+现值看 `industry/selection.ts`（2026-10-06 站长拍板重标定后是 **46 / 49 / 52 + floor 36**，入选线之和 92 / 98 / 104），而它自己在文件头就写着：这组数是**推出来的，不是校准出来的**（连上一版 56/59/62 也是）。要变成校准过的：
 
 1. **标样本。** 从自己的信源里挑 100–200 条，逐条标"该选 / 不该选 / 两可"，存 `.data/gold.jsonl`（一行一个 JSON，格式见 `docs/selection.md`；`industry/gold.example.jsonl` 里有 **12 条按真实信源形状编造的示意材料，不是人工标注**，只能用来验证命令通不通）。
 2. **跑评测。** 需要 `MODEL_CALLS_ENABLED=true`，所以叠 `.env.pipeline`：
 
 ```bash
 node --env-file=.env --env-file=.env.pipeline scripts/eval-selection.ts \
-  --gold industry/gold.example.jsonl --label "门槛 56/59/62 的第一版"
+  --gold industry/gold.example.jsonl --label "门槛 46/49/52 的第一版"
 
 # 你自己的标注集：
 node --env-file=.env --env-file=.env.pipeline scripts/eval-selection.ts \
