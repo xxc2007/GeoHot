@@ -382,7 +382,11 @@ export default function ItemPage() {
           {/* A post page has no visual headline (the post card is the page), but a reader on a screen reader
               still needs one level-one heading to navigate by: name it after the same line the lists show. */}
           {isX && <h1 className="sr-only">{item.title}</h1>}
-          {!isX && item.originalTitle && item.originalTitle !== item.title && <p className="mt-2.5 text-[14px] leading-relaxed text-ink-4">{item.originalTitle}</p>}
+          {/* 原文标题不是中文（这一页整体是 zh-CN），把语种写在它自己身上，读屏才不会用中文读音去念
+              一整条英文标题（WCAG 3.1.2）。语种就是条目登记的那一个，不猜。 */}
+          {!isX && item.originalTitle && item.originalTitle !== item.title && (
+            <p lang={item.language ?? undefined} className="mt-2.5 text-[14px] leading-relaxed text-ink-4">{item.originalTitle}</p>
+          )}
 
           {item.summary && (
             <section className={isX ? "mt-4" : "mt-7 xl:mt-8"}>

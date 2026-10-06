@@ -161,3 +161,23 @@ test("「只有标签没有内容」那三条标签名，也只在 contracts/cop
     .map((f) => path.relative(REPO_ROOT, f));
   assert.deepEqual(sites, [path.join("packages", "contracts", "src", "copy.ts")], "标签规则只在 copy.ts 写一次");
 });
+
+test("SQL 模板串里没有 // 注释：那是发给数据库的文本，不是 TypeScript 的注释", () => {
+  // 2026-10-06 我自己踩进去过一次（admin/feedback.ts 与 admin/sources.ts 的 ORDER BY 上方补解释时顺手写在
+  // 模板串里）：`//` 在模板串里只是普通字符，会原样进 SQL；而如果注释里带反引号，还会**提前结束这个模板串**，
+  // 于是一个本该被 tsc 拦住的写法，代价是 6 处语法错 + 13 个测试文件起不来。解释要写在语句上面，SQL 里要写
+  // 就用 `--`。
+  const SQLISH = /\b(?:sql|tx)(?:<[^>]*>)?`([\s\S]*?)`/g;
+  const offenders: string[] = [];
+  let scanned = 0;
+  for (const file of sourceFiles()) {
+    for (const match of readFileSync(file, "utf8").matchAll(SQLISH)) {
+      if (!/\b(SELECT|UPDATE|INSERT INTO|DELETE FROM)\b/i.test(match[1]!)) continue;
+      scanned += 1;
+      if (/^\s*\/\//m.test(match[1]!)) offenders.push(path.relative(REPO_ROOT, file));
+    }
+  }
+  assert.ok(scanned > 400, `这条扫描要真的覆盖到 SQL 才算数：只认到 ${scanned} 个模板串`);
+  assert.deepEqual(offenders, [], "// 注释不能在 SQL 模板串里");
+});
+

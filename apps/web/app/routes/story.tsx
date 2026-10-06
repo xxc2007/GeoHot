@@ -141,7 +141,11 @@ function TimelineRow({ r }: { r: StoryReportView }) {
         </Link>
         {r.summary && (
           <>
-            <p ref={ref} className={`mt-1 text-[14px] leading-[1.75] text-ink-3 ${open ? "" : "line-clamp-2"}`}>
+            {/* 两行截断只在浏览器真能跑脚本时生效：那个「展开摘要」的按钮要靠客户端测量才会出现，
+                关掉 JavaScript 的读者若被截断就没有任何出路（`root.tsx` 的 noscript 告示承诺过
+                「事件页照常可读」）。不认识 `scripting` 这个媒体特性的浏览器整条规则不匹配，
+                于是默认就是「不截断」——降级方向是对的。 */}
+            <p ref={ref} className={`mt-1 text-[14px] leading-[1.75] text-ink-3 ${open ? "" : "[@media(scripting:enabled)]:line-clamp-2"}`}>
               {r.summary}
             </p>
             {(clamped || open) && (

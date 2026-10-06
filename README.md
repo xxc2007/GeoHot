@@ -193,7 +193,7 @@ GEOHOT/
 │   ├── backend/      # 引擎：采集/预筛/打分/归组/热度/日报/公开只读层/回执与预算熔断
 │   └── contracts/    # 跨进程契约与 HTTP 策略
 ├── industry/         # ★ 行业层：换行业只动这里（见下面那节）；changelog.json 是 /changelog 的数据源，pages/ 是条款与说明页正文
-├── database/         # 迁移（只做向后兼容的增量，新迁移按编号加在末尾；2026-10-05 深夜现值 42 个，条数用 ls database/migrations/*.sql | wc -l 现查；编号有跳号不等于漏跑）
+├── database/         # 迁移（只做向后兼容的增量，新迁移按编号加在末尾；2026-10-06 傍晚现值 43 个，条数用 ls database/migrations/*.sql | wc -l 现查；编号有跳号不等于漏跑）
 ├── deploy/geohot/    # 上线与搬家：systemd 单元、nginx 片段、DEPLOYMENT.md、publish-to-github.sh、verify-deploy.sh
 ├── scripts/          # env:init · dev-db · migrate · seed · seed:curated · smoke · shoot（重拍本页配图）· collect · eval-selection
 ├── tooling/          # brain-stub.ts（编辑大脑 stub）· fixtures/（人工判断）· corpus/（人工语料）· ci-check.yml（CI 正本，见下面那节）
@@ -247,7 +247,7 @@ npm ci
 npm run env:init            # ★ 关键第一步：写出 .env 与 .env.pipeline，五个键是真随机值，且拒绝覆盖已存在的文件
 npm run db:up -- --daemon   # embedded PostgreSQL 17，127.0.0.1:5433（前台跑法去掉 --daemon；停止 npm run db:down）
 
-npm run db:migrate          # 建表（迁移条数以 database/migrations/ 现查为准，上面那棵目录树里给的是 2026-10-05 的现值；跑完用 SELECT count(*) FROM schema_migrations 对账，本机实测 42 = 42）
+npm run db:migrate          # 建表（迁移条数以 database/migrations/ 现查为准，上面那棵目录树里给的是 2026-10-06 的现值；跑完用 SELECT count(*) FROM schema_migrations 对账）
 node --env-file-if-exists=.env scripts/seed.ts              # 导入分类、主题、信源（这条没有 npm 别名）
 npm run seed:curated -- --dry-run --enforce-source          # 先看人工语料会不会落进未登记信源
 npm run seed:curated -- --enforce-source                    # 导入人工策划的语料

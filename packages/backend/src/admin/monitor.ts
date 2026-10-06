@@ -37,7 +37,7 @@ export async function listMonitorPosts(opts: { filter?: "relevant" | "review" | 
            (p.recognition->>'relevant')::boolean AS relevant, p.outage,
            coalesce((SELECT jsonb_agg(jsonb_build_object('eventId', l.event_id, 'stage', l.stage)) FROM monitor_event_posts l WHERE l.post_id = p.id), '[]'::jsonb) AS links
     FROM monitor_posts p WHERE ${where}
-    ORDER BY p.published_at DESC LIMIT 50 OFFSET ${(page - 1) * 50}`;
+    ORDER BY p.published_at DESC, p.id LIMIT 50 OFFSET ${(page - 1) * 50}`;
   return { page, filter, rows };
 }
 

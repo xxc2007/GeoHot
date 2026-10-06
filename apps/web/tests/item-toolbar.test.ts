@@ -1,6 +1,8 @@
-// 条目页工具栏的两件新行为，用真 SSR 输出断言（不起浏览器、不连数据库）：
+// 条目页与事件页的四件行为，用真 SSR 输出断言（不起浏览器、不连数据库）：
 //   1. 「目录」入口在 ≤1024px 的服务端 HTML 里就存在，抽屉本体按需加载、不在首帧；
-//   2. 「返回」按 ?from= 写明去处，落点与文案一致，认不出的来路不编去处。
+//   2. 「返回」按 ?from= 写明去处，落点与文案一致，认不出的来路不编去处；
+//   3. 「N 篇报道」那个数等于点开能看到的行数（不含读者自己那一条）；
+//   4. 摘要的两行截断挂在 `scripting: enabled` 上——没有脚本时不截断，读者能读完。
 // 走的是 build/server/index.js 里那份打过包的路线代码，所以跑之前要先 npm run build -w @aihot/web。
 // 这份构建没有 BASE_PATH（根部署）：?from=/geohot/hot 在这里认不出，正是"前缀要按部署剥"的另一面。
 import assert from "node:assert/strict";
@@ -153,3 +155,34 @@ test("认不出的来路不编去处：站外地址与前缀不符的路径都�
   assert.ok(!prefixed.includes("返回热点榜"));
   assert.match(prefixed, /<!-- -->返回<\/button>/);
 });
+
+// 「另有 N 篇报道」那句要说的是点开之后看得见的行数。列表把读者正在看的这一条排除了
+// （`ReadingGroup.tsx` 的 `others`），提示却印了含它自己的总数——于是写着「3 篇报道」，下面永远只有 2 行。
+test("「N 篇报道」等于点开能看到的行数，不含读者自己那一条", { skip }, async () => {
+  const previous = item.group;
+  try {
+    (item as { group: unknown }).group = { factId: "f-1", story: null, reportCount: 3, additionalSourceCount: 0 };
+    const html = await render("/items/it-1");
+    assert.match(html, />2 篇报道</, "总数 3 减去读者正在看的这一条 = 面板里的 2 行");
+    assert.ok(!html.includes("3 篇报道"), "不能再拿含它自己的总数当提示");
+    // 多信源那条分支不动：它数的是「家」，本来就是列表之外的信息。
+    (item as { group: unknown }).group = { factId: "f-1", story: null, reportCount: 3, additionalSourceCount: 2 };
+    const multi = await render("/items/it-1");
+    assert.match(multi, /另有 2 家信源报道</);
+  } finally {
+    (item as { group: unknown }).group = previous;
+  }
+});
+
+// 事件页摘要是「客户端量一下才知道要不要截断」的那种块。没脚本就量不到，于是按钮不会出现，
+// 而截断若照常生效，读者就永远读完整段（`root.tsx` 的 noscript 告示承诺「事件页照常可读」）。
+// 所以截断这条规则要挂在「这个浏览器真的能跑脚本」上：不认识这个媒体特性的浏览器整条不匹配，
+// 默认落在不截断那一侧——降级方向是对的。
+test("摘要的两行截断只在能跑脚本时生效，关掉 JavaScript 也能读完", { skip }, async () => {
+  const html = await render("/story/st-1");
+  const paragraph = /<p class="[^"]*text-\[14px\][^"]*">北京时间今日凌晨发生 5\.2 级地震。<\/p>/.exec(html)?.[0];
+  assert.ok(paragraph, "事件页时间线那条摘要要能定位到");
+  assert.match(paragraph, /\[@media\(scripting:enabled\)\]:line-clamp-2/, "截断要挂在 scripting:enabled 上");
+  assert.ok(!/\sline-clamp-2/.test(paragraph), "裸的 line-clamp-2 会在没有脚本时也截断，读者没有出路");
+});
+

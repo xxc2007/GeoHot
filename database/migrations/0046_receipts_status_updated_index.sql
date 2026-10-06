@@ -1,0 +1,33 @@
+-- 0046：`receipts` 补一条 `(status, updated_at)` 的索引。
+--
+-- 谁来读这张表：后台运行总览每 20 秒刷新一次，其中两条会扫到 `receipts`
+-- （`admin/runs.ts:39` 的状态计数、`:41` 的"需要运营处理"列表），以及恢复任务
+-- （`:130` 挑过期 unknown 的那条）。列表这一条在生产库上的形状是：
+--
+--   Seq Scan on receipts  (rows=51206)  →  258.6 ms / Buffers shared hit=995 read=9472
+--   Filter: status='unknown' OR (status='failed' AND updated_at > now()-'3 days')
+--           OR (status='pending' AND updated_at < now()-'15 minutes')
+--   实际命中 22 行 —— 为了这 22 行读了 10,467 个页（约 82 MB，表宽是因为 `response`/`usage` 两段 jsonb）。
+--
+-- 已有的 `receipts_status_idx` 是**部分索引**，只收 `status IN ('pending','unknown')`，
+-- 而这条查询有一半的行数来自 `failed`（当天 21 行、近三天全部），所以那个索引用不上；
+-- 加上 `updated_at` 的比较在三个分支里方向还不一样（failed 要"新于"、pending 要"旧于"），
+-- 也没法靠一条 `(status, created_at)` 解决。
+--
+-- 在同一台机器上把这张表复制成临时表、建上候选索引后实测（2026-10-06）：
+--
+--   Bitmap Heap Scan → BitmapOr(3 × Bitmap Index Scan on (status, updated_at))
+--   同一条件命中同样 22 行，Execution Time 0.133 ms / Buffers 33（对比 Seq Scan 的 258.6 ms / 10,467 页）
+--
+-- 也就是约 1900 倍、约 370 倍的缓冲页差距，而且这条不依赖可见性位图（要回表取整行），
+-- 临时表的测量可以直接外推到真表。
+--
+-- 刻意**没有**一并给状态计数那条加 `(created_at) INCLUDE (status)`：计数窗口是 7 天，
+-- 而这张表从 2026-10-01 部署起总共就 51,204 行、全部落在窗口内——覆盖索引要读 5.1 万条
+-- 索引项，规划器在同数据的临时表上两次都选了 Seq Scan。真实表上能否反过来取决于
+-- 可见性位图（新表没有位图信息时 index-only scan 仍要逐页回表），这一点本迁移没有证据，
+-- 所以不加。那条计数的根子是"表只长不清"，见 `docs/known-issues.md` 第二十一轮与
+-- 第三十四轮关于 `receipts` / `deliveries` 保留期那张工单：清历史之前，任何索引都不改变
+-- 它要扫全表这件事。
+
+CREATE INDEX receipts_status_updated_idx ON receipts (status, updated_at);

@@ -179,7 +179,9 @@ export function GroupSources({ group, filters, parentId }: { group: ItemDetailGr
     (b) => b.reports as GroupReport[],
   );
   const others = state.items.filter((r) => r.id !== parentId);
-  const label = group.additionalSourceCount > 0 ? `另有 ${group.additionalSourceCount} 家信源报道` : `${group.reportCount} 篇报道`;
+  // 第二个分支的数要等于点开之后看到的行数：`others` 把读者正在看的这一条排除了，
+  // 所以总数要减一。原先直接印 `reportCount`，于是一条"3 篇报道"的提示下面永远只有 2 行。
+  const label = group.additionalSourceCount > 0 ? `另有 ${group.additionalSourceCount} 家信源报道` : `${group.reportCount - 1} 篇报道`;
   return (
     <div>
       <Toggle

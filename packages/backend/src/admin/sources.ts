@@ -30,6 +30,7 @@ export interface SourceListFilters {
 export async function listSources(f: SourceListFilters) {
   const page = Math.max(1, f.page ?? 1);
   const q = f.q?.trim() ? `%${f.q.trim()}%` : null;
+  // 同名信源是允许的（id 才唯一），所以 s.name 排到最后仍然不唯一——翻页要稳就得收到 id 为止。
   const rows = await sql`
     SELECT s.id, s.name, s.kind, s.tier, s.participation_mode, s.enabled, s.health, s.fail_count, s.interval_minutes,
            s.last_ok_at, s.last_fetch_at, s.last_error, s.first_party, s.next_fetch_at,
@@ -41,7 +42,7 @@ export async function listSources(f: SourceListFilters) {
       AND (${f.health ?? null}::text IS NULL OR s.health = ${f.health ?? null})
       AND (${f.mode ?? null}::text IS NULL OR s.participation_mode = ${f.mode ?? null})
       AND (${f.enabled ?? null}::text IS NULL OR s.enabled = (${f.enabled ?? null} = 'true'))
-    ORDER BY s.enabled DESC, CASE s.health WHEN 'failing' THEN 0 WHEN 'degraded' THEN 1 ELSE 2 END, s.name
+    ORDER BY s.enabled DESC, CASE s.health WHEN 'failing' THEN 0 WHEN 'degraded' THEN 1 ELSE 2 END, s.name, s.id
     LIMIT 100 OFFSET ${(page - 1) * 100}`;
   const [totals] = await sql<{ total: number; enabled: number; failing: number; degraded: number }[]>`
     SELECT count(*)::int AS total, count(*) FILTER (WHERE enabled)::int AS enabled,
