@@ -34,6 +34,8 @@
 <!-- 这排一眼数是给读者的入口，不是第二个口径来源：算式、复算命令与"哪些数属于哪一期"全部归
      下面「其四 · STATE 现状与边界」那张表。改了那张表就同时改这排徽章。 -->
 
+<p><b>一眼数</b></p>
+
 [![收录材料](https://img.shields.io/badge/收录材料-2842-1F1E1D)](#其四--state-现状与边界)
 [![归并成的事件](https://img.shields.io/badge/归并成的事件-1627-1F1E1D)](#其四--state-现状与边界)
 [![读者看得到的精选](https://img.shields.io/badge/精选-48-D97757)](#其四--state-现状与边界)
@@ -41,7 +43,7 @@
 [![主题](https://img.shields.io/badge/主题-43-1F1E1D)](#其四--state-现状与边界)
 [![日报期数](https://img.shields.io/badge/日报-4_期-1F1E1D)](#其四--state-现状与边界)
 
-<sub>本机开发库 2026-10-06 午间复算；线上是每天在变的另一组数（`/api/site/stats` 一次给全）</sub>
+<sub>本机开发库 2026-10-06 午间复算 · 线上是每天在变的另一组数（`/api/site/stats` 一次给全）</sub>
 
 <br>
 
