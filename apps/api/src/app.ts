@@ -1,5 +1,5 @@
 import { FEATURES } from "@aihot/industry/features";
-import Fastify, { type FastifyInstance } from "fastify";
+import Fastify, { LogController, type FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
 import { OAUTH_PROBE_PATHS, resolveRedirect } from "@aihot/contracts/http-policy";
 import { sql } from "@aihot/backend/db";
@@ -19,8 +19,10 @@ import { sendProblem } from "./http/respond.ts";
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
     logger: { level: process.env.LOG_LEVEL || "info", redact: ["req.headers.authorization", "req.headers.cookie"] },
-    // Access logs never record query strings (tokens, actors).
-    disableRequestLogging: true,
+    // Access logs never record query strings (tokens, actors). Fastify 5 moved the switch off the top
+    // level into the log controller (the top-level spelling is deprecated and goes away in fastify@6):
+    // same class, same sub-option the old key mapped to.
+    logController: new LogController({ disableRequestLogging: true }),
     // Same flag, same reading as the web server (apps/web/server.ts:20): the per-IP caps on sign-in
     // attempts and feedback (routes/admin-auth.ts:36) only mean something when they key on the real
     // visitor, and a process exposed directly — with no proxy to set X-Forwarded-For — must not believe
