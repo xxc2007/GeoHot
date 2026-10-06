@@ -7,17 +7,21 @@
 -- series stays 2026-10-02 → 第 1 期, 2026-10-03 → 第 2 期.
 ALTER TABLE reports ADD COLUMN IF NOT EXISTS issue_no integer;
 
--- Existing rows: number the citation-bearing issues per kind in key order. Re-runnable: only rows
--- without a number are touched.
+-- Existing rows: number the citation-bearing issues per kind in key order. Re-runnable and replay-safe:
+-- a kind is numbered only while it holds no numbers at all. Once any row in a kind carries a number the
+-- file leaves that kind alone — re-running it on a partially numbered kind (an old writer's row landing
+-- after the backfill) could only mint duplicates, which the unique index below would reject and abort
+-- the whole migration with.
 UPDATE reports r SET issue_no = s.n
 FROM (
   SELECT id, row_number() OVER (PARTITION BY kind ORDER BY key) AS n
-  FROM reports
+  FROM reports r2
   WHERE EXISTS (
     SELECT 1
     FROM jsonb_array_elements(CASE WHEN kind = 'daily' THEN coalesce(content->'sections', '[]'::jsonb) ELSE coalesce(content->'themes', '[]'::jsonb) END) AS grp,
          jsonb_array_elements(CASE WHEN kind = 'daily' THEN coalesce(grp->'items', '[]'::jsonb) ELSE coalesce(grp->'storyRefs', '[]'::jsonb) END) AS it
   )
+  AND NOT EXISTS (SELECT 1 FROM reports r3 WHERE r3.kind = r2.kind AND r3.issue_no IS NOT NULL)
 ) s
 WHERE r.id = s.id AND r.issue_no IS NULL;
 

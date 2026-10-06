@@ -199,8 +199,16 @@ function issueCarriesCitations(kind: "daily" | "weekly" | "monthly", content: Re
   return groups.some((g) => (((kind === "daily" ? g?.items : g?.storyRefs) ?? []) as unknown[]).length > 0);
 }
 
-/** The next number in this kind's series. Serialized per kind so two composes cannot both take N + 1. */
-async function nextIssueNo(tx: Tx, kind: string): Promise<number> {
+/**
+ * The next number in this kind's series, or null when the issue arrives late. Serialized per kind so
+ * two composes cannot both take N + 1. "Late" is a day that failed to compose and only gets written
+ * after a later-dated issue already holds a number (the catch-up path): the series counts in key
+ * order — migration 0048 numbered existing rows that way — so a straggler must not print an older
+ * date under a higher number. It stays readable and dated, just unnumbered.
+ */
+async function nextIssueNo(tx: Tx, kind: string, key: string): Promise<number | null> {
+  const [later] = await tx`SELECT 1 AS x FROM reports WHERE kind = ${kind} AND issue_no IS NOT NULL AND key > ${key} LIMIT 1`;
+  if (later) return null;
   await tx`SELECT pg_advisory_xact_lock(hashtext('report-issue-no:' || ${kind}))`;
   const [row] = await tx<{ n: number }[]>`SELECT coalesce(max(issue_no), 0) + 1 AS n FROM reports WHERE kind = ${kind}`;
   return row!.n;
@@ -215,11 +223,11 @@ async function saveReport(kind: "daily" | "weekly" | "monthly", key: string, sta
                VALUES (${existing.id}, ${existing.revision}, ${tx.json(existing.content as never)}, ${existing.generated_at}, ${reason}) ON CONFLICT DO NOTHING`;
       // The number is stamped once and never moves: a recompose keeps it, and so does an issue that
       // later loses every citation (withdrawals do not renumber the rest of the series).
-      const no = existing.issue_no ?? (issueCarriesCitations(kind, content) ? await nextIssueNo(tx, kind) : null);
+      const no = existing.issue_no ?? (issueCarriesCitations(kind, content) ? await nextIssueNo(tx, kind, key) : null);
       await tx`UPDATE reports SET content = ${tx.json(content as never)}, window_start = ${start}, window_end = ${end}, generated_at = now(),
                  model = ${model}, revision = revision + 1, origin = 'model', issue_no = ${no}, updated_at = now() WHERE id = ${existing.id}`;
     } else {
-      const no = issueCarriesCitations(kind, content) ? await nextIssueNo(tx, kind) : null;
+      const no = issueCarriesCitations(kind, content) ? await nextIssueNo(tx, kind, key) : null;
       await tx`INSERT INTO reports (kind, key, window_start, window_end, content, generated_at, model, origin, issue_no)
                VALUES (${kind}, ${key}, ${start}, ${end}, ${tx.json(content as never)}, now(), ${model}, 'model', ${no})`;
     }
