@@ -2543,6 +2543,13 @@ Agent 分不清空壳与内容），不是缺陷。另记一笔我自己的调�
 **5/5**）；`industry/changelog.json` 记了一条读者可见的「修复」。全套基线：typecheck 八份工程 0 错；
 `npm test` **327 / 322 通过 / 5 跳过 / 0 失败**（较基线 +4，正是新测试）；web **41/41**（+5）；web 构建 0 错。
 
+**5. 顺带一条：api 的 Fastify 弃用警告清掉。** 部署后翻日志时注意到每次 api 启动都有一条 `FSTDEP023`
+——`disableRequestLogging` 的顶层写法在 fastify 5 已弃用（fastify@6 要删），迁到
+`logController: new LogController({ disableRequestLogging: true })`（同一个类、同一个子选项，语义 1:1）。
+证据：apps/api 类型检查 0 错；`feedback-upload` 3/3、`publication-read-guards` 全过；部署后
+`journalctl -u geohot-api` 里 FSTDEP023 计数为 0。这条不在测试清单上：fastify 的弃用警告只在进程启动
+时出，测试套件看不到它，以后每轮上线后顺手 grep 一次日志是值得的。
+
 
 
 
