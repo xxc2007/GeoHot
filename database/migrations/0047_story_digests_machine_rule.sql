@@ -1,0 +1,21 @@
+-- 0047：把「这一版综述是谁写的」从 `receipts.usage` 搬到 `story_digests` 自己身上。
+--
+-- 为什么要搬：`events/digest.ts` 判断"当前在服务的那一版是不是规则拼出来的（不是人签的）"时，
+-- 读的是 `story_digests LEFT JOIN receipts` 里那笔回执的 `usage.brain.rule`。这句话本身没错，
+-- 但它让**回执表永远不能删**：回执一旦清掉，读出来就是"没有 usage"→"不是机器写的"→ 那条事件永久
+-- 停在 `unchanged` 早退，人写的中文稿再也进不去。这正是 #62（`receipts`/`deliveries` 保留期）
+-- 挂了六轮不动的真正原因——回执表只会越长越大（2026-10-06 生产实测 51,204 行 / 80 MB，
+-- 后台那条"需要运营处理"的列表本来每次都把它全扫一遍）。
+--
+-- 搬完之后标记就在行上，删除回执不再改变任何一条判断。
+--
+-- 生产现状（本轮实测，不是推测）：`story_digests` 2901 行，其中带 `rule:` 标记且背后没有
+-- fixture/author 的是 **0 行**，`receipt_id` 缺失的也是 0 行。也就是说这一列在今天的生产库里
+-- 全为 NULL；它存在的意义是**保护历史**：任何早于签名闸门落库的行（10-05 那天在服务的 1265 份里
+-- 有 1245 份是规则拼的）一旦被导入或复活，仍能被正确认成"不是人写的"。
+--
+-- 因此回填由 `scripts/backfill-digest-machine-rule.ts` 做（默认 DRY-RUN），并且它用的是
+-- `editorial/provenance.ts` 里那个**同一个** `machineRuleOf`——不在 SQL 里抄一份判据，
+-- 免得出现"两个地方各自解释什么叫机器写的"。
+
+ALTER TABLE story_digests ADD COLUMN IF NOT EXISTS machine_rule text;

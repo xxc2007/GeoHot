@@ -262,11 +262,16 @@ test("事件页列出的报道、综述的证据与报道数读同一份查询�
  * 存量（本轮之前写下的规则综述）：`inputs_hash` 对上就早退，于是那 1245 份"机器拼的"综述永远
  * 原地不动——人写一条 fixture 也进不去，运营手动重跑看到的理由是 `unchanged`。
  * 现在先问清"在服务的那版是谁写的"；并且被拒过的那批输入记 hash，不再重复付费。
+ *
+ * 这一条同时钉住 2026-10-06 的搬家（迁移 0047）：标记从回执的 `usage.brain.rule` 挪到了
+ * `story_digests.machine_rule`。所以这里**把回执整行删掉**再验——旧写法（读回执）在这时会读出
+ * "没有 usage ⇒ 不是机器写的"，于是把机器拼的综述当成人签的永久冻住；新写法照旧认得出来。
  */
 test("在服务的那版是机器写的：不算已经写过；同一批被拒过之后不再为同样的输入付费", async () => {
   const row = await latestDigestRow();
   assert.ok(row, "前面的测试留下了一版签名综述，这里把它伪装成存量");
-  await sql`UPDATE receipts SET usage = ${sql.json({ brain: { capability: "digest", rule: "rule:chronology" } })} WHERE id = ${row!.receipt_id}`;
+  await sql`UPDATE story_digests SET machine_rule = ${"rule:chronology"} WHERE story_id = ${storyId} AND version = ${row!.version}`;
+  await sql`DELETE FROM receipts WHERE id = ${row!.receipt_id}`;
   await sql`UPDATE stories SET frame = coalesce(frame, '{}'::jsonb) - 'digest' WHERE id = ${storyId}`;
 
   brain = { fixture: null, author: null, rule: "rule:no-signed-copy(digest)" };
@@ -286,6 +291,18 @@ test("在服务的那版是机器写的：不算已经写过；同一批被拒�
   assert.equal(forced.updated, false, "force 仍然是逃生口：它照样不会把机器答的写进版面");
   assert.equal(sent.length, asked + 2, `换了 requestId 的 force 会真的再问一次（同一把键复放正是本轮修掉的洞）：实际多打了 ${sent.length - asked} 次`);
   brain = null;
+});
+
+// 反面：把标记清掉（= 这一版是人签的）之后必须回到"不重写、也不花钱"。
+// 新机制若把每一版都当成机器写的，每次触发都要重花一笔钱；而这里还可能撞上上一条测试留下的
+// 拒收记录（同一批输入被拒过一次就不再问），两种理由都算对，只要**没有重写、没有打模型**。
+test("标记为空的那一版照旧不重写：不为同一批输入重复付费", async () => {
+  await sql`UPDATE story_digests SET machine_rule = NULL WHERE story_id = ${storyId}`;
+  const before = sent.length;
+  const res = await composeStoryDigest(storyId);
+  assert.equal(res.updated, false, "人签过 ⇒ 不重写");
+  assert.ok(["unchanged", "unsigned-for-these-inputs"].includes(String(res.reason)), `理由应是「没变」或「这批输入已被拒过」，实际 ${JSON.stringify(res)}`);
+  assert.equal(sent.length, before, "这一条也不该打模型");
 });
 
 // 后台的入口：`force` 以前只能由脚本传进来，所以「改完署名稿之后没人能让综述重走一遍」这件事

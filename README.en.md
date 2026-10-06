@@ -194,7 +194,7 @@ GEOHOT/
 │   ├── backend/      # the engine: collection / prefilter / scoring / grouping / heat / papers / public read layer / receipts and budget breakers
 │   └── contracts/    # cross-process contracts and HTTP policy
 ├── industry/         # ★ the industry layer: swapping fields touches only this folder (see below); changelog.json feeds /changelog, pages/ holds the terms and explainer copy
-├── database/         # migrations (backward-compatible increments only, new ones appended by number; 43 as of the evening of 2026-10-06 — count live with ls database/migrations/*.sql | wc -l; gaps in the numbering do not mean a missed run)
+├── database/         # migrations (backward-compatible increments only, new ones appended by number; 44 as of the night of 2026-10-06 — count live with ls database/migrations/*.sql | wc -l; gaps in the numbering do not mean a missed run)
 ├── deploy/geohot/    # shipping and moving: systemd units, nginx snippet, DEPLOYMENT.md, publish-to-github.sh, verify-deploy.sh
 ├── scripts/          # env:init · dev-db · migrate · seed · seed:curated · smoke · shoot (re-shoots this page's images) · collect · eval-selection
 ├── tooling/          # brain-stub.ts (the editorial brain stub) · fixtures/ (human judgements) · corpus/ (human corpus) · ci-check.yml (the canonical CI, see below)

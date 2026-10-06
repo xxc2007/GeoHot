@@ -96,15 +96,16 @@ export async function composeStoryDigest(
   const ids = reports.map((r) => r.id).sort();
   // What this version is written from: the reports and what they currently say (corrections included).
   const inputsHash = sha256(stableJson([...reports].sort((a, b) => a.id.localeCompare(b.id)).map((r) => [r.id, r.title, r.summary ?? ""])));
-  const [last] = await sql<{ article_ids: string[]; inputs_hash: string | null; usage: Record<string, unknown> | null }[]>`
-    SELECT d.article_ids, d.inputs_hash, r.usage
-    FROM story_digests d LEFT JOIN receipts r ON r.id = d.receipt_id
+  const [last] = await sql<{ article_ids: string[]; inputs_hash: string | null; machine_rule: string | null }[]>`
+    SELECT d.article_ids, d.inputs_hash, d.machine_rule
+    FROM story_digests d
     WHERE d.story_id = ${storyId} ORDER BY d.version DESC LIMIT 1`;
   const sameReports = !!last && JSON.stringify([...last.article_ids].sort()) === JSON.stringify(ids);
   // 在服务的那一版是谁写的，决定"要不要重算"。规则答的那一版**不算已经写过**：否则这一条永远
   // 在 `unchanged` 上早退，人写的中文稿再也进不去，而运营手动重跑看到的是"没什么要改"。
-  // 本机实测 2026-10-05：在服务的 1265 份综述里 1245 份的回执带着 `usage.brain.rule`。
-  const servedIsMachine = !!last?.usage && !!machineRuleOf(last.usage);
+  // 2026-10-06 前这一句读的是那笔回执的 `usage.brain.rule`（迁移 0047 之前），也就把回执表钉成
+  // 永远不能清理：行一删，读出来就是"不是机器写的"。现在标记就在行自己身上。
+  const servedIsMachine = !!last?.machine_rule;
   // 上一轮为这批完全相同的输入试过并且被拒（机器答的）。不记这个 hash 的话，每次触发都重新付一次
   // 一笔明知会被拒的调用（本机实测 302 条 `rule:no-signed-copy(digest)`，一个故事一笔）。
   const refusal = (story.frame as { digest?: { refusedHash?: string } } | null | undefined)?.digest;
@@ -162,8 +163,11 @@ export async function composeStoryDigest(
     const version = Math.max(Number(now.version), Number(top?.v ?? 0)) + 1;
     // No accepted title means the story keeps the heading it has (read again under the lock).
     const title = nextTitle ?? now.title;
-    await tx`INSERT INTO story_digests (story_id, version, digest, latest, receipt_id, article_ids, inputs_hash)
-             VALUES (${storyId}, ${version}, ${digest}, ${latest || null}, ${res.receiptId}, ${ids}, ${inputsHash})`;
+    // 走到这里 `rule` 一定是 null（unsigned 在上面早退），但仍然显式写进 `machine_rule`：
+    // 这一列是"这一版是谁写的"的**唯一**记录（迁移 0047 之前它藏在回执的 usage 里），
+    // 让写入点自己说清楚，日后闸门放松时这一列也自动跟着是真的。
+    await tx`INSERT INTO story_digests (story_id, version, digest, latest, receipt_id, article_ids, inputs_hash, machine_rule)
+             VALUES (${storyId}, ${version}, ${digest}, ${latest || null}, ${res.receiptId}, ${ids}, ${inputsHash}, ${rule})`;
     await tx`UPDATE stories SET digest = ${digest}, latest = ${latest || null}, digest_updated_at = now(),
                title = CASE WHEN origin = 'manual' THEN title ELSE ${title} END,
                frame = coalesce(frame, '{}'::jsonb) || ${tx.json({ digest: { at: new Date().toISOString(), rule: null, receiptId: res.receiptId } } as never)},

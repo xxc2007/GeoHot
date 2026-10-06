@@ -193,7 +193,7 @@ GEOHOT/
 │   ├── backend/      # 引擎：采集/预筛/打分/归组/热度/日报/公开只读层/回执与预算熔断
 │   └── contracts/    # 跨进程契约与 HTTP 策略
 ├── industry/         # ★ 行业层：换行业只动这里（见下面那节）；changelog.json 是 /changelog 的数据源，pages/ 是条款与说明页正文
-├── database/         # 迁移（只做向后兼容的增量，新迁移按编号加在末尾；2026-10-06 傍晚现值 43 个，条数用 ls database/migrations/*.sql | wc -l 现查；编号有跳号不等于漏跑）
+├── database/         # 迁移（只做向后兼容的增量，新迁移按编号加在末尾；2026-10-06 深夜现值 44 个，条数用 ls database/migrations/*.sql | wc -l 现查；编号有跳号不等于漏跑）
 ├── deploy/geohot/    # 上线与搬家：systemd 单元、nginx 片段、DEPLOYMENT.md、publish-to-github.sh、verify-deploy.sh
 ├── scripts/          # env:init · dev-db · migrate · seed · seed:curated · smoke · shoot（重拍本页配图）· collect · eval-selection
 ├── tooling/          # brain-stub.ts（编辑大脑 stub）· fixtures/（人工判断）· corpus/（人工语料）· ci-check.yml（CI 正本，见下面那节）
