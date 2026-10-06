@@ -2321,6 +2321,16 @@ pg-boss 12 其实有公开的 `updateQueue`：逐列 `COALESCE` 的 `UPDATE pgbo
 **8. 验证基线**：typecheck 八份工程 0 错；`npm test`（迁移后的 CI 库、串行）**316 项 / 311 通过 / 5 跳过 / 0 失败**；
 web 构建 + `apps/web/tests` **35 项全绿**（新增 2 项）；`npm run db:migrate` 本机两份库各 1 条待迁移并跑通。
 
+**9. 上线后的实测**（同一轮里跑，不是推断）：迁移 0046 在服务器执行（`applied 0046_…`，1 条），
+同一条后台查询在生产库的计划从 `Seq Scan`（10,467 页）变成 **Bitmap Heap Scan，56 个缓冲页、22 行**；
+`verify-deploy.sh` ALL CHECKS PASSED（含 `smoke.ts` 全绿）；线上 CSS 里能取到 `@media (scripting:enabled)`，
+说明那条截断改动确实进了服务端的 bundle；三端逐字节一致 **621 个 blob**（本地 HEAD = 服务器 = GitHub main）；
+隔壁主站首页哈希 `4edf0fc53636a680` 动手前后未变。
+一处**没有**当场证明的东西如实记下：热点榜那个 `role="img"` 名次行的改动只在构建产物里核对到
+（`apps/web/build/client/assets/hot-*.js` 含那句「热度排名第 N 位」），线上这一刻 `/hot` 的榜单不足 10 条、
+第 4 名以后的行没有渲染，所以"读屏念得出名次"这件事要等榜单长到 4 条以上才算被真实数据走通过。
+
+
 
 
 
