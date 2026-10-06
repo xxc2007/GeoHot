@@ -1,4 +1,5 @@
 import { Link, useLoaderData } from "react-router";
+import { TOPICS_PAGE } from "@aihot/industry/site";
 import { loadOr404 } from "../lib/api.server";
 import { pageMeta } from "../lib/seo";
 
@@ -15,35 +16,34 @@ interface TopicSummary {
 
 export async function loader({ request }: { request: Request }) {
   // 接口的 5xx 走 loadOr404 的约定（503 + 不缓存），别让一次读不到变成页面 500。
-  return loadOr404<{ topics: TopicSummary[] }>("/api/site/topics", { signal: request.signal });
+  return loadOr404<{ topics: TopicSummary[]; groups: Array<{ key: string; name: string; blurb: string }> }>("/api/site/topics", { signal: request.signal });
 }
 
 export function meta() {
   // 数不写死：主题随行业包增减，页面上那句「共 N 个方向」由数据自己数（这句曾写死 45，加一个主题就过期）。
-  return pageMeta({ title: "主题", description: "按区域与机构、自然与人文领域、内容与题材聚合的地理主题页：青藏高原、环太平洋火山地震带、东部沿海城市群，中国地震台网、USGS、中国气象局、NOAA、NASA、哥白尼计划等发布主体。", path: "/topics", image: "/og/pages/topics.png" });
+  // 文案本身在 industry/site.ts（TOPICS_PAGE），分组名与说明在 industry/topics.json——页面不再自带一份。
+  return pageMeta({ title: TOPICS_PAGE.metaTitle, description: TOPICS_PAGE.metaDescription, path: "/topics", image: "/og/pages/topics.png" });
 }
 
 export function headers() {
   return { "Cache-Control": "public, max-age=0, s-maxage=300, stale-while-revalidate=600" };
 }
 
-const GROUPS = [
-  { key: "company", name: "区域与机构", blurb: "按地区与观测发布主体追踪：地球哪一片、由谁在测和在说" },
-  { key: "field", name: "自然与人文领域", blurb: "按地理领域深挖：灾害与气候、水系与地貌、城市与产业、地理信息系统与空间数据……" },
-  { key: "genre", name: "内容与题材", blurb: "按内容形态浏览：灾害速报、观测数据、区划政策、研究发现、技术发布与影像图集……" },
-] as const;
-
 export default function TopicsPage() {
-  const { topics } = useLoaderData<typeof loader>();
+  const { topics, groups } = useLoaderData<typeof loader>();
+  // 模板里恰好一个 {count}：拆开只为把数字套上 `.num`（等宽、可对齐），文案本身仍在 industry/site.ts。
+  const [leadBefore, leadAfter = ""] = TOPICS_PAGE.lead.replace("{groups}", groups.map((g) => g.name).join("、")).split("{count}");
   return (
     <div className="pb-10">
       <header className="pb-2 pt-5 lg:pt-1">
-        <h1 className="text-[24px] font-semibold leading-[1.3] text-ink">按主题看地理</h1>
+        <h1 className="text-[24px] font-semibold leading-[1.3] text-ink">{TOPICS_PAGE.heading}</h1>
         <p className="mt-1.5 text-[13px] leading-relaxed text-ink-3">
-          按区域与机构、自然与人文领域、内容与题材浏览 <span className="num">{topics.length}</span> 个主题，持续汇集近期焦点与精选。
+          {leadBefore}
+          <span className="num">{topics.length}</span>
+          {leadAfter}
         </p>
       </header>
-      {GROUPS.map((g) => (
+      {groups.map((g) => (
         <section key={g.key} aria-labelledby={`topics-${g.key}`} className="pt-8">
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
             <h2 id={`topics-${g.key}`} className="text-[15px] font-bold text-ink">

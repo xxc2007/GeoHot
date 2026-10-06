@@ -107,3 +107,15 @@ export const ABOUT = {
 export function withSubject(noun: string): string {
   return /[A-Za-z0-9]$/.test(SITE.subject) ? `${SITE.subject} ${noun}` : `${SITE.subject}${noun}`;
 }
+
+/**
+ * 主题页（`/topics`）的文案。三个分组名与各自那句说明**不在这里**——它们跟着词表走
+ * （`industry/topics.json` 的 `groups`，经 `/api/site/topics` 发到页面上）。
+ * `lead` 里的 `{groups}` 由页面按分组名拼出来，`{count}` 是主题数（实时数出来的）。
+ */
+export const TOPICS_PAGE = {
+  metaTitle: "主题",
+  metaDescription: "按区域与机构、自然与人文领域、内容与题材聚合的地理主题页：青藏高原、环太平洋火山地震带、东部沿海城市群，中国地震台网、USGS、中国气象局、NOAA、NASA、哥白尼计划等发布主体。",
+  heading: `按主题看${SITE.subject}`,
+  lead: "按{groups}浏览 {count} 个主题，持续汇集近期焦点与精选。",
+} as const;

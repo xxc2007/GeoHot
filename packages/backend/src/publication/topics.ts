@@ -96,6 +96,20 @@ export function listTopics(): Promise<TopicRow[]> {
   return topicsCache.get();
 }
 
+/**
+ * 主题页上那三组（区域与机构 / 自然与人文领域 / 内容与题材）的名字与说明。
+ *
+ * 它们本来**只**写在 `industry/topics.json` 里，而网页那份是手抄的三行常量——改一次词表里的组名，
+ * 页面上还是旧字（这类"两处各写一份"在本仓库有过先例，见 `docs/known-issues.md` 里那些"唯一出处"）。
+ * 现在由这里读出、经 `/api/site/topics` 发给网页，页面不再自带一份。
+ */
+export function topicGroups(): Array<{ key: string; name: string; blurb: string }> {
+  const data = JSON.parse(readFileSync(path.join(REPO_ROOT, "industry/topics.json"), "utf8")) as {
+    groups: Array<{ key: string; name: string; blurb: string }>;
+  };
+  return data.groups;
+}
+
 export async function loadTopic(slug: string): Promise<TopicRow | null> {
   return (await listTopics()).find((t) => t.slug === slug) ?? null;
 }

@@ -15,7 +15,7 @@ import { loadChangelog, siteMeta } from "@aihot/backend/site/meta";
 import { loadContact, loadMakerAvatar } from "@aihot/backend/site/contact";
 import { loadSiteStats } from "@aihot/backend/site/stats";
 import { itemAvailability } from "@aihot/backend/publication/availability";
-import { listTopicSummaries, loadTopicPage } from "@aihot/backend/publication/topics";
+import { listTopicSummaries, loadTopicPage, topicGroups } from "@aihot/backend/publication/topics";
 import { registerFeedback } from "./feedback.ts";
 
 import { loadHot, loadStoryDetail, resolveStory } from "@aihot/backend/publication/stories";
@@ -180,7 +180,8 @@ export function registerSite(app: FastifyInstance) {
   }));
 
   app.get("/api/site/topics", siteHandler(async (req, reply) => {
-    return sendJsonWithEtag(req, reply, { topics: await listTopicSummaries() }, { etagPrefix: "topics", cacheControl: "public, max-age=300, s-maxage=300" });
+    // 分组名与说明随包一起发（网页不再自带一份手抄的）：见 backend/publication/topics.ts 的 topicGroups()。
+    return sendJsonWithEtag(req, reply, { topics: await listTopicSummaries(), groups: topicGroups() }, { etagPrefix: "topics", cacheControl: "public, max-age=300, s-maxage=300" });
   }));
 
   app.get("/api/site/topics/:slug", siteHandler(async (req, reply) => {
