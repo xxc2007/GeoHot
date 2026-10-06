@@ -2474,6 +2474,14 @@ defaultCategory 56、可轮询 88 / 在轮询 83 及各级分档）。
 （旧版按人工分推、新版按真模型分布重标定、**两版都未过 gold 集**）。`docs/sources.md` 的登记间隔分布按现值重数
 （104 条：6/12/1/23/4/34/11/5/8）。`known-issues` 里的历史数字刻意保留——那是记录，不是现值。
 
+**7. MCP 七个出口逐个实打（2026-10-07 00:1x +0800，线上 JSON-RPC）**：`initialize` 回 `geohot 2.0.0`；
+`geohot_get_latest`（2 条，带"不可信资料"边界与前缀说明）、`geohot_search`（`q=洪水` 3 条命中，
+首条《朝鲜拉森市降雨触发滑坡》）、`geohot_get_hot_topics`、`geohot_get_story`（湄公河事件，508 字符）、
+`geohot_get_daily`（回落到 10-03 那一期——10-04～06 是空刊，与被读取层跳过一致）、`geohot_get_weekly` 全部 `isError=false`；
+`geohot_get_monthly` 回 `isError=true` + "还没有公开的地理月报"——**这是既定口径**（MCP 遇空刊直接 not_found，
+Agent 分不清空壳与内容），不是缺陷。另记一笔我自己的调用错：`geohot_get_story` 的参数名是 `public_id` 而不是 `id`，
+传错时工具回的是明确的 `Input validation error`（不是静默空结果）——出口的入参校验是好的。
+
 
 
 
