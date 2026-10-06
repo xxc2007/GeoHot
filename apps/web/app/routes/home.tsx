@@ -124,7 +124,13 @@ export default function Home() {
               );
             })}
           </ul>
-          <Link to="/all" className="mt-2 inline-flex text-[13px] text-accent hover:underline">
+          {/* 那个数是**带筛选**的池子总数，链接就必须带着同一组筛选：第三十四轮评审实测
+              `/?category=physical` 上印着「查看全部 245 条」而链接指向裸 /all（未筛 2000+ 条），
+              读者点过去看到的条数比标题大一个数量级。canonical 早就用 `listPath` 带上了筛选。 */}
+          <Link
+            to={listPath("/all", { channel: filters.channel !== "all" ? filters.channel : null, category: filters.category, tag: filters.tag })}
+            className="mt-2 inline-flex text-[13px] text-accent hover:underline"
+          >
             查看全部 {live.total.toLocaleString("zh-CN")} 条地理动态 →
           </Link>
         </section>

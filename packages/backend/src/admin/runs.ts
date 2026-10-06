@@ -91,7 +91,12 @@ async function release(id: number, error: string, actor: string, note: string, b
     UPDATE receipts SET status = 'failed', error = ${error}, updated_at = now() WHERE id = ${id} AND status = 'unknown' RETURNING subject, purpose`;
   if (!before) return null;
   await sql`UPDATE receipt_attempts SET status = 'failed', error = ${error} WHERE receipt_id = ${id} AND status = 'unknown'`;
-  const article = before.purpose === "analyze_article" ? /^article:([^@]+)@/.exec(before.subject ?? "")?.[1] : undefined;
+  // 认 subject 的形状，不认 purpose：走文章处理链的调用 subject 都是 `article:<id>@…`，
+  // 而这里原先判的是 `purpose === "analyze_article"`——真实 purpose 是 prefilter/score/understand/
+  // summarize/structure 那五个，这个字符串从来没出现过（git log -S 只有上游基线那一笔），
+  // 于是 `jobs/content.ts` 注释里承诺的「ops 释放一次就把条目排回去」从未发生：
+  // 一次 240 秒超时就把一条条目永久留在 'failed'。
+  const article = /^article:([^@]+)@/.exec(before.subject ?? "")?.[1];
   let requeued = false;
   if (article) {
     const [a] = await sql`UPDATE articles SET processing_state = 'new', processing_attempts = 0, processing_retry_at = NULL, processing_error = NULL

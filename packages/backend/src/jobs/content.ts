@@ -221,7 +221,7 @@ export async function registerExtractionJobs(boss: PgBoss) {
  * therefore invisible on the admin page that lists exactly those stuck rows. One crash during a bulk
  * import is enough to exceed 500.
  */
-export async function sweepUnprocessed(): Promise<{ enqueued: number }> {
+export async function sweepUnprocessed(): Promise<{ enqueued: number; published: number }> {
   const rows = await sql<{ id: string }[]>`
     SELECT id FROM articles
     WHERE processing_state = 'new' AND created_at < now() - interval '3 minutes'
@@ -229,7 +229,15 @@ export async function sweepUnprocessed(): Promise<{ enqueued: number }> {
       AND (processing_queued_at IS NULL OR processing_queued_at < now() - ${QUEUED_STALE}::interval)
     ORDER BY discovered_at ASC LIMIT 500`;
   for (const r of rows) await queueProcessing(r.id);
-  return { enqueued: rows.length };
+  // 另一半：分析已经落库、发布投影却没跑成（崩溃正好落在 `analyze.ts` 提交与 `publishArticle` 之间）。
+  // 这一半不排队、不花钱——投影是确定性计算，直接补一次；漏掉它，条目就永久停在"分析过了但站上找不到"。
+  const unprojected = await sql<{ id: string }[]>`
+    SELECT a.id FROM articles a
+    WHERE a.processing_state = 'analyzed' AND a.updated_at < now() - interval '10 minutes'
+      AND NOT EXISTS (SELECT 1 FROM publications p WHERE p.article_id = a.id)
+    ORDER BY a.discovered_at ASC LIMIT 500`;
+  for (const r of unprojected) await publishArticle(r.id);
+  return { enqueued: rows.length, published: unprojected.length };
 }
 
 /**

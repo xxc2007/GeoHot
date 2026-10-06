@@ -6,7 +6,6 @@ import { sql } from "../db.ts";
 import { guardedFetch } from "../lib/http-fetch.ts";
 import { collapseWhitespace, isBoilerplateBody, stripBoilerplate, stripTags } from "../lib/text.ts";
 import { jinaRead } from "../providers/jina.ts";
-import { BudgetExceededError } from "../providers/receipts.ts";
 import { getArticle } from "../providers/socialdata.ts";
 import { onlyXArticleLink, xArticleText } from "../sources/x.ts";
 import { sanitizeBody, stripChromeHtml, trimTrailingChrome } from "./sanitize.ts";
@@ -77,7 +76,10 @@ export async function extractFromUrl(url: string, opts: { allowJina: boolean; su
     if (text.length < MIN_BODY_CHARS || isBoilerplateBody(text)) return null;
     return { html, text, images: [], via: "jina" };
   } catch (error) {
-    if (error instanceof BudgetExceededError) return null;
+    // 额度满了不是「这页没有正文」。原先这里 `if (error instanceof BudgetExceededError) return null`，
+    // 而 null 在 `extractArticleBody` 那条路上就是 `body_status='unconfirmed'`——一次 jina 的 5 次/分钟
+    // 窗口就能把当天所有等兜底的页面永久判成无正文（`waitsForPage` 只等 'pending'，再也不会回头看它们）。
+    // 抛出去：`jobs/content.ts` 的 `afterFailure` 认得这个错，会按 retry 窗口排回去而不消耗条目的重试次数。
     throw error;
   }
 }

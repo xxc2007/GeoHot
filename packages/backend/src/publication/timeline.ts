@@ -10,6 +10,7 @@ import {
   ITEM_COLUMNS, ITEM_FROM, categoryCondition, channelCondition, chineseCopyCondition, releasedCondition, selectedCondition, tagCondition, toFeedItemSummary, topicCondition,
   type ItemRow,
 } from "./items.ts";
+import { FACT_MEMBER_ROLES } from "./rules.ts";
 
 export interface TimelineQuery extends TimelineFilters {
   cursor?: string | null;
@@ -57,6 +58,7 @@ async function groupPool(q: TimelineQuery, now: Date, storyIds: number[], factId
     SELECT DISTINCT f.story_id, f.id AS fact_id, p.article_id, p.source_id, p.timeline_at AS at
     FROM facts f JOIN fact_articles fa ON fa.fact_id = f.id JOIN publications p ON p.article_id = fa.article_id
     WHERE (f.story_id IN ${sql(storyIds.length ? storyIds : [0])} OR f.id IN ${sql(factIds.length ? factIds : [0])})
+      AND fa.role = ANY(${FACT_MEMBER_ROLES})
       AND p.visibility = 'public' AND p.eligible AND ${releasedCondition(now)} AND ${chineseCopyCondition()} ${filterSql(q)}`;
 }
 

@@ -11,7 +11,7 @@ import { itemUrl } from "./links.ts";
 import { hasChineseCopy } from "@aihot/contracts/copy";
 import { enqueue, QUEUES, shutdownSignal } from "../jobs/queue.ts";
 import {
-  bodyModeOf, channelOf, displayTags, isIndexable, isPoolEligible, isSelectable, mayRedistribute, type SourceFacts,
+  bodyModeOf, channelOf, displayTags, FACT_MEMBER_ROLES, isIndexable, isPoolEligible, isSelectable, mayRedistribute, type SourceFacts,
 } from "./rules.ts";
 
 interface ArticleRow {
@@ -166,7 +166,7 @@ export async function publishArticleTx(tx: Tx, articleId: string, options: Publi
   const [membership] = await tx<{ fact_id: number; story_id: number | null }[]>`
     SELECT fa.fact_id, f.story_id FROM fact_articles fa JOIN facts f ON f.id = fa.fact_id
     LEFT JOIN stories s ON s.id = f.story_id
-    WHERE fa.article_id = ${articleId} AND fa.role IN ('primary', 'report') AND (s.id IS NULL OR s.merged_into IS NULL)
+    WHERE fa.article_id = ${articleId} AND fa.role = ANY(${FACT_MEMBER_ROLES}) AND (s.id IS NULL OR s.merged_into IS NULL)
     ORDER BY (fa.role = 'primary') DESC, fa.created_at LIMIT 1`;
   const [previous] = await tx<PublicationRow[]>`SELECT * FROM publications WHERE article_id = ${articleId}`;
 

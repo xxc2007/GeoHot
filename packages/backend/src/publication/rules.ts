@@ -57,6 +57,14 @@ export function itemHasPage(p: ItemPageFacts, now: Date = new Date()): boolean {
   return p.visibility !== "withdrawn" && p.sourceMode === "editorial" && isReleased({ selected: p.selected, visibleAfter: p.visibleAfter }, now);
 }
 
+/**
+ * 一个事实的"报道成员"是哪几种关系：`primary`（这条就是讲它）与 `report`（报道了它）。
+ * `mention` 只是顺带被提到，不算成员。写 `publications.fact_id` 时用的是这一份，
+ * 事件页的成员列表与「另有 N 家信源报道」那个数也必须是这一份——
+ * 第三十四轮评审实测：面板原先不带这个过滤，于是标题写 2 家、展开列出 3 条。
+ */
+export const FACT_MEMBER_ROLES = ["primary", "report"];
+
 /** Selected: pool eligible, judged selected, and the source tier may enter the selection. */
 export function isSelectable(eligible: boolean, judgedSelected: boolean | null, tier: string): boolean {
   return eligible && judgedSelected === true && tier !== "EXCLUDE_MP";

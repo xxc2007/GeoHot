@@ -191,3 +191,15 @@ test("report candidates are ordered deterministically, so the numbered brief rea
   assert.deepEqual(tied, [...tied].sort((x, y) => x.localeCompare(y)), "and they keep id order, not row order");
   assert.deepEqual(await order(), first, "and the same window gives the same order twice");
 });
+
+test("「已出 N 期」和归档页说的是同一个数", async () => {
+  // /about 那格印的是 `stats.dailies`。第三十四轮之前它自己数 `reports WHERE kind='daily'` 的全部行，
+  // 于是同一站上「12 期日报」（线上实测）与归档的「共 2 期」并存——差的 10 期是排得出、但引注已撤或
+  // 本来就没有内容的空刊。现在这个数由读层那道门给，出口不再各算各的。
+  const stats = await json("/api/site/stats");
+  const archive = await json("/api/site/reports/daily");
+  assert.ok(archive.items.length >= 1 && archive.items.some((e: any) => e.key === DAILY_OK), "归档本身有内容（否则下一条断言恒真）");
+  assert.equal(stats.dailies, archive.items.length, "关于页的期数 = 归档列出的期数");
+  assert.ok(stats.dailies < (await sql<{ n: number }[]>`SELECT count(*)::int AS n FROM reports WHERE kind = 'daily'`)[0]!.n,
+    "库里数出来的行必须比这个多：本文件就造了一期空刊");
+});

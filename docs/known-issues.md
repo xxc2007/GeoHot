@@ -2129,6 +2129,70 @@ camelCase 的键，键名改成 `"missing-summary"`、读值处同步；② `ref
 **7. 想过但没做**：① 给 `cn-chinanews-scroll` 开 `site_fulltext` 让读者看全文——那是许可与站点定位的决定，
 归站长（站点标准第 3 条明确只发摘要 + 原文地址）；② 顺手把 1497 条重排分析——`--no-requeue` 是刻意的，
 正文里被删掉的只是控件与署名，摘要本来就没引用它们，花 7485 次调用重跑一遍不值得，额度留给新消息。
+**但要说清 `--no-requeue` 只是推迟、不是免单**：脚本仍然把 `revision` +1（正文确实变了，哈希也跟着变），
+而回执是按「哪一版正文」绑定的，所以这些条目将来被任何一条路径重看一次都是新请求、要付钱。
+本轮之后已经排过一次 15 条的小批量补摘要（`scripts/refill-copy.ts --missing-summary`），
+剩下的按额度慢慢磨，不追求一次洗清。
+
+## 第三十四轮（2026-10-06 下午）：四个评审智能体的账——修了九处，驳回两处
+
+**0. 这一轮的来源不是我自己**。上一轮独立评审抓出五条过度删除之后，这一轮直接派四个只读智能体分头查
+读者界面、出口一致性、作业与预算、库与增长。它们的产出比我一个人翻代码密得多（下面 1-9 条全是真缺陷），
+也给了两条**错的**结论——一并记下来，免得下一轮照着改。
+
+**1. /about 的「已出 N 期」是虚的（BLOCKER，已修）**。`site/stats.ts` 自己数 `reports WHERE kind='daily'`，
+线上实测 12 行，而同一页旁边的归档写着「共 2 期」——差的是空刊与引注已撤的期次。
+修法不是再写一道 SQL 判断（我先试了 `jsonb_path_exists`，随即自己推翻：那道门在读取层，
+它除了"排得出内容"还要看引注是否还在，两套写法迟早再分叉），而是让 `stats.dailies = listReports("daily").length`。
+`tests/publication-issue-gate.test.ts` 钉住两个出口同一个数。本机这一列两件事恰好一致（4 行 = 4 期），
+README 的 STATE 说明已按新算式改写。
+
+**2. 「另有 N 家信源报道」和它展开的列表不是同一套成员（MAJOR，已修）**。标题那个数走 `publications.fact_id`
+（写库时就限定 `role IN ('primary','report')`），面板与首页卡片走 `fact_articles` 且**不带 role 过滤**，
+于是「被顺带提到」的报道会多出现在列表里——数说 2 家、点开 3 条。现在成员判定收成一份：
+`rules.ts` 的 `FACT_MEMBER_ROLES`，`publish.ts`、`groups.ts`、`timeline.ts`、`sitemap.ts` 都读它。
+
+**3. 首页「查看全部 N 条」的链接丢了筛选（MAJOR，已修）**。N 是带筛选的池子总数，链接却指向裸 `/all`：
+评审实测 `/?category=physical` 上写着「查看全部 245 条」、点过去是 2000+ 条。现在链接用 `listPath` 带上
+同一组筛选——canonical 早就这么做了，只差这一处。
+
+**4. 一次额度窗口就能把页面永久判成"没有正文"（MAJOR，已修）**。`extractFromUrl` 把 `BudgetExceededError`
+吞成 `return null`，而 null 在 `extractArticleBody` 那条路上就是 `body_status='unconfirmed'`——
+jina 的闸门是 5 次/分钟，兜底排队撞上窗口就永久定型（`waitsForPage` 只等 `pending`，再不会回头看它）。
+现在异常照旧抛出，`afterFailure` 认得它：按 `retryAfterSeconds` 排回去，且**不消耗**条目的重试次数。
+
+**5. 分析完成、发布投影没跑成 = 永久失踪（MAJOR，已修）**。`analyze.ts` 先提交 `processing_state='analyzed'`，
+`publishArticle` 在其后；崩溃落在两步之间时，`sweepUnprocessed` 只捞 `'new'`，于是条目停在"分析过了但站上找不到"。
+安全网现在补另一半：`analyzed` 且 `publications` 里没有行的，直接重算投影（确定性计算，不花模型额度）。
+
+**6. 释放"结果未知"的回执后，条目并没有被排回去（BLOCKER，已修）**。`admin/runs.ts` 判的是
+`purpose === "analyze_article"`，而真实 purpose 是 prefilter/score/understand/summarize/structure 那五个——
+这个字符串从来没出现过（`git log -S` 只有上游基线那一笔）。于是一次 240 秒超时的条目就永久停在 `failed`，
+而 `content.ts` 的注释承诺着"ops 释放一次就排回去"。现在认 subject 的形状（`article:<id>@…`），不认 purpose。
+
+**7. 热点榜名次会在两块榜之间交换（MINOR，已修）**：排序只有 heat + 最新时刻，第 10 名是截断处，
+同分的两条事件会轮换出现，读者看到"昨天的第一名今天凭空消失"。加了 `story_id` 稳定 tiebreaker。
+
+**8. 硬删条目会留下孤儿向量（MAJOR，已修）**：`embeddings.ref_id` 没有外键（0006 的主键是
+(kind, ref_id, model)），`scripts/delete-sources.ts` 硬删 `articles` 时向量永久留着，而归组每次比对都读这张表。
+删除事务里现在一并删掉条目自己的向量。
+
+**9. v1 的 page token 不校验 `t`（MINOR，已修）**：`t:"zzz"` 让下游时间比较抛错、对外回 **503「稍后再试」**
+（客户端据此重试一个永远不会成功的游标），`t:123` 静默给空页还写 `hasMore:false`。现在两者都算游标不合法（400）。
+
+**10. 驳回的两条**：① 「所有列表索引存 `article_id ASC` 而查询要 `DESC`，每页都在全量排序」——
+在生产上跑 `EXPLAIN ANALYZE` 是 **Index Only Scan + Incremental Sort**，0.94 ms / 0.35 ms，
+`Full-sort Groups: 8`、27 kB 内存；索引前导列方向对得上，Postgres 只需在小组内补排。不改四个索引，
+② 「条目页从不解释为什么没有正文」——那句提示写的是「应来源方要求」，而站点不发全文是**自己的许可选择**，
+条款与关于页已经写明；把那句话贴到每个条目页上既不准确也是全站文案改动，归站长决定，不在这一轮顺手做。
+
+**11. 评审提出、这一轮没做的**（都记成工单，不留在空气里）：预算按"尝试"计数而非真实请求（429/连不上也算，
+代理故障会把当天额度烧光而不产生任何结果）；`expireInSeconds=600` 小于一篇文章五次串行思考调用的最坏耗时、
+`STOP_TIMEOUT_MS=195s` 的注释写着"最长付费调用 180s"对开了思考的调用已经不成立；
+`admin/runs.ts` 的 receipts 查询走 seq scan（后台 20 秒轮询一次）；`feedback`/`monitor` 用非唯一列 OFFSET 翻页；
+`articles_processing_idx` 少了 `discovered_at`；`receipts`/`deliveries` 的保留期（见第二十一轮那条，
+现在多了一个前置依赖：`events/digest.ts` 读 `receipts.usage` 判断当期综述是不是机器写的，
+不先把这个标记搬到 `story_digests` 就不能删任何一行）。
 
 
 

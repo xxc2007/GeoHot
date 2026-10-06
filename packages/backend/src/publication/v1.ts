@@ -136,7 +136,11 @@ export async function selectedSnapshot(q: SnapshotQuery, now = new Date()) {
   if (q.page) {
     const p = decodeCursor<{ k: string; e: string; w: number; f: string; a: string; t: string }>(SYNC_PREFIX, q.page);
     if (p.k !== "page" || p.e !== epoch || (p.f !== "default" && p.f !== "minimal") ||
-        (q.fields !== undefined && p.f !== q.fields) || typeof p.w !== "number") throw new InvalidCursorError("page token does not match this snapshot");
+        (q.fields !== undefined && p.f !== q.fields) || typeof p.w !== "number" ||
+        // `t` 是这一页的"截至时刻"，客户端能自填（token 不签名），所以它必须是一个能用的时间：
+        // 原先不校验，`t:"zzz"` 会让下游的时间比较抛错、对外回 503「稍后再试」（该回 400 invalid_cursor），
+        // `t:123` 则静默给一个空页还写着 hasMore:false。
+        typeof p.t !== "string" || !Number.isFinite(Date.parse(p.t))) throw new InvalidCursorError("page token does not match this snapshot");
     // Only the first page defaults to full fields; continuations inherit their original projection.
     fields = p.f;
     // The page token is unsigned base64 (see lib/cursor.ts), so `w` is whatever a client sent: clamp it

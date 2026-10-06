@@ -10,6 +10,7 @@ import { sql } from "../db.ts";
 import { cached } from "../lib/cache.ts";
 import { escapeXml } from "../lib/text.ts";
 import { siteUrl } from "./links.ts";
+import { FACT_MEMBER_ROLES } from "./rules.ts";
 import { CJK_COPY_PATTERN } from "@aihot/contracts/copy";
 import { releasedCondition, selectedCondition } from "./items.ts";
 import { listReports } from "./reports.ts";
@@ -94,7 +95,8 @@ async function build(readAt = new Date()): Promise<string> {
   const stories = await sql<{ public_id: string; latest_at: Date | null }[]>`
     SELECT public_id::text, latest_at FROM stories WHERE merged_into IS NULL AND title ~ ${CJK_COPY_PATTERN} AND EXISTS (
       SELECT 1 FROM facts f JOIN fact_articles fa ON fa.fact_id = f.id JOIN publications p ON p.article_id = fa.article_id
-      WHERE f.story_id = stories.id AND fa.role IN ('primary', 'report') AND p.visibility = 'public' AND p.eligible)
+      WHERE f.story_id = stories.id AND fa.role = ANY(${FACT_MEMBER_ROLES}) AND p.visibility = 'public' AND p.eligible
+        AND ${releasedCondition(now)})
     ORDER BY latest_at DESC NULLS LAST LIMIT 500`;
   for (const s of stories) entries.push({ loc: `/story/${s.public_id}`, lastmod: s.latest_at, changefreq: "daily", priority: 0.5 });
   // Model pages exist only for models on a public top-30 board; source pages for every registered source.

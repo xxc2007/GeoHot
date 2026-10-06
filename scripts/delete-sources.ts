@@ -69,6 +69,9 @@ for (const r of await sql<{ kind: string; key: string; content: unknown }[]>`SEL
 }
 
 await sql.begin(async (tx) => {
+  // `embeddings.ref_id` 没有外键（0006 建表时就是 (kind, ref_id, model) 主键），硬删条目会把向量留成孤儿：
+  // 归组每判一次都要读这张表，孤儿行永远不会被命中，却永久占着体积。删条目就顺手删它自己的向量。
+  await tx`DELETE FROM embeddings WHERE kind = 'article' AND ref_id IN ${tx(articleIds)}`;
   await tx`DELETE FROM articles WHERE source_id IN ${tx(ids)}`;
   await tx`DELETE FROM sources WHERE id IN ${tx(ids)}`;
 });

@@ -5,6 +5,7 @@ import type { SiteStats } from "@aihot/contracts/site";
 import { sql } from "../db.ts";
 import { cached } from "../lib/cache.ts";
 import { selectedCondition } from "../publication/items.ts";
+import { listReports } from "../publication/reports.ts";
 
 export type { SiteStats };
 
@@ -19,13 +20,12 @@ export function loadSiteStats(): Promise<SiteStats> {
 
 async function querySiteStats(now: Date): Promise<SiteStats> {
   const dayAgo = new Date(now.getTime() - 24 * 3600_000);
-  const [[row], kinds, sample, latest] = await Promise.all([
-    sql<Array<Omit<SiteStats, "sourceKinds" | "day" | "sampleSources" | "latest"> & { collected: number; selectedDay: number }>>`
+  const [[row], kinds, sample, latest, dailies] = await Promise.all([
+    sql<Array<Omit<SiteStats, "sourceKinds" | "day" | "sampleSources" | "latest" | "dailies"> & { collected: number; selectedDay: number }>>`
       SELECT (SELECT count(*) FROM sources WHERE enabled)::int AS sources,
              (SELECT count(*) FROM sources WHERE enabled AND participation_mode = 'hot_signal')::int AS "heatOnlySources",
              (SELECT count(*) FROM publications p WHERE p.visibility <> 'withdrawn')::int AS items,
              (SELECT count(*) FROM publications p WHERE ${selectedCondition(now)})::int AS selected,
-             (SELECT count(*) FROM reports WHERE kind = 'daily')::int AS dailies,
              (SELECT count(*) FROM publications p WHERE p.visibility <> 'withdrawn' AND p.discovered_at > ${dayAgo})::int AS collected,
              (SELECT count(*) FROM publications p WHERE ${selectedCondition(now)} AND p.timeline_at > ${dayAgo})::int AS "selectedDay"`,
     sql<{ kind: string; n: number }[]>`SELECT kind, count(*)::int AS n FROM sources WHERE enabled GROUP BY kind`,
@@ -36,10 +36,14 @@ async function querySiteStats(now: Date): Promise<SiteStats> {
     sql<{ id: string; title: string; source: string }[]>`
       SELECT p.article_id AS id, p.title, s.name AS source FROM publications p JOIN sources s ON s.id = p.source_id
       WHERE ${selectedCondition(now)} ORDER BY p.timeline_at DESC LIMIT 8`,
+    // 「已出 N 期」必须是读者真能翻开的期数：读层那道门（`listReports`）会跳过头排得出、但引注已经全部
+    // 撤下的那几期。2026-10-06 线上实测：/about 印 12 期，同一页的归档写着「共 2 期」。
+    listReports("daily"),
   ]);
   const { collected, selectedDay, ...totals } = row!;
   const value: SiteStats = {
     ...totals,
+    dailies: dailies.length,
     sourceKinds: Object.fromEntries(kinds.map((k) => [k.kind, k.n])),
     day: { collected, selected: selectedDay },
     sampleSources: sample.map((s) => ({ name: s.name, kind: s.kind, heatOnly: s.heat_only })),
