@@ -39,6 +39,14 @@ const pages: Record<string, (cdn: string) => string> = {
     `<content type="html"><![CDATA[<p>${"The feed carries this post whole, paragraph after paragraph. ".repeat(30)}</p>]]></content></entry></feed>`,
   // A video channel's Atom feed (the shape YouTube serves for `?channel_id=`): no `<content>`, no
   // `<summary>` — the description and the still live in the media namespace.
+  // worldpoliticsreview.com answered the site's own crawler UA with 403 and a reader-like UA with the
+  // feed (measured 2026-10-06), so an rss source's `config.headers` has to reach the request itself.
+  // The handler serves this path only while that header is on the wire.
+  "/reader.xml": () =>
+    `<?xml version="1.0"?><rss version="2.0"><channel><title>Readers only</title>` +
+    `<item><title>Only readers see this</title><link>https://example.org/reader-1</link>` +
+    `<description>One item, behind a client check.</description><pubDate>Sun, 05 Oct 2026 09:00:00 GMT</pubDate></item>` +
+    `</channel></rss>`,
   "/video.xml": () =>
     `<?xml version="1.0"?><feed xmlns:media="http://search.yahoo.com/mrss/" xmlns:yt="http://www.youtube.com/xml/schemas/2015">` +
     `<entry><id>yt:video:pKJDW8oOXuU</id><yt:videoId>pKJDW8oOXuU</yt:videoId><title>What stinks in Yellowstone?</title>` +
@@ -99,8 +107,16 @@ const pages: Record<string, (cdn: string) => string> = {
     '{title:"MiMo Humanities and Social Sciences Capability Assessment",link:"/blog/mimo-v2-flash-hss",desc:"MiMo Humanities and Social Sciences Capability Assessment"}]}),' +
     '(0,n.jsx)(c.Q,{sectionTitle:"Join Us",positions:[{title:"Research Scientist - Pre-training",link:"joinUs/pre-training"}],contactEmail:"mimo@xiaomi.com"})]})}}}]);',
 };
+const READER_UA = "GeoHotTestReader/1.0";
 const server = http.createServer((req, res) => {
   const path = req.url ?? "";
+  // The gated feed stands in for a publisher that checks the client: 403 for anyone else.
+  if (path === "/reader.xml") {
+    const allowed = req.headers["user-agent"] === READER_UA;
+    res.writeHead(allowed ? 200 : 403, { "content-type": "application/rss+xml; charset=utf-8" });
+    res.end(allowed ? pages[path]!("") : "");
+    return;
+  }
   const found = Object.hasOwn(pages, path);
   res.writeHead(found ? 200 : 404, { "content-type": path.endsWith(".js") ? "application/javascript" : "text/html; charset=utf-8" });
   res.end(found ? pages[path]!(`${site}/cdn/`) : "");
@@ -233,6 +249,18 @@ test("a video channel's feed gives a still and its description, and no page is c
   const rss2 = await fetchRss({ id: "test-video-2", config: { feedUrl: `${site}/video-rss2.xml` }, participation_mode: "editorial", cursor: null } as never, { force: true });
   assert.equal(rss2.candidates[0]!.excerpt, "Described by the media namespace only.", "RSS 2.0 也读 media:description");
   assert.deepEqual(rss2.candidates[0]!.media, [{ kind: "image", url: "https://example.org/rss2.jpg", poster: null, width: 480, height: 360 }], "两种方言同一语义");
+});
+
+test("a feed that only answers a reader-like client is fetched with that source's own headers", async () => {
+  const gated = { id: "test-gated", config: { feedUrl: `${site}/reader.xml` }, participation_mode: "editorial", cursor: null } as never;
+  await assert.rejects(() => fetchRss(gated, { force: true }), /HTTP 403/);
+  const read = await fetchRss({
+    id: "test-gated", participation_mode: "editorial", cursor: null,
+    config: { feedUrl: `${site}/reader.xml`, headers: { "user-agent": READER_UA } },
+  } as never, { force: true });
+  assert.equal(read.candidates[0]!.title, "Only readers see this");
+  // Whitelisting is half the fix: seed and the admin both refuse a config key they do not know.
+  assert.deepEqual(unsupportedConfig("rss", { feedUrl: "https://example.org/feed", headers: { "user-agent": "x" } }), []);
 });
 
 test("hidden page parts are dropped whole, and a news page's closing blocks are trimmed", () => {

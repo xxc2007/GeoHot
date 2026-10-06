@@ -72,7 +72,9 @@ if (candidates.length > maxApply) {
 const backup = path.join(config.dataDir, `boilerplate-backup-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, "")}.jsonl`);
 let done = 0;
 for (const c of candidates) {
-  appendFileSync(backup, JSON.stringify({ id: c.id, revision: c.revision, body_text: c.body_text, body_html: c.body_html }));
+  // One record per line, terminated: the file is advertised as `.jsonl`, and without the newline the whole
+  // run lands as a single multi-megabyte line that no JSONL reader can replay (the 2026-10-06 03:09 backup did).
+  appendFileSync(backup, `${JSON.stringify({ id: c.id, revision: c.revision, body_text: c.body_text, body_html: c.body_html })}\n`);
   const body = c.lost ? null : c.clean;
   await sql`
     UPDATE articles

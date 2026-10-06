@@ -1902,9 +1902,63 @@ X 的额度到位就需要它；频道 id 与逐条实测记录留在 `docs/sour
 错的是我的加法；补上 `Math.min(MAX_OUTPUT_TOKENS, …)` 后 13/13 绿。**教训：给"预算"这类数字加东西，
 必须同时看有没有人钉过它。**
 
-**5. 存量页脚正文待清**：生产库里那 96 条（以及更早的同类）需要一个算子脚本按新规则重洗
-`body_text`/`body_html`，剥完全不够 60 字的把 `body_status` 改回 `unconfirmed`。脚本默认 DRY-RUN。
-**本轮没跑它**——它改数据，且改完要重跑分析（每次都是真金白银的模型调用），要先让站长知道量与价。
+**5. 存量页脚正文（更正：这条已经跑了，站长在上一轮末尾点头「直接上线」）**。`scripts/strip-body-boilerplate.ts`
+在 2026-10-06 11:09（+0800）以 `--apply` 跑了生产库，**1002 行**按新规则重洗（`body_text` 里那段页脚被剥掉，
+剥完不够 60 字的把 `body_text` 置 NULL、`body_status` 改回 `pending` 等重抽），旧值全量备份在
+`/opt/geohot/app/.data/boilerplate-backup-2026-10-060309.jsonl`。跑完之后生产库 6209 条有正文的行里，
+仍能匹配 `版权所有|未经授权|违法和不良信息举报|All rights reserved` 的只剩 **3 条**，逐条看过都不是页脚：
+两条英文长文里的图片署名与「All rights reserved」句、一条人民网漫画的「漫画作者：谭希光（人民网版权图片，
+未经授权请勿转载）」——那是正文自己的署名，剥掉就是改内容。**这一轮的教训不是脚本，是它的备份**：
+`appendFileSync(backup, JSON.stringify(row))` 少写了一个换行，1002 条被拼成**一行 1.3 MB**，
+`.jsonl` 这个名字骗人——按行读的恢复脚本一条也读不出来。已修（补 `\n`），生产上那一份也用一个只读的
+花括号扫描（字符串与转义感知）重排成了真正的 1002 行，原文件留在同目录 `.concatenated.bak`。
+顺带在同一个仓库里找到同族的第二个坑：`config = ${JSON.stringify(x)}::jsonb` 会让驱动把那段文本当**字符串值**
+序列化一次，落库是 jsonb 标量而不是对象，采集器读 `config.feedUrl` 直接 `undefined`（本轮真实踩到，
+现场表现是"改完配置后这条源必然失败"）；写 jsonb 要用 `sql.json(...)`，与 `seed.ts:48`、`admin/sources.ts:116` 一致。
+
+## 第三十轮（2026-10-06 中午）：七条一直失败的信源，只有一条真能修
+
+**1. 逐条重测，不用裸 curl 的状态码当结论**。上一轮接入真模型后回头看采集健康度，一直红着的是七条。
+在境内本机与境外采集机上各跑一遍，用的是项目自己的 `fetchRss` / `fetchWebList`（后台「试抓一次」那段代码），
+结果分三类，写在 [`docs/sources.md`](sources.md) 的「第三十轮」一节：一条修好（`intl-worldpoliticsreview`）、
+五条停用（`intl-unocha` + 四条境内官方站）、一条是抖动不是坏了（`json-ceic-earthquake`，重跑 322 条）。
+**这一类的价值在"哪一条也修不了"**：`web-mnr-ywbb` 的 DNS 在采集机上直接无应答、`web-cjw-cjyw` 解析到
+一个境内 Telecom 地址但 TCP 连不上，换 UA 与换路径都不会改变结果，因为门槛看的是来源 IP。留着它们，
+后台信源页就常年有四条红的，健康度这个工具对站长就废了。
+
+**2. `rss` 支持单条信源的 `headers`**。`json_list` 早就有这一项（`config-keys.ts` 的 `KEYS.json_list`），
+`rss` 没有，于是 WPR 这种「对爬虫标识 403、对浏览器标识 200」的站接不进来。现在 `sources/rss.ts:198`
+把 `config.headers` 并进请求头，304 重取那一路（`res.status === 304` 后不带条件头重打一次）也继续带着，
+否则第二次请求会把这条源自己的 UA 丢掉、拿回 403 再判一次失败。白名单加 `"headers"` 之后 seed 与后台预览
+都认它。**没有全局换 UA**：那等于对所有守规矩的订阅源谎报身份，而只有极少数站需要这个。
+
+**3. UN OCHA 这条为什么不追着修**。它的 `/rss.xml` 对采集器回 406 + 一段 awselb 的 JSON 告示
+（`error` 字段是 `Blocked due to bot activity`，还留了邮箱），同一地址裸 curl 回 200——差别在客户端指纹，
+不在请求头。补上浏览器才发的 `sec-fetch-*` / Client Hints 并伪造 TLS 指纹是能过去的，但那是**绕过站点明确
+挂出的反爬告示**。本站的内容诚信红线同样管取内容的手段，所以不做；配置原样留着，等有授权通道或换境内出口
+再打开。（如果站长判断「这只是普通订阅、对方并没有拒绝机器读取」，那就把它改回 `enabled=true` 并说明口径，
+这条记录跟着更新。）
+
+**4. 信源包改了，库里的行不会自己变**——这是设计（`seed.ts` 只增不改，之后开关归后台），但也是运维缺口：
+`docs/sources.md` 说「按包重放」，而仓库里没有一条被授权的重放路径，手敲生产 `UPDATE` 又是本仓库不接受的写法。
+新增 `scripts/set-source-state.ts`：默认 DRY-RUN，只打印指定 id 的库↔包差异；要写必须 `--apply` **且**显式
+`--database-url=`（沿用 `retire-gdacs-green.ts` 那两个闸门），`--ids` 必填所以它不做整包对齐，不会把站长
+在后台手动关掉的源悄悄打开；只写 `enabled` 与 `config`，副作用与后台那个开关一致（`admin/sources.ts:118`：
+停用把 `health` 停到 `paused`，启用再清回 `unknown`）。
+
+**5. 本轮在自己新写的脚本里踩到的两个坑**（都不是产品缺陷，但都会咬未来的运维）：
+① 第一版比较差异用 `JSON.stringify(db.config) !== JSON.stringify(pack.config)`，而 Postgres 的 jsonb **会重排键序**，
+于是六条全部显示"配置要改"，其中四条其实一个字没动——比较前必须按深度排序做规范化（脚本里的 `canon()`）。
+② 写回时用了 `config = ${JSON.stringify(c.config)}::jsonb`，驱动把这段文本当**字符串值**再序列化一次，落库成了
+jsonb 标量；后果是采集器读 `config.feedUrl` 得 `undefined`，这条源从此必然 "feedUrl missing"。本机已经写坏过一轮，
+用 `tx.json()` 重写一遍并把 `jsonb_typeof(config)` 全表扫成 `object` 才算干净（0 行异常）。这条与上面第 5 点
+是同一个族：**jsonb 的写入与比较都不能按文本处理。**
+③ 顺带把上一轮 `strip-body-boilerplate.ts` 少写换行的备份文件在生产上重排成了真正的 JSONL（原文件留
+`.concatenated.bak`），见第二十九轮第 5 条。
+
+**6. 采集阀门与本脚本的关系**：`scripts/collect.ts` 对每条源带 `force: true`，它会**盖过 `enabled=false`**
+（`collect.ts:209` 只在 `!force` 时拒绝）。本轮实测停用的澎湃在境内本机照样抓到 17 条——这是脚本的设计
+（算子要能试抓一条已停用的源），但要知道：`enabled` 挡的是 worker 与看门狗，不是这个手动入口。
 
 
 

@@ -190,13 +190,20 @@ export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}
   // Config changes can alter parsing/filtering even when the upstream bytes did not change.
   const configHash = sha256(stableJson(source.config));
   const previous = !opts.force && source.cursor?.rss?.configHash === configHash ? source.cursor.rss as RssValidator : null;
-  const headers: Record<string, string> = { accept: "application/rss+xml, application/atom+xml, application/xml;q=0.9, */*;q=0.8" };
+  // Some publishers serve their advertised feed only to a reader-like client: measured 2026-10-06 from
+  // the collector, worldpoliticsreview.com answers the site UA with 403 and a browser UA with 10 items.
+  // `json_list` already allows per-source `headers`; `rss` does the same now, so the fix lives in the
+  // source's config rather than in a global UA change that would misrepresent every well-behaved feed.
+  // unocha.org is not fixable this way — it returns 406 "Blocked due to bot activity" to every client
+  // shape we send honestly, so it is registered disabled rather than fingerprint-matched around.
+  const configured = (source.config.headers ?? {}) as Record<string, string>;
+  const headers: Record<string, string> = { accept: "application/rss+xml, application/atom+xml, application/xml;q=0.9, */*;q=0.8", ...configured };
   if (previous?.etag) headers["if-none-match"] = previous.etag;
   if (previous?.lastModified) headers["if-modified-since"] = previous.lastModified;
   let res = await guardedFetch(url, { headers, timeoutMs: 25_000 });
   // A redirect may have changed destinations, whose ETag namespace is unrelated to the old one.
   if (res.status === 304 && previous && res.url !== previous.responseUrl) {
-    res = await guardedFetch(url, { headers: { accept: headers.accept! }, timeoutMs: 25_000 });
+    res = await guardedFetch(url, { headers: { accept: headers.accept!, ...configured }, timeoutMs: 25_000 });
   }
   const validator: RssValidator = {
     configHash, responseUrl: res.url,

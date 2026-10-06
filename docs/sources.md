@@ -21,7 +21,11 @@
 { "feedUrl": "https://example.com/feed.xml" }
 ```
 
-可选：`summaryIsBody`（订阅里的摘要就是全文）、`allowCategories` / `denyCategories`（按订阅里的分类过滤）。
+可选：`summaryIsBody`（订阅里的摘要就是全文）、`allowCategories` / `denyCategories`（按订阅里的分类过滤）、
+`headers`（这条订阅自己的请求头，第三十轮加的）。它只为「发布方按客户端标识发门槛」的站存在：
+`worldpoliticsreview.com/feed` 对本站默认 UA（`http-fetch.ts:60` 的 `DEFAULT_UA`，带 GEOHOTBot 标识）回 Cloudflare 403，
+对浏览器 UA 回 200。放在单条配置里而不是全局换 UA，是因为全局换等于对所有守规矩的订阅源谎报身份；
+`json_list` 早就是这个形状（`headers` 在它的白名单里），`rss` 现在对齐。要写什么头由 `config-keys.ts:11` 的白名单把关。
 
 ### web_list
 
@@ -287,3 +291,53 @@ Public Domain Review 明说可自由分享与复用），**要不要放宽是站
   （导航与归档全吃进来），feed 口 404，没定出干净 config。
 
 第八轮那份「看过但没有加的」本轮复核结论不变，不重复实测。
+
+## 第三十轮（2026-10-06）：一条复活、五条停用
+
+本轮把持续失败的信源逐条重测（本机 + Azure 采集机各一遍，用的是项目自己的 `fetchRss` / 同一条 curl），结论是
+**七条里只有一条真能修**。逐条记录：
+
+| 信源 | 本机（境内出口） | 采集机（境外出口） | 处理 |
+|---|---|---|---|
+| `intl-worldpoliticsreview` | 默认 UA 403 / 浏览器 UA 200 | 同左 | **修好**：`config.headers` 带浏览器 UA，feedUrl 补结尾斜杠；`fetchRss` 实测 10 条 |
+| `intl-unocha` | 406（任何 UA） | 406 | **停用**：edge 直接挂反爬告示 |
+| `web-thepaper-topnews` | 200 | 403（解析到 23.248.173.25） | **停用**：WAF 按来源 IP |
+| `web-cea-fzjzyw` | 200 | 403 | **停用**：同上，浏览器 UA 也一样 |
+| `web-mnr-ywbb` | 200 | DNS 无应答（`getent hosts` 空） | **停用**：域名不回答境外 resolver |
+| `web-cjw-cjyw` | 200 | 解析到 59.175.239.227，TCP 连不上（http/https 都是 000） | **停用**：连接层不通 |
+
+`json-ceic-earthquake`（上一轮报的那条）复核是**抖动不是坏**：同一台采集机上重跑拿到 322 条。
+
+### UN OCHA 为什么不追着修
+
+`https://www.unocha.org/rss.xml` 对所有请求（站内 UA、浏览器 UA、`Accept: */*`、直接命中跳转后的最终地址）都回
+406，响应体是 AWS 负载均衡那层的 JSON，`error` 字段写的是 `Blocked due to bot activity`，还留了邮箱让人类去联系。
+同一地址裸 `curl` 能拿到 200——差别在客户端指纹（TLS/HTTP 实现），不在请求头。要过去就得给请求补上浏览器才有的
+`sec-fetch-*` / Client Hints 并伪造 TLS 指纹。这是**绕过站点明确挂出的反爬告示**，本站不做：内容诚信这条线不只管写出来的字，
+也管取内容的手段。真要接 OCHA，正路是按它自己给的方式去联系拿授权，或者换一个境内出口再测。配置原样留着，改回
+`enabled=true` 就能跑。
+
+### 四条境内官方站：问题在部署位置，不在配置
+
+澎湃、中国地震局、自然资源部、长江水利委员会这四条在本机（境内网络）全部 200，配置和选择器都还是对的；
+在采集机（Azure，境外出口）上被 WAF、DNS 与连接层各自挡掉。这类失败换 UA、换路径都不会变，因为门槛看的是来源地址。
+所以按 `enabled=false` 停用，而不是留着让调度每轮记一次失败——后台的「信源」页会一直显示四条红的，读者与站长看到的
+健康度就全是噪声。**采集出口若搬到境内节点，把这四条改回 `enabled=true` 即可，配置不用动。**
+
+### 信源包改了，库里的行不会自己变
+
+`scripts/seed.ts` 是 `ON CONFLICT (id) DO NOTHING`，只增不改（这是设计：导入之后开关归后台管）。所以本轮这六处
+`enabled` / `config` 改动**不会**随部署生效，必须把包里的现状推回库。以前这一步只能手敲 SQL，而这个仓库不接受
+没有留痕的生产写库，于是有了 `scripts/set-source-state.ts`：
+
+```
+node scripts/set-source-state.ts --ids=intl-unocha,web-thepaper-topnews,…           # 先 dry run，打印差异
+node scripts/set-source-state.ts --ids=… --apply --database-url=postgres://…        # 显式给库才写
+```
+
+它只写 `enabled` 与 `config` 两列（`tier`、`interval_minutes` 这些仍是后台所有），并且照抄后台开关的副作用：
+停用把 `health` 停到 `paused`、启用把陈旧的 `paused` 清成 `unknown`（`packages/backend/src/admin/sources.ts:118`）。
+`--ids` 是必填的——不做整包对齐，免得把站长在后台手动关掉的源悄悄打开。
+
+调度侧不用另外处理：`collect.ts:561` 的入队查询带 `WHERE enabled`，`collect.ts:209` 对已停用的源直接返回
+`skipped/paused`，已入库的条目一律留着不改（停用只停止新增，不下架旧内容）。
