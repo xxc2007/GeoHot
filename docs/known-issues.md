@@ -1201,7 +1201,7 @@ backend 2）：绝大多数是 `withSubject` —— 那是 AIHOT→地理改名�
 `apps/web/tsconfig.json` 都打开了 **`noUnusedLocals`**（`npm run typecheck` 0 错，六个项目全过），
 这条"精简"从此由类型检查守着，不靠人记得扫。两处需要判断的按判断处理：`providers/socialdata.ts` 的循环绑定
 是结构需要的（它按附加媒体数决定剥几次尾链），改成 `_m` 并写明；`leaderboard/method/v15.ts` 那个零引用的
-`SPECIALTY_EXCLUDED` 连同只属于它的一行注释一起删（那个模块整站在 flag 后面，见 README:140）。
+`SPECIALTY_EXCLUDED` 连同只属于它的一行注释一起删（那个模块整站在 flag 后面，见 README「贰 · SITE MAP 站点结构」那一节；这一版以前写的是 `README:140`，改版后行号已经漂，所以改指节名）。
 `scripts/` 不在任何 tsconfig 的 include 里，所以那一族仍要靠人扫——记在这里。
 
 **2. 事件页少了一个"第五种答案"（A3-m4，可达）。** `events/story-reports.ts` 的头注释说闸门就是
@@ -1265,7 +1265,7 @@ try/catch，本 pack 0 条 `x_search` 信源）、m7（`ensureQueue` 遇到已�
 迁移在生产上跑就会去碰生产里同名对象；删表不是本轮该自主做的动作，`docs/manual.md` §7.9 已经把它们
 列进人工清理清单。
 (b) R16D 报"信源分级 T1 47/T1_5 15/T2 23 应为 50/16/24"——50/16/24 是**全部 90 条**的分布，
-README:109 说的是"可轮询那 82 条 48/15/19"，实测 82 条正是 48/15/19，原文没错。同一个评审给的
+README 的信源口径那一段（当时在第 109 行，现在归「其四 · STATE 现状与边界」节，行号会随改版漂）说的是"可轮询那 82 条 48/15/19"，实测 82 条正是 48/15/19，原文没错。同一个评审给的
 `scores.jsonl` 行数（121）与 `sources.json` 条数（90）是对的，已照改。
 
 **6. 仍未拍板的三件事**：上线与发布（仓库现在领先线上若干个提交）、线上三期机器稿重排、2141 行下架模块的处置。

@@ -9,10 +9,13 @@
 //
 // Run it as: node scripts/set-source-state.ts --ids=a,b                         # dry run (needs a DB too)
 //             node scripts/set-source-state.ts --ids=a,b --apply --database-url=postgres://…
-// Fields it may write: enabled, config. Nothing else — tier, interval and the rest stay operator-owned.
+// Fields it may write: enabled and config (plus what those two derive: health, next_fetch_at, updated_at).
+// Nothing else — tier, interval and the rest stay operator-owned, and a column that already matches the
+// pack is left alone so an operator edit on the other one is not reverted.
 import process from "node:process";
 import { readFileSync } from "node:fs";
 import postgres from "postgres";
+import { assertSupportedConfig } from "@aihot/backend/sources/config-keys";
 
 const args = process.argv.slice(2);
 const apply = args.includes("--apply");
@@ -34,7 +37,7 @@ if (!ids.length) {
 }
 
 const pack = JSON.parse(readFileSync(new URL("../industry/sources.json", import.meta.url), "utf8")) as {
-  sources: Array<{ id: string; enabled: boolean; config: Record<string, unknown> }>;
+  sources: Array<{ id: string; kind: string; enabled: boolean; config: Record<string, unknown> }>;
 };
 const unknown = ids.filter((id) => !pack.sources.some((s) => s.id === id));
 if (unknown.length) {
@@ -56,43 +59,51 @@ function canon(value: unknown): unknown {
 const shown = (value: unknown) => JSON.stringify(canon(value ?? {}));
 
 try {
-  const rows = await sql<{ id: string; enabled: boolean; config: Record<string, unknown> }[]>`
-    SELECT id, enabled, config FROM sources WHERE id = ANY(${ids}::text[]) ORDER BY id`;
+  const rows = await sql<{ id: string; kind: string; enabled: boolean; config: Record<string, unknown> }[]>`
+    SELECT id, kind, enabled, config FROM sources WHERE id = ANY(${ids}::text[]) ORDER BY id`;
   const missing = ids.filter((id) => !rows.some((r) => r.id === id));
-  if (missing.length) console.log(`库里没有：${missing.join(", ")}（这些行由 seed 首次导入，不用本脚本）`);
+  if (missing.length) console.log(`库里没有：${missing.join(", ")}（这些行由 seed 首次导入）`);
 
-  const changes: Array<{ id: string; enabled: boolean; config: Record<string, unknown> }> = [];
+  const changes: Array<{ id: string; enabled?: boolean; config?: Record<string, unknown> }> = [];
   for (const r of rows) {
     const want = pack.sources.find((s) => s.id === r.id)!;
+    assertSupportedConfig(r.kind as never, want.config);
     const enabledDiff = r.enabled !== want.enabled;
     const configDiff = shown(r.config) !== shown(want.config);
     const note: string[] = [];
     if (enabledDiff) note.push(`enabled ${r.enabled} → ${want.enabled}`);
     if (configDiff) note.push(`config ${shown(r.config)} → ${shown(want.config)}`);
     console.log(`${r.id}: ${note.length ? note.join("；") : "与信源包一致"}`);
-    if (note.length) changes.push({ id: r.id, enabled: want.enabled, config: want.config });
+    // Only the column that differs is written: an operator edit to the other one stays put.
+    if (note.length) changes.push({ id: r.id, ...(enabledDiff ? { enabled: want.enabled } : {}), ...(configDiff ? { config: want.config } : {}) });
   }
   if (!changes.length) {
-    console.log("库与信源包已一致，无需写入。");
+    console.log(missing.length && !rows.length ? "库里没有这些行，无需写入。" : "库与信源包已一致，无需写入。");
   } else if (!apply) {
     console.log(`（dry run：${changes.length} 条待写。要执行请加 --apply --database-url=…）`);
   } else {
     await sql.begin(async (tx) => {
       for (const c of changes) {
-        // Both pack-owned columns are written together, with the admin toggle's side effects
-        // (admin/sources.ts:118): disabling parks health at 'paused', re-enabling clears a stale one.
-        // `tx.json` is required — JSON.stringify here would make the driver send a JSON string, which
-        // Postgres stores as a jsonb scalar, and then `config.feedUrl` is undefined at collect time.
-        await tx`
-          UPDATE sources
-             SET enabled = ${c.enabled},
-                 config = ${tx.json(c.config as never)},
-                 health = CASE WHEN NOT ${c.enabled} THEN 'paused' WHEN health = 'paused' THEN 'unknown' ELSE health END,
-                 updated_at = now()
-           WHERE id = ${c.id}`;
+        // The admin's own toggle side effects are reproduced where they apply (admin/sources.ts:118):
+        // disabling parks health at 'paused', re-enabling clears a stale one and sets next_fetch_at to
+        // now (otherwise a source switched back on can stay dormant for a whole interval). `tx.json` is
+        // required — JSON.stringify here would make the driver send a JSON string, which Postgres then
+        // stores as a jsonb scalar, and `config.feedUrl` reads back as undefined at collect time.
+        if (c.enabled !== undefined) {
+          await tx`
+            UPDATE sources
+               SET enabled = ${c.enabled},
+                   health = CASE WHEN NOT ${c.enabled} THEN 'paused' WHEN health = 'paused' THEN 'unknown' ELSE health END,
+                   next_fetch_at = CASE WHEN ${c.enabled} THEN now() ELSE next_fetch_at END,
+                   updated_at = now()
+             WHERE id = ${c.id}`;
+        }
+        if (c.config !== undefined) {
+          await tx`UPDATE sources SET config = ${tx.json(c.config as never)}, updated_at = now() WHERE id = ${c.id}`;
+        }
       }
     });
-    console.log(`已写入 ${changes.length} 条：${changes.map((c) => c.id).join(", ")}（只动 enabled / config / health / updated_at，可逆）`);
+    console.log(`已写入 ${changes.length} 条：${changes.map((c) => c.id).join(", ")}（只动 enabled / config 及其派生的 health / next_fetch_at / updated_at，可逆）`);
   }
 } finally {
   await sql.end();

@@ -42,6 +42,7 @@ test("a one-paragraph official alert is a body; a bare headline still is not", (
   const alert = `${ALERT}请有关单位和个人注意做好预防工作，户外作业请暂停。`;
   const got = readable(page(alert), "https://www.nmc.cn/publish/alarm/ba.html");
   assert.ok(got, "120–150 字之间的真预警要出正文");
+  assert.ok(got!.text.length >= 120 && got!.text.length < 150, `要落在旧下限会杀掉的那一段：实测 ${got!.text.length} 字`);
   assert.ok(got!.text.includes("北安市气象台") && !/版权所有/.test(got!.text), "正文留着，页脚不进来");
   assert.equal(readable(page("北安市气象台发布大风蓝色预警信号。"), "https://www.nmc.cn/publish/alarm/bb.html"), null, "只有一句标题仍然不算正文");
 });

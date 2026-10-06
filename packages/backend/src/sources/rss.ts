@@ -184,6 +184,24 @@ export interface RssRead {
   notModified: boolean;
 }
 
+// Headers a publisher's gate wants (a reader-like `user-agent`) are per-source request data, but names
+// are normalised before the wire: an `User-Agent` would sit next to the default one rather than replace
+// it, so the publisher would still see the bot. The headers this fetcher owns are refused outright — a
+// hand-written `if-none-match` makes the first request after a config change come back 304 with no
+// validator to answer it, and that reads as a permanent HTTP 304 failure with a growing fail_count.
+const FETCHER_OWNED = /^(if-none-match|if-modified-since|host|content-length|content-type|cookie|authorization|proxy-authorization|api-key|x-api-key|connection|transfer-encoding)$/;
+
+function feedHeaders(raw: unknown): Record<string, string> {
+  if (!raw || typeof raw !== "object") return {};
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    const name = key.trim().toLowerCase();
+    if (!name || FETCHER_OWNED.test(name) || value === null || value === undefined) continue;
+    out[name] = String(value);
+  }
+  return out;
+}
+
 export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}): Promise<RssRead> {
   const url = String(source.config.feedUrl ?? "");
   if (!url) throw new FetchError("feedUrl missing");
@@ -196,7 +214,7 @@ export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}
   // source's config rather than in a global UA change that would misrepresent every well-behaved feed.
   // unocha.org is not fixable this way — it returns 406 "Blocked due to bot activity" to every client
   // shape we send honestly, so it is registered disabled rather than fingerprint-matched around.
-  const configured = (source.config.headers ?? {}) as Record<string, string>;
+  const configured = feedHeaders(source.config.headers);
   const headers: Record<string, string> = { accept: "application/rss+xml, application/atom+xml, application/xml;q=0.9, */*;q=0.8", ...configured };
   if (previous?.etag) headers["if-none-match"] = previous.etag;
   if (previous?.lastModified) headers["if-modified-since"] = previous.lastModified;
