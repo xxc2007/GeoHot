@@ -2571,6 +2571,44 @@ Agent 分不清空壳与内容），不是缺陷。另记一笔我自己的调�
   这个文件用 2100），以及 `publishedAt` 放在未来时 `releasedAt` 必须写真实时钟，否则读取层的
   `itemHasPage` 认为它还没放行。
 
+## 第四十五轮（2026-10-07 凌晨）：运维面的评审波——四条、修四条
+
+**背景**：第 44 轮之后，第二个只读评审代理扫了较少被翻的运维面（operations / notify / worker 调度 /
+lib/cache）。四条全中，全部修掉；它同时给出「查过、干净」的清单（见文末）。
+
+**1. `notify.selected` 的重试会被队列去重静默吞掉（MAJOR）。** 首次入队带 `singletonKey:
+selected:<id>`（`publish.ts:301`），而重试入队不带 key——两个条目在同一个窗口里都 `retry` 时，两条
+重试的空 key 撞上 pg-boss short 策略的唯一索引（`job_i1`，`state='created'`），第二次 `send()` 冲突即
+丢，返回值还没人看：那张卡永远到不了群。现在每次重试带 `selected:<id>:<attempt>` 的独立 key，且
+`enqueue` 返回 null 时打一条 warn——重试再被吞就有日志可查。
+
+**2. `reports.daily` 的 missed-once 会在窗口合上之前就成刊（MAJOR）。** worker 停机跨过某天 08:00、
+又在次日 00:00–08:00 之间重启时，pg-boss 立刻补跑错过的 daily，而 runner 不看时间直接
+`composeDaily(今天)`——今天那扇窗还开着（到 08:00 才合）。这正是 catch-up 明确拒绝的事（一份钥匙走在
+读者时钟前面的刊）；后果是一份半成品的日报挂几小时，还（经第 44 轮之后）永久盖上期号。现在 runner
+先看「今天 08:00 ≤ now」才排刊；没合窗就什么都不做——错过的那一天由 `reports.catch-up`（每小时 :15）
+补齐，它本来就带着同一道闸。周报/月报 runner 取的是「上一个完整周期」，天然没有这个问题，未动。
+
+**3. `cached().clear()` 与在飞加载的竞态（MINOR）。** `clear()` 把 `pending` 置空后，旧加载的 `finally`
+会把「新的 pending」也清掉，下一个读者再发起第三次加载；并发合并的契约被打破（值仍是新读的，只是
+白读一次、时序更绕）。现在 `finally` 只在 `pending` 还是自己那个 promise 时才清。触达路径是
+`seedTopics()` 之后的读（topic 缓存），以及所有用这个 helper 的索引/统计。
+
+**4. 运行手册说 retention 会清 receipts，实际不会（MINOR，文档）。** `operations/retention.ts` 只清
+job_runs（成功 30 天 / 失败 90 天）、过期的 delivery_leases、stored_files 与图片/OG 缓存；receipts 与
+deliveries 从不清（保留窗口是站长未决事项，第 8 条工单）。`docs/geohot-runbook.md` 那两行改成分列
+实情，免得运维以为回执表有界。
+
+**评审查过、确认干净的（有证据）**：retention 与读者面（job_runs 读侧只看 24 小时/最后 80 行）；
+notify 的跨进程去重（deliveries 唯一键 + ON CONFLICT）与阀门关闭记 skipped；ops.recover 的陈旧窗口
+（10 分钟 vs 最长 240 秒调用）与 compare-and-set 释放；cron 的 singleton 策略（job_i2 挡跨实例并发）；
+alerts 的重复/恢复窗口；backup 的 `pg_restore --list` 校验；`cached()` 不存在「毒化条目 / 未处理拒绝」
+（拒绝的加载不写 value、pending 会清、stale 路径带 .catch）。
+
+**验证**：typecheck 八份工程 0 错（修 #2 时先踩到自己的类型回归——runner 提前 return 使
+`Promise<unknown> | undefined` 过不了 `Scheduled`，改 async 闭包即回绿）；`npm test` **328 / 323 通过 /
+5 跳过 / 0 失败**。部署与三端同步见本轮收尾记录。
+
 
 
 

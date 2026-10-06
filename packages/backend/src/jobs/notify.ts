@@ -15,7 +15,18 @@ export async function registerNotifyJobs(boss: PgBoss) {
     const outcome = await pushSelected(job.data.articleId);
     const attempt = job.data.attempt ?? 0;
     if (outcome.status === "retry" && attempt < MAX_RETRIES) {
-      await enqueue(QUEUES.notifySelected, { articleId: job.data.articleId, attempt: attempt + 1 }, { startAfter: outcome.after });
+      // A key per attempt: without one, two items retrying in the same window both carry the empty
+      // singleton key and pg-boss's short-policy index (job_i1, state='created') silently drops the
+      // second send() — that item's card never reaches the group. The warn below is the only signal
+      // if a future key scheme starts colliding again.
+      const queued = await enqueue(
+        QUEUES.notifySelected,
+        { articleId: job.data.articleId, attempt: attempt + 1 },
+        { singletonKey: `selected:${job.data.articleId}:${attempt + 1}`, startAfter: outcome.after },
+      );
+      if (queued === null) {
+        console.log(JSON.stringify({ level: "warn", msg: "notify.selected retry was dropped by queue dedupe", articleId: job.data.articleId, attempt: attempt + 1 }));
+      }
     }
     return outcome;
   });

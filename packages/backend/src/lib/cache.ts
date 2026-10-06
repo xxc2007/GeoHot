@@ -16,15 +16,18 @@ export function cached<T>(load: () => Promise<T>, opts: { freshMs: number; maxSt
   const refresh = (): Promise<T> => {
     if (pending) return pending;
     const mine = generation;
-    pending = load()
+    const p: Promise<T> = load()
       .then((data) => {
         if (mine === generation) value = { at: Date.now(), data };
         return data;
       })
       .finally(() => {
-        pending = null;
+        // Only clear our own slot: clear() may have replaced it, and an older load finishing later
+        // must not null the newer one's `pending` (the next reader would start a third load).
+        if (pending === p) pending = null;
       });
-    return pending;
+    pending = p;
+    return p;
   };
 
   return {

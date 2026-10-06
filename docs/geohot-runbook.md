@@ -320,8 +320,10 @@ console.log(await a.unsafe(\"select table_name from information_schema.tables wh
 await a.end();"
 # 逐张 DROP TABLE <名字>;
 
-# 回执与运行记录：ops.retention 每天 03:30 会按上游的保留策略清（schedules.ts:58），不要手工删 receipts，
-# 它是"重跑不重复花钱/不重复调用"的唯一凭据，删了就等于让所有材料重新问一次 stub。
+# 运行记录：ops.retention 每天 03:30 清 job_runs（成功 30 天 / 失败 90 天）、过期的 delivery_leases、
+# stored_files 与图片/OG 缓存（operations/retention.ts）；**receipts 与 deliveries 不在清理之列**
+# （保留窗口是站长未决事项，见 docs/known-issues.md 的保留期工单）。不要手工删 receipts，
+# 它是"重跑不重复花钱/不重复调用"的唯一凭据，删了就等于让所有材料重新问一次模型。
 ```
 
 语料**已经在仓库里**（`tooling/corpus/`，2026-10-01 起）：`npm run seed:curated` 的默认输入是 `scripts/seed-curated.ts:41` 指向的 `tooling/corpus/curated-materials.jsonl`，行数以 `npm run seed:curated -- --dry-run --enforce-source` 打印的 `117 material line(s)` 为准

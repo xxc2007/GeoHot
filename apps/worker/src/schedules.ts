@@ -43,7 +43,19 @@ export const SCHEDULES: Scheduled[] = [
   { name: "hot.snapshot", cron: "2 * * * *", run: () => snapshotHeat() },
   { name: "stories.status", cron: "7 * * * *", run: refreshStoryStatuses },
   { name: "stories.links", cron: "12 * * * *", run: linkRelatedStories },
-  { name: "reports.daily", cron: "0 8 * * *", missed: "once", run: () => composeDaily(beijingDate(Date.now())) },
+  {
+    name: "reports.daily", cron: "0 8 * * *", missed: "once",
+    // A restart between midnight and 08:00 re-runs this schedule's missed occurrence immediately — but
+    // "today" has not closed yet then (the window runs to today 08:00), and composing it early opens
+    // an edition whose window is still going, exactly what catch-up refuses ("an issue keyed ahead of
+    // the reader's clock"). The closed day the missed slot was for is composed by reports.catch-up
+    // minutes later; the guard only skips, it never composes anything itself.
+    run: async () => {
+      const day = beijingDate(Date.now());
+      if (Date.parse(`${day}T08:00:00+08:00`) > Date.now()) return;
+      await composeDaily(day);
+    },
+  },
   { name: "reports.weekly", cron: "0 10 * * 1", missed: "once", run: () => composeWeekly(isoWeekLabel(addDays(beijingDate(Date.now()), -7))) },
   {
     name: "reports.monthly",
