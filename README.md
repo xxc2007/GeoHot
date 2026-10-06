@@ -1,4 +1,4 @@
-<sub>🌐 <b>中文</b> · English（暂无英文版） · 完整手册见 <a href="docs/manual.md">docs/manual.md</a></sub>
+<sub>🌐 <b>中文</b> · <a href="README.en.md">English</a> · 完整手册见 <a href="docs/manual.md">docs/manual.md</a></sub>
 
 <div align="center">
 
@@ -90,7 +90,7 @@
 >
 > 删掉的两个分类原本共用日报的第三节「实践」。**兜底分节从那一节挪到了「未归类」**：没有类别的资料进日报时落在 `DEFAULT_SECTION` 这一节，它是 `packages/backend/src/reports/compose.ts:26` 的一个显式常量（`:28` 的 `REPORT_SECTIONS = [...SECTION_ORDER, DEFAULT_SECTION]`），不是"分类数组的末位"——早先的版本按末位推导，删一次分类就会把全站没归类的资料整体搬到别的一节去。这条不变量由 `tests/report-default-section.test.ts` 与 `tests/exit-category-parity.test.ts` 两处钉住。
 
-**没有单独的「板块」页。** 这一层曾经存在过：2026-10-03 上线的四个跨类别方向页（`/boards`：地理信息系统 / 考研 / 地理与政治 / 地理与历史，当时与筛选栏同序）在 **2026-10-04 按站长要求整块删掉**——站长看着那一页说「这个板块功能有点重复了」，它按学科与用途把条目归到一处（页面文案当时写的是"当天"，而它其实不设时间窗——按时间倒序取最近的若干条），而主题页与筛选栏的分类已经在做同一件事。现在 `/boards` 与 `/boards/<slug>` 都是 404。四个方向**没有丢入口**：它们本来就是首页筛选栏里的四个分类（`/all?category=geotech` / `geoedu` / `geopolitics` / `histgeo`），未精选的信源原文在「全部动态」里同样列得出来；主题页（`/topics`）继续按区域、机构与领域串联同一件事的来龙去脉。**删的只是视图**——条目、`category` 字段、分类词表与公开门槛一行都没动，`industry/sources.json` 里那 46 条 `defaultCategory` 照旧把条目归到它所属的分类。
+**没有单独的「板块」页。** 这一层曾经存在过：2026-10-03 上线的四个跨类别方向页（`/boards`：地理信息系统 / 考研 / 地理与政治 / 地理与历史，当时与筛选栏同序）在 **2026-10-04 按站长要求整块删掉**——站长看着那一页说「这个板块功能有点重复了」，它按学科与用途把条目归到一处（页面文案当时写的是"当天"，而它其实不设时间窗——按时间倒序取最近的若干条），而主题页与筛选栏的分类已经在做同一件事。现在 `/boards` 与 `/boards/<slug>` 都是 404。四个方向**没有丢入口**：它们本来就是首页筛选栏里的四个分类（`/all?category=geotech` / `geoedu` / `geopolitics` / `histgeo`），未精选的信源原文在「全部动态」里同样列得出来；主题页（`/topics`）继续按区域、机构与领域串联同一件事的来龙去脉。**删的只是视图**——条目、`category` 字段、分类词表与公开门槛一行都没动，`industry/sources.json` 里那 54 条 `defaultCategory` 照旧把条目归到它所属的分类。
 
 **入选标准只有一条：空间显著性优先**——影响尺度大、多方独立报道、有数据/图件/影像支撑，三件同时成立才排得靠前。这条既写进评分提示词，也写进五轴权重表，还写进热度算法（"多方独立报道 = 热"）。
 
@@ -264,7 +264,7 @@ node --env-file=.env --env-file=.env.pipeline apps/worker/src/main.ts # 采集�
 npm run dev:web                                                      # http://localhost:3000
 ```
 
-验证：`npm run typecheck`（六个工程，无输出即通过），构建后 `npm run build -w @aihot/web && node scripts/smoke.ts --base http://localhost:3000`（**17 个页面 + 18 个机器可读出口**，逐条列在 `scripts/smoke.ts:12` 与 `:13-32` 的 `PAGES` / `MACHINE` 两张表里，只读不写；模型榜开着时它还会再追加三页，本站那两个模块是关的所以不追加）。
+验证：`npm run typecheck`（八个工程，无输出即通过），构建后 `npm run build -w @aihot/web && node scripts/smoke.ts --base http://localhost:3000`（**17 个页面 + 18 个机器可读出口**，逐条列在 `scripts/smoke.ts:12` 与 `:13-32` 的 `PAGES` / `MACHINE` 两张表里，只读不写；模型榜开着时它还会再追加三页，本站那两个模块是关的所以不追加）。
 
 **CI 的正本在 [`tooling/ci-check.yml`](tooling/ci-check.yml)，不在 `.github/`**——所以你在 GitHub 上看到的 Actions 页是空的，这不是没配检查。原因写在 `publish-excludes` 与那份文件自己的头部注释里：发布用的令牌没有 `workflow` 作用域，GitHub 拒绝它创建或更新 `.github/workflows/*`，把文件留在 `.github/` 下就永远进不了公开仓库，"仓库与源码同步"这句话就要打折。要跑 GitHub Actions 的人复制回去即可：
 

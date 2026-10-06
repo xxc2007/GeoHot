@@ -156,7 +156,9 @@ done)
 [[ -n "$svg_bad" ]] && while IFS= read -r line; do [[ -n "$line" ]] && bad "SVG 严格解析会失败 → $line"; done <<< "$svg_bad"
 
 # ── 5. README 引用的相对路径必须真的在仓库里（第三种渲染失败：图在本地、路径写错、远端没有）
-readme_refs=$(git show HEAD:README.md | node --input-type=module -e '
+# 两个首页都要查：中文那份与 README.en.md 是同一套配图与相对链接，英文页裂了同样是"发布成功"在说谎。
+for readme_file in README.md README.en.md; do
+readme_refs=$(git show "HEAD:$readme_file" | node --input-type=module -e '
   let s = ""; process.stdin.on("data", (d) => s += d);
   process.stdin.on("end", () => {
     for (const m of s.matchAll(/(?:src|href)="([^"]+)"/g)) {
@@ -168,8 +170,9 @@ readme_refs=$(git show HEAD:README.md | node --input-type=module -e '
 [[ -n "$readme_refs" ]] && while IFS= read -r p; do
   [[ -z "$p" ]] && continue
   excluded "$p" && continue
-  git cat-file -e "HEAD:$p" 2>/dev/null || bad "README 引用了仓库里没有的路径：$p"
+  git cat-file -e "HEAD:$p" 2>/dev/null || bad "$readme_file 引用了仓库里没有的路径：$p"
 done <<< "$readme_refs"
+done
 
 if [[ $fails -eq 0 ]]; then
   note "✓ 本地 HEAD（去掉 $EXCLUDES 声明的路径）与 $REPO@$REF 逐字节一致：${local_n} 个 blob 全等、图片可从远端取回且签名完好、SVG 可严格解析、README 引用全部命中"
