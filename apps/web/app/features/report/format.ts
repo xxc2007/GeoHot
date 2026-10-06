@@ -2,7 +2,7 @@
 import { SITE, withSubject } from "@aihot/industry/site";
 import { CATEGORIES } from "@aihot/industry/taxonomy";
 import type { ReportNavigationEntry, ReportKind } from "@aihot/contracts/site";
-import { beijingWeekday } from "../../lib/format";
+import { beijingWeekday } from "@aihot/contracts/time";
 
 export const KINDS: ReportKind[] = ["daily", "weekly", "monthly"];
 export const KIND_PATH: Record<ReportKind, string> = { daily: "/daily", weekly: "/weekly", monthly: "/monthly" };
@@ -184,18 +184,14 @@ export function chipLabel(kind: ReportKind, key: string, index: ReportNavigation
 }
 
 /**
- * "第 N 期": the issue's place in its series. There is no number in the data to read — the page is handed
- * the newest {@link INDEX_WINDOW} issues of the kind and nothing older (the read layer's `INDEX_LIMIT`,
- * `publication/reports.ts`), so this can only count back from what it is given. That is right while the
- * whole series still fits the window and turns into a number that stops rising, then falls, after it:
- * past that the honest answer is no number at all, and the 报眼 gives the date alone. Getting the real
- * sequence needs a `count(*)` from the read layer, which a page cannot invent.
+ * "第 N 期": the number the read layer stamped on the issue when it was published (`reports.issue_no`,
+ * migration 0048). Stamping at publication — rather than counting back from the pages' index window —
+ * is what lets the number go missing for honest reasons only: a blank issue never consumed one, and an
+ * issue that is not in `index` at all (older than the newest-400 window) gets no number here. Neither
+ * case ever renumbers the rest of the series.
  */
-const INDEX_WINDOW = 400;
 export function issueNumber(index: ReportNavigationEntry[], key: string): number | null {
-  if (index.length >= INDEX_WINDOW) return null;
-  const at = index.findIndex((e) => e.key === key);
-  return at < 0 ? null : index.length - at;
+  return index.find((e) => e.key === key)?.no ?? null;
 }
 
 /** The masthead's date block: a large figure and two small lines beside it. */

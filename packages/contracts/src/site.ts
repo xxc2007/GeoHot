@@ -364,6 +364,9 @@ export interface ReportIndexEntry {
   title: string | null;
   generatedAt: string;
   count: number;
+  /** 「第 N 期」: stamped at publication (`reports.issue_no`). Null for a blank issue — one with no
+   *  citations never consumed a number — and for a row composed before the column existed. */
+  no: number | null;
 }
 
 /** Figures and samples for the about page (site-only; not part of v1). */
@@ -400,4 +403,4 @@ export interface StoryFollowup {
 export interface StoryFollowupsResponse { items: StoryFollowup[]; more: boolean }
 
 /** All issue keys keep numbering and calendars stable; closed daily months omit their titles. */
-export interface ReportNavigationEntry { key: string; title?: string | null; count?: number }
+export interface ReportNavigationEntry { key: string; title?: string | null; count?: number; no?: number | null }

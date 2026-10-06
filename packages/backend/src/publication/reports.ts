@@ -89,8 +89,8 @@ export async function reportIndexRows(kind: ReportKind, limit: number) {
   const groupedKey = kind === "daily" ? "sections" : "themes";
   const labelKey = kind === "daily" ? "label" : "heading";
   const itemsKey = kind === "daily" ? "items" : "storyRefs";
-  return sql<{ key: string; content: Record<string, any>; generated_at: Date }[]>`
-    SELECT key, generated_at, jsonb_build_object(
+  return sql<{ key: string; content: Record<string, any>; generated_at: Date; issue_no: number | null }[]>`
+    SELECT key, generated_at, issue_no, jsonb_build_object(
       'lead', content->'lead', 'headline', content->'headline', 'title', content->'title',
       'overview', content->'overview', 'periodStart', content->'periodStart', 'periodEnd', content->'periodEnd',
       ${groupedKey}::text,
@@ -379,6 +379,9 @@ export async function listReports(kind: ReportKind, limit = INDEX_LIMIT): Promis
     // 并且条目页面没了也仍然印着（划掉的那一行）。以前这里筛掉 withoutPage、又不查重，
     // 于是同一期在归档里和在报头上可能是两个数（今天数据恰好一致：29 = 29）。
     count: new Set(citedItemIds(r.content, shape)).size,
+    // The issue's own number, stamped at publication (migration 0048). Not derived from position:
+    // past the newest-400 window a position stops meaning anything, and a number must never move.
+    no: r.issue_no ?? null,
   }));
   return entries;
 }
@@ -586,7 +589,7 @@ export { siteUrl };
 
 export function reportNavigation(kind: ReportKind, index: ReportIndexEntry[], key: string): ReportNavigationEntry[] {
   const at = index.findIndex((e) => e.key === key);
-  return index.map((entry, n) => ({ key: entry.key,
+  return index.map((entry, n) => ({ key: entry.key, no: entry.no,
     ...(kind !== "daily" || entry.key.slice(0, 7) === key.slice(0, 7) || n < 3 || Math.abs(n - at) <= 1 ? { title: entry.title } : {}),
   }));
 }

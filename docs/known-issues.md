@@ -273,9 +273,9 @@ Australia / Angola / Paraguay / Suriname, Brazil）的事件下，读者在中�
    文件 + `packages/contracts/src/{leaderboard,monitor}.ts` 359 行 + `apps/web/app/routes.ts` 里 8 条
    永不注册的路由）。内容面实测正确（都 404、sitemap 零条）；删除是一次需要全量回归的重构，留待
    下一轮。
-5. **报眼「第 N 期」仍由「最新 400 期」索引的下标倒推**（`publication/reports.ts` 的 `INDEX_LIMIT`）。
-   日报从 2026-10-02 起算，约 2027-11 之后会卡在 400 并逐日倒退。修法是让数据给出真实序号（新增
-   `seq` 迁移，或 `listReports` 返回总数），前端读它——动 schema 与前端两处，留待下一轮。
+5. （2026-10-07 已修，见第四十四轮）**报眼「第 N 期」现在读发布时盖的真号**（`reports.issue_no`，
+   迁移 0048）：有引注的期在发布那一刻取号，重排保号、空刊不占号，读取层把号带进每个出口；
+   前端不再在最新 400 期里数下标——那个「窗口满就整个隐去」的降级和它的 2027-11 期限一起删除。
 6. **GDACS 绿色森林火情：文件改了，库里的条目还没动。** 预筛层已加
    `dropMarkersTitleOnly: ["green forest fire notification"]`（刻意窄到 forest fire：同为 Green 的
    地震/热带气旋/洪水通报带震级、坐标与人口，绝不能一起挡）。已入库的条目不受文件改动影响
@@ -2511,6 +2511,37 @@ Agent 分不清空壳与内容），不是缺陷。另记一笔我自己的调�
 删的是 `ItemRow` 两个字段与 SELECT 里 `p.eligible`/`p.backfill` 两列；`syndicate` 留下（feeds 在读）。
 证据：八份工程 typecheck 0 错——类型层有读者就编不过，这是最强的"无人读"证明；`npm test` **323 / 318 通过 /
 5 跳过 / 0 失败**，与改动前基线逐项一致。
+
+## 第四十四轮（2026-10-07 凌晨）：期号落库——「第 N 期」不再数下标
+
+**1. 报眼「第 N 期」从「数出来的」改成「盖上去的」（工单：本文件「独立审计」第 5 条，结案）。**
+以前的号是页面在最新 400 期索引里数下标（`index.length - at`）：办满 400 期之后先停再退，代码只好在
+窗口满时把期号整个隐去——一份忽然没有期号的报纸。现在号在成刊那一刻盖一次章（`reports.issue_no`，
+迁移 0048；模式与 `selected_ledger.seq` 相同）：
+
+- **盖章条件照着读取层的门写**：有引注的期（daily 的 `sections[].items`、weekly/monthly 的
+  `themes[].storyRefs`，与 `citedItemIds` 逐字段同形）才消耗号；空刊（10-04～06 那类）不占号——这
+  与它不出现在归档里是同一件事。
+- **号盖上就不动**：重排（版次前进）保号；一条引注日后被撤下也不重排全系列——期号从不回收。
+- **并发下不当两个人**：同 kind 取号在同一事务里过 `pg_advisory_xact_lock`，另有 `(kind, issue_no)`
+  唯一索引兜底——宁可是发布失败重跑，也不能把「第 3 期」印两遍。
+- **存量回填（生产库实测）**：迁移按 kind、按 key 序盖章——`2026-10-02 → 第 1 期`、`10-03 → 第 2 期`
+  （与站上当日展示一致）、`weekly 2026-W40 → 第 1 期`；全部空行（09-25～10-06 那批、10-04～06、W39、
+  月报 2026-09）保持无号。回填结果先用同一谓词的 SELECT 在线上预演过，再随迁移执行。
+
+**2. 前端降级为读字段。** `features/report/format.ts` 的 `issueNumber` 改读条目上的 `no`（读层从
+`reports.issue_no` 带出，`listReports` 与 `reportNavigation` 都携带；契约 `ReportIndexEntry` 加
+`no: number | null`）；`INDEX_WINDOW` 与「窗口满就隐去」连同 2027-11 的期限一起删除。月历格保持
+既有三态：有号印号、有期无号只印日期（不说未出刊）、没有期的才说未出刊。
+
+**3. `format.ts` 少一跳（顺带）。** `beijingWeekday` 改从 `@aihot/contracts/time` 直接引入——原来绕
+`apps/web/app/lib/format.ts` 的转口再导出，是同一个函数；这也让这个模块能被 `node --test` 直接加载
+（web 测试对无扩展相对导入有解析限制）。
+
+**4. 证据。** 新增 `tests/report-issue-number.test.ts`（发布盖章递增 / 空刊不占号 / 重排保号 / 读层
+携带，**4/4**）与 `apps/web/tests/report-issue-number.test.ts`（读数不数位次 / 无号不猜 / 月历三态，
+**5/5**）；`industry/changelog.json` 记了一条读者可见的「修复」。全套基线：typecheck 八份工程 0 错；
+`npm test` **327 / 322 通过 / 5 跳过 / 0 失败**（较基线 +4，正是新测试）；web **41/41**（+5）；web 构建 0 错。
 
 
 

@@ -19,7 +19,7 @@ import { modelFor } from "../editorial/models.ts";
 import { machineRuleOf } from "../editorial/provenance.ts";
 import { guardedStoryTitle, looksZh, type TranslateInput } from "../editorial/writing.ts";
 import { addDays, beijingDate, beijingMidnight, isoWeekLabel, isoWeekRange } from "@aihot/contracts/time";
-import { sql } from "../db.ts";
+import { sql, type Tx } from "../db.ts";
 import { chatJson } from "../providers/llm.ts";
 import { completeReceipt } from "../providers/receipts.ts";
 import { shutdownSignal } from "../jobs/queue.ts";
@@ -186,18 +186,42 @@ async function writeLead(kind: string, key: string, entries: ReportEntry[], mode
   return { lead: refused ? null : { title, leadParagraph }, highlights, receiptId: res.receiptId, refused };
 }
 
+/**
+ * Does this issue carry what the reader gate counts as content? The shapes mirror `citedItemIds`
+ * (publication/reports.ts) exactly: daily sections[].items, periodic themes[].storyRefs. A blank issue
+ * — no citations — never consumes a 期号 (`reports.issue_no`), so the printed series skips it the way
+ * the archive already does. And a story that never made the page (a flash) is not content for this test
+ * either, because the gate does not count it.
+ */
+function issueCarriesCitations(kind: "daily" | "weekly" | "monthly", content: Record<string, unknown>): boolean {
+  const groups = (kind === "daily" ? content.sections : content.themes) as Array<Record<string, any>> | undefined;
+  if (!Array.isArray(groups)) return false;
+  return groups.some((g) => (((kind === "daily" ? g?.items : g?.storyRefs) ?? []) as unknown[]).length > 0);
+}
+
+/** The next number in this kind's series. Serialized per kind so two composes cannot both take N + 1. */
+async function nextIssueNo(tx: Tx, kind: string): Promise<number> {
+  await tx`SELECT pg_advisory_xact_lock(hashtext('report-issue-no:' || ${kind}))`;
+  const [row] = await tx<{ n: number }[]>`SELECT coalesce(max(issue_no), 0) + 1 AS n FROM reports WHERE kind = ${kind}`;
+  return row!.n;
+}
+
 async function saveReport(kind: "daily" | "weekly" | "monthly", key: string, start: Date, end: Date, content: Record<string, unknown>, reason: string, model: string) {
   await sql.begin(async (tx) => {
-    const [existing] = await tx<{ id: number; revision: number; content: unknown; generated_at: Date }[]>`
-      SELECT id, revision, content, generated_at FROM reports WHERE kind = ${kind} AND key = ${key} FOR UPDATE`;
+    const [existing] = await tx<{ id: number; revision: number; content: unknown; generated_at: Date; issue_no: number | null }[]>`
+      SELECT id, revision, content, generated_at, issue_no FROM reports WHERE kind = ${kind} AND key = ${key} FOR UPDATE`;
     if (existing) {
       await tx`INSERT INTO report_revisions (report_id, revision, content, generated_at, reason)
                VALUES (${existing.id}, ${existing.revision}, ${tx.json(existing.content as never)}, ${existing.generated_at}, ${reason}) ON CONFLICT DO NOTHING`;
+      // The number is stamped once and never moves: a recompose keeps it, and so does an issue that
+      // later loses every citation (withdrawals do not renumber the rest of the series).
+      const no = existing.issue_no ?? (issueCarriesCitations(kind, content) ? await nextIssueNo(tx, kind) : null);
       await tx`UPDATE reports SET content = ${tx.json(content as never)}, window_start = ${start}, window_end = ${end}, generated_at = now(),
-                 model = ${model}, revision = revision + 1, origin = 'model', updated_at = now() WHERE id = ${existing.id}`;
+                 model = ${model}, revision = revision + 1, origin = 'model', issue_no = ${no}, updated_at = now() WHERE id = ${existing.id}`;
     } else {
-      await tx`INSERT INTO reports (kind, key, window_start, window_end, content, generated_at, model, origin)
-               VALUES (${kind}, ${key}, ${start}, ${end}, ${tx.json(content as never)}, now(), ${model}, 'model')`;
+      const no = issueCarriesCitations(kind, content) ? await nextIssueNo(tx, kind) : null;
+      await tx`INSERT INTO reports (kind, key, window_start, window_end, content, generated_at, model, origin, issue_no)
+               VALUES (${kind}, ${key}, ${start}, ${end}, ${tx.json(content as never)}, now(), ${model}, 'model', ${no})`;
     }
   });
 }
