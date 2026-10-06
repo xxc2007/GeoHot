@@ -2077,6 +2077,12 @@ camelCase 的键，键名改成 `"missing-summary"`、读值处同步；② `ref
 代码块 `first()\n\nsecond()` 被压成 `first()\nsecond()`。**这套测试的价值就在这儿**，
 现在 `stripChromeHtml` 跳过 `pre` 里的节点。
 
+**3b. 误删风险不是靠感觉排除的**。随机取生产近 36 小时的 400 条 `body_html`，只读跑一遍
+`stripChromeHtml`，逐条比对删掉的文字：254 条 HTML 有改动，但其中 249 条**只动了空白与结构**
+（`normalizeBlocks` 重新序列化），真正删掉文字的只有 5 处，逐处看过全是英文出版物的版权声明
+（`copyright. Apart from any fair dealing for the purpose of private study…`）。这类"改完顺手量一遍全量"的
+只读探针，比对着规则自我感觉良好便宜得多。
+
 **4. 本轮真正给读者的是「模型看到的输入」和「存的东西」，不是页面**。查这件事时顺手量到一个前提：
 生产库 85 条启用信源里 `site_fulltext` 与 `syndicate_fulltext` **都是 0**，
 所以 8429 条公开 publication 全是 `body_mode='summary'`——条目页、Markdown 下载、RSS、原文镜像
@@ -2092,8 +2098,8 @@ camelCase 的键，键名改成 `"missing-summary"`、读值处同步；② `ref
 （`publication.republish-source`，12 个任务全部 completed，不花模型额度）。还原后重洗，986 条落回
 `pending`——它们的存量正文整段就是国家气象中心的页脚（219 字剥完剩 0 字），删掉是对的；
 剩下 16 条是真正文，留下来了。重洗之后：`ok` 6281 条、`body_text` 里还带「大字体」的 **1 条**
-（一条讲国庆档电影的稿子，那是文中的用词，不是控件——规则不该碰）、`【编辑:` **0 条**、
-`body_html` 同样 0 条。池子 `eligible` 4986 → **5071**，`selected` 59。
+（逐条看过：那是一篇写影院适老化服务的稿子里那句「电话订票、手写放大字体票根」——稿子自己的话，规则不该碰也没碰）、
+`【编辑:` **0 条**、`body_html` 同样 0 条。池子 `eligible` 4986 → **5071**，`selected` 59。
 
 **6. 为什么 `scripts/` 里能藏这种错**：根 `typecheck` 只跑 contracts/backend/api/worker/tests/web。
 本轮加了 `scripts/tsconfig.json` 并把 `tsc -p scripts` 排进 `npm run typecheck`——整个目录只有 2 处既有
