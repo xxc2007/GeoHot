@@ -25,7 +25,22 @@ type Step = "prefilter" | "score" | "understand" | "summarize" | "structure";
 interface Req { step: Step; marker: string; system: string; user: string; body: Record<string, any> }
 const requests: Req[] = [];
 const MARKERS = ["CLEAR", "RESCUE", "LOW", "OFFTOPIC", "NOISE", "BARE", "VAGUE", "THIN", "SENSITIVE", "推文"];
-const scoreAnswers: Record<string, number[]> = { CLEAR: [78, 72], RESCUE: [56, 50], LOW: [45, 40], THIN: [70, 70], SENSITIVE: [80, 80], 推文: [40, 40], BARE: [30, 34], VAGUE: [60, 62] };
+// 边界分数从行业包算出来，不写死：这个文件在 2026-10-06 门槛重标定（56/59/62 → 46/49/52、floor 46 → 36）时
+// 有三条断言因为写死了算术而变红——它们钉的是行为，不应随一次标定而改。下面两档照着 SELECTION 生成。
+const T1_LINE = SELECTION.thresholds.T1!;
+const FLOOR = SELECTION.understandFloor;
+/** 落在「写作线」与「入选线」中间的一对分：按精选写法写，但不入选。 */
+const NEAR_SUM = Math.ceil((FLOOR + T1_LINE) / 2) * 2;
+const scoreAnswers: Record<string, number[]> = {
+  CLEAR: [78, 72],
+  RESCUE: [NEAR_SUM / 2 + 1, NEAR_SUM / 2 - 1],
+  LOW: [30, 30],
+  THIN: [70, 70],
+  SENSITIVE: [80, 80],
+  推文: [30, 30],
+  BARE: [30, 34],
+  VAGUE: [60, 62],
+};
 
 // The steps are told apart by the exact system prompt the code sends, never by a wording copied into this
 // file: rewording a prompt then stops this stub answering (loudly) instead of silently routing everything
@@ -129,7 +144,7 @@ test("a selected item: prefilter, two scores, the content understanding and the 
 
 test("a near-selected item is written like a selected one; below the floor it is translated", async () => {
   const near = await analyzeArticle(await article("RESCUE"));
-  assert.deepEqual([near!.output!.selected, near!.output!.reasonZh], [false, "理由 RESCUE"], "56 + 50 = 106 is over 2 × the understand floor but under 2 × T1");
+  assert.deepEqual([near!.output!.selected, near!.output!.reasonZh], [false, "理由 RESCUE"], `两次之和 ${NEAR_SUM} 高过写作线 2×${FLOOR}、低于入选线 2×${T1_LINE}`);
   const lowId = await article("LOW");
   const low = await analyzeArticle(lowId);
   assert.deepEqual([low!.output!.selected, low!.output!.titleZh, low!.output!.reasonZh], [false, "翻译标题 LOW", null]);

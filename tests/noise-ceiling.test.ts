@@ -115,11 +115,16 @@ test("a marketing piece scored at the letter of its own prompt caps clears every
 
 test("one high score cannot be rescued by axis reasoning: the sum is the only input that ever counts", () => {
   const threshold = minThreshold;
-  // A 92 that the prompt's own caps would have kept out, paired with a 10: no axis narrative reaches the
-  // comparison, so the mean of a great first read and a terrible second read is simply below the line.
-  const lopsided = normalizeAnalysis(run({ threshold, values: [92, 10], tags: ["非地理/通用"], itemType: "observation_release" }));
-  assert.deepEqual([lopsided.selected, lopsided.score], [false, 51], "sum 102 < 2x the lowest threshold; the mean is floored to 51");
-  assert.ok(51 > SELECTION.understandFloor, "above the writing floor, so it is still written well — the floor buys writing, not 精选");
+  // 一对「差两点过线」的分：和 2T−2 低于入选线，但均值仍高于写作线（否则它连精选写法都拿不到）。
+  // 数从 SELECTION 算，不写死——2026-10-06 门槛下移时这条正因为写死 92/10 而变红。
+  const justUnder = 2 * threshold - 2;
+  const lopsided = normalizeAnalysis(run({ threshold, values: [justUnder - 10, 10], tags: ["非地理/通用"], itemType: "observation_release" }));
+  assert.deepEqual(
+    [lopsided.selected, lopsided.score],
+    [false, justUnder / 2],
+    `和 ${justUnder} < 2×最低门槛 ${2 * threshold}；均值落回 ${justUnder / 2} 且向下取整`,
+  );
+  assert.ok(justUnder / 2 > SELECTION.understandFloor, "above the writing floor, so it is still written well — the floor buys writing, not 精选");
   assert.equal(lopsided.reasonZh, "理由", "and it is written with the selected style");
   // A second call that never came back is not a pass: one score cannot select anything, however high.
   const onlyOne = normalizeAnalysis(run({ threshold, values: [92] }));

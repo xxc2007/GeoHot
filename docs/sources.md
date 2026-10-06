@@ -341,3 +341,39 @@ node scripts/set-source-state.ts --ids=… --apply --database-url=postgres://…
 
 调度侧不用另外处理：`collect.ts:561` 的入队查询带 `WHERE enabled`，`collect.ts:209` 对已停用的源直接返回
 `skipped/paused`，已入库的条目一律留着不改（停用只停止新增，不下架旧内容）。
+
+## 第四十一轮（2026-10-06 深夜）：学术团体与政府间机构六条（98 → 104）
+
+站长要求"再拓展信息源，一定要权威官方"。做法与第三十轮一样：**先探后收**——候选名单先在**采集那台机器**上
+用采集器自己的 UA 逐条 `curl`（本机 DNS 会骗人，第三十轮已吃过一次），feed 活着、条目数正常、**最近一条在 45 天
+以内**三条同时成立才写进信源包；写进包之后还要在生产库跑一次 `scripts/collect.ts` 真抓，**第一次抓取入库 0 条就退回**。
+
+**收下的六条**（全部 `participation_mode=editorial`、`site_fulltext=false`，实测时间 2026-10-06 23:0x +0800）：
+
+| id | 名称 | feed | tier | 实测 |
+|---|---|---|---|---|
+| `rss-igu-online` | 国际地理联合会（IGU）· 新闻 | `https://igu-online.org/feed/` | T1_5 | 200 RSS、10 条、**最新就是当天** |
+| `rss-aag-news` | 美国地理学家协会（AAG）· 新闻 | `https://www.aag.org/feed/` | T1_5 | 200 RSS、10 条、最新 10-05 |
+| `rss-ica-carto` | 国际制图协会（ICA）· 新闻 | `https://icaci.org/feed/` | T1_5 | 200 RSS、10 条、最新 09-29 |
+| `rss-ipbes-news` | IPBES（生物多样性与生态系统服务政府间科学政策平台）· 新闻 | `https://www.ipbes.net/rss.xml` | T1 | 200 RSS、30 条、最新 09-30 |
+| `rss-isc-science` | 国际科学理事会（ISC）· 新闻 | `https://council.science/feed/` | T1_5 | 200 RSS、10 条、最新 10-01 |
+| `rss-unhabitat-news` | 联合国人居署（UN-Habitat）· 新闻 | `https://unhabitat.org/rss.xml` | T1 | 200 RSS、10 条、最新 08-28（频率低，抓取间隔 720 分钟） |
+
+**同批退回的候选（记下来，下一轮别再重复探）**：`intl-unep`（UNEP 的 feed 不是 RSS——是自定义
+`<response><item><title><path><created>` 的 XML，现有采集器没有这种形状的解析器；要接得先写解析器，不是加一行）、
+`reliefweb`（给出的是 HTML 页不是 feed）、`noaa-research` / `usgs-newsroom` / `usgs-volcano-watch` / `noaa-ncei` /
+`bgs-news` / `ga-news` / `geonet` / `seismo-eth` / `dwd` / `eurostat` / `iom` / `fao` / `unccd` / `unesco` /
+`unfccc` / `copernicus-news` / `copernicus-clms` / `jma` / `imo-vedur` / `cgs` / `nsmc` / `nmefc` 全是 404 或页面不是 feed；
+`gvp-weekly`（Smithsonian 全球火山活动计划）**403**、`gbif` 403、`wri` 403、`ams-news` 403、`jaxa` 403、
+`bom-warnings` 403、`nasa-earthdata` 403；`iucn` 的 feed 最新一条停在 2022-02、`cnes` 停在 2024-05、
+`copernicus-cdse` 停在 2026-05、`copernicus-c3s` 停在 2026-08（后两条的内容我们已经有别的哥白尼源覆盖着）；
+`fig-surveyors` 与 `worldbank-climate` 返回的是网页。**中国官方站这一批依旧探不动**：`cas.cn`（中国科学院）与
+`most.gov.cn`（科技部）页面本身 200、列表也拿得到（CAS 的 `/syky/` 有当天条目），但它们没有 feed，
+要接得按 `web_list` 写选择器（CAS 的列表不含日期、日期只在 URL 的 `t2026MMDD` 里）——**列为下一轮候选**，
+`gov.cn`、`cma.gov.cn` 分别返回 685 字节的拦截页与 406。
+
+**六条全部已用 `scripts/seed.ts` 写入生产库**（`ON CONFLICT DO NOTHING` 只增不改），首次抓取入库数量见 README
+「信源数量的唯一说法」那一段所在的同一轮记录；分级依据：IGU/AAG/ICA/ISC 是学会与理事会（自己发布，不是转述），
+定 `T1_5`；IPBES 与 UN-Habitat 是政府间机构，定 `T1`。`defaultCategory`：IPBES → `physical`（生态与生物多样性），
+UN-Habitat → `human`（城市与城镇化），其余留空由模型判断。
+
