@@ -35,14 +35,14 @@ export function bodyIsChinese(language: string | null, sample: string): boolean 
 }
 
 /** 一行以标签开头（`title_zh: …`）：模型按标签作答的形状，`editorial/writing.ts` 靠它切答复。 */
-export const LABEL_PREFIX = /^(?:title_zh|summary_zh|body_zh)\s*[:：]/;
+export const LABEL_PREFIX = /^\*{0,2}(?:title_zh|summary_zh|body_zh)\*{0,2}\s*[:：]/;
 
 /**
  * 一整行只有标签、后面什么都没有（`title_zh:`）：空答案的形状，不是内容。
  * `editorial/writing.ts` 从 10-03 起拒收它，读取层遇到 `54eb6ac` 之前存下来的那批
  * （开发库 446 行的标题与摘要都是这句）时不再把它当标题。判定时先 trim 掉两端空白。
  */
-export const LABEL_ONLY_COPY = /^(?:title_zh|summary_zh|body_zh)\s*[:：]\s*$/;
+export const LABEL_ONLY_COPY = /^\*{0,2}(?:title_zh|summary_zh|body_zh)\*{0,2}\s*[:：]\s*$/;
 
 export function isLabelOnlyCopy(text: string | null | undefined): boolean {
   return typeof text === "string" && LABEL_ONLY_COPY.test(text.trim());

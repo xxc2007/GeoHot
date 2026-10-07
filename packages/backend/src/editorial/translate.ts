@@ -171,7 +171,8 @@ export async function translateArticle(articleId: string): Promise<TranslateResu
     if (bodyIsChinese(row.language, text)) return result({ status: "skipped", reason: "already Chinese" });
     if (meaningful.length < X_MIN_CHARS) return result({ status: "skipped", reason: "short post" });
     const [t] = await translateAll(articleId, row.revision, [text], SYSTEM_POST);
-    if (!t) return result({ status: "skipped", reason: "translation did not line up" });
+    // 回声不是译文：把英文原样还回来的答复会被存成"AI 翻译"给读者看（红线：不把英文当中文发布）。
+    if (!t || !looksZh(t)) return result({ status: "skipped", reason: t ? "answer is not Chinese" : "translation did not line up" });
     await store(articleId, row.revision, row.title, textToHtml(t), t, true);
     return result({ status: "translated", segments: 1 });
   }
@@ -192,6 +193,12 @@ export async function translateArticle(articleId: string): Promise<TranslateResu
   const shielded = chosen.map((el) => shield($(el).html() ?? ""));
   const restore = (answers: Array<string | null>) => answers.map((t, i) => (t === null ? null : unshield(t, shielded[i]!)));
   const translations = restore(await translateAll(articleId, row.revision, shielded.map((b) => b.html), SYSTEM_BODY));
+  // 回声不是译文：原文有词而答复一个汉字都没有的块按"没翻出来"处理（走下面的一次重问、再不行保留
+  // 原文），否则整段英文会被标成"正文 · AI 翻译"贴进正文（红线）。原文本来只有数字/符号的块不算。
+  const sourceTexts = chosen.map((el) => $(el).text());
+  translations.forEach((t, i) => {
+    if (t && !looksZh(t) && /\p{L}{2,}/u.test(sourceTexts[i] ?? "")) translations[i] = null;
+  });
   // Blocks whose answer dropped a link or an image are asked once more, on their own receipt.
   const missing = translations.flatMap((t, i) => (t === null ? [i] : []));
   if (missing.length) {
@@ -230,6 +237,13 @@ function quoteTranslatable(text: string): boolean {
 }
 
 /**
+ * 解析失败的重问要封顶：这个循环每 5 分钟跑一遍、窗口 3 天，一条系统性解不开的引用帖本会一直付费
+ * 重问（≈288 次/天）。按 (tweet, 文本哈希) 记失败次数，单个进程内至多问 3 次；文本一变哈希就变、
+ * 重新计数，进程重启后清零——封顶的目的是把"解不开"的成本按住，不是禁掉重试。
+ */
+const quoteFailures = new Map<string, number>();
+
+/**
  * The posts that selected X posts of the last `days` quote, translated once per quoted post: the
  * translation of the quoted post's own item is reused when it was collected and translated, else
  * DeepSeek (the translate model) translates it. Returns how many were stored.
@@ -252,6 +266,8 @@ export async function translateQuotes(opts: { days?: number; limit?: number; bud
     if (stored >= (opts.limit ?? 30) || Date.now() - started > (opts.budgetMs ?? 2 * 60_000) || shutdownSignal.signal.aborted) break;
     const hash = sha256(r.text);
     if (r.text_hash === hash || !quoteTranslatable(r.text)) continue;
+    const failKey = `${r.tweet_id}:${hash}`;
+    if ((quoteFailures.get(failKey) ?? 0) >= 3) continue;
     // Reuse our own translation of that tweet only if it is Chinese; an English copy would be stored as a
     // "译文" and shown as one.
     let zh = r.own_zh && looksZh(r.own_zh) ? r.own_zh : null;
@@ -266,12 +282,12 @@ export async function translateQuotes(opts: { days?: number; limit?: number; bud
         });
         zh = res.data.t.length === 1 ? res.data.t[0]!.trim() : null;
       } catch (error) {
-        // Switched-off calls or an exhausted budget stop the run; one unusable answer skips its post.
-        // A reply that did not parse left its receipt `failed`, so the next run pays for that one again;
-        // a reply that parsed but says nothing usable stays replayed for free (deliberate: this loop runs
-        // every few minutes over a rolling 3-day window, and an answer that is empty is empty tomorrow too
-        // — `chatJson`'s `usable` is for the paths where a human can decide to force a fresh ask).
+        // Switched-off calls or an exhausted budget stop the run; one unusable answer is counted and
+        // skipped. A reply that did not parse left its receipt `failed`, so the next run would pay for
+        // that one again — `quoteFailures` bounds how many times it may (a reply that parsed but says
+        // nothing usable stays replayed for free; an answer that is empty is empty tomorrow too).
         if (/disabled|not configured|budget/i.test((error as Error).message)) throw error;
+        quoteFailures.set(failKey, (quoteFailures.get(failKey) ?? 0) + 1);
         continue;
       }
     }
@@ -279,6 +295,7 @@ export async function translateQuotes(opts: { days?: number; limit?: number; bud
     await sql`
       INSERT INTO quote_translations (tweet_id, text_hash, text_zh, origin) VALUES (${r.tweet_id}, ${hash}, ${zh}, ${origin})
       ON CONFLICT (tweet_id) DO UPDATE SET text_hash = EXCLUDED.text_hash, text_zh = EXCLUDED.text_zh, origin = EXCLUDED.origin, created_at = now()`;
+    quoteFailures.delete(failKey);
     stored += 1;
   }
   return stored;

@@ -304,9 +304,16 @@ function ownChineseLead(input: TranslateInput): string {
 
 /** The length rule (compacted without another call) and the identity guard, for any writing model. */
 export function finalizeCopy(input: TranslateInput, copy: { titleZh: string; summaryZh: string }) {
+  // 读者面的门只查「标题含中文、提要不为空」（items.chineseCopyCondition）——不查提要的语言。
+  // 模型答「中文标题 + 英文提要」时，英文提要被当成中文稿发出去（红线：不把英文当中文发布）。
+  // 两个字段在这里统一过中文判定：标题不带中文 → 退回原文标题（它本来是中文才用）；提要不过 →
+  // 置空——normalizeAnalysis 会把该条判成「等待」而不是发出去；同时 analyze 的 usable 判定
+  // 让这条答复不落成"好答复"，下一次重试会真花钱重问。
   let summaryZh = copy.summaryZh.trim() || ownChineseLead(input);
   if (!isShortTweetInput(input) && summaryZh && !answerFirstSummaryLengthOk(summaryZh, input)) summaryZh = compactAnswerFirstSummary(summaryZh);
-  return enforceIdentity(input, { titleZh: copy.titleZh, summaryZh });
+  if (summaryZh && !looksZh(summaryZh)) summaryZh = "";
+  const titleZh = looksZh(copy.titleZh) ? copy.titleZh : looksZh(input.title) ? input.title : "";
+  return enforceIdentity(input, { titleZh, summaryZh });
 }
 
 /**
@@ -347,9 +354,11 @@ function anchorDate(d: Date | undefined): string {
 }
 
 export function buildArticlePrompt(input: TranslateInput): string {
+  // 这里不再放「今天」：它是唯一每天都变的输入，而回执的键哈希整段 prompt——同一份材料次日重跑
+  // （重试阶梯、部署重排、`enqueue-analysis.ts --all`）会因这一个日期差异重新付费。时间锚点只留
+  // 原文发布日期，语义不变（下面那句"不要把相对时间换算成年份"本来就管着它）。
   return promptText("summarize-article", {
     publishedDate: anchorDate(input.publishedAt),
-    today: anchorDate(new Date()),
     sourceName: sourceName(input.sourceName),
     identity: identityPrompt(input),
     title: input.title,
@@ -385,20 +394,39 @@ export function stripEcho(text: string): string {
 
 /** `title_zh:` / `summary_zh:` / `body_zh:` lines, with fallbacks for answers that drop the labels. */
 export function parseTranslateOutput(text: string): { titleZh: string; summaryZh: string; bodyZh: string } {
+  // 模型偶尔把整段答复包成 JSON（schema 要的是逐行标签）。`{"title_zh": …}` 此前落到"无标签"兜底，
+  // 整段 JSON 成了标题——它含中文，读者面的中文门也拦不住。能解析就取字段，解析不了再走逐行。
+  const trimmed = text.trim();
+  if (trimmed.startsWith("{")) {
+    try {
+      const j = JSON.parse(trimmed) as Record<string, unknown>;
+      const pick = (...keys: string[]) => {
+        for (const k of keys) if (typeof j[k] === "string" && (j[k] as string).trim()) return (j[k] as string).trim();
+        return "";
+      };
+      const titleZh = pick("title_zh", "titleZh");
+      const summaryZh = pick("summary_zh", "summaryZh");
+      const bodyZh = pick("body_zh", "bodyZh");
+      if (titleZh || summaryZh || bodyZh) return { titleZh, summaryZh: stripEcho(summaryZh), bodyZh: stripEcho(bodyZh) };
+    } catch { /* 不是 JSON，走逐行 */ }
+  }
   let titleZh = "";
   let summaryZh = "";
   let bodyZh = "";
   let titleLine = -1;
   let summaryLine = -1;
   let bodyLine = -1;
-  const lines = text.split(/\r?\n/);
+  // 花括号包着但 JSON 解析不了的答复：去掉最外层括号再逐行看——否则「{title_zh: …」整行会成为标题。
+  const scan = trimmed.startsWith("{") ? trimmed.replace(/^\{\s*/, "").replace(/\s*\}$/, "") : text;
+  const lines = scan.split(/\r?\n/);
   for (let i = 0; i < lines.length; i += 1) {
     const t = lines[i]!.trim();
-    const title = t.match(/^title_zh\s*[:：]\s*(.*)$/);
+    // 标签外面允许一层 Markdown 加粗（`**title_zh**:`）：模型常这么包，此前整行落到无标签兜底。
+    const title = t.match(/^\*{0,2}title_zh\*{0,2}\s*[:：]\s*(.*)$/);
     if (title) { titleZh = title[1]!.trim(); titleLine = i; continue; }
-    const summary = t.match(/^summary_zh\s*[:：]\s*(.*)$/);
+    const summary = t.match(/^\*{0,2}summary_zh\*{0,2}\s*[:：]\s*(.*)$/);
     if (summary) { summaryZh = summary[1]!.trim(); summaryLine = i; continue; }
-    const body = t.match(/^body_zh\s*[:：]\s*(.*)$/);
+    const body = t.match(/^\*{0,2}body_zh\*{0,2}\s*[:：]\s*(.*)$/);
     if (body) { bodyZh = body[1]!.trim(); bodyLine = i; continue; }
   }
   // The labelled value as the scan found it: an empty label must not trigger the "summary continues on
@@ -442,7 +470,7 @@ export function parseTranslateOutput(text: string): { titleZh: string; summaryZh
     // visible: 114 rows carried 「title_zh:」 as their headline, and the echo fallback in analyze.ts — which
     // would have used a Chinese source's own headline — never got its chance, so those items were held out
     // of every listing.
-    const rest = text
+    const rest = scan
       .trim()
       .split(/\r?\n/)
       .map((l) => l.trim())

@@ -41,3 +41,21 @@ test("空摘要标签下的正文不会把标签带进摘要，也不会重复�
   assert.equal(p.summaryZh, "正文摘要。");
   assert.equal(p.bodyZh, "");
 });
+
+test("加粗的标签行（**title_zh**：）照常解析，不再整行落到无标签兜底", () => {
+  const p = parseTranslateOutput("**title_zh**: 地震速报\n**summary_zh**: 测定 5.2 级，深度 10 千米。");
+  assert.equal(p.titleZh, "地震速报", "标签外的加粗不该进标题");
+  assert.equal(p.summaryZh, "测定 5.2 级，深度 10 千米。");
+});
+
+test("整段 JSON 的答复按字段解析，而不是把 JSON 当标题", () => {
+  const p = parseTranslateOutput('{"title_zh": "雅万高铁延长线开工", "summary_zh": "印尼方面确认延长线动工，线路全长约 30 公里。"}');
+  assert.equal(p.titleZh, "雅万高铁延长线开工");
+  assert.equal(p.summaryZh, "印尼方面确认延长线动工，线路全长约 30 公里。");
+});
+
+test("JSON 解析不了时回退逐行，不把花括号当标题", () => {
+  const p = parseTranslateOutput("{title_zh: 跨海大桥合龙\nsummary_zh: 主桥完成合龙。}");
+  assert.equal(p.titleZh, "跨海大桥合龙");
+  assert.equal(p.summaryZh, "主桥完成合龙。");
+});

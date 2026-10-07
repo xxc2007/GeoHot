@@ -269,15 +269,23 @@ async function runStructure(a: AnalyzeInputArticle, opts: StepOpts): Promise<Non
   return { model: res.model, category: res.data.category, tags: normalizeTags(res.data.tags), subjects, fact: res.data.fact, receiptId: res.receiptId, reused: res.reused };
 }
 
+/**
+ * 整条答复里一个汉字都没有（回声、串了语言）：不是可用的中文稿。此前这类答复被当"好答复"缓存，
+ * `finalizeCopy` 会把字段清空、条目停在等待，重试只会免费回放同一条英文答复。拒收它，收据落 failed
+ * （可再付费），下一次重试才会真的重新问；它同时挡住"英文摘要被当中文稿发出去"的入库路径。
+ */
+function noChineseAnswer(data: { titleZh?: string; summaryZh?: string; bodyZh?: string }): string | null {
+  return [data.titleZh, data.summaryZh, data.bodyZh].some((s) => typeof s === "string" && looksZh(s)) ? null : "answer has no Chinese copy";
+}
+
 /** The content understanding; null when the model's content filter declines the material. */
-async function runUnderstand(a: AnalyzeInputArticle, opts: StepOpts): Promise<AnalysisRun["writing"]> {
-  const model = await modelFor("understand");
+async function runUnderstand(a: AnalyzeInputArticle, opts: StepOpts): Promise<AnalysisRun["writing"]> {  const model = await modelFor("understand");
   const text = understandUser(a);
   const call = (image: ContentPart | null) => {
     checkAnalysisRunning();
     return chatJson({
       model, purpose: "understand_article", subject: subjectOf(a), promptVersion: PROMPT_VERSIONS.understand, system: UNDERSTAND_SYSTEM,
-      user: image ? [{ type: "text", text }, image] : text, schema: UnderstandSchema, temperature: 0.2, maxTokens: 16_384,
+      user: image ? [{ type: "text", text }, image] : text, schema: UnderstandSchema, usable: noChineseAnswer, temperature: 0.2, maxTokens: 16_384,
       timeoutMs: 180_000, attemptTag: tagged(opts.attemptTag, "understand"),
     });
   };
@@ -327,6 +335,7 @@ async function runSummarize(a: AnalyzeInputArticle, opts: StepOpts): Promise<Non
     system: "",
     user: short ? buildShortTweetPrompt(t) : isX ? buildLongTweetPrompt(t) : buildArticlePrompt(t),
     schema: SummarizeSchema,
+    usable: noChineseAnswer,
     json: false,
     parse: parseTranslateOutput,
     temperature: 0.2,
