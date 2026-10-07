@@ -7,6 +7,19 @@
 
 - 线上地址：`https://xxc2007.me/geohot/`
 - 主站：`https://xxc2007.me/` = **51432 字节，sha256 `4edf0fc53636a680…`**，与开工前基线逐字节一致
+- **2026-10-07 之后，上面这一行是历史记录**：域名根换成了站长自己的个人介绍站（`/var/www/intro`），
+  南昌十五中纪念册搬到 `https://xxc2007.me/nc15/`（`/var/www/nc15`，首页 51557 字节 / `6313aabee215ccc7…`），
+  而 `/var/www/nanchang15/index.html` 仍在盘上、逐字节未变（`4edf0fc53636a680…`）。所以"没动隔壁"这条不变量
+  现在管的是**两个**站，`verify-deploy.sh --save-baseline` 一次记三个哈希：根首页、根 sitemap、`/nc15/` 首页。
+  **介绍站自己还在动**：第四十八轮上线期间（10:43 记基线 → 10:59 复验）根首页哈希换了三次
+  （`9d75c015… → 285c1e3a… → d6c98baf…`），`/etc/nginx/sites-available/xxc2007.me` 在 10:56 被改过一次，
+  而 `/nc15/` 全程未变。所以第 1 节那条"根首页哈希变了"**在本轮是预期红**——判红之前先比 mtime 与基线的
+  `captured_at`（脚本的失败提示里写了这一步），确认是本站动过才回滚；介绍站那轮收尾后重记一次基线即可。
+- **域名根的 `robots.txt` 现在归介绍站所有**（`/var/www/intro/robots.txt`）。它保留了本站三条 `Disallow`
+  （`/geohot/admin`、`/geohot/starred`、`/geohot/feedback`）并照旧放行 `/geohot/api/v1/` 与 `/geohot/api/mcp`，
+  但搬家时**把本站的 Sitemap 行丢了**。2026-10-07 第四十八轮补回一行 `Sitemap: https://xxc2007.me/geohot/sitemap.xml`
+  （改前备份在 `/opt/geohot/backups/robots.root.*.bak`）。robots.txt 是**按主机**读的——`/geohot/robots.txt`
+  那份对爬虫不作数，所以这一行只能待在根文件里；介绍站以后重新部署 `robots.txt` 时要带上它，否则会再次静默失联。
 - 四个常驻单元全部 `active`：`geohot-brain`(3055) · `geohot-api`(3001) · `geohot-worker` · `geohot-web`(3000)，
   只监听 `127.0.0.1`，每个都带 `MemoryMax`（160/200/240/320 MB），OOM 只会杀自己
 - 服务器：Ubuntu 22.04，`<ssh-user>@<server-ip>`，Node v24.21.0，

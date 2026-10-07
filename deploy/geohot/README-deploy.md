@@ -1,6 +1,6 @@
 # GEOHOT 部署手册（README-deploy.md）
 
-目标：把站点上线到 `https://xxc2007.me/geohot/`，**不影响根路径主站（纪念册）与 Artalk 评论服务**。
+目标：把站点上线到 `https://xxc2007.me/geohot/`，**不影响同域名另外两个站**（2026-10-07 起：根路径的个人介绍站、`/nc15/` 的南昌十五中纪念册）**与 Artalk 评论服务**。
 本目录（`deploy/geohot/`）是给"人"执行的部署包；执行者是我方之外的运维（服务器只有 owner 有凭据）。
 
 > 本文所有结论都对着仓库代码实测过，标注 `文件:行`；与 `docs/deploy.md`（上游 Docker 文档）冲突处以代码与本手册为准。
@@ -18,8 +18,8 @@
 
 ## 1. 动手前先备份（owner 在服务器上执行）
 
-1. 主站/nginx：`sudo cp -a /etc/nginx/sites-available/xxc2007.me{,.bak-$(date +%F-%H%M)}`；`sudo ufw status numbered > ~/ufw-before.txt`。
-2. 基线哈希（**必须在任何 nginx 改动之前**）：`bash verify-deploy.sh --save-baseline`（记录主站首页与 sitemap 的 sha256）。
+1. 邻居站/nginx：`sudo cp -a /etc/nginx/sites-available/xxc2007.me{,.bak-$(date +%F-%H%M)}`；`sudo ufw status numbered > ~/ufw-before.txt`。
+2. 基线哈希（**必须在任何 nginx 改动之前**）：`bash verify-deploy.sh --save-baseline`（记录根介绍站首页、根 sitemap 与 `/nc15/` 纪念册首页三个 sha256；2026-10-07 域名根换成介绍站、纪念册搬到 `/nc15/`，所以"没动隔壁"现在管两个站）。
 3. Artalk 是 systemd + SQLite（不占 PostgreSQL），它的 db 文件照常纳入 owner 现有备份；本部署不碰它。
 4. GEOHOT 侧无历史数据可备（新库），但 `.env` 一旦生成立刻 `cp .env .env.bak-日期`——密钥只打印一次。
    备份与 `.env` 都放在 `$APP_HOME`（默认 `/opt/geohot`，即 `GEOHOT_APP_ROOT` 的父目录），不要放进代码目录里。
@@ -191,7 +191,7 @@
 ```bash
 cd ~/.deploy                       # 本目录拷贝到服务器后的位置
 bash bootstrap-server.sh           # ① 看预检与 DRY 输出，逐项人工确认（版本/pg_trgm/端口/现状都在这里）
-bash verify-deploy.sh --save-baseline   # ★ 主站基线，nginx 改动之前
+bash verify-deploy.sh --save-baseline   # ★ 邻居站基线（根介绍站 + /nc15 纪念册），nginx 改动之前
 bash bootstrap-server.sh --apply   # ② 建用户/目录/clone/npm ci/生成 .env，然后在**第 5 节**停手
                                    #    （.env 没核对过就不可能走到建角色、建库、迁移）
 vim /opt/geohot/app/.env           # ③ §5 清单逐项核对（尤其两个 production 变量、SITE_URL 的前缀、各阀）

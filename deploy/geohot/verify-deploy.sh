@@ -4,7 +4,8 @@
 #
 # ★★ 先Baseline再部署 ★★
 #   改动 nginx 之前必须先跑一次:  bash verify-deploy.sh --save-baseline
-#   它会把主站首页与主站 sitemap 的 sha256 记到 deploy/geohot/baseline-main.txt。
+#   它会把主站首页、主站 sitemap 与纪念册 /nc15/ 首页的 sha256 记到 deploy/geohot/baseline-main.txt。
+#   （2026-10-07 起根目录是站长的个人介绍站，南昌十五中纪念册搬到 /nc15/ —— 两个邻居都要比。）
 #   部署后跑:  bash verify-deploy.sh          —— 逐项断言并比对基线。
 #   只想更新基线（确认主站本来就变了）：重新 --save-baseline 并写明原因。
 #   基线文件按 key=value 逐行读（不 source）：少一个键就是少一个键，不能让整个脚本以 unbound variable 死掉。
@@ -65,12 +66,16 @@ if [[ "${1:-}" == "--save-baseline" ]]; then
   # 先算再写：`echo "k=$(false)"` 的退出码是 echo 的，命令替换失败传不出来。
   home_sum=$(baseline_hash "$MAIN/") || exit 1
   sitemap_sum=$(baseline_hash "$MAIN/sitemap.xml") || exit 1
+  # 2026-10-07 起根目录归站长的个人介绍站，纪念册搬到 /nc15/。"没动隔壁"这条不变量现在管的是**两个**邻居，
+  # 所以两个都记：拿不到 /nc15/ 就拒绝写基线（和首页同样的理由——空正文的哈希不是基线）。
+  nc15_sum=$(baseline_hash "$MAIN/nc15/") || exit 1
   # 基线属于哪个域名也记下来：换域名部署时旧基线必然"哈希变了"，那不是回滚的理由
   # （bootstrap-server.sh 的注释一直承诺有这道检查，脚本里以前没有）。
   {
     echo "main_site=$MAIN"
     echo "main_home_sha256=$home_sum"
     echo "main_sitemap_sha256=$sitemap_sum"
+    echo "nc15_home_sha256=$nc15_sum"
     echo "captured_at=$(date -u +%FT%TZ)"
   } > "$BASELINE_FILE"
   cat "$BASELINE_FILE"
@@ -78,7 +83,7 @@ if [[ "${1:-}" == "--save-baseline" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-echo "== 1. 主站未受影响（与部署前基线比对）=="
+echo "== 1. 邻居站未受影响（根＝个人介绍站、/nc15/＝纪念册；与部署前基线比对）=="
 if [[ -f "$BASELINE_FILE" ]]; then
   # 基线文件是给人看的 key=value，不是脚本；source 它有两个毛病：① 缺键时下面那些
   # ${main_home_sha256:0:12} 会在 set -u 下直接以"unbound variable"死掉 —— 报告变成"脚本自己炸了"，
@@ -105,12 +110,20 @@ if [[ -f "$BASELINE_FILE" ]]; then
   if [[ -z "$base_home" ]]; then
     bad "主站首页无法比对：基线缺 main_home_sha256（现在=${now_home:0:12}…）"
   elif [[ "$now_home" == "$base_home" ]]; then ok "主站首页字节级一致（sha256=${now_home:0:12}…）"
-  else bad "主站首页哈希变了！基线=${base_home:0:12}… 现在=${now_home:0:12}… —— 立即执行 rollback.sh"; fi
+  else bad "主站首页哈希变了！基线=${base_home:0:12}… 现在=${now_home:0:12}… —— 先别回滚：2026-10-07 起根目录归站长的个人介绍站，它自己重新部署（或 nginx 改动）也会让这一条红。比一下 \`stat -c %y /var/www/intro/index.html /etc/nginx/sites-available/xxc2007.me\` 与基线的 captured_at，再看 /nc15/ 那一项；确认是本站动过才执行 rollback.sh"; fi
   now_sm=$(curl -s -A "$UA" "$MAIN/sitemap.xml" | sha256sum | cut -d' ' -f1)
   if [[ -z "$base_sitemap" ]]; then
     bad "主站 sitemap 无法比对：基线缺 main_sitemap_sha256（现在=${now_sm:0:12}…）"
   elif [[ "$now_sm" == "$base_sitemap" ]]; then ok "主站 sitemap 一致"
   else bad "主站 sitemap 哈希变了（基线=${base_sitemap:0:12}… 现在=${now_sm:0:12}…；基线已失效？先人工确认再更新基线）"; fi
+  # 纪念册 2026-10-07 搬到 /nc15/：老基线没有这一行时只记 note，不判红——少一个键不该变成"这次部署有问题"，
+  # 但重记一次基线之后它就是硬断言了。
+  base_nc15="$(baseline_get nc15_home_sha256)"
+  now_nc15=$(curl -s -A "$UA" "$MAIN/nc15/" | sha256sum | cut -d' ' -f1)
+  if [[ -z "$base_nc15" ]]; then
+    note "基线没有 nc15_home_sha256（旧格式）：/nc15/ 现在=${now_nc15:0:12}…，重跑 --save-baseline 就会带上"
+  elif [[ "$now_nc15" == "$base_nc15" ]]; then ok "纪念册 /nc15/ 首页字节级一致（sha256=${now_nc15:0:12}…）"
+  else bad "纪念册 /nc15/ 首页哈希变了！基线=${base_nc15:0:12}… 现在=${now_nc15:0:12}… —— 立即执行 rollback.sh"; fi
 else
   bad "没有基线文件 $BASELINE_FILE —— 无法证明主站未受影响。部署前应先 --save-baseline。"
 fi

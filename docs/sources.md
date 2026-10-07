@@ -110,7 +110,7 @@ SocialData 按请求计费，本部署没有这个 key，所以第二十四轮�
 
 两条本站的实情：① 这个自动调整任务只在 `COLLECT_ENABLED` 不为 false 时才注册（`apps/worker/src/schedules.ts:82-87`），
 所以上面那三档在关着采集的机器上根本不会跑；② **现站在跑的按次计费信源是 0 条**——`industry/sources.json` 里 `mp_account` 与带 `paid_listing` 的仍是 0，`x_search` 第二十四轮登记了 8 条但全部 `enabled=false`（本部署没有 `SOCIALDATA_API_KEY`），所以“按次计费”这一档在现部署下依然是空集，采集不产生账单。
-登记间隔的现值最小 30 分钟（104 条：6 条 30、12 条 60、1 条 90、23 条 120、4 条 180、34 条 240、11 条 360、5 条 720、8 条 1440；
+登记间隔的现值最小 30 分钟（113 条：6 条 30、12 条 60、1 条 90、24 条 120、4 条 180、40 条 240、12 条 360、6 条 720、8 条 1440；
 `node -e` 一行可复测，命令见 `README.md` 的「现状与边界」）——**"最快的源 30 分钟看一次"是本站的口径，
 15 分钟只是自适应下限，当前没有任何一条源达到触发它的产量**。
 
@@ -376,4 +376,71 @@ node scripts/set-source-state.ts --ids=… --apply --database-url=postgres://…
 「信源数量的唯一说法」那一段所在的同一轮记录；分级依据：IGU/AAG/ICA/ISC 是学会与理事会（自己发布，不是转述），
 定 `T1_5`；IPBES 与 UN-Habitat 是政府间机构，定 `T1`。`defaultCategory`：IPBES → `physical`（生态与生物多样性），
 UN-Habitat → `human`（城市与城镇化），其余留空由模型判断。
+
+## 第四十八轮（2026-10-07 上午）：卫星与大气、Nature 子刊与院级进展（104 → 113）
+
+站长第二次要求「拓展信息源，一定要权威官方」。判据与前几轮同一套：**先在采集那台机器（Azure VM）上逐条
+`curl` 实测**——feed 活着、条目数正常、**最近一条在 45 天以内**三条同时成立才写进包；写进包之后再在本机库
+用 `node --env-file=.env scripts/collect.ts <id>` 真抓一遍，**首轮入库 0 条就退回**。
+
+**这一轮收进来 9 条（全部启用）**。表里"实测"是采集机上直接看 feed 得到的，"入库"是本机 `scripts/collect.ts`
+首轮的结果：
+
+| id | 地址 | 实测 | 本机首轮入库 | 分级与默认分类 |
+|---|---|---|---|---|
+| `rss-eumetsat-news` | eumetsat.int/rss.xml | 10 条，最新 2026-10-06 | 10 | T1 / `geotech`（气象卫星与影像） |
+| `rss-copernicus-atmosphere` | atmosphere.copernicus.eu/rss.xml | 10 条，最新 2026-09-23 | 8 | T1 / `physical`（大气与空气质量） |
+| `rss-nature-water` | nature.com/natwater.rss | 8 条，最新 2026-10-02 | 8 | T1_5 / `physical` |
+| `rss-nature-sustainability` | nature.com/natsustain.rss | 8 条，最新 2026-10-06 | 8 | T1_5 / `human` |
+| `rss-nature-food` | nature.com/natfood.rss | 8 条，最新 2026-10-01 | 8 | T1_5 / `human` |
+| `rss-pnas-toc` | pnas.org/action/showFeed?type=etoc&feed=rss&jc=pnas | 90 条，最新 2026-09-29 | 12（`initialBackfillLimit`） | T1_5 / 留空 |
+| `rss-ifrc-news` | ifrc.org/rss.xml | 10 条，最新 2026-10-04 | 10 | T1 / 留空（灾害与人道，内容跨类） |
+| `rss-cms-bonn` | cms.int/rss.xml | 10 条，最新 2026-10-06 | 8 | T1 / `physical`（迁徙物种与生态） |
+| `web-cas-syky` | cas.cn/syky/ | 15 条带日期（见下） | 10，日期无空值 | T1 / `physical` |
+
+**`web-cas-syky` 的教训（这一条值得记着）**：`https://www.cas.cn/syky/` 不是列表页而是**门户**——
+`li:has(a[title])` 能匹到 84 个节点，里面是奖项入口、期刊外链、博物馆链接、党建与科普栏目，
+只有 `#content` 那一块 15 条才是真正的「科研进展」。第一版选择器收进 10 条、**其中 6 条没有日期**；
+改成 `#content li:has(a[title])` 后 10 条全部带日期（列表页 `<span>` 印的是发布日，与 URL 里的
+`t2026MMDD` 可以差几天——我们取页面上给读者看的那个）。`allowUrlPrefixes` 是第一道闸，
+但它只挡域名与路径，**挡不住同域名下的导航块**，所以门户页必须限定容器。
+
+**同批退回的候选（记下来，下一轮别再重复探）**：
+
+- **停更快照**：`marine.copernicus.eu/rss.xml`（10 条但最新停在 **2025-07-18**）、`unccd.int/rss.xml`
+  （最新 2026-03-16，超 45 天）。
+- **端点不存在**：`public.wmo.int/en/rss.xml`、`wmo.int/feed`、`nsidc.org/rss.xml`（包里活的是
+  `nsidc.org/news/feed`）、`unosat.org/feed`、`emergency.copernicus.eu/rss` 与 `/feed`、
+  `emsc-csem.org/service/rss/rss.php` 与 `Earthquake/eqfeed_recent.php`、`psl.noaa.gov/rss/enso.xml`、
+  `cpc.ncep.noaa.gov/…/enso-update.rss`、`unesco.org/en/rss.xml` 与 `/en/news/rss.xml`、
+  `internal-displacement.org/rss` 与 `/press-releases`、`worldbank.org/en/rss`、`blogs.worldbank.org/rss`、
+  `data.worldbank.org/rss.xml`、`cbd.int/doc/rss.xml`、`egu.eu/rss.xml`、`sipri.org/rss.xml` 与 `/feed`、
+  `nhc.noaa.gov/rss.xml`、`nationalgeographic.com/environment/feed`、`icimod.com/rss.xml` 与 `/feed`
+  （**返回 114 字节的 HTML 壳，包里活的是 `icimod.org/feed/`**）、`tandfonline.com/action/showFeed`。
+- **403 / 反爬**：`ctbto.org`、`ramsar.org`、`rsis.edu.sg`、`mdpi.com/rss/journal/*`、`preventionweb.net`、
+  `advances.sciencemag.org/rss/current.xml`。**不改 `DEFAULT_UA` 去绕**。
+- **返回 200 但不是 feed**：`land.copernicus.eu/rss.xml`（500）、`land.copernicus.eu/global/rss.xml`
+  （HTML）、`blog.globalforestwatch.org/feed/`（HTML、0 item）、`link.springer.com/journal/11629/updates.rss`
+  （3 KB 的 JS 壳）、`earthobservatory.nasa.gov/feed`（HTML；包里活的是 `/feeds/earth-observatory.rss`）。
+- **接口已废弃**：`api.reliefweb.int/v1/reports` → **410 Gone**（v1 下线，要接得走 v2）。
+- **UNEP 仍然不可接**：`unep.org/news-and-stories/rss.xml` 有 13 个 `<item>`，但**条目里没有 `<link>`**
+  （自定义 XML 方言），与第三十九轮的结论一致；`unep.org/rss.xml` 是停更在 2024-02 的旧快照。
+- **本机 DNS 不通（不代表对方下线）**：`nosa.gov.cn`、`cers.ac.cn`、`dtu.iom.int`、`gsi.go.jp`。
+- **MOST（科技部）**：根页 200 但列表是脚本渲染、拿不到带日期的服务端锚点，`/xxgk/.../gkxz/` 直接 404。
+  留作候选，接它得先找到服务端渲染的列表路径。
+
+**分级依据**：EUMETSAT / CAMS / IFRC / CMS / CAS 是**发布主体自己写稿**（一手），定 `T1`；
+Nature 子刊与 PNAS 的当期目录是**期刊编辑部自己出的目录**，与包里 `rss-nature-geoscience` 同一档，
+定 `T1_5`。`owner_entity_id` 只用 `industry/taxonomy.ts` 的 `ENTITIES` 键（`tests/industry-pack-sources.test.ts`
+逐条断言），所以 EUMETSAT / IFRC / CMS / Nature / PNAS 一律留 `null`，CAS 用 `cas`。
+**EUMETSAT 的条目 `<link>` 是 `http://` 明文**——不改写（改写等于替读者决定跳转），出站由对方站点自己 301。
+
+**上线后的对账（2026-10-07 上午，生产库）**：`scripts/seed.ts` 报 `9 added, 104 already there`，
+`sources` 现 **117 行 / 100 条启用**——117 = 包里 113 + **4 条不在包里的停用遗留**：`cn-people-intl` /
+`cn-people-politics` / `cn-people-scitech`（人民网那三条公开 feed，实测最新一条分别停在 2025-06-03 /
+2025-06-04 / 2021-02-01，是停更快照）与 `cn-web-geog-toc`（试接地理学报）。四条都是 `enabled=false`，
+不采集、不发布，所以留着不影响读者；要清掉用 `scripts/delete-sources.ts`，那是删数据，未获授权不动。
+九条新源在生产各已真抓一次：`eumetsat 10 / cams 10 / natwater 8 / natsustain 8 / natfood 8 /
+pnas 87 / ifrc 10 / cms 10 / cas-syky 15`，`last_error` 全空、`published_at` 无空值，
+CAS 那 15 条标题全部含中文，其余为英文（进编辑管道等中文稿）。
 
