@@ -2,7 +2,7 @@
 import { SITE, withSubject } from "@aihot/industry/site";
 import { CATEGORIES } from "@aihot/industry/taxonomy";
 import type { ReportNavigationEntry, ReportKind } from "@aihot/contracts/site";
-import { beijingWeekday } from "@aihot/contracts/time";
+import { beijingWeekday, addDays } from "@aihot/contracts/time";
 
 export const KINDS: ReportKind[] = ["daily", "weekly", "monthly"];
 export const KIND_PATH: Record<ReportKind, string> = { daily: "/daily", weekly: "/weekly", monthly: "/monthly" };
@@ -159,7 +159,42 @@ export function archiveGroups(kind: ReportKind, index: ReportNavigationEntry[]):
   return groups;
 }
 
-/** An issue's mark in the archive column: a large number over a small word (a month's number stands alone). */
+/** A stretch of consecutive days the archive holds no readable edition for, inside one month. */
+export interface MissingRun {
+  from: string;
+  to: string;
+  days: number;
+  /** Month key (`YYYY-MM`) this run is filed under; runs never straddle a month. */
+  month: string;
+}
+
+const packRun = (days: string[]): MissingRun => ({ from: days[0]!, to: days[days.length - 1]!, days: days.length, month: days[0]!.slice(0, 7) });
+
+/**
+ * The days between two printed issues that have no issue. The read layer drops a blank edition (nobody
+ * can read an empty paper), which leaves a date-keyed archive printing 2 日、3 日、7 日 and every reader
+ * working out for themselves whether the sync broke — an absence in a daily is a fact about the paper,
+ * so it goes on the page. Only the span between the oldest and the newest printed issue is marked: a day
+ * after the newest one may still be today's proof, and the days before the first one are the paper not
+ * having started yet.
+ */
+export function missingRuns(index: ReportNavigationEntry[]): MissingRun[] {
+  const keys = index.map((e) => e.key).sort((a, b) => a.localeCompare(b));
+  const runs: MissingRun[] = [];
+  for (let i = 1; i < keys.length; i++) {
+    let run: string[] = [];
+    // ISO date strings compare correctly as text, so this stops at the next printed issue.
+    for (let day = addDays(keys[i - 1]!, 1); day < keys[i]!; day = addDays(day, 1)) {
+      if (run.length && day.slice(0, 7) !== run[0]!.slice(0, 7)) {
+        runs.push(packRun(run));
+        run = [];
+      }
+      run.push(day);
+    }
+    if (run.length) runs.push(packRun(run));
+  }
+  return runs.reverse();
+}
 export function archiveMark(kind: ReportKind, key: string): { big: string; small: string | null } {
   if (kind === "daily") return { big: key.slice(8, 10), small: beijingWeekday(key).replace("星期", "周") };
   if (kind === "weekly") {
@@ -221,11 +256,14 @@ export function metricItems(metrics: Record<string, number>): Array<{ value: num
   return METRICS.filter(([k]) => typeof metrics[k] === "number" && (k !== "modelsReleased" || metrics[k]! > 0)).map(([k, unit]) => ({ value: metrics[k]!, unit }));
 }
 
-/** "前一日 · 9月25日", "上一期 · 第 37 周", "下一期 · 7 月". */
-export function neighbourLabel(kind: ReportKind, key: string, direction: "prev" | "next"): string {
-  if (kind === "daily") return `${direction === "prev" ? "前一日" : "后一日"} · ${dayLabel(key)}`;
+/** "前一日 · 9月25日" / "上一期 · 9月25日", "上一期 · 第 37 周", "下一期 · 7 月". */
+export function neighbourLabel(kind: ReportKind, current: string, key: string, direction: "prev" | "next"): string {
   const which = direction === "prev" ? "上一期" : "下一期";
-  return kind === "weekly" ? `${which} · 第 ${Number(key.slice(6))} 周` : `${which} · ${Number(key.slice(5, 7))} 月`;
+  if (kind === "monthly") return `${which} · ${Number(key.slice(5, 7))} 月`;
+  if (kind === "weekly") return `${which} · 第 ${Number(key.slice(6))} 周`;
+  // 「前一日」是日期承诺，不是序号承诺：中间有空刊时邻居并不是前一天，写着「前一日」跳四天是指错路标。
+  const adjacent = key === addDays(current, direction === "prev" ? -1 : 1);
+  return `${adjacent ? (direction === "prev" ? "前一日" : "后一日") : which} · ${dayLabel(key)}`;
 }
 
 const CN = ["零", "一", "二", "三", "四", "五", "六", "七", "八", "九", "十"];

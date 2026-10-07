@@ -324,7 +324,7 @@ function Neighbours({ report, index }: { report: ReportDetail; index: ReportNavi
       {report.prev ? (
         <Link to={reportPath(report.kind, report.prev)} className={`${cell} pr-5 @[760px]:pr-10`}>
           <span className="inline-flex items-center gap-1 text-caption text-ink-4">
-            <IconArrowLeft size={13} /> {neighbourLabel(report.kind, report.prev, "prev")}
+            <IconArrowLeft size={13} /> {neighbourLabel(report.kind, report.key, report.prev, "prev")}
           </span>
           <span className={title}>{titleOf(report.prev)}</span>
         </Link>
@@ -334,7 +334,7 @@ function Neighbours({ report, index }: { report: ReportDetail; index: ReportNavi
       {report.next ? (
         <Link to={reportPath(report.kind, report.next)} className={`${cell} items-end border-l border-line pl-5 text-right @[760px]:pl-10`}>
           <span className="inline-flex items-center gap-1 text-caption text-ink-4">
-            {neighbourLabel(report.kind, report.next, "next")} <IconArrowRight size={13} />
+            {neighbourLabel(report.kind, report.key, report.next, "next")} <IconArrowRight size={13} />
           </span>
           <span className={title}>{titleOf(report.next)}</span>
         </Link>
