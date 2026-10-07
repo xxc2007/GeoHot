@@ -111,7 +111,7 @@ SocialData 按请求计费，本部署没有这个 key，所以第二十四轮�
 两条本站的实情：① 这个自动调整任务只在 `COLLECT_ENABLED` 不为 false 时才注册（`apps/worker/src/schedules.ts:82-87`），
 所以上面那三档在关着采集的机器上根本不会跑；② **现站在跑的按次计费信源是 0 条**——`industry/sources.json` 里 `mp_account` 与带 `paid_listing` 的仍是 0，`x_search` 第二十四轮登记了 8 条但全部 `enabled=false`（本部署没有 `SOCIALDATA_API_KEY`），所以“按次计费”这一档在现部署下依然是空集，采集不产生账单。
 登记间隔的现值最小 30 分钟（113 条：6 条 30、12 条 60、1 条 90、24 条 120、4 条 180、40 条 240、12 条 360、6 条 720、8 条 1440；
-`node -e` 一行可复测，命令见 `README.md` 的「现状与边界」）——**"最快的源 30 分钟看一次"是本站的口径，
+`node -e` 一行可复测，读的就是 `industry/sources.json` 这一份）——**"最快的源 30 分钟看一次"是本站的口径，
 15 分钟只是自适应下限，当前没有任何一条源达到触发它的产量**。
 
 抓取失败不推进位置，下次从同一处继续；连续失败的信源在后台标红，每周一会在运营群发一份信源周报（配置了飞书内部群时）。
@@ -229,7 +229,7 @@ Public Domain Review 明说可自由分享与复用），**要不要放宽是站
 `interval_minutes` 登记为 240 分钟 19 条、360 分钟 6 条、120 与 180 分钟各 1 条（和别的源一样，这只是上限，
 `adaptIntervals` 会按产量往下调）。许可一律按最保守的一档：`site_fulltext` 与 `syndicate_fulltext` 全部 `false`，
 只出标题、摘要与原文链接。那一轮加完之后 `industry/sources.json` 是 **85 条**（`rss` 51 / `web_list` 23 / `json_list` 3 /
-`external` 8），其中 **77 条可轮询**、8 条 `external` 仍是人工投递通道（那一轮之后又加了三条中文 `web_list`，2026-10-04 晚到 90 条 / 82 条可轮询；条数的唯一口径在 `README.md`）。
+`external` 8），其中 **77 条可轮询**、8 条 `external` 仍是人工投递通道（那一轮之后又加了三条中文 `web_list`，2026-10-04 晚到 90 条 / 82 条可轮询；条数的唯一口径是 `industry/sources.json` 本身）。
 
 三件要说明的口径：
 
@@ -372,7 +372,7 @@ node scripts/set-source-state.ts --ids=… --apply --database-url=postgres://…
 要接得按 `web_list` 写选择器（CAS 的列表不含日期、日期只在 URL 的 `t2026MMDD` 里）——**列为下一轮候选**，
 `gov.cn`、`cma.gov.cn` 分别返回 685 字节的拦截页与 406。
 
-**六条全部已用 `scripts/seed.ts` 写入生产库**（`ON CONFLICT DO NOTHING` 只增不改），首次抓取入库数量见 README
+**六条全部已用 `scripts/seed.ts` 写入生产库**（`ON CONFLICT DO NOTHING` 只增不改），首次抓取入库数量见本节末那张表的「本机首轮入库」列
 「信源数量的唯一说法」那一段所在的同一轮记录；分级依据：IGU/AAG/ICA/ISC 是学会与理事会（自己发布，不是转述），
 定 `T1_5`；IPBES 与 UN-Habitat 是政府间机构，定 `T1`。`defaultCategory`：IPBES → `physical`（生态与生物多样性），
 UN-Habitat → `human`（城市与城镇化），其余留空由模型判断。

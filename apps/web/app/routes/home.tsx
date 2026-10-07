@@ -1,4 +1,4 @@
-import { SITE } from "@aihot/industry/site";
+import { SITE, withSubject } from "@aihot/industry/site";
 import { data as withHeaders, Link, redirect, useLoaderData } from "react-router";
 import type { Route } from "./+types/home";
 import type { PoolResponse, TimelineResponse } from "@aihot/contracts/site";
@@ -131,7 +131,7 @@ export default function Home() {
             to={listPath("/all", { channel: filters.channel !== "all" ? filters.channel : null, category: filters.category, tag: filters.tag })}
             className="mt-2 inline-flex text-[13px] text-accent hover:underline"
           >
-            查看全部 {live.total.toLocaleString("zh-CN")} 条地理动态 →
+            查看全部 {live.total.toLocaleString("zh-CN")} 条{withSubject("动态")} →
           </Link>
         </section>
       )}

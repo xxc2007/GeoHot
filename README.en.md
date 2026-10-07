@@ -57,10 +57,11 @@ taxonomy, topics, sources, scoring standard, thresholds, branding, terms pages �
 <details>
 <summary>▲ Figure 1 · HOME, the shortlist — open to see what is in this shot and why it may look different tomorrow</summary>
 
-The block at the top is **current hotness**: events ranked by discussion, each row showing rank, headline, the
-outlets arguing about it, a heat value and a trend arrow. That board is not computed this hour — the timestamp next
-to its title is its cut-off. Once it ages past a day the page swaps in an honest sentence ("no event in the past 48
-hours has two independent sources discussing it") plus an `/all` entry point, instead of wiping the layout blank.
+The block at the top is **current hotness**, and this shot catches it in its **empty state**: the board only exists once
+two independent outlets are discussing the same event, and when nothing clears that bar the page says so plainly —
+"no event in the past 48 hours has two independent sources discussing it" — plus an `/all` entry point, rather than
+wiping the layout blank. When a board does exist, the same slot lists the top events: rank, headline, the outlets
+arguing about it, a heat value and a trend arrow, and the title may carry a cut-off timestamp for that board.
 **This screen changes daily; the live URL is the source of truth**: <https://xxc2007.me/geohot/>.
 
 </details>
@@ -106,7 +107,7 @@ removed: items, the `category` field, the taxonomy and the public thresholds wer
   wait for grouping to finish before appearing in the shortlist, so the same story cannot surface three times.
 - **Heat**: a rolling time window, decay over time, one vote per independent source, and a minimum number of
   participants — below that the board is simply empty. An empty board is an honest state, not a fault.
-  The four parameters live in `packages/backend/src/events/hot.ts`.
+  The three parameters (window, half-life, minimum participants) live in `packages/backend/src/events/hot.ts`.
 - **Editions**: daily, weekly and monthly editions are generated at fixed times, items ranked by heat and split into
   discipline and technology sections.
 
@@ -138,7 +139,7 @@ as an editorial position.** Better one short item than one wrong hazard figure.
 **Machine-readable exits** all read from one read-only layer, `packages/backend/src/publication/`, so the web pages
 and the APIs serve the same set of items:
 
-- RSS: `/feed.xml`, `/feed/all.xml`, `/feed/daily.xml`, `/feed/weekly.xml`, `/feed/monthly.xml`, plus per-category `/feed/category/<key>.xml`
+- RSS: `/feed.xml` (shortlist), `/feed/full.xml` (shortlist with body), `/feed/all.xml`, `/feed/daily.xml`, `/feed/weekly.xml`, `/feed/monthly.xml`, plus per-category `/feed/category/<key>.xml` and `/feed/full/category/<key>.xml`
 - Public API: read-only endpoints under `/api/v1/*`, spec at `/openapi-v1.json`, agent page at `/agent`
 - For agents: an MCP endpoint and `/llms.txt`
 - Indexing: `/sitemap.xml`, `/robots.txt`
@@ -159,7 +160,7 @@ belong to `package.json` and are not transcribed here.
 | Front end | **React Router** (SSR) + React + Tailwind | Server-rendered, so crawlers and readers get complete HTML |
 | API | **Fastify** | Public reads must take load; admin writes must take validation |
 | Jobs | **pg-boss** | The queue lives inside Postgres — one less middleware to operate |
-| Data | **PostgreSQL** + `pg_trgm` | Event merging needs similarity search; `embedded-postgres` locally, no Docker dependency |
+| Data | **PostgreSQL** | Items, events, reports and sessions share one relational store; `embedded-postgres` locally, no Docker dependency |
 | Editorial judgement | A real model in production; a local stub plus `tooling/fixtures/*.jsonl` locally and in CI | Paid calls always pass receipts and a budget breaker; tests never touch an external service |
 
 ---

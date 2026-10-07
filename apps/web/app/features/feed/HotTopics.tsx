@@ -1,5 +1,6 @@
 import { Link } from "react-router";
 import type { HotStripEntry } from "@aihot/contracts/site";
+import { withSubject } from "@aihot/industry/site";
 import { IconArrowRight, IconMinus, IconTrendDown, IconTrendUp } from "../../components/icons";
 import { monthDayTime } from "../../lib/format";
 import { Faces } from "../hot/Faces";
@@ -67,7 +68,7 @@ export function HotTopics({ entries, asOf, generatedAt }: { entries: HotStripEnt
       {entries.length === 0 ? (
         <p className="flex flex-wrap items-baseline gap-x-2 py-2 text-body text-ink-3">
           <span>过去 48 小时还没有两家以上信源同时讨论的事件。</span>
-          <Link to="/all" className="text-hot-ink hover:underline">看今天的全部地理动态 →</Link>
+          <Link to="/all" className="text-hot-ink hover:underline">看今天的全部{withSubject("动态")} →</Link>
         </p>
       ) : (
       <ol>
