@@ -74,11 +74,13 @@ arguing about it, a heat value and a trend arrow, and the title may carry a cut-
 
 A 35.4-second, 1080p film built from real public website captures, using Video Shotcraft. Camera motion and the presentation follow the Nanchang No. 15 memorial film; colours and typography come from this website. The film has Chinese captions. GEOHOT news footage is a frozen capture from 8 October 2026.
 
-[![Watch the product film](docs/promo/poster.jpg)](https://xxc2007.me/assets/promo/geohot/)
+Play the film directly in the player below.
 
-<!-- PROMO-NATIVE-GEOHOT -->
+https://github.com/user-attachments/assets/0f0d31b0-eaf2-4155-833e-5155f7391110
 
 [Watch in 1080p](https://xxc2007.me/assets/promo/geohot/) · [Source MP4](https://raw.githubusercontent.com/xxc2007/GeoHot/main/docs/promo/geohot-promo.mp4) · [SFX-only version](https://raw.githubusercontent.com/xxc2007/GeoHot/main/docs/promo/geohot-promo-nobgm.mp4) · [Production notes](docs/promo/PRODUCTION.md)
+
+The native README preview is 1920×1080; the standalone player and source link use the full 1080p film.
 
 ---
 
