@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#176B75">
+  <meta name="description" content="GEOHOT · 地理热点纪念页宣传片：35.4 秒公开在线播放。">
+  <link rel="canonical" href="https://xxc2007.me/assets/promo/geohot/">
+  <title>宣传片｜GEOHOT · 地理热点</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #faf9f6;
+      --ink: #1f1e1d;
+      --muted: #6e6a63;
+      --line: rgba(31, 30, 29, .16);
+      --terracotta: #176B75;
+      --terracotta-dark: #145963;
+      --panel: rgba(255, 255, 255, .58);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--ink);
+      background: var(--paper);
+      background-image: linear-gradient(rgba(31, 30, 29, .025) 1px, transparent 1px);
+      background-size: 100% 7px;
+    }
+
+    a { color: inherit; }
+
+    .page {
+      width: min(100% - 40px, 1120px);
+      margin: 0 auto;
+      padding: 28px 0 56px;
+    }
+
+    .topline {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      padding-bottom: 18px;
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+      font-size: .78rem;
+      letter-spacing: .13em;
+      text-transform: uppercase;
+    }
+
+    .back {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--ink);
+      font-weight: 650;
+      letter-spacing: 0;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .back:hover, .back:focus-visible { color: var(--terracotta-dark); }
+
+    .hero {
+      max-width: 760px;
+      padding: clamp(58px, 10vw, 116px) 0 54px;
+    }
+
+    .eyebrow {
+      margin: 0 0 18px;
+      color: var(--terracotta-dark);
+      font-size: .82rem;
+      font-weight: 750;
+      letter-spacing: .15em;
+    }
+
+    h1 {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(2.8rem, 8vw, 6.7rem);
+      font-weight: 500;
+      letter-spacing: -.055em;
+      line-height: .98;
+    }
+
+    h1 em {
+      color: var(--terracotta-dark);
+      font-style: normal;
+    }
+
+    .lede {
+      max-width: 640px;
+      margin: 28px 0 0;
+      color: var(--muted);
+      font-size: clamp(1.05rem, 1.8vw, 1.25rem);
+      line-height: 1.75;
+    }
+
+    .player-shell {
+      padding: clamp(16px, 3vw, 28px);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: var(--panel);
+      box-shadow: 0 18px 60px rgba(31, 30, 29, .08);
+    }
+
+    .player-heading {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 20px;
+      margin: 0 0 16px;
+    }
+
+    .player-heading h2 {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(1.35rem, 3vw, 2rem);
+      font-weight: 500;
+    }
+
+    .duration {
+      color: var(--muted);
+      font-size: .86rem;
+      white-space: nowrap;
+    }
+
+    video {
+      display: block;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      border-radius: 13px;
+      background: #171615;
+      box-shadow: 0 8px 24px rgba(31, 30, 29, .14);
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+      padding-top: 18px;
+    }
+
+    button, .file-link {
+      min-height: 44px;
+      border-radius: 999px;
+      font: inherit;
+      font-size: .94rem;
+      font-weight: 700;
+      text-decoration: none;
+    }
+
+    button {
+      padding: 0 20px;
+      border: 1px solid var(--terracotta);
+      color: #fff;
+      background: var(--terracotta);
+      cursor: pointer;
+    }
+
+    button:hover, button:focus-visible { background: var(--terracotta-dark); }
+
+    .file-link {
+      display: inline-flex;
+      align-items: center;
+      padding: 0 18px;
+      border: 1px solid var(--line);
+      color: var(--ink);
+    }
+
+    .file-link:hover, .file-link:focus-visible { border-color: var(--terracotta); }
+
+    button:focus-visible, a:focus-visible {
+      outline: 3px solid rgba(217, 119, 87, .38);
+      outline-offset: 3px;
+    }
+
+    .note {
+      margin: 18px 2px 0;
+      color: var(--muted);
+      font-size: .9rem;
+      line-height: 1.65;
+    }
+
+    footer {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 12px 24px;
+      margin-top: 32px;
+      padding-top: 18px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: .82rem;
+    }
+
+    footer a { color: var(--terracotta-dark); }
+
+    @media (max-width: 600px) {
+      .page { width: min(100% - 24px, 1120px); padding-top: 18px; }
+      .topline { align-items: flex-start; flex-direction: column; gap: 10px; }
+      .hero { padding: 58px 0 38px; }
+      .player-heading { align-items: flex-start; flex-direction: column; gap: 6px; }
+      .player-shell { border-radius: 16px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="topline">
+      <a class="back" href="https://xxc2007.me/geohot/" aria-label="返回网站首页">← 返回网站</a>
+      <span>VIDEO / 35.4 SEC</span>
+    </div>
+
+    <header class="hero">
+      <p class="eyebrow">GEOHOT · 地理热点 · 公开在线播放</p>
+      <h1>每天把地理，<br><em>读成有依据的几条。</em></h1>
+      <p class="lede">从精选资讯出发，经过七个分类、事件综述与报道时间线、地理日报、主题和 Agent 接入。真实读者页面组成 35.4 秒的产品宣传片；资讯画面为 2026-10-08 拍摄快照。</p>
+    </header>
+
+    <section class="player-shell" id="player" aria-labelledby="player-title">
+      <div class="player-heading">
+        <h2 id="player-title">GEOHOT · 地理热点 · 宣传片</h2>
+        <span class="duration">35.4 秒 · 1080p · MP4</span>
+      </div>
+
+      <video id="promo-video" controls playsinline preload="metadata" poster="./poster.jpg?v=67b5de0d26be">
+        <source src="./geohot-promo.mp4?v=222151158e05" type="video/mp4">
+        您的浏览器不支持内嵌视频，请使用<a href="./geohot-promo.mp4?v=222151158e05">直接打开 MP4</a>观看。
+      </video>
+
+      <div class="actions">
+        <button id="play-button" type="button">▶ 点击播放</button>
+        <a class="file-link" href="./geohot-promo.mp4?v=222151158e05">打开 / 下载 MP4</a>
+        <a class="file-link" href="./geohot-promo-nobgm.mp4?v=43ec135eb227">无 BGM 版（保留音效）</a>
+      </div>
+      <p class="note">如果当前网络限制了内嵌播放器，仍可点击“打开 / 下载 MP4”使用系统播放器观看；视频文件与本页面都公开托管在 xxc2007.me。</p>
+    </section>
+
+    <footer>
+      <span>真实网页截图 · Video Shotcraft · 2026-10-08</span>
+      <span><a href="https://xxc2007.me/geohot/">打开线上网站</a> · <a href="https://github.com/xxc2007/GeoHot">查看开源仓库</a></span>
+    </footer>
+  </main>
+
+  <script>
+    const video = document.getElementById('promo-video');
+    const playButton = document.getElementById('play-button');
+
+    playButton.addEventListener('click', async () => {
+      if (video.paused) {
+        try {
+          await video.play();
+        } catch {
+          video.focus();
+        }
+      } else {
+        video.pause();
+      }
+    });
+
+    const syncButton = () => {
+      playButton.textContent = video.paused ? '▶ 点击播放' : 'Ⅱ 暂停播放';
+    };
+    video.addEventListener('play', syncButton);
+    video.addEventListener('pause', syncButton);
+    video.addEventListener('ended', syncButton);
+  </script>
+</body>
+</html>

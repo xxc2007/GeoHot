@@ -1,0 +1,65 @@
+{
+  "dimensions": [
+    1920,
+    1080
+  ],
+  "fps": 30,
+  "frames": 1062,
+  "duration": 35.4,
+  "codec": "h264",
+  "audioCodec": "aac",
+  "audioHz": 48000,
+  "videoStreamHash": "SHA256=362f67bd347a41e87d7283780a26c5971beabff3c82c9b7fbdc8671618970a15",
+  "identicalVideoBetweenVariants": true,
+  "workbenchParityFrames": [
+    160,
+    380,
+    520,
+    995
+  ],
+  "workbenchParity": "PASS",
+  "audio": {
+    "date": "2026-10-08",
+    "pipeline": {
+      "remotion": "4.0.484 muted visual render",
+      "fps": 30,
+      "pcmSampleRate": 48000,
+      "mix": "FFmpeg exact source SFX frame delays and gains; original music envelope",
+      "mux": "ffmpeg AAC 192k / H264 stream copy"
+    },
+    "method": "Cross-correlate PCM reference and final decoded AAC, first 10 seconds, search +-100ms.",
+    "outputLagSamples": 0,
+    "outputLagMs": 0,
+    "outputLagFrames": 0,
+    "compensationFrames": 0,
+    "finalAudioPeakDbfs": -3.7453198432922363,
+    "sfxAudioPeakDbfs": -5.810781478881836,
+    "sourcePeaksFrames": {
+      "text/typewriter-hit-soft.mp3": 4.2,
+      "text/typewriter-hit-hard.mp3": 1.05,
+      "transition/transition-soft.mp3": 13.5,
+      "transition/whoosh-fast.mp3": 21.599999999999998,
+      "light/sparkle-touch.mp3": 14.25,
+      "transition/transition-snap.mp3": 3.45,
+      "transition/swoosh-quick.mp3": 8.25,
+      "text/marker-pen-line.mp3": 0.6,
+      "riser/riser-cine.mp3": 42.3,
+      "impact/impact-deep-whoosh.mp3": 16.5
+    },
+    "sourceGrid": {
+      "bpm": 121.98132856581977,
+      "T": 0.4918785580173827,
+      "sourceBeat0": 0.06339664721674133,
+      "allDrumMatch": 1,
+      "meanAbsMs": 3.855029963153881,
+      "maxAbsMs": 10.172098844712707,
+      "reason": "Sparse kick pattern: final grid checked against union of real kick/snare/hihat transients. Four-on-the-floor fundamental ~122 BPM; half/double-time candidates retained in beat_data.json."
+    },
+    "visualVersions": "Video stream copied directly from full into SFX-only version; verify hashes separately."
+  },
+  "independentReview": "INDEPENDENT-REVIEW.md",
+  "limitations": [
+    "Public news content frozen; not audited as current news.",
+    "Audio timing and levels measured numerically; normal-speed subjective listening not certified."
+  ]
+}

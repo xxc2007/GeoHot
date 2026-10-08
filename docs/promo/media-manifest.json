@@ -1,0 +1,22 @@
+[
+  {
+    "file": "geohot-promo-nobgm.mp4",
+    "bytes": 15781403,
+    "sha256": "43ec135eb22785ff43161fd81721a600de2c4497dd52a84bb10fc8234fcd57ab"
+  },
+  {
+    "file": "geohot-promo-readme.mp4",
+    "bytes": 6107422,
+    "sha256": "d7a3566665bd514792cb95a1594ecea62cb219792ce94f80d95daff152cf1c0f"
+  },
+  {
+    "file": "geohot-promo.mp4",
+    "bytes": 16266708,
+    "sha256": "222151158e050ac9820136bae41be5e594e98268c83d3285acd03ad9dc9f2c42"
+  },
+  {
+    "file": "poster.jpg",
+    "bytes": 141123,
+    "sha256": "67b5de0d26beee2635bfdfcaf12c75e58026ce8afd386902e8b927f28cd2d615"
+  }
+]

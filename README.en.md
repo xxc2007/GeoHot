@@ -68,6 +68,20 @@ arguing about it, a heat value and a trend arrow, and the title may carry a cut-
 
 ---
 
+---
+
+## 🎬 Product film
+
+A 35.4-second, 1080p film built from real public website captures, using Video Shotcraft. Camera motion and the presentation follow the Nanchang No. 15 memorial film; colours and typography come from this website. The film has Chinese captions. GEOHOT news footage is a frozen capture from 8 October 2026.
+
+[![Watch the product film](docs/promo/poster.jpg)](https://xxc2007.me/assets/promo/geohot/)
+
+<!-- PROMO-NATIVE-GEOHOT -->
+
+[Watch in 1080p](https://xxc2007.me/assets/promo/geohot/) · [Source MP4](https://raw.githubusercontent.com/xxc2007/GeoHot/main/docs/promo/geohot-promo.mp4) · [SFX-only version](https://raw.githubusercontent.com/xxc2007/GeoHot/main/docs/promo/geohot-promo-nobgm.mp4) · [Production notes](docs/promo/PRODUCTION.md)
+
+---
+
 ## I · HIGHLIGHTS
 
 ### i · TAXONOMY — seven categories, one standard

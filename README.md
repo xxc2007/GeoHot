@@ -65,6 +65,26 @@
 
 ---
 
+
+---
+
+## 🎬 宣传片展示
+
+从精选资讯出发，经过七个分类、事件综述与报道时间线、地理日报、主题和 Agent 接入。真实读者页面组成 35.4 秒的产品宣传片；资讯画面为 2026-10-08 拍摄快照。
+
+<p align="center">
+  <a href="https://xxc2007.me/assets/promo/geohot/"><img src="docs/promo/poster.jpg" alt="GEOHOT · 地理热点宣传片：真实页面截图、品牌字标与公开网址，点击播放" width="100%"></a>
+</p>
+<p align="center"><sub>▲ GEOHOT · 地理热点 · 35.4 秒 · 1920×1080 · 点击封面打开高清播放器</sub></p>
+
+<!-- PROMO-NATIVE-GEOHOT -->
+
+▶️ [打开 1080p 高清播放器](https://xxc2007.me/assets/promo/geohot/) · [直接打开 1080p 源视频](https://raw.githubusercontent.com/xxc2007/GeoHot/main/docs/promo/geohot-promo.mp4) · [无 BGM 版（保留音效）](https://raw.githubusercontent.com/xxc2007/GeoHot/main/docs/promo/geohot-promo-nobgm.mp4)
+
+<sub>使用 Video Shotcraft 制作，运镜与展示结构参考[青山湖畔的纪念册](https://github.com/xxc2007/In-memory-of-Nanchang-No.-15-Middle-School#-宣传片展示)。[素材与制作记录](docs/promo/PRODUCTION.md)</sub>
+
+---
+
 ## 壹 · HIGHLIGHTS 特色
 
 ### 其一 · TAXONOMY 七个分类，一条标准
