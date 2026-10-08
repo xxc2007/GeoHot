@@ -78,7 +78,7 @@ Play the film directly in the player below.
 
 https://github.com/user-attachments/assets/0f0d31b0-eaf2-4155-833e-5155f7391110
 
-[Watch in 1080p](https://xxc2007.me/assets/promo/geohot/) · [Source MP4](https://raw.githubusercontent.com/xxc2007/GeoHot/main/docs/promo/geohot-promo.mp4) · [SFX-only version](https://raw.githubusercontent.com/xxc2007/GeoHot/main/docs/promo/geohot-promo-nobgm.mp4) · [Production notes](docs/promo/PRODUCTION.md)
+[Watch in 1080p](https://xxc2007.me/assets/promo/geohot/) · [Source MP4](https://raw.githubusercontent.com/xxc2007/GeoHot/main/docs/promo/geohot-promo.mp4)
 
 The native README preview is 1920×1080; the standalone player and source link use the full 1080p film.
 
