@@ -44,3 +44,13 @@ test("周报月报的邻居仍按期次称呼", () => {
   assert.equal(neighbourLabel("weekly", "2026-W40", "2026-W39", "prev"), "上一期 · 第 39 周");
   assert.equal(neighbourLabel("monthly", "2026-10", "2026-09", "prev"), "上一期 · 9 月");
 });
+
+// 报眼月历的「本月 N 期」：数的是索引里真有的期次，不是格子的状态。
+test("空刊那一期的月历不把自已数进去", async () => {
+  const { periodGrid } = await import("../app/features/report/format.ts");
+  const index = idx("2026-10-08", "2026-10-07", "2026-10-03", "2026-10-02");
+  // 指名点开 10-04（白页）时，它自己是 current 但不在索引里：数状态会得到 5，
+  // 而 /daily/archive、/about、/api/site/stats 都说 4 —— 一个事实两个答案。
+  assert.equal(periodGrid("daily", "2026-10-04", index).note, "本月 4 期");
+  assert.equal(periodGrid("daily", "2026-10-08", index).note, "本月 4 期", "正常一期也要数同一个数");
+});

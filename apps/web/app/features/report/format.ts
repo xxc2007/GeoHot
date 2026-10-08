@@ -313,7 +313,10 @@ export function periodGrid(kind: ReportKind, key: string, index: ReportNavigatio
     // its date and nothing else — an unnumbered issue is not an issue that did not come out.
     return { key: k, label: state === "none" ? `${name} · 未出刊` : n ? `${name} · 第 ${n} 期` : name, state };
   };
-  const count = (cells: PeriodCell[]) => cells.filter((c) => c.state === "issue" || c.state === "current").length;
+  // Counted from the index, not from the cell's state: the cell for the issue being read is "current"
+  // whether or not it is a newspaper, so counting states would let a blank issue's own 报眼 claim one
+  // edition more than /daily/archive, /about and /api/site/stats all say.
+  const count = (cells: PeriodCell[]) => cells.filter((c) => c.key && exists.has(c.key)).length;
   const year = key.slice(0, 4);
   if (kind === "daily") {
     const m = Number(key.slice(5, 7));

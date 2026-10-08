@@ -5,6 +5,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { finalizeCopy } from "@aihot/backend/editorial/writing";
+import { noChineseAnswer } from "@aihot/backend/editorial/analyze";
 
 const english = {
   title: "Magnitude 7.2 earthquake struck off the coast, USGS said",
@@ -36,4 +37,14 @@ test("正常中文稿原样通过", () => {
   const c = finalizeCopy(chinese, { titleZh: "近海 7.2 级地震，机构测定", summaryZh: "测定近海 7.2 级地震，震源深度 10 千米。" });
   assert.equal(c.titleZh, "近海 7.2 级地震，机构测定");
   assert.equal(c.summaryZh, "测定近海 7.2 级地震，震源深度 10 千米。");
+});
+
+test("混合答复不算「可用」：否则回执被记成好答复，条目永远等不到重问", () => {
+  // 上面三条钉的是 finalizeCopy 会清空英文提要；这一组钉的是**这条答复不该被当成好答复**。
+  // usable 只问"有没有中文"时，中文标题 + 英文提要通过闸门 → 回执记 completed →
+  // 条目停在等待，之后每次重试都免费回放同一条坏答复（只有删 receipts 行才能重问）。
+  assert.equal(noChineseAnswer({ titleZh: "近海发生 7.2 级地震", summaryZh: "测定近海 7.2 级地震，震源深度 10 千米。" }), null, "两个字段都是中文：可用");
+  assert.match(noChineseAnswer({ titleZh: "近海发生 7.2 级地震", summaryZh: "A magnitude 7.2 earthquake struck off the coast." }) ?? "", /mixes non-Chinese/, "中文标题 + 英文提要：拒收，让下一次重试真的重问");
+  assert.match(noChineseAnswer({ titleZh: "Magnitude 7.2 earthquake off the coast", summaryZh: "测定近海 7.2 级地震。" }) ?? "", /mixes non-Chinese/, "反过来混也一样");
+  assert.match(noChineseAnswer({ titleZh: "Magnitude 7.2 earthquake", summaryZh: "A magnitude 7.2 earthquake." }) ?? "", /no Chinese copy/, "整条没有中文：仍是原来的理由");
 });

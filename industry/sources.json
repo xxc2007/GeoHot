@@ -355,7 +355,7 @@
         "ingestNoiseFilter": {
           "dropMarkersTitleOnly": ["Author Correction", "Corrigendum", "Publisher Correction", "Editorial Note"]
         },
-        "_aihot": { "initialBackfillLimit": 8 }
+        "_aihot": { "initialBackfillLimit": 8, "intervalMinutesLocked": true }
       },
       "tier": "T1_5",
       "first_party": true,
@@ -377,7 +377,7 @@
         "ingestNoiseFilter": {
           "dropMarkersTitleOnly": ["Author Correction", "Corrigendum", "Publisher Correction", "Editorial Note"]
         },
-        "_aihot": { "initialBackfillLimit": 8 }
+        "_aihot": { "initialBackfillLimit": 8, "intervalMinutesLocked": true }
       },
       "tier": "T1_5",
       "first_party": true,
@@ -399,7 +399,7 @@
         "ingestNoiseFilter": {
           "dropMarkersTitleOnly": ["Author Correction", "Corrigendum", "Publisher Correction", "Editorial Note"]
         },
-        "_aihot": { "initialBackfillLimit": 6 }
+        "_aihot": { "initialBackfillLimit": 6, "intervalMinutesLocked": true }
       },
       "tier": "T1_5",
       "first_party": true,
@@ -421,7 +421,7 @@
         "ingestNoiseFilter": {
           "dropMarkersTitleOnly": ["Author Correction", "Corrigendum", "Publisher Correction", "Editorial Note"]
         },
-        "_aihot": { "initialBackfillLimit": 6 }
+        "_aihot": { "initialBackfillLimit": 6, "intervalMinutesLocked": true }
       },
       "tier": "T1_5",
       "first_party": true,
@@ -2020,7 +2020,7 @@
         "feedUrl": "https://www.nature.com/natwater.rss",
         "allowUrlPrefixes": ["https://www.nature.com/articles/"],
         "ingestNoiseFilter": { "dropMarkersTitleOnly": ["Author Correction", "Corrigendum", "Publisher Correction", "Editorial Note"] },
-        "_aihot": { "initialBackfillLimit": 8 }
+        "_aihot": { "initialBackfillLimit": 8, "intervalMinutesLocked": true }
       },
       "tier": "T1_5",
       "first_party": true,
@@ -2041,7 +2041,7 @@
         "feedUrl": "https://www.nature.com/natsustain.rss",
         "allowUrlPrefixes": ["https://www.nature.com/articles/"],
         "ingestNoiseFilter": { "dropMarkersTitleOnly": ["Author Correction", "Corrigendum", "Publisher Correction", "Editorial Note"] },
-        "_aihot": { "initialBackfillLimit": 8 }
+        "_aihot": { "initialBackfillLimit": 8, "intervalMinutesLocked": true }
       },
       "tier": "T1_5",
       "first_party": true,
@@ -2062,7 +2062,7 @@
         "feedUrl": "https://www.nature.com/natfood.rss",
         "allowUrlPrefixes": ["https://www.nature.com/articles/"],
         "ingestNoiseFilter": { "dropMarkersTitleOnly": ["Author Correction", "Corrigendum", "Publisher Correction", "Editorial Note"] },
-        "_aihot": { "initialBackfillLimit": 8 }
+        "_aihot": { "initialBackfillLimit": 8, "intervalMinutesLocked": true }
       },
       "tier": "T1_5",
       "first_party": true,
@@ -2082,8 +2082,8 @@
       "config": {
         "feedUrl": "https://www.pnas.org/action/showFeed?type=etoc&feed=rss&jc=pnas",
         "allowUrlPrefixes": ["https://www.pnas.org/doi/"],
-        "ingestNoiseFilter": { "dropMarkersTitleOnly": ["Correction for", "Retractions"] },
-        "_aihot": { "initialBackfillLimit": 12 }
+        "ingestNoiseFilter": { "dropMarkersTitleOnly": ["Correction for", "Retraction", "Reply to", "In This Issue"] },
+        "_aihot": { "initialBackfillLimit": 12, "intervalMinutesLocked": true }
       },
       "tier": "T1_5",
       "first_party": true,
@@ -2099,7 +2099,7 @@
       "id": "rss-ifrc-news",
       "name": "国际红十字与红新月运动 IFRC（新闻与声明）",
       "kind": "rss",
-      "config": { "feedUrl": "https://www.ifrc.org/rss.xml", "_aihot": { "initialBackfillLimit": 10 } },
+      "config": { "feedUrl": "https://www.ifrc.org/rss.xml", "denyUrlPrefixes": ["https://www.ifrc.org/node/"], "_aihot": { "initialBackfillLimit": 10 } },
       "tier": "T1",
       "first_party": true,
       "owner_entity_id": null,

@@ -28,6 +28,8 @@ function Masthead({ report, index, now }: { report: ReportDetail; index: ReportN
   const issue = issueNumber(index, report.key);
   const mark = dateMark(report.kind, report.key);
   // 一份窗口还没合上的期只是稿样：报头不写它什么时候出，只写它还没出。
+  // 同一句话也不能对一份读者翻不开的期说「每天 08:00 出刊」——归档把那一天叫「未出刊」，
+  // 这一格就不能给它的承诺背书（`readable` 与读取层那道门是同一个判据）。
   const due = isDue(report.kind, report.key, now);
   // The tiers below are keyed to the paper's own container (`@container` on `ReportPaper`), not the
   // window: 报眼 desktop sizing used to ask for 880px of container, which a 1024–1280px laptop never
@@ -38,7 +40,7 @@ function Masthead({ report, index, now }: { report: ReportDetail; index: ReportN
       <div className="flex items-center justify-between gap-4 text-caption text-ink-4">
         <span className="num">{dateLine(report.kind, report.key)}</span>
         <span className="hidden tracking-[0.3em] @[640px]:inline">{MOTTO[report.kind]}</span>
-        <span>{due ? EDITION[report.kind] : "本期未出刊"}</span>
+        <span>{due && report.readable ? EDITION[report.kind] : "本期未出刊"}</span>
       </div>
 
       <div className="flex items-stretch justify-between gap-5 py-6 @[760px]:gap-10 @[760px]:py-8">

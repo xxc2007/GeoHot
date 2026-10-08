@@ -212,6 +212,12 @@ export function buildMcpServer(): McpServer {
       const res = await recent(`daily:${args.date ?? "latest"}`, () => v1Daily(args.date ?? "latest"));
       if (!res) return fail("not_found", args.date ? `没有 ${args.date} 的公开${withSubject("日报")}。` : `还没有公开的${withSubject("日报")}。`);
       const r = res.report;
+      // The weekly's rule, applied here too: a named blank issue is a 200 with an honest empty state for a
+      // reader who asks for it, and a not_found for an agent — which otherwise reports "这一期是空的" as content.
+      // The check is the read layer's own: a daily's sections, never its flashes.
+      if (r.sections.every((s) => (s.items ?? []).length === 0)) {
+        return fail("not_found", `${r.date} 这一期没有入选内容（该期已出刊，但没有可读条目）。`);
+      }
       const lines = [`${SITE.name} ${withSubject("日报")} · ${r.date}`];
       if (r.lead) lines.push("", `导语：${r.lead.title}`, r.lead.leadParagraph);
       for (const s of r.sections) {

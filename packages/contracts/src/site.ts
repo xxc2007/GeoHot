@@ -340,6 +340,14 @@ export interface ReportDetail {
   windowEnd: string;
   generatedAt: string;
   revision: number;
+  /**
+   * Does this edition carry anything a reader can open? The read layer's one gate (`readableRows`) says an
+   * issue whose every citation lost its page is not a newspaper, and hides it from the archive, the feeds
+   * and the neighbouring-page links — but a *named* blank issue is still served, honestly, as its own empty
+   * state. The masthead needs this flag to keep its promise: a day the archive calls 「未出刊」 must not open
+   * by claiming 「每天 08:00 出刊」.
+   */
+  readable: boolean;
   lead: { title: string; leadParagraph: string } | null;
   overview: string | null;
   highlights: ReportCitation[];

@@ -12,7 +12,7 @@ import { upsertMaterial } from "@aihot/backend/content/materials";
 import { stopBoss } from "@aihot/backend/jobs/queue";
 import { publishArticle } from "@aihot/backend/publication/publish";
 import { composeDaily } from "@aihot/backend/reports/compose";
-import { listReports, reportNavigation } from "@aihot/backend/publication/reports";
+import { listReports, loadReport, reportNavigation } from "@aihot/backend/publication/reports";
 
 const T = tag();
 const SOURCE = `test-report-no-${T}`;
@@ -97,6 +97,7 @@ test("空刊不占号：没有条目的那期留空", async () => {
   assert.ok(rows !== undefined, "空刊本身照旧入库——读取层的门负责不把它当报纸");
 });
 
+
 test("重排保号：内容换版，号不动", async () => {
   const beforeNo = await issueNoOf(DAY1);
   const [before] = await sql<{ revision: number }[]>`SELECT revision FROM reports WHERE kind='daily' AND key = ${DAY1}`;
@@ -137,4 +138,16 @@ test("读层把号带出来：列表与往期栏导航携带 no（含迟到的�
   const day1Nav = nav.find((e) => e.key === DAY1);
   assert.ok(day1Nav, "导航里有这一期");
   assert.equal(day1Nav!.no, await issueNoOf(DAY1), "导航条目不丢号——报眼读的就是它");
+});
+
+// 这一条必须排在最后：`loadReport` 里的 neighbors() 会走 listReports，从而预热读取层那 60 秒的
+// 期次索引缓存（lib/cache.ts），排在别人前面就会让上面那条"读层把号带出来"读到旧索引。
+test("空刊自己也要知道自己没出刊：`readable` 与读取层那道门同一个判据", async () => {
+  // 归档把那一天叫「未出刊」，指名点开它仍是 200 的诚实空态（既有决定）。报眼此前只看窗口关没关，
+  // 于是这一页一边是空版面、一边写着「每天 08:00 出刊」——一个事实两个答案。
+  const blank = await loadReport("daily", EMPTY);
+  assert.ok(blank, "空刊按地址仍可打开");
+  assert.equal(blank!.readable, false, "版面没有可读条目，readable 必须是 false");
+  const real = await loadReport("daily", DAY1);
+  assert.equal(real!.readable, true, "有条目有页面的那期必须是 true，否则报眼会对正常的期说未出刊");
 });
