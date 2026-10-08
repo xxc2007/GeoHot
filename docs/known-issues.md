@@ -2705,3 +2705,80 @@ ephemeral 段里有哪些值未能定案，未引入「端口避让」式的改�
 ② `neighbourLabel` 只有真是前一天才说「前一日」，跨天空刊的那一个改口「上一期」（同一族缺陷：标签承诺的
 节奏，数据并没有）。6 条用例在 `apps/web/tests/daily-archive-gaps.test.ts`；报眼月历本来就用淡点表示未出刊
 （`periodGrid` 的 `none` 态），这次是把只有鼠标悬停才看得见的那句话，写成纸面上人人都能读的一行。
+
+---
+
+## 第四十八轮（2026-10-08 上午）：9 条权威信源，以及根域名换成介绍站之后的邻居基线
+
+**信源 104 → 113（启用 91 → 100）**：EUMETSAT、CAMS、Nature Water / Sustainability / Food 当期目录、PNAS 当期目录、
+IFRC、CMS（UNEP 波恩）、中国科学院「科研进展」。全部先在采集机上实测（订阅口活着、条目数正常、最近一条 45 天内），
+再跑一次真抓取确认能入库。探过又退回的如实记在 `docs/sources.md` 的「看过但没有加的」：哥白尼海洋服务停在 2025-07、
+UNCCD 停在 2026-03，另有一批官方站要么 403 要么没有订阅口。**不退让的一条线**：403 就是 403，不伪造浏览器 UA 绕反爬。
+
+**顺带补的三个采集层闸门**（`tests/industry-pack-sources.test.ts` 新增一条用例盯着）：PNAS 的 `dropMarkersTitleOnly`
+（Correction for / Retraction / Reply to / In This Issue 只按标题判，`markerPattern` 的 `(^|[^a-z])…s?([^a-z]|$)`
+让 "Retractions" 不再误伤 "Retraction for"）、IFRC 的 `denyUrlPrefixes: ["/node/"]`（同一篇文章两个网址）、
+八条期刊目录源的 `intervalMinutesLocked`（`adaptIntervals` 把包里的 `interval_minutes` 只当上限，会把投稿周期
+一个月的刊当成"可以五分钟抓一次"）。
+
+**根域名换人之后**：`verify-deploy.sh` 第 1 节的"没动邻居"这条不变量，现在管的是**两个**邻居（根＝介绍站、
+`/nc15/`＝纪念册），基线文件重记为三个哈希。同一轮修掉了基线自己的一个洞：原来 `curl -s | sha256sum` 不看状态码
+也不看正文，站点正在 502 时写进去的是**空正文的哈希**（`e3b0c442…`）且脚本 exit 0——最需要重取基线的那一刻，
+恰好是把不变量作废的那一刻。现在非 2xx、空正文、空哈希一律拒绝写盘；Cloudflare 的邮箱混淆载荷让介绍站首页
+每次响应都不一样，比对前先归一化 `email-protection#<hex>`，否则"哈希变了"是埋点的锅不是我们的锅。
+
+---
+
+## 第四十九轮（2026-10-08 下午）：评审波——十条修、三条驳回、一条量完再放
+
+**修的十条**（每条都有用例）：空刊那一期的 `readable` 判据（contracts 的 `ReportDetail.readable` + `loadReport` +
+报眼 + 月历 + MCP 五处同一件事）、`nextIssueNo` 的先加锁再探迟到、日报大标题的署名与身份闸门、
+混合中英文答复不再被当成中文稿（`noChineseAnswer` 现在两问都问）、240 秒思考调用的超时不再被 120 秒截断、
+`llm.ts` 的请求身份带上 `jsonMode`、MCP 点名要空刊时直接回答"没有可读内容"、`periodGrid` 的期数只数读得开的期、
+`sync-source-config.ts`（把包里声明的 config/tier/interval/默认分类推进库，默认 DRY-RUN，`--apply` 必须点名库且
+库必须与进程 env 是同一个）、以及 `verify-deploy.sh` 的备份步骤不再被 `ogcache` 的并发写打断。
+
+**驳回三条（都拿证据驳回，不是拿感觉）**：① "CAS 那期按重新列出的日期出刊"——条目页印的就是同一个日期；
+② "`missingRuns().reverse()` 是死代码"——它被 `daily-archive-gaps.test.ts` 的一条契约用例钉着；
+③ "撤下引注仍保留期号与图例矛盾"——图例说的只是空刊。**放一条**：/hot、/all、/item 的发布绑定缓存——实测只有
+timeline 那一个端点发 `X-Accel-Expires`，残余陈旧只有 180 秒回看之外的约 120 秒，为它加一层缓存键要付的是
+每次发布刷一片 URL。
+
+**这一轮自己制造的一个缺陷，值得单独记**：把花费口径合成一个 `unbilledAttempt(alias)` 时，第一版写成
+`sql\`(${p}status = 'failed' AND ${p}usage IS NULL)\``，`p` 是个字符串——postgres.js 把模板里的 `${}` 当**绑定参数**，
+于是生成 `$1status`，三条语句全部语法错误。typecheck 过、构建过、`tsc -p tests` 也过，是新增那条用例第一次跑
+就撞出来的（`PostgresError: trailing junk after parameter`）。⇒ **拼列名或表别名不能进 `sql` 模板**；现在返回
+不带别名的字面片段，三个使用点里 `status` / `usage` 都只可能来自 `receipt_attempts`（`budgets` 没有这两列），
+歧义不存在。用例还带"注入验红"：把 `count(a.id) FILTER (WHERE NOT …)` 改回 `count(a.id)`，
+断言立刻红在「连不上的尝试不产生账单，不该报额度用完」这一句上。
+
+---
+
+## 第五十轮（2026-10-08 晚）：两个分类改用学科本名
+
+站长指定：「地理与政治」→「政治地理」、「地理与历史」→「历史地理」。
+
+- **改的只有 `industry/taxonomy.ts` 的 `CATEGORIES[].label`**。两个 key（`geopolitics` / `histgeo`）一个字没动 ⇒
+  网址 `/all?category=…`、库里的 `category` 值、v1 与 MCP 的枚举、`/feed/category/<key>.xml` 全部照旧，
+  **零迁移、零重判**：分类是逐条的判断结果，改名字不会让它重新判断一次。
+- **跟着 label 走的四处**：`prompts/structure.md` 的类别 key 行（`tests/industry-vocabulary.test.ts:112` 逐字对拍
+  label，改一处不改另一处就是红）、`prompts/rules-domain.md`、`docs/sources.md` 的「归到」列、两个 README 的分类表。
+- **顺带改正两处注释事实**：`taxonomy.ts` 里"五个主题页拿政治地理当入口"——topics.json 根本没有 `opinion-analysis`
+  这个主题，实测是**四个**（一个不存在的入口被当成了改词表的理由）；以及"类别名与主题标签同名"这件事写进注释，
+  免得下一轮有人当笔误改掉。
+- **一个可见后果，如实记着**：一条 geopolitics 的条目在卡片上会同时出现「政治地理」（类别，链
+  `/all?category=geopolitics`）与「#政治地理」（主题标签，链 `/all?tag=…`）——两个入口、两种写法，不是重复渲染。
+
+**站长自己那一轮的 README（宣传片那一节）没有动内容，只补了顶部导航那一行**：`tests/readme-anchors.test.ts`
+要求每个二级标题都在导航里，新加的「🎬 宣传片展示」少了这一格，两条用例红。按那条用例自己的话
+（"挪走或改名了就同步这一行"）补上 `[🎬 宣传片](#-宣传片展示)` / `[🎬 Product film](#-product-film)`，
+10/10 复绿。**留给站长的一处呈现小毛病（没有替他改）**：README.md 里 `## 🎬 宣传片展示` 之前是
+`---` + 空行 + `---`，两条连续的水平线在 GitHub 上会画成两道细线——删掉多余的那一对即可。
+
+**仍未做的 Tier-2（按风险从低到高，都不影响读者）**：A6 `verify-github-sync.sh` 写死 `/tmp/geohot-verify-gherr`
+（两个操作者同时跑会互相覆盖）；A4/A5 `verify-deploy.sh` 在 `list-unit-files` 为空时会跳过单元检查、
+`install-units.sh` 不校验装上了四个；A3 `rollback.sh` 的 `sudo bash -c` 与 `--purge-database` 把删单元文件与
+`userdel` 混在一起；B5 `previewSource` 不走 `allowed` / `rewriteUrl` / `noiseFiltered`，所以"试抓一次"给站长的
+条数比真采集会入库的多；B8 EUMETSAT 的 RSS 里有 `http://` 链接，解析时不升级 https。
+C6（translate / embeddings 的 `received` 收据无人认领）**判定不做**：两条链路都是休眠的，为不存在的路径加
+回收器是凭空长代码。

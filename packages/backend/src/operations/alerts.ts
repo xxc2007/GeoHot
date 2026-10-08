@@ -9,6 +9,7 @@ import { isCollectEnabled, isModelCallsEnabled, positiveInt } from "../config.ts
 import { sql } from "../db.ts";
 import { beijingDay, beijingStamp, duration, formatAlert, formatRecovery, sendAlert, type Finding, type Level } from "../notify/feishu.ts";
 import { backupConfigured } from "./backup.ts";
+import { unbilledAttempt } from "../providers/receipts.ts";
 
 const REPEAT_MS: Record<Exclude<Level, "digest">, number> = { now: 3600_000, today: 24 * 3600_000 };
 
@@ -226,10 +227,13 @@ async function providerFindings(): Promise<Finding[]> {
       detail: `最近 1 小时被拒 ${p.n} 次：${p.last}`,
     });
   }
+  // 与熔断器同一个花费口径：只数真产生（或可能产生）账单的尝试。以前这里数全部尝试，
+  // 一次代理故障就能让告警报「额度用完」，而 paidRequest 其实还在放行——运维按告警去充值，
+  // 真相是那条链一条中文稿都没产出。
   const capped = await sql<{ service: string; per_day: number; used: number }[]>`
-    SELECT b.service, b.per_day, count(a.id)::int AS used FROM budgets b
+    SELECT b.service, b.per_day, count(a.id) FILTER (WHERE NOT ${unbilledAttempt()})::int AS used FROM budgets b
     JOIN receipt_attempts a ON a.service = b.service AND a.origin = 'live' AND a.started_at > now() - interval '1 day'
-    WHERE b.per_day > 0 GROUP BY 1, 2 HAVING count(a.id) >= b.per_day`;
+    WHERE b.per_day > 0 GROUP BY 1, 2 HAVING count(a.id) FILTER (WHERE NOT ${unbilledAttempt()}) >= b.per_day`;
   for (const c of capped) {
     out.push({
       key: `budget.day.${c.service}`,

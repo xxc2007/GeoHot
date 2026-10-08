@@ -10,6 +10,7 @@ import { InvalidInput } from "./invalid.ts";
 import { sha256 } from "../lib/ids.ts";
 import { loadContact, type ContactSettings } from "../site/contact.ts";
 import { audit } from "./auth.ts";
+import { unbilledAttempt } from "../providers/receipts.ts";
 
 const MAX_QR_BYTES = 2 * 1024 * 1024;
 
@@ -52,10 +53,14 @@ export async function setTargetEnabled(key: string, enabled: boolean, reason: st
 }
 
 export async function listBudgets() {
+  // used_* 走的是熔断器同一个花费口径（`unbilledAttempt`）：连不上、被 429 挡回来的尝试不产生账单，
+  // 也不该在这里显示成"已经用掉"。以前这里数全部尝试，于是代理故障之后后台的 used 比熔断器实际
+  // 用的大，读者看到的数字和放行判断说的不是同一件事。
+  const unbilled = unbilledAttempt();
   return sql`
     SELECT b.service, b.per_minute, b.per_hour, b.per_day, b.note, b.updated_at,
-           (SELECT count(*)::int FROM receipt_attempts a WHERE a.service = b.service AND a.origin = 'live' AND a.started_at > now() - interval '1 day') AS used_day,
-           (SELECT count(*)::int FROM receipt_attempts a WHERE a.service = b.service AND a.origin = 'live' AND a.started_at > now() - interval '1 hour') AS used_hour
+           (SELECT count(*)::int FROM receipt_attempts a WHERE a.service = b.service AND a.origin = 'live' AND a.started_at > now() - interval '1 day' AND NOT ${unbilled}) AS used_day,
+           (SELECT count(*)::int FROM receipt_attempts a WHERE a.service = b.service AND a.origin = 'live' AND a.started_at > now() - interval '1 hour' AND NOT ${unbilled}) AS used_hour
     FROM budgets b ORDER BY b.service`;
 }
 

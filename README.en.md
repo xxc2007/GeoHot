@@ -81,7 +81,7 @@ several outlets, backed by data / figures / imagery. All three must hold for an 
 | `physical` | Physical geography | Landforms, climate, hydrology, soils, vegetation and hazard events — observation data, figures or imagery required |
 | `human` | Human geography | Population and migration, urbanisation, industry and transport location, administrative boundary changes, urban-rural and regional policy |
 | `regional` | Regional geography | Whole-system change at region or basin scale: polar regions, the Qinghai-Tibet Plateau, deltas, city clusters, transboundary rivers |
-| `geopolitics` | Geography and politics | Sovereignty, boundary and territory demarcation and disputes, strategic chokepoints, transboundary rivers and maritime rights |
+| `geopolitics` | Political geography | Sovereignty, boundary and territory demarcation and disputes, strategic chokepoints, transboundary rivers and maritime rights |
 | `histgeo` | Historical geography | River and coastline shifts, administrative evolution, rise and abandonment of settlements, historical maps |
 | `geotech` | GIS | Remote sensing and imagery, positioning, dataset and standard releases, GIS software and platforms, spatial databases, WebGIS, open-source licensing changes |
 | `geoedu` | Graduate entrance exams | Geography admissions policy and programme catalogues, discipline and degree points, syllabi and cut-off scores |

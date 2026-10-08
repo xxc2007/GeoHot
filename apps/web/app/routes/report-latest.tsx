@@ -82,7 +82,9 @@ export function ErrorBoundary() {
   const kind = kindFromPath(useLocation().pathname);
   const { revalidate, state } = useRevalidator();
   return (
-    <ReportLayout kind={kind} index={[]} current={null} today={beijingDate(Date.now())}>
+    // 这一页没有往期栏（index 是空数组），today 谁也读不到，所以写空串而不是 Date.now()：组件渲染时
+    // 读挂钟，服务端与注水各算各的，等于给这一页埋一个文本不一致。
+    <ReportLayout kind={kind} index={[]} current={null} today="">
       <EmptyState
         as="h1"
         title={`暂时读不到${withSubject(KIND_LABEL[kind])}`}
