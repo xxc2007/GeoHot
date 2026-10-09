@@ -110,9 +110,12 @@ SocialData 按请求计费，本部署没有这个 key，所以第二十四轮�
 
 两条本站的实情：① 这个自动调整任务只在 `COLLECT_ENABLED` 不为 false 时才注册（`apps/worker/src/schedules.ts:82-87`），
 所以上面那三档在关着采集的机器上根本不会跑；② **现站在跑的按次计费信源是 0 条**——`industry/sources.json` 里 `mp_account` 与带 `paid_listing` 的仍是 0，`x_search` 第二十四轮登记了 8 条但全部 `enabled=false`（本部署没有 `SOCIALDATA_API_KEY`），所以“按次计费”这一档在现部署下依然是空集，采集不产生账单。
-登记间隔的现值最小 30 分钟（113 条：6 条 30、12 条 60、1 条 90、24 条 120、4 条 180、40 条 240、12 条 360、6 条 720、8 条 1440；
-`node -e` 一行可复测，读的就是 `industry/sources.json` 这一份）——**"最快的源 30 分钟看一次"是本站的口径，
-15 分钟只是自适应下限，当前没有任何一条源达到触发它的产量**。
+登记间隔的现值最小 30 分钟（218 条：6 条 30、12 条 60、1 条 90、23 条 120、4 条 180、118 条 240、12 条 360、31 条 720、11 条 1440；
+`node -e` 一行可复测，读的就是 `industry/sources.json` 这一份）——**包内登记值最快是 30 分钟，15 分钟只是自适应下限**。
+这句只对包成立，不对库成立：**线上确实有源被打到了那个下限**。2026-10-09 19:15 从服务器只读复测（本轮那份逐源产量表读的就是 `sources.interval_minutes`，见下面「第五十七轮」一节）：
+`json-nmc-weather-alarm` 与 `cn-chinanews-scroll` 两条都是 **15 分钟**（同一份查询里它们 5 小时的入库量是 48 条与 172 条，
+也就是每十几分钟就有一条新材料），另有 21/28/40/59/116/153 分钟这些自适应中间值；包内写的 30 分钟因此只是**起点**，
+自适应（`adaptIntervals()`，每轮采集后按产量调）才是线上真正的节奏。
 
 抓取失败不推进位置，下次从同一处继续；连续失败的信源在后台标红，每周一会在运营群发一份信源周报（配置了飞书内部群时）。
 
@@ -592,6 +595,11 @@ arXiv 只留 `/abs/`）、`ingestNoiseFilter.dropMarkersTitleOnly`（实测这�
 - **现有信源的一条健康告警**（发现代理报、采集机侧待复核）：包内 `rss-igu-online`（国际地理联合会）
   两次直连都只拿到 200 的 "One moment, please…" JS 挑战壳，**没有一条 item**。按
   `intl-unocha` 的先例，复核后应当停用而不是留着空跑。
+  **第五十七轮复核：这条告警不成立，源是活的，不要停用。** 2026-10-09 19:33 从生产库读它自己的账：
+  13 次抓取、`found` 累计 20、`new` 累计 10、库里 10 条条目、`health=ok`、`fail_count=0`，最近一轮是 304
+  `notModified`；同一分钟在采集机上直连 `https://igu-online.org/feed/` 拿到 200 + 42 KB 真 XML、10 条 item、
+  最新一条 2026-10-06、`content:encoded` 中位 2923 字。那两个 "One moment, please…" 是发现代理那一次
+  撞上的偶发挑战壳，不是这个 feed 的常态——**一次抓不到就推断"该停用"是错的，要看这条源自己的运行账**。
 
 ### 本轮明确没接的（点名，免得下一轮重新试）
 
@@ -602,3 +610,72 @@ arXiv 只留 `/abs/`）、`ingestNoiseFilter.dropMarkersTitleOnly`（实测这�
 河口海岸、地震学报 `/article/current` 的 HTML 里是 `{{basePath}}`）；企业研究院整刊博客
 （Google Research、Microsoft Research——地理占比极低，接进来只会喂给预筛一堆 BLOCK）；
 以及三条与已接源同内容/超集的重复形状（arXiv 合并 feed、GRSS 分类 feed、Newswise 的 feedburner 镜像）。
+
+## 第五十七轮：巡检上一轮 95 条 + 再挂 12 条（2026-10-09 晚，逐条采集机实测）
+
+这一轮的开头不是找新源，而是**核对第五十六轮那句"105 ok / 1 条 fetch failed"**。那句话只看了 `health` 与
+`last_error`，而这两列对"抓到了但一条没存"和"这周确实没新东西"是同一种脸色。把 95 条首次导入的
+`fetch_runs.detail` 逐条拉出来看（`found / filtered / dropped / stored` 四个数对读），当场翻出两个静默缺陷：
+
+**① Wiley 的每条刊不在 `onlinelibrary.wiley.com` 上，而在学会子域。** 六条刊的目录 feed 首次导入是
+`found 92/13/9/5/5/2 → filtered 0 → stored 0`：本包当时统一写的 `allowUrlPrefixes` 是
+`onlinelibrary.wiley.com/doi/` 加 `agupubs.` 两条，而 International Journal of Climatology（英国皇家气象学会）
+的条目链接是 `https://rmets.onlinelibrary.wiley.com/doi/10.1002/joc.…`，RGS-IBG 四刊是 `rgs-ibg.`，
+WIREs 是 `wires.`——**前缀不匹配，`allowed()` 把整个列表判成站外，一条不剩，而 `health` 仍是 ok**。
+改法是逐条把该刊自己的子域写进 allow（不是放开通配：这一列是入口白名单，写宽一格就多一格可 ingest 的地址）。
+同形制的 30 多条 AGU/Nature 源不受影响，因为它们的链接本来就落在写好的两个主机上。
+
+**② `<title>` 里放未转义 HTML 的 feed，会被解析成"结构"，于是条目被当作无标题丢掉。**
+Byrd 极地中心与 ECMWF 两条首次导入是 `found 0`——但直接在采集机上取同一地址能拿到 200 + 7.9 KB / 7.4 KB
+真 RSS、各 10 条 item。差别在 Drupal 的写法：`<title><a href="/news/…">标题正文</a></title>`。这是合法 XML，
+`fast-xml-parser` 交回一个对象节点而不是字符串，`rss.ts` 的 `text()` 只认 `#text`/`#cdata`，于是返回空串，
+`rss.ts:258` 那句 `if (!link || !title) continue` 把十条全丢掉；而 `collect.ts:266` 的 `found` 记的是**解析器的产出**
+（在 `applySourceFilters` 之前），所以运行记录上写着 `found: 0`、`health: ok`——原始 feed 里明明躺着 10 条。**修法两处**：`text()` 在没有文本节点时递归读子节点（标题取词、`stripTags` 照旧收尾），
+以及新增一条"这条 feed 有 item 但一条都读不出来"就明确判失败的闸门——后者今日零影响面（全库扫过：
+`found_all=0` 的启用源只有这两条，都是本轮新增），但它正是这一类缺陷唯一的可见方式。
+修完用采集机上当真取回的 `byrd.xml` / `ecmwf.xml` 两份字节复跑解析器：**各 10 条、标题干净、日期与摘要都在**。
+
+**③ 一条永远重复的源**。`rss-phys-org-earth-sciences`（Phys.org 地球科学分栏）首次导入 `found 30 → kept 8 → stored 0`，
+而 8 条全部命中 `article_discoveries`：它的父栏 `rss-phys-org-earth`（`/rss-feed/earth-news/`）把它们全包了。
+分栏是父栏的子集，这条源从结构上就不可能带来新东西 ⇒ **包内删除该条**，库里那一行留着（它没有自己的条目，
+删除会连带影响发现记录），下一轮部署由 `scripts/set-source-state.ts` 停用。
+
+**这一轮接进去的 12 条**（每条都是采集机上亲眼取到 XML、条目数与日期与摘要字段都记下来的；
+`实测` 那一列就是当次取到的字节，不是代理的转述）：
+
+| id | 名称 | feed | 实测 | 摘要在哪 | 条目链接主机 | tier/间隔 |
+| --- | --- | --- | --- | --- | --- | --- |
+| `rss-wwa-attribution` | World Weather Attribution · 事件归因研究发布 | `worldweatherattribution.org/feed/` | 200 · 10 条 · 最新 2026-09-16 | `content:encoded` 中位 9449 字 | `www.worldweatherattribution.org` | T1_5/720 |
+| `rss-mercator-news` | Mercator Ocean International · 海洋与气候新闻 | `mercator-ocean.fr/feed/` | 200 · 12 条 · 最新 2026-10-06 | `content:encoded` 中位 4948 字 | **`www.mercator-ocean.eu`**（feed 在 .fr、链接在 .eu） | T1/720 |
+| `rss-wcrp-climate-news` | WCRP 世界气候研究计划 · Climate News | `feeds.feedburner.com/WCRP-Climate-News` | 200 · 10 条 · 最新 2026-10-07 | `description` 中位 812 字 | `www.wcrp-climate.org` | T2/720 |
+| `rss-jawra-toc` | JAWRA（美国水资源协会会刊）· 当期目录 | `onlinelibrary.wiley.com/feed/17521688/most-recent` | 200 · 8 条 · 最新 2026-09-30 | `dc:description` 中位 1510 字 | `onlinelibrary.wiley.com` | T1_5/240 |
+| `rss-geobiology-toc` | Geobiology · 当期目录 | `…/feed/14724669/most-recent` | 200 · 12 条 · 最新 2026-10-08 | `dc:description` 中位 1824 字 | 同上 | T1_5/240 |
+| `rss-palaeontology-toc` | Palaeontology（英国古生物学会会刊）· 当期目录 | `…/feed/14754983/most-recent` | 200 · 6 条 · 最新 2026-09-29 | `dc:description` 中位 1464 字 | 同上 | T1_5/240 |
+| `rss-sedimentology-toc` | Sedimentology（国际沉积学家协会会刊）· 当期目录 | `…/feed/13653091/most-recent` | 200 · 31 条 · 最新 2026-10-05 | `dc:description` 中位 2181 字 | 同上 | T1_5/240 |
+| `rss-terranova-toc` | Terra Nova（构造地质）· 当期目录 | `…/feed/13653121/most-recent` | 200 · 19 条 · 最新 2026-10-07 | `dc:description` 中位 1072 字 | 同上 | T1_5/240 |
+| `rss-antipode-toc` | Antipode（批判地理学与政治地理学刊）· 当期目录 | `…/feed/14678330/most-recent` | 200 · 12 条 · 最新 2026-10-07 | `dc:description` 中位 1129 字（`description` 只有卷期行） | 同上 | T1_5/240 |
+| `rss-piahs-articles` | PIAH（国际水文科学学会会议论文集）· 近期文章 | `piahs.copernicus.org/xml/rss2_0.xml` | 200 · 20 条 · 最新 2026-09-24 | `description`＝题录块 + 摘要起句（862 字） | **`doi.org`** ⇒ allow 写死 `https://doi.org/10.5194/piahs-` | T2/1440 |
+| `rss-epb-toc` | Environment and Planning B: Urban Analytics and City Science · 当期目录 | `journals.sagepub.com/action/showFeed?type=etoc&feed=rss&jc=epb` | 200 · 114 条 · **全表最大日期 2026-10-08** | `content:encoded`（112/114 条 >200 字） | `journals.sagepub.com/doi/abs/…?af=R` | T1_5/1440 |
+| `rss-dhg-toc` | Dialogues in Human Geography · 当期目录 | `…&jc=dhg` | 200 · 193 条 · 最大日期 2026-10-07 | `content:encoded`（142/193） | 同上 | T1_5/1440 |
+
+**SAGE 那两条差点被本轮判死**，原因值得单独记：etoc feed 的条目**不是按日期排的**（第一条是 2025-12，
+最后一组才是 2026-10）。按"第一条的日期"量新旧，两条都会以"停更 300 天"被退回；把 114/193 条的日期
+全量解析取最大，才发现它们最新稿是昨天。因此这两条登记时加了 `sortByPublishedAt: true`——
+`applySourceFilters` 会先按发布日期排序再截断，首次导入取到的才是 8 条**最新**而不是列表开头的 8 条旧刊。
+**"最新一条"必须扫全部条目，不能取第一条**：这一条现在同时写在这里与 `docs/known-issues.md`。
+
+**退回的（点名 + 实测值，下一轮别再试）**：
+
+| 候选 | 采集机实测 | 结论 |
+| --- | --- | --- |
+| `onlinelibrary.wiley.com/feed/14350157/most-recent`（代理报"International Journal of Information Systems，25 条有摘要"） | **HTTP 404** | 未接。代理那侧看到的字节不作数 |
+| `onlinelibrary.wiley.com/feed/14679493/most-recent`（Singapore J. Tropical Geography） | 200 · 30 条 · 只有 8 条 >200 字；首条 `Referees for July 2025–June 2026`，EarlyView 条的 `description` 只有 51 字"…EarlyView." | 未接（无摘要为主）。`Referees` 已加进本轮 SAGE 两条的噪声词 |
+| `onlinelibrary.wiley.com/feed/17455871/most-recent`（Geographical Research） | 200 · 13 条 · 7 条有摘要 · 最新 2026-07-13（88 天） | 未接：过不了 45 天与"条条有摘要"两条杠 |
+| `cartographicperspectives.org/…/WebFeedGatewayPlugin/rss2`（NACIS） | 200 · 16 条 · 只有 3 条 >200 字 · 最新 2026-06-09 | 未接 |
+| `erdkunde-online.de/feed/`（德国地理学会） | 200 · 20 条 · 摘要有 · **最新 2026-02-04**，首条 `Sommerurlaub auf Kuba`（散文） | 未接：停更 8 个月 + 内容是散文不是研究进展 |
+| `journals.sagepub.com/…&jc=epa` / `…&jc=11598` / `facet-journal-id=13578` | 200 但分别是 AERA 的教育评估刊、考古刊、生物医学刊 | 未接：**jc / journal-id 不能由刊名或 ISSN 推**，逐条从文章页自链取并核对 channel 标题 |
+| Springer `link.springer.com/search.rss?…`（Bulletin of Volcanology 445、PalZ 12542、Mineralium Deposita 126、Climatic Change 10584、TAC 704、KN 42489） | 本轮两次探测**全部 200 + 3036 字节 `Client Challenge` HTML**，0 条 item；同形制 40 分钟前由发现代理取到过 20 条真 XML | 本轮不接：限流是时段性的，**未取到字节就不登记**。下一轮错峰重试（不换 UA、不试号） |
+| `meteofrance.com/rss.xml` | 200 · 10 条 · `description` 中位 14077 字（全站正文塞进摘要） | 未接：内容是法语气象科普栏目（`/meteo-a-z/`、热浪影响专栏），不是科研发布，方向不对 |
+
+**包内现状**：218 条（第五十六轮 207 → 删 1 条 Phys.org 子集 → 加 12 条），`rss` 173、`web_list` 26、
+`json_list` 3、`external` 8、`x_search` 8；启用 205；`defaultCategory=frontier` 34 条。

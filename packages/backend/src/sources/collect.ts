@@ -264,8 +264,24 @@ export async function collectSource(sourceId: string, opts: { force?: boolean } 
     // `found` is what the listing offered before any rule of ours was applied; the operator reads the
     // three numbers against each other to see a fetch that returned nothing because of a filter.
     found = candidates.length;
+    const offered = candidates;
     candidates = applySourceFilters(candidates, source);
     filtered = candidates.length;
+    // A source's debut is the one round where our own filters wiping the whole listing is a fault rather
+    // than a quiet week — any later round may legitimately offer nothing but corrections. Six of the
+    // round-56 Wiley journals lost 92, 13, 9, 5, 5 and 2 items this way (their articles live on a
+    // per-society subdomain — rmets., rgs-ibg., wires. — that the allow-list did not name), and the admin
+    // read `health: ok, found: 0` for five hours, which is indistinguishable from an idle feed.
+    if (firstImport && found > 0 && filtered === 0) {
+      const hosts = [...new Set(offered.map((c) => {
+        try {
+          return new URL(c.url).host;
+        } catch {
+          return "?";
+        }
+      }))].join(", ");
+      throw new FetchError(`first import kept none of ${found} items: the listing publishes ${hosts} and the config allows none of them (check allowUrlPrefixes and ingestNoiseFilter)`);
+    }
 
     // First import of a new source: bounded, and archived by source time (never "today", never pushed).
     // Both numbers are the operator's own free-form JSON (`admin/sources.ts` writes `config` without a

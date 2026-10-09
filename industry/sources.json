@@ -5019,8 +5019,8 @@
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/14754959/most-recent",
         "allowUrlPrefixes": [
-          "https://onlinelibrary.wiley.com/doi/",
-          "https://agupubs.onlinelibrary.wiley.com/doi/"
+          "https://rgs-ibg.onlinelibrary.wiley.com/doi/",
+          "https://onlinelibrary.wiley.com/doi/"
         ],
         "ingestNoiseFilter": {
           "dropMarkersTitleOnly": [
@@ -5058,8 +5058,8 @@
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/14755661/most-recent",
         "allowUrlPrefixes": [
-          "https://onlinelibrary.wiley.com/doi/",
-          "https://agupubs.onlinelibrary.wiley.com/doi/"
+          "https://rgs-ibg.onlinelibrary.wiley.com/doi/",
+          "https://onlinelibrary.wiley.com/doi/"
         ],
         "ingestNoiseFilter": {
           "dropMarkersTitleOnly": [
@@ -5097,8 +5097,8 @@
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/14754762/most-recent",
         "allowUrlPrefixes": [
-          "https://onlinelibrary.wiley.com/doi/",
-          "https://agupubs.onlinelibrary.wiley.com/doi/"
+          "https://rgs-ibg.onlinelibrary.wiley.com/doi/",
+          "https://onlinelibrary.wiley.com/doi/"
         ],
         "ingestNoiseFilter": {
           "dropMarkersTitleOnly": [
@@ -5136,8 +5136,8 @@
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/20544049/most-recent",
         "allowUrlPrefixes": [
-          "https://onlinelibrary.wiley.com/doi/",
-          "https://agupubs.onlinelibrary.wiley.com/doi/"
+          "https://rgs-ibg.onlinelibrary.wiley.com/doi/",
+          "https://onlinelibrary.wiley.com/doi/"
         ],
         "ingestNoiseFilter": {
           "dropMarkersTitleOnly": [
@@ -5292,8 +5292,8 @@
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/17577799/most-recent",
         "allowUrlPrefixes": [
-          "https://onlinelibrary.wiley.com/doi/",
-          "https://agupubs.onlinelibrary.wiley.com/doi/"
+          "https://wires.onlinelibrary.wiley.com/doi/",
+          "https://onlinelibrary.wiley.com/doi/"
         ],
         "ingestNoiseFilter": {
           "dropMarkersTitleOnly": [
@@ -5995,31 +5995,6 @@
       "enabled": true
     },
     {
-      "id": "rss-phys-org-earth-sciences",
-      "name": "Phys.org · 地球科学（转载层）",
-      "kind": "rss",
-      "config": {
-        "feedUrl": "https://phys.org/rss-feed/earth-news/earth-sciences/",
-        "_aihot": {
-          "initialBackfillLimit": 8,
-          "intervalMinutesLocked": true
-        }
-      },
-      "tier": "T2",
-      "first_party": false,
-      "owner_entity_id": null,
-      "participation_mode": "editorial",
-      "interval_minutes": 240,
-      "tags": [
-        "英文",
-        "学术媒体",
-        "转载"
-      ],
-      "site_fulltext": false,
-      "syndicate_fulltext": false,
-      "enabled": true
-    },
-    {
       "id": "rss-phys-org-planetary-sciences",
       "name": "Phys.org · 行星科学（转载层）",
       "kind": "rss",
@@ -6140,8 +6115,8 @@
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/10970088/most-recent",
         "allowUrlPrefixes": [
-          "https://onlinelibrary.wiley.com/doi/",
-          "https://agupubs.onlinelibrary.wiley.com/doi/"
+          "https://rmets.onlinelibrary.wiley.com/doi/",
+          "https://onlinelibrary.wiley.com/doi/"
         ],
         "ingestNoiseFilter": {
           "dropMarkersTitleOnly": [
@@ -6347,6 +6322,453 @@
         "英文",
         "期刊",
         "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-wwa-attribution",
+      "name": "World Weather Attribution · 事件归因研究发布",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.worldweatherattribution.org/feed/",
+        "allowUrlPrefixes": [
+          "https://www.worldweatherattribution.org/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "英文",
+        "学术机构",
+        "研究",
+        "灾害事件",
+        "气候"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-mercator-news",
+      "name": "Mercator Ocean International · 海洋与气候新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.mercator-ocean.fr/feed/",
+        "allowUrlPrefixes": [
+          "https://www.mercator-ocean.eu/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "英文",
+        "学术机构",
+        "海洋",
+        "观测数据"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-wcrp-climate-news",
+      "name": "WCRP 世界气候研究计划 · Climate News",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://feeds.feedburner.com/WCRP-Climate-News",
+        "allowUrlPrefixes": [
+          "https://www.wcrp-climate.org/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "英文",
+        "学术机构",
+        "研究进展",
+        "气候"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-jawra-toc",
+      "name": "JAWRA（美国水资源协会会刊）· 当期目录",
+      "config": {
+        "feedUrl": "https://onlinelibrary.wiley.com/feed/17521688/most-recent",
+        "allowUrlPrefixes": [
+          "https://onlinelibrary.wiley.com/doi/",
+          "https://agupubs.onlinelibrary.wiley.com/doi/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "kind": "rss",
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-geobiology-toc",
+      "name": "Geobiology（古生物×地球化学交叉刊）· 当期目录",
+      "config": {
+        "feedUrl": "https://onlinelibrary.wiley.com/feed/14724669/most-recent",
+        "allowUrlPrefixes": [
+          "https://onlinelibrary.wiley.com/doi/",
+          "https://agupubs.onlinelibrary.wiley.com/doi/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "kind": "rss",
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-palaeontology-toc",
+      "name": "Palaeontology（英国古生物学会会刊）· 当期目录",
+      "config": {
+        "feedUrl": "https://onlinelibrary.wiley.com/feed/14754983/most-recent",
+        "allowUrlPrefixes": [
+          "https://onlinelibrary.wiley.com/doi/",
+          "https://agupubs.onlinelibrary.wiley.com/doi/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "kind": "rss",
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-sedimentology-toc",
+      "name": "Sedimentology（国际沉积学家协会会刊）· 当期目录",
+      "config": {
+        "feedUrl": "https://onlinelibrary.wiley.com/feed/13653091/most-recent",
+        "allowUrlPrefixes": [
+          "https://onlinelibrary.wiley.com/doi/",
+          "https://agupubs.onlinelibrary.wiley.com/doi/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "kind": "rss",
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-terranova-toc",
+      "name": "Terra Nova（构造地质与地球动力学）· 当期目录",
+      "config": {
+        "feedUrl": "https://onlinelibrary.wiley.com/feed/13653121/most-recent",
+        "allowUrlPrefixes": [
+          "https://onlinelibrary.wiley.com/doi/",
+          "https://agupubs.onlinelibrary.wiley.com/doi/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "kind": "rss",
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-antipode-toc",
+      "name": "Antipode（批判地理学与政治地理学刊）· 当期目录",
+      "config": {
+        "feedUrl": "https://onlinelibrary.wiley.com/feed/14678330/most-recent",
+        "allowUrlPrefixes": [
+          "https://onlinelibrary.wiley.com/doi/",
+          "https://agupubs.onlinelibrary.wiley.com/doi/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "kind": "rss",
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-piahs-articles",
+      "name": "PIAH（国际水文科学学会会议论文集）· 近期文章",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://piahs.copernicus.org/xml/rss2_0.xml",
+        "allowUrlPrefixes": [
+          "https://doi.org/10.5194/piahs-"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 1440,
+      "tags": [
+        "英文",
+        "期刊",
+        "水文",
+        "开放获取"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-epb-toc",
+      "name": "Environment and Planning B: Urban Analytics and City Science（SAGE）· 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://journals.sagepub.com/action/showFeed?type=etoc&feed=rss&jc=epb",
+        "allowUrlPrefixes": [
+          "https://journals.sagepub.com/doi/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "sortByPublishedAt": true,
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 1440,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究",
+        "城市",
+        "地理信息系统"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-dhg-toc",
+      "name": "Dialogues in Human Geography（SAGE）· 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://journals.sagepub.com/action/showFeed?type=etoc&feed=rss&jc=dhg",
+        "allowUrlPrefixes": [
+          "https://journals.sagepub.com/doi/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "sortByPublishedAt": true,
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 1440,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究",
+        "人文地理"
       ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
