@@ -7,8 +7,14 @@ import type { SourceRow } from "./types.ts";
 // entrance now reads a zone-less timestamp in (sources/dates.ts).
 const COLLECTED = ["_aihot", "allowUrlPrefixes", "denyUrlPrefixes", "ingestNoiseFilter", "itemUrlPrefixRewrite", "sortByPublishedAt", "detail", "fetchPublicContent", "publishedAtUtcOffset"];
 
+// Registered, but not read on the polling path: the ISSN the journal behind an rss source is actually
+// filed under. Its reader is the archive backfill (scripts/backfill-archive.ts), which asks Crossref for
+// that ISSN's past work — the only door that reaches back before a feed's last dozen items. Only rss,
+// because that is where the 87 verified ISSNs live; a second kind adds it when it has one.
+const ARCHIVE = ["issn"];
+
 const KEYS: Record<SourceRow["kind"], string[]> = {
-  rss: [...COLLECTED, "feedUrl", "summaryIsBody", "preserveUrlFragment", "allowCategories", "denyCategories", "headers"],
+  rss: [...COLLECTED, ...ARCHIVE, "feedUrl", "summaryIsBody", "preserveUrlFragment", "allowCategories", "denyCategories", "headers"],
   web_list: [
     ...COLLECTED, "url", "baseUrl", "parseMode", "adapter", "cacheToleranceSeconds", "linksStartLine", "preserveUrlFragment",
     "itemSelector", "linkSelector", "titleSelector", "publishedAtSelector", "publishedAtRegex", "publishedAtUtcOffset",
