@@ -4,7 +4,7 @@ import type { ReportCitation, ReportDetail, ReportIndexEntry, ReportNavigationEn
 import { sql } from "../db.ts";
 import { cached, type Cached } from "../lib/cache.ts";
 import { proxiedImage, proxiedImageSet } from "../media/imgproxy.ts";
-import { releasedCondition } from "./items.ts";
+import { listedCondition } from "./items.ts";
 import { itemHasPage } from "./rules.ts";
 import { dailyUrl, itemUrl, reportUrl, siteUrl } from "./links.ts";
 import { SITE, withSubject } from "@aihot/industry/site";
@@ -221,7 +221,7 @@ async function leadCover(itemId: string, now = new Date()): Promise<{ url: strin
       WHERE m->>'kind' = 'image' AND coalesce((m->>'width')::numeric, 800) >= 480 LIMIT 1
     ) img
     WHERE (p.article_id = ${itemId} OR p.story_id = (SELECT story_id FROM publications WHERE article_id = ${itemId}))
-      AND p.visibility = 'public' AND p.eligible AND ${releasedCondition(now)} AND p.body_mode <> 'summary'
+      AND p.eligible AND ${listedCondition(now)} AND p.body_mode <> 'summary'
     ORDER BY (p.article_id = ${itemId}) DESC, p.first_party DESC, coalesce(p.score, 0) DESC, p.article_id
     LIMIT 1`;
   if (!row) return null;

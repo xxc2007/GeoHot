@@ -14,8 +14,8 @@
 import { parseArgs } from "node:util";
 import { hasChineseCopy } from "@aihot/contracts/copy";
 import { closeDb, sql } from "@aihot/backend/db";
-import { candidates, composeDaily, composeWeekly, composeMonthly, dailyWindow } from "@aihot/backend/reports/compose";
-import { isoWeekRange } from "@aihot/contracts/time";
+import { candidates, composeDaily, composeWeekly, composeMonthly, dailyWindow, monthlyWindow } from "@aihot/backend/reports/compose";
+import { beijingMidnight, isoWeekRange } from "@aihot/contracts/time";
 
 const { values } = parseArgs({
   options: {
@@ -45,11 +45,13 @@ const english = [...items, ...flashes].filter((i: any) => !hasChineseCopy(String
 console.log(`其中标题不含中文的：${english.length} 条${english.length ? `（如「${String(english[0].title).slice(0, 50)}」）` : ""}`);
 
 // What the current material would yield — a preview that does not write anything.
+// 窗口必须由 beijingMidnight 换算：`isoWeekRange` 给的是日期字符串，`new Date("2026-01-04")` 读成 UTC 零点，
+// 比真窗口早 8 小时——以前这里数出来的候选条数说的不是这一期实际看到的区间。月报现在也预览（monthlyWindow 同源）。
 const range = kind === "daily"
   ? dailyWindow(key)
   : kind === "weekly"
-    ? (() => { const r = isoWeekRange(key); return r ? { start: r.start, end: r.end } : null; })()
-    : null;
+    ? (() => { const r = isoWeekRange(key); return r ? { start: beijingMidnight(r.start), end: beijingMidnight(r.end) } : null; })()
+    : kind === "monthly" ? { start: beijingMidnight(monthlyWindow(key).start), end: beijingMidnight(monthlyWindow(key).end) } : null;
 if (range) {
   const list = await candidates(new Date(range.start), new Date(range.end));
   console.log(`按当前语料重排会取到 ${list.length} 条候选（标题全部含中文：${list.every((c) => hasChineseCopy(c.title))}）`);

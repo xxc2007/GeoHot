@@ -135,6 +135,9 @@ async function recentlyCovered(kind: "daily", before: string, days = 7): Promise
       if (it.factId) out.add(it.factId);
       if (it.clusterId) out.add(`c:${it.clusterId}`);
     }
+    // 快讯也是读者看到的一条（每天最多 12 条，进的是同一期报纸）。只数 sections 的话，
+    // 昨天因为板块容量被挤到快讯里的那条，今天会以整篇重印一次——回填的语料多，这条最容易撞上。
+    for (const it of r.content.flashes ?? []) if (it.itemId) out.add(`a:${it.itemId}`);
   }
   return out;
 }
@@ -407,12 +410,24 @@ export async function composeWeekly(label: string, reason = "scheduled") {
   return composePeriod("weekly", label, range.start, range.end, reason);
 }
 
-export async function composeMonthly(label: string, reason = "scheduled") {
-  const m = /^(\d{4})-(\d{2})$/.exec(label);
-  if (!m) throw new Error(`bad month label ${label}`);
-  const start = `${label}-01`;
+/**
+ * The month an edition covers, in Beijing dates: first day, last day, and the moment the window closes
+ * (midnight of the next month). One definition on purpose — `scripts/backfill-papers.ts` used to do this
+ * arithmetic itself with `Date.UTC(y, m + 1, 1)` on a 1-based month, which landed a month late: it planned
+ * 01/03/05/07 and skipped 02/04/06/08, and measured every month it did plan across two months.
+ */
+export function monthlyWindow(key: string): { start: string; end: string; closes: Date } {
+  const m = /^(\d{4})-(\d{2})$/.exec(key);
+  if (!m) throw new Error(`bad month label ${key}`);
+  // 正则只要求两位数字，13 月也过得了：不挡就会静悄悄变成下一年的一月，期号却还写着 13 月。
+  if (+m[2] < 1 || +m[2] > 12) throw new Error(`bad month label ${key}`);
   const next = Number(m[2]) === 12 ? `${Number(m[1]) + 1}-01-01` : `${m[1]}-${String(Number(m[2]) + 1).padStart(2, "0")}-01`;
-  return composePeriod("monthly", label, start, addDays(next, -1), reason);
+  return { start: `${key}-01`, end: addDays(next, -1), closes: beijingMidnight(next) };
+}
+
+export async function composeMonthly(label: string, reason = "scheduled") {
+  const w = monthlyWindow(label);
+  return composePeriod("monthly", label, w.start, w.end, reason);
 }
 
 /**

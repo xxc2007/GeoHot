@@ -26,7 +26,7 @@
 import { parseArgs } from "node:util";
 import { closeDb, sql } from "@aihot/backend/db";
 import { addDays, beijingDate, beijingMidnight, isoWeekLabel, isoWeekRange, isValidDate } from "@aihot/contracts/time";
-import { candidates, composeDaily, composeMonthly, composeWeekly, dailyWindow } from "@aihot/backend/reports/compose";
+import { candidates, composeDaily, composeMonthly, composeWeekly, dailyWindow, monthlyWindow } from "@aihot/backend/reports/compose";
 
 const { values } = parseArgs({
   options: {
@@ -79,12 +79,18 @@ const due = Number(beijingMidnight(today)) + 8 * 3600 * 1000 <= now.getTime() ? 
 const from = values.from!;
 const to = values.to || due;
 
-/** Articles in the window that are still waiting to be judged — not the ones that will never be. */
+/**
+ * 这一期里还没定的条目，两种而不是一种：还没判的（'new' 且没有分析行），以及判完但投影没跑成的
+ * （'analyzed' 且没有 publications 行）——后者正是 sweepUnprocessed 几分钟后会补上的那段，
+ * 只数前一种会让这一天在缺一条本该入刊的故事的情况下出刊，而下一轮还会说"已出刊"。
+ * 'failed' 故意不算未完成：它只有被操作者或 30 天重排救回来才会回到 'new'，那种情况交给 --refresh。
+ */
 async function unsettled(start: Date, end: Date): Promise<number> {
   const [row] = await sql<{ n: number }[]>`
     SELECT count(*)::int AS n FROM articles a
-     WHERE a.timeline_at >= ${start} AND a.timeline_at < ${end} AND a.processing_state = 'new'
-       AND NOT EXISTS (SELECT 1 FROM analyses x WHERE x.article_id = a.id)`;
+     WHERE a.timeline_at >= ${start} AND a.timeline_at < ${end}
+       AND ((a.processing_state = 'new' AND NOT EXISTS (SELECT 1 FROM analyses x WHERE x.article_id = a.id))
+         OR (a.processing_state = 'analyzed' AND NOT EXISTS (SELECT 1 FROM publications p WHERE p.article_id = a.id)))`;
   return row?.n ?? 0;
 }
 
@@ -92,6 +98,7 @@ const hasReport = async (kind: string, key: string) => !!(await sql`SELECT 1 FRO
 
 const plan: Array<{ kind: string; key: string; items: number; note: string }> = [];
 const failures: string[] = [];
+const partial: string[] = []; // 不在区间内 / 窗口还没关的期次：要说出来，不许静悄悄消失
 
 /** One period, one line in the plan; `--apply` composes it and a broken period does not stop the run. */
 async function consider(kind: "daily" | "weekly" | "monthly", key: string, start: Date, end: Date, compose: () => Promise<{ key: string; entries: number }>) {
@@ -123,29 +130,36 @@ for (let t = Number(beijingMidnight(from)); t <= Number(beijingMidnight(to)) && 
   await consider("daily", date, start, end, () => composeDaily(date, "archive-backfill"));
 }
 
+const seenWeeks = new Set<string>();
 for (let t = Number(beijingMidnight(from)); t <= Number(beijingMidnight(to)); t += DAY) {
   const week = isoWeekLabel(beijingDate(new Date(t)));
+  if (!kinds.includes("weekly") || seenWeeks.has(week)) continue;
+  seenWeeks.add(week);
   const range = isoWeekRange(week);
   // A period counts only when it sits inside the requested span whole: half a week of January is not the
   // January week, and publishing it would print a week the reader cannot check against the dailies.
-  if (!range || !kinds.includes("weekly") || range.start < from || range.end > to) continue;
+  // 2026-W01 starts 2025-12-29, so a span opening 2026-01-01 loses it. That used to vanish without a line,
+  // which is how an operator reads "39 weeks planned" and thinks four are missing.
+  if (!range || range.start < from || range.end > to) { if (range) partial.push(`weekly ${week}（${range.start}→${range.end} 不在区间内）`); continue; }
   const start = beijingMidnight(range.start);
   const end = beijingMidnight(addDays(range.end, 1));
-  if (Number(end) > now.getTime()) continue;
+  if (Number(end) > now.getTime()) { partial.push(`weekly ${week} 窗口还没关`); continue; }
   await consider("weekly", week, start, end, () => composeWeekly(week, "archive-backfill"));
   t = Number(beijingMidnight(range.end));
 }
 
+const seenMonths = new Set<string>();
 for (let t = Number(beijingMidnight(from)); t <= Number(beijingMidnight(to)); t += DAY) {
   const ym = beijingDate(new Date(t)).slice(0, 7);
-  if (!kinds.includes("monthly") || ym < from.slice(0, 7) || `${ym}-01` > to.slice(0, 7)) continue;
-  const firstOfNext = new Date(Date.UTC(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)) + 1, 1));
-  const lastDay = new Date(firstOfNext.getTime() - DAY).toISOString().slice(0, 10);
-  const start = beijingMidnight(`${ym}-01`);
-  const end = beijingMidnight(addDays(lastDay, 1));
-  if (lastDay > to.slice(0, 10) || Number(end) > now.getTime()) continue;
-  await consider("monthly", ym, start, end, () => composeMonthly(ym, "archive-backfill"));
-  t = Number(beijingMidnight(firstOfNext.toISOString().slice(0, 10))) - DAY;
+  if (!kinds.includes("monthly") || seenMonths.has(ym)) continue;
+  seenMonths.add(ym);
+  // 月窗只在 monthlyWindow 一处算。这里原来写 Date.UTC(y, m + 1, 1) 而 m 已经是 1 起的月份号，
+  // 于是每个月都往后多算一个月：计划只出 01/03/05/07（02/04/06/08 被跨月的循环步进吃掉），
+  // 而被数到的那几个月又各自横跨两个月。整期在区间内 + 窗口已关，两条都与周报同一条规矩。
+  const w = monthlyWindow(ym);
+  if (w.start < from || w.end > to) { partial.push(`monthly ${ym}（${w.start}→${w.end} 不在区间内）`); continue; }
+  if (w.closes.getTime() > now.getTime()) { partial.push(`monthly ${ym} 窗口还没关`); continue; }
+  await consider("monthly", ym, beijingMidnight(w.start), w.closes, () => composeMonthly(ym, "archive-backfill"));
 }
 
 const byNote = new Map<string, number>();
@@ -153,5 +167,10 @@ for (const p of plan) byNote.set(p.note, (byNote.get(p.note) ?? 0) + 1);
 console.log(`\n${values.apply ? "出刊" : "计划"} ${plan.length} 期（${kinds.join("/")}，${from} → ${to}）：`);
 for (const [note, n] of byNote) console.log(`  ${String(n).padStart(4)} × ${note}`);
 if (failures.length) console.log(`\n${failures.length} 期失败：\n` + failures.map((f) => `  ${f}`).join("\n"));
+if (partial.length) {
+  console.log("\n另有 " + partial.length + " 个整期没排（区间边界或窗口未关）：");
+  for (const s of partial.slice(0, 12)) console.log("  " + s);
+  if (partial.length > 12) console.log("  …另 " + (partial.length - 12) + " 个");
+}
 if (!values.apply) console.log("\n默认只做计划不写库。确认后用 --apply --database-url=… 跑。");
 await closeDb();
