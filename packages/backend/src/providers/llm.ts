@@ -41,13 +41,15 @@ export const MODELS: Record<string, ModelSpec> = {
     get vision() { return process.env.LLM_VISION === "true"; },
   },
   // The same Agnes 3.0 flash served from the mainland endpoint, under its own key and its own budget row.
-  // Measured 2026-10-09 from the collector with the site's real request shape (JSON mode +
-  // `reasoning_effort: high` + a scored editorial prompt): 200, valid JSON, correct Chinese fields,
-  // 1.7-9.0 s single call, and **8/8 concurrent calls with zero 429** at ~10.9 s average — about
-  // 2,600 calls/hour of headroom where the `.com` endpoint is capped by our own 420/hour breaker and
-  // already answers 429 near 400. That is why the backfill can run at all.
+  // Measured 2026-10-09 with the site's real request shape (JSON mode + `reasoning_effort: high` + a scored
+  // editorial prompt): 200, valid JSON, correct Chinese fields, 1.7-9.0 s single call, and 8 concurrent calls
+  // all succeeding. What that burst did NOT show is the steady rate — counted per minute in production
+  // (2026-10-10 01:22-01:33) it accepts 5-13 answers a minute and answers 429 above that, which is what
+  // migration 0052 sized the breaker to. That is still ~550/hour against the `.com` endpoint's 420, and the
+  // `.com` key had burned its whole day's text quota (1 request/minute) — so this door is why a backfill run
+  // is possible at all.
   // Env-driven like `default` so retuning needs no code change; unset keys make the pool member simply
-  // unconfigured (chatJson throws with the env names in the message) rather than silently mis-routing.
+  // unconfigured (and dropped from the pool, editorial/models.ts:membersFor) rather than silently mis-routing.
   "agnes-3.0-flash-cn": {
     key: "agnes-3.0-flash-cn", service: "agnes-cn", baseUrlEnv: "AGNES_CN_BASE_URL", apiKeyEnv: "AGNES_CN_API_KEY",
     get model() { return process.env.AGNES_CN_MODEL ?? "agnes-3.0-flash"; },
