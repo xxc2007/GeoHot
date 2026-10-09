@@ -258,9 +258,14 @@ async function saveReport(kind: "daily" | "weekly" | "monthly", key: string, sta
 }
 
 /** Daily report for Beijing date D covers [D-1 08:00, D 08:00) Beijing time. */
-export async function composeDaily(date: string, reason = "scheduled"): Promise<{ key: string; entries: number }> {
+/** The window a daily for `date` gathers: [D-1 08:00, D 08:00) Beijing, closed at D 08:00. */
+export function dailyWindow(date: string): { start: Date; end: Date } {
   const end = new Date(beijingMidnight(date).getTime() + 8 * 3600 * 1000);
-  const start = new Date(end.getTime() - 86400000);
+  return { start: new Date(end.getTime() - 86400000), end };
+}
+
+export async function composeDaily(date: string, reason = "scheduled"): Promise<{ key: string; entries: number }> {
+  const { start, end } = dailyWindow(date);
   const covered = await recentlyCovered("daily", date);
   const all = await candidates(start, end);
   const fresh = all.filter((c) => !covered.has(c.factKey) && !covered.has(`a:${c.itemId}`));

@@ -63,12 +63,16 @@ function daysInMonth(y: number, mo: number): number {
  * So the order comes from the source (publishedAtDateOrder) and is never assumed: with no declaration the
  * value gets no date, which is what "no date" is for. A declared order the value itself contradicts (a
  * month 31, a February 31) is no date either, because that declaration is not describing this feed.
- * Returns undefined when the value is not this shape at all, so the caller keeps looking.
+ * Returns undefined when the value is not this shape at all, so the caller keeps looking. Because the
+ * order is only ever read from the declaration, a changelog heading like "1.2.2026" on a feed whose
+ * operator declared "dmy" will still read as a date — that declaration is the operator's own statement
+ * about this source, which is why the key is off unless a measured feed actually prints the order.
  */
 function fromYearLast(v: string, opts: PublishedAtOptions, utcOffset: string): Date | null | undefined {
   // The time may follow the day with a space, a T, or " - ", which is how a Drupal feed writes it
-  // ("mer 07/10/2026 - 10:13"); a bare day is midnight in the source's own offset.
-  const m = /(\d{1,2})[./-](\d{1,2})[./-](\d{4})(?:(?:[T ]|\s+-\s+)(\d{1,2}):(\d{2})(?::(\d{2}))?)?/.exec(v);
+  // ("mer 07/10/2026 - 10:13"); a bare day is midnight in the source's own offset. The leading group is a
+  // boundary, not a capture: "2026-10-07" must not be read as a year-last date hiding inside it.
+  const m = /(?:^|[^\d])(\d{1,2})[./-](\d{1,2})[./-](\d{4})(?!\d)(?:(?:[T ]|\s+-\s+)(\d{1,2}):(\d{2})(?::(\d{2}))?)?/.exec(v);
   if (!m) return undefined;
   const dayFirst = opts.dateOrder === "dmy" ? true : opts.dateOrder === "mdy" ? false : null;
   if (dayFirst === null) return null;
@@ -76,7 +80,13 @@ function fromYearLast(v: string, opts: PublishedAtOptions, utcOffset: string): D
   const month = dayFirst ? Number(m[2]) : Number(m[1]);
   const year = Number(m[3]);
   if (month < 1 || month > 12 || day < 1 || day > daysInMonth(year, month)) return null;
-  return atOffset(year, month, day, m[4] ?? "0", m[5] ?? "0", m[6] ?? "0", utcOffset);
+  // A zone the value carries itself ("07/10/2026 12:00:00+02:00") outranks the source's declared offset:
+  // it is the moment the feed wrote. An abbreviation is not — V8's table is only consulted by the branch
+  // below, so a year-last value with "EST" is placed in the source's offset, which can be hours off but
+  // never months, and no live feed is known to write that combination.
+  const zone = /(Z|[+-]\d{2}:?\d{2}|GMT|UTC|UT)$/i.exec(v.trim());
+  const inZone = zone ? /^(GMT|UTC|UT|Z)$/i.test(zone[1]!) ? "+00:00" : zone[1]!.replace("GMT", "+00:00") : utcOffset;
+  return atOffset(year, month, day, m[4] ?? "0", m[5] ?? "0", m[6] ?? "0", inZone!);
 }
 
 /** 20260922: a calendar day at UTC midnight, some list APIs' way of giving a date. */
@@ -106,6 +116,15 @@ export function parsePublishedAt(value: unknown, opts: PublishedAtOptions = {}):
 
   const v = String(value).replace(/星期[一二三四五六日天]/, "").replace(/\s+/g, " ").trim();
   if (!v) return null;
+  // One published moment per value. "03/04/2026-07/10/2026" is a range and "…v1.2.2026…" is a sentence;
+  // picking either date out of them would put a number on the page that the source never attached to this
+  // item, so an ambiguous value gets no date instead. Only year-shaped groups count — a trailing "+0200"
+  // is a zone, not a second year.
+  if ((v.match(/(?<!\d)(?:1[89]|2[01])\d{2}(?!\d)/g) ?? []).length > 1) return null;
+  // Before the zone shortcuts: with a year-last date and a zone both present, Date.parse reads the
+  // American month/day order and the zone branch would return that wrong day before anything else ran.
+  const yearLast = fromYearLast(v, opts, offsetOf(opts));
+  if (yearLast !== undefined) return yearLast;
   if (EXPLICIT_ZONE.test(v) || /^\d{4}-\d{2}-\d{2}$/.test(v)) {
     const direct = Date.parse(v);
     if (Number.isFinite(direct) && /\d{4}/.test(v)) return new Date(direct);
@@ -117,8 +136,6 @@ export function parsePublishedAt(value: unknown, opts: PublishedAtOptions = {}):
     const inZone = atOffset(y!, mo!, d!, h, mi, s, offsetOf(opts));
     if (inZone) return inZone;
   }
-  const yearLast = fromYearLast(v, opts, offsetOf(opts));
-  if (yearLast !== undefined) return yearLast;
   // A zone written as an abbreviation ("Fri, 09 Oct 2026 12:00:00 EST") is still the value's own zone: the
   // engine resolves it, so reading that instant back in the host's zone and placing it in the source's
   // offset would apply a zone twice. Whether the token carried information is proved by removing it — if

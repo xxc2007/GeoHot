@@ -27,9 +27,9 @@ const KEYS: Record<SourceRow["kind"], string[]> = {
   // X accounts are mostly read in shards, which apply only these.
   x_search: ["_aihot", "ingestNoiseFilter", "itemUrlPrefixRewrite", "query", "searchType"],
   mp_account: ["wxid", "ghid", "nickname"],
-  // An external source is only written by the ingest endpoint, which reads the offset a report's
-  // zone-less publishedAt is to be taken in.
-  external: ["publishedAtUtcOffset"],
+  // An external source is only written by the ingest endpoint, which reads both date settings a report's
+  // publishedAt may need: the offset for a zone-less value and the day/month order for a year-last one.
+  external: ["publishedAtUtcOffset", "publishedAtDateOrder"],
 };
 
 // Objects with fixed keys (headers and bodyJson are request data, free-form).

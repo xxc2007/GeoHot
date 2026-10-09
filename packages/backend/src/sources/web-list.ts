@@ -196,7 +196,10 @@ const DATE_HEADING = /^(?:[^\d:：]{1,12}[:：])?\s*(\d{4})[-/.年](\d{1,2})[-/.
 function headingDate(title: string, config: DateConfig = {}): Date | null | undefined {
   const m = DATE_HEADING.exec(title);
   if (!m) return undefined;
-  return parseLooseDate(m[0], config);
+  // The " 00:00" is not decoration: a bare "2024-05-17" is an ISO date and dates.ts reads an ISO date alone
+  // as UTC midnight, while a heading a maintainer wrote is a day at their own offset. Attaching a time
+  // keeps the shared rule and puts the day where the source put it.
+  return parseLooseDate(`${m[1]}-${m[2]!.padStart(2, "0")}-${m[3]!.padStart(2, "0")} 00:00`, config);
 }
 
 function fromDocusaurusChangelog(html: string, base: string, source: SourceRow): Candidate[] {
@@ -367,7 +370,7 @@ export async function fetchDetail(url: string, source: SourceRow, need: DetailNe
     const authoritative = d.publishedAtAuthoritative === true && !!(d.publishedAtSelector || d.publishedAtRegex);
     if (!publishedAt && $ && !dateInJina && !authoritative) {
       const meta = $('meta[property="article:published_time"], meta[name="pubdate"], meta[itemprop="datePublished"]').attr("content");
-      publishedAt = parseLooseDate(meta) ?? parseLooseDate(jsonLdPublished($, html!)) ?? parseLooseDate($("time[datetime]").first().attr("datetime"));
+      publishedAt = parseLooseDate(meta, d) ?? parseLooseDate(jsonLdPublished($, html!), d) ?? parseLooseDate($("time[datetime]").first().attr("datetime"), d);
     }
   }
 

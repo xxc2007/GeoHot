@@ -14,8 +14,8 @@
 import { parseArgs } from "node:util";
 import { hasChineseCopy } from "@aihot/contracts/copy";
 import { closeDb, sql } from "@aihot/backend/db";
-import { candidates, composeDaily, composeWeekly, composeMonthly } from "@aihot/backend/reports/compose";
-import { beijingMidnight, isoWeekRange } from "@aihot/contracts/time";
+import { candidates, composeDaily, composeWeekly, composeMonthly, dailyWindow } from "@aihot/backend/reports/compose";
+import { isoWeekRange } from "@aihot/contracts/time";
 
 const { values } = parseArgs({
   options: {
@@ -46,7 +46,7 @@ console.log(`其中标题不含中文的：${english.length} 条${english.length
 
 // What the current material would yield — a preview that does not write anything.
 const range = kind === "daily"
-  ? (() => { const end = new Date(beijingMidnight(key).getTime() + 8 * 3600 * 1000); return { start: new Date(end.getTime() - 86400000), end }; })()
+  ? dailyWindow(key)
   : kind === "weekly"
     ? (() => { const r = isoWeekRange(key); return r ? { start: r.start, end: r.end } : null; })()
     : null;

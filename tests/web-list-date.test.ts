@@ -45,6 +45,10 @@ test("a date whose year comes last is not read until the source says which order
   assert.equal(iso("07.10.2026", "+02:00", "dmy"), "2026-10-06T22:00:00.000Z", "midnight in Oslo's own zone");
   assert.equal(iso("mer 07/10/2026 - 10:13", "+02:00", "dmy"), "2026-10-07T08:13:00.000Z");
   assert.equal(iso("07/10/2026", "-07:00", "mdy"), "2026-07-10T07:00:00.000Z");
+  // A value that also carries its zone used to leave by the zone shortcut, where Date.parse reads the
+  // American month/day order — the declared order was ignored and October came back as July.
+  assert.equal(iso("07/10/2026 12:00:00+02:00", "+08:00", "dmy"), "2026-10-07T10:00:00.000Z", "the zone the value wrote wins over the source's offset");
+  assert.equal(iso("03/04/2026-07/10/2026"), null, "two years in one value is a range, not a published moment");
 });
 
 test("a declared order the value contradicts is no date, not a swap into the other one", () => {
