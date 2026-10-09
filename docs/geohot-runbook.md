@@ -58,7 +58,7 @@ node --env-file-if-exists=.env scripts/seed.ts
 三条硬规矩（踩过就浪费时间）：
 
 - `tier` 的合法值是 **`T1_5`**，不是 `T1.5`（`database/migrations/0001_core.sql:18` 的 CHECK）。写错 seed 直接失败。
-- `config` 的键必须在白名单里（`packages/backend/src/sources/config-keys.ts`）。白名单外的键在保存、预览、seed 三处都会被**明确拒绝**，不会悄悄退回通用解析。`rss` 用 `feedUrl`，`web_list` 用 `url` + 选择器 + `publishedAtUtcOffset`，`json_list` 用 `url`/`itemsPath`/`titlePaths`/`urlTemplate`/`publishedAtPath`。
+- `config` 的键必须在白名单里（`packages/backend/src/sources/config-keys.ts`）。白名单外的键在保存、预览、seed 三处都会被**明确拒绝**，不会悄悄退回通用解析。`rss` 用 `feedUrl`，`web_list` 用 `url` + 选择器 + `publishedAtUtcOffset`，`json_list` 用 `url`/`itemsPath`/`titlePaths`/`urlTemplate`/`publishedAtPath`。日期两个键都归 `sources/dates.ts` 解释：`publishedAtUtcOffset` 决定不带时区的时间串按哪个偏移读，`publishedAtDateOrder`（`dmy`/`mdy`）决定年写在最后的那种数字日期（`07.10.2026`）哪个数是日、哪个数是月——不声明就没有日期，不做猜测。
 - `json_list` 的 `urlTemplate` **可以**写完整外部 URL：`packages/backend/src/sources/json-list.ts:29-40` 的 `renderTemplate()` 只对"被替换进模板的那个值"做 `encodeURIComponent`（并把 `%2F` 还原成 `/`），模板字面量原样输出；要原始值用 `{raw:路径}`。（本文早期草稿曾断言"只能写相对片段"，那是错的，已改正——以 `renderTemplate()` 的代码为准。）
 - 盘点/文旅向的转载层登记成 **T2**，不要放 T1/T1_5。但要看清这一条到底兜住了什么：**门槛不是证明**（`docs/manual.md` 第 6 节已撤掉旧版"营销数学上不可能入选"的说法）——按字面算营销类噪声的天花板是 92–93 分，任何可用的门槛都关不住它。分级摆放只决定"这个源的信材用哪一档线去量"（T2 高、T1 低），**它挡不住 92–93 分的噪声**；真拦住这类材料的是 `industry/prompts/prefilter.md` 的 `BLOCK`。注意 stub 的预筛兜底是 PASS（`tooling/brain-stub.ts:615`），所以这一层目前只在有人写过 BLOCK 判断的材料上成立。
 

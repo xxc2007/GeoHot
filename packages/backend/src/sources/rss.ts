@@ -5,7 +5,7 @@ import { collapseWhitespace, stripTags } from "../lib/text.ts";
 import { sanitizeBody } from "../content/sanitize.ts";
 import { identityKeyForUrl } from "../lib/url.ts";
 import { sha256, stableJson } from "../lib/ids.ts";
-import { DEFAULT_UTC_OFFSET, parsePublishedAt } from "./dates.ts";
+import { parsePublishedAt, type DateConfig } from "./dates.ts";
 import { FetchError, type Candidate, type SourceRow } from "./types.ts";
 
 const parser = new XMLParser({
@@ -79,8 +79,8 @@ function arr<T>(v: T | T[] | undefined | null): T[] {
  * the source's offset (publishedAtUtcOffset), never the host's, so the item lands on the day the source
  * meant. Date.parse alone read "2026-09-26 10:00" eight hours away between the container and a machine.
  */
-function parseDate(v: string, utcOffset: string | null | undefined = DEFAULT_UTC_OFFSET): Date | null {
-  return parsePublishedAt(v, { utcOffset });
+function parseDate(v: string, config: DateConfig = {}): Date | null {
+  return parsePublishedAt(v, { utcOffset: config.publishedAtUtcOffset, dateOrder: config.publishedAtDateOrder });
 }
 
 function atomLink(links: unknown): string {
@@ -281,7 +281,7 @@ export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}
   const out: Candidate[] = [];
   // A relative href resolves against the address the bytes came from, not the configured feed URL.
   const docUrl = res.url || url;
-  const publishedAtUtcOffset = source.config.publishedAtUtcOffset as string | null | undefined;
+  const dateConfig = source.config as DateConfig;
 
   const channel = doc.rss?.channel ?? doc["rdf:RDF"];
   if (channel) {
@@ -320,7 +320,7 @@ export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}
         // Frontiers writes `<pubdate>` and the RFC-822 spelling is `<pubDate>`; the parser keeps tag case,
         // so reading only one of the two silently loses the source date — and a dateless item is filed under
         // its discovery time, which turns last month's paper into today's news on the timeline.
-        publishedAt: parseDate(text(it.pubDate) || text(it.pubdate) || text(it["dc:date"]) || text(it.published), publishedAtUtcOffset),
+        publishedAt: parseDate(text(it.pubDate) || text(it.pubdate) || text(it["dc:date"]) || text(it.published), dateConfig),
         ...feedText(bodyHtml, description || mrss(it).description, source),
         media: media.slice(0, 6),
         categories: arr(it.category).map((c) => text(c)).filter(Boolean),
@@ -355,8 +355,8 @@ export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}
         ...identity(entryUrl),
         title,
         author: text(arr(e.author)[0]?.name) || null,
-        publishedAt: parseDate(text(e.published) || text(e.updated), publishedAtUtcOffset),
-        sourceUpdatedAt: parseDate(text(e.updated), publishedAtUtcOffset),
+        publishedAt: parseDate(text(e.published) || text(e.updated), dateConfig),
+        sourceUpdatedAt: parseDate(text(e.updated), dateConfig),
         ...feedText(bodyHtml, summary || mediaText, source),
         media: content ? imagesFrom(content, entryUrl) : mrssMedia(e, entryUrl),
         categories: arr(e.category).map((c: any) => c?.["@term"] ?? text(c)).filter(Boolean),

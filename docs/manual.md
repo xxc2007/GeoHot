@@ -479,6 +479,8 @@ grep -n DEV_AUTH .env .env.pipeline      # 期望：两个文件都没有输出
 
 四个阀是 `COLLECT_ENABLED`、`MODEL_CALLS_ENABLED`、`FEISHU_CONTENT_PUSH_ENABLED` + `FEISHU_INTERNAL_ENABLED`（两个飞书开关算一组外部推送）、`INDEXNOW_SUBMIT_ENABLED`；`EMBEDDINGS_ENABLED` 是第五个独立开关（没有 embedding key 时必须 false）。`.env` 里一律 false，只在叠 `.env.pipeline` 时开前两个。`TZ` 现在只影响日志与 shell 的显示，不再决定日期对不对：不带时区的时间串（地震台网、中央气象台）由 `packages/backend/src/sources/dates.ts` 按信源的 `publishedAtUtcOffset` 解释（缺省 +08:00），站上北京日期一律走固定偏移的 `beijingDate`/`beijingMidnight`，代码里不读进程时区。这一段以前写的是「不设 TZ 就会整体偏 8 小时」——那是四个入口各写一份日期规则时代的坑，规则并成一份后已经不成立；`TZ` 留在 `.env.pipeline` 只为日志好看。
 
+数字日期把**年放在最后**的那种（`07.10.2026`、`07/10/2026`）不猜顺序：值本身没写哪个数是日、哪个是月，两种读法差三个月，而 `Date.parse` 历来按美国顺序读，欧洲机构的页面因此会被印上一个错的日期。顺序由信源声明（`publishedAtDateOrder: "dmy" | "mdy"`，白名单在 `config-keys.ts`），没声明就按「这条没有可用日期」走既有的无日期通道，绝不用猜测值顶上；声明了但值本身对不上（月 31、二月 31）同样算没有日期，因为那句声明不是在描述这个源。包内只有法国 IGN 用得到这个键（2026-10-10 采集机实测：225 条启用的 `rss` 里 204 条读得到内容，除 IGN 之外的数字日期全是年在前），它是给 `dd.mm.yyyy` 那一族官方站准备的——第一个使用者是法国 IGN。反过来，值里带时区缩写（`EST`、`PDT`……引擎认识的那些）现在算值自带的时区，不再二次换算：把引擎已经定好的时刻按进程时区读回来、再按信源偏移摆一次，等于套了两个时区；过去没人看见这个错，是因为服务器就在 +08:00 而缺省偏移也是 +08:00，两次操作恰好互相抵消。
+
 **2. `NODE_ENV` 与 `AIHOT_ENVIRONMENT` 是两个变量，只改一个等于没改。** 这是最容易骗过自己的陷阱：
 
 | 谁读它 | 读哪个 | 后果 |

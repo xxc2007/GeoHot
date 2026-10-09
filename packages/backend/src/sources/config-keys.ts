@@ -5,7 +5,7 @@ import type { SourceRow } from "./types.ts";
 
 // Rules applied in collect.ts to every kind read through collectSource, plus the date offset every
 // entrance now reads a zone-less timestamp in (sources/dates.ts).
-const COLLECTED = ["_aihot", "allowUrlPrefixes", "denyUrlPrefixes", "ingestNoiseFilter", "itemUrlPrefixRewrite", "sortByPublishedAt", "detail", "fetchPublicContent", "publishedAtUtcOffset"];
+const COLLECTED = ["_aihot", "allowUrlPrefixes", "denyUrlPrefixes", "ingestNoiseFilter", "itemUrlPrefixRewrite", "sortByPublishedAt", "detail", "fetchPublicContent", "publishedAtUtcOffset", "publishedAtDateOrder"];
 
 // Registered, but not read on the polling path: the ISSN the journal behind an rss source is actually
 // filed under. Its reader is the archive backfill (scripts/backfill-archive.ts), which asks Crossref for
@@ -42,7 +42,7 @@ const NESTED: Record<string, string[]> = {
   requireBoolean: ["path", "equals"],
   minNumeric: ["path", "min"],
   detail: [
-    "maxFetches", "publishedAtSelector", "publishedAtRegex", "publishedAtUtcOffset", "publishedAtAuthoritative", "upgradeDatePrecision",
+    "maxFetches", "publishedAtSelector", "publishedAtRegex", "publishedAtUtcOffset", "publishedAtDateOrder", "publishedAtAuthoritative", "upgradeDatePrecision",
     "titleSelector", "titleRegex", "titleAuthoritative", "summarySelector",
   ],
 };
@@ -50,6 +50,9 @@ const NESTED: Record<string, string[]> = {
 const VALUES: Record<string, string[]> = {
   adapter: ["mimo_home"],
   parseMode: ["html", "markdown", "docusaurus_changelog"],
+  // Which of 07.10.2026's first two numbers is the day (sources/dates.ts). Enumerated because a value that
+  // is not one of these reads no date at all, and an operator deserves the door rather than a silent drop.
+  publishedAtDateOrder: ["dmy", "mdy"],
 };
 
 /**
