@@ -145,8 +145,13 @@ step "R3. PostgreSQL：默认什么都不做（保留数据就是保留回滚余
 if [[ "$PURGE" == "1" ]]; then
   echo "!! --purge-database：将删除库 $PG_DATABASE 与角色 $PG_ROLE。先备份再删。"
   if command -v pg_dump >/dev/null 2>&1; then
+    # 这一条以前是 `bash -c "sudo -u postgres pg_dump … | gzip > 文件"`，两个毛病：
+    # ① 新起的 bash 没有 pipefail，pg_dump 失败时 gzip 照样退出 0 —— 于是"强制备份"写下一个
+    #    **空文件**，脚本继续往下 DROP DATABASE；② 那个重定向是**发起命令的人**的权限，
+    #    /opt/geohot 归 geohot 所有，非特权操作者在真正 --apply 时根本写不进去。
+    # 现在整条都在 sudo 里跑，并且要求产物非空才继续。
     run "pg_dump 备份到 $APP_HOME/geohot-before-purge-$TS.sql.gz" \
-      bash -c "sudo -u postgres pg_dump '$PG_DATABASE' | gzip > '$APP_HOME/geohot-before-purge-$TS.sql.gz'"
+      sudo bash -c "set -euo pipefail; sudo -u postgres pg_dump '$PG_DATABASE' | gzip > '$APP_HOME/geohot-before-purge-$TS.sql.gz'; test -s '$APP_HOME/geohot-before-purge-$TS.sql.gz'"
     echo "   这一份就是以后恢复的输入 —— 用法见 README-deploy.md 第 6.1 节（恢复），别把它留在服务器上就忘了。"
   else
     echo "!! 没有 pg_dump —— 拒绝在无法备份时删库。先装 postgresql-client 再来。" >&2
@@ -166,7 +171,14 @@ step "R4. 文件系统：默认保留 $APP_ROOT（代码/构建物/.data 都是�
 if [[ "$PURGE" == "1" ]]; then
   echo "如要删除应用目录，请人工检查 .data/（反馈截图、图片缓存）后自行执行："
   echo "    sudo rm -rf $APP_ROOT   # ← 本脚本不代你做这一步"
-  run "删除系统用户（可选）" sudo userdel "$APP_USER" 2>/dev/null || true
+  # 原来这一行是 `run … sudo userdel "$APP_USER" 2>/dev/null || true`：run 用 "$@" 执行，
+  # `2>/dev/null` 于是是**传给 userdel 的参数**（userdel 报多余操作数），而末尾的 `|| true`
+  # 把这句报错连同"用户其实没删掉"一起吞了。现在先查在不在，报错就让它报错。
+  if id "$APP_USER" >/dev/null 2>&1; then
+    run "删除系统用户 $APP_USER（家目录不动）" sudo userdel "$APP_USER"
+  else
+    echo "$APP_USER 用户不存在 —— 跳过"
+  fi
 fi
 
 # ---------------------------------------------------------------------------

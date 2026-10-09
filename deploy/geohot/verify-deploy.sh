@@ -144,11 +144,18 @@ artalk=$(status_of "$MAIN/comment/")
 echo "== 2. GEOHOT 路由状态（前缀下）=="
 # 常驻单元：DEPLOYMENT.md:10 记的是四个（brain/api/worker/web）。少一个 geohot-brain 不是"少个可选进程"，
 # 而是 config.ts:92 的 MODEL_CALLS_ENABLED 缺省 true 之下每一次分析请求都打到没人听的 127.0.0.1:3055。
-if command -v systemctl >/dev/null 2>&1 && [[ -n "$(systemctl list-unit-files 'geohot-*' --no-legend 2>/dev/null)" ]]; then
-  for u in geohot-brain geohot-api geohot-worker geohot-web; do
-    state=$(systemctl is-active "$u" 2>/dev/null || true)
-    [[ "$state" == "active" ]] && ok "$u active" || bad "$u 状态=$state —— 四个单元都要 active（见 deploy/geohot/systemd/）"
-  done
+if command -v systemctl >/dev/null 2>&1; then
+  # 只有"这台机器根本没有 systemd"才可以跳过这一节。systemctl 在、而 geohot-* 一个都没装，
+  # 是这条不变量最坏的那种破法（四个常驻进程一个都不在），以前它被写成"没有单元文件就免检"，
+  # 于是脚本对着一个空机器报 ALL CHECKS PASSED。
+  if [[ -z "$(systemctl list-unit-files 'geohot-*' --no-legend 2>/dev/null)" ]]; then
+    bad "systemd 里没有任何 geohot-* 单元 —— 四个常驻进程一个都没装（见 deploy/geohot/install-units.sh）"
+  else
+    for u in geohot-brain geohot-api geohot-worker geohot-web; do
+      state=$(systemctl is-active "$u" 2>/dev/null || true)
+      [[ "$state" == "active" ]] && ok "$u active" || bad "$u 状态=$state —— 四个单元都要 active（见 deploy/geohot/systemd/）"
+    done
+  fi
 fi
 # 编辑大脑的代码是不是"进程里那一份"。
 # 2026-10-04 的真实漏检：geohot-brain 从 2026-10-01 16:17 起一直是 active，而这三天里

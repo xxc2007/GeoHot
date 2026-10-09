@@ -2775,10 +2775,29 @@ timeline 那一个端点发 `X-Accel-Expires`，残余陈旧只有 180 秒回看
 10/10 复绿。**留给站长的一处呈现小毛病（没有替他改）**：README.md 里 `## 🎬 宣传片展示` 之前是
 `---` + 空行 + `---`，两条连续的水平线在 GitHub 上会画成两道细线——删掉多余的那一对即可。
 
-**仍未做的 Tier-2（按风险从低到高，都不影响读者）**：A6 `verify-github-sync.sh` 写死 `/tmp/geohot-verify-gherr`
-（两个操作者同时跑会互相覆盖）；A4/A5 `verify-deploy.sh` 在 `list-unit-files` 为空时会跳过单元检查、
-`install-units.sh` 不校验装上了四个；A3 `rollback.sh` 的 `sudo bash -c` 与 `--purge-database` 把删单元文件与
-`userdel` 混在一起；B5 `previewSource` 不走 `allowed` / `rewriteUrl` / `noiseFiltered`，所以"试抓一次"给站长的
-条数比真采集会入库的多；B8 EUMETSAT 的 RSS 里有 `http://` 链接，解析时不升级 https。
+**Tier-2 已清账（同一晚做完，逐条带证据）**：
+- **A4 单元检查不再免检**：`verify-deploy.sh` 第 2 节以前是"systemctl 在 **且** 有 geohot-\* 单元文件"才检查，
+  于是四个常驻进程一个都没装的机器照样报 ALL CHECKS PASSED。现在只有"这台机器根本没有 systemd"才跳过，
+  单元列表为空是**报红**。服务器上双向验过：真 systemctl → 4 个 OK；把 `list-unit-files` 换成返回空的假货 → 1 个 BAD。
+- **A5 装完要数一遍**：`install-units.sh` 以前只把数量打给人看，写了三个也算成功；现在不等于 4 就 exit 1 并列出已有的。
+- **A6 验收脚本不再共用一个 /tmp 文件**：`verify-github-sync.sh` 的 gh 错误输出从写死的 `/tmp/geohot-verify-gherr`
+  改成 `mktemp`。并进已有的 `trap … EXIT` 而不是新写第二个——第二个会把清 `$WORK` 的那条盖掉，临时目录就漏了。
+- **A3 回滚脚本两处真会伤人的**：① 强制备份那条是 `bash -c "sudo -u postgres pg_dump … | gzip > 文件"`，
+  新起的 bash 没有 pipefail，pg_dump 失败时 gzip 照样退出 0 ⇒ **"先备份再删"可以带着一个空文件继续 DROP DATABASE**；
+  而且那个重定向用的是发起命令的人的权限，`/opt/geohot` 归 geohot，非特权操作者在 `--apply` 时根本写不进去。
+  现在整条在 sudo 里跑、带 `set -euo pipefail`、`test -s` 要求产物非空。② `run "…" sudo userdel "$APP_USER" 2>/dev/null || true`
+  —— `run` 用 `"$@"` 执行，`2>/dev/null` 是**传给 userdel 的参数**（报多余操作数），`|| true` 又把这句连"用户其实
+  没删掉"一起吞了。现在先 `id` 查在不在，报错就让它报错。`--purge-database` 的 DRY-RUN 在服务器上跑到 R5、exit 0。
+- **B5 预览与采集同一个口径**：`previewSource` 以前直接数解析出来的候选，站长批准一条源时看到的数字比真采集会
+  留下的那一个大。采集那条流水线（`allowed` → `rewriteUrl` → `noiseFiltered` → 可选按发布时间排序）抽成
+  `collect.ts` 的 `applySourceFilters`，两处共用；返回值多带 `offered`，后台卡片写成「会入库 12 条（列表给了 96 条，
+  本站规则挡掉 84 条）」。用例：`tests/source-rules.test.ts` 新那条把预览的 `count` 与真采集**实际入库的行数**对拍
+  —— 把 `count: kept.length` 换回 `candidates.length` 它就红。
+**B8 量完驳回，不做**：评审建议"解析时把 RSS 里的 `http://` 链接升级成 https"。生产实测库里 `url LIKE 'http://%'`
+有 **540 行 / 9 条源**（`web-mwr-data` 153、`cn-people-*` 200、EUMETSAT 只有 11），而 `www.mwr.gov.cn` 是
+**只有 http 应答 200、https 握手超时**的那一个（`taxonomy.ts` 的 PUBLISHER_DOMAINS 注释里 2026-10-01 逐域 curl 记的）
+⇒ 一刀切升级会把 153 条水利部的读者链接改死，还会让已入库条目的身份键（`identityKeyForUrl`）变掉、
+同一篇稿被再采一遍。真要给 EUMETSAT 单独开一条 `itemUrlPrefixRewrite` 就够（那是既有配置项，不用新代码），
+但那 11 条现在能打开，不值得为它动版面。
 C6（translate / embeddings 的 `received` 收据无人认领）**判定不做**：两条链路都是休眠的，为不存在的路径加
 回收器是凭空长代码。
