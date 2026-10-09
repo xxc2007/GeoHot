@@ -1490,6 +1490,32 @@
       "defaultCategory": "physical"
     },
     {
+      "id": "cn-sciencenet-news",
+      "name": "科学网（中国科学报）· 要闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.sciencenet.cn/xml/news-0.aspx?di=3",
+        "_aihot": {
+          "initialBackfillLimit": 10,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 180,
+      "tags": [
+        "中文",
+        "国内信源",
+        "科研快讯",
+        "科普媒体"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
       "id": "intl-foreignaffairs",
       "name": "Foreign Affairs（外交事务）",
       "kind": "rss",

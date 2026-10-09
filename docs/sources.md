@@ -899,7 +899,7 @@ T&F 四本（`/feed/rss/<码>` 可达而 `www.tandfonline.com` 的 HTML 被 Clou
 - **中刊的 Magtech 平台**（地理科学进展一类）把 RSS 链接印在页面上，`rss_dqml_*.xml` 一律返回
   **HTTP 200 的 CMS 404 页**——按"状态码 200 就算活"的判法会整批接错。用当期目录页，别用它承诺的 RSS。
 
-## 第六十一轮实测：11 条候选接了 2 条，其余当场量出「没有可用的源」（2026-10-10，采集机）
+## 第六十一轮实测：11 条候选接了 3 条，其余当场量出「没有可用的 feed」（2026-10-10，采集机）
 
 方法固定：在采集机上从**站点自己的页面**找 feed 链接（`<a>`/`<link>` 里带 rss|atom|feed 字样的），再补几条常见路径，
 每条都用 `admin/sources.ts` 的 `previewSource()` ——就是后台「试抓一次」走的那条线，预览数与真采集数同一口径。
@@ -913,7 +913,7 @@ T&F 四本（`/feed/rss/<码>` 可达而 `www.tandfonline.com` 的 HTML 被 Clou
 | 挪威地质调查局 NGU | `https://www.ngu.no/geologi-og-risiko/atomberedskap` | 200 但是 **HTML 页**，`/rss.xml`、`/en/rss` 均 404 → 没有 feed，不接 |
 | SLF（WSL 景观研究所） | `/en/rss.xml`、`/rss.xml` | 404，首页 0 个 feed 锚点 → 不接 |
 | NOAA 太平洋海啸预警中心 | `https://www.tsunami.gov/events/xml/PAAQAtom.xml`、`PHEBAtom.xml` | **是真 feed**，但每个只有 1 条当前通告，标题就是 `PANAMA`「in Panama」这种一词快讯；`/feed/` 与 `/products/wwwh/rss20.xml` 回 403 → 暂不接（接了要配 detail 才可能出内容，而本站正文阀门关着） |
-| 科学网 | `news.sciencenet.cn/rss.xml`、`www.sciencenet.cn/RSS.aspx` | 200 但是 **HTML**；`blog.sciencenet.cn/rss.php` 是真 XML 却 191 字节、0 条 → 侦察报告说的"科学网 RSS"在这三个地址上都不成立，不接 |
+| 科学网 | `news.sciencenet.cn/rss.xml`、`www.sciencenet.cn/RSS.aspx`、`blog.sciencenet.cn/rss.php` | 前两个是 **200 的 HTML**，第三个是真 XML 却 191 字节、0 条。**但这一路不能就此结案**：第六十轮侦察早记下真地址是 `https://www.sciencenet.cn/xml/news-0.aspx?di=3`，本轮补测——200 · `application/xml` · 12,319 字节 · **20 条** · `pubDate` 写成 `2026-10-09 22:04`（无时区，`sources/dates.ts` 按 +08:00 读，正是它的设计场景）→ 已登记 `cn-sciencenet-news`。教训写在这里：**别拿三个猜出来的路径给一条源判死刑，先把已有的实测记录查完再探**。 |
 | UN News 气候专题 | `news.un.org/feed/subscribe/en/news/all/xml/rss.xml` | 200 但 body 长度 0 → 不接；`/en/news/climate-change` 直接 404 |
 | CBD 新闻 | `/rss/`、`/feeds/news.xml`、`/rss/news.xml` | 前两个是 HTML 目录页，后两个 404 → 不接（侦察给的"1,698 条可回填"仍未证伪，但没有 feed 就轮询不了） |
 | IOP《Environmental Research Letters》 | `iopscience.iop.org/rss/getrss.cfm?route=1&jrnl=1748-9326` | 200 但 **3.8 KB 的 HTML** → 不接 |
