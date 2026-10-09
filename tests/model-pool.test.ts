@@ -20,6 +20,7 @@ const SOURCE = `test-model-pool-${T}`;
 const POOL = "default,agnes-3.0-flash-cn";
 const ANSWERED_BY: Record<string, string> = { default: "main-model", "agnes-3.0-flash-cn": "cn-model" };
 const seen: Array<{ model: string; system: string }> = [];
+const pacing: Array<{ service: string; perMinute: number }> = [];
 const provider = await stub((_hit, req) => {
   const body = JSON.parse(req.body) as { model: string; messages: Array<{ role: string; content: unknown }> };
   const system = body.messages[0]!.role === "system" ? String(body.messages[0]!.content) : "";
@@ -47,9 +48,19 @@ before(async () => {
   // The tests share one database, and a `models.*` row left by another file would outrank every
   // environment variable below. Take the admin switch out of the picture, then put it back the way we found it.
   await sql`DELETE FROM settings WHERE key LIKE 'models.%'`;
+  // This file measures *who answers*, not how often we may ask. `agnes-cn` is capped at 9 requests a minute
+  // because that is the rate the far door actually accepts (migration 0054), and four articles × five steps
+  // lands twenty requests inside one minute — so the production breaker turns a routing test red for a reason
+  // that has nothing to do with routing. Lift it here, restore the measured numbers in `after`.
+  for (const service of ["llm", "agnes-cn"]) {
+    const [row] = await sql<{ per_minute: number }[]>`SELECT per_minute FROM budgets WHERE service = ${service}`;
+    pacing.push({ service, perMinute: row!.per_minute });
+    await sql`UPDATE budgets SET per_minute = 500 WHERE service = ${service}`;
+  }
   invalidateModelCache();
 });
 after(async () => {
+  for (const p of pacing) await sql`UPDATE budgets SET per_minute = ${p.perMinute} WHERE service = ${p.service}`;
   await sql`DELETE FROM settings WHERE key LIKE 'models.%'`;
   await provider.close();
   await stopBoss();
