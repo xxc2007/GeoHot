@@ -1433,6 +1433,63 @@
       "defaultCategory": "geopolitics"
     },
     {
+      "id": "intl-ign-actualites",
+      "name": "法国国家地理与地理信息院（IGN）· 动态",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.ign.fr/actualites/rss.xml",
+        "publishedAtUtcOffset": "+02:00",
+        "publishedAtDateOrder": "dmy",
+        "_aihot": {
+          "initialBackfillLimit": 10,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "官方",
+        "国际",
+        "地理信息系统",
+        "遥感影像"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "geotech"
+    },
+    {
+      "id": "intl-usgs-science-news",
+      "name": "美国地质调查局（USGS）· 科学动态",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.usgs.gov/feed",
+        "_aihot": {
+          "initialBackfillLimit": 10,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "官方",
+        "国际",
+        "英文",
+        "火山",
+        "科研快讯"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
       "id": "intl-foreignaffairs",
       "name": "Foreign Affairs（外交事务）",
       "kind": "rss",

@@ -898,3 +898,32 @@ T&F 四本（`/feed/rss/<码>` 可达而 `www.tandfonline.com` 的 HTML 被 Clou
   nsidc / gfz / jma / unep / iucn / oecd 都不是，登记时一律 null。`config.headers` 只允许在 rss/json_list 上用。
 - **中刊的 Magtech 平台**（地理科学进展一类）把 RSS 链接印在页面上，`rss_dqml_*.xml` 一律返回
   **HTTP 200 的 CMS 404 页**——按"状态码 200 就算活"的判法会整批接错。用当期目录页，别用它承诺的 RSS。
+
+## 第六十一轮实测：11 条候选接了 2 条，其余当场量出「没有可用的源」（2026-10-10，采集机）
+
+方法固定：在采集机上从**站点自己的页面**找 feed 链接（`<a>`/`<link>` 里带 rss|atom|feed 字样的），再补几条常见路径，
+每条都用 `admin/sources.ts` 的 `previewSource()` ——就是后台「试抓一次」走的那条线，预览数与真采集数同一口径。
+只读，不写库。原始日期串另外单独抓一次字节正则出来，这样"这个源是 `dd.mm.yyyy` 还是 `yyyy-mm-dd`"的结论
+不依赖当时部署的是哪一版解析器。
+
+| 候选 | 探到的地址 | 实测 |
+| --- | --- | --- |
+| 法国 IGN 动态 | `https://www.ign.fr/actualites/rss.xml`（首页锚点里就有） | **200 · 118 条** · 日期 `mer 07/10/2026 - 10:13`（法语星期 + 日/月/年）→ 已登记 `intl-ign-actualites`，带 `publishedAtDateOrder=dmy` + `+02:00` |
+| USGS 科学动态 | `https://www.usgs.gov/feed`（首页 `/programs/volcano-hazards-program` 302 到本站） | **200 · 30 条** · 日期 `Thu, 8 Oct 2026 18:14:02 EDT` → 已登记 `intl-usgs-science-news`（火山Watch/Minute 这类正是要的内容） |
+| 挪威地质调查局 NGU | `https://www.ngu.no/geologi-og-risiko/atomberedskap` | 200 但是 **HTML 页**，`/rss.xml`、`/en/rss` 均 404 → 没有 feed，不接 |
+| SLF（WSL 景观研究所） | `/en/rss.xml`、`/rss.xml` | 404，首页 0 个 feed 锚点 → 不接 |
+| NOAA 太平洋海啸预警中心 | `https://www.tsunami.gov/events/xml/PAAQAtom.xml`、`PHEBAtom.xml` | **是真 feed**，但每个只有 1 条当前通告，标题就是 `PANAMA`「in Panama」这种一词快讯；`/feed/` 与 `/products/wwwh/rss20.xml` 回 403 → 暂不接（接了要配 detail 才可能出内容，而本站正文阀门关着） |
+| 科学网 | `news.sciencenet.cn/rss.xml`、`www.sciencenet.cn/RSS.aspx` | 200 但是 **HTML**；`blog.sciencenet.cn/rss.php` 是真 XML 却 191 字节、0 条 → 侦察报告说的"科学网 RSS"在这三个地址上都不成立，不接 |
+| UN News 气候专题 | `news.un.org/feed/subscribe/en/news/all/xml/rss.xml` | 200 但 body 长度 0 → 不接；`/en/news/climate-change` 直接 404 |
+| CBD 新闻 | `/rss/`、`/feeds/news.xml`、`/rss/news.xml` | 前两个是 HTML 目录页，后两个 404 → 不接（侦察给的"1,698 条可回填"仍未证伪，但没有 feed 就轮询不了） |
+| IOP《Environmental Research Letters》 | `iopscience.iop.org/rss/getrss.cfm?route=1&jrnl=1748-9326` | 200 但 **3.8 KB 的 HTML** → 不接 |
+| Elsevier 公共 RSS 主机 | `rss.sciencedirect.com/publication/science/00344257` | 200 · 43 KB 真 feed（侦察那句"条目没有 pubDate，只有 channel 的 lastBuildDate"待逐条核对）→ 本轮未接，是下一条最值得试的 |
+| 西北生态与资源研究院 | `www.lzb.cas.cn/xwrdgk/` | 采集机上 **fetch failed**（院内站对海外直连不稳）→ 未判定 |
+
+**顺带把包内日期形状量了一遍**（225 条启用 `rss`，204 条读到内容，21 条失败：20 fetch failed + 1 个 403）：
+`日-月-年 + 数字时区` 589 样本/149 源、`年-月-日T…Z` 62/17、`GMT|UTC` 20/5、**带字母时区缩写** 24/6（USGS 一族，`EST`），
+`年在前 + 无时区` 10/7，纯英文月名无时区 4/1。**没有一条源把年写在最后**——`dd.mm.yyyy` 那一族是候选，不是现状。
+另外：`rss` 源里没有任何一条声明过非缺省的 `publishedAtUtcOffset`（全部按 +08:00 读），
+所以上一节那条"字母时区被二次套时区"的缺陷在生产上是隐性的，只有换了主机时区或声明了偏移才会显形。
+读不到的那 21 条里，`rss-copernicus-*` 一次占了 8 条（Springer 侧对海外直连的限流是老问题，见第五十八轮的错峰重试），
+`intl-eseh` 也在其中。
