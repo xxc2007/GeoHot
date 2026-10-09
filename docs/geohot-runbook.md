@@ -463,7 +463,7 @@ node --env-file=.env scripts/backfill-papers.ts --from=2026-01-01 --to=2026-03-3
 或者给档案做一把真正按速率分配的份额门（下面那段记了上午那把为什么撤、以及要做对需要什么）。实时与档案共用
 同一个 service 的额度，所以现值仍取保守一侧：不把线上实时更新挤死。
 
-**报纸**：档案材料的 `timeline_at` 是它自己的出版日，所以它进**属于它那一天**的报纸；它的 `visible_after` 是入库当天，放开晚到那条分支就会让今晚的报纸塞满几年前的论文。`reports/compose.ts` 的 `candidates()` 因此把两种归属分开写死，两个方向都由 `tests/archive-paper-rule.test.ts` 上锁。整段区间的补刊由 `scripts/backfill-papers.ts` 出计划（默认不写库），它只做两件调度之外的事：按**日期正序**逐日 `composeDaily`，再补周报与月报。补历史期刊仍要**从旧到新**：`recentlyCovered("daily", key)` 只看**比它更早、且在 7 天之内**的期次用过的 fact key（`compose.ts:128-130`，是 7 天不是 7 期）。从旧到新重算，新的一期就会把刚重算过的旧期当"已报道过"而不去重；反过来先重算新的，旧期会重印新期已经发过的同一件事。周报与月报不走这条去重，顺序无所谓。`saveReport` 把旧版存进 `report_revisions`，所以重算有版本；补出的那一期 `issue_no` 为空（`nextIssueNo` 见到更大的 key 就返回 null），归档页显式标注。
+**报纸**：档案材料的 `timeline_at` 是它自己的出版日，所以它进**属于它那一天**的报纸；它的 `visible_after` 是入库当天，放开晚到那条分支就会让今晚的报纸塞满几年前的论文。`reports/compose.ts` 的 `candidates()` 因此把两种归属分开写死，两个方向都由 `tests/archive-paper-rule.test.ts` 上锁。整段区间的补刊由 `scripts/backfill-papers.ts` 出计划（默认不写库），它只做两件调度之外的事：按**日期正序**逐日 `composeDaily`，再补周报与月报。补历史期刊仍要**从旧到新**：`recentlyCovered("daily", key)` 只看**比它更早、且在 7 天之内**的期次用过的 fact key（`compose.ts:128-130`，是 7 天不是 7 期）。从旧到新重算，新的一期就会把刚重算过的旧期当"已报道过"而不去重；反过来先重算新的，旧期会重印新期已经发过的同一件事。周报与月报不走这条去重，顺序无所谓。`saveReport` 把旧版存进 `report_revisions`，所以重算有版本；补出的那一期 `issue_no` 为空（`nextIssueNo` 见到更大的 key 就返回 null）——按期页照常可读、有日期，只是**不显示"第 N 期"**（`features/report/format.ts:issueNumber` 取不到号码就不出这块），这与归档页对"那天根本没有可读的一期"给的「未出刊」标注是两件事，别混为一谈。
 
 **队列顺序**（第六十二轮改过一次，改前这里写的是"档案排在队尾、只能等前面首导积压跑完"）：
 `PRIORITY = { live: 0, liveSignal: -1, archive: -1, history: -2 }`。**实时仍然第一**，这一点没动也没有商量余地——
