@@ -336,7 +336,7 @@ await a.end();"
 
 | 症状 | 怎么确认 | 原因与处理 |
 |---|---|---|
-| 精选一条都没有；`__brain/log` 里打分全是 `rule:score-default` | `curl -s "http://127.0.0.1:3055/__brain/log?capability=scores&limit=20"` | 没人写过这条材料的分数 → 默认 `attentionScore=20`，两次之和 40，过不了任何门槛（最低档 T1 的入选线是"两次之和 ≥ 2×门槛"，现值看 `industry/selection.ts:84`，Wave 4 后是 112）。这是**设计**，不是故障。要它进精选就补 `tooling/fixtures/scores.jsonl`（第 4 节） |
+| 精选一条都没有；`__brain/log` 里打分全是 `rule:score-default` | `curl -s "http://127.0.0.1:3055/__brain/log?capability=scores&limit=20"` | 没人写过这条材料的分数 → 默认 `attentionScore=20`，两次之和 40，过不了任何门槛（最低档 T1 的入选线是"两次之和 ≥ 2×门槛"，现值看 `industry/selection.ts` 的 `SELECTION.thresholds`：站长 2026-10-06 拍板为 T1 46 / T1_5 49 / T2 52，即之和 92 / 98 / 104；Wave 4 那版的 112 已被它取代）。这是**设计**，不是故障。要它进精选就补 `tooling/fixtures/scores.jsonl`（第 4 节） |
 | `/hot` 显示"还没有足够多来源共同讨论的事件"；事件页空 | `select backfill, backfill_reason, count(*) from articles group by 1,2` | 48 小时闸门：`isHistorical()` = `backfill` 且（没有来源时间 或 发现时已晚于 48 小时）（`content/materials.ts:62,91-93`）。历史材料**不成事件、不给热度**（`events/group.ts:625`）。注意 `backfill=true` 不等于历史：新源第一次导入但"今早才发布"的仍然是新闻。人工投喂用 `scripts/seed-curated.ts` 的默认时间重映射（或 `--as-of`），别用 `--keep-times` 灌几个月前的东西 |
 | 改了 fixture、重跑分析，回答却没变 | `select status, count(*) from receipts group by 1` | 回执按 `logical_key` 命中缓存（`providers/receipts.ts:71,110-116`），同一 `revision` 不会再打到 stub。缓存的"身份"是 `{model, promptVersion, sha256(system), sha256(user), temperature, maxTokens}`（`providers/llm.ts:185`）——**改提示词、改正文、换模型都会换键（= 真新请求），而改门槛或改源的 tier 不会**。要强制重判按 4.1 那四条走（`scripts/regroup-events.ts`、`scripts/eval-selection.ts` 都不带 `attemptTag`，它们照样复用回执）。 |
 | 中文搜索永远 0 结果；归组一个都不合并 | `node --input-type=module -e "import p from 'postgres';const a=p('postgres://geohot:geohot@127.0.0.1:5433/geohot',{max:1});console.log(await a.unsafe(\"select datcollate, datctype, datlocprovider, pg_encoding_to_char(encoding) enc from pg_database where datname=current_database()\"));console.log(await a.unsafe(\"select show_trgm('三角洲') tg, similarity('三角洲','河流三角洲') sim\"));await a.end()"` | 本机实测：`datlocprovider='i'`（ICU）、`enc=UTF8`、`similarity('三角洲','河流三角洲')=0.25`（**不是 0**）。一旦它是 0，说明集群是用 `lc_ctype=C` 建的，trigram 恒空、**静默**失效。`scripts/dev-db.ts:167` 的 `--locale-provider=icu --icu-locale=zh-CN --encoding=UTF8` 只在建集群时生效一次 → `npm run db:down`、删 `.pgdata`、`npm run db:up`，再 migrate + seed 重建。另外 `EMBEDDINGS_ENABLED=false` 时归组的候选召回退成词法相似（`events/group.ts:208-213`，阈值 0.25），召回本来就比向量窄 |
@@ -407,9 +407,9 @@ await a.end();"
 
 站点只有几天覆盖，根因不是采集频率，而是信源本身——RSS/Atom 只给最近十几条，任何日期窗口之外的内容都不在它们的应答里。所以要往回捞得换一条**按出版日期检索**的路：先用登记库 Crossref，它按 ISSN + `from-pub-date`/`until-pub-date` 返回 DOI、标题、摘要、作者、出版日期，覆盖到位。两个日期参数必须拆开写——单一区间那种写法（`date-A,B`）实测 HTTP 400 `date-not-valid`（2026-10-09）。Crossref 装不下的那一族走另一条，见下面「两扇门」。
 
-它给的是论文而不是新闻，所以档案材料只服务「前沿地理」与学术类板块，正文就是出版方登记的那段摘要，链接指向 DOI 落地页；没有全文、没有图。这是这条路固有的形状，不是坏了。
+它给的是论文而不是新闻：正文就是出版方登记的那段摘要，链接指向 DOI 落地页，没有全文、没有图。它进哪个板块由判定自己说，这条路不设限制（档案材料不写 `defaultCategory`，也没有任何代码按 `backfill_reason` 限定板块）。
 
-**两扇门，不是一扇**。Crossref 按 ISSN 走，而 `config.issn` 只发给 `rss` 源——站里那些中文地理期刊是 `web_list`，于是整族在档案门外。这不是"少了几条"：先前实测过的八条中文期刊候选里，6 个印在刊面上的 ISSN Crossref 根本没登记，登记着的那一条属于另一本刊。所以这条路攒下的 1,927 条档案材料里**中文标题为零**，而站点其余部分是 55% 中文。
+**两扇门，不是一扇**。Crossref 按 ISSN 走，而 `config.issn` 只发给 `rss` 源——包里唯一按 `web_list` 收的中文期刊《地理研究》因此整条在档案门外。这不是"少了几条"：先前实测过的八条中文期刊候选里，6 个印在刊面上的 ISSN Crossref 根本没登记，登记着的两条里有一条属于另一本刊。所以这条路攒下的 1,927 条档案材料里**中文标题为零**，而站点其余部分是 55% 中文。
 
 第二条门是期刊自己的过刊页（`sources/archive-site.ts`）。《地理研究》的 `/CN/archive_by_issues` 挂着 1982 年至今 331 期，每期一行 `<div class="gk_qi">`：锚点指向期次页，锚点旁边印着出版日期；一张期次页给 15–18 条文章链接。这两页的形状与采集器每天在读的目录页同一种（一个容器、容器里一个链接、旁边一个日期），所以这条路**不新增一份 HTML 解析**：把 `fetchWebList` 的 `url` 换成过刊索引，按 `archiveIssueItemSelector` + `archiveIssueDateRegex` 读出「期次 → 日期」，再用这条源本来就有的 `itemSelector` 与 `allowUrlPrefixes` 读期次页里的文章。只有允许前缀那一步换成过刊索引自己的源站，因为包里写的是 `/CN/10.`，那条名单会挡掉所有 `/CN/Y…` 期次链接。三个键都带 `archive` 前缀、只有这条路读，轮询看不见它们——写给付刊的日期规则不该顺手改掉当期目录的判读。
 
@@ -449,15 +449,16 @@ node --env-file=.env scripts/backfill-papers.ts --from=2026-01-01 --to=2026-03-3
 
 | 量 | 值 | 怎么来的 |
 |---|---|---|
-| 每篇文章的模型调用 | **5.3 次**（1,028 篇 / 5,411 次） | 2026-10-10 数生产回执：近 24 小时管道五步 5,411 次 / 1,028 篇分析 = 5.60。结构上是预筛 1 + 评分 2 + 写作 1 + 结构 1 = 5，多出的 0.6 是理解失败回落再问一次的尾巴（全部用途合起来是 6.09） |
+| 每篇文章的模型调用 | **5.3 次**（5,411 次 / 1,028 篇 = 5.26，四舍五入到 5.3） | 2026-10-10 数生产回执：近 24 小时管道五步 5,411 次 / 1,028 篇分析。结构上是预筛 1 + 评分 2 + 写作 1 + 结构 1 = 5，多出的 0.26 是理解失败回落再问一次的尾巴（全部用途合起来是 6.09） |
 | 主端点 Agnes `.com` | 当日文字额度用尽后**每分钟 1 次** | 429 原文 "used up today's text quota … limited to 1 request every 1 minutes" |
 | 国内端点 Agnes `.cn` | **稳态每分钟成功 5–13 次**，实测落定在每分钟 9 次 | 按分钟数它自己的回执（2026-10-10 01:22–01:33）：成功数高的那几分钟失败为 0；一旦发到 30–40 次/分钟，就有 27–34 次被打回 429。0053 试探 14 次/分钟：成功占比从 85% 掉到 57%，而**成功数没有变多**（6 分钟 46 次成功 = 7.7/分钟），于是按 0053 自己写的判据回收到 9 |
 | 熔断行 | `llm` 8/420/6000；`agnes-cn` **9/540/12000** | 0050 起的是 40/2400/30000——那来自"8 路并发不 429"，证明的是**能并行**，不是每分钟能接 40 个；0052 降到 10/550，0054 按上面的试探落定 9/540 |
 
 这一条要记住：**并发压测验不出稳态吞吐**。把 `per_minute` 抬到对方真能接的数量之上买不到吞吐，只买到重试——每个 429 都占一次预算、一段退避，并把文章往后推。
 
-换算到回填：理论上限是熔断那一行的算术（9 次/分钟 = 540 次/小时、`per_day` 12,000，÷ 5.3 ≈ 102 篇/小时、2,260 篇/天），
-但**实际跑出来的是每小时 61.5 篇、24 小时 1,089 篇**（2026-10-10 02:05–02:45 一个干净窗口的实测，同一小时里
+换算到回填：理论上限是熔断那一行的算术（9 次/分钟 = 540 次/小时、`per_day` 12,000，÷ 5.3 ≈ 102 篇/小时、2,260 篇/天）。
+实测是两个**不同窗口**的数，不要相乘：一个 40 分钟的干净窗口（2026-10-10 02:05–02:45）外推是**每小时 61.5 篇**，
+同一天的整 24 小时合计是 **1,089 篇**（≈ 每小时 45 篇——40 分钟那段正好是快的时段）。同一小时里
 `prefilter_article` 155 次成功对 `score_article` 64 次——大多数算力花在"先筛掉"那一步，这正是设计如此），
 而回执里失败（429）占到的份额要吃掉近一半额度。用实测数算：**约 1,000–1,500 篇/天**。
 
@@ -485,6 +486,15 @@ node --env-file=.env scripts/backfill-papers.ts --from=2026-01-01 --to=2026-03-3
 档案 -1、迟到 -2、实时 0。
 已经压在 -2 的那批不会自己挪上来（新规则只管新单子），`scripts/rebalance-archive-queue.ts` 就是搬它的：
 默认只报告有多少条，`--apply` 才改 `"pgboss"."job".priority`，改回 -2 即可撤销。
+
+**第六十三轮量到的一条：最新到的档案材料是"双重排最后"**。`sweepUnprocessed()` 每轮补排的是
+`processing_state='new'` 按 `discovered_at ASC LIMIT 500`（旧件优先，别让任何一条永久饿死），
+而 pg-boss 在同一档内按 `created_on` 先旧后新发卡——两条规则各自都对，叠起来的效果是：
+今天补进来的 149 条中文刊文排在约 2,200 条 Crossref 档案**后面，两次**。而这批 Crossref 档案是英文、
+零中文标题（1,927 条里实测中文 0 条），每条要先花约 5 次调用判过门槛才谈得上"有没有中文稿可发"，
+中文那批则已经有 721—920 字的中文正文。**所以门口那点带宽，先花在了离成刊更远的那一批上**。
+要不要反过来排（抬中文这批、或让补排按"能否进报"排序）＝分配政策＝站长的决定，见工单 #116；
+本轮只把账写在这里，没有动队列，也没有动 `--promote`（脚本第 16 行写着"只有站长可以动"）。
 
 **这两把门第六十二轮都做出来过、又都撤了（`95ca304`），账留在这里免得再当新点子做一遍。**
 

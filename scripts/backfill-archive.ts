@@ -14,11 +14,14 @@
 //
 // The material is stored with `backfill = "archive"`, which the existing timeline rule turns into
 // `timeline_at = published_at`: a paper from March is filed in March rather than arriving as today's news,
-// queues behind live work, and founds no event (it is history, not a development). The pipeline afterwards is
-// the site's own — prefilter, two scores, writing, structure — nothing here judges anything. The site door
-// stores the title and the issue's date and leaves `body_status` at `pending`: jobs/content.ts already knows
-// how to read this journal's article pages, and an archive route that fetched bodies itself would be a second
-// extractor to keep honest.
+// queues behind live work, and founds no event (it is history, not a development). That last clause has one
+// exception the site already owns: an item dated within 48 hours of discovery is news (`isHistorical`), so a
+// journal issue that came out this morning is treated as today's material — including its priority, which is
+// why the current month is walked too. The pipeline afterwards is the site's own — prefilter, two scores,
+// writing, structure — nothing here judges anything. The site door stores the title and the issue's date and
+// leaves `body_status` at `pending`: jobs/content.ts fetches the article page, because that step already
+// knows how to read this journal. It does that only while `COLLECT_ENABLED` is on; with the valve off these
+// rows are judged on title alone (the Crossref door at least carries the publisher's abstract).
 //
 //   node --env-file=.env scripts/backfill-archive.ts --from=2026-01 --to=2026-10                 # dry run
 //   node --env-file=.env scripts/backfill-archive.ts --from=2026-01 --to=2026-03 --apply \
@@ -235,16 +238,28 @@ async function runSiteSlice(source: SourceRow, month: string): Promise<void> {
               ON CONFLICT (source_id, month) DO UPDATE SET status = 'running', updated_at = now()`;
   }
   const issues = await siteIndex(source);
-  const slice = (issues ?? []).filter((i) => i.at && beijingDate(i.at).slice(0, 7) === month);
+  const dated = (i: SiteIssue): i is SiteIssue & { at: Date } => !!i.at;
+  const slice = (issues ?? []).filter(dated).filter((i) => beijingDate(i.at).slice(0, 7) === month);
   let localSeen = 0;
   let localNew = 0;
   let localDup = 0;
   // "a page we could not read" and "a page with nothing on it" are different answers, and only the first may
-  // close a slice — the same rule the Crossref door runs on.
+  // close a slice — the same rule the Crossref door runs on. `cut` is the third way a slice is not finished:
+  // --max-items or --per-month stopped us before the last issue (or the last item of one). Without it a
+  // truncated month would be written `done`, and the issues it never read would be retired forever — the
+  // Crossref door cannot make that mistake because its `done` requires an exhausted cursor.
   let failed = issues === null;
+  let cut = false;
+  // An issue whose cover date has not arrived yet is not this run's to file: `decideTimeline` discards a
+  // published date more than an hour ahead, and an archive row with no date is excluded from every paper by
+  // the read layer's archive branch. Reading it next month, when the date has come, is the whole point of
+  // leaving the slice open.
+  const now = new Date();
+  let aheadOfClock = false;
   for (const issue of slice) {
-    if (localSeen >= PER_MONTH || stored >= MAX_ITEMS) break;
-    let items: Candidate[];
+    if (localSeen >= PER_MONTH || stored >= MAX_ITEMS) { cut = true; break; }
+    if (issue.at.getTime() > now.getTime()) { aheadOfClock = true; continue; }
+    let items: Array<Candidate & { publishedAt: Date }>;
     try {
       items = await issueArticles(source, issue);
     } catch (error) {
@@ -253,8 +268,8 @@ async function runSiteSlice(source: SourceRow, month: string): Promise<void> {
       continue;
     }
     if (SLEEP) await new Promise((r) => setTimeout(r, SLEEP));
-    for (const c of items) {
-      if (localSeen >= PER_MONTH || stored >= MAX_ITEMS) break;
+    for (const [n, c] of items.entries()) {
+      if (localSeen >= PER_MONTH || stored >= MAX_ITEMS) { if (n < items.length) cut = true; break; }
       localSeen++;
       const urlKey = identityKeyForUrl(c.url);
       if (urlKey) {
@@ -267,7 +282,7 @@ async function runSiteSlice(source: SourceRow, month: string): Promise<void> {
           url: c.url,
           title: c.title,
           language: looksZh(c.title) ? "zh" : "en",
-          publishedAt: c.publishedAt ?? issue.at,
+          publishedAt: c.publishedAt,
           bodyStatus: "pending",
           via: "import",
           backfill: "archive",
@@ -284,13 +299,21 @@ async function runSiteSlice(source: SourceRow, month: string): Promise<void> {
       }
     }
   }
-  if (!values.apply) return;
+  if (!values.apply) {
+    if (cut || aheadOfClock) console.log(`  （这一片还没读完：${cut ? "被上限截断" : ""}${aheadOfClock ? "有期次的刊日期尚未到来" : ""}）`);
+    return;
+  }
   const closed = month < beijingDate(new Date()).slice(0, 7);
-  const finished = !failed && closed;
-  await sql`UPDATE archive_ingest SET status = ${finished ? "done" : "pending"}, note = ${`issues=${slice.length} dup=${localDup}`},
+  const finished = !failed && !cut && !aheadOfClock && closed;
+  // `no-date` belongs in the ledger, not only in the log line: an index that stopped printing dates yields an
+  // empty month that looks exactly like a month the journal did not publish, and `done` would then be a lie
+  // written once and never revisited.
+  const undated = (issues ?? []).filter((i) => !i.at).length;
+  await sql`UPDATE archive_ingest SET status = ${finished ? "done" : "pending"},
+            note = ${`issues=${slice.length} dup=${localDup} no-date=${undated}${cut ? " cut" : ""}${aheadOfClock ? " ahead" : ""}`},
             items = ${localNew}, seen = ${localSeen}, updated_at = now()
             WHERE source_id = ${source.id} AND month = ${month}`;
-  console.log(`  ${finished ? "done" : closed ? "停在原地" : "本月未过完，下次再跑"} 看了 ${localSeen} 条，入库 ${localNew} 条`);
+  console.log(`  ${finished ? "done" : closed ? `停在原地${cut ? "（被上限截断）" : ""}${aheadOfClock ? "（有期次未到刊日期）" : ""}` : "本月未过完，下次再跑"} 看了 ${localSeen} 条，入库 ${localNew} 条`);
 }
 
 for (const month of months()) {

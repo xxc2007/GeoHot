@@ -133,7 +133,6 @@ async function recentlyCovered(kind: "daily", before: string, days = 7): Promise
     for (const s of r.content.sections ?? []) for (const it of s.items ?? []) {
       if (it.itemId) out.add(`a:${it.itemId}`);
       if (it.factId) out.add(it.factId);
-      if (it.clusterId) out.add(`c:${it.clusterId}`);
     }
     // 快讯也是读者看到的一条（每天最多 12 条，进的是同一期报纸）。只数 sections 的话，
     // 昨天因为板块容量被挤到快讯里的那条，今天会以整篇重印一次——回填的语料多，这条最容易撞上。
@@ -260,7 +259,6 @@ async function saveReport(kind: "daily" | "weekly" | "monthly", key: string, sta
   });
 }
 
-/** Daily report for Beijing date D covers [D-1 08:00, D 08:00) Beijing time. */
 /** The window a daily for `date` gathers: [D-1 08:00, D 08:00) Beijing, closed at D 08:00. */
 export function dailyWindow(date: string): { start: Date; end: Date } {
   const end = new Date(beijingMidnight(date).getTime() + 8 * 3600 * 1000);

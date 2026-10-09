@@ -51,12 +51,16 @@ const range = kind === "daily"
   ? dailyWindow(key)
   : kind === "weekly"
     ? (() => { const r = isoWeekRange(key); return r ? { start: beijingMidnight(r.start), end: beijingMidnight(r.end) } : null; })()
-    : kind === "monthly" ? { start: beijingMidnight(monthlyWindow(key).start), end: beijingMidnight(monthlyWindow(key).end) } : null;
+    : kind === "monthly"
+      ? (() => { const w = monthlyWindow(key); return { start: beijingMidnight(w.start), end: beijingMidnight(w.end) }; })()
+      : null;
 if (range) {
   const list = await candidates(new Date(range.start), new Date(range.end));
   console.log(`按当前语料重排会取到 ${list.length} 条候选（标题全部含中文：${list.every((c) => hasChineseCopy(c.title))}）`);
 } else {
-  console.log("（周/月报的候选窗口由 composeWeekly/composeMonthly 内部计算，这里不预览）");
+  // 走到这里只剩一种可能：周号本身不合法（`isoWeekRange` 拒 W00/W54/2025-W53 这类）。窗口算不出来，
+  // 所以预览没有——重排仍会跑，只是它取哪段区间这里说不清。
+  console.log(`（${kind} ${key}：这一期的窗口算不出来，只报告上面那一版）`);
 }
 
 if (!values.apply) {
