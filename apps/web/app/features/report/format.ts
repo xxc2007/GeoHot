@@ -239,8 +239,51 @@ export function dateMark(kind: ReportKind, key: string): { figure: string; top: 
   return { figure: key.slice(5, 7), top: `${key.slice(0, 4)} 年`, bottom: `${Number(key.slice(5, 7))} 月` };
 }
 
+/** The shape of each kind's issue key. Tighter than "four digits, a dash, two digits": month 13 and week 54
+ *  are the same length but can never have a newspaper, so they belong with the other unreadable keys. */
+export const REPORT_KEY_SHAPE: Record<ReportKind, RegExp> = {
+  daily: /^\d{4}-\d{2}-\d{2}$/,
+  weekly: /^\d{4}-W(?:0[1-9]|[1-4]\d|5[0-3])$/,
+  monthly: /^\d{4}-(?:0[1-9]|1[0-2])$/,
+};
+
+/**
+ * Why a well-formed key has no edition to show: its window has closed and nothing was ever composed
+ * (`no_edition`), or the window is still open (`not_yet`). A key like 2026-02-30 has no `dueAt` at all — that
+ * is not "not yet", it is a day that will never come, so it is the first case.
+ */
+export function reportAbsentReason(kind: ReportKind, key: string, now: number): AbsentReason {
+  if (!REPORT_KEY_SHAPE[kind].test(key)) return "bad_key";
+  return Number.isFinite(dueAt(kind, key)) && !isDue(kind, key, now) ? "not_yet" : "no_edition";
+}
+
 /** When each kind comes out (F10), for the masthead. */
 export const EDITION: Record<ReportKind, string> = { daily: "每天 08:00 出刊", weekly: "每周一出刊", monthly: "每月 1 日出刊" };
+
+/** Why a report page has no newspaper to show. */
+export type AbsentReason = "bad_key" | "no_edition" | "not_yet" | "unreadable";
+
+/**
+ * What to say when a report URL has no edition behind it — four sentences for four different facts, kept in
+ * one place because one sentence for all four is a lie about at least three of them. The generic site-wide
+ * 404 says 「内容已不再公开」, which claims this paper once published the page and took it back; that is true
+ * of a retracted item and false of a day nothing was printed, of a window that has not closed, and of a
+ * mistyped issue key. No publication times are quoted here on purpose: those live in the worker's cron and in
+ * `EDITION`, and a third copy of a clock is how wording starts to disagree.
+ */
+export function absentCopy(kind: ReportKind, key: string, reason: AbsentReason): { title: string; body: string } {
+  const label = KIND_LABEL[kind];
+  if (reason === "not_yet") {
+    return { title: `「${key}」还没到出刊时间`, body: `这一期要收录的那段时间还没有走完，所以本站没有${label}的这一版。已经出的那一期在这里。` };
+  }
+  if (reason === "no_edition") {
+    return { title: `没有「${key}」这一期`, body: `${key} 这一段本站没有出过${label}——不是出过之后撤下，是存档里从来没有过这一期。换一天看看，或者从最近一期读起。` };
+  }
+  if (reason === "bad_key") {
+    return { title: "这个期号本站认不出来", body: "日报的期号是 2026-10-09 这样，周报是 2026-W40，月报是 2026-09。地址里的这一段不属于任何一种，请从归档页挑一期。" };
+  }
+  return { title: `暂时读不到这一期${label}`, body: "服务没有给出这一页要用的数据，所以现在还不能说这一期出刊了没有。稍等几秒再试一次。" };
+}
 
 /** The masthead's figures, in the order a reader wants them; a zero release count is left out. */
 const METRICS: Array<[key: string, unit: string]> = [

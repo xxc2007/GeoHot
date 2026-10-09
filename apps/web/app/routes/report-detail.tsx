@@ -1,29 +1,40 @@
 import { SITE, withSubject } from "@aihot/industry/site";
-import { data as withHeaders, useLoaderData } from "react-router";
+import { data as withHeaders, isRouteErrorResponse, Link, useLoaderData, useLocation, useRouteError } from "react-router";
 import type { Route } from "./+types/report-detail";
 import type { ReportDetail, ReportNavigationEntry, ReportKind } from "@aihot/contracts/site";
 import { apiGet, loadOr404 } from "../lib/api.server";
 import { pageMeta, titled } from "../lib/seo";
 import { beijingDate } from "../lib/format";
+import { EmptyState } from "../components/ui/Page";
 import { ReportLayout } from "../features/report/ReportLayout";
 import { ReportPaper } from "../features/report/ReportPaper";
-import { KIND_LABEL, kindFromPath } from "../features/report/format";
+import { KIND_LABEL, KIND_PATH, absentCopy, kindFromPath, reportAbsentReason, type AbsentReason } from "../features/report/format";
 
-const PATTERN: Record<ReportKind, RegExp> = {
-  daily: /^\d{4}-\d{2}-\d{2}$/,
-  weekly: /^\d{4}-W\d{2}$/,
-  monthly: /^\d{4}-\d{2}$/,
-};
+/** The payload an absent edition throws, so the page can say which of its four kinds this is. */
+interface ReportAbsent {
+  message: "report_absent";
+  reason: AbsentReason;
+  kind: ReportKind;
+  key: string;
+}
+
+const reportAbsent = (reason: AbsentReason, kind: ReportKind, key: string) => withHeaders<ReportAbsent>({ message: "report_absent", reason, kind, key }, { status: 404 });
 
 export async function loader({ request, params }: Route.LoaderArgs) {
   const kind = kindFromPath(new URL(request.url).pathname);
   const key = params.key ?? "";
-  if (!PATTERN[kind].test(key)) throw withHeaders({ message: "not_found" }, { status: 404 });
   const now = Date.now();
+  const absentReason = reportAbsentReason(kind, key, now);
+  if (absentReason === "bad_key") throw reportAbsent("bad_key", kind, key);
+  // 写法没问题、库里却没有行时，还分得出「没出过」与「还没到」——这两种读者的下一步不一样，而 loadOr404
+  // 一律压成一条通用 404。其余状态（5xx、超时）照它原本给的 Response 往上抛，不在这改写。
   // 往期栏是装饰：它读不到不能带走这一期报纸。但它读不到时栏目是空的，空栏会被读成"没有往期"，
   // 所以把这件事记下来，由页面自己说一句实话，而不是沉默地留一个空栏。
   const [report, nav] = await Promise.all([
-    loadOr404<ReportDetail>(`/api/site/reports/${kind}/${key}`, { signal: request.signal }),
+    loadOr404<ReportDetail>(`/api/site/reports/${kind}/${key}`, { signal: request.signal }).catch((error: unknown): never => {
+      if (error instanceof Response && error.status === 404) throw reportAbsent(absentReason, kind, key);
+      throw error;
+    }),
     apiGet<{ items: ReportNavigationEntry[] }>(`/api/site/reports/${kind}/navigation/${key}`, { signal: request.signal }).catch((error: unknown) => {
       if (request.signal.aborted) throw error;
       return null;
@@ -65,6 +76,36 @@ export default function ReportDetailPage() {
         </p>
       )}
       <ReportPaper report={report} index={index} now={now} />
+    </ReportLayout>
+  );
+}
+
+/**
+ * 这一期的网址没有报纸可显示时的样子。四种情形说四句话（`absentCopy`），因为共用的那句
+ * 「内容已不再公开」暗示本站发过又撤了，而那对「没出过刊」「还没到出刊时间」「期号写错了」三种
+ * 都是假话——第三种尤其重要：补刊会把 1 月到 9 月一段一段填起来，读者挑中一个还没有的日期时，
+ * 不该读到一份报纸被撤回的口吻。
+ */
+export function ErrorBoundary() {
+  const error = useRouteError();
+  const kind = kindFromPath(useLocation().pathname);
+  const absent = isRouteErrorResponse(error) && error.status === 404 ? (error.data as Partial<ReportAbsent> | undefined) : undefined;
+  const copy = absentCopy(absent?.kind ?? kind, absent?.key ?? "", absent?.reason ?? "unreadable");
+  return (
+    // index 是空栏、today 谁也读不到，所以照「最近一期」那页的写法给空串而不是挂钟：服务端与注水各算
+    // 一次时间，等于给这一页埋一个文本不一致。
+    <ReportLayout kind={kind} index={[]} current={null} today="">
+      <EmptyState
+        as="h1"
+        title={copy.title}
+        action={
+          <Link to={KIND_PATH[kind]} className="inline-flex h-9 items-center rounded-full bg-accent px-4 text-[13.5px] font-medium text-accent-contrast hover:bg-accent-ink">
+            看最近一期{KIND_LABEL[kind]}
+          </Link>
+        }
+      >
+        {copy.body}
+      </EmptyState>
     </ReportLayout>
   );
 }

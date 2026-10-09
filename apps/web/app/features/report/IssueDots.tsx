@@ -186,6 +186,14 @@ export function IssueDots({ kind, reportKey, index, className = "" }: { kind: Re
               <span key={i} aria-current="page" className="grid place-items-center" title={c.label}>
                 <span className="sr-only">{c.label}</span>
               </span>
+            ) : c.state === "none" ? (
+              // A day the paper did not come out. The canvas paints it faint and `onMove` names it in the
+              // box's title for a mouse, but with no element carrying the label a screen reader heard
+              // nothing at all and a touch user could not hover — so on every issue page 4月、5月 and the
+              // rest of the未出刊 dots were indistinguishable from the empty padding after the month.
+              <span key={i} className="grid place-items-center" title={c.label}>
+                <span className="sr-only">{c.label}</span>
+              </span>
             ) : (
               <span key={i} aria-hidden="true" />
             ),
