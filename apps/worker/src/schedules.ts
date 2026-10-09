@@ -3,7 +3,7 @@ import type { PgBoss } from "pg-boss";
 import { FEATURES } from "@aihot/industry/features";
 import { credential, isCollectEnabled } from "@aihot/backend/config";
 import { ensureQueue, recordRun } from "@aihot/backend/jobs/queue";
-import { sweepUnprocessed } from "@aihot/backend/jobs/content";
+import { sweepUnprocessed, advanceArchiveBackfill } from "@aihot/backend/jobs/content";
 import { translatePending } from "@aihot/backend/editorial/translate";
 import { adaptIntervals, scheduleDueSources } from "@aihot/backend/sources/collect";
 import { scheduleMpReconcile } from "@aihot/backend/sources/mp";
@@ -37,6 +37,8 @@ const collecting = isCollectEnabled();
 
 export const SCHEDULES: Scheduled[] = [
   { name: "content.sweep", cron: "*/5 * * * *", run: sweepUnprocessed },
+  // The archive backfill's bounded slice of the analysis door — a no-op unless ARCHIVE_BACKFILL_SHARE is set.
+  { name: "content.archive-share", cron: "*/15 * * * *", run: () => advanceArchiveBackfill() },
   // Full-text translations of newly selected items (model calls; off with MODEL_CALLS_ENABLED=false).
   { name: "content.translate", cron: "*/5 * * * *", run: () => translatePending() },
   { name: "hot.rank", cron: "*/5 * * * *", run: () => computeHotRanking() },

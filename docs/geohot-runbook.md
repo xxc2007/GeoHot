@@ -472,5 +472,14 @@ node --env-file=.env scripts/backfill-papers.ts --from=2026-01-01 --to=2026-03-3
 已经压在 -2 的那批不会自己挪上来（新规则只管新单子），`scripts/rebalance-archive-queue.ts` 就是搬它的：
 默认只报告有多少条，`--apply` 才改 `"pgboss"."job".priority`，改回 -2 即可撤销。
 
+**档案份额 `ARCHIVE_BACKFILL_SHARE`（默认关）**：上面那句"实时仍然第一"在 -1 档有个实测出来的后果——
+**它不是慢，是零**。2026-10-10 测得 -1 档压着 1,790 条，45 分钟里被服务 0 条，而同一时段实时档从 145 涨到 156：
+到达速率≈门口消耗速率，所以严格更低的档不是"排队"，是"永远排不到"。`content.archive-share`（每 15 分钟）
+因此可以把至多 `ARCHIVE_BACKFILL_SHARE` 条档案分析**抬进实时档**，按 `created_on` 从最久的开始，档满了不再补，
+实时自己的积压超过 share×20 时它整个让开。要说清楚这是**换、不是多**：总额度还是同一个小时上限，
+抬一条档案进去就是从今天的报纸嘴里拿走一格，所以默认值取 0（关），要开由站长明确设一个数；
+`tests/archive-share.test.ts` 钉住"不设就不动""档满不补""让开时谁都不动"三条。手动跑一次同样的搬运是
+`rebalance-archive-queue.ts --promote=N`，它只搬一次、不续杯。
+
 **回滚**：档案材料一律带 `backfill_reason = 'archive'` 且 `article_discoveries.via = 'import'`，一条 SQL 能整批摘掉，同时清 `archive_ingest`；期刊回到 `report_revisions` 的上一版。删之前先 `pg_dump`，与 `deploy/geohot/rollback.sh` 的约定一致。
 
