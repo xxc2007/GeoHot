@@ -80,14 +80,26 @@ export async function candidates(start: Date, end: Date): Promise<Candidate[]> {
       SELECT p.article_id AS id, p.title, p.summary, p.url, p.category, p.score, p.first_party, s.id AS source_id, s.name AS source_name,
              s.kind AS source_kind, f.public_id AS fact_public_id, st.public_id::text AS story_public_id, p.timeline_at AS at, p.backfill
       FROM publications p JOIN sources s ON s.id = p.source_id
+      -- The archive's own provenance lives on the article; publications.backfill only says "history", not
+      -- which kind of history.
+      JOIN articles ar ON ar.id = p.article_id
       LEFT JOIN facts f ON f.id = p.fact_id LEFT JOIN stories st ON st.id = f.story_id
       -- Attribute each item by the later of arrival and release; either range can use its index.
       -- 报纸是中文的：门槛用读取层那一条（items.chineseCopyCondition），不在这儿再抄一遍正则——
       -- 列表和版面必须说同一句话，两份写法早晚不一致。
-      WHERE p.visibility = 'public' AND p.selected AND NOT p.backfill AND ${chineseCopyCondition()}
+      WHERE p.visibility = 'public' AND p.selected
+        -- Anything that arrived late is kept out of the paper of the day it was found, and archive material is
+        -- the exception the owner asked for: a 2026-01 issue is made of 2026-01 material, even when it was only
+        -- ingested in October. first-import and stale-on-discovery still keep today's paper as it was.
+        AND (NOT p.backfill OR ar.backfill_reason = 'archive') AND ${chineseCopyCondition()}
         AND (
-          (p.visible_after <= p.timeline_at AND p.timeline_at >= ${start} AND p.timeline_at < ${end})
-          OR (p.visible_after > p.timeline_at AND p.visible_after >= ${start} AND p.visible_after < ${end})
+          -- An archive item is filed under its own day and under no other: it was released months after it
+          -- appeared, so the release-day branch below would otherwise put 2026-01 papers into today's issue.
+          (ar.backfill_reason = 'archive' AND p.timeline_at >= ${start} AND p.timeline_at < ${end})
+          OR (ar.backfill_reason IS DISTINCT FROM 'archive' AND (
+            (p.visible_after <= p.timeline_at AND p.timeline_at >= ${start} AND p.timeline_at < ${end})
+            OR (p.visible_after > p.timeline_at AND p.visible_after >= ${start} AND p.visible_after < ${end})
+          ))
         )`;
   });
   // One entry per fact: first-party first, then score.
