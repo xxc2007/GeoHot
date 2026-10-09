@@ -24,7 +24,7 @@ export function hrefWith(base: string, params: URLSearchParams, patch: Record<st
 }
 
 /**
- * The feed's one filter row (精选 and 全部动态 alike): 全部, then the seven categories. One choice at a time.
+ * The feed's one filter row (精选 and 全部动态 alike): 全部, then the six categories. One choice at a time.
  * Older 资讯 / X links still filter; the row then shows 全部. The「一手」chip that used to sit between
  * 全部 and the categories was removed on 2026-10-04 晚 by the owner's request — `firstParty` is gone from
  * `CHANNEL_KEYS`, so a link still carrying it lands on the unfiltered list instead of a half-lit row.

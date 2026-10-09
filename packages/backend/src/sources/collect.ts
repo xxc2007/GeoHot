@@ -96,8 +96,8 @@ export function noiseFiltered(c: Candidate, source: SourceRow): boolean {
   // Case-folded word matching, see markerPattern: the lists are written as words ("agent" keeps "Agent").
   const title = c.title.toLowerCase();
   const hay = `${title}\n${(c.excerpt ?? "").toLowerCase()}`;
-  // A whitelist for feeds whose signal is a minority of their volume (研招网的政策栏目 covers all of
-  // education; only the exam-and-discipline documents belong to the 考研 board). It is a *precondition*,
+  // A whitelist for feeds whose signal is a minority of their volume (one kind of document inside a
+  // column that otherwise carries a whole discipline's news). It is a *precondition*,
   // not an exemption: a title it does not name is filtered out, and one it does name still has to survive
   // the drop lists below (an MBA ad that mentions 专业目录 is dropped — see tests/sources.test.ts).
   if (f.requireTitleMarkers?.length && !hasMarker(title, f.requireTitleMarkers)) return true;

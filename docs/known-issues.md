@@ -2848,3 +2848,53 @@ C6（translate / embeddings 的 `received` 收据无人认领）**判定不做**
    `apps/web/tests/` 全套都是纯函数与 loader 的测试，没有一处把组件 SSR 出来（仓库里没有
    `react-dom/server` 的用例）。补任何一条都要先决定：是给 web 测试加一条渲染路径，还是把这些条件
    下沉成可测的纯函数。下一轮做，别在文档里当已经测过。
+
+---
+
+## 第五十五轮（2026-10-09 下午）：删掉「考研」分类——删 key 比改名多碰一层
+
+站长指定：「删掉 geohot 网站的考研板块相关的内容」。第五十轮那次只改 `label`，零迁移；这一次是**从身份表里删掉一个
+key**，所以要一路跟到网址、库里的值、接口枚举、提示词与迁移。逐条记着实际动了什么、以及哪些是量过才写的。
+
+1. **词表只有一处**：`industry/taxonomy.ts` 的 `CATEGORIES` 从 7 条变 6 条。筛选栏、卡片角标、日报分节、
+   `/feed/category/<key>.xml`、v1 与 MCP 的枚举、后台信源表单的分类下拉全部从这张表推导——当场验过"没有第二份
+   硬编码清单"：`grep -rn histgeo packages apps industry scripts` 在 taxonomy 之外**零命中**。
+2. **旧 key 的行为**：`isCategoryKey` 不再认 `geoedu` ⇒ `toPublicApiCategory` 返回 null，`/all?category=geoedu`
+   与任何未知键一样回落到不过滤的全部列表（`apps/web/app/routes/all.tsx:20` 那一个三元就是这件事），**不做重定向**
+   ——与 2026-10-04 删板块那一层同一口径：为一个已经判定不要的功能留一张永久映射表不值。
+3. **库里只有 1 行**：迁移 `0049` 把 `analyses` / `publications` 里的 `category='geoedu'` 置 NULL，**不猜一个新分类**。
+   部署前在生产库量的：analyses 只有 1 行 geoedu（2026-10-07 判的，`selected=false`），publications 对应那 1 行
+   `selected=false` 且 `visible_after` 为空 ⇒ 从未释放给读者；`editorial_overrides` / `selectbench_results` / `reports`
+   三处 0 行。所以这一轮**没有 0041 那种"21 行按内容逐条改归"的活儿**；NULL 是既有合法状态（线上本来就有九千多行
+   没有分类），而凭空写一个「人文地理」等于替读者给出一个没人判过的角标。
+4. **信源一侧分两种处理**：`cn-chsi-kydt`（研招网 政策与规定）是 2026-10-03 专为这个板块接的，它自己的
+   `requireTitleMarkers` 就是"专业目录/学科/学位/分数线/研究生招生"那一串——板块没了它就没有服务对象。
+   **包里整条删除，库里停用而不删行**（删行会连带删掉已入库的稿，不可逆；`enabled=false` 随时能在后台翻回来）。
+   `cn-web-moe-xwfb`（教育部·新闻发布）留着：它 49 条入库稿是 48 条 NULL + 1 条 human，一条都没被判成 geoedu，
+   只是默认分类写着 geoedu ⇒ 清 `default_category`、不动 `enabled`。两条 UPDATE 都**按值清而不点名 id**，
+   因为库里可以有需要包里没有的行（`docs/manual.md` 第 7 节记着这件事）。
+5. **一处容易漏的通路**：信源的 `tags` 会被写进写作提示词（`editorial/writing.ts:92` 把它排成「【来源标签】…」那一行），
+   所以教育部那条源身上留着 `"考研"` 这个标签，就是继续告诉模型这个板块还在。包里删掉，迁移里
+   `array_remove(tags, '考研')` 按值摘掉。
+6. **提示词**：`prefilter.md` 的招考豁免整段收回——PASS 清单里那一项、「不算 BLOCK」那句的三条件检验、以及末段
+   "除非它自证是上面那条豁免里的招考事实"那一句；招生口径回到 ①「教育与文旅营销」那一类里，不再有独立放行理由。
+   `rules-domain.md` 与 `structure.md` 的分类清单同步去掉 `geoedu`（`tests/industry-vocabulary.test.ts` 逐字对拍
+   key 与 label，改一处不改另一处就是红）。
+7. **三条测试跟着改，其中一条本来会假红**：`tests/exit-category-parity.test.ts` 原来钉的是「geotech 排在 geoedu
+   之前」，key 删掉之后 `indexOf("geoedu")` 返回 **-1**，那条会**因为"删干净了"而失败**——这是删类别与改名的一个
+   真实区别：相对次序断言在缺少一方时不是"没东西可钉"，而是钉出一个假红。现在钉两件事：词表六个、`geotech` 是末位键。
+   `tests/report-default-section.test.ts` 的末键死值从 `geoedu` 改成 `geotech`——这正撞上 `taxonomy.ts` 头注警告的
+   那件事：兜底分节由 `section` 的**首现顺序**决定，末位键只是两次都碰巧对上，不能当判据。其余按计数钉的
+   （`channel-row`、`admin-source-category`）跟着从 7 改 6；`sources.test` 那行注释改成"机制与样本留着、板块已删"。
+   顺带修掉一处**指针已经死了的措辞**：`channel-row` 那条失败信息原先指向 README 的「八个格子」，README 里从来没有
+   这句话（`grep -rn 八个格子 README.md` 零命中），换成说清"格子来自这张词表、文档里的计数要跟着改"。
+8. **文档与介绍页**：README 两版的分类表、徽章与锚点、`AGENTS.md`、`docs/customize.md`、`docs/deploy.md`、
+   `docs/manual.md`（分类与分节那段、`taxonomy.ts` 那一行的 7→6、信源层那段给 `cn-chsi-kydt` 加了停用注记）、
+   `docs/sources.md`（第八轮那张表的「归到」列加删除标记 + 那段"未接入候选"的说明改成当时的口径）。
+   `docs/known-issues.md` 与 `industry/changelog.json` 里**历史那几段没有改字**——它们记的是当时发生的事；
+   读者可见的只有 changelog 最前面新加的那一则「下线」。
+9. **本地闸门（当场实跑）**：`npm run brain -- --lint` 0 条 problems、`--anchors` problems 为 `[]`、
+   `npm run typecheck` exit 0、`npm test` 341 项（336 通过 / 0 失败 / 5 skip），web 构建 + `apps/web/tests` 48 项全绿；
+   迁移在 `geohot_r15_ci` 上 `applied 0049_drop_geoedu_category.sql`。**注意本机这台集群这次只听了 IPv6 回环**
+   （`listen_addresses='localhost'` 解析到 `::1`），`DATABASE_URL` 写 `127.0.0.1:5433` 会 ECONNREFUSED，
+   写 `localhost:5433` 才连得上——不是代码问题，别照着它改配置。

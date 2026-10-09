@@ -14,7 +14,7 @@
 [![Repository](https://img.shields.io/badge/GitHub-GeoHot-1F1E1D)](https://github.com/xxc2007/GeoHot)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![No accounts](https://img.shields.io/badge/Readers-no_signup_·_no_cookies-1F1E1D)](#ii--site-map)
-[![Categories](https://img.shields.io/badge/Categories-seven-D97757)](#i--taxonomy--seven-categories-one-standard)
+[![Categories](https://img.shields.io/badge/Categories-six-D97757)](#i--taxonomy--six-categories-one-standard)
 [![Runtime](https://img.shields.io/badge/Runtime-Node_24_·_no_backend_build-1F1E1D)](#iii--stack)
 [![Field layer](https://img.shields.io/badge/Whole_field_layer-industry%2F-1F1E1D)](#iv--reuse-it-for-your-field)
 [![GitHub](https://img.shields.io/badge/GitHub-@xxc2007-1F1E1D)](https://github.com/xxc2007)
@@ -86,10 +86,10 @@ The native README preview is 1920×1080; the standalone player and source link u
 
 ## I · HIGHLIGHTS
 
-### i · TAXONOMY — seven categories, one standard
+### i · TAXONOMY — six categories, one standard
 
 The taxonomy is the skeleton (`industry/taxonomy.ts`; keys go straight into URLs and do not change after launch).
-All seven share one admission standard — **spatial salience first**: large scale of impact, independently reported by
+All six share one admission standard — **spatial salience first**: large scale of impact, independently reported by
 several outlets, backed by data / figures / imagery. All three must hold for an item to rank high.
 
 | Key | Category | Covers |
@@ -100,7 +100,6 @@ several outlets, backed by data / figures / imagery. All three must hold for an 
 | `geopolitics` | Political geography | Sovereignty, boundary and territory demarcation and disputes, strategic chokepoints, transboundary rivers and maritime rights |
 | `histgeo` | Historical geography | River and coastline shifts, administrative evolution, rise and abandonment of settlements, historical maps |
 | `geotech` | GIS | Remote sensing and imagery, positioning, dataset and standard releases, GIS software and platforms, spatial databases, WebGIS, open-source licensing changes |
-| `geoedu` | Graduate entrance exams | Geography admissions policy and programme catalogues, discipline and degree points, syllabi and cut-off scores |
 
 **There is no "boards" layer.** Four cross-category direction pages (`/boards`) existed and were deleted on the
 owner's instruction as redundant — the topic pages and the category filter already do that job. Only the view was
