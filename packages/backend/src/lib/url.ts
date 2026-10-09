@@ -188,6 +188,18 @@ export async function assertPublicUrl(url: string, allowPrivate = false, proxied
 type LookupCallback = (err: NodeJS.ErrnoException | null, address: string | Array<{ address: string; family: number }>, family?: number) => void;
 
 /**
+ * 双栈主机优先拨 IPv4。这台采集器**没有 IPv6 出口**（2026-10-09 实测：对 egu.eu 的 AAAA
+ * `2a01:4f8:c01e:4e5::1:443` 直接 `ENETUNREACH`，同一时刻 `curl -4` 回 200、`curl -6` 连不上，
+ * Node 的 `fetch` 与 `curl` 一样超时），而解析器把 AAAA 排在前面时原本就拨第一个——
+ * 一条健康的 feed 于是变成 "fetch failed"（本轮新接的两条 EGU 就是这么死的）。
+ * 纯 IPv6 主机不受影响：那种列表里只有 v6，排完还是它。
+ * **SSRF 检查一点没松**：列表里每一个地址都仍然先过 `isBlockedAddress`，这里改的只是先拨哪一个。
+ */
+export function preferIPv4<T extends { family: number }>(list: readonly T[]): T[] {
+  return [...list.filter((a) => a.family === 4), ...list.filter((a) => a.family !== 4)];
+}
+
+/**
  * DNS lookup for outbound sockets that refuses blocked addresses. Used as the connect-time lookup,
  * it closes the gap between the URL check and the connection (DNS rebinding).
  */
@@ -204,8 +216,9 @@ export function guardedLookup(hostname: string, options: { all?: boolean; family
         callback(Object.assign(new Error(`Blocked private address for ${hostname}`), { code: "EBLOCKED" }), opts.all ? [] : "", 0);
         return;
       }
-      if (opts.all) callback(null, list);
-      else callback(null, list[0]!.address, list[0]!.family);
+      const ordered = preferIPv4(list);
+      if (opts.all) callback(null, ordered);
+      else callback(null, ordered[0]!.address, ordered[0]!.family);
     },
     (err: NodeJS.ErrnoException) => callback(err, opts.all ? [] : "", 0),
   );

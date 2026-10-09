@@ -2971,6 +2971,23 @@ Springer `search.rss?facet-journal-id=` 有摘要有真 pubDate；Magtech 中文
 这种句式天天有，等于埋着的地雷。已补 pattern，并在 `tests/identity-guard.test.ts` 加了一条**注入验红**的用例：
 去掉英文全称它就红，反例（原文没提这个机构、摘要却写了）仍然红。
 
+### 第四条：这台采集器根本没有 IPv6 出口（本轮两条新源上线即死，已修在拨号层）
+
+`rss-egu-highlight-articles` 与 `rss-egu-announcements` 上线五分钟后 `last_error=fetch failed`，
+但在同一台机器上 `curl -A GEOHOTBot` 拿两条 feed 都是 200 + 真 RSS（16.8KB / 14.2KB）。分开测就露底了：
+`curl -4` 200、`curl -6` "Couldn't connect"、Node 的 `fetch` 与 `curl` 默认行为一样超时、
+直连 egu.eu 的 AAAA `2a01:4f8:c01e:4e5::1:443` 报 **ENETUNREACH**——**这台 VM 没有 IPv6 路由**。
+
+`guardedLookup`（`packages/backend/src/lib/url.ts`）原本把解析列表的**第一个**地址交给 socket，
+双栈主机就经常拨到 AAAA 上。修法是抽出 `preferIPv4()`：列表里同时有 v4/v6 时先拨 v4，
+纯 IPv6 主机照旧（那种列表里只有 v6，排完还是它）。**SSRF 检查一点没松**——列表里每一个地址仍然先过
+`isBlockedAddress`，改的只是先拨哪一个；用例在 `tests/url.test.ts`，含"纯 v6 不许被排空"与
+"link-local v6 仍然被拦"两条反例。
+
+**这条的适用面比 EGU 大得多**：第三十轮修过的那批"持续失败信源"里，凡是主机有 AAAA 记录又恰好 v6 不通的，
+病根都可能是这个而不是对端反爬。下一轮巡检 `last_error=fetch failed` 的信源时，**先 `dig AAAA <host>`
+再看要不要动配置**。
+
 ### 现状与遗留
 
 - **A10 那一路（地球系统与可持续性机构）到收工时还没交**，它的候选不在 256 里；下一轮并进来。
