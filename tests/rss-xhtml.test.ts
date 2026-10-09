@@ -83,6 +83,9 @@ const rssPages: Record<string, string> = {
   // first element: feedText treats a non-empty body as confirmed, which would skip the extraction fetch
   // that gets the real text. The title above still has to survive, so the two cases are the same fixture.
   "/markup-body": `<rss version="2.0"><channel><title>Mixed</title><link>https://example.org/</link><item><title>Remembering a Colleague</title><link>https://example.org/news/one</link><content:encoded><p>${"A first paragraph long enough to look like a body. ".repeat(6)}</p><p>SECOND PARAGRAPH THAT MUST NOT BE SILENTLY DROPPED</p></content:encoded><pubDate>Tue, 06 Oct 2026 08:00:00 +0000</pubDate></item></channel></rss>`,
+  // Frontiers spells its date `<pubdate>`; the parser keeps tag case, so a reader that only knows
+  // `<pubDate>` files a months-old paper under today's date.
+  "/lowercase-date": `<rss version="2.0"><channel><title>Lower</title><link>https://example.org/</link><item><title>Harmful algal blooms in coastal waters</title><link>https://example.org/a/1</link><description>${"Abstract. ".repeat(40)}</description><pubdate>2026-10-09T00:00:00Z</pubdate></item></channel></rss>`,
 };
 const rssServer = http.createServer((req, res) => {
   res.setHeader("content-type", "application/rss+xml; charset=utf-8");
@@ -109,6 +112,12 @@ test("an RSS 2.0 title that is literal markup yields the words, not an empty tit
 
 test("a feed full of items the reader cannot use fails visibly instead of a healthy zero", async () => {
   await assert.rejects(() => readRss("/no-titles"), /2 item/, "found>0 and stored 0 has to be said out loud");
+});
+
+test("a feed that spells its date <pubdate> still gets the source's own date", async () => {
+  const { candidates } = await readRss("/lowercase-date");
+  assert.equal(candidates.length, 1);
+  assert.equal(candidates[0]!.publishedAt?.toISOString(), "2026-10-09T00:00:00.000Z", "not the discovery time");
 });
 
 test("a table-of-contents feed that hides its abstract in dc:description still hands the model the abstract", async () => {

@@ -4904,6 +4904,32 @@
       "defaultCategory": "frontier"
     },
     {
+      "id": "rss-egu-blogs",
+      "name": "EGU · 研究者博客（Divastar）",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.egu.eu/news/blogs/rss/",
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "英文",
+        "学会",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
       "id": "rss-arxiv-ao-ph",
       "name": "arXiv · 大气与海洋物理（physics.ao-ph）",
       "kind": "rss",
@@ -6772,6 +6798,2032 @@
         "期刊",
         "研究",
         "人文地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-copernicus-esd",
+      "name": "Earth System Dynamics（ESD 地球系统动力学）· 近期论文",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://esd.copernicus.org/xml/rss2_0.xml",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "期刊",
+        "研究",
+        "英文",
+        "气候",
+        "自然地理",
+        "地球科学"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-copernicus-ls",
+      "name": "Land Systems · 近期论文",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://ls.copernicus.org/xml/rss2_0.xml",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "期刊",
+        "研究",
+        "人文地理",
+        "区域地理",
+        "农业"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-copernicus-gc",
+      "name": "Geoscience Communication · 近期论文",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://gc.copernicus.org/xml/rss2_0.xml",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "期刊",
+        "研究",
+        "科学媒体"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-copernicus-gchron",
+      "name": "Geochronology · 近期论文",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://gchron.copernicus.org/xml/rss2_0.xml",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "期刊",
+        "研究",
+        "自然地理",
+        "冰川与冻土"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-copernicus-hgss",
+      "name": "History of Geo- and Space Sciences · 近期论文",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://hgss.copernicus.org/xml/rss2_0.xml",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "期刊",
+        "研究",
+        "历史地理",
+        "科学媒体"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-copernicus-angeo",
+      "name": "Annales Geophysicae · 近期论文",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://angeo.copernicus.org/xml/rss2_0.xml",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "期刊",
+        "研究",
+        "大气",
+        "地球科学"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-copernicus-amt",
+      "name": "Atmospheric Measurement Techniques · 近期论文",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://amt.copernicus.org/xml/rss2_0.xml",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "期刊",
+        "研究",
+        "大气",
+        "观测数据",
+        "技术"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-copernicus-ar",
+      "name": "Aerosol Research（AR 气溶胶研究）· 近期论文",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://ar.copernicus.org/xml/rss2_0.xml",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "期刊",
+        "研究",
+        "英文",
+        "大气",
+        "环境"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-copernicus-soil",
+      "name": "SOIL（土壤科学） · 近期论文",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://soil.copernicus.org/xml/rss2_0.xml",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "期刊",
+        "研究",
+        "自然地理",
+        "农业"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-copernicus-wcd",
+      "name": "Weather and Climate Dynamics · 近期论文",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://wcd.copernicus.org/xml/rss2_0.xml",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "期刊",
+        "研究",
+        "气候",
+        "大气"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-copernicus-wes",
+      "name": "Wind Energy Science · 近期论文",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://wes.copernicus.org/xml/rss2_0.xml",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "期刊",
+        "研究",
+        "气候治理",
+        "技术"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-copernicus-eo",
+      "name": "Earth Observation（EO 对地观测）· 近期论文",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://eo.copernicus.org/xml/rss2_0.xml",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "期刊",
+        "研究",
+        "英文",
+        "地球观测",
+        "遥感",
+        "观测数据"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-copernicus-npg",
+      "name": "Nonlinear Processes in Geophysics · 近期论文",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://npg.copernicus.org/xml/rss2_0.xml",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "期刊",
+        "研究",
+        "自然地理",
+        "地球科学"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-copernicus-sp",
+      "name": "State of the Planet（SP 地球状态）· 近期论文",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://sp.copernicus.org/xml/rss2_0.xml",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "期刊",
+        "研究",
+        "英文",
+        "地球科学",
+        "气候治理",
+        "环境"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-copernicus-ascmo",
+      "name": "Advances in Statistical Climatology, Meteorology and Oceanography · 近期论文",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://ascmo.copernicus.org/xml/rss2_0.xml",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "期刊",
+        "研究",
+        "气候",
+        "海洋"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-copernicus-isprs-annals",
+      "name": "ISPRS Annals of the Photogrammetry · 近期论文",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://isprs-annals.copernicus.org/xml/rss2_0.xml",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "期刊",
+        "研究",
+        "遥感",
+        "地图"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-copernicus-isprs-archives",
+      "name": "ISPRS Archives · 近期论文",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://isprs-archives.copernicus.org/xml/rss2_0.xml",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "期刊",
+        "研究",
+        "遥感",
+        "地图"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-copernicus-egqsj",
+      "name": "Quaternary Science Journal（EG&QSJ 第四纪科学期刊）· 近期文章",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://egqsj.copernicus.org/xml/rss2_0.xml",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "期刊",
+        "研究",
+        "英文",
+        "历史地理",
+        "自然地理",
+        "冰川与冻土"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-frontiers-remote-sensing",
+      "name": "Frontiers in Remote Sensing · 最新文稿",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.frontiersin.org/journals/remote-sensing/rss",
+        "allowUrlPrefixes": [
+          "https://www.frontiersin.org/articles/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "期刊",
+        "研究",
+        "遥感",
+        "地球观测",
+        "英文"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-frontiers-climate",
+      "name": "Frontiers in Climate · 最新文稿",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.frontiersin.org/journals/climate/rss",
+        "allowUrlPrefixes": [
+          "https://www.frontiersin.org/articles/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "期刊",
+        "研究",
+        "气候",
+        "英文"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-frontiers-earth-science",
+      "name": "Frontiers in Earth Science · 最新文稿",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.frontiersin.org/journals/earth-science/rss",
+        "allowUrlPrefixes": [
+          "https://www.frontiersin.org/articles/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "期刊",
+        "研究",
+        "地球科学",
+        "自然地理",
+        "英文"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-frontiers-marine-science",
+      "name": "Frontiers in Marine Science · 最新文稿",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.frontiersin.org/journals/marine-science/rss",
+        "allowUrlPrefixes": [
+          "https://www.frontiersin.org/articles/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "期刊",
+        "研究",
+        "海洋",
+        "英文"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-frontiers-environmental-science",
+      "name": "Frontiers in Environmental Science · 最新文稿",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.frontiersin.org/journals/environmental-science/rss",
+        "allowUrlPrefixes": [
+          "https://www.frontiersin.org/articles/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "期刊",
+        "研究",
+        "环境",
+        "人地关系",
+        "英文"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-frontiers-sustainable-cities",
+      "name": "Frontiers in Sustainable Cities · 最新文稿",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.frontiersin.org/journals/sustainable-cities/rss",
+        "allowUrlPrefixes": [
+          "https://www.frontiersin.org/articles/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "期刊",
+        "研究",
+        "城市",
+        "城镇化",
+        "人文地理",
+        "英文"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-plos-climate",
+      "name": "PLOS Climate · 最新文稿",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://journals.plos.org/climate/feed/atom",
+        "allowUrlPrefixes": [
+          "https://journals.plos.org/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "期刊",
+        "研究",
+        "气候",
+        "开放获取",
+        "英文"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-plos-sustainability",
+      "name": "PLOS Sustainability and Transformation · 最新文稿",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://journals.plos.org/sustainabilitytransformation/feed/atom",
+        "allowUrlPrefixes": [
+          "https://journals.plos.org/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "期刊",
+        "研究",
+        "人地关系",
+        "规划",
+        "英文",
+        "开放获取"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-plos-ecosystems",
+      "name": "PLOS Ecosystems · 最新文稿",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://journals.plos.org/ecosystems/feed/atom",
+        "allowUrlPrefixes": [
+          "https://journals.plos.org/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "期刊",
+        "研究",
+        "生态与保护",
+        "开放获取",
+        "英文"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-plos-water",
+      "name": "PLOS Water · 最新文稿",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://journals.plos.org/water/feed/atom",
+        "allowUrlPrefixes": [
+          "https://journals.plos.org/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "期刊",
+        "研究",
+        "水文",
+        "水资源",
+        "英文",
+        "开放获取"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-pensoft-oneecosystem",
+      "name": "One Ecosystem（Pensoft） · 近期文章",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://oneecosystem.pensoft.net/rss",
+        "allowUrlPrefixes": [
+          "https://oneecosystem.pensoft.net/article/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "期刊",
+        "研究",
+        "生态与保护",
+        "开放获取",
+        "英文"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-pensoft-natureconservation",
+      "name": "Nature Conservation（Pensoft） · 近期文章",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://natureconservation.pensoft.net/rss",
+        "allowUrlPrefixes": [
+          "https://natureconservation.pensoft.net/article/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "期刊",
+        "研究",
+        "生态与保护",
+        "环境",
+        "英文"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-pensoft-bdj",
+      "name": "Biodiversity Data Journal（Pensoft） · 近期文章",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://bdj.pensoft.net/rss",
+        "allowUrlPrefixes": [
+          "https://bdj.pensoft.net/article/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "期刊",
+        "研究",
+        "物种",
+        "数据分析",
+        "英文"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-ecsociety",
+      "name": "Ecology & Society（加拿大生态与社会学会）· 最新文稿",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://ecologyandsociety.org/feed/",
+        "allowUrlPrefixes": [
+          "https://ecologyandsociety.org/vol"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 3,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "期刊",
+        "研究",
+        "生态与保护",
+        "人地关系",
+        "英文",
+        "开放获取"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-polar-research",
+      "name": "Polar Research（国际极地研究期刊）· 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://polarresearch.net/index.php/polar/gateway/plugin/WebFeedGatewayPlugin/rss2",
+        "allowUrlPrefixes": [
+          "https://polarresearch.net/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "期刊",
+        "研究",
+        "冰川与冻土",
+        "海洋",
+        "英文"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-arctic-portal",
+      "name": "Arctic Portal · 新闻与文献动态",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://arcticportal.org/ap-library/news?format=feed&type=rss",
+        "allowUrlPrefixes": [
+          "https://arcticportal.org/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "期刊",
+        "研究",
+        "冰川与冻土",
+        "区域地理",
+        "英文",
+        "综合媒体"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-aad-news",
+      "name": "澳大利亚南极局 AAD · 新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.antarctica.gov.au/news/rss/",
+        "allowUrlPrefixes": [
+          "https://www.antarctica.gov.au/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "期刊",
+        "研究",
+        "冰川与冻土",
+        "考察",
+        "英文"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-erdkunde",
+      "name": "Erdkunde（德国波恩地理学会刊） · 近期文章",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.erdkunde.uni-bonn.de/gateway/plugin/WebFeedGatewayPlugin/rss2",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "期刊",
+        "研究",
+        "区域地理",
+        "人文地理",
+        "国际"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-cybergeo",
+      "name": "Cybergeo（欧洲地理学刊） · 近期文章",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://journals.openedition.org/cybergeo/backend?format=rssdocuments",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "期刊",
+        "研究",
+        "人文地理",
+        "地理信息技术",
+        "国际"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-belgeo",
+      "name": "Belgeo（比利时皇家地理学会） · 近期文章",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://journals.openedition.org/belgeo/backend?format=rssdocuments",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "期刊",
+        "研究",
+        "区域地理",
+        "国际"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-rga",
+      "name": "Revista Geográfica de Algarve · 近期文章",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://journals.openedition.org/rga/backend?format=rssdocuments",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "期刊",
+        "研究",
+        "区域地理",
+        "国际"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-confins",
+      "name": "Confins（巴西地理评论） · 近期文章",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://journals.openedition.org/confins/backend?format=rssdocuments",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "期刊",
+        "研究",
+        "区域地理",
+        "国际"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-ijg-ugm",
+      "name": "Indonesian Journal of Geography（UGM） · 近期文章",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://journal.ugm.ac.id/ijg/gateway/plugin/WebFeedGatewayPlugin/atom",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "期刊",
+        "研究",
+        "区域地理",
+        "国际"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-usp-geografia",
+      "name": "Revista do Departamento de Geografia（圣保罗大学） · 近期文章",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://revistas.usp.br/rdg/pt_BR/gateway/plugin/WebFeedGatewayPlugin/atom",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        },
+        "headers": {
+          "accept-language": "pt-BR"
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "期刊",
+        "研究",
+        "区域地理",
+        "国际"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-hal-geography",
+      "name": "HAL 开放科学库 · 地理学最新提交",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://api.archives-ouvertes.fr/search/?q=geography&wt=rss&rows=40&sort=producedDate_s%20desc",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "期刊",
+        "研究",
+        "综合研究",
+        "开放获取",
+        "国际",
+        "转载层"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-copernicus-esurf",
+      "name": "Earth Surface Dynamics（地表过程动力学）· 近期论文",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://esurf.copernicus.org/xml/rss2_0.xml",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "期刊",
+        "研究",
+        "英文",
+        "自然地理",
+        "地质灾害",
+        "水文"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-copernicus-gi",
+      "name": "Geoscientific Instrumentation, Methods and Data Systems（地学仪器与数据系统）· 近期论文",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://gi.copernicus.org/xml/rss2_0.xml",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "期刊",
+        "研究",
+        "英文",
+        "观测数据",
+        "技术与软件"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-copernicus-gh",
+      "name": "Geographica Helvetica（瑞士地理学会刊）· 近期文章",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://gh.copernicus.org/xml/rss2_0.xml",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "期刊",
+        "研究",
+        "英文",
+        "人文地理",
+        "区域地理",
+        "国际"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-copernicus-ejm",
+      "name": "European Journal of Mineralogy（欧洲矿物学期刊）· 近期文章",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://ejm.copernicus.org/xml/rss2_0.xml",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "期刊",
+        "研究",
+        "英文",
+        "地球科学",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-copernicus-jm",
+      "name": "Journal of Micropalaeontology（微体古生物学杂志）· 近期文章",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://jm.copernicus.org/xml/rss2_0.xml",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "期刊",
+        "研究",
+        "英文",
+        "地球科学",
+        "历史地理",
+        "海洋"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-copernicus-sd",
+      "name": "Scientific Drilling（科学钻探）· 近期文章",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://sd.copernicus.org/xml/rss2_0.xml",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "期刊",
+        "研究",
+        "英文",
+        "地球科学",
+        "考察"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-copernicus-we",
+      "name": "Web Ecology（网络生态学期刊）· 近期文章",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://we.copernicus.org/xml/rss2_0.xml",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "期刊",
+        "研究",
+        "英文",
+        "生态与保护",
+        "物种"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-copernicus-asr",
+      "name": "Advances in Science and Research（科学与研究进展）· 近期文章",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://asr.copernicus.org/xml/rss2_0.xml",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "期刊",
+        "研究",
+        "英文",
+        "气候",
+        "灾害",
+        "气象"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-copernicus-ica-abs",
+      "name": "ICA Abstracts（国际制图学会·图集与地理可视化）· 近期文章",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://ica-abs.copernicus.org/xml/rss2_0.xml",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum",
+            "Referees"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 5,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "期刊",
+        "研究",
+        "英文",
+        "地图",
+        "地理信息技术",
+        "国际"
       ],
       "site_fulltext": false,
       "syndicate_fulltext": false,

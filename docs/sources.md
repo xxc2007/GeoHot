@@ -110,7 +110,7 @@ SocialData 按请求计费，本部署没有这个 key，所以第二十四轮�
 
 两条本站的实情：① 这个自动调整任务只在 `COLLECT_ENABLED` 不为 false 时才注册（`apps/worker/src/schedules.ts:82-87`），
 所以上面那三档在关着采集的机器上根本不会跑；② **现站在跑的按次计费信源是 0 条**——`industry/sources.json` 里 `mp_account` 与带 `paid_listing` 的仍是 0，`x_search` 第二十四轮登记了 8 条但全部 `enabled=false`（本部署没有 `SOCIALDATA_API_KEY`），所以“按次计费”这一档在现部署下依然是空集，采集不产生账单。
-登记间隔的现值最小 30 分钟（218 条：6 条 30、12 条 60、1 条 90、23 条 120、4 条 180、118 条 240、12 条 360、31 条 720、11 条 1440；
+登记间隔的现值最小 30 分钟（271 条：6 条 30、12 条 60、1 条 90、23 条 120、4 条 180、138 条 240、12 条 360、65 条 720、10 条 1440；
 `node -e` 一行可复测，读的就是 `industry/sources.json` 这一份）——**包内登记值最快是 30 分钟，15 分钟只是自适应下限**。
 这句只对包成立，不对库成立：**线上确实有源被打到了那个下限**。2026-10-09 19:15 从服务器只读复测（本轮那份逐源产量表读的就是 `sources.interval_minutes`，见下面「第五十七轮」一节）：
 `json-nmc-weather-alarm` 与 `cn-chinanews-scroll` 两条都是 **15 分钟**（同一份查询里它们 5 小时的入库量是 48 条与 172 条，
@@ -677,8 +677,8 @@ Byrd 极地中心与 ECMWF 两条首次导入是 `found 0`——但直接在采�
 | Springer `link.springer.com/search.rss?…`（Bulletin of Volcanology 445、PalZ 12542、Mineralium Deposita 126、Climatic Change 10584、TAC 704、KN 42489） | 本轮两次探测**全部 200 + 3036 字节 `Client Challenge` HTML**，0 条 item；同形制 40 分钟前由发现代理取到过 20 条真 XML | 本轮不接：限流是时段性的，**未取到字节就不登记**。下一轮错峰重试（不换 UA、不试号） |
 | `meteofrance.com/rss.xml` | 200 · 10 条 · `description` 中位 14077 字（全站正文塞进摘要） | 未接：内容是法语气象科普栏目（`/meteo-a-z/`、热浪影响专栏），不是科研发布，方向不对 |
 
-**包内现状**：218 条（第五十六轮 207 → 删 1 条 Phys.org 子集 → 加 12 条），`rss` 173、`web_list` 26、
-`json_list` 3、`external` 8、`x_search` 8；启用 205；`defaultCategory=frontier` 34 条。
+**包内现状**：271 条（第五十七轮 218 → 第五十八轮 +53），`rss` 226、`web_list` 26、
+`json_list` 3、`external` 8、`x_search` 8；启用 258；`defaultCategory=frontier` 35 条。
 
 **顺带修好的一条境内源**：`web-pric-news`（中国极地研究中心）连败 9 轮，错误写着 `no items matched (html)`。
 两层原因：① 它原指的首页改版后 HTML 里 `c_show_id_` 出现 **0 次**；② 更根本的是 `web-list.ts:75` 的
@@ -690,3 +690,180 @@ Byrd 极地中心与 ECMWF 两条首次导入是 `found 0`——但直接在采�
 实测 5 条、最新 2026-09-15，日期与中文导语都是服务端直出，首条即
 「极地中心在北极海冰干舷高度高分辨率反演方法研究中取得重要进展」。
 **这一修的适用面比一条源大**：境内机构站按查询串路由的非常多，修之前它们不可能接成 `web_list` 信源。
+
+
+## 第五十八轮：第三批学术信源 53 条，以及"量具自己也要被量"（2026-10-09 深夜，逐条采集机实测）
+
+本轮把信源包从第五十七轮的 **218 条推到 271 条**（+53，全部是 `rss`），口径与上一轮同一把尺子，三条同时成立才登记：
+**45 天内有稿**（取全部条目里最大的那个日期，不取第一条）、**摘要中位 ≥200 字**（六个字段 `description` / `dc:description` /
+`content:encoded` / `summary` / Atom `content` 取最长者）、**目录里每条都读得出可用链接与标题**。
+测量全部在采集机上用 `curl -4` 跑（这台 VM 没有 IPv6 出口，见 `docs/known-issues.md` 第五十八轮第一节），
+逐条数值如下——这张表由 `/tmp/r58-final.json` 生成，不是从终端记录里抄的。
+
+**Copernicus（27 本，条目链接是 doi.org/10.5194/…）**
+
+| 信源 | tier/间隔 | 目录条数 | 摘要中位 | 最新一条 | feed 自报栏目名 | 条目链接主机 |
+| --- | --- | --- | --- | --- | --- | --- |
+| `rss-copernicus-esd` | T1_5/240 | 20 | 780 字 | 0 天前 | ESD - recent papers | doi.org |
+| `rss-copernicus-ls` | T1_5/240 | 7 | 810 字 | 8 天前 | LS - recent papers | doi.org |
+| `rss-copernicus-gc` | T1_5/240 | 20 | 765 字 | 2 天前 | GC - recent papers | doi.org |
+| `rss-copernicus-gchron` | T1_5/240 | 20 | 737 字 | 1 天前 | GCHRON - recent papers | doi.org |
+| `rss-copernicus-hgss` | T1_5/240 | 20 | 666 字 | 7 天前 | HGSS - recent papers | doi.org |
+| `rss-copernicus-angeo` | T1_5/240 | 20 | 759 字 | 8 天前 | ANGEO - recent papers | doi.org |
+| `rss-copernicus-amt` | T1_5/240 | 20 | 787 字 | 3 天前 | AMT - recent papers | doi.org |
+| `rss-copernicus-ar` | T1_5/240 | 20 | 851 字 | 2 天前 | AR - recent papers | doi.org |
+| `rss-copernicus-soil` | T1_5/240 | 20 | 807 字 | 8 天前 | SOIL - recent papers | doi.org |
+| `rss-copernicus-wcd` | T1_5/240 | 20 | 746 字 | 3 天前 | WCD - recent papers | doi.org |
+| `rss-copernicus-wes` | T1_5/240 | 20 | 770 字 | 0 天前 | WES - recent papers | doi.org |
+| `rss-copernicus-eo` | T1_5/240 | 9 | 748 字 | 9 天前 | EO - recent papers | doi.org |
+| `rss-copernicus-npg` | T1_5/240 | 20 | 736 字 | 7 天前 | NPG - recent papers | doi.org |
+| `rss-copernicus-sp` | T1_5/240 | 20 | 781 字 | 9 天前 | SP - recent papers | doi.org |
+| `rss-copernicus-ascmo` | T1_5/240 | 20 | 750 字 | 2 天前 | ASCMO - recent articles | doi.org |
+| `rss-copernicus-isprs-annals` | T1_5/240 | 20 | 1920 字 | 10 天前 | ISPRS-ANNALS - recent articles | doi.org |
+| `rss-copernicus-isprs-archives` | T1_5/240 | 20 | 1843 字 | 1 天前 | ISPRS-ARCHIVES - recent articles | doi.org |
+| `rss-copernicus-egqsj` | T1_5/240 | 20 | 798 字 | 9 天前 | EGQSJ - recent articles | doi.org |
+| `rss-copernicus-esurf` | T1_5/240 | 20 | 744 字 | 1 天前 | ESURF - recent papers | doi.org |
+| `rss-copernicus-gi` | T1_5/720 | 20 | 800 字 | 1 天前 | GI - recent papers | doi.org |
+| `rss-copernicus-gh` | T1_5/720 | 20 | 682 字 | 3 天前 | GH - recent articles | doi.org |
+| `rss-copernicus-ejm` | T2/720 | 20 | 779 字 | 2 天前 | EJM - recent articles | doi.org |
+| `rss-copernicus-jm` | T2/720 | 20 | 805 字 | 1 天前 | JM - recent articles | doi.org |
+| `rss-copernicus-sd` | T2/720 | 20 | 875 字 | 10 天前 | SD - recent articles | doi.org |
+| `rss-copernicus-we` | T2/720 | 20 | 776 字 | 1 天前 | WE - recent articles | doi.org |
+| `rss-copernicus-asr` | T2/720 | 20 | 727 字 | 1 天前 | ASR - recent articles | doi.org |
+| `rss-copernicus-ica-abs` | T2/720 | 20 | 232 字 | 30 天前 | ICA-ABS - recent articles | doi.org |
+
+**Frontiers（6 本）**
+
+| 信源 | tier/间隔 | 目录条数 | 摘要中位 | 最新一条 | feed 自报栏目名 | 条目链接主机 |
+| --- | --- | --- | --- | --- | --- | --- |
+| `rss-frontiers-remote-sensing` | T1_5/720 | 20 | 1992 字 | 1 天前 | Frontiers in Remote Sensing | New and Recent Articles | www.frontiersin.org |
+| `rss-frontiers-climate` | T1_5/720 | 20 | 1781 字 | 2 天前 | Frontiers in Climate | New and Recent Articles | www.frontiersin.org |
+| `rss-frontiers-earth-science` | T1_5/720 | 20 | 1773 字 | 1 天前 | Frontiers in Earth Science | New and Recent Articles | www.frontiersin.org |
+| `rss-frontiers-marine-science` | T1_5/720 | 20 | 1958 字 | 1 天前 | Frontiers in Marine Science | New and Recent Articles | www.frontiersin.org |
+| `rss-frontiers-environmental-science` | T1_5/720 | 20 | 1900 字 | 1 天前 | Frontiers in Environmental Science | New and Recent Articles | www.frontiersin.org |
+| `rss-frontiers-sustainable-cities` | T1_5/720 | 20 | 1846 字 | 1 天前 | Frontiers in Sustainable Cities | New and Recent Articles | www.frontiersin.org |
+
+**PLOS（4 本）**
+
+| 信源 | tier/间隔 | 目录条数 | 摘要中位 | 最新一条 | feed 自报栏目名 | 条目链接主机 |
+| --- | --- | --- | --- | --- | --- | --- |
+| `rss-plos-climate` | T1_5/720 | 30 | 1756 字 | 1 天前 | PLOS Climate | journals.plos.org |
+| `rss-plos-sustainability` | T1_5/720 | 30 | 1898 字 | 1 天前 | PLOS Sustainability and Transformation | journals.plos.org |
+| `rss-plos-ecosystems` | T1_5/720 | 12 | 1894 字 | 3 天前 | PLOS Ecosystems | journals.plos.org |
+| `rss-plos-water` | T1_5/720 | 30 | 1803 字 | 1 天前 | PLOS Water | journals.plos.org |
+
+**Pensoft（3 本）**
+
+| 信源 | tier/间隔 | 目录条数 | 摘要中位 | 最新一条 | feed 自报栏目名 | 条目链接主机 |
+| --- | --- | --- | --- | --- | --- | --- |
+| `rss-pensoft-oneecosystem` | T1_5/720 | 100 | 1853 字 | 0 天前 | Latest Articles from One Ecosystem | oneecosystem.pensoft.net |
+| `rss-pensoft-natureconservation` | T1_5/720 | 100 | 2038 字 | 0 天前 | Latest Articles from Nature Conservation | natureconservation.pensoft.net |
+| `rss-pensoft-bdj` | T2/720 | 100 | 1653 字 | 1 天前 | Latest Articles from Biodiversity Data Journal | bdj.pensoft.net |
+
+**OpenEdition / OJS 与学会刊**
+
+| 信源 | tier/间隔 | 目录条数 | 摘要中位 | 最新一条 | feed 自报栏目名 | 条目链接主机 |
+| --- | --- | --- | --- | --- | --- | --- |
+| `rss-polar-research` | T1_5/720 | 14 | 1262 字 | 8 天前 | Polar Research | polarresearch.net |
+| `rss-erdkunde` | T1_5/720 | 6 | 1649 字 | 3 天前 | ERDKUNDE | www.erdkunde.uni-bonn.de |
+| `rss-cybergeo` | T1_5/720 | 10 | 1001 字 | 2 天前 | Cybergeo: European Journal of Geography | journals.openedition.org |
+| `rss-belgeo` | T2/720 | 10 | 1000 字 | 11 天前 | Belgeo | journals.openedition.org |
+| `rss-rga` | T2/720 | 10 | 1001 字 | 23 天前 | Journal of Alpine Research | Revue de géographie alpine | journals.openedition.org |
+| `rss-confins` | T2/720 | 10 | 1000 字 | 9 天前 | Confins | journals.openedition.org |
+| `rss-ijg-ugm` | T2/720 | 15 | 2058 字 | 30 天前 | Indonesian Journal of Geography | journal.ugm.ac.id |
+| `rss-usp-geografia` | T2/720 | 30 | 1543 字 | 5 天前 | Revista do Departamento de Geografia | revistas.usp.br |
+
+**机构、开放库与聚合层**
+
+| 信源 | tier/间隔 | 目录条数 | 摘要中位 | 最新一条 | feed 自报栏目名 | 条目链接主机 |
+| --- | --- | --- | --- | --- | --- | --- |
+| `rss-egu-blogs` | T1_5/720 | 10 | 5426 字 | 0 天前 | Latest posts from EGU blogs | blogs.egu.eu |
+| `rss-ecsociety` | T1_5/720 | 10 | 67914 字 | 1 天前 | Ecology Society | ecologyandsociety.org |
+| `rss-arctic-portal` | T2/720 | 15 | 3689 字 | 2 天前 | News - Arctic Portal | arcticportal.org |
+| `rss-aad-news` | T1/720 | 10 | 251 字 | 2 天前 | Australian Antarctic Division | www.antarctica.gov.au |
+| `rss-hal-geography` | T2/720 | 40 | 1791 字 | 0 天前 | HAL : Dernières publications | hal.science、shs.hal.science |
+
+
+**接入合计**：包内 Copernicus 家族共 41 条（本轮 +27），
+`rss` 226 条，258 条 `enabled=true`。
+
+### 首导闸门看不见的那一类：允许前缀只匹配了一半的主机
+
+`allowed()`（`packages/backend/src/sources/web-list.ts:52`）是**整串 URL 的前缀比较**，不是主机比较。
+`rss-hal-geography` 按"HAL 都在 hal. 下面"的直觉写了 `allowUrlPrefixes: ["https://hal."]`，
+实测它的目录发布的主机是 `hal.science`、`shs.hal.science`、`amu.hal.science`、`ifp.hal.science`——
+**四分之三会被静默丢掉**，而第五十七轮那道"首导一条不剩就报故障"的闸门叫不出来，因为首导确实存下几条。
+修法不是把前缀写成正则后缀匹配（那就是给一个匹配器加它不该有的能力），而是这条源本来就被自己的查询串
+（`q=geography`）限定，前缀清单删掉即可。**下一轮写 allow-list 之前先问一句：这个平台的主机是不是一个前缀能表达干净的。**
+
+### 刊名要从 feed 里读，不能从缩写猜
+
+本轮登记的 27 本 Copernicus 刊里有 5 本的 `name` 是我按三个字母的 slug 猜出来的，抓到 feed 自己 `<channel><title>`
+与 `<description>` 之后全部改正：`esd` 是 **Earth System Dynamics**（不是 Earth System Science Data——那本是 `essd`，
+第五十六轮已经在包里，两本撞名会把读者直接带错）；`ar` 是 **Aerosol Research**（不是 Advances in Radio Science）；
+`sp` 是 **State of the Planet**；`eo` 是 **Earth Observation**；`egqsj` 是 **Quaternary Science Journal**。
+每条 feed 的 `<channel>` 还写着"Combined list of the journal … and the recent discussion forum …"，
+所以 Copernicus 这 27 条的目录里**同时含正刊与讨论稿**，条目数因此普遍是 20 的整倍数。
+
+### 三条发现路线在这台机器上是死的（下一轮别再走）
+
+- `copernicus.org/en/journals.html` → **HTTP 404**，首页导航是 JS 渲染的 `void(0)`，没有可抓的刊列表；
+- **DOAJ** v4 journals 索引对任何字段化查询都回 `total: 0`，且 Cloudflare 对 `GeoHotBot` UA 直接 **403**（不带 UA 反而 200）；
+- **Crossref** `/journals?query=geography` 命中 617 本、其中登记了 RSS 链接的 **0 本**。
+
+可用的一条是 **Crossref works-by-prefix**：`/prefixes/10.5194/works` 的 DOI 形如 `10.5194/<刊>`-`<卷>`-`<页>`-`<年>`，
+按前缀反推出 91 个**真实存在且这两年在发稿**的刊 slug（2026 年 6094 条、2025–26 共 12977 条登记），
+再逐 slug 量它自己的 feed。本轮新增的 9 本 Copernicus 刊就是这么来的，而不是我拼出来的。
+
+### 退回的（点名 + 实测值）
+
+| 候选 | 采集机实测 | 结论 |
+| --- | --- | --- |
+| `delineation/mjr/foss/tcs/jrsms/jedam/mrs/ett/sh/oc/ejvrr/geors`.copernicus.org | **12 个 slug DNS 直接 NXDOMAIN**（`polf` 与 `agile-giss` 能解析） | 未接：这 12 个子域名是猜出来的。判法见上面 works-by-prefix |
+| `polf.copernicus.org/xml/rss2_0.xml` | 200 · 20 条 · 摘要中位 598 字 · 最新 **84 天前** | 未接：过不了 45 天 |
+| `agile-giss.copernicus.org/xml/rss2_0.xml` | 200 · 20 条 · 摘要中位 1430 字 · 最新 **121 天前** | 未接：同上 |
+| `journals.openedition.org/espacepolitique/backend?format=rssdocuments` | 200 · 10 条 · 摘要 1000 字 · 最新 **109 天前** | 未接：同上 |
+| `gaee.agh.edu.pl/gaee/…/rss2`（feed 自报 channel：Geomatics and Environmental Engineering） | 200 · 6 条 · 摘要中位 1290 字 · 最新 **72 天前** | 未接：同上 |
+| `ojs.gi.sanu.ac.rs/index.php/zbornik/…/rss2`（feed 自报 channel：Journal of the Geographical Institute “Jovan Cvijić”） | 200 · 8 条 · 摘要中位 1743 字 · 最新 **113 天前** | 未接：同上 |
+| `ms` / `aab` / `jbji` / `jsss`（Mechanical Sciences、Archives Animal Breeding、Journal of Bone and Joint Infection、Journal of Sensors and Sensor Systems） | 四本目录都健康（20 条、摘要中位 232–1653 字、最新 0–3 天） | 未接：**内容不是地理**（机械、育种、骨科感染、MEMS 传感器工程）。slug 真实不等于方向对 |
+| `plosone` / `complexsystems`（PLOS One、PLOS Complex Systems） | 30 条 · 摘要中位 2089 / 1706 字 · 最新 1–3 天 | 未接：全学科巨型刊，与`前沿地理`要挑的"地理学前沿"不是一回事 |
+| `blogs.egu.eu/feed/` | 200 但 **0 条 item** | 未接。EGU 博客走 `egu.eu/news/blogs/rss/`（10 条、摘要中位 5426 字），已接 |
+
+**frontier 板块的分类归属：这批新源一律不设 `defaultCategory`。** 生产库里 `publications.category` 只有
+`analyses` 判不出来时才回落到 `sources.default_category`（`packages/backend/src/publication/publish.ts:182`），
+而 10-09 往前七天 `frontier` 出了 70 条已发布条目，贡献最多的 `JGR: Biogeosciences`、`Global Change Biology`、
+`Earth's Future` 三条的 `default_category` 都是空——**模型自己在判，回落值只在判不出来时兜底**。
+第五十六轮那 12 本 Copernicus 刊也是空，本轮跟着这个既有口径走（`defaultCategory=frontier` 包内仍 35 条）。
+
+
+### 上线首轮实测：53 条全部抓到东西，四条的登记表是错的
+
+登记完不等于接上了。当晚 22:26 在生产上把这 53 条各跑一遍真采集（`scripts/collect.ts`，与调度器同一条代码路径），
+**53 条全部 `status: ok`，入库 889 条文章**；四条第一次尝试是失败的，原因都不是对端而是我们的登记表：
+
+| 信源 | 第一次的真实报错 | 修法 |
+| --- | --- | --- |
+| `rss-pensoft-bdj`、`rss-pensoft-oneecosystem`、`rss-pensoft-natureconservation` | `first import kept none of 100 items: the listing publishes bdj.pensoft.net and config.allowUrlPrefixes allows none of them` | 三条的 `allowUrlPrefixes` 我写的是 `/articles/`（复数），Pensoft 自己发布的是 `/article/207059/`（单数）。改成单数后各入库 5 条 |
+| `rss-usp-geografia` | `Too many redirects for https://revistas.usp.br/rdg/pt_BR/gateway/plugin/WebFeedGatewayPlugin/atom` | `guardedFetch` 全局发 `accept-language: zh-CN`，而这个 OJS 站对**任何**非本站语种的 Accept-Language 都 302 到同一个地址（实测：不带该头 200、`pt-BR` 200/95418 字节、`en`/`en-US/`es`/`zh-CN` 第 0 跳就打转）。用 `rss` 本来就支持的每源 `headers` 指回 `pt-BR`，不动 226 条 rss 共用的语种协商 |
+| `rss-egu-blogs` | `fetch failed`（270ms） | 瞬时故障：同一条命令重试 1509ms 正常（10 条 / 摘要中位 5426 字）。curl -4 与 node fetch 当场都能取到，不改建法 |
+
+**Pensoft 这三条是第五十七轮那道首导闸门在真实生产上第一次起作用**：它们目录里 100 条都读得出来、
+链接主机也对，只有路径写法与对端不符，所以 `found: 100` 而入库 0——在没有那道闸门的年代，
+后台只会显示 `health: degraded` 加一句 `found: 100`，看上去像"这个刊最近很勤"。
+
+**HAL 那三条 5 个字的摘要不是我们的截断**。`api.archives-ouvertes.fr` 的 RSS 给 40 条中的 3 条把
+`<description>` 直接写成 `<![CDATA[[...]]]>`（对端占位符）。查库里 40 条 `body_status` 全是 ok、
+正文最短 389 字——**摘要占位但正文抽到了**，所以模型不是拿" [...]"加标题在编。其余 37 条的摘要来自
+`dc:description`（中位 1791 字）。这一条记在这里是为了下次别再把 `[...]` 当成我们的缺陷去"修"。
+
+### 这 53 条把队列压成什么样了（决定下一轮该做什么的数字）
+
+- 采集完成时 `processing_state='new'`（等分析）共 **2060 条**，其中 **1061 条**是今晚首导产生的，其余是既有流入；
+- 分析吞吐实测：近 6 小时 309 次分析 = **52 次/小时**（单小时峰值 71–72），每小时大模型调用数仍贴着
+  `budgets.llm.per_hour = 420` 的上限（第五十七轮记的是 402/420）；
+- 补漏网 `sweepUnprocessed()` 按 `discovered_at ASC` 取 500 条（**旧件优先**），
+  所以今晚这批前沿期刊要排在既有 999 条之后，**前沿板块是"一天多里陆续出全"，不是上线即满**。
+
+结论写在这里，避免下一轮误判：**再加信源不会让读者多看到内容，只会把 52 次/小时的带宽摊得更薄。**
+数量已经不缺（271 条、`rss` 226 条），缺的是站长那一侧的 `per_hour` 决定，
+或者一次"哪些批量源不该逐条进模型"的口径决定——两者都不是采集侧能替站长做的。

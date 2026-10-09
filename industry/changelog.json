@@ -1,6 +1,17 @@
 {
-  "latestVersion": "2026-10-09T20:10",
+  "latestVersion": "2026-10-09T21:50",
   "releases": [
+    {
+      "date": "2026-10-09",
+      "time": "21:50",
+      "kind": "扩充",
+      "title": "「前沿地理」再厚 53 条：刊名从期刊自己的目录页读回来",
+      "body": [
+        "这一轮把学术信源从 218 条加到 271 条，全部是在采集服务器上一条一条抓过目录、量过摘要长度、问过最新一条稿是哪天才登记的：哥白尼（Copernicus）27 本、Frontiers 6 本、PLOS 4 本、Pensoft 3 本、OpenEdition 上的《赛博地理》《比利时地理》《阿尔卑斯地理评论》《巴西地理评论》4 本、OJS 建刊平台上的德国/印尼/巴西地理刊与《极区研究》，外加生态与社会学会刊、北极门户、澳大利亚南极局、HAL 开放科学库和 EGU 的研究者博客。三条门槛一条都不能少：45 天内有稿、摘要中位不少于 200 字、目录里每条都带着能打开的链接和标题。",
+        "有五个刊名是我们按三个字母的缩写猜的，抓到期刊自己在目录页里写的名字之后改了回来。最要命的一条是 ESD：它是 Earth System Dynamics（地球系统动力学），而 Earth System Science Data（地球系统科学数据）是另一本、缩写 ESSD，本站早就收了——两个名字混起来，读者顺着信源找过去会找到完全不同的期刊。另外 AR 是 Aerosol Research（气溶胶研究）不是 Advances in Radio Science，SP 是 State of the Planet，EO 是 Earth Observation，EGQSJ 是 Quaternary Science Journal。",
+        "没接上的也点名留个档，免得下一轮重走：我们凭空拼出的 12 个哥白尼子域名在 DNS 上根本不存在；POLF、Geomatics and Environmental Engineering、Journal of the Geographical Institute “Jovan Cvijić” 这三本是真的，但最新稿分别停在 84、72、113 天前；四本刊（机械、动物育种、骨关节感染、MEMS 传感器）目录很健康、内容不是地理，没有接进来。这一轮真正解决「上哪儿找刊」的是另一条路：从国际 DOI 注册机构按哥白尼的前缀把这两年在发稿的 91 个刊名反推出来，再逐本去量它自己的目录——新增的 9 本就是这么找到的。"
+      ]
+    },
     {
       "date": "2026-10-09",
       "time": "20:10",

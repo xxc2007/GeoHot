@@ -3120,3 +3120,72 @@ November 2026."＝44 字），摘要放在 `dc:description`。
   看到成片 report/期号类用例齐红，先怀疑库没跟上，不要怀疑代码。
 - 验证账：`npm test` **347 项 / 342 通过 / 5 跳过 / 0 失败**（本轮 +4 条用例：
   未转义标题、读不出来要红、debut 被自己过滤器清空要红、成熟源清空不红）。
+
+
+## 第五十八轮（2026-10-09 深夜）：量具自己也要被量——两条判据在探测脚本里复发
+
+本轮接入 53 条学术信源（218→271）。过程中最值钱的一条不是接入数量，而是**我自己的探测脚本把 12 条好源判成了死的**，
+而那两条缺陷正是我在同一轮里刚在生产代码里修掉的：
+
+1. **大小写。** 探测脚本读日期用 `/<pubDate>([\s\S]*?)<\/pubDate>/`，Frontiers 写的是小写 `<pubdate>`，
+   于是 6 本 Frontiers 全部被算成"没有任何日期 → 最新 9999 天前"。生产侧 `rss.ts` 这轮已经改成
+   `text(it.pubDate) || text(it.pubdate) || …`，**脚本没跟着改**。
+2. **Atom 的 `<content>`。** 探测脚本量摘要长度只看 `description` / `dc:description` / `content:encoded` / `summary`，
+   PLOS 的 Atom 把摘要放在裸 `<content>`，于是 4 本 PLOS 全部被算成"摘要中位 0 字"。
+   生产侧 `rss.ts` 认 `<content>`，脚本不认。
+   复核方式：把这两个字段补齐、日期大小写不敏感重测，12 本全部落回 **最新 1–2 天、摘要中位 1773–2089 字**，与最终登记一致。
+   **教训：改判据时，量它的脚本要同时改；否则红的是量具，被误判的是源。** 本轮最后用一份
+   `/tmp/r58-final.json`（53 条逐条测、按 feedUrl 键、文档表格由它生成）收口，不再用终端回滚里的数字写文档。
+
+**另一条只在量具上出现的坑：`TypeError: fetch failed` 在这台机器上有两种相反的含义。**
+域名不存在是它，目标有 AAAA 记录而本机没有 IPv6 出口也是它（见第五十六轮 D 的 `guardedLookup` 一节）。
+`www.egu.eu/news/blogs/rss/` 在 Node `fetch` 下报 fetch failed、`curl -4` 下 200 + 10 条（摘要中位 5426 字、最新当天），
+差一点就不接；反过来那 12 个猜出来的 Copernicus 子域名是**真 NXDOMAIN**（`dns.google` 查得出），
+不是 IPv6 问题。**分流办法：DNS 与 IPv4 抓取分开跑，别用一个 fetch 的失败去断言两件事。**
+
+**`allowed()` 是整串 URL 前缀匹配，这决定了 `allowUrlPrefixes` 的表达边界。**
+`https://hal.` 收 hal.science、丢 shs.hal.science / amu.hal.science / ifp.hal.science（`rss-hal-geography` 实测四条主机），
+而第五十七轮加的"首导全被过滤算故障"闸门**看不见这种半个匹配**——首导能存下几条就一切正常。
+本轮的处理是删掉这条源的前缀清单（它已被自己的查询串 `q=geography` 限定），不是给匹配器加后缀能力。
+
+**发现路线的三条死路与一条活路**（逐条在本机实测，下一轮不必重走）：
+`copernicus.org/en/journals.html` 404 且首页导航 `void(0)` 无列表；DOAJ v4 journals 字段化查询一律 `total: 0`、
+Cloudflare 对 `GeoHotBot` UA 403（无 UA 200）；Crossref `/journals` 命中 617 本地理刊、登记 RSS 链接的 0 本。
+活路是 **Crossref `/prefixes/10.5194/works`**：DOI 形如 `10.5194/<刊>-<卷>-<页>-<年>`，
+从注册数据里反推出 91 个真实活跃刊 slug（2026 年 6094 条、2025–26 合计 12977 条），再逐 slug 量 feed。
+
+**刊名不是缩写。** 本轮 27 本 Copernicus 里有 5 本的 `name` 是我按 slug 猜的，feed 自报名与猜测不符：
+`esd`=Earth System Dynamics（不是 Earth System Science Data，那是包内已有的 `essd`，撞名会把读者带错）、
+`ar`=Aerosol Research（不是 Advances in Radio Science）、`sp`=State of the Planet、`eo`=Earth Observation、
+`egqsj`=Quaternary Science Journal。判据现在写死在流程里：**登记 `name` 之前先读 `<channel><title>` 与 `<description>`**。
+
+**采集侧数量与模型吞吐的矛盾本轮更清楚了**（第五十七轮记的是 420 次/小时上限、实测峰值 402 次）：
+包内从 218 到 271、`rss` 到 226 条，**再往上加源不再等于读者看到更多东西，只会让每条等得更久**。
+首导上限已经按 5 条钉住、间隔最快 240 分钟，所以本轮增量不会立刻打爆预算；
+但下一次扩容前需要站长决定的是 `budgets.llm.per_hour`（现值 420）而不是信源清单。
+
+
+### 上线首轮真采集当场照出来的四处（第五十八轮 C）
+
+**其一：`allowUrlPrefixes` 写的是路径形状，路径形状必须从对端的链接里抄。**
+Pensoft 三条我按"文章一般在 /articles/ 下"的语感写了复数，对端是 `/article/<id>/` 单数，
+于是 `found: 100`、入库 0。首导闸门把它叫出来了；**同形制的部分匹配（例如只有一半链接前缀对）闸门叫不出来**，
+所以 `docs/sources.md` 第五十八轮记了 HAL 的 `https://hal.` 半匹配案例——
+写 allow-list 之前先打印这个 feed 的真实 `<link>`，不要凭平台的通用 URL 习惯。
+
+**其二：`accept-language: zh-CN` 会让语种固定的 OJS 站把自己重定向到死。**
+`guardedFetch` 对每个请求都发 `accept-language: zh-CN`（`packages/backend/src/lib/http-fetch.ts`），
+`revistas.usp.br` 对任何非 `pt-BR` 的 Accept-Language 一律 302 回同一个 URL，撞满 5 跳报
+`Too many redirects`——**表现完全像对端坏了，实际是我们的头触发的**。
+判法：同一 URL 不带该头 / 带 `pt-BR` / 带 `en`/`es`/`zh-CN` 各跑一次，只有前者与 `pt-BR` 出 200。
+修法用 `rss` 已有的每源 `config.headers`（`feedHeaders()`），不去改全局默认：
+全局一改动 226 条 rss 的语种协商，那是更大的面。
+
+**其三：`fetch failed` 一次不等于源坏。** EGU 博客 270ms 报 `fetch failed`、重试 1509ms 就 200 + 10 条。
+第五十六轮 D 之后这台机器的 IPv6 坑已经由 `guardedLookup` 兜住，剩下的瞬时故障要靠重试与下一轮复看，
+**不要凭一次失败就下"这源不行"的结论**（也不要在没有取到字节时登记）。
+
+**其四：对端给的占位符不是我们的缺陷，但要看清它有没有连带影响。**
+HAL 有 3/40 条 `<description>` 就是 `<![CDATA[[...]]]>`，于是 `excerpt` 存成 5 个字的 "[...]"；
+库里 40 条 `body_status` 全 ok、正文最短 389 字，所以进模型的不是占位符。
+判据是**问"正文列有没有拿到东西"**，而不是看到短摘要就动手改采集器。
