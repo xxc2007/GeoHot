@@ -2898,3 +2898,15 @@ key**，所以要一路跟到网址、库里的值、接口枚举、提示词与
    迁移在 `geohot_r15_ci` 上 `applied 0049_drop_geoedu_category.sql`。**注意本机这台集群这次只听了 IPv6 回环**
    （`listen_addresses='localhost'` 解析到 `::1`），`DATABASE_URL` 写 `127.0.0.1:5433` 会 ECONNREFUSED，
    写 `localhost:5433` 才连得上——不是代码问题，别照着它改配置。
+10. **线上复验（2026-10-09 部署后当场量的）**：迁移在生产库 `applied 0049`，之后
+    `analyses/publications` 里 `category='geoedu'` 各 **0 行**，`sources` 里 `default_category='geoedu'` **0 行**、
+    带「考研」标签的 **0 行**，`cn-chsi-kydt` 那一行仍在且 `enabled=false`，`sources_total=117`（库里比包多的那些行照旧）、
+    `sources_enabled=99`。出口一侧：首页与 `/all` 的筛选栏是 **全部 + 六个分类**（DOM 实测，`考研` 在两页文本里 0 命中、
+    控制台 0 条消息），`/all?category=geoedu` 打开的是不过滤的「全部地理动态」（当日 304 条、没有任何 chip 被点亮、
+    翻页链接把未知键原样带着走，第 2 条说的回落就是这个样子）；`/feed/category/geoedu.xml` **404** 而 `geotech.xml` 200；
+    v1 `items?category=geoedu` 回 400 并列出六个合法键，`api/site/pool?category=geoedu` 同样 400（未知键一直是 400，
+    不是本轮新加的行为）；MCP `tools/list` 七个工具、`category` 枚举六个 key，全文不含 `geoedu` 或「考研」；
+    OpenAPI 全文不含这两个字符串；`/api/site/changelog` 的 `latestVersion` 已是 `2026-10-09T16:30`、首条是那条「下线」。
+    整站点过的读者页与机器出口（首页、`/all` 两种、日报、归档、热点榜、主题、关于、更新日志、`llms.txt`、
+    分类订阅、统计接口、收藏页）里，唯一还出现「考研」的是 `/changelog` 本身（它记的就是这次删除）。
+    `verify-deploy.sh` **ALL CHECKS PASSED**，四个单元 active。
