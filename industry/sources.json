@@ -217,7 +217,7 @@
       ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
-      "enabled": true
+      "enabled": false
     },
     {
       "id": "rss-gsc-europa",
@@ -4277,7 +4277,7 @@
       ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
-      "enabled": true,
+      "enabled": false,
       "defaultCategory": "frontier"
     },
     {
