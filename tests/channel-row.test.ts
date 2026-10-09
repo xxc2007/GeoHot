@@ -2,7 +2,7 @@
 // What makes that removal worth a test at all is how little of it was visible: the chip, the enum key and the
 // SQL alias were three lines in three files, and both the chip list and the label table are derived — re-adding
 // one without the others either fails to compile (exhaustive `Record<ChannelKey, string>`) or brings back a
-// filter the owner asked to drop. The row must stay 全部 + the six categories, and a link that still carries
+// filter the owner asked to drop. The row must stay 全部 + the seven categories, and a link that still carries
 // `?channel=firstParty` must keep landing on the unfiltered list rather than a 400 or a half-lit row.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -16,13 +16,13 @@ const all = read("../apps/web/app/routes/all.tsx");
 const timeline = read("../apps/web/app/features/feed/Timeline.tsx");
 const groupUrls = read("../apps/web/app/features/feed/group-urls.ts");
 
-test("筛选栏只有 全部 + 六个分类，chip 从 CATEGORY_KEYS 派生", () => {
+test("筛选栏只有 全部 + 七个分类，chip 从 CATEGORY_KEYS 派生", () => {
   // Comments here name the removed chip on purpose (that is how a reader learns why it is gone), so the
   // assertions look at the chip list itself: a key or a label, not the word in prose.
   assert.equal(/key:\s*"firstParty"|channel:\s*"firstParty"/.test(filters), false, "Filters.tsx 的 chip 清单里又出现了 firstParty：站长 2026-10-04 要求删掉「一手」那颗 chip，别把它加回来");
   assert.equal(filters.includes('label: "一手"'), false, "Filters.tsx 里又挂出了「一手」这个标签");
   assert.ok(filters.includes("...CATEGORY_KEYS.map("), "分类 chip 必须从 CATEGORY_KEYS 派生（手写清单就会漂）");
-  assert.equal(CATEGORY_KEYS.length, 6, `分类数变了（${CATEGORY_KEYS.length} 个）：筛选栏那一行的格子（全部 + 这些分类）是它的出口之一，README 与 docs 里抄的分类计数也要跟着改`);
+  assert.equal(CATEGORY_KEYS.length, 7, `分类数变了（${CATEGORY_KEYS.length} 个）：筛选栏那一行的格子（全部 + 这些分类）是它的出口之一，README 与 docs 里抄的分类计数也要跟着改`);
 });
 
 test("一手不再是一个渠道 key，但老链接要把渠道兜底成 all", () => {

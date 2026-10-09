@@ -14,7 +14,7 @@
 [![仓库](https://img.shields.io/badge/GitHub-GeoHot-1F1E1D)](https://github.com/xxc2007/GeoHot)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![零注册](https://img.shields.io/badge/读者侧-零注册_·_零Cookie-1F1E1D)](#贰--site-map-站点结构)
-[![分类](https://img.shields.io/badge/分类-六个-D97757)](#其一--taxonomy-六个分类一条标准)
+[![分类](https://img.shields.io/badge/分类-七个-D97757)](#其一--taxonomy-七个分类一条标准)
 [![运行时](https://img.shields.io/badge/运行时-Node_24_·_后端无构建-1F1E1D)](#叁--stack-技术栈)
 [![行业层](https://img.shields.io/badge/行业层-全在_industry%2F-1F1E1D)](#肆--reuse-换成你的行业)
 [![GitHub](https://img.shields.io/badge/GitHub-@xxc2007-1F1E1D)](https://github.com/xxc2007)
@@ -67,10 +67,10 @@
 
 ## 壹 · HIGHLIGHTS 特色
 
-### 其一 · TAXONOMY 六个分类，一条标准
+### 其一 · TAXONOMY 七个分类，一条标准
 
 分类是这站的骨架（`industry/taxonomy.ts`，`key` 直接进 URL，上线后不再改）。
-六个分类共用同一条入选标准——**空间显著性优先**：影响尺度大、多方独立报道、有数据／图件／影像支撑，三件同时成立才排得靠前。
+七个分类共用同一条入选标准——**空间显著性优先**：影响尺度大、多方独立报道、有数据／图件／影像支撑，三件同时成立才排得靠前。
 
 | `key` | 分类 | 管什么 |
 |---|---|---|
@@ -79,6 +79,7 @@
 | `regional` | 区域地理 | 以区域或流域为单位的整体性变化：极地、青藏高原、三角洲、城市群、跨境河流 |
 | `geopolitics` | 政治地理 | 主权、边界与领土的划定与争议，地缘格局、战略通道、跨境河流与海洋权益 |
 | `histgeo` | 历史地理 | 历史时期的地理变迁与古今对照：河道海岸线、政区疆域沿革、城址兴废、古地图 |
+| `frontier` | 前沿地理 | 学术界的前沿科研成果：期刊论文与预印本给出的新证据、新方法、新认识，学界综述与研究进展发布 |
 | `geotech` | 地理信息系统 | 遥感与影像、导航定位、观测数据集与标准的发布，GIS 软件与平台、开源生态与许可变更 |
 
 **「板块」这一层不存在。** 它曾经有四个跨类别方向页（`/boards`），后来按站长要求整块删掉——判重：

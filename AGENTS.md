@@ -1,6 +1,6 @@
 # 给 Agent 的说明
 
-这是一个行业热点网站的框架：采集信源、用模型筛选和写作、归组事件、出日报，并通过网站、RSS、公开 API 和 MCP 对外提供。**本仓库不是那个示例站了**：它是地理垂直领域的站 GEOHOT（中文站名"地理热点"），`industry/` 已经是地理层——`industry/sources.json` 登记的地理信源（条数不在任何文档里抄录：当场数 `node -e "console.log(require('./industry/sources.json').sources.length)"`）、六个分类（自然/人文/区域/政治地理/历史地理/地理信息系统）、地理提示词、地理品牌；只有 npm 包名 `@aihot/*` 和目录名 `industry/` 按决定保留不改。**「板块」那一层已经没有了**：`/boards` 与 `industry/boards.json`、`publication/boards.ts`、`/api/site/boards*` 于 2026-10-04 按站长要求整块删除（判重——主题页与筛选栏的分类做的是同一件事），不要再把它加回来，四个方向的入口在分类层（`/all?category=<key>`）与主题页。先读仓库根的 `README.md`（面向读者的介绍页），操作口径读 `docs/manual.md`（原仓库根 README，本站写的，以它为准），再按任务读 `docs/` 里对应的文档。`docs/` 里那几份上游参考文档若干命令与数字在这台机器上已经不成立（见 `docs/manual.md` 第 9 节的状态列）；**任何门槛、计数、命令都以代码和 `docs/manual.md` 为准，不以上游 `docs/` 为准。**
+这是一个行业热点网站的框架：采集信源、用模型筛选和写作、归组事件、出日报，并通过网站、RSS、公开 API 和 MCP 对外提供。**本仓库不是那个示例站了**：它是地理垂直领域的站 GEOHOT（中文站名"地理热点"），`industry/` 已经是地理层——`industry/sources.json` 登记的地理信源（条数不在任何文档里抄录：当场数 `node -e "console.log(require('./industry/sources.json').sources.length)"`）、七个分类（自然/人文/区域/政治地理/历史地理/前沿地理/地理信息系统）、地理提示词、地理品牌；只有 npm 包名 `@aihot/*` 和目录名 `industry/` 按决定保留不改。**「板块」那一层已经没有了**：`/boards` 与 `industry/boards.json`、`publication/boards.ts`、`/api/site/boards*` 于 2026-10-04 按站长要求整块删除（判重——主题页与筛选栏的分类做的是同一件事），不要再把它加回来，四个方向的入口在分类层（`/all?category=<key>`）与主题页。先读仓库根的 `README.md`（面向读者的介绍页），操作口径读 `docs/manual.md`（原仓库根 README，本站写的，以它为准），再按任务读 `docs/` 里对应的文档。`docs/` 里那几份上游参考文档若干命令与数字在这台机器上已经不成立（见 `docs/manual.md` 第 9 节的状态列）；**任何门槛、计数、命令都以代码和 `docs/manual.md` 为准，不以上游 `docs/` 为准。**
 
 ## 最常见的任务：改成另一个行业
 

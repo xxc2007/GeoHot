@@ -21,16 +21,22 @@ test("每个分类都能进 v1、RSS 分类订阅与 MCP 的枚举，且只有�
   assert.deepEqual([...PUBLIC_API_CATEGORY_KEYS], [...CATEGORY_KEYS], "公开接口的枚举必须就是分类表本身");
 });
 
-test("筛选栏与各处出口的词表只剩六个分类，「地理信息系统」是末位", () => {
-  // 2026-10-03 站长要求把「地理信息系统」与「考研」换位；2026-10-09 按站长要求删掉「考研」`geoedu`，
-  // 于是原来那条相对次序断言没有对象了（indexOf 找不到 key 会返回 -1，会假红）。这里改成钉两件事：
-  // 词表是六个，而 geotech 仍是末位键——`cache.test.ts` 与 report-default-section.test.ts 都按末键取值。
-  assert.equal(CATEGORY_KEYS.length, 6, "本站六个分类（industry/taxonomy.ts 的 CATEGORIES）");
+test("筛选栏与各处出口的词表是七个分类，「前沿地理」紧挨在「地理信息系统」之前", () => {
+  // 2026-10-03 站长要求把「地理信息系统」与「考研」换位；2026-10-09 删掉「考研」`geoedu`（原来那条相对
+  // 次序断言因此没有对象了——indexOf 找不到 key 返回 -1，会假红），同日站长要求新增「前沿地理」`frontier`
+  // 并指定它排在「地理信息系统」之前。这里钉三件事：词表七个、frontier 紧跟在 geotech 前面、geotech 仍是
+  // 末位键（`cache.test.ts` 与 report-default-section.test.ts 都按末键取值）。
+  assert.equal(CATEGORY_KEYS.length, 7, "本站七个分类（industry/taxonomy.ts 的 CATEGORIES）");
+  assert.equal(
+    CATEGORY_KEYS.indexOf("frontier" as never),
+    CATEGORY_KEYS.indexOf("geotech" as never) - 1,
+    "「前沿地理」必须排在「地理信息系统」前面一格（站长 2026-10-09 指定，这一格就是筛选栏的顺序）",
+  );
   assert.equal(CATEGORY_KEYS.at(-1), "geotech", "「地理信息系统」仍是末位键：按末键取值的两处测试都依赖它");
 });
 
 test("日报的分节没有被新分类挤动（兜底分节仍由首现顺序决定）", () => {
-  // 与 tests/report-default-section.test.ts 同源：这里只复查六个分类之后的首现顺序仍是两节。
+  // 与 tests/report-default-section.test.ts 同源：这里只复查七个分类之后的首现顺序仍是两节。
   // 2026-10-03：「野外与考察」「观点与解读」连同「实践」那一节一起删掉，兜底分节由「实践」变成「技术」。
   const order = [...new Set(CATEGORIES.map((c) => c.section))];
   assert.deepEqual(order, ["学科", "技术"]);

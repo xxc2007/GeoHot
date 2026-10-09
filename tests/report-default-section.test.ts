@@ -44,5 +44,5 @@ test("compose.ts files uncategorised items in the declared bucket and counts rel
   // Two more positions other code reads: `llms.ts:49` prints CATEGORY_KEYS[0] as the example slug and
   // `apps/web/tests/cache.test.ts:91` filters by `.at(-1)`.
   assert.equal(CATEGORY_KEYS[0], "physical", "llms.txt 的示例 slug 是首键，改成别的键等于对外的订阅示例换人");
-  assert.equal(CATEGORY_KEYS.at(-1), "geotech", "cache.test.ts 用末键筛一遍；2026-10-09 删掉末位的 geoedu（考研）之后末键是 geotech（地理信息系统）");
+  assert.equal(CATEGORY_KEYS.at(-1), "geotech", "cache.test.ts 用末键筛一遍；2026-10-09 删掉末位的 geoedu（考研）之后末键是 geotech，同日新增的 frontier（前沿地理）按站长要求插在 geotech 之前，末键没动");
 });
