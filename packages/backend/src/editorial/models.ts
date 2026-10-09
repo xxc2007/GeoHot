@@ -83,10 +83,10 @@ export function invalidateModelCache() {
   cache = null;
 }
 
-/** The model a capability uses now: admin switch, else environment, else the code default. */
+/** The model a capability uses now: admin switch, else its own environment, else `MODEL_POOL`, else the code default. */
 export async function modelFor(capability: CapabilityKey, shardKey?: string): Promise<string> {
   const c: Capability = CAPABILITIES[capability];
-  const chosen = (await overrides())[capability] ?? process.env[c.env] ?? c.default;
+  const chosen = (await overrides())[capability] ?? process.env[c.env] ?? process.env.MODEL_POOL ?? c.default;
   return pickFromPool(chosen, shardKey) || c.default;
 }
 
@@ -97,6 +97,9 @@ export async function modelSources(): Promise<Record<string, { model: string; so
   for (const [key, c] of Object.entries(CAPABILITIES) as Array<[string, Capability]>) {
     if (o[key]) out[key] = { model: o[key]!, source: "admin" };
     else if (process.env[c.env] && poolOf(process.env[c.env]!).length > 0) out[key] = { model: process.env[c.env]!, source: "env" };
+    // `MODEL_POOL` shows up as the capability's own source, not a fourth kind: the page lists where *this*
+    // step's model comes from, and one operator variable feeding eleven steps is an implementation detail.
+    else if (process.env.MODEL_POOL && poolOf(process.env.MODEL_POOL).length > 0) out[key] = { model: process.env.MODEL_POOL, source: "env" };
     else out[key] = { model: c.default, source: "default" };
   }
   return out;

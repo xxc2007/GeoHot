@@ -10,10 +10,10 @@ import { upsertMaterial } from "@aihot/backend/content/materials";
 import { analyzeArticle } from "@aihot/backend/editorial/analyze";
 import { stopBoss } from "@aihot/backend/jobs/queue";
 import { MODELS } from "@aihot/backend/providers/llm";
-import { CAPABILITIES, poolOf, pickFromPool } from "@aihot/backend/editorial/models";
+import { CAPABILITIES, poolOf, pickFromPool, modelFor, modelSources, invalidateModelCache } from "@aihot/backend/editorial/models";
 import { newArticleId } from "@aihot/backend/lib/ids";
 
-for (const name of Object.keys(process.env)) if (/_MODEL$/.test(name) && name !== "LLM_MODEL" && name !== "EMBEDDING_MODEL") delete process.env[name];
+for (const name of Object.keys(process.env)) if ((/_MODEL$/.test(name) && name !== "LLM_MODEL" && name !== "EMBEDDING_MODEL") || name === "MODEL_POOL") delete process.env[name];
 
 const T = tag();
 const SOURCE = `test-model-pool-${T}`;
@@ -43,8 +43,13 @@ Object.assign(process.env, {
 
 before(async () => {
   await sql`INSERT INTO sources (id, name, kind, tier, participation_mode, next_fetch_at) VALUES (${SOURCE}, 'Test model pool', 'rss', 'T1', 'editorial', '2100-01-01')`;
+  // The tests share one database, and a `models.*` row left by another file would outrank every
+  // environment variable below. Take the admin switch out of the picture, then put it back the way we found it.
+  await sql`DELETE FROM settings WHERE key LIKE 'models.%'`;
+  invalidateModelCache();
 });
 after(async () => {
+  await sql`DELETE FROM settings WHERE key LIKE 'models.%'`;
   await provider.close();
   await stopBoss();
   await closeDb();
@@ -130,6 +135,25 @@ test("two pooled articles can be split across the members", async () => {
   // Which member wins is the hash, and four articles is far too few to demand both show up — the 400-id
   // sample above is what proves the spread. Here we only check nothing escaped the pool.
   for (const m of models) assert.ok(["main-model", "cn-model"].includes(m), `${m} is not in the pool`);
+});
+
+test("MODEL_POOL sets every step at once, and a step's own variable still wins", async () => {
+  process.env.MODEL_POOL = POOL;
+  process.env.SCORE_MODEL = "default";
+  invalidateModelCache();
+  assert.equal(await modelFor("score", "article:one@1"), "default", "the per-step variable outranks the site-wide pool");
+  for (const key of Object.keys(CAPABILITIES) as Array<keyof typeof CAPABILITIES>) {
+    const chosen = await modelFor(key, `article:${key}@1`);
+    assert.ok(!chosen.includes(","), `${key} returned the pool string instead of one of its members (${chosen})`);
+    assert.ok(["default", "agnes-3.0-flash-cn"].includes(chosen), `${key} chose ${chosen}, outside the pool`);
+  }
+  const sources = await modelSources();
+  assert.equal(sources.score!.source, "env");
+  assert.equal(sources.digest!.model, POOL, "a step with no variable of its own reports the pool as its source");
+  assert.equal(sources.digest!.source, "env");
+  delete process.env.MODEL_POOL;
+  delete process.env.SCORE_MODEL;
+  invalidateModelCache();
 });
 
 test("a capability's label and env names stay paired with the pool", () => {
