@@ -2991,11 +2991,78 @@ Springer `search.rss?facet-journal-id=` 有摘要有真 pubDate；Magtech 中文
 ### 现状与遗留
 
 - **A10 那一路（地球系统与可持续性机构）到收工时还没交**，它的候选不在 256 里；下一轮并进来。
+  → **第五十七轮已交**：那一路交回 5 条候选，实测后接入 Mercator Ocean 与 WCRP 两条，其余三条（PIK /
+  Stockholm Resilience / WRI）是 `web_list` 且要逐条核选择器，与中文期刊一起留在下一批。
 - 待复核停用：包内 `rss-igu-online`（国际地理联合会）两次直连只拿到 "One moment, please…" 的 JS 挑战壳、
   **0 条 item**，按 `intl-unocha` 先例应当停用而不是空跑。
+  → **第五十七轮复核：这条推断不成立，源是活的，不许停用。** 生产库里它自己的账是 13 次抓取 / `found` 20 /
+  `new` 10 / 库里 10 条 / `health=ok` / 最近一轮 304；同一分钟采集机直连取到 42 KB 真 XML、10 条 item、
+  最新 2026-10-06。**"某一次抓不到挑战壳之后的内容"不等于"这条源空跑"**，停用要看这条源的运行账（逐轮
+  `found/new/arts`），那才是判据。
 - 生产容量已量（决定"能接多少"）：接入前每天约 1000 条入库、1000–2400 条分析，预筛 7 天
   pass 5457 / unknown 3327 / block 1068。+95 条按 iv=240/720 与首轮回补 6–8 条估算，是"一天内多几百条"的量级，
   分析队列会短时滞后，但不改变能不能入选（入选看 46/49/52）。**上线后第一次巡检要看 `pgboss.job` 的积压与
   新源的 `last_error`**；如果 unknown 比例异常升高，先怀疑新源的形状而不是门槛。
 - 验证账：`npm test` 342 项 / 337 通过 / 5 跳过 / **0 失败**（含 `industry-pack-sources` 与 `sources` 两条
   专门校验信源包的用例）；typecheck 0 错；seed 会把新源写进库（只增不改）。
+
+## 第五十七轮（2026-10-09 晚）：上一轮"105 ok"那句话掩盖了八个空跑的源
+
+第五十六轮收尾时报的健康度是「105 ok / 1 条 fetch failed」。这句话**方法上是错的**：它只看
+`sources.health` 与 `last_error`，而这两列分不清「抓到了却一条都没存」和「这一周确实没新东西」。
+这一轮把 95 条首次导入的 `fetch_runs.detail` 逐条拉出来，用 `found / filtered / dropped / stored` 四个数对读，
+当场翻出两类静默缺陷（逐条数值与修法在 `docs/sources.md` 的第五十七轮一节）：
+
+**其一：Wiley 把每本刊放在学会自己的子域上，入口白名单只写了主域名。** 六条刊的目录 feed 是
+`found 92/13/9/5/5/2 → filtered 0 → stored 0`——`allowed()` 认为整份列表都是站外。
+`rmets.`（英国皇家气象学会）、`rgs-ibg.`（皇家地理学会）、`wires.` 三个主机各归各的刊。
+**教训：`allowUrlPrefixes` 要按"这个 feed 的 item `<link>` 到底是什么主机"来写，不能按出版方的品牌域名推**；
+同一条规则也救了本轮新接的 Mercator Ocean（feed 在 `.fr`、条目链接全在 `.eu`）与 PIAH（链接是 `doi.org`，
+所以 allow 写死 DOI 前缀而不是放开整个 doi.org）。**发现方式**：一次 `curl` 打印前 3 条 `<link>` 就够了，
+成本远低于事后查为什么没有内容。
+
+**其二：`<title>` 里放未转义 HTML 的订阅源，条目被当作"无标题"整批丢掉，而运行记录写着 `found: 0`。**
+Byrd 极地中心与 ECMWF 各 10 条 item，Drupal 写成 `<title><a href="…">文字</a></title>`。这是合法 XML，
+`fast-xml-parser` 交回结构而不是字符串，`rss.ts` 的 `text()` 只认 `#text`/`#cdata` 便返回空串，
+`rss.ts:258` 的 `if (!link || !title) continue` 把十条全丢掉，而 `collect.ts:266` 的 `found` 记的是解析器的产出。
+**这一类没有任何一列会变红**：HTTP 200、无 `last_error`、`health=ok`、`found=0`，与"这周没更新"逐字相同。
+修法两处（各有用例，都是先看红再修绿）：`text()` 在没有文本节点时递归读子节点；解析器自己发现
+「feed 里有 item 而一条都读不出来」时抛 `FetchError`，让这条源在后台真的标红。
+**用采集机上当真取回的 `byrd.xml` / `ecmwf.xml` 两份字节复跑解析器：各 10 条、标题/日期/摘要齐**。
+影响面是零：全库扫 `found_all = 0` 的启用源，只有这两条，且都是本轮新增的。
+
+**第三条是判据，不是缺陷**：一条新源第一次抓取若「抓到了却一条都没留下」，现在直接记失败并写明
+「列表发布的是 X 主机、配置允许的是 Y」——这正是上面那六条 Wiley 病根的自述文字。
+它只在 `firstImport` 触发：成熟源偶尔只回一批更正页是正常的一周，不该被标红。
+用例 `tests/collect-debut.test.ts` 把两侧都钉住了（debut 必须红、成熟源必须绿），
+注入验证过：把闸门关掉，debut 那条当场变红。
+
+### 产量账：上一轮的队列积压是一次性的首轮导入，不是稳态流量
+
+第五十六轮上线后有 607 条待分析、分析速率 51–79 条/小时，当时按"信源太多"去打算降间隔——**那个判断是错的**。
+从生产库逐源读首次导入那轮的 `stored` 之后：95 条里绝大多数首轮回补上限只有 8 条，期刊目录 feed 本身按周更新，
+稳态新增接近 0；600 条里 **600 条来自首次导入那一轮**（`unanalyzed_last5h / unanalyzed_articles = 600 / 607`）。
+也就是说那是一次性的债，会自己排干，降 `interval_minutes` 只会让每一轮抓到更少的新东西，不解决任何问题。
+真正的天花板量出来是预算不是并发：`budgets` 里 `llm` 是 **8/分钟、420/小时、6000/天**，
+而 08–18 点实测每小时 `receipts` 在 **236–358 之间**（峰值 358 ≈ 上限的 85%），
+`failed` 每小时 1–11 条（免费档 429 由重试阶梯吸收）。**想让队列排干得快，唯一有意义的杠杆是提高
+`llm.per_hour`（或降单条延迟），把 `ANALYZE_CONCURRENCY` 从 6 提到 12 只会在同一小时内撞那条 420。**
+这一条属于站长的花费决定，本轮不动，只把数记在这里。
+
+### 现状与遗留
+
+- 包 218 条（第五十六轮 207 → 撤 1 条 Phys.org 子集 → 接 12 条）。库里那一行 `rss-phys-org-earth-sciences`
+  要在部署后用 `scripts/set-source-state.ts --disable` 停用（包删行留，避免连带删掉发现记录）。
+- Springer 那六本（Bulletin of Volcanology 445、PalZ 12542、Mineralium Deposita 126、Climatic Change 10584、
+  TAC 704、KN 42489）：发现代理 40 分钟前取到过真 XML，本轮两次探测都只拿到 `200 + 3036 字节 Client Challenge`。
+  **限流是时段性的**，未取到字节就不登记，下一轮错峰重试（不换 UA、不试刊号）。
+- A16 那一路（中文期刊 `web_list`）交回 7 条带选择器的候选，但只有 3 条把摘要路径实测通过
+  （《地球信息科学学报》的详情页 `<meta name="description">` 就是完整中文摘要；空天院科研动态走
+  `.trs_editor_view p`）。Magtech 模板的列表页 `div.j-abstract` **全为空**——不配 `detail` 就发不出稿，
+  而 `detail` 要逐条核，本轮没接。下一批照 A16 那份表接。
+- **`geohot_test` 这台库曾落后 6 份迁移**（0044–0049 未应用），`npm test` 当场报 26 条失败，
+  全部是 `column "issue_no" does not exist` 一类。跑套件前先
+  `DATABASE_URL=postgres://geohot:geohot@localhost:5433/geohot_test node scripts/migrate.ts`；
+  看到成片 report/期号类用例齐红，先怀疑库没跟上，不要怀疑代码。
+- 验证账：`npm test` **347 项 / 342 通过 / 5 跳过 / 0 失败**（本轮 +4 条用例：
+  未转义标题、读不出来要红、debut 被自己过滤器清空要红、成熟源清空不红）。

@@ -29,8 +29,29 @@ function text(v: unknown): string {
     const o = v as Record<string, unknown>;
     if ("#cdata" in o) return text(o["#cdata"]);
     if ("#text" in o) return text(o["#text"]);
+    // Markup the publisher left unescaped (a Drupal feed whose <title> holds a literal <a href>) is legal
+    // XML, so the parser hands back structure where a string was expected and there is no text node here.
+    // Read the words out of the children: an empty title is dropped by the caller, and a whole feed of them
+    // reads as an idle source rather than an unreadable one.
+    const nested = Object.entries(o)
+      .filter(([k]) => !k.startsWith("@"))
+      .map(([, child]) => text(child))
+      .filter(Boolean)
+      .join(" ");
+    if (nested) return nested;
   }
   return "";
+}
+
+/**
+ * A feed that offered items and yielded none is not an idle feed. Without this the round writes `found: 0`
+ * and health `ok` — the same two numbers a quiet week produces — and the difference only shows up when
+ * somebody reads the bytes. Both dialects check here, on the parser's own count, before our filters run.
+ */
+function assertReadable(items: unknown[], out: Candidate[]): void {
+  if (items.length > 0 && out.length === 0) {
+    throw new FetchError(`feed offered ${items.length} items and none could be read (no usable link or title)`);
+  }
 }
 
 function arr<T>(v: T | T[] | undefined | null): T[] {
@@ -281,6 +302,7 @@ export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}
         raw: { guid: text(it.guid) || null },
       });
     }
+    assertReadable(items, out);
     return { candidates: out, validator, notModified: false };
   }
 
@@ -288,7 +310,8 @@ export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}
   if (feed) {
     // A feed-level @xml:base is inherited by its entries; an entry's own replaces it for that entry.
     const feedBase = baseOf(feed, docUrl);
-    for (const e of arr(feed.entry)) {
+    const entries = arr(feed.entry);
+    for (const e of entries) {
       const link = atomLink(e.link);
       const title = collapseWhitespace(stripTags(text(e.title)));
       const entryUrl = resolveHref(link, baseOf(e, feedBase));
@@ -315,6 +338,7 @@ export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}
         raw: { id: text(e.id) || null },
       });
     }
+    assertReadable(entries, out);
     return { candidates: out, validator, notModified: false };
   }
   throw new FetchError("not an RSS/Atom document");
