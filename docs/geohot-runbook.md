@@ -455,8 +455,12 @@ node --env-file=.env scripts/backfill-papers.ts --from=2026-01-01 --to=2026-03-3
 共 400 个信源×月份切片：152 片已完成、合出 199 条；248 片在跑、已出 803 条）：**每片实得 1.3–3.2 条，
 所以 Jan→今的全量是约 1,800 条的量级，不是 2.3 万条**。为什么每刊每月只有这几条，本轮没有查，
 不要把这句当结论用——`archive_ingest.seen` 存在的意义就是把估算换成实测数，现在换了。
-按实测筛速，全部档案材料是**一天到两天**的账而不是二十天的账。要再快才轮到那道站长题：抬 `agnes-cn` 的
-`per_minute`（抬之前先按分钟数成功/失败，别拿并发压测当依据——0053/0054 已经踩过一次）。实时与档案共用
+按实测筛速，全部档案材料的**判定成本**是一天到两天的账而不是二十天的账——但这句话只说门口能装多少，
+没说档案能分到多少：**分到 0**（2026-10-10 04:00 实测：`-1` 档压着 1,506 条、当天到 05:00 只被判定 3 条，
+而实时档常驻几十条，严格更低的档在 pg-boss 的 `priority DESC, created_on` 前永远轮空）。要动这个数只有两条路：
+抬 `agnes-cn` 的 `per_minute`（抬之前先按分钟数成功/失败，别拿并发压测当依据——0053/0054 已经踩过一次，
+本轮量出来是 9 次/分钟时 8.2 次被接受，已经贴着膝盖，抬它多半只是多收 429），
+或者开下面那把份额门。实时与档案共用
 同一个 service 的额度，所以现值仍取保守一侧：不把线上实时更新挤死。
 
 **报纸**：档案材料的 `timeline_at` 是它自己的出版日，所以它进**属于它那一天**的报纸；它的 `visible_after` 是入库当天，放开晚到那条分支就会让今晚的报纸塞满几年前的论文。`reports/compose.ts` 的 `candidates()` 因此把两种归属分开写死，两个方向都由 `tests/archive-paper-rule.test.ts` 上锁。整段区间的补刊由 `scripts/backfill-papers.ts` 出计划（默认不写库），它只做两件调度之外的事：按**日期正序**逐日 `composeDaily`，再补周报与月报。补历史期刊仍要**从旧到新**：`recentlyCovered("daily", key)` 只看**比它更早、且在 7 天之内**的期次用过的 fact key（`compose.ts:128-130`，是 7 天不是 7 期）。从旧到新重算，新的一期就会把刚重算过的旧期当"已报道过"而不去重；反过来先重算新的，旧期会重印新期已经发过的同一件事。周报与月报不走这条去重，顺序无所谓。`saveReport` 把旧版存进 `report_revisions`，所以重算有版本；补出的那一期 `issue_no` 为空（`nextIssueNo` 见到更大的 key 就返回 null），归档页显式标注。
@@ -480,6 +484,18 @@ node --env-file=.env scripts/backfill-papers.ts --from=2026-01-01 --to=2026-03-3
 抬一条档案进去就是从今天的报纸嘴里拿走一格，所以默认值取 0（关），要开由站长明确设一个数；
 `tests/archive-share.test.ts` 钉住"不设就不动""档满不补""让开时谁都不动"三条。手动跑一次同样的搬运是
 `rebalance-archive-queue.ts --promote=N`，它只搬一次、不续杯。
+
+**对端说"今天没了"就关门（第六十二轮）**：熔断器原来只分辨"敲得多快"，不分辨"对方是不是已经把这一天的额度收回去"。
+实测后果（生产 `receipt_attempts`）：`.com` 那把 key 的当日文本额度用尽之后，本站仍按 8 次/分钟往里发、对端每分钟答 1 次，
+10-09 一整天这类请求 2,386 次（占当天全部请求三分之一），10-10 到 05:00 又积 327 次。每一次都占一个 worker 时段、
+并让那篇文章的 8 级重试阶梯往下掉一格。现在 `checkBudget` 里多一条与三个窗并列的判据：**60 分钟窗内 ≥3 次**
+`error ILIKE '%quota%'` 的失败 → 该 service 关门，等的人拿到 `BudgetExceededError("peer-quota")`（900 秒），
+走的是与 `per_minute` 触顶同一支——不消耗 `processing_attempts`。门是自动开的：判据是从 `receipt_attempts`
+现算的，没有状态位需要谁清，证据滚出 60 分钟就放行。**速率型的 429 故意不关门**：同一天的实测是 9 次/分钟仍有
+8.2 次被接受（15.4% 被拒），冷却它只会少产出；中文那条答复文案里没有 "quota" 一词，所以它天然走原来的阶梯——
+这个分野是照两条真实文案定的，对端改写文案时会退化成"按速率型处理"，即与本轮改动前同一种行为，不会更糟。
+运维从哪里看出门是为什么关的：这句话就在 `articles.processing_error` 和后台 runs 页里（`Budget for llm exhausted (peer-quota)`）。
+`tests/budget-peer-quota.test.ts` 三个方向都验过红：该关的关、速率型不该关、窗口滚过去自己开。
 
 **回滚**：档案材料一律带 `backfill_reason = 'archive'` 且 `article_discoveries.via = 'import'`，一条 SQL 能整批摘掉，同时清 `archive_ingest`；期刊回到 `report_revisions` 的上一版。删之前先 `pg_dump`，与 `deploy/geohot/rollback.sh` 的约定一致。
 

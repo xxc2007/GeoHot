@@ -85,27 +85,50 @@ async function checkBudget(tx: Db, service: string): Promise<void> {
   const [budget] = await tx<{ per_minute: number; per_hour: number; per_day: number }[]>`
     SELECT per_minute, per_hour, per_day FROM budgets WHERE service = ${service}`;
   if (!budget) return; // default rows come with the migrations; a service an operator removed is unlimited
+  const peerFull = peerQuotaRefusal();
+  const unbilled = unbilledAttempt();
   // 三个窗保护的是两件不同的事，所以计数口径也不同：
   // · 分钟窗是**速率**——只要真打出去了就算，429 也算（对方确实在被我们敲）。
   // · 小时/天窗是**花费**——只有对方真答了（`usage` 有值）、或者结果说不清（`unknown`，可能已计费）、
   //   或还在飞（`pending`）才算。连不上、DNS 失败、被 429 挡回来都不产生账单。
   // 第三十四轮评审指出的后果：原先三个窗都数全部尝试，一次代理故障（每篇 5 步 × 重试 8 次）
   // 就能把当天 6000 次的额度烧光而一条中文稿都不产出——那正是"全站停止更新"的形状。
-  const unbilled = unbilledAttempt();
-  const [counts] = await tx<{ minute: number; hour: number; day: number }[]>`
+  const [counts] = await tx<{ minute: number; hour: number; day: number; peer_full: number }[]>`
     SELECT
       count(*) FILTER (WHERE started_at > now() - interval '1 minute') AS minute,
       count(*) FILTER (WHERE started_at > now() - interval '1 hour' AND NOT ${unbilled}) AS hour,
-      count(*) FILTER (WHERE NOT ${unbilled}) AS day
+      count(*) FILTER (WHERE NOT ${unbilled}) AS day,
+      count(*) FILTER (WHERE ${peerFull} AND started_at > now() - interval '60 minutes') AS peer_full
     FROM receipt_attempts
     WHERE service = ${service} AND origin = 'live' AND started_at > now() - interval '1 day'`;
   const c = counts!;
+  // 对端说"这一天的额度已经用完了"，和"你敲得太快"是两件不同的事，只有前者值得关门。
+  // 实测 2026-10-10（生产 `receipt_attempts`）：`.com` 那把 key 的当日文本额度用尽之后，熔断器仍按
+  // 8 次/分钟放行，对端每分钟只答 1 次——21:30 起连续每小时约 480 次请求里 420 次注定失败，
+  // 当天这类请求 2,386 次（前一日 360、当日到 05:00 已 327）。关门之后同一小时只会再探 3 次。
+  // 反过来，速率型的 429 不能关门：同一天的实测里 9 次/分钟仍有 8.2 次被接受（15.4% 拒绝），
+  // 冷却它只会让真产出的请求更少。判据只用文案里的 "quota" 一词——中文那条速率答复
+  // （"您已达到免费用户的 API 速率限制"）不含它，所以走原来的重试阶梯。
+  // 门是自动开的：证据滚出 60 分钟窗口它就放行，不需要谁去清一个状态位。
+  if (c.peer_full >= PEER_QUOTA_STRIKES) throw new BudgetExceededError(service, "peer-quota", PEER_QUOTA_RETRY_SECONDS);
   if (budget.per_minute <= 0 || budget.per_hour <= 0 || budget.per_day <= 0) {
     throw new BudgetExceededError(service, "stopped", 3600);
   }
   if (c.minute >= budget.per_minute) throw new BudgetExceededError(service, "minute", 60);
   if (c.hour >= budget.per_hour) throw new BudgetExceededError(service, "hour", 600);
   if (c.day >= budget.per_day) throw new BudgetExceededError(service, "day", 3600);
+}
+
+/** Strikes needed inside the window before a service stops being sent to, and how long a waiter is told to wait. */
+const PEER_QUOTA_STRIKES = 3;
+const PEER_QUOTA_RETRY_SECONDS = 900;
+
+/**
+ * 一次"对端这一天的额度已经用完"的拒绝。和 `unbilledAttempt` 一样只有定义处，
+ * 因为熔断器、后台的"为什么这条门没开"和告警要说的是同一件事。
+ */
+export function peerQuotaRefusal() {
+  return sql`(status = 'failed' AND error ILIKE '%quota%')`;
 }
 
 /**
