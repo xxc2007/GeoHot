@@ -3189,3 +3189,63 @@ Pensoft 三条我按"文章一般在 /articles/ 下"的语感写了复数，对�
 HAL 有 3/40 条 `<description>` 就是 `<![CDATA[[...]]]>`，于是 `excerpt` 存成 5 个字的 "[...]"；
 库里 40 条 `body_status` 全 ok、正文最短 389 字，所以进模型的不是占位符。
 判据是**问"正文列有没有拿到东西"**，而不是看到短摘要就动手改采集器。
+
+## 第五十九轮（2026-10-09 深夜）：条目页「返回精选」404，与全站功能面核查
+
+**站长实测报的那一单是真的，而它不是数据问题。** 首页 →「政治地理」→ 点开一条 →「返回精选」，落在
+`/geohot/?category=geopolitics` 的 404 页上，地址栏正确、页面说"你访问的页面不存在"。
+`/api/site/timeline?category=geopolitics` 实测 200 且 `cards=4`，`/?category=geopolitics` 直接刷新 200——
+**只有客户端跳转这条路会死**。
+
+根因是 `root.tsx:44` 早就写下来的那条：React Router 在 basename 部署下把 `to="/"` 解析成**裸的 `/geohot`**
+（basename 之外没有尾斜杠），它自己的匹配器认不出这个串；root.tsx 的历史补丁只把**地址栏**改成
+`/geohot/`，路由匹配已经按裸串算过了，于是渲染 404 路由。同一个行为此前已经出过三次事
+（首页 tab、报告 tab、首页筛选 chip），每次都只在调用点补一次——**`backPlace()` 服务的那两处
+（条目页与事件页的返回链接）是第四个，没人管**。它把来路 `/geohot/?category=…` 折成 `to="/?category=…"`，
+正好就是那个解不开的串。
+
+修法沿用 chip 的先例：`backPlace()` 多返回一个 `hard`（只有首页那一格为真），两处页面在 `hard` 时
+交回浏览器真导航（`publicPath` 出去是 `/geohot/?…`，SSR 实测 200），其余路径仍走 `<Link>`。
+判不出去处那条兜底（`selected ? "/" : "/all"`）同样带 `hard`：直接开条目页再点返回是同一个坑。
+
+**同一晚的另一半在 nginx**：`location = /geohot { return 308 https://$host/geohot/; }` 把目标写死了，
+于是 `/geohot?category=geopolitics`（手打、分享、任何没带尾斜杠的筛选链接）被规范化成**丢掉查询串**的
+`/geohot/`。改成 `$is_args$args` 后实测 `location: …/geohot/?category=geopolitics`。
+线上已改并 reload，备份 `sites-available/xxc2007.me.bak-geohot-args-20261009-225501`，`nginx -t` 通过。
+**主站没被动过**：改前后 `https://xxc2007.me/` 都是 20817 字节；它的 sha256 每请求都不同，
+因为 Cloudflare 的邮箱混淆串是每次重写、编码进 href 的——**这条路径的哈希不是可用基线**，
+要比就得先归一化（`D:\个人展示网站\tools\normalize-cf.mjs` 那一份）。
+
+**为什么用测试而不是点击来收尾**：这类缺陷只有点击才会露。新增
+`tests/root-link-navigation.test.ts` 扫全仓 `<Link to="/">`，不带 `reloadDocument` 就红
+（扫描要先剔掉整行注释，否则它会去举报解释这个坑的那句注释——本文件写的时候就这么误报过一次），
+并断言 item/story 两处确实读了 `hard`；`tests/back-place.test.ts` 钉住判定本身
+（首页为 hard、其余不 hard、站外来路不成链接、剥前缀的纯函数规则）。`back-place.ts` 此前一行测试没有，
+所以这颗坑才会反复踩。为了让根测试套件能 import 这条链，`public-path.ts` 的 `import.meta.env`
+改成本地类型读法（不为一个纯函数把 `vite/client` 塞进 tests 的 tsconfig）；
+构建产物复核过：bundle 里 `/geohot/` 264 次、无残留 `import.meta.env`，前缀照旧烧得进去。
+
+### 全站功能面核查的结果（生产公网，逐条实测）
+
+- **读者端 16 个页面**（首页 + 七个分类筛选、`/all` 七个分类与翻页与相关度排序与搜索、`/hot`、`/topics`、
+  `/daily`、`/daily/archive`、`/weekly`、`/monthly`、`/more`、`/about`、`/changelog`、`/feedback`、
+  `/agent`、`/terms`、`/privacy`、`/starred`）全部 200，无一渲染成 404 块；
+  未知分类 `/?category=nonexistent` 落回未筛选首页（这是 `Filters.tsx` 里写明的既有口径，不是新坑）。
+- **链接图**：上述页面里 229 条站内链接逐条取回，只有两处误报——`/changelog` 命中"暂时无法加载"是
+  更新日志正文在描述一次旧修复，`/api/mcp` 返回 405 是它只收 POST。再从 35 个条目页/事件页爬 93 条，
+  **零问题**。
+- **空态都是诚实的**：`/all?tag=<没用过的标签>` 说"这个筛选下暂时没有内容"；`/monthly` 说
+  "第一期发布后会出现在这里"；`/starred`、`/topics` 各说各的来由。没有一处把"没有"写成"坏了"。
+- **机器出口**：`/api/v1/items`、`/hot-topics`、`/dailies`、`/dailies/latest`、`/weeklies/latest`、
+  `/selected/snapshot` 全 200；`/monthlies/latest` 404 与月报页口径一致（还没有第一期）；
+  `/selected/changes` 409 是**契约要求**（"Missing or invalid v1 cursor; fetch snapshot first"）。
+  openapi / 四个 RSS / sitemap / robots / manifest / og 图 / 图标全 200。
+- **交互**：分类 chip、`/all` 翻页（1…50 下一页，翻到第 2 页条目确实换了）、`/` 聚焦搜索框、
+  主题三档（深色/跟随系统/浅色）、条目页收藏开关（`aria-pressed` 翻 true 且写进
+  `localStorage.aihot-starred-items`）都通；390px 宽下底部四格 tab 可见、**无横向溢出**、
+  控制台**零 error / 零 warning**。
+- **权限面**：`/admin/login` 正常渲染，未登录访问 `/api/admin/sources` 返回 401。
+  后台内部页面没有站长凭据，本轮**没有**逐页登录验证——这一条留给站长自己点。
+- **仍然在跑的账**：分析队列 `processing_state='new'` 2803 条（第五十八轮那批首导占了其中约一半），
+  已分析 10195 条。frontier 板块 76 条已发布、其中 5 条已入选。**前沿板块是陆续出全的，不是一上线就满**，
+  瓶颈仍是 `budgets.llm.per_hour=420` 那一条，站长拍板之前不宜再加信源。

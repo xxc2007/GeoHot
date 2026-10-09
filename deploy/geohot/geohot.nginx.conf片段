@@ -53,7 +53,11 @@
 #   （应用对两种写法返回同一份页面，只是客户端路由会踩上面那个坑），要么把目标改成随连接协议走并让
 #   上游真的带 X-Forwarded-Proto —— 别把这两条混在一个 location 里，改完必须 nginx -t 再 reload。
 location = /geohot {
-    return 308 https://$host/geohot/;
+    # `$is_args$args` 不是可有可无的：这一条原来是 `return 308 https://$host/geohot/;`，
+    # 于是 `/geohot?category=geopolitics`（手打、分享、或任何没带尾斜杠的筛选链接）会被规范化成
+    # **丢掉查询串**的 `/geohot/`——读者从「政治地理」那一格分享出去的链接，打开变成了未筛选的首页。
+    # 2026-10-09 实测：不带这段时 `curl /geohot?category=geopolitics` 的 Location 是 `.../geohot/`。
+    return 308 https://$host/geohot/$is_args$args;
 }
 
 # 前缀匹配用 ^~，且**不剥** /geohot：

@@ -7,6 +7,7 @@ import { ApiRedirect, loadOr404 } from "../lib/api.server";
 import { breadcrumbLd, pageMeta, titled } from "../lib/seo";
 import { beijingDate, beijingTime, monthDayTime, relativeTime, shortSourceName } from "../lib/format";
 import { backPlace } from "../lib/back-place";
+import { publicPath } from "../lib/public-path";
 import { getTimelineOrder, setTimelineOrder, type TimelineOrder } from "../lib/local-state";
 import { HeatChart } from "../features/story/HeatChart";
 import { Badge, SelectedBadge } from "../components/ui/Badge";
@@ -167,7 +168,7 @@ type Filter = "all" | "official" | "selected";
  * 都判不出就还是热点榜。`from` 读自 `useSearchParams`，服务端与水合后的第一帧是同一个值；
  * `referrer` 服务端读不到，只在 effect 里读，所以它最多晚一帧把文案改准，不会让两端首帧不同。
  */
-function useBackPlace(): { name: string; to: string } {
+function useBackPlace(): { name: string; to: string; hard: boolean } {
   const [params] = useSearchParams();
   const from = params.get("from");
   const [referred, setReferred] = useState<string | null>(null);
@@ -180,7 +181,7 @@ function useBackPlace(): { name: string; to: string } {
       // 直接打开，或来路解析不出：留在热点榜
     }
   }, [from]);
-  return backPlace(from) ?? backPlace(referred) ?? { name: "热点榜", to: "/hot" };
+  return backPlace(from) ?? backPlace(referred) ?? { name: "热点榜", to: "/hot", hard: false };
 }
 
 export default function StoryPage() {
@@ -244,9 +245,17 @@ export default function StoryPage() {
   return (
     <div className="mx-auto max-w-[var(--page-max-reading)] pb-10">
       <nav aria-label="位置" className="flex items-center gap-2.5 pb-4 pt-5 text-[12px] text-ink-4 lg:pb-5 lg:pt-4">
-        <Link to={back.to} className="inline-flex items-center gap-1.5 whitespace-nowrap transition-colors hover:text-ink">
-          <IconArrowLeft size={15} /> {back.name}
-        </Link>
+        {back.hard ? (
+          // 来路是首页：`<Link to="/">` 在 basename 下会解成裸 `/geohot`，客户端匹配器认不出，
+          // 读者看到 404 而地址栏是对的。这一格交回浏览器做真导航（与首页筛选 chip 同一个处理）。
+          <a href={publicPath(back.to)} className="inline-flex items-center gap-1.5 whitespace-nowrap transition-colors hover:text-ink">
+            <IconArrowLeft size={15} /> {back.name}
+          </a>
+        ) : (
+          <Link to={back.to} className="inline-flex items-center gap-1.5 whitespace-nowrap transition-colors hover:text-ink">
+            <IconArrowLeft size={15} /> {back.name}
+          </Link>
+        )}
         <span className="h-3 w-px bg-line-strong" aria-hidden="true" />
         <span>事件详情</span>
       </nav>

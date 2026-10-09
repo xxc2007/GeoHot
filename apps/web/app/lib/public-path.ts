@@ -7,7 +7,11 @@ import { toAppPath, toPublicPath } from "@aihot/contracts/http-policy";
 
 /** `/geohot` behind a prefix, `""` at the domain root. */
 export const basePath = (() => {
-  const base = import.meta.env.BASE_URL || "/";
+  // Typed locally rather than via `vite/client`'s ambient `ImportMetaEnv`: this module is also loaded by
+  // the root test suite (through `lib/back-place.ts`), where there is no Vite and no Vite tsconfig.
+  // A Vite build replaces `import.meta.env` with a literal object, so the value it bakes in is unchanged.
+  const env = (import.meta as unknown as { env?: { BASE_URL?: string } }).env;
+  const base = env?.BASE_URL || "/";
   return base === "/" ? "" : base.replace(/\/+$/, "");
 })();
 
