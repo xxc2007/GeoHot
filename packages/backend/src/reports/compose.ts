@@ -95,7 +95,9 @@ export async function candidates(start: Date, end: Date): Promise<Candidate[]> {
         AND (
           -- An archive item is filed under its own day and under no other: it was released months after it
           -- appeared, so the release-day branch below would otherwise put 2026-01 papers into today's issue.
-          (ar.backfill_reason = 'archive' AND p.timeline_at >= ${start} AND p.timeline_at < ${end})
+          -- published_at IS NOT NULL is part of that, not decoration: with no stated date the timeline rule
+          -- falls back to the discovery moment, and an item flagged 'archive' would then be *today's* news.
+          (ar.backfill_reason = 'archive' AND p.published_at IS NOT NULL AND p.timeline_at >= ${start} AND p.timeline_at < ${end})
           OR (ar.backfill_reason IS DISTINCT FROM 'archive' AND (
             (p.visible_after <= p.timeline_at AND p.timeline_at >= ${start} AND p.timeline_at < ${end})
             OR (p.visible_after > p.timeline_at AND p.visible_after >= ${start} AND p.visible_after < ${end})
@@ -276,7 +278,7 @@ export async function composeDaily(date: string, reason = "scheduled"): Promise<
     items: perSection.get(label)!.map(({ category: _c, factKey: _f, ...entry }) => entry),
   }));
   const ordered = sections.flatMap((s) => s.items).sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
-  const model = await modelFor("report", `report:daily:${date}`);
+  const model = await modelFor("report", date);
   const lead = ordered.length ? await writeLead("daily", date, ordered, model) : null;
   const content = {
     date,
@@ -349,7 +351,7 @@ async function composePeriod(kind: "weekly" | "monthly", key: string, startDate:
   let overview = "";
   let receiptId: number | null = null;
   let proseRule: string | null = null;
-  const model = await modelFor("report", `report:${kind}:${key}`);
+  const model = await modelFor("report", `${kind}:${key}`);
   if (top.length) {
     const res = await chatJson({
       model, purpose: `report_${kind}`, subject: `report:${kind}:${key}`, promptVersion: REPORT_VERSION,

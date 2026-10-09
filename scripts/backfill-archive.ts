@@ -15,10 +15,13 @@
 //   node --env-file=.env scripts/backfill-archive.ts --from=2026-01 --to=2026-03 --apply \
 //     --database-url=postgres://…  --max-items=2000 --per-month=60
 //
-// Nothing is written without --apply. A Ctrl-C or a crash costs one slice, not the run: `archive_ingest`
-// keeps the Crossref cursor and the counts, so the next start resumes where the pages stopped.
+// Nothing is written without --apply. The ledger keeps the Crossref cursor **after every page**, because the
+// useful definition of "resumable" is that a kill -9 costs at most one page, not one slice: the alternative
+// writes the cursor only when the loop ends, so any crash, timeout or Ctrl-C restarts the month from zero and
+// re-presents work the pipeline has already been paid for.
 import { parseArgs } from "node:util";
 import { closeDb, sql } from "@aihot/backend/db";
+import { identityKeyForUrl } from "@aihot/backend/lib/url";
 import { upsertMaterial } from "@aihot/backend/content/materials";
 import { queueProcessing } from "@aihot/backend/jobs/content";
 import { looksZh } from "@aihot/backend/editorial/writing";
@@ -49,14 +52,13 @@ const PER_PAGE = Math.min(500, Math.max(1, Number(values["per-page"])));
 const SLEEP = Math.max(0, Number(values.sleep));
 const onlyIds = values.source!.split(",").map((s) => s.trim()).filter(Boolean);
 
-/** [fromMonth, toMonth] as calendar months. */
 function months(): string[] {
   const out: string[] = [];
   let [y, m] = fromMonth.split("-").map(Number);
-  const end = toMonth.split("-").map(Number);
+  const [ey, em] = toMonth.split("-").map(Number);
   for (let guard = 0; guard < 240; guard++) {
     out.push(`${String(y).padStart(4, "0")}-${String(m).padStart(2, "0")}`);
-    if (y === end[0] && m === end[1]) break;
+    if (y === ey && m === em) break;
     if (++m > 12) { m = 1; y++; }
   }
   return out;
@@ -83,62 +85,85 @@ interface Work {
 function plainText(xml: string): string {
   return xml
     .replace(/<[^>]+>/g, " ")
-    .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#(\d+);/g, (_, d) => String.fromCharCode(Number(d)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(Number(d)))
+    .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&")
     .replace(/\s+/g, " ")
     .trim();
 }
 
 /**
- * A full date or none. Crossref often states only a year or a year-month for online-first papers, and
- * inventing a day would put a date on the reader's page that the publisher never claimed — so those records
- * are counted and skipped instead of guessed.
+ * A date the publisher actually stated, or none. Two things are refused here, and both are about honesty
+ * rather than tidiness:
+ *  - year-only or year-month records: a day would be invented, and the reader sees it as the paper's date;
+ *  - impossible days (2026-04-31, month 13). `new Date(Date.UTC(…))` silently *rolls* those into the next
+ *    month, and a rolled date past today makes decideTimeline drop publishedAt altogether — which leaves
+ *    timeline_at at the discovery moment, i.e. an "archive" item that surfaces in today's paper.
  */
-function fullDate(w: Work): Date | null {
-  for (const part of [w.published?.["date-parts"], w.issued?.["date-parts"]]) {
-    const d = part?.[0];
-    if (d && d.length >= 3 && d[0] > 1900) {
-      const date = new Date(Date.UTC(d[0], d[1] - 1, d[2]));
-      if (Number.isFinite(date.getTime())) return date;
-    }
+function statedDate(w: Work): Date | null {
+  for (const parts of [w.published?.["date-parts"], w.issued?.["date-parts"]]) {
+    const [y, mo, d] = parts?.[0] ?? [];
+    if (!y || !mo || !d || y < 1900 || mo < 1 || mo > 12) continue;
+    const lastDay = new Date(Date.UTC(y, mo, 0)).getUTCDate();
+    if (d < 1 || d > lastDay) continue;
+    const date = new Date(Date.UTC(y, mo - 1, d, 12));
+    if (Number.isFinite(date.getTime())) return date;
   }
   return null;
 }
 
-async function page(url: string): Promise<{ items: Work[]; next: string | null; total: number } | null> {
-  const res = await guardedFetch(url, { headers: { accept: "application/json", "user-agent": DEFAULT_UA }, timeoutMs: 45_000 });
-  if (res.status === 404 || res.status === 400) return { items: [], next: null, total: 0 };
+/** `null` means "do not advance this slice": an error, a timeout or anything we cannot read. */
+async function page(url: string): Promise<{ items: Work[]; next: string | null } | null> {
+  let res;
+  try {
+    res = await guardedFetch(url, { headers: { accept: "application/json", "user-agent": DEFAULT_UA }, timeoutMs: 45_000 });
+  } catch (error) {
+    console.error(`  crossref request failed: ${(error as Error).name} ${(error as Error).message?.slice(0, 80)}`);
+    return null;
+  }
   if (res.status === 429 || res.status >= 500) {
     console.error(`  crossref ${res.status}, backing off`);
     await new Promise((r) => setTimeout(r, 15_000));
     return null;
   }
+  // A 400 is Crossref refusing the query, not an empty month. Reading it as "nothing more here" would mark
+  // the slice done and retire it from every future run.
   if (res.status !== 200) {
-    console.error(`  crossref HTTP ${res.status}`);
+    console.error(`  crossref HTTP ${res.status} — 这片保持 pending`);
     return null;
   }
-  const message = (JSON.parse(res.text()) as { message?: { items?: Work[]; "next-cursor"?: string; total?: number } }).message;
-  return { items: message?.items ?? [], next: message?.["next-cursor"] || null, total: message?.total ?? 0 };
+  let message: { items?: Work[]; "next-cursor"?: string } | undefined;
+  try {
+    message = (JSON.parse(res.text()) as { message?: typeof message }).message;
+  } catch {
+    console.error("  crossref 返回的不是 JSON");
+    return null;
+  }
+  return { items: message?.items ?? [], next: message?.["next-cursor"] ?? null };
 }
 
 const sources = (await sql<{ id: string; name: string; config: Record<string, unknown> }[]>`
   SELECT id, name, config FROM sources
   WHERE enabled AND coalesce(config->>'issn', '') <> ''
   ORDER BY id`).filter((s) => !onlyIds.length || onlyIds.includes(s.id));
-// Crossref's polite pool wants a contact address; without one the requests still work, just in the shared
-// anonymous pool. It is the operator's address to give, so it comes from the environment and is never invented.
-const mailto = process.env.CROSSREF_MAILTO?.trim();
 if (sources.length === 0) {
   console.error("没有一条信源带 config.issn — 先跑 scripts/archive-issn.ts 并把结果并进 industry/sources.json，再同步进库。");
   await closeDb();
   process.exit(1);
 }
+// Crossref's polite pool wants a contact address; without one the requests still work, just in the shared
+// anonymous pool. It is the operator's address to give, so it comes from the environment and is never invented.
+const mailto = process.env.CROSSREF_MAILTO?.trim();
 console.log(`${sources.length} 条带 ISSN 的信源，月份 ${fromMonth}..${toMonth}，本轮上限 ${MAX_ITEMS} 条${values.apply ? "" : "（DRY-RUN：不写库）"}`);
 
 let stored = 0;
-let seen = 0;
-let skipped = 0;
+let judged = 0;
+let noDate = 0;
+let thin = 0;
+let duplicate = 0;
 
 for (const month of months()) {
+  if (stored >= MAX_ITEMS) break;
   const { start, end } = sliceRange(month);
   for (const source of sources) {
     if (stored >= MAX_ITEMS) break;
@@ -146,49 +171,65 @@ for (const month of months()) {
     const [ledger] = await sql<{ status: string; cursor: string | null }[]>`
       SELECT status, cursor FROM archive_ingest WHERE source_id = ${source.id} AND month = ${month}`;
     if (ledger?.status === "done") continue;
-
     let cursor = ledger?.cursor ?? "*";
     let localSeen = 0;
     let localNew = 0;
-    let noDate = 0;
     if (values.apply) {
-      await sql`INSERT INTO archive_ingest (source_id, month, status, updated_at) VALUES (${source.id}, ${month}, 'running', now())
+      await sql`INSERT INTO archive_ingest (source_id, month, cursor, status, updated_at) VALUES (${source.id}, ${month}, ${cursor === "*" ? null : cursor}, 'running', now())
                 ON CONFLICT (source_id, month) DO UPDATE SET status = 'running', updated_at = now()`;
     }
     console.log(`${source.id} ${month} issn=${issn}${cursor !== "*" ? " (续)" : ""}`);
-    let pages = 0;
-    while (cursor && localSeen < PER_MONTH && stored < MAX_ITEMS && pages++ < 12) {
+    // stopped_on_error keeps "no more pages" apart from "we could not read this page"; only the first one
+    // may mark a slice done.
+    let stoppedOnError = false;
+    for (let pages = 0; cursor && localSeen < PER_MONTH && stored < MAX_ITEMS && pages < 12; pages++) {
       const url = `https://api.crossref.org/works?rows=${PER_PAGE}&cursor=${encodeURIComponent(cursor)}`
         + `&filter=type:journal-article,issn:${issn},from-pub-date:${start},until-pub-date:${end}`
-        + `&select=DOI,title,abstract,URL,author,published,issued${mailto ? `&mailto=${encodeURIComponent(mailto)}` : ""}`;
+        + `&select=DOI,title,container-title,abstract,URL,author,published,issued${mailto ? `&mailto=${encodeURIComponent(mailto)}` : ""}`;
       const res = await page(url);
-      if (!res) break;
+      if (!res) { stoppedOnError = true; break; }
       if (res.items.length === 0) { cursor = ""; break; }
+      // A page without a next cursor is a Crossref answer we cannot resume from, not an exhausted slice.
+      const next = res.next;
+      if (!next && res.items.length >= PER_PAGE) {
+        console.error("  这一页没有 next-cursor，停在原地而不是判它跑完");
+        stoppedOnError = true;
+        break;
+      }
       for (const w of res.items) {
         if (localSeen >= PER_MONTH || stored >= MAX_ITEMS) break;
         localSeen++;
         const title = (w.title?.[0] ?? "").trim();
-        const at = fullDate(w);
-        if (!title || !at) { noDate++; skipped++; continue; }
+        const at = statedDate(w);
+        if (!title || !at) { noDate++; continue; }
         const body = w.abstract ? plainText(w.abstract) : "";
-        if (body.length < 80) { skipped++; continue; } // No abstract: there is nothing for the editors to judge.
-        seen++;
+        // An abstract under ~80 characters is a heading, not something an editor can judge; those records
+        // stay out rather than being written up from a title.
+        if (body.length < 80) { thin++; continue; }
+        judged++;
+        // A paper this journal already sent through its own feed has a URL identity, not a `doi:` one, so
+        // upsertMaterial would not see it as the same article. Check the URL form first and skip: the live
+        // record is the one with the full text.
+        const urlKey = identityKeyForUrl(w.URL || `https://doi.org/${w.DOI}`);
+        if (urlKey) {
+          const [twin] = await sql<{ id: string }[]>`SELECT id FROM articles WHERE identity_key = ${urlKey}`;
+          if (twin) { duplicate++; continue; }
+        }
         if (values.apply) {
           const first = w.author?.[0];
-          const author = first?.family ?? first?.name ?? null;
           const { articleId, created } = await upsertMaterial({
             sourceId: source.id,
             url: w.URL || `https://doi.org/${w.DOI}`,
             title,
             identityKey: `doi:${w.DOI.toLowerCase()}`,
-            author,
+            author: first?.family ?? first?.name ?? null,
             language: looksZh(title) ? "zh" : "en",
             publishedAt: at,
             bodyText: body,
             bodyStatus: "ok",
             via: "import",
             backfill: "archive",
-            raw: { crossref: { doi: w.DOI, container: w["container-title"]?.[0] ?? null } },
+            raw: { _geohot: { crossref: { doi: w.DOI, container: w["container-title"]?.[0] ?? null } } },
           });
           if (created) {
             stored++;
@@ -200,19 +241,24 @@ for (const month of months()) {
           localNew++;
         }
       }
-      cursor = res.next ?? "";
+      cursor = next ?? "";
+      // Persist after every page: a kill -9 costs this page, not the month.
+      if (values.apply) {
+        await sql`UPDATE archive_ingest SET cursor = ${cursor || null}, seen = ${localSeen}, items = ${localNew}, updated_at = now()
+                  WHERE source_id = ${source.id} AND month = ${month}`;
+      }
       if (SLEEP) await new Promise((r) => setTimeout(r, SLEEP));
     }
     if (!values.apply) continue;
-    const finished = !cursor;
-    await sql`UPDATE archive_ingest SET status = ${finished ? "done" : "pending"}, cursor = ${finished ? null : cursor},
-              seen = seen + ${localSeen}, items = items + ${localNew},
-              note = ${`no-date=${noDate}`}, updated_at = now()
+    const finished = !cursor && !stoppedOnError;
+    const note = `no-date=${noDate} thin=${thin} dup=${duplicate}`;
+    await sql`UPDATE archive_ingest SET status = ${finished ? "done" : "pending"}, cursor = ${finished ? null : cursor || null},
+              note = ${note}, updated_at = now()
               WHERE source_id = ${source.id} AND month = ${month}`;
-    console.log(`  ${finished ? "done" : "停在游标"} 看了 ${localSeen} 条，入库 ${localNew} 条，无整日期 ${noDate} 条`);
+    console.log(`  ${finished ? "done" : "停在原地"} 看了 ${localSeen} 条，入库 ${localNew} 条`);
   }
-  if (stored >= MAX_ITEMS) console.log(`本轮到达上限 ${MAX_ITEMS} 条，剩下的下轮接着跑。`);
 }
 
-console.log(`${values.apply ? "已入库" : "DRY-RUN 将入库"} ${stored} 条（取到材料 ${seen} 条，跳过 ${skipped} 条）`);
+if (stored >= MAX_ITEMS) console.log(`本轮到达上限 ${MAX_ITEMS} 条，剩下的下轮接着跑。`);
+console.log(`${values.apply ? "已入库" : "DRY-RUN 将入库"} ${stored} 条（可判 ${judged} 条｜无整日期 ${noDate}｜摘要过短 ${thin}｜与实时重复 ${duplicate}）`);
 await closeDb();

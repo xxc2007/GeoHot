@@ -56,10 +56,10 @@ export const MODELS: Record<string, ModelSpec> = {
     get vision() { return process.env.AGNES_CN_VISION === "true"; },
   },
   // OpenCode Zen. The key offered on 2026-10-09 lists 82 models but answers exactly one: every `-free`
-  // tier returns 403 (not enabled on the account) and every paid model 402 (no balance). This entry is
-  // that one model, and it is registered `jsonMode: false` because it ignores `response_format` and
-  // answers in prose — so it can carry free-text capabilities (translation, digests) and must not be put
-  // in a pool for the structured calls.
+  // tier returns 403 (not enabled on the account) and every paid model 402 (no balance). This entry is that
+  // one model, registered `jsonMode: false` because it ignores `response_format` and answers in prose.
+  // Every step but 标题摘要 parses a JSON object, so in a pool it is dropped for the other ten and can only
+  // ever carry the summary step — `editorial/models.ts:membersFor` enforces that rather than hoping.
   "space-bunny-free": {
     key: "space-bunny-free", service: "opencode", model: "space-bunny-free",
     baseUrlEnv: "OPENCODE_BASE_URL", apiKeyEnv: "OPENCODE_API_KEY", jsonMode: false,

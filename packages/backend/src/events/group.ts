@@ -284,7 +284,7 @@ async function candidateViews(recalled: Recalled[]): Promise<CandidateView[]> {
 async function judgeBatch(articleId: string, query: ReportView, cands: CandidateView[]): Promise<{ verdicts: Map<number, Verdict>; receiptId: number }> {
   const subject = `article:${articleId}`;
   const res = await chatJson({
-    model: await modelFor("group", subject), purpose: "group_article", subject, promptVersion: RELATE_PROMPT_VERSION,
+    model: await modelFor("group", articleId), purpose: "group_article", subject, promptVersion: RELATE_PROMPT_VERSION,
     system: BATCH_SYSTEM, user: batchUser(query, cands), schema: BatchSchema, temperature: 0, maxTokens: 200 + 90 * cands.length,
   });
   return { verdicts: verdictsByFact(res.data.decisions, cands), receiptId: res.receiptId };
@@ -294,7 +294,7 @@ async function judgeBatch(articleId: string, query: ReportView, cands: Candidate
 async function confirmMerge(articleId: string, query: ReportView, cand: CandidateView): Promise<{ relation: Relation; receiptId: number }> {
   const subject = `article:${articleId}:fact:${cand.factId}`;
   const res = await chatJson({
-    model: await modelFor("groupReview", subject), purpose: "group_review", subject, promptVersion: RELATE_PROMPT_VERSION,
+    model: await modelFor("groupReview", `${articleId}:${cand.factId}`), purpose: "group_review", subject, promptVersion: RELATE_PROMPT_VERSION,
     system: PAIR_SYSTEM, user: pairUser(query, cand.report), schema: PairSchema, temperature: 0, maxTokens: 400,
   });
   return { relation: res.data.relation, receiptId: res.receiptId };
@@ -303,7 +303,7 @@ async function confirmMerge(articleId: string, query: ReportView, cand: Candidat
 async function judgeSignal(articleId: string, query: ReportView, cands: CandidateView[]): Promise<{ verdicts: Map<number, Verdict>; receiptId: number }> {
   const subject = `article:${articleId}`;
   const res = await chatJson({
-    model: await modelFor("group", subject), purpose: "group_signal", subject, promptVersion: RELATE_PROMPT_VERSION,
+    model: await modelFor("group", articleId), purpose: "group_signal", subject, promptVersion: RELATE_PROMPT_VERSION,
     system: SIGNAL_SYSTEM, user: batchUser(query, cands, "帖子"), schema: SignalSchema, temperature: 0, maxTokens: 150 + 60 * cands.length,
   });
   return { verdicts: verdictsByFact(res.data.decisions, cands), receiptId: res.receiptId };
@@ -465,7 +465,7 @@ async function storyRoot(storyId: number): Promise<StoryRoot | null> {
 async function judgeStories(capability: "group" | "groupReview", a: StoryRoot, b: StoryRoot): Promise<{ relation: Relation; confidence: number; difference: string; receiptId: number }> {
   const subject = `story:${a.storyId}:${b.storyId}`;
   const res = await chatJson({
-    model: await modelFor(capability, subject), purpose: capability === "group" ? "group_story" : "group_story_review", subject,
+    model: await modelFor(capability, `${a.storyId}:${b.storyId}`), purpose: capability === "group" ? "group_story" : "group_story_review", subject,
     promptVersion: RELATE_PROMPT_VERSION, system: PAIR_SYSTEM, user: pairUser(a.report, b.report), schema: PairSchema, temperature: 0, maxTokens: 400,
   });
   return { relation: res.data.relation, confidence: res.data.confidence, difference: res.data.difference, receiptId: res.receiptId };

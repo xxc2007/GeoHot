@@ -18,6 +18,7 @@ for (const name of Object.keys(process.env)) if ((/_MODEL$/.test(name) && name !
 const T = tag();
 const SOURCE = `test-model-pool-${T}`;
 const POOL = "default,agnes-3.0-flash-cn";
+const ANSWERED_BY: Record<string, string> = { default: "main-model", "agnes-3.0-flash-cn": "cn-model" };
 const seen: Array<{ model: string; system: string }> = [];
 const provider = await stub((_hit, req) => {
   const body = JSON.parse(req.body) as { model: string; messages: Array<{ role: string; content: unknown }> };
@@ -124,17 +125,39 @@ test("a pooled article is judged by one member, and the receipt names that membe
   assert.equal(receipt!.model, chosen, "the receipt records the model that actually answered");
 });
 
-test("two pooled articles can be split across the members", async () => {
-  const ids = [await analyzeOne(), await analyzeOne(), await analyzeOne(), await analyzeOne()];
-  const models = new Set<string>();
+test("each article is answered by the member its own id selects", async () => {
+  // A wiring check, not a restatement of pickFromPool: if a call site passes the wrong shard key — a subject
+  // carrying a revision, or nothing at all — the model that answered will not be the one the article id picks.
+  const ids = [await analyzeOne(), await analyzeOne(), await analyzeOne(), await analyzeOne(), await analyzeOne(), await analyzeOne()];
+  const answered = new Set<string>();
   for (const id of ids) {
     const rows = await sql<{ model: string }[]>`SELECT DISTINCT model FROM receipts WHERE subject LIKE ${`article:${id}@%`}`;
-    for (const r of rows) models.add(r.model);
+    assert.equal(rows.length, 1, `${id} should have been judged by exactly one member`);
+    const expected = ANSWERED_BY[await modelFor("prefilter", id)];
+    assert.equal(rows[0]!.model, expected, `${id} was judged by ${rows[0]!.model}, not by the member its id selects (${expected})`);
+    answered.add(rows[0]!.model);
   }
-  assert.equal(models.size >= 1, true, "every article got an answer");
-  // Which member wins is the hash, and four articles is far too few to demand both show up — the 400-id
-  // sample above is what proves the spread. Here we only check nothing escaped the pool.
-  for (const m of models) assert.ok(["main-model", "cn-model"].includes(m), `${m} is not in the pool`);
+  for (const model of answered) assert.ok(Object.values(ANSWERED_BY).includes(model), `${model} is not in the pool`);
+});
+
+test("a pool member that cannot serve is dropped instead of chosen and failed", async () => {
+  process.env.MODEL_POOL = `${POOL},space-bunny-free`;
+  invalidateModelCache();
+  // space-bunny-free has no OPENCODE_* here and ignores response_format besides. It must never be picked for a
+  // step that parses JSON, and the admin page must not show it as capacity.
+  for (let i = 0; i < 60; i++) assert.notEqual(await modelFor("digest", `article:${i}`), "space-bunny-free");
+  const sources = await modelSources();
+  assert.equal(sources.digest!.model, `${POOL},space-bunny-free`, "the configured string stays as configured");
+  assert.equal(sources.digest!.serving, POOL, "the members that can answer are shown separately");
+
+  // Names that are not models cannot become members — `constructor` and `__proto__` are truthy lookups on a
+  // plain object, and one of them reaching chatJson means a service of undefined, i.e. no circuit breaker.
+  process.env.MODEL_POOL = "default,no-such-model,constructor";
+  invalidateModelCache();
+  assert.equal(await modelFor("digest", "story:1"), "default", "an unknown name drops out");
+  assert.deepEqual(poolOf("constructor,__proto__,toString"), [], "prototype-chain names are not models");
+  delete process.env.MODEL_POOL;
+  invalidateModelCache();
 });
 
 test("MODEL_POOL sets every step at once, and a step's own variable still wins", async () => {
@@ -147,6 +170,9 @@ test("MODEL_POOL sets every step at once, and a step's own variable still wins",
     assert.ok(!chosen.includes(","), `${key} returned the pool string instead of one of its members (${chosen})`);
     assert.ok(["default", "agnes-3.0-flash-cn"].includes(chosen), `${key} chose ${chosen}, outside the pool`);
   }
+  const picked = new Set<string>();
+  for (let i = 0; i < 200; i++) picked.add(await modelFor("prefilter", `article:${i}`));
+  assert.equal(picked.size, 2, `MODEL_POOL through modelFor only ever chose ${[...picked].join(", ")}`);
   const sources = await modelSources();
   assert.equal(sources.score!.source, "env");
   assert.equal(sources.digest!.model, POOL, "a step with no variable of its own reports the pool as its source");

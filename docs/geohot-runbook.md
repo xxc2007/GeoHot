@@ -402,3 +402,39 @@ await a.end();"
 所以"8 个 `external` 源在站上不可见"不是坏了，是 `isolated` 的定义（`docs/manual.md` 第 7 节第 1 条）。要它们出现：后台 `/admin/sources/<id>` 改 `editorial`（触发 2.3 的重推导）→ 材料带正文进站 → 分析 → 才有精选与事件。
 
 改完之后还是"后台看得到、站上找不到"时，按顺序查三层：① 源的 `participation_mode`；② `publications.visibility`（`public` / `summary-only` / `withdrawn`，人工覆盖在 `/admin/content/<id>`；`summary-only` 只是不上列表与 feed，条目页、事件时间线与报纸引用都还在，只有 `withdrawn` 才是全站消失）；③ 预筛 `BLOCK` 的材料永远不进任何公开出口（`analyze.ts:343` 在预筛这一步就返回了，后面根本不走）。这三层都在 `packages/backend/src/publication/` 这一个读取层里落地，没有旁路。
+
+## 13. 档案回填：把覆盖从"最近几天"推到指定月份
+
+站点只有几天覆盖，根因不是采集频率，而是信源本身——RSS/Atom 只给最近十几条，任何日期窗口之外的内容都不在它们的应答里。所以要往回捞只能换一个**按出版日期检索**的登记库：Crossref。它按 ISSN + `from-pub-date`/`until-pub-date` 返回 DOI、标题、摘要、作者、出版日期，覆盖到位。两个日期参数必须拆开写——单一区间那种写法（`date-A,B`）实测 HTTP 400 `date-not-valid`（2026-10-09）。
+
+它给的是论文而不是新闻，所以档案材料只服务「前沿地理」与学术类板块，正文就是出版方登记的那段摘要，链接指向 DOI 落地页；没有全文、没有图。这是这条路固有的形状，不是坏了。
+
+```bash
+# ① 认定 ISSN：只读，输出 JSON。必须在采集机上跑（本机 DNS 与它不一致，见 docs/manual.md 第 3 节）
+sudo -u geohot bash -lc 'cd /opt/geohot/app && node --env-file=.env scripts/archive-issn.ts > /tmp/issn.json'
+# ② 只把 status=match 的行并进 industry/sources.json 的 config.issn，再按 2.3 那条 pack→DB 同步
+node --env-file=.env scripts/sync-source-config.ts --apply --database-url=…
+# ③ 回填，一个（信源，月份）一片；默认 DRY-RUN，写库要 --apply 且显式给 --database-url
+node --env-file=.env scripts/backfill-archive.ts --from=2026-01 --to=2026-03 --max-items=2000
+node --env-file=.env scripts/backfill-archive.ts --from=2026-01 --to=2026-03 --apply --max-items=2000
+```
+
+第①步只认两处都对得上的 ISSN：信源自己 feed 的刊名（或包里的拉丁名）与 Crossref 期刊库里**同名**记录的 ISSN。名字像但不是同一个刊一律不写（`ambiguous` / `no-match` 都留在报告里由人判）。这不是过分谨慎——ISSN 认错会把 A 刊的文章挂在 B 刊名下，读者侧完全看不出来。
+
+**续跑**：`archive_ingest`（迁移 0051）一行一个（信源，月份），游标存 Crossref 的深翻页 `next-cursor`，`seen`/`items` 区分"这个月真的没有"和"只取到一半"。Ctrl-C、重启、对方超时，代价是一片而不是整轮。身份键是 `doi:<doi>`（`articles.identity_key` 唯一），所以同一篇论文被两个源登记只会多一条 discovery，不会重复入库、不会重判一遍。
+
+**代价的实测口径（2026-10-09）**：
+
+| 量 | 值 | 怎么来的 |
+|---|---|---|
+| 每篇文章的模型调用 | 5.31 次 | 回执表按材料数折算（预筛 1 + 评分 2 + 理解/摘要 1 + 结构 1） |
+| 主端点 Agnes `.com` | 当日文字额度用尽后**每分钟 1 次** | 429 原文 "used up today's text quota … limited to 1 request every 1 minutes" |
+| 国内端点 Agnes `.cn` | 8 路并发 8/8、0 次 429，均值 10.9 s ⇒ ≈2,600 次/小时 | 采集机按本站真实请求形状压测（JSON 模式 + `reasoning_effort: high`） |
+| 熔断行 | `llm` 8/420/6000；`agnes-cn` 40/2400/30000 | 迁移 0050，按实测取贴边略留余量 |
+
+连续跑是 2,600 ÷ 5.31 ≈ 490 篇/小时，但 `per_day` 把一天压在 30,000 次 = 约 5,650 篇/天。要更快就抬 `agnes-cn` 的 `per_day`，抬之前先确认这一档免费额度扛得住长跑——眼下只有短程并发数据，没有 24 小时数据。现值取保守一侧：宁可回填慢，不把线上实时更新挤死（两者共用同一个 service 的额度）。
+
+**报纸**：档案材料的 `timeline_at` 是它自己的出版日，所以它进**属于它那一天**的报纸；它的 `visible_after` 是入库当天，放开晚到那条分支就会让今晚的报纸塞满几年前的论文。`reports/compose.ts` 的 `candidates()` 因此把两种归属分开写死，两个方向都由 `tests/archive-paper-rule.test.ts` 上锁。补历史期刊沿用第 7 节那条命令，但**必须从旧到新**：`recentlyCovered` 拿前 7 期用过的 fact key 去重，倒着跑会把后面的选题吃掉。`saveReport` 把旧版存进 `report_revisions`，所以重算有版本；补出的那一期 `issue_no` 为空（`nextIssueNo` 见到更大的 key 就返回 null），归档页显式标注。
+
+**回滚**：档案材料一律带 `backfill_reason = 'archive'` 且 `article_discoveries.via = 'import'`，一条 SQL 能整批摘掉，同时清 `archive_ingest`；期刊回到 `report_revisions` 的上一版。删之前先 `pg_dump`，与 `deploy/geohot/rollback.sh` 的约定一致。
+
