@@ -20,9 +20,9 @@ const OPTIONS = "CATEGORY_KEYS.map((k) => <option key={k} value={k}>{CATEGORY_LA
 
 test("选项表就是 taxonomy：每个 key 一个人话标签，key 不重复，标签不拿 key 顶替", () => {
   // 精确钉住条数：2026-10-03 把「地理信息技术」与「地理信息系统」并成一个区域后是九个，同一天晚些时候
-  // 站长要求删掉「野外与考察」与「观点与解读」，于是是七个（这里原来写的是 `>= 10`，合并当天就红了
-  // ——计数就该写成等于，红的时候才有人看一眼）。
-  assert.equal(CATEGORY_KEYS.length, 7, "本站七个分类（industry/taxonomy.ts）都该在列表里");
+  // 站长要求删掉「野外与考察」与「观点与解读」，于是是七个；2026-10-09 又删掉「考研」，现在是六个
+  // （这里原来写的是 `>= 10`，合并当天就红了——计数就该写成等于，红的时候才有人看一眼）。
+  assert.equal(CATEGORY_KEYS.length, 6, "本站六个分类（industry/taxonomy.ts）都该在列表里");
   assert.equal(new Set(CATEGORY_KEYS).size, CATEGORY_KEYS.length, "不能有重复的 key");
   assert.deepEqual(Object.keys(CATEGORY_LABELS).sort(), [...CATEGORY_KEYS].sort(), "每个 key 恰好一个标签");
   for (const key of CATEGORY_KEYS) {

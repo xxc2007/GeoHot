@@ -24,7 +24,7 @@ export const CHANNEL_KEYS = ["all", "news", "x"] as const;
 export type ChannelKey = (typeof CHANNEL_KEYS)[number];
 
 // `firstParty` was a channel key until 2026-10-04 晚: the owner asked for the「一手」chip to go ("有点多余了"),
-// and the row now renders 全部 + the seven categories only. The key is deliberately *removed* rather than just
+// and the row now renders 全部 + the six categories only. The key is deliberately *removed* rather than just
 // hidden: the filter row derives its chips from this list, and a key nothing offers is a key nothing can be
 // tested against. Old links carrying `?channel=firstParty` land on the unfiltered list (the routes coerce an
 // unrecognised channel to "all", `isChannelKey` above) — those pages stay reachable, they just stop filtering.

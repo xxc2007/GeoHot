@@ -865,34 +865,6 @@
       "enabled": true
     },
     {
-      "id": "cn-chsi-kydt",
-      "name": "研招网 政策与规定（教育部 · 中文）",
-      "kind": "web_list",
-      "config": {
-        "url": "https://yz.chsi.com.cn/kyzx/jybzc/",
-        "baseUrl": "https://yz.chsi.com.cn",
-        "itemSelector": "ul.news-list li",
-        "linkSelector": "div.title a",
-        "titleSelector": "div.title a",
-        "publishedAtSelector": "div.time",
-        "publishedAtRegex": "\\d{4}-\\d{2}-\\d{2}",
-        "ingestNoiseFilter": {
-          "requireTitleMarkers": ["专业目录", "学科", "学位", "考试大纲", "分数线", "管理规定", "招生工作", "复试", "调剂", "国家线", "研考", "研究生招生"],
-          "dropMarkersTitleOnly": ["MBA", "EMBA", "MEM", "MPA", "MPAcc", "研修", "在职", "培训班", "辅导", "网课", "招生启动", "招生面试", "招生简介", "招生说明", "招生宣讲", "招生简章", "招生咨询", "调剂信息", "报名优惠", "夏令营", "提前面试", "学费"]
-        }
-      },
-      "tier": "T1",
-      "first_party": false,
-      "owner_entity_id": null,
-      "participation_mode": "editorial",
-      "interval_minutes": 120,
-      "tags": ["官方", "中文", "考研", "政策"],
-      "site_fulltext": false,
-      "syndicate_fulltext": false,
-      "enabled": true,
-      "defaultCategory": "geoedu"
-    },
-    {
       "id": "intl-ogc-blog",
       "name": "OGC 开放地理空间联盟（新闻与标准动态）",
       "kind": "rss",
@@ -1705,11 +1677,10 @@
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 240,
-      "tags": ["官方", "中文", "教育", "政策", "考研"],
+      "tags": ["官方", "中文", "教育", "政策"],
       "site_fulltext": false,
       "syndicate_fulltext": false,
-      "enabled": true,
-      "defaultCategory": "geoedu"
+      "enabled": true
     },
     {
       "id": "cn-web-stdaily",

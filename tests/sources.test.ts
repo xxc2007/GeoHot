@@ -304,7 +304,7 @@ test("空白标记不等于匹配一切", () => {
 });
 
 test("a title whitelist keeps only what it names, and beats a drop marker", () => {
-  // 研招网政策栏目是全教育口径，只有带这些词的文章属于「考研」分类（2026-10-03 接入时定的口径）。
+  // 标题白名单机制的样本（2026-10-03 为研招网政策栏目定的口径；那个板块 2026-10-09 已删，机制与这条样本留着）。
   const source = {
     config: {
       ingestNoiseFilter: {
