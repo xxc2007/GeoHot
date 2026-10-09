@@ -679,6 +679,7 @@ Byrd 极地中心与 ECMWF 两条首次导入是 `found 0`——但直接在采�
 
 **包内现状**：274 条（第五十八轮 218 → 271，第六十一轮 +3 到 274），`rss` 229、`web_list` 26、
 `json_list` 3、`external` 8、`x_search` 8；启用 261；`defaultCategory=frontier` 35 条。
+（**这句是当时的数**；第六十二轮停掉两条重复/停更之后是 274 条、启用 259、可轮询 251。数一遍别抄：`node -e` 读 `industry/sources.json` 按 `enabled !== false` 数，别按文件行数猜。）
 
 **顺带修好的一条境内源**：`web-pric-news`（中国极地研究中心）连败 9 轮，错误写着 `no items matched (html)`。
 两层原因：① 它原指的首页改版后 HTML 里 `c_show_id_` 出现 **0 次**；② 更根本的是 `web-list.ts:75` 的
@@ -785,7 +786,7 @@ Byrd 极地中心与 ECMWF 两条首次导入是 `found 0`——但直接在采�
 
 
 **接入合计**：包内 Copernicus 家族共 41 条（本轮 +27），
-`rss` 229 条，261 条 `enabled=true`、可轮询的 253 条。
+`rss` 229 条，261 条 `enabled=true`、可轮询的 253 条（第六十二轮起：启用 259、可轮询 251——`rss` 仍是 229 条，少的是启用数）。
 
 ### 首导闸门看不见的那一类：允许前缀只匹配了一半的主机
 
