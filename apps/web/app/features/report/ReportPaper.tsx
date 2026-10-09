@@ -68,15 +68,20 @@ function Masthead({ report, index, now }: { report: ReportDetail; index: ReportN
         </div>
       </div>
 
-      <div className="flex flex-wrap items-baseline gap-x-8 gap-y-1.5 border-y border-line-strong py-3">
-        {metricItems(report.metrics).map((m) => (
-          <span key={m.unit} className="inline-flex items-baseline gap-1.5 whitespace-nowrap">
-            <span className="num text-[22px] font-bold leading-none tracking-[-0.02em] text-ink @[760px]:text-heading">{m.value}</span>
-            <span className="text-caption text-ink-4">{m.unit}</span>
-          </span>
-        ))}
-        {report.readingMinutes > 0 && <span className="ml-auto whitespace-nowrap text-caption text-ink-4">约 {report.readingMinutes} 分钟读完</span>}
-      </div>
+      {/* 指标带写的是成刊那一刻的数（`report.metrics` / `readingMinutes`），不是此刻还能读几条。
+          所以它跟着 `readable` 一起出现：翻不开的那一期，报眼说「本期未出刊」，这一带却报「5 件大事 ·
+          约 4 分钟读完」——同一页两个答案，而且第二个是永远修不掉的旧数。 */}
+      {report.readable && (
+        <div className="flex flex-wrap items-baseline gap-x-8 gap-y-1.5 border-y border-line-strong py-3">
+          {metricItems(report.metrics).map((m) => (
+            <span key={m.unit} className="inline-flex items-baseline gap-1.5 whitespace-nowrap">
+              <span className="num text-[22px] font-bold leading-none tracking-[-0.02em] text-ink @[760px]:text-heading">{m.value}</span>
+              <span className="text-caption text-ink-4">{m.unit}</span>
+            </span>
+          ))}
+          {report.readingMinutes > 0 && <span className="ml-auto whitespace-nowrap text-caption text-ink-4">约 {report.readingMinutes} 分钟读完</span>}
+        </div>
+      )}
     </header>
   );
 }
