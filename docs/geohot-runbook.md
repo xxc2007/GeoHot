@@ -416,7 +416,7 @@ sudo -u geohot bash -lc 'cd /opt/geohot/app && node --env-file=.env scripts/arch
 node --env-file=.env scripts/sync-source-config.ts --apply --database-url=…
 # ③ 回填，一个（信源，月份）一片；默认 DRY-RUN，写库要 --apply 且显式给 --database-url
 node --env-file=.env scripts/backfill-archive.ts --from=2026-01 --to=2026-03 --max-items=2000
-node --env-file=.env scripts/backfill-archive.ts --from=2026-01 --to=2026-03 --apply --max-items=2000
+node --env-file=.env scripts/backfill-archive.ts --from=2026-01 --to=2026-03 --apply --database-url="$DATABASE_URL" --max-items=2000
 ```
 
 第①步只认两处都对得上的 ISSN：信源自己 feed 的刊名（或包里的拉丁名）与 Crossref 期刊库里**同名**记录的 ISSN。名字像但不是同一个刊一律不写（`ambiguous` / `no-match` 都留在报告里由人判）。这不是过分谨慎——ISSN 认错会把 A 刊的文章挂在 B 刊名下，读者侧完全看不出来。
@@ -427,16 +427,24 @@ node --env-file=.env scripts/backfill-archive.ts --from=2026-01 --to=2026-03 --a
 
 | 量 | 值 | 怎么来的 |
 |---|---|---|
-| 每篇文章的模型调用 | 5.31 次 | 回执表按材料数折算（预筛 1 + 评分 2 + 理解/摘要 1 + 结构 1） |
+| 每篇文章的模型调用 | **5.6 次** | 2026-10-10 数生产回执：近 24 小时管道五步 5,411 次 / 1,028 篇分析 = 5.60。结构上是预筛 1 + 评分 2 + 写作 1 + 结构 1 = 5，多出的 0.6 是理解失败回落再问一次的尾巴（全部用途合起来是 6.09） |
 | 主端点 Agnes `.com` | 当日文字额度用尽后**每分钟 1 次** | 429 原文 "used up today's text quota … limited to 1 request every 1 minutes" |
 | 国内端点 Agnes `.cn` | **稳态每分钟成功 5–13 次**（≈550 次/小时） | 按分钟数它自己的回执（2026-10-10 01:22–01:33）：成功数高的那几分钟失败为 0；一旦发到 30–40 次/分钟，就有 27–34 次被打回 429 |
 | 熔断行 | `llm` 8/420/6000；`agnes-cn` **10/550/12000** | 0050 起的是 40/2400/30000——那来自"8 路并发不 429"，证明的是**能并行**，不是每分钟能接 40 个；0052 按上面的稳态数改小 |
 
 这一条要记住：**并发压测验不出稳态吞吐**。把 `per_minute` 抬到对方真能接的数量之上买不到吞吐，只买到重试——每个 429 都占一次预算、一段退避，并把文章往后推。
 
-换算到回填：10 次/分钟 ≈ 550 次/小时 ÷ 5.31 ≈ **104 篇/小时 ≈ 2,500 篇/天**。"2.3 万篇"是按包内期刊数与每刊月发文量估的，不是查出来的——实际数只有 ISSN 认定完、跑第一轮 Dry-Run 才知道，`archive_ingest.seen` 就是用来把估算换成实测的。照 2,500 篇/天，全量约 **9 天**；等主端点的当日额度恢复、两把门一起进池，约 **4,300 篇/天（5 天）**；只有 `.com` 一把门的时候是 420 次/小时 ≈ 79 篇/小时。要更快只能抬 `agnes-cn` 的 `per_minute`，而抬之前先按分钟数成功/失败，别拿并发压测当依据。现值取保守一侧：宁可回填慢，不把线上实时更新挤死（两者共用同一个 service 的额度）。
+换算到回填：理论上限是熔断那一行的算术（10 次/分钟 = 600 次/小时、`per_hour` 550、`per_day` 12,000，÷ 5.6 ≈ 98 篇/小时、2,140 篇/天），
+但**实际跑出来的是每小时 43–55 篇、24 小时 1,028 篇**——线上还压着 2,343 条历史队列，
+而回执里失败（429）占到的份额要吃掉近一半额度。用实测数算：**约 1,000 篇/天**。
+"2.3 万篇"是按包内期刊数与每刊月发文量估的，不是查出来的——实际数只有 ISSN 认定完、跑第一轮 Dry-Run 才知道，`archive_ingest.seen` 就是用来把估算换成实测的。照实测 1,000 篇/天，2.3 万篇是 **约 20 天**；照熔断那行算术的理论上限是 10 天。差的一倍就是"要不要为回填花钱、或给档案单设一道门槛"这道站长题（两把门一起进池时理论上限约 3,200 篇/天）。要更快只能抬 `agnes-cn` 的 `per_minute`，而抬之前先按分钟数成功/失败，别拿并发压测当依据。现值取保守一侧：宁可回填慢，不把线上实时更新挤死（两者共用同一个 service 的额度）。
 
-**报纸**：档案材料的 `timeline_at` 是它自己的出版日，所以它进**属于它那一天**的报纸；它的 `visible_after` 是入库当天，放开晚到那条分支就会让今晚的报纸塞满几年前的论文。`reports/compose.ts` 的 `candidates()` 因此把两种归属分开写死，两个方向都由 `tests/archive-paper-rule.test.ts` 上锁。补历史期刊沿用第 7 节那条命令，但**必须从旧到新**：`recentlyCovered` 拿前 7 期用过的 fact key 去重，倒着跑会把后面的选题吃掉。`saveReport` 把旧版存进 `report_revisions`，所以重算有版本；补出的那一期 `issue_no` 为空（`nextIssueNo` 见到更大的 key 就返回 null），归档页显式标注。
+**报纸**：档案材料的 `timeline_at` 是它自己的出版日，所以它进**属于它那一天**的报纸；它的 `visible_after` 是入库当天，放开晚到那条分支就会让今晚的报纸塞满几年前的论文。`reports/compose.ts` 的 `candidates()` 因此把两种归属分开写死，两个方向都由 `tests/archive-paper-rule.test.ts` 上锁。补历史期刊沿用第 7 节那条命令，且**日报要从旧到新**：`recentlyCovered("daily", key)` 只看**比它更早、且在 7 天之内**的期次用过的 fact key（`compose.ts:128-130`，是 7 天不是 7 期）。从旧到新重算，新的一期就会把刚重算过的旧期当"已报道过"而不去重；反过来先重算新的，旧期会重印新期已经发过的同一件事。周报与月报不走这条去重，顺序无所谓。`saveReport` 把旧版存进 `report_revisions`，所以重算有版本；补出的那一期 `issue_no` 为空（`nextIssueNo` 见到更大的 key 就返回 null），归档页显式标注。
+
+**排在队尾**：档案作业的优先级是 history（-2），与它同级的还有第五十八轮那批首导积压——分诊时实测
+`content.analyze` 队列里 `priority=-2` 已有 **2,343 条 created**。同优先级按建单先后服务，所以刚入库的档案条目要等前面那批跑完才轮得到，
+**"回填跑完了读者却还看不到一月"是队列顺序，不是失败**；催它的唯一办法是抬高那道小时上限（站长决定），而不是改优先级——
+把档案插到实时之前，就是让今天的报纸为一堆旧论文让路。
 
 **回滚**：档案材料一律带 `backfill_reason = 'archive'` 且 `article_discoveries.via = 'import'`，一条 SQL 能整批摘掉，同时清 `archive_ingest`；期刊回到 `report_revisions` 的上一版。删之前先 `pg_dump`，与 `deploy/geohot/rollback.sh` 的约定一致。
 

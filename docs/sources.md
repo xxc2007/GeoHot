@@ -867,3 +867,34 @@ Byrd 极地中心与 ECMWF 两条首次导入是 `found 0`——但直接在采�
 结论写在这里，避免下一轮误判：**再加信源不会让读者多看到内容，只会把 52 次/小时的带宽摊得更薄。**
 数量已经不缺（271 条、`rss` 226 条），缺的是站长那一侧的 `per_hour` 决定，
 或者一次"哪些批量源不该逐条进模型"的口径决定——两者都不是采集侧能替站长做的。
+## 第六十轮侦察：63 条候选，一条都还没接（2026-10-10，等采集机实测）
+
+六路子智能体分头找（国家地质与测绘机构 / 遥感与 GIS / 中文学术地理 / 国际机构与气候灾害 / 人文与城市 /
+地球物理与灾害）。原始报告在仓库外的 `/d/tmp/r60c/*.json`，去重与可采集性分诊已做完，**下面这些不是"已登记"，
+是"下一轮值得从采集机探一遍"的清单**——本机 DNS 与采集机不一致，代理在这里报 200 或 403 都不作数（第五十六轮起的老规矩）。
+
+**与包内 271 条逐条比对：精确重复 0 条。** 近重复 8 条要避开：NSIDC 有两个 feed 同一主机（`news` 与
+`arcticseaicenews`）；Copernicus Marine 的新闻是 Mercator Ocean 自己那条源转载；PreventionWeb 就是 UNDRR 的平台；
+GEOFON 与库里 USGS/CENC 是同一批台站事件；`cn-itpcas-media-scan` 每条都跳到科学网/中科院，是聚合不是首发。
+
+**先探这几条**（含已知坑）：NOAA 太平洋海啸预警中心 Atom（包内海啸为 0）、USGS 火山通告页、科学网 RSS
+（`pubDate` 不是 RFC-822，但 `sources/dates.ts` 认这个形状）、UN News 英文气候专题（中文那版更旧，二选一）、
+CBD 新闻（1,698 条，必须给 `_aihot.initialBackfillLimit`，链接指向 PDF）、IOP《Environmental Research Letters》、
+T&F 四本（`/feed/rss/<码>` 可达而 `www.tandfonline.com` 的 HTML 被 Cloudflare 挡）、Elsevier 公共 RSS 主机
+`rss.sciencedirect.com/publication/science/<印刷ISSN>`（**条目没有 pubDate，只有 channel 的 lastBuildDate**，
+要先确认日期回落在库里怎么算）、西北生态与资料研究院列表页（复用 `web-cas-sky` 那套容器选择器）。
+
+**当场就该回绝的**：
+- **反爬一律不装 UA 绕过**（红线）：UNFCCC / IPC / IEA / IRENA / Ramsar / Smithsonian GVP / OECD / SAGE 部分 /
+  T&F 若干 —— 全部标"按政策拒绝"，不是"待办"。
+- **`external` 种类在这套部署里不会被轮询**：`collect.ts` 只轮询 `rss,web_list,json_list,x_search`，
+  而 `config-keys.ts` 给 external 只开了 `publishedAtUtcOffset`，且 isolated 直接写 `visibility=withdrawn`。
+  所以 scouts 提的两条 external（ReliefWeb API v2、Carbon Monitor CSV）要接就得改成 **json_list**，
+  ReliefWeb 还要先注册免费的 `appname`。
+- **JS 壳 / SPA 没有服务端列表**：《湖泊科学》当期页是 144 字节跳转、EMSC、JMA 英文警报、Copernicus EMS、
+  USGS 滑坡页、OSGeo `/feed/` 回 0 条。
+- **停更**：IUCN Red List（2022-02）、NOAA Climate.gov（2021-04）、Copernicus EMS（2026-05）、FEWS NET（2026-05）。
+- **`owner_entity_id` 只能是 `taxonomy.ts` 的 ENTITIES 键**（`tests/industry-pack-sources.test.ts` 逐条断言）：
+  nsidc / gfz / jma / unep / iucn / oecd 都不是，登记时一律 null。`config.headers` 只允许在 rss/json_list 上用。
+- **中刊的 Magtech 平台**（地理科学进展一类）把 RSS 链接印在页面上，`rss_dqml_*.xml` 一律返回
+  **HTTP 200 的 CMS 404 页**——按"状态码 200 就算活"的判法会整批接错。用当期目录页，别用它承诺的 RSS。

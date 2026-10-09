@@ -40,6 +40,7 @@ const { values } = parseArgs({
     // lower --sleep if the operator gives one.
     sleep: { type: "string", default: "1200" },
     apply: { type: "boolean", default: false },
+    "database-url": { type: "string", default: "" },
   },
 });
 
@@ -47,6 +48,20 @@ const fromMonth = values.from!;
 const toMonth = values.to || fromMonth;
 if (!/^\d{4}-\d{2}$/.test(fromMonth) || !/^\d{4}-\d{2}$/.test(toMonth)) {
   console.error("用法：--from=YYYY-MM --to=YYYY-MM [--apply --database-url=…] [--max-items=N] [--per-month=N]");
+  process.exit(2);
+}
+// Same guard every other operator script carries: the pool reads DATABASE_URL from the environment, so the
+// parameter cannot redirect anything — it exists to catch "you aimed --apply at the wrong database".
+const target = String(process.env.DATABASE_URL ?? "");
+const sameTarget = (u: string) => { try { const x = new URL(u); return x.host + x.pathname; } catch { return u; } };
+if (values.apply && !values["database-url"]) {
+  console.error("--apply 必须同时显式给出 --database-url=（与进程 DATABASE_URL 同一个库）");
+  await closeDb();
+  process.exit(2);
+}
+if (values.apply && sameTarget(values["database-url"]!) !== sameTarget(target)) {
+  console.error(`--apply 拒绝执行：--database-url 指向 ${sameTarget(values["database-url"]!)}，环境里的 DATABASE_URL 是 ${sameTarget(target)}`);
+  await closeDb();
   process.exit(2);
 }
 const MAX_ITEMS = Number(values["max-items"]);
