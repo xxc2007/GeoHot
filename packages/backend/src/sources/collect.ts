@@ -267,12 +267,14 @@ export async function collectSource(sourceId: string, opts: { force?: boolean } 
     const offered = candidates;
     candidates = applySourceFilters(candidates, source);
     filtered = candidates.length;
-    // A source's debut is the one round where our own filters wiping the whole listing is a fault rather
-    // than a quiet week — any later round may legitimately offer nothing but corrections. Six of the
-    // round-56 Wiley journals lost 92, 13, 9, 5, 5 and 2 items this way (their articles live on a
+    // A source's debut is the one round where wiping the whole listing is a fault rather than a quiet week.
+    // Six of the round-56 Wiley journals lost 92, 13, 9, 5, 5 and 2 items this way (their articles live on a
     // per-society subdomain — rmets., rgs-ibg., wires. — that the allow-list did not name), and the admin
     // read `health: ok, found: 0` for five hours, which is indistinguishable from an idle feed.
-    if (firstImport && found > 0 && filtered === 0) {
+    // Only the ADDRESS rule counts as a fault here. `filtered` is measured after the noise markers too, and
+    // a debut whose every item is "Issue Information"/"Correction" is a real between-issues week: 76 rows of
+    // this pack carry those markers, so firing on them would refuse to ever initialize those sources.
+    if (firstImport && found > 0 && filtered === 0 && !offered.some((c) => allowed(c.url, source))) {
       const hosts = [...new Set(offered.map((c) => {
         try {
           return new URL(c.url).host;
@@ -280,7 +282,7 @@ export async function collectSource(sourceId: string, opts: { force?: boolean } 
           return "?";
         }
       }))].join(", ");
-      throw new FetchError(`first import kept none of ${found} items: the listing publishes ${hosts} and the config allows none of them (check allowUrlPrefixes and ingestNoiseFilter)`);
+      throw new FetchError(`first import kept none of ${found} items: the listing publishes ${hosts} and config.allowUrlPrefixes allows none of them`);
     }
 
     // First import of a new source: bounded, and archived by source time (never "today", never pushed).
