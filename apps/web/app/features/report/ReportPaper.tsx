@@ -379,13 +379,20 @@ export function ReportPaper({ report, index, now }: { report: ReportDetail; inde
   return (
     <article data-paper="" className="@container">
       <Masthead report={report} index={index} now={now} />
-      {count === 0 && report.flashes.length === 0 ? (
-        <p className="py-16 text-center text-body text-ink-4">本期没有入选内容。</p>
+      {/* 一条判据：读者能不能真的翻开这一期。以前这里数的是 `count`，而 `count` 不看条目还在不在——
+          引注全部下架的那一期于是同一页上既写着报眼的「本期未出刊」，又印着一版导语、
+          「N 件大事」和按已下架标题算出来的「约 N 分钟读完」。读取层、归档、MCP 说的是 `readable`，页面也说它。 */}
+      {!report.readable ? (
+        <p className="py-16 text-center text-body text-ink-4">
+          {report.sections.some((s) => s.items.length > 0) || report.flashes.length > 0
+            ? "这一期当时选中的条目已全部下架，现在没有可读的内容了。"
+            : "本期没有入选内容。"}
+        </p>
       ) : (
         <FrontPage report={report} pages={pages} leadStory={leadStory} count={count} now={now} />
       )}
 
-      {pages.map((p, i) => (
+      {report.readable && pages.map((p, i) => (
         <SectionPage key={p.id} id={p.id} no={i + 1} label={p.label}>
           {p.summary && (
             <p className="border-b border-line py-5 text-[15.5px] leading-[1.9] text-ink-2 @[560px]:text-justify">
@@ -397,7 +404,7 @@ export function ReportPaper({ report, index, now }: { report: ReportDetail; inde
         </SectionPage>
       ))}
 
-      {report.flashes.length > 0 && (
+      {report.readable && report.flashes.length > 0 && (
         <SectionPage id="s-flash" no={pages.length + 1} label="快讯">
           <ul className={`${COLUMNS} @[1040px]:columns-3`}>
             {report.flashes.map((f, i) => (

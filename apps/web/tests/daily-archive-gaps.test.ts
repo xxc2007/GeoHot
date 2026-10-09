@@ -53,4 +53,9 @@ test("空刊那一期的月历不把自已数进去", async () => {
   // 而 /daily/archive、/about、/api/site/stats 都说 4 —— 一个事实两个答案。
   assert.equal(periodGrid("daily", "2026-10-04", index).note, "本月 4 期");
   assert.equal(periodGrid("daily", "2026-10-08", index).note, "本月 4 期", "正常一期也要数同一个数");
+  // 同一期的点格提示：报眼已经写着「本期未出刊」，格子上却只报日期，等于同一页两个答案。
+  const cells = periodGrid("daily", "2026-10-04", index).cells;
+  assert.match(cells.find((c) => c.key === "2026-10-04")!.label, /未出刊$/, "正在读的空刊那一天也说「未出刊」");
+  assert.equal(cells.find((c) => c.key === "2026-10-04")!.state, "current", "它仍然是读者在看的那一期");
+  assert.doesNotMatch(cells.find((c) => c.key === "2026-10-03")!.label, /未出刊/, "索引里有的那一天不该被说成没出刊");
 });
