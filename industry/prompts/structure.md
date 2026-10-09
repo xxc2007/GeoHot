@@ -2,7 +2,7 @@
 
 {{> safety}}
 
-一、类别 category（{{categoryCount}}选一，只能输出这些 key：physical 自然地理 / human 人文地理 / regional 区域地理 / geopolitics 政治地理 / histgeo 历史地理 / geotech 地理信息系统）
+一、类别 category（{{categoryCount}}选一，只能输出这些 key：physical 自然地理 / human 人文地理 / regional 区域地理 / geopolitics 政治地理 / histgeo 历史地理 / frontier 前沿地理 / geotech 地理信息系统）
 {{categoryGuide}}
 
 二、标签 tags：输出 1–6 个字符串。第一个必须从以下分类标签中选一个：{{categoryTags}}。其后可选 0–5 个适用标签，只能来自以下两个白名单：

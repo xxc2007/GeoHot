@@ -234,3 +234,24 @@ test("a short post keeps its own rule, and a written summary always wins over th
   assert.equal(signed.summaryZh, "6日至8日全省最低气温自北向南下降6到8摄氏度。", "有人写的稿子永远优先");
 });
 
+test("an English source naming an agency in full supports the Chinese short name — and silence still does not", () => {
+  // 2026-10-09：`IDENTITY_LEXICON.wmo` 原本只认 `\bWMO\b` 与「世界气象组织」，而 `ENTITIES.wmo.aliases` 与
+  // TAG_SYNONYMS 都收了英文全称。守卫只读 pattern，于是 Mongabay 那句 "according to the World Meteorological
+  // Organization" 支撑的中文摘要被整条丢掉——**误伤真稿**，而这一轮成批接入的英文学术源全是这种句式。
+  const wmo = idOf(/世界气象组织/)!;
+  const full = usgsSource({
+    title: "Evidence builds showing climate change could be intensifying El Nino events",
+    text: "Global temperatures reached 1.55 C above pre-industrial levels in 2024, according to the World Meteorological Organization.",
+  });
+  assert.ok(matchEntityIds([full.text]).includes(wmo), "原文写英文全称就该认出这个主体（守卫的放行集合来自同一张词典）");
+  assert.equal(
+    finalizeCopy(full, { titleZh: "证据显示气候变化正在增强厄尔尼诺", summaryZh: "世界气象组织口径下 2024 年全球均温高出工业化前 1.55°C。" }).summaryZh,
+    "世界气象组织口径下 2024 年全球均温高出工业化前 1.55°C。",
+    "原文有依据的摘要不许被丢掉",
+  );
+  // 反例仍然要成立：原文一个字都没提这个机构时，摘要写了就是张冠李戴，整条丢掉。
+  const bare = usgsSource({ text: "USGS revised the magnitude after its first automatic bulletin, with no agency comparison." });
+  assert.equal(finalizeCopy(bare, { titleZh: "震级修订", summaryZh: "世界气象组织发布了年度报告。" }).summaryZh, "", "词典修宽了也不能把反例一起修没");
+});
+
+

@@ -22,6 +22,10 @@
  * 库里残留的 `category='geoedu'` 行在读侧一律按「没有分类」走（`toPublicApiCategory` → null，`/all?category=geoedu`
  * 与任何未知键一样回落到全部），所以迁移 `0049` 把那 1 行显式改 NULL、并把只为这个板块接的研招网源停用。
  * 旧地址**不做重定向**（与 2026-10-04 删板块那一层同一口径：为一个已经判定不要的功能留一张永久映射表不值）。
+ * 同日站长要求**新增「前沿地理」`frontier`**（六个变七个，收学术界的前沿科研成果）。它是按上面那条规则加的：
+ * **复用「学科」这一节**，并且插在 `geotech`（技术）**之前**——所以 `SECTION_ORDER` 仍是「学科 → 技术」、
+ * 兜底分节仍是「技术」，末位键也仍是 `geotech`（`cache.test.ts` 与 `report-default-section.test.ts` 按末键取值，
+ * 这两处一个都不用改）。读者指定的这一格位置写在 `CATEGORIES` 数组里，就是筛选栏的顺序。
  */
 export const CATEGORIES = [
   { key: "physical", label: "自然地理", section: "学科", guide: "地貌、气候、水文、土壤、植被等自然要素本身的变化，以及地震、火山、台风、洪涝干旱、冰川冻土、海平面与生态事件，要有观测数据、图件或影像支撑。卫星与软件本身归「地理信息系统」，区划与规划归「人文地理」" },
@@ -29,6 +33,7 @@ export const CATEGORIES = [
   { key: "regional", label: "区域地理", section: "学科", guide: "以具体区域或流域为单位的整体性变化：极地、青藏高原、黄土高原、三角洲、城市群、跨境河流等，重跨要素综合与尺度对比。单要素的单点事件按自然或人文归类" },
   { key: "geopolitics", label: "政治地理", section: "学科", guide: "主权、边界与领土的划定和争议，地缘格局、战略通道与能源路径，跨境河流、海洋权益与制裁封锁的空间含义，落点是权力与空间的关系。国内的区划调整与区域政策归「人文地理」；没有地点、尺度或空间格局的外交表态与时政评论不属于这里" },
   { key: "histgeo", label: "历史地理", section: "学科", guide: "历史时期的地理变迁与古今对照：河道与海岸线摆动、政区与疆域沿革、城址与聚落兴废、古道与贸易网络的迁移、古地图与地名考证，须同时有年代依据和地点依据。只有人物与年代、没有空间变化的史话掌故不属于这里；当下发生的区划与聚落变化归「人文地理」" },
+  { key: "frontier", label: "前沿地理", section: "学科", guide: "学术界的前沿成果本身：期刊论文、预印本与研究数据集给出的新证据、新方法、新认识，以及地理学与地球系统科学界的综述、评述、奖项与研究进展发布，落点是「这项研究让人类新知道了什么」。判据是**创新度**而不是地理要素：一条古气候论文如果讲的是全新世季风，归「历史地理」；如果它的价值在提出了一套新的代用指标与重建方法，归这里。灾害速报、政策文件、观测公报、软件版本换代按各自类别归类；把已有结论复述一遍的科普稿、教材式综述、没有给出新证据的观点文章不算前沿" },
   { key: "geotech", label: "地理信息系统", section: "技术", guide: "遥感卫星与影像、导航定位、观测数据集与标准的发布与版本变化，以及 GIS 软件与平台（ArcGIS、SuperMap、QGIS、天地图等）、空间数据库与数据标准、WebGIS 与三维引擎、开源生态与许可变更、空间分析功能的版本与工程应用——回答“地理信息怎么获得、怎么计算、系统怎么换代”。2026-10-03 按站长要求把原来的「地理信息技术」与「地理信息系统」两个分类并成一个区域（key 保留 `geotech`，网址与库里的身份不动）。用这些技术与系统得出的地学结论归对应学科类别" },
 ] as const;
 
@@ -293,7 +298,11 @@ export const IDENTITY_LEXICON: ReadonlyArray<{ id: string; name: string; pattern
   { id: "undrr", name: "联合国减灾办公室", patterns: [/undrr|联合国减灾|国际减灾战略|仙台框架/i] },
   { id: "gdacs", name: "GDACS 全球灾害预警与协调系统", patterns: [/\bgdacs\b|全球灾害预警与协调/i] },
   { id: "ipcc", name: "IPCC", patterns: [/ipcc|政府间气候变化专门委员会|气候评估报告|\bar6\b/i] },
-  { id: "wmo", name: "世界气象组织", patterns: [/\bwmo\b|世界气象组织/i] },
+  // 英文全称必须在 pattern 里：ENTITIES.wmo.aliases 与 TAG_SYNONYMS 都收了 "World Meteorological Organization"，
+  // 而守卫只认 pattern——2026-10-09 的语料体检就是这条不一致把一条**原文确有依据**的摘要整条丢掉
+  // （Mongabay 那篇写 "according to the World Meteorological Organization"，中文摘要写「世界气象组织口径下」）。
+  // 英文学术源这一轮成批接入，这类句式会天天遇到，缺了它等于让身份守卫误伤真稿。
+  { id: "wmo", name: "世界气象组织", patterns: [/\bwmo\b|world meteorological organization|世界气象组织/i] },
   { id: "unhabitat", name: "联合国人居署", patterns: [/un[-\s]?habitat|人居署|世界城市化/i] },
   { id: "nsidc", name: "美国国家冰雪数据中心", patterns: [/\bnsidc\b|国家冰雪数据中心/i] },
   { id: "tianditu", name: "天地图", patterns: [/天地图|国家地理信息公共服务平台/i] },

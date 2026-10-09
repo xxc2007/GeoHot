@@ -445,3 +445,160 @@ Nature 子刊与 PNAS 的当期目录是**期刊编辑部自己出的目录**，
 pnas 87 / ifrc 10 / cms 10 / cas-syky 15`，`last_error` 全空、`published_at` 无空值，
 CAS 那 15 条标题全部含中文，其余为英文（进编辑管道等中文稿）。
 
+
+## 第五十六轮新增的 95 条（2026-10-09，学术前沿，逐条在采集机实测）
+
+站长这一轮的要求是「增加『前沿地理』板块，搜集学术界的前沿优秀科研成果，信息源一定要全，越多越好」。
+15 路只读发现代理交出 **256 条候选**，全部先在采集器所在那台服务器上重跑一遍才算数（本机 DNS 走代理会返回
+fake-IP，本机的"能打开"不作数——这一轮就有一条 Nature 子刊在本机是好的、采集机侧回 "Client Challenge"）。
+探测用的是项目自己的默认 UA（`GEOHOTBot`）、**不伪造浏览器 UA、不枚举对端 id**，4xx 不重试。
+
+**判据（四条同时成立才登记）**：HTTP 200；解析得出 ≥1 条 item；最新一条在 45 天以内；
+**条目自带摘要**（`description` / `dc:description` 剥标签后 ≥80 字）。最后一条是这一轮新加的硬杠：
+本站只出「标题 + 摘要 + 原文链接」（`site_fulltext=false`），而英文条目要过中文闸门必须有可译的正文——
+Elsevier 的 `rss.sciencedirect.com` 与 Taylor & Francis 的 feed 实测**只有卷期/作者/DOI、没有摘要**，
+接进来只会产出一批永远发不出去的条目，所以整族本轮不接（逐条实测值记在下面与 `rejects` 段）。
+
+**登记 95 条**：tier 分布 T1_5 63 / T1 22 / T2 10；
+默认分类 （模型判） 64 / frontier 31
+（期刊当期目录一律留 `null` 交给模型判——一条古气候论文该归「历史地理」还是「前沿地理」是编辑判断，
+不是信源属性；只有预印本线、学会研究进展、机构科研动态这类"整条源都是研究进展"的才兜底成「前沿地理」）。
+每条都按包内既有期刊源的形状登记：`allowUrlPrefixes`（Nature 只留 `/articles/`、Wiley 只留 `/doi/`、
+arXiv 只留 `/abs/`）、`ingestNoiseFilter.dropMarkersTitleOnly`（实测这批 feed 里真的出现过的
+`Author Correction` / `Corrigendum` / `Publisher Correction` / `Editorial` / `Issue Information` /
+`Addendum` / `Book Review`）、`_aihot.initialBackfillLimit` 6–8 且 `intervalMinutesLocked: true`。
+
+| id | 信源 | 类型 | 采集机实测 | 归到 |
+|---|---|---|---|---|
+| `rss-nature-comm-toc` | Nature Communications · 当期目录 | rss | 200 · 8 条 · 最新 2026-10-09（0 天前） · 摘要最长 701 字 | （模型判） |
+| `rss-sci-reports-geoscience` | Scientific Reports · 当期目录 | rss | 200 · 8 条 · 最新 2026-10-09（0 天前） · 摘要最长 596 字 | （模型判） |
+| `rss-npj-climate-atmos-sci` | npj Climate and Atmospheric Science · 当期目录 | rss | 200 · 8 条 · 最新 2026-10-08（1 天前） · 摘要最长 990 字 | （模型判） |
+| `rss-nature-energy` | Nature Energy · 当期目录 | rss | 200 · 8 条 · 最新 2026-10-07（2 天前） · 摘要最长 518 字 | （模型判） |
+| `rss-npj-climate-action` | npj Climate Action · 当期目录 | rss | 200 · 8 条 · 最新 2026-10-05（4 天前） · 摘要最长 2294 字 | （模型判） |
+| `rss-palcomms-hss` | Humanities and Social Sciences Communications · 当期目录 | rss | 200 · 8 条 · 最新 2026-10-08（1 天前） · 摘要最长 1259 字 | （模型判） |
+| `rss-grl-toc` | Geophysical Research Letters · 当期目录 | rss | 200 · 67 条 · 最新 2026-10-09（0 天前） · 摘要最长 1279 字 | （模型判） |
+| `rss-jgr-solid-earth-toc` | JGR: Solid Earth · 当期目录 | rss | 200 · 20 条 · 最新 2026-10-09（0 天前） · 摘要最长 1917 字 | （模型判） |
+| `rss-jgr-atmospheres-toc` | JGR: Atmospheres · 当期目录 | rss | 200 · 28 条 · 最新 2026-10-09（0 天前） · 摘要最长 1731 字 | （模型判） |
+| `rss-jgr-oceans-toc` | JGR: Oceans · 当期目录 | rss | 200 · 26 条 · 最新 2026-10-09（0 天前） · 摘要最长 1750 字 | （模型判） |
+| `rss-jgr-biogeosciences-toc` | JGR: Biogeosciences · 当期目录 | rss | 200 · 20 条 · 最新 2026-10-09（0 天前） · 摘要最长 1972 字 | （模型判） |
+| `rss-jgr-earth-surface-toc` | JGR: Earth Surface · 当期目录 | rss | 200 · 8 条 · 最新 2026-10-09（0 天前） · 摘要最长 1914 字 | （模型判） |
+| `rss-jgr-space-physics-toc` | JGR: Space Physics · 当期目录 | rss | 200 · 18 条 · 最新 2026-10-09（0 天前） · 摘要最长 1934 字 | （模型判） |
+| `rss-jgr-ml-comp-toc` | JGR: Machine Learning and Computation · 当期目录 | rss | 200 · 40 条 · 最新 2026-10-09（0 天前） · 摘要最长 2035 字 | （模型判） |
+| `rss-g3-toc` | Geochemistry, Geophysics, Geosystems (G3) · 当期目录 | rss | 200 · 16 条 · 最新 2026-10-09（0 天前） · 摘要最长 1981 字 | （模型判） |
+| `rss-wrr-toc` | Water Resources Research · 当期目录 | rss | 200 · 18 条 · 最新 2026-10-09（0 天前） · 摘要最长 1895 字 | （模型判） |
+| `rss-paleocean-paleoclim-toc` | Paleoceanography and Paleoclimatology · 当期目录 | rss | 200 · 5 条 · 最新 2026-10-09（0 天前） · 摘要最长 1871 字 | （模型判） |
+| `rss-tectonics-toc` | Tectonics · 当期目录 | rss | 200 · 4 条 · 最新 2026-10-09（0 天前） · 摘要最长 1883 字 | （模型判） |
+| `rss-space-weather-toc` | Space Weather · 当期目录 | rss | 200 · 7 条 · 最新 2026-10-09（0 天前） · 摘要最长 1879 字 | （模型判） |
+| `rss-reviews-geophysics-toc` | Reviews of Geophysics · 当期目录 | rss | 200 · 2 条 · 最新 2026-10-09（0 天前） · 摘要最长 1987 字 | （模型判） |
+| `rss-earths-future-toc` | Earth's Future · 当期目录 | rss | 200 · 14 条 · 最新 2026-10-09（0 天前） · 摘要最长 2060 字 | （模型判） |
+| `rss-agu-advances-toc` | AGU Advances · 当期目录 | rss | 200 · 3 条 · 最新 2026-10-09（0 天前） · 摘要最长 1573 字 | （模型判） |
+| `rss-james-toc` | Journal of Advances in Modeling Earth Systems · 当期目录 | rss | 200 · 9 条 · 最新 2026-10-09（0 天前） · 摘要最长 1892 字 | （模型判） |
+| `rss-agu-this-week` | AGU · This Week from AGU（期刊周导读） | rss | 200 · 10 条 · 最新 2026-10-08（1 天前） · 摘要最长 95 字 | 前沿地理 |
+| `rss-eos-editors-highlights` | Eos（AGU）· 编辑精选 | rss | 200 · 15 条 · 最新 2026-10-07（2 天前） · 摘要最长 200 字 | 前沿地理 |
+| `rss-ess-toc` | Earth and Space Science · 当期目录 | rss | 200 · 7 条 · 最新 2026-10-09（0 天前） · 摘要最长 1800 字 | （模型判） |
+| `rss-geohealth-toc` | GeoHealth · 当期目录 | rss | 200 · 6 条 · 最新 2026-10-09（0 天前） · 摘要最长 1858 字 | （模型判） |
+| `rss-gbc-toc` | Global Biogeochemical Cycles · 当期目录 | rss | 200 · 8 条 · 最新 2026-10-09（0 天前） · 摘要最长 1829 字 | （模型判） |
+| `rss-radio-science-toc` | Radio Science · 当期目录 | rss | 200 · 2 条 · 最新 2026-10-09（0 天前） · 摘要最长 1734 字 | （模型判） |
+| `rss-pass-toc` | Perspectives of Earth and Space Scientists · 当期目录 | rss | 200 · 21 条 · 最新 2026-10-09（0 天前） · 摘要最长 1715 字 | （模型判） |
+| `rss-community-science-toc` | Community Science · 当期目录 | rss | 200 · 6 条 · 最新 2026-10-09（0 天前） · 摘要最长 1926 字 | （模型判） |
+| `rss-eos-research-spotlights` | Eos（AGU）· 研究聚焦 | rss | 200 · 15 条 · 最新 2026-10-08（1 天前） · 摘要最长 168 字 | 前沿地理 |
+| `rss-eos-landslide-blog` | Eos（AGU）· 滑坡博客 | rss | 200 · 15 条 · 最新 2026-10-08（1 天前） · 摘要最长 378 字 | 前沿地理 |
+| `rss-copernicus-tc` | The Cryosphere · 当期目录 | rss | 200 · 20 条 · 最新 2026-10-09（0 天前） · 摘要最长 935 字 | （模型判） |
+| `rss-copernicus-bg` | Biogeosciences · 当期目录 | rss | 200 · 20 条 · 最新 2026-10-08（1 天前） · 摘要最长 886 字 | （模型判） |
+| `rss-copernicus-hess` | Hydrology and Earth System Sciences · 当期目录 | rss | 200 · 20 条 · 最新 2026-10-09（0 天前） · 摘要最长 908 字 | （模型判） |
+| `rss-copernicus-se` | Solid Earth · 当期目录 | rss | 200 · 20 条 · 最新 2026-09-29（10 天前） · 摘要最长 939 字 | （模型判） |
+| `rss-copernicus-os` | Ocean Science · 当期目录 | rss | 200 · 20 条 · 最新 2026-10-08（1 天前） · 摘要最长 770 字 | （模型判） |
+| `rss-copernicus-acp` | Atmospheric Chemistry and Physics · 当期目录 | rss | 200 · 20 条 · 最新 2026-10-09（0 天前） · 摘要最长 971 字 | （模型判） |
+| `rss-copernicus-nhess` | Natural Hazards and Earth System Sciences · 当期目录 | rss | 200 · 20 条 · 最新 2026-10-07（2 天前） · 摘要最长 901 字 | （模型判） |
+| `rss-copernicus-gmd` | Geoscientific Model Development · 当期目录 | rss | 200 · 20 条 · 最新 2026-10-09（0 天前） · 摘要最长 1030 字 | （模型判） |
+| `rss-copernicus-cp` | Climate of the Past · 当期目录 | rss | 200 · 20 条 · 最新 2026-10-08（1 天前） · 摘要最长 902 字 | （模型判） |
+| `rss-copernicus-essd` | Earth System Science Data · 当期目录 | rss | 200 · 20 条 · 最新 2026-10-09（0 天前） · 摘要最长 1143 字 | （模型判） |
+| `rss-egusphere` | EGUsphere（EGU 预印本与讨论稿） | rss | 200 · 20 条 · 最新 2026-10-09（0 天前） · 摘要最长 996 字 | 前沿地理 |
+| `rss-egu-announcements` | EGU · 公告与分会消息 | rss | 200 · 10 条 · 最新 2026-09-21（18 天前） · 摘要最长 850 字 | 前沿地理 |
+| `rss-egu-highlight-articles` | EGU · 各刊主编精选研究 | rss | 200 · 10 条 · 最新 2026-10-08（1 天前） · 摘要最长 930 字 | 前沿地理 |
+| `rss-arxiv-ao-ph` | arXiv · 大气与海洋物理（physics.ao-ph） | rss | 200 · 8 条 · 最新 2026-10-09（0 天前） · 摘要最长 1790 字 | 前沿地理 |
+| `rss-arxiv-geo-ph` | arXiv · 地球与行星物理（physics.geo-ph） | rss | 200 · 6 条 · 最新 2026-10-09（0 天前） · 摘要最长 1957 字 | 前沿地理 |
+| `rss-arxiv-space-ph` | arXiv · 空间物理（physics.space-ph） | rss | 200 · 3 条 · 最新 2026-10-09（0 天前） · 摘要最长 1793 字 | 前沿地理 |
+| `rss-eartharxiv-preprints` | EarthArXiv · 地球科学预印本 | rss | 200 · 10 条 · 最新 2026-10-09（0 天前） · 摘要最长 405 字 | 前沿地理 |
+| `rss-rgs-geographical-journal-toc` | The Geographical Journal（RGS-IBG 会刊）· 当期目录 | rss | 200 · 9 条 · 最新 2026-10-09（0 天前） · 摘要最长 2506 字 | （模型判） |
+| `rss-rgs-tibg-toc` | Transactions of the IBG（RGS-IBG 会刊）· 当期目录 | rss | 200 · 2 条 · 最新 2026-10-09（0 天前） · 摘要最长 2630 字 | （模型判） |
+| `rss-rgs-area-toc` | Area（RGS-IBG 会刊）· 当期目录 | rss | 200 · 5 条 · 最新 2026-10-09（0 天前） · 摘要最长 1699 字 | （模型判） |
+| `rss-rgs-geo-toc` | Geo: Geography and Environment（RGS-IBG OA 会刊）· 当期目录 | rss | 200 · 13 条 · 最新 2026-10-09（0 天前） · 摘要最长 2516 字 | （模型判） |
+| `rss-cag-canadian-geographies-toc` | Canadian Geographies / Géographies canadiennes（CAG 会刊）· 当期目录 | rss | 200 · 4 条 · 最新 2026-10-09（0 天前） · 摘要最长 3198 字 | （模型判） |
+| `rss-nzgs-nz-geographer-toc` | New Zealand Geographer（NZGS 会刊）· 当期目录 | rss | 200 · 6 条 · 最新 2026-10-09（0 天前） · 摘要最长 812 字 | （模型判） |
+| `rss-kngg-jehg-toc` | J. of Economic and Human Geography（KNGG/NAGI 会刊）· 当期目录 | rss | 200 · 48 条 · 最新 2026-10-09（0 天前） · 摘要最长 1147 字 | （模型判） |
+| `rss-rgs-wires-climate-change-toc` | WIREs Climate Change（综述刊）· 当期目录 | rss | 200 · 5 条 · 最新 2026-10-09（0 天前） · 摘要最长 2765 字 | （模型判） |
+| `rss-nsf-news` | 美国国家科学基金会 NSF · 新闻 | rss | 200 · 15 条 · 最新 2026-10-08（1 天前） · 摘要最长 250 字 | 前沿地理 |
+| `rss-gfz-newsroom` | 德国地球科学研究中心 GFZ · 新闻室 | rss | 200 · 20 条 · 最新 2026-10-09（0 天前） · 摘要最长 196 字 | 前沿地理 |
+| `rss-geomar-news` | GEOMAR 亥姆霍兹基尔 · 科研动态 | rss | 200 · 30 条 · 最新 2026-10-09（0 天前） · 摘要最长 882 字 | 前沿地理 |
+| `rss-bgs-news` | 英国地质调查局 BGS · 新闻 | rss | 200 · 8 条 · 最新 2026-10-05（4 天前） · 摘要最长 398 字 | 前沿地理 |
+| `rss-eth-zurich-news` | 苏黎世联邦理工学院 ETH · 新闻 | rss | 200 · 100 条 · 最新 2026-10-08（1 天前） · 摘要最长 307 字 | 前沿地理 |
+| `rss-fmi-articles` | 芬兰气象研究所 FMI · 文章（芬兰语） | rss | 200 · 10 条 · 最新 2026-10-06（3 天前） · 摘要最长 3430 字 | 前沿地理 |
+| `rss-ecmwf-science-blog` | ECMWF · 科学博客 | rss | 200 · 10 条 · 最新 2026-09-07（32 天前） · 摘要最长 358 字 | 前沿地理 |
+| `rss-camgeog-news` | 剑桥大学地理系 · 科研新闻 | rss | 200 · 24 条 · 最新 2026-10-09（0 天前） · 摘要最长 990 字 | 前沿地理 |
+| `rss-exeter-geog-news` | 埃克塞特大学环境科学与经济系 · 地理新闻 | rss | 200 · 10 条 · 最新 2026-10-07（2 天前） · 摘要最长 288 字 | 前沿地理 |
+| `rss-scripps-news` | 斯克里普斯海洋研究所 Scripps · 新闻 | rss | 200 · 10 条 · 最新 2026-10-08（1 天前） · 摘要最长 3738 字 | 前沿地理 |
+| `rss-byrd-polar-news` | 俄亥俄州立大学 Byrd 极地与气候研究中心 · 新闻 | rss | 200 · 10 条 · 最新 2026-10-04（5 天前） · 摘要最长 364 字 | 前沿地理 |
+| `rss-mcgill-geog-news` | 麦吉尔大学地理系 · 科研新闻 | rss | 200 · 6 条 · 最新 2026-10-07（2 天前） · 摘要最长 544 字 | 前沿地理 |
+| `rss-psu-news` | 宾夕法尼亚州立大学 · 科研新闻 | rss | 200 · 16 条 · 最新 2026-10-07（2 天前） · 摘要最长 443 字 | 前沿地理 |
+| `rss-oxford-sge-sitefeed` | 牛津大学地理与环境系 · 新闻 | rss | 200 · 10 条 · 最新 2026-10-09（0 天前） · 摘要最长 2559 字 | 前沿地理 |
+| `rss-whoi-news` | 伍兹霍尔海洋研究所 WHOI · 新闻 | rss | 200 · 10 条 · 最新 2026-10-08（1 天前） · 摘要最长 200 字 | 前沿地理 |
+| `rss-mbari-news` | 蒙特雷湾水族馆研究所 MBARI · 新闻 | rss | 200 · 10 条 · 最新 2026-10-08（1 天前） · 摘要最长 501 字 | 前沿地理 |
+| `rss-scar-news` | 南极研究科学委员会 SCAR · 新闻 | rss | 200 · 10 条 · 最新 2026-10-07（2 天前） · 摘要最长 141 字 | 前沿地理 |
+| `rss-imos-news` | 澳洲海洋观测系统 IMOS · 新闻 | rss | 200 · 10 条 · 最新 2026-09-24（15 天前） · 摘要最长 336 字 | 前沿地理 |
+| `rss-grss-news` | IEEE 地球科学与遥感学会 GRSS · 新闻 | rss | 200 · 10 条 · 最新 2026-10-06（3 天前） · 摘要最长 518 字 | 前沿地理 |
+| `rss-earthscope-news` | EarthScope Consortium（原 IRIS）· 新闻 | rss | 200 · 10 条 · 最新 2026-10-06（3 天前） · 摘要最长 443 字 | 前沿地理 |
+| `rss-sciencenews-earth` | Science News · 地球板块 | rss | 200 · 20 条 · 最新 2026-10-08（1 天前） · 摘要最长 115 字 | （模型判） |
+| `rss-theconversation-geology` | The Conversation · 地质学话题 | rss | 200 · 25 条 · 最新 2026-10-08（1 天前） · 摘要最长 167 字 | （模型判） |
+| `rss-theconversation-climate-science` | The Conversation · 气候科学话题 | rss | 200 · 25 条 · 最新 2026-10-09（0 天前） · 摘要最长 148 字 | （模型判） |
+| `rss-newswise-scinews` | Newswise · 科学新闻稿（转载层） | rss | 200 · 25 条 · 最新 2026-10-09（0 天前） · 摘要最长 884 字 | （模型判） |
+| `rss-sciencedaily-fossils-ruins` | ScienceDaily · 古生物与遗址（转载层） | rss | 200 · 60 条 · 最新 2026-10-08（1 天前） · 摘要最长 522 字 | （模型判） |
+| `rss-sciencedaily-space-time` | ScienceDaily · 空间与时间（转载层） | rss | 200 · 60 条 · 最新 2026-10-08（1 天前） · 摘要最长 497 字 | （模型判） |
+| `rss-phys-org-earth-sciences` | Phys.org · 地球科学（转载层） | rss | 200 · 30 条 · 最新 2026-10-09（0 天前） · 摘要最长 514 字 | （模型判） |
+| `rss-phys-org-planetary-sciences` | Phys.org · 行星科学（转载层） | rss | 200 · 30 条 · 最新 2026-10-08（1 天前） · 摘要最长 592 字 | （模型判） |
+| `rss-earthsky-news` | EarthSky · 天文与地球新闻 | rss | 200 · 10 条 · 最新 2026-10-09（0 天前） · 摘要最长 263 字 | （模型判） |
+| `rss-yale-climate-connections` | Yale Climate Connections · 气候研究报道 | rss | 200 · 10 条 · 最新 2026-10-08（1 天前） · 摘要最长 188 字 | （模型判） |
+| `rss-geb-toc` | Global Ecology and Biogeography · 当期目录 | rss | 200 · 10 条 · 最新 2026-10-09（0 天前） · 摘要最长 2486 字 | （模型判） |
+| `rss-ijc-toc` | International Journal of Climatology · 当期目录 | rss | 200 · 92 条 · 最新 2026-10-09（0 天前） · 摘要最长 2823 字 | （模型判） |
+| `rss-tgis-wiley-toc` | Transactions in GIS · 当期目录 | rss | 200 · 15 条 · 最新 2026-10-09（0 天前） · 摘要最长 1902 字 | （模型判） |
+| `rss-gcb-toc` | Global Change Biology · 当期目录 | rss | 200 · 27 条 · 最新 2026-10-09（0 天前） · 摘要最长 2704 字 | （模型判） |
+| `rss-phg-toc` | Progress in Human Geography · 当期目录 | rss | 200 · 47 条 · 最新 2026-10-01（8 天前） · 摘要最长 340 字 | （模型判） |
+| `rss-ppg-toc` | Progress in Physical Geography: Earth and Environment · 当期目录 | rss | 200 · 37 条 · 最新 2026-10-08（1 天前） · 摘要最长 366 字 | （模型判） |
+| `rss-ijgis-toc` | International Journal of Geographical Information Science · 当期目录 | rss | 200 · 81 条 · 最新 2026-10-08（1 天前） · 摘要最长 145 字 | （模型判） |
+
+### 这一轮量到的平台事实（写给下一轮，别重新试一遍）
+
+- **Wiley / AGU**：期刊页 HTML 对 `GEOHOTBot` 一律 403（Cloudflare challenge），但
+  `onlinelibrary.wiley.com/feed/<ISSN 去连字符>/most-recent` 通，摘要在 **`dc:description`** 而不是
+  `description`；ISSN 校验位 X 必须小写（`2576604x`），后缀只有 `most-recent`（`latest` 404）。
+- **Copernicus / EGU**：十本刊的 `<刊>.copernicus.org/xml/rss2_0.xml` 全部 200、每轮 20 条、带摘要。
+  **EGUsphere 的 RSS 时间戳是请求时生成的**（两次实取的 20 条 `pubDate` 秒数随请求时刻跳），
+  所以"最新日期"不能当水位用；EGU 主站 `egu.eu` 对部分代理路径 403、采集机侧通。
+- **arXiv**：`rss.arxiv.org/rss/<类别>` 当日出批，feed 里有 `<arxiv:announce_type>`
+  （new / cross / replace / replace-cross），实测约三分之一是旧论文重公告；**不新增过滤项**——
+  重公告的 `<link>` 与首发同 URL，`identityKeyForUrl` 按地址判重，天然吸收。
+  三条同源变体（`ao-ph+geo-ph` 合并 feed、`export.arxiv.org/api` 的 API 形状）本轮**不接**，
+  同一批论文数三遍会把热度算歪。
+- **Taylor & Francis / Elsevier / Springer**：T&F 的公开 feed 短码族 `tandfonline.com/feed/rss/<短码>`
+  实测 200（A 路代理曾据带连字符 ISSN 判"整族 404"，是写法问题不是站点问题）；
+  Elsevier `rss.sciencedirect.com/publication/science/<无连字符 ISSN>` 通但**没有摘要**、
+  且 `description` 里的 "Publication date" 常是**未来的封面日期**（实测见到 2027-01、2027-02），
+  所以按上面的第二条判据整族不接；Springer `link.springer.com/search.rss?facet-journal-id=<id>`
+  有摘要、有真 `pubDate`，本轮接了 Climatic Change 等五刊。
+- **MDPI / IEEE Xplore**：对默认 UA 全站 403 / 418，不伪装 UA 就没有接法，本轮零条。
+- **中文学术站**：Magtech 平台（地理学报 / 地球信息科学学报等）的 RSS 端点存在但对裸客户端返回
+  人机验证页，服务端渲染的 `home.shtml` 当期列表可读——这类只能走 `web_list`，
+  而 `web_list` 的选择器要逐条核，本轮**没有**把中文期刊接进来（留下一批，与 Crossref 那 23 条 json_list 一起）。
+- **现有信源的一条健康告警**（发现代理报、采集机侧待复核）：包内 `rss-igu-online`（国际地理联合会）
+  两次直连都只拿到 200 的 "One moment, please…" JS 挑战壳，**没有一条 item**。按
+  `intl-unocha` 的先例，复核后应当停用而不是留着空跑。
+
+### 本轮明确没接的（点名，免得下一轮重新试）
+
+无摘要的 Elsevier / T&F 整族（13 条实测通但过不了第二条判据）；采集机侧被挡的
+`nature.com/natrevearthenviron.rss`、`iiasa.ac.at`、`lamont.columbia.edu`、`mdpi.com`、`eurekalert.org`；
+停更超过 45 天的 45 条（含 `psl.noaa.gov/news` 停在 2017、`oceanservice.noaa.gov/news` 停在 2015、
+`climate.gov` 停在 2025-06、`ipgp.fr` 停在 2022）；SPA / 前端模板的中文站（SciEngine《中国科学:地球科学》、
+河口海岸、地震学报 `/article/current` 的 HTML 里是 `{{basePath}}`）；企业研究院整刊博客
+（Google Research、Microsoft Research——地理占比极低，接进来只会喂给预筛一堆 BLOCK）；
+以及三条与已接源同内容/超集的重复形状（arXiv 合并 feed、GRSS 分类 feed、Newswise 的 feedburner 镜像）。

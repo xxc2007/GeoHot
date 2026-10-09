@@ -2910,3 +2910,92 @@ key**，所以要一路跟到网址、库里的值、接口枚举、提示词与
     整站点过的读者页与机器出口（首页、`/all` 两种、日报、归档、热点榜、主题、关于、更新日志、`llms.txt`、
     分类订阅、统计接口、收藏页）里，唯一还出现「考研」的是 `/changelog` 本身（它记的就是这次删除）。
     `verify-deploy.sh` **ALL CHECKS PASSED**，四个单元 active。
+---
+
+## 第五十六轮（2026-10-09 下午—晚上）：新增「前沿地理」+ 一次接 95 条学术信源，以及三条骗人的量具
+
+站长两件事：**加「前沿地理」板块收学术界前沿成果**、**信息源"一定要全，越多越好"**，并允许同时派十五个子智能体。
+落成的：分类 6→7（`frontier`，插在 `geotech` 之前）、信源包 **112 → 207**（+95，全部采集机实测）。
+
+### 分类这一半（比改名多碰一层，比删 key 少碰一层）
+
+- **加类别只有两种安全写法**（`industry/taxonomy.ts` 头注那条不变量）：复用已有分节，或插在同节类别旁边。
+  `frontier` 两样都用上了——`section: "学科"`、位置在 `histgeo` 之后 `geotech` 之前，于是
+  `SECTION_ORDER` 仍是「学科 → 技术」、兜底分节仍是「技术」、末位键仍是 `geotech`，
+  `cache.test.ts` 与 `report-default-section.test.ts` 一条都不用改。**站长指定的那一格位置现在有用例钉着**
+  （`tests/exit-category-parity.test.ts` 断言 `indexOf("frontier") === indexOf("geotech") - 1`）。
+- 跟着词表走的四处：`prompts/structure.md` 的 key 行（`industry-vocabulary.test.ts` 逐字对拍 key 与 label）、
+  `prompts/rules-domain.md` 的清单、`prompts/prefilter.md` 的 PASS 枚举（新增"学术前沿与研究进展"，
+  并写明**预印本不必已发表，但材料要指出这是哪项研究**）、两个 README 的分类表与徽章锚点。
+- 分类判据写成"看创新度不看地理要素"，并给了反例（讲全新世季风的古气候论文仍归历史地理）。
+  `defaultCategory` 只给"整条源都是研究进展"的预印本线/学会精选/机构动态兜底成 `frontier`（31 条），
+  期刊当期目录一律留 `null` 交给模型判（64 条）——**信源属性不该替编辑判断说话**。
+
+### 信源这一半：256 条候选 → 95 条登记，判据是四条同时成立
+
+15 路只读发现代理按互不重叠的切片交回 **256 条候选**（每路 8–20 条，带"直连/未直连"标记与淘汰理由），
+一份汇总代理把它们并成 `D:/tmp/r56/candidates.tsv`。之后**全部在采集器所在那台服务器重跑**
+（`GEOHOTBot` UA、不伪造浏览器 UA、不枚举 id、4xx 不重试）：HTTP 200、≥1 条 item、最新一条 ≤45 天、
+**条目自带 ≥80 字摘要**。四条拦下来的：Elsevier 与 Taylor & Francis 的当期目录（只有卷期/作者/DOI，
+**没摘要 = 英文条目永远过不了中文闸门 = 接进来就是一批发不出去的条目**）、MDPI 全站 403、IEEE Xplore 418、
+EurekAlert 403、45 条停更（`psl.noaa.gov/news` 停在 2017、`oceanservice.noaa.gov/news` 停在 2015、
+`climate.gov` 停在 2025-06）、以及三条同源重复形状（arXiv 合并 feed、GRSS 分类 feed、Newswise 的 feedburner 镜像）。
+
+**平台侧实测事实**（下一轮别再重新试）：Wiley 期刊页 403 但 `/feed/<ISSN 去连字符>/most-recent` 通、
+摘要在 `dc:description`、校验位 X 要小写、后缀只有 `most-recent`；Copernicus 十刊
+`<刊>.copernicus.org/xml/rss2_0.xml` 全通、每轮 20 条；**EGUsphere 的 RSS 时间戳是请求时生成的**（两次实取秒数随
+请求时刻跳），不能当水位用；arXiv 有 `<arxiv:announce_type>`（约三分之一是 replace/cross），
+**不需要新过滤项**——重公告的 `<link>` 与首发同 URL，`identityKeyForUrl` 按地址判重天然吸收；
+Springer `search.rss?facet-journal-id=` 有摘要有真 pubDate；Magtech 中文期刊的 RSS 端点要过人机验证、
+`home.shtml` 列表是服务端渲染 ⇒ 只能走 `web_list`，与 Crossref 那 23 条 `json_list` 一起留下一批。
+
+### 三条骗人的量具（本轮最值钱，都是我自己造的）
+
+1. **`npm run brain -- --lint` 在临时 worktree 里会静默跳过身份守卫**：`tooling/brain-stub.ts:1271` 写的是
+   `if (built && finalizeCopy && fixture.guard && …)`，而 worktree 没有 `node_modules`，`finalizeCopy` 解析不到
+   ⇒ 整段检查不跑，报"0 problems"。我白天据此对站长说过"lint 0 条 problems"，**那是假绿**：主仓库实跑一直是 1 条。
+   同一段代码还让"改词典前 / 改词典后"的对照两边都报 0。**教训：任何"绿"要先证明那段检查真的跑了**——
+   本轮的证法是数 `report` 里带 problems 的条数，而不是看顶层有没有 `problems` 键。
+2. **探测脚本的日期提取只认 ISO**：`raw.slice(0,4)` 对 RFC-822 的 `Fri, 09 Oct 2026 08:11:43 +0000` 取到的是
+   `"Fri,"` ⇒ 判不出年份，**63 个"有条目、有日期"的 feed 被误判成停更**（stale 一度 92 条）。改成 `Date.parse`
+   之后 stale 降到 45、可接入从 45 涨到 111。**教训：解析外部日期先看真实样本的格式，别按一种写法写死**。
+3. **十五路代理在本机并发 curl 时，`tests/egress-and-feedback.test.ts` 两条会假红**（`TypeError: fetch failed`，
+   那两条要起本地 HTTP 服务再 fetch）。单跑 3/3 绿、代理收工后全套重跑 337 通过 / 0 失败。
+   **跑套件时别同时压本机网络。**
+
+### 顺带修的一条既存缺陷（不是本轮造成的，但被本轮的量具照出来）
+
+`IDENTITY_LEXICON.wmo` 的 pattern 只有 `/\bwmo\b|世界气象组织/i`，而 `ENTITIES.wmo.aliases` 与 `TAG_SYNONYMS`
+都收了英文全称 "World Meteorological Organization"。身份守卫只读 pattern ⇒ **原文写英文全称时，
+有依据的中文摘要会被整条丢掉**（Mongabay 那篇厄尔尼诺证据稿就是这么中的）。这一轮成批接英文学术源，
+这种句式天天有，等于埋着的地雷。已补 pattern，并在 `tests/identity-guard.test.ts` 加了一条**注入验红**的用例：
+去掉英文全称它就红，反例（原文没提这个机构、摘要却写了）仍然红。
+
+### 第四条：这台采集器根本没有 IPv6 出口（本轮两条新源上线即死，已修在拨号层）
+
+`rss-egu-highlight-articles` 与 `rss-egu-announcements` 上线五分钟后 `last_error=fetch failed`，
+但在同一台机器上 `curl -A GEOHOTBot` 拿两条 feed 都是 200 + 真 RSS（16.8KB / 14.2KB）。分开测就露底了：
+`curl -4` 200、`curl -6` "Couldn't connect"、Node 的 `fetch` 与 `curl` 默认行为一样超时、
+直连 egu.eu 的 AAAA `2a01:4f8:c01e:4e5::1:443` 报 **ENETUNREACH**——**这台 VM 没有 IPv6 路由**。
+
+`guardedLookup`（`packages/backend/src/lib/url.ts`）原本把解析列表的**第一个**地址交给 socket，
+双栈主机就经常拨到 AAAA 上。修法是抽出 `preferIPv4()`：列表里同时有 v4/v6 时先拨 v4，
+纯 IPv6 主机照旧（那种列表里只有 v6，排完还是它）。**SSRF 检查一点没松**——列表里每一个地址仍然先过
+`isBlockedAddress`，改的只是先拨哪一个；用例在 `tests/url.test.ts`，含"纯 v6 不许被排空"与
+"link-local v6 仍然被拦"两条反例。
+
+**这条的适用面比 EGU 大得多**：第三十轮修过的那批"持续失败信源"里，凡是主机有 AAAA 记录又恰好 v6 不通的，
+病根都可能是这个而不是对端反爬。下一轮巡检 `last_error=fetch failed` 的信源时，**先 `dig AAAA <host>`
+再看要不要动配置**。
+
+### 现状与遗留
+
+- **A10 那一路（地球系统与可持续性机构）到收工时还没交**，它的候选不在 256 里；下一轮并进来。
+- 待复核停用：包内 `rss-igu-online`（国际地理联合会）两次直连只拿到 "One moment, please…" 的 JS 挑战壳、
+  **0 条 item**，按 `intl-unocha` 先例应当停用而不是空跑。
+- 生产容量已量（决定"能接多少"）：接入前每天约 1000 条入库、1000–2400 条分析，预筛 7 天
+  pass 5457 / unknown 3327 / block 1068。+95 条按 iv=240/720 与首轮回补 6–8 条估算，是"一天内多几百条"的量级，
+  分析队列会短时滞后，但不改变能不能入选（入选看 46/49/52）。**上线后第一次巡检要看 `pgboss.job` 的积压与
+  新源的 `last_error`**；如果 unknown 比例异常升高，先怀疑新源的形状而不是门槛。
+- 验证账：`npm test` 342 项 / 337 通过 / 5 跳过 / **0 失败**（含 `industry-pack-sources` 与 `sources` 两条
+  专门校验信源包的用例）；typecheck 0 错；seed 会把新源写进库（只增不改）。

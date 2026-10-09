@@ -8,21 +8,33 @@
       "config": {
         "url": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_week.geojson",
         "itemsPath": "features",
-        "titlePaths": ["properties.title"],
-        "summaryPaths": ["properties.place"],
+        "titlePaths": [
+          "properties.title"
+        ],
+        "summaryPaths": [
+          "properties.place"
+        ],
         "urlTemplate": "https://earthquake.usgs.gov/earthquakes/eventpage/{id}",
         "externalIdPath": "id",
         "publishedAtPath": "properties.time",
         "publishedAtUnit": "epoch_ms",
         "sortByPublishedAt": true,
-        "_aihot": { "initialBackfillLimit": 20 }
+        "_aihot": {
+          "initialBackfillLimit": 20
+        }
       },
       "tier": "T1",
       "first_party": true,
       "owner_entity_id": "usgs",
       "participation_mode": "editorial",
       "interval_minutes": 30,
-      "tags": ["官方", "英文", "灾害事件", "自然地理", "观测数据"],
+      "tags": [
+        "官方",
+        "英文",
+        "灾害事件",
+        "自然地理",
+        "观测数据"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -33,19 +45,32 @@
       "kind": "json_list",
       "config": {
         "url": "https://www.ceic.ac.cn/data/data.json",
-        "titlePaths": ["location"],
+        "titlePaths": [
+          "location"
+        ],
         "publishedAtPath": "time",
         "externalIdPath": "id",
         "urlTemplate": "https://www.cenc.ac.cn/?cenc={id}",
-        "minNumeric": { "path": "magnitude", "min": 4.0 },
-        "_aihot": { "initialBackfillLimit": 10 }
+        "minNumeric": {
+          "path": "magnitude",
+          "min": 4
+        },
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
       },
       "tier": "T1",
       "first_party": true,
       "owner_entity_id": "cenc",
       "participation_mode": "editorial",
       "interval_minutes": 30,
-      "tags": ["官方", "中文", "灾害事件", "自然地理", "区域地理"],
+      "tags": [
+        "官方",
+        "中文",
+        "灾害事件",
+        "自然地理",
+        "区域地理"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -56,20 +81,32 @@
       "kind": "json_list",
       "config": {
         "url": "https://www.nmc.cn/rest/findAlarm?pageNo=1&pageSize=40&signaltype=&signallevel=&province=",
-        "headers": { "referer": "https://www.nmc.cn/" },
+        "headers": {
+          "referer": "https://www.nmc.cn/"
+        },
         "itemsPath": "data.page.list",
-        "titlePaths": ["title"],
+        "titlePaths": [
+          "title"
+        ],
         "publishedAtPath": "issuetime",
         "externalIdPath": "alertid",
         "urlTemplate": "https://www.nmc.cn{raw:url}",
-        "_aihot": { "initialBackfillLimit": 20 }
+        "_aihot": {
+          "initialBackfillLimit": 20
+        }
       },
       "tier": "T1",
       "first_party": true,
       "owner_entity_id": "cma",
       "participation_mode": "editorial",
       "interval_minutes": 30,
-      "tags": ["官方", "中文", "灾害事件", "预警", "自然地理"],
+      "tags": [
+        "官方",
+        "中文",
+        "灾害事件",
+        "预警",
+        "自然地理"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -80,9 +117,13 @@
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.gdacs.org/xml/rss.xml",
-        "_aihot": { "initialBackfillLimit": 12 },
+        "_aihot": {
+          "initialBackfillLimit": 12
+        },
         "ingestNoiseFilter": {
-          "dropMarkersTitleOnly": ["green forest fire notification"]
+          "dropMarkersTitleOnly": [
+            "green forest fire notification"
+          ]
         }
       },
       "tier": "T1",
@@ -90,7 +131,13 @@
       "owner_entity_id": "gdacs",
       "participation_mode": "editorial",
       "interval_minutes": 60,
-      "tags": ["官方", "英文", "灾害事件", "预警", "区域地理"],
+      "tags": [
+        "官方",
+        "英文",
+        "灾害事件",
+        "预警",
+        "区域地理"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -101,14 +148,22 @@
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.noaa.gov/rss.xml",
-        "_aihot": { "initialBackfillLimit": 8 }
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
       },
       "tier": "T1",
       "first_party": true,
       "owner_entity_id": "noaa",
       "participation_mode": "editorial",
       "interval_minutes": 120,
-      "tags": ["官方", "英文", "气象", "海洋", "自然地理"],
+      "tags": [
+        "官方",
+        "英文",
+        "气象",
+        "海洋",
+        "自然地理"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -119,14 +174,21 @@
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.esa.int/rssfeed/Our_Activities/Observing_the_Earth",
-        "_aihot": { "initialBackfillLimit": 8 }
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
       },
       "tier": "T1",
       "first_party": true,
       "owner_entity_id": "esa",
       "participation_mode": "editorial",
       "interval_minutes": 120,
-      "tags": ["官方", "英文", "地理信息技术", "卫星影像"],
+      "tags": [
+        "官方",
+        "英文",
+        "地理信息技术",
+        "卫星影像"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -137,14 +199,22 @@
       "kind": "rss",
       "config": {
         "feedUrl": "https://climate.copernicus.eu/rss.xml",
-        "_aihot": { "initialBackfillLimit": 8 }
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
       },
       "tier": "T1",
       "first_party": true,
       "owner_entity_id": "copernicus",
       "participation_mode": "editorial",
       "interval_minutes": 240,
-      "tags": ["官方", "英文", "气候", "观测数据", "区域地理"],
+      "tags": [
+        "官方",
+        "英文",
+        "气候",
+        "观测数据",
+        "区域地理"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -155,16 +225,32 @@
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.gsc-europa.eu/rss.xml",
-        "allowUrlPrefixes": ["https://www.gsc-europa.eu/"],
-        "ingestNoiseFilter": { "dropMarkersTitleOnly": ["NOTICE ADVISORY TO GALILEO USERS", "NAGU"] },
-        "_aihot": { "initialBackfillLimit": 8 }
+        "allowUrlPrefixes": [
+          "https://www.gsc-europa.eu/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "NOTICE ADVISORY TO GALILEO USERS",
+            "NAGU"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
       },
       "tier": "T1",
       "first_party": true,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 240,
-      "tags": ["官方", "英文", "卫星导航", "观测/数据发布", "技术与软件", "机构/动态"],
+      "tags": [
+        "官方",
+        "英文",
+        "卫星导航",
+        "观测/数据发布",
+        "技术与软件",
+        "机构/动态"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -191,14 +277,21 @@
             "night sky"
           ]
         },
-        "_aihot": { "initialBackfillLimit": 8 }
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
       },
       "tier": "T1",
       "first_party": true,
       "owner_entity_id": "nasa",
       "participation_mode": "editorial",
       "interval_minutes": 120,
-      "tags": ["官方", "英文", "卫星影像", "地理信息技术"],
+      "tags": [
+        "官方",
+        "英文",
+        "卫星影像",
+        "地理信息技术"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -212,15 +305,27 @@
         "parseMode": "html",
         "itemSelector": ".wrapper-content li:has(a[title])",
         "publishedAtSelector": "span",
-        "allowUrlPrefixes": ["https://www.stats.gov.cn/sj/zxfb/"],
-        "_aihot": { "initialBackfillLimit": 10 }
+        "allowUrlPrefixes": [
+          "https://www.stats.gov.cn/sj/zxfb/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
       },
       "tier": "T1",
       "first_party": true,
       "owner_entity_id": "stats",
       "participation_mode": "editorial",
       "interval_minutes": 120,
-      "tags": ["官方", "中文", "人口", "城镇化", "人文地理", "区域地理", "观测数据"],
+      "tags": [
+        "官方",
+        "中文",
+        "人口",
+        "城镇化",
+        "人文地理",
+        "区域地理",
+        "观测数据"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -234,15 +339,27 @@
         "parseMode": "html",
         "itemSelector": "li:has(> a[href$='.html'])",
         "publishedAtSelector": "span.date",
-        "allowUrlPrefixes": ["http://www.mwr.gov.cn/sj/"],
-        "_aihot": { "initialBackfillLimit": 8 }
+        "allowUrlPrefixes": [
+          "http://www.mwr.gov.cn/sj/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
       },
       "tier": "T1",
       "first_party": true,
       "owner_entity_id": "mwr",
       "participation_mode": "editorial",
       "interval_minutes": 240,
-      "tags": ["官方", "中文", "水文", "灾害事件", "自然地理", "区域地理", "观测数据"],
+      "tags": [
+        "官方",
+        "中文",
+        "水文",
+        "灾害事件",
+        "自然地理",
+        "区域地理",
+        "观测数据"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -256,15 +373,27 @@
         "parseMode": "html",
         "itemSelector": "li:has(> a[href$='.html'])",
         "publishedAtSelector": "span",
-        "allowUrlPrefixes": ["http://www.mwr.gov.cn/xw/slyw/"],
-        "_aihot": { "initialBackfillLimit": 10 }
+        "allowUrlPrefixes": [
+          "http://www.mwr.gov.cn/xw/slyw/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
       },
       "tier": "T1",
       "first_party": true,
       "owner_entity_id": "mwr",
       "participation_mode": "editorial",
       "interval_minutes": 240,
-      "tags": ["官方", "中文", "灾害事件", "洪水与干旱", "预警/响应", "水资源", "水利部"],
+      "tags": [
+        "官方",
+        "中文",
+        "灾害事件",
+        "洪水与干旱",
+        "预警/响应",
+        "水资源",
+        "水利部"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -278,15 +407,24 @@
         "parseMode": "html",
         "itemSelector": ".cont li",
         "publishedAtSelector": "span",
-        "allowUrlPrefixes": ["https://www.mem.gov.cn/xw/xwfbh/"],
-        "_aihot": { "initialBackfillLimit": 8 }
+        "allowUrlPrefixes": [
+          "https://www.mem.gov.cn/xw/xwfbh/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
       },
       "tier": "T1",
       "first_party": true,
       "owner_entity_id": "mem",
       "participation_mode": "editorial",
       "interval_minutes": 240,
-      "tags": ["官方", "中文", "灾害事件", "区划规划与政策"],
+      "tags": [
+        "官方",
+        "中文",
+        "灾害事件",
+        "区划规划与政策"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -297,14 +435,20 @@
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.science.org/rss/news_current.xml",
-        "_aihot": { "initialBackfillLimit": 8 }
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
       },
       "tier": "T1_5",
       "first_party": false,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 120,
-      "tags": ["英文", "研究", "科学媒体"],
+      "tags": [
+        "英文",
+        "研究",
+        "科学媒体"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -315,14 +459,21 @@
       "kind": "rss",
       "config": {
         "feedUrl": "https://eos.org/feed",
-        "_aihot": { "initialBackfillLimit": 8 }
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
       },
       "tier": "T1_5",
       "first_party": true,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 120,
-      "tags": ["英文", "研究", "科学媒体", "自然地理"],
+      "tags": [
+        "英文",
+        "研究",
+        "科学媒体",
+        "自然地理"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -333,14 +484,21 @@
       "kind": "rss",
       "config": {
         "feedUrl": "https://news.agu.org/feed/",
-        "_aihot": { "initialBackfillLimit": 8 }
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
       },
       "tier": "T1_5",
       "first_party": true,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 180,
-      "tags": ["英文", "机构", "观测与数据发布", "自然地理"],
+      "tags": [
+        "英文",
+        "机构",
+        "观测与数据发布",
+        "自然地理"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -351,18 +509,33 @@
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.nature.com/ngeo.rss",
-        "allowUrlPrefixes": ["https://www.nature.com/articles/"],
+        "allowUrlPrefixes": [
+          "https://www.nature.com/articles/"
+        ],
         "ingestNoiseFilter": {
-          "dropMarkersTitleOnly": ["Author Correction", "Corrigendum", "Publisher Correction", "Editorial Note"]
+          "dropMarkersTitleOnly": [
+            "Author Correction",
+            "Corrigendum",
+            "Publisher Correction",
+            "Editorial Note"
+          ]
         },
-        "_aihot": { "initialBackfillLimit": 8, "intervalMinutesLocked": true }
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
       },
       "tier": "T1_5",
       "first_party": true,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 240,
-      "tags": ["英文", "期刊", "自然地理", "研究"],
+      "tags": [
+        "英文",
+        "期刊",
+        "自然地理",
+        "研究"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -373,18 +546,34 @@
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.nature.com/commsenv.rss",
-        "allowUrlPrefixes": ["https://www.nature.com/articles/"],
+        "allowUrlPrefixes": [
+          "https://www.nature.com/articles/"
+        ],
         "ingestNoiseFilter": {
-          "dropMarkersTitleOnly": ["Author Correction", "Corrigendum", "Publisher Correction", "Editorial Note"]
+          "dropMarkersTitleOnly": [
+            "Author Correction",
+            "Corrigendum",
+            "Publisher Correction",
+            "Editorial Note"
+          ]
         },
-        "_aihot": { "initialBackfillLimit": 8, "intervalMinutesLocked": true }
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
       },
       "tier": "T1_5",
       "first_party": true,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 240,
-      "tags": ["英文", "期刊", "开放获取", "自然地理", "环境"],
+      "tags": [
+        "英文",
+        "期刊",
+        "开放获取",
+        "自然地理",
+        "环境"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -395,18 +584,34 @@
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.nature.com/nclimate.rss",
-        "allowUrlPrefixes": ["https://www.nature.com/articles/"],
+        "allowUrlPrefixes": [
+          "https://www.nature.com/articles/"
+        ],
         "ingestNoiseFilter": {
-          "dropMarkersTitleOnly": ["Author Correction", "Corrigendum", "Publisher Correction", "Editorial Note"]
+          "dropMarkersTitleOnly": [
+            "Author Correction",
+            "Corrigendum",
+            "Publisher Correction",
+            "Editorial Note"
+          ]
         },
-        "_aihot": { "initialBackfillLimit": 6, "intervalMinutesLocked": true }
+        "_aihot": {
+          "initialBackfillLimit": 6,
+          "intervalMinutesLocked": true
+        }
       },
       "tier": "T1_5",
       "first_party": true,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 240,
-      "tags": ["英文", "期刊", "气候", "区域地理", "研究"],
+      "tags": [
+        "英文",
+        "期刊",
+        "气候",
+        "区域地理",
+        "研究"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -417,18 +622,34 @@
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.nature.com/natcities.rss",
-        "allowUrlPrefixes": ["https://www.nature.com/articles/"],
+        "allowUrlPrefixes": [
+          "https://www.nature.com/articles/"
+        ],
         "ingestNoiseFilter": {
-          "dropMarkersTitleOnly": ["Author Correction", "Corrigendum", "Publisher Correction", "Editorial Note"]
+          "dropMarkersTitleOnly": [
+            "Author Correction",
+            "Corrigendum",
+            "Publisher Correction",
+            "Editorial Note"
+          ]
         },
-        "_aihot": { "initialBackfillLimit": 6, "intervalMinutesLocked": true }
+        "_aihot": {
+          "initialBackfillLimit": 6,
+          "intervalMinutesLocked": true
+        }
       },
       "tier": "T1_5",
       "first_party": true,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 240,
-      "tags": ["英文", "期刊", "人文地理", "城市", "区域地理"],
+      "tags": [
+        "英文",
+        "期刊",
+        "人文地理",
+        "城市",
+        "区域地理"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -439,15 +660,24 @@
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.sciencedaily.com/rss/earth_climate.xml",
-        "allowUrlPrefixes": ["https://www.sciencedaily.com/releases/"],
-        "_aihot": { "initialBackfillLimit": 10 }
+        "allowUrlPrefixes": [
+          "https://www.sciencedaily.com/releases/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
       },
       "tier": "T1_5",
       "first_party": false,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 60,
-      "tags": ["英文", "科研快讯", "自然地理", "气候"],
+      "tags": [
+        "英文",
+        "科研快讯",
+        "自然地理",
+        "气候"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -458,14 +688,20 @@
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.carbonbrief.org/feed/",
-        "_aihot": { "initialBackfillLimit": 8 }
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
       },
       "tier": "T1_5",
       "first_party": false,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 120,
-      "tags": ["英文", "气候", "数据分析"],
+      "tags": [
+        "英文",
+        "气候",
+        "数据分析"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -476,14 +712,21 @@
       "kind": "rss",
       "config": {
         "feedUrl": "https://insideclimatenews.org/feed/",
-        "_aihot": { "initialBackfillLimit": 8 }
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
       },
       "tier": "T1_5",
       "first_party": false,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 120,
-      "tags": ["英文", "调查报道", "气候", "人文地理"],
+      "tags": [
+        "英文",
+        "调查报道",
+        "气候",
+        "人文地理"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -494,15 +737,25 @@
       "kind": "rss",
       "config": {
         "feedUrl": "https://news.mongabay.com/feed/",
-        "denyUrlPrefixes": ["https://news.mongabay.com/video"],
-        "_aihot": { "initialBackfillLimit": 8 }
+        "denyUrlPrefixes": [
+          "https://news.mongabay.com/video"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
       },
       "tier": "T1_5",
       "first_party": false,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 60,
-      "tags": ["英文", "区域地理", "生态", "遥感", "前线报道"],
+      "tags": [
+        "英文",
+        "区域地理",
+        "生态",
+        "遥感",
+        "前线报道"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -513,15 +766,25 @@
       "kind": "rss",
       "config": {
         "feedUrl": "https://phys.org/rss-feed/earth-news/",
-        "allowCategories": ["Earth Sciences", "Environment"],
-        "_aihot": { "initialBackfillLimit": 10 }
+        "allowCategories": [
+          "Earth Sciences",
+          "Environment"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
       },
       "tier": "T2",
       "first_party": false,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 60,
-      "tags": ["英文", "媒体", "研究", "观测数据"],
+      "tags": [
+        "英文",
+        "媒体",
+        "研究",
+        "观测数据"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -532,14 +795,22 @@
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.theguardian.com/environment/rss",
-        "_aihot": { "initialBackfillLimit": 10 }
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
       },
       "tier": "T2",
       "first_party": false,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 60,
-      "tags": ["英文", "媒体", "气候", "灾害事件", "区域地理"],
+      "tags": [
+        "英文",
+        "媒体",
+        "气候",
+        "灾害事件",
+        "区域地理"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -550,14 +821,22 @@
       "kind": "rss",
       "config": {
         "feedUrl": "https://grist.org/feed/",
-        "_aihot": { "initialBackfillLimit": 8 }
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
       },
       "tier": "T2",
       "first_party": false,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 120,
-      "tags": ["英文", "媒体", "气候迁移", "交通与城市", "人文地理"],
+      "tags": [
+        "英文",
+        "媒体",
+        "气候迁移",
+        "交通与城市",
+        "人文地理"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -568,15 +847,24 @@
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.newscientist.com/rss/",
-        "allowUrlPrefixes": ["https://www.newscientist.com/article/"],
-        "_aihot": { "initialBackfillLimit": 8 }
+        "allowUrlPrefixes": [
+          "https://www.newscientist.com/article/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
       },
       "tier": "T2",
       "first_party": false,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 60,
-      "tags": ["英文", "科普媒体", "气候", "地球科学"],
+      "tags": [
+        "英文",
+        "科普媒体",
+        "气候",
+        "地球科学"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -587,15 +875,24 @@
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.technologyreview.com/topic/climate-change/feed",
-        "allowUrlPrefixes": ["https://www.technologyreview.com/"],
-        "_aihot": { "initialBackfillLimit": 6 }
+        "allowUrlPrefixes": [
+          "https://www.technologyreview.com/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 6
+        }
       },
       "tier": "T2",
       "first_party": false,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 120,
-      "tags": ["英文", "媒体", "气候治理", "技术"],
+      "tags": [
+        "英文",
+        "媒体",
+        "气候治理",
+        "技术"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -606,15 +903,25 @@
       "kind": "rss",
       "config": {
         "feedUrl": "https://geographical.co.uk/feed",
-        "denyUrlPrefixes": ["https://geographical.co.uk/quizzes"],
-        "_aihot": { "initialBackfillLimit": 8 }
+        "denyUrlPrefixes": [
+          "https://geographical.co.uk/quizzes"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
       },
       "tier": "T1_5",
       "first_party": true,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 240,
-      "tags": ["英文", "地理杂志", "人文地理", "区域地理", "考察"],
+      "tags": [
+        "英文",
+        "地理杂志",
+        "人文地理",
+        "区域地理",
+        "考察"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -627,20 +934,30 @@
         "url": "https://m.thepaper.cn/",
         "parseMode": "html",
         "itemSelector": "a[href^='/newsDetail_forward_']",
-        "allowUrlPrefixes": ["https://m.thepaper.cn/newsDetail_forward_"],
+        "allowUrlPrefixes": [
+          "https://m.thepaper.cn/newsDetail_forward_"
+        ],
         "detail": {
           "maxFetches": 10,
           "publishedAtRegex": "\"pubTime\":\"(\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2})\"",
           "publishedAtUtcOffset": "+08:00"
         },
-        "_aihot": { "initialBackfillLimit": 6 }
+        "_aihot": {
+          "initialBackfillLimit": 6
+        }
       },
       "tier": "T2",
       "first_party": false,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 120,
-      "tags": ["中文", "综合媒体", "灾害事件", "区划规划与政策", "国内信源"],
+      "tags": [
+        "中文",
+        "综合媒体",
+        "灾害事件",
+        "区划规划与政策",
+        "国内信源"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": false
@@ -653,15 +970,25 @@
         "url": "https://www.dlyj.ac.cn/CN/1000-0585/home.shtml",
         "parseMode": "html",
         "itemSelector": "a[href*='/CN/10.']",
-        "allowUrlPrefixes": ["https://www.dlyj.ac.cn/CN/10."],
-        "_aihot": { "initialBackfillLimit": 15 }
+        "allowUrlPrefixes": [
+          "https://www.dlyj.ac.cn/CN/10."
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 15
+        }
       },
       "tier": "T1_5",
       "first_party": true,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 240,
-      "tags": ["中文", "期刊", "人文地理", "自然地理", "区域地理"],
+      "tags": [
+        "中文",
+        "期刊",
+        "人文地理",
+        "自然地理",
+        "区域地理"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -672,15 +999,24 @@
       "kind": "rss",
       "config": {
         "feedUrl": "https://github.com/OSGeo/gdal/releases.atom",
-        "allowUrlPrefixes": ["https://github.com/OSGeo/gdal/releases/"],
-        "_aihot": { "initialBackfillLimit": 6 }
+        "allowUrlPrefixes": [
+          "https://github.com/OSGeo/gdal/releases/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 6
+        }
       },
       "tier": "T2",
       "first_party": true,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 360,
-      "tags": ["英文", "技术与软件", "GIS与空间数据", "开源"],
+      "tags": [
+        "英文",
+        "技术与软件",
+        "GIS与空间数据",
+        "开源"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -691,15 +1027,24 @@
       "kind": "rss",
       "config": {
         "feedUrl": "https://blog.qgis.org/feed/",
-        "allowUrlPrefixes": ["https://blog.qgis.org/"],
-        "_aihot": { "initialBackfillLimit": 6 }
+        "allowUrlPrefixes": [
+          "https://blog.qgis.org/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 6
+        }
       },
       "tier": "T2",
       "first_party": true,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 720,
-      "tags": ["英文", "技术与软件", "GIS与空间数据", "科普/教程"],
+      "tags": [
+        "英文",
+        "技术与软件",
+        "GIS与空间数据",
+        "科普/教程"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -710,15 +1055,25 @@
       "kind": "rss",
       "config": {
         "feedUrl": "https://blog.openstreetmap.org/feed/",
-        "allowUrlPrefixes": ["https://blog.openstreetmap.org/"],
-        "_aihot": { "initialBackfillLimit": 6 }
+        "allowUrlPrefixes": [
+          "https://blog.openstreetmap.org/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 6
+        }
       },
       "tier": "T2",
       "first_party": true,
       "owner_entity_id": "osm",
       "participation_mode": "editorial",
       "interval_minutes": 360,
-      "tags": ["英文", "技术与软件", "GIS与空间数据", "机构/动态", "OpenStreetMap"],
+      "tags": [
+        "英文",
+        "技术与软件",
+        "GIS与空间数据",
+        "机构/动态",
+        "OpenStreetMap"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -731,15 +1086,25 @@
         "url": "https://spacemapper.cn/zh-cn/info/news/",
         "parseMode": "html",
         "itemSelector": "a.news-item",
-        "allowUrlPrefixes": ["https://spacemapper.cn/zh-cn/info/news/"],
-        "_aihot": { "initialBackfillLimit": 6 }
+        "allowUrlPrefixes": [
+          "https://spacemapper.cn/zh-cn/info/news/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 6
+        }
       },
       "tier": "T2",
       "first_party": false,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 120,
-      "tags": ["中文", "转载层", "遥感影像", "卫星导航", "技术与软件"],
+      "tags": [
+        "中文",
+        "转载层",
+        "遥感影像",
+        "卫星导航",
+        "技术与软件"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -754,7 +1119,13 @@
       "owner_entity_id": "cma",
       "participation_mode": "isolated",
       "interval_minutes": 1440,
-      "tags": ["官方", "中文", "预警", "外部投递", "暂不公开"],
+      "tags": [
+        "官方",
+        "中文",
+        "预警",
+        "外部投递",
+        "暂不公开"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -769,7 +1140,14 @@
       "owner_entity_id": "mca",
       "participation_mode": "isolated",
       "interval_minutes": 1440,
-      "tags": ["官方", "中文", "行政区划", "区划规划与政策", "外部投递", "暂不公开"],
+      "tags": [
+        "官方",
+        "中文",
+        "行政区划",
+        "区划规划与政策",
+        "外部投递",
+        "暂不公开"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -784,7 +1162,14 @@
       "owner_entity_id": "mnr",
       "participation_mode": "isolated",
       "interval_minutes": 1440,
-      "tags": ["官方", "中文", "地质灾害", "海洋", "外部投递", "暂不公开"],
+      "tags": [
+        "官方",
+        "中文",
+        "地质灾害",
+        "海洋",
+        "外部投递",
+        "暂不公开"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -799,7 +1184,14 @@
       "owner_entity_id": null,
       "participation_mode": "isolated",
       "interval_minutes": 1440,
-      "tags": ["中文", "期刊", "自然地理", "人文地理", "外部投递", "暂不公开"],
+      "tags": [
+        "中文",
+        "期刊",
+        "自然地理",
+        "人文地理",
+        "外部投递",
+        "暂不公开"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -814,7 +1206,13 @@
       "owner_entity_id": null,
       "participation_mode": "isolated",
       "interval_minutes": 1440,
-      "tags": ["中文", "观测数据", "地理信息技术", "外部投递", "暂不公开"],
+      "tags": [
+        "中文",
+        "观测数据",
+        "地理信息技术",
+        "外部投递",
+        "暂不公开"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -829,7 +1227,13 @@
       "owner_entity_id": null,
       "participation_mode": "isolated",
       "interval_minutes": 1440,
-      "tags": ["中文", "地理杂志", "区域地理", "外部投递", "暂不公开"],
+      "tags": [
+        "中文",
+        "地理杂志",
+        "区域地理",
+        "外部投递",
+        "暂不公开"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -844,7 +1248,16 @@
       "owner_entity_id": "cas",
       "participation_mode": "isolated",
       "interval_minutes": 1440,
-      "tags": ["官方", "中文", "考察/记录", "高原", "冰川与冻土", "观测/数据发布", "外部投递", "暂不公开"],
+      "tags": [
+        "官方",
+        "中文",
+        "考察/记录",
+        "高原",
+        "冰川与冻土",
+        "观测/数据发布",
+        "外部投递",
+        "暂不公开"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -859,7 +1272,16 @@
       "owner_entity_id": "mnr",
       "participation_mode": "isolated",
       "interval_minutes": 1440,
-      "tags": ["官方", "中文", "考察/记录", "海洋", "冰川与冻土", "海平面", "外部投递", "暂不公开"],
+      "tags": [
+        "官方",
+        "中文",
+        "考察/记录",
+        "海洋",
+        "冰川与冻土",
+        "海平面",
+        "外部投递",
+        "暂不公开"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -868,13 +1290,21 @@
       "id": "intl-ogc-blog",
       "name": "OGC 开放地理空间联盟（新闻与标准动态）",
       "kind": "rss",
-      "config": { "feedUrl": "https://www.ogc.org/feed/" },
+      "config": {
+        "feedUrl": "https://www.ogc.org/feed/"
+      },
       "tier": "T1",
       "first_party": false,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 90,
-      "tags": ["国际", "英文", "GIS", "标准", "机构"],
+      "tags": [
+        "国际",
+        "英文",
+        "GIS",
+        "标准",
+        "机构"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
@@ -884,13 +1314,21 @@
       "id": "intl-qgis-releases",
       "name": "QGIS 版本发布（官方 Atom）",
       "kind": "rss",
-      "config": { "feedUrl": "https://github.com/qgis/QGIS/releases.atom" },
+      "config": {
+        "feedUrl": "https://github.com/qgis/QGIS/releases.atom"
+      },
       "tier": "T2",
       "first_party": false,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 120,
-      "tags": ["国际", "英文", "GIS", "软件", "开源"],
+      "tags": [
+        "国际",
+        "英文",
+        "GIS",
+        "软件",
+        "开源"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
@@ -946,13 +1384,20 @@
       "id": "intl-thediplomat",
       "name": "The Diplomat（亚太地缘与安全）",
       "kind": "rss",
-      "config": { "feedUrl": "https://thediplomat.com/feed/" },
+      "config": {
+        "feedUrl": "https://thediplomat.com/feed/"
+      },
       "tier": "T2",
       "first_party": false,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 30,
-      "tags": ["国际", "英文", "地缘", "媒体"],
+      "tags": [
+        "国际",
+        "英文",
+        "地缘",
+        "媒体"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
@@ -962,13 +1407,23 @@
       "id": "intl-worldpoliticsreview",
       "name": "World Politics Review（地缘与数据权力）",
       "kind": "rss",
-      "config": { "feedUrl": "https://www.worldpoliticsreview.com/feed/", "headers": { "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36" } },
+      "config": {
+        "feedUrl": "https://www.worldpoliticsreview.com/feed/",
+        "headers": {
+          "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+        }
+      },
       "tier": "T2",
       "first_party": false,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 60,
-      "tags": ["国际", "英文", "地缘", "媒体"],
+      "tags": [
+        "国际",
+        "英文",
+        "地缘",
+        "媒体"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
@@ -978,13 +1433,20 @@
       "id": "intl-foreignaffairs",
       "name": "Foreign Affairs（外交事务）",
       "kind": "rss",
-      "config": { "feedUrl": "https://www.foreignaffairs.com/rss.xml" },
+      "config": {
+        "feedUrl": "https://www.foreignaffairs.com/rss.xml"
+      },
       "tier": "T2",
       "first_party": false,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 60,
-      "tags": ["国际", "英文", "地缘", "媒体"],
+      "tags": [
+        "国际",
+        "英文",
+        "地缘",
+        "媒体"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
@@ -994,13 +1456,20 @@
       "id": "intl-crisisgroup",
       "name": "International Crisis Group（冲突预警）",
       "kind": "rss",
-      "config": { "feedUrl": "https://www.crisisgroup.org/rss.xml" },
+      "config": {
+        "feedUrl": "https://www.crisisgroup.org/rss.xml"
+      },
       "tier": "T1",
       "first_party": false,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 180,
-      "tags": ["国际", "英文", "地缘", "机构"],
+      "tags": [
+        "国际",
+        "英文",
+        "地缘",
+        "机构"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
@@ -1010,13 +1479,21 @@
       "id": "intl-chinadialogue-zh",
       "name": "对话地球 China Dialogue（中文版）",
       "kind": "rss",
-      "config": { "feedUrl": "https://chinadialogue.net/zh/feed/" },
+      "config": {
+        "feedUrl": "https://chinadialogue.net/zh/feed/"
+      },
       "tier": "T2",
       "first_party": false,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 60,
-      "tags": ["国际", "中文", "环境", "地缘", "媒体"],
+      "tags": [
+        "国际",
+        "中文",
+        "环境",
+        "地缘",
+        "媒体"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
@@ -1026,13 +1503,20 @@
       "id": "intl-unocha",
       "name": "UN OCHA（联合国人道协调厅）",
       "kind": "rss",
-      "config": { "feedUrl": "https://www.unocha.org/rss.xml" },
+      "config": {
+        "feedUrl": "https://www.unocha.org/rss.xml"
+      },
       "tier": "T1",
       "first_party": false,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 60,
-      "tags": ["国际", "英文", "灾害", "机构"],
+      "tags": [
+        "国际",
+        "英文",
+        "灾害",
+        "机构"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": false,
@@ -1042,13 +1526,21 @@
       "id": "intl-theconversation-env",
       "name": "The Conversation（环境话题 · 逐条 CC 许可）",
       "kind": "rss",
-      "config": { "feedUrl": "https://theconversation.com/uk/environment/articles.atom" },
+      "config": {
+        "feedUrl": "https://theconversation.com/uk/environment/articles.atom"
+      },
       "tier": "T2",
       "first_party": false,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 60,
-      "tags": ["国际", "英文", "环境", "媒体", "CC"],
+      "tags": [
+        "国际",
+        "英文",
+        "环境",
+        "媒体",
+        "CC"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
@@ -1058,13 +1550,20 @@
       "id": "intl-nasa-science",
       "name": "NASA Science（地球与行星科学）",
       "kind": "rss",
-      "config": { "feedUrl": "https://science.nasa.gov/feed/" },
+      "config": {
+        "feedUrl": "https://science.nasa.gov/feed/"
+      },
       "tier": "T1",
       "first_party": false,
       "owner_entity_id": "nasa",
       "participation_mode": "editorial",
       "interval_minutes": 60,
-      "tags": ["国际", "英文", "机构", "地球观测"],
+      "tags": [
+        "国际",
+        "英文",
+        "机构",
+        "地球观测"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
@@ -1074,13 +1573,21 @@
       "id": "intl-loc-worlds-revealed",
       "name": "Library of Congress · Worlds Revealed（地图部博客）",
       "kind": "rss",
-      "config": { "feedUrl": "https://blogs.loc.gov/maps/feed/" },
+      "config": {
+        "feedUrl": "https://blogs.loc.gov/maps/feed/"
+      },
       "tier": "T1",
       "first_party": false,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 180,
-      "tags": ["国际", "英文", "历史地理", "地图", "机构"],
+      "tags": [
+        "国际",
+        "英文",
+        "历史地理",
+        "地图",
+        "机构"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
@@ -1090,13 +1597,20 @@
       "id": "intl-publicdomainreview",
       "name": "The Public Domain Review（明写可自由分享）",
       "kind": "rss",
-      "config": { "feedUrl": "https://publicdomainreview.org/feed/" },
+      "config": {
+        "feedUrl": "https://publicdomainreview.org/feed/"
+      },
       "tier": "T2",
       "first_party": false,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 240,
-      "tags": ["国际", "英文", "历史地理", "公共领域"],
+      "tags": [
+        "国际",
+        "英文",
+        "历史地理",
+        "公共领域"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
@@ -1106,13 +1620,20 @@
       "id": "intl-eseh",
       "name": "欧洲环境史学会 ESEH（新闻与征稿）",
       "kind": "rss",
-      "config": { "feedUrl": "https://eseh.org/rss" },
+      "config": {
+        "feedUrl": "https://eseh.org/rss"
+      },
       "tier": "T2",
       "first_party": false,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 240,
-      "tags": ["国际", "英文", "历史地理", "学术"],
+      "tags": [
+        "国际",
+        "英文",
+        "历史地理",
+        "学术"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
@@ -1122,13 +1643,24 @@
       "id": "rss-undrr",
       "name": "联合国减灾办公室 UNDRR（新闻与减灾治理动态）",
       "kind": "rss",
-      "config": { "feedUrl": "https://www.undrr.org/rss.xml", "_aihot": { "initialBackfillLimit": 12 } },
+      "config": {
+        "feedUrl": "https://www.undrr.org/rss.xml",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
       "tier": "T1",
       "first_party": true,
       "owner_entity_id": "undrr",
       "participation_mode": "editorial",
       "interval_minutes": 180,
-      "tags": ["官方", "英文", "灾害事件", "预警", "区域地理"],
+      "tags": [
+        "官方",
+        "英文",
+        "灾害事件",
+        "预警",
+        "区域地理"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
@@ -1138,13 +1670,24 @@
       "id": "rss-ipcc",
       "name": "IPCC 政府间气候变化专门委员会（评估进程与会议动态）",
       "kind": "rss",
-      "config": { "feedUrl": "https://www.ipcc.ch/feed/", "_aihot": { "initialBackfillLimit": 10 } },
+      "config": {
+        "feedUrl": "https://www.ipcc.ch/feed/",
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
+      },
       "tier": "T1",
       "first_party": true,
       "owner_entity_id": "ipcc",
       "participation_mode": "editorial",
       "interval_minutes": 240,
-      "tags": ["官方", "英文", "气候", "气候治理", "学术"],
+      "tags": [
+        "官方",
+        "英文",
+        "气候",
+        "气候治理",
+        "学术"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
@@ -1154,13 +1697,24 @@
       "id": "rss-fao-newsroom",
       "name": "联合国粮农组织 FAO（新闻发布）",
       "kind": "rss",
-      "config": { "feedUrl": "https://www.fao.org/feeds/fao-newsroom-rss", "_aihot": { "initialBackfillLimit": 12 } },
+      "config": {
+        "feedUrl": "https://www.fao.org/feeds/fao-newsroom-rss",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
       "tier": "T1",
       "first_party": true,
       "owner_entity_id": "fao",
       "participation_mode": "editorial",
       "interval_minutes": 240,
-      "tags": ["官方", "英文", "环境", "区域地理", "研究"],
+      "tags": [
+        "官方",
+        "英文",
+        "环境",
+        "区域地理",
+        "研究"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
@@ -1170,13 +1724,24 @@
       "id": "rss-jrc-news",
       "name": "欧盟委员会联合研究中心 JRC（新闻）",
       "kind": "rss",
-      "config": { "feedUrl": "https://joint-research-centre.ec.europa.eu/node/2/rss_en", "_aihot": { "initialBackfillLimit": 12 } },
+      "config": {
+        "feedUrl": "https://joint-research-centre.ec.europa.eu/node/2/rss_en",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
       "tier": "T1",
       "first_party": true,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 240,
-      "tags": ["官方", "英文", "地球科学", "观测数据", "技术"],
+      "tags": [
+        "官方",
+        "英文",
+        "地球科学",
+        "观测数据",
+        "技术"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
@@ -1186,13 +1751,24 @@
       "id": "rss-noaa-ncei",
       "name": "NOAA 国家环境信息中心 NCEI（新闻）",
       "kind": "rss",
-      "config": { "feedUrl": "https://www.ncei.noaa.gov/news.xml", "_aihot": { "initialBackfillLimit": 10 } },
+      "config": {
+        "feedUrl": "https://www.ncei.noaa.gov/news.xml",
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
+      },
       "tier": "T1",
       "first_party": true,
       "owner_entity_id": "noaa",
       "participation_mode": "editorial",
       "interval_minutes": 240,
-      "tags": ["官方", "英文", "气候", "观测数据", "海洋"],
+      "tags": [
+        "官方",
+        "英文",
+        "气候",
+        "观测数据",
+        "海洋"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
@@ -1202,13 +1778,24 @@
       "id": "rss-nasa-earth-observatory",
       "name": "NASA 地球观测站（Earth Observatory 影像与解读）",
       "kind": "rss",
-      "config": { "feedUrl": "https://earthobservatory.nasa.gov/feeds/earth-observatory.rss", "_aihot": { "initialBackfillLimit": 10 } },
+      "config": {
+        "feedUrl": "https://earthobservatory.nasa.gov/feeds/earth-observatory.rss",
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
+      },
       "tier": "T1",
       "first_party": true,
       "owner_entity_id": "nasa",
       "participation_mode": "editorial",
       "interval_minutes": 240,
-      "tags": ["官方", "英文", "卫星影像", "地球观测", "自然地理"],
+      "tags": [
+        "官方",
+        "英文",
+        "卫星影像",
+        "地球观测",
+        "自然地理"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
@@ -1218,13 +1805,24 @@
       "id": "rss-weeklyosm",
       "name": "weeklyOSM（OpenStreetMap 社区周报）",
       "kind": "rss",
-      "config": { "feedUrl": "https://weeklyosm.eu/feed/", "_aihot": { "initialBackfillLimit": 6 } },
+      "config": {
+        "feedUrl": "https://weeklyosm.eu/feed/",
+        "_aihot": {
+          "initialBackfillLimit": 6
+        }
+      },
       "tier": "T1_5",
       "first_party": false,
       "owner_entity_id": "osm",
       "participation_mode": "editorial",
       "interval_minutes": 360,
-      "tags": ["英文", "OpenStreetMap", "GIS与空间数据", "机构/动态", "开源"],
+      "tags": [
+        "英文",
+        "OpenStreetMap",
+        "GIS与空间数据",
+        "机构/动态",
+        "开源"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
@@ -1234,13 +1832,24 @@
       "id": "rss-mrc-mekong",
       "name": "湄公河委员会 MRC（流域治理动态）",
       "kind": "rss",
-      "config": { "feedUrl": "https://www.mrcmekong.org/feed/", "_aihot": { "initialBackfillLimit": 10 } },
+      "config": {
+        "feedUrl": "https://www.mrcmekong.org/feed/",
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
+      },
       "tier": "T1",
       "first_party": true,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 360,
-      "tags": ["官方", "英文", "区域地理", "水资源", "生态"],
+      "tags": [
+        "官方",
+        "英文",
+        "区域地理",
+        "水资源",
+        "生态"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
@@ -1250,13 +1859,24 @@
       "id": "rss-icimod",
       "name": "国际山地综合发展中心 ICIMOD（兴都库什—喜马拉雅）",
       "kind": "rss",
-      "config": { "feedUrl": "https://www.icimod.org/feed/", "_aihot": { "initialBackfillLimit": 10 } },
+      "config": {
+        "feedUrl": "https://www.icimod.org/feed/",
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
+      },
       "tier": "T1",
       "first_party": true,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 360,
-      "tags": ["官方", "英文", "高原", "冰川与冻土", "区域地理"],
+      "tags": [
+        "官方",
+        "英文",
+        "高原",
+        "冰川与冻土",
+        "区域地理"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
@@ -1266,13 +1886,24 @@
       "id": "rss-ingv-news",
       "name": "意大利国家地球物理与火山学研究所 INGV（新闻室）",
       "kind": "rss",
-      "config": { "feedUrl": "https://www.ingv.it/stampa-urp/ufficio-stampa/news?format=feed&type=rss", "_aihot": { "initialBackfillLimit": 10 } },
+      "config": {
+        "feedUrl": "https://www.ingv.it/stampa-urp/ufficio-stampa/news?format=feed&type=rss",
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
+      },
       "tier": "T1",
       "first_party": true,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 360,
-      "tags": ["官方", "英文", "火山", "地震", "自然地理"],
+      "tags": [
+        "官方",
+        "英文",
+        "火山",
+        "地震",
+        "自然地理"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
@@ -1282,13 +1913,25 @@
       "id": "rss-nrcan-quakes",
       "name": "加拿大地震局（显著地震事件 Atom 源）",
       "kind": "rss",
-      "config": { "feedUrl": "https://earthquakescanada.nrcan.gc.ca/cache/earthquakes/zone-canada-en.atom", "sortByPublishedAt": true, "_aihot": { "initialBackfillLimit": 10 } },
+      "config": {
+        "feedUrl": "https://earthquakescanada.nrcan.gc.ca/cache/earthquakes/zone-canada-en.atom",
+        "sortByPublishedAt": true,
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
+      },
       "tier": "T1",
       "first_party": true,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 120,
-      "tags": ["官方", "英文", "地震", "灾害事件", "观测数据"],
+      "tags": [
+        "官方",
+        "英文",
+        "地震",
+        "灾害事件",
+        "观测数据"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
@@ -1298,13 +1941,24 @@
       "id": "rss-nsidc-news",
       "name": "美国国家冰雪数据中心 NSIDC（新闻与解读）",
       "kind": "rss",
-      "config": { "feedUrl": "https://nsidc.org/news/feed", "_aihot": { "initialBackfillLimit": 10 } },
+      "config": {
+        "feedUrl": "https://nsidc.org/news/feed",
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
+      },
       "tier": "T1",
       "first_party": true,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 360,
-      "tags": ["官方", "英文", "冰川与冻土", "海平面", "观测数据"],
+      "tags": [
+        "官方",
+        "英文",
+        "冰川与冻土",
+        "海平面",
+        "观测数据"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
@@ -1319,15 +1973,26 @@
         "parseMode": "html",
         "itemSelector": "li",
         "publishedAtSelector": "span",
-        "allowUrlPrefixes": ["https://www.mnr.gov.cn/dt/ywbb/"],
-        "_aihot": { "initialBackfillLimit": 10 }
+        "allowUrlPrefixes": [
+          "https://www.mnr.gov.cn/dt/ywbb/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
       },
       "tier": "T1",
       "first_party": true,
       "owner_entity_id": "mnr",
       "participation_mode": "editorial",
       "interval_minutes": 240,
-      "tags": ["官方", "中文", "地质灾害", "海洋", "自然地理", "区域地理"],
+      "tags": [
+        "官方",
+        "中文",
+        "地质灾害",
+        "海洋",
+        "自然地理",
+        "区域地理"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": false,
@@ -1342,15 +2007,25 @@
         "parseMode": "html",
         "itemSelector": "li",
         "publishedAtSelector": "span.time",
-        "allowUrlPrefixes": ["https://www.cgs.gov.cn/ywdt/ddyw/"],
-        "_aihot": { "initialBackfillLimit": 10 }
+        "allowUrlPrefixes": [
+          "https://www.cgs.gov.cn/ywdt/ddyw/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
       },
       "tier": "T1",
       "first_party": true,
       "owner_entity_id": "cgs",
       "participation_mode": "editorial",
       "interval_minutes": 240,
-      "tags": ["官方", "中文", "地球科学", "考察", "观测数据"],
+      "tags": [
+        "官方",
+        "中文",
+        "地球科学",
+        "考察",
+        "观测数据"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
@@ -1365,15 +2040,25 @@
         "parseMode": "html",
         "itemSelector": "dt:has(a.cjcx_biaobnan)",
         "publishedAtSelector": "span.cjcx_shijian",
-        "allowUrlPrefixes": ["https://www.mee.gov.cn/ywdt/xwfb/"],
-        "_aihot": { "initialBackfillLimit": 8 }
+        "allowUrlPrefixes": [
+          "https://www.mee.gov.cn/ywdt/xwfb/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
       },
       "tier": "T1",
       "first_party": true,
       "owner_entity_id": "mee",
       "participation_mode": "editorial",
       "interval_minutes": 240,
-      "tags": ["官方", "中文", "环境", "政策", "气候"],
+      "tags": [
+        "官方",
+        "中文",
+        "环境",
+        "政策",
+        "气候"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
@@ -1388,15 +2073,26 @@
         "parseMode": "html",
         "itemSelector": "li:has(a[href*='lcdt'])",
         "publishedAtSelector": "span",
-        "allowUrlPrefixes": ["https://www.forestry.gov.cn/c/www/lcdt/", "https://www.forestry.gov.cn/lyj/1/lcdt/"],
-        "_aihot": { "initialBackfillLimit": 10 }
+        "allowUrlPrefixes": [
+          "https://www.forestry.gov.cn/c/www/lcdt/",
+          "https://www.forestry.gov.cn/lyj/1/lcdt/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
       },
       "tier": "T1",
       "first_party": true,
       "owner_entity_id": "forestry",
       "participation_mode": "editorial",
       "interval_minutes": 240,
-      "tags": ["官方", "中文", "生态", "环境", "政策"],
+      "tags": [
+        "官方",
+        "中文",
+        "生态",
+        "环境",
+        "政策"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
@@ -1411,15 +2107,25 @@
         "parseMode": "html",
         "itemSelector": "li:has(a[href*='fzjzyw'])",
         "publishedAtSelector": "span",
-        "allowUrlPrefixes": ["https://www.cea.gov.cn/cea/xwzx/fzjzyw/"],
-        "_aihot": { "initialBackfillLimit": 10 }
+        "allowUrlPrefixes": [
+          "https://www.cea.gov.cn/cea/xwzx/fzjzyw/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
       },
       "tier": "T1",
       "first_party": true,
       "owner_entity_id": "cea",
       "participation_mode": "editorial",
       "interval_minutes": 240,
-      "tags": ["官方", "中文", "地震", "灾害事件", "预警"],
+      "tags": [
+        "官方",
+        "中文",
+        "地震",
+        "灾害事件",
+        "预警"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": false,
@@ -1434,15 +2140,25 @@
         "parseMode": "html",
         "itemSelector": "li",
         "publishedAtSelector": "span",
-        "allowUrlPrefixes": ["https://www.mem.gov.cn/xw/yjglbgzdt/"],
-        "_aihot": { "initialBackfillLimit": 10 }
+        "allowUrlPrefixes": [
+          "https://www.mem.gov.cn/xw/yjglbgzdt/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
       },
       "tier": "T1",
       "first_party": true,
       "owner_entity_id": "mem",
       "participation_mode": "editorial",
       "interval_minutes": 240,
-      "tags": ["官方", "中文", "灾害事件", "预警", "政策"],
+      "tags": [
+        "官方",
+        "中文",
+        "灾害事件",
+        "预警",
+        "政策"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
@@ -1457,15 +2173,25 @@
         "parseMode": "html",
         "itemSelector": "li",
         "publishedAtSelector": "span",
-        "allowUrlPrefixes": ["http://www.mwr.gov.cn/xw/sjzs/"],
-        "_aihot": { "initialBackfillLimit": 12 }
+        "allowUrlPrefixes": [
+          "http://www.mwr.gov.cn/xw/sjzs/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
       },
       "tier": "T1",
       "first_party": true,
       "owner_entity_id": "mwr",
       "participation_mode": "editorial",
       "interval_minutes": 240,
-      "tags": ["官方", "中文", "水文", "水资源", "洪水与干旱"],
+      "tags": [
+        "官方",
+        "中文",
+        "水文",
+        "水资源",
+        "洪水与干旱"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
@@ -1480,15 +2206,25 @@
         "parseMode": "html",
         "itemSelector": "li",
         "publishedAtSelector": "span",
-        "allowUrlPrefixes": ["http://www.yrcc.gov.cn/xwdt/hhyw/"],
-        "_aihot": { "initialBackfillLimit": 10 }
+        "allowUrlPrefixes": [
+          "http://www.yrcc.gov.cn/xwdt/hhyw/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
       },
       "tier": "T1",
       "first_party": true,
       "owner_entity_id": "mwr",
       "participation_mode": "editorial",
       "interval_minutes": 240,
-      "tags": ["官方", "中文", "水文", "水资源", "区域地理"],
+      "tags": [
+        "官方",
+        "中文",
+        "水文",
+        "水资源",
+        "区域地理"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
@@ -1503,15 +2239,25 @@
         "parseMode": "html",
         "itemSelector": "li",
         "publishedAtRegex": "(20\\d\\d-\\d{2}-\\d{2})",
-        "allowUrlPrefixes": ["http://www.cjw.gov.cn/xwzx/cjyw/"],
-        "_aihot": { "initialBackfillLimit": 12 }
+        "allowUrlPrefixes": [
+          "http://www.cjw.gov.cn/xwzx/cjyw/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
       },
       "tier": "T1",
       "first_party": true,
       "owner_entity_id": "mwr",
       "participation_mode": "editorial",
       "interval_minutes": 240,
-      "tags": ["官方", "中文", "水文", "水资源", "洪水与干旱"],
+      "tags": [
+        "官方",
+        "中文",
+        "水文",
+        "水资源",
+        "洪水与干旱"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": false,
@@ -1527,16 +2273,35 @@
         "itemSelector": "a[href*='/channel/news/newsid/']",
         "titleSelector": "div.news-nav-title",
         "publishedAtSelector": "div.news-time",
-        "allowUrlPrefixes": ["https://www.ncc-cma.net/channel/news/"],
-        "ingestNoiseFilter": { "dropMarkersTitleOnly": ["决算", "预算", "招录", "落户", "公示", "采购"] },
-        "_aihot": { "initialBackfillLimit": 10 }
+        "allowUrlPrefixes": [
+          "https://www.ncc-cma.net/channel/news/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "决算",
+            "预算",
+            "招录",
+            "落户",
+            "公示",
+            "采购"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
       },
       "tier": "T1",
       "first_party": true,
       "owner_entity_id": "cma",
       "participation_mode": "editorial",
       "interval_minutes": 240,
-      "tags": ["官方", "中文", "气象", "灾害事件", "区域地理"],
+      "tags": [
+        "官方",
+        "中文",
+        "气象",
+        "灾害事件",
+        "区域地理"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
@@ -1552,15 +2317,25 @@
         "itemSelector": "a[href*='/media-centre/news/20']",
         "titleSelector": "h3",
         "publishedAtSelector": "time",
-        "allowUrlPrefixes": ["https://www.ecmwf.int/en/about/media-centre/news/"],
-        "_aihot": { "initialBackfillLimit": 10 }
+        "allowUrlPrefixes": [
+          "https://www.ecmwf.int/en/about/media-centre/news/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
       },
       "tier": "T1",
       "first_party": true,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 240,
-      "tags": ["官方", "英文", "气象", "观测数据", "技术"],
+      "tags": [
+        "官方",
+        "英文",
+        "气象",
+        "观测数据",
+        "技术"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
@@ -1575,15 +2350,25 @@
         "parseMode": "html",
         "itemSelector": "li:has(a.tj)",
         "publishedAtSelector": "span",
-        "allowUrlPrefixes": ["https://igsnrr.cas.cn/news/zhxw/"],
-        "_aihot": { "initialBackfillLimit": 10 }
+        "allowUrlPrefixes": [
+          "https://igsnrr.cas.cn/news/zhxw/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
       },
       "tier": "T1",
       "first_party": true,
       "owner_entity_id": "cas",
       "participation_mode": "editorial",
       "interval_minutes": 240,
-      "tags": ["官方", "中文", "研究", "区域地理", "生态"],
+      "tags": [
+        "官方",
+        "中文",
+        "研究",
+        "区域地理",
+        "生态"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
@@ -1598,15 +2383,25 @@
         "parseMode": "html",
         "itemSelector": "li:has(a.tj)",
         "publishedAtSelector": "span",
-        "allowUrlPrefixes": ["https://igsnrr.cas.cn/news/kyjz/"],
-        "_aihot": { "initialBackfillLimit": 10 }
+        "allowUrlPrefixes": [
+          "https://igsnrr.cas.cn/news/kyjz/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
       },
       "tier": "T1",
       "first_party": true,
       "owner_entity_id": "cas",
       "participation_mode": "editorial",
       "interval_minutes": 240,
-      "tags": ["官方", "中文", "研究", "自然地理", "生态"],
+      "tags": [
+        "官方",
+        "中文",
+        "研究",
+        "自然地理",
+        "生态"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
@@ -1622,15 +2417,25 @@
         "itemSelector": "a.group",
         "titleSelector": "h2",
         "publishedAtSelector": "span.text-sm",
-        "allowUrlPrefixes": ["https://wmo.int/media/news/"],
-        "_aihot": { "initialBackfillLimit": 8 }
+        "allowUrlPrefixes": [
+          "https://wmo.int/media/news/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
       },
       "tier": "T1",
       "first_party": true,
       "owner_entity_id": "wmo",
       "participation_mode": "editorial",
       "interval_minutes": 240,
-      "tags": ["官方", "英文", "气象", "气候", "海洋"],
+      "tags": [
+        "官方",
+        "英文",
+        "气象",
+        "气候",
+        "海洋"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
@@ -1644,15 +2449,25 @@
         "url": "https://www.pric.org.cn/",
         "parseMode": "html",
         "itemSelector": "a[href*='c_show_id_']",
-        "allowUrlPrefixes": ["https://www.pric.org.cn/"],
-        "_aihot": { "initialBackfillLimit": 10 }
+        "allowUrlPrefixes": [
+          "https://www.pric.org.cn/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
       },
       "tier": "T1",
       "first_party": true,
       "owner_entity_id": "mnr",
       "participation_mode": "editorial",
       "interval_minutes": 360,
-      "tags": ["官方", "中文", "考察", "高原", "海洋"],
+      "tags": [
+        "官方",
+        "中文",
+        "考察",
+        "高原",
+        "海洋"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
@@ -1668,16 +2483,29 @@
         "itemSelector": "li",
         "linkSelector": "a[href*='t20']",
         "titleSelector": "p a",
-        "allowUrlPrefixes": ["http://www.moe.gov.cn/jyb_xwfb/"],
-        "detail": { "maxFetches": 8, "publishedAtRegex": "([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2})", "publishedAtUtcOffset": "+08:00" },
-        "_aihot": { "initialBackfillLimit": 15 }
+        "allowUrlPrefixes": [
+          "http://www.moe.gov.cn/jyb_xwfb/"
+        ],
+        "detail": {
+          "maxFetches": 8,
+          "publishedAtRegex": "([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2})",
+          "publishedAtUtcOffset": "+08:00"
+        },
+        "_aihot": {
+          "initialBackfillLimit": 15
+        }
       },
       "tier": "T1",
       "first_party": true,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 240,
-      "tags": ["官方", "中文", "教育", "政策"],
+      "tags": [
+        "官方",
+        "中文",
+        "教育",
+        "政策"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -1691,16 +2519,30 @@
         "parseMode": "html",
         "itemSelector": "li:has(a[href*='/web/'])",
         "linkSelector": "a",
-        "allowUrlPrefixes": ["https://www.stdaily.com/web/"],
-        "detail": { "maxFetches": 8, "publishedAtRegex": "([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2})", "publishedAtUtcOffset": "+08:00" },
-        "_aihot": { "initialBackfillLimit": 15 }
+        "allowUrlPrefixes": [
+          "https://www.stdaily.com/web/"
+        ],
+        "detail": {
+          "maxFetches": 8,
+          "publishedAtRegex": "([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2})",
+          "publishedAtUtcOffset": "+08:00"
+        },
+        "_aihot": {
+          "initialBackfillLimit": 15
+        }
       },
       "tier": "T1_5",
       "first_party": true,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 240,
-      "tags": ["官方", "中文", "科研", "综合媒体", "国内信源"],
+      "tags": [
+        "官方",
+        "中文",
+        "科研",
+        "综合媒体",
+        "国内信源"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
@@ -1717,15 +2559,26 @@
         "linkSelector": "a",
         "publishedAtSelector": "span",
         "publishedAtUtcOffset": "+08:00",
-        "allowUrlPrefixes": ["https://www.ndrc.gov.cn/xwdt/", "https://www.ndrc.gov.cn/fzggw/"],
-        "_aihot": { "initialBackfillLimit": 20 }
+        "allowUrlPrefixes": [
+          "https://www.ndrc.gov.cn/xwdt/",
+          "https://www.ndrc.gov.cn/fzggw/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 20
+        }
       },
       "tier": "T1",
       "first_party": true,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 360,
-      "tags": ["官方", "中文", "政策", "区域", "规划"],
+      "tags": [
+        "官方",
+        "中文",
+        "政策",
+        "区域",
+        "规划"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
@@ -1735,13 +2588,24 @@
       "id": "x-usgs",
       "name": "USGS 的 X 账号（@USGS）",
       "kind": "x_search",
-      "config": { "query": "from:USGS -filter:replies", "_aihot": { "initialBackfillLimit": 10 } },
+      "config": {
+        "query": "from:USGS -filter:replies",
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
+      },
       "tier": "T2",
       "first_party": true,
       "owner_entity_id": "usgs",
       "participation_mode": "editorial",
       "interval_minutes": 120,
-      "tags": ["官方", "英文", "X", "按请求计费", "本部署未启用"],
+      "tags": [
+        "官方",
+        "英文",
+        "X",
+        "按请求计费",
+        "本部署未启用"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": false,
@@ -1751,13 +2615,24 @@
       "id": "x-noaa",
       "name": "NOAA 的 X 账号（@NOAA）",
       "kind": "x_search",
-      "config": { "query": "from:NOAA -filter:replies", "_aihot": { "initialBackfillLimit": 10 } },
+      "config": {
+        "query": "from:NOAA -filter:replies",
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
+      },
       "tier": "T2",
       "first_party": true,
       "owner_entity_id": "noaa",
       "participation_mode": "editorial",
       "interval_minutes": 120,
-      "tags": ["官方", "英文", "X", "按请求计费", "本部署未启用"],
+      "tags": [
+        "官方",
+        "英文",
+        "X",
+        "按请求计费",
+        "本部署未启用"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": false,
@@ -1767,13 +2642,24 @@
       "id": "x-nasa",
       "name": "NASA 的 X 账号（@NASA）",
       "kind": "x_search",
-      "config": { "query": "from:NASA -filter:replies", "_aihot": { "initialBackfillLimit": 10 } },
+      "config": {
+        "query": "from:NASA -filter:replies",
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
+      },
       "tier": "T2",
       "first_party": true,
       "owner_entity_id": "nasa",
       "participation_mode": "editorial",
       "interval_minutes": 120,
-      "tags": ["官方", "英文", "X", "按请求计费", "本部署未启用"],
+      "tags": [
+        "官方",
+        "英文",
+        "X",
+        "按请求计费",
+        "本部署未启用"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": false,
@@ -1783,13 +2669,25 @@
       "id": "x-wmo",
       "name": "世界气象组织的 X 账号（@WMO）",
       "kind": "x_search",
-      "config": { "query": "from:WMO -filter:replies", "_aihot": { "initialBackfillLimit": 10 } },
+      "config": {
+        "query": "from:WMO -filter:replies",
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
+      },
       "tier": "T2",
       "first_party": true,
       "owner_entity_id": "wmo",
       "participation_mode": "editorial",
       "interval_minutes": 120,
-      "tags": ["官方", "英文", "X", "按请求计费", "本部署未启用", "气象"],
+      "tags": [
+        "官方",
+        "英文",
+        "X",
+        "按请求计费",
+        "本部署未启用",
+        "气象"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": false,
@@ -1799,13 +2697,25 @@
       "id": "x-copernicus",
       "name": "哥白尼计划（欧盟）的 X 账号（@CopernicusEU）",
       "kind": "x_search",
-      "config": { "query": "from:CopernicusEU -filter:replies", "_aihot": { "initialBackfillLimit": 10 } },
+      "config": {
+        "query": "from:CopernicusEU -filter:replies",
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
+      },
       "tier": "T2",
       "first_party": true,
       "owner_entity_id": "copernicus",
       "participation_mode": "editorial",
       "interval_minutes": 120,
-      "tags": ["官方", "英文", "X", "按请求计费", "本部署未启用", "遥感"],
+      "tags": [
+        "官方",
+        "英文",
+        "X",
+        "按请求计费",
+        "本部署未启用",
+        "遥感"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": false,
@@ -1815,13 +2725,25 @@
       "id": "x-unocha",
       "name": "联合国人道主义事务协调厅的 X 账号（@un_ocha）",
       "kind": "x_search",
-      "config": { "query": "from:un_ocha -filter:replies", "_aihot": { "initialBackfillLimit": 10 } },
+      "config": {
+        "query": "from:un_ocha -filter:replies",
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
+      },
       "tier": "T2",
       "first_party": true,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 120,
-      "tags": ["官方", "英文", "X", "按请求计费", "本部署未启用", "灾害"],
+      "tags": [
+        "官方",
+        "英文",
+        "X",
+        "按请求计费",
+        "本部署未启用",
+        "灾害"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": false,
@@ -1831,13 +2753,25 @@
       "id": "x-esri",
       "name": "Esri 的 X 账号（@Esri）",
       "kind": "x_search",
-      "config": { "query": "from:Esri -filter:replies", "_aihot": { "initialBackfillLimit": 10 } },
+      "config": {
+        "query": "from:Esri -filter:replies",
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
+      },
       "tier": "T2",
       "first_party": true,
       "owner_entity_id": "esri",
       "participation_mode": "editorial",
       "interval_minutes": 120,
-      "tags": ["厂商", "英文", "X", "按请求计费", "本部署未启用", "GIS"],
+      "tags": [
+        "厂商",
+        "英文",
+        "X",
+        "按请求计费",
+        "本部署未启用",
+        "GIS"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": false,
@@ -1847,13 +2781,25 @@
       "id": "x-metoffice",
       "name": "英国气象局的 X 账号（@metoffice）",
       "kind": "x_search",
-      "config": { "query": "from:metoffice -filter:replies", "_aihot": { "initialBackfillLimit": 10 } },
+      "config": {
+        "query": "from:metoffice -filter:replies",
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
+      },
       "tier": "T2",
       "first_party": true,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 120,
-      "tags": ["官方", "英文", "X", "按请求计费", "本部署未启用", "气象"],
+      "tags": [
+        "官方",
+        "英文",
+        "X",
+        "按请求计费",
+        "本部署未启用",
+        "气象"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": false,
@@ -1863,13 +2809,24 @@
       "id": "rss-igu-online",
       "name": "国际地理联合会（IGU）· 新闻",
       "kind": "rss",
-      "config": { "feedUrl": "https://igu-online.org/feed/", "_aihot": { "initialBackfillLimit": 8 } },
+      "config": {
+        "feedUrl": "https://igu-online.org/feed/",
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
       "tier": "T1_5",
       "first_party": true,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 360,
-      "tags": ["国际", "英文", "机构/动态", "研究", "地理杂志"],
+      "tags": [
+        "国际",
+        "英文",
+        "机构/动态",
+        "研究",
+        "地理杂志"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -1878,13 +2835,24 @@
       "id": "rss-aag-news",
       "name": "美国地理学家协会（AAG）· 新闻",
       "kind": "rss",
-      "config": { "feedUrl": "https://www.aag.org/feed/", "_aihot": { "initialBackfillLimit": 8 } },
+      "config": {
+        "feedUrl": "https://www.aag.org/feed/",
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
       "tier": "T1_5",
       "first_party": true,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 360,
-      "tags": ["国际", "英文", "机构/动态", "研究", "教育"],
+      "tags": [
+        "国际",
+        "英文",
+        "机构/动态",
+        "研究",
+        "教育"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -1893,13 +2861,24 @@
       "id": "rss-ica-carto",
       "name": "国际制图协会（ICA）· 新闻",
       "kind": "rss",
-      "config": { "feedUrl": "https://icaci.org/feed/", "_aihot": { "initialBackfillLimit": 8 } },
+      "config": {
+        "feedUrl": "https://icaci.org/feed/",
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
       "tier": "T1_5",
       "first_party": true,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 720,
-      "tags": ["国际", "英文", "机构/动态", "地图", "技术与软件"],
+      "tags": [
+        "国际",
+        "英文",
+        "机构/动态",
+        "地图",
+        "技术与软件"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -1908,13 +2887,25 @@
       "id": "rss-ipbes-news",
       "name": "IPBES（生物多样性与生态系统服务政府间科学政策平台）· 新闻",
       "kind": "rss",
-      "config": { "feedUrl": "https://www.ipbes.net/rss.xml", "_aihot": { "initialBackfillLimit": 8 } },
+      "config": {
+        "feedUrl": "https://www.ipbes.net/rss.xml",
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
       "tier": "T1",
       "first_party": true,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 720,
-      "tags": ["官方", "国际", "英文", "生态", "政策", "机构/动态"],
+      "tags": [
+        "官方",
+        "国际",
+        "英文",
+        "生态",
+        "政策",
+        "机构/动态"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
@@ -1924,13 +2915,24 @@
       "id": "rss-isc-science",
       "name": "国际科学理事会（ISC）· 新闻",
       "kind": "rss",
-      "config": { "feedUrl": "https://council.science/feed/", "_aihot": { "initialBackfillLimit": 8 } },
+      "config": {
+        "feedUrl": "https://council.science/feed/",
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
       "tier": "T1_5",
       "first_party": true,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 720,
-      "tags": ["官方", "国际", "英文", "机构/动态", "政策"],
+      "tags": [
+        "官方",
+        "国际",
+        "英文",
+        "机构/动态",
+        "政策"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -1939,13 +2941,25 @@
       "id": "rss-unhabitat-news",
       "name": "联合国人居署（UN-Habitat）· 新闻",
       "kind": "rss",
-      "config": { "feedUrl": "https://unhabitat.org/rss.xml", "_aihot": { "initialBackfillLimit": 8 } },
+      "config": {
+        "feedUrl": "https://unhabitat.org/rss.xml",
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
       "tier": "T1",
       "first_party": true,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 720,
-      "tags": ["官方", "国际", "英文", "城市", "城镇化", "政策"],
+      "tags": [
+        "官方",
+        "国际",
+        "英文",
+        "城市",
+        "城镇化",
+        "政策"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
@@ -1955,13 +2969,24 @@
       "id": "rss-eumetsat-news",
       "name": "EUMETSAT 欧洲气象卫星组织（新闻与影像）",
       "kind": "rss",
-      "config": { "feedUrl": "https://www.eumetsat.int/rss.xml", "_aihot": { "initialBackfillLimit": 10 } },
+      "config": {
+        "feedUrl": "https://www.eumetsat.int/rss.xml",
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
+      },
       "tier": "T1",
       "first_party": true,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 120,
-      "tags": ["官方", "英文", "气象", "卫星影像", "遥感"],
+      "tags": [
+        "官方",
+        "英文",
+        "气象",
+        "卫星影像",
+        "遥感"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
@@ -1971,13 +2996,24 @@
       "id": "rss-copernicus-atmosphere",
       "name": "哥白尼大气监测服务 CAMS（新闻）",
       "kind": "rss",
-      "config": { "feedUrl": "https://atmosphere.copernicus.eu/rss.xml", "_aihot": { "initialBackfillLimit": 10 } },
+      "config": {
+        "feedUrl": "https://atmosphere.copernicus.eu/rss.xml",
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
+      },
       "tier": "T1",
       "first_party": true,
       "owner_entity_id": "copernicus",
       "participation_mode": "editorial",
       "interval_minutes": 240,
-      "tags": ["官方", "英文", "大气", "空气质量", "观测数据"],
+      "tags": [
+        "官方",
+        "英文",
+        "大气",
+        "空气质量",
+        "观测数据"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
@@ -1989,16 +3025,34 @@
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.nature.com/natwater.rss",
-        "allowUrlPrefixes": ["https://www.nature.com/articles/"],
-        "ingestNoiseFilter": { "dropMarkersTitleOnly": ["Author Correction", "Corrigendum", "Publisher Correction", "Editorial Note"] },
-        "_aihot": { "initialBackfillLimit": 8, "intervalMinutesLocked": true }
+        "allowUrlPrefixes": [
+          "https://www.nature.com/articles/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Author Correction",
+            "Corrigendum",
+            "Publisher Correction",
+            "Editorial Note"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
       },
       "tier": "T1_5",
       "first_party": true,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 240,
-      "tags": ["英文", "期刊", "水资源", "自然地理", "研究"],
+      "tags": [
+        "英文",
+        "期刊",
+        "水资源",
+        "自然地理",
+        "研究"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
@@ -2010,16 +3064,34 @@
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.nature.com/natsustain.rss",
-        "allowUrlPrefixes": ["https://www.nature.com/articles/"],
-        "ingestNoiseFilter": { "dropMarkersTitleOnly": ["Author Correction", "Corrigendum", "Publisher Correction", "Editorial Note"] },
-        "_aihot": { "initialBackfillLimit": 8, "intervalMinutesLocked": true }
+        "allowUrlPrefixes": [
+          "https://www.nature.com/articles/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Author Correction",
+            "Corrigendum",
+            "Publisher Correction",
+            "Editorial Note"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
       },
       "tier": "T1_5",
       "first_party": true,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 240,
-      "tags": ["英文", "期刊", "人地关系", "人文地理", "研究"],
+      "tags": [
+        "英文",
+        "期刊",
+        "人地关系",
+        "人文地理",
+        "研究"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
@@ -2031,16 +3103,34 @@
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.nature.com/natfood.rss",
-        "allowUrlPrefixes": ["https://www.nature.com/articles/"],
-        "ingestNoiseFilter": { "dropMarkersTitleOnly": ["Author Correction", "Corrigendum", "Publisher Correction", "Editorial Note"] },
-        "_aihot": { "initialBackfillLimit": 8, "intervalMinutesLocked": true }
+        "allowUrlPrefixes": [
+          "https://www.nature.com/articles/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Author Correction",
+            "Corrigendum",
+            "Publisher Correction",
+            "Editorial Note"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
       },
       "tier": "T1_5",
       "first_party": true,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 240,
-      "tags": ["英文", "期刊", "农业", "乡村地理", "研究"],
+      "tags": [
+        "英文",
+        "期刊",
+        "农业",
+        "乡村地理",
+        "研究"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
@@ -2052,16 +3142,33 @@
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.pnas.org/action/showFeed?type=etoc&feed=rss&jc=pnas",
-        "allowUrlPrefixes": ["https://www.pnas.org/doi/"],
-        "ingestNoiseFilter": { "dropMarkersTitleOnly": ["Correction for", "Retraction", "Reply to", "In This Issue"] },
-        "_aihot": { "initialBackfillLimit": 12, "intervalMinutesLocked": true }
+        "allowUrlPrefixes": [
+          "https://www.pnas.org/doi/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction for",
+            "Retraction",
+            "Reply to",
+            "In This Issue"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 12,
+          "intervalMinutesLocked": true
+        }
       },
       "tier": "T1_5",
       "first_party": true,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 360,
-      "tags": ["英文", "期刊", "综合研究", "论文"],
+      "tags": [
+        "英文",
+        "期刊",
+        "综合研究",
+        "论文"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -2070,13 +3177,27 @@
       "id": "rss-ifrc-news",
       "name": "国际红十字与红新月运动 IFRC（新闻与声明）",
       "kind": "rss",
-      "config": { "feedUrl": "https://www.ifrc.org/rss.xml", "denyUrlPrefixes": ["https://www.ifrc.org/node/"], "_aihot": { "initialBackfillLimit": 10 } },
+      "config": {
+        "feedUrl": "https://www.ifrc.org/rss.xml",
+        "denyUrlPrefixes": [
+          "https://www.ifrc.org/node/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
+      },
       "tier": "T1",
       "first_party": true,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 240,
-      "tags": ["官方", "英文", "灾害事件", "人道", "国际"],
+      "tags": [
+        "官方",
+        "英文",
+        "灾害事件",
+        "人道",
+        "国际"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
@@ -2085,13 +3206,24 @@
       "id": "rss-cms-bonn",
       "name": "迁徙物种公约 CMS（UNEP 波恩）· 新闻",
       "kind": "rss",
-      "config": { "feedUrl": "https://www.cms.int/rss.xml", "_aihot": { "initialBackfillLimit": 8 } },
+      "config": {
+        "feedUrl": "https://www.cms.int/rss.xml",
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
       "tier": "T1",
       "first_party": true,
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 720,
-      "tags": ["官方", "英文", "生态与保护", "物种", "国际"],
+      "tags": [
+        "官方",
+        "英文",
+        "生态与保护",
+        "物种",
+        "国际"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
@@ -2106,19 +3238,3119 @@
         "parseMode": "html",
         "itemSelector": "#content li:has(a[title])",
         "publishedAtSelector": "span",
-        "allowUrlPrefixes": ["https://www.cas.cn/syky/"],
-        "_aihot": { "initialBackfillLimit": 10 }
+        "allowUrlPrefixes": [
+          "https://www.cas.cn/syky/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
       },
       "tier": "T1",
       "first_party": true,
       "owner_entity_id": "cas",
       "participation_mode": "editorial",
       "interval_minutes": 240,
-      "tags": ["官方", "中文", "科研进展", "研究", "自然地理"],
+      "tags": [
+        "官方",
+        "中文",
+        "科研进展",
+        "研究",
+        "自然地理"
+      ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-nature-comm-toc",
+      "name": "Nature Communications · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.nature.com/ncomms.rss",
+        "allowUrlPrefixes": [
+          "https://www.nature.com/articles/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Author Correction",
+            "Corrigendum",
+            "Publisher Correction",
+            "Editorial Note",
+            "Editorial"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-sci-reports-geoscience",
+      "name": "Scientific Reports · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.nature.com/srep.rss",
+        "allowUrlPrefixes": [
+          "https://www.nature.com/articles/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Author Correction",
+            "Corrigendum",
+            "Publisher Correction",
+            "Editorial Note",
+            "Editorial"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-npj-climate-atmos-sci",
+      "name": "npj Climate and Atmospheric Science · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.nature.com/npjclimatsci.rss",
+        "allowUrlPrefixes": [
+          "https://www.nature.com/articles/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Author Correction",
+            "Corrigendum",
+            "Publisher Correction",
+            "Editorial Note",
+            "Editorial"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-nature-energy",
+      "name": "Nature Energy · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.nature.com/nenergy.rss",
+        "allowUrlPrefixes": [
+          "https://www.nature.com/articles/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Author Correction",
+            "Corrigendum",
+            "Publisher Correction",
+            "Editorial Note",
+            "Editorial"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-npj-climate-action",
+      "name": "npj Climate Action · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.nature.com/npjclimataction.rss",
+        "allowUrlPrefixes": [
+          "https://www.nature.com/articles/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Author Correction",
+            "Corrigendum",
+            "Publisher Correction",
+            "Editorial Note",
+            "Editorial"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-palcomms-hss",
+      "name": "Humanities and Social Sciences Communications · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.nature.com/palcomms.rss",
+        "allowUrlPrefixes": [
+          "https://www.nature.com/articles/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Author Correction",
+            "Corrigendum",
+            "Publisher Correction",
+            "Editorial Note",
+            "Editorial"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-grl-toc",
+      "name": "Geophysical Research Letters · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://onlinelibrary.wiley.com/feed/19448007/most-recent",
+        "allowUrlPrefixes": [
+          "https://onlinelibrary.wiley.com/doi/",
+          "https://agupubs.onlinelibrary.wiley.com/doi/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-jgr-solid-earth-toc",
+      "name": "JGR: Solid Earth · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://onlinelibrary.wiley.com/feed/21699356/most-recent",
+        "allowUrlPrefixes": [
+          "https://onlinelibrary.wiley.com/doi/",
+          "https://agupubs.onlinelibrary.wiley.com/doi/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-jgr-atmospheres-toc",
+      "name": "JGR: Atmospheres · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://onlinelibrary.wiley.com/feed/21698996/most-recent",
+        "allowUrlPrefixes": [
+          "https://onlinelibrary.wiley.com/doi/",
+          "https://agupubs.onlinelibrary.wiley.com/doi/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-jgr-oceans-toc",
+      "name": "JGR: Oceans · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://onlinelibrary.wiley.com/feed/21699291/most-recent",
+        "allowUrlPrefixes": [
+          "https://onlinelibrary.wiley.com/doi/",
+          "https://agupubs.onlinelibrary.wiley.com/doi/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-jgr-biogeosciences-toc",
+      "name": "JGR: Biogeosciences · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://onlinelibrary.wiley.com/feed/21698961/most-recent",
+        "allowUrlPrefixes": [
+          "https://onlinelibrary.wiley.com/doi/",
+          "https://agupubs.onlinelibrary.wiley.com/doi/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-jgr-earth-surface-toc",
+      "name": "JGR: Earth Surface · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://onlinelibrary.wiley.com/feed/21699011/most-recent",
+        "allowUrlPrefixes": [
+          "https://onlinelibrary.wiley.com/doi/",
+          "https://agupubs.onlinelibrary.wiley.com/doi/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-jgr-space-physics-toc",
+      "name": "JGR: Space Physics · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://onlinelibrary.wiley.com/feed/21699402/most-recent",
+        "allowUrlPrefixes": [
+          "https://onlinelibrary.wiley.com/doi/",
+          "https://agupubs.onlinelibrary.wiley.com/doi/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-jgr-ml-comp-toc",
+      "name": "JGR: Machine Learning and Computation · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://onlinelibrary.wiley.com/feed/29935210/most-recent",
+        "allowUrlPrefixes": [
+          "https://onlinelibrary.wiley.com/doi/",
+          "https://agupubs.onlinelibrary.wiley.com/doi/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-g3-toc",
+      "name": "Geochemistry, Geophysics, Geosystems (G3) · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://onlinelibrary.wiley.com/feed/15252027/most-recent",
+        "allowUrlPrefixes": [
+          "https://onlinelibrary.wiley.com/doi/",
+          "https://agupubs.onlinelibrary.wiley.com/doi/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-wrr-toc",
+      "name": "Water Resources Research · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://onlinelibrary.wiley.com/feed/19447973/most-recent",
+        "allowUrlPrefixes": [
+          "https://onlinelibrary.wiley.com/doi/",
+          "https://agupubs.onlinelibrary.wiley.com/doi/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-paleocean-paleoclim-toc",
+      "name": "Paleoceanography and Paleoclimatology · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://onlinelibrary.wiley.com/feed/25724525/most-recent",
+        "allowUrlPrefixes": [
+          "https://onlinelibrary.wiley.com/doi/",
+          "https://agupubs.onlinelibrary.wiley.com/doi/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-tectonics-toc",
+      "name": "Tectonics · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://onlinelibrary.wiley.com/feed/19449194/most-recent",
+        "allowUrlPrefixes": [
+          "https://onlinelibrary.wiley.com/doi/",
+          "https://agupubs.onlinelibrary.wiley.com/doi/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-space-weather-toc",
+      "name": "Space Weather · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://onlinelibrary.wiley.com/feed/15427390/most-recent",
+        "allowUrlPrefixes": [
+          "https://onlinelibrary.wiley.com/doi/",
+          "https://agupubs.onlinelibrary.wiley.com/doi/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-reviews-geophysics-toc",
+      "name": "Reviews of Geophysics · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://onlinelibrary.wiley.com/feed/19449208/most-recent",
+        "allowUrlPrefixes": [
+          "https://onlinelibrary.wiley.com/doi/",
+          "https://agupubs.onlinelibrary.wiley.com/doi/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-earths-future-toc",
+      "name": "Earth's Future · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://onlinelibrary.wiley.com/feed/23284277/most-recent",
+        "allowUrlPrefixes": [
+          "https://onlinelibrary.wiley.com/doi/",
+          "https://agupubs.onlinelibrary.wiley.com/doi/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-agu-advances-toc",
+      "name": "AGU Advances · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://onlinelibrary.wiley.com/feed/2576604x/most-recent",
+        "allowUrlPrefixes": [
+          "https://onlinelibrary.wiley.com/doi/",
+          "https://agupubs.onlinelibrary.wiley.com/doi/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-james-toc",
+      "name": "Journal of Advances in Modeling Earth Systems · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://onlinelibrary.wiley.com/feed/19422466/most-recent",
+        "allowUrlPrefixes": [
+          "https://onlinelibrary.wiley.com/doi/",
+          "https://agupubs.onlinelibrary.wiley.com/doi/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-agu-this-week",
+      "name": "AGU · This Week from AGU（期刊周导读）",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://news.agu.org/category/twfagu/feed/",
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "学会",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-eos-editors-highlights",
+      "name": "Eos（AGU）· 编辑精选",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://eos.org/editor-highlights/feed",
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "学会",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-ess-toc",
+      "name": "Earth and Space Science · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://onlinelibrary.wiley.com/feed/23335084/most-recent",
+        "allowUrlPrefixes": [
+          "https://onlinelibrary.wiley.com/doi/",
+          "https://agupubs.onlinelibrary.wiley.com/doi/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-geohealth-toc",
+      "name": "GeoHealth · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://onlinelibrary.wiley.com/feed/24711403/most-recent",
+        "allowUrlPrefixes": [
+          "https://onlinelibrary.wiley.com/doi/",
+          "https://agupubs.onlinelibrary.wiley.com/doi/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-gbc-toc",
+      "name": "Global Biogeochemical Cycles · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://onlinelibrary.wiley.com/feed/19449224/most-recent",
+        "allowUrlPrefixes": [
+          "https://onlinelibrary.wiley.com/doi/",
+          "https://agupubs.onlinelibrary.wiley.com/doi/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-radio-science-toc",
+      "name": "Radio Science · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://onlinelibrary.wiley.com/feed/1944799x/most-recent",
+        "allowUrlPrefixes": [
+          "https://onlinelibrary.wiley.com/doi/",
+          "https://agupubs.onlinelibrary.wiley.com/doi/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-pass-toc",
+      "name": "Perspectives of Earth and Space Scientists · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://onlinelibrary.wiley.com/feed/26376989/most-recent",
+        "allowUrlPrefixes": [
+          "https://onlinelibrary.wiley.com/doi/",
+          "https://agupubs.onlinelibrary.wiley.com/doi/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-community-science-toc",
+      "name": "Community Science · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://onlinelibrary.wiley.com/feed/26929430/most-recent",
+        "allowUrlPrefixes": [
+          "https://onlinelibrary.wiley.com/doi/",
+          "https://agupubs.onlinelibrary.wiley.com/doi/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-eos-research-spotlights",
+      "name": "Eos（AGU）· 研究聚焦",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://eos.org/research-spotlights/feed",
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "学会",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-eos-landslide-blog",
+      "name": "Eos（AGU）· 滑坡博客",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://eos.org/thelandslideblog/feed",
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "学会",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-copernicus-tc",
+      "name": "The Cryosphere · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://tc.copernicus.org/xml/rss2_0.xml",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Corrigendum",
+            "Editorial note",
+            "Editorial Hightlights",
+            "Editorial Highlight"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-copernicus-bg",
+      "name": "Biogeosciences · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://bg.copernicus.org/xml/rss2_0.xml",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Corrigendum",
+            "Editorial note",
+            "Editorial Hightlights",
+            "Editorial Highlight"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-copernicus-hess",
+      "name": "Hydrology and Earth System Sciences · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://hess.copernicus.org/xml/rss2_0.xml",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Corrigendum",
+            "Editorial note",
+            "Editorial Hightlights",
+            "Editorial Highlight"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-copernicus-se",
+      "name": "Solid Earth · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://se.copernicus.org/xml/rss2_0.xml",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Corrigendum",
+            "Editorial note",
+            "Editorial Hightlights",
+            "Editorial Highlight"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-copernicus-os",
+      "name": "Ocean Science · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://os.copernicus.org/xml/rss2_0.xml",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Corrigendum",
+            "Editorial note",
+            "Editorial Hightlights",
+            "Editorial Highlight"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-copernicus-acp",
+      "name": "Atmospheric Chemistry and Physics · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://acp.copernicus.org/xml/rss2_0.xml",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Corrigendum",
+            "Editorial note",
+            "Editorial Hightlights",
+            "Editorial Highlight"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-copernicus-nhess",
+      "name": "Natural Hazards and Earth System Sciences · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nhess.copernicus.org/xml/rss2_0.xml",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Corrigendum",
+            "Editorial note",
+            "Editorial Hightlights",
+            "Editorial Highlight"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-copernicus-gmd",
+      "name": "Geoscientific Model Development · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://gmd.copernicus.org/xml/rss2_0.xml",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Corrigendum",
+            "Editorial note",
+            "Editorial Hightlights",
+            "Editorial Highlight"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-copernicus-cp",
+      "name": "Climate of the Past · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://cp.copernicus.org/xml/rss2_0.xml",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Corrigendum",
+            "Editorial note",
+            "Editorial Hightlights",
+            "Editorial Highlight"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-copernicus-essd",
+      "name": "Earth System Science Data · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://essd.copernicus.org/xml/rss2_0.xml",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Corrigendum",
+            "Editorial note",
+            "Editorial Hightlights",
+            "Editorial Highlight"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-egusphere",
+      "name": "EGUsphere（EGU 预印本与讨论稿）",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://egusphere.copernicus.org/xml/rss2_0.xml",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Corrigendum",
+            "Editorial note"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "预印本",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-egu-announcements",
+      "name": "EGU · 公告与分会消息",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.egu.eu/news/announcements/rss/",
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "英文",
+        "学会",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-egu-highlight-articles",
+      "name": "EGU · 各刊主编精选研究",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.egu.eu/news/highlight-articles/rss/",
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "英文",
+        "学会",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-arxiv-ao-ph",
+      "name": "arXiv · 大气与海洋物理（physics.ao-ph）",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://rss.arxiv.org/rss/physics.ao-ph",
+        "allowUrlPrefixes": [
+          "https://arxiv.org/abs/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 6,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "预印本",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-arxiv-geo-ph",
+      "name": "arXiv · 地球与行星物理（physics.geo-ph）",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://rss.arxiv.org/rss/physics.geo-ph",
+        "allowUrlPrefixes": [
+          "https://arxiv.org/abs/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 6,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "预印本",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-arxiv-space-ph",
+      "name": "arXiv · 空间物理（physics.space-ph）",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://rss.arxiv.org/rss/physics.space-ph",
+        "allowUrlPrefixes": [
+          "https://arxiv.org/abs/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 6,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "预印本",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-eartharxiv-preprints",
+      "name": "EarthArXiv · 地球科学预印本",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://eartharxiv.org/rss/preprints/",
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "预印本",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-rgs-geographical-journal-toc",
+      "name": "The Geographical Journal（RGS-IBG 会刊）· 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://onlinelibrary.wiley.com/feed/14754959/most-recent",
+        "allowUrlPrefixes": [
+          "https://onlinelibrary.wiley.com/doi/",
+          "https://agupubs.onlinelibrary.wiley.com/doi/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-rgs-tibg-toc",
+      "name": "Transactions of the IBG（RGS-IBG 会刊）· 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://onlinelibrary.wiley.com/feed/14755661/most-recent",
+        "allowUrlPrefixes": [
+          "https://onlinelibrary.wiley.com/doi/",
+          "https://agupubs.onlinelibrary.wiley.com/doi/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-rgs-area-toc",
+      "name": "Area（RGS-IBG 会刊）· 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://onlinelibrary.wiley.com/feed/14754762/most-recent",
+        "allowUrlPrefixes": [
+          "https://onlinelibrary.wiley.com/doi/",
+          "https://agupubs.onlinelibrary.wiley.com/doi/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-rgs-geo-toc",
+      "name": "Geo: Geography and Environment（RGS-IBG OA 会刊）· 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://onlinelibrary.wiley.com/feed/20544049/most-recent",
+        "allowUrlPrefixes": [
+          "https://onlinelibrary.wiley.com/doi/",
+          "https://agupubs.onlinelibrary.wiley.com/doi/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-cag-canadian-geographies-toc",
+      "name": "Canadian Geographies / Géographies canadiennes（CAG 会刊）· 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://onlinelibrary.wiley.com/feed/30690595/most-recent",
+        "allowUrlPrefixes": [
+          "https://onlinelibrary.wiley.com/doi/",
+          "https://agupubs.onlinelibrary.wiley.com/doi/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-nzgs-nz-geographer-toc",
+      "name": "New Zealand Geographer（NZGS 会刊）· 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://onlinelibrary.wiley.com/feed/17457939a/most-recent",
+        "allowUrlPrefixes": [
+          "https://onlinelibrary.wiley.com/doi/",
+          "https://agupubs.onlinelibrary.wiley.com/doi/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-kngg-jehg-toc",
+      "name": "J. of Economic and Human Geography（KNGG/NAGI 会刊）· 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://onlinelibrary.wiley.com/feed/14679663/most-recent",
+        "allowUrlPrefixes": [
+          "https://onlinelibrary.wiley.com/doi/",
+          "https://agupubs.onlinelibrary.wiley.com/doi/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-rgs-wires-climate-change-toc",
+      "name": "WIREs Climate Change（综述刊）· 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://onlinelibrary.wiley.com/feed/17577799/most-recent",
+        "allowUrlPrefixes": [
+          "https://onlinelibrary.wiley.com/doi/",
+          "https://agupubs.onlinelibrary.wiley.com/doi/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-nsf-news",
+      "name": "美国国家科学基金会 NSF · 新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.nsf.gov/rss/rss_www_news.xml",
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "英文",
+        "学术机构",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-gfz-newsroom",
+      "name": "德国地球科学研究中心 GFZ · 新闻室",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.gfz.de/en/feed/news.rss",
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "英文",
+        "学术机构",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-geomar-news",
+      "name": "GEOMAR 亥姆霍兹基尔 · 科研动态",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.geomar.de/en/feed/recent",
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "英文",
+        "学术机构",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-bgs-news",
+      "name": "英国地质调查局 BGS · 新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.bgs.ac.uk/feed/",
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "英文",
+        "学术机构",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-eth-zurich-news",
+      "name": "苏黎世联邦理工学院 ETH · 新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.ethz.ch/en/news-und-veranstaltungen/eth-news/news/_jcr_content.feed.html",
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "英文",
+        "学术机构",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-fmi-articles",
+      "name": "芬兰气象研究所 FMI · 文章（芬兰语）",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://ilmatieteenlaitos.fi/ajankohtaista/rss",
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "英文",
+        "学术机构",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-ecmwf-science-blog",
+      "name": "ECMWF · 科学博客",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.ecmwf.int/rss.xml",
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "英文",
+        "学术机构",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-camgeog-news",
+      "name": "剑桥大学地理系 · 科研新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.geog.cam.ac.uk/news/feed.rss",
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "英文",
+        "学术机构",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-exeter-geog-news",
+      "name": "埃克塞特大学环境科学与经济系 · 地理新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://news.exeter.ac.uk/category/faculty-of-environment-science-and-economy/geography/feed/",
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "英文",
+        "学术机构",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-scripps-news",
+      "name": "斯克里普斯海洋研究所 Scripps · 新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://scripps.ucsd.edu/news/feed",
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "英文",
+        "学术机构",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-byrd-polar-news",
+      "name": "俄亥俄州立大学 Byrd 极地与气候研究中心 · 新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://byrd.osu.edu/rss.xml",
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "英文",
+        "学术机构",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-mcgill-geog-news",
+      "name": "麦吉尔大学地理系 · 科研新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.mcgill.ca/geography/channels_item/3/rss",
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "英文",
+        "学术机构",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-psu-news",
+      "name": "宾夕法尼亚州立大学 · 科研新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.psu.edu/news/rss/rss.xml",
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "英文",
+        "学术机构",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-oxford-sge-sitefeed",
+      "name": "牛津大学地理与环境系 · 新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.geog.ox.ac.uk/rss.xml",
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "英文",
+        "学术机构",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-whoi-news",
+      "name": "伍兹霍尔海洋研究所 WHOI · 新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.whoi.edu/feed/",
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "英文",
+        "学术机构",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-mbari-news",
+      "name": "蒙特雷湾水族馆研究所 MBARI · 新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.mbari.org/feed/",
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "英文",
+        "学术机构",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-scar-news",
+      "name": "南极研究科学委员会 SCAR · 新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://scar.org/feed/",
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "英文",
+        "学术机构",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-imos-news",
+      "name": "澳洲海洋观测系统 IMOS · 新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://imos.org.au/feed/",
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "英文",
+        "学术机构",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-grss-news",
+      "name": "IEEE 地球科学与遥感学会 GRSS · 新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.grss-ieee.org/feed/",
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "英文",
+        "学术机构",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-earthscope-news",
+      "name": "EarthScope Consortium（原 IRIS）· 新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://earthscope.org/feed/",
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "英文",
+        "学术机构",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-sciencenews-earth",
+      "name": "Science News · 地球板块",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.sciencenews.org/topic/earth/feed/",
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T2",
+      "first_party": false,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "学术媒体",
+        "转载"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-theconversation-geology",
+      "name": "The Conversation · 地质学话题",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://theconversation.com/uk/topics/geology-348/articles.atom",
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T2",
+      "first_party": false,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "学术媒体",
+        "转载"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-theconversation-climate-science",
+      "name": "The Conversation · 气候科学话题",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://theconversation.com/uk/topics/climate-science-5941/articles.atom",
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T2",
+      "first_party": false,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "学术媒体",
+        "转载"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-newswise-scinews",
+      "name": "Newswise · 科学新闻稿（转载层）",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.newswise.com/legacy/rss/scinews.rss",
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T2",
+      "first_party": false,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "学术媒体",
+        "转载"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-sciencedaily-fossils-ruins",
+      "name": "ScienceDaily · 古生物与遗址（转载层）",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.sciencedaily.com/rss/fossils_ruins.xml",
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T2",
+      "first_party": false,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "学术媒体",
+        "转载"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-sciencedaily-space-time",
+      "name": "ScienceDaily · 空间与时间（转载层）",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.sciencedaily.com/rss/space_time.xml",
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T2",
+      "first_party": false,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "学术媒体",
+        "转载"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-phys-org-earth-sciences",
+      "name": "Phys.org · 地球科学（转载层）",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://phys.org/rss-feed/earth-news/earth-sciences/",
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T2",
+      "first_party": false,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "学术媒体",
+        "转载"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-phys-org-planetary-sciences",
+      "name": "Phys.org · 行星科学（转载层）",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://phys.org/rss-feed/space-news/planetary-sciences/",
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T2",
+      "first_party": false,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "学术媒体",
+        "转载"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-earthsky-news",
+      "name": "EarthSky · 天文与地球新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://earthsky.org/feed/",
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T2",
+      "first_party": false,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "学术媒体",
+        "转载"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-yale-climate-connections",
+      "name": "Yale Climate Connections · 气候研究报道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.yaleclimateconnections.org/feed/",
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T2",
+      "first_party": false,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "学术媒体",
+        "转载"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-geb-toc",
+      "name": "Global Ecology and Biogeography · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://onlinelibrary.wiley.com/feed/14668238/most-recent",
+        "allowUrlPrefixes": [
+          "https://onlinelibrary.wiley.com/doi/",
+          "https://agupubs.onlinelibrary.wiley.com/doi/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-ijc-toc",
+      "name": "International Journal of Climatology · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://onlinelibrary.wiley.com/feed/10970088/most-recent",
+        "allowUrlPrefixes": [
+          "https://onlinelibrary.wiley.com/doi/",
+          "https://agupubs.onlinelibrary.wiley.com/doi/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-tgis-wiley-toc",
+      "name": "Transactions in GIS · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://onlinelibrary.wiley.com/feed/14679671/most-recent",
+        "allowUrlPrefixes": [
+          "https://onlinelibrary.wiley.com/doi/",
+          "https://agupubs.onlinelibrary.wiley.com/doi/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-gcb-toc",
+      "name": "Global Change Biology · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://onlinelibrary.wiley.com/feed/13652486/most-recent",
+        "allowUrlPrefixes": [
+          "https://onlinelibrary.wiley.com/doi/",
+          "https://agupubs.onlinelibrary.wiley.com/doi/"
+        ],
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Correction",
+            "Corrigendum",
+            "Editorial",
+            "Book Review",
+            "Issue Information",
+            "Addendum"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-phg-toc",
+      "name": "Progress in Human Geography · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://journals.sagepub.com/action/showFeed?type=etoc&feed=rss&jc=phg",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Corrigendum",
+            "Correction",
+            "Addendum",
+            "Book Review",
+            "Editorial"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 6,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-ppg-toc",
+      "name": "Progress in Physical Geography: Earth and Environment · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://journals.sagepub.com/action/showFeed?type=etoc&feed=rss&jc=ppg",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Corrigendum",
+            "Correction",
+            "Addendum",
+            "Book Review",
+            "Editorial"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 6,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-ijgis-toc",
+      "name": "International Journal of Geographical Information Science · 当期目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.tandfonline.com/feed/rss/tgis20",
+        "ingestNoiseFilter": {
+          "dropMarkersTitleOnly": [
+            "Corrigendum",
+            "Correction",
+            "Addendum",
+            "Book Review",
+            "Editorial"
+          ]
+        },
+        "_aihot": {
+          "initialBackfillLimit": 6,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "期刊",
+        "研究"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
     }
   ]
 }
