@@ -7897,7 +7897,7 @@
       "config": {
         "feedUrl": "https://oneecosystem.pensoft.net/rss",
         "allowUrlPrefixes": [
-          "https://oneecosystem.pensoft.net/articles/"
+          "https://oneecosystem.pensoft.net/article/"
         ],
         "ingestNoiseFilter": {
           "dropMarkersTitleOnly": [
@@ -7938,7 +7938,7 @@
       "config": {
         "feedUrl": "https://natureconservation.pensoft.net/rss",
         "allowUrlPrefixes": [
-          "https://natureconservation.pensoft.net/articles/"
+          "https://natureconservation.pensoft.net/article/"
         ],
         "ingestNoiseFilter": {
           "dropMarkersTitleOnly": [
@@ -7979,7 +7979,7 @@
       "config": {
         "feedUrl": "https://bdj.pensoft.net/rss",
         "allowUrlPrefixes": [
-          "https://bdj.pensoft.net/articles/"
+          "https://bdj.pensoft.net/article/"
         ],
         "ingestNoiseFilter": {
           "dropMarkersTitleOnly": [
@@ -8423,6 +8423,9 @@
         "_aihot": {
           "initialBackfillLimit": 5,
           "intervalMinutesLocked": true
+        },
+        "headers": {
+          "accept-language": "pt-BR"
         }
       },
       "tier": "T2",
