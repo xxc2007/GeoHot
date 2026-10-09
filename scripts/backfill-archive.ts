@@ -177,6 +177,9 @@ for (const month of months()) {
     let cursor = ledger?.cursor ?? "*";
     let localSeen = 0;
     let localNew = 0;
+    let localNoDate = 0;
+    let localThin = 0;
+    let localDup = 0;
     if (values.apply) {
       await sql`INSERT INTO archive_ingest (source_id, month, cursor, status, updated_at) VALUES (${source.id}, ${month}, ${cursor === "*" ? null : cursor}, 'running', now())
                 ON CONFLICT (source_id, month) DO UPDATE SET status = 'running', updated_at = now()`;
@@ -204,11 +207,11 @@ for (const month of months()) {
         localSeen++;
         const title = (w.title?.[0] ?? "").trim();
         const at = statedDate(w);
-        if (!title || !at) { noDate++; continue; }
+        if (!title || !at) { noDate++; localNoDate++; continue; }
         const body = w.abstract ? plainText(w.abstract) : "";
         // An abstract under ~80 characters is a heading, not something an editor can judge; those records
         // stay out rather than being written up from a title.
-        if (body.length < 80) { thin++; continue; }
+        if (body.length < 80) { thin++; localThin++; continue; }
         judged++;
         // A paper this journal already sent through its own feed has a URL identity, not a `doi:` one, so
         // upsertMaterial would not see it as the same article. Check the URL form first and skip: the live
@@ -216,7 +219,7 @@ for (const month of months()) {
         const urlKey = identityKeyForUrl(w.URL || `https://doi.org/${w.DOI}`);
         if (urlKey) {
           const [twin] = await sql<{ id: string }[]>`SELECT id FROM articles WHERE identity_key = ${urlKey}`;
-          if (twin) { duplicate++; continue; }
+          if (twin) { duplicate++; localDup++; continue; }
         }
         if (values.apply) {
           const first = w.author?.[0];
@@ -254,7 +257,9 @@ for (const month of months()) {
     }
     if (!values.apply) continue;
     const finished = !cursor && !stoppedOnError;
-    const note = `no-date=${noDate} thin=${thin} dup=${duplicate}`;
+    // Per-slice, not cumulative: this string is written into the ledger row, and the cumulative version
+    // printed the same 18 on every source after the first one that had skipped anything.
+    const note = `no-date=${localNoDate} thin=${localThin} dup=${localDup}`;
     await sql`UPDATE archive_ingest SET status = ${finished ? "done" : "pending"}, cursor = ${finished ? null : cursor || null},
               note = ${note}, updated_at = now()
               WHERE source_id = ${source.id} AND month = ${month}`;
