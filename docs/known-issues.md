@@ -3163,3 +3163,29 @@ Cloudflare 对 `GeoHotBot` UA 403（无 UA 200）；Crossref `/journals` 命中 
 包内从 218 到 271、`rss` 到 226 条，**再往上加源不再等于读者看到更多东西，只会让每条等得更久**。
 首导上限已经按 5 条钉住、间隔最快 240 分钟，所以本轮增量不会立刻打爆预算；
 但下一次扩容前需要站长决定的是 `budgets.llm.per_hour`（现值 420）而不是信源清单。
+
+
+### 上线首轮真采集当场照出来的四处（第五十八轮 C）
+
+**其一：`allowUrlPrefixes` 写的是路径形状，路径形状必须从对端的链接里抄。**
+Pensoft 三条我按"文章一般在 /articles/ 下"的语感写了复数，对端是 `/article/<id>/` 单数，
+于是 `found: 100`、入库 0。首导闸门把它叫出来了；**同形制的部分匹配（例如只有一半链接前缀对）闸门叫不出来**，
+所以 `docs/sources.md` 第五十八轮记了 HAL 的 `https://hal.` 半匹配案例——
+写 allow-list 之前先打印这个 feed 的真实 `<link>`，不要凭平台的通用 URL 习惯。
+
+**其二：`accept-language: zh-CN` 会让语种固定的 OJS 站把自己重定向到死。**
+`guardedFetch` 对每个请求都发 `accept-language: zh-CN`（`packages/backend/src/lib/http-fetch.ts`），
+`revistas.usp.br` 对任何非 `pt-BR` 的 Accept-Language 一律 302 回同一个 URL，撞满 5 跳报
+`Too many redirects`——**表现完全像对端坏了，实际是我们的头触发的**。
+判法：同一 URL 不带该头 / 带 `pt-BR` / 带 `en`/`es`/`zh-CN` 各跑一次，只有前者与 `pt-BR` 出 200。
+修法用 `rss` 已有的每源 `config.headers`（`feedHeaders()`），不去改全局默认：
+全局一改动 226 条 rss 的语种协商，那是更大的面。
+
+**其三：`fetch failed` 一次不等于源坏。** EGU 博客 270ms 报 `fetch failed`、重试 1509ms 就 200 + 10 条。
+第五十六轮 D 之后这台机器的 IPv6 坑已经由 `guardedLookup` 兜住，剩下的瞬时故障要靠重试与下一轮复看，
+**不要凭一次失败就下"这源不行"的结论**（也不要在没有取到字节时登记）。
+
+**其四：对端给的占位符不是我们的缺陷，但要看清它有没有连带影响。**
+HAL 有 3/40 条 `<description>` 就是 `<![CDATA[[...]]]>`，于是 `excerpt` 存成 5 个字的 "[...]"；
+库里 40 条 `body_status` 全 ok、正文最短 389 字，所以进模型的不是占位符。
+判据是**问"正文列有没有拿到东西"**，而不是看到短摘要就动手改采集器。

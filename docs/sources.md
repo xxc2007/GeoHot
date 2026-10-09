@@ -834,3 +834,36 @@ Byrd 极地中心与 ECMWF 两条首次导入是 `found 0`——但直接在采�
 而 10-09 往前七天 `frontier` 出了 70 条已发布条目，贡献最多的 `JGR: Biogeosciences`、`Global Change Biology`、
 `Earth's Future` 三条的 `default_category` 都是空——**模型自己在判，回落值只在判不出来时兜底**。
 第五十六轮那 12 本 Copernicus 刊也是空，本轮跟着这个既有口径走（`defaultCategory=frontier` 包内仍 35 条）。
+
+
+### 上线首轮实测：53 条全部抓到东西，四条的登记表是错的
+
+登记完不等于接上了。当晚 22:26 在生产上把这 53 条各跑一遍真采集（`scripts/collect.ts`，与调度器同一条代码路径），
+**53 条全部 `status: ok`，入库 889 条文章**；四条第一次尝试是失败的，原因都不是对端而是我们的登记表：
+
+| 信源 | 第一次的真实报错 | 修法 |
+| --- | --- | --- |
+| `rss-pensoft-bdj`、`rss-pensoft-oneecosystem`、`rss-pensoft-natureconservation` | `first import kept none of 100 items: the listing publishes bdj.pensoft.net and config.allowUrlPrefixes allows none of them` | 三条的 `allowUrlPrefixes` 我写的是 `/articles/`（复数），Pensoft 自己发布的是 `/article/207059/`（单数）。改成单数后各入库 5 条 |
+| `rss-usp-geografia` | `Too many redirects for https://revistas.usp.br/rdg/pt_BR/gateway/plugin/WebFeedGatewayPlugin/atom` | `guardedFetch` 全局发 `accept-language: zh-CN`，而这个 OJS 站对**任何**非本站语种的 Accept-Language 都 302 到同一个地址（实测：不带该头 200、`pt-BR` 200/95418 字节、`en`/`en-US/`es`/`zh-CN` 第 0 跳就打转）。用 `rss` 本来就支持的每源 `headers` 指回 `pt-BR`，不动 226 条 rss 共用的语种协商 |
+| `rss-egu-blogs` | `fetch failed`（270ms） | 瞬时故障：同一条命令重试 1509ms 正常（10 条 / 摘要中位 5426 字）。curl -4 与 node fetch 当场都能取到，不改建法 |
+
+**Pensoft 这三条是第五十七轮那道首导闸门在真实生产上第一次起作用**：它们目录里 100 条都读得出来、
+链接主机也对，只有路径写法与对端不符，所以 `found: 100` 而入库 0——在没有那道闸门的年代，
+后台只会显示 `health: degraded` 加一句 `found: 100`，看上去像"这个刊最近很勤"。
+
+**HAL 那三条 5 个字的摘要不是我们的截断**。`api.archives-ouvertes.fr` 的 RSS 给 40 条中的 3 条把
+`<description>` 直接写成 `<![CDATA[[...]]]>`（对端占位符）。查库里 40 条 `body_status` 全是 ok、
+正文最短 389 字——**摘要占位但正文抽到了**，所以模型不是拿" [...]"加标题在编。其余 37 条的摘要来自
+`dc:description`（中位 1791 字）。这一条记在这里是为了下次别再把 `[...]` 当成我们的缺陷去"修"。
+
+### 这 53 条把队列压成什么样了（决定下一轮该做什么的数字）
+
+- 采集完成时 `processing_state='new'`（等分析）共 **2060 条**，其中 **1061 条**是今晚首导产生的，其余是既有流入；
+- 分析吞吐实测：近 6 小时 309 次分析 = **52 次/小时**（单小时峰值 71–72），每小时大模型调用数仍贴着
+  `budgets.llm.per_hour = 420` 的上限（第五十七轮记的是 402/420）；
+- 补漏网 `sweepUnprocessed()` 按 `discovered_at ASC` 取 500 条（**旧件优先**），
+  所以今晚这批前沿期刊要排在既有 999 条之后，**前沿板块是"一天多里陆续出全"，不是上线即满**。
+
+结论写在这里，避免下一轮误判：**再加信源不会让读者多看到内容，只会把 52 次/小时的带宽摊得更薄。**
+数量已经不缺（271 条、`rss` 226 条），缺的是站长那一侧的 `per_hour` 决定，
+或者一次"哪些批量源不该逐条进模型"的口径决定——两者都不是采集侧能替站长做的。
