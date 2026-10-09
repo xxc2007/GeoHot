@@ -6345,7 +6345,7 @@
           "intervalMinutesLocked": true
         }
       },
-      "tier": "T1_5",
+      "tier": "T1",
       "first_party": true,
       "owner_entity_id": null,
       "participation_mode": "editorial",
@@ -6389,8 +6389,7 @@
       ],
       "site_fulltext": false,
       "syndicate_fulltext": false,
-      "enabled": true,
-      "defaultCategory": "frontier"
+      "enabled": true
     },
     {
       "id": "rss-wcrp-climate-news",
@@ -6406,7 +6405,7 @@
           "intervalMinutesLocked": true
         }
       },
-      "tier": "T2",
+      "tier": "T1",
       "first_party": true,
       "owner_entity_id": null,
       "participation_mode": "editorial",
@@ -6680,11 +6679,11 @@
           "intervalMinutesLocked": true
         }
       },
-      "tier": "T2",
+      "tier": "T1_5",
       "first_party": true,
       "owner_entity_id": null,
       "participation_mode": "editorial",
-      "interval_minutes": 1440,
+      "interval_minutes": 240,
       "tags": [
         "英文",
         "期刊",

@@ -629,7 +629,7 @@ WIREs 是 `wires.`——**前缀不匹配，`allowed()` 把整个列表判成站
 Byrd 极地中心与 ECMWF 两条首次导入是 `found 0`——但直接在采集机上取同一地址能拿到 200 + 7.9 KB / 7.4 KB
 真 RSS、各 10 条 item。差别在 Drupal 的写法：`<title><a href="/news/…">标题正文</a></title>`。这是合法 XML，
 `fast-xml-parser` 交回一个对象节点而不是字符串，`rss.ts` 的 `text()` 只认 `#text`/`#cdata`，于是返回空串，
-`rss.ts:258` 那句 `if (!link || !title) continue` 把十条全丢掉；而 `collect.ts:266` 的 `found` 记的是**解析器的产出**
+`rss.ts` 里那句 `if (!link || !title) continue`（不写行号：它会随每次改动漂） 把十条全丢掉；而 `collect.ts` 里 `found = candidates.length` 记的是**解析器的产出**
 （在 `applySourceFilters` 之前），所以运行记录上写着 `found: 0`、`health: ok`——原始 feed 里明明躺着 10 条。**修法两处**：`text()` 在没有文本节点时递归读子节点（标题取词、`stripTags` 照旧收尾），
 以及新增一条"这条 feed 有 item 但一条都读不出来"就明确判失败的闸门——后者今日零影响面（全库扫过：
 `found_all=0` 的启用源只有这两条，都是本轮新增），但它正是这一类缺陷唯一的可见方式。

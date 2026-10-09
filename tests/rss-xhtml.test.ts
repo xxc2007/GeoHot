@@ -76,6 +76,13 @@ const rssPages: Record<string, string> = {
   // Every item of this feed is unreadable for a reason of its own (no title at all): not one candidate
   // can come out of it, which is the moment the round must say so rather than report a healthy zero.
   "/no-titles": `<rss version="2.0"><channel><title>Headless</title><link>https://example.org/</link><item><link>https://example.org/a</link><description>only a description</description></item><item><link>https://example.org/b</link></item></channel></rss>`,
+  // Wiley's table-of-contents shape: `<description>` is a volume line and the abstract sits in
+  // `<dc:description>`. Reading only the first gave every Wiley source a stub the model cannot summarise.
+  "/wiley-toc": `<rss xmlns:dc="http://purl.org/dc/elements/1.1/" version="2.0"><channel><title>Antipode: Table of Contents</title><link>https://onlinelibrary.wiley.com/journal/14678330</link><item><title>Scalar Aesthetics and the Public Politics of Home</title><link>https://onlinelibrary.wiley.com/doi/10.1111/geoj.70130</link><description>Antipode, Volume 58, Issue 6, November 2026.</description><dc:description>Abs${"trac ".repeat(60)}</dc:description><pubDate>Wed, 07 Oct 2026 21:28:49 -0700</pubDate></item></channel></rss>`,
+  // Unescaped markup *inside* content:encoded must not be flattened into a body that only carries the
+  // first element: feedText treats a non-empty body as confirmed, which would skip the extraction fetch
+  // that gets the real text. The title above still has to survive, so the two cases are the same fixture.
+  "/markup-body": `<rss version="2.0"><channel><title>Mixed</title><link>https://example.org/</link><item><title>Remembering a Colleague</title><link>https://example.org/news/one</link><content:encoded><p>${"A first paragraph long enough to look like a body. ".repeat(6)}</p><p>SECOND PARAGRAPH THAT MUST NOT BE SILENTLY DROPPED</p></content:encoded><pubDate>Tue, 06 Oct 2026 08:00:00 +0000</pubDate></item></channel></rss>`,
 };
 const rssServer = http.createServer((req, res) => {
   res.setHeader("content-type", "application/rss+xml; charset=utf-8");
@@ -102,4 +109,24 @@ test("an RSS 2.0 title that is literal markup yields the words, not an empty tit
 
 test("a feed full of items the reader cannot use fails visibly instead of a healthy zero", async () => {
   await assert.rejects(() => readRss("/no-titles"), /2 item/, "found>0 and stored 0 has to be said out loud");
+});
+
+test("a table-of-contents feed that hides its abstract in dc:description still hands the model the abstract", async () => {
+  const { candidates } = await readRss("/wiley-toc");
+  const [item] = candidates;
+  assert.equal(item!.url, "https://onlinelibrary.wiley.com/doi/10.1111/geoj.70130");
+  assert.ok(item!.excerpt!.startsWith("Abs"), "the excerpt is the abstract, not the volume line");
+  assert.ok(item!.excerpt!.length > 200, `the abstract reaches the model (${item!.excerpt!.length} chars)`);
+  assert.ok(!/Volume 58, Issue 6/.test(item!.excerpt!), "the 44-character volume line is not what the model gets to work with");
+});
+
+test("markup inside content:encoded does not become a body that pretends to be complete", async () => {
+  const { candidates } = await readRss("/markup-body");
+  const [item] = candidates;
+  assert.ok(item!.title.includes("Remembering a Colleague"), "the title still reads through the markup");
+  // Flattening the element children into one string would keep the first <p>, drop the second, and mark the
+  // body confirmed — so the extraction fetch that gets the real text never happens. An empty body is the
+  // honest answer: it stays `pending` and the article page is read instead.
+  assert.notEqual(item!.bodyStatus, "ok", "a flattened stub must not be reported as a confirmed body");
+  assert.equal(item!.bodyText, null);
 });

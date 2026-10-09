@@ -3024,7 +3024,7 @@ Springer `search.rss?facet-journal-id=` 有摘要有真 pubDate；Magtech 中文
 **其二：`<title>` 里放未转义 HTML 的订阅源，条目被当作"无标题"整批丢掉，而运行记录写着 `found: 0`。**
 Byrd 极地中心与 ECMWF 各 10 条 item，Drupal 写成 `<title><a href="…">文字</a></title>`。这是合法 XML，
 `fast-xml-parser` 交回结构而不是字符串，`rss.ts` 的 `text()` 只认 `#text`/`#cdata` 便返回空串，
-`rss.ts:258` 的 `if (!link || !title) continue` 把十条全丢掉，而 `collect.ts:266` 的 `found` 记的是解析器的产出。
+`rss.ts` 里那句 `if (!link || !title) continue` 把十条全丢掉，而 `collect.ts` 里 `found = candidates.length` 的 `found` 记的是解析器的产出。
 **这一类没有任何一列会变红**：HTTP 200、无 `last_error`、`health=ok`、`found=0`，与"这周没更新"逐字相同。
 修法两处（各有用例，都是先看红再修绿）：`text()` 在没有文本节点时递归读子节点；解析器自己发现
 「feed 里有 item 而一条都读不出来」时抛 `FetchError`，让这条源在后台真的标红。
@@ -3061,6 +3061,46 @@ Byrd 极地中心与 ECMWF 各 10 条 item，Drupal 写成 `<title><a href="…"
 修之前它们**根本不可能**接成 `web_list` 信源；本轮把 `web-pric-news` 重指到站点自己导航里的
 `科技进展`（`li.gsgg-item` / `.gsgg-title h3` / `.gsgg-time`，日期是服务端直出的 ISO，标题如
 「极地中心在北极海冰干舷高度高分辨率反演方法研究中取得重要进展」）就是这一修的产物。
+
+### 第五条（第五十八轮，收尾评审代理发现、生产数据证实、当天修掉）：`dc:description` 从来没被读过，于是整个 Wiley 家族喂给模型的是一行卷期号
+
+第五十六、五十七两轮接了 **36 条 Wiley 系刊源**（AGU 与各学会刊），登记时逐条实测的是"`dc:description`
+里有 1500–2600 字的摘要"。字节确实有——**但解析器不看那一列**：`rss.ts` 只读 `it.description` 与
+`content:encoded`。Wiley 的目录 feed 把卷期行放在 `description`（"Antipode, Volume 58, Issue 6,
+November 2026."＝44 字），摘要放在 `dc:description`。
+
+生产库里对最近 20 小时的相关条目按 `excerpt`（=模型实际拿到的材料）做一次中位数统计，后果就摆出来了：
+
+| 源的形状 | 中位 excerpt | 结果 |
+| --- | --- | --- |
+| Wiley 系目录 feed（terranova 22 / antipode 44 / ijc 48 / geobiology 55 / palaeontology 58 / wrr 60 / rgs-geographical-journal 61 / sedimentology 64 / rgs-wires 65 / grl 67 / rgs-tibg 88 / jawra 92 字） | **22–92 字** | pass 基本为 0 |
+| 摘要就在 `description` 或 `content:encoded` 里的源（dhg 301 / epb 334 / phg 332 / eartharxiv 403 / wwa 499 / mercator 533 / piahs 713 / egusphere 729 / copernicus-hess 768） | **301–768 字** | 前沿条目基本全从这里出 |
+
+修法：RSS 分支取 `description` 与 `dc:description` 中**较长**的那一个当摘要；用例
+`tests/rss-xhtml.test.ts`「a table-of-contents feed that hides its abstract in dc:description…」，
+注入验证过（把这一行退回原样，用例当场变红）。**已在库的条目会自动愈合**：`contentHash` 含 `excerpt`
+（`content/materials.ts:100`），下一轮抓到同一 URL 就是 revision+1 ⇒ 重新分析。
+**教训：实测"这族 feed 有没有摘要"必须顺着解析器真正读的那几列去量**，否则量到的是发布方的字段布局，
+不是模型看到的材料。新接一族之后，先看一眼 `articles.excerpt` 的中位长度再宣布"接成了"。
+
+### 同一轮评审另外改掉的两处（都是判据本身过宽/错位，不是风格问题）
+
+- **首次导入闸门过宽**：原先 `found>0 && filtered==0` 就判失败，而 `filtered` 是在**噪声标记之后**才量的。
+  包内 76 条源带着 `Issue Information` / `Correction` / `Book Review` 这类标记，一条新源若正好在"两期之间"
+  首次导入（整页都是前置页），就会**每轮抛错、永远写不进 `initializedAt`**，从此永远空跑——比它要防的病更糟。
+  现在只有**入口地址白名单把整页判掉**时才失败（`!offered.some(c => allowed(c.url, source))`），那才是 Wiley
+  那一类配置病；纯前置页的一周照旧是成功的空轮。用例第三侧钉住（front-matter-only 的 debut 必须 ok 且写下
+  `initializedAt`）。另注：这条闸门对已经初始化过的源不起作用，所以它救的是下一批，不是上一批。
+- **`text()` 的回退面收回到"只用于标题"**：上一轮为救 Drupal 的 `<title><a href>`，把回退加在了通用 `text()`
+  上——那会顺带把 `content:encoded` 的多段正文压成第一段（数组只取 `v[0]`）、图片消失，而 `feedText` 见到
+  非空正文就标 `bodyStatus:"ok"`，于是**本该去抓详情页的那一步被跳过**。现在 `text()` 回到原样，新增
+  `nestedText()` 只被 `titleText()` 用在 RSS/Atom 两个标题位；用例「markup inside content:encoded does not
+  become a body that pretends to be complete」钉住这一侧。
+- **三条 tier 与一条兜底分类修正**（评审指出，见 `industry/selection.ts`）：`rss-piahs-articles` T2→T1_5
+  （T2 是"媒体与个人"档，与 `first_party:true` 矛盾，还把入选门槛从 49 抬到 52）、`rss-wcrp-climate-news`
+  T2→T1、`rss-wwa-attribution` T1_5→T1，都按各自一族对齐；`rss-mercator-news` 的 `defaultCategory`
+  从 `frontier` 改回空——它多数的条目是计划与服务公报，按 `industry/taxonomy.ts` 里 frontier 的 guide
+  （判据是创新度、"观测公报…按各自类别归类"），兜底不该把它们判成前沿。**tier 是分数天花板，不是标签。**
 
 ### 现状与遗留
 

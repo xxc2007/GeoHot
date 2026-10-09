@@ -29,18 +29,33 @@ function text(v: unknown): string {
     const o = v as Record<string, unknown>;
     if ("#cdata" in o) return text(o["#cdata"]);
     if ("#text" in o) return text(o["#text"]);
-    // Markup the publisher left unescaped (a Drupal feed whose <title> holds a literal <a href>) is legal
-    // XML, so the parser hands back structure where a string was expected and there is no text node here.
-    // Read the words out of the children: an empty title is dropped by the caller, and a whole feed of them
-    // reads as an idle source rather than an unreadable one.
-    const nested = Object.entries(o)
-      .filter(([k]) => !k.startsWith("@"))
-      .map(([, child]) => text(child))
-      .filter(Boolean)
-      .join(" ");
-    if (nested) return nested;
   }
   return "";
+}
+
+/**
+ * The words inside markup the publisher left unescaped — a Drupal feed whose `<title>` holds a literal
+ * `<a href="…">`, which is legal XML, so the parser hands back structure and there is no text node to read.
+ * `text()` deliberately does not do this: flattening *bodies* was worse than leaving them empty (a
+ * multi-paragraph `content:encoded` collapses to its first element, images vanish, and the round then skips
+ * the extraction fetch that would have got the real text — `feedText` treats a non-empty body as confirmed).
+ * Only the fields that must be a single flat string — the title — read through this.
+ */
+function nestedText(v: unknown): string {
+  if (v === null || v === undefined) return "";
+  if (Array.isArray(v)) return nestedText(v[0]);
+  if (typeof v !== "object") return "";
+  const o = v as Record<string, unknown>;
+  return Object.entries(o)
+    .filter(([k]) => !k.startsWith("@"))
+    .map(([, child]) => text(child) || nestedText(child))
+    .filter(Boolean)
+    .join(" ");
+}
+
+/** A headline is a headline even when the feed wrapped it in markup: empty here means the item is dropped. */
+function titleText(v: unknown): string {
+  return text(v) || nestedText(v);
 }
 
 /**
@@ -275,10 +290,17 @@ export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}
     for (const it of items) {
       const itemBase = baseOf(it, channelBase);
       const link = resolveHref(text(it.link), itemBase) ?? resolveHref(text(it.guid), itemBase);
-      const title = collapseWhitespace(stripTags(text(it.title)));
+      const title = collapseWhitespace(stripTags(titleText(it.title)));
       if (!link || !title) continue;
       const contentEncoded = text(it["content:encoded"]);
-      const description = text(it.description);
+      // Wiley's table-of-contents feeds carry the volume line in `<description>` ("Antipode, Volume 58,
+      // Issue 6, November 2026.") and the abstract in `<dc:description>`. Reading only the first handed the
+      // model a 22-92 character stub for every one of the pack's 36 Wiley sources — measured on production:
+      // 0 of 190 recent items passed the relevance gate — while sources that put the abstract in
+      // `<description>` or `<content:encoded>` deliver 300-800 characters. The abstract is the longer one.
+      const plainSummary = text(it.description);
+      const dcSummary = text(it["dc:description"]);
+      const description = dcSummary.length > plainSummary.length ? dcSummary : plainSummary;
       const bodyHtmlRaw = contentEncoded || (summaryIsBody ? description : "");
       const bodyHtml = bodyHtmlRaw ? sanitizeBody(bodyHtmlRaw, link) : null;
       const enclosure = arr(it.enclosure as Record<string, string> | Array<Record<string, string>>).find((e) => /^image\//.test(e?.["@type"] ?? ""));
@@ -313,7 +335,7 @@ export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}
     const entries = arr(feed.entry);
     for (const e of entries) {
       const link = atomLink(e.link);
-      const title = collapseWhitespace(stripTags(text(e.title)));
+      const title = collapseWhitespace(stripTags(titleText(e.title)));
       const entryUrl = resolveHref(link, baseOf(e, feedBase));
       if (!entryUrl || !title) continue;
       const content = text(e.content);

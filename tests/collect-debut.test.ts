@@ -18,24 +18,39 @@ import { collectSource } from "@aihot/backend/sources/collect";
 const T = tag();
 const DEBUT = `test-debut-${T}`;
 const QUIET = `test-quiet-${T}`;
-const ITEM = (n: number) => `<item><title>Research article ${n} ${T}</title><link>https://rmets.onlinelibrary.example/doi/10.1002/joc.700${n}</link><description>Abstract ${n}: a new reconstruction with enough words to be a summary.</description><pubDate>Mon, 0${n} Oct 2026 08:00:00 +0000</pubDate></item>`;
-const feed = `<rss version="2.0"><channel><title>Journal</title><link>https://rmets.onlinelibrary.example/</link>${[1, 2, 3].map(ITEM).join("")}</channel></rss>`;
-const server = http.createServer((_req, res) => {
+const MARKERS = `test-markers-${T}`;
+const ITEM = (n: number, title = `Research article ${n} ${T}`) => `<item><title>${title}</title><link>https://rmets.onlinelibrary.example/doi/10.1002/joc.700${n}</link><description>Abstract ${n}: a new reconstruction with enough words to be a summary.</description><pubDate>Mon, 0${n} Oct 2026 08:00:00 +0000</pubDate></item>`;
+const pages: Record<string, string> = {
+  "/rss": `<rss version="2.0"><channel><title>Journal</title><link>https://rmets.onlinelibrary.example/</link>${[1, 2, 3].map((n) => ITEM(n)).join("")}</channel></rss>`,
+  // A between-issues table of contents: every row is front matter our own noise list rejects. That is a
+  // quiet week, not a misconfiguration, so the debut must be allowed to stand (and 76 rows of the real
+  // pack carry such markers — refusing here would keep those sources from ever initializing).
+  "/markers": `<rss version="2.0"><channel><title>Front matter</title><link>https://rmets.onlinelibrary.example/</link>${ITEM(1, `Issue Information ${T}`)}${ITEM(2, "Book Review: an atlas")}${ITEM(3, "Editorial Note")}</channel></rss>`,
+};
+const server = http.createServer((req, res) => {
   res.setHeader("content-type", "application/rss+xml; charset=utf-8");
-  res.end(feed);
+  res.end(pages[req.url!] ?? pages["/rss"]);
 });
 await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-const feedUrl = `http://127.0.0.1:${(server.address() as { port: number }).port}/rss`;
+const PORT = (server.address() as { port: number }).port;
+const feedUrl = `http://127.0.0.1:${PORT}/rss`;
+const markersUrl = `http://127.0.0.1:${PORT}/markers`;
 const previousPrivateFetch = config.allowPrivateNetworkFetch;
 config.allowPrivateNetworkFetch = true;
 
 before(async () => {
-  // Both sources allow only a host the listing never publishes, so every item is filtered out.
+  // The first two allow only a host the listing never publishes, so every item is filtered out.
   await sql`INSERT INTO sources (id, name, kind, config, tier, participation_mode, cursor, next_fetch_at)
             VALUES (${DEBUT}, ${`Debut ${T}`}, 'rss', ${sql.json({ feedUrl, allowUrlPrefixes: ["https://onlinelibrary.example/doi/"] })}, 'T1_5', 'editorial',
                     NULL, '2100-01-01'),
                    (${QUIET}, ${`Quiet ${T}`}, 'rss', ${sql.json({ feedUrl, allowUrlPrefixes: ["https://onlinelibrary.example/doi/"] })}, 'T1_5', 'editorial',
-                    ${sql.json({ initializedAt: "2026-10-01T00:00:00.000Z" })}, '2100-01-01')`;
+                    ${sql.json({ initializedAt: "2026-10-01T00:00:00.000Z" })}, '2100-01-01'),
+                   (${MARKERS}, ${`Markers ${T}`}, 'rss', ${sql.json({
+                      feedUrl: markersUrl,
+                      allowUrlPrefixes: ["https://rmets.onlinelibrary.example/doi/"],
+                      ingestNoiseFilter: { dropMarkersTitleOnly: ["Issue Information", "Book Review", "Editorial"] },
+                      _aihot: { initialBackfillLimit: 8 },
+                    })}, 'T1_5', 'editorial', NULL, '2100-01-01')`;
 });
 after(async () => {
   config.allowPrivateNetworkFetch = previousPrivateFetch;
@@ -67,4 +82,17 @@ test("a later round that keeps nothing is a quiet week, not a broken source", as
   assert.equal(r.found, 3);
   assert.equal(r.created, 0);
   assert.equal((await sourceRow(QUIET)).health, "ok", "the round succeeded, so the source stays healthy");
+});
+
+test("a debut whose every row is front matter is still a successful first import", async () => {
+  // The noise list, not the address whitelist, emptied this listing — the case 76 pack rows can hit
+  // between issues. Refusing it would leave such a source unable to ever initialize.
+  const r = await collectSource(MARKERS, { force: true });
+  assert.equal(r.status, "ok", `front-matter-only debut must stand: ${JSON.stringify(r)}`);
+  assert.equal(r.found, 3, "the listing really offered three rows");
+  assert.equal(r.created, 0, "our markers dropped all of them, which is the point of the rule");
+  const row = await sourceRow(MARKERS);
+  assert.equal(row.health, "ok");
+  const cursor = (await sql<{ cursor: { initializedAt?: string } }[]>`SELECT cursor FROM sources WHERE id = ${MARKERS}`)[0]!.cursor;
+  assert.ok(cursor.initializedAt, "the source remembers its first import, so the next round is an ordinary one");
 });
