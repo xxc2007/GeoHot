@@ -317,7 +317,10 @@ export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}
         ...identity(link),
         title,
         author: text(it["dc:creator"]) || text(it.author) || null,
-        publishedAt: parseDate(text(it.pubDate) || text(it["dc:date"]) || text(it.published), publishedAtUtcOffset),
+        // Frontiers writes `<pubdate>` and the RFC-822 spelling is `<pubDate>`; the parser keeps tag case,
+        // so reading only one of the two silently loses the source date — and a dateless item is filed under
+        // its discovery time, which turns last month's paper into today's news on the timeline.
+        publishedAt: parseDate(text(it.pubDate) || text(it.pubdate) || text(it["dc:date"]) || text(it.published), publishedAtUtcOffset),
         ...feedText(bodyHtml, description || mrss(it).description, source),
         media: media.slice(0, 6),
         categories: arr(it.category).map((c) => text(c)).filter(Boolean),
