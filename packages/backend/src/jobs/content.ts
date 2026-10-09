@@ -4,7 +4,7 @@
 // extraction first. A provider outage makes an article wait and retry with backoff; only a permanent
 // refusal or exhausted retries end in "failed", which the admin re-queues in bulk.
 import type { PgBoss } from "pg-boss";
-import { isCollectEnabled, isModelCallsEnabled, positiveInt } from "../config.ts";
+import { isCollectEnabled, positiveInt } from "../config.ts";
 import { sql, type Db } from "../db.ts";
 import { extractArticleBody, pageFetchable } from "../content/extract.ts";
 import { analyzeArticle, AnalysisInterruptedError } from "../editorial/analyze.ts";
@@ -221,51 +221,6 @@ export async function registerExtractionJobs(boss: PgBoss) {
       return { state: "unconfirmed" };
     }
   });
-}
-
-/**
- * The backfill's turn at the door. Keeps at most `ARCHIVE_BACKFILL_SHARE` archive analyses sitting in the
- * live band, so pg-boss — which fetches `priority DESC, created_on` — reaches them between live arrivals.
- *
- * Why a dial exists at all: measured on production 2026-10-10, the archive band held 1,790 waiting jobs and
- * was served none in 45 minutes while the live band itself grew from 145 to 156. Arrival rate equals what
- * the door consumes, so a strictly-lower band starves rather than waits — "keep the backfill behind live
- * work" is, at this capacity, the same as "never finish it".
- *
- * Why the dial starts at zero: promoting an archive job does not add throughput — the hourly ceiling is the
- * same bucket either way — it hands a live slot to a paper. The owner set that ceiling and the runbook says
- * plainly that speeding the backfill is their call, so shipping this default-off means a deployment cannot
- * quietly trade today's edition for the archive; `ARCHIVE_BACKFILL_SHARE=12` buys the slice back explicitly.
- *
- * Two caps keep a bought share a share and not a queue-jump: the number is *jobs in the band at once*, so
- * the backfill cannot run ahead of what the door actually finishes; and the pump stands aside once the live
- * band's own backlog passes `ceiling`, so a news burst takes the capacity straight back.
- */
-export async function advanceArchiveBackfill(opts: { share?: number; ceiling?: number } = {}): Promise<{ promoted: number; liveWaiting: number; share: number }> {
-  const share = isModelCallsEnabled() ? (opts.share ?? positiveInt(process.env.ARCHIVE_BACKFILL_SHARE, "ARCHIVE_BACKFILL_SHARE", 0)) : 0;
-  if (!share) return { promoted: 0, liveWaiting: 0, share: 0 };
-  const ceiling = opts.ceiling ?? share * 20;
-  const bands = await sql<{ band: string; n: number }[]>`
-    SELECT CASE WHEN EXISTS (SELECT 1 FROM articles a WHERE a.id = j.data ->> 'articleId' AND a.backfill_reason = 'archive')
-                THEN 'archive' ELSE 'live' END AS band,
-           count(*)::int AS n
-      FROM "pgboss"."job" j
-     WHERE j.name = ${QUEUES.analyze} AND j.state = 'created' AND j.priority = ${PRIORITY.live}
-     GROUP BY 1`;
-  const liveWaiting = bands.find((b) => b.band === "live")?.n ?? 0;
-  const alreadyIn = bands.find((b) => b.band === "archive")?.n ?? 0;
-  if (liveWaiting > ceiling) return { promoted: 0, liveWaiting, share };
-  const room = share - alreadyIn;
-  if (room <= 0) return { promoted: 0, liveWaiting, share };
-  const promoted = await sql`
-    UPDATE "pgboss"."job" j SET priority = ${PRIORITY.live}
-     WHERE j.id IN (
-       SELECT j2.id FROM "pgboss"."job" j2
-        WHERE j2.name = ${QUEUES.analyze} AND j2.state = 'created' AND j2.priority = ${PRIORITY.archive}
-          AND EXISTS (SELECT 1 FROM articles a WHERE a.id = j2.data ->> 'articleId' AND a.backfill_reason = 'archive')
-        ORDER BY j2.created_on LIMIT ${room})
-     RETURNING j.id`;
-  return { promoted: promoted.length, liveWaiting, share };
 }
 
 /**
