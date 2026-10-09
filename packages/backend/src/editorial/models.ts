@@ -2,7 +2,20 @@
 // override, and an admin switch kept in settings (every switch is audited). Read at call time and
 // cached for a minute, so a switch applies to the next call without a restart; a changed model only
 // affects work done from then on (history is not re-judged).
+//
+// A capability may name a **pool** — `default,agnes-3.0-flash-cn`. Work is then spread across the
+// members by a hash of the shard key, which is always the thing being processed (an article id, a story
+// id). Hash-of-key rather than round-robin for one reason: a retry, a re-analysis after a correction, or
+// a manual re-run must land on the same model that answered the first time, or the receipts cache
+// (keyed by service, purpose, model and inputs — receipts.ts:logicalKeyFor) misses and the article gets a
+// second, different judgement for the same words. Round-robin would also make "why did this item get this
+// score" unanswerable a week later.
+//
+// Callers pass the receipt `subject` as the shard key — that string is already the name of the work unit.
+// Two sites pass something coarser on purpose: a translated body shards per article rather than per batch
+// (one article, one prose style), and a story digest per event rather than per revision (one event, one voice).
 import { sql } from "../db.ts";
+import { sha256 } from "../lib/ids.ts";
 import { MODELS } from "../providers/llm.ts";
 
 export interface Capability {
@@ -32,11 +45,36 @@ export type CapabilityKey = keyof typeof CAPABILITIES;
 
 let cache: { at: number; overrides: Record<string, string> } | null = null;
 
+/** Split a capability's configured value into the pool of models it names, dropping unknown names. */
+export function poolOf(configured: string): string[] {
+  return configured.split(",").map((s) => s.trim()).filter((s) => MODELS[s] !== undefined);
+}
+
+/**
+ * Which pool member handles this piece of work. Deterministic in `shardKey`: the same article id always
+ * reaches the same model, so a retry or a re-analysis reuses that model's cached answer instead of
+ * asking a second model to re-judge identical words.
+ */
+export function pickFromPool(configured: string, shardKey?: string): string {
+  const members = poolOf(configured);
+  if (members.length === 0) return "";
+  if (members.length === 1 || !shardKey) return members[0]!;
+  // sha256 rather than String#hashCode-style loops: the distribution over 2-3 members has to be even
+  // whatever shape the ids have, and these ids are base32-ish snowflakes.
+  const digest = sha256(`${shardKey}`);
+  return members[Number.parseInt(digest.slice(0, 8), 16) % members.length]!;
+}
+
 async function overrides(): Promise<Record<string, string>> {
   if (cache && Date.now() - cache.at < 60_000) return cache.overrides;
   const rows = await sql<{ key: string; value: { model?: string } }[]>`SELECT key, value FROM settings WHERE key LIKE 'models.%'`;
   const map: Record<string, string> = {};
-  for (const r of rows) if (r.value?.model && MODELS[r.value.model]) map[r.key.slice("models.".length)] = r.value.model;
+  for (const r of rows) {
+    const value = r.value?.model ?? "";
+    // The admin stores a pool the same way the environment does, so accept a comma list here too —
+    // but only when *every* named member exists, or a typo would silently drop half the pool.
+    if (value && poolOf(value).length === value.split(",").filter((s) => s.trim()).length) map[r.key.slice("models.".length)] = value;
+  }
   cache = { at: Date.now(), overrides: map };
   return map;
 }
@@ -46,10 +84,10 @@ export function invalidateModelCache() {
 }
 
 /** The model a capability uses now: admin switch, else environment, else the code default. */
-export async function modelFor(capability: CapabilityKey): Promise<string> {
+export async function modelFor(capability: CapabilityKey, shardKey?: string): Promise<string> {
   const c: Capability = CAPABILITIES[capability];
   const chosen = (await overrides())[capability] ?? process.env[c.env] ?? c.default;
-  return MODELS[chosen] ? chosen : c.default;
+  return pickFromPool(chosen, shardKey) || c.default;
 }
 
 /** Where the current choice comes from, for the admin page. */
@@ -58,7 +96,7 @@ export async function modelSources(): Promise<Record<string, { model: string; so
   const out: Record<string, { model: string; source: "admin" | "env" | "default" }> = {};
   for (const [key, c] of Object.entries(CAPABILITIES) as Array<[string, Capability]>) {
     if (o[key]) out[key] = { model: o[key]!, source: "admin" };
-    else if (process.env[c.env] && MODELS[process.env[c.env]!]) out[key] = { model: process.env[c.env]!, source: "env" };
+    else if (process.env[c.env] && poolOf(process.env[c.env]!).length > 0) out[key] = { model: process.env[c.env]!, source: "env" };
     else out[key] = { model: c.default, source: "default" };
   }
   return out;

@@ -233,7 +233,7 @@ LLM_API_KEY=<你的 Key>
 LLM_MODEL=<模型名>
 ```
 
-`MODEL_CALLS_ENABLED=false` 时管道根本不发请求（`llm.ts:157` 直接抛错），所以换完 Key 还要用 `.env.pipeline` 那套启动方式。想让某一步用不同模型，用 `PREFILTER_MODEL / SCORE_MODEL / …`（`packages/backend/src/editorial/models.ts`），或在后台 `/admin/models` 里切。反过来，真模型上线后 stub 仍然值得留着当回归基准：同一批 fixture 可以对比模型判断与人工判断的差距。
+`MODEL_CALLS_ENABLED=false` 时管道根本不发请求（`llm.ts:157` 直接抛错），所以换完 Key 还要用 `.env.pipeline` 那套启动方式。想让某一步用不同模型，用 `PREFILTER_MODEL / SCORE_MODEL / …`（`packages/backend/src/editorial/models.ts`），或在后台 `/admin/models` 里切。**同一个变量填逗号就是模型池**（`PREFILTER_MODEL=default,agnes-3.0-flash-cn`）：选中池里哪一个由"这条工作单元"（收据 subject：文章 id、事件 id、期号）的哈希决定，不是轮流——重跑与人工重试因此落回原来那个模型，直接复用它的缓存答复，而不是让第二家模型就同样的字再判一遍；每家花自己 `service` 的预算行，一家被限流不拖住另一家。两处故意取更粗的粒度：正文翻译按整篇分（一篇文章一种文笔，不是一段一个模型），事件综述按事件分（同一事件的历次综述一个声音）。池只由环境变量配置，后台的下拉框还是单个模型——池状态下"切换"框预选「恢复默认」，提交它等于删掉后台覆盖、把主导权还给环境变量里的池。反过来，真模型上线后 stub 仍然值得留着当回归基准：同一批 fixture 可以对比模型判断与人工判断的差距。
 
 **工具与自查。**
 

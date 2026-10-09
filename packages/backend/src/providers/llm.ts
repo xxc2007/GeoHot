@@ -40,6 +40,30 @@ export const MODELS: Record<string, ModelSpec> = {
     get jsonMode() { return process.env.LLM_JSON_MODE !== "false"; },
     get vision() { return process.env.LLM_VISION === "true"; },
   },
+  // The same Agnes 3.0 flash served from the mainland endpoint, under its own key and its own budget row.
+  // Measured 2026-10-09 from the collector with the site's real request shape (JSON mode +
+  // `reasoning_effort: high` + a scored editorial prompt): 200, valid JSON, correct Chinese fields,
+  // 1.7-9.0 s single call, and **8/8 concurrent calls with zero 429** at ~10.9 s average — about
+  // 2,600 calls/hour of headroom where the `.com` endpoint is capped by our own 420/hour breaker and
+  // already answers 429 near 400. That is why the backfill can run at all.
+  // Env-driven like `default` so retuning needs no code change; unset keys make the pool member simply
+  // unconfigured (chatJson throws with the env names in the message) rather than silently mis-routing.
+  "agnes-3.0-flash-cn": {
+    key: "agnes-3.0-flash-cn", service: "agnes-cn", baseUrlEnv: "AGNES_CN_BASE_URL", apiKeyEnv: "AGNES_CN_API_KEY",
+    get model() { return process.env.AGNES_CN_MODEL ?? "agnes-3.0-flash"; },
+    get extra() { return extraFromEnv(process.env.AGNES_CN_EXTRA_JSON ?? process.env.LLM_EXTRA_JSON); },
+    get jsonMode() { return process.env.AGNES_CN_JSON_MODE !== "false"; },
+    get vision() { return process.env.AGNES_CN_VISION === "true"; },
+  },
+  // OpenCode Zen. The key offered on 2026-10-09 lists 82 models but answers exactly one: every `-free`
+  // tier returns 403 (not enabled on the account) and every paid model 402 (no balance). This entry is
+  // that one model, and it is registered `jsonMode: false` because it ignores `response_format` and
+  // answers in prose — so it can carry free-text capabilities (translation, digests) and must not be put
+  // in a pool for the structured calls.
+  "space-bunny-free": {
+    key: "space-bunny-free", service: "opencode", model: "space-bunny-free",
+    baseUrlEnv: "OPENCODE_BASE_URL", apiKeyEnv: "OPENCODE_API_KEY", jsonMode: false,
+  },
   // Named presets (the models AIHOT itself runs on); each needs its own key.
   // GLM 5.3 Flash always reasons; the lowest effort keeps short structured tasks fast.
   "glm-5.3-flash": {

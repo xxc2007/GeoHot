@@ -264,7 +264,7 @@ export async function composeDaily(date: string, reason = "scheduled"): Promise<
     items: perSection.get(label)!.map(({ category: _c, factKey: _f, ...entry }) => entry),
   }));
   const ordered = sections.flatMap((s) => s.items).sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
-  const model = await modelFor("report");
+  const model = await modelFor("report", `report:daily:${date}`);
   const lead = ordered.length ? await writeLead("daily", date, ordered, model) : null;
   const content = {
     date,
@@ -337,7 +337,7 @@ async function composePeriod(kind: "weekly" | "monthly", key: string, startDate:
   let overview = "";
   let receiptId: number | null = null;
   let proseRule: string | null = null;
-  const model = await modelFor("report");
+  const model = await modelFor("report", `report:${kind}:${key}`);
   if (top.length) {
     const res = await chatJson({
       model, purpose: `report_${kind}`, subject: `report:${kind}:${key}`, promptVersion: REPORT_VERSION,
