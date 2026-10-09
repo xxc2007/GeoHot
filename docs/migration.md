@@ -102,14 +102,14 @@
 4. IndexNow（如果开了 `INDEXNOW_SUBMIT_ENABLED`）：key 文件必须落在**域名根**的 `/<key>.txt`；
    子路径部署下落点是 `/<前缀>/<key>.txt`，可达性要自己实测，别照配置推断。
    **这一项要两个键一起配，而漏掉的那一个不会报错**：`INDEXNOW_SUBMIT_ENABLED=true` 只是开关，真正的值是
-   `INDEXNOW_KEY`（`.env.example:190-191`，32 位小写十六进制，自己生成）。判定式写在
+   `INDEXNOW_KEY`（`.env.example` 里那两行 `INDEXNOW_KEY=` / `INDEXNOW_SUBMIT_ENABLED=`，32 位小写十六进制，自己生成）。判定式写在
    `packages/backend/src/config.ts` 里 `indexNowKey:` 那一行（行号会漂，`grep -n indexNowKey packages/backend/src/config.ts` 现查）——
    `/^[0-9a-f]{32}$/.test(env.INDEXNOW_KEY ?? "") ? env.INDEXNOW_KEY! : null`，
    也就是**长度或字符集不合就当没配**：不抛错、不告警、日志里什么都没有，表现是"开关明明开了却从没提交过"。
    所以验证不能只 `grep` 开关：① `curl -s -o /dev/null -w '%{http_code}\n' https://<新域名>/<你的 key>.txt` → **200**
    （根上那份 key 文件真的可达，这一步在子路径部署下最容易假成功）；② 看提交侧的记录（后台/日志里有没有真的发出
    提交），而不是看 `.env` 里那行写了什么。搬家当天**先留在 false**，等新域名的 key 落根并验过再开。
-5. **推送类开关一律先关**：`FEISHU_CONTENT_PUSH_ENABLED` 与 `FEISHU_INTERNAL_ENABLED`（`.env.example:87-88`，
+5. **推送类开关一律先关**：`FEISHU_CONTENT_PUSH_ENABLED` 与 `FEISHU_INTERNAL_ENABLED`（`.env.example` 的 `FEISHU_CONTENT_PUSH_ENABLED` / `FEISHU_INTERNAL_ENABLED` 两行，
    默认 false；读取处是 `packages/backend/src/config.ts` 里的 `feishuContentPushEnabled` 那一行）。它们背后是 webhook 地址，而 webhook 恰恰会跟着
    `.env.pipeline` 一起被"顺手搬过来"——**旧机器的群收不到新站的消息，新站的内容却会推到你不想给的那个群**。
    第 4 节那张"一枚都不要搬过来"的表里包含它们：搬家先置 false，验收完再决定要不要接、接到哪个群。
@@ -129,7 +129,7 @@ npm run env:init                       # 写 .env 与 .env.pipeline；已存在�
 1. 把 `.env` 的 `SITE_URL` 改成读者实际访问的地址（A 类第一行）。`env:init` 只在给了 `--web-port` 时才重写这一行，
    否则照 `.env.example:34` 留 `http://localhost:3000`，生产下 api 会反复重启。
 2. 决定阀门。`env:init` 写出的 `.env` 里 `COLLECT_ENABLED=false`、`MODEL_CALLS_ENABLED=false`
-   （`.env.example:82-83`，`scripts/init-env.ts` 不碰这两个键），而 `apps/worker/src/main.ts` 里那句
+   （`.env.example` 的 `COLLECT_ENABLED` / `MODEL_CALLS_ENABLED` 两行，`scripts/init-env.ts` 不碰这两个键），而 `apps/worker/src/main.ts` 里那句
    `if (process.env.COLLECT_ENABLED !== "false") await registerSourceJobs(boss)` 一见到 false 就**一个抓取任务都不注册**——
    站起来了但永远没有新内容。
    要真的采起来就显式写 `COLLECT_ENABLED=true`。模型侧三选一：
@@ -158,7 +158,7 @@ skip：`– reader copy  no daily paper yet (HTTP 404)`，见 `scripts/smoke.ts:
 
 ### 3.1 数据库前置：先有角色和库，再谈 migrate
 
-`.env.example:57` 那串 `DATABASE_URL` 里的用户名、口令、库名都是**这台开发机的现状**，不是新机器上已经存在的东西。
+`.env.example` 里 `DATABASE_URL=` 那一行 里的用户名、口令、库名都是**这台开发机的现状**，不是新机器上已经存在的东西。
 三件事要分开做，顺序错了就报错：
 
 1. **先有角色**：`CREATE ROLE <用户> LOGIN PASSWORD '<口令>'`（或发行版自带的 `createuser`）。没有角色就跑

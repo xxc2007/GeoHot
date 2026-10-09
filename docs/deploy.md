@@ -23,7 +23,7 @@ docker compose up -d --build
 七个分类、提示词、门槛、品牌、条款页——只存在于 `xxc2007/GeoHot`。
 
 `env:init` 之后**先别急着 `up`**：它写出的 `.env` 里 `COLLECT_ENABLED=false`、`MODEL_CALLS_ENABLED=false`
-（`.env.example:82-83` 就是 false，`scripts/init-env.ts` 只替换五个密钥与端口，**不动这两个阀**），而 compose 的
+（`.env.example` 的 `COLLECT_ENABLED` / `MODEL_CALLS_ENABLED` 就是 false，`scripts/init-env.ts` 只替换五个密钥与端口，**不动这两个阀**），而 compose 的
 `env_file: .env` 会把这两个 false 带进容器——`apps/worker/src/main.ts` 里那句
 `if (process.env.COLLECT_ENABLED !== "false") await registerSourceJobs(boss)`（本轮在 `:23`）就不注册
 任何抓取任务。于是"起容器→等内容出现"这一步会永远等不到。要真的采起来，先编辑 `.env` 把 `COLLECT_ENABLED=true`
