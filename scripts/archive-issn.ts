@@ -71,7 +71,11 @@ for (const r of queue) {
   const feedUrl = typeof r.config.feedUrl === "string" ? r.config.feedUrl : null;
   const titles = [latinTitle(r.name)];
   if (feedUrl) {
-    const res = await guardedFetch(feedUrl, { headers: { accept: "application/rss+xml, application/atom+xml, application/xml, text/xml", "user-agent": DEFAULT_UA }, timeoutMs: 20_000 }).catch(() => null);
+    // 6 s, not the default 20 s: this loop runs over the whole pack, and a quarter of the hosts are Chinese
+    // government or publisher domains that do not answer from this machine at all. 258 × 20 s is an hour of
+    // waiting for nothing; 258 × 6 s is a few minutes, and an unanswered feed only costs us the Crossref
+    // fallback on the pack's own Latin name.
+    const res = await guardedFetch(feedUrl, { headers: { accept: "application/rss+xml, application/atom+xml, application/xml, text/xml", "user-agent": DEFAULT_UA }, timeoutMs: 6_000 }).catch(() => null);
     const fromFeed = res && res.status === 200 ? channelTitle(res.text()) : null;
     if (fromFeed) titles.unshift(fromFeed);
   }
@@ -98,7 +102,9 @@ for (const r of queue) {
   if (matched) report.push({ id: r.id, name: r.name, title: matched.title, issn: matched.issn, status: existing && existing !== matched.issn ? "conflict" : "match" });
   else if (ambiguous.length) report.push({ id: r.id, name: r.name, title: unique[0]!, issn: existing, status: "ambiguous", candidates: ambiguous });
   else report.push({ id: r.id, name: r.name, title: unique[0]!, issn: existing, status: "no-match", candidates: near.slice(0, 3) });
-  if (values.detail) console.error(`${r.id} | ${unique[0]} -> ${report.at(-1)!.status} ${report.at(-1)!.issn ?? ""}`);
+  const done = report.length;
+  console.error(`[${done}/${queue.length}] ${r.id} | ${unique[0] ?? "—"} -> ${report.at(-1)!.status} ${report.at(-1)!.issn ?? ""}`);
+  if (values.detail && report.at(-1)!.status !== "match") console.error(`      候选：${(report.at(-1)!.candidates ?? []).slice(0, 3).join(" / ")}`);
 }
 
 const counts = report.reduce<Record<string, number>>((acc, r) => ((acc[r.status] = (acc[r.status] ?? 0) + 1), acc), {});
