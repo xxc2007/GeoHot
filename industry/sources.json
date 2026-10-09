@@ -2443,17 +2443,21 @@
     },
     {
       "id": "web-pric-news",
-      "name": "中国极地研究中心（新闻）",
+      "name": "中国极地研究中心 · 科技进展",
       "kind": "web_list",
       "config": {
-        "url": "https://www.pric.org.cn/",
+        "url": "https://www.pric.org.cn/index.php?c=category&id=89",
         "parseMode": "html",
-        "itemSelector": "a[href*='c_show_id_']",
+        "itemSelector": "li.gsgg-item",
+        "linkSelector": "a[href*='c=show']",
+        "titleSelector": ".gsgg-title h3",
+        "publishedAtSelector": ".gsgg-time",
         "allowUrlPrefixes": [
-          "https://www.pric.org.cn/"
+          "https://www.pric.org.cn/index.php?c=show"
         ],
         "_aihot": {
-          "initialBackfillLimit": 10
+          "initialBackfillLimit": 8,
+          "intervalMinutesLocked": true
         }
       },
       "tier": "T1",
@@ -2471,7 +2475,7 @@
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true,
-      "defaultCategory": "physical"
+      "defaultCategory": "frontier"
     },
     {
       "id": "cn-web-moe-xwfb",
