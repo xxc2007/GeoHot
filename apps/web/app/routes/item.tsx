@@ -109,7 +109,7 @@ async function shareOrCopy(item: Pick<SiteItemDetail, "id" | "title">): Promise<
  * （服务端没有 document），所以它只在水合之后把中性的「返回」换成写明去处的链接，不会让两端首帧不同。
  * 判不出时沿用老规矩：能后退一步就后退，否则按条目是否精选猜一个落点。
  */
-function useBackTarget(selected: boolean): { name: string | null; to: string } {
+function useBackTarget(selected: boolean): { name: string | null; to: string; hard: boolean } {
   const [params] = useSearchParams();
   const from = params.get("from");
   const [referred, setReferred] = useState<string | null>(null);
@@ -122,7 +122,7 @@ function useBackTarget(selected: boolean): { name: string | null; to: string } {
       // 直接打开、或来路不是一个能解析的 URL：留在中性的「返回」上
     }
   }, [from]);
-  return backPlace(from) ?? backPlace(referred) ?? { name: null, to: selected ? "/" : "/all" };
+  return backPlace(from) ?? backPlace(referred) ?? { name: null, to: selected ? "/" : "/all", hard: selected };
 }
 
 const BACK_CLASS = "-ml-1.5 inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-full px-1.5 text-[14px] text-ink-2 transition-colors hover:text-ink lg:text-[13px] lg:text-ink-3";
@@ -179,18 +179,25 @@ export default function ItemPage() {
   const backTarget = useBackTarget(item.selected);
   const backLabel = backTarget.name === null ? "返回" : `返回${backTarget.name}`;
   // 判不出去处时不硬编一个名字，走历史后退；判得出就写明去处，并且用一条真链接（没有脚本也走得通）。
+  // `hard` 的那一格（首页）必须交回浏览器导航：`<Link to="/">` 在 basename 部署下会被解析成裸 `/geohot`，
+  // 客户端匹配器解不开它——地址栏是对的，页面却是 404。chip 那一处早就这么处理了（Filters.tsx）。
   const backButton =
     backTarget.name === null ? (
       <button
         type="button"
         onClick={() => {
           if (window.history.state?.idx > 0) navigate(-1);
+          else if (backTarget.hard) window.location.assign(publicPath(backTarget.to));
           else navigate(backTarget.to);
         }}
         className={BACK_CLASS}
       >
         <IconArrowLeft size={16} /> {backLabel}
       </button>
+    ) : backTarget.hard ? (
+      <a href={publicPath(backTarget.to)} className={BACK_CLASS}>
+        <IconArrowLeft size={16} /> {backLabel}
+      </a>
     ) : (
       <Link to={backTarget.to} className={BACK_CLASS}>
         <IconArrowLeft size={16} /> {backLabel}
