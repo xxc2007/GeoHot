@@ -976,6 +976,9 @@
         "allowUrlPrefixes": [
           "https://www.dlyj.ac.cn/CN/10."
         ],
+        "archiveIndexUrl": "https://www.dlyj.ac.cn/CN/archive_by_issues",
+        "archiveIssueItemSelector": "div.gk_qi",
+        "archiveIssueDateRegex": "(\\d{4}-\\d{2}-\\d{2})",
         "_aihot": {
           "initialBackfillLimit": 15
         }

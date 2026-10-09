@@ -1,15 +1,24 @@
-// Backfill the scholarly archive between two dates from Crossref, one (source, month) slice at a time.
+// Backfill the scholarly archive between two dates, one (source, month) slice at a time, through two doors.
 //
-// Why Crossref and not the journals' own feeds: an RSS feed shows the last handful of items, which is exactly
-// why the site only covers the current week. Crossref keys every registered journal by ISSN and filters its
-// records by publication date, so it is the one door that reaches back to a chosen month. The records carry a
-// DOI, a title, an abstract and a date — enough for the editorial pipeline to judge, and a landing page the
-// reader can actually open.
+// Why not the journals' feeds: an RSS feed shows the last handful of items, which is exactly why the site only
+// covers the current week. The first door is Crossref, which keys every registered journal by ISSN and filters
+// its records by publication date, so it reaches back to a chosen month. The records carry a DOI, a title, an
+// abstract and a date — enough for the editorial pipeline to judge, and a landing page the reader can open.
+//
+// The second door is the journal's own back-issue index (sources/archive-site.ts), taken because Crossref has
+// a hole rather than as a nicer crawl: the Chinese geography journals in the pack are `web_list` sources with no
+// ISSN, and Crossref does not carry them — 6 of the 8 ISSNs they print are unregistered there. Measured before
+// this route existed, the archive this script built was 1,927 items with **zero** Chinese titles, while the rest
+// of the site is 55% Chinese. `config.issn` decides which door a source uses; both doors write through the same
+// timeline rule, the same ledger and the same queue.
 //
 // The material is stored with `backfill = "archive"`, which the existing timeline rule turns into
 // `timeline_at = published_at`: a paper from March is filed in March rather than arriving as today's news,
 // queues behind live work, and founds no event (it is history, not a development). The pipeline afterwards is
-// the site's own — prefilter, two scores, writing, structure — nothing here judges anything.
+// the site's own — prefilter, two scores, writing, structure — nothing here judges anything. The site door
+// stores the title and the issue's date and leaves `body_status` at `pending`: jobs/content.ts already knows
+// how to read this journal's article pages, and an archive route that fetched bodies itself would be a second
+// extractor to keep honest.
 //
 //   node --env-file=.env scripts/backfill-archive.ts --from=2026-01 --to=2026-10                 # dry run
 //   node --env-file=.env scripts/backfill-archive.ts --from=2026-01 --to=2026-03 --apply \
@@ -26,6 +35,9 @@ import { upsertMaterial } from "@aihot/backend/content/materials";
 import { queueProcessing } from "@aihot/backend/jobs/content";
 import { looksZh } from "@aihot/backend/editorial/writing";
 import { guardedFetch, DEFAULT_UA } from "@aihot/backend/lib/http-fetch";
+import { backIssues, issueArticles, type SiteIssue } from "@aihot/backend/sources/archive-site";
+import type { Candidate, SourceRow } from "@aihot/backend/sources/types";
+import { beijingDate } from "@aihot/contracts/time";
 
 const { values } = parseArgs({
   options: {
@@ -160,19 +172,20 @@ async function page(url: string): Promise<{ items: Work[]; next: string | null }
   return { items: message?.items ?? [], next: message?.["next-cursor"] ?? null };
 }
 
-const sources = (await sql<{ id: string; name: string; config: Record<string, unknown> }[]>`
-  SELECT id, name, config FROM sources
-  WHERE enabled AND coalesce(config->>'issn', '') <> ''
+const sources = (await sql<SourceRow[]>`
+  SELECT id, name, kind, config, tier, participation_mode, first_party, interval_minutes, enabled, cursor, fail_count FROM sources
+  WHERE enabled AND (coalesce(config->>'issn', '') <> '' OR coalesce(config->>'archiveIndexUrl', '') <> '')
   ORDER BY id`).filter((s) => !onlyIds.length || onlyIds.includes(s.id));
 if (sources.length === 0) {
-  console.error("没有一条信源带 config.issn — 先跑 scripts/archive-issn.ts 并把结果并进 industry/sources.json，再同步进库。");
+  console.error("没有一条信源带 config.issn 或 config.archiveIndexUrl — 前者跑 scripts/archive-issn.ts 并把结果并进 industry/sources.json，后者见 sources/archive-site.ts。改完再同步进库。");
   await closeDb();
   process.exit(1);
 }
 // Crossref's polite pool wants a contact address; without one the requests still work, just in the shared
 // anonymous pool. It is the operator's address to give, so it comes from the environment and is never invented.
 const mailto = process.env.CROSSREF_MAILTO?.trim();
-console.log(`${sources.length} 条带 ISSN 的信源，月份 ${fromMonth}..${toMonth}，本轮上限 ${MAX_ITEMS} 条${values.apply ? "" : "（DRY-RUN：不写库）"}`);
+const siteCount = sources.filter((s) => !s.config.issn).length;
+console.log(`${sources.length} 条带档案门的信源（Crossref ${sources.length - siteCount} 条｜期刊自己的过刊索引 ${siteCount} 条），月份 ${fromMonth}..${toMonth}，本轮上限 ${MAX_ITEMS} 条${values.apply ? "" : "（DRY-RUN：不写库）"}`);
 
 let stored = 0;
 let judged = 0;
@@ -180,12 +193,116 @@ let noDate = 0;
 let thin = 0;
 let duplicate = 0;
 
+/**
+ * A journal's back-issue index, read once per run. It lists every issue the journal has ever published
+ * (measured: 331 for 《地理研究》, 1982 onward) and the month loop visits ten of them, so re-reading it per
+ * month would cost ten fetches of the same page. `null` is kept in the cache too: an index that could not be
+ * read stays unread for the rest of the run rather than being dialed once per month.
+ */
+const issueIndex = new Map<string, SiteIssue[] | null>();
+
+async function siteIndex(source: SourceRow): Promise<SiteIssue[] | null> {
+  if (issueIndex.has(source.id)) return issueIndex.get(source.id)!;
+  let issues: SiteIssue[];
+  try {
+    issues = await backIssues(source);
+  } catch (error) {
+    console.error(`  ${(error as Error).message.slice(0, 140)}`);
+    issueIndex.set(source.id, null);
+    return null;
+  }
+  const undated = issues.filter((i) => !i.at).length;
+  console.log(`  过刊索引 ${issues.length} 期${undated ? `，其中 ${undated} 期在索引上没有日期，跳过` : ""}`);
+  issueIndex.set(source.id, issues);
+  return issues;
+}
+
+/**
+ * One (source, month) slice read off the journal's own index. The Crossref door's rules apply unchanged — the
+ * timeline comes from the issue's date, an article the live collector already stored is not stored twice, and
+ * the pipeline is handed the work rather than this script judging anything.
+ *
+ * The slice only closes for a month the calendar has left. The index lists an issue as soon as the journal
+ * posts it, so marking the month this run falls in `done` would freeze the month at whatever had been
+ * published so far and retire it from every later run.
+ */
+async function runSiteSlice(source: SourceRow, month: string): Promise<void> {
+  const [ledger] = await sql<{ status: string }[]>`SELECT status FROM archive_ingest WHERE source_id = ${source.id} AND month = ${month}`;
+  if (ledger?.status === "done") return;
+  console.log(`${source.id} ${month} 过刊 ${String(source.config.archiveIndexUrl)}`);
+  if (values.apply) {
+    await sql`INSERT INTO archive_ingest (source_id, month, status, updated_at) VALUES (${source.id}, ${month}, 'running', now())
+              ON CONFLICT (source_id, month) DO UPDATE SET status = 'running', updated_at = now()`;
+  }
+  const issues = await siteIndex(source);
+  const slice = (issues ?? []).filter((i) => i.at && beijingDate(i.at).slice(0, 7) === month);
+  let localSeen = 0;
+  let localNew = 0;
+  let localDup = 0;
+  // "a page we could not read" and "a page with nothing on it" are different answers, and only the first may
+  // close a slice — the same rule the Crossref door runs on.
+  let failed = issues === null;
+  for (const issue of slice) {
+    if (localSeen >= PER_MONTH || stored >= MAX_ITEMS) break;
+    let items: Candidate[];
+    try {
+      items = await issueArticles(source, issue);
+    } catch (error) {
+      console.error(`  ${issue.url} 读不到：${(error as Error).message.slice(0, 100)} — 这一期不算跑完`);
+      failed = true;
+      continue;
+    }
+    if (SLEEP) await new Promise((r) => setTimeout(r, SLEEP));
+    for (const c of items) {
+      if (localSeen >= PER_MONTH || stored >= MAX_ITEMS) break;
+      localSeen++;
+      const urlKey = identityKeyForUrl(c.url);
+      if (urlKey) {
+        const [twin] = await sql<{ id: string }[]>`SELECT id FROM articles WHERE identity_key = ${urlKey}`;
+        if (twin) { duplicate++; localDup++; continue; }
+      }
+      if (values.apply) {
+        const { articleId, created } = await upsertMaterial({
+          sourceId: source.id,
+          url: c.url,
+          title: c.title,
+          language: looksZh(c.title) ? "zh" : "en",
+          publishedAt: c.publishedAt ?? issue.at,
+          bodyStatus: "pending",
+          via: "import",
+          backfill: "archive",
+          raw: { _geohot: { site: { issue: issue.url } } },
+        });
+        if (created) {
+          stored++;
+          localNew++;
+          await queueProcessing(articleId);
+        }
+      } else {
+        stored++;
+        localNew++;
+      }
+    }
+  }
+  if (!values.apply) return;
+  const closed = month < beijingDate(new Date()).slice(0, 7);
+  const finished = !failed && closed;
+  await sql`UPDATE archive_ingest SET status = ${finished ? "done" : "pending"}, note = ${`issues=${slice.length} dup=${localDup}`},
+            items = ${localNew}, seen = ${localSeen}, updated_at = now()
+            WHERE source_id = ${source.id} AND month = ${month}`;
+  console.log(`  ${finished ? "done" : closed ? "停在原地" : "本月未过完，下次再跑"} 看了 ${localSeen} 条，入库 ${localNew} 条`);
+}
+
 for (const month of months()) {
   if (stored >= MAX_ITEMS) break;
   const { start, end } = sliceRange(month);
   for (const source of sources) {
     if (stored >= MAX_ITEMS) break;
-    const issn = String(source.config.issn);
+    const issn = String(source.config.issn ?? "");
+    if (!issn) {
+      await runSiteSlice(source, month);
+      continue;
+    }
     const [ledger] = await sql<{ status: string; cursor: string | null }[]>`
       SELECT status, cursor FROM archive_ingest WHERE source_id = ${source.id} AND month = ${month}`;
     if (ledger?.status === "done") continue;

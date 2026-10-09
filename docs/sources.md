@@ -952,3 +952,40 @@ T&F 四本（`/feed/rss/<码>` 可达而 `www.tandfonline.com` 的 HTML 被 Clou
 记一条本轮没动的：253 条可轮询源里有 135 条挂在 240 分钟，其中约 68 条带 `intervalMinutesLocked`，
 而 `adaptIntervals`（`collect.ts:643`）跳过锁定项——所以这些月刊目录**永远不会回落到 720/1440**。
 方向是对的（该松的没松），但那是采集节奏的决定，先记账不动。
+
+## 第六十三轮：档案里第一条中文——《地理研究》的过刊路线（2026-10-10，本机对真实页面实测）
+
+档案这条路原来只有一扇门：Crossref 按 ISSN 捞，而 `config.issn` 只发给 `rss` 源。站里唯一一条按 `web_list`
+收的中文期刊 `web-dlyj-toc`（地理研究 当期目录）因此从来没有进过档案。这不是"少了几条"，是**整族为零**：
+2026-10-10 数过，那条路攒下 1,927 条档案材料，中文标题 0 条，而站点其余部分是 55% 中文。想改走 Crossref
+也不行——先前实测过的八条中文期刊候选里，6 个印在刊面上的 ISSN Crossref 根本没登记，
+登记着的那一条属于另一本刊（这条测量记在 `packages/backend/src/sources/config-keys.ts` 顶部的注释里）。
+
+做法是走期刊自己的过刊页，**不新增一份 HTML 解析**：`sources/archive-site.ts` 把采集器现成的 `fetchWebList`
+换页复用两次。
+
+| 页面 | 选择器 / 规则 | 实测（2026-10-10，直连 www.dlyj.ac.cn） |
+|---|---|---|
+| `https://www.dlyj.ac.cn/CN/archive_by_issues` | `archiveIssueItemSelector = div.gk_qi`、`archiveIssueDateRegex = (\d{4}-\d{2}-\d{2})` | **331 期**（1982–2026，一年 4→6→12 期），331/331 都在锚点旁印着日期；2026 年是 I1…I10 十期 |
+| `…/CN/Y2026/V45/I1` | 沿用这条源本来就有的 `itemSelector = a[href*='/CN/10.']` 与 `allowUrlPrefixes` | 15 条文章、标题全是中文；同页 I9/I10 给 17/18 条；期次页自己只印一个日期（`刊出日期：2026-01-10`），所以每条文章的日期来自索引 |
+
+三处形状是这条路的门槛，都写进了 `tests/archive-site-index.test.ts`（一份本地 fixture 复刻真实标记，含索引里
+那根多余的 `</a>`）：
+
+- **允许前缀必须换成过刊索引自己的源站**。包里写的是 `/CN/10.`，直接沿用会让 `allowed()` 把每一条
+  `/CN/Y…` 期次链接挡掉（改坏这一条，fixture 当场报 `no items matched`）；过刊页上还挂着订阅与社媒外链，
+  所以 widened 之后仍锁在同一 origin 内，源里原有的 `denyUrlPrefixes` 继续生效。
+- **期次的日期取"刊方所说那一天的开始"**。`dates.ts` 把不带时间不带时区的 2026-01-10 读成 UTC 零点，而
+  UTC 零点＝北京 08:00＝当日报纸的收稿时刻，于是一期 1 月 10 日的刊会排进 1 月 11 日那一期。库里核过：
+  取北京零点后 `timeline_at = 2026-01-09T16:00Z`，日报 2026-01-10 的窗口 [1-09 00:00Z, 1-10 00:00Z) 含它。
+- **索引上没有日期的那一期返回 `at: null`，而不是被悄悄丢掉**。丢掉的写法看起来一切正常，只是每轮少几条；
+  留着计数，期刊哪天不再在索引上印日期，`scripts/backfill-archive.ts` 的日志与账本就说得出来。
+
+写库侧实测（本机开发库，`--apply` 走的是同一道 `--database-url` 核对）：`--from=2026-01 --to=2026-02` 两月
+各 15 条入库，`dup=0`，`body_status` 一律 `pending`、`processing_state=new`，15 条排进 `content.analyze`
+（本机 `COLLECT_ENABLED=false`，`route()` 因此按"用手上已有的摘要判"那一支走；生产开着采集会先抽正文）。
+身份键是文章 URL 归一化的 `url:` 键，所以当期目录已经收过的那 18 条不会第二次入库。
+
+本轮只接了这一条，因为包里**只有这一条**中文期刊是按 `web_list` 收的。《地理学报》是 `external`（人工投递，
+切 editorial 前不公开），它的过刊页要在采集机实测之后再按同一组键接，不猜 URL。其余中文刊（地理科学、
+自然资源学报…）包里根本没有登记，要先按第五十八轮那套实测流程接成活源，档案才有门可走。

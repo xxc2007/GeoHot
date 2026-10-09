@@ -10,13 +10,23 @@ const COLLECTED = ["_aihot", "allowUrlPrefixes", "denyUrlPrefixes", "ingestNoise
 // Registered, but not read on the polling path: the ISSN the journal behind an rss source is actually
 // filed under. Its reader is the archive backfill (scripts/backfill-archive.ts), which asks Crossref for
 // that ISSN's past work — the only door that reaches back before a feed's last dozen items. Only rss,
-// because that is where the 87 verified ISSNs live; a second kind adds it when it has one.
+// because that is where the 87 verified ISSNs live; a second kind adds it when it has one —
+// `web_list` now has one (SITE_ARCHIVE below), because Crossref does not carry the Chinese geography
+// journals at all: measured 2026-10-10, 6 of the 8 ISSNs those journals use are not registered with
+// Crossref and one of the two that are belongs to a different journal entirely. That is why the archive
+// built so far is 1,927 items with **zero** Chinese titles, while the rest of the site is 55% Chinese.
 const ARCHIVE = ["issn"];
+// The second door for the same job: the journal's own back-issue index. Its three keys name the index page,
+// the one element holding an issue and the date printed beside it; the issue pages themselves are read with
+// this source's live `itemSelector` and `allowUrlPrefixes`, because the same CMS lists its articles the same
+// way on the current TOC and on a back issue. Namespaced rather than reusing `publishedAtRegex` so the polling
+// path cannot pick up a rule written for the archive (reader: sources/archive-site.ts).
+const SITE_ARCHIVE = ["archiveIndexUrl", "archiveIssueItemSelector", "archiveIssueDateRegex"];
 
 const KEYS: Record<SourceRow["kind"], string[]> = {
   rss: [...COLLECTED, ...ARCHIVE, "feedUrl", "summaryIsBody", "preserveUrlFragment", "allowCategories", "denyCategories", "headers"],
   web_list: [
-    ...COLLECTED, "url", "baseUrl", "parseMode", "adapter", "cacheToleranceSeconds", "linksStartLine", "preserveUrlFragment",
+    ...COLLECTED, ...SITE_ARCHIVE, "url", "baseUrl", "parseMode", "adapter", "cacheToleranceSeconds", "linksStartLine", "preserveUrlFragment",
     "itemSelector", "linkSelector", "titleSelector", "publishedAtSelector", "publishedAtRegex", "publishedAtUtcOffset",
   ],
   json_list: [

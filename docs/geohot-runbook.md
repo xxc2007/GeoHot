@@ -405,9 +405,17 @@ await a.end();"
 
 ## 13. 档案回填：把覆盖从"最近几天"推到指定月份
 
-站点只有几天覆盖，根因不是采集频率，而是信源本身——RSS/Atom 只给最近十几条，任何日期窗口之外的内容都不在它们的应答里。所以要往回捞只能换一个**按出版日期检索**的登记库：Crossref。它按 ISSN + `from-pub-date`/`until-pub-date` 返回 DOI、标题、摘要、作者、出版日期，覆盖到位。两个日期参数必须拆开写——单一区间那种写法（`date-A,B`）实测 HTTP 400 `date-not-valid`（2026-10-09）。
+站点只有几天覆盖，根因不是采集频率，而是信源本身——RSS/Atom 只给最近十几条，任何日期窗口之外的内容都不在它们的应答里。所以要往回捞得换一条**按出版日期检索**的路：先用登记库 Crossref，它按 ISSN + `from-pub-date`/`until-pub-date` 返回 DOI、标题、摘要、作者、出版日期，覆盖到位。两个日期参数必须拆开写——单一区间那种写法（`date-A,B`）实测 HTTP 400 `date-not-valid`（2026-10-09）。Crossref 装不下的那一族走另一条，见下面「两扇门」。
 
 它给的是论文而不是新闻，所以档案材料只服务「前沿地理」与学术类板块，正文就是出版方登记的那段摘要，链接指向 DOI 落地页；没有全文、没有图。这是这条路固有的形状，不是坏了。
+
+**两扇门，不是一扇**。Crossref 按 ISSN 走，而 `config.issn` 只发给 `rss` 源——站里那些中文地理期刊是 `web_list`，于是整族在档案门外。这不是"少了几条"：先前实测过的八条中文期刊候选里，6 个印在刊面上的 ISSN Crossref 根本没登记，登记着的那一条属于另一本刊。所以这条路攒下的 1,927 条档案材料里**中文标题为零**，而站点其余部分是 55% 中文。
+
+第二条门是期刊自己的过刊页（`sources/archive-site.ts`）。《地理研究》的 `/CN/archive_by_issues` 挂着 1982 年至今 331 期，每期一行 `<div class="gk_qi">`：锚点指向期次页，锚点旁边印着出版日期；一张期次页给 15–18 条文章链接。这两页的形状与采集器每天在读的目录页同一种（一个容器、容器里一个链接、旁边一个日期），所以这条路**不新增一份 HTML 解析**：把 `fetchWebList` 的 `url` 换成过刊索引，按 `archiveIssueItemSelector` + `archiveIssueDateRegex` 读出「期次 → 日期」，再用这条源本来就有的 `itemSelector` 与 `allowUrlPrefixes` 读期次页里的文章。只有允许前缀那一步换成过刊索引自己的源站，因为包里写的是 `/CN/10.`，那条名单会挡掉所有 `/CN/Y…` 期次链接。三个键都带 `archive` 前缀、只有这条路读，轮询看不见它们——写给付刊的日期规则不该顺手改掉当期目录的判读。
+
+日期落在哪一天单独说，因为那是读者看得见的差别：`dates.ts` 把不带时间也不带时区的 2026-01-10 读成 UTC 零点（机器时间戳这样读是对的），而 UTC 零点＝北京 08:00＝**当日报纸的收稿时刻**，于是一期 1 月 10 日的刊会排进 1 月 11 日那一期。这条路把日期取成"刊方所说那一天的开始"（`beijingMidnight(beijingDate(…))`，与 `web-list.ts` 的 `headingDate` 为变更日志日期标题做的同一件事）。2026-10-10 在本机库里核对过：`timeline_at = 2026-01-09T16:00Z`，日报 2026-01-10 的窗口 [1-09 00:00Z, 1-10 00:00Z) 含它——1 月 10 日的刊进 1 月 10 日的报。
+
+正文一律留 `body_status='pending'`：`jobs/content.ts` 的 `route()` 对 `web_list` 源本来就会先取正文，这条路不必自己抓第二遍正文，也就不必维护第二个抽取器。
 
 ```bash
 # ① 认定 ISSN：只读，输出 JSON。必须在采集机上跑（本机 DNS 与它不一致，见 docs/manual.md 第 3 节）
@@ -417,6 +425,8 @@ node --env-file=.env scripts/sync-source-config.ts --apply --database-url=…
 # ③ 回填，一个（信源，月份）一片；默认 DRY-RUN，写库要 --apply 且显式给 --database-url
 node --env-file=.env scripts/backfill-archive.ts --from=2026-01 --to=2026-03 --max-items=2000
 node --env-file=.env scripts/backfill-archive.ts --from=2026-01 --to=2026-03 --apply --database-url="$DATABASE_URL" --max-items=2000
+# 过刊这一路先单独量一个月，看它到底给出几条（--source 只筛信源，两扇门都筛）
+node --env-file=.env scripts/backfill-archive.ts --source=web-dlyj-toc --from=2026-01 --to=2026-01
 # ④ 出刊：把已经到手的日子排成日报/周报/月报。默认只出计划，写库同样要 --apply 且显式给库
 node --env-file=.env scripts/backfill-papers.ts --from=2026-01-01
 node --env-file=.env scripts/backfill-papers.ts --from=2026-01-01 --to=2026-03-31 --apply --database-url="$DATABASE_URL"
@@ -433,7 +443,7 @@ node --env-file=.env scripts/backfill-papers.ts --from=2026-01-01 --to=2026-03-3
 
 第①步只认两处都对得上的 ISSN：信源自己 feed 的刊名（或包里的拉丁名）与 Crossref 期刊库里**同名**记录的 ISSN。名字像但不是同一个刊一律不写（`ambiguous` / `no-match` 都留在报告里由人判）。这不是过分谨慎——ISSN 认错会把 A 刊的文章挂在 B 刊名下，读者侧完全看不出来。
 
-**续跑**：`archive_ingest`（迁移 0051）一行一个（信源，月份），游标存 Crossref 的深翻页 `next-cursor`，`seen`/`items` 区分"这个月真的没有"和"只取到一半"。Ctrl-C、重启、对方超时，代价是一片而不是整轮。身份键是 `doi:<doi>`（`articles.identity_key` 唯一），所以同一篇论文被两个源登记只会多一条 discovery，不会重复入库、不会重判一遍。
+**续跑**：`archive_ingest`（迁移 0051）一行一个（信源，月份），游标存 Crossref 的深翻页 `next-cursor`，`seen`/`items` 区分"这个月真的没有"和"只取到一半"。Ctrl-C、重启、对方超时，代价是一片而不是整轮。身份键：Crossref 那扇门是 `doi:<doi>`，过刊那扇门是文章 URL 归一化出来的 `url:` 键——所以当期目录已经收过的那几篇不会第二次入库、也不会重判一遍，`note` 里的 `dup=` 就是它们。**过刊这一路的切片没有游标**（一期一次抓完），而且**当月那一片不判 done**：过刊索引在期刊挂出新一期之前不会多出那一行，把它钉成 done 等于永远关掉这个月。
 
 **代价的实测口径（2026-10-09）**：
 
