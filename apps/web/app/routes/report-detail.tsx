@@ -2,7 +2,7 @@ import { SITE, withSubject } from "@aihot/industry/site";
 import { data as withHeaders, isRouteErrorResponse, Link, useLoaderData, useLocation, useRouteError } from "react-router";
 import type { Route } from "./+types/report-detail";
 import type { ReportDetail, ReportNavigationEntry, ReportKind } from "@aihot/contracts/site";
-import { apiGet, loadOr404 } from "../lib/api.server";
+import { apiGet, ApiError, ApiRedirect } from "../lib/api.server";
 import { pageMeta, titled } from "../lib/seo";
 import { beijingDate } from "../lib/format";
 import { EmptyState } from "../components/ui/Page";
@@ -27,14 +27,23 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   const absentReason = reportAbsentReason(kind, key, now);
   if (absentReason === "bad_key") throw reportAbsent("bad_key", kind, key);
   // 写法没问题、库里却没有行时，还分得出「没出过」与「还没到」——这两种读者的下一步不一样，而 loadOr404
-  // 一律压成一条通用 404。其余状态（5xx、超时）照它原本给的 Response 往上抛，不在这改写。
+  // 把任何 404 都压成一条通用 not_found（它抛的是 data() 那个对象，不是 Response，`.status` 在 catch 里读不到）。
+  // 所以这一条自己抓 apiGet：404 按 absentReason 分诊，400 与其余故障照 loadOr404 的原样给状态码。
+  const fetchReport = async (): Promise<ReportDetail> => {
+    try {
+      return await apiGet<ReportDetail>(`/api/site/reports/${kind}/${key}`, { signal: request.signal });
+    } catch (error) {
+      if (request.signal.aborted || error instanceof ApiRedirect) throw error;
+      if (error instanceof ApiError && error.status === 404) throw reportAbsent(absentReason, kind, key);
+      if (error instanceof ApiError && error.status === 400) throw withHeaders({ message: "bad_request" }, { status: 400 });
+      if (error instanceof ApiError) throw withHeaders({ message: "unavailable" }, { status: 503 });
+      throw error;
+    }
+  };
   // 往期栏是装饰：它读不到不能带走这一期报纸。但它读不到时栏目是空的，空栏会被读成"没有往期"，
   // 所以把这件事记下来，由页面自己说一句实话，而不是沉默地留一个空栏。
   const [report, nav] = await Promise.all([
-    loadOr404<ReportDetail>(`/api/site/reports/${kind}/${key}`, { signal: request.signal }).catch((error: unknown): never => {
-      if (error instanceof Response && error.status === 404) throw reportAbsent(absentReason, kind, key);
-      throw error;
-    }),
+    fetchReport(),
     apiGet<{ items: ReportNavigationEntry[] }>(`/api/site/reports/${kind}/navigation/${key}`, { signal: request.signal }).catch((error: unknown) => {
       if (request.signal.aborted) throw error;
       return null;
