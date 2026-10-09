@@ -74,7 +74,18 @@ export async function assertPaidTarget(url: string, source?: SourceRow): Promise
 /** A link back to the listing page itself (skip links, in-page anchors such as #paper, #blog). */
 function listingItself(url: string, listing: string): boolean {
   const bare = (x: URL) => `${x.host}${x.pathname.replace(/\/$/, "")}`;
-  return bare(new URL(url)) === bare(new URL(listing));
+  const u = new URL(url);
+  const l = new URL(listing);
+  if (bare(u) !== bare(l)) return false;
+  // Same host and path — but a CMS that routes by query string keeps every page behind one path
+  // (中国极地研究中心: `?c=category&id=89` is the column, `?c=show&id=3501` is the post). Comparing the path
+  // alone called each of those posts "the listing itself" and dropped the whole page. So a link is this same
+  // page only while it keeps every parameter the listing carries: a changed value is another page, an added
+  // one (`&page=2`) is this page turned over.
+  for (const [key, value] of new URLSearchParams(l.search)) {
+    if (u.searchParams.get(key) !== value) return false;
+  }
+  return true;
 }
 
 /**

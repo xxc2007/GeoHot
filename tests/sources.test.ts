@@ -153,6 +153,46 @@ test("anchors into the listing page itself are navigation, not posts", () => {
   assert.deepEqual(out.map((c) => c.url), ["https://example.org/blog/mimo-v2-6-tool-call"]);
 });
 
+test("a CMS that routes by query string keeps its articles, and its own pagination stays navigation", () => {
+  // 中国极地研究中心 is one PHP path for everything: `/index.php?c=category&id=89` is the list,
+  // `/index.php?c=show&id=3501` is the post. `listingItself` compared host + pathname and threw the query
+  // away, so every article on that page "was the listing itself" and was dropped: the collector answered
+  // `no items matched (html)` for a page holding five real posts with dates. Fixture bytes are that column.
+  const listing = "https://www.pric.org.cn/index.php?c=category&id=89";
+  const html = [
+    '<li class="gsgg-item"><a href="https://www.pric.org.cn/index.php?c=show&id=3501"><div class="gsgg-title"><h3>极地中心在北极海冰干舷高度高分辨率反演方法研究中取得重要进展</h3></div><p class="gsgg-content">海冰厚度是表征北极海冰状态的重要参数。</p><p class="gsgg-time">2026-09-15</p></a></li>',
+    '<li class="gsgg-item"><a href="https://www.pric.org.cn/index.php?c=show&id=3488"><div class="gsgg-title"><h3>第二条成果</h3></div><p class="gsgg-time">2026-08-05</p></a></li>',
+    '<a href="https://www.pric.org.cn/index.php?c=category&id=89&page=2">下一页</a>',
+    `<a href="${listing}">返回列表</a>`,
+    '<a href="https://www.pric.org.cn/index.php?c=category&id=62">中心动态</a>',
+  ].join("");
+  const pric = (extra: Record<string, unknown> = {}) => source({ url: listing, ...extra });
+
+  const rows = fromHtml(html, listing, pric({
+    itemSelector: "li.gsgg-item",
+    linkSelector: "a[href*='c=show']",
+    titleSelector: ".gsgg-title h3",
+    publishedAtSelector: ".gsgg-time",
+    allowUrlPrefixes: ["https://www.pric.org.cn/index.php?c=show"],
+  }));
+  assert.deepEqual(rows.map((c) => c.url), [
+    "https://www.pric.org.cn/index.php?c=show&id=3501",
+    "https://www.pric.org.cn/index.php?c=show&id=3488",
+  ], "两条都是文章");
+  assert.equal(rows[0]!.title, "极地中心在北极海冰干舷高度高分辨率反演方法研究中取得重要进展");
+  assert.deepEqual(rows.map((c) => c.publishedAt?.toISOString().slice(0, 10)), ["2026-09-15", "2026-08-05"]);
+
+  // Without an item selector the rule under test is the only thing separating posts from page furniture:
+  // a link that changes the route is a post, a link that keeps the listing's own parameters (with a page
+  // number added, or bare) is the listing, and a *sibling column* is neither — it is another listing.
+  const loose = fromHtml(html, listing, pric({ allowUrlPrefixes: ["https://www.pric.org.cn/"] }));
+  assert.deepEqual(loose.map((c) => c.url), [
+    "https://www.pric.org.cn/index.php?c=show&id=3501",
+    "https://www.pric.org.cn/index.php?c=show&id=3488",
+    "https://www.pric.org.cn/index.php?c=category&id=62",
+  ], "分页与「返回列表」被当成本页丢掉，另一栏目的列表页留着（它不是本页，交由下一轮的 own filters 处理）");
+});
+
 test("promotions a feed rotates inside its posts are left out of the body", () => {
   // Microsoft Research's feed puts a different podcast or product promotion into each post on every load.
   const promo = (label: string, name: string) =>

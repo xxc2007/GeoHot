@@ -679,3 +679,14 @@ Byrd 极地中心与 ECMWF 两条首次导入是 `found 0`——但直接在采�
 
 **包内现状**：218 条（第五十六轮 207 → 删 1 条 Phys.org 子集 → 加 12 条），`rss` 173、`web_list` 26、
 `json_list` 3、`external` 8、`x_search` 8；启用 205；`defaultCategory=frontier` 34 条。
+
+**顺带修好的一条境内源**：`web-pric-news`（中国极地研究中心）连败 9 轮，错误写着 `no items matched (html)`。
+两层原因：① 它原指的首页改版后 HTML 里 `c_show_id_` 出现 **0 次**；② 更根本的是 `web-list.ts:75` 的
+`listingItself()` 只比 `host + pathname`、把 query 丢了，而这个站整站走 `/index.php?c=…&id=…` 一条路径，
+于是每条文章链接都被判成"列表页自己"。判据改成：列表页自带的每个 query 键值**都还在**才算本页
+（`&page=2` 仍是本页；`?c=show&id=3501` 是文章）。之后把它重指到站点自己导航里的 `科技进展` 栏目
+`https://www.pric.org.cn/index.php?c=category&id=89`（`itemSelector: li.gsgg-item` /
+`linkSelector: a[href*='c=show']` / `titleSelector: .gsgg-title h3` / `publishedAtSelector: .gsgg-time`），
+实测 5 条、最新 2026-09-15，日期与中文导语都是服务端直出，首条即
+「极地中心在北极海冰干舷高度高分辨率反演方法研究中取得重要进展」。
+**这一修的适用面比一条源大**：境内机构站按查询串路由的非常多，修之前它们不可能接成 `web_list` 信源。

@@ -3049,10 +3049,24 @@ Byrd 极地中心与 ECMWF 各 10 条 item，Drupal 写成 `<title><a href="…"
 `llm.per_hour`（或降单条延迟），把 `ANALYZE_CONCURRENCY` 从 6 提到 12 只会在同一小时内撞那条 420。**
 这一条属于站长的花费决定，本轮不动，只把数记在这里。
 
+**第四条（接 PRIC 时挖出来的，与上面两条同源：都是"抓取规则把整页判空"）**
+`listingItself()`（`web-list.ts:75`）原本只比 `host + pathname`，**把 query string 丢了**。
+中国极地研究中心整站只有一个路径：`/index.php?c=category&id=89` 是栏目、`/index.php?c=show&id=3501` 是文章，
+于是每条文章都"就是列表页自己"，被当作页面装饰丢掉 ⇒ `fetchWebList` 抛 `no items matched (html)`，
+`web-pric-news` 连败 9 轮。这条**至少是响的**（health `failing` + 错误可读），不像前两条伪装成健康。
+修法是把"本页"判据补上路由参数：列表页自带的每个 query 键值**都还在** ⇒ 同一页（含 `&page=2` 翻页）；
+任何一个值变了 ⇒ 是另一页。用例 `tests/sources.test.ts`「a CMS that routes by query string keeps its articles」
+三侧都钉：两条文章收进来、分页与「返回列表」仍丢掉、姊妹栏目 `?c=category&id=62` 留着（它是另一个列表页，
+交给入口白名单管）。**适用面比 PRIC 大得多**：境内机构站大量使用 `?c=show&id=` / `?p=123` 这类查询串路由，
+修之前它们**根本不可能**接成 `web_list` 信源；本轮把 `web-pric-news` 重指到站点自己导航里的
+`科技进展`（`li.gsgg-item` / `.gsgg-title h3` / `.gsgg-time`，日期是服务端直出的 ISO，标题如
+「极地中心在北极海冰干舷高度高分辨率反演方法研究中取得重要进展」）就是这一修的产物。
+
 ### 现状与遗留
 
 - 包 218 条（第五十六轮 207 → 撤 1 条 Phys.org 子集 → 接 12 条）。库里那一行 `rss-phys-org-earth-sciences`
-  要在部署后用 `scripts/set-source-state.ts --disable` 停用（包删行留，避免连带删掉发现记录）。
+  要停用：`set-source-state.ts` 只镜像包里还在的行（包外的 id 它直接 exit 2），所以用一条打印过前后值的
+  `UPDATE enabled=false`。
 - Springer 那六本（Bulletin of Volcanology 445、PalZ 12542、Mineralium Deposita 126、Climatic Change 10584、
   TAC 704、KN 42489）：发现代理 40 分钟前取到过真 XML，本轮两次探测都只拿到 `200 + 3036 字节 Client Challenge`。
   **限流是时段性的**，未取到字节就不登记，下一轮错峰重试（不换 UA、不试刊号）。
