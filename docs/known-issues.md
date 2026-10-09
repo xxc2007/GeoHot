@@ -2788,11 +2788,20 @@ timeline 那一个端点发 `X-Accel-Expires`，残余陈旧只有 180 秒回看
   现在整条在 sudo 里跑、带 `set -euo pipefail`、`test -s` 要求产物非空。② `run "…" sudo userdel "$APP_USER" 2>/dev/null || true`
   —— `run` 用 `"$@"` 执行，`2>/dev/null` 是**传给 userdel 的参数**（报多余操作数），`|| true` 又把这句连"用户其实
   没删掉"一起吞了。现在先 `id` 查在不在，报错就让它报错。`--purge-database` 的 DRY-RUN 在服务器上跑到 R5、exit 0。
-- **B5 预览与采集同一个口径**：`previewSource` 以前直接数解析出来的候选，站长批准一条源时看到的数字比真采集会
-  留下的那一个大。采集那条流水线（`allowed` → `rewriteUrl` → `noiseFiltered` → 可选按发布时间排序）抽成
-  `collect.ts` 的 `applySourceFilters`，两处共用；返回值多带 `offered`，后台卡片写成「会入库 12 条（列表给了 96 条，
-  本站规则挡掉 84 条）」。用例：`tests/source-rules.test.ts` 新那条把预览的 `count` 与真采集**实际入库的行数**对拍
-  —— 把 `count: kept.length` 换回 `candidates.length` 它就红。
+- **B5 预览与采集走同一条流水线（但两个数不是一个意思）**：`previewSource` 以前直接数解析出来的候选，站长批准
+  一条源时看到的数字比规则实际留下的那一个大。采集那条流水线（`allowed` → `rewriteUrl` → `noiseFiltered` → 可选
+  按发布时间排序）抽成 `collect.ts` 的 `applySourceFilters`，两处共用；返回值多带 `offered`。
+  **卡片写的是「本站规则留下 N 条（解析出 M 条，挡掉 K 条）」**——第一版我写成「会入库」，被复审当场否掉：真采集
+  还要过首次导入上限（`_aihot.initialBackfillLimit`，缺省 30）、每轮 120 条的上限和按身份去重，预览一条都不过；
+  包里 113 条源有 89 条自己写了首次导入上限（当场数：`node -e` 读 `industry/sources.json`，例如 `rss-gdacs-alerts` 12、
+  `web-mwr-data` 8、`json-ceic-earthquake` 10），说「会入库」就是又造出一句不实陈述。`web_list` 那一族的 `offered` 也是解析
+  **之后**的数（`fetchWebList` 自己已经丢过导航与重复链接），所以措辞用「解析出」而不是「列表给了」。
+  用例：`tests/source-rules.test.ts` 把预览的 `count` 与真采集实际入库的行数对拍（那条夹具没有上限也没有历史行，
+  两个数在那里确实相等）—— 把 `count: kept.length` 换回 `candidates.length` 它就红。
+- **顺带补一条形状闸门**：`allowUrlPrefixes` / `denyUrlPrefixes` / `allowCategories` / `denyCategories` 与
+  `ingestNoiseFilter` 那四个列表项在采集里是被当数组用的（`.map` / `.some`）。写成字符串时采集抛 TypeError、
+  后台看到的是 500，而预览走同一条流水线之后连「试抓一次」也打不开。`assertSupportedConfig` 现在按形状先拒
+  （create / edit / preview 三个入口共用它），错误里点名是哪一项；`null` 与缺省不算写错——读它们的地方一律 `?? []`。
 **B8 量完驳回，不做**：评审建议"解析时把 RSS 里的 `http://` 链接升级成 https"。生产实测库里 `url LIKE 'http://%'`
 有 **540 行 / 9 条源**（`web-mwr-data` 153、`cn-people-*` 200、EUMETSAT 只有 11），而 `www.mwr.gov.cn` 是
 **只有 http 应答 200、https 握手超时**的那一个（`taxonomy.ts` 的 PUBLISHER_DOMAINS 注释里 2026-10-01 逐域 curl 记的）

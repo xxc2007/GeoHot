@@ -182,7 +182,7 @@ export default function SourceDetail({ loaderData }: Route.ComponentProps) {
       {s.last_error && s.health !== "ok" && <div className="mb-5 rounded-card bg-hot-soft px-4 py-3 text-[13px] text-hot ring-1 ring-hot/20">{s.last_error}</div>}
 
       {preview && (
-        <Card className="mb-5" title={`预览：会入库 ${preview.count} 条${preview.offered > preview.count ? `（列表给了 ${preview.offered} 条，本站规则挡掉 ${preview.offered - preview.count} 条）` : ""} · ${preview.ms}ms · 未入库`} right={<button onClick={() => setPreview(null)}>收起</button>}>
+        <Card className="mb-5" title={`预览：本站规则留下 ${preview.count} 条${preview.offered > preview.count ? `（解析出 ${preview.offered} 条，挡掉 ${preview.offered - preview.count} 条）` : ""} · ${preview.ms}ms · 未入库`} right={<button onClick={() => setPreview(null)}>收起</button>}>
           {preview.items.length ? (
             <ul className="space-y-2.5">
               {preview.items.map((i) => (

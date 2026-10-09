@@ -46,6 +46,18 @@ const VALUES: Record<string, string[]> = {
   parseMode: ["html", "markdown", "docusaurus_changelog"],
 };
 
+/**
+ * 这些规则项在采集里是被当数组用的（`.map` / `.some`）。写成字符串或对象时，采集那一轮抛
+ * TypeError，后台看到的是 500 而不是"这一项写错了"——预览走的是同一条流水线，所以同一个写法
+ * 会让"试抓一次"也打不开。所以在门口按形状拒掉，与上面 VALUES 的枚举值同一层。
+ * 值是 `null` / 缺省不算写错：读它们的地方一律 `?? []`。
+ */
+const LIST_KEYS = ["allowUrlPrefixes", "denyUrlPrefixes", "allowCategories", "denyCategories"];
+const NESTED_LISTS: Record<string, string[]> = {
+  ingestNoiseFilter: ["dropMarkers", "dropMarkersTitleOnly", "keepIfMatches", "requireTitleMarkers"],
+};
+const isStringList = (v: unknown) => Array.isArray(v) && v.every((x) => typeof x === "string");
+
 /** The config entries a source of this kind would ignore or cannot run, e.g. ["adapter=site_cards", "detail.titleFoo"]. */
 export function unsupportedConfig(kind: SourceRow["kind"], config: Record<string, unknown>): string[] {
   const allowed = new Set(KEYS[kind] ?? []);
@@ -53,8 +65,12 @@ export function unsupportedConfig(kind: SourceRow["kind"], config: Record<string
   for (const [key, value] of Object.entries(config ?? {})) {
     if (!allowed.has(key)) out.push(key);
     else if (VALUES[key] && !VALUES[key]!.includes(String(value))) out.push(`${key}=${String(value)}`);
+    else if (value !== null && value !== undefined && LIST_KEYS.includes(key) && !isStringList(value)) out.push(`${key}（要字符串数组）`);
     else if (NESTED[key] && value && typeof value === "object") {
-      for (const sub of Object.keys(value)) if (!NESTED[key]!.includes(sub)) out.push(`${key}.${sub}`);
+      for (const sub of Object.keys(value)) {
+        if (!NESTED[key]!.includes(sub)) out.push(`${key}.${sub}`);
+        else if (NESTED_LISTS[key]?.includes(sub) && !isStringList((value as Record<string, unknown>)[sub])) out.push(`${key}.${sub}（要字符串数组）`);
+      }
     }
   }
   return out;
