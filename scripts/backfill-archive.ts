@@ -35,7 +35,10 @@ const { values } = parseArgs({
     "max-items": { type: "string", default: "2000" },
     "per-month": { type: "string", default: "60" },
     "per-page": { type: "string", default: "100" },
-    sleep: { type: "string", default: "300" },
+    // Crossref rate-limits the anonymous pool hard (429 within a couple of requests at 300 ms). One second
+    // per page is what the polite-pool guidance asks for without a contact address; set CROSSREF_MAILTO and
+    // lower --sleep if the operator gives one.
+    sleep: { type: "string", default: "1200" },
     apply: { type: "boolean", default: false },
   },
 });
