@@ -36,11 +36,15 @@ note() { printf '%s\n' "$*"; }
 bad()  { printf '✗ %s\n' "$*"; fails=$((fails + 1)); }
 # 这台机器的出站代理会偶发 `TLS handshake timeout`（实测出现过）。网络抖动不是"仓库不同步"，
 # 所以每个远端读都重试；三次都失败就直接停——拿着一份空清单去比，会报出上千条假红。
+# 错误文件走 mktemp：写死 /tmp/geohot-verify-gherr 时，两个人同时验收会互相盖掉对方的错误，
+# 而 /tmp 里一个可预测的文件名意味着别人可以先放一个符号链接在这儿。
+gherr=$(mktemp) || { echo "✗ 建不了临时文件"; exit 1; }
+trap 'rm -rf "$WORK"; rm -f "$gherr"' EXIT
 gh_read() {
   local attempt out
   for attempt in 1 2 3; do
-    if out=$(gh api "$@" 2>/tmp/geohot-verify-gherr); then printf '%s' "$out"; return 0; fi
-    note "  （第 $attempt 次读 GitHub 失败：$(head -c 120 /tmp/geohot-verify-gherr)）"
+    if out=$(gh api "$@" 2>"$gherr"); then printf '%s' "$out"; return 0; fi
+    note "  （第 $attempt 次读 GitHub 失败：$(head -c 120 "$gherr")）"
     sleep $((attempt * 3))
   done
   return 1

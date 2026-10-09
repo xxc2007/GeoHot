@@ -156,17 +156,17 @@ Content-Type: application/json
 | `cn-chsi-kydt` | 研招网 政策与规定（教育部） | `web_list` | 200 · 80 条 · 最新 2026-09-24《2027 年全国硕士研究生招生工作管理规定》 | 考研 |
 | `intl-ogc-blog` | OGC 开放地理空间联盟 | `rss` | 200 · 10 条 · 2026-10-01 | 地理信息系统 |
 | `intl-qgis-releases` | QGIS 版本发布（官方 Atom） | `rss` | 200 · 10 条 · 2026-09-25 | 地理信息系统 |
-| `intl-thediplomat` | The Diplomat | `rss` | 200 · 96 条 · 2026-10-03 | 地理与政治 |
-| `intl-worldpoliticsreview` | World Politics Review | `rss` | 200 · 10 条 · 2026-10-02 | 地理与政治 |
-| `intl-foreignaffairs` | Foreign Affairs | `rss` | 200 · 20 条 · 2026-10-02 | 地理与政治 |
-| `intl-crisisgroup` | International Crisis Group | `rss` | 200 · 10 条 · 2026-09-25 | 地理与政治 |
-| `intl-chinadialogue-zh` | 对话地球 China Dialogue（中文版） | `rss` | 200 · 10 条 · 2026-10-01 | 地理与政治 |
+| `intl-thediplomat` | The Diplomat | `rss` | 200 · 96 条 · 2026-10-03 | 政治地理 |
+| `intl-worldpoliticsreview` | World Politics Review | `rss` | 200 · 10 条 · 2026-10-02 | 政治地理 |
+| `intl-foreignaffairs` | Foreign Affairs | `rss` | 200 · 20 条 · 2026-10-02 | 政治地理 |
+| `intl-crisisgroup` | International Crisis Group | `rss` | 200 · 10 条 · 2026-09-25 | 政治地理 |
+| `intl-chinadialogue-zh` | 对话地球 China Dialogue（中文版） | `rss` | 200 · 10 条 · 2026-10-01 | 政治地理 |
 | `intl-unocha` | UN OCHA（人道协调厅） | `rss` | 200 · 10 条 · 2026-10-02 | 自然地理（灾害） |
 | `intl-theconversation-env` | The Conversation 环境话题（逐条 CC） | `rss` | 200 · 25 条 · 2026-10-02 | 自然地理 |
 | `intl-nasa-science` | NASA Science | `rss` | 200 · 10 条 · 2026-10-03 | 自然地理 |
-| `intl-loc-worlds-revealed` | 国会图书馆 · Worlds Revealed | `rss` | 200 · 10 条 · 2026-10-01 | 地理与历史 |
-| `intl-publicdomainreview` | The Public Domain Review | `rss` | 200 · 100 条 · 2026-09-30 | 地理与历史 |
-| `intl-eseh` | 欧洲环境史学会 ESEH | `rss` | 200 · 10 条 · 2026-09-30 | 地理与历史 |
+| `intl-loc-worlds-revealed` | 国会图书馆 · Worlds Revealed | `rss` | 200 · 10 条 · 2026-10-01 | 历史地理 |
+| `intl-publicdomainreview` | The Public Domain Review | `rss` | 200 · 100 条 · 2026-09-30 | 历史地理 |
+| `intl-eseh` | 欧洲环境史学会 ESEH | `rss` | 200 · 10 条 · 2026-09-30 | 历史地理 |
 
 许可一律按最保守的一档登记：`site_fulltext` 与 `syndicate_fulltext` 都是 `false`，也就是只出标题、摘要与
 原文链接。其中三条的来源方自己写了更宽的条款（GDACS 已在用的 CC BY 4.0、The Conversation 逐条 CC BY、

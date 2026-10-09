@@ -21,6 +21,9 @@ const TEMPLATES: Record<string, Record<string, unknown>> = {
 
 interface Preview {
   ms: number;
+  /** 列表给出的条数（本站规则之前）。 */
+  offered: number;
+  /** 走完 allow / 改写 / 噪声这一条流水线后剩下的，也就是真采集会入库的条数。 */
   count: number;
   items: Array<{ title: string; url: string; publishedAt: string | null; excerpt: string }>;
 }
@@ -119,7 +122,10 @@ export default function NewSource() {
               onClick={async () => {
                 const c = parsed();
                 if (!c) return;
-                const r = await run<Preview>("POST", "/api/admin/sources/preview", { id: form.id || "draft", kind: form.kind, config: c }, { label: "preview", revalidate: false });
+                // participation_mode / tier / first_party 也要带上：预览合成那条源时缺省是 editorial，而 rss.ts 拿
+                // participation_mode 判断要不要把 RSS 的 summary 当正文——不带它，站长在这页看到的摘要和建好之后
+                // 真采集拿到的摘要可能不是同一份。
+                const r = await run<Preview>("POST", "/api/admin/sources/preview", { id: form.id || "draft", kind: form.kind, tier: form.tier, participation_mode: form.participation_mode, first_party: form.first_party, config: c }, { label: "preview", revalidate: false });
                 if (r) setPreview(r);
               }}
             >
@@ -147,7 +153,7 @@ export default function NewSource() {
             </Button>
           </div>
         </Card>
-        <Card title={preview ? `预览：${preview.count} 条（${preview.ms}ms）` : "预览"}>
+        <Card title={preview ? `预览：本站规则留下 ${preview.count} 条${preview.offered > preview.count ? `（解析出 ${preview.offered} 条，挡掉 ${preview.offered - preview.count} 条）` : ""} · ${preview.ms}ms` : "预览"}>
           {!preview ? (
             <Empty>填好配置后点“预览抓取”，这里显示将会采集到的条目（不入库）。</Empty>
           ) : preview.items.length ? (

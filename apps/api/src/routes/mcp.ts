@@ -41,6 +41,15 @@ function fail(code: string, message: string) {
 }
 
 /**
+ * 「这一期读者翻不翻得开」在 MCP 这一侧的写法，与读取层的 `readableRows` 是同一条判据：v1 已经把下架的
+ * 条目滤掉了，剩下的引注里只要有一条带本站页面（`links.aihot` 不是 null），这一期就有内容。
+ * 以前这里数的是 `items.length === 0`，而 v1 会保留**没有 itemId** 的引注（那种条目在读取层不算可读），
+ * 于是同一期报纸：归档与报眼说未出刊、页面说没有可读内容，Agent 却拿到一版"有内容"的日报。
+ */
+const hasReadable = (sections: Array<{ items: Array<{ links: { aihot: string | null } }> }>) =>
+  sections.some((s) => s.items.some((it) => it.links.aihot));
+
+/**
  * A tool's own failure (database, busy search) reaches the client as a public error, never as the
  * internal message the SDK would otherwise pass on (errors return no internal detail).
  */
@@ -212,6 +221,12 @@ export function buildMcpServer(): McpServer {
       const res = await recent(`daily:${args.date ?? "latest"}`, () => v1Daily(args.date ?? "latest"));
       if (!res) return fail("not_found", args.date ? `没有 ${args.date} 的公开${withSubject("日报")}。` : `还没有公开的${withSubject("日报")}。`);
       const r = res.report;
+      // The weekly's rule, applied here too: a named blank issue is a 200 with an honest empty state for a
+      // reader who asks for it, and a not_found for an agent — which otherwise reports "这一期是空的" as content.
+      // The check is the read layer's own: a daily's sections, never its flashes.
+      if (!hasReadable(r.sections)) {
+        return fail("not_found", `${r.date} 这一期没有入选内容（该期已出刊，但没有可读条目）。`);
+      }
       const lines = [`${SITE.name} ${withSubject("日报")} · ${r.date}`];
       if (r.lead) lines.push("", `导语：${r.lead.title}`, r.lead.leadParagraph);
       for (const s of r.sections) {
@@ -237,7 +252,7 @@ export function buildMcpServer(): McpServer {
       const r = res.report;
       // A named blank issue exists in the database but has nothing to read. The REST/page side answers it with
       // an honest empty state; an agent must instead be told outright, or it reports "这一期是空的" as content.
-      if (r.sections.every((s) => (s.items ?? []).length === 0)) {
+      if (!hasReadable(r.sections)) {
         return fail("not_found", `${r.week} 这一期没有入选内容（该期已出刊，但没有可读条目）。`);
       }
       const lines = [`${SITE.name} ${withSubject("周报")} · ${r.week}`];
@@ -266,7 +281,7 @@ export function buildMcpServer(): McpServer {
       if (!res) return fail("not_found", args.month ? `没有 ${args.month} 的公开${withSubject("月报")}。` : `还没有公开的${withSubject("月报")}。`);
       const r = res.report;
       // Same rule as the weekly tool: a blank issue is not an answer.
-      if (r.sections.every((s) => (s.items ?? []).length === 0)) {
+      if (!hasReadable(r.sections)) {
         return fail("not_found", `${r.month} 这一期没有入选内容（该期已出刊，但没有可读条目）。`);
       }
       const lines = [`${SITE.name} ${withSubject("月报")} · ${r.month}`];

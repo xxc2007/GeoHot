@@ -311,9 +311,15 @@ export function periodGrid(kind: ReportKind, key: string, index: ReportNavigatio
     const n = issueNumber(index, k);
     // 未出刊 is for a day with no issue. A day that has one but cannot be numbered (see issueNumber) says
     // its date and nothing else — an unnumbered issue is not an issue that did not come out.
-    return { key: k, label: state === "none" ? `${name} · 未出刊` : n ? `${name} · 第 ${n} 期` : name, state };
+    // 正在读的这一期也要走同一句话：它不在 index 里就是空刊，报眼已经写着「本期未出刊」，
+    // 点格子的提示不能反过来只报一个日期，好像这一天真有一份报纸。
+    const blank = state === "current" && !exists.has(k);
+    return { key: k, label: state === "none" || blank ? `${name} · 未出刊` : n ? `${name} · 第 ${n} 期` : name, state };
   };
-  const count = (cells: PeriodCell[]) => cells.filter((c) => c.state === "issue" || c.state === "current").length;
+  // Counted from the index, not from the cell's state: the cell for the issue being read is "current"
+  // whether or not it is a newspaper, so counting states would let a blank issue's own 报眼 claim one
+  // edition more than /daily/archive, /about and /api/site/stats all say.
+  const count = (cells: PeriodCell[]) => cells.filter((c) => c.key && exists.has(c.key)).length;
   const year = key.slice(0, 4);
   if (kind === "daily") {
     const m = Number(key.slice(5, 7));

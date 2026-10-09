@@ -1,6 +1,6 @@
 # 把它改成你的行业
 
-**本仓库已经不是那个示例站了。** 它是地理垂直领域的站 GEOHOT（中文站名“地理热点”）：`industry/sources.json` 是本站自己配的地理信源（台网与部委数据、卫星与遥感机构、英文刊物与中文期刊目录，另有人工投递用的 `external` 通道），分类是七个分类（自然/人文/区域/地理与政治/地理与历史/地理信息系统/考研），提示词、品牌、条款页都是地理的。**信源条数与构成不在本文重复**——唯一口径是 `../industry/sources.json` 本身，当场可数：`node -e "console.log(require('./industry/sources.json').sources.length)"`（库里比包里多出的行见 `docs/manual.md` 第 7 节），本文只讲怎么换。保留 `@aihot/*` 包名与 `industry/` 目录名只是为了不动 100 多处 import。下面这份文档的**步骤**仍然成立，**数字和示例**以代码与 `docs/manual.md` 为准。要把它变成“法律热点”“HR 热点”“黄金热点”，要改的东西几乎都在 [`industry/`](../industry/) 这一个文件夹里，代码基本不用动。
+**本仓库已经不是那个示例站了。** 它是地理垂直领域的站 GEOHOT（中文站名“地理热点”）：`industry/sources.json` 是本站自己配的地理信源（台网与部委数据、卫星与遥感机构、英文刊物与中文期刊目录，另有人工投递用的 `external` 通道），分类是七个分类（自然/人文/区域/政治地理/历史地理/地理信息系统/考研），提示词、品牌、条款页都是地理的。**信源条数与构成不在本文重复**——唯一口径是 `../industry/sources.json` 本身，当场可数：`node -e "console.log(require('./industry/sources.json').sources.length)"`（库里比包里多出的行见 `docs/manual.md` 第 7 节），本文只讲怎么换。保留 `@aihot/*` 包名与 `industry/` 目录名只是为了不动 100 多处 import。下面这份文档的**步骤**仍然成立，**数字和示例**以代码与 `docs/manual.md` 为准。要把它变成“法律热点”“HR 热点”“黄金热点”，要改的东西几乎都在 [`industry/`](../industry/) 这一个文件夹里，代码基本不用动。
 
 如果你用 Claude Code、Codex 这类 Agent，可以把下面这段直接发给它，然后回答它的问题：
 

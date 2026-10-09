@@ -129,6 +129,14 @@ if [[ $APPLY == 0 ]]; then
   exit 0
 fi
 sudo systemctl daemon-reload
-echo "installed: $(systemctl list-unit-files 'geohot*' --no-legend | wc -l) units (want 4, APP_ROOT=$APP_ROOT)"
+# 装完要数一遍。以前这一行只是把数量打给人看，于是"写了三个、少一个"也能一路走到 enable——
+# 少的那个进程不会有任何报错，只是那条链路静默停摆（少 geohot-brain 就是每一次分析都打到没人听的端口）。
+installed=$(systemctl list-unit-files 'geohot*' --no-legend | wc -l)
+echo "installed: $installed units (want 4, APP_ROOT=$APP_ROOT)"
+if [[ "$installed" != "4" ]]; then
+  echo "✗ 装上的不是四个 —— 已有的 geohot-* 单元："
+  systemctl list-unit-files 'geohot*' --no-legend
+  exit 1
+fi
 echo "the site prefix is baked into the web bundle — rebuild with BASE_PATH if it changes, do not edit these units"
 echo "enable+start with: sudo systemctl enable --now geohot-brain geohot-api geohot-worker geohot-web"

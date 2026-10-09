@@ -91,7 +91,7 @@ async function checkBudget(tx: Db, service: string): Promise<void> {
   //   或还在飞（`pending`）才算。连不上、DNS 失败、被 429 挡回来都不产生账单。
   // 第三十四轮评审指出的后果：原先三个窗都数全部尝试，一次代理故障（每篇 5 步 × 重试 8 次）
   // 就能把当天 6000 次的额度烧光而一条中文稿都不产出——那正是"全站停止更新"的形状。
-  const unbilled = sql`(status = 'failed' AND usage IS NULL)`;
+  const unbilled = unbilledAttempt();
   const [counts] = await tx<{ minute: number; hour: number; day: number }[]>`
     SELECT
       count(*) FILTER (WHERE started_at > now() - interval '1 minute') AS minute,
@@ -106,6 +106,18 @@ async function checkBudget(tx: Db, service: string): Promise<void> {
   if (c.minute >= budget.per_minute) throw new BudgetExceededError(service, "minute", 60);
   if (c.hour >= budget.per_hour) throw new BudgetExceededError(service, "hour", 600);
   if (c.day >= budget.per_day) throw new BudgetExceededError(service, "day", 3600);
+}
+
+/**
+ * 花费口径只有一处定义：一次尝试有没有产生（或可能产生）账单。
+ * 熔断器、后台的「已用」和运维告警数的是同一件事——第三十四轮把熔断器改成只数真花了钱的尝试，
+ * 却没改另外两处，于是一次代理故障之后，后台显示的 used 比熔断器实际用的大，
+ * 告警能报「24 小时额度用完」而 paidRequest 还在放行。
+ * 列名一律不带表别名：三个使用点里 status 与 usage 都只可能来自 receipt_attempts（budgets 没有这两列），
+ * 加了别名反而拼不出语句——`${alias}.` 在模板里是一个**参数**，不是字符串拼接。
+ */
+export function unbilledAttempt() {
+  return sql`(status = 'failed' AND usage IS NULL)`;
 }
 
 /**

@@ -11,6 +11,7 @@ import { fetchRss } from "../sources/rss.ts";
 import { assertSupportedConfig } from "../sources/config-keys.ts";
 import type { SourceRow } from "../sources/types.ts";
 import { fetchWebList } from "../sources/web-list.ts";
+import { applySourceFilters } from "../sources/collect.ts";
 import { fetchXSearch } from "../sources/x.ts";
 import { audit } from "./auth.ts";
 
@@ -69,6 +70,7 @@ export async function sourceDetail(id: string) {
 
 /** Fetches a source (saved or draft) and returns what it would collect, without storing anything. */
 export async function previewSource(draft: Pick<SourceRow, "id" | "kind" | "config"> & Partial<SourceRow>) {
+  // tier / participation_mode 给的是采集那一轮用的默认值：预览与真采集必须数同一件事，见下面 applySourceFilters。
   const source = { name: draft.id, enabled: true, cursor: null, tier: "T2", participation_mode: "editorial", ...draft } as SourceRow;
   assertSupportedConfig(source.kind, source.config);
   const started = Date.now();
@@ -78,10 +80,16 @@ export async function previewSource(draft: Pick<SourceRow, "id" | "kind" | "conf
   else if (source.kind === "json_list") candidates = await fetchJsonList(source);
   else if (source.kind === "x_search") candidates = (await fetchXSearch(source)).candidates;
   else throw new Error(`preview is not available for ${source.kind} sources`);
+  // 以前这里直接把解析出来的候选原样报数，于是「试抓一次」说的比真采集大：PNAS 的目录里
+  // Correction / Retraction / In This Issue 那几行、IFRC 的 /node/ 网址，预览都算进条数，
+  // 而真采集一条都不入库（noiseFiltered / denyUrlPrefixes 会挡掉）。站长是按这个数批准一条源的。
+  const offered = candidates.length;
+  const kept = applySourceFilters(candidates, source);
   return {
     ms: Date.now() - started,
-    count: candidates.length,
-    items: candidates.slice(0, 20).map((c) => ({ title: c.title, url: c.url, publishedAt: c.publishedAt?.toISOString() ?? null, excerpt: (c.excerpt ?? c.bodyText ?? "").slice(0, 200) })),
+    offered,
+    count: kept.length,
+    items: kept.slice(0, 20).map((c) => ({ title: c.title, url: c.url, publishedAt: c.publishedAt?.toISOString() ?? null, excerpt: (c.excerpt ?? c.bodyText ?? "").slice(0, 200) })),
   };
 }
 

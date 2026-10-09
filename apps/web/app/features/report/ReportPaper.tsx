@@ -28,6 +28,8 @@ function Masthead({ report, index, now }: { report: ReportDetail; index: ReportN
   const issue = issueNumber(index, report.key);
   const mark = dateMark(report.kind, report.key);
   // 一份窗口还没合上的期只是稿样：报头不写它什么时候出，只写它还没出。
+  // 同一句话也不能对一份读者翻不开的期说「每天 08:00 出刊」——归档把那一天叫「未出刊」，
+  // 这一格就不能给它的承诺背书（`readable` 与读取层那道门是同一个判据）。
   const due = isDue(report.kind, report.key, now);
   // The tiers below are keyed to the paper's own container (`@container` on `ReportPaper`), not the
   // window: 报眼 desktop sizing used to ask for 880px of container, which a 1024–1280px laptop never
@@ -38,7 +40,7 @@ function Masthead({ report, index, now }: { report: ReportDetail; index: ReportN
       <div className="flex items-center justify-between gap-4 text-caption text-ink-4">
         <span className="num">{dateLine(report.kind, report.key)}</span>
         <span className="hidden tracking-[0.3em] @[640px]:inline">{MOTTO[report.kind]}</span>
-        <span>{due ? EDITION[report.kind] : "本期未出刊"}</span>
+        <span>{due && report.readable ? EDITION[report.kind] : "本期未出刊"}</span>
       </div>
 
       <div className="flex items-stretch justify-between gap-5 py-6 @[760px]:gap-10 @[760px]:py-8">
@@ -66,15 +68,20 @@ function Masthead({ report, index, now }: { report: ReportDetail; index: ReportN
         </div>
       </div>
 
-      <div className="flex flex-wrap items-baseline gap-x-8 gap-y-1.5 border-y border-line-strong py-3">
-        {metricItems(report.metrics).map((m) => (
-          <span key={m.unit} className="inline-flex items-baseline gap-1.5 whitespace-nowrap">
-            <span className="num text-[22px] font-bold leading-none tracking-[-0.02em] text-ink @[760px]:text-heading">{m.value}</span>
-            <span className="text-caption text-ink-4">{m.unit}</span>
-          </span>
-        ))}
-        {report.readingMinutes > 0 && <span className="ml-auto whitespace-nowrap text-caption text-ink-4">约 {report.readingMinutes} 分钟读完</span>}
-      </div>
+      {/* 指标带写的是成刊那一刻的数（`report.metrics` / `readingMinutes`），不是此刻还能读几条。
+          所以它跟着 `readable` 一起出现：翻不开的那一期，报眼说「本期未出刊」，这一带却报「5 件大事 ·
+          约 4 分钟读完」——同一页两个答案，而且第二个是永远修不掉的旧数。 */}
+      {report.readable && (
+        <div className="flex flex-wrap items-baseline gap-x-8 gap-y-1.5 border-y border-line-strong py-3">
+          {metricItems(report.metrics).map((m) => (
+            <span key={m.unit} className="inline-flex items-baseline gap-1.5 whitespace-nowrap">
+              <span className="num text-[22px] font-bold leading-none tracking-[-0.02em] text-ink @[760px]:text-heading">{m.value}</span>
+              <span className="text-caption text-ink-4">{m.unit}</span>
+            </span>
+          ))}
+          {report.readingMinutes > 0 && <span className="ml-auto whitespace-nowrap text-caption text-ink-4">约 {report.readingMinutes} 分钟读完</span>}
+        </div>
+      )}
     </header>
   );
 }
@@ -377,13 +384,20 @@ export function ReportPaper({ report, index, now }: { report: ReportDetail; inde
   return (
     <article data-paper="" className="@container">
       <Masthead report={report} index={index} now={now} />
-      {count === 0 && report.flashes.length === 0 ? (
-        <p className="py-16 text-center text-body text-ink-4">本期没有入选内容。</p>
+      {/* 一条判据：读者能不能真的翻开这一期。以前这里数的是 `count`，而 `count` 不看条目还在不在——
+          引注全部下架的那一期于是同一页上既写着报眼的「本期未出刊」，又印着一版导语、
+          「N 件大事」和按已下架标题算出来的「约 N 分钟读完」。读取层、归档、MCP 说的是 `readable`，页面也说它。 */}
+      {!report.readable ? (
+        <p className="py-16 text-center text-body text-ink-4">
+          {report.sections.some((s) => s.items.length > 0) || report.flashes.length > 0
+            ? "这一期当时选中的条目已全部下架，现在没有可读的内容了。"
+            : "本期没有入选内容。"}
+        </p>
       ) : (
         <FrontPage report={report} pages={pages} leadStory={leadStory} count={count} now={now} />
       )}
 
-      {pages.map((p, i) => (
+      {report.readable && pages.map((p, i) => (
         <SectionPage key={p.id} id={p.id} no={i + 1} label={p.label}>
           {p.summary && (
             <p className="border-b border-line py-5 text-[15.5px] leading-[1.9] text-ink-2 @[560px]:text-justify">
@@ -395,7 +409,7 @@ export function ReportPaper({ report, index, now }: { report: ReportDetail; inde
         </SectionPage>
       ))}
 
-      {report.flashes.length > 0 && (
+      {report.readable && report.flashes.length > 0 && (
         <SectionPage id="s-flash" no={pages.length + 1} label="快讯">
           <ul className={`${COLUMNS} @[1040px]:columns-3`}>
             {report.flashes.map((f, i) => (

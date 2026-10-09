@@ -282,6 +282,10 @@ export async function loadReport(kind: ReportKind, key: string): Promise<ReportD
   const [{ prev, next }, picture] = await Promise.all([neighbors(kind, key), leadItem?.itemId && leadItem.available ? leadCover(leadItem.itemId) : null]);
   const cover = picture && leadItem ? { ...picture, caption: kind === "daily" ? null : leadItem.title } : null;
   const headline = kind === "daily" ? null : periodicHeadline(c);
+  // The same question `readableRows` asks of an index row, answered from the citations this page already
+  // resolved: `all` is exactly that row's cited set (a daily's section items, a weekly's story refs — never
+  // its flashes), and `available` is the same `itemHasPage` the index's `withoutPage` set is built from.
+  const readable = all.some((i: ReportCitation) => i.itemId && i.available);
   const title = kind === "daily" ? `${withSubject("日报")} · ${key}` : String(c.title ?? (kind === "weekly" ? `${SITE.name} 周报 · ${key}` : `${SITE.name} 月报 · ${key}`));
   return {
     kind,
@@ -291,6 +295,7 @@ export async function loadReport(kind: ReportKind, key: string): Promise<ReportD
     windowEnd: r.window_end.toISOString(),
     generatedAt: r.generated_at.toISOString(),
     revision: r.revision,
+    readable,
     lead: c.lead ?? (headline ? { title: headline, leadParagraph: String(c.overview ?? "") } : null),
     overview: c.overview ?? null,
     highlights,

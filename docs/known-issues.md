@@ -2705,3 +2705,146 @@ ephemeral 段里有哪些值未能定案，未引入「端口避让」式的改�
 ② `neighbourLabel` 只有真是前一天才说「前一日」，跨天空刊的那一个改口「上一期」（同一族缺陷：标签承诺的
 节奏，数据并没有）。6 条用例在 `apps/web/tests/daily-archive-gaps.test.ts`；报眼月历本来就用淡点表示未出刊
 （`periodGrid` 的 `none` 态），这次是把只有鼠标悬停才看得见的那句话，写成纸面上人人都能读的一行。
+
+---
+
+## 第四十八轮（2026-10-08 上午）：9 条权威信源，以及根域名换成介绍站之后的邻居基线
+
+**信源 104 → 113（启用 91 → 100）**：EUMETSAT、CAMS、Nature Water / Sustainability / Food 当期目录、PNAS 当期目录、
+IFRC、CMS（UNEP 波恩）、中国科学院「科研进展」。全部先在采集机上实测（订阅口活着、条目数正常、最近一条 45 天内），
+再跑一次真抓取确认能入库。探过又退回的如实记在 `docs/sources.md` 的「看过但没有加的」：哥白尼海洋服务停在 2025-07、
+UNCCD 停在 2026-03，另有一批官方站要么 403 要么没有订阅口。**不退让的一条线**：403 就是 403，不伪造浏览器 UA 绕反爬。
+
+**顺带补的三个采集层闸门**（`tests/industry-pack-sources.test.ts` 新增一条用例盯着）：PNAS 的 `dropMarkersTitleOnly`
+（Correction for / Retraction / Reply to / In This Issue 只按标题判，`markerPattern` 的 `(^|[^a-z])…s?([^a-z]|$)`
+让 "Retractions" 不再误伤 "Retraction for"）、IFRC 的 `denyUrlPrefixes: ["/node/"]`（同一篇文章两个网址）、
+八条期刊目录源的 `intervalMinutesLocked`（`adaptIntervals` 把包里的 `interval_minutes` 只当上限，会把投稿周期
+一个月的刊当成"可以五分钟抓一次"）。
+
+**根域名换人之后**：`verify-deploy.sh` 第 1 节的"没动邻居"这条不变量，现在管的是**两个**邻居（根＝介绍站、
+`/nc15/`＝纪念册），基线文件重记为三个哈希。同一轮修掉了基线自己的一个洞：原来 `curl -s | sha256sum` 不看状态码
+也不看正文，站点正在 502 时写进去的是**空正文的哈希**（`e3b0c442…`）且脚本 exit 0——最需要重取基线的那一刻，
+恰好是把不变量作废的那一刻。现在非 2xx、空正文、空哈希一律拒绝写盘；Cloudflare 的邮箱混淆载荷让介绍站首页
+每次响应都不一样，比对前先归一化 `email-protection#<hex>`，否则"哈希变了"是埋点的锅不是我们的锅。
+
+---
+
+## 第四十九轮（2026-10-08 下午）：评审波——十条修、三条驳回、一条量完再放
+
+**修的十条**（每条都有用例）：空刊那一期的 `readable` 判据（contracts 的 `ReportDetail.readable` + `loadReport` +
+报眼 + 月历 + MCP 五处同一件事）、`nextIssueNo` 的先加锁再探迟到、日报大标题的署名与身份闸门、
+混合中英文答复不再被当成中文稿（`noChineseAnswer` 现在两问都问）、240 秒思考调用的超时不再被 120 秒截断、
+`llm.ts` 的请求身份带上 `jsonMode`、MCP 点名要空刊时直接回答"没有可读内容"、`periodGrid` 的期数只数读得开的期、
+`sync-source-config.ts`（把包里声明的 config/tier/interval/默认分类推进库，默认 DRY-RUN，`--apply` 必须点名库且
+库必须与进程 env 是同一个）、以及 `verify-deploy.sh` 的备份步骤不再被 `ogcache` 的并发写打断。
+
+**驳回三条（都拿证据驳回，不是拿感觉）**：① "CAS 那期按重新列出的日期出刊"——条目页印的就是同一个日期；
+② "`missingRuns().reverse()` 是死代码"——它被 `daily-archive-gaps.test.ts` 的一条契约用例钉着；
+③ "撤下引注仍保留期号与图例矛盾"——图例说的只是空刊。**放一条**：/hot、/all、/item 的发布绑定缓存——实测只有
+timeline 那一个端点发 `X-Accel-Expires`，残余陈旧只有 180 秒回看之外的约 120 秒，为它加一层缓存键要付的是
+每次发布刷一片 URL。
+
+**这一轮自己制造的一个缺陷，值得单独记**：把花费口径合成一个 `unbilledAttempt(alias)` 时，第一版写成
+`sql\`(${p}status = 'failed' AND ${p}usage IS NULL)\``，`p` 是个字符串——postgres.js 把模板里的 `${}` 当**绑定参数**，
+于是生成 `$1status`，三条语句全部语法错误。typecheck 过、构建过、`tsc -p tests` 也过，是新增那条用例第一次跑
+就撞出来的（`PostgresError: trailing junk after parameter`）。⇒ **拼列名或表别名不能进 `sql` 模板**；现在返回
+不带别名的字面片段，三个使用点里 `status` / `usage` 都只可能来自 `receipt_attempts`（`budgets` 没有这两列），
+歧义不存在。用例还带"注入验红"：把 `count(a.id) FILTER (WHERE NOT …)` 改回 `count(a.id)`，
+断言立刻红在「连不上的尝试不产生账单，不该报额度用完」这一句上。
+
+---
+
+## 第五十轮（2026-10-08 晚）：两个分类改用学科本名
+
+站长指定：「地理与政治」→「政治地理」、「地理与历史」→「历史地理」。
+
+- **改的只有 `industry/taxonomy.ts` 的 `CATEGORIES[].label`**。两个 key（`geopolitics` / `histgeo`）一个字没动 ⇒
+  网址 `/all?category=…`、库里的 `category` 值、v1 与 MCP 的枚举、`/feed/category/<key>.xml` 全部照旧，
+  **零迁移、零重判**：分类是逐条的判断结果，改名字不会让它重新判断一次。
+- **跟着 label 走的四处**：`prompts/structure.md` 的类别 key 行（`tests/industry-vocabulary.test.ts:112` 逐字对拍
+  label，改一处不改另一处就是红）、`prompts/rules-domain.md`、`docs/sources.md` 的「归到」列、两个 README 的分类表。
+- **顺带改正两处注释事实**：`taxonomy.ts` 里"五个主题页拿政治地理当入口"——topics.json 根本没有 `opinion-analysis`
+  这个主题，实测是**四个**（一个不存在的入口被当成了改词表的理由）；以及"类别名与主题标签同名"这件事写进注释，
+  免得下一轮有人当笔误改掉。
+- **一个可见后果，如实记着**：一条 geopolitics 的条目在卡片上会同时出现「政治地理」（类别，链
+  `/all?category=geopolitics`）与「#政治地理」（主题标签，链 `/all?tag=…`）——两个入口、两种写法，不是重复渲染。
+
+**站长自己那一轮的 README（宣传片那一节）没有动内容，只补了顶部导航那一行**：`tests/readme-anchors.test.ts`
+要求每个二级标题都在导航里，新加的「🎬 宣传片展示」少了这一格，两条用例红。按那条用例自己的话
+（"挪走或改名了就同步这一行"）补上 `[🎬 宣传片](#-宣传片展示)` / `[🎬 Product film](#-product-film)`，
+10/10 复绿。**留给站长的一处呈现小毛病（没有替他改）**：README.md 里 `## 🎬 宣传片展示` 之前是
+`---` + 空行 + `---`，两条连续的水平线在 GitHub 上会画成两道细线——删掉多余的那一对即可。
+
+**Tier-2 已清账（同一晚做完，逐条带证据）**：
+- **A4 单元检查不再免检**：`verify-deploy.sh` 第 2 节以前是"systemctl 在 **且** 有 geohot-\* 单元文件"才检查，
+  于是四个常驻进程一个都没装的机器照样报 ALL CHECKS PASSED。现在只有"这台机器根本没有 systemd"才跳过，
+  单元列表为空是**报红**。服务器上双向验过：真 systemctl → 4 个 OK；把 `list-unit-files` 换成返回空的假货 → 1 个 BAD。
+- **A5 装完要数一遍**：`install-units.sh` 以前只把数量打给人看，写了三个也算成功；现在不等于 4 就 exit 1 并列出已有的。
+- **A6 验收脚本不再共用一个 /tmp 文件**：`verify-github-sync.sh` 的 gh 错误输出从写死的 `/tmp/geohot-verify-gherr`
+  改成 `mktemp`。并进已有的 `trap … EXIT` 而不是新写第二个——第二个会把清 `$WORK` 的那条盖掉，临时目录就漏了。
+- **A3 回滚脚本两处真会伤人的**：① 强制备份那条是 `bash -c "sudo -u postgres pg_dump … | gzip > 文件"`，
+  新起的 bash 没有 pipefail，pg_dump 失败时 gzip 照样退出 0 ⇒ **"先备份再删"可以带着一个空文件继续 DROP DATABASE**；
+  而且那个重定向用的是发起命令的人的权限，`/opt/geohot` 归 geohot，非特权操作者在 `--apply` 时根本写不进去。
+  现在整条在 sudo 里跑、带 `set -euo pipefail`、`test -s` 要求产物非空。② `run "…" sudo userdel "$APP_USER" 2>/dev/null || true`
+  —— `run` 用 `"$@"` 执行，`2>/dev/null` 是**传给 userdel 的参数**（报多余操作数），`|| true` 又把这句连"用户其实
+  没删掉"一起吞了。现在先 `id` 查在不在，报错就让它报错。`--purge-database` 的 DRY-RUN 在服务器上跑到 R5、exit 0。
+- **B5 预览与采集走同一条流水线（但两个数不是一个意思）**：`previewSource` 以前直接数解析出来的候选，站长批准
+  一条源时看到的数字比规则实际留下的那一个大。采集那条流水线（`allowed` → `rewriteUrl` → `noiseFiltered` → 可选
+  按发布时间排序）抽成 `collect.ts` 的 `applySourceFilters`，两处共用；返回值多带 `offered`。
+  **卡片写的是「本站规则留下 N 条（解析出 M 条，挡掉 K 条）」**——第一版我写成「会入库」，被复审当场否掉：真采集
+  还要过首次导入上限（`_aihot.initialBackfillLimit`，缺省 30）、每轮 120 条的上限和按身份去重，预览一条都不过；
+  包里 113 条源有 89 条自己写了首次导入上限（当场数：`node -e` 读 `industry/sources.json`，例如 `rss-gdacs-alerts` 12、
+  `web-mwr-data` 8、`json-ceic-earthquake` 10），说「会入库」就是又造出一句不实陈述。`web_list` 那一族的 `offered` 也是解析
+  **之后**的数（`fetchWebList` 自己已经丢过导航与重复链接），所以措辞用「解析出」而不是「列表给了」。
+  用例：`tests/source-rules.test.ts` 把预览的 `count` 与真采集实际入库的行数对拍（那条夹具没有上限也没有历史行，
+  两个数在那里确实相等）—— 把 `count: kept.length` 换回 `candidates.length` 它就红。
+- **顺带补一条形状闸门**：`allowUrlPrefixes` / `denyUrlPrefixes` / `allowCategories` / `denyCategories` 与
+  `ingestNoiseFilter` 那四个列表项在采集里是被当数组用的（`.map` / `.some`）。写成字符串时采集抛 TypeError、
+  后台看到的是 500，而预览走同一条流水线之后连「试抓一次」也打不开。`assertSupportedConfig` 现在按形状先拒
+  （create / edit / preview 三个入口共用它），错误里点名是哪一项；`null` 与缺省不算写错——读它们的地方一律 `?? []`。
+**B8 量完驳回，不做**：评审建议"解析时把 RSS 里的 `http://` 链接升级成 https"。生产实测库里 `url LIKE 'http://%'`
+有 **540 行 / 9 条源**（`web-mwr-data` 153、`cn-people-*` 200、EUMETSAT 只有 11），而 `www.mwr.gov.cn` 是
+**只有 http 应答 200、https 握手超时**的那一个（`taxonomy.ts` 的 PUBLISHER_DOMAINS 注释里 2026-10-01 逐域 curl 记的）
+⇒ 一刀切升级会把 153 条水利部的读者链接改死，还会让已入库条目的身份键（`identityKeyForUrl`）变掉、
+同一篇稿被再采一遍。真要给 EUMETSAT 单独开一条 `itemUrlPrefixRewrite` 就够（那是既有配置项，不用新代码），
+但那 11 条现在能打开，不值得为它动版面。
+C6（translate / embeddings 的 `received` 收据无人认领）**判定不做**：两条链路都是休眠的，为不存在的路径加
+回收器是凭空长代码。
+
+---
+
+## 第五十二—五十三轮（2026-10-09 中午）：复审自己上一轮的措辞，再把"翻不开"这条判据收成一条
+
+**五十二轮修的是五十一轮自己造的话**：卡片上那句「会入库 N 条」被复审当场否掉（依据在上面 B5 那一条里），
+改成「本站规则留下 N 条（解析出 M 条，挡掉 K 条）」，同时补了一条形状闸门。这一条的价值不在代码量，
+在于**别让它继续替一个没人实现的承诺背书**。
+
+**五十三轮是一轮只针对"同一条判据被抄了四份"的复审**，读的是空刊那条链（`readable` / `readableRows` /
+`citedItemIds`）。三处成立、一处驳回、一处记为未覆盖：
+
+1. **同一页两个答案（成立，已修）**：`ReportPaper` 的空版面条件数的是 `count`，而 `count` 来自 `pagesOf`，
+   `pagesOf` 只看去重、**不看条目还在不在**。于是"引注已全部下架"的那一期：报眼（五十轮改的）写着
+   「本期未出刊」，正文却照样印一版导语、「N 件大事」、按已下架标题算出来的「约 N 分钟读完」。
+   现在整页用读取层那一个 `report.readable`：翻不开就没有正文，只有一句实话——
+   有引注但全下架说「这一期当时选中的条目已全部下架」，本来就没有内容说「本期没有入选内容」。
+   同一轮还gate掉了报头下面那条**指标带**（`metricItems(report.metrics)` + 「约 N 分钟读完」）：它写的是
+   **成刊那一刻**的数，撤下条目不会回头改它，所以翻不开的那一期会顶着一句"5 件大事 · 约 4 分钟读完"。
+   线上 10-04 那一期量过：`0 件大事 / 0 个来源`（它本来就是空刊），改动对它是不可见的；对"曾经有内容、
+   后来全下架"那一期才是可见的。
+2. **MCP 是第三个表达式（成立，已修）**：四十九轮我给日报加的那道拒绝写的是 `sections.every(items.length === 0)`，
+   而 v1 的 `ok` 保留**没有 itemId** 的引注（`!i.itemId || available`），读取层的 `readable` 要求
+   `itemId && available`。两者只在"有引注但没有 itemId"这种状态下分开——本站的写手（compose）不会产出那种引注，
+   所以线上没有活案例，但"三个出口一个判据"这件事不该靠"没人会写坏"成立。现在 MCP 用
+   `hasReadable(sections)`：v1 已经滤过下架，剩下的引注里有一条带本站页面才算有内容。
+3. **报眼点格的提示（成立，已修）**：正在读的那一期若是空刊，格子状态是 `current`、提示却只写日期，
+   与同一页报眼的「本期未出刊」对不上；从邻居那一期看同一天又写着「未出刊」。现在空刊的 current 格子
+   也说「未出刊」，`state` 仍是 `current`（读者确实在看它）。用例在 `apps/web/tests/daily-archive-gaps.test.ts`。
+4. **「空刊也可能有期号」（驳回，不是缺陷）**：`compose.ts` 盖章看的是这一版排出来的条目数（存在性），
+   不是当下还能不能读。印的时候那些条目都是活的；之后被撤下，期号照旧留着——这是站长已经定过的口径
+   （「撤下引注仍保留号」），改它等于让一份出过的报纸从序列里消失。
+5. **两处判据仍没有用例（记下来，别当已覆盖）**：① MCP 的 `hasReadable` 与 v1 `filter(ok)` 的等价性只有注释和
+   类型撑着，没有一条测试真的调过那个工具（`tests/publication.test.ts` 只覆盖周报月报的空白拒绝）；
+   ② `ReportPaper` 这一族（正文、分版、快讯、指标带跟着 `readable` 收起）是**组件里的条件渲染**，而
+   `apps/web/tests/` 全套都是纯函数与 loader 的测试，没有一处把组件 SSR 出来（仓库里没有
+   `react-dom/server` 的用例）。补任何一条都要先决定：是给 web 测试加一条渲染路径，还是把这些条件
+   下沉成可测的纯函数。下一轮做，别在文档里当已经测过。

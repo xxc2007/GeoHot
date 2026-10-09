@@ -44,31 +44,35 @@ note() { echo "  · $*"; }
 
 status_of() { curl -s -A "$UA" -o /dev/null -w '%{http_code}' --max-time 30 "$1"; }
 
+# 邻居站正文的哈希，写基线和比对都走这一个函数。三个坑一起堵：
+# ① `curl -s` 不看状态也不看正文——站点正在 502 时喂给 sha256sum 的是空正文的哈希（e3b0c442…），
+#    于是此后每一轮都对一个坏掉的邻居报"字节级一致"：最需要重取基线的那一刻，恰好是把不变量作废的那一刻；
+# ② 少了 --max-time，一个卡住的上游能把整轮验收挂在那里；
+# ③ 根首页（站长的介绍站）里有 Cloudflare 的邮箱混淆链接，它的 payload **每次请求都重新编码**，
+#    逐字节哈希因此永远不稳定（实测三次抓取三个哈希）——所以哈希的是剥掉这些 payload 之后的正文，
+#    实测同一份内容三次抓取同一个哈希；/nc15/ 与 sitemap 里没有这种链接，走同一条路不受影响。
+EMPTY_SHA=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+TMPBL=$(mktemp) || exit 1
+trap 'rm -f "$TMPBL"' EXIT
+fetch_sha() { # fetch_sha <url> —— 打印可信正文的哈希；取不到就返回非零（调用方决定是红还是跳过）
+  curl -fsS -A "$UA" --max-time 30 -o "$TMPBL" "$1" 2>/dev/null || return 1
+  [[ -s "$TMPBL" ]] || return 1
+  local sum
+  sum=$(sed -E 's@/cdn-cgi/l/email-protection#[0-9a-fA-F]*@/cdn-cgi/l/email-protection@g' "$TMPBL" | sha256sum | cut -d' ' -f1)
+  [[ -n "$sum" && "$sum" != "$EMPTY_SHA" ]] || return 1
+  printf '%s' "$sum"
+}
+
 # ---------------------------------------------------------------------------
 if [[ "${1:-}" == "--save-baseline" ]]; then
-  echo "记录主站基线（部署前必做，只读）: $BASELINE_FILE"
-  # 基线是"邻居主站没被我动过"这条不变量的唯一凭据。原来这里是 `curl -s`（不看状态码、不看正文）直接
-  # 把管道喂给 sha256sum：主站正在 502、或者连接干脆失败时，写进去的是**空正文的哈希**（e3b0c442…），
-  # 脚本还 exit 0——于是第 1 节此后对一个坏掉的主站报"字节级一致"。最需要重取基线的那一刻（站点出问题了），
-  # 恰好是把这条不变量作废的那一刻。现在：非 2xx、空正文、空哈希，一律拒绝写盘。
-  EMPTY_SHA=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
-  tmpbl=$(mktemp) || exit 1
-  baseline_hash() { # baseline_hash <url> —— 拿不到可信正文就返回非零
-    if ! curl -fsS -A "$UA" --max-time 30 -o "$tmpbl" "$1"; then
-      echo "✗ 取不到 $1（连接失败或非 2xx）—— 拒绝写基线" >&2; return 1
-    fi
-    [[ -s "$tmpbl" ]] || { echo "✗ $1 返回空正文 —— 拒绝写基线" >&2; return 1; }
-    local sum
-    sum=$(sha256sum < "$tmpbl" | cut -d' ' -f1)
-    [[ "$sum" == "$EMPTY_SHA" ]] && { echo "✗ $1 的正文哈希等于空输入 —— 拒绝写基线" >&2; return 1; }
-    printf '%s' "$sum"
-  }
+  echo "记录邻居站基线（部署前必做，只读）: $BASELINE_FILE"
+  # 取不到可信正文就拒绝写盘（判据在上面的 fetch_sha：非 2xx、空正文、空哈希一律返回非零）。
   # 先算再写：`echo "k=$(false)"` 的退出码是 echo 的，命令替换失败传不出来。
-  home_sum=$(baseline_hash "$MAIN/") || exit 1
-  sitemap_sum=$(baseline_hash "$MAIN/sitemap.xml") || exit 1
+  home_sum=$(fetch_sha "$MAIN/") || { echo "✗ 取不到 $MAIN/ —— 拒绝写基线" >&2; exit 1; }
+  sitemap_sum=$(fetch_sha "$MAIN/sitemap.xml") || { echo "✗ 取不到 $MAIN/sitemap.xml —— 拒绝写基线" >&2; exit 1; }
   # 2026-10-07 起根目录归站长的个人介绍站，纪念册搬到 /nc15/。"没动隔壁"这条不变量现在管的是**两个**邻居，
   # 所以两个都记：拿不到 /nc15/ 就拒绝写基线（和首页同样的理由——空正文的哈希不是基线）。
-  nc15_sum=$(baseline_hash "$MAIN/nc15/") || exit 1
+  nc15_sum=$(fetch_sha "$MAIN/nc15/") || { echo "✗ 取不到 $MAIN/nc15/ —— 拒绝写基线" >&2; exit 1; }
   # 基线属于哪个域名也记下来：换域名部署时旧基线必然"哈希变了"，那不是回滚的理由
   # （bootstrap-server.sh 的注释一直承诺有这道检查，脚本里以前没有）。
   {
@@ -106,24 +110,28 @@ if [[ -f "$BASELINE_FILE" ]]; then
   elif [[ -z "$base_site" ]]; then
     note "基线没有 main_site 这一行（旧版格式），无法确认它属于哪个域名"
   fi
-  now_home=$(curl -s -A "$UA" "$MAIN/" | sha256sum | cut -d' ' -f1)
-  if [[ -z "$base_home" ]]; then
-    bad "主站首页无法比对：基线缺 main_home_sha256（现在=${now_home:0:12}…）"
-  elif [[ "$now_home" == "$base_home" ]]; then ok "主站首页字节级一致（sha256=${now_home:0:12}…）"
-  else bad "主站首页哈希变了！基线=${base_home:0:12}… 现在=${now_home:0:12}… —— 先别回滚：2026-10-07 起根目录归站长的个人介绍站，它自己重新部署（或 nginx 改动）也会让这一条红。比一下 \`stat -c %y /var/www/intro/index.html /etc/nginx/sites-available/xxc2007.me\` 与基线的 captured_at，再看 /nc15/ 那一项；确认是本站动过才执行 rollback.sh"; fi
-  now_sm=$(curl -s -A "$UA" "$MAIN/sitemap.xml" | sha256sum | cut -d' ' -f1)
-  if [[ -z "$base_sitemap" ]]; then
-    bad "主站 sitemap 无法比对：基线缺 main_sitemap_sha256（现在=${now_sm:0:12}…）"
-  elif [[ "$now_sm" == "$base_sitemap" ]]; then ok "主站 sitemap 一致"
-  else bad "主站 sitemap 哈希变了（基线=${base_sitemap:0:12}… 现在=${now_sm:0:12}…；基线已失效？先人工确认再更新基线）"; fi
+  # 三处比对走同一个函数：取不到正文是"无法比对"，不是"邻居被改"，也不许拿空正文的哈希去冒充一致。
+  # <标签> <基线键值> <url> <不一致时的提示>
+  compare_sha() {
+    local label="$1" base="$2" url="$3" hint="${4:-}" now
+    if [[ -z "$base" ]]; then bad "$label 无法比对：基线里没有这一项（人工确认后重跑 --save-baseline）"; return; fi
+    if ! now=$(fetch_sha "$url"); then bad "$label 取不到可信正文（$url）—— 无法比对：先确认邻居站在线，再判断是谁动的"; return; fi
+    if [[ "$now" == "$base" ]]; then ok "$label 字节级一致（sha256=${now:0:12}…）"
+    else bad "$label 哈希变了！基线=${base:0:12}… 现在=${now:0:12}…${hint:+ —— $hint}"; fi
+  }
+  # 2026-10-07 起根目录是站长自己的介绍站，它随时可能重新部署，所以这一条红了先取证再决定：
+  # 比 mtime 与基线的 captured_at，确认是本站动过才回滚（/nc15/ 那一项是稳定的，能对照）。
+  compare_sha "根站（介绍站）首页" "$base_home" "$MAIN/" \
+    '先别回滚：比一下 stat -c %y /var/www/intro/index.html /etc/nginx/sites-available/xxc2007.me 与基线 captured_at，再看 /nc15/ 那一项；确认是本站动过才执行 rollback.sh'
+  compare_sha "根 sitemap" "$base_sitemap" "$MAIN/sitemap.xml" '基线已失效？先人工确认再更新基线'
   # 纪念册 2026-10-07 搬到 /nc15/：老基线没有这一行时只记 note，不判红——少一个键不该变成"这次部署有问题"，
   # 但重记一次基线之后它就是硬断言了。
   base_nc15="$(baseline_get nc15_home_sha256)"
-  now_nc15=$(curl -s -A "$UA" "$MAIN/nc15/" | sha256sum | cut -d' ' -f1)
   if [[ -z "$base_nc15" ]]; then
-    note "基线没有 nc15_home_sha256（旧格式）：/nc15/ 现在=${now_nc15:0:12}…，重跑 --save-baseline 就会带上"
-  elif [[ "$now_nc15" == "$base_nc15" ]]; then ok "纪念册 /nc15/ 首页字节级一致（sha256=${now_nc15:0:12}…）"
-  else bad "纪念册 /nc15/ 首页哈希变了！基线=${base_nc15:0:12}… 现在=${now_nc15:0:12}… —— 立即执行 rollback.sh"; fi
+    note "基线没有 nc15_home_sha256（旧格式）：/nc15/ 未纳入比对，重跑 --save-baseline 就会带上"
+  else
+    compare_sha "纪念册 /nc15/ 首页" "$base_nc15" "$MAIN/nc15/" '本站没有理由动它：先确认不是介绍站那侧的部署'
+  fi
 else
   bad "没有基线文件 $BASELINE_FILE —— 无法证明主站未受影响。部署前应先 --save-baseline。"
 fi
@@ -136,11 +144,18 @@ artalk=$(status_of "$MAIN/comment/")
 echo "== 2. GEOHOT 路由状态（前缀下）=="
 # 常驻单元：DEPLOYMENT.md:10 记的是四个（brain/api/worker/web）。少一个 geohot-brain 不是"少个可选进程"，
 # 而是 config.ts:92 的 MODEL_CALLS_ENABLED 缺省 true 之下每一次分析请求都打到没人听的 127.0.0.1:3055。
-if command -v systemctl >/dev/null 2>&1 && [[ -n "$(systemctl list-unit-files 'geohot-*' --no-legend 2>/dev/null)" ]]; then
-  for u in geohot-brain geohot-api geohot-worker geohot-web; do
-    state=$(systemctl is-active "$u" 2>/dev/null || true)
-    [[ "$state" == "active" ]] && ok "$u active" || bad "$u 状态=$state —— 四个单元都要 active（见 deploy/geohot/systemd/）"
-  done
+if command -v systemctl >/dev/null 2>&1; then
+  # 只有"这台机器根本没有 systemd"才可以跳过这一节。systemctl 在、而 geohot-* 一个都没装，
+  # 是这条不变量最坏的那种破法（四个常驻进程一个都不在），以前它被写成"没有单元文件就免检"，
+  # 于是脚本对着一个空机器报 ALL CHECKS PASSED。
+  if [[ -z "$(systemctl list-unit-files 'geohot-*' --no-legend 2>/dev/null)" ]]; then
+    bad "systemd 里没有任何 geohot-* 单元 —— 四个常驻进程一个都没装（见 deploy/geohot/install-units.sh）"
+  else
+    for u in geohot-brain geohot-api geohot-worker geohot-web; do
+      state=$(systemctl is-active "$u" 2>/dev/null || true)
+      [[ "$state" == "active" ]] && ok "$u active" || bad "$u 状态=$state —— 四个单元都要 active（见 deploy/geohot/systemd/）"
+    done
+  fi
 fi
 # 编辑大脑的代码是不是"进程里那一份"。
 # 2026-10-04 的真实漏检：geohot-brain 从 2026-10-01 16:17 起一直是 active，而这三天里

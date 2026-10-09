@@ -111,6 +111,19 @@ function rewriteUrl(c: Candidate, source: SourceRow): Candidate {
   return c;
 }
 
+/**
+ * 本站规则的唯一一条流水线：白名单/黑名单 → 网址改写 → 噪声剔除 →（可选）按发布时间倒序。
+ * 采集（`collectOnce` 里 `found` 与 `filtered` 那两个数）和后台的「试抓一次」必须走这一条，否则站长按预览
+ * 批准一条源、真采集却留下另一个数——`industry/sources.json` 里 PNAS 的 dropMarkers 与 IFRC 的
+ * denyUrlPrefixes 就是专门会造出这种差别的配置。顺序也不能换：改写要在白名单之后（`allowed` 比的是原网址）。
+ * X 的分片归档那条路径（本文件下方 `store(m.id, …)`）有意不走这里：它只改写 + 去噪，不套 `allowUrlPrefixes`。
+ */
+export function applySourceFilters(candidates: Candidate[], source: SourceRow): Candidate[] {
+  const kept = candidates.filter((c) => allowed(c.url, source)).map((c) => rewriteUrl(c, source)).filter((c) => !noiseFiltered(c, source));
+  if (source.config.sortByPublishedAt) kept.sort((a, b) => (b.publishedAt?.getTime() ?? 0) - (a.publishedAt?.getTime() ?? 0));
+  return kept;
+}
+
 async function loadSource(id: string): Promise<SourceRow | null> {
   const [s] = await sql<SourceRow[]>`
     SELECT id, name, kind, config, tier, participation_mode, first_party, interval_minutes, enabled, cursor, fail_count
@@ -251,9 +264,8 @@ export async function collectSource(sourceId: string, opts: { force?: boolean } 
     // `found` is what the listing offered before any rule of ours was applied; the operator reads the
     // three numbers against each other to see a fetch that returned nothing because of a filter.
     found = candidates.length;
-    candidates = candidates.filter((c) => allowed(c.url, source)).map((c) => rewriteUrl(c, source)).filter((c) => !noiseFiltered(c, source));
+    candidates = applySourceFilters(candidates, source);
     filtered = candidates.length;
-    if (source.config.sortByPublishedAt) candidates.sort((a, b) => (b.publishedAt?.getTime() ?? 0) - (a.publishedAt?.getTime() ?? 0));
 
     // First import of a new source: bounded, and archived by source time (never "today", never pushed).
     // Both numbers are the operator's own free-form JSON (`admin/sources.ts` writes `config` without a

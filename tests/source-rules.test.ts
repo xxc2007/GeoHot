@@ -10,7 +10,7 @@ import { closeDb, sql } from "@aihot/backend/db";
 import { stopBoss } from "@aihot/backend/jobs/queue";
 import { extractArticleBody, readable } from "@aihot/backend/content/extract";
 import { collectSource } from "@aihot/backend/sources/collect";
-import { updateSource } from "@aihot/backend/admin/sources";
+import { updateSource, previewSource } from "@aihot/backend/admin/sources";
 
 const T = tag();
 const LONG = `${"A card label that swallowed the summary of the article it links to, ".repeat(2)}${T}`;
@@ -106,6 +106,36 @@ test("a config entry the collector does not implement fails the fetch instead of
 test("feed entries outside the source's URL rules are skipped", async () => {
   assert.equal((await collectSource(id("denied"), { force: true })).status, "ok");
   assert.deepEqual((await articles(id("denied"))).map((a) => a.url), [`https://example.org/rules-${T}/news/a`]);
+});
+
+test("「试抓一次」数的是本站规则留下的条数，与采集同一条流水线", async () => {
+  // 站长是按这个数批准一条源的。预览以前直接数解析出来的候选，于是它比真采集留下的那一个大：
+  // PNAS 目录里的 Correction / Retraction / In This Issue、IFRC 的 /node/ 网址都算进过预览，
+  // 而采集那一轮一条都不入库（denyUrlPrefixes 与 ingestNoiseFilter 挡在外面）。
+  // 说清楚这个数**不等於**"首轮会写进库几条"：真采集还要过首次导入上限（`_aihot.initialBackfillLimit`，
+  // 缺省 30）、每轮 120 条的上限和按身份去重——预览一条都不过。所以卡片写的是"本站规则留下"，不是"会入库"。
+  const preview = await previewSource({ id: id("denied"), kind: "rss", config: SOURCES.denied.config } as never);
+  assert.equal(preview.offered, 2, "这条源的列表本来给两条");
+  assert.equal(preview.count, (await articles(id("denied"))).length, "这条夹具没有上限与历史行，规则留下的就是真入库的那一条");
+  assert.deepEqual(preview.items.map((i) => i.url), [`https://example.org/rules-${T}/news/a`], "预览列出来的也得是规则之后剩下的");
+});
+
+test("规则项写成字符串时后台拒收，而不是让采集抛 TypeError", async () => {
+  // `allowed()` 对 allowUrlPrefixes / denyUrlPrefixes 直接 `.map`，`noiseFiltered` 对 dropMarkers 一类
+  // 直接 `.some`：写成字符串就是 TypeError，api 回 500，站长在预览按钮上看到的是"未知错误"。
+  // 现在 assertSupportedConfig 按形状先拒（create / edit / preview 三个入口共用它）。
+  const [row] = await sql<{ updated_at: Date }[]>`SELECT updated_at FROM sources WHERE id = ${id("denied")}`;
+  const bad = { ...SOURCES.denied.config, allowUrlPrefixes: `https://example.org/rules-${T}/` };
+  await assert.rejects(
+    updateSource(id("denied"), { patch: { config: bad }, version: row!.updated_at.toISOString() }, "test"),
+    /allowUrlPrefixes（要字符串数组）/,
+    "保存时按形状拒掉，别留到采集那一轮炸",
+  );
+  await assert.rejects(previewSource({ id: id("denied"), kind: "rss", config: bad } as never), /allowUrlPrefixes/);
+  const badNoise = { ...SOURCES.denied.config, ingestNoiseFilter: { dropMarkers: "Retraction" } };
+  await assert.rejects(previewSource({ id: id("denied"), kind: "rss", config: badNoise } as never), /ingestNoiseFilter\.dropMarkers（要字符串数组）/);
+  // 数组的数组、以及 null / 缺省都不该被误伤（读它们的地方一律 `?? []`）。
+  assert.equal((await previewSource({ id: id("denied"), kind: "rss", config: { ...SOURCES.denied.config, denyCategories: null } } as never)).count, 1);
 });
 
 test("detail rules fill what the listing lacks, and a detail title survives the next listing", async () => {

@@ -60,11 +60,17 @@ export const UNDERSTAND_FLOOR = SELECTION.understandFloor;
 /**
  * Call parameters per score model. The GLM scorer runs at temperature 1 with high reasoning (the model
  * registry adds top_p and thinking) and up to 180 s per call.
+ *
+ * The fallback is what production actually uses: `SCORE_MODEL` is unset, so scoring runs on the default
+ * model — the reasoning one. `providers/llm.ts` raises its timeout to 240 s only when the caller does not
+ * name one, so a 120 s number here silently cut the reasoning model's budget in half on the largest prompt
+ * of the five (up to 60 000 characters of body). An abort is not a connect failure: the receipt lands
+ * `unknown`, the money is spent and ops has to release it.
  */
 const SCORE_CALL: Record<string, { temperature: number; maxTokens: number; timeoutMs: number }> = {
   "glm-5.3-flash-selection": { temperature: 1, maxTokens: 65_536, timeoutMs: 180_000 },
 };
-const scoreCall = (model: string) => SCORE_CALL[model] ?? { temperature: 0.2, maxTokens: 1024, timeoutMs: 120_000 };
+const scoreCall = (model: string) => SCORE_CALL[model] ?? { temperature: 0.2, maxTokens: 1024, timeoutMs: 240_000 };
 
 /** The score prompt: the industry's taste (industry/prompts/selection-score.md). */
 export const SCORE_SYSTEM = promptText("selection-score");
@@ -274,8 +280,14 @@ async function runStructure(a: AnalyzeInputArticle, opts: StepOpts): Promise<Non
  * `finalizeCopy` 会把字段清空、条目停在等待，重试只会免费回放同一条英文答复。拒收它，收据落 failed
  * （可再付费），下一次重试才会真的重新问；它同时挡住"英文摘要被当中文稿发出去"的入库路径。
  */
-function noChineseAnswer(data: { titleZh?: string; summaryZh?: string; bodyZh?: string }): string | null {
-  return [data.titleZh, data.summaryZh, data.bodyZh].some((s) => typeof s === "string" && looksZh(s)) ? null : "answer has no Chinese copy";
+export function noChineseAnswer(data: { titleZh?: string; summaryZh?: string; bodyZh?: string }): string | null {
+  if (![data.titleZh, data.summaryZh, data.bodyZh].some((s) => typeof s === "string" && looksZh(s))) return "answer has no Chinese copy";
+  // 混合答复是同一个洞的另一半：中文标题 + 英文提要通过了"有中文"这一问，`finalizeCopy` 随后把提要清空、
+  // 条目停在等待，而回执已经记成 completed —— 之后每一次重试都免费回放这条坏答复，只有删回执才能重问。
+  // 把写作者自己的闸门提前到这里：它要清空的字段，就是这条答复不该被当成"好答复"的理由。
+  // （正文块不在这里判：`editorial/translate.ts` 逐块把关，英文正文块另有出路。）
+  const mixed = [data.titleZh, data.summaryZh].find((s) => typeof s === "string" && s.trim() !== "" && !looksZh(s));
+  return mixed ? "answer mixes non-Chinese copy into a Chinese field" : null;
 }
 
 /** The content understanding; null when the model's content filter declines the material. */

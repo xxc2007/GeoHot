@@ -176,14 +176,20 @@ async function writeLead(kind: string, key: string, entries: ReportEntry[], mode
   const title = res.data.title.trim();
   const leadParagraph = res.data.leadParagraph.trim();
   const rule = machineRuleOf(res.usage);
-  const refused = rule ?? (unusableLead(res.data) ? "no-signed-copy" : null);
+  // The 导语标题 is the daily's own headline — it goes into the RSS item title, the OG card and the v1
+  // `leadTitle`. The weekly has been guarded against naming an institution its entries never named since
+  // the identity-guard round; the daily was the one reader-visible headline left unguarded, so the same
+  // candidate printed a claim here that a weekly would refuse. A refused title takes the lead with it:
+  // a lead paragraph nobody can vouch for is not printed under a headline nobody wrote.
+  const guarded = guardedStoryTitle(title, entriesIdentity(shown));
+  const refused = rule ?? (unusableLead(res.data) ? "no-signed-copy" : null) ?? (guarded === null ? "headline-identity-guard" : null);
   const highlights = refused
     ? []
     : res.data.highlights
       .map((h) => entries[Number(h) - 1])
       .filter((e): e is ReportEntry => !!e)
       .map((e) => e.itemId);
-  return { lead: refused ? null : { title, leadParagraph }, highlights, receiptId: res.receiptId, refused };
+  return { lead: refused ? null : { title: guarded ?? "", leadParagraph }, highlights, receiptId: res.receiptId, refused };
 }
 
 /**
@@ -207,9 +213,12 @@ function issueCarriesCitations(kind: "daily" | "weekly" | "monthly", content: Re
  * date under a higher number. It stays readable and dated, just unnumbered.
  */
 async function nextIssueNo(tx: Tx, kind: string, key: string): Promise<number | null> {
+  // The lock comes first. Read "is there a later numbered issue?" before taking it and a catch-up run
+  // (older key) racing a scheduled run (newer key) can both see "no later issue" — the older one then
+  // stamps the higher number, which is exactly the ordering this function exists to protect.
+  await tx`SELECT pg_advisory_xact_lock(hashtext('report-issue-no:' || ${kind}))`;
   const [later] = await tx`SELECT 1 AS x FROM reports WHERE kind = ${kind} AND issue_no IS NOT NULL AND key > ${key} LIMIT 1`;
   if (later) return null;
-  await tx`SELECT pg_advisory_xact_lock(hashtext('report-issue-no:' || ${kind}))`;
   const [row] = await tx<{ n: number }[]>`SELECT coalesce(max(issue_no), 0) + 1 AS n FROM reports WHERE kind = ${kind}`;
   return row!.n;
 }

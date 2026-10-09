@@ -6,7 +6,7 @@ import { pageMeta } from "../lib/seo";
 import { beijingDate, beijingWeekday } from "../lib/format";
 import { EmptyState } from "../components/ui/Page";
 import { ReportLayout } from "../features/report/ReportLayout";
-import { archiveGroups, dayLabel, missingRuns, type ArchiveGroup, type MissingRun } from "../features/report/format";
+import { archiveGroups, dayLabel, missingRuns, type MissingRun } from "../features/report/format";
 import { Rows, SectionPage } from "../features/report/ReportPaper";
 import { Nameplate } from "../features/report/Nameplate";
 
@@ -38,8 +38,15 @@ export default function DailyArchive() {
   const gaps = missingRuns(index);
   const byMonth = new Map<string, MissingRun[]>();
   for (const run of gaps) byMonth.set(run.month, [...(byMonth.get(run.month) ?? []), run]);
-  const rowsOf = (m: ArchiveGroup): ArchiveRow[] =>
-    [...m.entries.map((issue) => ({ issue })), ...(byMonth.get(m.id) ?? []).map((gap) => ({ gap }))].sort((a, b) => rowKey(b).localeCompare(rowKey(a)));
+  const rowsFor = (month: string, entries: Issue[]): ArchiveRow[] =>
+    [...entries.map((issue) => ({ issue })), ...(byMonth.get(month) ?? []).map((gap) => ({ gap }))].sort((a, b) => rowKey(b).localeCompare(rowKey(a)));
+  // A month made only of空档 still gets its own section: printed issues on 28 September and 2 November
+  // with nothing in between must not read as "the paper skipped October" — the archive would jump from
+  // 九月 to 十一月 in silence, which is the very failure the 未出刊 row exists to remove.
+  const groups = [
+    ...months.map((m) => ({ id: m.id, label: m.label, items: rowsFor(m.id, m.entries) })),
+    ...[...byMonth.keys()].filter((id) => !months.some((m) => m.id === id)).map((id) => ({ id, label: `${id.slice(0, 4)} 年 ${Number(id.slice(5, 7))} 月`, items: rowsFor(id, []) })),
+  ].sort((a, b) => b.id.localeCompare(a.id));
   return (
     <ReportLayout kind="daily" index={index} current={null} today={today}>
       <div className="@container">
@@ -67,12 +74,12 @@ export default function DailyArchive() {
           </p>
         )}
         {/* 一期都还没有时的样子：说没有，而不是留一张只有报头的白页。 */}
-        {months.length === 0 ? (
+        {groups.length === 0 ? (
           <EmptyState as="h1" title={`还没有${withSubject("日报")}存档`}>出刊之后，每一天的一期会按月份归到这里。</EmptyState>
         ) : null}
-        {months.map((m) => (
-          <SectionPage key={m.id} id={`m-${m.id}`} label={m.label}>
-            <Rows items={rowsOf(m)}>
+        {groups.map((g) => (
+          <SectionPage key={g.id} id={`m-${g.id}`} label={g.label}>
+            <Rows items={g.items}>
               {(row, cell) =>
                 "gap" in row ? (
                   <div key={row.gap.from} className={`flex gap-4 py-4 ${cell}`}>
