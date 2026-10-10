@@ -80,9 +80,20 @@ if (values.apply && sameTarget(values["database-url"]!) !== sameTarget(target)) 
   await closeDb();
   process.exit(2);
 }
-const MAX_ITEMS = Number(values["max-items"]);
-const PER_MONTH = Number(values["per-month"]);
-const PER_PAGE = Math.min(500, Math.max(1, Number(values["per-page"])));
+// 三个数字参数都要是**正有限数**：`--max-items=abc` 会静默变成 NaN，而 NaN 的每一次比较都是 false——
+// 站点门会当成"没有上限"（跑到天荒地老），Crossref 门的内层判据 `localSeen < NaN` 也恒 false，切片
+// 一条不写还永远停在 pending。这种"参数打错字=进程静默走错路"的入口，宁可当场拒绝。
+const positive = (raw: string | undefined, fallback: number, flag: string) => {
+  const n = Number(raw ?? fallback);
+  if (!Number.isFinite(n) || n <= 0) {
+    console.error(`${flag} 需要一个正数（给的是「${raw}」）。`);
+    process.exit(2);
+  }
+  return n;
+};
+const MAX_ITEMS = positive(values["max-items"], 2000, "--max-items");
+const PER_MONTH = positive(values["per-month"], 60, "--per-month");
+const PER_PAGE = Math.min(500, positive(values["per-page"], 100, "--per-page"));
 const SLEEP = Math.max(0, Number(values.sleep));
 const onlyIds = values.source!.split(",").map((s) => s.trim()).filter(Boolean);
 
