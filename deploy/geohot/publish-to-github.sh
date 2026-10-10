@@ -85,7 +85,9 @@ unset GIT_INDEX_FILE
 #      源站地址、SSH 用户名、密钥文件名一旦进了公开仓，删掉历史也已经被爬过。所以在 commit-tree 之前拦。
 # 名字表跟 `.gitignore`  guard 的那一族对齐（`*.env*`、`*.key`、`*.p8`、`secrets*`、`credentials*`、`id_*`），
 # 只放过仓库里那两个 `.env.example` / `.env.pipeline.example` 空值模板——它们是文档，不是秘密。
-BAD_PATHS=$(git ls-tree -r --name-only "$tree" | grep -E '(^|/)(\.env(\.[a-z0-9-]+)?|\.data/|id_(rsa|ed25519|ecdsa|dsa|openssh)[^/]*|[^/]*\.(pem|key|p8)|secrets[^/]*|credentials[^/]*)$' | grep -vE '\.example$' || true)
+# `.data/` 是**目录前缀**，不能跟别的写在同一个 `$` 锚里：`(…|\.data/)$` 只匹配路径正好以 `.data/` 结尾，
+# `.data/foo.db` 从它下面过（审计 2026-10-10 实测），所以它单列在锚外。
+BAD_PATHS=$(git ls-tree -r --name-only "$tree" | grep -E '(^|/)(\.env(\.[a-z0-9-]+)?|id_(rsa|ed25519|ecdsa|dsa|openssh)[^/]*|[^/]*\.(pem|key|p8)|secrets[^/]*|credentials[^/]*)$|(^|/)\.data/' | grep -vE '\.example$' || true)
 if [[ -n "$BAD_PATHS" ]]; then
   echo "✗ 要发布的树里有 .env / 私钥 / *.pem 这类路径，公开仓不收：" >&2
   printf '%s\n' "$BAD_PATHS" | sed 's/^/    /' >&2

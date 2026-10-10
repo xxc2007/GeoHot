@@ -87,7 +87,7 @@ sudo journalctl -u geohot-web -n 3                                              
 
 | 症状 | 真正原因 |
 |---|---|
-| `ssh ubuntu@…` 被拒 | 登录用户不是默认的 `ubuntu`（按你的机器填） |
+| `ssh <ssh-user>@…` 被拒 | 登录用户不是云厂商的默认账号（按你的机器填） |
 | `node: .env: not found` + 单元反复重启 | 相对 `--env-file=.env` 相对的是单元自己的 `WorkingDirectory` |
 | 公网 404、直连 443 却 200 | Cloudflare **80 端口明文回源**，`:80` 的 vhost 没有 location |
 | 页面 200，CSS/JS 全 404 | 同 vhost 的 `~* \.(css\|js\|…)$` 正则覆盖了普通前缀 location，要用 `^~` |

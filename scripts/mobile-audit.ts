@@ -198,8 +198,9 @@ try {
       if (!value) { report.push({ width, route, error: JSON.stringify(evaluated).slice(0, 200) }); continue; }
       const shot = await cdp.send("Page.captureScreenshot", { format: "png", captureBeyondViewport: false });
       const file = path.join(flags.out!, `${width}${route.replace(/[^a-z0-9]+/gi, "_") || "_home"}.png`);
-      if (shot?.data) writeFileSync(file, Buffer.from(shot.data, "base64"));
-      report.push({ width, route, nav: nav?.frameId ? "ok" : nav, ...value, problems: cdp.events.slice(0, 12), shot: path.basename(file) });
+      const shotWritten = !!shot?.data;
+      if (shotWritten) writeFileSync(file, Buffer.from(shot.data, "base64"));
+      report.push({ width, route, nav: nav?.frameId ? "ok" : nav, ...value, problems: cdp.events.slice(0, 12), shot: shotWritten ? path.basename(file) : null });
       console.log(JSON.stringify(report[report.length - 1]));
     }
   }

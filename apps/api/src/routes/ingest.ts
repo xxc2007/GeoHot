@@ -21,6 +21,14 @@ function authorized(req: FastifyRequest): boolean {
 const windows = new Map<string, number[]>();
 function limited(key: string, perMinute: number): boolean {
   const now = Date.now();
+  if (windows.size > 5000) {
+    // 与 admin 登录那处同一个形状：轮换 IP 就能把这张表撑大，而它只服务限速，不服务正确性——
+    // 清掉过期客户端的记录即可，被清空的那一格最坏只是重新开始计数（多放行一分钟）。
+    for (const [k, times] of windows) {
+      if (times.every((t) => now - t >= 60_000)) windows.delete(k);
+    }
+    if (windows.size > 5000) windows.clear();
+  }
   const list = (windows.get(key) ?? []).filter((t) => now - t < 60_000);
   if (list.length >= perMinute) return true;
   list.push(now);

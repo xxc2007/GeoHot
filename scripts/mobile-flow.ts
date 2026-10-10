@@ -1,7 +1,10 @@
 // Interaction walk at phone width: the flows a thumb actually performs, and what each one leaves behind.
 // Read-only against whatever base is given; prints one JSON line per step.
+//
+//   node scripts/mobile-flow.ts --base https://xxc2007.me/geohot [--width 390] [--out D:/tmp/mobile-flow]
+//   （--port/--chrome 同 mobile-audit.ts；Git Bash 下要把 MSYS_NO_PATHCONV=1 带上，否则参数里的 / 会被改写成 Windows 路径）
 import { execFile, spawn, type ChildProcess } from "node:child_process";
-import { existsSync, mkdirSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import { parseArgs } from "node:util";
@@ -96,7 +99,6 @@ if (itemHref) {
   // with it again produced /geohot/geohot/... on the first run — a probe bug that looked like a 404).
   await goto(itemHref.startsWith("http") ? itemHref : `${new URL(base).origin}${itemHref}`);
   const itemState = await evaluate("({ title: document.title.slice(0, 40), h1: document.querySelector('h1')?.textContent?.slice(0, 30), hasBack: !!document.querySelector('a[href=\"/\"], button') })");
-  await send("Page.navigateToHistoryEntry", {}).catch(() => {});
   await evaluate("history.back(); true");
   await new Promise((r) => setTimeout(r, 2000));
   const backState = await evaluate("({ url: location.pathname, y: Math.round(window.scrollY) })");
@@ -129,6 +131,8 @@ await new Promise((r) => setTimeout(r, 1200));
 const searchAfter = await evaluate("({ url: location.pathname + location.search, input: !!document.querySelector('input[type=search], input[placeholder*=\"搜索\"]'), focused: document.activeElement?.tagName?.toLowerCase() })");
 record("tap-search", { search, searchAfter });
 
+// 每一步都落盘：探针的意义就是让下一轮能复查同一批数字，而不是只能重跑。
+writeFileSync(path.join(flags.out!, "steps.json"), JSON.stringify(steps, null, 1));
 ws.close();
 await new Promise<void>((res) => execFile("taskkill", ["/PID", String(child.pid), "/T", "/F"], () => res()));
 try { rmSync(path.join(flags.out!, ".profile"), { recursive: true, force: true }); } catch { /* disposable */ }
