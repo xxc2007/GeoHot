@@ -1000,6 +1000,238 @@
       "enabled": true
     },
     {
+      "id": "web-geog-toc",
+      "name": "地理学报 当期目录",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.geog.com.cn/CN/0375-5444/home.shtml",
+        "parseMode": "html",
+        "itemSelector": "a[href*='/CN/10.']",
+        "allowUrlPrefixes": [
+          "https://www.geog.com.cn/CN/10."
+        ],
+        "archiveIndexUrl": "https://www.geog.com.cn/CN/archive_by_issues",
+        "archiveIssueItemSelector": "div.gk_qi",
+        "archiveIssueDateRegex": "(\\d{4}-\\d{2}-\\d{2})",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "中文",
+        "期刊",
+        "自然地理",
+        "人文地理",
+        "区域地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "web-resci-toc",
+      "name": "资源科学 当期目录",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.resci.cn/CN/1007-7588/home.shtml",
+        "parseMode": "html",
+        "itemSelector": "a[href*='/CN/10.']",
+        "allowUrlPrefixes": [
+          "https://www.resci.cn/CN/10."
+        ],
+        "archiveIndexUrl": "https://www.resci.cn/CN/archive_by_issues",
+        "archiveIssueItemSelector": "div.gk_qi",
+        "archiveIssueDateRegex": "(\\d{4}-\\d{2}-\\d{2})",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "中文",
+        "期刊",
+        "自然地理",
+        "区域地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "web-dqxxkx-toc",
+      "name": "地球信息科学学报 当期目录",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.dqxxkx.cn/CN/1560-8999/home.shtml",
+        "parseMode": "html",
+        "itemSelector": "a[href*='/CN/10.']",
+        "allowUrlPrefixes": [
+          "https://www.dqxxkx.cn/CN/10."
+        ],
+        "archiveIndexUrl": "https://www.dqxxkx.cn/CN/archive_by_issues",
+        "archiveIssueItemSelector": "div.gk_qi",
+        "archiveIssueDateRegex": "(\\d{4}-\\d{2}-\\d{2})",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "中文",
+        "期刊",
+        "GIS与空间数据",
+        "遥感影像"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "web-rwdl-toc",
+      "name": "人文地理 当期目录",
+      "kind": "web_list",
+      "config": {
+        "url": "http://rwdl.xisu.edu.cn/CN/1003-2398/home.shtml",
+        "parseMode": "html",
+        "itemSelector": "a[href*='/CN/10.']",
+        "allowUrlPrefixes": [
+          "http://rwdl.xisu.edu.cn/CN/10."
+        ],
+        "archiveIndexUrl": "http://rwdl.xisu.edu.cn/CN/archive_by_issues",
+        "archiveIssueItemSelector": "div.gk_qi",
+        "archiveIssueDateRegex": "(\\d{4}-\\d{2}-\\d{2})",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "中文",
+        "期刊",
+        "人文地理",
+        "经济地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "web-jnr-toc",
+      "name": "自然资源学报 当期目录",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.jnr.ac.cn/CN/1000-3037/home.shtml",
+        "parseMode": "html",
+        "itemSelector": "a[href*='/CN/10.']",
+        "allowUrlPrefixes": [
+          "https://www.jnr.ac.cn/CN/10."
+        ],
+        "archiveIndexUrl": "https://www.jnr.ac.cn/CN/archive_by_issues",
+        "archiveIssueItemSelector": "div.gk_qi",
+        "archiveIssueDateRegex": "(\\d{4}-\\d{2}-\\d{2})",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "中文",
+        "期刊",
+        "自然地理",
+        "区域地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "web-rddl-toc",
+      "name": "热带地理 当期目录",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.rddl.com.cn/CN/1001-5221/home.shtml",
+        "parseMode": "html",
+        "itemSelector": "a[href*='/CN/10.']",
+        "allowUrlPrefixes": [
+          "https://www.rddl.com.cn/CN/10."
+        ],
+        "archiveIndexUrl": "https://www.rddl.com.cn/CN/archive_by_issues",
+        "archiveIssueItemSelector": "div.gk_qi",
+        "archiveIssueDateRegex": "(\\d{4}-\\d{2}-\\d{2})",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "中文",
+        "期刊",
+        "区域地理",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "web-chxb-toc",
+      "name": "测绘学报 当期目录",
+      "kind": "web_list",
+      "config": {
+        "url": "http://xb.chinasmp.com/CN/1001-1595/home.shtml",
+        "parseMode": "html",
+        "itemSelector": "a[href*='/CN/10.']",
+        "allowUrlPrefixes": [
+          "http://xb.chinasmp.com/CN/10."
+        ],
+        "archiveIndexUrl": "http://xb.chinasmp.com/CN/archive_by_issues",
+        "archiveIssueItemSelector": "a.J_WenZhang",
+        "archiveIssueDateRegex": "(\\d{4}-\\d{2}-\\d{2})",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "中文",
+        "期刊",
+        "GIS与空间数据",
+        "地图与制图"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
       "id": "atom-gdal-releases",
       "name": "GDAL 版本发布（OSGeo GitHub Releases）",
       "kind": "rss",
