@@ -3436,3 +3436,48 @@ HAL 有 3/40 条 `<description>` 就是 `<![CDATA[[...]]]>`，于是 `excerpt` �
 
 **验收**：六份工程 typecheck 0 错；整套 390 项／385 通过／5 跳过／**0 失败**；新判据先证红
 （把 `key <=` 改成 `key <`，那条边界断言立刻失败）再证绿；`backfill-papers` 干跑一次输出正常。
+
+---
+
+## 第六十六轮（2026-10-10 中午）：五路模型门、移动端量具、可迁移备份与一次 GitHub 发布
+
+站长给的两把 key 与"移动端体验不太好"，逐条落成：
+
+1. **五路模型门都实测过**（采集机上真发请求，不看文档）：
+   - `dots3-note-prev`（小红书，512K 上下文）**可用**：`api-key` 头与 `Authorization: Bearer` **两种都收**，
+     开思考一次 13–19 秒、1.1k–1.6k 隐藏 token，4 连发 4 个 200；文档默认 RPM 60 / TPM 150 万。
+     登记为 `service=dots`，extra 带 `reasoning_effort`（让 240 秒超时与 6k 余量那支生效）。
+   - **OpenRouter 那把 key 不能推理**：`GET /api/v1/key` 回 `is_management_key: true`，`/models` 能列 458 个
+     模型（15 个 `:free`），但任何 `chat/completions` 都 `401 User not found`。**要另建一把普通（推理）key**；
+     `openrouter-free` 通路已登记好、**先不进池子**——池子按 shard 分活，配一个只会 401 的门等于把 1/N 的
+     工作扔进重试阶梯。key 一到位：设 `OPENROUTER_MODEL` 为实测可用的 `:free` 模型、加进 `MODEL_POOL` 即可。
+   - `opencode`（4 连发 4 个 200，2–5 秒，只扛自由文本）与 Agnes 国际版（4 连发 4 个 200，5–12 秒）都在；
+     **Agnes 国内版当天额度已用完**（429「今日文本额度已用完…每 1 分钟可请求 1 次」）。
+   - 现值 `MODEL_POOL=agnes-3.0-flash-cn,default,dots3-note-prev,space-bunny-free`；逐 capability 读回：
+     除 `summarize` 四路外，其余十步都是 `agnes-cn, default, dots` 三门，opencode 只出现在自由文本那一步。
+   - 迁移 `0055` 给 dots / openrouter 各建一行熔断（20/600/6000 与 15/300/6000）。
+2. **量具踩坑记一条**：`receipt_attempts.status` 成功写的是 `received`，而"完成"是 `receipts.status='completed'`。
+   我第一次按 `attempts.status='completed'` 数，得到"90 分钟 767 次尝试全部失败"的假事故；按 service 数 receipts
+   才是真的（dots 47 completed、llm 586 received、agnes-cn 1,392 failed）。**数表之前先确认两列的词表不是一套。**
+3. **移动端**（`scripts/mobile-audit.ts`，headless Chrome + CDP，Node 自带 WebSocket、零新依赖）在 390×844 上
+   逐页量：横向溢出 0、无错误页；改前最小命中区域是条目页「返回」「原文」与两个图标按钮 32px、热点榜展开
+   按钮 28–32px、筛选片 32px、翻页片 36px、两条行内文字链 16px。`app.css` 新增 `@media (pointer: coarse)`：
+   控件 `min-height: 44px`，行内文字链用 `padding-block` + 等量负 margin 撑命中区域（行高与版心不动），
+   只作用于触摸设备。改后复量：图标按钮 32×44、文字链 16→38px；仍小于 40px 的只剩"整卡可点的标题链"
+   （命中区域其实是整张卡）与 ≥24px 的方形按钮——**这两种不是缺陷，别再当新发现报一遍**。
+4. **可迁移备份**（站长要求"随时迁移部署"）：`/opt/geohot/backups/geohot-<UTC>-full.tgz`（153 MB）＝
+   整库 `pg_dump`（145 MB）＋ 与服务器同一棵 HEAD 的代码 tar ＋ `env-keys.txt`（**只有键名**）＋ 四个 systemd
+   单元 ＋ nginx 片段 ＋ `README-restore.md`（八步恢复顺序与验收命令）。**当场做过恢复演练**：灌进临时库
+   `geohot_restore_drill`，数出 sources 287 / articles 18,370 / publications 12,018 / reports 19 / budgets 13，
+   然后删库。踩坑：服务器 `/opt/geohot/app` **没有 .git**，`git archive` 在那里必然失败——代码 tar 必须在本地
+   生成再上传。
+5. **GitHub 发布**（站长要求三端一致）：本地 HEAD 与 `origin/main` 已分叉（远端 12 个提交里有他自己的三个
+   宣传片提交，`docs/promo/{geohot-promo.mp4,index.html,poster.jpg}` 是**只在远端存在**的路径）。用临时 index
+   把这 3 个路径＋两份 README 从 `origin/main` 取回来，与本地 HEAD 合成一棵树（`e345ef5`），父节点指向远端
+   HEAD，推成 `28d610d`——远端 main 现在逐字节等于该提交，他的宣传片与 README 都在。事后 `verify-github-sync.sh`
+   仍报 4 项"不同"，那是**他工作区里未提交的第二次改动**（README×2 与未被本地 HEAD 跟踪的 promo），
+   不是发布错误；发布状态以 `git diff origin/main 28d610d`（空）为准。
+6. **档案侧同日结果**：七家中文期刊目录源共入库 **+868 条**（档案材料 2,076 → 2,944），
+   **`published_at IS NULL` 的档案行现在是 0**（那 12 条被实时目录写成 undated 的地理学报条目已补上刊期）。
+   `--per-month` 改成数"入库"之后，重跑能越过旧的 12 条墙：`web-geog-toc 2026-03` 从 0 条变 5 条，
+   月度切片能正常收 `done`。
