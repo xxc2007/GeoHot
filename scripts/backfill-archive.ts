@@ -408,7 +408,13 @@ for (const month of months()) {
         + `&select=DOI,title,container-title,abstract,URL,author,published,issued${mailto ? `&mailto=${encodeURIComponent(mailto)}` : ""}`;
       const res = await page(url);
       if (!res) { stoppedOnError = true; break; }
-      if (res.items.length === 0) { cursor = ""; break; }
+      // 空页是 Crossref 说"没有了"的正常方式——**前提是它同时也没给 next-cursor**。给了游标却一条不给
+      // 是一次读坏了的答案，按"停在这一页"处理：否则一个 200 的空壳就把这个月剩下的都退休掉。
+      if (res.items.length === 0) {
+        if (res.next) { console.error("  这一页一条都没给却带着 next-cursor，停在原地而不是判它跑完"); stoppedOnError = true; break; }
+        cursor = "";
+        break;
+      }
       // A page without a next cursor is a Crossref answer we cannot resume from, not an exhausted slice.
       const next = res.next;
       if (!next && res.items.length >= PER_PAGE) {
