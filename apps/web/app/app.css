@@ -614,3 +614,30 @@
   .sticky, [class*="backdrop-blur"] { position: static !important; backdrop-filter: none !important; }
   h1, h2, h3, h4 { break-after: avoid-page; }
 }
+
+/* ---------------------------------------------------------------------------
+   触屏上的点击目标。量出来的清单（2026-10-10，`scripts/mobile-audit.ts` 在 390×844 上逐页量）：
+   条目页的「返回」「原文」与两个图标按钮 32px、热点榜的展开按钮 28–32px、筛选片 32px、翻页片 36px，
+   还有两条只有 16px 高的行内文字链（「使用规则第 3 条」与来源名）。这些尺寸是本站的设计语言
+   （发丝线、紧凑标签），鼠标下没问题；触摸下按 44px 给一块可点区域，视觉尺寸尽量不动。
+
+   只改命中区域，不改排版：控件用 min-height（它们本来就是 flex 居中的方块），
+   行内文字链用纵向 padding + 等量负 margin 把命中区域撑高、行高与版心一动不动。
+   媒体查询限定触摸设备，桌面截图与 README 配图不受影响。
+   --------------------------------------------------------------------------- */
+@media (pointer: coarse) {
+  button,
+  [role="button"],
+  summary,
+  select,
+  a[class*="inline-flex"] { min-height: 44px; }
+
+  /* 行内文字链：撑高命中区域，同时把多出来的高度用负 margin 还回去 */
+  p > a[href],
+  li > a[href],
+  dd > a[href],
+  figcaption a[href] { padding-block: 11px; margin-block: -11px; }
+
+  /* 分页/筛选条这类横向滚动的控件，宁可稍高也不要贴着上下两行可点区域 */
+  nav[aria-label] a[class*="inline-flex"] { min-height: 44px; }
+}
