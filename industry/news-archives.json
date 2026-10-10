@@ -1,6 +1,14 @@
 {
-  "$comment": "Explicit non-journal archive adapters; source registration remains in sources.json. Page/date selectors verified against publisher HTML on 2026-10-10. This is not a universal archive for all sources.",
+  "$comment": "Explicit non-journal archive adapters; source registration remains in sources.json. HTML page/date selectors and ITDP RSS pagination verified against publisher listings on 2026-10-10. This is not a universal archive for all sources.",
   "archives": [
+    {
+      "sourceId": "rss-itdp-news",
+      "mode": "pages",
+      "format": "rss",
+      "urlTemplate": "https://www.itdp.org/feed/?paged={page}",
+      "firstPage": 1,
+      "config": {}
+    },
     {
       "sourceId": "web-wmo-news",
       "mode": "pages",

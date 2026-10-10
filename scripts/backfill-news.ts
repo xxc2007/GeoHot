@@ -7,11 +7,14 @@ import { parseArgs } from "node:util";
 import { setTimeout as delay } from "node:timers/promises";
 import type { Candidate, SourceRow } from "../packages/backend/src/sources/types.ts";
 import type { MaterialInput, MaterialResult } from "../packages/backend/src/content/materials.ts";
+import { identityKeyForUrl } from "../packages/backend/src/lib/url.ts";
 
 const ROOT = resolve(import.meta.dirname, "..");
 export interface ArchiveRule {
   sourceId: string;
   mode: "pages" | "months";
+  /** Omitted means the existing HTML listing; RSS uses its registered feed parser. */
+  format?: "html" | "rss";
   urlTemplate: string;
   firstPage?: number;
   firstPageUrl?: string;
@@ -70,6 +73,16 @@ export interface Dependencies {
   checkpoint?: (state: State) => Promise<void>;
   log?: (v: unknown) => void;
 }
+export async function fetchArchiveSource(source: SourceRow): Promise<Candidate[]> {
+  if (source.kind === "rss") {
+    const { fetchRss } = await import("../packages/backend/src/sources/rss.ts");
+    const { applySourceFilters } = await import("../packages/backend/src/sources/collect.ts");
+    // History must read actual page contents, never interpret a live-feed 304 as an empty archive.
+    return applySourceFilters((await fetchRss(source, { force: true })).candidates, source);
+  }
+  const { fetchWebList } = await import("../packages/backend/src/sources/web-list.ts");
+  return fetchWebList(source);
+}
 export async function run(o: Options, rules: ArchiveRule[], sources: SourceRow[], d: Dependencies, state: State = { version: 1, completed: [] }) {
   if (state.version !== 1 || !Array.isArray(state.completed) || state.completed.some(v => typeof v !== "string")) throw new Error("Invalid checkpoint");
   if (state.partial && (typeof state.partial !== "object" || Array.isArray(state.partial) || Object.values(state.partial).some(v => !Array.isArray(v) || v.some(url => typeof url !== "string")))) throw new Error("Invalid partial checkpoint");
@@ -90,6 +103,10 @@ export async function run(o: Options, rules: ArchiveRule[], sources: SourceRow[]
     const registered = sources.find(s => s.id === rule.sourceId);
     if (!registered) throw new Error(`Source is not registered: ${rule.sourceId}`);
     if (!registered.enabled || registered.participation_mode !== "editorial") throw new Error(`Source is not enabled for editorial processing: ${rule.sourceId}`);
+    if (rule.format && rule.format !== "html" && rule.format !== "rss") throw new Error(`Unsupported archive format: ${rule.format}`);
+    if (rule.format === "rss" && registered.kind !== "rss") throw new Error(`RSS archive requires a registered RSS source: ${rule.sourceId}`);
+    // Keep HTML identity/checkpoint behavior unchanged; RSS aliases use canonical material identity.
+    const identity = (url: string) => rule.format === "rss" ? identityKeyForUrl(url) ?? url : url;
     let priorSignature = "";
     const prefix = `${o.from}:${o.to}:${rule.sourceId}:`;
     const completedPages = o.apply ? [...done].filter(k => k.startsWith(prefix)).length : 0;
@@ -109,12 +126,15 @@ export async function run(o: Options, rules: ArchiveRule[], sources: SourceRow[]
       if (o.apply && done.has(key) && !openListing) continue;
       if (stats.pages >= o.maxPages || stats.eligible >= o.maxItems) { stats.limited = true; break outer; }
       try {
-        const completedItems = new Set(state.partial?.[key] ?? []);
-        const items = await d.fetch({ ...registered, kind: "web_list", config: { ...registered.config, ...rule.config, url } });
+        const completedItems = new Set((state.partial?.[key] ?? []).map(identity));
+        const rss = rule.format === "rss";
+        const items = await d.fetch({ ...registered, kind: rss ? "rss" : "web_list", config: {
+          ...registered.config, ...rule.config, ...(rss ? { feedUrl: url } : { url }),
+        } });
         stats.pages++;
         if (!items.length) throw new Error("Empty archive listing: coverage is unknown; page remains pending");
         // A CMS that ignores an out-of-range page must not masquerade as more history.
-        const signature = items.map(c => c.url).join("\n");
+        const signature = items.map(c => identity(c.url)).join("\n");
         if (rule.mode === "pages" && signature === priorSignature) { stats.limited = true; d.log?.({ source: rule.sourceId, stop: "repeated-page", coverage: "unknown", url }); break; }
         priorSignature = signature;
         let interrupted = false;
@@ -125,9 +145,10 @@ export async function run(o: Options, rules: ArchiveRule[], sources: SourceRow[]
           if (!m) { stats.undated++; continue; }
           // Publisher instant, compared with the requested inclusive Beijing civil days.
           const day = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit" }).format(m.publishedAt!);
-          if (day < o.from || day > o.to || m.publishedAt!.getTime() > discoveredAt.getTime() || seen.has(c.url) || completedItems.has(c.url)) continue;
+          const itemKey = identity(c.url);
+          if (day < o.from || day > o.to || m.publishedAt!.getTime() > discoveredAt.getTime() || seen.has(itemKey) || completedItems.has(itemKey)) continue;
           if (stats.eligible >= o.maxItems) { interrupted = true; stats.limited = true; break; }
-          seen.add(c.url); stats.eligible++;
+          seen.add(itemKey); stats.eligible++;
           if (o.apply) {
             const result = await d.store!(m);
             if (result.created) stats.created++;
@@ -136,7 +157,7 @@ export async function run(o: Options, rules: ArchiveRule[], sources: SourceRow[]
             if (await d.queue!(result.articleId)) stats.queued++;
             // Persist only after both canonical storage and queue acknowledgement. URL identity survives
             // listing insertions/reordering, and a partial page no longer spends each rerun on duplicates.
-            completedItems.add(c.url);
+            completedItems.add(itemKey);
             state.partial ??= {};
             state.partial[key] = [...completedItems];
             await d.checkpoint!(state);
@@ -185,9 +206,8 @@ async function main() {
   if (o.apply && !process.env.DATABASE_URL) throw new Error("DATABASE_URL must be explicitly provided");
   const rules = JSON.parse(await readFile(resolve(ROOT, "industry/news-archives.json"), "utf8")).archives as ArchiveRule[];
   let sources = JSON.parse(await readFile(resolve(ROOT, "industry/sources.json"), "utf8")).sources as SourceRow[];
-  const { fetchWebList } = await import("../packages/backend/src/sources/web-list.ts");
   let state: State = { version: 1, completed: [] };
-  const d: Dependencies = { fetch: fetchWebList, log: v => console.log(JSON.stringify(v)) };
+  const d: Dependencies = { fetch: fetchArchiveSource, log: v => console.log(JSON.stringify(v)) };
   let close = async () => {};
   if (o.apply) {
     if (!o.state.startsWith(resolve(ROOT, ".data") + "/") && !o.state.startsWith(resolve(ROOT, ".data") + "\\")) throw new Error("Checkpoint must stay inside private .data/");

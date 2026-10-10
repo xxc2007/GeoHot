@@ -1,6 +1,8 @@
 # 非论文新闻历史采集
 
-`scripts/backfill-news.ts` 是独立于 Crossref/期刊回填的入口，分页规则只写在 `industry/news-archives.json`。2026-10-10 当前登记 10 个适配器：WMO、Library of Congress Worlds Revealed、国家数据局、上海市政府、广州市政府、上海统计、UNFPA、IOM、ADB、ECLAC。登记和采集数量均不表示全部信源都支持历史回填。LOC 使用年月档案首页；若月份以后出现后续页，须先核验并扩展适配器，当前工具不承诺未检查的月内分页覆盖。
+`scripts/backfill-news.ts` 是独立于 Crossref/期刊回填的入口，分页规则只写在 `industry/news-archives.json`。2026-10-11 当前登记 11 个适配器：WMO、Library of Congress Worlds Revealed、国家数据局、上海市政府、广州市政府、上海统计、UNFPA、IOM、ADB、ECLAC，以及 ITDP 的 RSS 过往分页。登记和采集数量均不表示全部信源都支持历史回填。LOC 使用年月档案首页；其本次月页与年度五页均为同样 38 条，未来月份若出现后续页，须核验并扩展适配器，当前工具不承诺任意月内分页覆盖。
+
+未指定 `format` 的规则继续使用 HTML web-list。唯一受控 `format:rss` 入口调用既有 `fetchRss`，强制读取实际响应而非 live-feed 的 304，并复用注册源的 `applySourceFilters`（URL 允许/拒绝、改写、分类和噪声规则），再进入日期与 canonical 身份处理。RSS teaser 不冒充原文；HTTP/空响应保持覆盖未知，整页全有日期且全旧才确认边界。ITDP 第五页包含两条 2026 年材料，真实全旧边界为第六页。
 
 本轮已有 7 源、192 页、3,417 条符合日期条件的候选经过 canonical 入库流程，这是单次导入执行证据；当时未写入长期新闻 checkpoint，不能把该数字当作持续分页与完整覆盖证明。边界和后续断点必须由周期使用同一状态文件重新观察，数据库原有身份规则避免重复入库，已处理或拒绝记录不会重新启动付费分析。
 
