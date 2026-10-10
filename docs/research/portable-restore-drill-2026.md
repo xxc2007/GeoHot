@@ -52,3 +52,26 @@
 实际删除的数据库只有 `geohot_a15_restore_test`，删除后同名库数量为 0，生产 `geohot` 库仍存在。实际递归删除的目录只有经过 `realpath` 精确核对的 `/opt/geohot/backups/migration/a15-restore-private`，删除后目录不存在。原 0600 迁移包保留。
 
 结束时 `geohot-api`、`geohot-web`、`geohot-worker`、`geohot-brain` 均为 `active`。未改生产源码、共享运行配置或邻居站点，也未公开私有归档。
+
+## 第二次真实演练：扩充后的中间包
+
+同日对 `geohot-20261010T144556Z-portable.tgz` 再次执行真实恢复，而非沿用第一包的结果。新包 225966209 bytes、0600，外层 SHA256 及内部 15 项 manifest 校验全部通过；此包仍为中间快照，不能称为任务最终备份。
+
+第二次仅新建 `geohot_a15_restore_v2_test`，解压目录为私有 0700 的 `a15-restore-private-v2`，未启动任何新服务或 worker。恢复单线程、退出码 0；**72 表共 840360 行逐表与该包自身 COPY 数据完全一致**，没有把持续变化的生产计数当成备份验收目标。**16 个序列状态完全一致**；53 条迁移记录、53 个源码迁移 SQL；未验证外键 0、无效索引 0，`pg_trgm` 存在。恢复库约 686 MB。
+
+| 第二包快照对象 | 实际恢复结果 |
+| --- | --- |
+| articles | 23485 |
+| article_revisions | 39231 |
+| analyses | 14216 |
+| publications | 13156 |
+| sources | 311；启用 289 |
+| reports | 19：日报 16、周报 2、月报 1 |
+| receipts / receipt_attempts | 80350 / 85359 |
+| pgboss.job_common | 219653 |
+
+第二包实际包含 `archive-cycle.conf`，`RESTORE.txt` 包含恢复该配置的指引。当前备份脚本默认目的地已经改为服务账户可写的迁移目录；前轮发现的两项问题已在本轮代码/归档中修复。源码包包含锁文件、53 个迁移 SQL、`backfill-news.ts` 和 `.env`；只检查环境文件存在，未读取或输出凭据。
+
+第二次逐表证据与序列证据保存在本轮私有过程目录的 `a15-restore-v2-evidence.json`、`a15-restore-v2-sequences.json`。结束时唯一 v2 测试库已删除、同名库数量 0，精确核对路径后仅删除本次 v2 解压目录，原新包保留；生产数据库存在，四个常驻服务仍全部 `active`。
+
+第二次覆盖最新中间包的数据与必要文件完整性。依赖重装、前端构建、另一台主机的网络/TLS/权限及全栈启动仍未实测；后续最终代码与内容若继续变化，仍需最终新包验收。
