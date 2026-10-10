@@ -116,22 +116,69 @@ async function overrides(): Promise<Record<string, string>> {
   return map;
 }
 
+/**
+ * Which provider services are failing right now, so a pool stops picking them for a while.
+ *
+ * Measured 2026-10-10: with four members named, one of them (Agnes 国内版) hit its daily text quota and
+ * answered 429 to nearly everything — 1,051 failed attempts in three hours against 112 answers from the
+ * other doors. Because a member is chosen by a hash of the article id, that was not a slow quarter of the
+ * work but a *dead* quarter of it: those items never reached a model, and the archive band advanced nine
+ * items an hour while the two healthy doors sat under-used.
+ *
+ * Reads what the pipeline already writes (`receipt_attempts`) instead of keeping new state. The rule is a
+ * **rate**, not a streak: six or more attempts in ten minutes with *fewer than half answered*. A streak rule
+ * is not enough here — a door throttled to one request a minute (which is exactly what the quota exhaustion
+ * degrades to) answers often enough to look alive while three of every four calls still fail. Half is the
+ * line that says "this member is a worse bet than its peers"; anything above it is "busy, not broken".
+ * A door that is merely busy keeps its place, and if every member is below the line the pool still uses them
+ * all, because the budget breaker and the retry ladder — not this choice — decide when to stop.
+ */
+let health: { at: number; sick: Set<string> } | null = null;
+
+export async function sickServices(): Promise<Set<string>> {
+  if (health && Date.now() - health.at < 60_000) return health.sick;
+  let sick = new Set<string>();
+  try {
+    const rows = await sql<{ service: string }[]>`
+      SELECT service FROM receipt_attempts
+       WHERE started_at > now() - interval '10 minutes'
+       GROUP BY service
+      HAVING count(*) >= 6 AND count(*) FILTER (WHERE status = 'received') * 2 < count(*)`;
+    sick = new Set(rows.map((r) => r.service));
+  } catch {
+    // Reading the ledger must never decide the request: an unreadable table means "no opinion", not "all
+    // providers are down".
+  }
+  health = { at: Date.now(), sick };
+  return sick;
+}
+
 export function invalidateModelCache() {
   cache = null;
+  health = null;
 }
 
 /** The model a capability uses now: admin switch, else its own environment, else `MODEL_POOL`, else the code
- * default. `shardKey` is the id of the thing being processed — pass nothing only when there is no such id. */
+ * default. `shardKey` is the id of the thing being processed — pass nothing only when there is no such id.
+ *
+ * A pool skips services that are failing right now (see `sickServices`), but never empties: if every member
+ * is down the choice falls back to the full list, because the budget breaker and the retry ladder — not this
+ * function — decide when to stop trying. */
 export async function modelFor(capability: CapabilityKey, shardKey?: string): Promise<string> {
   const c: Capability = CAPABILITIES[capability];
   const chosen = (await overrides())[capability] ?? process.env[c.env] ?? process.env.MODEL_POOL ?? c.default;
-  return pickMember(membersFor(chosen, capability), shardKey) || c.default;
+  const listed = membersFor(chosen, capability);
+  if (poolOf(chosen).length <= 1) return pickMember(listed, shardKey) || c.default;
+  const sick = await sickServices();
+  const healthy = listed.filter((m) => !sick.has(MODELS[m]!.service));
+  return pickMember(healthy.length ? healthy : listed, shardKey) || c.default;
 }
 
 /** Where the current choice comes from, for the admin page. `model` is what was configured and `serving`
  * what can actually answer, so a pool with a member whose key is missing cannot be shown as full capacity. */
 export async function modelSources(): Promise<Record<string, { model: string; serving: string; source: "admin" | "env" | "default" }>> {
   const o = await overrides();
+  const sick = await sickServices();
   const out: Record<string, { model: string; serving: string; source: "admin" | "env" | "default" }> = {};
   for (const [key, c] of Object.entries(CAPABILITIES) as Array<[CapabilityKey, Capability]>) {
     const configured = o[key]
@@ -141,8 +188,11 @@ export async function modelSources(): Promise<Record<string, { model: string; se
         : process.env.MODEL_POOL && poolOf(process.env.MODEL_POOL).length > 0
           ? { model: process.env.MODEL_POOL, source: "env" as const }
           : { model: c.default, source: "default" as const };
-    // Names listed but dropped are the difference the operator needs to see.
-    const serving = membersFor(configured.model, key as CapabilityKey);
+    // Names listed but dropped are the difference the operator needs to see — including the ones dropped
+    // because they are failing right now, so the panel and `modelFor` never disagree about who serves.
+    const listed = membersFor(configured.model, key as CapabilityKey);
+    const healthy = listed.filter((m) => !sick.has(MODELS[m]!.service));
+    const serving = healthy.length ? healthy : listed;
     out[key] = { ...configured, serving: serving.length ? serving.join(",") : configured.model };
   }
   return out;

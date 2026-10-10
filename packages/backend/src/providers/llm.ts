@@ -77,14 +77,45 @@ export const MODELS: Record<string, ModelSpec> = {
     get model() { return process.env.DOTS_MODEL ?? "dots3-note-prev"; },
     extra: { chat_template_kwargs: { enable_thinking: true }, reasoning_effort: "high" }, jsonMode: true,
   },
-  // OpenRouter：站长给的这把 key 实测是**管理/开通**用的——`GET /api/v1/key` 回 `is_management_key: true`，
-  // `/models` 能列 458 个模型（其中 15 个 `:free`），但任何 chat/completions 都 401 `User not found`。
-  // 推理要另建一把普通 key，所以这条通路先登记、**不进 MODEL_POOL**：池子按 shard 把活分给成员，
-  // 配一个只会 401 的门等于把 1/N 的工作扔进重试阶梯。key 到位后把 OPENROUTER_MODEL 设成实测可用的
-  // `:free` 模型、再把它加进 MODEL_POOL 即可。
+  // OpenRouter：站长 2026-10-10 给的两把 key 实测都是**管理/开通**用的（`GET /api/v1/key` 回
+  // `is_management_key: true`，任何 chat/completions 都 401 `User not found`）。管理 key 的用途正是签发普通
+  // key——用 `POST /api/v1/keys` 当场签出一把推理 key（name=geohot-inference-…，HTTP 201），它就能推理了。
+  // 每个成员一条（池子按 shard 把活分给成员，得能单独点名才轮得到它们）；六条都是免费档，
+  // 免费档的额度是**按账号**算的（约 20 次/分钟），所以它们共用 `openrouter` 这一行熔断，见迁移 0056。
+  // 实测（同一提示、JSON 模式）：ultra 12 秒 / nano-reasoning 19 秒 / super 45 秒 /
+  // dots-studio 与 lfm 秒级 / north-mini-code 偏代码；gemma-4 两条当时对端 429。
+  "or-nemotron-ultra": {
+    key: "or-nemotron-ultra", service: "openrouter", model: "nvidia/nemotron-3-ultra-550b-a55b:free",
+    baseUrlEnv: "OPENROUTER_BASE_URL", apiKeyEnv: "OPENROUTER_API_KEY",
+    extra: { reasoning_effort: "high" }, jsonMode: true,
+  },
+  "or-nemotron-nano": {
+    key: "or-nemotron-nano", service: "openrouter", model: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+    baseUrlEnv: "OPENROUTER_BASE_URL", apiKeyEnv: "OPENROUTER_API_KEY",
+    extra: { reasoning_effort: "high" }, jsonMode: true,
+  },
+  "or-nemotron-super": {
+    key: "or-nemotron-super", service: "openrouter", model: "nvidia/nemotron-3-super-120b-a12b:free",
+    baseUrlEnv: "OPENROUTER_BASE_URL", apiKeyEnv: "OPENROUTER_API_KEY",
+    extra: { reasoning_effort: "high" }, jsonMode: true,
+  },
+  // 同一个模型（小红书 dots）在 OpenRouter 上也有一份免费档：直连那条是主路，这条是多出来的一条并发放量。
+  "or-dots-studio": {
+    key: "or-dots-studio", service: "openrouter", model: "dots-studio/dots-3-note-preview:free",
+    baseUrlEnv: "OPENROUTER_BASE_URL", apiKeyEnv: "OPENROUTER_API_KEY", jsonMode: true,
+  },
+  "or-lfm": {
+    key: "or-lfm", service: "openrouter", model: "liquid/lfm-2.5-2.6b:free",
+    baseUrlEnv: "OPENROUTER_BASE_URL", apiKeyEnv: "OPENROUTER_API_KEY", jsonMode: true,
+  },
+  "or-north-mini-code": {
+    key: "or-north-mini-code", service: "openrouter", model: "cohere/north-mini-code:free",
+    baseUrlEnv: "OPENROUTER_BASE_URL", apiKeyEnv: "OPENROUTER_API_KEY", jsonMode: true,
+  },
+  // 兜底通路：`OPENROUTER_MODEL` 一改就换名字，不用改代码（key 到位前它是唯一那条登记）。
   "openrouter-free": {
     key: "openrouter-free", service: "openrouter", baseUrlEnv: "OPENROUTER_BASE_URL", apiKeyEnv: "OPENROUTER_API_KEY",
-    get model() { return process.env.OPENROUTER_MODEL ?? "google/gemma-4-31b-it:free"; },
+    get model() { return process.env.OPENROUTER_MODEL ?? "nvidia/nemotron-3-ultra-550b-a55b:free"; },
     jsonMode: true,
   },
   // Named presets (the models AIHOT itself runs on); each needs its own key.

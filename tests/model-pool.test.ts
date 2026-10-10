@@ -10,7 +10,7 @@ import { upsertMaterial } from "@aihot/backend/content/materials";
 import { analyzeArticle } from "@aihot/backend/editorial/analyze";
 import { stopBoss } from "@aihot/backend/jobs/queue";
 import { MODELS } from "@aihot/backend/providers/llm";
-import { CAPABILITIES, poolOf, pickFromPool, modelFor, modelSources, invalidateModelCache } from "@aihot/backend/editorial/models";
+import { CAPABILITIES, poolOf, pickFromPool, modelFor, modelSources, invalidateModelCache, sickServices } from "@aihot/backend/editorial/models";
 import { newArticleId } from "@aihot/backend/lib/ids";
 
 for (const name of Object.keys(process.env)) if ((/_MODEL$/.test(name) && name !== "LLM_MODEL" && name !== "EMBEDDING_MODEL") || name === "MODEL_POOL") delete process.env[name];
@@ -198,5 +198,46 @@ test("a capability's label and env names stay paired with the pool", () => {
   for (const [key, c] of Object.entries(CAPABILITIES)) {
     assert.match(c.env, /^[A-Z0-9_]+_MODEL$/, `${key} points at an env var that is not a *_MODEL`);
     assert.ok(poolOf(c.default).length > 0, `${key} defaults to a model that does not exist`);
+  }
+});
+
+// 2026-10-10, production: with four members named, Agnes 国内版 hit its daily text quota and answered 429 to
+// almost everything — 1,051 failed attempts in three hours against 112 answers from the two healthy doors.
+// Because the member is a hash of the article id, that was not a slow quarter of the work but a dead one:
+// those items never reached a model, and the archive band moved 9 items an hour while two doors idled.
+test("池子里答不出半数的成员会被跳过，答得动一半以上的成员照用", async () => {
+  const [receipt] = await sql<{ id: number }[]>`
+    INSERT INTO receipts (logical_key, service, purpose, status, created_at, updated_at)
+    VALUES (${`sick-probe-${T}`}, 'agnes-cn', 'pool_health_probe', 'failed', now(), now()) RETURNING id`;
+  // attempts 条里 received 的条数由调用方给；判据是"十分钟内 ≥6 次尝试且答出的少于一半"。
+  const write = async (received: number) => {
+    // The tests above answered through this very door a moment ago; the health window is ten minutes wide, so
+    // their successful attempts would count into this rate. Clear the window first, then write the six this
+    // probe is about.
+    await sql`DELETE FROM receipt_attempts WHERE service = 'agnes-cn' AND started_at > now() - interval '10 minutes'`;
+    await sql`DELETE FROM receipt_attempts WHERE receipt_id = ${receipt!.id}`;
+    for (let i = 0; i < 6; i++) {
+      await sql`INSERT INTO receipt_attempts (receipt_id, attempt, service, status, started_at)
+                VALUES (${receipt!.id}, ${i + 1}, 'agnes-cn', ${i < received ? "received" : "failed"}, now())`;
+    }
+    invalidateModelCache();
+  };
+
+  try {
+    process.env.MODEL_POOL = POOL;
+    await write(1); // 六次里只答出一次——正是"额度用完降到每分钟一次"的样子
+    const sick = await sickServices();
+    assert.ok(sick.has("agnes-cn"), "答不出半数的服务应当被判为不健康");
+    const picks = new Set(await Promise.all(Array.from({ length: 40 }, () => modelFor("score", newArticleId()))));
+    assert.deepEqual([...picks], ["default"], `健康成员应当独挑，实际选了 ${[...picks].join(", ")}`);
+
+    // 答得动一半以上就照用：一道门只是忙（429 之后重试成功）不该被踢出池子。
+    await write(4);
+    const back = new Set(await Promise.all(Array.from({ length: 40 }, () => modelFor("score", newArticleId()))));
+    assert.equal(back.size, 2, `答得动一半以上就该回到池子里，实际只有 ${[...back].join(", ")}`);
+  } finally {
+    delete process.env.MODEL_POOL;
+    await sql`DELETE FROM receipts WHERE id = ${receipt!.id}`;
+    invalidateModelCache();
   }
 });
