@@ -69,3 +69,15 @@ root 在 2026-10-10 22:45 CST 从服务器运行 `node scripts/smoke.ts --base h
 本次完整 loopback smoke 通过；随后服务器执行只读 `deploy/geohot/verify-deploy.sh`，包含公开 HTTPS 和邻站基线、服务、brain source/defaults、数据与出口及完整 smoke，最终 `RESULT: ALL CHECKS PASSED`。原始日志保存在本轮私有目录 `deploy-964a2f2.log`、`smoke-964a2f2.log`、`verify-deploy-964a2f2.log`。
 
 本轮不是全量历史筛选、补刊及最终 GitHub 同步验收。公开报告当前仍为六期日报、一期公开周报、零期公开月报；历史区间尚未关闭，不能以功能冒烟通过替代内容完成证明。
+
+## 2026-10-11 拒收重试与最短预算退避修复
+
+根任务部署 `29ca24d`，将 ITDP RSS 历史入口与两项后台修复纳入统一应用源码：全部外发候选被本地预算拒绝时保留最短原始 BudgetExceededError；无效 paid writing 被并行 structure 的预算拒绝遮蔽时，先记 ModelOutputError，继续沿用既有三次输出失败上限。没有覆盖 unknown/busy/中断/真实供应商错误，没有调整预算、筛选门槛、分析并发或五分钟扫描节奏。
+
+根隔离数据库全量回归为 438 项、433 pass、0 fail、5 既有明确 skip，全部工作区类型检查通过。新增真实 pg-boss 三路径回归由第 13 名 agent 独立库运行与 root 复跑均为 4/4 pass：坏写作三次到 failed、有效写作预算 waiting 不增失败数且复用文案、已有 unknown 结构回执保持 unknown-receipt 不重送。第 18 名 agent 对实际补丁及 fixture 独立只读检查未见阻断问题。真实 job 测试手工立即投递验证失败上限，不等于实际分钟调度验证；unknown 由本地账本构造，不等于新网络超时实测。两方测试库已分别删除。
+
+部署在共享归档锁内进行，先暂停 timer 并等待唯一 worker 正常退出，保留 0600 的 `pre-29ca24d-app.tgz` 回滚快照，再切换全量 Git 源码及 `/geohot` 生产构建。worker 实际启动时间为 2026-10-11 07:47:54 CST。启动窗口观察到两次 502，随后公开健康返回 `ok:true, db:ok, release:29ca24d`；四服务与 timer active。五个核心/采集/备份文件 SHA256 与该 Git 提交的原始 LF blob 逐一相同。
+
+服务器随后完整执行 `deploy/geohot/verify-deploy.sh`：公开 HTTPS、邻站基线、服务及 brain 默认配置、数据出口与完整 smoke 均通过，最终 `RESULT: ALL CHECKS PASSED`。私有日志为 `deploy-29ca24d.log`、`verify-deploy-29ca24d.log`、`retry-fix-whole.log`、`retry-fix-typecheck.log` 与 `retry-fix-job-root.log`。
+
+公开报告仍为六期日报、一期周报、零月报。以上验证证明当前修复部署及列出的行为，不证明历史积压已闭环，也不证明实际吞吐已经恢复；实际生产观察继续单独记录。最终内容重排、全枚举验收、GitHub 发布、清理与新最终迁移包仍待完成。
