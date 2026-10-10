@@ -9237,6 +9237,371 @@
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
+    },
+    {
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "id": "rss-niche-canada",
+      "name": "加拿大环境史网络 NiCHE",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://niche-canada.org/feed/",
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
+      },
+      "tier": "T2",
+      "interval_minutes": 360,
+      "tags": [
+        "英文",
+        "学术",
+        "历史地理",
+        "环境"
+      ],
+      "defaultCategory": "histgeo"
+    },
+    {
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "id": "rss-bodleian-maps",
+      "name": "牛津大学博德利图书馆 地图室博客",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://blogs.bodleian.ox.ac.uk/maps/feed/",
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
+      },
+      "tier": "T2",
+      "interval_minutes": 720,
+      "tags": [
+        "英文",
+        "官方",
+        "地图与制图",
+        "历史地理"
+      ],
+      "defaultCategory": "histgeo"
+    },
+    {
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "id": "rss-leventhal-maps",
+      "name": "波士顿公共图书馆 Leventhal 地图与教育中心",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.leventhalmap.org/articles/rss.xml",
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
+      },
+      "tier": "T2",
+      "interval_minutes": 720,
+      "tags": [
+        "英文",
+        "官方",
+        "地图与制图",
+        "历史地理"
+      ],
+      "defaultCategory": "histgeo"
+    },
+    {
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "id": "rss-imago-mundi",
+      "name": "Imago Mundi 国际地图史杂志 目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.tandfonline.com/feed/rss/rimu20",
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1_5",
+      "interval_minutes": 1440,
+      "tags": [
+        "英文",
+        "期刊",
+        "地图与制图",
+        "历史地理"
+      ],
+      "defaultCategory": "histgeo"
+    },
+    {
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "id": "web-ihns-news",
+      "name": "中科院自然科学史研究所 综合新闻",
+      "kind": "web_list",
+      "config": {
+        "url": "http://www.ihns.cas.cn/xwdt/zhxw/",
+        "parseMode": "html",
+        "itemSelector": "li.clear",
+        "linkSelector": "a.byt",
+        "publishedAtSelector": "span.time",
+        "allowUrlPrefixes": [
+          "http://www.ihns.cas.cn/xwdt/zhxw/",
+          "https://www.ihns.ac.cn/xwdt/zhxw/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
+      },
+      "tier": "T1",
+      "interval_minutes": 240,
+      "tags": [
+        "中文",
+        "官方",
+        "学术机构",
+        "历史地理"
+      ],
+      "defaultCategory": "histgeo"
+    },
+    {
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "id": "web-dpm-lectures",
+      "name": "故宫博物院 学术资讯",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.dpm.org.cn/learning/dynamic.html",
+        "parseMode": "html",
+        "itemSelector": "a[href*='learing_detail']",
+        "publishedAtRegex": "(\\d{4}年\\d{1,2}月\\d{1,2}日)",
+        "allowUrlPrefixes": [
+          "https://www.dpm.org.cn/learing_detail/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
+      },
+      "tier": "T1_5",
+      "interval_minutes": 360,
+      "tags": [
+        "中文",
+        "官方",
+        "学术",
+        "历史地理"
+      ],
+      "defaultCategory": "histgeo"
+    },
+    {
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "id": "web-heshan-news",
+      "name": "陕西师范大学 西北历史环境与经济社会发展研究院 动态",
+      "kind": "web_list",
+      "config": {
+        "url": "https://heshan.snnu.edu.cn/yjydt.htm",
+        "parseMode": "html",
+        "itemSelector": "li",
+        "linkSelector": "a[href*='info/']",
+        "publishedAtRegex": "(\\d{4}-\\d{2}-\\d{2})",
+        "allowUrlPrefixes": [
+          "https://heshan.snnu.edu.cn/info/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
+      },
+      "tier": "T1",
+      "interval_minutes": 360,
+      "tags": [
+        "中文",
+        "学术机构",
+        "历史地理",
+        "研究"
+      ],
+      "defaultCategory": "histgeo"
+    },
+    {
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "id": "rss-lowy-interpreter",
+      "name": "洛伊研究所 The Interpreter",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.lowyinstitute.org/rss",
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
+      },
+      "tier": "T1_5",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "学术机构",
+        "地缘",
+        "政策"
+      ],
+      "defaultCategory": "geopolitics"
+    },
+    {
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "id": "rss-aspi-strategist",
+      "name": "澳大利亚战略政策研究所 The Strategist",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.aspistrategist.org.au/feed/",
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
+      },
+      "tier": "T2",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "学术机构",
+        "地缘",
+        "政策"
+      ],
+      "defaultCategory": "geopolitics"
+    },
+    {
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "id": "rss-swp-publications",
+      "name": "德国国际与安全事务研究所 SWP 出版物",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.swp-berlin.org/en/SWPPublications.xml",
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
+      },
+      "tier": "T1_5",
+      "interval_minutes": 360,
+      "tags": [
+        "英文",
+        "学术机构",
+        "地缘",
+        "政策"
+      ],
+      "defaultCategory": "geopolitics"
+    },
+    {
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "id": "rss-merics",
+      "name": "墨卡托中国研究中心 MERICS",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://merics.org/en/rss",
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
+      },
+      "tier": "T1_5",
+      "interval_minutes": 360,
+      "tags": [
+        "英文",
+        "学术机构",
+        "地缘"
+      ],
+      "defaultCategory": "geopolitics"
+    },
+    {
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "id": "web-ciis-news",
+      "name": "中国国际问题研究院 新闻动态",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.ciis.org.cn/xwzx/xwdt/",
+        "parseMode": "html",
+        "itemSelector": "a[href^='./202']",
+        "titleSelector": "h3",
+        "publishedAtRegex": "(\\d{4}-\\d{2}-\\d{2})",
+        "allowUrlPrefixes": [
+          "https://www.ciis.org.cn/xwzx/xwdt/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
+      },
+      "tier": "T1",
+      "interval_minutes": 360,
+      "tags": [
+        "中文",
+        "官方",
+        "学术机构",
+        "地缘"
+      ],
+      "defaultCategory": "geopolitics"
+    },
+    {
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "id": "rss-uarctic",
+      "name": "北极大学联盟 UArctic 新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.uarctic.org/news/rssfeed",
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
+      },
+      "tier": "T1_5",
+      "interval_minutes": 360,
+      "tags": [
+        "英文",
+        "学术机构",
+        "区域",
+        "生态与保护"
+      ],
+      "defaultCategory": "regional"
     }
   ]
 }
