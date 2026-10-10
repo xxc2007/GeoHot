@@ -75,3 +75,31 @@
 第二次逐表证据与序列证据保存在本轮私有过程目录的 `a15-restore-v2-evidence.json`、`a15-restore-v2-sequences.json`。结束时唯一 v2 测试库已删除、同名库数量 0，精确核对路径后仅删除本次 v2 解压目录，原新包保留；生产数据库存在，四个常驻服务仍全部 `active`。
 
 第二次覆盖最新中间包的数据与必要文件完整性。依赖重装、前端构建、另一台主机的网络/TLS/权限及全栈启动仍未实测；后续最终代码与内容若继续变化，仍需最终新包验收。
+
+## 第三次真实演练：release 964a2f2 与共享归档锁的新包
+
+执行者：第 18 个独立检查 agent。演练对象为 `geohot-20261010T153055Z-portable.tgz`，236158562 bytes、0600。这仍是中间快照，不能称为长程任务的最终备份或最终内容结果。
+
+资源检查时服务器可用内存约 209 MB、swap 余约 1.6 GB、磁盘余 31 GB、load 0.64。因此单线程 `pg_restore --jobs=1 --exit-on-error --no-owner --no-acl` 配合 nice 15 / idle I/O 执行。仅新建唯一 `geohot_a18_restore_153055_test` 数据库和 0700 的 `a18-restore-private-153055` 解包目录；未启动第二套服务、worker、采集或模型请求，未停生产。
+
+外层 SHA256 校验通过，tar 成员路径无绝对路径、父目录穿越或软硬链接；内部 manifest 15 项全部通过。application 归档中的七个关键文件逐字节 SHA256 与本地 Git `964a2f2` 的对应 blob 完全一致：receipts、llm、models、analyze、backfill-news、backfill-archive 和 portable-backup，确认含预算候选选路、评分拒绝者归属、新闻部分页恢复、期刊队列关闭及共享备份锁修复。只检查 `.env` 归档成员存在及权限 0600，未读取或输出内容。源码含 53 个迁移 SQL，`archive-cycle.conf` 与 RESTORE 中的恢复配置指引存在。
+
+真正恢复退出码为 0。随后以该包本身 `pg_restore --data-only` 导出的 COPY 数据为比较目标，用 `SELECT count(*) FROM ONLY` 逐表核对，**72 表共 854621 行全部一致，不一致数 0**。**16 个序列 last_value/is_called 与该包 setval 全部一致**；53 条迁移名称与源码文件名称逐条匹配；未验证外键 0、无效索引 0，`pg_trgm` 与 `plpgsql` 存在。恢复数据库大小 747189939 bytes（约 713 MiB）。未拿持续变化的生产计数当作备份验收目标。
+
+| 第三包快照对象 | 真实恢复结果 |
+| --- | --- |
+| articles | 23609 |
+| article_revisions | 41259 |
+| analyses | 14367 |
+| publications | 13306 |
+| sources | 311；启用 289 |
+| receipts / receipt_attempts | 81110 / 86147 |
+| pgboss.job_common | 228892 |
+| archive_ingest | 906 |
+| reports | 19：日报 16（2026-09-25→2026-10-10）、周报 2（W39→W40）、月报 1（2026-09） |
+
+逐表及结构检查证据已保存到本轮私有过程目录 `a18-restore-v3-evidence.json`；演练命令保留为 `a18-drill-v3-command.txt`，均不包含环境凭据或数据库材料正文。外层源备份保留在私有迁移目录，未上传到公开仓库。
+
+清理前逐字验证目录 realpath 正好为 `/opt/geohot/backups/migration/a18-restore-private-153055`，并验证父目录为私有迁移根且自身不是符号链接；只删除该目录及该唯一测试库。删除后测试库同名数量 0，生产 `geohot` 库数量 1，原包仍为 0600 / 236158562 bytes，`geohot-api`、`geohot-web`、`geohot-worker`、`geohot-brain` 全部 active。演练结束时可用内存约 335 MB，未触发停止生产服务。
+
+此次覆盖第三包的数据恢复、序列/结构完整性、必要私有配置与七项关键 release 源码一致性。没有在另一台主机重新安装依赖、重建前端、设置域名/TLS或启动完整栈；也未证明该中间快照包含后续新内容。最终轮若继续修改代码或内容，仍需生成并验收最终新包。
