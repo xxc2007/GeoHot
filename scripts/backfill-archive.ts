@@ -239,14 +239,27 @@ async function siteIndex(source: SourceRow): Promise<SiteIssue[] | null> {
  * this they would stay dateless and unpublishable for good (measured 2026-10-10: the twelve 地理学报 items
  * the live poll had already taken were exactly that). Only a row with `published_at IS NULL` is touched: a
  * date the journal already stated is never overwritten.
+ *
+ * `publications` carries its own copy of `published_at`/`timeline_at` and is what `candidates()` reads — an
+ * article-only update left the projection dateless, so a row stamped *after* it had been published still
+ * could not enter its own day's paper until something re-projected it (measured 2026-10-10: 0 rows were in
+ * that state, the twelve having been stamped before their first projection, but the gap was one ordering
+ * away from biting). Both tables move together here.
  */
 async function stampIssueDate(articleId: string, at: Date): Promise<number> {
-  const rows = values.apply
-    ? await sql<{ id: string }[]>`
-        UPDATE articles SET published_at = ${at}, timeline_at = ${at}, backfill_reason = 'archive', updated_at = now()
-         WHERE id = ${articleId} AND published_at IS NULL RETURNING id`
-    : await sql<{ id: string }[]>`SELECT id FROM articles WHERE id = ${articleId} AND published_at IS NULL`;
-  return rows.length;
+  if (!values.apply) {
+    const rows = await sql<{ id: string }[]>`SELECT id FROM articles WHERE id = ${articleId} AND published_at IS NULL`;
+    return rows.length;
+  }
+  return await sql.begin(async (tx) => {
+    const rows = await tx<{ id: string }[]>`
+      UPDATE articles SET published_at = ${at}, timeline_at = ${at}, backfill_reason = 'archive', updated_at = now()
+       WHERE id = ${articleId} AND published_at IS NULL RETURNING id`;
+    if (rows.length === 0) return 0;
+    await tx`UPDATE publications SET published_at = ${at}, timeline_at = ${at}, updated_at = now()
+              WHERE article_id = ${articleId} AND published_at IS NULL`;
+    return rows.length;
+  });
 }
 
 async function runSiteSlice(source: SourceRow, month: string): Promise<void> {
@@ -299,7 +312,10 @@ async function runSiteSlice(source: SourceRow, month: string): Promise<void> {
       localSeen++;
       const urlKey = identityKeyForUrl(c.url);
       if (urlKey) {
-        const [twin] = await sql<{ id: string }[]>`SELECT id FROM articles WHERE identity_key = ${urlKey}`;
+        // 只认本来源自己的那一行：同一个 URL 也可能先被别的来源收进来（Crossref 门与站点门就错开 `doi:` 与
+        // URL 两种身份），给别人的行盖章等于拿这本刊的刊期去改另一条来源的日期。Crossref 门那处**不能**这样收窄：
+        // 它查的是"这个 URL 是否已经以另一种身份在库里"，收窄了就会把同一篇存两遍。
+        const [twin] = await sql<{ id: string }[]>`SELECT id FROM articles WHERE identity_key = ${urlKey} AND source_id = ${source.id}`;
         if (twin) { duplicate++; localDup++; localFixed += await stampIssueDate(twin.id, c.publishedAt); continue; }
       }
       if (values.apply) {
@@ -370,7 +386,12 @@ for (const month of months()) {
     // stopped_on_error keeps "no more pages" apart from "we could not read this page"; only the first one
     // may mark a slice done.
     let stoppedOnError = false;
-    for (let pages = 0; cursor && localSeen < PER_MONTH && stored < MAX_ITEMS && pages < 12; pages++) {
+    // 预算（--per-month / --max-items）在游标耗尽前先停，这一片同样不算跑完。**游标只有整页读完才往前推**：
+    // 以前内层 break 之后照样写 `next`，于是被截断那一页的尾部（默认 --per-page=100、--per-month=60 时是
+    // 40 条）永远不会被再读——切片还会判 `done`，那批条目就永久丢了。停在本页重读时，已入库的条目按重复
+    // 跳过、不再吃 --per-month（与站点门同一条规矩），所以下一轮会接着这条缝往下走。
+    let cut = false;
+    for (let pages = 0; cursor && localNew < PER_MONTH && stored < MAX_ITEMS && pages < 12; pages++) {
       const url = `https://api.crossref.org/works?rows=${PER_PAGE}&cursor=${encodeURIComponent(cursor)}`
         + `&filter=type:journal-article,issn:${issn},from-pub-date:${start},until-pub-date:${end}`
         + `&select=DOI,title,container-title,abstract,URL,author,published,issued${mailto ? `&mailto=${encodeURIComponent(mailto)}` : ""}`;
@@ -384,8 +405,9 @@ for (const month of months()) {
         stoppedOnError = true;
         break;
       }
+      let wholePage = true;
       for (const w of res.items) {
-        if (localSeen >= PER_MONTH || stored >= MAX_ITEMS) break;
+        if (localNew >= PER_MONTH || stored >= MAX_ITEMS) { wholePage = false; break; }
         localSeen++;
         const title = (w.title?.[0] ?? "").trim();
         const at = statedDate(w);
@@ -429,6 +451,7 @@ for (const month of months()) {
           localNew++;
         }
       }
+      if (!wholePage) { cut = true; break; }
       cursor = next ?? "";
       // Persist after every page: a kill -9 costs this page, not the month.
       if (values.apply) {
@@ -438,14 +461,16 @@ for (const month of months()) {
       if (SLEEP) await new Promise((r) => setTimeout(r, SLEEP));
     }
     if (!values.apply) continue;
-    const finished = !cursor && !stoppedOnError;
+    // 循环因预算或页数上限退出而游标还在 = 没跑完（两种都不写 done）。
+    if (cursor && !stoppedOnError) cut = true;
+    const finished = !cursor && !stoppedOnError && !cut;
     // Per-slice, not cumulative: this string is written into the ledger row, and the cumulative version
     // printed the same 18 on every source after the first one that had skipped anything.
-    const note = `no-date=${localNoDate} thin=${localThin} dup=${localDup}`;
+    const note = `no-date=${localNoDate} thin=${localThin} dup=${localDup}${cut ? " cut" : ""}`;
     await sql`UPDATE archive_ingest SET status = ${finished ? "done" : "pending"}, cursor = ${finished ? null : cursor || null},
               note = ${note}, updated_at = now()
               WHERE source_id = ${source.id} AND month = ${month}`;
-    console.log(`  ${finished ? "done" : "停在原地"} 看了 ${localSeen} 条，入库 ${localNew} 条`);
+    console.log(`  ${finished ? "done" : `停在原地${cut ? "（被上限截断）" : ""}`} 看了 ${localSeen} 条，入库 ${localNew} 条`);
   }
 }
 
