@@ -29,6 +29,14 @@ const { values } = parseArgs({
   },
 });
 
+// Validate the capacity choice before any database observation or mutation.
+const promote = Number(values.promote);
+if (!/^\d+$/.test(values.promote!) || !Number.isSafeInteger(promote) || promote > 500) {
+  console.error("--promote 必须是 0..500 的整数，拒绝读取或修改队列。");
+  await closeDb();
+  process.exit(2);
+}
+
 if (values.apply && !values["database-url"]) {
   console.error("--apply 必须同时显式给出 --database-url=（与进程 DATABASE_URL 同一个库）");
   await closeDb();
@@ -50,7 +58,6 @@ if (values.apply && targetOf(values["database-url"]!) !== targetOf(String(proces
 
 const ARCHIVE_PRIORITY = -1;
 const LIVE_PRIORITY = 0;
-const promote = Math.max(0, Number(values.promote) || 0);
 const queues = ["content.analyze", "content.extract-body"];
 
 for (const name of queues) {

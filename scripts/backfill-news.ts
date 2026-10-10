@@ -21,7 +21,11 @@ export interface Options {
   from: string; to: string; sources: string[]; maxPages: number; maxItems: number;
   sleepMs: number; apply: boolean; databaseUrlEnv?: string; state: string;
 }
-export interface State { version: 1; completed: string[]; partial?: Record<string, string[]>; }
+export interface State {
+  version: 1; completed: string[]; partial?: Record<string, string[]>;
+  // Range-scoped observations of a fully dated older page; not a claim that every article was selected.
+  boundaries?: Record<string, { url: string; observedAt: string }>;
+}
 export function strictDay(day: string): string {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !Number.isFinite(Date.parse(day)) || new Date(day).toISOString().slice(0, 10) !== day)
     throw new Error(`Invalid calendar date: ${day}`);
@@ -69,8 +73,11 @@ export interface Dependencies {
 export async function run(o: Options, rules: ArchiveRule[], sources: SourceRow[], d: Dependencies, state: State = { version: 1, completed: [] }) {
   if (state.version !== 1 || !Array.isArray(state.completed) || state.completed.some(v => typeof v !== "string")) throw new Error("Invalid checkpoint");
   if (state.partial && (typeof state.partial !== "object" || Array.isArray(state.partial) || Object.values(state.partial).some(v => !Array.isArray(v) || v.some(url => typeof url !== "string")))) throw new Error("Invalid partial checkpoint");
+  if (state.boundaries && (typeof state.boundaries !== "object" || Array.isArray(state.boundaries)
+    || Object.values(state.boundaries).some(v => !v || typeof v.url !== "string" || typeof v.observedAt !== "string"))) throw new Error("Invalid boundary checkpoint");
   if (o.apply && (!d.store || !d.queue || !d.checkpoint)) throw new Error("Apply requires store, queue and private checkpoint dependencies");
-  const stats = { pages: 0, candidates: 0, eligible: 0, undated: 0, created: 0, revised: 0, queued: 0, errors: 0, limited: false };
+  const stats = { pages: 0, candidates: 0, eligible: 0, undated: 0, created: 0, revised: 0, queued: 0, errors: 0, limited: false,
+    boundaries: [] as Array<{ source: string; url: string; reused: boolean }> };
   const seen = new Set<string>();
   const done = new Set(state.completed);
   const picked = rules.filter(r => {
@@ -87,7 +94,14 @@ export async function run(o: Options, rules: ArchiveRule[], sources: SourceRow[]
     const prefix = `${o.from}:${o.to}:${rule.sourceId}:`;
     const completedPages = o.apply ? [...done].filter(k => k.startsWith(prefix)).length : 0;
     const plan = pages(rule, { ...o, maxPages: o.maxPages + completedPages });
+    // Legacy checkpoints did not retain why a page walk stopped. Reobserve the latest acknowledged
+    // frontier once, without trusting completed-page counts as evidence of an older-date boundary.
+    const legacyFrontier = o.apply && rule.mode === "pages" && !state.boundaries?.[prefix]
+      ? plan.findLast(url => done.has(`${prefix}${url}`)) : undefined;
     for (const [pageIndex, url] of plan.entries()) {
+      // Exact range keys deliberately prevent a wider/shifted span from reusing an old stopping point.
+      // Reobserve the boundary itself: numbered pages can move when publishers prepend new articles.
+      if (o.apply && (state.boundaries?.[prefix]?.url === url || legacyFrontier === url)) done.delete(`${prefix}${url}`);
       const key = `${o.from}:${o.to}:${rule.sourceId}:${url}`;
       const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
       const openListing = (rule.mode === "pages" && pageIndex === 0 && o.to >= today)
@@ -98,9 +112,10 @@ export async function run(o: Options, rules: ArchiveRule[], sources: SourceRow[]
         const completedItems = new Set(state.partial?.[key] ?? []);
         const items = await d.fetch({ ...registered, kind: "web_list", config: { ...registered.config, ...rule.config, url } });
         stats.pages++;
+        if (!items.length) throw new Error("Empty archive listing: coverage is unknown; page remains pending");
         // A CMS that ignores an out-of-range page must not masquerade as more history.
         const signature = items.map(c => c.url).join("\n");
-        if (rule.mode === "pages" && signature === priorSignature) { d.log?.({ source: rule.sourceId, stop: "repeated-page", url }); break; }
+        if (rule.mode === "pages" && signature === priorSignature) { stats.limited = true; d.log?.({ source: rule.sourceId, stop: "repeated-page", coverage: "unknown", url }); break; }
         priorSignature = signature;
         let interrupted = false;
         const discoveredAt = new Date();
@@ -141,7 +156,23 @@ export async function run(o: Options, rules: ArchiveRule[], sources: SourceRow[]
         }
         const dated = items.filter(c => c.publishedAt && Number.isFinite(c.publishedAt.getTime()));
         // Only stop a paged source when every listed item is dated and older than the range.
-        if (rule.mode === "pages" && dated.length === items.length && items.length && dated.every(c => c.publishedAt!.getTime() < Date.parse(`${o.from}T00:00:00+08:00`))) break;
+        const olderBoundary = rule.mode === "pages" && dated.length === items.length
+          && dated.every(c => c.publishedAt!.getTime() < Date.parse(`${o.from}T00:00:00+08:00`));
+        if (olderBoundary) {
+          const reused = state.boundaries?.[prefix]?.url === url;
+          stats.boundaries.push({ source: rule.sourceId, url, reused });
+          d.log?.({ source: rule.sourceId, stop: "older-boundary", url, reused });
+          if (o.apply) {
+            state.boundaries ??= {};
+            state.boundaries[prefix] = { url, observedAt: discoveredAt.toISOString() };
+            await d.checkpoint!(state);
+          }
+          break;
+        }
+        if (o.apply && state.boundaries?.[prefix]?.url === url) {
+          delete state.boundaries[prefix];
+          await d.checkpoint!(state);
+        }
         if (pageIndex === plan.length - 1 && (rule.mode === "pages" || plan.length && !plan[plan.length - 1]!.includes(o.to.slice(0, 7).replace("-", "/")))) stats.limited = true;
       } catch (error) { stats.errors++; d.log?.({ source: rule.sourceId, url, error: (error as Error).message }); break; }
       if (o.sleepMs) await delay(o.sleepMs);
