@@ -1209,9 +1209,6 @@
         "allowUrlPrefixes": [
           "http://xb.chinasmp.com/CN/10."
         ],
-        "archiveIndexUrl": "http://xb.chinasmp.com/CN/archive_by_issues",
-        "archiveIssueItemSelector": "a.J_WenZhang",
-        "archiveIssueDateRegex": "(\\d{4}-\\d{2}-\\d{2})",
         "_aihot": {
           "initialBackfillLimit": 12
         }

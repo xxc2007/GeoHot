@@ -55,9 +55,22 @@ const source = (indexUrl: string): SourceRow => ({
 
 const issueRow = (href: string, label: string, date: string) => `<div class="gk_qi"><a href="${href}"><span>${label}</span></a> ${date}</a></div>`;
 
+/** Paths the fake journal fails to serve this many times before answering — and how often each was asked. */
+const flaky = new Map<string, number>();
+const hits = new Map<string, number>();
+
 before(async () => {
   server = http.createServer((req, res) => {
-    const body = pages.get(req.url ?? "/");
+    const path = req.url ?? "/";
+    hits.set(path, (hits.get(path) ?? 0) + 1);
+    const failFor = flaky.get(path);
+    if (failFor !== undefined && failFor > 0) {
+      flaky.set(path, failFor - 1);
+      res.writeHead(500, { "content-type": "text/plain; charset=utf-8" });
+      res.end("Magtech 500");
+      return;
+    }
+    const body = pages.get(path);
     if (!body) {
       res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
       res.end("no such page");
@@ -120,4 +133,28 @@ test("an index the journal no longer recognizes is a refusal, not an empty month
   // And an archive rule the source never declared says which rule is missing instead of walking nothing.
   const undeclared = source("");
   await assert.rejects(() => backIssues(undeclared), /archiveIndexUrl/);
+});
+
+// 2026-10-10, from the collector box: 《地理学报》's index answered HTTP 500 inside the backfill and HTTP 200
+// with the same 204 KB body minutes later over the same crawler UA; 《地理研究》 answered 500 for a bare
+// `curl/8` UA and 200 for two others. The Magtech CMS fails on its own, so one 500 must not abandon a month.
+test("一次 5xx 不算这一期跑完：过刊门补读一次，非 5xx 的不重跑", async () => {
+  const index = pages.get("/CN/archive_by_issues")!;
+  pages.set("/CN/flaky_index.html", index);
+  pages.set("/CN/dead_index.html", index);
+  flaky.set("/CN/flaky_index.html", 1);
+  flaky.set("/CN/dead_index.html", 99);
+
+  const issues = await backIssues(source(`${origin}/CN/flaky_index.html`));
+  assert.equal(issues.length, 3, "补读这一次就把三期都读出来了");
+  assert.equal(hits.get("/CN/flaky_index.html"), 2, "第一次 500、第二次成功");
+
+  await assert.rejects(() => backIssues(source(`${origin}/CN/dead_index.html`)), /HTTP 500/);
+  assert.equal(hits.get("/CN/dead_index.html"), 2, "只补一次——一直坏就照实说这一片没跑完");
+
+  // A page the parser yields nothing from is an answer about the page, not the server's mood: retrying it
+  // would double every request for a journal that redesigned its index and still return nothing.
+  const asked = hits.get("/CN/redesigned.html") ?? 0;
+  await assert.rejects(() => backIssues(source(`${origin}/CN/redesigned.html`)), /no items matched/);
+  assert.equal((hits.get("/CN/redesigned.html") ?? 0) - asked, 1, "解析不出条目不重试");
 });

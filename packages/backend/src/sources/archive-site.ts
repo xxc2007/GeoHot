@@ -25,14 +25,44 @@
 //   2. Which pages to read comes off the journal's own anchors. No issue URL is ever templated, so a journal
 //      whose index moves or changes markup stops yielding material instead of inventing URLs.
 
+import { setTimeout as delay } from "node:timers/promises";
 import { beijingDate, beijingMidnight } from "@aihot/contracts/time";
 import { fetchWebList } from "./web-list.ts";
-import type { Candidate, SourceRow } from "./types.ts";
+import { FetchError, type Candidate, type SourceRow } from "./types.ts";
 
 /** One issue, as the journal's own back-issue index names it. `at` is null when the index gives no date. */
 export interface SiteIssue {
   url: string;
   at: Date | null;
+}
+
+/**
+ * Read one listing page, once more after a short wait if the server itself failed.
+ *
+ * Measured 2026-10-10 from the collector box: 《地理学报》's index returned HTTP 500 inside
+ * `backfill-archive.ts` and HTTP 200 with the same 204 KB body minutes later over the same crawler UA, and
+ * 《地理研究》 itself answered 500 for a bare `curl/8` UA while answering 200 for two others — the Magtech
+ * CMS is flaky on its own, in a way the request identity does not explain. A backfill walks one page per
+ * issue, so a single transient 500 used to abandon a whole month slice into `pending` for a rerun; one retry
+ * costs four seconds and usually reads the page. Anything past that is still the caller's "this slice did not
+ * finish", unchanged.
+ *
+ * Only a 5xx is retried. "no items matched", a refused host and a missing URL are answers about the page, not
+ * about the server's mood — repeating them doubles the requests and changes nothing.
+ */
+async function readList(source: SourceRow, overrides: Partial<SourceRow["config"]>) {
+  const once = () => fetchWebList({ ...source, config: { ...source.config, ...overrides } });
+  try {
+    return await once();
+  } catch (first) {
+    if (!(first instanceof FetchError) || typeof first.status !== "number" || first.status < 500) throw first;
+    await delay(4_000);
+    try {
+      return await once();
+    } catch {
+      throw first;
+    }
+  }
 }
 
 /** An archive rule the source must declare before its history can be walked. */
@@ -52,10 +82,7 @@ export async function backIssues(source: SourceRow): Promise<SiteIssue[]> {
   const indexUrl = archiveKey(source, "archiveIndexUrl");
   const itemSelector = archiveKey(source, "archiveIssueItemSelector");
   const dateRegex = archiveKey(source, "archiveIssueDateRegex");
-  const issues = await fetchWebList({
-    ...source,
-    config: { ...source.config, url: indexUrl, itemSelector, publishedAtRegex: dateRegex, allowUrlPrefixes: [`${new URL(indexUrl).origin}/`] },
-  });
+  const issues = await readList(source, { url: indexUrl, itemSelector, publishedAtRegex: dateRegex, allowUrlPrefixes: [`${new URL(indexUrl).origin}/`] });
   // An issue the index did not date comes back with `at: null` rather than being dropped: the caller counts
   // what it could not file, so a journal that stops printing its dates on the index shows up in the ledger
   // instead of quietly yielding less and less history.
@@ -77,6 +104,6 @@ export async function backIssues(source: SourceRow): Promise<SiteIssue[]> {
  * lets the caller drop its own fallback.
  */
 export async function issueArticles(source: SourceRow, issue: SiteIssue & { at: Date }): Promise<Array<Candidate & { publishedAt: Date }>> {
-  const items = await fetchWebList({ ...source, config: { ...source.config, url: issue.url } });
+  const items = await readList(source, { url: issue.url });
   return items.map((c) => ({ ...c, publishedAt: c.publishedAt ?? issue.at }));
 }
