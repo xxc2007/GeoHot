@@ -82,16 +82,22 @@ const from = values.from!;
 const to = values.to || due;
 
 /**
- * 这一期里还没定的条目，两种而不是一种：还没判的（'new' 且没有分析行），以及判完但投影没跑成的
- * （'analyzed' 且没有 publications 行）——后者正是 sweepUnprocessed 几分钟后会补上的那段，
+ * 这一期里还没定的条目，两种而不是一种：还没走的（`new`），以及判完但投影没跑成的
+ * （`analyzed` 且没有 publications 行）——后者正是 sweepUnprocessed 几分钟后会补上的那段，
  * 只数前一种会让这一天在缺一条本该入刊的故事的情况下出刊，而下一轮还会说"已出刊"。
+ *
+ * `new` 不再要求"没有分析行"：一条 `new` 行**带着**分析行是真实存在的状态——发布失败之后状态被退回
+ * `new`（jobs/content.ts 的重试路径），或者分析写完而状态更新被跳过（analyze.ts 的换版分支）。
+ * 带上这个要求时它两种都不算，于是这一天按"判完了"出刊，永久缺那一条（补刊不会再碰已出刊的期）。
+ * 一条 `new` 行迟早会离开 `new`（跑通或进 failed/blocked），所以按它算不会把某一天永远钉住——
+ * 真要放行那一天，用 `--force`，那是操作者的明确选择。
  * 'failed' 故意不算未完成：它只有被操作者或 30 天重排救回来才会回到 'new'，那种情况交给 --refresh。
  */
 async function unsettled(start: Date, end: Date): Promise<number> {
   const [row] = await sql<{ n: number }[]>`
     SELECT count(*)::int AS n FROM articles a
      WHERE a.timeline_at >= ${start} AND a.timeline_at < ${end}
-       AND ((a.processing_state = 'new' AND NOT EXISTS (SELECT 1 FROM analyses x WHERE x.article_id = a.id))
+       AND (a.processing_state = 'new'
          OR (a.processing_state = 'analyzed' AND NOT EXISTS (SELECT 1 FROM publications p WHERE p.article_id = a.id)))`;
   return row?.n ?? 0;
 }
