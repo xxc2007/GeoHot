@@ -65,6 +65,16 @@ test("archive imports real source time and body, queues analysis once and preser
   assert.equal(again!.discovered_at.toISOString(), row!.discovered_at.toISOString());
   assert.equal(again!.revision, 1);
 });
+test("a later archive synopsis cannot replace an existing original body", async () => {
+  const [before] = await sql`SELECT body_text,revision FROM articles WHERE source_id=${source}`;
+  writeFileSync(input, JSON.stringify({ ...item, bodyText: "Short synopsis" }) + "\n");
+  const out = run(["--archive"]);
+  const [after] = await sql`SELECT body_text,revision FROM articles WHERE source_id=${source}`;
+  assert.equal(after!.body_text, before!.body_text);
+  assert.equal(after!.revision, before!.revision);
+  assert.equal(out.updated, 0);
+  writeFileSync(input, JSON.stringify(item) + "\n");
+});
 test("default replay continues to rescale old source dates without enabling archive", () => {
   const replay = run(["--dry-run", "--as-of=2026-10-10T08:00:00+08:00"]);
   assert.equal(replay.archive, false);

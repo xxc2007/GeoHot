@@ -330,6 +330,11 @@ if (route === "inproc") {
       if (row) autoCreated++;
       known.set(p.sourceId, { kind: "external", tier: "T2", participation_mode: "isolated" });
     }
+    if (archive) {
+      const [existing] = await sql`SELECT body_text FROM articles WHERE identity_key = ${p.key}`;
+      // A research synopsis is evidence for a new material, never a replacement for an extracted original.
+      if (existing?.body_text) { p.input.bodyText = null; p.input.bodyHtml = null; }
+    }
     const res = await upsertMaterial(p.input);
     const kind = res.created ? "created" : res.revised ? "revised" : "unchanged";
     if (res.created) created++; else if (res.revised) revised++; else unchanged++;
