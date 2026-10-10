@@ -95,7 +95,7 @@ test("shards keep to the query length and account limits, per participation mode
 test("one search reads a shard; each account gets its own posts, run and watermark", async () => {
   const before = queries.length;
   const res = await collectXShard(`editorial:test-${T}`, IDS);
-  assert.equal(res.status, "ok");
+  assert.equal(res.status, "ok", JSON.stringify(res));
   const asked = queries.slice(before);
   assert.equal(asked.length, 2, "one search for three accounts (two pages of posts)");
   for (const q of asked) assert.match(q, new RegExp(`^\\(from:${HANDLES[0]} OR from:${HANDLES[1]} OR from:${HANDLES[2]}\\) -filter:replies since_id:${WATERMARK}$`));
@@ -115,7 +115,7 @@ test("a page failing after the first keeps what was read and goes on from there 
   await sql`DELETE FROM articles WHERE source_id IN ${sql(IDS)}`;
   failPage2 = 2; // the page, and the same run's second try at it from the stretch kept
   const first = await collectXShard(`editorial:test-${T}`, IDS);
-  assert.equal(first.status, "ok", "the accounts are not failed for a later page");
+  assert.equal(first.status, "ok", `the accounts are not failed for a later page: ${JSON.stringify(first)}`);
   assert.equal(first.found, 2, "the first page is kept");
   const cursor = (await sql<{ cursor: { lastTweetId: string; xBacklog?: unknown[] } }[]>`SELECT cursor FROM sources WHERE id = ${IDS[2]!}`)[0]!.cursor;
   assert.equal(cursor.lastTweetId, String(BASE + 104n), "the watermark moves to the newest post read");

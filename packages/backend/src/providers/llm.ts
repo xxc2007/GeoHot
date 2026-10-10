@@ -278,32 +278,35 @@ export async function chatJson<S extends z.ZodType>(opts: ChatJsonOptions<S>): P
   // `finish_reason: length` at max_tokens 512, then answered normally at 8,192 (52 s, 4,185 tokens).
   // Reasoning therefore buys headroom on top of the caller's own size — capped at the largest output
   // any caller already asks for, so a preset that sized itself (the selection call: 65,536) stays as is.
-  const { request, body, reasoning } = requestFor(opts, spec);
+  const { request } = requestFor(opts, spec);
   // Dynamic import avoids the registry/model-selection module's static import cycle.
-  const { recoveryModelsForPurpose } = await import("../editorial/models.ts");
+  const { recoveryModelsForPurpose, budgetFallbackModelsForPurpose } = await import("../editorial/models.ts");
   const candidateNames = await recoveryModelsForPurpose(opts.purpose, opts.model);
   const candidates = candidateNames.map((name) => ({ name, request: requestFor(opts, MODELS[name]!).request }));
-
-  const receipt = await paidRequest(
-    request,
-    async () => {
+  const needsVision = Array.isArray(opts.user) && opts.user.some((part) => part.type === "image_url");
+  const fallbackNames = await budgetFallbackModelsForPurpose(opts.purpose, opts.model, needsVision);
+  const dispatch = (model: ModelSpec) => {
+    const prepared = requestFor(opts, model);
+    const url = credential("models", model.baseUrlEnv)!;
+    const key = credential("models", model.apiKeyEnv)!;
+    return { request: prepared.request, call: async () => {
       const started = Date.now();
       let res: Response;
       try {
-        res = await fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
+        res = await fetch(`${url.replace(/\/$/, "")}/chat/completions`, {
           method: "POST",
-          headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
-          body: JSON.stringify(body),
-          signal: AbortSignal.timeout(opts.timeoutMs ?? (reasoning ? 240_000 : 120_000)),
+          headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
+          body: JSON.stringify(prepared.body),
+          signal: AbortSignal.timeout(opts.timeoutMs ?? (prepared.reasoning ? 240_000 : 120_000)),
         });
       } catch (error) {
-        if (isConnectFailure(error)) throw new ProviderRejectedError(`connect failed: ${String(error)}`, null, true);
+        if (isConnectFailure(error)) throw new ProviderRejectedError(`connect failed: ${String(error)}`, null, true, model.key);
         throw error;
       }
       const text = await res.text();
       if (!res.ok) {
         const retryable = res.status === 429 || res.status >= 500;
-        throw new ProviderRejectedError(`HTTP ${res.status}: ${text.slice(0, 500)}`, res.status, retryable);
+        throw new ProviderRejectedError(`HTTP ${res.status}: ${text.slice(0, 500)}`, res.status, retryable, model.key);
       }
       let json: Record<string, unknown>;
       try {
@@ -318,8 +321,10 @@ export async function chatJson<S extends z.ZodType>(opts: ChatJsonOptions<S>): P
         usage,
         cost: null,
       };
-    }, candidates.map((c) => c.request),
-  );
+    } };
+  };
+  const receipt = await paidRequest(request, dispatch(spec).call, candidates.map((c) => c.request),
+    fallbackNames.map((name) => dispatch(MODELS[name]!)));
 
   const response = receipt.response as { choices?: Array<{ message?: { content?: string }; finish_reason?: string }>; usage?: Record<string, unknown> };
   const content = response.choices?.[0]?.message?.content ?? "";

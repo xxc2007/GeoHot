@@ -233,6 +233,7 @@ async function runScores(a: AnalyzeInputArticle, threshold: number, opts: StepOp
   const input = buildScoreInput(a);
   const values: number[] = [];
   const receiptIds: number[] = [];
+  const answeredModels: string[] = [];
   let reused = true;
   // One after the other: the second call reuses the provider's cached prompt.
   for (let i = 0; i < SCORE_CALLS; i++) {
@@ -246,14 +247,18 @@ async function runScores(a: AnalyzeInputArticle, threshold: number, opts: StepOp
       });
       values.push(res.data.attentionScore);
       receiptIds.push(res.receiptId);
+      answeredModels.push(res.model);
       reused &&= res.reused;
     } catch (error) {
       // The model's content filter declines the material (Zhipu 1301): not scored, so not selected.
-      if (isContentFilter(error)) return { model, threshold, values, receiptIds, reused: false, refused: true };
+      if (isContentFilter(error)) {
+        const refusedModel = error instanceof ProviderRejectedError ? error.modelKey : undefined;
+        return { model: [...new Set([...answeredModels, refusedModel ?? model])].join(","), threshold, values, receiptIds, reused: false, refused: true };
+      }
       throw error;
     }
   }
-  return { model, threshold, values, receiptIds, reused };
+  return { model: [...new Set(answeredModels)].join(","), threshold, values, receiptIds, reused };
 }
 
 async function runStructure(a: AnalyzeInputArticle, opts: StepOpts): Promise<NonNullable<AnalysisRun["structure"]>> {

@@ -187,6 +187,21 @@ export async function recoveryModelsForPurpose(purpose: string, selected: string
   return members.includes(selected) ? [...new Set(members)] : [selected];
 }
 
+/** Only configured, healthy members able to accept this capability may carry an unsent request whose
+ * original service is locally budget-blocked. Cached recovery keeps its broader exact-key candidate set. */
+export async function budgetFallbackModelsForPurpose(purpose: string, selected: string, requireVision = false): Promise<string[]> {
+  const entry = (Object.entries(CAPABILITIES) as Array<[CapabilityKey, Capability]>)
+    .find(([, c]) => c.purposes.includes(purpose));
+  if (!entry) return [];
+  const members = await recoveryModelsForPurpose(purpose, selected);
+  if (members.length <= 1) return [];
+  const sick = await sickServices();
+  const index = members.indexOf(selected);
+  const ordered = [...members.slice(index + 1), ...members.slice(0, index)];
+  return ordered.filter((name) => usable(name, entry[0]) && !sick.has(MODELS[name]!.service)
+    && (!requireVision || MODELS[name]!.vision === true));
+}
+
 /** Where the current choice comes from, for the admin page. `model` is what was configured and `serving`
  * what can actually answer, so a pool with a member whose key is missing cannot be shown as full capacity. */
 export async function modelSources(): Promise<Record<string, { model: string; serving: string; source: "admin" | "env" | "default" }>> {
