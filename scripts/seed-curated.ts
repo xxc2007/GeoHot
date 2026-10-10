@@ -171,13 +171,14 @@ for (let i = 0; i < raw.length; i++) {
   const discoveredAt = archive ? anchor : publishedAt
     ? new Date(Math.min(publishedAt.getTime() + (gapOf(l) ?? arrivalLagMs(key)), anchor.getTime()))
     : anchor;
+  const synopsisOnly = archive && (l.raw?.archive as { bodyIsSynopsis?: boolean } | undefined)?.bodyIsSynopsis === true;
   plan.push({
     key, sourceId, url, title, authored: authoredOf(l),
     input: {
       id: rowId, sourceId, url, title, via, language: originalTitle ? (l.language ?? "en") : l.language ?? null,
       author: typeof l.author === "string" && l.author.trim() ? l.author.trim().slice(0, 200) : null,
       publishedAt, discoveredAt, ...(archive ? { backfill: "archive" } : {}),
-      bodyText: l.bodyText ?? null, bodyStatus: l.bodyText ? "ok" : "pending",
+      bodyText: synopsisOnly ? null : l.bodyText ?? null, bodyStatus: synopsisOnly ? "pending" : l.bodyText ? "ok" : "pending",
       // Upstream provenance (theme, fragment, its own _aihot flags) is kept; the ingest decisions are added.
       raw: {
         ...(l.raw ?? {}),
@@ -188,6 +189,7 @@ for (let i = 0; i < raw.length; i++) {
           titleZh: originalTitle ? authoredTitle : null,
           sourceName: l.sourceName ?? null,
           sourceTier: l.sourceTier ?? null, firstParty: l.firstParty ?? null,
+          ...(synopsisOnly ? { researchSynopsis: l.bodyText ?? null, originalExtractionRequired: true } : {}),
           authoredPublishedAt: l.publishedAt ?? null, authoredTimelineAt: l.timelineAt ?? null,
           authoredDiscoveredAt: l.discoveredAt ?? null, input: inputPath, ingestedAsOf: anchor.toISOString(),
           rescaled: needsRescale, keepTimes,

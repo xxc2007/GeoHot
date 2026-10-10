@@ -225,6 +225,13 @@ test("池子里答不出半数的成员会被跳过，答得动一半以上的�
 
   try {
     process.env.MODEL_POOL = POOL;
+    await write(0);
+    await sql`UPDATE receipt_attempts SET status = 'pending' WHERE receipt_id = ${receipt!.id}`;
+    invalidateModelCache();
+    assert.ok(!(await sickServices()).has("agnes-cn"), "unfinished requests must not count as provider failures");
+    await sql`UPDATE receipt_attempts SET status = 'failed', origin = 'imported' WHERE receipt_id = ${receipt!.id}`;
+    invalidateModelCache();
+    assert.ok(!(await sickServices()).has("agnes-cn"), "imported failures must not change live routing");
     await write(1); // 六次里只答出一次——正是"额度用完降到每分钟一次"的样子
     const sick = await sickServices();
     assert.ok(sick.has("agnes-cn"), "答不出半数的服务应当被判为不健康");

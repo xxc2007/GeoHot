@@ -3,7 +3,7 @@
 set -euo pipefail
 umask 077
 APP=${GEOHOT_APP_ROOT:-/opt/geohot/app}
-DEST=${GEOHOT_BACKUP_ROOT:-/opt/geohot/backups}
+DEST=${GEOHOT_BACKUP_ROOT:-/opt/geohot/backups/migration}
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
 mkdir -p "$DEST"
 WORK=$(mktemp -d "$DEST/.portable-$STAMP-XXXXXX")
@@ -29,6 +29,7 @@ for unit in geohot-brain geohot-api geohot-worker geohot-web geohot-archive geoh
   if systemctl cat "$unit" > "$WORK/systemd/$unit.txt" 2>/dev/null; then :; else rm "$WORK/systemd/$unit.txt"; fi
 done
 [[ ! -f /etc/nginx/sites-available/xxc2007.me ]] || cp /etc/nginx/sites-available/xxc2007.me "$WORK/nginx-site.conf"
+[[ ! -f /etc/geohot/archive-cycle.conf ]] || cp /etc/geohot/archive-cycle.conf "$WORK/archive-cycle.conf"
 [[ ! -f /opt/geohot/archive-status.json ]] || cp /opt/geohot/archive-status.json "$WORK/archive-status.json"
 node --version > "$WORK/runtime.txt"
 npm --version >> "$WORK/runtime.txt"
@@ -41,7 +42,7 @@ This bundle contains private environment credentials. Keep it outside web roots 
 4. Extract persistent-data.tgz into app/.data if present. Set geohot ownership and protect .env (0600).
 5. Update .env database/site URLs, production secrets and host allowlists for the destination.
 6. Run migrations, build web with BASE_PATH matching the destination (current /geohot).
-7. Adapt the included systemd and nginx configuration; test nginx before starting the four services.
+7. Adapt the included systemd and nginx configuration; restore archive-cycle.conf to /etc/geohot/ (0600, geohot ownership), then test nginx before starting services and the archive timer.
 8. Run deploy/geohot/verify-deploy.sh and scripts/smoke.ts, then verify reader pages, feeds and report references.
 The database includes original materials, analyses, revisions, publications, sources and queue state.
 Reusable image caches and dependencies are excluded and regenerated. A successful archive listing is not a restore drill.

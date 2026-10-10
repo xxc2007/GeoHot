@@ -9604,6 +9604,394 @@
         "生态与保护"
       ],
       "defaultCategory": "regional"
+    },
+    {
+      "id": "cn-web-nda-news",
+      "name": "国家数据局 新闻发布",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.nda.gov.cn/sjj/swdt/xwfb/list/index_pc_1.html",
+        "parseMode": "html",
+        "itemSelector": "li:has(a[href*='/swdt/xwfb/']):has(span)",
+        "linkSelector": "a",
+        "publishedAtSelector": "span",
+        "publishedAtUtcOffset": "+08:00",
+        "allowUrlPrefixes": [
+          "https://www.nda.gov.cn/sjj/swdt/xwfb/"
+        ],
+        "denyUrlPrefixes": [
+          "https://www.nda.gov.cn/sjj/swdt/xwfb/list/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 20,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "官方",
+        "中文",
+        "公共数据",
+        "数据政策",
+        "空间数据"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "geotech"
+    },
+    {
+      "id": "cn-web-beijing-departments",
+      "name": "北京市政府 部门动态",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.beijing.gov.cn/ywdt/gzdt/",
+        "parseMode": "html",
+        "itemSelector": "li.col-md:has(a[href*='/t20'])",
+        "linkSelector": "a",
+        "publishedAtSelector": "span",
+        "publishedAtUtcOffset": "+08:00",
+        "allowUrlPrefixes": [
+          "https://www.beijing.gov.cn/ywdt/gzdt/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 20,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1",
+      "first_party": false,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "官方",
+        "中文",
+        "城市治理",
+        "北京",
+        "区域地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "regional"
+    },
+    {
+      "id": "cn-web-shanghai-news",
+      "name": "上海市政府 上海要闻",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.shanghai.gov.cn/nw4411/index.html",
+        "parseMode": "html",
+        "itemSelector": "li:has(a[href^='/nw4411/20']):has(span.time)",
+        "linkSelector": "a",
+        "publishedAtSelector": "span.time",
+        "publishedAtUtcOffset": "+08:00",
+        "allowUrlPrefixes": [
+          "https://www.shanghai.gov.cn/nw4411/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 20,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1",
+      "first_party": false,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "官方",
+        "中文",
+        "城市治理",
+        "上海",
+        "区域地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "regional"
+    },
+    {
+      "id": "cn-web-guangzhou-government",
+      "name": "广州市政府 政务联播",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.gz.gov.cn/xw/zwlb/index.html",
+        "parseMode": "html",
+        "itemSelector": "li:has(a[href*='/xw/zwlb/content/post_']):has(span.time)",
+        "linkSelector": "a",
+        "publishedAtSelector": "span.time",
+        "publishedAtUtcOffset": "+08:00",
+        "allowUrlPrefixes": [
+          "https://www.gz.gov.cn/xw/zwlb/content/post_"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 20,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1",
+      "first_party": false,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "官方",
+        "中文",
+        "城市治理",
+        "广州",
+        "区域地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "regional"
+    },
+    {
+      "id": "cn-web-shanghai-statistics",
+      "name": "上海市统计局 数据信息",
+      "kind": "web_list",
+      "config": {
+        "url": "https://tjj.sh.gov.cn/sjxx/index.html",
+        "parseMode": "html",
+        "itemSelector": "li:has(a[href^='/sjxx/20']):has(span.time)",
+        "linkSelector": "a",
+        "publishedAtSelector": "span.time",
+        "publishedAtUtcOffset": "+08:00",
+        "allowUrlPrefixes": [
+          "https://tjj.sh.gov.cn/sjxx/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 20,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 1440,
+      "tags": [
+        "官方",
+        "中文",
+        "统计数据",
+        "上海",
+        "人口与城市"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "human"
+    },
+    {
+      "id": "cn-web-shanghai-statistical-bulletins",
+      "name": "上海市统计局 统计公报（低频历史资料）",
+      "kind": "web_list",
+      "config": {
+        "url": "https://tjj.sh.gov.cn/tjgb/index.html",
+        "parseMode": "html",
+        "itemSelector": "li:has(a[href^='/tjgb/20']):has(span.time)",
+        "linkSelector": "a",
+        "publishedAtSelector": "span.time",
+        "publishedAtUtcOffset": "+08:00",
+        "allowUrlPrefixes": [
+          "https://tjj.sh.gov.cn/tjgb/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 20,
+          "intervalMinutesLocked": true
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 1440,
+      "tags": [
+        "官方",
+        "中文",
+        "统计公报",
+        "人口普查",
+        "上海"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "human"
+    },
+    {
+      "id": "web-unfpa-news",
+      "name": "联合国人口基金 UNFPA · 新闻",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.unfpa.org/news",
+        "parseMode": "html",
+        "itemSelector": ".listing-row",
+        "linkSelector": "h5 a",
+        "titleSelector": "h5 a",
+        "publishedAtSelector": "time",
+        "allowUrlPrefixes": [
+          "https://www.unfpa.org/news/"
+        ],
+        "sortByPublishedAt": true,
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": "unfpa",
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "人文地理",
+        "区域地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "web-iom-news",
+      "name": "国际移民组织 IOM · 新闻",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.iom.int/news",
+        "parseMode": "html",
+        "itemSelector": ".node--type-press-release",
+        "linkSelector": "a.text-body",
+        "titleSelector": ".card-title",
+        "publishedAtSelector": ".date",
+        "allowUrlPrefixes": [
+          "https://www.iom.int/news/"
+        ],
+        "publishedAtUtcOffset": "+00:00",
+        "sortByPublishedAt": true,
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": "iom",
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "人文地理",
+        "区域地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "web-adb-news",
+      "name": "亚洲开发银行 ADB · 新闻",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.adb.org/news/releases",
+        "parseMode": "html",
+        "itemSelector": ".views-list li",
+        "linkSelector": "a[href^=\"/news/\"]",
+        "titleSelector": "a[href^=\"/news/\"]",
+        "publishedAtRegex": "(\\d{1,2} [A-Za-z]{3} \\d{4})",
+        "publishedAtUtcOffset": "+00:00",
+        "allowUrlPrefixes": [
+          "https://www.adb.org/news/"
+        ],
+        "denyUrlPrefixes": [
+          "https://www.adb.org/news/videos/",
+          "https://www.adb.org/news/events/"
+        ],
+        "sortByPublishedAt": true,
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": "adb",
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "人文地理",
+        "区域地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "web-eclac-news",
+      "name": "联合国拉美经委会 ECLAC · 新闻",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.cepal.org/en/list/cepal_pr",
+        "parseMode": "html",
+        "itemSelector": ".search-list",
+        "linkSelector": "h4 a",
+        "titleSelector": "h4 a",
+        "publishedAtRegex": "(\\d{1,2} [A-Za-z]{3} \\d{4})",
+        "publishedAtUtcOffset": "+00:00",
+        "allowUrlPrefixes": [
+          "https://www.cepal.org/en/news/",
+          "https://www.cepal.org/en/pressreleases/"
+        ],
+        "sortByPublishedAt": true,
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": "eclac",
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "人文地理",
+        "区域地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-itdp-news",
+      "name": "交通与发展政策研究所 ITDP · 新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.itdp.org/feed/",
+        "allowUrlPrefixes": [
+          "https://itdp.org/",
+          "https://www.itdp.org/"
+        ],
+        "sortByPublishedAt": true,
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": "itdp",
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "人文地理",
+        "区域地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
     }
   ]
 }

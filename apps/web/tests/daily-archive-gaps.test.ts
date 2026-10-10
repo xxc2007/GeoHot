@@ -4,9 +4,20 @@
 // `neighbourLabel` 只有真的是前一天才说「前一日」。
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { archiveGroups, missingRuns, neighbourLabel } from "../app/features/report/format.ts";
+import { archiveGroups, missingRuns, neighbourLabel, kindFromPath } from "../app/features/report/format.ts";
 
 const idx = (...keys: string[]) => keys.map((key) => ({ key, count: 1 }));
+
+test("客户端数据请求与直接打开识别相同的刊物类型", () => {
+  for (const prefix of ["", "/geohot"]) {
+    for (const kind of ["daily", "weekly", "monthly"] as const) {
+      assert.equal(kindFromPath(`${prefix}/${kind}`), kind);
+      assert.equal(kindFromPath(`${prefix}/${kind}.data`), kind);
+      assert.equal(kindFromPath(`${prefix}/${kind}/archive.data`), kind);
+    }
+  }
+  assert.equal(kindFromPath("/geohot/not-weekly.data"), "daily");
+});
 
 test("补历史周报不改变既有周报的周号标签", () => {
   const before = archiveGroups("weekly", idx("2026-W40"))[0].entries[0].short;

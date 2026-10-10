@@ -142,6 +142,7 @@ export async function sickServices(): Promise<Set<string>> {
     const rows = await sql<{ service: string }[]>`
       SELECT service FROM receipt_attempts
        WHERE started_at > now() - interval '10 minutes'
+         AND origin = 'live' AND status IN ('received', 'failed', 'unknown')
        GROUP BY service
       HAVING count(*) >= 6 AND count(*) FILTER (WHERE status = 'received') * 2 < count(*)`;
     sick = new Set(rows.map((r) => r.service));
@@ -172,6 +173,18 @@ export async function modelFor(capability: CapabilityKey, shardKey?: string): Pr
   const sick = await sickServices();
   const healthy = listed.filter((m) => !sick.has(MODELS[m]!.service));
   return pickMember(healthy.length ? healthy : listed, shardKey) || c.default;
+}
+
+/** Recovery considers only the currently configured pool, including unhealthy members whose answer
+ * may already have arrived. An explicit model outside that pool keeps its own receipt identity. */
+export async function recoveryModelsForPurpose(purpose: string, selected: string): Promise<string[]> {
+  const entry = (Object.entries(CAPABILITIES) as Array<[CapabilityKey, Capability]>)
+    .find(([, c]) => c.purposes.includes(purpose));
+  if (!entry) return [selected];
+  const [capability, c] = entry;
+  const configured = (await overrides())[capability] ?? process.env[c.env] ?? process.env.MODEL_POOL ?? c.default;
+  const members = poolOf(configured);
+  return members.includes(selected) ? [...new Set(members)] : [selected];
 }
 
 /** Where the current choice comes from, for the admin page. `model` is what was configured and `serving`

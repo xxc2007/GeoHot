@@ -4,7 +4,7 @@
 import type { z } from "zod";
 import { config, credential } from "../config.ts";
 import { sha256 } from "../lib/ids.ts";
-import { paidRequest, ProviderRejectedError, rejectReceivedResponse } from "./receipts.ts";
+import { logicalKeyFor, paidRequest, ProviderRejectedError, rejectReceivedResponse, type ReceiptRequest } from "./receipts.ts";
 
 export interface ModelSpec {
   key: string;
@@ -242,6 +242,29 @@ function isConnectFailure(error: unknown): boolean {
   return ["ECONNREFUSED", "ENOTFOUND", "EAI_AGAIN", "UND_ERR_CONNECT_TIMEOUT", "ECONNRESET_BEFORE_SEND", "CERT_HAS_EXPIRED"].includes(code ?? "");
 }
 
+/** Keep candidate identities and real HTTP requests on the same parameter calculation. */
+function requestFor<S extends z.ZodType>(opts: ChatJsonOptions<S>, spec: ModelSpec) {
+  const temperature = opts.temperature ?? 0.2;
+  const extra = spec.extra;
+  const reasoning = /reasoning_effort|"thinking"/.test(JSON.stringify(extra ?? {})) || spec.key.endsWith("-think");
+  const maxTokens = Math.min(MAX_OUTPUT_TOKENS, Math.max(opts.maxTokens ?? 1500, 512) + (reasoning ? REASONING_HEADROOM : 0));
+  const userText = typeof opts.user === "string" ? opts.user : JSON.stringify(opts.user);
+  const json = spec.jsonMode && opts.json !== false;
+  const request: ReceiptRequest = {
+    service: spec.service, model: spec.model, purpose: opts.purpose, subject: opts.subject,
+    identity: { model: spec.model, promptVersion: opts.promptVersion, system: sha256(opts.system), user: sha256(userText), temperature, maxTokens, json, extra: extra ?? null },
+    requestSummary: { promptVersion: opts.promptVersion, systemHash: sha256(opts.system), userHash: sha256(userText), userChars: userText.length, temperature, maxTokens },
+    attemptTag: opts.attemptTag,
+  };
+  const body: Record<string, unknown> = {
+    model: spec.model,
+    messages: [...(opts.system ? [{ role: "system", content: opts.system }] : []), { role: "user", content: opts.user }],
+    temperature, max_tokens: maxTokens,
+    ...(json ? { response_format: { type: "json_object" } } : {}), ...(extra ?? {}),
+  };
+  return { request, body, reasoning };
+}
+
 export async function chatJson<S extends z.ZodType>(opts: ChatJsonOptions<S>): Promise<ChatJsonResult<z.infer<S>>> {
   const spec = MODELS[opts.model];
   if (!spec) throw new Error(`Unknown model ${opts.model}`);
@@ -250,42 +273,19 @@ export async function chatJson<S extends z.ZodType>(opts: ChatJsonOptions<S>): P
   const apiKey = credential("models", spec.apiKeyEnv);
   if (!baseUrl || !apiKey || !spec.model) throw new Error(`Model ${opts.model} is not configured (${spec.baseUrlEnv}, ${spec.apiKeyEnv}${spec.key === "default" ? ", LLM_MODEL" : ""})`);
 
-  const temperature = opts.temperature ?? 0.2;
   // A reasoning model spends the budget before it answers. Measured 2026-10-06 on Agnes 3.0 flash:
   // `reasoning_effort: high` burned 4,094 hidden tokens and returned an **empty** `content` with
   // `finish_reason: length` at max_tokens 512, then answered normally at 8,192 (52 s, 4,185 tokens).
   // Reasoning therefore buys headroom on top of the caller's own size — capped at the largest output
   // any caller already asks for, so a preset that sized itself (the selection call: 65,536) stays as is.
-  const reasoning = /reasoning_effort|"thinking"/.test(JSON.stringify(spec.extra ?? {})) || spec.key.endsWith("-think");
-  const maxTokens = Math.min(MAX_OUTPUT_TOKENS, Math.max(opts.maxTokens ?? 1500, 512) + (reasoning ? REASONING_HEADROOM : 0));
-  const userText = typeof opts.user === "string" ? opts.user : JSON.stringify(opts.user);
-  const body: Record<string, unknown> = {
-    model: spec.model,
-    messages: [
-      // A prompt given as one user message (the title/summary prompts) has no system message.
-      ...(opts.system ? [{ role: "system", content: opts.system }] : []),
-      // Multimodal parts go through as parts; plain objects are sent as JSON text.
-      { role: "user", content: typeof opts.user === "string" || Array.isArray(opts.user) ? opts.user : userText },
-    ],
-    temperature,
-    max_tokens: maxTokens,
-    ...(spec.jsonMode && opts.json !== false ? { response_format: { type: "json_object" } } : {}),
-    ...(spec.extra ?? {}),
-  };
+  const { request, body, reasoning } = requestFor(opts, spec);
+  // Dynamic import avoids the registry/model-selection module's static import cycle.
+  const { recoveryModelsForPurpose } = await import("../editorial/models.ts");
+  const candidateNames = await recoveryModelsForPurpose(opts.purpose, opts.model);
+  const candidates = candidateNames.map((name) => ({ name, request: requestFor(opts, MODELS[name]!).request }));
 
   const receipt = await paidRequest(
-    {
-      service: spec.service,
-      model: spec.model,
-      purpose: opts.purpose,
-      subject: opts.subject,
-      // `json` belongs in the identity: response_format is part of what the provider was asked for, so an
-      // answer produced in JSON mode must not be replayed as the answer to a non-JSON request (or the
-      // other way round) when LLM_JSON_MODE is flipped between runs.
-      identity: { model: spec.model, promptVersion: opts.promptVersion, system: sha256(opts.system), user: sha256(userText), temperature, maxTokens, json: spec.jsonMode && opts.json !== false, extra: spec.extra ?? null },
-      requestSummary: { promptVersion: opts.promptVersion, systemHash: sha256(opts.system), userHash: sha256(userText), userChars: userText.length, temperature, maxTokens },
-      attemptTag: opts.attemptTag,
-    },
+    request,
     async () => {
       const started = Date.now();
       let res: Response;
@@ -318,7 +318,7 @@ export async function chatJson<S extends z.ZodType>(opts: ChatJsonOptions<S>): P
         usage,
         cost: null,
       };
-    },
+    }, candidates.map((c) => c.request),
   );
 
   const response = receipt.response as { choices?: Array<{ message?: { content?: string }; finish_reason?: string }>; usage?: Record<string, unknown> };
@@ -335,5 +335,6 @@ export async function chatJson<S extends z.ZodType>(opts: ChatJsonOptions<S>): P
   // what the page already has) but refuse the receipt, so the next attempt is a real request.
   const unusable = opts.usable?.(parsed) ?? null;
   if (unusable) await rejectReceivedResponse(receipt.receiptId, `answer refused: ${unusable.slice(0, 500)}`);
-  return { data: parsed, receiptId: receipt.receiptId, reused: receipt.reused, model: spec.key, usage: response.usage ?? null };
+  const actualModel = candidates.find((c) => logicalKeyFor(c.request) === receipt.logicalKey)?.name ?? spec.key;
+  return { data: parsed, receiptId: receipt.receiptId, reused: receipt.reused, model: actualModel, usage: response.usage ?? null };
 }

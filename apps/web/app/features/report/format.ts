@@ -14,7 +14,8 @@ export const KIND_LABEL: Record<ReportKind, string> = { daily: "日报", weekly:
  *  segment keeps this correct without depending on a build-time base path being present in the server
  *  bundle — a first attempt using `appPath()` still resolved to the daily paper in production. */
 export function kindFromPath(pathname: string): ReportKind {
-  const segments = pathname.split("/").filter(Boolean);
+  // React Router client transitions request `/weekly.data` from the same loader.
+  const segments = pathname.replace(/\.data$/, "").split("/").filter(Boolean);
   if (segments.includes("weekly")) return "weekly";
   if (segments.includes("monthly")) return "monthly";
   return "daily";

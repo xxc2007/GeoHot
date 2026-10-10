@@ -82,3 +82,16 @@ test("default replay continues to rescale old source dates without enabling arch
   assert.equal(replay.rescaled, true);
   assert.equal(replay.historicalAfterIngest, 0);
 });
+
+test("a research synopsis is retained as provenance while the original body stays pending", async () => {
+  const candidate = { ...item, url: `${item.url}-synopsis`, raw: { archive: { bodyIsSynopsis: true } } };
+  writeFileSync(input, JSON.stringify(candidate) + "\n");
+  try {
+    assert.equal(run(["--archive", "--no-queue"]).created, 1);
+    const [row] = await sql`SELECT body_text,body_status,raw FROM articles WHERE url=${candidate.url}`;
+    assert.equal(row!.body_text, null);
+    assert.equal(row!.body_status, "pending");
+    assert.equal(row!.raw._geohot.researchSynopsis, item.bodyText);
+    assert.equal(row!.raw._geohot.originalExtractionRequired, true);
+  } finally { writeFileSync(input, JSON.stringify(item) + "\n"); }
+});

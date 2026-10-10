@@ -144,4 +144,30 @@ fi
 PAPER_ARGS=(scripts/backfill-papers.ts "--from=$FROM" "--to=$TO" --kinds=daily,weekly,monthly "--summary-file=$RUN_DIR/papers.json")
 if [[ "$FINAL_REFRESH" == 1 ]]; then PAPER_ARGS+=(--refresh); fi
 run_phase papers "${PAPER_ARGS[@]}" "${WRITE_ARGS[@]}" || CYCLE_RESULT=$?
+# Rotate one verified publisher adapter per cycle, within the same lock and deadline.
+NEWS_SELECTOR=$(cat <<'NODE'
+import { readFileSync, writeFileSync, renameSync } from 'node:fs';
+import { sql, closeDb } from '@aihot/backend/db';
+const [stateDir,runDir] = process.argv.slice(1);
+try {
+  const rules = JSON.parse(readFileSync('industry/news-archives.json','utf8')).archives;
+  const enabled = new Set((await sql`SELECT id FROM sources WHERE enabled AND participation_mode='editorial'`).map(x=>x.id));
+  const ids = rules.map(x=>x.sourceId).filter(x=>enabled.has(x));
+  let cursor=0;
+  try { cursor=Number(readFileSync(`${stateDir}/next-news`,'utf8').trim()); } catch(e) { if(e.code!=='ENOENT') throw e; }
+  if(!Number.isSafeInteger(cursor)||cursor<0) throw new Error('Invalid news cursor');
+  writeFileSync(`${runDir}/news-source`,ids.length?ids[cursor%ids.length]+'\n':'');
+  writeFileSync(`${stateDir}/next-news.tmp`,String(ids.length?(cursor+1)%ids.length:0));
+  renameSync(`${stateDir}/next-news.tmp`,`${stateDir}/next-news`);
+} finally { await closeDb(); }
+NODE
+)
+if run_phase select-news --input-type=module -e "$NEWS_SELECTOR" "$STATE_DIR" "$RUN_DIR"; then
+  news_source=$(cat "$RUN_DIR/news-source")
+  if [[ -n "$news_source" ]]; then
+    run_phase collect-news scripts/backfill-news.ts "--sources=$news_source" "--from=$FROM" "--to=$TO" --max-pages=5 --max-items=100 --sleep-ms=1200 "${WRITE_ARGS[@]}" || CYCLE_RESULT=$?
+  fi
+else
+  CYCLE_RESULT=$?
+fi
 exit "$CYCLE_RESULT"

@@ -227,19 +227,30 @@ export async function registerExtractionJobs(boss: PgBoss) {
  * Safety net: articles waiting for processing that no queue holds (crash between write and enqueue,
  * a lost job, a retry that came due). Articles already queued or running are left alone.
  *
- * Oldest first, and that order is the whole point: this net takes at most 500 rows a run, so ordering by
- * `discovered_at DESC` (as it did until 2026-10-05) re-queued the newest 500 every five minutes and left
- * everything older waiting forever — with `processing_state` still 'new', no `processing_error`, and
- * therefore invisible on the admin page that lists exactly those stuck rows. One crash during a bulk
- * import is enough to exceed 500.
+ * Oldest first within each band, at most 500 rows. Reserve up to 100 places for explicit archives:
+ * older first imports repeatedly waiting on a budget otherwise fill the whole sweep before archives
+ * ever reach their higher-priority queue. Ordinary work gets all unused archive places; when fewer
+ * ordinary rows are eligible, archives use the remainder. Queue priorities still put live news first.
  */
 export async function sweepUnprocessed(): Promise<{ enqueued: number; published: number }> {
   const rows = await sql<{ id: string }[]>`
-    SELECT id FROM articles
-    WHERE processing_state = 'new' AND created_at < now() - interval '3 minutes'
-      AND (processing_retry_at IS NULL OR processing_retry_at <= now())
-      AND (processing_queued_at IS NULL OR processing_queued_at < now() - ${QUEUED_STALE}::interval)
-    ORDER BY discovered_at ASC LIMIT 500`;
+    WITH eligible AS MATERIALIZED (
+      SELECT id, discovered_at, coalesce(backfill_reason = 'archive', false) AS archive FROM articles
+      WHERE processing_state = 'new' AND created_at < now() - interval '3 minutes'
+        AND (processing_retry_at IS NULL OR processing_retry_at <= now())
+        AND (processing_queued_at IS NULL OR processing_queued_at < now() - ${QUEUED_STALE}::interval)
+    ), reserved AS (
+      SELECT id, discovered_at FROM eligible WHERE archive ORDER BY discovered_at, id LIMIT 100
+    ), ordinary AS (
+      SELECT id, discovered_at FROM eligible WHERE NOT archive ORDER BY discovered_at, id
+      LIMIT (500 - (SELECT count(*) FROM reserved))
+    ), remainder AS (
+      SELECT id, discovered_at FROM eligible WHERE archive AND id NOT IN (SELECT id FROM reserved)
+      ORDER BY discovered_at, id LIMIT (500 - (SELECT count(*) FROM reserved) - (SELECT count(*) FROM ordinary))
+    )
+    SELECT id FROM (
+      SELECT * FROM reserved UNION ALL SELECT * FROM ordinary UNION ALL SELECT * FROM remainder
+    ) chosen ORDER BY discovered_at, id`;
   for (const r of rows) await queueProcessing(r.id);
   // 另一半：分析已经落库、发布投影却没跑成（崩溃正好落在 `analyze.ts` 提交与 `publishArticle` 之间）。
   // 这一半不排队、不花钱——投影是确定性计算，直接补一次；漏掉它，条目就永久停在"分析过了但站上找不到"。

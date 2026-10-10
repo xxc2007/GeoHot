@@ -1,0 +1,514 @@
+{
+  "checkedAt": "2026-10-10T09:33:16.870Z",
+  "baselineSourceCount": 294,
+  "scope": "2026-01-01 through 2026-10-10; source proposals only; no production registration or ingest",
+  "proposals": [
+    {
+      "source": {
+        "id": "web-unfpa-news",
+        "name": "联合国人口基金 UNFPA · 新闻",
+        "kind": "web_list",
+        "config": {
+          "url": "https://www.unfpa.org/news",
+          "parseMode": "html",
+          "itemSelector": ".listing-row",
+          "linkSelector": "h5 a",
+          "titleSelector": "h5 a",
+          "publishedAtSelector": "time",
+          "allowUrlPrefixes": [
+            "https://www.unfpa.org/news/"
+          ],
+          "sortByPublishedAt": true,
+          "_aihot": {
+            "initialBackfillLimit": 8
+          }
+        },
+        "tier": "T1",
+        "first_party": true,
+        "owner_entity_id": "unfpa",
+        "participation_mode": "editorial",
+        "interval_minutes": 240,
+        "tags": [
+          "英文",
+          "人文地理",
+          "区域地理"
+        ],
+        "site_fulltext": false,
+        "syndicate_fulltext": false,
+        "enabled": true
+      },
+      "tierBasis": "联合国人口机构自有官网的一手新闻",
+      "validation": {
+        "unsupportedKeys": [],
+        "registeredDuplicate": false
+      },
+      "evidence": {
+        "status": 200,
+        "parsedCount": 12,
+        "datedCount": 12,
+        "samples": [
+          {
+            "title": "In The Gambia, communities and faith leaders band together to protect girls from child marriage",
+            "url": "https://www.unfpa.org/news/gambia-communities-and-faith-leaders-band-together-protect-girls-child-marriage",
+            "publishedAt": "2026-10-08T12:00:00.000Z"
+          },
+          {
+            "title": "Women give birth by the roadside as hostilities escalate in Yemen",
+            "url": "https://www.unfpa.org/news/women-give-birth-roadside-hostilities-escalate-yemen",
+            "publishedAt": "2026-10-02T12:00:00.000Z"
+          },
+          {
+            "title": "Everyone counts: Uzbekistan uses new tech and grassroots outreach in first census since its independence",
+            "url": "https://www.unfpa.org/news/everyone-counts-uzbekistan-uses-new-tech-and-grassroots-outreach-first-census-its-independence",
+            "publishedAt": "2026-09-25T12:00:00.000Z"
+          }
+        ]
+      },
+      "history": {
+        "url": "https://www.unfpa.org/news?page=1",
+        "status": 200,
+        "parsedCount": 12,
+        "datedCount": 12,
+        "earliest": "2026-04-22T12:00:00.000Z",
+        "latest": "2026-06-26T12:00:00.000Z",
+        "verifiedChangedItems": true,
+        "coversJanuary": false,
+        "earlyPageProbe": {
+          "url": "https://www.unfpa.org/news?page=2",
+          "status": 200,
+          "parsedCount": 12,
+          "datedCount": 12,
+          "earliest": "2026-02-11T12:00:00.000Z",
+          "latest": "2026-04-16T12:00:00.000Z",
+          "samples": []
+        },
+        "januaryProbe": {
+          "url": "https://www.unfpa.org/news?page=3",
+          "status": 200,
+          "parsedCount": 12,
+          "datedCount": 12,
+          "earliest": "2025-11-24T12:00:00.000Z",
+          "latest": "2026-02-10T12:00:00.000Z",
+          "samples": [
+            {
+              "title": "“Displacement took more than my home”: Women and girls describe fleeing violence in northern Syria",
+              "url": "https://www.unfpa.org/news/%E2%80%9Cdisplacement-took-more-my-home%E2%80%9D-women-and-girls-describe-fleeing-violence-northern-syria",
+              "publishedAt": "2026-01-23T12:00:00.000Z"
+            },
+            {
+              "title": "Inclusive care reaches survivors of gender-based violence in Indonesia",
+              "url": "https://www.unfpa.org/news/inclusive-care-reaches-survivors-gender-based-violence-indonesia",
+              "publishedAt": "2026-01-22T12:00:00.000Z"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "source": {
+        "id": "web-iom-news",
+        "name": "国际移民组织 IOM · 新闻",
+        "kind": "web_list",
+        "config": {
+          "url": "https://www.iom.int/news",
+          "parseMode": "html",
+          "itemSelector": ".node--type-press-release",
+          "linkSelector": "a.text-body",
+          "titleSelector": ".card-title",
+          "publishedAtSelector": ".date",
+          "allowUrlPrefixes": [
+            "https://www.iom.int/news/"
+          ],
+          "publishedAtUtcOffset": "+00:00",
+          "sortByPublishedAt": true,
+          "_aihot": {
+            "initialBackfillLimit": 8
+          }
+        },
+        "tier": "T1",
+        "first_party": true,
+        "owner_entity_id": "iom",
+        "participation_mode": "editorial",
+        "interval_minutes": 240,
+        "tags": [
+          "英文",
+          "人文地理",
+          "区域地理"
+        ],
+        "site_fulltext": false,
+        "syndicate_fulltext": false,
+        "enabled": true
+      },
+      "tierBasis": "联合国移民机构自有官网的一手新闻",
+      "validation": {
+        "unsupportedKeys": [],
+        "registeredDuplicate": false
+      },
+      "evidence": {
+        "status": 200,
+        "parsedCount": 18,
+        "datedCount": 18,
+        "samples": [
+          {
+            "title": "IOM Chief Warns Smugglers Prey on Children as 20,800 of 31,100 Reached Europe Alone in 2025",
+            "url": "https://www.iom.int/news/iom-chief-warns-smugglers-prey-children-20800-31100-reached-europe-alone-2025",
+            "publishedAt": "2026-10-07T00:00:00.000Z"
+          },
+          {
+            "title": "Nearly 2 Million in Gaza Need Urgent Shelter Assistance as Winter Looms: IOM Chief Warns",
+            "url": "https://www.iom.int/news/nearly-2-million-gaza-need-urgent-shelter-assistance-winter-looms-iom-chief-warns",
+            "publishedAt": "2026-10-07T00:00:00.000Z"
+          },
+          {
+            "title": "New Global Migration Dataset Offers Unprecedented View of Mobility Trends",
+            "url": "https://www.iom.int/news/new-global-migration-dataset-offers-unprecedented-view-mobility-trends",
+            "publishedAt": "2026-10-07T00:00:00.000Z"
+          }
+        ]
+      },
+      "history": {
+        "url": "https://www.iom.int/news?page=1",
+        "status": 200,
+        "parsedCount": 18,
+        "datedCount": 18,
+        "earliest": "2026-07-29T00:00:00.000Z",
+        "latest": "2026-09-13T00:00:00.000Z",
+        "verifiedChangedItems": true,
+        "coversJanuary": false,
+        "earlyPageProbe": {
+          "url": "https://www.iom.int/news?page=5",
+          "status": 200,
+          "parsedCount": 18,
+          "datedCount": 18,
+          "earliest": "2026-03-30T00:00:00.000Z",
+          "latest": "2026-04-21T00:00:00.000Z",
+          "samples": []
+        },
+        "januaryProbe": {
+          "url": "https://www.iom.int/news?page=8",
+          "status": 200,
+          "parsedCount": 18,
+          "datedCount": 18,
+          "earliest": "2025-12-19T00:00:00.000Z",
+          "latest": "2026-02-09T00:00:00.000Z",
+          "samples": [
+            {
+              "title": "IOM Sounds Alarm as Displacement in Yemen Soars",
+              "url": "https://www.iom.int/news/iom-sounds-alarm-displacement-yemen-soars",
+              "publishedAt": "2026-01-30T00:00:00.000Z"
+            },
+            {
+              "title": "IOM Praises Brazil for Welcoming and Supporting Migrants",
+              "url": "https://www.iom.int/news/iom-praises-brazil-welcoming-and-supporting-migrants",
+              "publishedAt": "2026-01-30T00:00:00.000Z"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "source": {
+        "id": "web-adb-news",
+        "name": "亚洲开发银行 ADB · 新闻",
+        "kind": "web_list",
+        "config": {
+          "url": "https://www.adb.org/news/releases",
+          "parseMode": "html",
+          "itemSelector": ".views-list li",
+          "linkSelector": "a[href^=\"/news/\"]",
+          "titleSelector": "a[href^=\"/news/\"]",
+          "publishedAtRegex": "(\\d{1,2} [A-Za-z]{3} \\d{4})",
+          "publishedAtUtcOffset": "+00:00",
+          "allowUrlPrefixes": [
+            "https://www.adb.org/news/"
+          ],
+          "denyUrlPrefixes": [
+            "https://www.adb.org/news/videos/",
+            "https://www.adb.org/news/events/"
+          ],
+          "sortByPublishedAt": true,
+          "_aihot": {
+            "initialBackfillLimit": 8
+          }
+        },
+        "tier": "T1",
+        "first_party": true,
+        "owner_entity_id": "adb",
+        "participation_mode": "editorial",
+        "interval_minutes": 240,
+        "tags": [
+          "英文",
+          "人文地理",
+          "区域地理"
+        ],
+        "site_fulltext": false,
+        "syndicate_fulltext": false,
+        "enabled": true
+      },
+      "tierBasis": "多边开发银行自有官网，项目报道属机构一手声明",
+      "validation": {
+        "unsupportedKeys": [],
+        "registeredDuplicate": false
+      },
+      "evidence": {
+        "status": 200,
+        "parsedCount": 10,
+        "datedCount": 10,
+        "samples": [
+          {
+            "title": "ADB President Joins Pre-COP31, Calls for Faster Resilience Finance",
+            "url": "https://www.adb.org/news/adb-president-joins-pre-cop31-calls-faster-resilience-finance",
+            "publishedAt": "2026-10-07T00:00:00.000Z"
+          },
+          {
+            "title": "ADB President Calls for Greater Investment in Science, Energy, and AI",
+            "url": "https://www.adb.org/news/adb-president-calls-greater-investment-science-energy-and-ai",
+            "publishedAt": "2026-10-05T00:00:00.000Z"
+          },
+          {
+            "title": "ADB, Credo Sign Local Currency Loan to Boost Financial Inclusion for MSMEs in Georgia",
+            "url": "https://www.adb.org/news/adb-credo-sign-local-currency-loan-boost-financial-inclusion-msmes-georgia",
+            "publishedAt": "2026-10-05T00:00:00.000Z"
+          }
+        ]
+      },
+      "history": {
+        "url": "https://www.adb.org/news/releases?page=1",
+        "status": 200,
+        "parsedCount": 10,
+        "datedCount": 10,
+        "earliest": "2026-08-27T00:00:00.000Z",
+        "latest": "2026-09-23T00:00:00.000Z",
+        "verifiedChangedItems": true,
+        "coversJanuary": false,
+        "earlyPageProbe": {
+          "url": "https://www.adb.org/news/releases?page=8",
+          "status": 200,
+          "parsedCount": 10,
+          "datedCount": 10,
+          "earliest": "2026-03-17T00:00:00.000Z",
+          "latest": "2026-04-10T00:00:00.000Z",
+          "samples": []
+        },
+        "januaryProbe": {
+          "url": "https://www.adb.org/news/releases?page=11",
+          "status": 200,
+          "parsedCount": 10,
+          "datedCount": 10,
+          "earliest": "2025-12-10T00:00:00.000Z",
+          "latest": "2026-01-26T00:00:00.000Z",
+          "samples": [
+            {
+              "title": "ADB President Champions ASEAN Cooperation and Private Sector Growth at World Economic Forum",
+              "url": "https://www.adb.org/news/adb-president-champions-asean-cooperation-and-private-sector-growth-world-economic-forum",
+              "publishedAt": "2026-01-26T00:00:00.000Z"
+            },
+            {
+              "title": "ADB Launches High-Level Advisory Group at Davos to Drive Private Sector Development in Asia and the Pacific",
+              "url": "https://www.adb.org/news/adb-launches-high-level-advisory-group-davos-drive-private-sector-development-asia-and-pacific",
+              "publishedAt": "2026-01-22T00:00:00.000Z"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "source": {
+        "id": "web-eclac-news",
+        "name": "联合国拉美经委会 ECLAC · 新闻",
+        "kind": "web_list",
+        "config": {
+          "url": "https://www.cepal.org/en/list/cepal_pr",
+          "parseMode": "html",
+          "itemSelector": ".search-list",
+          "linkSelector": "h4 a",
+          "titleSelector": "h4 a",
+          "publishedAtRegex": "(\\d{1,2} [A-Za-z]{3} \\d{4})",
+          "publishedAtUtcOffset": "+00:00",
+          "allowUrlPrefixes": [
+            "https://www.cepal.org/en/news/",
+            "https://www.cepal.org/en/pressreleases/"
+          ],
+          "sortByPublishedAt": true,
+          "_aihot": {
+            "initialBackfillLimit": 8
+          }
+        },
+        "tier": "T1",
+        "first_party": true,
+        "owner_entity_id": "eclac",
+        "participation_mode": "editorial",
+        "interval_minutes": 240,
+        "tags": [
+          "英文",
+          "人文地理",
+          "区域地理"
+        ],
+        "site_fulltext": false,
+        "syndicate_fulltext": false,
+        "enabled": true
+      },
+      "tierBasis": "联合国区域委员会自有官网；只收官网原文，拒绝外部媒体转载",
+      "validation": {
+        "unsupportedKeys": [],
+        "registeredDuplicate": false
+      },
+      "evidence": {
+        "status": 200,
+        "parsedCount": 20,
+        "datedCount": 20,
+        "samples": [
+          {
+            "title": "ECLAC Presents a New Vision on How to Manage Vital Transformations in New Geopolitical and Globalization Landscapes",
+            "url": "https://www.cepal.org/en/pressreleases/eclac-presents-new-vision-how-manage-vital-transformations-new-geopolitical-and",
+            "publishedAt": "2026-10-07T00:00:00.000Z"
+          },
+          {
+            "title": "How to Manage Transformations in the New Geopolitical Era: ECLAC Calls for Strengthening Capacities and Acting as a Region",
+            "url": "https://www.cepal.org/en/pressreleases/how-manage-transformations-new-geopolitical-era-eclac-calls-strengthening-capacities",
+            "publishedAt": "2026-10-06T00:00:00.000Z"
+          },
+          {
+            "title": "ECLAC Warns that an Extreme El Niño Event Could Cause a 2% Loss in Regional GDP and Place 4.8 Million More People in Poverty in Latin America and the Caribbean",
+            "url": "https://www.cepal.org/en/pressreleases/eclac-warns-extreme-nino-event-could-cause-2-loss-regional-gdp-and-place-48-million",
+            "publishedAt": "2026-09-21T00:00:00.000Z"
+          }
+        ]
+      },
+      "history": {
+        "url": "https://www.cepal.org/en/list/cepal_pr?page=1",
+        "status": 200,
+        "parsedCount": 20,
+        "datedCount": 20,
+        "earliest": "2025-10-30T00:00:00.000Z",
+        "latest": "2026-04-21T00:00:00.000Z",
+        "verifiedChangedItems": true,
+        "coversJanuary": false,
+        "earlyPageProbe": {
+          "url": "https://www.cepal.org/en/list/cepal_pr?page=1",
+          "status": 200,
+          "parsedCount": 20,
+          "datedCount": 20,
+          "earliest": "2025-10-30T00:00:00.000Z",
+          "latest": "2026-04-21T00:00:00.000Z",
+          "samples": []
+        }
+      }
+    },
+    {
+      "source": {
+        "id": "rss-itdp-news",
+        "name": "交通与发展政策研究所 ITDP · 新闻",
+        "kind": "rss",
+        "config": {
+          "feedUrl": "https://www.itdp.org/feed/",
+          "allowUrlPrefixes": [
+            "https://itdp.org/",
+            "https://www.itdp.org/"
+          ],
+          "sortByPublishedAt": true,
+          "_aihot": {
+            "initialBackfillLimit": 8
+          }
+        },
+        "tier": "T2",
+        "first_party": true,
+        "owner_entity_id": "itdp",
+        "participation_mode": "editorial",
+        "interval_minutes": 240,
+        "tags": [
+          "英文",
+          "人文地理",
+          "区域地理"
+        ],
+        "site_fulltext": false,
+        "syndicate_fulltext": false,
+        "enabled": true
+      },
+      "tierBasis": "非政府组织的交通政策报道和倡议，有立场，应按媒体及机构评论档严格筛选",
+      "validation": {
+        "unsupportedKeys": [],
+        "registeredDuplicate": false
+      },
+      "evidence": {
+        "status": 200,
+        "parsedCount": 9,
+        "datedCount": 9,
+        "samples": [
+          {
+            "title": "Powering the E-Bus Transition Through Public-Private Investment",
+            "url": "https://itdp.org/2026/10/05/powering-the-e-bus-transition-through-public-private-investment/",
+            "publishedAt": "2026-10-05T18:55:19.000Z"
+          },
+          {
+            "title": "How Companies Are Transforming Commutes in Mexico City",
+            "url": "https://itdp.org/2026/10/01/how-companies-are-transforming-commutes-in-mexico-city/",
+            "publishedAt": "2026-10-01T13:00:22.000Z"
+          },
+          {
+            "title": "The Pathways for Low Emission Zones in India’s Cities",
+            "url": "https://itdp.org/2026/09/22/the-pathways-for-low-emission-zones-in-indias-cities/",
+            "publishedAt": "2026-09-22T19:16:49.000Z"
+          }
+        ]
+      },
+      "history": {
+        "url": "https://www.itdp.org/feed/?paged=2",
+        "status": 200,
+        "parsedCount": 9,
+        "datedCount": 9,
+        "earliest": "2026-05-18T16:40:31.000Z",
+        "latest": "2026-07-15T19:04:42.000Z",
+        "verifiedChangedItems": true,
+        "coversJanuary": false,
+        "earlyPageProbe": {
+          "url": "https://www.itdp.org/feed/?paged=3",
+          "status": 200,
+          "parsedCount": 9,
+          "datedCount": 9,
+          "earliest": "2026-03-12T16:56:14.000Z",
+          "latest": "2026-05-07T20:29:17.000Z",
+          "samples": []
+        },
+        "januaryProbe": {
+          "url": "https://www.itdp.org/feed/?paged=4",
+          "status": 200,
+          "parsedCount": 9,
+          "datedCount": 9,
+          "earliest": "2026-01-15T22:09:08.000Z",
+          "latest": "2026-03-04T20:33:38.000Z",
+          "samples": [
+            {
+              "title": "What Cities Can Learn from the Africa Region’s First Electric BRT",
+              "url": "https://itdp.org/2026/01/29/learn-from-the-africa-regions-first-electric-brt-stmagazine-37/",
+              "publishedAt": "2026-01-29T20:59:55.000Z"
+            },
+            {
+              "title": "How We Can Transform Urban Air Quality for the Better",
+              "url": "https://itdp.org/2026/01/22/transform-urban-air-quality-stmagazine-37/",
+              "publishedAt": "2026-01-22T19:16:42.000Z"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "failedCandidates": [
+    {
+      "url": "https://www.statssa.gov.za/?feed=rss2",
+      "failure": "Node fetch failed on 2026-10-10; not proposed"
+    },
+    {
+      "url": "https://agenciadenoticias.ibge.gov.br/en/agencia-news.html",
+      "failure": "HTTP 403 on 2026-10-10; not proposed"
+    },
+    {
+      "url": "https://blogs.worldbank.org/en/transport/rss.xml",
+      "failure": "HTTP 404 on 2026-10-10; not proposed"
+    },
+    {
+      "url": "https://www.adb.org/news/rss.xml",
+      "failure": "HTTP 404; ADB HTML is used instead"
+    }
+  ]
+}

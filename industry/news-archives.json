@@ -1,0 +1,90 @@
+{
+  "$comment": "Explicit non-journal archive adapters; source registration remains in sources.json. Page/date selectors verified against publisher HTML on 2026-10-10. This is not a universal archive for all sources.",
+  "archives": [
+    {
+      "sourceId": "web-wmo-news",
+      "mode": "pages",
+      "urlTemplate": "https://wmo.int/news?page={page}",
+      "firstPage": 0,
+      "config": {}
+    },
+    {
+      "sourceId": "intl-loc-worlds-revealed",
+      "mode": "months",
+      "urlTemplate": "https://blogs.loc.gov/maps/{month}/",
+      "config": {
+        "parseMode": "html",
+        "itemSelector": "article:has(h2 a[rel='bookmark'])",
+        "linkSelector": "h2 a[rel='bookmark']",
+        "titleSelector": "h2",
+        "publishedAtSelector": "time",
+        "allowUrlPrefixes": [
+          "https://blogs.loc.gov/maps/"
+        ],
+        "denyUrlPrefixes": [
+          "https://blogs.loc.gov/maps/category/",
+          "https://blogs.loc.gov/maps/author/"
+        ]
+      }
+    },
+    {
+      "sourceId": "cn-web-nda-news",
+      "mode": "pages",
+      "urlTemplate": "https://www.nda.gov.cn/sjj/swdt/xwfb/list/index_pc_{page}.html",
+      "firstPage": 1,
+      "config": {}
+    },
+    {
+      "sourceId": "cn-web-shanghai-news",
+      "mode": "pages",
+      "urlTemplate": "https://www.shanghai.gov.cn/nw4411/index_{page}.html",
+      "firstPage": 1,
+      "firstPageUrl": "https://www.shanghai.gov.cn/nw4411/index.html",
+      "config": {}
+    },
+    {
+      "sourceId": "cn-web-guangzhou-government",
+      "mode": "pages",
+      "urlTemplate": "https://www.gz.gov.cn/xw/zwlb/index_{page}.html",
+      "firstPage": 1,
+      "firstPageUrl": "https://www.gz.gov.cn/xw/zwlb/index.html",
+      "config": {}
+    },
+    {
+      "sourceId": "cn-web-shanghai-statistics",
+      "mode": "pages",
+      "urlTemplate": "https://tjj.sh.gov.cn/sjxx/index_{page}.html",
+      "firstPage": 1,
+      "firstPageUrl": "https://tjj.sh.gov.cn/sjxx/index.html",
+      "config": {}
+    },
+    {
+      "sourceId": "web-unfpa-news",
+      "mode": "pages",
+      "urlTemplate": "https://www.unfpa.org/news?page={page}",
+      "firstPage": 0,
+      "config": {}
+    },
+    {
+      "sourceId": "web-iom-news",
+      "mode": "pages",
+      "urlTemplate": "https://www.iom.int/news?page={page}",
+      "firstPage": 0,
+      "config": {}
+    },
+    {
+      "sourceId": "web-adb-news",
+      "mode": "pages",
+      "urlTemplate": "https://www.adb.org/news/releases?page={page}",
+      "firstPage": 0,
+      "config": {}
+    },
+    {
+      "sourceId": "web-eclac-news",
+      "mode": "pages",
+      "urlTemplate": "https://www.cepal.org/en/list/cepal_pr?page={page}",
+      "firstPage": 0,
+      "config": {}
+    }
+  ]
+}

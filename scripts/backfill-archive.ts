@@ -37,6 +37,7 @@ import { closeDb, sql } from "@aihot/backend/db";
 import { identityKeyForUrl } from "@aihot/backend/lib/url";
 import { upsertMaterial } from "@aihot/backend/content/materials";
 import { queueProcessing } from "@aihot/backend/jobs/content";
+import { stopBoss } from "@aihot/backend/jobs/queue";
 import { looksZh } from "@aihot/backend/editorial/writing";
 import { guardedFetch, DEFAULT_UA } from "@aihot/backend/lib/http-fetch";
 import { backIssues, issueArticles, type SiteIssue } from "@aihot/backend/sources/archive-site";
@@ -527,7 +528,9 @@ for (const month of selectedMonths) {
 
 if (stored >= MAX_ITEMS) console.log(`本轮到达上限 ${MAX_ITEMS} 条，剩下的下轮接着跑。`);
 console.log(`${values.apply ? "已入库" : "DRY-RUN 将入库"} ${stored} 条（可判 ${judged} 条｜无整日期 ${noDate}｜摘要过短 ${thin}｜与实时重复 ${duplicate}）`);
-await closeDb();
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  try { await main(); }
+  finally { await stopBoss(); await closeDb(); }
+}

@@ -164,6 +164,9 @@ function SiteShell({ changelogVersion, children }: { changelogVersion: string | 
   const first = useRef(true);
   useEffect(() => {
     if (first.current) { first.current = false; return; }
+    // Search autofocus is deliberate; preserve it when the route mounts its input.
+    const focused = document.activeElement;
+    if (focused instanceof HTMLInputElement || focused instanceof HTMLTextAreaElement || focused instanceof HTMLSelectElement) return;
     document.getElementById("main")?.focus({ preventScroll: true });
   }, [pathname]);
   return (
