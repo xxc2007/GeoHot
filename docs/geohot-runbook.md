@@ -538,3 +538,19 @@ quota 型与速率型的 429 走同一条重试阶梯；给档案一次性开闸
 
 **回滚**：档案材料一律带 `backfill_reason = 'archive'` 且 `article_discoveries.via = 'import'`，一条 SQL 能整批摘掉，同时清 `archive_ingest`；期刊回到 `report_revisions` 的上一版。删之前先 `pg_dump`，与 `deploy/geohot/rollback.sh` 的约定一致。
 
+
+**第六十五轮的档案面（2026-10-10 11:20–11:30 北京，生产实测）**：中文过刊这扇门从一家变成七家
+（新增《地理学报》《资源科学》《地球信息科学学报》《自然资源学报》《热带地理》《人文地理》，
+逐条在采集机实测后才写进包）。当天六个进程各跑 2026-01→2026-10、`--per-month=12`，入库
+**+504 条**（dqxxkx 108｜jnr 108｜resci 108｜geog 96（另有 12 条与实时重复）｜rddl 84），
+档案材料总数 2,076 → **2,580**。**玛捷斯那批站会自己发 5xx**：《地理学报》索引在同一天里先 500 后 200
+（同一台采集机、同一个爬虫 UA、204 KB 同样正文），所以 `sources/archive-site.ts` 对 5xx **补读一次**，
+解析失败与 URL 被拒不重试；一直坏仍按"这一片没跑完"如实上报，该月切片留在 pending。
+《测绘学报》只接实时目录：它的过刊索引锚链是 `../volumn/...`，从 `/CN/archive_by_issues` 解析出来是
+`/volumn/...`（站上回 3.2 KB 空壳），页面无 `<base>`，配置层面无解。
+
+**一条关于"验收工具自己"的教训（本轮差点误判）**：手工 `curl -s https://xxc2007.me/ | sha256sum`
+**前后两次就不一样**（相差 0 字节，差在 Cloudflare 邮箱保护那串随机 token），这不是"动了隔壁站"。
+`verify-deploy.sh` 早在本轮之前就把 `/cdn-cgi/l/email-protection#<token>` 归一化后才取哈希，
+所以它的"邻居站未受影响"仍然可信。**比对邻居站请只用 `verify-deploy.sh`，不要用手搓哈希。**
+本轮该检查 ALL CHECKS PASSED（含各出口 6 期一致、七个出口 reader copy 全中文）。
