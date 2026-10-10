@@ -67,7 +67,57 @@ const PROBE = `(() => {
     .filter((el) => visible(el) && ["fixed", "sticky"].includes(getComputedStyle(el).position))
     .filter((el) => el.getBoundingClientRect().height > window.innerHeight * 0.25)
     .slice(0, 4).map((el) => ({ el: describe(el), h: Math.round(el.getBoundingClientRect().height), pos: getComputedStyle(el).position }));
-  return { viewport: [vw, window.innerHeight], docHeight: document.documentElement.scrollHeight, overflow, wide, small, tinyType, fixed, title: document.title };
+
+  // 吸顶条/底部标签栏与正文相交吗？mobile-audit 的第一遍只量了尺寸，这一遍量的是"挡不挡东西"：
+  // 滚动到 40% 之后，视口里的卡片若与吸顶条或底部条重叠，读者就会看到半截被压住的内容。
+  const bars = [...document.querySelectorAll("body *")].filter((el) => {
+    if (!visible(el)) return false;
+    const s = getComputedStyle(el);
+    if (s.position !== "sticky" && s.position !== "fixed") return false;
+    const r = el.getBoundingClientRect();
+    const stickyTop = s.position === "sticky" && r.top <= 1;
+    const fixedBottom = s.position === "fixed" && r.bottom >= window.innerHeight - 1;
+    return (stickyTop || fixedBottom) && r.height > 8 && r.width > window.innerWidth * 0.5;
+  }).slice(0, 3);
+  const covers = [];
+  for (const bar of bars) {
+    const b = bar.getBoundingClientRect();
+    const overlapping = [...document.querySelectorAll("a[href], article, h1, h2, h3")]
+      .filter((el) => visible(el) && !bar.contains(el) && el.getBoundingClientRect().height > 12)
+      .filter((el) => {
+        const r = el.getBoundingClientRect();
+        return r.top < b.bottom && r.bottom > b.top && r.width > 40;
+      })
+      .slice(0, 3)
+      .map((el) => { const r = el.getBoundingClientRect(); return { el: describe(el), top: Math.round(r.top), bottom: Math.round(r.bottom) }; });
+    covers.push({ bar: describe(bar), box: { top: Math.round(b.top), bottom: Math.round(b.bottom) }, overlapping });
+  }
+
+  // 滚到底，最后一屏的东西有没有被底部固定条压住：这是"内容可读性"的真问题（缺 padding 的经典 bug），
+  // 与"滚动中内容从吸顶条下面经过"不是一回事——后者是吸顶条的定义。
+  const atBottom = (() => {
+    const before = window.scrollY;
+    window.scrollTo(0, document.documentElement.scrollHeight);
+    const bar = [...document.querySelectorAll("body *")].find((el) => {
+      if (!visible(el)) return false;
+      const s = getComputedStyle(el);
+      if (s.position !== "fixed") return false;
+      const r = el.getBoundingClientRect();
+      return r.bottom >= window.innerHeight - 1 && r.height > 24 && r.width > window.innerWidth * 0.5;
+    });
+    const barTop = bar ? Math.round(bar.getBoundingClientRect().top) : window.innerHeight;
+    const cards = [...document.querySelectorAll("article, main > *")]
+      .filter((el) => visible(el) && el.getBoundingClientRect().height > 40);
+    const last = cards[cards.length - 1];
+    const lastBox = last ? last.getBoundingClientRect() : null;
+    // 页面底部到底时，最后一块内容的 bottom 应当 ≤ 固定条的上沿；超出的部分读者永远看不到。
+    const hidden = lastBox ? Math.max(0, Math.round(lastBox.bottom - barTop)) : 0;
+    const afterScroll = { scrollY: Math.round(window.scrollY), maxScroll: Math.round(document.documentElement.scrollHeight - window.innerHeight) };
+    window.scrollTo(0, before);
+    return { barTop, lastBottom: lastBox ? Math.round(lastBox.bottom) : null, hiddenBehindBar: hidden, ...afterScroll };
+  })();
+
+  return { viewport: [vw, window.innerHeight], docHeight: document.documentElement.scrollHeight, overflow, wide, small, tinyType, fixed, covers, atBottom, title: document.title };
 })()`;
 
 const chrome = findChrome();
