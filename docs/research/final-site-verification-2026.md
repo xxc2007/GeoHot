@@ -68,4 +68,4 @@ root 在 2026-10-10 22:45 CST 从服务器运行 `node scripts/smoke.ts --base h
 
 本次完整 loopback smoke 通过；随后服务器执行只读 `deploy/geohot/verify-deploy.sh`，包含公开 HTTPS 和邻站基线、服务、brain source/defaults、数据与出口及完整 smoke，最终 `RESULT: ALL CHECKS PASSED`。原始日志保存在本轮私有目录 `deploy-964a2f2.log`、`smoke-964a2f2.log`、`verify-deploy-964a2f2.log`。
 
-本轮不是全量历史筛选、补刊及最终 GitHub 同步验收。公开报告当前仍为六期日报、一期开周报、零期公开月报；历史区间尚未关闭，不能以功能冒烟通过替代内容完成证明。
+本轮不是全量历史筛选、补刊及最终 GitHub 同步验收。公开报告当前仍为六期日报、一期公开周报、零期公开月报；历史区间尚未关闭，不能以功能冒烟通过替代内容完成证明。
