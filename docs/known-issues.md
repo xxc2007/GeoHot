@@ -3481,3 +3481,28 @@ HAL 有 3/40 条 `<description>` 就是 `<![CDATA[[...]]]>`，于是 `excerpt` �
    **`published_at IS NULL` 的档案行现在是 0**（那 12 条被实时目录写成 undated 的地理学报条目已补上刊期）。
    `--per-month` 改成数"入库"之后，重跑能越过旧的 12 条墙：`web-geog-toc 2026-03` 从 0 条变 5 条，
    月度切片能正常收 `done`。
+
+### 第六十六轮补记（同日中午）：OpenRouter 两把 key 都是"管理 key"，而管理 key 能签出推理 key
+
+站长先后给了两把 OpenRouter key，`GET /api/v1/key` 两次都回 `is_management_key: true` / `is_provisioning_key: true`：
+`/models` 能列 458 个模型（15 个 `:free`），但任何 `chat/completions` 都 `401 User not found`。
+管理/开通 key 的用途正是**签发普通 key**——`POST /api/v1/keys`（`{name}`）当场回 201 并带一把推理 key，
+它就能推理了。签出来的那把只写进两个 `.env`，签发用的临时文件已 shred；**没有任何 key 进仓库**。
+
+实测（同一提示、JSON 模式、免费档）六个 `:free` 模型可答：`nemotron-3-ultra` 12 秒 / 296 token、
+`nemotron-3-nano-omni-reasoning` 19 秒、`nemotron-3-super-120b` 45 秒、`dots-studio/dots-3-note-preview`
+（与直连那条同模型，多一条并发放量）、`liquid/lfm-2.5-2.6b`、`cohere/north-mini-code`；`gemma-4` 两条当时
+对端 429。六条各登记一条 `MODELS` 条目（池子按 shard 分活，得能单独点名），reasoning 那三条带
+`reasoning_effort: high`。迁移 `0056` 把 `openrouter` 那行熔断改成 **18/300/600**：免费档额度按**账号**算，
+成员多不等于额度多，刻意取小，撞到对端限制时交给 `sickServices()` 换人。
+
+**生产验证（不只是登记）**：重启后逐 capability 读回，`score` 一档服务成员为
+`agnes-cn, default, dots3-note-prev` + 六个 `or-*`；随后三分钟内的 receipts 里出现
+`openrouter|nvidia/nemotron-3-super-120b-a12b:free|received×4` 与 `openrouter|liquid/lfm-2.5-2.6b:free|failed×1`
+——**免费模型真的在替站点干活**（小模型失败是预期的，健康判据会把它换下去）。
+
+另一条同日修好的缺陷（`de6be4e` `56ed1f7`）：池子此前不知道"某道门正在整体失败"。线上三小时里
+1,051 次尝试全砸在额度用完的 Agnes 国内版上（另两道门只答 112 次），而成员是按条目 id 的哈希选的，
+于是那不是"慢四分之一"，是**四分之一的工作直接死掉**。现在 `modelFor` 跳过"十分钟内 ≥6 次尝试且答出
+不到一半"的服务（用速率而不是连败——被降到每分钟一次的门零星成功足以骗过连败判据），**绝不清空池子**：
+全部不健康时仍用完整列表，停不停由熔断与重试阶梯决定；后台面板用同一份判断。
