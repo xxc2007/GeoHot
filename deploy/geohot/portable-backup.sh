@@ -4,8 +4,15 @@ set -euo pipefail
 umask 077
 APP=${GEOHOT_APP_ROOT:-/opt/geohot/app}
 DEST=${GEOHOT_BACKUP_ROOT:-/opt/geohot/backups/migration}
-STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+STATE_DIR=${GEOHOT_ARCHIVE_STATE_DIR:-$APP/.data/archive-cycle}
 mkdir -p "$DEST"
+# Keep archive checkpoints behind the database snapshot they describe. The normal worker can
+# continue: pg_dump supplies a consistent database snapshot, and its image caches are excluded.
+command -v flock >/dev/null || { printf 'flock is required for a consistent archive snapshot\n' >&2; exit 2; }
+mkdir -p "$STATE_DIR"
+exec 8>"$STATE_DIR/cycle.lock"
+flock -w 120 8 || { printf 'Archive collection is busy; backup deferred\n' >&2; exit 2; }
+STAMP=$(date -u +%Y%m%dT%H%M%SZ)
 WORK=$(mktemp -d "$DEST/.portable-$STAMP-XXXXXX")
 trap 'rm -rf -- "$WORK"' EXIT
 cd "$APP"
