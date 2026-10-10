@@ -83,6 +83,7 @@ before(async () => {
 
 after(async () => {
   await sql`DELETE FROM story_digests WHERE story_id = ${storyId}`;
+  await sql`DELETE FROM receipts WHERE subject LIKE ${`story:${storyId}@%`}`;
   await sql`DELETE FROM fact_articles WHERE article_id = ANY(${reportIds})`;
   await sql`DELETE FROM facts WHERE story_id = ${storyId}`;
   await sql`DELETE FROM publications WHERE article_id = ANY(${reportIds})`;
@@ -140,11 +141,12 @@ test("署名但只有一句话的答案仍然不是综述：下限挡的是这�
   assert.equal((await liveStory()).digest, beforeDigest, "一句话不替换已发布的综述");
 });
 
-test("a title naming an institution no report of this story mentions is refused", { skip: "第七轮未完成的加固：综述标题的身份守卫已写好，但 stub 的 capability registry 还没接上（docs/known-issues.md 第七轮·未完成）" }, async () => {
+test("a title naming an institution no report of this story mentions is refused", async () => {
   const beforeTitle = (await liveStory()).title;
   brain = { fixture: `digest-${T}`, author: `编辑${T}`, rule: null };
-  answer = { title: `USGS 测定测试事件${T} M5.2 地震`, digest: `两家台站各自给出读数，一台 5.2 级、二台 mb 5.0，深度 32 千米。`, latest: "" };
-  const res = await composeStoryDigest(storyId, { force: true });
+  answer = { title: `USGS 测定测试事件${T} M5.2 地震`, digest: `两家台站各自给出读数，一台 5.2 级、二台 mb 5.0，深度 32 千米。两篇报道分别给出各自的测定结果，本事件综述保留不同读数，不将两个台站的结果视作同一次测定。`, latest: "" };
+  assert.ok(String(answer.digest).length >= 60, "a valid signed digest reaches the title guard");
+  const res = await composeStoryDigest(storyId, { force: true, requestId: `identity-${T}` });
   assert.equal(res.updated, true, "综述本身是中文、够长、有签名，仍然发布");
   const story = await liveStory();
   assert.equal(story.title, beforeTitle, "报道里没有 USGS，事件标题就不能出现 USGS（身份守卫）");
@@ -179,23 +181,21 @@ test("a report behind its release gate is not evidence for the digest, and 报�
   }
 });
 
-test("the version is taken under the story lock, so two runs cannot land on the same key", { skip: "第七轮未完成：并发两次重写仍会算出同一个版本号（docs/known-issues.md 第七轮·未完成）" }, async () => {
+test("the version is taken under the story lock, so two runs cannot land on the same key", async () => {
   // story_digests' primary key is (story_id, version). Reading stories.version before the model answers let
   // two runs (concurrency 3, merges and corrections enqueue under different singleton keys) compute one.
   await sql`UPDATE stories SET version = 1 WHERE id = ${storyId}`;
   await sql`INSERT INTO story_digests (story_id, version, digest, article_ids) VALUES (${storyId}, 9, ${`占位：历史版本九${T}`}, '{}')`;
   brain = { fixture: `digest-${T}`, author: `编辑${T}`, rule: null };
-  answer = { title: "", digest: `两家台站各自给出读数，一台 5.2 级、二台 mb 5.0，深度 32 千米。`, latest: "" };
-  const res = await composeStoryDigest(storyId, { force: true });
+  answer = { title: "", digest: `两家台站各自给出读数，一台 5.2 级、二台 mb 5.0，深度 32 千米。两篇报道分别给出各自的测定结果，本事件综述保留不同读数，不将两个台站的结果视作同一次测定。`, latest: "" };
+  assert.ok(String(answer.digest).length >= 60);
+  const res = await composeStoryDigest(storyId, { force: true, requestId: `version-prime-${T}` });
   assert.deepEqual(res, { updated: true, version: 10 }, "版本 = max(stories.version, 已写过的最高版本) + 1");
 
-  const settled = await Promise.allSettled([composeStoryDigest(storyId, { force: true }), composeStoryDigest(storyId, { force: true })]);
-  for (const s of settled) {
-    if (s.status === "rejected") {
-      assert.doesNotMatch(String(s.reason), /duplicate key|story_digests_pkey/i, `并发的两次重写撞了主键：${String(s.reason).slice(0, 200)}`);
-    }
-  }
-  const versions = await sql<{ v: number }[]>`SELECT version FROM story_digests WHERE story_id = ${storyId}`;
+  const settled = await Promise.all([composeStoryDigest(storyId, { force: true, requestId: `version-a-${T}` }), composeStoryDigest(storyId, { force: true, requestId: `version-b-${T}` })]);
+  assert.deepEqual(settled.map(s => s.updated), [true, true], "both distinct paid rewrites reach the locked write");
+  assert.deepEqual(settled.map(s => s.version).sort((a, b) => a! - b!), [11, 12]);
+  const versions = await sql<{ v: number }[]>`SELECT version AS v FROM story_digests WHERE story_id = ${storyId}`;
   assert.equal(new Set(versions.map((r) => r.v)).size, versions.length, "每一次写入都有自己的版本号");
 });
 

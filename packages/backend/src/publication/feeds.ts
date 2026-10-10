@@ -183,7 +183,7 @@ function tocHtml(content: Record<string, any>, kind: ReportKind, gone: Set<strin
       const label = String((kind === "daily" ? g.label : g.heading) ?? "");
       const entries = listed.map((i: any) => {
         const title = escapeXml(String(i.title ?? ""));
-        const href = i.itemId ? (withPage.has(i.itemId) ? itemUrl(String(i.itemId)) : String(i.sourceUrl ?? "")) : "";
+        const href = i.itemId && withPage.has(i.itemId) ? itemUrl(String(i.itemId)) : String(i.sourceUrl ?? "");
         return `<li>${href ? `<a href="${escapeXml(href)}">${title}</a>` : title}</li>`;
       }).join("");
       return `<p><strong>${escapeXml(label)}</strong></p>\n<ul>${entries}</ul>`;

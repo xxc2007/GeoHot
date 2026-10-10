@@ -43,6 +43,7 @@ const server = http.createServer((req, res) => {
 });
 await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
 const base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+const originalPrivateFetch = config.allowPrivateNetworkFetch;
 config.allowPrivateNetworkFetch = true;
 const app = await buildApp();
 after(async () => {
@@ -50,6 +51,7 @@ after(async () => {
   // Leftover unprocessed articles poison tests/alerts.test.ts, which counts the backlog table-wide.
   // purgeTagged sweeps articles and sources by tag, so the two later tests' prefixes go with this one.
   await purgeTagged(T);
+  config.allowPrivateNetworkFetch = originalPrivateFetch;
   await app.close();
   await new Promise<void>(resolve => server.close(() => resolve()));
   await stopBoss();
@@ -139,7 +141,7 @@ test('Last-Modified works without ETag and changing redirect targets cannot acce
   assert.equal(requests.at(-1)!.etag, undefined);
 });
 
-test('weekly, monthly and daily feeds render the issue TOC and answer conditional requests', { skip: '第七轮未收尾：订阅里的条目链接回退规则（没有行的条目给原文地址）与实现不一致，与 publication-issue-gate 同一处（docs/known-issues.md 第七轮·未完成）' }, async () => {
+test('weekly, monthly and daily feeds render the issue TOC and answer conditional requests', async () => {
   // Item ids absent from this database stay cited as published (reports.ts unavailableIds), so the
   // report rows alone are enough to render a faithful table of contents.
   const wk = '2097-W01', we = '2097-W02', mk = '2097-01', me = '2097-02', dk = '2097-01-05';
@@ -150,13 +152,17 @@ test('weekly, monthly and daily feeds render the issue TOC and answer conditiona
   await insert('weekly', wk, {
     kind: 'weekly', title: `${SITE.name} 周报 · ${wk}`, periodStart: '2096-12-30', periodEnd: '2097-01-05',
     headline: `FEEDWH-${T}`, overview: `FEEDWO-${T}`,
-    themes: [{ heading: '野外与考察', summary: '小节', storyRefs: [{ itemId: `ci-w-${T}`, title: `FEEDWI-${T}`, sourceUrl: `https://example.org/w-${T}` }] }],
+    themes: [{ heading: '野外与考察', summary: '小节', storyRefs: [
+      { itemId: `ci-w-${T}`, title: `FEEDWI-${T}`, sourceUrl: `https://example.org/w-${T}` },
+      { title: `NOID-${T}`, sourceUrl: `https://example.org/noid-${T}` },
+      { itemId: `nolink-${T}`, title: `NOLINK-${T}` },
+    ] }],
   });
   await insert('weekly', we, { kind: 'weekly', title: `${SITE.name} 周报 · ${we}`, periodStart: '2097-01-06', periodEnd: '2097-01-12', overview: '', themes: [] });
   await insert('monthly', mk, {
     kind: 'monthly', title: `${SITE.name} 月报 · ${mk}`, periodStart: '2097-01-01', periodEnd: '2097-01-31',
     headline: `FEEDMH-${T}`, overview: `FEEDMO-${T}`,
-    themes: [{ heading: '观点与解读', summary: null, storyRefs: [{ itemId: `ci-m-${T}`, title: `FEEDMI-${T}`, sourceUrl: `https://example.org/m-${T}` }] }],
+    themes: [{ heading: '观点与解读', summary: null, storyRefs: [{ itemId: `ci-m-${T}`, title: `FEEDMI-${T}`, links: { original: `https://example.org/m-${T}` } }] }],
   });
   await insert('monthly', me, { kind: 'monthly', title: `${SITE.name} 月报 · ${me}`, periodStart: '2097-02-01', periodEnd: '2097-02-28', overview: '', themes: [] });
   await insert('daily', dk, {
@@ -174,6 +180,9 @@ test('weekly, monthly and daily feeds render the issue TOC and answer conditiona
   assert.ok(weekly.body.includes(`FEEDWO-${T}`), 'the description carries the whole overview');
   assert.ok(weekly.body.includes('<strong>野外与考察</strong>'), 'the description carries the editor\'s theme heading');
   assert.ok(weekly.body.includes(`https://example.org/w-${T}`), 'and an id this database has no row for is offered its original article, not a site page that would 404');
+  assert.ok(!weekly.body.includes(`/items/ci-w-${T}`));
+  assert.ok(weekly.body.includes(`https://example.org/noid-${T}`), 'a citation without an item id can still link its original');
+  assert.ok(weekly.body.includes(`<li>NOLINK-${T}</li>`) && !weekly.body.includes(`/items/nolink-${T}`), 'a citation without any address is plain text');
   assert.ok(weekly.body.includes(`/weekly/${wk}`), 'the issue links to its site page');
   assert.ok(weekly.body.includes('12 期'), 'the channel says it keeps the twelve newest issues');
   assert.ok(weekly.headers.etag?.toString().startsWith('W/"rss-'), 'the feed carries a weak ETag');
@@ -186,6 +195,7 @@ test('weekly, monthly and daily feeds render the issue TOC and answer conditiona
   assert.ok(monthly.body.includes(`>monthly-${mk}<`));
   assert.ok(!monthly.body.includes(`>monthly-${me}<`), 'a blank monthly issue is not advertised');
   assert.ok(monthly.body.includes('FEEDMO-' + T) && monthly.body.includes('<strong>观点与解读</strong>'));
+  assert.ok(monthly.body.includes(`https://example.org/m-${T}`) && !monthly.body.includes(`/items/ci-m-${T}`));
   const m304 = await app.inject({ method: 'GET', url: '/feed/monthly.xml', headers: { 'if-none-match': monthly.headers.etag!.toString() } });
   assert.equal(m304.statusCode, 304);
 
@@ -193,7 +203,8 @@ test('weekly, monthly and daily feeds render the issue TOC and answer conditiona
   assert.equal(daily.statusCode, 200);
   assert.ok(daily.body.includes(`FEEDDP-${T}`), 'the daily keeps its lead paragraph');
   assert.ok(daily.body.includes('<strong>区域与城乡</strong>'), 'and now also the issue table of contents');
-  assert.ok(daily.body.includes(`/items/ci-d-${T}`) && daily.body.includes('FEEDDI-' + T));
+  assert.ok(daily.body.includes(`https://example.org/d-${T}`) && daily.body.includes('FEEDDI-' + T));
+  assert.ok(!daily.body.includes(`/items/ci-d-${T}`), 'absent daily citation never links a missing site page');
   assert.ok(daily.body.includes('点击查看完整日报'), 'the existing wording stays as it was');
   const d304 = await app.inject({ method: 'GET', url: '/feed/daily.xml', headers: { 'if-none-match': daily.headers.etag!.toString() } });
   assert.equal(d304.statusCode, 304);

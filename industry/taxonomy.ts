@@ -296,7 +296,8 @@ export const IDENTITY_LEXICON: ReadonlyArray<{ id: string; name: string; pattern
   { id: "qtp", name: "青藏高原综合科学考察", patterns: [/青藏科考|青藏高原研究|第二次青藏|青藏所|地球三期/i] },
   { id: "polar", name: "中国极地研究中心", patterns: [/极地研究中心|雪龙|中国南极考察|中国北极考察|中山站|昆仑站|泰山站|黄河站|长城站/i] },
   { id: "mnr", name: "自然资源部", patterns: [/自然资源部|国土变更调查|地理国情监测|国土调查/i] },
-  { id: "cgs", name: "中国地质调查局", patterns: [/地质调查局|中国地质调查|\bcgs\b/i] },
+  // 不能把裸「地质调查局」判给 CGS：它也在「美国地质调查局」中，会误删忠实译文并放过反向错署名。
+  { id: "cgs", name: "中国地质调查局", patterns: [/中国地质调查|\bcgs\b/i] },
   // 与 cma 那格同类：国家防总（国家防汛抗旱总指挥部）归口应急管理部，属**有意的父子/归口合并**，摘要允许写上级机构名。
   { id: "mem", name: "应急管理部", patterns: [/应急管理部|国家防汛抗旱总指挥部|国家防总|应急救援|安全生产/i] },
   { id: "mwr", name: "水利部", patterns: [/水利部|水文水资源|河长制|水利普查/i] },
