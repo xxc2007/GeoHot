@@ -160,7 +160,7 @@ export async function fetchJsonList(source: SourceRow): Promise<Candidate[]> {
       title: collapseWhitespace(stripTags(title)),
       author: firstString(item, c.authorPaths),
       // The shared date rule: an epoch that is not a finite number is "no date", not an Invalid Date.
-      publishedAt: parsePublishedAt(getPath(item, c.publishedAtPath), { unit: c.publishedAtUnit, utcOffset: c.publishedAtUtcOffset }),
+      publishedAt: parsePublishedAt(getPath(item, c.publishedAtPath), { unit: c.publishedAtUnit, utcOffset: c.publishedAtUtcOffset, dateOrder: c.publishedAtDateOrder }),
       excerpt: summary ? collapseWhitespace(stripTags(summary)).slice(0, 2000) : null,
       bodyText: summaryIsBody ? stripTags(summary!) : null,
       bodyStatus: summaryIsBody ? "ok" : "pending",

@@ -17,7 +17,7 @@ before(async () => {
             (${OTHER}, 'Test aggregator', 'rss', '2100-01-01')`;
 });
 after(async () => {
-  await purgeTagged(SOURCE);
+  await purgeTagged(SOURCE, OTHER);
   await closeDb();
 });
 

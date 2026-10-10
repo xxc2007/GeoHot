@@ -9,6 +9,7 @@ import { AdminPage, Badge, Button, Card, DataTable, Empty, Field, FilterChips, R
 
 interface Usage {
   purpose: string;
+  service: string;
   model: string | null;
   promptVersion: string | null;
   calls: number;
@@ -26,7 +27,7 @@ interface Usage {
 
 interface Models {
   days: number;
-  capabilities: Array<{ key: string; label: string; env: string; defaultModel: string; vision: boolean; current: { model: string; source: "admin" | "env" | "default" }; usage: Usage[] }>;
+  capabilities: Array<{ key: string; label: string; env: string; defaultModel: string; vision: boolean; current: { model: string; serving: string; source: "admin" | "env" | "default" }; usage: Usage[] }>;
   choices: Array<{ key: string; service: string; vision: boolean }>;
   history: Array<{ at: string; actor: string; subject: string; reason: string | null; before: { model: string; source: string } | null; after: { model: string; source: string } | null }>;
   benches: Array<{ id: string; label: string; sample_size: number; prompt_version: string | null; models: string[]; created_at: string }>;
@@ -63,7 +64,12 @@ export default function ModelsAdmin({ loaderData: m }: Route.ComponentProps) {
               title={
                 <span className="inline-flex flex-wrap items-center gap-2">
                   {c.label}
-                  <span className="font-mono text-[12px] font-normal text-ink-3">{c.current.model}</span>
+                  <span className="font-mono text-[12px] font-normal text-ink-3">
+                    {c.current.model}
+                    {/* A pool can list members that cannot serve (no key, no JSON mode). Showing only the
+                        configured string would claim capacity that is not there. */}
+                    {c.current.serving !== c.current.model && <span className="text-hot">（实际 {c.current.serving}）</span>}
+                  </span>
                   <Badge tone={c.current.source === "admin" ? "accent" : "muted"}>{SOURCE_LABEL[c.current.source]}</Badge>
                 </span>
               }
@@ -72,7 +78,10 @@ export default function ModelsAdmin({ loaderData: m }: Route.ComponentProps) {
                   size="sm"
                   onClick={() => {
                     setTarget(c);
-                    setChoice(c.current.model);
+                    // A pool is an environment setting and the dropdown has no entry for it. Preselecting
+                    // 恢复默认 is the honest preselect — submitting it removes the admin override, which is
+                    // exactly what leaves the env pool in charge.
+                    setChoice(m.choices.some((x) => x.key === c.current.model) ? c.current.model : "__default");
                   }}
                 >
                   切换
@@ -84,9 +93,11 @@ export default function ModelsAdmin({ loaderData: m }: Route.ComponentProps) {
                 <DataTable
                   dense
                   rows={c.usage}
-                  rowKey={(u) => `${u.purpose}|${u.model}|${u.promptVersion}`}
+                  rowKey={(u) => `${u.purpose}|${u.service}|${u.model}|${u.promptVersion}`}
                   columns={[
-                    { key: "m", label: "模型", render: (u) => <span className="whitespace-nowrap font-mono text-[12px]">{u.model}</span> },
+                    // The provider is shown as well as the model: two endpoints can answer under one model name,
+                    // and a pool whose traffic is invisible looks like a single provider carrying everything.
+                    { key: "m", label: "模型", render: (u) => <span className="whitespace-nowrap font-mono text-[12px]">{u.model}<span className="text-ink-4"> · {u.service}</span></span> },
                     { key: "v", label: "提示版本", render: (u) => <span className="whitespace-nowrap font-mono text-[11.5px] text-ink-3">{u.promptVersion ?? "—"}</span> },
                     { key: "p", label: "用途", render: (u) => <span className="whitespace-nowrap font-mono text-[11.5px] text-ink-3">{u.purpose}</span> },
                     { key: "c", label: "调用", align: "right", render: (u) => num(u.calls) },

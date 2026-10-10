@@ -208,7 +208,7 @@ const subjectOf = (a: AnalyzeInputArticle) => `article:${a.id}@${a.revision}`;
 const tagged = (attemptTag: string | undefined, step: string) => [attemptTag, step].filter(Boolean).join(":") || undefined;
 
 async function runPrefilter(a: AnalyzeInputArticle, opts: StepOpts): Promise<AnalysisRun["prefilter"]> {
-  const model = await modelFor("prefilter");
+  const model = await modelFor("prefilter", a.id);
   checkAnalysisRunning();
   const res = await chatJson({
     model,
@@ -228,7 +228,7 @@ async function runPrefilter(a: AnalyzeInputArticle, opts: StepOpts): Promise<Ana
 }
 
 async function runScores(a: AnalyzeInputArticle, threshold: number, opts: StepOpts): Promise<NonNullable<AnalysisRun["scores"]>> {
-  const model = opts.scoreModel ?? (await modelFor("score"));
+  const model = opts.scoreModel ?? (await modelFor("score", a.id));
   const call = scoreCall(model);
   const input = buildScoreInput(a);
   const values: number[] = [];
@@ -257,7 +257,7 @@ async function runScores(a: AnalyzeInputArticle, threshold: number, opts: StepOp
 }
 
 async function runStructure(a: AnalyzeInputArticle, opts: StepOpts): Promise<NonNullable<AnalysisRun["structure"]>> {
-  const model = await modelFor("structure");
+  const model = await modelFor("structure", a.id);
   checkAnalysisRunning();
   const res = await chatJson({
     model,
@@ -291,7 +291,7 @@ export function noChineseAnswer(data: { titleZh?: string; summaryZh?: string; bo
 }
 
 /** The content understanding; null when the model's content filter declines the material. */
-async function runUnderstand(a: AnalyzeInputArticle, opts: StepOpts): Promise<AnalysisRun["writing"]> {  const model = await modelFor("understand");
+async function runUnderstand(a: AnalyzeInputArticle, opts: StepOpts): Promise<AnalysisRun["writing"]> {  const model = await modelFor("understand", a.id);
   const text = understandUser(a);
   const call = (image: ContentPart | null) => {
     checkAnalysisRunning();
@@ -337,7 +337,7 @@ async function runSummarize(a: AnalyzeInputArticle, opts: StepOpts): Promise<Non
   // A short post already in Chinese is its own copy, and too little text is not written up from a title.
   if (short && !needsShortTweetTranslation(main)) return { kind: "verbatim", model: null, titleZh: main, summaryZh: main, ...plain };
   if (!short && t.text.trim().length < 20) return { kind: "none", model: null, titleZh: looksZh(t.title) ? t.title : "", summaryZh: "", ...plain };
-  const model = await modelFor("summarize");
+  const model = await modelFor("summarize", a.id);
   checkAnalysisRunning();
   const res = await chatJson({
     model,

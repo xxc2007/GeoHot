@@ -30,6 +30,8 @@ interface Route {
   /** Not an editorial source: no analysis; the post goes straight to event grouping as discussion evidence. */
   signal: boolean;
   historical: boolean;
+  /** Pulled from the scholarly record on purpose (`backfill_reason = 'archive'`); it does not go stale. */
+  archive: boolean;
 }
 
 /**
@@ -39,9 +41,9 @@ interface Route {
  * history adds no heat).
  */
 async function route(articleId: string, db: Db): Promise<Route | null> {
-  const [row] = await db<{ body_status: string; participation_mode: string; kind: string; config: Record<string, unknown>; url: string; bare: boolean; backfill: boolean; published_at: Date | null; discovered_at: Date }[]>`
+  const [row] = await db<{ body_status: string; participation_mode: string; kind: string; config: Record<string, unknown>; url: string; bare: boolean; backfill: boolean; backfill_reason: string | null; published_at: Date | null; discovered_at: Date }[]>`
     SELECT a.body_status, s.participation_mode, s.kind, s.config, a.url, (coalesce(a.body_text, '') = '' AND a.x_post IS NULL) AS bare,
-           a.backfill, a.published_at, a.discovered_at
+           a.backfill, a.backfill_reason, a.published_at, a.discovered_at
     FROM articles a JOIN sources s ON s.id = a.source_id WHERE a.id = ${articleId}`;
   if (!row) return null;
   const historical = isHistorical(row);
@@ -56,15 +58,25 @@ async function route(articleId: string, db: Db): Promise<Route | null> {
   // 现在按"用手上已有的摘要判"走 —— 与抽取最终失败时本来就走的那一支同一个口径，读者侧最多少一条
   // 内容，不会多出一条错的。
   const extractable = pending && (needsPage || needsXArticle) && isCollectEnabled();
-  return { step: extractable ? "extract" : "analyze", signal, historical };
+  return { step: extractable ? "extract" : "analyze", signal, historical, archive: row.backfill_reason === "archive" };
 }
 
 /**
  * Queue order (pg-boss serves higher priority first): live work before history, so a new source's
  * first import or a backfill never holds up today's news; discussion evidence waits behind reports
  * in the serial grouping queue, history behind both.
+ *
+ * History is not one band. A paper pulled from the scholarly record does not go stale — a March article
+ * judged in October is still a March article, and it is the material the back-dated papers are made of.
+ * A news item found more than 48 h late is the opposite: it decays every day it waits, and it rarely earns
+ * a place. Measured on production 2026-10-10: of judged `stale-on-discovery` items 0.8% were selected,
+ * against 1.9% of ordinary ones. So archive work is served between live work and late news — the ordering
+ * that costs the reader least: today's paper still goes first, and 09:00 news still goes before the record.
  */
-const PRIORITY = { live: 0, liveSignal: -1, history: -2 } as const;
+const PRIORITY = { live: 0, liveSignal: -1, history: -2, archive: -1 } as const;
+
+/** Which band of history this article belongs to: the record (no decay) or late news (decaying). */
+const historyPriority = (r: { archive: boolean }) => (r.archive ? PRIORITY.archive : PRIORITY.history);
 
 /**
  * The one way to hand an article to processing. `attemptTag` makes an explicit re-evaluation a new
@@ -77,13 +89,13 @@ export async function queueProcessing(articleId: string, opts: { step?: Step; at
   if (!r) return null;
   const step = opts.step ?? r.step;
   await db`UPDATE articles SET processing_queued_at = now() WHERE id = ${articleId}`;
-  if (step === "extract") return enqueue(QUEUES.extractBody, { articleId }, { singletonKey: articleId, priority: r.historical ? PRIORITY.history : PRIORITY.live }, opts.db);
+  if (step === "extract") return enqueue(QUEUES.extractBody, { articleId }, { singletonKey: articleId, priority: r.historical ? historyPriority(r) : PRIORITY.live }, opts.db);
   if (r.signal && !opts.attemptTag) {
-    return enqueue(QUEUES.group, { articleId, signalOnly: true }, { singletonKey: articleId, priority: r.historical ? PRIORITY.history : PRIORITY.liveSignal }, opts.db);
+    return enqueue(QUEUES.group, { articleId, signalOnly: true }, { singletonKey: articleId, priority: r.historical ? historyPriority(r) : PRIORITY.liveSignal }, opts.db);
   }
   const tagged = !!opts.attemptTag;
   return enqueue(QUEUES.analyze, tagged ? { articleId, attemptTag: opts.attemptTag } : { articleId },
-    { singletonKey: tagged ? `manual:analyze:${articleId}:${opts.attemptTag}` : articleId, priority: r.historical ? PRIORITY.history : PRIORITY.live }, opts.db);
+    { singletonKey: tagged ? `manual:analyze:${articleId}:${opts.attemptTag}` : articleId, priority: r.historical ? historyPriority(r) : PRIORITY.live }, opts.db);
 }
 
 /**

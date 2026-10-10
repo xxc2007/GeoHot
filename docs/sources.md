@@ -110,7 +110,7 @@ SocialData 按请求计费，本部署没有这个 key，所以第二十四轮�
 
 两条本站的实情：① 这个自动调整任务只在 `COLLECT_ENABLED` 不为 false 时才注册（`apps/worker/src/schedules.ts:82-87`），
 所以上面那三档在关着采集的机器上根本不会跑；② **现站在跑的按次计费信源是 0 条**——`industry/sources.json` 里 `mp_account` 与带 `paid_listing` 的仍是 0，`x_search` 第二十四轮登记了 8 条但全部 `enabled=false`（本部署没有 `SOCIALDATA_API_KEY`），所以“按次计费”这一档在现部署下依然是空集，采集不产生账单。
-登记间隔的现值最小 30 分钟（271 条：6 条 30、12 条 60、1 条 90、23 条 120、4 条 180、138 条 240、12 条 360、65 条 720、10 条 1440；
+登记间隔的现值最小 30 分钟（274 条：6 条 30、12 条 60、1 条 90、23 条 120、5 条 180、138 条 240、12 条 360、67 条 720、10 条 1440；
 `node -e` 一行可复测，读的就是 `industry/sources.json` 这一份）——**包内登记值最快是 30 分钟，15 分钟只是自适应下限**。
 这句只对包成立，不对库成立：**线上确实有源被打到了那个下限**。2026-10-09 19:15 从服务器只读复测（本轮那份逐源产量表读的就是 `sources.interval_minutes`，见下面「第五十七轮」一节）：
 `json-nmc-weather-alarm` 与 `cn-chinanews-scroll` 两条都是 **15 分钟**（同一份查询里它们 5 小时的入库量是 48 条与 172 条，
@@ -677,8 +677,9 @@ Byrd 极地中心与 ECMWF 两条首次导入是 `found 0`——但直接在采�
 | Springer `link.springer.com/search.rss?…`（Bulletin of Volcanology 445、PalZ 12542、Mineralium Deposita 126、Climatic Change 10584、TAC 704、KN 42489） | 本轮两次探测**全部 200 + 3036 字节 `Client Challenge` HTML**，0 条 item；同形制 40 分钟前由发现代理取到过 20 条真 XML | 本轮不接：限流是时段性的，**未取到字节就不登记**。下一轮错峰重试（不换 UA、不试号） |
 | `meteofrance.com/rss.xml` | 200 · 10 条 · `description` 中位 14077 字（全站正文塞进摘要） | 未接：内容是法语气象科普栏目（`/meteo-a-z/`、热浪影响专栏），不是科研发布，方向不对 |
 
-**包内现状**：271 条（第五十七轮 218 → 第五十八轮 +53），`rss` 226、`web_list` 26、
-`json_list` 3、`external` 8、`x_search` 8；启用 258；`defaultCategory=frontier` 35 条。
+**包内现状**：274 条（第五十八轮 218 → 271，第六十一轮 +3 到 274），`rss` 229、`web_list` 26、
+`json_list` 3、`external` 8、`x_search` 8；启用 261；`defaultCategory=frontier` 35 条。
+（**这句是当时的数**；第六十二轮停掉两条重复/停更之后是 274 条、启用 259、可轮询 251，第六十五轮加七条中文期刊目录源之后是 281 条、启用 266、可轮询 258。数一遍别抄：`node -e` 读 `industry/sources.json` 按 `enabled !== false` 数，别按文件行数猜。）
 
 **顺带修好的一条境内源**：`web-pric-news`（中国极地研究中心）连败 9 轮，错误写着 `no items matched (html)`。
 两层原因：① 它原指的首页改版后 HTML 里 `c_show_id_` 出现 **0 次**；② 更根本的是 `web-list.ts:75` 的
@@ -785,7 +786,7 @@ Byrd 极地中心与 ECMWF 两条首次导入是 `found 0`——但直接在采�
 
 
 **接入合计**：包内 Copernicus 家族共 41 条（本轮 +27），
-`rss` 226 条，258 条 `enabled=true`。
+`rss` 229 条，261 条 `enabled=true`、可轮询的 253 条（第六十二轮起：启用 259、可轮询 251——`rss` 仍是 229 条，少的是启用数；第六十五轮后：启用 266、可轮询 258）。
 
 ### 首导闸门看不见的那一类：允许前缀只匹配了一半的主机
 
@@ -865,5 +866,193 @@ Byrd 极地中心与 ECMWF 两条首次导入是 `found 0`——但直接在采�
   所以今晚这批前沿期刊要排在既有 999 条之后，**前沿板块是"一天多里陆续出全"，不是上线即满**。
 
 结论写在这里，避免下一轮误判：**再加信源不会让读者多看到内容，只会把 52 次/小时的带宽摊得更薄。**
-数量已经不缺（271 条、`rss` 226 条），缺的是站长那一侧的 `per_hour` 决定，
+数量已经不缺（当时 271 条、`rss` 226 条；第六十一轮实测后到 274 条），缺的是站长那一侧的 `per_hour` 决定，
 或者一次"哪些批量源不该逐条进模型"的口径决定——两者都不是采集侧能替站长做的。
+## 第六十轮侦察：63 条候选，一条都还没接（2026-10-10，等采集机实测）
+
+六路子智能体分头找（国家地质与测绘机构 / 遥感与 GIS / 中文学术地理 / 国际机构与气候灾害 / 人文与城市 /
+地球物理与灾害）。下面这一段就是分诊的结论本身（侦察原始报告是临时产物，收工时已清），**下面这些不是"已登记"，
+是"下一轮值得从采集机探一遍"的清单**——本机 DNS 与采集机不一致，代理在这里报 200 或 403 都不作数（第五十六轮起的老规矩）。
+
+**与包内 271 条逐条比对：精确重复 0 条。** 近重复 8 条要避开：NSIDC 有两个 feed 同一主机（`news` 与
+`arcticseaicenews`）；Copernicus Marine 的新闻是 Mercator Ocean 自己那条源转载；PreventionWeb 就是 UNDRR 的平台；
+GEOFON 与库里 USGS/CENC 是同一批台站事件；`cn-itpcas-media-scan` 每条都跳到科学网/中科院，是聚合不是首发。
+
+**先探这几条**（含已知坑）：NOAA 太平洋海啸预警中心 Atom（包内海啸为 0）、USGS 火山通告页、科学网 RSS
+（`pubDate` 不是 RFC-822，但 `sources/dates.ts` 认这个形状）、UN News 英文气候专题（中文那版更旧，二选一）、
+CBD 新闻（1,698 条，必须给 `_aihot.initialBackfillLimit`，链接指向 PDF）、IOP《Environmental Research Letters》、
+T&F 四本（`/feed/rss/<码>` 可达而 `www.tandfonline.com` 的 HTML 被 Cloudflare 挡）、Elsevier 公共 RSS 主机
+`rss.sciencedirect.com/publication/science/<印刷ISSN>`（**条目没有 pubDate，只有 channel 的 lastBuildDate**，
+要先确认日期回落在库里怎么算）、西北生态与资料研究院列表页（复用 `web-cas-sky` 那套容器选择器）。
+
+**当场就该回绝的**：
+- **反爬一律不装 UA 绕过**（红线）：UNFCCC / IPC / IEA / IRENA / Ramsar / Smithsonian GVP / OECD / SAGE 部分 /
+  T&F 若干 —— 全部标"按政策拒绝"，不是"待办"。
+- **`external` 种类在这套部署里不会被轮询**：`collect.ts` 只轮询 `rss,web_list,json_list,x_search`，
+  而 `config-keys.ts` 给 external 只开了 `publishedAtUtcOffset`，且 isolated 直接写 `visibility=withdrawn`。
+  所以 scouts 提的两条 external（ReliefWeb API v2、Carbon Monitor CSV）要接就得改成 **json_list**，
+  ReliefWeb 还要先注册免费的 `appname`。
+- **JS 壳 / SPA 没有服务端列表**：《湖泊科学》当期页是 144 字节跳转、EMSC、JMA 英文警报、Copernicus EMS、
+  USGS 滑坡页、OSGeo `/feed/` 回 0 条。
+- **停更**：IUCN Red List（2022-02）、NOAA Climate.gov（2021-04）、Copernicus EMS（2026-05）、FEWS NET（2026-05）。
+- **`owner_entity_id` 只能是 `taxonomy.ts` 的 ENTITIES 键**（`tests/industry-pack-sources.test.ts` 逐条断言）：
+  nsidc / gfz / jma / unep / iucn / oecd 都不是，登记时一律 null。`config.headers` 只允许在 rss/json_list 上用。
+- **中刊的 Magtech 平台**（地理科学进展一类）把 RSS 链接印在页面上，`rss_dqml_*.xml` 一律返回
+  **HTTP 200 的 CMS 404 页**——按"状态码 200 就算活"的判法会整批接错。用当期目录页，别用它承诺的 RSS。
+
+## 第六十一轮实测：11 条候选接了 3 条，其余当场量出「没有可用的 feed」（2026-10-10，采集机）
+
+方法固定：在采集机上从**站点自己的页面**找 feed 链接（`<a>`/`<link>` 里带 rss|atom|feed 字样的），再补几条常见路径，
+每条都用 `admin/sources.ts` 的 `previewSource()` ——就是后台「试抓一次」走的那条线，预览数与真采集数同一口径。
+只读，不写库。原始日期串另外单独抓一次字节正则出来，这样"这个源是 `dd.mm.yyyy` 还是 `yyyy-mm-dd`"的结论
+不依赖当时部署的是哪一版解析器。
+
+| 候选 | 探到的地址 | 实测 |
+| --- | --- | --- |
+| 法国 IGN 动态 | `https://www.ign.fr/actualites/rss.xml`（首页锚点里就有） | **200 · 118 条** · 日期 `mer 07/10/2026 - 10:13`（法语星期 + 日/月/年）→ 已登记 `intl-ign-actualites`，带 `publishedAtDateOrder=dmy` + `+02:00` |
+| USGS 科学动态 | `https://www.usgs.gov/feed`（首页 `/programs/volcano-hazards-program` 302 到本站） | **200 · 30 条** · 日期 `Thu, 8 Oct 2026 18:14:02 EDT` → 已登记 `intl-usgs-science-news`（火山Watch/Minute 这类正是要的内容） |
+| 挪威地质调查局 NGU | `https://www.ngu.no/geologi-og-risiko/atomberedskap` | 200 但是 **HTML 页**，`/rss.xml`、`/en/rss` 均 404 → 没有 feed，不接 |
+| SLF（WSL 景观研究所） | `/en/rss.xml`、`/rss.xml` | 404，首页 0 个 feed 锚点 → 不接 |
+| NOAA 太平洋海啸预警中心 | `https://www.tsunami.gov/events/xml/PAAQAtom.xml`、`PHEBAtom.xml` | **是真 feed**，但每个只有 1 条当前通告，标题就是 `PANAMA`「in Panama」这种一词快讯；`/feed/` 与 `/products/wwwh/rss20.xml` 回 403 → 暂不接（接了要配 detail 才可能出内容，而本站正文阀门关着） |
+| 科学网 | `news.sciencenet.cn/rss.xml`、`www.sciencenet.cn/RSS.aspx`、`blog.sciencenet.cn/rss.php` | 前两个是 **200 的 HTML**，第三个是真 XML 却 191 字节、0 条。**但这一路不能就此结案**：第六十轮侦察早记下真地址是 `https://www.sciencenet.cn/xml/news-0.aspx?di=3`，本轮补测——200 · `application/xml` · 12,319 字节 · **20 条** · `pubDate` 写成 `2026-10-09 22:04`（无时区，`sources/dates.ts` 按 +08:00 读，正是它的设计场景）→ 已登记 `cn-sciencenet-news`。教训写在这里：**别拿三个猜出来的路径给一条源判死刑，先把已有的实测记录查完再探**。 |
+| UN News 气候专题 | `news.un.org/feed/subscribe/en/news/all/xml/rss.xml` | 200 但 body 长度 0 → 不接；`/en/news/climate-change` 直接 404 |
+| CBD 新闻 | `/rss/`、`/feeds/news.xml`、`/rss/news.xml` | 前两个是 HTML 目录页，后两个 404 → 不接（侦察给的"1,698 条可回填"仍未证伪，但没有 feed 就轮询不了） |
+| IOP《Environmental Research Letters》 | `iopscience.iop.org/rss/getrss.cfm?route=1&jrnl=1748-9326` | 200 但 **3.8 KB 的 HTML** → 不接 |
+| Elsevier 公共 RSS 主机 | `rss.sciencedirect.com/publication/science/00344257` | 200 · 43 KB 真 feed（侦察那句"条目没有 pubDate，只有 channel 的 lastBuildDate"待逐条核对）→ 本轮未接，是下一条最值得试的 |
+| 西北生态与资源研究院 | `www.lzb.cas.cn/xwrdgk/` | 采集机上 **fetch failed**（院内站对海外直连不稳）→ 未判定 |
+
+**顺带把包内日期形状量了一遍**（225 条启用 `rss`，204 条读到内容，21 条失败：20 fetch failed + 1 个 403）：
+`日-月-年 + 数字时区` 589 样本/149 源、`年-月-日T…Z` 62/17、`GMT|UTC` 20/5、**带字母时区缩写** 24/6（USGS 一族，`EST`），
+`年在前 + 无时区` 10/7，纯英文月名无时区 4/1。**当时没有一条源把年写在最后**（第六十一轮接进 `intl-ign-actualites` 之后不成立了：它就是 `日/月/年` 写法，包里已给它声明 `dmy`）——`dd.mm.yyyy` 那一族是候选，不是现状。
+另外：写这一段时 `rss` 源里还没有一条声明过非缺省的 `publishedAtUtcOffset`；现在 `intl-ign-actualites` 声明了 `+02:00`（它是这条能力第一个真用上的源），
+所以上一节那条"字母时区被二次套时区"的缺陷在生产上是隐性的，只有换了主机时区或声明了偏移才会显形。
+读不到的那 21 条里，`rss-copernicus-*` 一次占了 8 条（Springer 侧对海外直连的限流是老问题，见第五十八轮的错峰重试），
+`intl-eseh` 也在其中。
+
+
+## 第六十二轮复核：包内自己打自己的两处，加一条"日期其实是构建时刻"的源（2026-10-10，采集机）
+
+评审波从 274 条里挑了五条要复核的，全部在采集机上重量一遍——本机 DNS 会骗人这条规矩，
+不因为"只是改个开关"就免。
+
+| 源 | 采集机实测 | 处理 |
+|---|---|---|
+| `rss-agu-newsroom` vs `rss-agu-this-week` | 两条各 10 条，条目 URL **交集 10 / 10**；后者是前者的分类子集 | 停掉 `rss-agu-this-week`：覆盖一条不丢，每轮少抓一份重复、少判十条重复 |
+| `rss-copernicus-c3s` | HTTP 200、10 条，但**最新一条是 2026-08-11，距实测时刻 59.4 天** | 停掉：包自己的登记判据是"最新一条在 45 天内"，而且上面 :373 早就写了 C3S 的内容另有源在覆盖 |
+| `rss-unhabitat-news` | 200、10 条，最新 2026-08-28 → 42.4 天 | **保留**（在 45 天内）。但 :292 把它列为"纪律性淘汰"、:364 又登记了它，两句话互相打脸，记在这儿 |
+| `rss-egusphere` | 200、20 条，20 个 `<pubDate>` 只有 6 个不同时刻，其中 **15 条共用同一时刻** | 保留，但要清楚它的 pubDate 是 **feed 构建时刻**，不是各条的发布时刻：一天一批会全落在同一日，靠近北京 08:00 日界时整批错一天。没有"忽略 per-item 日期"这个键，所以不做处理、只记账 |
+| `intl-unocha` | 采集机直连 **HTTP 406** | 保持 `enabled=false`；:597 的结论按这条实测读，别当活源接回来 |
+
+两处顺手核实清楚、避免下一轮再猜：
+- 87 个 `config.issn` 逐个过 ISSN mod-11 校验，**0 处不合格**；再逐个查 Crossref `/journals/{issn}`，
+  87/87 解得出刊名且与条目名对得上（对照样本 `0000-0000` 返回 404）。这是档案回填的地基，动过包就该再跑一遍。
+- 评审把 `web-list.ts` 里读的 `allowPrivateNetworkFetch` 报成"包里没有这个键所以源设不了"——
+  核实后它是**全局 config**，不是单条源的字段，本来就不该出现在包里的 `KEYS` 上。
+
+记一条本轮没动的（数字按 2026-10-10 的包重新量过：先前这里写的是"253 条可轮询、135 条挂 240、约 68 条带锁"，
+三个数都旧了；第六十五轮又加了七条中文期刊目录源，这里是当轮的实测）：**258 条可轮询源里有 140 条挂在 240 分钟，
+其中 104 条带 `intervalMinutesLocked`**，
+而 `adaptIntervals`（`collect.ts:643`）跳过锁定项——所以这 104 条月刊目录**永远不会回落到 720/1440**。
+方向是对的（该松的没松），但那是采集节奏的决定，先记账不动。顺带一个更该被看见的数：**251 条里有 170 条带锁，
+自动调整实际只管得到 81 条**——"节拍会自己学着收敛"这句话在今天这个包上只对三分之一成立。
+
+另有两件事本轮查清了，写在这里免得下轮再猜：
+- **8 条 `external` 源带的 `interval_minutes: 1440` 从来没人读**：`collect.ts:223` 对 `mp_account`/`external`
+  直接返回 `skipped`，`COLLECT_KINDS` 的默认白名单（`collect.ts:586`）也只有 `rss,web_list,json_list,x_search`。
+  这个数字是 `ingest/items.ts:59` 建表时写进去的字面值，不代表任何节拍——external 是**由 ingest 接口喂**的，
+  不是被轮询的。后台把它显示成"每 24 小时"是误导，但改它等于改包内容，先记不动。
+- **线上库与包的关系已经对齐**：生产 `sources` 共 280 行＝包里 274 行（pack-only 0 条，逐 id 比对过）
+  ＋ 6 行历史 retired（`cn-chsi-kydt`、`cn-people-intl|politics|scitech`、`cn-web-geog-toc`、
+  `rss-phys-org-earth-sciences`），**这 6 行实测全部 `enabled=false`**，且暂停源在 ingest 侧还会被 409 拒
+  （`ingest/items.ts:66`），所以它们不会再进新条目。`scripts/seed.ts` 只加不改（`ON CONFLICT DO NOTHING`，
+  `:51`），退役必须显式 disable——这 6 行就是那样留下来的。
+- **"四族重复源"这条工单不成立**（逐 id/url/ISSN 量过 274 行：0 个重复 id、0 个重复 URL、87 个 ISSN 全不撞）。
+  只剩一种真重叠：`rss-eos-org`（`eos.org/feed` 总目录）与 `rss-eos-editors-highlights` /
+  `rss-eos-research-spotlights` / `rss-eos-landslide-blog`（同一站的三个分类 feed）——父集含子集，四条都
+  `enabled=true`。但 `articles.identity_key` 是**按 URL 全局**去重的（`materials.test.ts` 钉着"同一 URL 的
+  首发只建一条"），所以重复抓到的同一条文不会变成两条内容，代价只是多几次抓取。要不要收掉那三条子 feed
+  是信源决定，留给站长。`rss-agu-this-week` 与 `rss-agu-newsroom` 是同一形状，但它已经 `enabled=false`。
+
+## 第六十三轮：档案里第一条中文——《地理研究》的过刊路线（2026-10-10，本机对真实页面实测）
+
+档案这条路原来只有一扇门：Crossref 按 ISSN 捞，而 `config.issn` 只发给 `rss` 源。站里唯一一条按 `web_list`
+收的中文期刊 `web-dlyj-toc`（地理研究 当期目录）因此从来没有进过档案。这不是"少了几条"，是**整族为零**：
+2026-10-10 数过，那条路攒下 1,927 条档案材料，中文标题 0 条，而站点其余部分是 55% 中文。想改走 Crossref
+也不行——先前实测过的八条中文期刊候选里，6 个印在刊面上的 ISSN Crossref 根本没登记，
+登记着的那一条属于另一本刊（这条测量记在 `packages/backend/src/sources/config-keys.ts` 顶部的注释里）。
+
+做法是走期刊自己的过刊页，**不新增一份 HTML 解析**：`sources/archive-site.ts` 把采集器现成的 `fetchWebList`
+换页复用两次。
+
+| 页面 | 选择器 / 规则 | 实测（2026-10-10，直连 www.dlyj.ac.cn） |
+|---|---|---|
+| `https://www.dlyj.ac.cn/CN/archive_by_issues` | `archiveIssueItemSelector = div.gk_qi`、`archiveIssueDateRegex = (\d{4}-\d{2}-\d{2})` | **331 期**（1982–2026，一年 4→6→12 期），331/331 都在锚点旁印着日期；2026 年是 I1…I10 十期 |
+| `…/CN/Y2026/V45/I1` | 沿用这条源本来就有的 `itemSelector = a[href*='/CN/10.']` 与 `allowUrlPrefixes` | 15 条文章、标题全是中文；同页 I9/I10 给 17/18 条；期次页自己只印一个日期（`刊出日期：2026-01-10`），所以每条文章的日期来自索引 |
+
+三处形状是这条路的门槛，都写进了 `tests/archive-site-index.test.ts`（一份本地 fixture 复刻真实标记，含索引里
+那根多余的 `</a>`）：
+
+- **允许前缀必须换成过刊索引自己的源站**。包里写的是 `/CN/10.`，直接沿用会让 `allowed()` 把每一条
+  `/CN/Y…` 期次链接挡掉（改坏这一条，fixture 当场报 `no items matched`）；过刊页上还挂着订阅与社媒外链，
+  所以 widened 之后仍锁在同一 origin 内，源里原有的 `denyUrlPrefixes` 继续生效。
+- **期次的日期取"刊方所说那一天的开始"**。`dates.ts` 把不带时间不带时区的 2026-01-10 读成 UTC 零点，而
+  UTC 零点＝北京 08:00＝当日报纸的收稿时刻，于是一期 1 月 10 日的刊会排进 1 月 11 日那一期。库里核过：
+  取北京零点后 `timeline_at = 2026-01-09T16:00Z`，日报 2026-01-10 的窗口 [1-09 00:00Z, 1-10 00:00Z) 含它。
+- **索引上没有日期的那一期返回 `at: null`，而不是被悄悄丢掉**。丢掉的写法看起来一切正常，只是每轮少几条；
+  留着计数，期刊哪天不再在索引上印日期，`scripts/backfill-archive.ts` 的日志与账本就说得出来。
+
+写库侧实测（本机开发库，`--apply` 走的是同一道 `--database-url` 核对）：`--from=2026-01 --to=2026-02` 两月
+各 15 条入库，`dup=0`，`body_status` 一律 `pending`、`processing_state=new`，15 条排进 `content.analyze`
+（本机 `COLLECT_ENABLED=false`，`route()` 因此按"用手上已有的摘要判"那一支走；生产开着采集会先抽正文）。
+身份键是文章 URL 归一化的 `url:` 键，所以当期目录已经收过的那 18 条不会第二次入库。
+
+本轮只接了这一条，因为包里**只有这一条**中文期刊是按 `web_list` 收的。《地理学报》是 `external`（人工投递，
+切 editorial 前不公开），它的过刊页要在采集机实测之后再按同一组键接，不猜 URL。其余中文刊（地理科学、
+自然资源学报…）包里根本没有登记，要先按第五十八轮那套实测流程接成活源，档案才有门可走。
+
+## 第六十五轮：中文过刊这扇门一次开出七家（2026-10-10，采集机逐条实测）
+
+第三路侦察（3 个子智能体分头查自然地理／人文与规划／GIS 与测绘）交回候选，**全部在采集机（那台 VM）上
+重测一遍才写进包**——智能体自己那台机器走伪解析代理，报回来的三个"200"里有一个是仿刊、有两个域名在本机
+根本不存在：`jjdl.com.cn` 在 VM 上 302 到 `www.geogsouth.com.cn` 并回 404（智能体却量到 103 行 `gk_qi`），
+`progressivegeography.com` 与 `rddl.com.cn`（不带 www）ENOTFOUND，`dlyjw.cn` 403。
+**结论照旧：本机 DNS 会骗人，一切以采集机为准。**
+
+新接入七条 `web_list` 期刊目录源，全部是玛捷斯（Magtech）CMS、与《地理研究》同一套排版，所以实时目录的读法
+一模一样；其中**六条**的过刊索引形状也一模一样（三条档案键见 `config-keys.ts` 的 SITE_ARCHIVE），第七条只接
+实时目录（原因见下面第 1 条）。
+
+| 源 id | 刊名（站内自印） | ISSN（取自站内 `/CN/<issn>/home.shtml` 路径，不是外部登记） | 当期目录实取 | 过刊页 `div.gk_qi` 行 | 一条期次页文章数 / 「摘要」次数 | 刊出日期 |
+|---|---|---|---|---|---|---|
+| `web-geog-toc` | 地理学报 | 0375-5444 | 200，21 条 DOI 链 | 477 | 21 / 24 | 2026-09-25 |
+| `web-resci-toc` | 资源科学 | 1007-7588 | 200，19 | 358 | 19 / 21 | 2026-09-25 |
+| `web-dqxxkx-toc` | 地球信息科学学报 | 1560-8999 | 200，21 | 229 | 21 / 24 | 2026-10-25 |
+| `web-rwdl-toc` | 人文地理 | 1003-2398 | 200，18 | 213 | 18 / 20 | 2026-08-15 |
+| `web-jnr-toc` | 自然资源学报 | 1000-3037 | 200，16 | 322 | 16 / 18 | 2026-11-28（**未来期**，见下） |
+| `web-rddl-toc` | 热带地理 | 1001-5221 | 200，16 | 246 | 16 / 18 | 2026-09-05 |
+| `web-chxb-toc` | 测绘学报 | 1001-1595 | 200，当期目录 42 条 DOI（过刊索引页另有 105 条链接但解不出条目）| 索引列 328 期但锚链解错根（见下）→ **不接档案门** | 25 / 25 | 2026-08-18 |
+
+三条要点：
+
+1. **`web-chxb-toc`（测绘学报）的档案门试过又摘了，只留当期目录这一路**。它的过刊索引页确实列得出 328 期，
+   但条目锚写的是 `href="../volumn/volumn_519.shtml"`，而那一页自己在 `/CN/archive_by_issues`——按 URL 规范
+   解析就是 `/volumn/volumn_519.shtml`，站上这个路径回的是 3.2 KB 的空壳（`/CN/volumn/...` 才对得上）。
+   页面上没有 `<base>`，`/CN/1001-1595/archive_by_issues` 也是空壳，所以**没有任何配置能把它接对**，
+   要靠代码把链接重新扎根就是为一个站写特例。它家 `home.shtml` 正常（实测 42 条 DOI 链接），
+   所以这一条按"只收实时目录"登记，三个 SITE_ARCHIVE 键不写。
+   **顺带把这一族共同的毛病修好了**：这些玛捷斯站会自己发 500——《地理学报》的索引在同一天里
+   先 500 后 200（同一台采集机、同一个爬虫 UA、204 KB 同样的正文），《地理研究》对裸 `curl/8` UA 回 500
+   而对另两种 UA 回 200。`archive-site.ts` 现在对 **5xx 补读一次**（4 秒后），再坏仍按"这一片没跑完"处理；
+   解析不出条目、URL 被拒这类**不是服务器心情**的失败一律不重试。`tests/archive-site-index.test.ts`
+   钉住这三件事（补读成功 / 一直 500 只补一次 / no items matched 不重试）。
+2. **`web-jnr-toc` 的过刊页已经列出 2026-11、2026-12 两期**（出版方提前排期）。这正是
+   `backfill-archive.ts` 里 `aheadOfClock` 那一支要挡的情形：未来期**跳过并把该月切片留在 pending**
+   （不把还没出的刊当成已经收完），等它真出了再补。这条不是推测——本轮实测到 `刊出日期：2026-11-28`
+   出现在今天的索引里。
+3. 生态学报 / 土壤学报 / 湖泊科学 / 第四纪研究 / 武汉大学学报（信息科学版）的"过刊浏览"页要么服务端不出
+   链接（JS 壳：`/{{catalog.year}}/{{catalog.issue}}` 这种模板串），要么期次行里根本没有日期。
+   前四类**接不了**（现有档案门要求"行内有日期"）；武大那家期次页能抓到 22 条中文摘要、但没有可推的日期，
+   要接它得先决定"没有日期的档案材料该归哪一天"——那是本站明令禁止猜的事，所以本轮不接。
+
+包计数：274 → **281**（web_list 26 → 33），启用 259 → 266。README 里"信源数量的唯一说法"那一行归站长，
+本轮没有动他的文件。

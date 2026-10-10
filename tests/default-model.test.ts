@@ -1,6 +1,6 @@
 // The open-source default: one OpenAI-compatible model (LLM_BASE_URL, LLM_API_KEY, LLM_MODEL) runs every
 // step of the analysis, with no per-step configuration.
-import { stub, tag } from "./setup.ts";
+import { purgeTagged, stub, tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { closeDb, sql } from "@aihot/backend/db";
@@ -8,8 +8,9 @@ import { upsertMaterial } from "@aihot/backend/content/materials";
 import { analyzeArticle } from "@aihot/backend/editorial/analyze";
 import { stopBoss } from "@aihot/backend/jobs/queue";
 
-// Nothing chosen per step: every capability falls back to the `default` model.
-for (const name of Object.keys(process.env)) if (/_MODEL$/.test(name) && name !== "LLM_MODEL" && name !== "EMBEDDING_MODEL") delete process.env[name];
+// Nothing chosen per step: every capability falls back to the `default` model. `MODEL_POOL` would do the
+// same job for all eleven steps at once, so it has to go too — this test is about there being one model.
+for (const name of Object.keys(process.env)) if ((/_MODEL$/.test(name) && name !== "LLM_MODEL" && name !== "EMBEDDING_MODEL") || name === "MODEL_POOL") delete process.env[name];
 
 const T = tag();
 const SOURCE = `test-default-model-${T}`;
@@ -35,6 +36,7 @@ before(async () => {
   await sql`INSERT INTO sources (id, name, kind, tier, participation_mode, next_fetch_at) VALUES (${SOURCE}, 'Test default model', 'rss', 'T1', 'editorial', '2100-01-01')`;
 });
 after(async () => {
+  await purgeTagged(T);
   await provider.close();
   await stopBoss();
   await closeDb();

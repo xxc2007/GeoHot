@@ -317,12 +317,16 @@ test("unchanged republishing preserves freshness, while URL-only changes still r
   await publishArticle(id, released());
   const state = async () => (await sql`SELECT xmin::text AS row_version, updated_at, revision, url FROM publications WHERE article_id = ${id}`)[0]!;
   const before = await state();
-  const [ledger] = await sql`SELECT max(seq) AS seq FROM selected_ledger WHERE article_id = ${id}`;
+  const ledgerSeq = async () => (await sql<{ seq: number | null }[]>`SELECT max(seq) AS seq FROM selected_ledger WHERE article_id = ${id}`)[0]!.seq;
+  const firstSeq = await ledgerSeq();
+  // `max()` over no rows is one row holding null, so the comparison below would pass on an article that
+  // never entered the ledger at all. This fixture is `selected = true`, so null here means the write broke.
+  assert.notEqual(firstSeq, null, "精选条目在账本里该有一行，否则下面的比较是 null 对 null");
   const unchanged = await publishArticle(id);
   assert.equal(unchanged!.changed, false);
   assert.equal(unchanged!.ledger, null);
   assert.deepEqual({ ...await state() }, { ...before }, "no new tuple or freshness timestamp for identical content");
-  assert.equal((await sql`SELECT max(seq) AS seq FROM selected_ledger WHERE article_id = ${id}`)[0]!.seq, ledger!.seq);
+  assert.equal(await ledgerSeq(), firstSeq, "内容没变就不该再多出一条账本");
 
   const url = `https://example.com/${T}-corrected`;
   await sql`UPDATE articles SET url = ${url} WHERE id = ${id}`;

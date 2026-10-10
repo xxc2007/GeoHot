@@ -2,6 +2,7 @@
 // （数据库抖一下就够）之后，本进程每次入队都拿到同一个 rejection——而 `publishArticle` 是在业务事务里
 // 入队的（selected 通知与媒体准备同一条 tx），后果是那次失败之后**每一条发布都回滚**，只能重启进程。
 // 这条测试钉的就是"失败不被记住"：先让它真的失败一次，再把地址换回来，第二次调用必须成功。
+import "./setup.ts";
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import { config } from "@aihot/backend/config";

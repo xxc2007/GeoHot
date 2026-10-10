@@ -21,6 +21,7 @@ const FEED_ONLY = `test-jina-feedonly-${T}`;
 const PAID = `test-jina-paid-${T}`;
 const PLAIN_URL = `test-jina-plainurl-${T}`;
 const IDS = [FEED_ONLY, PAID, PLAIN_URL];
+const DUE = [...IDS].sort();
 
 let parked: Array<{ id: string; next_fetch_at: Date | null }> = [];
 const savedEnv = { kinds: process.env.COLLECT_KINDS, skip: process.env.COLLECT_SKIP_JINA };
@@ -61,6 +62,9 @@ after(async () => {
 
 test("不跳 Jina 时三种配置都排得上", async () => {
   delete process.env.COLLECT_SKIP_JINA;
+  // The pre-condition the line below measures against: an empty `stillDue()` is also what an
+  // un-inserted fixture looks like, so without this the pass would prove nothing.
+  assert.deepEqual(await stillDue(), DUE, "三条都该是到期状态，否则下面的空结果不是排班排出来的");
   await scheduleDueSources(40);
   assert.deepEqual(await stillDue(), [], "跳过的和不该跳的都排班了，没有一条留在到期状态");
 });

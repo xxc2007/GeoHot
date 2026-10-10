@@ -115,7 +115,7 @@ export async function recognizePost(input: { id: string; text: string; published
     ...input.openEvents.map((e) => `- ${e.id}｜${e.kind}｜${e.status}｜首帖 ${describeTime(e.firstPostAt)}｜${e.schedule ?? "未给时间"}｜“${e.excerpt}”`),
   ];
   const res = await chatJson({
-    model: await modelFor("monitor"),
+    model: await modelFor("monitor", input.id),
     purpose: "monitor.recognize",
     subject: `x:${input.id}`,
     promptVersion: RECOGNIZE_PROMPT_VERSION,

@@ -5,12 +5,28 @@ import type { SourceRow } from "./types.ts";
 
 // Rules applied in collect.ts to every kind read through collectSource, plus the date offset every
 // entrance now reads a zone-less timestamp in (sources/dates.ts).
-const COLLECTED = ["_aihot", "allowUrlPrefixes", "denyUrlPrefixes", "ingestNoiseFilter", "itemUrlPrefixRewrite", "sortByPublishedAt", "detail", "fetchPublicContent", "publishedAtUtcOffset"];
+const COLLECTED = ["_aihot", "allowUrlPrefixes", "denyUrlPrefixes", "ingestNoiseFilter", "itemUrlPrefixRewrite", "sortByPublishedAt", "detail", "fetchPublicContent", "publishedAtUtcOffset", "publishedAtDateOrder"];
+
+// Registered, but not read on the polling path: the ISSN the journal behind an rss source is actually
+// filed under. Its reader is the archive backfill (scripts/backfill-archive.ts), which asks Crossref for
+// that ISSN's past work — the only door that reaches back before a feed's last dozen items. Only rss,
+// because that is where the 87 verified ISSNs live; a second kind adds it when it has one —
+// `web_list` now has one (SITE_ARCHIVE below), because Crossref does not carry the Chinese geography
+// journals at all: measured 2026-10-10, 6 of the 8 ISSNs those journals use are not registered with
+// Crossref and one of the two that are belongs to a different journal entirely. That is why the archive
+// built so far is 1,927 items with **zero** Chinese titles, while the rest of the site is 55% Chinese.
+const ARCHIVE = ["issn"];
+// The second door for the same job: the journal's own back-issue index. Its three keys name the index page,
+// the one element holding an issue and the date printed beside it; the issue pages themselves are read with
+// this source's live `itemSelector` and `allowUrlPrefixes`, because the same CMS lists its articles the same
+// way on the current TOC and on a back issue. Namespaced rather than reusing `publishedAtRegex` so the polling
+// path cannot pick up a rule written for the archive (reader: sources/archive-site.ts).
+const SITE_ARCHIVE = ["archiveIndexUrl", "archiveIssueItemSelector", "archiveIssueDateRegex"];
 
 const KEYS: Record<SourceRow["kind"], string[]> = {
-  rss: [...COLLECTED, "feedUrl", "summaryIsBody", "preserveUrlFragment", "allowCategories", "denyCategories", "headers"],
+  rss: [...COLLECTED, ...ARCHIVE, "feedUrl", "summaryIsBody", "preserveUrlFragment", "allowCategories", "denyCategories", "headers"],
   web_list: [
-    ...COLLECTED, "url", "baseUrl", "parseMode", "adapter", "cacheToleranceSeconds", "linksStartLine", "preserveUrlFragment",
+    ...COLLECTED, ...SITE_ARCHIVE, "url", "baseUrl", "parseMode", "adapter", "cacheToleranceSeconds", "linksStartLine", "preserveUrlFragment",
     "itemSelector", "linkSelector", "titleSelector", "publishedAtSelector", "publishedAtRegex", "publishedAtUtcOffset",
   ],
   json_list: [
@@ -21,9 +37,9 @@ const KEYS: Record<SourceRow["kind"], string[]> = {
   // X accounts are mostly read in shards, which apply only these.
   x_search: ["_aihot", "ingestNoiseFilter", "itemUrlPrefixRewrite", "query", "searchType"],
   mp_account: ["wxid", "ghid", "nickname"],
-  // An external source is only written by the ingest endpoint, which reads the offset a report's
-  // zone-less publishedAt is to be taken in.
-  external: ["publishedAtUtcOffset"],
+  // An external source is only written by the ingest endpoint, which reads both date settings a report's
+  // publishedAt may need: the offset for a zone-less value and the day/month order for a year-last one.
+  external: ["publishedAtUtcOffset", "publishedAtDateOrder"],
 };
 
 // Objects with fixed keys (headers and bodyJson are request data, free-form).
@@ -36,7 +52,7 @@ const NESTED: Record<string, string[]> = {
   requireBoolean: ["path", "equals"],
   minNumeric: ["path", "min"],
   detail: [
-    "maxFetches", "publishedAtSelector", "publishedAtRegex", "publishedAtUtcOffset", "publishedAtAuthoritative", "upgradeDatePrecision",
+    "maxFetches", "publishedAtSelector", "publishedAtRegex", "publishedAtUtcOffset", "publishedAtDateOrder", "publishedAtAuthoritative", "upgradeDatePrecision",
     "titleSelector", "titleRegex", "titleAuthoritative", "summarySelector",
   ],
 };
@@ -44,6 +60,9 @@ const NESTED: Record<string, string[]> = {
 const VALUES: Record<string, string[]> = {
   adapter: ["mimo_home"],
   parseMode: ["html", "markdown", "docusaurus_changelog"],
+  // Which of 07.10.2026's first two numbers is the day (sources/dates.ts). Enumerated because a value that
+  // is not one of these reads no date at all, and an operator deserves the door rather than a silent drop.
+  publishedAtDateOrder: ["dmy", "mdy"],
 };
 
 /**

@@ -9,6 +9,9 @@ import { audit } from "./auth.ts";
 
 interface UsageRow {
   purpose: string;
+  /** Kept beside the model name because two providers can answer under the same model (`agnes-3.0-flash` on
+   * both the `.com` and the `.cn` endpoint); grouped by model alone the pool looks like one provider. */
+  service: string;
   model: string | null;
   prompt_version: string | null;
   calls: number;
@@ -28,7 +31,7 @@ export async function modelsOverview(days = 7) {
   const [sources, usage, prices, history, benches] = await Promise.all([
     modelSources(),
     sql<UsageRow[]>`
-      SELECT r.purpose, a.model, r.request->>'promptVersion' AS prompt_version, count(*)::int AS calls,
+      SELECT r.purpose, r.service, a.model, r.request->>'promptVersion' AS prompt_version, count(*)::int AS calls,
              count(*) FILTER (WHERE a.status = 'received')::int AS ok,
              count(*) FILTER (WHERE a.status = 'failed')::int AS failed,
              count(*) FILTER (WHERE a.status = 'unknown')::int AS unknown,
@@ -38,7 +41,7 @@ export async function modelsOverview(days = 7) {
              sum(a.cost) FILTER (WHERE a.cost_basis = 'actual') AS actual_cost, max(a.currency) AS currency
       FROM receipt_attempts a JOIN receipts r ON r.id = a.receipt_id
       WHERE a.started_at >= ${since} AND a.origin = 'live' AND a.model IS NOT NULL
-      GROUP BY 1, 2, 3 ORDER BY 1, 4 DESC`,
+      GROUP BY 1, 2, 3, 4 ORDER BY 1, 5 DESC`,
     sql<{ service: string; model: string; currency: string; input_per_mtok: string | null; output_per_mtok: string | null }[]>`
       SELECT service, model, currency, input_per_mtok, output_per_mtok FROM service_prices`,
     sql<{ at: Date; actor: string; subject: string; reason: string | null; before: unknown; after: unknown }[]>`
@@ -48,9 +51,10 @@ export async function modelsOverview(days = 7) {
              (SELECT coalesce(jsonb_object_agg(key, value - 'sweep'), '{}'::jsonb) FROM jsonb_each(r.summary)) AS summary,
              created_at FROM selectbench_runs r ORDER BY created_at DESC LIMIT 8`,
   ]);
-  const serviceOf = (model: string) => Object.values(MODELS).find((m) => m.model === model || m.key === model)?.service ?? null;
+  // The receipt row already carries its own service, so price by that. Resolving a provider from the model
+  // name instead would misattribute the two Agnes doors, which answer under one model name.
   const priced = (u: UsageRow) => {
-    const service = u.model ? serviceOf(u.model) : null;
+    const service = u.service;
     const p = prices.find((x) => x.service === service && x.model === u.model) ?? prices.find((x) => x.service === service && x.model === "");
     if (!p || (!p.input_per_mtok && !p.output_per_mtok)) return null;
     return { amount: (Number(u.tokens_in ?? 0) / 1e6) * Number(p.input_per_mtok ?? 0) + (Number(u.tokens_out ?? 0) / 1e6) * Number(p.output_per_mtok ?? 0), currency: p.currency };
@@ -66,6 +70,7 @@ export async function modelsOverview(days = 7) {
       .filter((u) => c.purposes.includes(u.purpose))
       .map((u) => ({
         purpose: u.purpose,
+        service: u.service,
         model: u.model,
         promptVersion: u.prompt_version,
         calls: u.calls,
@@ -91,9 +96,15 @@ export async function switchModel(capability: string, model: string | null, reas
   if (!c) throw Object.assign(new Error("unknown capability"), { statusCode: 400 });
   if (!reason.trim()) throw Object.assign(new Error("a reason is required"), { statusCode: 400 });
   if (model !== null) {
-    const spec = MODELS[model];
-    if (!spec) throw Object.assign(new Error("unknown model"), { statusCode: 400 });
+    // Object.hasOwn, not `MODELS[model]`: `constructor` and `__proto__` are truthy lookups on a plain object,
+    // and one of them reaching chatJson yields a `service` of undefined — which matches no budgets row, and
+    // no budgets row means no circuit breaker (receipts.ts returns early).
+    if (!Object.hasOwn(MODELS, model)) throw Object.assign(new Error("unknown model"), { statusCode: 400 });
+    const spec = MODELS[model]!;
     if (!!c.vision !== !!spec.vision) throw Object.assign(new Error(c.vision ? "this capability needs a vision model" : "a vision-only model cannot do this"), { statusCode: 400 });
+    // A model that ignores response_format answers in prose, and every step but the title/summary one parses
+    // a JSON object — pinning it there would produce nothing and re-pay for the same failure on each retry.
+    if (spec.jsonMode === false && !c.freeText) throw Object.assign(new Error("this step parses JSON, so it needs a model with JSON mode"), { statusCode: 400 });
   }
   const before = (await modelSources())[capability];
   if (model === null) await sql`DELETE FROM settings WHERE key = ${`models.${capability}`}`;

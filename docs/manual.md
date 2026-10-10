@@ -233,7 +233,7 @@ LLM_API_KEY=<你的 Key>
 LLM_MODEL=<模型名>
 ```
 
-`MODEL_CALLS_ENABLED=false` 时管道根本不发请求（`llm.ts:157` 直接抛错），所以换完 Key 还要用 `.env.pipeline` 那套启动方式。想让某一步用不同模型，用 `PREFILTER_MODEL / SCORE_MODEL / …`（`packages/backend/src/editorial/models.ts`），或在后台 `/admin/models` 里切。反过来，真模型上线后 stub 仍然值得留着当回归基准：同一批 fixture 可以对比模型判断与人工判断的差距。
+`MODEL_CALLS_ENABLED=false` 时管道根本不发请求（`llm.ts:157` 直接抛错），所以换完 Key 还要用 `.env.pipeline` 那套启动方式。想让某一步用不同模型，用 `PREFILTER_MODEL / SCORE_MODEL / …`（`packages/backend/src/editorial/models.ts`），或在后台 `/admin/models` 里切。**同一个变量填逗号就是模型池**（`PREFILTER_MODEL=default,agnes-3.0-flash-cn`），想一次换掉全部十一步就填 `MODEL_POOL`（站级默认，仍会被某一步自己的变量和后台开关盖掉）：选中池里哪一个由"这条工作单元"的 id（文章 id、事件 id、期号）**而不是收据 subject**——subject 里带着 revision，而提示词把正文截到 7000 字，revision 会因为模型看不见的改动而变，跟着它分片就等于把同一批字交给两家模型各判一次，不是轮流——重跑与人工重试因此落回原来那个模型，直接复用它的缓存答复，而不是让第二家模型就同样的字再判一遍；每家花自己 `service` 的预算行，一家被限流不拖住另一家。两处故意取更粗的粒度：正文翻译按整篇分（一篇文章一种文笔，不是一段一个模型），事件综述按事件分（同一事件的历次综述一个声音）。池只由环境变量配置，后台的下拉框还是单个模型——池状态下"切换"框预选「恢复默认」，提交它等于删掉后台覆盖、把主导权还给环境变量里的池。反过来，真模型上线后 stub 仍然值得留着当回归基准：同一批 fixture 可以对比模型判断与人工判断的差距。
 
 **工具与自查。**
 
@@ -273,7 +273,7 @@ stub 是开发工具，不是站点的一部分：不在 `docker-compose.yml` �
 | `pages/` | `terms.md`、`privacy.md`，**目前还是模板**，上线前要站长本人确认 |
 | `changelog.json` | 更新日志，新条目写最前，并同步 `latestVersion` |
 
-**六种信源**：`rss`、`web_list`（网页列表 + 选择器）、`json_list`（JSON 接口 + 字段路径）、`x_search`（X 账号，要 `SOCIALDATA_API_KEY`）、`mp_account`（微信公众号，要 `DAJIALA_KEY`）、`external`（你自己的脚本推进来）。每种信源认哪些配置键写在 `packages/backend/src/sources/config-keys.ts`，白名单外的键在保存、预览和 seed 时都会被**明确拒绝**，不会悄悄退回通用解析。`industry/sources.json` 当前 271 条：`rss` 226、`web_list` 26、`json_list` 3、`external` 8、`x_search` 8（其中 258 条 `enabled=true`，可轮询的 250 条；逐条间隔分布与实测记录在 `docs/sources.md`）。后两种付费信源本部署都没有 key：`x_search` 的 8 条官方账号第二十四轮按 handle 存在性逐条核过（`https://x.com/<handle>` 的页面标题即可核验，不花钱）后登记为 `enabled=false`，补上 `SOCIALDATA_API_KEY` 就在后台逐条启用；`mp_account` 的 `ghid` 离线核不了，一条都没登记。这些包内规则（配置键、`defaultCategory`、`owner_entity_id`、按次计费必须停用）由 `tests/industry-pack-sources.test.ts` 不连库检查，平台信源的实测记录在 `docs/sources.md` 的「平台信源」一节。
+**六种信源**：`rss`、`web_list`（网页列表 + 选择器）、`json_list`（JSON 接口 + 字段路径）、`x_search`（X 账号，要 `SOCIALDATA_API_KEY`）、`mp_account`（微信公众号，要 `DAJIALA_KEY`）、`external`（你自己的脚本推进来）。每种信源认哪些配置键写在 `packages/backend/src/sources/config-keys.ts`，白名单外的键在保存、预览和 seed 时都会被**明确拒绝**，不会悄悄退回通用解析。`industry/sources.json` 当前 274 条：`rss` 229、`web_list` 26、`json_list` 3、`external` 8、`x_search` 8（其中 261 条 `enabled=true`，可轮询的 253 条；逐条间隔分布与实测记录在 `docs/sources.md`）。后两种付费信源本部署都没有 key：`x_search` 的 8 条官方账号第二十四轮按 handle 存在性逐条核过（`https://x.com/<handle>` 的页面标题即可核验，不花钱）后登记为 `enabled=false`，补上 `SOCIALDATA_API_KEY` 就在后台逐条启用；`mp_account` 的 `ghid` 离线核不了，一条都没登记。这些包内规则（配置键、`defaultCategory`、`owner_entity_id`、按次计费必须停用）由 `tests/industry-pack-sources.test.ts` 不连库检查，平台信源的实测记录在 `docs/sources.md` 的「平台信源」一节。
 
 **后台**（`/admin`，**本机也要登录**：未访问 `/admin` 会被 302 到 `/admin/login`，密码是 `.env` 里的 `ADMIN_PASSWORD`——`npm run env:init` 生成并在终端打印一次，登录以后 30 天不用再来（会话 cookie `aihot_admin`，库里只存令牌哈希）。cookie 按主机绑定，`localhost:3000` 和 `127.0.0.1:3000` 混用会"看起来登录不上"。命令行怎么拿 cookie 见 `scripts/README-ingest.md`）。旧写法说的"`DEV_AUTH_ROLE=admin` 直接进、不用密码"已经作废：那个开关被从 `.env` 与 `.env.pipeline` 双双摘掉，它存在时后台所有写接口等于不鉴权，别再装回去（第 11 节有实测对比）。`industry/features.ts` 两个开关关掉以后，侧栏里剩这几项（`apps/web/app/routes/admin/layout.tsx:26-46`）：`/admin`（概览）、`/admin/content` 内容诊断与可见性、`/admin/sources` 信源（列表按健康度排序、失败的在最前；详情有"预览抓取"（不入库）、"立即采集"、改频率/分级/参与方式；`/admin/sources/new` 新建）、`/admin/feedback` 反馈、`/admin/runs` 定时任务最近结果、`/admin/models` 每一步单独换模型与成功率/token、`/admin/selectbench` 精选评测版本对比、`/admin/settings` 预算熔断与安全项、`/admin/audit` 审计记录。**`/admin/monitor`（Codex 重置）从侧栏消失了**（`layout.tsx:32` 按 `FEATURES.codexResetMonitor` 门掉），而且**路由与接口都真的关着**：`apps/api/src/routes/admin.ts:100-102` 用同一个开关包住了七个 monitor 端点（带会话访问 `/api/admin/monitor/events` 实测 404），页面路由本身是死路由（`apps/web/app/routes.ts:48`），直接敲 `/admin/monitor` 得到的是 404 页面（2026-10-02 实测）。底下那几张表已经空了（原来的行在 `monitor_*_bak_20260930`，见第 7 节第 9 条）。`/leaderboard`、`/codex-reset` 也是真的 404。
 
@@ -478,6 +478,8 @@ grep -n DEV_AUTH .env .env.pipeline      # 期望：两个文件都没有输出
 ```
 
 四个阀是 `COLLECT_ENABLED`、`MODEL_CALLS_ENABLED`、`FEISHU_CONTENT_PUSH_ENABLED` + `FEISHU_INTERNAL_ENABLED`（两个飞书开关算一组外部推送）、`INDEXNOW_SUBMIT_ENABLED`；`EMBEDDINGS_ENABLED` 是第五个独立开关（没有 embedding key 时必须 false）。`.env` 里一律 false，只在叠 `.env.pipeline` 时开前两个。`TZ` 现在只影响日志与 shell 的显示，不再决定日期对不对：不带时区的时间串（地震台网、中央气象台）由 `packages/backend/src/sources/dates.ts` 按信源的 `publishedAtUtcOffset` 解释（缺省 +08:00），站上北京日期一律走固定偏移的 `beijingDate`/`beijingMidnight`，代码里不读进程时区。这一段以前写的是「不设 TZ 就会整体偏 8 小时」——那是四个入口各写一份日期规则时代的坑，规则并成一份后已经不成立；`TZ` 留在 `.env.pipeline` 只为日志好看。
+
+数字日期把**年放在最后**的那种（`07.10.2026`、`07/10/2026`）不猜顺序：值本身没写哪个数是日、哪个是月，两种读法差三个月，而 `Date.parse` 历来按美国顺序读，欧洲机构的页面因此会被印上一个错的日期。顺序由信源声明（`publishedAtDateOrder: "dmy" | "mdy"`，白名单在 `config-keys.ts`），没声明就按「这条没有可用日期」走既有的无日期通道，绝不用猜测值顶上；声明了但值本身对不上（月 31、二月 31）同样算没有日期，因为那句声明不是在描述这个源。包内只有法国 IGN 用得到这个键（2026-10-10 采集机实测：225 条启用的 `rss` 里 204 条读得到内容，除 IGN 之外的数字日期全是年在前），它是给 `dd.mm.yyyy` 那一族官方站准备的——第一个使用者是法国 IGN。反过来，值里带时区缩写（`EST`、`PDT`……引擎认识的那些）现在算值自带的时区，不再二次换算：把引擎已经定好的时刻按进程时区读回来、再按信源偏移摆一次，等于套了两个时区；过去没人看见这个错，是因为服务器就在 +08:00 而缺省偏移也是 +08:00，两次操作恰好互相抵消。
 
 **2. `NODE_ENV` 与 `AIHOT_ENVIRONMENT` 是两个变量，只改一个等于没改。** 这是最容易骗过自己的陷阱：
 

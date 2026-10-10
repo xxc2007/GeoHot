@@ -40,6 +40,53 @@ export const MODELS: Record<string, ModelSpec> = {
     get jsonMode() { return process.env.LLM_JSON_MODE !== "false"; },
     get vision() { return process.env.LLM_VISION === "true"; },
   },
+  // The same Agnes 3.0 flash served from the mainland endpoint, under its own key and its own budget row.
+  // Measured 2026-10-09 with the site's real request shape (JSON mode + `reasoning_effort: high` + a scored
+  // editorial prompt): 200, valid JSON, correct Chinese fields, 1.7-9.0 s single call, and 8 concurrent calls
+  // all succeeding. What that burst did NOT show is the steady rate — counted per minute in production
+  // (2026-10-10 01:22-01:33) it accepts 5-13 answers a minute and answers 429 above that, which is what
+  // migration 0052 sized the breaker to. That is still ~550/hour against the `.com` endpoint's 420, and the
+  // `.com` key had burned its whole day's text quota (1 request/minute) — so this door is why a backfill run
+  // is possible at all.
+  // Env-driven like `default` so retuning needs no code change; unset keys make the pool member simply
+  // unconfigured (and dropped from the pool, editorial/models.ts:membersFor) rather than silently mis-routing.
+  "agnes-3.0-flash-cn": {
+    key: "agnes-3.0-flash-cn", service: "agnes-cn", baseUrlEnv: "AGNES_CN_BASE_URL", apiKeyEnv: "AGNES_CN_API_KEY",
+    get model() { return process.env.AGNES_CN_MODEL ?? "agnes-3.0-flash"; },
+    get extra() { return extraFromEnv(process.env.AGNES_CN_EXTRA_JSON ?? process.env.LLM_EXTRA_JSON); },
+    get jsonMode() { return process.env.AGNES_CN_JSON_MODE !== "false"; },
+    get vision() { return process.env.AGNES_CN_VISION === "true"; },
+  },
+  // OpenCode Zen. The key offered on 2026-10-09 lists 82 models but answers exactly one: every `-free`
+  // tier returns 403 (not enabled on the account) and every paid model 402 (no balance). This entry is that
+  // one model, registered `jsonMode: false` because it ignores `response_format` and answers in prose.
+  // Every step but 标题摘要 parses a JSON object, so in a pool it is dropped for the other ten and can only
+  // ever carry the summary step — `editorial/models.ts:membersFor` enforces that rather than hoping.
+  "space-bunny-free": {
+    key: "space-bunny-free", service: "opencode", model: "space-bunny-free",
+    baseUrlEnv: "OPENCODE_BASE_URL", apiKeyEnv: "OPENCODE_API_KEY", jsonMode: false,
+  },
+  // 小红书 dots（站长 2026-10-10 给的 key，文档 https://dots.ai/platform/docs）。实测：512K 上下文、
+  // 文档默认 RPM 60 / TPM 150 万；`api-key` 头与 `Authorization: Bearer` **两种都收**（同一把 key 两种
+  // 写法都回 200），所以 providers 不需要为它加第二种认证头。开思考一次 13–19 秒、1.1k–1.6k 隐藏 token，
+  // 4 连发 4 个 200；`reasoning_effort` 写进 extra 是为了让 `reasoning` 那支生效（240 秒超时 + 6k 余量，
+  // 见本文件 205-208 行），它在实测里也被接受——不开思考时同一提示 2.4 秒、0 隐藏 token 的答复同样可用，
+  // 所以关思考的档留给短任务用。
+  "dots3-note-prev": {
+    key: "dots3-note-prev", service: "dots", baseUrlEnv: "DOTS_BASE_URL", apiKeyEnv: "DOTS_API_KEY",
+    get model() { return process.env.DOTS_MODEL ?? "dots3-note-prev"; },
+    extra: { chat_template_kwargs: { enable_thinking: true }, reasoning_effort: "high" }, jsonMode: true,
+  },
+  // OpenRouter：站长给的这把 key 实测是**管理/开通**用的——`GET /api/v1/key` 回 `is_management_key: true`，
+  // `/models` 能列 458 个模型（其中 15 个 `:free`），但任何 chat/completions 都 401 `User not found`。
+  // 推理要另建一把普通 key，所以这条通路先登记、**不进 MODEL_POOL**：池子按 shard 把活分给成员，
+  // 配一个只会 401 的门等于把 1/N 的工作扔进重试阶梯。key 到位后把 OPENROUTER_MODEL 设成实测可用的
+  // `:free` 模型、再把它加进 MODEL_POOL 即可。
+  "openrouter-free": {
+    key: "openrouter-free", service: "openrouter", baseUrlEnv: "OPENROUTER_BASE_URL", apiKeyEnv: "OPENROUTER_API_KEY",
+    get model() { return process.env.OPENROUTER_MODEL ?? "google/gemma-4-31b-it:free"; },
+    jsonMode: true,
+  },
   // Named presets (the models AIHOT itself runs on); each needs its own key.
   // GLM 5.3 Flash always reasons; the lowest effort keeps short structured tasks fast.
   "glm-5.3-flash": {

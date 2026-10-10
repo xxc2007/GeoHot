@@ -7,17 +7,18 @@ import { collapseWhitespace, stripTags } from "../lib/text.ts";
 import { readable, type ExtractedBody } from "../content/extract.ts";
 import { sanitizeBody } from "../content/sanitize.ts";
 import { jinaRead } from "../providers/jina.ts";
-import { DEFAULT_UTC_OFFSET, parsePublishedAt } from "./dates.ts";
+import { parsePublishedAt, type DateConfig } from "./dates.ts";
 import { FetchError, type Candidate, type SourceRow } from "./types.ts";
 
 const JINA_PREFIX = "https://r.jina.ai/";
 
 /**
  * A published date as a list page or article prints it: the shared rule of sources/dates.ts, with this
- * source's own offset for the values that carry no zone of their own.
+ * source's own date settings — the offset for a value that carries no zone, and the day-and-month order
+ * for a value whose year comes last.
  */
-export function parseLooseDate(value: string | null | undefined, utcOffset: string | null | undefined = DEFAULT_UTC_OFFSET): Date | null {
-  return parsePublishedAt(value, { utcOffset });
+export function parseLooseDate(value: string | null | undefined, config: DateConfig = {}): Date | null {
+  return parsePublishedAt(value, { utcOffset: config.publishedAtUtcOffset, dateOrder: config.publishedAtDateOrder });
 }
 
 /** The datePublished of the page's structured data (JSON-LD, also inside @graph or embedded app state). */
@@ -176,11 +177,11 @@ export function fromHtml(html: string, base: string, source: SourceRow): Candida
     let publishedAt: Date | null = null;
     if (c.publishedAtSelector) {
       const dateEl = el.find(c.publishedAtSelector).first();
-      publishedAt = parseLooseDate(dateEl.attr("datetime") ?? dateEl.attr("title") ?? dateEl.text(), c.publishedAtUtcOffset);
+      publishedAt = parseLooseDate(dateEl.attr("datetime") ?? dateEl.attr("title") ?? dateEl.text(), c);
     }
     if (!publishedAt && c.publishedAtRegex) {
       const m = new RegExp(c.publishedAtRegex).exec($.html(el));
-      publishedAt = parseLooseDate(m?.[1], c.publishedAtUtcOffset);
+      publishedAt = parseLooseDate(m?.[1], c);
     }
     seen.add(url);
     out.push({ url, title, publishedAt });
@@ -191,12 +192,14 @@ export function fromHtml(html: string, base: string, source: SourceRow): Candida
 /** A changelog heading that is only a date, bare or after a short label: "时间: 2026-09-10", "时间：2024-05-17". */
 const DATE_HEADING = /^(?:[^\d:：]{1,12}[:：])?\s*(\d{4})[-/.年](\d{1,2})[-/.月](\d{1,2})日?$/;
 
-/** The day a date heading names, at midnight in the source's offset (Date.parse would read "时间: …" in the host's zone). */
-function headingDate(title: string, utcOffset: string | null | undefined = DEFAULT_UTC_OFFSET): Date | null | undefined {
+/** The day a date heading names, at midnight in the source's offset (Date.parse alone would read "时间: …" in the host's zone). */
+function headingDate(title: string, config: DateConfig = {}): Date | null | undefined {
   const m = DATE_HEADING.exec(title);
   if (!m) return undefined;
-  const t = Date.parse(`${m[1]}-${m[2]!.padStart(2, "0")}-${m[3]!.padStart(2, "0")}T00:00:00${utcOffset}`);
-  return Number.isFinite(t) ? new Date(t) : null;
+  // The " 00:00" is not decoration: a bare "2024-05-17" is an ISO date and dates.ts reads an ISO date alone
+  // as UTC midnight, while a heading a maintainer wrote is a day at their own offset. Attaching a time
+  // keeps the shared rule and puts the day where the source put it.
+  return parseLooseDate(`${m[1]}-${m[2]!.padStart(2, "0")}-${m[3]!.padStart(2, "0")} 00:00`, config);
 }
 
 function fromDocusaurusChangelog(html: string, base: string, source: SourceRow): Candidate[] {
@@ -208,7 +211,7 @@ function fromDocusaurusChangelog(html: string, base: string, source: SourceRow):
     const head = $(h);
     const id = head.attr("id")!;
     const title = collapseWhitespace(head.text().replace(/​/g, "").replace(/#$/, ""));
-    const date = headingDate(title, source.config.publishedAtUtcOffset);
+    const date = headingDate(title, source.config);
     if (date !== undefined) {
       sectionDate = date;
       return;
@@ -359,15 +362,15 @@ export async function fetchDetail(url: string, source: SourceRow, need: DetailNe
   if (need.date && dateText !== null) {
     if ($ && !dateInJina && d.publishedAtSelector) {
       const el = $(d.publishedAtSelector).first();
-      publishedAt = parseLooseDate(el.attr("datetime") ?? el.attr("title") ?? el.text(), d.publishedAtUtcOffset);
+      publishedAt = parseLooseDate(el.attr("datetime") ?? el.attr("title") ?? el.text(), d);
     }
-    if (!publishedAt && d.publishedAtRegex) publishedAt = parseLooseDate(new RegExp(d.publishedAtRegex).exec(dateText)?.[1], d.publishedAtUtcOffset);
+    if (!publishedAt && d.publishedAtRegex) publishedAt = parseLooseDate(new RegExp(d.publishedAtRegex).exec(dateText)?.[1], d);
     // An authoritative rule is the only source of the date: when its byline is missing, no other
     // timestamp on the page (an update time, a related post) stands in for it.
     const authoritative = d.publishedAtAuthoritative === true && !!(d.publishedAtSelector || d.publishedAtRegex);
     if (!publishedAt && $ && !dateInJina && !authoritative) {
       const meta = $('meta[property="article:published_time"], meta[name="pubdate"], meta[itemprop="datePublished"]').attr("content");
-      publishedAt = parseLooseDate(meta) ?? parseLooseDate(jsonLdPublished($, html!)) ?? parseLooseDate($("time[datetime]").first().attr("datetime"));
+      publishedAt = parseLooseDate(meta, d) ?? parseLooseDate(jsonLdPublished($, html!), d) ?? parseLooseDate($("time[datetime]").first().attr("datetime"), d);
     }
   }
 

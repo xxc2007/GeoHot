@@ -122,8 +122,11 @@ export async function composeStoryDigest(
   const user = corrected
     ? `事件当前标题：${story.title}\n\n报道内容经过编辑更正。请只依据下面这些报道的当前内容重写综述，不要沿用以前版本的说法。\n报道（按时间）：\n${lines.join("\n")}`
     : `事件当前标题：${story.title}\n${story.digest ? `上一版综述：${story.digest}\n` : ""}\n报道（按时间，标【新】的是上一版之后的新报道）：\n${lines.join("\n")}`;
+  // One event keeps one voice: the shard key is the story id, not this revision of its digest, whose
+  // subject carries the report count and would hand a growing event to a different writer each time.
+  const workUnit = `story:${storyId}`;
   const res = await chatJson({
-    model: await modelFor("digest"), purpose: "story_digest", subject: `story:${storyId}@${ids.length}`, promptVersion: DIGEST_PROMPT_VERSION,
+    model: await modelFor("digest", String(storyId)), purpose: "story_digest", subject: `${workUnit}@${ids.length}`, promptVersion: DIGEST_PROMPT_VERSION,
     system: SYSTEM, user, schema: Schema, temperature: 0.3, maxTokens: 1200,
     usable: unusableCopy,
     // A forced rewrite must be a *new* request: the same prompt and report set hash to the same receipt,

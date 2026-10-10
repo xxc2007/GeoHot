@@ -80,14 +80,28 @@ export async function candidates(start: Date, end: Date): Promise<Candidate[]> {
       SELECT p.article_id AS id, p.title, p.summary, p.url, p.category, p.score, p.first_party, s.id AS source_id, s.name AS source_name,
              s.kind AS source_kind, f.public_id AS fact_public_id, st.public_id::text AS story_public_id, p.timeline_at AS at, p.backfill
       FROM publications p JOIN sources s ON s.id = p.source_id
+      -- The archive's own provenance lives on the article; publications.backfill only says "history", not
+      -- which kind of history.
+      JOIN articles ar ON ar.id = p.article_id
       LEFT JOIN facts f ON f.id = p.fact_id LEFT JOIN stories st ON st.id = f.story_id
       -- Attribute each item by the later of arrival and release; either range can use its index.
       -- 报纸是中文的：门槛用读取层那一条（items.chineseCopyCondition），不在这儿再抄一遍正则——
       -- 列表和版面必须说同一句话，两份写法早晚不一致。
-      WHERE p.visibility = 'public' AND p.selected AND NOT p.backfill AND ${chineseCopyCondition()}
+      WHERE p.visibility = 'public' AND p.selected
+        -- Anything that arrived late is kept out of the paper of the day it was found, and archive material is
+        -- the exception the owner asked for: a 2026-01 issue is made of 2026-01 material, even when it was only
+        -- ingested in October. first-import and stale-on-discovery still keep today's paper as it was.
+        AND (NOT p.backfill OR ar.backfill_reason = 'archive') AND ${chineseCopyCondition()}
         AND (
-          (p.visible_after <= p.timeline_at AND p.timeline_at >= ${start} AND p.timeline_at < ${end})
-          OR (p.visible_after > p.timeline_at AND p.visible_after >= ${start} AND p.visible_after < ${end})
+          -- An archive item is filed under its own day and under no other: it was released months after it
+          -- appeared, so the release-day branch below would otherwise put 2026-01 papers into today's issue.
+          -- published_at IS NOT NULL is part of that, not decoration: with no stated date the timeline rule
+          -- falls back to the discovery moment, and an item flagged 'archive' would then be *today's* news.
+          (ar.backfill_reason = 'archive' AND p.published_at IS NOT NULL AND p.timeline_at >= ${start} AND p.timeline_at < ${end})
+          OR (ar.backfill_reason IS DISTINCT FROM 'archive' AND (
+            (p.visible_after <= p.timeline_at AND p.timeline_at >= ${start} AND p.timeline_at < ${end})
+            OR (p.visible_after > p.timeline_at AND p.visible_after >= ${start} AND p.visible_after < ${end})
+          ))
         )`;
   });
   // One entry per fact: first-party first, then score.
@@ -110,8 +124,15 @@ export async function candidates(start: Date, end: Date): Promise<Candidate[]> {
     (b.score ?? 0) - (a.score ?? 0) || a.publishedAt.localeCompare(b.publishedAt) || a.itemId.localeCompare(b.itemId));
 }
 
+/**
+ * How far back a daily refuses to repeat what an earlier paper already carried. One number, because the
+ * backfill runner has to reason about the same window (`editionsAhead`): filling a hole behind an edition
+ * that is already out is only safe if the operator re-lays that edition afterwards.
+ */
+export const DAILY_DEDUPE_DAYS = 7;
+
 /** Facts and items already covered by recent editions are not repeated. */
-async function recentlyCovered(kind: "daily", before: string, days = 7): Promise<Set<string>> {
+async function recentlyCovered(kind: "daily", before: string, days = DAILY_DEDUPE_DAYS): Promise<Set<string>> {
   const rows = await sql<{ content: Record<string, any> }[]>`
     SELECT content FROM reports WHERE kind = ${kind} AND key < ${before} AND key >= ${addDays(before, -days)}`;
   const out = new Set<string>();
@@ -119,10 +140,28 @@ async function recentlyCovered(kind: "daily", before: string, days = 7): Promise
     for (const s of r.content.sections ?? []) for (const it of s.items ?? []) {
       if (it.itemId) out.add(`a:${it.itemId}`);
       if (it.factId) out.add(it.factId);
-      if (it.clusterId) out.add(`c:${it.clusterId}`);
     }
+    // 快讯也是读者看到的一条（每天最多 12 条，进的是同一期报纸）。只数 sections 的话，
+    // 昨天因为板块容量被挤到快讯里的那条，今天会以整篇重印一次——回填的语料多，这条最容易撞上。
+    for (const it of r.content.flashes ?? []) if (it.itemId) out.add(`a:${it.itemId}`);
   }
   return out;
+}
+
+/**
+ * Editions of the same kind already laid out *after* `key`, inside the window `recentlyCovered` looks back
+ * over. The backfill runs oldest-first on purpose — an earlier paper cannot see what a later one carried, so
+ * composing an old day after its neighbours are out can reprint the same story in two papers. That is a
+ * consequence of the dedupe direction, not a bug in it (the alternative — letting a newer paper's contents
+ * veto an older paper's own day — would leave a March edition silently missing a March story).
+ *
+ * The runner uses this to say which editions must be re-laid afterwards; `--refresh` over the span makes the
+ * warning moot, because everything in it is recomposed in order anyway.
+ */
+export async function editionsAhead(kind: "daily", key: string, days = DAILY_DEDUPE_DAYS): Promise<string[]> {
+  const rows = await sql<{ key: string }[]>`
+    SELECT key FROM reports WHERE kind = ${kind} AND key > ${key} AND key <= ${addDays(key, days)} ORDER BY key`;
+  return rows.map((r) => r.key);
 }
 
 const LeadSchema = z.object({
@@ -243,10 +282,14 @@ async function saveReport(kind: "daily" | "weekly" | "monthly", key: string, sta
   });
 }
 
-/** Daily report for Beijing date D covers [D-1 08:00, D 08:00) Beijing time. */
-export async function composeDaily(date: string, reason = "scheduled"): Promise<{ key: string; entries: number }> {
+/** The window a daily for `date` gathers: [D-1 08:00, D 08:00) Beijing, closed at D 08:00. */
+export function dailyWindow(date: string): { start: Date; end: Date } {
   const end = new Date(beijingMidnight(date).getTime() + 8 * 3600 * 1000);
-  const start = new Date(end.getTime() - 86400000);
+  return { start: new Date(end.getTime() - 86400000), end };
+}
+
+export async function composeDaily(date: string, reason = "scheduled"): Promise<{ key: string; entries: number }> {
+  const { start, end } = dailyWindow(date);
   const covered = await recentlyCovered("daily", date);
   const all = await candidates(start, end);
   const fresh = all.filter((c) => !covered.has(c.factKey) && !covered.has(`a:${c.itemId}`));
@@ -264,7 +307,7 @@ export async function composeDaily(date: string, reason = "scheduled"): Promise<
     items: perSection.get(label)!.map(({ category: _c, factKey: _f, ...entry }) => entry),
   }));
   const ordered = sections.flatMap((s) => s.items).sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
-  const model = await modelFor("report");
+  const model = await modelFor("report", date);
   const lead = ordered.length ? await writeLead("daily", date, ordered, model) : null;
   const content = {
     date,
@@ -337,7 +380,7 @@ async function composePeriod(kind: "weekly" | "monthly", key: string, startDate:
   let overview = "";
   let receiptId: number | null = null;
   let proseRule: string | null = null;
-  const model = await modelFor("report");
+  const model = await modelFor("report", `${kind}:${key}`);
   if (top.length) {
     const res = await chatJson({
       model, purpose: `report_${kind}`, subject: `report:${kind}:${key}`, promptVersion: REPORT_VERSION,
@@ -388,12 +431,24 @@ export async function composeWeekly(label: string, reason = "scheduled") {
   return composePeriod("weekly", label, range.start, range.end, reason);
 }
 
-export async function composeMonthly(label: string, reason = "scheduled") {
-  const m = /^(\d{4})-(\d{2})$/.exec(label);
-  if (!m) throw new Error(`bad month label ${label}`);
-  const start = `${label}-01`;
+/**
+ * The month an edition covers, in Beijing dates: first day, last day, and the moment the window closes
+ * (midnight of the next month). One definition on purpose — `scripts/backfill-papers.ts` used to do this
+ * arithmetic itself with `Date.UTC(y, m + 1, 1)` on a 1-based month, which landed a month late: it planned
+ * 01/03/05/07 and skipped 02/04/06/08, and measured every month it did plan across two months.
+ */
+export function monthlyWindow(key: string): { start: string; end: string; closes: Date } {
+  const m = /^(\d{4})-(\d{2})$/.exec(key);
+  if (!m) throw new Error(`bad month label ${key}`);
+  // 正则只要求两位数字，13 月也过得了：不挡就会静悄悄变成下一年的一月，期号却还写着 13 月。
+  if (+m[2] < 1 || +m[2] > 12) throw new Error(`bad month label ${key}`);
   const next = Number(m[2]) === 12 ? `${Number(m[1]) + 1}-01-01` : `${m[1]}-${String(Number(m[2]) + 1).padStart(2, "0")}-01`;
-  return composePeriod("monthly", label, start, addDays(next, -1), reason);
+  return { start: `${key}-01`, end: addDays(next, -1), closes: beijingMidnight(next) };
+}
+
+export async function composeMonthly(label: string, reason = "scheduled") {
+  const w = monthlyWindow(label);
+  return composePeriod("monthly", label, w.start, w.end, reason);
 }
 
 /**

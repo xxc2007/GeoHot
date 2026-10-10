@@ -71,8 +71,10 @@ export function envFlag(name: string, fallback: boolean): boolean {
  * `COLLECT_ENABLED`: may this process reach the 82 pollable upstream sources at all? Off means off — no
  * `sources.schedule`, no source jobs, no alerting about a collection that was never asked to run.
  * An empty or missing value means on, which is what a deployment writes down explicitly (`.env.example`
- * ships `false`, and the deploy bootstrap refuses to rely on the default); development and tests therefore
- * get "off" from the file, never from a default. `0`/`off`/`FALSE` all read as off, as the valve intends.
+ * ships `false`, and the deploy bootstrap refuses to rely on the default); development gets "off" from the file
+ * (when started with --env-file=.env). The suite does NOT: `npm test` is plain `node --test` with no
+ * --env-file, so there the flag reads its "on" fallback — what keeps tests off the internet is that no
+ * test registers the schedules, and the ones that call models point *_BASE_URL at a local stub. `0`/`off`/`FALSE` all read as off, as the valve intends.
  */
 export const isCollectEnabled = () => envFlag("COLLECT_ENABLED", true);
 

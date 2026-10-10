@@ -51,13 +51,20 @@ async function report(suffix: string, opts: { title: string; backfill?: string; 
   return articleId;
 }
 
+/** `budgets` is a table, not process state: whatever this file widens is what the next file reads. */
+let savedBudgets: Array<{ service: string; per_minute: number; per_hour: number; per_day: number }> = [];
+
 before(async () => {
+  savedBudgets = await sql`SELECT service, per_minute, per_hour, per_day FROM budgets WHERE service IN ('dashscope', 'deepseek')`;
   await sql`UPDATE budgets SET per_minute = 1000, per_hour = 10000, per_day = 100000 WHERE service IN ('dashscope', 'deepseek')`;
   await sql`INSERT INTO sources (id, name, kind, tier, participation_mode, next_fetch_at) VALUES
             (${EDITORIAL}, 'Test editorial', 'rss', 'T1', 'editorial', '2100-01-01'),
             (${SIGNAL}, 'Test signal', 'rss', 'T2', 'hot_signal', '2100-01-01')`;
 });
 after(async () => {
+  for (const b of savedBudgets) {
+    await sql`UPDATE budgets SET per_minute = ${b.per_minute}, per_hour = ${b.per_hour}, per_day = ${b.per_day} WHERE service = ${b.service}`;
+  }
   await purgeTagged(T, TOPIC);
   await provider.close();
   await stopBoss();
@@ -85,6 +92,20 @@ test("a discussion post that came before any report is grouped again when a repo
   const again = await groupArticle(postId, { signalOnly: true });
   assert.equal(again.verdict, "signal");
   assert.equal(again.storyId, founded.storyId);
+});
+
+test("the scholarly record does not queue behind late news", async () => {
+  // A March paper judged in October is still a March paper — and it is the material the back-dated daily,
+  // weekly and monthly editions are made of. A news item found days late is the opposite: it decays while
+  // it waits, and 0.8% of judged ones clear the selection bar against 1.9% of ordinary arrivals (production,
+  // 2026-10-10). Both were one band (-2) until now; live work (0) still goes before either.
+  const paper = await report("archive-paper", { title: `档案论文 ${T}`, backfill: "archive", publishedAt: new Date(Date.now() - 200 * 86_400_000) });
+  await queueProcessing(paper, { step: "analyze" });
+  assert.equal((await job(paper))?.priority, -1, "archive work is served between live work and late news");
+
+  const late = await report("late-news", { title: `迟到新闻 ${T}`, publishedAt: new Date(Date.now() - 5 * 86_400_000) });
+  await queueProcessing(late, { step: "analyze" });
+  assert.equal((await job(late))?.priority, -2, "a news item found days late waits exactly as it always did");
 });
 
 test("history waits behind live work and founds no event; a new source's post from today is news", async () => {

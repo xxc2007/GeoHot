@@ -44,7 +44,8 @@ const ids: string[] = [];
 /** One 精选 item with signed Chinese copy, inside the window under test. */
 async function item(suffix: string, title: string, category: string | null) {
   // `discoveredAt` travels with `publishedAt`: an item found long after it was written is a backfill row,
-  // and the paper does not print backfills (`candidates()` says `NOT p.backfill`).
+  // and the paper does not print ordinary backfills (`candidates()`: NOT p.backfill, with the one
+  // exception of archive material, which is attributed to its own day — tests/archive-paper-rule.test.ts).
   const { articleId, backfill } = await upsertMaterial({
     sourceId: SOURCE, url: `https://example.com/${T}-${suffix}`, title: `Source ${T} ${suffix}`,
     bodyText: "A bulletin.", bodyStatus: "ok", via: "fetch", publishedAt: INSIDE, discoveredAt: INSIDE,

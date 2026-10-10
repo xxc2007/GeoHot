@@ -94,7 +94,10 @@ export async function ingestItems(body: unknown): Promise<IngestAnswer> {
       author: typeof it.author === "string" ? it.author.slice(0, 200) : null,
       // A number is a legal publishedAt (a collector's epoch), and an offset is what a zone-less
       // "2026-09-26 10:00" is read in: without one the item joined the wrong newspaper day.
-      publishedAt: parsePublishedAt(it.publishedAt, { utcOffset: typeof source.config?.publishedAtUtcOffset === "string" ? source.config.publishedAtUtcOffset : null }),
+      publishedAt: parsePublishedAt(it.publishedAt, {
+        utcOffset: typeof source.config?.publishedAtUtcOffset === "string" ? source.config.publishedAtUtcOffset : null,
+        dateOrder: typeof source.config?.publishedAtDateOrder === "string" ? source.config.publishedAtDateOrder : null,
+      }),
       raw: it.raw ?? null,
       via: "ingest",
       backfill: it.raw?._aihot?.backfill ? "reported-backfill" : it.raw?._aihot?.baseline ? "reported-baseline" : null,

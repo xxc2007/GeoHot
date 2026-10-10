@@ -72,12 +72,15 @@ function segmentsOf($: cheerio.CheerioAPI): Element[] {
 
 async function translateBatch(articleId: string, revision: number, index: number, parts: string[], system: string, attemptTag?: string): Promise<string[] | null> {
   if (shutdownSignal.signal.aborted) throw new TranslationInterruptedError("worker shutting down");
-  const model = await modelFor("translate");
+  // One article, one translator: the shard key is the article id, not the batch index, or a long body
+  // would be rendered in several prose styles stitched together.
+  const workUnit = `article:${articleId}@${revision}`;
+  const model = await modelFor("translate", articleId);
   if (shutdownSignal.signal.aborted) throw new TranslationInterruptedError("worker shutting down");
   const res = await chatJson({
     model,
     purpose: "translate_body",
-    subject: `article:${articleId}@${revision}#${index}`,
+    subject: `${workUnit}#${index}`,
     promptVersion: TRANSLATE_PROMPT_VERSION,
     system,
     user: JSON.stringify({ segments: parts }),
@@ -274,9 +277,10 @@ export async function translateQuotes(opts: { days?: number; limit?: number; bud
     let origin: "reused" | "model" = "reused";
     if (!zh) {
       origin = "model";
+      const subject = `quote:${r.tweet_id}`;
       try {
         const res = await chatJson({
-          model: await modelFor("translate"), purpose: "translate_quoted", subject: `quote:${r.tweet_id}`, promptVersion: TRANSLATE_PROMPT_VERSION,
+          model: await modelFor("translate", r.tweet_id), purpose: "translate_quoted", subject, promptVersion: TRANSLATE_PROMPT_VERSION,
           system: SYSTEM_POST, user: JSON.stringify({ segments: [r.text] }), schema: Output, temperature: 0.2,
           maxTokens: Math.min(4000, Math.ceil(r.text.length * 1.5) + 200), timeoutMs: 120_000,
         });

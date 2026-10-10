@@ -107,6 +107,36 @@ export async function purgeTagged(...tags: string[]): Promise<void> {
   // sourceClocks(), which is the very state the heat tests reason about.
   await sql`DELETE FROM articles WHERE source_id LIKE ANY(${like}::text[])`;
   await sql`DELETE FROM sources WHERE id LIKE ANY(${like}::text[])`;
+  await purgeOrphanJobs();
+}
+
+/**
+ * Drop waiting queue work whose subject row is gone. Deleting an article takes its analyses, publications
+ * and signals with it (the schema cascades), but it cannot reach into pg-boss: our rows are the parentless
+ * side of that link, so `data->>'articleId'` outlives the article it names.
+ *
+ * Measured 2026-10-10 in `geohot_test`: 9,940 rows still in state `created`, 9,800 of them naming an
+ * article, story or source that no longer exists — about 700 per run, because the files that enqueue work
+ * (`queueProcessing`, `publishArticle`) run their `after()` before anything drains them. The cost is not
+ * disk: pg-boss hands out work `priority DESC, created_on ASC`, so a later run that starts a real worker is
+ * served an earlier run's garbage first. `analyze-shutdown.test.ts` already has to name its own queues to
+ * isolate itself from exactly this.
+ *
+ * Only rows whose subject is *missing* go: a job still pointing at a live article is somebody's test, and
+ * a test that means to leave one pending (a retry, a shutdown mid-flight) is unaffected.
+ */
+export async function purgeOrphanJobs(): Promise<void> {
+  const { sql } = await import("@aihot/backend/db");
+  await sql`
+    DELETE FROM "pgboss"."job" j
+     WHERE j.state = 'created'
+       AND (
+         (j.data ? 'articleId' AND NOT EXISTS (SELECT 1 FROM articles a WHERE a.id = j.data ->> 'articleId'))
+         OR (j.data ? 'storyId' AND NOT EXISTS (SELECT 1 FROM stories s WHERE s.id::text = j.data ->> 'storyId'))
+         OR (j.data ? 'sourceId' AND NOT EXISTS (SELECT 1 FROM sources r WHERE r.id = j.data ->> 'sourceId'))
+         OR (j.data ? 'sourceIds' AND NOT EXISTS (
+              SELECT 1 FROM sources r WHERE r.id = ANY(SELECT jsonb_array_elements_text(j.data -> 'sourceIds'))))
+       )`;
 }
 
 /**

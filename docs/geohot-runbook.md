@@ -58,7 +58,7 @@ node --env-file-if-exists=.env scripts/seed.ts
 三条硬规矩（踩过就浪费时间）：
 
 - `tier` 的合法值是 **`T1_5`**，不是 `T1.5`（`database/migrations/0001_core.sql:18` 的 CHECK）。写错 seed 直接失败。
-- `config` 的键必须在白名单里（`packages/backend/src/sources/config-keys.ts`）。白名单外的键在保存、预览、seed 三处都会被**明确拒绝**，不会悄悄退回通用解析。`rss` 用 `feedUrl`，`web_list` 用 `url` + 选择器 + `publishedAtUtcOffset`，`json_list` 用 `url`/`itemsPath`/`titlePaths`/`urlTemplate`/`publishedAtPath`。
+- `config` 的键必须在白名单里（`packages/backend/src/sources/config-keys.ts`）。白名单外的键在保存、预览、seed 三处都会被**明确拒绝**，不会悄悄退回通用解析。`rss` 用 `feedUrl`，`web_list` 用 `url` + 选择器 + `publishedAtUtcOffset`，`json_list` 用 `url`/`itemsPath`/`titlePaths`/`urlTemplate`/`publishedAtPath`。日期两个键都归 `sources/dates.ts` 解释：`publishedAtUtcOffset` 决定不带时区的时间串按哪个偏移读，`publishedAtDateOrder`（`dmy`/`mdy`）决定年写在最后的那种数字日期（`07.10.2026`）哪个数是日、哪个数是月——不声明就没有日期，不做猜测。
 - `json_list` 的 `urlTemplate` **可以**写完整外部 URL：`packages/backend/src/sources/json-list.ts:29-40` 的 `renderTemplate()` 只对"被替换进模板的那个值"做 `encodeURIComponent`（并把 `%2F` 还原成 `/`），模板字面量原样输出；要原始值用 `{raw:路径}`。（本文早期草稿曾断言"只能写相对片段"，那是错的，已改正——以 `renderTemplate()` 的代码为准。）
 - 盘点/文旅向的转载层登记成 **T2**，不要放 T1/T1_5。但要看清这一条到底兜住了什么：**门槛不是证明**（`docs/manual.md` 第 6 节已撤掉旧版"营销数学上不可能入选"的说法）——按字面算营销类噪声的天花板是 92–93 分，任何可用的门槛都关不住它。分级摆放只决定"这个源的信材用哪一档线去量"（T2 高、T1 低），**它挡不住 92–93 分的噪声**；真拦住这类材料的是 `industry/prompts/prefilter.md` 的 `BLOCK`。注意 stub 的预筛兜底是 PASS（`tooling/brain-stub.ts:615`），所以这一层目前只在有人写过 BLOCK 判断的材料上成立。
 
@@ -336,7 +336,7 @@ await a.end();"
 
 | 症状 | 怎么确认 | 原因与处理 |
 |---|---|---|
-| 精选一条都没有；`__brain/log` 里打分全是 `rule:score-default` | `curl -s "http://127.0.0.1:3055/__brain/log?capability=scores&limit=20"` | 没人写过这条材料的分数 → 默认 `attentionScore=20`，两次之和 40，过不了任何门槛（最低档 T1 的入选线是"两次之和 ≥ 2×门槛"，现值看 `industry/selection.ts:84`，Wave 4 后是 112）。这是**设计**，不是故障。要它进精选就补 `tooling/fixtures/scores.jsonl`（第 4 节） |
+| 精选一条都没有；`__brain/log` 里打分全是 `rule:score-default` | `curl -s "http://127.0.0.1:3055/__brain/log?capability=scores&limit=20"` | 没人写过这条材料的分数 → 默认 `attentionScore=20`，两次之和 40，过不了任何门槛（最低档 T1 的入选线是"两次之和 ≥ 2×门槛"，现值看 `industry/selection.ts` 的 `SELECTION.thresholds`：站长 2026-10-06 拍板为 T1 46 / T1_5 49 / T2 52，即之和 92 / 98 / 104；Wave 4 那版的 112 已被它取代）。这是**设计**，不是故障。要它进精选就补 `tooling/fixtures/scores.jsonl`（第 4 节） |
 | `/hot` 显示"还没有足够多来源共同讨论的事件"；事件页空 | `select backfill, backfill_reason, count(*) from articles group by 1,2` | 48 小时闸门：`isHistorical()` = `backfill` 且（没有来源时间 或 发现时已晚于 48 小时）（`content/materials.ts:62,91-93`）。历史材料**不成事件、不给热度**（`events/group.ts:625`）。注意 `backfill=true` 不等于历史：新源第一次导入但"今早才发布"的仍然是新闻。人工投喂用 `scripts/seed-curated.ts` 的默认时间重映射（或 `--as-of`），别用 `--keep-times` 灌几个月前的东西 |
 | 改了 fixture、重跑分析，回答却没变 | `select status, count(*) from receipts group by 1` | 回执按 `logical_key` 命中缓存（`providers/receipts.ts:71,110-116`），同一 `revision` 不会再打到 stub。缓存的"身份"是 `{model, promptVersion, sha256(system), sha256(user), temperature, maxTokens}`（`providers/llm.ts:185`）——**改提示词、改正文、换模型都会换键（= 真新请求），而改门槛或改源的 tier 不会**。要强制重判按 4.1 那四条走（`scripts/regroup-events.ts`、`scripts/eval-selection.ts` 都不带 `attemptTag`，它们照样复用回执）。 |
 | 中文搜索永远 0 结果；归组一个都不合并 | `node --input-type=module -e "import p from 'postgres';const a=p('postgres://geohot:geohot@127.0.0.1:5433/geohot',{max:1});console.log(await a.unsafe(\"select datcollate, datctype, datlocprovider, pg_encoding_to_char(encoding) enc from pg_database where datname=current_database()\"));console.log(await a.unsafe(\"select show_trgm('三角洲') tg, similarity('三角洲','河流三角洲') sim\"));await a.end()"` | 本机实测：`datlocprovider='i'`（ICU）、`enc=UTF8`、`similarity('三角洲','河流三角洲')=0.25`（**不是 0**）。一旦它是 0，说明集群是用 `lc_ctype=C` 建的，trigram 恒空、**静默**失效。`scripts/dev-db.ts:167` 的 `--locale-provider=icu --icu-locale=zh-CN --encoding=UTF8` 只在建集群时生效一次 → `npm run db:down`、删 `.pgdata`、`npm run db:up`，再 migrate + seed 重建。另外 `EMBEDDINGS_ENABLED=false` 时归组的候选召回退成词法相似（`events/group.ts:208-213`，阈值 0.25），召回本来就比向量窄 |
@@ -402,3 +402,155 @@ await a.end();"
 所以"8 个 `external` 源在站上不可见"不是坏了，是 `isolated` 的定义（`docs/manual.md` 第 7 节第 1 条）。要它们出现：后台 `/admin/sources/<id>` 改 `editorial`（触发 2.3 的重推导）→ 材料带正文进站 → 分析 → 才有精选与事件。
 
 改完之后还是"后台看得到、站上找不到"时，按顺序查三层：① 源的 `participation_mode`；② `publications.visibility`（`public` / `summary-only` / `withdrawn`，人工覆盖在 `/admin/content/<id>`；`summary-only` 只是不上列表与 feed，条目页、事件时间线与报纸引用都还在，只有 `withdrawn` 才是全站消失）；③ 预筛 `BLOCK` 的材料永远不进任何公开出口（`analyze.ts:343` 在预筛这一步就返回了，后面根本不走）。这三层都在 `packages/backend/src/publication/` 这一个读取层里落地，没有旁路。
+
+## 13. 档案回填：把覆盖从"最近几天"推到指定月份
+
+站点只有几天覆盖，根因不是采集频率，而是信源本身——RSS/Atom 只给最近十几条，任何日期窗口之外的内容都不在它们的应答里。所以要往回捞得换一条**按出版日期检索**的路：先用登记库 Crossref，它按 ISSN + `from-pub-date`/`until-pub-date` 返回 DOI、标题、摘要、作者、出版日期，覆盖到位。两个日期参数必须拆开写——单一区间那种写法（`date-A,B`）实测 HTTP 400 `date-not-valid`（2026-10-09）。Crossref 装不下的那一族走另一条，见下面「两扇门」。
+
+它给的是论文而不是新闻：正文就是出版方登记的那段摘要，链接指向 DOI 落地页，没有全文、没有图。它进哪个板块由判定自己说，这条路不设限制（档案材料不写 `defaultCategory`，也没有任何代码按 `backfill_reason` 限定板块）。
+
+**两扇门，不是一扇**。Crossref 按 ISSN 走，而 `config.issn` 只发给 `rss` 源——包里唯一按 `web_list` 收的中文期刊《地理研究》因此整条在档案门外（这是第六十三轮之前的实情；第六十五轮起中文期刊目录源已有七家，《测绘学报》之外六家都开出了过刊门）。这不是"少了几条"：先前实测过的八条中文期刊候选里，6 个印在刊面上的 ISSN Crossref 根本没登记，登记着的两条里有一条属于另一本刊。所以这条路攒下的 1,927 条档案材料里**中文标题为零**，而站点其余部分是 55% 中文。
+
+第二条门是期刊自己的过刊页（`sources/archive-site.ts`）。《地理研究》的 `/CN/archive_by_issues` 挂着 1982 年至今 331 期，每期一行 `<div class="gk_qi">`：锚点指向期次页，锚点旁边印着出版日期；一张期次页给 15–18 条文章链接。这两页的形状与采集器每天在读的目录页同一种（一个容器、容器里一个链接、旁边一个日期），所以这条路**不新增一份 HTML 解析**：把 `fetchWebList` 的 `url` 换成过刊索引，按 `archiveIssueItemSelector` + `archiveIssueDateRegex` 读出「期次 → 日期」，再用这条源本来就有的 `itemSelector` 与 `allowUrlPrefixes` 读期次页里的文章。只有允许前缀那一步换成过刊索引自己的源站，因为包里写的是 `/CN/10.`，那条名单会挡掉所有 `/CN/Y…` 期次链接。三个键都带 `archive` 前缀、只有这条路读，轮询看不见它们——写给付刊的日期规则不该顺手改掉当期目录的判读。
+
+日期落在哪一天单独说，因为那是读者看得见的差别：`dates.ts` 把不带时间也不带时区的 2026-01-10 读成 UTC 零点（机器时间戳这样读是对的），而 UTC 零点＝北京 08:00＝**当日报纸的收稿时刻**，于是一期 1 月 10 日的刊会排进 1 月 11 日那一期。这条路把日期取成"刊方所说那一天的开始"（`beijingMidnight(beijingDate(…))`，与 `web-list.ts` 的 `headingDate` 为变更日志日期标题做的同一件事）。2026-10-10 在本机库里核对过：`timeline_at = 2026-01-09T16:00Z`，日报 2026-01-10 的窗口 [1-09 00:00Z, 1-10 00:00Z) 含它——1 月 10 日的刊进 1 月 10 日的报。
+
+正文一律留 `body_status='pending'`：`jobs/content.ts` 的 `route()` 对 `web_list` 源本来就会先取正文，这条路不必自己抓第二遍正文，也就不必维护第二个抽取器。
+
+```bash
+# ① 认定 ISSN：只读，输出 JSON。必须在采集机上跑（本机 DNS 与它不一致，见 docs/manual.md 第 3 节）
+sudo -u geohot bash -lc 'cd /opt/geohot/app && node --env-file=.env scripts/archive-issn.ts > /tmp/issn.json'
+# ② 只把 status=match 的行并进 industry/sources.json 的 config.issn，再按 2.3 那条 pack→DB 同步
+node --env-file=.env scripts/sync-source-config.ts --apply --database-url=…
+# ③ 回填，一个（信源，月份）一片；默认 DRY-RUN，写库要 --apply 且显式给 --database-url
+node --env-file=.env scripts/backfill-archive.ts --from=2026-01 --to=2026-03 --max-items=2000
+node --env-file=.env scripts/backfill-archive.ts --from=2026-01 --to=2026-03 --apply --database-url="$DATABASE_URL" --max-items=2000
+# 过刊这一路先单独量一个月，看它到底给出几条（--source 只筛信源，两扇门都筛）
+node --env-file=.env scripts/backfill-archive.ts --source=web-dlyj-toc --from=2026-01 --to=2026-01
+# ④ 出刊：把已经到手的日子排成日报/周报/月报。默认只出计划，写库同样要 --apply 且显式给库
+node --env-file=.env scripts/backfill-papers.ts --from=2026-01-01
+node --env-file=.env scripts/backfill-papers.ts --from=2026-01-01 --to=2026-03-31 --apply --database-url="$DATABASE_URL"
+```
+
+第④步存在的原因是 `catchUpReports()` 只兜最近 7 天 + 上个星期 + 上个月——那是活站需要的口径，而档案的意思是把 1 月排出来。
+两个顺序要求都来自 `reports/compose.ts`，不是风格问题：
+**必须按时间正序跑**（`recentlyCovered("daily", key)` 只往回看七天内的**旧期次**，倒着跑会让 1 月的报纸重印 3 月已经登过的同一件事）；
+**要等那一天判完再出**（还压着未分析文章的时候出刊，排出来的期次会在几分钟后再变一次，读者看到的"当天报纸"就不是当天定稿的那张；
+`--force` 可以先出，之后用 `scripts/recompose-report.ts` 重排，旧版进 `report_revisions`）。补刊不占期号序列：
+`nextIssueNo` 见后面已有编号期次就返回 null，所以 1 月那几张是"没编号的一期"，不会把 10 月的第 N 期改成第 N-k 期。
+`tests/archive-paper-rule.test.ts` 把这条链钉住：同一条档案文章要真的出现在它自己那天的日报、那一周的周报、那一月的月报里，
+且已编号的期次号码不动。
+
+第①步只认两处都对得上的 ISSN：信源自己 feed 的刊名（或包里的拉丁名）与 Crossref 期刊库里**同名**记录的 ISSN。名字像但不是同一个刊一律不写（`ambiguous` / `no-match` 都留在报告里由人判）。这不是过分谨慎——ISSN 认错会把 A 刊的文章挂在 B 刊名下，读者侧完全看不出来。
+
+**续跑**：`archive_ingest`（迁移 0051）一行一个（信源，月份），游标存 Crossref 的深翻页 `next-cursor`，`seen`/`items` 区分"这个月真的没有"和"只取到一半"。Ctrl-C、重启、对方超时，代价是一片而不是整轮。身份键：Crossref 那扇门是 `doi:<doi>`，过刊那扇门是文章 URL 归一化出来的 `url:` 键——所以当期目录已经收过的那几篇不会第二次入库、也不会重判一遍，`note` 里的 `dup=` 就是它们。**过刊这一路的切片没有游标**（一期一次抓完），而且**当月那一片不判 done**：过刊索引在期刊挂出新一期之前不会多出那一行，把它钉成 done 等于永远关掉这个月。
+
+**代价的实测口径（2026-10-09）**：
+
+| 量 | 值 | 怎么来的 |
+|---|---|---|
+| 每篇文章的模型调用 | **5.3 次**（5,411 次 / 1,028 篇 = 5.26，四舍五入到 5.3） | 2026-10-10 数生产回执：近 24 小时管道五步 5,411 次 / 1,028 篇分析。结构上是预筛 1 + 评分 2 + 写作 1 + 结构 1 = 5，多出的 0.26 是理解失败回落再问一次的尾巴（全部用途合起来是 6.09） |
+| 主端点 Agnes `.com` | 当日文字额度用尽后**每分钟 1 次** | 429 原文 "used up today's text quota … limited to 1 request every 1 minutes" |
+| 国内端点 Agnes `.cn` | **稳态每分钟成功 5–13 次**，实测落定在每分钟 9 次 | 按分钟数它自己的回执（2026-10-10 01:22–01:33）：成功数高的那几分钟失败为 0；一旦发到 30–40 次/分钟，就有 27–34 次被打回 429。0053 试探 14 次/分钟：成功占比从 85% 掉到 57%，而**成功数没有变多**（6 分钟 46 次成功 = 7.7/分钟），于是按 0053 自己写的判据回收到 9 |
+| 熔断行 | `llm` 8/420/6000；`agnes-cn` **9/540/12000** | 0050 起的是 40/2400/30000——那来自"8 路并发不 429"，证明的是**能并行**，不是每分钟能接 40 个；0052 降到 10/550，0054 按上面的试探落定 9/540 |
+
+这一条要记住：**并发压测验不出稳态吞吐**。把 `per_minute` 抬到对方真能接的数量之上买不到吞吐，只买到重试——每个 429 都占一次预算、一段退避，并把文章往后推。
+
+换算到回填：理论上限是熔断那一行的算术（9 次/分钟 = 540 次/小时、`per_day` 12,000，÷ 5.3 ≈ 102 篇/小时、2,260 篇/天）。
+实测是两个**不同窗口**的数，不要相乘：一个 40 分钟的干净窗口（2026-10-10 02:05–02:45）外推是**每小时 61.5 篇**，
+同一天的整 24 小时合计是 **1,089 篇**（≈ 每小时 45 篇——40 分钟那段正好是快的时段）。同一小时里
+`prefilter_article` 155 次成功对 `score_article` 64 次——大多数算力花在"先筛掉"那一步，这正是设计如此），
+而回执里失败（429）占到的份额要吃掉近一半额度。用实测数算：**约 1,000–1,500 篇/天**。
+
+"2.3 万篇"是**估**的（按包内期刊数 × 每刊月发文量），不是查出来的。现在查过了（2026-10-10，`archive_ingest`
+共 400 个信源×月份切片：152 片已完成、合出 199 条；248 片在跑、已出 803 条）：**每片实得 1.3–3.2 条，
+所以 Jan→今的全量是约 1,800 条的量级，不是 2.3 万条**。为什么每刊每月只有这几条，本轮没有查，
+不要把这句当结论用——`archive_ingest.seen` 存在的意义就是把估算换成实测数，现在换了。
+按实测筛速，全部档案材料的**判定成本**是一天到两天的账而不是二十天的账——但这句话只说门口能装多少，
+没说档案能分到多少：**分到 0**（2026-10-10 04:00 实测：`-1` 档压着 1,506 条、当天到 05:00 只被判定 3 条，
+而实时档常驻几十条，严格更低的档在 pg-boss 的 `priority DESC, created_on` 前永远轮空）。要动这个数只有两条路：
+抬 `agnes-cn` 的 `per_minute`（抬之前先按分钟数成功/失败，别拿并发压测当依据——0053/0054 已经踩过一次，
+本轮量出来是 9 次/分钟时 8.2 次被接受，已经贴着膝盖，抬它多半只是多收 429），
+或者给档案做一把真正按速率分配的份额门（下面那段记了上午那把为什么撤、以及要做对需要什么）。实时与档案共用
+同一个 service 的额度，所以现值仍取保守一侧：不把线上实时更新挤死。
+
+**报纸**：档案材料的 `timeline_at` 是它自己的出版日，所以它进**属于它那一天**的报纸；它的 `visible_after` 是入库当天，放开晚到那条分支就会让今晚的报纸塞满几年前的论文。`reports/compose.ts` 的 `candidates()` 因此把两种归属分开写死，两个方向都由 `tests/archive-paper-rule.test.ts` 上锁。整段区间的补刊由 `scripts/backfill-papers.ts` 出计划（默认不写库），它只做两件调度之外的事：按**日期正序**逐日 `composeDaily`，再补周报与月报。补历史期刊仍要**从旧到新**：`recentlyCovered("daily", key)` 只看**比它更早、且在 7 天之内**的期次用过的 fact key（`compose.ts:128-130`，是 7 天不是 7 期）。从旧到新重算，新的一期就会把刚重算过的旧期当"已报道过"而不去重；反过来先重算新的，旧期会重印新期已经发过的同一件事。周报与月报不走这条去重，顺序无所谓。`saveReport` 把旧版存进 `report_revisions`，所以重算有版本；补出的那一期 `issue_no` 为空（`nextIssueNo` 见到更大的 key 就返回 null）——按期页照常可读、有日期，只是**不显示"第 N 期"**（`features/report/format.ts:issueNumber` 取不到号码就不出这块），这与归档页对"那天根本没有可读的一期"给的「未出刊」标注是两件事，别混为一谈。
+
+**队列顺序**（第六十二轮改过一次，改前这里写的是"档案排在队尾、只能等前面首导积压跑完"）：
+`PRIORITY = { live: 0, liveSignal: -1, archive: -1, history: -2 }`。**实时仍然第一**，这一点没动也没有商量余地——
+今天的报纸不能为一堆旧论文让路。动的是历史的**内部**顺序：`backfill_reason='archive'`（Crossref 记录）不再和
+`stale-on-discovery`（发现时已晚于 48 小时的新闻）挤同一条队。理由是两件事的性质相反——
+三月的论文十月判仍然是三月的论文，而且站长这一轮要的就是 1 月以来的报纸；迟到新闻则每天在贬值，实测
+判过的迟到条目 0.8% 入选、普通条目 1.9%（2026-10-10，`analyses`×`publications`）。让不衰减的材料排在会衰减的
+材料前面，读者侧唯一少等的是迟到新闻，而那本来是最不值钱的一档。`tests/signals.test.ts` 钉住两个数：
+档案 -1、迟到 -2、实时 0。
+已经压在 -2 的那批不会自己挪上来（新规则只管新单子），`scripts/rebalance-archive-queue.ts` 就是搬它的：
+默认只报告有多少条，`--apply` 才改 `"pgboss"."job".priority`，改回 -2 即可撤销。
+
+**第六十三轮量到的一条：最新到的档案材料是"双重排最后"**。`sweepUnprocessed()` 每轮补排的是
+`processing_state='new'` 按 `discovered_at ASC LIMIT 500`（旧件优先，别让任何一条永久饿死），
+而 pg-boss 在同一档内按 `created_on` 先旧后新发卡——两条规则各自都对，叠起来的效果是：
+今天补进来的 149 条中文刊文排在约 2,200 条 Crossref 档案**后面，两次**。而这批 Crossref 档案是英文、
+零中文标题（1,927 条里实测中文 0 条），每条要先花约 5 次调用判过门槛才谈得上"有没有中文稿可发"，
+中文那批则已经有 721—920 字的中文正文。**所以门口那点带宽，先花在了离成刊更远的那一批上**。
+要不要反过来排（抬中文这批、或让补排按"能否进报"排序）＝分配政策＝站长的决定，见工单 #116；
+本轮只把账写在这里，没有动队列，也没有动 `--promote`（脚本第 16 行写着"只有站长可以动"）。
+
+**这两把门第六十二轮都做出来过、又都撤了（`95ca304`），账留在这里免得再当新点子做一遍。**
+
+先说成立的那半个观察：`-1` 档不是慢，是零——2026-10-10 02:00 前后测得 -1 档压着 1,790 条、45 分钟被服务 0 条，
+同一时段实时档从 145 涨到 156（到达速率≈门口消耗速率，所以严格更低的档不是"排队"，是"永远排不到"）。
+到 04:20 再看是 1,506 条、当天判定 3 条——同一个结论的两个时刻，别当成两个数在打架。
+
+于是做了**份额门**（把至多 N 条档案抬进 `priority 0`，每 15 分钟补一次）。撤的理由是它的排序语义与文档相反：
+被抬进去的作业带着它**原来的** `created_on`，而 pg-boss 取活是 `priority DESC, created_on`
+（`node_modules/pg-boss/dist/plans.js:1803`），所以它排在所有比它新的实时条目**前面**——不是夹在中间，是插队。
+按实测门口 61.5–96 篇/小时换算：N=12 每 15 分钟补满一轮 ≈ 65 次请求 ≈ 7 分钟，等于把当天约一半产能交给档案；
+而唯一那道"实时积压就让开"的闸门取 `share×20`——N=12 要等实时从 156 涨到 241 才触发（按实测净涨 +15/小时，约 5.5 小时），
+N=1–3 时上限只有 20–60，比实时常驻量还小，功能永远不动。**上限跟着份额一起涨，买得越多越难让开**，这是设计错误不是参数问题。
+另附两条实现层缺陷：算带宽时只看 `state='created'`（`active`/`retry` 态的看不见，实际带宽是 N+2），
+默认值 0 会被 `positiveInt` 判成非法值、每 15 分钟打一条 warn。要做对得换成**按速率分配**
+（每小时放行固定篇数，让开条件看实时积压的绝对值），那是站长的额度决定，先记账。
+
+也做了**quota 关门**（60 分钟内 ≥3 次 `error ILIKE '%quota%'` 就停止向该 service 发）。空转是真的：
+10-09 这类请求 2,386 次＝当天全部请求的三分之一，10-10 到 05:00 又积 327 次。撤的理由在对端原话里：
+`You have used up today's text quota and are now limited to 1 request every 1 minutes`（`code: rate_limit_exceeded`）
+——**它是降速，不是拒绝**。实测 10-09 20:00–23:00 三个小时：1,382 发 / 403 接受 / 965 拒。关门等于为了少发 965 次
+扔掉 403 次真产出，而真产出正是回填缺的东西。再加两条要命的：线上门型池只有一个成员
+（`.env` `MODEL_POOL=agnes-3.0-flash-cn`，`editorial/models.ts` 的 `pickMember` 按分片选完就没有第二次机会），
+关门不是"换条门"是全站停摆；而 60 分钟比任何队列的重试预算都长——`events.group` 是
+`retryLimit 4 / retryDelay 20 + backoff`（`jobs/queue.ts:34`），一小时里早就烧完了，条目会被单独成页并留在
+**只有操作者脚本才清**的 `regroup_pending`，一个事件出两个页面；而且门关着的时候一次尝试都没有，
+拒绝告警（要每小时 ≥3 次尝试）也就自己哑了。附带还查出 `admin/runs.ts` 的 `release()` 会把**操作者的自由文本**
+写进 `receipt_attempts.error`，所以一句"quota 零点重置"就能凭空造出一张牌。
+
+**真要省那 965 次空转，方向是按对端声明的节奏发**（把该 service 的 `per_minute` 降到它说的 1，接受率从 29% 回到接近 100%），
+而不是关门——但那要先量清楚"少发的到底是空转还是产出"。眼下现值回到两把门之前：`per_minute` 触顶是唯一的速率保护，
+quota 型与速率型的 429 走同一条重试阶梯；给档案一次性开闸仍然只有 `rebalance-archive-queue.ts --promote=N`，
+它只搬一次、不续杯。
+
+**2026-10-10 08:00 北京再量一次（三个回填进程仍在跑：2—5 月、6—10 月、中文刊各一路）**：
+档案材料 **2,076 条**（`body_status='ok'` 2,076 条，全部落在 2026-01-01 之后），其中
+`processing_state='new'` **2,064 条**——判定只走完了 12 条，这 12 条进了公开池、**入选 0 条**。
+02:00–08:00 这六小时档案侧新增判定 13 次（按小时只有 02/04/05/06/07 五个桶有数，各 1/6/3/1/2 次），档位积压 `0` 档 29／`-1` 档 108／`-2` 档 2,272。
+报纸侧现有 `daily` 15 期（2026-09-25…10-09）、`weekly` 2 期（W39—W40）、`monthly` 1 期（2026-09）。
+**采集比判定快两个数量级**，这句是本轮之后所有"为什么还不出 1 月的报纸"的答案，不用重查。
+
+**回滚**：档案材料一律带 `backfill_reason = 'archive'` 且 `article_discoveries.via = 'import'`，一条 SQL 能整批摘掉，同时清 `archive_ingest`；期刊回到 `report_revisions` 的上一版。删之前先 `pg_dump`，与 `deploy/geohot/rollback.sh` 的约定一致。
+
+
+**第六十五轮的档案面（2026-10-10 11:20–11:30 北京，生产实测）**：中文过刊这扇门从一家变成七家
+（新增《地理学报》《资源科学》《地球信息科学学报》《自然资源学报》《热带地理》《人文地理》，
+逐条在采集机实测后才写进包）。当天六个进程各跑 2026-01→2026-10、`--per-month=12`，入库
+**+504 条**（dqxxkx 108｜jnr 108｜resci 108｜geog 96（另有 12 条与实时重复）｜rddl 84），
+档案材料总数 2,076 → **2,580**。**玛捷斯那批站会自己发 5xx**：《地理学报》索引在同一天里先 500 后 200
+（同一台采集机、同一个爬虫 UA、204 KB 同样正文），所以 `sources/archive-site.ts` 对 5xx **补读一次**，
+解析失败与 URL 被拒不重试；一直坏仍按"这一片没跑完"如实上报，该月切片留在 pending。
+《测绘学报》只接实时目录：它的过刊索引锚链是 `../volumn/...`，从 `/CN/archive_by_issues` 解析出来是
+`/volumn/...`（站上回 3.2 KB 空壳），页面无 `<base>`，配置层面无解。
+
+**一条关于"验收工具自己"的教训（本轮差点误判）**：手工 `curl -s https://xxc2007.me/ | sha256sum`
+**前后两次就不一样**（相差 0 字节，差在 Cloudflare 邮箱保护那串随机 token），这不是"动了隔壁站"。
+`verify-deploy.sh` 早在本轮之前就把 `/cdn-cgi/l/email-protection#<token>` 归一化后才取哈希，
+所以它的"邻居站未受影响"仍然可信。**比对邻居站请只用 `verify-deploy.sh`，不要用手搓哈希。**
+本轮该检查 ALL CHECKS PASSED（含各出口 6 期一致、七个出口 reader copy 全中文）。
