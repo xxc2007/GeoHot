@@ -1,0 +1,12 @@
+[Unit]
+Description=GEOHOT archive cycle every fifteen minutes
+
+[Timer]
+OnCalendar=*-*-* *:00/15:00 Asia/Shanghai
+RandomizedDelaySec=1min
+AccuracySec=1min
+Persistent=true
+Unit=geohot-archive.service
+
+[Install]
+WantedBy=timers.target

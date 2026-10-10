@@ -22,10 +22,11 @@
 //
 //   node --env-file=.env scripts/backfill-papers.ts --from=2026-01-01                        # the plan
 //   node --env-file=.env --env-file=.env.pipeline scripts/backfill-papers.ts --from=... \
-//     --apply --database-url="$DATABASE_URL"                                                 # print them
+//     --apply --database-url-env=DATABASE_URL                                                # print them
 // The pipeline env file is what production loads: without `MODEL_CALLS_ENABLED` an issue cannot be
 // written up, and every period would fail the same way.
 import { parseArgs } from "node:util";
+import { writeFile } from "node:fs/promises";
 import { closeDb, sql } from "@aihot/backend/db";
 import { addDays, beijingDate, beijingMidnight, isoWeekLabel, isoWeekRange, isValidDate } from "@aihot/contracts/time";
 import { candidates, composeDaily, composeMonthly, composeWeekly, dailyWindow, editionsAhead, monthlyWindow } from "@aihot/backend/reports/compose";
@@ -39,12 +40,28 @@ const { values } = parseArgs({
     refresh: { type: "boolean", default: false },
     apply: { type: "boolean", default: false },
     "database-url": { type: "string", default: "" },
+    "database-url-env": { type: "string" },
+    "summary-file": { type: "string" },
   },
 });
 
 const DAY = 86_400_000;
-const kinds = values.kinds!.split(",").map((k) => k.trim()).filter((k) => ["daily", "weekly", "monthly"].includes(k));
-const usage = "用法：--from=YYYY-MM-DD [--to=YYYY-MM-DD] [--kinds=daily,weekly,monthly] [--force] [--refresh] [--apply --database-url=…]";
+const requestedKinds = values.kinds!.split(",").map((k) => k.trim());
+const allowedKinds = ["daily", "weekly", "monthly"];
+if (requestedKinds.some((k) => !allowedKinds.includes(k))) {
+  console.error("--kinds 必须是 daily、weekly、monthly 的非空逗号分隔列表，不能包含未知类型或空项");
+  process.exit(2);
+}
+const kinds = [...new Set(requestedKinds)];
+if (values["database-url-env"] !== undefined && (values["database-url-env"] !== "DATABASE_URL" || values["database-url"])) {
+  console.error("--database-url-env 仅接受 DATABASE_URL，且与 --database-url 互斥");
+  process.exit(2);
+}
+if (values["summary-file"] !== undefined && !values["summary-file"].trim()) {
+  console.error("--summary-file 必须给出非空文件路径");
+  process.exit(2);
+}
+const usage = "用法：--from=YYYY-MM-DD [--to=YYYY-MM-DD] [--kinds=daily,weekly,monthly] [--force] [--refresh] [--summary-file=path.json] [--apply --database-url-env=DATABASE_URL]";
 if (!isValidDate(values.from!) || (values.to && !isValidDate(values.to))) {
   console.error(usage);
   process.exit(2);
@@ -65,10 +82,11 @@ const targetOf = (u: string) => {
   }
 };
 if (values.apply) {
-  const given = targetOf(values["database-url"] ?? "");
+  const givenUrl = values["database-url-env"] ? process.env.DATABASE_URL ?? "" : values["database-url"] ?? "";
+  const given = targetOf(givenUrl);
   const live = targetOf(String(process.env.DATABASE_URL ?? ""));
-  if (!values["database-url"] || !live || given !== live) {
-    console.error(`--apply 必须显式给出 --database-url，且要与进程正在用的库同一个（给的是「${given || "空"}」，环境是「${live || "空"}」）`);
+  if (!givenUrl || !live || given !== live) {
+    console.error(`--apply 必须显式给出 --database-url 或 --database-url-env=DATABASE_URL，且要与进程正在用的库同一个（给的是「${given || "空"}」，环境是「${live || "空"}」）`);
     await closeDb();
     process.exit(2);
   }
@@ -114,11 +132,11 @@ async function consider(kind: "daily" | "weekly" | "monthly", key: string, start
   const items = (await candidates(start, end)).length;
   const exists = await hasReport(kind, key);
   if (exists && !values.refresh) return plan.push({ kind, key, items, note: "已出刊" });
-  if (!items) return plan.push({ kind, key, items, note: exists ? "无条目可重排" : "没有可刊条目" });
   // `items` is counted before the 7-day repeat dedupe and before the section caps, so an edition can still
   // come out with fewer entries — or none — than this number says.
   const waiting = values.force ? 0 : await unsettled(start, end);
   if (waiting) return plan.push({ kind, key, items, note: `等 ${waiting} 条判完` });
+  if (!items) return plan.push({ kind, key, items, note: exists ? "无条目可重排" : "没有可刊条目" });
   const note = values.apply ? exists ? "已重排" : "已出刊" : exists ? "会重排" : "会出刊";
   if (kind === "daily" && !values.refresh) {
     const ahead = await editionsAhead("daily", key);
@@ -130,14 +148,18 @@ async function consider(kind: "daily" | "weekly" | "monthly", key: string, start
     const out = await compose();
     console.log(`  ${kind} ${out.key} entries=${out.entries}`);
   } catch (error) {
-    const why = error instanceof Error ? error.message : String(error);
-    failures.push(`${kind} ${key}: ${why.slice(0, 120)}`);
-    console.log(`  ! ${kind} ${key} 失败：${why.slice(0, 120)}`);
+    // Provider exceptions can carry endpoint credentials. Persist only a safe failure category;
+    // the protected job/receipt views retain detailed diagnostics for the operator.
+    const category = error instanceof Error ? error.name : "Error";
+    const why = /^[A-Za-z][A-Za-z0-9_]{0,60}$/.test(category) ? category : "Error";
+    failures.push(`${kind} ${key}: ${why}`);
+    console.log(`  ! ${kind} ${key} 失败：${why}`);
     plan[plan.length - 1] = { kind, key, items, note: "这一期失败" };
   }
 }
 
 for (let t = Number(beijingMidnight(from)); t <= Number(beijingMidnight(to)) && t <= Number(beijingMidnight(due)); t += DAY) {
+  if (!kinds.includes("daily")) break;
   const date = beijingDate(new Date(t));
   const { start, end } = dailyWindow(date);
   await consider("daily", date, start, end, () => composeDaily(date, "archive-backfill"));
@@ -190,5 +212,17 @@ if (behind.length) {
   for (const s of behind.slice(0, 12)) console.log("  " + s);
   if (behind.length > 12) console.log("  …另 " + (behind.length - 12) + " 个");
 }
-if (!values.apply) console.log("\n默认只做计划不写库。确认后用 --apply --database-url=… 跑。");
+if (!values.apply) console.log("\n默认只做计划不写库。确认后用 --apply --database-url-env=DATABASE_URL 跑。");
 await closeDb();
+process.exitCode = failures.length ? 1 : 0;
+if (values["summary-file"]) {
+  await writeFile(values["summary-file"], JSON.stringify({
+    version: 1,
+    generatedAt: new Date().toISOString(),
+    mode: values.apply ? "apply" : "plan",
+    from, to, kinds,
+    refresh: values.refresh, force: values.force,
+    plan, failures, partial, behind,
+    counts: Object.fromEntries(byNote),
+  }, null, 2) + "\n", { encoding: "utf8", mode: 0o600 });
+}

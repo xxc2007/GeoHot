@@ -32,6 +32,7 @@
 // writes the cursor only when the loop ends, so any crash, timeout or Ctrl-C restarts the month from zero and
 // re-presents work the pipeline has already been paid for.
 import { parseArgs } from "node:util";
+import { pathToFileURL } from "node:url";
 import { closeDb, sql } from "@aihot/backend/db";
 import { identityKeyForUrl } from "@aihot/backend/lib/url";
 import { upsertMaterial } from "@aihot/backend/content/materials";
@@ -43,6 +44,40 @@ import { daysInMonth } from "@aihot/backend/sources/dates";
 import type { Candidate, SourceRow } from "@aihot/backend/sources/types";
 import { beijingDate } from "@aihot/contracts/time";
 
+/** Validate before touching the database or the network; an inverted span must never walk into the future. */
+export function archiveMonths(from: string, to: string): string[] {
+  const valid = (value: string) => /^\d{4}-(0[1-9]|1[0-2])$/.test(value);
+  if (!valid(from) || !valid(to) || from > to) throw new Error("月份需要 YYYY-MM（01–12），且 --from 不能晚于 --to");
+  const result: string[] = [];
+  let [year, month] = from.split("-").map(Number) as [number, number];
+  while (true) {
+    const key = `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}`;
+    if (key > to) break;
+    if (result.length === 240) throw new Error("单轮月份范围不能超过 240 个月");
+    result.push(key);
+    if (++month > 12) { month = 1; year++; }
+  }
+  return result;
+}
+
+/** Open months must be rescanned: an exhausted cursor is not a subscription to later registrations. */
+export function archiveSliceCursor(month: string, currentMonth: string, ledger?: { status: string; cursor?: string | null }): string | null {
+  if (month >= currentMonth) return ledger?.status === "done" ? "*" : ledger?.cursor ?? "*";
+  if (ledger?.status === "done") return null;
+  return ledger?.cursor ?? "*";
+}
+
+export function siteSliceFinished(month: string, currentMonth: string, failed: boolean, cut: boolean, ahead: boolean, undated: number): boolean {
+  // Without a date we cannot prove which month the missing issue belongs to. Keep coverage explicitly unknown.
+  return month < currentMonth && !failed && !cut && !ahead && undated === 0;
+}
+
+/** Crossref documents fewer returned items than requested rows as the end of the result set. */
+export function crossrefNextCursor(itemCount: number, rows: number, next: string | null): string | null {
+  return itemCount < rows ? null : next;
+}
+
+async function main() {
 const { values } = parseArgs({
   options: {
     from: { type: "string", default: "2026-01" },
@@ -57,19 +92,28 @@ const { values } = parseArgs({
     sleep: { type: "string", default: "1200" },
     apply: { type: "boolean", default: false },
     "database-url": { type: "string", default: "" },
+    "database-url-env": { type: "string", default: "" },
   },
 });
 
 const fromMonth = values.from!;
 const toMonth = values.to || fromMonth;
-if (!/^\d{4}-\d{2}$/.test(fromMonth) || !/^\d{4}-\d{2}$/.test(toMonth)) {
-  console.error("用法：--from=YYYY-MM --to=YYYY-MM [--apply --database-url=…] [--max-items=N] [--per-month=N]");
+let selectedMonths: string[];
+try {
+  selectedMonths = archiveMonths(fromMonth, toMonth);
+} catch (error) {
+  console.error((error as Error).message);
   process.exit(2);
 }
 // Same guard every other operator script carries: the pool reads DATABASE_URL from the environment, so the
 // parameter cannot redirect anything — it exists to catch "you aimed --apply at the wrong database".
 const target = String(process.env.DATABASE_URL ?? "");
-const sameTarget = (u: string) => { try { const x = new URL(u); return x.host + x.pathname; } catch { return u; } };
+const sameTarget = (u: string) => { try { const x = new URL(u); return x.host + x.pathname; } catch { return "invalid"; } };
+if (values["database-url-env"] && (values["database-url-env"] !== "DATABASE_URL" || values["database-url"])) {
+  console.error("--database-url-env 只接受 DATABASE_URL，且不能与 --database-url 同用");
+  process.exit(2);
+}
+if (values["database-url-env"]) values["database-url"] = target;
 if (values.apply && !values["database-url"]) {
   console.error("--apply 必须同时显式给出 --database-url=（与进程 DATABASE_URL 同一个库）");
   await closeDb();
@@ -85,8 +129,8 @@ if (values.apply && sameTarget(values["database-url"]!) !== sameTarget(target)) 
 // 一条不写还永远停在 pending。这种"参数打错字=进程静默走错路"的入口，宁可当场拒绝。
 const positive = (raw: string | undefined, fallback: number, flag: string) => {
   const n = Number(raw ?? fallback);
-  if (!Number.isFinite(n) || n <= 0) {
-    console.error(`${flag} 需要一个正数（给的是「${raw}」）。`);
+    if (!Number.isSafeInteger(n) || n <= 0) {
+      console.error(`${flag} 需要一个正整数（给的是「${raw}」）。`);
     process.exit(2);
   }
   return n;
@@ -96,18 +140,6 @@ const PER_MONTH = positive(values["per-month"], 60, "--per-month");
 const PER_PAGE = Math.min(500, positive(values["per-page"], 100, "--per-page"));
 const SLEEP = Math.max(0, Number(values.sleep));
 const onlyIds = values.source!.split(",").map((s) => s.trim()).filter(Boolean);
-
-function months(): string[] {
-  const out: string[] = [];
-  let [y, m] = fromMonth.split("-").map(Number);
-  const [ey, em] = toMonth.split("-").map(Number);
-  for (let guard = 0; guard < 240; guard++) {
-    out.push(`${String(y).padStart(4, "0")}-${String(m).padStart(2, "0")}`);
-    if (y === ey && m === em) break;
-    if (++m > 12) { m = 1; y++; }
-  }
-  return out;
-}
 
 const sliceRange = (month: string) => {
   const [y, m] = month.split("-").map(Number);
@@ -183,7 +215,11 @@ async function page(url: string): Promise<{ items: Work[]; next: string | null }
     console.error("  crossref 返回的不是 JSON");
     return null;
   }
-  return { items: message?.items ?? [], next: message?.["next-cursor"] ?? null };
+  if (!message || !Array.isArray(message.items)) {
+    console.error("  crossref 缺少 message.items — 这一片保持 pending");
+    return null;
+  }
+  return { items: message.items, next: message["next-cursor"] ?? null };
 }
 
 const sources = (await sql<SourceRow[]>`
@@ -275,7 +311,7 @@ async function stampIssueDate(articleId: string, at: Date): Promise<number> {
 
 async function runSiteSlice(source: SourceRow, month: string): Promise<void> {
   const [ledger] = await sql<{ status: string }[]>`SELECT status FROM archive_ingest WHERE source_id = ${source.id} AND month = ${month}`;
-  if (ledger?.status === "done") return;
+  if (archiveSliceCursor(month, beijingDate(new Date()).slice(0, 7), ledger) === null) return;
   console.log(`${source.id} ${month} 过刊 ${String(source.config.archiveIndexUrl)}`);
   if (values.apply) {
     await sql`INSERT INTO archive_ingest (source_id, month, status, updated_at) VALUES (${source.id}, ${month}, 'running', now())
@@ -358,19 +394,19 @@ async function runSiteSlice(source: SourceRow, month: string): Promise<void> {
     return;
   }
   const closed = month < beijingDate(new Date()).slice(0, 7);
-  const finished = !failed && !cut && !aheadOfClock && closed;
   // `no-date` belongs in the ledger, not only in the log line: an index that stopped printing dates yields an
   // empty month that looks exactly like a month the journal did not publish, and `done` would then be a lie
   // written once and never revisited.
   const undated = (issues ?? []).filter((i) => !i.at).length;
+  const finished = siteSliceFinished(month, beijingDate(new Date()).slice(0, 7), failed, cut, aheadOfClock, undated);
   await sql`UPDATE archive_ingest SET status = ${finished ? "done" : "pending"},
             note = ${`issues=${slice.length} dup=${localDup} fixed=${localFixed} no-date=${undated}${cut ? " cut" : ""}${aheadOfClock ? " ahead" : ""}`},
             items = ${localNew}, seen = ${localSeen}, updated_at = now()
             WHERE source_id = ${source.id} AND month = ${month}`;
-  console.log(`  ${finished ? "done" : closed ? `停在原地${cut ? "（被上限截断）" : ""}${aheadOfClock ? "（有期次未到刊日期）" : ""}` : "本月未过完，下次再跑"} 看了 ${localSeen} 条，入库 ${localNew} 条${localFixed ? `，补日期 ${localFixed} 条` : ""}`);
+  console.log(`  ${finished ? "done" : closed ? `停在原地${cut ? "（被上限截断）" : ""}${aheadOfClock ? "（有期次未到刊日期）" : ""}${undated ? `（索引 ${undated} 期无日期，覆盖未确认）` : ""}` : "本月未过完，下次再跑"} 看了 ${localSeen} 条，入库 ${localNew} 条${localFixed ? `，补日期 ${localFixed} 条` : ""}`);
 }
 
-for (const month of months()) {
+for (const month of selectedMonths) {
   if (stored >= MAX_ITEMS) break;
   const { start, end } = sliceRange(month);
   for (const source of sources) {
@@ -382,8 +418,9 @@ for (const month of months()) {
     }
     const [ledger] = await sql<{ status: string; cursor: string | null }[]>`
       SELECT status, cursor FROM archive_ingest WHERE source_id = ${source.id} AND month = ${month}`;
-    if (ledger?.status === "done") continue;
-    let cursor = ledger?.cursor ?? "*";
+    const initialCursor = archiveSliceCursor(month, beijingDate(new Date()).slice(0, 7), ledger);
+    if (initialCursor === null) continue;
+    let cursor = initialCursor;
     let localSeen = 0;
     let localNew = 0;
     let localNoDate = 0;
@@ -394,8 +431,7 @@ for (const month of months()) {
                 ON CONFLICT (source_id, month) DO UPDATE SET status = 'running', updated_at = now()`;
     }
     console.log(`${source.id} ${month} issn=${issn}${cursor !== "*" ? " (续)" : ""}`);
-    // stopped_on_error keeps "no more pages" apart from "we could not read this page"; only the first one
-    // may mark a slice done.
+    // Keep transport errors apart from a successfully parsed last page.
     let stoppedOnError = false;
     // 预算（--per-month / --max-items）在游标耗尽前先停，这一片同样不算跑完。**游标只有整页读完才往前推**：
     // 以前内层 break 之后照样写 `next`，于是被截断那一页的尾部（默认 --per-page=100、--per-month=60 时是
@@ -408,15 +444,13 @@ for (const month of months()) {
         + `&select=DOI,title,container-title,abstract,URL,author,published,issued${mailto ? `&mailto=${encodeURIComponent(mailto)}` : ""}`;
       const res = await page(url);
       if (!res) { stoppedOnError = true; break; }
-      // 空页是 Crossref 说"没有了"的正常方式——**前提是它同时也没给 next-cursor**。给了游标却一条不给
-      // 是一次读坏了的答案，按"停在这一页"处理：否则一个 200 的空壳就把这个月剩下的都退休掉。
+      // Crossref's documented end condition is items.length < rows, even when next-cursor is present.
       if (res.items.length === 0) {
-        if (res.next) { console.error("  这一页一条都没给却带着 next-cursor，停在原地而不是判它跑完"); stoppedOnError = true; break; }
         cursor = "";
         break;
       }
       // A page without a next cursor is a Crossref answer we cannot resume from, not an exhausted slice.
-      const next = res.next;
+      const next = crossrefNextCursor(res.items.length, PER_PAGE, res.next);
       if (!next && res.items.length >= PER_PAGE) {
         console.error("  这一页没有 next-cursor，停在原地而不是判它跑完");
         stoppedOnError = true;
@@ -480,7 +514,7 @@ for (const month of months()) {
     if (!values.apply) continue;
     // 循环因预算或页数上限退出而游标还在 = 没跑完（两种都不写 done）。
     if (cursor && !stoppedOnError) cut = true;
-    const finished = !cursor && !stoppedOnError && !cut;
+    const finished = month < beijingDate(new Date()).slice(0, 7) && !cursor && !stoppedOnError && !cut;
     // Per-slice, not cumulative: this string is written into the ledger row, and the cumulative version
     // printed the same 18 on every source after the first one that had skipped anything.
     const note = `no-date=${localNoDate} thin=${localThin} dup=${localDup}${cut ? " cut" : ""}`;
@@ -494,3 +528,6 @@ for (const month of months()) {
 if (stored >= MAX_ITEMS) console.log(`本轮到达上限 ${MAX_ITEMS} 条，剩下的下轮接着跑。`);
 console.log(`${values.apply ? "已入库" : "DRY-RUN 将入库"} ${stored} 条（可判 ${judged} 条｜无整日期 ${noDate}｜摘要过短 ${thin}｜与实时重复 ${duplicate}）`);
 await closeDb();
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main();

@@ -121,7 +121,7 @@ record("tap-more", { more, moreAfter });
 // 4. the search control on the home page
 await goto(`${base}/`);
 const search = await evaluate(`(() => {
-  const el = [...document.querySelectorAll('a[href*="q="], button[aria-label*="搜索"], input[type=search]')][0];
+  const el = [...document.querySelectorAll('a[aria-label*="搜索"], a[href*="q="], button[aria-label*="搜索"], input[type=search]')][0];
   if (!el) return { ok: false };
   const tag = el.tagName.toLowerCase();
   el.click();

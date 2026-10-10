@@ -1,0 +1,39 @@
+[Unit]
+Description=GEOHOT bounded archive collection and settled papers
+After=network-online.target postgresql.service
+Wants=network-online.target
+ConditionPathExists=/opt/geohot/app/.env
+
+[Service]
+Type=oneshot
+User=geohot
+Group=geohot
+WorkingDirectory=/opt/geohot/app
+Environment=HOME=/opt/geohot
+Environment=TZ=Asia/Shanghai
+Environment=NODE_ENV=production
+Environment=AIHOT_ENVIRONMENT=production
+# Write permission is an explicit operator setting in the optional overlay.
+Environment=GEOHOT_ARCHIVE_APPLY=0
+Environment=FINAL_REFRESH=0
+EnvironmentFile=-/etc/geohot/archive-cycle.conf
+ExecStart=/bin/bash /opt/geohot/app/deploy/geohot/archive-cycle.sh
+TimeoutStartSec=45min
+TimeoutStopSec=45s
+KillMode=control-group
+MemoryMax=320M
+MemorySwapMax=256M
+CPUQuota=40%
+Nice=15
+IOSchedulingClass=idle
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/opt/geohot/app/.data
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+# Do not restart immediately on failure; timer retry retains the archive cursor.

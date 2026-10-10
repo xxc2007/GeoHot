@@ -23,6 +23,7 @@
 // event pages stay empty. A corpus whose authored times span months is therefore re-anchored onto one
 // arrival day by default (order and relative spacing kept, authored times stored in raw._geohot).
 // --keep-times ingests the authored times as written and reports how much falls out of the live window.
+// --archive preserves source dates, discovers at real now and marks explicit archive backfill for historical papers.
 // Re-runnable: identity is the normalised URL and the discovery lag is derived from it, so the same
 // input creates nothing on a second run and no revision is queued twice.
 import { existsSync, readFileSync } from "node:fs";
@@ -43,6 +44,7 @@ const { values: opt } = parseArgs({
     "as-of": { type: "string" },
     "dry-run": { type: "boolean", default: false },
     "keep-times": { type: "boolean", default: false },
+    archive: { type: "boolean", default: false },
     "enforce-source": { type: "boolean", default: false },
     "allow-unknown-source": { type: "boolean", default: false },
     "no-queue": { type: "boolean", default: false },
@@ -54,10 +56,13 @@ const { values: opt } = parseArgs({
 
 if (opt.route !== "inproc" && opt.route !== "http") throw new Error(`--route must be inproc or http, got ${opt.route}`);
 const route = opt.route;
+const archive = opt.archive;
+if (archive && opt["as-of"] !== undefined) throw new Error("--archive and --as-of are mutually exclusive: archive source dates must not be re-anchored");
+if (archive && route !== "inproc") throw new Error("--archive requires --route inproc to preserve body text and set backfill='archive'");
 const anchor = opt["as-of"] ? new Date(opt["as-of"]) : new Date();
 if (!Number.isFinite(anchor.getTime())) throw new Error(`--as-of is not a time: ${opt["as-of"]}`);
 const dryRun = opt["dry-run"];
-const keepTimes = opt["keep-times"];
+const keepTimes = archive || opt["keep-times"];
 /** Kept in step with STALE_ON_DISCOVERY_MS in packages/backend/src/content/materials.ts. */
 const STALE_MS = 48 * 3600 * 1000;
 /** The newest ingested item lands this far before the anchor, so nothing sits on the edge of the window. */
@@ -97,6 +102,20 @@ readFileSync(inputPath, "utf8").split(/\r?\n/).forEach((line, i) => {
 const via: MaterialInput["via"] = route === "http" ? "ingest" : "import";
 const time = (v: string | undefined) => { if (!v) return null; const d = new Date(v); return Number.isFinite(d.getTime()) ? d : null; };
 const authoredOf = (l: CuratedLine) => time(l.timelineAt) ?? time(l.publishedAt);
+// Validate the entire archive before any source lookup or write. Never turn an undated/future
+// record into a dated historical paper, even if another timestamp on that line looks usable.
+if (archive) {
+  for (let i = 0; i < raw.length; i++) {
+    const l = raw[i]!;
+    const publishedAt = time(l.publishedAt);
+    if (!publishedAt) throw new Error(`--archive item ${i + 1}: missing or invalid publishedAt`);
+    for (const [field, value] of [["publishedAt", l.publishedAt], ["timelineAt", l.timelineAt]] as const) {
+      if (value === undefined) continue;
+      const date = time(value);
+      if (!date || date.getTime() > anchor.getTime()) throw new Error(`--archive item ${i + 1}: invalid or future ${field}`);
+    }
+  }
+}
 /** How long after its event time the corpus says this material surfaced (the corpus's own gap, ≤ 48 h). */
 const gapOf = (l: CuratedLine) => {
   const p = time(l.publishedAt), d = time(l.discoveredAt);
@@ -148,8 +167,8 @@ for (let i = 0; i < raw.length; i++) {
   if (rowId) usedIds.add(rowId);
   // Coherent by construction: the event time stands, the discovery follows it by the corpus's own gap
   // (or by minutes derived from the identity), so nothing is ever stale-on-discovery.
-  const publishedAt = needsRescale ? remap(authoredOf(l) ?? anchor) : authoredOf(l);
-  const discoveredAt = publishedAt
+  const publishedAt = archive ? time(l.publishedAt) : needsRescale ? remap(authoredOf(l) ?? anchor) : authoredOf(l);
+  const discoveredAt = archive ? anchor : publishedAt
     ? new Date(Math.min(publishedAt.getTime() + (gapOf(l) ?? arrivalLagMs(key)), anchor.getTime()))
     : anchor;
   plan.push({
@@ -157,7 +176,7 @@ for (let i = 0; i < raw.length; i++) {
     input: {
       id: rowId, sourceId, url, title, via, language: originalTitle ? (l.language ?? "en") : l.language ?? null,
       author: typeof l.author === "string" && l.author.trim() ? l.author.trim().slice(0, 200) : null,
-      publishedAt, discoveredAt,
+      publishedAt, discoveredAt, ...(archive ? { backfill: "archive" } : {}),
       bodyText: l.bodyText ?? null, bodyStatus: l.bodyText ? "ok" : "pending",
       // Upstream provenance (theme, fragment, its own _aihot flags) is kept; the ingest decisions are added.
       raw: {
@@ -178,11 +197,10 @@ for (let i = 0; i < raw.length; i++) {
   });
 }
 if (opt.limit && Number(opt.limit) > 0) plan.splice(Number(opt.limit), Number.MAX_SAFE_INTEGER);
-// A line flagged as backfill would be archived as history on purpose; the webhook honours it, this script
-// never sets it. Say so when the input carries it, because those items found no event and get no heat.
+// Legacy raw flags differ by route; --archive sets MaterialInput.backfill explicitly.
 const flagged = raw.filter((l) => (l.raw?._aihot as { backfill?: boolean; baseline?: boolean } | undefined)?.backfill === true
   || (l.raw?._aihot as { baseline?: boolean } | undefined)?.baseline === true).length;
-if (flagged) console.log(`!! ${flagged} line(s) carry raw._aihot.backfill/baseline: --route http will file them as history `
+if (flagged && !archive) console.log(`!! ${flagged} line(s) carry raw._aihot.backfill/baseline: --route http will file them as history `
   + `(no event, no heat); --route inproc ignores that flag and keeps them live, which is the deliberate difference.`);
 
 // --------------------------------------------------------------------------- the sources must be real
@@ -218,7 +236,9 @@ if (missing.length && !opt["allow-unknown-source"]) {
   console.log(`skipped ${dropped.unknownSource} item(s) of unregistered source(s); nothing was created for them.`);
 }
 
-console.log(`times: authored ${spanStart?.toISOString() ?? "-"} .. ${spanEnd?.toISOString() ?? "-"}`  + (needsRescale
+console.log(`times: authored ${spanStart?.toISOString() ?? "-"} .. ${spanEnd?.toISOString() ?? "-"}`  + (archive
+    ? ` → archive: original publishedAt, discovery ${anchor.toISOString()}, explicit backfill=archive; no re-anchoring`
+    : needsRescale
     ? ` → re-anchored ${ingestedTimes.length ? new Date(Math.min(...ingestedTimes.map((t) => t.getTime()))).toISOString() : "-"} .. `
       + `${ingestedTimes.length ? new Date(Math.max(...ingestedTimes.map((t) => t.getTime()))).toISOString() : "-"} `
       + `(as of ${anchor.toISOString()}; order and relative spacing kept, authored times in raw._geohot, `
@@ -234,7 +254,7 @@ if (route === "http" && opt["as-of"] && Math.abs(Date.now() - anchor.getTime()) 
 
 if (dryRun) {
   console.log(JSON.stringify({
-    dryRun: true, route, asOf: anchor.toISOString(), rescaled: needsRescale, keepTimes,
+    dryRun: true, route, archive, asOf: anchor.toISOString(), rescaled: needsRescale, keepTimes,
     toIngest: plan.length, dropped, sources: { registered: known.size, missing, nonEditorial },
     queued: !opt["no-queue"],
     historicalAfterIngest: plan.filter((p) => p.input.publishedAt && p.input.discoveredAt!.getTime() - p.input.publishedAt.getTime() > STALE_MS).length,
@@ -376,12 +396,14 @@ const check = allKeys.length ? (await sql<{ rows: number; historical: number; ou
          count(*) FILTER (WHERE published_at IS NOT NULL AND published_at < now() - make_interval(secs => ${STALE_MS / 1000}))::int AS outside_heat_window
   FROM articles WHERE identity_key = ANY(${allKeys})`)[0] : { rows: 0, historical: 0, outside_heat_window: 0 };
 console.log(JSON.stringify({
-  route, dryRun, asOf: anchor.toISOString(), rescaled: needsRescale, keepTimes, input: inputPath,
+  route, dryRun, archive, asOf: anchor.toISOString(), rescaled: needsRescale, keepTimes, input: inputPath,
   read: raw.length, planned: plan.length, created, updated: revised, skipped: unchanged, dropped,
   queued, autoCreatedSources: autoCreated, webhookReported, realignedToPlannedTimes: realigned,
   inDb: check,
 }));
-console.log(check.historical
+console.log(archive
+  ? `archive: ${check.rows} stored row(s), ${check.historical} historical; original source dates preserved for archival publication and papers.`
+  : check.historical
   ? `!! ${check.historical} row(s) are flagged historical: they found no event and add no heat. Drop --keep-times or use --as-of.`
   : `historical: 0 — every row is eligible to found an event and carry heat.`);
 await stopBoss();
