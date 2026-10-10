@@ -9280,7 +9280,7 @@
           "initialBackfillLimit": 10
         }
       },
-      "tier": "T2",
+      "tier": "T1",
       "interval_minutes": 720,
       "tags": [
         "英文",
@@ -9306,7 +9306,7 @@
           "initialBackfillLimit": 10
         }
       },
-      "tier": "T2",
+      "tier": "T1",
       "interval_minutes": 720,
       "tags": [
         "英文",
@@ -9390,6 +9390,7 @@
         "url": "https://www.dpm.org.cn/learning/dynamic.html",
         "parseMode": "html",
         "itemSelector": "a[href*='learing_detail']",
+        "titleSelector": "div.p",
         "publishedAtRegex": "(\\d{4}年\\d{1,2}月\\d{1,2}日)",
         "allowUrlPrefixes": [
           "https://www.dpm.org.cn/learing_detail/"
@@ -9423,6 +9424,7 @@
         "parseMode": "html",
         "itemSelector": "li",
         "linkSelector": "a[href*='info/']",
+        "titleSelector": ".itemTit",
         "publishedAtRegex": "(\\d{4}-\\d{2}-\\d{2})",
         "allowUrlPrefixes": [
           "https://heshan.snnu.edu.cn/info/"
