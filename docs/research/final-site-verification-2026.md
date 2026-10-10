@@ -59,3 +59,13 @@
 ### 服务器本机完整冒烟复核
 
 root 在 2026-10-10 22:45 CST 从服务器运行 `node scripts/smoke.ts --base http://127.0.0.1:3000/geohot`，整条命令通过：17 个页面、机器出口、MCP initialize、`/geohot` 资源前缀、四出口六期日报集合一致性及中文标题检查全部通过。此项验证服务器应用及反向代理内链；公开 HTTPS、CDN 和外部网络证据仍以以上浏览器与全枚举结果为准，不能用本机通过抹掉先前外部 smoke 的网络失败记录。
+
+## 预算调度修复上线后的独立验证
+
+2026-10-10 23:29 CST 前后，root 在归档共享锁内部署 `964a2f2`，先停止归档定时器并等待唯一 worker 优雅退出，再切换源码与 `/geohot` 生产构建。保留 0600 的部署前源码/环境回退包。启动瞬间观察到一次连接拒绝及一次 502；随后等待健康检查确认启动成功，没有将启动过程的响应冒称正常请求。
+
+公开 HTTPS `/geohot/api/health` 实际返回 200、`ok:true`、`db:ok`、`release:964a2f2`。四常驻服务及 `geohot-archive.timer` 都恢复 active。服务器上的四个模型/回执源文件、portable-backup 脚本及 brain-stub 源文件 SHA256 与 git 提交的原始 LF blob 逐项一致。
+
+本次完整 loopback smoke 通过；随后服务器执行只读 `deploy/geohot/verify-deploy.sh`，包含公开 HTTPS 和邻站基线、服务、brain source/defaults、数据与出口及完整 smoke，最终 `RESULT: ALL CHECKS PASSED`。原始日志保存在本轮私有目录 `deploy-964a2f2.log`、`smoke-964a2f2.log`、`verify-deploy-964a2f2.log`。
+
+本轮不是全量历史筛选、补刊及最终 GitHub 同步验收。公开报告当前仍为六期日报、一期开周报、零期公开月报；历史区间尚未关闭，不能以功能冒烟通过替代内容完成证明。
