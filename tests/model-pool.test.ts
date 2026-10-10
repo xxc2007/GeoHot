@@ -205,14 +205,15 @@ test("a capability's label and env names stay paired with the pool", () => {
 // almost everything — 1,051 failed attempts in three hours against 112 answers from the two healthy doors.
 // Because the member is a hash of the article id, that was not a slow quarter of the work but a dead one:
 // those items never reached a model, and the archive band moved 9 items an hour while two doors idled.
-test("池子里正在整体失败的成员会被跳过，但'偶尔答一次'的成员算活着", async () => {
+test("池子里答不出半数的成员会被跳过，答得动一半以上的成员照用", async () => {
   const [receipt] = await sql<{ id: number }[]>`
     INSERT INTO receipts (logical_key, service, purpose, status, created_at, updated_at)
     VALUES (${`sick-probe-${T}`}, 'agnes-cn', 'pool_health_probe', 'failed', now(), now()) RETURNING id`;
-  const failSix = async (received: number) => {
+  // attempts 条里 received 的条数由调用方给；判据是"十分钟内 ≥6 次尝试且答出的少于一半"。
+  const write = async (received: number) => {
     // The tests above answered through this very door a moment ago; the health window is ten minutes wide, so
-    // their successful attempts would count as "this service still answers". Clear the window first, then
-    // write the six this probe is about.
+    // their successful attempts would count into this rate. Clear the window first, then write the six this
+    // probe is about.
     await sql`DELETE FROM receipt_attempts WHERE service = 'agnes-cn' AND started_at > now() - interval '10 minutes'`;
     await sql`DELETE FROM receipt_attempts WHERE receipt_id = ${receipt!.id}`;
     for (let i = 0; i < 6; i++) {
@@ -224,16 +225,16 @@ test("池子里正在整体失败的成员会被跳过，但'偶尔答一次'的
 
   try {
     process.env.MODEL_POOL = POOL;
-    await failSix(0);
+    await write(1); // 六次里只答出一次——正是"额度用完降到每分钟一次"的样子
     const sick = await sickServices();
-    assert.ok(sick.has("agnes-cn"), "六连败的服务应当被判为不健康");
-    const picks = new Set(await Promise.all(Array.from({ length: 40 }, (_v, i) => modelFor("score", newArticleId()))));
+    assert.ok(sick.has("agnes-cn"), "答不出半数的服务应当被判为不健康");
+    const picks = new Set(await Promise.all(Array.from({ length: 40 }, () => modelFor("score", newArticleId()))));
     assert.deepEqual([...picks], ["default"], `健康成员应当独挑，实际选了 ${[...picks].join(", ")}`);
 
-    // 答过一次就不算"整条连败"：这是刻意留的余地，否则一道门只是忙（429 后重试成功）就会被踢出池子。
-    await failSix(1);
-    const back = new Set(await Promise.all(Array.from({ length: 40 }, (_v, i) => modelFor("score", newArticleId()))));
-    assert.equal(back.size, 2, `答过一次就该回到池子里，实际只有 ${[...back].join(", ")}`);
+    // 答得动一半以上就照用：一道门只是忙（429 之后重试成功）不该被踢出池子。
+    await write(4);
+    const back = new Set(await Promise.all(Array.from({ length: 40 }, () => modelFor("score", newArticleId()))));
+    assert.equal(back.size, 2, `答得动一半以上就该回到池子里，实际只有 ${[...back].join(", ")}`);
   } finally {
     delete process.env.MODEL_POOL;
     await sql`DELETE FROM receipts WHERE id = ${receipt!.id}`;

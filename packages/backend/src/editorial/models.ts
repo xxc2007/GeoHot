@@ -126,9 +126,12 @@ async function overrides(): Promise<Record<string, string>> {
  * items an hour while the two healthy doors sat under-used.
  *
  * Reads what the pipeline already writes (`receipt_attempts`) instead of keeping new state. The rule is a
- * streak — five or more attempts in ten minutes and none answered — so a door that answers occasionally is
- * treated as slow (keep using it) rather than dead, and a door that is merely busy stays in the pool. One
- * minute of caching, because this decides a per-call choice.
+ * **rate**, not a streak: six or more attempts in ten minutes with *fewer than half answered*. A streak rule
+ * is not enough here — a door throttled to one request a minute (which is exactly what the quota exhaustion
+ * degrades to) answers often enough to look alive while three of every four calls still fail. Half is the
+ * line that says "this member is a worse bet than its peers"; anything above it is "busy, not broken".
+ * A door that is merely busy keeps its place, and if every member is below the line the pool still uses them
+ * all, because the budget breaker and the retry ladder — not this choice — decide when to stop.
  */
 let health: { at: number; sick: Set<string> } | null = null;
 
@@ -140,7 +143,7 @@ export async function sickServices(): Promise<Set<string>> {
       SELECT service FROM receipt_attempts
        WHERE started_at > now() - interval '10 minutes'
        GROUP BY service
-      HAVING count(*) >= 5 AND count(*) FILTER (WHERE status = 'received') = 0`;
+      HAVING count(*) >= 6 AND count(*) FILTER (WHERE status = 'received') * 2 < count(*)`;
     sick = new Set(rows.map((r) => r.service));
   } catch {
     // Reading the ledger must never decide the request: an unreadable table means "no opinion", not "all
