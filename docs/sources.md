@@ -949,9 +949,28 @@ T&F 四本（`/feed/rss/<码>` 可达而 `www.tandfonline.com` 的 HTML 被 Clou
 - 评审把 `web-list.ts` 里读的 `allowPrivateNetworkFetch` 报成"包里没有这个键所以源设不了"——
   核实后它是**全局 config**，不是单条源的字段，本来就不该出现在包里的 `KEYS` 上。
 
-记一条本轮没动的：253 条可轮询源里有 135 条挂在 240 分钟，其中约 68 条带 `intervalMinutesLocked`，
-而 `adaptIntervals`（`collect.ts:643`）跳过锁定项——所以这些月刊目录**永远不会回落到 720/1440**。
-方向是对的（该松的没松），但那是采集节奏的决定，先记账不动。
+记一条本轮没动的（数字按 2026-10-10 的包重新量过：先前这里写的是"253 条可轮询、135 条挂 240、约 68 条带锁"，
+三个数都旧了）：**251 条可轮询源里有 133 条挂在 240 分钟，其中 104 条带 `intervalMinutesLocked`**，
+而 `adaptIntervals`（`collect.ts:643`）跳过锁定项——所以这 104 条月刊目录**永远不会回落到 720/1440**。
+方向是对的（该松的没松），但那是采集节奏的决定，先记账不动。顺带一个更该被看见的数：**251 条里有 170 条带锁，
+自动调整实际只管得到 81 条**——"节拍会自己学着收敛"这句话在今天这个包上只对三分之一成立。
+
+另有两件事本轮查清了，写在这里免得下轮再猜：
+- **8 条 `external` 源带的 `interval_minutes: 1440` 从来没人读**：`collect.ts:223` 对 `mp_account`/`external`
+  直接返回 `skipped`，`COLLECT_KINDS` 的默认白名单（`collect.ts:586`）也只有 `rss,web_list,json_list,x_search`。
+  这个数字是 `ingest/items.ts:59` 建表时写进去的字面值，不代表任何节拍——external 是**由 ingest 接口喂**的，
+  不是被轮询的。后台把它显示成"每 24 小时"是误导，但改它等于改包内容，先记不动。
+- **线上库与包的关系已经对齐**：生产 `sources` 共 280 行＝包里 274 行（pack-only 0 条，逐 id 比对过）
+  ＋ 6 行历史 retired（`cn-chsi-kydt`、`cn-people-intl|politics|scitech`、`cn-web-geog-toc`、
+  `rss-phys-org-earth-sciences`），**这 6 行实测全部 `enabled=false`**，且暂停源在 ingest 侧还会被 409 拒
+  （`ingest/items.ts:66`），所以它们不会再进新条目。`scripts/seed.ts` 只加不改（`ON CONFLICT DO NOTHING`，
+  `:51`），退役必须显式 disable——这 6 行就是那样留下来的。
+- **"四族重复源"这条工单不成立**（逐 id/url/ISSN 量过 274 行：0 个重复 id、0 个重复 URL、87 个 ISSN 全不撞）。
+  只剩一种真重叠：`rss-eos-org`（`eos.org/feed` 总目录）与 `rss-eos-editors-highlights` /
+  `rss-eos-research-spotlights` / `rss-eos-landslide-blog`（同一站的三个分类 feed）——父集含子集，四条都
+  `enabled=true`。但 `articles.identity_key` 是**按 URL 全局**去重的（`materials.test.ts` 钉着"同一 URL 的
+  首发只建一条"），所以重复抓到的同一条文不会变成两条内容，代价只是多几次抓取。要不要收掉那三条子 feed
+  是信源决定，留给站长。`rss-agu-this-week` 与 `rss-agu-newsroom` 是同一形状，但它已经 `enabled=false`。
 
 ## 第六十三轮：档案里第一条中文——《地理研究》的过刊路线（2026-10-10，本机对真实页面实测）
 
