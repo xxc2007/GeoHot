@@ -2,7 +2,7 @@
 // spread across them. Two properties matter and neither is visible from the pool function alone — a member
 // must be picked by the *work unit* (so a retry reuses that member's cached answer instead of paying a
 // second model to re-judge the same words), and each member must spend its own provider's budget.
-import { stub, tag } from "./setup.ts";
+import { purgeTagged, stub, tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { closeDb, sql } from "@aihot/backend/db";
@@ -62,6 +62,7 @@ before(async () => {
 after(async () => {
   for (const p of pacing) await sql`UPDATE budgets SET per_minute = ${p.perMinute} WHERE service = ${p.service}`;
   await sql`DELETE FROM settings WHERE key LIKE 'models.%'`;
+  await purgeTagged(T);
   await provider.close();
   await stopBoss();
   await closeDb();

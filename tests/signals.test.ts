@@ -51,13 +51,20 @@ async function report(suffix: string, opts: { title: string; backfill?: string; 
   return articleId;
 }
 
+/** `budgets` is a table, not process state: whatever this file widens is what the next file reads. */
+let savedBudgets: Array<{ service: string; per_minute: number; per_hour: number; per_day: number }> = [];
+
 before(async () => {
+  savedBudgets = await sql`SELECT service, per_minute, per_hour, per_day FROM budgets WHERE service IN ('dashscope', 'deepseek')`;
   await sql`UPDATE budgets SET per_minute = 1000, per_hour = 10000, per_day = 100000 WHERE service IN ('dashscope', 'deepseek')`;
   await sql`INSERT INTO sources (id, name, kind, tier, participation_mode, next_fetch_at) VALUES
             (${EDITORIAL}, 'Test editorial', 'rss', 'T1', 'editorial', '2100-01-01'),
             (${SIGNAL}, 'Test signal', 'rss', 'T2', 'hot_signal', '2100-01-01')`;
 });
 after(async () => {
+  for (const b of savedBudgets) {
+    await sql`UPDATE budgets SET per_minute = ${b.per_minute}, per_hour = ${b.per_hour}, per_day = ${b.per_day} WHERE service = ${b.service}`;
+  }
   await purgeTagged(T, TOPIC);
   await provider.close();
   await stopBoss();

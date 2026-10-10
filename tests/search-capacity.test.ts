@@ -6,6 +6,7 @@
 // 加回去——在这中间到达的请求看到的是一个"看起来空着"的名额，于是上限是软的。现在名额随唤醒一起移交。
 // 那个窗口只能从模块内部的微任务交错里踩到，测试无法从外面确定性地复现，所以这里钉的是可以确定的部分，
 // 移交本身由这段并发断言守住：任何时刻真正在跑的请求数不超过上限。
+import "./setup.ts";
 import assert from "node:assert/strict";
 import { setTimeout as delay } from "node:timers/promises";
 import { after, test } from "node:test";

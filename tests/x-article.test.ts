@@ -49,13 +49,17 @@ config.allowPrivateNetworkFetch = true;
 
 const idOf = async (tweetId: string) => (await sql<{ id: string }[]>`SELECT id FROM articles WHERE identity_key = ${`x:${tweetId}`}`)[0]!.id;
 
+let savedBudget: Array<{ per_minute: number; per_hour: number; per_day: number }> = [];
 before(async () => {
+  savedBudget = await sql`SELECT per_minute, per_hour, per_day FROM budgets WHERE service = 'socialdata'`;
   await sql`UPDATE budgets SET per_minute = 1000, per_hour = 10000, per_day = 100000 WHERE service = 'socialdata'`;
   await sql`INSERT INTO sources (id, name, kind, config, tier, participation_mode, cursor, next_fetch_at)
             VALUES (${SOURCE}, ${HANDLE}, 'x_search', ${sql.json({ query: `from:${HANDLE} -filter:replies`, searchType: "Latest" })}, 'T1_5', 'editorial',
                     ${sql.json({ initializedAt: new Date().toISOString(), lastTweetId: String(BASE) })}, '2100-01-01')`;
 });
 after(async () => {
+  const b = savedBudget[0];
+  if (b) await sql`UPDATE budgets SET per_minute = ${b.per_minute}, per_hour = ${b.per_hour}, per_day = ${b.per_day} WHERE service = 'socialdata'`;
   // A leftover article still in processing_state = 'new' is counted by tests/alerts.test.ts, which reads
   // the backlog table-wide, so it would fail in an unrelated file.
   await purgeTagged(T);

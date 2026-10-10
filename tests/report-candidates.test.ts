@@ -1,4 +1,4 @@
-import { gate, stub, tag } from "./setup.ts";
+import { gate, purgeTagged, stub, tag } from "./setup.ts";
 // A selected item released across the 08:00 boundary must appear in the next issue exactly once.
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
@@ -48,7 +48,7 @@ before(async () => {
             VALUES (${SOURCE}, 'Report boundary test', 'rss', 'T1', 'editorial', '2100-01-01')`;
 });
 after(async () => {
-  await sql`DELETE FROM articles WHERE source_id = ${SOURCE}`;
+  await purgeTagged(SOURCE);
   await sql`DELETE FROM reports WHERE kind = 'daily' AND key = ANY(${ISSUES}::text[])`;
   await provider.close();
   await stopBoss();

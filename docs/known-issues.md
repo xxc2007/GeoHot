@@ -3370,3 +3370,41 @@ HAL 有 3/40 条 `<description>` 就是 `<![CDATA[[...]]]>`，于是 `excerpt` �
    不同种类本来不同时间，不是漂移。工单第 2 条（归档少一整月）也不是解析缺陷：
    `missingRuns` 只在最早可读期与最新可读期之间找空，那是"创刊前没有报纸"这句话的边界；等 1—9 月一段一段填起来，
    最早可读期自己会往前移。
+---
+
+## 第六十四轮（2026-10-10 早）：这套量具自己的四个洞（工单 #112）
+
+上一轮所有"产能／门槛"的数字都是从测试与探测脚本里量出来的，所以先把量具本身查一遍。四处都是真缺陷，
+其中一条是我自己上一轮的口径说过头了，一并改口。
+
+1. **四道闸门被绕过**。`tests/setup.ts` 里放着三样东西：`DATABASE_URL` 必须以 `_test`/`_ci` 收尾那道废库闸门、
+   桩用的凭据、"什么都不推出去"的阀。`availability-chunking`、`queue-options-drift`、`queue-start-retry`、
+   `search-capacity` 导入了 `@aihot/backend/db` 却没导入 setup——四个文件里有一个（`queue-options-drift`）
+   是真的往队列发任务。修法不止是补四行：`import "./setup.ts";` 必须排在 db **之前**，因为 `db.ts` 在导入那一刻
+   就读 `process.env.DATABASE_URL`，而 ESM 按源码顺序求值。规则从此不靠人记得住——
+   新增 `tests/test-db-hygiene.test.ts` 扫全部测试文件，"碰 db 却没先碰 setup"直接红。摘掉 search-capacity
+   那一行验过红，装回去验过绿。
+   **顺带纠正我复核时的数法**：审计报告说"四个"，我第一次用 `from "./setup.ts"`（双引号）去 grep 得出"十一个"，
+   多出来那七个是单引号写法，虚警。数法自己也要被数。
+2. **等待中的队列任务永久堆积**。pg-boss 那张表不是我们的子表，删条目级联不到它。`geohot_test` 实测
+   **9,940 条 `state='created'`，其中 9,800 条指向已经不存在的 article/story/source**（每跑一遍约 +700）。
+   危害不是占磁盘：取活按 `priority DESC, created_on`，后来那一遍真起 worker 时先领到的是上一轮的垃圾——
+   `analyze-shutdown.test.ts` 就是为躲这件事才自建队列名。修在 `purgeTagged` 末尾新增 `purgeOrphanJobs()`：
+   只删主体已消失的，主体还在的一条不动（测"在飞／重试"的文件不受影响）。整套跑完再量：**0 条**。
+3. **budgets 泄漏——工单标题说过头了，这里撤回**。`signals.test.ts` 与 `x-article.test.ts` 把
+   `dashscope`/`deepseek`/`socialdata` 抬到 1000/10000/100000 之后不还，实测这三行就停在那儿，而迁移种的是
+   100/2000/20000 与 10/100/1000。但工单标题那句"让预算熔断的断言永远不可能红"是我的推断：逐个查了全部八个
+   会抬预算的文件（另外六个都存了再还），也查了会读它的断言（`alerts.test.ts:72` 先读现值再 `+1`、
+   `receipts.test.ts:97` 用已计数反推上限），**没有任何一条判据的红绿被这个泄漏决定过**。真正的问题只有一条：
+   一张共享的表被留在任何迁移都没产生过的状态上。修：两个文件按 `savedBudgets` 那一套存／还（与
+   `collection.test.ts` 同形），并把这三行一次性改回迁移种值。
+4. **两句永远不会红的断言**。`publication.test.ts:325` 用 `SELECT max(seq)` 比"没多出一条账本"——`max()`
+   在零行时照样返回一行 null，夹具若根本没进账本，null 对 null 也是绿；现在先断言这一行存在（该夹具
+   `selected=true`）再比。`fetch-schedule-jina.test.ts:65` 断"三种配置都排得上"取的是"还剩 0 条到期"，
+   而"夹具压根没插进去"也是 0 条——补一条前置断言：三条都得先是到期态。
+5. **四个文件收不干净自己的行**：`default-model`（`after` 里没有任何 purge）、`model-pool`（同上）、
+   `materials`（`purgeTagged(SOURCE)` 碰不到 `OTHER`，两个 tag 来自两次独立的 `tag()`）、
+   `report-candidates`（手删 articles 与 reports，唯独不删自己的 source）。
+
+**验收**：`tsc -p tests` 0 错；整套连跑三遍 **389 项／384 通过／5 跳过／0 失败**（第三遍在预算改回迁移种值之后跑），
+等待任务 9,940 → 0；两条新闸门各自先证红再证绿。改动全在 `tests/`，线上代码与生产数据一行未动。

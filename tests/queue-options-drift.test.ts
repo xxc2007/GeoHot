@@ -5,6 +5,7 @@
 // 现在 `ensureQueue` 自己把库里的行对齐代码：pg-boss 12 的 `updateQueue` 是逐列 COALESCE 的 UPDATE，
 // 不重建队列，所以等待中的任务一条都不会掉；只有 `policy` 和 `partition` 它拒绝改（改了只能重建队列），
 // 那两个留成警告。
+import "./setup.ts";
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import { closeDb, sql } from "@aihot/backend/db";

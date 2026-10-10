@@ -8,6 +8,7 @@
 // 这里不建信源/条目：判定值本身（public / summary-only / withdrawn）由 `publication-copy-gate.test.ts`
 // 用真条目钉住，本文件只钉"跨批不漏"这一件事，所以全部用不存在的 id——它们的答案一律是
 // 'unavailable'，正好能看出谁没被查到。
+import "./setup.ts";
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import { closeDb } from "@aihot/backend/db";
