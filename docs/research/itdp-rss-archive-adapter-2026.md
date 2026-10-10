@@ -70,3 +70,11 @@ node scripts/backfill-news.ts --sources=rss-itdp-news --from=2026-01-01 --to=202
 独立对最终落盘版本重新执行上列三个 scripts 测试文件：**27 tests、27 pass、0 fail、0 skip**，退出码 0；独立 scripts TypeScript 检查退出码 0。核对了强制实际 RSS 请求、不用 live-feed validator 冒充档案空页；缺日期、空页和失败保持 unknown；整页有有效日期且全部早于窗口才建立停止边界；canonical 别名不重复占 cap；只有 store 与 queue 成功后才确认 partial URL；既有 HTML 回归继续通过。本次范围内未发现另一个需要阻止受控部署的 P1/P2。
 
 该结论是针对当前 ITDP 接入及列出的本地回归，不能替代全网 SSRF 行为验证、数据库实际写入或最终模型筛选/发布检查。上文原站 dry-run 的 38 条是根任务提供的候选证据，本独立复核没有重新执行原站采集；本次 27 项回归也不证明生产已部署或 38 条已发布。后续 bounded apply 与线上结果仍需由根任务单独验收。
+
+## 2026-10-11 上午生产 bounded apply
+
+根任务部署最终过滤版本 `8f6f843` 的 CLI、规则与测试，服务器三个 scripts 回归合计 27/27 通过。部署与 apply 共用归档锁，没有新建第二个分析 worker，也没有调整模型预算。核心服务当时仍为 `964a2f2`，这是中间 CLI 部署，不能描述为全部最终版本同步。
+
+实际 `2026-01-01..2026-10-11` ITDP apply：6 页、54 parsed、38 eligible、0 undated、29 created、0 revised、38 queued、0 errors、limited false，第六页为实际全旧边界。新增 29 与排队 38 是不同口径，九条已有材料继续沿用原抽取与筛选流程；这些数目不是精选或出版数。
+
+随后对全部 11 个新闻入口单独检查 `2026-10-11..2026-10-11`：12 页、166 parsed、0 eligible、0 created、0 queued、0 errors、limited false。十个分页源读到旧日期边界，LOC 当月入口实际读取一页。此结果仅覆盖当日上午执行时能读取的内容，不能证明整天没有新增。两项原始 JSON 汇总在私有证据 `news-rss-apply-20261011.log`，服务器持久日志与断点继续纳入迁移备份。
