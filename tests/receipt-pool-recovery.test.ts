@@ -380,6 +380,34 @@ test("hour and day local budget windows use the same protected fallback", async 
   } finally { await sql`UPDATE budgets SET per_hour=100000, per_day=100000 WHERE service='llm'`; }
 });
 
+test("all locally blocked candidates wait for the earliest real budget window", async () => {
+  const [counts] = await sql<{ day: number }[]>`SELECT count(*)::int AS day FROM receipt_attempts
+    WHERE service='llm' AND origin='live' AND started_at > now()-interval '1 day'
+      AND NOT (status='failed' AND usage IS NULL)`;
+  assert.ok(counts!.day > 0);
+  const subject = `earliest-budget-${unique()}`;
+  const beforeA = a.hits(), beforeB = b.hits();
+  try {
+    await sql`UPDATE budgets SET per_day=${counts!.day} WHERE service='llm'`;
+    await blockMinute("agnes-cn");
+    await assert.rejects(ask("default", subject), (error: unknown) => {
+      assert.ok(error instanceof BudgetExceededError);
+      assert.equal(error.service, "agnes-cn");
+      assert.equal(error.retryAfterSeconds, 60);
+      return true;
+    });
+    assert.equal(a.hits(), beforeA); assert.equal(b.hits(), beforeB);
+    const [rows] = await sql<{ n: number }[]>`SELECT count(*)::int AS n FROM receipts WHERE subject=${subject}`;
+    assert.equal(rows!.n, 0, "local budget refusals create no attempt or receipt");
+    await resetMinutes();
+    assert.equal((await ask("default", subject)).model, "agnes-3.0-flash-cn");
+    assert.equal(a.hits(), beforeA); assert.equal(b.hits(), beforeB + 1);
+  } finally {
+    await resetMinutes();
+    await sql`UPDATE budgets SET per_day=100000 WHERE service='llm'`;
+  }
+});
+
 test("real selection run reports actual score providers across partial-chain budget fallback", async () => {
   let id = "";
   for (let i = 0; i < 100; i++) {

@@ -14,8 +14,8 @@ import { CATEGORIES } from "@aihot/industry/taxonomy";
 import { SELECTION } from "@aihot/industry/selection";
 import { sql } from "../db.ts";
 import { isCollectEnabled } from "../config.ts";
-import { chatJson, MODELS, type ContentPart } from "../providers/llm.ts";
-import { completeReceipt, ProviderRejectedError } from "../providers/receipts.ts";
+import { chatJson, ModelOutputError, MODELS, type ContentPart } from "../providers/llm.ts";
+import { BudgetExceededError, completeReceipt, ProviderRejectedError } from "../providers/receipts.ts";
 import { collapseWhitespace } from "../lib/text.ts";
 import { modelFor } from "./models.ts";
 import { buildMaterial, firstImagePart, loadAnalyzeInput, type AnalyzeInputArticle } from "./input.ts";
@@ -391,7 +391,16 @@ export async function runAnalysis(a: AnalyzeInputArticle, opts: StepOpts & { sta
     const near = sum !== null && (sum >= scores!.threshold * SCORE_CALLS || sum > UNDERSTAND_FLOOR * SCORE_CALLS);
     const writing = (near ? await runUnderstand(a, opts) : null) ?? (await runSummarize(a, opts));
     const s = await structure;
-    if ("error" in s) throw s.error;
+    if ("error" in s) {
+      // A rejected paid draft must count toward the output-failure limit even when the parallel
+      // structure step hit a local budget. Otherwise budget retries keep buying the same bad draft.
+      // Unknown receipts, shutdown and provider/transport errors retain their recovery semantics.
+      if (s.error instanceof BudgetExceededError && writing.model && writing.receiptIds.length > 0
+        && (!writing.titleZh.trim() || !writing.summaryZh.trim())) {
+        throw new ModelOutputError("Paid writing produced no usable Chinese title or summary before structure budget wait");
+      }
+      throw s.error;
+    }
     return { prefilter, scores, writing, structure: s.value };
   } finally {
     // A score/writing error or deploy must not let the job finish while a paid structure request

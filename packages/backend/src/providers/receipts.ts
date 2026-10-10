@@ -162,7 +162,7 @@ export async function paidRequest(
     // Only a local budget refusal before an attempt exists can change the dispatch. An HTTP refusal or
     // unknown outcome never reaches this loop. Every choice is checked while all candidate locks hold.
     let chosen = dispatches[0]!;
-    let firstBudgetError: BudgetExceededError | undefined;
+    let earliestBudgetError: BudgetExceededError | undefined;
     const blockedServices = new Set<string>();
     let available = false;
     for (const dispatch of dispatches) {
@@ -174,11 +174,11 @@ export async function paidRequest(
         break;
       } catch (error) {
         if (!(error instanceof BudgetExceededError)) throw error;
-        firstBudgetError ??= error;
+        if (!earliestBudgetError || error.retryAfterSeconds < earliestBudgetError.retryAfterSeconds) earliestBudgetError = error;
         blockedServices.add(dispatch.request.service);
       }
     }
-    if (!available) throw firstBudgetError!;
+    if (!available) throw earliestBudgetError!;
     const selected = chosen.request;
     const logicalKey = logicalKeyFor(selected);
     const existing = rows.find((r) => r.logical_key === logicalKey);
