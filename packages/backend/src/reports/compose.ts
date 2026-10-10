@@ -454,15 +454,30 @@ export async function composeMonthly(label: string, reason = "scheduled") {
 /**
  * Catch-up: generates any missing daily report for the last `days` days (never the future and never
  * before the first report in the database), the last complete week and the last complete month.
+ *
+ * One period failing does not stop the rest. The realistic failure is a race: `reports` has
+ * `UNIQUE (kind, key)`, so if anything else composed that key between this run's existence check and its
+ * insert (an operator's backfill, another hourly run), the insert throws — before this, the whole hour's
+ * remaining work went with it, silently. Failures come back in `failed` for the scheduler to log, because
+ * this module writes no logs of its own.
  */
-export async function catchUpReports(now = new Date(), days = 7): Promise<{ generated: string[] }> {
+export async function catchUpReports(now = new Date(), days = 7): Promise<{ generated: string[]; failed: string[] }> {
   const generated: string[] = [];
+  const failed: string[] = [];
+  const attempt = async (label: string, compose: () => Promise<unknown>) => {
+    try {
+      await compose();
+      generated.push(label);
+    } catch (error) {
+      failed.push(`${label}: ${(error instanceof Error ? error.message : String(error)).slice(0, 120)}`);
+    }
+  };
   const today = beijingDate(now);
   const bjHour = Number(new Date(now.getTime() + 8 * 3600000).toISOString().slice(11, 13));
   const [first] = await sql<{ key: string | null }[]>`SELECT min(key) AS key FROM reports WHERE kind = 'daily'`;
   const latestDue = bjHour >= 8 ? today : addDays(today, -1);
   for (let i = days - 1; i >= 0; i--) {
-    if (shutdownSignal.signal.aborted) return { generated }; // the next hourly run continues
+    if (shutdownSignal.signal.aborted) return { generated, failed }; // the next hourly run continues
     const d = addDays(latestDue, -i);
     if (first?.key && d < first.key) continue;
     // Catch-up never opens an edition whose window is still going: a daily for D gathers
@@ -470,10 +485,7 @@ export async function catchUpReports(now = new Date(), days = 7): Promise<{ gene
     // reach the site as a paper that has not come out yet.
     if (Date.parse(`${d}T08:00:00+08:00`) > now.getTime()) continue;
     const [exists] = await sql`SELECT 1 FROM reports WHERE kind = 'daily' AND key = ${d}`;
-    if (!exists) {
-      await composeDaily(d, "catch-up");
-      generated.push(`daily:${d}`);
-    }
+    if (!exists) await attempt(`daily:${d}`, () => composeDaily(d, "catch-up"));
   }
   // Last complete ISO week (Monday 10:00 onwards).
   const dow = (new Date(`${today}T00:00:00Z`).getUTCDay() + 6) % 7;
@@ -481,10 +493,7 @@ export async function catchUpReports(now = new Date(), days = 7): Promise<{ gene
   const weekDue = dow > 0 || bjHour >= 10;
   if (weekDue) {
     const [w] = await sql`SELECT 1 FROM reports WHERE kind = 'weekly' AND key = ${lastWeek}`;
-    if (!w) {
-      await composeWeekly(lastWeek, "catch-up");
-      generated.push(`weekly:${lastWeek}`);
-    }
+    if (!w) await attempt(`weekly:${lastWeek}`, () => composeWeekly(lastWeek, "catch-up"));
   }
   // Last complete month (1st 10:30 onwards).
   const [y, mo, dd] = today.split("-").map(Number) as [number, number, number];
@@ -492,10 +501,7 @@ export async function catchUpReports(now = new Date(), days = 7): Promise<{ gene
   const monthDue = dd > 1 || bjHour > 10 || (bjHour === 10 && Number(new Date(now.getTime() + 8 * 3600000).toISOString().slice(14, 16)) >= 30);
   if (monthDue) {
     const [m] = await sql`SELECT 1 FROM reports WHERE kind = 'monthly' AND key = ${prevMonth}`;
-    if (!m) {
-      await composeMonthly(prevMonth, "catch-up");
-      generated.push(`monthly:${prevMonth}`);
-    }
+    if (!m) await attempt(`monthly:${prevMonth}`, () => composeMonthly(prevMonth, "catch-up"));
   }
-  return { generated };
+  return { generated, failed };
 }
