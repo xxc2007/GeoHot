@@ -1056,3 +1056,38 @@ T&F 四本（`/feed/rss/<码>` 可达而 `www.tandfonline.com` 的 HTML 被 Clou
 
 包计数：274 → **281**（web_list 26 → 33），启用 259 → 266。README 里"信源数量的唯一说法"那一行归站长，
 本轮没有动他的文件。
+
+## 第六十七轮：历史地理与政治地理补源 13 条（每条都用站点自己的采集器实测过）
+
+扩容的依据不是"觉得少"，是 7 天窗口的实测账：历史地理只有 3 条源、**7 天里 1 条入选**；政治地理 6 条源。
+两条硬标准不变：**机构权威 + 列表带日期 + 现有采集器能读**（不做 JS 壳、不绕反爬）。
+
+| 源 | 主办 | 读法 | 分类 |
+|---|---|---|---|
+| `web-ihns-news` | 中科院自然科学史研究所 综合新闻 | `li.clear` + `a.byt` + `span.time` | 历史地理 |
+| `web-dpm-lectures` | 故宫博物院 学术资讯 | `a[href*=learing_detail]` + `(\d{4}年\d{1,2}月\d{1,2}日)` | 历史地理 |
+| `web-heshan-news` | 陕师大 西北历史环境与经济社会发展研究院（《中国历史地理论丛》主办） | `li` + `a[href*=info/]` + ISO 日期 | 历史地理 |
+| `web-ciis-news` | 中国国际问题研究院 新闻动态 | `a[href^=./202]` + `h3` + ISO 日期 | 政治地理 |
+| `rss-niche-canada` | 加拿大环境史网络 NiCHE | Atom/RSS | 历史地理 |
+| `rss-bodleian-maps` | 牛津大学博德利图书馆 地图室博客 | RSS | 历史地理 |
+| `rss-leventhal-maps` | 波士顿公共图书馆 Leventhal 地图与教育中心 | RSS | 历史地理 |
+| `rss-imago-mundi` | Imago Mundi 国际地图史杂志 目录 | RSS（T&F，期级日期） | 历史地理 |
+| `rss-lowy-interpreter` | 洛伊研究所 The Interpreter | RSS | 政治地理 |
+| `rss-aspi-strategist` | 澳大利亚战略政策研究所 The Strategist | RSS | 政治地理 |
+| `rss-swp-publications` | 德国国际与安全事务研究所 SWP | RSS | 政治地理 |
+| `rss-merics` | 墨卡托中国研究中心 MERICS | RSS | 政治地理 |
+| `rss-uarctic` | 北极大学联盟 UArctic 新闻 | RSS | 区域地理 |
+
+`dates.ts:133` 的解析器本来就认「2026年9月26日」这种写法，所以故宫那条不需要新代码。
+
+**两段验证，缺一不可**：先在采集机上只读实测（13/13 可达且条目有日期），再用**站点自己的采集器**
+逐条跑（`scripts/collect.ts <id> --force-collect`）：测试库 13/13 `status=ok`、**124 条全带日期**；
+随后在生产上跑同一串命令作为首轮入库，**364 条新条目**（leventhal 110 / aspi 90 / swp 61 / lowy 40 / imago 17 …）。
+
+**同批否决（理由留档，免得下轮再查）**：复旦史地所禹贡网在采集机上 ETIMEDOUT；上海国际问题研究院列表
+是 JS 渲染（0 个文章链接）；Springer 的 Water History feed 回 "Client Challenge" 机器人墙；
+David Rumsey 的 blog feed 最新一条停在 2022 年（休眠）；国家博物馆要闻只有少数条目带日期；
+Journal of Historical Geography（Elsevier）的 feed 条目**没有 date 字段**（日期只写在 description 文本里）；
+CSIS / Carnegie / Wilson / NUPI / ECFR / Chatham House 均无可用的 feed 入口。
+
+包 281 → **294**（生产库 300 行 = 294 + 6 行历史 retired）。
