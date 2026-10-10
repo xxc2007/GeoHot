@@ -39,6 +39,7 @@ import { queueProcessing } from "@aihot/backend/jobs/content";
 import { looksZh } from "@aihot/backend/editorial/writing";
 import { guardedFetch, DEFAULT_UA } from "@aihot/backend/lib/http-fetch";
 import { backIssues, issueArticles, type SiteIssue } from "@aihot/backend/sources/archive-site";
+import { daysInMonth } from "@aihot/backend/sources/dates";
 import type { Candidate, SourceRow } from "@aihot/backend/sources/types";
 import { beijingDate } from "@aihot/contracts/time";
 
@@ -99,8 +100,7 @@ function months(): string[] {
 
 const sliceRange = (month: string) => {
   const [y, m] = month.split("-").map(Number);
-  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
-  return { start: `${month}-01`, end: `${month}-${String(last).padStart(2, "0")}` };
+  return { start: `${month}-01`, end: `${month}-${String(daysInMonth(y!, m!)).padStart(2, "0")}` };
 };
 
 interface Work {
@@ -137,7 +137,7 @@ function statedDate(w: Work): Date | null {
   for (const parts of [w.published?.["date-parts"], w.issued?.["date-parts"]]) {
     const [y, mo, d] = parts?.[0] ?? [];
     if (!y || !mo || !d || y < 1900 || mo < 1 || mo > 12) continue;
-    const lastDay = new Date(Date.UTC(y, mo, 0)).getUTCDate();
+    const lastDay = daysInMonth(y, mo);
     if (d < 1 || d > lastDay) continue;
     const date = new Date(Date.UTC(y, mo - 1, d, 12));
     if (Number.isFinite(date.getTime())) return date;

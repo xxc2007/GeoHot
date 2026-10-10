@@ -10,7 +10,7 @@ import { upsertMaterial } from "@aihot/backend/content/materials";
 import { stopBoss } from "@aihot/backend/jobs/queue";
 import { publishArticle } from "@aihot/backend/publication/publish";
 import { reportIndexRows } from "@aihot/backend/publication/reports";
-import { candidates, composeDaily, composeMonthly, composeWeekly } from "@aihot/backend/reports/compose";
+import { candidates, composeDaily, composeMonthly, composeWeekly, DAILY_DEDUPE_DAYS, editionsAhead } from "@aihot/backend/reports/compose";
 import { addDays, beijingDate, isoWeekLabel } from "@aihot/contracts/time";
 
 const T = tag();
@@ -77,8 +77,12 @@ async function seed(label: string, publishedAt: Date | null, discoveredAt: Date,
   return { articleId, backfill, reason: row!.backfill_reason, timeline: row!.timeline_at, visibleAfter: pub!.visible_after };
 }
 
+/** The two editions `editionsAhead` is measured against: the last inside its window and the first outside. */
+const AHEAD_IN = addDays(DAY_KEY, DAILY_DEDUPE_DAYS);
+const AHEAD_OUT = addDays(DAY_KEY, DAILY_DEDUPE_DAYS + 1);
+
 async function dropPeriods() {
-  const keys = [DAY_KEY, NEXT_KEY];
+  const keys = [DAY_KEY, NEXT_KEY, AHEAD_IN, AHEAD_OUT];
   await sql`DELETE FROM report_revisions WHERE report_id IN (
     SELECT id FROM reports WHERE (kind = 'daily' AND key = ANY(${keys}::text[])) OR (kind = 'weekly' AND key = ${WEEK_KEY}) OR (kind = 'monthly' AND key = ${MONTH_KEY}))`;
   await sql`DELETE FROM reports WHERE (kind = 'daily' AND key = ANY(${keys}::text[])) OR (kind = 'weekly' AND key = ${WEEK_KEY}) OR (kind = 'monthly' AND key = ${MONTH_KEY})`;
@@ -166,4 +170,20 @@ test("ordinary late arrivals keep the attribution they had before the archive ex
   assert.equal(live.backfill, false);
   assert.ok((await candidates(at(5), at(6))).some((c) => c.itemId === live.articleId), "today's news is still today's paper");
   assert.ok(!(await candidates(at(0), at(1))).some((c) => c.itemId === live.articleId));
+});
+
+test("回填补一个已出刊区间中间的空天时，点的就是日报去重那同一个七天窗口", async () => {
+  // These four days are editions the tests above have already laid out; this one wants to know exactly which
+  // report rows sit in the window, so it replaces them with dated stubs of its own.
+  await sql`DELETE FROM reports WHERE kind = 'daily' AND key = ANY(${[DAY_KEY, NEXT_KEY, AHEAD_IN, AHEAD_OUT]}::text[])`;
+  for (const k of [DAY_KEY, NEXT_KEY, AHEAD_IN, AHEAD_OUT]) {
+    await sql`INSERT INTO reports (kind, key, window_start, window_end, content, generated_at, origin)
+              VALUES ('daily', ${k}, ${at(0)}, ${at(1)}, ${sql.json({ sections: [], flashes: [] } as never)}, ${at(1)}, 'manual')`;
+  }
+  // `backfill-papers` walks old→new, so a hole it fills can still sit behind editions that are already out.
+  // Which ones, is decided by the same `DAILY_DEDUPE_DAYS` the composition's own lookback uses: if the two
+  // numbers ever drift apart the runner would warn about editions that cannot repeat anything, and stay
+  // silent about the ones that can.
+  assert.deepEqual(await editionsAhead("daily", DAY_KEY), [NEXT_KEY, AHEAD_IN].sort(), "窗口内的期次要点名，窗口外的不该算进来");
+  assert.deepEqual(await editionsAhead("daily", AHEAD_OUT), [], "它后面七天没有期次，补它不需要重排谁");
 });

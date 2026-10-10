@@ -124,8 +124,15 @@ export async function candidates(start: Date, end: Date): Promise<Candidate[]> {
     (b.score ?? 0) - (a.score ?? 0) || a.publishedAt.localeCompare(b.publishedAt) || a.itemId.localeCompare(b.itemId));
 }
 
+/**
+ * How far back a daily refuses to repeat what an earlier paper already carried. One number, because the
+ * backfill runner has to reason about the same window (`editionsAhead`): filling a hole behind an edition
+ * that is already out is only safe if the operator re-lays that edition afterwards.
+ */
+export const DAILY_DEDUPE_DAYS = 7;
+
 /** Facts and items already covered by recent editions are not repeated. */
-async function recentlyCovered(kind: "daily", before: string, days = 7): Promise<Set<string>> {
+async function recentlyCovered(kind: "daily", before: string, days = DAILY_DEDUPE_DAYS): Promise<Set<string>> {
   const rows = await sql<{ content: Record<string, any> }[]>`
     SELECT content FROM reports WHERE kind = ${kind} AND key < ${before} AND key >= ${addDays(before, -days)}`;
   const out = new Set<string>();
@@ -139,6 +146,22 @@ async function recentlyCovered(kind: "daily", before: string, days = 7): Promise
     for (const it of r.content.flashes ?? []) if (it.itemId) out.add(`a:${it.itemId}`);
   }
   return out;
+}
+
+/**
+ * Editions of the same kind already laid out *after* `key`, inside the window `recentlyCovered` looks back
+ * over. The backfill runs oldest-first on purpose — an earlier paper cannot see what a later one carried, so
+ * composing an old day after its neighbours are out can reprint the same story in two papers. That is a
+ * consequence of the dedupe direction, not a bug in it (the alternative — letting a newer paper's contents
+ * veto an older paper's own day — would leave a March edition silently missing a March story).
+ *
+ * The runner uses this to say which editions must be re-laid afterwards; `--refresh` over the span makes the
+ * warning moot, because everything in it is recomposed in order anyway.
+ */
+export async function editionsAhead(kind: "daily", key: string, days = DAILY_DEDUPE_DAYS): Promise<string[]> {
+  const rows = await sql<{ key: string }[]>`
+    SELECT key FROM reports WHERE kind = ${kind} AND key > ${key} AND key <= ${addDays(key, days)} ORDER BY key`;
+  return rows.map((r) => r.key);
 }
 
 const LeadSchema = z.object({

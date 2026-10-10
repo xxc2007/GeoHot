@@ -14,7 +14,7 @@
 import { parseArgs } from "node:util";
 import { hasChineseCopy } from "@aihot/contracts/copy";
 import { closeDb, sql } from "@aihot/backend/db";
-import { candidates, composeDaily, composeWeekly, composeMonthly, dailyWindow, monthlyWindow } from "@aihot/backend/reports/compose";
+import { candidates, composeDaily, composeMonthly, composeWeekly, dailyWindow, editionsAhead, monthlyWindow } from "@aihot/backend/reports/compose";
 import { beijingMidnight, isoWeekRange } from "@aihot/contracts/time";
 
 const { values } = parseArgs({
@@ -61,6 +61,11 @@ if (range) {
   // 走到这里只剩一种可能：周号本身不合法（`isoWeekRange` 拒 W00/W54/2025-W53 这类）。窗口算不出来，
   // 所以预览没有——重排仍会跑，只是它取哪段区间这里说不清。
   console.log(`（${kind} ${key}：这一期的窗口算不出来，只报告上面那一版）`);
+}
+
+if (kind === "daily") {
+  const ahead = await editionsAhead("daily", key);
+  if (ahead.length) console.log(`注意：${key} 之后已出刊 ${ahead.length} 期（${ahead.join(" ")}）。日报的去重只看更早的期次，重排这一期可能把那些期已经发过的事再印一遍；要版面一致，那几期也各跑一次本脚本。`);
 }
 
 if (!values.apply) {

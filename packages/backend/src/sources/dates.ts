@@ -52,7 +52,7 @@ function fromEpoch(value: unknown, unit: "epoch_ms" | "epoch_s"): Date | null {
 }
 
 /** The last day a calendar month really has (month is 1-based; February follows the year). */
-function daysInMonth(y: number, mo: number): number {
+export function daysInMonth(y: number, mo: number): number {
   return new Date(Date.UTC(y, mo, 0)).getUTCDate();
 }
 

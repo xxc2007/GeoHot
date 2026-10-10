@@ -9,7 +9,9 @@
 // Three rules this script carries from `reports/compose.ts`, none of them style:
 //  - **chronological order.** `recentlyCovered("daily", key)` looks back at *older keys* within seven days
 //    to decide what a fact key may not repeat. Run newest-first and an old edition reprint something a
-//    later paper already carried.
+//    later paper already carried. The loop below does go old→new, but a day that is missing *inside* an
+//    already-published span still gets filled behind its neighbours — `editionsAhead` names those
+//    neighbours in the plan so the operator re-lays them (`--refresh` over the span needs no warning).
 //  - **only closed periods, on the real window.** A daily for D closes at D 08:00 Beijing and a weekly's
 //    last day runs to midnight after it — checking the wrong hour prints a period that is still gathering.
 //  - **only settled days.** An article with no judgement yet cannot be selected, so a day whose archive
@@ -26,7 +28,7 @@
 import { parseArgs } from "node:util";
 import { closeDb, sql } from "@aihot/backend/db";
 import { addDays, beijingDate, beijingMidnight, isoWeekLabel, isoWeekRange, isValidDate } from "@aihot/contracts/time";
-import { candidates, composeDaily, composeMonthly, composeWeekly, dailyWindow, monthlyWindow } from "@aihot/backend/reports/compose";
+import { candidates, composeDaily, composeMonthly, composeWeekly, dailyWindow, editionsAhead, monthlyWindow } from "@aihot/backend/reports/compose";
 
 const { values } = parseArgs({
   options: {
@@ -99,6 +101,7 @@ const hasReport = async (kind: string, key: string) => !!(await sql`SELECT 1 FRO
 const plan: Array<{ kind: string; key: string; items: number; note: string }> = [];
 const failures: string[] = [];
 const partial: string[] = []; // 不在区间内 / 窗口还没关的期次：要说出来，不许静悄悄消失
+const behind: string[] = []; // 补在已出刊区间中间的空天：去重只看更早的期次，要重排谁得说清楚
 
 /** One period, one line in the plan; `--apply` composes it and a broken period does not stop the run. */
 async function consider(kind: "daily" | "weekly" | "monthly", key: string, start: Date, end: Date, compose: () => Promise<{ key: string; entries: number }>) {
@@ -111,6 +114,10 @@ async function consider(kind: "daily" | "weekly" | "monthly", key: string, start
   const waiting = values.force ? 0 : await unsettled(start, end);
   if (waiting) return plan.push({ kind, key, items, note: `等 ${waiting} 条判完` });
   const note = values.apply ? exists ? "已重排" : "已出刊" : exists ? "会重排" : "会出刊";
+  if (kind === "daily" && !values.refresh) {
+    const ahead = await editionsAhead("daily", key);
+    if (ahead.length) behind.push(`daily ${key} 之后已有 ${ahead.length} 期出刊（${ahead.join(" ")}）：它的去重只看更早的期次，可能重印那几期发过的事，跑完 --refresh 重排它们`);
+  }
   plan.push({ kind, key, items, note });
   if (!values.apply) return;
   try {
@@ -171,6 +178,11 @@ if (partial.length) {
   console.log("\n另有 " + partial.length + " 个整期没排（区间边界或窗口未关）：");
   for (const s of partial.slice(0, 12)) console.log("  " + s);
   if (partial.length > 12) console.log("  …另 " + (partial.length - 12) + " 个");
+}
+if (behind.length) {
+  console.log("\n" + behind.length + " 个空天补在已出刊的区间中间（去重只看更早的期次）：");
+  for (const s of behind.slice(0, 12)) console.log("  " + s);
+  if (behind.length > 12) console.log("  …另 " + (behind.length - 12) + " 个");
 }
 if (!values.apply) console.log("\n默认只做计划不写库。确认后用 --apply --database-url=… 跑。");
 await closeDb();
