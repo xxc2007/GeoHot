@@ -245,6 +245,11 @@ export const ENTITIES: Record<string, { name: string; displayTag: string | null;
   esri: { name: "Esri / ArcGIS", displayTag: null, aliases: ["Esri", "ArcGIS", "Environmental Systems Research Institute"] },
   supermap: { name: "超图软件", displayTag: null, aliases: ["超图", "超图软件", "SuperMap"] },
   maxar: { name: "Maxar", displayTag: null, aliases: ["Maxar", "Maxar Technologies", "WorldView"] },
+  unfpa: { name: "联合国人口基金 UNFPA", displayTag: null, aliases: ["UNFPA", "United Nations Population Fund", "联合国人口基金"] },
+  iom: { name: "国际移民组织 IOM", displayTag: null, aliases: ["IOM", "International Organization for Migration", "国际移民组织"] },
+  adb: { name: "亚洲开发银行 ADB", displayTag: null, aliases: ["ADB", "Asian Development Bank", "亚洲开发银行"] },
+  eclac: { name: "联合国拉美与加勒比经济委员会 ECLAC", displayTag: null, aliases: ["ECLAC", "CEPAL", "Economic Commission for Latin America and the Caribbean", "联合国拉美与加勒比经济委员会"] },
+  itdp: { name: "交通与发展政策研究所 ITDP", displayTag: null, aliases: ["ITDP", "Institute for Transportation and Development Policy", "交通与发展政策研究所"] },
 };
 
 /**
@@ -252,6 +257,11 @@ export const ENTITIES: Record<string, { name: string; displayTag: string | null;
  * 行业没有这个问题时可以留空数组。
  */
 export const IDENTITY_LEXICON: ReadonlyArray<{ id: string; name: string; patterns: RegExp[] }> = [
+  { id: "unfpa", name: "联合国人口基金", patterns: [/\bunfpa\b|united nations population fund|联合国人口基金/i] },
+  { id: "iom", name: "国际移民组织", patterns: [/\biom\b|international organization for migration|国际移民组织/i] },
+  { id: "adb", name: "亚洲开发银行", patterns: [/\badb\b|asian development bank|亚洲开发银行/i] },
+  { id: "eclac", name: "联合国拉美与加勒比经济委员会", patterns: [/\beclac\b|\bcepal\b|economic commission for latin america and the caribbean|拉美.*经济委员会/i] },
+  { id: "itdp", name: "交通与发展政策研究所", patterns: [/\bitdp\b|institute for transportation and development policy|交通与发展政策研究所/i] },
   { id: "cenc", name: "中国地震台网中心", patterns: [/中国地震台网|台网中心|\bcenc\b/i] },
   { id: "usgs", name: "美国地质调查局 USGS", patterns: [/\busgs\b|美国地质调查局|shakealert|\blandsat\b/i] },
   { id: "cea", name: "中国地震局", patterns: [/中国地震局/i] },
@@ -332,6 +342,11 @@ export const IDENTITY_LEXICON: ReadonlyArray<{ id: string; name: string; pattern
  * 允许摘要写原文没写的机构名，那正是这道守卫要防的事。
  */
 export const PUBLISHER_DOMAINS: ReadonlyArray<{ entityId: string; domains: readonly string[] }> = [
+  { entityId: "unfpa", domains: ["unfpa.org"] },
+  { entityId: "iom", domains: ["iom.int"] },
+  { entityId: "adb", domains: ["adb.org"] },
+  { entityId: "eclac", domains: ["cepal.org"] },
+  { entityId: "itdp", domains: ["itdp.org"] },
   { entityId: "cenc", domains: ["cenc.ac.cn", "ceic.ac.cn"] },
   { entityId: "cea", domains: ["cea.gov.cn"] },
   { entityId: "usgs", domains: ["usgs.gov"] },
