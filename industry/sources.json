@@ -1014,7 +1014,8 @@
         "archiveIssueItemSelector": "div.gk_qi",
         "archiveIssueDateRegex": "(\\d{4}-\\d{2}-\\d{2})",
         "_aihot": {
-          "initialBackfillLimit": 12
+          "initialBackfillLimit": 12,
+          "intervalMinutesLocked": true
         }
       },
       "tier": "T1_5",
@@ -1048,7 +1049,8 @@
         "archiveIssueItemSelector": "div.gk_qi",
         "archiveIssueDateRegex": "(\\d{4}-\\d{2}-\\d{2})",
         "_aihot": {
-          "initialBackfillLimit": 12
+          "initialBackfillLimit": 12,
+          "intervalMinutesLocked": true
         }
       },
       "tier": "T1_5",
@@ -1081,7 +1083,8 @@
         "archiveIssueItemSelector": "div.gk_qi",
         "archiveIssueDateRegex": "(\\d{4}-\\d{2}-\\d{2})",
         "_aihot": {
-          "initialBackfillLimit": 12
+          "initialBackfillLimit": 12,
+          "intervalMinutesLocked": true
         }
       },
       "tier": "T1_5",
@@ -1114,7 +1117,8 @@
         "archiveIssueItemSelector": "div.gk_qi",
         "archiveIssueDateRegex": "(\\d{4}-\\d{2}-\\d{2})",
         "_aihot": {
-          "initialBackfillLimit": 12
+          "initialBackfillLimit": 12,
+          "intervalMinutesLocked": true
         }
       },
       "tier": "T1_5",
@@ -1147,7 +1151,8 @@
         "archiveIssueItemSelector": "div.gk_qi",
         "archiveIssueDateRegex": "(\\d{4}-\\d{2}-\\d{2})",
         "_aihot": {
-          "initialBackfillLimit": 12
+          "initialBackfillLimit": 12,
+          "intervalMinutesLocked": true
         }
       },
       "tier": "T1_5",
@@ -1180,7 +1185,8 @@
         "archiveIssueItemSelector": "div.gk_qi",
         "archiveIssueDateRegex": "(\\d{4}-\\d{2}-\\d{2})",
         "_aihot": {
-          "initialBackfillLimit": 12
+          "initialBackfillLimit": 12,
+          "intervalMinutesLocked": true
         }
       },
       "tier": "T1_5",
@@ -1210,7 +1216,8 @@
           "http://xb.chinasmp.com/CN/10."
         ],
         "_aihot": {
-          "initialBackfillLimit": 12
+          "initialBackfillLimit": 12,
+          "intervalMinutesLocked": true
         }
       },
       "tier": "T1_5",

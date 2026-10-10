@@ -66,6 +66,27 @@ export const MODELS: Record<string, ModelSpec> = {
     key: "space-bunny-free", service: "opencode", model: "space-bunny-free",
     baseUrlEnv: "OPENCODE_BASE_URL", apiKeyEnv: "OPENCODE_API_KEY", jsonMode: false,
   },
+  // 小红书 dots（站长 2026-10-10 给的 key，文档 https://dots.ai/platform/docs）。实测：512K 上下文、
+  // 文档默认 RPM 60 / TPM 150 万；`api-key` 头与 `Authorization: Bearer` **两种都收**（同一把 key 两种
+  // 写法都回 200），所以 providers 不需要为它加第二种认证头。开思考一次 13–19 秒、1.1k–1.6k 隐藏 token，
+  // 4 连发 4 个 200；`reasoning_effort` 写进 extra 是为了让 `reasoning` 那支生效（240 秒超时 + 6k 余量，
+  // 见本文件 205-208 行），它在实测里也被接受——不开思考时同一提示 2.4 秒、0 隐藏 token 的答复同样可用，
+  // 所以关思考的档留给短任务用。
+  "dots3-note-prev": {
+    key: "dots3-note-prev", service: "dots", baseUrlEnv: "DOTS_BASE_URL", apiKeyEnv: "DOTS_API_KEY",
+    get model() { return process.env.DOTS_MODEL ?? "dots3-note-prev"; },
+    extra: { chat_template_kwargs: { enable_thinking: true }, reasoning_effort: "high" }, jsonMode: true,
+  },
+  // OpenRouter：站长给的这把 key 实测是**管理/开通**用的——`GET /api/v1/key` 回 `is_management_key: true`，
+  // `/models` 能列 458 个模型（其中 15 个 `:free`），但任何 chat/completions 都 401 `User not found`。
+  // 推理要另建一把普通 key，所以这条通路先登记、**不进 MODEL_POOL**：池子按 shard 把活分给成员，
+  // 配一个只会 401 的门等于把 1/N 的工作扔进重试阶梯。key 到位后把 OPENROUTER_MODEL 设成实测可用的
+  // `:free` 模型、再把它加进 MODEL_POOL 即可。
+  "openrouter-free": {
+    key: "openrouter-free", service: "openrouter", baseUrlEnv: "OPENROUTER_BASE_URL", apiKeyEnv: "OPENROUTER_API_KEY",
+    get model() { return process.env.OPENROUTER_MODEL ?? "google/gemma-4-31b-it:free"; },
+    jsonMode: true,
+  },
   // Named presets (the models AIHOT itself runs on); each needs its own key.
   // GLM 5.3 Flash always reasons; the lowest effort keeps short structured tasks fast.
   "glm-5.3-flash": {

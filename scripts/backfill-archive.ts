@@ -229,6 +229,26 @@ async function siteIndex(source: SourceRow): Promise<SiteIssue[] | null> {
  * posts it, so marking the month this run falls in `done` would freeze the month at whatever had been
  * published so far and retire it from every later run.
  */
+/**
+ * Give an already-stored row the date its own issue states, when it has none.
+ *
+ * The live table-of-contents of these journals prints no per-article date, so the first import files each
+ * item as `undated` — `decideTimeline` sets `published_at` NULL and `backfill_reason = 'undated'`, and
+ * `candidates()` keeps every non-archive backfill out of the papers. The archive walk is the only writer
+ * that knows the issue's date, and it meets those rows as duplicates (`identity_key` is the URL), so without
+ * this they would stay dateless and unpublishable for good (measured 2026-10-10: the twelve 地理学报 items
+ * the live poll had already taken were exactly that). Only a row with `published_at IS NULL` is touched: a
+ * date the journal already stated is never overwritten.
+ */
+async function stampIssueDate(articleId: string, at: Date): Promise<number> {
+  const rows = values.apply
+    ? await sql<{ id: string }[]>`
+        UPDATE articles SET published_at = ${at}, timeline_at = ${at}, backfill_reason = 'archive', updated_at = now()
+         WHERE id = ${articleId} AND published_at IS NULL RETURNING id`
+    : await sql<{ id: string }[]>`SELECT id FROM articles WHERE id = ${articleId} AND published_at IS NULL`;
+  return rows.length;
+}
+
 async function runSiteSlice(source: SourceRow, month: string): Promise<void> {
   const [ledger] = await sql<{ status: string }[]>`SELECT status FROM archive_ingest WHERE source_id = ${source.id} AND month = ${month}`;
   if (ledger?.status === "done") return;
@@ -243,11 +263,17 @@ async function runSiteSlice(source: SourceRow, month: string): Promise<void> {
   let localSeen = 0;
   let localNew = 0;
   let localDup = 0;
+  let localFixed = 0;
   // "a page we could not read" and "a page with nothing on it" are different answers, and only the first may
   // close a slice — the same rule the Crossref door runs on. `cut` is the third way a slice is not finished:
   // --max-items or --per-month stopped us before the last issue (or the last item of one). Without it a
   // truncated month would be written `done`, and the issues it never read would be retired forever — the
   // Crossref door cannot make that mistake because its `done` requires an exhausted cursor.
+  //
+  // The budget counts items **stored**, not items read. Counting reads made a monthly slice unclosable and
+  // hid the back half of every issue: a 16–21-article issue hits a 12-item cap mid-issue, the month stays
+  // pending, and the rerun spends the same 12 slots on the very items it stored last time (measured
+  // 2026-10-10 against the seven Chinese journals — 12 of 19 read, the rest unreachable forever).
   let failed = issues === null;
   let cut = false;
   // An issue whose cover date has not arrived yet is not this run's to file: `decideTimeline` discards a
@@ -257,7 +283,7 @@ async function runSiteSlice(source: SourceRow, month: string): Promise<void> {
   const now = new Date();
   let aheadOfClock = false;
   for (const issue of slice) {
-    if (localSeen >= PER_MONTH || stored >= MAX_ITEMS) { cut = true; break; }
+    if (localNew >= PER_MONTH || stored >= MAX_ITEMS) { cut = true; break; }
     if (issue.at.getTime() > now.getTime()) { aheadOfClock = true; continue; }
     let items: Array<Candidate & { publishedAt: Date }>;
     try {
@@ -269,12 +295,12 @@ async function runSiteSlice(source: SourceRow, month: string): Promise<void> {
     }
     if (SLEEP) await new Promise((r) => setTimeout(r, SLEEP));
     for (const [n, c] of items.entries()) {
-      if (localSeen >= PER_MONTH || stored >= MAX_ITEMS) { if (n < items.length) cut = true; break; }
+      if (localNew >= PER_MONTH || stored >= MAX_ITEMS) { if (n < items.length) cut = true; break; }
       localSeen++;
       const urlKey = identityKeyForUrl(c.url);
       if (urlKey) {
         const [twin] = await sql<{ id: string }[]>`SELECT id FROM articles WHERE identity_key = ${urlKey}`;
-        if (twin) { duplicate++; localDup++; continue; }
+        if (twin) { duplicate++; localDup++; localFixed += await stampIssueDate(twin.id, c.publishedAt); continue; }
       }
       if (values.apply) {
         const { articleId, created } = await upsertMaterial({
@@ -301,6 +327,7 @@ async function runSiteSlice(source: SourceRow, month: string): Promise<void> {
   }
   if (!values.apply) {
     if (cut || aheadOfClock) console.log(`  （这一片还没读完：${cut ? "被上限截断" : ""}${aheadOfClock ? "有期次的刊日期尚未到来" : ""}）`);
+    console.log(`  （DRY-RUN：会入库 ${localNew} 条${localFixed ? `、给 ${localFixed} 条已存在但没有日期的条目补上刊期` : ""}）`);
     return;
   }
   const closed = month < beijingDate(new Date()).slice(0, 7);
@@ -310,10 +337,10 @@ async function runSiteSlice(source: SourceRow, month: string): Promise<void> {
   // written once and never revisited.
   const undated = (issues ?? []).filter((i) => !i.at).length;
   await sql`UPDATE archive_ingest SET status = ${finished ? "done" : "pending"},
-            note = ${`issues=${slice.length} dup=${localDup} no-date=${undated}${cut ? " cut" : ""}${aheadOfClock ? " ahead" : ""}`},
+            note = ${`issues=${slice.length} dup=${localDup} fixed=${localFixed} no-date=${undated}${cut ? " cut" : ""}${aheadOfClock ? " ahead" : ""}`},
             items = ${localNew}, seen = ${localSeen}, updated_at = now()
             WHERE source_id = ${source.id} AND month = ${month}`;
-  console.log(`  ${finished ? "done" : closed ? `停在原地${cut ? "（被上限截断）" : ""}${aheadOfClock ? "（有期次未到刊日期）" : ""}` : "本月未过完，下次再跑"} 看了 ${localSeen} 条，入库 ${localNew} 条`);
+  console.log(`  ${finished ? "done" : closed ? `停在原地${cut ? "（被上限截断）" : ""}${aheadOfClock ? "（有期次未到刊日期）" : ""}` : "本月未过完，下次再跑"} 看了 ${localSeen} 条，入库 ${localNew} 条${localFixed ? `，补日期 ${localFixed} 条` : ""}`);
 }
 
 for (const month of months()) {
