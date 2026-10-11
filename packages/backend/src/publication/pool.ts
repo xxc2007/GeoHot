@@ -1,6 +1,6 @@
 // Public pool (/all) with numeric pages, and search in its two orderings.
 import type { PoolResponse, TimelineFilters } from "@aihot/contracts/site";
-import { beijingDate, beijingMidnight } from "@aihot/contracts/time";
+import { addDays, beijingDate, beijingMidnight, isDay } from "@aihot/contracts/time";
 import { positiveInt } from "../config.ts";
 import { one, sql, withCustomPlans, type Db } from "../db.ts";
 import {
@@ -124,6 +124,8 @@ export interface PoolQuery extends TimelineFilters {
   q?: string | null;
   tab?: "time" | "relevance";
   page?: number;
+  /** 只看这一天（`YYYY-MM-DD`，北京日历）。非法值按"没有这个筛选"处理，路由层负责回 404。 */
+  date?: string | null;
   topicTags?: string[] | null;
   now?: Date;
 }
@@ -134,11 +136,17 @@ export async function loadPool(query: PoolQuery): Promise<PoolResponse> {
   const q = query.q?.trim() || null;
   const tab = q && query.tab === "relevance" ? "relevance" : "time";
   const terms = q ? searchTerms(q) : [];
-  const filters = sql`${channelCondition(query.channel)} ${categoryCondition(query.category)} ${tagCondition(query.tag)} ${topicCondition(query.topicTags)}`;
+  // 日历选出来的那一天。按 `timeline_at`（读者看到它的时刻）圈整天，与 `DayList` 分日、
+  // 与 `monthMarks` 数日子用的是同一个口径——三处不一致的话，日历上有个点、点进去却是空的。
+  const date = isDay(query.date) ? query.date : null;
+  const dayCondition = date
+    ? sql`AND p.timeline_at >= ${beijingMidnight(date)} AND p.timeline_at < ${beijingMidnight(addDays(date, 1))}`
+    : sql``;
+  const filters = sql`${channelCondition(query.channel)} ${categoryCondition(query.category)} ${tagCondition(query.tag)} ${topicCondition(query.topicTags)} ${dayCondition}`;
   const offset = (page - 1) * POOL_PAGE_SIZE;
   const cap = POOL_MAX_PAGES * POOL_PAGE_SIZE;
   // A fixed clock (tests, replays) never shares cached totals.
-  const filterKey = query.now ? null : JSON.stringify([query.channel, query.category, query.tag, query.topicTags ?? null]);
+  const filterKey = query.now ? null : JSON.stringify([query.channel, query.category, query.tag, query.topicTags ?? null, date]);
 
   // Searches go through pool_search (eligible items only): trigram indexes for longer terms, a small
   // table to scan for one- and two-character ones.
