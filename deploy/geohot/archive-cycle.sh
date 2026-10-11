@@ -93,11 +93,11 @@ SELECTOR=$(cat <<'NODE'
 import { readFileSync, writeFileSync, renameSync } from 'node:fs';
 import { sql, closeDb } from '@aihot/backend/db';
 import { beijingDate, isValidDate } from '@aihot/contracts/time';
+import { archiveDoorFilter } from '@aihot/backend/sources/archive-site';
 const [from,to,runDir,stateDir,wanted,maxItems,filter] = process.argv.slice(1);
 if (!isValidDate(from) || !isValidDate(to) || from > to) throw new Error('Invalid archive range');
 try {
-  const sources = await sql`SELECT id FROM sources WHERE enabled
-    AND (coalesce(config->>'issn','') <> '' OR coalesce(config->>'archiveIndexUrl','') <> '') ORDER BY id`;
+  const sources = await sql`SELECT id FROM sources WHERE ${archiveDoorFilter(sql`sources`)} ORDER BY id`;
   const ledger = await sql`SELECT source_id,month,status FROM archive_ingest WHERE month >= ${from.slice(0,7)} AND month <= ${to.slice(0,7)}`;
   const done = new Set(ledger.filter(x => x.status === 'done').map(x => `${x.source_id}|${x.month}`));
   const current = beijingDate(Date.now()).slice(0,7);
@@ -163,16 +163,18 @@ fi
 PAPERS_RIPE=$(cat <<'NODE'
 import { sql, closeDb } from '@aihot/backend/db';
 import { beijingDate } from '@aihot/contracts/time';
+import { archiveDoorFilter } from '@aihot/backend/sources/archive-site';
 const [from,to] = process.argv.slice(1);
 try {
   const current = beijingDate(Date.now()).slice(0,7);
-  // 谓词与上面 select-slices 那段一致：数的是"选择器还会再去拿的进口"。停用或丢了 `config.issn` 的信源
-  // 留下的 pending 行选择器不会再碰，算进来就是永远报不收敛——那正是加闸门时最该防住的假象。
+  // 谓词与上面 select-slices 那段是**同一个函数**（`sources/archive-site.ts` 的 `archiveDoorFilter`），
+  // 不再是"两处手写、注释说它们一致"。停用或丢了 `config.issn` 的信源留下的 pending 行选择器不会再碰，
+  // 算进来就是永远报不收敛——那正是加闸门时最该防住的假象。
   const [row] = await sql`SELECT count(*)::int AS n FROM archive_ingest ai
      JOIN sources s ON s.id = ai.source_id
      WHERE ai.status IN ('pending','running') AND ai.month >= ${from.slice(0,7)} AND ai.month <= ${to.slice(0,7)}
-       AND ai.month < ${current} AND s.enabled
-       AND (coalesce(s.config->>'issn','') <> '' OR coalesce(s.config->>'archiveIndexUrl','') <> '')`;
+       AND ai.month < ${current}
+       AND ${archiveDoorFilter(sql`s`)}`;
   console.log((row?.n ?? 0) === 0 ? 'ripe' : `pending:${row?.n ?? 0}`);
 } finally { await closeDb(); }
 NODE
