@@ -87,9 +87,19 @@ const PDF_MARK = /(?<!\S)PDF\(\d+(?:[.,]\d+)? ?[KMGT]?B\)(?!\S)/gi;
  * `秦岭脱贫山区农户生计转型… {{javascript:window.custom_author_cn_index=0`。
  * 上面那条要求闭合括号，所以这种行从它指缝里漏出去，被收口脚本当成散文点了个句号——
  * 2026-10-12 线上实测 14 条（publications 与 analyses 各 14，同一批行）。
- * 只认字符串结尾：截断点必然在末尾，而中文摘要里出现 `{{` 本身就不是内容。
+ *
+ * 这条**不进** `stripBoilerplate`：sanitize 是对每个文本节点各调一次它，"未闭合的 `{{` 必然在整段结尾"
+ * 这个前提在正文那条路上不成立——实测 `本文用 {{ layer_name 表示矢量图层` 会被吃掉后半句，
+ * 而 extract 的长度闸量的是剥完之后，于是"删尾巴"能凭空造出一篇"没有正文"的稿子并永久落到 unconfirmed。
+ * 所以只认带明确外壳特征的尾巴（`javascript:` / `article.` / `journal.` / `window.` / `custom_`），
+ * 且只在整条文本就是摘要的收口路径上调用（那里结尾＝截断点）。
  */
-const TEMPLATE_PLACEHOLDER_TAIL = /\s*\{\{[^{}]{1,160}$/;
+const TEMPLATE_PLACEHOLDER_TAIL = /\s*\{\{(?:javascript:|article\.|journal\.|window\.|custom_)[^{}]{0,160}$/;
+
+/** 未闭合的页面骨架尾巴。只在"整条就是一个字符串"的路上用，不要在逐节点的剥壳里用。 */
+export function stripTruncatedShellTail(text: string): string {
+  return text.replace(TEMPLATE_PLACEHOLDER_TAIL, "").trim();
+}
 
 /** 逐行、再按片段删掉页脚/版权话术和页面外壳，保留正文。 */
 export function stripBoilerplate(text: string): string {
@@ -105,9 +115,7 @@ export function stripBoilerplate(text: string): string {
     .replace(TEMPLATE_PLACEHOLDER, " ")
     .replace(PDF_MARK, " ")
     .replace(PAGE_CHROME_LEAD, "")
-    .replace(PAGE_CHROME_TAIL, "")
-    // 放在整条链最后：这一刀只认"此刻的结尾"，前面任何一条规则挪走尾巴之前它都不该起作用。
-    .replace(TEMPLATE_PLACEHOLDER_TAIL, "");
+    .replace(PAGE_CHROME_TAIL, "");
   return body.replace(/\n{3,}/g, "\n\n").replace(/[ \t]{2,}/g, " ").trim();
 }
 
