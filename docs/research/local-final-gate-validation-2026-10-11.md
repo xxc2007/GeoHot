@@ -33,3 +33,9 @@ Space Bunny 的既有已收到回答表明，2048 输出上限会被思考内容
 公开内容抽检在 archive-published-quality-round3-2026-10-11.md，实际九条、九个官方页面和九个详情 HTTP 200；一条确证方向误译已登记 final-content-corrections-2026-10-11.json。根只读复核 revision=1、analysis/publication=15305、overrideVersion=0、score=53、selected/eligible=true、storyId=null 和完整原摘要。清单只替换“东西北美”为“北美东部和中部”，署名 agent:codex，使用现有 overrideFields 流程并要求最终执行前复核全部预期字段。**清单尚未应用，当前公开错误仍存在**；没有改原分析、评分、日期，没有模型重跑。最终内容纠正必须在最终成刊刷新和公开出口复验之前完成。
 
 全部修改与本地提交均服从最终一次发布门禁，未 push、上传、部署、改服务器配置、生成备份或恢复演练；这些通过结果不是全部历史收集或补刊完成证明。
+
+## 本轮末次生产只读观察
+
+生产观测 UTC 2026-10-11T05:20:29.882Z（北京时间 13:20），仅 SELECT/READ ONLY 与 systemctl show。历史月切片 done=658、pending=271，较上一份 12:55 观察有三片完成；仍不满足关闭门禁。Jan 1 至观察时刻 archive 条目 analyzed=340、blocked=214、failed=5、new=7204；当前 revision 最新真实 model 结论 pass=278、block=214、unknown=62，投影对应 selected/eligible=50。采集同时新增材料，不能把积压数量增加直接判成处理停摆。
+
+worker MainPID=999522、active/running；archive.timer active，上一触发 13:15:15，下次 13:30:27；archive.service 当时 inactive 是周期之间的预期状态。查询时队列 active 包括 content.analyze=1、content.extract-body=4、cron.content.sweep=1，均有本分钟 started_on。已有生产管道仍推进，未重启、改配置或追加部署；补刊完成与全量内容核验仍是后续工作。
