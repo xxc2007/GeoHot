@@ -213,17 +213,27 @@ export function refusesThisStep(counts: { refused: number; accepted: number }): 
 
 let stepRefusals: { at: number; pairs: Map<string, { refused: number; accepted: number }> } | null = null;
 
+/** The ledger read costs about a second on production (`receipts` is ~100k rows and the window is 17k of them),
+ * so it is cached five minutes rather than the health rule's minute. That is not freshness lost: a day quota
+ * reopens on a schedule we do not control, which is why `sickServices` re-decides every minute, while a door
+ * that cannot write Chinese copy does not start to in the next four minutes. */
+const REFUSAL_CACHE_MS = 300_000;
+const REGISTRY_SERVICES = [...new Set(Object.values(MODELS).map((m) => m.service))];
+
 /** Refused-versus-accepted counts for every (service, purpose) the ledger shows in the last 24 hours. */
 async function refusalPairs(): Promise<Map<string, { refused: number; accepted: number }>> {
-  if (stepRefusals && Date.now() - stepRefusals.at < 60_000) return stepRefusals.pairs;
+  if (stepRefusals && Date.now() - stepRefusals.at < REFUSAL_CACHE_MS) return stepRefusals.pairs;
   const pairs = new Map<string, { refused: number; accepted: number }>();
   const refused = sql`status = 'failed' AND (error LIKE 'answer refused:%' OR error LIKE 'unusable output:%')`;
   try {
+    // `service = ANY(...)`: without it the plan seq-scans all 98,670 rows (14,886 pages, 956 ms measured on
+    // production 2026-10-11); with it the same answer comes off receipts_service_time_idx in 3,546 pages.
     const rows = await sql<{ service: string; purpose: string; refused: number; accepted: number }[]>`
       SELECT service, purpose,
         count(*) FILTER (WHERE ${refused})::int AS refused,
         count(*) FILTER (WHERE status IN ('received', 'completed'))::int AS accepted
-      FROM receipts WHERE created_at > now() - interval '24 hours' AND origin = 'live'
+      FROM receipts
+      WHERE created_at > now() - interval '24 hours' AND origin = 'live' AND service = ANY(${REGISTRY_SERVICES})
       GROUP BY 1, 2`;
     for (const r of rows) pairs.set(`${r.service}|${r.purpose}`, { refused: r.refused, accepted: r.accepted });
   } catch {
