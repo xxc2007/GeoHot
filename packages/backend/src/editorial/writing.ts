@@ -4,7 +4,7 @@
 import { IDENTITY_CONTEXT_ALIASES, IDENTITY_LEXICON, PUBLISHER_DOMAINS } from "@aihot/industry/taxonomy";
 import { cjkCount, hasChineseCopy, LABEL_ONLY_COPY, LABEL_PREFIX } from "@aihot/contracts/copy";
 import { onlyXArticleLink } from "../sources/x.ts";
-import { collapseWhitespace, isTemplateShell, stripBoilerplate } from "../lib/text.ts";
+import { collapseWhitespace, isTemplateShell, stripBoilerplate, stripTruncatedShellTail } from "../lib/text.ts";
 import type { AnalyzeInputArticle } from "./input.ts";
 import { promptText } from "./prompts.ts";
 
@@ -359,7 +359,11 @@ export function finalizeCopy(input: TranslateInput, copy: { titleZh: string; sum
   // 两个字段在这里统一处理：标题不带中文 → 退回原文标题（它本来是中文才用）；提要不过 →
   // 置空——normalizeAnalysis 会把该条判成「等待」而不是发出去；同时 analyze 的 usable 判定
   // 让这条答复不落成"好答复"，下一次重试会真花钱重问。
-  let summaryZh = copy.summaryZh.trim() || ownChineseLead(input);
+  // 截断的页面外壳要在这里剥，不是在 stripBoilerplate 里：这一格拿到的正好是**一整条要写进摘要列的字符串**，
+  // "结尾＝截断点"这个前提在这里成立，在 stripBoilerplate（被 sanitize 逐节点调用）里不成立。
+  // 上游三道闸都放过它：`isTemplateShell` 数的是闭合占位符（截断形状数不到），`stripBoilerplate` 要配对括号，
+  // `closeTruncatedSentence` 找不到结尾标点就直接点句号——线上那 14 条就是这么生成的。
+  let summaryZh = stripTruncatedShellTail(copy.summaryZh.trim() || ownChineseLead(input));
   if (!isShortTweetInput(input) && summaryZh && !answerFirstSummaryLengthOk(summaryZh, input)) summaryZh = compactAnswerFirstSummary(summaryZh);
   // 摘要必须收在完整的句子上。线上实测三种半句话：结尾挂着分隔符（2026-08-31 至 10-04 有 1,717 条这种
   // 形状）、整段没有结尾标点（`…能见度小于500`、`…长达约一亿`——正文被抽取器截断时兜底路径原样交出去）、

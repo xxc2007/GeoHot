@@ -154,8 +154,9 @@ docker compose logs -f --tail 100 api worker web
 
 先说本站：**线上这一份是要花钱的，本机与 CI 那一份一分不花**。2026-10-06 起生产部署的 `.env` 里
 `LLM_BASE_URL / LLM_API_KEY / LLM_MODEL` 指向第三方服务 Agnes AI（模型 `agnes-3.0-flash`），
-`MODEL_CALLS_ENABLED=true`，预算熔断按**服务**一行（`budgets` 表，迁移 0050/0052/0054/0055/0056 定的现值：
-`llm` 8/420/6000、`agnes-cn` 9/540/12000、`dots` 20/600/6000、`openrouter` 18/300/600、`opencode` 10/300/3000，
+`MODEL_CALLS_ENABLED=true`，预算熔断按**服务**一行（`budgets` 表，迁移 0050–0059 叠出来的现值：
+`llm` 8/420/6000、`agnes-cn` 9/540/12000、`dots` 20/600/12000（0055 建的是 6000，0059 按实测抬到 12000：
+这道自设闸当时把六个服务全钉在零派发上，而 dots 的 `receipts.cost` 合计为 0——它保护的不是钱）、`openrouter` 18/300/600、`opencode` 10/300/3000，
 单位都是 分/时/天；分钟数按对端实际接受的速率取小，OpenRouter 六个成员共用一个账号的免费额度所以只有一行），
 后台「设置 → 预算」可改，填 0 立即停用该服务）。仓库里那个只听 127.0.0.1 的回放器
 `tooling/brain-stub.ts`（`LLM_API_KEY=local-brain` 是占位串）留给本机开发与 CI：同样的闸门与回执，
