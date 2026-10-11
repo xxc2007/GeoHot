@@ -227,7 +227,9 @@ export async function registerExtractionJobs(boss: PgBoss) {
  * Safety net: articles waiting for processing that no queue holds (crash between write and enqueue,
  * a lost job, a retry that came due). Articles already queued or running are left alone.
  *
- * Oldest first within each band, at most 500 rows. Reserve up to 100 places for explicit archives:
+ * Oldest first within each band, at most 500 rows — except the archive band, which goes oldest *news date*
+ * first (see the SQL below: import order is not date order, and a day only prints once its own dates are done).
+ * Reserve up to 100 places for explicit archives:
  * older first imports repeatedly waiting on a budget otherwise fill the whole sweep before archives
  * ever reach their higher-priority queue. Ordinary work gets all unused archive places; when fewer
  * ordinary rows are eligible, archives use the remainder. Queue priorities still put live news first.
@@ -235,22 +237,28 @@ export async function registerExtractionJobs(boss: PgBoss) {
 export async function sweepUnprocessed(): Promise<{ enqueued: number; published: number }> {
   const rows = await sql<{ id: string }[]>`
     WITH eligible AS MATERIALIZED (
-      SELECT id, discovered_at, coalesce(backfill_reason = 'archive', false) AS archive FROM articles
+      SELECT id, discovered_at, timeline_at, coalesce(backfill_reason = 'archive', false) AS archive FROM articles
       WHERE processing_state = 'new' AND created_at < now() - interval '3 minutes'
         AND (processing_retry_at IS NULL OR processing_retry_at <= now())
         AND (processing_queued_at IS NULL OR processing_queued_at < now() - ${QUEUED_STALE}::interval)
     ), reserved AS (
-      SELECT id, discovered_at FROM eligible WHERE archive ORDER BY discovered_at, id LIMIT 100
+      -- 档案这一份按【新闻日期】排，不按入库时刻。档案是"按刊、按月"一批一批插进来的：
+      -- discovered_at 说的是它属于哪一次导入，不是它是哪天的新闻。照入库时刻取 100 条，
+      -- 这一百条就摊在十个月上，每一天都差几条，而成刊闸门问的是"那一天判完了没有"
+      -- ——于是没有一天能过完。生产实测（2026-10-11 19:30）：283 个有档案材料的日子已结算 0 个，
+      -- 最接近结算的那天还等 5 条；队里 255 条档案单横跨 2026-01 到 2026-10。
+      -- 只改"取哪 100 条"，不改份额、不改优先级、不多花一次调用。
+      SELECT id, discovered_at, timeline_at, archive FROM eligible WHERE archive ORDER BY timeline_at, id LIMIT 100
     ), ordinary AS (
-      SELECT id, discovered_at FROM eligible WHERE NOT archive ORDER BY discovered_at, id
+      SELECT id, discovered_at, timeline_at, archive FROM eligible WHERE NOT archive ORDER BY discovered_at, id
       LIMIT (500 - (SELECT count(*) FROM reserved))
     ), remainder AS (
-      SELECT id, discovered_at FROM eligible WHERE archive AND id NOT IN (SELECT id FROM reserved)
-      ORDER BY discovered_at, id LIMIT (500 - (SELECT count(*) FROM reserved) - (SELECT count(*) FROM ordinary))
+      SELECT id, discovered_at, timeline_at, archive FROM eligible WHERE archive AND id NOT IN (SELECT id FROM reserved)
+      ORDER BY timeline_at, id LIMIT (500 - (SELECT count(*) FROM reserved) - (SELECT count(*) FROM ordinary))
     )
     SELECT id FROM (
       SELECT * FROM reserved UNION ALL SELECT * FROM ordinary UNION ALL SELECT * FROM remainder
-    ) chosen ORDER BY discovered_at, id`;
+    ) chosen ORDER BY (CASE WHEN archive THEN timeline_at ELSE discovered_at END), id`;
   for (const r of rows) await queueProcessing(r.id);
   // 另一半：分析已经落库、发布投影却没跑成（崩溃正好落在 `analyze.ts` 提交与 `publishArticle` 之间）。
   // 这一半不排队、不花钱——投影是确定性计算，直接补一次；漏掉它，条目就永久停在"分析过了但站上找不到"。
