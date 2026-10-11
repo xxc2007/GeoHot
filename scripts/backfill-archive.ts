@@ -139,7 +139,15 @@ const positive = (raw: string | undefined, fallback: number, flag: string) => {
 const MAX_ITEMS = positive(values["max-items"], 2000, "--max-items");
 const PER_MONTH = positive(values["per-month"], 60, "--per-month");
 const PER_PAGE = Math.min(500, positive(values["per-page"], 100, "--per-page"));
-const SLEEP = Math.max(0, Number(values.sleep));
+// `--sleep` 允许 0（给了 CROSSREF_MAILTO 就进 polite 池，不必每秒等），但不许读成 NaN：
+// `Math.max(0, Number("abc"))` 是 NaN，而 `await sleep(NaN)` 立刻返回——限流就这样没了，
+// 匿名池两三次请求就 429，比慢一点严重得多。上面那三个数已经在门口拒绝，这一个漏在外面。
+const sleepMs = Number(values.sleep);
+if (!Number.isFinite(sleepMs) || sleepMs < 0) {
+  console.error(`--sleep 需要非负的毫秒数（给的是「${values.sleep}」）。`);
+  process.exit(2);
+}
+const SLEEP = sleepMs;
 const onlyIds = values.source!.split(",").map((s) => s.trim()).filter(Boolean);
 
 const sliceRange = (month: string) => {
