@@ -243,13 +243,15 @@ function isConnectFailure(error: unknown): boolean {
 }
 
 /** Keep candidate identities and real HTTP requests on the same parameter calculation. */
-function requestFor<S extends z.ZodType>(opts: ChatJsonOptions<S>, spec: ModelSpec, legacySummaryReasoning = false) {
+function requestFor<S extends z.ZodType>(opts: ChatJsonOptions<S>, spec: ModelSpec, legacySummaryParameters = false) {
   const temperature = opts.temperature ?? 0.2;
   // Dots documents disabling thinking for short answers. Keep selection/understanding unchanged;
-  // the previous summary parameters below are recovery identities, never new dispatch choices.
-  const extra = spec.key === "dots3-note-prev" && opts.purpose === "summarize_article" && !legacySummaryReasoning
+  // Space Bunny summaries need the existing reasoning headroom. Previous summary parameters
+  // for both models below are recovery identities, never new dispatch choices.
+  const extra = spec.key === "dots3-note-prev" && opts.purpose === "summarize_article" && !legacySummaryParameters
     ? { chat_template_kwargs: { enable_thinking: false } } : spec.extra;
-  const reasoning = /reasoning_effort|"thinking"/.test(JSON.stringify(extra ?? {})) || spec.key.endsWith("-think");
+  const reasoning = /reasoning_effort|"thinking"/.test(JSON.stringify(extra ?? {})) || spec.key.endsWith("-think")
+    || (spec.key === "space-bunny-free" && opts.purpose === "summarize_article" && !legacySummaryParameters);
   const maxTokens = Math.min(MAX_OUTPUT_TOKENS, Math.max(opts.maxTokens ?? 1500, 512) + (reasoning ? REASONING_HEADROOM : 0));
   const userText = typeof opts.user === "string" ? opts.user : JSON.stringify(opts.user);
   const json = spec.jsonMode && opts.json !== false;
@@ -288,7 +290,7 @@ export async function chatJson<S extends z.ZodType>(opts: ChatJsonOptions<S>): P
   const candidates = candidateNames.flatMap((name) => {
     const model = MODELS[name]!;
     const current = { name, request: requestFor(opts, model).request };
-    return model.key === "dots3-note-prev" && opts.purpose === "summarize_article"
+    return ["dots3-note-prev", "space-bunny-free"].includes(model.key) && opts.purpose === "summarize_article"
       ? [current, { name, request: requestFor(opts, model, true).request }] : [current];
   });
   const needsVision = Array.isArray(opts.user) && opts.user.some((part) => part.type === "image_url");

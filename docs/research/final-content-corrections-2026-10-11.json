@@ -1,0 +1,33 @@
+{
+  "status": "staged-not-applied",
+  "observedAt": "2026-10-11T05:15:14Z",
+  "applyGate": "Only during the final coherent publication after archive, papers and independent final checks are complete; re-read every expected field and abort on drift.",
+  "corrections": [
+    {
+      "articleId": "cktvxux6urtwg1ih3v0kprw4o",
+      "expected": {
+        "revision": 1,
+        "analysisId": 15305,
+        "publicationAnalysisId": 15305,
+        "overrideVersion": 0,
+        "score": 53,
+        "selected": true,
+        "eligible": true,
+        "storyId": null,
+        "summary": "基于气候模式模拟的分解分析表明，大气环流变化对北半球中纬度夏季温度趋势有显著但冷暖对冲的贡献，欧洲1979至2023年间近半夏季升温可归因于环流趋势。环流趋势使西方北美、中西伯利亚、蒙古、中国中部和加拿大东北部夏季偏暖，而东西北美、中国东部和中亚夏季偏冷。",
+        "summarySha256": "8533141c6530bb69263304c52bf7d734a9b16029e94e1001efb83bf6e59feac8"
+      },
+      "fields": {
+        "summary": "基于气候模式模拟的分解分析表明，大气环流变化对北半球中纬度夏季温度趋势有显著但冷暖对冲的贡献，欧洲1979至2023年间近半夏季升温可归因于环流趋势。环流趋势使西方北美、中西伯利亚、蒙古、中国中部和加拿大东北部夏季偏暖，而北美东部和中部、中国东部和中亚夏季偏冷。"
+      },
+      "reason": "对照 DOI 10.5194/wcd-7-89-2026 官方摘要，环流冷却区域 Eastern and Central North America 应译为北美东部和中部；仅纠正该短语，不调整评分、精选状态、来源或日期。",
+      "actor": "agent:codex",
+      "evidence": {
+        "url": "https://wcd.copernicus.org/articles/7/89/2026/",
+        "location": "Abstract, last paragraph",
+        "excerpt": "cooled summer temperatures over Eastern and Central North America"
+      },
+      "workflow": "Use @aihot/backend/admin/content overrideFields with fields.summary and the revalidated override version. Do not update immutable analyses or force a new paid analysis. Recheck all public exits after applying."
+    }
+  ]
+}

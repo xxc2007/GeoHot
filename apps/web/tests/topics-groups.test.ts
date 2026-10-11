@@ -36,7 +36,8 @@ async function render(): Promise<string> {
   try {
     const build = await import(pathToFileURL(SERVER_BUILD).href);
     const handler = createRequestHandler(build, "production");
-    const res = await handler(new Request("https://xxc2007.me/topics"));
+    const base = String(build.basename ?? "/").replace(/\/+$/, "");
+    const res = await handler(new Request(`https://xxc2007.me${base}/topics`));
     assert.equal(res.status, 200, "SSR 没能渲染 /topics");
     return await res.text();
   } finally {
