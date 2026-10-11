@@ -13,8 +13,8 @@ import { upsertMaterial } from "@aihot/backend/content/materials";
 import { publishArticle } from "@aihot/backend/publication/publish";
 import { stopBoss } from "@aihot/backend/jobs/queue";
 import { loadPool } from "@aihot/backend/publication/pool";
-import { isDay, isMonth, monthMarks } from "@aihot/backend/publication/calendar";
-import { beijingDate } from "@aihot/contracts/time";
+import { monthMarks } from "@aihot/backend/publication/calendar";
+import { beijingDate, isDay, isMonth } from "@aihot/contracts/time";
 
 const T = tag();
 const SOURCE = `test-calendar-${T}`;
@@ -71,6 +71,11 @@ test("日历点某一天，列表就只给那一天；两天的总数各算各�
   assert.equal(onOlder.total, 1);
   const all = await loadPool({ ...filters, q: null, tab: "time", page: 1, date: null });
   assert.equal(all.total, 3, "不带日期时三条都该在");
+  // 表头那句「今日 N 条」问的是今天：选中某一天时不能把那一天的窗口一起 AND 进去，
+  // 两个窗口互斥 ⇒ 任何历史日期页都会印出「今日 0 条」（2026-10-11 上线当天 390 截图实测）。
+  assert.equal(onRecent.todayCount, 2, "选中的正是今天，今日数就是今天这组的条数");
+  const onPast = await loadPool({ ...filters, q: null, tab: "time", page: 1, date: olderDay });
+  assert.equal(onPast.todayCount, 2, "看历史那一天时今日数仍该是今天的内容，不被那一天的窗口清零");
 });
 
 test("月历只把真有内容的日子画成点，日期与筛选用的是同一套成员条件", async () => {
@@ -80,6 +85,12 @@ test("月历只把真有内容的日子画成点，日期与筛选用的是同�
   assert.equal(mine.length, 1, "那一天必须出现在月历的有内容名单里");
   assert.ok(mine[0]!.items >= 1, "有内容才画点");
   assert.ok(marks.every((m) => m.items > 0 || m.issue !== null), "回出来的每一天都得真的有东西，空格由前端补");
+  // 卡片挂在筛选结果上面，数日子就必须跟着筛选走：否则卡片说"这天有 4 条"、点进去按分类一筛是空的
+  // （2026-10-11 上线当天线上实测 `/all?category=histgeo&date=2026-01-15` 正是这个样子）。
+  const tagged = await monthMarks(recentDay.slice(0, 7), { tag: TAG });
+  assert.equal(tagged.find((m) => m.date === recentDay)?.items, 2, "带标签的日历数的是这个标签下的日子");
+  const otherCategory = await monthMarks(recentDay.slice(0, 7), { category: "human" });
+  assert.ok(!otherCategory.some((m) => m.date === recentDay), "夹具全是 natural，按 human 筛就不该有这一天");
 });
 
 test("月与日的参数不认形状，还要回读对得上（2026-02-30 不能变成 3 月 2 日）", () => {
@@ -91,4 +102,9 @@ test("月与日的参数不认形状，还要回读对得上（2026-02-30 不能
   assert.equal(isMonth("2026-13"), false);
   assert.equal(isMonth("2026-00"), false);
   assert.equal(isMonth(null), false);
+  // 而且**不许抛**：`2026-13-01` 这类值会让 `toISOString()` 抛 RangeError，
+  // 于是读者敲错一个日期换来的是 500/503 而不是 404/400（上线当天线上实测两处）。
+  assert.equal(isDay("2026-13-01"), false, "非法月份要判 false，不能抛");
+  assert.equal(isDay("2026-01-00"), false);
+  assert.equal(isDay("0000-00-00"), false);
 });

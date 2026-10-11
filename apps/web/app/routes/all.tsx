@@ -42,9 +42,16 @@ export async function loader({ request }: Route.LoaderArgs) {
       `/api/site/pool${queryString({ channel: channel === "all" ? null : channel, category, tag, q, tab, page: page > 1 ? page : null, date })}`,
       { signal: request.signal, busyRedirect: "/all/search-busy" },
     ),
-    // 日历那一格拿不到不该把整页拖下水：列表自己会说"这一天没有内容"。
-    loadOr404<{ month: string; days: CalendarDay[] }>(`/api/site/calendar?month=${month}`, { signal: request.signal })
-      .catch(() => ({ month, days: [] as CalendarDay[] })),
+    // 日历的数据必须跟着这一屏的筛选走：卡片数的是"这些条件下哪几天有东西"，
+    // 拿全站的条数去解释一份分类筛选下面的空列表，就是给同一个事实两个答案
+    // （2026-10-11 上线当天实测：`/all?category=histgeo&date=2026-01-15` 卡片说 4 条、列表 0 条）。
+    // 搜索页整张不画：搜索结果问的是"哪些条目含这个词"，与"哪几天有内容"不是一个问题。
+    // 拿不到也不画——一张"本月 0 条"的空卡排在满屏结果上面，比没有卡更糟。
+    q ? null
+      : await loadOr404<{ month: string; days: CalendarDay[] }>(
+          `/api/site/calendar${queryString({ month, channel: channel === "all" ? null : channel, category, tag })}`,
+          { signal: request.signal },
+        ).catch(() => null),
   ]);
   return { data, calendar, date, month };
 }
@@ -85,6 +92,8 @@ export default function AllPage() {
   const navigation = useNavigation();
   const f = data.filters;
   const busy = navigation.state === "loading" && navigation.location?.pathname === "/all";
+  // 搜索表单带过去的筛选里**故意没有 `date`**：搜索问的是"哪些条目含这个词"，把它锁在已选的那一天里
+  // 会让读者以为搜索坏了，而搜索页又不画日历（没有可反悔的入口）。所以从日期页发起搜索＝回到全部日期。
   const keep = { channel: f.channel === "all" ? null : f.channel, category: f.category, tag: f.tag };
   // 日历的两种走法：点某一天 = 带着当前筛选去看那一天；换月份 = 只看那一月的日历，不留在旧的那一天上。
   const listHref = (over: Record<string, string | null>) => {
@@ -152,7 +161,9 @@ export default function AllPage() {
         </div>
       )}
 
-      <DateCalendar className="mb-4" month={month} days={calendar.days} selected={date} today={todayOf(data.generatedAt)} dayHref={dayHref} monthHref={monthHref} unit="条" />
+      {calendar && (
+        <DateCalendar className="mb-4" month={month} days={calendar.days} selected={date} today={todayOf(data.generatedAt)} dayHref={dayHref} monthHref={monthHref} />
+      )}
       {date && (
         <p className="-mt-1 mb-3 text-[12px] text-ink-4">
           正在只看 {cnDate(date)} 那一天 ·
@@ -179,7 +190,7 @@ export default function AllPage() {
                 ) : undefined
               }
             >
-              {f.q ? "换个说法，或者去掉筛选再试。" : date ? "那一天没有收录到的条目——日历上只有有内容的日子才是点得动的。" : "这个筛选下暂时没有内容。"}
+              {f.q ? "换个说法，或者去掉筛选再试。" : date ? "这一屏的筛选下，那一天没有可列出的条目——换个日子，或者去掉筛选再看看。" : "这个筛选下暂时没有内容。"}
             </EmptyState>
           </div>
         ) : (
@@ -187,7 +198,7 @@ export default function AllPage() {
         )}
       </div>
       <Pagination page={data.page} pageCount={data.pageCount} href={(p) => pageHref(params, p)} />
-      {data.page >= 50 && <p className="mt-4 text-center text-[12px] text-ink-4">最多提供 50 页；更早的日子请用上面这张日历挑一天，或者用搜索、主题页。</p>}
+      {data.page >= 50 && <p className="mt-4 text-center text-[12px] text-ink-4">{calendar ? "最多提供 50 页；更早的日子请用上面这张日历挑一天，或者用搜索、主题页。" : "最多提供 50 页；更早的内容请去掉搜索词后用日期入口挑一天，或者用主题页。"}</p>}
     </div>
   );
 }

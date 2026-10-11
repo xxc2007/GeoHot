@@ -31,17 +31,16 @@ const CELL = "grid h-11 place-items-center lg:h-9";
 const NAV_CELL = "grid h-11 w-11 place-items-center lg:h-9 lg:w-9";
 
 /**
- * 月历卡。`dayHref(date)` 决定点某一天去哪里（`/all?date=` 或 `/daily/<date>`），
- * `monthHref(month)` 决定 ‹ › 与「回到本月」去哪里。`unit` 只影响右上那句计数（本月 N 期 / N 条）。
+ * 月历卡。`dayHref(date)` 决定点某一天去哪里（`/all?date=`），
+ * `monthHref(month)` 决定 ‹ › 与「回到本月」去哪里。
  */
-export function DateCalendar({ month, days, selected, today, dayHref, monthHref, unit, className = "" }: {
+export function DateCalendar({ month, days, selected, today, dayHref, monthHref, className = "" }: {
   month: string;
   days: CalendarDay[];
   selected: string | null;
   today: string;
   dayHref: (date: string) => string;
   monthHref: (month: string) => string;
-  unit: "期" | "条";
   className?: string;
 }) {
   const byDate = new Map(days.filter((d) => d.items > 0 || d.issue !== null).map((d) => [d.date, d]));
@@ -49,8 +48,7 @@ export function DateCalendar({ month, days, selected, today, dayHref, monthHref,
   const thisMonth = today.slice(0, 7);
   const focus = selected ?? (month === thisMonth ? today : null);
   const focusDay = focus ? byDate.get(focus) : undefined;
-  // 「本月 N 期」数的是出过报的天数，「本月 N 条」数的是条目总数——同一张卡两种单位，别混着报。
-  const total = unit === "期" ? days.reduce((n, d) => n + (d.issue !== null ? 1 : 0), 0) : days.reduce((n, d) => n + d.items, 0);
+  const total = days.reduce((n, d) => n + d.items, 0);
   const nav = (to: string, label: string, glyph: string, disabled: boolean) => (disabled
     // 未来的月份不给箭头：点进去是一张全空的月历，那是"坏了"的样子，不是"还没有"的样子。
     ? <span aria-hidden="true" className={`${NAV_CELL} text-[16px] text-ink-4/40`}>{glyph}</span>
@@ -86,7 +84,7 @@ export function DateCalendar({ month, days, selected, today, dayHref, monthHref,
       <div className="min-w-0 flex-1 pt-3 lg:border-l lg:border-line lg:px-4 lg:py-3">
         <div className="flex items-baseline justify-between gap-3">
           <span className="text-[13px] font-semibold tracking-[0.2em] text-ink">{MONTH_CN[number - 1]}</span>
-          <span className="text-[11.5px] text-ink-4">本月 <span className="num">{total}</span> {unit}</span>
+          <span className="text-[11.5px] text-ink-4">本月 <span className="num">{total}</span> 条</span>
         </div>
         <ul className="mt-1 grid grid-cols-7 text-center text-[10.5px] text-ink-4">
           {WEEKDAYS.map((w) => <li key={w} aria-hidden="true">{w}</li>)}

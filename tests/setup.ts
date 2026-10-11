@@ -105,8 +105,16 @@ export async function purgeTagged(...tags: string[]): Promise<void> {
   if (ids.length > 0) await sql`DELETE FROM stories WHERE id = ANY(${ids})`;
   // Its own sources and articles go too: an enabled leftover reads as a source that has fallen behind in
   // sourceClocks(), which is the very state the heat tests reason about.
+  const fromSources = await sql<{ id: string }[]>`SELECT id FROM articles WHERE source_id LIKE ANY(${like}::text[])`;
   await sql`DELETE FROM articles WHERE source_id LIKE ANY(${like}::text[])`;
   await sql`DELETE FROM sources WHERE id LIKE ANY(${like}::text[])`;
+  // 向量缓存按 `(kind, ref_id, model)` 存，**没有外键**：删掉条目/事实/事件带不走它。
+  // 留着就是下一轮的假象——`recallFacts` 与预筛都读这张表，一条上轮的向量能让这一轮"已经算过"，
+  // 于是"这一步会付一次 embedding 费"这类断言永远看不见那次调用。
+  // 2026-10-11 实测：`signals.test.ts` 把 `EMBEDDINGS_ENABLED` 打开之后，`analyze.test.ts` 六条用例
+  // 在整套连跑时红、单跑绿——红的不是被测代码，是这张没人扫的表。
+  const refs = [...articles, ...fromSources.map((r) => r.id), ...factIds.map(String), ...ids.map(String)];
+  if (refs.length > 0) await sql`DELETE FROM embeddings WHERE ref_id = ANY(${refs}::text[])`;
   await purgeOrphanJobs();
 }
 

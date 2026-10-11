@@ -87,10 +87,25 @@ test("COLLECT_ENABLED and MODEL_CALLS_ENABLED read through that one rule", () =>
 
 test("development stays closed by what is shipped, not by a default", () => {
   // The defaults above are on, so a clean clone is only safe because the template writes the valves down.
+  const NAMES = ["COLLECT_ENABLED", "MODEL_CALLS_ENABLED", "FEISHU_CONTENT_PUSH_ENABLED", "FEISHU_INTERNAL_ENABLED", "INDEXNOW_SUBMIT_ENABLED"];
   const example = readFileSync(path.join(REPO_ROOT, ".env.example"), "utf8");
-  for (const name of ["COLLECT_ENABLED", "MODEL_CALLS_ENABLED", "FEISHU_CONTENT_PUSH_ENABLED", "FEISHU_INTERNAL_ENABLED", "INDEXNOW_SUBMIT_ENABLED"]) {
+  for (const name of NAMES) {
     assert.match(example, new RegExp(`^${name}=false$`, "m"), `.env.example must ship ${name}=false`);
-    assert.equal(envFlag(name, false), false, `${name} must not be switched on here (tests inherit .env)`);
+  }
+  // 开发机那份 `.env` 判的是它自己，不判 `process.env`。原来读的是 ambient env，而跑付费路径的那批用例
+  // 必须带 `--env-file=.env.pipeline`（`MODEL_CALLS_ENABLED=true`），那份文件里 `COLLECT_ENABLED=true`
+  // 是它的用途所在——于是"带 pipeline env 跑全套"与这条断言天生不能同时成立（2026-10-11 实测：
+  // 带它则这条红、八条付费用例绿；不带它则反过来）。判据要问的是"开发配置有没有把闸门写死成关"。
+  let dev;
+  try {
+    dev = readFileSync(path.join(REPO_ROOT, ".env"), "utf8");
+  } catch {
+    dev = null; // 干净克隆（CI）没有 `.env`，模板那半边已经覆盖了"发出去的东西是否闭合"。
+  }
+  if (dev !== null) {
+    for (const name of NAMES) {
+      assert.match(dev, new RegExp(`^${name}=false$`, "m"), `.env must keep ${name}=false for development`);
+    }
   }
 });
 

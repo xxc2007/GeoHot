@@ -7,7 +7,7 @@ import { InvalidCursorError } from "@aihot/backend/lib/cursor";
 import { exportMarkdown, loadItemDetail, siteItemDetail } from "@aihot/backend/publication/detail";
 import { loadPool, SearchBusyError } from "@aihot/backend/publication/pool";
 import { monthMarks } from "@aihot/backend/publication/calendar";
-import { isDay, isMonth } from "@aihot/contracts/time";
+import { beijingDate, isDay, isMonth } from "@aihot/contracts/time";
 import { loadTimeline } from "@aihot/backend/publication/timeline";
 import { loadStoryFollowups } from "@aihot/backend/publication/followups";
 import { loadDevelopments, loadGroupReports } from "@aihot/backend/publication/groups";
@@ -123,11 +123,17 @@ export function registerSite(app: FastifyInstance) {
 
   // 日历入口的数据：某个月里哪几天有内容、哪几天出过日报。前端只拿到稀疏的有内容的日子，
   // 空格自己补——所以"这个月一个点都没有"和"这个月没查"是两种答案，都要如实回（空数组 vs 400）。
+  // 筛选要跟着走：这张卡数的是"当前这一屏"的日子，与 `/api/site/pool` 用的是同一套 `parseFilters`
+  // （坏值同样 400 点名），否则卡片会拿全站的条数去解释一份分类筛选下面的空列表。
   app.get("/api/site/calendar", siteHandler(async (req, reply) => {
     const q = looseQuery(req);
     if (!isMonth(q.month)) throw new BadRequest("invalid month");
-    const days = await monthMarks(q.month);
-    return sendJsonWithEtag(req, reply, { month: q.month, days }, { etagPrefix: "cal", cacheControl: "public, max-age=300, s-maxage=300" });
+    const filters = await parseFilters(q);
+    const days = await monthMarks(q.month, filters);
+    // 当月每天都在长，缓存要短（与 pool 同档 60 秒）；已经过完的月不会再变，放到一小时。
+    const current = beijingDate(Date.now()).slice(0, 7) === q.month;
+    const cacheControl = current ? "public, max-age=60, s-maxage=60" : "public, max-age=3600, s-maxage=3600";
+    return sendJsonWithEtag(req, reply, { month: q.month, days }, { etagPrefix: "cal", cacheControl });
   }));
 
   app.get("/api/site/items/:id", siteHandler(async (req, reply) => {
