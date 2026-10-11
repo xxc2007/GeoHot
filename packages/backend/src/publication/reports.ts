@@ -89,8 +89,8 @@ export async function reportIndexRows(kind: ReportKind, limit: number) {
   const groupedKey = kind === "daily" ? "sections" : "themes";
   const labelKey = kind === "daily" ? "label" : "heading";
   const itemsKey = kind === "daily" ? "items" : "storyRefs";
-  return sql<{ key: string; content: Record<string, any>; generated_at: Date; issue_no: number | null }[]>`
-    SELECT key, generated_at, issue_no, jsonb_build_object(
+  return sql<{ key: string; content: Record<string, any>; generated_at: Date; window_end: Date; issue_no: number | null }[]>`
+    SELECT key, generated_at, window_end, issue_no, jsonb_build_object(
       'lead', content->'lead', 'headline', content->'headline', 'title', content->'title',
       'overview', content->'overview', 'periodStart', content->'periodStart', 'periodEnd', content->'periodEnd',
       ${groupedKey}::text,

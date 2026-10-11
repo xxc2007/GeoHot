@@ -42,6 +42,16 @@ function rfc822(d: Date): string {
   return d.toUTCString();
 }
 
+/**
+ * `<pubDate>` 要说这份报纸报道的那一段什么时候结束，不是说它什么时候被排出来。
+ * 回填会补印 1 月的期次，那些行的 `generated_at` 是十月：照生成时刻发出去，聚合器会把 1 月的报纸
+ * 排在当天的报纸前面，而同一条目的 `<guid>` 写的又是 `daily-2026-01-05`——两条自述互相矛盾。
+ * sitemap 的 `<lastmod>` 反过来该用生成时刻（那个 URL 确实是今天才出现的），所以留在那里不动。
+ */
+function pubDateOf(r: { window_end: Date | null; generated_at: Date }): Date {
+  return r.window_end ?? r.generated_at;
+}
+
 function channel(meta: { title: string; description: string; homePath: string; selfPath: string; ttl: number }, items: string[]): string {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
@@ -209,7 +219,7 @@ export async function dailyFeed(): Promise<string> {
       <title>${cdata(title)}</title>
       <link>${url}</link>
       <description>${cdata(description)}</description>
-      <pubDate>${rfc822(r.generated_at)}</pubDate>
+      <pubDate>${rfc822(pubDateOf(r))}</pubDate>
       <guid isPermaLink="false">daily-${escapeXml(r.key)}</guid>
       <author>${AUTHOR} (${escapeXml(SITE.name)})</author>
     </item>`;
@@ -242,7 +252,7 @@ export async function reportFeed(kind: "weekly" | "monthly"): Promise<string> {
       <title>${cdata(title)}</title>
       <link>${url}</link>
       <description>${cdata(description)}</description>
-      <pubDate>${rfc822(r.generated_at)}</pubDate>
+      <pubDate>${rfc822(pubDateOf(r))}</pubDate>
       <guid isPermaLink="false">${kind}-${escapeXml(r.key)}</guid>
       <author>${AUTHOR} (${escapeXml(SITE.name)})</author>
     </item>`;
