@@ -19,17 +19,12 @@ import { parseArgs } from "node:util";
 import { pathToFileURL } from "node:url";
 import { config } from "@aihot/backend/config";
 import { closeDb, sql } from "@aihot/backend/db";
+import { unbilledAttempt } from "@aihot/backend/providers/receipts";
+import { editionDay } from "@aihot/backend/lib/time";
+import { isDay } from "@aihot/contracts/time";
 
-/**
- * 一期日报所服务的北京日期：`[D-1 08:00, D 08:00)` ⇔ 折成北京时间、减 8 小时、再 +1 天。
- * 收的是"哪一列是时刻"而不是写死表别名——这段公式在 `articles a` 与 `publications p` 两边都要用，
- * 抄两份正是本仓库反复付学费的那个形状。
- */
-const COLUMN = sql`a.timeline_at`;
 /** 片段类型直接取本文件构造出来的那一个：nesting 用的就是它，不去猜 postgres 的内部类型名。 */
-export function editionDay(timeline: typeof COLUMN) {
-  return sql`((${timeline} AT TIME ZONE 'Asia/Shanghai') - interval '8 hours')::date + 1`;
-}
+const COLUMN = sql`a.timeline_at`;
 /** `article:<id>@<revision>` ⇒ 取 `:` 之后第一段，再砍掉 `@` 尾巴。 */
 export function subjectArticle(subject: typeof COLUMN) {
   return sql`split_part(split_part(${subject}, ':', 2), '@', 1)`;
@@ -37,6 +32,13 @@ export function subjectArticle(subject: typeof COLUMN) {
 
 async function main() {
   const { values } = parseArgs({ options: { from: { type: "string", default: "2026-01-01" }, json: { type: "boolean", default: false } } });
+  // `--from` 会被拿去和 `timestamptz` 比、也会被 `substring(… from 1 for 7)` 当月份窗口用。
+  // 打错一个字符（`2026-1-1`、`2026-13-01`）不会报错，只会让每条查询各自数到一个空集合，
+  // 于是"还剩 0 条、0 天有材料"看起来像排空了。这一族与 `dates.ts` 不猜日期顺序是同一个规矩。
+  if (!isDay(values.from!)) {
+    console.error(`--from 要的是 YYYY-MM-DD 且真实存在的日期，收到的是「${values.from}」`);
+    process.exit(2);
+  }
   const from = values.from!;
   // 打出来自哪个库（只到 主机/库名，口令与参数一律不带）：这次试跑连到 CI 库，
   // 却照样报出一个像模像样的"17.2 篇/时"——那 222 篇是测试夹具留下的 origin='live' 收据。
@@ -55,17 +57,25 @@ async function main() {
   // 月份窗口要与 `archive-cycle.sh` 的成熟度判据同一个口径（>= from 的月、< 当月）：
   // 这里第一次跑时没带月份条件，读出 pending=164，而闸门看到的是 74——两个数同时挂在屏幕上，
   // 迟早会有人拿其中一个去推翻另一个的结论。`pending_any` 保留全景，只做参照。
+  // `done` 也必须带同一个窗口：pending 数的是"这个窗口里还没跑完的"，而它数的是"所有月份跑完的"，
+  // 两行并排打出来就成了"pending 74 / done 775"，看着像窗口快排空了，实际是两个不相干的集合。
   const [c] = await sql<{ pending: number; done: number; pending_any: number }[]>`
     SELECT count(*) FILTER (WHERE ai.status IN ('pending','running')
              AND ai.month >= substring(${from} from 1 for 7)
              AND ai.month < to_char(now() AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM'))::int AS pending,
-           count(*) FILTER (WHERE ai.status = 'done')::int AS done,
+           count(*) FILTER (WHERE ai.status = 'done'
+             AND ai.month >= substring(${from} from 1 for 7)
+             AND ai.month < to_char(now() AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM'))::int AS done,
            count(*) FILTER (WHERE ai.status IN ('pending','running'))::int AS pending_any
     FROM archive_ingest ai JOIN sources s ON s.id = ai.source_id
     WHERE s.enabled AND (coalesce(s.config->>'issn','') <> '' OR coalesce(s.config->>'archiveIndexUrl','') <> '')`;
 
-  // 吞吐：从**计费收据**数"近 12 小时真判了几篇"。`origin='live'` 排除测试与回填自检；
-  // 小时/天窗的计费口径与 `providers/receipts.ts` 一致——失败且没 usage 的（连不上、429）不产生账单。
+  // 吞吐：从**计费收据**数"近 12 小时真判了几篇"。`origin='live'` 排除测试与回填自检。
+  // 不产生账单的那一类（连不上、DNS 失败、被 429 挡回）用 `providers/receipts.ts` 的 `unbilledAttempt()`，
+  // 判据不在这里重抄。但两处数的不是同一张表，别说成"口径一致"：熔断器数 `receipt_attempts`（含重试），
+  // 这里数 `receipts`（真发出去一次的调用一行）——按篇算 ETA 要的是后者，它不能当预算用量读。
+  // `arch_scored` 只认 join 得上 `articles` 的行：主体被删过的收据 left join 出来是 NULL，
+  // 会算进 `scored` 而不算进 `arch_scored`。两个数之差就是"认不出条目的调用"，不是"没在判档案"。
   const [t] = await sql<{ prefiltered: number; scored: number; arch_scored: number; billed: number }[]>`
     WITH art AS (
       SELECT ${subjectArticle(sql`r.subject`)} AS id, r.purpose,
@@ -73,7 +83,7 @@ async function main() {
       FROM receipts r LEFT JOIN articles a ON a.id = ${subjectArticle(sql`r.subject`)}
       WHERE r.origin = 'live' AND r.service <> 'embedding' AND r.subject LIKE 'article:%'
         AND r.created_at > now() - interval '12 hours'
-        AND NOT (r.status = 'failed' AND r.usage IS NULL))
+        AND NOT ${unbilledAttempt()})
     SELECT count(DISTINCT id) FILTER (WHERE purpose = 'prefilter_article')::int AS prefiltered,
            count(DISTINCT id) FILTER (WHERE purpose = 'score_article')::int AS scored,
            count(DISTINCT id) FILTER (WHERE purpose = 'score_article' AND is_archive)::int AS arch_scored,
@@ -116,7 +126,7 @@ async function main() {
     console.log(`库      ${out.database}
 `);
     console.log(`队列    档案待判 ${out.queue.archive_unjudged}　全部待判 ${out.queue.all_unjudged}　档案已判完 ${out.queue.archive_judged}`);
-    console.log(`采集    pending ${out.collection.slices_pending}（闸门同窗口）　done ${out.collection.slices_done}　全部月份 pending ${out.collection.slices_pending_all_months}`);
+    console.log(`采集    窗口内 pending ${out.collection.slices_pending}　窗口内 done ${out.collection.slices_done}（闸门同窗口：>= ${from.slice(0, 7)} 的月、不含当月）　全部月份 pending ${out.collection.slices_pending_all_months}`);
     console.log(`近12h   计费 ${out.last_12h.billed_calls} 次　预筛 ${out.last_12h.items_prefiltered} 篇　打分 ${out.last_12h.items_scored} 篇（其中档案 ${out.last_12h.archive_scored}）⇒ ${out.rate.scored_per_hour}/时`);
     console.log(`日子    有材料 ${out.days.with_material} 天　已结算 ${out.days.settled} 天`);
     for (const [kind, v] of Object.entries(out.editions)) console.log(`期次    ${kind}：存 ${v.stored}　空白 ${v.blank}`);

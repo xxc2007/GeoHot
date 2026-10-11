@@ -13,26 +13,27 @@
 // 退出码：有 HARD 项不通过 ⇒ 1。软项只报数，因为它们的"合格线"是编辑判断，不该由代码替站长定。
 import { parseArgs } from "node:util";
 import { pathToFileURL } from "node:url";
+import { CJK_COPY_PATTERN } from "@aihot/contracts/copy";
+import { isDay } from "@aihot/contracts/time";
+import { config } from "@aihot/backend/config";
 import { closeDb, sql } from "@aihot/backend/db";
+import { editionDay } from "@aihot/backend/lib/time";
 
-/**
- * 日报那一期的日期标签：一个北京日 D 覆盖 `[D-1 08:00, D 08:00)`（`reports/compose.ts` 的 `dailyWindow`），
- * 所以日标签 = 时刻折成北京时间后减 8 小时再 +1 天。这条只在这里写一次——用它去猜别的公式会重演
- * "窗口算错 8 小时"那次的错。
- */
-export const DAY_LABEL = sql`((p.timeline_at AT TIME ZONE 'Asia/Shanghai') - interval '8 hours')::date + 1`;
-/** 中文汉字（含扩展 A 之前的主区块）。标题在这个区间里没字 = 根本没翻成中文。 */
-export const CJK = "[一-鿿]";
+/** 日报期次所服务的那一天——公式只在 `lib/time.ts` 写一次，这里只固定"时刻是 `p.timeline_at`"。 */
+const DAY_LABEL = editionDay(sql`p.timeline_at`);
 
-export interface Check {
+interface Check {
   name: string;
   hard: boolean;
   why: string;
   value: () => Promise<number>;
 }
 
-export function checks(from: string, to: string): Check[] {
-  const inRange = sql`p.timeline_at >= ${from} AND p.timeline_at < ${to}::date + 1`;
+function checks(from: string, to: string): Check[] {
+  // 区间按**期次日期**判，不按裸时刻判：一期日报覆盖 `[D-1 08:00, D 08:00)` 北京时间，
+  // 而 `timeline_at >= '2026-01-01'` 这种写法把 1 月 1 日那一期窗口的前 8 小时（12-31 08:00 起）切掉了——
+  // 同一个错法在进度脚本里造出一个假的 days_settled=1。两端都含，与下面按 `key` 数期次那两项同一口径。
+  const inRange = sql`${DAY_LABEL} BETWEEN ${from}::date AND ${to}::date`;
   const one = async (q: PromiseLike<{ n: number }[]>) => (await q)[0]?.n ?? 0;
   return [
     {
@@ -44,7 +45,7 @@ export function checks(from: string, to: string): Check[] {
       value: () => one(sql<{ n: number }[]>`
         SELECT count(*)::int AS n FROM publications p
         WHERE p.visibility = 'public' AND p.eligible AND ${inRange}
-          AND p.title ~ ${CJK} AND coalesce(p.summary, '') !~ ${CJK}`),
+          AND p.title ~ ${CJK_COPY_PATTERN} AND coalesce(p.summary, '') !~ ${CJK_COPY_PATTERN}`),
     },
     {
       name: "selected_without_cjk_title",
@@ -52,7 +53,7 @@ export function checks(from: string, to: string): Check[] {
       why: "纯英文标题却被判为精选：读者面被标题闸门挡住，不算违规，但数量暴涨说明精选口径漂了",
       value: () => one(sql<{ n: number }[]>`
         SELECT count(*)::int AS n FROM publications p
-        WHERE p.visibility = 'public' AND p.selected AND ${inRange} AND p.title !~ ${CJK}`),
+        WHERE p.visibility = 'public' AND p.selected AND ${inRange} AND p.title !~ ${CJK_COPY_PATTERN}`),
     },
     {
       name: "missing_title_or_source",
@@ -95,9 +96,11 @@ export function checks(from: string, to: string): Check[] {
           AND jsonb_array_length(coalesce(content -> 'flashes', '[]'::jsonb)) = 0`),
     },
     {
+      // 只数日报：`reports.key` 是文本，周报的 `2026-W40`、月报的 `2026-09` 与日期的 `2026-10-12`
+      // 按字符序落在区间外（`'W' > '1'`），把它们混进同一条比较会得到"周报 0 期"这种假读数。
       name: "editions_stored",
       hard: false,
-      why: "区间内已存的日/周/月期次数：排空之后这一格应当接近 283 / 40 / 10",
+      why: "区间内已存的日报期次数（周报/月报不在这条里）：排空之后这一格应当接近 283",
       value: () => one(sql<{ n: number }[]>`
         SELECT count(*)::int AS n FROM reports
         WHERE kind = 'daily' AND key >= ${from} AND key <= ${to}`),
@@ -110,11 +113,17 @@ async function main() {
     options: { from: { type: "string", default: "2026-01-01" }, to: { type: "string", default: "" }, json: { type: "boolean", default: false } },
   });
   const to = values.to || new Date(Date.now() + 8 * 3_600_000).toISOString().slice(0, 10);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(values.from!) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
-    console.error(`--from/--to 要 YYYY-MM-DD，收到「${values.from}」/「${to}」`);
+  // 形状对却不存在的日期（`2026-02-30`）也要拒绝：它会被 cast 成 3 月 2 日，
+  // 于是"审到 2 月 30 日"实际审到 3 月初，报告上写的区间和跑出来的区间不是同一件事。
+  if (!isDay(values.from!) || !isDay(to)) {
+    console.error(`--from/--to 要 YYYY-MM-DD 且真实存在，收到「${values.from}」/「${to}」`);
     process.exitCode = 2;
     return;
   }
+  // 验收工具必须说清它验的是哪个库：这一族缺陷（CI 库的测试夹具报出像模像样的线上读数）
+  // 已经让"不带库名的判据"至少两次被拿去当生产结论。口令与参数一律不带。
+  const target = new URL(config.databaseUrl);
+  console.log(`库 ${target.host}${target.pathname}　区间 ${values.from} … ${to}（按期次日期，两端都含）\n`);
   const results = [];
   for (const c of checks(values.from!, to)) {
     const n = await c.value();
