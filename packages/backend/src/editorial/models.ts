@@ -186,17 +186,85 @@ export async function sickServices(): Promise<Set<string>> {
   return sick;
 }
 
+/**
+ * A door can answer in JSON, on time, and still be unable to do *this step's* copy. That is not "busy" and
+ * it is not a provider outage, so neither rule above sees it: our own output gate refuses the answer, which
+ * `sickServices` deliberately discounts, so the door keeps its share forever.
+ *
+ * Measured on production 2026-10-11 over 24 h: `opencode` was refused 660 times on `summarize_article`
+ * (「answer refused: answer has no Chinese copy」) against 208 answers, while on prefilter, score and
+ * structure it barely was refused at all. Because a member is pinned by a hash of the article id, those 660
+ * were not slow items but dead ones: the same article came back to the same door, and after three refusals
+ * (`MAX_OUTPUT_FAILURES`) it lands in `failed` with no Chinese title or summary — which is precisely what
+ * keeps an item out of the pool and out of the paper.
+ *
+ * The verdict is per **(door, step)**, not per door: benching one use of a door leaves its working capacity
+ * in the pool, which is the difference between 660 freed calls and 1,063 lost ones. It cannot deadlock —
+ * the window is the door's own recent answers, so one accepted reply on that step puts it back — and it
+ * cannot empty a pool: if every member is refused for a step they all stay eligible, because the retry
+ * ladder, not this choice, decides when to stop.
+ */
+const MIN_STEP_REFUSALS = 10;
+
+/** Whether these counts say "this door cannot do this step". Exported so the threshold itself is testable. */
+export function refusesThisStep(counts: { refused: number; accepted: number }): boolean {
+  return counts.refused >= MIN_STEP_REFUSALS && counts.refused > counts.accepted;
+}
+
+let stepRefusals: { at: number; pairs: Map<string, { refused: number; accepted: number }> } | null = null;
+
+/** Refused-versus-accepted counts for every (service, purpose) the ledger shows in the last 24 hours. */
+async function refusalPairs(): Promise<Map<string, { refused: number; accepted: number }>> {
+  if (stepRefusals && Date.now() - stepRefusals.at < 60_000) return stepRefusals.pairs;
+  const pairs = new Map<string, { refused: number; accepted: number }>();
+  const refused = sql`status = 'failed' AND (error LIKE 'answer refused:%' OR error LIKE 'unusable output:%')`;
+  try {
+    const rows = await sql<{ service: string; purpose: string; refused: number; accepted: number }[]>`
+      SELECT service, purpose,
+        count(*) FILTER (WHERE ${refused})::int AS refused,
+        count(*) FILTER (WHERE status IN ('received', 'completed'))::int AS accepted
+      FROM receipts WHERE created_at > now() - interval '24 hours' AND origin = 'live'
+      GROUP BY 1, 2`;
+    for (const r of rows) pairs.set(`${r.service}|${r.purpose}`, { refused: r.refused, accepted: r.accepted });
+  } catch {
+    // Same rule as the health read: a ledger query that fails must not decide the request.
+  }
+  stepRefusals = { at: Date.now(), pairs };
+  return pairs;
+}
+
+/** A capability spends several purposes (report writes a lead and an issue); the door is judged on the sum. */
+function stepCounts(pairs: Map<string, { refused: number; accepted: number }>, service: string, capability: CapabilityKey) {
+  let refused = 0;
+  let accepted = 0;
+  for (const purpose of CAPABILITIES[capability].purposes) {
+    const counts = pairs.get(`${service}|${purpose}`);
+    if (counts) {
+      refused += counts.refused;
+      accepted += counts.accepted;
+    }
+  }
+  return { refused, accepted };
+}
+
+/** Drop the members that cannot write this step's copy; keep them all if that would leave nothing. */
+export function shedRefusingMembers(members: string[], capability: CapabilityKey, pairs: Map<string, { refused: number; accepted: number }>): string[] {
+  const kept = members.filter((m) => !refusesThisStep(stepCounts(pairs, MODELS[m]!.service, capability)));
+  return kept.length ? kept : members;
+}
+
 export function invalidateModelCache() {
   cache = null;
   health = null;
+  stepRefusals = null;
 }
 
 /** The model a capability uses now: admin switch, else its own environment, else `MODEL_POOL`, else the code
  * default. `shardKey` is the id of the thing being processed — pass nothing only when there is no such id.
  *
- * A pool skips services that are failing right now (see `sickServices`), but never empties: if every member
- * is down the choice falls back to the full list, because the budget breaker and the retry ladder — not this
- * function — decide when to stop trying. */
+ * A pool skips services that are failing right now (see `sickServices`) and members that cannot write this
+ * step's copy (see `refusesThisStep`), but never empties: if every member is down the choice falls back to
+ * the full list, because the budget breaker and the retry ladder — not this function — decide when to stop trying. */
 export async function modelFor(capability: CapabilityKey, shardKey?: string): Promise<string> {
   const c: Capability = CAPABILITIES[capability];
   const chosen = (await overrides())[capability] ?? process.env[c.env] ?? process.env.MODEL_POOL ?? c.default;
@@ -204,7 +272,8 @@ export async function modelFor(capability: CapabilityKey, shardKey?: string): Pr
   if (poolOf(chosen).length <= 1) return pickMember(listed, shardKey) || c.default;
   const sick = await sickServices();
   const healthy = listed.filter((m) => !sick.has(MODELS[m]!.service));
-  return pickMember(healthy.length ? healthy : listed, shardKey) || c.default;
+  const pairs = await refusalPairs();
+  return pickMember(shedRefusingMembers(healthy.length ? healthy : listed, capability, pairs), shardKey) || c.default;
 }
 
 /** Recovery considers only the currently configured pool, including unhealthy members whose answer
@@ -228,10 +297,13 @@ export async function budgetFallbackModelsForPurpose(purpose: string, selected: 
   const members = await recoveryModelsForPurpose(purpose, selected);
   if (members.length <= 1) return [];
   const sick = await sickServices();
+  const pairs = await refusalPairs();
   const index = members.indexOf(selected);
   const ordered = [...members.slice(index + 1), ...members.slice(0, index)];
-  return ordered.filter((name) => usable(name, entry[0]) && !sick.has(MODELS[name]!.service)
+  const candidates = ordered.filter((name) => usable(name, entry[0]) && !sick.has(MODELS[name]!.service)
     && (!requireVision || MODELS[name]!.vision === true));
+  // A door that cannot write this step's copy is not a fallback; if that leaves nothing, the candidates stand.
+  return shedRefusingMembers(candidates, entry[0], pairs);
 }
 
 /** Where the current choice comes from, for the admin page. `model` is what was configured and `serving`
@@ -239,6 +311,7 @@ export async function budgetFallbackModelsForPurpose(purpose: string, selected: 
 export async function modelSources(): Promise<Record<string, { model: string; serving: string; source: "admin" | "env" | "default" }>> {
   const o = await overrides();
   const sick = await sickServices();
+  const pairs = await refusalPairs();
   const out: Record<string, { model: string; serving: string; source: "admin" | "env" | "default" }> = {};
   for (const [key, c] of Object.entries(CAPABILITIES) as Array<[CapabilityKey, Capability]>) {
     const configured = o[key]
@@ -252,7 +325,7 @@ export async function modelSources(): Promise<Record<string, { model: string; se
     // because they are failing right now, so the panel and `modelFor` never disagree about who serves.
     const listed = membersFor(configured.model, key as CapabilityKey);
     const healthy = listed.filter((m) => !sick.has(MODELS[m]!.service));
-    const serving = healthy.length ? healthy : listed;
+    const serving = shedRefusingMembers(healthy.length ? healthy : listed, key as CapabilityKey, pairs);
     out[key] = { ...configured, serving: serving.length ? serving.join(",") : configured.model };
   }
   return out;

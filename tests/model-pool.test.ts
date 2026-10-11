@@ -10,7 +10,7 @@ import { upsertMaterial } from "@aihot/backend/content/materials";
 import { analyzeArticle } from "@aihot/backend/editorial/analyze";
 import { stopBoss } from "@aihot/backend/jobs/queue";
 import { MODELS } from "@aihot/backend/providers/llm";
-import { CAPABILITIES, poolOf, pickFromPool, modelFor, modelSources, invalidateModelCache, sickServices } from "@aihot/backend/editorial/models";
+import { CAPABILITIES, poolOf, pickFromPool, modelFor, modelSources, invalidateModelCache, sickServices, refusesThisStep, shedRefusingMembers } from "@aihot/backend/editorial/models";
 import { newArticleId } from "@aihot/backend/lib/ids";
 
 for (const name of Object.keys(process.env)) if ((/_MODEL$/.test(name) && name !== "LLM_MODEL" && name !== "EMBEDDING_MODEL") || name === "MODEL_POOL") delete process.env[name];
@@ -297,4 +297,56 @@ test("整天额度关闭的门在空档期不再被重新挑中，瞬时限速�
     await sql`DELETE FROM receipts WHERE id = ${receipt!.id}`;
     invalidateModelCache();
   }
+});
+
+// 2026-10-11, production: over 24 hours `opencode` answered 208 summarize requests and had 660 refused by our
+// own Chinese-copy gate, while on prefilter, score and structure it was barely refused at all. Neither health
+// rule can see that — the rate rule deliberately discounts answer-refused attempts, and the door does answer,
+// so it is not a closed day quota — and because a member is pinned by a hash of the article id, those 660 were
+// not slow items but dead ones: the same article came back to the same door, and three refusals later it lands
+// in `failed` with no Chinese title or summary, which is exactly what keeps an item out of the paper.
+test("答不出这一步中文的门只在这一步被跳过，它在别的步骤照用", async () => {
+  const stamp = `${T}-${Date.now()}`;
+  let batch = 0;
+  const write = async (service: string, purpose: string, refused: number, accepted: number) => {
+    const slot = batch++; // one run writes several batches inside the same millisecond
+    for (let i = 0; i < refused + accepted; i++) {
+      const isRefused = i < refused;
+      await sql`
+        INSERT INTO receipts (logical_key, service, purpose, status, error, created_at, updated_at)
+        VALUES (${`step-refusal-${stamp}-${slot}-${i}`}, ${service}, ${purpose}, ${isRefused ? "failed" : "completed"},
+          ${isRefused ? "answer refused: answer has no Chinese copy" : null}, now(), now())`;
+    }
+    invalidateModelCache();
+  };
+  const picks = async (capability: Parameters<typeof modelFor>[0]) =>
+    [...new Set(await Promise.all(Array.from({ length: 60 }, () => modelFor(capability, newArticleId()))))];
+
+  try {
+    process.env.MODEL_POOL = POOL;
+    await write("agnes-cn", "summarize_article", 20, 0);
+    assert.deepEqual(await picks("summarize"), ["default"], "这一步退得比答得多，中文就该交给别的门");
+    assert.equal((await sickServices()).has("agnes-cn"), false, "本站输出闸门退回不是供应商故障：两条判据必须分开");
+    assert.equal((await picks("score")).length, 2, "同一道门在别的步骤答得动，就不该被整块踢出池子");
+    const sources = await modelSources();
+    assert.equal(sources.summarize!.serving, "default", "后台显示的可选成员要和真正的选择一致");
+    assert.equal(sources.score!.serving.split(",").length, 2, "评分那一步照旧显示两个成员");
+
+    await write("agnes-cn", "summarize_article", 0, 25); // 它在这一步答回来了
+    assert.equal((await picks("summarize")).length, 2, "窗口里答得多过退回，门就该回到这一步");
+  } finally {
+    delete process.env.MODEL_POOL;
+    await sql`DELETE FROM receipts WHERE logical_key LIKE ${`step-refusal-${stamp}-%`}`;
+    invalidateModelCache();
+  }
+});
+
+test("判关要够多样本、也要真退得比答得多，而且永远不清空池子", () => {
+  assert.equal(refusesThisStep({ refused: 660, accepted: 208 }), true, "生产那一天的实际形状");
+  assert.equal(refusesThisStep({ refused: 9, accepted: 0 }), false, "样本下限挡住一次抖动");
+  assert.equal(refusesThisStep({ refused: 30, accepted: 40 }), false, "答得多过退的就照用");
+  const pairs = new Map([["agnes-cn|summarize_article", { refused: 20, accepted: 0 }]]);
+  assert.deepEqual(shedRefusingMembers(["default", "agnes-3.0-flash-cn"], "summarize", pairs), ["default"]);
+  assert.deepEqual(shedRefusingMembers(["default", "agnes-3.0-flash-cn"], "score", pairs), ["default", "agnes-3.0-flash-cn"]);
+  assert.deepEqual(shedRefusingMembers(["agnes-3.0-flash-cn"], "summarize", pairs), ["agnes-3.0-flash-cn"], "全部被退回也不清空：停不停由重试阶梯决定");
 });
