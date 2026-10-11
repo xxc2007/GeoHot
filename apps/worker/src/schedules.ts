@@ -36,7 +36,8 @@ interface Scheduled {
 const collecting = isCollectEnabled();
 
 export const SCHEDULES: Scheduled[] = [
-  { name: "content.sweep", cron: "*/5 * * * *", run: sweepUnprocessed },
+  // Revisit minute-budget waits each minute; the single scan consumer keeps the 500-row/archive quota.
+  { name: "content.sweep", cron: "* * * * *", run: sweepUnprocessed },
   // Full-text translations of newly selected items (model calls; off with MODEL_CALLS_ENABLED=false).
   { name: "content.translate", cron: "*/5 * * * *", run: () => translatePending() },
   { name: "hot.rank", cron: "*/5 * * * *", run: () => computeHotRanking() },
