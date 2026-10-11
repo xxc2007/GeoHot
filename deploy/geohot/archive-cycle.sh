@@ -150,20 +150,24 @@ if run_phase select-slices --input-type=module -e "$SELECTOR" "$FROM" "$TO" "$RU
 else
   CYCLE_RESULT=$?
 fi
-# 出刊要等档案进口收敛，而这条判据只能放在这里：`backfill-papers.ts` 的结算闸门只问"这一天的条目判完没判完"，
-# 不问"这一天所属月份的档案进口还在不在跑"。切片是轮转的，某天一结算就当场被印，而同一个月之后还会进来新的
-# 档案条目——已出的刊期默认不重排（`backfill-papers.ts:155`），首版就永久缺那些后来到的条目。
-# 当月不算进去：活页 feed 的切片永远"没跑完"，算进去等于永远不出刊。
+# 出刊成熟度：这一条 2026-10-11 夜加下去、同一夜改成"只报不挡"，理由记在这里免得又被加回来。
+# 原意没错：切片是轮转的，某天一结算就当场被印，而同一个月之后还会进来新的档案条目，
+# 而 `backfill-papers.ts:155` 默认不重排已出的期次——首版就永久缺那些后来到的条目。
+# 但"挡住出刊"这个手段在生产上的代价比它防的问题大，实测（2026-10-12 00:08）：
+# 过去 9 个月里每个月都还挂着 pending 切片，共 78 片，而 SLICES=6 × 每 15 分钟一轮 = 24 片/时，
+# 一片又要跑几轮才推完（每轮每片只吃 16 条），所以这个数要十几个小时才归零。
+# 全月挂账 ⇒ 任何"按月放行"的变体同样会把 1–9 月一起冻住。
+# 首版缺后到条目这件事，收尾那一次 `--refresh --apply`（#110）本来就要整体重排一遍，
+# 它修的是同一个问题，而且是确定会执行的那一次；所以这里只报数，不拦路。
+# 当月不算进去：活页 feed 的切片永远"没跑完"。
 PAPERS_RIPE=$(cat <<'NODE'
 import { sql, closeDb } from '@aihot/backend/db';
 import { beijingDate } from '@aihot/contracts/time';
 const [from,to] = process.argv.slice(1);
 try {
   const current = beijingDate(Date.now()).slice(0,7);
-  // 谓词必须与上面 select-slices 那段（同一文件内 `SELECT id FROM sources WHERE enabled AND (issn… OR archiveIndexUrl…)`）
-  // 一致：这里数的是"还没跑完的进口"，而选择器只会再挑 enabled 且仍带着门的信源。少这层 join，
-  // 一条被停用或丢了 `config.issn` 的信源留下的 pending 行就永远关不掉——出刊会被永久挡死，
-  // 而这一轮仍然 exit 0。2026-10-11 生产实测这种行当前是 0 条，但 `delete-sources.ts` 与停用操作随时能造出来。
+  // 谓词与上面 select-slices 那段一致：数的是"选择器还会再去拿的进口"。停用或丢了 `config.issn` 的信源
+  // 留下的 pending 行选择器不会再碰，算进来就是永远报不收敛——那正是加闸门时最该防住的假象。
   const [row] = await sql`SELECT count(*)::int AS n FROM archive_ingest ai
      JOIN sources s ON s.id = ai.source_id
      WHERE ai.status IN ('pending','running') AND ai.month >= ${from.slice(0,7)} AND ai.month <= ${to.slice(0,7)}
@@ -175,18 +179,14 @@ NODE
 )
 PAPER_ARGS=(scripts/backfill-papers.ts "--from=$FROM" "--to=$TO" --kinds=daily,weekly,monthly "--summary-file=$RUN_DIR/papers.json")
 if [[ "$FINAL_REFRESH" == 1 ]]; then PAPER_ARGS+=(--refresh); fi
-if run_phase papers-ripe --input-type=module -e "$PAPERS_RIPE" "$FROM" "$TO"; then
-  if grep -qx 'ripe' "$RUN_DIR/papers-ripe.log"; then
-    run_phase papers "${PAPER_ARGS[@]}" "${WRITE_ARGS[@]}" || CYCLE_RESULT=$?
-  else
-    printf 'archive-cycle: papers 本轮不跑——过去月份还有 %s 片档案进口未收敛\n' \
-      "$(sed -n 's/^pending:\([0-9][0-9]*\)$/\1/p' "$RUN_DIR/papers-ripe.log" | head -1)" >&2
-  fi
-else
-  # 判据读不出来就当不成熟：宁可这一轮不出刊，也不要在"不知道进口有没有收敛"的时候印下去。
-  printf 'archive-cycle: papers 成熟度判据读取失败，本轮不出刊\n' >&2
-  CYCLE_RESULT=1
+# 只报不挡：读得出来就报数，读不出来也只是少一行日志。这条判据一旦能拦住出刊，它就迟早会拦住
+# 不该拦的那一次（全月挂账、或它自己查询失败），而那正是上面注释里代价比问题更大的形状。
+run_phase papers-ripe --input-type=module -e "$PAPERS_RIPE" "$FROM" "$TO" || true
+pending_slices=$(sed -n 's/^pending:\([0-9][0-9]*\)$/\1/p' "$RUN_DIR/papers-ripe.log" 2>/dev/null | head -1)
+if [[ -n "$pending_slices" ]]; then
+  printf 'archive-cycle: 过去月份还有 %s 片档案进口未收敛——本轮照常出刊，首版可能少后到的条目，由收尾的 --refresh 整体重排\n' "$pending_slices" >&2
 fi
+run_phase papers "${PAPER_ARGS[@]}" "${WRITE_ARGS[@]}" || CYCLE_RESULT=$?
 
 # Rotate one verified publisher adapter per cycle, within the same lock and deadline.
 NEWS_SELECTOR=$(cat <<'NODE'
