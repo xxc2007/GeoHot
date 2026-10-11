@@ -104,7 +104,7 @@ export async function queueProcessing(articleId: string, opts: { step?: Step; at
  */
 export async function settleNonEditorial(articleId: string): Promise<{ group: boolean }> {
   const [row] = await sql<{ participation_mode: string; backfill: boolean; published_at: Date | null; discovered_at: Date }[]>`
-    UPDATE articles a SET processing_state = 'skipped', processing_attempts = 0, processing_retry_at = NULL, processing_queued_at = NULL
+    UPDATE articles a SET processing_state = 'skipped', processing_attempts = 0, processing_retry_at = NULL, processing_queued_at = NULL, updated_at = now()
     FROM sources s WHERE s.id = a.source_id AND a.id = ${articleId} AND s.participation_mode <> 'editorial'
     RETURNING s.participation_mode, a.backfill, a.published_at, a.discovered_at`;
   if (!row) return { group: false };
@@ -141,7 +141,7 @@ export async function processArticle(articleId: string, opts: { attemptTag?: str
     if (error instanceof AnalysisInterruptedError || shutdownSignal.signal.aborted) throw error;
     if (error instanceof ReceiptUnknownError) {
       // The provider may have billed this request: stop; ops.recover releases it once and requeues the article.
-      await sql`UPDATE articles SET processing_state = 'failed', processing_error = ${`receipt ${error.receiptId} outcome unknown`} WHERE id = ${articleId}`;
+      await sql`UPDATE articles SET processing_state = 'failed', processing_error = ${`receipt ${error.receiptId} outcome unknown`}, updated_at = now() WHERE id = ${articleId}`;
       return { state: "unknown-receipt" };
     }
     throw error;
@@ -158,7 +158,7 @@ async function afterFailure(articleId: string, error: unknown): Promise<{ state:
     // Not the article's fault: the same request is in flight, or the budget window is full.
     const seconds = error instanceof BudgetExceededError ? error.retryAfterSeconds : 60;
     const retryAt = new Date(Date.now() + seconds * 1000);
-    await sql`UPDATE articles SET processing_state = 'new', processing_error = ${message}, processing_retry_at = ${retryAt}, processing_queued_at = NULL WHERE id = ${articleId}`;
+    await sql`UPDATE articles SET processing_state = 'new', processing_error = ${message}, processing_retry_at = ${retryAt}, processing_queued_at = NULL, updated_at = now() WHERE id = ${articleId}`;
     return { state: "waiting", retryAt };
   }
   const [a] = await sql<{ processing_attempts: number }[]>`SELECT processing_attempts FROM articles WHERE id = ${articleId}`;
@@ -167,12 +167,12 @@ async function afterFailure(articleId: string, error: unknown): Promise<{ state:
   const exhausted = attempts > RETRY_MINUTES.length || (error instanceof ModelOutputError && attempts >= MAX_OUTPUT_FAILURES);
   if (refused || exhausted) {
     await sql`UPDATE articles SET processing_state = 'failed', processing_error = ${message}, processing_attempts = ${attempts},
-                processing_retry_at = NULL, processing_queued_at = NULL WHERE id = ${articleId}`;
+                processing_retry_at = NULL, processing_queued_at = NULL, updated_at = now() WHERE id = ${articleId}`;
     return { state: "failed" };
   }
   const retryAt = new Date(Date.now() + RETRY_MINUTES[attempts - 1]! * 60_000);
   await sql`UPDATE articles SET processing_state = 'new', processing_error = ${message}, processing_attempts = ${attempts},
-              processing_retry_at = ${retryAt}, processing_queued_at = NULL WHERE id = ${articleId}`;
+              processing_retry_at = ${retryAt}, processing_queued_at = NULL, updated_at = now() WHERE id = ${articleId}`;
   return { state: "retrying", retryAt };
 }
 
@@ -286,7 +286,7 @@ export const failureGroupSql = sql`regexp_replace(left(coalesce(processing_error
  */
 export async function requeueFailed(group: string | null): Promise<{ requeued: number }> {
   const rows = await sql<{ id: string }[]>`
-    UPDATE articles SET processing_state = 'new', processing_attempts = 0, processing_retry_at = NULL, processing_error = NULL
+    UPDATE articles SET processing_state = 'new', processing_attempts = 0, processing_retry_at = NULL, processing_error = NULL, updated_at = now()
     WHERE processing_state = 'failed' AND discovered_at > now() - interval '30 days'
       AND (${group}::text IS NULL OR ${failureGroupSql} = ${group})
     RETURNING id`;
