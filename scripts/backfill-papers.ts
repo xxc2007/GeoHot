@@ -30,6 +30,7 @@ import { writeFile } from "node:fs/promises";
 import { closeDb, sql } from "@aihot/backend/db";
 import { addDays, beijingDate, beijingMidnight, isoWeekLabel, isoWeekRange, isValidDate } from "@aihot/contracts/time";
 import { candidates, composeDaily, composeMonthly, composeWeekly, dailyWindow, editionsAhead, monthlyWindow } from "@aihot/backend/reports/compose";
+import { loadReport } from "@aihot/backend/publication/reports";
 
 const { values } = parseArgs({
   options: {
@@ -120,9 +121,7 @@ async function unsettled(start: Date, end: Date): Promise<number> {
   return row?.n ?? 0;
 }
 
-const hasReport = async (kind: string, key: string) => !!(await sql`SELECT 1 FROM reports WHERE kind = ${kind} AND key = ${key}`)[0];
-
-const plan: Array<{ kind: string; key: string; items: number; note: string }> = [];
+const plan: Array<{ kind: string; key: string; items: number; note: string; waiting: number; exists: boolean; readable: boolean | null; entries: number | null }> = [];
 const failures: string[] = [];
 const partial: string[] = []; // 不在区间内 / 窗口还没关的期次：要说出来，不许静悄悄消失
 const behind: string[] = []; // 补在已出刊区间中间的空天：去重只看更早的期次，要重排谁得说清楚
@@ -130,22 +129,28 @@ const behind: string[] = []; // 补在已出刊区间中间的空天：去重只
 /** One period, one line in the plan; `--apply` composes it and a broken period does not stop the run. */
 async function consider(kind: "daily" | "weekly" | "monthly", key: string, start: Date, end: Date, compose: () => Promise<{ key: string; entries: number }>) {
   const items = (await candidates(start, end)).length;
-  const exists = await hasReport(kind, key);
-  if (exists && !values.refresh) return plan.push({ kind, key, items, note: "已出刊" });
+  const existing = await loadReport(kind, key);
+  const exists = existing !== null;
   // `items` is counted before the 7-day repeat dedupe and before the section caps, so an edition can still
   // come out with fewer entries — or none — than this number says.
   const waiting = values.force ? 0 : await unsettled(start, end);
-  if (waiting) return plan.push({ kind, key, items, note: `等 ${waiting} 条判完` });
-  if (!items) return plan.push({ kind, key, items, note: exists ? "无条目可重排" : "没有可刊条目" });
+  const state = { kind, key, items, waiting, exists, readable: existing?.readable ?? null,
+    entries: existing ? existing.sections.reduce((n, section) => n + section.items.length, 0) : null };
+  if (waiting) return plan.push({ ...state, note: `等 ${waiting} 条判完` });
+  if (exists && !values.refresh) return plan.push({ ...state, note: existing.readable ? "已有可读刊期（未重排）" : "已有不可读刊期（需 --refresh 复核）" });
+  if (!items) return plan.push({ ...state, note: exists ? "无条目可重排" : "已判完但没有可刊条目" });
   const note = values.apply ? exists ? "已重排" : "已出刊" : exists ? "会重排" : "会出刊";
   if (kind === "daily" && !values.refresh) {
     const ahead = await editionsAhead("daily", key);
     if (ahead.length) behind.push(`daily ${key} 之后已有 ${ahead.length} 期出刊（${ahead.join(" ")}）：它的去重只看更早的期次，可能重印那几期发过的事，跑完 --refresh 重排它们`);
   }
-  plan.push({ kind, key, items, note });
+  plan.push({ ...state, note });
   if (!values.apply) return;
   try {
     const out = await compose();
+    const readable = (await loadReport(kind, key))?.readable ?? false;
+    plan[plan.length - 1] = { ...state, exists: true, readable, entries: out.entries,
+      note: readable ? note : "已保存空刊或不可读刊期" };
     console.log(`  ${kind} ${out.key} entries=${out.entries}`);
   } catch (error) {
     // Provider exceptions can carry endpoint credentials. Persist only a safe failure category;
@@ -154,7 +159,7 @@ async function consider(kind: "daily" | "weekly" | "monthly", key: string, start
     const why = /^[A-Za-z][A-Za-z0-9_]{0,60}$/.test(category) ? category : "Error";
     failures.push(`${kind} ${key}: ${why}`);
     console.log(`  ! ${kind} ${key} 失败：${why}`);
-    plan[plan.length - 1] = { kind, key, items, note: "这一期失败" };
+    plan[plan.length - 1] = { ...state, note: "这一期失败" };
   }
 }
 

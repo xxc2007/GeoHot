@@ -9,7 +9,7 @@ import { after, before, test } from "node:test";
 import { z } from "zod";
 import { config } from "@aihot/backend/config";
 import { closeDb, sql } from "@aihot/backend/db";
-import { chatJson, ModelOutputError } from "@aihot/backend/providers/llm";
+import { chatJson, ModelOutputError, MODELS } from "@aihot/backend/providers/llm";
 import { embeddingsAvailable } from "@aihot/backend/providers/embeddings";
 import { BudgetExceededError, completeReceipt, paidRequest, ReceiptUnknownError, rejectReceivedResponse } from "@aihot/backend/providers/receipts";
 import { autoReleaseUnknownReceipts } from "@aihot/backend/admin/runs";
@@ -52,8 +52,6 @@ test("an answer already received is reused instead of bought again", async () =>
 });
 
 test("an answer that parses but cannot be used is refused, and the refusal outlives the caller completing it", async () => {
-  // Deliberately before the budget case below: that one reads the attempts counted so far and leaves room
-  // for exactly two sends, so this must not run after it.
   const subject = `usable-${tag()}`;
   const unusable = (d: { ok: boolean }) => (d.ok ? null : "结构对，但这条答复不能上版面");
   const askUsable = (usable: (d: { ok: boolean }) => string | null) =>
@@ -88,29 +86,34 @@ test("an answer that parses but cannot be used is refused, and the refusal outli
 test("retries of unusable answers stop at the budget, and every request sent is counted", async () => {
   answer = () => "sorry, not json";
   const subject = `budget-${tag()}`;
-  // Leave room for exactly two more requests in every window.
-  const [c] = await sql<{ minute: number; hour: number; day: number }[]>`
-    SELECT count(*) FILTER (WHERE started_at > now() - interval '1 minute')::int AS minute,
-           count(*) FILTER (WHERE started_at > now() - interval '1 hour')::int AS hour,
-           count(*)::int AS day
-    FROM receipt_attempts WHERE service = 'deepseek' AND origin = 'live' AND started_at > now() - interval '1 day'`;
-  await sql`UPDATE budgets SET per_minute = ${c!.minute + 2}, per_hour = ${c!.hour + 2}, per_day = ${c!.day + 2} WHERE service = 'deepseek'`;
-
-  const before = provider.hits();
-  const outcomes: string[] = [];
-  for (let i = 0; i < 5; i++) {
-    // What a job retry does: the same logical request again.
-    await ask(subject).then(
-      () => outcomes.push("ok"),
-      (error: unknown) => outcomes.push(error instanceof ModelOutputError ? "unusable" : error instanceof BudgetExceededError ? "budget" : String(error)),
-    );
+  const service = `budget-fixture-${tag()}`;
+  const model = MODELS["deepseek-flash"]!;
+  const originalService = model.service;
+  // An exclusive budget avoids shared attempts aging out of the rolling minute during this case.
+  try {
+    await sql`INSERT INTO budgets(service,per_minute,per_hour,per_day) VALUES(${service},2,2,2)`;
+    model.service = service;
+    const before = provider.hits();
+    const outcomes: string[] = [];
+    for (let i = 0; i < 5; i++) {
+      // What a job retry does: the same logical request again.
+      await ask(subject).then(
+        () => outcomes.push("ok"),
+        (error: unknown) => outcomes.push(error instanceof ModelOutputError ? "unusable" : error instanceof BudgetExceededError ? "budget" : String(error)),
+      );
+    }
+    assert.equal(provider.hits() - before, 2, "requests sent");
+    assert.deepEqual(outcomes, ["unusable", "unusable", "budget", "budget", "budget"]);
+    const attempts = await sql<{ status: string; tokens: number }[]>`
+      SELECT a.status, (a.usage->>'total_tokens')::int AS tokens
+      FROM receipt_attempts a JOIN receipts r ON r.id = a.receipt_id
+      WHERE r.subject = ${subject} AND r.service = ${service} ORDER BY a.attempt`;
+    assert.deepEqual(attempts.map((a) => a.tokens), [100, 100], "each attempt keeps its own usage");
+  } finally {
+    model.service = originalService;
+    await sql`DELETE FROM receipts WHERE subject=${subject} AND service=${service}`;
+    await sql`DELETE FROM budgets WHERE service=${service}`;
   }
-  assert.equal(provider.hits() - before, 2, "requests sent");
-  assert.deepEqual(outcomes, ["unusable", "unusable", "budget", "budget", "budget"]);
-  const attempts = await sql<{ status: string; tokens: number }[]>`
-    SELECT a.status, (a.usage->>'total_tokens')::int AS tokens
-    FROM receipt_attempts a JOIN receipts r ON r.id = a.receipt_id WHERE r.subject = ${subject} ORDER BY a.attempt`;
-  assert.deepEqual(attempts.map((a) => a.tokens), [100, 100], "each attempt keeps its own usage");
 });
 
 test("with the valve off nothing is sent", async () => {

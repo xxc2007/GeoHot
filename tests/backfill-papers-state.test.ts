@@ -26,6 +26,7 @@ before(async () => {
 });
 after(async () => {
   await sql`DELETE FROM reports WHERE kind='daily' AND key=${day}`;
+  await sql`DELETE FROM reports WHERE kind='daily' AND key='2018-04-01'`;
   await sql`DELETE FROM publications WHERE article_id=${articleId}`;
   await sql`DELETE FROM analyses WHERE article_id=${articleId}`;
   await sql`DELETE FROM article_discoveries WHERE article_id=${articleId}`;
@@ -36,8 +37,9 @@ after(async () => {
   await closeDb();
   rmSync(dir, { recursive: true, force: true });
 });
-function run(apply = false) {
-  const args = ['scripts/backfill-papers.ts', '--kinds=daily', `--from=${day}`, `--to=${day}`, '--refresh', `--summary-file=${summaryFile}`];
+function run(apply = false, refresh = true) {
+  const args = ['scripts/backfill-papers.ts', '--kinds=daily', `--from=${day}`, `--to=${day}`, `--summary-file=${summaryFile}`];
+  if (refresh) args.push('--refresh');
   if (apply) args.push('--apply', '--database-url-env=DATABASE_URL');
   const result = spawnSync(process.execPath, args, { cwd: fileURLToPath(new URL('../', import.meta.url)), encoding: 'utf8', timeout: 20_000,
     env: { ...process.env, MODEL_CALLS_ENABLED: 'false', COLLECT_ENABLED: 'false' } });
@@ -50,14 +52,61 @@ test('zero candidates with pending archive material is waiting, not an empty set
   assert.equal(summary.plan[0].items, 0);
   assert.match(summary.plan[0].note, /等 \d+ 条判完/);
 });
+test('an existing empty issue still exposes pending and is not reported as published', async () => {
+  await sql`INSERT INTO reports (kind,key,window_start,window_end,content,generated_at,origin)
+    VALUES ('daily',${day},${new Date('2018-04-01T00:00:00Z')},${new Date('2018-04-02T00:00:00Z')},${sql.json({sections:[],flashes:[]} as never)},now(),'manual')`;
+  const pending = run(false, false);
+  assert.match(pending.summary.plan[0].note, /等 \d+ 条判完/);
+  assert.equal(pending.summary.plan[0].exists, true);
+  assert.equal(pending.summary.plan[0].readable, false);
+  await sql`UPDATE articles SET processing_state='skipped' WHERE id=${articleId}`;
+  const settled = run(false, false);
+  assert.equal(settled.summary.plan[0].note, '已有不可读刊期（需 --refresh 复核）');
+  assert.equal(settled.summary.plan[0].waiting, 0);
+  assert.doesNotMatch(settled.result.stdout, /已出刊/);
+  await sql`UPDATE articles SET processing_state='new' WHERE id=${articleId}`;
+});
 test('a compose failure returns exit 1 and is persisted without endpoint credentials', async () => {
   await sql`INSERT INTO analyses (article_id,input_revision,origin,relevance,category,title_zh,summary_zh,score,selected)
     VALUES (${articleId},1,'rule','pass','physical','河流地貌监测发布新结果','河流地貌监测研究发布新的中文结果。',90,true)`;
-  await publishArticle(articleId);
+  await publishArticle(articleId, { releasedAt: new Date(Date.now() - 1000) });
   await sql`UPDATE articles SET processing_state='analyzed' WHERE id=${articleId}`;
   const { result, summary } = run(true);
   assert.equal(result.status, 1, result.stdout + result.stderr);
   assert.equal(summary.failures.length, 1);
   assert.equal(summary.plan[0].note, '这一期失败');
   assert.doesNotMatch(JSON.stringify(summary), /postgres:\/\/|DATABASE_URL|MODEL_CALLS_ENABLED/);
+});
+test('a readable existing issue exposes later pending work and only says readable after settlement', async () => {
+  await sql`UPDATE reports SET content=${sql.json({sections:[{label:'学科',items:[{itemId:articleId,title:'河流地貌监测发布新结果',summary:'中文监测摘要。'}]}],flashes:[]} as never)}
+    WHERE kind='daily' AND key=${day}`;
+  await sql`UPDATE articles SET processing_state='new' WHERE id=${articleId}`;
+  const pending = run(false, false);
+  assert.equal(pending.summary.plan[0].readable, true);
+  assert.match(pending.summary.plan[0].note, /等 \d+ 条判完/);
+  await sql`UPDATE articles SET processing_state='analyzed' WHERE id=${articleId}`;
+  const settled = run(false, false);
+  assert.equal(settled.summary.plan[0].waiting, 0);
+  assert.equal(settled.summary.plan[0].readable, true);
+  assert.equal(settled.summary.plan[0].note, '已有可读刊期（未重排）');
+});
+test('successful apply rechecks an empty issue after real previous-issue deduplication', async () => {
+  // The pre-dedupe candidate is real and publishable, but an earlier issue already carried it.
+  // With model calls disabled, a successful composition also proves the empty edition bought no lead.
+  await sql`INSERT INTO reports(kind,key,window_start,window_end,content,generated_at,origin)
+    VALUES('daily','2018-04-01',${new Date('2018-03-31T00:00:00Z')},${new Date('2018-04-01T00:00:00Z')},
+      ${sql.json({sections:[{label:'学科',items:[{itemId:articleId,title:'前期已刊监测结果'}]}],flashes:[]} as never)},now(),'manual')`;
+  const { result, summary } = run(true);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.equal(summary.failures.length, 0);
+  const period = summary.plan[0];
+  assert.equal(period.items, 1, 'the planner counts the actual candidate before repeat suppression');
+  assert.equal(period.waiting, 0);
+  assert.equal(period.exists, true);
+  assert.equal(period.entries, 0);
+  assert.equal(period.readable, false);
+  assert.equal(period.note, '已保存空刊或不可读刊期');
+  const [saved] = await sql`SELECT content FROM reports WHERE kind='daily' AND key=${day}`;
+  assert.deepEqual(saved!.content.sections, []);
+  assert.equal(saved!.content.generator.repeatsSuppressed, 1);
 });

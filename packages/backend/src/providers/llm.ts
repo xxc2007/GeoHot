@@ -243,9 +243,12 @@ function isConnectFailure(error: unknown): boolean {
 }
 
 /** Keep candidate identities and real HTTP requests on the same parameter calculation. */
-function requestFor<S extends z.ZodType>(opts: ChatJsonOptions<S>, spec: ModelSpec) {
+function requestFor<S extends z.ZodType>(opts: ChatJsonOptions<S>, spec: ModelSpec, legacySummaryReasoning = false) {
   const temperature = opts.temperature ?? 0.2;
-  const extra = spec.extra;
+  // Dots documents disabling thinking for short answers. Keep selection/understanding unchanged;
+  // the previous summary parameters below are recovery identities, never new dispatch choices.
+  const extra = spec.key === "dots3-note-prev" && opts.purpose === "summarize_article" && !legacySummaryReasoning
+    ? { chat_template_kwargs: { enable_thinking: false } } : spec.extra;
   const reasoning = /reasoning_effort|"thinking"/.test(JSON.stringify(extra ?? {})) || spec.key.endsWith("-think");
   const maxTokens = Math.min(MAX_OUTPUT_TOKENS, Math.max(opts.maxTokens ?? 1500, 512) + (reasoning ? REASONING_HEADROOM : 0));
   const userText = typeof opts.user === "string" ? opts.user : JSON.stringify(opts.user);
@@ -282,7 +285,12 @@ export async function chatJson<S extends z.ZodType>(opts: ChatJsonOptions<S>): P
   // Dynamic import avoids the registry/model-selection module's static import cycle.
   const { recoveryModelsForPurpose, budgetFallbackModelsForPurpose } = await import("../editorial/models.ts");
   const candidateNames = await recoveryModelsForPurpose(opts.purpose, opts.model);
-  const candidates = candidateNames.map((name) => ({ name, request: requestFor(opts, MODELS[name]!).request }));
+  const candidates = candidateNames.flatMap((name) => {
+    const model = MODELS[name]!;
+    const current = { name, request: requestFor(opts, model).request };
+    return model.key === "dots3-note-prev" && opts.purpose === "summarize_article"
+      ? [current, { name, request: requestFor(opts, model, true).request }] : [current];
+  });
   const needsVision = Array.isArray(opts.user) && opts.user.some((part) => part.type === "image_url");
   const fallbackNames = await budgetFallbackModelsForPurpose(opts.purpose, opts.model, needsVision);
   const dispatch = (model: ModelSpec) => {
