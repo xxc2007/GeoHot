@@ -108,7 +108,7 @@ async function release(id: number, error: string, actor: string, note: string, b
   const article = /^article:([^@]+)@/.exec(before.subject ?? "")?.[1];
   let requeued = false;
   if (article) {
-    const [a] = await sql`UPDATE articles SET processing_state = 'new', processing_attempts = 0, processing_retry_at = NULL, processing_error = NULL
+    const [a] = await sql`UPDATE articles SET processing_state = 'new', processing_attempts = 0, processing_retry_at = NULL, processing_error = NULL, updated_at = now()
                           WHERE id = ${article} AND processing_state = 'failed' RETURNING id`;
     if (a) requeued = !!(await queueProcessing(article, { step: "analyze" }));
   }

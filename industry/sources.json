@@ -3885,7 +3885,8 @@
         "_aihot": {
           "initialBackfillLimit": 8,
           "intervalMinutesLocked": true
-        }
+        },
+        "issn": "2169-9356"
       },
       "tier": "T1_5",
       "first_party": true,
@@ -3924,7 +3925,8 @@
         "_aihot": {
           "initialBackfillLimit": 8,
           "intervalMinutesLocked": true
-        }
+        },
+        "issn": "2169-8996"
       },
       "tier": "T1_5",
       "first_party": true,
@@ -3963,7 +3965,8 @@
         "_aihot": {
           "initialBackfillLimit": 8,
           "intervalMinutesLocked": true
-        }
+        },
+        "issn": "2169-9291"
       },
       "tier": "T1_5",
       "first_party": true,
@@ -4002,7 +4005,8 @@
         "_aihot": {
           "initialBackfillLimit": 8,
           "intervalMinutesLocked": true
-        }
+        },
+        "issn": "2169-8961"
       },
       "tier": "T1_5",
       "first_party": true,
@@ -4041,7 +4045,8 @@
         "_aihot": {
           "initialBackfillLimit": 8,
           "intervalMinutesLocked": true
-        }
+        },
+        "issn": "2169-9011"
       },
       "tier": "T1_5",
       "first_party": true,
@@ -4080,7 +4085,8 @@
         "_aihot": {
           "initialBackfillLimit": 8,
           "intervalMinutesLocked": true
-        }
+        },
+        "issn": "2169-9402"
       },
       "tier": "T1_5",
       "first_party": true,
@@ -4119,7 +4125,8 @@
         "_aihot": {
           "initialBackfillLimit": 8,
           "intervalMinutesLocked": true
-        }
+        },
+        "issn": "2993-5210"
       },
       "tier": "T1_5",
       "first_party": true,
@@ -4158,7 +4165,8 @@
         "_aihot": {
           "initialBackfillLimit": 8,
           "intervalMinutesLocked": true
-        }
+        },
+        "issn": "1525-2027"
       },
       "tier": "T1_5",
       "first_party": true,
@@ -4397,7 +4405,8 @@
         "_aihot": {
           "initialBackfillLimit": 8,
           "intervalMinutesLocked": true
-        }
+        },
+        "issn": "2328-4277"
       },
       "tier": "T1_5",
       "first_party": true,
@@ -5058,7 +5067,8 @@
         "_aihot": {
           "initialBackfillLimit": 8,
           "intervalMinutesLocked": true
-        }
+        },
+        "issn": "1684-9981"
       },
       "tier": "T1_5",
       "first_party": true,
@@ -5422,7 +5432,8 @@
         "_aihot": {
           "initialBackfillLimit": 8,
           "intervalMinutesLocked": true
-        }
+        },
+        "issn": "1475-4959"
       },
       "tier": "T1_5",
       "first_party": true,
@@ -5461,7 +5472,8 @@
         "_aihot": {
           "initialBackfillLimit": 8,
           "intervalMinutesLocked": true
-        }
+        },
+        "issn": "1475-5661"
       },
       "tier": "T1_5",
       "first_party": true,
@@ -5500,7 +5512,8 @@
         "_aihot": {
           "initialBackfillLimit": 8,
           "intervalMinutesLocked": true
-        }
+        },
+        "issn": "1475-4762"
       },
       "tier": "T1_5",
       "first_party": true,
@@ -5539,7 +5552,8 @@
         "_aihot": {
           "initialBackfillLimit": 8,
           "intervalMinutesLocked": true
-        }
+        },
+        "issn": "2054-4049"
       },
       "tier": "T1_5",
       "first_party": true,
@@ -5578,7 +5592,8 @@
         "_aihot": {
           "initialBackfillLimit": 8,
           "intervalMinutesLocked": true
-        }
+        },
+        "issn": "3069-0595"
       },
       "tier": "T1_5",
       "first_party": true,
@@ -5657,7 +5672,8 @@
         "_aihot": {
           "initialBackfillLimit": 8,
           "intervalMinutesLocked": true
-        }
+        },
+        "issn": "1467-9663"
       },
       "tier": "T1_5",
       "first_party": true,
@@ -5696,7 +5712,8 @@
         "_aihot": {
           "initialBackfillLimit": 8,
           "intervalMinutesLocked": true
-        }
+        },
+        "issn": "1757-7799"
       },
       "tier": "T1_5",
       "first_party": true,
@@ -6671,7 +6688,8 @@
         "_aihot": {
           "initialBackfillLimit": 6,
           "intervalMinutesLocked": true
-        }
+        },
+        "issn": "0309-1333"
       },
       "tier": "T1_5",
       "first_party": true,
@@ -6834,7 +6852,8 @@
         "_aihot": {
           "initialBackfillLimit": 8,
           "intervalMinutesLocked": true
-        }
+        },
+        "issn": "1752-1688"
       },
       "kind": "rss",
       "tier": "T1_5",
@@ -6953,7 +6972,8 @@
         "_aihot": {
           "initialBackfillLimit": 8,
           "intervalMinutesLocked": true
-        }
+        },
+        "issn": "1365-3091"
       },
       "kind": "rss",
       "tier": "T1_5",
@@ -7113,7 +7133,8 @@
         "_aihot": {
           "initialBackfillLimit": 8,
           "intervalMinutesLocked": true
-        }
+        },
+        "issn": "2399-8083"
       },
       "tier": "T1_5",
       "first_party": true,
@@ -7500,7 +7521,8 @@
         "_aihot": {
           "initialBackfillLimit": 5,
           "intervalMinutesLocked": true
-        }
+        },
+        "issn": "2199-398X"
       },
       "tier": "T1_5",
       "first_party": true,
@@ -8432,7 +8454,8 @@
         "_aihot": {
           "initialBackfillLimit": 3,
           "intervalMinutesLocked": true
-        }
+        },
+        "issn": "1708-3087"
       },
       "tier": "T1_5",
       "first_party": true,

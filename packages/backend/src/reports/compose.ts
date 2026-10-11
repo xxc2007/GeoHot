@@ -141,9 +141,13 @@ async function recentlyCovered(kind: "daily", before: string, days = DAILY_DEDUP
       if (it.itemId) out.add(`a:${it.itemId}`);
       if (it.factId) out.add(it.factId);
     }
-    // 快讯也是读者看到的一条（每天最多 12 条，进的是同一期报纸）。只数 sections 的话，
-    // 昨天因为板块容量被挤到快讯里的那条，今天会以整篇重印一次——回填的语料多，这条最容易撞上。
-    for (const it of r.content.flashes ?? []) if (it.itemId) out.add(`a:${it.itemId}`);
+    // 快讯也是读者看到的一条（每天最多 12 条，进的是同一期报纸）。板块与快讯都要记下**事实**，
+    // 只记 itemId 的话，昨天因为板块容量被挤到快讯里的那条，今天会以整篇重印一次——回填的语料多，
+    // 同一件事连着两天被报道是最常见的形状，这条最容易撞上。
+    for (const it of r.content.flashes ?? []) {
+      if (it.itemId) out.add(`a:${it.itemId}`);
+      if (it.factId) out.add(it.factId);
+    }
   }
   return out;
 }
@@ -294,12 +298,13 @@ export async function composeDaily(date: string, reason = "scheduled"): Promise<
   const all = await candidates(start, end);
   const fresh = all.filter((c) => !covered.has(c.factKey) && !covered.has(`a:${c.itemId}`));
   const perSection = new Map<string, Candidate[]>();
-  const flashes: Array<{ itemId: string; title: string; sourceName: string; sourceUrl: string; publishedAt: string }> = [];
+  const flashes: Array<{ itemId: string; factId: string | null; title: string; sourceName: string; sourceUrl: string; publishedAt: string }> = [];
   for (const c of fresh) {
     const label = SECTION_OF[c.category ?? ""] ?? DEFAULT_SECTION;
     const list = perSection.get(label) ?? [];
     if (list.length < 8) list.push(c);
-    else if (flashes.length < 12) flashes.push({ itemId: c.itemId, title: c.title, sourceName: c.sourceName, sourceUrl: c.sourceUrl, publishedAt: c.publishedAt });
+    // factId 跟着进存版：下一期靠它按事件判重，而不是只按昨天那一篇的 itemId。
+    else if (flashes.length < 12) flashes.push({ itemId: c.itemId, factId: c.factId, title: c.title, sourceName: c.sourceName, sourceUrl: c.sourceUrl, publishedAt: c.publishedAt });
     perSection.set(label, list);
   }
   const sections = REPORT_SECTIONS.filter((l) => perSection.get(l)?.length).map((label) => ({

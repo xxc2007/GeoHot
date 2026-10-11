@@ -186,32 +186,141 @@ export async function sickServices(): Promise<Set<string>> {
   return sick;
 }
 
+/**
+ * A door can answer in JSON, on time, and still be unable to do *this step's* copy. That is not "busy" and
+ * it is not a provider outage, so neither rule above sees it: our own output gate refuses the answer, which
+ * `sickServices` deliberately discounts, so the door keeps its share forever.
+ *
+ * Measured on production 2026-10-11 over 24 h: `opencode` was refused 660 times on `summarize_article`
+ * (「answer refused: answer has no Chinese copy」) against 208 answers, while on prefilter, score and
+ * structure it barely was refused at all. Because a member is pinned by a hash of the article id, those 660
+ * were not slow items but dead ones: the same article came back to the same door, and after three refusals
+ * (`MAX_OUTPUT_FAILURES`) it lands in `failed` with no Chinese title or summary — which is precisely what
+ * keeps an item out of the pool and out of the paper.
+ *
+ * The verdict is per **(model, step)**, not per door. Health and budgets are per door because the provider and
+ * its quota are — but the ability to write Chinese copy is a property of one model, and seven registry members
+ * share the service `openrouter`. Keyed on the service, one bad model there would bench six siblings; keyed on
+ * the model, each answers for itself. The cost of that precision: a provider that is uniformly bad at a step
+ * now has to reach the floor once per model rather than once in total.
+ *
+ * It cannot empty a pool: if every member is refused for a step they all stay eligible, because the retry
+ * ladder, not this choice, decides when to stop. It is not a latch either — the window is 24 h of the model's
+ * own receipts, and a benched model produces none for that step, so the bench expires by *ageing out*, roughly
+ * a day later; it then takes ≥10 fresh refusals to bench again. One accepted reply is not enough to clear 660
+ * refusals, and pretending otherwise would make this look self-healing when it is really time-limited.
+ */
+const MIN_STEP_REFUSALS = 10;
+
+/** Whether these counts say "this model cannot do this step". Exported so the threshold itself is testable. */
+export function refusesThisStep(counts: { refused: number; accepted: number }): boolean {
+  return counts.refused >= MIN_STEP_REFUSALS && counts.refused > counts.accepted;
+}
+
+let stepRefusals: { at: number; pairs: Map<string, { refused: number; accepted: number }> } | null = null;
+
+/** The ledger read costs about a second on production (`receipts` is ~100k rows and the window is 17k of them),
+ * so it is cached five minutes rather than the health rule's minute. That is not freshness lost: a day quota
+ * reopens on a schedule we do not control, which is why `sickServices` re-decides every minute, while a door
+ * that cannot write Chinese copy does not start to in the next four minutes. */
+const REFUSAL_CACHE_MS = 300_000;
+const REGISTRY_SERVICES = [...new Set(Object.values(MODELS).map((m) => m.service))];
+
+/** Refused-versus-accepted counts for every (model, purpose) the ledger shows in the last 24 hours. */
+async function refusalPairs(): Promise<Map<string, { refused: number; accepted: number }>> {
+  if (stepRefusals && Date.now() - stepRefusals.at < REFUSAL_CACHE_MS) return stepRefusals.pairs;
+  const pairs = new Map<string, { refused: number; accepted: number }>();
+  const refused = sql`status = 'failed' AND (error LIKE 'answer refused:%' OR error LIKE 'unusable output:%')`;
+  try {
+    // `service = ANY(...)`: without it the plan seq-scans all 98,670 rows (14,886 pages, 956 ms measured on
+    // production 2026-10-11); with it the same answer comes off receipts_service_time_idx in 3,546 pages.
+    // `model IS NOT NULL`: a receipt without the model name cannot accuse one model of anything.
+    const rows = await sql<{ model: string; purpose: string; refused: number; accepted: number }[]>`
+      SELECT model, purpose,
+        count(*) FILTER (WHERE ${refused})::int AS refused,
+        count(*) FILTER (WHERE status IN ('received', 'completed'))::int AS accepted
+      FROM receipts
+      WHERE created_at > now() - interval '24 hours' AND origin = 'live' AND service = ANY(${REGISTRY_SERVICES})
+        AND model IS NOT NULL
+      GROUP BY 1, 2`;
+    for (const r of rows) pairs.set(`${r.model}|${r.purpose}`, { refused: r.refused, accepted: r.accepted });
+  } catch {
+    // Same rule as the health read: a ledger query that fails must not decide the request.
+  }
+  stepRefusals = { at: Date.now(), pairs };
+  return pairs;
+}
+
+/** A capability spends several purposes (report writes a lead and an issue); the model is judged on the sum. */
+function stepCounts(pairs: Map<string, { refused: number; accepted: number }>, model: string, capability: CapabilityKey) {
+  let refused = 0;
+  let accepted = 0;
+  for (const purpose of CAPABILITIES[capability].purposes) {
+    const counts = pairs.get(`${model}|${purpose}`);
+    if (counts) {
+      refused += counts.refused;
+      accepted += counts.accepted;
+    }
+  }
+  return { refused, accepted };
+}
+
+/** Drop the members whose model cannot write this step's copy; keep them all if that would leave nothing. */
+export function shedRefusingMembers(members: string[], capability: CapabilityKey, pairs: Map<string, { refused: number; accepted: number }>): string[] {
+  const kept = members.filter((m) => !refusesThisStep(stepCounts(pairs, MODELS[m]!.model ?? "", capability)));
+  return kept.length ? kept : members;
+}
+
 export function invalidateModelCache() {
   cache = null;
   health = null;
+  stepRefusals = null;
 }
 
 /** The model a capability uses now: admin switch, else its own environment, else `MODEL_POOL`, else the code
  * default. `shardKey` is the id of the thing being processed — pass nothing only when there is no such id.
  *
- * A pool skips services that are failing right now (see `sickServices`), but never empties: if every member
- * is down the choice falls back to the full list, because the budget breaker and the retry ladder — not this
- * function — decide when to stop trying. */
+ * A pool skips services that are failing right now (see `sickServices`) and members that cannot write this
+ * step's copy (see `refusesThisStep`), but never empties: if every member is down the choice falls back to
+ * the full list, because the budget breaker and the retry ladder — not this function — decide when to stop trying. */
 export async function modelFor(capability: CapabilityKey, shardKey?: string): Promise<string> {
   const c: Capability = CAPABILITIES[capability];
   const chosen = (await overrides())[capability] ?? process.env[c.env] ?? process.env.MODEL_POOL ?? c.default;
   const listed = membersFor(chosen, capability);
   if (poolOf(chosen).length <= 1) return pickMember(listed, shardKey) || c.default;
+  return pickMember(await servingMembers(listed, capability), shardKey) || c.default;
+}
+
+/**
+ * Who can actually answer this step, in the order they were listed: skip the services that are failing right
+ * now (see `sickServices`), then skip the members that cannot write *this step's* copy (see `refusesThisStep`),
+ * and never empty — if every member is out, the list stands, because the budget breaker and the retry ladder,
+ * not this choice, decide when to stop trying.
+ *
+ * `modelFor` and `modelSources` must run exactly this: the admin panel that says who serves is the one place an
+ * operator looks when routing looks wrong, and two copies of the rule would let them disagree.
+ * (`budgetFallbackModelsForPurpose` deliberately does NOT share it: it answers "who may carry an unsent
+ * request", so it is allowed to answer *nobody* — no capability entry for the purpose, or a pool of one.
+ * Inside those candidates the same never-empty refusal-shed still applies, so it is not "no shedding",
+ * it is "no substitute for the configured pool".)
+ */
+async function servingMembers(listed: string[], capability: CapabilityKey): Promise<string[]> {
   const sick = await sickServices();
   const healthy = listed.filter((m) => !sick.has(MODELS[m]!.service));
-  return pickMember(healthy.length ? healthy : listed, shardKey) || c.default;
+  return shedRefusingMembers(healthy.length ? healthy : listed, capability, await refusalPairs());
+}
+
+/** Which capability a purpose is charged to — the one place the `purposes` lists get searched.
+ * Both fallback selectors need it, and a third copy would be a third answer for a renamed purpose. */
+function capabilityForPurpose(purpose: string): [CapabilityKey, Capability] | undefined {
+  return (Object.entries(CAPABILITIES) as Array<[CapabilityKey, Capability]>)
+    .find(([, c]) => c.purposes.includes(purpose));
 }
 
 /** Recovery considers only the currently configured pool, including unhealthy members whose answer
  * may already have arrived. An explicit model outside that pool keeps its own receipt identity. */
 export async function recoveryModelsForPurpose(purpose: string, selected: string): Promise<string[]> {
-  const entry = (Object.entries(CAPABILITIES) as Array<[CapabilityKey, Capability]>)
-    .find(([, c]) => c.purposes.includes(purpose));
+  const entry = capabilityForPurpose(purpose);
   if (!entry) return [selected];
   const [capability, c] = entry;
   const configured = (await overrides())[capability] ?? process.env[c.env] ?? process.env.MODEL_POOL ?? c.default;
@@ -222,23 +331,24 @@ export async function recoveryModelsForPurpose(purpose: string, selected: string
 /** Only configured, healthy members able to accept this capability may carry an unsent request whose
  * original service is locally budget-blocked. Cached recovery keeps its broader exact-key candidate set. */
 export async function budgetFallbackModelsForPurpose(purpose: string, selected: string, requireVision = false): Promise<string[]> {
-  const entry = (Object.entries(CAPABILITIES) as Array<[CapabilityKey, Capability]>)
-    .find(([, c]) => c.purposes.includes(purpose));
+  const entry = capabilityForPurpose(purpose);
   if (!entry) return [];
   const members = await recoveryModelsForPurpose(purpose, selected);
   if (members.length <= 1) return [];
   const sick = await sickServices();
+  const pairs = await refusalPairs();
   const index = members.indexOf(selected);
   const ordered = [...members.slice(index + 1), ...members.slice(0, index)];
-  return ordered.filter((name) => usable(name, entry[0]) && !sick.has(MODELS[name]!.service)
+  const candidates = ordered.filter((name) => usable(name, entry[0]) && !sick.has(MODELS[name]!.service)
     && (!requireVision || MODELS[name]!.vision === true));
+  // A door that cannot write this step's copy is not a fallback; if that leaves nothing, the candidates stand.
+  return shedRefusingMembers(candidates, entry[0], pairs);
 }
 
 /** Where the current choice comes from, for the admin page. `model` is what was configured and `serving`
  * what can actually answer, so a pool with a member whose key is missing cannot be shown as full capacity. */
 export async function modelSources(): Promise<Record<string, { model: string; serving: string; source: "admin" | "env" | "default" }>> {
   const o = await overrides();
-  const sick = await sickServices();
   const out: Record<string, { model: string; serving: string; source: "admin" | "env" | "default" }> = {};
   for (const [key, c] of Object.entries(CAPABILITIES) as Array<[CapabilityKey, Capability]>) {
     const configured = o[key]
@@ -250,9 +360,11 @@ export async function modelSources(): Promise<Record<string, { model: string; se
           : { model: c.default, source: "default" as const };
     // Names listed but dropped are the difference the operator needs to see — including the ones dropped
     // because they are failing right now, so the panel and `modelFor` never disagree about who serves.
-    const listed = membersFor(configured.model, key as CapabilityKey);
-    const healthy = listed.filter((m) => !sick.has(MODELS[m]!.service));
-    const serving = healthy.length ? healthy : listed;
+    const serving = await servingMembers(membersFor(configured.model, key as CapabilityKey), key as CapabilityKey);
+    // The empty case is reachable and is not dead code: `poolOf()` drops names that aren't in the registry,
+    // so an admin value or MODEL_POOL that lists only typos yields `listed = []` — and `servingMembers()`
+    // is never-empty *relative to its input*, so an empty input stays empty. Show what was configured there,
+    // because a blank cell would read as "this capability has no model" rather than "the name is wrong".
     out[key] = { ...configured, serving: serving.length ? serving.join(",") : configured.model };
   }
   return out;

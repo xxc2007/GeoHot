@@ -161,6 +161,26 @@ export const MODELS: Record<string, ModelSpec> = {
     baseUrlEnv: "DASHSCOPE_BASE_URL", apiKeyEnv: "DASHSCOPE_API_KEY",
     extra: { enable_thinking: false }, jsonMode: false, vision: true,
   },
+  // WorkBuddy (the DSH desktop channel). These go through tooling/workbuddy-bridge.ts, which owns the
+  // signed-in desktop credential and folds the upstream's mandatory SSE back into one JSON reply —
+  // so from here they look like any other non-streaming OpenAI endpoint. Start the bridge first, or
+  // these fail with a connect error (which the caller treats as retryable).
+  //
+  // Both are "always reasoning" models: thinking cannot be turned off, and the effort dial only moves
+  // how long the hidden chain gets. Measured on GEOHOT's own selection-score prompt, the chain length
+  // is nearly flat across efforts (hy3: ~2000 hidden tokens at low, high and max alike), so raising
+  // effort buys latency more reliably than quality. "max" is the strongest setting the upstream
+  // accepts; it is not in hy3's advertised list but is accepted and does not error.
+  "workbuddy-hy3": {
+    key: "workbuddy-hy3", service: "workbuddy", model: "hy3",
+    baseUrlEnv: "WORKBUDDY_BASE_URL", apiKeyEnv: "WORKBUDDY_API_KEY",
+    extra: { reasoning_effort: "max" }, jsonMode: true,
+  },
+  "workbuddy-deepseek-flash": {
+    key: "workbuddy-deepseek-flash", service: "workbuddy", model: "deepseek-v4.1-flash",
+    baseUrlEnv: "WORKBUDDY_BASE_URL", apiKeyEnv: "WORKBUDDY_API_KEY",
+    extra: { reasoning_effort: "max" }, jsonMode: true,
+  },
 };
 
 export type ContentPart = { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } };

@@ -211,7 +211,7 @@ export async function rerun(id: string, input: unknown, requestId: string, actor
     // 排到的就是一个永远没人领的作业——`route()` 现在不会自己选它了，但后台这一下是显式要求的，
     // 所以在这里说明白，而不是静默收下单据。
     if (step === "extract" && !isCollectEnabled()) throw new InvalidInput("抽取正文要出网，跟着 COLLECT_ENABLED 一起开着；这个环境的采集阀门是关的，先开阀门再点。");
-    await sql`UPDATE articles SET processing_state = 'new', processing_error = NULL, processing_attempts = 0, processing_retry_at = NULL,
+    await sql`UPDATE articles SET processing_state = 'new', processing_error = NULL, processing_attempts = 0, processing_retry_at = NULL, updated_at = now(),
                 body_status = CASE WHEN ${step === "extract"} THEN 'pending' ELSE body_status END WHERE id = ${id}`;
     jobId = step === "analyze"
       ? await queueProcessing(id, { step: "analyze", attemptTag: `admin:${requestId}` })

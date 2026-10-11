@@ -48,7 +48,13 @@ APP_USER="geohot"
 # verify-deploy and the systemd/ templates all default to this same value).
 APP_ROOT="${GEOHOT_APP_ROOT:-/opt/geohot/app}"
 APP_HOME="${APP_ROOT%/*}"                    # /opt/geohot —— 备份文件落这里，不在代码目录里
-UNITS=(geohot-brain geohot-api geohot-worker geohot-web)
+# 停机清单 = 这台机器上所有 geohot 单元，用完整单元名（`.timer` 与 `.service` 后缀就写在名字里，
+# 不再靠循环给每个元素补 `.service`——那样定时器永远匹配不上，于是它成了唯一没被停的 geohot 单元）。
+# 顺序两件硬要求：
+# · geohot-archive.timer 排第一个。它要是还挂着，R2 停完四个服务之后下一轮定时器又把 archive.service 拉起来，
+#   回滚回滚到一半，采集与出刊还在往库里写——这条链路是 2026-10-10 才加上的，最初的四个单元清单里没有它。
+# · geohot-workbuddy 也要停：它现在承担约七成八的判定调用，留着跑就是给一个正在被回滚的站继续付费判定。
+UNITS=(geohot-archive.timer geohot-web.service geohot-worker.service geohot-api.service geohot-workbuddy.service geohot-brain.service geohot-archive.service)
 PG_DATABASE="geohot"
 PG_ROLE="geohot"
 TS="$(date +%F-%H%M)"
@@ -122,10 +128,15 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-step "R2. systemd：停用并移除四个 unit（不碰 nginx/artalk 的服务）"
-# 停用顺序与启动相反：web → worker → api → brain（api/worker 的 After= 里点了 geohot-brain）。
-for u in geohot-web geohot-worker geohot-api geohot-brain; do
-  if systemctl list-unit-files "$u.service" >/dev/null 2>&1 && [[ -n "$(systemctl list-unit-files "$u.service" --no-legend 2>/dev/null)" ]]; then
+step "R2. systemd：停用并移除这台机器上的全部 geohot 单元（不碰 nginx/artalk 的服务）"
+# 清单只有 `UNITS` 那一份：以前这里另写了一遍四个名字，与上面那份各自漂移
+# ——定时器与 workbuddy 进了 UNITS 也进不了这个循环，"回滚"就漏停正在写库的那条链路。
+if systemctl is-active --quiet geohot-archive.service; then
+  echo "!! geohot-archive.service 正在跑一轮采集/出刊。本脚本停的是定时器（不再开下一轮），不杀正在运行的那一轮——"
+  echo "   强杀别的进程不在回滚的权限里；要彻底停住，等这一轮自己跑完再 --apply，或先确认它已经退出。"
+fi
+for u in "${UNITS[@]}"; do
+  if [[ -n "$(systemctl list-unit-files "$u" --no-legend 2>/dev/null)" ]]; then
     run "stop+disable $u" sudo systemctl disable --now "$u"
   else
     echo "$u 未安装 —— 跳过"
@@ -133,7 +144,7 @@ for u in geohot-web geohot-worker geohot-api geohot-brain; do
 done
 if [[ "$PURGE" == "1" ]]; then
   for u in "${UNITS[@]}"; do
-    run "删除 unit 文件 $u" sudo rm -f "/etc/systemd/system/$u.service"
+    run "删除 unit 文件 $u" sudo rm -f "/etc/systemd/system/$u"
   done
   run "daemon-reload" sudo systemctl daemon-reload
 else

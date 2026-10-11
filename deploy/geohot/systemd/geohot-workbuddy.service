@@ -1,0 +1,65 @@
+# /etc/systemd/system/geohot-workbuddy.service
+# WorkBuddy 桥（tooling/workbuddy-bridge.ts）—— 把桌面渠道的 hy3 / deepseek-v4.1-flash 变成
+# 本站 providers/llm.ts 能直接用的 OpenAI 兼容端点（127.0.0.1:3065/v1）。
+#
+# 为什么需要一条独立的桥，而不是在 llm.ts 里直接打上游：
+#   上游 POST /v2/chat/completions **只收流式**（非流式回 {"code":11101,"msg":"Non-stream chat
+#   request is currently not supported"}），而 llm.ts:316 做的是 `await res.text()` + `JSON.parse`，
+#   只会非流式。桥在中间把 SSE 折回一个 JSON 答复（tooling/workbuddy-bridge.ts:440 foldStream）。
+#   另一条：国际端点**强制首条消息是 system**（否则 {"code":11128,"msg":"first message is not
+#   system prompt"}），而 llm.ts:266 只在 opts.system 非空时才发 system —— 桥补一条兜底 system。
+#
+# 凭据：线上服务器没有 WorkBuddy 桌面应用，取不到 at-rest 密钥（bridge:233 readCredential 第一步就是
+#   跑那个 Windows 二进制），所以线上走 WORKBUDDY_CREDENTIAL_JSON 指向的**明文**凭据文件
+#   （bridge:265 readPlaintextCredential）。那份文件由本机 `--export-credential` 导出后 scp 上来，
+#   chmod 600 + 属主 geohot —— 它等同密码，不要进仓库、不要进 .data。
+#
+# 端口写死在这里，换口要连 .env 的 WORKBUDDY_BASE_URL 一起换（两处不一致就是"调用全失败但没有报错"）。
+[Unit]
+Description=GEOHOT WorkBuddy bridge (OpenAI-compatible shim over the WorkBuddy desktop channel, 127.0.0.1:3065)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=geohot
+Group=geohot
+WorkingDirectory=/opt/geohot/app
+EnvironmentFile=/opt/geohot/app/.env
+# 与另外四个单元同一套硬覆盖：geohot 账户没有登录 shell，HOME 必须给。
+Environment=NODE_ENV=production
+Environment=AIHOT_ENVIRONMENT=production
+Environment=HOME=/opt/geohot
+Environment=TZ=Asia/Shanghai
+Environment=WORKBUDDY_BRIDGE_PORT=3065
+MemoryMax=200M
+MemorySwapMax=600M
+ExecStart=/usr/bin/node tooling/workbuddy-bridge.ts
+Restart=on-failure
+RestartSec=5
+# 上游一次 hy3 调用实测 20–23 s（隐藏推理约 2000 token），桥自己的上游超时是 300 s
+# （WORKBUDDY_BRIDGE_TIMEOUT_MS 缺省值）；停机要让它把在飞的那次写完，别 SIGKILL 成"跑过但没记账"。
+TimeoutStopSec=285
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+# 不写 ReadWritePaths：桥不落盘（凭据只读、token 只在内存里）。要写盘就是有 bug。
+# 不禁网：它要出网打 www.workbuddy.ai，同机的 api/worker 也要能连它的回环端口。
+
+[Install]
+WantedBy=multi-user.target
+
+# -----------------------------------------------------------------------------
+# 安装（**不要**用 install-units.sh：它装完断言 `list-unit-files 'geohot*' | wc -l == 4`，
+# 而线上现在已经有 6 个 geohot-* 单元文件，加这一个必红）：
+#   sudo cp deploy/geohot/systemd/geohot-workbuddy.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now geohot-workbuddy
+#   curl -s http://127.0.0.1:3065/healthz   # account.ok 为 true 才算凭据读到了
+# -----------------------------------------------------------------------------
