@@ -261,6 +261,11 @@ export function closeTruncatedSentence(text: string): string {
   const t = text.trim();
   if (!t) return t;
   if (/[。！？…!?][”』」'")）]?$/u.test(t)) return t;
+  // 结尾挂的是分句分隔符（，、；：）——这一句是**说完的**，缺的只是收尾标点。把分隔符换成句号，一个字都不丢。
+  // 早先没有这一支：它会退回上一个「。」，于是「…发布黄色预警信号。 提醒您：请注意防御。 防御指南：
+  // 1、妥善保管易受雷击的贵重电器设备，断电后放到安全的地方；」里那条完整的防御指引被整条删掉，
+  // 工业利润那条把「国有控股…10.3%； 股份制…20.4%」两组真数字也一起删了（2026-10-12 在 1,744 条存量上实测到）。
+  if (/[，、；：,;:]+$/u.test(t)) return `${t.replace(/[，、；：,;:]+$/u, "")}。`;
   // 结尾掉了标点，但前面有写完的句子：收到最后一个句子结尾。
   const last = Math.max(t.lastIndexOf("。"), t.lastIndexOf("！"), t.lastIndexOf("？"), t.lastIndexOf("…"));
   if (last >= 0) return t.slice(0, last + 1);

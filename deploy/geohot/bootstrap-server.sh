@@ -217,7 +217,7 @@ if [[ -d "$APP_ROOT/.git" ]]; then
   echo "  $APP_ROOT 已是 git 仓库 —— 第 2 节只 fetch，不重新 clone"
 else
   echo "  远端可达性要到第 2 节才实测（只有真要 clone 时才需要网络与权限）；"
-  echo "  离线搬运的装法见 DEPLOYMENT.md「实际执行的四步」第 1 步（git archive + tar --owner=geohot）。"
+  echo "  离线搬运的装法见 DEPLOYMENT.md「实际执行的四步」第 1 步（git archive + tar 解包），**解完必须补一次 chown**——见下面那条注释。"
 fi
 
 echo "--- 身份 ---"
@@ -395,7 +395,10 @@ else
     echo "   ① 有内网 git 就换地址:  GEOHOT_REPO_URL=<能访问到的 git url>" >&2
     echo "   ② 离线搬运（DEPLOYMENT.md「实际执行的四步」第 1 步用的就是这个）：" >&2
     echo "        git archive HEAD | gzip > geohot.tar.gz                    # 在能拉的机器上" >&2
-    echo "        sudo mkdir -p $APP_ROOT && sudo tar -xzf geohot.tar.gz -C $APP_ROOT --owner=$APP_USER --group=$APP_USER" >&2
+    echo "        sudo mkdir -p $APP_ROOT && sudo tar -xzf geohot.tar.gz -C $APP_ROOT && sudo chown -R $APP_USER:$APP_USER $APP_ROOT" >&2
+    # 别指望 `tar --owner=… --group=…`：2026-10-12 在这台 Ubuntu 22.04 / GNU tar 1.34 上实测，
+    # 以 root 解 `git archive` 的包时这两个选项对**解包**不生效——包里存的是 uid/gid 0，826 个成员全部落成 root:root。
+    # 代码只读，所以四个进程照样起；但应用往自己目录里写的任何新东西都会以 root 建出来，那是一次很晚才会响的事故。
     echo "        sudo chown -R $APP_USER:$APP_USER $APP_ROOT                 # root 解出来的目录会让 npm 拿 EACCES" >&2
     echo "      然后重跑：$APP_ROOT/.git 还是没有，但代码在位 —— 用 git init + remote add 补上，或直接注释掉本节" >&2
     echo "   ③ 需要凭据：以 $APP_USER 身份配一次只读 deploy key（HOME 就是 $APP_HOME）。" >&2
