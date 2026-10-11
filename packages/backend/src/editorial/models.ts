@@ -139,12 +139,17 @@ export async function sickServices(): Promise<Set<string>> {
   if (health && Date.now() - health.at < 60_000) return health.sick;
   let sick = new Set<string>();
   try {
+    // A paid answer can arrive but fail the caller's output gate. Discount only the explicitly
+    // rejected current attempt; historical attempts and the billing ledger keep their own meaning.
     const rows = await sql<{ service: string }[]>`
-      SELECT service FROM receipt_attempts
-       WHERE started_at > now() - interval '10 minutes'
-         AND origin = 'live' AND status IN ('received', 'failed', 'unknown')
-       GROUP BY service
-      HAVING count(*) >= 6 AND count(*) FILTER (WHERE status = 'received') * 2 < count(*)`;
+      SELECT a.service FROM receipt_attempts a LEFT JOIN receipts r ON r.id = a.receipt_id
+       WHERE a.started_at > now() - interval '10 minutes'
+         AND a.origin = 'live' AND a.status IN ('received', 'failed', 'unknown')
+       GROUP BY a.service
+      HAVING count(*) >= 6 AND count(*) FILTER (WHERE a.status = 'received' AND NOT coalesce(
+        r.status = 'failed' AND a.attempt = r.attempts
+        AND (r.error LIKE 'answer refused:%' OR r.error LIKE 'unusable output:%'), false
+      )) * 2 < count(*)`;
     sick = new Set(rows.map((r) => r.service));
   } catch {
     // Reading the ledger must never decide the request: an unreadable table means "no opinion", not "all
