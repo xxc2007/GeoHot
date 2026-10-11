@@ -12,7 +12,7 @@ import { candidates, composeDaily } from "@aihot/backend/reports/compose";
 const T = tag();
 const SOURCE = `test-report-boundary-${T}`;
 /**
- * Each run composes its own private five-day window. These assertions read which items a section carried,
+ * Each run composes its own private seven-day window. These assertions read which items a section carried,
  * and two rules in reports/compose.ts make a section depend on everything else in the same Beijing day:
  * `list.length < 8` keeps the first eight items of a section and demotes the rest to flashes (compose.ts:150),
  * and `recentlyCovered` drops any fact key an earlier issue of that key already ran. So rows left in the
@@ -29,7 +29,9 @@ const DAY0 = Date.UTC(2020, 0, 1 + windowSeed);
 const at = (day: number, h = 0, m = 0, s = 0) => new Date(DAY0 + day * 86_400_000 + h * 3_600_000 + m * 60_000 + s * 1_000);
 /** The daily issue covering [day, day+1): it is named by its second day, the Beijing date it serves. */
 const issue = (day: number) => at(day + 1).toISOString().slice(0, 10);
-const ISSUES = [issue(0), issue(1), issue(2), issue(3)];
+const ISSUES = [issue(0), issue(1), issue(2), issue(3), issue(4), issue(5)];
+/** Facts this file creates by hand (the flash-suppression case needs one); `purgeTagged` cannot reach a fact with no story. */
+const flashFacts: number[] = [];
 const provider = await stub((hit) => ({
   id: `report-boundary-${T}-${hit}`,
   choices: [{ message: { content: JSON.stringify({ title: "测试导语", leadParagraph: "测试摘要", highlights: [1] }) } }],
@@ -49,6 +51,8 @@ before(async () => {
 });
 after(async () => {
   await purgeTagged(SOURCE);
+  // 手工插入的事实没有 story，`purgeTagged` 顺着 stories 找不到它；报道行删掉了，事实本体要自己收走。
+  if (flashFacts.length > 0) await sql`DELETE FROM facts WHERE id = ANY(${flashFacts}::bigint[])`;
   await sql`DELETE FROM reports WHERE kind = 'daily' AND key = ANY(${ISSUES}::text[])`;
   await provider.close();
   await stopBoss();
@@ -202,4 +206,47 @@ test("daily composition waits for a pre-cutoff release to commit instead of losi
     commit.open();
     await Promise.allSettled([publication, report]);
   }
+});
+
+/** The two lists a stored daily prints, read back from `reports.content`. */
+type Edition = { sections: Array<{ items: Array<{ itemId: string }> }>; flashes: Array<{ itemId: string }> };
+
+/**
+ * A 快讯 line is something the reader saw, so it has to veto the next issue the way a section item does.
+ * The section cap is eight: the day's ninth entry of a section is demoted to 快讯, and an event that only
+ * got that line yesterday must not come back today as a full story under a *different* report of the same
+ * fact — the day before remembered only the article id, so the archive backfill (283 issues of material in
+ * which one event is covered on consecutive days, and a printed edition is not re-laid afterwards) would
+ * print the same event twice. Day 1 fills the section so the shared-fact item lands in 快讯; day 2 carries
+ * another report of that fact and must not print it.
+ */
+test("an event that only got a 快讯 line yesterday is not reprinted today as a section story", async () => {
+  const [fact] = await sql<{ id: number }[]>`
+    INSERT INTO facts (public_id, story_id, title) VALUES (${"f-report-flash-" + T}, NULL, ${`Report boundary flash ${T}`}) RETURNING id`;
+  const factRow = fact!.id;
+  flashFacts.push(factRow);
+  // Eight same-category items fill the section (the cap is 8), all of them earlier than the ninth.
+  for (let i = 0; i < 8; i++) await selected(`flash-section-${i}`, at(4, i), at(4, i));
+  const flashed = await selected("flash-event", at(4, 23), at(4, 23));
+  await sql`UPDATE publications SET fact_id = ${factRow} WHERE article_id = ${flashed}`;
+  await composeDaily(issue(4));
+
+  const stored = await sql<{ key: string; content: Edition }[]>`
+    SELECT key, content FROM reports WHERE kind = 'daily' AND key = ANY(${[issue(4), issue(5)]}::text[])`;
+  const read = (key: string) => stored.find((r) => r.key === key)?.content;
+  const inSection = (edition: Edition | undefined, id: string) =>
+    (edition?.sections ?? []).some((s) => (s.items ?? []).some((i) => i.itemId === id));
+  const inFlash = (edition: Edition | undefined, id: string) => (edition?.flashes ?? []).some((f) => f.itemId === id);
+  assert.equal(inSection(read(issue(4)), flashed), false, "板块已满 8 条，第九条不该还在板块里");
+  assert.equal(inFlash(read(issue(4)), flashed), true, "第九条要作为读者看得见的一条落在快讯里");
+
+  // The next day carries a different report of the same fact, and nothing else.
+  const repeat = await selected("flash-event-repeat", at(5, 1), at(5, 1));
+  await sql`UPDATE publications SET fact_id = ${factRow} WHERE article_id = ${repeat}`;
+  await composeDaily(issue(5));
+
+  const day2 = await sql<{ content: Edition }[]>`SELECT content FROM reports WHERE kind = 'daily' AND key = ${issue(5)}`;
+  const printed = day2[0]!.content;
+  assert.equal(inSection(printed, repeat), false, "同一个事件昨天只在快讯里露过一次面，今天不能以整篇重印");
+  assert.equal(inFlash(printed, repeat), false, "重印也不许藏在快讯里");
 });
