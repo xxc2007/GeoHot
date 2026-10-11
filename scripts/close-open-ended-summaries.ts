@@ -65,14 +65,13 @@ if (values["database-url"] && !sameTarget(values["database-url"], config.databas
 
 const limit = Number(values.limit);
 const maxApply = Number(values["max-apply"]);
-const shape = openEndedCondition();
-const [total] = await sql<{ n: number }[]>`
-  SELECT count(*)::int AS n FROM publications WHERE visibility = 'public' AND summary IS NOT NULL AND length(summary) >= 20 AND ${shape}`;
-const rows = await sql<{ article_id: string; revision: number; title: string; summary: string }[]>`
-  SELECT article_id, revision, title, summary
+// 整条候选判据也只写一份：条数与明细两条查询必须数的是同一批行，否则打印出来的"全库多少条"与实际要改的不是同一件事。
+const candidateWhere = sql`visibility = 'public' AND summary IS NOT NULL AND length(summary) >= 20 AND ${openEndedCondition()}`;
+const [total] = await sql<{ n: number }[]>`SELECT count(*)::int AS n FROM publications WHERE ${candidateWhere}`;
+const rows = await sql<{ article_id: string; revision: number; summary: string }[]>`
+  SELECT article_id, revision, summary
   FROM publications
-  WHERE visibility = 'public' AND summary IS NOT NULL AND length(summary) >= 20
-    AND ${shape}
+  WHERE ${candidateWhere}
   ORDER BY updated_at
   LIMIT ${limit}`;
 
