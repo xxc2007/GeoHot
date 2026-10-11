@@ -262,8 +262,13 @@ git archive HEAD | gzip > /tmp/geohot-src.tar.gz
 # 密钥文件名与登录名一律用占位符：这份文档在公开仓库里，别把真实的用户名和密钥路径写进来。
 scp -i ~/.ssh/<你的密钥>.pem /tmp/geohot-src.tar.gz <ssh-user>@<主机>:/tmp/
 
-# 服务器
-sudo tar -czf /opt/geohot/backups/app-$(date +%Y%m%d-%H%M%S).tar.gz -C /opt/geohot app   # 先备份
+# 服务器：先备份。**这一条要排除 `.env` 与 `.data`，并且以 0600 落盘**——`/opt/geohot/app` 里有密钥，
+# 整目录 `tar` 出来的包在默认 umask 下是 0644 世界可读的（2026-10-11 实测：`app-*.tar.gz` 里确实有
+# `app/.env`，73 个备份文件里 66 个任何本机进程都能读）。恢复时密钥由 `.env` 自己那份负责，不归代码包管。
+sudo sh -c 'umask 077; tar --exclude=./app/.env --exclude=./app/.data -czf /opt/geohot/backups/app-$(date +%Y%m%d-%H%M%S).tar.gz -C /opt/geohot app'
+sudo chmod 750 /opt/geohot/backups            # 备份目录只对 root 与管理员组开放
+# 已经存在的旧包按同样口径收紧（保留 scp 那条恢复路径：把组换成登录用户的组，而不是直接 0600 root:root）：
+#   sudo chgrp -R <ssh-user> /opt/geohot/backups && sudo chmod -R o-rwx /opt/geohot/backups && sudo chmod -R g+rwX /opt/geohot/backups
 sudo tar -xzf /tmp/geohot-src.tar.gz -C /opt/geohot/app --owner=geohot --group=geohot
 sudo chown -R geohot:geohot /opt/geohot/app          # ★ 见下面那条坑
 sudo -u geohot bash -lc 'cd /opt/geohot/app && node --env-file=.env scripts/migrate.ts'   # 有新迁移就先跑
