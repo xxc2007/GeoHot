@@ -288,10 +288,24 @@ export async function modelFor(capability: CapabilityKey, shardKey?: string): Pr
   const chosen = (await overrides())[capability] ?? process.env[c.env] ?? process.env.MODEL_POOL ?? c.default;
   const listed = membersFor(chosen, capability);
   if (poolOf(chosen).length <= 1) return pickMember(listed, shardKey) || c.default;
+  return pickMember(await servingMembers(listed, capability), shardKey) || c.default;
+}
+
+/**
+ * Who can actually answer this step, in the order they were listed: skip the services that are failing right
+ * now (see `sickServices`), then skip the members that cannot write *this step's* copy (see `refusesThisStep`),
+ * and never empty — if every member is out, the list stands, because the budget breaker and the retry ladder,
+ * not this choice, decide when to stop trying.
+ *
+ * `modelFor` and `modelSources` must run exactly this: the admin panel that says who serves is the one place an
+ * operator looks when routing looks wrong, and two copies of the rule would let them disagree.
+ * (`budgetFallbackModelsForPurpose` deliberately does NOT share it: for an unsent request with no healthy
+ * member the right answer is "no fallback", so it has no never-empty step.)
+ */
+async function servingMembers(listed: string[], capability: CapabilityKey): Promise<string[]> {
   const sick = await sickServices();
   const healthy = listed.filter((m) => !sick.has(MODELS[m]!.service));
-  const pairs = await refusalPairs();
-  return pickMember(shedRefusingMembers(healthy.length ? healthy : listed, capability, pairs), shardKey) || c.default;
+  return shedRefusingMembers(healthy.length ? healthy : listed, capability, await refusalPairs());
 }
 
 /** Recovery considers only the currently configured pool, including unhealthy members whose answer
@@ -328,8 +342,6 @@ export async function budgetFallbackModelsForPurpose(purpose: string, selected: 
  * what can actually answer, so a pool with a member whose key is missing cannot be shown as full capacity. */
 export async function modelSources(): Promise<Record<string, { model: string; serving: string; source: "admin" | "env" | "default" }>> {
   const o = await overrides();
-  const sick = await sickServices();
-  const pairs = await refusalPairs();
   const out: Record<string, { model: string; serving: string; source: "admin" | "env" | "default" }> = {};
   for (const [key, c] of Object.entries(CAPABILITIES) as Array<[CapabilityKey, Capability]>) {
     const configured = o[key]
@@ -341,9 +353,7 @@ export async function modelSources(): Promise<Record<string, { model: string; se
           : { model: c.default, source: "default" as const };
     // Names listed but dropped are the difference the operator needs to see — including the ones dropped
     // because they are failing right now, so the panel and `modelFor` never disagree about who serves.
-    const listed = membersFor(configured.model, key as CapabilityKey);
-    const healthy = listed.filter((m) => !sick.has(MODELS[m]!.service));
-    const serving = shedRefusingMembers(healthy.length ? healthy : listed, key as CapabilityKey, pairs);
+    const serving = await servingMembers(membersFor(configured.model, key as CapabilityKey), key as CapabilityKey);
     out[key] = { ...configured, serving: serving.length ? serving.join(",") : configured.model };
   }
   return out;
