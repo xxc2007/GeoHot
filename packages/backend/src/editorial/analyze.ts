@@ -175,6 +175,8 @@ export interface AnalysisRun {
     itemType?: string;
     authorRole?: string;
     identityGuard?: IdentityGuard;
+    /** The provider answer failed the Chinese-copy gate; the paid ledger remains unchanged. */
+    refusal?: string;
     receiptIds: number[];
     reused: boolean;
   } | null;
@@ -323,12 +325,13 @@ async function runUnderstand(a: AnalyzeInputArticle, opts: StepOpts): Promise<An
     }
   }
   const d = res.data;
+  const refusal = noChineseAnswer(d);
   const evidence = translateInputOf(a);
   const copy = finalizeCopy(evidence, { titleZh: d.titleZh, summaryZh: d.summaryZh });
   return {
     kind: "understand", model: res.model, titleZh: copy.titleZh, summaryZh: copy.summaryZh, reasonZh: guardedReason(d.editorialJudgment, evidence),
     tags: normalizeTags(d.tags, { fallbackCategory: CATEGORY_BY_ITEM_TYPE[d.itemType] }), itemType: d.itemType, authorRole: d.authorRole,
-    identityGuard: copy.identityGuard, receiptIds: [res.receiptId], reused: res.reused,
+    identityGuard: copy.identityGuard, ...(refusal ? { refusal } : {}), receiptIds: [res.receiptId], reused: res.reused,
   };
 }
 
@@ -360,13 +363,14 @@ async function runSummarize(a: AnalyzeInputArticle, opts: StepOpts): Promise<Non
     attemptTag: tagged(opts.attemptTag, "summarize"),
   });
   const p = res.data;
+  const refusal = noChineseAnswer(p);
   const draft = short
     ? { titleZh: p.titleZh || (looksZh(main) ? main : ""), summaryZh: p.bodyZh || p.summaryZh }
     : isX
       ? { titleZh: p.titleZh, summaryZh: p.summaryZh || p.bodyZh }
       : { titleZh: p.titleZh || (looksZh(t.title) ? t.title : ""), summaryZh: p.summaryZh };
   const copy = finalizeCopy(t, draft);
-  return { kind: "summarize", model: res.model, titleZh: copy.titleZh, summaryZh: copy.summaryZh, reasonZh: null, tags: null, identityGuard: copy.identityGuard, receiptIds: [res.receiptId], reused: res.reused };
+  return { kind: "summarize", model: res.model, titleZh: copy.titleZh, summaryZh: copy.summaryZh, reasonZh: null, tags: null, identityGuard: copy.identityGuard, ...(refusal ? { refusal } : {}), receiptIds: [res.receiptId], reused: res.reused };
 }
 
 /**
@@ -401,6 +405,9 @@ export async function runAnalysis(a: AnalyzeInputArticle, opts: StepOpts & { sta
       }
       throw s.error;
     }
+    // An explicit writing refusal is still an output failure when structure succeeded. Otherwise
+    // the job becomes analyzed/unknown and is never picked up by the normal bounded retry loop.
+    if (writing.refusal) throw new ModelOutputError(`Paid writing produced no usable Chinese title or summary: ${writing.refusal}`);
     return { prefilter, scores, writing, structure: s.value };
   } finally {
     // A score/writing error or deploy must not let the job finish while a paid structure request

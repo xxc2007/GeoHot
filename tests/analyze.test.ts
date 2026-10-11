@@ -9,7 +9,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { after, before, test } from "node:test";
 import { closeDb, sql } from "@aihot/backend/db";
 import { upsertMaterial } from "@aihot/backend/content/materials";
-import { analyzeArticle, loadAnalyzeInput, runAnalysis, normalizeAnalysis, SCORE_SYSTEM, tierThreshold } from "@aihot/backend/editorial/analyze";
+import { analyzeArticle, loadAnalyzeInput, runAnalysis, SCORE_SYSTEM, tierThreshold } from "@aihot/backend/editorial/analyze";
 import { ModelOutputError } from "@aihot/backend/providers/llm";
 import { queueProcessing } from "@aihot/backend/jobs/content";
 import { QUEUES, stopBoss } from "@aihot/backend/jobs/queue";
@@ -121,8 +121,7 @@ test("paid unusable writing counts as an output failure instead of a parallel bu
   } finally {
     await sql`UPDATE budgets SET per_minute=${budget!.per_minute} WHERE service='dashscope'`;
   }
-  const completed = await runAnalysis(input);
-  assert.equal(normalizeAnalysis(completed).relevance, "unknown", "successful structure preserves the existing copy gate");
+  await assert.rejects(runAnalysis(input), ModelOutputError, "successful structure cannot settle a rejected paid draft as unknown");
   assert.equal(calls("BADWRITE").filter(s => s === "summarize").length, 2);
 });
 

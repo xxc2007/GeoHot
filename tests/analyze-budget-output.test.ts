@@ -102,8 +102,27 @@ test("analysis worker counts rejected drafts despite structure budget waits", as
       assert.equal((await sql`SELECT 1 FROM publications WHERE article_id=${id}`).length, 0);
     });
 
+    await t.test("successful structure also counts three rejected drafts and reuses the other completed steps", async () => {
+      await sql`UPDATE budgets SET per_minute=500 WHERE service='dashscope'`;
+      const id = await article("rejected-structure-complete");
+      const writingBefore = calls.filter((step) => step === "summarize").length;
+      const structureBefore = calls.filter((step) => step === "structure").length;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        assert.equal((await run(id)).state, attempt === 3 ? "failed" : "retrying");
+        const [row] = await sql`SELECT processing_state,processing_attempts FROM articles WHERE id=${id}`;
+        assert.equal(row!.processing_attempts, attempt);
+        assert.equal(row!.processing_state, attempt === 3 ? "failed" : "new");
+      }
+      assert.equal(calls.filter((step) => step === "summarize").length - writingBefore, 3);
+      assert.equal(calls.filter((step) => step === "structure").length - structureBefore, 1);
+      assert.equal((await sql`SELECT 1 FROM analyses WHERE article_id=${id}`).length, 0);
+      assert.equal((await sql`SELECT 1 FROM publications WHERE article_id=${id}`).length, 0);
+      await sql`UPDATE budgets SET per_minute=0 WHERE service='dashscope'`;
+    });
+
     await t.test("usable writing plus structure budget exhaustion waits without adding output failures", async () => {
       validWriting = true;
+      const structureBefore = calls.filter((step) => step === "structure").length;
       const id = await article("usable");
       await sql`UPDATE articles SET processing_attempts=1 WHERE id=${id}`;
       const writingBefore = calls.filter((step) => step === "summarize").length;
@@ -122,8 +141,8 @@ test("analysis worker counts rejected drafts despite structure budget waits", as
       assert.equal(receipt!.attempts, 1);
       assert.equal(calls.filter((step) => step === "summarize").length - writingBefore, 1, "second budget wait reuses the usable paid draft");
       assert.equal((await sql`SELECT 1 FROM publications WHERE article_id=${id}`).length, 0, "incomplete structure is never published");
+      assert.equal(calls.filter((step) => step === "structure").length, structureBefore, "the stopped local budget never sends structure to a provider");
     });
-    assert.equal(calls.filter((step) => step === "structure").length, 0, "the stopped local budget never sends structure to a provider");
 
     await t.test("a structure outcome unknown keeps its recovery state despite rejected writing", async () => {
       validWriting = true;
