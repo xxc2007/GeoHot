@@ -6,7 +6,7 @@
 // 它们混在正文元素里，读者看到的 HTML 也带着，所以文本和 HTML 两层都要过同一份规则。
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { isBoilerplateBody, stripBoilerplate } from "@aihot/backend/lib/text";
+import { isBoilerplateBody, stripBoilerplate, stripTruncatedShellTail } from "@aihot/backend/lib/text";
 import { cleanArticleTextForLLM, finalizeCopy, type TranslateInput } from "@aihot/backend/editorial/writing";
 import { readable } from "@aihot/backend/content/extract";
 import { sanitizeBody, stripChromeHtml } from "@aihot/backend/content/sanitize";
@@ -154,4 +154,14 @@ test("页面骨架不是正文：占位符与 PDF 角标都不给读者看", () 
   // 阈值取 3：一篇真稿子（代码教程、软件测评）带一两个模板字符串不算骨架，不能被这条规则误杀；
   // 而线上那 14 条骨架每一条都有十几个占位符。
   assert.ok(!isBoilerplateBody("教程讲 Vue 的插值写法 {{ msg }} 的两种变体 {{ user.name }} 差别在哪里，另外附上正文说明部分，够六十个字才算一篇稿子，这里把长度补足以免长度那条规则替它说话。"));
+});
+
+// 2026-10-12 独立复核抓到 d93fd0a 埋的坑：shared 的 stripBoilerplate 是被 content/sanitize.ts 逐文本节点调用的，
+// "未闭合的 {{ 必然在整段结尾"这个前提在正文那条路上不成立。下面两条各自钉一件事，都能红：
+test("未闭合的外壳尾巴只在收口路径剥——shared 剥壳与非外壳形状都不许被它动到", () => {
+  const chrome = "秦岭脱贫山区农户生计转型适应性地理分异及影响机制——以陕西省商州区为例 {{javascript:window.custom_author_cn_index=0";
+  assert.equal(stripBoilerplate(chrome), chrome, "这条规则放进 shared 就会吃掉正文中间节点的尾巴，不许回来");
+  assert.equal(stripTruncatedShellTail("本段说明符号约定：本文用 {{ layer_name 表示矢量图层"),
+    "本段说明符号约定：本文用 {{ layer_name 表示矢量图层", "不是外壳形状的未闭合 {{ 属于正文，不许剥");
+  assert.equal(stripTruncatedShellTail(chrome), "秦岭脱贫山区农户生计转型适应性地理分异及影响机制——以陕西省商州区为例");
 });

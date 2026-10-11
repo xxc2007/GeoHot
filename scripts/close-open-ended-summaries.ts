@@ -27,7 +27,7 @@ import { pathToFileURL } from "node:url";
 import { config } from "@aihot/backend/config";
 import { closeDb, sql } from "@aihot/backend/db";
 import { closeTruncatedSentence } from "@aihot/backend/editorial/writing";
-import { stripBoilerplate } from "@aihot/backend/lib/text";
+import { stripBoilerplate, stripTruncatedShellTail } from "@aihot/backend/lib/text";
 import { cjkCount } from "@aihot/contracts/copy";
 
 /**
@@ -58,7 +58,9 @@ export function openEndedCondition() {
  * 不在这里用长度猜。
  */
 export function closeStockSummary(summary: string): { kind: "keep" | "rewrite" | "skeleton"; text: string } {
-  const bare = stripBoilerplate(summary);
+  // 剥完还要走一次"截断外壳"判据：骨架被截断时 }} 不在，shared 的 stripBoilerplate 够不着它，
+  // 而这条路上整条文本就是一条摘要，结尾确实等于截断点（sanitize 那条逐节点的路不配这个前提）。
+  const bare = stripTruncatedShellTail(stripBoilerplate(summary));
   // 只有一条判据：剥完一个汉字都不剩（`"。"`、`"，、；："` 这种）。
   // 曾经试过加第二条"剥掉的超过一半就算骨架"，被自己的测试否掉了：
   // `PDF(8989 KB) 中国A级景区运营效率测度…{{...}}` 里骨架占七成，可剩下的是一条完整的中文标题——
