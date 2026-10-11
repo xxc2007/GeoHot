@@ -13,11 +13,14 @@
 //
 // 跑法：DATABASE_URL=postgres://… node scripts/close-open-ended-summaries.ts                      # 看候选
 //       node scripts/close-open-ended-summaries.ts --apply --database-url=postgres://… --max-apply 300
+//       # 规则改过之后修上一次写进去的：拿那一次 --apply 的预像文件当清单，逐行按新规则重算
+//       node scripts/close-open-ended-summaries.ts --repair-from=.data/backups/summary-close-<ts>.jsonl \
+//            --apply --database-url=postgres://… --max-apply 2000
 //
 // 写库的副作用要说清楚：这些行会一起刷新 `publications.updated_at`，而池子的 ETag/freshness 与 sitemap
 // 读的就是它（`publication/pool.ts`）——所以一次 --apply 等于告诉所有订阅方"这批内容变了"。要分批就调小
 // --max-apply。不刷新它则缓存里的半句话永远留着，那才是更坏的结果。
-import { appendFileSync, mkdirSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { pathToFileURL } from "node:url";
@@ -74,8 +77,13 @@ const { values } = parseArgs({
     "max-apply": { type: "string", default: "300" },
     limit: { type: "string", default: "5000" },
     "database-url": { type: "string" },
+    // 收口规则改过（句号 → 列举要用省略号）。已经按旧规则写进库的那批行**不再匹配候选判据**
+    // （它们结尾是「。」，形状上是闭合的），靠扫形状永远捞不回来——所以修它们的依据是上一次 --apply
+    // 留下的按行预像文件：里面是"我读过什么"，重算一遍就是我当初该写什么。
+    "repair-from": { type: "string" },
   },
 });
+const repairFrom = values["repair-from"];
 if (values.apply && !values["database-url"]) {
   console.error("--apply 必须显式给 --database-url=…");
   process.exit(2);
@@ -109,13 +117,26 @@ const limit = positiveInt(values.limit!, "limit");
 const maxApply = positiveInt(values["max-apply"]!, "max-apply");
 // 整条候选判据也只写一份：条数与明细两条查询必须数的是同一批行，否则打印出来的"全库多少条"与实际要改的不是同一件事。
 const candidateWhere = sql`visibility = 'public' AND summary IS NOT NULL AND length(summary) >= 20 AND ${openEndedCondition()}`;
-const [total] = await sql<{ n: number }[]>`SELECT count(*)::int AS n FROM publications WHERE ${candidateWhere}`;
-const rows = await sql<{ article_id: string; analysis_id: number | null; revision: number; summary: string }[]>`
-  SELECT article_id, analysis_id, revision, summary
-  FROM publications
-  WHERE ${candidateWhere}
-  ORDER BY updated_at
-  LIMIT ${limit}`;
+type Row = { article_id: string; analysis_id: number | null; revision: number; summary: string };
+let total: { n: number } | undefined;
+let rows: Row[];
+if (repairFrom) {
+  // 修复模式的"候选"不是我扫出来的，是上一次 --apply 自己记下的：预像里每一行都是"我读过并写过"的凭据。
+  const lines = readFileSync(resolve(repairFrom), "utf8").trim().split(/\r?\n/).filter(Boolean);
+  rows = lines.slice(0, limit).map((l) => {
+    const j = JSON.parse(l) as { article_id: string; analysis_id?: number | null; revision: number; summary: string };
+    return { article_id: j.article_id, analysis_id: j.analysis_id ?? null, revision: j.revision, summary: j.summary };
+  });
+  total = { n: rows.length };
+} else {
+  [total] = await sql<{ n: number }[]>`SELECT count(*)::int AS n FROM publications WHERE ${candidateWhere}`;
+  rows = await sql<Row[]>`
+    SELECT article_id, analysis_id, revision, summary
+    FROM publications
+    WHERE ${candidateWhere}
+    ORDER BY updated_at
+    LIMIT ${limit}`;
+}
 
 // 整条处置规则只有 `closeStockSummary` 那一份：下面按它的判定分桶，不再在这里重写一遍剥壳与收口的顺序。
 const skeletons: Array<{ article_id: string; summary: string }> = [];
@@ -126,7 +147,7 @@ for (const r of rows) {
   else if (out.kind === "rewrite") fixes.push({ article_id: r.article_id, analysis_id: r.analysis_id, revision: r.revision, summary: r.summary, closed: out.text });
 }
 
-console.log(`${values.apply ? "写入" : "DRY-RUN 候选"}：全库形状不闭合 ${total?.n ?? 0} 条，本轮读回 ${rows.length} 条（--limit=${limit}），其中收口后会变 ${fixes.length} 条（上限 --max-apply=${maxApply}），剥完没东西可留、按骨架留给人工的 ${skeletons.length} 条`);
+console.log(`${repairFrom ? "按预像修复" : values.apply ? "写入" : "DRY-RUN 候选"}：${repairFrom ? `预像 ${total?.n ?? 0} 行（${repairFrom}）` : `全库形状不闭合 ${total?.n ?? 0} 条`}，本轮处理 ${rows.length} 条（--limit=${limit}），其中收口后会变 ${fixes.length} 条（上限 --max-apply=${maxApply}），剥完没东西可留、按骨架留给人工的 ${skeletons.length} 条`);
 for (const f of fixes.slice(0, 8)) {
   console.log(`  ${f.article_id} 「…${f.summary.slice(-18)}」→「…${f.closed.slice(-18)}」（${f.summary.length}→${f.closed.length} 字）`);
 }
@@ -145,21 +166,33 @@ if (!values.apply) {
   // 而投影在这期间到处都是（分组、合并、后台重发、`strip-body-boilerplate` 的重跑）。
   // 只洗 `publications.summary`，下一次投影就把半句话写回来——所以两处一起改，且放在同一个事务里，
   // 不允许出现"库里判稿已改、读者那份还没改"的半程状态。
-  const backup = resolve(".data/backups", `summary-close-${new Date().toISOString().replaceAll(":", "-")}.jsonl`);
+  const backup = resolve(".data/backups", `summary-close-${new Date().toISOString().replaceAll(":", "-")}${repairFrom ? "-repair" : ""}.jsonl`);
   mkdirSync(dirname(backup), { recursive: true });
+  // 修复模式要备份的是"库里此刻这一份"（上一次写坏的文本），不是预像里那份更早的原文——
+  // 拿预像当原值备份，下一次按这份备份还原就会把已经改掉的东西又退回两轮之前。
+  const current = repairFrom
+    ? new Map((await sql<{ article_id: string; summary: string }[]>`
+        SELECT article_id, summary FROM publications WHERE article_id = ANY(${fixes.map((f) => f.article_id)})`)
+      .map((r) => [r.article_id, r.summary] as const))
+    : null;
   let done = 0;
   let skipped = 0;
   for (const f of fixes) {
     // 先落原值再改：这一刀是删尾巴（可能删掉真实数据），改坏了要能按行还原。
-    appendFileSync(backup, `${JSON.stringify({ article_id: f.article_id, analysis_id: f.analysis_id, revision: f.revision, summary: f.summary })}\n`);
+    const preImage = current?.get(f.article_id) ?? f.summary;
+    appendFileSync(backup, `${JSON.stringify({ article_id: f.article_id, analysis_id: f.analysis_id, revision: f.revision, summary: preImage })}\n`);
+    // 守卫分两种：正常模式认"库里还是我刚读到的那一份"；修复模式库里躺的是上一次写坏的文本，认不了它，
+    // 于是认 `revision`（并发保护仍然在）加"与我要写的不同"（相同的不重写，免得白刷一遍 updated_at）。
+    const pending = repairFrom ? sql`summary IS DISTINCT FROM ${f.closed}` : sql`summary = ${f.summary}`;
+    const stillMine = repairFrom ? sql`summary_zh IS DISTINCT FROM ${f.closed}` : sql`summary_zh = ${f.summary}`;
     const written = await sql.begin(async (tx) => {
       if (f.analysis_id !== null) {
-        await tx`UPDATE analyses SET summary_zh = ${f.closed} WHERE id = ${f.analysis_id} AND summary_zh = ${f.summary}`;
+        await tx`UPDATE analyses SET summary_zh = ${f.closed} WHERE id = ${f.analysis_id} AND ${stillMine}`;
       }
       const res = await tx<{ n: number }[]>`
         WITH updated AS (
           UPDATE publications SET summary = ${f.closed}, updated_at = now()
-           WHERE article_id = ${f.article_id} AND revision = ${f.revision} AND summary = ${f.summary}
+           WHERE article_id = ${f.article_id} AND revision = ${f.revision} AND ${pending}
           RETURNING 1)
         SELECT count(*)::int AS n FROM updated`;
       return res[0]?.n ?? 0;
