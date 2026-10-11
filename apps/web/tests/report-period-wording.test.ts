@@ -63,3 +63,37 @@ test("一月的周报在十月打开，报头印的是「本期看点」", async
     assert.ok(!html.includes("今日看点"), "一月的报纸仍对读者说「今日」");
   } finally { await server.close(); }
 });
+
+test("周报的历史区块把补刊出来的每一期都列出来，日报仍走整页归档", async () => {
+  const server = await createServer({ configFile: false, root: path.resolve(import.meta.dirname, ".."),
+    server: { middlewareMode: true }, appType: "custom" });
+  try {
+    const module = await server.ssrLoadModule("/app/features/report/ReportPaper.tsx");
+    const Paper = module.ReportPaper as ComponentType<{ report: ReportDetail; index: ReportNavigationEntry[]; now: number }>;
+    const cited: ReportCitation = { itemId: "hist-item", title: "被引用的那条动态", summary: "供历史区块渲染的摘要",
+      sourceName: "官方来源", sourceUrl: "https://example.org/o", sourceId: null, sourceIconUrl: null,
+      firstParty: false, role: null, storyPublicId: null, publishedAt: "2026-01-06T02:00:00Z", available: true, hasPage: true };
+    // 回填之后阅读侧的周报会有约 40 期：这一格是手机上唯一的"更早"入口，截断就等于藏起来。
+    const weeks: ReportNavigationEntry[] = Array.from({ length: 20 }, (_, i) => ({ key: `2100-W${String(i + 1).padStart(2, "0")}` }));
+    const render = (kind: "daily" | "weekly", key: string, index: ReportNavigationEntry[]) => {
+      const report: ReportDetail = { kind, key, title: "报名",
+        windowStart: "2026-01-05T00:00:00+08:00", windowEnd: "2026-01-12T00:00:00+08:00",
+        generatedAt: "2026-10-12T00:00:00Z", revision: 1, readable: true, lead: null, overview: null,
+        highlights: [cited], sections: [{ label: "自然与资源", summary: null, items: [cited] }],
+        stories: [{ ...cited, label: "自然与资源" }], flashes: [], cover: null, metrics: {},
+        readingMinutes: 1, prev: null, next: null };
+      return renderToStaticMarkup(createElement(MemoryRouter, {}, createElement(Paper, { report, index, now: Date.now() })));
+    };
+    const section = (html: string) => html.slice(html.indexOf('id="report-history"'));
+    const weekly = section(render("weekly", "2100-W01", weeks));
+    const listed = new Set(weekly.match(/\/weekly\/2100-W\d\d/g) ?? []);
+    assert.equal(listed.size, weeks.length - 1, `周报历史区块只列了 ${listed.size} 期，应为除当期外的 ${weeks.length - 1} 期`);
+    // 日报有 `/daily/archive` 那一整页，报面这一格保持有界，但被截掉的那部分要说出来并给出出口。
+    const days: ReportNavigationEntry[] = Array.from({ length: 30 }, (_, i) => ({ key: `2100-04-${String(i + 1).padStart(2, "0")}` }));
+    // 日报不渲染这一格（`hasHistory` 只对周报月报为真）：它有 `/daily/archive` 那一整页，
+    // 页脚那条「日报合订本」就是出口。这里钉住这个分工，免得以后给日报再加一个有界的重复列表。
+    const dailyHtml = render("daily", "2100-04-01", days);
+    assert.ok(!dailyHtml.includes('id="report-history"'), "日报页不该再有一份页内往期清单");
+    assert.match(dailyHtml, /href="[^"]*daily\/archive"/, "日报页脚要留着通往完整归档的那条出口");
+  } finally { await server.close(); }
+});

@@ -361,7 +361,10 @@ function Neighbours({ report, index }: { report: ReportDetail; index: ReportNavi
 }
 
 function History({ report, index }: { report: ReportDetail; index: ReportNavigationEntry[] }) {
-  const others = index.filter((e) => e.key !== report.key).slice(0, 12);
+  // 这一格只对周报与月报渲染（`hasHistory`）：日报有 `/daily/archive` 那一整页可去，而周报月报**没有归档页**，
+  // 手机上的「更早」就是从这一格往下走（`ReportPhoneNav` 把它们指向 `#report-history`）。
+  // 补刊会补出约 40 期周报：原先截到 12 期，等于把后面 25 期对读者藏起来，所以这里不截断。
+  const others = index.filter((e) => e.key !== report.key);
   if (others.length === 0) return null;
   return (
     <section id="report-history" className="scroll-mt-6 pt-12">
