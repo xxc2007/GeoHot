@@ -1,7 +1,8 @@
 // Public scope and sync through the real api routes: a licence revocation or a withdrawal reaches
 // every exit, reports stop quoting withdrawn items, the hot board drops a withdrawn item at once, item
 // pages follow the site's rule, an early release keeps the selected ledger in order, a withdrawal
-// waiting behind an unreleased item leaves new snapshots at once, and snapshots answer conditional requests.
+// waiting behind an unreleased item leaves new snapshots at once, snapshots answer conditional requests, and
+// the MCP daily tool never hands an agent an edition the reader-facing site calls blank.
 import { config } from "@aihot/backend/config";
 import { CATEGORY_LABELS } from "@aihot/contracts/taxonomy";
 import { beijingDate } from "@aihot/contracts/time";
@@ -31,6 +32,14 @@ const WEEK_KEY = "2099-W01";
 const WEEK_EMPTY = "2099-W02";
 const MONTH_KEY = "2099-02";
 const MONTH_EMPTY = "2099-03";
+// Three dailies for the MCP daily tool's `hasReadable` gate: one with a citation that opens, one whose only
+// citation opens nothing, and one whose citation has been withdrawn. `2099-11` is a slice of this file's
+// private future range that no other fixture in tests/ writes into; the editions are addressed by key, never
+// composed from a window, so the archive's 08:00→08:00 Beijing rule (tests/archive-paper-rule.test.ts) does
+// not decide which edition these rows are.
+const DAILY_PAGE = "2099-11-04";
+const DAILY_NOPAGE = "2099-11-05";
+const DAILY_GONE = "2099-11-06";
 const app = await buildApp();
 
 before(async () => {
@@ -42,6 +51,7 @@ before(async () => {
 after(async () => {
   await purgeTagged(T);
   await sql`DELETE FROM reports WHERE kind = 'daily' AND key = ${REPORT_KEY}`;
+  await sql`DELETE FROM reports WHERE kind = 'daily' AND key = ANY(${[DAILY_PAGE, DAILY_NOPAGE, DAILY_GONE]}::text[])`;
   await sql`DELETE FROM reports WHERE (kind = 'weekly' AND key IN (${WEEK_KEY}, ${WEEK_EMPTY})) OR (kind = 'monthly' AND key IN (${MONTH_KEY}, ${MONTH_EMPTY}))`;
   await app.close();
   await stopBoss();
@@ -74,6 +84,20 @@ const released = () => ({ releasedAt: new Date(Date.now() - 60_000) });
 async function get(url: string, headers: Record<string, string> = {}) {
   const res = await app.inject({ method: "GET", url, headers });
   return { status: res.statusCode, body: res.body, etag: res.headers.etag as string | undefined };
+}
+/** One JSON-RPC round trip with `/api/mcp`: the route answers a tool call as JSON or as one SSE frame, so
+ *  both shapes are read here rather than in each test that reaches an agent-facing tool. */
+async function call(method: string, params: Record<string, unknown>) {
+  const res = await app.inject({
+    method: "POST",
+    url: "/api/mcp",
+    headers: { "content-type": "application/json", accept: "application/json, text/event-stream" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 2, method, params }),
+  });
+  const raw = res.headers["content-type"]?.toString().startsWith("text/event-stream")
+    ? res.body.split("\n").find((l) => l.startsWith("data: "))?.slice(6) ?? ""
+    : res.body;
+  return JSON.parse(raw) as { result?: any; error?: unknown };
 }
 
 test("site reading sends one language while exports retain both, including after withdrawal", async () => {
@@ -449,6 +473,13 @@ async function insertPeriodReport(kind: "weekly" | "monthly", key: string, conte
             ON CONFLICT (kind, key) DO UPDATE SET content = EXCLUDED.content`;
 }
 
+/** A daily in the shape `compose.ts` writes: `lead`, `sections[].items[]` citations, `flashes` under them. */
+async function insertDailyReport(key: string, content: Record<string, unknown>) {
+  await sql`INSERT INTO reports (kind, key, window_start, window_end, content, generated_at, origin)
+            VALUES ('daily', ${key}, now() - interval '1 day', now(), ${sql.json(content as never)}, now(), 'manual')
+            ON CONFLICT (kind, key) DO UPDATE SET content = EXCLUDED.content`;
+}
+
 test("weeklies and monthlies v1 serve published content, gate blank issues and validate keys", async () => {
   const wItem = await article();
   await publishArticle(wItem, released());
@@ -547,18 +578,6 @@ test("weeklies and monthlies v1 serve published content, gate blank issues and v
 });
 
 test("the MCP server lists and answers the weekly and monthly tools through the read layer", async () => {
-  const call = async (method: string, params: Record<string, unknown>) => {
-    const res = await app.inject({
-      method: "POST",
-      url: "/api/mcp",
-      headers: { "content-type": "application/json", accept: "application/json, text/event-stream" },
-      body: JSON.stringify({ jsonrpc: "2.0", id: 2, method, params }),
-    });
-    const raw = res.headers["content-type"]?.toString().startsWith("text/event-stream")
-      ? res.body.split("\n").find((l) => l.startsWith("data: "))?.slice(6) ?? ""
-      : res.body;
-    return JSON.parse(raw);
-  };
   const listed = await call("tools/list", {});
   const names: string[] = listed.result.tools.map((t: any) => t.name);
   assert.ok(names.includes(`${SITE.mcpPrefix}_get_weekly`) && names.includes(`${SITE.mcpPrefix}_get_monthly`), "the seven tools include the periodicals");
@@ -569,4 +588,96 @@ test("the MCP server lists and answers the weekly and monthly tools through the 
   assert.ok(monthly.result.content[0].text.includes(`月报大事-${T}`));
   const bad = await call("tools/call", { name: `${SITE.mcpPrefix}_get_weekly`, arguments: { week: "2026-W54" } });
   assert.ok(bad.result.isError, "an impossible ISO week is a tool error, never a 500");
+});
+
+test("the MCP daily tool and the read layer never disagree about whether an issue has anything to read", async () => {
+  // `hasReadable` (apps/api/src/routes/mcp.ts) is the agent-facing twin of the read layer's `readableRows`
+  // (packages/backend/src/publication/reports.ts): an edition is content only when a citation it still prints
+  // has a page a reader can open. It used to count `items.length === 0` instead, while v1 keeps a citation that
+  // carries no `itemId` (an imported edition quotes entries older than its window) — so one and the same paper
+  // read as 「这一期没有可读内容」 on the site and as a daily with content to an agent. Three editions, both
+  // directions: a citation that opens, a citation that never did, a citation taken down since.
+  // What this test deliberately does not read: the list outlets (/api/v1/dailies, /api/site/reports/daily,
+  // `latest`). They come out of `reportIndex`, a 60-second in-process cache a test earlier in this file has
+  // already filled with the state from before these rows, so an assertion about what a list advertises would
+  // turn on how long the file has been running. Advertising is pinned where every row exists before the first
+  // index build, in tests/publication-issue-gate.test.ts.
+  const opens = await article();
+  await publishArticle(opens, released());
+  const doomed = await article();
+  await publishArticle(doomed, released());
+  await insertDailyReport(DAILY_PAGE, {
+    lead: { title: `日报头条-${T}`, leadParagraph: `日报导语-${T}` },
+    highlights: [],
+    sections: [{ label: "自然与资源", items: [
+      { itemId: opens, title: `有页条目-${T}`, summary: `PAGESUM-${T}`, sourceName: "Test", sourceUrl: `https://example.com/page-${T}` },
+    ] }],
+    flashes: [],
+  });
+  await insertDailyReport(DAILY_NOPAGE, {
+    lead: null,
+    highlights: [],
+    sections: [{ label: "区域与城乡", items: [
+      { title: `无页引注-${T}`, summary: `NOPAGE-${T}`, sourceName: "Test", sourceUrl: `https://example.com/nopage-${T}` },
+    ] }],
+    flashes: [],
+  });
+  await insertDailyReport(DAILY_GONE, {
+    lead: null,
+    highlights: [],
+    sections: [{ label: "前沿地理", items: [
+      { itemId: doomed, title: `撤下条目-${T}`, summary: `GONE-${T}`, sourceName: "Test", sourceUrl: `https://example.com/gone-${T}` },
+    ] }],
+    flashes: [],
+  });
+  await setVisibility(doomed, { visibility: "withdrawn", reason: "test", version: 0 }, "test");
+
+  const dailyTool = async (date: string) => {
+    const res = await call("tools/call", { name: `${SITE.mcpPrefix}_get_daily`, arguments: { date } });
+    assert.equal(res.error, undefined, `${date}: the daily tool ended as a protocol error instead of an answer`);
+    return res.result;
+  };
+  /** What the three surfaces say about one edition: is there anything in it a reader can open? */
+  const says = async (date: string): Promise<{ answer: any; report: any; detail: any; agent: boolean; v1: boolean; page: boolean }> => {
+    const answer = await dailyTool(date);
+    const daily = await get(`/api/v1/dailies/${date}`);
+    const site = await get(`/api/site/reports/daily/${date}`);
+    assert.equal(daily.status, 200, `${date}: a published issue still answers its own URL, blank or not`);
+    assert.equal(site.status, 200, `${date}: …and still answers as its own page`);
+    const report = JSON.parse(daily.body).report;
+    const detail = JSON.parse(site.body);
+    return {
+      answer, report, detail,
+      agent: !answer.isError,
+      v1: report.sections.some((s: any) => s.items.some((it: any) => it.links.aihot)),
+      page: detail.readable,
+    };
+  };
+  const filled = await says(DAILY_PAGE);
+  const blank = await says(DAILY_NOPAGE);
+  const withdrawn = await says(DAILY_GONE);
+  const agree = (date: string, s: { agent: boolean; v1: boolean; page: boolean }, readable: boolean) =>
+    assert.deepEqual([s.agent, s.v1, s.page], [readable, readable, readable], `${date}: agent, v1 sections and the site page disagreed`);
+  agree(DAILY_PAGE, filled, true);
+  agree(DAILY_NOPAGE, blank, false);
+  agree(DAILY_GONE, withdrawn, false);
+
+  // The edition with something to read: the agent is handed that item itself, not a summary of a shell.
+  assert.ok(filled.answer.content[0].text.includes(`有页条目-${T}`), "the answer names the item a reader can open");
+  assert.ok(filled.answer.content[0].text.includes(`PAGESUM-${T}`), "…with the summary the paper printed under it");
+  assert.equal(filled.report.sections[0].items[0].links.aihot, `${config.siteUrl}/items/${opens}`, "the read layer hands out the same page");
+  assert.deepEqual(filled.answer.structuredContent.report, filled.report, "and the structured answer is the v1 body, field for field");
+
+  // The divergence itself, spelled out: the citation survives v1 and opens nothing.
+  assert.equal(blank.report.sections[0].items.length, 1, "v1 keeps a citation that carries no itemId");
+  assert.equal(blank.report.sections[0].items[0].links.aihot, null, "…and prints no site page for it — the old item count called this content");
+  assert.equal(blank.answer.structuredContent.error.code, "not_found", "so the agent is refused, not handed an edition nobody can read");
+  assert.match(blank.answer.content[0].text, /没有入选内容/);
+  assert.ok(!blank.answer.content[0].text.includes(`无页引注-${T}`), "and the refusal quotes nothing the reader cannot open");
+
+  // The other way an edition runs empty: the item it printed has been taken down since it went to press.
+  assert.equal(withdrawn.report.sections[0].items.length, 0, "v1 drops the withdrawn citation outright");
+  assert.equal(withdrawn.answer.structuredContent.error.code, "not_found", "and the tool refuses that edition the same way");
+  assert.equal(withdrawn.detail.sections[0].items[0].itemId, doomed, "the paper still prints the line it published…");
+  assert.equal(withdrawn.detail.sections[0].items[0].available, false, "…struck through, which is exactly what makes the issue unreadable");
 });
