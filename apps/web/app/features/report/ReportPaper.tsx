@@ -425,17 +425,23 @@ export function ReportPaper({ report, index, now }: { report: ReportDetail; inde
       <Neighbours report={report} index={index} />
       {hasHistory && <History report={report} index={index} />}
       <footer className="py-10 text-center">
-        <div className="text-ui font-semibold tracking-[0.6em] text-ink-4">（本期完）</div>
+        <div className="text-ui font-semibold tracking-[0.6em] text-ink-4">{report.readable ? "（本期完）" : "（本期未出刊）"}</div>
         <p className="mt-3 text-caption text-ink-4">
-          {SITE.name} {KIND_LABEL[report.kind]}由编辑系统按编辑部写定的标准从公开来源筛选编排，每条均附原文 ·{" "}
+          {SITE.name} {KIND_LABEL[report.kind]}由编辑系统按编辑部写定的标准从公开来源筛选编排，每条均附原文
           {daily || hasHistory ? (
-            <Link to={daily ? "/daily/archive" : "#report-history"} className="inline-flex min-h-6 items-center font-medium text-ink-3 transition-colors hover:text-accent">
-              {daily ? "日报合订本" : `往期${KIND_LABEL[report.kind]}`}
-            </Link>
-          ) : (
+            <>
+              {" · "}
+              <Link to={daily ? "/daily/archive" : "#report-history"} className="inline-flex min-h-6 items-center font-medium text-ink-3 transition-colors hover:text-accent">
+                {daily ? "日报合订本" : `往期${KIND_LABEL[report.kind]}`}
+              </Link>
+            </>
+          ) : report.readable ? (
             // 这一期还没有往期：不写一个点了不会动的锚点。
-            <span className="text-ink-4">这是{KIND_LABEL[report.kind]}的第一期</span>
-          )}
+            <>
+              {" · "}
+              <span className="text-ink-4">这是{KIND_LABEL[report.kind]}的第一期</span>
+            </>
+          ) : null}
         </p>
       </footer>
     </article>

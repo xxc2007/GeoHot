@@ -17,6 +17,10 @@ export async function loader({ request }: Route.LoaderArgs) {
   const channelParam = url.searchParams.get("channel") ?? "all";
   const categoryParam = url.searchParams.get("category");
   const channel = isChannelKey(channelParam) ? channelParam : "all";
+  // 分类键是词表里那七个之一。写错的、或已经被删掉的键（`geoedu` 于 2026-10-09 删除）以前会被**静默忽略**：
+  // 页面照常显示 40 张无过滤的卡片，翻页链接还带着那个不存在的键；而 `/api/v1/items?category=…` 回 400、
+  // `/feed/category/<key>.xml` 回 404——同一个参数在三个出口三种说法（2026-10-11 评审波实测）。
+  if (categoryParam && !isCategoryKey(categoryParam)) throw new Response("Not found", { status: 404 });
   const category = categoryParam && isCategoryKey(categoryParam) ? categoryParam : null;
   const tag = url.searchParams.get("tag")?.trim() || null;
   const q = url.searchParams.get("q")?.trim().slice(0, 200) || null;

@@ -19,6 +19,8 @@ export async function loader({ request }: Route.LoaderArgs) {
   const channelParam = url.searchParams.get("channel") ?? "all";
   const categoryParam = url.searchParams.get("category");
   const channel = isChannelKey(channelParam) ? channelParam : "all";
+  // 与 /all 同一条规则：分类键不在词表里（含 2026-10-09 删掉的 `geoedu`）就 404，不再静默显示无过滤的时间轴。
+  if (categoryParam && !isCategoryKey(categoryParam)) throw new Response("Not found", { status: 404 });
   const category = categoryParam && isCategoryKey(categoryParam) ? categoryParam : null;
   const tag = url.searchParams.get("tag")?.trim() || null;
   const upstream = new Headers();
