@@ -4,7 +4,7 @@
 import { IDENTITY_CONTEXT_ALIASES, IDENTITY_LEXICON, PUBLISHER_DOMAINS } from "@aihot/industry/taxonomy";
 import { cjkCount, hasChineseCopy, LABEL_ONLY_COPY, LABEL_PREFIX } from "@aihot/contracts/copy";
 import { onlyXArticleLink } from "../sources/x.ts";
-import { collapseWhitespace, stripBoilerplate } from "../lib/text.ts";
+import { collapseWhitespace, isTemplateShell, stripBoilerplate } from "../lib/text.ts";
 import type { AnalyzeInputArticle } from "./input.ts";
 import { promptText } from "./prompts.ts";
 
@@ -249,9 +249,30 @@ export function enforceIdentity(input: TranslateInput, copy: { titleZh: string; 
 
 // ── Answer-first summary length ──────────────────────────────────────────────────────────────
 
+/**
+ * 摘要必须收在一个完整的句子上。线上实测的三种"半句话"：
+ *  - 结尾挂着分隔符（`…做好准备；`）——2026-08-31 至 10-04 有 1,717 条这种形状；
+ *  - 整段没有任何结尾标点（`…能见度小于500`、`…长达约一亿`）——正文被抽取器截断时，兜底路径会把截断原样交出去；
+ *  - 写到一半停了但前面已有句号（`…范围扩大。29号台风`）。
+ * 处理只用文本自己的边界，一个新字都不加（除了那个收尾标点）：能收到前一个完整句子就收，
+ * 否则退回最近的分句边界；连边界都没有的短句才原地补句号。
+ */
+export function closeTruncatedSentence(text: string): string {
+  const t = text.trim();
+  if (!t) return t;
+  if (/[。！？…!?][”』」'")）]?$/u.test(t)) return t;
+  // 结尾掉了标点，但前面有写完的句子：收到最后一个句子结尾。
+  const last = Math.max(t.lastIndexOf("。"), t.lastIndexOf("！"), t.lastIndexOf("？"), t.lastIndexOf("…"));
+  if (last >= 0) return t.slice(0, last + 1);
+  // 整段一句都没写完：退回最近的分句边界——宁可少说一句，也不把半句话交给读者。
+  const stripped = t.replace(/[，、；：,;:]+$/u, "");
+  const at = Math.max(...[...stripped.matchAll(/[，、；：,;:]/gu)].map((m) => m.index ?? -1));
+  return at >= 30 ? `${stripped.slice(0, at)}。` : `${stripped}。`;
+}
+
 export function compactAnswerFirstSummary(summary: string, maxChars = 190): string {
   const text = summary.trim().replace(/\s*\n+\s*/g, " ");
-  if (text.length <= maxChars) return text;
+  if (text.length <= maxChars) return closeTruncatedSentence(text);
   const sentences = text.match(/[^。！？!?]+[。！？!?]?/gu) ?? [text];
   let result = "";
   for (const sentence of sentences) {
@@ -295,6 +316,9 @@ export const isShortTweetInput = (input: TranslateInput) => input.sourceKind ===
  */
 function ownChineseLead(input: TranslateInput): string {
   if (isShortTweetInput(input)) return "";
+  // 页面模板没渲染时读回来的"正文"是骨架（`{{article.zuoZhe_CN}}` 那一族，线上 web-dlyj-toc 18 条里 14 条）。
+  // 骨架也有几百字、中文密度也过阈值，所以长度和密度两条都放它过去——必须按占位符单独判，见 lib/text.ts。
+  if (isTemplateShell(input.text || "")) return "";
   const text = collapseWhitespace(stripBoilerplate(input.text || input.mainText || ""));
   // 密度阈值按线上实测分布定：真中文正文（预警防御指南、部委稿）落在 0.7-0.9，页脚话术 0.49，
   // 英文稿 0 —— 0.55 是这两群之间的空档，不是拍脑袋。
@@ -304,18 +328,19 @@ function ownChineseLead(input: TranslateInput): string {
 
 /** The length rule (compacted without another call) and the identity guard, for any writing model. */
 export function finalizeCopy(input: TranslateInput, copy: { titleZh: string; summaryZh: string }) {
-  // 读者面的门只查「标题含中文、提要不为空」（items.chineseCopyCondition）——不查提要的语言。
-  // 模型答「中文标题 + 英文提要」时，英文提要被当成中文稿发出去（红线：不把英文当中文发布）。
-  // 两个字段在这里统一过中文判定：标题不带中文 → 退回原文标题（它本来是中文才用）；提要不过 →
+  // 读者面的门（items.chineseCopyCondition）**只查标题含中文**，不查提要——也不查提要的语言。
+  // 模型答「中文标题 + 英文提要」时，英文提要被当成中文稿发出去（红线：不把英文当中文发布），
+  // 所以提要不要在这里自己过中文判定。
+  // 两个字段在这里统一处理：标题不带中文 → 退回原文标题（它本来是中文才用）；提要不过 →
   // 置空——normalizeAnalysis 会把该条判成「等待」而不是发出去；同时 analyze 的 usable 判定
   // 让这条答复不落成"好答复"，下一次重试会真花钱重问。
   let summaryZh = copy.summaryZh.trim() || ownChineseLead(input);
   if (!isShortTweetInput(input) && summaryZh && !answerFirstSummaryLengthOk(summaryZh, input)) summaryZh = compactAnswerFirstSummary(summaryZh);
-  // 摘要以「，、；：」收尾就是半句话。线上 2026-08-31 至 10-04 有 1,717 条公开摘要是这个形状（按
-  // published_at 数出来的，10-04 之后零新增），但"上游会带结尾标点"从来不是一条规则：这一格不能指望
-  // 模型或兜底路径自觉。纯文本收尾——把挂着的分隔符换成句号，不增一个事实。短推文不套这一条：它的摘要
-  // 本来就是来源原话的片段，硬补句号像在替作者结句。
-  if (!isShortTweetInput(input) && summaryZh) summaryZh = summaryZh.replace(/[，、；：,;:]+$/u, "。");
+  // 摘要必须收在完整的句子上。线上实测三种半句话：结尾挂着分隔符（2026-08-31 至 10-04 有 1,717 条这种
+  // 形状）、整段没有结尾标点（`…能见度小于500`、`…长达约一亿`——正文被抽取器截断时兜底路径原样交出去）、
+  // 写到一半停了而前面已有句号（`…范围扩大。29号台风`）。"上游会带结尾标点"从来不是一条规则，
+  // 所以这一格不指望模型自觉；短推文不套——它的提要本来就是来源原话的片段。
+  if (!isShortTweetInput(input) && summaryZh) summaryZh = closeTruncatedSentence(summaryZh);
   if (summaryZh && !looksZh(summaryZh)) summaryZh = "";
   const titleZh = looksZh(copy.titleZh) ? copy.titleZh : looksZh(input.title) ? input.title : "";
   return enforceIdentity(input, { titleZh, summaryZh });

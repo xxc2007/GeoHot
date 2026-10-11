@@ -74,6 +74,15 @@ const PAGE_CHROME_LEAD = /^\d{4}年\d{1,2}月\d{1,2}日\s*\d{1,2}[:：]\d{2}(?:[
 /** 「(完)」是通讯社的电头收尾记号，只在末尾才算记号。 */
 const PAGE_CHROME_TAIL = /[（(]\s*(?:完|全文完)\s*[)）]\s*$/;
 
+/**
+ * 前端模板没渲染出来的占位符与列表页角标。线上实测（web-dlyj-toc，2026-10-11 抽查 18 条里 14 条）整段是
+ * `PDF(8989 KB) 中国A级景区运营效率测度… {{javascript:window.custom_author_cn_index=0;}} {{article.zuoZhe_CN}}
+ * 作者信息 + …`——那是页面骨架，不是文章：骨架也有七百字，中文密度也过阈值，所以**长度判不出来**，
+ * 必须按"占位符达到三个"单独判一次。两条都只写在这里：抽取、入库、喂模型、中文兜底四处共用。
+ */
+const TEMPLATE_PLACEHOLDER = /\{\{[^{}]{1,160}\}\}/g;
+const PDF_MARK = /(?<!\S)PDF\(\d+(?:[.,]\d+)? ?[KMGT]?B\)(?!\S)/gi;
+
 /** 逐行、再按片段删掉页脚/版权话术和页面外壳，保留正文。 */
 export function stripBoilerplate(text: string): string {
   if (!text) return "";
@@ -85,6 +94,8 @@ export function stripBoilerplate(text: string): string {
   const body = byLine
     .replace(BOILERPLATE_SEGMENT, " ")
     .replace(PAGE_CHROME_SEGMENT, " ")
+    .replace(TEMPLATE_PLACEHOLDER, " ")
+    .replace(PDF_MARK, " ")
     .replace(PAGE_CHROME_LEAD, "")
     .replace(PAGE_CHROME_TAIL, "");
   return body.replace(/\n{3,}/g, "\n\n").replace(/[ \t]{2,}/g, " ").trim();
@@ -96,5 +107,11 @@ export function stripBoilerplate(text: string): string {
  */
 export function isBoilerplateBody(text: string, minRealChars = 60): boolean {
   if (!text) return true;
+  if (isTemplateShell(text)) return true;
   return stripBoilerplate(text).replace(/\s+/g, "").length < minRealChars;
+}
+
+/** 页面模板没渲染出来的骨架。单独成一个判据，是因为短预警那条路只肯认「删完还剩几个字」，而骨架能剩下几百字。 */
+export function isTemplateShell(text: string): boolean {
+  return !!text && (text.match(TEMPLATE_PLACEHOLDER)?.length ?? 0) >= 3;
 }

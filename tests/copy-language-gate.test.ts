@@ -67,4 +67,11 @@ test("提要的结尾不许是挂着的逗号或分号", () => {
   assert.equal(comma.summaryZh, "测定近海 7.2 级地震，震源深度 10 千米。");
   const tweet = { ...chinese, sourceKind: "x_search", text: "暴雨预警更新，中心城区局地内涝", mainText: "暴雨预警更新，中心城区局地内涝" };
   assert.equal(finalizeCopy(tweet, { titleZh: "暴雨预警", summaryZh: "中心城区局地内涝，" }).summaryZh, "中心城区局地内涝，", "短推文保留来源原话的片段");
+
+  // 另外两种半句话：正文被抽取器截断时兜底路径原样交出去（线上实测的形状，2026-10-10 一天 19 条）。
+  const nmc = { ...chinese, title: "孙吴县气象台发布大雾黄色预警信号", text: "孙吴县气象台2026年10月10日06时40分发布大雾黄色预警信号：孙吴县多地出现能见度小于500米的雾，局部不足200米。".repeat(3) };
+  const cut = finalizeCopy(nmc, { titleZh: "孙吴县气象台发布大雾黄色预警信号", summaryZh: "孙吴县气象台2026年10月10日06时40分发布大雾黄色预警信号，孙吴县多地出现能见度小于500" });
+  assert.equal(cut.summaryZh, "孙吴县气象台2026年10月10日06时40分发布大雾黄色预警信号。", "没写完的半句退回最近的分句边界，宁可少说一句");
+  const mid = finalizeCopy(chinese, { titleZh: "近海发生 7.2 级地震", summaryZh: "测定近海 7.2 级地震，震源深度 10 千米。第二句写到一半" });
+  assert.equal(mid.summaryZh, "测定近海 7.2 级地震，震源深度 10 千米。", "前面有写完的句子就收在那儿");
 });

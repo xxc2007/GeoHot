@@ -134,3 +134,24 @@ test("the chrome is stripped from the HTML a reader is served", () => {
   assert.ok(fromStore.includes("舟山海事局在国庆假期全程启动提级监管。"), "末段还在，只是不再以「(完)」收尾");
   assert.equal((fromStore.match(/<p>/g) ?? []).length, 3, "三段正文还是三段，外壳那三段没了");
 });
+
+// 2026-10-11 又抓到一族：前端模板没渲染出来的**页面骨架**。线上 web-dlyj-toc 的 18 条里 14 条整段是
+// `PDF(8989 KB) 中国A级景区运营效率测度… {{javascript:window.custom_author_cn_index=0;}} {{article.zuoZhe_CN}}
+// 作者信息 + …`。骨架能剩下七百字、中文密度也过 0.55，所以「删完还剩几个字」和密度两条都放它过去——
+// 必须按占位符单独判一次。规则只写在 lib/text.ts 一处，抽取、喂模型、中文兜底三处都读它。
+const SHELL =
+  "PDF(8989 KB) 中国A级景区运营效率测度及其空间分异特征 {{javascript:window.custom_author_cn_index=0;}} {{article.zuoZhe_CN}} 作者信息 + Measurement of operational efficiency in China's A-level scenic spots {{javascript:window.custom_author_en_index=0;}} {{article.zuoZhe_EN}} Author information + 文章历史 + {{article.keyPoints_cn}} {{article.keyPoints_en}} 本文二维码 引用本文 导出引用 {{article.zuoZheCn_L}}. {{article.title_cn}}[J]. {{journal.qiKanMingCheng_CN}}, 2026, 45(9): 2745-2766 https://doi.org/10.11821/dlyj020260063 中图分类号： 参考文献 基金 版权";
+
+test("页面骨架不是正文：占位符与 PDF 角标都不给读者看", () => {
+  assert.ok(isBoilerplateBody(SHELL), "占位符成堆的骨架要判成「没读到正文」，它有七百字也不行");
+  const cleaned = stripBoilerplate(SHELL);
+  assert.ok(!cleaned.includes("{{"), `骨架里的占位符没剥干净：${cleaned.slice(0, 120)}`);
+  assert.ok(!/PDF\(\d+ KB\)/.test(cleaned), "列表页的 PDF 角标不是文章的一部分");
+  assert.ok(cleaned.includes("中国A级景区运营效率测度及其空间分异特征"), "篇名本身要留下");
+  // 中文兜底那条路（finalizeCopy → ownChineseLead）不能把骨架当摘要发出去。
+  const input = { title: "中国A级景区运营效率测度及其空间分异特征", text: SHELL, sourceKind: "web_list", sourceName: "地理研究 当期目录" } as unknown as TranslateInput;
+  assert.equal(finalizeCopy(input, { titleZh: "中国A级景区运营效率测度及其空间分异特征", summaryZh: "" }).summaryZh, "", "骨架不能当中文稿");
+  // 阈值取 3：一篇真稿子（代码教程、软件测评）带一两个模板字符串不算骨架，不能被这条规则误杀；
+  // 而线上那 14 条骨架每一条都有十几个占位符。
+  assert.ok(!isBoilerplateBody("教程讲 Vue 的插值写法 {{ msg }} 的两种变体 {{ user.name }} 差别在哪里，另外附上正文说明部分，够六十个字才算一篇稿子，这里把长度补足以免长度那条规则替它说话。"));
+});
