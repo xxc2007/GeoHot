@@ -27,8 +27,12 @@
 
 import { setTimeout as delay } from "node:timers/promises";
 import { beijingDate, beijingMidnight } from "@aihot/contracts/time";
+import { sql } from "../db.ts";
 import { fetchWebList } from "./web-list.ts";
 import { FetchError, type Candidate, type SourceRow } from "./types.ts";
+
+/** 片段的类型取本文件自己构造出来的那一个，不去猜 postgres 的内部类型名（`lib/time.ts` 同法）。 */
+const DOOR = sql`1`;
 
 /** One issue, as the journal's own back-issue index names it. `at` is null when the index gives no date. */
 export interface SiteIssue {
@@ -78,6 +82,23 @@ function archiveKey(source: SourceRow, key: string): string {
  * subscriptions and socials, and the issue walk must not leave the journal's site. A `denyUrlPrefixes` the
  * source declares still applies.
  */
+/**
+ * 一条信源有没有"历史入口"——档案进口选择器、成熟度判据、进度遥测数的是同一批行，判据必须只有一份。
+ *
+ * 这一条在本仓库抄过五份，其中两份抄成了 `config ? 'issn'`（**键存在**就算门），
+ * 与另外三份的 `coalesce(config->>'issn','') <> ''`（**值非空**才算）不是同一个集合：
+ * 一条 `config.issn = ""` 的信源在一处算门、在另一处不算，于是同一个晚上会出现两个"档案门数量"。
+ * 2026-10-12 在生产库量过：今天两种写法都是 94 道门（键在而值为空的行是 0 条），所以还没咬人——
+ * 但 `sync-source-config.ts` 与后台都能写出空串，那是迟早的事，所以留这一份、其余都改成用它。
+ *
+ * 表名收的是一个 **sql 片段**（调用点写 `archiveDoorFilter(sql\`s\`)`），与 `lib/time.ts` 的 `editionDay` 同一手法：
+ * 第一版这里收的是字符串再 `sql.raw(...)` 拼，tsc 直接拦下来——应用导出的那个 `sql` 实例上没有 `raw`。
+ * 片段参数会被原样嵌进去（它是 SQL 不是值），所以既不用把标识符当参数、也不用给拼接口子开闸。
+ */
+export function archiveDoorFilter(table: typeof DOOR) {
+  return sql`${table}.enabled AND (coalesce(${table}.config->>'issn', '') <> '' OR coalesce(${table}.config->>'archiveIndexUrl', '') <> '')`;
+}
+
 export async function backIssues(source: SourceRow): Promise<SiteIssue[]> {
   const indexUrl = archiveKey(source, "archiveIndexUrl");
   const itemSelector = archiveKey(source, "archiveIssueItemSelector");

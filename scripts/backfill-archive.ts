@@ -35,6 +35,7 @@ import { parseArgs } from "node:util";
 import { pathToFileURL } from "node:url";
 import { closeDb, sql } from "@aihot/backend/db";
 import { identityKeyForUrl } from "@aihot/backend/lib/url";
+import { archiveDoorFilter } from "@aihot/backend/sources/archive-site";
 import { upsertMaterial } from "@aihot/backend/content/materials";
 import { queueProcessing } from "@aihot/backend/jobs/content";
 import { stopBoss } from "@aihot/backend/jobs/queue";
@@ -233,7 +234,7 @@ async function page(url: string): Promise<{ items: Work[]; next: string | null }
 
 const sources = (await sql<SourceRow[]>`
   SELECT id, name, kind, config, tier, participation_mode, first_party, interval_minutes, enabled, cursor, fail_count FROM sources
-  WHERE enabled AND (coalesce(config->>'issn', '') <> '' OR coalesce(config->>'archiveIndexUrl', '') <> '')
+  WHERE ${archiveDoorFilter(sql`sources`)}
   ORDER BY id`).filter((s) => !onlyIds.length || onlyIds.includes(s.id));
 if (sources.length === 0) {
   console.error("没有一条信源带 config.issn 或 config.archiveIndexUrl — 前者跑 scripts/archive-issn.ts 并把结果并进 industry/sources.json，后者见 sources/archive-site.ts。改完再同步进库。");

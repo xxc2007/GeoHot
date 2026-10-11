@@ -21,6 +21,7 @@ import { config } from "@aihot/backend/config";
 import { closeDb, sql } from "@aihot/backend/db";
 import { unbilledAttempt } from "@aihot/backend/providers/receipts";
 import { editionDay } from "@aihot/backend/lib/time";
+import { archiveDoorFilter } from "@aihot/backend/sources/archive-site";
 import { isDay } from "@aihot/contracts/time";
 
 /** 片段类型直接取本文件构造出来的那一个：nesting 用的就是它，不去猜 postgres 的内部类型名。 */
@@ -68,7 +69,7 @@ async function main() {
              AND ai.month < to_char(now() AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM'))::int AS done,
            count(*) FILTER (WHERE ai.status IN ('pending','running'))::int AS pending_any
     FROM archive_ingest ai JOIN sources s ON s.id = ai.source_id
-    WHERE s.enabled AND (coalesce(s.config->>'issn','') <> '' OR coalesce(s.config->>'archiveIndexUrl','') <> '')`;
+    WHERE ${archiveDoorFilter(sql`s`)}`;
 
   // 吞吐：从**计费收据**数"近 12 小时真判了几篇"。`origin='live'` 排除测试与回填自检。
   // 不产生账单的那一类（连不上、DNS 失败、被 429 挡回）用 `providers/receipts.ts` 的 `unbilledAttempt()`，
