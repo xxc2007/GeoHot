@@ -355,10 +355,10 @@ function citedItemIds(content: Record<string, any>, shape: "daily" | "periodic")
  * rows, their headline candidates and their citation page sets from here, so no outlet can apply a second,
  * looser gate than the site index does (`listReports` below is the same filter with the counts attached).
  */
-export async function readableReports(kind: ReportKind, limit: number) {
+export async function readableReports(kind: ReportKind, limit: number, before?: string | null) {
   const index = await reportIndex(kind);
   const shape = kind === "daily" ? "daily" : "periodic";
-  return { index, shape, rows: readableRows(index, shape, limit) };
+  return { index, shape, rows: readableRows(index, shape, limit, before) };
 }
 
 /**
@@ -369,9 +369,14 @@ export async function readableReports(kind: ReportKind, limit: number) {
  * the neighbouring-page links. A *named* blank issue is still served as its own honest empty state
  * (`v1Report`/`loadReport`), it just is never advertised.
  */
-function readableRows(index: ReportIndex, shape: "daily" | "periodic", limit: number) {
+function readableRows(index: ReportIndex, shape: "daily" | "periodic", limit: number, before?: string | null) {
+  // `before` is a cursor over the period key, applied **before** the slice: with ~300 dailies behind a
+  // 180-row list, filtering after the slice would answer "no such issue" for every date the client had
+  // already seen, which is the opposite of paging. Keys are fixed-width and zero-padded per kind, so
+  // text order is chronological — the same fact `reportIndexRows`' `ORDER BY key DESC` relies on.
   return index.rows
     .filter((r) => citedItemIds(r.content, shape).some((id) => !index.withoutPage.has(id)))
+    .filter((r) => !before || r.key < before)
     .slice(0, limit);
 }
 
@@ -462,10 +467,10 @@ export interface V1MonthlyBody { schemaVersion: 1; report: { month: string } & V
  * from {@link readableReports} — the one gate every outlet shares — never from a second, looser test of
  * the raw citation count, so no exit can advertise a paper whose table of contents is empty.
  */
-export function v1Reports(kind: "daily", limit: number): Promise<V1DailiesBody>;
-export function v1Reports(kind: "weekly" | "monthly", limit: number): Promise<V1PeriodicListBody>;
-export async function v1Reports(kind: ReportKind, limit: number): Promise<V1DailiesBody | V1PeriodicListBody> {
-  const { index, rows } = await readableReports(kind, limit);
+export function v1Reports(kind: "daily", limit: number, before?: string | null): Promise<V1DailiesBody>;
+export function v1Reports(kind: "weekly" | "monthly", limit: number, before?: string | null): Promise<V1PeriodicListBody>;
+export async function v1Reports(kind: ReportKind, limit: number, before?: string | null): Promise<V1DailiesBody | V1PeriodicListBody> {
+  const { index, rows } = await readableReports(kind, limit, before);
   const gone = index.gone;
   if (kind === "daily") {
     const items = rows.map((r) => {
@@ -590,7 +595,7 @@ export async function v1Report(kind: ReportKind, key: string): Promise<V1DailyBo
 }
 
 // Call sites (the routes, the MCP server) keep reading these names; they are thin wrappers now.
-export const v1Dailies = (limit: number): Promise<V1DailiesBody> => v1Reports("daily", limit);
+export const v1Dailies = (limit: number, before?: string | null): Promise<V1DailiesBody> => v1Reports("daily", limit, before);
 export const v1Daily = (date: string | "latest"): Promise<V1DailyBody | null> => v1Report("daily", date);
 
 export { siteUrl };

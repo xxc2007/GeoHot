@@ -56,7 +56,7 @@ export function llmsTxt(opts: { hasDailies: boolean; hasWeekly: boolean; hasMont
   }
   if (opts.hasDailies) {
     lines.push(`- [公开 API v1 · 最新${daily}](${u("/api/v1/dailies/latest")}): 最新一期结构化${daily}`);
-    lines.push(`- [公开 API v1 · ${daily}列表](${u("/api/v1/dailies")}): 历史${daily}索引；指定日期使用 /api/v1/dailies/{YYYY-MM-DD}`);
+    lines.push(`- [公开 API v1 · ${daily}列表](${u("/api/v1/dailies")}): 从最新一期往前的${daily}索引，更早的带 ?before=YYYY-MM-DD 往前翻；指定日期使用 /api/v1/dailies/{YYYY-MM-DD}`);
   }
   if (opts.hasWeekly) {
     lines.push(`- [公开 API v1 · 最新${withSubject("周报")}](${u("/api/v1/weeklies/latest")}): 最新一期结构化${withSubject("周报")}：头条、总述、按栏目分好的大事`);

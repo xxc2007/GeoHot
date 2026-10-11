@@ -117,6 +117,17 @@ async function openApiJson(): Promise<string> {
     for (const v of Object.values(o)) walk(v);
   };
   walk(doc);
+  // 本站自己加的那一个查询参数：回填之后日报约 300 期、一页最多给 180 条，没有 `before` 就翻不到早期。
+  // 补在这里而不是改 `reference/public-v1.openapi.json`——那份是上游随附的文档，改了它下次同步会打架；
+  // 但服务出去的文档必须说得出这个参数，否则契约与代码各说一套，agent 照着契约就永远只用最新那一页。
+  for (const [p, fmt] of [["/api/v1/dailies", "YYYY-MM-DD"], ["/api/v1/weeklies", "YYYY-Www"], ["/api/v1/monthlies", "YYYY-MM"]] as const) {
+    const get = (doc.paths[p] as { get?: { parameters?: Record<string, unknown>[] } } | undefined)?.get;
+    if (!Array.isArray(get?.parameters) || get!.parameters!.some((x) => x?.name === "before")) continue;
+    get!.parameters!.push({
+      name: "before", in: "query", required: false, schema: { type: "string" },
+      description: `Exclusive cursor — return only issues older than this period key, formatted ${fmt}.`,
+    });
+  }
   if (!FEATURES.codexResetMonitor) {
     for (const p of Object.keys(doc.paths)) if (p.startsWith("/api/v1/codex-resets")) delete doc.paths[p];
     // Deleting the paths alone left the response schema behind: the document advertised a shape for an

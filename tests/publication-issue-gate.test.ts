@@ -250,3 +250,35 @@ test("「已出 N 期」和归档页说的是同一个数", async () => {
   assert.ok(stats.dailies < (await sql<{ n: number }[]>`SELECT count(*)::int AS n FROM reports WHERE kind = 'daily'`)[0]!.n,
     "库里数出来的行必须比这个多：本文件就造了一期空刊");
 });
+
+test("v1 列表带 before 游标：回填出来的早期日报机器侧也点得到", async () => {
+  // `/api/v1/dailies` 一页最多 180 条，而回填后约 300 期——没有游标时最早那 120 期在机器出口上
+  // 是点不到的（llms.txt 把它写成「历史索引」，那它就得真是历史索引）。游标是**排他**的：
+  // ?before=X 给的是严格早于 X 的那批，客户端拿本页最旧的期号当下一页的游标即可。
+  const all = await json("/api/v1/dailies?limit=180");
+  const dates = all.items.map((i: any) => i.date as string);
+  assert.ok(dates.includes(DAILY_OK) && dates.includes(DAILY_BACKFILL), "本页含最新可读期与补刊那期（否则下面的断言恒真）");
+  const paged = await json(`/api/v1/dailies?limit=180&before=${DAILY_OK}`);
+  const pagedDates = paged.items.map((i: any) => i.date as string);
+  assert.ok(!pagedDates.includes(DAILY_OK), "游标必须是排他的：before=D 不该再给 D 自己");
+  assert.ok(pagedDates.includes(DAILY_BACKFILL), "更早的那一期要翻得出来");
+  assert.ok(pagedDates.every((d: string) => d < DAILY_OK), `不该出现比游标更晚的期：${pagedDates.join(" ")}`);
+  // 期号形状按 kind 各自校验：日期的假日历、周号的非法周，都不许被当成"往前翻完了"。
+  assert.equal((await app.inject({ method: "GET", url: "/api/v1/dailies?before=2026-02-30" })).statusCode, 400, "2 月 30 日不是日期");
+  assert.equal((await app.inject({ method: "GET", url: "/api/v1/weeklies?before=2100-W99" })).statusCode, 400, "不存在的周不是游标");
+  assert.equal((await app.inject({ method: "GET", url: "/api/v1/dailies?before=2100-04-03&x=1" })).statusCode, 400, "严格查询照样拒绝没声明的参数");
+  const wk = await json("/api/v1/weeklies?before=2100-W06");
+  assert.ok(wk.items.some((i: any) => i.week === WEEK_OK) && !wk.items.some((i: any) => i.week === WEEK_EMPTY),
+    "周报列表用同一个游标：W06 之前的那期还在，W06 自己不出现");
+});
+
+test("服务出去的 OpenAPI 文档也说得出 before 这个游标", async () => {
+  // 代码接了这个参数而契约不写，等于只有读源码的人知道历史翻得动：agent 照着契约就永远停在最新那一页。
+  // 文档是 `static.ts` 现读现补的（上游那份 reference 不改），所以补上去这件事本身也要被钉住。
+  const doc = JSON.parse(await get("/openapi-v1.json")) as any;
+  for (const p of ["/api/v1/dailies", "/api/v1/weeklies", "/api/v1/monthlies"]) {
+    const params = doc.paths?.[p]?.get?.parameters ?? [];
+    assert.ok(params.some((x: any) => x?.name === "before" && x?.in === "query"), `${p} 的契约里没有 before 游标`);
+  }
+  assert.ok(!JSON.stringify(doc).includes("{{"), "文档占位符都要被替换掉（含新加的那段描述）");
+});
