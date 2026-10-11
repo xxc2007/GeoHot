@@ -299,8 +299,10 @@ export async function modelFor(capability: CapabilityKey, shardKey?: string): Pr
  *
  * `modelFor` and `modelSources` must run exactly this: the admin panel that says who serves is the one place an
  * operator looks when routing looks wrong, and two copies of the rule would let them disagree.
- * (`budgetFallbackModelsForPurpose` deliberately does NOT share it: for an unsent request with no healthy
- * member the right answer is "no fallback", so it has no never-empty step.)
+ * (`budgetFallbackModelsForPurpose` deliberately does NOT share it: it answers "who may carry an unsent
+ * request", so it is allowed to answer *nobody* — no capability entry for the purpose, or a pool of one.
+ * Inside those candidates the same never-empty refusal-shed still applies, so it is not "no shedding",
+ * it is "no substitute for the configured pool".)
  */
 async function servingMembers(listed: string[], capability: CapabilityKey): Promise<string[]> {
   const sick = await sickServices();
@@ -308,11 +310,17 @@ async function servingMembers(listed: string[], capability: CapabilityKey): Prom
   return shedRefusingMembers(healthy.length ? healthy : listed, capability, await refusalPairs());
 }
 
+/** Which capability a purpose is charged to — the one place the `purposes` lists get searched.
+ * Both fallback selectors need it, and a third copy would be a third answer for a renamed purpose. */
+function capabilityForPurpose(purpose: string): [CapabilityKey, Capability] | undefined {
+  return (Object.entries(CAPABILITIES) as Array<[CapabilityKey, Capability]>)
+    .find(([, c]) => c.purposes.includes(purpose));
+}
+
 /** Recovery considers only the currently configured pool, including unhealthy members whose answer
  * may already have arrived. An explicit model outside that pool keeps its own receipt identity. */
 export async function recoveryModelsForPurpose(purpose: string, selected: string): Promise<string[]> {
-  const entry = (Object.entries(CAPABILITIES) as Array<[CapabilityKey, Capability]>)
-    .find(([, c]) => c.purposes.includes(purpose));
+  const entry = capabilityForPurpose(purpose);
   if (!entry) return [selected];
   const [capability, c] = entry;
   const configured = (await overrides())[capability] ?? process.env[c.env] ?? process.env.MODEL_POOL ?? c.default;
@@ -323,8 +331,7 @@ export async function recoveryModelsForPurpose(purpose: string, selected: string
 /** Only configured, healthy members able to accept this capability may carry an unsent request whose
  * original service is locally budget-blocked. Cached recovery keeps its broader exact-key candidate set. */
 export async function budgetFallbackModelsForPurpose(purpose: string, selected: string, requireVision = false): Promise<string[]> {
-  const entry = (Object.entries(CAPABILITIES) as Array<[CapabilityKey, Capability]>)
-    .find(([, c]) => c.purposes.includes(purpose));
+  const entry = capabilityForPurpose(purpose);
   if (!entry) return [];
   const members = await recoveryModelsForPurpose(purpose, selected);
   if (members.length <= 1) return [];
@@ -354,6 +361,10 @@ export async function modelSources(): Promise<Record<string, { model: string; se
     // Names listed but dropped are the difference the operator needs to see — including the ones dropped
     // because they are failing right now, so the panel and `modelFor` never disagree about who serves.
     const serving = await servingMembers(membersFor(configured.model, key as CapabilityKey), key as CapabilityKey);
+    // The empty case is reachable and is not dead code: `poolOf()` drops names that aren't in the registry,
+    // so an admin value or MODEL_POOL that lists only typos yields `listed = []` — and `servingMembers()`
+    // is never-empty *relative to its input*, so an empty input stays empty. Show what was configured there,
+    // because a blank cell would read as "this capability has no model" rather than "the name is wrong".
     out[key] = { ...configured, serving: serving.length ? serving.join(",") : configured.model };
   }
   return out;
