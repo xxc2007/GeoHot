@@ -8,17 +8,15 @@ import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import { closeDb, sql } from "@aihot/backend/db";
 import { closeTruncatedSentence } from "../packages/backend/src/editorial/writing.ts";
-import { ENDS_WITH_SEPARATOR, MISSING_END_PUNCT, openEndedCondition } from "../scripts/close-open-ended-summaries.ts";
+import { OPEN_ENDED, openEndedCondition } from "../scripts/close-open-ended-summaries.ts";
 
-const sep = new RegExp(ENDS_WITH_SEPARATOR);
-const noPunct = new RegExp(MISSING_END_PUNCT);
-const isCandidate = (s: string) => sep.test(s) || (noPunct.test(s) && !sep.test(s));
+const openEnded = new RegExp(OPEN_ENDED);
 
 test("三种线上实测的半句话形状都在候选里", () => {
-  assert.ok(isCandidate("气象台继续发布暴雨橙色预警，各地做好准备；"), "结尾挂分隔符");
-  assert.ok(isCandidate("昨夜北京城区最大降水小时雨强达"), "整段没有结尾标点");
-  assert.ok(isCandidate("台风范围扩大。29号台风"), "写完一句后又起了一句");
-  assert.equal(isCandidate("黄河源区湖泊面积近十年扩大约一成。"), false, "写完的摘要不许被碰");
+  assert.ok(openEnded.test("气象台继续发布暴雨橙色预警，各地做好准备；"), "结尾挂分隔符");
+  assert.ok(openEnded.test("昨夜北京城区最大降水小时雨强达"), "整段没有结尾标点");
+  assert.ok(openEnded.test("台风范围扩大。29号台风"), "写完一句后又起了一句");
+  assert.equal(openEnded.test("黄河源区湖泊面积近十年扩大约一成。"), false, "写完的摘要不许被碰");
 });
 
 test("收口之后一定闭合，而且一个新字都不加", () => {

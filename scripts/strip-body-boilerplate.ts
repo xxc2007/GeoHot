@@ -60,8 +60,18 @@ if (values["database-url"] && !sameTarget(values["database-url"], config.databas
   process.exit(2);
 }
 
-const limit = Number(values.limit);
-const maxApply = Number(values["max-apply"]);
+// `Number("3O0")` 是 NaN，而 `candidates.length > NaN` 恒为 false —— 打字错误会把写入上限变成"没有上限"，
+// 一次洗完全库（每条约 5 次付费调用）。与 close-open-ended-summaries.ts 同规：先验成正整数再往下走。
+function positiveInt(raw: string, name: string): number {
+  const n = Number(raw);
+  if (!Number.isSafeInteger(n) || n < 1) {
+    console.error(`--${name} 要是 ≥1 的整数，收到的是「${raw}」`);
+    process.exit(2);
+  }
+  return n;
+}
+const limit = positiveInt(values.limit!, "limit");
+const maxApply = positiveInt(values["max-apply"]!, "max-apply");
 const rows = await sql<{ id: string; title: string; source_id: string; body_text: string; body_html: string | null; revision: number }[]>`
   SELECT id, title, source_id, body_text, body_html, revision
   FROM articles

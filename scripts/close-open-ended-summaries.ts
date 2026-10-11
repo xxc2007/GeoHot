@@ -23,16 +23,19 @@ import { config } from "@aihot/backend/config";
 import { closeDb, sql } from "@aihot/backend/db";
 import { closeTruncatedSentence } from "@aihot/backend/editorial/writing";
 
-/** 交给 SQL 的两条形状判据；测试用同样的字符串断言它们真的抓得住这三种形状。 */
-export const ENDS_WITH_SEPARATOR = "[，、；：,;:]+$";
-export const MISSING_END_PUNCT = "[^。！？…!?]$";
+/**
+ * 一条判据，不是两条：`结尾挂分隔符` 与 `整段没有结尾标点` 在 Postgres 上是同一个集合——分隔符 `，、；：,;:`
+ * 本来就不在收尾标点 `。！？…!?` 里，所以 `A OR (B AND NOT A)` 恒等于 `B`。评审拿 CI 库上 16 种形状验过这一点
+ * （唯一的例外是空串，而下面 `length(summary) >= 20` 已经把它排除）。写成两条只会多一个可以对不上的地方。
+ */
+export const OPEN_ENDED = "[^。！？…!?]$";
 
 /**
  * 候选判据只写一次，而且是**数据库那一份**：Postgres 的 `~` 与 JS 的 RegExp 在字符类、多字节类上并不总是
  * 同意，而"谁该被洗"这件事必须由写库的那条查询说了算。测试直接拿这段对 `VALUES` 跑，量的是真判据本身。
  */
 export function openEndedCondition() {
-  return sql`(summary ~ ${ENDS_WITH_SEPARATOR} OR (summary ~ ${MISSING_END_PUNCT} AND summary !~ ${ENDS_WITH_SEPARATOR}))`;
+  return sql`summary ~ ${OPEN_ENDED}`;
 }
 
 async function main() {
@@ -63,8 +66,18 @@ if (values["database-url"] && !sameTarget(values["database-url"], config.databas
   process.exit(2);
 }
 
-const limit = Number(values.limit);
-const maxApply = Number(values["max-apply"]);
+/** 数字参数打错字不能变成"上限消失"：`Number("3O0")` 是 NaN，而 `长度 > NaN` 恒为 false，
+ * 于是 --max-apply 的护栏静默失效、一次洗完全库。`backfill-archive.ts` 早就拒绝了这一类，照它做。 */
+function positiveInt(raw: string, name: string): number {
+  const n = Number(raw);
+  if (!Number.isSafeInteger(n) || n < 1) {
+    console.error(`--${name} 要是 ≥1 的整数，收到的是「${raw}」`);
+    process.exit(2);
+  }
+  return n;
+}
+const limit = positiveInt(values.limit!, "limit");
+const maxApply = positiveInt(values["max-apply"]!, "max-apply");
 // 整条候选判据也只写一份：条数与明细两条查询必须数的是同一批行，否则打印出来的"全库多少条"与实际要改的不是同一件事。
 const candidateWhere = sql`visibility = 'public' AND summary IS NOT NULL AND length(summary) >= 20 AND ${openEndedCondition()}`;
 const [total] = await sql<{ n: number }[]>`SELECT count(*)::int AS n FROM publications WHERE ${candidateWhere}`;

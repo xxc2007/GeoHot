@@ -160,9 +160,15 @@ import { beijingDate } from '@aihot/contracts/time';
 const [from,to] = process.argv.slice(1);
 try {
   const current = beijingDate(Date.now()).slice(0,7);
-  const [row] = await sql`SELECT count(*)::int AS n FROM archive_ingest
-     WHERE status IN ('pending','running') AND month >= ${from.slice(0,7)} AND month <= ${to.slice(0,7)}
-       AND month < ${current}`;
+  // 谓词必须与上面 select-slices 那段（同一文件内 `SELECT id FROM sources WHERE enabled AND (issn… OR archiveIndexUrl…)`）
+  // 一致：这里数的是"还没跑完的进口"，而选择器只会再挑 enabled 且仍带着门的信源。少这层 join，
+  // 一条被停用或丢了 `config.issn` 的信源留下的 pending 行就永远关不掉——出刊会被永久挡死，
+  // 而这一轮仍然 exit 0。2026-10-11 生产实测这种行当前是 0 条，但 `delete-sources.ts` 与停用操作随时能造出来。
+  const [row] = await sql`SELECT count(*)::int AS n FROM archive_ingest ai
+     JOIN sources s ON s.id = ai.source_id
+     WHERE ai.status IN ('pending','running') AND ai.month >= ${from.slice(0,7)} AND ai.month <= ${to.slice(0,7)}
+       AND ai.month < ${current} AND s.enabled
+       AND (coalesce(s.config->>'issn','') <> '' OR coalesce(s.config->>'archiveIndexUrl','') <> '')`;
   console.log((row?.n ?? 0) === 0 ? 'ripe' : `pending:${row?.n ?? 0}`);
 } finally { await closeDb(); }
 NODE
