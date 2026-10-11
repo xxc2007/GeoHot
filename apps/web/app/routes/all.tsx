@@ -3,11 +3,13 @@ import { Link, useLoaderData, useNavigation, useSearchParams } from "react-route
 import type { Route } from "./+types/all";
 import type { PoolResponse } from "@aihot/contracts/site";
 import { isCategoryKey, isChannelKey } from "@aihot/contracts/taxonomy";
+import { beijingDate, isDay, isMonth } from "@aihot/contracts/time";
 import { loadOr404, queryString } from "../lib/api.server";
 import { listPath, pageMeta } from "../lib/seo";
 import { CategoryTabs, SearchField } from "../features/feed/Filters";
 import { PillTabs } from "../components/ui/Tabs";
 import { DayList, Pagination } from "../features/feed/DayList";
+import { DateCalendar, type CalendarDay } from "../features/calendar/DateCalendar";
 import { beijingTime, todayOf } from "../lib/format";
 import { EmptyState } from "../components/ui/Page";
 import { RingMark } from "../components/Logo";
@@ -25,13 +27,26 @@ export async function loader({ request }: Route.LoaderArgs) {
   const tag = url.searchParams.get("tag")?.trim() || null;
   const q = url.searchParams.get("q")?.trim().slice(0, 200) || null;
   const tab = url.searchParams.get("tab") === "relevance" ? "relevance" : null;
+  // 日历选的那一天，以及日历正看着的那一个月。两个都按上面 `category` 那条规矩办：认不出来就 404，
+  // 不安静地当成"没有筛选"——否则读者点 3 月却看到 10 月的卡片，比报错更难查。
+  const dateParam = url.searchParams.get("date");
+  if (dateParam && !isDay(dateParam)) throw new Response("Not found", { status: 404 });
+  const date = dateParam && isDay(dateParam) ? dateParam : null;
+  const monthParam = url.searchParams.get("month");
+  if (monthParam && !isMonth(monthParam)) throw new Response("Not found", { status: 404 });
+  const month = (monthParam && isMonth(monthParam) ? monthParam : null) ?? date?.slice(0, 7) ?? beijingDate(Date.now()).slice(0, 7);
   // Legacy deep-paging parameters (deep, anchorAt) still open a normal page.
   const page = Math.min(Math.max(Number.parseInt(url.searchParams.get("page") ?? "1", 10) || 1, 1), 50);
-  const data = await loadOr404<PoolResponse>(
-    `/api/site/pool${queryString({ channel: channel === "all" ? null : channel, category, tag, q, tab, page: page > 1 ? page : null })}`,
-    { signal: request.signal, busyRedirect: "/all/search-busy" },
-  );
-  return { data };
+  const [data, calendar] = await Promise.all([
+    loadOr404<PoolResponse>(
+      `/api/site/pool${queryString({ channel: channel === "all" ? null : channel, category, tag, q, tab, page: page > 1 ? page : null, date })}`,
+      { signal: request.signal, busyRedirect: "/all/search-busy" },
+    ),
+    // 日历那一格拿不到不该把整页拖下水：列表自己会说"这一天没有内容"。
+    loadOr404<{ month: string; days: CalendarDay[] }>(`/api/site/calendar?month=${month}`, { signal: request.signal })
+      .catch(() => ({ month, days: [] as CalendarDay[] })),
+  ]);
+  return { data, calendar, date, month };
 }
 
 export function meta({ loaderData }: Route.MetaArgs) {
@@ -43,7 +58,7 @@ export function meta({ loaderData }: Route.MetaArgs) {
     // announced itself as 「全部地理动态」 to tabs and search engines alike (real-browser pass, 2026-10-04).
     title: q ? `搜索“${q}”` : f?.tag ? `#${f.tag}` : `全部${withSubject("动态")}`,
     description: `${SITE.name} 收录的全部${withSubject("动态")}，可按类别与标签筛选，支持中英文搜索。`,
-    path: listPath("/all", { channel: f && f.channel !== "all" ? f.channel : null, category: f?.category, tag: f?.tag, q, tab: f?.tab === "relevance" ? "relevance" : null, page: page > 1 ? page : null }),
+    path: listPath("/all", { channel: f && f.channel !== "all" ? f.channel : null, category: f?.category, tag: f?.tag, q, tab: f?.tab === "relevance" ? "relevance" : null, page: page > 1 ? page : null, date: loaderData?.date ?? null }),
     image: "/og/pages/all.png",
     noindex: !!q,
   });
@@ -65,12 +80,24 @@ function pageHref(params: URLSearchParams, page: number) {
 }
 
 export default function AllPage() {
-  const { data } = useLoaderData<typeof loader>();
+  const { data, calendar, date, month } = useLoaderData<typeof loader>();
   const [params] = useSearchParams();
   const navigation = useNavigation();
   const f = data.filters;
   const busy = navigation.state === "loading" && navigation.location?.pathname === "/all";
   const keep = { channel: f.channel === "all" ? null : f.channel, category: f.category, tag: f.tag };
+  // 日历的两种走法：点某一天 = 带着当前筛选去看那一天；换月份 = 只看那一月的日历，不留在旧的那一天上。
+  const listHref = (over: Record<string, string | null>) => {
+    const sp = new URLSearchParams();
+    for (const [k, v] of Object.entries({ channel: f.channel === "all" ? null : f.channel, category: f.category, tag: f.tag, date, month, ...over })) {
+      if (v) sp.set(k, v);
+    }
+    const q = sp.toString();
+    return q ? `/all?${q}` : "/all";
+  };
+  const dayHref = (d: string) => listHref({ date: d, month: d.slice(0, 7) });
+  const monthHref = (m: string) => listHref({ date: null, month: m });
+  const cnDate = (d: string) => `${Number(d.slice(0, 4))} 年 ${Number(d.slice(5, 7))} 月 ${Number(d.slice(8, 10))} 日`;
   const searchTabHref = (tab: "time" | "relevance") => {
     const sp = new URLSearchParams(params);
     sp.delete("page");
@@ -125,6 +152,14 @@ export default function AllPage() {
         </div>
       )}
 
+      <DateCalendar className="mb-4" month={month} days={calendar.days} selected={date} today={todayOf(data.generatedAt)} dayHref={dayHref} monthHref={monthHref} unit="条" />
+      {date && (
+        <p className="-mt-1 mb-3 text-[12px] text-ink-4">
+          正在只看 {cnDate(date)} 那一天 ·
+          <Link to={listHref({ date: null, month: null })} className="ml-1 inline-flex min-h-9 items-center font-medium text-accent hover:underline">看全部日期</Link>
+        </p>
+      )}
+
       {/* A section heading for the list itself. The cards are <h3>, and on every other board the level
           above them is a real section title ("精选", "最新"); here the page title <h1> sat straight on
           top of <h3>, which Lighthouse reads as a skipped level (the heading-order audit) and a screen
@@ -144,7 +179,7 @@ export default function AllPage() {
                 ) : undefined
               }
             >
-              {f.q ? "换个说法，或者去掉筛选再试。" : "这个筛选下暂时没有内容。"}
+              {f.q ? "换个说法，或者去掉筛选再试。" : date ? "那一天没有收录到的条目——日历上只有有内容的日子才是点得动的。" : "这个筛选下暂时没有内容。"}
             </EmptyState>
           </div>
         ) : (
@@ -152,7 +187,7 @@ export default function AllPage() {
         )}
       </div>
       <Pagination page={data.page} pageCount={data.pageCount} href={(p) => pageHref(params, p)} />
-      {data.page >= 50 && <p className="mt-4 text-center text-[12px] text-ink-4">最多提供 50 页，更早的内容请使用搜索或主题页。</p>}
+      {data.page >= 50 && <p className="mt-4 text-center text-[12px] text-ink-4">最多提供 50 页；更早的日子请用上面这张日历挑一天，或者用搜索、主题页。</p>}
     </div>
   );
 }

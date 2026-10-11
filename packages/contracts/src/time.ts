@@ -24,6 +24,19 @@ export function addDays(date: string, days: number): string {
   return new Date(t).toISOString().slice(0, 10);
 }
 
+/**
+ * 日历参数只有两种写法算数：`YYYY-MM` 与 `YYYY-MM-DD`，而且**回读要等于原值**——
+ * `2026-02-30`、`2026-13-01` 形状对却不存在，`beijingMidnight` 会把它们滚成另一天，
+ * 于是"点了 2 月 30 日"会安静地给出 3 月 2 日的内容。这一条与 `dates.ts` 不猜日期顺序是同一族规矩。
+ */
+export function isMonth(value: string | null | undefined): value is string {
+  return !!value && /^\d{4}-(0[1-9]|1[0-2])$/.test(value) && beijingDate(beijingMidnight(`${value}-01`)) === `${value}-01`;
+}
+
+export function isDay(value: string | null | undefined): value is string {
+  return !!value && /^\d{4}-\d{2}-\d{2}$/.test(value) && beijingDate(beijingMidnight(value)) === value;
+}
+
 const WEEKDAYS = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
 
 export function beijingWeekday(date: string): string {

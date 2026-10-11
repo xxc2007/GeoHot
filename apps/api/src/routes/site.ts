@@ -6,6 +6,8 @@ import { ARTICLE_ID_PATTERN, isCategoryKey, isChannelKey, type CategoryKey, type
 import { InvalidCursorError } from "@aihot/backend/lib/cursor";
 import { exportMarkdown, loadItemDetail, siteItemDetail } from "@aihot/backend/publication/detail";
 import { loadPool, SearchBusyError } from "@aihot/backend/publication/pool";
+import { monthMarks } from "@aihot/backend/publication/calendar";
+import { isDay, isMonth } from "@aihot/contracts/time";
 import { loadTimeline } from "@aihot/backend/publication/timeline";
 import { loadStoryFollowups } from "@aihot/backend/publication/followups";
 import { loadDevelopments, loadGroupReports } from "@aihot/backend/publication/groups";
@@ -111,9 +113,21 @@ export function registerSite(app: FastifyInstance) {
     const page = Math.min(Math.max(Number(q.page) || 1, 1), 50);
     const search = q.q?.trim() ? q.q.trim().slice(0, 200) : null;
     const tab = q.tab === "relevance" ? "relevance" : "time";
-    const data = await loadPool({ ...filters, q: search, tab, page });
+    // 日历选的那一天。和 `category` 一样：认不出的值要说一句话，不能静默当成"没有筛选"
+    // ——否则读者从旧链接进来会看到一整片不属于那一天的卡片（2026-10-11 评审波实测的就是这个）。
+    if (q.date !== undefined && !isDay(q.date)) throw new BadRequest("invalid date");
+    const data = await loadPool({ ...filters, q: search, tab, page, date: q.date ?? null });
     const { generatedAt: _, ...content } = data;
     return sendJsonWithEtag(req, reply, data, { etagPrefix: "pool", cacheControl: "public, max-age=60, s-maxage=60", etagOf: content });
+  }));
+
+  // 日历入口的数据：某个月里哪几天有内容、哪几天出过日报。前端只拿到稀疏的有内容的日子，
+  // 空格自己补——所以"这个月一个点都没有"和"这个月没查"是两种答案，都要如实回（空数组 vs 400）。
+  app.get("/api/site/calendar", siteHandler(async (req, reply) => {
+    const q = looseQuery(req);
+    if (!isMonth(q.month)) throw new BadRequest("invalid month");
+    const days = await monthMarks(q.month);
+    return sendJsonWithEtag(req, reply, { month: q.month, days }, { etagPrefix: "cal", cacheControl: "public, max-age=300, s-maxage=300" });
   }));
 
   app.get("/api/site/items/:id", siteHandler(async (req, reply) => {
