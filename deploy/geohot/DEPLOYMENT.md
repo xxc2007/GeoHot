@@ -286,3 +286,15 @@ cd /opt/geohot/app && sudo -u geohot bash deploy/geohot/verify-deploy.sh   # 必
 **只动文档或 `industry/changelog.json` 的最小更新**：`industry/changelog.json` 是 **api 进程启动时读入**，
 改了它必须 `systemctl restart geohot-api`（否则 `/changelog` 发旧内容，状态码看不出来）；纯前端改动
 只需重建 + 重启 web；后端改动重启 api 与 worker。
+
+## 2026-10-11：长程采集期间的更新与回滚
+
+长程档案采集、源码更新和迁移备份共用应用目录下 `.data/archive-cycle/cycle.lock`。更新先暂停 `geohot-archive.timer`，取得同一把锁，排空唯一 worker，再更新源码及必要构建；成功或失败退出都恢复定时器。不要在锁被占用时额外启动采集或另一个分析 worker。
+
+先让在途付费回答正常落账，再停 API/web/brain：本版本 `STOP_TIMEOUT_MS=255000`，worker systemd `TimeoutStopSec=285`；外层等待至少覆盖 systemd 停止窗口，不能先用更短 timeout 强杀。更新不调整模型预算、评分、回执或已有作业。仅后端或 cron 修改可沿用逐字相同的已验收前端构建；前端或行业包修改仍须重新以实际前缀构建。
+
+从 Windows 读取保存的 bash 命令时，先将真实 CRLF 转为 LF，确认 heredoc 结束符独占一行；不要直接把带 `BASH\r` 的末行交给 ssh。2026-10-11 实际发生过健康探测已通过、最后结束符却被当作命令、退出码 127 自动回滚的情况；健康日志中的某一次成功不能代替整个发布命令退出成功和随后的线上验收。
+
+以 root 和 `--no-same-owner` 解包回滚应用时，归档中的 `.env` 即使仍为 0600，也可能归属 root，导致 geohot 进程无法读入并反复启动。回滚后、启动前明确恢复该已知配置文件为 geohot:geohot/0600，只检查归属和权限，不打印内容。先停止已启动的新版本 worker 并排空在途请求，再恢复源码；不要让内存中的新模块继续配合磁盘上的旧源码运行。
+
+发布后要求公网 health 返回目标 release、四单元 active、档案 timer active，完整 `verify-deploy.sh` 为 ALL CHECKS PASSED。若启动中曾有 502，保留原日志和真实窗口；只有后续稳定状态才列为上线验收。回滚或迁移备份含私有环境配置，只存放私有目录，不进入公开源码仓库。

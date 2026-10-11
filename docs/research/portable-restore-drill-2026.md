@@ -103,3 +103,31 @@
 清理前逐字验证目录 realpath 正好为 `/opt/geohot/backups/migration/a18-restore-private-153055`，并验证父目录为私有迁移根且自身不是符号链接；只删除该目录及该唯一测试库。删除后测试库同名数量 0，生产 `geohot` 库数量 1，原包仍为 0600 / 236158562 bytes，`geohot-api`、`geohot-web`、`geohot-worker`、`geohot-brain` 全部 active。演练结束时可用内存约 335 MB，未触发停止生产服务。
 
 此次覆盖第三包的数据恢复、序列/结构完整性、必要私有配置与七项关键 release 源码一致性。没有在另一台主机重新安装依赖、重建前端、设置域名/TLS或启动完整栈；也未证明该中间快照包含后续新内容。最终轮若继续修改代码或内容，仍需生成并验收最终新包。
+
+## 第四次真实演练：2026-10-11 中间包，源码 1805826
+
+第 18 个独立检查 agent 对 `/opt/geohot/backups/migration/geohot-20261011T042922Z-portable.tgz` 实际恢复。包为 279395223 bytes、0600，源码目标为 **1805826**。演练结束时生产已更新到 a8f5ad0，因此此包明确是较早的中间快照，不含 a8f5ad0 的写作拒收修复，不能称为最终备份。
+
+仅新建唯一 `geohot_a18_restore_042922_test` 数据库与 0700 的 `/opt/geohot/backups/migration/a18-restore-private-042922` 目录。恢复使用 nice 15、idle I/O 和单线程 pg_restore，退出码 0；未启动额外 API、web、worker、采集或模型请求，未停止生产服务。开始时可用内存约 215 MB、swap 余约 1861 MB、磁盘余约 31 GB；执行中最低抽查可用内存约 146 MB，结束后约 264 MB。
+
+外层 SHA256 通过，外层及源码归档路径检查通过。内层 manifest **15 项全部通过**。receipts、llm、models、analyze、backfill-news、backfill-archive、portable-backup 七个关键文件的归档 SHA256 与 Git **1805826** 的原始 blob 一致。源码包含 53 个迁移 SQL；`archive-cycle.conf` 存在且 RESTORE 有恢复指引。`.env` 仅检查归档成员存在及权限 0600，未读取或输出凭据。
+
+以该包自己的 COPY 数据与 setval 为权威比较对象：**72 表共 1080917 行逐表一致，差异 0；16 个序列状态一致，差异 0；53 条迁移名称与源码一致**。未验证外键 0、无效索引 0，扩展 `pg_trgm` 和 `plpgsql` 存在。恢复库大小为 887117491 bytes。
+
+| 第四包快照对象 | 真实恢复结果 |
+| --- | --- |
+| articles | 24994 |
+| article_revisions | 43029 |
+| analyses | 15955 |
+| publications | 14881 |
+| sources | 311；启用 289 |
+| receipts / receipt_attempts | 90096 / 95984 |
+| pgboss.job_common | 416975 |
+| archive_ingest | 929 |
+| reports | 20：日报 17（2026-09-25→2026-10-11）、周报 2（W39→W40）、月报 1（2026-09） |
+
+以上 reports 是数据库存储行数，不能直接等同公开刊数；其中既有 2026-09 月刊为空刊，并未据此宣称月报已公开出刊。完整逐表、序列和结构证据保留在私有过程目录 `a18-restore-042922-evidence.json`，LF 演练命令为 `a18-drill-042922-command.txt`，未包含凭据或材料正文。
+
+清理前验证目录 realpath 与上述唯一路径完全相同，父目录为迁移目录且目录本身不是符号链接；仅删除该目录和唯一 `_test` 库。删除后同名数据库数量 0、解包目录不存在；原备份保留，权限和大小未变，外层 SHA 再次通过。四个生产常驻服务与 archive timer 全部 active，源站 health 返回 200、DB ok、release a8f5ad0。
+
+此次结论覆盖该中间包的数据、序列、结构、私有配置存在性与七项关键源码一致性；没有在新主机执行 npm ci、前端构建、TLS/域名配置或全栈运行验收。持续采集和后续代码变化仍要求最终新包验收。
