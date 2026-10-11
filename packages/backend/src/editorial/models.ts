@@ -198,15 +198,21 @@ export async function sickServices(): Promise<Set<string>> {
  * (`MAX_OUTPUT_FAILURES`) it lands in `failed` with no Chinese title or summary — which is precisely what
  * keeps an item out of the pool and out of the paper.
  *
- * The verdict is per **(door, step)**, not per door: benching one use of a door leaves its working capacity
- * in the pool, which is the difference between 660 freed calls and 1,063 lost ones. It cannot deadlock —
- * the window is the door's own recent answers, so one accepted reply on that step puts it back — and it
- * cannot empty a pool: if every member is refused for a step they all stay eligible, because the retry
- * ladder, not this choice, decides when to stop.
+ * The verdict is per **(model, step)**, not per door. Health and budgets are per door because the provider and
+ * its quota are — but the ability to write Chinese copy is a property of one model, and seven registry members
+ * share the service `openrouter`. Keyed on the service, one bad model there would bench six siblings; keyed on
+ * the model, each answers for itself. The cost of that precision: a provider that is uniformly bad at a step
+ * now has to reach the floor once per model rather than once in total.
+ *
+ * It cannot empty a pool: if every member is refused for a step they all stay eligible, because the retry
+ * ladder, not this choice, decides when to stop. It is not a latch either — the window is 24 h of the model's
+ * own receipts, and a benched model produces none for that step, so the bench expires by *ageing out*, roughly
+ * a day later; it then takes ≥10 fresh refusals to bench again. One accepted reply is not enough to clear 660
+ * refusals, and pretending otherwise would make this look self-healing when it is really time-limited.
  */
 const MIN_STEP_REFUSALS = 10;
 
-/** Whether these counts say "this door cannot do this step". Exported so the threshold itself is testable. */
+/** Whether these counts say "this model cannot do this step". Exported so the threshold itself is testable. */
 export function refusesThisStep(counts: { refused: number; accepted: number }): boolean {
   return counts.refused >= MIN_STEP_REFUSALS && counts.refused > counts.accepted;
 }
@@ -220,7 +226,7 @@ let stepRefusals: { at: number; pairs: Map<string, { refused: number; accepted: 
 const REFUSAL_CACHE_MS = 300_000;
 const REGISTRY_SERVICES = [...new Set(Object.values(MODELS).map((m) => m.service))];
 
-/** Refused-versus-accepted counts for every (service, purpose) the ledger shows in the last 24 hours. */
+/** Refused-versus-accepted counts for every (model, purpose) the ledger shows in the last 24 hours. */
 async function refusalPairs(): Promise<Map<string, { refused: number; accepted: number }>> {
   if (stepRefusals && Date.now() - stepRefusals.at < REFUSAL_CACHE_MS) return stepRefusals.pairs;
   const pairs = new Map<string, { refused: number; accepted: number }>();
@@ -228,14 +234,16 @@ async function refusalPairs(): Promise<Map<string, { refused: number; accepted: 
   try {
     // `service = ANY(...)`: without it the plan seq-scans all 98,670 rows (14,886 pages, 956 ms measured on
     // production 2026-10-11); with it the same answer comes off receipts_service_time_idx in 3,546 pages.
-    const rows = await sql<{ service: string; purpose: string; refused: number; accepted: number }[]>`
-      SELECT service, purpose,
+    // `model IS NOT NULL`: a receipt without the model name cannot accuse one model of anything.
+    const rows = await sql<{ model: string; purpose: string; refused: number; accepted: number }[]>`
+      SELECT model, purpose,
         count(*) FILTER (WHERE ${refused})::int AS refused,
         count(*) FILTER (WHERE status IN ('received', 'completed'))::int AS accepted
       FROM receipts
       WHERE created_at > now() - interval '24 hours' AND origin = 'live' AND service = ANY(${REGISTRY_SERVICES})
+        AND model IS NOT NULL
       GROUP BY 1, 2`;
-    for (const r of rows) pairs.set(`${r.service}|${r.purpose}`, { refused: r.refused, accepted: r.accepted });
+    for (const r of rows) pairs.set(`${r.model}|${r.purpose}`, { refused: r.refused, accepted: r.accepted });
   } catch {
     // Same rule as the health read: a ledger query that fails must not decide the request.
   }
@@ -243,12 +251,12 @@ async function refusalPairs(): Promise<Map<string, { refused: number; accepted: 
   return pairs;
 }
 
-/** A capability spends several purposes (report writes a lead and an issue); the door is judged on the sum. */
-function stepCounts(pairs: Map<string, { refused: number; accepted: number }>, service: string, capability: CapabilityKey) {
+/** A capability spends several purposes (report writes a lead and an issue); the model is judged on the sum. */
+function stepCounts(pairs: Map<string, { refused: number; accepted: number }>, model: string, capability: CapabilityKey) {
   let refused = 0;
   let accepted = 0;
   for (const purpose of CAPABILITIES[capability].purposes) {
-    const counts = pairs.get(`${service}|${purpose}`);
+    const counts = pairs.get(`${model}|${purpose}`);
     if (counts) {
       refused += counts.refused;
       accepted += counts.accepted;
@@ -257,9 +265,9 @@ function stepCounts(pairs: Map<string, { refused: number; accepted: number }>, s
   return { refused, accepted };
 }
 
-/** Drop the members that cannot write this step's copy; keep them all if that would leave nothing. */
+/** Drop the members whose model cannot write this step's copy; keep them all if that would leave nothing. */
 export function shedRefusingMembers(members: string[], capability: CapabilityKey, pairs: Map<string, { refused: number; accepted: number }>): string[] {
-  const kept = members.filter((m) => !refusesThisStep(stepCounts(pairs, MODELS[m]!.service, capability)));
+  const kept = members.filter((m) => !refusesThisStep(stepCounts(pairs, MODELS[m]!.model ?? "", capability)));
   return kept.length ? kept : members;
 }
 
