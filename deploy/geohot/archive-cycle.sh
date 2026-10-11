@@ -129,6 +129,15 @@ try {
 NODE
 )
 if run_phase select-slices --input-type=module -e "$SELECTOR" "$FROM" "$TO" "$RUN_DIR" "$STATE_DIR" "$SLICES" "$MAX_ITEMS" "${GEOHOT_ARCHIVE_SOURCE:-}"; then
+  # 空选择不等于"今天没活干"。eligible=0 只有两种来路：包里带档案门的信源一条都不剩（`config.issn` 丢了），
+  # 或 `GEOHOT_ARCHIVE_SOURCE` 打错了字。两种都该叫出来，而不是让采集阶段一个都不跑、整轮 exit 0——
+  # 单独跑 `scripts/backfill-archive.ts` 遇到"没有任何带门的信源"就是 exit 1，这一轮不能比它更宽容。
+  if [[ ! -s "$RUN_DIR/slices.tsv" ]]; then
+    eligible_now=$(sed -n 's/.*"eligible":[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$RUN_DIR/slices.json" 2>/dev/null | head -1)
+    printf 'archive-cycle: select-slices 选出 0 片（eligible=%s）——采集没有可跑的信源，按失败处理\n' "${eligible_now:-未知}" >&2
+    printf 'collect-none\t1\n' >>"$RUN_DIR/exits.tsv"
+    CYCLE_RESULT=1
+  fi
   slice_no=0
   while IFS=$'\t' read -r source month quota; do
     [[ -n "$source" ]] || continue
@@ -141,9 +150,38 @@ if run_phase select-slices --input-type=module -e "$SELECTOR" "$FROM" "$TO" "$RU
 else
   CYCLE_RESULT=$?
 fi
+# 出刊要等档案进口收敛，而这条判据只能放在这里：`backfill-papers.ts` 的结算闸门只问"这一天的条目判完没判完"，
+# 不问"这一天所属月份的档案进口还在不在跑"。切片是轮转的，某天一结算就当场被印，而同一个月之后还会进来新的
+# 档案条目——已出的刊期默认不重排（`backfill-papers.ts:155`），首版就永久缺那些后来到的条目。
+# 当月不算进去：活页 feed 的切片永远"没跑完"，算进去等于永远不出刊。
+PAPERS_RIPE=$(cat <<'NODE'
+import { sql, closeDb } from '@aihot/backend/db';
+import { beijingDate } from '@aihot/contracts/time';
+const [from,to] = process.argv.slice(1);
+try {
+  const current = beijingDate(Date.now()).slice(0,7);
+  const [row] = await sql`SELECT count(*)::int AS n FROM archive_ingest
+     WHERE status IN ('pending','running') AND month >= ${from.slice(0,7)} AND month <= ${to.slice(0,7)}
+       AND month < ${current}`;
+  console.log((row?.n ?? 0) === 0 ? 'ripe' : `pending:${row?.n ?? 0}`);
+} finally { await closeDb(); }
+NODE
+)
 PAPER_ARGS=(scripts/backfill-papers.ts "--from=$FROM" "--to=$TO" --kinds=daily,weekly,monthly "--summary-file=$RUN_DIR/papers.json")
 if [[ "$FINAL_REFRESH" == 1 ]]; then PAPER_ARGS+=(--refresh); fi
-run_phase papers "${PAPER_ARGS[@]}" "${WRITE_ARGS[@]}" || CYCLE_RESULT=$?
+if run_phase papers-ripe --input-type=module -e "$PAPERS_RIPE" "$FROM" "$TO"; then
+  if grep -qx 'ripe' "$RUN_DIR/papers-ripe.log"; then
+    run_phase papers "${PAPER_ARGS[@]}" "${WRITE_ARGS[@]}" || CYCLE_RESULT=$?
+  else
+    printf 'archive-cycle: papers 本轮不跑——过去月份还有 %s 片档案进口未收敛\n' \
+      "$(sed -n 's/^pending:\([0-9][0-9]*\)$/\1/p' "$RUN_DIR/papers-ripe.log" | head -1)" >&2
+  fi
+else
+  # 判据读不出来就当不成熟：宁可这一轮不出刊，也不要在"不知道进口有没有收敛"的时候印下去。
+  printf 'archive-cycle: papers 成熟度判据读取失败，本轮不出刊\n' >&2
+  CYCLE_RESULT=1
+fi
+
 # Rotate one verified publisher adapter per cycle, within the same lock and deadline.
 NEWS_SELECTOR=$(cat <<'NODE'
 import { readFileSync, writeFileSync, renameSync } from 'node:fs';
