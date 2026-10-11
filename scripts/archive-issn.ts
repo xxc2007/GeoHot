@@ -7,25 +7,16 @@
 //
 // Read-only. The JSON on stdout is what a human merges into industry/sources.json as `config.issn`.
 import { parseArgs } from "node:util";
+import { pathToFileURL } from "node:url";
 import { closeDb, sql } from "@aihot/backend/db";
 import { guardedFetch, DEFAULT_UA } from "@aihot/backend/lib/http-fetch";
 
-const { values } = parseArgs({
-  options: {
-    tier: { type: "string", default: "" },
-    ids: { type: "string", default: "" },
-    limit: { type: "string", default: "" },
-    detail: { type: "boolean", default: false },
-  },
-});
-const tiers = values.tier!.split(",").map((s) => s.trim()).filter(Boolean);
-const only = values.ids!.split(",").map((s) => s.trim()).filter(Boolean);
-const cap = Number(values.limit || 0);
-
 /** The pack names a source in Chinese with the venue's own title in brackets or at the end. That Latin run is
- * the title Crossref knows; a name with no Latin run cannot be matched without a human looking at the page. */
+ * the title Crossref knows; a name with no Latin run cannot be matched without a human looking at the page.
+ * The colon stays inside the run on purpose: "JGR: Biogeosciences" is a *Wiley* sub-journal, and cutting at the
+ * colon leaves "Biogeosciences", which is a different journal at a different publisher with its own ISSN. */
 export function latinTitle(name: string): string | null {
-  const runs = name.match(/[A-Za-z][A-Za-z0-9&,.;'’\-() ]{6,}/g) ?? [];
+  const runs = name.match(/[A-Za-z][A-Za-z0-9&,.:;'’\-() ]{6,}/g) ?? [];
   const best = runs.map((r) => r.trim().replace(/^[([]|[)\]]$/g, "")).sort((a, b) => b.length - a.length)[0];
   return best && best.length >= 7 ? best : null;
 }
@@ -48,11 +39,11 @@ function channelTitle(xml: string): string | null {
  * under that query — accepting either would publish one journal's articles under the other source's name, the
  * exact failure this script exists to prevent. Word *sequence* is the comparison.
  */
-const normalize = (s: string) =>
+export const normalize = (s: string) =>
   s.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9 ]+/g, " ").split(/\s+/).filter(Boolean).join(" ");
 
 /** One record's own print/online pair is one journal, not an ambiguous answer. */
-function issnOf(item: JournalRow): string | null {
+export function issnOf(item: JournalRow): string | null {
   return item.ISSN?.[0] ?? null;
 }
 
@@ -69,11 +60,45 @@ async function crossref(title: string): Promise<JournalRow[]> {
   }
 }
 
+/**
+ * Which ISSN already belongs to a source in the pack. `--ids` narrows the *queue*, not the register of
+ * ownerships, and the final duplicate walk can only see rows from this run: measured 2026-10-11, running
+ * `--ids=rss-jgr-biogeosciences-toc,…` proposed 1726-4189 for it, which is Copernicus's *Biogeosciences*
+ * and is what `rss-copernicus-bg` publishes under. A full-pack run would have caught that as
+ * `duplicate-claim`; a narrowed run sailed through because nothing remembered the pack's own claims.
+ */
+export function issnsFromPack(rows: Array<{ id: string; config: Record<string, unknown> }>): Map<string, string> {
+  const owned = new Map<string, string>();
+  for (const r of rows) {
+    const issn = typeof r.config?.issn === "string" ? r.config.issn.trim() : "";
+    if (issn) owned.set(r.id, issn);
+  }
+  return owned;
+}
+
+/** The source that already carries this ISSN, if it is not `self`. */
+export function ownerOfIssn(owned: Map<string, string>, issn: string, self: string): string | null {
+  for (const [id, value] of owned) if (id !== self && value === issn) return id;
+  return null;
+}
+
+async function main() {
+const { values } = parseArgs({
+  options: {
+    tier: { type: "string", default: "" },
+    ids: { type: "string", default: "" },
+    limit: { type: "string", default: "" },
+    detail: { type: "boolean", default: false },
+  },
+});
+const tiers = values.tier!.split(",").map((s) => s.trim()).filter(Boolean);
+const only = values.ids!.split(",").map((s) => s.trim()).filter(Boolean);
+const cap = Number(values.limit || 0);
 const rows = await sql<{ id: string; name: string; tier: string; kind: string; enabled: boolean; config: Record<string, unknown> }[]>`
   SELECT id, name, tier, kind, enabled, config FROM sources ORDER BY tier, id`;
 
 const report: Array<{ id: string; name: string; title: string | null; issn: string | null; status: string; candidates?: string[] }> = [];
-const claimedIssn = new Map<string, string>();
+const claimedIssn = issnsFromPack(rows);
 let queue = rows.filter((r) => r.enabled && (only.length ? only.includes(r.id) : !tiers.length || tiers.includes(r.tier)));
 if (cap > 0) queue = queue.slice(0, cap);
 console.error(`checking ${queue.length} sources`);
@@ -111,11 +136,12 @@ for (const r of queue) {
     near.push(...items.map((i) => `${i.title} | ${i.publisher} | ${i.ISSN?.[0] ?? ""}`));
     await new Promise((resolve) => setTimeout(resolve, 220));
   }
-  if (matched && [...claimedIssn.values()].includes(matched.issn)) {
+  const clash = matched ? ownerOfIssn(claimedIssn, matched.issn, r.id) : null;
+  if (matched && clash) {
     // The same ISSN under two sources means one of them is the wrong journal (measured: an AGU table-of-contents
     // feed whose channel title reads "Biogeosciences" resolves to Copernicus's journal of that name). Neither
     // is written; both are reported for a human to separate.
-    report.push({ id: r.id, name: r.name, title: matched.title, issn: matched.issn, status: "duplicate-claim", candidates: [matched.publisher, ...rivals] });
+    report.push({ id: r.id, name: r.name, title: matched.title, issn: matched.issn, status: "duplicate-claim", candidates: [matched.publisher, `已登记在 ${clash} 名下`, ...rivals] });
   } else if (matched) {
     claimedIssn.set(r.id, matched.issn);
     report.push({ id: r.id, name: r.name, title: matched.title, issn: matched.issn, status: existing && existing !== matched.issn ? "conflict" : "match", candidates: [matched.publisher] });
@@ -139,4 +165,9 @@ for (const [, ids] of claims) {
 // Everything except the two "this source is not a journal" statuses goes to stdout: an ambiguous row is the
 // operator's to decide, and filtering it out of the report would hide the very case the guards exist for.
 console.log(JSON.stringify(report.filter((r) => ["match", "conflict", "ambiguous", "duplicate-claim"].includes(r.status)), null, values.detail ? 1 : 0));
-await closeDb();
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  try { await main(); }
+  finally { await closeDb(); }
+}
