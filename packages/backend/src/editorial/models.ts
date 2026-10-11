@@ -144,15 +144,6 @@ async function overrides(): Promise<Record<string, string>> {
  */
 let health: { at: number; sick: Set<string> } | null = null;
 
-/**
- * Every service the registry can hand a call to. Both health queries below are bounded by it, which is not a
- * narrowing: the returned set is only ever read as `sick.has(MODELS[name].service)`, so a service outside the
- * registry could never be bench-able. It is what lets either query use `receipt_attempts_service_time_idx` —
- * without a leading `service` predicate both are a sequential scan of a table with no retention job (measured
- * 2026-10-11 on production: 99,094 rows / 52 MB, and the cache re-runs them every sixty seconds).
- */
-const REGISTRY_SERVICES = [...new Set(Object.values(MODELS).map((m) => m.service))];
-
 export async function sickServices(): Promise<Set<string>> {
   if (health && Date.now() - health.at < 60_000) return health.sick;
   let sick = new Set<string>();
@@ -162,7 +153,6 @@ export async function sickServices(): Promise<Set<string>> {
     const rows = await sql<{ service: string }[]>`
       SELECT a.service FROM receipt_attempts a LEFT JOIN receipts r ON r.id = a.receipt_id
        WHERE a.started_at > now() - interval '10 minutes'
-         AND a.service = ANY(${REGISTRY_SERVICES}::text[])
          AND a.origin = 'live' AND a.status IN ('received', 'failed', 'unknown')
        GROUP BY a.service
       HAVING count(*) >= 6 AND count(*) FILTER (WHERE a.status = 'received' AND NOT coalesce(
@@ -182,7 +172,6 @@ export async function sickServices(): Promise<Set<string>> {
                row_number() OVER (PARTITION BY a.service ORDER BY a.started_at DESC, a.id DESC) AS newest
           FROM receipt_attempts a
          WHERE a.started_at > now() - interval '6 hours'
-           AND a.service = ANY(${REGISTRY_SERVICES}::text[])
            AND a.origin = 'live' AND a.status IN ('received', 'failed', 'unknown')
       )
       SELECT service FROM ranked WHERE newest <= 6 GROUP BY service
