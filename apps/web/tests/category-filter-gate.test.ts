@@ -22,6 +22,9 @@ test("每个读 ?category= 的路由都不许把词表外的键当成没过滤",
   for (const r of readers) {
     const reads = (r.src.match(/categoryParam && isCategoryKey\(categoryParam\)/g) ?? []).length;
     const refuses = (r.src.match(/!isCategoryKey\(categoryParam\)[\s\S]{0,80}status: 404/g) ?? []).length;
+    // 两个都要查。只查 `refuses === reads` 的话，一个读了参数却从不查词表的路由会是 0 === 0 —— 绿的，
+    // 而它正是这条规则要抓的那种"非法键被当成没筛选"。
+    assert.ok(refuses >= 1, `${r.file}：读了 ?category= 却没有一处拒绝词表外的键（0 个 404 闸门）`);
     assert.equal(refuses, reads, `${r.file}：${reads} 处只在键合法时才用 category，却只有 ${refuses} 处拒绝非法键——非法键于是被当成"没有筛选"`);
   }
 });

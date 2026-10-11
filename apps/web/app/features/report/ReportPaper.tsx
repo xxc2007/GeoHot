@@ -22,7 +22,7 @@ import { EDITION, KIND_LABEL, MOTTO, dateLine, dateMark, headline, isDue, issueN
 const pad = (n: number) => String(n).padStart(2, "0");
 const keyOf = (c: ReportCitation) => c.itemId ?? c.title;
 const anchorOf = (c: ReportCitation) => (c.itemId ? `r-${c.itemId}` : null);
-const LINK = "inline-flex min-h-7 items-center gap-0.5 font-medium transition-colors hover:text-accent";
+const LINK = "tap-hit inline-flex min-h-7 items-center gap-0.5 font-medium transition-colors hover:text-accent";
 
 function Masthead({ report, index, now }: { report: ReportDetail; index: ReportNavigationEntry[]; now: number }) {
   const issue = issueNumber(index, report.key);
@@ -427,7 +427,8 @@ export function ReportPaper({ report, index, now }: { report: ReportDetail; inde
       <footer className="py-10 text-center">
         <div className="text-ui font-semibold tracking-[0.6em] text-ink-4">{report.readable ? "（本期完）" : "（本期未出刊）"}</div>
         <p className="mt-3 text-caption text-ink-4">
-          {SITE.name} {KIND_LABEL[report.kind]}由编辑系统按编辑部写定的标准从公开来源筛选编排，每条均附原文
+          {SITE.name} {KIND_LABEL[report.kind]}由编辑系统按编辑部写定的标准从公开来源筛选编排
+          {report.readable ? "，每条均附原文" : ""}
           {daily || hasHistory ? (
             <>
               {" · "}

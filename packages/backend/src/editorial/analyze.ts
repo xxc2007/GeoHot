@@ -450,9 +450,10 @@ export function normalizeAnalysis(run: AnalysisRun) {
     subjects,
     titleZh,
     summaryZh,
-    // BLOCK 的条目后面就没有步骤了（`writing` 是 null），所以"为什么拦"这句话本来是它唯一的记录，
-    // 以前被丢掉：2026-10-11 生产实测三天里 1,381 条 block，`reason_zh` 全为空——后台只看得到「已拦」，
-    // 人工复核拦得对不对没有依据。读者的红线不受影响（这不是读者面文案），但运维面需要它。
+    // BLOCK 的条目后面就没有步骤了（`writing` 是 null）。拦下的理由并不是没有落地——它就存在下面那份
+    // `detail` 里（`prefilter.reason`），但 `analyses.reason_zh` 是空的，所以按条目查"这条为什么被拦"看不到：
+    // 2026-10-11 生产实测三天里 1,381 条 block，`reason_zh` 全为空——后台只看得到「已拦」，人工复核拦得
+    // 对不对没有依据。读者的红线不受影响（这不是读者面文案），补的是运维面。
     reasonZh: run.writing?.reasonZh ?? (label === "BLOCK" ? collapseWhitespace(run.prefilter.reason) || null : null),
     fact: run.structure?.fact ?? null,
   };
