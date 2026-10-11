@@ -5067,7 +5067,8 @@
         "_aihot": {
           "initialBackfillLimit": 8,
           "intervalMinutesLocked": true
-        }
+        },
+        "issn": "1684-9981"
       },
       "tier": "T1_5",
       "first_party": true,
@@ -6687,7 +6688,8 @@
         "_aihot": {
           "initialBackfillLimit": 6,
           "intervalMinutesLocked": true
-        }
+        },
+        "issn": "0309-1333"
       },
       "tier": "T1_5",
       "first_party": true,
@@ -7131,7 +7133,8 @@
         "_aihot": {
           "initialBackfillLimit": 8,
           "intervalMinutesLocked": true
-        }
+        },
+        "issn": "2399-8083"
       },
       "tier": "T1_5",
       "first_party": true,
@@ -7518,7 +7521,8 @@
         "_aihot": {
           "initialBackfillLimit": 5,
           "intervalMinutesLocked": true
-        }
+        },
+        "issn": "2199-398X"
       },
       "tier": "T1_5",
       "first_party": true,
@@ -8450,7 +8454,8 @@
         "_aihot": {
           "initialBackfillLimit": 3,
           "intervalMinutesLocked": true
-        }
+        },
+        "issn": "1708-3087"
       },
       "tier": "T1_5",
       "first_party": true,
