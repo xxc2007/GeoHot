@@ -81,6 +81,30 @@ test("ordinary work uses the unused archive reservation", async () => {
   assert.deepEqual(await queuedCounts(), { ordinary: 480, archive: 20 });
 });
 
+test("the archive slice drains by news date, so a day can actually finish", async () => {
+  // 份额对了还不等于日子能过完：档案是"按刊、按月"批量导进来的，`discovered_at` 记的是哪一批插进来，
+  // 不是那条新闻是哪天的。按 `discovered_at` 取 100 条 ⇒ 这一百条摊在十个月上，
+  // 每一天都差几条，`backfill-papers` 的"等 N 条判完"永远不满足。
+  // 生产实测（2026-10-11 19:30）：283 个有档案材料的日子，**已结算 0 个**，最接近结算的那天还等 5 条；
+  // 队里那 255 条档案单横跨 2026-01 到 2026-10。
+  await seed(700, 120);
+  // 让"发现的先后"与"新闻的先后"完全反着：n 越小越先被发现（id 序），但新闻日期越新。
+  await sql`UPDATE articles SET timeline_at = TIMESTAMP '2026-01-01' + ((240 - (right(id, 4))::int) * INTERVAL '1 day')
+            WHERE source_id = ${SOURCE} AND backfill_reason = 'archive'`;
+  const newest = `${T}-archive-0001`; // 最早被发现、新闻日期最新
+  const oldest = `${T}-archive-0120`; // 最晚被发现、新闻日期最老
+  assert.equal((await sweepUnprocessed()).enqueued, 500);
+  const picked = await sql<{ id: string }[]>`
+    SELECT id FROM articles WHERE source_id = ${SOURCE} AND backfill_reason = 'archive' AND processing_queued_at IS NOT NULL`;
+  const nums = picked.map((r) => Number(r.id.slice(-4))).sort((x, y) => x - y);
+  assert.equal(nums.length, 100, "档案那 100 个名额不变（这条不改份额）");
+  assert.equal(nums[0], 21, "该取的是新闻日期最早的那 100 条，不是最先入库的 100 条");
+  assert.equal(nums.at(-1), 120);
+  assert.equal((await sql`SELECT 1 FROM articles WHERE id = ${newest} AND processing_queued_at IS NOT NULL`).length, 0,
+    "最新那天的档案材料要排在后面，不然一月永远结不了算");
+  assert.equal((await sql`SELECT 1 FROM articles WHERE id = ${oldest} AND processing_queued_at IS NOT NULL`).length, 1);
+});
+
 test("retry and pending guards hold; an archive needs its original body before analysis and singleton jobs deduplicate", async () => {
   await seed(0, 5);
   const ids = Array.from({ length: 5 }, (_, i) => `${T}-archive-${String(i + 1).padStart(4, "0")}`);
