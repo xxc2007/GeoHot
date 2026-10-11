@@ -132,6 +132,15 @@ async function overrides(): Promise<Record<string, string>> {
  * line that says "this member is a worse bet than its peers"; anything above it is "busy, not broken".
  * A door that is merely busy keeps its place, and if every member is below the line the pool still uses them
  * all, because the budget breaker and the retry ladder — not this choice — decide when to stop.
+ *
+ * That rate only sees ten minutes, so a second rule reads what the door actually *said*: its six newest live
+ * attempts (over six hours) all being quota refusals. The shapes are copied from production
+ * `receipt_attempts.error` on 2026-10-11 — OpenRouter's `free-models-per-day` day cap, Agnes 国内版's
+ * 「今日文本额度已用完，当前处于限速模式：每 1 分钟可请求 1 次」, OpenCode's `FreeTierError`, and the two
+ * OpenAI-compatible quota messages. Our own breaker messages (`Budget for dots exhausted (day)`) deliberately
+ * do NOT match: that window reopens on a schedule we control, and benching the provider for it would hide a
+ * perfectly healthy door. Nor can this rule deadlock: the moment the provider answers once, that answer is
+ * among the six newest and the door is a candidate again.
  */
 let health: { at: number; sick: Set<string> } | null = null;
 
@@ -151,6 +160,23 @@ export async function sickServices(): Promise<Set<string>> {
         AND (r.error LIKE 'answer refused:%' OR r.error LIKE 'unusable output:%'), false
       )) * 2 < count(*)`;
     sick = new Set(rows.map((r) => r.service));
+    // The burst/forget cycle the rule above closes: measured 2026-10-11, OpenRouter was refused 37 times in
+    // half an hour and answered nothing, yet at 07:36 the verdict was `sick=[]` — during a burst the door
+    // fails and is benched, then nobody calls it, its failures age out of the ten-minute window, and the very
+    // next article is handed to it again. A day quota does not reopen in sixty seconds.
+    const refused = await sql<{ service: string }[]>`
+      WITH ranked AS (
+        SELECT a.service, (a.status = 'failed' AND (a.error LIKE '%free-models-per-day%'
+          OR a.error LIKE '%insufficient_quota%' OR a.error LIKE '%exceeded your current quota%'
+          OR a.error LIKE '%FreeTierError%' OR a.error LIKE '%今日文本额度已用完%')) AS quota_refusal,
+               row_number() OVER (PARTITION BY a.service ORDER BY a.started_at DESC, a.id DESC) AS newest
+          FROM receipt_attempts a
+         WHERE a.started_at > now() - interval '6 hours'
+           AND a.origin = 'live' AND a.status IN ('received', 'failed', 'unknown')
+      )
+      SELECT service FROM ranked WHERE newest <= 6 GROUP BY service
+        HAVING count(*) = 6 AND count(*) FILTER (WHERE quota_refusal) = 6`;
+    for (const r of refused) sick.add(r.service);
   } catch {
     // Reading the ledger must never decide the request: an unreadable table means "no opinion", not "all
     // providers are down".
