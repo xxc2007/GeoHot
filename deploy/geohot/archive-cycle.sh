@@ -181,11 +181,16 @@ PAPER_ARGS=(scripts/backfill-papers.ts "--from=$FROM" "--to=$TO" --kinds=daily,w
 if [[ "$FINAL_REFRESH" == 1 ]]; then PAPER_ARGS+=(--refresh); fi
 # 只报不挡：读得出来就报数，读不出来也只是少一行日志。这条判据一旦能拦住出刊，它就迟早会拦住
 # 不该拦的那一次（全月挂账、或它自己查询失败），而那正是上面注释里代价比问题更大的形状。
+# 但"只报不挡"不等于"沉默"：ripe / pending:N / 读不出来 是三种不同的事实，原先只有第二种会打印，
+# 于是"进口已收敛"与"判据连不上库"在日志里长得一模一样——下一轮出事时没人知道该查哪一个。
 run_phase papers-ripe --input-type=module -e "$PAPERS_RIPE" "$FROM" "$TO" || true
-pending_slices=$(sed -n 's/^pending:\([0-9][0-9]*\)$/\1/p' "$RUN_DIR/papers-ripe.log" 2>/dev/null | head -1)
-if [[ -n "$pending_slices" ]]; then
-  printf 'archive-cycle: 过去月份还有 %s 片档案进口未收敛——本轮照常出刊，首版可能少后到的条目，由收尾的 --refresh 整体重排\n' "$pending_slices" >&2
-fi
+ripe_state=$(sed -n 's/^\(ripe\|pending:[0-9][0-9]*\)$/\1/p' "$RUN_DIR/papers-ripe.log" 2>/dev/null | head -1)
+case "$ripe_state" in
+  ripe) printf 'archive-cycle: 过去月份的档案进口已收敛（%s…%s 窗口内 pending=0）\n' "$FROM" "$TO" >&2 ;;
+  pending:*) printf 'archive-cycle: 过去月份还有 %s 片档案进口未收敛——本轮照常出刊，首版可能少后到的条目，由收尾的 --refresh 整体重排\n' "${ripe_state#pending:}" >&2 ;;
+  *) printf 'archive-cycle: 出刊成熟度判据**没读出来**（papers-ripe.log 末行：%s）——本轮照常出刊，但这一格是"不知道"，不是"已收敛"\n' \
+       "$(tail -1 "$RUN_DIR/papers-ripe.log" 2>/dev/null)" >&2 ;;
+esac
 run_phase papers "${PAPER_ARGS[@]}" "${WRITE_ARGS[@]}" || CYCLE_RESULT=$?
 
 # Rotate one verified publisher adapter per cycle, within the same lock and deadline.
