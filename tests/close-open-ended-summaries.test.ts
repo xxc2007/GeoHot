@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import { closeDb, sql } from "@aihot/backend/db";
 import { closeTruncatedSentence } from "../packages/backend/src/editorial/writing.ts";
-import { OPEN_ENDED, closeStockSummary, openEndedCondition } from "../scripts/close-open-ended-summaries.ts";
+import { OPEN_ENDED, closeOutcome, closeStockSummary, openEndedCondition } from "../scripts/close-open-ended-summaries.ts";
 
 const openEnded = new RegExp(OPEN_ENDED);
 
@@ -130,3 +130,13 @@ test("短而干净的官方预警摘要不许被当成骨架跳过", () => {
 });
 
 after(async () => { await closeDb(); });
+
+// #140 复核把这条判成 BLOCKER：`sql.begin` 只看回调返回值，所以"读者那份命中 0 行、判稿那份改了 1 行"
+// 会照样提交——两列留下不一致，而日志写着"两处一起改"。判断抽成纯函数后，这条才有可跑的断言。
+test("只落一边的情况永远不能算写成功", () => {
+  assert.equal(closeOutcome(0, 0, true), "stale", "两边都没落：跳过");
+  assert.equal(closeOutcome(0, 1, true), "stale", "只落判稿那份——正是 BLOCKER 的形状，不能提交");
+  assert.equal(closeOutcome(1, 0, true), "divergent", "只落读者那份：两列本来不同，写一遍只会造成假一致");
+  assert.equal(closeOutcome(1, 1, true), "written", "两边都落才算数");
+  assert.equal(closeOutcome(1, 0, false), "written", "没有判稿行（analysis_id 为空）时，读者那份落了就是落了");
+});

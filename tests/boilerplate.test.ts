@@ -165,3 +165,18 @@ test("未闭合的外壳尾巴只在收口路径剥——shared 剥壳与非外�
     "本段说明符号约定：本文用 {{ layer_name 表示矢量图层", "不是外壳形状的未闭合 {{ 属于正文，不许剥");
   assert.equal(stripTruncatedShellTail(chrome), "秦岭脱贫山区农户生计转型适应性地理分异及影响机制——以陕西省商州区为例");
 });
+
+// 复核发现：存量那 14 条修好了，但**生成它们的那条路还开着**。`isTemplateShell` 数的是闭合占位符（≥3），
+// 截断形状一个都数不到；`stripBoilerplate` 要求配对括号，也放它过去；最后 `closeTruncatedSentence`
+// 找不到任何结尾标点，就**给外壳文本点了个句号**——比存量那 14 条更糟。这条用例钉住运行时。
+test("中文兜底与模型答复都不能把截断的页面外壳当摘要发出去", () => {
+  const chrome = "秦岭脱贫山区农户生计转型适应性地理分异及影响机制——以陕西省商州区为例 {{javascript:window.custom_author_cn_index=0";
+  const input = { title: chrome.slice(0, 40), text: chrome, sourceKind: "web_list", sourceName: "地理研究 当期目录" } as unknown as TranslateInput;
+  const viaModel = finalizeCopy(input, { titleZh: "秦岭脱贫山区农户生计转型", summaryZh: chrome }).summaryZh;
+  const viaFallback = finalizeCopy(input, { titleZh: "秦岭脱贫山区农户生计转型", summaryZh: "" }).summaryZh;
+  assert.ok(!viaModel.includes("{{") && !/javascript:/i.test(viaModel), `模型答复把页面外壳发给了读者：「${viaModel}」`);
+  assert.match(viaModel, /[。！？…]$/u, `模型答复的提要要收在闭合标点上：「${viaModel}」`);
+  // 兜底这条路**应当交白卷**：外壳剥完什么都不剩，空提要会让 normalizeAnalysis 把这条判成「等待」，
+  // 而不是把骨架当摘要发出去——这正是线上那 14 条的反面。
+  assert.equal(viaFallback, "", `剥完外壳已经没有内容，兜底不该硬凑一句：「${viaFallback}」`);
+});

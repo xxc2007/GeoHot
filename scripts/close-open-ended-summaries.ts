@@ -5,7 +5,7 @@
 // 但修好之前抓回来的东西还躺在 `publications.summary` 里：同一批全库 9,267 条公开行有 1,772 条以「，、；：」
 // 结尾、189 条整段没有结尾标点——读者在分类页和条目页会直接看到它们。
 //
-// 判据只有一个来源：本脚本调 `closeTruncatedSentence`，与运行时同一个函数；候选的三条正则也从这里交给 SQL，
+// 判据只有一个来源：本脚本调 `closeTruncatedSentence`，与运行时同一个函数；候选的那条正则也从这里交给 SQL，
 // 不在两处各写一遍（那种写法早晚分叉）。规则本身不加一个字，只把文本收到它自己的边界上。
 //
 // 默认 DRY-RUN，只列候选与预估。`--apply` 才写库，并**必须**显式给 --database-url（与
@@ -25,7 +25,7 @@ import { dirname, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { pathToFileURL } from "node:url";
 import { config } from "@aihot/backend/config";
-import { closeDb, sql } from "@aihot/backend/db";
+import { closeDb, sql, type Db } from "@aihot/backend/db";
 import { closeTruncatedSentence } from "@aihot/backend/editorial/writing";
 import { stripBoilerplate, stripTruncatedShellTail } from "@aihot/backend/lib/text";
 import { cjkCount } from "@aihot/contracts/copy";
@@ -70,6 +70,58 @@ export function closeStockSummary(summary: string): { kind: "keep" | "rewrite" |
   if (cjkCount(bare) === 0) return { kind: "skeleton", text: bare };
   const closed = closeTruncatedSentence(bare);
   return closed === summary ? { kind: "keep", text: closed } : { kind: "rewrite", text: closed };
+}
+
+/** 一行收口的全部写入面；`revision` 是 publications 主键的一部分，所以它必须跟着走。 */
+export type CloseFix = { article_id: string; analysis_id: number | null; revision: number; summary: string; closed: string };
+
+export type CloseOutcome = "written" | "stale" | "divergent";
+/** closeBoth 用它通知 sql.begin 回滚，并把是哪一个原因带出去；不外抛给操作者。 */
+class RollbackRow extends Error {
+  why: Exclude<CloseOutcome, "written">;
+  constructor(why: Exclude<CloseOutcome, "written">) { super(why); this.why = why; }
+}
+
+/**
+ * 两处一起改，或一处都不改。
+ *
+ * 这条不变量是脚本存在的全部理由：`publication/publish.ts:179` 每次投影都从 `analyses.summary_zh`
+ * 重新取摘要，所以只落 publications 一边，等于下次投影把半句话原样写回来，而日志还写着"两处一起改"。
+ * 抽成函数（而不是留在 `sql.begin` 的回调里）是为了这条不变量能被真跑一遍：
+ * 之前它只活在注释里，独立评审据此判了 BLOCKER——"publications 命中 0 行、analyses 改了 1 行"会照样提交。
+ * 调用方拿到非 "written" 必须回滚整个事务。
+ */
+/**
+ * 两边的命中数怎么合成一个结论——纯函数，因为这条判断是整个脚本的不变量所在：
+ * 只有"读者那份落了"这一种情况可以提交；判稿那份没落说明两列本来就不相同，写一遍只会造成假一致。
+ * 之前这条判断写在 sql.begin 的回调里、只看返回值，所以"publications 命中 0 行、analyses 改了 1 行"会照样提交。
+ */
+export function closeOutcome(pubN: number, anaN: number, hasAnalysis: boolean): CloseOutcome {
+  if (pubN === 0) return "stale";
+  if (hasAnalysis && anaN === 0) return "divergent";
+  return "written";
+}
+
+export async function closeBoth(tx: Db, f: CloseFix, repairMode: boolean): Promise<"written" | "stale" | "divergent"> {
+  // 守卫分两种：正常模式认"库里还是我刚读到的那一份"；修复模式库里躺的是上一次写坏的文本，认不了它，
+  // 于是认 `revision`（并发保护仍然在）加"与我要写的不同"（相同的不重写，免得白刷一遍 updated_at）。
+  const pubDiffers = repairMode ? sql`summary IS DISTINCT FROM ${f.closed}` : sql`summary = ${f.summary}`;
+  const anaDiffers = repairMode ? sql`summary_zh IS DISTINCT FROM ${f.closed}` : sql`summary_zh = ${f.summary}`;
+  let anaN = 0;
+  if (f.analysis_id !== null) {
+    const a = await tx<{ n: number }[]>`
+      WITH u AS (UPDATE analyses SET summary_zh = ${f.closed} WHERE id = ${f.analysis_id} AND ${anaDiffers} RETURNING 1)
+      SELECT count(*)::int AS n FROM u`;
+    anaN = a[0]?.n ?? 0;
+  }
+  const res = await tx<{ n: number }[]>`
+    WITH updated AS (
+      UPDATE publications SET summary = ${f.closed}, updated_at = now()
+       WHERE article_id = ${f.article_id} AND revision = ${f.revision} AND ${pubDiffers}
+      RETURNING 1)
+    SELECT count(*)::int AS n FROM updated`;
+  const pubN = res[0]?.n ?? 0;
+  return closeOutcome(pubN, anaN, f.analysis_id !== null);
 }
 
 async function main() {
@@ -124,12 +176,20 @@ let total: { n: number } | undefined;
 let rows: Row[];
 if (repairFrom) {
   // 修复模式的"候选"不是我扫出来的，是上一次 --apply 自己记下的：预像里每一行都是"我读过并写过"的凭据。
-  const lines = readFileSync(resolve(repairFrom), "utf8").trim().split(/\r?\n/).filter(Boolean);
-  rows = lines.slice(0, limit).map((l) => {
+  const raw = readFileSync(resolve(repairFrom), "utf8").trim().split(/\r?\n/).filter(Boolean);
+  // 上一次运行若被 kill 在"落备份行"中途，最后一行会是半条 JSON。它不是凭据：跳过并说清楚，
+  // 而不是让整脚本在 load 阶段抛异常——那样连剩下的行也修不了。
+  const lines: string[] = [];
+  let torn = 0;
+  for (const l of raw) { try { JSON.parse(l); lines.push(l); } catch { torn++; } }
+  const kept = lines.slice(0, limit);
+  rows = kept.map((l) => {
     const j = JSON.parse(l) as { article_id: string; analysis_id?: number | null; revision: number; summary: string };
     return { article_id: j.article_id, analysis_id: j.analysis_id ?? null, revision: j.revision, summary: j.summary };
   });
-  total = { n: rows.length };
+  total = { n: lines.length };
+  const dropped = lines.length - kept.length;
+  if (torn || dropped) console.log(`预像读取：${torn ? `${torn} 行残缺（上一次运行被中断），已跳过；` : ""}超出 --limit=${limit} 的 ${dropped} 行本轮不处理（要一次跑完就调大 --limit）`);
 } else {
   [total] = await sql<{ n: number }[]>`SELECT count(*)::int AS n FROM publications WHERE ${candidateWhere}`;
   rows = await sql<Row[]>`
@@ -167,9 +227,11 @@ console.log(`其中要丢掉尾巴（收到上一个完整句子）的：${short
 const analysisIds = [...new Set(fixes.map((f) => f.analysis_id).filter((x): x is number => x !== null))];
 const current = repairFrom
   ? {
-      pub: new Map((await sql<{ article_id: string; summary: string }[]>`
-        SELECT article_id, summary FROM publications WHERE article_id = ANY(${fixes.map((f) => f.article_id)})`)
-        .map((r) => [r.article_id, r.summary] as const)),
+      pub: fixes.length
+        ? new Map((await sql<{ article_id: string; summary: string }[]>`
+            SELECT article_id, summary FROM publications WHERE article_id = ANY(${fixes.map((f) => f.article_id)})`)
+          .map((r) => [r.article_id, r.summary] as const))
+        : new Map<string, string>(),
       ana: analysisIds.length
         ? new Map((await sql<{ id: number; summary_zh: string }[]>`
             SELECT id, summary_zh FROM analyses WHERE id = ANY(${analysisIds})`)
@@ -198,33 +260,38 @@ if (!values.apply) {
   mkdirSync(dirname(backup), { recursive: true });
   let done = 0;
   let skipped = 0;
+  let divergent = 0;
   for (const f of pending) {
+    // 库里已经没有这一行了（导入过程中被删）：不能拿预像里那份更早的原文当"此刻的原值"写进备份，
+    // 否则下一次按这份备份还原，就会把一个新进口的行覆盖成它从未有过的文本。跳过，不备份，不动事务。
+    if (repairFrom && !current?.pub.has(f.article_id)) { skipped++; continue; }
     // 先落原值再改：这一刀是删尾巴（可能删掉真实数据），改坏了要能按行还原。
-    const preImage = current?.pub.get(f.article_id) ?? f.summary;
-    appendFileSync(backup, `${JSON.stringify({ article_id: f.article_id, analysis_id: f.analysis_id, revision: f.revision, summary: preImage })}\n`);
-    // 守卫分两种：正常模式认"库里还是我刚读到的那一份"；修复模式库里躺的是上一次写坏的文本，认不了它，
-    // 于是认 `revision`（并发保护仍然在）加"与我要写的不同"（相同的不重写，免得白刷一遍 updated_at）。
-    const pubDiffers = repairFrom ? sql`summary IS DISTINCT FROM ${f.closed}` : sql`summary = ${f.summary}`;
-    const anaDiffers = repairFrom ? sql`summary_zh IS DISTINCT FROM ${f.closed}` : sql`summary_zh = ${f.summary}`;
-    const written = await sql.begin(async (tx) => {
-      if (f.analysis_id !== null) {
-        await tx`UPDATE analyses SET summary_zh = ${f.closed} WHERE id = ${f.analysis_id} AND ${anaDiffers}`;
-      }
-      const res = await tx<{ n: number }[]>`
-        WITH updated AS (
-          UPDATE publications SET summary = ${f.closed}, updated_at = now()
-           WHERE article_id = ${f.article_id} AND revision = ${f.revision} AND ${pubDiffers}
-          RETURNING 1)
-        SELECT count(*)::int AS n FROM updated`;
-      return res[0]?.n ?? 0;
+    // 两列各记一份——只记 publications 那份的话，被覆盖掉的判稿就再也拿不回来了。
+    const preImage = {
+      article_id: f.article_id, analysis_id: f.analysis_id, revision: f.revision,
+      summary: current?.pub.get(f.article_id) ?? f.summary,
+      ...(f.analysis_id !== null ? { analysis_summary: current?.ana.get(f.analysis_id) ?? null } : {}),
+    };
+    appendFileSync(backup, `${JSON.stringify(preImage)}\n`);
+    // 两处一起改或一处都不改，规则在 `closeBoth`（它被抽出来，是为了让这条不变量能真跑一遍）。
+    const outcome: CloseOutcome = await sql.begin(async (tx) => {
+      const r = await closeBoth(tx, f, Boolean(repairFrom));
+      if (r !== "written") throw new RollbackRow(r);
+      return "written" as const;
+    }).catch((error) => {
+      if (error instanceof RollbackRow) return error.why;
+      throw error;
     });
     // `revision` 是 publications 的主键一部分：读它与写它之间 worker 若重发过，这条 UPDATE 命中 0 行。
     // 命中 0 行就不算"收口了"——计数只报真写进去的，宁可少报也不虚报。
-    if (written > 0) done++;
+    if (outcome === "written") done++;
+    else if (outcome === "divergent") divergent++;
     else skipped++;
   }
-  console.log(`已收口 ${done} 条摘要（两处一起改：analyses.summary_zh 与 publications.summary）`
-    + `${skipped ? `；另有 ${skipped} 条在读取后被重新投影过，本轮没碰，下次跑会重新判` : ""}。原值备份：${backup}`);
+  console.log(`已收口 ${done} 条摘要（两处一起改：analyses.summary_zh 与 publications.summary，任何一边没落就整笔回滚）`
+    + `${skipped ? `；${skipped} 条在读取后被重新投影过或已不在库里，本轮没碰，下次跑会重新判` : ""}`
+    + `${divergent ? `；${divergent} 条两列本来就不一致（例如编辑手工改过读者那份），改一边只会造成假一致，整笔回滚没动` : ""}`
+    + `。原值备份：${backup}`);
 }
 }
 
