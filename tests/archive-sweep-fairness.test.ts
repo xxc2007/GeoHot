@@ -23,8 +23,17 @@ after(async () => {
 });
 
 async function seed(ordinary: number, archive: number) {
-  await sql`DELETE FROM pgboss.job WHERE data->>'articleId' IN (SELECT id FROM articles WHERE source_id = ${SOURCE})`.catch(() => {});
-  await sql`DELETE FROM articles WHERE source_id = ${SOURCE}`;
+  // A previous run of this same file leaves its sweep-eligible rows behind whenever its after() is
+  // skipped, and they tie the fixture's own 1990/1980 dates, winning the (date, id) order through
+  // their older tag — two such leftovers were enough to shave the 500-place sweep (2026-10-11:
+  // {ordinary: 498}, {archive: 478}). Clean the file's own namespace; nothing outside
+  // `test-archive-sweep-%` is touched, so a concurrently running stack is never disturbed.
+  await sql`DELETE FROM pgboss.job WHERE data->>'articleId' IN (SELECT id FROM articles WHERE source_id LIKE 'test-archive-sweep-%')`.catch(() => {});
+  await sql`DELETE FROM articles WHERE source_id LIKE 'test-archive-sweep-%'`;
+  await sql`DELETE FROM sources WHERE id LIKE 'test-archive-sweep-%'`;
+  // The wipe above takes `before()`'s own source with the leftovers, so rebuild it before seeding.
+  await sql`INSERT INTO sources (id, name, kind, tier, participation_mode, next_fetch_at)
+            VALUES (${SOURCE}, 'Sweep fixture', 'rss', 'T1', 'editorial', '2100-01-01')`;
   // Ordinary imports are deliberately older, reproducing the production starvation.
   for (const [band, count, discovered] of [["ordinary", ordinary, "1990-01-01"], ["archive", archive, "2000-01-01"]] as const) {
     if (!count) continue;
@@ -73,6 +82,24 @@ test("archives use places left by fewer ordinary candidates, without raising the
   await seed(20, 600);
   assert.equal((await sweepUnprocessed()).enqueued, 500);
   assert.deepEqual(await queuedCounts(), { ordinary: 20, archive: 480 });
+});
+
+test("档案的另一份也按新闻日期排——那 380 个位置才是大头", async () => {
+  // 上一条测的是"档案一共拿到 480 个位置"；这一条测的是**拿到哪 480 条**。档案拿到的位置里只有 100 个来自
+  // reserved，其余 380 个来自 remainder——它才是普通日子里的主要吞吐。若 remainder 照 `discovered_at` 排，
+  // 这 380 条又会摊回整个导入区间，每一天照样差几条（seed 里 600 条档案的 discovered_at 完全相同，
+  // 只靠 id 决胜，所以旧写法会取到 id 最小的那批，而不是日期最早的那批）。
+  await seed(20, 600);
+  // 让新闻日期与 id 次序反着走：导入编号最小的那条，挂最晚的日期。
+  await sql`UPDATE articles SET timeline_at = '2026-01-01'::timestamptz + ((601 - right(id, 4)::int) * interval '1 day')
+            WHERE source_id = ${SOURCE} AND backfill_reason = 'archive'`;
+  assert.equal((await sweepUnprocessed()).enqueued, 500);
+  const nums = (await sql<{ n: number }[]>`
+    SELECT right(id, 4)::int AS n FROM articles
+    WHERE source_id = ${SOURCE} AND backfill_reason = 'archive' AND processing_queued_at IS NOT NULL`).map((r) => r.n);
+  assert.equal(nums.length, 480, "档案一共拿到 reserved 100 + remainder 380 个位置");
+  assert.deepEqual([Math.min(...nums), Math.max(...nums)], [121, 600],
+    "排队的是日期最早的那 480 条（编号 600 = 最早的一天）；按导入时刻排会拿到 1..480");
 });
 
 test("ordinary work uses the unused archive reservation", async () => {
