@@ -1,6 +1,9 @@
 // `scripts/close-open-ended-summaries.ts` 洗的是读者已经看到的存量文本，所以它必须满足两条：
 // 抓得住线上实测的三种"半句话"形状（2026-10-11：公开行 1,772 条结尾挂分隔符、189 条整段没有结尾标点），
 // 以及**只删不加**——收口只能用文本自己的边界，最多加一个收尾标点，不能凭空补半句内容。
+// 这个文件会连库（判据要拿去 Postgres 里跑），所以 setup 的"测试库必须以 _test/_ci 结尾"闸门
+// 必须排在 `@aihot/backend/db` 之前——`test-db-hygiene.test.ts` 就是查这个顺序的。
+import "./setup.ts";
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import { closeDb, sql } from "@aihot/backend/db";
