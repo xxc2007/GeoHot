@@ -79,7 +79,18 @@ WEB_PORT_CHECK="3000"
 API_PORT_CHECK="3001"
 NODE_MIN="24.11"               # package.json engines ">=24.11"（实测文件：GEOHOT/package.json:24）
 SYSTEMD_SRC="$(cd "$(dirname "$0")" && pwd)/systemd"
-UNITS=(geohot-brain geohot-api geohot-worker geohot-web)   # 四个常驻单元，与 DEPLOYMENT.md:10 一致
+# 单元清单从 systemd/ 目录里数出来，不是手写的。手写那份停在「四个常驻单元」，
+# 而 geohot-workbuddy.service 与 geohot-archive.{service,timer} 早就躺在同一个目录里——
+# 照这条流程 bootstrap 出来的新机器会静默少三个进程：少 workbuddy = 判定链路没了（它现在承担约七成八的
+# 模型调用），少 archive.timer = 档案不再进口，出刊也就没有输入。两种都不会报错，只是站少了一块。
+UNIT_FILES=()
+SERVICES=()
+for f in "$SYSTEMD_SRC"/geohot-*.service "$SYSTEMD_SRC"/geohot-*.timer; do
+  [[ -f "$f" ]] || continue
+  n="$(basename "$f")"
+  UNIT_FILES+=("$n")
+  [[ "$n" == *.service ]] && SERVICES+=("${n%.service}")
+done
 
 APPLY=0
 I_KNOW=0
@@ -297,8 +308,8 @@ echo "--- 现状存在性 ---"
 for p in "$APP_HOME" "$APP_ROOT" "$ENV_PATH" "$APP_ROOT/node_modules" "$APP_ROOT/apps/web/build"; do
   [[ -e "$p" ]] && echo "存在: $p" || echo "缺失: $p"
 done
-for u in "${UNITS[@]}"; do
-  [[ -f "/etc/systemd/system/$u.service" ]] && echo "存在: unit $u" || echo "缺失: unit $u"
+for u in "${UNIT_FILES[@]}"; do
+  [[ -f "/etc/systemd/system/$u" ]] && echo "存在: unit $u" || echo "缺失: unit $u"
 done
 if [[ -f "$ENV_PATH" ]]; then
   echo "--- 现有 .env 关键开关（只列键名与非机密值，上线前逐项核对 README-deploy.md 第 5 节）---"
@@ -731,39 +742,43 @@ echo "  前缀已烧进 bundle：改前缀 = 重新构建 + 换 nginx 前缀 + �
 # ----------------------------------------------------------------------------
 # 10. 安装 systemd 单元
 # ----------------------------------------------------------------------------
-step "10. systemd 单元（四个）"
-if [[ -d "$SYSTEMD_SRC" ]]; then
-  for u in "${UNITS[@]}"; do
-    src="$SYSTEMD_SRC/$u.service" dst="/etc/systemd/system/$u.service"
-    if [[ ! -f "$src" ]]; then echo "!! 缺少 $src"; exit 1; fi
+step "10. systemd 单元（systemd/ 目录里的全部 ${#UNIT_FILES[@]} 个）"
+if [[ -d "$SYSTEMD_SRC" ]] && (( ${#UNIT_FILES[@]} )); then
+  for u in "${UNIT_FILES[@]}"; do
+    src="$SYSTEMD_SRC/$u" dst="/etc/systemd/system/$u"
     # 单元里的 WorkingDirectory / EnvironmentFile / ReadWritePaths 写死的是默认安装路径（systemd 在这里
     # 没有变量插值可用）。换过 GEOHOT_APP_ROOT 就不要装这些模板 —— 用 bash install-units.sh，它按变量渲染。
-    if [[ "$APP_ROOT" != "/opt/geohot/app" ]] && ! grep -qF "$APP_ROOT" "$src"; then
+    # 只对 .service 查：.timer 里没有任何路径，拿 APP_ROOT 去比会把它判成不一致。
+    if [[ "$u" == *.service ]] && [[ "$APP_ROOT" != "/opt/geohot/app" ]] && ! grep -qF "$APP_ROOT" "$src"; then
       echo "!! $src 里的路径与 GEOHOT_APP_ROOT=$APP_ROOT 不一致 —— 改用 bash install-units.sh 渲染，或改模板" >&2
       [[ "$APPLY" == "1" ]] && exit 1
     fi
     if [[ -f "$dst" ]] && cmp -s "$src" "$dst"; then
       echo "unit $u 已一致 —— 跳过"
     else
-      run "安装/更新 $u.service" $SUDO install -m 644 "$src" "$dst"
+      run "安装/更新 $u" $SUDO install -m 644 "$src" "$dst"
     fi
   done
   run "daemon-reload" $SUDO systemctl daemon-reload
-  run "enable 四个 unit（暂不 --now：先人工核对 .env 再 start）" $SUDO systemctl enable "${UNITS[@]}"
-  echo "核对无误后手工: sudo systemctl start ${UNITS[*]}（顺序 brain → api → worker → web）"
+  run "enable 全部 unit（暂不 --now：先人工核对 .env 再 start）" $SUDO systemctl enable "${UNIT_FILES[@]}"
+  echo "核对无误后手工: sudo systemctl start ${SERVICES[*]}（顺序 brain → workbuddy → api → worker → web；archive.service 由 timer 拉起，不手工 start）"
   echo "（刻意不把 nginx 操作放进本脚本 —— 见 geohot.nginx.conf片段 的 ADD/回滚流程）"
+elif [[ -d "$SYSTEMD_SRC" ]]; then
+  # 目录在但一个模板都没数到：与"没有 systemd/"是两种故障，分开说，否则排查方向从第一步就错了。
+  echo "!! $SYSTEMD_SRC 里数不出任何 geohot-*.service —— 模板没拷全（补齐整个 deploy/geohot/ 目录），或改名了。" >&2
+  [[ "$APPLY" == "1" ]] && exit 1
 else
   # 上一版这里打印"跳过 systemd 安装"就继续往下走，最后打印"完成"。第 10 节被跳过的机器上，
-  # verify-deploy.sh 第 2 节会红着问"四个单元在哪"，而没人知道是没装还是没启动。装包目录里没有
+  # verify-deploy.sh 第 2 节会红着问单元在哪，而没人知道是没装还是没启动。装包目录里没有
   # systemd/ 通常是拷贝时漏了子目录（README-deploy.md 第 8 节让整目录拷到 ~/.deploy）。
-  echo "!! 未找到 $SYSTEMD_SRC —— 四个单元一个都没装。" >&2
+  echo "!! 未找到 $SYSTEMD_SRC —— geohot 的 systemd 单元一个都没装。" >&2
   echo "   补齐本目录（deploy/geohot/ 连同它的 systemd/ 子目录一起拷），或改用 bash install-units.sh 渲染安装。" >&2
   [[ "$APPLY" == "1" ]] && exit 1
 fi
 
 step "完成。下一步：按 geohot.nginx.conf片段 头部那四条硬约束与 README-deploy.md 第 2 节的 ⑦ 贴 nginx 片段"
 echo "（前缀 ${GEOHOT_BASE_PATH:-（域名根，无需 location）}；备份 → 注入 → nginx -t 通过才 reload，绝不 restart）"
-echo "然后：sudo systemctl start ${UNITS[*]} → bash verify-deploy.sh 全绿。"
+echo "然后：sudo systemctl start ${SERVICES[*]} → bash verify-deploy.sh 全绿。"
 echo "★ 如果还没跑过 bash verify-deploy.sh --save-baseline：它必须在**任何 nginx 改动之前**跑，现在补已经晚了（见 README-deploy.md 第 1 节）。"
 echo "★ 新机器 / 新域名：仓库里那份 deploy/geohot/baseline-main.txt 是**旧域名主站**的哈希基线，对这台机器没有意义，"
 echo "   必须先 MAIN_SITE=<这台的新主站> bash verify-deploy.sh --save-baseline 重采一次，否则 verify 第 1 节恒红。"

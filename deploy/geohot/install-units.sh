@@ -11,9 +11,12 @@
 #   3. each unit carries a MemoryMax so an OOM inside GEOHOT cannot take nginx or Artalk with it —
 #      that is the whole point of running a second service on a 900 MB box.
 #
-# These are the minimal units the live box actually runs. deploy/geohot/systemd/*.service are the same
-# four units plus a hardening block (ProtectSystem=strict, ReadWritePaths, …) — bootstrap-server.sh step 10
-# installs those. Pick one route per box; both read the same GEOHOT_APP_ROOT, and both keep the MemoryMax.
+# These are the minimal long-lived units — the four processes a reader-visible page needs. The live box
+# runs three more (deploy/geohot/systemd/*.service): geohot-workbuddy (the bridge that currently carries
+# most of the judging calls), plus geohot-archive.service and its timer. deploy/geohot/systemd/*.service
+# are these same four units plus a hardening block (ProtectSystem=strict, ReadWritePaths, …) —
+# bootstrap-server.sh step 10 installs all seven. Pick one route per box; both read the same
+# GEOHOT_APP_ROOT, and both keep the MemoryMax.
 #
 # Run as a user with sudo. Idempotent: it overwrites the unit files, which is the point.
 #
@@ -129,12 +132,20 @@ if [[ $APPLY == 0 ]]; then
   exit 0
 fi
 sudo systemctl daemon-reload
-# 装完要数一遍。以前这一行只是把数量打给人看，于是"写了三个、少一个"也能一路走到 enable——
-# 少的那个进程不会有任何报错，只是那条链路静默停摆（少 geohot-brain 就是每一次分析都打到没人听的端口）。
+# 装完要逐个点名核对。两版都不行：
+# · 以前只把数量打给人看，"写了三个、少一个"也能一路走到 enable——少的那个进程不会报错，
+#   只是那条链路静默停摆（少 geohot-brain 就是每一次分析都打到没人听的端口）。
+# · 改成 `!= 4` 之后又错在另一头：这台机器上现在装的是 7 个 geohot-* 单元
+#   （workbuddy 桥 + archive 的 .service/.timer 都由 systemd/ 模板装），
+#   拿全局计数当"本脚本的四个装齐了没"的判据，在真机上必然报 ✗。
+missing=()
+for n in geohot-brain.service geohot-api.service geohot-worker.service geohot-web.service; do
+  [[ -n "$(systemctl list-unit-files "$n" --no-legend)" ]] || missing+=("$n")
+done
 installed=$(systemctl list-unit-files 'geohot*' --no-legend | wc -l)
-echo "installed: $installed units (want 4, APP_ROOT=$APP_ROOT)"
-if [[ "$installed" != "4" ]]; then
-  echo "✗ 装上的不是四个 —— 已有的 geohot-* 单元："
+echo "installed: $installed units on this box (this script writes 4, APP_ROOT=$APP_ROOT)"
+if (( ${#missing[@]} )); then
+  echo "✗ 本脚本该装的单元里缺：${missing[*]} —— 已有的 geohot-* 单元："
   systemctl list-unit-files 'geohot*' --no-legend
   exit 1
 fi

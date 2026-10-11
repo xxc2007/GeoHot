@@ -149,12 +149,27 @@ if command -v systemctl >/dev/null 2>&1; then
   # 是这条不变量最坏的那种破法（四个常驻进程一个都不在），以前它被写成"没有单元文件就免检"，
   # 于是脚本对着一个空机器报 ALL CHECKS PASSED。
   if [[ -z "$(systemctl list-unit-files 'geohot-*' --no-legend 2>/dev/null)" ]]; then
-    bad "systemd 里没有任何 geohot-* 单元 —— 四个常驻进程一个都没装（见 deploy/geohot/install-units.sh）"
+    bad "systemd 里没有任何 geohot-* 单元 —— 常驻进程一个都没装（见 deploy/geohot/install-units.sh）"
   else
     for u in geohot-brain geohot-api geohot-worker geohot-web; do
       state=$(systemctl is-active "$u" 2>/dev/null || true)
       [[ "$state" == "active" ]] && ok "$u active" || bad "$u 状态=$state —— 四个单元都要 active（见 deploy/geohot/systemd/）"
     done
+    # 另外两条是 2026-10-10 之后加上的链路。它们不在"四个"里，所以这一节以前对它们的存在与死活一概不问：
+    # workbuddy 桥装了却停着，判定调用会静默改道或全停；archive.timer 没在岗，档案就不再进口，
+    # 已出的刊期默认不重排，后来到的条目就永久缺席。两种都没有报错，只有内容变薄。
+    # 判据是"装了才要求，没装不判红"——不是每台机器都跑档案进口。
+    if [[ -n "$(systemctl list-unit-files geohot-workbuddy.service --no-legend 2>/dev/null)" ]]; then
+      state=$(systemctl is-active geohot-workbuddy 2>/dev/null || true)
+      [[ "$state" == "active" ]] && ok "geohot-workbuddy active" \
+        || bad "geohot-workbuddy 状态=$state —— 它承担这台机器上大部分判定调用，装了却停着就是模型这一路没了"
+    fi
+    if [[ -n "$(systemctl list-unit-files geohot-archive.timer --no-legend 2>/dev/null)" ]]; then
+      armed=$(systemctl is-enabled geohot-archive.timer 2>/dev/null || true)
+      state=$(systemctl is-active geohot-archive.timer 2>/dev/null || true)
+      [[ "$armed" == "enabled" && "$state" == "active" ]] && ok "geohot-archive.timer enabled+armed" \
+        || bad "geohot-archive.timer enabled=$armed active=$state —— 定时器不在岗就没有新的档案进口（archive.service 是 oneshot，不要求它 active）"
+    fi
   fi
 fi
 # 编辑大脑的代码是不是"进程里那一份"。
