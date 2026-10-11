@@ -17,12 +17,15 @@
 // 写库的副作用要说清楚：这些行会一起刷新 `publications.updated_at`，而池子的 ETag/freshness 与 sitemap
 // 读的就是它（`publication/pool.ts`）——所以一次 --apply 等于告诉所有订阅方"这批内容变了"。要分批就调小
 // --max-apply。不刷新它则缓存里的半句话永远留着，那才是更坏的结果。
+import { appendFileSync, mkdirSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { pathToFileURL } from "node:url";
 import { config } from "@aihot/backend/config";
 import { closeDb, sql } from "@aihot/backend/db";
 import { closeTruncatedSentence } from "@aihot/backend/editorial/writing";
 import { stripBoilerplate } from "@aihot/backend/lib/text";
+import { cjkCount } from "@aihot/contracts/copy";
 
 /**
  * 一条判据，不是两条：`结尾挂分隔符` 与 `整段没有结尾标点` 在 Postgres 上是同一个集合——分隔符 `，、；：,;:`
@@ -51,11 +54,15 @@ export function openEndedCondition() {
  * 等于什么都没修还报告说修好了。剩下的是不是标签话术（`作者信息`、`基金项目`）是那条信源的抽取问题，
  * 不在这里用长度猜。
  */
-export const EMPTY_AFTER_STRIP = 4;
-
 export function closeStockSummary(summary: string): { kind: "keep" | "rewrite" | "skeleton"; text: string } {
   const bare = stripBoilerplate(summary);
-  if (bare.replace(/\s+/g, "").length < EMPTY_AFTER_STRIP) return { kind: "skeleton", text: bare };
+  // 只有一条判据：剥完一个汉字都不剩（`"。"`、`"，、；："` 这种）。
+  // 曾经试过加第二条"剥掉的超过一半就算骨架"，被自己的测试否掉了：
+  // `PDF(8989 KB) 中国A级景区运营效率测度…{{...}}` 里骨架占七成，可剩下的是一条完整的中文标题——
+  // 判成骨架等于把页面外壳继续留在读者眼前，正好与这条脚本的目的相反。
+  // 也不按"剩下几个字"判：21 字的官方预警摘要是合法的短摘要，按绝对长度会让真候选被悄悄跳过（第一版就错了）。
+  // 剩下的是不是栏目标签名（`作者信息`、`基金项目`）归那条信源的抽取管（#145），不在这里猜。
+  if (cjkCount(bare) === 0) return { kind: "skeleton", text: bare };
   const closed = closeTruncatedSentence(bare);
   return closed === summary ? { kind: "keep", text: closed } : { kind: "rewrite", text: closed };
 }
@@ -103,8 +110,8 @@ const maxApply = positiveInt(values["max-apply"]!, "max-apply");
 // 整条候选判据也只写一份：条数与明细两条查询必须数的是同一批行，否则打印出来的"全库多少条"与实际要改的不是同一件事。
 const candidateWhere = sql`visibility = 'public' AND summary IS NOT NULL AND length(summary) >= 20 AND ${openEndedCondition()}`;
 const [total] = await sql<{ n: number }[]>`SELECT count(*)::int AS n FROM publications WHERE ${candidateWhere}`;
-const rows = await sql<{ article_id: string; revision: number; summary: string }[]>`
-  SELECT article_id, revision, summary
+const rows = await sql<{ article_id: string; analysis_id: number | null; revision: number; summary: string }[]>`
+  SELECT article_id, analysis_id, revision, summary
   FROM publications
   WHERE ${candidateWhere}
   ORDER BY updated_at
@@ -112,11 +119,11 @@ const rows = await sql<{ article_id: string; revision: number; summary: string }
 
 // 整条处置规则只有 `closeStockSummary` 那一份：下面按它的判定分桶，不再在这里重写一遍剥壳与收口的顺序。
 const skeletons: Array<{ article_id: string; summary: string }> = [];
-const fixes: Array<{ article_id: string; revision: number; summary: string; closed: string }> = [];
+const fixes: Array<{ article_id: string; analysis_id: number | null; revision: number; summary: string; closed: string }> = [];
 for (const r of rows) {
   const out = closeStockSummary(r.summary);
   if (out.kind === "skeleton") skeletons.push({ article_id: r.article_id, summary: r.summary });
-  else if (out.kind === "rewrite") fixes.push({ article_id: r.article_id, revision: r.revision, summary: r.summary, closed: out.text });
+  else if (out.kind === "rewrite") fixes.push({ article_id: r.article_id, analysis_id: r.analysis_id, revision: r.revision, summary: r.summary, closed: out.text });
 }
 
 console.log(`${values.apply ? "写入" : "DRY-RUN 候选"}：全库形状不闭合 ${total?.n ?? 0} 条，本轮读回 ${rows.length} 条（--limit=${limit}），其中收口后会变 ${fixes.length} 条（上限 --max-apply=${maxApply}），剥完没东西可留、按骨架留给人工的 ${skeletons.length} 条`);
@@ -134,13 +141,36 @@ if (!values.apply) {
   console.error(`候选 ${fixes.length} 条超过 --max-apply=${maxApply}：分批跑，或明确调大上限。没有写库。`);
   process.exitCode = 1;
 } else {
+  // 改一处不够：`publication/publish.ts:179` 每次投影都从 `analyses.summary_zh` 重新取摘要，
+  // 而投影在这期间到处都是（分组、合并、后台重发、`strip-body-boilerplate` 的重跑）。
+  // 只洗 `publications.summary`，下一次投影就把半句话写回来——所以两处一起改，且放在同一个事务里，
+  // 不允许出现"库里判稿已改、读者那份还没改"的半程状态。
+  const backup = resolve(".data/backups", `summary-close-${new Date().toISOString().replaceAll(":", "-")}.jsonl`);
+  mkdirSync(dirname(backup), { recursive: true });
   let done = 0;
+  let skipped = 0;
   for (const f of fixes) {
-    await sql`UPDATE publications SET summary = ${f.closed}, updated_at = now()
-               WHERE article_id = ${f.article_id} AND revision = ${f.revision}`;
-    done++;
+    // 先落原值再改：这一刀是删尾巴（可能删掉真实数据），改坏了要能按行还原。
+    appendFileSync(backup, `${JSON.stringify({ article_id: f.article_id, analysis_id: f.analysis_id, revision: f.revision, summary: f.summary })}\n`);
+    const written = await sql.begin(async (tx) => {
+      if (f.analysis_id !== null) {
+        await tx`UPDATE analyses SET summary_zh = ${f.closed} WHERE id = ${f.analysis_id} AND summary_zh = ${f.summary}`;
+      }
+      const res = await tx<{ n: number }[]>`
+        WITH updated AS (
+          UPDATE publications SET summary = ${f.closed}, updated_at = now()
+           WHERE article_id = ${f.article_id} AND revision = ${f.revision} AND summary = ${f.summary}
+          RETURNING 1)
+        SELECT count(*)::int AS n FROM updated`;
+      return res[0]?.n ?? 0;
+    });
+    // `revision` 是 publications 的主键一部分：读它与写它之间 worker 若重发过，这条 UPDATE 命中 0 行。
+    // 命中 0 行就不算"收口了"——计数只报真写进去的，宁可少报也不虚报。
+    if (written > 0) done++;
+    else skipped++;
   }
-  console.log(`已收口 ${done} 条摘要。`);
+  console.log(`已收口 ${done} 条摘要（两处一起改：analyses.summary_zh 与 publications.summary）`
+    + `${skipped ? `；另有 ${skipped} 条在读取后被重新投影过，本轮没碰，下次跑会重新判` : ""}。原值备份：${backup}`);
 }
 }
 
