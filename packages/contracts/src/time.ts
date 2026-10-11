@@ -26,15 +26,19 @@ export function addDays(date: string, days: number): string {
 
 /**
  * 日历参数只有两种写法算数：`YYYY-MM` 与 `YYYY-MM-DD`，而且**回读要等于原值**——
- * `2026-02-30`、`2026-13-01` 形状对却不存在，`beijingMidnight` 会把它们滚成另一天，
+ * `2026-02-30`、`2026-01-00` 形状对却不存在，`beijingMidnight` 会把它们滚成另一天，
  * 于是"点了 2 月 30 日"会安静地给出 3 月 2 日的内容。这一条与 `dates.ts` 不猜日期顺序是同一族规矩。
+ *
+ * 判据只能走 `isValidDate`：`beijingMidnight` 对 `2026-13-01` 这类值造出 Invalid Date，
+ * 再 `toISOString()` 就抛 RangeError——那是用户参数把请求打成 500/503，而不是回 404/400
+ * （2026-10-11 上线当天线上实测：`/all?date=2026-13-01` 500、`/api/site/pool?date=2026-13-01` 503）。
  */
 export function isMonth(value: string | null | undefined): value is string {
-  return !!value && /^\d{4}-(0[1-9]|1[0-2])$/.test(value) && beijingDate(beijingMidnight(`${value}-01`)) === `${value}-01`;
+  return !!value && /^\d{4}-(0[1-9]|1[0-2])$/.test(value) && isValidDate(`${value}-01`);
 }
 
 export function isDay(value: string | null | undefined): value is string {
-  return !!value && /^\d{4}-\d{2}-\d{2}$/.test(value) && beijingDate(beijingMidnight(value)) === value;
+  return !!value && isValidDate(value);
 }
 
 const WEEKDAYS = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];

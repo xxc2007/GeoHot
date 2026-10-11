@@ -7,11 +7,18 @@
 //
 // 只回**有东西的日子**（稀疏结果），空格由前端补；月份边界一律按北京的日历日算，
 // 与读者在卡片上看到的日期同一口径（`timeline_at` 是"读者看到它的那一刻"归的时间）。
-import { addDays, beijingMidnight, isDay, isMonth } from "@aihot/contracts/time";
+//
+// `filters` 不是可省的装饰：卡片挂在 `/all` 的筛选结果上面，数日子若不套同一套筛选，
+// 就会出现"卡片说那天 4 条、点进去按分类一筛是空的"（2026-10-11 上线当天线上实测
+// `/all?category=histgeo&date=2026-01-15` 正是如此）。条目数跟着筛选走；期号不跟——
+// 日报是整份报纸，不按分类拆。
+import { addDays, beijingMidnight } from "@aihot/contracts/time";
 import { sql } from "../db.ts";
-import { listedCondition } from "./items.ts";
+import { categoryCondition, channelCondition, listedCondition, tagCondition, topicCondition } from "./items.ts";
+import type { PoolQuery } from "./pool.ts";
 
-export { isDay, isMonth };
+/** 与 `/api/site/pool` 同一组可作用在条目上的筛选；不给就等于不筛。 */
+export type DayMarkFilters = Partial<Pick<PoolQuery, "channel" | "category" | "tag" | "topicTags">>;
 
 /** 一个月的第一天与最后一天（含），按北京日历。 */
 export function monthSpan(month: string): { first: string; last: string } {
@@ -24,28 +31,40 @@ export function monthSpan(month: string): { first: string; last: string } {
 
 export interface DayMark {
   date: string;
-  /** 那一天本站可列出的条目数（与 `/all` 同一套成员条件）。 */
+  /**
+   * 那一天在当前筛选下可列出的条目数（与 `/all` 同一套成员条件与同一套筛选）。
+   * 不含来源没给发布时间的行：`DayList` 把它们单独放进「无发布日期」，算进某一天就会多出一个点。
+   */
   items: number;
   /** 那一天出的日报期号；没出报就没有。 */
   issue: number | null;
 }
 
 /**
- * 某月里有内容的日子。`issue` 取 `reports.daily` 的 `issue_no`——空刊不占号（第四十四轮的规则），
- * 所以"有点但没有期号"就是那一天有内容却没出成报，日历要能把它和"有报"分开画。
+ * 某月里有内容的日子。`issue` 取 `reports.daily` 的 `issue_no`，并且**只认拿到号的期次**：
+ * 空刊不占号（第四十四轮的规则），而归档/翻页/RSS/v1/MCP 五个出口都不列空刊——
+ * 卡片若把空刊画成"第 N 期"，就是给同一个事实第二个答案。
+ * 所以"有点但没有期号"= 那天有内容却没出成报，日历要能把这两种分开画。
  */
-export async function monthMarks(month: string, now: Date = new Date()): Promise<DayMark[]> {
+export async function monthMarks(
+  month: string,
+  filters: DayMarkFilters = {},
+  now: Date = new Date(),
+): Promise<DayMark[]> {
   const { first, last } = monthSpan(month);
   const from = beijingMidnight(first);
   const to = beijingMidnight(addDays(last, 1));
+  const scoped = sql`${channelCondition(filters.channel)} ${categoryCondition(filters.category)} ${tagCondition(filters.tag)} ${topicCondition(filters.topicTags)}`;
   const rows = await sql<{ date: string; items: number; issue_no: number | null }[]>`
     WITH days AS (
       SELECT to_char(p.timeline_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD') AS date, count(*)::int AS items
         FROM publications p
-       WHERE ${listedCondition(now)} AND p.eligible AND p.timeline_at >= ${from} AND p.timeline_at < ${to}
+       WHERE ${listedCondition(now)} AND p.eligible AND p.published_at IS NOT NULL ${scoped}
+         AND p.timeline_at >= ${from} AND p.timeline_at < ${to}
        GROUP BY 1),
     issues AS (
-      SELECT key AS date, issue_no FROM reports WHERE kind = 'daily' AND key >= ${first} AND key <= ${last})
+      SELECT key AS date, issue_no FROM reports
+       WHERE kind = 'daily' AND issue_no IS NOT NULL AND key >= ${first} AND key <= ${last})
     SELECT coalesce(d.date, i.date) AS date, coalesce(d.items, 0) AS items, i.issue_no
       FROM days d FULL JOIN issues i ON i.date = d.date
      ORDER BY 1`;

@@ -31,8 +31,19 @@ const provider = await stub((_hit, req) => {
   const answer = { query: "速报", decisions: [{ id: "C1", relation: "SAME_OCCURRENCE", confidence: 0.95, note: "" }] };
   return { id: "stub", choices: [{ message: { content: JSON.stringify(answer) } }], usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 } };
 });
-for (const name of ["DASHSCOPE_BASE_URL", "DEEPSEEK_BASE_URL"]) process.env[name] = `${provider.url}/v1`;
-for (const name of ["DASHSCOPE_API_KEY", "DEEPSEEK_API_KEY"]) process.env[name] = "test-key";
+// 归并复核那一步用的是 MiMo（`tests/setup.ts` 的 `AIHOT_MODELS`），所以它也得指向同一个 stub：
+// 只配 dashscope/deepseek 时，这两条用例会以「Model mimo-v2.6-flash is not configured」红
+// ——从 `6220fe1` 起就是红的，与本机有没有真密钥无关，因为测试根本不该要真密钥。
+for (const name of ["DASHSCOPE_BASE_URL", "DEEPSEEK_BASE_URL", "XIAOMI_MIMO_BASE_URL"]) process.env[name] = `${provider.url}/v1`;
+for (const name of ["DASHSCOPE_API_KEY", "DEEPSEEK_API_KEY", "XIAOMI_MIMO_API_KEY"]) process.env[name] = "test-key";
+// 这个文件要真的走一次归并判定，所以自己把闸门打开（`tests/alerts.test.ts` 同形）：
+// 以前它靠"运行者恰好带了 `.env.pipeline`"才绿，而那份 env 同时把 `COLLECT_ENABLED` 也打开了，
+// 于是 `tests/env-valves.test.ts` 判红——同一个环境里两条判据不可能同时成立。
+process.env.MODEL_CALLS_ENABLED = "true";
+// 上面那个 stub 的 `body.input` 分支就是在答 embeddings，所以这道闸门也得自己打开：
+// 关着时 `groupSignal` 在 `embeddingsAvailable()` 那一步就返回（group.ts:871），
+// 既没召回也没记账——于是"没有匹配上"与"从没判过"在库里长得一样，正是下面那条断言要分开的两件事。
+process.env.EMBEDDINGS_ENABLED = "true";
 
 async function job(articleId: string) {
   const [j] = await sql<{ name: string; priority: number; data: { signalOnly?: boolean } }[]>`
@@ -55,8 +66,8 @@ async function report(suffix: string, opts: { title: string; backfill?: string; 
 let savedBudgets: Array<{ service: string; per_minute: number; per_hour: number; per_day: number }> = [];
 
 before(async () => {
-  savedBudgets = await sql`SELECT service, per_minute, per_hour, per_day FROM budgets WHERE service IN ('dashscope', 'deepseek')`;
-  await sql`UPDATE budgets SET per_minute = 1000, per_hour = 10000, per_day = 100000 WHERE service IN ('dashscope', 'deepseek')`;
+  savedBudgets = await sql`SELECT service, per_minute, per_hour, per_day FROM budgets WHERE service IN ('dashscope', 'deepseek', 'mimo')`;
+  await sql`UPDATE budgets SET per_minute = 1000, per_hour = 10000, per_day = 100000 WHERE service IN ('dashscope', 'deepseek', 'mimo')`;
   await sql`INSERT INTO sources (id, name, kind, tier, participation_mode, next_fetch_at) VALUES
             (${EDITORIAL}, 'Test editorial', 'rss', 'T1', 'editorial', '2100-01-01'),
             (${SIGNAL}, 'Test signal', 'rss', 'T2', 'hot_signal', '2100-01-01')`;

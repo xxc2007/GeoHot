@@ -142,7 +142,11 @@ export async function loadPool(query: PoolQuery): Promise<PoolResponse> {
   const dayCondition = date
     ? sql`AND p.timeline_at >= ${beijingMidnight(date)} AND p.timeline_at < ${beijingMidnight(addDays(date, 1))}`
     : sql``;
-  const filters = sql`${channelCondition(query.channel)} ${categoryCondition(query.category)} ${tagCondition(query.tag)} ${topicCondition(query.topicTags)} ${dayCondition}`;
+  // `scoped` 是"这一屏的其它筛选"，`filters` 再加上选中的那一天。两者必须分开：
+  // 「今日 N 条」问的是今天，把某一天的窗口 AND 进去会让两个窗口互斥、任何历史日期页都印出「今日 0 条」
+  // （2026-10-11 上线当天 390 截图实测：看 10 月 2 日那页，页头写着今日 0 条）。
+  const scoped = sql`${channelCondition(query.channel)} ${categoryCondition(query.category)} ${tagCondition(query.tag)} ${topicCondition(query.topicTags)}`;
+  const filters = sql`${scoped} ${dayCondition}`;
   const offset = (page - 1) * POOL_PAGE_SIZE;
   const cap = POOL_MAX_PAGES * POOL_PAGE_SIZE;
   // A fixed clock (tests, replays) never shares cached totals.
@@ -226,7 +230,7 @@ export async function loadPool(query: PoolQuery): Promise<PoolResponse> {
   // 说的是这一筛选之外发生的事。
   const meta = one(await sql<{ today_count: number; updated_at: Date | null }[]>`
     SELECT (SELECT count(*) FROM publications p
-      WHERE ${listedCondition(now)} AND p.eligible AND p.published_at IS NOT NULL AND p.timeline_at >= ${beijingMidnight(today)} ${filters}) AS today_count,
+      WHERE ${listedCondition(now)} AND p.eligible AND p.published_at IS NOT NULL AND p.timeline_at >= ${beijingMidnight(today)} ${scoped}) AS today_count,
       (SELECT max(p.updated_at) FROM publications p
         WHERE ${listedCondition(now)} AND p.eligible ${filters}) AS updated_at`);
 
