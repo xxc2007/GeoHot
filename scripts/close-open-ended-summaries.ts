@@ -22,6 +22,7 @@ import { pathToFileURL } from "node:url";
 import { config } from "@aihot/backend/config";
 import { closeDb, sql } from "@aihot/backend/db";
 import { closeTruncatedSentence } from "@aihot/backend/editorial/writing";
+import { stripBoilerplate } from "@aihot/backend/lib/text";
 
 /**
  * 一条判据，不是两条：`结尾挂分隔符` 与 `整段没有结尾标点` 在 Postgres 上是同一个集合——分隔符 `，、；：,;:`
@@ -36,6 +37,27 @@ export const OPEN_ENDED = "[^。！？…!?]$";
  */
 export function openEndedCondition() {
   return sql`summary ~ ${OPEN_ENDED}`;
+}
+
+/**
+ * 一条摘要在存量清洗里怎么处置，只由这一个函数说。抽出来是为了让"剥壳→收口"这个顺序本身可测——
+ * 写在 main 里就永远只有跑起来那一种验法，而这条脚本洗的是读者已经看到的文本。
+ *  - `rewrite`：剥掉页面外壳再收口，写库。
+ *  - `keep`：剥壳收口后与原文一字不差，本来就不用碰。
+ *  - `skeleton`：整条就是骨架，剥完没东西可留——空摘要会把整行挤出池子，那是另一个决定，所以不写、报给人看。
+ *
+ * 这里**没有**"剩下的太短就算骨架"这一档：测试先把它证伪了——`气象台继续发布暴雨橙色预警，各地做好准备；`
+ * 只有 21 字，是官方预警那种又短又干净的摘要，按长度判骨架会让这条脚本把一大批真候选直接跳过，
+ * 等于什么都没修还报告说修好了。剩下的是不是标签话术（`作者信息`、`基金项目`）是那条信源的抽取问题，
+ * 不在这里用长度猜。
+ */
+export const EMPTY_AFTER_STRIP = 4;
+
+export function closeStockSummary(summary: string): { kind: "keep" | "rewrite" | "skeleton"; text: string } {
+  const bare = stripBoilerplate(summary);
+  if (bare.replace(/\s+/g, "").length < EMPTY_AFTER_STRIP) return { kind: "skeleton", text: bare };
+  const closed = closeTruncatedSentence(bare);
+  return closed === summary ? { kind: "keep", text: closed } : { kind: "rewrite", text: closed };
 }
 
 async function main() {
@@ -88,17 +110,20 @@ const rows = await sql<{ article_id: string; revision: number; summary: string }
   ORDER BY updated_at
   LIMIT ${limit}`;
 
-const fixes = rows
-  .map((r) => {
-    const closed = closeTruncatedSentence(r.summary);
-    return closed === r.summary ? null : { ...r, closed };
-  })
-  .filter((r): r is NonNullable<typeof r> => r !== null);
+// 整条处置规则只有 `closeStockSummary` 那一份：下面按它的判定分桶，不再在这里重写一遍剥壳与收口的顺序。
+const skeletons: Array<{ article_id: string; summary: string }> = [];
+const fixes: Array<{ article_id: string; revision: number; summary: string; closed: string }> = [];
+for (const r of rows) {
+  const out = closeStockSummary(r.summary);
+  if (out.kind === "skeleton") skeletons.push({ article_id: r.article_id, summary: r.summary });
+  else if (out.kind === "rewrite") fixes.push({ article_id: r.article_id, revision: r.revision, summary: r.summary, closed: out.text });
+}
 
-console.log(`${values.apply ? "写入" : "DRY-RUN 候选"}：全库形状不闭合 ${total?.n ?? 0} 条，本轮读回 ${rows.length} 条（--limit=${limit}），其中收口后会变 ${fixes.length} 条（上限 --max-apply=${maxApply}）`);
+console.log(`${values.apply ? "写入" : "DRY-RUN 候选"}：全库形状不闭合 ${total?.n ?? 0} 条，本轮读回 ${rows.length} 条（--limit=${limit}），其中收口后会变 ${fixes.length} 条（上限 --max-apply=${maxApply}），剥完没东西可留、按骨架留给人工的 ${skeletons.length} 条`);
 for (const f of fixes.slice(0, 8)) {
   console.log(`  ${f.article_id} 「…${f.summary.slice(-18)}」→「…${f.closed.slice(-18)}」（${f.summary.length}→${f.closed.length} 字）`);
 }
+for (const s of skeletons.slice(0, 5)) console.log(`  骨架不写：${s.article_id} 「${s.summary.slice(0, 40)}…」`);
 const shortened = fixes.filter((f) => f.closed.length < f.summary.length).length;
 console.log(`其中要丢掉尾巴（收到上一个完整句子）的：${shortened} 条；只补/换收尾标点的：${fixes.length - shortened} 条`);
 

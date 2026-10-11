@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import { closeDb, sql } from "@aihot/backend/db";
 import { closeTruncatedSentence } from "../packages/backend/src/editorial/writing.ts";
-import { OPEN_ENDED, openEndedCondition } from "../scripts/close-open-ended-summaries.ts";
+import { OPEN_ENDED, closeStockSummary, openEndedCondition } from "../scripts/close-open-ended-summaries.ts";
 
 const openEnded = new RegExp(OPEN_ENDED);
 
@@ -58,6 +58,34 @@ test("候选判据在 Postgres 里跑出来的形状与线上实测一致", asyn
   for (const r of rows) {
     assert.equal(r.hit, expected.get(r.summary), `${r.summary} 的判定与预期不符`);
   }
+});
+
+// 存量里除了"半句话"还有一种更坏的形状：页面骨架。2026-10-11 生产实测 15 条公开摘要（全部来自
+// web-dlyj-toc，0 条 selected）整段是 `PDF(19898 KB) 标题… {{javascript:window.custom_author_cn_index=0;}}`。
+// 只收口不剥壳，就会给骨架点上一个句号，装作它是一句说完了的话——读者看不出来，下一次按形状扫查也扫不出来。
+// 剥壳用的是运行时同一份 `lib/text.ts` 的 PDF_MARK / TEMPLATE_PLACEHOLDER，所以这条脚本不许再自带一套正则。
+test("剥掉页面外壳后剩下的正文照常收口，骨架碎片一个不许留", () => {
+  const out = closeStockSummary("PDF(8989 KB) 中国A级景区运营效率测度与空间分异特征{{javascript:window.custom_author_cn_index=0;}}");
+  assert.equal(out.kind, "rewrite");
+  assert.doesNotMatch(out.text, /PDF\(|\{\{|_cn_index/, `剥壳没起作用：「${out.text}」`);
+  assert.match(out.text, /[。！？…]$/u, "留下的正文片段要收在闭合标点上");
+  assert.ok(out.text.includes("中国A级景区运营效率测度"), "标题本身不许被一起削掉");
+});
+
+test("整条就是骨架、剥完没东西可留的不写库", () => {
+  const out = closeStockSummary("PDF(8989 KB) {{javascript:window.custom_author_cn_index=0;}} {{article.zuoZhe_CN}}");
+  assert.equal(out.kind, "skeleton", `剥完应该判成骨架留给人工，实际「${out.text}」`);
+  assert.equal(out.text.replace(/\s+/g, ""), "", "骨架行不许留下任何字符");
+});
+
+// 这一条是测试先抓出来的真缺陷：曾经按"剩下的字数不够就当骨架"判，而
+// `气象台继续发布暴雨橙色预警，各地做好准备；` 只有 21 字——官方预警就是这种又短又干净的摘要，
+// 那条判据会让脚本把一大批真候选悄悄跳过，报告说洗过了其实什么都没改。
+test("短而干净的官方预警摘要不许被当成骨架跳过", () => {
+  const out = closeStockSummary("气象台继续发布暴雨橙色预警，各地做好准备；");
+  assert.equal(out.kind, "rewrite");
+  assert.equal(out.text, "气象台继续发布暴雨橙色预警，各地做好准备。");
+  assert.equal(closeStockSummary("黄河源区湖泊面积近十年扩大约一成。").kind, "keep", "写完的摘要不许被碰");
 });
 
 after(async () => { await closeDb(); });
