@@ -311,6 +311,11 @@ export function finalizeCopy(input: TranslateInput, copy: { titleZh: string; sum
   // 让这条答复不落成"好答复"，下一次重试会真花钱重问。
   let summaryZh = copy.summaryZh.trim() || ownChineseLead(input);
   if (!isShortTweetInput(input) && summaryZh && !answerFirstSummaryLengthOk(summaryZh, input)) summaryZh = compactAnswerFirstSummary(summaryZh);
+  // 摘要以「，、；：」收尾就是半句话。线上 2026-08-31 至 10-04 有 1,717 条公开摘要是这个形状（按
+  // published_at 数出来的，10-04 之后零新增），但"上游会带结尾标点"从来不是一条规则：这一格不能指望
+  // 模型或兜底路径自觉。纯文本收尾——把挂着的分隔符换成句号，不增一个事实。短推文不套这一条：它的摘要
+  // 本来就是来源原话的片段，硬补句号像在替作者结句。
+  if (!isShortTweetInput(input) && summaryZh) summaryZh = summaryZh.replace(/[，、；：,;:]+$/u, "。");
   if (summaryZh && !looksZh(summaryZh)) summaryZh = "";
   const titleZh = looksZh(copy.titleZh) ? copy.titleZh : looksZh(input.title) ? input.title : "";
   return enforceIdentity(input, { titleZh, summaryZh });

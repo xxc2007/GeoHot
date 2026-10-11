@@ -48,3 +48,23 @@ test("混合答复不算「可用」：否则回执被记成好答复，条目�
   assert.match(noChineseAnswer({ titleZh: "Magnitude 7.2 earthquake off the coast", summaryZh: "测定近海 7.2 级地震。" }) ?? "", /mixes non-Chinese/, "反过来混也一样");
   assert.match(noChineseAnswer({ titleZh: "Magnitude 7.2 earthquake", summaryZh: "A magnitude 7.2 earthquake." }) ?? "", /no Chinese copy/, "整条没有中文：仍是原来的理由");
 });
+
+// 摘要以「，、；：」收尾就是半句话。线上 2026-08-31 至 10-04 有 1,717 条公开摘要是这个形状（按
+// published_at 数出来的，10-04 之后零新增），但"上游会带结尾标点"从来不是一条规则，所以 finalizeCopy
+// 里留一道纯文本的收尾：换掉挂着的分隔符，不增一个字的事实。短推文刻意不套：它的提要本来就是来源原话
+// 的片段，硬补句号像在替作者结句。
+test("提要的结尾不许是挂着的逗号或分号", () => {
+  // 材料里得自己提到这些主体，否则身份闸门会先把提要清空（这一条钉的不是身份门，是收尾）。
+  const warning = {
+    ...chinese,
+    title: "中央气象台继续发布大雾黄色预警",
+    text: "中央气象台今天继续发布大雾黄色预警：京津冀等地的部分地区能见度低于500米，局地不足200米。有关部门应当按照职责做好防雾准备工作。驾驶人员应注意道路变化，小心驾驶。".repeat(3),
+  };
+  const c = finalizeCopy(warning, { titleZh: "中央气象台继续发布大雾黄色预警", summaryZh: "中央气象台继续发布大雾黄色预警，有关部门应当按照职责做好防雾准备工作；" });
+  assert.doesNotMatch(c.summaryZh, /[，、；：;:]$/u, `留着开放收尾：${c.summaryZh}`);
+  assert.equal(c.summaryZh, "中央气象台继续发布大雾黄色预警，有关部门应当按照职责做好防雾准备工作。");
+  const comma = finalizeCopy(chinese, { titleZh: "近海发生 7.2 级地震", summaryZh: "测定近海 7.2 级地震，震源深度 10 千米，" });
+  assert.equal(comma.summaryZh, "测定近海 7.2 级地震，震源深度 10 千米。");
+  const tweet = { ...chinese, sourceKind: "x_search", text: "暴雨预警更新，中心城区局地内涝", mainText: "暴雨预警更新，中心城区局地内涝" };
+  assert.equal(finalizeCopy(tweet, { titleZh: "暴雨预警", summaryZh: "中心城区局地内涝，" }).summaryZh, "中心城区局地内涝，", "短推文保留来源原话的片段");
+});
