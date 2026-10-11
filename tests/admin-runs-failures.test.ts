@@ -9,13 +9,18 @@
 // 名单读得出来；没有 `failed` 的运行读成 null；`failed` 是别的形状（数字、空数组）时不能让整页查询炸掉
 // ——同一张表里躺着的是所有定时任务的返回值，这一列不是只有日报管道在写。
 import assert from "node:assert/strict";
-import { after, test } from "node:test";
+import { after, before, test } from "node:test";
+import { tag } from "./setup.ts";
 import { closeDb, sql } from "@aihot/backend/db";
 import { runsOverview } from "@aihot/backend/admin/runs";
-import { tag } from "./setup.ts";
+import { getBoss, stopBoss } from "@aihot/backend/jobs/queue";
 
 const T = tag();
 const JOB = `test-runs-${T}`;
+// `runsOverview` 还要读 `pgboss.job`（队列积压那一栏），而 pgboss 的 schema 是第一次连上来时才建的：
+// 全新的库里这个文件按字母序跑在别人前面，那张表还不存在（2026-10-11 第一遍全量实测报
+// `relation "pgboss.job" does not exist`）。先把队列起起来——与 `tests/alerts.test.ts` 同一个做法。
+before(async () => { await getBoss(); });
 const insert = (detail: unknown) =>
   sql`INSERT INTO job_runs (job, status, detail) VALUES (${JOB}, 'ok', ${sql.json(detail as never)}) RETURNING id`;
 // `jobs` 是 DISTINCT ON (job) 按 started_at 取最新一次，所以每插一行就重新读一次。
@@ -23,6 +28,7 @@ const latest = async () => (await runsOverview()).jobs.find((j) => j.job === JOB
 
 after(async () => {
   await sql`DELETE FROM job_runs WHERE job = ${JOB}`;
+  await stopBoss();
   await closeDb();
 });
 
