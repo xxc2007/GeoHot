@@ -22,7 +22,7 @@ import { EDITION, KIND_LABEL, MOTTO, dateLine, dateMark, headline, isDue, issueN
 const pad = (n: number) => String(n).padStart(2, "0");
 const keyOf = (c: ReportCitation) => c.itemId ?? c.title;
 const anchorOf = (c: ReportCitation) => (c.itemId ? `r-${c.itemId}` : null);
-const LINK = "inline-flex min-h-7 items-center gap-0.5 font-medium transition-colors hover:text-accent";
+const LINK = "tap-hit inline-flex min-h-7 items-center gap-0.5 font-medium transition-colors hover:text-accent";
 
 function Masthead({ report, index, now }: { report: ReportDetail; index: ReportNavigationEntry[]; now: number }) {
   const issue = issueNumber(index, report.key);
@@ -49,7 +49,7 @@ function Masthead({ report, index, now }: { report: ReportDetail; index: ReportN
             <span className="sr-only">
               {withSubject(KIND_LABEL[report.kind])} · {dateLine(report.kind, report.key)}
             </span>
-            <Nameplate which={report.kind} className="block h-[54px] w-auto @[520px]:h-[74px] @[760px]:h-[98px] @[1040px]:h-[112px]" />
+            <Nameplate which={report.kind} className="block h-[54px] w-auto max-w-full @[520px]:h-[74px] @[760px]:h-[98px] @[1040px]:h-[112px]" />
           </h1>
           <p className="mt-3 text-[11.5px] tracking-[0.36em] text-ink-4 @[760px]:mt-4 @[760px]:text-meta">{SITE.name.toUpperCase()}</p>
         </div>
@@ -102,11 +102,20 @@ function Source({ c, size = 16 }: { c: ReportCitation; size?: number }) {
  * chose: first-hand first, then the best scored), so there is one place to go.
  */
 function Original({ c, className = "" }: { c: ReportCitation; className?: string }) {
+  if (!c.sourceUrl) return null;
   return (
     <a href={c.sourceUrl} target="_blank" rel="noopener noreferrer" aria-label={`阅读${shortSourceName(c.sourceName)}原文：${c.title}（新标签页）`} className={`${LINK} text-meta text-ink-3 ${className}`}>
       原文 <IconArrowUpRight size={12} />
     </a>
   );
+}
+
+/** Imported citations keep their published copy even when their item page is absent locally. */
+function CitationTitle({ c, children, anchor, className = "transition-colors hover:text-accent" }: { c: ReportCitation; children: ReactNode; anchor?: string; className?: string }) {
+  if (anchor) return <Link to={anchor} className={className}>{children}</Link>;
+  if (c.itemId && c.hasPage !== false) return <Link to={`/items/${c.itemId}`} prefetch="intent" className={className}>{children}</Link>;
+  if (c.sourceUrl) return <a href={c.sourceUrl} target="_blank" rel="noopener noreferrer" className={className} aria-label={`阅读原文：${c.title}（新标签页）`}>{children}</a>;
+  return <span className={className}>{children}</span>;
 }
 
 /** One story: source, headline, at most four lines of summary, and the original at the foot. */
@@ -120,13 +129,7 @@ function Story({ c, dated, className = "" }: { c: ReportCitation; dated: boolean
       {c.available ? (
         <>
           <h3 className="mt-3 text-title font-display font-bold leading-[1.5] tracking-[-0.01em] text-ink [overflow-wrap:anywhere] [text-wrap:pretty] @[760px]:text-[20px]">
-            {c.itemId ? (
-              <Link to={`/items/${c.itemId}`} prefetch="intent" className="transition-colors hover:text-accent">
-                {c.title}
-              </Link>
-            ) : (
-              c.title
-            )}
+            <CitationTitle c={c}>{c.title}</CitationTitle>
           </h3>
           {c.summary && <p className="mt-2 line-clamp-4 text-lead leading-[1.85] text-ink-2 [overflow-wrap:anywhere] @[560px]:text-justify">{c.summary}</p>}
           <div className="mt-auto pt-3">
@@ -238,13 +241,7 @@ function FrontPage({ report, pages, leadStory, count, now }: { report: ReportDet
         <Kicker>{daily ? "头条" : "本期导读"}</Kicker>
         {cover && wide && <LeadPicture cover={cover} title={title} onError={() => setBroken(cover.url)} priority className="mt-5" />}
         <h2 className="mt-4 text-display font-display font-black leading-[1.28] tracking-[-0.03em] text-ink [text-wrap:balance] @[520px]:text-display-lg @[1040px]:text-display-xl @[1040px]:leading-[1.22]">
-          {leadStory?.itemId ? (
-            <Link to={`/items/${leadStory.itemId}`} prefetch="intent" className="transition-colors hover:text-accent">
-              {title}
-            </Link>
-          ) : (
-            title
-          )}
+          {leadStory ? <CitationTitle c={leadStory}>{title}</CitationTitle> : title}
         </h2>
         {dek && (
           <div className={cover && !wide ? "mt-6 grid gap-6 @[640px]:grid-cols-[minmax(0,1fr)_minmax(0,38%)] @[880px]:mt-7" : ""}>
@@ -267,16 +264,16 @@ function FrontPage({ report, pages, leadStory, count, now }: { report: ReportDet
             <ol className="mt-2">
               {highlights.map((h, i) => {
                 const anchor = anchorOf(h);
-                const to = anchor && inPage.has(h.itemId) ? `#${anchor}` : h.itemId ? `/items/${h.itemId}` : h.sourceUrl;
+                const inPageAnchor = anchor && inPage.has(h.itemId) ? `#${anchor}` : undefined;
                 return (
                   <li key={keyOf(h)}>
-                    <Link to={to} className="group flex gap-3.5 border-b border-line py-4">
+                    <CitationTitle c={h} anchor={inPageAnchor} className="group flex gap-3.5 border-b border-line py-4">
                       <span className="num w-6 shrink-0 text-[26px] font-black leading-[0.95] tracking-[-0.03em] text-accent">{i + 1}</span>
                       <span className="min-w-0">
                         <span className="block text-lead font-display font-bold leading-[1.55] text-ink transition-colors group-hover:text-accent">{h.title}</span>
                         <span className="mt-1.5 block truncate text-caption text-ink-4">{shortSourceName(h.sourceName)}</span>
                       </span>
-                    </Link>
+                    </CitationTitle>
                   </li>
                 );
               })}
@@ -416,13 +413,7 @@ export function ReportPaper({ report, index, now }: { report: ReportDetail; inde
               <li key={`${keyOf(f)}-${i}`} className="flex break-inside-avoid gap-2.5 border-b border-line py-3 text-[14.5px] leading-[1.65]">
                 <span className="mt-[9px] size-1.5 shrink-0 rounded-full bg-accent" aria-hidden="true" />
                 <span className="min-w-0">
-                  {f.itemId ? (
-                    <Link to={`/items/${f.itemId}`} className="text-ink transition-colors hover:text-accent">
-                      {f.title}
-                    </Link>
-                  ) : (
-                    <span className="text-ink">{f.title}</span>
-                  )}
+                  <CitationTitle c={f} className="text-ink transition-colors hover:text-accent">{f.title}</CitationTitle>
                   <span className="ml-2 text-[12px] text-ink-4">{shortSourceName(f.sourceName)}</span>
                 </span>
               </li>
@@ -434,17 +425,24 @@ export function ReportPaper({ report, index, now }: { report: ReportDetail; inde
       <Neighbours report={report} index={index} />
       {hasHistory && <History report={report} index={index} />}
       <footer className="py-10 text-center">
-        <div className="text-ui font-semibold tracking-[0.6em] text-ink-4">（本期完）</div>
+        <div className="text-ui font-semibold tracking-[0.6em] text-ink-4">{report.readable ? "（本期完）" : "（本期未出刊）"}</div>
         <p className="mt-3 text-caption text-ink-4">
-          {SITE.name} {KIND_LABEL[report.kind]}由编辑系统按编辑部写定的标准从公开来源筛选编排，每条均附原文 ·{" "}
+          {SITE.name} {KIND_LABEL[report.kind]}由编辑系统按编辑部写定的标准从公开来源筛选编排
+          {report.readable ? "，每条均附原文" : ""}
           {daily || hasHistory ? (
-            <Link to={daily ? "/daily/archive" : "#report-history"} className="inline-flex min-h-6 items-center font-medium text-ink-3 transition-colors hover:text-accent">
-              {daily ? "日报合订本" : `往期${KIND_LABEL[report.kind]}`}
-            </Link>
-          ) : (
+            <>
+              {" · "}
+              <Link to={daily ? "/daily/archive" : "#report-history"} className="inline-flex min-h-6 items-center font-medium text-ink-3 transition-colors hover:text-accent">
+                {daily ? "日报合订本" : `往期${KIND_LABEL[report.kind]}`}
+              </Link>
+            </>
+          ) : report.readable ? (
             // 这一期还没有往期：不写一个点了不会动的锚点。
-            <span className="text-ink-4">这是{KIND_LABEL[report.kind]}的第一期</span>
-          )}
+            <>
+              {" · "}
+              <span className="text-ink-4">这是{KIND_LABEL[report.kind]}的第一期</span>
+            </>
+          ) : null}
         </p>
       </footer>
     </article>

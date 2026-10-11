@@ -14,8 +14,8 @@ import { CATEGORIES } from "@aihot/industry/taxonomy";
 import { SELECTION } from "@aihot/industry/selection";
 import { sql } from "../db.ts";
 import { isCollectEnabled } from "../config.ts";
-import { chatJson, MODELS, type ContentPart } from "../providers/llm.ts";
-import { completeReceipt, ProviderRejectedError } from "../providers/receipts.ts";
+import { chatJson, ModelOutputError, MODELS, type ContentPart } from "../providers/llm.ts";
+import { BudgetExceededError, completeReceipt, ProviderRejectedError } from "../providers/receipts.ts";
 import { collapseWhitespace } from "../lib/text.ts";
 import { modelFor } from "./models.ts";
 import { buildMaterial, firstImagePart, loadAnalyzeInput, type AnalyzeInputArticle } from "./input.ts";
@@ -175,6 +175,8 @@ export interface AnalysisRun {
     itemType?: string;
     authorRole?: string;
     identityGuard?: IdentityGuard;
+    /** The provider answer failed the Chinese-copy gate; the paid ledger remains unchanged. */
+    refusal?: string;
     receiptIds: number[];
     reused: boolean;
   } | null;
@@ -233,6 +235,7 @@ async function runScores(a: AnalyzeInputArticle, threshold: number, opts: StepOp
   const input = buildScoreInput(a);
   const values: number[] = [];
   const receiptIds: number[] = [];
+  const answeredModels: string[] = [];
   let reused = true;
   // One after the other: the second call reuses the provider's cached prompt.
   for (let i = 0; i < SCORE_CALLS; i++) {
@@ -246,14 +249,18 @@ async function runScores(a: AnalyzeInputArticle, threshold: number, opts: StepOp
       });
       values.push(res.data.attentionScore);
       receiptIds.push(res.receiptId);
+      answeredModels.push(res.model);
       reused &&= res.reused;
     } catch (error) {
       // The model's content filter declines the material (Zhipu 1301): not scored, so not selected.
-      if (isContentFilter(error)) return { model, threshold, values, receiptIds, reused: false, refused: true };
+      if (isContentFilter(error)) {
+        const refusedModel = error instanceof ProviderRejectedError ? error.modelKey : undefined;
+        return { model: [...new Set([...answeredModels, refusedModel ?? model])].join(","), threshold, values, receiptIds, reused: false, refused: true };
+      }
       throw error;
     }
   }
-  return { model, threshold, values, receiptIds, reused };
+  return { model: [...new Set(answeredModels)].join(","), threshold, values, receiptIds, reused };
 }
 
 async function runStructure(a: AnalyzeInputArticle, opts: StepOpts): Promise<NonNullable<AnalysisRun["structure"]>> {
@@ -318,12 +325,13 @@ async function runUnderstand(a: AnalyzeInputArticle, opts: StepOpts): Promise<An
     }
   }
   const d = res.data;
+  const refusal = noChineseAnswer(d);
   const evidence = translateInputOf(a);
   const copy = finalizeCopy(evidence, { titleZh: d.titleZh, summaryZh: d.summaryZh });
   return {
     kind: "understand", model: res.model, titleZh: copy.titleZh, summaryZh: copy.summaryZh, reasonZh: guardedReason(d.editorialJudgment, evidence),
     tags: normalizeTags(d.tags, { fallbackCategory: CATEGORY_BY_ITEM_TYPE[d.itemType] }), itemType: d.itemType, authorRole: d.authorRole,
-    identityGuard: copy.identityGuard, receiptIds: [res.receiptId], reused: res.reused,
+    identityGuard: copy.identityGuard, ...(refusal ? { refusal } : {}), receiptIds: [res.receiptId], reused: res.reused,
   };
 }
 
@@ -355,13 +363,14 @@ async function runSummarize(a: AnalyzeInputArticle, opts: StepOpts): Promise<Non
     attemptTag: tagged(opts.attemptTag, "summarize"),
   });
   const p = res.data;
+  const refusal = noChineseAnswer(p);
   const draft = short
     ? { titleZh: p.titleZh || (looksZh(main) ? main : ""), summaryZh: p.bodyZh || p.summaryZh }
     : isX
       ? { titleZh: p.titleZh, summaryZh: p.summaryZh || p.bodyZh }
       : { titleZh: p.titleZh || (looksZh(t.title) ? t.title : ""), summaryZh: p.summaryZh };
   const copy = finalizeCopy(t, draft);
-  return { kind: "summarize", model: res.model, titleZh: copy.titleZh, summaryZh: copy.summaryZh, reasonZh: null, tags: null, identityGuard: copy.identityGuard, receiptIds: [res.receiptId], reused: res.reused };
+  return { kind: "summarize", model: res.model, titleZh: copy.titleZh, summaryZh: copy.summaryZh, reasonZh: null, tags: null, identityGuard: copy.identityGuard, ...(refusal ? { refusal } : {}), receiptIds: [res.receiptId], reused: res.reused };
 }
 
 /**
@@ -386,7 +395,19 @@ export async function runAnalysis(a: AnalyzeInputArticle, opts: StepOpts & { sta
     const near = sum !== null && (sum >= scores!.threshold * SCORE_CALLS || sum > UNDERSTAND_FLOOR * SCORE_CALLS);
     const writing = (near ? await runUnderstand(a, opts) : null) ?? (await runSummarize(a, opts));
     const s = await structure;
-    if ("error" in s) throw s.error;
+    if ("error" in s) {
+      // A rejected paid draft must count toward the output-failure limit even when the parallel
+      // structure step hit a local budget. Otherwise budget retries keep buying the same bad draft.
+      // Unknown receipts, shutdown and provider/transport errors retain their recovery semantics.
+      if (s.error instanceof BudgetExceededError && writing.model && writing.receiptIds.length > 0
+        && (!writing.titleZh.trim() || !writing.summaryZh.trim())) {
+        throw new ModelOutputError("Paid writing produced no usable Chinese title or summary before structure budget wait");
+      }
+      throw s.error;
+    }
+    // An explicit writing refusal is still an output failure when structure succeeded. Otherwise
+    // the job becomes analyzed/unknown and is never picked up by the normal bounded retry loop.
+    if (writing.refusal) throw new ModelOutputError(`Paid writing produced no usable Chinese title or summary: ${writing.refusal}`);
     return { prefilter, scores, writing, structure: s.value };
   } finally {
     // A score/writing error or deploy must not let the job finish while a paid structure request
@@ -429,7 +450,11 @@ export function normalizeAnalysis(run: AnalysisRun) {
     subjects,
     titleZh,
     summaryZh,
-    reasonZh: run.writing?.reasonZh ?? null,
+    // BLOCK 的条目后面就没有步骤了（`writing` 是 null）。拦下的理由并不是没有落地——它就存在下面那份
+    // `detail` 里（`prefilter.reason`），但 `analyses.reason_zh` 是空的，所以按条目查"这条为什么被拦"看不到：
+    // 2026-10-11 生产实测三天里 1,381 条 block，`reason_zh` 全为空——后台只看得到「已拦」，人工复核拦得
+    // 对不对没有依据。读者的红线不受影响（这不是读者面文案），补的是运维面。
+    reasonZh: run.writing?.reasonZh ?? (label === "BLOCK" ? collapseWhitespace(run.prefilter.reason) || null : null),
     fact: run.structure?.fact ?? null,
   };
 }

@@ -33,10 +33,12 @@ export class ReceiptUnknownError extends Error {
 export class ProviderRejectedError extends Error {
   readonly status: number | null;
   readonly retryable: boolean;
-  constructor(message: string, status: number | null, retryable: boolean) {
+  readonly modelKey?: string;
+  constructor(message: string, status: number | null, retryable: boolean, modelKey?: string) {
     super(message);
     this.status = status;
     this.retryable = retryable;
+    this.modelKey = modelKey;
   }
 }
 
@@ -45,6 +47,11 @@ export interface CallOutcome {
   requestId?: string | null;
   usage?: Record<string, unknown> | null;
   cost?: { amount: number; currency: string; basis: "actual" | "estimated" } | null;
+}
+
+export interface PaidAlternative {
+  request: ReceiptRequest;
+  call: () => Promise<CallOutcome>;
 }
 
 export interface ReceiptRequest {
@@ -62,6 +69,7 @@ export interface ReceiptRequest {
 
 export interface ReceiptResult {
   receiptId: number;
+  logicalKey: string;
   response: unknown;
   reused: boolean;
 }
@@ -75,6 +83,7 @@ export function logicalKeyFor(req: ReceiptRequest): string {
 
 interface ReceiptRow {
   id: number;
+  logical_key: string;
   status: string;
   response: unknown;
   created_at: Date;
@@ -124,40 +133,72 @@ export function unbilledAttempt() {
  * Runs a paid request at most once per logical key and returns its raw response.
  * The caller parses the response and commits business results, then calls completeReceipt.
  */
-export async function paidRequest(req: ReceiptRequest, call: () => Promise<CallOutcome>): Promise<ReceiptResult> {
-  const logicalKey = logicalKeyFor(req);
+export async function paidRequest(
+  req: ReceiptRequest, call: () => Promise<CallOutcome>, recoveryCandidates: ReceiptRequest[] = [],
+  alternatives: PaidAlternative[] = [],
+): Promise<ReceiptResult> {
+  const dispatches = [{ request: req, call }, ...alternatives];
+  const candidates = [...dispatches.map((d) => d.request), ...recoveryCandidates];
+  const keys = [...new Set(candidates.map(logicalKeyFor))];
 
   const claimed = await sql.begin(async (tx) => {
-    // Serialise budget checks per service so concurrent workers cannot overshoot.
-    await tx`SELECT pg_advisory_xact_lock(hashtext(${"budget:" + req.service}))`;
-    const [existing] = await tx<ReceiptRow[]>`
-      SELECT id, status, response, created_at, updated_at FROM receipts WHERE logical_key = ${logicalKey} FOR UPDATE`;
-    if (existing) {
-      if (existing.status === "received" || existing.status === "completed") return { kind: "reuse" as const, row: existing };
-      if (existing.status === "pending") {
-        if (Date.now() - existing.updated_at.getTime() < PENDING_STALE_MS) return { kind: "busy" as const, row: existing };
-        await markUnknown(tx, existing.id, "placeholder went stale without a recorded result");
-        return { kind: "unknown" as const, row: existing };
+    // The same pool may choose a different service after a health change. Lock the full candidate set
+    // in a stable order, so two concurrent choices cannot both buy this step. Budgets stay per service.
+    for (const service of [...new Set(candidates.map((c) => c.service))].sort()) {
+      await tx`SELECT pg_advisory_xact_lock(hashtext(${"budget:" + service}))`;
+    }
+    const rows = await tx<ReceiptRow[]>`
+      SELECT id, logical_key, status, response, created_at, updated_at FROM receipts
+       WHERE logical_key = ANY(${keys}::text[]) ORDER BY id FOR UPDATE`;
+    const received = rows.find((r) => r.status === "received" || r.status === "completed");
+    if (received) return { kind: "reuse" as const, row: received };
+    const unresolved = rows.find((r) => r.status === "unknown" || r.status === "pending");
+    if (unresolved) {
+      if (unresolved.status === "unknown") return { kind: "unknown" as const, row: unresolved };
+      if (Date.now() - unresolved.updated_at.getTime() < PENDING_STALE_MS) return { kind: "busy" as const, row: unresolved };
+      await markUnknown(tx, unresolved.id, "placeholder went stale without a recorded result");
+      return { kind: "unknown" as const, row: unresolved };
+    }
+    // Only a local budget refusal before an attempt exists can change the dispatch. An HTTP refusal or
+    // unknown outcome never reaches this loop. Every choice is checked while all candidate locks hold.
+    let chosen = dispatches[0]!;
+    let earliestBudgetError: BudgetExceededError | undefined;
+    const blockedServices = new Set<string>();
+    let available = false;
+    for (const dispatch of dispatches) {
+      if (blockedServices.has(dispatch.request.service)) continue;
+      try {
+        await checkBudget(tx, dispatch.request.service);
+        chosen = dispatch;
+        available = true;
+        break;
+      } catch (error) {
+        if (!(error instanceof BudgetExceededError)) throw error;
+        if (!earliestBudgetError || error.retryAfterSeconds < earliestBudgetError.retryAfterSeconds) earliestBudgetError = error;
+        blockedServices.add(dispatch.request.service);
       }
-      if (existing.status === "unknown") return { kind: "unknown" as const, row: existing };
+    }
+    if (!available) throw earliestBudgetError!;
+    const selected = chosen.request;
+    const logicalKey = logicalKeyFor(selected);
+    const existing = rows.find((r) => r.logical_key === logicalKey);
+    if (existing) {
       // failed: the provider did not take the request, or its answer was unusable; a new attempt is allowed.
-      await checkBudget(tx, req.service);
       const [r] = await tx<{ attempts: number }[]>`
         UPDATE receipts SET status = 'pending', attempts = attempts + 1, error = NULL, updated_at = now() WHERE id = ${existing.id} RETURNING attempts`;
-      const attemptId = await startAttempt(tx, existing.id, r!.attempts, req);
-      return { kind: "call" as const, id: existing.id, attemptId };
+      const attemptId = await startAttempt(tx, existing.id, r!.attempts, selected);
+      return { kind: "call" as const, id: existing.id, attemptId, chosen, logicalKey };
     }
-    await checkBudget(tx, req.service);
     const [row] = await tx<{ id: number }[]>`
       INSERT INTO receipts (logical_key, service, model, purpose, subject, status, request, attempts)
-      VALUES (${logicalKey}, ${req.service}, ${req.model ?? null}, ${req.purpose}, ${req.subject ?? null}, 'pending',
-              ${tx.json((req.requestSummary ?? {}) as never)}, 1)
+      VALUES (${logicalKey}, ${selected.service}, ${selected.model ?? null}, ${selected.purpose}, ${selected.subject ?? null}, 'pending',
+              ${tx.json((selected.requestSummary ?? {}) as never)}, 1)
       RETURNING id`;
-    const attemptId = await startAttempt(tx, row!.id, 1, req);
-    return { kind: "call" as const, id: row!.id, attemptId };
+    const attemptId = await startAttempt(tx, row!.id, 1, selected);
+    return { kind: "call" as const, id: row!.id, attemptId, chosen, logicalKey };
   });
 
-  if (claimed.kind === "reuse") return { receiptId: claimed.row.id, response: claimed.row.response, reused: true };
+  if (claimed.kind === "reuse") return { receiptId: claimed.row.id, logicalKey: claimed.row.logical_key, response: claimed.row.response, reused: true };
   if (claimed.kind === "busy") throw new ReceiptBusyError(`Receipt ${claimed.row.id} is in flight`);
   if (claimed.kind === "unknown") {
     throw new ReceiptUnknownError(claimed.row.id, `Receipt ${claimed.row.id} has an unknown outcome; it is released once automatically, then from the admin`);
@@ -167,7 +208,7 @@ export async function paidRequest(req: ReceiptRequest, call: () => Promise<CallO
   const started = Date.now();
   let outcome: CallOutcome;
   try {
-    outcome = await call();
+    outcome = await claimed.chosen.call();
   } catch (error) {
     const status = error instanceof ProviderRejectedError ? "failed" : "unknown";
     // "unknown": the request may have reached the provider (timeout, reset): do not re-send automatically.
@@ -199,7 +240,7 @@ export async function paidRequest(req: ReceiptRequest, call: () => Promise<CallO
         latency_ms = ${Date.now() - started}, finished_at = now()
       WHERE id = ${attemptId}`;
   });
-  return { receiptId, response: outcome.response, reused: false };
+  return { receiptId, logicalKey: claimed.logicalKey, response: outcome.response, reused: false };
 }
 
 async function startAttempt(tx: Db, receiptId: number, attempt: number, req: ReceiptRequest): Promise<number> {

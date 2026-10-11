@@ -108,6 +108,16 @@ export function PillTabs({
   const [fadeRight, setFadeRight] = useState(false);
   useLayoutEffect(() => {
     const el = scroller.current;
+    const selected = el?.querySelector<HTMLElement>('[aria-current="page"], [aria-checked="true"]');
+    if (!el || !selected) return;
+    // Move only this horizontal row; scrollIntoView can also move the reader's page.
+    const row = el.getBoundingClientRect();
+    const item = selected.getBoundingClientRect();
+    if (item.left < row.left) el.scrollLeft -= row.left - item.left + 4;
+    else if (item.right > row.right - 28) el.scrollLeft += item.right - row.right + 32;
+  }, [active, items.length]);
+  useLayoutEffect(() => {
+    const el = scroller.current;
     if (!el) return;
     const measure = () => setFadeRight(el.scrollWidth - el.clientWidth - el.scrollLeft > 1);
     measure();

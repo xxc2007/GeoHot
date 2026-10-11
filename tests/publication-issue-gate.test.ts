@@ -143,12 +143,15 @@ test("an issue whose citations have all been withdrawn is advertised by nothing"
   assert.equal(siteBlank.sections[0].items[0].available, false, "the page marks it struck-through instead of hiding the issue");
 });
 
-test("one rule decides whether a cited item has a page, and the TOC link follows it", { skip: "第七轮未收尾：一条被引用但本站没有它的行的条目，订阅里到底该给原文地址还是不给——实现与这条断言还没对齐（docs/known-issues.md 第七轮·未完成）" }, async () => {
+test("one rule decides whether a cited item has a page, and the TOC link follows it", async () => {
   const report = await json(`/api/site/reports/daily/${DAILY_OK}`);
   const cited = new Map<string, any>(report.sections[0].items.map((i: any) => [i.itemId, i]));
 
   // A `summary-only` item has a page: it opens from 收藏, so the paper quoting it must not strike it through.
   assert.equal(cited.get(summaryOnly).available, true, "a summary-only citation still opens");
+  assert.equal(cited.get(summaryOnly).hasPage, true);
+  assert.equal(cited.get(ABSENT).available, true, "an imported citation remains quoted");
+  assert.equal(cited.get(ABSENT).hasPage, false, "retaining a citation never invents a site page");
   assert.equal(cited.get(summaryOnly).summary, `仅摘要提要-${T}`, "and keeps what the paper published with it");
   assert.equal((await app.inject({ method: "GET", url: `/api/site/items/${summaryOnly}` })).statusCode, 200);
   assert.equal((await json(`/api/site/items/availability?ids=${summaryOnly}`))[summaryOnly], "summary-only", "and the three outlets say the same thing");
@@ -161,6 +164,13 @@ test("one rule decides whether a cited item has a page, and the TOC link follows
   assert.ok(!feedXml.includes(`/items/${ABSENT}`), "an id with no row here is not linked to a page that would 404");
   assert.ok(feedXml.includes(`https://example.com/absent-${T}`), "and is offered the original article instead");
   assert.ok(feedXml.includes(`旧刊条目-${T}`), "quoted as published, still");
+  const v1 = await json(`/api/v1/dailies/${DAILY_OK}`);
+  const imported = v1.report.sections[0].items.find((i: any) => i.title === `旧刊条目-${T}`);
+  assert.ok(imported);
+  assert.equal(imported.links.aihot, null);
+  assert.equal(imported.links.original, `https://example.com/absent-${T}`);
+  assert.ok(!JSON.stringify(imported.attribution).includes(`/items/${ABSENT}`), "attribution never cites a missing page");
+  assert.ok(JSON.stringify(imported.attribution).includes(`/daily/${DAILY_OK}`), "the issue remains the attribution source");
 });
 
 test("report candidates are ordered deterministically, so the numbered brief readers' fixtures quote stays put", async () => {

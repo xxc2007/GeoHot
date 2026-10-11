@@ -19,13 +19,14 @@ export async function loader({ request }: Route.LoaderArgs) {
   const channelParam = url.searchParams.get("channel") ?? "all";
   const categoryParam = url.searchParams.get("category");
   const channel = isChannelKey(channelParam) ? channelParam : "all";
+  // 与 /all 同一条规则：分类键不在词表里（含 2026-10-09 删掉的 `geoedu`）就 404，不再静默显示无过滤的时间轴。
+  if (categoryParam && !isCategoryKey(categoryParam)) throw new Response("Not found", { status: 404 });
   const category = categoryParam && isCategoryKey(categoryParam) ? categoryParam : null;
   const tag = url.searchParams.get("tag")?.trim() || null;
   const upstream = new Headers();
   const data = await loadOr404<TimelineResponse>(`/api/site/timeline${queryString({ channel: channel === "all" ? null : channel, category, tag })}`, { responseHeaders: upstream, signal: request.signal });
-  // 精选是人工签署的那一层：没有新的签署，它就停在最后一次（2026-10-06 线上停在 10-02）。读者据此
-  // 判断整站死了，而实时收录其实一直在走。所以精选超过三天没有动静时，首页把最新的实时条目摆出来，
-  // 并写明这一层没有编辑筛选；精选恢复之后这一块自己消失，不跟「全部动态」抢位置。
+  // 精选按站长制定的标准由模型筛选，也可在后台更正。精选超过三天没有更新时，
+  // 展示仍在更新的收录池；其中部分条目未达精选标准。精选恢复后这一块自动消失。
   const newest = data.cards[0]?.anchorAt ? Date.parse(data.cards[0].anchorAt) : 0;
   const live = newest > 0 && newest < Date.now() - 3 * 86400_000
     ? await loadOr404<PoolResponse>(`/api/site/pool${queryString({ channel: channel === "all" ? null : channel, category, tag })}`, { signal: request.signal })
@@ -108,7 +109,7 @@ export default function Home() {
               <span aria-hidden="true" className="size-1.5 rounded-full bg-accent" />
               最新收录
             </h2>
-            <span className="text-[12px] text-ink-4">按收录时间排列，本站未作编辑筛选</span>
+            <span className="text-[12px] text-ink-4">按收录时间排列，部分条目未达精选标准</span>
           </div>
           <ul className="divide-y divide-line-soft">
             {live.items.slice(0, 8).map((it) => {

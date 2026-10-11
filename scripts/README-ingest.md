@@ -69,6 +69,19 @@ publishedAt, timelineAt, discoveredAt, language, sourceTier, firstParty, raw:{ge
 
 ## 幂等
 
+### 历史资料补录（保留来源日期）
+
+`node --env-file=.env scripts/seed-curated.ts --input <资料.jsonl> --archive --enforce-source --dry-run`
+先检查计划，去掉 `--dry-run` 才执行。`--archive` 隐含 `--keep-times`，与 `--as-of` 互斥，
+仅支持 `--route inproc`：保留原始 `publishedAt`（不以 `timelineAt` 替代），发现时间取此次运行真实 now，
+通过原有 `upsertMaterial` 入口写入 `backfill='archive'`，新建或正文修订仍走原有分析队列。
+每条必须有有效且不晚于 now 的 `publishedAt`；给定的 `timelineAt` 也不得无效或在未来，失败时整批不写。
+来源登记、正文及原始溯源字段沿用现有流程，未知来源不会因历史模式获得发布权限。
+分析筛选与发布完成后，符合成刊条件的档案资料按来源日期进入相应历史日报、周报和月报候选，
+再由 `scripts/backfill-papers.ts` 补刊；导入本身不会直接出刊，也不会跳过内容质量门槛。
+同 URL 重跑不会改写已有记录的日期或重复排队；已有演示回放记录需要单独审计，切换此参数不会将它们自动纠正成档案。
+未传 `--archive` 时，默认演示回放的重锚行为保持原样。
+
 identity 是规范化 URL（`normalizeUrl`：统一 https、去 `www.`、去跟踪参数、去 fragment、去尾斜杠），
 `articles.identity_key` 上有 UNIQUE。同一输入第二次跑：`created 0, updated 0, skipped N`，
 `article_discoveries` 每行仍只有 1 条，pg-boss 作业不重复。同一请求内重复 URL 第一条胜出（与 webhook 一致）。

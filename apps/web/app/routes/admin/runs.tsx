@@ -26,6 +26,23 @@ interface Runs {
 }
 
 
+/**
+ * `job_runs.status` 说的是「这一轮跑完了没有」。一小时里九期日报一期都没排出来，这一轮仍然是
+ * `ok`，失败名单只写在返回值的 `failed` 里、只存在 `detail` 那一列——而操作员扫的就是状态这一列。
+ * 所以把名单摊在状态旁边（不藏进悬停标题），绿色行才不至于替它说"没事"。
+ */
+function Result({ row }: { row: Row }) {
+  const status = row.status ?? "运行中";
+  const badge = <Badge tone={status === "ok" ? "ok" : status === "failed" ? "bad" : "muted"} title={row.error ?? undefined}>{status}</Badge>;
+  if (!row.failures) return badge;
+  return (
+    <div className="whitespace-nowrap">
+      {badge}
+      <div className="mt-1 max-w-[280px] truncate text-[11.5px] text-hot" title={row.failures}>{row.failures}</div>
+    </div>
+  );
+}
+
 export async function loader({ request }: Route.LoaderArgs) {
   return adminGet<Runs>(request, "/api/admin/runs");
 }
@@ -97,7 +114,7 @@ export default function RunsAdmin({ loaderData }: Route.ComponentProps) {
             rowKey={(j) => j.job}
             columns={[
               { key: "j", label: "任务", render: (j) => <span className="font-mono text-[12.5px]">{j.job}</span> },
-              { key: "s", label: "上次", render: (j) => <Badge tone={j.status === "ok" ? "ok" : j.status === "failed" ? "bad" : "muted"} title={j.error ?? undefined}>{j.status ?? "运行中"}</Badge> },
+              { key: "s", label: "上次", render: (j) => <Result row={j} /> },
               { key: "at", label: "时间", render: (j) => <Time at={j.started_at} /> },
               { key: "d", label: "耗时", align: "right", render: (j) => duration(j.started_at, j.finished_at) },
               { key: "f", label: "24h 失败", align: "right", render: (j) => (j.failed_24h ? <span className="text-hot">{j.failed_24h}/{j.runs_24h}</span> : `0/${j.runs_24h}`) },
@@ -232,7 +249,7 @@ export default function RunsAdmin({ loaderData }: Route.ComponentProps) {
               columns={[
                 { key: "at", label: "开始", render: (t) => <span className="num whitespace-nowrap">{bj(t.started_at)}</span> },
                 { key: "j", label: "任务", render: (t) => <span className="font-mono text-[12px]">{t.job}</span> },
-                { key: "s", label: "结果", render: (t) => <Badge tone={t.status === "ok" ? "ok" : t.status === "failed" ? "bad" : "muted"} title={t.error ?? undefined}>{t.status ?? "运行中"}</Badge> },
+                { key: "s", label: "结果", render: (t) => <Result row={t} /> },
                 { key: "d", label: "耗时", align: "right", render: (t) => duration(t.started_at, t.finished_at) },
               ]}
             />

@@ -4,7 +4,7 @@
 import type { z } from "zod";
 import { config, credential } from "../config.ts";
 import { sha256 } from "../lib/ids.ts";
-import { paidRequest, ProviderRejectedError, rejectReceivedResponse } from "./receipts.ts";
+import { logicalKeyFor, paidRequest, ProviderRejectedError, rejectReceivedResponse, type ReceiptRequest } from "./receipts.ts";
 
 export interface ModelSpec {
   key: string;
@@ -242,6 +242,34 @@ function isConnectFailure(error: unknown): boolean {
   return ["ECONNREFUSED", "ENOTFOUND", "EAI_AGAIN", "UND_ERR_CONNECT_TIMEOUT", "ECONNRESET_BEFORE_SEND", "CERT_HAS_EXPIRED"].includes(code ?? "");
 }
 
+/** Keep candidate identities and real HTTP requests on the same parameter calculation. */
+function requestFor<S extends z.ZodType>(opts: ChatJsonOptions<S>, spec: ModelSpec, legacySummaryParameters = false) {
+  const temperature = opts.temperature ?? 0.2;
+  // Dots documents disabling thinking for short answers. Keep selection/understanding unchanged;
+  // Space Bunny summaries need the existing reasoning headroom. Previous summary parameters
+  // for both models below are recovery identities, never new dispatch choices.
+  const extra = spec.key === "dots3-note-prev" && opts.purpose === "summarize_article" && !legacySummaryParameters
+    ? { chat_template_kwargs: { enable_thinking: false } } : spec.extra;
+  const reasoning = /reasoning_effort|"thinking"/.test(JSON.stringify(extra ?? {})) || spec.key.endsWith("-think")
+    || (spec.key === "space-bunny-free" && opts.purpose === "summarize_article" && !legacySummaryParameters);
+  const maxTokens = Math.min(MAX_OUTPUT_TOKENS, Math.max(opts.maxTokens ?? 1500, 512) + (reasoning ? REASONING_HEADROOM : 0));
+  const userText = typeof opts.user === "string" ? opts.user : JSON.stringify(opts.user);
+  const json = spec.jsonMode && opts.json !== false;
+  const request: ReceiptRequest = {
+    service: spec.service, model: spec.model, purpose: opts.purpose, subject: opts.subject,
+    identity: { model: spec.model, promptVersion: opts.promptVersion, system: sha256(opts.system), user: sha256(userText), temperature, maxTokens, json, extra: extra ?? null },
+    requestSummary: { promptVersion: opts.promptVersion, systemHash: sha256(opts.system), userHash: sha256(userText), userChars: userText.length, temperature, maxTokens },
+    attemptTag: opts.attemptTag,
+  };
+  const body: Record<string, unknown> = {
+    model: spec.model,
+    messages: [...(opts.system ? [{ role: "system", content: opts.system }] : []), { role: "user", content: opts.user }],
+    temperature, max_tokens: maxTokens,
+    ...(json ? { response_format: { type: "json_object" } } : {}), ...(extra ?? {}),
+  };
+  return { request, body, reasoning };
+}
+
 export async function chatJson<S extends z.ZodType>(opts: ChatJsonOptions<S>): Promise<ChatJsonResult<z.infer<S>>> {
   const spec = MODELS[opts.model];
   if (!spec) throw new Error(`Unknown model ${opts.model}`);
@@ -250,60 +278,45 @@ export async function chatJson<S extends z.ZodType>(opts: ChatJsonOptions<S>): P
   const apiKey = credential("models", spec.apiKeyEnv);
   if (!baseUrl || !apiKey || !spec.model) throw new Error(`Model ${opts.model} is not configured (${spec.baseUrlEnv}, ${spec.apiKeyEnv}${spec.key === "default" ? ", LLM_MODEL" : ""})`);
 
-  const temperature = opts.temperature ?? 0.2;
   // A reasoning model spends the budget before it answers. Measured 2026-10-06 on Agnes 3.0 flash:
   // `reasoning_effort: high` burned 4,094 hidden tokens and returned an **empty** `content` with
   // `finish_reason: length` at max_tokens 512, then answered normally at 8,192 (52 s, 4,185 tokens).
   // Reasoning therefore buys headroom on top of the caller's own size — capped at the largest output
   // any caller already asks for, so a preset that sized itself (the selection call: 65,536) stays as is.
-  const reasoning = /reasoning_effort|"thinking"/.test(JSON.stringify(spec.extra ?? {})) || spec.key.endsWith("-think");
-  const maxTokens = Math.min(MAX_OUTPUT_TOKENS, Math.max(opts.maxTokens ?? 1500, 512) + (reasoning ? REASONING_HEADROOM : 0));
-  const userText = typeof opts.user === "string" ? opts.user : JSON.stringify(opts.user);
-  const body: Record<string, unknown> = {
-    model: spec.model,
-    messages: [
-      // A prompt given as one user message (the title/summary prompts) has no system message.
-      ...(opts.system ? [{ role: "system", content: opts.system }] : []),
-      // Multimodal parts go through as parts; plain objects are sent as JSON text.
-      { role: "user", content: typeof opts.user === "string" || Array.isArray(opts.user) ? opts.user : userText },
-    ],
-    temperature,
-    max_tokens: maxTokens,
-    ...(spec.jsonMode && opts.json !== false ? { response_format: { type: "json_object" } } : {}),
-    ...(spec.extra ?? {}),
-  };
-
-  const receipt = await paidRequest(
-    {
-      service: spec.service,
-      model: spec.model,
-      purpose: opts.purpose,
-      subject: opts.subject,
-      // `json` belongs in the identity: response_format is part of what the provider was asked for, so an
-      // answer produced in JSON mode must not be replayed as the answer to a non-JSON request (or the
-      // other way round) when LLM_JSON_MODE is flipped between runs.
-      identity: { model: spec.model, promptVersion: opts.promptVersion, system: sha256(opts.system), user: sha256(userText), temperature, maxTokens, json: spec.jsonMode && opts.json !== false, extra: spec.extra ?? null },
-      requestSummary: { promptVersion: opts.promptVersion, systemHash: sha256(opts.system), userHash: sha256(userText), userChars: userText.length, temperature, maxTokens },
-      attemptTag: opts.attemptTag,
-    },
-    async () => {
+  const { request } = requestFor(opts, spec);
+  // Dynamic import avoids the registry/model-selection module's static import cycle.
+  const { recoveryModelsForPurpose, budgetFallbackModelsForPurpose } = await import("../editorial/models.ts");
+  const candidateNames = await recoveryModelsForPurpose(opts.purpose, opts.model);
+  const candidates = candidateNames.flatMap((name) => {
+    const model = MODELS[name]!;
+    const current = { name, request: requestFor(opts, model).request };
+    return ["dots3-note-prev", "space-bunny-free"].includes(model.key) && opts.purpose === "summarize_article"
+      ? [current, { name, request: requestFor(opts, model, true).request }] : [current];
+  });
+  const needsVision = Array.isArray(opts.user) && opts.user.some((part) => part.type === "image_url");
+  const fallbackNames = await budgetFallbackModelsForPurpose(opts.purpose, opts.model, needsVision);
+  const dispatch = (model: ModelSpec) => {
+    const prepared = requestFor(opts, model);
+    const url = credential("models", model.baseUrlEnv)!;
+    const key = credential("models", model.apiKeyEnv)!;
+    return { request: prepared.request, call: async () => {
       const started = Date.now();
       let res: Response;
       try {
-        res = await fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
+        res = await fetch(`${url.replace(/\/$/, "")}/chat/completions`, {
           method: "POST",
-          headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
-          body: JSON.stringify(body),
-          signal: AbortSignal.timeout(opts.timeoutMs ?? (reasoning ? 240_000 : 120_000)),
+          headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
+          body: JSON.stringify(prepared.body),
+          signal: AbortSignal.timeout(opts.timeoutMs ?? (prepared.reasoning ? 240_000 : 120_000)),
         });
       } catch (error) {
-        if (isConnectFailure(error)) throw new ProviderRejectedError(`connect failed: ${String(error)}`, null, true);
+        if (isConnectFailure(error)) throw new ProviderRejectedError(`connect failed: ${String(error)}`, null, true, model.key);
         throw error;
       }
       const text = await res.text();
       if (!res.ok) {
         const retryable = res.status === 429 || res.status >= 500;
-        throw new ProviderRejectedError(`HTTP ${res.status}: ${text.slice(0, 500)}`, res.status, retryable);
+        throw new ProviderRejectedError(`HTTP ${res.status}: ${text.slice(0, 500)}`, res.status, retryable, model.key);
       }
       let json: Record<string, unknown>;
       try {
@@ -318,8 +331,10 @@ export async function chatJson<S extends z.ZodType>(opts: ChatJsonOptions<S>): P
         usage,
         cost: null,
       };
-    },
-  );
+    } };
+  };
+  const receipt = await paidRequest(request, dispatch(spec).call, candidates.map((c) => c.request),
+    fallbackNames.map((name) => dispatch(MODELS[name]!)));
 
   const response = receipt.response as { choices?: Array<{ message?: { content?: string }; finish_reason?: string }>; usage?: Record<string, unknown> };
   const content = response.choices?.[0]?.message?.content ?? "";
@@ -335,5 +350,6 @@ export async function chatJson<S extends z.ZodType>(opts: ChatJsonOptions<S>): P
   // what the page already has) but refuse the receipt, so the next attempt is a real request.
   const unusable = opts.usable?.(parsed) ?? null;
   if (unusable) await rejectReceivedResponse(receipt.receiptId, `answer refused: ${unusable.slice(0, 500)}`);
-  return { data: parsed, receiptId: receipt.receiptId, reused: receipt.reused, model: spec.key, usage: response.usage ?? null };
+  const actualModel = candidates.find((c) => logicalKeyFor(c.request) === receipt.logicalKey)?.name ?? spec.key;
+  return { data: parsed, receiptId: receipt.receiptId, reused: receipt.reused, model: actualModel, usage: response.usage ?? null };
 }

@@ -225,6 +225,13 @@ test("池子里答不出半数的成员会被跳过，答得动一半以上的�
 
   try {
     process.env.MODEL_POOL = POOL;
+    await write(0);
+    await sql`UPDATE receipt_attempts SET status = 'pending' WHERE receipt_id = ${receipt!.id}`;
+    invalidateModelCache();
+    assert.ok(!(await sickServices()).has("agnes-cn"), "unfinished requests must not count as provider failures");
+    await sql`UPDATE receipt_attempts SET status = 'failed', origin = 'imported' WHERE receipt_id = ${receipt!.id}`;
+    invalidateModelCache();
+    assert.ok(!(await sickServices()).has("agnes-cn"), "imported failures must not change live routing");
     await write(1); // 六次里只答出一次——正是"额度用完降到每分钟一次"的样子
     const sick = await sickServices();
     assert.ok(sick.has("agnes-cn"), "答不出半数的服务应当被判为不健康");
@@ -237,6 +244,56 @@ test("池子里答不出半数的成员会被跳过，答得动一半以上的�
     assert.equal(back.size, 2, `答得动一半以上就该回到池子里，实际只有 ${[...back].join(", ")}`);
   } finally {
     delete process.env.MODEL_POOL;
+    await sql`DELETE FROM receipts WHERE id = ${receipt!.id}`;
+    invalidateModelCache();
+  }
+});
+
+// 2026-10-11, production: OpenRouter was refused 37 times in half an hour and answered nothing, yet at
+// 07:36 the verdict was `sick=[]`. The rate rule above only sees ten minutes, so a door refused in bursts is
+// "forgotten" between bursts and the next article is handed to it again — while what actually stopped is a
+// *daily* quota that will not reopen for hours. The durable rule reads what the door said (its six newest
+// live attempts are all day-quota refusals) and stays armed until it answers once, so it cannot deadlock.
+test("整天额度关闭的门在空档期不再被重新挑中，瞬时限速与本站熔断则不会", async () => {
+  const [receipt] = await sql<{ id: number }[]>`
+    INSERT INTO receipts (logical_key, service, purpose, status, created_at, updated_at)
+    VALUES (${`quota-probe-${T}`}, 'agnes-cn', 'pool_health_probe', 'failed', now(), now()) RETURNING id`;
+  // 六小时窗口整个归这个探针用：不清掉前面几次真调用留下的成功尝试，"最近六次"就不是判据要读的那六条。
+  const clear = () => sql`DELETE FROM receipt_attempts WHERE service = 'agnes-cn' AND started_at > now() - interval '6 hours'`;
+  /** 六次拒绝，全部落在十分钟速率窗口之外（四十分钟前）——只有本轮那条持久判据看得见它们。 */
+  const refused = async (error: string) => {
+    await clear();
+    for (let i = 0; i < 6; i++) {
+      await sql`INSERT INTO receipt_attempts (receipt_id, attempt, service, status, error, started_at)
+                VALUES (${receipt!.id}, ${i + 1}, 'agnes-cn', 'failed', ${error}, now() - interval '40 minutes')`;
+    }
+    invalidateModelCache();
+  };
+  const picks = async () => [...new Set(await Promise.all(Array.from({ length: 40 }, () => modelFor("score", newArticleId()))))];
+
+  try {
+    process.env.MODEL_POOL = POOL;
+    await refused('HTTP 429: {"error":{"message":"今日文本额度已用完，当前处于限速模式：每 1 分钟可请求 1 次"}}');
+    assert.ok((await sickServices()).has("agnes-cn"), "最近六次全是日额度拒绝就该判关，与它们落在哪个窗口无关");
+    assert.deepEqual(await picks(), ["default"], "判关之后这个成员不该再被挑中");
+
+    // 它真的回来了：一次成功就是"最近六次"里的一条，门立刻重新可选。
+    await sql`INSERT INTO receipt_attempts (receipt_id, attempt, service, status, started_at)
+              VALUES (${receipt!.id}, 7, 'agnes-cn', 'received', now() - interval '20 minutes')`;
+    invalidateModelCache();
+    assert.ok(!(await sickServices()).has("agnes-cn"), "答过一次就该回到池子里，不能把人永久锁死");
+    assert.equal((await picks()).length, 2, "恢复之后两个成员都可用");
+
+    // 越线保护一：没有"当日/免费档"字样的瞬时限速不是整天关闭（且这些样本在十分钟窗口外，速率判据也看不见）。
+    await refused('HTTP 429: {"error":{"message":"Rate limit exceeded: 10 requests per second"}}');
+    assert.ok(!(await sickServices()).has("agnes-cn"), "六次瞬时限速不该被当成整天关闭");
+
+    // 越线保护二：本站自己的熔断消息按分钟/小时自动重开，把它读成"供应商关着"会藏掉一道健康的门。
+    await refused('Budget for agnes-cn exhausted (day)');
+    assert.ok(!(await sickServices()).has("agnes-cn"), "我方预算窗口不是供应商拒绝");
+  } finally {
+    delete process.env.MODEL_POOL;
+    await clear();
     await sql`DELETE FROM receipts WHERE id = ${receipt!.id}`;
     invalidateModelCache();
   }

@@ -2,7 +2,8 @@
 // no live model analysis yet; --all re-runs everything (receipts make repeats free).
 import { parseArgs } from "node:util";
 import { closeDb, sql } from "@aihot/backend/db";
-import { enqueue, QUEUES, stopBoss } from "@aihot/backend/jobs/queue";
+import { stopBoss } from "@aihot/backend/jobs/queue";
+import { queueProcessing } from "@aihot/backend/jobs/content";
 
 const { values } = parseArgs({ options: { all: { type: "boolean", default: false }, limit: { type: "string", default: "1000" } } });
 // LIMIT takes a bind value, so "abc" would reach Postgres as NaN and an empty --limit is worse than none:
@@ -17,7 +18,7 @@ const rows = await sql<{ id: string }[]>`
   WHERE s.participation_mode = 'editorial'
     ${values.all ? sql`` : sql`AND NOT EXISTS (SELECT 1 FROM analyses an WHERE an.article_id = a.id AND an.origin = 'model')`}
   ORDER BY a.discovered_at DESC LIMIT ${Number(values.limit)}`;
-for (const r of rows) await enqueue(QUEUES.analyze, { articleId: r.id }, { singletonKey: r.id });
+for (const r of rows) await queueProcessing(r.id);
 console.log(`enqueued ${rows.length}`);
 await stopBoss();
 await closeDb();

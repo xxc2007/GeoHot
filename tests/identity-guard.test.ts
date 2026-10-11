@@ -3,9 +3,8 @@
 // entity the input does not, and `normalizeTags` drops every tag outside the pack's vocabulary. Both are
 // deliberate anti-fabrication rules — this file pins that they fire, how far they reach, and what they
 // cannot see, all on geography data (台网震级修订、震中县名、机构中文名), because the samples the guard was
-// written against are not the ones this site publishes. Two of the cases below pin DEFECTS rather than fix
-// them: they are the failures a release gate should be watching, and each one goes red the moment the
-// identity lexicon or the vocabulary is repaired.
+// written against are not the ones this site publishes. Regressions distinguish faithful agency
+// translations from unsupported attribution, while making the vocabulary limits explicit.
 import "./setup.ts";
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -19,7 +18,7 @@ import {
 const idOf = (pattern: RegExp) => IDENTITY_LEXICON.find((e) => pattern.test(e.name))?.id;
 const USGS = idOf(/USGS/)!;
 const CENC = idOf(/地震台网/)!;
-const CGS = idOf(/地质调查局(?!.*USGS)/) ?? idOf(/中国地质调查局/)!;
+const CGS = idOf(/^中国地质调查局$/)!;
 const NOAA = idOf(/^NOAA/)!;
 const MEM = idOf(/应急管理部/)!;
 const NASA = idOf(/^NASA/)!;
@@ -84,28 +83,52 @@ test("anti-fabrication: what the guard reads as 'the input named it' — publish
   for (const entry of PUBLISHER_DOMAINS) assert.ok(IDENTITY_LEXICON.some((e) => e.id === entry.entityId), `${entry.entityId} is a domain owner the lexicon can name`);
 });
 
-test("DEFECT, pinned not fixed: the lexicon's 地质调查局 pattern makes 美国地质调查局 look like a fabrication, so correct USGS copy is discarded (identity guard fires on the truth)", () => {
-  // The source says USGS in English. The faithful Chinese title names it 美国地质调查局 — and the guard sees
-  // 中国地质调查局 inside it (that entry's pattern is the bare substring 地质调查局), so it drops the copy.
+test("survey identities: faithful USGS translations survive, and CGS misattribution fails", () => {
+  // The source says USGS in English; its faithful Chinese name identifies only the American agency.
   const faithful = enforceIdentity(usgsSource(), { titleZh: "美国地质调查局修订芦山地震震级", summaryZh: "美国地质调查局在自动速报之后把震级修订为 Mw 7.2。" });
-  assert.deepEqual(matchEntityIds(["美国地质调查局"]).slice().sort(), [CGS, USGS].sort(), "one name resolves to two agencies");
-  assert.deepEqual([faithful.titleZh, faithful.summaryZh, faithful.identityGuard.outcome], ["", "", "fallback"], "the guard discards a faithful translation: this is the silent content kill");
-  assert.deepEqual(faithful.identityGuard.unsupportedTitleEntityIds, [CGS], "the agency it invents is 中国地质调查局, which the copy never claims");
-  // The mirror of the same substring: when the input does name the American survey, the Chinese one is
-  // treated as already named, so a real misattribution between the two passes unseen.
+  assert.deepEqual(matchEntityIds(["美国地质调查局"]), [USGS], "one name resolves to one agency");
+  assert.deepEqual([faithful.titleZh, faithful.summaryZh, faithful.identityGuard.outcome], ["美国地质调查局修订芦山地震震级", "美国地质调查局在自动速报之后把震级修订为 Mw 7.2。", "pass"], "the faithful translation is preserved");
+  // Chinese source spelling must not grant the other survey's identity either.
   const chineseForAmerican = usgsSource({ title: "美国地质调查局发布芦山地震修订测定", text: "美国地质调查局把震级修订为 Mw 7.2。" });
   const misattributed = enforceIdentity(chineseForAmerican, { titleZh: "中国地质调查局发布芦山地震专项报告", summaryZh: "中国地质调查局派出工作组开展震区地质调查。" });
-  assert.equal(misattributed.identityGuard.outcome, "pass", "the guard cannot tell the two survey agencies apart: this misattribution is invisible");
-  // Even a genuine USGS page does not rescue it: the domain grants usgs, and the copy still names cgs.
+  assert.equal(misattributed.identityGuard.outcome, "fallback", "the Chinese survey was never named in the source");
+  assert.equal(misattributed.summaryZh, "");
+  assert.deepEqual(misattributed.identityGuard.unsupportedTitleEntityIds, [CGS]);
+  assert.deepEqual(misattributed.identityGuard.unsupportedSummaryEntityIds, [CGS]);
+  // A genuine USGS domain supports its own agency without granting CGS.
   const fromTheAgency = enforceIdentity({ title: "Magnitude 7.2 revision", text: "Epicentre 30.3N 103.0E, depth 17 km.", sourceKind: "rss", documentUrl: "https://earthquake.usgs.gov/earthquakes/event/p1/" } as TranslateInput,
     { titleZh: "美国地质调查局修订芦山地震震级", summaryZh: "美国地质调查局给出修订后的震级。" });
-  assert.deepEqual([fromTheAgency.identityGuard.outcome, fromTheAgency.identityGuard.unsupportedTitleEntityIds], ["fallback", [CGS]], "the page that really published it is not enough");
-  // The collision set the release gate should watch. A fix to industry/taxonomy.ts must empty it, and then
-  // this assertion is the one that tells you the two cases above can be inverted into real guarantees.
+  assert.deepEqual([fromTheAgency.identityGuard.outcome, fromTheAgency.identityGuard.unsupportedTitleEntityIds], ["pass", []]);
+  assert.equal(fromTheAgency.titleZh, "美国地质调查局修订芦山地震震级");
+  assert.equal(fromTheAgency.summaryZh, "美国地质调查局给出修订后的震级。");
+  // Every lexicon display name should identify only its own agency.
   const collisions = IDENTITY_LEXICON
     .flatMap((entry) => matchEntityIds([entry.name]).filter((id) => id !== entry.id).map((id) => `${entry.id}->${id}`))
     .sort();
-  assert.deepEqual(collisions, ["usgs->cgs"], `identity lexicon substring collisions: ${collisions.join(", ") || "none"}`);
+  assert.deepEqual(collisions, [], `identity lexicon substring collisions: ${collisions.join(", ") || "none"}`);
+});
+
+test("survey identities: both named agencies remain visible, and the reverse misattribution is rejected", () => {
+  assert.deepEqual(matchEntityIds(["中国地质调查局"]), [CGS]);
+  const chineseSurvey = usgsSource({ title: "CGS publishes a report", text: "CGS issued a geological report." });
+  const faithful = enforceIdentity(chineseSurvey, { titleZh: "中国地质调查局发布报告", summaryZh: "中国地质调查局公布调查结果。" });
+  assert.equal(faithful.identityGuard.outcome, "pass");
+  assert.equal(faithful.summaryZh, "中国地质调查局公布调查结果。");
+  const wrong = enforceIdentity(chineseSurvey, { titleZh: "美国地质调查局发布报告", summaryZh: "美国地质调查局公布调查结果。" });
+  assert.deepEqual([wrong.titleZh, wrong.summaryZh, wrong.identityGuard.outcome], ["", "", "fallback"]);
+  assert.deepEqual(wrong.identityGuard.unsupportedTitleEntityIds, [USGS]);
+  assert.deepEqual(wrong.identityGuard.unsupportedSummaryEntityIds, [USGS]);
+
+  const both = usgsSource({ title: "USGS and CGS publish reports", text: "美国地质调查局与中国地质调查局分别公布测定。" });
+  assert.deepEqual(matchEntityIds([both.text]).sort(), [USGS, CGS].sort());
+  assert.equal(enforceIdentity(both, { titleZh: "USGS 与 CGS 公布测定", summaryZh: "美国地质调查局与中国地质调查局分别公布测定。" }).identityGuard.outcome, "pass", "recognizing USGS must not suppress a genuinely named CGS");
+  for (const name of ["xUSGS", "USGSx", "xCGS", "CGSx", "地质调查局", "英国地质调查局"]) {
+    assert.deepEqual(matchEntityIds([name]), [], `a generic name or longer word cannot grant a survey identity: ${name}`);
+  }
+  assert.deepEqual(matchEntityIds(["美国地质调 查局"]), [USGS]);
+  assert.deepEqual(matchEntityIds(["中国地质调 查局"]), [CGS]);
+  assert.deepEqual(matchEntityIds(["ＵＳＧＳ"]), [USGS]);
+  assert.deepEqual(matchEntityIds(["ＣＧＳ"]), [CGS]);
 });
 
 test("anti-fabrication: the guard runs last, after the paid call and after compaction, so a discarded summary is a spent call", () => {

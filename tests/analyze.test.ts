@@ -9,7 +9,8 @@ import { readdirSync, readFileSync } from "node:fs";
 import { after, before, test } from "node:test";
 import { closeDb, sql } from "@aihot/backend/db";
 import { upsertMaterial } from "@aihot/backend/content/materials";
-import { analyzeArticle, SCORE_SYSTEM, tierThreshold } from "@aihot/backend/editorial/analyze";
+import { analyzeArticle, loadAnalyzeInput, runAnalysis, SCORE_SYSTEM, tierThreshold } from "@aihot/backend/editorial/analyze";
+import { ModelOutputError } from "@aihot/backend/providers/llm";
 import { queueProcessing } from "@aihot/backend/jobs/content";
 import { QUEUES, stopBoss } from "@aihot/backend/jobs/queue";
 import { compactAnswerFirstSummary, enforceIdentity, parseTranslateOutput, PREFILTER_SYSTEM, UNDERSTAND_SYSTEM } from "@aihot/backend/editorial/writing";
@@ -24,7 +25,7 @@ const X_SOURCE = `test-analyze-x-${T}`;
 type Step = "prefilter" | "score" | "understand" | "summarize" | "structure";
 interface Req { step: Step; marker: string; system: string; user: string; body: Record<string, any> }
 const requests: Req[] = [];
-const MARKERS = ["CLEAR", "RESCUE", "LOW", "OFFTOPIC", "NOISE", "BARE", "VAGUE", "THIN", "SENSITIVE", "推文"];
+const MARKERS = ["CLEAR", "RESCUE", "LOW", "OFFTOPIC", "NOISE", "BARE", "VAGUE", "THIN", "SENSITIVE", "BADWRITE", "推文"];
 // 边界分数从行业包算出来，不写死：这个文件在 2026-10-06 门槛重标定（56/59/62 → 46/49/52、floor 46 → 36）时
 // 有三条断言因为写死了算术而变红——它们钉的是行为，不应随一次标定而改。下面两档照着 SELECTION 生成。
 const T1_LINE = SELECTION.thresholds.T1!;
@@ -35,6 +36,7 @@ const scoreAnswers: Record<string, number[]> = {
   CLEAR: [78, 72],
   RESCUE: [NEAR_SUM / 2 + 1, NEAR_SUM / 2 - 1],
   LOW: [30, 30],
+  BADWRITE: [30, 30],
   THIN: [70, 70],
   SENSITIVE: [80, 80],
   推文: [30, 30],
@@ -71,6 +73,7 @@ const provider = await stub((_hit, req) => {
     return answer({ itemType: "disaster_event", authorRole: "principal", tags: ["灾害事件", "预警", "地震", "不存在的标签"], editorialJudgment: `理由 ${marker}`, titleZh: `理解标题 ${marker}`, summaryZh: `理解摘要 ${marker}。第二句补充一个关键数字。` });
   }
   if (step === "structure") return answer({ category: "physical", tags: ["观测/数据发布", "震情"], subjects: ["cenc", "unknown-co"], fact: { title: `事实 ${marker}`, subject: "某台网", action: "测定", object: "震级", occurredAt: null } });
+  if (marker === "BADWRITE") return answer("title_zh: Earthquake bulletin\nsummary_zh: A network released an earthquake bulletin.");
   return answer(`title_zh: 翻译标题 ${marker}\nsummary_zh: 翻译摘要 ${marker}。第二句补充影响。`);
 });
 for (const env of ["DASHSCOPE_BASE_URL", "ZHIPU_BASE_URL", "DEEPSEEK_BASE_URL"]) process.env[env] = `${provider.url}/v1`;
@@ -101,6 +104,26 @@ const calls = (marker: string) => requests.filter((r) => r.marker === marker).ma
 const row = async (id: string) =>
   (await sql<{ selected: boolean; relevance: string; score: string | null; title_zh: string; reason_zh: string | null; category: string | null; tags: string[]; subjects: string[]; receipt_ids: string[]; output: Record<string, any> }[]>`
     SELECT selected, relevance, score, title_zh, reason_zh, category, tags, subjects, receipt_ids, output FROM analyses WHERE article_id = ${id} ORDER BY id DESC LIMIT 1`)[0]!;
+
+test("paid unusable writing counts as an output failure instead of a parallel budget wait", async () => {
+  const id = await article("BADWRITE");
+  const input = (await loadAnalyzeInput(id))!;
+  await runAnalysis(input, { stages: "selection" });
+  const [budget] = await sql<{ per_minute: number }[]>`SELECT per_minute FROM budgets WHERE service='dashscope'`;
+  assert.ok(budget);
+  try {
+    await sql`UPDATE budgets SET per_minute=0 WHERE service='dashscope'`;
+    await assert.rejects(runAnalysis(input), ModelOutputError);
+    const [receipt] = await sql<{ status: string; attempts: number }[]>`SELECT status, attempts FROM receipts
+      WHERE subject=${`article:${id}@${input.revision}`} AND purpose='summarize_article'`;
+    assert.equal(receipt!.status, "failed"); assert.equal(receipt!.attempts, 1);
+    assert.equal(calls("BADWRITE").filter(s => s === "summarize").length, 1);
+  } finally {
+    await sql`UPDATE budgets SET per_minute=${budget!.per_minute} WHERE service='dashscope'`;
+  }
+  await assert.rejects(runAnalysis(input), ModelOutputError, "successful structure cannot settle a rejected paid draft as unknown");
+  assert.equal(calls("BADWRITE").filter(s => s === "summarize").length, 2);
+});
 
 test("every prompt in the pack renders, and the site's name replaces AIHOT's", () => {
   const dir = new URL("../industry/prompts/", import.meta.url);

@@ -1,0 +1,34 @@
+{
+  "sources": [
+    {
+      "id": "cn-web-nda-news", "name": "国家数据局 新闻发布", "kind": "web_list",
+      "config": {"url":"https://www.nda.gov.cn/sjj/swdt/xwfb/list/index_pc_1.html","parseMode":"html","itemSelector":"li:has(a[href*='/swdt/xwfb/']):has(span)","linkSelector":"a","publishedAtSelector":"span","publishedAtUtcOffset":"+08:00","allowUrlPrefixes":["https://www.nda.gov.cn/sjj/swdt/xwfb/"],"denyUrlPrefixes":["https://www.nda.gov.cn/sjj/swdt/xwfb/list/"],"_aihot":{"initialBackfillLimit":20,"intervalMinutesLocked":true}},
+      "tier":"T1","first_party":true,"owner_entity_id":null,"participation_mode":"editorial","interval_minutes":720,"tags":["官方","中文","公共数据","数据政策","空间数据"],"site_fulltext":false,"syndicate_fulltext":false,"enabled":true,"defaultCategory":"gis"
+    },
+    {
+      "id":"cn-web-beijing-departments","name":"北京市政府 部门动态","kind":"web_list",
+      "config":{"url":"https://www.beijing.gov.cn/ywdt/gzdt/","parseMode":"html","itemSelector":"li.col-md:has(a[href*='/t20'])","linkSelector":"a","publishedAtSelector":"span","publishedAtUtcOffset":"+08:00","allowUrlPrefixes":["https://www.beijing.gov.cn/ywdt/gzdt/"],"_aihot":{"initialBackfillLimit":20,"intervalMinutesLocked":true}},
+      "tier":"T1","first_party":false,"owner_entity_id":null,"participation_mode":"editorial","interval_minutes":720,"tags":["官方","中文","城市治理","北京","区域地理"],"site_fulltext":false,"syndicate_fulltext":false,"enabled":true,"defaultCategory":"regional"
+    },
+    {
+      "id":"cn-web-shanghai-news","name":"上海市政府 上海要闻","kind":"web_list",
+      "config":{"url":"https://www.shanghai.gov.cn/nw4411/index.html","parseMode":"html","itemSelector":"li:has(a[href^='/nw4411/20']):has(span.time)","linkSelector":"a","publishedAtSelector":"span.time","publishedAtUtcOffset":"+08:00","allowUrlPrefixes":["https://www.shanghai.gov.cn/nw4411/"],"_aihot":{"initialBackfillLimit":20,"intervalMinutesLocked":true}},
+      "tier":"T1","first_party":false,"owner_entity_id":null,"participation_mode":"editorial","interval_minutes":720,"tags":["官方","中文","城市治理","上海","区域地理"],"site_fulltext":false,"syndicate_fulltext":false,"enabled":true,"defaultCategory":"regional"
+    },
+    {
+      "id":"cn-web-guangzhou-government","name":"广州市政府 政务联播","kind":"web_list",
+      "config":{"url":"https://www.gz.gov.cn/xw/zwlb/","parseMode":"html","itemSelector":"li:has(a[href*='/xw/zwlb/content/post_']):has(span.time)","linkSelector":"a","publishedAtSelector":"span.time","publishedAtUtcOffset":"+08:00","allowUrlPrefixes":["https://www.gz.gov.cn/xw/zwlb/content/post_"],"_aihot":{"initialBackfillLimit":20,"intervalMinutesLocked":true}},
+      "tier":"T1","first_party":false,"owner_entity_id":null,"participation_mode":"editorial","interval_minutes":720,"tags":["官方","中文","城市治理","广州","区域地理"],"site_fulltext":false,"syndicate_fulltext":false,"enabled":true,"defaultCategory":"regional"
+    },
+    {
+      "id":"cn-web-shanghai-statistics","name":"上海市统计局 数据信息","kind":"web_list",
+      "config":{"url":"https://tjj.sh.gov.cn/sjxx/index.html","parseMode":"html","itemSelector":"li:has(a[href^='/sjxx/20']):has(span.time)","linkSelector":"a","publishedAtSelector":"span.time","publishedAtUtcOffset":"+08:00","allowUrlPrefixes":["https://tjj.sh.gov.cn/sjxx/"],"_aihot":{"initialBackfillLimit":20,"intervalMinutesLocked":true}},
+      "tier":"T1","first_party":true,"owner_entity_id":null,"participation_mode":"editorial","interval_minutes":1440,"tags":["官方","中文","统计数据","上海","人口与城市"],"site_fulltext":false,"syndicate_fulltext":false,"enabled":true,"defaultCategory":"human"
+    },
+    {
+      "id":"cn-web-shanghai-statistical-bulletins","name":"上海市统计局 统计公报（低频历史资料）","kind":"web_list",
+      "config":{"url":"https://tjj.sh.gov.cn/tjgb/index.html","parseMode":"html","itemSelector":"li:has(a[href^='/tjgb/20']):has(span.time)","linkSelector":"a","publishedAtSelector":"span.time","publishedAtUtcOffset":"+08:00","allowUrlPrefixes":["https://tjj.sh.gov.cn/tjgb/"],"_aihot":{"initialBackfillLimit":20,"intervalMinutesLocked":true}},
+      "tier":"T1","first_party":true,"owner_entity_id":null,"participation_mode":"editorial","interval_minutes":10080,"tags":["官方","中文","统计公报","人口普查","上海"],"site_fulltext":false,"syndicate_fulltext":false,"enabled":false,"defaultCategory":"human"
+    }
+  ]
+}

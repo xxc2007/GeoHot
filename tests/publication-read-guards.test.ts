@@ -54,7 +54,7 @@ const tamper = (cursor: string, prefix: string, offset: unknown) => {
   return encodeCursor(prefix, { ...payload, o: offset });
 };
 
-test("a group cursor whose offset is not an offset is a 400, not an empty last page", { skip: "第七轮未收尾：夹具里这一组只有一条成员，拿不到可篡改的游标；同一条守卫在事件进展前缀上的断言也还没跑通（docs/known-issues.md 第七轮·未完成）" }, async () => {
+test("a group cursor whose offset is not an offset is a 400, not an empty last page", async () => {
   const [story] = await sql<{ id: number }[]>`
     INSERT INTO stories (public_id, title, first_report_at, latest_at) VALUES (${randomUUID()}, ${`守卫事件 ${T}`}, now(), now()) RETURNING id`;
   const ids: string[] = [];
@@ -65,27 +65,27 @@ test("a group cursor whose offset is not an offset is a 400, not an empty last p
     const [fact] = await sql<{ id: number; public_id: string }[]>`
       INSERT INTO facts (public_id, story_id, title) VALUES (${`guard-fact-${label}-${T}`}, ${story!.id}, ${`${label}组事实 ${T}`}) RETURNING id, public_id`;
     await sql`INSERT INTO fact_articles (fact_id, article_id, role) VALUES (${fact!.id}, ${id}, 'report')`;
+    await sql`UPDATE publications SET story_id=${story!.id}, fact_id=${fact!.id} WHERE article_id=${id}`;
     factIds.push(fact!.id);
   }
   const [fact] = await sql<{ public_id: string }[]>`SELECT public_id FROM facts WHERE id = ${factIds[0]}`;
+  // Multiple reports of this same fact are required to produce a real gr1 cursor; the other
+  // facts still provide multiple developments, exercising the independent dv1 cursor guard.
+  for (const id of ids.slice(1)) await sql`INSERT INTO fact_articles (fact_id, article_id, role) VALUES (${factIds[0]}, ${id}, 'report')`;
 
   const first = await app.inject({ method: "GET", url: `/api/site/groups/${fact!.public_id}/reports?take=1` });
   assert.equal(first.statusCode, 200, first.body);
   const page = JSON.parse(first.body) as { reports: unknown[]; nextCursor: string | null };
   assert.equal(page.reports.length, 1);
-  // The guard below needs a real cursor to tamper with. This fixture's fact has exactly one member, so
-  // `nextCursor` is legitimately null here — the same guard is exercised on the developments prefix at the
-  // bottom of this test, which does have a second page. (docs/known-issues.md 第七轮·未完成)
-  if (page.nextCursor) {
-    assert.equal((await app.inject({ method: "GET", url: `/api/site/groups/${fact!.public_id}/reports?take=1&cursor=${encodeURIComponent(page.nextCursor!)}` })).statusCode, 200,
-      "the cursor the page gave still works");
-    for (const offset of [null, "1", {}, 1.5, -1, 1e999]) {
-      const res: { statusCode: number; body: string } = await app.inject({
-        method: "GET",
-        url: `/api/site/groups/${fact!.public_id}/reports?take=1&cursor=${encodeURIComponent(tamper(page.nextCursor!, "gr1", offset))}`,
-      });
-      assert.equal(res.statusCode, 400, `offset ${JSON.stringify(offset)} must be refused, not read as "no more reports"`);
-    }
+  assert.ok(page.nextCursor, "multiple reports of one fact must generate a real group cursor");
+  assert.equal((await app.inject({ method: "GET", url: `/api/site/groups/${fact!.public_id}/reports?take=1&cursor=${encodeURIComponent(page.nextCursor)}` })).statusCode, 200,
+    "the cursor the page gave still works");
+  for (const offset of [null, "1", {}, 1.5, -1, 1e999]) {
+    const res: { statusCode: number; body: string } = await app.inject({
+      method: "GET",
+      url: `/api/site/groups/${fact!.public_id}/reports?take=1&cursor=${encodeURIComponent(tamper(page.nextCursor, "gr1", offset))}`,
+    });
+    assert.equal(res.statusCode, 400, `offset ${JSON.stringify(offset)} must be refused, not read as "no more reports"`);
   }
 
   // The developments list is the sibling predicate with the same hole, on its own cursor prefix.
@@ -93,7 +93,8 @@ test("a group cursor whose offset is not an offset is a 400, not an empty last p
   assert.equal(developments.statusCode, 200, developments.body);
   const list = JSON.parse(developments.body) as { developments: unknown[]; nextCursor: string | null };
   assert.ok(list.nextCursor, "the story has more developments than one page");
-  for (const offset of [null, "1", -1]) {
+  assert.equal((await app.inject({ method: "GET", url: `/api/site/stories/${(await sql<{ public_id: string }[]>`SELECT public_id FROM stories WHERE id = ${story!.id}`)[0]!.public_id}/developments?take=1&cursor=${encodeURIComponent(list.nextCursor)}` })).statusCode, 200, "the real development cursor works before tampering");
+  for (const offset of [null, "1", {}, 1.5, -1, 1e999]) {
     const res: { statusCode: number; body: string } = await app.inject({
       method: "GET",
       url: `/api/site/stories/${(await sql<{ public_id: string }[]>`SELECT public_id FROM stories WHERE id = ${story!.id}`)[0]!.public_id}/developments?take=1&cursor=${encodeURIComponent(tamper(list.nextCursor!, "dv1", offset))}`,

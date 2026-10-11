@@ -4,7 +4,7 @@
 //   3. 「N 篇报道」那个数等于点开能看到的行数（不含读者自己那一条）；
 //   4. 摘要的两行截断挂在 `scripting: enabled` 上——没有脚本时不截断，读者能读完。
 // 走的是 build/server/index.js 里那份打过包的路线代码，所以跑之前要先 npm run build -w @aihot/web。
-// 这份构建没有 BASE_PATH（根部署）：?from=/geohot/hot 在这里认不出，正是"前缀要按部署剥"的另一面。
+// 来路与期望链接采用真实构建的 basename，兼容根部署和子路径部署。
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import path from "node:path";
@@ -14,6 +14,8 @@ import { createRequestHandler } from "react-router";
 
 const SERVER_BUILD = path.resolve(import.meta.dirname, "../build/server/index.js");
 const built = existsSync(SERVER_BUILD);
+const base = built ? String((await import(pathToFileURL(SERVER_BUILD).href)).basename ?? "/").replace(/\/+$/, "") : "";
+const basePattern = base.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const items = [
   { id: "di-zhen-can-shu", text: "地震参数", level: 2 },
@@ -104,7 +106,7 @@ async function render(page: string): Promise<string> {
   try {
     const build = await import(pathToFileURL(SERVER_BUILD).href);
     const handler = createRequestHandler(build, "production");
-    const res = await handler(new Request(`https://xxc2007.me${page}`));
+    const res = await handler(new Request(`https://xxc2007.me${base}${page}`));
     assert.equal(res.status, 200, `SSR 没能渲染 ${page}`);
     return await res.text();
   } finally {
@@ -127,20 +129,20 @@ test("条目的目录入口在服务端 HTML 里就有，抽屉本体等点击�
 });
 
 test("?from= 写明返回的去处，落点与文案一致", { skip }, async () => {
-  const hot = await render("/items/it-1?from=/hot");
-  assert.match(hot, /<a[^>]*href="\/hot"[^>]*>[\s\S]{0,400}?<!-- -->返回热点榜<\/a>/);
+  const hot = await render(`/items/it-1?from=${encodeURIComponent(`${base}/hot`)}`);
+  assert.match(hot, new RegExp(`<a[^>]*href="${basePattern}/hot"[^>]*>[\\s\\S]{0,400}?<!-- -->返回热点榜</a>`));
   assert.ok(!hot.includes("<!-- -->返回</button>"), "知道去处就不该再留一个光秃秃的、猜落点的返回");
 
   // 查询串跟着走：从带筛选的 /all 进来，就回到那个筛选结果。
-  const tagged = await render(`/items/it-1?from=${encodeURIComponent("/all?tag=地震&page=2")}`);
-  assert.match(tagged, /<a[^>]*href="\/all\?tag=[^"]*page=2"[^>]*>[\s\S]{0,400}?<!-- -->返回全部动态<\/a>/);
+  const tagged = await render(`/items/it-1?from=${encodeURIComponent(`${base}/all?tag=地震&page=2`)}`);
+  assert.match(tagged, new RegExp(`<a[^>]*href="${basePattern}/all\\?tag=[^"]*page=2"[^>]*>[\\s\\S]{0,400}?<!-- -->返回全部动态</a>`));
 
   // 事件页左上角同一套规矩。
-  const fromTopic = await render("/story/st-1?from=/topics/zai-hai");
-  assert.match(fromTopic, /<a[^>]*href="\/topics\/zai-hai"[^>]*>[\s\S]{0,400}?<!-- -->主题页<\/a>/);
+  const fromTopic = await render(`/story/st-1?from=${encodeURIComponent(`${base}/topics/zai-hai`)}`);
+  assert.match(fromTopic, new RegExp(`<a[^>]*href="${basePattern}/topics/zai-hai"[^>]*>[\\s\\S]{0,400}?<!-- -->主题页</a>`));
   assert.ok(fromTopic.includes("某地 5.2 级地震"), "事件页本身照常渲染");
   const plainStory = await render("/story/st-1");
-  assert.match(plainStory, /<a[^>]*href="\/hot"[^>]*>[\s\S]{0,400}?<!-- -->热点榜<\/a>/);
+  assert.match(plainStory, new RegExp(`<a[^>]*href="${basePattern}/hot"[^>]*>[\\s\\S]{0,400}?<!-- -->热点榜</a>`));
 });
 
 test("认不出的来路不编去处：站外地址与前缀不符的路径都退回中性的返回", { skip }, async () => {
@@ -149,9 +151,9 @@ test("认不出的来路不编去处：站外地址与前缀不符的路径都�
   assert.match(outside, /<!-- -->返回<\/button>/);
   assert.ok(!outside.includes("<!-- -->返回热点榜"), "站外的 /hot 不算来路，不该写成返回热点榜");
 
-  // 这份构建是根部署：/geohot/hot 不属于本站的任何一页。前缀由 appPath() 按构建期的 BASE_PATH 剥，
-  // 换 BASE_PATH=/geohot 重新构建后同一条链接就认得，href 也照样带着 /geohot。
-  const prefixed = await render(`/items/it-1?from=${encodeURIComponent("/geohot/hot")}`);
+  // 有前缀时故意用相似但不同的前缀；根部署则用不存在的前缀。
+  const wrongPrefix = base ? `${base}-other/hot` : "/other-site/hot";
+  const prefixed = await render(`/items/it-1?from=${encodeURIComponent(wrongPrefix)}`);
   assert.ok(!prefixed.includes("返回热点榜"));
   assert.match(prefixed, /<!-- -->返回<\/button>/);
 });

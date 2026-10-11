@@ -14,6 +14,7 @@ import { createRequestHandler } from "react-router";
 const SERVER_BUILD = path.resolve(import.meta.dirname, "../build/server/index.js");
 const ROUTES_DIR = path.resolve(import.meta.dirname, "../app/routes");
 const built = existsSync(SERVER_BUILD);
+const base = built ? String((await import(pathToFileURL(SERVER_BUILD).href)).basename ?? "/").replace(/\/+$/, "") : "";
 
 const FEEDBACK_ROWS = [
   {
@@ -77,7 +78,7 @@ async function render(page: string, api: (url: string) => Response): Promise<{ s
   try {
     const build = await import(pathToFileURL(SERVER_BUILD).href);
     const handler = createRequestHandler(build, "production");
-    const res = await handler(new Request(`https://xxc2007.me${page}`));
+    const res = await handler(new Request(`https://xxc2007.me${base}${page}`));
     return { status: res.status, html: await res.text(), headers: res.headers };
   } finally {
     globalThis.fetch = real;
@@ -104,10 +105,11 @@ test("访客提交的 page_url：javascript: 与协议相对地址都不能成�
   assert.match(html, /<a[^>]*href="https:\/\/xxc2007\.me\/geohot\/daily"[^>]*rel="noreferrer"/);
 });
 
-test("截图的 href 与 src 都过 publicPath（这一份构建是根部署，前缀为空）", { skip }, async () => {
+test("截图的 href 与 src 都过 publicPath，采用真实构建前缀", { skip }, async () => {
   const { html } = await render("/admin/feedback", adminApi);
-  assert.match(html, /<a[^>]*href="\/api\/admin\/feedback\/2\/screenshot"/);
-  assert.match(html, /<img[^>]*src="\/api\/admin\/feedback\/2\/screenshot"/);
+  const expected = `${base}/api/admin/feedback/2/screenshot`.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  assert.match(html, new RegExp(`<a[^>]*href="${expected}"`));
+  assert.match(html, new RegExp(`<img[^>]*src="${expected}"`));
 });
 
 test("这一层的判定不依赖打包：routes 里发给浏览器的 /api 与 /og 字面量都得过 publicPath", () => {

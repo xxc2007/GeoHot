@@ -10,12 +10,21 @@ import { failureGroupSql, queueProcessing, requeueFailed } from "../jobs/content
 
 const STALE_HEARTBEAT_MS = 3 * 60_000;
 
+/**
+ * `job_runs.status` records whether the *run* finished, not whether every period it was supposed to lay out
+ * came out. `catchUpReports` returns `{generated, failed}` — an hour in which all nine periods failed to
+ * compose is still a completed run, so it lands green and the detail sits in `detail->failed` where the
+ * operator's eye never goes. Pull it into the same column the status badge is read from.
+ */
+const failuresSql = sql`CASE WHEN jsonb_typeof(detail->'failed') = 'array'
+        THEN (SELECT left(string_agg(e #>> '{}', '；'), 300) FROM jsonb_array_elements(detail->'failed') e) END`;
+
 export async function runsOverview() {
   const [heartbeats, latest, timeline, queues, failedJobs, lagging, receipts, receiptIssues, deliveries, errors, ingest, leaderboard] = await Promise.all([
     sql<{ key: string; value: Record<string, unknown>; updated_at: Date }[]>`SELECT key, value, updated_at FROM settings WHERE key LIKE 'heartbeat.%' ORDER BY key`,
     sql`
       WITH latest AS (
-        SELECT DISTINCT ON (job) job, started_at, finished_at, status, left(error, 400) AS error
+        SELECT DISTINCT ON (job) job, started_at, finished_at, status, left(error, 400) AS error, ${failuresSql} AS failures
         FROM job_runs ORDER BY job, started_at DESC
       ), counts AS (
         SELECT job, count(*) FILTER (WHERE status = 'failed')::int AS failed_24h, count(*)::int AS runs_24h
@@ -23,7 +32,7 @@ export async function runsOverview() {
       )
       SELECT latest.*, coalesce(counts.failed_24h, 0) AS failed_24h, coalesce(counts.runs_24h, 0) AS runs_24h
       FROM latest LEFT JOIN counts USING (job) ORDER BY job`,
-    sql`SELECT id, job, started_at, finished_at, status, left(error, 300) AS error FROM job_runs ORDER BY started_at DESC LIMIT 80`,
+    sql`SELECT id, job, started_at, finished_at, status, left(error, 300) AS error, ${failuresSql} AS failures FROM job_runs ORDER BY started_at DESC LIMIT 80`,
     sql<{ name: string; state: string; n: number; oldest: Date }[]>`
       SELECT name, state, count(*)::int AS n, min(created_on) AS oldest FROM pgboss.job
       WHERE state IN ('created', 'retry', 'active') GROUP BY 1, 2 ORDER BY 1, 2`,

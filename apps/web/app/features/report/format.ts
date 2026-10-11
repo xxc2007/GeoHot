@@ -14,7 +14,8 @@ export const KIND_LABEL: Record<ReportKind, string> = { daily: "日报", weekly:
  *  segment keeps this correct without depending on a build-time base path being present in the server
  *  bundle — a first attempt using `appPath()` still resolved to the daily paper in production. */
 export function kindFromPath(pathname: string): ReportKind {
-  const segments = pathname.split("/").filter(Boolean);
+  // React Router client transitions request `/weekly.data` from the same loader.
+  const segments = pathname.replace(/\.data$/, "").split("/").filter(Boolean);
   if (segments.includes("weekly")) return "weekly";
   if (segments.includes("monthly")) return "monthly";
   return "daily";
@@ -129,7 +130,7 @@ export interface ArchiveGroup {
 }
 
 /**
- * The archive column: days grouped by month, weeks by the month their Monday falls in ("第2周"),
+ * The archive column: days grouped by month, weeks by their Monday's month with a stable ISO week label,
  * months by year. Newest first, as the index comes.
  */
 export function archiveGroups(kind: ReportKind, index: ReportNavigationEntry[]): ArchiveGroup[] {
@@ -140,15 +141,9 @@ export function archiveGroups(kind: ReportKind, index: ReportNavigationEntry[]):
     else groups.push({ id, label, entries: [e] });
   };
   if (kind === "weekly") {
-    const byMonth = new Map<string, string[]>();
     for (const e of index) {
       const m = isoWeekRange(e.key)[0].slice(0, 7);
-      byMonth.set(m, [...(byMonth.get(m) ?? []), e.key]);
-    }
-    for (const e of index) {
-      const m = isoWeekRange(e.key)[0].slice(0, 7);
-      const weeks = [...byMonth.get(m)!].sort();
-      push(m, `${m.slice(0, 4)} 年 ${Number(m.slice(5))} 月`, { ...e, short: `第${weeks.indexOf(e.key) + 1}周` });
+      push(m, `${m.slice(0, 4)} 年 ${Number(m.slice(5))} 月`, { ...e, short: `第${Number(e.key.slice(-2))}周` });
     }
     return groups;
   }

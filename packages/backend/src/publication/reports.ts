@@ -79,7 +79,7 @@ export async function unavailableIds(ids: string[]): Promise<Set<string>> {
   return (await pageSets(ids)).withoutPage;
 }
 
-/** Directory/feed metadata only: citation summaries and full report prose stay in the detail read. */
+/** Directory/feed metadata and original citation links; full report prose stays in the detail read. */
 export async function reportIndexRows(kind: ReportKind, limit: number) {
   // The three names below used to be one CASE-per-use inside a hand-nested jsonb expression whose
   // parenthesis count I got wrong twice while adding the weekly shape — the aggregate's ORDER BY landed
@@ -98,7 +98,8 @@ export async function reportIndexRows(kind: ReportKind, limit: number) {
         SELECT jsonb_agg(jsonb_build_object(
           ${labelKey}::text, grp ->> ${labelKey}::text,
           ${itemsKey}::text, coalesce((
-            SELECT jsonb_agg(jsonb_build_object('itemId', item -> 'itemId', 'title', item -> 'title') ORDER BY item_ord)
+            SELECT jsonb_agg(jsonb_build_object('itemId', item -> 'itemId', 'title', item -> 'title',
+              'sourceUrl', coalesce(item ->> 'sourceUrl', item -> 'links' ->> 'original')) ORDER BY item_ord)
             FROM jsonb_array_elements(coalesce(grp -> ${itemsKey}::text, '[]'::jsonb)) WITH ORDINALITY AS cited(item, item_ord)
           ), '[]'::jsonb)
         ) ORDER BY grp_ord)
@@ -163,7 +164,7 @@ function citationFrom(raw: Record<string, any>, avail: Map<string, Availability>
       sourceUrl: struck ? "" : String(raw.sourceUrl ?? raw.links?.original ?? ""),
       sourceId: struck ? null : raw.sourceId ?? a?.sourceId ?? null, sourceIconUrl: null,
       firstParty: struck ? false : raw.firstParty ?? a?.firstParty ?? false, role: raw.role ?? null,
-      storyPublicId: null, publishedAt: struck ? null : a?.publishedAt?.toISOString() ?? null, available: false,
+      storyPublicId: null, publishedAt: struck ? null : a?.publishedAt?.toISOString() ?? null, available: false, hasPage: false,
     };
   }
   return {
@@ -180,6 +181,7 @@ function citationFrom(raw: Record<string, any>, avail: Map<string, Availability>
     storyPublicId: raw.storyPublicId ?? a?.storyPublicId ?? null,
     publishedAt: a?.publishedAt?.toISOString() ?? null,
     available,
+    hasPage: a?.available ?? false,
   };
 }
 
@@ -520,7 +522,7 @@ export async function v1Report(kind: ReportKind, key: string): Promise<V1DailyBo
     const raw = [...(c.sections ?? []).flatMap((s: any) => s.items ?? []), ...(c.flashes ?? [])];
     const avail = await availability([...new Set(raw.map((i: any) => i.itemId).filter(Boolean))] as string[]);
     const ok = (i: any) => !i.itemId || (avail.get(i.itemId)?.available ?? true);
-    const links = (i: any) => ({ aihot: i.itemId ? itemUrl(i.itemId) : null, original: String(i.sourceUrl ?? "") });
+    const links = (i: any) => ({ aihot: i.itemId && avail.get(i.itemId)?.available ? itemUrl(i.itemId) : null, original: String(i.sourceUrl ?? "") });
     return {
       schemaVersion: 1 as const,
       report: {
@@ -538,7 +540,7 @@ export async function v1Report(kind: ReportKind, key: string): Promise<V1DailyBo
             summary: String(i.summary ?? ""),
             source: { name: String(i.sourceName ?? "") },
             links: links(i),
-            attribution: attribution(i.itemId ? itemUrl(i.itemId) : url),
+            attribution: attribution(links(i).aihot ?? url),
           })),
         })),
         flashes: (c.flashes ?? []).filter(ok).map((i: any) => ({
@@ -546,7 +548,7 @@ export async function v1Report(kind: ReportKind, key: string): Promise<V1DailyBo
           source: { name: String(i.sourceName ?? "") },
           links: links(i),
           publishedAt: new Date(i.publishedAt ?? r.generated_at).toISOString(),
-          attribution: attribution(i.itemId ? itemUrl(i.itemId) : url),
+          attribution: attribution(links(i).aihot ?? url),
         })),
       },
     };
@@ -554,6 +556,7 @@ export async function v1Report(kind: ReportKind, key: string): Promise<V1DailyBo
   const raw: Array<Record<string, any>> = (c.themes ?? []).flatMap((t: any) => t.storyRefs ?? []);
   const avail = await availability([...new Set(raw.map((i: any) => i.itemId).filter(Boolean))] as string[]);
   const ok = (i: any) => !i.itemId || (avail.get(i.itemId)?.available ?? true);
+  const links = (i: any) => ({ aihot: i.itemId && avail.get(i.itemId)?.available ? itemUrl(i.itemId) : null, original: String(i.sourceUrl ?? "") });
   // The headline fallback sees this issue's own withdrawn candidates, the way the list sees the index's.
   const gone = await unavailableHeadlineIds([r], "periodic");
   const fields: V1PeriodicReportFields = {
@@ -573,9 +576,9 @@ export async function v1Report(kind: ReportKind, key: string): Promise<V1DailyBo
         title: String(i.title),
         summary: String(i.summary ?? ""),
         source: { name: String(i.sourceName ?? "") },
-        links: { aihot: i.itemId ? itemUrl(i.itemId) : null, original: String(i.sourceUrl ?? "") },
+        links: links(i),
         publishedAt: i.publishedAt ? new Date(i.publishedAt).toISOString() : null,
-        attribution: attribution(i.itemId ? itemUrl(i.itemId) : url),
+        attribution: attribution(links(i).aihot ?? url),
       })),
     })),
   };
