@@ -82,6 +82,14 @@ const PAGE_CHROME_TAIL = /[（(]\s*(?:完|全文完)\s*[)）]\s*$/;
  */
 const TEMPLATE_PLACEHOLDER = /\{\{[^{}]{1,160}\}\}/g;
 const PDF_MARK = /(?<!\S)PDF\(\d+(?:[.,]\d+)? ?[KMGT]?B\)(?!\S)/gi;
+/**
+ * 同一族骨架被**截断**之后的形状：`}}` 连同后面整段一起掉了，只留下
+ * `秦岭脱贫山区农户生计转型… {{javascript:window.custom_author_cn_index=0`。
+ * 上面那条要求闭合括号，所以这种行从它指缝里漏出去，被收口脚本当成散文点了个句号——
+ * 2026-10-12 线上实测 14 条（publications 与 analyses 各 14，同一批行）。
+ * 只认字符串结尾：截断点必然在末尾，而中文摘要里出现 `{{` 本身就不是内容。
+ */
+const TEMPLATE_PLACEHOLDER_TAIL = /\s*\{\{[^{}]{1,160}$/;
 
 /** 逐行、再按片段删掉页脚/版权话术和页面外壳，保留正文。 */
 export function stripBoilerplate(text: string): string {
@@ -97,7 +105,9 @@ export function stripBoilerplate(text: string): string {
     .replace(TEMPLATE_PLACEHOLDER, " ")
     .replace(PDF_MARK, " ")
     .replace(PAGE_CHROME_LEAD, "")
-    .replace(PAGE_CHROME_TAIL, "");
+    .replace(PAGE_CHROME_TAIL, "")
+    // 放在整条链最后：这一刀只认"此刻的结尾"，前面任何一条规则挪走尾巴之前它都不该起作用。
+    .replace(TEMPLATE_PLACEHOLDER_TAIL, "");
   return body.replace(/\n{3,}/g, "\n\n").replace(/[ \t]{2,}/g, " ").trim();
 }
 

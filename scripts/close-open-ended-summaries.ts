@@ -155,11 +155,37 @@ for (const s of skeletons.slice(0, 5)) console.log(`  骨架不写：${s.article
 const shortened = fixes.filter((f) => f.closed.length < f.summary.length).length;
 console.log(`其中要丢掉尾巴（收到上一个完整句子）的：${shortened} 条；只补/换收尾标点的：${fixes.length - shortened} 条`);
 
+/**
+ * 修复模式的"候选"来自预像，而 `closed` 是用**此刻的规则**重算的——这两个数比的不是同一件事。
+ * 2026-10-12 实测：预像 1,748 行全部"与原文不同"（原文都还挂着 `；`），可库里此刻真正与判定值不一致的只有 14 行；
+ * 拿 1,748 去比 `--max-apply`，一次 14 行的手术会被当成 1,748 行的批量拦下，反过来在正常模式里它比的又是唯一对的那个数。
+ * 所以要写的是"库里此刻 ≠ 判定值"那一份，报告与闸门都用它。
+ * 两侧都要看：投影会单独重写 `analyses.summary_zh`，只比 `publications` 会漏掉"读者那份已分叉、判稿那份还没"的行。
+ */
+const analysisIds = [...new Set(fixes.map((f) => f.analysis_id).filter((x): x is number => x !== null))];
+const current = repairFrom
+  ? {
+      pub: new Map((await sql<{ article_id: string; summary: string }[]>`
+        SELECT article_id, summary FROM publications WHERE article_id = ANY(${fixes.map((f) => f.article_id)})`)
+        .map((r) => [r.article_id, r.summary] as const)),
+      ana: analysisIds.length
+        ? new Map((await sql<{ id: number; summary_zh: string }[]>`
+            SELECT id, summary_zh FROM analyses WHERE id = ANY(${analysisIds})`)
+          .map((r) => [r.id, r.summary_zh] as const))
+        : new Map<number, string>(),
+    }
+  : null;
+const pending = current
+  ? fixes.filter((f) => current.pub.get(f.article_id) !== f.closed
+      || (f.analysis_id !== null && current.ana.get(f.analysis_id) !== f.closed))
+  : fixes;
+if (current) console.log(`其中库里此刻与判定值不同、本轮真会写的：${pending.length} 条（其余 ${fixes.length - pending.length} 条已经是这个值，连事务都不开）`);
+
 if (!values.apply) {
   console.log("\n默认不写库。确认后用 --apply --database-url=postgres://… 跑。");
-} else if (fixes.length > maxApply) {
+} else if (pending.length > maxApply) {
   // 一次洗两千条等于一次给所有订阅方发两千年"变了"，那不该是一个回车键就该发生的事。
-  console.error(`候选 ${fixes.length} 条超过 --max-apply=${maxApply}：分批跑，或明确调大上限。没有写库。`);
+  console.error(`本轮要写 ${pending.length} 条超过 --max-apply=${maxApply}：分批跑，或明确调大上限。没有写库。`);
   process.exitCode = 1;
 } else {
   // 改一处不够：`publication/publish.ts:179` 每次投影都从 `analyses.summary_zh` 重新取摘要，
@@ -168,31 +194,24 @@ if (!values.apply) {
   // 不允许出现"库里判稿已改、读者那份还没改"的半程状态。
   const backup = resolve(".data/backups", `summary-close-${new Date().toISOString().replaceAll(":", "-")}${repairFrom ? "-repair" : ""}.jsonl`);
   mkdirSync(dirname(backup), { recursive: true });
-  // 修复模式要备份的是"库里此刻这一份"（上一次写坏的文本），不是预像里那份更早的原文——
-  // 拿预像当原值备份，下一次按这份备份还原就会把已经改掉的东西又退回两轮之前。
-  const current = repairFrom
-    ? new Map((await sql<{ article_id: string; summary: string }[]>`
-        SELECT article_id, summary FROM publications WHERE article_id = ANY(${fixes.map((f) => f.article_id)})`)
-      .map((r) => [r.article_id, r.summary] as const))
-    : null;
   let done = 0;
   let skipped = 0;
-  for (const f of fixes) {
+  for (const f of pending) {
     // 先落原值再改：这一刀是删尾巴（可能删掉真实数据），改坏了要能按行还原。
-    const preImage = current?.get(f.article_id) ?? f.summary;
+    const preImage = current?.pub.get(f.article_id) ?? f.summary;
     appendFileSync(backup, `${JSON.stringify({ article_id: f.article_id, analysis_id: f.analysis_id, revision: f.revision, summary: preImage })}\n`);
     // 守卫分两种：正常模式认"库里还是我刚读到的那一份"；修复模式库里躺的是上一次写坏的文本，认不了它，
     // 于是认 `revision`（并发保护仍然在）加"与我要写的不同"（相同的不重写，免得白刷一遍 updated_at）。
-    const pending = repairFrom ? sql`summary IS DISTINCT FROM ${f.closed}` : sql`summary = ${f.summary}`;
-    const stillMine = repairFrom ? sql`summary_zh IS DISTINCT FROM ${f.closed}` : sql`summary_zh = ${f.summary}`;
+    const pubDiffers = repairFrom ? sql`summary IS DISTINCT FROM ${f.closed}` : sql`summary = ${f.summary}`;
+    const anaDiffers = repairFrom ? sql`summary_zh IS DISTINCT FROM ${f.closed}` : sql`summary_zh = ${f.summary}`;
     const written = await sql.begin(async (tx) => {
       if (f.analysis_id !== null) {
-        await tx`UPDATE analyses SET summary_zh = ${f.closed} WHERE id = ${f.analysis_id} AND ${stillMine}`;
+        await tx`UPDATE analyses SET summary_zh = ${f.closed} WHERE id = ${f.analysis_id} AND ${anaDiffers}`;
       }
       const res = await tx<{ n: number }[]>`
         WITH updated AS (
           UPDATE publications SET summary = ${f.closed}, updated_at = now()
-           WHERE article_id = ${f.article_id} AND revision = ${f.revision} AND ${pending}
+           WHERE article_id = ${f.article_id} AND revision = ${f.revision} AND ${pubDiffers}
           RETURNING 1)
         SELECT count(*)::int AS n FROM updated`;
       return res[0]?.n ?? 0;
