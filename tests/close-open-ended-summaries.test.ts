@@ -104,6 +104,15 @@ test("剥掉页面外壳后剩下的正文照常收口，骨架碎片一个不�
   assert.ok(out.text.includes("中国A级景区运营效率测度"), "标题本身不许被一起削掉");
 });
 
+test("骨架被截断、`}}` 一起掉光的那一行也不许把外壳当正文收口", () => {
+  // 线上实测形状（2026-10-12，14 条）：截断点正好落在占位符内部，闭合括号没了。
+  const out = closeStockSummary("秦岭脱贫山区农户生计转型适应性地理分异及影响机制——以陕西省商州区为例 {{javascript:window.custom_author_cn_index=0");
+  assert.equal(out.kind, "rewrite");
+  assert.doesNotMatch(out.text, /\{\{|javascript|_cn_index/, `截断的外壳残留进了读者视野：「${out.text}」`);
+  assert.match(out.text, /[。！？…]$/u, "剩下的标题要收在闭合标点上");
+  assert.ok(out.text.startsWith("秦岭脱贫山区农户生计转型"), "标题不许被一起削掉");
+});
+
 test("整条就是骨架、剥完没东西可留的不写库", () => {
   const out = closeStockSummary("PDF(8989 KB) {{javascript:window.custom_author_cn_index=0;}} {{article.zuoZhe_CN}}");
   assert.equal(out.kind, "skeleton", `剥完应该判成骨架留给人工，实际「${out.text}」`);
