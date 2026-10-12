@@ -12,9 +12,9 @@ const rule: ArchiveRule = { sourceId: "loc", mode: "months", urlTemplate: "https
 const o: Options = { from: "2026-01-01", to: "2026-02-28", sources: [], maxPages: 10, maxItems: 100, sleepMs: 0, apply: true, state: ".data/state.json" };
 const jan1 = "https://example.com/maps/2026/01/", jan2 = "https://example.com/maps/2026/01/page/2/", jan3 = "https://example.com/maps/2026/01/page/3/";
 const feb1 = "https://example.com/maps/2026/02/", feb2 = "https://example.com/maps/2026/02/page/2/";
-const listing = (month: string, days: number[]): Candidate[] => days.map(d => ({
-  url: `https://example.com/maps/${month.replace("-", "/")}/post-${d}`,
-  title: `Post ${month}-${d}`,
+const listing = (month: string, days: number[], slug = ""): Candidate[] => days.map(d => ({
+  url: `https://example.com/maps/${month.replace("-", "/")}/post-${slug}${d}`,
+  title: `Post ${month}-${slug}${d}`,
   publishedAt: new Date(`${month}-${String(d).padStart(2, "0")}T12:00:00+08:00`),
 }));
 
@@ -78,6 +78,47 @@ test("a fully older month page builds a boundary but only ends its own month", a
   assert.deepEqual(h.requested, [jan2, feb2]); // completed months stay skipped; their next page is re-checked
   assert.deepEqual(second.boundaries, [{ source: "loc", url: jan2, reused: true }]);
   assert.equal(second.errors, 0);
+});
+
+// 回归：月内翻页的两条"静默丢历史"路径（2026-10-12 评审实测出来的，不是假想）。
+// ① 一个没读完的月份，下一轮不得因为"第 2 页已确认"就停在那里——后面的页永远不再请求。
+//    旧代码在 while 里写 `|| raw === 0` 而 readPage 对已确认页恰好把 raw 留在 0，
+//    于是"4 页 41 条、上一轮读到第 3 页"的月份在第二轮请求数为 0，11 条永久丢失且报表干净。
+test("a month left half-read is picked up at the next page on the following run", async () => {
+  const jan4 = "https://example.com/maps/2026/01/page/4/", jan5 = "https://example.com/maps/2026/01/page/5/";
+  const h = harness(url => {
+    if (url === jan1) return Promise.resolve(listing("2026-01", [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]));
+    if (url === jan2) return Promise.resolve(listing("2026-01", [11, 12, 13, 14, 15, 16, 17, 18, 19, 20]));
+    if (url === jan3) return Promise.resolve(listing("2026-01", [21, 22, 23, 24, 25, 26, 27, 28, 29, 30]));
+    if (url === jan4) return Promise.resolve(listing("2026-01", [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], "later-"));
+    if (url === jan5) return Promise.reject(new FetchError("HTTP 404", 404));
+    return Promise.resolve([]);
+  });
+  // 第一轮只允许 3 页：读到第 3 页就被预算截断（生产 archive-cycle 正是 --max-pages=5）
+  const first = await run({ ...o, to: "2026-01-31", maxPages: 3 }, [rule], [source], h.deps, h.state);
+  assert.deepEqual(h.requested, [jan1, jan2, jan3]);
+  assert.equal(first.limited, true, "被页数上限截断必须说出来，否则下一轮看不出来这月没读完");
+  h.requested.length = 0;
+  // 第二轮放宽上限：必须从**没读过的那一页**接着走，而不是在第 2 页就收工
+  const second = await run({ ...o, to: "2026-01-31", maxPages: 10 }, [rule], [source], h.deps, h.state);
+  assert.ok(h.requested.includes(jan4), `第二轮必须请求 jan4，实际请求=${JSON.stringify(h.requested)}`);
+  assert.equal(second.eligible, 10, "第 4 页那 10 条要进得来");
+  assert.equal(second.errors, 0);
+});
+
+// ② 某个月的主页为空（或读不出条目）只能结束**那个月**，不能结束整条 months 走法：
+//    plan 是从旧到新排的，返回 "error" 会 break 掉整个 plan，于是那一年它之后的月份全部不再进口。
+test("an empty month page skips that month and still walks the months after it", async () => {
+  const h = harness(url => {
+    if (url === jan1) return Promise.resolve([]);                       // 一月主页是空的
+    if (url === feb1) return Promise.resolve(listing("2026-02", [1, 2, 3]));
+    if (url === feb2) return Promise.reject(new FetchError("HTTP 404", 404));
+    return Promise.resolve([]);
+  });
+  const stats = await run(o, [rule], [source], h.deps, h.state);
+  assert.ok(h.requested.includes(feb1), `二月仍要被请求，实际=${JSON.stringify(h.requested)}`);
+  assert.equal(stats.errors, 1, "一月的覆盖情况未知要记一笔错，不能悄悄算读完");
+  assert.equal(stats.eligible, 3, "二月的三条要进来");
 });
 
 test("a months rule without monthPageUrlTemplate keeps exactly one fetch per month", async () => {
