@@ -208,6 +208,72 @@ export const MODELS: Record<string, ModelSpec> = {
     baseUrlEnv: "WORKBUDDY_BASE_URL", apiKeyEnv: "WORKBUDDY_API_KEY",
     extra: { reasoning_effort: "max" }, jsonMode: true, vision: true, reasoningHeadroom: 16_000,
   },
+  // The channel's other two models. Neither belongs to WorkBuddy — `glm-5.3-flash` and `step-5-preview` are
+  // the desktop catalog's own entries, reachable through the same bridge, so they ride `service: "workbuddy"`
+  // and the one budget row that goes with it. Names are `workbuddy-*` on purpose: `glm-5.3-flash` and
+  // `glm-5.3-flash-selection` already exist above as *direct Zhipu* endpoints on their own key and budget,
+  // and a model that shares a registry key with another service is a model that spends the wrong breaker.
+  //
+  // Effort. glm-5.3-flash is the only model on this channel whose dial moves anything: replaying GEOHOT's
+  // selection-score prompt at low / high / max it spent 81-110 / 199-337 / 999-2626 hidden tokens in
+  // 3.6-5.1 / 6.0-10.1 / 22.1-57.1 s — monotone in both directions, and `max` is advertised in both catalog
+  // files, so `max`. step-5-preview advertises low / medium / high and gets `high`: it never lists `max`,
+  // and sending one anyway would be a value the upstream has no contract for. That is probably free, because
+  // the dial is a latency knob here rather than a depth knob — the same prompt at max / high / off / unset
+  // spent 161 / 290 / 312 / 222 hidden tokens, i.e. the spread inside one setting is as wide as the spread
+  // across settings, the same non-monotonicity hy3 showed. Writing the strongest value each model *advertises*
+  // keeps `high` from later reading as a deliberate downgrade.
+  //
+  // Headroom, and why neither number is 16,000. The number is not a preference: it is the smallest one that
+  // clears the longest chain the step's own prompt actually produced, and it is bounded above by the step's
+  // clock, because the cap has to fire before the clock does or the failure lands `unknown` — paid for, not
+  // retried, waiting on an operator — instead of the retryable `failed` a truncation gets. That bound is a
+  // property of the model: measured over four purposes replayed at max, these two spend 17.80 ms per output
+  // token (glm, median 18.96) and 9.49 ms (step-5-preview), against deepseek-v4.1-flash's 4.9-6.7. Handing
+  // glm 16,000 would push structure's 800-token ask to 16,800 tokens, which is 299 s against a 240 s step:
+  // past the clock, so the cap could never fire and every long reply would land `unknown`. 8,000 does fit —
+  // 8,800 tokens is 158 s — and still clears the 7,001 completion tokens glm actually spent, whose binding
+  // need is 6,201 because structure only asks for 800. 6,000 would not fit *downward*: it is below the
+  // measured 7,001. step-5-preview takes 4,000 rather than 2,000 because 2,000 clears its 1,737-token binding
+  // need by only 1.10x on structure, the step with the widest spread, and at 9.49 ms/token the extra 2,000
+  // buys 1.89x for about 19 s.
+  //
+  // The three call sites the headroom cannot fix, and why glm is kept out of them by configuration. They ask
+  // 16,384 / 8,000 / 4,000 tokens against 240 s / 180 s / 120 s, so at glm's rate the cap alone wants longer
+  // than the step allows — 16,384 x 17.80 ms is 292 s — and no value of this field changes that, because the
+  // clock is not ours to raise: it is what the worker's 255 s graceful shutdown leaves.
+  //
+  // Over budget is not the same as always failing, and the difference matters. The one understand-shaped call
+  // actually run end to end through `chatJson` at 16,384 / 240 s returned in 170 s with a 10,284-token chain
+  // and `finish_reason: stop`, which reverse-derives 16.5 ms per output token and puts the meeting point of
+  // cap and clock near 14,500 tokens. So the exposure is chains past ~14,500, and those abort `unknown` —
+  // paid for, not retried, waiting on an operator — instead of truncating into the retryable `failed`. The
+  // measured understand chains were 4,054, 5,359 and 10,284, so this is the tail rather than the common case.
+  // A tail that lands work in a state nothing retries is not worth buying, so these three call sites name a
+  // pool without glm (UNDERSTAND_MODEL / TRANSLATE_MODEL). It is a configured exclusion and not a guard in
+  // `usable()` on purpose: such a guard would also strip `workbuddy-hy3`, whose 16,000 headroom puts its
+  // understand cap at 32,384 tokens against a 240 s clock, and hy3 has been serving that step in production
+  // since it was added — a guard would silently retire a working member, which is worse than the tail it
+  // would be closing.
+  //
+  // `vision`: step-5-preview reads images — 3 of 3 named both the colour and the number in a test PNG, twice
+  // on a hidden chain of only 139 and 48 tokens. glm-5.3-flash does not, and says so: asked to read the same
+  // PNG it answered "当前模型不支持图像识别，无法查看图片。请切换到支持多模态（图像输入）的模型后重试。" and, on
+  // the retry, declined to guess the colour instead of inventing one. The token count agrees — the identical
+  // request cost it 86 prompt tokens against step-5-preview's 231, and the ~145 difference is the 512x512
+  // image. Both catalog files nevertheless declare `supportsImages: true` for glm: the second time this
+  // channel's catalog has claimed an image capability the model does not have (hy3 was the first), which is
+  // why `vision` here is written from the measurement and never from the catalog.
+  "workbuddy-glm-flash": {
+    key: "workbuddy-glm-flash", service: "workbuddy", model: "glm-5.3-flash",
+    baseUrlEnv: "WORKBUDDY_BASE_URL", apiKeyEnv: "WORKBUDDY_API_KEY",
+    extra: { reasoning_effort: "max" }, jsonMode: true, vision: false, reasoningHeadroom: 8_000,
+  },
+  "workbuddy-step5-preview": {
+    key: "workbuddy-step5-preview", service: "workbuddy", model: "step-5-preview",
+    baseUrlEnv: "WORKBUDDY_BASE_URL", apiKeyEnv: "WORKBUDDY_API_KEY",
+    extra: { reasoning_effort: "high" }, jsonMode: true, vision: true, reasoningHeadroom: 4_000,
+  },
 };
 
 export type ContentPart = { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } };

@@ -60,12 +60,38 @@ test("the preset's own headroom sizes the request, not the shared default", asyn
   assert.equal(bodies.at(-1)!.max_tokens, 65_536);
 });
 
-test("both workbuddy presets carry the headroom and the vision verdict the measurement produced", () => {
+test("every workbuddy preset carries the headroom and the vision verdict the measurement produced", () => {
   assert.equal(MODELS["workbuddy-deepseek-flash"]!.reasoningHeadroom, 16_000);
   assert.equal(MODELS["workbuddy-hy3"]!.reasoningHeadroom, 16_000);
   // deepseek-v4.1-flash reads images; hy3 tokenizes one and then answers the wrong colour.
   assert.equal(MODELS["workbuddy-deepseek-flash"]!.vision, true);
   assert.equal(MODELS["workbuddy-hy3"]!.vision, false);
+  // The second pair. Each headroom is the smallest that clears that model's own measured chain, so neither can
+  // borrow 16,000: glm would land `unknown` on structure, and step-5-preview does not need the room.
+  assert.equal(MODELS["workbuddy-glm-flash"]!.reasoningHeadroom, 8_000);
+  assert.equal(MODELS["workbuddy-step5-preview"]!.reasoningHeadroom, 4_000);
+  // step-5-preview reads images (3 of 3 named the colour and the number); glm refuses and says so. Both catalog
+  // files claim `supportsImages: true` for glm anyway — the second false claim on this channel after hy3.
+  assert.equal(MODELS["workbuddy-step5-preview"]!.vision, true);
+  assert.equal(MODELS["workbuddy-glm-flash"]!.vision, false);
+  // The strongest effort each model advertises, not one value for the channel: only glm lists `max`.
+  assert.deepEqual(MODELS["workbuddy-glm-flash"]!.extra, { reasoning_effort: "max" });
+  assert.deepEqual(MODELS["workbuddy-step5-preview"]!.extra, { reasoning_effort: "high" });
+});
+
+test("the two new presets differ from the zhipu entries of the same upstream model, or they would spend its breaker", () => {
+  // `glm-5.3-flash` already exists as a *direct Zhipu* endpoint on ZHIPU_API_KEY and service "zhipu". The
+  // WorkBuddy pair must be distinct keys on service "workbuddy": `modelFor` resolves a budget row by the
+  // preset's `service`, so a shared key would charge the wrong breaker — and here it would charge a key with
+  // no configured base URL at all.
+  assert.equal(MODELS["glm-5.3-flash"]!.service, "zhipu");
+  assert.equal(MODELS["workbuddy-glm-flash"]!.service, "workbuddy");
+  assert.equal(MODELS["workbuddy-glm-flash"]!.model, MODELS["glm-5.3-flash"]!.model, "same upstream model, reached by a different door");
+  assert.notEqual(MODELS["workbuddy-glm-flash"]!.key, MODELS["glm-5.3-flash"]!.key);
+  assert.equal(MODELS["workbuddy-glm-flash"]!.baseUrlEnv, "WORKBUDDY_BASE_URL");
+  assert.equal(MODELS["workbuddy-step5-preview"]!.service, "workbuddy");
+  // step-5-preview has no direct entry at all, so this key is the only door to it.
+  assert.ok(!Object.hasOwn(MODELS, "step-5-preview"), "the bridge passes unknown ids through, which is exactly why the preset must exist");
 });
 
 test("a reply the cap cut off says what it cost, instead of reading as a parse bug", async () => {
@@ -103,6 +129,76 @@ test("an unusable answer that was not cut off carries no truncation note", async
     assert.doesNotMatch(receipt.error, /finish_reason: length/, "a parse failure is not a truncation");
   } finally {
     content = '{"ok":true}';
+  }
+});
+
+// The two presets added after the first pair do not share deepseek-v4.1-flash's rate, and the test above runs
+// one shared MS_PER_TOKEN over the whole channel. That was right while both members were the same upstream
+// model's family; it is wrong now, and wrong in the direction that hides a failure: glm-5.3-flash spends about
+// 2.6x as many milliseconds per output token, so a cap that fires in time for deepseek arrives after the clock
+// for glm, and an abort is not a truncation (failed/retried vs unknown/paid-for-and-waited-on).
+test("each new preset clears the chain measured for it, and stays inside the clock on every step it serves", () => {
+  // Measured by replaying GEOHOT's own prefilter/score/structure/summarize/understand prompts at the effort the
+  // preset writes, four purposes per model. `clears` is the longest completion minus the smallest ask among
+  // those purposes — structure asks only 800, so glm's 7,001-token reply needs 6,201 of headroom, not 7,001.
+  // These are lower bounds: no `finish_reason: length` was observed, so the tail is unprobed, not proven short.
+  const MEASURED = [
+    { key: "workbuddy-glm-flash", msPerToken: 17.8, clears: 6_201 },
+    { key: "workbuddy-step5-preview", msPerToken: 9.49, clears: 1_737 },
+  ];
+  // What each step asks for and the clock it is given: llm.ts:420 defaults a reasoning preset to 240 s, and only
+  // score (analyze.ts:73), translate (translate.ts:90/285) and understand (analyze.ts:321) pass their own.
+  const SERVED = [
+    { step: "prefilter", asked: 512, clock: 240_000 },
+    { step: "score", asked: 1_024, clock: 240_000 },
+    { step: "structure", asked: 800, clock: 240_000 },
+    { step: "summarize", asked: 2_048, clock: 240_000 },
+    { step: "group batch", asked: 200 + 90 * 3, clock: 240_000 },
+    { step: "group pair", asked: 400, clock: 240_000 },
+    { step: "group signal", asked: 150 + 60 * 3, clock: 240_000 },
+    { step: "digest", asked: 1_200, clock: 240_000 },
+    { step: "report lead", asked: 800, clock: 240_000 },
+    { step: "report period", asked: 2_500, clock: 240_000 },
+    { step: "monitor", asked: 2_500, clock: 240_000 },
+  ];
+  for (const { key, msPerToken, clears } of MEASURED) {
+    const headroom = MODELS[key]!.reasoningHeadroom!;
+    assert.ok(headroom > clears, `${key}: a ${headroom}-token headroom does not clear the longest chain measured for it, ${clears}`);
+    for (const { step, asked, clock } of SERVED) {
+      const widest = asked + headroom;
+      const seconds = Math.round((widest * msPerToken) / 1000);
+      assert.ok(
+        widest * msPerToken < clock,
+        `${key} on ${step}: ${widest} tokens is about ${seconds} s at ${msPerToken} ms/token, past its ` +
+          `${clock / 1000} s clock — the cap would never fire and every long reply would land unknown`,
+      );
+    }
+  }
+});
+
+// The exception the test above cannot cover, pinned so it stays a decision instead of becoming a surprise in the
+// ledger. glm-5.3-flash is kept out of these three steps by the lists in .env; the arithmetic below is why, and
+// if someone later raises one of these clocks or lowers one of these asks, this test is where they find out.
+test("the three steps glm-5.3-flash is kept out of are over budget by arithmetic, not by caution", () => {
+  const msPerToken = 17.8;
+  const OVER_BUDGET = [
+    // 16,384 alone is 292 s against 240 s, so no headroom value fixes this one; the clock is not ours to raise
+    // (it is what the worker's 255 s graceful shutdown leaves).
+    { step: "understand", asked: UNDERSTAND_MAX_TOKENS, clock: UNDERSTAND_TIMEOUT_MS },
+    // 8,000 alone is 142 s against 180 s — 21% of margin — and 16,000 would need 285 s, past even the 255 s
+    // shutdown ceiling. This is why the exclusion is permanent rather than a tighter headroom.
+    { step: "translate body", asked: 8_000, clock: 180_000 },
+    { step: "translate quoted", asked: 4_000, clock: 120_000 },
+  ];
+  const headroom = MODELS["workbuddy-glm-flash"]!.reasoningHeadroom!;
+  for (const { step, asked, clock } of OVER_BUDGET) {
+    assert.ok(
+      (asked + headroom) * msPerToken >= clock,
+      `${step}: glm now fits in ${clock / 1000} s — remove it from that step's exclusion list in .env`,
+    );
+  }
+  for (const { asked } of OVER_BUDGET.filter((s) => s.step === "translate body")) {
+    assert.ok((asked + headroom) * msPerToken > 255_000, "the body translation cannot be rescued by the worker's shutdown ceiling either");
   }
 });
 
