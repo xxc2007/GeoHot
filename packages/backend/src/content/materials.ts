@@ -159,8 +159,8 @@ async function upsertIn(db: Db, m: MaterialInput): Promise<MaterialResult> {
     return { articleId: newId, created: true, revised: false, backfill: t.backfill };
   }
 
-  const [existing] = await db<{ id: string; source_id: string; revision: number; content_hash: string | null; backfill: boolean; title: string; body_text: string | null; excerpt: string | null }[]>`
-    SELECT id, source_id, revision, content_hash, backfill, title, body_text, excerpt FROM articles WHERE identity_key = ${identityKey} FOR UPDATE`;
+  const [existing] = await db<{ id: string; source_id: string; revision: number; content_hash: string | null; backfill: boolean; title: string; body_text: string | null; excerpt: string | null; published_at: Date | null }[]>`
+    SELECT id, source_id, revision, content_hash, backfill, title, body_text, excerpt, published_at FROM articles WHERE identity_key = ${identityKey} FOR UPDATE`;
   await db`INSERT INTO article_discoveries (article_id, source_id, via, discovered_at)
            VALUES (${existing!.id}, ${m.sourceId}, ${m.via}, ${discoveredAt}) ON CONFLICT DO NOTHING`;
   const unchanged: MaterialResult = { articleId: existing!.id, created: false, revised: false, backfill: existing!.backfill };
@@ -172,7 +172,17 @@ async function upsertIn(db: Db, m: MaterialInput): Promise<MaterialResult> {
   const bodyText = m.bodyText ?? existing!.body_text;
   const excerpt = m.excerpt ?? existing!.excerpt;
   const next = contentHash({ title, bodyText, excerpt });
-  if (existing!.content_hash === next) return unchanged;
+  if (existing!.content_hash === next) {
+    // 但"内容没变"不等于"什么都没变"：列表页可能这一次才给出日期（信源改了模板，或日期本来在另一处）。
+    // 库里 `published_at` 还是 NULL 的话，这条**永远**进不了当日池子——`reports/compose.ts` 要求
+    // `published_at IS NOT NULL`，于是它被付费判过、却被永久挡在报纸外面（2026-10-12 生产实测：
+    // web-pric-news 60 行里 45 行 `undated`、web-spacemapper-news 108 行里 76 行、web-chxb-toc 23 行里 20 行）。
+    // 只补日期：不起新版本、不改 `timeline_at`（它决定归哪一天，改了会把已出的那天挪走）、不重新排队分析。
+    if (m.publishedAt && !existing!.published_at) {
+      await db`UPDATE articles SET published_at = ${m.publishedAt} WHERE id = ${existing!.id} AND published_at IS NULL`;
+    }
+    return unchanged;
+  }
   if (existing!.content_hash === null) {
     // Imported history carries no hash of this form (its collectors normalised differently): the
     // first report here records the baseline instead of a revision, so an import does not send
