@@ -108,6 +108,27 @@ function checks(from: string, to: string): Check[] {
         WHERE kind = 'daily' AND key >= ${from} AND key <= ${to}`),
     },
     {
+      // 回填出来的历史期次**按设计不领期号**（compose.ts 只在"比它新的期次已有号"时才发号，
+      // 而十月的期号已经发完了）。可是读取层把「无号」一律说成「空刊不占期号」
+      // ——见 daily-archive.tsx 的未出刊行与 features/report/format.ts:220 那段注释。
+      // 于是几百份真有内容的日报会被读者自述成"那天没出刊"，正好把这次回填反向描述。
+      // 这条只做**计数与挂账**（hard: false）：改文案要动的是别人正在编辑的文件，不是这里。
+      // 口径按 kind 分叉是必须的：日报的内容在 sections[].items[]，周报月报在 themes[].storyRefs[]
+      // （compose.ts:141 与 :247），拿同一把尺子量会把周报整族误判成空刊。
+      // 表达式形状实测过：content 顶层有 sections/highlights/flashes/lead/metrics/window{Start,End}，
+      // **没有顶层 items**——写成 content->'items' 会每层都走 else 0，变成一条永远绿的假判据。
+      name: "backfilled_daily_editions_with_material_but_no_number",
+      hard: false,
+      why: "日报里有内容却没期号的期数（回填期次应有此数）：读取层若仍说「未出刊」，读者会把它们当成空刊",
+      value: () => one(sql<{ n: number }[]>`
+        SELECT count(*)::int AS n FROM reports r
+        WHERE r.kind = 'daily' AND r.key >= ${from} AND r.key <= ${to} AND r.issue_no IS NULL
+          AND COALESCE((
+                SELECT sum(jsonb_array_length(s->'items'))
+                FROM jsonb_array_elements(r.content->'sections') s
+                WHERE jsonb_typeof(s->'items') = 'array'), 0) > 0`),
+    },
+    {
       // 这次任务自己的验收尺子。日子判完了，读者就该看得到它的那份报纸；这天真的没内容也要能说出来
       // （归档那格会把没有期次的日子标成「未出刊」，见 #47/#111 那道读取层闸门）。
       // 「判完 + 没存期次 + `candidates()` 却非零」= 出刊路径漏了一天，不是"那天没内容"。
