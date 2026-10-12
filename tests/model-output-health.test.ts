@@ -121,3 +121,18 @@ test("unknown remains a non-success terminal result and cannot be sent again", a
   assert.equal((await sql`SELECT status FROM receipts WHERE id=${id}`)[0]!.status, "unknown");
   assert.deepEqual(await sql`SELECT * FROM receipt_attempts WHERE service=${name} ORDER BY id`, ledger);
 });
+
+// 2026-10-12 生产实测的两件事拼起来：WorkBuddy 的频率墙报文（下面这条是从 `receipt_attempts.error`
+// 原样抄回来的形状）不匹配 quota_refusal 的任何一个形状，而"爆发/遗忘"那条速率规则只看 10 分钟内的账
+// —— 门被板凳一会儿就自己活过来，可它撞的是对端的频率/日额度，不会 60 秒后恢复。
+// 于是池子继续把按文章 id 钉死的分片交给它，三次拒绝之后条目落进 `failed`：既没中文标题也没中文摘要，
+// 永久进不了当日的池子。25 分钟里那一扇门就这样白拒了 168 次。
+// 这六条刻意摆在 45 分钟前：速率规则（10 分钟窗）看不见它们，能板凳它的只有额度规则。
+test("six provider-frequency refusals older than the rate window still bench the door", async () => {
+  const name = service("frequency-wall");
+  for (let i = 0; i < 6; i++) await attempt(name, { status: "failed", usage: false, ageMinutes: 45 });
+  await sql`UPDATE receipt_attempts SET error=${
+    `HTTP 429: {"error":{"message":"workbuddy rate limited (HTTP 429): {"code":41003,"msg":"usage exceeds frequency limit, but don't worry, your usage will resume soon"}"}}`
+  }::text WHERE service=${name}`;
+  assert.equal(await sick(name), true, "对端点名「频率超限」属于额度类拒绝：不板凳就等于把条目往 failed 里推");
+});

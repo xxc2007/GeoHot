@@ -363,6 +363,12 @@ export async function collectSource(sourceId: string, opts: { force?: boolean } 
       }
     }
 
+    // 一条坏掉的日期规则在采集报告里和"健康的抓取"长得一模一样，这一格就是为了让它现形：
+    // `undated` 数的是**交给 store 的那批候选**里没有 `publishedAt` 的行数（detail 页取回的日期已算进来）。
+    // 2026-10-12 实测 spacemapper 的 108 行里 76 行没有日期，而 `found`/`stored` 两个数看着完全正常——
+    // 无日期的档案行永远进不了一期日报（`reports/compose.ts` 要求 archive 行 `published_at IS NOT NULL`），
+    // 所以这一格不是统计癖：它 nonzero 就意味着这个源在白采。
+    const undated = candidates.reduce((n, c) => n + (c.publishedAt ? 0 : 1), 0);
     const storedRun = await store(sourceId, candidates, firstImport ? "first-import" : null, () => outOfRound.stop());
     ({ created, revised } = storedRun);
     // A round that read nothing keeps the remembered position untouched. An unchanged feed answers 304 and
@@ -383,7 +389,7 @@ export async function collectSource(sourceId: string, opts: { force?: boolean } 
     // What the operator sees against `found`: what the filters took out, what was stored, what the round
     // could not read. Without these a listing cut at 60 items looked like a healthy fetch. Only for a round
     // that read something: a 304 is the common case, and five zeros in every such row is noise in the runs view.
-    if (found > 0) detail = { ...(detail ?? {}), found, filtered, stored: created + revised, dropped, detailFetched: detailUsed, ...(detailMissed ? { detailMissed } : {}) };
+    if (found > 0) detail = { ...(detail ?? {}), found, filtered, stored: created + revised, dropped, undated, detailFetched: detailUsed, ...(detailMissed ? { detailMissed } : {}) };
 
     if (firstImport) nextCursor.initializedAt = new Date().toISOString();
     nextCursor.lastOkAt = new Date().toISOString();

@@ -164,11 +164,21 @@ export async function sickServices(): Promise<Set<string>> {
     // half an hour and answered nothing, yet at 07:36 the verdict was `sick=[]` — during a burst the door
     // fails and is benched, then nobody calls it, its failures age out of the ten-minute window, and the very
     // next article is handed to it again. A day quota does not reopen in sixty seconds.
+    //
+    // `usage exceeds frequency limit` is WorkBuddy's own wording (2026-10-12 生产实测：抬到 40/900 后
+    // 10 分钟 49 次、退回 30/600 之后今天下午仍在 25 分钟内拒绝 168 次，报文形状
+    // `workbuddy rate limited (HTTP 429): {"code":…,"msg":"usage exceeds frequency limit, but don't worry,
+    // your usage will resume…"}`). It matched none of the five patterns below, so this rule — the only one
+    // that survives the burst/forget cycle — could never bench that door: the pool kept handing it the
+    // shards pinned by article id, and after `MAX_OUTPUT_FAILURES` those articles land in `failed` with no
+    // Chinese copy at all. That is the same failure mode the comment under `refusesThisStep` documents for
+    // `opencode`, reached through the provider's 429 instead of our output gate.
     const refused = await sql<{ service: string }[]>`
       WITH ranked AS (
         SELECT a.service, (a.status = 'failed' AND (a.error LIKE '%free-models-per-day%'
           OR a.error LIKE '%insufficient_quota%' OR a.error LIKE '%exceeded your current quota%'
-          OR a.error LIKE '%FreeTierError%' OR a.error LIKE '%今日文本额度已用完%')) AS quota_refusal,
+          OR a.error LIKE '%FreeTierError%' OR a.error LIKE '%今日文本额度已用完%'
+          OR a.error LIKE '%usage exceeds frequency limit%')) AS quota_refusal,
                row_number() OVER (PARTITION BY a.service ORDER BY a.started_at DESC, a.id DESC) AS newest
           FROM receipt_attempts a
          WHERE a.started_at > now() - interval '6 hours'
