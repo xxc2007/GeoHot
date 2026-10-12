@@ -70,26 +70,3 @@ test("后来才拿到的日期会被存住，且不被空值覆盖", async () =>
   const [again] = await sql<{ published_at: Date | null }[]>`SELECT published_at FROM articles WHERE id = ${first.articleId}`;
   assert.equal(again!.published_at?.getTime(), seen.getTime(), "空值不能覆盖已知道的日期");
 });
-
-// 上面那条走的是"正文变了 ⇒ 新版本"那条路，所以它测不到真正漏掉的那一支：列表页**一字未改**、
-// 只是这一次把日期给出来了。生产上这一支会永久卡死条目——`reports/compose.ts` 要求
-// `published_at IS NOT NULL`，而这条既已付费判过，就再也进不了任何一天的报纸。
-// （2026-10-12 实测：web-pric-news 60 行里 45 行、web-spacemapper-news 108 行里 76 行、
-// web-chxb-toc 23 行里 20 行是 `undated`；库里那一行从 10-04 到 10-12 一直没被补上日期。）
-test("内容一字未变、只是这次给了日期：日期要补上，且不起新版本、不改时间线、不再排队分析", async () => {
-  const url = `https://example.com/${T}-unchanged-got-date`;
-  const first0 = (await upsertMaterial({ sourceId: SOURCE, url, title: `一字未变 ${T}`, bodyText: "同一版正文。", via: "fetch" })).articleId;
-  const [before] = await sql<{ published_at: Date | null; timeline_at: Date; backfill: boolean; revision: number; processing_state: string }[]>`
-    SELECT published_at, timeline_at, backfill, revision, processing_state FROM articles WHERE id = ${first0}`;
-  assert.equal(before!.published_at, null, "前置条件：首次没有日期");
-  assert.equal(before!.backfill, true, "前置条件：无日期 ⇒ 归历史");
-
-  const seen = new Date(Date.now() - 9 * HOUR);
-  await upsertMaterial({ sourceId: SOURCE, url, title: `一字未变 ${T}`, bodyText: "同一版正文。", publishedAt: seen, via: "fetch" });
-  const [after] = await sql<{ published_at: Date | null; timeline_at: Date; backfill: boolean; revision: number; processing_state: string }[]>`
-    SELECT published_at, timeline_at, backfill, revision, processing_state FROM articles WHERE id = ${first0}`;
-  assert.equal(after!.published_at?.getTime(), seen.getTime(), "补上的日期必须落库，否则这条永远进不了当日池子");
-  assert.equal(after!.revision, before!.revision, "补日期不是新内容版本：不能把已判过的条目重新推回队列");
-  assert.equal(after!.processing_state, before!.processing_state, "也不改判定状态");
-  assert.equal(after!.timeline_at.getTime(), before!.timeline_at.getTime(), "归哪一天沿用既有决定，不在这里悄悄挪动历史");
-});

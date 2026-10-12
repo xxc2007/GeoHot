@@ -365,10 +365,13 @@ export async function collectSource(sourceId: string, opts: { force?: boolean } 
 
     // 一条坏掉的日期规则在采集报告里和"健康的抓取"长得一模一样，这一格就是为了让它现形：
     // `undated` 数的是**交给 store 的那批候选**里没有 `publishedAt` 的行数（detail 页取回的日期已算进来）。
-    // 2026-10-12 实测 spacemapper 的 108 行里 76 行没有日期，而 `found`/`stored` 两个数看着完全正常——
-    // 无日期的档案行永远进不了一期日报（`reports/compose.ts` 要求 archive 行 `published_at IS NOT NULL`），
-    // 所以这一格不是统计癖：它 nonzero 就意味着这个源在白采。
-    const undated = candidates.reduce((n, c) => n + (c.publishedAt ? 0 : 1), 0);
+    // 2026-10-12: spacemapper 的 108 行里 76 行没有日期，而 `found`/`stored` 两个数看着完全正常——
+    // 一条坏掉的日期规则在采集报告里和"健康的抓取"长得一模一样，这一格就是为了让它现形。
+    // 只数**本轮真能拿到日期却没拿到**的行：已入库的 URL 在上面那个 detail 循环里被 `continue` 掉、
+    // 永远轮不到重取日期，而 `publishedAtAuthoritative` 是按配置故意把列表日期清空的（日期归 detail 页给）——
+    // 两者算进来会让一个健康的源每轮白报几十个 undated（首晚实测：stdaily 报 48 而 stored=0，就是踩了这个坑）。
+    const undated = candidates.reduce((n, c) => n
+      + (known.get(c.url) === undefined && d?.publishedAtAuthoritative !== true && !c.publishedAt ? 1 : 0), 0);
     const storedRun = await store(sourceId, candidates, firstImport ? "first-import" : null, () => outOfRound.stop());
     ({ created, revised } = storedRun);
     // A round that read nothing keeps the remembered position untouched. An unchanged feed answers 304 and
