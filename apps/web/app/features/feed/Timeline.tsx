@@ -1,6 +1,7 @@
 // The day-grouped feed (精选 home, topics): a time rail with cards on desktop, dated rows under grey
-// day bars on phones. Keeps its place across back navigation and loads further pages. There is no
-// "new items" prompt: readers refresh for the latest head (feedback #1199).
+// day bars on phones. Keeps its place across back navigation and keeps loading the next page as the
+// reader nears the end, so the whole list is one continuous scroll — there is no "加载更多" to click.
+// There is no "new items" prompt either: readers refresh for the latest head (feedback #1199).
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigation } from "react-router";
 import { Collapse } from "../../components/ui/Presence";
@@ -14,14 +15,15 @@ import { publicPath } from "../../lib/public-path";
 import { markRead, useReadSet } from "../../lib/local-state";
 import { isHydrated, isReload, markHydrated, readSnapshot, restoreAnchor, saveSnapshot } from "./restore";
 
-const AUTO_BATCHES = 3;
+// The server's own maximum page. The first screen is rendered by the loader with its default size;
+// every page after that is fetched at 40 groups, which halves the round trips on a long scroll.
+const PAGE_LIMIT = 40;
 
 interface ListState {
   cards: TimelineCard[];
   nextCursor: string | null;
   dayCounts: Record<string, number>;
   collapsed: string[];
-  batches: number;
 }
 
 function filterQuery(f: TimelineFilters, extra: Record<string, string | number | null | undefined> = {}) {
@@ -35,7 +37,7 @@ function filterQuery(f: TimelineFilters, extra: Record<string, string | number |
 }
 
 function fromResponse(r: TimelineResponse): ListState {
-  return { cards: r.cards, nextCursor: r.nextCursor, dayCounts: r.dayCounts, collapsed: [], batches: 1 };
+  return { cards: r.cards, nextCursor: r.nextCursor, dayCounts: r.dayCounts, collapsed: [] };
 }
 
 const WEEKDAY_SHORT = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
@@ -215,11 +217,11 @@ export function Timeline({ initial, filters }: { initial: TimelineResponse; filt
     setLoadingMore(true);
     setLoadError(false);
     try {
-      const res = await fetch(publicPath(`/api/site/timeline?${filterQuery(filters, { cursor: s.nextCursor })}`), { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]) });
+      const res = await fetch(publicPath(`/api/site/timeline?${filterQuery(filters, { cursor: s.nextCursor, limit: PAGE_LIMIT })}`), { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]) });
       if (res.status === 400) {
         // Cursor no longer fits: start over from the head. The head can fail too (offline, 500, the same
-        // timeout), and until now it simply returned — 加载更多 looked pressed but did nothing at all,
-        // with no error and no retry, because the `return` skipped the catch below.
+        // timeout), and until now it simply returned — the scroll looked like it was loading but did
+        // nothing at all, with no error and no retry, because the `return` skipped the catch below.
         try {
           const head = await fetch(publicPath(`/api/site/timeline?${key}`), { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]) });
           if (!head.ok) throw new Error(String(head.status));
@@ -246,7 +248,6 @@ export function Timeline({ initial, filters }: { initial: TimelineResponse; filt
         cards: [...prev.cards, ...added],
         nextCursor: page.nextCursor,
         dayCounts: { ...prev.dayCounts, ...page.dayCounts },
-        batches: prev.batches + 1,
       }));
     } catch {
       if (current()) setLoadError(true);
@@ -258,17 +259,20 @@ export function Timeline({ initial, filters }: { initial: TimelineResponse; filt
     }
   }, [filters]);
 
-  // Auto-load a few batches when the sentinel nears the viewport, then hand over to a button.
+  // Load the next page as the end of this one comes near, and keep doing it: `state.nextCursor` is the
+  // dependency that re-arms the observer after every batch, so a page that still leaves the sentinel
+  // inside the margin is followed at once. The chain stops by itself — at the end (no cursor), or on a
+  // failed page, where FeedEnd offers the retry instead of hammering the API from a scroll position.
   const sentinel = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = sentinel.current;
-    if (!el || !state.nextCursor || state.batches >= AUTO_BATCHES) return;
+    if (!el || !state.nextCursor || loadError) return;
     const io = new IntersectionObserver((entries) => {
       if (entries.some((e) => e.isIntersecting)) void loadMore();
     }, { rootMargin: "900px 0px" });
     io.observe(el);
     return () => io.disconnect();
-  }, [state.nextCursor, state.batches, loadMore]);
+  }, [state.nextCursor, loadError, loadMore]);
 
   // Which day is「今天」is decided by the clock that built these cards, not by the browser: the server render
   // and the hydration can straddle Beijing midnight, and the day counts in this answer are for its own day.
@@ -320,14 +324,17 @@ export function Timeline({ initial, filters }: { initial: TimelineResponse; filt
       })}
 
       <div ref={sentinel} aria-hidden="true" />
-      <FeedEnd loading={loadingMore} error={loadError} hasMore={!!state.nextCursor} manual={state.batches >= AUTO_BATCHES} empty={state.cards.length === 0} onMore={loadMore} />
+      <FeedEnd loading={loadingMore} error={loadError} hasMore={!!state.nextCursor} empty={state.cards.length === 0} loaded={state.cards.length} onMore={loadMore} />
     </div>
   );
 }
 
-/** The foot of a paged list: loading, retry, "加载更多" after a few automatic pages, or the end. */
-export function FeedEnd({ loading, error, hasMore, manual, empty, onMore }: { loading: boolean; error: boolean; hasMore: boolean; manual: boolean; empty: boolean; onMore: () => void }) {
-  // A live region, because all four states can arrive on their own: the automatic pages fire when the
+/**
+ * The foot of a paged list. Pages now arrive on their own while the reader scrolls, so this says only
+ * what the scroll cannot say by itself: a page is on its way, a page failed, or the list has ended.
+ */
+export function FeedEnd({ loading, error, hasMore, empty, loaded, onMore }: { loading: boolean; error: boolean; hasMore: boolean; empty: boolean; loaded: number; onMore: () => void }) {
+  // A live region, because these states can arrive on their own: the automatic pages fire when the
   // sentinel scrolls into view, and a reader who is parked at the bottom of the list hears nothing about
   // "正在加载" / "加载失败" without it (WCAG 4.1.3). `aria-atomic` is off so only the state that changed
   // is announced, not the whole footer.
@@ -335,20 +342,14 @@ export function FeedEnd({ loading, error, hasMore, manual, empty, onMore }: { lo
     <div aria-live="polite" aria-atomic="false" className="flex justify-center py-6">
       {loading ? (
         <span className="inline-flex items-center gap-2 text-[12.5px] text-ink-4">
-          <RingMark className="size-4 text-accent" spinning /> 正在加载
+          <RingMark className="size-4 text-accent" spinning /> 正在加载 · 已显示 {loaded} 条
         </span>
       ) : error ? (
         <button type="button" onClick={onMore} className="h-9 rounded-full border border-hot/30 px-4 text-[13px] text-hot-ink hover:bg-hot-soft">
           加载失败，点此重试
         </button>
-      ) : hasMore ? (
-        manual && (
-          <button type="button" onClick={onMore} className="h-9 rounded-full border border-line-strong bg-surface px-5 text-[13px] font-medium text-ink-2 transition-colors hover:border-ink-4 hover:text-ink">
-            加载更多
-          </button>
-        )
-      ) : (
-        !empty && <span className="text-[12px] text-ink-4">已经到底了</span>
+      ) : hasMore ? null : (
+        !empty && <span className="text-[12px] text-ink-4">已经到底了 · 共 {loaded} 条</span>
       )}
     </div>
   );
