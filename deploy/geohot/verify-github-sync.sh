@@ -145,10 +145,23 @@ while IFS=$'\t' read -r path lsha rsha; do
     *.png|*.jpg|*.jpeg|*.webp|*.gif)
       n=$((n + 1))
       printf '  · %s\n' "$path" >&2
-      gh api "repos/$REPO/git/blobs/$rsha" --jq .content 2>/dev/null | tr -d '\n' | base64 -d > "$WORK/dl.bin" 2>/dev/null || : > "$WORK/dl.bin"
+      # 2026-10-12：这一取回原先只试一次，`|| : > dl.bin` 把"本机通道取不回"变成 0 字节，
+      # 于是和"远端字节真的坏了"报同一句话——那次误报让一次正常发布看起来需要回滚。
+      # 取回是网络动作，重试；重试完还是空，就明确说"取不回"，让人知道证据缺口在量具不在仓库。
+      try=0
+      while [ "$try" -lt 3 ]; do
+        try=$((try + 1))
+        gh api "repos/$REPO/git/blobs/$rsha" --jq .content 2>/dev/null | tr -d '\n' | base64 -d > "$WORK/dl.bin" 2>/dev/null || : > "$WORK/dl.bin"
+        [ -s "$WORK/dl.bin" ] && break
+        sleep 2
+      done
       got=$(git hash-object "$WORK/dl.bin")
       if [[ "$got" != "$rsha" ]]; then
-        bad "从 GitHub 取回的字节与远端 blob 哈希不等：$path（取回 $(wc -c < "$WORK/dl.bin") B，期望 $rsha）"
+        if [ ! -s "$WORK/dl.bin" ]; then
+          bad "取回失败（重试 $try 次都是 0 字节）：$path——远端 blob 哈希是 $rsha，这里证明不了字节完好；先修本机通道再重跑，不要照这句话回滚发布"
+        else
+          bad "从 GitHub 取回的字节与远端 blob 哈希不等：$path（取回 $(wc -c < "$WORK/dl.bin") B，取回哈希 $got，期望 $rsha）"
+        fi
         continue
       fi
       if [[ "$lsha" != "$rsha" ]]; then
