@@ -274,6 +274,46 @@ export const MODELS: Record<string, ModelSpec> = {
     baseUrlEnv: "WORKBUDDY_BASE_URL", apiKeyEnv: "WORKBUDDY_API_KEY",
     extra: { reasoning_effort: "high" }, jsonMode: true, vision: true, reasoningHeadroom: 4_000,
   },
+  // ── The same four models, reached through the *Chinese* WorkBuddy account ────────────────────────────
+  //
+  // Two desktop channels ship under one name and they are not the same product: the international build
+  // talks to `www.workbuddy.ai`, the Chinese build to `copilot.tencent.com`, and each is signed in to its
+  // own account with its own quota. So they are two bridges (`geohot-workbuddy` on 3065, `geohot-workbuddy-cn`
+  // on 3066) and two services here — `workbuddy` and `workbuddy-cn` — because the breaker and the health
+  // ledger are both keyed on `service`, and one account's wall must not spend the other's budget.
+  //
+  // Why this pair exists at all (2026-10-12): the international account's `deepseek-v4.1-flash` hit an
+  // account-level frequency wall — `{"code":6004,"msg":"usage exceeds frequency limit … reset at
+  // 2026-10-12 19:10:18 UTC+8"}`, HTTP 429 on every attempt, 236 consecutive failures in 90 minutes while
+  // its three siblings on the same account answered normally. The Chinese account served the identical
+  // model id on the same minute: 3749 ms, `finish_reason: stop`, credit 0.03. The wall was on the account,
+  // not on the model — which is exactly what a second door is for, and why `deepseek-v4.1-flash` stays
+  // reachable here after being pulled from the international pool.
+  //
+  // Effort and headroom are the *model's* properties and so are copied verbatim from the international
+  // presets above, not re-measured: same model ids, same dials (`max` / `max` / `max` / `high` for
+  // deepseek / hy3 / glm / step-5-preview), same measured rates that sized each headroom. The one thing
+  // that does differ is the account, and that lives in the two env vars.
+  "workbuddy-cn-deepseek-flash": {
+    key: "workbuddy-cn-deepseek-flash", service: "workbuddy-cn", model: "deepseek-v4.1-flash",
+    baseUrlEnv: "WORKBUDDY_CN_BASE_URL", apiKeyEnv: "WORKBUDDY_CN_API_KEY",
+    extra: { reasoning_effort: "max" }, jsonMode: true, vision: true, reasoningHeadroom: 16_000,
+  },
+  "workbuddy-cn-hy3": {
+    key: "workbuddy-cn-hy3", service: "workbuddy-cn", model: "hy3",
+    baseUrlEnv: "WORKBUDDY_CN_BASE_URL", apiKeyEnv: "WORKBUDDY_CN_API_KEY",
+    extra: { reasoning_effort: "max" }, jsonMode: true, vision: false, reasoningHeadroom: 16_000,
+  },
+  "workbuddy-cn-glm-flash": {
+    key: "workbuddy-cn-glm-flash", service: "workbuddy-cn", model: "glm-5.3-flash",
+    baseUrlEnv: "WORKBUDDY_CN_BASE_URL", apiKeyEnv: "WORKBUDDY_CN_API_KEY",
+    extra: { reasoning_effort: "max" }, jsonMode: true, vision: false, reasoningHeadroom: 8_000,
+  },
+  "workbuddy-cn-step5-preview": {
+    key: "workbuddy-cn-step5-preview", service: "workbuddy-cn", model: "step-5-preview",
+    baseUrlEnv: "WORKBUDDY_CN_BASE_URL", apiKeyEnv: "WORKBUDDY_CN_API_KEY",
+    extra: { reasoning_effort: "high" }, jsonMode: true, vision: true, reasoningHeadroom: 4_000,
+  },
 };
 
 export type ContentPart = { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } };

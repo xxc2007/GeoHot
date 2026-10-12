@@ -212,6 +212,14 @@ const PROVIDERS: Record<string, { name: string; stops: string; where: string }> 
     stops: MODEL_STOPS,
     where: "WorkBuddy 桌面端与它 3065 端口上的桥（凭据是 .env 的 WORKBUDDY_CREDENTIAL_JSON）",
   },
+  // 中国版是**另一个账号、另一份额度**（国际版 www.workbuddy.ai / 中国版 copilot.tencent.com），
+  // 所以是另一扇门、另一条熔断行，不是一个别名。2026-10-12 国际版账号的 deepseek 被频率墙打到
+  // 19:10（236 次连败），中国版同刻 3.7 秒正常 —— 墙在账号上，不在模型上。
+  "workbuddy-cn": {
+    name: "WorkBuddy 中国版渠道",
+    stops: MODEL_STOPS,
+    where: "WorkBuddy 中国版桌面端与它 3066 端口上的桥（凭据是 .env 的 WORKBUDDY_CN_CREDENTIAL_JSON）",
+  },
   socialdata: { name: "SocialData", stops: "X（推特）上的新内容收不到", where: "SocialData 后台" },
   jina: { name: "Jina", stops: "部分文章取不到正文", where: "Jina 后台" },
   dajiala: { name: "极致了（Dajiala）", stops: "公众号新文章收不到", where: "极致了后台" },
