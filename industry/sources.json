@@ -1328,7 +1328,6 @@
         "url": "https://spacemapper.cn/zh-cn/info/news/",
         "parseMode": "html",
         "itemSelector": "a.news-item",
-        "publishedAtSelector": ".news-item-title",
         "allowUrlPrefixes": [
           "https://spacemapper.cn/zh-cn/info/news/"
         ],
