@@ -76,6 +76,9 @@ export function llmsTxt(opts: { hasDailies: boolean; hasWeekly: boolean; hasMont
   lines.push(`- [首页 · 精选](${u("/")}): 每日精选动态`);
   lines.push(`- [热点榜](${u("/hot")}): 过去 48 小时内被多个独立信源共同讨论的事件`);
   lines.push(`- [全部动态](${u("/all")}): 全部公开资讯，可按分类筛选`);
+  // 这一条是给机器读者讲"这份报纸怎么做出来的"——采集/收录/精选/成刊四步都写在页面里，
+  // 比让代理去猜门槛更有用。`/more` 有意不列：它是 noindex 的纯链接页，链接的东西这里已经逐个列过了。
+  lines.push(`- [关于](${u("/about")}): 站点性质、信源与筛选流程`);
   if (opts.hasDailies) {
     lines.push(`- [${daily}](${u("/daily")}): 每日精编汇总`);
     lines.push(`- [${daily}存档](${u("/daily/archive")}): 历史${daily}归档`);
