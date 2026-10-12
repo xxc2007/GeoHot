@@ -155,6 +155,16 @@ export async function run(o: Options, rules: ArchiveRule[], sources: SourceRow[]
           // An empty continuation page is a monthly archive saying the month has no more pages, not a
           // coverage failure: nothing was read, so the URL stays pending and the next run re-checks it.
           if (continuation) { d.log?.({ source: rule.sourceId, stop: "month-exhausted", reason: "empty", url }); return "older-boundary-month"; }
+          // In a months walk each planned URL is a different month, so an empty one ends only that month.
+          // Returning "error" here used to `break` the whole rule — the plan is ordered oldest → newest, so
+          // one gap in January silently cost February through October (2026-10-12 review). It is still
+          // counted as an error: coverage for this month is unknown. Numbered pages of a single listing keep
+          // the old stop, because an empty page 1 means there is no page 2 to go and look at.
+          if (rule.mode === "months") {
+            stats.errors++;
+            d.log?.({ source: rule.sourceId, stop: "month-skipped", reason: "empty-month-page", url, error: "Empty archive listing: coverage is unknown; page remains pending" });
+            return "older-boundary-month";
+          }
           throw new Error("Empty archive listing: coverage is unknown; page remains pending");
         }
         // A CMS that ignores an out-of-range page must not masquerade as more history.
@@ -246,16 +256,23 @@ export async function run(o: Options, rules: ArchiveRule[], sources: SourceRow[]
       if (stats.pages >= o.maxPages || stats.eligible >= o.maxItems) { stats.limited = true; break outer; }
       let verdict = await readPage(url, pageIndex === 0, pageIndex === plan.length - 1);
       if (verdict === "continue" && monthPagination) {
-        // Follow the month's own {page} numbering from 2, inside the same page and item caps, until
-        // the month ends. A completed continuation page ends the probe: it was already acknowledged,
-        // so nothing newer can sit behind it — an unfetched one is re-read on the next run anyway.
+        // Follow the month's own {page} numbering from 2, inside the same page and item caps.
+        // "已确认"只说明**这一页**读过，不说明它后面没有更旧的内容——所以这里不能因为
+        // `raw === 0`（已确认页在 readPage 顶部就被置 0 并原样返回 continue）而停：
+        // 那会让"第 2 页已确认、第 3 页从没读过"的月份每一轮都停在第 2 页，后面的页永远不再请求
+        // （2026-10-12 评审实测：月有 4 页 41 条，run1 读到 page3 后 run2 请求数 0、11 条永久丢失）。
+        // 真正的"本月完了"由 readPage 自己说：空页、404、或比前一页短的续页都返回 older-boundary-month。
         const month = monthAt(pageIndex).replace("-", "/");
         let page = 2, lastRaw = raw;
         while (stats.pages < o.maxPages && stats.eligible < o.maxItems) {
           verdict = await readPage(monthPagination.replace("{month}", month).replace("{page}", String(page++)), false, false, { lastRaw });
-          if (verdict !== "continue" || raw === 0) break;
-          lastRaw = raw;
+          if (verdict !== "continue") break;
+          if (raw > 0) lastRaw = raw;
         }
+        // Only `readPage` can say a month is finished; still being on "continue" means the loop left on a
+        // page/item cap, i.e. older pages of this month exist but were not imported. `--max-pages` cuts a
+        // month mid-walk on the production cycle, and this was the one cell where the report stayed silent.
+        if (verdict === "continue") stats.limited = true;
       }
       if (verdict === "stop-rule" || verdict === "error") break;
     }
