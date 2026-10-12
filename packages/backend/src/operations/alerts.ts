@@ -218,7 +218,7 @@ const PROVIDERS: Record<string, { name: string; stops: string; where: string }> 
   "workbuddy-cn": {
     name: "WorkBuddy 中国版渠道",
     stops: MODEL_STOPS,
-    where: "WorkBuddy 中国版桌面端与它 3066 端口上的桥（凭据是 .env 的 WORKBUDDY_CN_CREDENTIAL_JSON）",
+    where: "WorkBuddy 中国版桌面端与它 3066 端口上的桥（凭据变量名与国际版是同一个 WORKBUDDY_CREDENTIAL_JSON，中国版那份由单元的第二个 EnvironmentFile /opt/geohot/workbuddy-cn.env 提供；只写进 .env 会被国际版那行盖回去）",
   },
   socialdata: { name: "SocialData", stops: "X（推特）上的新内容收不到", where: "SocialData 后台" },
   jina: { name: "Jina", stops: "部分文章取不到正文", where: "Jina 后台" },

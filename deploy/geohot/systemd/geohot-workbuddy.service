@@ -57,8 +57,10 @@ LockPersonality=true
 WantedBy=multi-user.target
 
 # -----------------------------------------------------------------------------
-# 安装（**不要**用 install-units.sh：它装完断言 `list-unit-files 'geohot*' | wc -l == 4`，
-# 而线上现在已经有 6 个 geohot-* 单元文件，加这一个必红）：
+# 安装（**不要**用 install-units.sh：它只装自己清单里那四条 api/worker/web/brain，
+# workbuddy 这两条与 archive 的 .service/.timer 都不在其中——跑它装不到这一条。它也不会红：
+# 以前那条"按 list-unit-files 'geohot*' 的全局计数 == 4 判齐不齐"的断言已经改成逐个点名，
+# 线上现在实际有 8 个 geohot-* 单元文件，全局计数只当信息打印）：
 #   sudo cp deploy/geohot/systemd/geohot-workbuddy.service /etc/systemd/system/
 #   sudo systemctl daemon-reload && sudo systemctl enable --now geohot-workbuddy
 #   curl -s http://127.0.0.1:3065/healthz   # account.ok 为 true 才算凭据读到了

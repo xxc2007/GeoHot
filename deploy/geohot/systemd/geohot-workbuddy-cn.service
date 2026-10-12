@@ -15,7 +15,9 @@
 #   预算行由数据库迁移 0064_workbuddy_cn_budget.sql 单独 INSERT。
 #
 # 凭据：与国际版同一套路。线上没有桌面应用，取不到 at-rest 密钥，所以走
-#   WORKBUDDY_CN_CREDENTIAL_JSON 指向的明文凭据文件。国际版用 `--export-credential` 导出时要带
+#   WORKBUDDY_CREDENTIAL_JSON 指向的明文凭据文件——**变量名与国际版完全一样**，靠下面那个
+#   cn env 文件覆盖成中国版的路径，不存在 WORKBUDDY_CN_CREDENTIAL_JSON 这个变量。
+#   国际版用 `--export-credential` 导出时要带
 #   `WORKBUDDY_VARIANT=workbuddy`，否则导出来的是国际版那一份（uid 会对不上）。
 #   文件 chmod 600 + 属主 geohot —— 等同密码，不进仓库、不进 .data。
 #
@@ -70,8 +72,9 @@ LockPersonality=true
 WantedBy=multi-user.target
 
 # -----------------------------------------------------------------------------
-# 安装（与 geohot-workbuddy.service 同样的理由，**不要**用 install-units.sh：它装完断言
-# `list-unit-files 'geohot*' | wc -l == 4`，而线上现在已经有 7 个 geohot-* 单元文件，加它必红）：
+# 安装（与 geohot-workbuddy.service 同样的理由，**不要**用 install-units.sh：它只写自己清单里
+# 那四条 api/worker/web/brain，workbuddy 两条与 archive 都不在其中，跑它装不到这一条；
+# 它也不会红——按全局计数判齐不齐的那条断言早已改成逐个点名，线上现在有 8 个 geohot-* 单元文件）：
 #   # 中国版那组变量单独一个文件，排在 .env 之后生效
 #   printf '%s\n' \
 #     'WORKBUDDY_VARIANT=workbuddy' \
