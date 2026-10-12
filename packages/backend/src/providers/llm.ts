@@ -91,8 +91,8 @@ export const MODELS: Record<string, ModelSpec> = {
   //  · JSON 模式与中文标题、摘要、分类字段都对（用本站 understand 的形状试的）。
   //  · `vision: true` 是真的：挂一张公网图，12.9 秒正确说出"群山环绕的峡湾，绿色与深蓝"。
   // 上下文 1,048,576、单次输出上限 65,536，与 `MAX_OUTPUT_TOKENS` 同值，所以思考余量加法不会撞对端的墙。
-  // 免费档的速率由对端在 429 报文里点名：`generate_content_free_tier_requests, limit: 5`（每分钟）。
-  // 所以这条门是"多一家能判"，不是放量——熔断行见迁移 0061。
+  // 免费档的天花板是对端在 429 报文里点名的两条：`limit: 5`（每分钟），以及同名指标 `limit: 20` 配一句
+  // "retry in 23h38m" —— **每天 20 次**。所以这条门是"多一家能判"，不是放量，熔断行见迁移 0061。
   "gemini-3.8-flash": {
     key: "gemini-3.8-flash", service: "gemini", baseUrlEnv: "GEMINI_BASE_URL", apiKeyEnv: "GEMINI_API_KEY",
     get model() { return process.env.GEMINI_MODEL ?? "gemini-3.8-flash"; },
