@@ -9,18 +9,18 @@ const TIERS = [
 ];
 
 /**
- * "入选分 · 88" on desktop cards; `compact` keeps only the number (phones). The pill is a labelled image:
+ * "AI 评分 · 88" on desktop cards; `compact` keeps only the number (phones). The pill is a labelled image:
  * an `aria-label` on a bare <span> is dropped by assistive tech, so without `role="img"` a screen reader
  * announces only "88" (or nothing at all in compact mode, where 88 is the whole pill).
  *
- * 措辞是本站相对上游的刻意偏离：这个分数是两道闸门（预筛 + 两次独立打分）算出来的入选分，
- * 打分由第三方大模型给出（标准见 `industry/selection.ts` 与提示词），所以既叫「AI 评分」也叫得，
- * 但读者更需要的信息是"它决定这条能不能入选"，而不是"哪个模型打的"。上游那个不跑模型的部署
- * 曾用同一枚徽标写「AI 评分」而判断其实是人写定的——本站两头都不夸大。
+ * 徽标叫「AI 评分」名实相符：分数由两道闸门算出——预筛之后两次独立打分（`SCORE_CALLS = 2`，回放
+ * 见 `tooling/brain-stub.ts`，执行在 `packages/backend/src/editorial/analyze.ts`）。生产环境的分确实由
+ * 第三方大模型给出（本机与 CI 用 brain-stub 回放人工写定的判断），而打分标准与门槛的唯一出处是
+ * `industry/selection.ts` 与 `industry/prompts`——叫它「AI 评分」两头都站得住。
  */
 export function ScoreLabel({ score, compact = false }: { score: number | null; compact?: boolean }) {
   // The score arrives from JSON nobody has validated. A non-finite value is not a score: render nothing,
-  // the same answer as `null`, rather than a pill reading 「入选分 NaN」.
+  // the same answer as `null`, rather than a pill reading 「AI 评分 NaN」.
   if (score === null || typeof score !== "number" || !Number.isFinite(score)) return null;
   const value = Math.round(score);
   // …and an out-of-range one (a negative score from a bad write) still has to land somewhere: the last
@@ -31,13 +31,13 @@ export function ScoreLabel({ score, compact = false }: { score: number | null; c
   return (
     <span
       role="img"
-      title={`入选分 ${value}/100`}
-      aria-label={`入选分 ${value} 分`}
+      title={`AI 评分 ${value}/100`}
+      aria-label={`AI 评分 ${value} 分`}
       className={`inline-flex h-[20px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2 ring-1 ring-inset ${tier.className}`}
     >
       {!compact && (
         <>
-          <span className="text-label font-medium leading-none">入选分</span>
+          <span className="text-label font-medium leading-none">AI 评分</span>
           <span className="h-2.5 w-px bg-current opacity-25" aria-hidden="true" />
         </>
       )}

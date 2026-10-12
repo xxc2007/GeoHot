@@ -111,7 +111,7 @@ export function ErrorBoundary() {
         title={copy.title}
         action={
           <Link to={KIND_PATH[kind]} className="inline-flex h-9 items-center rounded-full bg-accent px-4 text-[13.5px] font-medium text-accent-contrast hover:bg-accent-ink">
-            看最近一期{KIND_LABEL[kind]}
+            看最近一期{withSubject(KIND_LABEL[kind])}
           </Link>
         }
       >

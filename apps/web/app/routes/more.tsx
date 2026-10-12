@@ -95,17 +95,19 @@ export default function MorePage() {
                   <IconMoon size={18} />
                 </span>
                 <span className="flex-1">外观</span>
-                <ThemeSwitch className="w-[124px]" />
+                {/* w-138：三段各 44px 宽——124px 时每段只有 39px，是 mobile-audit 在 390px 上量出的
+                    最后一批不足 40px 的触控目标之一。 */}
+                <ThemeSwitch className="w-[138px]" />
               </li>
             )}
           </Group>
         ))}
       </div>
       <div className="mt-5 flex flex-wrap justify-center gap-x-4 gap-y-1 text-[12px] text-ink-4">
-        <Link to="/terms" className="inline-flex min-h-6 items-center px-1.5 hover:text-ink-2">使用规则</Link>
-        <Link to="/privacy" className="inline-flex min-h-6 items-center px-1.5 hover:text-ink-2">隐私说明</Link>
-        <a href={publicPath("/feed.xml")} className="inline-flex min-h-6 items-center px-1.5 hover:text-ink-2">RSS</a>
-        {SITE.icp && <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer" className="inline-flex min-h-6 items-center px-1.5 hover:text-ink-2">{SITE.icp}</a>}
+        <Link to="/terms" className="tap-hit inline-flex min-h-6 items-center px-1.5 hover:text-ink-2">使用规则</Link>
+        <Link to="/privacy" className="tap-hit inline-flex min-h-6 items-center px-1.5 hover:text-ink-2">隐私说明</Link>
+        <a href={publicPath("/feed.xml")} className="tap-hit inline-flex min-h-6 items-center px-1.5 hover:text-ink-2">RSS</a>
+        {SITE.icp && <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer" className="tap-hit inline-flex min-h-6 items-center px-1.5 hover:text-ink-2">{SITE.icp}</a>}
       </div>
     </div>
   );

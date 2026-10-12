@@ -66,6 +66,12 @@ export interface ItemSummary {
 /** The fields rendered by a site feed card; full original text lives in the item detail. */
 export interface FeedItemSummary extends Pick<ItemSummary, "id" | "title" | "summary" | "reason" | "publishedAt" | "timelineAt" | "category" | "tags" | "score" | "selected" | "channel"> {
   source: Pick<SourceRef, "name">;
+  /**
+   * The same licence {@link ItemDetail.media} lends under: only a video source's own still, at most
+   * three and sized for the list, with `fullUrl` for a lightbox. A text source lends its summary, not
+   * its photographs; an X post keeps its media in `x.media` and adds none here.
+   */
+  media?: MediaView[];
   x: (Pick<XPostView, "authorName" | "handle" | "avatarUrl" | "avatarSrcSet" | "media"> & {
     quoted: Omit<NonNullable<XPostView["quoted"]>, "url"> | null;
   }) | null;
@@ -165,6 +171,12 @@ export interface ItemDetail extends ItemSummary {
    * uses to name that video.
    */
   media?: MediaView[];
+  /**
+   * The topics this item belongs to, matched back with the same semantics a topic page matches forward
+   * (`topicMatchTags`: a company topic via its entity subject tag, field and genre topics via their own
+   * tags), against the item's raw tags. Optional — responses written before the field existed stay valid.
+   */
+  topics?: Array<{ slug: string; name: string }>;
 }
 
 export interface GroupReport {

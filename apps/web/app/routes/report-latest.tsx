@@ -48,11 +48,12 @@ export async function loader({ request }: Route.LoaderArgs) {
 }
 
 export function meta({ loaderData, location }: Route.MetaArgs) {
-  if (!loaderData) return [{ title: titled(withSubject("日报")) }, { name: "robots", content: "noindex" }];
-  const kind = loaderData.kind;
+  // 没有数据（loader 抛错）时也从网址认出是哪一种报纸：页签不能把打不开的周报、月报写成日报。
+  const kind = loaderData?.kind ?? kindFromPath(location.pathname);
+  if (!loaderData) return [{ title: titled(withSubject(KIND_LABEL[kind])) }, { name: "robots", content: "noindex" }];
   return pageMeta({
     title: withSubject(KIND_LABEL[kind]),
-    description: kind === "daily" ? `${SITE.name} 每天 08:00（北京时间）发布的${withSubject("日报")}。` : kind === "weekly" ? "每周综合回顾。" : "每月盘点。",
+    description: kind === "daily" ? `${SITE.name} 每天 08:00（北京时间）发布的${withSubject("日报")}。` : kind === "weekly" ? `每周一期，回顾一周的${withSubject("动态")}。` : `每月一期，盘点当月的${withSubject("动态")}。`,
     path: location.pathname,
     image: `/og/pages/${kind}.png`,
   });

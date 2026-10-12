@@ -17,7 +17,7 @@ export interface FeedItemProps {
   filters?: TimelineFilters;
   read?: boolean;
   onOpen?: (id: string) => void;
-  /** Show category and tags under the text (全部动态, topics, search). */
+  /** Show tags under the text (全部动态, topics, search); the category moved into the card header. */
   showTags?: boolean;
 }
 
@@ -32,6 +32,7 @@ export const FeedItem = memo(function FeedItem({ item, group, filters, read = fa
     <article className="relative min-w-0 lg:card lg:card-hover lg:px-[18px] lg:pb-[14px] lg:pt-[15px]" data-item-id={item.id}>
       <header className="flex min-h-[18px] items-center gap-2 text-[12.5px] leading-[18px] text-ink-4">
         <SourceLine item={item} className="text-ink-4" />
+        {item.category && <Link to={`/all?category=${item.category}`} className="relative z-10 shrink-0 text-ink-3 transition-colors hover:text-accent">{CATEGORY_LABELS[item.category]}</Link>}
         {item.selected && (
           <span className="hidden lg:inline-flex">
             <SelectedBadge />
@@ -75,15 +76,11 @@ export const FeedItem = memo(function FeedItem({ item, group, filters, read = fa
       )}
 
       {isX && item.x!.media.length > 0 && <MediaThumbs media={item.x!.media} className="mt-2.5" />}
+      {!isX && item.media?.length ? <MediaThumbs media={item.media} className="mt-2.5" /> : null}
       {isX && item.x!.quoted?.text && <QuotedLine quoted={item.x!.quoted} />}
 
-      {(tags.length > 0 || (showTags && item.category)) && (
+      {tags.length > 0 && (
         <div className="relative z-10 mt-2 hidden flex-wrap gap-x-2.5 gap-y-1 text-[12px] text-ink-4 lg:flex">
-          {showTags && item.category && (
-            <Link to={`/all?category=${item.category}`} className="hover:text-accent">
-              {CATEGORY_LABELS[item.category]}
-            </Link>
-          )}
           {tags.map((t) => (
             <Link key={t} to={`/all?tag=${encodeURIComponent(t)}`} className="hover:text-accent">
               #{t}

@@ -5,6 +5,7 @@ import { sql } from "../db.ts";
 import { proxyBodyImages } from "../media/imgproxy.ts";
 import { textToHtml } from "../content/sanitize.ts";
 import { ITEM_COLUMNS, ITEM_FROM, chineseCopyCondition, releasedCondition, toItemSummary, videoMedia, xView, type ItemRow } from "./items.ts";
+import { listTopics, topicMatchTags } from "./topics.ts";
 import { bodyIsChinese } from "@aihot/contracts/copy";
 import { itemUrl } from "./links.ts";
 import { itemHasPage } from "./rules.ts";
@@ -37,9 +38,23 @@ function withOutline(html: string): { html: string; outline: OutlineEntry[] } {
   return { html: out, outline };
 }
 
+/**
+ * The topics an item belongs to, matched back with the same semantics a topic page matches forward
+ * (`topicMatchTags`), against the item's raw tags — the `p.tags` array the row carries, not the display
+ * tags, so the withheld-tags page still shows where its item lives. `listTopics` is position-ordered
+ * (and process-cached), so the filtered list keeps that order.
+ */
+async function itemTopics(tags: string[]): Promise<Array<{ slug: string; name: string }>> {
+  if (tags.length === 0) return [];
+  return (await listTopics())
+    .filter((t) => topicMatchTags(t).some((tag) => tags.includes(tag)))
+    .slice(0, 6)
+    .map((t) => ({ slug: t.slug, name: t.name }));
+}
+
 async function loadRow(id: string): Promise<DetailRow | null> {
   const [row] = await sql<DetailRow[]>`
-    SELECT ${ITEM_COLUMNS}, a.body_html, a.body_text, a.body_status, a.media, tr.body_html AS tr_html, tr.complete AS tr_complete
+    SELECT ${ITEM_COLUMNS}, a.body_html, a.body_text, a.body_status, tr.body_html AS tr_html, tr.complete AS tr_complete
     ${ITEM_FROM}
     WHERE p.article_id = ${id}`;
   return row ?? null;
@@ -60,6 +75,7 @@ export async function loadItemDetail(id: string, now = new Date()): Promise<Deta
 
   const summary = toItemSummary(row);
   if (row.channel === "x") summary.x = xView(row, false, true);
+  const topics = await itemTopics(row.tags);
   if (row.visibility === "summary-only") {
     const detail: ItemDetail = {
       ...summary,
@@ -75,6 +91,7 @@ export async function loadItemDetail(id: string, now = new Date()): Promise<Deta
       indexable: false,
       markdownAvailable: false,
       group: null,
+      topics,
       media: videoMedia(row.media),
     };
     return { kind: "found", detail, row };
@@ -145,6 +162,7 @@ export async function loadItemDetail(id: string, now = new Date()): Promise<Deta
     indexable: row.indexable,
     markdownAvailable: markdownAvailable(row),
     group,
+    topics,
     media: videoMedia(row.media),
   };
   return { kind: "found", detail, row };

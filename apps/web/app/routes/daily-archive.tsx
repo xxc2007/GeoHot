@@ -25,7 +25,7 @@ export async function loader({ request }: { request: Request }) {
 }
 
 export function meta() {
-  return pageMeta({ title: `${withSubject("日报")} · 历史存档`, description: `${SITE.name} 历史日报，按日期归档。`, path: "/daily/archive", image: "/og/pages/daily.png" });
+  return pageMeta({ title: `${withSubject("日报")} · 历史存档`, description: `${SITE.name} 的${withSubject("日报")}历史存档，按日期归档。`, path: "/daily/archive", image: "/og/pages/daily.png" });
 }
 
 export function headers() {
@@ -59,7 +59,7 @@ export default function DailyArchive() {
           </div>
           <div className="py-6 @[880px]:py-8">
             <h1 id="report-start">
-              <span className="sr-only">日报合订本</span>
+              <span className="sr-only">{withSubject("日报")}合订本</span>
               <Nameplate which="archive" className="block h-[50px] w-auto @[520px]:h-[70px] @[880px]:h-[98px]" />
             </h1>
           </div>
