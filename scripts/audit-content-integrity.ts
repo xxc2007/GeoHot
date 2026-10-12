@@ -18,6 +18,8 @@ import { isDay } from "@aihot/contracts/time";
 import { config } from "@aihot/backend/config";
 import { closeDb, sql } from "@aihot/backend/db";
 import { editionDay } from "@aihot/backend/lib/time";
+import { candidates, dailyWindow } from "@aihot/backend/reports/compose";
+import { settledDays } from "./lib/settled-days.ts";
 
 /** 日报期次所服务的那一天——公式只在 `lib/time.ts` 写一次，这里只固定"时刻是 `p.timeline_at`"。 */
 const DAY_LABEL = editionDay(sql`p.timeline_at`);
@@ -104,6 +106,31 @@ function checks(from: string, to: string): Check[] {
       value: () => one(sql<{ n: number }[]>`
         SELECT count(*)::int AS n FROM reports
         WHERE kind = 'daily' AND key >= ${from} AND key <= ${to}`),
+    },
+    {
+      // 这次任务自己的验收尺子。日子判完了，读者就该看得到它的那份报纸；这天真的没内容也要能说出来
+      // （归档那格会把没有期次的日子标成「未出刊」，见 #47/#111 那道读取层闸门）。
+      // 「判完 + 没存期次 + `candidates()` 却非零」= 出刊路径漏了一天，不是"那天没内容"。
+      // 成本：每个嫌疑日问一次 `candidates()`（它取一次 `report_candidates` 咨询锁）。今天嫌疑日是 0 个，
+      // 排空跑完最多约 280 个，与 `backfill-papers.ts --summary-file` 逐期数一遍同量级。
+      name: "settled_days_unprinted_with_material",
+      hard: true,
+      why: "已判完、没存日报期次、候选却非零的日子：出刊漏印，归档也不该把它说成「那天没有内容」",
+      value: async () => {
+        const suspects = await settledDays(sql, from, to, true);
+        let n = 0;
+        for (const day of suspects) {
+          const { start, end } = dailyWindow(day);
+          if ((await candidates(start, end)).length > 0) n++;
+        }
+        return n;
+      },
+    },
+    {
+      name: "settled_days",
+      hard: false,
+      why: "区间内已判完的日子数：这是进度读数不是合格线，回填全部跑完时它应等于「有材料」的日子数",
+      value: async () => (await settledDays(sql, from, to)).length,
     },
   ];
 }
