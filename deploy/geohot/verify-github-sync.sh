@@ -219,7 +219,17 @@ readme_refs=$(git show "HEAD:$readme_file" | node --input-type=module -e '
 [[ -n "$readme_refs" ]] && while IFS= read -r p; do
   [[ -z "$p" ]] && continue
   excluded "$p" && continue
-  git cat-file -e "HEAD:$p" 2>/dev/null || bad "$readme_file 引用了仓库里没有的路径：$p"
+  if git cat-file -e "HEAD:$p" 2>/dev/null; then continue; fi
+  # 只看本地 HEAD 会指错方向：宣传片那几件**有意只存在于发布线**（开发线不跟踪 docs/promo/，
+  # 发布时按"带过来处理"搬进推送的树）。于是 README 里一个在公网仓库正常显示的图片引用，
+  # 会被这条判成"仓库里没有的路径"，并跟着那句"按 known-issues 的回滚流程处理"——
+  # 2026-10-12 一天里两次把一次正常发布说成需要回滚。判据改成"发布出去的树里有没有"：
+  # 远端那一份有 ⇒ 只是开发线不跟踪，note；两边都没有 ⇒ 才是真死链，bad。
+  if [[ -n "${remote_sha:-}" ]] && git cat-file -e "$remote_sha:$p" 2>/dev/null; then
+    note "  · $readme_file 引用的 $p 不在开发线，但在已推送的远端树里（发布线独有，按带过来处理）"
+    continue
+  fi
+  bad "$readme_file 引用了仓库里没有的路径：$p"
 done <<< "$readme_refs"
 done
 
