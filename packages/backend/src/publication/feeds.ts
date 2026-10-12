@@ -39,7 +39,14 @@ function cdata(s: string): string {
 }
 
 function rfc822(d: Date): string {
-  return d.toUTCString();
+  // 这份报纸是按北京时间合窗的，用 GMT 印出来就会说错日子：一期 10-11 08:00（北京）合窗的日报
+  // 印成 `Sun, 11 Oct 2026 00:0x GMT`，只读日期的订阅者会以为它是 10-10。RFC 822 允许数字偏移，
+  // 所以给 +0800 与北京的墙钟时间——同一时刻，日子不再错位。（线上实测：feed 里每一条都是 GMT。）
+  const bj = new Date(d.getTime() + 8 * 3600_000);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][bj.getUTCDay()]}, ${p(bj.getUTCDate())} `
+    + `${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][bj.getUTCMonth()]} `
+    + `${bj.getUTCFullYear()} ${p(bj.getUTCHours())}:${p(bj.getUTCMinutes())}:${p(bj.getUTCSeconds())} +0800`;
 }
 
 /**

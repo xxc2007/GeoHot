@@ -22,4 +22,8 @@
 -- "最好换一家"），或站长手工抽查判断质量。要它承担吞吐，得给这个账号绑计费抬档——那是站长的钱。
 INSERT INTO budgets (service, per_minute, per_hour, per_day, note) VALUES
   ('gemini', 5, 20, 20, '模型调用熔断（Google AI Studio 免费档：对端 429 报文点名 5 次/分钟、20 次/天，见本迁移注释）')
-ON CONFLICT (service) DO UPDATE SET per_minute = 5, per_hour = 20, per_day = 20, note = EXCLUDED.note;
+-- 用 DO NOTHING 而不是 DO UPDATE：这一行是**新服务的第一条**，写它的人（未来的站长）可能在后台
+-- 「设置 → 预算」里先调过它，而部署那次不该把他调的数与 note 一起打回默认。
+-- 与迁移 0058（workbuddy 同为新服务）同一条选择；0056 那种 DO UPDATE 是
+-- 
+ON CONFLICT (service) DO NOTHING;

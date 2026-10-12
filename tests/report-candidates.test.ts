@@ -250,3 +250,17 @@ test("an event that only got a 快讯 line yesterday is not reprinted today as a
   assert.equal(inSection(printed, repeat), false, "同一个事件昨天只在快讯里露过一次面，今天不能以整篇重印");
   assert.equal(inFlash(printed, repeat), false, "重印也不许藏在快讯里");
 });
+
+// 存版导语标题里的指示代词时间词。线上实测过一份 2026-W40（窗口到 10-04）在 10-12 仍印着
+// 「本周的 14 件地理大事」：标题是模型写的、存进 `reports.content`，而"本周"指向的是写它那一天。
+// 版面自己会从期号算该说本期还是本周，所以存版里出现这类话就该被拒收，而不是等到下一周变成假话。
+test("导语标题用了「本周/本月/今日」这一类话时整条拒收", async () => {
+  const { unusableLead } = await import("@aihot/backend/reports/compose");
+  const ok = { title: "青藏高原东缘滑坡阻断支流形成堰塞湖", leadParagraph: "这次滑坡堵住了岷江的一条支流，形成堰塞湖。" };
+  assert.equal(unusableLead(ok), null, "正常标题不该被拒");
+  for (const title of ["本周的 14 件地理大事", "本月地理要闻", "今日发生的一次强震", "上周的三条主线"]) {
+    assert.match(String(unusableLead({ ...ok, title })), /本周|存版/, `${title} 应当被拒收`);
+  }
+  // 导语正文不在这条判据里：一段自然的中文里出现"当天"是叙述，不是一个会过期的标签。
+  assert.equal(unusableLead({ ...ok, leadParagraph: "本周的救援仍在继续，这是当天最要紧的变化。" }), null);
+});

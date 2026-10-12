@@ -17,6 +17,7 @@ import { CATEGORIES, RELEASE_CATEGORY_KEY } from "@aihot/industry/taxonomy";
 import { promptText, promptVersion } from "../editorial/prompts.ts";
 import { modelFor } from "../editorial/models.ts";
 import { machineRuleOf } from "../editorial/provenance.ts";
+import { DEICTIC_TIME_WORD } from "../lib/text.ts";
 import { guardedStoryTitle, looksZh, type TranslateInput } from "../editorial/writing.ts";
 import { addDays, beijingDate, beijingMidnight, isoWeekLabel, isoWeekRange } from "@aihot/contracts/time";
 import { sql, type Tx } from "../db.ts";
@@ -193,8 +194,14 @@ function unusablePeriod(d: { overview: string; themes: Array<{ heading: string; 
  * without a lead, and `chatJson` refuses the receipt — so an English or empty 导语 is not handed back to us
  * for free on every later run of this issue (see providers/llm.ts `usable`).
  */
-function unusableLead(d: { title: string; leadParagraph: string }): string | null {
-  return !d.title.trim() || !d.leadParagraph.trim() || !looksZh(d.title) || !looksZh(d.leadParagraph) ? "标题或导语不是可用的中文" : null;
+export function unusableLead(d: { title: string; leadParagraph: string }): string | null {
+  if (!d.title.trim() || !d.leadParagraph.trim() || !looksZh(d.title) || !looksZh(d.leadParagraph)) return "标题或导语不是可用的中文";
+  // 导语标题会存进 `reports.content`，而一份存版报纸会在几个月后被翻开读：「本周的 14 件地理大事」
+  // 到下一周就是假话，而线上确实印着这样一份 2026-W40（窗口到 10-04，10-12 打开仍写「本周」）。
+  // 该说本期还是本周，版面从期号自己算（`ReportPaper.tsx:periodWord`），所以存版根本不需要时间指代。
+  // 拒收不伤版面：没有导语时读层有它自己的兜底（分数最高的三条）。
+  if (DEICTIC_TIME_WORD.test(d.title)) return "标题用了本周/本月/今日这类话：存版会在下一期开始说谎";
+  return null;
 }
 
 /**
