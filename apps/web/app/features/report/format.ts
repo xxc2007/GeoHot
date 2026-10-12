@@ -267,7 +267,9 @@ export type AbsentReason = "bad_key" | "no_edition" | "not_yet" | "unreadable";
  * `EDITION`, and a third copy of a clock is how wording starts to disagree.
  */
 export function absentCopy(kind: ReportKind, key: string, reason: AbsentReason): { title: string; body: string } {
-  const label = KIND_LABEL[kind];
+  // 这几句话与「最近一期」「报告详情」的错误页说的是同一件事，报纸的名字要拼上行业词（地理日报），
+  // 不能一边写「暂时读不到地理日报」一边写「暂时读不到这一期日报」。
+  const label = withSubject(KIND_LABEL[kind]);
   if (reason === "not_yet") {
     return { title: `「${key}」还没到出刊时间`, body: `这一期要收录的那段时间还没有走完，所以本站没有${label}的这一版。已经出的那一期在这里。` };
   }

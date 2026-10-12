@@ -236,6 +236,7 @@ curl -s -o /dev/null -w '%{http_code} %{num_redirects} %{url_effective}\n' -L ht
   `source.sha256`，`verify-deploy.sh` 拿磁盘上同一文件重算比对，不一致就是「在跑旧代码」（硬失败）。
   这一条已在 `verify-deploy.sh` 第 2 节里落地，整包升级会自动查。
 - 只改前端（`apps/web/**`）→ 重建 web（带 `BASE_PATH=/geohot`）并重启 `geohot-web`。
+- **重建（`npm run build -w @aihot/web`）之后必须重启 `geohot-web`——只重建不重启，全站交互无声死亡**（2026-10-11 本机实测）：进程内存里持着**旧的** server 构建，SSR HTML 引用的还是旧 chunk 哈希，而磁盘 `build/client/assets/` 已被新构建整个换掉，旧哈希的文件不存在了——12 个资源里 10 个 404（HTML 引 `assets/manifest-795cf4f0.js`，磁盘上是 `manifest-e51859e7.js`）。症状极阴险：页面 200、SSR 内容正常、**控制台零报错**（JS 压根没加载），React Router 永不水合，灯箱/目录抽屉/深浅色/更多菜单/搜索全部退化成整页刷新。判据：把 SSR HTML 里引用的每个 `/assets/*` 逐个 curl 一遍，有 404 即此症；修法只有一条——重启 web（新构建已在磁盘上，重启即加载与之配对的那份 server 构建，两边哈希重新咬合）。整包升级顺序里 build 与 `systemctl restart` 是相邻两步，别拆开中间去干别的。
 - 只改后端（`apps/api`、`packages/backend/**`）→ 重启 `geohot-api` 与 `geohot-worker`。
 - **改了 `jobs/queue.ts` 的 `QUEUE_OPTIONS`（任务重试次数、过期窗口）→ 也是重启 api/worker 就生效**，
   但要知道它凭什么生效：pg-boss 的 `createQueue` 对已存在的队列是空操作（2026-10-06 实测：库里那一格

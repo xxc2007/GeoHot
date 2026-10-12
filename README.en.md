@@ -34,7 +34,7 @@ taxonomy, topics, sources, scoring standard, thresholds, branding, terms pages �
 
 <br>
 
-[I Highlights](#i--highlights) · [II Site map](#ii--site-map) · [III Stack](#iii--stack) · [IV Reuse it for your field](#iv--reuse-it-for-your-field) · [V Run it locally](#v--run-it-locally) · [VI Boundaries and notes](#vi--boundaries-and-notes) · [VII License](#vii--license-and-provenance) · [VIII Star history](#viii--star-history) · [Full handbook](docs/manual.md)
+[🎬 Product film](#-product-film) · [I Highlights](#i--highlights) · [II Site map](#ii--site-map) · [III Stack](#iii--stack) · [IV Reuse it for your field](#iv--reuse-it-for-your-field) · [V Run it locally](#v--run-it-locally) · [VI Boundaries and notes](#vi--boundaries-and-notes) · [VII License](#vii--license-and-provenance) · [VIII Star history](#viii--star-history) · [Full handbook](docs/manual.md)
 
 <br>
 
@@ -65,6 +65,20 @@ arguing about it, a heat value and a trend arrow, and the title may carry a cut-
 **This screen changes daily; the live URL is the source of truth**: <https://xxc2007.me/geohot/>.
 
 </details>
+
+---
+
+---
+
+## 🎬 Product film
+
+A 35.4-second, 1080p film built from real public website captures, using Video Shotcraft. Camera motion and the presentation follow the Nanchang No. 15 memorial film; colours and typography come from this website. The film has Chinese captions. GEOHOT news footage is a frozen capture from 8 October 2026.
+
+[![Watch the product film](docs/promo/poster.jpg)](https://xxc2007.me/assets/promo/geohot/)
+
+https://github.com/user-attachments/assets/0f0d31b0-eaf2-4155-833e-5155f7391110
+
+[Watch in 1080p](https://xxc2007.me/assets/promo/geohot/) · [Source MP4](https://raw.githubusercontent.com/xxc2007/GeoHot/main/docs/promo/geohot-promo.mp4)
 
 ---
 

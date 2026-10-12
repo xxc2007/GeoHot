@@ -1,0 +1,87 @@
+# /etc/systemd/system/geohot-workbuddy-cn.service
+# WorkBuddy **中国版**桥 —— 同一个 tooling/workbuddy-bridge.ts 的另一个变体
+# （WORKBUDDY_VARIANT=workbuddy，上游 https://copilot.tencent.com，127.0.0.1:3066/v1）。
+#
+# 为什么是两个 service、两条桥，而不是给国际版那条加几个模型：
+#   那是**另一个账号**。国际版 www.workbuddy.ai 与中国版 copilot.tencent.com 是两次登录、
+#   两份额度，而本站的 receipts 与 budgets 都按 service 记账（providers/receipts.ts
+#   checkBudget 的 `WHERE service = ...`）。共用一行熔断会让一个账号被限流时花掉另一个账号的
+#   速率窗，可这两份额度本来就是为了互为备份才接的。
+#   2026-10-12 实测：国际版账号的 deepseek-v4.1-flash 撞上账号级频率墙
+#   （`{"code":6004,"msg":"usage exceeds frequency limit ... reset at 2026-10-12 19:10:18 UTC+8"}`），
+#   90 分钟 236 次尝试 0 成功，而同账号的 hy3 / glm-5.3-flash / step-5-preview 照常答话
+#   —— 墙在账号上，不在模型上。中国版同一个 model id 同刻 3749 ms / finish_reason: stop / credit 0.03。
+#   所以 llm.ts 里另开了四条 `workbuddy-cn-*` 预设（service `workbuddy-cn`），
+#   预算行由数据库迁移 0064_workbuddy_cn_budget.sql 单独 INSERT。
+#
+# 凭据：与国际版同一套路。线上没有桌面应用，取不到 at-rest 密钥，所以走
+#   WORKBUDDY_CN_CREDENTIAL_JSON 指向的明文凭据文件。国际版用 `--export-credential` 导出时要带
+#   `WORKBUDDY_VARIANT=workbuddy`，否则导出来的是国际版那一份（uid 会对不上）。
+#   文件 chmod 600 + 属主 geohot —— 等同密码，不进仓库、不进 .data。
+#
+# ⚠️ 两个坑，都踩过：
+#   1. systemd 的 EnvironmentFile **覆盖** Environment=，与文件里出现的先后无关。所以
+#      WORKBUDDY_VARIANT / WORKBUDDY_BRIDGE_PORT 必须放进下面那个独立的 cn env 文件里，
+#      而且它的 EnvironmentFile 行要排在 /opt/geohot/app/.env **之后**（后面的文件优先）。
+#      只写 Environment= 的话，/opt/geohot/app/.env 里的 WORKBUDDY_* 会把它盖回去，
+#      结果是 3066 上跑着一个读国际版凭据的桥：/healthz 的 uid 不是 c38f634e… 就是证据。
+#   2. 端口写死在这里，换口要连 .env 的 WORKBUDDY_CN_BASE_URL 一起换
+#      （两处不一致就是"调用全失败但没有报错"）。
+[Unit]
+Description=GEOHOT WorkBuddy CN bridge (OpenAI-compatible shim over copilot.tencent.com, 127.0.0.1:3066)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=geohot
+Group=geohot
+WorkingDirectory=/opt/geohot/app
+EnvironmentFile=/opt/geohot/app/.env
+# 顺序有意义：后一个文件盖前一个。中国版那组变量写在下面这个文件里（/opt/geohot/workbuddy-cn.env）。
+EnvironmentFile=/opt/geohot/workbuddy-cn.env
+# 与另外几个单元同一套硬覆盖：geohot 账户没有登录 shell，HOME 必须给。
+Environment=NODE_ENV=production
+Environment=AIHOT_ENVIRONMENT=production
+Environment=HOME=/opt/geohot
+Environment=TZ=Asia/Shanghai
+MemoryMax=200M
+MemorySwapMax=600M
+ExecStart=/usr/bin/node tooling/workbuddy-bridge.ts
+Restart=on-failure
+RestartSec=5
+# 与中国版一次调用实测的墙钟（3.7–9.1 s，隐藏推理 200–2000 token）× 余量；
+# 桥自己的上游超时是 300 s（WORKBUDDY_BRIDGE_TIMEOUT_MS 缺省值）；停机要让它把在飞的那次写完。
+TimeoutStopSec=285
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+# 不写 ReadWritePaths：桥不落盘（凭据只读、token 只在内存里）。要写盘就是有 bug。
+# 不禁网：它要出网打 copilot.tencent.com，同机的 api/worker 也要能连它的回环端口。
+
+[Install]
+WantedBy=multi-user.target
+
+# -----------------------------------------------------------------------------
+# 安装（与 geohot-workbuddy.service 同样的理由，**不要**用 install-units.sh：它装完断言
+# `list-unit-files 'geohot*' | wc -l == 4`，而线上现在已经有 7 个 geohot-* 单元文件，加它必红）：
+#   # 中国版那组变量单独一个文件，排在 .env 之后生效
+#   printf '%s\n' \
+#     'WORKBUDDY_VARIANT=workbuddy' \
+#     'WORKBUDDY_BRIDGE_PORT=3066' \
+#     'WORKBUDDY_CREDENTIAL_JSON=/opt/geohot/workbuddy-cn-credential.json' \
+#     'WORKBUDDY_CATALOG_FILE=/opt/geohot/workbuddy-cn-catalog.json' \
+#     | sudo install -m 600 -o geohot -g geohot /dev/stdin /opt/geohot/workbuddy-cn.env
+#   sudo cp deploy/geohot/systemd/geohot-workbuddy-cn.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now geohot-workbuddy-cn
+#   curl -s http://127.0.0.1:3066/healthz   # account.variant 必须是 workbuddy、region 是 cn、uid 是 c38f634e…
+# 本机（Windows）起同一条桥只为了探针：$env:WORKBUDDY_VARIANT='workbuddy';
+#   node tooling/workbuddy-bridge.ts --probe deepseek-v4.1-flash max
+# -----------------------------------------------------------------------------

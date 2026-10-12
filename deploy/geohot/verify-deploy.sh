@@ -164,6 +164,28 @@ if command -v systemctl >/dev/null 2>&1; then
       [[ "$state" == "active" ]] && ok "geohot-workbuddy active" \
         || bad "geohot-workbuddy 状态=$state —— 它承担这台机器上大部分判定调用，装了却停着就是模型这一路没了"
     fi
+    # 第二条桥（中国版，127.0.0.1:3066）装了就必须查，而且**不能只查活不活**。
+    # 它的配置来自 /opt/geohot/workbuddy-cn.env（systemd 的 EnvironmentFile 会盖过 .env，
+    # 顺序有意义），少了那个文件、或它写的是国际版的值，3066 上就会跑着一条
+    # "读国际版凭据的桥"：进程 active、/healthz 200、判定照样花钱，但中国版那份额度根本没接上——
+    # 而这正是我们接第二条桥的唯一理由。所以这里读 healthz 自报的 variant/region 来判，不猜。
+    if [[ -n "$(systemctl list-unit-files geohot-workbuddy-cn.service --no-legend 2>/dev/null)" ]]; then
+      state=$(systemctl is-active geohot-workbuddy-cn 2>/dev/null || true)
+      if [[ "$state" != "active" ]]; then
+        bad "geohot-workbuddy-cn 状态=$state —— 中国版渠道停了，国际版被账号级频率墙挡住时就没有备份门了"
+      else
+        cn_hz="$(curl -s --max-time 10 http://127.0.0.1:3066/healthz || true)"
+        cn_variant=$(printf '%s' "$cn_hz" | tr -d ' \n' | grep -oE '"variant":"[a-z-]+"' | head -1 | sed -E 's/.*:"(.*)"/\1/')
+        cn_uid=$(printf '%s' "$cn_hz" | tr -d ' \n' | grep -oE '"uid":"[0-9a-f]{6,}' | head -1 | sed -E 's/.*:"(.*)"/\1/')
+        if [[ -z "$cn_variant" ]]; then
+          note "3066 的 /healthz 没报 account.variant（桥版本太旧或没答）——这一条判不了，去 curl 一次亲眼看"
+        elif [[ "$cn_variant" != "workbuddy" ]]; then
+          bad "3066 上跑的桥 variant=$cn_variant，不是 workbuddy（中国版）——它读的是别的渠道的凭据，中国版额度没接上"
+        else
+          ok "geohot-workbuddy-cn active，variant=$cn_variant uid=${cn_uid:-未报}…"
+        fi
+      fi
+    fi
     if [[ -n "$(systemctl list-unit-files geohot-archive.timer --no-legend 2>/dev/null)" ]]; then
       armed=$(systemctl is-enabled geohot-archive.timer 2>/dev/null || true)
       state=$(systemctl is-active geohot-archive.timer 2>/dev/null || true)

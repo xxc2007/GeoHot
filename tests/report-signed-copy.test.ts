@@ -140,7 +140,7 @@ test("规则写的周报主题退回本报的分栏：条目和分栏留着，�
   answer = {
     headline: "",
     overview: `本期覆盖 2021-03-08 至 2021-03-14，共 2 条入选动态，分 1 个主题列出。`,
-    themes: [{ heading: "主题", summary: `本主题 2 条（条目 1、2），按入选分数排列。`, refs: [1, 2] }],
+    themes: [{ heading: "主题", summary: `本主题 2 条（条目 1、2），按 AI 评分排列。`, refs: [1, 2] }],
   };
   await composeWeekly(WEEK, "test");
   const content = await contentOf("weekly", WEEK);

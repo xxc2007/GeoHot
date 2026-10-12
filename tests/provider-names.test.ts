@@ -25,10 +25,12 @@ test("MODELS 里每一把门在报警里都有自己的名字、影响和去处"
 });
 
 // 上面那条判据遍历的是 MODELS 里的门。光那样还能被"把 MODELS 里那两路和 PROVIDERS 里那一行一起删掉"
-// 绕过去（两边同时消失，遍历就少一项，测试照样绿），所以这里点名：这六把门必须还有名字。
-// 它们都是生产上真在接活的一扇（2026-10-12 实测 workbuddy 与 dots 合起来承担判定调用的大头）。
-test("这六把门不许从报警里消失（点名，不接受「两边一起删」）", () => {
-  for (const service of ["llm", "agnes-cn", "dots", "openrouter", "opencode", "workbuddy"]) {
+// 绕过去（两边同时消失，遍历就少一项，测试照样绿），所以这里点名：这七把门必须还有名字。
+// 它们都是生产上真在接活的一扇（2026-10-12 实测 workbuddy 与 dots 合起来承担判定调用的大头；
+// workbuddy-cn 是同日接上的第二份账号额度 —— 国际版账号的 deepseek 被频率墙打到 19:10，
+// 中国版同刻 3.7 秒正常，两份额度互为备份才让"一个账号被墙"不等于"这一步没有模型"）。
+test("这七把门不许从报警里消失（点名，不接受「两边一起删」）", () => {
+  for (const service of ["llm", "agnes-cn", "dots", "openrouter", "opencode", "workbuddy", "workbuddy-cn"]) {
     assert.notEqual(providerName(service), service, `${service} 从 PROVIDERS 里没了`);
   }
 });

@@ -42,6 +42,8 @@ export interface ItemRow {
   x_post: Record<string, any> | null;
   author: string | null;
   language: string | null;
+  /** SQL-bounded media slice (see `ITEM_COLUMNS`): the card's video stills, never the whole JSONB column. */
+  media: unknown;
   story_public_id: string | null;
   story_title: string | null;
   zh_text: string | null;
@@ -49,13 +51,25 @@ export interface ItemRow {
   quoted_zh: string | null;
 }
 
-/** Columns every item listing selects. Internal judgement details never leave this layer. */
+/**
+ * Columns every item listing selects. Internal judgement details never leave this layer.
+ *
+ * `media` is bounded on the SQL side: only the video stills a card may borrow (at most three
+ * `kind: "video"` entries that carry a poster), sliced out of `articles.media` — a listing row never
+ * drags the whole JSONB column, whose full body only the detail read selects. Whether a poster is
+ * proxyable is a JS-side question; `cardMedia` re-checks what SQL cannot sign.
+ */
 export const ITEM_COLUMNS = sql`
   p.article_id AS id, p.revision, p.title, p.original_title, p.summary, p.reason, p.category, p.tags, p.score,
   p.selected, p.channel, p.url, p.published_at, p.discovered_at, p.timeline_at, p.sort_at, p.first_party, p.visibility,
   p.body_mode, p.syndicate, p.indexable, p.visible_after, p.fact_id, p.story_id,
   s.id AS source_id, s.name AS source_name, s.kind AS source_kind, s.participation_mode AS source_mode, s.icon_url AS source_icon,
   a.x_post, a.author, a.language,
+  (SELECT jsonb_agg(m ORDER BY ord) FROM (
+    SELECT m, ord FROM jsonb_array_elements(CASE WHEN jsonb_typeof(a.media) = 'array' THEN a.media END) WITH ORDINALITY AS t(m, ord)
+    WHERE m->>'kind' = 'video' AND m->>'poster' IS NOT NULL
+    ORDER BY ord LIMIT 3
+  ) slice) AS media,
   st.public_id::text AS story_public_id, st.title AS story_title,
   CASE WHEN p.channel = 'x' THEN tr.body_text END AS zh_text, qt.text_zh AS quoted_zh`;
 
@@ -191,6 +205,28 @@ export function videoMedia(media: unknown): MediaView[] {
   return out;
 }
 
+/**
+ * The card-tier twin of {@link videoMedia}: the same licence — only a video source's own still, at most
+ * three — but sized for a list row, with a thumb poster and srcSet plus the full frame for a lightbox.
+ * The row arrives as the SQL-side slice, so what is re-checked here is what SQL cannot know: that the
+ * poster is proxyable at all. `url` is the still, not the watch address — that is not an image, and a
+ * lightbox (or the pre-read warm-up) pointed at it would 502.
+ */
+export function cardMedia(media: unknown): MediaView[] {
+  const out: MediaView[] = [];
+  for (const raw of Array.isArray(media) ? media : []) {
+    if (!raw || typeof raw !== "object") continue;
+    const m = raw as Record<string, unknown>;
+    if (m.kind !== "video" || typeof m.poster !== "string") continue;
+    // mediaView mints every signed URL from `url`; handing it the poster keeps the whole view an image.
+    const view = mediaView({ ...m, url: m.poster }, "thumb", true);
+    if (!view) continue;
+    out.push(view);
+    if (out.length >= 3) break;
+  }
+  return out;
+}
+
 export function xView(row: Pick<ItemRow, "x_post" | "zh_text"> & Partial<Pick<ItemRow, "quoted_zh">>, compact = false, responsive = compact): XPostView | null {
   const x = row.x_post;
   if (!x) return null;
@@ -259,6 +295,8 @@ export function toFeedItemSummary(row: ItemRow): FeedItemSummary {
     id: item.id, title: item.title, summary: item.summary, reason: item.reason,
     source: { name: item.source.name }, publishedAt: item.publishedAt, timelineAt: item.timelineAt,
     category: item.category, tags: item.tags, score: item.score, selected: item.selected, channel: item.channel,
+    // Only a news row lends stills here; an X post's media already sits in x.media and would render twice.
+    ...(row.channel === "x" ? null : { media: cardMedia(row.media) }),
     x: item.x ? {
       authorName: item.x.authorName, handle: item.x.handle, avatarUrl: item.x.avatarUrl,
       ...(item.x.avatarSrcSet ? { avatarSrcSet: item.x.avatarSrcSet } : {}), media: item.x.media,

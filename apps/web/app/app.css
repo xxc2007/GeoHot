@@ -335,6 +335,12 @@
   .disclosure > summary::-webkit-details-marker {
     display: none;
   }
+  /* Touch hit-area extension (see the coarse-pointer block at the bottom of this file): elements whose
+     visual size must stay small grow an invisible ring under a coarse pointer. The element has to be
+     positioned for the ::after to anchor to — that is what this class carries. */
+  .tap-hit {
+    position: relative;
+  }
 }
 
 /* Where the browser can animate to an auto height, disclosures open and close smoothly. */
@@ -632,12 +638,24 @@
   select,
   a[class*="inline-flex"] { min-height: 44px; }
 
-  /* 行内文字链：撑高命中区域，同时把多出来的高度用负 margin 还回去 */
+  /* 链接胶囊（主题、标签）不叫 inline-flex，上面的选择器够不着它；当控件撑高，
+     不用负 margin 还回去——胶囊成组出现在 flex-wrap 行里，命中区域互压比变高更伤。 */
+  a.chip { min-height: 44px; }
+
+  /* 行内文字链：撑高命中区域，同时把多出来的高度用负 margin 还回去。
+     article > header > a 是卡片头里的分类链接（FeedItem 把分类挪进卡头之后新出现的 18px 目标，
+     2026-10-11 mobile-audit 实量），同一形状同一治法。 */
   p > a[href],
   li > a[href],
   dd > a[href],
-  figcaption a[href] { padding-block: 11px; margin-block: -11px; }
+  figcaption a[href],
+  article > header > a[href] { padding-block: 11px; margin-block: -11px; }
 
   /* 分页/筛选条这类横向滚动的控件，宁可稍高也不要贴着上下两行可点区域 */
   nav[aria-label] a[class*="inline-flex"] { min-height: 44px; }
+
+  /* min-height 只解决了高度。宽度不足的图标按钮与短链接（size-8 的分享/菜单/收藏、
+     报纸引文里的「原文」、页脚的 RSS）用一圈看不见的命中外延补足——绝对定位的 ::after
+     不参与布局，视觉尺寸、圆角与焦点环一动不动（2026-10-11 mobile-audit 实量：32×44）。 */
+  .tap-hit::after { content: ""; position: absolute; inset: -6px; border-radius: inherit; }
 }

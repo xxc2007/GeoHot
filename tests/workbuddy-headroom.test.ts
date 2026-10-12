@@ -27,6 +27,7 @@ const provider = await stub((_hit, req) => {
 const P = `workbuddy-headroom-${tag()}`;
 Object.assign(process.env, {
   WORKBUDDY_BASE_URL: `${provider.url}/v1`, WORKBUDDY_API_KEY: "test-key",
+  WORKBUDDY_CN_BASE_URL: `${provider.url}/v1`, WORKBUDDY_CN_API_KEY: "test-key",
   DEEPSEEK_BASE_URL: `${provider.url}/v1`, DEEPSEEK_API_KEY: "test-key",
 });
 
@@ -77,6 +78,24 @@ test("every workbuddy preset carries the headroom and the vision verdict the mea
   // The strongest effort each model advertises, not one value for the channel: only glm lists `max`.
   assert.deepEqual(MODELS["workbuddy-glm-flash"]!.extra, { reasoning_effort: "max" });
   assert.deepEqual(MODELS["workbuddy-step5-preview"]!.extra, { reasoning_effort: "high" });
+  // The Chinese account reaches the same four ids through 3066. Same model, same dials, same vision verdicts —
+  // only `service` and the two env vars differ, and that separation is the whole point (two accounts, two
+  // breakers). Anything that drifts here means the two doors stopped being the same model.
+  for (const [cn, intl] of [
+    ["workbuddy-cn-deepseek-flash", "workbuddy-deepseek-flash"],
+    ["workbuddy-cn-hy3", "workbuddy-hy3"],
+    ["workbuddy-cn-glm-flash", "workbuddy-glm-flash"],
+    ["workbuddy-cn-step5-preview", "workbuddy-step5-preview"],
+  ] as const) {
+    assert.equal(MODELS[cn]!.model, MODELS[intl]!.model, `${cn} must name the same upstream model as ${intl}`);
+    assert.equal(MODELS[cn]!.reasoningHeadroom, MODELS[intl]!.reasoningHeadroom, `${cn} headroom drifted from ${intl}`);
+    assert.equal(MODELS[cn]!.vision, MODELS[intl]!.vision, `${cn} vision verdict drifted from ${intl}`);
+    assert.deepEqual(MODELS[cn]!.extra, MODELS[intl]!.extra, `${cn} effort drifted from ${intl}`);
+    assert.equal(MODELS[cn]!.service, "workbuddy-cn", `${cn} must ride its own service or it spends the other account's breaker`);
+    assert.equal(MODELS[cn]!.baseUrlEnv, "WORKBUDDY_CN_BASE_URL");
+    assert.equal(MODELS[cn]!.apiKeyEnv, "WORKBUDDY_CN_API_KEY");
+    assert.notEqual(MODELS[cn]!.key, MODELS[intl]!.key);
+  }
 });
 
 test("the two new presets differ from the zhipu entries of the same upstream model, or they would spend its breaker", () => {
@@ -145,6 +164,10 @@ test("each new preset clears the chain measured for it, and stays inside the clo
   const MEASURED = [
     { key: "workbuddy-glm-flash", msPerToken: 17.8, clears: 6_201 },
     { key: "workbuddy-step5-preview", msPerToken: 9.49, clears: 1_737 },
+    // The Chinese account reaches the same four model ids through a second bridge, so the dials and the rates
+    // carry over unchanged and must be checked on both doors — the measurements are properties of the model.
+    { key: "workbuddy-cn-glm-flash", msPerToken: 17.8, clears: 6_201 },
+    { key: "workbuddy-cn-step5-preview", msPerToken: 9.49, clears: 1_737 },
   ];
   // What each step asks for and the clock it is given: llm.ts:420 defaults a reasoning preset to 240 s, and only
   // score (analyze.ts:73), translate (translate.ts:90/285) and understand (analyze.ts:321) pass their own.
@@ -200,6 +223,17 @@ test("the three steps glm-5.3-flash is kept out of are over budget by arithmetic
   for (const { asked } of OVER_BUDGET.filter((s) => s.step === "translate body")) {
     assert.ok((asked + headroom) * msPerToken > 255_000, "the body translation cannot be rescued by the worker's shutdown ceiling either");
   }
+  // The Chinese door carries the same model, so the same three steps are over budget through it. If only one
+  // door were excluded, the pool would quietly reintroduce glm on the other and the arithmetic above would
+  // describe half the truth.
+  const cnHeadroom = MODELS["workbuddy-cn-glm-flash"]!.reasoningHeadroom!;
+  assert.equal(cnHeadroom, headroom, "the two doors carry the identical upstream model, so they cannot carry different headrooms");
+  for (const { step, asked, clock } of OVER_BUDGET) {
+    assert.ok(
+      (asked + cnHeadroom) * msPerToken >= clock,
+      `${step}: glm through the Chinese door now fits in ${clock / 1000} s — it has to be excluded from that step's list too`,
+    );
+  }
 });
 
 test("the headroom clears the chains we measured, and understand's clock clears its cap", () => {
@@ -216,7 +250,7 @@ test("the headroom clears the chains we measured, and understand's clock clears 
   // widest request the step can make still has to fit inside the step's timeout.
   const MS_PER_TOKEN = 6.72;
   const LONGEST_SUCCESSFUL = { score: 7_007, structure: 6_760, summarize: 7_834 };
-  for (const key of ["workbuddy-deepseek-flash", "workbuddy-hy3"]) {
+  for (const key of ["workbuddy-deepseek-flash", "workbuddy-hy3", "workbuddy-cn-deepseek-flash", "workbuddy-cn-hy3"]) {
     const headroom = MODELS[key]!.reasoningHeadroom!;
     for (const [step, longest] of Object.entries(LONGEST_SUCCESSFUL)) {
       assert.ok(headroom > longest, `${key} on ${step}: a ${headroom}-token headroom does not clear the longest chain seen, ${longest}`);

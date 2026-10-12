@@ -212,3 +212,38 @@ test("every tag a topic page matches on is one the runtime can emit", () => {
   assert.equal(CATEGORIES.some((c) => c.label === UPSTREAM_SECTION || c.section === UPSTREAM_SECTION), false,
     `没有任何地理类别叫「${UPSTREAM_SECTION}」，所以 compose.ts 那行读到的恒为 0（日报少一行指标，不会显示错数）`);
 });
+
+test("no-entity topics match only tags audited as scoped to their own definition", () => {
+  // 主题页的匹配是「条目标签与主题标签数组求交集」（topics.ts 的 topicMatchTags / items.ts 的
+  // topicCondition），所以主题标签表里每一个写法都必须是「单凭它就能把条目放进主题」的充分条件。
+  // 2026-10-11 审计前的表不满足：青藏高原挂着「生态与保护」「冰川与冻土」「考察/记录」这类全球通用
+  // 标签，亚马逊毁林、格陵兰冰盖、南极海冰（本地 9 条里 0 条真在高原）全被收进主题页，线上同病
+  // （自述 177 条，抽样前 20 条仅 1 条与高原有关）；地震挂着「预警/响应」，把台风洪水预警也灌进地震页。
+  // 「某个标签对一个主题算不算泛化」是人的判断，代码验不出来——这里只能把审计过的标签集逐字钉死：
+  // 要往里面加回任何一个宽标签（或把 tags: [] 的两个区域主题填回去），先对着 definition 重审一遍，
+  // 并确认词表（taxonomy.ts）真的产得出「只在那个区域/题材出现」的写法；没有就先加词表，别扩匹配。
+  // 只钉本轮审过的 14 个主题；没审过的不钉，免得给正常的内容运营上锁。
+  const topics = (JSON.parse(readFileSync(new URL("../industry/topics.json", import.meta.url), "utf8")) as { topics: Array<{ slug: string; entityId?: string; tags: string[] }> }).topics;
+  const bySlug = new Map(topics.map((t) => [t.slug, t.tags]));
+  const audited: Array<[string, string[]]> = [
+    ["qinghai-tibet-plateau", ["高原"]],               // 词表里 青藏高原→高原 是唯一锚；黄土高原等近邻会随之进来，是已知残留
+    ["arctic-ocean", ["冰川与冻土"]],                 // 定义点名格陵兰冰盖；非极地冰川随之进来，是已知残留
+    ["arid-west-asia-north-africa", []],              // 词表产不出任何 scoped 写法，宁可空态也不错收
+    ["east-china-coastal-city-region", []],           // 同上
+    ["ring-of-fire", ["地震", "火山", "海啸与风暴潮"]], // 环带本身表达不了；地震/火山就是它的实质，环带外震情是已知残留
+    ["earthquakes", ["地震"]],
+    ["tropical-cyclones", ["台风与寒潮", "海啸与风暴潮"]],
+    ["cryosphere", ["冰川与冻土", "海平面"]],
+    ["ocean-coast", ["海洋", "海平面"]],
+    ["soil-land", ["土壤", "植被"]],
+    ["administrative-divisions", ["行政区划调整", "政治地理"]],
+    ["satellite-navigation", ["卫星导航", "GIS与空间数据"]],
+    ["exploration-reports", ["考察/记录"]],
+    ["transport-geography", ["交通地理", "经济地理"]],
+    ["imagery-collections", ["遥感影像", "地图与图集"]],
+  ];
+  for (const [slug, tags] of audited) {
+    assert.ok(bySlug.has(slug), `被审计的主题 ${slug} 不在 topics.json 里了——把这一行从钉子表里撤掉并说明去向`);
+    assert.deepEqual(bySlug.get(slug), tags, `主题 ${slug} 的匹配标签变了：重新对照 definition 审一遍泛化程度，再改这里`);
+  }
+});

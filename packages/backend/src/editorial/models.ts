@@ -141,7 +141,29 @@ async function overrides(): Promise<Record<string, string>> {
  * do NOT match: that window reopens on a schedule we control, and benching the provider for it would hide a
  * perfectly healthy door. Nor can this rule deadlock: the moment the provider answers once, that answer is
  * among the six newest and the door is a candidate again.
+ *
+ * Both rules answer for a **member**, not for a door. Keyed on the service alone they do not say "this door
+ * is refusing"; they say "the busiest member of this door is refusing", and the other members pay for it.
+ * Measured 2026-10-12: WorkBuddy's account-level frequency wall silenced `deepseek-v4.1-flash`, which wrote
+ * six 429s three seconds apart (04:46:27Z–04:46:30Z). Those six were the door's six newest attempts, so the
+ * whole door was benched — including `hy3`, which had answered 431 times in the previous half hour without a
+ * single failure, and `glm-5.3-flash` and `step-5-preview`, which the bridge served fine throughout (200 in
+ * 7-8 s, measured on production). Worse, the verdict *latches*: a benched door is never called, so nothing
+ * new is written and the six refusals stay newest until they age out of the six-hour window at 18:46 CST.
+ * Partitioning by `(service, model)` benches exactly the member that refused; the door's other members keep
+ * serving, and a door that really is down benches member by member because every member's own newest six are
+ * then refusals too. Attempts written before this column was populated carry a NULL model and still bench
+ * the whole service, which is the conservative reading of an attempt we cannot attribute.
  */
+const benchedKey = (service: string, model: string | null): string => (model ? `${service}|${model}` : service);
+
+/** Is this registry member out of service? Either the whole door was benched (an unattributable attempt) or
+ * this member's own record was. The second test is the one that keeps a healthy sibling serving. */
+function benched(sick: Set<string>, name: string): boolean {
+  const spec = MODELS[name]!;
+  return sick.has(spec.service) || sick.has(benchedKey(spec.service, spec.model));
+}
+
 let health: { at: number; sick: Set<string> } | null = null;
 
 export async function sickServices(): Promise<Set<string>> {
@@ -150,16 +172,20 @@ export async function sickServices(): Promise<Set<string>> {
   try {
     // A paid answer can arrive but fail the caller's output gate. Discount only the explicitly
     // rejected current attempt; historical attempts and the billing ledger keep their own meaning.
-    const rows = await sql<{ service: string }[]>`
-      SELECT a.service FROM receipt_attempts a LEFT JOIN receipts r ON r.id = a.receipt_id
+    // Two groupings on purpose. The door is still judged as a whole — a door whose attempts mostly fail is
+    // down, however the failures are spread across its members, and this rule cannot latch because it only
+    // sees the last ten minutes. The member grouping is what keeps one drowning member from taking its
+    // siblings with it when the door as a whole still looks busy.
+    const rows = await sql<{ service: string; model: string | null }[]>`
+      SELECT a.service, a.model FROM receipt_attempts a LEFT JOIN receipts r ON r.id = a.receipt_id
        WHERE a.started_at > now() - interval '10 minutes'
          AND a.origin = 'live' AND a.status IN ('received', 'failed', 'unknown')
-       GROUP BY a.service
+       GROUP BY GROUPING SETS ((a.service), (a.service, a.model))
       HAVING count(*) >= 6 AND count(*) FILTER (WHERE a.status = 'received' AND NOT coalesce(
         r.status = 'failed' AND a.attempt = r.attempts
         AND (r.error LIKE 'answer refused:%' OR r.error LIKE 'unusable output:%'), false
       )) * 2 < count(*)`;
-    sick = new Set(rows.map((r) => r.service));
+    sick = new Set(rows.map((r) => benchedKey(r.service, r.model)));
     // The burst/forget cycle the rule above closes: measured 2026-10-11, OpenRouter was refused 37 times in
     // half an hour and answered nothing, yet at 07:36 the verdict was `sick=[]` — during a burst the door
     // fails and is benched, then nobody calls it, its failures age out of the ten-minute window, and the very
@@ -173,20 +199,24 @@ export async function sickServices(): Promise<Set<string>> {
     // shards pinned by article id, and after `MAX_OUTPUT_FAILURES` those articles land in `failed` with no
     // Chinese copy at all. That is the same failure mode the comment under `refusesThisStep` documents for
     // `opencode`, reached through the provider's 429 instead of our output gate.
-    const refused = await sql<{ service: string }[]>`
+    // Partitioned by member for the same reason the rate rule is: `usage exceeds frequency limit` is the
+    // wording of an *account* wall, and one walled member of a door must not bench its siblings. The six
+    // newest attempts of the refusing member are all refusals within seconds of each other, so this still
+    // fires for the member that is actually refusing.
+    const refused = await sql<{ service: string; model: string | null }[]>`
       WITH ranked AS (
-        SELECT a.service, (a.status = 'failed' AND (a.error LIKE '%free-models-per-day%'
+        SELECT a.service, a.model, (a.status = 'failed' AND (a.error LIKE '%free-models-per-day%'
           OR a.error LIKE '%insufficient_quota%' OR a.error LIKE '%exceeded your current quota%'
           OR a.error LIKE '%FreeTierError%' OR a.error LIKE '%今日文本额度已用完%'
           OR a.error LIKE '%usage exceeds frequency limit%')) AS quota_refusal,
-               row_number() OVER (PARTITION BY a.service ORDER BY a.started_at DESC, a.id DESC) AS newest
+               row_number() OVER (PARTITION BY a.service, a.model ORDER BY a.started_at DESC, a.id DESC) AS newest
           FROM receipt_attempts a
          WHERE a.started_at > now() - interval '6 hours'
            AND a.origin = 'live' AND a.status IN ('received', 'failed', 'unknown')
       )
-      SELECT service FROM ranked WHERE newest <= 6 GROUP BY service
+      SELECT service, model FROM ranked WHERE newest <= 6 GROUP BY service, model
         HAVING count(*) = 6 AND count(*) FILTER (WHERE quota_refusal) = 6`;
-    for (const r of refused) sick.add(r.service);
+    for (const r of refused) sick.add(benchedKey(r.service, r.model));
   } catch {
     // Reading the ledger must never decide the request. If the rate rule could not run, no door is benched;
     // if only the quota rule failed, the rate verdict above still stands (throwing it away would re-open the
@@ -316,7 +346,7 @@ export async function modelFor(capability: CapabilityKey, shardKey?: string): Pr
  */
 async function servingMembers(listed: string[], capability: CapabilityKey): Promise<string[]> {
   const sick = await sickServices();
-  const healthy = listed.filter((m) => !sick.has(MODELS[m]!.service));
+  const healthy = listed.filter((m) => !benched(sick, m));
   return shedRefusingMembers(healthy.length ? healthy : listed, capability, await refusalPairs());
 }
 
@@ -349,7 +379,7 @@ export async function budgetFallbackModelsForPurpose(purpose: string, selected: 
   const pairs = await refusalPairs();
   const index = members.indexOf(selected);
   const ordered = [...members.slice(index + 1), ...members.slice(0, index)];
-  const candidates = ordered.filter((name) => usable(name, entry[0]) && !sick.has(MODELS[name]!.service)
+  const candidates = ordered.filter((name) => usable(name, entry[0]) && !benched(sick, name)
     && (!requireVision || MODELS[name]!.vision === true));
   // A door that cannot write this step's copy is not a fallback; if that leaves nothing, the candidates stand.
   return shedRefusingMembers(candidates, entry[0], pairs);

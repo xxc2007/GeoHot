@@ -243,6 +243,19 @@ export default function ItemPage() {
       >
         {originalLabel} <IconExternal size={13} />
       </a>
+      {showOutline && (
+        <button
+          type="button"
+          aria-label="本文目录"
+          title="本文目录"
+          aria-haspopup="dialog"
+          aria-expanded={tocOpen}
+          onClick={openToc}
+          className="tap-hit inline-flex size-8 items-center justify-center rounded-full text-ink-3 hover:text-ink"
+        >
+          <IconList size={17} />
+        </button>
+      )}
       <StarButton item={item} size={32} />
       {moreMenu}
     </div>
@@ -294,8 +307,19 @@ export default function ItemPage() {
           <p className="text-[13.5px] leading-[1.8] text-ink-2">{item.reason}</p>
         </RailSection>
       ) : (
-        verdict && <RailSection title="入选分">{verdict}</RailSection>
+        verdict && <RailSection title="AI 评分">{verdict}</RailSection>
       )}
+      {item.topics?.length ? (
+        <RailSection title="主题">
+          <div className="flex flex-wrap gap-1.5">
+            {item.topics.slice(0, 8).map((t) => (
+              <Link key={t.slug} to={`/topics/${t.slug}`} className="chip">
+                {t.name}
+              </Link>
+            ))}
+          </div>
+        </RailSection>
+      ) : null}
       {item.tags.length > 0 && (
         <RailSection title="标签">
           <div className="flex flex-wrap gap-1.5">
@@ -335,7 +359,7 @@ export default function ItemPage() {
         <a href={item.links.original} target="_blank" rel="noopener noreferrer" className="inline-flex h-8 items-center gap-1 px-1.5 text-[14px] text-ink-2">
           <IconExternal size={15} /> 原文
         </a>
-        <button type="button" aria-label="分享" onClick={share} className="inline-flex size-8 items-center justify-center rounded-full text-ink-3 hover:text-ink">
+        <button type="button" aria-label="分享" onClick={share} className="tap-hit inline-flex size-8 items-center justify-center rounded-full text-ink-3 hover:text-ink">
           <IconShare size={17} />
         </button>
         {moreMenu}
@@ -397,7 +421,7 @@ export default function ItemPage() {
 
           {item.summary && (
             <section className={isX ? "mt-4" : "mt-7 xl:mt-8"}>
-              <div className="mb-2 text-[12px] font-semibold text-accent">{summaryOnly ? "摘要" : "内容提要"}</div>
+              <div className="mb-2 text-[12px] font-semibold text-accent">{summaryOnly ? "摘要" : "AI 导读"}</div>
               <p className="text-[18px] leading-[1.7] text-ink xl:text-[20px] xl:leading-[1.7]">{item.summary}</p>
             </section>
           )}
@@ -479,6 +503,17 @@ export default function ItemPage() {
             </a>
             <span> · {hostOf(item.links.original)}</span>
           </p>
+
+          {/* 手机上右侧栏不渲染，主题/标签照桌面右栏的顺序在这里收尾（主题在上，标签在下）。 */}
+          {item.topics?.length ? (
+            <div className="mt-4 flex flex-wrap gap-1.5 lg:hidden">
+              {item.topics.slice(0, 8).map((t) => (
+                <Link key={t.slug} to={`/topics/${t.slug}`} className="chip">
+                  {t.name}
+                </Link>
+              ))}
+            </div>
+          ) : null}
 
           {item.tags.length > 0 && (
             <div className="mt-4 flex flex-wrap gap-1.5 lg:hidden">

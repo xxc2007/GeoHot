@@ -3,7 +3,7 @@ import { tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import { closeDb, sql } from "@aihot/backend/db";
-import { invalidateModelCache, sickServices } from "@aihot/backend/editorial/models";
+import { invalidateModelCache, modelSources, sickServices } from "@aihot/backend/editorial/models";
 import { BudgetExceededError, logicalKeyFor, paidRequest, ReceiptUnknownError, type ReceiptRequest } from "@aihot/backend/providers/receipts";
 
 const T = tag();
@@ -24,6 +24,9 @@ interface Fixture {
   origin?: "live" | "replay" | "imported";
   ageMinutes?: number;
   request?: ReceiptRequest;
+  /** The upstream model id this attempt named, as `startAttempt` records it. Absent = an attempt written
+   * before that column existed, which the health rules must keep reading as a verdict on the whole door. */
+  model?: string;
 }
 async function attempt(name: string, opts: Fixture = {}) {
   const status = opts.status ?? "received";
@@ -34,8 +37,8 @@ async function attempt(name: string, opts: Fixture = {}) {
   const usage = opts.usage === false ? null : { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 };
   const [receipt] = await sql`INSERT INTO receipts(logical_key,service,purpose,status,error,attempts,origin,usage)
     VALUES(${key},${name},'summarize_article',${opts.receiptStatus ?? status},${opts.error ?? null},${current},${origin},${usage === null ? null : sql.json(usage)}) RETURNING id`;
-  await sql`INSERT INTO receipt_attempts(receipt_id,attempt,service,status,origin,usage,cost,currency,cost_basis,latency_ms,started_at)
-    VALUES(${receipt!.id},${n},${name},${status},${origin},${usage === null ? null : sql.json(usage)},0.01,'USD','actual',10,now()-${opts.ageMinutes ?? 0}*interval '1 minute')`;
+  await sql`INSERT INTO receipt_attempts(receipt_id,attempt,service,model,status,origin,usage,cost,currency,cost_basis,latency_ms,started_at)
+    VALUES(${receipt!.id},${n},${name},${opts.model ?? null},${status},${origin},${usage === null ? null : sql.json(usage)},0.01,'USD','actual',10,now()-${opts.ageMinutes ?? 0}*interval '1 minute')`;
   return receipt!.id as number;
 }
 async function sick(name: string) {
@@ -135,4 +138,66 @@ test("six provider-frequency refusals older than the rate window still bench the
     `HTTP 429: {"error":{"message":"workbuddy rate limited (HTTP 429): {"code":41003,"msg":"usage exceeds frequency limit, but don't worry, your usage will resume soon"}"}}`
   }::text WHERE service=${name}`;
   assert.equal(await sick(name), true, "对端点名「频率超限」属于额度类拒绝：不板凳就等于把条目往 failed 里推");
+});
+
+// 2026-10-12, production: WorkBuddy's frequency wall is an *account* wall — it silenced
+// `deepseek-v4.1-flash` while the same door's `hy3`,
+// `glm-5.3-flash` and `step-5-preview` all answered in 7-8 s (measured 200 on the production bridge).
+// Keyed on the service alone the durable rule did not read "this member is refusing", it read "the door's
+// six newest attempts are refusals" — and those six were the walled member's, written three seconds apart
+// (04:46:27Z–04:46:30Z), which pushed `hy3`'s 431 answered attempts out of the window. The whole door was
+// benched, so three working members stopped serving with it. And the verdict latches: a benched door is
+// never called, so nothing new is written and the six refusals stay newest until they age out six hours
+// later (18:46 CST).
+//
+// So the bench has to name the member. The door stays open for its healthy siblings, and a door that is
+// genuinely down still benches member by member — each member's own newest six are refusals too.
+test("a walled member benches itself, not the healthy siblings sharing its door", async () => {
+  const door = "workbuddy";
+  const walled = "deepseek-v4.1-flash";
+  const pool = "workbuddy-hy3,workbuddy-deepseek-flash";
+  const clear = () => sql`DELETE FROM receipt_attempts WHERE service = ${door} AND started_at > now() - interval '6 hours'`;
+  const [receipt] = await sql<{ id: number }[]>`
+    INSERT INTO receipts (logical_key, service, purpose, status, created_at, updated_at)
+    VALUES (${`member-scope-${T}`}, ${door}, 'pool_health_probe', 'failed', now(), now()) RETURNING id`;
+  const before = {
+    base: process.env.WORKBUDDY_BASE_URL, key: process.env.WORKBUDDY_API_KEY, score: process.env.SCORE_MODEL,
+  };
+  // Six refusals from *one* member, all outside the ten-minute rate window: the durable rule is the only one
+  // that can see them, and this is the shape the production wall writes.
+  const walledOut = async (model: string | null) => {
+    await clear();
+    for (let i = 0; i < 6; i++) {
+      await sql`INSERT INTO receipt_attempts (receipt_id, attempt, service, model, status, error, started_at)
+                VALUES (${receipt!.id}, ${i + 1}, ${door}, ${model}, 'failed',
+                        'HTTP 429: {"code":6004,"msg":"usage exceeds frequency limit, but don''t worry, your usage will reset at 19:10"}',
+                        now() - interval '40 minutes')`;
+    }
+    invalidateModelCache();
+  };
+
+  try {
+    process.env.WORKBUDDY_BASE_URL = "http://127.0.0.1:3065/v1";
+    process.env.WORKBUDDY_API_KEY = "test-key";
+    process.env.SCORE_MODEL = pool;
+    invalidateModelCache();
+
+    await walledOut(walled);
+    const verdict = await sickServices();
+    assert.ok(!verdict.has(door), "被墙的是一个成员，不是整扇门：按门判病会连坐三个正在答话的兄弟");
+    assert.ok(verdict.has(`${door}|${walled}`), "记账要落在被墙的那个成员身上");
+    assert.equal((await modelSources()).score!.serving, "workbuddy-hy3", "健康的兄弟照常服务，只有被墙的成员退出");
+
+    // 旧账（写这条规则时还没有 model 这一列）不能凭空洗白：无从归属的拒绝仍然算整扇门。
+    await walledOut(null);
+    assert.ok((await sickServices()).has(door), "归属不明的拒绝按整扇门处理，这是保守的一侧");
+    assert.equal((await modelSources()).score!.serving, pool, "整扇门判病时 serving 回显配置值");
+  } finally {
+    await clear();
+    await sql`DELETE FROM receipts WHERE id = ${receipt!.id}`;
+    if (before.base === undefined) delete process.env.WORKBUDDY_BASE_URL; else process.env.WORKBUDDY_BASE_URL = before.base;
+    if (before.key === undefined) delete process.env.WORKBUDDY_API_KEY; else process.env.WORKBUDDY_API_KEY = before.key;
+    if (before.score === undefined) delete process.env.SCORE_MODEL; else process.env.SCORE_MODEL = before.score;
+    invalidateModelCache();
+  }
 });

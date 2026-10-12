@@ -61,7 +61,7 @@ export function MediaGallery({ media, postUrl, videoLabel }: { media: MediaView[
           );
         })}
       </div>
-      <Lightbox images={images.map((m) => ({ src: m.url, alt: altOf(m) }))} index={open} onIndex={setOpen} onClose={() => setOpen(null)} />
+      <Lightbox images={images.map((m) => ({ src: m.fullUrl ?? m.url, alt: altOf(m) }))} index={open} onIndex={setOpen} onClose={() => setOpen(null)} />
     </>
   );
 }

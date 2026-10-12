@@ -122,6 +122,36 @@ for unit in "${UNITS[@]}"; do
   if systemctl cat "$unit" > "$WORK/systemd/$unit.txt" 2>/dev/null; then :; else rm "$WORK/systemd/$unit.txt"; fi
 done
 [[ ! -f /etc/nginx/sites-available/xxc2007.me ]] || cp /etc/nginx/sites-available/xxc2007.me "$WORK/nginx-site.conf"
+
+# 上面那段"按 .env 里的绝对路径收文件"收不到**只被 systemd 引用的配置文件**，于是包里会缺两条覆盖链：
+#   /etc/geohot/archive-cycle.conf —— 档案周期跑哪一段（FROM/TO/MAX_ITEMS/SLICES 与出刊阀门都在这），
+#     2026-10-11 就是因为它而两次把"出刊仍需人工 --apply"说错；
+#   /opt/geohot/workbuddy-cn.env —— 3066 那条桥靠它区分中国版/国际版（WORKBUDDY_VARIANT、端口、凭据路径）。
+# 少了前者，恢复出来的机器会照 .env 的默认值跑档案周期；少了后者，按单元注释的原话就是
+# "3066 上跑着一个读国际版凭据的桥"——进程 active、/healthz 200、判定在花钱，但没有中国版额度。
+# 两种都是"包看起来完整、恢复出来是错配置"，所以这里不写死文件名：把刚收进来的每个单元里的
+# EnvironmentFile= 全数解析出来，逐个收掉；非 `-`（可选）前缀而文件不在，判备份失败。
+while IFS= read -r ef; do
+  optional=0
+  [[ "$ef" == -* ]] && { optional=1; ef=${ef#-}; }
+  ef=${ef%\"}; ef=${ef#\"}
+  [[ "$ef" == /* ]] || continue
+  [[ "$ef" == "$APP/.env" ]] && continue          # 应用树自己带，不需要另收
+  if [[ ! -f "$ef" ]]; then
+    if (( optional )); then continue; fi
+    printf '%s is referenced by a bundled unit but missing — the bundle would restore a box with default (wrong) config\n' "$ef" >&2
+    exit 1
+  fi
+  name=$(basename "$ef")
+  if [[ -e "$EXTRA/$name" ]]; then
+    # 与 .env 那条链同样的改名规则：同名不同目录时按上级目录区分，还撞就停，不能安静盖掉。
+    name="$(basename "$(dirname "$ef")")--$name"
+    [[ -e "$EXTRA/$name" ]] && { printf 'cannot collect %s: %s already in the bundle\n' "$ef" "$name" >&2; exit 1; }
+  fi
+  cp "$ef" "$EXTRA/$name"
+  printf '%s\t%s\n' "$name" "$ef" >> "$EXTRA/PATHS.txt"
+  printf 'collected EnvironmentFile referenced by the bundled units: %s\n' "$ef"
+done < <(grep -h '^[[:space:]]*EnvironmentFile=' "$WORK"/systemd/*.txt 2>/dev/null | sed 's/^[^=]*=//' | tr -d '\r' | LC_ALL=C sort -u)
 [[ ! -f /etc/geohot/archive-cycle.conf ]] || cp /etc/geohot/archive-cycle.conf "$WORK/archive-cycle.conf"
 [[ ! -f /opt/geohot/archive-status.json ]] || cp /opt/geohot/archive-status.json "$WORK/archive-status.json"
 node --version > "$WORK/runtime.txt"
