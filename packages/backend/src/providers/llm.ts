@@ -16,14 +16,21 @@ export interface ModelSpec {
   extra?: Record<string, unknown>;
   jsonMode: boolean;
   vision?: boolean;
+  /** 该模型开思考后要先花掉的隐藏 token 数，只在比共用默认值更大时才写。 */
+  reasoningHeadroom?: number;
 }
 
 /** 单次答复的上限：任何调用方要得再多也不越过这条线（现有最大的一档就是它）。 */
 const MAX_OUTPUT_TOKENS = 65_536;
-/** 开思考的模型要先花掉这一段才吐出可见答复（实测 Agnes 3.0 flash 一次 3.6k-4.1k）。 */
+/**
+ * 开思考的模型要先花掉这一段才吐出可见答复（实测 Agnes 3.0 flash 一次 3.6k-4.1k）。
+ * 这是「默认」而不是「全站唯一定值」：链长是模型的属性，不是提这个要求的步骤的属性，
+ * 所以链更长的模型在自己的预设上写 `reasoningHeadroom` 覆盖它。
+ */
 const REASONING_HEADROOM = 6_000;
 
-function extraFromEnv(value: string | undefined): Record<string, unknown> | undefined {  if (!value) return undefined;
+function extraFromEnv(value: string | undefined): Record<string, unknown> | undefined {
+  if (!value) return undefined;
   try {
     return JSON.parse(value) as Record<string, unknown>;
   } catch {
@@ -166,20 +173,40 @@ export const MODELS: Record<string, ModelSpec> = {
   // so from here they look like any other non-streaming OpenAI endpoint. Start the bridge first, or
   // these fail with a connect error (which the caller treats as retryable).
   //
-  // Both are "always reasoning" models: thinking cannot be turned off, and the effort dial only moves
-  // how long the hidden chain gets. Measured on GEOHOT's own selection-score prompt, the chain length
-  // is nearly flat across efforts (hy3: ~2000 hidden tokens at low, high and max alike), so raising
-  // effort buys latency more reliably than quality. "max" is the strongest setting the upstream
-  // accepts; it is not in hy3's advertised list but is accepted and does not error.
+  // Both are "always reasoning" models: thinking cannot be turned off, and the effort dial only moves how
+  // long the hidden chain gets. Measured 2026-10-12 by replaying GEOHOT's own prompts at effort `max`,
+  // deepseek-v4.1-flash spends ~7.6k hidden tokens on the selection-score prompt and ~12-17k on understand.
+  // In production the same model's chain runs p50 2.0k / p90 5.7k on score, p50 2.4k / p90 5.0k on
+  // structure and p50 7.9k / p90 15.9k on understand. The 6,000-token default headroom sat *inside* that
+  // distribution: over one 30 h window, 255 of the 269 replies this model failed had `completion_tokens`
+  // exactly at the request's cap — the chain ate the whole budget and the answer came back empty with
+  // `finish_reason: length`, which reads like a parser bug and is not one. Hence the explicit
+  // `reasoningHeadroom` on both: the cap has to clear the chain, or the step fails for a reason that has
+  // nothing to do with the article.
+  //
+  // Why 16,000 and not more. The cap is a ceiling, not a target — latency follows the chain, not the cap —
+  // but it is not free to raise, because a cap that binds lands `failed` and is retried while an abort
+  // lands `unknown`, which spends the call and then waits for an operator. So the cap has to fire *before*
+  // the clock, i.e. `(asked + headroom) x ms/token` has to fit the step's timeout. These models measured
+  // 4.9-6.7 ms per output token, and every step that can pick one allows at least 180 s; 16,000 keeps the
+  // widest cap (understand's 16,384 + 16,000) inside the 240 s that step now allows, while still clearing
+  // every purpose's observed chain maximum with room — the largest, understand's, reached 21,010 tokens of
+  // completion, against 32,384 available. The chain is heavy-tailed and no number is airtight: single
+  // replays of the structure and understand prompts ran past 47,000 hidden tokens, and those will keep
+  // truncating. Truncating is the acceptable failure; aborting is not.
+  //
+  // `vision`: deepseek-v4.1-flash reads images (measured — named the colour of a test PNG on every try),
+  // hy3 does not (it tokenizes the image and then answers the wrong colour), so hy3 is declared text-only
+  // and analyze.ts stops attaching one to it.
   "workbuddy-hy3": {
     key: "workbuddy-hy3", service: "workbuddy", model: "hy3",
     baseUrlEnv: "WORKBUDDY_BASE_URL", apiKeyEnv: "WORKBUDDY_API_KEY",
-    extra: { reasoning_effort: "max" }, jsonMode: true,
+    extra: { reasoning_effort: "max" }, jsonMode: true, vision: false, reasoningHeadroom: 16_000,
   },
   "workbuddy-deepseek-flash": {
     key: "workbuddy-deepseek-flash", service: "workbuddy", model: "deepseek-v4.1-flash",
     baseUrlEnv: "WORKBUDDY_BASE_URL", apiKeyEnv: "WORKBUDDY_API_KEY",
-    extra: { reasoning_effort: "max" }, jsonMode: true,
+    extra: { reasoning_effort: "max" }, jsonMode: true, vision: true, reasoningHeadroom: 16_000,
   },
 };
 
@@ -272,7 +299,8 @@ function requestFor<S extends z.ZodType>(opts: ChatJsonOptions<S>, spec: ModelSp
     ? { chat_template_kwargs: { enable_thinking: false } } : spec.extra;
   const reasoning = /reasoning_effort|"thinking"/.test(JSON.stringify(extra ?? {})) || spec.key.endsWith("-think")
     || (spec.key === "space-bunny-free" && opts.purpose === "summarize_article" && !legacySummaryParameters);
-  const maxTokens = Math.min(MAX_OUTPUT_TOKENS, Math.max(opts.maxTokens ?? 1500, 512) + (reasoning ? REASONING_HEADROOM : 0));
+  const headroom = reasoning ? spec.reasoningHeadroom ?? REASONING_HEADROOM : 0;
+  const maxTokens = Math.min(MAX_OUTPUT_TOKENS, Math.max(opts.maxTokens ?? 1500, 512) + headroom);
   const userText = typeof opts.user === "string" ? opts.user : JSON.stringify(opts.user);
   const json = spec.jsonMode && opts.json !== false;
   const request: ReceiptRequest = {
@@ -288,6 +316,13 @@ function requestFor<S extends z.ZodType>(opts: ChatJsonOptions<S>, spec: ModelSp
     ...(json ? { response_format: { type: "json_object" } } : {}), ...(extra ?? {}),
   };
   return { request, body, reasoning };
+}
+
+/** What a truncated answer cost, in the three numbers that explain it: the cap it hit, the tokens it
+ *  spent, and how many of those were the hidden chain the caller never sees. */
+function truncationDetail(usage: Record<string, unknown> | null | undefined): string {
+  const details = usage?.completion_tokens_details as { reasoning_tokens?: number } | undefined;
+  return `finish_reason: length after ${usage?.completion_tokens ?? "?"} completion tokens (${details?.reasoning_tokens ?? "?"} of them hidden chain)`;
 }
 
 export async function chatJson<S extends z.ZodType>(opts: ChatJsonOptions<S>): Promise<ChatJsonResult<z.infer<S>>> {
@@ -358,18 +393,21 @@ export async function chatJson<S extends z.ZodType>(opts: ChatJsonOptions<S>): P
 
   const response = receipt.response as { choices?: Array<{ message?: { content?: string }; finish_reason?: string }>; usage?: Record<string, unknown> };
   const content = response.choices?.[0]?.message?.content ?? "";
+  // A cut-off answer is not a malformed one. Without this, an empty reply reads as "no JSON object in
+  // model output" and the next person goes hunting for a parser bug that is not there.
+  const truncated = response.choices?.[0]?.finish_reason === "length" ? ` — ${truncationDetail(response.usage)}` : "";
   let parsed: z.infer<S>;
   try {
     parsed = opts.schema.parse(opts.parse ? opts.parse(content) : extractJson(content));
   } catch (error) {
     // Unusable output: record it and let a later attempt pay for a fresh answer.
-    await rejectReceivedResponse(receipt.receiptId, `unusable output: ${String(error).slice(0, 500)}`);
-    throw new ModelOutputError(`Model ${opts.model} returned unusable output for ${opts.subject}: ${String(error).slice(0, 300)}`);
+    await rejectReceivedResponse(receipt.receiptId, `unusable output: ${String(error).slice(0, 500)}${truncated}`);
+    throw new ModelOutputError(`Model ${opts.model} returned unusable output for ${opts.subject}: ${String(error).slice(0, 300)}${truncated}`);
   }
   // Right shape, no usable words: hand the answer to the caller (it applies its own editorial gate and keeps
   // what the page already has) but refuse the receipt, so the next attempt is a real request.
   const unusable = opts.usable?.(parsed) ?? null;
-  if (unusable) await rejectReceivedResponse(receipt.receiptId, `answer refused: ${unusable.slice(0, 500)}`);
+  if (unusable) await rejectReceivedResponse(receipt.receiptId, `answer refused: ${unusable.slice(0, 500)}${truncated}`);
   const actualModel = candidates.find((c) => logicalKeyFor(c.request) === receipt.logicalKey)?.name ?? spec.key;
   return { data: parsed, receiptId: receipt.receiptId, reused: receipt.reused, model: actualModel, usage: response.usage ?? null };
 }

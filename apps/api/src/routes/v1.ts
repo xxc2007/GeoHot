@@ -22,6 +22,16 @@ export function intParam(value: string | undefined, name: string, min: number, m
   return n;
 }
 
+/**
+ * 期次游标：`before=<该 kind 的期号>` 说"给我比这一期更早的一批"。缺省与空串都是"从最新开始"。
+ * 用游标而不是 offset：回填期间会不断有旧日子结算成新期次，按偏移翻页会跳过或重发中间那几期。
+ */
+export function beforeParam(value: string | undefined, name: string, isValid: (v: string) => boolean, sample: string): string | null {
+  if (value === undefined || value === "") return null;
+  if (!isValid(value)) throw new QueryError(`${name} must be a real period key, e.g. ${sample}.`);
+  return value;
+}
+
 export function enumParam<T extends string>(value: string | undefined, name: string, allowed: readonly T[], fallback: T): T {
   if (value === undefined) return fallback;
   if (!(allowed as readonly string[]).includes(value)) {
@@ -99,9 +109,12 @@ export function registerV1(app: FastifyInstance) {
   }));
 
   app.get("/api/v1/dailies", publicHandler(async (req, reply) => {
-    const q = strictQuery(req, ["limit"]);
+    const q = strictQuery(req, ["limit", "before"]);
     const limit = intParam(q.limit, "limit", 1, 180, 30);
-    return sendJsonWithEtag(req, reply, await v1Dailies(limit), { etagPrefix: "v1-dailies", cacheControl: V1_CACHE_CONTROL.dailies });
+    // `before` 是往前翻的游标。日报回填后约 300 期，而这一页最多给 180 条：没有游标的话，
+    // 最早那 120 期在机器出口上就点不到了（llms.txt 把它写成「历史索引」，那就得真是历史索引）。
+    const before = beforeParam(q.before, "before", isValidDate, "2026-09-30");
+    return sendJsonWithEtag(req, reply, await v1Dailies(limit, before), { etagPrefix: "v1-dailies", cacheControl: V1_CACHE_CONTROL.dailies });
   }));
 
   app.get("/api/v1/dailies/latest", publicHandler(async (req, reply) => {
@@ -126,9 +139,10 @@ export function registerV1(app: FastifyInstance) {
   ] as const;
   for (const p of PERIODS) {
     app.get(`/api/v1/${p.plural}`, publicHandler(async (req, reply) => {
-      const q = strictQuery(req, ["limit"]);
+      const q = strictQuery(req, ["limit", "before"]);
       const limit = intParam(q.limit, "limit", 1, 60, PERIOD_FEED_LIMIT);
-      return sendJsonWithEtag(req, reply, await v1Reports(p.kind, limit), { etagPrefix: `v1-${p.plural}`, cacheControl: p.listCache });
+      const before = beforeParam(q.before, "before", p.isValid, p.sample);
+      return sendJsonWithEtag(req, reply, await v1Reports(p.kind, limit, before), { etagPrefix: `v1-${p.plural}`, cacheControl: p.listCache });
     }));
     app.get(`/api/v1/${p.plural}/latest`, publicHandler(async (req, reply) => {
       strictQuery(req, []);

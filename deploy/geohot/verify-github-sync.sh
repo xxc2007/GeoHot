@@ -96,9 +96,41 @@ missing=$(comm -23 "$WORK/local.paths" "$WORK/remote.paths")
 extra=$(comm -13 "$WORK/local.paths" "$WORK/remote.paths")
 differs=$(join -t$'\t' -j1 "$WORK/local.tsv" "$WORK/remote.tsv" | awk -F'\t' '$2!=$3{print $1}')
 
+# 远端有、本地 HEAD 没有——这一个形状有两种完全相反的含义，不分开就会一直冤枉发布：
+#   · 开发线自己删掉的文件没删成 ⇒ 真的不同步（记红）；
+#   · 发布线上自己长出来的文件 ⇒ 本来就该在那儿。站长的宣传片三件（docs/promo/*）是后一种：
+#     它们在另一台克隆里直接发到 GitHub，本仓库按 a5954b4 把它们退回了版本管理，
+#     而 publish-to-github.sh 第 3.4 步会按同一把尺子把它们带回发布树。
+#     以前这里把三件都记成"远端多文件"，于是每一次发布都要人工解释一遍红——人工解释就是下次真坏掉时没人再看。
+# 分法用共同祖先：祖先树里**没有**这个路径 ⇒ 它从没进过开发线 ⇒ 是发布线的。
+# 这把尺子要用远端**当前那个**提交，所以先确认本地的 origin/<ref> 就是它；本地的 ref 落后时归类会偏松
+# （把"该删没删"也看成"发布线独有"），所以那种情况下退回旧行为：一律记红。
+base_commit=""; carry_all=""
+carried=0
+if [[ -n "$extra" ]]; then
+  remote_sha=$(gh_read "repos/$REPO/git/ref/heads/$REF" --jq .object.sha || true)
+  local_sha=$(git rev-parse --verify -q "refs/remotes/origin/$REF" 2>/dev/null || true)
+  if [[ -n "$remote_sha" && "$remote_sha" == "$local_sha" ]]; then
+    base_commit=$(git merge-base HEAD "$remote_sha" 2>/dev/null || true)
+    # 同一个提交却对不出共同祖先 ⇒ 两条线没有共同历史（仓库重建过、或第一次发布前）。
+    # 那种情况下 publish-to-github.sh 第 3.4 步的规则是"远端独有的一律带回"，这里必须同规则，
+    # 否则健康的仓会被报成"推送成功但验收未通过"——那种红下一次就没人看了。
+    [[ -z "$base_commit" ]] && carry_all=1
+  fi
+  [[ -z "$base_commit" && -z "$carry_all" ]] && note "  （本地的 origin/$REF 不是远端当前提交 ⇒ 远端多出的文件一律按不同步处理）"
+fi
+
 note "比对 $REPO@$REF：本地 ${local_n} 个 blob / 远端 ${remote_n} 个（排除清单来自 $EXCLUDES）"
 [[ -n "$missing" ]] && while IFS= read -r p; do [[ -n "$p" ]] && bad "远端缺文件：$p"; done <<< "$missing"
-[[ -n "$extra"   ]] && while IFS= read -r p; do [[ -n "$p" ]] && bad "远端多文件（本地已删但它还在）：$p"; done <<< "$extra"
+[[ -n "$extra"   ]] && while IFS= read -r p; do
+  [[ -n "$p" ]] || continue
+  if [[ -n "$carry_all" ]] || { [[ -n "$base_commit" ]] && ! git cat-file -e "$base_commit:$p" 2>/dev/null; }; then
+    note "  · 发布线独有、开发线从未有过，按带过来处理：$p"
+    carried=$((carried + 1))
+    continue
+  fi
+  bad "远端多文件（本地已删但它还在）：$p"
+done <<< "$extra"
 [[ -n "$differs" ]] && while IFS= read -r p; do [[ -n "$p" ]] && bad "内容不同：$p"; done <<< "$differs"
 
 # ── 3. 图片要真能从 GitHub 取回来、而且还是那张图。
@@ -179,7 +211,7 @@ done <<< "$readme_refs"
 done
 
 if [[ $fails -eq 0 ]]; then
-  note "✓ 本地 HEAD（去掉 $EXCLUDES 声明的路径）与 $REPO@$REF 逐字节一致：${local_n} 个 blob 全等、图片可从远端取回且签名完好、SVG 可严格解析、README 引用全部命中"
+  note "✓ 本地 HEAD（去掉 $EXCLUDES 声明的路径）与 $REPO@$REF 逐字节一致：${local_n} 个 blob 全等、发布线独有 $carried 个按带过来处理、图片可从远端取回且签名完好、SVG 可严格解析、README 引用全部命中"
   exit 0
 fi
 note "✗ 同步检查失败 $fails 项"

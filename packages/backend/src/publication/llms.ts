@@ -39,7 +39,7 @@ export function llmsTxt(opts: { hasDailies: boolean; hasWeekly: boolean; hasMont
   lines.push(`> ${SITE.description}`, "");
   lines.push("## 给 Agent 的数据接口", "");
   lines.push("所有接口匿名只读、无需 API Key。", "");
-  lines.push(`- [MCP Server](${u("/api/mcp")}): 远程 Streamable HTTP，版本 ${PUBLIC_VERSIONS.mcp}；提供 ${MCP_TOOLS.map((t) => t.name).join("、")} ${MCP_TOOLS.length} 个只读工具`);
+  lines.push(`- [MCP Server](${u("/api/mcp")}): 给 MCP 客户端填的连接地址，远程 Streamable HTTP，版本 ${PUBLIC_VERSIONS.mcp}；提供 ${MCP_TOOLS.map((t) => t.name).join("、")} ${MCP_TOOLS.length} 个只读工具。它不是网页——浏览器直接打开会回 405（这台服务器无状态运行，不提供 GET 流）`);
   lines.push(`- [精选摘要 RSS](${u("/feed.xml")}): 最新 50 条精选摘要，保留标题、站内阅读与原文入口`);
   lines.push(`- [精选全文 RSS](${u("/feed/full.xml")}): 与精选摘要相同的最新 50 条；只对明确允许再分发的来源内联正文`);
   lines.push(`- [全部动态 RSS](${u("/feed/all.xml")}): 最近 7 天公开动态，按真实发布时间倒序`);
@@ -56,15 +56,15 @@ export function llmsTxt(opts: { hasDailies: boolean; hasWeekly: boolean; hasMont
   }
   if (opts.hasDailies) {
     lines.push(`- [公开 API v1 · 最新${daily}](${u("/api/v1/dailies/latest")}): 最新一期结构化${daily}`);
-    lines.push(`- [公开 API v1 · ${daily}列表](${u("/api/v1/dailies")}): 历史${daily}索引；指定日期使用 /api/v1/dailies/{YYYY-MM-DD}`);
+    lines.push(`- [公开 API v1 · ${daily}列表](${u("/api/v1/dailies")}): 从最新一期往前的${daily}索引，更早的带 ?before=YYYY-MM-DD 往前翻；指定日期使用 /api/v1/dailies/{YYYY-MM-DD}`);
   }
   if (opts.hasWeekly) {
     lines.push(`- [公开 API v1 · 最新${withSubject("周报")}](${u("/api/v1/weeklies/latest")}): 最新一期结构化${withSubject("周报")}：头条、总述、按栏目分好的大事`);
-    lines.push(`- [公开 API v1 · ${withSubject("周报")}列表](${u("/api/v1/weeklies")}): 历史${withSubject("周报")}索引；指定一周使用 /api/v1/weeklies/{YYYY-Www}`);
+    lines.push(`- [公开 API v1 · ${withSubject("周报")}列表](${u("/api/v1/weeklies")}): 从最新一期往前的历史${withSubject("周报")}索引，更早的带 ?before=YYYY-Www 往前翻；指定一周使用 /api/v1/weeklies/{YYYY-Www}`);
   }
   if (opts.hasMonthly) {
     lines.push(`- [公开 API v1 · 最新${withSubject("月报")}](${u("/api/v1/monthlies/latest")}): 最新一期结构化${withSubject("月报")}：头条、总述、按栏目分好的大事`);
-    lines.push(`- [公开 API v1 · ${withSubject("月报")}列表](${u("/api/v1/monthlies")}): 历史${withSubject("月报")}索引；指定月份使用 /api/v1/monthlies/{YYYY-MM}`);
+    lines.push(`- [公开 API v1 · ${withSubject("月报")}列表](${u("/api/v1/monthlies")}): 从最新一期往前的历史${withSubject("月报")}索引，更早的带 ?before=YYYY-MM 往前翻；指定月份使用 /api/v1/monthlies/{YYYY-MM}`);
   }
   lines.push(`- [公开 API v1 · 当前全部精选](${u("/api/v1/selected/snapshot")}): 首次完整快照；后续使用响应 cursor 调 selected/changes`);
   lines.push(`- [公开 API v1 · 精选增量](${u("/api/v1/selected/changes")}): 只返回新增、修改和撤选`);

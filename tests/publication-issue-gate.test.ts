@@ -21,6 +21,12 @@ const BODY = `BODY-${T} `.repeat(40);
 // 2100 年的刊号：别的测试文件留下的行都更早，所以「最新一期」与列表长度都不受它们影响。
 const DAILY_OK = "2100-04-05";
 const DAILY_EMPTY = "2100-04-06";
+// 补刊的形状：窗口很久以前就合上了，`generated_at` 却是此刻——这正是回填出来的 1 月报纸。
+// feed 的 `<pubDate>` 必须跟着窗口走（跟着排版时刻走，聚合器会把历史期次排在当天的报纸前面，
+// 而同一条目的 guid 写的又是那一月的号），sitemap 的 `<lastmod>` 反过来该跟着排版走（页确实今天才出现）。
+const DAILY_BACKFILL = "2100-04-03";
+const DAY = 86_400_000;
+const BACKFILL_CLOSE = new Date(Date.now() - 399 * DAY);
 const WEEK_OK = "2100-W05";
 const WEEK_EMPTY = "2100-W06";
 const ABSENT = `absent-${T}`;
@@ -42,10 +48,17 @@ async function item(label: string): Promise<string> {
   return articleId;
 }
 
-async function insertReport(kind: "daily" | "weekly", key: string, content: Record<string, unknown>) {
+async function insertReport(kind: "daily" | "weekly", key: string, content: Record<string, unknown>,
+  window?: { start: Date; end: Date }) {
+  // 重跑同一个库时这一行必须自己说了算：只更新 content 的话，上一轮留下的窗口会跟着 key 一起复活，
+  // 于是"补刊的 pubDate 跟着窗口走"这条断言在第一轮之后比的就不是它自己写进去的那个窗口。
   await sql`INSERT INTO reports (kind, key, window_start, window_end, content, generated_at, origin)
-            VALUES (${kind}, ${key}, now() - interval '10 days', now(), ${sql.json(content as never)}, now(), 'manual')
-            ON CONFLICT (kind, key) DO UPDATE SET content = EXCLUDED.content`;
+            VALUES (${kind}, ${key},
+              ${window ? window.start.toISOString() : sql`now() - interval '10 days'`},
+              ${window ? window.end.toISOString() : sql`now()`},
+              ${sql.json(content as never)}, now(), 'manual')
+            ON CONFLICT (kind, key) DO UPDATE SET content = EXCLUDED.content,
+              window_start = EXCLUDED.window_start, window_end = EXCLUDED.window_end, generated_at = EXCLUDED.generated_at`;
 }
 
 before(async () => {
@@ -74,8 +87,15 @@ before(async () => {
     ] }],
     flashes: [],
   });
-  await insertReport("weekly", WEEK_OK, {
-    kind: "weekly", title: `${SITE.name} 周报 · ${WEEK_OK}`, periodStart: "2100-01-26", periodEnd: "2100-02-01",
+  await insertReport("daily", DAILY_BACKFILL, {
+    lead: { title: `补刊头条-${T}`, leadParagraph: `补刊导语-${T}` },
+    highlights: [],
+    sections: [{ label: "自然与资源", items: [
+      { itemId: live, title: `补刊条目-${T}`, summary: `BSUM-${T}`, sourceName: "Test", sourceUrl: `https://example.com/bf-${T}` },
+    ] }],
+    flashes: [],
+  }, { start: new Date(BACKFILL_CLOSE.getTime() - DAY), end: BACKFILL_CLOSE });
+  await insertReport("weekly", WEEK_OK, {    kind: "weekly", title: `${SITE.name} 周报 · ${WEEK_OK}`, periodStart: "2100-01-26", periodEnd: "2100-02-01",
     headline: `周报头条-${T}`, overview: `周报总述-${T}`,
     themes: [{ heading: "自然与资源", summary: `栏目小结-${T}`, storyRefs: [
       { itemId: live, title: `周报大事-${T}`, summary: `WSUM-${T}`, sourceName: "Test", sourceUrl: `https://example.com/week-${T}` },
@@ -129,6 +149,23 @@ test("an issue whose citations have all been withdrawn is advertised by nothing"
   assert.ok(!dailyFeedXml.includes(`>daily-${DAILY_EMPTY}<`), "and never the emptied one");
   const weeklyFeedXml = await get("/feed/weekly.xml");
   assert.ok(weeklyFeedXml.includes(`>weekly-${WEEK_OK}<`) && !weeklyFeedXml.includes(`>weekly-${WEEK_EMPTY}<`), "same for the weekly feed");
+
+  // 补刊那一期的两个日期出口要各说各话：RSS 的 `<pubDate>` 跟着**窗口**（那一期报道的哪几天），
+  // sitemap 的 `<lastmod>` 跟着**排版时刻**（这个 URL 确实是今天才出现的）。
+  // 这条断言只有补刊形状才验得出来：其余 fixture 的窗口与排版时刻都是同一个 now()。
+  const bfItem = dailyFeedXml.split("<item>").find((s) => s.includes(`>daily-${DAILY_BACKFILL}<`));
+  assert.ok(bfItem, "补刊那一期也在日报 feed 里");
+  // 比时刻不比字符串：库里的 timestamptz 带微秒，`toUTCString()` 只到秒，字符串相等会在整秒边界上假红。
+  // 判别力不靠那几毫秒——不修的话这里读到的是"此刻"，与窗口相隔 399 天。
+  const stamp = /<pubDate>([^<]+)<\/pubDate>/.exec(bfItem!)?.[1];
+  assert.ok(stamp, "这一条有 pubDate");
+  assert.ok(Math.abs(Date.parse(stamp!) - BACKFILL_CLOSE.getTime()) < 2_000,
+    `pubDate 要说窗口合上的那一刻，不是排版那一刻：读到 ${stamp}`);
+  assert.ok(Date.parse(stamp!) < Date.now() - 300 * DAY, "pubDate 更不能是今天");
+  const bfMap = (await get("/sitemap.xml")).split("<url>").find((s) => s.includes(`/daily/${DAILY_BACKFILL}`));
+  assert.ok(bfMap, "补刊那一期也进了 sitemap");
+  assert.ok(!bfMap!.includes(`<lastmod>${BACKFILL_CLOSE.toISOString().slice(0, 10)}`),
+    `lastmod 不该把今天才出现的页说成 ${BACKFILL_CLOSE.toISOString().slice(0, 10)}：${bfMap!.match(/<lastmod>[^<]*/)?.[0] ?? ""}`);
 
   // Neighbour links come from the same index: /daily/<ok> must not offer 前一日 pointing at a blank paper.
   const report = await json(`/api/site/reports/daily/${DAILY_OK}`);
@@ -212,4 +249,36 @@ test("「已出 N 期」和归档页说的是同一个数", async () => {
   assert.equal(stats.dailies, archive.items.length, "关于页的期数 = 归档列出的期数");
   assert.ok(stats.dailies < (await sql<{ n: number }[]>`SELECT count(*)::int AS n FROM reports WHERE kind = 'daily'`)[0]!.n,
     "库里数出来的行必须比这个多：本文件就造了一期空刊");
+});
+
+test("v1 列表带 before 游标：回填出来的早期日报机器侧也点得到", async () => {
+  // `/api/v1/dailies` 一页最多 180 条，而回填后约 300 期——没有游标时最早那 120 期在机器出口上
+  // 是点不到的（llms.txt 把它写成「历史索引」，那它就得真是历史索引）。游标是**排他**的：
+  // ?before=X 给的是严格早于 X 的那批，客户端拿本页最旧的期号当下一页的游标即可。
+  const all = await json("/api/v1/dailies?limit=180");
+  const dates = all.items.map((i: any) => i.date as string);
+  assert.ok(dates.includes(DAILY_OK) && dates.includes(DAILY_BACKFILL), "本页含最新可读期与补刊那期（否则下面的断言恒真）");
+  const paged = await json(`/api/v1/dailies?limit=180&before=${DAILY_OK}`);
+  const pagedDates = paged.items.map((i: any) => i.date as string);
+  assert.ok(!pagedDates.includes(DAILY_OK), "游标必须是排他的：before=D 不该再给 D 自己");
+  assert.ok(pagedDates.includes(DAILY_BACKFILL), "更早的那一期要翻得出来");
+  assert.ok(pagedDates.every((d: string) => d < DAILY_OK), `不该出现比游标更晚的期：${pagedDates.join(" ")}`);
+  // 期号形状按 kind 各自校验：日期的假日历、周号的非法周，都不许被当成"往前翻完了"。
+  assert.equal((await app.inject({ method: "GET", url: "/api/v1/dailies?before=2026-02-30" })).statusCode, 400, "2 月 30 日不是日期");
+  assert.equal((await app.inject({ method: "GET", url: "/api/v1/weeklies?before=2100-W99" })).statusCode, 400, "不存在的周不是游标");
+  assert.equal((await app.inject({ method: "GET", url: "/api/v1/dailies?before=2100-04-03&x=1" })).statusCode, 400, "严格查询照样拒绝没声明的参数");
+  const wk = await json("/api/v1/weeklies?before=2100-W06");
+  assert.ok(wk.items.some((i: any) => i.week === WEEK_OK) && !wk.items.some((i: any) => i.week === WEEK_EMPTY),
+    "周报列表用同一个游标：W06 之前的那期还在，W06 自己不出现");
+});
+
+test("服务出去的 OpenAPI 文档也说得出 before 这个游标", async () => {
+  // 代码接了这个参数而契约不写，等于只有读源码的人知道历史翻得动：agent 照着契约就永远停在最新那一页。
+  // 文档是 `static.ts` 现读现补的（上游那份 reference 不改），所以补上去这件事本身也要被钉住。
+  const doc = JSON.parse(await get("/openapi-v1.json")) as any;
+  for (const p of ["/api/v1/dailies", "/api/v1/weeklies", "/api/v1/monthlies"]) {
+    const params = doc.paths?.[p]?.get?.parameters ?? [];
+    assert.ok(params.some((x: any) => x?.name === "before" && x?.in === "query"), `${p} 的契约里没有 before 游标`);
+  }
+  assert.ok(!JSON.stringify(doc).includes("{{"), "文档占位符都要被替换掉（含新加的那段描述）");
 });

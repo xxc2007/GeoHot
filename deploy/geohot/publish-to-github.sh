@@ -19,7 +19,8 @@
 # 跑之前必须满足的三件事（脚本自己会检查后两件，第一件不会）：
 #   1) `gh` 已登录且令牌有 repo 作用域：`gh auth status` 能看到账号；`gh api repos/$REPO --jq .permissions.push`
 #      必须返回 true。缺这一步时脚本会在读远端 HEAD 那一步（下面第 2 步）报 "✗ 读不到 <repo>@<branch>"。
-#   2) 工作区干净（下面第 1 步实测，脏就退出 1）：半改完的状态不该被发布，六个 agent 并发改这棵树时尤其。
+#   2) 已跟踪的内容干净（下面第 1 步实测，脏就退出 1）：半改完的状态不该被发布，六个 agent 并发改这棵树时尤其。
+#      未跟踪的路径只提示不拦（它们进不了发布树；站长的宣传片三件就是刻意不跟踪的）。
 #   3) 本地 HEAD 就是你要发布的那一棵：先 `git log --oneline -3` 看一眼，发布是快进推送，不 force、不改历史。
 #
 # 用法：
@@ -51,9 +52,17 @@ while [[ $# -gt 0 ]]; do
 done
 [[ -n "$message" ]] || { echo "必须给 -m \"提交信息\""; exit 2; }
 
-# 1) 工作区必须干净：半改完的状态不该被发布，而且别人正在并发改这个仓库时发布尤其危险。
-dirty=$(git status --porcelain)
-[[ -n "$dirty" ]] && { echo "✗ 工作区不干净，先提交或清理："; printf '%s\n' "$dirty" | head -20; exit 1; }
+# 1) 工作树里**已跟踪**的部分必须干净：半改完的状态不该被发布，六个 agent 并发改这棵树时尤其。
+#    未跟踪的文件不进发布树（第 3 步是从 HEAD 读树），所以它们不再拦发布——以前是拦的，
+#    于是站长那三件宣传片（`docs/promo/`，按 a5954b4 刻意退回版本管理、但仍在磁盘上）会把每一次发布都堵死。
+#    未跟踪清单照样打出来：漏 add 一个新源文件 = 线上少一个文件而仓库说"发布成功"，这要看得到。
+dirty=$(git status --porcelain --untracked-files=no)
+[[ -n "$dirty" ]] && { echo "✗ 已跟踪的内容有未提交的改动，先提交或清理："; printf '%s\n' "$dirty" | head -20; exit 1; }
+untracked=$(git ls-files --others --exclude-standard)
+if [[ -n "$untracked" ]]; then
+  printf '%s\n' "$untracked" | sed 's/^/  未跟踪 /' | head -8
+  echo "（共 $(printf '%s\n' "$untracked" | wc -l) 个未跟踪路径，它们不进发布树；其中若有应当发布的新源文件，先 git add）"
+fi
 head=$(git rev-parse HEAD)
 
 # 2) 远端当前 HEAD（用 gh 读，代理环境下比 git ls-remote 稳），并且**把那个提交取回本地**：
@@ -69,16 +78,71 @@ echo "远端 $BRANCH $remote_head"
 work=$(mktemp -d); trap 'rm -rf "$work"' EXIT
 export GIT_INDEX_FILE="$work/publish.index"
 git read-tree "$head"
+# 排除清单只解析一次，读法与 verify-github-sync.sh 一致：不依赖文件末尾的换行，也不要在 EOF 后转空圈。
+EXLIST=""
 if [[ -f "$EXCLUDES" ]]; then
-  # 读法与 verify-github-sync.sh 一致：不依赖文件末尾的换行，也不要在 EOF 后转空圈。
   while IFS= read -r line; do
     clean=${line%%#*}
     clean=${clean//[[:space:]]/}
     [[ -z "$clean" ]] && continue
-    git rm -r --cached --quiet --ignore-unmatch "$clean" || true
-    echo "排除 $clean"
+    EXLIST+="$clean"$'\n'
   done < <(cat "$EXCLUDES"; echo)
 fi
+excluded() {
+  local p=$1 c
+  while IFS= read -r c; do
+    [[ -z "$c" ]] && continue
+    [[ "$p" == "$c" || "$p" == "$c"/* ]] && return 0
+  done <<< "$EXLIST"
+  return 1
+}
+if [[ -n "$EXLIST" ]]; then
+  while IFS= read -r c; do
+    [[ -z "$c" ]] && continue
+    git rm -r --cached --quiet --ignore-unmatch "$c" || true
+    echo "排除 $c"
+  done <<< "$EXLIST"
+fi
+
+# 3.4) 把"只在发布线上长着"的路径带回来，别让一次发布悄悄把它们删掉。
+#
+# 为什么要单独做这一步：`commit-tree` 的父节点是**远端 HEAD**，而树是从**本地 HEAD**读出来的。
+# Git 记录的不是"我改了哪些文件"，而是"父树到新树的差异"——所以凡是远端有、本地没有的路径，
+# 都会被写成一条删除。2026-10-12 实测 `git diff --name-status HEAD origin/main` 正好差三个文件：
+#   docs/promo/geohot-promo.mp4、docs/promo/index.html、docs/promo/poster.jpg
+# 那是站长的宣传片与它的播放页，在另一台克隆里直接发到 GitHub、又按 a5954b4 从本仓库的版本管理里
+# 退了回去（16 MB 的 mp4 不该进版本库）。不处理这一步，收尾那一次发布就会把介绍页三件套从公开仓删了，
+# 而**验收脚本看不见**：它比的是发布之后的两边，那当然相等（#94 那次手工带的，就是这个道理）。
+#
+# "远端独有"和"开发线故意删掉"必须分开，否则这里会把该删的文件又救回来。用共同祖先判：
+#   · 祖先里没有这个路径 ⇒ 它是发布线上自己长出来的（远端直接加的、或另一台克隆发的）⇒ 带过来；
+#   · 祖先里有、HEAD 里没有 ⇒ 是开发线自己删的 ⇒ 删除照发，不救。
+# 判不出祖先（两条无共同历史的历史，例如仓库重建）时按"带过来"处理——多留一个文件的代价
+# 远小于把站长的东西删掉，而且差异会在第 4 步整屏打出来。
+# `--no-renames` 是刻意的：默认开着的重命名检测会把"远端这一件 + 本地删掉的另一件很像它"
+# 判成一次改名（状态 R），而 `--diff-filter=A` 只收 A ⇒ 该带回来的东西一条都不剩。
+# 本机 `diff.renames=false`（全局配置里写着），所以今天不加也一样——但换一台没这条配置的机器
+# （服务器克隆、新机器、站长自己）就会变，这类"只在写它的那台机器上成立"的判据正是最坑的那种。
+base=$(git merge-base "$head" "$remote_head" 2>/dev/null || true)
+carried=0; dropped=0
+while IFS= read -r p; do
+  [[ -z "$p" ]] && continue
+  excluded "$p" && continue
+  if [[ -n "$base" ]] && git cat-file -e "$base:$p" 2>/dev/null; then
+    echo "删除 $p（开发线自己删掉的文件，删除照常发布）"
+    dropped=$((dropped + 1))
+    continue
+  fi
+  meta=$(git ls-tree "$remote_head" -- ":(literal)$p")
+  [[ -z "$meta" ]] && { echo "✗ 读不到远端 $p 的对象，无法带过来——宁可不发，也不悄悄删它" >&2; exit 1; }
+  mode=$(printf '%s' "$meta" | awk '{print $1}')
+  sha=$(printf '%s' "$meta" | awk '{print $3}')
+  git update-index --add --cacheinfo "$mode,$sha,$p" \
+    || { echo "✗ 把 $p 带回发布树失败" >&2; exit 1; }
+  echo "带过来 $p（$mode，只在发布线上存在）"
+  carried=$((carried + 1))
+done < <(git -c core.quotepath=off diff --no-renames --name-only --diff-filter=A "$head" "$remote_head")
+[[ $carried -gt 0 ]] && echo "→ 从 $remote_head 带回 $carried 个发布线独有路径（删除 $dropped 个开发线自己删的）"
 tree=$(git write-tree)
 unset GIT_INDEX_FILE
 # 3.5) 公开仓的底线检查。后面的逐字节验收只证明"发出去的就是这棵树"，它证明不了"这棵树里没有秘密"：
@@ -87,7 +151,10 @@ unset GIT_INDEX_FILE
 # 只放过仓库里那两个 `.env.example` / `.env.pipeline.example` 空值模板——它们是文档，不是秘密。
 # `.data/` 是**目录前缀**，不能跟别的写在同一个 `$` 锚里：`(…|\.data/)$` 只匹配路径正好以 `.data/` 结尾，
 # `.data/foo.db` 从它下面过（审计 2026-10-10 实测），所以它单列在锚外。
-BAD_PATHS=$(git ls-tree -r --name-only "$tree" | grep -E '(^|/)(\.env(\.[a-z0-9-]+)?|id_(rsa|ed25519|ecdsa|dsa|openssh)[^/]*|[^/]*\.(pem|key|p8)|secrets[^/]*|credentials[^/]*)$|(^|/)\.data/' | grep -vE '\.example$' || true)
+# `core.quotepath=off` 也是承重的那一半：默认配置会把非 ASCII 路径整条加引号（`"资料/秘密/.env"`），
+# 结尾那个引号让每条 `$` 锚失效——`.env` 与 `*.pem` 这类形状刚好都是靠 `$` 收尾匹配的。
+# 本机全局配置里写着 `core.quotepath=false` 所以看不出来，换一台机器就是另一回事。
+BAD_PATHS=$(git -c core.quotepath=off ls-tree -r --name-only "$tree" | grep -E '(^|/)(\.env(\.[a-z0-9-]+)?|id_(rsa|ed25519|ecdsa|dsa|openssh)[^/]*|[^/]*\.(pem|key|p8)|secrets[^/]*|credentials[^/]*)$|(^|/)\.data/' | grep -vE '\.example$' || true)
 if [[ -n "$BAD_PATHS" ]]; then
   echo "✗ 要发布的树里有 .env / 私钥 / *.pem 这类路径，公开仓不收：" >&2
   printf '%s\n' "$BAD_PATHS" | sed 's/^/    /' >&2

@@ -72,6 +72,18 @@ const SCORE_CALL: Record<string, { temperature: number; maxTokens: number; timeo
 };
 const scoreCall = (model: string) => SCORE_CALL[model] ?? { temperature: 0.2, maxTokens: 1024, timeoutMs: 240_000 };
 
+/**
+ * understand 的时钟。它必须长到让**上限先于时钟**触发：被上限截断的答复落 `failed`（可重试，且收据
+ * 会写明截断），而中止落 `unknown`——钱已经花了，只能人工放行。实测 workbuddy 的 deepseek-v4.1-flash
+ * 在 `max` 档每输出 token 花 4.9–5.4 ms，该模型在这个步骤上要的上限是 40 384 token，跑满需要
+ * 200–220 s。240 s 同时也是 worker 那 255 s 优雅停机留给我们的天花板，并且是其它每个开思考的步骤
+ * 本来就拿到的默认值——此前这里写死的 180 s 会把最长的那档链切成"钱花了、结果没有"。
+ */
+export const UNDERSTAND_TIMEOUT_MS = 240_000;
+
+/** 这一步要的可见答复上限。它与模型预设的 `reasoningHeadroom` 一起决定真正发给上游的 cap。 */
+export const UNDERSTAND_MAX_TOKENS = 16_384;
+
 /** The score prompt: the industry's taste (industry/prompts/selection-score.md). */
 export const SCORE_SYSTEM = promptText("selection-score");
 
@@ -298,14 +310,15 @@ export function noChineseAnswer(data: { titleZh?: string; summaryZh?: string; bo
 }
 
 /** The content understanding; null when the model's content filter declines the material. */
-async function runUnderstand(a: AnalyzeInputArticle, opts: StepOpts): Promise<AnalysisRun["writing"]> {  const model = await modelFor("understand", a.id);
+async function runUnderstand(a: AnalyzeInputArticle, opts: StepOpts): Promise<AnalysisRun["writing"]> {
+  const model = await modelFor("understand", a.id);
   const text = understandUser(a);
   const call = (image: ContentPart | null) => {
     checkAnalysisRunning();
     return chatJson({
       model, purpose: "understand_article", subject: subjectOf(a), promptVersion: PROMPT_VERSIONS.understand, system: UNDERSTAND_SYSTEM,
-      user: image ? [{ type: "text", text }, image] : text, schema: UnderstandSchema, usable: noChineseAnswer, temperature: 0.2, maxTokens: 16_384,
-      timeoutMs: 180_000, attemptTag: tagged(opts.attemptTag, "understand"),
+      user: image ? [{ type: "text", text }, image] : text, schema: UnderstandSchema, usable: noChineseAnswer, temperature: 0.2, maxTokens: UNDERSTAND_MAX_TOKENS,
+      timeoutMs: UNDERSTAND_TIMEOUT_MS, attemptTag: tagged(opts.attemptTag, "understand"),
     });
   };
   // A model that is known not to read images gets the text only.

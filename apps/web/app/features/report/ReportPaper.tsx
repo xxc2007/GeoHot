@@ -8,7 +8,7 @@
 import { SITE, withSubject } from "@aihot/industry/site";
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router";
-import type { ReportCitation, ReportDetail, ReportNavigationEntry } from "@aihot/contracts/site";
+import type { ReportCitation, ReportDetail, ReportKind, ReportNavigationEntry } from "@aihot/contracts/site";
 import { shortSourceName } from "../../lib/format";
 import { Badge } from "../../components/ui/Badge";
 import { IconArrowLeft, IconArrowRight, IconArrowUpRight } from "../../components/icons";
@@ -20,6 +20,25 @@ import { IssueDots } from "./IssueDots";
 import { EDITION, KIND_LABEL, MOTTO, dateLine, dateMark, headline, isDue, issueNumber, leadCountLine, metricItems, neighbourLabel, reportPath, sectionHeading, shortDay } from "./format";
 
 const pad = (n: number) => String(n).padStart(2, "0");
+/**
+ * 「今日 / 本周 / 本月」只对读者手上那一份**还当令**的报纸成立：窗口合上之后、下一期该合上的时刻之前
+ * （一个周期长度）。回填会印出几百个历史期次，而 `isDue` 只回答"窗口合上了没有"——历史期次对它永远为真，
+ * 拿它当"是不是今天"用，1 月的报纸就会写着「今日看点」。
+ *
+ * 宽限期不能取这一期自己的长度：日报恒 24 小时、周报恒 7 天，月报是**整个自然月**，28 到 31 天不等。
+ * 取自己的长度会让长的那一期活过下一期的合上时刻——8 月（31 天）在 10 月 1 日仍写着「本月看点」就是这么来的，
+ * 而那时读者的"本月"是 10 月。所以按**最短可能的那一期**给：日 1 天、周 7 天、月 28 天。
+ * 取短只会让期次提前退回「本期」（2 月那期在 3 月 29—31 日会说「本期」而不是「本月」），
+ * 那是安全方向；取长则是当着读者说假话。
+ */
+const GRACE_DAYS: Record<ReportKind, number> = { daily: 1, weekly: 7, monthly: 28 };
+export function periodWord(kind: ReportKind, windowStart: string, windowEnd: string, now: number): string {
+  const open = Date.parse(windowStart);
+  const close = Date.parse(windowEnd);
+  if (!Number.isFinite(open) || !Number.isFinite(close) || close > now) return "本期";
+  if (now - close >= Math.min(close - open, GRACE_DAYS[kind] * 86_400_000)) return "本期";
+  return kind === "daily" ? "今日" : kind === "weekly" ? "本周" : "本月";
+}
 const keyOf = (c: ReportCitation) => c.itemId ?? c.title;
 const anchorOf = (c: ReportCitation) => (c.itemId ? `r-${c.itemId}` : null);
 const LINK = "tap-hit inline-flex min-h-7 items-center gap-0.5 font-medium transition-colors hover:text-accent";
@@ -232,7 +251,7 @@ function FrontPage({ report, pages, leadStory, count, now }: { report: ReportDet
   const dek = rawDek ? leadCountLine(rawDek, count) : rawDek;
   const highlights = report.highlights.filter((h) => !leadStory || keyOf(h) !== keyOf(leadStory)).slice(0, 3);
   const inPage = new Set(pages.flatMap((p) => p.items.map((c) => c.itemId)).filter(Boolean));
-  const period = daily ? (isDue(report.kind, report.key, now) ? "今日" : "本期") : report.kind === "weekly" ? "本周" : "本月";
+  const period = periodWord(report.kind, report.windowStart, report.windowEnd, now);
   const index = [...pages.map((p) => ({ id: p.id, label: p.label, n: `${p.items.length} 件` })), ...(report.flashes.length > 0 ? [{ id: "s-flash", label: "快讯", n: `${report.flashes.length} 条` }] : [])];
 
   return (
@@ -350,7 +369,10 @@ function Neighbours({ report, index }: { report: ReportDetail; index: ReportNavi
 }
 
 function History({ report, index }: { report: ReportDetail; index: ReportNavigationEntry[] }) {
-  const others = index.filter((e) => e.key !== report.key).slice(0, 12);
+  // 这一格只对周报与月报渲染（`hasHistory`）：日报有 `/daily/archive` 那一整页可去，而周报月报**没有归档页**，
+  // 手机上的「更早」就是从这一格往下走（`ReportPhoneNav` 把它们指向 `#report-history`）。
+  // 补刊会补出约 40 期周报：原先截到 12 期，等于把后面 25 期对读者藏起来，所以这里不截断。
+  const others = index.filter((e) => e.key !== report.key);
   if (others.length === 0) return null;
   return (
     <section id="report-history" className="scroll-mt-6 pt-12">

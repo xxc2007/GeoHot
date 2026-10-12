@@ -68,7 +68,7 @@ export function envFlag(name: string, fallback: boolean): boolean {
 }
 
 /**
- * `COLLECT_ENABLED`: may this process reach the 82 pollable upstream sources at all? Off means off — no
+ * `COLLECT_ENABLED`: may this process reach the pollable upstream sources at all (count is `node -e` away, never copied here)? Off means off — no
  * `sources.schedule`, no source jobs, no alerting about a collection that was never asked to run.
  * An empty or missing value means on, which is what a deployment writes down explicitly (`.env.example`
  * ships `false`, and the deploy bootstrap refuses to rely on the default); development gets "off" from the file

@@ -33,7 +33,7 @@
 
 <br>
 
-[🎬 宣传片](#-宣传片展示) · [壹 特色](#壹--highlights-特色) · [贰 站点结构](#贰--site-map-站点结构) · [叁 技术栈](#叁--stack-技术栈) · [肆 换成你的行业](#肆--reuse-换成你的行业) · [伍 本地运行](#伍--local-本地运行) · [陆 边界与笔记](#陆--notes-边界与设计笔记) · [柒 授权](#柒--license-授权与出处) · [捌 星际历史](#捌--star-history-星际历史) · [完整手册](docs/manual.md)
+[壹 特色](#壹--highlights-特色) · [贰 站点结构](#贰--site-map-站点结构) · [叁 技术栈](#叁--stack-技术栈) · [肆 换成你的行业](#肆--reuse-换成你的行业) · [伍 本地运行](#伍--local-本地运行) · [陆 边界与笔记](#陆--notes-边界与设计笔记) · [柒 授权](#柒--license-授权与出处) · [捌 星际历史](#捌--star-history-星际历史) · [完整手册](docs/manual.md)
 
 <br>
 
@@ -62,25 +62,6 @@
 **这一屏每天在变，线上地址才是事实来源**：<https://xxc2007.me/geohot/>。
 
 </details>
-
----
-
-
----
-
-## 🎬 宣传片展示
-
-从精选资讯出发，经过七个分类、事件综述与报道时间线、地理日报、主题和 Agent 接入。真实读者页面组成 35.4 秒的产品宣传片；资讯画面为 2026-10-08 拍摄快照。
-
-点击下方播放器即可在线播放。
-
-https://github.com/user-attachments/assets/0f0d31b0-eaf2-4155-833e-5155f7391110
-
-▶️ [打开 1080p 高清播放器](https://xxc2007.me/assets/promo/geohot/) · [直接打开 1080p 源视频](https://raw.githubusercontent.com/xxc2007/GeoHot/main/docs/promo/geohot-promo.mp4)
-
-<sub>使用 Video Shotcraft 制作，运镜与展示结构参考[青山湖畔的纪念册](https://github.com/xxc2007/In-memory-of-Nanchang-No.-15-Middle-School#-宣传片展示)。</sub>
-
-README 原生预览保持 1920×1080 分辨率；独立播放器与源视频链接继续使用仓库中的 1080p 完整片。
 
 ---
 

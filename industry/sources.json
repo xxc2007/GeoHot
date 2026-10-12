@@ -10015,6 +10015,39 @@
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
+    },
+    {
+      "id": "web-forestry-dt",
+      "name": "国家林草局 林草动态",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.forestry.gov.cn/lyj/1/sdgjdt.html",
+        "parseMode": "html",
+        "itemSelector": "li:has(a[href*='/sdgjdt/'])",
+        "publishedAtSelector": "span",
+        "titleSelector": "a",
+        "allowUrlPrefixes": [
+          "https://www.forestry.gov.cn/lyj/1/sdgjdt/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 7
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": "forestry",
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "自然地理",
+        "人文地理",
+        "生态保护"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
     }
   ]
 }

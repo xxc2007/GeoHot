@@ -39,7 +39,24 @@ function cdata(s: string): string {
 }
 
 function rfc822(d: Date): string {
-  return d.toUTCString();
+  // 这份报纸是按北京时间合窗的，用 GMT 印出来就会说错日子：一期 10-11 08:00（北京）合窗的日报
+  // 印成 `Sun, 11 Oct 2026 00:0x GMT`，只读日期的订阅者会以为它是 10-10。RFC 822 允许数字偏移，
+  // 所以给 +0800 与北京的墙钟时间——同一时刻，日子不再错位。（线上实测：feed 里每一条都是 GMT。）
+  const bj = new Date(d.getTime() + 8 * 3600_000);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][bj.getUTCDay()]}, ${p(bj.getUTCDate())} `
+    + `${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][bj.getUTCMonth()]} `
+    + `${bj.getUTCFullYear()} ${p(bj.getUTCHours())}:${p(bj.getUTCMinutes())}:${p(bj.getUTCSeconds())} +0800`;
+}
+
+/**
+ * `<pubDate>` 要说这份报纸报道的那一段什么时候结束，不是说它什么时候被排出来。
+ * 回填会补印 1 月的期次，那些行的 `generated_at` 是十月：照生成时刻发出去，聚合器会把 1 月的报纸
+ * 排在当天的报纸前面，而同一条目的 `<guid>` 写的又是 `daily-2026-01-05`——两条自述互相矛盾。
+ * sitemap 的 `<lastmod>` 反过来该用生成时刻（那个 URL 确实是今天才出现的），所以留在那里不动。
+ */
+function pubDateOf(r: { window_end: Date | null; generated_at: Date }): Date {
+  return r.window_end ?? r.generated_at;
 }
 
 function channel(meta: { title: string; description: string; homePath: string; selfPath: string; ttl: number }, items: string[]): string {
@@ -209,7 +226,7 @@ export async function dailyFeed(): Promise<string> {
       <title>${cdata(title)}</title>
       <link>${url}</link>
       <description>${cdata(description)}</description>
-      <pubDate>${rfc822(r.generated_at)}</pubDate>
+      <pubDate>${rfc822(pubDateOf(r))}</pubDate>
       <guid isPermaLink="false">daily-${escapeXml(r.key)}</guid>
       <author>${AUTHOR} (${escapeXml(SITE.name)})</author>
     </item>`;
@@ -242,7 +259,7 @@ export async function reportFeed(kind: "weekly" | "monthly"): Promise<string> {
       <title>${cdata(title)}</title>
       <link>${url}</link>
       <description>${cdata(description)}</description>
-      <pubDate>${rfc822(r.generated_at)}</pubDate>
+      <pubDate>${rfc822(pubDateOf(r))}</pubDate>
       <guid isPermaLink="false">${kind}-${escapeXml(r.key)}</guid>
       <author>${AUTHOR} (${escapeXml(SITE.name)})</author>
     </item>`;

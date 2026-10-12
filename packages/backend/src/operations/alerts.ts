@@ -200,6 +200,18 @@ const PROVIDERS: Record<string, { name: string; stops: string; where: string }> 
   dashscope: { name: "阿里云百炼", stops: MODEL_STOPS, where: "阿里云百炼控制台" },
   deepseek: { name: "DeepSeek", stops: MODEL_STOPS, where: "DeepSeek 开放平台" },
   mimo: { name: "小米 MiMo", stops: MODEL_STOPS, where: "小米 MiMo 开放平台" },
+  // 下面五把是 2026-10 陆续接进来的模型门，一条都没进这张表：报警于是把它们叫成服务名本身
+  // （"dots 拒绝服务"）、影响写成一句万金油（"相关功能停了"）、去处写成 "dots 后台"。
+  // 承担判定调用大头的那两扇（dots 与 workbuddy）恰好在这五把里，而报警是站长唯一会主动读的东西。
+  "agnes-cn": { name: "Agnes 国内站", stops: MODEL_STOPS, where: "Agnes 控制台" },
+  dots: { name: "dots 模型直连（小红书）", stops: MODEL_STOPS, where: "dots 平台控制台" },
+  openrouter: { name: "OpenRouter", stops: MODEL_STOPS, where: "OpenRouter 后台" },
+  opencode: { name: "OpenCode Zen", stops: MODEL_STOPS, where: "OpenCode 后台" },
+  workbuddy: {
+    name: "WorkBuddy 桌面渠道",
+    stops: MODEL_STOPS,
+    where: "WorkBuddy 桌面端与它 3065 端口上的桥（凭据是 .env 的 WORKBUDDY_CREDENTIAL_JSON）",
+  },
   socialdata: { name: "SocialData", stops: "X（推特）上的新内容收不到", where: "SocialData 后台" },
   jina: { name: "Jina", stops: "部分文章取不到正文", where: "Jina 后台" },
   dajiala: { name: "极致了（Dajiala）", stops: "公众号新文章收不到", where: "极致了后台" },
