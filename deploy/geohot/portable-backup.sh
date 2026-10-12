@@ -97,7 +97,10 @@ while IFS=$'\t' read -r key p; do
 done < <(env_pairs | awk -F'\t' '$2 ~ /^\//' | LC_ALL=C sort -u -t$'\t' -k2,2)
 
 # 关键链路不许变成"看不见的缺口"：.env 指着凭据而文件不在，就判备份失败，而不是打出一个恢复不出来的包。
-CRED=$(env_pairs | awk -F'\t' '$1 == "WORKBUDDY_CREDENTIAL_JSON" || $1 == "WORKBUDDY_CREDENTIAL" { print $2; exit }')
+# 这里故意不用 `awk … exit`：本脚本是 `set -euo pipefail` 跑的，左侧 env_pairs 还在写、右侧提前退出就
+# 是 SIGPIPE ⇒ 整段管道判失败 ⇒ 备份在收集完凭据之后一声不响地死掉（2026-10-12 实测 RC=141，
+# 包根本没生成，而外面那层 `| tail` 还把退出码盖成了 0）。改成读尽输入、用 seen 变量只取第一条。
+CRED=$(env_pairs | awk -F'\t' '($1 == "WORKBUDDY_CREDENTIAL_JSON" || $1 == "WORKBUDDY_CREDENTIAL") && !seen { print $2; seen = 1 }')
 if [[ -n "$CRED" && ! -f "$CRED" ]]; then
   printf '%s is configured in .env but missing — the bundle would restore a site with no judging bridge\n' "$CRED" >&2
   exit 1
