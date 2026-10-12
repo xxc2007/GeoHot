@@ -154,13 +154,11 @@ docker compose logs -f --tail 100 api worker web
 
 先说本站：**线上这一份是要花钱的，本机与 CI 那一份一分不花**。2026-10-06 起生产部署的 `.env` 里
 `LLM_BASE_URL / LLM_API_KEY / LLM_MODEL` 指向第三方服务 Agnes AI（模型 `agnes-3.0-flash`），
-`MODEL_CALLS_ENABLED=true`，预算熔断按**服务**一行（`budgets` 表，迁移 0050–0061 叠出来的现值：
+`MODEL_CALLS_ENABLED=true`，预算熔断按**服务**一行（`budgets` 表，迁移 0050–0060 叠出来的现值：
 `llm` 8/420/6000、`agnes-cn` 9/540/12000、`dots` 20/1200/12000（0055 建的是 600/6000；0059 按实测抬日额度、
 0060 按实测抬小时窗——0060 抬之前那一小时 599/600 顶死而 1,665 次尝试 0 次失败，卡它的是我们自己那个数字，
 不是对端：`per_minute=20` 本来就允许 1,200/时，对端文档是 RPM 60 / TPM 150 万。而 0059 抬的那天
-`receipts.cost` 合计为 0——这道自设闸保护的不是钱）、`openrouter` 18/300/600、`opencode` 10/300/3000、
-`gemini` 5/20/20（0061：两个数都是对端 429 报文点名的 RPM 与 RPD，所以这扇门是"多一家能判"而不是放量，
-详见该迁移的注释），
+`receipts.cost` 合计为 0——这道自设闸保护的不是钱）、`openrouter` 18/300/600、`opencode` 10/300/3000，
 单位都是 分/时/天；分钟数按对端实际接受的速率取小，OpenRouter 六个成员共用一个账号的免费额度所以只有一行），
 后台「设置 → 预算」可改，填 0 立即停用该服务）。仓库里那个只听 127.0.0.1 的回放器
 `tooling/brain-stub.ts`（`LLM_API_KEY=local-brain` 是占位串）留给本机开发与 CI：同样的闸门与回执，

@@ -84,20 +84,6 @@ export const MODELS: Record<string, ModelSpec> = {
     get model() { return process.env.DOTS_MODEL ?? "dots3-note-prev"; },
     extra: { chat_template_kwargs: { enable_thinking: true }, reasoning_effort: "high" }, jsonMode: true,
   },
-  // Google AI Studio 的 Gemini 3.8 Flash（站长 2026-10-12 给的 key）。三条都是实测，不是抄文档：
-  //  · `reasoning_effort: "high"` 是这个端点**接受的最高档**——`minimal` 这个模型回 400「not supported」，
-  //    `max` / `xhigh` 回 400 并在报文里列出合法值（high, low, medium, minimal, none）。同一提示下
-  //    隐藏 token：不设 219 / low 0 / medium 303 / **high 731**，答复 3.5–5.3 秒。
-  //  · JSON 模式与中文标题、摘要、分类字段都对（用本站 understand 的形状试的）。
-  //  · `vision: true` 是真的：挂一张公网图，12.9 秒正确说出"群山环绕的峡湾，绿色与深蓝"。
-  // 上下文 1,048,576、单次输出上限 65,536，与 `MAX_OUTPUT_TOKENS` 同值，所以思考余量加法不会撞对端的墙。
-  // 免费档的天花板是对端在 429 报文里点名的两条：`limit: 5`（每分钟），以及同名指标 `limit: 20` 配一句
-  // "retry in 23h38m" —— **每天 20 次**。所以这条门是"多一家能判"，不是放量，熔断行见迁移 0061。
-  "gemini-3.8-flash": {
-    key: "gemini-3.8-flash", service: "gemini", baseUrlEnv: "GEMINI_BASE_URL", apiKeyEnv: "GEMINI_API_KEY",
-    get model() { return process.env.GEMINI_MODEL ?? "gemini-3.8-flash"; },
-    extra: { reasoning_effort: "high" }, jsonMode: true, vision: true,
-  },
   // OpenRouter：站长 2026-10-10 给的两把 key 实测都是**管理/开通**用的（`GET /api/v1/key` 回
   // `is_management_key: true`，任何 chat/completions 都 401 `User not found`）。管理 key 的用途正是签发普通
   // key——用 `POST /api/v1/keys` 当场签出一把推理 key（name=geohot-inference-…，HTTP 201），它就能推理了。
