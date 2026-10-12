@@ -23,7 +23,7 @@ const TOOL_COUNT = Object.keys(T).length;
 /** The machine-readable entry points, with what each one is for. */
 const RESOURCES: Array<[label: string, href: string, note: string]> = [
   ["llms.txt", "/llms.txt", "给大模型读的站点说明"],
-  ["MCP Server", "/api/mcp", "MCP 客户端的连接地址"],
+  ["MCP Server", "/api/mcp", "MCP 客户端填的连接地址（不是网页，浏览器直接打开回 405）"],
   ["OpenAPI 3.1", "/openapi-v1.json", "REST API v1 的完整定义"],
 ];
 

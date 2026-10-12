@@ -11,7 +11,7 @@
 
 | # | 决定 | 对部署的影响 |
 |---|---|---|
-| 1 | **生产从 2026-10-06 起接真模型**（Agnes AI `agnes-3.0-flash`，`MODEL_CALLS_ENABLED=true`，`MODEL_POOL` 十路成员）；**本机与 CI 才用人工策划的编辑大脑**（`tooling/brain-stub.ts` fixture，无 key） | 生产：标准由人写定、逐条结论由模型给，精选随抓取量增长，花钱由 `budgets` 表按服务熔断（分/时/天）。本机/CI：精选只随人工语料增长，新采材料落默认值（打分 20、归组 UNRELATED），站点会随 48 h 窗口变旧（`packages/backend/src/events/hot.ts` 的窗口常量）。阀的取值见 §5 |
+| 1 | **生产从 2026-10-06 起接真模型**（Agnes AI `agnes-3.0-flash`，`MODEL_CALLS_ENABLED=true`，`MODEL_POOL` 十二路成员，2026-10-12 从生产 `.env` 现值数出来的）；**本机与 CI 才用人工策划的编辑大脑**（`tooling/brain-stub.ts` fixture，无 key） | 生产：标准由人写定、逐条结论由模型给，精选随抓取量增长，花钱由 `budgets` 表按服务熔断（分/时/天）。本机/CI：精选只随人工语料增长，新采材料落默认值（打分 20、归组 UNRELATED），站点会随 48 h 窗口变旧（`packages/backend/src/events/hot.ts` 的窗口常量）。阀的取值见 §5 |
 | 2 | **about 页/`site.ts` 措辞改为诚实口径**（不再声称"用模型打分"，或明示判断由人写） | 纯代码/文案改动，随公开仓库一起部署，不涉及服务器操作 |
 | 3 | **公开仓库用干净单初始提交**（放弃 5 提交波次历史，删 `docs/assets/*.png`） | 仓库已经建好：`bootstrap-server.sh` 的 `REPO_URL` 默认值就是 `https://github.com/xxc2007/GeoHot.git`（开发机 `git remote -v` 看到的 origin），不再是占位串。要装 fork 或离线搬运就 `GEOHOT_REPO_URL=…` 覆盖，第 2 节 clone 前会实测可达性 |
 | 4 | **站点挂在 `/geohot/` 子路径下**（2026-10-01 已上线并逐条验证；前缀是**构建期**变量） | 前缀由 bootstrap-server.sh 的 `GEOHOT_BASE_PATH`（默认 `/geohot`）作为 `BASE_PATH` 传给 `npm run build`，烧进 bundle；nginx 的 location 前缀与 `SITE_URL` 的路径必须与它一致。**要挂域名根就显式 `GEOHOT_BASE_PATH=""`**（空串是合法取值，含义是"这个站占域名根"：构建不带 BASE_PATH、nginx 不需要前缀 location、那条补斜杠的 308 也不要）。`verify-deploy.sh` 第 3 节会硬断言资源不回落根 |
