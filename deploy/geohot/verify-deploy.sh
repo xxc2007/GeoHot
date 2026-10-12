@@ -213,14 +213,19 @@ fi
 # 桥的 /healthz 自报 source.sha256 与 account.ok（tooling/workbuddy-bridge.ts 启动时算的那份），
 # 所以两件事都能在这里判掉：跑的是不是磁盘那份，以及凭据读得到读不到。
 if [[ -n "$(systemctl list-unit-files geohot-workbuddy.service --no-legend 2>/dev/null)" ]]; then
-  wb_hz="$(curl -s --max-time 10 http://127.0.0.1:3065/healthz || true)"
+  wb_body="$(mktemp)"; wb_code="$(curl -s -o "$wb_body" -w '%{http_code}' --max-time 10 http://127.0.0.1:3065/healthz || true)"
+  wb_hz="$(cat "$wb_body" 2>/dev/null || true)"; rm -f "$wb_body"
   wb_sha="$(printf '%s' "$wb_hz" | tr -d ' \n' | grep -oE '"sha256":"[0-9a-f]{64}"' | head -1 | sed -E 's/.*:"([0-9a-f]{64})"/\1/')"
-  if [[ -z "$wb_sha" ]]; then
-    note "workbuddy 桥没在 127.0.0.1:3065 报 source.sha256（桥没答？或那一版还没这个字段），跳过代码指纹比对"
+  if [[ "$wb_code" == "401" ]]; then
+    # 桥设了 WORKBUDDY_BRIDGE_TOKEN 时匿名读不到 healthz。这一条**没做成**，但也别把它说成做成了：
+    # 带 token 的读法不写在这里，因为那会把口令放进命令行，而这台机器的 `ps` 会把整条命令行连库口令一起打出来。
+    note "workbuddy 桥要 token（HTTP 401）：代码指纹与 account.ok 这两条本次没读到，需要时带 .env 里的 WORKBUDDY_BRIDGE_TOKEN 手工问一次 /healthz"
+  elif [[ -z "$wb_sha" ]]; then
+    bad "geohot-workbuddy 装着，但 /healthz 答不出 source.sha256（HTTP ${wb_code:-无应答}）—— 桥没在 3065 上答话，或那一版还没这个字段；这时判定调用可能整条没了"
   else
     wb_disk="$(sha256sum "$APP_ROOT/tooling/workbuddy-bridge.ts" 2>/dev/null | cut -d' ' -f1)"
     if [[ -z "$wb_disk" ]]; then
-      note "读不到 $APP_ROOT/tooling/workbuddy-bridge.ts，无法比对桥的代码指纹"
+      bad "读不到 $APP_ROOT/tooling/workbuddy-bridge.ts，无法比对桥的代码指纹（单元装着且在答，文件却不在 $APP_ROOT 下 —— 检查一下 GEOHOT_APP_ROOT 与单元里的 WorkingDirectory 是否同一处）"
     elif [[ "$wb_sha" == "$wb_disk" ]]; then
       ok "geohot-workbuddy 跑的就是磁盘上这份代码（sha256=${wb_sha:0:12}…）"
     else

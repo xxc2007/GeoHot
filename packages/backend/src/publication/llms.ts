@@ -39,7 +39,7 @@ export function llmsTxt(opts: { hasDailies: boolean; hasWeekly: boolean; hasMont
   lines.push(`> ${SITE.description}`, "");
   lines.push("## 给 Agent 的数据接口", "");
   lines.push("所有接口匿名只读、无需 API Key。", "");
-  lines.push(`- [MCP Server](${u("/api/mcp")}): 给 MCP 客户端填的连接地址，远程 Streamable HTTP，版本 ${PUBLIC_VERSIONS.mcp}；提供 ${MCP_TOOLS.map((t) => t.name).join("、")} ${MCP_TOOLS.length} 个只读工具。它不是网页——浏览器直接打开这个地址会回 405（服务端只在 POST 上应答）`);
+  lines.push(`- [MCP Server](${u("/api/mcp")}): 给 MCP 客户端填的连接地址，远程 Streamable HTTP，版本 ${PUBLIC_VERSIONS.mcp}；提供 ${MCP_TOOLS.map((t) => t.name).join("、")} ${MCP_TOOLS.length} 个只读工具。它不是网页——浏览器直接打开会回 405（这台服务器无状态运行，不提供 GET 流）`);
   lines.push(`- [精选摘要 RSS](${u("/feed.xml")}): 最新 50 条精选摘要，保留标题、站内阅读与原文入口`);
   lines.push(`- [精选全文 RSS](${u("/feed/full.xml")}): 与精选摘要相同的最新 50 条；只对明确允许再分发的来源内联正文`);
   lines.push(`- [全部动态 RSS](${u("/feed/all.xml")}): 最近 7 天公开动态，按真实发布时间倒序`);
