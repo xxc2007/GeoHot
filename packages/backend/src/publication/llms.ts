@@ -60,11 +60,11 @@ export function llmsTxt(opts: { hasDailies: boolean; hasWeekly: boolean; hasMont
   }
   if (opts.hasWeekly) {
     lines.push(`- [公开 API v1 · 最新${withSubject("周报")}](${u("/api/v1/weeklies/latest")}): 最新一期结构化${withSubject("周报")}：头条、总述、按栏目分好的大事`);
-    lines.push(`- [公开 API v1 · ${withSubject("周报")}列表](${u("/api/v1/weeklies")}): 历史${withSubject("周报")}索引；指定一周使用 /api/v1/weeklies/{YYYY-Www}`);
+    lines.push(`- [公开 API v1 · ${withSubject("周报")}列表](${u("/api/v1/weeklies")}): 从最新一期往前的历史${withSubject("周报")}索引，更早的带 ?before=YYYY-Www 往前翻；指定一周使用 /api/v1/weeklies/{YYYY-Www}`);
   }
   if (opts.hasMonthly) {
     lines.push(`- [公开 API v1 · 最新${withSubject("月报")}](${u("/api/v1/monthlies/latest")}): 最新一期结构化${withSubject("月报")}：头条、总述、按栏目分好的大事`);
-    lines.push(`- [公开 API v1 · ${withSubject("月报")}列表](${u("/api/v1/monthlies")}): 历史${withSubject("月报")}索引；指定月份使用 /api/v1/monthlies/{YYYY-MM}`);
+    lines.push(`- [公开 API v1 · ${withSubject("月报")}列表](${u("/api/v1/monthlies")}): 从最新一期往前的历史${withSubject("月报")}索引，更早的带 ?before=YYYY-MM 往前翻；指定月份使用 /api/v1/monthlies/{YYYY-MM}`);
   }
   lines.push(`- [公开 API v1 · 当前全部精选](${u("/api/v1/selected/snapshot")}): 首次完整快照；后续使用响应 cursor 调 selected/changes`);
   lines.push(`- [公开 API v1 · 精选增量](${u("/api/v1/selected/changes")}): 只返回新增、修改和撤选`);

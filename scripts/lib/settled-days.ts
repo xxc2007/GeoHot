@@ -36,6 +36,15 @@ export function unsettledSql(from: string, to: string) {
 /**
  * 区间内**已判完**的日子（`unsettled = 0`），可选地只挑其中「没有存下任何日报期次」的那些。
  * 返回按日期升序。
+ *
+ * 三条边界要说清楚，别让这条判据去答它没答的问题：
+ *  · **只按 `articles.timeline_at` 归日**。`candidates()` 还会按 `publications.visible_after` 把一条
+ *    晚放行的材料归到放行那天（`reports/compose.ts` 的 release-gate 分支），所以"这一天的材料判完了"
+ *    不等于"这一天以后不会再长出一条候选"。后者由 `--refresh` 重排那一条路兜，不由这条判据负责。
+ *  · **一天没有任何文章时它既不算已判完、也不算嫌疑**（下面的聚合按文章分组，没有行就没有日）。
+ *    这是"那天什么都没进口"，是覆盖问题不是出刊问题，所以审计脚本另有一条 `days_without_articles`
+ *    把这笔账摊平——否则"嫌疑 0 天"会被读成"区间天天查过、都没问题"。
+ *  · 有期次就不算嫌疑，**不看那一期是否可读**：空白期次有它自己的硬判据（`blank_editions`）。
  */
 export async function settledDays(db: Db, from: string, to: string, onlyWithoutEdition = false) {
   const perDay = unsettledSql(from, to);
@@ -47,7 +56,8 @@ export async function settledDays(db: Db, from: string, to: string, onlyWithoutE
         ) g
         JOIN per_day p ON p.day = g.d
         WHERE p.unsettled = 0
-          AND NOT EXISTS (SELECT 1 FROM reports r WHERE r.kind = 'daily' AND r.key = g.d::text)`
+          AND NOT EXISTS (SELECT 1 FROM reports r WHERE r.kind = 'daily' AND r.key = g.d::text)
+        ORDER BY 1`
     : await db<{ day: string; unsettled: number }[]>`
         WITH per_day AS (${perDay})
         SELECT day::text AS day, unsettled FROM per_day WHERE unsettled = 0 ORDER BY 1`;

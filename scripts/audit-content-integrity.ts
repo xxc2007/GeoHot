@@ -111,8 +111,10 @@ function checks(from: string, to: string): Check[] {
       // 这次任务自己的验收尺子。日子判完了，读者就该看得到它的那份报纸；这天真的没内容也要能说出来
       // （归档那格会把没有期次的日子标成「未出刊」，见 #47/#111 那道读取层闸门）。
       // 「判完 + 没存期次 + `candidates()` 却非零」= 出刊路径漏了一天，不是"那天没内容"。
-      // 成本：每个嫌疑日问一次 `candidates()`（它取一次 `report_candidates` 咨询锁）。今天嫌疑日是 0 个，
-      // 排空跑完最多约 280 个，与 `backfill-papers.ts --summary-file` 逐期数一遍同量级。
+      // 成本：每个嫌疑日问一次 `candidates()`（它取一次 `report_candidates` **排他**咨询锁，
+      // 与发布者争同一把），实测每天 2–3ms：几百个嫌疑日约 1 秒。它不改数据，但会在回填流水线上
+      // 插队——所以这一条要么在停 worker 时跑，要么接受那 1 秒里排在锁后面的发布等待。
+      // 嫌疑日的个数随排空进度变化（本机开发库实测 182，生产在判完之前是 0），别把任何一次的读数当常数。
       name: "settled_days_unprinted_with_material",
       hard: true,
       why: "已判完、没存日报期次、候选却非零的日子：出刊漏印，归档也不该把它说成「那天没有内容」",
@@ -131,6 +133,33 @@ function checks(from: string, to: string): Check[] {
       hard: false,
       why: "区间内已判完的日子数：这是进度读数不是合格线，回填全部跑完时它应等于「有材料」的日子数",
       value: async () => (await settledDays(sql, from, to)).length,
+    },
+    {
+      // 上面两条都按"有文章的日"聚合出来的行分组：那天一篇材料都没进口，就没有聚合行，于是它既不算
+      // 已判完也不算嫌疑。这不是 bug 是口径，但**不报出来的话「嫌疑 0 天」会被读成「区间天天查过、都没问题」**。
+      // 三者相加 = 区间天数，这笔账必须能对上（2026-10-12 在生产量到：区间 285 天里 0 天判完、95 个判完日全在区间外）。
+      name: "days_without_articles",
+      hard: false,
+      why: "区间内没有任何文章的日子数：出刊与嫌疑两条都不看这些天，它们是覆盖问题不是出刊问题",
+      value: () => one(sql<{ n: number }[]>`
+        WITH days AS (SELECT ${editionDay(sql`a.timeline_at`)} AS d FROM articles a)
+        SELECT greatest(0, (${to}::date - ${from}::date + 1)
+          - count(DISTINCT d) FILTER (WHERE d BETWEEN ${from}::date AND ${to}::date))::int AS n FROM days`),
+    },
+    {
+      // 报纸印的是**存版那一刻的快照**（`compose.ts` 把 title/summary 一起写进 `reports.content`，
+      // 读者面逐字印出）。所以"后来把那条英文摘要改好了"不会回头改这份报纸：其余判据全查 `publications`，
+      // 于是它们全绿，而 1 月那一期还在印改之前的字。这一条把"存版落后于现文且现文已是中文"单独量出来。
+      name: "editions_printing_stale_copy",
+      hard: false,
+      why: "存版里的标题没有汉字、而这条材料现在的标题是中文：报纸还在印被改之前的那份文字（要重排才修得掉，见 --refresh）",
+      value: () => one(sql<{ n: number }[]>`
+        SELECT count(*)::int AS n FROM reports r,
+          jsonb_array_elements(coalesce(r.content::jsonb -> 'sections', '[]'::jsonb)) AS s,
+          jsonb_array_elements(coalesce(s -> 'items', '[]'::jsonb)) AS it
+        WHERE r.kind = 'daily' AND r.key BETWEEN ${from} AND ${to}
+          AND coalesce(it ->> 'title', '') <> '' AND it ->> 'title' !~ ${CJK_COPY_PATTERN}
+          AND EXISTS (SELECT 1 FROM publications p WHERE p.article_id = it ->> 'itemId' AND p.title ~ ${CJK_COPY_PATTERN})`),
     },
   ];
 }
