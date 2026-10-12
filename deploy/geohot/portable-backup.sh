@@ -59,16 +59,45 @@ if [[ ! -r "$APP/.env" ]]; then
   printf 'cannot read %s/.env — run this as root (sudo bash), the bundle needs it\n' "$APP" >&2
   exit 1
 fi
-while IFS= read -r p; do
-  p=${p#\"}; p=${p%\"}
+# 解析不偷懒。这份 .env 是从 Windows scp 上来的：`export KEY=`、`KEY="value"`、行尾 `# 注释`、
+# 行尾空格、CRLF 全都真实存在过。第一版用一条 sed 只认 `KEY=/abs` 这一种形状，后果是一对镜像的错：
+# 那种行被**静默跳过**（包里没有凭据、PATHS.txt 里没有它、一声不响），而同一条形状喂给下面那道
+# "凭据必须在场"的守卫时又判成缺失，整场备份拒绝运行。一个形状两种错，所以逐行解析。
+# 每行输出 `键名<TAB>值`，值已经去掉 export、引号、行尾注释、尾部空白与 CR。
+env_pairs() {
+  local line key v
+  while IFS= read -r line; do
+    line=${line%$'\r'}
+    [[ "$line" =~ ^[[:space:]]*(export[[:space:]]+)?([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]] || continue
+    key=${BASH_REMATCH[2]}; v=${BASH_REMATCH[3]}
+    v=${v%%[[:space:]]#*}
+    v="${v%"${v##*[![:space:]]}"}"
+    v="${v#\"}"; v="${v%\"}"; v="${v#\'}"; v="${v%\'}"
+    printf '%s\t%s\n' "$key" "$v"
+  done < "$APP/.env"
+}
+while IFS=$'\t' read -r key p; do
   [[ -f "$p" ]] || continue
-  [[ "$p" == "$APP"/* ]] && continue
-  cp "$p" "$EXTRA/$(basename "$p")"
-  printf '%s\t%s\n' "$(basename "$p")" "$p" >> "$EXTRA/PATHS.txt"
-  printf 'collected file outside app root: %s\n' "$p"
-done < <(sed -n 's/^[A-Za-z0-9_]*="\?\(\/[^"]*\)"\?$/\1/p' "$APP/.env" | sort -u)
+  # application.tgz 收 $APP 整棵（排除 .data/.pgdata 与缓存、build），persistent-data.tgz 收 .data
+  # 里除 imgcache/ogcache/backups 之外的部分。只有"两边都不带"的路径才需要在这里补收——
+  # 否则住在 $APP/.data/imgcache 里的凭据会既不在那两个 tar 里、又被上一版那行跳过，静默丢掉。
+  case "$p" in
+    "$APP"/*) case "$p" in "$APP/.data/"*|"$APP/.pgdata/"*) ;; *) continue ;; esac ;;
+  esac
+  name=$(basename "$p")
+  if [[ -e "$EXTRA/$name" ]]; then
+    # 两把键指着不同目录里的同名文件时，cp 会安静地盖掉前一份，PATHS.txt 于是两行都"对"，
+    # 恢复时按哪一行都不完整。用上级目录名区分开；还撞就停。
+    name="$(basename "$(dirname "$p")")--$name"
+    [[ -e "$EXTRA/$name" ]] && { printf 'cannot name both %s and the file already collected as %s\n' "$p" "$name" >&2; exit 1; }
+  fi
+  cp "$p" "$EXTRA/$name"
+  printf '%s\t%s\n' "$name" "$p" >> "$EXTRA/PATHS.txt"
+  printf 'collected file the app tarballs would not carry: %s  (%s)\n' "$p" "$key"
+done < <(env_pairs | awk -F'\t' '$2 ~ /^\//' | LC_ALL=C sort -u -t$'\t' -k2,2)
+
 # 关键链路不许变成"看不见的缺口"：.env 指着凭据而文件不在，就判备份失败，而不是打出一个恢复不出来的包。
-CRED=$(sed -n 's/^WORKBUDDY_CREDENTIAL="\?//p; s/^WORKBUDDY_CREDENTIAL_JSON="\?//p' "$APP/.env" | head -1 | sed 's/"$//')
+CRED=$(env_pairs | awk -F'\t' '$1 == "WORKBUDDY_CREDENTIAL_JSON" || $1 == "WORKBUDDY_CREDENTIAL" { print $2; exit }')
 if [[ -n "$CRED" && ! -f "$CRED" ]]; then
   printf '%s is configured in .env but missing — the bundle would restore a site with no judging bridge\n' "$CRED" >&2
   exit 1

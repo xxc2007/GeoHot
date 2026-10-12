@@ -119,6 +119,10 @@ fi
 #   · 祖先里有、HEAD 里没有 ⇒ 是开发线自己删的 ⇒ 删除照发，不救。
 # 判不出祖先（两条无共同历史的历史，例如仓库重建）时按"带过来"处理——多留一个文件的代价
 # 远小于把站长的东西删掉，而且差异会在第 4 步整屏打出来。
+# `--no-renames` 是刻意的：默认开着的重命名检测会把"远端这一件 + 本地删掉的另一件很像它"
+# 判成一次改名（状态 R），而 `--diff-filter=A` 只收 A ⇒ 该带回来的东西一条都不剩。
+# 本机 `diff.renames=false`（全局配置里写着），所以今天不加也一样——但换一台没这条配置的机器
+# （服务器克隆、新机器、站长自己）就会变，这类"只在写它的那台机器上成立"的判据正是最坑的那种。
 base=$(git merge-base "$head" "$remote_head" 2>/dev/null || true)
 carried=0; dropped=0
 while IFS= read -r p; do
@@ -137,7 +141,7 @@ while IFS= read -r p; do
     || { echo "✗ 把 $p 带回发布树失败" >&2; exit 1; }
   echo "带过来 $p（$mode，只在发布线上存在）"
   carried=$((carried + 1))
-done < <(git -c core.quotepath=off diff --name-only --diff-filter=A "$head" "$remote_head")
+done < <(git -c core.quotepath=off diff --no-renames --name-only --diff-filter=A "$head" "$remote_head")
 [[ $carried -gt 0 ]] && echo "→ 从 $remote_head 带回 $carried 个发布线独有路径（删除 $dropped 个开发线自己删的）"
 tree=$(git write-tree)
 unset GIT_INDEX_FILE
@@ -147,7 +151,10 @@ unset GIT_INDEX_FILE
 # 只放过仓库里那两个 `.env.example` / `.env.pipeline.example` 空值模板——它们是文档，不是秘密。
 # `.data/` 是**目录前缀**，不能跟别的写在同一个 `$` 锚里：`(…|\.data/)$` 只匹配路径正好以 `.data/` 结尾，
 # `.data/foo.db` 从它下面过（审计 2026-10-10 实测），所以它单列在锚外。
-BAD_PATHS=$(git ls-tree -r --name-only "$tree" | grep -E '(^|/)(\.env(\.[a-z0-9-]+)?|id_(rsa|ed25519|ecdsa|dsa|openssh)[^/]*|[^/]*\.(pem|key|p8)|secrets[^/]*|credentials[^/]*)$|(^|/)\.data/' | grep -vE '\.example$' || true)
+# `core.quotepath=off` 也是承重的那一半：默认配置会把非 ASCII 路径整条加引号（`"资料/秘密/.env"`），
+# 结尾那个引号让每条 `$` 锚失效——`.env` 与 `*.pem` 这类形状刚好都是靠 `$` 收尾匹配的。
+# 本机全局配置里写着 `core.quotepath=false` 所以看不出来，换一台机器就是另一回事。
+BAD_PATHS=$(git -c core.quotepath=off ls-tree -r --name-only "$tree" | grep -E '(^|/)(\.env(\.[a-z0-9-]+)?|id_(rsa|ed25519|ecdsa|dsa|openssh)[^/]*|[^/]*\.(pem|key|p8)|secrets[^/]*|credentials[^/]*)$|(^|/)\.data/' | grep -vE '\.example$' || true)
 if [[ -n "$BAD_PATHS" ]]; then
   echo "✗ 要发布的树里有 .env / 私钥 / *.pem 这类路径，公开仓不收：" >&2
   printf '%s\n' "$BAD_PATHS" | sed 's/^/    /' >&2

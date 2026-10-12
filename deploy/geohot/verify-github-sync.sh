@@ -105,22 +105,26 @@ differs=$(join -t$'\t' -j1 "$WORK/local.tsv" "$WORK/remote.tsv" | awk -F'\t' '$2
 # 分法用共同祖先：祖先树里**没有**这个路径 ⇒ 它从没进过开发线 ⇒ 是发布线的。
 # 这把尺子要用远端**当前那个**提交，所以先确认本地的 origin/<ref> 就是它；本地的 ref 落后时归类会偏松
 # （把"该删没删"也看成"发布线独有"），所以那种情况下退回旧行为：一律记红。
-base_commit=""
+base_commit=""; carry_all=""
 carried=0
 if [[ -n "$extra" ]]; then
   remote_sha=$(gh_read "repos/$REPO/git/ref/heads/$REF" --jq .object.sha || true)
   local_sha=$(git rev-parse --verify -q "refs/remotes/origin/$REF" 2>/dev/null || true)
   if [[ -n "$remote_sha" && "$remote_sha" == "$local_sha" ]]; then
     base_commit=$(git merge-base HEAD "$remote_sha" 2>/dev/null || true)
+    # 同一个提交却对不出共同祖先 ⇒ 两条线没有共同历史（仓库重建过、或第一次发布前）。
+    # 那种情况下 publish-to-github.sh 第 3.4 步的规则是"远端独有的一律带回"，这里必须同规则，
+    # 否则健康的仓会被报成"推送成功但验收未通过"——那种红下一次就没人看了。
+    [[ -z "$base_commit" ]] && carry_all=1
   fi
-  [[ -z "$base_commit" ]] && note "  （对不出共同祖先 ⇒ 远端多出的文件一律按不同步处理）"
+  [[ -z "$base_commit" && -z "$carry_all" ]] && note "  （本地的 origin/$REF 不是远端当前提交 ⇒ 远端多出的文件一律按不同步处理）"
 fi
 
 note "比对 $REPO@$REF：本地 ${local_n} 个 blob / 远端 ${remote_n} 个（排除清单来自 $EXCLUDES）"
 [[ -n "$missing" ]] && while IFS= read -r p; do [[ -n "$p" ]] && bad "远端缺文件：$p"; done <<< "$missing"
 [[ -n "$extra"   ]] && while IFS= read -r p; do
   [[ -n "$p" ]] || continue
-  if [[ -n "$base_commit" ]] && ! git cat-file -e "$base_commit:$p" 2>/dev/null; then
+  if [[ -n "$carry_all" ]] || { [[ -n "$base_commit" ]] && ! git cat-file -e "$base_commit:$p" 2>/dev/null; }; then
     note "  · 发布线独有、开发线从未有过，按带过来处理：$p"
     carried=$((carried + 1))
     continue
