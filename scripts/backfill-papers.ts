@@ -40,6 +40,7 @@ const { values } = parseArgs({
     force: { type: "boolean", default: false },
     refresh: { type: "boolean", default: false },
     apply: { type: "boolean", default: false },
+    "verify-complete": { type: "boolean", default: false },
     "database-url": { type: "string", default: "" },
     "database-url-env": { type: "string" },
     "summary-file": { type: "string" },
@@ -54,6 +55,11 @@ if (requestedKinds.some((k) => !allowedKinds.includes(k))) {
   process.exit(2);
 }
 const kinds = [...new Set(requestedKinds)];
+if (values["verify-complete"] && (values.apply || values.force || values.refresh ||
+    process.argv.slice(2).some((arg) => ["--database-url", "--database-url-env"].includes(arg.split("=")[0]!)))) {
+  console.error("--verify-complete 是只读验收，不能与 --apply/--force/--refresh/数据库写入确认参数一起使用");
+  process.exit(2);
+}
 if (values["database-url-env"] !== undefined && (values["database-url-env"] !== "DATABASE_URL" || values["database-url"])) {
   console.error("--database-url-env 仅接受 DATABASE_URL，且与 --database-url 互斥");
   process.exit(2);
@@ -121,7 +127,8 @@ async function unsettled(start: Date, end: Date): Promise<number> {
   return row?.n ?? 0;
 }
 
-const plan: Array<{ kind: string; key: string; items: number; note: string; waiting: number; exists: boolean; readable: boolean | null; entries: number | null }> = [];
+const plan: Array<{ kind: string; key: string; items: number; note: string; waiting: number; exists: boolean; readable: boolean | null; entries: number | null; status?: string }> = [];
+const blockers: Array<{ kind: string; key: string; code: string; waiting: number }> = [];
 const failures: string[] = [];
 const partial: string[] = []; // 不在区间内 / 窗口还没关的期次：要说出来，不许静悄悄消失
 const behind: string[] = []; // 补在已出刊区间中间的空天：去重只看更早的期次，要重排谁得说清楚
@@ -135,7 +142,15 @@ async function consider(kind: "daily" | "weekly" | "monthly", key: string, start
   // come out with fewer entries — or none — than this number says.
   const waiting = values.force ? 0 : await unsettled(start, end);
   const state = { kind, key, items, waiting, exists, readable: existing?.readable ?? null,
-    entries: existing ? existing.sections.reduce((n, section) => n + section.items.length, 0) : null };
+    entries: existing ? existing.sections.reduce((n, section) => n + section.items.length, 0) + existing.flashes.length : null };
+  if (values["verify-complete"]) {
+    const status = waiting ? "waiting" : exists && !existing.readable ? "empty-not-published"
+      : existing?.readable ? "readable" : items ? "missing-readable-report" : "zero-material";
+    const blocked = ["waiting", "empty-not-published", "missing-readable-report"].includes(status);
+    if (blocked) blockers.push({ kind, key, code: status, waiting });
+    return plan.push({ ...state, status, note: status === "zero-material" ? "已判完但没有可刊候选（不代表来源覆盖完成）"
+      : status === "empty-not-published" ? "已有空刊或不可读刊期，尚未出刊" : status });
+  }
   if (waiting) return plan.push({ ...state, note: `等 ${waiting} 条判完` });
   if (exists && !values.refresh) return plan.push({ ...state, note: existing.readable ? "已有可读刊期（未重排）" : "已有不可读刊期（需 --refresh 复核）" });
   if (!items) return plan.push({ ...state, note: exists ? "无条目可重排" : "已判完但没有可刊条目" });
@@ -148,8 +163,10 @@ async function consider(kind: "daily" | "weekly" | "monthly", key: string, start
   if (!values.apply) return;
   try {
     const out = await compose();
-    const readable = (await loadReport(kind, key))?.readable ?? false;
-    plan[plan.length - 1] = { ...state, exists: true, readable, entries: out.entries,
+    const saved = await loadReport(kind, key);
+    const readable = saved?.readable ?? false;
+    const entries = saved ? saved.sections.reduce((n, section) => n + section.items.length, 0) + saved.flashes.length : out.entries;
+    plan[plan.length - 1] = { ...state, exists: true, readable, entries,
       note: readable ? note : "已保存空刊或不可读刊期" };
     console.log(`  ${kind} ${out.key} entries=${out.entries}`);
   } catch (error) {
@@ -217,17 +234,24 @@ if (behind.length) {
   for (const s of behind.slice(0, 12)) console.log("  " + s);
   if (behind.length > 12) console.log("  …另 " + (behind.length - 12) + " 个");
 }
-if (!values.apply) console.log("\n默认只做计划不写库。确认后用 --apply --database-url-env=DATABASE_URL 跑。");
+if (values["verify-complete"]) console.log(`\n报刊层验收：${blockers.length ? "未通过" : "通过"}；阻断 ${blockers.length} 期。该结果不验证来源覆盖、failed/unknown 处置、最终重排新鲜度或整个目标。`);
+else if (!values.apply) console.log("\n默认只做计划不写库。确认后用 --apply --database-url-env=DATABASE_URL 跑。");
 await closeDb();
-process.exitCode = failures.length ? 1 : 0;
+process.exitCode = failures.length || blockers.length ? 1 : 0;
 if (values["summary-file"]) {
   await writeFile(values["summary-file"], JSON.stringify({
     version: 1,
     generatedAt: new Date().toISOString(),
-    mode: values.apply ? "apply" : "plan",
+    mode: values["verify-complete"] ? "verify" : values.apply ? "apply" : "plan",
     from, to, kinds,
     refresh: values.refresh, force: values.force,
     plan, failures, partial, behind,
     counts: Object.fromEntries(byNote),
+    ...(values["verify-complete"] ? { verification: {
+      scope: "closed-report-periods", passed: blockers.length === 0, blockers,
+      zeroMaterialMeaning: "窗口没有可刊候选，不代表没有原始资料或完成来源检索",
+      notEvaluated: ["source-archive-coverage", "failed-material-disposition", "unknown-analysis-disposition",
+        "copy-factual-quality", "refresh-freshness", "website-functions", "deployment-sync"],
+    } } : {}),
   }, null, 2) + "\n", { encoding: "utf8", mode: 0o600 });
 }

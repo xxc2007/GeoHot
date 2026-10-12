@@ -37,9 +37,10 @@ after(async () => {
   await closeDb();
   rmSync(dir, { recursive: true, force: true });
 });
-function run(apply = false, refresh = true) {
-  const args = ['scripts/backfill-papers.ts', '--kinds=daily', `--from=${day}`, `--to=${day}`, `--summary-file=${summaryFile}`];
+function run(apply = false, refresh = true, verify = false, targetDay = day) {
+  const args = ['scripts/backfill-papers.ts', '--kinds=daily', `--from=${targetDay}`, `--to=${targetDay}`, `--summary-file=${summaryFile}`];
   if (refresh) args.push('--refresh');
+  if (verify) args.push('--verify-complete');
   if (apply) args.push('--apply', '--database-url-env=DATABASE_URL');
   const result = spawnSync(process.execPath, args, { cwd: fileURLToPath(new URL('../', import.meta.url)), encoding: 'utf8', timeout: 20_000,
     env: { ...process.env, MODEL_CALLS_ENABLED: 'false', COLLECT_ENABLED: 'false' } });
@@ -109,4 +110,69 @@ test('successful apply rechecks an empty issue after real previous-issue dedupli
   const [saved] = await sql`SELECT content FROM reports WHERE kind='daily' AND key=${day}`;
   assert.deepEqual(saved!.content.sections, []);
   assert.equal(saved!.content.generator.repeatsSuppressed, 1);
+});
+
+test('verify-complete distinguishes missing, pending, readable and genuine deduplicated emptiness without writes', async () => {
+  async function snapshot() {
+    const [row] = await sql`SELECT (SELECT count(*)::int FROM reports) reports,
+      (SELECT count(*)::int FROM report_revisions) revisions,(SELECT count(*)::int FROM receipts) receipts`;
+    return row;
+  }
+  const before = await snapshot();
+  const deduplicated = run(false, false, true);
+  assert.equal(deduplicated.result.status, 1);
+  assert.equal(deduplicated.summary.plan[0].status, 'empty-not-published');
+  assert.equal(deduplicated.summary.plan[0].items, 1);
+  assert.equal(deduplicated.summary.plan[0].entries, 0);
+  assert.equal(deduplicated.summary.verification.passed, false);
+  assert.ok(deduplicated.summary.verification.notEvaluated.includes('unknown-analysis-disposition'));
+  assert.ok(deduplicated.summary.verification.notEvaluated.includes('refresh-freshness'));
+
+  const zero = run(false, false, true, '2018-05-02');
+  assert.equal(zero.result.status, 0);
+  assert.equal(zero.summary.plan[0].status, 'zero-material');
+  assert.equal(zero.summary.plan[0].exists, false);
+  assert.equal(zero.summary.verification.scope, 'closed-report-periods');
+
+  await sql`UPDATE articles SET processing_state='new' WHERE id=${articleId}`;
+  const pending = run(false, false, true);
+  assert.equal(pending.result.status, 1);
+  assert.equal(pending.summary.plan[0].status, 'waiting');
+  assert.equal(pending.summary.verification.blockers[0].code, 'waiting');
+  await sql`UPDATE articles SET processing_state='analyzed' WHERE id=${articleId}`;
+  await sql`DELETE FROM reports WHERE kind='daily' AND key=${day}`;
+  const missing = run(false, false, true);
+  assert.equal(missing.result.status, 1);
+  assert.equal(missing.summary.plan[0].status, 'missing-readable-report');
+  await sql`INSERT INTO reports(kind,key,window_start,window_end,content,generated_at,origin)
+    VALUES('daily',${day},${new Date('2018-04-01T00:00:00Z')},${new Date('2018-04-02T00:00:00Z')},
+      ${sql.json({sections:[{label:'学科',items:[{itemId:articleId,title:'监测结果'}]}],flashes:[{itemId:articleId,title:'监测快讯'}]} as never)},now(),'manual')`;
+  const readable = run(false, false, true);
+  assert.equal(readable.result.status, 0);
+  assert.equal(readable.summary.plan[0].status, 'readable');
+  assert.equal(readable.summary.plan[0].entries, 2, 'saved sections and flashes are both counted');
+  assert.equal(readable.summary.plan[0].readable, true);
+  await sql`UPDATE articles SET processing_state='new' WHERE id=${articleId}`;
+  const readablePending = run(false, false, true);
+  assert.equal(readablePending.result.status, 1);
+  assert.equal(readablePending.summary.plan[0].readable, true);
+  assert.equal(readablePending.summary.plan[0].status, 'waiting');
+  await sql`UPDATE articles SET processing_state='analyzed' WHERE id=${articleId}`;
+  // The only changes above are explicit fixture mutations, not the verify CLI.
+  assert.equal((await snapshot()).receipts, before.receipts);
+});
+
+test('flash-only and withdrawn/future citations reuse the real public readability gate', async () => {
+  await sql`UPDATE reports SET content=${sql.json({sections:[],flashes:[{itemId:articleId,title:'真实快讯'}]} as never)} WHERE kind='daily' AND key=${day}`;
+  const flash = run(false, false, true);
+  assert.equal(flash.result.status, 1);
+  assert.equal(flash.summary.plan[0].entries, 1);
+  assert.equal(flash.summary.plan[0].readable, false, 'the public gate explicitly excludes flashes');
+  assert.equal(flash.summary.plan[0].status, 'empty-not-published');
+  await sql`UPDATE reports SET content=${sql.json({sections:[{label:'学科',items:[{itemId:articleId,title:'监测结果'}]}],flashes:[]} as never)} WHERE kind='daily' AND key=${day}`;
+  await sql`UPDATE publications SET visible_after=now()+interval '1 hour' WHERE article_id=${articleId}`;
+  assert.equal(run(false, false, true).summary.plan[0].status, 'empty-not-published');
+  await sql`UPDATE publications SET visible_after=now()-interval '1 hour',visibility='withdrawn' WHERE article_id=${articleId}`;
+  assert.equal(run(false, false, true).summary.plan[0].status, 'empty-not-published');
+  await sql`UPDATE publications SET visibility='public' WHERE article_id=${articleId}`;
 });

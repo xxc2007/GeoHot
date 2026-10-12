@@ -1,6 +1,6 @@
 // Space Bunny short-writing requests use existing reasoning headroom without changing other stages or
 // buying a second answer when an exact legacy summary receipt already exists.
-import { purgeTagged, stub, tag } from "./setup.ts";
+import { purgeTagged, Reply, stub, tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
@@ -39,7 +39,15 @@ test("space bunny summary request normalization and exact legacy recovery", asyn
   const chinese = "title_zh: 台网发布地震观测资料\nsummary_zh: 台网发布新的地震观测资料，并说明资料覆盖的区域和时间。";
   let refuseWriting = false;
   const provider = await stub((_hit, request) => {
-    const body = JSON.parse(request.body);
+    let body: Record<string, any>;
+    try {
+      body = JSON.parse(request.body);
+    } catch {
+      // A body-less request is not this pipeline's (llm.ts always POSTs a JSON object); it is a stray
+      // loopback request landing on the stub's port. Answer it and move on — one such request used to
+      // throw out of the stub and fail the whole file via unhandled rejection.
+      return new Reply(400, { error: "not a chat request" });
+    }
     bodies.push(body);
     const system = body.messages[0]?.role === "system" ? String(body.messages[0].content) : "";
     const content = system === PREFILTER_SYSTEM ? JSON.stringify({ label: "PASS", reason: "观测资料" })

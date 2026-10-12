@@ -5,7 +5,7 @@ import { resolve, dirname } from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import { setTimeout as delay } from "node:timers/promises";
-import type { Candidate, SourceRow } from "../packages/backend/src/sources/types.ts";
+import { FetchError, type Candidate, type SourceRow } from "../packages/backend/src/sources/types.ts";
 import type { MaterialInput, MaterialResult } from "../packages/backend/src/content/materials.ts";
 import { identityKeyForUrl } from "../packages/backend/src/lib/url.ts";
 
@@ -18,6 +18,8 @@ export interface ArchiveRule {
   urlTemplate: string;
   firstPage?: number;
   firstPageUrl?: string;
+  /** Present means a monthly archive paginates within the month: `{month}` substitutes as in urlTemplate, `{page}` starts at 2. */
+  monthPageUrlTemplate?: string;
   config: Record<string, unknown>;
 }
 export interface Options {
@@ -99,12 +101,17 @@ export async function run(o: Options, rules: ArchiveRule[], sources: SourceRow[]
     return !registered || (registered.enabled && registered.participation_mode === "editorial");
   });
   for (const id of o.sources) if (!picked.some(r => r.sourceId === id)) throw new Error(`Unsupported archive: ${id}`);
+  // What one fetched listing did to the walk: "continue" goes to the next page, "stop-rule" ends the
+  // rule's walk, "older-boundary-month" ends one month's continuation (older-boundary evidence or a
+  // month-end signal) while the plan walks on to the next month, "error" fails the walk.
+  type Verdict = "continue" | "stop-rule" | "older-boundary-month" | "error";
   outer: for (const rule of picked) {
     const registered = sources.find(s => s.id === rule.sourceId);
     if (!registered) throw new Error(`Source is not registered: ${rule.sourceId}`);
     if (!registered.enabled || registered.participation_mode !== "editorial") throw new Error(`Source is not enabled for editorial processing: ${rule.sourceId}`);
     if (rule.format && rule.format !== "html" && rule.format !== "rss") throw new Error(`Unsupported archive format: ${rule.format}`);
     if (rule.format === "rss" && registered.kind !== "rss") throw new Error(`RSS archive requires a registered RSS source: ${rule.sourceId}`);
+    if (rule.monthPageUrlTemplate && (rule.mode !== "months" || !rule.monthPageUrlTemplate.includes("{month}") || !rule.monthPageUrlTemplate.includes("{page}"))) throw new Error(`Month pagination requires a months rule with {month} and {page} in the template: ${rule.sourceId}`);
     // Keep HTML identity/checkpoint behavior unchanged; RSS aliases use canonical material identity.
     const identity = (url: string) => rule.format === "rss" ? identityKeyForUrl(url) ?? url : url;
     let priorSignature = "";
@@ -115,16 +122,27 @@ export async function run(o: Options, rules: ArchiveRule[], sources: SourceRow[]
     // frontier once, without trusting completed-page counts as evidence of an older-date boundary.
     const legacyFrontier = o.apply && rule.mode === "pages" && !state.boundaries?.[prefix]
       ? plan.findLast(url => done.has(`${prefix}${url}`)) : undefined;
-    for (const [pageIndex, url] of plan.entries()) {
+    const monthPagination = rule.mode === "months" ? rule.monthPageUrlTemplate : undefined;
+    // pages() walks one month per planned URL from o.from's month, so planned index i is that walk's
+    // (i)th month; the within-month template substitutes the same month.
+    const monthAt = (i: number) => {
+      const [y, m] = o.from.slice(0, 7).split("-").map(Number);
+      const t = m! - 1 + i;
+      return `${y! + Math.floor(t / 12)}-${String(t % 12 + 1).padStart(2, "0")}`;
+    };
+    // Pre-filter listing length of the page readPage processed last: 0 means it read nothing (a
+    // skipped or failed page), otherwise the count the next continuation page is compared against.
+    let raw = 0;
+    const readPage = async (url: string, first: boolean, last: boolean, continuation?: { lastRaw: number }): Promise<Verdict> => {
+      raw = 0;
       // Exact range keys deliberately prevent a wider/shifted span from reusing an old stopping point.
       // Reobserve the boundary itself: numbered pages can move when publishers prepend new articles.
       if (o.apply && (state.boundaries?.[prefix]?.url === url || legacyFrontier === url)) done.delete(`${prefix}${url}`);
       const key = `${o.from}:${o.to}:${rule.sourceId}:${url}`;
       const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
-      const openListing = (rule.mode === "pages" && pageIndex === 0 && o.to >= today)
+      const openListing = (rule.mode === "pages" && first && o.to >= today)
         || (rule.mode === "months" && url.includes(today.slice(0, 7).replace("-", "/")));
-      if (o.apply && done.has(key) && !openListing) continue;
-      if (stats.pages >= o.maxPages || stats.eligible >= o.maxItems) { stats.limited = true; break outer; }
+      if (o.apply && done.has(key) && !openListing) return "continue";
       try {
         const completedItems = new Set((state.partial?.[key] ?? []).map(identity));
         const rss = rule.format === "rss";
@@ -132,13 +150,20 @@ export async function run(o: Options, rules: ArchiveRule[], sources: SourceRow[]
           ...registered.config, ...rule.config, ...(rss ? { feedUrl: url } : { url }),
         } });
         stats.pages++;
-        if (!items.length) throw new Error("Empty archive listing: coverage is unknown; page remains pending");
+        raw = items.length;
+        if (!items.length) {
+          // An empty continuation page is a monthly archive saying the month has no more pages, not a
+          // coverage failure: nothing was read, so the URL stays pending and the next run re-checks it.
+          if (continuation) { d.log?.({ source: rule.sourceId, stop: "month-exhausted", reason: "empty", url }); return "older-boundary-month"; }
+          throw new Error("Empty archive listing: coverage is unknown; page remains pending");
+        }
         // A CMS that ignores an out-of-range page must not masquerade as more history.
         const signature = items.map(c => identity(c.url)).join("\n");
-        if (rule.mode === "pages" && signature === priorSignature) { stats.limited = true; d.log?.({ source: rule.sourceId, stop: "repeated-page", coverage: "unknown", url }); break; }
+        if (rule.mode === "pages" && signature === priorSignature) { stats.limited = true; d.log?.({ source: rule.sourceId, stop: "repeated-page", coverage: "unknown", url }); return "stop-rule"; }
         priorSignature = signature;
         let interrupted = false;
         const discoveredAt = new Date();
+        const eligibleBefore = stats.eligible;
         for (const c of items) {
           stats.candidates++;
           const m = material(c, rule.sourceId, discoveredAt);
@@ -164,7 +189,7 @@ export async function run(o: Options, rules: ArchiveRule[], sources: SourceRow[]
           }
           d.log?.({ source: rule.sourceId, url: c.url, title: c.title, publishedAt: m.publishedAt!.toISOString(), apply: o.apply });
         }
-        if (interrupted) break outer;
+        if (interrupted) return "stop-rule";
         if (o.apply) {
           // The newest paged listing, the open monthly listing and pages with unknown dates need
           // another observation. A checkpoint is a transport ledger, never proof of full coverage.
@@ -176,8 +201,9 @@ export async function run(o: Options, rules: ArchiveRule[], sources: SourceRow[]
           await d.checkpoint!(state);
         }
         const dated = items.filter(c => c.publishedAt && Number.isFinite(c.publishedAt.getTime()));
-        // Only stop a paged source when every listed item is dated and older than the range.
-        const olderBoundary = rule.mode === "pages" && dated.length === items.length
+        // Only stop a walk when every listed item is dated and older than the range. A pages walk ends
+        // there; a monthly walk only ends its month, the next month is still inside the range.
+        const olderBoundary = (rule.mode === "pages" || monthPagination) && dated.length === items.length
           && dated.every(c => c.publishedAt!.getTime() < Date.parse(`${o.from}T00:00:00+08:00`));
         if (olderBoundary) {
           const reused = state.boundaries?.[prefix]?.url === url;
@@ -188,15 +214,50 @@ export async function run(o: Options, rules: ArchiveRule[], sources: SourceRow[]
             state.boundaries[prefix] = { url, observedAt: discoveredAt.toISOString() };
             await d.checkpoint!(state);
           }
-          break;
+          return rule.mode === "pages" ? "stop-rule" : "older-boundary-month";
         }
         if (o.apply && state.boundaries?.[prefix]?.url === url) {
           delete state.boundaries[prefix];
           await d.checkpoint!(state);
         }
-        if (pageIndex === plan.length - 1 && (rule.mode === "pages" || plan.length && !plan[plan.length - 1]!.includes(o.to.slice(0, 7).replace("-", "/")))) stats.limited = true;
-      } catch (error) { stats.errors++; d.log?.({ source: rule.sourceId, url, error: (error as Error).message }); break; }
-      if (o.sleepMs) await delay(o.sleepMs);
+        if (last && (rule.mode === "pages" || plan.length && !plan[plan.length - 1]!.includes(o.to.slice(0, 7).replace("-", "/")))) stats.limited = true;
+        if (continuation) {
+          // Speculative month-end signals, never errors: a page yielding nothing new in range —
+          // including a CMS echoing the previous page for an out-of-range request — and a page
+          // listing fewer raw items than its predecessor. Pages with items checkpoint as usual.
+          if (stats.eligible === eligibleBefore) { d.log?.({ source: rule.sourceId, stop: "month-exhausted", reason: "no-new", url }); return "older-boundary-month"; }
+          if (items.length < continuation.lastRaw) { d.log?.({ source: rule.sourceId, stop: "month-exhausted", reason: "partial", url }); return "older-boundary-month"; }
+        }
+        if (o.sleepMs) await delay(o.sleepMs);
+        return "continue";
+      } catch (error) {
+        // A 404 or an unparseable continuation page is how a monthly archive ends the month:
+        // speculative, not an error, no boundary, and the URL stays pending for a cheap re-check.
+        if (continuation && error instanceof FetchError && (error.status === 404 || error.message.startsWith("no items matched"))) {
+          d.log?.({ source: rule.sourceId, stop: "month-exhausted", reason: error.status === 404 ? "404" : "empty", url });
+          return "older-boundary-month";
+        }
+        stats.errors++; d.log?.({ source: rule.sourceId, url, error: (error as Error).message }); return "error";
+      }
+    };
+    for (const [pageIndex, url] of plan.entries()) {
+      // Caps are re-checked here because "stop-rule" only ends one rule's walk: interrupted used to
+      // break outer directly, and this head check reproduces that stop before the next rule fetches.
+      if (stats.pages >= o.maxPages || stats.eligible >= o.maxItems) { stats.limited = true; break outer; }
+      let verdict = await readPage(url, pageIndex === 0, pageIndex === plan.length - 1);
+      if (verdict === "continue" && monthPagination) {
+        // Follow the month's own {page} numbering from 2, inside the same page and item caps, until
+        // the month ends. A completed continuation page ends the probe: it was already acknowledged,
+        // so nothing newer can sit behind it — an unfetched one is re-read on the next run anyway.
+        const month = monthAt(pageIndex).replace("-", "/");
+        let page = 2, lastRaw = raw;
+        while (stats.pages < o.maxPages && stats.eligible < o.maxItems) {
+          verdict = await readPage(monthPagination.replace("{month}", month).replace("{page}", String(page++)), false, false, { lastRaw });
+          if (verdict !== "continue" || raw === 0) break;
+          lastRaw = raw;
+        }
+      }
+      if (verdict === "stop-rule" || verdict === "error") break;
     }
   }
   return stats;

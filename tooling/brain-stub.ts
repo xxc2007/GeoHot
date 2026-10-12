@@ -771,7 +771,7 @@ const buildDefault: Record<string, (ctx: Ctx) => { reply: Record<string, unknown
     }
     const themes = [...bySection.entries()].slice(0, 6).map(([heading, refs]) => ({
       heading: clampStr(heading, 60),
-      summary: clampStr(`本主题 ${refs.length} 条（条目 ${refs.join("、")}），按入选分数排列。`, 800),
+      summary: clampStr(`本主题 ${refs.length} 条（条目 ${refs.join("、")}），按 AI 评分排列。`, 800),
       refs,
     }));
     const period = /^本期：\s*([^\n]+)/.exec(ctx.user.trim())?.[1]?.trim() ?? "";

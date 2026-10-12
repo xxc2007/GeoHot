@@ -90,7 +90,12 @@ test("月历只把真有内容的日子画成点，日期与筛选用的是同�
   const tagged = await monthMarks(recentDay.slice(0, 7), { tag: TAG });
   assert.equal(tagged.find((m) => m.date === recentDay)?.items, 2, "带标签的日历数的是这个标签下的日子");
   const otherCategory = await monthMarks(recentDay.slice(0, 7), { category: "human" });
-  assert.ok(!otherCategory.some((m) => m.date === recentDay), "夹具全是 natural，按 human 筛就不该有这一天");
+  // 共享测试库里别人发布的条目不受本夹具控制（回填栈当天发的内容也算数），所以「human 筛下这一天
+  // 在不在」没法全局断言。钉的仍是这条判据的本意——成员条件一致：日历若漏套 category，它数的是
+  // 那天全部条目、列表数的是 human 的，两个数在有任何 natural 条目的一天必不相等。
+  const humanDay = await loadPool({ ...filters, tag: null, category: "human", q: null, tab: "time", page: 1, date: recentDay });
+  assert.equal(otherCategory.find((m) => m.date === recentDay)?.items ?? 0, humanDay.total,
+    "human 筛下月历与列表对同一天数出同一个数（同一套成员条件）");
 });
 
 test("月与日的参数不认形状，还要回读对得上（2026-02-30 不能变成 3 月 2 日）", () => {

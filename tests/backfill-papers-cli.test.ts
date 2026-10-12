@@ -92,3 +92,11 @@ test("database env acknowledgement accepts only DATABASE_URL and rejects conflic
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /出刊 0 期/);
 });
+
+test("verify-complete refuses every write or override option before reading the database", () => {
+  for (const option of ["--apply", "--force", "--refresh", "--database-url=", "--database-url-env=DATABASE_URL"]) {
+    const result = run(["--verify-complete", option]);
+    assert.equal(result.status, 2, result.stderr);
+    assert.match(result.stderr, /--verify-complete 是只读验收/);
+  }
+});
