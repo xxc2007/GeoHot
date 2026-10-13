@@ -53,7 +53,9 @@ const DAY = 86_400_000;
  * as `GEOHOT_PHASE_SECONDS`. Being killed *during* a paid call is not a harmless interruption: the receipt is
  * left `pending`, the sweeper marks it `unknown` (`providers/receipts.ts:markStalePendingReceipts`), and an
  * `unknown` outcome is never re-sent without an operator — by design, because the provider may have billed it.
- * So every kill that lands mid-call converts one edition into one that can no longer be published at all.
+ * That edition is then blocked on that door: the pool has to rotate to another service (whose logical key
+ * is different) before the composition goes through — which is what finally freed 02-28 and 03-13 today, after
+ * seven cycles of 「失败」 each. With only one door available for that step, the edition waits for an operator.
  * Measured 2026-10-13: `papers` exited 124 (timeout) in **every** cycle of the last 14, and two dates were
  * already locked that way (`report:daily:2026-02-28`, `2026-03-13`).
  * The fix is to stop *starting* work while one call still fits before the kill, and exit 0 so the phase
