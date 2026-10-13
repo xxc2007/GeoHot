@@ -1,5 +1,5 @@
 import { SITE } from "@aihot/industry/site";
-import { Fragment, useEffect, useState } from "react";
+import { useEffect } from "react";
 import { Link, useLoaderData } from "react-router";
 import { loadOr404 } from "../lib/api.server";
 import { pageMeta } from "../lib/seo";
@@ -28,22 +28,26 @@ interface Release {
 
 export async function loader({ request }: { request: Request }) {
   // 5xx 按约定报 503（并且不会被缓存成一个假的"没有更新"），而不是把加载器的异常抛成 500。
-  return loadOr404<{ latestVersion: string; releases: Release[] }>("/api/site/changelog", { signal: request.signal });
+  const data = await loadOr404<{ latestVersion: string; releases: Release[] }>("/api/site/changelog", { signal: request.signal });
+  // 类型筛选走查询参数而不是组件里的 state：这一页是读者会收藏、会互相转发的地址，
+  // 「只看修复」必须在他把链接发出去之后仍然有效，也必须在不执行脚本的阅读器上可用。
+  return { ...data, kind: new URL(request.url).searchParams.get("kind") };
 }
 
 export function meta() {
   return pageMeta({ title: "更新日志", description: `${SITE.name} 的功能更新、优化、公告与下线记录。`, path: "/changelog", image: "/og/pages/changelog.png" });
 }
 
-/** Known kinds get their own colour; an unseen one still gets a dot instead of a broken class. */
+/**
+ * 本站的更新只有这五种类型（2026-10-13 把原先 11 种并到这里：扩充/新增→新增、变更/下线/精简/数据/体验→更新或优化）。
+ * 认不出的类型仍然给一颗点，只是灰色——侧栏与正文的颜色不能依赖这张表是否齐全（`kind: string` 的注释记着那次事故）。
+ */
 const KIND_DOT: Record<string, string> = {
   更新: "bg-accent",
+  新增: "bg-hot",
   优化: "bg-ok",
   公告: "bg-amber",
-  下线: "bg-ink-4",
-  修复: "bg-ok",
-  扩充: "bg-accent",
-  精简: "bg-ink-2",
+  修复: "bg-ink-2",
 };
 const kindDot = (kind: string) => KIND_DOT[kind] ?? "bg-ink-2";
 
@@ -86,10 +90,13 @@ function ReleaseBody({ lines }: { lines: string[] }) {
 export default function ChangelogPage() {
   const data = useLoaderData<typeof loader>();
   useEffect(() => setChangelogSeen(data.latestVersion), [data.latestVersion]);
-  const [kind, setKind] = useState<string | null>(null);
   // The filter offers the kinds the file actually contains, newest first: adding a new kind to
   // `industry/changelog.json` then needs no code change to be colour-marked and filterable.
   const kinds = [...new Set(data.releases.map((r) => r.kind))];
+  const kind = data.kind && kinds.includes(data.kind) ? data.kind : null;
+  // 一个已经不存在的类型（旧书签、别人转过来的老链接）不静默退回"全部"：那一屏看起来像"这一类没有更新"，
+  // 而真相是这一类被并掉了。说清楚，并给回全部的路。
+  const retired = data.kind && !kind ? data.kind : null;
   const groups = new Map<string, Release[]>();
   for (const r of data.releases) if (!kind || r.kind === kind) groups.set(r.date, [...(groups.get(r.date) ?? []), r]);
   // Month → the newest date shown in it (the jump target) and how many entries it holds.
@@ -103,21 +110,20 @@ export default function ChangelogPage() {
   const aside = (
     <>
       <AsideCard title="按类型看" className="hidden lg:block">
-        <div className="-mx-2 -mb-1">
+        <nav aria-label="按类型看" className="-mx-2 -mb-1">
           {[null, ...kinds].map((k) => (
-            <button
+            <Link
               key={k ?? "all"}
-              type="button"
-              onClick={() => setKind(k)}
-              aria-pressed={kind === k}
+              to={k ? { search: `?kind=${encodeURIComponent(k)}` } : { search: "" }}
+              aria-current={kind === k ? "page" : undefined}
               className={`flex w-full items-center gap-2.5 rounded-control px-2 py-2 text-left text-[13.5px] transition-colors ${kind === k ? "bg-bg-sunk font-medium text-ink dark:bg-bg-muted/60" : "text-ink-2 hover:bg-bg-sunk hover:text-ink"}`}
             >
               <span className={`size-1.5 rounded-full ${k ? kindDot(k) : "bg-ink-2"}`} aria-hidden="true" />
               <span className="flex-1">{k ?? "全部"}</span>
               <span className="num text-[12px] text-ink-4">{k ? data.releases.filter((r) => r.kind === k).length : data.releases.length}</span>
-            </button>
+            </Link>
           ))}
-        </div>
+        </nav>
       </AsideCard>
       <AsideCard title="按月份" className="hidden lg:block">
         <nav aria-label="按月份" className="-mx-2 -mb-1">
@@ -144,42 +150,42 @@ export default function ChangelogPage() {
     <ReadingLayout aside={aside}>
       <header className="pb-6">
         <h1 className="text-[24px] font-semibold leading-[1.3] text-ink">更新日志</h1>
-        <p className="mt-1.5 text-[13px] text-ink-3">新功能、调整、下线，都写在这里。</p>
+        <p className="mt-1.5 text-[13px] text-ink-3">新增、更新、优化、修复与公告，都写在这里。</p>
       </header>
+      {retired && (
+        <p className="mb-5 rounded-control bg-bg-sunk px-4 py-3 text-[13px] leading-[1.7] text-ink-2">
+          「{retired}」这一类已经并到现在的五种类型里，所以下面按全部给你看。
+        </p>
+      )}
       <div className="space-y-4">
         {[...groups.entries()].map(([date, releases]) => {
           const h = dateHeading(date);
-          const plain = releases;
           return (
-            <Fragment key={date}>
-              {plain.length > 0 && (
-                <section id={`d-${date}`} className="card scroll-mt-6 px-5 lg:px-7">
-                  <h2 className="flex items-baseline gap-3 border-b border-line-soft py-4">
-                    <time dateTime={date} className="text-[18px] font-bold text-ink">
-                      {h.label}
-                    </time>
-                    <span className="text-[12px] text-ink-4">{h.weekday}</span>
-                  </h2>
-                  <ol>
-                    {plain.map((r) => (
-                      <li key={`${r.date}-${r.time}-${r.title}`} className="grid gap-x-8 gap-y-2 border-b border-line-soft py-5 last:border-b-0 sm:grid-cols-[88px_minmax(0,1fr)]">
-                        <div className="flex items-center gap-3 sm:block">
-                          <span className="mono block text-[12.5px] text-ink-3">{r.time}</span>
-                          <span className="inline-flex items-center gap-1.5 text-[11.5px] text-ink-4 sm:mt-1.5">
-                            <span className={`size-1.5 rounded-full ${kindDot(r.kind)}`} aria-hidden="true" />
-                            {r.kind}
-                          </span>
-                        </div>
-                        <article className="min-w-0 sm:border-l sm:border-line sm:pl-8">
-                          <h3 className="text-[15px] font-bold leading-snug text-ink">{r.title}</h3>
-                          <ReleaseBody lines={r.body} />
-                        </article>
-                      </li>
-                    ))}
-                  </ol>
-                </section>
-              )}
-            </Fragment>
+            <section key={date} id={`d-${date}`} className="card scroll-mt-6 px-5 lg:px-7">
+              <h2 className="flex items-baseline gap-3 border-b border-line-soft py-4">
+                <time dateTime={date} className="text-[18px] font-bold text-ink">
+                  {h.label}
+                </time>
+                <span className="text-[12px] text-ink-4">{h.weekday}</span>
+              </h2>
+              <ol>
+                {releases.map((r) => (
+                  <li key={`${r.date}-${r.time}-${r.title}`} className="grid gap-x-8 gap-y-2 border-b border-line-soft py-5 last:border-b-0 sm:grid-cols-[88px_minmax(0,1fr)]">
+                    <div className="flex items-center gap-3 sm:block">
+                      <span className="mono block text-[12.5px] text-ink-3">{r.time}</span>
+                      <span className="inline-flex items-center gap-1.5 text-[11.5px] text-ink-4 sm:mt-1.5">
+                        <span className={`size-1.5 rounded-full ${kindDot(r.kind)}`} aria-hidden="true" />
+                        {r.kind}
+                      </span>
+                    </div>
+                    <article className="min-w-0 sm:border-l sm:border-line sm:pl-8">
+                      <h3 className="text-[15px] font-bold leading-snug text-ink">{r.title}</h3>
+                      <ReleaseBody lines={r.body} />
+                    </article>
+                  </li>
+                ))}
+              </ol>
+            </section>
           );
         })}
       </div>
