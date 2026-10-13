@@ -340,6 +340,30 @@ curl -s https://<新域名>/<前缀>/   | grep -o 'src="[^"]*"' | head -3   # �
 - 回滚后复验：`bash deploy/geohot/verify-deploy.sh`（它拿 `baseline-main.txt` 里的哈希比对**邻居站**首页，
   前提是改动 nginx 之前先跑过一次 `--save-baseline`），再过一遍第 8 节那串 curl。
 
+### 6.3 2026-10-13 那次演练留下了什么（唯一迁移包的身份）
+
+6.1 要求"当场演练过才算备份"。这次两条路都真跑过，结果与身份记在这里，下次搬家不必重新试探。
+
+- **只保留一份迁移包**（站长定的口径：旧的与缓存一律清掉，只留最新一份）：
+  `/opt/geohot/backups/migration/geohot-20261013T131115Z-portable.tgz`，720,898,706 字节，
+  sha256 `d5c9d0a2c5981c8baca2610d626396d40cbc410b2e4effd092e43ca0ecd2d103`，30 个成员；
+  包内自带的 `SHA256SUMS` 覆盖 26 个文件，逐条 `sha256sum -c` 全 OK（删除旧包之后又复验了一次）。
+  成员包括 `database.dump`（`pg_dump -Fc`）、`application.tgz`、`persistent-data.tgz`、`systemd/*.txt`、
+  `nginx-site.conf`、`archive-cycle.conf`、`outside-app/`（`$APP` 之外的 WorkBuddy 桥凭据与目录，见 `PATHS.txt`）、
+  `RESTORE.txt`（九步）、`runtime.txt`、`database-contents.txt`。
+- **整库恢复演练**：`pg_restore -d geohot_rehearse -j1 --no-owner --no-acl database.dump` → 4 分 14 秒、退出码 0。
+  与生产逐表对比：`sources` 577=577、`reports` 328=328；`articles` 差 135、`receipts` 差 1,242——
+  差额恰好是导出之后线上继续写入的行（生产多、演练库少，方向对）。演练库已 `DROP`。
+- **仓库侧演练**（第 6 节"从零开始"那条路）：空库 `geohot_repo_test` → `node scripts/migrate.ts` 应用 63 个迁移
+  → `node scripts/seed.ts` 播种 **571 条信源（493 启用）/ 43 个主题 / 0 条条目** → 演练库已 `DROP`。
+  这条就是新机器 `git clone && npm ci` 之后得到的骨架：**代码、信源、分类、主题、门槛、条款、更新日志全在仓库里**。
+- **两条路的边界**（选哪条要看你要不要历史）：条目、事件、精选台账、回执、`$APP` 外的凭据与 systemd/nginx 配置
+  **只在迁移包里**，仓库里没有也不该有（`.gitignore` 兜住 `.env*`、`*.pem`、`*.key`、`secrets*`、`credentials*`）。
+  所以：**从 GitHub 走 = 起一个干净站点重新采集；从迁移包走 = 连全部历史内容一起搬。**
+- **清理量**：`/opt/geohot/backups` 从 23 GB 降到 1.4 GB（删掉 19 个旧 `*-portable.tgz`、73 个 `app-*.tar.gz`、
+  一个 `pre-73d6885-source.tgz`），磁盘可用从 21 GB 回到 42 GB。**以后每次上线重打一份并取代上一份**，
+  不再往同一目录堆历史包。
+
 ---
 
 ## 7. 公开仓库与介绍页：远端、发布、验收、配图、数字
