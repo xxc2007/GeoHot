@@ -9,22 +9,29 @@
 import { sql, type Db } from "../db.ts";
 import { sha256, stableJson } from "../lib/ids.ts";
 
+/** Every class below sets `name`: the operator scripts log `error.name` as the whole failure category
+ *  (provider text may carry endpoint credentials, so it is deliberately not logged), and an inherited
+ *  `"Error"` makes three different failures print the same identical line in the cycle ledger. */
 export class BudgetExceededError extends Error {
   readonly service: string;
   readonly retryAfterSeconds: number;
   constructor(service: string, window: string, retryAfterSeconds: number) {
     super(`Budget for ${service} exhausted (${window})`);
+    this.name = "BudgetExceededError";
     this.service = service;
     this.retryAfterSeconds = retryAfterSeconds;
   }
 }
 
-export class ReceiptBusyError extends Error {}
+export class ReceiptBusyError extends Error {
+  constructor(message: string) { super(message); this.name = "ReceiptBusyError"; }
+}
 
 export class ReceiptUnknownError extends Error {
   readonly receiptId: number;
   constructor(receiptId: number, message: string) {
     super(message);
+    this.name = "ReceiptUnknownError";
     this.receiptId = receiptId;
   }
 }
@@ -36,6 +43,7 @@ export class ProviderRejectedError extends Error {
   readonly modelKey?: string;
   constructor(message: string, status: number | null, retryable: boolean, modelKey?: string) {
     super(message);
+    this.name = "ProviderRejectedError";
     this.status = status;
     this.retryable = retryable;
     this.modelKey = modelKey;

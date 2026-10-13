@@ -131,12 +131,26 @@ echo "== 启动日志（Node 弃用只在启动时出现，测试套件永远看
 journalctl -u geohot-api -u geohot-worker -u geohot-web -u geohot-brain --since "-2 min" --no-pager \
   | grep -iE "deprecat|error" | head -6 || echo "(no warnings)"
 
+echo "== 验收前：把定时器放回它原来的岗位 =="
+# 顺序是承重的。verify-deploy.sh 第 2 节按「装了 timer 就要求它 enabled+active」判，而这一轮上线为了
+# 不让周期脚本读到半换掉的树才停掉它 —— 2026-10-13 08:59 那次就是被这条判据红了一次（RESULT: FAIL，
+# 而线上其实是好的）：停 timer 是我的新代码做的，判 timer 不在岗也是我的新代码做的，验收夹在中间。
+# 先还原再验收不会让档案周期在验收中途开跑：锁还在下面这个 fd 8 手里，周期那边打不开锁就等/退，
+# 下一个 15 分钟档期才真正干活。本来没开的机器不会因为一次上线被打开。
+if (( TIMER_WAS_ACTIVE )); then
+  systemctl start geohot-archive.timer
+  echo "geohot-archive.timer 已恢复：$(systemctl is-active geohot-archive.timer)"
+fi
+
 echo "== 验收 =="
-bash deploy/geohot/verify-deploy.sh 2>&1 | tail -6
-VERIFY_RC=${PIPESTATUS[0]}
+# 失败项要看得见。以前这里是 `verify-deploy.sh 2>&1 | tail -6`，而 smoke 的 ✗ 行在输出中段，
+# tail 只剩最后 RESULT 那一块 —— 于是"FAIL（2 项）"报了个计数，具体哪两条要人再手工跑一遍。
+# 这里不能直接 `VERIFY_RC=$(bash … )`：命令替换把退出码留着了，但日志就只活在那一个变量里。
+bash deploy/geohot/verify-deploy.sh > /tmp/deploy-verify.log 2>&1
+VERIFY_RC=$?
+grep -E '^(  ✗|✗)' /tmp/deploy-verify.log | head -20
+tail -5 /tmp/deploy-verify.log
 rm -f "$PKG"
-# 定时器按部署前的状态还原：本来没开的，不能因为一次上线被打开了。
-if (( TIMER_WAS_ACTIVE )); then systemctl start geohot-archive.timer; echo "geohot-archive.timer 已恢复：$(systemctl is-active geohot-archive.timer)"; fi
 exit "$VERIFY_RC"
 REMOTE
 

@@ -62,7 +62,12 @@ run_phase() {
   if (( seconds <= 0 )); then
     result=124
   else
-    timeout --signal=TERM --kill-after=30s "${seconds}s" "$NODE" "${NODE_ARGS[@]}" "$@" >"$RUN_DIR/$name.log" 2>&1 || result=$?
+    # GEOHOT_PHASE_SECONDS：把"这一档还剩多少秒"交给会花钱的那一支。出刊脚本
+    # （`scripts/backfill-papers.ts`）据此在**最后一次付费调用还能跑完**之前自己收工，
+    # 而不是被这里的 SIGTERM/SIGKILL 掐在调用中间——那样那一条请求的收据会停在 pending，
+    # 被清扫器判成 unknown，而 unknown 按设计不再自动重发（可能已经计费），于是那一期永远发不出来。
+    # 2026-10-13 实测：papers 连续 14 轮全部 exit=124，库里已经因此钉住两期（daily 2026-02-28、03-13）。
+    GEOHOT_PHASE_SECONDS="$seconds" timeout --signal=TERM --kill-after=30s "${seconds}s" "$NODE" "${NODE_ARGS[@]}" "$@" >"$RUN_DIR/$name.log" 2>&1 || result=$?
   fi
   printf '%s\t%s\n' "$name" "$result" >>"$RUN_DIR/exits.tsv"
   printf 'archive-cycle: phase=%s exit=%s\n' "$name" "$result"

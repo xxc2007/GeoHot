@@ -353,7 +353,13 @@ export interface ChatJsonResult<T> {
   usage: Record<string, unknown> | null;
 }
 
-export class ModelOutputError extends Error {}
+/** `name` is what the operator scripts log as the failure category (`backfill-papers.ts` sanitises to it),
+ *  so a subclass that leaves it at the inherited `"Error"` makes every one of these look the same in the
+ *  cycle ledger — 2026-10-13: a dozen dates failed 「失败：Error」 every quarter-hour, for two different
+ *  causes (an unusable model answer, and a receipt stuck at `unknown`), and the log could not tell them apart. */
+export class ModelOutputError extends Error {
+  constructor(message: string) { super(message); this.name = "ModelOutputError"; }
+}
 
 function extractJson(text: string): unknown {
   let t = text.trim();

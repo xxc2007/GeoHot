@@ -26,10 +26,14 @@ const WEEK = "2021-W10";
 type Brain = { fixture?: string | null; author?: string | null; rule?: string | null } | null;
 let answer: Record<string, unknown> = {};
 let brain: Brain = null;
+// A door that answers in prose and runs out of tokens before the first brace — the real 2026-10-13 shape on
+// a thinking model. `raw` replaces the JSON body; `cutOff` sets the finish_reason the truncation note reads.
+let raw: string | null = null;
+let cutOff = false;
 
 const provider = await stub(() => ({
   id: `stub-${T}`,
-  choices: [{ message: { content: JSON.stringify(answer) } }],
+  choices: [{ message: { content: raw ?? JSON.stringify(answer) }, ...(cutOff ? { finish_reason: "length" } : {}) }],
   usage: {
     prompt_tokens: 20, completion_tokens: 20, total_tokens: 40,
     // 成刊的两步共用一份出处标记：`machineRuleOf` 只看 fixture / author / rule，不看是哪个能力答的。
@@ -168,4 +172,43 @@ test("署名稿里指名了本期条目没提过的机构，大标题不发、�
   assert.equal(content!.overview, answer.overview, "总述与主题仍是有署名、有中文的稿子，不因一句话被拒而整期作废");
   assert.equal(content!.generator.proseRule, null, "这一期没有退回规则");
   assert.equal((content!.themes as Array<{ heading: string }>)[0].heading, "水情", "署名的主题名保留，不被分栏名替换");
+});
+
+/**
+ * The failure the archive cycle actually hit on 2026-10-13: a thinking door spends its whole budget on
+ * prose, answers with `finish_reason: length` and no JSON, and `chatJson` throws. Until the composers
+ * caught that shape, the throw travelled out of `compose()` and the **edition itself was never published** —
+ * 2–4 issues a quarter-hour lost in the cycle ledger to a sentence none of them needed. Refusing the
+ * sentence is the same rule already tested above; this is the case where there is no sentence at all.
+ */
+test("模型答不出 JSON：这一期照样出刊，句子不发，收据留给下一轮重问", async () => {
+  await fresh(PERIOD_SUBJECT);
+  brain = { fixture: `report_period-${T}`, author: `编辑${T}`, rule: null };
+  raw = "让我先按时间顺序讲讲这两条的背景："; cutOff = true;
+  await composeWeekly(WEEK, "test");
+  raw = null; cutOff = false;
+  const content = await contentOf("weekly", WEEK);
+  assert.ok(content, "一次答不好的模型调用不能把整期吃掉：这一期必须存在");
+  assert.equal(content!.overview, undefined, "没有可签的总述就不印总述");
+  assert.equal(content!.generator.proseRule, "model-unparsable", "记的是『门没答出形状』，不是某条规则");
+  const themes = content!.themes as Array<{ summary: string | null; storyRefs: unknown[] }>;
+  assert.ok(themes.length > 0 && themes.every((t) => t.summary === null), "主题退回本报分栏：有形状，没有机器编的句子");
+  assert.equal(themes.reduce((n, t) => n + t.storyRefs.length, 0), 2, "这一期选出来的条目一条都没丢");
+  const receipt = (await sql<{ status: string; error: string }[]>`SELECT status, error FROM receipts WHERE subject = ${PERIOD_SUBJECT} ORDER BY id DESC LIMIT 1`)[0];
+  assert.equal(receipt.status, "failed", "答不出的收据不能停在『已收到好答案』上，否则下一轮白拿同一段散文");
+  assert.match(String(receipt.error), /unusable output/);
+});
+
+test("日报导语那一步答不出 JSON：期照出，退回读层自己的三条", async () => {
+  await fresh(LEAD_SUBJECT);
+  brain = { fixture: `report_lead-${T}`, author: `编辑${T}`, rule: null };
+  raw = "以下是我对当天几条动态的看法："; cutOff = true;
+  await composeDaily(ISSUE, "test");
+  raw = null; cutOff = false;
+  const content = await contentOf("daily", ISSUE);
+  assert.ok(content, "导语失败不能吃掉整份日报");
+  assert.equal(content!.lead, null, "没有导语就读无导语态");
+  assert.deepEqual(content!.highlights, [], "排头三条由读取层按分数给");
+  assert.equal(content!.generator.leadRule, "model-unparsable", "拒绝原因与周报同一口径");
+  assert.equal(content!.sections.flatMap((s: any) => s.items).length, 2, "条目一条不少");
 });
