@@ -13,7 +13,22 @@ export function sessionCache<T extends Timed>(prefix: string, maxAge: number) {
     clearTimeout(timer);
     timer = undefined;
     for (const [key, value] of dirty) {
-      try { sessionStorage.setItem(prefix + key, JSON.stringify(value)); } catch { /* memory still works */ }
+      const body = JSON.stringify(value);
+      try {
+        sessionStorage.setItem(prefix + key, body);
+      } catch {
+        // 配额满：一路滑到底之后，一份列表快照可以有 ~3 MB（2,381 张卡片实测 643 字符/张），
+        // 而同一页上还有另一族缓存共用这 ~5 MB。以前这里是"吞掉异常"——于是"返回时恢复位置"
+        // 这件事悄悄不成立了，谁也不知道。本族的每一条都只是"回来时少翻两页"的便利，
+        // 所以先把自己这一族的旧条目全清掉再试一次；还写不进就认了（内存里那份仍然有效）。
+        try {
+          for (let i = sessionStorage.length - 1; i >= 0; i--) {
+            const k = sessionStorage.key(i);
+            if (k?.startsWith(prefix)) sessionStorage.removeItem(k);
+          }
+          sessionStorage.setItem(prefix + key, body);
+        } catch { /* memory still works */ }
+      }
     }
     dirty.clear();
   }

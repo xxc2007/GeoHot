@@ -64,6 +64,7 @@ fi
 # 那种行被**静默跳过**（包里没有凭据、PATHS.txt 里没有它、一声不响），而同一条形状喂给下面那道
 # "凭据必须在场"的守卫时又判成缺失，整场备份拒绝运行。一个形状两种错，所以逐行解析。
 # 每行输出 `键名<TAB>值`，值已经去掉 export、引号、行尾注释、尾部空白与 CR。
+# 逐行解析一份 env 文件里的 `KEY=/绝对路径`（默认解析 $APP/.env）。
 env_pairs() {
   local line key v
   while IFS= read -r line; do
@@ -74,8 +75,11 @@ env_pairs() {
     v="${v%"${v##*[![:space:]]}"}"
     v="${v#\"}"; v="${v%\"}"; v="${v#\'}"; v="${v%\'}"
     printf '%s\t%s\n' "$key" "$v"
-  done < "$APP/.env"
+  done < "${1:-$APP/.env}"
 }
+# 把一份 env 文件里指向"两个 tar 都不带"的绝对路径的文件收进包里。同一个形状要跑两遍：
+# $APP/.env 一遍，下面每个从单元里解析出来的 EnvironmentFile 再各一遍 —— 见那段的注释。
+sweep_env_file() {
 while IFS=$'\t' read -r key p; do
   [[ -f "$p" ]] || continue
   # application.tgz 收 $APP 整棵（排除 .data/.pgdata 与缓存、build），persistent-data.tgz 收 .data
@@ -94,7 +98,9 @@ while IFS=$'\t' read -r key p; do
   cp "$p" "$EXTRA/$name"
   printf '%s\t%s\n' "$name" "$p" >> "$EXTRA/PATHS.txt"
   printf 'collected file the app tarballs would not carry: %s  (%s)\n' "$p" "$key"
-done < <(env_pairs | awk -F'\t' '$2 ~ /^\//' | LC_ALL=C sort -u -t$'\t' -k2,2)
+done < <(env_pairs "$1" | awk -F'\t' '$2 ~ /^\//' | LC_ALL=C sort -u -t$'\t' -k2,2)
+}
+sweep_env_file "$APP/.env"
 
 # 关键链路不许变成"看不见的缺口"：.env 指着凭据而文件不在，就判备份失败，而不是打出一个恢复不出来的包。
 # 这里故意不用 `awk … exit`：本脚本是 `set -euo pipefail` 跑的，左侧 env_pairs 还在写、右侧提前退出就
@@ -151,6 +157,17 @@ while IFS= read -r ef; do
   cp "$ef" "$EXTRA/$name"
   printf '%s\t%s\n' "$name" "$ef" >> "$EXTRA/PATHS.txt"
   printf 'collected EnvironmentFile referenced by the bundled units: %s\n' "$ef"
+  # 收进包里的 env 文件自己也会指路径：中国版那条桥的 WORKBUDDY_CREDENTIAL_JSON 与
+  # WORKBUDDY_CATALOG_FILE 就住在 /opt/geohot/workbuddy-cn.env 里，不在 $APP/.env 里。
+  # 上面那段扫描只跑过 .env，所以第一版包里有那份 env、没有它指着的凭据 —— 恢复出来的机器
+  # 上 3066 直接抛"凭据文件不存在"，也就是把站长那第二个账号的门整个丢掉，而包看着是完整的。
+  # 所以对每个收进来的 env 文件再扫一遍同样的形状。
+  sweep_env_file "$ef"
+  CRED2=$(env_pairs "$ef" | awk -F'\t' '($1 == "WORKBUDDY_CREDENTIAL_JSON" || $1 == "WORKBUDDY_CREDENTIAL") && !seen { print $2; seen = 1 }')
+  if [[ -n "$CRED2" && ! -f "$CRED2" ]]; then
+    printf '%s is configured in %s but missing — the bundle would restore a site with no CN judging bridge\n' "$CRED2" "$ef" >&2
+    exit 1
+  fi
 done < <(grep -h '^[[:space:]]*EnvironmentFile=' "$WORK"/systemd/*.txt 2>/dev/null | sed 's/^[^=]*=//' | tr -d '\r' | LC_ALL=C sort -u)
 [[ ! -f /etc/geohot/archive-cycle.conf ]] || cp /etc/geohot/archive-cycle.conf "$WORK/archive-cycle.conf"
 [[ ! -f /opt/geohot/archive-status.json ]] || cp /opt/geohot/archive-status.json "$WORK/archive-status.json"

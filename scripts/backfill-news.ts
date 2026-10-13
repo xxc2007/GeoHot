@@ -63,6 +63,12 @@ export function pages(rule: ArchiveRule, o: Options): string[] {
   }
   return out;
 }
+/** How many calendar months the requested range spans (the number a months plan would need). */
+export function monthsIn(from: string, to: string): number {
+  const [fy, fm] = from.slice(0, 7).split("-").map(Number) as [number, number];
+  const [ty, tm] = to.slice(0, 7).split("-").map(Number) as [number, number];
+  return (ty - fy) * 12 + (tm - fm) + 1;
+}
 export function material(c: Candidate, sourceId: string, discoveredAt: Date): MaterialInput | null {
   if (!c.publishedAt || !Number.isFinite(c.publishedAt.getTime())) return null;
   return { sourceId, url: c.url, title: c.title, publishedAt: c.publishedAt, discoveredAt,
@@ -118,6 +124,11 @@ export async function run(o: Options, rules: ArchiveRule[], sources: SourceRow[]
     const prefix = `${o.from}:${o.to}:${rule.sourceId}:`;
     const completedPages = o.apply ? [...done].filter(k => k.startsWith(prefix)).length : 0;
     const plan = pages(rule, { ...o, maxPages: o.maxPages + completedPages });
+    // `pages()` stops a months plan at the page budget, so a range wider than the budget never even
+    // plans the later months. readPage cannot report that — it is never called for them — and without
+    // this line the run says `limited:false` while whole months went unplanned. The production cycle
+    // runs `--max-pages=5` over a nine-month range, so this is the shape that actually fires.
+    if (rule.mode === "months" && plan.length < monthsIn(o.from, o.to)) stats.limited = true;
     // Legacy checkpoints did not retain why a page walk stopped. Reobserve the latest acknowledged
     // frontier once, without trusting completed-page counts as evidence of an older-date boundary.
     const legacyFrontier = o.apply && rule.mode === "pages" && !state.boundaries?.[prefix]

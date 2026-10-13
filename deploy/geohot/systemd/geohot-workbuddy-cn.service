@@ -22,11 +22,12 @@
 #   文件 chmod 600 + 属主 geohot —— 等同密码，不进仓库、不进 .data。
 #
 # ⚠️ 两个坑，都踩过：
-#   1. systemd 的 EnvironmentFile **覆盖** Environment=，与文件里出现的先后无关。所以
-#      WORKBUDDY_VARIANT / WORKBUDDY_BRIDGE_PORT 必须放进下面那个独立的 cn env 文件里，
-#      而且它的 EnvironmentFile 行要排在 /opt/geohot/app/.env **之后**（后面的文件优先）。
-#      只写 Environment= 的话，/opt/geohot/app/.env 里的 WORKBUDDY_* 会把它盖回去，
-#      结果是 3066 上跑着一个读国际版凭据的桥：/healthz 的 uid 不是 c38f634e… 就是证据。
+#   1. systemd 是按**指令在文件里出现的顺序**结算环境变量的，后出现的盖先出现的 —— 不是"EnvironmentFile
+#      永远赢过 Environment="。本单元靠的就是这个顺序：`.env` 在前、cn 那个文件在后，所以中国版那组
+#      （WORKBUDDY_VARIANT / WORKBUDDY_BRIDGE_PORT / WORKBUDDY_CREDENTIAL_JSON）能盖掉 .env 里的国际版值；
+#      而再往下的 NODE_ENV / HOME 等硬覆盖排在最后，所以 .env 被误改成开发态也盖不动它们。
+#      顺序被打乱的任何一种改法都会静默换账号：3066 上跑着一个读国际版凭据的桥，
+#      /healthz 的 uid 不是 c38f634e… 就是证据。
 #   2. 端口写死在这里，换口要连 .env 的 WORKBUDDY_CN_BASE_URL 一起换
 #      （两处不一致就是"调用全失败但没有报错"）。
 [Unit]

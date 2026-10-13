@@ -15,8 +15,10 @@ import { publicPath } from "../../lib/public-path";
 import { markRead, useReadSet } from "../../lib/local-state";
 import { isHydrated, isReload, markHydrated, readSnapshot, restoreAnchor, saveSnapshot } from "./restore";
 
-// The server's own maximum page. The first screen is rendered by the loader with its default size;
-// every page after that is fetched at 40 groups, which halves the round trips on a long scroll.
+// The server's own maximum page. `apps/api/src/routes/site.ts:99` already defaults to 40, so stating it
+// here does not make the pages bigger — it makes them not depend on a server-side default that someone
+// could change under us (the head request comes from the loader, this one from the browser; if they ever
+// disagree, a "page" silently stops being the same size mid-scroll).
 const PAGE_LIMIT = 40;
 
 interface ListState {
@@ -135,6 +137,10 @@ export function Timeline({ initial, filters }: { initial: TimelineResponse; filt
   const restoredRef = useRef(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  // A page that brought nothing new (every group on it was already in the list) leaves the sentinel
+  // exactly where it was, so the re-armed observer would fire again at once — an unattended burst of
+  // requests with no reader action. One such page stops the chain and hands the reader a button.
+  const [stalled, setStalled] = useState(false);
   const [freshKeys, setFreshKeys] = useState<Set<string>>(() => new Set());
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -216,6 +222,7 @@ export function Timeline({ initial, filters }: { initial: TimelineResponse; filt
     const current = () => lastFilterKey.current === key && !controller.signal.aborted;
     setLoadingMore(true);
     setLoadError(false);
+    setStalled(false);
     try {
       const res = await fetch(publicPath(`/api/site/timeline?${filterQuery(filters, { cursor: s.nextCursor, limit: PAGE_LIMIT })}`), { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]) });
       if (res.status === 400) {
@@ -226,7 +233,13 @@ export function Timeline({ initial, filters }: { initial: TimelineResponse; filt
           const head = await fetch(publicPath(`/api/site/timeline?${key}`), { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]) });
           if (!head.ok) throw new Error(String(head.status));
           const fresh = (await head.json()) as TimelineResponse;
-          if (current()) setState(fromResponse(fresh));
+          if (current()) {
+            setState(fromResponse(fresh));
+            // The list just collapsed to one page. Left alone, the browser clamps the scroll position to
+            // wherever the shrunken document ends and the reader sits in the middle of nothing, so go to
+            // the top — that is what "starting over" should look like.
+            window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
+          }
         } catch {
           if (current()) setLoadError(true);
         }
@@ -242,6 +255,7 @@ export function Timeline({ initial, filters }: { initial: TimelineResponse; filt
       // request lock, so nothing else can commit a card list while it is in flight.
       const seen = new Set(s.cards.map((c) => c.key));
       const added = page.cards.filter((c) => !seen.has(c.key));
+      if (added.length === 0 && page.nextCursor) setStalled(true);
       setFreshKeys(new Set(added.map((c) => c.key)));
       setState((prev) => ({
         ...prev,
@@ -266,13 +280,13 @@ export function Timeline({ initial, filters }: { initial: TimelineResponse; filt
   const sentinel = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = sentinel.current;
-    if (!el || !state.nextCursor || loadError) return;
+    if (!el || !state.nextCursor || loadError || stalled) return;
     const io = new IntersectionObserver((entries) => {
       if (entries.some((e) => e.isIntersecting)) void loadMore();
     }, { rootMargin: "900px 0px" });
     io.observe(el);
     return () => io.disconnect();
-  }, [state.nextCursor, loadError, loadMore]);
+  }, [state.nextCursor, loadError, stalled, loadMore]);
 
   // Which day is「今天」is decided by the clock that built these cards, not by the browser: the server render
   // and the hydration can straddle Beijing midnight, and the day counts in this answer are for its own day.
@@ -324,31 +338,40 @@ export function Timeline({ initial, filters }: { initial: TimelineResponse; filt
       })}
 
       <div ref={sentinel} aria-hidden="true" />
-      <FeedEnd loading={loadingMore} error={loadError} hasMore={!!state.nextCursor} empty={state.cards.length === 0} loaded={state.cards.length} onMore={loadMore} />
+      <FeedEnd loading={loadingMore} error={loadError} stalled={stalled} hasMore={!!state.nextCursor} empty={state.cards.length === 0} loaded={state.cards.length} onMore={loadMore} />
     </div>
   );
 }
 
 /**
- * The foot of a paged list. Pages now arrive on their own while the reader scrolls, so this says only
- * what the scroll cannot say by itself: a page is on its way, a page failed, or the list has ended.
+ * The foot of a paged list. Pages arrive on their own while the reader scrolls, so this says only
+ * what the scroll cannot say by itself: a page is on its way, a page failed, one page brought nothing
+ * new so the chain stopped, or the list has ended.
  */
-export function FeedEnd({ loading, error, hasMore, empty, loaded, onMore }: { loading: boolean; error: boolean; hasMore: boolean; empty: boolean; loaded: number; onMore: () => void }) {
+export function FeedEnd({ loading, error, stalled, hasMore, empty, loaded, onMore }: { loading: boolean; error: boolean; stalled: boolean; hasMore: boolean; empty: boolean; loaded: number; onMore: () => void }) {
   // A live region, because these states can arrive on their own: the automatic pages fire when the
   // sentinel scrolls into view, and a reader who is parked at the bottom of the list hears nothing about
   // "正在加载" / "加载失败" without it (WCAG 4.1.3). `aria-atomic` is off so only the state that changed
-  // is announced, not the whole footer.
+  // is announced, not the whole footer. The card count stays off the loading line on purpose: it changes
+  // on every page, and a counter is not status information — 60 announcements of "已显示 N 条" would bury
+  // the two states a screen reader actually needs to hear.
   return (
     <div aria-live="polite" aria-atomic="false" className="flex justify-center py-6">
       {loading ? (
         <span className="inline-flex items-center gap-2 text-[12.5px] text-ink-4">
-          <RingMark className="size-4 text-accent" spinning /> 正在加载 · 已显示 {loaded} 条
+          <RingMark className="size-4 text-accent" spinning /> 正在加载
         </span>
       ) : error ? (
         <button type="button" onClick={onMore} className="h-9 rounded-full border border-hot/30 px-4 text-[13px] text-hot-ink hover:bg-hot-soft">
           加载失败，点此重试
         </button>
-      ) : hasMore ? null : (
+      ) : hasMore ? (
+        stalled && (
+          <button type="button" onClick={onMore} className="h-9 rounded-full border border-line-strong bg-surface px-5 text-[13px] font-medium text-ink-2 transition-colors hover:border-ink-4 hover:text-ink">
+            继续加载
+          </button>
+        )
+      ) : (
         !empty && <span className="text-[12px] text-ink-4">已经到底了 · 共 {loaded} 条</span>
       )}
     </div>

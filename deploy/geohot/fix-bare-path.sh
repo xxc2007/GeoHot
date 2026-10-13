@@ -136,8 +136,10 @@ for b0, b1 in blocks:
             block = [
                 indent + "# 裸路径补斜杠：客户端路由的 basename 是 " + prefix + "，裸路径在浏览器里解析不到首页。",
                 indent + "# 目标写死 https，不要用相对路径——相对 Location 按连接协议拼接，而 Cloudflare 是明文回源。",
+                indent + "# $is_args$args 是承重的：少了它 `/geohot?category=…` 会被规范化成丢掉查询串的 `/geohot/`，",
+                indent + "# 读者分享出去的筛选链接打开就变成未筛选的首页（2026-10-09 实测，见 geohot.nginx.conf片段）。",
                 indent + "location = " + prefix + " {",
-                indent + "    return 308 https://$host" + prefix + "/;",
+                indent + "    return 308 https://$host" + prefix + "/$is_args$args;",
                 indent + "}",
                 "",
             ]

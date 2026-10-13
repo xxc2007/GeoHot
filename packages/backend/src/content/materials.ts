@@ -179,7 +179,7 @@ async function upsertIn(db: Db, m: MaterialInput): Promise<MaterialResult> {
     // every article a source still lists back to paid analysis. The baseline joins the history, so
     // a later return to it is recognised as a version seen before.
     await db`UPDATE articles SET content_hash = ${next}, excerpt = coalesce(excerpt, ${m.excerpt ?? null}),
-                published_at = coalesce(published_at, ${m.publishedAt ?? null}) WHERE id = ${existing!.id}`;
+                published_at = coalesce(published_at, ${t.publishedAt ?? null}) WHERE id = ${existing!.id}`;
     await db`INSERT INTO article_revisions (article_id, revision, content_hash, title, body_text)
              VALUES (${existing!.id}, ${existing!.revision}, ${next}, ${title}, ${bodyText}) ON CONFLICT DO NOTHING`;
     return unchanged;
@@ -197,7 +197,7 @@ async function upsertIn(db: Db, m: MaterialInput): Promise<MaterialResult> {
     UPDATE articles SET
       title = ${title}, author = coalesce(${m.author ?? null}, author), language = coalesce(${m.language ?? null}, language),
       source_updated_at = ${m.sourceUpdatedAt ?? null}, excerpt = coalesce(${m.excerpt ?? null}, excerpt),
-      published_at = coalesce(published_at, ${m.publishedAt ?? null}),
+      published_at = coalesce(published_at, ${t.publishedAt ?? null}),
       body_text = coalesce(${m.bodyText ?? null}, body_text), body_html = coalesce(${m.bodyHtml ?? null}, body_html),
       body_status = CASE WHEN ${m.bodyText ?? null}::text IS NULL THEN body_status ELSE ${m.bodyStatus ?? "ok"} END,
       media = CASE WHEN ${m.media ? db.json(m.media as never) : null}::jsonb IS NULL THEN media ELSE ${m.media ? db.json(m.media as never) : null}::jsonb END,
