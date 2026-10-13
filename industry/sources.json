@@ -10048,6 +10048,192 @@
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": true
+    },
+    {
+      "id": "web-ngcc-xwzx",
+      "name": "国家基础地理信息中心 新闻中心",
+      "kind": "web_list",
+      "config": {
+        "url": "http://www.ngcc.cn/xwzx/",
+        "parseMode": "html",
+        "itemSelector": "li:has(a[title])",
+        "publishedAtSelector": "span.chosehover",
+        "titleSelector": "a",
+        "allowUrlPrefixes": [
+          "http://www.ngcc.cn/xwzx/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": "ngcc",
+      "participation_mode": "editorial",
+      "defaultCategory": "geotech",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "测绘",
+        "地理信息",
+        "地理国情"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "web-iap-kyjz",
+      "name": "中国科学院大气物理研究所 科研进展",
+      "kind": "web_list",
+      "config": {
+        "url": "https://iap.cas.cn/gb/xwdt/kyjz/",
+        "parseMode": "html",
+        "itemSelector": "li:has(span.right)",
+        "publishedAtSelector": "span.right",
+        "titleSelector": "a",
+        "allowUrlPrefixes": [
+          "https://iap.cas.cn/gb/xwdt/kyjz/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": "iap-cas",
+      "participation_mode": "editorial",
+      "defaultCategory": "physical",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "大气",
+        "气候",
+        "科研进展"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "web-bnu-geo-xwzx",
+      "name": "北京师范大学地理科学学部 新闻中心",
+      "kind": "web_list",
+      "config": {
+        "url": "https://geo.bnu.edu.cn/xwzx/index.html",
+        "parseMode": "html",
+        "itemSelector": "li:has(span.hd)",
+        "publishedAtSelector": "span.hd",
+        "titleSelector": "a",
+        "allowUrlPrefixes": [
+          "https://geo.bnu.edu.cn/xwzx/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": "bnu-geo",
+      "participation_mode": "editorial",
+      "defaultCategory": "human",
+      "interval_minutes": 240,
+      "tags": [
+        "高校",
+        "中文",
+        "人文地理",
+        "区域地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "web-igg-xwzx",
+      "name": "中国科学院地质与地球物理研究所 新闻",
+      "kind": "web_list",
+      "config": {
+        "url": "https://igg.cas.cn/xwzx/",
+        "parseMode": "html",
+        "itemSelector": "tr:has(a[href*='/20'])",
+        "publishedAtSelector": "span",
+        "titleSelector": "a",
+        "allowUrlPrefixes": [
+          "https://igg.cas.cn/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": "igg-cas",
+      "participation_mode": "editorial",
+      "defaultCategory": "physical",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "地震",
+        "固体地球物理",
+        "科研进展"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "atom-metoffice-govuk",
+      "name": "英国气象局（GOV.UK 通报）",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.gov.uk/government/organisations/met-office.atom",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": "met-office",
+      "participation_mode": "editorial",
+      "defaultCategory": "physical",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "英文",
+        "气象",
+        "气候"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-unep-news",
+      "name": "联合国环境规划署 新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.unep.org/news-and-stories/rss.xml",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": "unep",
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "政府间机构",
+        "英文",
+        "环境",
+        "实测取回的不是可解析的 RSS—停用"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false
     }
   ]
 }
