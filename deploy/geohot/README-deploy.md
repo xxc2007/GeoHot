@@ -55,7 +55,7 @@
 
 | 项 | 取值处 |
 |---|---|
-| 服务器进入方式（`xxc` 用户公钥 + `sudo -l`，不给 root 口令） | 人工 |
+| 服务器进入方式（`<ssh-user>` 用户公钥 + `sudo -l`，不给 root 口令） | 人工 |
 | 有没有 Docker/Compose；PostgreSQL 是否已装、**版本是否 16/17**、`pg_trgm` 是否可用、`psql`/`pg_dump` 是否可用 | bootstrap 预检只读探测；--apply 时第 6 节硬断言（Ubuntu 22.04 自带 14，contrib 是另一个包） |
 | 3000/3001 是否空闲（纪念册站口占用则改 `WEB_PORT/API_PORT` 并同步 nginx 片段） | 预检 `ss -ltnp` |
 | 允许 `CREATE ROLE geohot` + `CREATE DATABASE geohot`（非 superuser，不改 pg_hba 现有行） | bootstrap 第 7 节 |

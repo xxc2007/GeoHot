@@ -12,10 +12,11 @@
 #      that is the whole point of running a second service on a 900 MB box.
 #
 # These are the minimal long-lived units — the four processes a reader-visible page needs. The live box
-# runs three more (deploy/geohot/systemd/*.service): geohot-workbuddy (the bridge that currently carries
-# most of the judging calls), plus geohot-archive.service and its timer. deploy/geohot/systemd/*.service
-# are these same four units plus a hardening block (ProtectSystem=strict, ReadWritePaths, …) —
-# bootstrap-server.sh step 10 installs all seven. Pick one route per box; both read the same
+# runs four more (deploy/geohot/systemd/): geohot-workbuddy and geohot-workbuddy-cn (the two bridges that
+# together carry most of the judging calls), plus geohot-archive.service and its timer. The templates in
+# deploy/geohot/systemd/ are these same four units plus a hardening block (ProtectSystem=strict,
+# ReadWritePaths, …) **and** those four extra units, which this script never writes —
+# bootstrap-server.sh step 10 installs all eight. Pick one route per box; both read the same
 # GEOHOT_APP_ROOT, and both keep the MemoryMax.
 #
 # Run as a user with sudo. Idempotent: it overwrites the unit files, which is the point.

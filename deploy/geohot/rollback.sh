@@ -54,7 +54,9 @@ APP_HOME="${APP_ROOT%/*}"                    # /opt/geohot —— 备份文件�
 # · geohot-archive.timer 排第一个。它要是还挂着，R2 停完四个服务之后下一轮定时器又把 archive.service 拉起来，
 #   回滚回滚到一半，采集与出刊还在往库里写——这条链路是 2026-10-10 才加上的，最初的四个单元清单里没有它。
 # · geohot-workbuddy 也要停：它现在承担约七成八的判定调用，留着跑就是给一个正在被回滚的站继续付费判定。
-UNITS=(geohot-archive.timer geohot-web.service geohot-worker.service geohot-api.service geohot-workbuddy.service geohot-brain.service geohot-archive.service)
+# · 中国版那条桥（geohot-workbuddy-cn，3066）同理要停：它一天也要几千次判定调用，
+#   而 --purge-database 会在它还活着的时候把库删掉 —— 停一半桥的"回滚"其实是给一个不存在的库付费。
+UNITS=(geohot-archive.timer geohot-web.service geohot-worker.service geohot-api.service geohot-workbuddy.service geohot-workbuddy-cn.service geohot-brain.service geohot-archive.service)
 PG_DATABASE="geohot"
 PG_ROLE="geohot"
 TS="$(date +%F-%H%M)"

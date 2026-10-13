@@ -118,46 +118,72 @@ if (prefix) {
  * to hide. Status codes cannot see that (all eight answered 200 with an honest 「本期没有入选内容」), so this
  * compares the key sets themselves: what the sitemap and the feed advertise must be what the site index and
  * the public API list. Red here means one outlet is publishing a period the others filtered out.
+ *
+ * The comparison is made over each outlet's **whole window**, which is not what this did first. The outlets
+ * share the gate but not the page size — the index and the sitemap hand out the newest `INDEX_CAP`, the daily
+ * feed the newest 30, and `/api/v1/dailies` at most `V1_PAGE` per request — so asking v1 for its default page
+ * was quietly an assertion that fewer than 30 readable issues exist. The 2026-10-13 archive refresh made that
+ * false (149 readable dailies, 112 of them below page one) and a correct deployment went red on 112 lines.
+ * A check that can only stay green while the site is shallow is not a check of the gate.
  */
 const getText = async (path: string) => (await fetch(base + path, { signal: AbortSignal.timeout(30_000) })).text();
 const jsonKeys = (body: string, field: "key" | "date" | "week" | "month") => {
   const parsed = JSON.parse(body) as { items?: Array<Record<string, unknown>> };
   return (parsed.items ?? []).map((i) => String(i[field] ?? i.key ?? "")).filter(Boolean);
 };
+const INDEX_CAP = 400; // `INDEX_LIMIT` in publication/reports.ts — all /api/site/reports/daily can ever list
+const V1_PAGE = 180;    // the largest `limit` /api/v1/dailies accepts (apps/api/src/routes/v1.ts)
+const V1_PAGES = 3;     // V1_PAGE × V1_PAGES ≥ INDEX_CAP, so v1's window always covers the index's
 try {
-  const [sitemap, dailyFeed, siteIndex, v1Dailies] = await Promise.all([
+  const [sitemap, dailyFeed, siteIndex] = await Promise.all([
     getText("/sitemap.xml"),
     getText("/feed/daily.xml"),
     getText("/api/site/reports/daily"),
-    getText("/api/v1/dailies"),
   ]);
   // Keys look like a date, an ISO week or a month. `/daily/archive` is a page, not an edition — matching it
   // by prefix counted the archive itself as a missing issue (a red on a correct deployment, which is its own
   // kind of wrong: the first draft of this check reported "sitemap 4 / feed 3" against the fixed build).
-  const sitemapKeys = [...sitemap.matchAll(/<loc>[^<]*\/(daily|weekly|monthly)\/([^<]+)<\/loc>/g)]
-    .map(([, kind, key]) => `${kind}/${key}`)
-    .filter((k) => /^daily\/\d{4}-\d{2}-\d{2}$/.test(k) || /^weekly\/\d{4}-W\d{2}$/.test(k) || /^monthly\/\d{4}-\d{2}$/.test(k));
+  const sitemapDaily = [...sitemap.matchAll(/<loc>[^<]*\/daily\/([^<]+)<\/loc>/g)]
+    .map((m) => m[1]!)
+    .filter((k) => /^\d{4}-\d{2}-\d{2}$/.test(k));
   const feedKeys = [...dailyFeed.matchAll(/<link>([^<]+)<\/link>/g)]
-    .map((m) => m[1]!.match(/\/(daily\/\d{4}-\d{2}-\d{2})$/)?.[1])
+    .map((m) => m[1]!.match(/\/daily\/(\d{4}-\d{2}-\d{2})$/)?.[1])
     .filter((k): k is string => Boolean(k));
-  const siteDaily = new Set(jsonKeys(siteIndex, "key").map((k) => `daily/${k}`));
-  const apiDaily = new Set(jsonKeys(v1Dailies, "date").map((k) => `daily/${k}`));
+  const siteDaily = jsonKeys(siteIndex, "key");
+  const v1Daily: string[] = [];
+  // Stop once v1 has handed out as many issues as the index can ever hold: nothing outside the index's window
+  // can be advertised by it, so paging further would only compare a key no outlet is able to show.
+  for (let page = 0; page < V1_PAGES && v1Daily.length < INDEX_CAP; page++) {
+    const cursor = v1Daily.length ? `&before=${v1Daily[v1Daily.length - 1]}` : "";
+    const dates = jsonKeys(await getText(`/api/v1/dailies?limit=${V1_PAGE}${cursor}`), "date");
+    v1Daily.push(...dates);
+    if (dates.length < V1_PAGE) break; // exhausted: there is no older issue behind this page
+  }
+  const site = new Set(siteDaily), v1 = new Set(v1Daily);
   const problems: string[] = [];
-  const sitemapDaily = sitemapKeys.filter((k) => k.startsWith("daily/"));
   // Advertising an issue the gate filtered out is the failure this check exists for — the sitemap is held
   // to it strictly, but only to it: its own cache is ~5 minutes by design, so a *missing* key right after a
   // publish is lag, not a bug.
-  for (const k of sitemapDaily) if (!siteDaily.has(k) || !apiDaily.has(k)) problems.push(`sitemap advertises ${k}, the indexes do not`);
-  for (const k of feedKeys) if (!siteDaily.has(k) || !apiDaily.has(k)) problems.push(`/feed/daily.xml advertises ${k}, the indexes do not`);
-  // The three live reads (feed, site index, v1) share a ≤60 s cache, so they must agree exactly.
-  if (feedKeys.length !== siteDaily.size || siteDaily.size !== apiDaily.size) {
-    problems.push(`counts disagree: daily feed ${feedKeys.length} / site index ${siteDaily.size} / v1 ${apiDaily.size}`);
+  for (const k of sitemapDaily) if (!site.has(k)) problems.push(`sitemap advertises daily/${k}, the site index does not`);
+  for (const k of feedKeys) if (!site.has(k)) problems.push(`/feed/daily.xml advertises daily/${k}, the site index does not`);
+  // The other direction, and the reason v1 is paged above: every edition any outlet shows must also be
+  // reachable on the machine exit. Its window is the widest here, so a key it lacks is not a page cut.
+  for (const k of new Set([...sitemapDaily, ...feedKeys, ...siteDaily])) if (!v1.has(k)) problems.push(`daily/${k} is advertised but /api/v1/dailies never lists it`);
+  // One shared list, read newest-first: each outlet must stop at its own cap without jumping over anything.
+  // Counting three caps and asking them to be equal was the old form and is unsatisfiable once the archive is
+  // deeper than the smallest page; this is the stronger statement that still holds at every depth.
+  const lastInIndex = feedKeys.length ? siteDaily.indexOf(feedKeys[feedKeys.length - 1]!) : -1;
+  if (lastInIndex >= 0) {
+    const head = siteDaily.slice(0, lastInIndex + 1);
+    if (head.length !== feedKeys.length || head.some((k, i) => k !== feedKeys[i])) {
+      problems.push(`/feed/daily.xml skips an issue: it carries ${feedKeys.length} of the ${head.length} editions the index lists up to its own oldest`);
+    }
   }
-  if (sitemapDaily.length !== siteDaily.size) {
-    console.log(`– cross-outlet  sitemap lists ${sitemapDaily.length} daily issue(s) vs ${siteDaily.size} in the indexes（sitemap 自己的缓存约 5 分钟，可能是刚出刊）`);
+  if (sitemapDaily.length !== siteDaily.length) {
+    console.log(`– cross-outlet  sitemap lists ${sitemapDaily.length} daily issue(s) vs ${siteDaily.length} in the indexes（sitemap 自己的缓存约 5 分钟，可能是刚出刊）`);
   }
   for (const p of problems) console.log(`✗ cross-outlet  ${p}`);
-  if (!problems.length) console.log(`✓ cross-outlet  sitemap, daily feed, site index and v1 agree on ${siteDaily.size} issue(s)`);
+  if (!problems.length) console.log(`✓ cross-outlet  sitemap, daily feed, site index and v1 agree (${siteDaily.length} indexed / ${v1Daily.length} listed by v1)`);
   failed += problems.length;
 } catch (error) {
   console.log(`✗ cross-outlet  ${String(error)}`);

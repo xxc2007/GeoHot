@@ -21,7 +21,7 @@ import { DEICTIC_TIME_WORD } from "../lib/text.ts";
 import { guardedStoryTitle, looksZh, type TranslateInput } from "../editorial/writing.ts";
 import { addDays, beijingDate, beijingMidnight, isoWeekLabel, isoWeekRange } from "@aihot/contracts/time";
 import { sql, type Tx } from "../db.ts";
-import { chatJson } from "../providers/llm.ts";
+import { chatJson, ModelOutputError } from "../providers/llm.ts";
 import { completeReceipt } from "../providers/receipts.ts";
 import { shutdownSignal } from "../jobs/queue.ts";
 import { chineseCopyCondition } from "../publication/items.ts";
@@ -217,12 +217,22 @@ async function writeLead(kind: string, key: string, entries: ReportEntry[], mode
   // The brief is capped, the edition is not. Say which is which, or a lead that repeats the length of
   // what it was handed states a number this issue does not carry (the front page prints the real one).
   const brief = shown.length === entries.length ? list : `本期共 ${entries.length} 条入选动态，下列分数最高的 ${shown.length} 条：\n${list}`;
+  // A door that answers with something carrying no JSON — 2026-10-13: `finish_reason: length` after 10,500
+  // completion tokens on a thinking model, so the budget was gone before the braces — is the same kind of
+  // non-answer as a refused one, and the same rule applies: 拒收不伤版面. Before this, the throw travelled
+  // out of the composer and the edition was simply not published, which is how the archive cycle lost
+  // 2–4 issues every quarter-hour to a sentence it never needed. `chatJson` already flipped the receipt to
+  // `failed`, so a later run re-asks for real rather than replaying the junk.
   const res = await chatJson({
     model, purpose: "report_lead", subject: `report:${kind}:${key}`, promptVersion: REPORT_VERSION,
     system: promptText("report-daily-lead"),
     user: brief, schema: LeadSchema, temperature: 0.3, maxTokens: 800,
     usable: unusableLead,
+  }).catch((error: unknown) => {
+    if (!(error instanceof ModelOutputError)) throw error;
+    return null;
   });
+  if (!res) return { lead: null, highlights: [], receiptId: null, refused: "model-unparsable" };
   const title = res.data.title.trim();
   const leadParagraph = res.data.leadParagraph.trim();
   const rule = machineRuleOf(res.usage);
@@ -340,7 +350,7 @@ export async function composeDaily(date: string, reason = "scheduled"): Promise<
     generator: { version: REPORT_VERSION, model, leadRule: lead?.refused ?? null, repeatsSuppressed: all.length - fresh.length },
   };
   await saveReport("daily", date, start, end, content, reason, model);
-  if (lead) await completeReceipt(sql, lead.receiptId);
+  if (lead?.receiptId) await completeReceipt(sql, lead.receiptId);
   return { key: date, entries: ordered.length };
 }
 
@@ -398,24 +408,34 @@ async function composePeriod(kind: "weekly" | "monthly", key: string, startDate:
       model, purpose: `report_${kind}`, subject: `report:${kind}:${key}`, promptVersion: REPORT_VERSION,
       ...periodPrompt(kind, startDate, endDateInclusive, top), schema: PeriodSchema, temperature: 0.3, maxTokens: 2500,
       usable: unusablePeriod,
+    // Same rule as the daily's 导语: an answer with no JSON in it declines the sentence, it does not
+    // un-publish the week. The edition falls back to its own sections (`sectionsOf` below), and because
+    // `chatJson` flipped the receipt to `failed`, a later run asks again for real.
+    }).catch((error: unknown) => {
+      if (!(error instanceof ModelOutputError)) throw error;
+      return null;
     });
-    receiptId = res.receiptId;
-    const rule = machineRuleOf(res.usage);
-    // One decision for the whole answer. An issue half published — its 总述 from a person, its 主题 from a
-    // rule — is a thing nobody could vouch for, so `digest.ts` refuses that shape too.
-    const signed = !rule && !unusablePeriod(res.data);
-    if (signed) {
-      overview = res.data.overview;
-      themes = res.data.themes.map((t) => ({
-        heading: t.heading,
-        summary: t.summary,
-        storyRefs: t.refs.map((r) => top[Number(r) - 1]).filter((e): e is Candidate => !!e).map(({ category: _c, factKey: _f, ...e }) => e),
-      }));
-      // The 大标题 names what the issue is about, which is the judgement the identity guard exists for: it
-      // may only say what this issue's own entries say, or the issue keeps its generic name.
-      headline = guardedStoryTitle(res.data.headline, entriesIdentity(top)) ?? "";
+    if (res) {
+      receiptId = res.receiptId;
+      const rule = machineRuleOf(res.usage);
+      // One decision for the whole answer. An issue half published — its 总述 from a person, its 主题 from a
+      // rule — is a thing nobody could vouch for, so `digest.ts` refuses that shape too.
+      const signed = !rule && !unusablePeriod(res.data);
+      if (signed) {
+        overview = res.data.overview;
+        themes = res.data.themes.map((t) => ({
+          heading: t.heading,
+          summary: t.summary,
+          storyRefs: t.refs.map((r) => top[Number(r) - 1]).filter((e): e is Candidate => !!e).map(({ category: _c, factKey: _f, ...e }) => e),
+        }));
+        // The 大标题 names what the issue is about, which is the judgement the identity guard exists for: it
+        // may only say what this issue's own entries say, or the issue keeps its generic name.
+        headline = guardedStoryTitle(res.data.headline, entriesIdentity(top)) ?? "";
+      } else {
+        proseRule = rule ?? "no-signed-copy";
+      }
     } else {
-      proseRule = rule ?? "no-signed-copy";
+      proseRule = "model-unparsable";
     }
     if (themes.length === 0) themes = sectionsOf(top);
   }

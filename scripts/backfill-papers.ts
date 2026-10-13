@@ -48,6 +48,23 @@ const { values } = parseArgs({
 });
 
 const DAY = 86_400_000;
+/**
+ * The archive cycle kills this phase with SIGTERM at its own deadline, and `run_phase` exports that deadline
+ * as `GEOHOT_PHASE_SECONDS`. Being killed *during* a paid call is not a harmless interruption: the receipt is
+ * left `pending`, the sweeper marks it `unknown` (`providers/receipts.ts:markStalePendingReceipts`), and an
+ * `unknown` outcome is never re-sent without an operator — by design, because the provider may have billed it.
+ * So every kill that lands mid-call converts one edition into one that can no longer be published at all.
+ * Measured 2026-10-13: `papers` exited 124 (timeout) in **every** cycle of the last 14, and two dates were
+ * already locked that way (`report:daily:2026-02-28`, `2026-03-13`).
+ * The fix is to stop *starting* work while one call still fits before the kill, and exit 0 so the phase
+ * finishes as a normal round; the remaining editions are still un-published and the next cycle takes them.
+ */
+const PHASE_SECONDS = Number(process.env.GEOHOT_PHASE_SECONDS ?? "");
+const CALL_HEADROOM_MS = 300_000; // the longest single model call is 240 s (`providers/llm.ts`), plus slack
+const runStartedAt = Date.now();
+const outOfPhaseBudget = () => Number.isFinite(PHASE_SECONDS) && PHASE_SECONDS > 0
+  && Date.now() - runStartedAt > PHASE_SECONDS * 1000 - CALL_HEADROOM_MS;
+let stoppedForBudget = false;
 const requestedKinds = values.kinds!.split(",").map((k) => k.trim());
 const allowedKinds = ["daily", "weekly", "monthly"];
 if (requestedKinds.some((k) => !allowedKinds.includes(k))) {
@@ -161,6 +178,13 @@ async function consider(kind: "daily" | "weekly" | "monthly", key: string, start
   }
   plan.push({ ...state, note });
   if (!values.apply) return;
+  // The budget is spent composing, not planning: stop here, before a paid call that the cycle's own SIGTERM
+  // would cut in half. One line for the period that got away, then the loops below break.
+  if (outOfPhaseBudget()) {
+    stoppedForBudget = true;
+    plan[plan.length - 1] = { ...state, note: "本轮时间预算用完，这一期没开始" };
+    return;
+  }
   try {
     const out = await compose();
     const saved = await loadReport(kind, key);
@@ -182,6 +206,7 @@ async function consider(kind: "daily" | "weekly" | "monthly", key: string, start
 
 for (let t = Number(beijingMidnight(from)); t <= Number(beijingMidnight(to)) && t <= Number(beijingMidnight(due)); t += DAY) {
   if (!kinds.includes("daily")) break;
+  if (stoppedForBudget) break;
   const date = beijingDate(new Date(t));
   const { start, end } = dailyWindow(date);
   await consider("daily", date, start, end, () => composeDaily(date, "archive-backfill"));
@@ -189,6 +214,7 @@ for (let t = Number(beijingMidnight(from)); t <= Number(beijingMidnight(to)) && 
 
 const seenWeeks = new Set<string>();
 for (let t = Number(beijingMidnight(from)); t <= Number(beijingMidnight(to)); t += DAY) {
+  if (stoppedForBudget) break;
   const week = isoWeekLabel(beijingDate(new Date(t)));
   if (!kinds.includes("weekly") || seenWeeks.has(week)) continue;
   seenWeeks.add(week);
@@ -207,6 +233,7 @@ for (let t = Number(beijingMidnight(from)); t <= Number(beijingMidnight(to)); t 
 
 const seenMonths = new Set<string>();
 for (let t = Number(beijingMidnight(from)); t <= Number(beijingMidnight(to)); t += DAY) {
+  if (stoppedForBudget) break;
   const ym = beijingDate(new Date(t)).slice(0, 7);
   if (!kinds.includes("monthly") || seenMonths.has(ym)) continue;
   seenMonths.add(ym);
@@ -233,6 +260,9 @@ if (behind.length) {
   console.log("\n" + behind.length + " 个空天补在已出刊的区间中间（去重只看更早的期次）：");
   for (const s of behind.slice(0, 12)) console.log("  " + s);
   if (behind.length > 12) console.log("  …另 " + (behind.length - 12) + " 个");
+}
+if (stoppedForBudget) {
+  console.log(`\n时间预算（GEOHOT_PHASE_SECONDS=${PHASE_SECONDS}s，留 ${(CALL_HEADROOM_MS / 1000) | 0}s 给在飞的那一次调用）用尽，后面还有期次没跑：本轮正常收尾，下一轮接着从旧到新做。`);
 }
 if (values["verify-complete"]) console.log(`\n报刊层验收：${blockers.length ? "未通过" : "通过"}；阻断 ${blockers.length} 期。该结果不验证来源覆盖、failed/unknown 处置、最终重排新鲜度或整个目标。`);
 else if (!values.apply) console.log("\n默认只做计划不写库。确认后用 --apply --database-url-env=DATABASE_URL 跑。");

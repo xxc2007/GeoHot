@@ -133,6 +133,31 @@ test("a months rule without monthPageUrlTemplate keeps exactly one fetch per mon
   assert.equal(stats.errors, 0); assert.deepEqual(stats.boundaries, []);
 });
 
+// 生产周期跑的是 `--max-pages=5` 配九个月的区间（deploy/geohot/archive-cycle.sh:219），也就是"计划本身
+// 被页数预算截断"这一格。readPage 看不见它——被截掉的那些月它一次都没被调用。
+// 为什么样本要长成"最后一个被排进来的月是空的"：非空时 `readPage` 末尾那句 `last && …` 已经会报
+// limited，这条判据就永远不会红（我第一版就是这么写的，把修复关掉照样 10/10 绿）。只有空月提前
+// return，才轮到计划层这一格说话。
+test("a months plan truncated by the page budget says so even though no page was cut", async () => {
+  const plain: ArchiveRule = { sourceId: "loc", mode: "months", urlTemplate: "https://example.com/maps/{month}/", config: {} };
+  const mar1 = "https://example.com/maps/2026/03/";
+  const h = harness(url => {
+    if (url === jan1) return Promise.resolve(listing("2026-01", [1, 2]));
+    if (url === feb1) return Promise.resolve([]);          // 预算里最后一个被排进来的月是空的
+    if (url === mar1) return Promise.resolve(listing("2026-03", [1]));
+    return Promise.reject(new FetchError("HTTP 404", 404));
+  });
+  const first = await run({ ...o, to: "2026-03-31", maxPages: 2 }, [plain], [source], h.deps, h.state);
+  assert.deepEqual(h.requested, [jan1, feb1], "预算只够两个月，三月这轮不该被请求");
+  assert.equal(first.errors, 1, "二月为空要记一笔错");
+  assert.equal(first.limited, true, "月份没排完就是被截断，不能报 limited:false");
+  h.requested.length = 0;
+  // 预算放宽之后第三月要能补上：截断只是这一轮少跑，不是那个月作废。
+  const second = await run({ ...o, to: "2026-03-31", maxPages: 5 }, [plain], [source], h.deps, h.state);
+  assert.ok(h.requested.includes(mar1), `放宽预算后三月要补跑，实际=${JSON.stringify(h.requested)}`);
+  assert.equal(second.limited, false, "三个月都排进了计划，就不算截断");
+});
+
 test("an empty continuation page ends the month without an error or a completion", async () => {
   const h = harness(url => {
     if (url === jan1) return Promise.resolve(listing("2026-01", [1, 2, 3]));

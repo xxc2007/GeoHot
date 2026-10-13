@@ -45,7 +45,11 @@ message=""
 dry=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    -m|--message) message=${2:-}; shift 2 ;;
+    -m|--message)
+      # 只给 `-m` 不给值时 `shift 2` 会失败而 `$#` 不变 —— 这个循环就再也不出来了（脚本挂住，
+      # 看起来像在推送）。参数不够就地报错，别让它变成一个死循环。
+      [[ $# -ge 2 ]] || { echo "✗ $1 需要一个值：-m \"提交信息\"（引号别漏）" >&2; exit 2; }
+      message=${2:-}; shift 2 ;;
     --dry-run) dry=1; shift ;;
     *) echo "未知参数：$1"; exit 2 ;;
   esac
