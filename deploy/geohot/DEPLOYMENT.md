@@ -20,8 +20,9 @@
   但搬家时**把本站的 Sitemap 行丢了**。2026-10-07 第四十八轮补回一行 `Sitemap: https://xxc2007.me/geohot/sitemap.xml`
   （改前备份在 `/opt/geohot/backups/robots.root.*.bak`）。robots.txt 是**按主机**读的——`/geohot/robots.txt`
   那份对爬虫不作数，所以这一行只能待在根文件里；介绍站以后重新部署 `robots.txt` 时要带上它，否则会再次静默失联。
-- 四个常驻单元全部 `active`：`geohot-brain`(3055) · `geohot-api`(3001) · `geohot-worker` · `geohot-web`(3000)，
-  只监听 `127.0.0.1`，每个都带 `MemoryMax`（160/200/240/320 MB），OOM 只会杀自己
+- 六个常驻单元全部 `active`：`geohot-brain`(3055) · `geohot-api`(3001) · `geohot-worker` · `geohot-web`(3000) ·
+  `geohot-workbuddy`(3065) · `geohot-workbuddy-cn`(3066)，只监听 `127.0.0.1`，每个都带 `MemoryMax`
+  （160/200/240/320/200/200 MB），OOM 只会杀自己
 - 服务器：Ubuntu 22.04，`<ssh-user>@<server-ip>`，Node v24.21.0，
   **PostgreSQL 17 本机（PGDG apt 源；Ubuntu 22.04 自带的 14 不在本站支持区间，见 bootstrap-server.sh 第 6 节）**，
   swap 2 GB（**部署前就存在**，不是这次加的）

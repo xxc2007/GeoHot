@@ -31,7 +31,7 @@ sudo -u geohot env GEOHOT_ARCHIVE_APPLY=1 /bin/bash /opt/geohot/app/deploy/geoho
 
 环境文件由 Node 主进程用 `--env-file` 加载，数据库确认只传 `--database-url-env=DATABASE_URL`，连接地址不进入命令行。不要 `source .env`、不要开启 `set -x`，也不要把私有阶段日志复制到公开报告。生产默认只读 `.env`；本机需要叠加一次性环境时，设置 `GEOHOT_ARCHIVE_ENV_OVERLAY` 指向该文件，并保持基础 `.env` 的安全阀策略。
 
-每个阶段默认最多 600 秒，超时先发 TERM，30 秒后才 KILL。整个周期共享 40 分钟时限，最后一分钟留给结束账本，预算耗尽的后续阶段以 124 记录；systemd 另设 45 分钟总上限、320 MB 内存与 40% CPU。强制终止可能留下一页重读或未完成状态，下轮依靠归档游标和材料判重恢复。采集不是付费模型处理预算；worker 的预算熔断仍是唯一付费入口。
+每个阶段默认最多 600 秒，超时先发 TERM，30 秒后才 KILL。整个周期共享 40 分钟时限，最后一分钟留给结束账本，预算耗尽的后续阶段以 124 记录；systemd 另设 45 分钟总上限、320 MB 内存与 40% CPU。强制终止可能留下一页重读或未完成状态，下轮依靠归档游标和材料判重恢复——**但这不适用于被掐断的付费调用**：那条请求的回执停在 pending，半小时后被 `ops.recover` 判成 unknown 并自动放行一次，扔掉的回答要靠下一轮重问。出刊阶段因此读 `GEOHOT_PHASE_SECONDS`（由 `run_phase` 导出）：剩余时间放不下一次完整调用（240 秒上限加余量）时自己正常收尾（退出码 0），不再留 124。采集不是付费模型处理预算；worker 的预算熔断仍是唯一付费入口。
 
 可配置 `GEOHOT_APP_ROOT`、`GEOHOT_NODE`、`GEOHOT_ENV_FILE`、`GEOHOT_ARCHIVE_STATE_DIR`、`GEOHOT_ARCHIVE_FROM`、`GEOHOT_ARCHIVE_TO`、`GEOHOT_ARCHIVE_SOURCE`（逗号分隔）、`GEOHOT_ARCHIVE_MAX_ITEMS`、`GEOHOT_ARCHIVE_PER_MONTH`、`GEOHOT_ARCHIVE_PHASE_SECONDS`、`GEOHOT_ARCHIVE_SLICES`。数量和阶段时限有硬上限；总周期时限固定。自定义日期须有效且有序，切片选择器和下层 CLI 会再次校验。
 

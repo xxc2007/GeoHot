@@ -202,8 +202,10 @@ bash bootstrap-server.sh --apply   # 重跑：幂等，已建好的都跳过；�
 sudo -u postgres psql -d geohot -tAc "SELECT similarity('三角洲','河流三角洲')"   # locale 实测
 # ⑦ 贴 nginx 片段 → sudo nginx -t → sudo systemctl reload nginx（片段头部那段"生效顺序"；
 #   前缀必须与 GEOHOT_BASE_PATH 一致，且 :80 与 :443 两个 server 块都要 —— 片段第 3 条）
-sudo systemctl start geohot-brain geohot-api geohot-worker geohot-web   # ⑧ 四个，顺序 brain→api→worker→web
-bash verify-deploy.sh              # ⑨ 全绿才算上线完成（第 2 节会逐个断言四个单元 active）
+# ⑧ 六个常驻单元，顺序 brain→api→worker→web，再补两条 workbuddy 桥；装了桥的机器必须一起 start，
+#    否则桥还是跑着旧的自己（Node 不热更新），而它现在承担大头判定调用。
+sudo systemctl start geohot-brain geohot-api geohot-worker geohot-web geohot-workbuddy geohot-workbuddy-cn
+bash verify-deploy.sh              # ⑨ 全绿才算上线完成（第 2 节断言四个核心单元 active，另按「装了才要求」断言两条桥与 archive.timer 在岗）
                                    #    上线当天日报/热榜为空只记 note；过了第一个 08:00 就要带
                                    #    GEOHOT_DEPLOYED_AT=<上线日> 重跑，那两项会变成硬失败
 node /opt/geohot/app/scripts/smoke.ts --base https://xxc2007.me/geohot

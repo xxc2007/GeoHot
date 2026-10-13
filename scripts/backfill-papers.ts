@@ -51,15 +51,15 @@ const DAY = 86_400_000;
 /**
  * The archive cycle kills this phase with SIGTERM at its own deadline, and `run_phase` exports that deadline
  * as `GEOHOT_PHASE_SECONDS`. Being killed *during* a paid call is not a harmless interruption: the receipt is
- * left `pending`, the sweeper marks it `unknown` (`providers/receipts.ts:markStalePendingReceipts`), and an
- * `unknown` outcome is never re-sent without an operator — by design, because the provider may have billed it.
- * That edition is then blocked on that door: the pool has to rotate to another service (whose logical key
- * is different) before the composition goes through — which is what finally freed 02-28 and 03-13 today, after
- * seven cycles of 「失败」 each. With only one door available for that step, the edition waits for an operator.
- * Measured 2026-10-13: `papers` exited 124 (timeout) in **every** cycle of the last 14, and two dates were
- * already locked that way (`report:daily:2026-02-28`, `2026-03-13`).
- * The fix is to stop *starting* work while one call still fits before the kill, and exit 0 so the phase
- * finishes as a normal round; the remaining editions are still un-published and the next cycle takes them.
+ * left `pending`, the sweeper marks it `unknown` (`markStalePendingReceipts`), and `paidRequest` will not
+ * re-send an `unknown` outcome for that logical key — the provider may have billed it. `ops.recover` releases
+ * such a receipt **once** after half an hour (`autoReleaseUnknownReceipts`), so the edition is not lost: what
+ * the kill costs is that the answer you already paid for is thrown away, and the same date fails round after
+ * round until one attempt happens to land entirely inside the window. Measured 2026-10-13: `papers` exited
+ * 124 in every one of the last 14 cycles, and two dates had reported 「失败」 seven times each.
+ * A second unknown — one produced after the automatic release — does stay for the operator, so the guard is
+ * still the whole point: stop *starting* work while one call still fits before the kill, exit 0 so the phase
+ * finishes as a normal round, and the editions left over are taken by the next cycle.
  */
 const PHASE_SECONDS = Number(process.env.GEOHOT_PHASE_SECONDS ?? "");
 const CALL_HEADROOM_MS = 300_000; // the longest single model call is 240 s (`providers/llm.ts`), plus slack

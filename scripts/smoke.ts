@@ -123,7 +123,7 @@ if (prefix) {
  * share the gate but not the page size — the index and the sitemap hand out the newest `INDEX_CAP`, the daily
  * feed the newest 30, and `/api/v1/dailies` at most `V1_PAGE` per request — so asking v1 for its default page
  * was quietly an assertion that fewer than 30 readable issues exist. The 2026-10-13 archive refresh made that
- * false (149 readable dailies, 112 of them below page one) and a correct deployment went red on 112 lines.
+ * false (the index held 142 readable dailies while v1's first page holds 30) and a correct deployment went red on 112 lines.
  * A check that can only stay green while the site is shallow is not a check of the gate.
  */
 const getText = async (path: string) => (await fetch(base + path, { signal: AbortSignal.timeout(30_000) })).text();
