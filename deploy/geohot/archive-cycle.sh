@@ -65,10 +65,11 @@ run_phase() {
     # GEOHOT_PHASE_SECONDS：把"这一档还剩多少秒"交给会花钱的那一支。出刊脚本
     # （`scripts/backfill-papers.ts`）据此在**最后一次付费调用还能跑完**之前自己收工，
     # 而不是被这里的 SIGTERM/SIGKILL 掐在调用中间——那样那一条请求的收据会停在 pending，
-    # 被清扫器判成 unknown，而 unknown 按设计不再自动重发（可能已经计费）。同一扇门再被选中时这一期就发不出来，
-    # 要等池子换门才绕得开——不换门的那一期就得人工判那一条收据。
-    # 2026-10-13 实测：papers 连续 14 轮全部 exit=124；早上两期（daily 02-28、03-13）因此各连报七轮失败，
-    # 到上午换门才排出来。
+    # 被清扫器判成 unknown，而 unknown 对那一条 logical_key 不再自动重发（可能已经计费）。
+    # ops.recover 会在半小时后**自动放行一次**（admin/runs.ts 的 autoReleaseUnknownReceipts），所以这一期不是丢定了，
+    # 代价是**这一次已经付过钱的回答被扔掉**：于是同一个日期一轮一轮地重蹈，直到某次调用整个落在窗口里才出刊。
+    # 2026-10-13 实测：papers 连续 14 轮全部 exit=124；daily 02-28 与 03-13 各这样连报七轮才排出来。
+    # 第二次 unknown（自动放行之后又断一次的）才真的留给人工判。
     GEOHOT_PHASE_SECONDS="$seconds" timeout --signal=TERM --kill-after=30s "${seconds}s" "$NODE" "${NODE_ARGS[@]}" "$@" >"$RUN_DIR/$name.log" 2>&1 || result=$?
   fi
   printf '%s\t%s\n' "$name" "$result" >>"$RUN_DIR/exits.tsv"

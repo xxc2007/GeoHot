@@ -38,6 +38,10 @@ process.env.REPORT_MODEL = "deepseek-flash";
  * throwaway `DATABASE_URL` this test sets, and the run would spend real calls against the dev database
  * while asserting nothing.
  *
+ * `MODEL_CALLS_ENABLED` is pinned to true rather than inherited: the child must reach the stub, and an
+ * exported `false` in the dev shell would otherwise make the 600-second control fail for a reason that
+ * has nothing to do with the guard (the same trap `tests/translate-shutdown.test.ts` pins against).
+ *
  * And deliberately **not** `spawnSync`: the provider stub is an HTTP server in *this* process, and a
  * synchronous spawn freezes the event loop that serves it — the control case below would sit waiting for
  * an answer from a stub that cannot answer, and time out looking like a broken guard.
@@ -48,7 +52,7 @@ function runPapers(phaseSeconds: string): Promise<{ code: number | null; out: st
       process.execPath,
       ["scripts/backfill-papers.ts", `--from=${ISSUE}`, `--to=${ISSUE}`, "--kinds=daily",
         "--apply", "--database-url-env=DATABASE_URL"],
-      { cwd: repoRoot, env: { ...process.env, GEOHOT_PHASE_SECONDS: phaseSeconds }, stdio: ["ignore", "pipe", "pipe"] },
+      { cwd: repoRoot, env: { ...process.env, GEOHOT_PHASE_SECONDS: phaseSeconds, MODEL_CALLS_ENABLED: "true" }, stdio: ["ignore", "pipe", "pipe"] },
     );
     let out = "";
     child.stdout.setEncoding("utf8");
@@ -82,8 +86,11 @@ before(async () => {
 
 after(async () => {
   await sql`DELETE FROM reports WHERE kind = 'daily' AND key = ${ISSUE}`;
+  // Only this file's own attempts, and **before** the receipts go away — a table-wide orphan purge would
+  // also mop up another file's leaked rows (so its missing cleanup never shows as a failure), and once the
+  // receipts are gone there is nothing left to identify this file's attempts by.
+  await sql`DELETE FROM receipt_attempts WHERE receipt_id IN (SELECT id FROM receipts WHERE subject = ${SUBJECT})`;
   await sql`DELETE FROM receipts WHERE subject = ${SUBJECT}`;
-  await sql`DELETE FROM receipt_attempts WHERE receipt_id NOT IN (SELECT id FROM receipts)`;
   await sql`DELETE FROM publications WHERE article_id = ANY(${ids})`;
   await sql`DELETE FROM analyses WHERE article_id = ANY(${ids})`;
   await sql`DELETE FROM articles WHERE id = ANY(${ids})`;
