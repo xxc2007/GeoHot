@@ -10234,6 +10234,7482 @@
       "site_fulltext": false,
       "syndicate_fulltext": false,
       "enabled": false
+    },
+    {
+      "id": "web-zrzyt-fj-xwdt",
+      "name": "福建省自然资源厅 新闻动态",
+      "kind": "web_list",
+      "config": {
+        "url": "https://zrzyt.fujian.gov.cn/zwgk/xwdt/",
+        "parseMode": "html",
+        "itemSelector": "li",
+        "publishedAtSelector": "span",
+        "allowUrlPrefixes": [
+          "https://zrzyt.fujian.gov.cn/zwgk/xwdt/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "区域地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "regional"
+    },
+    {
+      "id": "web-zrzyt-hlj-home",
+      "name": "黑龙江省自然资源厅 首页要闻",
+      "kind": "web_list",
+      "config": {
+        "url": "https://zrzyt.hlj.gov.cn/",
+        "parseMode": "html",
+        "itemSelector": "li",
+        "publishedAtSelector": "span",
+        "allowUrlPrefixes": [
+          "https://zrzyt.hlj.gov.cn/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "区域地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "regional"
+    },
+    {
+      "id": "web-zrzyt-xj-gzdt",
+      "name": "新疆维吾尔自治区自然资源厅 工作动态",
+      "kind": "web_list",
+      "config": {
+        "url": "https://zrzyt.xinjiang.gov.cn/xjgtzy/gzdt/common_list.shtml",
+        "parseMode": "html",
+        "itemSelector": "li",
+        "publishedAtSelector": "span",
+        "allowUrlPrefixes": [
+          "https://zrzyt.xinjiang.gov.cn/xjgtzy/gzdt/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "区域地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "regional"
+    },
+    {
+      "id": "web-dzj-xj-quake",
+      "name": "新疆地震局 通知通告",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.xjdzj.gov.cn/inform/index.html",
+        "parseMode": "html",
+        "itemSelector": "li",
+        "publishedAtSelector": "span",
+        "allowUrlPrefixes": [
+          "https://www.xjdzj.gov.cn/inform/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-dzj-gs-kp",
+      "name": "甘肃省地震局 科普宣传",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.gsdzj.gov.cn/kpxc.htm",
+        "parseMode": "html",
+        "itemSelector": "li",
+        "publishedAtSelector": "span",
+        "allowUrlPrefixes": [
+          "https://www.gsdzj.gov.cn/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-cgs-xa-dwdt",
+      "name": "西安地调中心 单位动态",
+      "kind": "web_list",
+      "config": {
+        "url": "http://www.xian.cgs.gov.cn/gzdt_3725/dwdt_3727/",
+        "parseMode": "html",
+        "itemSelector": "li",
+        "publishedAtSelector": "span",
+        "allowUrlPrefixes": [
+          "http://www.xian.cgs.gov.cn/gzdt_3725/dwdt_3727/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-cgs-zz-tz",
+      "name": "中国地质调查局自然资源综合调查指挥中心 通知公告",
+      "kind": "web_list",
+      "config": {
+        "url": "http://www.zhzx.cgs.gov.cn/xxfw02/tzgg/",
+        "parseMode": "html",
+        "itemSelector": "li",
+        "publishedAtSelector": "span",
+        "allowUrlPrefixes": [
+          "http://www.zhzx.cgs.gov.cn/xxfw02/tzgg/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-cgs-drc-gg",
+      "name": "中国地质调查局发展研究中心 公告栏",
+      "kind": "web_list",
+      "config": {
+        "url": "http://www.drc.cgs.gov.cn/ggl/",
+        "parseMode": "html",
+        "itemSelector": "li",
+        "publishedAtSelector": "span",
+        "allowUrlPrefixes": [
+          "http://www.drc.cgs.gov.cn/ggl/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-cgs-imr-xw",
+      "name": "中国地质科学院矿产资源研究所 单位动态",
+      "kind": "web_list",
+      "config": {
+        "url": "http://www.imr.cgs.gov.cn/ywjx_2708/yjsxw_2709/",
+        "parseMode": "html",
+        "itemSelector": "li",
+        "publishedAtSelector": "span",
+        "allowUrlPrefixes": [
+          "http://www.imr.cgs.gov.cn/ywjx_2708/yjsxw_2709/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-cgs-igge-jryw",
+      "name": "中国地质科学院地球物理地球化学勘查研究所 单位动态",
+      "kind": "web_list",
+      "config": {
+        "url": "http://www.igge.cgs.gov.cn/jryw_3584/",
+        "parseMode": "html",
+        "itemSelector": "li",
+        "publishedAtSelector": "span",
+        "allowUrlPrefixes": [
+          "http://www.igge.cgs.gov.cn/jryw_3584/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-cgs-qimg-tp",
+      "name": "中国地质调查局青岛海洋地质研究所 图片新闻",
+      "kind": "web_list",
+      "config": {
+        "url": "http://www.qimg.cgs.gov.cn/tpxw/",
+        "parseMode": "html",
+        "itemSelector": "li",
+        "publishedAtSelector": "span",
+        "allowUrlPrefixes": [
+          "http://www.qimg.cgs.gov.cn/tpxw/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-cgs-gmgs-news",
+      "name": "广州海洋地质调查局 通知公告",
+      "kind": "web_list",
+      "config": {
+        "url": "http://www.gmgs.cgs.gov.cn/tzgg_4377/",
+        "parseMode": "html",
+        "itemSelector": "li",
+        "publishedAtSelector": "span",
+        "allowUrlPrefixes": [
+          "http://www.gmgs.cgs.gov.cn/tzgg_4377/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-cgs-ogs-dwdt",
+      "name": "中国地质调查局油气资源调查中心 单位动态",
+      "kind": "web_list",
+      "config": {
+        "url": "http://www.ogs.cgs.gov.cn/yqdt/yqdt_dwdt/",
+        "parseMode": "html",
+        "itemSelector": "li",
+        "publishedAtSelector": "span",
+        "allowUrlPrefixes": [
+          "http://www.ogs.cgs.gov.cn/yqdt/yqdt_dwdt/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-cgs-hbgs-tz",
+      "name": "中国地质调查局水文地质环境地质调查中心 通知公告",
+      "kind": "web_list",
+      "config": {
+        "url": "http://www.chegs.cgs.gov.cn/gzdt_4611/tzgg_4614/",
+        "parseMode": "html",
+        "itemSelector": "li",
+        "publishedAtSelector": "span",
+        "allowUrlPrefixes": [
+          "http://www.chegs.cgs.gov.cn/gzdt_4611/tzgg_4614/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-cgs-caggs-tp",
+      "name": "中国地质调查局国土资源航空物探遥感中心 单位动态",
+      "kind": "web_list",
+      "config": {
+        "url": "http://www.agrs.cgs.gov.cn/jryw/zxyw/",
+        "parseMode": "html",
+        "itemSelector": "li",
+        "publishedAtSelector": "span",
+        "allowUrlPrefixes": [
+          "http://www.agrs.cgs.gov.cn/jryw/zxyw/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "地理信息技术"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "geotech"
+    },
+    {
+      "id": "web-cgs-igeo-dwdt",
+      "name": "中国地质科学院地质研究所 单位动态",
+      "kind": "web_list",
+      "config": {
+        "url": "http://www.igeo.cgs.gov.cn/ywjx/gzdt_2782/",
+        "parseMode": "html",
+        "itemSelector": "li",
+        "publishedAtSelector": "span",
+        "allowUrlPrefixes": [
+          "http://www.igeo.cgs.gov.cn/ywjx/gzdt_2782/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-hwcc-slyw",
+      "name": "水利部海河水利委员会 水利要闻",
+      "kind": "web_list",
+      "config": {
+        "url": "http://www.hwcc.gov.cn/wwgj/slyw/",
+        "parseMode": "html",
+        "itemSelector": "tr",
+        "publishedAtSelector": "td:last-child",
+        "allowUrlPrefixes": [
+          "http://www.hwcc.gov.cn/wwgj/slyw/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-hwcc-lysl",
+      "name": "水利部海河水利委员会 流域水事",
+      "kind": "web_list",
+      "config": {
+        "url": "http://www.hwcc.gov.cn/wwgj/lysl/",
+        "parseMode": "html",
+        "itemSelector": "tr",
+        "publishedAtSelector": "td:last-child",
+        "allowUrlPrefixes": [
+          "http://www.hwcc.gov.cn/wwgj/lysl/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "区域地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "regional"
+    },
+    {
+      "id": "rss-oe-echogeo",
+      "name": "《回声地理》EchoGéo 期刊目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://journals.openedition.org/echogeo/backend?format=rssdocuments",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 180,
+      "tags": [
+        "期刊",
+        "法语",
+        "地理学",
+        "前沿",
+        "法国"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-oe-tem",
+      "name": "《流动领土》地理与规划学报目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://journals.openedition.org/tem/backend?format=rssdocuments",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 180,
+      "tags": [
+        "期刊",
+        "法语",
+        "区域地理",
+        "前沿",
+        "法国"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-oe-gc",
+      "name": "《地理与文化》期刊目录",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://journals.openedition.org/gc/backend?format=rssdocuments",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 180,
+      "tags": [
+        "期刊",
+        "法语",
+        "人文地理",
+        "前沿",
+        "法国"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-geoweeknews",
+      "name": "Geo Week News 地理周报",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.geoweeknews.com/feed/",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 180,
+      "tags": [
+        "媒体",
+        "英文",
+        "测绘",
+        "遥感",
+        "地理信息",
+        "美国"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "geotech"
+    },
+    {
+      "id": "rss-sciencenet-di5",
+      "name": "科学网 通知公告",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.sciencenet.cn/xml/news-0.aspx?di=5",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 180,
+      "tags": [
+        "中文",
+        "科研管理",
+        "通知",
+        "中国"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-huanqiukexue",
+      "name": "环球科学（科学美国人中文版）",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.huanqiukexue.com/?feed=rss2",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 180,
+      "tags": [
+        "中文",
+        "科普",
+        "前沿",
+        "中国"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-youtube-nasa",
+      "name": "美国国家航空航天局 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCLA_DiR1FfKNvjuUpBHmylQ",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "视频",
+        "英文",
+        "对地观测",
+        "航天"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-youtube-usgs",
+      "name": "美国地质调查局 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCeXH8GZyV3sVqAr45AvupOA",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "视频",
+        "英文",
+        "灾害事件",
+        "地质"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-youtube-noaa",
+      "name": "美国国家海洋和大气管理局 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCe9IxQeBttZIYl5c43ycf9g",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "视频",
+        "英文",
+        "海洋",
+        "气象"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-youtube-noaa-research",
+      "name": "NOAA 研究部 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCRRxIPuwYd7eCvlA1f5wc6g",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "视频",
+        "英文",
+        "海洋",
+        "研究进展"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-youtube-nasa-goddard",
+      "name": "NASA 戈达德太空飞行中心 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCAY-SMFNfynqz1bdoaV8BeQ",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "视频",
+        "英文",
+        "对地观测"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-youtube-esa",
+      "name": "欧洲空间局 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCIBaDdAbGlFDeS33shmlD0A",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "视频",
+        "英文",
+        "卫星遥感"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "geotech"
+    },
+    {
+      "id": "rss-youtube-ecmwf",
+      "name": "欧洲中期天气预报中心 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UChpGvNdQPdI7EI75z6oelTw",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "视频",
+        "英文",
+        "天气预报",
+        "气候"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-youtube-metoffice",
+      "name": "英国气象局 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UC40Tw2tFuMzK305mi7nj8rg",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "视频",
+        "英文",
+        "天气预报"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-youtube-smhi",
+      "name": "瑞典气象水文局 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCbOsB0lnm6N7KW377KUkOlg",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "视频",
+        "英文",
+        "气象",
+        "水文"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-youtube-bom",
+      "name": "澳大利亚气象局 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCNOlLwBZQLUPYUs31hVFeSA",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "视频",
+        "英文",
+        "气象",
+        "灾害事件"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-youtube-geoscience-au",
+      "name": "澳大利亚地质调查局 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCgglOEaXbvCJCrIj6R2EIBw",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "视频",
+        "英文",
+        "地质"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-youtube-whoi",
+      "name": "伍兹霍尔海洋研究所 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCfxsF5U3pXBZFuXc9vY9nPw",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "视频",
+        "英文",
+        "海洋",
+        "研究进展"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-youtube-schmidt-ocean",
+      "name": "施密特海洋研究所 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UC1m5LdKP0m64n8nY3NhK6Zg",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "视频",
+        "英文",
+        "海洋",
+        "观测数据"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-youtube-parks-canada",
+      "name": "加拿大公园管理局 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCzJRhTw3KVtDlcdNz33eDMQ",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "视频",
+        "英文",
+        "自然保护地"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "human"
+    },
+    {
+      "id": "rss-youtube-us-nps",
+      "name": "美国国家公园管理局 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCj_0DU9KRP_bQp_cOL4Ljbg",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "视频",
+        "英文",
+        "自然保护地"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "human"
+    },
+    {
+      "id": "rss-youtube-natgeo",
+      "name": "国家地理 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCpVm7bg6pXKo1Pr6k5kxG9A",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "视频",
+        "英文",
+        "地理科普"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "human"
+    },
+    {
+      "id": "rss-youtube-natgeo-society",
+      "name": "国家地理学会 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCLmU6mzQAUkQFmSWukexcTg",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "视频",
+        "英文",
+        "地理科普"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "human"
+    },
+    {
+      "id": "rss-youtube-smithsonian",
+      "name": "史密森尼学会 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCYm9MWccmz9n2yyMx9vRrXg",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "视频",
+        "英文",
+        "博物馆",
+        "历史文化"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "histgeo"
+    },
+    {
+      "id": "rss-youtube-csiro",
+      "name": "澳大利亚联邦科学与工业研究组织 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCak3NZxjNnWip327vYL8RLA",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "视频",
+        "英文",
+        "研究进展"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-youtube-google-earth",
+      "name": "Google 地球 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UC2zHjOF9Womes-SEjdzTleA",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "视频",
+        "英文",
+        "地图",
+        "地理信息"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "geotech"
+    },
+    {
+      "id": "rss-youtube-planet",
+      "name": "Planet 卫星影像公司 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCiyS6coRsDQ17b3Kj9bl8jw",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "视频",
+        "英文",
+        "卫星遥感"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "geotech"
+    },
+    {
+      "id": "rss-youtube-reallifelore",
+      "name": "RealLifeLore 地理科普频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCP5tjEmvPItGyLhmjdwP7Ww",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "视频",
+        "英文",
+        "地理科普",
+        "区域地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "human"
+    },
+    {
+      "id": "rss-youtube-wendover",
+      "name": "Wendover Productions 交通地理频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UC9RM-iSvTu1uPJb8X5yp3EQ",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "视频",
+        "英文",
+        "交通",
+        "人文地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "human"
+    },
+    {
+      "id": "rss-youtube-caspian-report",
+      "name": "里海报告 地缘政治频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCwnKziETDbHJtx78nIkfYug",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "视频",
+        "英文",
+        "政治地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "geopolitics"
+    },
+    {
+      "id": "rss-gtk-news",
+      "name": "芬兰地质调查局 新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.gtk.fi/feed/",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "地质",
+        "官方",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-ingv-terremoti",
+      "name": "意大利地球物理与火山学研究所 地震播报",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://ingvterremoti.com/feed/",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": [
+        "意大利语",
+        "地震",
+        "观测数据",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-geosphere-austria",
+      "name": "奥地利气象与地球科学中心 新闻",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.geosphere.at/en",
+        "parseMode": "html",
+        "itemSelector": "div",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://www.geosphere.at/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "气象",
+        "地质",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-rob-seismology",
+      "name": "比利时皇家天文台 地震台",
+      "kind": "web_list",
+      "config": {
+        "url": "https://seismologie.be/en",
+        "parseMode": "html",
+        "itemSelector": "tr",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://seismologie.be/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "地震",
+        "观测数据",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-uk-govuk-envagency",
+      "name": "英国环境署 政府公告",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.gov.uk/government/organisations/environment-agency.atom",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "官方",
+        "水文",
+        "洪涝",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-jp-jma-eqvol",
+      "name": "日本气象厅 地震火山播报",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.data.jma.go.jp/developer/xml/feed/eqvol.xml",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": [
+        "日语",
+        "地震",
+        "火山",
+        "预警",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-global-eumetsat-news",
+      "name": "欧洲气象卫星组织 新闻",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.eumetsat.int/news",
+        "parseMode": "html",
+        "itemSelector": "div",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://www.eumetsat.int/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "气象卫星",
+        "观测数据",
+        "地理信息技术"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "geotech"
+    },
+    {
+      "id": "rss-gislounge",
+      "name": "GIS Lounge 地理信息问答",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.gislounge.com/feed/",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "英文",
+        "地理信息",
+        "科普",
+        "地理信息技术"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "geotech"
+    },
+    {
+      "id": "rss-geogarage",
+      "name": "GeoGarage 海洋地理博客",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://geogarage.blogspot.com/feeds/posts/default",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "英文",
+        "海洋",
+        "地理信息",
+        "地理信息技术"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "geotech"
+    },
+    {
+      "id": "web-cartoblog",
+      "name": "CARTO 博客",
+      "kind": "web_list",
+      "config": {
+        "url": "https://carto.com/blog/",
+        "parseMode": "html",
+        "itemSelector": "article",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://carto.com/blog/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "英文",
+        "地图",
+        "地理信息",
+        "地理信息技术"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "geotech"
+    },
+    {
+      "id": "web-feltblog",
+      "name": "Felt 博客",
+      "kind": "web_list",
+      "config": {
+        "url": "https://felt.com/blog",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://felt.com/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "英文",
+        "地图",
+        "协作",
+        "地理信息技术"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "geotech"
+    },
+    {
+      "id": "web-synspective",
+      "name": "Synspective 雷达到公司 新闻",
+      "kind": "web_list",
+      "config": {
+        "url": "https://synspective.com/news",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://synspective.com/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "英文",
+        "雷达遥感",
+        "卫星",
+        "地理信息技术"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "geotech"
+    },
+    {
+      "id": "web-fig-news",
+      "name": "Fig 新闻",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.fig.net/news",
+        "parseMode": "html",
+        "itemSelector": "div",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://www.fig.net/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "英文",
+        "地理信息",
+        "软件",
+        "地理信息技术"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "geotech"
+    },
+    {
+      "id": "rss-berkeleyearth",
+      "name": "Berkeley Earth 温度研究更新",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://berkeleyearth.org/feed/",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "英文",
+        "气候变化",
+        "观测数据",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-bellingcat",
+      "name": "Bellingcat 开源调查",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.bellingcat.com/news/",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://www.bellingcat.com/news/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "英文",
+        "开源情报",
+        "政治地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "geopolitics"
+    },
+    {
+      "id": "web-supermap",
+      "name": "超图软件 新闻",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.supermap.com/zh-cn/a/news/",
+        "parseMode": "html",
+        "itemSelector": "li",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://www.supermap.com/zh-cn/a/news/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "中文",
+        "地理信息",
+        "软件",
+        "地理信息技术"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "geotech"
+    },
+    {
+      "id": "rss-berkeley-news",
+      "name": "加州大学伯克利分校 新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://news.berkeley.edu/feed/",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "高校",
+        "研究进展",
+        "前沿地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-uw-college-env",
+      "name": "华盛顿大学环境学院 新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://environment.uw.edu/feed/",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "高校",
+        "研究进展",
+        "前沿地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-michigan-news",
+      "name": "密歇根大学 新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://news.umich.edu/feed/",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "高校",
+        "前沿地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-wisconsin-news",
+      "name": "威斯康星大学麦迪逊分校 新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://news.wisc.edu/feed/",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "高校",
+        "前沿地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-cu-boulder-lasp",
+      "name": "科罗拉多大学大气与空间物理实验室 新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://lasp.colorado.edu/home/feed/",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "高校",
+        "空间物理",
+        "前沿地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "web-bigelow-news",
+      "name": "比格洛海洋科学实验室 新闻",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.bigelow.org/news/",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://www.bigelow.org/news/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "海洋",
+        "研究进展",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-ncsu-news",
+      "name": "北卡罗来纳州立大学 新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://news.ncsu.edu/feed/",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "高校",
+        "前沿地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "web-gatech-news",
+      "name": "佐治亚理工学院 新闻中心",
+      "kind": "web_list",
+      "config": {
+        "url": "https://news.gatech.edu/",
+        "parseMode": "html",
+        "itemSelector": "div",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://news.gatech.edu/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "高校",
+        "前沿地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "web-harvard-gazette",
+      "name": "哈佛公报",
+      "kind": "web_list",
+      "config": {
+        "url": "https://news.harvard.edu/gazette/",
+        "parseMode": "html",
+        "itemSelector": "div",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://news.harvard.edu/gazette/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "高校",
+        "前沿地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "web-gmu-science-news",
+      "name": "乔治梅森大学科学学院 新闻",
+      "kind": "web_list",
+      "config": {
+        "url": "https://science.gmu.edu/news",
+        "parseMode": "html",
+        "itemSelector": "div",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://science.gmu.edu/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "高校",
+        "地理信息",
+        "前沿地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "web-dalhausie-news",
+      "name": "戴尔豪斯大学 新闻",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.dal.ca/news.html",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://www.dal.ca/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "高校",
+        "海洋",
+        "前沿地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-jornal-usp",
+      "name": "圣保罗大学新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://jornal.usp.br/feed/",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "葡语",
+        "高校",
+        "前沿地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "web-insu-cnrs-news",
+      "name": "法国国家科学中心 地球与系统研究所 新闻",
+      "kind": "web_list",
+      "config": {
+        "url": "https://insu.cnrs.fr/fr/actualites",
+        "parseMode": "html",
+        "itemSelector": "div",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://insu.cnrs.fr/fr/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "法语",
+        "高校",
+        "地球系统",
+        "前沿地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "web-uct-news",
+      "name": "开普敦大学 新闻",
+      "kind": "web_list",
+      "config": {
+        "url": "https://news.uct.ac.za/",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://news.uct.ac.za/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "高校",
+        "前沿地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "web-unep-wcmc-news",
+      "name": "联合国环境署世界保护监测中心 新闻",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.unep-wcmc.org/en/news",
+        "parseMode": "html",
+        "itemSelector": "li",
+        "publishedAtSelector": "span",
+        "publishedAtRegex": "(20d{2}[-/.年]d{1,2}[-/.月]d{1,2})",
+        "allowUrlPrefixes": [
+          "https://www.unep-wcmc.org/en/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "保护区",
+        "观测数据",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-iucn-press",
+      "name": "世界自然保护联盟 新闻稿",
+      "kind": "web_list",
+      "config": {
+        "url": "https://iucn.org/press",
+        "parseMode": "html",
+        "itemSelector": "div",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://iucn.org/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "自然保护",
+        "官方",
+        "人文地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "human"
+    },
+    {
+      "id": "web-iucn-blog",
+      "name": "世界自然保护联盟 博客",
+      "kind": "web_list",
+      "config": {
+        "url": "https://iucn.org/blog",
+        "parseMode": "html",
+        "itemSelector": "div",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://iucn.org/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "英文",
+        "自然保护",
+        "人文地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "human"
+    },
+    {
+      "id": "web-iucn-publications",
+      "name": "世界自然保护联盟 出版物",
+      "kind": "web_list",
+      "config": {
+        "url": "https://iucn.org/resources",
+        "parseMode": "html",
+        "itemSelector": "div",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://iucn.org/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "英文",
+        "自然保护",
+        "研究",
+        "前沿地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-birdlife-news",
+      "name": "国际鸟盟 新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.birdlife.org/feed",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "生物多样性",
+        "人文地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "human"
+    },
+    {
+      "id": "rss-wetlands-intl-news",
+      "name": "湿地国际 新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.wetlands.org/feed",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "湿地",
+        "水文",
+        "人文地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "human"
+    },
+    {
+      "id": "web-cimmyt-news",
+      "name": "国际玉米小麦改良中心 新闻",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.cimmyt.org/news",
+        "parseMode": "html",
+        "itemSelector": "div",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://www.cimmyt.org/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "农业",
+        "区域发展",
+        "人文地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "human"
+    },
+    {
+      "id": "web-cabi-news",
+      "name": "CAB 农业与生物科学 新闻",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.cabi.org/news",
+        "parseMode": "html",
+        "itemSelector": "div",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://www.cabi.org/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "农业",
+        "生物",
+        "前沿地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-nautilus-feed",
+      "name": "Nautilus 科学杂志",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nautil.us/feed",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "英文",
+        "科学文化",
+        "前沿地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-quanta-feed",
+      "name": "Quanta 科学杂志",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.quantamagazine.org/feed",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "英文",
+        "数学",
+        "物理",
+        "前沿地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-dw-world-news",
+      "name": "德国之声 世界新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://rss.dw.com/xml/rss-en-all",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "英文",
+        "综合新闻",
+        "政治地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "geopolitics"
+    },
+    {
+      "id": "rss-bbc-science-env",
+      "name": "BBC 科学与环境",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "英文",
+        "科学",
+        "环境",
+        "前沿地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-aljazeera-all",
+      "name": "半岛电视台 全部新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.aljazeera.com/xml/rss/all.xml",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "英文",
+        "综合新闻",
+        "政治地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "geopolitics"
+    },
+    {
+      "id": "web-eurotopics-press",
+      "name": "Eurotopics 欧洲媒体综述",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.eurotopics.net/en/",
+        "parseMode": "html",
+        "itemSelector": "div",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://www.eurotopics.net/en/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "媒体综述",
+        "政治地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "geopolitics"
+    },
+    {
+      "id": "rss-politico-eu-feed",
+      "name": "Politico 欧洲版",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.politico.eu/feed",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "政策",
+        "政治地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "geopolitics"
+    },
+    {
+      "id": "rss-tc-canada-edition",
+      "name": "The Conversation 加拿大版",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://theconversation.com/ca/articles.atom",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 180,
+      "tags": [
+        "英文",
+        "研究解读",
+        "前沿地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-tc-uk-edition",
+      "name": "The Conversation 英国版",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://theconversation.com/uk/articles.atom",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 180,
+      "tags": [
+        "英文",
+        "研究解读",
+        "前沿地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-cgs-sa-news",
+      "name": "南非地质科学委员会 新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.geoscience.org.za/feed/",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "地质",
+        "官方",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-ispra-news",
+      "name": "意大利国家环保研究所 新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.isprambiente.gov.it/en/news/index/rss.xml",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "意大利语",
+        "环境",
+        "地质",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-brgm-news",
+      "name": "法国地质矿产局 新闻",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.brgm.fr/actualites",
+        "parseMode": "html",
+        "itemSelector": "div",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://www.brgm.fr/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "法语",
+        "地质",
+        "官方",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-igp-peru-news",
+      "name": "秘鲁地球物理研究所 新闻",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.igp.gob.pe/",
+        "parseMode": "html",
+        "itemSelector": "div",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://www.igp.gob.pe/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "西班牙语",
+        "地震",
+        "火山",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "f1-nga-rss",
+      "name": "美国国家地理空间情报局 新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.nga.mil/feed.xml",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "测绘",
+        "官方",
+        "地理信息技术"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "geotech"
+    },
+    {
+      "id": "rss-aemet-news",
+      "name": "西班牙气象局 新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.aemet.es/en/rss/noticias.rss",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "西班牙语",
+        "气象",
+        "预警",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-meteofrance-news",
+      "name": "法国气象局 新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://meteofrance.com/rss.xml",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "法语",
+        "气象",
+        "预警",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-imgw-news",
+      "name": "波兰气象局 新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://imgw.pl/en/feed/",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "波兰语",
+        "气象",
+        "预警",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-dmi-news",
+      "name": "丹麦气象研究所 新闻",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.dmi.dk/presse-og-medier",
+        "parseMode": "html",
+        "itemSelector": "div",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://www.dmi.dk/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "丹麦语",
+        "气象",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-asi-news",
+      "name": "意大利航天局 新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.asi.it/en/feed/",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "意大利语",
+        "卫星",
+        "对地观测",
+        "地理信息技术"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "geotech"
+    },
+    {
+      "id": "rss-sansa-news",
+      "name": "南非空间局 新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.sansa.org.za/feed/",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "卫星",
+        "对地观测",
+        "地理信息技术"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "geotech"
+    },
+    {
+      "id": "web-worldbank-news",
+      "name": "世界银行 新闻",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.worldbank.org/en/news",
+        "parseMode": "html",
+        "itemSelector": "div",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://www.worldbank.org/en/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "发展",
+        "区域经济",
+        "人文地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "human"
+    },
+    {
+      "id": "rss-isa-news",
+      "name": "国际海底管理局 新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://isa.org.jm/feed/",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "深海",
+        "国际治理",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-untourism-news",
+      "name": "联合国旅游组织 新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.unwto.org/rss.xml",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "旅游",
+        "人文地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "human"
+    },
+    {
+      "id": "web-un-press",
+      "name": "联合国会议纪要与新闻稿",
+      "kind": "web_list",
+      "config": {
+        "url": "https://press.un.org/en",
+        "parseMode": "html",
+        "itemSelector": "div",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://press.un.org/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "国际治理",
+        "政治地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "geopolitics"
+    },
+    {
+      "id": "rss-ukri-news",
+      "name": "英国研究与创新署 新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.ukri.org/news/feed/",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "科研资助",
+        "前沿地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-noc-news",
+      "name": "英国国家海洋学中心 新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.noc.ac.uk/rss.xml",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "海洋",
+        "观测数据",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-nature-ca-news",
+      "name": "加拿大自然博物馆 新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nature.ca/en/feed/",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "自然史",
+        "历史地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "histgeo"
+    },
+    {
+      "id": "web-norsar-news",
+      "name": "NORSAR 地震监测中心 新闻",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.norsar.no/news/",
+        "parseMode": "html",
+        "itemSelector": "li",
+        "publishedAtSelector": "time",
+        "publishedAtRegex": "(20d{2}[-/.年]d{1,2}[-/.月]d{1,2})",
+        "allowUrlPrefixes": [
+          "https://www.norsar.no/news/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "英文",
+        "地震监测",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-youtube-jpl",
+      "name": "NASA 喷气推进实验室 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCryGec9PdUCLjpJW2mgCuLw",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "对地观测",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-youtube-unooa",
+      "name": "联合国太空事务办公室 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCFm-a8e8DZW97u6FL9jpCNA",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "航天治理",
+        "政治地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "geopolitics"
+    },
+    {
+      "id": "rss-youtube-arcgis",
+      "name": "ArcGIS 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCgGDPs8cte-VLJbgpaK4GPw",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "地理信息",
+        "地理信息技术"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "geotech"
+    },
+    {
+      "id": "rss-youtube-spatialthoughts",
+      "name": "Spatial Thoughts 地理信息频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCuZLOgQwRum8Zsy2gSZvMwA",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "地理信息",
+        "地理信息技术"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "geotech"
+    },
+    {
+      "id": "rss-youtube-bgs",
+      "name": "英国地质调查局 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UC0JCbQti3FlTIzrJGZqzh3Q",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "地质",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-youtube-gsi",
+      "name": "印度地质调查局 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCoFiGeQoYPP-mJzRPgAwsfw",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "地质",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-youtube-esrnz",
+      "name": "新西兰地球科学 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCTL_U_K1eP4T885-JL3rVgw",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "地质",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-youtube-geonet",
+      "name": "新西兰 GeoNet 灾害监测 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCnkclQ98rmtd80o4hgTGomA",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "灾害事件",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-youtube-ingv",
+      "name": "意大利地球物理与火山学研究所 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCE7BtTDjg44FvWaclo3uakA",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "意大利语",
+        "火山",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-youtube-bas",
+      "name": "英国南极调查局 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCLRaKJeCPEe362Z_rLaEnag",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "极地",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-youtube-ldeo",
+      "name": "哥伦比亚大学拉蒙特-多森地球观测台 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCfmqyDo5E0LKVw9OmOvXUGw",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "海洋",
+        "气候",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-youtube-byrd",
+      "name": "俄亥俄州立大学 Byrd 极地研究中心 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCTuIJ0jr6IuO2pAfca85HJg",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "极地",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-youtube-nmnh",
+      "name": "史密森尼国家自然历史博物馆 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCyCwfDOKjkm2VLWRxa7Ayhw",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "自然史",
+        "历史地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "histgeo"
+    },
+    {
+      "id": "rss-youtube-mbari",
+      "name": "蒙特雷湾水族馆研究所 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCf41OFz8Rrzur538auIF2LQ",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "海洋",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-youtube-pml",
+      "name": "普利茅斯海洋实验室 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCfsYrcvGOp-JJm5owSJN8OA",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "海洋",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-youtube-nws",
+      "name": "美国国家气象局 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UC9hQvMjzSxurMirYDgOMezw",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "预警",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-youtube-meteofrance",
+      "name": "法国气象局 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCnBToLuuyq7Qn5j7e5BRhaw",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "法语",
+        "气象",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-youtube-jma",
+      "name": "日本气象厅 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCajQ4ZQJrgwSxkF6xaCfrRw",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "日语",
+        "气象",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-youtube-eccc",
+      "name": "加拿大环境与气候变化部 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCdPRKH8tJ1VTsTdDc8c8fGg",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "气候变化",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-youtube-oxforterrscience",
+      "name": "牛津大学地球科学系 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCyvkd84sTcvJVIvf13j6YlA",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "高校",
+        "前沿地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-youtube-yellowstone",
+      "name": "黄石国家公园 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCaiMu1oDfXlgIkzQwR04aYg",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "自然保护地",
+        "人文地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "human"
+    },
+    {
+      "id": "rss-youtube-grandcanyon",
+      "name": "大峡谷国家公园 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UC8jf0seie_pM_rsPp27aBgA",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "自然保护地",
+        "人文地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "human"
+    },
+    {
+      "id": "rss-youtube-glacier",
+      "name": "冰川国家公园 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UC1iwWIR-ahlaWdyeN30neuQ",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "自然保护地",
+        "人文地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "human"
+    },
+    {
+      "id": "rss-youtube-polymatter",
+      "name": "PolyMatter 地缘科普频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCgNg3vwj3xt7QOrcIDaHdFg",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "地缘",
+        "政治地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "geopolitics"
+    },
+    {
+      "id": "rss-reddit-geography",
+      "name": "Reddit 地理学版最新帖",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.reddit.com/r/geography/new.rss",
+        "_aihot": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "英文",
+        "社区",
+        "地理学",
+        "人文地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "human"
+    },
+    {
+      "id": "web-cas-neigae-kydt",
+      "name": "中国科学院东北地理与农业生态研究所 科研动态",
+      "kind": "web_list",
+      "config": {
+        "url": "https://neigae.cas.cn/news/research/",
+        "parseMode": "html",
+        "itemSelector": "li",
+        "publishedAtSelector": "span",
+        "allowUrlPrefixes": [
+          "https://neigae.cas.cn/news/research/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "高校与院所",
+        "前沿地理",
+        "实测 20/20 带日期",
+        "最新 2026-10-13"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "web-cas-xtbg-xw",
+      "name": "中国科学院西双版纳热带植物园 新闻动态",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.xtbg.ac.cn/2022/xinwen/zhxw/",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://www.xtbg.ac.cn/2022/xinwen/zhxw/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "高校与院所",
+        "人文地理",
+        "实测 20/26 带日期",
+        "最新 2026-10-01"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "human"
+    },
+    {
+      "id": "web-cas-iae-kyjz",
+      "name": "中国科学院沈阳应用生态研究所 科研进展",
+      "kind": "web_list",
+      "config": {
+        "url": "https://iae.cas.cn/gb2019/xwzx_156509/kyjz/",
+        "parseMode": "html",
+        "itemSelector": "li",
+        "publishedAtSelector": "span",
+        "allowUrlPrefixes": [
+          "https://iae.cas.cn/gb2019/xwzx_156509/kyjz/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "高校与院所",
+        "前沿地理",
+        "实测 24/24 带日期",
+        "最新 2026-09-30"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "web-cas-aircas-rdxw",
+      "name": "中国科学院空天信息创新研究院 热点新闻",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.aircas.ac.cn/dtxw/rdxw/",
+        "parseMode": "html",
+        "itemSelector": "li",
+        "publishedAtSelector": "span",
+        "allowUrlPrefixes": [
+          "https://www.aircas.ac.cn/dtxw/rdxw/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "高校与院所",
+        "地理信息技术",
+        "实测 15/15 带日期",
+        "最新 2026-09-23"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "geotech"
+    },
+    {
+      "id": "web-cas-egi-kydt",
+      "name": "中国科学院新疆生态与地理研究所 科研动态",
+      "kind": "web_list",
+      "config": {
+        "url": "https://egi.cas.cn/xwdt/kydt_163364/index.html",
+        "parseMode": "html",
+        "itemSelector": "li",
+        "publishedAtSelector": "span",
+        "allowUrlPrefixes": [
+          "https://egi.cas.cn/xwdt/kydt_163364/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "高校与院所",
+        "前沿地理",
+        "实测 15/16 带日期",
+        "最新 2026-10-08"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "web-cas-scbg-kyjz",
+      "name": "中国科学院华南植物园 科研进展",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.scbg.ac.cn/kx/kyjz/",
+        "parseMode": "html",
+        "itemSelector": "div",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://www.scbg.ac.cn/kx/kyjz/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "高校与院所",
+        "前沿地理",
+        "实测 20/21 带日期",
+        "最新 2026-09-30"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "web-cas-idsse-tzgg",
+      "name": "中国科学院深海科学与工程研究所 通知公告",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.idsse.ac.cn/xwdt/tzgg/",
+        "parseMode": "html",
+        "itemSelector": "li",
+        "publishedAtSelector": "span",
+        "allowUrlPrefixes": [
+          "https://www.idsse.ac.cn/xwdt/tzgg/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "高校与院所",
+        "自然地理",
+        "实测 14/14 带日期",
+        "最新 2026-10-08"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-cas-rcees-gzdt",
+      "name": "中国科学院生态环境研究中心 工作动态",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.rcees.ac.cn/dqyd/gzdt/",
+        "parseMode": "html",
+        "itemSelector": "div",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://www.rcees.ac.cn/dqyd/gzdt/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "高校与院所",
+        "人文地理",
+        "实测 8/9 带日期",
+        "最新 2026-10-09"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "human"
+    },
+    {
+      "id": "web-cugb-bdxw",
+      "name": "中国地质大学（北京） 北地新闻",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.cugb.edu.cn/bdxw.jhtml",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://www.cugb.edu.cn/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "高校与院所",
+        "前沿地理",
+        "实测 20/63 带日期",
+        "最新 2026-10-12"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "web-jssnu-dili-xw",
+      "name": "江苏师范大学地理学院 新闻",
+      "kind": "web_list",
+      "config": {
+        "url": "https://dili.jssnu.edu.cn/",
+        "parseMode": "html",
+        "itemSelector": "li",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://dili.jssnu.edu.cn/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "高校与院所",
+        "前沿地理",
+        "实测 29/69 带日期",
+        "最新 2026-10-10"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "web-ahnu-geo-xw",
+      "name": "安徽师范大学地理与旅游学院 新闻资讯",
+      "kind": "web_list",
+      "config": {
+        "url": "https://geography.ahnu.edu.cn/xwyzx.htm",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://geography.ahnu.edu.cn/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "高校与院所",
+        "前沿地理",
+        "实测 10/60 带日期",
+        "最新 2026-10-08"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "web-nwu-env-xw",
+      "name": "西北大学城市与环境学院 新闻",
+      "kind": "web_list",
+      "config": {
+        "url": "https://env.nwu.edu.cn/index.htm",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://env.nwu.edu.cn/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "高校与院所",
+        "区域地理",
+        "实测 24/80 带日期",
+        "最新 2026-09-23"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "regional"
+    },
+    {
+      "id": "web-zrzyt-heb-xw",
+      "name": "河北省自然资源厅 头条新闻",
+      "kind": "web_list",
+      "config": {
+        "url": "https://zrzy.hebei.gov.cn/heb/xinwen/stdt",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://zrzy.hebei.gov.cn/heb/xinwen/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "实测从境外采集机连接失败或超时"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "regional"
+    },
+    {
+      "id": "web-zrzyt-heb-tz",
+      "name": "河北省自然资源厅 公告公示",
+      "kind": "web_list",
+      "config": {
+        "url": "https://zrzy.hebei.gov.cn/heb/gongk/gkml/gggs",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://zrzy.hebei.gov.cn/heb/gongk/gkml/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "实测从境外采集机连接失败或超时"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "regional"
+    },
+    {
+      "id": "web-ghhzrzy-tj-bmxw",
+      "name": "天津市规划和自然资源局 部门新闻",
+      "kind": "web_list",
+      "config": {
+        "url": "https://ghhzrzy.tj.gov.cn/sy_143/bmxw/",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://ghhzrzy.tj.gov.cn/sy_143/bmxw/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "实测 403（对本站采集身份封锁）"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "regional"
+    },
+    {
+      "id": "web-zrzyt-sx-tzgg",
+      "name": "山西省自然资源厅 通知公告",
+      "kind": "web_list",
+      "config": {
+        "url": "https://zrzyt.shanxi.gov.cn/zwgk/tzgg/",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://zrzyt.shanxi.gov.cn/zwgk/tzgg/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "实测从境外采集机连接失败或超时"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "regional"
+    },
+    {
+      "id": "web-zrzyt-hun-gzdt",
+      "name": "湖南省自然资源厅 工作信息",
+      "kind": "web_list",
+      "config": {
+        "url": "https://zrzyt.hunan.gov.cn/zrzyt/xxgk/gzdt/gzxx_1/index.html",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://zrzyt.hunan.gov.cn/zrzyt/xxgk/gzdt/gzxx_1/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "实测从境外采集机连接失败或超时"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "regional"
+    },
+    {
+      "id": "web-zrzyt-hun-tzgg",
+      "name": "湖南省自然资源厅 通知公告",
+      "kind": "web_list",
+      "config": {
+        "url": "https://zrzyt.hunan.gov.cn/zrzyt/xxgk/tzgg/index.html",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://zrzyt.hunan.gov.cn/zrzyt/xxgk/tzgg/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "实测从境外采集机连接失败或超时"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "regional"
+    },
+    {
+      "id": "web-zrzyt-ah-home",
+      "name": "安徽省自然资源厅 首页要闻",
+      "kind": "web_list",
+      "config": {
+        "url": "http://zrzyt.ah.gov.cn/",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "http://zrzyt.ah.gov.cn/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "实测 403（对本站采集身份封锁）"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "regional"
+    },
+    {
+      "id": "web-ghzrzyj-cq-bmdt",
+      "name": "重庆市规划和自然资源局 部门动态",
+      "kind": "web_list",
+      "config": {
+        "url": "https://ghzrzyj.cq.gov.cn/zwxx_186/bmdt/",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://ghzrzyj.cq.gov.cn/zwxx_186/bmdt/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "实测从境外采集机连接失败或超时"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "regional"
+    },
+    {
+      "id": "web-dnrgx-zrzx",
+      "name": "广西壮族自治区自然资源厅 自然资源要闻",
+      "kind": "web_list",
+      "config": {
+        "url": "https://dnr.gxzf.gov.cn/xwzx/zrzx/",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://dnr.gxzf.gov.cn/xwzx/zrzx/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "实测从境外采集机连接失败或超时"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "regional"
+    },
+    {
+      "id": "web-zrzy-js-xwbb",
+      "name": "江苏省自然资源厅 新闻播报",
+      "kind": "web_list",
+      "config": {
+        "url": "http://zrzy.jiangsu.gov.cn/xwzx/xwbb/",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "http://zrzy.jiangsu.gov.cn/xwzx/xwbb/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "实测从境外采集机连接失败或超时"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "regional"
+    },
+    {
+      "id": "web-zrzy-ln-sxdt",
+      "name": "辽宁省自然资源厅 省内动态",
+      "kind": "web_list",
+      "config": {
+        "url": "https://zrzy.ln.gov.cn/zrzy/ywbb/sxdt/index.shtml",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://zrzy.ln.gov.cn/zrzy/ywbb/sxdt/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "实测从境外采集机连接失败或超时"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "regional"
+    },
+    {
+      "id": "web-zrzy-ln-gsgg",
+      "name": "辽宁省自然资源厅 公示公告",
+      "kind": "web_list",
+      "config": {
+        "url": "https://zrzy.ln.gov.cn/zrzy/gsgg/index.shtml",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://zrzy.ln.gov.cn/zrzy/gsgg/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "实测从境外采集机连接失败或超时"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "regional"
+    },
+    {
+      "id": "web-zrzy-nmg-zxdt",
+      "name": "内蒙古自治区自然资源厅 最新动态",
+      "kind": "web_list",
+      "config": {
+        "url": "https://zrzy.nmg.gov.cn/xwdt/zxdt/",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://zrzy.nmg.gov.cn/xwdt/zxdt/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "实测 403（对本站采集身份封锁）"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "regional"
+    },
+    {
+      "id": "web-zrzyt-nx-gzdt",
+      "name": "宁夏回族自治区自然资源厅 工作动态",
+      "kind": "web_list",
+      "config": {
+        "url": "https://zrzyt.nx.gov.cn/xwdt/gzdt/",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://zrzyt.nx.gov.cn/xwdt/gzdt/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "实测从境外采集机连接失败或超时"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "regional"
+    },
+    {
+      "id": "web-dnr-yn-st",
+      "name": "云南省自然资源厅 省厅动态",
+      "kind": "web_list",
+      "config": {
+        "url": "https://dnr.yn.gov.cn/html/xinwendongtai/shengtingdongtai/",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://dnr.yn.gov.cn/html/xinwendongtai/shengtingdongtai/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "页面 200 但站点解析器读不到日期（0 条里 0 条带日期）"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "regional"
+    },
+    {
+      "id": "web-zrzy-bt-xc",
+      "name": "新疆生产建设兵团自然资源局 新闻宣传",
+      "kind": "web_list",
+      "config": {
+        "url": "https://zrzy.xjbt.gov.cn/xwxc/",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://zrzy.xjbt.gov.cn/xwxc/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "页面 200 但站点解析器读不到日期（0 条里 0 条带日期）"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "regional"
+    },
+    {
+      "id": "web-ghzyj-sh-tpxw",
+      "name": "上海市规划和自然资源局 图片新闻",
+      "kind": "web_list",
+      "config": {
+        "url": "https://ghzyj.sh.gov.cn/tpxw/index.html",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://ghzyj.sh.gov.cn/tpxw/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "页面 200 但站点解析器读不到日期（10 条里 0 条带日期）"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "regional"
+    },
+    {
+      "id": "web-dzj-js-news",
+      "name": "江苏省地震局 新闻动态",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.jsdzj.gov.cn/col/col5/index.html",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://www.jsdzj.gov.cn/col/col5/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "实测从境外采集机连接失败或超时"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-dzj-sh-news",
+      "name": "上海市地震局 新闻",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.shdzj.gov.cn/xwzx/secondPageNews.html",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://www.shdzj.gov.cn/xwzx/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "实测从境外采集机连接失败或超时"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-dzj-sc-xydt",
+      "name": "四川省地震局 协会动态",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.scdzj.gov.cn/xwzx/xydt/",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://www.scdzj.gov.cn/xwzx/xydt/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "实测 403（对本站采集身份封锁）"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-dzj-sn-zqsd",
+      "name": "陕西省地震局 震情速递",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.sxdzj.gov.cn/zqsd/zqsd.htm",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://www.sxdzj.gov.cn/zqsd/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "页面 200 但站点解析器读不到日期（undefined 条里 undefined 条带日期）"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-dzj-sx-dzkb",
+      "name": "山西省地震局 地震科普",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.shxdzj.gov.cn/dzjc/dzkb/",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://www.shxdzj.gov.cn/dzjc/dzkb/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "实测从境外采集机连接失败或超时"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-dzj-yn-news",
+      "name": "云南省地震局 通知公告",
+      "kind": "web_list",
+      "config": {
+        "url": "https://yndzj.gov.cn/yndzj/_300563/wzgg/index.html",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://yndzj.gov.cn/yndzj/_300563/wzgg/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "页面 200 但站点解析器读不到日期（14 条里 0 条带日期）"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-dzj-jl-jzyw",
+      "name": "吉林省地震局 吉震要闻",
+      "kind": "web_list",
+      "config": {
+        "url": "https://dzj.jl.gov.cn/xwzx/jzyw/",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://dzj.jl.gov.cn/xwzx/jzyw/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "页面 200 但站点解析器读不到日期（undefined 条里 undefined 条带日期）"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-dzj-qh-news",
+      "name": "青海省地震局 震情速递",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.qhdzj.gov.cn/Category/2/13.aspx",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://www.qhdzj.gov.cn/Category/2/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "页面 200 但站点解析器读不到日期（undefined 条里 undefined 条带日期）"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-dzj-gx-news",
+      "name": "广西壮族自治区地震局 新闻",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.gxdzj.gov.cn/html/xwzx/",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://www.gxdzj.gov.cn/html/xwzx/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "实测从境外采集机连接失败或超时"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-dzj-hain-xw",
+      "name": "海南省地震局 新闻",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.haindzj.gov.cn/xwzx/",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://www.haindzj.gov.cn/xwzx/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "实测从境外采集机连接失败或超时"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-dzj-cq-home",
+      "name": "重庆市地震局 首页要闻",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.cqdzj.gov.cn/",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://www.cqdzj.gov.cn/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "页面 200 但站点解析器读不到日期（87 条里 0 条带日期）"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-dzj-hun-tz",
+      "name": "湖南省地震局 通知公告",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.hundzj.gov.cn/dzj/c101284/c101294/gknrlist.html",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://www.hundzj.gov.cn/dzj/c101284/c101294/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "实测从境外采集机连接失败或超时"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-cma-he-ttxw",
+      "name": "河北省气象局 头条新闻",
+      "kind": "web_list",
+      "config": {
+        "url": "https://he.cma.gov.cn/xwdt/ttxw/",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://he.cma.gov.cn/xwdt/ttxw/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "页面 200 但站点解析器读不到日期（undefined 条里 undefined 条带日期）"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-cma-zj-yjyj",
+      "name": "浙江省气象局 应急预警",
+      "kind": "web_list",
+      "config": {
+        "url": "http://zj.cma.gov.cn/yqlj/yjyj/",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "http://zj.cma.gov.cn/yqlj/yjyj/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "页面 200 但站点解析器读不到日期（undefined 条里 undefined 条带日期）"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-cma-gd-gzdt",
+      "name": "广东省气象局 工作动态",
+      "kind": "web_list",
+      "config": {
+        "url": "http://gd.cma.gov.cn/zwgk/zwyw/gzdt/",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "http://gd.cma.gov.cn/zwgk/zwyw/gzdt/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "页面 200 但站点解析器读不到日期（undefined 条里 undefined 条带日期）"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-cma-sd-qxyw",
+      "name": "山东省气象局 气象要闻",
+      "kind": "web_list",
+      "config": {
+        "url": "http://sd.cma.gov.cn/xwzx_3497/qxyw/",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "http://sd.cma.gov.cn/xwzx_3497/qxyw/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "页面 200 但站点解析器读不到日期（undefined 条里 undefined 条带日期）"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-cma-js-qxyw",
+      "name": "江苏省气象局 气象要闻",
+      "kind": "web_list",
+      "config": {
+        "url": "http://js.cma.gov.cn/xwzx/qxyw/",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "http://js.cma.gov.cn/xwzx/qxyw/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "页面 200 但站点解析器读不到日期（undefined 条里 undefined 条带日期）"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-cma-fj-tzgg",
+      "name": "福建省气象局 通知公告",
+      "kind": "web_list",
+      "config": {
+        "url": "http://fj.cma.gov.cn/xwzx/tzgg/",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "http://fj.cma.gov.cn/xwzx/tzgg/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "页面 200 但站点解析器读不到日期（undefined 条里 undefined 条带日期）"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-cma-ha-xwzx",
+      "name": "河南省气象局 新闻中心",
+      "kind": "web_list",
+      "config": {
+        "url": "http://ha.cma.gov.cn/xwzx/",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "http://ha.cma.gov.cn/xwzx/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "页面 200 但站点解析器读不到日期（undefined 条里 undefined 条带日期）"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-cma-sn-qxkp",
+      "name": "陕西省气象局 气象科普",
+      "kind": "web_list",
+      "config": {
+        "url": "http://sn.cma.gov.cn/xwmk/qxkp/",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "http://sn.cma.gov.cn/xwmk/qxkp/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "页面 200 但站点解析器读不到日期（undefined 条里 undefined 条带日期）"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-cma-cq-sjdt",
+      "name": "重庆市气象局 市局动态",
+      "kind": "web_list",
+      "config": {
+        "url": "https://cq.cma.gov.cn/sqxj/xwdt/sjdt/",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://cq.cma.gov.cn/sqxj/xwdt/sjdt/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "页面 200 但站点解析器读不到日期（undefined 条里 undefined 条带日期）"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-cma-gs-qxxw",
+      "name": "甘肃省气象局 气象新闻",
+      "kind": "web_list",
+      "config": {
+        "url": "https://gs.cma.gov.cn/qxxw/",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://gs.cma.gov.cn/qxxw/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "页面 200 但站点解析器读不到日期（undefined 条里 undefined 条带日期）"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-cma-xj-xwzx",
+      "name": "新疆维吾尔自治区气象局 新闻中心",
+      "kind": "web_list",
+      "config": {
+        "url": "https://xj.cma.gov.cn/xwzx/",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://xj.cma.gov.cn/xwzx/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "页面 200 但站点解析器读不到日期（undefined 条里 undefined 条带日期）"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-cma-hi-gzdt",
+      "name": "海南省气象局 工作动态",
+      "kind": "web_list",
+      "config": {
+        "url": "https://hi.cma.gov.cn/xwzx/gzdt/",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://hi.cma.gov.cn/xwzx/gzdt/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "页面 200 但站点解析器读不到日期（undefined 条里 undefined 条带日期）"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-cma-hn-qxyw",
+      "name": "湖南省气象局 气象要闻",
+      "kind": "web_list",
+      "config": {
+        "url": "http://hn.cma.gov.cn/xwzx/qxyw/",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "http://hn.cma.gov.cn/xwzx/qxyw/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "页面 200 但站点解析器读不到日期（undefined 条里 undefined 条带日期）"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-cma-xz-mtjj",
+      "name": "西藏自治区气象局 媒体聚焦",
+      "kind": "web_list",
+      "config": {
+        "url": "https://xz.cma.gov.cn/sy_141/mtjj/",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://xz.cma.gov.cn/sy_141/mtjj/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "页面 200 但站点解析器读不到日期（undefined 条里 undefined 条带日期）"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-cma-sc-tzgg",
+      "name": "四川省气象局 通知公告",
+      "kind": "web_list",
+      "config": {
+        "url": "http://sc.cma.gov.cn/xxgk/tzgg/",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "http://sc.cma.gov.cn/xxgk/tzgg/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "页面 200 但站点解析器读不到日期（undefined 条里 undefined 条带日期）"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-cma-jl-qxyw",
+      "name": "吉林省气象局 气象要闻",
+      "kind": "web_list",
+      "config": {
+        "url": "https://jl.cma.gov.cn/xwzx_8502/qxyw/",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://jl.cma.gov.cn/xwzx_8502/qxyw/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "页面 200 但站点解析器读不到日期（undefined 条里 undefined 条带日期）"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-cma-ln-xwzx",
+      "name": "辽宁省气象局 新闻中心",
+      "kind": "web_list",
+      "config": {
+        "url": "http://ln.cma.gov.cn/xwzx/",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "http://ln.cma.gov.cn/xwzx/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "页面 200 但站点解析器读不到日期（undefined 条里 undefined 条带日期）"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-cma-hb-qxyw",
+      "name": "湖北省气象局 气象要闻",
+      "kind": "web_list",
+      "config": {
+        "url": "https://hb.cma.gov.cn/xwzx/qxyw/",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://hb.cma.gov.cn/xwzx/qxyw/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "页面 200 但站点解析器读不到日期（undefined 条里 undefined 条带日期）"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-cma-nx-xwzx",
+      "name": "宁夏回族自治区气象局 新闻中心",
+      "kind": "web_list",
+      "config": {
+        "url": "http://nx.cma.gov.cn/xwzx_145/",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "http://nx.cma.gov.cn/xwzx_145/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "页面 200 但站点解析器读不到日期（undefined 条里 undefined 条带日期）"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-mnr-smxyj-sn",
+      "name": "自然资源部陕西测绘地理信息局 新闻",
+      "kind": "web_list",
+      "config": {
+        "url": "http://snsm.mnr.gov.cn/Information/Section/1096",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "http://snsm.mnr.gov.cn/Information/Section/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "实测从境外采集机连接失败或超时"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "regional"
+    },
+    {
+      "id": "web-mnr-smxyj-sc",
+      "name": "自然资源部四川测绘地理信息局 通知公告",
+      "kind": "web_list",
+      "config": {
+        "url": "https://scsm.mnr.gov.cn/info/iList.jsp?node_id=GKscsm&cat_id=25414",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://scsm.mnr.gov.cn/info/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "实测从境外采集机连接失败或超时"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "regional"
+    },
+    {
+      "id": "web-mnr-smxyj-hain",
+      "name": "自然资源部海南测绘地理信息局 通知公告",
+      "kind": "web_list",
+      "config": {
+        "url": "https://hism.mnr.gov.cn/xxgk/tzgg/",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://hism.mnr.gov.cn/xxgk/tzgg/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "实测从境外采集机连接失败或超时"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "regional"
+    },
+    {
+      "id": "web-mnr-nmdis-gg",
+      "name": "中国海洋信息网 公告通知",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.nmdis.org.cn/hyxw/ggtz/",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://www.nmdis.org.cn/hyxw/ggtz/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "页面 200 但站点解析器读不到日期（9 条里 0 条带日期）"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-mnr-ndsc-news",
+      "name": "国家深海基地管理中心 通知公告",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.ndsc.org.cn/News/Browse/172efefd-076d-4492-81e1-02a92e24ff26",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://www.ndsc.org.cn/News/Browse/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "页面 200 但站点解析器读不到日期（9 条里 0 条带日期）"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-mnr-rerc-home",
+      "name": "自然资源部第三海洋研究所 首页",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.rerc.com.cn/",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://www.rerc.com.cn/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "实测 418"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "regional"
+    },
+    {
+      "id": "web-mnr-nanhaij-xw",
+      "name": "自然资源部南海局 新闻",
+      "kind": "web_list",
+      "config": {
+        "url": "https://scs.mnr.gov.cn/scsb/news/xwdt.shtml",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://scs.mnr.gov.cn/scsb/news/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "实测从境外采集机连接失败或超时"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-cenc-tz",
+      "name": "中国地震台网中心 通知",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.cenc.ac.cn/cenc/tzgg/index.html",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://www.cenc.ac.cn/cenc/tzgg/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "实测 403（对本站采集身份封锁）"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-cenc-dw",
+      "name": "中国地震台网中心 单位工作动态",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.cenc.ac.cn/cenc/dwgzdt/index.html",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "https://www.cenc.ac.cn/cenc/dwgzdt/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "实测 403（对本站采集身份封锁）"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-hrc-xwdt",
+      "name": "水利部黄河水利委员会 新闻动态",
+      "kind": "web_list",
+      "config": {
+        "url": "http://www.hrc.gov.cn/main/xwdt/index.jhtml",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "http://www.hrc.gov.cn/main/xwdt/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "页面 200 但站点解析器读不到日期（0 条里 0 条带日期）"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-slwr-wndt",
+      "name": "水利部松辽水利委员会 委内动态",
+      "kind": "web_list",
+      "config": {
+        "url": "http://www.slwr.gov.cn/wndt.jhtml",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "http://www.slwr.gov.cn/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "页面 200 但站点解析器读不到日期（58 条里 0 条带日期）"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "web-slwr-slyw",
+      "name": "水利部松辽水利委员会 水利要闻",
+      "kind": "web_list",
+      "config": {
+        "url": "http://www.slwr.gov.cn/slyw.jhtml",
+        "parseMode": "html",
+        "publishedAtRegex": "(20\\d{2}[-/.年]\\d{1,2}[-/.月]\\d{1,2})",
+        "allowUrlPrefixes": [
+          "http://www.slwr.gov.cn/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "中文",
+        "列表页",
+        "登记未采集",
+        "页面 200 但站点解析器读不到日期（58 条里 0 条带日期）"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-youtube-asi",
+      "name": "意大利航天局 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCTXeYvzv6B7gHT4Z9QceL9A",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "意大利语",
+        "AsiTV",
+        "地理信息技术"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "geotech"
+    },
+    {
+      "id": "rss-youtube-cnes",
+      "name": "法国国家空间研究中心 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCOixknKUV8AaCA5uaaBY0Bw",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "法语",
+        "CNES",
+        "地理信息技术"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "geotech"
+    },
+    {
+      "id": "rss-youtube-copernicus",
+      "name": "哥白尼计划 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCpuwnbuwGG20enAdE50g6TA",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "EU Defence and Space",
+        "地理信息技术"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "geotech"
+    },
+    {
+      "id": "rss-youtube-csa",
+      "name": "加拿大航天局 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCdNtqpHlU1pCaVy2wlzxHKQ",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "Canadian Space Agency",
+        "地理信息技术"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "geotech"
+    },
+    {
+      "id": "rss-youtube-eth",
+      "name": "苏黎世联邦理工学院 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCRNo2gqj3GiHlmT_OnqkouA",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "ETH Zürich",
+        "前沿地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-youtube-eumetsat",
+      "name": "欧洲气象卫星组织 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCiN59j5b1fAGnXVzIYFpaMw",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "EUMETSAT",
+        "地理信息技术"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "geotech"
+    },
+    {
+      "id": "rss-youtube-jaxa",
+      "name": "日本宇宙航空研究开发机构 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCfMIdADo6FQayQCOkLYGhrQ",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "日语",
+        "JAXA | 宇宙航空研究開発機構",
+        "地理信息技术"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "geotech"
+    },
+    {
+      "id": "rss-youtube-noaa-ocean-exploration",
+      "name": "NOAA 海洋探索 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCe_3CoEeinvPMze2u_aENBg",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "NOAA Ocean Exploration",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-youtube-stockholmresilience",
+      "name": "斯德哥尔摩韧性中心 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCG0QUKa0MTBzBKiW18AZfTg",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "Stockholm Resilience Centre",
+        "人文地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "human"
+    },
+    {
+      "id": "rss-youtube-arcticcouncil",
+      "name": "北极理事会 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCaajRo85ciV-PiNvKZdoArA",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "The Arctic Council",
+        "政治地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "geopolitics"
+    },
+    {
+      "id": "rss-youtube-johnnyharris",
+      "name": "Johnny Harris 地缘图文频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCmGSJVG3mCRXVOP4yZrU1Dw",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "Johnny Harris",
+        "政治地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "geopolitics"
+    },
+    {
+      "id": "rss-youtube-unosat",
+      "name": "联合国卫星应用项目 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCks87-v0xvtTAx55-2FgWfA",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "UNOSAT",
+        "地理信息技术"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "geotech"
+    },
+    {
+      "id": "rss-youtube-carto",
+      "name": "CARTO 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UC8p3ZhwdRiGrjUdY6bigB3Q",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "CARTO",
+        "地理信息技术"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "geotech"
+    },
+    {
+      "id": "rss-youtube-esri",
+      "name": "Esri 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCJ203R9PsZn6wF_zYfsp1SA",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "Esri",
+        "地理信息技术"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "geotech"
+    },
+    {
+      "id": "rss-youtube-grass",
+      "name": "GRASS GIS 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCfe-8-BM_PAsG59-_ejxCjA",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "GRASS",
+        "地理信息技术"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "geotech"
+    },
+    {
+      "id": "rss-youtube-hot",
+      "name": "人道开放地图团队 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UC0C055kpMy82mdE8YHORnfw",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "Humanitarian OpenStreetMap Team",
+        "人文地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "human"
+    },
+    {
+      "id": "rss-youtube-mapbox",
+      "name": "Mapbox 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCIHl9sd2brgvjBlSETKYDcg",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "Mapbox",
+        "地理信息技术"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "geotech"
+    },
+    {
+      "id": "rss-youtube-ogc",
+      "name": "开放地理空间联盟 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCR5YGb1pVBBFV-XNA6mA0gg",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "opengeospatial",
+        "地理信息技术"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "geotech"
+    },
+    {
+      "id": "rss-youtube-qgis",
+      "name": "QGIS 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCGS162t4hkOA0b35ucf1yng",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "QGIS",
+        "地理信息技术"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "geotech"
+    },
+    {
+      "id": "rss-youtube-sotm",
+      "name": "State of the Map 大会 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCLqJsr_5PfdvDFbgv1qp2aQ",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "State of the Map",
+        "地理信息技术"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "geotech"
+    },
+    {
+      "id": "rss-youtube-britishlibrary",
+      "name": "大英图书馆 馆藏地图视频",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UC-75_Zh-CLF7hN8dM4EGEGA",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "British Library",
+        "历史地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "histgeo"
+    },
+    {
+      "id": "rss-youtube-loc",
+      "name": "美国国会图书馆 馆藏视频",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCbObxjfi3W9YKnDS0PgadNA",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "Library of Congress",
+        "历史地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "histgeo"
+    },
+    {
+      "id": "rss-youtube-mapmen",
+      "name": "Map Men 制图趣谈",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCbbQalJ4OaC0oQ0AqRaOJ9g",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "Map Men",
+        "地理信息技术"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "geotech"
+    },
+    {
+      "id": "rss-youtube-rgs",
+      "name": "英国皇家地理学会 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCGdL1D-WfrXFdlcmnC7EfEg",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "Royal Geographical Society",
+        "人文地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "human"
+    },
+    {
+      "id": "rss-youtube-cambridge",
+      "name": "剑桥大学 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCc5vZEM1MLUzCrg_aZIJdeA",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "Cambridge University",
+        "前沿地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-youtube-fao",
+      "name": "联合国粮农组织 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCtu8MkufmVgxS8_Ocl7mMig",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "Food and Agriculture Organization of the",
+        "人文地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "human"
+    },
+    {
+      "id": "rss-youtube-fema",
+      "name": "美国联邦应急管理署 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCVrYey5SZMid_VZk9D8tYmA",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "FEMA",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-youtube-ifrc",
+      "name": "国际红十字与红新月运动 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCZ8xf9ZrTOv7SeYK7U5eKVg",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "IFRC",
+        "人文地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "human"
+    },
+    {
+      "id": "rss-youtube-undrr",
+      "name": "联合国减灾办公室 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCUw0G3AdE_0EDhcDPlJtJyA",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "United Nations Office for Disaster Risk ",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-youtube-unep",
+      "name": "联合国环境规划署 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UC9V3x9HelwEk3Z6EknB_1Cg",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "UN Environment Programme",
+        "人文地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "human"
+    },
+    {
+      "id": "rss-youtube-utokyo",
+      "name": "东京大学 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCYI6VqtL5HFWdVhfD4oFPoA",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "日语",
+        "東京大学 / The University of Tokyo",
+        "前沿地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-youtube-wageningen",
+      "name": "瓦赫宁根大学 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCXaytnClAXlaqIngyQh-pWg",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "Wageningen University & Research",
+        "前沿地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "frontier"
+    },
+    {
+      "id": "rss-youtube-aemet",
+      "name": "西班牙气象局 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCd-ceYPisAtCmmoZa26I-5g",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "西班牙语",
+        "AEMET",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-youtube-avo",
+      "name": "阿拉斯加火山观测台 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UC3qyStK264kP-23h7nl1Aqg",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "Alaska Volcano Observatory",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-youtube-awi",
+      "name": "阿尔弗雷德·韦格纳与勃伦哈德研究所 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCANsLK2kHR1w5q4dhDGE8vQ",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "德语",
+        "Alfred-Wegener-Institut, Helmholtz-Zentr",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-youtube-dwd",
+      "name": "德国气象局 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCOQYlLhP9aXKrAecE7oNUAA",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "德语",
+        "DWDderWetterdienst",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-youtube-emsc",
+      "name": "欧洲地中海地震中心 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UC_DwbHPMKSU41Qn9HgbNIJg",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "EMSC CSEM",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-youtube-gfz",
+      "name": "德国地学研究中心 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UC15OtI1dmABaje6UQwbC5yA",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "GFZ Helmholtz-Zentrum für Geoforschung",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-youtube-globalnaturewatch",
+      "name": "全球自然观察 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCAsamYre1KLulf4FD-xJfLA",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T2",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "Global Nature Watch",
+        "人文地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "human"
+    },
+    {
+      "id": "rss-youtube-imd",
+      "name": "印度气象局 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UC_qxTReoq07UVARm87CuyQw",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英语",
+        "India Meteorological Department",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-youtube-ipma",
+      "name": "葡萄牙海洋与大气研究所 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCqCr5LBZHI13S5eJF5HX2jw",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "葡语",
+        "ipmaPT",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-youtube-knmi",
+      "name": "荷兰皇家气象研究所 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCqQtmDbRgKOoJ_lPv_mU9nQ",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "荷兰语",
+        "KNMI",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-youtube-meteireann",
+      "name": "爱尔兰气象局 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UC67dRUD00xsU-hH93bqIQ_g",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英语",
+        "Met Éireann",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-youtube-meteoswiss",
+      "name": "瑞士联邦气象与气候局 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UC_Vs_cE9l-RBw0_w86pDoGg",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "德语",
+        "MeteoSwiss",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-youtube-nhc",
+      "name": "美国国家飓风中心 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCv0qlvvLtEuCxAoEitAuoFg",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "NOAA/NWS National Hurricane Center",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-youtube-nsidc",
+      "name": "美国国家冰雪数据中心 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCQxQlcjXuh32ctfX3QHiyRg",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "National Snow and Ice Data Center",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-youtube-ptwc",
+      "name": "太平洋海啸预警中心 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCSUgbSK7FKy5RdTYyEhpLbQ",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "PacificTWC",
+        "自然地理",
+        "登记未采集",
+        "首次导入 15 条一条没入库，按站内规矩记为失败待查"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false,
+      "defaultCategory": "physical"
+    },
+    {
+      "id": "rss-youtube-wmo",
+      "name": "世界气象组织 视频频道",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCMCDaG2oNwzEZLTk4ZJiWjg",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1",
+      "first_party": true,
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 720,
+      "tags": [
+        "视频",
+        "英文",
+        "World Meteorological Organization - WMO",
+        "自然地理"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true,
+      "defaultCategory": "physical"
     }
   ]
 }
