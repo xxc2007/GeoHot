@@ -518,7 +518,11 @@ N=1–3 时上限只有 20–60，比实时常驻量还小，功能永远不动�
 ——**它是降速，不是拒绝**。实测 10-09 20:00–23:00 三个小时：1,382 发 / 403 接受 / 965 拒。关门等于为了少发 965 次
 扔掉 403 次真产出，而真产出正是回填缺的东西。再加两条要命的：线上门型池只有一个成员
 （`.env` `MODEL_POOL=agnes-3.0-flash-cn`，`editorial/models.ts` 的 `pickMember` 按分片选完就没有第二次机会），
-关门不是"换条门"是全站停摆；而 60 分钟比任何队列的重试预算都长——`events.group` 是
+关门不是"换条门"是全站停摆。**这条前提已经在 2026-10-14 21:14 变了**：那天按站长要求摘掉 10 扇死门与限速门之后，
+三条变量行（`MODEL_POOL`/`UNDERSTAND_MODEL`/`TRANSLATE_MODEL`）填的是同一组 **7 个成员**
+（`agnes-3.0-flash-cn, default, dots3-note-prev, workbuddy-hy3, workbuddy-step5-preview, workbuddy-cn-hy3, workbuddy-cn-step5-preview`），
+所以"关门＝全站停摆"不再成立，摘掉一扇只是少一路复核（逐门依据与验证见 `docs/research/model-pool-slim-2026-10-14.md`）。
+而上面那条 60 分钟比任何队列的重试预算都长——`events.group` 是
 `retryLimit 4 / retryDelay 20 + backoff`（`jobs/queue.ts:34`），一小时里早就烧完了，条目会被单独成页并留在
 **只有操作者脚本才清**的 `regroup_pending`，一个事件出两个页面；而且门关着的时候一次尝试都没有，
 拒绝告警（要每小时 ≥3 次尝试）也就自己哑了。附带还查出 `admin/runs.ts` 的 `release()` 会把**操作者的自由文本**

@@ -163,6 +163,8 @@ docker compose logs -f --tail 100 api worker web
 `receipts.cost` 合计为 0——这道自设闸保护的不是钱）、`workbuddy` 与 `workbuddy-cn` 各 30/600/12000
 （两个账号两行熔断，0058/0061/0063/0064）、`openrouter` 18/300/600、`opencode` 10/300/3000，
 单位都是 分/时/天；分钟数按对端实际接受的速率取小，OpenRouter 六个成员共用一个账号的免费额度所以只有一行），
+**但 2026-10-14 21:14 起 `openrouter` 与 `opencode` 这两行只是留着的历史闸门：两把 key 已从生产 `.env` 删除、
+它们的成员已全部摘出池子，不要再照这段把它们当现役门**（摘门依据与逐门 24h 实测在 `docs/research/model-pool-slim-2026-10-14.md`）。
 后台「设置 → 预算」可改，填 0 立即停用该服务）。仓库里那个只听 127.0.0.1 的回放器
 `tooling/brain-stub.ts`（`LLM_API_KEY=local-brain` 是占位串）留给本机开发与 CI：同样的闸门与回执，
 零账单、零外发。信源里 `x_search`、`mp_account` 与带 `paid_listing` 的一条都没启用（现值 0），
