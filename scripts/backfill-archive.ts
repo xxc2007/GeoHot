@@ -88,6 +88,13 @@ const { values } = parseArgs({
     "max-items": { type: "string", default: "2000" },
     "per-month": { type: "string", default: "60" },
     "per-page": { type: "string", default: "100" },
+    // Crossref 只收得到**出版社愿意存**的摘要。台账实测 2026-10-15：940 个切片一共记着 `thin=2734`，
+    // 与同期入库的 2,896 条几乎等量——也就是说"没往 Crossref 存摘要"的出版社被这道闸整刊整刊地排除掉了。
+    // 而本文件自己的站点门（下面 `runSiteSource` 里那次 `upsertMaterial`：只有 title / url / publishedAt，
+    // 没有任何摘要字段）从一开始就收"只有标题 + 一个读者能打开的落地页"的行，
+    // 所以这道 80 字闸其实是同一件事的两套规矩。默认仍是 80（行为不变）；
+    // 调到 0 就是把这种行交给编辑闸门与模型判分去管，而不是在这里按"出版社有没有存摘要"筛掉整本刊。
+    "min-abstract": { type: "string", default: "80" },
     // Crossref rate-limits the anonymous pool hard (429 within a couple of requests at 300 ms). One second
     // per page is what the polite-pool guidance asks for without a contact address; set CROSSREF_MAILTO and
     // lower --sleep if the operator gives one.
@@ -140,6 +147,14 @@ const positive = (raw: string | undefined, fallback: number, flag: string) => {
 const MAX_ITEMS = positive(values["max-items"], 2000, "--max-items");
 const PER_MONTH = positive(values["per-month"], 60, "--per-month");
 const PER_PAGE = Math.min(500, positive(values["per-page"], 100, "--per-page"));
+// 摘要下限允许 0（"一条标题加落地页就够管道干活"），所以不能走上面那个"必须正整数"的闸；
+// 但它同样不许读成 NaN：`"abc" < 80` 是 false，判据会静默变成"什么都不筛"，
+// 与那三个数拒绝的原因一模一样——宁可在门口报错，不要静默走错路。
+const MIN_ABSTRACT = Number(values["min-abstract"]);
+if (!Number.isSafeInteger(MIN_ABSTRACT) || MIN_ABSTRACT < 0) {
+  console.error(`--min-abstract 需要非负整数（给的是「${values["min-abstract"]}」）。`);
+  process.exit(2);
+}
 // `--sleep` 允许 0（给了 CROSSREF_MAILTO 就进 polite 池，不必每秒等），但不许读成 NaN：
 // `Math.max(0, Number("abc"))` 是 NaN，而 `await sleep(NaN)` 立刻返回——限流就这样没了，
 // 匿名池两三次请求就 429，比慢一点严重得多。上面那三个数已经在门口拒绝，这一个漏在外面。
@@ -474,9 +489,10 @@ for (const month of selectedMonths) {
         const at = statedDate(w);
         if (!title || !at) { noDate++; localNoDate++; continue; }
         const body = w.abstract ? plainText(w.abstract) : "";
-        // An abstract under ~80 characters is a heading, not something an editor can judge; those records
-        // stay out rather than being written up from a title.
-        if (body.length < 80) { thin++; localThin++; continue; }
+        // 摘要下限由 `--min-abstract` 决定（默认 80 = 历史行为）。80 字以下多半是"出版社根本没往 Crossref
+        // 存摘要"而不是"这篇没内容"，所以这道闸实际是在按**存不存摘要**筛掉整本刊；站点门那条路收的就是
+        // 只有标题加落地页的行，判分交给模型与编辑闸门。下限放到 0 时这里只保留"标题与日期必须真"那条守卫。
+        if (body.length < MIN_ABSTRACT) { thin++; localThin++; continue; }
         judged++;
         // A paper this journal already sent through its own feed has a URL identity, not a `doi:` one, so
         // upsertMaterial would not see it as the same article. Check the URL form first and skip: the live
