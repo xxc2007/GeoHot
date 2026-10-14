@@ -18,15 +18,18 @@ SLICES="${GEOHOT_ARCHIVE_SLICES:-6}"
 # 摘要下限允许 0（"只认标题与日期的行也交给编辑闸门判"），所以不许套用上面那条"正整数"的校验；
 # 但同样要在门口拒绝非整数，否则这道闸会静默失效而台账里看不出来。
 MIN_ABSTRACT="${GEOHOT_ARCHIVE_MIN_ABSTRACT:-80}"
+# 翻页门（`industry/news-archives.json`）每轮走访几扇。规则铺到 50 条之后这里还只走 1 扇，一趟就要 12.5 小时，
+# 而生产实测一扇门 2—3 页只落 1—10 条、采集本身只要 15—25 秒——瓶颈是轮数，不是墙。
+NEWS_DOORS="${GEOHOT_NEWS_DOORS:-3}"
 
 fail() { printf 'archive-cycle: %s\n' "$1" >&2; exit 2; }
 [[ "$APPLY" =~ ^[01]$ && "$FINAL_REFRESH" =~ ^[01]$ ]] || fail 'apply and final-refresh must be 0 or 1'
 [[ "$FROM" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ && "$TO" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || fail 'invalid date format'
 [[ "$FROM" < "$TO" || "$FROM" == "$TO" ]] || fail 'invalid date range'
-for value in "$MAX_ITEMS" "$PER_MONTH" "$PHASE_SECONDS" "$SLICES"; do
+for value in "$MAX_ITEMS" "$PER_MONTH" "$PHASE_SECONDS" "$SLICES" "$NEWS_DOORS"; do
   [[ "$value" =~ ^[1-9][0-9]{0,5}$ ]] || fail 'limits must be positive integers'
 done
-(( MAX_ITEMS <= 2000 && PER_MONTH <= 500 && PHASE_SECONDS <= 1800 && SLICES <= 12 )) || fail 'limits exceed cycle safety caps'
+(( MAX_ITEMS <= 2000 && PER_MONTH <= 500 && PHASE_SECONDS <= 1800 && SLICES <= 12 && NEWS_DOORS <= 8 )) || fail 'limits exceed cycle safety caps'
 [[ "$MIN_ABSTRACT" =~ ^(0|[1-9][0-9]{0,4})$ ]] || fail 'min-abstract must be a non-negative integer'
 [[ -d "$APP_ROOT" && -r "$ENV_FILE" && -x "$NODE" ]] || fail 'app, environment file or Node unavailable'
 for utility in flock timeout date; do command -v "$utility" >/dev/null || fail "missing $utility"; done
@@ -207,28 +210,36 @@ case "$ripe_state" in
 esac
 run_phase papers "${PAPER_ARGS[@]}" "${WRITE_ARGS[@]}" || CYCLE_RESULT=$?
 
-# Rotate one verified publisher adapter per cycle, within the same lock and deadline.
+# Rotate a few verified publisher adapters per cycle, within the same lock and deadline.
 NEWS_SELECTOR=$(cat <<'NODE'
 import { readFileSync, writeFileSync, renameSync } from 'node:fs';
 import { sql, closeDb } from '@aihot/backend/db';
-const [stateDir,runDir] = process.argv.slice(1);
+const [stateDir,runDir,doorsArg] = process.argv.slice(1);
 try {
   const rules = JSON.parse(readFileSync('industry/news-archives.json','utf8')).archives;
   const enabled = new Set((await sql`SELECT id FROM sources WHERE enabled AND participation_mode='editorial'`).map(x=>x.id));
   const ids = rules.map(x=>x.sourceId).filter(x=>enabled.has(x));
+  const doors = Number(doorsArg ?? '1');
+  if(!Number.isSafeInteger(doors)||doors<1) throw new Error('Invalid news door count');
   let cursor=0;
   try { cursor=Number(readFileSync(`${stateDir}/next-news`,'utf8').trim()); } catch(e) { if(e.code!=='ENOENT') throw e; }
   if(!Number.isSafeInteger(cursor)||cursor<0) throw new Error('Invalid news cursor');
-  writeFileSync(`${runDir}/news-source`,ids.length?ids[cursor%ids.length]+'\n':'');
-  writeFileSync(`${stateDir}/next-news.tmp`,String(ids.length?(cursor+1)%ids.length:0));
+  // Walk `doors` consecutive entries of the rotation instead of one, so a 50-rule pack is a ~4-hour pass
+  // rather than a 12.5-hour one. The cursor advances by what was actually taken, so a pack that shrinks
+  // below `doors` still visits every rule without repeating an id inside one round.
+  const picked = ids.length ? Array.from({length: Math.min(doors, ids.length)}, (_,k)=>ids[(cursor+k)%ids.length]) : [];
+  writeFileSync(`${runDir}/news-source`,picked.join(','));
+  writeFileSync(`${stateDir}/next-news.tmp`,String(ids.length?(cursor+picked.length)%ids.length:0));
   renameSync(`${stateDir}/next-news.tmp`,`${stateDir}/next-news`);
 } finally { await closeDb(); }
 NODE
 )
-if run_phase select-news --input-type=module -e "$NEWS_SELECTOR" "$STATE_DIR" "$RUN_DIR"; then
+if run_phase select-news --input-type=module -e "$NEWS_SELECTOR" "$STATE_DIR" "$RUN_DIR" "$NEWS_DOORS"; then
   news_source=$(cat "$RUN_DIR/news-source")
   if [[ -n "$news_source" ]]; then
-    run_phase collect-news scripts/backfill-news.ts "--sources=$news_source" "--from=$FROM" "--to=$TO" --max-pages=5 --max-items=100 --sleep-ms=1200 "${WRITE_ARGS[@]}" || CYCLE_RESULT=$?
+    # 100 条是**每扇门**的上限，所以按门数放大：写成固定 100 的话，三扇门会共享同一道闸，
+    # 排在前面的门把额度吃光，后面的门静默饿死——台账里只看得出"这一轮 100 条"，看不出少了谁。
+    run_phase collect-news scripts/backfill-news.ts "--sources=$news_source" "--from=$FROM" "--to=$TO" --max-pages=5 "--max-items=$((100 * NEWS_DOORS))" --sleep-ms=1200 "${WRITE_ARGS[@]}" || CYCLE_RESULT=$?
   fi
 else
   CYCLE_RESULT=$?

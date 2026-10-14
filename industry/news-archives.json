@@ -1,5 +1,5 @@
 {
-  "$comment": "Explicit non-journal archive adapters; source registration remains in sources.json. HTML page/date selectors and ITDP RSS pagination verified against publisher listings on 2026-10-10. This is not a universal archive for all sources.",
+  "$comment": "Explicit non-journal archive adapters; source registration remains in sources.json. HTML page/date selectors and ITDP RSS pagination verified against publisher listings on 2026-10-10. Thirty rules were added on 2026-10-15, all of them attached to sources that were already registered: `config: {}` reuses each source's own live itemSelector/publishedAtSelector, so a rule only carries the back-paginated URL shape. Every one was then re-measured on the production collector with `backfill-news.ts --max-pages=2`, and two candidates were dropped before shipping because a listing that parses on a laptop does not parse here (igg.cas.cn: 41 candidates, 37 undated; geosphere.at: 23, 15 undated) — a row without a date can never be published, so a rule that cannot date its rows is worse than no rule. `firstPage` is the number that fails silently: 1 on a CMS whose second page is index_1.html starts the walk at index_2.html and never revisits the skipped page, which is pinned by scripts/news-archive-expanded.test.ts. This is not a universal archive for all sources.",
   "archives": [
     {
       "sourceId": "rss-itdp-news",
@@ -92,6 +92,318 @@
       "mode": "pages",
       "urlTemplate": "https://www.cepal.org/en/list/cepal_pr?page={page}",
       "firstPage": 0,
+      "config": {}
+    },
+    {
+      "sourceId": "web-igsnrr-zhxw",
+      "mode": "pages",
+      "urlTemplate": "https://igsnrr.cas.cn/news/zhxw/index_{page}.html",
+      "firstPage": 0,
+      "firstPageUrl": "https://igsnrr.cas.cn/news/zhxw/",
+      "config": {}
+    },
+    {
+      "sourceId": "web-igsnrr-kyjz",
+      "mode": "pages",
+      "urlTemplate": "https://igsnrr.cas.cn/news/kyjz/index_{page}.html",
+      "firstPage": 0,
+      "firstPageUrl": "https://igsnrr.cas.cn/news/kyjz/",
+      "config": {}
+    },
+    {
+      "sourceId": "web-stats-latest",
+      "mode": "pages",
+      "urlTemplate": "https://www.stats.gov.cn/sj/zxfb/index_{page}.html",
+      "firstPage": 0,
+      "firstPageUrl": "https://www.stats.gov.cn/sj/zxfb/",
+      "config": {}
+    },
+    {
+      "sourceId": "web-mee-xwfb",
+      "mode": "pages",
+      "urlTemplate": "https://www.mee.gov.cn/ywdt/xwfb/index_{page}.shtml",
+      "firstPage": 0,
+      "firstPageUrl": "https://www.mee.gov.cn/ywdt/xwfb/",
+      "config": {}
+    },
+    {
+      "sourceId": "web-cgs-ddyw",
+      "mode": "pages",
+      "urlTemplate": "https://www.cgs.gov.cn/ywdt/ddyw/index_{page}.html",
+      "firstPage": 0,
+      "firstPageUrl": "https://www.cgs.gov.cn/ywdt/ddyw/",
+      "config": {}
+    },
+    {
+      "sourceId": "web-mwr-news",
+      "mode": "pages",
+      "urlTemplate": "http://www.mwr.gov.cn/xw/slyw/index_{page}.html",
+      "firstPage": 0,
+      "firstPageUrl": "http://www.mwr.gov.cn/xw/slyw/",
+      "config": {}
+    },
+    {
+      "sourceId": "web-yrcc-hhyw",
+      "mode": "pages",
+      "urlTemplate": "http://www.yrcc.gov.cn/xwdt/hhyw/index_{page}.html",
+      "firstPage": 0,
+      "firstPageUrl": "http://www.yrcc.gov.cn/xwdt/hhyw/",
+      "config": {}
+    },
+    {
+      "sourceId": "web-pric-news",
+      "mode": "pages",
+      "urlTemplate": "https://www.pric.org.cn/index.php?c=category&id=89&page={page}",
+      "firstPage": 1,
+      "firstPageUrl": "https://www.pric.org.cn/index.php?c=category&id=89",
+      "config": {}
+    },
+    {
+      "sourceId": "web-mem-press",
+      "mode": "pages",
+      "urlTemplate": "https://www.mem.gov.cn/xw/xwfbh/index_{page}.shtml",
+      "firstPage": 0,
+      "firstPageUrl": "https://www.mem.gov.cn/xw/xwfbh/",
+      "config": {}
+    },
+    {
+      "sourceId": "web-mem-yjglbgzdt",
+      "mode": "pages",
+      "urlTemplate": "https://www.mem.gov.cn/xw/yjglbgzdt/index_{page}.shtml",
+      "firstPage": 0,
+      "firstPageUrl": "https://www.mem.gov.cn/xw/yjglbgzdt/",
+      "config": {}
+    },
+    {
+      "sourceId": "web-mwr-sjzs",
+      "mode": "pages",
+      "urlTemplate": "http://www.mwr.gov.cn/xw/sjzs/index_{page}.html",
+      "firstPage": 0,
+      "firstPageUrl": "http://www.mwr.gov.cn/xw/sjzs/",
+      "config": {}
+    },
+    {
+      "sourceId": "web-ecmwf-news",
+      "mode": "pages",
+      "urlTemplate": "https://www.ecmwf.int/en/about/media-centre/news?page={page}",
+      "firstPage": 1,
+      "firstPageUrl": "https://www.ecmwf.int/en/about/media-centre/news",
+      "config": {}
+    },
+    {
+      "sourceId": "web-ihns-news",
+      "mode": "pages",
+      "urlTemplate": "http://www.ihns.cas.cn/xwdt/zhxw/index_{page}.html",
+      "firstPage": 0,
+      "firstPageUrl": "http://www.ihns.cas.cn/xwdt/zhxw/",
+      "config": {}
+    },
+    {
+      "sourceId": "web-ciis-news",
+      "mode": "pages",
+      "urlTemplate": "https://www.ciis.org.cn/xwzx/xwdt/index_{page}.html",
+      "firstPage": 0,
+      "firstPageUrl": "https://www.ciis.org.cn/xwzx/xwdt/",
+      "config": {}
+    },
+    {
+      "sourceId": "cn-web-beijing-departments",
+      "mode": "pages",
+      "urlTemplate": "https://www.beijing.gov.cn/ywdt/gzdt/index_{page}.html",
+      "firstPage": 0,
+      "firstPageUrl": "https://www.beijing.gov.cn/ywdt/gzdt/",
+      "config": {}
+    },
+    {
+      "sourceId": "web-iap-kyjz",
+      "mode": "pages",
+      "urlTemplate": "https://iap.cas.cn/gb/xwdt/kyjz/index_{page}.html",
+      "firstPage": 0,
+      "firstPageUrl": "https://iap.cas.cn/gb/xwdt/kyjz/",
+      "config": {}
+    },
+    {
+      "sourceId": "web-cgs-xa-dwdt",
+      "mode": "pages",
+      "urlTemplate": "http://www.xian.cgs.gov.cn/gzdt_3725/dwdt_3727/index_{page}.html",
+      "firstPage": 0,
+      "firstPageUrl": "http://www.xian.cgs.gov.cn/gzdt_3725/dwdt_3727/",
+      "config": {}
+    },
+    {
+      "sourceId": "web-cgs-zz-tz",
+      "mode": "pages",
+      "urlTemplate": "http://www.zhzx.cgs.gov.cn/xxfw02/tzgg/index_{page}.html",
+      "firstPage": 0,
+      "firstPageUrl": "http://www.zhzx.cgs.gov.cn/xxfw02/tzgg/",
+      "config": {}
+    },
+    {
+      "sourceId": "web-cgs-drc-gg",
+      "mode": "pages",
+      "urlTemplate": "http://www.drc.cgs.gov.cn/ggl/index_{page}.html",
+      "firstPage": 0,
+      "firstPageUrl": "http://www.drc.cgs.gov.cn/ggl/",
+      "config": {}
+    },
+    {
+      "sourceId": "web-cgs-imr-xw",
+      "mode": "pages",
+      "urlTemplate": "http://www.imr.cgs.gov.cn/ywjx_2708/yjsxw_2709/index_{page}.html",
+      "firstPage": 0,
+      "firstPageUrl": "http://www.imr.cgs.gov.cn/ywjx_2708/yjsxw_2709/",
+      "config": {}
+    },
+    {
+      "sourceId": "web-cgs-igge-jryw",
+      "mode": "pages",
+      "urlTemplate": "http://www.igge.cgs.gov.cn/jryw_3584/index_{page}.html",
+      "firstPage": 0,
+      "firstPageUrl": "http://www.igge.cgs.gov.cn/jryw_3584/",
+      "config": {}
+    },
+    {
+      "sourceId": "web-cgs-qimg-tp",
+      "mode": "pages",
+      "urlTemplate": "http://www.qimg.cgs.gov.cn/tpxw/index_{page}.html",
+      "firstPage": 0,
+      "firstPageUrl": "http://www.qimg.cgs.gov.cn/tpxw/",
+      "config": {}
+    },
+    {
+      "sourceId": "web-cgs-gmgs-news",
+      "mode": "pages",
+      "urlTemplate": "http://www.gmgs.cgs.gov.cn/tzgg_4377/index_{page}.html",
+      "firstPage": 0,
+      "firstPageUrl": "http://www.gmgs.cgs.gov.cn/tzgg_4377/",
+      "config": {}
+    },
+    {
+      "sourceId": "web-cgs-ogs-dwdt",
+      "mode": "pages",
+      "urlTemplate": "http://www.ogs.cgs.gov.cn/yqdt/yqdt_dwdt/index_{page}.html",
+      "firstPage": 0,
+      "firstPageUrl": "http://www.ogs.cgs.gov.cn/yqdt/yqdt_dwdt/",
+      "config": {}
+    },
+    {
+      "sourceId": "web-cgs-hbgs-tz",
+      "mode": "pages",
+      "urlTemplate": "http://www.chegs.cgs.gov.cn/gzdt_4611/tzgg_4614/index_{page}.html",
+      "firstPage": 0,
+      "firstPageUrl": "http://www.chegs.cgs.gov.cn/gzdt_4611/tzgg_4614/",
+      "config": {}
+    },
+    {
+      "sourceId": "web-cgs-caggs-tp",
+      "mode": "pages",
+      "urlTemplate": "http://www.agrs.cgs.gov.cn/jryw/zxyw/index_{page}.html",
+      "firstPage": 0,
+      "firstPageUrl": "http://www.agrs.cgs.gov.cn/jryw/zxyw/",
+      "config": {}
+    },
+    {
+      "sourceId": "web-cgs-igeo-dwdt",
+      "mode": "pages",
+      "urlTemplate": "http://www.igeo.cgs.gov.cn/ywjx/gzdt_2782/index_{page}.html",
+      "firstPage": 0,
+      "firstPageUrl": "http://www.igeo.cgs.gov.cn/ywjx/gzdt_2782/",
+      "config": {}
+    },
+    {
+      "sourceId": "web-hwcc-slyw",
+      "mode": "pages",
+      "urlTemplate": "http://www.hwcc.gov.cn/wwgj/slyw/index_{page}.html",
+      "firstPage": 0,
+      "firstPageUrl": "http://www.hwcc.gov.cn/wwgj/slyw/",
+      "config": {}
+    },
+    {
+      "sourceId": "web-hwcc-lysl",
+      "mode": "pages",
+      "urlTemplate": "http://www.hwcc.gov.cn/wwgj/lysl/index_{page}.html",
+      "firstPage": 0,
+      "firstPageUrl": "http://www.hwcc.gov.cn/wwgj/lysl/",
+      "config": {}
+    },
+    {
+      "sourceId": "web-gmu-science-news",
+      "mode": "pages",
+      "urlTemplate": "https://science.gmu.edu/news?page={page}",
+      "firstPage": 1,
+      "firstPageUrl": "https://science.gmu.edu/news",
+      "config": {}
+    },
+    {
+      "sourceId": "web-cas-neigae-kydt",
+      "mode": "pages",
+      "urlTemplate": "https://neigae.cas.cn/news/research/index_{page}.html",
+      "firstPage": 0,
+      "firstPageUrl": "https://neigae.cas.cn/news/research/",
+      "config": {}
+    },
+    {
+      "sourceId": "web-cas-xtbg-xw",
+      "mode": "pages",
+      "urlTemplate": "https://www.xtbg.ac.cn/2022/xinwen/zhxw/index_{page}.html",
+      "firstPage": 0,
+      "firstPageUrl": "https://www.xtbg.ac.cn/2022/xinwen/zhxw/",
+      "config": {}
+    },
+    {
+      "sourceId": "web-cas-iae-kyjz",
+      "mode": "pages",
+      "urlTemplate": "https://iae.cas.cn/gb2019/xwzx_156509/kyjz/index_{page}.html",
+      "firstPage": 0,
+      "firstPageUrl": "https://iae.cas.cn/gb2019/xwzx_156509/kyjz/",
+      "config": {}
+    },
+    {
+      "sourceId": "web-cas-aircas-rdxw",
+      "mode": "pages",
+      "urlTemplate": "https://www.aircas.ac.cn/dtxw/rdxw/index_{page}.html",
+      "firstPage": 0,
+      "firstPageUrl": "https://www.aircas.ac.cn/dtxw/rdxw/",
+      "config": {}
+    },
+    {
+      "sourceId": "web-cas-scbg-kyjz",
+      "mode": "pages",
+      "urlTemplate": "https://www.scbg.ac.cn/kx/kyjz/index_{page}.html",
+      "firstPage": 0,
+      "firstPageUrl": "https://www.scbg.ac.cn/kx/kyjz/",
+      "config": {}
+    },
+    {
+      "sourceId": "web-cas-rcees-gzdt",
+      "mode": "pages",
+      "urlTemplate": "https://www.rcees.ac.cn/dqyd/gzdt/index_{page}.html",
+      "firstPage": 0,
+      "firstPageUrl": "https://www.rcees.ac.cn/dqyd/gzdt/",
+      "config": {}
+    },
+    {
+      "sourceId": "cn-cgs-cags-yw",
+      "mode": "pages",
+      "urlTemplate": "http://www.cags.cgs.gov.cn/ywjx_4645/index_{page}.html",
+      "firstPage": 0,
+      "firstPageUrl": "http://www.cags.cgs.gov.cn/ywjx_4645/",
+      "config": {}
+    },
+    {
+      "sourceId": "cn-cgs-chengdu-gzdt",
+      "mode": "pages",
+      "urlTemplate": "http://www.chengdu.cgs.gov.cn/gzdt_4932/index_{page}.html",
+      "firstPage": 0,
+      "firstPageUrl": "http://www.chengdu.cgs.gov.cn/gzdt_4932/",
+      "config": {}
+    },
+    {
+      "sourceId": "cn-cgs-cniet-snyw",
+      "mode": "pages",
+      "urlTemplate": "http://www.cniet.cgs.gov.cn/snyw/index_{page}.html",
+      "firstPage": 0,
+      "firstPageUrl": "http://www.cniet.cgs.gov.cn/snyw/",
       "config": {}
     }
   ]
