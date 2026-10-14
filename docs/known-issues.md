@@ -3638,3 +3638,16 @@ Geographical 以研究报道形式刊载）、两口径降幅并列（63% vs 约
 本轮同步改了周报主题摘要的 stub 回放文案（`tooling/brain-stub.ts` 的 report_period，那句机械套话的
 排序半句改为「按 AI 评分排列」）与 `tests/report-signed-copy.test.ts` 的对应夹具，保持回放与测试期望一致。
 上面各历史小节与 `industry/changelog.json` 里出现「入选分」的旧叙述，按「不改写历史」的纪律保留原文；本条拍板原文自身引用的「内容提要」（即本条 append 记录）同按此口径保留，不随改名改写。
+
+### 2026-10-14 晚补：本文件里那几处「池子现值」已经又变了（历史小节按纪律不改写）
+
+第六十一/六十二轮那几节写的 `MODEL_POOL=agnes-3.0-flash-cn`（单成员）与
+`agnes-3.0-flash-cn,default,dots3-note-prev,space-bunny-free`（四成员）**在各自那一夜是真的**，
+按「不改写历史」保留原文。2026-10-14 21:14 之后生产 `.env` 的三条变量行
+（`MODEL_POOL`、`UNDERSTAND_MODEL`、`TRANSLATE_MODEL`）填的是**同一组 7 个名字**：
+`agnes-3.0-flash-cn, default, dots3-note-prev, workbuddy-hy3, workbuddy-step5-preview, workbuddy-cn-hy3, workbuddy-cn-step5-preview`；
+`OPENROUTER_API_KEY` 与 `OPENCODE_API_KEY` 两行已从生产 `.env` 删除（前者是不能推理的管理钥，后者整天 0 应答）。
+所以那几节里"**线上门型池只有一个成员 ⇒ 关门就是全站停摆**"这一条前提**今天不再成立**——
+它当时的论证强度依赖成员数为 1，现在 7 个成员里关掉一扇只是少一路复核。
+依据、验证与代价全在 `docs/research/model-pool-slim-2026-10-14.md`（含摘掉的 10 个成员逐门 24h 数、
+`modelSources()` 逐能力读回、以及"摘门不减总 token、只减注定失败的调用"那句）。
