@@ -15,6 +15,9 @@ MAX_ITEMS="${GEOHOT_ARCHIVE_MAX_ITEMS:-100}"
 PER_MONTH="${GEOHOT_ARCHIVE_PER_MONTH:-30}"
 PHASE_SECONDS="${GEOHOT_ARCHIVE_PHASE_SECONDS:-600}"
 SLICES="${GEOHOT_ARCHIVE_SLICES:-6}"
+# 摘要下限允许 0（"只认标题与日期的行也交给编辑闸门判"），所以不许套用上面那条"正整数"的校验；
+# 但同样要在门口拒绝非整数，否则这道闸会静默失效而台账里看不出来。
+MIN_ABSTRACT="${GEOHOT_ARCHIVE_MIN_ABSTRACT:-80}"
 
 fail() { printf 'archive-cycle: %s\n' "$1" >&2; exit 2; }
 [[ "$APPLY" =~ ^[01]$ && "$FINAL_REFRESH" =~ ^[01]$ ]] || fail 'apply and final-refresh must be 0 or 1'
@@ -24,6 +27,7 @@ for value in "$MAX_ITEMS" "$PER_MONTH" "$PHASE_SECONDS" "$SLICES"; do
   [[ "$value" =~ ^[1-9][0-9]{0,5}$ ]] || fail 'limits must be positive integers'
 done
 (( MAX_ITEMS <= 2000 && PER_MONTH <= 500 && PHASE_SECONDS <= 1800 && SLICES <= 12 )) || fail 'limits exceed cycle safety caps'
+[[ "$MIN_ABSTRACT" =~ ^(0|[1-9][0-9]{0,4})$ ]] || fail 'min-abstract must be a non-negative integer'
 [[ -d "$APP_ROOT" && -r "$ENV_FILE" && -x "$NODE" ]] || fail 'app, environment file or Node unavailable'
 for utility in flock timeout date; do command -v "$utility" >/dev/null || fail "missing $utility"; done
 cd "$APP_ROOT"
@@ -152,7 +156,7 @@ if run_phase select-slices --input-type=module -e "$SELECTOR" "$FROM" "$TO" "$RU
     slice_no=$((slice_no + 1))
     per_month="$PER_MONTH"
     (( quota < per_month )) && per_month=$quota
-    COLLECT_ARGS=(scripts/backfill-archive.ts "--source=$source" "--from=$month" "--to=$month" "--max-items=$quota" "--per-month=$per_month" --per-page=100 --sleep=1200)
+    COLLECT_ARGS=(scripts/backfill-archive.ts "--source=$source" "--from=$month" "--to=$month" "--max-items=$quota" "--per-month=$per_month" --per-page=100 --sleep=1200 "--min-abstract=$MIN_ABSTRACT")
     run_phase "collect-$slice_no" "${COLLECT_ARGS[@]}" "${WRITE_ARGS[@]}" || CYCLE_RESULT=$?
   done <"$RUN_DIR/slices.tsv"
 else

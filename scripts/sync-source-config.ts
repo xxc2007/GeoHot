@@ -15,16 +15,25 @@ import { REPO_ROOT } from "@aihot/backend/config";
 import { closeDb, sql } from "@aihot/backend/db";
 import { assertSupportedConfig } from "@aihot/backend/sources/config-keys";
 
-const options = { apply: false, "database-url": "", ids: "" };
+const options = { apply: false, "database-url": "", "database-url-env": "", ids: "" };
 const flags = process.argv.slice(2);
 for (const flag of flags) {
   if (flag === "--apply") { options.apply = true; continue; }
   const url = /^--database-url=(.+)$/.exec(flag);
   if (url) { options["database-url"] = url[1]!; continue; }
+  const envFlag = /^--database-url(?:-env)?=(.*)$/.exec(flag);
+  if (flag.startsWith("--database-url-env=")) { options["database-url-env"] = envFlag![1]!; continue; }
   const ids = /^--ids=(.+)$/.exec(flag);
   // 只推指定的几条：库里可能有别的信源被人工改过（例如噪声词），一次全推等于替那些改动做决定。
   if (ids) { options.ids = ids[1]!; continue; }
-  console.error(`未知参数：${flag}（可用：--apply --database-url=… --ids=a,b）`);
+  console.error(`未知参数：${flag}（可用：--apply --database-url=… | --database-url-env=DATABASE_URL --ids=a,b）`);
+  process.exit(2);
+}
+// `--database-url-env=DATABASE_URL` 是 `--database-url=` 的**不泄露替代品**（`backfill-papers.ts:82` 已是这个形状）：
+// 生产 DSN 里有口令，把它抄到命令行就等于抄进同机任何用户的 `ps`、shell 历史与本进程的 argv。
+// 这道核对要的东西只有"操作者确认要写的就是环境里那个库"，所以一个固定的变量名足够表达。
+if (options["database-url-env"] && (options["database-url-env"] !== "DATABASE_URL" || options["database-url"])) {
+  console.error("--database-url-env 仅接受 DATABASE_URL，且与 --database-url 互斥");
   process.exit(2);
 }
 const only = options.ids ? new Set(options.ids.split(",").map((s) => s.trim()).filter(Boolean)) : null;
@@ -32,12 +41,12 @@ const only = options.ids ? new Set(options.ids.split(",").map((s) => s.trim()).f
 const target = String(process.env.DATABASE_URL ?? "");
 const key = (u: string) => u.replace(/^[^:]+:\/\//, "").replace(/^[^@]*@/, "").replace(/\?.*$/, "");
 if (!options.apply) {
-  console.log("DRY-RUN：只打印差异。要写入数据库请加 --apply --database-url=<与环境 DATABASE_URL 同一个地址>");
-} else if (!options["database-url"]) {
-  console.error("--apply 必须同时显式给出 --database-url=");
+  console.log("DRY-RUN：只打印差异。要写入数据库请加 --apply 与 --database-url=<与环境同一个地址>（或 --database-url-env=DATABASE_URL，别把带口令的地址放上命令行）");
+} else if (!options["database-url"] && !options["database-url-env"]) {
+  console.error("--apply 必须同时显式给出 --database-url= 或 --database-url-env=DATABASE_URL");
   process.exitCode = 2;
   await closeDb();
-} else if (key(options["database-url"]) !== key(target)) {
+} else if (options["database-url"] && key(options["database-url"]) !== key(target)) {
   console.error(`--database-url 指向 ${key(options["database-url"])}，而进程环境连的是 ${key(target)}——拒写。`);
   process.exitCode = 2;
   await closeDb();

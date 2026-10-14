@@ -47,6 +47,31 @@ test("CLI rejects a --sleep it cannot read, before attempting a database connect
   assert.doesNotMatch(zero.stderr, /--sleep/, `--sleep=0 被当成非法值：${zero.stderr}`);
 });
 
+test("CLI rejects a --min-abstract it cannot read, and accepts 0", () => {
+  // `--min-abstract` 决定 Crossref 门收不收"只有标题没有摘要"的行。把它打错成 NaN 时，
+  // `body.length < NaN` 恒为 false——那道闸就静默变成"什么都不筛"，一轮灌进来的量与配了 0 一样，
+  // 而台账里没有任何一行写着"这道闸今天没生效"。和 --sleep 同一个形状的坑，同一道门口拒绝。
+  for (const flag of ["--min-abstract=abc", "--min-abstract=-1", "--min-abstract=NaN", "--min-abstract=1.5"]) {
+    const result = spawnSync(process.execPath, ["scripts/backfill-archive.ts", "--from=2026-01", flag], {
+      cwd: new URL("..", import.meta.url),
+      env: { ...process.env, DATABASE_URL: "postgres://invalid:invalid@127.0.0.1:1/unreachable", MODEL_CALLS_ENABLED: "false", COLLECT_ENABLED: "false" },
+      encoding: "utf8",
+      timeout: 10_000,
+    });
+    assert.equal(result.status, 2, `${flag} 应当被拒绝：${result.stderr}`);
+    assert.match(result.stderr, /--min-abstract/, `${flag} 的报错没说出是哪个参数`);
+    assert.doesNotMatch(result.stderr, /ECONNREFUSED/);
+  }
+  // 0 是有意允许的合法值（"站点门本来就收只有标题加落地页的行"，见脚本顶部注释），别把它一起挡掉。
+  const zero = spawnSync(process.execPath, ["scripts/backfill-archive.ts", "--from=2026-01", "--to=2026-01", "--min-abstract=0"], {
+    cwd: new URL("..", import.meta.url),
+    env: { ...process.env, DATABASE_URL: "postgres://invalid:invalid@127.0.0.1:1/unreachable", MODEL_CALLS_ENABLED: "false", COLLECT_ENABLED: "false" },
+    encoding: "utf8",
+    timeout: 10_000,
+  });
+  assert.doesNotMatch(zero.stderr, /--min-abstract/, `--min-abstract=0 被当成非法值：${zero.stderr}`);
+});
+
 test("current month resumes partial work but restarts completed scans to discover late arrivals", () => {
   assert.equal(archiveSliceCursor("2026-10", "2026-10", { status: "pending", cursor: "page-3" }), "page-3");
   assert.equal(archiveSliceCursor("2026-10", "2026-10", { status: "pending", cursor: null }), "*");
