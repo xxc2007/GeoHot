@@ -190,3 +190,26 @@ SSH 是 `permitrootlogin without-password` + `passwordauthentication no`，但 `
   包里的 `scripts/backfill-archive.ts`=`b176e775…`、`archive-cycle.sh`=`8df8bfbe…`、
   `sync-source-config.ts`=`a00572d1…`、`industry/sources.json`=`9025fb2f…` 与 HEAD 一致）。
   ⇒ 取代 `geohot-20261014T150658Z`（889,452,105 B）；旧的没删，删除不可逆，归站长。
+
+### 第二船（第九十六轮 D，04:30–04:39 CST）
+
+- GitHub：树搬运 `refs/publish/last=88d92b9` 推到 `refs/heads/main`（**非 force**，`cc7cf0f..88d92b9` 快进）；
+  验收 = `git diff --name-only origin/main refs/publish/last` **0 文件**、`git ls-tree origin/main docs/promo/` **仍 3 件**；
+  再用 contents API 逐文件对 **blob SHA-1**：`archive-cycle.sh=0c59fb29…`、`changelog.json=6312f47b…`、
+  本轮记录 `80e3209c…` 三处全等。本地 `main` 与 `origin/main` 是两条携带同一内容、提交号互不相干的线，
+  所以判"上线了没有"只能逐文件比哈希，不能比提交数。
+- 生产：投放前跑三向哈希门——`archive-cycle.sh` / `changelog.json` / `archive-workflow.md` 三份**生产现值 == HEAD~1**
+  （`8df8bfbe` / `6128dd60` / `90d2845a`），证明这船是纯前进；投放后 `3b0eddf7` / `5e7d0414` / `2b72978e` 全等，
+  `bash -n` rc=0。`deploy/geohot/verify-deploy.sh` **ALL CHECKS PASSED**（含邻站基线：`/api/mcp`、root-absolute URL、
+  跨出口 280 indexed / 280 listed、九个读者面全部"都有中文标题"）。
+- 迁移备份：**`geohot-20261014T203537Z-portable.tgz`**（950,629,878 B，`0600 root`，脚本自报 Verified），
+  收录 8 个单元与两份 EnvironmentFile（含 GitHub 上没有的两条 workbuddy 桥文件）⇒ 这是本轮之后的权威包。
+- 真实浏览器复验（04:30–04:37 CST，独立智能体）：**READY**——`/geohot/daily` 与裸 `/geohot/all` 这两个上一轮持续 503 的面
+  各跑两遍都 200（daily 508 ms/1.03 s，all 冷 2.65 s、热 893 ms），77 个请求 0 个 5xx、控制台 0 错误；
+  `/geohot/changelog` 读得到本轮新条目。日报显示的是 10-14 期（出刊点 08:00，符合设计）。
+- 内容审计（`scripts/audit-content-integrity.ts`，12 项）：硬判据不通过 2 项——
+  `chinese_title_english_summary=680`（#169 那条口径待站长拍）与 `selected_backfill_without_date=36`；
+  **连续性三项全绿**：`blank_editions=0`、`settled_days_unprinted_with_material=0`、`days_without_articles=0`，
+  `editions_stored=280`。⇒ "每一期都能出刊"这条在站点自己的判据下成立。
+- 待判现值：`new=835`（04:07 是 888）、20 分钟判 37 条 ⇒ 并发 4 下 ≈7.5 小时排空；孤儿行（`new` 且无排队任务）
+  从 136 降到 **1**，`cron.content.sweep` 确实在回收（#191 结案）。
