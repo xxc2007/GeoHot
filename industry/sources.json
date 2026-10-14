@@ -4595,7 +4595,7 @@
           "initialBackfillLimit": 8,
           "intervalMinutesLocked": true
         },
-        "issn": "1869-9510"
+        "issn": "1869-9529"
       },
       "tier": "T1_5",
       "first_party": true,
@@ -15469,7 +15469,8 @@
         "feedUrl": "https://ejurnal.ung.ac.id/index.php/JGEJ/gateway/plugin/WebFeedGatewayPlugin/atom",
         "_aihot": {
           "initialBackfillLimit": 6
-        }
+        },
+        "issn": "2721-7000"
       },
       "tier": "T1_5",
       "first_party": true,
@@ -15495,7 +15496,8 @@
         "feedUrl": "https://www.rbciamb.com.br/Publicacoes_RBCIAMB/gateway/plugin/WebFeedGatewayPlugin/atom",
         "_aihot": {
           "initialBackfillLimit": 6
-        }
+        },
+        "issn": "2176-9478"
       },
       "tier": "T1_5",
       "first_party": true,
@@ -15989,7 +15991,8 @@
         "feedUrl": "https://www.periodicos.unc.br/index.php/drd/gateway/plugin/WebFeedGatewayPlugin/atom",
         "_aihot": {
           "initialBackfillLimit": 6
-        }
+        },
+        "issn": "2237-9029"
       },
       "tier": "T1",
       "first_party": true,
@@ -16067,7 +16070,8 @@
         "feedUrl": "https://www.halacsolcha.org/index.php/halac/gateway/plugin/WebFeedGatewayPlugin/atom",
         "_aihot": {
           "initialBackfillLimit": 6
-        }
+        },
+        "issn": "2237-2717"
       },
       "tier": "T1_5",
       "first_party": true,
@@ -17341,7 +17345,8 @@
         "feedUrl": "https://mausamjournal.imd.gov.in/index.php/MAUSAM/gateway/plugin/WebFeedGatewayPlugin/atom",
         "_aihot": {
           "initialBackfillLimit": 6
-        }
+        },
+        "issn": "0252-9416"
       },
       "tier": "T1",
       "first_party": true,
