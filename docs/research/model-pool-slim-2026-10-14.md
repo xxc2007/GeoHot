@@ -75,7 +75,34 @@ agnes 两门与 dots 已经贴着自己的分钟窗跑，旁路实测要按"会�
 | 还没判完 | 231 期 | 落在 **181 天**上，合计 **1,250 条**未结算（按 `settled-days.ts` 的正定义：`new` 或 `analyzed` 却缺投影；231 是期次数，因为周报月报也挂在同一些日子上） |
 | 区间外 | 3 | weekly W01 / W42、monthly 2026-10（边界与窗口未关，属正常） |
 
-关键一格是硬判据 `settled_days_unprinted_with_material = 0`：**今天没有任何"判完了、有料、却没印"的日子**。
-剩下的缺口全在队列那头——1,250 条待判，按 21:00 那一小时的实测节奏（22 分钟判了 227 条 ⇒ ≈600 条/时）
-约两小时排空，排空的过程里档案周期自己的 papers 阶段会把结算出来的日子逐日补刊。
+关键一格是硬判据 `settled_days_unprinted_with_material = 0`：**没有任何"判完了、有料、却没印"的日子**，
+`blank_editions` 也是 0。所以缺口全在队列那一头：1,250 条待判按当前节奏约两三小时排空，
+排空过程中档案周期自己的 papers 阶段会把结算出来的日子逐日补刊。
 最接近出刊的两天是 2026-08-27 与 08-31，各差 2 条。
+
+## 六、其余几路验证（21:41–21:57）
+
+| 路 | 命令/判据 | 结果 |
+| --- | --- | --- |
+| 仓库质量闸门 | `npm run typecheck`；`npm test`（`geohot_test`）；`node --test apps/web/tests/*.test.ts` | 类型检查 7 个项目零错；**546/546 通过**；web **58/58**。池子那族单独也绿：`model-pool` 13/13、`receipt-pool-recovery` 23/23、`receipts` 7/7、`workbuddy-headroom` 全过。没有一条测试抄生产 `.env` 的成员表（`npm test` 根本不带 `--env-file`，两个池子测试还在 import 时删掉 `MODEL_POOL` 与所有 `*_MODEL`） |
+| 唯一的红 | `tests/default-model.test.ts` 单独跑时 `Budget for llm exhausted (minute)` | **不是本轮改动**：它自己不抬那把共享的分钟窗（`model-pool.test.ts` 会抬到 500 再还原），被我自己的整轮跑留下的 25 次尝试占满；窗口清空后单跑 1/1 通过。这是一条既有的共享预算顺序依赖 |
+| 部署验收 | `deploy/geohot/verify-deploy.sh` | **ALL CHECKS PASSED**（含两个邻居站首页哈希与根 sitemap 未变、`smoke.ts` 全绿、跨出口一致 280 indexed / 280 listed by v1、六路读者文本"都有中文标题"） |
+| 后台与鉴权面 | `/geohot/api/admin/runs`、`/api/admin/models` 未登录 | 均 **401**（没有免登录路径被这次重启带出来） |
+| 两条桥与 brain | `:3065/v1/models`、`:3066/v1/models`、`:3055/healthz` | 200 / 200 / `ok:true` —— 桥没重启、凭据没动，与摘掉的那三条 WorkBuddy 成员无关 |
+| 六个单元内存 | `MemoryCurrent` | web 30 MB、api 80 MB、worker 105 MB、brain 10 MB、两条桥 33/23 MB，都远没顶到各自的 `MemoryMax` |
+| 当月连续性 | 2026-10-01…10-14 逐日期次 | 全在、无缺日；期号连着 1…10。10-04/05/06 那三期是 10-13 补印的（`issue_no` 空 = 回填期次不领号，按设计） |
+| 排空趋势 | `processing_state='new'` | 21:29 1,762 → 21:41 1,636 → 21:55 **1,532**（≈450–600 条/时）；`papers` 阶段在 21:45 那轮 exit=0 却没出新期，与"判完了、有精选、却没期次"的日子数 = **0 行** 完全一致——它不是没干活，是还没有料可排 |
+
+## 七、顺手查出来的两件事（都不归本轮改动，归站长拍）
+
+1. **早于窗口的进口**：`publications` 里有 **1,700 行**的期次日早于 2026-01-01（最早 2001-01-01），其中 **139 行已经是精选**。
+   `backfill-papers` 的区间从 2026-01-01 起 ⇒ 这 139 条永远不会进任何一期，判定钱是白花的；
+   集中在比格洛海洋实验室(301)、Leventhal 地图中心(239)、人民网时政/国际(各 100)、NGA(94)、
+   Dialogues in Human Geography(89)、IGN France(76)、One Ecosystem(69)。
+   修法形状是给这些门在 `industry/sources.json` 的 config 里补 `_aihot.initialBackfillMonths`（首导按月份封顶）。
+   **必须说清的反面**：同一条查询里 `d > current_date` 数出的 1,703 行**不是缺陷**——
+   日报窗本来就是 `[D-1 08:00, D 08:00)`，北京时间 08:00 之后发的条目属于"下一期"的标签，别照着这个数字去"修"。
+2. **档案周期的出刊窗口末端是写死的**：`/etc/geohot/archive-cycle.conf` 里 `GEOHOT_ARCHIVE_FROM=2026-01-01`、
+   `GEOHOT_ARCHIVE_TO=2026-10-10`。今天 10-11…10-14 靠的是实时侧 `catchUpReports`（覆盖最近七天），所以当月没缺日；
+   但这个 `TO` 不会自己往前挪，拖久了"迟到的档案条目"就再也回不到它们自己的那几天。要改的是这台机上的 conf（仓库外），归站长。
+
