@@ -560,7 +560,8 @@
         "_aihot": {
           "initialBackfillLimit": 8,
           "intervalMinutesLocked": true
-        }
+        },
+        "issn": "2662-4435"
       },
       "tier": "T1_5",
       "first_party": true,
@@ -7420,7 +7421,8 @@
         "_aihot": {
           "initialBackfillLimit": 5,
           "intervalMinutesLocked": true
-        }
+        },
+        "issn": "2194-9050"
       },
       "tier": "T1_5",
       "first_party": true,
@@ -17059,7 +17061,8 @@
         "feedUrl": "https://onlinelibrary.wiley.com/feed/16000587/most-recent",
         "_aihot": {
           "initialBackfillLimit": 6
-        }
+        },
+        "issn": "0906-7590"
       },
       "tier": "T1_5",
       "first_party": true,
