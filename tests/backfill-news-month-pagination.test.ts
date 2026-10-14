@@ -133,7 +133,7 @@ test("a months rule without monthPageUrlTemplate keeps exactly one fetch per mon
   assert.equal(stats.errors, 0); assert.deepEqual(stats.boundaries, []);
 });
 
-// 生产周期跑的是 `--max-pages=5` 配九个月的区间（deploy/geohot/archive-cycle.sh:219），也就是"计划本身
+// 生产周期跑的是 `--max-pages=5` 配九个月的区间（deploy/geohot/archive-cycle.sh:242），也就是"计划本身
 // 被页数预算截断"这一格。readPage 看不见它——被截掉的那些月它一次都没被调用。
 // 为什么样本要长成"最后一个被排进来的月是空的"：非空时 `readPage` 末尾那句 `last && …` 已经会报
 // limited，这条判据就永远不会红（我第一版就是这么写的，把修复关掉照样 10/10 绿）。只有空月提前
