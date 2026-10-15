@@ -30,6 +30,10 @@ Environment=HOME=/opt/geohot
 Environment=TZ=Asia/Shanghai
 # 每个单元都带 MemoryMax：900 MB 的机器上跑第二个服务，靠的就是 OOM 只杀自己（DEPLOYMENT.md:11）
 MemoryMax=200M
+# MemoryLow：内存超售时尽量保住读者面进程的常驻页。2026-10-15 实测——不加保护时 api 整进程有 273 MB
+# 被换到机械盘，每次分类点击要付 2,180 次/秒的主缺页（点一次卡 2–6 s）；保护 + 重启后读者路径稳定
+# 40–70 ms、10 次请求的主缺页从 17,242 降到 346。取值 ≈ 常驻工作集，多出来的部分照常可回收。
+MemoryLow=150M
 MemorySwapMax=600M
 ExecStart=/usr/bin/node --env-file=.env apps/api/src/main.ts
 Restart=on-failure

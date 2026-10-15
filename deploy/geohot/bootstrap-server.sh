@@ -369,6 +369,16 @@ else
   run "创建 $APP_HOME 并授权给 $APP_USER" $SUDO install -d -o "$APP_USER" -g "$APP_GROUP" -m 750 "$APP_HOME"
 fi
 
+# ---- 超售机器上的换页取向（DEPLOYMENT.md「读者面内存保护」一节）----
+# 默认 swappiness=60 会让内核宁愿换出应用匿名页、也要留住文件缓存；这台拓扑的实测症状是读者每点一次
+# 分类要付 2,180 次/秒的主缺页（点一次卡 2–6 s）。10 是服务器上的常见取向：优先丢可再读的文件缓存。
+# 对内存宽裕的新机器无害，对恢复出来的机器是行为一致的一部分。
+run "写 /etc/sysctl.d/99-geohot-memory.conf（vm.swappiness=10）" $SUDO tee /etc/sysctl.d/99-geohot-memory.conf <<'SYSCTL'
+# GEOHOT：内存超售时优先丢弃文件缓存，而不是把应用匿名页换到慢盘上。
+vm.swappiness = 10
+SYSCTL
+run "立刻生效" $SUDO sysctl -p /etc/sysctl.d/99-geohot-memory.conf
+
 # ----------------------------------------------------------------------------
 # 2. 拉取代码（公开仓库）
 # ----------------------------------------------------------------------------

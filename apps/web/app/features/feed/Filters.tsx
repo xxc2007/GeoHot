@@ -38,7 +38,10 @@ export function CategoryTabs({ base, category, channel = "all", layoutId, size =
   // client-side Link, which is what the router handles correctly.
   const at = (patch: Record<string, string | null>) => {
     const href = hrefWith(base, params, patch);
-    return base === "/" ? ({ to: publicPath(href), hard: true } as const) : ({ to: href } as const);
+    // The router's own prefetch only exists on the client-side route: hover starts the .data fetch, so
+    // the chip commits without waiting for the round trip. The home row's hard anchors get the document
+    // warmed inside PillTabs instead, which is why they need no flag here.
+    return base === "/" ? ({ to: publicPath(href), hard: true } as const) : ({ to: href, prefetch: "intent" } as const);
   };
   const items = [
     { key: "all", label: "全部", ...at({ category: null, channel: null }) },
