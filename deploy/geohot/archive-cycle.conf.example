@@ -8,7 +8,7 @@
 
 # 1 = 真入库；0 = DRY-RUN（只打印会写什么）。操作员脚本一律默认 0，这里显式写 1 是因为
 # 这台机器上线跑的是生产周期——新机器接过来先保持 0 跑一轮，看清台账再改 1。
-GEOHOT_ARCHIVE_APPLY=1
+GEOHOT_ARCHIVE_APPLY=0
 
 # 每轮总入库上限（Crossref 那条路，按切片分摊：quota=floor(MAX_ITEMS/SLICES)）。
 # 40 是 2026-10-15 凌晨量出来的稳定态：这台 891 MB / 2 核的机器上，判定并发 4 + 每轮 40 条

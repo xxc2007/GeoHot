@@ -31,6 +31,10 @@ Environment=NODE_ENV=production
 Environment=AIHOT_ENVIRONMENT=production
 Environment=HOME=/opt/geohot
 Environment=TZ=Asia/Shanghai
+# 变体在这里钉死，而不是靠 `tooling/workbuddy-bridge.ts` 的缺省值：
+# 桥的缺省确实是 workbuddy-ai（国际版），但只要有人在 .env 里塞一行 WORKBUDDY_VARIANT=workbuddy，
+# 这条桥就会静默改用中国版账号——两份额度、两个 uid，表现是「国际版那扇门忽然开始撞中国版的墙」。
+Environment=WORKBUDDY_VARIANT=workbuddy-ai
 Environment=WORKBUDDY_BRIDGE_PORT=3065
 MemoryMax=200M
 MemorySwapMax=600M

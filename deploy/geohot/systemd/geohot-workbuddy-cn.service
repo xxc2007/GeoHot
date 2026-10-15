@@ -17,8 +17,9 @@
 # 凭据：与国际版同一套路。线上没有桌面应用，取不到 at-rest 密钥，所以走
 #   WORKBUDDY_CREDENTIAL_JSON 指向的明文凭据文件——**变量名与国际版完全一样**，靠下面那个
 #   cn env 文件覆盖成中国版的路径，不存在 WORKBUDDY_CN_CREDENTIAL_JSON 这个变量。
-#   国际版用 `--export-credential` 导出时要带
-#   `WORKBUDDY_VARIANT=workbuddy`，否则导出来的是国际版那一份（uid 会对不上）。
+#   国际版那条用 `--export-credential` 导出时**不要**带 `WORKBUDDY_VARIANT=workbuddy`，
+#   否则导出来的是中国版那一份（uid 对不上）。两条桥各自主动 pin 自己的变体，见各自单元里的
+#   `Environment=WORKBUDDY_VARIANT=` 行。
 #   文件 chmod 600 + 属主 geohot —— 等同密码，不进仓库、不进 .data。
 #
 # ⚠️ 两个坑，都踩过：

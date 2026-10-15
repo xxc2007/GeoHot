@@ -224,11 +224,13 @@ curl -s -o /dev/null -w '%{http_code} %{num_redirects} %{url_effective}\n' -L ht
   传输 → `createdb` → `pg_restore -j`（custom 格式支持并行，PG 16/17 都是）→ 数一遍那七张关键表 → 重跑 smoke）与第 10 节（换域名/换服务器的清单，
   含"哪些密钥必须重新签发"和"改 `industry/**` 必须重建 web"）。本次没有在那台机器上跑过恢复——
   那一节是写给下一次真要搬的人的，第一次跑要人在旁边。
-- `api`/`worker`/`web` 三个模板这轮补上了 `MemoryMax`（160/200/240/320 那一组，与 `install-units.sh`
-  生成的线上单元一致）。`systemd/` 模板与 `install-units.sh` 生成的单元仍不完全相同：模板多一层
-  `ProtectSystem=strict` 等加固，且 `TimeoutStopSec` 按进程分档（api/brain 30、web 90、worker 285——
-  只有 worker 有 255 s 的 in-flight drain），而 `install-units.sh` 给四个单元一律 285（多给不伤，少给才会
-  在 drain 中途 SIGKILL）。走哪条就用哪条，别混。
+- `api`/`worker`/`web` 三个模板这轮补上了 `MemoryMax`（160/200/240/320 那一组）。
+  **2026-10-15 起两条路线已经并成一条**：`install-units.sh` 在默认 `GEOHOT_APP_ROOT=/opt/geohot/app` 下
+  安装的就是 `deploy/geohot/systemd/` 这 8 个模板（带 `ProtectSystem=strict` 等加固块），
+  四个常驻单元的 `TimeoutStopSec` 也已经与线上一致（都是 285——多给不伤，少给才会在 drain 中途 SIGKILL），
+  所以本节以前那句"模板按进程分档 30/90/285、走哪条就用哪条，别混"作废。
+  只剩一种情况还会用到旧的内联生成路线：`GEOHOT_APP_ROOT` 指向别处（模板里的绝对路径是写死的），
+  脚本会在那条路上明说自己给的是**不带加固块**的四个单元。装完一律跑 `verify-config-drift.sh` 复核。
 
 ## 热更新：改了什么就重启谁（2026-10-02、2026-10-04 各踩到一次）
 

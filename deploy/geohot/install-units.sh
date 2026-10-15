@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Writes the four long-lived systemd units for the /geohot/ deployment and reloads systemd.
+# Writes the systemd units for the /geohot/ deployment and reloads systemd.
+# 2026-10-15 起默认路线是**安装 deploy/geohot/systemd/ 里的 8 个模板**（带加固块）；
+# 下面内联生成的那四个只在 GEOHOT_APP_ROOT 指到别处时用，而且**不带加固块**。
 # Written after the first deployment attempt failed on three things, all of which are fixed here:
 #   1. the units pointed at a checkout that does not exist — see APP_ROOT below. All four scripts read the
 #      one install-path variable (GEOHOT_APP_ROOT); the systemd/*.service templates under deploy/geohot/ are
@@ -11,13 +13,10 @@
 #   3. each unit carries a MemoryMax so an OOM inside GEOHOT cannot take nginx or Artalk with it —
 #      that is the whole point of running a second service on a 900 MB box.
 #
-# These are the minimal long-lived units — the four processes a reader-visible page needs. The live box
-# runs four more (deploy/geohot/systemd/): geohot-workbuddy and geohot-workbuddy-cn (the two bridges that
-# together carry most of the judging calls), plus geohot-archive.service and its timer. The templates in
-# deploy/geohot/systemd/ are these same four units plus a hardening block (ProtectSystem=strict,
-# ReadWritePaths, …) **and** those four extra units, which this script never writes —
-# bootstrap-server.sh step 10 installs all eight. Pick one route per box; both read the same
-# GEOHOT_APP_ROOT, and both keep the MemoryMax.
+# These are the minimal long-lived units — the four processes a reader-visible page needs. The eight units the live box runs
+# (the four below plus the two workbuddy bridges and archive's .service/.timer) all live as templates in
+# deploy/geohot/systemd/, and that directory is now the default source. bootstrap-server.sh step 10 and
+# this script install the same files, so the two routes no longer disagree.
 #
 # Run as a user with sudo. Idempotent: it overwrites the unit files, which is the point.
 #
@@ -31,12 +30,15 @@
 #       sudo cp -a /etc/systemd/system/geohot-*.service /root/units-backup-$(date +%F)/
 #   写完确认：systemctl list-units 'geohot-*' 与 systemctl cat <单元> 两处都该看到你预期的
 #   APP_ROOT（GEOHOT_APP_ROOT，默认 /opt/geohot/app）与绝对 --env-file 路径。
-#   要装"带加固块（ProtectSystem=strict 等）"的那一份，别用本脚本，走 bootstrap-server.sh 第 10 节
-#   安装 deploy/geohot/systemd/*.service —— 一台机器只选一条路线，两条都读同一个 GEOHOT_APP_ROOT。
+#   这一句在 2026-10-15 作废：本脚本默认装的就是带加固块的那一份（八个单元），
+#   与 bootstrap-server.sh 第 10 节同源；只有 GEOHOT_APP_ROOT 指到别处时才退回下面内联生成的四个。
+#   装完后本脚本会自己跑一遍 verify-config-drift.sh，跑不动或有漂移都按失败退出（以前那里写的是
+#   `| grep -c '' || true`，核对脚本缺失时也印"0 处"，那道闸门永远不会红）。
 set -euo pipefail
 # One install path for the whole deploy package (bootstrap / install-units / verify-deploy / rollback and
 # the systemd/ templates all default to this value). Override with GEOHOT_APP_ROOT=/other/path.
 APP_ROOT="${GEOHOT_APP_ROOT:-/opt/geohot/app}"
+APP_ROOT="${APP_ROOT%/}"   # 去掉结尾斜杠：`/opt/geohot/app/` 曾经会掉进下面那条**未加固**的生成路线
 APP_HOME="${APP_ROOT%/*}"          # /opt/geohot — HOME= for the units (the geohot account has none)
 
 # 默认 DRY-RUN，和同目录的 bootstrap-server.sh / fix-bare-path.sh / rollback.sh 一个规矩：不加 --apply 就
@@ -76,8 +78,9 @@ if [[ "$APP_ROOT" == "/opt/geohot/app" && -d "$TEMPLATE_DIR" ]]; then
   for u in "${ALL_UNITS[@]}"; do
     dest="/etc/systemd/system/$u"
     if [[ $APPLY == 1 ]]; then
+      sudo mkdir -p /root/geohot-units-backup && sudo chmod 700 /root/geohot-units-backup
       if [[ -f "$dest" ]] && ! cmp -s "$TEMPLATE_DIR/$u" "$dest"; then
-        sudo cp -a "$dest" "$dest.pre-units-$(date -u +%Y%m%dT%H%M%SZ).bak"
+        sudo cp -a "$dest" "/root/geohot-units-backup/$(date -u +%Y%m%dT%H%M%SZ)-$u"
       fi
       sudo cp "$TEMPLATE_DIR/$u" "$dest"
       echo "wrote $u"
@@ -99,8 +102,13 @@ if [[ "$APP_ROOT" == "/opt/geohot/app" && -d "$TEMPLATE_DIR" ]]; then
   if (( ${#missing[@]} )); then
     echo "✗ 装完仍缺：${missing[*]}" >&2; exit 1
   fi
-  drift=$(bash "$(dirname "${BASH_SOURCE[0]}")/verify-config-drift.sh" | grep -c '^DRIFT:' || true)
-  echo "installed ${#ALL_UNITS[@]} units from templates; verify-config-drift 报漂移 $drift 处"
+  drift_log=$(mktemp -t geohot-drift.XXXXXX)
+  if bash "$(dirname "${BASH_SOURCE[0]}")/verify-config-drift.sh" >"$drift_log" 2>&1; then rc=0; else rc=$?; fi
+  grep -E '^(DRIFT:|RESULT:)' "$drift_log" || true
+  if [ "$rc" = 2 ]; then rm -f "$drift_log"; echo "✗ 装完跑不动漂移核对（verify-config-drift.sh exit 2）—— 这一条不能算通过" >&2; exit 1; fi
+  rm -f "$drift_log"
+  [ "$rc" = 0 ] || { echo "✗ 装完仍有漂移（见上）" >&2; exit 1; }
+  echo "installed ${#ALL_UNITS[@]} units from templates; verify-config-drift 全绿"
   echo "enable+start with: sudo systemctl enable --now geohot-brain geohot-api geohot-worker geohot-web geohot-workbuddy geohot-workbuddy-cn && sudo systemctl enable --now geohot-archive.timer"
   exit 0
 fi
