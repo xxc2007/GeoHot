@@ -41,13 +41,32 @@ function checks(from: string, to: string): Check[] {
     {
       // 闸门 `publication/items.ts` 的 chineseCopyCondition 只查标题，不查提要语言（writing.ts 里明写）。
       // 所以"标题中文＋摘要英文"是唯一能穿过闸门、被印进报纸的形状——档案那几千条英文期刊摘要就卡在这条上。
+      //
+      // 2026-10-15 改过一次口径，原因值得记下来：这一条以前数的是 `publications` 表里
+      // `eligible AND title~CJK AND summary!~CJK`，生产实测 680 条——**而这 680 条全是 `selected=false`**，
+      // 也就是没有任何一期引用过它们，读者一个都看不到（读者面独立量到的就是 0）。
+      // 于是它既不是"会印进报纸"，也不是"读者看得见"，而是一条永远红的假警报。
+      // 现在改数**存版快照**：报纸印的是 compose 写进 `content` 的那份 title/summary（其余判据查的是
+      // 现文，两者会分开），所以判据问的就是"有没有哪一期真的印了一段没有汉字的提要"。
+      // 形状按 kind 分叉是必须的：日报在 `sections[].items[]`、周报月报在 `themes[].storyRefs[]`，
+      // 顶层没有 `items`。空提要不计——"没印提要"与"印了一段英文"不是同一件事。
       name: "chinese_title_english_summary",
       hard: true,
-      why: "标题有中文而摘要一个汉字都没有：读者闸门只查标题，这一条会直接印进报纸",
+      why: "某一期报纸真的印出了「中文标题 + 一段没有汉字的提要」：读者闸门只查标题，这种条目会照样付印",
       value: () => one(sql<{ n: number }[]>`
-        SELECT count(*)::int AS n FROM publications p
-        WHERE p.visibility = 'public' AND p.eligible AND ${inRange}
-          AND p.title ~ ${CJK_COPY_PATTERN} AND coalesce(p.summary, '') !~ ${CJK_COPY_PATTERN}`),
+        SELECT count(*)::int AS n FROM reports r
+        CROSS JOIN LATERAL (
+          SELECT jsonb_array_elements(coalesce(r.content -> 'sections', '[]'::jsonb)) AS grp
+          UNION ALL
+          SELECT jsonb_array_elements(coalesce(r.content -> 'themes', '[]'::jsonb))
+        ) g
+        CROSS JOIN LATERAL jsonb_array_elements(
+          CASE WHEN r.kind = 'daily' THEN coalesce(g.grp -> 'items', '[]'::jsonb)
+               ELSE coalesce(g.grp -> 'storyRefs', '[]'::jsonb) END) AS it
+        WHERE (r.window_start AT TIME ZONE 'Asia/Shanghai')::date BETWEEN ${from}::date AND ${to}::date
+          AND coalesce(it ->> 'title', '') ~ ${CJK_COPY_PATTERN}
+          AND coalesce(it ->> 'summary', '') <> ''
+          AND coalesce(it ->> 'summary', '') !~ ${CJK_COPY_PATTERN}`),
     },
     {
       name: "selected_without_cjk_title",
