@@ -174,6 +174,15 @@ done < <(grep -h '^[[:space:]]*EnvironmentFile=' "$WORK"/systemd/*.txt 2>/dev/nu
 node --version > "$WORK/runtime.txt"
 npm --version >> "$WORK/runtime.txt"
 pg_dump --version >> "$WORK/runtime.txt"
+# 机器上的 crontab：这台机器上放着 acme.sh 的证书续期（`10 3,9,15,21 * * *`），
+# 它不在任何单元里，也不属于 GEOHOT 的代码树——照包恢复出来的新机器如果没记下它，
+# 证书会在某天静默过期，而那时候没有人会想到"备份里少了这一件"。
+crontab -l > "$WORK/crontab.txt" 2>/dev/null || echo "(no root crontab)" > "$WORK/crontab.txt"
+for f in /etc/cron.d/*; do
+  [[ -f "$f" ]] || continue
+  printf '\n===== %s =====\n' "$f" >> "$WORK/crontab.txt"
+  cat "$f" >> "$WORK/crontab.txt"
+done
 cat > "$WORK/RESTORE.txt" <<'TEXT'
 This bundle contains private environment credentials. Keep it outside web roots and public repositories.
 1. Install the recorded Node major version and PostgreSQL 17+, create a geohot service account and database.
