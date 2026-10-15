@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { Link } from "react-router";
 import { IntentLink } from "./IntentLink";
 import { useEntrance } from "../../lib/hydration";
@@ -65,6 +65,50 @@ export interface TabItem {
   prefetch?: "intent";
   replace?: boolean;
   count?: number | null;
+}
+
+/**
+ * A hard navigation is a document the router cannot prepare (`Link` prefetch only covers client-side
+ * routes) — home's category row is the one case. Warm the document itself on the same intent the
+ * router prefetches on: hover, focus, or a stationary touch. The warm copy then answers the click
+ * from the HTTP cache while it is fresh (the server caps the browser max-age at the route's s-maxage),
+ * so the click no longer waits for a round trip. Leaving or scrolling before the dwell cancels it.
+ */
+function DocumentLink({ href, current, className, children }: { href: string; current: boolean; className: string; children: ReactNode }) {
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const warmed = useRef(false);
+  const clear = () => {
+    if (timer.current !== null) clearTimeout(timer.current);
+    timer.current = null;
+  };
+  const start = () => {
+    clear();
+    timer.current = setTimeout(() => {
+      timer.current = null;
+      if (warmed.current) return;
+      warmed.current = true;
+      // A failed warm must not poison later hovers: the click itself is the fallback.
+      void fetch(href, { credentials: "same-origin" }).catch(() => { warmed.current = false; });
+    }, 100);
+  };
+  useEffect(() => clear, []);
+  return (
+    <a
+      href={href}
+      aria-current={current ? "page" : undefined}
+      className={className}
+      onMouseEnter={start}
+      onMouseLeave={clear}
+      onFocus={start}
+      onBlur={clear}
+      onTouchStart={start}
+      onTouchMove={clear}
+      onTouchEnd={clear}
+      onTouchCancel={clear}
+    >
+      {children}
+    </a>
+  );
 }
 
 const SIZES = {
@@ -163,9 +207,9 @@ export function PillTabs({
           const TabLink = t.prefetch === "intent" ? IntentLink : Link;
           return t.to ? (
             t.hard ? (
-              <a key={t.key} href={t.to} aria-current={on ? "page" : undefined} className={cls}>
+              <DocumentLink key={t.key} href={t.to} current={on} className={cls}>
                 {inner}
-              </a>
+              </DocumentLink>
             ) : (
               <TabLink key={t.key} to={t.to} replace={t.replace} preventScrollReset aria-current={on ? "page" : undefined} className={cls}>
                 {inner}

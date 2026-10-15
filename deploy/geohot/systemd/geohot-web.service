@@ -30,6 +30,9 @@ Environment=HOME=/opt/geohot
 Environment=TZ=Asia/Shanghai
 # OOM 只杀自己，杀不到 nginx 与 Artalk（DEPLOYMENT.md:11 那一组里 web 最大）
 MemoryMax=320M
+# 同 api 那一条（2026-10-15 实测）：web 的常驻工作集 ≈ 90 MB，保护它别被换到机械盘上——
+# 换出去之后 /all 这类页面的每次点击都要从磁盘 4 KB 一页地读回来。
+MemoryLow=90M
 MemorySwapMax=600M
 # 生产命令按 docs/deploy.md「不用 Docker」一节最后那三条启动命令里的第三条：在 apps/web 下、
 # env 指回仓库根（cd apps/web && NODE_ENV=production node --env-file=../../.env server.ts）

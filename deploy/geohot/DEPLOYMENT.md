@@ -23,6 +23,14 @@
 - 六个常驻单元全部 `active`：`geohot-brain`(3055) · `geohot-api`(3001) · `geohot-worker` · `geohot-web`(3000) ·
   `geohot-workbuddy`(3065) · `geohot-workbuddy-cn`(3066)，只监听 `127.0.0.1`，每个都带 `MemoryMax`
   （160/200/240/320/200/200 MB），OOM 只会杀自己
+- **读者面内存保护（2026-10-15 实测后加）**：`geohot-api` 与 `geohot-web` 各带 `MemoryLow=150M / 90M`
+  （≈ 各自己的常驻工作集）。背景：891 MB 的机器上内存超售，内核把这两个进程共约 350 MB 换到 77 MB/s 的
+  机械盘 swap 上，读者每点一次分类都要从磁盘把页换回来——实测主缺页 2,180 次/秒、点一次卡 2–6 s。
+  加保护 + 重启两个单元后：读者路径稳定 40–70 ms，10 次请求的换入从 18,948 页降到 563 页。
+  worker 刻意**不加**保护：它是压力的吸收方，读者面优先。配套 `vm.swappiness=10`
+  （`/etc/sysctl.d/99-geohot-memory.conf`，`bootstrap-server.sh` 第 1 节会写、立即 `sysctl -p`），
+  让内核在超售时优先丢可再读的文件缓存，而不是换出应用匿名页。新机器恢复时会自动带上这三条；
+  手工装的老机器用 `systemctl show geohot-api -p MemoryLow` 核对，为空就是没带上。
 - 服务器：Ubuntu 22.04，`<ssh-user>@<server-ip>`，Node v24.21.0，
   **PostgreSQL 17 本机（PGDG apt 源；Ubuntu 22.04 自带的 14 不在本站支持区间，见 bootstrap-server.sh 第 6 节）**，
   swap 2 GB（**部署前就存在**，不是这次加的）
