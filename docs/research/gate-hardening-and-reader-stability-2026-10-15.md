@@ -92,3 +92,32 @@
   确认读者面全部 200、0 控制台错误，补 CSP 会波及图集与 img-proxy，必须单独一轮配回归。
 - 生产 `/opt/geohot/app` 不是 git 仓库（这一轮实测确认），所以"与 GitHub 一致"只能由
   `verify-github-sync.sh` 逐文件比 blob 来说；漂移闸门现在自己会说这句话，不再顺手替它作证。
+
+## 五、收口时补的两件事（同日 13:00 前后）
+
+**审计口径 `chinese_title_english_summary` 从 680 变成 0，是改人群不是改数字。**
+旧口径查 `publications` 表里的形状（`eligible AND title~CJK AND summary!~CJK`），生产 680 条。
+把人群量清之后发现**这 680 条全部 `selected=false`**——没有任何一期引用过它们，读者一个都看不到
+（读者面独立量到 0）。旧判据问的是"库里有没有这种形状"，它声称的却是"会印进报纸"。
+新口径数**存版快照**（`reports.content` 里 compose 写进去的 title/summary），形状按 kind 分叉
+（日报 `sections[].items[]`、周报月报 `themes[].storyRefs[]`，顶层没有 `items`），空提要不计，
+区间用 `r.window_start` 的本地日（用 `key` 会把 `2026-W42` 这类周报 key 整段静默漏掉）。
+非空性证明：同一展开式返回 **3,026** 条被引用条目、全部中文标题中文提要，英文那一格才是 0。
+⇒ 它是活的、真值就是 0。跑完其余现值：硬判据只剩 `selected_backfill_without_date=37`（#162，站长手上），
+连续性三项全 0，`editions_stored=282`。
+
+**模板补了 12 个"代码真会读"的键。** 评审用"模板是不是代码真读的那些键"查了一遍，差异不在缺项多少
+而在**读法**：`credential("collectors", X)` 这类名字走 `config.ts:159` 的 `env[name] ?? 凭据目录`
+（环境变量优先），所以它们既是 .env 键也是凭据目录里的键；而 `COLLECT_ROUND_BUDGET_MS`、
+`COLLECT_X_BUDGET_MS`（`collect.ts` 的 `roundBudgetMs`）、`GEOHOT_PHASE_SECONDS`（`backfill-papers.ts:64`）、
+`CROSSREF_MAILTO`（`backfill-archive.ts:261`）是真的 `process.env` 读点，模板里一个都没有。
+补的是一段注释区（留空即默认），不动任何门槛。评审另外两条经查证**不改**：
+`WORKBUDDY_BRIDGE_TOKEN` 默认 null 不是缺陷（`workbuddy-bridge.ts:47` 只监听 127.0.0.1，
+注释写明回环绑定才是真边界）；四个"两处都列"的死键也不是自相矛盾（漂移闸门按键名核对，
+生产有这几个名字，模板就必须留着它们，那正是它们存在的理由）。
+
+**迁移包里补上机器 crontab。** 它不在任何单元里、也不在代码树里——这台机器上放着 acme.sh 的
+证书续期，照包恢复的新机器少了它，证书会在某天静默过期而没人会想到"备份里少了这一件"。
+
+**本轮收口的迁移包**：`/opt/geohot/backups/migration/geohot-20261015T051426Z-portable.tgz`
+（31 成员；上一份 `…050535Z` 与再上一份 `…043217Z` 都在盘上，删除不可逆、归站长）。
