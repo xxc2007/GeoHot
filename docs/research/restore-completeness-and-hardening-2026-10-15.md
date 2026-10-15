@@ -33,7 +33,7 @@
   `RestartSec` 对齐到 5。
 - **`.env.example` 补到覆盖生产全部键名**（值一律留空，一个值都没抄），并写清哪些是模型门、哪些是桥的凭据路径。
 - **新增 `deploy/geohot/archive-cycle.conf.example`**（只有数字）。
-- **新增 `deploy/geohot/verify-config-drift.sh`**（只读、**永不打印值**）：
+- **新增 `deploy/geohot/verify-config-drift.sh`**（只读；键名与路径直说，比对单元的那一节先脱敏，见下面第七节）：
   ① 装着的单元 vs 仓库单元（去注释后逐字节）；② `.env` 键名是否都在模板里；
   ③ 单元引用的 `EnvironmentFile` 是"仓库里有"还是"机器侧清单"；④ `ExecStart` 指向的代码入口在不在；
   ⑤ 归档阀门键形 vs 样例。装之前它当场报出 api/brain/web/worker 四处漂移，装之后 **八个全 SAME**。
@@ -67,7 +67,7 @@
 
 ## 五、GitHub-only 恢复演练（真跑，不是文档）
 
-`git clone --depth 1` → `npm ci` → 新建空库 → `npm run db:migrate`（**63 个迁移全过**）→ `scripts/seed.ts`
+`git clone --depth 1` → `npm ci` → 新建空库 → `npm run db:migrate`（**64 个迁移全过**；当时 GitHub 上是 63 个，`git pull` 后补上本轮的 0067）→ `scripts/seed.ts`
 （**sources 668 added, 0 already there；topics 43**）→ `BASE_PATH=/geohot npm run build -w @aihot/web` → 起 api 与 web。
 十一个读者面全部 200，且是**有内容的页面**：`/` 29,559 B、`/daily` 23,292 B、`/weekly` 22,813 B、`/monthly` 22,820 B、
 `/all` 40,259 B、`/changelog` 210,424 B、`/about` 44,355 B、`/feed.xml` 683 B、`/sitemap.xml` 1,950 B（13 个 `<loc>`）、

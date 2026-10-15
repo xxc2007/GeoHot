@@ -386,7 +386,7 @@ curl -s https://<新域名>/<前缀>/   | grep -o 'src="[^"]*"' | head -3   # �
 1. `.env.example` 原来只有 23 个键，生产用 53 个 ⇒ `cp .env.example .env` 出来的新机**一扇模型门都没有**
    （`MODEL_POOL`/`DOTS_*`/`AGNES_CN_*`/`WORKBUDDY_*` 全不在模板里），而站点照样起得来、照样 200。
    现在模板补齐了全部键**名**（值一律留空），并由 `deploy/geohot/verify-config-drift.sh` 第 2 节核对——
-   它只打印键名与路径，永不打印值。
+   它打印的只有键名与路径；唯一必须打印整行的第 1 节先过一道脱敏（单元里若有人手工塞了内联 `Environment=*KEY*=`，落出来的是 `<redacted>` 而不是值）。
 2. `install-units.sh` 以前内联生成四个**不带加固块**的单元，而 `deploy/geohot/systemd/*.service` 是带加固的八个；
    两台机器都自称"照仓库恢复了"，实际一个有沙箱一个没有。现在默认走模板那一条（八个），
    只有 `GEOHOT_APP_ROOT` 指到别处才退回生成，并且会明说退回的这一份没有加固块。
@@ -394,7 +394,7 @@ curl -s https://<新域名>/<前缀>/   | grep -o 'src="[^"]*"' | head -3   # �
    两行、仓库模板没有 ⇒ 照仓库恢复的机器会用国际版变体连中国版凭据并抢 3065，那扇门静默死掉。已回填模板。
 
 **2026-10-15 的 GitHub-only 演练（真跑，不是文档演练）**：`git clone --depth 1` → `npm ci` →
-新建空库 → `npm run db:migrate`（63 个迁移全过）→ `scripts/seed.ts`（**sources 668 added, 0 already there；topics 43**）→
+新建空库 → `npm run db:migrate`（**64 个迁移全过**，含本轮的 0067；演练当时 GitHub 上是 63 个，`git pull` 之后补到 64）→ `scripts/seed.ts`（**sources 668 added, 0 already there；topics 43**）→
 `BASE_PATH=/geohot npm run build -w @aihot/web` → 起 api 与 web。读者面读数：
 `/geohot/ 200 29,559 B`、`/daily 200 23,292 B`、`/weekly 200 22,813 B`、`/monthly 200 22,820 B`、
 `/all 200 40,259 B`、`/changelog 200 210,424 B`、`/about 200 44,355 B`、`/feed.xml 200 683 B`、
