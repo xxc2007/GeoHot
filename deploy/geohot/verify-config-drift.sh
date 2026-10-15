@@ -27,7 +27,10 @@ ENV_FILE="${GEOHOT_ENV_FILE:-$APP/.env}"
 # 上一版这里硬写 8 个名字、install-units.sh 里又写一遍，两份名单各自漂移：加第 9 个模板时
 # 两边都不会提醒谁，于是"本机装着、仓库恢复不出"这种情况反而被排除在核对范围之外。
 UNIT_NAMES=()
-for f in deploy/geohot/systemd/*.service deploy/geohot/systemd/*.timer; do
+# 一律用**绝对路径**列：这里在 `cd "$APP"` 之前跑，写成相对路径就会按调用者的当前目录去找，
+# 从应用根之外调用时一个都列不出来 → 直接 exit 2「仓库模板目录里没有单元」——
+# 那是一条假红，而且 install-units.sh --apply 会因此把装好的机器判成"跑不动核对"（2026-10-15 实测复现）。
+for f in "$APP"/deploy/geohot/systemd/*.service "$APP"/deploy/geohot/systemd/*.timer; do
   [[ -e "$f" ]] && UNIT_NAMES+=("$(basename "$f")")
 done
 if [ "${#UNIT_NAMES[@]}" = 0 ]; then

@@ -106,7 +106,9 @@
 ⇒ 它是活的、真值就是 0。跑完其余现值：硬判据只剩 `selected_backfill_without_date=37`（#162，站长手上），
 连续性三项全 0，`editions_stored=282`。
 
-**模板补了 12 个"代码真会读"的键。** 评审用"模板是不是代码真读的那些键"查了一遍，差异不在缺项多少
+**模板补了 11 个"代码真会读"的键。**（同一轮复审把这句话从"12 个"改成实测行数：注释区一共 11 行键，
+另有 1 行是分类说明。复核对了几处引用行号，其中 `SOCIALDATA_BASE_URL` 的 :58 是对的，代理那位的 :57 是差一。）
+评审用"模板是不是代码真读的那些键"查了一遍，差异不在缺项多少
 而在**读法**：`credential("collectors", X)` 这类名字走 `config.ts:159` 的 `env[name] ?? 凭据目录`
 （环境变量优先），所以它们既是 .env 键也是凭据目录里的键；而 `COLLECT_ROUND_BUDGET_MS`、
 `COLLECT_X_BUDGET_MS`（`collect.ts` 的 `roundBudgetMs`）、`GEOHOT_PHASE_SECONDS`（`backfill-papers.ts:64`）、
