@@ -95,6 +95,19 @@ if [[ "$APP_ROOT" == "/opt/geohot/app" && -d "$TEMPLATE_DIR" ]]; then
     exit 0
   fi
   sudo systemctl daemon-reload
+  # 新机器上光有单元还不够：geohot-archive.timer 装着、而 /etc/geohot/archive-cycle.conf 不在，
+  # archive-cycle.sh 会退回脚本默认值（MAX_ITEMS=100 / PER_MONTH=30 / SLICES=6），
+  # 跟仓库样例（40/500/12）差一个量级，而且 verify-config-drift.sh 第 5 节会因此判红——
+  # 于是"照 GitHub 恢复"这条路自己走不通。仓库里有样例，就在这里补上，已有的一律不动。
+  valve_src="$(dirname "$TEMPLATE_DIR")/archive-cycle.conf.example"
+  if [[ ! -e /etc/geohot/archive-cycle.conf ]]; then
+    if [[ ! -f "$valve_src" ]]; then
+      echo "✗ 缺 $valve_src，而这台机器装了归档定时器又没有 /etc/geohot/archive-cycle.conf" >&2
+      exit 2
+    fi
+    sudo mkdir -p /etc/geohot && sudo install -m 644 "$valve_src" /etc/geohot/archive-cycle.conf
+    echo "wrote /etc/geohot/archive-cycle.conf（取自 archive-cycle.conf.example；里面的 APPLY=0 是刻意的默认，归档不会自动写库，要它落库就改成 1）"
+  fi
   missing=()
   for u in "${ALL_UNITS[@]}"; do
     [[ -n "$(systemctl list-unit-files "$u" --no-legend)" ]] || missing+=("$u")
@@ -103,11 +116,26 @@ if [[ "$APP_ROOT" == "/opt/geohot/app" && -d "$TEMPLATE_DIR" ]]; then
     echo "✗ 装完仍缺：${missing[*]}" >&2; exit 1
   fi
   drift_log=$(mktemp -t geohot-drift.XXXXXX)
-  if bash "$(dirname "${BASH_SOURCE[0]}")/verify-config-drift.sh" >"$drift_log" 2>&1; then rc=0; else rc=$?; fi
+  # 用 sudo 跑：这一节要读 0600 的 $APP_ROOT/.env（本脚本其余步骤本来就一路 sudo）。
+  # 应用根要显式传过去，否则自定义 GEOHOT_APP_ROOT 的机器上门禁会去核对默认的 /opt/geohot/app。
+  if sudo env "GEOHOT_APP_ROOT=$APP_ROOT" bash "$(dirname "${BASH_SOURCE[0]}")/verify-config-drift.sh" >"$drift_log" 2>&1
+  then rc=0; else rc=$?; fi
+  if [ "$rc" != 0 ] && [ "$rc" != 1 ]; then
+    cat "$drift_log" >&2; rm -f "$drift_log"
+    echo "✗ 装完跑不动漂移核对（verify-config-drift.sh rc=$rc，2=这台机器核对不了）—— 这一条不能算通过" >&2; exit 1
+  fi
+  if ! grep -q '^RESULT:' "$drift_log"; then
+    cat "$drift_log" >&2; rm -f "$drift_log"
+    echo "✗ 漂移核对没给出 RESULT 行（rc=$rc）——没读到结论就不能算装完" >&2; exit 1
+  fi
+  if [ "$rc" != 0 ]; then
+    # 只打印 RESULT/DRIFT 两行的话，"到底哪一行不一样"那份（已脱敏的）diff 就跟着临时文件一起删了，
+    # 操作者拿到一句没法执行的"装完仍有漂移"。红的时候把整份输出留下。
+    cat "$drift_log" >&2; rm -f "$drift_log"
+    echo "✗ 装完仍有漂移（上面是完整核对输出）" >&2; exit 1
+  fi
   grep -E '^(DRIFT:|RESULT:)' "$drift_log" || true
-  if [ "$rc" = 2 ]; then rm -f "$drift_log"; echo "✗ 装完跑不动漂移核对（verify-config-drift.sh exit 2）—— 这一条不能算通过" >&2; exit 1; fi
   rm -f "$drift_log"
-  [ "$rc" = 0 ] || { echo "✗ 装完仍有漂移（见上）" >&2; exit 1; }
   echo "installed ${#ALL_UNITS[@]} units from templates; verify-config-drift 全绿"
   echo "enable+start with: sudo systemctl enable --now geohot-brain geohot-api geohot-worker geohot-web geohot-workbuddy geohot-workbuddy-cn && sudo systemctl enable --now geohot-archive.timer"
   exit 0

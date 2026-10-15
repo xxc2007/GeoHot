@@ -436,10 +436,52 @@ fi
 
 # ---------------------------------------------------------------------------
 echo "== 8. 仓库自带冒烟（只读，15 页 + 15 机器出口，scripts/smoke.ts:12 含 /api/health）=="
+# 冒烟要连开 15 个 SSR 页面，这台 891 MB 的机器上没有余量：2026-10-15 那次 verify-deploy
+# 与档案进口撞在一起，swap 冲到 900 MB、load 13.6，读者端首页 503 了十来分钟。
+# 闸门跑的时候把档案定时器暂时按住，跑完原样还回去——它本来就是 15 分钟一轮，等得起。
+timer_was_active=0
+if command -v systemctl >/dev/null 2>&1 && [[ "$(systemctl is-active geohot-archive.timer 2>/dev/null)" == "active" ]]; then
+  timer_was_active=1
+  systemctl stop geohot-archive.timer && note "冒烟期间暂停 geohot-archive.timer（跑完自动恢复）"
+fi
 if command -v node >/dev/null 2>&1 && [[ -f "$APP_ROOT/scripts/smoke.ts" ]]; then
   if (cd "$APP_ROOT" && node scripts/smoke.ts --base "$BASE"); then ok "smoke.ts 全绿"; else bad "smoke.ts 有失败项（见上方输出）"; fi
 else
   note "跳过：本机没有 node 或缺 $APP_ROOT/scripts/smoke.ts（在服务器上跑才有效）"
+fi
+if [[ "$timer_was_active" == "1" ]]; then
+  systemctl start geohot-archive.timer && note "geohot-archive.timer 已恢复：$(systemctl is-active geohot-archive.timer)"
+fi
+
+# ---------------------------------------------------------------------------
+echo "== 9. 配置漂移（这台机器跑的单元与外部文件，是不是仓库 HEAD 那份能说清楚的）=="
+# 这条闸门是恢复演练教出来的：单元里多一行少一行不会让任何测试变红，只会让照仓库恢复出来的
+# 新机器安静地少一扇门（本轮抓到过 CN 桥缺 WORKBUDDY_VARIANT / BRIDGE_PORT 那一例）。
+# 三条判读口径都是评审挑出来的，别再放松：
+#   · 装不上脚本 = 坏了，不是"跳过"（install-units.sh 对同一种情况就是硬失败）；
+#   · 绿灯必须真读到一行 RESULT，空输出不算通过（0 字节的脚本 bash 起来也是 rc=0）；
+#   · 应用根要显式传给子进程，否则它会去核对默认的 /opt/geohot/app，而不是本机这个。
+# 要 root：非 root 时它读不到 0600 的 .env，现在会老实报 DRIFT（上一版那里报的是"键名都有模板位"）。
+if [[ ! -f "$HERE/verify-config-drift.sh" ]]; then
+  bad "缺 $HERE/verify-config-drift.sh —— 这一轮的漂移闸门没了，不能算验收通过"
+else
+  drift_out=$(GEOHOT_APP_ROOT="$APP_ROOT" bash "$HERE/verify-config-drift.sh" 2>&1); drift_rc=$?
+  verdict=$(printf '%s\n' "$drift_out" | grep '^RESULT:' | head -1)
+  if [[ "$drift_rc" != "0" && "$drift_rc" != "1" ]]; then
+    bad "漂移核对跑不起来（rc=$drift_rc）：$(printf '%s\n' "$drift_out" | tail -2 | tr '\n' ' ')"
+  elif [[ -z "$verdict" ]]; then
+    bad "漂移核对没给出 RESULT 行（rc=$drift_rc）——没读到结论就不能算通过"
+  elif [[ "$drift_rc" == "0" ]]; then
+    if printf '%s\n' "$drift_out" | grep -q '^DRIFT:'; then
+      bad "rc=0 却打了 DRIFT 行——判据与结论对不上，当漂移处理："
+      printf '%s\n' "$drift_out" | grep '^DRIFT:' | sed 's/^/    /'
+    else
+      ok "$verdict"
+    fi
+  else
+    printf '%s\n' "$drift_out" | grep -E '^(DRIFT:|RESULT:)' | sed 's/^/    /'
+    bad "配置有漂移（上面 DRIFT 行）——这台机器和仓库 HEAD 不一致，恢复出来不会是同一台"
+  fi
 fi
 
 # ---------------------------------------------------------------------------
