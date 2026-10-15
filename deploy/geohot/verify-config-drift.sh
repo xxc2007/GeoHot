@@ -61,19 +61,31 @@ for u in "${UNIT_NAMES[@]}"; do
     case "$p" in \!*) p="${p#!}";; esac
     if [ ! -e "$p" ]; then echo "  MISSING  $p（$u 引用它）"; continue; fi
     if case " $SECRET_PATHS " in *" $p "*) true;; *) false;; esac; then echo "  machine  $p（凭据/目录清单，随迁移备份包走，不进仓库）"
+    elif [ "$p" = "/etc/geohot/archive-cycle.conf" ] && [ -f "$APP/deploy/geohot/archive-cycle.conf.example" ]; then
+      # 这份不是秘密，是**阀门数字**；仓库带的是同名样例，第 5 节专门比它的键形。
+      echo "  sampled  $p（仓库有 deploy/geohot/archive-cycle.conf.example）"
     elif [ -f "${p#/}" ] && { [ "$have_git" = 0 ] || git ls-files --error-unmatch "${p#/opt/geohot/app/}" >/dev/null 2>&1; }; then echo "  tracked  $p"
     else echo "  untracked $p ← 若它不含秘密，就该进仓库"; fi
   done
 done | sort -u
 
 echo "== 4. ExecStart 指向的代码入口在不在树里 =="
+# 相对路径是相对于**该单元自己的 WorkingDirectory**，不是应用根：geohot-web 的 wd 是 apps/web，
+# 拿应用根去解 `server.ts` 会得到一个假 MISSING（这条在演练里真踩到过）。
 for u in "${UNIT_NAMES[@]}"; do
-  [ -f "$APP/deploy/geohot/systemd/$u" ] || continue
-  grep -hoE '^ExecStart=.*' "$APP/deploy/geohot/systemd/$u" \
+  f="$APP/deploy/geohot/systemd/$u"
+  [ -f "$f" ] || continue
+  wd=$(grep -m1 -E '^WorkingDirectory=' "$f" | cut -d= -f2-)
+  [ -n "$wd" ] || wd="$APP"
+  grep -hoE '^ExecStart=.*' "$f" \
     | sed -E 's/^ExecStart=//; s/^\/usr\/bin\/node (--env-file=[^ ]+ )?//' \
     | grep -vE '^/bin/bash' | while read -r t; do
       [ -n "$t" ] || continue
-      case "$t" in /*) [ -e "$t" ] || echo "  MISSING abs $t"; ;; *) [ -e "$APP/${t%% *}" ] || echo "  MISSING $APP/${t%% *}（$u）";; esac
+      target="${t%% *}"
+      case "$target" in
+        /*) [ -e "$target" ] || echo "  MISSING abs $target（$u）"; ;;
+        *)  [ -e "$wd/$target" ] || echo "  MISSING $wd/$target（$u）"; ;;
+      esac
     done
 done | sort -u
 
