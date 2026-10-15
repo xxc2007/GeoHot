@@ -366,6 +366,56 @@ curl -s https://<新域名>/<前缀>/   | grep -o 'src="[^"]*"' | head -3   # �
 
 ---
 
+## 6.5 两条恢复路线各自的边界（2026-10-15 实测，站长要求"服务器或 GitHub 都能随时迁移"）
+
+上面第 6 节讲的是**数据**怎么搬；这一节讲的是**配置**上有哪些东西天生不在 `git clone` 里，
+以及照仓库恢复时哪一步会静少一块。清单是量出来的，不是推测的：
+
+| 只有机器上才有 | 生产实际路径 | 恢复时怎么拿回来 |
+| --- | --- | --- |
+| 应用密钥与口令 | `/opt/geohot/app/.env`（53 个键） | 秘密 ⇒ **绝不进仓库**。走迁移备份包，或照 `.env.example` 的键名手工填 |
+| WorkBuddy 两扇桥的凭据 | `/opt/geohot/workbuddy-{credential,cn-credential}.json`（0600） | 走迁移备份包。桥的**代码** `tooling/workbuddy-bridge.ts` 在仓库里，缺的只有凭据 |
+| 两扇桥的模型目录 | `/opt/geohot/workbuddy-{catalog,cn-catalog}.json` | 同上：形状 `{version, entries:[{account, source, models:[…]}]}`，可由桥重新拉取，但恢复当天没有它就没有那两扇门 |
+| 桥的 CN 变量文件 | `/opt/geohot/workbuddy-cn.env` | 走迁移备份包（含 key） |
+| 归档周期阀门 | `/etc/geohot/archive-cycle.conf` | **已补样例** `deploy/geohot/archive-cycle.conf.example`（只有数字，没有秘密） |
+| nginx 的本站 server 块 | `/etc/nginx/sites-available/xxc2007.me` | 仓库带的是片段 `deploy/geohot/geohot.nginx.conf片段`，要注入既有 server 块（四条硬约束写在该片段头部） |
+| TLS 证书 | acme.sh（cron 每 6 小时续） | 新机器重签，不能搬 |
+
+**这一轮顺手堵住的两个静默坑**（都会让"恢复成功"看起来成立、实际少东西）：
+
+1. `.env.example` 原来只有 23 个键，生产用 53 个 ⇒ `cp .env.example .env` 出来的新机**一扇模型门都没有**
+   （`MODEL_POOL`/`DOTS_*`/`AGNES_CN_*`/`WORKBUDDY_*` 全不在模板里），而站点照样起得来、照样 200。
+   现在模板补齐了全部键**名**（值一律留空），并由 `deploy/geohot/verify-config-drift.sh` 第 2 节核对——
+   它只打印键名与路径，永不打印值。
+2. `install-units.sh` 以前内联生成四个**不带加固块**的单元，而 `deploy/geohot/systemd/*.service` 是带加固的八个；
+   两台机器都自称"照仓库恢复了"，实际一个有沙箱一个没有。现在默认走模板那一条（八个），
+   只有 `GEOHOT_APP_ROOT` 指到别处才退回生成，并且会明说退回的这一份没有加固块。
+   同一天还发现生产 CN 桥的单元里有 `Environment=WORKBUDDY_VARIANT=workbuddy` 与 `WORKBUDDY_BRIDGE_PORT=3066`
+   两行、仓库模板没有 ⇒ 照仓库恢复的机器会用国际版变体连中国版凭据并抢 3065，那扇门静默死掉。已回填模板。
+
+**2026-10-15 的 GitHub-only 演练（真跑，不是文档演练）**：`git clone --depth 1` → `npm ci` →
+新建空库 → `npm run db:migrate`（63 个迁移全过）→ `scripts/seed.ts`（**sources 668 added, 0 already there；topics 43**）→
+`BASE_PATH=/geohot npm run build -w @aihot/web` → 起 api 与 web。读者面读数：
+`/geohot/ 200 29,559 B`、`/daily 200 23,292 B`、`/weekly 200 22,813 B`、`/monthly 200 22,820 B`、
+`/all 200 40,259 B`、`/changelog 200 210,424 B`、`/about 200 44,355 B`、`/feed.xml 200 683 B`、
+`/sitemap.xml 200 1,950 B`（13 个 `<loc>`）、`/api/site/stats 200 14,902 B`、`/llms.txt 200 3,500 B`，
+每页都有中文眉标与真实版面结构（`<nav aria-label="主导航">`、`<main id="main">`），
+空历史时读者看到的是"**还没有**"而不是空白页；api 与 web 日志里错误行数 0。
+
+演练同时抓到两条只会在恢复时出现的坑，记在这里：
+
+- `AIHOT_ENVIRONMENT=production` + `SITE_URL` 指向 localhost 会被 `config.ts:106` **拒绝启动**
+  （这是设计：canonical/OG/RSS/sitemap 会把 localhost 印出去）。第 3 节第 1 条那句"手工改 SITE_URL"
+  不是建议，是硬前置。演练里用一个占位域名（`https://rehearsal.example.com/geohot`）绕过，**不要**为了跑通
+  而把环境降级。
+- web 反代到 api 的地址取自 `API_BASE_URL`，缺省 `http://127.0.0.1:3001`（`apps/web/server.ts:14`）。
+  把 api 放在别的端口而不写 `API_BASE_URL`，表现是**整站 503/502 而 api 自己 200**——很容易误判成代码坏了。
+- Windows 下 Git Bash 会把 `BASE_PATH=/geohot` 里的 `/geohot` 改写成 `/C:/Program Files/Git/geohot` 并烤进构建产物，
+  web 只会 warn 一句"SITE_URL path and the built basename disagree"，然后所有页面 404。
+  本机演练请加 `MSYS_NO_PATHCONV=1`（Linux 上的生产部署不受影响）。
+
+
+
 ## 7. 公开仓库与介绍页：远端、发布、验收、配图、数字
 
 ### 7.1 远端与发布

@@ -1,0 +1,38 @@
+# /etc/geohot/archive-cycle.conf —— 归档周期的阀门样例（2026-10-15 与生产实际值对齐）。
+# 装到 /etc/geohot/archive-cycle.conf，由 geohot-archive.service 的
+# EnvironmentFile=/etc/geohot/archive-cycle.conf 读取；**这里一个秘密都没有**，
+# 所以它进仓库——新机器上 `git clone` 之后没有这份文件，归档周期就根本不会跑。
+#
+# 改完要 `sudo systemctl restart geohot-archive.service` 之前先 daemon-reload；
+# 键形与线上是否一致由 `deploy/geohot/verify-config-drift.sh` 第 5 节核对（只比键名与这份样例）。
+
+# 1 = 真入库；0 = DRY-RUN（只打印会写什么）。操作员脚本一律默认 0，这里显式写 1 是因为
+# 这台机器上线跑的是生产周期——新机器接过来先保持 0 跑一轮，看清台账再改 1。
+GEOHOT_ARCHIVE_APPLY=1
+
+# 每轮总入库上限（Crossref 那条路，按切片分摊：quota=floor(MAX_ITEMS/SLICES)）。
+# 40 是 2026-10-15 凌晨量出来的稳定态：这台 891 MB / 2 核的机器上，判定并发 4 + 每轮 40 条
+# 时读者面 200 且 0.1–2.2 秒；同一夜里 120 条的一轮把读者打成 503（page cache 被打穿、
+# WALWrite 排队、swap 在抖，详见 docs/research/monthly-thickness-2026-10-15.md 第八节）。
+GEOHOT_ARCHIVE_MAX_ITEMS=40
+
+# 每轮走访多少片（一片 = 一个 (源, 月)）。脚本硬上限 12。
+GEOHOT_ARCHIVE_SLICES=12
+
+# 单片单月的入库上限。脚本硬上限 500。
+GEOHOT_ARCHIVE_PER_MONTH=500
+
+# 回填区间下界。注意它会挡住跨年在前的那一周（2026-W01 的窗口是 2025-12-29→2026-01-04，
+# 所以那份周报必须手工单独补一次，周期不会自己补）。
+GEOHOT_ARCHIVE_FROM=2026-01-01
+
+# —— 以下都是可选键，注释掉的样子就是脚本内置默认值；要动再解开 ——
+# 过刊翻页门每轮走访几扇（脚本内置 3，硬上限 8）。规则铺到 50 条以后一轮只走 1 扇 = 12.5 小时一趟。
+# GEOHOT_NEWS_DOORS=3
+# Crossref 摘要长度下限（内置 80；0 = 只认标题与日期的行也交给编辑闸门判）。
+# GEOHOT_ARCHIVE_MIN_ABSTRACT=80
+# 单阶段时限秒（内置 600，硬上限 1800）。单元另有 RuntimeMaxSec/TimeoutStartSec=45min，
+# 整轮跑过 45 分钟会被 systemd SIGKILL 并留在 failed，下一次 start 前要 reset-failed。
+# GEOHOT_ARCHIVE_PHASE_SECONDS=600
+# 只跑指定源（逗号分隔 sourceId），用于单独验一扇门。
+# GEOHOT_ARCHIVE_SOURCE=

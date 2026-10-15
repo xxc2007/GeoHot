@@ -35,7 +35,9 @@ ExecStart=/usr/bin/node --env-file=.env apps/api/src/main.ts
 Restart=on-failure
 RestartSec=5
 # api 关闭时要 drain HTTP（app.close → closeDb，main.ts:26-32），给足 30 s
-TimeoutStopSec=30
+# 停机上限取生产实际值 285（这四个单元在线上一直接就是这个数，仓库这份以前写 30/90）：
+# 开了思考的模型调用单次上限 240 秒（providers/llm.ts），窗口比调用短就等于在调用中途被 SIGKILL。
+TimeoutStopSec=285
 
 # 加固：只绑 127.0.0.1 不需要任何特权（1024 以下端口才需要），因此以下全部可开
 NoNewPrivileges=true

@@ -36,7 +36,7 @@ MemoryMax=240M
 MemorySwapMax=600M
 ExecStart=/usr/bin/node --env-file=.env apps/worker/src/main.ts
 Restart=on-failure
-RestartSec=10
+RestartSec=5
 # 255 s 优雅停机上限（= STOP_TIMEOUT_MS，比一次思考调用 240 s 还长）+ 30 s 余量；compose 的 stop_grace_period 同义
 TimeoutStopSec=285
 KillMode=mixed

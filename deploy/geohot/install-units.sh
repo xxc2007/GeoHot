@@ -55,6 +55,58 @@ emit_unit() {
   else printf '\n---- 将写入 %s ----\n' "$1"; cat; fi
 }
 
+# ★ 2026-10-15：一台机器只该有一条恢复路线。以前这里生成的四个单元**没有加固块**
+#   （NoNewPrivileges / PrivateTmp / ProtectSystem=strict / ReadWithPaths / ProtectKernel*…），
+#   而 deploy/geohot/systemd/*.service 那份有——两条都在仓库里、都叫"恢复单元"，
+#   照哪一条走取决于你跑了哪个脚本，这就是"GitHub 也能随时迁移"这句话里的洞：
+#   新机器跑本脚本会静默拿到一套零沙箱的单元（工单 #194 第二条讲的就是它）。
+#   现在：默认路径下直接安装 systemd/ 那一份（八个单元齐全、带加固、与线上现值已对齐），
+#   只有当 GEOHOT_APP_ROOT 指到别处（模板里 /opt/geohot/app 是写死的，systemd 不做变量插值）
+#   才退回下面的生成路线，并且明说退回来的是没有加固块的那一份。
+TEMPLATE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/systemd"
+ALL_UNITS=(geohot-brain.service geohot-api.service geohot-worker.service geohot-web.service
+           geohot-workbuddy.service geohot-workbuddy-cn.service geohot-archive.service geohot-archive.timer)
+if [[ "$APP_ROOT" == "/opt/geohot/app" && -d "$TEMPLATE_DIR" ]]; then
+  echo "route=templates  从 $TEMPLATE_DIR 安装 ${#ALL_UNITS[@]} 个单元（带加固块；这一条与线上现值一致）"
+  src_missing=0
+  for u in "${ALL_UNITS[@]}"; do
+    [[ -f "$TEMPLATE_DIR/$u" ]] || { echo "✗ 模板缺失：$TEMPLATE_DIR/$u"; src_missing=1; }
+  done
+  (( src_missing )) && exit 2
+  for u in "${ALL_UNITS[@]}"; do
+    dest="/etc/systemd/system/$u"
+    if [[ $APPLY == 1 ]]; then
+      if [[ -f "$dest" ]] && ! cmp -s "$TEMPLATE_DIR/$u" "$dest"; then
+        sudo cp -a "$dest" "$dest.pre-units-$(date -u +%Y%m%dT%H%M%SZ).bak"
+      fi
+      sudo cp "$TEMPLATE_DIR/$u" "$dest"
+      echo "wrote $u"
+    else
+      printf '\n---- 将写入 %s（取自 systemd/%s）----\n' "$dest" "$u"
+      if [[ -f "$dest" ]]; then diff "$dest" "$TEMPLATE_DIR/$u" | sed 's/^/    /' || true; else cat "$TEMPLATE_DIR/$u"; fi
+    fi
+  done
+  if [[ $APPLY == 0 ]]; then
+    echo
+    echo "DRY-RUN 结束：上面是将要写进 /etc/systemd/system 的 ${#ALL_UNITS[@]} 个单元（左=线上现值，右=仓库模板）。确认后：bash install-units.sh --apply"
+    exit 0
+  fi
+  sudo systemctl daemon-reload
+  missing=()
+  for u in "${ALL_UNITS[@]}"; do
+    [[ -n "$(systemctl list-unit-files "$u" --no-legend)" ]] || missing+=("$u")
+  done
+  if (( ${#missing[@]} )); then
+    echo "✗ 装完仍缺：${missing[*]}" >&2; exit 1
+  fi
+  drift=$(bash "$(dirname "${BASH_SOURCE[0]}")/verify-config-drift.sh" | grep -c '^DRIFT:' || true)
+  echo "installed ${#ALL_UNITS[@]} units from templates; verify-config-drift 报漂移 $drift 处"
+  echo "enable+start with: sudo systemctl enable --now geohot-brain geohot-api geohot-worker geohot-web geohot-workbuddy geohot-workbuddy-cn && sudo systemctl enable --now geohot-archive.timer"
+  exit 0
+fi
+echo "route=generated  GEOHOT_APP_ROOT=$APP_ROOT ≠ /opt/geohot/app，模板里的绝对路径不适用；"
+echo "                  下面生成的四个单元**不带加固块**，装完请手工补一份 systemd drop-in 或把仓库模板里的路径改掉。"
+
 # The editorial-brain stub. It is load-bearing here: config.ts:92 defaults MODEL_CALLS_ENABLED to true, so
 # a box without this process makes every analysis call against a dead 127.0.0.1:3055 and reports nothing.
 # bootstrap-server.sh step 5 writes that valve into .env explicitly; this unit is the other leg of the deal.
