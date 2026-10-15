@@ -1,0 +1,34 @@
+-- 给 `cron.content.sweep` 的后半段一条它能用的索引：它每次触发都全扫一遍才回答"没有要补的投影"。
+--
+-- 怎么发现的（2026-10-15 凌晨，生产实测，不是读代码读出来的）：读者面两次被打倒的时候，
+-- `pg_stat_activity` 里挂着一条 50 秒的活跃查询，正是 `packages/backend/src/jobs/content.ts:266-269`
+-- 这一条：
+--     SELECT a.id FROM articles a
+--      WHERE a.processing_state = 'analyzed' AND a.updated_at < now() - interval '10 minutes'
+--        AND NOT EXISTS (SELECT 1 FROM publications p WHERE p.article_id = a.id)
+--      ORDER BY a.discovered_at ASC LIMIT 500
+-- 计划是 `Parallel Index Scan Backward using articles_discovered_idx` + Filter（cost 24,462），
+-- 而**它在生产匹配 0 行**：`publications` 的投影由 `publishArticle` 与 sweep 自己写，实测
+-- `analyzed` 而无投影行的集合是空的（0060 之前也量过一次，同样是 0）。
+-- 也就是说这条查询的产出是"没有"，代价是把整条 `discovered_at` 索引倒着读一遍——
+-- `pg_stat_user_indexes` 上 `articles_discovered_idx` 的历史 `idx_tup_read` 已累计 139,786,630。
+--
+-- 为什么这台机器上这个代价会被放大成读者面故障：891 MB 内存在判定并发 + 档案批量入库下本来就把
+-- page cache 挤穿（当时 `vmstat` 是 `wa 96%`、`b 13`、swap si/so 652/1580，8 个后端卡在
+-- `LWLock/WALWrite`），于是一次"全扫只为说没有"的查询真读盘几十秒，把读者那条列表查询挤到
+-- `api.server.ts:43` 的 15 秒超时之外 ⇒ 503。**它不是唯一的因，但它是唯一一条能消掉的白读。**
+--
+-- 为什么是 partial index 而不是普通复合索引：谓词的等值边是 `processing_state = 'analyzed'`（34,650 行），
+-- 排序边是 `discovered_at`。partial 只装 analyzed 那一段，顺序又正好是 sweep 要的，planner 就不必
+-- 再用 `discovered_at` 全序索引去"扫了再滤"。`updated_at < now()-10min` 留在 Filter 上没关系——
+-- 它只在已经收窄到 analyzed 的那一段里过滤。`0057_live_attempt_time_index.sql` 用的是同一个形状。
+--
+-- 不改的东西：查询本身一个字不动。它的语义是对的（"分析过了但没投影 ⇒ 免费补一次"），
+-- 缺的只是让它能便宜地证明没有活要干。
+--
+-- 后果如果不管：每一次 sweep（`cron.content.sweep`，分钟级）都在慢盘上白读一大片，
+-- 而这条读量随 analyzed 行数线性增长——排空之后只会更贵，不会更便宜。
+--
+-- 回滚：DROP INDEX IF EXISTS articles_analyzed_discovered_idx;
+
+CREATE INDEX IF NOT EXISTS articles_analyzed_discovered_idx ON articles (discovered_at) WHERE processing_state = 'analyzed';

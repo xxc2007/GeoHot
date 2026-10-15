@@ -75,8 +75,21 @@ sudo journalctl -u geohot-web -n 3                                              
    而 geohot 没有登录 shell，于是 npm 把缓存写进操作者的家目录、构建时以 EACCES 收场。
    同一个道理，第 3/4/8/9 节所有以 geohot 身份跑 node/npm/git 的地方现在都走一个带 `env HOME=$APP_HOME`
    的前缀，`install-units.sh` 与 `systemd/*.service` 里的 `Environment=HOME=` 是它的运行期对应物。
-3. **单元**：`bash deploy/geohot/install-units.sh`（见该脚本注释里的三条修正）。它写的是线上实际在跑的那组最小单元；   `deploy/geohot/systemd/*.service` 是同一批单元加一层 `ProtectSystem=strict` 等加固的版本，
-   bootstrap-server.sh 第 10 节装的是后者——**一台机器只走一条路**，两者的 `APP_ROOT` 都来自 `GEOHOT_APP_ROOT`。
+3. **单元**：`bash deploy/geohot/install-units.sh`。**2026-10-15 起这是一条路，不是两条**：
+   默认路径（`GEOHOT_APP_ROOT=/opt/geohot/app`）下它直接安装 `deploy/geohot/systemd/` 里的 **8 个**模板
+   （brain/api/worker/web + 两条 workbuddy 桥 + archive 的 .service/.timer），带加固块
+   （`NoNewPrivileges`/`PrivateTmp`/`ProtectSystem=strict`/`ReadWritePaths`/`ProtectKernel*`…）；
+   只有当 `GEOHOT_APP_ROOT` 指向别处（模板里 `/opt/geohot/app` 是写死的，systemd 不做插值）才退回
+   脚本内联生成的那四个单元，并且会明说**退回的这一份不带加固块**。
+   为什么合并：以前两条路各自成立——照 `install-units.sh` 恢复的机器拿到的是**零沙箱**的四个单元，
+   照 bootstrap 第 10 节装的那台才有加固，而两台机器都自称"照仓库恢复成功"。这就是"通过 GitHub 也能随时迁移"
+   这句话里的洞，2026-10-15 在生产上量到（`verify-config-drift.sh` 第 1 节当场报出 api/brain/web/worker 四处
+   缺加固块，与工单 #194 第二条是同一件事）。同一天顺手发现并修掉一条更要命的：生产 CN 桥的单元里有
+   `Environment=WORKBUDDY_VARIANT=workbuddy` 与 `WORKBUDDY_BRIDGE_PORT=3066` 两行，仓库模板没有 ⇒
+   照仓库恢复的机器会用国际版变体去连中国版凭据、并和另一条抢 3065，那扇门静默死掉。
+   装完由 `deploy/geohot/verify-config-drift.sh` 逐单元比对（去注释后必须逐字节相等），它同时核对
+   `.env` 的**键名**是否都在 `.env.example` 里、单元引用的 EnvironmentFile 在不在仓库或已登记的机器侧清单、
+   以及 `ExecStart` 指向的代码入口是否存在；**它只打印键名与路径，永不打印值**。
    这一节以前只有三个 unit 文件（`geohot-brain.service` 是 2026-10-02 补的）：`install-units.sh` 一直会写它，
    而 `systemd/` 里没有，于是照模板装的那台机器上四个单元变成三个，`MODEL_CALLS_ENABLED` 的缺省又是
    `true`（`packages/backend/src/config.ts:92`），分析调用就全部打给一个没人听的 127.0.0.1:3055。

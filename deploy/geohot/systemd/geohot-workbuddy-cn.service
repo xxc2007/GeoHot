@@ -48,6 +48,14 @@ Environment=NODE_ENV=production
 Environment=AIHOT_ENVIRONMENT=production
 Environment=HOME=/opt/geohot
 Environment=TZ=Asia/Shanghai
+# 这两行是从生产 `/etc/systemd/system/geohot-workbuddy-cn.service` 回填进来的，不是新增配置：
+# 桥本身（`tooling/workbuddy-bridge.ts`）与 geohot-workbuddy.service 用的是同一份代码，靠
+# WORKBUDDY_VARIANT 切中国版账号、靠 WORKBUDDY_BRIDGE_PORT 听 3066（国际版那条听 3065）。
+# 仓库这一份以前两行都没有 ⇒ 照 `git clone` + install-units.sh 恢复出来的机器上，这条桥会以
+# **国际版变体**去连中国版凭据、并和另一条抢 3065，中国版那扇门直接死掉。线上一直在跑，因为
+# 单元文件当年是在机器上改的，从没回到仓库。
+Environment=WORKBUDDY_VARIANT=workbuddy
+Environment=WORKBUDDY_BRIDGE_PORT=3066
 MemoryMax=200M
 MemorySwapMax=600M
 ExecStart=/usr/bin/node tooling/workbuddy-bridge.ts
