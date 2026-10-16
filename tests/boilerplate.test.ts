@@ -262,3 +262,47 @@ test("the record-page rules do not eat a real sentence that happens to start the
   const fourTimes = "<p>Andebo Waza, Konrad Kandler, Franz Kanngießer, Julia Gottschall, Arne Leuzinger</p>".repeat(4);
   assert.equal((sanitizeBody(fourTimes, "https://essd.copernicus.org/").match(/Andebo Waza/g) ?? []).length, 1, "四份作者名单没收成一份");
 });
+
+// 第一百零四轮（2026-10-16）：德国之声的 feed 把视频写成**没有源的 <video>**。播放器放不出东西，浏览器就把它
+// 的兜底句当正文印出来，读者看到的是一段"请启用 JavaScript 并升级浏览器"。线上实测 172 条公开正文带着这句
+// （rss-dw-world-news 168 条、其中 24 条精选；NASA 三家 4 条），存好的中文译文里已经有 4 条把它一起翻了——
+// 那条德国之声的中文正文密度因此只有 0.27。判据只能问"这个播放器放不放得出东西"，不能问"这句话长什么样"：
+// 谈 JavaScript 的正文（下面第三条）必须原样留着。
+const DW_SHELL =
+  "<p>Vladimir Putin has spent a decade rebuilding the room where he heard lectures and saw videos.</p>" +
+  "<h2>Putin's foreign fighters</h2>" +
+  '<video><p>To view this video please enable JavaScript, and consider upgrading to a web browser that ' +
+  '<a href="https://videojs.com/html5-video-support/">supports HTML5 video</a></p></video>' +
+  "<h2>Sanctions failed</h2><p>The European Union underestimated the resilience of Russian industry.</p>";
+
+test("a player with nothing to play is not body text", () => {
+  const got = sanitizeBody(DW_SHELL, "https://www.dw.com/en/russias-economy/a-79001234");
+  assert.ok(!/enable JavaScript/i.test(got), `播放器兜底句还留给读者：\n${got}`);
+  assert.ok(!/videojs\.com/.test(got), got);
+  assert.ok(!/<video/.test(got), `放不出东西的壳还留在 HTML 里：\n${got}`);
+  assert.ok(got.includes("resilience of Russian industry") && got.includes("decade rebuilding"), `真正文被吃了：\n${got}`);
+  assert.ok(got.includes("<h2>Sanctions failed</h2>"), "小标题还得是小标题");
+});
+
+test("a player that can actually play stays, and so does the figure around it", () => {
+  // 「能播」按抽取器实际保留的属性判：2026-10-16 量过 231 条带 video 的公开正文，34 条把地址写在 src 上、
+  // 0 条写成 <video><source src>（那份清洗白名单也不带 source 子元素）。所以这条判据覆盖的就是线上真会
+  // 出现的那一种；换成 source 子元素的写法，清洗后本来就剩一个放不出东西的壳，删掉它不是丢内容。
+  for (const shell of [
+    '<video src="https://cdn.example.org/briefing.mp4"></video>',
+    '<video poster="https://cdn.example.org/teaser.jpg"><p>To view this video please enable JavaScript.</p></video>',
+  ]) {
+    const got = sanitizeBody(`<p>Before the clip.</p>${shell}<p>After the clip.</p>`, "https://www.dw.com/en/a/a-1");
+    assert.ok(got.includes("video"), `能播的播放器被删了：${shell}\n${got}`);
+    assert.ok(got.includes("Before the clip") && got.includes("After the clip"), got);
+  }
+});
+
+test("prose that merely mentions JavaScript survives", () => {
+  const prose =
+    "<p>Archaeologists found that the sentence 'to view this video please enable JavaScript' appears on a fifth of museum kiosks, " +
+    "and the museum decided to drop the media player entirely.</p>";
+  const got = sanitizeBody(prose, "https://www.npr.org/2026/10/16/kiosks");
+  assert.match(got, /enable JavaScript/, `按句子删的话，这段正文就没了：\n${got}`);
+});
+

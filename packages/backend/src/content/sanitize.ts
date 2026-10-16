@@ -109,6 +109,16 @@ export function dropRecordPageChrome(html: string): string {
       else keptFirst.add(text);
     }
   });
+  // A player with nothing to play. Germany's DW writes its feed videos as `<video>` with no source, and the
+  // browser's only output for that element is its fallback sentence — so the reader gets "To view this video
+  // please enable JavaScript…" as body text (172 stored bodies on 2026-10-16, 4 of them already translated
+  // into Chinese). The test is whether the element can play anything, never what the sentence says: prose
+  // about JavaScript must survive.
+  $("video").each((_, el) => {
+    const player = $(el);
+    if (player.attr("src") || player.attr("poster") || player.find("source[src]").length) return;
+    player.remove();
+  });
   return $.html();
 }
 
