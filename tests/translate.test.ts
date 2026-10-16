@@ -7,7 +7,7 @@ import { readFileSync } from "node:fs";
 import { after, before, test } from "node:test";
 import { closeDb, sql } from "@aihot/backend/db";
 import { upsertMaterial } from "@aihot/backend/content/materials";
-import { translatePending, translateWindowDays } from "@aihot/backend/editorial/translate";
+import { translateConcurrency, translatePending, translateWindowDays } from "@aihot/backend/editorial/translate";
 import { stopBoss } from "@aihot/backend/jobs/queue";
 import { publishArticle } from "@aihot/backend/publication/publish";
 import { buildApp } from "../apps/api/src/app.ts";
@@ -158,6 +158,14 @@ test("the translation window covers the backlog it exists to clear, and a bad en
   assert.equal(translateWindowDays("7.9"), 7, "小数向下取整");
   assert.equal(translateWindowDays("7"), 7, "要省钱可以收紧");
   assert.equal(translateWindowDays("3"), 3, "旧值仍可表达");
+  // 并发只解决"一轮能开几篇"，钳位是为 240 MB 的 worker 留的硬顶。
+  assert.equal(translateConcurrency(undefined), 3, "默认 3 路");
+  assert.equal(translateConcurrency(""), 3);
+  assert.equal(translateConcurrency("abc"), 3);
+  assert.equal(translateConcurrency("0"), 3, "0 会退化成不翻，按默认处理");
+  assert.equal(translateConcurrency("-2"), 3);
+  assert.equal(translateConcurrency("2"), 2);
+  assert.equal(translateConcurrency("99"), 6, "超过 6 一律压到 6");
   // 上面那些只证明了这个函数本身；真正咬人的是"待翻查询有没有走它"。这一段读的是源码文本，理由与
   // admin-source-policy.test.ts 相同：这是不建夹具、不抢共享库里那些未来时间锚点，就能抓住"有人把
   // SQL 改回写死 3 天"的唯一一层。

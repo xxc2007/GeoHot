@@ -324,6 +324,12 @@ export function translateWindowDays(raw: string | undefined = process.env.GEOHOT
 
 const TRANSLATE_WINDOW_DAYS = translateWindowDays();
 
+/** 同时翻几篇（1–6，默认 3）。0 / 负数 / 非数字退回默认，超过 6 一律压到 6：worker 只有 240 MB。 */
+export function translateConcurrency(raw: string | undefined = process.env.GEOHOT_TRANSLATE_CONCURRENCY, dflt = 3): number {
+  const n = Math.floor(Number(raw));
+  return Number.isFinite(n) && n >= 1 ? Math.min(6, n) : dflt;
+}
+
 /**
  * Every few minutes: selected full-text items discovered or revised within TRANSLATE_WINDOW_DAYS that
  * lack a translation of their current revision, then the posts selected X posts quote. Stops after a time
@@ -344,37 +350,48 @@ export async function translatePending(opts: { limit?: number; budgetMs?: number
                       AND (t.outcome IN ('skipped', 'translated', 'partial') OR t.attempts >= 3))
     ORDER BY p.discovered_at DESC LIMIT ${opts.limit ?? 30}`;
   const done: TranslateResult[] = [];
-  for (const r of rows) {
-    if (Date.now() - started > (opts.budgetMs ?? 4 * 60_000) || shutdownSignal.signal.aborted) break;
-    let outcome: "translated" | "partial" | "skipped" | "failed";
-    let reason: string | null = null;
-    // The attempt is recorded against the revision actually read: when the text was revised while the
-    // model was answering, the new revision still has no attempt and is translated on the next run.
-    let revision: number | null = null;
-    try {
-      const result = await translateArticle(r.article_id);
-      done.push(result);
-      outcome = result.status;
-      reason = result.reason ?? null;
-      revision = result.revision ?? null;
-    } catch (error) {
-      // A deploy stops between paid fragments, never aborts a sent request. Received answers stay
-      // in receipts and are reused next run; do not mark an interrupted article terminal/partial.
-      if (error instanceof TranslationInterruptedError) break;
-      const message = (error as Error).message;
-      // Switched-off model calls or an exhausted budget: stop this run without counting an attempt.
-      if (/disabled|not configured|budget/i.test(message)) break;
-      done.push({ articleId: r.article_id, status: "skipped", reason: message.slice(0, 200) });
-      outcome = "failed";
-      reason = message.slice(0, 300);
+  // 逐条 await 时这一腿的吞吐由对端墙钟决定（2026-10-16 实测一次 translate_body 调用平均 130 秒
+  // ⇒ 一轮 4 分钟只吃得下 1–2 篇，3,123 篇待翻要 6–11 天）。并发的不是"同一篇的分段"而是"篇与篇"，
+  // 每篇内部仍是一次一批、批内不并行，所以每条在飞的请求仍各自走闸门与回执；正文平均只有 3–5k 字
+  // （>20,000 字的只有 113 条），多开几路多花的是个位数 MB，上限 6 是留给 240 MB worker 的硬顶。
+  const conc = translateConcurrency();
+  let stop = false;
+  let next = 0;
+  async function lane() {
+    while (!stop && next < rows.length) {
+      if (Date.now() - started > (opts.budgetMs ?? 4 * 60_000) || shutdownSignal.signal.aborted) { stop = true; return; }
+      const r = rows[next++]!;
+      let outcome: "translated" | "partial" | "skipped" | "failed";
+      let reason: string | null = null;
+      // The attempt is recorded against the revision actually read: when the text was revised while the
+      // model was answering, the new revision still has no attempt and is translated on the next run.
+      let revision: number | null = null;
+      try {
+        const result = await translateArticle(r.article_id);
+        done.push(result);
+        outcome = result.status;
+        reason = result.reason ?? null;
+        revision = result.revision ?? null;
+      } catch (error) {
+        // A deploy stops between paid fragments, never aborts a sent request. Received answers stay
+        // in receipts and are reused next run; do not mark an interrupted article terminal/partial.
+        if (error instanceof TranslationInterruptedError) { stop = true; return; }
+        const message = (error as Error).message;
+        // Switched-off model calls or an exhausted budget: stop this run without counting an attempt.
+        if (/disabled|not configured|budget/i.test(message)) { stop = true; return; }
+        done.push({ articleId: r.article_id, status: "skipped", reason: message.slice(0, 200) });
+        outcome = "failed";
+        reason = message.slice(0, 300);
+      }
+      await sql`
+        INSERT INTO translation_attempts (article_id, revision, attempts, outcome, reason)
+        SELECT ${r.article_id}, coalesce(${revision}::int, a.revision), 1, ${outcome}, ${reason} FROM articles a WHERE a.id = ${r.article_id}
+        ON CONFLICT (article_id) DO UPDATE SET
+          attempts = CASE WHEN translation_attempts.revision = EXCLUDED.revision THEN translation_attempts.attempts + 1 ELSE 1 END,
+          revision = EXCLUDED.revision, outcome = EXCLUDED.outcome, reason = EXCLUDED.reason, updated_at = now()`;
     }
-    await sql`
-      INSERT INTO translation_attempts (article_id, revision, attempts, outcome, reason)
-      SELECT ${r.article_id}, coalesce(${revision}::int, a.revision), 1, ${outcome}, ${reason} FROM articles a WHERE a.id = ${r.article_id}
-      ON CONFLICT (article_id) DO UPDATE SET
-        attempts = CASE WHEN translation_attempts.revision = EXCLUDED.revision THEN translation_attempts.attempts + 1 ELSE 1 END,
-        revision = EXCLUDED.revision, outcome = EXCLUDED.outcome, reason = EXCLUDED.reason, updated_at = now()`;
   }
+  await Promise.all(Array.from({ length: Math.min(conc, rows.length) }, () => lane()));
   const budgetMs = opts.budgetMs ?? 4 * 60_000;
   let quotes = 0;
   const left = budgetMs - (Date.now() - started);
