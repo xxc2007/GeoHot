@@ -40,7 +40,7 @@ for p in /geohot/ /geohot/all.data /geohot/daily.data /geohot/weekly.data; do
     000) detail="$detail $p=unreachable" ;;
   esac
   if awk -v m="$ms" -v t="$SLOW_MS" 'BEGIN{exit !(m>=t)}'; then slow=$((slow+1)); detail="$detail $p=${ms}ms"; fi
-  if awk -v m="$ms" -v t="$FLOOR_MS" 'BEGIN{exit !(m>=t)}'; then floored=1; detail="$detail $p>${t}ms-floor"; fi
+  if awk -v m="$ms" -v t="$FLOOR_MS" 'BEGIN{exit !(m>=t)}'; then floored=1; detail="$detail $p>${FLOOR_MS}ms-floor"; fi
 done
 avail=$(awk '/MemAvailable/{print int($2/1024)}' /proc/meminfo)
 swap=$(awk '/SwapTotal/{t=$2} /SwapFree/{f=$2} END{print int((t-f)/1024)}' /proc/meminfo)

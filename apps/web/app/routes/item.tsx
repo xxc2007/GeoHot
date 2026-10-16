@@ -163,7 +163,17 @@ export default function ItemPage() {
   };
 
   const bodyHtml = lang === "zh" ? (item.body?.zh ?? item.body?.original) : (item.body?.original ?? item.body?.zh);
-  const bodyLabel = !item.body ? null : lang === "zh" && item.body.zhKind === "translation" ? "正文 · AI 翻译" : lang === "original" && hasTranslation ? "正文 · 原文" : "正文";
+  // `zhKind === null` is a foreign article with no Chinese draft yet: the block below is the original text,
+  // so it must not be labelled the plain 「正文」 a Chinese article gets. AIHOT's own wording is 正文 · 原文.
+  const bodyLabel = !item.body ? null : item.body.zhKind === null ? "正文 · 原文"
+    : lang === "zh" && item.body.zhKind === "translation" ? "正文 · AI 翻译" : lang === "original" && hasTranslation ? "正文 · 原文" : "正文";
+  // 长文只贴前段时页面上必须说清贴了多少；数字在这里算，JSX 里只负责排版。
+  const truncatedNotice = item.body?.truncated
+    ? {
+      totalWan: (Math.round((item.body.totalChars ?? 0) / 1000) / 10).toFixed(1),
+      shownWan: (Math.round((item.body.shownChars ?? 0) / 1000) / 10).toFixed(1),
+    }
+    : null;
   const isX = item.channel === "x" && !!item.x;
   const publishedIso = item.publishedAt ?? item.discoveredAt;
   const summaryOnly = item.readingMode === "summary-only";
@@ -467,6 +477,13 @@ export default function ItemPage() {
               </div>
               {hasTranslation && lang === "zh" && !item.body.complete && (
                 <p className="mb-5 rounded-control bg-bg-sunk px-3 py-2 text-[13px] text-ink-3">译文尚不完整，完整内容请切换到原文。</p>
+              )}
+              {/* 长文只贴前段时必须说清楚贴了多少：一篇期刊全文可以有几十万字，页面在半句话处停住
+                  而不留一句解释，读者只能以为是站点坏了。 */}
+              {truncatedNotice && (
+                <p className="mb-5 rounded-control bg-bg-sunk px-3 py-2 text-[13px] text-ink-3">
+                  这篇原文很长（约 {truncatedNotice.totalWan} 万字），站内只贴前 {truncatedNotice.shownWan} 万字，后面的部分请打开原文阅读。
+                </p>
               )}
               {/* 目录树只挂在左右侧栏（Page.tsx 的两道 aside 都是 hidden lg:block），工具栏那个按钮又要水合
                   之后才按得动。没有脚本时按钮是死的——root.tsx 的 <noscript> 已经全站说过一次哪些控件用不了，

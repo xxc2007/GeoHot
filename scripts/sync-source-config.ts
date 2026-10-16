@@ -1,14 +1,18 @@
-// 把信源包里已经改过的 config / tier / interval / defaultCategory 推到库里去。
+// 把信源包里已经改过的 config / tier / interval / defaultCategory / site_fulltext 推到库里去。
 //
 // 为什么需要它：`scripts/seed.ts` 是 `ON CONFLICT (id) DO NOTHING`——**只增不改**，那是有意的
 // （后台里人工改过的东西不能被一次 seed 抹掉）。后果是包里的 config 改了、生产库不会跟着变：
 // 2026-10-08 这一轮就是——PNAS 的噪声词与九个目录源的抓取节奏改完上线，库里还是旧的那份，
-// 于是"改好了"其实只是"改在文件里"。
+// 于是"改好了"其实只是"改在文件里"。`site_fulltext` 走的是同一条路：2026-10-16 把 260 道
+// "feed 自己就把全文交给我们"的门开成 `true`（条目页要有正文、英文要有中文译文），
+// 没有本脚本的话那句"开了"就只写在 JSON 里，读者面一点不会变。
 //
 // 默认 DRY-RUN，只打印将要改什么；真要写必须同时给 --apply 和 --database-url，而且那个地址
 // 必须与进程环境里的 DATABASE_URL 指向同一个 主机:端口/库名（backend 的池只读环境变量，
 // 参数本身不决定连哪儿——它是"核对"，不是"连接"）。
 // 本脚本**不碰 enabled**：开停信源是 scripts/set-source-state.ts 的职责，两件事各自可审计。
+// 也**不碰 syndicate_fulltext**（把全文再分发进我们自己的 RSS/API 是比"站内展示"更重的一步，
+// 要单独拍）——这里只推 site_fulltext：站内条目页要不要给正文。
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { REPO_ROOT } from "@aihot/backend/config";
@@ -59,6 +63,7 @@ interface PackSource {
   tier?: string;
   interval_minutes?: number;
   defaultCategory?: string;
+  site_fulltext?: boolean;
 }
 
 /**
@@ -77,8 +82,8 @@ function canonical(value: unknown): string {
 const pack: PackSource[] = JSON.parse(readFileSync(path.join(REPO_ROOT, "industry/sources.json"), "utf8")).sources;
 const wanted = new Map(pack.filter((s) => s.kind !== "external").map((s) => [s.id, s]));
 
-const rows = await sql<{ id: string; kind: string; config: Record<string, unknown>; tier: string; interval_minutes: number; default_category: string | null }[]>`
-  SELECT id, kind, config, tier, interval_minutes, default_category FROM sources`;
+const rows = await sql<{ id: string; kind: string; config: Record<string, unknown>; tier: string; interval_minutes: number; default_category: string | null; site_fulltext: boolean }[]>`
+  SELECT id, kind, config, tier, interval_minutes, default_category, site_fulltext FROM sources`;
 const byId = new Map(rows.map((r) => [r.id, r]));
 
 let changed = 0;
@@ -108,12 +113,17 @@ for (const [id, s] of wanted) {
   // 只有当包声明 intervalMinutesLocked 时才把库里的数拨回去，否则等于覆盖调度器的判断。
   const locked = (s.config._aihot as { intervalMinutesLocked?: boolean } | undefined)?.intervalMinutesLocked === true;
   if (locked && row.interval_minutes !== s.interval_minutes) diff.push(`interval ${row.interval_minutes} → ${s.interval_minutes}（locked）`);
+  // site_fulltext 只推"关 → 开"，**不推"开 → 关"**：包里写 false 只说明"这一轮没替它取证"，
+  // 而库里是 true 可能是站长在后台里看过这家站点之后手工开的——一次全量同步不该替那种判断做决定。
+  // 要关一道门，去后台改（或 --ids 点名后手工 UPDATE），这条不对称与 default_category 是同一条理由。
+  if (s.site_fulltext === true && row.site_fulltext !== true) diff.push(`site_fulltext ${row.site_fulltext} → true`);
   if (diff.length === 0) continue;
   changed++;
   console.log(`${options.apply ? "写入" : "将改"} ${id}: ${diff.join(", ")}`);
   if (options.apply) {
     await sql`UPDATE sources SET config = ${sql.json(s.config as never)}, tier = ${s.tier ?? "T2"},
                  default_category = ${s.defaultCategory ?? row.default_category},
+                 site_fulltext = ${row.site_fulltext || s.site_fulltext === true},
                  interval_minutes = ${locked ? (s.interval_minutes ?? row.interval_minutes) : row.interval_minutes},
                  updated_at = now()
                WHERE id = ${id}`;

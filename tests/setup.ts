@@ -135,6 +135,11 @@ export async function purgeTagged(...tags: string[]): Promise<void> {
  */
 export async function purgeOrphanJobs(): Promise<void> {
   const { sql } = await import("@aihot/backend/db");
+  // pg-boss 的 schema 是 worker 第一次启动时才建的，所以一个只跑过 migrations 的库里根本没有 pgboss.job：
+  // 那属于"还没有我们自己的排队行"的状态，无话可扫。在这里抛错会把文档里那条"对全新迁移库跑测试"的路
+  // 直接打死（2026-10-16 在 geohot_fulltext_ci 上实测：relation "pgboss.job" does not exist）。
+  const [exists] = await sql<{ present: boolean }[]>`SELECT to_regclass('pgboss.job') IS NOT NULL AS present`;
+  if (!exists?.present) return;
   await sql`
     DELETE FROM "pgboss"."job" j
      WHERE j.state = 'created'

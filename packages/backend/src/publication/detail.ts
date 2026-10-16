@@ -1,5 +1,7 @@
 // Item detail and Markdown export, both behind the same visibility and licence rules.
 import type { ItemDetail, SiteItemDetail, OutlineEntry, StoryRef } from "@aihot/contracts/site";
+import * as cheerio from "cheerio";
+import type { AnyNode, Element } from "domhandler";
 import TurndownService from "turndown";
 import { sql } from "../db.ts";
 import { proxyBodyImages } from "../media/imgproxy.ts";
@@ -24,9 +26,57 @@ export type DetailResult =
   | { kind: "found"; detail: ItemDetail; row: DetailRow }
   | { kind: "not_found" };
 
+/**
+ * 一篇正文最多给读者渲染这么多字的可见文本。上限是被实测逼出来的：2026-10-16 打开 260 道
+ * "feed 自带全文"的门之后，会翻成 full 的 15,751 条里有 223 条正文超过 60,000 字（最长的一条
+ * 412,027 字是一整篇 SWP 长篇报告）——那种页面在这台 891 MB 的机器上既渲染得慢，也不是读者要的。
+ * 切在块边界上，切不到就明说（`truncated`），绝不静默把结尾抹掉。
+ */
+export const BODY_CAP_CHARS = 20_000;
+
+/** Child tags that make an element a container rather than a leaf block. */
+const BLOCK = /^(p|h[2-5]|li|blockquote|figcaption|td|th|dt|dd|caption|ul|ol|table|div)$/;
+
+/** Cut a body at block boundaries once its visible text passes the cap; says whether it cut. */
+export function capBody(html: string, maxChars = BODY_CAP_CHARS): { html: string; shown: number; total: number; truncated: boolean } {
+  const $ = cheerio.load(html, null, false);
+  const total = $.root().text().length;
+  if (total <= maxChars) return { html, shown: total, total, truncated: false };
+  // 按文档顺序累加"叶子块"（里面没有别的块的那一段），越过上限就把它和它之后的全部丢掉：
+  // 这样切出来的结尾永远落在一个完整段落之后，不会留下半个标签或半句话。
+  const leaves: { el: AnyNode; len: number }[] = [];
+  const walk = (nodes: AnyNode[]) => {
+    for (const node of nodes) {
+      if (node.type !== "tag") { if (node.type === "text" && leaves.length) leaves[leaves.length - 1]!.len += (node.data ?? "").length; continue; }
+      const el = node as Element;
+      const hasBlockChild = el.children.some((c) => c.type === "tag" && BLOCK.test((c as Element).name));
+      if (!hasBlockChild) { leaves.push({ el, len: $(el).text().length }); continue; }
+      walk(el.children);
+    }
+  };
+  walk($.root().children().toArray());
+  // 切点之后一块都不留：逐块问"这块还塞得下吗"会让切点后面那些小编块（标题、图注）重新
+  // 溜回上限之内，拼出一段没有上文的孤零零小标题——读者看到的就是缝合怪。
+  let used = 0;
+  let cutAt = -1;
+  for (let i = 0; i < leaves.length; i++) {
+    const leaf = leaves[i]!;
+    if (used + leaf.len > maxChars && used > 0) { cutAt = i; break; }
+    used += leaf.len;
+  }
+  if (cutAt < 0 || used > maxChars) {
+    // 块边界帮不上忙：要么全文只有一个叶子块（一个 <p> 装 40 万字），要么第一块本身就超了。
+    // 退到按 HTML 字符数硬切，切在最后一个 '>' 之前，保证不吐出一个断标签。
+    const rough = html.slice(0, maxChars * 1.2);
+    const at = rough.lastIndexOf(">");
+    return { html: at > 0 ? rough.slice(0, at + 1) : rough, shown: maxChars, total, truncated: true };
+  }
+  for (const leaf of leaves.slice(cutAt)) $(leaf.el).remove();
+  return { html: $.html(), shown: used, total, truncated: true };
+}
+
 /** Adds stable ids to h2–h4 and returns the outline. */
-function withOutline(html: string): { html: string; outline: OutlineEntry[] } {
-  const outline: OutlineEntry[] = [];
+function withOutline(html: string): { html: string; outline: OutlineEntry[] } {  const outline: OutlineEntry[] = [];
   let n = 0;
   const out = html.replace(/<h([2-4])(?: id="sec-\d+")?>([\s\S]*?)<\/h\1>/gi, (_m, level: string, inner: string) => {
     n += 1;
@@ -113,17 +163,25 @@ export async function loadItemDetail(id: string, now = new Date()): Promise<Deta
       zhKind: summary.x?.translation ? "translation" : null,
       complete: true,
     };
-  } else if (row.body_mode === "full" && row.body_html) {
+  } else if (row.body_mode === "full" && (row.body_html || row.body_text)) {
     const isZh = bodyIsChinese(row.language, row.body_text ?? "");
-    const original = proxyBodyImages(row.body_html);
+    // 采集器常常只交回纯文本（RSS 的 description 之外没有 html）：这一类正文也得给读者看，
+    // 否则投影说是 full、页面却什么也不渲染——读者看到的是"有正文这条不存在"。
+    const original = proxyBodyImages(row.body_html ?? (row.body_text ? textToHtml(row.body_text) : ""));
     const zh = isZh ? original : row.tr_html ? proxyBodyImages(row.tr_html) : null;
-    const primary = withOutline(zh ?? original);
+    // 先按上限切块、再打目录锚点：锚点只能描述读者真看到的那一段，否则「本文目录」会链向页面上没有的标题。
+    const shown = capBody(zh ?? original);
+    const primary = withOutline(shown.html);
+    const cappedOriginal = zh && !isZh ? capBody(original) : null;
     outline = primary.outline;
     body = {
       zh: zh ? primary.html : null,
-      original: zh && !isZh ? withOutline(original).html : isZh ? null : primary.html,
+      original: cappedOriginal ? withOutline(cappedOriginal.html).html : isZh ? null : primary.html,
       zhKind: isZh ? "original" : zh ? "translation" : null,
       complete: isZh ? true : row.tr_complete ?? false,
+      truncated: shown.truncated,
+      shownChars: shown.shown,
+      totalChars: shown.total,
     };
   }
 

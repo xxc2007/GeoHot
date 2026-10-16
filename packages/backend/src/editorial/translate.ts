@@ -180,8 +180,12 @@ export async function translateArticle(articleId: string): Promise<TranslateResu
     return result({ status: "translated", segments: 1 });
   }
 
-  if (!row.body_html || bodyIsChinese(row.language, row.body_text ?? "")) return result({ status: "skipped", reason: "no foreign-language body" });
-  const $ = cheerio.load(row.body_html, null, false);
+  // 只给纯文本正文的采集器不少（RSS 常常只有 text）：没有 html 就把 text 当正文翻。这一腿原来会在
+  // `!row.body_html` 处直接 skip，而 skipped 是终态（translatePending 用它排除条目），于是这一类条目
+  // 永远不会有中文译文——正是读者要的「英文版还要有中文版」那一条。
+  const bodyHtml = row.body_html ?? (row.body_text ? textToHtml(row.body_text) : "");
+  if (!bodyHtml || bodyIsChinese(row.language, row.body_text ?? "")) return result({ status: "skipped", reason: "no foreign-language body" });
+  const $ = cheerio.load(bodyHtml, null, false);
   const blocks = segmentsOf($);
   if (!blocks.length) return result({ status: "skipped", reason: "no translatable text" });
   // Beyond the cap, only the leading blocks are translated; the rest keep the original text.
