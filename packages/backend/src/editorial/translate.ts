@@ -310,8 +310,23 @@ export async function translateQuotes(opts: { days?: number; limit?: number; bud
 }
 
 /**
- * Every few minutes: selected full-text items discovered or revised in the last three days that lack a
- * translation of their current revision, then the posts selected X posts quote. Stops after a time
+ * 翻译腿只看这个窗口内的条目。3 天是站内还没有全文时的旧值——那时待翻的只有几条，宽窄无所谓。
+ * 2026-10-16 打开 260 道"feed 自带全文"的门之后，精选外文条目一下变成 3,147 条，而这一腿是**单条串行**
+ * （一个 for 循环 + 每次跑 ≤30 条 / 4 分钟预算），实测 ≈36 条/时。3 天窗口于是等于：3–7 天档 1,786 条、
+ * 7–30 天档 217 条**永远是 0 条译文**（当天实测），读者点开就只看到原文。窗口调成与重投影同一口径，
+ * 旧的条目按"从新到旧"随队列自己消化；要收紧就改 GEOHOT_TRANSLATE_WINDOW_DAYS。
+ */
+/** 窗口天数：环境变量给就用，给的是垃圾就用默认值，最小 1 天（0 或负数会把这一腿整个关死）。 */
+export function translateWindowDays(raw: string | undefined = process.env.GEOHOT_TRANSLATE_WINDOW_DAYS, dflt = 30): number {
+  const n = Math.floor(Number(raw));
+  return Number.isFinite(n) && n >= 1 ? n : dflt;
+}
+
+const TRANSLATE_WINDOW_DAYS = translateWindowDays();
+
+/**
+ * Every few minutes: selected full-text items discovered or revised within TRANSLATE_WINDOW_DAYS that
+ * lack a translation of their current revision, then the posts selected X posts quote. Stops after a time
  * budget. A translation of an older revision is not shown (items.ts), so a revised item is translated
  * again whatever its age.
  */
@@ -321,9 +336,9 @@ export async function translatePending(opts: { limit?: number; budgetMs?: number
     SELECT p.article_id FROM publications p JOIN articles a ON a.id = p.article_id
     LEFT JOIN translations tr ON tr.article_id = p.article_id AND tr.lang = 'zh'
     WHERE p.selected AND p.visibility = 'public' AND p.body_mode = 'full' AND coalesce(a.language, '') <> 'zh'
-      AND (p.discovered_at > now() - interval '3 days'
+      AND (p.discovered_at > now() - ${TRANSLATE_WINDOW_DAYS} * interval '1 day'
            OR EXISTS (SELECT 1 FROM article_revisions r WHERE r.article_id = a.id AND r.revision = a.revision AND r.revision > 1
-                      AND r.created_at > now() - interval '3 days'))
+                      AND r.created_at > now() - ${TRANSLATE_WINDOW_DAYS} * interval '1 day'))
       AND (tr.article_id IS NULL OR (tr.origin <> 'source' AND tr.revision < a.revision))
       AND NOT EXISTS (SELECT 1 FROM translation_attempts t WHERE t.article_id = p.article_id AND t.revision = a.revision
                       AND (t.outcome IN ('skipped', 'translated', 'partial') OR t.attempts >= 3))

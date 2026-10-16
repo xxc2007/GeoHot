@@ -3,10 +3,11 @@
 // Links and images inside a paragraph survive the model, and the post an X item quotes is translated.
 import { gate, purgeTagged, stub, tag, within } from "./setup.ts";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { after, before, test } from "node:test";
 import { closeDb, sql } from "@aihot/backend/db";
 import { upsertMaterial } from "@aihot/backend/content/materials";
-import { translatePending } from "@aihot/backend/editorial/translate";
+import { translatePending, translateWindowDays } from "@aihot/backend/editorial/translate";
 import { stopBoss } from "@aihot/backend/jobs/queue";
 import { publishArticle } from "@aihot/backend/publication/publish";
 import { buildApp } from "../apps/api/src/app.ts";
@@ -142,4 +143,27 @@ test("the post a selected X post quotes is translated once and shown with the it
   await translatePending({ limit: 1 });
   const receipts = await sql`SELECT 1 FROM receipts WHERE purpose = 'translate_quoted' AND subject = ${`quote:${tweetId}`}`;
   assert.equal(receipts.length, 1, "translated once");
+});
+
+// 窗口决定"英文版还能不能拿到中文版"。2026-10-16 打开 260 道全文门后实测：精选外文条目里 3–7 天档
+// 1,786 条、7–30 天档 217 条**一条译文都没有**——不是翻译失败，是待翻查询按 3 天窗口挑活，而这一腿
+// 单条串行 ≈36 条/时，3 天窗口永远追不上存量。默认值于是跟着重投影的口径走（30 天），并且乱填的环境
+// 变量不许把这一腿整个关掉（NaN / 0 / 负数都退回默认）。
+test("the translation window covers the backlog it exists to clear, and a bad env value cannot shut it off", () => {
+  assert.equal(translateWindowDays(undefined), 30, "默认 30 天，与 scripts/republish-fulltext.ts 同一口径");
+  assert.equal(translateWindowDays(""), 30);
+  assert.equal(translateWindowDays("abc"), 30, "垃圾值不许变成 NaN 把窗口筛成空集");
+  assert.equal(translateWindowDays("0"), 30, "0 天等于关掉这一腿");
+  assert.equal(translateWindowDays("-5"), 30, "负数同理");
+  assert.equal(translateWindowDays("7.9"), 7, "小数向下取整");
+  assert.equal(translateWindowDays("7"), 7, "要省钱可以收紧");
+  assert.equal(translateWindowDays("3"), 3, "旧值仍可表达");
+  // 上面那些只证明了这个函数本身；真正咬人的是"待翻查询有没有走它"。这一段读的是源码文本，理由与
+  // admin-source-policy.test.ts 相同：这是不建夹具、不抢共享库里那些未来时间锚点，就能抓住"有人把
+  // SQL 改回写死 3 天"的唯一一层。
+  const src = readFileSync(new URL("../packages/backend/src/editorial/translate.ts", import.meta.url), "utf8");
+  const pending = /FROM publications p JOIN articles a[\s\S]*?LIMIT \$\{opts\.limit/.exec(src)?.[0] ?? "";
+  assert.ok(pending, "translatePending 的待翻查询还是那个形状（改了形状就同步改这条断言）");
+  assert.match(pending, /now\(\) - \$\{TRANSLATE_WINDOW_DAYS\} \* interval '1 day'/, "窗口必须走那个变量");
+  assert.equal(/interval '\d+ days'/.test(pending), false, "查询里不许再出现写死的天数窗口（`${窗口} * interval '1 day'` 那种写法不算）");
 });
