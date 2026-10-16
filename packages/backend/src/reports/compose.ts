@@ -186,8 +186,6 @@ function entriesIdentity(entries: ReportEntry[]): TranslateInput {
 
 /** A period issue's prose, judged the same way: an empty theme list is an answer the composer can act on. */
 function unusablePeriod(d: { overview: string; themes: Array<{ heading: string; summary: string }> }): string | null {
-  // 长度这一头不设闸（试过 80 字：被测里一条正常的 38 字总述当场被拒，而"饿死"的那条是 35 字——
-  // 两个数分不开，能分开的只有"链有没有把可见预算吃掉"，那是下面 maxTokens 的事）。
   return !looksZh(d.overview) || !d.themes.every((t) => looksZh(t.heading) && looksZh(t.summary)) ? "总述或主题不是可用的中文" : null;
 }
 
@@ -408,11 +406,7 @@ async function composePeriod(kind: "weekly" | "monthly", key: string, startDate:
   if (top.length) {
     const res = await chatJson({
       model, purpose: `report_${kind}`, subject: `report:${kind}:${key}`, promptVersion: REPORT_VERSION,
-      ...periodPrompt(kind, startDate, endDateInclusive, top), schema: PeriodSchema, temperature: 0.3,
-      // 可见预算 2,500 在链长的马上不够用（2026-10-16 实测三张收据里两张 `finish_reason: length`：
-      // dots 8,500、workbuddy-cn/step-5 6,500 全部撞顶 ⇒ "No JSON" ⇒ 这一期落到机械分节，读者看不到概览）。
-      // 提到 4,500：加上门的余量后总上限 ~10,500，按这条模型最慢一档 6.7 ms/token 是 70 s，仍在 240 s 钟内。
-      maxTokens: 4500,
+      ...periodPrompt(kind, startDate, endDateInclusive, top), schema: PeriodSchema, temperature: 0.3, maxTokens: 2500,
       usable: unusablePeriod,
     // Same rule as the daily's 导语: an answer with no JSON in it declines the sentence, it does not
     // un-publish the week. The edition falls back to its own sections (`sectionsOf` below), and because
