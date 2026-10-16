@@ -9,7 +9,7 @@ import { test } from "node:test";
 import { isBoilerplateBody, stripBoilerplate, stripTruncatedShellTail } from "@aihot/backend/lib/text";
 import { cleanArticleTextForLLM, finalizeCopy, type TranslateInput } from "@aihot/backend/editorial/writing";
 import { readable } from "@aihot/backend/content/extract";
-import { sanitizeBody, stripChromeHtml } from "@aihot/backend/content/sanitize";
+import { chromeMarks, dropRecordPageChrome, sanitizeBody, stripChromeHtml } from "@aihot/backend/content/sanitize";
 
 const FOOTER =
   "国家气象中心 版权所有 Copyright©2009-2026 本站所刊登的信息、数据和各种专栏材料，未经授权禁止下载使用 制作维护：国家气象中心预报系统开放实验室 地址：北京市中关村南大街46号 邮编：100081";
@@ -388,4 +388,89 @@ test("the figure left empty by a removed player goes too", () => {
   assert.ok(!/<video/.test(got), got);
   assert.ok(!/<figure>\s*<\/figure>/.test(got), `删壳后留下一个空图框：\n${got}`);
   assert.ok(got.includes("Historic 2026 El Niño") && got.includes("three ocean data products"), got);
+});
+
+// ── 第一百零五轮·评审波（独立评审智能体在 20:13 交回的两条 BLOCKER + 四条 MAJOR，逐条自己复现过）──
+// 我上一轮加的"任意深度删兜底句"把整块删掉了：`collapse(block.text())` 数得到图注的字，数不到 <img>，
+// 于是"图 + 兜底句图注"这种 figure 被连图一起删。评审给的输入我自己跑过，输出确实只剩 <p>Real prose.</p>。
+test("a figure keeps its chart when its caption is the player's fallback sentence", () => {
+  const withExtra =
+    '<figure><img src="https://x/chart.jpg" alt="El Nino map">' +
+    "<figcaption>To view this image please enable JavaScript, the chart below shows El Nino</figcaption></figure>" +
+    "<p>Real prose.</p>";
+  // 守卫真正咬人的形状：图注**正好是**那句模板——没有守卫时整块（连图）被删。
+  const exact =
+    '<figure><img src="https://x/second.jpg" alt="Sea ice map">' +
+    "<figcaption>To view this image please enable JavaScript.</figcaption></figure>" +
+    "<p>Sea ice fell to a record low.</p>";
+  for (const html of [withExtra, exact]) {
+    const got = dropRecordPageChrome(html);
+    assert.ok(/chart\.jpg|second\.jpg/.test(got), `图被兜底句连坐了：\n${html}\n→ ${got}`);
+    assert.match(got, /Real prose|record low/, got);
+  }
+});
+
+// 同一个形状的另一半：兜底句那一段里挂着图或挂着指向 .mp4 的链接。tests 里第 312 行给 <video> 钉过这条
+// 保护，句子版没钉——而句子版才是这轮新加的。
+test("a block that carries media or the link to the file is never dropped with the sentence", () => {
+  const withImg = '<p>To view this video please enable JavaScript <img src="https://x/map.png" alt="map"></p><p>Real prose.</p>';
+  const withLink =
+    '<p>To view this video please enable JavaScript or <a href="https://x/clip.mp4">download the clip</a></p><p>Real prose.</p>';
+  for (const html of [withImg, withLink]) {
+    const got = dropRecordPageChrome(html);
+    assert.ok(/map\.png|clip\.mp4/.test(got), `唯一的媒体入口被删了：${html}\n${got}`);
+    assert.ok(got.includes("Real prose"), got);
+  }
+});
+
+// MAJOR：注释写的是"整段就是这句话"，可正则只有 ^ 没有 $——以这句开头的真散文一样被删。
+// 这条同时钉根级与嵌套两种位置（第 301 行那条用例的句子不在段首，所以当时没红）。
+test("prose that merely begins with the fallback sentence survives", () => {
+  for (const html of [
+    "<p>To view this video please enable JavaScript is what the old kiosk printed for every visitor.</p><p>Real prose.</p>",
+    "<figure><p>To view this video please enable JavaScript. The footage was shot over Lake Baikal in March.</p></figure><p>Real prose.</p>",
+  ]) {
+    const got = dropRecordPageChrome(html);
+    assert.match(got, /Lake Baikal|old kiosk/, `按句子开头删的话，这段正文就没了：\n${got}`);
+  }
+});
+
+// 兜底句的三种媒体与两个位置都要真的删掉（image/audio 上一版没有用例）。
+test("the image and audio variants of the sentence go, wherever they sit", () => {
+  const got = dropRecordPageChrome(
+    "<p>To view this image please enable JavaScript, and consider upgrading to a web browser that supports HTML5 video</p>" +
+      "<figure><p>To view this audio please enable JavaScript.</p></figure><p>Sea surface temperature rose 1.4 C.</p>",
+  );
+  assert.ok(!/enable JavaScript/i.test(got), got);
+  assert.ok(got.includes("Sea surface temperature"), got);
+  assert.equal(chromeMarks(got), 0, `洗完还数得出外壳形状：\n${got}`);
+});
+
+// 先内后外这条也要有用例：外层先看过，就会留下 <figure></figure>（评审做的变异检查：改成外层优先，
+// 这三条 figure 用例输出逐字节相同，说明之前没有任何用例真正管过顺序）。
+test("a figure emptied by the removal of its own child collapses in the same pass", () => {
+  const got = dropRecordPageChrome("<figure><p></p></figure><p>The ground station relays science data.</p>");
+  assert.ok(!/<figure>\s*<\/figure>/.test(got), `删完空段留了个空图框：\n${got}`);
+  assert.ok(got.includes("relays science data"), got);
+});
+
+// 抽取/中文页那条路（extract.ts、markdown.ts）走的是 stripChromeHtml + normalizeBlocks：
+// 剥掉「责任编辑」这种行之后留下的空 figure 也得收掉，否则新采集照样带壳（评审的 MAJOR 5）。
+test("the Chinese-page chrome path leaves no empty figure either", () => {
+  const got = stripChromeHtml("<p>Real prose.</p><figure><p>责任编辑：王明</p></figure>");
+  assert.ok(!/<figure>\s*<\/figure>/.test(got), `剥完中文页脚留下空图框：\n${got}`);
+  assert.ok(got.includes("Real prose"), got);
+});
+
+// 判据的量具本身：与规则同一谓词，且不能把"读者看不见的序列化差异"数成改动
+// （评审造的形：可播壳里套了个空壳，正则版数到 1→0，会白白 bump revision 重翻一次）。
+test("chromeMarks counts what the rule removes, and nothing the reader cannot see", () => {
+  assert.equal(chromeMarks('<p>Ordinary sentence.</p><figure><img src="https://x/a.jpg"></figure>'), 0);
+  const shell = "<figure><video></video></figure>";
+  // 输入数到 1（那个空壳；figure 还有子元素，不算空块），洗完必须是 0——判据问的就是这一前一后。
+  assert.equal(chromeMarks(shell), 1);
+  assert.equal(chromeMarks(dropRecordPageChrome(shell)), 0);
+  // 正则那版在这里数到 1，于是这行会被判成"有改动"、bump revision、白花一次重翻——而读者看见的东西没变：
+  // 藏在可播壳里的空壳，浏览器根本不渲染。
+  assert.equal(chromeMarks('<video src="https://x/a.mp4"><video src="https://x/a.mp4"><video></video></video></video>'), 0);
 });

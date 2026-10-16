@@ -24,7 +24,7 @@ import { parseArgs } from "node:util";
 import { appendFileSync } from "node:fs";
 import path from "node:path";
 import { contentHash } from "@aihot/backend/content/materials";
-import { dropRecordPageChrome, stripChromeHtml } from "@aihot/backend/content/sanitize";
+import { chromeMarks, dropRecordPageChrome, stripChromeHtml } from "@aihot/backend/content/sanitize";
 import { isBoilerplateBody, stripBoilerplate, stripTags } from "@aihot/backend/lib/text";
 import { closeDb, sql } from "@aihot/backend/db";
 import { queueProcessing } from "@aihot/backend/jobs/content";
@@ -82,18 +82,16 @@ const maxApply = positiveInt(values["max-apply"]!, "max-apply");
 // 判断"这段 HTML 到底少了什么"用的两把尺：标签个数与字数。字节长度不能用——序列化会让字符串变长。
 const tagCount = (s: string) => (s.match(/<[^>]+>/g) ?? []).length;
 const wordCount = (s: string) => stripTags(s).replace(/\s+/g, "").length;
-// 第三把尺：数"要删的东西本身"有几处。前两把尺会一起骗人——cheerio 替残缺的 feed 补齐未闭合标签，
+// 第三把尺：数"要删的东西本身"还剩几处。前两把尺会一起骗人——cheerio 替残缺的 feed 补齐未闭合标签，
 // NASA 三条公开正文删掉一个播放器壳（−2 个标签）被补进来的 10 个闭合标签盖住，实测
 // delta_tags=+10/0/0、delta_words=0，两把尺同时报"没动"，壳就永久留在库里（第一百零四轮 19:33 复验）。
-// 外壳尺只统计规则声称要消灭的三种形状：没有源的 <video>、兜底句、空块。前两种规则只删不增，
-// 第三种在"空块套空块"时可能因为外层先看过而被序列化多算一处——那种行仍有标签尺兜着，不会误写。
-const videoShells = (s: string) => (s.match(/<video(?:\s[^>]*)?>/gi) ?? []).filter((t) => !/\s(?:src|poster)=/i.test(t)).length;
-const noticeLines = (s: string) => (s.match(/to view this (?:video|image|audio) please enable javascript/gi) ?? []).length;
-const emptyBlocks = (s: string) => (s.match(/<(?:p|figure)(?:\s[^>]*)?>[\s]*<\/(?:p|figure)>/gi) ?? []).length;
-const shellCount = (s: string) => videoShells(s) + noticeLines(s) + emptyBlocks(s);
+// 数的活交给 sanitize.ts 的 chromeMarks——它与 dropRecordPageChrome 共用同一个谓词，判据与规则不可能各数一套。
+const shellCount = chromeMarks;
 // `--chrome` 是同一套安全壳下的另一种洗法：不碰中文页脚，只洗「期刊把整张记录页塞进 feed」带回来的
-// 英文页面外壳（评审图例、订阅按钮、日期行、重复四遍的作者名单）。这套规则在 sanitizeBody 末尾就跑了
-// （新采集不是这样不行），这里洗的是规则变宽之前存进库的那一批（实测全部在 45 天内，更早的没有这种正文）。
+// 英文页面外壳（评审图例、订阅按钮、日期行、重复四遍的作者名单）。这套规则在 sanitizeBody 末尾就跑了，
+// 空壳的尾巴由 normalizeBlocks 收（sanitizeBody 与 stripChromeHtml 两条路都经过它——第一百零五轮的评审证明
+// 只收 `<p>` 不够：`<figure><p>责任编辑：…</p></figure>` 会留一个空 figure 回库里），
+// 这里洗的是规则变宽之前存进库的那一批（实测全部在 45 天内，更早的没有这种正文）。
 // 第一百零四轮在这条预筛里加了 `<video`：德国之声的 feed 把视频写成没有源的播放器壳，浏览器只印出它的
 // 兜底句（线上实测 231 条带 video 的公开正文、181 条是空壳、34 条把地址写在 src 上——洗之前先量过，
 // 因为"能播"就是按 src/poster 判的）。预筛只是把候选缩小到能装进内存的那一片，最终决定动不动手的是
@@ -113,10 +111,9 @@ const rows = chrome
       SELECT id, title, source_id, body_text, body_html, revision
       FROM articles
       WHERE body_status = 'ok' AND body_html IS NOT NULL
-        AND (body_html ~* '(Comment types|Report abuse|graphic_rss_feed_button|rss[0-9_]*\\.xml|Metrics will be available|Article metrics|Discussion started|Latest update|Status</strong>|To view this video please enable JavaScript)'
+        AND (body_html ~* '(Comment types|Report abuse|graphic_rss_feed_button|rss[0-9_]*\\.xml|Metrics will be available|Article metrics|Discussion started|Latest update|Status</strong>|To view this (video|image|audio) please enable JavaScript)'
           OR body_html LIKE '%<video%'
-          OR body_html LIKE '%<p></p>%'
-          OR body_html ~ '<figure>[[:space:]]*</figure>')
+          OR body_html ~* '<(p|figcaption|figure|li)(\\s[^>]*)?>(&nbsp;|\\s)*</\\1>')
       ORDER BY discovered_at DESC LIMIT ${limit}`
   : await sql<{ id: string; title: string; source_id: string; body_text: string; body_html: string | null; revision: number }[]>`
       SELECT id, title, source_id, body_text, body_html, revision

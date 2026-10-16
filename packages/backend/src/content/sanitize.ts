@@ -56,12 +56,62 @@ const RECORD_PAGE_LINE = [
   /^discussion (?:started|closed)\s*[:：]/i,
   /^latest update\s*[:：]/i,
   /^(?:article |related )?metrics\b.{0,40}$/i,
-  // The player's fallback sentence, standing on its own: `<p>` is not allowed inside the `<p>` a publisher
-  // wraps a `<video>` in, so the parser lifts it out and the shell rule below never sees it (7 such rows
-  // survived that rule on 2026-10-16). Anchored to the whole line — prose that merely says this survives.
-  /^to view this (?:video|image|audio) please enable javascript/i,
   /^[–—-]$/,
 ];
+
+/**
+ * The sentence a browser prints for a `<video>`/`<img>`/`<audio>` element it cannot play. Both ends anchored, and
+ * only the standard continuation is allowed: without the `$` this ate real prose — "To view this video please
+ * enable JavaScript is what the old kiosk printed for every visitor" (found by the review of 2026-10-16).
+ * Exported because the wash script counts occurrences of this shape to decide whether a stored row changed.
+ */
+export const PLAYER_FALLBACK =
+  /^to view this (?:video|image|audio) please enable javascript[,.]?(?: and consider upgrading to a web browser that supports html5 video)?$/i;
+/** The loaded document's own API and the wrapper it returns for one node — helpers take these, because the `cheerio` namespace import is not callable. */
+type Api = ReturnType<typeof cheerio.load>;
+type Block = ReturnType<Api>;
+/**
+ * The link the fallback sentence ships with (video.js points at its own HTML5-support blurb). Part of the
+ * template, so it does not make the block content — every other link or image does.
+ */
+const FALLBACK_LINK = /^https?:\/\/(?:[\w-]+\.)*videojs\.com\/html5-video-support\/?$/i;
+/** A block that carries media or a real link is content even when it opens with that sentence: keep the whole block. */
+const mediaOrLink = (at: Api, block: Block) =>
+  block.find("img, video, source, audio, iframe, table").length > 0 ||
+  block.find("a[href]").toArray().some((a) => !FALLBACK_LINK.test(at(a).attr("href") ?? ""));
+/** The selector the empty/fallback sweep walks, and the count below measures — one list, so they cannot diverge. */
+const CHROME_BLOCK_TAGS = "p, figcaption, figure, li";
+/**
+ * Is this block chrome: the player's fallback sentence standing alone, or nothing at all?
+ * Shared by the sweep in `dropRecordPageChrome` and by `chromeMarks`, because a judge that measures a
+ * different shape than the rule removes is how rows stayed dirty forever (2026-10-16, twice).
+ */
+const isChromeBlock = (at: Api, block: Block) => {
+  const text = collapse(block.text());
+  return (PLAYER_FALLBACK.test(text) && !mediaOrLink(at, block)) || (!text && !block.children().length);
+};
+/** A sourceless player the reader could ever see: not playable, not nested inside a playable one, no media link. */
+const isDeadPlayer = (at: Api, player: Block) => {
+  if (player.attr("src") || player.attr("poster") || player.find("source[src]").length) return false;
+  if (player.parents("video").length) return false;
+  return !player.find("a[href]").toArray().some((a) => MEDIA_FILE.test(at(a).attr("href") ?? ""));
+};
+/**
+ * How many chrome shapes an HTML fragment holds. The wash script compares this before and after
+ * `dropRecordPageChrome` instead of comparing bytes or tag counts, both of which cheerio's tag-closing can move
+ * in the wrong direction (a NASA row: −2 tags for the shell, +10 tags added, judge said "unchanged" forever).
+ */
+export function chromeMarks(html: string): number {
+  const $ = cheerio.load(html, null, false);
+  let n = 0;
+  $("video").each((_, el) => {
+    if (isDeadPlayer($, $(el))) n++;
+  });
+  $(CHROME_BLOCK_TAGS).each((_, el) => {
+    if (isChromeBlock($, $(el))) n++;
+  });
+  return n;
+}
 
 const FEED_URL = /\.(?:xml|rss|atom)(?:[?#]|$)/i;
 /** Once the player cannot play, a link to the media file is the reader's only route to it: that is content, not chrome. */
@@ -110,6 +160,14 @@ export function dropRecordPageChrome(html: string): string {
       block.remove();
       return;
     }
+    // The player's fallback sentence standing on its own: `<p>` is not allowed inside the `<p>` a publisher
+    // wraps a `<video>` in, so the parser lifts it out and the shell rule below never sees it (7 such rows
+    // survived that rule on 2026-10-16). Never when the block carries media — a chart inside such a
+    // paragraph is content, and dropping the block would drop the chart with it.
+    if (isChromeBlock($, block)) {
+      block.remove();
+      return;
+    }
     if (repeated.has(text)) {
       if (keptFirst.has(text)) block.remove();
       else keptFirst.add(text);
@@ -121,30 +179,29 @@ export function dropRecordPageChrome(html: string): string {
   // into Chinese). The test is whether the element can play anything, never what the sentence says: prose
   // about JavaScript must survive.
   $("video").each((_, el) => {
-    const player = $(el);
-    if (player.attr("src") || player.attr("poster") || player.find("source[src]").length) return;
-    if (player.find("a[href]").toArray().some((a) => MEDIA_FILE.test($(a).attr("href") ?? ""))) return;
-    player.remove();
+    if (isDeadPlayer($, $(el))) $(el).remove();
   });
   // Removing the shell can leave the paragraph that held it with nothing in it (7 such rows measured on
   // the washed set the same evening). An empty block has no content at any depth — NASA nests the shell
   // inside a `<figure>` and the Guardian's empty paragraphs sit under a wrapper — so this pass is not
-  // limited to root siblings, and it cannot eat prose: there is nothing to eat. The `<figure>` is dropped
-  // with it because that is exactly what the player left behind (3 published NASA bodies on 2026-10-16).
-  // Only one *sentence* rule joins it at any depth, and only when the whole block is that sentence: the
-  // anchored rules above stay root-level on purpose (Eur. J. Mineral. writes each record field as
-  // `<li><p>Status: …</p></li>`, and a deep traversal took whole field lists with it). The fallback
-  // sentence carries no risk of being a field value, and DW/NASA really do wrap it in a `<figure>`
-  // (measured by the fixture added 2026-10-16: the shell went, the sentence inside the figure stayed).
-  // Swept inner-first so a block emptied by the removal of its child is seen in the same pass.
-  const ANY_DEPTH_SENTENCE = [/^to view this (?:video|image|audio) please enable javascript\b/i];
-  $("p, figure")
+  // limited to root siblings, and it cannot eat prose: there is nothing to eat. `<figure>` and `<li>` go
+  // with it because that is what the player and the dropped paragraphs leave behind, and both cost the
+  // reader vertical space (`app.css`: `.prose figure{margin:1.5em 0}`) — 204 such rows on 2026-10-16.
+  // `<td>`/`<th>` deliberately stay: an empty cell is a column, not a stray box.
+  // The fallback sentence joins it at any depth (DW and NASA wrap it in a `<figure>`, where the root-sibling
+  // pass above cannot reach it), but only that one sentence and only when the whole block is it: the other
+  // anchored rules stay root-level on purpose, because Eur. J. Mineral. writes each record field as
+  // `<li><p>Status: …</p></li>` and a deep traversal took whole field lists with it. A block carrying an
+  // image or a link is never touched — dropping it would drop the chart with the sentence (both review
+  // BLOCKERs of 2026-10-16 were this shape).
+  // Swept inner-first (reversed preorder always visits a descendant before its ancestor), so a block
+  // emptied by removing its child is collapsed in the same pass instead of being paid for twice.
+  // Same predicate as `chromeMarks`, so the wash judge and the rule can never measure different shapes again.
+  $("p, figcaption, figure, li")
     .get()
     .reverse()
     .forEach((el) => {
-      const block = $(el);
-      const text = collapse(block.text());
-      if (ANY_DEPTH_SENTENCE.some((re) => re.test(text)) || (!text && !block.children().length)) block.remove();
+      if (isChromeBlock($, $(el))) $(el).remove();
     });
   return $.html();
 }
@@ -206,10 +263,18 @@ const BLOCK_TAGS = new Set(["p", "h2", "h3", "h4", "h5", "ul", "ol", "li", "bloc
  */
 export function normalizeBlocks(html: string): string {
   const $ = cheerio.load(html, null, false);
-  $("p").each((_, el) => {
-    const p = $(el);
-    if (!p.text().trim() && !p.find("img, video, picture").length) p.remove();
-  });
+  // Empty containers go here, at any depth, inner-first: this is the function every path ends with
+  // (`sanitizeBody` and `stripChromeHtml` both call it), and dropping only `<p>` left the wrapper behind —
+  // `<figure><p>责任编辑：王明</p></figure>` came back as `<figure></figure>`, which `app.css` gives
+  // `margin:1.5em 0`, so the reader saw a gap and the row was paid to re-translate for nothing (review of
+  // 2026-10-16). `<td>`/`<th>` stay: an empty cell is a column.
+  $("p, figure, li")
+    .get()
+    .reverse()
+    .forEach((el) => {
+      const block = $(el);
+      if (!block.text().trim() && !block.find("img, video, picture").length) block.remove();
+    });
   const out: string[] = [];
   let run: string[] = [];
   let meaningful = false;
