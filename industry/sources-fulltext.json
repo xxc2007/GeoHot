@@ -1,0 +1,2091 @@
+{
+  "$comment": "站内全文许可的登记表。terms.md 第 1 节写的是「站内不转载原文全文，除非该来源被明确登记为允许站内展示全文」——这份文件就是那句「明确登记」的落点：每一道 site_fulltext=true 的门都必须在这里有一条带依据的记录，tests/admin-source-policy.test.ts 钉住两侧必须一一对应。",
+  "basis_meaning": {
+    "feed-carries-full-text": "该信源的公开 feed 自己就把整篇正文交出来（content:encoded 或等价字段），不是我们把文章页爬下来再贴上去。"
+  },
+  "rule": "窗口 7 天内条目数 >=5、body_status=ok 且正文 >=1,200 字的条目占比 >=60%、这些条目的平均正文 >=1,200 字。三项同时成立才登记。",
+  "measured_at": "2026-10-16",
+  "window_days": 7,
+  "sources": [
+    {
+      "id": "atom-metoffice-govuk",
+      "basis": "feed-carries-full-text",
+      "items": 20,
+      "full_items": 16,
+      "full_share": 80,
+      "avg_body_chars": 3300
+    },
+    {
+      "id": "cl-csn-earthquake-news-feed",
+      "basis": "feed-carries-full-text",
+      "items": 10,
+      "full_items": 10,
+      "full_share": 100,
+      "avg_body_chars": 3493
+    },
+    {
+      "id": "cn-cas-qdio-kyjz",
+      "basis": "feed-carries-full-text",
+      "items": 20,
+      "full_items": 20,
+      "full_share": 100,
+      "avg_body_chars": 1761
+    },
+    {
+      "id": "de-pik",
+      "basis": "feed-carries-full-text",
+      "items": 15,
+      "full_items": 11,
+      "full_share": 73,
+      "avg_body_chars": 3876
+    },
+    {
+      "id": "esa-our-activities-operations",
+      "basis": "feed-carries-full-text",
+      "items": 16,
+      "full_items": 10,
+      "full_share": 63,
+      "avg_body_chars": 3179
+    },
+    {
+      "id": "f1-nga-rss",
+      "basis": "feed-carries-full-text",
+      "items": 105,
+      "full_items": 99,
+      "full_share": 94,
+      "avg_body_chars": 3611
+    },
+    {
+      "id": "fr-brgm-events-feed",
+      "basis": "feed-carries-full-text",
+      "items": 239,
+      "full_items": 145,
+      "full_share": 61,
+      "avg_body_chars": 2601
+    },
+    {
+      "id": "fr-brgm-geoscience-topic-feed",
+      "basis": "feed-carries-full-text",
+      "items": 308,
+      "full_items": 237,
+      "full_share": 77,
+      "avg_body_chars": 5449
+    },
+    {
+      "id": "gb-govuk-defra-atom",
+      "basis": "feed-carries-full-text",
+      "items": 30,
+      "full_items": 19,
+      "full_share": 63,
+      "avg_body_chars": 6731
+    },
+    {
+      "id": "gb-govuk-marine-management-organisation-atom",
+      "basis": "feed-carries-full-text",
+      "items": 24,
+      "full_items": 17,
+      "full_share": 71,
+      "avg_body_chars": 8645
+    },
+    {
+      "id": "gp-eea-media",
+      "basis": "feed-carries-full-text",
+      "items": 25,
+      "full_items": 25,
+      "full_share": 100,
+      "avg_body_chars": 4198
+    },
+    {
+      "id": "gp-eesc-press",
+      "basis": "feed-carries-full-text",
+      "items": 20,
+      "full_items": 16,
+      "full_share": 80,
+      "avg_body_chars": 5259
+    },
+    {
+      "id": "gt-esa-set",
+      "basis": "feed-carries-full-text",
+      "items": 16,
+      "full_items": 13,
+      "full_share": 81,
+      "avg_body_chars": 3299
+    },
+    {
+      "id": "gt-euspa-news",
+      "basis": "feed-carries-full-text",
+      "items": 10,
+      "full_items": 10,
+      "full_share": 100,
+      "avg_body_chars": 4350
+    },
+    {
+      "id": "gt-hm-land-registry",
+      "basis": "feed-carries-full-text",
+      "items": 21,
+      "full_items": 16,
+      "full_share": 76,
+      "avg_body_chars": 4042
+    },
+    {
+      "id": "gt-shom",
+      "basis": "feed-carries-full-text",
+      "items": 10,
+      "full_items": 10,
+      "full_share": 100,
+      "avg_body_chars": 3419
+    },
+    {
+      "id": "hg-raa-nyheter",
+      "basis": "feed-carries-full-text",
+      "items": 11,
+      "full_items": 11,
+      "full_share": 100,
+      "avg_body_chars": 4000
+    },
+    {
+      "id": "int-cmms-news",
+      "basis": "feed-carries-full-text",
+      "items": 402,
+      "full_items": 337,
+      "full_share": 84,
+      "avg_body_chars": 4095
+    },
+    {
+      "id": "int-eea-publications",
+      "basis": "feed-carries-full-text",
+      "items": 25,
+      "full_items": 15,
+      "full_share": 60,
+      "avg_body_chars": 17140
+    },
+    {
+      "id": "int-esa-science",
+      "basis": "feed-carries-full-text",
+      "items": 15,
+      "full_items": 10,
+      "full_share": 67,
+      "avg_body_chars": 2783
+    },
+    {
+      "id": "int-idlo-news",
+      "basis": "feed-carries-full-text",
+      "items": 11,
+      "full_items": 10,
+      "full_share": 91,
+      "avg_body_chars": 3858
+    },
+    {
+      "id": "int-istat-news",
+      "basis": "feed-carries-full-text",
+      "items": 25,
+      "full_items": 21,
+      "full_share": 84,
+      "avg_body_chars": 4425
+    },
+    {
+      "id": "int-itu-news",
+      "basis": "feed-carries-full-text",
+      "items": 13,
+      "full_items": 13,
+      "full_share": 100,
+      "avg_body_chars": 7747
+    },
+    {
+      "id": "int-unidir-news-feed",
+      "basis": "feed-carries-full-text",
+      "items": 24,
+      "full_items": 22,
+      "full_share": 92,
+      "avg_body_chars": 5955
+    },
+    {
+      "id": "int-who-news-zh",
+      "basis": "feed-carries-full-text",
+      "items": 28,
+      "full_items": 26,
+      "full_share": 93,
+      "avg_body_chars": 1971
+    },
+    {
+      "id": "intl-bbc-zhongwen",
+      "basis": "feed-carries-full-text",
+      "items": 48,
+      "full_items": 41,
+      "full_share": 85,
+      "avg_body_chars": 2309
+    },
+    {
+      "id": "intl-foreignaffairs",
+      "basis": "feed-carries-full-text",
+      "items": 11,
+      "full_items": 11,
+      "full_share": 100,
+      "avg_body_chars": 18297
+    },
+    {
+      "id": "intl-loc-worlds-revealed",
+      "basis": "feed-carries-full-text",
+      "items": 27,
+      "full_items": 26,
+      "full_share": 96,
+      "avg_body_chars": 5748
+    },
+    {
+      "id": "intl-nasa-science",
+      "basis": "feed-carries-full-text",
+      "items": 86,
+      "full_items": 60,
+      "full_share": 70,
+      "avg_body_chars": 3995
+    },
+    {
+      "id": "intl-theconversation-env",
+      "basis": "feed-carries-full-text",
+      "items": 10,
+      "full_items": 10,
+      "full_share": 100,
+      "avg_body_chars": 5186
+    },
+    {
+      "id": "intl-thediplomat",
+      "basis": "feed-carries-full-text",
+      "items": 76,
+      "full_items": 61,
+      "full_share": 80,
+      "avg_body_chars": 7186
+    },
+    {
+      "id": "intl-usgs-science-news",
+      "basis": "feed-carries-full-text",
+      "items": 36,
+      "full_items": 26,
+      "full_share": 72,
+      "avg_body_chars": 3031
+    },
+    {
+      "id": "it-ismar",
+      "basis": "feed-carries-full-text",
+      "items": 12,
+      "full_items": 10,
+      "full_share": 83,
+      "avg_body_chars": 2587
+    },
+    {
+      "id": "jr-doj-e-journal-unair-ac",
+      "basis": "feed-carries-full-text",
+      "items": 22,
+      "full_items": 20,
+      "full_share": 91,
+      "avg_body_chars": 31256
+    },
+    {
+      "id": "jr-doj-ecoconference-kpi",
+      "basis": "feed-carries-full-text",
+      "items": 205,
+      "full_items": 205,
+      "full_share": 100,
+      "avg_body_chars": 2394
+    },
+    {
+      "id": "jr-doj-editoraessentia-iff-edu",
+      "basis": "feed-carries-full-text",
+      "items": 30,
+      "full_items": 30,
+      "full_share": 100,
+      "avg_body_chars": 9828
+    },
+    {
+      "id": "jr-doj-ejournal-foundae",
+      "basis": "feed-carries-full-text",
+      "items": 27,
+      "full_items": 27,
+      "full_share": 100,
+      "avg_body_chars": 8931
+    },
+    {
+      "id": "jr-doj-environmentalsmoke-com",
+      "basis": "feed-carries-full-text",
+      "items": 30,
+      "full_items": 30,
+      "full_share": 100,
+      "avg_body_chars": 12574
+    },
+    {
+      "id": "jr-doj-eurogeojournal",
+      "basis": "feed-carries-full-text",
+      "items": 25,
+      "full_items": 25,
+      "full_share": 100,
+      "avg_body_chars": 14521
+    },
+    {
+      "id": "jr-doj-geospatialhealth",
+      "basis": "feed-carries-full-text",
+      "items": 11,
+      "full_items": 11,
+      "full_share": 100,
+      "avg_body_chars": 12435
+    },
+    {
+      "id": "jr-doj-halacsolcha",
+      "basis": "feed-carries-full-text",
+      "items": 30,
+      "full_items": 22,
+      "full_share": 73,
+      "avg_body_chars": 7758
+    },
+    {
+      "id": "jr-doj-hemeroteca-unad-edu",
+      "basis": "feed-carries-full-text",
+      "items": 30,
+      "full_items": 27,
+      "full_share": 90,
+      "avg_body_chars": 2217
+    },
+    {
+      "id": "jr-doj-journal-unnes-ac",
+      "basis": "feed-carries-full-text",
+      "items": 30,
+      "full_items": 30,
+      "full_share": 100,
+      "avg_body_chars": 7685
+    },
+    {
+      "id": "jr-doj-journals-um",
+      "basis": "feed-carries-full-text",
+      "items": 30,
+      "full_items": 29,
+      "full_share": 97,
+      "avg_body_chars": 6170
+    },
+    {
+      "id": "jr-doj-journals-umcs",
+      "basis": "feed-carries-full-text",
+      "items": 11,
+      "full_items": 11,
+      "full_share": 100,
+      "avg_body_chars": 6892
+    },
+    {
+      "id": "jr-doj-periodicos-furg",
+      "basis": "feed-carries-full-text",
+      "items": 18,
+      "full_items": 18,
+      "full_share": 100,
+      "avg_body_chars": 11051
+    },
+    {
+      "id": "jr-doj-periodicos-uffs-edu",
+      "basis": "feed-carries-full-text",
+      "items": 30,
+      "full_items": 30,
+      "full_share": 100,
+      "avg_body_chars": 13344
+    },
+    {
+      "id": "jr-doj-periodicos-ufrn",
+      "basis": "feed-carries-full-text",
+      "items": 14,
+      "full_items": 14,
+      "full_share": 100,
+      "avg_body_chars": 4174
+    },
+    {
+      "id": "jr-doj-periodicos-unc",
+      "basis": "feed-carries-full-text",
+      "items": 30,
+      "full_items": 30,
+      "full_share": 100,
+      "avg_body_chars": 3740
+    },
+    {
+      "id": "jr-doj-pjaec",
+      "basis": "feed-carries-full-text",
+      "items": 30,
+      "full_items": 29,
+      "full_share": 97,
+      "avg_body_chars": 2263
+    },
+    {
+      "id": "jr-doj-rbciamb-com",
+      "basis": "feed-carries-full-text",
+      "items": 63,
+      "full_items": 62,
+      "full_share": 98,
+      "avg_body_chars": 8606
+    },
+    {
+      "id": "jr-doj-revistas-ecosur",
+      "basis": "feed-carries-full-text",
+      "items": 11,
+      "full_items": 11,
+      "full_share": 100,
+      "avg_body_chars": 10006
+    },
+    {
+      "id": "jr-doj-revistas-planejamento-rs-gov",
+      "basis": "feed-carries-full-text",
+      "items": 30,
+      "full_items": 27,
+      "full_share": 90,
+      "avg_body_chars": 9702
+    },
+    {
+      "id": "jr-doj-revistas-uniandes-edu",
+      "basis": "feed-carries-full-text",
+      "items": 30,
+      "full_items": 30,
+      "full_share": 100,
+      "avg_body_chars": 8500
+    },
+    {
+      "id": "jr-doj-revistas-univalle-edu",
+      "basis": "feed-carries-full-text",
+      "items": 30,
+      "full_items": 26,
+      "full_share": 87,
+      "avg_body_chars": 6911
+    },
+    {
+      "id": "jr-doj-upjournals-up-ac",
+      "basis": "feed-carries-full-text",
+      "items": 30,
+      "full_items": 29,
+      "full_share": 97,
+      "avg_body_chars": 2078
+    },
+    {
+      "id": "jr-mausam",
+      "basis": "feed-carries-full-text",
+      "items": 43,
+      "full_items": 37,
+      "full_share": 86,
+      "avg_body_chars": 2880
+    },
+    {
+      "id": "jr-wiley-aquatic-conservation",
+      "basis": "feed-carries-full-text",
+      "items": 22,
+      "full_items": 17,
+      "full_share": 77,
+      "avg_body_chars": 1813
+    },
+    {
+      "id": "jr-wiley-boreas",
+      "basis": "feed-carries-full-text",
+      "items": 36,
+      "full_items": 33,
+      "full_share": 92,
+      "avg_body_chars": 2032
+    },
+    {
+      "id": "jr-wiley-ecography",
+      "basis": "feed-carries-full-text",
+      "items": 72,
+      "full_items": 69,
+      "full_share": 96,
+      "avg_body_chars": 1884
+    },
+    {
+      "id": "jr-wiley-ecology",
+      "basis": "feed-carries-full-text",
+      "items": 26,
+      "full_items": 19,
+      "full_share": 73,
+      "avg_body_chars": 2120
+    },
+    {
+      "id": "jr-wiley-ecology-evolution",
+      "basis": "feed-carries-full-text",
+      "items": 93,
+      "full_items": 90,
+      "full_share": 97,
+      "avg_body_chars": 2427
+    },
+    {
+      "id": "jr-wiley-limnology-oceanography",
+      "basis": "feed-carries-full-text",
+      "items": 15,
+      "full_items": 14,
+      "full_share": 93,
+      "avg_body_chars": 1728
+    },
+    {
+      "id": "jr-wiley-meteorological-applications",
+      "basis": "feed-carries-full-text",
+      "items": 25,
+      "full_items": 24,
+      "full_share": 96,
+      "avg_body_chars": 2242
+    },
+    {
+      "id": "jr-wiley-qjrms",
+      "basis": "feed-carries-full-text",
+      "items": 127,
+      "full_items": 123,
+      "full_share": 97,
+      "avg_body_chars": 2278
+    },
+    {
+      "id": "nasa-sci-missions",
+      "basis": "feed-carries-full-text",
+      "items": 17,
+      "full_items": 17,
+      "full_share": 100,
+      "avg_body_chars": 1833
+    },
+    {
+      "id": "rss-aad-news",
+      "basis": "feed-carries-full-text",
+      "items": 10,
+      "full_items": 10,
+      "full_share": 100,
+      "avg_body_chars": 3897
+    },
+    {
+      "id": "rss-aemet-news",
+      "basis": "feed-carries-full-text",
+      "items": 12,
+      "full_items": 12,
+      "full_share": 100,
+      "avg_body_chars": 4607
+    },
+    {
+      "id": "rss-agu-advances-toc",
+      "basis": "feed-carries-full-text",
+      "items": 38,
+      "full_items": 32,
+      "full_share": 84,
+      "avg_body_chars": 1548
+    },
+    {
+      "id": "rss-aljazeera-all",
+      "basis": "feed-carries-full-text",
+      "items": 325,
+      "full_items": 226,
+      "full_share": 70,
+      "avg_body_chars": 3314
+    },
+    {
+      "id": "rss-arctic-portal",
+      "basis": "feed-carries-full-text",
+      "items": 16,
+      "full_items": 16,
+      "full_share": 100,
+      "avg_body_chars": 4287
+    },
+    {
+      "id": "rss-arxiv-ao-ph",
+      "basis": "feed-carries-full-text",
+      "items": 49,
+      "full_items": 47,
+      "full_share": 96,
+      "avg_body_chars": 1962
+    },
+    {
+      "id": "rss-arxiv-geo-ph",
+      "basis": "feed-carries-full-text",
+      "items": 30,
+      "full_items": 30,
+      "full_share": 100,
+      "avg_body_chars": 1989
+    },
+    {
+      "id": "rss-arxiv-space-ph",
+      "basis": "feed-carries-full-text",
+      "items": 19,
+      "full_items": 17,
+      "full_share": 89,
+      "avg_body_chars": 2047
+    },
+    {
+      "id": "rss-asi-news",
+      "basis": "feed-carries-full-text",
+      "items": 50,
+      "full_items": 41,
+      "full_share": 82,
+      "avg_body_chars": 3123
+    },
+    {
+      "id": "rss-aspi-strategist",
+      "basis": "feed-carries-full-text",
+      "items": 115,
+      "full_items": 115,
+      "full_share": 100,
+      "avg_body_chars": 6593
+    },
+    {
+      "id": "rss-bbc-science-env",
+      "basis": "feed-carries-full-text",
+      "items": 66,
+      "full_items": 50,
+      "full_share": 76,
+      "avg_body_chars": 3924
+    },
+    {
+      "id": "rss-berkeley-news",
+      "basis": "feed-carries-full-text",
+      "items": 13,
+      "full_items": 13,
+      "full_share": 100,
+      "avg_body_chars": 6706
+    },
+    {
+      "id": "rss-berkeleyearth",
+      "basis": "feed-carries-full-text",
+      "items": 10,
+      "full_items": 10,
+      "full_share": 100,
+      "avg_body_chars": 11852
+    },
+    {
+      "id": "rss-bodleian-maps",
+      "basis": "feed-carries-full-text",
+      "items": 10,
+      "full_items": 10,
+      "full_share": 100,
+      "avg_body_chars": 4049
+    },
+    {
+      "id": "rss-copernicus-acp",
+      "basis": "feed-carries-full-text",
+      "items": 582,
+      "full_items": 559,
+      "full_share": 96,
+      "avg_body_chars": 3046
+    },
+    {
+      "id": "rss-copernicus-amt",
+      "basis": "feed-carries-full-text",
+      "items": 321,
+      "full_items": 299,
+      "full_share": 93,
+      "avg_body_chars": 3852
+    },
+    {
+      "id": "rss-copernicus-angeo",
+      "basis": "feed-carries-full-text",
+      "items": 33,
+      "full_items": 33,
+      "full_share": 100,
+      "avg_body_chars": 17258
+    },
+    {
+      "id": "rss-copernicus-ar",
+      "basis": "feed-carries-full-text",
+      "items": 35,
+      "full_items": 33,
+      "full_share": 94,
+      "avg_body_chars": 11751
+    },
+    {
+      "id": "rss-copernicus-ascmo",
+      "basis": "feed-carries-full-text",
+      "items": 20,
+      "full_items": 20,
+      "full_share": 100,
+      "avg_body_chars": 34576
+    },
+    {
+      "id": "rss-copernicus-asr",
+      "basis": "feed-carries-full-text",
+      "items": 20,
+      "full_items": 20,
+      "full_share": 100,
+      "avg_body_chars": 14349
+    },
+    {
+      "id": "rss-copernicus-bg",
+      "basis": "feed-carries-full-text",
+      "items": 306,
+      "full_items": 302,
+      "full_share": 99,
+      "avg_body_chars": 3434
+    },
+    {
+      "id": "rss-copernicus-cp",
+      "basis": "feed-carries-full-text",
+      "items": 80,
+      "full_items": 77,
+      "full_share": 96,
+      "avg_body_chars": 6341
+    },
+    {
+      "id": "rss-copernicus-egqsj",
+      "basis": "feed-carries-full-text",
+      "items": 21,
+      "full_items": 21,
+      "full_share": 100,
+      "avg_body_chars": 24824
+    },
+    {
+      "id": "rss-copernicus-ejm",
+      "basis": "feed-carries-full-text",
+      "items": 21,
+      "full_items": 21,
+      "full_share": 100,
+      "avg_body_chars": 24939
+    },
+    {
+      "id": "rss-copernicus-esd",
+      "basis": "feed-carries-full-text",
+      "items": 67,
+      "full_items": 65,
+      "full_share": 97,
+      "avg_body_chars": 8783
+    },
+    {
+      "id": "rss-copernicus-essd",
+      "basis": "feed-carries-full-text",
+      "items": 310,
+      "full_items": 293,
+      "full_share": 95,
+      "avg_body_chars": 2675
+    },
+    {
+      "id": "rss-copernicus-esurf",
+      "basis": "feed-carries-full-text",
+      "items": 38,
+      "full_items": 36,
+      "full_share": 95,
+      "avg_body_chars": 15148
+    },
+    {
+      "id": "rss-copernicus-gc",
+      "basis": "feed-carries-full-text",
+      "items": 29,
+      "full_items": 28,
+      "full_share": 97,
+      "avg_body_chars": 18306
+    },
+    {
+      "id": "rss-copernicus-gchron",
+      "basis": "feed-carries-full-text",
+      "items": 32,
+      "full_items": 31,
+      "full_share": 97,
+      "avg_body_chars": 17374
+    },
+    {
+      "id": "rss-copernicus-gh",
+      "basis": "feed-carries-full-text",
+      "items": 43,
+      "full_items": 29,
+      "full_share": 67,
+      "avg_body_chars": 15393
+    },
+    {
+      "id": "rss-copernicus-gi",
+      "basis": "feed-carries-full-text",
+      "items": 22,
+      "full_items": 22,
+      "full_share": 100,
+      "avg_body_chars": 26700
+    },
+    {
+      "id": "rss-copernicus-gmd",
+      "basis": "feed-carries-full-text",
+      "items": 346,
+      "full_items": 319,
+      "full_share": 92,
+      "avg_body_chars": 4087
+    },
+    {
+      "id": "rss-copernicus-hess",
+      "basis": "feed-carries-full-text",
+      "items": 273,
+      "full_items": 270,
+      "full_share": 99,
+      "avg_body_chars": 2956
+    },
+    {
+      "id": "rss-copernicus-hgss",
+      "basis": "feed-carries-full-text",
+      "items": 20,
+      "full_items": 20,
+      "full_share": 100,
+      "avg_body_chars": 24077
+    },
+    {
+      "id": "rss-copernicus-isprs-annals",
+      "basis": "feed-carries-full-text",
+      "items": 290,
+      "full_items": 257,
+      "full_share": 89,
+      "avg_body_chars": 1552
+    },
+    {
+      "id": "rss-copernicus-isprs-archives",
+      "basis": "feed-carries-full-text",
+      "items": 27,
+      "full_items": 25,
+      "full_share": 93,
+      "avg_body_chars": 1712
+    },
+    {
+      "id": "rss-copernicus-jm",
+      "basis": "feed-carries-full-text",
+      "items": 33,
+      "full_items": 33,
+      "full_share": 100,
+      "avg_body_chars": 15061
+    },
+    {
+      "id": "rss-copernicus-nhess",
+      "basis": "feed-carries-full-text",
+      "items": 222,
+      "full_items": 204,
+      "full_share": 92,
+      "avg_body_chars": 4150
+    },
+    {
+      "id": "rss-copernicus-npg",
+      "basis": "feed-carries-full-text",
+      "items": 25,
+      "full_items": 24,
+      "full_share": 96,
+      "avg_body_chars": 20875
+    },
+    {
+      "id": "rss-copernicus-os",
+      "basis": "feed-carries-full-text",
+      "items": 136,
+      "full_items": 127,
+      "full_share": 93,
+      "avg_body_chars": 3713
+    },
+    {
+      "id": "rss-copernicus-sd",
+      "basis": "feed-carries-full-text",
+      "items": 20,
+      "full_items": 20,
+      "full_share": 100,
+      "avg_body_chars": 23868
+    },
+    {
+      "id": "rss-copernicus-se",
+      "basis": "feed-carries-full-text",
+      "items": 44,
+      "full_items": 43,
+      "full_share": 98,
+      "avg_body_chars": 9389
+    },
+    {
+      "id": "rss-copernicus-soil",
+      "basis": "feed-carries-full-text",
+      "items": 53,
+      "full_items": 53,
+      "full_share": 100,
+      "avg_body_chars": 9046
+    },
+    {
+      "id": "rss-copernicus-sp",
+      "basis": "feed-carries-full-text",
+      "items": 21,
+      "full_items": 19,
+      "full_share": 90,
+      "avg_body_chars": 20072
+    },
+    {
+      "id": "rss-copernicus-tc",
+      "basis": "feed-carries-full-text",
+      "items": 245,
+      "full_items": 226,
+      "full_share": 92,
+      "avg_body_chars": 3631
+    },
+    {
+      "id": "rss-copernicus-wcd",
+      "basis": "feed-carries-full-text",
+      "items": 92,
+      "full_items": 87,
+      "full_share": 95,
+      "avg_body_chars": 6944
+    },
+    {
+      "id": "rss-copernicus-we",
+      "basis": "feed-carries-full-text",
+      "items": 20,
+      "full_items": 20,
+      "full_share": 100,
+      "avg_body_chars": 19939
+    },
+    {
+      "id": "rss-copernicus-wes",
+      "basis": "feed-carries-full-text",
+      "items": 167,
+      "full_items": 149,
+      "full_share": 89,
+      "avg_body_chars": 5654
+    },
+    {
+      "id": "rss-cu-boulder-lasp",
+      "basis": "feed-carries-full-text",
+      "items": 16,
+      "full_items": 16,
+      "full_share": 100,
+      "avg_body_chars": 5292
+    },
+    {
+      "id": "rss-dw-world-news",
+      "basis": "feed-carries-full-text",
+      "items": 239,
+      "full_items": 236,
+      "full_share": 99,
+      "avg_body_chars": 5710
+    },
+    {
+      "id": "rss-eartharxiv-preprints",
+      "basis": "feed-carries-full-text",
+      "items": 49,
+      "full_items": 49,
+      "full_share": 100,
+      "avg_body_chars": 2415
+    },
+    {
+      "id": "rss-earths-future-toc",
+      "basis": "feed-carries-full-text",
+      "items": 28,
+      "full_items": 24,
+      "full_share": 86,
+      "avg_body_chars": 1464
+    },
+    {
+      "id": "rss-earthsky-news",
+      "basis": "feed-carries-full-text",
+      "items": 16,
+      "full_items": 16,
+      "full_share": 100,
+      "avg_body_chars": 5658
+    },
+    {
+      "id": "rss-ecsociety",
+      "basis": "feed-carries-full-text",
+      "items": 14,
+      "full_items": 14,
+      "full_share": 100,
+      "avg_body_chars": 63988
+    },
+    {
+      "id": "rss-egu-blogs",
+      "basis": "feed-carries-full-text",
+      "items": 14,
+      "full_items": 12,
+      "full_share": 86,
+      "avg_body_chars": 8117
+    },
+    {
+      "id": "rss-egusphere",
+      "basis": "feed-carries-full-text",
+      "items": 160,
+      "full_items": 160,
+      "full_share": 100,
+      "avg_body_chars": 4050
+    },
+    {
+      "id": "rss-eos-org",
+      "basis": "feed-carries-full-text",
+      "items": 10,
+      "full_items": 10,
+      "full_share": 100,
+      "avg_body_chars": 6795
+    },
+    {
+      "id": "rss-epb-toc",
+      "basis": "feed-carries-full-text",
+      "items": 42,
+      "full_items": 28,
+      "full_share": 67,
+      "avg_body_chars": 1388
+    },
+    {
+      "id": "rss-erdkunde",
+      "basis": "feed-carries-full-text",
+      "items": 16,
+      "full_items": 14,
+      "full_share": 88,
+      "avg_body_chars": 5609
+    },
+    {
+      "id": "rss-ess-toc",
+      "basis": "feed-carries-full-text",
+      "items": 43,
+      "full_items": 41,
+      "full_share": 95,
+      "avg_body_chars": 1597
+    },
+    {
+      "id": "rss-eth-zurich-news",
+      "basis": "feed-carries-full-text",
+      "items": 96,
+      "full_items": 60,
+      "full_share": 63,
+      "avg_body_chars": 4093
+    },
+    {
+      "id": "rss-frontiers-climate",
+      "basis": "feed-carries-full-text",
+      "items": 215,
+      "full_items": 204,
+      "full_share": 95,
+      "avg_body_chars": 13153
+    },
+    {
+      "id": "rss-frontiers-earth-science",
+      "basis": "feed-carries-full-text",
+      "items": 440,
+      "full_items": 413,
+      "full_share": 94,
+      "avg_body_chars": 8406
+    },
+    {
+      "id": "rss-frontiers-environmental-science",
+      "basis": "feed-carries-full-text",
+      "items": 655,
+      "full_items": 613,
+      "full_share": 94,
+      "avg_body_chars": 7469
+    },
+    {
+      "id": "rss-frontiers-marine-science",
+      "basis": "feed-carries-full-text",
+      "items": 977,
+      "full_items": 922,
+      "full_share": 94,
+      "avg_body_chars": 5343
+    },
+    {
+      "id": "rss-frontiers-remote-sensing",
+      "basis": "feed-carries-full-text",
+      "items": 116,
+      "full_items": 108,
+      "full_share": 93,
+      "avg_body_chars": 14263
+    },
+    {
+      "id": "rss-frontiers-sustainable-cities",
+      "basis": "feed-carries-full-text",
+      "items": 207,
+      "full_items": 192,
+      "full_share": 93,
+      "avg_body_chars": 12852
+    },
+    {
+      "id": "rss-g3-toc",
+      "basis": "feed-carries-full-text",
+      "items": 28,
+      "full_items": 28,
+      "full_share": 100,
+      "avg_body_chars": 1694
+    },
+    {
+      "id": "rss-gbc-toc",
+      "basis": "feed-carries-full-text",
+      "items": 19,
+      "full_items": 18,
+      "full_share": 95,
+      "avg_body_chars": 1698
+    },
+    {
+      "id": "rss-gcb-toc",
+      "basis": "feed-carries-full-text",
+      "items": 36,
+      "full_items": 32,
+      "full_share": 89,
+      "avg_body_chars": 2069
+    },
+    {
+      "id": "rss-geb-toc",
+      "basis": "feed-carries-full-text",
+      "items": 11,
+      "full_items": 11,
+      "full_share": 100,
+      "avg_body_chars": 2226
+    },
+    {
+      "id": "rss-geogarage",
+      "basis": "feed-carries-full-text",
+      "items": 30,
+      "full_items": 22,
+      "full_share": 73,
+      "avg_body_chars": 8064
+    },
+    {
+      "id": "rss-geographical",
+      "basis": "feed-carries-full-text",
+      "items": 27,
+      "full_items": 27,
+      "full_share": 100,
+      "avg_body_chars": 4949
+    },
+    {
+      "id": "rss-geohealth-toc",
+      "basis": "feed-carries-full-text",
+      "items": 14,
+      "full_items": 13,
+      "full_share": 93,
+      "avg_body_chars": 1670
+    },
+    {
+      "id": "rss-geomar-news",
+      "basis": "feed-carries-full-text",
+      "items": 24,
+      "full_items": 24,
+      "full_share": 100,
+      "avg_body_chars": 4711
+    },
+    {
+      "id": "rss-geoweeknews",
+      "basis": "feed-carries-full-text",
+      "items": 16,
+      "full_items": 16,
+      "full_share": 100,
+      "avg_body_chars": 5030
+    },
+    {
+      "id": "rss-gfz-newsroom",
+      "basis": "feed-carries-full-text",
+      "items": 12,
+      "full_items": 11,
+      "full_share": 92,
+      "avg_body_chars": 5805
+    },
+    {
+      "id": "rss-gislounge",
+      "basis": "feed-carries-full-text",
+      "items": 10,
+      "full_items": 10,
+      "full_share": 100,
+      "avg_body_chars": 15018
+    },
+    {
+      "id": "rss-grist",
+      "basis": "feed-carries-full-text",
+      "items": 15,
+      "full_items": 15,
+      "full_share": 100,
+      "avg_body_chars": 8815
+    },
+    {
+      "id": "rss-guardian-environment",
+      "basis": "feed-carries-full-text",
+      "items": 64,
+      "full_items": 60,
+      "full_share": 94,
+      "avg_body_chars": 5896
+    },
+    {
+      "id": "rss-hal-geography",
+      "basis": "feed-carries-full-text",
+      "items": 50,
+      "full_items": 42,
+      "full_share": 84,
+      "avg_body_chars": 1706
+    },
+    {
+      "id": "rss-huanqiukexue",
+      "basis": "feed-carries-full-text",
+      "items": 21,
+      "full_items": 20,
+      "full_share": 95,
+      "avg_body_chars": 4008
+    },
+    {
+      "id": "rss-ijc-toc",
+      "basis": "feed-carries-full-text",
+      "items": 325,
+      "full_items": 314,
+      "full_share": 97,
+      "avg_body_chars": 1929
+    },
+    {
+      "id": "rss-ijg-ugm",
+      "basis": "feed-carries-full-text",
+      "items": 38,
+      "full_items": 37,
+      "full_share": 97,
+      "avg_body_chars": 4292
+    },
+    {
+      "id": "rss-imgw-news",
+      "basis": "feed-carries-full-text",
+      "items": 13,
+      "full_items": 12,
+      "full_share": 92,
+      "avg_body_chars": 4608
+    },
+    {
+      "id": "rss-isa-news",
+      "basis": "feed-carries-full-text",
+      "items": 11,
+      "full_items": 11,
+      "full_share": 100,
+      "avg_body_chars": 5067
+    },
+    {
+      "id": "rss-itdp-news",
+      "basis": "feed-carries-full-text",
+      "items": 39,
+      "full_items": 33,
+      "full_share": 85,
+      "avg_body_chars": 5490
+    },
+    {
+      "id": "rss-james-toc",
+      "basis": "feed-carries-full-text",
+      "items": 27,
+      "full_items": 26,
+      "full_share": 96,
+      "avg_body_chars": 1629
+    },
+    {
+      "id": "rss-jawra-toc",
+      "basis": "feed-carries-full-text",
+      "items": 14,
+      "full_items": 14,
+      "full_share": 100,
+      "avg_body_chars": 1442
+    },
+    {
+      "id": "rss-jgr-atmospheres-toc",
+      "basis": "feed-carries-full-text",
+      "items": 567,
+      "full_items": 517,
+      "full_share": 91,
+      "avg_body_chars": 1608
+    },
+    {
+      "id": "rss-jgr-biogeosciences-toc",
+      "basis": "feed-carries-full-text",
+      "items": 17,
+      "full_items": 17,
+      "full_share": 100,
+      "avg_body_chars": 1707
+    },
+    {
+      "id": "rss-jgr-earth-surface-toc",
+      "basis": "feed-carries-full-text",
+      "items": 34,
+      "full_items": 34,
+      "full_share": 100,
+      "avg_body_chars": 1690
+    },
+    {
+      "id": "rss-jgr-ml-comp-toc",
+      "basis": "feed-carries-full-text",
+      "items": 48,
+      "full_items": 41,
+      "full_share": 85,
+      "avg_body_chars": 1590
+    },
+    {
+      "id": "rss-jgr-oceans-toc",
+      "basis": "feed-carries-full-text",
+      "items": 75,
+      "full_items": 67,
+      "full_share": 89,
+      "avg_body_chars": 1569
+    },
+    {
+      "id": "rss-jgr-solid-earth-toc",
+      "basis": "feed-carries-full-text",
+      "items": 72,
+      "full_items": 66,
+      "full_share": 92,
+      "avg_body_chars": 1620
+    },
+    {
+      "id": "rss-jgr-space-physics-toc",
+      "basis": "feed-carries-full-text",
+      "items": 103,
+      "full_items": 90,
+      "full_share": 87,
+      "avg_body_chars": 1521
+    },
+    {
+      "id": "rss-jornal-usp",
+      "basis": "feed-carries-full-text",
+      "items": 20,
+      "full_items": 20,
+      "full_share": 100,
+      "avg_body_chars": 4098
+    },
+    {
+      "id": "rss-leventhal-maps",
+      "basis": "feed-carries-full-text",
+      "items": 256,
+      "full_items": 235,
+      "full_share": 92,
+      "avg_body_chars": 6907
+    },
+    {
+      "id": "rss-meteofrance-news",
+      "basis": "feed-carries-full-text",
+      "items": 12,
+      "full_items": 11,
+      "full_share": 92,
+      "avg_body_chars": 3216
+    },
+    {
+      "id": "rss-michigan-news",
+      "basis": "feed-carries-full-text",
+      "items": 31,
+      "full_items": 31,
+      "full_share": 100,
+      "avg_body_chars": 5248
+    },
+    {
+      "id": "rss-mongabay",
+      "basis": "feed-carries-full-text",
+      "items": 64,
+      "full_items": 61,
+      "full_share": 95,
+      "avg_body_chars": 1611
+    },
+    {
+      "id": "rss-nature-ca-news",
+      "basis": "feed-carries-full-text",
+      "items": 10,
+      "full_items": 10,
+      "full_share": 100,
+      "avg_body_chars": 4479
+    },
+    {
+      "id": "rss-nature-geoscience",
+      "basis": "feed-carries-full-text",
+      "items": 26,
+      "full_items": 20,
+      "full_share": 77,
+      "avg_body_chars": 4079
+    },
+    {
+      "id": "rss-nautilus-feed",
+      "basis": "feed-carries-full-text",
+      "items": 29,
+      "full_items": 29,
+      "full_share": 100,
+      "avg_body_chars": 5094
+    },
+    {
+      "id": "rss-ncsu-news",
+      "basis": "feed-carries-full-text",
+      "items": 35,
+      "full_items": 35,
+      "full_share": 100,
+      "avg_body_chars": 5725
+    },
+    {
+      "id": "rss-new-scientist",
+      "basis": "feed-carries-full-text",
+      "items": 47,
+      "full_items": 45,
+      "full_share": 96,
+      "avg_body_chars": 4809
+    },
+    {
+      "id": "rss-newswise-scinews",
+      "basis": "feed-carries-full-text",
+      "items": 130,
+      "full_items": 129,
+      "full_share": 99,
+      "avg_body_chars": 5163
+    },
+    {
+      "id": "rss-niche-canada",
+      "basis": "feed-carries-full-text",
+      "items": 15,
+      "full_items": 14,
+      "full_share": 93,
+      "avg_body_chars": 8143
+    },
+    {
+      "id": "rss-noc-news",
+      "basis": "feed-carries-full-text",
+      "items": 13,
+      "full_items": 11,
+      "full_share": 85,
+      "avg_body_chars": 2976
+    },
+    {
+      "id": "rss-npj-climate-atmos-sci",
+      "basis": "feed-carries-full-text",
+      "items": 82,
+      "full_items": 50,
+      "full_share": 61,
+      "avg_body_chars": 1602
+    },
+    {
+      "id": "rss-palcomms-hss",
+      "basis": "feed-carries-full-text",
+      "items": 574,
+      "full_items": 481,
+      "full_share": 84,
+      "avg_body_chars": 2013
+    },
+    {
+      "id": "rss-paleocean-paleoclim-toc",
+      "basis": "feed-carries-full-text",
+      "items": 19,
+      "full_items": 18,
+      "full_share": 95,
+      "avg_body_chars": 1673
+    },
+    {
+      "id": "rss-phys-org-earth",
+      "basis": "feed-carries-full-text",
+      "items": 82,
+      "full_items": 82,
+      "full_share": 100,
+      "avg_body_chars": 5418
+    },
+    {
+      "id": "rss-phys-org-planetary-sciences",
+      "basis": "feed-carries-full-text",
+      "items": 34,
+      "full_items": 34,
+      "full_share": 100,
+      "avg_body_chars": 5768
+    },
+    {
+      "id": "rss-plos-climate",
+      "basis": "feed-carries-full-text",
+      "items": 156,
+      "full_items": 140,
+      "full_share": 90,
+      "avg_body_chars": 1935
+    },
+    {
+      "id": "rss-plos-ecosystems",
+      "basis": "feed-carries-full-text",
+      "items": 22,
+      "full_items": 18,
+      "full_share": 82,
+      "avg_body_chars": 2261
+    },
+    {
+      "id": "rss-plos-sustainability",
+      "basis": "feed-carries-full-text",
+      "items": 64,
+      "full_items": 62,
+      "full_share": 97,
+      "avg_body_chars": 2615
+    },
+    {
+      "id": "rss-plos-water",
+      "basis": "feed-carries-full-text",
+      "items": 122,
+      "full_items": 119,
+      "full_share": 98,
+      "avg_body_chars": 2237
+    },
+    {
+      "id": "rss-polar-research",
+      "basis": "feed-carries-full-text",
+      "items": 14,
+      "full_items": 14,
+      "full_share": 100,
+      "avg_body_chars": 13936
+    },
+    {
+      "id": "rss-politico-eu-feed",
+      "basis": "feed-carries-full-text",
+      "items": 94,
+      "full_items": 80,
+      "full_share": 85,
+      "avg_body_chars": 3292
+    },
+    {
+      "id": "rss-psu-news",
+      "basis": "feed-carries-full-text",
+      "items": 18,
+      "full_items": 18,
+      "full_share": 100,
+      "avg_body_chars": 6139
+    },
+    {
+      "id": "rss-reviews-geophysics-toc",
+      "basis": "feed-carries-full-text",
+      "items": 23,
+      "full_items": 18,
+      "full_share": 78,
+      "avg_body_chars": 1546
+    },
+    {
+      "id": "rss-rgs-geo-toc",
+      "basis": "feed-carries-full-text",
+      "items": 13,
+      "full_items": 12,
+      "full_share": 92,
+      "avg_body_chars": 1993
+    },
+    {
+      "id": "rss-sci-reports-geoscience",
+      "basis": "feed-carries-full-text",
+      "items": 8307,
+      "full_items": 7586,
+      "full_share": 91,
+      "avg_body_chars": 1748
+    },
+    {
+      "id": "rss-sciencedaily-fossils-ruins",
+      "basis": "feed-carries-full-text",
+      "items": 54,
+      "full_items": 54,
+      "full_share": 100,
+      "avg_body_chars": 6272
+    },
+    {
+      "id": "rss-sciencedaily-space-time",
+      "basis": "feed-carries-full-text",
+      "items": 56,
+      "full_items": 56,
+      "full_share": 100,
+      "avg_body_chars": 6218
+    },
+    {
+      "id": "rss-sedimentology-toc",
+      "basis": "feed-carries-full-text",
+      "items": 23,
+      "full_items": 23,
+      "full_share": 100,
+      "avg_body_chars": 2045
+    },
+    {
+      "id": "rss-space-weather-toc",
+      "basis": "feed-carries-full-text",
+      "items": 31,
+      "full_items": 29,
+      "full_share": 94,
+      "avg_body_chars": 1584
+    },
+    {
+      "id": "rss-swp-publications",
+      "basis": "feed-carries-full-text",
+      "items": 71,
+      "full_items": 64,
+      "full_share": 90,
+      "avg_body_chars": 42256
+    },
+    {
+      "id": "rss-tc-canada-edition",
+      "basis": "feed-carries-full-text",
+      "items": 65,
+      "full_items": 65,
+      "full_share": 100,
+      "avg_body_chars": 6614
+    },
+    {
+      "id": "rss-tc-uk-edition",
+      "basis": "feed-carries-full-text",
+      "items": 83,
+      "full_items": 83,
+      "full_share": 100,
+      "avg_body_chars": 5868
+    },
+    {
+      "id": "rss-tectonics-toc",
+      "basis": "feed-carries-full-text",
+      "items": 13,
+      "full_items": 10,
+      "full_share": 77,
+      "avg_body_chars": 1462
+    },
+    {
+      "id": "rss-tgis-wiley-toc",
+      "basis": "feed-carries-full-text",
+      "items": 65,
+      "full_items": 55,
+      "full_share": 85,
+      "avg_body_chars": 1551
+    },
+    {
+      "id": "rss-theconversation-climate-science",
+      "basis": "feed-carries-full-text",
+      "items": 17,
+      "full_items": 17,
+      "full_share": 100,
+      "avg_body_chars": 6173
+    },
+    {
+      "id": "rss-theconversation-geology",
+      "basis": "feed-carries-full-text",
+      "items": 17,
+      "full_items": 17,
+      "full_share": 100,
+      "avg_body_chars": 6282
+    },
+    {
+      "id": "rss-ukri-news",
+      "basis": "feed-carries-full-text",
+      "items": 22,
+      "full_items": 22,
+      "full_share": 100,
+      "avg_body_chars": 5383
+    },
+    {
+      "id": "rss-uw-college-env",
+      "basis": "feed-carries-full-text",
+      "items": 50,
+      "full_items": 47,
+      "full_share": 94,
+      "avg_body_chars": 5365
+    },
+    {
+      "id": "rss-wetlands-intl-news",
+      "basis": "feed-carries-full-text",
+      "items": 12,
+      "full_items": 12,
+      "full_share": 100,
+      "avg_body_chars": 5266
+    },
+    {
+      "id": "rss-wisconsin-news",
+      "basis": "feed-carries-full-text",
+      "items": 13,
+      "full_items": 12,
+      "full_share": 92,
+      "avg_body_chars": 5568
+    },
+    {
+      "id": "rss-wrr-toc",
+      "basis": "feed-carries-full-text",
+      "items": 82,
+      "full_items": 77,
+      "full_share": 94,
+      "avg_body_chars": 1656
+    },
+    {
+      "id": "rss-yale-climate-connections",
+      "basis": "feed-carries-full-text",
+      "items": 17,
+      "full_items": 17,
+      "full_share": 100,
+      "avg_body_chars": 8711
+    },
+    {
+      "id": "st-destatis-press",
+      "basis": "feed-carries-full-text",
+      "items": 13,
+      "full_items": 13,
+      "full_share": 100,
+      "avg_body_chars": 4324
+    },
+    {
+      "id": "st-natural-england",
+      "basis": "feed-carries-full-text",
+      "items": 23,
+      "full_items": 15,
+      "full_share": 65,
+      "avg_body_chars": 3583
+    },
+    {
+      "id": "uni-anr-a",
+      "basis": "feed-carries-full-text",
+      "items": 20,
+      "full_items": 20,
+      "full_share": 100,
+      "avg_body_chars": 6038
+    },
+    {
+      "id": "uni-brown-ibes",
+      "basis": "feed-carries-full-text",
+      "items": 43,
+      "full_items": 33,
+      "full_share": 77,
+      "avg_body_chars": 4199
+    },
+    {
+      "id": "uni-ceaza-news",
+      "basis": "feed-carries-full-text",
+      "items": 11,
+      "full_items": 10,
+      "full_share": 91,
+      "avg_body_chars": 2621
+    },
+    {
+      "id": "uni-cmcc-h",
+      "basis": "feed-carries-full-text",
+      "items": 101,
+      "full_items": 97,
+      "full_share": 96,
+      "avg_body_chars": 3727
+    },
+    {
+      "id": "uni-dri-a",
+      "basis": "feed-carries-full-text",
+      "items": 10,
+      "full_items": 10,
+      "full_share": 100,
+      "avg_body_chars": 7355
+    },
+    {
+      "id": "uni-epoc",
+      "basis": "feed-carries-full-text",
+      "items": 10,
+      "full_items": 10,
+      "full_share": 100,
+      "avg_body_chars": 5731
+    },
+    {
+      "id": "uni-fraunhofer-press",
+      "basis": "feed-carries-full-text",
+      "items": 25,
+      "full_items": 25,
+      "full_share": 100,
+      "avg_body_chars": 5088
+    },
+    {
+      "id": "uni-hku-geog",
+      "basis": "feed-carries-full-text",
+      "items": 20,
+      "full_items": 14,
+      "full_share": 70,
+      "avg_body_chars": 2213
+    },
+    {
+      "id": "uni-inrs-h",
+      "basis": "feed-carries-full-text",
+      "items": 12,
+      "full_items": 11,
+      "full_share": 92,
+      "avg_body_chars": 5029
+    },
+    {
+      "id": "uni-manchester-geog",
+      "basis": "feed-carries-full-text",
+      "items": 51,
+      "full_items": 51,
+      "full_share": 100,
+      "avg_body_chars": 4829
+    },
+    {
+      "id": "uni-mbl",
+      "basis": "feed-carries-full-text",
+      "items": 16,
+      "full_items": 14,
+      "full_share": 88,
+      "avg_body_chars": 2958
+    },
+    {
+      "id": "uni-mcgill-earth",
+      "basis": "feed-carries-full-text",
+      "items": 241,
+      "full_items": 240,
+      "full_share": 100,
+      "avg_body_chars": 3391
+    },
+    {
+      "id": "uni-mps-news",
+      "basis": "feed-carries-full-text",
+      "items": 21,
+      "full_items": 15,
+      "full_share": 71,
+      "avg_body_chars": 3850
+    },
+    {
+      "id": "uni-obspm",
+      "basis": "feed-carries-full-text",
+      "items": 10,
+      "full_items": 10,
+      "full_share": 100,
+      "avg_body_chars": 2556
+    },
+    {
+      "id": "uni-rob-h",
+      "basis": "feed-carries-full-text",
+      "items": 35,
+      "full_items": 24,
+      "full_share": 69,
+      "avg_body_chars": 1472
+    },
+    {
+      "id": "uni-sussex-geog",
+      "basis": "feed-carries-full-text",
+      "items": 30,
+      "full_items": 28,
+      "full_share": 93,
+      "avg_body_chars": 3662
+    },
+    {
+      "id": "uni-tyndall",
+      "basis": "feed-carries-full-text",
+      "items": 12,
+      "full_items": 12,
+      "full_share": 100,
+      "avg_body_chars": 9494
+    },
+    {
+      "id": "uni-uvic-seos",
+      "basis": "feed-carries-full-text",
+      "items": 11,
+      "full_items": 10,
+      "full_share": 91,
+      "avg_body_chars": 4244
+    },
+    {
+      "id": "uni-waterloo-env",
+      "basis": "feed-carries-full-text",
+      "items": 11,
+      "full_items": 11,
+      "full_share": 100,
+      "avg_body_chars": 5432
+    },
+    {
+      "id": "us-loc-folklife",
+      "basis": "feed-carries-full-text",
+      "items": 11,
+      "full_items": 11,
+      "full_share": 100,
+      "avg_body_chars": 11231
+    },
+    {
+      "id": "us-loc-in-custodia-legis",
+      "basis": "feed-carries-full-text",
+      "items": 12,
+      "full_items": 12,
+      "full_share": 100,
+      "avg_body_chars": 5219
+    },
+    {
+      "id": "us-noaa-aoml-home",
+      "basis": "feed-carries-full-text",
+      "items": 11,
+      "full_items": 10,
+      "full_share": 91,
+      "avg_body_chars": 5789
+    },
+    {
+      "id": "us-noaa-nhc-index-ep",
+      "basis": "feed-carries-full-text",
+      "items": 88,
+      "full_items": 86,
+      "full_share": 98,
+      "avg_body_chars": 2867
+    },
+    {
+      "id": "us-noaa-nhc-index-ep-sp",
+      "basis": "feed-carries-full-text",
+      "items": 66,
+      "full_items": 65,
+      "full_share": 98,
+      "avg_body_chars": 3416
+    },
+    {
+      "id": "us-noaa-spc-home",
+      "basis": "feed-carries-full-text",
+      "items": 18,
+      "full_items": 14,
+      "full_share": 78,
+      "avg_body_chars": 2605
+    },
+    {
+      "id": "web-adb-news",
+      "basis": "feed-carries-full-text",
+      "items": 122,
+      "full_items": 122,
+      "full_share": 100,
+      "avg_body_chars": 3061
+    },
+    {
+      "id": "web-bellingcat",
+      "basis": "feed-carries-full-text",
+      "items": 12,
+      "full_items": 12,
+      "full_share": 100,
+      "avg_body_chars": 9189
+    },
+    {
+      "id": "web-bigelow-news",
+      "basis": "feed-carries-full-text",
+      "items": 353,
+      "full_items": 348,
+      "full_share": 99,
+      "avg_body_chars": 5287
+    },
+    {
+      "id": "web-brgm-news",
+      "basis": "feed-carries-full-text",
+      "items": 51,
+      "full_items": 40,
+      "full_share": 78,
+      "avg_body_chars": 5965
+    },
+    {
+      "id": "web-cartoblog",
+      "basis": "feed-carries-full-text",
+      "items": 11,
+      "full_items": 11,
+      "full_share": 100,
+      "avg_body_chars": 10175
+    },
+    {
+      "id": "web-cas-neigae-kydt",
+      "basis": "feed-carries-full-text",
+      "items": 98,
+      "full_items": 69,
+      "full_share": 70,
+      "avg_body_chars": 1445
+    },
+    {
+      "id": "web-cas-scbg-kyjz",
+      "basis": "feed-carries-full-text",
+      "items": 22,
+      "full_items": 15,
+      "full_share": 68,
+      "avg_body_chars": 1572
+    },
+    {
+      "id": "web-cimmyt-news",
+      "basis": "feed-carries-full-text",
+      "items": 21,
+      "full_items": 18,
+      "full_share": 86,
+      "avg_body_chars": 5192
+    },
+    {
+      "id": "web-eclac-news",
+      "basis": "feed-carries-full-text",
+      "items": 28,
+      "full_items": 28,
+      "full_share": 100,
+      "avg_body_chars": 6284
+    },
+    {
+      "id": "web-ecmwf-news",
+      "basis": "feed-carries-full-text",
+      "items": 17,
+      "full_items": 16,
+      "full_share": 94,
+      "avg_body_chars": 5531
+    },
+    {
+      "id": "web-eurotopics-press",
+      "basis": "feed-carries-full-text",
+      "items": 152,
+      "full_items": 97,
+      "full_share": 64,
+      "avg_body_chars": 2548
+    },
+    {
+      "id": "web-feltblog",
+      "basis": "feed-carries-full-text",
+      "items": 56,
+      "full_items": 43,
+      "full_share": 77,
+      "avg_body_chars": 3788
+    },
+    {
+      "id": "web-gatech-news",
+      "basis": "feed-carries-full-text",
+      "items": 35,
+      "full_items": 25,
+      "full_share": 71,
+      "avg_body_chars": 2712
+    },
+    {
+      "id": "web-gmu-science-news",
+      "basis": "feed-carries-full-text",
+      "items": 52,
+      "full_items": 50,
+      "full_share": 96,
+      "avg_body_chars": 3951
+    },
+    {
+      "id": "web-harvard-gazette",
+      "basis": "feed-carries-full-text",
+      "items": 46,
+      "full_items": 43,
+      "full_share": 93,
+      "avg_body_chars": 7918
+    },
+    {
+      "id": "web-iap-kyjz",
+      "basis": "feed-carries-full-text",
+      "items": 92,
+      "full_items": 78,
+      "full_share": 85,
+      "avg_body_chars": 1779
+    },
+    {
+      "id": "web-iucn-press",
+      "basis": "feed-carries-full-text",
+      "items": 32,
+      "full_items": 23,
+      "full_share": 72,
+      "avg_body_chars": 3263
+    },
+    {
+      "id": "web-mee-xwfb",
+      "basis": "feed-carries-full-text",
+      "items": 25,
+      "full_items": 17,
+      "full_share": 68,
+      "avg_body_chars": 2776
+    },
+    {
+      "id": "web-rob-seismology",
+      "basis": "feed-carries-full-text",
+      "items": 39,
+      "full_items": 25,
+      "full_share": 64,
+      "avg_body_chars": 1425
+    },
+    {
+      "id": "web-rwdl-toc",
+      "basis": "feed-carries-full-text",
+      "items": 72,
+      "full_items": 72,
+      "full_share": 100,
+      "avg_body_chars": 11648
+    },
+    {
+      "id": "web-spacemapper-news",
+      "basis": "feed-carries-full-text",
+      "items": 53,
+      "full_items": 53,
+      "full_share": 100,
+      "avg_body_chars": 4008
+    },
+    {
+      "id": "web-stats-latest",
+      "basis": "feed-carries-full-text",
+      "items": 59,
+      "full_items": 59,
+      "full_share": 100,
+      "avg_body_chars": 6485
+    },
+    {
+      "id": "web-synspective",
+      "basis": "feed-carries-full-text",
+      "items": 40,
+      "full_items": 26,
+      "full_share": 65,
+      "avg_body_chars": 4158
+    },
+    {
+      "id": "web-unep-wcmc-news",
+      "basis": "feed-carries-full-text",
+      "items": 28,
+      "full_items": 20,
+      "full_share": 71,
+      "avg_body_chars": 4122
+    },
+    {
+      "id": "web-unfpa-news",
+      "basis": "feed-carries-full-text",
+      "items": 41,
+      "full_items": 41,
+      "full_share": 100,
+      "avg_body_chars": 6126
+    },
+    {
+      "id": "web-wmo-news",
+      "basis": "feed-carries-full-text",
+      "items": 74,
+      "full_items": 68,
+      "full_share": 92,
+      "avg_body_chars": 3706
+    }
+  ]
+}

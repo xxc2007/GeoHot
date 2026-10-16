@@ -105,9 +105,20 @@ test("the new-source form's defaults are the published policy, not a copy of it 
   assert.match(TERMS, /`site_fulltext`[^\n]*默认为关/, "terms.md still promises 站内全文默认为关");
   assert.match(TERMS, /`syndicate_fulltext`，默认为关/, "and the same for 对外全文");
   assert.equal(/site_fulltext[^。\n]*默认为开/.test(TERMS), false, "the promise cannot be inverted");
-  // The 44 sources the pack registers are the policy in practice: none arrives licensed for full text.
+  // 许可位的开与关都必须是"登记过的决定"，不是顺手带出来的：terms.md 说的是「除非该来源被明确登记为
+  // 允许站内展示全文」，所以包里的 true 与登记表 industry/sources-fulltext.json 必须一一对应——
+  // 多一个 true 没有依据、或少一条登记，都在这里判红。（2026-10-16 之前这一条写的是"包里不许有 true"，
+  // 那钉的是当时的观察值 44 条源恰好都没开，不是承诺本身；正文上线后它挡不住真问题，只会挡住建功能。）
+  const REGISTRY = (JSON.parse(readFileSync(new URL("../industry/sources-fulltext.json", import.meta.url), "utf8")) as
+  { sources: Array<{ id: string; basis?: string }> }).sources;
+  const licensed = new Set(PACK.filter((s) => s.site_fulltext === true).map((s) => s.id));
+  const registered = new Set(REGISTRY.map((s) => s.id));
+  assert.equal(licensed.size, registered.size, `站内全文的门（${licensed.size}）与登记表（${registered.size}）条数不等`);
+  for (const id of licensed) assert.ok(registered.has(id), `${id} 在包里被开了站内全文，却没有登记依据`);
+  for (const id of registered) assert.ok(licensed.has(id), `${id} 登记了依据，包里却是关的——把决定重做一遍再删登记`);
+  for (const r of REGISTRY) assert.ok((r.basis ?? "").trim().length > 0, `${r.id} 的登记必须有 basis`);
+  // 对外再分发（RSS/API 内联全文）比站内展示更重，仍然一道门都没开。
   for (const source of PACK) {
-    assert.notEqual(source.site_fulltext, true, `${source.id} is licensed for 站内全文`);
     assert.notEqual(source.syndicate_fulltext, true, `${source.id} is licensed for 对外全文`);
   }
 });

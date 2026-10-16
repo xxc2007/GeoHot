@@ -157,8 +157,15 @@ export interface ItemDetail extends ItemSummary {
   readingMode: "full" | "summary-only";
   author: string | null;
   language: string | null;
-  /** Chinese body (translation or Chinese original) and original body, whitelisted HTML. */
-  body: { zh: string | null; original: string | null; zhKind: "translation" | "original" | null; complete: boolean } | null;
+  /**
+   * Chinese body (translation or Chinese original) and original body, whitelisted HTML.
+   * `truncated` says the shown text is only the leading part of a body longer than the reader cap —
+   * the page must say so instead of silently ending (a journal article can run past 400,000 characters).
+   */
+  body: {
+    zh: string | null; original: string | null; zhKind: "translation" | "original" | null; complete: boolean;
+    truncated?: boolean; shownChars?: number; totalChars?: number;
+  } | null;
   outline: OutlineEntry[];
   relatedStories: StoryRef[];
   indexable: boolean;

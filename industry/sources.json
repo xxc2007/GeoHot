@@ -325,7 +325,7 @@
         "区域地理",
         "观测数据"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -473,7 +473,7 @@
         "科学媒体",
         "自然地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -536,7 +536,7 @@
         "自然地理",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -759,7 +759,7 @@
         "遥感",
         "前线报道"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -788,7 +788,7 @@
         "研究",
         "观测数据"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -814,7 +814,7 @@
         "灾害事件",
         "区域地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -840,7 +840,7 @@
         "交通与城市",
         "人文地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -868,7 +868,7 @@
         "气候",
         "地球科学"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -925,7 +925,7 @@
         "区域地理",
         "考察"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -1132,7 +1132,7 @@
         "人文地理",
         "经济地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -1347,7 +1347,7 @@
         "卫星导航",
         "技术与软件"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -1617,7 +1617,7 @@
         "中文",
         "媒体"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "geopolitics"
@@ -1640,7 +1640,7 @@
         "地缘",
         "媒体"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "geopolitics"
@@ -1723,7 +1723,7 @@
         "火山",
         "科研快讯"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -1772,7 +1772,7 @@
         "地缘",
         "媒体"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "geopolitics"
@@ -1843,7 +1843,7 @@
         "媒体",
         "CC"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -1866,7 +1866,7 @@
         "机构",
         "地球观测"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -1890,7 +1890,7 @@
         "地图",
         "机构"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "histgeo"
@@ -2327,7 +2327,7 @@
         "政策",
         "气候"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -2538,7 +2538,7 @@
         "观测数据",
         "技术"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -2638,7 +2638,7 @@
         "气候",
         "海洋"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -3322,7 +3322,7 @@
         "期刊",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -3360,7 +3360,7 @@
         "期刊",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -3474,7 +3474,7 @@
         "期刊",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -3554,7 +3554,7 @@
         "期刊",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -3594,7 +3594,7 @@
         "期刊",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -3634,7 +3634,7 @@
         "期刊",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -3674,7 +3674,7 @@
         "期刊",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -3714,7 +3714,7 @@
         "期刊",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -3754,7 +3754,7 @@
         "期刊",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -3794,7 +3794,7 @@
         "期刊",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -3834,7 +3834,7 @@
         "期刊",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -3874,7 +3874,7 @@
         "期刊",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -3914,7 +3914,7 @@
         "期刊",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -3954,7 +3954,7 @@
         "期刊",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -3994,7 +3994,7 @@
         "期刊",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -4034,7 +4034,7 @@
         "期刊",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -4074,7 +4074,7 @@
         "期刊",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -4114,7 +4114,7 @@
         "期刊",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -4154,7 +4154,7 @@
         "期刊",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -4220,7 +4220,7 @@
         "期刊",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -4260,7 +4260,7 @@
         "期刊",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -4300,7 +4300,7 @@
         "期刊",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -4506,7 +4506,7 @@
         "期刊",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -4540,7 +4540,7 @@
         "期刊",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -4574,7 +4574,7 @@
         "期刊",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -4608,7 +4608,7 @@
         "期刊",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -4642,7 +4642,7 @@
         "期刊",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -4676,7 +4676,7 @@
         "期刊",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -4710,7 +4710,7 @@
         "期刊",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -4744,7 +4744,7 @@
         "期刊",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -4778,7 +4778,7 @@
         "期刊",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -4812,7 +4812,7 @@
         "期刊",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -4843,7 +4843,7 @@
         "预印本",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "frontier"
@@ -4921,7 +4921,7 @@
         "学会",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "frontier"
@@ -4950,7 +4950,7 @@
         "预印本",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "frontier"
@@ -4979,7 +4979,7 @@
         "预印本",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "frontier"
@@ -5008,7 +5008,7 @@
         "预印本",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "frontier"
@@ -5034,7 +5034,7 @@
         "预印本",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "frontier"
@@ -5195,7 +5195,7 @@
         "期刊",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -5406,7 +5406,7 @@
         "学术机构",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "frontier"
@@ -5432,7 +5432,7 @@
         "学术机构",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "frontier"
@@ -5484,7 +5484,7 @@
         "学术机构",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "frontier"
@@ -5692,7 +5692,7 @@
         "学术机构",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "frontier"
@@ -5926,7 +5926,7 @@
         "学术媒体",
         "转载"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -5951,7 +5951,7 @@
         "学术媒体",
         "转载"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -5976,7 +5976,7 @@
         "学术媒体",
         "转载"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -6001,7 +6001,7 @@
         "学术媒体",
         "转载"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -6026,7 +6026,7 @@
         "学术媒体",
         "转载"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -6051,7 +6051,7 @@
         "学术媒体",
         "转载"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -6076,7 +6076,7 @@
         "学术媒体",
         "转载"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -6101,7 +6101,7 @@
         "学术媒体",
         "转载"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -6141,7 +6141,7 @@
         "期刊",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -6181,7 +6181,7 @@
         "期刊",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -6221,7 +6221,7 @@
         "期刊",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -6261,7 +6261,7 @@
         "期刊",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -6496,7 +6496,7 @@
         "期刊",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -6616,7 +6616,7 @@
         "期刊",
         "研究"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -6778,7 +6778,7 @@
         "城市",
         "地理信息系统"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -6860,7 +6860,7 @@
         "自然地理",
         "地球科学"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -6935,7 +6935,7 @@
         "研究",
         "科学媒体"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -6973,7 +6973,7 @@
         "自然地理",
         "冰川与冻土"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -7011,7 +7011,7 @@
         "历史地理",
         "科学媒体"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -7049,7 +7049,7 @@
         "大气",
         "地球科学"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -7088,7 +7088,7 @@
         "观测数据",
         "技术"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -7127,7 +7127,7 @@
         "大气",
         "环境"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -7165,7 +7165,7 @@
         "自然地理",
         "农业"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -7203,7 +7203,7 @@
         "气候",
         "大气"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -7241,7 +7241,7 @@
         "气候治理",
         "技术"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -7319,7 +7319,7 @@
         "自然地理",
         "地球科学"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -7359,7 +7359,7 @@
         "气候治理",
         "环境"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -7397,7 +7397,7 @@
         "气候",
         "海洋"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -7435,7 +7435,7 @@
         "遥感",
         "地图"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -7472,7 +7472,7 @@
         "遥感",
         "地图"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -7511,7 +7511,7 @@
         "自然地理",
         "冰川与冻土"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -7553,7 +7553,7 @@
         "地球观测",
         "英文"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -7594,7 +7594,7 @@
         "气候",
         "英文"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -7636,7 +7636,7 @@
         "自然地理",
         "英文"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -7677,7 +7677,7 @@
         "海洋",
         "英文"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -7719,7 +7719,7 @@
         "人地关系",
         "英文"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -7762,7 +7762,7 @@
         "人文地理",
         "英文"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -7804,7 +7804,7 @@
         "开放获取",
         "英文"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -7847,7 +7847,7 @@
         "英文",
         "开放获取"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -7889,7 +7889,7 @@
         "开放获取",
         "英文"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -7932,7 +7932,7 @@
         "英文",
         "开放获取"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -8101,7 +8101,7 @@
         "英文",
         "开放获取"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -8143,7 +8143,7 @@
         "海洋",
         "英文"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -8185,7 +8185,7 @@
         "英文",
         "综合媒体"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -8226,7 +8226,7 @@
         "考察",
         "英文"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -8265,7 +8265,7 @@
         "人文地理",
         "国际"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -8455,7 +8455,7 @@
         "区域地理",
         "国际"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -8534,7 +8534,7 @@
         "国际",
         "转载层"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -8574,7 +8574,7 @@
         "地质灾害",
         "水文"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -8613,7 +8613,7 @@
         "观测数据",
         "技术与软件"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -8653,7 +8653,7 @@
         "区域地理",
         "国际"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -8691,7 +8691,7 @@
         "地球科学",
         "自然地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -8731,7 +8731,7 @@
         "历史地理",
         "海洋"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -8770,7 +8770,7 @@
         "地球科学",
         "考察"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -8809,7 +8809,7 @@
         "生态与保护",
         "物种"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -8849,7 +8849,7 @@
         "灾害",
         "气象"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -8896,7 +8896,7 @@
       "first_party": true,
       "owner_entity_id": null,
       "participation_mode": "editorial",
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "id": "rss-niche-canada",
@@ -8922,7 +8922,7 @@
       "first_party": true,
       "owner_entity_id": null,
       "participation_mode": "editorial",
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "id": "rss-bodleian-maps",
@@ -8948,7 +8948,7 @@
       "first_party": true,
       "owner_entity_id": null,
       "participation_mode": "editorial",
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "id": "rss-leventhal-maps",
@@ -9127,7 +9127,7 @@
       "first_party": true,
       "owner_entity_id": null,
       "participation_mode": "editorial",
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "id": "rss-aspi-strategist",
@@ -9153,7 +9153,7 @@
       "first_party": true,
       "owner_entity_id": null,
       "participation_mode": "editorial",
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "id": "rss-swp-publications",
@@ -9471,7 +9471,7 @@
         "人文地理",
         "区域地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -9543,7 +9543,7 @@
         "人文地理",
         "区域地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -9578,7 +9578,7 @@
         "人文地理",
         "区域地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -9607,7 +9607,7 @@
         "人文地理",
         "区域地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -9708,7 +9708,7 @@
         "气候",
         "科研进展"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -9801,7 +9801,7 @@
         "气象",
         "气候"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true
     },
@@ -10485,7 +10485,7 @@
         "地理信息",
         "美国"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "geotech"
@@ -10537,7 +10537,7 @@
         "前沿",
         "中国"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "frontier"
@@ -11290,7 +11290,7 @@
         "观测数据",
         "自然地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -11402,7 +11402,7 @@
         "科普",
         "地理信息技术"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "geotech"
@@ -11428,7 +11428,7 @@
         "地理信息",
         "地理信息技术"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "geotech"
@@ -11460,7 +11460,7 @@
         "地理信息",
         "地理信息技术"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "geotech"
@@ -11491,7 +11491,7 @@
         "协作",
         "地理信息技术"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "geotech"
@@ -11522,7 +11522,7 @@
         "卫星",
         "地理信息技术"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "geotech"
@@ -11580,7 +11580,7 @@
         "观测数据",
         "自然地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -11610,7 +11610,7 @@
         "开源情报",
         "政治地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "geopolitics"
@@ -11668,7 +11668,7 @@
         "研究进展",
         "前沿地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "frontier"
@@ -11694,7 +11694,7 @@
         "研究进展",
         "前沿地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "frontier"
@@ -11719,7 +11719,7 @@
         "高校",
         "前沿地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "frontier"
@@ -11744,7 +11744,7 @@
         "高校",
         "前沿地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "frontier"
@@ -11770,7 +11770,7 @@
         "空间物理",
         "前沿地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "frontier"
@@ -11801,7 +11801,7 @@
         "研究进展",
         "自然地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -11826,7 +11826,7 @@
         "高校",
         "前沿地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "frontier"
@@ -11857,7 +11857,7 @@
         "高校",
         "前沿地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "frontier"
@@ -11888,7 +11888,7 @@
         "高校",
         "前沿地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "frontier"
@@ -11920,7 +11920,7 @@
         "地理信息",
         "前沿地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "frontier"
@@ -11976,7 +11976,7 @@
         "高校",
         "前沿地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "frontier"
@@ -12071,7 +12071,7 @@
         "观测数据",
         "自然地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -12103,7 +12103,7 @@
         "官方",
         "人文地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "human"
@@ -12217,7 +12217,7 @@
         "水文",
         "人文地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "human"
@@ -12249,7 +12249,7 @@
         "区域发展",
         "人文地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "human"
@@ -12306,7 +12306,7 @@
         "科学文化",
         "前沿地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "frontier"
@@ -12357,7 +12357,7 @@
         "综合新闻",
         "政治地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "geopolitics"
@@ -12383,7 +12383,7 @@
         "环境",
         "前沿地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "frontier"
@@ -12408,7 +12408,7 @@
         "综合新闻",
         "政治地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "geopolitics"
@@ -12439,7 +12439,7 @@
         "媒体综述",
         "政治地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "geopolitics"
@@ -12464,7 +12464,7 @@
         "政策",
         "政治地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "geopolitics"
@@ -12489,7 +12489,7 @@
         "研究解读",
         "前沿地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "frontier"
@@ -12514,7 +12514,7 @@
         "研究解读",
         "前沿地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "frontier"
@@ -12598,7 +12598,7 @@
         "官方",
         "自然地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -12656,7 +12656,7 @@
         "官方",
         "地理信息技术"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "geotech"
@@ -12682,7 +12682,7 @@
         "预警",
         "自然地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -12708,7 +12708,7 @@
         "预警",
         "自然地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -12734,7 +12734,7 @@
         "预警",
         "自然地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -12791,7 +12791,7 @@
         "对地观测",
         "地理信息技术"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "geotech"
@@ -12875,7 +12875,7 @@
         "国际治理",
         "自然地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -12956,7 +12956,7 @@
         "科研资助",
         "前沿地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "frontier"
@@ -12982,7 +12982,7 @@
         "观测数据",
         "自然地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -13007,7 +13007,7 @@
         "自然史",
         "历史地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "histgeo"
@@ -13725,7 +13725,7 @@
         "实测 20/20 带日期",
         "最新 2026-10-13"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "frontier"
@@ -13899,7 +13899,7 @@
         "实测 20/21 带日期",
         "最新 2026-09-30"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "frontier"
@@ -15354,7 +15354,7 @@
         "机构发布",
         "学科前沿"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "regional"
@@ -15380,7 +15380,7 @@
         "机构发布",
         "学科前沿"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "human"
@@ -15406,7 +15406,7 @@
         "机构发布",
         "学科前沿"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -15432,7 +15432,7 @@
         "期刊论文",
         "自然地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -15458,7 +15458,7 @@
         "期刊论文",
         "自然地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "human"
@@ -15512,7 +15512,7 @@
         "期刊论文",
         "学科前沿"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -15564,7 +15564,7 @@
         "机构发布",
         "学科前沿"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -15590,7 +15590,7 @@
         "期刊论文",
         "学科前沿"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -15642,7 +15642,7 @@
         "机构发布",
         "学科前沿"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "frontier"
@@ -15668,7 +15668,7 @@
         "期刊论文",
         "学科前沿"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "human"
@@ -15694,7 +15694,7 @@
         "机构发布",
         "学科前沿"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "frontier"
@@ -15720,7 +15720,7 @@
         "机构发布",
         "地图与测绘"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "geotech"
@@ -15746,7 +15746,7 @@
         "期刊论文",
         "学科前沿"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -15798,7 +15798,7 @@
         "期刊论文",
         "区域地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "regional"
@@ -15824,7 +15824,7 @@
         "机构发布",
         "自然地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "human"
@@ -15850,7 +15850,7 @@
         "机构发布",
         "学科前沿"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -15902,7 +15902,7 @@
         "期刊论文",
         "学科前沿"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "frontier"
@@ -15928,7 +15928,7 @@
         "期刊论文",
         "学科前沿"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "human"
@@ -15954,7 +15954,7 @@
         "期刊论文",
         "地图与测绘"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "geotech"
@@ -16007,7 +16007,7 @@
         "机构发布",
         "区域地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "regional"
@@ -16059,7 +16059,7 @@
         "机构发布",
         "学科前沿"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "frontier"
@@ -16086,7 +16086,7 @@
         "期刊论文",
         "历史地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "histgeo"
@@ -16112,7 +16112,7 @@
         "期刊论文",
         "区域地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "regional"
@@ -16372,7 +16372,7 @@
         "机构发布",
         "区域地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "regional"
@@ -16424,7 +16424,7 @@
         "机构发布",
         "学科前沿"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -16450,7 +16450,7 @@
         "机构发布",
         "自然地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -16476,7 +16476,7 @@
         "机构发布",
         "学科前沿"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -16502,7 +16502,7 @@
         "机构发布",
         "地图与测绘"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "histgeo"
@@ -16554,7 +16554,7 @@
         "机构发布",
         "学科前沿"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "human"
@@ -16580,7 +16580,7 @@
         "机构发布",
         "学科前沿"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "human"
@@ -16632,7 +16632,7 @@
         "机构发布",
         "人文地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "human"
@@ -16658,7 +16658,7 @@
         "机构发布",
         "学科前沿"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -16710,7 +16710,7 @@
         "机构发布",
         "学科前沿"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "frontier"
@@ -16788,7 +16788,7 @@
         "机构发布",
         "学科前沿"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "frontier"
@@ -16840,7 +16840,7 @@
         "机构发布",
         "学科前沿"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -16866,7 +16866,7 @@
         "机构发布",
         "学科前沿"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "human"
@@ -17022,7 +17022,7 @@
         "期刊论文",
         "自然地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -17048,7 +17048,7 @@
         "期刊论文",
         "自然地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -17075,7 +17075,7 @@
         "期刊论文",
         "自然地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -17101,7 +17101,7 @@
         "期刊论文",
         "自然地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -17127,7 +17127,7 @@
         "期刊论文",
         "自然地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -17153,7 +17153,7 @@
         "期刊论文",
         "自然地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -17179,7 +17179,7 @@
         "期刊论文",
         "自然地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -17205,7 +17205,7 @@
         "期刊论文",
         "自然地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -17283,7 +17283,7 @@
         "机构发布",
         "学科前沿"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "frontier"
@@ -17335,7 +17335,7 @@
         "机构发布",
         "学科前沿"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "frontier"
@@ -17362,7 +17362,7 @@
         "机构发布",
         "学科前沿"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -17388,7 +17388,7 @@
         "机构发布",
         "地图与测绘"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "geotech"
@@ -17414,7 +17414,7 @@
         "机构发布",
         "学科前沿"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -17466,7 +17466,7 @@
         "机构发布",
         "自然地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -17492,7 +17492,7 @@
         "机构发布",
         "自然地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "geotech"
@@ -17674,7 +17674,7 @@
         "机构发布",
         "学科前沿"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "frontier"
@@ -17700,7 +17700,7 @@
         "机构发布",
         "学科前沿"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "frontier"
@@ -18041,7 +18041,7 @@
         "列表页",
         "自然地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -18183,7 +18183,7 @@
         "文化遗产",
         "历史地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "histgeo"
@@ -18309,7 +18309,7 @@
         "中文",
         "政治地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "geopolitics"
@@ -18334,7 +18334,7 @@
         "中文",
         "政治地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "geopolitics"
@@ -18359,7 +18359,7 @@
         "英文",
         "区域地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "regional"
@@ -18411,7 +18411,7 @@
         "观测数据",
         "区域地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "regional"
@@ -18436,7 +18436,7 @@
         "英文",
         "区域地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "regional"
@@ -18461,7 +18461,7 @@
         "英文",
         "区域地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "regional"
@@ -18590,7 +18590,7 @@
         "预警",
         "自然地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -18615,7 +18615,7 @@
         "中文",
         "政治地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "geopolitics"
@@ -18721,7 +18721,7 @@
         "英文",
         "自然地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -18771,7 +18771,7 @@
         "英文",
         "自然地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -18796,7 +18796,7 @@
         "英文",
         "自然地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -18821,7 +18821,7 @@
         "英文",
         "自然地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -18846,7 +18846,7 @@
         "英文",
         "自然地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -18877,7 +18877,7 @@
         "列表页",
         "人文地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "human"
@@ -18909,7 +18909,7 @@
         "列表页",
         "学科前沿"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "frontier"
@@ -18934,7 +18934,7 @@
         "英文",
         "人文地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "human"
@@ -18959,7 +18959,7 @@
         "英文",
         "人文地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "human"
@@ -18984,7 +18984,7 @@
         "英文",
         "自然地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -19009,7 +19009,7 @@
         "法文",
         "自然地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -19034,7 +19034,7 @@
         "法文",
         "学科前沿"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "frontier"
@@ -19059,7 +19059,7 @@
         "法文",
         "学科前沿"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "frontier"
@@ -19084,7 +19084,7 @@
         "德文",
         "地理信息"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "geotech"
@@ -19109,7 +19109,7 @@
         "德文",
         "学科前沿"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "frontier"
@@ -19168,7 +19168,7 @@
         "预警",
         "自然地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -19224,7 +19224,7 @@
         "中文",
         "区域地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "regional"
@@ -19249,7 +19249,7 @@
         "西班牙文",
         "自然地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -19538,7 +19538,7 @@
         "意大利文",
         "自然地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -19874,7 +19874,7 @@
         "德文",
         "自然地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
@@ -19899,7 +19899,7 @@
         "意大利文",
         "自然地理"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false,
       "enabled": true,
       "defaultCategory": "physical"
