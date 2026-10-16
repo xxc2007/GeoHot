@@ -1,5 +1,6 @@
 #!/bin/bash
-# GEOHOT 读者面守护：判定并发（ANALYZE_CONCURRENCY）高于 4 时，一旦读者面或内存出现退化，就把它降回 4 并停机自锁。
+# GEOHOT 读者面守护：判定并发（ANALYZE_CONCURRENCY）高于 4、或翻译腿并发（GEOHOT_TRANSLATE_CONCURRENCY）
+# 高于 3 时，一旦读者面或内存出现退化，就把越过地板的那一路降回来并停机自锁。
 # 装法（这台机器已装，模板与线上逐字节一致）：
 #   sudo install -m 755 deploy/geohot/conc-guard.sh /opt/geohot/bin/conc-guard.sh
 #   sudo cp deploy/geohot/systemd/geohot-conc-guard.{service,timer} /etc/systemd/system/
@@ -46,6 +47,9 @@ avail=$(awk '/MemAvailable/{print int($2/1024)}' /proc/meminfo)
 swap=$(awk '/SwapTotal/{t=$2} /SwapFree/{f=$2} END{print int((t-f)/1024)}' /proc/meminfo)
 err5=$(sudo journalctl -u geohot-api -u geohot-web --since '-6 minutes' --no-pager 2>/dev/null | grep -cE ' 5[0-9][0-9] ')
 cur=$(sudo sed -n 's/^ANALYZE_CONCURRENCY=//p' "$ENVF"); cur=${cur:-0}
+# 翻译腿的并发也要一起看：第一百零四轮把它从默认 3 抬到 5 换双语覆盖率，读者面一退化就得一起降回来。
+# `tr -dc` 是防"值里带了注释或空格"把下面的 `-gt` 变成语法错，读不回来时按代码默认值 3 算。
+tr_cur=$(sudo sed -n 's/^GEOHOT_TRANSLATE_CONCURRENCY=//p' "$ENVF" | tr -dc '0-9'); tr_cur=${tr_cur:-3}
 bad=0; why=""
 [ -f "$FORCE" ] && { bad=1; why="$why force"; }
 [ "$http5" -ge 1 ] && { bad=1; why="$why http5xx=$http5"; }
@@ -54,15 +58,19 @@ bad=0; why=""
 [ "$avail" -lt "$AVAIL_MIN" ] && { bad=1; why="$why avail=${avail}MB"; }
 [ "$swap" -gt "$SWAP_MAX" ] && { bad=1; why="$why swap=${swap}MB"; }
 [ "$err5" -ge "$ERR5_MIN" ] && { bad=1; why="$why err5xx=$err5"; }
-echo "$(date -Is) probe conc=$cur slow=$slow availMB=$avail swapMB=$swap err5xx6m=$err5 bad=$bad${why:+ why:$why}${detail:+ seen:$detail}" >> "$LOG"
-if [ "$bad" = 1 ] && [ "$cur" -gt 4 ]; then
+echo "$(date -Is) probe conc=$cur translate=$tr_cur slow=$slow availMB=$avail swapMB=$swap err5xx6m=$err5 bad=$bad${why:+ why:$why}${detail:+ seen:$detail}" >> "$LOG"
+if [ "$bad" = 1 ] && { [ "$cur" -gt 4 ] || [ "$tr_cur" -gt 3 ]; }; then
   if [ "$DRY" = 1 ]; then
-    echo "$(date -Is) DRY: would drop $cur->4 (no write, no restart)" >> "$LOG"
+    echo "$(date -Is) DRY: would drop conc=$cur->4 translate=$tr_cur->3 (no write, no restart)" >> "$LOG"
     exit 0
   fi
   sudo cp -a "$ENVF" "/opt/geohot/backups/env-guard-trip-$(date -u +%Y%m%dT%H%M%SZ)"
-  sudo sed -i 's/^ANALYZE_CONCURRENCY=.*/ANALYZE_CONCURRENCY=4/' "$ENVF"
+  # 只改**已存在**的那一行，绝不追加。2026-10-16 亲测：这个文件的最后一行没有换行符，
+  # 追加会把新变量粘进上一行的值里（那次弄坏的是 WORKBUDDY_CN_API_KEY，值变成了
+  # `local-workbuddyGEOHOT_…`）。变量不在文件里就等于取代码默认值，而那已经是这里的地板，不写才对。
+  [ "$cur" -gt 4 ] && sudo sed -i 's/^ANALYZE_CONCURRENCY=.*/ANALYZE_CONCURRENCY=4/' "$ENVF"
+  [ "$tr_cur" -gt 3 ] && sudo sed -i 's/^GEOHOT_TRANSLATE_CONCURRENCY=.*/GEOHOT_TRANSLATE_CONCURRENCY=3/' "$ENVF"
   sudo systemctl restart geohot-worker
   sudo touch "$TRIPPED"
-  echo "$(date -Is) TRIPPED conc $cur->4; guard disarmed until 'sudo rm /etc/geohot/conc-guard.tripped'" >> "$LOG"
+  echo "$(date -Is) TRIPPED conc $cur->$([ "$cur" -gt 4 ] && echo 4 || echo keep) translate $tr_cur->$([ "$tr_cur" -gt 3 ] && echo 3 || echo keep); guard disarmed until 'sudo rm /etc/geohot/conc-guard.tripped'" >> "$LOG"
 fi
