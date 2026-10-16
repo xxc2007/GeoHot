@@ -5,6 +5,8 @@
 // (placeholders) and links keep only their text and an id; a block whose answer loses or repeats any of
 // them is asked once more, then kept in the original. Each batch is a receipt, so a re-run reuses
 // answers already paid for. A translation missing any block is stored as incomplete, never as whole.
+// A block that came back Chinese is normalised on the way in (English unit words, straight quotes); a
+// block with no Chinese in it at all — the residue of a body only partly translated — is left alone.
 // The post a selected X post quotes is translated too (once per quoted post, shared by every quote).
 import * as cheerio from "cheerio";
 import type { AnyNode, Element } from "domhandler";
@@ -186,6 +188,45 @@ export function unshield(translated: string, s: Shielded): string | null {
   return $.html().replace(/⟦(\d+)⟧/g, (_m, n: string) => s.tokens[Number(n)]!);
 }
 
+/**
+ * 中文正文里照抄下来的英文单位与直角引号，读者一眼就看出来是机器翻的：2026-10-16 在库存译文上量到
+ * 直引号 10 条（其中 6 条在已翻全的正文里）、英文单位 6 条（3 条），例："LROC 图像中…" Watters 说。
+ * / 24 tonnes / 708 hectares。这一层只做字符级替换——数值与小数位一个都不动，而且只改含汉字的文本节点，
+ * 所以未翻全时保留下来的英文块不会被它冒充成译文（那是 #237 的活，不是标点该管的）。
+ */
+const UNIT_WORDS: Record<string, string> = {
+  tonne: "吨", ton: "吨", hectare: "公顷", kilogram: "千克", metre: "米", meter: "米", litre: "升", liter: "升",
+};
+const UNIT_TOKEN = /\b(\d[\d,.]*)\s*(km2|sq km|tonnes?|tons?|hectares?|kilograms?|metres?|meters?|litres?|liters?)\b/gi;
+
+export function zhText(text: string): string {
+  let out = text.replace(UNIT_TOKEN, (_m, num: string, unit: string) => {
+    const u = unit.toLowerCase();
+    if (u === "km2" || u === "sq km") return `${num} km²`;
+    return `${num} ${UNIT_WORDS[u.replace(/s$/, "")] ?? unit}`;
+  });
+  // 引号只在成对时换：单个 " 可能是缩写或代码片段，猜不得。
+  const quotes = (out.match(/"/g) ?? []).length;
+  if (quotes >= 2 && quotes % 2 === 0) out = out.replace(/"([^"\n]{2,})"/g, "“$1”");
+  return out;
+}
+
+export function polishZh(html: string): string {
+  const $ = cheerio.load(html, null, false);
+  const walk = (nodes: AnyNode[]) => {
+    for (const n of nodes) {
+      if (n.type === "text") {
+        if (hasChineseCopy(n.data)) n.data = zhText(n.data);
+      } else if (n.type === "tag") {
+        const el = n as Element;
+        if (el.name !== "code" && el.name !== "pre") walk(el.children);
+      }
+    }
+  };
+  walk($.root().children().toArray());
+  return $.html();
+}
+
 export async function translateArticle(articleId: string): Promise<TranslateResult> {
   const [row] = await sql<{ revision: number; channel: string; language: string | null; body_html: string | null; body_text: string | null; x_post: { text?: string } | null; title: string; selected: boolean; body_mode: string; visibility: string }[]>`
     SELECT a.revision, p.channel, a.language, a.body_html, a.body_text, a.x_post, p.title, p.selected, p.body_mode, p.visibility
@@ -207,7 +248,7 @@ export async function translateArticle(articleId: string): Promise<TranslateResu
       if (errors.length) throw new Error(`no translation: ${errors[0]!.slice(0, 160)}`);
       return result({ status: "skipped", reason: t ? "answer is not Chinese" : "translation did not line up" });
     }
-    await store(articleId, row.revision, row.title, textToHtml(t), t, true);
+    await store(articleId, row.revision, row.title, textToHtml(zhText(t)), zhText(t), true);
     return result({ status: "translated", segments: 1 });
   }
 
@@ -250,7 +291,7 @@ export async function translateArticle(articleId: string): Promise<TranslateResu
   chosen.forEach((el, i) => {
     const t = translations[i];
     if (t) {
-      $(el).html(t);
+      $(el).html(polishZh(t));
       done += 1;
     }
   });
