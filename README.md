@@ -65,21 +65,18 @@
 
 ---
 
-
 ---
 
 ## 🎬 宣传片展示
 
-从精选资讯出发，经过七个分类、事件综述与报道时间线、地理日报、主题和 Agent 接入。真实读者页面组成 35.4 秒的产品宣传片；资讯画面为 2026-10-08 拍摄快照。
+从精选资讯出发，经过七个分类、事件综述与报道时间线、地理日报、主题和 Agent 接入。最新版线上真实读者页面组成 42 秒的产品宣传片；资讯画面为 2026-10-16 拍摄快照，采用柔和钢琴配乐、缓慢运镜与自然叠化，无撞击或扫频换场音。
 
 <p align="center">
-  <a href="https://xxc2007.me/assets/promo/geohot/"><img src="docs/promo/poster.jpg" alt="GEOHOT · 地理热点宣传片：真实页面截图、品牌字标与公开网址，点击播放" width="100%"></a>
+  <a href="https://xxc2007.me/assets/promo/geohot/?v=20261016"><img src="docs/promo/poster.jpg?v=20261016" alt="GEOHOT · 地理热点宣传片：真实页面截图、品牌字标与公开网址，点击播放" width="100%"></a>
 </p>
-<p align="center"><sub>▲ GEOHOT · 地理热点 · 35.4 秒 · 1920×1080 · 点击封面打开高清播放器</sub></p>
+<p align="center"><sub>▲ GEOHOT · 地理热点 · 42 秒 · 1920×1080 · 点击封面打开高清播放器</sub></p>
 
-https://github.com/user-attachments/assets/0f0d31b0-eaf2-4155-833e-5155f7391110
-
-▶️ [打开 1080p 高清播放器](https://xxc2007.me/assets/promo/geohot/) · [直接打开 1080p 源视频](https://raw.githubusercontent.com/xxc2007/GeoHot/main/docs/promo/geohot-promo.mp4)
+▶️ [打开 1080p 高清播放器](https://xxc2007.me/assets/promo/geohot/?v=20261016) · [直接打开 1080p 源视频](https://raw.githubusercontent.com/xxc2007/GeoHot/main/docs/promo/geohot-promo.mp4?v=20261016)
 
 <sub>使用 Video Shotcraft 制作，运镜与展示结构参考[青山湖畔的纪念册](https://github.com/xxc2007/In-memory-of-Nanchang-No.-15-Middle-School#-宣传片展示)。</sub>
 

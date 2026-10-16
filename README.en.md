@@ -72,13 +72,11 @@ arguing about it, a heat value and a trend arrow, and the title may carry a cut-
 
 ## 🎬 Product film
 
-A 35.4-second, 1080p film built from real public website captures, using Video Shotcraft. Camera motion and the presentation follow the Nanchang No. 15 memorial film; colours and typography come from this website. The film has Chinese captions. GEOHOT news footage is a frozen capture from 8 October 2026.
+A 42-second, 1080p film built from real public website captures, using Video Shotcraft. Camera motion and the presentation follow the Nanchang No. 15 memorial film; colours and typography come from this website. The new film has Chinese titles, a soft original piano score and gentle dissolves, without harsh transition sounds. GEOHOT news footage is a frozen capture from 16 October 2026.
 
-[![Watch the product film](docs/promo/poster.jpg)](https://xxc2007.me/assets/promo/geohot/)
+[![Watch the product film](docs/promo/poster.jpg?v=20261016)](https://xxc2007.me/assets/promo/geohot/?v=20261016)
 
-https://github.com/user-attachments/assets/0f0d31b0-eaf2-4155-833e-5155f7391110
-
-[Watch in 1080p](https://xxc2007.me/assets/promo/geohot/) · [Source MP4](https://raw.githubusercontent.com/xxc2007/GeoHot/main/docs/promo/geohot-promo.mp4)
+[Watch in 1080p](https://xxc2007.me/assets/promo/geohot/?v=20261016) · [Source MP4](https://raw.githubusercontent.com/xxc2007/GeoHot/main/docs/promo/geohot-promo.mp4?v=20261016)
 
 ---
 
