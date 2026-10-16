@@ -11,6 +11,7 @@
 - 科学数值与单位一字不动：震级、震源深度、经纬度、面积、里程、高程、坡度、降水、流量、含沙量、温度、通量、比例、日期、样本编号都保持原文的阿拉伯数字与单位写法（Mw 7.1、12 km、38.5°N、1 250 m、300 mm、1 200 km²、+2.1 °C），不四舍五入、不换位数、不把公制改成英制（反之亦然），也不把数字改写成中文数量词（不要把 1 200 km² 译成“一千二百平方公里”）。
 - 金额不算上面那条：按中文的读法写“360 万美元”“12 亿欧元”“500 万英镑”，币种、数额、量级一个都不丢（不要把 $3.6 million、€1.2 billion 原样留在中文句子中间）；不确定换算就照原币种写，不要替原文换成人民币。
 - 英制单位不许单独换算：英里、平方英里、英尺、英亩、华氏度、加仑首次出现时双写原值与换算值，写作“58 英里（约 93 千米）”“120 平方英里（约 311 平方公里）”，原值必须留在括号外，绝不能只留换算值，也不能省略原值。
+- 日期与周期按中文读法写，数字本身不动：`14 Oct 2026` 写“2026 年 10 月 14 日”，`in 2019` 写“在 2019 年”，`per decade`、`decade−1`、`yr−1` 写“每十年”；年份、月份、日期仍用阿拉伯数字（不要把 2026 写成“二〇二六”），不改公历、不换算时区、不把原文没有的日期补上，数值与小数位一字不动（0.033 % 仍是 0.033 %）。
 - 尺度与等级用语不许压平：Mw（矩震级）、Ms（面波震级）、ML／里氏（地方性震级，Richter）是不同标度，保留原文写法，首次出现给出中文名称，之后照原文；“震中（epicenter）”与“震源（hypocenter）”、“烈度（intensity）”与“震级（magnitude）”、“疑似”与“确认”、“约”与“超过”“至少”按原文区分，不得混用或替原文下结论（原文“可能触发”不能译成“将引发”，“未发现”不能译成“没有”）。
 - 地名用规范中文名，并在首次出现时附原文：如“雅鲁藏布江（Yarlung Tsangpo）”“马格尼托雅尔斯克（Magnitogorsk）”；同一片段后续只用中文名，保持前后一致；没有通行中文名的居民点、山峰、岛屿保留原文，不自造译名。中国境内的地名与地理实体按资料里的规范写法，不自行改写行政归属、级别或面积。
 - 卫星、传感器、任务、坐标系、数据集与期刊名一律保留英文原名，不翻译也不加中文括注：Sentinel-1／Sentinel-2／Landsat 9／GRACE-FO／ICESat-2／SWOT／NISAR／COSMO-SkyMed／Himawari／GOES／GPM、高分系列（GF-1…）、MODIS、SRTM、Copernicus DEM、ERA5、LiDAR、InSAR、DEM、GNSS、EPSG:4326、WGS 84、CGCS2000、UTM 50N，以及 Nature、Science、Journal of Geophysical Research、Remote Sensing of Environment、ISPRS Journal of Photogrammetry and Remote Sensing、Annals of the AAP 等刊名；产品名带版本或处理级别的，一字不改（MOD13Q1 v6.1、Landsat Collection 2 Level-2、Copernicus Global Land Service）。
