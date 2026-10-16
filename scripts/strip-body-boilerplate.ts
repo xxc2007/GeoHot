@@ -113,11 +113,17 @@ const candidates = rows
   .filter((r) => (chrome ? r.changed && !r.lost : r.clean.replace(/\s+/g, "").length !== r.body_text.replace(/\s+/g, "").length));
 
 const emptied = candidates.filter((r) => r.lost).length;
-console.log(`${chrome ? "记录页外壳" : "页脚话术"}候选 ${candidates.length} 条（清洗后没有正文可留的 ${emptied} 条），扫描上限 ${limit}`);
+const shedChars = candidates.reduce((n, r) => n + Math.max(0, (r.body_html?.length ?? 0) - (r.htmlOut?.length ?? 0)), 0);
+console.log(`${chrome ? "记录页外壳" : "页脚话术"}候选 ${candidates.length} 条（清洗后没有正文可留的 ${emptied} 条），扫描上限 ${limit}${chrome ? `，去掉 ${shedChars.toLocaleString()} 个字符的外壳` : ""}`);
 const bySource: Record<string, number> = {};
 for (const c of candidates) bySource[c.source_id] = (bySource[c.source_id] ?? 0) + 1;
 for (const [id, n] of Object.entries(bySource).sort((a, b) => b[1] - a[1]).slice(0, 8)) console.log(`  ${id}: ${n} 条`);
 for (const c of candidates.slice(0, 3)) {
+  if (chrome) {
+    // 这一路 body_text 一字不动，所以例子只能看 HTML：洗掉的是段落，不是句子。
+    console.log(`\n例：${c.title.slice(0, 24)}\n  HTML ${(c.body_html?.length ?? 0).toLocaleString()} → ${(c.htmlOut?.length ?? 0).toLocaleString()} 字符（文本不变）`);
+    continue;
+  }
   console.log(`\n例：${c.title.slice(0, 24)}\n  原  ${JSON.stringify(c.body_text.slice(0, 90))}\n  洗后 ${JSON.stringify(c.clean.slice(0, 90) || "（空）")}`);
 }
 
