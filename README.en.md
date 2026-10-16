@@ -51,18 +51,16 @@ taxonomy, topics, sources, scoring standard, thresholds, branding, terms pages �
 ---
 
 <p align="center">
-  <a href="https://xxc2007.me/geohot/"><img src="docs/shots/home-light.png" alt="GEOHOT front page: a current-hotness strip on top, a chronological shortlist below, topic and daily entries in the sidebar" width="820"></a>
+  <a href="https://xxc2007.me/geohot/"><img src="docs/shots/home-light.png?v=5f0d9fbb01ca" alt="GEOHOT front page: a current-hotness strip on top, a chronological shortlist below, topic and daily entries in the sidebar" width="820"></a>
 </p>
 
 <details>
-<summary>▲ Figure 1 · HOME, the shortlist — open to see what is in this shot and why it may look different tomorrow</summary>
+<summary>▲ Figure 1 · HOME shortlist — live capture from 16 October 2026</summary>
 
-The block at the top is **current hotness**, and this shot catches it in its **empty state**: the board only exists once
-two independent outlets are discussing the same event, and when nothing clears that bar the page says so plainly —
-"no event in the past 48 hours has two independent sources discussing it" — plus an `/all` entry point, rather than
-wiping the layout blank. When a board does exist, the same slot lists the top events: rank, headline, the outlets
-arguing about it, a heat value and a trend arrow, and the title may carry a cut-off timestamp for that board.
-**This screen changes daily; the live URL is the source of truth**: <https://xxc2007.me/geohot/>.
+Captured from the latest public website on 16 October 2026, showing seven categories, search, current hot events and the selected feed.
+The categories are physical, human, regional, political, historical and frontier geography, plus geographic information systems.
+Cards show a headline, summary, recommendation, source and AI score. Hot-event ranks, sources, heat values and news content are a public snapshot at capture time and continue to update normally.
+**This is a dated showcase capture; the live website is the source for current content**: <https://xxc2007.me/geohot/>.
 
 </details>
 
