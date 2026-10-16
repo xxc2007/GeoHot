@@ -14,7 +14,9 @@ const provider = await stub(async (_hit, req) => {
   const { segments } = JSON.parse(JSON.parse(req.body).messages[1].content) as { segments: string[] };
   active.calls++;
   if (active.calls === 1) { active.asked.open(); await active.hold.promise; }
-  const t = active.misaligned && segments.length === 2 ? [] : segments.map(() => `完整译文${T}`);
+  // 答复按块长给：这些夹具每块 ≈1,500 字，只回一句「完整译文+时间戳」正是第一百一十一轮长度守卫
+  // 要拦的形状（不到原文两成、结尾不是句末标点），那样这条用例测的就不是"停机后能否复用收据"了。
+  const t = active.misaligned && segments.length === 2 ? [] : segments.map((s) => `完整译文${T}。${"词".repeat(Math.max(1, Math.round(s.length * 0.3)))}。`);
   return { id: 'stub', choices: [{ message: { content: JSON.stringify({ t }) } }], usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 } };
 });
 
