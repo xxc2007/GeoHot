@@ -306,3 +306,17 @@ test("prose that merely mentions JavaScript survives", () => {
   assert.match(got, /enable JavaScript/, `按句子删的话，这段正文就没了：\n${got}`);
 });
 
+// 洗库前逐家看过删的是什么，才抓到这一族：CR2Chile 把视频写成一个没有源的 <video>，但壳里给的是
+// 指向 .mp4 的链接——那是读者唯一的入口，删掉它就不是去外壳，是丢内容。判据因此多一层：
+// 壳里有指向媒体文件的链接就不动它（德国之声那句包的是 videojs.com 的介绍页，不是媒体文件）。
+test("a shell that carries the link to the media file itself is content, not chrome", () => {
+  const cr2 =
+    "<p>Presentación del informe sobre glaciares andinos.</p>" +
+    '<video><a href="https://www.cr2.cl/wp-content/uploads/2026/09/Grabacion-de-pantalla-2026-09-29-143143.mp4">' +
+    "Grabación de pantalla</a></video>" +
+    "<p>El retroceso glaciar es medido en tres cordilleras.</p>";
+  const got = sanitizeBody(cr2, "https://www.cr2.cl/glaciares/");
+  assert.ok(got.includes("Grabacion-de-pantalla-2026-09-29-143143.mp4"), `唯一的视频入口被删了：\n${got}`);
+  assert.ok(got.includes("retroceso glaciar"), got);
+});
+

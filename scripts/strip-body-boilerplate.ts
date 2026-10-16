@@ -114,8 +114,12 @@ const candidates = rows
   .map((r) => {
     if (chrome) {
       // 文本侧不动：实测这批行的 `body_text` 本来就没有外壳（外壳在属性与图片里），改了它反而会牵动摘要。
+      // 新采集不是这样：`rss.ts` 的 `body_text` 就是从清洗后的 HTML 里剥出来的，所以往后的行两边都干净。
+      // `changed` 要的是"真的少了一段"，不是"字符串不相等"：cheerio 把 `<video>` 写成 `<video></video>`
+      // 那种序列化差异也算改动，于是整行会被 bump revision、被翻译腿当成新正文重翻——白花一次付费调用，
+      // 而读者看到的东西一个字节都没变。2026-10-16 逐家看删除内容时就抓到过这种行。
       const htmlOut = dropRecordPageChrome(r.body_html!);
-      return { ...r, clean: r.body_text, lost: false, htmlOut, changed: htmlOut !== r.body_html };
+      return { ...r, clean: r.body_text, lost: false, htmlOut, changed: r.body_html!.length - htmlOut.length > 2 };
     }
     const clean = stripBoilerplate(r.body_text);
     return { ...r, clean, lost: isBoilerplateBody(clean), htmlOut: r.body_html ? stripChromeHtml(r.body_html) : null, changed: true };

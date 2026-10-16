@@ -60,6 +60,8 @@ const RECORD_PAGE_LINE = [
 ];
 
 const FEED_URL = /\.(?:xml|rss|atom)(?:[?#]|$)/i;
+/** Once the player cannot play, a link to the media file is the reader's only route to it: that is content, not chrome. */
+const MEDIA_FILE = /\.(?:mp4|webm|ogv|ogg|m4v|mov|m3u8|mp3)(?:[?#]|$)/i;
 /** Only a block that is one paragraph can *be* a "Status:" line; a whole list that begins with one is metadata. */
 const RECORD_LINE_TAGS = new Set(["p", "h2", "h3", "h4", "h5", "blockquote"]);
 /** A comma-separated run that never closes a sentence: the shape of an author list, not of prose. */
@@ -117,6 +119,7 @@ export function dropRecordPageChrome(html: string): string {
   $("video").each((_, el) => {
     const player = $(el);
     if (player.attr("src") || player.attr("poster") || player.find("source[src]").length) return;
+    if (player.find("a[href]").toArray().some((a) => MEDIA_FILE.test($(a).attr("href") ?? ""))) return;
     player.remove();
   });
   return $.html();
