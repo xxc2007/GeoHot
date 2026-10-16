@@ -40,6 +40,78 @@ const DROP_WHOLE = [
   "annotation", "annotation-xml", "mglyph",
 ];
 
+/**
+ * Some journals put the whole record page into the feed's `<content>` (measured 2026-10-16: 48 selected
+ * full-text items in 30 days, all of them Copernicus — EGUsphere 29, ESSD 16). A reader then gets the
+ * review legend, four subscription buttons, the "Metrics will be available soon." placeholder and the
+ * author list four times, and the translate lane faithfully renders all of it in Chinese. Each rule is
+ * anchored to the start of a block that *is* only that line: a real sentence beginning "Status of the
+ * high-mountain environment…" must survive, so the pattern demands the colon and nothing else before it.
+ */
+const RECORD_PAGE_LINE = [
+  /^status\s*[:：]/i,
+  /^comment types\s*[:：]/i,
+  /^[:：]?\s*report abuse$/i,
+  /^received\s*[:：]/i,
+  /^discussion (?:started|closed)\s*[:：]/i,
+  /^latest update\s*[:：]/i,
+  /^(?:article |related )?metrics\b.{0,40}$/i,
+  /^[–—-]$/,
+];
+
+const FEED_URL = /\.(?:xml|rss|atom)(?:[?#]|$)/i;
+/** Only a block that is one paragraph can *be* a "Status:" line; a whole list that begins with one is metadata. */
+const RECORD_LINE_TAGS = new Set(["p", "h2", "h3", "h4", "h5", "blockquote"]);
+/** A comma-separated run that never closes a sentence: the shape of an author list, not of prose. */
+const isNameList = (text: string) => text.length >= 40 && text.includes(",") && !/[.。!?！？]$/.test(text);
+/** How many identical copies of a block make it machine-generated furniture rather than a deliberate repeat. */
+const REPEAT_AS_CHROME = 3;
+
+export function dropRecordPageChrome(html: string): string {
+  const $ = cheerio.load(html, null, false);
+  // Repeats are counted before anything is dropped. A two-copy repeat in stored bodies was always content —
+  // the same "Department of …, Universitas Brawijaya, Malang, Indonesia" under two different authors, the same
+  // institution line under two papers — while the record page repeats its author list four times over.
+  const copies = new Map<string, number>();
+  const repeated = new Set<string>();
+  $.root().children().each((_, el) => {
+    if (el.type !== "tag" || !RECORD_LINE_TAGS.has(el.name)) return;
+    const block = $(el);
+    const text = collapse(block.text());
+    if (!isNameList(text) || block.find("a, img, video, picture").length) return;
+    const n = (copies.get(text) ?? 0) + 1;
+    copies.set(text, n);
+    if (n >= REPEAT_AS_CHROME) repeated.add(text);
+  });
+  const keptFirst = new Set<string>();
+  // Judged only between siblings, and only over paragraph-shaped blocks. Running this against stored bodies
+  // (2026-10-16) turned up both ways a broad traversal destroys content: Eur. J. Mineral. writes each mineral
+  // record as `<ul><li><p>field</p></li>`, so parent and child hold the same characters and a descent through
+  // both levels took one for a copy of the other and deleted half the field list; and Nature's TOC feed puts
+  // Received/Accepted/Published/DOI in one `<ul>`, whose text begins with "Received:" — an anchored line rule
+  // that also matched a container took the whole citation list with it.
+  $.root().children().each((_, el) => {
+    if (el.type !== "tag" || !RECORD_LINE_TAGS.has(el.name)) return;
+    const block = $(el);
+    const text = collapse(block.text());
+    // A subscription button: a block with no words at all, only link(s) to a feed address wrapping the gif.
+    const links = block.find("a[href]").toArray();
+    if (!text && links.length && links.every((a) => FEED_URL.test($(a).attr("href") ?? ""))) {
+      block.remove();
+      return;
+    }
+    if (RECORD_PAGE_LINE.some((re) => re.test(text))) {
+      block.remove();
+      return;
+    }
+    if (repeated.has(text)) {
+      if (keptFirst.has(text)) block.remove();
+      else keptFirst.add(text);
+    }
+  });
+  return $.html();
+}
+
 export function sanitizeBody(html: string, baseUrl?: string): string {
   const cleaned = sanitizeHtml(dropPromotions(html), {
     allowedTags: ALLOWED_TAGS,
@@ -83,7 +155,9 @@ export function sanitizeBody(html: string, baseUrl?: string): string {
       (frame.tag === "img" && !frame.attribs.src) ||
       (frame.tag === "a" && !frame.text.trim() && !frame.mediaChildren?.length),
   });
-  return normalizeBlocks(cleaned);
+  // Flattened first, then the record page is judged between siblings: the div-to-p transform above can leave
+  // a paragraph nested inside a block that stands for the same text.
+  return dropRecordPageChrome(normalizeBlocks(cleaned));
 }
 
 const BLOCK_TAGS = new Set(["p", "h2", "h3", "h4", "h5", "ul", "ol", "li", "blockquote", "pre", "table", "figure", "hr", "dl", "picture", "video"]);

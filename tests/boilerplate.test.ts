@@ -180,3 +180,85 @@ test("中文兜底与模型答复都不能把截断的页面外壳当摘要发�
   // 而不是把骨架当摘要发出去——这正是线上那 14 条的反面。
   assert.equal(viaFallback, "", `剥完外壳已经没有内容，兜底不该硬凑一句：「${viaFallback}」`);
 });
+
+// 第一百零三轮：全文直接塞进 feed 的期刊（Copernicus 一家：EGUsphere 29 条、ESSD 16 条、HGSS/Wind Energy/
+// 哥白尼海洋各 1 条，实测 30 天内 48 条 `body_mode=full` 的英文正文带着它）。读者看到的不是论文，而是
+// 整张记录页：`Status: open (until 22 Nov 2026)`、`Comment types: AC – author | RC – referee …`、
+// `: Report abuse`、四枚 RSS/Atom 按钮图、`Metrics will be available soon.`、`Received:`/`Discussion
+// started:`/`Latest update:` 三行日期、一个只装破折号的段，以及**同一份作者列表重复四遍**。
+// 翻译腿照原样把它翻成中文贴进正文（线上 65 条 zh 译文里 7 条带着），所以修在抽取侧，不是提示词。
+const COPERNICUS_FEED = `<p><strong>Status</strong>: this preprint is currently under review for the journal ESSD.
+                </p><p><span>Andebo Waza</span>, <span>Konrad Kandler</span>, and <span>Stephanie Fiedler</span></p><p><strong>Abstract.</strong> Saharan dust outbreaks frequently propagate over the tropical Atlantic. The expedition M207 commenced on January 3, 2025.</p><p>The datasets are at <a href="https://doi.org/10.1594/PANGAEA.983389">https://doi.org/10.1594/PANGAEA.983389</a> (Wahl et al., 2025a).</p><p>
+                            Received: 07 Sep 2026 </p><p>–</p><p>Discussion started: 16 Oct 2026</p><p><strong>Publisher's note</strong>: Copernicus Publications remains neutral with regard to jurisdictional claims in published maps.</p><p><span>Andebo Waza</span>, <span>Konrad Kandler</span>, and <span>Stephanie Fiedler</span></p><p><strong>Status</strong>: open (until 22 Nov 2026)</p><p><strong>Comment types</strong>: <strong>AC</strong> – author | <strong>RC</strong> – referee | <strong>CC</strong> – community</p><p><i></i>: Report abuse</p><p><a href="https://essd.copernicus.org/preprints/essd-2026-733/essd-2026-733-rss0_91.xml"><img src="https://www.earth-system-science-data.net/graphic_rss_feed_button_091.gif" width="66" height="15"></a></p><p><a href="https://essd.copernicus.org/preprints/essd-2026-733/essd-2026-733-atom1_0.xml"><img src="https://www.earth-system-science-data.net/graphic_rss_feed_button_atom.gif" width="66" height="15"></a></p><p><span>Andebo Waza</span>, <span>Konrad Kandler</span>, and <span>Stephanie Fiedler</span></p><p><strong>
+                        Metrics will be available soon.
+                    </strong></p><p>Latest update: 16 Oct 2026</p>`;
+
+test("a journal's own record page folded into the feed is not the article", () => {
+  const got = sanitizeBody(COPERNICUS_FEED, "https://essd.copernicus.org/preprints/essd-2026-733/");
+  for (const junk of [
+    "Comment types", "Report abuse", "rss0_91.xml", "graphic_rss_feed_button", "Metrics will be available soon",
+    "Latest update", "Received: 07 Sep 2026", "Discussion started", "open (until 22 Nov 2026)", "under review for the journal",
+  ]) assert.ok(!got.includes(junk), `记录页外壳还在正文里：「${junk}」\n${got}`);
+  assert.ok(!/<p>\s*[–—-]\s*<\/p>/.test(got), `只装一个破折号的段落还在：\n${got}`);
+  // 作者列表原文重复四遍，留一份。
+  assert.equal((got.match(/Andebo Waza/g) ?? []).length, 1, `作者名单没收成一份：\n${got}`);
+  // 真正文一个字不损：摘要、数据集 DOI 链接、发布方声明。
+  assert.ok(got.includes("Saharan dust outbreaks frequently propagate"), got);
+  assert.ok(got.includes('<a href="https://doi.org/10.1594/PANGAEA.983389">'), got);
+  // 发布方那条「地图与辖区主张保持中立」是每篇都一样的套话，但对地理站是有意义的声明，故意留着。
+  assert.ok(got.includes("remains neutral with regard to jurisdictional claims"), got);
+});
+
+test("the record-page rules do not eat a real sentence that happens to start the same way", () => {
+  const prose = sanitizeBody(
+    `<p><strong>Status</strong> of the high-mountain environment was monitored for twenty years, and the ice cover thinned.</p>` +
+      `<p>The station publishes an <a href="https://example.org/gaw/feed.xml">hourly feed</a> of its CO₂ record.</p>` +
+      `<p>Metrics for the two basins — discharge and sediment load — are given below.</p>`,
+    "https://example.org/",
+  );
+  assert.ok(prose.includes("was monitored for twenty years"), `带句子的 Status 段被当外壳删了：\n${prose}`);
+  assert.ok(prose.includes("hourly feed"), `正文里指向 .xml 的链接不是一枚按钮：\n${prose}`);
+  assert.ok(prose.includes("discharge and sediment load"), `句首的 Metrics 不是指标占位行：\n${prose}`);
+  // 2026-10-16 拿存量验证时抓到的一次自我越权：结构化摘要里重复的科学句子被「重复作者名单」那条收成了一份。
+  // 作者名单不以句末标点收尾，科学句子以——收口就画在这条线上，重复的正文一段都不许少。
+  const twice = sanitizeBody(
+    "<p>Duration: Most compound events were brief, lasting less than five hours. Long-duration events exceeded a day.</p>".repeat(2),
+    "https://example.org/",
+  );
+  assert.equal((twice.match(/Duration: Most/g) ?? []).length, 2, `重复的科学句子被当外壳收成一份：\n${twice}`);
+  // 同一次存量验证抓到的第二个坑，也是更要命的那个：Eur. J. Mineral. 每条矿物记录是
+  // `<ul><li><p>字段</p></li>` 的形状，父子里段文本一字不差，`p, li` 一起扫就会把一段当成"另一段的重复"，
+  // 于是把整份字段清单删掉一半。判重复只能在同一层之间比，父与子不是两份。
+  const fields =
+    "<h2>IMA no. 2025-083a</h2><ul><li><p>Wusiheite</p></li>" +
+    "<li><p>BaGe(Ge<sub>3</sub>O<sub>9</sub>)</p></li>" +
+    "<li><p>Wusihe lead–zinc deposit, Sichuan Province, China (29°16′27′′ N, 102°53′23′′ E)</p></li>" +
+    "<li><p>Hanjie Wen, Chuanwei Zhu, Yiping Yang, Zhenyi Tan, Jiaxin Xi, Haiyang Xian, Jianxi Zhu*, and Hongping He</p></li>" +
+    "<li><p>5.913(50), 3.639(40), 2.493(21), 2.400(17), 1.995(78), 1.369(54), 1.289(32), 1.139(199)</p></li></ul>";
+  const kept = sanitizeBody(fields, "https://ejm.copernicus.org/");
+  for (const field of ["Wusiheite", "Wusihe lead–zinc deposit", "Hanjie Wen", "5.913(50)", "3.639(40)"]) {
+    assert.ok(kept.includes(field), `嵌套的 li/p 被当成自己的重复删掉了，缺「${field}」：\n${kept}`);
+  }
+  assert.equal((kept.match(/Wusiheite/g) ?? []).length, 1, kept);
+  // 同一轮里另一处越权：Nature 系（Scientific Reports / Humanities & Social Sciences 当期目录）把
+  // Received / Accepted / Published / DOI 排成一个 <ul>，段首规则会连整份引文清单一起端走。
+  // 「Received:」单独成段是要删的（预印本记录页那一行），成套的引文清单不是。
+  const citation = sanitizeBody(
+    "<ul><li><p>Received: 24 July 2026</p></li><li><p>Accepted: 13 October 2026</p></li>" +
+      "<li><p>Published: 16 October 2026</p></li><li><p>DOI: https://doi.org/10.1038/s41598-026-76369-0</p></li></ul>" +
+      "<p>Compound heatwaves across Europe were driven by soil moisture feedbacks.</p>",
+    "https://www.nature.com/",
+  );
+  for (const field of ["Accepted: 13 October 2026", "Published: 16 October 2026", "doi.org/10.1038/s41598-026-76369-0", "soil moisture feedbacks"]) {
+    assert.ok(citation.includes(field), `引文清单被当外壳删了，缺「${field}」：\n${citation}`);
+  }
+  // 第三条：同一单位挂在不同作者名下，当期目录里一字不差地出现两次——这不是重复，是两篇稿子的署名。
+  const affil =
+    "<p>Siti Nurhaliza: Department of Aquatic Resources Management, Faculty of Fisheries and Marine Science, Universitas Brawijaya, Malang, Indonesia</p>" +
+    "<p>Budi Santoso: Department of Aquatic Resources Management, Faculty of Fisheries and Marine Science, Universitas Brawijaya, Malang, Indonesia</p>";
+  const twiceKept = sanitizeBody(affil, "https://jurnal.ub.ac.id/");
+  assert.equal((twiceKept.match(/Universitas Brawijaya/g) ?? []).length, 2, `两份不同作者的署名单位被收成一份：\n${twiceKept}`);
+  // 而预印本记录页那种重复四遍的作者名单，收成一份。
+  const fourTimes = "<p>Andebo Waza, Konrad Kandler, Franz Kanngießer, Julia Gottschall, Arne Leuzinger</p>".repeat(4);
+  assert.equal((sanitizeBody(fourTimes, "https://essd.copernicus.org/").match(/Andebo Waza/g) ?? []).length, 1, "四份作者名单没收成一份");
+});

@@ -18,11 +18,13 @@
 // 跑法：DATABASE_URL=postgres://… node scripts/strip-body-boilerplate.ts                       # 看候选
 //       node scripts/strip-body-boilerplate.ts --apply --database-url=postgres://…              # 洗（含重排）
 //       … --apply --database-url=… --max-apply 500 --no-requeue                                 # 只洗库不重跑
+//       node scripts/strip-body-boilerplate.ts --chrome                                          # 看记录页外壳候选
+//       … --chrome --apply --database-url=… --max-apply 400                                      # 洗记录页外壳（不重排）
 import { parseArgs } from "node:util";
 import { appendFileSync } from "node:fs";
 import path from "node:path";
 import { contentHash } from "@aihot/backend/content/materials";
-import { stripChromeHtml } from "@aihot/backend/content/sanitize";
+import { dropRecordPageChrome, stripChromeHtml } from "@aihot/backend/content/sanitize";
 import { isBoilerplateBody, stripBoilerplate } from "@aihot/backend/lib/text";
 import { closeDb, sql } from "@aihot/backend/db";
 import { queueProcessing } from "@aihot/backend/jobs/content";
@@ -32,6 +34,7 @@ import { config } from "@aihot/backend/config";
 const { values } = parseArgs({
   options: {
     apply: { type: "boolean", default: false },
+    chrome: { type: "boolean", default: false },
     "max-apply": { type: "string", default: "200" },
     limit: { type: "string", default: "2000" },
     "no-requeue": { type: "boolean", default: false },
@@ -72,15 +75,26 @@ function positiveInt(raw: string, name: string): number {
 }
 const limit = positiveInt(values.limit!, "limit");
 const maxApply = positiveInt(values["max-apply"]!, "max-apply");
-const rows = await sql<{ id: string; title: string; source_id: string; body_text: string; body_html: string | null; revision: number }[]>`
-  SELECT id, title, source_id, body_text, body_html, revision
-  FROM articles
-  WHERE body_status = 'ok' AND body_text IS NOT NULL AND length(body_text) BETWEEN 20 AND 6000
-    AND (body_text ~ '版权所有|Copyright|未经授权禁止|凡本网注明|ICP备|违法和不良信息举报'
-      OR body_text ~ '免责声明|转载请注明出处|技术支持[：:]'
-      OR body_text ~ '大字体|【(?:编辑|责编|排版|校对)[：:]|责任编辑[：:]|[（(]完[)）]$'
-      OR body_text ~ '^[0-9]{4}年[0-9]{1,2}月[0-9]{1,2}日[^。]{0,20}来源[：:]')
-  ORDER BY discovered_at DESC LIMIT ${limit}`;
+// `--chrome` 是同一套安全壳下的另一种洗法：不碰中文页脚，只洗「期刊把整张记录页塞进 feed」带回来的
+// 英文页面外壳（评审图例、订阅按钮、日期行、重复四遍的作者名单）。抽取侧已在第一百零三轮修好，
+// 这里洗的是它修之前存进库的那 336 条（实测全部在 45 天内，更早的没有这种正文）。
+const chrome = values.chrome === true;
+const rows = chrome
+  ? await sql<{ id: string; title: string; source_id: string; body_text: string; body_html: string | null; revision: number }[]>`
+      SELECT id, title, source_id, body_text, body_html, revision
+      FROM articles
+      WHERE body_status = 'ok' AND body_html IS NOT NULL
+        AND body_html ~* '(Comment types|Report abuse|graphic_rss_feed_button|rss[0-9_]*\\.xml|Metrics will be available|Article metrics|Discussion started|Latest update|Status</strong>)'
+      ORDER BY discovered_at DESC LIMIT ${limit}`
+  : await sql<{ id: string; title: string; source_id: string; body_text: string; body_html: string | null; revision: number }[]>`
+      SELECT id, title, source_id, body_text, body_html, revision
+      FROM articles
+      WHERE body_status = 'ok' AND body_text IS NOT NULL AND length(body_text) BETWEEN 20 AND 6000
+        AND (body_text ~ '版权所有|Copyright|未经授权禁止|凡本网注明|ICP备|违法和不良信息举报'
+          OR body_text ~ '免责声明|转载请注明出处|技术支持[：:]'
+          OR body_text ~ '大字体|【(?:编辑|责编|排版|校对)[：:]|责任编辑[：:]|[（(]完[)）]$'
+          OR body_text ~ '^[0-9]{4}年[0-9]{1,2}月[0-9]{1,2}日[^。]{0,20}来源[：:]')
+      ORDER BY discovered_at DESC LIMIT ${limit}`;
 
 // 每一行先算一次清洗结果，`lost` 必须看清洗后的文本：第三十三轮之前这里写的是 `isBoilerplateBody(r.clean)`，
 // 而 `r` 是查出来的原始行、根本没有 `clean` 字段——undefined 传进去一律判成「没正文可留」，于是 2026-10-06
@@ -88,13 +102,18 @@ const rows = await sql<{ id: string; title: string; source_id: string; body_text
 // 预警）。`scripts/` 不在 `npm run typecheck` 的范围里，所以类型没报错。用 --restore-from 那份备份回滚。
 const candidates = rows
   .map((r) => {
+    if (chrome) {
+      // 文本侧不动：实测这批行的 `body_text` 本来就没有外壳（外壳在属性与图片里），改了它反而会牵动摘要。
+      const htmlOut = dropRecordPageChrome(r.body_html!);
+      return { ...r, clean: r.body_text, lost: false, htmlOut, changed: htmlOut !== r.body_html };
+    }
     const clean = stripBoilerplate(r.body_text);
-    return { ...r, clean, lost: isBoilerplateBody(clean) };
+    return { ...r, clean, lost: isBoilerplateBody(clean), htmlOut: r.body_html ? stripChromeHtml(r.body_html) : null, changed: true };
   })
-  .filter((r) => r.clean.replace(/\s+/g, "").length !== r.body_text.replace(/\s+/g, "").length);
+  .filter((r) => (chrome ? r.changed && !r.lost : r.clean.replace(/\s+/g, "").length !== r.body_text.replace(/\s+/g, "").length));
 
 const emptied = candidates.filter((r) => r.lost).length;
-console.log(`候选 ${candidates.length} 条（清洗后没有正文可留的 ${emptied} 条），扫描上限 ${limit}`);
+console.log(`${chrome ? "记录页外壳" : "页脚话术"}候选 ${candidates.length} 条（清洗后没有正文可留的 ${emptied} 条），扫描上限 ${limit}`);
 const bySource: Record<string, number> = {};
 for (const c of candidates) bySource[c.source_id] = (bySource[c.source_id] ?? 0) + 1;
 for (const [id, n] of Object.entries(bySource).sort((a, b) => b[1] - a[1]).slice(0, 8)) console.log(`  ${id}: ${n} 条`);
@@ -103,7 +122,7 @@ for (const c of candidates.slice(0, 3)) {
 }
 
 if (!values.apply) {
-  console.log(`\nDRY-RUN：没有写库。要洗 ${candidates.length} 条，重排分析约 ${candidates.length * 5} 次模型调用。`);
+  console.log(`\nDRY-RUN：没有写库。要洗 ${candidates.length} 条。${chrome ? "记录页外壳只动 HTML，不重排分析（译文会按新 revision 自动重翻）。" : `重排分析约 ${candidates.length * 5} 次模型调用。`}`);
   await closeDb();
   process.exit(0);
 }
@@ -122,7 +141,7 @@ for (const c of candidates) {
   // run lands as a single multi-megabyte line that no JSONL reader can replay (the 2026-10-06 03:09 backup did).
   appendFileSync(backup, `${JSON.stringify({ id: c.id, revision: c.revision, body_text: c.body_text, body_html: c.body_html })}\n`);
   const body = c.lost ? null : c.clean;
-  const html = c.lost ? null : c.body_html ? stripChromeHtml(c.body_html) : null;
+  const html = c.lost ? null : c.htmlOut;
   await sql`
     UPDATE articles
     SET body_text = ${body}, body_html = ${html}, body_status = ${c.lost ? "pending" : "ok"},
@@ -130,10 +149,13 @@ for (const c of candidates) {
         content_hash = ${contentHash({ title: c.title, bodyText: body, excerpt: null })},
         updated_at = now()
     WHERE id = ${c.id}`;
-  if (!values["no-requeue"]) await queueProcessing(c.id, { attemptTag: "boilerplate-strip" });
+  // 记录页外壳这一路**不重排分析**：改的只是英文 HTML，喂模型的文本一个字符没动，重排要把每条 5 次付费
+  // 调用再花一遍，换回来的还是同一份摘要。`--no-requeue` 是给这种情形准备的，但 336 条 × 5 次的坑不该留给
+  // 一个忘带的参数，所以这里按模式写死。
+  if (!chrome && !values["no-requeue"]) await queueProcessing(c.id, { attemptTag: "boilerplate-strip" });
   done++;
 }
-console.log(`\n已洗 ${done} 条；旧值备份在 ${backup}。${values["no-requeue"] ? "未重排分析。" : "已重排分析，worker 会按预算逐条重跑。"}`);
+console.log(`\n已洗 ${done} 条；旧值备份在 ${backup}。${chrome ? "未重排分析；正文变了，中文译文会由 content.translate 这一腿按新 revision 自动重翻。" : values["no-requeue"] ? "未重排分析。" : "已重排分析，worker 会按预算逐条重跑。"}`);
 // 正文变了，publication 里派生出来的 `body_mode`/`search_text` 就旧了——重算不花模型额度，交给 worker 排队做。
 for (const sourceId of Object.keys(bySource)) {
   await enqueue(QUEUES.republishSource, { sourceId }, { singletonKey: sourceId });
