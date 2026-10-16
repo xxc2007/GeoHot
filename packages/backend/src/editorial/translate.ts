@@ -3,7 +3,8 @@
 // Bodies are translated block by block (paragraphs, headings, list items, captions, table cells) so the
 // sanitised structure stays as it is. Inside a block, images and inline code never reach the model
 // (placeholders) and links keep only their text and an id; a block whose answer loses or repeats any of
-// them is asked once more, then kept in the original. Each batch is a receipt, so a re-run reuses
+// them — or leaves a citation bracket empty where the source had a number — is asked once more, then
+// kept in the original. Each batch is a receipt, so a re-run reuses
 // answers already paid for. A translation missing any block is stored as incomplete, never as whole.
 // A block that came back Chinese is normalised on the way in (English unit words, straight quotes); a
 // block with no Chinese in it at all — the residue of a body only partly translated — is left alone.
@@ -185,6 +186,13 @@ export function unshield(translated: string, s: Shielded): string | null {
     }
   });
   if (!intact || seen.size !== s.links.length) return null;
+  // 引用编号被采集层摊成纯文本时，上面那道链接计数接不住：源括号里有数字、译文括号里只剩标点，
+  // 读者看到的就是"话说到一半，出处是空的"（2026-10-16 量到 8 条，全在 Frontiers 那一族）。
+  // 整块按"这块没翻出来"处理：折半与缺块重问会再问它一次，还不行就保留原文（宁可原文，不要空括号）。
+  const PAREN = /[（(][^（()）]*[)）]/g;
+  const sourceParens = (cheerio.load(s.html, null, false).root().text().match(PAREN) ?? []).some((p) => /\d/.test(p));
+  const emptiedParen = ($.root().text().match(PAREN) ?? []).some((p) => !/[\p{L}\d]/u.test(p.slice(1, -1)));
+  if (sourceParens && emptiedParen) return null;
   return $.html().replace(/⟦(\d+)⟧/g, (_m, n: string) => s.tokens[Number(n)]!);
 }
 
