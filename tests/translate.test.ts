@@ -212,11 +212,20 @@ test("a batch the model answers badly does not throw away the blocks already tra
   assert.equal(tr!.complete, false, "缺一块就不能说整篇翻完了");
 
   const [at] = await sql<{ outcome: string }[]>`SELECT outcome FROM translation_attempts WHERE article_id = ${id}`;
-  assert.equal(at!.outcome, "partial", "终态是 partial 而不是 failed：下一次运行不该再从三次尝试里扣一次");
+  assert.equal(at!.outcome, "partial", "翻出来两块就是 partial，不是整篇 failed");
+
+  // 但 partial 不是终点。2026-10-16 线上实测 5 条 partial（nature-geoscience 3/43 块、ecsociety 16/89、
+  // phys-org 12/35、dw 9/25、copernicus-essd 1/5）每条 attempts=1 就被待翻查询永久排除，读者面上中文正文里
+  // 就永久留着那几段英文。再跑一轮要把同一篇重新挑起来：已翻出来的块走 receipts 缓存不再付费，只有缺的那块是真请求。
+  const again = await translatePending({ limit: 5 });
+  assert.ok(again.done.some((d) => d.articleId === id), "partial 的条目要被重新挑起来：" + JSON.stringify(again.done.map((d) => d.articleId)));
+  const [at2] = await sql<{ outcome: string; attempts: number }[]>`SELECT outcome, attempts FROM translation_attempts WHERE article_id = ${id}`;
+  assert.equal(at2!.outcome, "partial", "第二轮还是缺一块，记的仍是 partial");
+  assert.equal(at2!.attempts, 2, "重问占掉三次机会里的一次：常年缺一块的正文不会无限付费");
 });
 
 // 上一条把"坏一块"救回来了，这一条守它反面：整篇一块都没翻出来时不许写终态。
-// `skipped` 与 `partial` 都会把条目从待翻查询里永久排除（translatePending 的 NOT EXISTS），
+// `skipped` 会把条目从待翻查询里永久排除（translatePending 的 NOT EXISTS；`partial` 从第一百零四轮起不再排除），
 // 批次错误被折成 null 之后 `done === 0` 变得可达——一门被墙死的时段里，每一篇都会这样，
 // 于是"这一轮什么也没翻成"会把条目永久钉成 skipped，而不是留三次机会。
 test("an article whose every batch errored is not booked as terminal", async () => {
@@ -233,6 +242,6 @@ test("an article whose every batch errored is not booked as terminal", async () 
   const [tr] = await sql`SELECT 1 AS one FROM translations WHERE article_id = ${id}`;
   assert.equal(tr, undefined, "没有任何答复就不该有译文行");
   const [at] = await sql<{ outcome: string; attempts: number }[]>`SELECT outcome, attempts FROM translation_attempts WHERE article_id = ${id}`;
-  assert.equal(at!.outcome, "failed", "记 failed：下一次运行还能再来，最多三次（skipped 与 partial 都是终态，会把条目永久钉住）");
+  assert.equal(at!.outcome, "failed", "记 failed：下一次运行还能再来，最多三次（skipped 是终态，会把条目永久钉住）");
   assert.equal(at!.attempts, 1);
 });

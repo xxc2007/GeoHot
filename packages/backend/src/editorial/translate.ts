@@ -377,6 +377,15 @@ export function translateConcurrency(raw: string | undefined = process.env.GEOHO
  * lack a translation of their current revision, then the posts selected X posts quote. Stops after a time
  * budget. A translation of an older revision is not shown (items.ts), so a revised item is translated
  * again whatever its age.
+ *
+ * 「翻出来一部分」不是终态（2026-10-16 实测）：账上 5 条 partial 的 reason 是 "N of M blocks kept in the
+ * original"（nature-geoscience 3/43、ecsociety 16/89、phys-org 12/35、dw 9/25、copernicus-essd 1/5），
+ * 每条 attempts=1 就被这两个谓词一起排除——旧的那道是 `tr.revision < a.revision`（存了就不算缺），
+ * 新的一道是 outcome 里有 'partial'。于是读者面上永久留着「中文正文里夹几段英文」。重问的成本有界：
+ * 已经翻出来的块走 receipts 缓存（logical_key 里有正文哈希与 model，同一篇同一 revision 命中同一把门），
+ * 只有没答上的块才是真请求；再加 attempts>=3 封顶。另一类 partial 是 "over the 60000-character budget"
+ * （6 条，frontiers 系列），尾巴按预算就不翻，重试只是把缺的几块补上，补完仍是 partial——那也符合本意：
+ * 读者渲染只有 20,000 字（BODY_CAP_CHARS），超出部分是永远不会印出来的。
  */
 export async function translatePending(opts: { limit?: number; budgetMs?: number } = {}): Promise<{ done: TranslateResult[]; quotes: number }> {
   const started = Date.now();
@@ -387,9 +396,9 @@ export async function translatePending(opts: { limit?: number; budgetMs?: number
       AND (p.discovered_at > now() - ${TRANSLATE_WINDOW_DAYS} * interval '1 day'
            OR EXISTS (SELECT 1 FROM article_revisions r WHERE r.article_id = a.id AND r.revision = a.revision AND r.revision > 1
                       AND r.created_at > now() - ${TRANSLATE_WINDOW_DAYS} * interval '1 day'))
-      AND (tr.article_id IS NULL OR (tr.origin <> 'source' AND tr.revision < a.revision))
+      AND (tr.article_id IS NULL OR (tr.origin <> 'source' AND (tr.revision < a.revision OR NOT tr.complete)))
       AND NOT EXISTS (SELECT 1 FROM translation_attempts t WHERE t.article_id = p.article_id AND t.revision = a.revision
-                      AND (t.outcome IN ('skipped', 'translated', 'partial') OR t.attempts >= 3))
+                      AND (t.outcome IN ('skipped', 'translated') OR t.attempts >= 3))
     ORDER BY p.discovered_at DESC LIMIT ${opts.limit ?? 30}`;
   const done: TranslateResult[] = [];
   // 逐条 await 时这一腿的吞吐由对端墙钟决定（2026-10-16 实测一次 translate_body 调用平均 130 秒
