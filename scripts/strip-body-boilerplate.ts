@@ -39,11 +39,15 @@ const { values } = parseArgs({
     limit: { type: "string", default: "2000" },
     "no-requeue": { type: "boolean", default: false },
     "database-url": { type: "string" },
+    // 与 set-source-state.ts 同规（#174）：写库要**点名**是哪个变量，但 DSN 不该出现在命令行上——
+    // 它进 `ps`、进 shell 历史、进 journal，而里面带着生产库口令。
+    "database-url-env": { type: "string" },
   },
 });
-if (values.apply && !values["database-url"]) {
+const namedUrl = values["database-url-env"] ? process.env[values["database-url-env"]] : values["database-url"];
+if (values.apply && !namedUrl) {
   // 从环境变量里猜库，正是把 dry-run 变成写库事故的路径（与 set-source-state.ts、restore-body-from-backup.ts 同规）。
-  console.error("--apply 必须显式给 --database-url=…");
+  console.error("--apply 必须显式给 --database-url=… 或 --database-url-env=DATABASE_URL");
   process.exit(2);
 }
 
@@ -57,9 +61,9 @@ function sameTarget(a: string, b: string): boolean {
     return false;
   }
 }
-if (values["database-url"] && !sameTarget(values["database-url"], config.databaseUrl)) {
+if (namedUrl && !sameTarget(namedUrl, config.databaseUrl)) {
   // 连接走的是 backend 的池（环境变量），所以这个参数必须与它一致，否则「指名的库」是句空话。
-  console.error(`--database-url 指向的库与环境里的 DATABASE_URL 不是同一个：${new URL(values["database-url"]).host}${new URL(values["database-url"]).pathname}`);
+  console.error(`--database-url 指向的库与环境里的 DATABASE_URL 不是同一个：${new URL(namedUrl).host}${new URL(namedUrl).pathname}`);
   process.exit(2);
 }
 
