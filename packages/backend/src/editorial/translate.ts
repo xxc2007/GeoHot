@@ -3,7 +3,8 @@
 // Bodies are translated block by block (paragraphs, headings, list items, captions, table cells) so the
 // sanitised structure stays as it is. Inside a block, images and inline code never reach the model
 // (placeholders) and links keep only their text and an id; a block whose answer loses or repeats any of
-// them — or leaves a citation bracket empty where the source had a number — is asked once more, then
+// them — or leaves a citation bracket empty where the source had a number, or answers only the first half
+// of a long block — is asked once more, then
 // kept in the original. Each batch is a receipt, so a re-run reuses
 // answers already paid for. A translation missing any block is stored as incomplete, never as whole.
 // A block that came back Chinese is normalised on the way in (English unit words, straight quotes); a
@@ -186,13 +187,23 @@ export function unshield(translated: string, s: Shielded): string | null {
     }
   });
   if (!intact || seen.size !== s.links.length) return null;
+  const srcText = cheerio.load(s.html, null, false).root().text().replace(/\s+/g, " ").trim();
+  const outText = $.root().text().replace(/\s+/g, " ").trim();
   // 引用编号被采集层摊成纯文本时，上面那道链接计数接不住：源括号里有数字、译文括号里只剩标点，
   // 读者看到的就是"话说到一半，出处是空的"（2026-10-16 量到 8 条，全在 Frontiers 那一族）。
   // 整块按"这块没翻出来"处理：折半与缺块重问会再问它一次，还不行就保留原文（宁可原文，不要空括号）。
+  // "只剩标点"只认分隔符与空白：上一版用"不含字母和数字"判，把公式里的 f(⋅) 当成了被掏空的引用，
+  // 而 Nature 系那几篇正文里全是这类括号（2026-10-17 在同一篇账上同时看到两者）。
   const PAREN = /[（(][^（()）]*[)）]/g;
-  const sourceParens = (cheerio.load(s.html, null, false).root().text().match(PAREN) ?? []).some((p) => /\d/.test(p));
-  const emptiedParen = ($.root().text().match(PAREN) ?? []).some((p) => !/[\p{L}\d]/u.test(p.slice(1, -1)));
+  const sourceParens = srcText.match(PAREN)?.some((p) => /\d/.test(p));
+  const emptiedParen = outText.match(PAREN)?.some((p) => /^[\s;；,，、\-–—]*$/.test(p.slice(1, -1)));
   if (sourceParens && emptiedParen) return null;
+  // 模型会把太长的块"翻成摘要"：条数、占位符、链接全都对得上，只有内容交出前半句，读者读到的是一句
+  // 以「——」「表示：」收尾的中文（2026-10-17 全表 141 条上量到 4 块，全在同一篇长文里，0 块在已翻全的正文）。
+  // 阈值按实测分布取：块级"中文字数 ÷ 原文字数"的 p1 是 0.213、p50 是 0.331，而这 4 块是 0.035–0.125；
+  // 再加"结尾不是句末标点"这一条，德语那种"原文啰嗦、译文本来就短"的正常块（0.195，以句号收尾）就不会被冤枉。
+  const END_PUNCT = /[。！？…”"』」)）]$/;
+  if (srcText.length >= 300 && outText.length / srcText.length < 0.22 && !END_PUNCT.test(outText)) return null;
   return $.html().replace(/⟦(\d+)⟧/g, (_m, n: string) => s.tokens[Number(n)]!);
 }
 
