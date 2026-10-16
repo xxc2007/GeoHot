@@ -1,0 +1,7 @@
+[Unit]
+Description=GEOHOT reader-surface guard: auto-lower judging concurrency on degradation (one-shot)
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/geohot/bin/conc-guard.sh

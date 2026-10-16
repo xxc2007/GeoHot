@@ -1,0 +1,10 @@
+[Unit]
+Description=Probe GEOHOT reader surface every 5 minutes for the concurrency guard
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=5min
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target
