@@ -39,7 +39,12 @@ const provider = await stub(async (_hit, req) => {
     }
     if (s.includes("never keeps")) return "丢了链接。";
     if (s.includes("Magnitude revised")) return "震级修订为 7.2 级。";
-    return s.includes("twenty") ? "价格是二十美元。" : s.includes("ten") ? "价格是十美元。" : "译文";
+    if (s.includes("twenty")) return "价格是二十美元。";
+    if (s.includes("ten")) return "价格是十美元。";
+    // 答复按块长比例给：对一条 1,800 字的段落只回两个字「译文」，正是第一百一十一轮那道长度守卫要拦的
+    // "只交出前半句"，拿它当"这块翻出来了"的替身，这条用例就证明不了它想证明的东西（坏批次恢复）。
+    // 「译文」仍然只出现一次，下面的计数断言照旧按块数走。
+    return `译文${"词".repeat(Math.max(1, Math.round(s.length * 0.3)))}。`;
   });
   return { id: "stub", choices: [{ message: { content: JSON.stringify({ t }) } }], usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 } };
 });
