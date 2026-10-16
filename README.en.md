@@ -18,7 +18,7 @@ An earthquake, a changing city, a new satellite image: geography takes shape in 
 
 Read without an account, search and filter by category, save local bookmarks or subscribe through RSS. Public APIs and MCP give developers access to the same published content. The website’s reading interface and editorial output are in Chinese.
 
-[Film](#-product-film) · [Reading experience](#reading-experience) · [Selection](#how-material-becomes-a-selected-story) · [Architecture](#architecture) · [Open interfaces](#pages-and-open-interfaces) · [Run locally](#local-development-and-adaptation) · [Content and licence](#content-boundaries-and-licensing) · [Star History](#star-history)
+[Film](#-product-film) · [Reading experience](#reading-experience) · [Selection](#how-material-becomes-a-selected-story) · [Architecture](#architecture) · [Open interfaces](#pages-and-open-interfaces) · [Run locally](#local-development-and-adaptation) · [Content boundaries](#content-boundaries) · [License](#-license) · [Star History](#star-history)
 
 </div>
 
@@ -120,11 +120,15 @@ Keep collection, model calls and other external-access switches off by default. 
 
 To adapt the project to another field, start with `industry/`: site identity, taxonomy, sources, prompts and branding. See the [customisation guide](docs/customize.md) for the process, and use the code for current configuration values. Operational guidance is in the [runbook](docs/geohot-runbook.md).
 
-## Content boundaries and licensing
+## Content boundaries
 
 Summaries, scores and event overviews support reading; verify important information against the original sources. Hazard and warning coverage is not an official alert or a basis for emergency decisions. Sources show summaries and original links by default; full-text display depends on the publisher’s permission.
 
-Code is available under [MIT](LICENSE), retaining upstream copyright and the derivative notice in [NOTICE](NOTICE). GEOHOT uses its own name and mark; upstream names and logos are not included in the code licence. Third-party assets and source content retain their respective terms. Full policies are available on the site’s terms and privacy pages.
+## 📄 License
+
+[MIT](LICENSE) © 2026 数字生命卡兹克 (upstream framework). Geography configuration and brand maintained by Xiong Xinchen (熊鑫晨).
+
+Upstream copyright and the derivative notice are preserved in [NOTICE](NOTICE). GEOHOT uses its own name and mark; upstream names and logos are not included in the code licence. Third-party assets and source content retain their respective terms. Full policies are available on the site’s terms and privacy pages.
 
 ## Star History
 
