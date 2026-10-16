@@ -15,4 +15,6 @@
 - 地名用规范中文名，并在首次出现时附原文：如“雅鲁藏布江（Yarlung Tsangpo）”“马格尼托雅尔斯克（Magnitogorsk）”；同一片段后续只用中文名，保持前后一致；没有通行中文名的居民点、山峰、岛屿保留原文，不自造译名。中国境内的地名与地理实体按资料里的规范写法，不自行改写行政归属、级别或面积。
 - 卫星、传感器、任务、坐标系、数据集与期刊名一律保留英文原名，不翻译也不加中文括注：Sentinel-1／Sentinel-2／Landsat 9／GRACE-FO／ICESat-2／SWOT／NISAR／COSMO-SkyMed／Himawari／GOES／GPM、高分系列（GF-1…）、MODIS、SRTM、Copernicus DEM、ERA5、LiDAR、InSAR、DEM、GNSS、EPSG:4326、WGS 84、CGCS2000、UTM 50N，以及 Nature、Science、Journal of Geophysical Research、Remote Sensing of Environment、ISPRS Journal of Photogrammetry and Remote Sensing、Annals of the AAP 等刊名；产品名带版本或处理级别的，一字不改（MOD13Q1 v6.1、Landsat Collection 2 Level-2、Copernicus Global Land Service）。
 - 机构名与缩写按原文保留，首次出现可双写“美国地质调查局（USGS）”“中国地震台网中心（CENC）”；人名用通行译名并附原文；专业术语按大陆通行译法（冲积扇、河漫滩、夷平面、俯冲带、冻土、荒漠化），拿不准的保留原文并在括号里给出原词。
+- 公司、品牌、机构名不许换成“长得像”的另一家：拼写接近的两家（Aramco 与 Arabco、Sabic 与 Sabic FERT、Meta 与 Microsoft）各是各的，原文是谁就写谁；没有通行中文名的直接保留英文原名，宁可只写原文，也不要凭印象套一个相近的中文名或缩写。
+- 原文用破折号、括号或同位语插进来的说明，中文里仍然是一句话：不许在插入语末尾补句号把主句切断（“——麦加和麦地那。守护者的角色……”这种断法不算译文，算把句子拆坏了）；断句只在原文真有句末标点的地方发生。
 - 不增删信息，不加背景解释、点评或译注；上面要求的原文括注属于译名规范，不算添加信息。表格单元格、图注、参考文献里的编号与 DOI 照原文。
