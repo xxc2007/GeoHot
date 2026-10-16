@@ -1,254 +1,139 @@
-<sub>🌐 <b>中文</b> · <a href="README.en.md">English</a> · 完整手册见 <a href="docs/manual.md">docs/manual.md</a></sub>
+<sub>🌐 <b>中文</b> · <a href="README.en.md">English</a> · <a href="docs/manual.md">运营与开发手册</a></sub>
 
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/xxc2007/GeoHot/main/industry/brand/logo.svg?v=2" alt="经纬之交：墨色地球被一条经线与三条纬线切开，青色热点落在北纬与经线的交点上" width="72">
-
-<p><sub>GEOGRAPHY · HOTSPOT · DAILY &nbsp;—&nbsp; 按空间显著性筛选 · 每条留原文地址 · 不做预测</sub></p>
+<img src="https://raw.githubusercontent.com/xxc2007/GeoHot/main/industry/brand/logo.svg?v=2" alt="GEOHOT 标志：经纬线交汇处的一点青色热点" width="72">
 
 # GEOHOT · 地理热点
 
-> *「关于这片土地的消息每天都有，有依据、值得写的，只有几条。」*
+**每天把地理读一遍。**
 
-[![线上访问](https://img.shields.io/badge/%F0%9F%8C%90_线上访问-xxc2007.me%2Fgeohot-D97757)](https://xxc2007.me/geohot/)
-[![仓库](https://img.shields.io/badge/GitHub-GeoHot-1F1E1D)](https://github.com/xxc2007/GeoHot)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![零注册](https://img.shields.io/badge/读者侧-零注册_·_零Cookie-1F1E1D)](#贰--site-map-站点结构)
-[![分类](https://img.shields.io/badge/分类-七个-D97757)](#其一--taxonomy-七个分类一条标准)
-[![运行时](https://img.shields.io/badge/运行时-Node_24_·_后端无构建-1F1E1D)](#叁--stack-技术栈)
-[![行业层](https://img.shields.io/badge/行业层-全在_industry%2F-1F1E1D)](#肆--reuse-换成你的行业)
-[![GitHub](https://img.shields.io/badge/GitHub-@xxc2007-1F1E1D)](https://github.com/xxc2007)
+从一场地震、一座城市的变化，到一幅新的遥感影像，世界的变化每天都在留下新的地理线索。GEOHOT 持续采集公开信源，以空间显著性组织精选资讯，将同一事件的多方报道汇集起来，再编成便于回顾的地理日报。
 
-<br>
+**读到要点，看到证据，也能回到原文。**
 
-**每天把地理这件事读一遍，只留下有依据、值得写的几条。**
+[![线上访问](https://img.shields.io/badge/线上访问-xxc2007.me%2Fgeohot-D97757)](https://xxc2007.me/geohot/)
+[![技术栈](https://img.shields.io/badge/技术栈-TypeScript_·_React_·_PostgreSQL-1F1E1D)](#技术架构)
+[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-盯住台站、卫星机构、统计与区划部门的信源，按**空间显著性**筛出少数几条，写成中文标题与摘要，
-把同一件事的多方报道并成一个事件，每天早上 08:00（Asia/Shanghai）出一份日报。
-免费、不用注册，每条都留着原文地址。
+无需注册即可阅读，支持搜索、分类筛选、本地收藏与 RSS 订阅；开发者也可以通过公开 API 和 MCP 接入同一套内容。
 
-它建在开源框架 [AIHOT](https://github.com/KKKKhazix/AIHOT)（MIT）之上，行业层换成了地理：
-引擎在 `apps/` 与 `packages/`，地理的一切——站名、分类、主题、信源、评分标准、门槛、品牌、条款页——
-都在 [`industry/`](industry/) 这一个文件夹里。
-
-<br>
-
-[🎬 宣传片](#-宣传片展示) · [壹 特色](#壹--highlights-特色) · [贰 站点结构](#贰--site-map-站点结构) · [叁 技术栈](#叁--stack-技术栈) · [肆 换成你的行业](#肆--reuse-换成你的行业) · [伍 本地运行](#伍--local-本地运行) · [陆 边界与笔记](#陆--notes-边界与设计笔记) · [柒 授权](#柒--license-授权与出处) · [捌 星际历史](#捌--star-history-星际历史) · [完整手册](docs/manual.md)
-
-<br>
-
-> **这一页只讲"它是什么"，不讲"现在有多少"。**
-> 信源条数、收录量、精选数、日报期数、门槛分值都是每天在变的量，抄在这里第二天就过期，
-> 所以本页一律**只给端点与文件名**，不给数字：线上现状看 [`/api/site/stats`](https://xxc2007.me/geohot/api/site/stats)，
-> 信源口径看 [`industry/sources.json`](industry/sources.json)，门槛现值看 [`industry/selection.ts`](industry/selection.ts)。
-> 操作口径（本机跑法、端口对照、检查命令、上线前清单）在 [`docs/manual.md`](docs/manual.md)；
-> 哪份文档该打折、逐条打到什么程度，看它第 9 节那张「文档 × 状态」表。
+[宣传片](#-宣传片展示) · [阅读体验](#阅读体验) · [筛选流程](#信息如何成为精选) · [技术架构](#技术架构) · [开放接口](#站点与开放接口) · [本地运行](#本地运行与二次开发) · [内容与许可](#内容边界与许可) · [Star History](#star-history)
 
 </div>
 
----
-
 <p align="center">
-  <a href="https://xxc2007.me/geohot/"><img src="docs/shots/home-light.png?v=5f0d9fbb01ca" alt="GEOHOT 首页：顶部是当前热点条，下面是按时间排开的精选列表，侧栏是主题与日报入口" width="820"></a>
+  <a href="https://xxc2007.me/geohot/"><img src="docs/shots/home-light.png?v=5f0d9fbb01ca" alt="GEOHOT 精选首页：七个分类、搜索、当前热点与按时间排列的资讯卡片" width="820"></a>
 </p>
-
-<details>
-<summary>▲ 展一 · HOME 首页「精选」· 2026-10-16 线上实拍</summary>
-
-截图采自 2026 年 10 月 16 日的线上最新版，展示七个分类、搜索、当前热点与精选信息流。
-分类为自然地理、人文地理、区域地理、政治地理、历史地理、前沿地理、地理信息系统；卡片提供标题、摘要、推荐理由、来源与 AI 评分。
-热点条中的排名、信源与热度，以及下方资讯内容，均为拍摄时刻的公开快照，之后会随网站正常更新。
-**这张图是有日期的展示快照，线上现状请看**：<https://xxc2007.me/geohot/>。
-
-</details>
-
----
-
----
+<p align="center"><sub>精选首页 · 分类、热点与信息流 · 2026 年 10 月 16 日线上截图</sub></p>
 
 ## 🎬 宣传片展示
 
-从精选资讯出发，经过七个分类、事件综述与报道时间线、地理日报、主题和 Agent 接入。最新版线上真实读者页面组成 42 秒的产品宣传片；资讯画面为 2026-10-16 拍摄快照，采用柔和钢琴配乐、缓慢运镜与自然叠化，无撞击或扫频换场音。
+用 42 秒走过 GEOHOT 的主要阅读路径：浏览精选、按分类寻找内容、进入事件综述与报道时间线，再打开地理日报和主题页。画面取自真实网站，配以柔和钢琴与自然转场。
+
+点击下方播放器即可在本页观看。
 
 https://github.com/user-attachments/assets/d85128b8-810d-48b8-a6eb-3e032e81011a
-<p align="center"><sub>▲ GEOHOT · 地理热点 · 42 秒 · 1920×1080 · 可在本页直接点击播放</sub></p>
 
-▶️ [打开 1080p 高清播放器](https://xxc2007.me/assets/promo/geohot/?v=20261016) · [直接打开 1080p 源视频](https://raw.githubusercontent.com/xxc2007/GeoHot/main/docs/promo/geohot-promo.mp4?v=20261016)
+[▶ 打开 1080p 高清播放器](https://xxc2007.me/assets/promo/geohot/?v=20261016) · [直接打开 MP4](https://raw.githubusercontent.com/xxc2007/GeoHot/main/docs/promo/geohot-promo.mp4?v=20261016)
 
-<sub>使用 Video Shotcraft 制作，运镜与展示结构参考[青山湖畔的纪念册](https://github.com/xxc2007/In-memory-of-Nanchang-No.-15-Middle-School#-宣传片展示)。</sub>
+<sub>影片为 1920 × 1080，使用 Video Shotcraft 制作。截图与影片中的资讯为拍摄时的内容快照，最新动态请以网站为准。</sub>
 
----
+## 阅读体验
 
-## 壹 · HIGHLIGHTS 特色
+### 从一条消息，读到一个事件
 
-### 其一 · TAXONOMY 七个分类，一条标准
+资讯卡片提供中文标题、摘要、推荐理由、来源与评分，便于先判断是否值得展开。同一事件的相关报道会归并到事件页，通过综述与时间线连接起来，让后续进展有迹可循。原文链接始终保留，方便进一步阅读和核对。
 
-分类是这站的骨架（`industry/taxonomy.ts`，`key` 直接进 URL，上线后不再改）。
-七个分类共用同一条入选标准——**空间显著性优先**：影响尺度大、多方独立报道、有数据／图件／影像支撑，三件同时成立才排得靠前。
+### 用分类找到方向，用日报形成回顾
 
-| `key` | 分类 | 管什么 |
-|---|---|---|
-| `physical` | 自然地理 | 地貌、气候、水文、土壤、植被与灾害事件，须有观测数据、图件或影像 |
-| `human` | 人文地理 | 人口与迁移、城市化、产业与交通区位、行政区划调整、城乡与区域政策 |
-| `regional` | 区域地理 | 以区域或流域为单位的整体性变化：极地、青藏高原、三角洲、城市群、跨境河流 |
-| `geopolitics` | 政治地理 | 主权、边界与领土的划定与争议，地缘格局、战略通道、跨境河流与海洋权益 |
-| `histgeo` | 历史地理 | 历史时期的地理变迁与古今对照：河道海岸线、政区疆域沿革、城址兴废、古地图 |
-| `frontier` | 前沿地理 | 学术界的前沿科研成果：期刊论文与预印本给出的新证据、新方法、新认识，学界综述与研究进展发布 |
-| `geotech` | 地理信息系统 | 遥感与影像、导航定位、观测数据集与标准的发布，GIS 软件与平台、开源生态与许可变更 |
+首页精选适合快速浏览，「全部动态」提供更完整的检索入口；热点榜展示满足参与条件的事件，主题页帮助持续追踪。每日 08:00（Asia/Shanghai）排期生成地理日报，另提供周报、月报与存档。
 
-**「板块」这一层不存在。** 它曾经有四个跨类别方向页（`/boards`），后来按站长要求整块删掉——判重：
-主题页与筛选栏的分类做的是同一件事。删的只是视图，条目、`category` 字段、分类词表与公开门槛一行都没动；
-`/boards` 现在返回 404，四个方向的入口在分类层（`/all?category=<key>`）与主题页。
-
-### 其二 · PIPELINE 一条资料进站的七步
-
-**采集 → 预筛 → 两次独立打分 → 门槛 → 归并成事件 → 热度 → 日报**
-
-- **预筛**（`industry/prompts/prefilter.md`）：是不是地理的事、有没有实在信息。被 `BLOCK` 的材料不出现在任何公开页面。
-- **两次独立打分**：同一份评分标准串行调用两次，**两次之和过线才入选**，卡片显示两次的平均（向下取整数）。
-- **门槛按信源分级**：信源分 `T1` / `T1_5` / `T2` 三档，档位越低门槛越高（同一份内容，媒体转述要比官方一手更严才入选）；另有一条"没入选但值得读"的下限。
-  **现值与算式只写在 [`industry/selection.ts`](industry/selection.ts) 的文件头注释里**，那里同时写明这组数仍未被 gold 集校准过。
-- **归并成事件**：多家报道同一件事并成一个事件，事件页有综述。入选材料要等归组完成才出现在精选里，避免同一件事先冒出好几条。
-- **热度**：一个滚动时间窗、按时间衰减、每个独立来源只投一票，参与方不足就是空榜——空榜是诚实状态，不是故障。
-  三个参数（时间窗、半衰期、最少参与方）写在 `packages/backend/src/events/hot.ts`。
-- **成刊**：日报、周报、月报按固定时刻生成，条目按热度排、按学科与技术分节。
-
-### 其三 · BRAIN 标准是人定的，逐条判断交给模型
-
-这条边界写进条款，不靠默契：分类表、重要性口径、噪声清单、门槛分数、提示词全部由站长逐条确认并写在 `industry/` 里；
-模型按这套标准出逐条结论，站长在后台抽查并覆盖，读者也能通过「反馈」指出错误。
-
-面向读者的每一句话都要和实际执行者一致：**机器写的摘要不许说成编辑部签署的立场**。
-宁可少一条精选，不可错一条灾害数据。
-
----
-
-## 贰 · SITE MAP 站点结构
-
-| 路由 | 内容 |
+| 分类 | 关注内容 |
 |---|---|
-| `/` · `/all` | 精选 · 全部动态（含搜索） |
-| `/hot` | 热点榜（按事件排，不是按条目） |
-| `/daily` · `/daily/archive` · `/daily/:key` | 最新一期 · 存档 · 单期；`/weekly`、`/monthly` 同构 |
-| `/topics` · `/topics/:slug` | 主题目录与单个主题页（主题数以 `industry/topics.json` 为准） |
-| `/story/:publicId` · `/items/:id` | 事件页（多方报道并成一条）· 条目页，另有 `/items/:id/original` 原文跳转 |
-| `/about` · `/agent` · `/changelog` · `/feedback` · `/terms` · `/privacy` · `/more` | 关于 · Agent 接入 · 更新日志 · 反馈 · 条款 · 隐私 · 更多 |
-| `/starred` | 我的收藏——只存在这台设备的浏览器里，`noindex` |
-| `/admin/*` | 后台，**要登录**（密码是 `.env` 里 `npm run env:init` 生成的 `ADMIN_PASSWORD`） |
+| 自然地理 | 地貌、气候、水文、土壤、植被与灾害事件 |
+| 人文地理 | 人口、城市、产业、交通与城乡发展 |
+| 区域地理 | 流域、极地、高原、三角洲与城市群的综合变化 |
+| 政治地理 | 边界、领土、战略通道与海洋权益 |
+| 历史地理 | 河道与海岸变迁、政区沿革、历史城址与古地图 |
+| 前沿地理 | 新的研究证据、方法、成果与学术进展 |
+| 地理信息系统 | 遥感、导航定位、空间数据、GIS 软件与开源生态 |
 
-**机器可读出口**都从同一个只读层 `packages/backend/src/publication/` 读，所以网页与接口给的是同一批条目：
+分类定义集中在 [`industry/taxonomy.ts`](industry/taxonomy.ts)。收藏保存在当前设备的浏览器中；RSS、公开 API 与 MCP 则让内容可以进入个人订阅和自动化阅读流程。
 
-- RSS：`/feed.xml`（精选摘要）、`/feed/full.xml`（精选带正文）、`/feed/all.xml`、`/feed/daily.xml`、`/feed/weekly.xml`、`/feed/monthly.xml`，以及按分类的 `/feed/category/<key>.xml` 与 `/feed/full/category/<key>.xml`
-- 公开 API：`/api/v1/*` 一组只读端点，规范在 `/openapi-v1.json`，说明页 `/agent`
-- 给 Agent 的：MCP 端点与 `/llms.txt`
-- 索引：`/sitemap.xml`、`/robots.txt`
+## 信息如何成为精选
 
-读者侧没有登录、没有 Cookie、没有埋点；收藏存在本地浏览器里。管理员和访客看到的内容一样。
+**采集与判重 → 地理预筛 → 两次评分 → 分级门槛 → 事件归并 → 热度计算 → 定时成刊**
 
----
-
-## 叁 · STACK 技术栈
-
-每一层挑的都是「在本机一条命令就能跑起来、并且不需要额外中间件」的那一个。具体版本号以 `package.json` 为准，不抄在这里。
-
-| 层 | 选型 | 为什么 |
-|---|---|---|
-| 运行时 | **Node 24** 直接执行 TypeScript | 后端没有构建步骤，改完即跑，少一层会撒谎的产物 |
-| 组织 | **npm workspaces**：`apps/*`、`packages/*`、`industry` | 一处改动全仓可见，不需要发版协调 |
-| 前端 | **React Router**（SSR）+ React + Tailwind | 服务端渲染，爬虫和阅读器拿到的是完整 HTML |
-| 接口 | **Fastify** | 公开读接口要能压量，后台写接口要能加校验 |
-| 任务 | **pg-boss** | 队列就建在 Postgres 里，少一个要运维的中间件 |
-| 数据 | **PostgreSQL** | 条目、事件、日报、会话、队列都在同一个关系库里；本机用 `embedded-postgres`，不依赖 Docker |
-| 编辑判断 | 线上用真实模型；本机与 CI 用本地 stub + `tooling/fixtures/*.jsonl` | 付费调用一律过回执与预算熔断；测试不访问任何外部服务 |
-
----
-
-## 肆 · REUSE 换成你的行业
-
-`industry/` 是这棵树里和"地理"有关的东西该待的地方，其余是通用引擎——**换一个垂直领域，正常只需要动这一个目录**。
-这是本仓库最值得抄走的一点。步骤在 [`docs/customize.md`](docs/customize.md)（那份文档的**步骤**成立、**数字**不成立）。
-
-| 文件 | 管什么 |
+| 环节 | 处理方式 |
 |---|---|
-| `site.ts` | 站名、行业词 `subject`（拼进日报名与列表名）、首页与关于页文案、MCP 工具名前缀、联系邮箱 |
-| `taxonomy.ts` | 分类、内容类型、标签词表、机构名录、防张冠李戴的身份词典 |
-| `topics.json` | 主题页目录（`/topics`）；主题数以这个文件为准，别抄进文档 |
-| `sources.json` | 首次启动导入的信源（`ON CONFLICT DO NOTHING`，只增不改，之后在后台增删） |
-| `prompts/` | 精选标准、写作要求、噪声例子——**行业 KnowHow 就写在这里**，改标准不用改代码 |
-| `selection.ts` | 门槛与下限，文件头注释就是它的算式与"未校准"声明 |
-| `features.ts` | 与本行业无关的模块在这里关掉 |
-| `brand/` | 图标与日报报头字（报头由脚本按 `SITE.subject` 生成，改了行业词要重跑） |
-| `pages/` | `terms.md`、`privacy.md`，目前是模板，上线前要主办者本人确认 |
+| 信源与预筛 | 从登记的公开信源采集材料，规范化 URL 判重，再判断地理相关性与信息含量。信源配置见 [`industry/sources.json`](industry/sources.json)，预筛标准见 [`prefilter.md`](industry/prompts/prefilter.md)。 |
+| 评分与入选 | 依据统一标准进行两次评分，以两次分数之和判断是否达到对应信源等级的入选门槛；卡片展示平均分。门槛与计算说明集中在 [`industry/selection.ts`](industry/selection.ts)。 |
+| 事件与热点 | 将同一事件的多方报道归并；热度按独立来源覆盖与时间衰减计算，未满足参与条件时保留空榜。 |
+| 写作与发布 | 生成中文标题、摘要及推荐理由，组织事件综述与定期刊物。公开内容统一经 [`publication/`](packages/backend/src/publication/) 读取。 |
 
-要问使用者本人的，不要替他决定：站名；盯哪些信源；什么算重要、什么是噪声；分类怎么分；条款和隐私说明的内容。
+**标准由人制定，逐条分析由模型执行。** 分类、信源、提示词与筛选规则保存在 [`industry/`](industry/)；后台支持抽查与修正，读者也可通过反馈入口指出问题。评分用于内容筛选，不表示事实正确的概率；现行门槛仍是经验参数，尚未通过人工标注集完成校准。
 
----
+## 技术架构
 
-## 伍 · LOCAL 本地运行
+GEOHOT 基于开源框架 [AIHOT](https://github.com/KKKKhazix/AIHOT) 构建，以地理行业配置组织内容。应用与通用处理逻辑位于 `apps/`、`packages/`，地理相关的分类、信源、提示词、品牌和页面配置集中在 `industry/`。
 
-**干净克隆的第一步是 `npm run env:init`，不是 `npm ci` 之后直接起栈。**
-`.env` 全被 `.gitignore` 排除，克隆里一个都没有；启动命令写的是 `node --env-file=.env …`，
-文件不存在时 Node 会报 `.env: not found` 并以退出码 9 死掉。`scripts/init-env.ts` 会写出这几个文件、
-为各个密钥生成真随机值，并**拒绝覆盖已存在的文件**。
+| 层面 | 选型与职责 |
+|---|---|
+| 运行时与组织 | Node.js 24 直接执行后端 TypeScript，npm workspaces 管理应用、共享包与行业配置。版本要求见 [`package.json`](package.json)。 |
+| 页面 | React Router 服务端渲染、React 与 Tailwind CSS，提供信息流、事件、刊物与主题页面。 |
+| 接口 | Fastify 提供公开只读接口与需要认证的管理接口。前端通过 HTTP 访问后端。 |
+| 数据与任务 | PostgreSQL 存储条目、事件、刊物与会话；pg-boss 复用数据库管理队列与定时任务。 |
+| 模型处理 | worker 执行分析与写作任务，调用经过[回执与预算控制](packages/backend/src/providers/receipts.ts)；公开页面读取已生成内容，阅读本身不触发模型调用。 |
+| 一致性 | 网页、RSS、API 与 MCP 共享发布读取层，减少不同出口的内容口径差异。 |
 
-本机跑法、端口对照表、起栈顺序、以及"默认端口在这台机器上保不住"的处置，都在
-**[`docs/manual.md` 第 3 节](docs/manual.md)**——那份是操作口径，`docs/deploy.md` 是上游的 Docker 路线，本机没有 Docker。
+## 站点与开放接口
 
-改完至少跑这几样（细节与本机差异见 `docs/manual.md` 第 3.7 节与第 11 节）：
+以下路径均相对于线上站点的 `/geohot/` 前缀。
+
+| 入口 | 用途 |
+|---|---|
+| `/` · `/all` | 精选与全部动态，支持搜索和分类筛选 |
+| `/story/:publicId` · `/items/:id` | 事件综述、报道时间线与单条资讯 |
+| `/hot` · `/topics` | 事件热点榜与主题追踪 |
+| `/daily` · `/weekly` · `/monthly` | 日报、周报、月报及对应存档 |
+| `/starred` | 当前浏览器中的本地收藏 |
+| `/agent` · `/feedback` | 开发者接入说明与读者反馈 |
+
+- **RSS**：精选摘要 [`/feed.xml`](https://xxc2007.me/geohot/feed.xml)、全部动态 `/feed/all.xml`、日报 `/feed/daily.xml`，另有周报、月报及分类订阅。
+- **公开 API**：只读端点位于 `/api/v1/`，接口规范见 [`openapi-v1.json`](https://xxc2007.me/geohot/openapi-v1.json)。
+- **Agent 接入**：MCP 端点 `/api/mcp`，配套 `/llms.txt`；使用说明见[接入页面](https://xxc2007.me/geohot/agent)。
+- **当前数据**：信源与内容规模以[站点统计](https://xxc2007.me/geohot/api/site/stats)及线上页面为准。
+
+## 本地运行与二次开发
+
+需要 Node.js 24.11 或更高版本。安装依赖后，先初始化本地配置：
 
 ```bash
-npm run typecheck
-npm test                        # 测试库名必须以 _test / _ci 结尾，setup 会拒别的名字
-npm run build -w @aihot/web
-node scripts/smoke.ts --base http://localhost:3000
+npm ci
+npm run env:init
 ```
 
-安全阀默认一律关闭（采集、模型调用、 embeddings、飞书、IndexNow）。
-需要真跑管道时**叠一个一次性 env 文件**（`--env-file=.env --env-file=.env.pipeline`），不要把里面的开关合并进 `.env`——
-那等于让测试去打外部服务。
+初始化脚本会生成本地环境文件和所需随机密钥，并拒绝覆盖已有配置。数据库、API、worker 与网页服务的启动顺序、端口设置和检查命令见[运营与开发手册](docs/manual.md)；仓库提供本地模型 stub 和固定夹具，用于开发与 CI 验证。
 
----
+默认保持采集、模型调用等外部访问开关关闭。需要运行真实管道时，按手册叠加独立环境配置，保留开发与测试环境的隔离。
 
-## 陆 · NOTES 边界与设计笔记
+希望用于其他垂直领域，可从 `industry/` 入手配置站名、分类、信源、提示词与品牌。目录职责和迁移步骤见[行业定制指南](docs/customize.md)，实际配置值以代码为准；部署说明见[运行手册](docs/geohot-runbook.md)。
 
-- **不抄会动的数。** 本页与 `docs/` 里凡是"当场可数"的量都改成指针。上一版抄过一组线上快照并据此断言"落后再本机"，
-  两句都不成立——靠抄录追一个会动的数是追不住的。这是规则，不是疏忽。
-- **空状态是设计的一部分。** 主题页允许"0 条精选"，日报薄的时候它就照实写有多薄；热榜达不到门槛就是空榜。
-  把空状态认真做成一个页面，而不是当成 bug 藏起来。
-- **读者要行动的地方就有免责声明。** 命中灾害标签的条目页直接渲染"本站不是预警信息的发布机构，本页内容不构成预警依据"，
-  不是只在 `/terms` 里藏着。
-- **门槛是经验护栏，不是证明。** `industry/selection.ts` 的头注释自己算给你看：硬上限只封住一到两轴，
-  把现行门槛读成"营销稿数学上不可能入选"就是误读了那份文档。真正在下限拦噪声的是预筛与信源分级。
-- **信源默认只显示摘要加原文链接**（`site_fulltext` 关）；只有来源明确允许时才打开全文。
-- 包名 `@aihot/*`、目录名 `industry/`、浏览器存储键是本仓库的内部标识，不对读者显示；
-  按决定**不改名**——改名要动的量级用 `grep` 当场数，不抄在这里。
+## 内容边界与许可
 
----
+摘要、评分和事件综述用于辅助阅读，重要信息仍应核对原始来源。涉及灾害与预警的内容不构成预警发布或行动依据。信源默认展示摘要与原文链接，全文展示须遵循来源授权。
 
-## 柒 · LICENSE 授权与出处
+代码采用 [MIT 许可](LICENSE)，保留上游版权及 [NOTICE](NOTICE) 中的衍生说明。GEOHOT 使用自己的站名与标志，上游名称和标志不随代码许可一并授权；第三方素材与信源内容遵循各自条款。完整说明见站内条款与隐私页面。
 
-代码按 **MIT** 许可：[`LICENSE`](LICENSE) 原样保留上游文本、一个字没改，版权声明仍是上游框架
-[AIHOT](https://github.com/KKKKhazix/AIHOT) 的作者——本站没有往里面加自己的版权行。
-[`NOTICE`](NOTICE) 的上游部分同样原样保留，只在末尾**追加**一段衍生声明，说清这棵树是上游框架的修改衍生、
-改了什么、没用什么名字。
-
-两点必须说明白：上游 `NOTICE` 写明 **"The name "AIHOT" and the AIHOT logo are not licensed under the MIT License"**，
-所以本站不复用它的名字与 Logo，只用文字声明衍生关系，这也不意味着上游认可或背书本站。
-第三方素材各自受自己的条款约束（字体按 SIL OFL、机构标识归各自所有者），`NOTICE` 不替你授权这些；
-`industry/sources.json` 里是各发布方的公开 feed，内容版权归他们。
-
----
-
-## 捌 · STAR HISTORY 星际历史
+## Star History
 
 <p align="center">
-  <img src="https://api.star-history.com/svg?repos=xxc2007/GeoHot&type=Date" alt="Star History 星际历史：本仓库 GitHub Stars 随时间增长的曲线" width="100%">
+  <img src="https://api.star-history.com/svg?repos=xxc2007/GeoHot&type=Date" alt="GEOHOT 仓库的 GitHub Star 历史" width="100%">
 </p>
-
-▲ 曲线由 <a href="https://star-history.com">star-history.com</a> 动态生成，星数一变曲线就跟着长（GitHub 走图片代理缓存，更新会有几小时延迟）；仓库还年轻，这条线会从第一个星标开始有内容。
 
 ---
 
 <div align="center">
-  <sub>献给每一条有坐标、有数据、有人回去核对的消息。<br>编辑标准与代码 · 熊鑫晨 &nbsp;|&nbsp; 逐条判断由模型执行，标准写在 <code>industry/prompts/</code> &nbsp;|&nbsp; 2026<br><a href="docs/manual.md">docs/manual.md</a> · <a href="docs/geohot-runbook.md">docs/geohot-runbook.md</a> · 已上线 <a href="https://xxc2007.me/geohot/">xxc2007.me/geohot/</a></sub>
+  <sub>从消息出发，回到地理。<br>编辑标准与代码 · 熊鑫晨 · <a href="https://xxc2007.me/geohot/">在线阅读</a></sub>
 </div>
