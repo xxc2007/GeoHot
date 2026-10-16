@@ -214,3 +214,25 @@ test("a batch the model answers badly does not throw away the blocks already tra
   const [at] = await sql<{ outcome: string }[]>`SELECT outcome FROM translation_attempts WHERE article_id = ${id}`;
   assert.equal(at!.outcome, "partial", "终态是 partial 而不是 failed：下一次运行不该再从三次尝试里扣一次");
 });
+
+// 上一条把"坏一块"救回来了，这一条守它反面：整篇一块都没翻出来时不许写终态。
+// `skipped` 与 `partial` 都会把条目从待翻查询里永久排除（translatePending 的 NOT EXISTS），
+// 批次错误被折成 null 之后 `done === 0` 变得可达——一门被墙死的时段里，每一篇都会这样，
+// 于是"这一轮什么也没翻成"会把条目永久钉成 skipped，而不是留三次机会。
+test("an article whose every batch errored is not booked as terminal", async () => {
+  const { articleId: id } = await upsertMaterial({
+    sourceId: SOURCE, url: `${URL_}-all-bad`, title: `All bad ${T}`, language: "en",
+    bodyText: `Poison only ${T}.`, bodyHtml: `<p>Poison only ${T}.</p>`, bodyStatus: "ok", via: "fetch",
+    publishedAt: new Date(), discoveredAt: new Date(Date.now() + 3_000_000),
+  });
+  await sql`INSERT INTO analyses (article_id, input_revision, origin, relevance, category, title_zh, summary_zh, reason_zh, score, selected)
+            VALUES (${id}, 1, 'rule', 'pass', 'geotech', ${`全坏-${T}`}, '摘要', '理由', 90, true)`;
+  await publishArticle(id, { releasedAt: new Date(Date.now() - 60_000) });
+
+  await translatePending({ limit: 1 });
+  const [tr] = await sql`SELECT 1 AS one FROM translations WHERE article_id = ${id}`;
+  assert.equal(tr, undefined, "没有任何答复就不该有译文行");
+  const [at] = await sql<{ outcome: string; attempts: number }[]>`SELECT outcome, attempts FROM translation_attempts WHERE article_id = ${id}`;
+  assert.equal(at!.outcome, "failed", "记 failed：下一次运行还能再来，最多三次（skipped 与 partial 都是终态，会把条目永久钉住）");
+  assert.equal(at!.attempts, 1);
+});

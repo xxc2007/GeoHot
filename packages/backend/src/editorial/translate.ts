@@ -103,8 +103,9 @@ function stopsTheRun(error: unknown): boolean {
 }
 
 /** Translates batches, halving a batch once when the answer does not line up with the input. */
-async function translateAll(articleId: string, revision: number, parts: string[], system: string, attemptTag?: string): Promise<Array<string | null>> {
+async function translateAll(articleId: string, revision: number, parts: string[], system: string, attemptTag?: string): Promise<{ answers: Array<string | null>; errors: string[] }> {
   const out: Array<string | null> = new Array(parts.length).fill(null);
+  const errors: string[] = [];
   // 一批"报错"不等于整篇作废。2026-10-16 实测 12 小时 116 次 translate_body 调用：<180 s 的 107 次全部
   // received，≥180 s 的 9 次一次没成，报错文本只有 TimeoutError、不可用的答复、超 30 分钟被自动放行的
   // unknown 三种。它们原本直接穿出这里，于是整篇一块都没入库——同一轮里已经付过费的答复也一起扔掉，
@@ -113,6 +114,7 @@ async function translateAll(articleId: string, revision: number, parts: string[]
   const ask = (batch: string[], index: number): Promise<string[] | null> =>
     translateBatch(articleId, revision, index, batch, system, attemptTag).catch((error: unknown) => {
       if (stopsTheRun(error)) throw error;
+      errors.push((error as Error).message);
       return null;
     });
   let start = 0;
@@ -132,7 +134,7 @@ async function translateAll(articleId: string, revision: number, parts: string[]
     if (done) done.forEach((t, i) => (out[start + i] = t));
     start = end;
   }
-  return out;
+  return { answers: out, errors };
 }
 
 /** A block as the model sees it: media and inline code as ⟦n⟧, links as <a id="Ln"> with their attributes kept here. */
@@ -192,9 +194,14 @@ export async function translateArticle(articleId: string): Promise<TranslateResu
     const meaningful = collapseWhitespace(text.replace(/https?:\/\/\S+/g, ""));
     if (bodyIsChinese(row.language, text)) return result({ status: "skipped", reason: "already Chinese" });
     if (meaningful.length < X_MIN_CHARS) return result({ status: "skipped", reason: "short post" });
-    const [t] = await translateAll(articleId, row.revision, [text], SYSTEM_POST);
+    const { answers: [t], errors } = await translateAll(articleId, row.revision, [text], SYSTEM_POST);
     // 回声不是译文：把英文原样还回来的答复会被存成"AI 翻译"给读者看（红线：不把英文当中文发布）。
-    if (!t || !looksZh(t)) return result({ status: "skipped", reason: t ? "answer is not Chinese" : "translation did not line up" });
+    if (!t || !looksZh(t)) {
+      // 但"这一轮根本没拿到答复"（超时、坏答复、熔断前的报错）不能记成终态：skipped 与 partial 都会把
+      // 条目从待翻查询里永久排除，一门被墙死的时段会把每一篇都钉在一次失败上。抛出去记 failed，还能再来。
+      if (errors.length) throw new Error(`no translation: ${errors[0]!.slice(0, 160)}`);
+      return result({ status: "skipped", reason: t ? "answer is not Chinese" : "translation did not line up" });
+    }
     await store(articleId, row.revision, row.title, textToHtml(t), t, true);
     return result({ status: "translated", segments: 1 });
   }
@@ -218,7 +225,9 @@ export async function translateArticle(articleId: string): Promise<TranslateResu
   }
   const shielded = chosen.map((el) => shield($(el).html() ?? ""));
   const restore = (answers: Array<string | null>) => answers.map((t, i) => (t === null ? null : unshield(t, shielded[i]!)));
-  const translations = restore(await translateAll(articleId, row.revision, shielded.map((b) => b.html), SYSTEM_BODY));
+  const first = await translateAll(articleId, row.revision, shielded.map((b) => b.html), SYSTEM_BODY);
+  const errors = [...first.errors];
+  const translations = restore(first.answers);
   // 回声不是译文：原文有词而答复一个汉字都没有的块按"没翻出来"处理（走下面的一次重问、再不行保留
   // 原文），否则整段英文会被标成"正文 · AI 翻译"贴进正文（红线）。原文本来只有数字/符号的块不算。
   const sourceTexts = chosen.map((el) => $(el).text());
@@ -229,7 +238,8 @@ export async function translateArticle(articleId: string): Promise<TranslateResu
   const missing = translations.flatMap((t, i) => (t === null ? [i] : []));
   if (missing.length) {
     const again = await translateAll(articleId, row.revision, missing.map((i) => shielded[i]!.html), SYSTEM_BODY, "retry");
-    missing.forEach((i, k) => (translations[i] = again[k] ? unshield(again[k]!, shielded[i]!) : null));
+    errors.push(...again.errors);
+    missing.forEach((i, k) => (translations[i] = again.answers[k] ? unshield(again.answers[k]!, shielded[i]!) : null));
   }
   let done = 0;
   chosen.forEach((el, i) => {
@@ -239,7 +249,12 @@ export async function translateArticle(articleId: string): Promise<TranslateResu
       done += 1;
     }
   });
-  if (!done) return result({ status: "skipped", reason: "no batch translated" });
+  if (!done) {
+    // 一次都没成，且是"报错"造成的：抛给 translatePending 记可重试的 failed。写成 skipped 就是终态，
+    // 一整个时段门都被墙死时，每一篇只会有一次机会就被永久排除。
+    if (errors.length) throw new Error(`no block translated (${errors.length} batch error${errors.length > 1 ? "s" : ""}): ${errors[0]!.slice(0, 160)}`);
+    return result({ status: "skipped", reason: "no batch translated" });
+  }
   const complete = done === blocks.length;
   // 没翻全的原因要能在账上区分开：是模型有几块没答好，还是正文本来就超了 60,000 字的预算。
   // 不写出来的话两种情况都只剩一个 `partial`，下一次没人知道该修哪一头。
