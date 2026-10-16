@@ -127,13 +127,25 @@ export function dropRecordPageChrome(html: string): string {
     player.remove();
   });
   // Removing the shell can leave the paragraph that held it with nothing in it (7 such rows measured on
-  // the washed set the same evening). An empty paragraph has no content at any depth — NASA nests the shell
+  // the washed set the same evening). An empty block has no content at any depth — NASA nests the shell
   // inside a `<figure>` and the Guardian's empty paragraphs sit under a wrapper — so this pass is not
-  // limited to root siblings, and it cannot eat prose: there is nothing to eat.
-  $("p").each((_, el) => {
-    const block = $(el);
-    if (!block.text().trim() && !block.children().length) block.remove();
-  });
+  // limited to root siblings, and it cannot eat prose: there is nothing to eat. The `<figure>` is dropped
+  // with it because that is exactly what the player left behind (3 published NASA bodies on 2026-10-16).
+  // Only one *sentence* rule joins it at any depth, and only when the whole block is that sentence: the
+  // anchored rules above stay root-level on purpose (Eur. J. Mineral. writes each record field as
+  // `<li><p>Status: …</p></li>`, and a deep traversal took whole field lists with it). The fallback
+  // sentence carries no risk of being a field value, and DW/NASA really do wrap it in a `<figure>`
+  // (measured by the fixture added 2026-10-16: the shell went, the sentence inside the figure stayed).
+  // Swept inner-first so a block emptied by the removal of its child is seen in the same pass.
+  const ANY_DEPTH_SENTENCE = [/^to view this (?:video|image|audio) please enable javascript\b/i];
+  $("p, figure")
+    .get()
+    .reverse()
+    .forEach((el) => {
+      const block = $(el);
+      const text = collapse(block.text());
+      if (ANY_DEPTH_SENTENCE.some((re) => re.test(text)) || (!text && !block.children().length)) block.remove();
+    });
   return $.html();
 }
 

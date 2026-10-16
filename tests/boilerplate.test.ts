@@ -360,3 +360,32 @@ test("an empty paragraph is dropped at any depth, and the figure keeps its capti
 });
 
 
+
+// 第一百零五轮：兜底句有一种写法是包在 `<figure>` 里的独立一段（DW/NASA 的真实形状）。锚定的句子规则
+// 只在根级兄弟之间跑——那是刻意的（Eur. J. Mineral. 把每条矿物记录写成 `<li><p>Status: …</p></li>`，
+// 任意深度会把字段值吃掉），于是嵌在图里的那一句删不掉，会被翻译腿老老实实翻成中文给读者看。
+// 这条用例钉的就是嵌套那一句：把 any-depth 那一遍退回"只删空段"，它会红。
+test("the fallback sentence nested in a figure is not body text", () => {
+  const dw =
+    "<h2>Sanctions failed</h2>" +
+    '<figure><video></video><p>To view this video please enable JavaScript, and consider upgrading to a ' +
+    'web browser that supports HTML5 video</p></figure>' +
+    "<p>Russian industry has shown more resilience than expected.</p>";
+  const got = sanitizeBody(dw, "https://www.dw.com/en/sanctions/a-79009999");
+  assert.ok(!/<video/.test(got), `入库的 HTML 里还留着放不出东西的壳：\n${got}`);
+  assert.ok(!/enable JavaScript/i.test(got), `兜底句还会被翻译成中文给读者看：\n${got}`);
+  assert.ok(got.includes("resilience"), `真正文被吃了：\n${got}`);
+});
+
+// 壳删掉之后那个 <figure> 里什么都不剩（NASA 三条公开正文实测就是这个形状）——留着一个空图框，
+// 读者看到的是版面上凭空多出来的一块空白。
+test("the figure left empty by a removed player goes too", () => {
+  const fig =
+    "<p>NASA Satellites Observe Historic 2026 El Niño.</p>" +
+    "<figure><video></video></figure>" +
+    "<p>This visualization compares three ocean data products.</p>";
+  const got = sanitizeBody(fig, "https://science.nasa.gov/earth/elnino/");
+  assert.ok(!/<video/.test(got), got);
+  assert.ok(!/<figure>\s*<\/figure>/.test(got), `删壳后留下一个空图框：\n${got}`);
+  assert.ok(got.includes("Historic 2026 El Niño") && got.includes("three ocean data products"), got);
+});

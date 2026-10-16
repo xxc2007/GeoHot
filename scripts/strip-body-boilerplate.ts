@@ -82,9 +82,18 @@ const maxApply = positiveInt(values["max-apply"]!, "max-apply");
 // 判断"这段 HTML 到底少了什么"用的两把尺：标签个数与字数。字节长度不能用——序列化会让字符串变长。
 const tagCount = (s: string) => (s.match(/<[^>]+>/g) ?? []).length;
 const wordCount = (s: string) => stripTags(s).replace(/\s+/g, "").length;
+// 第三把尺：数"要删的东西本身"有几处。前两把尺会一起骗人——cheerio 替残缺的 feed 补齐未闭合标签，
+// NASA 三条公开正文删掉一个播放器壳（−2 个标签）被补进来的 10 个闭合标签盖住，实测
+// delta_tags=+10/0/0、delta_words=0，两把尺同时报"没动"，壳就永久留在库里（第一百零四轮 19:33 复验）。
+// 外壳尺只统计规则声称要消灭的三种形状：没有源的 <video>、兜底句、空块。前两种规则只删不增，
+// 第三种在"空块套空块"时可能因为外层先看过而被序列化多算一处——那种行仍有标签尺兜着，不会误写。
+const videoShells = (s: string) => (s.match(/<video(?:\s[^>]*)?>/gi) ?? []).filter((t) => !/\s(?:src|poster)=/i.test(t)).length;
+const noticeLines = (s: string) => (s.match(/to view this (?:video|image|audio) please enable javascript/gi) ?? []).length;
+const emptyBlocks = (s: string) => (s.match(/<(?:p|figure)(?:\s[^>]*)?>[\s]*<\/(?:p|figure)>/gi) ?? []).length;
+const shellCount = (s: string) => videoShells(s) + noticeLines(s) + emptyBlocks(s);
 // `--chrome` 是同一套安全壳下的另一种洗法：不碰中文页脚，只洗「期刊把整张记录页塞进 feed」带回来的
-// 英文页面外壳（评审图例、订阅按钮、日期行、重复四遍的作者名单）。抽取侧已在第一百零三轮修好，
-// 这里洗的是它修之前存进库的那 336 条（实测全部在 45 天内，更早的没有这种正文）。
+// 英文页面外壳（评审图例、订阅按钮、日期行、重复四遍的作者名单）。这套规则在 sanitizeBody 末尾就跑了
+// （新采集不是这样不行），这里洗的是规则变宽之前存进库的那一批（实测全部在 45 天内，更早的没有这种正文）。
 // 第一百零四轮在这条预筛里加了 `<video`：德国之声的 feed 把视频写成没有源的播放器壳，浏览器只印出它的
 // 兜底句（线上实测 231 条带 video 的公开正文、181 条是空壳、34 条把地址写在 src 上——洗之前先量过，
 // 因为"能播"就是按 src/poster 判的）。预筛只是把候选缩小到能装进内存的那一片，最终决定动不动手的是
@@ -93,6 +102,11 @@ const wordCount = (s: string) => stripTags(s).replace(/\s+/g, "").length;
 // 第二轮又付了一次同一笔学费：**预筛漏掉的行，代码根本没机会救它**。洗过之后量到 7 条兜底句已不在 <video>
 // 里（<p> 不许嵌在 <p> 里，解析器早把它提到壳外）、7 条空 <p></p> 是我删壳留下的尾巴，两种都不含 `<video`，
 // 于是整批从候选里消失、DRY 只报出 3 条。预筛因此再加上那句锚定的兜底话与 `<p></p>` 两种形状。
+// 第三次同一笔学费（第一百零五轮）：删掉空壳播放器之后留下的是 `<figure></figure>`，而 CSS 给 figure 的是
+// `margin: 1.5em 0`——读者看到的不是"一段没用的标签"，是正文里凭空多出的一大截空白（线上实测 204 条，
+// 其中 191 条在读者面上）。预筛里没有 `<figure>` 这一族，这批行就又静默躲过了扫描。加的是那条
+// **精确形状**（`<figure>[[:space:]]*</figure>`），不是 `%<figure%`：后者会把几千条带图的正文一起拉进内存，
+// 这台机器只有 891 MB。
 const chrome = values.chrome === true;
 const rows = chrome
   ? await sql<{ id: string; title: string; source_id: string; body_text: string; body_html: string | null; revision: number }[]>`
@@ -101,7 +115,8 @@ const rows = chrome
       WHERE body_status = 'ok' AND body_html IS NOT NULL
         AND (body_html ~* '(Comment types|Report abuse|graphic_rss_feed_button|rss[0-9_]*\\.xml|Metrics will be available|Article metrics|Discussion started|Latest update|Status</strong>|To view this video please enable JavaScript)'
           OR body_html LIKE '%<video%'
-          OR body_html LIKE '%<p></p>%')
+          OR body_html LIKE '%<p></p>%'
+          OR body_html ~ '<figure>[[:space:]]*</figure>')
       ORDER BY discovered_at DESC LIMIT ${limit}`
   : await sql<{ id: string; title: string; source_id: string; body_text: string; body_html: string | null; revision: number }[]>`
       SELECT id, title, source_id, body_text, body_html, revision
@@ -127,22 +142,29 @@ const candidates = rows
       // 而读者看到的东西一个字节都没变。2026-10-16 逐家看删除内容时就抓到过这种行。
       // 判据不能是字节差：序列化会让字符串**变长**（NASA 几行删掉壳反而 +660 字节），真改动会被当成没改动；
       // 也不能是"字符串不相等"（纯序列化差异会白白 bump revision、白花一次付费重翻）。
-      // 只有两件事是看得见的：标签少了一个，或者字数少了。序列化差异两件都不动。
+      // 于是三把尺同时看：标签少没少、字数少没少、外壳形状少没少——前两把会被补闭合标签盖住，见 shellCount 上那段。
       const htmlOut = dropRecordPageChrome(r.body_html!);
+      const byShellOnly = shellCount(htmlOut) < shellCount(r.body_html!) &&
+        !(tagCount(htmlOut) < tagCount(r.body_html!) || wordCount(htmlOut) < wordCount(r.body_html!));
       return {
-        ...r, clean: r.body_text, lost: false, htmlOut,
-        changed: tagCount(htmlOut) < tagCount(r.body_html!) || wordCount(htmlOut) < wordCount(r.body_html!),
+        ...r, clean: r.body_text, lost: false, htmlOut, byShellOnly,
+        changed: shellCount(htmlOut) < shellCount(r.body_html!) ||
+          tagCount(htmlOut) < tagCount(r.body_html!) || wordCount(htmlOut) < wordCount(r.body_html!),
       };
     }
     const clean = stripBoilerplate(r.body_text);
-    return { ...r, clean, lost: isBoilerplateBody(clean), htmlOut: r.body_html ? stripChromeHtml(r.body_html) : null, changed: true };
+    const htmlOut = r.body_html ? stripChromeHtml(r.body_html) : null;
+    return { ...r, clean, lost: isBoilerplateBody(clean), htmlOut, changed: true, byShellOnly: false };
   })
   .filter((r) => (chrome ? r.changed && !r.lost : r.clean.replace(/\s+/g, "").length !== r.body_text.replace(/\s+/g, "").length));
 
 const emptied = candidates.filter((r) => r.lost).length;
 const shedTags = candidates.reduce((n, r) => n + Math.max(0, tagCount(r.body_html ?? "") - tagCount(r.htmlOut ?? "")), 0);
 const shedWords = candidates.reduce((n, r) => n + Math.max(0, wordCount(r.body_html ?? "") - wordCount(r.htmlOut ?? "")), 0);
-console.log(`${chrome ? "记录页外壳" : "页脚话术"}候选 ${candidates.length} 条（清洗后没有正文可留的 ${emptied} 条），扫描上限 ${limit}${chrome ? `，去掉 ${shedTags} 个外壳标签 / ${shedWords.toLocaleString()} 个字的壳内文本` : ""}`);
+// 外壳尺单独救回来的行数印出来：这条判据是新加的，只报"候选变多了"证明不了是它在起作用。
+// 上线前它必须先在一批已知带壳的行上证活（第一百零四轮：NASA 三条公开正文标签差 +10/0/0、字数差 0）。
+const shellOnly = candidates.filter((r) => r.byShellOnly).length;
+console.log(`${chrome ? "记录页外壳" : "页脚话术"}候选 ${candidates.length} 条（清洗后没有正文可留的 ${emptied} 条，只有外壳尺看得出改动的 ${shellOnly} 条），扫描上限 ${limit}${chrome ? `，去掉 ${shedTags} 个外壳标签 / ${shedWords.toLocaleString()} 个字的壳内文本` : ""}`);
 const bySource: Record<string, number> = {};
 for (const c of candidates) bySource[c.source_id] = (bySource[c.source_id] ?? 0) + 1;
 for (const [id, n] of Object.entries(bySource).sort((a, b) => b[1] - a[1]).slice(0, 8)) console.log(`  ${id}: ${n} 条`);
