@@ -87,14 +87,18 @@ const maxApply = positiveInt(values["max-apply"]!, "max-apply");
 // 因为"能播"就是按 src/poster 判的）。预筛只是把候选缩小到能装进内存的那一片，最终决定动不动手的是
 // dropRecordPageChrome 本身：它对某一行改了才算候选，没改就不写库（哨兵按句子正则数到的 31 条
 // "latest update" 全是公报里的原话，那类会被这条判据直接排除——见 tests/boilerplate.test.ts）。
+// 第二轮又付了一次同一笔学费：**预筛漏掉的行，代码根本没机会救它**。洗过之后量到 7 条兜底句已不在 <video>
+// 里（<p> 不许嵌在 <p> 里，解析器早把它提到壳外）、7 条空 <p></p> 是我删壳留下的尾巴，两种都不含 `<video`，
+// 于是整批从候选里消失、DRY 只报出 3 条。预筛因此再加上那句锚定的兜底话与 `<p></p>` 两种形状。
 const chrome = values.chrome === true;
 const rows = chrome
   ? await sql<{ id: string; title: string; source_id: string; body_text: string; body_html: string | null; revision: number }[]>`
       SELECT id, title, source_id, body_text, body_html, revision
       FROM articles
       WHERE body_status = 'ok' AND body_html IS NOT NULL
-        AND (body_html ~* '(Comment types|Report abuse|graphic_rss_feed_button|rss[0-9_]*\\.xml|Metrics will be available|Article metrics|Discussion started|Latest update|Status</strong>)'
-          OR body_html LIKE '%<video%')
+        AND (body_html ~* '(Comment types|Report abuse|graphic_rss_feed_button|rss[0-9_]*\\.xml|Metrics will be available|Article metrics|Discussion started|Latest update|Status</strong>|To view this video please enable JavaScript)'
+          OR body_html LIKE '%<video%'
+          OR body_html LIKE '%<p></p>%')
       ORDER BY discovered_at DESC LIMIT ${limit}`
   : await sql<{ id: string; title: string; source_id: string; body_text: string; body_html: string | null; revision: number }[]>`
       SELECT id, title, source_id, body_text, body_html, revision
