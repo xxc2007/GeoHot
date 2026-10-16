@@ -320,3 +320,28 @@ test("a shell that carries the link to the media file itself is content, not chr
   assert.ok(got.includes("retroceso glaciar"), got);
 });
 
+// 洗过 176 条之后回头数，德国之声还剩 7 条：那一句是**独立一段** `<p>To view this video please enable
+// JavaScript…</p>`，不在 <video> 里，播放器规则碰不到。同时我那一条规则还有自己的尾巴：
+// `<p><video>…</video></p>` 删掉壳之后会留下空的 `<p></p>`（线上量到 7 条，全是这次洗出来的）。
+test("the player's fallback sentence alone is not body text either", () => {
+  const dw =
+    "<p>Brazil's summit closed with a pledge on methane.</p>" +
+    "<p>To view this video please enable JavaScript, and consider upgrading to a web browser that " +
+    '<a href="https://videojs.com/html5-video-support/">supports HTML5 video</a></p>' +
+    "<p>Delegates argued for three days over the final text.</p>";
+  const got = sanitizeBody(dw, "https://www.dw.com/en/brazil-summit/a-79002222");
+  assert.ok(!/enable JavaScript/i.test(got), `独立一段的兜底句还留着：\n${got}`);
+  assert.ok(got.includes("pledge on methane") && got.includes("three days"), `真正文被吃了：\n${got}`);
+});
+
+test("removing a player does not leave an empty paragraph behind", () => {
+  const nested =
+    "<p>Before the shell.</p>" +
+    "<p><video><p>To view this video please enable JavaScript.</p></video></p>" +
+    "<p>After the shell.</p>";
+  const got = sanitizeBody(nested, "https://www.dw.com/en/a/a-2");
+  assert.ok(!/<p>\s*<\/p>/.test(got), `留下了一段空段落：\n${got}`);
+  assert.ok(!/enable JavaScript/i.test(got), got);
+  assert.ok(got.includes("Before the shell") && got.includes("After the shell"), got);
+});
+

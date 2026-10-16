@@ -56,6 +56,10 @@ const RECORD_PAGE_LINE = [
   /^discussion (?:started|closed)\s*[:：]/i,
   /^latest update\s*[:：]/i,
   /^(?:article |related )?metrics\b.{0,40}$/i,
+  // The player's fallback sentence, standing on its own: `<p>` is not allowed inside the `<p>` a publisher
+  // wraps a `<video>` in, so the parser lifts it out and the shell rule below never sees it (7 such rows
+  // survived that rule on 2026-10-16). Anchored to the whole line — prose that merely says this survives.
+  /^to view this (?:video|image|audio) please enable javascript/i,
   /^[–—-]$/,
 ];
 
@@ -121,6 +125,13 @@ export function dropRecordPageChrome(html: string): string {
     if (player.attr("src") || player.attr("poster") || player.find("source[src]").length) return;
     if (player.find("a[href]").toArray().some((a) => MEDIA_FILE.test($(a).attr("href") ?? ""))) return;
     player.remove();
+  });
+  // Removing the shell can leave the paragraph that held it with nothing in it (7 such rows measured on
+  // the washed set the same evening). normalizeBlocks drops an empty paragraph before the media appears;
+  // this is the same rule applied to what the removal left behind.
+  $.root().children("p").each((_, el) => {
+    const block = $(el);
+    if (!block.text().trim() && !block.children().length) block.remove();
   });
   return $.html();
 }
