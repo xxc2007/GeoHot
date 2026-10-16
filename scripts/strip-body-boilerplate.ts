@@ -82,13 +82,19 @@ const maxApply = positiveInt(values["max-apply"]!, "max-apply");
 // `--chrome` 是同一套安全壳下的另一种洗法：不碰中文页脚，只洗「期刊把整张记录页塞进 feed」带回来的
 // 英文页面外壳（评审图例、订阅按钮、日期行、重复四遍的作者名单）。抽取侧已在第一百零三轮修好，
 // 这里洗的是它修之前存进库的那 336 条（实测全部在 45 天内，更早的没有这种正文）。
+// 第一百零四轮在这条预筛里加了 `<video`：德国之声的 feed 把视频写成没有源的播放器壳，浏览器只印出它的
+// 兜底句（线上实测 231 条带 video 的公开正文、181 条是空壳、34 条把地址写在 src 上——洗之前先量过，
+// 因为"能播"就是按 src/poster 判的）。预筛只是把候选缩小到能装进内存的那一片，最终决定动不动手的是
+// dropRecordPageChrome 本身：它对某一行改了才算候选，没改就不写库（哨兵按句子正则数到的 31 条
+// "latest update" 全是公报里的原话，那类会被这条判据直接排除——见 tests/boilerplate.test.ts）。
 const chrome = values.chrome === true;
 const rows = chrome
   ? await sql<{ id: string; title: string; source_id: string; body_text: string; body_html: string | null; revision: number }[]>`
       SELECT id, title, source_id, body_text, body_html, revision
       FROM articles
       WHERE body_status = 'ok' AND body_html IS NOT NULL
-        AND body_html ~* '(Comment types|Report abuse|graphic_rss_feed_button|rss[0-9_]*\\.xml|Metrics will be available|Article metrics|Discussion started|Latest update|Status</strong>)'
+        AND (body_html ~* '(Comment types|Report abuse|graphic_rss_feed_button|rss[0-9_]*\\.xml|Metrics will be available|Article metrics|Discussion started|Latest update|Status</strong>)'
+          OR body_html LIKE '%<video%')
       ORDER BY discovered_at DESC LIMIT ${limit}`
   : await sql<{ id: string; title: string; source_id: string; body_text: string; body_html: string | null; revision: number }[]>`
       SELECT id, title, source_id, body_text, body_html, revision
