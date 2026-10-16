@@ -22,6 +22,10 @@ const asked = gate();
 const asks = new Map<string, number>();
 const provider = await stub(async (_hit, req) => {
   const { segments } = JSON.parse(JSON.parse(req.body).messages[1].content) as { segments: string[] };
+  // 一块答坏 ≠ 整篇作废：带 Poison 的那一批故意交回非 JSON，让生产代码必须在"块"这一级隔离它。
+  if (segments.some((s) => s.includes("Poison"))) {
+    return { id: "stub", choices: [{ message: { content: "这一次模型没有交回 JSON" } }], usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 } };
+  }
   if (hold) {
     asked.open();
     await hold.promise;
@@ -174,4 +178,39 @@ test("the translation window covers the backlog it exists to clear, and a bad en
   assert.ok(pending, "translatePending 的待翻查询还是那个形状（改了形状就同步改这条断言）");
   assert.match(pending, /now\(\) - \$\{TRANSLATE_WINDOW_DAYS\} \* interval '1 day'/, "窗口必须走那个变量");
   assert.equal(/interval '\d+ days'/.test(pending), false, "查询里不许再出现写死的天数窗口（`${窗口} * interval '1 day'` 那种写法不算）");
+});
+
+// 2026-10-16 实测 12 小时 116 次 translate_body 调用：<180 s 的 107 次全部 received，≥180 s 的 9 次全挂。
+// 而折半重试当时只挂在"答复条数对不上"上——chatJson 抛出（超时、非 JSON 的答复、超过 30 分钟被自动放行
+// 的 unknown）时异常直接穿出 translateAll，整篇一块都没入库，还要占掉三次尝试里的一次。长正文批次多，
+// 于是被钉死的全是长正文：pinned_failed 正文 p50 20,136 字，translated 只有 3,135 字。
+// 夹具刻意把三段各写满 ≈1,800 字：BATCH_CHARS 是 3,500，一段装得下、两段就超，于是三块真的是三个批次
+// ——短正文会被贪心装进同一批，那种"坏一块"根本没有别的批次可救，证明不了这条腿。
+test("a batch the model answers badly does not throw away the blocks already translated", async () => {
+  const para = (marker: string) => `${marker} moraine survey ${T} `.repeat(110).trim();
+  const html = ["Alpha", "Poison", "Gamma"].map((m) => `<p>${para(m)}</p>`).join("");
+  const { articleId: id } = await upsertMaterial({
+    sourceId: SOURCE, url: `${URL_}-bad-batch`, title: `Bad batch ${T}`, language: "en",
+    bodyText: `Alpha Poison Gamma ${T}`, bodyHtml: html, bodyStatus: "ok", via: "fetch",
+    publishedAt: new Date(), discoveredAt: new Date(Date.now() + 2_400_000),
+  });
+  await sql`INSERT INTO analyses (article_id, input_revision, origin, relevance, category, title_zh, summary_zh, reason_zh, score, selected)
+            VALUES (${id}, 1, 'rule', 'pass', 'geotech', ${`坏批-${T}`}, '摘要', '理由', 90, true)`;
+  await publishArticle(id, { releasedAt: new Date(Date.now() - 60_000) });
+
+  const run = await translatePending({ limit: 1 });
+  assert.equal(run.done[0]?.status, "partial", "坏掉那一块不该把整篇打成 failed");
+  assert.equal(run.done[0]?.segments, 2, "另外两批是翻出来了的");
+  assert.equal(run.done[0]?.reason, "1 of 3 blocks kept in the original", "没翻出来几块要看得见，不然账上只剩 partial");
+
+  const [tr] = await sql<{ body_html: string; complete: boolean }[]>`SELECT body_html, complete FROM translations WHERE article_id = ${id}`;
+  assert.ok(tr, "已经付过费的答复必须入库，而不是随异常一起丢掉");
+  assert.ok(!tr!.body_html.includes("Alpha moraine survey"), "第一批不再留英文");
+  assert.ok(!tr!.body_html.includes("Gamma moraine survey"), "第三批不再留英文");
+  assert.equal(tr!.body_html.split("译文").length - 1, 2, "两批的答复都进了正文");
+  assert.ok(tr!.body_html.includes("Poison moraine survey"), "坏掉那块保留原文，不猜、不空");
+  assert.equal(tr!.complete, false, "缺一块就不能说整篇翻完了");
+
+  const [at] = await sql<{ outcome: string }[]>`SELECT outcome FROM translation_attempts WHERE article_id = ${id}`;
+  assert.equal(at!.outcome, "partial", "终态是 partial 而不是 failed：下一次运行不该再从三次尝试里扣一次");
 });

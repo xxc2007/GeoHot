@@ -93,9 +93,28 @@ async function translateBatch(articleId: string, revision: number, index: number
   return res.data.t.length === parts.length ? res.data.t : null;
 }
 
+/**
+ * 只有"这一轮别再往下走"的错误才允许穿出批次层：停机、模型调用被关掉、没配置、熔断把额度用尽。
+ * 批次层用它的反面来决定"这块算没翻出来"，`translatePending` 用它来决定"停整轮"——两层必须问同
+ * 一个问题，否则熔断会被当成坏块咽下去，整轮继续对着已经墙死的门敲门。
+ */
+function stopsTheRun(error: unknown): boolean {
+  return error instanceof TranslationInterruptedError || /disabled|not configured|budget/i.test((error as Error).message);
+}
+
 /** Translates batches, halving a batch once when the answer does not line up with the input. */
 async function translateAll(articleId: string, revision: number, parts: string[], system: string, attemptTag?: string): Promise<Array<string | null>> {
   const out: Array<string | null> = new Array(parts.length).fill(null);
+  // 一批"报错"不等于整篇作废。2026-10-16 实测 12 小时 116 次 translate_body 调用：<180 s 的 107 次全部
+  // received，≥180 s 的 9 次一次没成，报错文本只有 TimeoutError、不可用的答复、超 30 分钟被自动放行的
+  // unknown 三种。它们原本直接穿出这里，于是整篇一块都没入库——同一轮里已经付过费的答复也一起扔掉，
+  // 还要占掉 translation_attempts 三次机会里的一次。长正文批次多，被钉死的全是长正文（p50 20,136 字，
+  // 而翻成功的那批只有 3,135 字）。现在按"这块没翻出来"处理：折半、缺块单问，其余照旧入库。
+  const ask = (batch: string[], index: number): Promise<string[] | null> =>
+    translateBatch(articleId, revision, index, batch, system, attemptTag).catch((error: unknown) => {
+      if (stopsTheRun(error)) throw error;
+      return null;
+    });
   let start = 0;
   let index = 0;
   while (start < parts.length) {
@@ -103,11 +122,11 @@ async function translateAll(articleId: string, revision: number, parts: string[]
     let chars = 0;
     while (end < parts.length && (end === start || chars + parts[end]!.length <= BATCH_CHARS)) chars += parts[end++]!.length;
     const batch = parts.slice(start, end);
-    let done = await translateBatch(articleId, revision, index++, batch, system, attemptTag);
+    let done = await ask(batch, index++);
     if (!done && batch.length > 1) {
       const mid = Math.ceil(batch.length / 2);
-      const left = await translateBatch(articleId, revision, index++, batch.slice(0, mid), system, attemptTag);
-      const right = await translateBatch(articleId, revision, index++, batch.slice(mid), system, attemptTag);
+      const left = await ask(batch.slice(0, mid), index++);
+      const right = await ask(batch.slice(mid), index++);
       done = left && right ? [...left, ...right] : null;
     }
     if (done) done.forEach((t, i) => (out[start + i] = t));
@@ -222,9 +241,17 @@ export async function translateArticle(articleId: string): Promise<TranslateResu
   });
   if (!done) return result({ status: "skipped", reason: "no batch translated" });
   const complete = done === blocks.length;
+  // 没翻全的原因要能在账上区分开：是模型有几块没答好，还是正文本来就超了 60,000 字的预算。
+  // 不写出来的话两种情况都只剩一个 `partial`，下一次没人知道该修哪一头。
+  const failed = chosen.length - done;
+  const dropped = blocks.length - chosen.length;
   const html = sanitizeBody($.html());
   await store(articleId, row.revision, row.title, html, cheerio.load(html, null, false).root().text().trim(), complete);
-  return result({ status: complete ? "translated" : "partial", segments: done });
+  return result({
+    status: complete ? "translated" : "partial",
+    segments: done,
+    reason: complete ? undefined : failed > 0 ? `${failed} of ${chosen.length} blocks kept in the original` : `${dropped} blocks over the ${MAX_CHARS}-character budget`,
+  });
 }
 
 async function store(articleId: string, revision: number, title: string, html: string, text: string, complete: boolean) {
@@ -375,10 +402,10 @@ export async function translatePending(opts: { limit?: number; budgetMs?: number
       } catch (error) {
         // A deploy stops between paid fragments, never aborts a sent request. Received answers stay
         // in receipts and are reused next run; do not mark an interrupted article terminal/partial.
-        if (error instanceof TranslationInterruptedError) { stop = true; return; }
+        // 停机、被关掉、没配置、熔断四类停整轮且不计尝试——批次层吞错时问的是同一个判据 stopsTheRun()，
+        // 两层不一致就会把"熔断"当成一块坏文本咽下去，整轮继续对着墙死的门敲门。
+        if (stopsTheRun(error)) { stop = true; return; }
         const message = (error as Error).message;
-        // Switched-off model calls or an exhausted budget: stop this run without counting an attempt.
-        if (/disabled|not configured|budget/i.test(message)) { stop = true; return; }
         done.push({ articleId: r.article_id, status: "skipped", reason: message.slice(0, 200) });
         outcome = "failed";
         reason = message.slice(0, 300);
