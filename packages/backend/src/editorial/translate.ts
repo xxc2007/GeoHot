@@ -102,7 +102,7 @@ function stopsTheRun(error: unknown): boolean {
   return error instanceof TranslationInterruptedError || /disabled|not configured|budget/i.test((error as Error).message);
 }
 
-/** Translates batches, halving a batch once when the answer does not line up with the input. */
+/** Translates batches; a batch whose answer does not line up is halved once, and a half that answers is kept. */
 async function translateAll(articleId: string, revision: number, parts: string[], system: string, attemptTag?: string): Promise<{ answers: Array<string | null>; errors: string[] }> {
   const out: Array<string | null> = new Array(parts.length).fill(null);
   const errors: string[] = [];
@@ -124,14 +124,19 @@ async function translateAll(articleId: string, revision: number, parts: string[]
     let chars = 0;
     while (end < parts.length && (end === start || chars + parts[end]!.length <= BATCH_CHARS)) chars += parts[end++]!.length;
     const batch = parts.slice(start, end);
-    let done = await ask(batch, index++);
+    const done = await ask(batch, index++);
     if (!done && batch.length > 1) {
       const mid = Math.ceil(batch.length / 2);
       const left = await ask(batch.slice(0, mid), index++);
       const right = await ask(batch.slice(mid), index++);
-      done = left && right ? [...left, ...right] : null;
+      // 折半是为了让"这一批太长/链撞了 cap"这种失败只损失一批，不是一整篇。所以一半答回来就收下那一半：
+      // 原来要求两半都成，成的那半跟着整批一起扔；缺块重问那一步又把它们按同样的字符拼回一批、再撞同一堵墙，
+      // 三次尝试用完，读者面上就永久留着"中文正文里夹几段英文"（2026-10-16 账上 9 条长论文、可见切片 89 块）。
+      if (left) left.forEach((t, i) => (out[start + i] = t));
+      if (right) right.forEach((t, i) => (out[start + mid + i] = t));
+    } else if (done) {
+      done.forEach((t, i) => (out[start + i] = t));
     }
-    if (done) done.forEach((t, i) => (out[start + i] = t));
     start = end;
   }
   return { answers: out, errors };
