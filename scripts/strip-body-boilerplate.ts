@@ -25,7 +25,7 @@ import { appendFileSync } from "node:fs";
 import path from "node:path";
 import { contentHash } from "@aihot/backend/content/materials";
 import { dropRecordPageChrome, stripChromeHtml } from "@aihot/backend/content/sanitize";
-import { isBoilerplateBody, stripBoilerplate } from "@aihot/backend/lib/text";
+import { isBoilerplateBody, stripBoilerplate, stripTags } from "@aihot/backend/lib/text";
 import { closeDb, sql } from "@aihot/backend/db";
 import { queueProcessing } from "@aihot/backend/jobs/content";
 import { enqueue, QUEUES, stopBoss } from "@aihot/backend/jobs/queue";
@@ -79,6 +79,9 @@ function positiveInt(raw: string, name: string): number {
 }
 const limit = positiveInt(values.limit!, "limit");
 const maxApply = positiveInt(values["max-apply"]!, "max-apply");
+// 判断"这段 HTML 到底少了什么"用的两把尺：标签个数与字数。字节长度不能用——序列化会让字符串变长。
+const tagCount = (s: string) => (s.match(/<[^>]+>/g) ?? []).length;
+const wordCount = (s: string) => stripTags(s).replace(/\s+/g, "").length;
 // `--chrome` 是同一套安全壳下的另一种洗法：不碰中文页脚，只洗「期刊把整张记录页塞进 feed」带回来的
 // 英文页面外壳（评审图例、订阅按钮、日期行、重复四遍的作者名单）。抽取侧已在第一百零三轮修好，
 // 这里洗的是它修之前存进库的那 336 条（实测全部在 45 天内，更早的没有这种正文）。
@@ -122,8 +125,14 @@ const candidates = rows
       // `changed` 要的是"真的少了一段"，不是"字符串不相等"：cheerio 把 `<video>` 写成 `<video></video>`
       // 那种序列化差异也算改动，于是整行会被 bump revision、被翻译腿当成新正文重翻——白花一次付费调用，
       // 而读者看到的东西一个字节都没变。2026-10-16 逐家看删除内容时就抓到过这种行。
+      // 判据不能是字节差：序列化会让字符串**变长**（NASA 几行删掉壳反而 +660 字节），真改动会被当成没改动；
+      // 也不能是"字符串不相等"（纯序列化差异会白白 bump revision、白花一次付费重翻）。
+      // 只有两件事是看得见的：标签少了一个，或者字数少了。序列化差异两件都不动。
       const htmlOut = dropRecordPageChrome(r.body_html!);
-      return { ...r, clean: r.body_text, lost: false, htmlOut, changed: r.body_html!.length - htmlOut.length > 2 };
+      return {
+        ...r, clean: r.body_text, lost: false, htmlOut,
+        changed: tagCount(htmlOut) < tagCount(r.body_html!) || wordCount(htmlOut) < wordCount(r.body_html!),
+      };
     }
     const clean = stripBoilerplate(r.body_text);
     return { ...r, clean, lost: isBoilerplateBody(clean), htmlOut: r.body_html ? stripChromeHtml(r.body_html) : null, changed: true };
@@ -131,8 +140,9 @@ const candidates = rows
   .filter((r) => (chrome ? r.changed && !r.lost : r.clean.replace(/\s+/g, "").length !== r.body_text.replace(/\s+/g, "").length));
 
 const emptied = candidates.filter((r) => r.lost).length;
-const shedChars = candidates.reduce((n, r) => n + Math.max(0, (r.body_html?.length ?? 0) - (r.htmlOut?.length ?? 0)), 0);
-console.log(`${chrome ? "记录页外壳" : "页脚话术"}候选 ${candidates.length} 条（清洗后没有正文可留的 ${emptied} 条），扫描上限 ${limit}${chrome ? `，去掉 ${shedChars.toLocaleString()} 个字符的外壳` : ""}`);
+const shedTags = candidates.reduce((n, r) => n + Math.max(0, tagCount(r.body_html ?? "") - tagCount(r.htmlOut ?? "")), 0);
+const shedWords = candidates.reduce((n, r) => n + Math.max(0, wordCount(r.body_html ?? "") - wordCount(r.htmlOut ?? "")), 0);
+console.log(`${chrome ? "记录页外壳" : "页脚话术"}候选 ${candidates.length} 条（清洗后没有正文可留的 ${emptied} 条），扫描上限 ${limit}${chrome ? `，去掉 ${shedTags} 个外壳标签 / ${shedWords.toLocaleString()} 个字的壳内文本` : ""}`);
 const bySource: Record<string, number> = {};
 for (const c of candidates) bySource[c.source_id] = (bySource[c.source_id] ?? 0) + 1;
 for (const [id, n] of Object.entries(bySource).sort((a, b) => b[1] - a[1]).slice(0, 8)) console.log(`  ${id}: ${n} 条`);
@@ -179,7 +189,8 @@ for (const c of candidates) {
   if (!chrome && !values["no-requeue"]) await queueProcessing(c.id, { attemptTag: "boilerplate-strip" });
   done++;
 }
-console.log(`\n已洗 ${done} 条；旧值备份在 ${backup}。${chrome ? "未重排分析；正文变了，中文译文会由 content.translate 这一腿按新 revision 自动重翻。" : values["no-requeue"] ? "未重排分析。" : "已重排分析，worker 会按预算逐条重跑。"}`);
+// 一条没写就不说有备份：那个文件根本不存在，报出来的路径是一条会误导人的话（03:19 那次空跑就这么印过）。
+console.log(`\n已洗 ${done} 条${done ? `；旧值备份在 ${backup}` : "（没有一行需要写，备份文件未生成）"}。${chrome ? "未重排分析；正文变了，中文译文会由 content.translate 这一腿按新 revision 自动重翻。" : values["no-requeue"] ? "未重排分析。" : "已重排分析，worker 会按预算逐条重跑。"}`);
 // 正文变了，publication 里派生出来的 `body_mode`/`search_text` 就旧了——重算不花模型额度，交给 worker 排队做。
 for (const sourceId of Object.keys(bySource)) {
   await enqueue(QUEUES.republishSource, { sourceId }, { singletonKey: sourceId });

@@ -345,3 +345,18 @@ test("removing a player does not leave an empty paragraph behind", () => {
   assert.ok(got.includes("Before the shell") && got.includes("After the shell"), got);
 });
 
+// NASA 的写法是 <figure>…<video></video></figure> 后面跟一段 <figcaption>，壳嵌在图里而不是根级兄弟，
+// 空 <p></p> 也嵌在 <figure>/<p> 里（Guardian 三条实测就是这样，root-children 那一遍碰不到它）。
+// "空"跟深度无关：一段没有字、没有子元素的段落，在哪一层都没有内容。
+test("an empty paragraph is dropped at any depth, and the figure keeps its caption", () => {
+  const fig =
+    "<figure><p></p><video></video><figcaption>NASA’s Guam Remote Station is shown in this illustration.</figcaption></figure>" +
+    "<p>The ground station will relay science data from Orion.</p>";
+  const got = sanitizeBody(fig, "https://www.nasa.gov/centers-teams/am/nasa-guam/");
+  assert.ok(!/<video/.test(got), `嵌在图里的空壳没删掉：\n${got}`);
+  assert.ok(!/<p>\s*<\/p>/.test(got), `嵌在图里的空段没删掉：\n${got}`);
+  assert.ok(got.includes("Guam Remote Station"), got);
+  assert.ok(got.includes("relay science data from Orion"), got);
+});
+
+

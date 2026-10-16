@@ -127,9 +127,10 @@ export function dropRecordPageChrome(html: string): string {
     player.remove();
   });
   // Removing the shell can leave the paragraph that held it with nothing in it (7 such rows measured on
-  // the washed set the same evening). normalizeBlocks drops an empty paragraph before the media appears;
-  // this is the same rule applied to what the removal left behind.
-  $.root().children("p").each((_, el) => {
+  // the washed set the same evening). An empty paragraph has no content at any depth — NASA nests the shell
+  // inside a `<figure>` and the Guardian's empty paragraphs sit under a wrapper — so this pass is not
+  // limited to root siblings, and it cannot eat prose: there is nothing to eat.
+  $("p").each((_, el) => {
     const block = $(el);
     if (!block.text().trim() && !block.children().length) block.remove();
   });
