@@ -637,7 +637,7 @@ sudo systemctl list-timers --all            # 档案 timer 与 api/web/brain 不
 + `geohot-<轮次>-restore.service/.timer`（`OnCalendar=*-*-* HH:MM:00 Asia/Shanghai`、`Persistent=true`、
 脚本末尾 `disable --now` 自己的 timer 并落一个 `.done` 防重跑）。
 
-**三条必须知道的副作用**：
+**五条必须知道的副作用**：
 
 1. `COLLECT_ENABLED=false` 会连带**关掉正文抽取的消费者**：`registerExtractionJobs` 只在
    `jobs/sources.ts:30` 注册，而 `apps/worker/src/main.ts:23` 那一行在 `if (isCollectEnabled())` 后面，
@@ -660,7 +660,13 @@ sudo systemctl list-timers --all            # 档案 timer 与 api/web/brain 不
    两个会让"补回来"打折的事实也要知道：`compose.ts:95` 把 `backfill` 且理由不是 `archive` 的条目（首导、迟到 48 小时以上）
    **一律挡在日报之外**；`compose.ts:322-324` 每节 8 条、快讯 12 条是硬顶，超出的按分数丢掉——**补回来的条目不保证都印出来**。
    至于恢复本身：`scheduleDueSources` 每分钟一轮、`FETCH_SCHEDULE_BATCH=40`，666 个源里到期的会在十几分钟内被重抓，
-   **不需要额外补跑**；真正会永久丢的只有 feed 只留十几条又隔得久的老源。
+   **不需要额外补跑**；真正会永久丢的只有 feed 只留十几条又隔得久的老源。**12:02 把这句量成了数**：
+   只算实时带（档案门读的是过刊合订本，不轮转），386 个七天出过稿的源里 **26 个会丢**，
+   整个 7.3 小时窗口估丢 **328 条原始条目**，按实时带七天精选率 9.73% 折算 ≈ **32 条精选**——
+   占一天正常精选量（196–326 条）约一成，且日报每节 8 条 + 快讯 12 条的硬顶离这个量还远 ⇒ **不会造成薄天**。
+   丢得最多的两族是 `json-nmc-weather-alarm`（29.1 条/时、feed 只留 40 条 ⇒ 估丢 172）和
+   `cn-chinanews-scroll`（18.8 条/时、feed 30 ⇒ 估丢 107）：**要停实时就优先挑这两族的低峰**，
+   它们的量决定了整个窗口的损失上限（两族合计 279 ∶26 源其余 49）。
 3. 把并发抬到 `.env` 现值之上就是在赌读者面不退化，而**赌注由 `geohot-conc-guard` 收**：每 5 分钟探四个读者面，
    `slow≥2`（单样本 ≥5 s）或任一 ≥8 s、或 `MemAvailable<40 MB`、或 swap>1,400 MB、或 6 分钟内 5xx≥2、
    或一次探测里出现任何 5xx（`http5>=1` 单独算命中；`curl -m 20` 失败会被记成 20.0 s，一个卡死的页面就能触发 floor）。
@@ -671,8 +677,26 @@ sudo systemctl list-timers --all            # 档案 timer 与 api/web/brain 不
    （`jobs/content.ts:180`）：如果这一行不在 `.env` 里，"只改已存在的行"的 sed 降不下任何东西，守护就管不到这一路。**
    2026-10-17 实测：10:35:10 探针 slow=2（首页 5.2 s、周报 6.3 s）⇒ 6 槽被自动降回 4；
    而 11:00:30 在**已经是 4 槽**时又报了一次 bad（首页 10,124 ms）——**尖峰不能记在提速账上**。
-   于是 11:01 把 `geohot-archive.timer` 也 `stop`（保持 enabled，恢复脚本会 `start` 回来），想验证"归档周期是根子"这句旧话。
+   于是 11:01 把 `geohot-archive.timer` 也 `stop`（保持 enabled，想验证"归档周期是根子"这句旧话——
+   **当时写的"恢复脚本会 start 回来"是不实的，12:04 现场核对才发现脚本里根本没有这一条，已补**，见第 4 条）。
    **结果这句也不完整**：归档周期停掉之后，11:18–11:26 每 75 秒采四次读者面，首页仍出现 6.9 s（同刻 `MemAvailable` 45 MB），
    而守护自己在 11:05/11:10/11:15/11:20/11:25 五次探针全 `bad=0`——**慢样本与内存余量同向，与"谁在跑"只部分相关**。
    结论：**这台机器的读者面余量就是内存**，归档周期与判定并发都只是往上加压的人；
    **要更高并发必须先解决内存**（加内存，或把重活与读者高峰错峰），而不是改守护的阈值。
+4. **自动复位的脚本必须枚举"本轮我手工停过的每一样东西"，不能只回最显眼的那个阀门**。12:04 现场抓到：
+   `r113-restore-realtime.sh` 原本只做 `COLLECT_ENABLED=true` + 重启 worker，**没有**
+   `systemctl start geohot-archive.timer`——照它跑完，实时恢复了、归档周期却永久停着，
+   而归档周期同时负责"结算日出刊"（`archive-cycle.sh` 的 `select-papers`/`select-news` 相位），
+   ⇒ **日报静默停更，没有任何报警会响**。已补进脚本（旧版备份在 `/opt/geohot/backups/r113-restore-script-*`），
+   并用 `bash -n` + 现场 `cat` + `grep -c` 三重确认只有一条。定时器是 `Persistent=true`，
+   所以 17:30 一 `start` 会立刻补跑一轮，当天 08:00 之后新结算的日子当轮就出刊。
+   **做法**：写"到点自动恢复"的脚本前，先把这一轮手工执行过的所有 `stop`/`sed`/`restart` 列成清单，
+   逐条对着清单写复位——只按"我要改什么"的记忆写，漏掉的必然是顺手做的那一下。
+5. **窗口结束后实时带不会自己长出欠账，但 `failed` 带会**：12:06 实测 `processing_state='new'` 的实时条目 **0 条**
+   （队列里 priority 0 的作业也 0 条），说明暂停期间实时带是真的排空、不是被压住——恢复后只需要等新稿。
+   可是有 **219 条实时条目停在 `failed`**（`sweepUnprocessed` 只捞 `new`，永不自动重来）：
+   76 条死门 403 `FreeTierError`（opencode，早已不在池里，重来会走活的门）、
+   76 条付费写作产不出可用中文（54 条"无中文正文 / finish_reason: length"、22 条"中英混排"，即 #236 那一族）、
+   10 条内容安全 403、~16 条 unusable output。按发现日摊在 10-04…10-16，最多的单日 58 条（10-10）。
+   **要补这批只能显式 `requeueFailed`（`jobs/content.ts`，付费、且 priority 0 会插到档案前面约 1.3 小时槽位）**，
+   这一轮没有擅自花这笔钱，留给站长拍。
