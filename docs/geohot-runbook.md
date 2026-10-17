@@ -1214,4 +1214,25 @@ today's paper as it was"说的就是这件事。⇒ 真正要拍的不是"闸门
   代价是长文（常是学术重头）更晚出中文。**这条不在站长的不可动旋钮清单里**（那四个是 `BATCH_CHARS / MAX_CHARS / 并发 / TRANSLATE_PROMPT_VERSION`），
   但夜窗已排好，**发版这种事不放在窗口当口**：要做就本地加用例、明天复位之后随下一次代码船走。
 
+### 第一百一十三轮 · #259 换个谓词重数一遍：12,209 还是 17，取决于站在哪个读者面上（19:12）
+
+同一件事三种数，差在谓词，不在数据：
+
+| 口径 | 条数 | 这句话管哪个表面 |
+| --- | --- | --- |
+| `category IS NULL AND visibility='public'` | **12,209** | 库里没分类且公开的总量 |
+| 上面再加 `p.selected` | **17** | 首页 / 精选列表 / 日报那条路上真正少掉的条数 |
+| 分类页的口径 `listedCondition` + `categoryCondition` | 12,209 全部不可见 | `items.ts:143-146` 是 `AND p.category = X`，NULL 永远配不上这个等号 |
+
+头部集中在五源：`中央气象台 4,918（该源共 10,693）∶ Sci Reports 2,196 ∶ Nature Comms 2,170 ∶ CENC 319 ∶ HSSC 318`；
+一共**涉及 115 个信源，其中 114 个没设 `sources.default_category`**
+⇒ 发布时那道兜底（`publication/publish.ts:182` `fallbackCategory = isCategoryKey(source.default_category) ? … : null`）对它们无值可兜。
+**所以 #259 不是代码 bug，是包内数据没填**：补 `industry/sources.json` 的 `default_category` + 用 `scripts/sync-source-config.ts` 落库就是全部工作量，
+不动 666 这条冻结数。⇒ 但补完分类页会一次性多出一万条（气象台那 4,918 会进灾害预警那一类），
+**这是读者面可见的归类变化，映射关系等站长点头，而且不在夜窗当口做**（19:14 决定：只准备，不执行）。
+
+**这条的通用读法**（第 69 轮那张量具表的又一次复现）：**"受影响的条目数"必须先说清站在哪个读者面上数**。
+我 18:26 之前引用的是"4,454 条"——既不是 public 口径也不是 selected 口径，是个当时手算的中间值；
+三个数现在各归各位，**以后引用只准带谓词**。
+
 
