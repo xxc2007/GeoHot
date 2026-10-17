@@ -543,7 +543,8 @@ quota 型与速率型的 429 走同一条重试阶梯；给档案一次性开闸
 **回滚**：档案材料一律带 `backfill_reason = 'archive'` 且 `article_discoveries.via = 'import'`，一条 SQL 能整批摘掉，同时清 `archive_ingest`；
 期次那一层要退回 `report_revisions` 的上一版，**注意这一步没有现成脚本**（全仓 `grep` 没有任何把 `report_revisions.content` 写回 `reports` 的
 INSERT/UPDATE，`scripts/recompose-report.ts:72` 那句"可回滚"是文案，113 轮已把它改成明说"回退要手写 SQL"），
-手工回退的动作是 `UPDATE reports SET content=(那一版的 content), revision=revision+1 WHERE kind=$1 AND key=$2`，先把当前版也补一行归档再改。
+手工回退的动作是 `UPDATE reports SET content=(那一版的 content), revision=revision+1 WHERE kind=$1 AND key=$2`，先把当前版也补一行归档再改
+（**这条 SQL 到今天没有演练过**，`saveReport` 的自动归档不会替手写 UPDATE 补那一行，所以补归档那一步是手写流程里必须的、不是多余的）。
 删之前先 `pg_dump`，与 `deploy/geohot/rollback.sh` 的约定一致。
 
 
@@ -1041,5 +1042,41 @@ BLOCK 只花 1 次；没有配门槛（`threshold===null`）时不打分＝3 次
 要把它们提进档案带，只剩两条路：改归类口径（`backfill_reason` 是谁写的、为什么这批迟到新闻没被打上 `archive`，属政策题），
 或者做一条**仓库里不支持**的队列 `UPDATE`。⇒ 这条归站长拍，我不自行动共享队列；真要做还得配上我 13:11 那套 `created_on` 按 `timeline_at` 重排与逆序复量，
 否则两批 `created_on` 混在一个带里，下午刚证的 0 逆序就作废。
+
+### 第一百一十三轮 · 窗口收口：17:32 自动复位与"实时带重新背上新账"（17:34 / 17:42 / 17:55 三次读数）
+
+复位是服务器自己做的（`geohot-r113-restore.timer` 的 `OnCalendar=*-*-* 17:30:00 Asia/Shanghai` + `Persistent=true`，
+`ExecStart=/bin/bash /opt/geohot/bin/r113-restore-realtime.sh`，16:27 复核过这三行才敢留它无人值守）：
+
+```
+17:32:24 restored [COLLECT_ENABLED=true] worker=active archive_timer=active verify_timer=active
+17:32:25 timer disarmed; manual reset: rm /etc/geohot/r113-restore.done
+```
+
+17:42 复验与 17:55 复量的现值：
+
+| 量 | 读数 | 判据出处 |
+| --- | --- | --- |
+| 暂停期缺口重抓回 | **122 条**，`gap_items_undated=0` | 复验脚本的 gap 计数器（窗口 02:43→17:32） |
+| 17:30 之后新入库 | 630 条（`new` 582 / `analyzed` 31 / `blocked` 17） | `articles.discovered_at >= 17:30` |
+| 17:30 之后判完 | 55 条 | `analyses.created_at` |
+| 17:30 之后译文 / 调用 | 7 行 ∶ 251 次 | `translations`、`receipts` |
+| 实时带欠账 | `live_still_waiting=328` | 复验脚本 |
+| 队列 | `created` 16,590 ∶ `active` **正好 4** ∶ `retry` 1 | `pgboss.job WHERE name='content.analyze'` |
+| 读者面 | 17:30 后 87 次请求：60×200、26×304、2×400、**0× 5xx** | nginx access log |
+| 守护 | 未自锁；17:41 首页 5,314 ms、17:46 `/all.data` 5,616 ms 各一次 `slow=1` ⇒ `bad=0` | 守护日志 |
+
+**三条只有收口时才看得见的结论**：
+
+1. **"未判完"在复位后不降反升：17:24 是 13,759、17:55 是 13,790。** 判定在流（55 条/23 分），但采集一开就带回 630 条、
+   其中一批落在 Jan–Sep 窗口里 ⇒ 存量净 +31。**引用"还剩 1.4 万条"必须连着报"当时采集开没开"**，
+   否则同一句话在窗口内和窗口外是两个意思（第 133 号工单那条"≈42 小时"就是缺这个限定词才作废的）。
+2. **`active` 恰好 4、`retry` 只有 1** ⇒ 复位之后墙还是那堵墙：4 个内存槽位。实时带（priority 0）压过档案带（−1），
+   所以 328 条实时欠账按同速率约 **2 小时**内清完，之后档案带才重新吃到槽。这才是"填完之后立马恢复正常运转"的真实形状：
+   恢复的不是"档案停下"，是**两条带重新排队分享同 4 个槽**。
+3. **发送脚本第一次自己拒了自己**：闸门那行写成 `V=$(grep ... .env)`，heredoc 里没转义 ⇒ 这段在**我本机**展开、
+   本机没有 `/opt/geohot/app/.env` → 读出 `valve=missing` → `REFUSE`，生产一个字节没动（教训：**远端脚本里的 `$()` 一律写 `\$(...)`，
+   否则展开的是本地那一层**）。修完转义后逐字节对上：`local_sha=uploaded_sha=prod_sha=c860c837…`，
+   `latestVersion=2026-10-17T17:58`、`releases=52`、本轮只剩这一条（11:15 那条已被就地替换，残留 0），395 汉字。
 
 
