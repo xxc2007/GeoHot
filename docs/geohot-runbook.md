@@ -1998,3 +1998,11 @@ item 的 id 字段名：   itemId   （factId / firstParty / score / role / titl
 处置方向（**不动全局常量**）：复位后按**分源**核对回收率（已加进 `r114-ship-proof.sh`：四源的"暂停期发布被追回的 ∶ 复位后新抓的"），若这四源明显低于整体，就在复位后第一个小时**多跑几轮采集**——每轮游标继续往旧处走，正是这套续读设计的用法；抬 `MAX_ITEMS_PER_RUN` 是全局旋钮，等于替所有源改内存与时长账，不在本轮范围。已开 **#278**。
 
 顺带两条我自己的 SQL 错（都在同一族"位置数到聚合/别名越界"）：`count(DISTINCT a.source_id)` 里的 `a` 活在 LATERAL 子查询里，外层必须写 `per.source_id`；`GROUP BY 2` 的第 2 列是 `count(*)` ⇒ `aggregate functions are not allowed in GROUP BY`。还有第一版把 CTE `band` 当全局用，而 **psql 里一个 WITH 只服务它所在那一条语句**，第二条之后全部 `relation "band" does not exist`。三处都是当场被自己的 `ON_ERROR_STOP` 抓出来的——**量具报错比量具沉默好**。
+
+## 04:53 发版前多加一道"仓库自己的规矩"闸门，并且当场发现它一开始永远变红
+
+`tests/changelog.test.ts` 不是装饰：它的头注写着 2026-10-03 有人在中文正文里用 ASCII 直引号（`"分类不在词表里"`），JSON 坏了，而**类型检查和构建都抓不到**——坏在运行时，`/changelog` 上线后直接 503，是 verify-deploy 的冒烟发现的。我 04:29 犯的正是同一族错（在 JSON 字符串里写了半角引号），所以把它搬进发版链：`D:/tmp/changelog-repo-gate.cjs` 在**不碰仓库文件**的前提下把"替换后"的整份 changelog 拼出来，跑同一套断言：解析、新在前、`latestVersion === 第一条 date+T+time`、日期/时间形状、body 每行非空，再加两条本轮关心的：**ASCII 直引号点名**、**10-18 只能有一条**（"只写最终版本"那条要求）。
+
+`node --test tests/changelog.test.ts` 现在 pass（Node 24 直接跑 TS，不用加载器），所以发版链是：`fill-draft` → `ship-final --write` → **`node --test tests/changelog.test.ts`** → 提交 → 生产侧脚本换文件 + 逐字节哈希复验。
+
+**这道新闸门第一版是坏的，而且是"永远红"那种坏**：我拿 `JSON.stringify(body)` 去扫 `"` ——序列化必然带定界符引号，于是真草稿也被判"有 ASCII 直引号"。发现方式很便宜：**跑一次看它有没有可能变绿**。修成扫原始字符串之后，三侧一起验：真草稿绿、`“定时器”`（全角）绿、`\"定时器\"`（真半角）红。与 **#112"新判据分两次验：先证能区分、再证能执行"** 同形——这次是"先证它会误报"。
