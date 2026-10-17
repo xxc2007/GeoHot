@@ -9,7 +9,7 @@ import { after, test } from "node:test";
 import { z } from "zod";
 import { closeDb, sql } from "@aihot/backend/db";
 import { UNDERSTAND_MAX_TOKENS, UNDERSTAND_TIMEOUT_MS } from "@aihot/backend/editorial/analyze";
-import { chatJson, ModelOutputError, MODELS } from "@aihot/backend/providers/llm";
+import { chatJson, headroomFor, ModelOutputError, MODELS } from "@aihot/backend/providers/llm";
 
 type Body = { model?: string; max_tokens?: number; reasoning_effort?: string };
 let content = '{"ok":true}';
@@ -61,8 +61,26 @@ test("the preset's own headroom sizes the request, not the shared default", asyn
   assert.equal(bodies.at(-1)!.max_tokens, 65_536);
 });
 
+test("a per-purpose headroom is chosen by the purpose, and defaults where the table has no entry", async () => {
+  // summarize_article is the one purpose deepseek-v4.1-flash needs more room on (measured chain 18,809
+  // against a 2,048-token ask). `ask()` above sends purpose "invariant_test", which the table does not
+  // name, so the request must fall back to the table's `default` — not to the shared 6,000.
+  await ask("workbuddy-deepseek-flash", "per-purpose-default", 2_048);
+  assert.equal(bodies.at(-1)!.max_tokens, 2_048 + 16_000, "an unnamed purpose takes the table's default");
+
+  const summarize = await chatJson({
+    model: "workbuddy-deepseek-flash", purpose: "summarize_article", subject: `${P}-per-purpose-sum`,
+    promptVersion: "t1", system: "", user: "input per-purpose-sum",
+    schema: z.object({ ok: z.boolean() }), maxTokens: 2_048, json: false,
+  });
+  assert.equal(bodies.at(-1)!.max_tokens, 2_048 + 32_000, "summarize_article gets the room its chain needs");
+  assert.ok(summarize.receiptId > 0);
+});
+
 test("every workbuddy preset carries the headroom and the vision verdict the measurement produced", () => {
-  assert.equal(MODELS["workbuddy-deepseek-flash"]!.reasoningHeadroom, 16_000);
+  // deepseek-v4.1-flash's headroom is a per-purpose table, not one number: its summarize prompt measured a
+  // 18,809-token chain while understand's 240 s clock caps that step at 16,218 — see the arithmetic test below.
+  assert.deepEqual(MODELS["workbuddy-deepseek-flash"]!.reasoningHeadroom, { default: 16_000, summarize_article: 32_000, translate_quoted: 8_000 });
   assert.equal(MODELS["workbuddy-hy3"]!.reasoningHeadroom, 16_000);
   // deepseek-v4.1-flash reads images; hy3 tokenizes one and then answers the wrong colour.
   assert.equal(MODELS["workbuddy-deepseek-flash"]!.vision, true);
@@ -81,14 +99,16 @@ test("every workbuddy preset carries the headroom and the vision verdict the mea
   // The Chinese account reaches the same four ids through 3066. Same model, same dials, same vision verdicts —
   // only `service` and the two env vars differ, and that separation is the whole point (two accounts, two
   // breakers). Anything that drifts here means the two doors stopped being the same model.
-  for (const [cn, intl] of [
-    ["workbuddy-cn-deepseek-flash", "workbuddy-deepseek-flash"],
-    ["workbuddy-cn-hy3", "workbuddy-hy3"],
-    ["workbuddy-cn-glm-flash", "workbuddy-glm-flash"],
-    ["workbuddy-cn-step5-preview", "workbuddy-step5-preview"],
-  ] as const) {
+  //
+  // The headroom is the one field that is deliberately NOT shared for deepseek: on 2026-10-16 the operator put
+  // only the *international* door into the pool (`x0.00 · Free now`) and left the Chinese one out, so only the
+  // door that serves carries the per-purpose table. A member that is not serving does not get re-numbered; see
+  // the test below for what has to happen before the Chinese door may be added.
+  const SHARED = ["workbuddy-cn-hy3", "workbuddy-cn-glm-flash", "workbuddy-cn-step5-preview"] as const;
+  for (const cn of SHARED) {
+    const intl = cn.replace("workbuddy-cn-", "workbuddy-") as keyof typeof MODELS;
     assert.equal(MODELS[cn]!.model, MODELS[intl]!.model, `${cn} must name the same upstream model as ${intl}`);
-    assert.equal(MODELS[cn]!.reasoningHeadroom, MODELS[intl]!.reasoningHeadroom, `${cn} headroom drifted from ${intl}`);
+    assert.deepEqual(MODELS[cn]!.reasoningHeadroom, MODELS[intl]!.reasoningHeadroom, `${cn} headroom drifted from ${intl}`);
     assert.equal(MODELS[cn]!.vision, MODELS[intl]!.vision, `${cn} vision verdict drifted from ${intl}`);
     assert.deepEqual(MODELS[cn]!.extra, MODELS[intl]!.extra, `${cn} effort drifted from ${intl}`);
     assert.equal(MODELS[cn]!.service, "workbuddy-cn", `${cn} must ride its own service or it spends the other account's breaker`);
@@ -96,6 +116,36 @@ test("every workbuddy preset carries the headroom and the vision verdict the mea
     assert.equal(MODELS[cn]!.apiKeyEnv, "WORKBUDDY_CN_API_KEY");
     assert.notEqual(MODELS[cn]!.key, MODELS[intl]!.key);
   }
+  // deepseek's two doors still agree on everything except the headroom, which is the only thing the
+  // pool membership decision was allowed to change.
+  for (const field of ["model", "vision", "service"] as const) {
+    if (field === "service") continue; // each door rides its own breaker by design
+    assert.equal(MODELS["workbuddy-cn-deepseek-flash"]![field], MODELS["workbuddy-deepseek-flash"]![field],
+      `deepseek's two doors drifted on ${field}`);
+  }
+  assert.deepEqual(MODELS["workbuddy-cn-deepseek-flash"]!.extra, MODELS["workbuddy-deepseek-flash"]!.extra);
+});
+
+// The one thing that must not be forgotten if the Chinese door is ever added to the pool: it needs the same
+// per-purpose table first. Its summarize prompt is the same prompt, so a flat 16,000 truncates exactly the
+// way the international door's did (4 of 6 runs empty). Pinned so that adding it later is a decision with an
+// argument attached, not a one-line .env edit followed by silent long-article failures.
+test("the Chinese deepseek door carries a flat headroom because it is not in the pool — and that is what adding it would have to fix", () => {
+  const cn = MODELS["workbuddy-cn-deepseek-flash"]!;
+  const intl = MODELS["workbuddy-deepseek-flash"]!;
+  assert.equal(typeof cn.reasoningHeadroom, "number", "the Chinese door is expected to stay un-tuned while it is out of the pool");
+  assert.equal(cn.reasoningHeadroom, 16_000);
+  // And the gap is real, not cosmetic: the flat number cannot serve summarize.
+  const summarizeAsked = 2_048;
+  const measuredChain = 18_809;
+  assert.ok(
+    headroomFor(cn, "summarize_article") < measuredChain - summarizeAsked,
+    "the Chinese door's flat headroom would now clear summarize — if it is still out of the pool, this test is stale",
+  );
+  assert.ok(
+    headroomFor(intl, "summarize_article") > measuredChain - summarizeAsked,
+    "the international door's table must clear the chain it was measured against",
+  );
 });
 
 test("the two new presets differ from the zhipu entries of the same upstream model, or they would spend its breaker", () => {
@@ -185,7 +235,10 @@ test("each new preset clears the chain measured for it, and stays inside the clo
     { step: "monitor", asked: 2_500, clock: 240_000 },
   ];
   for (const { key, msPerToken, clears } of MEASURED) {
-    const headroom = MODELS[key]!.reasoningHeadroom!;
+    // Read through the same accessor the request builder uses. These two presets carry a flat number, so
+    // asking per step answers the same value for all of them; a preset whose table says otherwise would show
+    // up here rather than after a truncation in the ledger.
+    const headroom = headroomFor(MODELS[key]!, "structure_article");
     assert.ok(headroom > clears, `${key}: a ${headroom}-token headroom does not clear the longest chain measured for it, ${clears}`);
     for (const { step, asked, clock } of SERVED) {
       const widest = asked + headroom;
@@ -213,7 +266,7 @@ test("the three steps glm-5.3-flash is kept out of are over budget by arithmetic
     { step: "translate body", asked: 8_000, clock: 180_000 },
     { step: "translate quoted", asked: 4_000, clock: 120_000 },
   ];
-  const headroom = MODELS["workbuddy-glm-flash"]!.reasoningHeadroom!;
+  const headroom = headroomFor(MODELS["workbuddy-glm-flash"]!, "structure_article");
   for (const { step, asked, clock } of OVER_BUDGET) {
     assert.ok(
       (asked + headroom) * msPerToken >= clock,
@@ -226,7 +279,7 @@ test("the three steps glm-5.3-flash is kept out of are over budget by arithmetic
   // The Chinese door carries the same model, so the same three steps are over budget through it. If only one
   // door were excluded, the pool would quietly reintroduce glm on the other and the arithmetic above would
   // describe half the truth.
-  const cnHeadroom = MODELS["workbuddy-cn-glm-flash"]!.reasoningHeadroom!;
+  const cnHeadroom = headroomFor(MODELS["workbuddy-cn-glm-flash"]!, "structure_article");
   assert.equal(cnHeadroom, headroom, "the two doors carry the identical upstream model, so they cannot carry different headrooms");
   for (const { step, asked, clock } of OVER_BUDGET) {
     assert.ok(
@@ -249,13 +302,14 @@ test("the headroom clears the chains we measured, and understand's clock clears 
   // operator has to release it. These models measured 4.9-6.7 ms per output token, so at the slow end the
   // widest request the step can make still has to fit inside the step's timeout.
   const MS_PER_TOKEN = 6.72;
-  const LONGEST_SUCCESSFUL = { score: 7_007, structure: 6_760, summarize: 7_834 };
+  const LONGEST_SUCCESSFUL = { score_article: 7_007, structure_article: 6_760, summarize_article: 7_834 };
   for (const key of ["workbuddy-deepseek-flash", "workbuddy-hy3", "workbuddy-cn-deepseek-flash", "workbuddy-cn-hy3"]) {
-    const headroom = MODELS[key]!.reasoningHeadroom!;
-    for (const [step, longest] of Object.entries(LONGEST_SUCCESSFUL)) {
-      assert.ok(headroom > longest, `${key} on ${step}: a ${headroom}-token headroom does not clear the longest chain seen, ${longest}`);
+    const spec = MODELS[key]!;
+    for (const [purpose, longest] of Object.entries(LONGEST_SUCCESSFUL)) {
+      const headroom = headroomFor(spec, purpose);
+      assert.ok(headroom > longest, `${key} on ${purpose}: a ${headroom}-token headroom does not clear the longest chain seen, ${longest}`);
     }
-    const widest = UNDERSTAND_MAX_TOKENS + headroom;
+    const widest = UNDERSTAND_MAX_TOKENS + headroomFor(spec, "understand_article");
     const seconds = Math.round((widest * MS_PER_TOKEN) / 1000);
     assert.ok(
       widest * MS_PER_TOKEN < UNDERSTAND_TIMEOUT_MS,
@@ -263,4 +317,103 @@ test("the headroom clears the chains we measured, and understand's clock clears 
         `which is past its ${UNDERSTAND_TIMEOUT_MS / 1000} s clock — the cap would never fire and every long reply would land unknown`,
     );
   }
+});
+
+// The measurement that forced deepseek-v4.1-flash's headroom to be a per-purpose table instead of one number,
+// so that "just make it 24,000 everywhere" has to argue with the second bound. Both bounds come from things we
+// do not get to pick: the first from the prompt the step actually sends, the second from the step's clock.
+test("deepseek-v4.1-flash cannot be served by one headroom: summarize needs more than translate_quoted can afford", () => {
+  const MS_PER_TOKEN = 6.72; // the slow end of the 4.9-6.7 ms/token band this channel measures
+  const spec = MODELS["workbuddy-deepseek-flash"]!;
+  const ms = (tokens: number) => (tokens * MS_PER_TOKEN) / 1000;
+
+  // Lower bound — summarize_article, measured 2026-10-16 by replaying the site's own buildArticlePrompt output
+  // (7,268 prompt tokens) at effort max through the bridge. At the shared 16,000 headroom the cap is 18,048 and
+  // 4 of 6 runs came back `finish_reason: length` with empty content; with the cap lifted to 65,536 the same
+  // prompt stopped by itself at 18,809. So the room this step needs is 18,809 - 2,048.
+  const SUMMARIZE = { asked: 2_048, clock: 240_000, longestChain: 18_809 };
+  const summarizeNeed = SUMMARIZE.longestChain - SUMMARIZE.asked;
+
+  // Upper bound — translate_quoted. It asks for at most 4,000 visible tokens and its clock is 120 s, the
+  // shortest in the system, so it is the tightest ceiling there is: 120 s buys 17,857 tokens at the slow rate.
+  const QUOTED = { asked: 4_000, clock: 120_000 };
+  const quotedCeiling = QUOTED.clock / MS_PER_TOKEN - QUOTED.asked;
+
+  assert.ok(
+    summarizeNeed > quotedCeiling,
+    `the two bounds have met: one headroom could now serve both (summarize needs ${Math.round(summarizeNeed)}, ` +
+      `translate_quoted affords ${Math.round(quotedCeiling)}) — collapse the table back to a single number`,
+  );
+
+  // The table that is actually configured has to sit inside both bounds, on every step this model serves.
+  const SERVED = [
+    { purpose: "summarize_article", asked: SUMMARIZE.asked, clock: SUMMARIZE.clock, longestChain: SUMMARIZE.longestChain },
+    { purpose: "translate_quoted", asked: QUOTED.asked, clock: QUOTED.clock, longestChain: 4_367 },
+    // translate_body: measured 8,504 at a 24,000 cap, all three runs `stop`.
+    { purpose: "translate_body", asked: 8_000, clock: 180_000, longestChain: 8_504 },
+    // understand_article: measured 23,186 and 17,256 at the 32,384 cap, both `stop`.
+    { purpose: "understand_article", asked: UNDERSTAND_MAX_TOKENS, clock: UNDERSTAND_TIMEOUT_MS, longestChain: 23_186 },
+    // score_article / structure_article: measured 9,633 and 5,580 at 17,024 / 16,800, all `stop`.
+    { purpose: "score_article", asked: 1_024, clock: 240_000, longestChain: 9_633 },
+    { purpose: "structure_article", asked: 800, clock: 240_000, longestChain: 5_580 },
+  ];
+  for (const { purpose, asked, clock, longestChain } of SERVED) {
+    const headroom = headroomFor(spec, purpose);
+    assert.ok(
+      headroom > longestChain - asked,
+      `${purpose}: ${headroom} tokens of headroom does not clear the longest chain measured for it, ` +
+        `${longestChain} against an ask of ${asked} (needs > ${longestChain - asked})`,
+    );
+    const cap = asked + headroom;
+    assert.ok(
+      cap * MS_PER_TOKEN < clock,
+      `${purpose}: the cap is ${cap} tokens, about ${Math.round(ms(cap))} s — past its ${clock / 1000} s clock, ` +
+        "so the cap could never fire and every long reply would land unknown instead of the retryable failed",
+    );
+  }
+  // The other door carries the same model but is deliberately NOT in the pool (2026-10-16: only the
+  // international `x0.00 · Free now` door was added), so it keeps its flat number and is not checked against
+  // this table. The test below pins what adding it would require.
+});
+
+// summarize_article's chain is heavy-tailed, and that is the whole reason its number is 32,000 rather than the
+// smallest value that clears the observed maximum. Pinned so that "raise it until nothing truncates" has to
+// argue with the clock: past this ceiling the failure changes KIND, from a retryable truncation to an abort
+// that is paid for, never retried, and waits on an operator.
+test("summarize's headroom is bounded by its clock, because no cap can catch this model's tail", () => {
+  const MS_PER_TOKEN = 6.72;
+  const ASKED = 2_048;
+  const CLOCK = 240_000;
+
+  // Thirteen replays of the site's own summarize prompt at effort max, cap lifted to 65,536 so nothing was
+  // cut off. The tail runs 3.5x the median; the longest needed 288 s of wall clock by itself.
+  const CHAINS = [6_594, 8_189, 10_476, 16_372, 17_150, 17_944, 18_657, 18_809, 25_495, 25_666, 28_358, 34_909, 59_810];
+  const sorted = [...CHAINS].sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)]!;
+  const longest = sorted[sorted.length - 1]!;
+  assert.ok(longest > 2 * median, "the tail has stopped being heavy; this test's premise needs re-measuring");
+
+  // No headroom can make the longest chain fit: the cap would have to be past the clock.
+  const capForLongest = ASKED + (longest - ASKED);
+  assert.ok(
+    capForLongest * MS_PER_TOKEN > CLOCK,
+    "the longest chain now fits inside the clock — the cap could be raised to clear it after all",
+  );
+
+  // So the configured number is the largest cap that still fires before the clock, not the tail.
+  const headroom = headroomFor(MODELS["workbuddy-deepseek-flash"]!, "summarize_article");
+  const cap = ASKED + headroom;
+  assert.ok(cap * MS_PER_TOKEN < CLOCK, `summarize's cap of ${cap} tokens is past its 240 s clock`);
+  const clockCeiling = CLOCK / MS_PER_TOKEN - ASKED;
+  assert.ok(
+    headroom <= clockCeiling,
+    `the configured ${headroom} is above what the clock affords (${Math.round(clockCeiling)}) — ` +
+      "replies past the cap would abort as unknown instead of truncating as failed",
+  );
+  // And it still has to be worth having: it must clear the bulk of the measured distribution, not just the median.
+  const cleared = CHAINS.filter((c) => c <= cap).length;
+  assert.ok(
+    cleared >= CHAINS.length - 2,
+    `a ${cap}-token cap only clears ${cleared} of ${CHAINS.length} measured chains; the number is too small to be worth the tail it still cuts`,
+  );
 });

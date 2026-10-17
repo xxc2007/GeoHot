@@ -22,6 +22,7 @@
     "dev:web": "npm run dev -w @aihot/web",
     "brain": "node tooling/brain-stub.ts",
     "workbuddy": "node tooling/workbuddy-bridge.ts",
+    "step5:e2e": "node --env-file-if-exists=.env --env-file-if-exists=.env.step5 tooling/step5-e2e.ts",
     "typecheck": "tsc -p packages/contracts && tsc -p packages/backend && tsc -p apps/api && tsc -p apps/worker && tsc -p tests && tsc -p scripts && tsc -p tooling && npm run typecheck -w @aihot/web",
     "test": "node --test --test-concurrency=1 --test-timeout=120000 \"tests/*.test.ts\""
   },

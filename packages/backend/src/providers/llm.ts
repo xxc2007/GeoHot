@@ -16,8 +16,19 @@ export interface ModelSpec {
   extra?: Record<string, unknown>;
   jsonMode: boolean;
   vision?: boolean;
-  /** 该模型开思考后要先花掉的隐藏 token 数，只在比共用默认值更大时才写。 */
-  reasoningHeadroom?: number;
+  /**
+   * 该模型开思考后要先花掉的隐藏 token 数。一个数就是全站同一个；也可以写成按 purpose 查的表，
+   * 缺省项落 `default`（再缺就落共用的 REASONING_HEADROOM）。
+   *
+   * 为什么要能按步骤给：这两个上界来自**不同的东西**，而它们并不总是同时满足——
+   *   · 够不够：由**该步骤自己的提示词**实测出的最长链决定（截断了就是不够）；
+   *   · 能不能给：由**该步骤的时钟**决定（cap 必须先于时钟触发，否则失败从可重试的 `failed`
+   *     退化成花了钱、不自动重试、等人工放行的 `unknown`）。
+   * 一个数同时满足两者，只在"每个步骤的链长与时钟之比都一样"时成立；deepseek-v4.1-flash 上不成立：
+   * 它的 summarize 提示词实测最长链 18,809（要 >16,761 的余量），而 translate_quoted 的时钟只有 120 s
+   * （4,000 + 13,000 = 17,000 token 按 6.72 ms/token 是 114 s，再多就越界）。见 tests/workbuddy-headroom.test.ts。
+   */
+  reasoningHeadroom?: number | Record<string, number>;
 }
 
 /** 单次答复的上限：任何调用方要得再多也不越过这条线（现有最大的一档就是它）。 */
@@ -25,7 +36,8 @@ const MAX_OUTPUT_TOKENS = 65_536;
 /**
  * 开思考的模型要先花掉这一段才吐出可见答复（实测 Agnes 3.0 flash 一次 3.6k-4.1k）。
  * 这是「默认」而不是「全站唯一定值」：链长是模型的属性，不是提这个要求的步骤的属性，
- * 所以链更长的模型在自己的预设上写 `reasoningHeadroom` 覆盖它。
+ * 所以链更长的模型在自己的预设上写 `reasoningHeadroom` 覆盖它；同一个模型的链长在**不同步骤**上
+ * 差得足够远时（deepseek-v4.1-flash 就是），那个字段也可以是一张按 purpose 查的表。
  */
 const REASONING_HEADROOM = 6_000;
 
@@ -36,6 +48,20 @@ function extraFromEnv(value: string | undefined): Record<string, unknown> | unde
   } catch {
     throw new Error("LLM_EXTRA_JSON must be a JSON object, e.g. {\"enable_thinking\": false}");
   }
+}
+
+/**
+ * How much hidden chain this preset must be given room for on this step.
+ *
+ * Deterministic in `(preset, purpose)` on purpose: `requestFor` folds `maxTokens` into the receipt's
+ * identity hash, so a headroom that moved between two attempts at the same work would turn every retry
+ * into a fresh paid request. `default` is the number for every purpose the preset does not single out.
+ */
+export function headroomFor(spec: ModelSpec, purpose: string): number {
+  const value = spec.reasoningHeadroom;
+  if (value === undefined) return REASONING_HEADROOM;
+  if (typeof value === "number") return value;
+  return value[purpose] ?? value.default ?? REASONING_HEADROOM;
 }
 
 export const MODELS: Record<string, ModelSpec> = {
@@ -198,6 +224,23 @@ export const MODELS: Record<string, ModelSpec> = {
   // `vision`: deepseek-v4.1-flash reads images (measured — named the colour of a test PNG on every try),
   // hy3 does not (it tokenizes the image and then answers the wrong colour), so hy3 is declared text-only
   // and analyze.ts stops attaching one to it.
+  //
+  // `reasoningHeadroom` 在这个模型上是**按步骤**给的，因为一个数在算术上不可能同时成立（2026-10-16 实测）：
+  //   · 下界由 summarize_article 的提示词给出：长正文（7,268 prompt token）实测最长链 18,809。共用默认的
+  //     16,000 让 cap 落在 18,048，6 次里 4 次 `finish_reason: length` + 空答复（长文等于三分之二失败）。
+  //     要盖住它，余量必须 > 16,761。
+  //   · 上界由 translate_quoted 的时钟给出：它只要 4,000 的可见答复，时钟却只有 120 s（全套里最短的一个）。
+  //     按既有判据里这条模型最慢的一档 6.72 ms/token，120 s 只装得下 17,857 token ⇒ 余量不能超过 13,857。
+  // 16,761 > 13,857，所以这两个上界不可能由同一个数满足；表里给的就是各自实测出来的那一个。
+  // translate_body 与 understand 也各自复核过（链要 504 / 6,802，时钟容得下 18,786 / 19,330），16,000 够用。
+  //
+  // summarize_article 给 32,000 而不是刚好 16,761 起：同一条提示词重放 13 次，链长是**重尾**的——
+  // 6,594 / 8,189 / 10,476 / 16,372 / 17,150 / 17,944 / 18,657 / 18,809 / 25,495 / 25,666 / 28,358 /
+  // 34,909 / 59,810，中位数约 17,150，最长那次跑了 288 s。尾部长到没有任何 cap 能在 240 s 内接住它
+  // （59,810 × 4.9 ms/token 已是 293 s），所以这里按**时钟**取上限而不是按尾巴：34,048 × 6.72 = 229 s
+  // 仍在钟内，cap 先于时钟触发 ⇒ 超出部分落可重试的 `failed`；再往上抬就会变成 abort，落 `unknown`——
+  // 花了钱、不自动重试、等人工放行。13 次里 11 次被 34,048 接住，剩下两次是尾部，按设计截断。
+  // 算术钉在 tests/workbuddy-headroom.test.ts。
   "workbuddy-hy3": {
     key: "workbuddy-hy3", service: "workbuddy", model: "hy3",
     baseUrlEnv: "WORKBUDDY_BASE_URL", apiKeyEnv: "WORKBUDDY_API_KEY",
@@ -206,7 +249,8 @@ export const MODELS: Record<string, ModelSpec> = {
   "workbuddy-deepseek-flash": {
     key: "workbuddy-deepseek-flash", service: "workbuddy", model: "deepseek-v4.1-flash",
     baseUrlEnv: "WORKBUDDY_BASE_URL", apiKeyEnv: "WORKBUDDY_API_KEY",
-    extra: { reasoning_effort: "max" }, jsonMode: true, vision: true, reasoningHeadroom: 16_000,
+    extra: { reasoning_effort: "max" }, jsonMode: true, vision: true,
+    reasoningHeadroom: { default: 16_000, summarize_article: 32_000, translate_quoted: 8_000 },
   },
   // The channel's other two models. Neither belongs to WorkBuddy — `glm-5.3-flash` and `step-5-preview` are
   // the desktop catalog's own entries, reachable through the same bridge, so they ride `service: "workbuddy"`
@@ -294,6 +338,13 @@ export const MODELS: Record<string, ModelSpec> = {
   // presets above, not re-measured: same model ids, same dials (`max` / `max` / `max` / `high` for
   // deepseek / hy3 / glm / step-5-preview), same measured rates that sized each headroom. The one thing
   // that does differ is the account, and that lives in the two env vars.
+  //
+  // ⚠️ 2026-10-16 站长只把**国际版**那一扇加进生产池（`x0.00 · Free now`，credit 记 0），中国版这扇
+  // **留在池外**，所以它的 `reasoningHeadroom` 仍是原来的单值 16,000 —— 上面那张按 purpose 的表是为
+  // 国际版实测出来的，没有把它顺手抄到这里：一扇不用的门不需要新的数字，改了反而看不出它没被启用。
+  // **要把它加进池子，必须先给它同一张表**（`{ default: 16_000, summarize_article: 32_000,
+  // translate_quoted: 8_000 }`），否则它的 summarize 会以 18,048 的 cap 截断长文——这正是国际版实测
+  // 出来的那个缺陷（6 次里 4 次空答复）。判据钉在 tests/workbuddy-headroom.test.ts。
   "workbuddy-cn-deepseek-flash": {
     key: "workbuddy-cn-deepseek-flash", service: "workbuddy-cn", model: "deepseek-v4.1-flash",
     baseUrlEnv: "WORKBUDDY_CN_BASE_URL", apiKeyEnv: "WORKBUDDY_CN_API_KEY",
@@ -411,7 +462,7 @@ function requestFor<S extends z.ZodType>(opts: ChatJsonOptions<S>, spec: ModelSp
     ? { chat_template_kwargs: { enable_thinking: false } } : spec.extra;
   const reasoning = /reasoning_effort|"thinking"/.test(JSON.stringify(extra ?? {})) || spec.key.endsWith("-think")
     || (spec.key === "space-bunny-free" && opts.purpose === "summarize_article" && !legacySummaryParameters);
-  const headroom = reasoning ? spec.reasoningHeadroom ?? REASONING_HEADROOM : 0;
+  const headroom = reasoning ? headroomFor(spec, opts.purpose) : 0;
   const maxTokens = Math.min(MAX_OUTPUT_TOKENS, Math.max(opts.maxTokens ?? 1500, 512) + headroom);
   const userText = typeof opts.user === "string" ? opts.user : JSON.stringify(opts.user);
   const json = spec.jsonMode && opts.json !== false;
