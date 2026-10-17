@@ -836,7 +836,7 @@ COMMIT;
 `2026-01-05 waiting=0`（当天已判完、可以重排）、`01-01=1`、`01-02=2`、`01-03=1`、`01-04=1`、`03-02=1`、`07-19=1`、`07-20=1`、
 `05-04=2`、`05-05=2`、`07-06=2`、`09-20=2`、`05-03=3`、`08-23=3`、`02-02=4`；一月—九月 273 天的 `waiting` **合计 14,232 条**。
 
-### 第一百一十三轮 · 量具六处按现场改正（每一条都先错过一次）
+### 第一百一十三轮 · 量具十处按现场改正（每一条都是我先错过一次）
 
 | 错法 | 现场证据 | 正确读法 |
 | --- | --- | --- |
@@ -845,6 +845,9 @@ COMMIT;
 | `SELECT … ) day,` | `ERROR: syntax error at or near "day"` | `day` 是保留字，别名换成 `dk` |
 | 以为 `reports` 有 `readable` 列 | 查询直接报错 | 库里没有这一列，`readable` 是代码从 `content` 推的；要数期次厚度就取 `content->'sections'[*].items` 与 `content->'flashes'` 的长度 |
 | 数 `content` 里有没有"导语"用 `content ? 'lede'` | 已重排的期次照样返回 `false` | 那份 JSON 的顶层键是 `date, flashes, generator, highlights, lead, metrics, sections, windowEnd, windowStart` ⇒ 导语叫 **`lead`**（里面是 `{title, leadParagraph}`），叫 `lede` 永远数不到 |
+| **拿日报的形状去数周报与月报**（14:58 我自己踩的） | 一条 `sections[*].items` 的查询数出来"41 期周报、9 期月报**全是 0 条**"，差点被写成"周报月报都没有内容"这种大事 | 周报/月报根本没有 `sections`：顶层键是 `generator, headline, isoLabel 或 monthLabel, kind, metrics, overview, periodStart, periodEnd, storyOrder, themes, title`。**件数看 `storyOrder`（周报 40、月报 60），总述看 `overview`，分节看 `themes`**。现值（14:59）：周报 41 期里 36 期 `overview` ≥200 字、4 期没有、1 期 50 字；月报 9 期里 7 期 `overview` 341—443 字、`2026-03` 只有 35 字、`2026-04` 从来没有过 |
+| 看到某期"今天 revision 涨了但总述是空"就断言"重排把总述写坏了" | `report_revisions` 里 `2026-04` 的 r1…r4 的 `overview` 长度**全是 -1**，最早一条是 10-13 ⇒ 它从来没被写过，"写坏"是编出来的因果 | **先数归档行再下结论**：把每期 `report_revisions` 各 revision 的 `length(content->>'overview')` 列出来，"从无到有"和"从有到无"长得完全不一样。顺带一条真结论：制造那些 revision 的是 `scripts/recompose-report.ts:74`（reason=`copy-refresh`），今天上午对 `2026-03/04` 连跑 6 次只把 03 从"无"变成"35 字"、04 六次全空手 ⇒ **同一期反复重排在概览撞回退门时是无效的付费动作**（成员被 `pickMember` 的 sha256 取模钉死，撞的就是同一扇门） |
+
 | 在 `pgboss.job` 上做表达式关联 + 窗口函数 | `canceling statement due to statement timeout`（20 秒） | 只对 `name`/`state`/`priority` 过滤后取计数；一行一条的 `row_number()` 排在这台 2 核机上必然超时 |
 | `GEOHOT_PHASE_SECONDS=280` 跑一次性重排 | 打印"本轮时间预算用完，这一期没开始"，零付费调用、零写入 | `CALL_HEADROOM_MS = 300_000`，任何 ≤300 的相位秒都会**开工前就耗尽预算**；手动跑要 `GEOHOT_PHASE_SECONDS=1800` 起步 |
 | 一次性脚本里 `set -a; . ./.env` 之后再 `node --env-file=.env` | 出刊报 `LLM_EXTRA_JSON must be a JSON object`（`providers/llm.ts:49`），看着像代码坏 | **bash 会把带空格的值劈断**：同一条 `LLM_EXTRA_JSON`，source 之后长 23 字符且 JSON 解析失败，而 `node --env-file=.env` 自己读是 27 字符、`{reasoning_effort:…}` 正常成对象；而 `--env-file` **不覆盖已经在环境里的同名变量**，坏值赢。同类受害者还有 `.env` 第 53/56 行的两把 `WORKBUDDY*_CREDENTIAL_JSON`。跑法：要 SQL 就在子 shell 里 source（`DBU=$(set -a; . ./.env; printf '%s' "$DATABASE_URL")`），node 那份进程环境一律交给 `--env-file` |
