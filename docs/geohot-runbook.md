@@ -1963,3 +1963,13 @@ item 的 id 字段名：   itemId   （factId / firstParty / score / role / titl
 2. `report_revisions` **没有 `key` 列**（真实列：`report_id / revision / content / generated_at / reason`）——按期次查归档行数要先 join `reports`。上一条探针里那条 `\x27` 拼出来的语句也是同一族旧坑（远端 body 用 printf 拼引号不会被展开），这条已经错第三次，下次写探针一律用 Write 落文件、不要拼字符串。
 
 正文那两句跟着改了：`今夜重写 __EDITIONS__ 期` → **"今夜又重排 4 期，条数与昨天相同，这一遍白付"**（代价写进日志而不是写成成果），并加一条闸门：**发版时 `reprinted_since_0400` 一旦不等于 4 就拒绝发**——因为"条数与昨天相同"是我 04:35 逐期量出来的，08:00 当天日报也会被 `generated_at>=04:00` 计入，那时这句话就不再成立，必须重量。
+
+## 04:41 把"复位那步会不会自己把网站弄坏"查到底（两条都是推论，必须变实测）
+
+05:30 的复位是无人值守跑的，所以在它之前把两处依赖逐一实测，不靠"应该没问题"：
+
+1. **同类"按日期认门"的缺陷还有一处吗**：`grep -nE "date \+%F|\\$DAY|2026-10-1[0-9]" /opt/geohot/bin/r114-*.sh` 全量扫下来只有四行命中，其中**只有 `r114-heal.sh:13` 是拿日期当门**（已在 04:2x 补旗标修好）；`stop:30`、`restore:29` 是**写**日期旗标，不是读门，跨午夜不会自我关闭。清理脚本读的是 `r114-*.done.*` 通配（两份旗标一起收）。⇒ #275 的范围就是 heal 这一处，不用扩大。
+2. **`sed -i` 改 `.env` 会不会把属主改成 root**：`/opt/geohot/app/.env` 是 `-rw------- geohot:geohot`。restore 用 `sed -i -e 's/^COLLECT_ENABLED=.*/COLLECT_ENABLED=true/'`——**这条推断本来只能等 05:30 现场验**，但 20:56 的 stop 用的是同一行命令的反向版本，于是当场有了现成证据：改完之后文件仍是 `geohot:geohot mode=600`、61 行不缺，worker 在 20:57:39 重启后正常读到它（MainPID 活、NRestarts=0），`sudo -u geohot test -r` 也过。⇒ GNU sed 在这台机上**保留属主与权限**，复位那步安全，不用改脚本。
+   顺带一条 stop 脚本本来就有的好设计：它改完会自检（`:23` 若阀门没写成 false 或 worker 没活），失败就**把阀门改回 true**（`:25`）——关阀失败不会把网站留在关着的状态。
+
+单元状态也一并量了：`sample 05:15 / heal 05:35 / restore 05:30 / verify 05:50` 全部 enabled 且挂着，`stop` 已 disabled，`refresh` 下一次是 **10-19 04:30**（这正是"清理必须在今早 06:30 之后真的把六个单元删掉"的理由——否则明天 04:30 它还会自己再跑一趟重排）。
