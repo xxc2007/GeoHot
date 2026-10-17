@@ -1909,3 +1909,7 @@ item 的 id 字段名：   itemId   （factId / firstParty / score / role / titl
 - **真正的闲置在别处**：`embeddings` 表 **0 行**，`embedding` 门 24h **0 次尝试**，而 24h 的调用构成是 score 5,638 ∶ **prefilter 3,055** ∶ structure 1,713 ∶ understand 530——非翻译调用/判完条目 = **4.24**。也就是第 59 轮加固过的"向量缓存预筛"在生产上是惰性的：预筛现在是一次真 LLM 往返，不是本地向量比对，于是每条"这条不属于地理"都要付费判定（窗口内 `relevance=block` 占 260/1,031 ≈ 25%）。若这一层能本地拦掉，单作业墙钟从 ≈128 秒降到 ≈95 秒 ⇒ **槽位数不变、吞吐 +35%**。这是本轮唯一既没被额度也没被内存槽挡住的可得产能，缺的只是一把 embedding 凭据（与 #240「Jina 从来没有 key」同族）。已开 **#273** 记下算账、判据与"做成了应当看见什么"，等站长给键；我没有单方面引入凭据。
 
 顺带一条量具自纠：那条查 `pg_class` 的语句我写了 `ORDER BY 3` 而 select 只有两列（`ORDER BY position 3 is not in select list`）——和 `GROUP BY 1` 数到常量是同一族：**位置数的是 select 列表里的位置，包括常量和表达式**。
+
+**04:1x 就地更正（上一节那条 35% 是我安错的因果，撤回）**：我把"`embeddings` 0 行"当成了"预筛在付 LLM 往返"的成因，读完代码不成立——`providers/embeddings.ts` 的头注写明它**只服务事件归组的候选召回**（消费者是 `events/group.ts`、`events/relate.ts`；在 `editorial/` 与 `analysis/` 里 grep embeddings 零命中），而 `prefilter_article` 是设计内的模型调用（`editorial/analyze.ts:224`），且 **BLOCK 当场短路返回**、不再打分不再结构化（`:397`），窗口内 260/1,031 ≈ 25% 的行本来就只付这一次。⇒ "单作业 128 秒降到 95 秒、槽数不变吞吐 +35%" 是我推的，不是量到的，作废。生产的关闭方式也查清了：`.env` 显式 `EMBEDDINGS_ENABLED=false`，且 `EMBEDDING_API_KEY`/`DASHSCOPE_API_KEY`/`EMBEDDING_BASE_URL`/`EMBEDDING_MODEL` 一行都没有（`MODEL_CALLS_ENABLED=true`）——**这是主动关着的功能，不是漏配**。#273 已按事实改写，并写明"做成后该看见归组相关调用下降，而不是 prefilter 下降"。
+
+**这条错误的通用形状，记下来**：看见一个"惰性的东西"（表空、门零调用）就把它接成某个成本的成因，是今晚第三次同型错误（前两次：把全带速率当档案带速率、照内存态类型名 `id` 去 join 落库的 `itemId`）。**规矩：先读它的消费者是谁，再谈它省下什么。**
