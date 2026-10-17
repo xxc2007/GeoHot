@@ -1371,6 +1371,54 @@ unsettled=13854 queued=16746 judged60=120 zh60=12 calls60=654 redis20=42`。定�
 顺带把"窗口是不是限流器"量掉了：30 天窗口内的待翻正文 2,618 条，全表不限窗口 2,622 条 ⇒
 **窗口不是瓶颈，吞吐才是**（#219 那条单位之争仍然是另一件事）。
 
+### 第一百一十四轮 · 我自己把读者面打成 503，二十分钟后恢复（20:34—21:00，这是本轮最该记住的一段）
+
+**发生了什么。** 20:34 我把刚写好的"全站功能审查"脚本第一次跑在生产机上。它按 40 个 URL 逐个 curl（每个最长等 25 秒），
+里面包含两个**冷缓存的聚合接口** `/geohot/api/site/stats` 与 `/geohot/api/site/timeline`。到 20:37 守护的探测就成了
+`slow=4 … /geohot/=unreachable /geohot/all.data=unreachable /geohot/daily.data=unreachable`，20:41 起
+`why: http5xx=3`；到 20:44 机器 **load 17.85**（两核）、`MemAvailable` 掉到 56–69 MB、
+`journalctl` 里四分钟 **148 条 `timeout exceeded when trying to connect`**（应用侧连接池被抢光，#94 那次 seed 也是这一条）。
+**真实读者被影响**：nginx 里 503 落在 `/geohot/story/…`（来源是 Cloudflare 回源 IP，不是我的 127.0.0.1 探针），
+另有 3 条 `/geohot/og/stories/*.png` 打成 504。
+
+**根因两条，都在我这边，不在采集与判定。**
+1. **客户端超时不取消服务端查询。** `api.server.ts:43` 那道 15 秒只是让**请求**先返回 503，数据库里那条聚合还在跑。
+   我的探针 25 秒放弃一次，服务器就多留一条跑飞的 SELECT；我连着放弃几次，`pg_stat_activity` 里就同时挂着
+   105 s / 66 s / 65 s 的好几条（`count(*) FILTER (WHERE processing_state='new' …)`、
+   `to_char(a.timeline_at AT TIME ZONE 'Asia/Shanghai','YYYY-MM') …`、`fact_articles` 展开）。两核机器上这就够了。
+   ⇒ 这是**产品缺陷**，新开工单：给读者面/统计接口的 SQL 加**服务端** `statement_timeout`，别让探针留下跑飞的聚合。
+2. **档案周期本身在跑重聚合。** `geohot-archive.service` 那一轮 `phase=status-before` 用了 **3 分 19 秒**、
+   `select-slices` 再用 1 分 6 秒（20:48:36 起、20:53:02 才进 `collect-1`）。这与 #185/#201/#202 量到的是同一件事：
+   **读者面的尖峰真源是归档周期，不是判定并发**。我的探针只是压弯它的最后一根稻草。
+
+**我做的处置（按"先止血、再归因、最后加固"）。**
+20:55 停 `geohot-archive.timer` 与正在跑的 `geohot-archive.service`；关 `COLLECT_ENABLED` 阀门并重启 worker
+——**这就是原定 21:30 的那一整套动作，我提前 34 分钟执行了**，因为它既是回填独占窗口的正解、也是读者面止血的正解；
+写了带日期的停旗 `/etc/geohot/r114-stop.done.2026-10-17`，并 `disable --now r114-stop.timer` 防 21:30 二次触发。
+杀查询时只允许杀"纯 SELECT 且单语句"的后端（`query ~ '^\s*\(?\s*(SELECT|WITH)'`），
+带 `BEGIN;` / `INSERT` / `idle in transaction` 的一律不碰——第一遍加了 `xact_start = query_start` 的保险后
+**一条都没杀到**（跑飞那几条都在事务里），说明这条保险对真问题太严；第二遍放开到"纯 SELECT 即杀"，
+仍然没有命中 ⇒ 压力主要来自归档周期自己的阶段，被停掉之后 60 秒内 load 从 17.85 掉到 **1.64**。
+**结果**：`/geohot/` 5.27 s → **0.91 s**，`/daily` 1.65 s、`/hot` 0.14 s，守护 20:55 回到 `bad=0`。
+
+**顺带修的一处起不来风险。** 被我 `stop` 掉的 `geohot-archive.service` 落在 `failed` 状态（`Result=exit-code`），
+如果 05:30 的复位只 `systemctl start geohot-archive.timer`，定时器会照常排队但上一轮的失败计数还在 ⇒
+复位脚本里 `start` 之前补了一行 `systemctl reset-failed geohot-archive.service`。这是"动作命令单独判 `$?`、
+状态要显式复位"的同族教训。
+
+**给自己立的三条规矩（这轮之后不再靠记性）。**
+① **任何生产侧探针脚本必须先过负载闸门**：读 `/proc/loadavg` 的 1 分钟值，`> 核数×1.5` 就直接拒绝跑；
+串行、单路、每次一个页面，跑之前先看守护最后一行。这次的脚本我已经改掉：不再打 `stats/timeline/v1` 这三个聚合接口，
+`--max-time` 降到 8/10 秒，并且只在窗口内（采集已关、归档已停）跑。
+② **不要在白天打冷缓存的聚合接口**——`?cb=` 那种绕过 CDN 的写法等于自己造 503（#263 那条 404 缓存是同一族）。
+③ **探针的超时是客户端的，不是服务端的**，凡我要"放弃"一次请求，就得去 `pg_stat_activity` 确认它真的停了。
+
+**这一段的正面产出**：夜窗因为这次事故**提前 34 分钟开跑**，20:56 起 `collect=false`、归档定时器 `inactive`，
+到 05:30 复位 ⇒ 独占时长 **8 小时 34 分**（比计划的 8 小时多 34 分钟），而 #262 那笔算术账的分子不变、
+分母略增。取样器会在 :15 把这个窗口逐小时记下来。
+
+
+
 
 
 
