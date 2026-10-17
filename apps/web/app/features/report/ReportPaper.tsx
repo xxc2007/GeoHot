@@ -17,7 +17,7 @@ import { SourceAvatar } from "../../components/ui/SourceAvatar";
 import { Halftone } from "./Halftone";
 import { Nameplate } from "./Nameplate";
 import { IssueDots } from "./IssueDots";
-import { EDITION, KIND_LABEL, MOTTO, dateLine, dateMark, headline, isDue, issueNumber, leadCountLine, metricItems, neighbourLabel, reportPath, sectionHeading, shortDay } from "./format";
+import { EDITION, KIND_LABEL, MOTTO, dateLine, dateMark, headline, isDue, issueNumber, leadAbsentNote, leadCountLine, metricItems, neighbourLabel, reportPath, sectionHeading, shortDay } from "./format";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 /**
@@ -262,12 +262,14 @@ function FrontPage({ report, pages, leadStory, count, now }: { report: ReportDet
         <h2 className="mt-4 text-display font-display font-black leading-[1.28] tracking-[-0.03em] text-ink [text-wrap:balance] @[520px]:text-display-lg @[1040px]:text-display-xl @[1040px]:leading-[1.22]">
           {leadStory ? <CitationTitle c={leadStory}>{title}</CitationTitle> : title}
         </h2>
-        {dek && (
-          <div className={cover && !wide ? "mt-6 grid gap-6 @[640px]:grid-cols-[minmax(0,1fr)_minmax(0,38%)] @[880px]:mt-7" : ""}>
+        <div className={cover && !wide ? "mt-6 grid gap-6 @[640px]:grid-cols-[minmax(0,1fr)_minmax(0,38%)] @[880px]:mt-7" : ""}>
+          {dek ? (
             <p className={`text-[16.5px] leading-[1.9] text-ink-2 @[880px]:text-[17.5px] ${cover && !wide ? "" : "mt-6 @[560px]:text-justify @[880px]:mt-7"}`}>{dek}</p>
-            {cover && !wide && <LeadPicture cover={cover} title={title} onError={() => setBroken(cover.url)} />}
-          </div>
-        )}
+          ) : (
+            <p className="mt-5 text-[13.5px] leading-[1.8] text-ink-3 @[880px]:mt-6">{leadAbsentNote(report.kind)}</p>
+          )}
+          {cover && !wide && <LeadPicture cover={cover} title={title} onError={() => setBroken(cover.url)} />}
+        </div>
         {leadStory && (
           <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12.5px] text-ink-3">
             <Source c={leadStory} size={18} />

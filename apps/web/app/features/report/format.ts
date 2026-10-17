@@ -103,8 +103,7 @@ export function isDue(kind: ReportKind, key: string, now: number): boolean {
   return dueAt(kind, key) <= now;
 }
 
-const COUNT_LINE = /^本期共?\s*(\d+)\s*条([^：:。；\d]{0,12})[：:]/;
-/**
+const COUNT_LINE = /^本期共?\s*(\d+)\s*条([^：:。；\d]{0,12})[：:]/;/**
  * The lead's opening count has to be one the paper can back. The stub lead (and any model echoing the
  * brief it was handed) writes 本期共 N 条入选动态： and then names fewer than N, so the front page printed
  * a number its own sentence contradicted. `total` is what this issue actually carries on the page: the
@@ -120,6 +119,20 @@ export function leadCountLine(text: string, total: number): string {
   if (named === 0) return rest.trim(); // 冒号后什么都没有：宁可不出这段导语，也不留一句数不上来的计数
   if (named < total) return `本期共 ${total} 条${noun}，择要 ${named} 条：${rest}`;
   return `本期${noun}：${rest}`;
+}
+
+/**
+ * 「本期导读」这道眉标下面没有导读时要说一声。2026-10-17 实测 weekly 2026-W12/W16/W21/W30 与 monthly
+ * 2026-04 就是这样：眉标照印、标题走机械兜底（headline()），总述那一块整块不渲染，读者看不出是"没写"
+ * 还是"这里本来就没有"。措辞跟条目页那句同型（这一条还没有中文稿：……）——只报当前状态和读者现在
+ * 能看到什么，不承诺"稍后就有"：这几期重排两次，拿到的是同一份不可用的答复。
+ * 措辞按 kind 分叉：库里另有 9 期日报既没有 leadParagraph 也没有 overview，而日报那一块眉标是「头条」、
+ * 印的是「导语」，不能对读者说"这一期还没有总述"。
+ */
+export function leadAbsentNote(kind: ReportKind): string {
+  return kind === "daily"
+    ? "这一天的导语还没写出来：下面的事件按版面直排。"
+    : "这一期还没有总述：下面的条目按分节直排。";
 }
 
 
