@@ -1174,7 +1174,7 @@ today's paper as it was"说的就是这件事。⇒ 真正要拍的不是"闸门
 | 定时器 | OnCalendar | ExecStart | 干什么 |
 | --- | --- | --- | --- |
 | `r114-stop` | `*-*-* 21:30:00` | `r114-stop-realtime.sh` | `COLLECT_ENABLED=false` + 重启 worker + `stop geohot-archive.timer`，写 `/etc/geohot/r114-stop.done`，自我解除武装 |
-| `r114-refresh` | `*-*-* 04:30:00` | `r114-refresh.sh` | `backfill-papers --from=2026-01-01 --to=2026-09-30 --kinds=daily --refresh --apply`，外面 `timeout 900`、`--max-old-space-size=192`，摘要写 `/root/r114-refresh-*.json` |
+| `r114-refresh` | `*-*-* 04:30:00` | `r114-refresh.sh` | **两段半年各 1100 s**：`--from=2026-01-01 --to=2026-05-31` 与 `--from=2026-06-01 --to=2026-09-30`，`--kinds=daily --refresh --apply`；外面 `systemd-run --scope -p MemoryMax=260M -p CPUWeight=50 -p IOWeight=10` + `ionice -c3` + `--max-old-space-size=192`，摘要写 `/root/r114-refresh-<stamp>-<from>.json` |
 | `r114-restore` | `*-*-* 05:30:00` | `r114-restore-realtime.sh` | 三项复位 + 写 `r114-restore.done` + 解除自己与 refresh 的武装（**故意不动 verify**，它排在复位之后 20 分钟） |
 | `r114-verify` | `*-*-* 05:50:00` | `r114-verify.sh` | 落日志：阀门/worker/归档定时器现值 + 近 20 分钟重抓数 + Jan–Sep 未判完 + 昨夜被重排的历史期次数 + `MemAvailable` |
 
@@ -1200,7 +1200,7 @@ today's paper as it was"说的就是这件事。⇒ 真正要拍的不是"闸门
 （`receipts` 的 purpose 分布：score 1,309 ∶ prefilter 821 ∶ **translate_body 722** ∶ structure 595 ∶ understand 396 ∶ summarize 276 ∶ story_digest 269 ∶ group 234 ∶ report_lead 4）。
 ⇒ **不是腿坏了，是"每完成一篇要烧几次调用"变了**：午后 ≈110 次调用出 118 行（≈1 次/篇），现在 ≈5—8 次调用才出 1 行。
 
-机制写在 `editorial/translate.ts:468`：`ORDER BY p.discovered_at DESC LIMIT ${opts.limit ?? 30}`，
+机制写在**改动前**的 `editorial/translate.ts`（提交 `e3b85cb` 之前在第 467 行）：`ORDER BY p.discovered_at DESC LIMIT ${opts.limit ?? 30}`，
 外面是 `:478` 每轮 `budgetMs ?? 4 分钟` 与 `pgboss.schedule` 里 `cron.content.translate = */5 * * * *`（确认在排、`last_job` 更新于 17:31:57）。
 ⇒ **每轮只从"最近发现的 30 条"里挑**。今天档案带独占、17:32 进口又重启，"最近发现"那一档正是**首导的过刊长文**，
 一轮 4 分钟的预算全花在巨型文章的分段上，短文章排在 30 条之外一整轮轮不到 ⇒ 行数（=完成篇数）掉 7 倍，调用数几乎不变。
@@ -1270,11 +1270,15 @@ today's paper as it was"说的就是这件事。⇒ 真正要拍的不是"闸门
 推送前对 63 个提交的载荷跑了一遍密钥形态扫描，两条命中都是假阳：一条是 CJK 斜杠词串撞了 base64 正则，
 一条是注释里的 `WORKBUDDY_API_KEY=local-workbuddy` 占位符。
 
-**把 04:30 那一趟重排拆成两个半年，是因为"截断的整年扫描"会静默饿死九月。** 原来一条
-`timeout 900` 的 `backfill-papers.ts --from=2026-01-01 --to=2026-09-30 --refresh`，walk 从一月开始，
-超时就从一月重来——一月若吃掉 15 分钟，九月永远排不到（和"多门共享一次调用要把配额按门数放大"同一族）。
-现在 `run_half 01-01..05-31 1100` + `run_half 06-01..09-30 1100`，两段各自有预算、串行不重叠，
-最坏 05:10 收工，仍在 05:30 复位之前。备份留在 `/opt/geohot/bin/r114-refresh.sh.bak-114040`。
+**撤回 19:40 那句"拆两段是为了防九月被饿死"——独立复核把理由证伪了。** 我说"截断的整年扫描会从一月重来、
+九月永远排不到"，可台账里我自己记着：`--from=2026-01-01 --to=2026-09-30 --kinds=daily --refresh --apply`
+在 `timeout 1000` 下 **8 分 21 秒就跑完全程、rc=0**（runbook 那天那段）；而且 `backfill-papers.ts` 自己有
+预算停止（到点 `exit 0` 而不是被 kill），所以"被 timeout 砍断就会从一月重来"这个前提也不成立。
+**拆两段照做，但理由改成实的**：`1100 + 1100 s` 给每半年一个独立的、可观测的预算，谁的摘要文件没生成
+就用 `refresh-end rc=` 立刻看出来（第一版 `echo "… rc=$?"` 里 `$(date)` 会把 `$?` 洗成 0，已改）；
+最坏 05:06:40 收工，仍在 05:30 复位之前。备份 `r114-refresh.sh.bak-114040` 与 `.bak-preIonice` 都在。
+另：`scripts/recompose-report.ts` 头部那句"versioned and reversible"也改成了实话（只留版本归档、回退要手写 SQL），
+这是**注释级**改动，生产上那份要等下一船代码一起换（现在属注释漂移，不影响运行）。
 
 **新装的每小时取样器第一版自己就是假绿的，已改掉。** 一条语句里塞 6 个相关子查询，在负载 2.4、
 可用内存 59 MB 的机器上撞了 `statement_timeout` 死掉——但脚本仍 `exit 0` 并往日志里写了一行"看起来健康"的记录
@@ -1305,6 +1309,163 @@ unsettled=13854 queued=16746 judged60=120 zh60=12 calls60=654 redis20=42`。定�
 `GEOHOT_TRANSLATE_CONCURRENCY=3`、`geohot-archive.timer` enabled+active、`geohot-conc-guard.timer` enabled+active
 （`systemctl is-active geohot-conc-guard` 返回 inactive 是因为没有同名 service，单元名带 `.timer`——别再把这条读成"守护没跑"）、
 守护最近三次探测 `conc=4 translate=3 err5xx6m=0`。队列 16,746 条 `created` + 4 条 `active` + 1 条 `retry`。
+
+### 第一百一十四轮 · 独立复核抓出我脚本里两处"会静默骗人"的 bug（20:09—20:27）
+
+我另起两路只读智能体做夜窗前的一次对抗审查。其中一路专门审"这一晚会不会让站点停在关闭态起不来"，
+抓到六条，四条是真的，全部已改：
+
+**1. `echo "... rc=$?"` 永远记 0。** 我把 `$(date -Is)` 写在同一个 `echo` 里，命令替换先跑并把 `$?` 洗成 0，
+`timeout` 的 124、OOM、库错误全被记成成功，而脚本没有 `-e`，第一段失败照样跑第二段。
+⇒ 改成 `timeout … ; rc=$?; echo … rc=$rc`，并给 `refresh` 补上 `exec >> "$LOG" 2>&1`
+（它原来只把 psql/node 的输出接进日志，`cd` 失败之类的错误只进 journal，等于看不见）。
+**同一族的坑我这轮已经踩过两次**（`grep -c "match "` 数到 no-match、`is-active` 读不存在的单元返回 inactive），
+所以这条不是"下次注意"，是"凡是用 `$?` 就必须单独一行判"。
+
+**2. backstop 里 `[ "$NOW" -gt 0900 ]` 被按八进制解析。** `0900` 含 9 ⇒ `strtol` 停在首位 ⇒ 值 0 ⇒
+判据恒真 ⇒ **兜底脚本每半小时把阀门偷偷打开**，整晚窗口白跑，而且它自己会写成"已经复位"。
+发现方式不是说读，是把新旧两种写法摆成一张真值表逐点跑：
+`0500/0530/0600/0900/0930/2010/2330` 七个点上，旧写法在 0530–0900 全部判"跳过"（等于永远不兜底）、
+在 2010/2330/0500 判"动手"（等于半夜偷开门）；新写法 `n=$((10#$NOW))` 后只在 0530–0900 动手。
+⇒ 凡是拿 `%H%M` 做数值比较，左边一律 `10#` 强制十进制，右边不写前导 0。
+
+**3. 复位脚本在证明自己成功之前就把重试机会删掉了。** 原来 `touch` 旗标和 `disable --now` 三个定时器
+排在 `sed`/`restart` 之后但没有判据：`sed` 失败、worker 起不来（它有 ~285 s 优雅排空，崩环时是
+`activating`/`failed`）、`start geohot-archive.timer` 被 `2>/dev/null` 咽掉——任何一种都会照常落旗、
+自我拆掉，日志留下一句"restored … worker=failed"。⇒ 改成三件都证明 good（阀门 true + worker active +
+归档定时器 active，最多重试 6×10 s）才落旗拆定时器，否则 `exit 1` 把定时器留着。
+
+**4. 关阀这一步本来可能被开机的重放执行。** 四个定时器都 `Persistent=true`：如果机器在夜里重启，
+开机时四个已过期定时器一起补跑，顺序不由我控制，`stop` 排在 `restore` 之后 ⇒ 阀门被关上而复位已经自我拆掉，
+站点从此停在关闭态，第二晚因为旗标已存在也不会再开。⇒ 三层：`r114-stop.timer` 改 `Persistent=false`
+（错过一次"关"无所谓，错过一次"复位"要命）；关阀脚本加时钟闸——只有 21:xx/22:xx 才允许动手，
+其余时候写一行 `stop-skipped hour=NN` 退出；再新增 `r114-heal.timer`（每小时 :35）作为兜底，
+它只在"本轮自己写下的停旗存在 + 阀门确实是 false + 时间在 05:30–09:00"三个条件同时成立时才复位，
+所以它**不会**把人工按下的暂停偷偷打开。旗标也改成带日期（`r114-stop.done.2026-10-17`），避免昨夜的状态骗过今夜。
+
+**5. 三条被我自己算账否掉的：** 复核说 `ExecStart` 与脚本名可能不一致——我的单元文件实际写的是
+`r114-restore-realtime.sh`，是从生产读出来的，无此问题（这条是提示词里我给的缩写模板造成的）。
+说 `--refresh` 可能压过 05:30 复位——两段时间预算是 1100+1100 s ⇒ 最晚 05:06:40 收工，压在复位之前。
+说半程失败要靠日志看——现在 `rc` 单独判了，`124` 会明写。
+
+**兜底脚本两条分支都用假 env 文件端到端跑过，没碰生产**：
+`heal-skipped window=05:30-09:00 now=2017 valve=COLLECT_ENABLED=false`（真时钟 + 假关阀 ⇒ 正确不动手）、
+`heal-action … restoring realtime / heal-dryrun stop-here`（假时钟 0600 + 假关阀 ⇒ 正确转交复位）、
+无停旗时静默 `exit 0`；测完生产 `COLLECT_ENABLED=true`、worker/归档定时器都 active、
+`/etc/geohot` 只剩 `archive-cycle.conf`，临时目录已删。**教训记法：验证一条保护逻辑，要拿"必然让它动手"的输入去验，
+光看它安静退出等于没验**——这跟 13:1x 那条"新判据先在非零样本上证活"是同一条。
+
+**20:14 那一次 `bad=1` 不是窗口的账，是内存的账。** 守护的判据在源码里读清楚了：
+`bad` 由六个来源之一置位（`$FORCE` 文件 / 任一探测 5xx / `slow≥2` / 单样 `>FLOOR_MS(8000)` / `avail<AVAIL_MIN` / `err5xx60m`），
+`slow` 是 `>SLOW_MS(5000)` 的样本数。20:14:41 与 20:19:43 两行是
+`why: floor seen: /geohot/=8380ms` 与 `8179ms`，当时 `availMB=59/56`、`swapMB≈860–890`；
+20:24:54 回到 `bad=0 availMB=72`。对照下午：15:54 7.3 s、16:55 `slow=2` 触发 floor、17:56 7.35 s、18:46 7.13 s——
+**都是"实时开着"的时候**。⇒ 结论要写清楚：夜窗本身不额外吃内存（同样 4 个槽，只是把实时作业换成档案作业），
+真正比现在多出来的那一块是 04:30 那趟重排的**第 5 个 node 进程**（`--max-old-space-size=192`，2 核 891 MB 的机器）。
+所以给它套了 cgroup 与 I/O 等级：`timeout "$budget" systemd-run --scope -p MemoryMax=260M -p CPUWeight=50 -p IOWeight=10 /usr/bin/ionice -c3 node …`
+——直接对着 10-15 那次 503 的机理（page cache 被打穿 + P6 240 IOPS 写墙）让路，而不是靠时段运气。
+两个工具的存在与包装命令能真正拉起都先证过（`ionice /usr/bin/ionice`、`systemd-run /usr/bin/systemd-run`、
+`wrapper-works`），备份 `r114-refresh.sh.bak-preIonice`。
+
+**翻译腿上线后的第一批读数（样本还短，按"方向对但不算证成"来记）**：
+19:49 起 26 分钟里 `translations` +9 行、`receipts` 里 translate 用途 +33 次；尝试台账 13 条里 `translated` 10、`partial` 3。
+按同一把尺的比值：18:00 那一小时（部署前）4 行 / 43 次 = **10.8 次调用每行**，19:00 之后 18 行 / 71 次 = **3.9**，
+行数从 4/时 到 9 行/26 分（≈21/时）。**但这不能当结论用**：19:00 那一小时里 49 分钟仍是旧代码，
+真正的判据要等 21:00、22:00 两个整点，以及整晚 :15 的取样序列。
+顺带把"窗口是不是限流器"量掉了：30 天窗口内的待翻正文 2,618 条，全表不限窗口 2,622 条 ⇒
+**窗口不是瓶颈，吞吐才是**（#219 那条单位之争仍然是另一件事）。
+
+### 第一百一十四轮 · 我自己把读者面打成 503，二十分钟后恢复（20:34—21:00，这是本轮最该记住的一段）
+
+**发生了什么。** 20:34 我把刚写好的"全站功能审查"脚本第一次跑在生产机上。它按 40 个 URL 逐个 curl（每个最长等 25 秒），
+里面包含两个**冷缓存的聚合接口** `/geohot/api/site/stats` 与 `/geohot/api/site/timeline`。到 20:37 守护的探测就成了
+`slow=4 … /geohot/=unreachable /geohot/all.data=unreachable /geohot/daily.data=unreachable`，20:41 起
+`why: http5xx=3`；到 20:44 机器 **load 17.85**（两核）、`MemAvailable` 掉到 56–69 MB、
+`journalctl` 里四分钟 **148 条 `timeout exceeded when trying to connect`**（应用侧连接池被抢光，#94 那次 seed 也是这一条）。
+**真实读者被影响**：nginx 里 503 落在 `/geohot/story/…`（来源是 Cloudflare 回源 IP，不是我的 127.0.0.1 探针），
+另有 3 条 `/geohot/og/stories/*.png` 打成 504。
+
+**根因两条，都在我这边，不在采集与判定。**
+1. **客户端超时不取消服务端查询。** `api.server.ts:43` 那道 15 秒只是让**请求**先返回 503，数据库里那条聚合还在跑。
+   我的探针 25 秒放弃一次，服务器就多留一条跑飞的 SELECT；我连着放弃几次，`pg_stat_activity` 里就同时挂着
+   105 s / 66 s / 65 s 的好几条（`count(*) FILTER (WHERE processing_state='new' …)`、
+   `to_char(a.timeline_at AT TIME ZONE 'Asia/Shanghai','YYYY-MM') …`、`fact_articles` 展开）。两核机器上这就够了。
+   ⇒ 这是**产品缺陷**，新开工单：给读者面/统计接口的 SQL 加**服务端** `statement_timeout`，别让探针留下跑飞的聚合。
+2. **档案周期本身在跑重聚合。** `geohot-archive.service` 那一轮 `phase=status-before` 用了 **3 分 19 秒**、
+   `select-slices` 再用 1 分 6 秒（20:48:36 起、20:53:02 才进 `collect-1`）。这与 #185/#201/#202 量到的是同一件事：
+   **读者面的尖峰真源是归档周期，不是判定并发**。我的探针只是压弯它的最后一根稻草。
+
+**我做的处置（按"先止血、再归因、最后加固"）。**
+20:55 停 `geohot-archive.timer` 与正在跑的 `geohot-archive.service`；关 `COLLECT_ENABLED` 阀门并重启 worker
+——**这就是原定 21:30 的那一整套动作，我提前 34 分钟执行了**，因为它既是回填独占窗口的正解、也是读者面止血的正解；
+写了带日期的停旗 `/etc/geohot/r114-stop.done.2026-10-17`，并 `disable --now r114-stop.timer` 防 21:30 二次触发。
+杀查询时只允许杀"纯 SELECT 且单语句"的后端（`query ~ '^\s*\(?\s*(SELECT|WITH)'`），
+带 `BEGIN;` / `INSERT` / `idle in transaction` 的一律不碰——第一遍加了 `xact_start = query_start` 的保险后
+**一条都没杀到**（跑飞那几条都在事务里），说明这条保险对真问题太严；第二遍放开到"纯 SELECT 即杀"，
+仍然没有命中 ⇒ 压力主要来自归档周期自己的阶段，被停掉之后 60 秒内 load 从 17.85 掉到 **1.64**。
+**结果**：`/geohot/` 5.27 s → **0.91 s**，`/daily` 1.65 s、`/hot` 0.14 s，守护 20:55 回到 `bad=0`。
+
+**顺带修的一处起不来风险。** 被我 `stop` 掉的 `geohot-archive.service` 落在 `failed` 状态（`Result=exit-code`），
+如果 05:30 的复位只 `systemctl start geohot-archive.timer`，定时器会照常排队但上一轮的失败计数还在 ⇒
+复位脚本里 `start` 之前补了一行 `systemctl reset-failed geohot-archive.service`。这是"动作命令单独判 `$?`、
+状态要显式复位"的同族教训。
+
+**给自己立的三条规矩（这轮之后不再靠记性）。**
+① **任何生产侧探针脚本必须先过负载闸门**：读 `/proc/loadavg` 的 1 分钟值，`> 核数×1.5` 就直接拒绝跑；
+串行、单路、每次一个页面，跑之前先看守护最后一行。这次的脚本我已经改掉：不再打 `stats/timeline/v1` 这三个聚合接口，
+`--max-time` 降到 8/10 秒，并且只在窗口内（采集已关、归档已停）跑。
+② **不要在白天打冷缓存的聚合接口**——`?cb=` 那种绕过 CDN 的写法等于自己造 503（#263 那条 404 缓存是同一族）。
+③ **探针的超时是客户端的，不是服务端的**，凡我要"放弃"一次请求，就得去 `pg_stat_activity` 确认它真的停了。
+
+**这一段的正面产出**：夜窗因为这次事故**提前 34 分钟开跑**，20:56 起 `collect=false`、归档定时器 `inactive`，
+到 05:30 复位 ⇒ 独占时长 **8 小时 34 分**（比计划的 8 小时多 34 分钟），而 #262 那笔算术账的分子不变、
+分母略增。取样器会在 :15 把这个窗口逐小时记下来。
+
+### 第一百一十四轮 · 窗户的头 72 分钟判的全是实时带——历史带要等到 ≈00:40 才轮到（22:08 实测）
+
+这是今晚最容易被误读的一笔账，先钉死再睡。窗口内 72 分钟判完 **187 条**（≈156 条/时，比白天 128.7 秒/条折算的
+112 条/时更好），但 `unsettled_jan_sep` **纹丝不动**：20:56 是 13,873，21:15 是 13,873，22:08 还是 13,873。
+按带拆开才看清：**这 187 条全是 `today` 带（优先级 0）**，jan_sep 一条没判。队列现值：
+
+| 优先级 | 带 | 队列里还有 | 含义 |
+|---|---|---|---|
+| 0 | 实时 | **412** | 17:32 复位到 20:56 之间进口、还没判完的实时条目 |
+| −1 | 档案 | **12,614** | 一月—九月主体 |
+| −2 | 迟到新闻 | **3,865** | 新闻日期在一月—九月、却被分到迟到带（#257） |
+
+派发是 `priority DESC, created_on`，所以 **0 带不排空，−1 带一条都不动**。按 156 条/时算，412 条还要 **≈2.6 小时**
+⇒ 历史带真正开跑在 **约 00:40**，今晚能分给它的只有 ≈4 小时 50 分 ⇒ 档案带产出 **≈700 条**，
+加上 0 带 412 条，整夜约 **1,100 条**判完。**这不是浪费**：那 412 条正是"暂停实时期间/混合运转期间漏掉的实时信息"，
+补它属于任务书里"补充缺失的实时信息"那一条；但它把 #262 的"一晚 ≈ −1,100 条历史存量"修正成
+**"一晚 ≈ −700 条历史存量"**（0 带那 2.6 小时历史带是零产出的）。于是账变成两档：
+**实时带排空着开窗 ⇒ 13,873 ÷ 1,100 ≈ 13 个夜窗；实时带有 ≈400 条尾巴 ⇒ 13,873 ÷ 700 ≈ 20 个夜窗**。
+今晚是后者。**以后报"还要几晚"必须先看窗口开跑那一刻 0 带还剩多少**，不然区间会差一倍。
+
+顺带记两条量具事实：① `unsettled_jan_sep` 这把尺子**只对"判完之后拿到 publications 行"的条目减少**，
+所以"判了 187 条但尺子没动"不等于没干活——要看 `judged_by_band`；② 队列里 `jan_sep` 行共 **13,899 条**
+（−1 带 12,614 + −2 带里的一部分），另有 2,375 条 other、616 条 today，合计 16,891 条 `created`，
+与取样器的 `queued` 对得上。**以后报"还剩多少历史"必须连着带号一起报，光报总数会被这 3,865 条骗。**
+
+**翻译腿在窗口里只有 5 条/时，但这不是"停了"，是"全在啃长文"——而且这件事今晚可以验。** 20:56—22:10 的 74 分钟里：
+`translations` 只 +5 行，可 `receipts` 里 `translate_body` 花了 **96 次** ⇒ **19.2 次调用/篇**；5 条尝试全是 `partial`。
+把这个数放到墙钟上就通了：一次 translate_body 平均 ~130 秒、3 路并发 ⇒ 这条腿的**天花板 ≈83 次调用/时**，
+实际 87 次/时 ⇒ **它已经跑在自己的墙上，不是被判定抢了槽**。问题是"这 96 次调用换回来 5 篇半成品"：
+新查询的两半是 `ORDER BY by_fresh` 在前 ⇒ 每轮 3 条 lane 全被最**新**的那批长文占住，而一篇 19 批的长文要跨
+≈10 轮（50 分钟）才能凑齐，期间 `translation_attempts.attempts` 涨到 3 就被排除——于是它**永久停在 partial**（#231 的
+`OR NOT tr.complete` 让它能重试，但 `attempts >= 3` 又把门关上）。**不去改它**，理由有二：
+① 我把顺序改成"短文优先"会让新到的长文**永远排不到**，那等于用读者的新鲜度换完成数；
+② 这条腿的成本单位正是 #219 那条待拍板的事（预算按 HTML 字符、渲染按文本字数），今晚动它属越权。
+**留一个可证伪的预测**：两半的顺序决定了"先啃 15 篇长文、再扫 15 篇短文"，按每轮 3 篇、长文 3 次上限，
+**约 00:30 前后短文那一半应该接手，届时 `translations` 的行数会从 5 条/时跳到 20—30 条/时**——
+如果 00:40 的取样没跳，就说明我对"两半怎么被消耗"的理解是错的，那才是要修的东西。
+
+
+
+
+
+
+
+
 
 
 
