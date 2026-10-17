@@ -69,7 +69,7 @@ if (kind === "daily") {
 }
 
 if (!values.apply) {
-  console.log("（dry run：没有改库。要重排请加 --apply；旧版会写进 report_revisions，可回滚）");
+  console.log("（dry run：没有改库。要重排请加 --apply；旧版会写进 report_revisions，但仓库里没有回退通道——回退要手写 SQL 把那一行的 content 写回 reports）");
 } else {
   const res = kind === "daily" ? await composeDaily(key, "copy-refresh") : kind === "weekly" ? await composeWeekly(key, "copy-refresh") : await composeMonthly(key, "copy-refresh");
   console.log(`已重排：${JSON.stringify(res)}`);

@@ -540,7 +540,11 @@ quota 型与速率型的 429 走同一条重试阶梯；给档案一次性开闸
 报纸侧现有 `daily` 15 期（2026-09-25…10-09）、`weekly` 2 期（W39—W40）、`monthly` 1 期（2026-09）。
 **采集比判定快两个数量级**，这句是本轮之后所有"为什么还不出 1 月的报纸"的答案，不用重查。
 
-**回滚**：档案材料一律带 `backfill_reason = 'archive'` 且 `article_discoveries.via = 'import'`，一条 SQL 能整批摘掉，同时清 `archive_ingest`；期刊回到 `report_revisions` 的上一版。删之前先 `pg_dump`，与 `deploy/geohot/rollback.sh` 的约定一致。
+**回滚**：档案材料一律带 `backfill_reason = 'archive'` 且 `article_discoveries.via = 'import'`，一条 SQL 能整批摘掉，同时清 `archive_ingest`；
+期次那一层要退回 `report_revisions` 的上一版，**注意这一步没有现成脚本**（全仓 `grep` 没有任何把 `report_revisions.content` 写回 `reports` 的
+INSERT/UPDATE，`scripts/recompose-report.ts:72` 那句"可回滚"是文案，113 轮已把它改成明说"回退要手写 SQL"），
+手工回退的动作是 `UPDATE reports SET content=(那一版的 content), revision=revision+1 WHERE kind=$1 AND key=$2`，先把当前版也补一行归档再改。
+删之前先 `pg_dump`，与 `deploy/geohot/rollback.sh` 的约定一致。
 
 
 **第六十五轮的档案面（2026-10-10 11:20–11:30 北京，生产实测）**：中文过刊这扇门从一家变成七家
@@ -779,7 +783,7 @@ sudo systemctl list-timers --all            # 档案 timer 与 api/web/brain 不
      八月的档案条目要经月历卡/日期入口才到得了 ⇒ 报告时别写成"精选流里立刻可见"。
    - **已印出的 1—9 月期次不会因为多了几条就自己变厚**：必须显式 `backfill-papers --refresh --apply`（第 110 号工单）。
      **这一条今天已经走通了第一期**：14:07 的只读排程里 273 天中唯一 `waiting=0` 的 `2026-01-05`，14:19 重排后
-     分节条目 4 → 8、`revision` 1 → 2、旧版整份进 `report_revisions`（可回滚），成本 **≈1 次 `report_lead` 调用 / 墙钟 ≈53 秒**，
+     分节条目 4 → 8、`revision` 1 → 2、旧版整份进 `report_revisions`（**回退要手写 SQL，仓库里没有回退通道**，见下面"可回滚"那条改正），成本 **≈1 次 `report_lead` 调用 / 墙钟 ≈53 秒**，
      读者侧 8—9 分钟后在 `/geohot/daily/2026-01-05` 看得到（细节见本节末的试点记录）。⇒ "1—9 月全部重排"的**钱不是门槛**
      （273 期 ≈273 次调用），门槛是每条期次那一天最后一条判完。它仍是读者面可见的内容改写，**成片重排要站长点头**：
      常规做法是夜里把 `archive-cycle.conf` 的 `FINAL_REFRESH` 设成 1 让周期自己带 `--refresh`，而不是再手写一个循环。
@@ -912,7 +916,7 @@ BLOCK 只花 1 次；没有配门槛（`threshold===null`）时不打分＝3 次
 | `reports.revision` | 1 | **2** |
 | 分节条目 `sections[*].items` | 4 | **8** |
 | `generated_at` | 2026-10-13 07:36:52+08 | 2026-10-17 14:20:07+08 |
-| `report_revisions` 归档行 | 0 | **1**（`reason='archive-backfill'`，`revision=1`，旧内容 4 条原样在里面 ⇒ 可回滚） |
+| `report_revisions` 归档行 | 0 | **1**（`reason='archive-backfill'`，`revision=1`，旧内容 4 条原样在里面 ⇒ 回退有据可依，但**要手写 SQL**，仓库里没有回退通道） |
 | 读者侧 `/api/site/reports/daily/2026-01-05` | — | **200 / 0.94 s / 25 KB**，`readable=true`，`lead.title="调水调沙使黄河三角洲由退缩转为年均扩张 6–7 km²"`，导语是真中文（不是占位句） |
 
 **重排一期的真实花费 ≈ 1 次付费调用**：那 80 秒窗口的账上有 15 次调用，其中属于出刊腿的只有 `workbuddy / report_lead` 一次，
@@ -969,9 +973,15 @@ BLOCK 只花 1 次；没有配门槛（`threshold===null`）时不打分＝3 次
 | 2026-01-11 | 7 | 7 | 7（`lead` 为空 ⇒ 头版走机械兜底，印的是真中文标题「夜间灯光动态揭示成渝都市圈城郊亮化与人口脱钩」+ 正文段，不是占位句） |
 | 2026-01-12 | 4 | 4 | 4 |
 
-⇒ **`lead=null` 不等于读者看到空页**：`ReportPaper` 的头版会退到"当期第一条事件的标题+首段"，
-只有连那块都空时才印 `leadAbsentNote` 那句话（`format.ts:132-136`）。验收"重排到底有没有兑现到读者脸上"，
-数**页面里的条目链接**和 v1 的 `sections` 就够，不必开浏览器。
+⇒ **`lead=null` 不等于读者看到空页**：头版那块的取值链是
+`ReportPaper.tsx:248` `title = report.lead?.title ?? leadStory?.title ?? headline(...)`、
+`:250` `rawDek = report.lead?.leadParagraph ?? leadStory?.summary ?? report.overview`，而 `leadStory` 只在
+**日报且 `report.lead` 为空**时才非空（`:193-195`：`if (report.lead || report.kind !== "daily") return null`，取的是 `highlights[0]`，
+再退到第一个有条目的分节）。**`leadAbsentNote`（`format.ts:132-136`）的触发条件只有一个：`dek` 为假（`:266-269`）**——
+跟标题空不空无关（标题永远还有 `headline()` 这一层机械兜底），也跟 `lead` 对象在不在无关：
+`??` 不会跳过空串，所以**`lead` 存在但 `leadParagraph` 是空串**时 `rawDek` 就是 `""`、`leadStory` 又必然是 `null`，
+那句话照样会印出来。周报/月报同理，只是它没有 `leadStory` 这一层，兜底只剩 `report.overview`。
+验收"重排到底有没有兑现到读者脸上"，数**页面里的条目链接**和 v1 的 `sections` 就够，不必开浏览器。
 
 ### 第一百一十三轮 · 窗口全天的逐小时账（17:05 复量，把 106 那句快照补成整天的形状）
 
@@ -1022,9 +1032,14 @@ BLOCK 只花 1 次；没有配门槛（`threshold===null`）时不打分＝3 次
 ⇒ **"判完一天重排一天"对早月有个硬前提**：`unsettled()`（`backfill-papers.ts:140-147`）数的是那一天窗口里的**全部**未判完行，
 不分带。所以一月的日子哪怕档案带里那几十条判完了，只要它那 48 条还在 −2 带排队尾（要等 −1 带 12,379 条流干，按 106—160 篇/时 ≈ **78—117 小时**），
 那一天就永远 `waiting>0`、`--refresh` 就不问。**这不是"少排几条"的误差，是早月能否结算的前件。**
-仓库里受支持的通道是 `scripts/rebalance-archive-queue.ts`（−2→−1），但它**只抬 priority、不动 `created_on`**
-（文件头注释写明"只影响之后创建的作业"）⇒ 抬完必须再做一次我 13:11 那套"按 `timeline_at` 重排 `created_on`"，
-否则两批 `created_on` 混在一个带里，我下午刚证的 0 逆序就作废。**这一步故意留到复位之后、且单独重量逆序与 pinned 再做**，
-不在 worker 重启的当口动共享队列。
+
+**仓库里那条"受支持的通道"对这一族不管用**（17:36 逐行读过 `scripts/rebalance-archive-queue.ts` 才改的口）：
+它的 `WHERE` 是 `state='created' AND priority < -1 AND data->>'articleId' IN (SELECT id FROM articles WHERE backfill_reason='archive')`
+⇒ 它搬的是**已经排队的、`backfill_reason='archive'` 的**行（文件头 `:1` 就是"already waiting"，`:3-4` 那句
+"That only applies to jobs created after the change"讲的是 `content.ts` 的入队次序改动、不是这个脚本的作用范围——
+我 17:24 那一版把这两件事混了，已按源码改正）。**上面那 1,380 条按定义就不是 `archive`**，所以这个脚本一条都搬不到它们。
+要把它们提进档案带，只剩两条路：改归类口径（`backfill_reason` 是谁写的、为什么这批迟到新闻没被打上 `archive`，属政策题），
+或者做一条**仓库里不支持**的队列 `UPDATE`。⇒ 这条归站长拍，我不自行动共享队列；真要做还得配上我 13:11 那套 `created_on` 按 `timeline_at` 重排与逆序复量，
+否则两批 `created_on` 混在一个带里，下午刚证的 0 逆序就作废。
 
 
