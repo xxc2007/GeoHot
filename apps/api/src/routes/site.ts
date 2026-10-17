@@ -1,3 +1,4 @@
+import { PublicReadBusyError } from "@aihot/backend/publication/read-budget";
 // First-party site API (/api/site/*). Not public, not versioned, never called /api/v2.
 // Reads through the same public read layer as v1; no cookies are read or set.
 import { FEATURES } from "@aihot/industry/features";
@@ -52,7 +53,7 @@ export function siteHandler(fn: Handler): Handler {
     } catch (error) {
       if (error instanceof BadRequest) return sendProblem(req, reply, { status: 400, code: "invalid_request", detail: error.message });
       if (error instanceof InvalidCursorError) return sendProblem(req, reply, { status: 400, code: "invalid_cursor", detail: error.message });
-      if (error instanceof SearchBusyError) {
+      if (error instanceof SearchBusyError || error instanceof PublicReadBusyError) {
         return sendProblem(req, reply, { status: 503, code: "temporarily_unavailable", detail: "search busy", retryAfter: error.retryAfter });
       }
       req.log.error({ err: error, path: req.url.split("?")[0] }, "site api error");

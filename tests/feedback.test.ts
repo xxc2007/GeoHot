@@ -1,7 +1,7 @@
 // Feedback reaches the internal Feishu chat with its screenshot even when Feishu fails at first: a
 // failed upload or send is tried again, only the Feishu image key is kept, a screenshot that cannot be
 // uploaded for a day is dropped (the text still goes), and imported feedback is never forwarded again.
-import { tag } from "./setup.ts";
+import { tag, gate } from "./setup.ts";
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -20,12 +20,18 @@ process.env.FEISHU_INTERNAL_CHAT_ID = "oc_test";
 
 // Feishu's message app, answered here: uploads and sends fail while the switches say so.
 const feishu = { uploadFails: false, sendFails: false, sent: [] as Array<{ title: string; content: unknown[][] }> };
+let uploadHold: ReturnType<typeof gate<void>> | undefined;
+let uploadEntered: ReturnType<typeof gate<void>> | undefined;
+let uploadCount = 0;
 const realFetch = globalThis.fetch;
 globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
   const url = String(input instanceof Request ? input.url : input);
   if (!url.startsWith("https://open.feishu.cn/")) return realFetch(input, init);
   if (url.endsWith("/auth/v3/tenant_access_token/internal")) return Response.json({ code: 0, tenant_access_token: "t", expire: 7200 });
-  if (url.endsWith("/im/v1/images")) return Response.json(feishu.uploadFails ? { code: 99, msg: "upload broken" } : { code: 0, data: { image_key: `img_${T}` } });
+  if (url.endsWith("/im/v1/images")) {
+    uploadCount++; uploadEntered?.open(); await uploadHold?.promise;
+    return Response.json(feishu.uploadFails ? { code: 99, msg: "upload broken" } : { code: 0, data: { image_key: `img_${T}` } });
+  }
   if (url.includes("/im/v1/messages")) {
     if (feishu.sendFails) return Response.json({ code: 99, msg: "send broken" });
     const content = JSON.parse(JSON.parse(String(init?.body)).content).zh_cn;
@@ -102,4 +108,31 @@ test("imported feedback that was never forwarded is not sent now", async () => {
   await forwardPendingFeedback();
   assert.equal((await state(row!.id)).forwarded, false);
   assert.equal(sentFor(row!.id), undefined);
+});
+
+// The HTTP admission ends before background forwarding; this boundary must limit actual image reads.
+test("slow chat uploads keep only one image in flight and leave other records retryable", async () => {
+  process.env.FEISHU_INTERNAL_ENABLED = "false";
+  const ids: number[] = [];
+  for (let n = 60; n < 72; n++) {
+    const { id } = await submitFeedback({ content: `bounded ${T}`, screenshot: { mime: "image/png", data: PNG }, ip: `203.0.113.${n}`, userAgent: "test" });
+    ids.push(id);
+  }
+  process.env.FEISHU_INTERNAL_ENABLED = "true";
+  uploadHold = gate(); uploadEntered = gate();
+  const before = uploadCount;
+  const first = forwardFeedbackToFeishu(ids[0]!);
+  await uploadEntered.promise;
+  try {
+    const rest = await Promise.all(ids.slice(1).map(forwardFeedbackToFeishu));
+    assert.ok(rest.every((result) => result === "busy"));
+    assert.equal(uploadCount - before, 1);
+    for (const id of ids.slice(1)) {
+      const waiting = await state(id);
+      assert.equal(waiting.forwarded, false);
+      assert.equal(waiting.forward_error, "pending");
+      assert.match(waiting.screenshot_key!, /^local:/);
+    }
+  } finally { uploadHold.open(); await first; uploadHold = undefined; uploadEntered = undefined; }
+  assert.equal(await forwardFeedbackToFeishu(ids[1]!), "sent", "capacity recovers after the slow upload");
 });

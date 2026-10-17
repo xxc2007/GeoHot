@@ -1,7 +1,7 @@
 // Signed image proxy. A request that cannot be honoured at all is 400; a bad or expired signature is 403.
 // Neither ever reaches the upstream.
 import type { FastifyInstance } from "fastify";
-import { produceImage } from "@aihot/backend/media/images";
+import { CapacityExceeded, produceImage } from "@aihot/backend/media/images";
 import { verifyProxyRequest, type VerifyResult } from "@aihot/backend/media/imgproxy";
 import { looseQuery } from "../http/respond.ts";
 
@@ -40,6 +40,7 @@ export function registerMedia(app: FastifyInstance) {
         .header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox")
         .send(body);
     } catch (error) {
+      if (error instanceof CapacityExceeded) return reply.code(503).header("Cache-Control", "no-store").header("Retry-After", "2").send("Image processing busy; retry shortly");
 
       req.log.warn({ err: String(error), host: new URL(verdict.url).hostname }, "img-proxy upstream failed");
       return reply.code(502).header("Cache-Control", "public, max-age=300").type("text/plain; charset=utf-8").send("Upstream image unavailable");

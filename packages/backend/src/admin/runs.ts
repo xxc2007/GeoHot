@@ -96,10 +96,17 @@ export async function runsOverview() {
  * processing (one action, not two). Only an unknown receipt is released, once.
  */
 async function release(id: number, error: string, actor: string, note: string, billed: boolean | null) {
-  const [before] = await sql<{ subject: string | null; purpose: string }[]>`
-    UPDATE receipts SET status = 'failed', error = ${error}, updated_at = now() WHERE id = ${id} AND status = 'unknown' RETURNING subject, purpose`;
+  const before = await sql.begin(async (tx) => {
+    const [row] = await tx<{ subject: string | null; purpose: string; attempts: number }[]>`
+      UPDATE receipts SET status = 'failed', error = ${error}, updated_at = now() WHERE id = ${id} AND status = 'unknown' RETURNING subject, purpose, attempts`;
+    if (!row) return null;
+    // Releasing the logical request permits retry; it cannot prove an attempt was free.
+    // Keep old attempts (including the once-only auto-release marker) unchanged.
+    await tx`UPDATE receipt_attempts SET status = ${billed === false ? "failed" : "unknown"}, error = ${error}, finished_at = coalesce(finished_at, now())
+      WHERE receipt_id = ${id} AND attempt = ${row.attempts} AND status = 'unknown'`;
+    return row;
+  });
   if (!before) return null;
-  await sql`UPDATE receipt_attempts SET status = 'failed', error = ${error} WHERE receipt_id = ${id} AND status = 'unknown'`;
   // 认 subject 的形状，不认 purpose：走文章处理链的调用 subject 都是 `article:<id>@…`，
   // 而这里原先判的是 `purpose === "analyze_article"`——真实 purpose 是 prefilter/score/understand/
   // summarize/structure 那五个，这个字符串从来没出现过（git log -S 只有上游基线那一笔），
