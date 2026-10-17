@@ -2053,3 +2053,18 @@ item 的 id 字段名：   itemId   （factId / firstParty / score / role / titl
 还有一条**该红的红**留着当证据：03:5x 那次 v4 功能审查是 `PASS=51 FAIL=1`，唯一 FAIL 是"复位后采集真的在跑（近 2 小时有新发现）"——05:30 之前它不可能绿。发版链要求 `FAIL=0` 是对的，07:05 那份必须真为 0 才能发。
 
 hop1 另三格记在这里，免得下次再问：**`max_discovered_at = 10-17 20:54`**（暂停期间连档案带一起停 ⇒ "进口为 0"这条比"阀门=false"更硬）；`window_req=1781 / window_5xx=1`（05:06 累计，发版取最后一条）；`report_revisions_now=48`（02:49:47 基线 44 ⇒ 一夜 +4，与逐期工件的 `touched_total=4` 正好对上）。
+
+## 05:3x 复位真的自己发生了：05:30:02 起跑、05:31:16 交回，之后 10 分钟追回 366 条
+
+不用人碰。**05:30:02 `restore-begin`，05:31:16 `restored [COLLECT_ENABLED=true] worker=active archive_timer=active`**（74 秒），随后它按设计把 restore / refresh / heal / verify 四把定时器一起 `disable --now`（`stop` 那把早在关阀那一刻由 stop 脚本自己摘掉，所以现场读到的是五把全 disabled）；`:15` 那把取样器**故意留着**（收尾脚本负责删），所以复位后每小时还有一条趋势线。兜底 heal 这一次没被用上——但它 04:14/04:35 已经各留过一行 `heal-skipped`，**"没起作用"和"没在岗"是两件事**，后者已经被证伪过。
+
+硬证据不是阀门那一行，是库里在长：`max(discovered_at) = 10-18 05:33:35`，**近 10 分钟新入库 366 条**，而且这 366 条全落在 live/迟到带（05:45:58 才是复位后第一轮档案周期，所以此刻新增的行只能来自实时门）。#278 担心的"四扇高频门各堆了一两百条"正在被 `resumeAfter` 游标往旧处啃——回收率按源核对留给发版前那次读数。
+
+两处我自己的量具错，当场抓到：
+
+1. `SELECT 'label|' || CASE … END || '|' || count(*) … GROUP BY 2` ——把标签、表达式、聚合拼成**一列**之后，第 2 列仍然是 `count(*)`，正是先前记过的 `aggregate functions are not allowed in GROUP BY`。改成让 `CASE` 单独成一列才对。**拼字符串省了一次逗号，代价是一把永远不会跑的尺。**
+2. 第 H 段我用 `journalctl -u geohot-conc-guard.service` 数守护，而它其实写在 `/var/log/geohot-conc-guard.log`——**journald 里静默不等于没跑**。改读文件后看到 `05:18 / 05:23 / 05:29` 三行 `conc=4 translate=3 slow=0 bad=0 err5xx6m=0 availMB 91—146`：复位过程没把保护踩离地。
+
+收尾脚本按 `changelog.json.bak-final-*` 补进 glob 之后，**重新自测它自己会拒绝**：`REFUSE: now=0534, cleanup is only legal after 06:30`。它删的是这一轮的机器，所以每改一次都要再量一次这道闸。
+
+一条待复验的尾巴：05:31:04 档案 **service** 起跑过，05:34 再读已经是 `inactive`（定时器 `active`、下一次 05:45:58）。上一轮它是被我关窗时的 stop 作业打成 `failed (timeout)`，**这一次是不是正常跑完要用 `is-failed` 现场确认——"没在跑"不等于"跑完了"**。发版前那次读数会带上这一格。
