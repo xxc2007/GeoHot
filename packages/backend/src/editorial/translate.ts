@@ -454,17 +454,31 @@ export function translateConcurrency(raw: string | undefined = process.env.GEOHO
  */
 export async function translatePending(opts: { limit?: number; budgetMs?: number } = {}): Promise<{ done: TranslateResult[]; quotes: number }> {
   const started = Date.now();
+  const total = opts.limit ?? 30;
+  const freshHalf = Math.max(1, Math.ceil(total / 2));
+  // 一轮只拿"最近发现的 N 条"会把整轮预算喂给刚进口的那批过刊长文：2026-10-17 实测每完成一篇从 ≈1 次调用
+  // 涨到 5—8 次，调用数没跌、译文行数从 65—118 条/时塌到 12—16。所以名额拆两半——一半保新鲜度（实时读者先看到中文），
+  // 一半按正文体积升序（同样的调用数完成更多篇）。两半重叠只会让结果变少，最后那道 LIMIT 保证不超额。
   const rows = await sql<{ article_id: string }[]>`
-    SELECT p.article_id FROM publications p JOIN articles a ON a.id = p.article_id
-    LEFT JOIN translations tr ON tr.article_id = p.article_id AND tr.lang = 'zh'
-    WHERE p.selected AND p.visibility = 'public' AND p.body_mode = 'full' AND coalesce(a.language, '') <> 'zh'
-      AND (p.discovered_at > now() - ${TRANSLATE_WINDOW_DAYS} * interval '1 day'
-           OR EXISTS (SELECT 1 FROM article_revisions r WHERE r.article_id = a.id AND r.revision = a.revision AND r.revision > 1
-                      AND r.created_at > now() - ${TRANSLATE_WINDOW_DAYS} * interval '1 day'))
-      AND (tr.article_id IS NULL OR (tr.origin <> 'source' AND (tr.revision < a.revision OR NOT tr.complete)))
-      AND NOT EXISTS (SELECT 1 FROM translation_attempts t WHERE t.article_id = p.article_id AND t.revision = a.revision
-                      AND (t.outcome IN ('skipped', 'translated') OR t.attempts >= 3))
-    ORDER BY p.discovered_at DESC LIMIT ${opts.limit ?? 30}`;
+    WITH cand AS (
+      SELECT p.article_id, p.discovered_at, octet_length(coalesce(a.body_html, a.body_text, '')) AS bytes
+      FROM publications p JOIN articles a ON a.id = p.article_id
+      LEFT JOIN translations tr ON tr.article_id = p.article_id AND tr.lang = 'zh'
+      WHERE p.selected AND p.visibility = 'public' AND p.body_mode = 'full' AND coalesce(a.language, '') <> 'zh'
+        AND (p.discovered_at > now() - ${TRANSLATE_WINDOW_DAYS} * interval '1 day'
+             OR EXISTS (SELECT 1 FROM article_revisions r WHERE r.article_id = a.id AND r.revision = a.revision AND r.revision > 1
+                        AND r.created_at > now() - ${TRANSLATE_WINDOW_DAYS} * interval '1 day'))
+        AND (tr.article_id IS NULL OR (tr.origin <> 'source' AND (tr.revision < a.revision OR NOT tr.complete)))
+        AND NOT EXISTS (SELECT 1 FROM translation_attempts t WHERE t.article_id = p.article_id AND t.revision = a.revision
+                        AND (t.outcome IN ('skipped', 'translated') OR t.attempts >= 3))
+    ), ranked AS (
+      SELECT article_id,
+             row_number() OVER (ORDER BY discovered_at DESC) AS by_fresh,
+             row_number() OVER (ORDER BY bytes ASC, discovered_at DESC) AS by_short
+      FROM cand
+    )
+    SELECT article_id FROM ranked WHERE by_fresh <= ${freshHalf} OR by_short <= ${total - freshHalf}
+    ORDER BY by_fresh, by_short LIMIT ${total}`;
   const done: TranslateResult[] = [];
   // 逐条 await 时这一腿的吞吐由对端墙钟决定（2026-10-16 实测一次 translate_body 调用平均 130 秒
   // ⇒ 一轮 4 分钟只吃得下 1–2 篇，3,123 篇待翻要 6–11 天）。并发的不是"同一篇的分段"而是"篇与篇"，
