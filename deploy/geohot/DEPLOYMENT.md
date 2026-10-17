@@ -242,10 +242,11 @@ curl -s -o /dev/null -w '%{http_code} %{num_redirects} %{url_effective}\n' -L ht
 
 ## 热更新：改了什么就重启谁（2026-10-02、2026-10-04 各踩到一次）
 
-- **`industry/changelog.json` 是 api 进程在启动时读入的**：只改它（比如补一条发版说明）也必须
-  `systemctl restart geohot-api`，否则 `/changelog` 与 `/api/site/changelog` 继续发旧内容。2026-10-02
-  的一次热更新只重启了 web，页面 200、内容没变——状态码看不出这一类问题，要按内容断言（例如
-  `curl …/api/site/changelog | grep <新标题>`）。
+- **`industry/changelog.json` 改了不用重启任何进程**（2026-10-06 起按 mtime 重读，见 `packages/backend/src/site/meta.ts`；
+  2026-10-17 再次实测：只 `cat >` 覆盖文件、没有 restart，几秒后 `/api/site/changelog` 就发新条目）。
+  但**必须按内容断言，不能看状态码**：`curl …/api/site/changelog | grep <新标题>`，
+  并且注意 api 的响应带 `max-age=300, s-maxage=300` 与 ETag，读者侧最多还要等 5 分钟才看到（2026-10-02 那次
+  "只重启 web、内容没变"其实是同一类问题的另一半：状态码全绿不等于发的是新内容）。
 - **改了 `tooling/*.ts` 里的进程内代码（`tooling/brain-stub.ts`）→ 必须 `systemctl restart geohot-brain`。**
   这是 2026-10-04 查出来的第二个「状态码全绿而行为是错的」：`geohot-brain` 从 2026-10-01 16:17 起
   `active` 了三天，而这三天里 `tooling/brain-stub.ts` 被改过两次（`f35da0a` 2026-10-02 把 summarize

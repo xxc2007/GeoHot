@@ -343,7 +343,7 @@ await a.end();"
 | `initdb` 或 `postgres` 崩：`FATAL: invalid byte sequence for encoding "UTF8": 0xb5` | `dir D:\geohot-embedded-postgres`；`dir node_modules\embedded-postgres\node_modules\@embedded-postgres` | 非 ASCII 二进制路径。`scripts/dev-db.ts:63-90` 把 win-x64 bundle 镜像到 ASCII 目录并用 junction 接回。**`npm ci` 会删掉那个 junction**（`dev-db.ts:14` 写明），下一次 `npm run db:up` 自动重建——所以顺序永远是 `npm ci` → `npm run db:up`，不要手动去动 junction。真找不到 ASCII 位置（比如项目在 `A:\` 之类）脚本会明确报错而不是硬试 |
 | `npm run db:up` 说 `already listening`，但连接失败；或者端口没人听 | `netstat -ano \| grep 5433`；`type %TEMP%\geohot-dev-db.log`；`.pgdata/dev-db.pid` | 上一次进程被强杀，postgres 还在但 PID 文件是脏的 → `npm run db:down`（用 `pg_ctl stop -m fast`，只收 PID 文件指向、且确实是 node 的进程，`dev-db-down.ts:78-96`），再起。数据目录被占用/半截 initdb：`PG_VERSION` 是唯一的"集群存在"标记，缺了就重跑 initdb（会丢数据） |
 | `json_list` 源的日期差 8 小时 | 对比某条 `articles.published_at` 与源站上显示的时间 | 无时区的日期字符串由 `Date.parse` 按**进程本地时区**解释（`sources/json-list.ts:52`），`epoch_ms/epoch_s/yyyymmdd` 不受影响。解决：用 `.env.pipeline` 启动（里面有 `TZ=Asia/Shanghai`），或在命令前显式加 `TZ=Asia/Shanghai`。`web_list` 有 `publishedAtUtcOffset` 配置可以补（`config-keys.ts:11-19`）。定时任务的 tz 参数已经是 `Asia/Shanghai`（`schedules.ts:103`） |
-| 队列堆着不动，日志里有 `BudgetExceeded` / 任务显示等待 | 后台 `/admin/settings` 预算；`select service, count(*) from receipts group by 1` | 每个付费服务有每分钟/每小时/每天上限，超了就暂停（`providers/receipts.ts:98-102`，重试间隔分别 60/600/3600 秒）。填 0 表示立即停用该服务。本机模型是 stub、不花钱，但预算闸门照样生效：一次性灌太多材料时先调大预算或把 `ANALYZE_CONCURRENCY`（`.env`，现在 2）保持小值。`ReceiptBusyError` 是另一个原因——同一份回执正被别的进程占着，等它就行 |
+| 队列堆着不动，日志里有 `BudgetExceeded` / 任务显示等待 | 后台 `/admin/settings` 预算；`select service, count(*) from receipts group by 1` | 每个付费服务有每分钟/每小时/每天上限，超了就暂停（`providers/receipts.ts:98-102`，重试间隔分别 60/600/3600 秒）。填 0 表示立即停用该服务。本机模型是 stub、不花钱，但预算闸门照样生效：一次性灌太多材料时先调大预算或把 `ANALYZE_CONCURRENCY`（`.env`；`.env.example` 配的是 2，生产现值是 4，理由见第 14 节）保持小值。`ReceiptBusyError` 是另一个原因——同一份回执正被别的进程占着，等它就行 |
 | 某条内容后台能看到、站上找不到 | `select visibility from publications where article_id=…`; `select participation_mode from sources where id=…` | 三层闸门：① 信源是 `isolated` 就不进任何公开页面；② 非 `editorial` 信源的条目会被 `settleNonEditorial()`（`jobs/content.ts:86`）标成不分析、不进精选；③ `publications.visibility`（`migrations/0001_core.sql:215`）**分两档**：`withdrawn` 哪里都没有；`summary-only` 不进列表、feed、sitemap（`items.ts:119/129` 要 `= 'public'`），但**条目页仍可打开、事件页的时间线与报道数仍列它、日报周报仍可引用它**（`rules.itemHasPage` 只排除 `withdrawn`）。预筛 `BLOCK` 的也永远不出现在任何公开页面。改法在后台 `/admin/sources/<id>`（参与方式）与 `/admin/content/<id>`（可见性） |
 | 改了 `industry/prompts/*.md` 之后 stub 回 400 | `npm run brain -- --anchors`；`curl -s http://127.0.0.1:3055/healthz \| grep anchorProblems` | 能力识别靠提示词锚点行（不含 `{{}}` 且唯一属于某能力的整行）。锚点变了它**直接 400 拒绝回答，绝不猜**。stub 每 5 秒重读 prompts 与 taxonomy、按 mtime 重载 fixture，不用重启；但提示词被改坏（锚点撞车）就要改回措辞 |
 | 精选卡片的摘要凭空没了、条目变成未发 | `__brain/log` 里看 `enforceIdentity`；`npm run brain -- --lint` 看该条 `problems` | 摘要里写了原文没有的机构名（`USGS` 写成"美国地质调查局"会撞上词表里的"地质调查局"=中国地质调查局），整段摘要丢弃。`summaryZh` 也建议 190 字、2–3 句内，否则被 `compactAnswerFirstSummary` 压缩（不报错，但你写的句子会没掉） |
@@ -642,18 +642,25 @@ sudo systemctl list-timers --all            # 档案 timer 与 api/web/brain 不
 1. `COLLECT_ENABLED=false` 会连带**关掉正文抽取的消费者**：`registerExtractionJobs` 只在
    `jobs/sources.ts:30` 注册，而 `apps/worker/src/main.ts:23` 那一行在 `if (isCollectEnabled())` 后面，
    没有第二个注册点。于是 `body_status='pending'` 且需要抓页面的条目会先按标题/摘要判（与抽取最终失败同一口径）。
+   **这条保护不是全覆盖**：`jobs/content.ts:131` 在 `!result.output` 时用 `queueProcessing(step:"extract")` **显式指定步骤**，
+   会盖过 `route()` 的阀门判断，把作业排进没有消费者的 `content.extract-body` 队列——不花钱，但占排队位，
+   靠 `QUEUED_STALE=30 分钟` 被安全网反复重排（2026-10-17 关阀期间见到 1,423 行 `new` 的 `processing_queued_at` 老于 35 分钟，
+   全在档案带）。关阀期间若发现一批 `new` 长期不动，先按 `processing_error` 分族再决定要不要处理。
    2026-10-17 实测暴露面：全库 54 行 pending、其中实时带 26 行，档案带 13,212/13,218 已是 `ok` ⇒ 代价可控，
    但**每次关阀前都要先量这个数**；`isCollectEnabled` 的默认值是 **true**（`config.ts:79`），
    键不在 `.env` 里就等于开着，所以这个阀门必须显式写。
    档案脚本（`backfill-archive.ts`/`backfill-news.ts`/`backfill-papers.ts`）**不读这个阀门**，
    所以档案进口与历史出刊照跑（10:15:59、10:30:57 两轮在阀门关闭状态下全 phase `exit=0`；
    只有 `scripts/collect.ts` 会拒——它要 `--force-collect`，而档案周期不跑它）。
-2. **暂停期漏掉的实时信息是可补的，因为成刊按时间不按发现时刻**：`reports/compose.ts:101-104` 取的是
-   `timeline_at`（或 `visible_after`）落在窗口内的条目，日报窗口是 [D-1 08:00, D 08:00) 北京
-   （`dailyWindow`，`compose.ts:307`）。所以恢复采集后各源 feed 里还在的当天下午条目会被重新发现，
-   并在次日 08:00 那一期回到它自己的日子——**前提是它们在次日 08:00 前被判定**，
-   而实时带优先级更高，这一点自动成立。feed 只留最近十几条，停得越久丢得越多：**这就是"暂停只能几小时"的理由**。
-   恢复后要不要立刻补跑一轮全量列表，看 `articles` 里实时带 `new` 的数与当日缺口小时的条数再定。
+2. **暂停期漏掉的实时信息是可补的，但归期规则要说准**：`reports/compose.ts:101-105` 对非档案条目按
+   **「到稿（`visible_after`）与发布（`timeline_at`）的较晚者」归期**——档案条目才纯粹按自己那一天归。
+   日报窗口是 [D-1 08:00, D 08:00) 北京（`dailyWindow`，`compose.ts:307`）。
+   ⇒ 恢复采集后重新发现的今天下午条目，`visible_after` 落在今天夜里 ⇒ **进明早那一期，不会去挤今天已封版的那一期**，
+   这条链是通的（这一轮一开始我把它写成"成刊按发布时间取条目"，那是错的，2026-10-17 复核时改正）。
+   两个会让"补回来"打折的事实也要知道：`compose.ts:95` 把 `backfill` 且理由不是 `archive` 的条目（首导、迟到 48 小时以上）
+   **一律挡在日报之外**；`compose.ts:322-324` 每节 8 条、快讯 12 条是硬顶，超出的按分数丢掉——**补回来的条目不保证都印出来**。
+   至于恢复本身：`scheduleDueSources` 每分钟一轮、`FETCH_SCHEDULE_BATCH=40`，666 个源里到期的会在十几分钟内被重抓，
+   **不需要额外补跑**；真正会永久丢的只有 feed 只留十几条又隔得久的老源。
 3. 把并发抬到 `.env` 现值之上就是在赌读者面不退化，而**赌注由 `geohot-conc-guard` 收**：每 5 分钟探四个读者面，
    `slow≥2`（单样本 ≥5 s）或任一 ≥8 s、或 `MemAvailable<40 MB`、或 swap>1,400 MB、或 6 分钟内 5xx≥2、
    或一次探测里出现任何 5xx（`http5>=1` 单独算命中；`curl -m 20` 失败会被记成 20.0 s，一个卡死的页面就能触发 floor）。
