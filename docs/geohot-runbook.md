@@ -1253,4 +1253,58 @@ today's paper as it was"说的就是这件事。⇒ 真正要拍的不是"闸门
 （14:00→17:24 那 3.4 小时 −473）。按 13,854 条 ÷ 140/时 ≈ **99 小时独占** ⇒ **一晚 8 小时 ≈ −1,100 条 ⇒ 约 12—13 个夜窗**。
 这不是"要不要开夜间窗口"的偏好题，是"不开就不动"的算术题——#262 的三笔账以此为准。
 
+### 第一百一十四轮 · 夜窗前把三端对齐了，并且把一个会静默说谎的量具改掉了（19:40—19:54）
+
+**先说 GitHub：本地落后 3 个提交，但按内容判它是"同内容不同哈希"。** `git fetch` 后
+`origin/main` 独有 3 个提交（`0f37f19` capBody+全文门、`7e310b9` 30 天待翻窗口、`85176bc` 翻译腿 3 路并发），
+本地独有 62 个。逐文件比 LF 归一化哈希：`publication/detail.ts`、`industry/sources.json`、
+`sources-fulltext.json`、`scripts/republish-fulltext.ts`、`contracts/site.ts` **五处三端完全一致**，
+真正不同的只有 `editorial/translate.ts`（本地 `31c2ee25` / 远端 `aa67365e` / 生产 `b225ff44` 三个值，
+生产是"有 `stopsTheRun`、没有 `by_short`"的中间版本）。读完整段候选查询才敢下结论：本地那版
+**保留了远端的两条谓词**（`article_revisions` 的 EXISTS 分支、`body_mode='full'`），又叠上
+`OR NOT tr.complete`、批次折半收货、`stopsTheRun()`、今夜的"新鲜 15 + 体积小 15"，所以本地是超集。
+⇒ `git merge -X ours origin/main` 只对两个冲突文件（`translate.ts`、`tests/translate.test.ts`）取本地；
+测试那处远端唯一多出来的一行是 `return s.includes("twenty") ? …` 的三元写法，本地第 42 行是同一个判定的 `if` 写法，
+**没有丢断言**。合并后 `85176bc..b4ee8fb` 推上去，divergence 0/0，README.md / README.en.md 一字未动
+（本轮唯一带 README 字样的改动是 `deploy/geohot/README-deploy.md`，那是运维文档且与生产逐字节相同，站长若要否掉直说）。
+推送前对 63 个提交的载荷跑了一遍密钥形态扫描，两条命中都是假阳：一条是 CJK 斜杠词串撞了 base64 正则，
+一条是注释里的 `WORKBUDDY_API_KEY=local-workbuddy` 占位符。
+
+**把 04:30 那一趟重排拆成两个半年，是因为"截断的整年扫描"会静默饿死九月。** 原来一条
+`timeout 900` 的 `backfill-papers.ts --from=2026-01-01 --to=2026-09-30 --refresh`，walk 从一月开始，
+超时就从一月重来——一月若吃掉 15 分钟，九月永远排不到（和"多门共享一次调用要把配额按门数放大"同一族）。
+现在 `run_half 01-01..05-31 1100` + `run_half 06-01..09-30 1100`，两段各自有预算、串行不重叠，
+最坏 05:10 收工，仍在 05:30 复位之前。备份留在 `/opt/geohot/bin/r114-refresh.sh.bak-114040`。
+
+**新装的每小时取样器第一版自己就是假绿的，已改掉。** 一条语句里塞 6 个相关子查询，在负载 2.4、
+可用内存 59 MB 的机器上撞了 `statement_timeout` 死掉——但脚本仍 `exit 0` 并往日志里写了一行"看起来健康"的记录
+（`rc=$?` 量的是 `echo` 不是查询）。生产日志里那行 `SAMPLER_FAILED` 之前的失败原样留着，这就是证据。
+现在改成**每条语句一个带标签的标量**、`PGOPTIONS='-c statement_timeout=20s'`（顺带不再把 `SET` 回显进字符串），
+并且 psql 非零或输出含 ERROR 时**显式 exit 1**。5xx 不再自己去 awk 整份 nginx 日志（两核吃不消），
+改为直接取读者面守护已经每 5 分钟算好的 `err5xx6m`。首个真样本：
+`19:41:43 collect=true archive_timer=active mem=152MB guard[conc=4 translate=3 slow=0 err5xx6m=0 bad=0]
+unsettled=13854 queued=16746 judged60=120 zh60=12 calls60=654 redis20=42`。定时器 `:15` 触发，
+`systemd-analyze calendar` 先验过合法再 enable（上一轮那条 `OnActiveSec` 被冒号切碎的教训还在生效）。
+
+**投放 translate.ts 走的是"闸门先拒我一次"的路子。** 第一版脚本把 `mkdir -p /opt/geohot/stage` 写在安装脚本里，
+而 `tee` 在它之前跑 ⇒ 目录不存在 ⇒ 暂存文件为空 ⇒ sha 不符 ⇒ **REFUSE，生产一个字节没动**。
+补了目录再走一遍：暂存 sha == 本地 HEAD sha 才 `install`，装完立刻复算，不符则回滚，
+备份 `translate.ts.bak-r114-20261017T*`。装后生产哈希 `31c2ee25`（与本地 HEAD、与 GitHub 三者同一），
+`by_short` 出现 3 次、`OR NOT tr.complete` 1 次。worker 重启按"每次单独量 pinned"的规矩量过：
+`analyzing_rows=0`、`active_jobs=4`、`retry_jobs=1`，没有行被钉住。
+
+**投放后的读者面是按"读者真能点到的链接"验的，不是我猜的 URL。** 从首页 HTML 里抽出全部 `href="/geohot/…"`，
+30 个目标（含 6 个条目页、7 个 JS/CSS 资产、feed、about/changelog/feedback/hot/all/daily）**全部 200**；
+报表页真名是 `/geohot/daily`、`/geohot/weekly`、`/geohot/daily/archive`，我先前那两条 404
+（`/geohot/reports/daily`、`/geohot/api/site/reports/daily/count`）**又是我自己猜错的路径**，不是线上坏。
+全天 nginx 计数：`requests=6094 5xx=0 (0.00%)`。翻译腿今天的逐小时（`translations.created_at`）：
+12 点 101、13 点 97、14 点 118、15 点 65、16 点 12、17 点 14、18 点 4、19 点 19——
+19 点只含部署后约 4 分钟，**还不足以证明新代码的效果**，判定要看 20 点与 21 点两个整点，取样器会在 `:15` 交出来。
+
+**阀门与守护的现值（19:39 现场读，不是复述）：** `COLLECT_ENABLED=true`（sed 能改的前提是这行存在，已核）、
+`GEOHOT_TRANSLATE_CONCURRENCY=3`、`geohot-archive.timer` enabled+active、`geohot-conc-guard.timer` enabled+active
+（`systemctl is-active geohot-conc-guard` 返回 inactive 是因为没有同名 service，单元名带 `.timer`——别再把这条读成"守护没跑"）、
+守护最近三次探测 `conc=4 translate=3 err5xx6m=0`。队列 16,746 条 `created` + 4 条 `active` + 1 条 `retry`。
+
+
 
