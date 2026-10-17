@@ -1,3 +1,4 @@
+import { passwordWindow } from "@aihot/backend/lib/password-window";
 // Admin sign-in and the /api/admin guard. Public routes never read the session.
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { config } from "@aihot/backend/config";
@@ -29,28 +30,8 @@ const secure = () => config.siteUrl.startsWith("https://");
  * Password attempts: at most 10 per client address and 50 in all per 15 minutes. The overall cap holds
  * even when a client forges its address; with a 12+ character password that is far too slow to guess.
  */
-const attempts = new Map<string, number[]>();
-function over(key: string, limit: number, now: number): boolean {
-  const recent = (attempts.get(key) ?? []).filter((t) => now - t < 15 * 60_000);
-  recent.push(now);
-  attempts.set(key, recent);
-  return recent.length > limit;
-}
-function tooManyAttempts(ip: string): boolean {
-  const now = Date.now();
-  if (attempts.size > 5000) {
-    // Drop the expired clients, keeping the global window: clearing the whole map would also erase
-    // "all", and that is the cap which still holds when a client forges its address.
-    for (const [key, times] of attempts) {
-      if (key === "all") continue;
-      const live = times.filter((t) => now - t < 15 * 60_000);
-      if (live.length) attempts.set(key, live);
-      else attempts.delete(key);
-    }
-  }
-  const perClient = over(`ip:${ip}`, 10, now);
-  return over("all", 50, now) || perClient;
-}
+const passwordAttempts = passwordWindow();
+const tooManyAttempts = (ip: string) => passwordAttempts.reject(ip);
 
 const loginPage = (returnTo: string, error?: string) => `/admin/login?${new URLSearchParams({ return: safeReturn(returnTo), ...(error ? { error } : {}) })}`;
 

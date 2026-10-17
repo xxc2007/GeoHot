@@ -7,6 +7,7 @@ import path from "node:path";
 import { beijingDate, beijingTime } from "@aihot/contracts/time";
 import { config, credential, envFlag } from "../config.ts";
 import { sql } from "../db.ts";
+import { CapacityExceeded, CapacityGate } from "../lib/capacity.ts";
 
 const API = "https://open.feishu.cn/open-apis";
 
@@ -160,8 +161,19 @@ async function screenshotFor(fb: { id: number; screenshot_key: string | null; cr
  * Forwards one feedback to the internal chat, with its screenshot. Until that succeeds the feedback keeps
  * the reason in forward_error, and the forwarding sweep (operations/feedback.ts) tries it again.
  */
-export async function forwardFeedbackToFeishu(id: number): Promise<"sent" | "disabled"> {
+const feedbackDelivery = new CapacityGate(1, 0);
+export async function forwardFeedbackToFeishu(id: number): Promise<"sent" | "disabled" | "busy"> {
   if (!feishuInternalEnabled()) return "disabled";
+  // Acquire before reading any screenshot. Busy records stay pending in the database for
+  // the existing sweep; there is no in-memory backlog of image buffers or upload promises.
+  try { return await feedbackDelivery.run(() => deliverFeedback(id)); }
+  catch (error) {
+    if (error instanceof CapacityExceeded) return "busy";
+    throw error;
+  }
+}
+
+async function deliverFeedback(id: number): Promise<"sent" | "disabled"> {
   const chat = credential("integrations", "FEISHU_INTERNAL_CHAT_ID");
   if (!chat) return "disabled";
   const [fb] = await sql<{ id: number; content: string; email: string | null; note: string | null; page_url: string | null; screenshot_key: string | null; created_at: Date }[]>`

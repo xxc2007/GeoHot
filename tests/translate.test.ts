@@ -179,7 +179,7 @@ test("the translation window covers the backlog it exists to clear, and a bad en
   // admin-source-policy.test.ts 相同：这是不建夹具、不抢共享库里那些未来时间锚点，就能抓住"有人把
   // SQL 改回写死 3 天"的唯一一层。
   const src = readFileSync(new URL("../packages/backend/src/editorial/translate.ts", import.meta.url), "utf8");
-  const pending = /FROM publications p JOIN articles a[\s\S]*?LIMIT \$\{opts\.limit/.exec(src)?.[0] ?? "";
+  const pending = /FROM publications p JOIN articles a[\s\S]*?LIMIT \$\{total\}/.exec(src)?.[0] ?? "";
   assert.ok(pending, "translatePending 的待翻查询还是那个形状（改了形状就同步改这条断言）");
   assert.match(pending, /now\(\) - \$\{TRANSLATE_WINDOW_DAYS\} \* interval '1 day'/, "窗口必须走那个变量");
   assert.equal(/interval '\d+ days'/.test(pending), false, "查询里不许再出现写死的天数窗口（`${窗口} * interval '1 day'` 那种写法不算）");
