@@ -1079,4 +1079,39 @@ BLOCK 只花 1 次；没有配门槛（`threshold===null`）时不打分＝3 次
    否则展开的是本地那一层**）。修完转义后逐字节对上：`local_sha=uploaded_sha=prod_sha=c860c837…`，
    `latestVersion=2026-10-17T17:58`、`releases=52`、本轮只剩这一条（11:15 那条已被就地替换，残留 0），395 汉字。
 
+### 第一百一十三轮 · 两条"看起来像故障"的 404 其实是设计，以及 #257 的担心撤掉一半（18:25—18:26）
+
+**读者面复核的最终定性**（17 个页面 + 5 个 API + robots/sitemap 全 200、真实流量 0×5xx 之后，剩下六个 404 的账）：
+
+- `/geohot/leaderboard`、`/leaderboard/sources`、`/leaderboard/rules`、`/geohot/codex-reset`、`/api/site/codex-reset` 的 404
+  **不是部署滞后**（我 18:00 那一版就是这么猜的，逐文件读完之后撤回）：`industry/features.ts:8,10` 把 `leaderboard` 与 `codexResetMonitor`
+  设为 `false`，`apps/api/src/app.ts:73` 与 `routes/site.ts:92` 因此**根本不注册**这两组路由；文件头 `:2-3` 写明
+  "关掉以后：导航里不再出现入口，对应的定时任务不再运行，页面与接口返回 404"。实测首页 / more / about / agent / topics 与
+  sitemap、robots、llms.txt 里**0 个入口链接**，404 走的还是那张 styled 页面 ⇒ 读者不可达，属**故意的地理站无关模块下线**。
+- `/geohot/search?q=`、`/geohot/login`、`/api/search?q=`、`/geohot/topics/气象` 这四个 404 是**我猜错了 URL 形状**：
+  搜索是 `/all?q=`（`apps/web/app/routes/all.tsx:28` 读 `searchParams.get("q")`，实测 200），主题用 ASCII slug（`topics/administrative-divisions` 等，实测 200），
+  登录只有 `admin/login`。⇒ 写探针之前先抓真 href，别按直觉拼路径。
+- **v1 接口对未知查询参数是硬拒**：`http/respond.ts:105 strictQuery` + `routes/v1.ts:93,99,13` 给 `dailies/:date` 传**空允许表**
+  ⇒ 任何 `?...` 都 400（生产原文 `"Unknown query parameter: limit."`）；`?limit=` 只在 `/api/v1/items`（`:71` 允许表里有）与 `/api/v1/dailies` 有效。
+  ⇒ 探 v1 不要加 cache-buster，那会给自己造出假故障。
+
+**#257 撤掉一半、#264 抓出来**（Jan–Sep 里 `backfill_reason IS DISTINCT FROM 'archive'` 那一族按状态数）：
+
+| 状态 | 条数 | 有 `publications` 行 | 没有 |
+| --- | --- | --- | --- |
+| `analyzed` | 5,890 | **5,890（一条不漏）** | **0** |
+| `new` | 1,388 | 25 | 1,363 |
+| `blocked` | 1,197 | 1,197 | 0 |
+| `failed` | 86 | 1 | 85 |
+
+⇒ `unsettled()` 只数"`new`，或 `analyzed` 且没有发布行"，而 `analyzed` 那一档**全部有发布行**（`days_touched_by_stuck_analyzed=0`）：
+−2 带那 1,363 条 `new` 是**拖慢**早月结算，不是把前途封死（我 17:24 写的"永远 waiting>0"说重了，按这张表收回一半）。
+`failed` 85 条不计入 unsettled 是 `backfill-papers.ts:138` 故意的。
+
+⇒ 但同一批里抓出一个**已经付完钱却兑不了现**的族（#264）：`compose.ts:95` 的
+`AND (NOT p.backfill OR ar.backfill_reason = 'archive')` 把"迟到入库不要挤进发现当天那期"（`:93-94` 注释里的意图）
+实现成了"**任何一期都不进**"——实测 **698 条 `selected` 且 `visibility='public'`** 的条目判完、写了发布行、
+读者在 /all 与检索里看得见，却没有任何一期报纸会印。同一函数的时间分支 `:101-102` 本来就已经按 `ar.backfill_reason` 分叉，这条闸门是越界的。
+**改法与代价写在 #264：读者面可见的内容改写、且会让一批历史日报突然变厚 ⇒ 归站长拍，我没有动。**
+
 
