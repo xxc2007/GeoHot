@@ -1973,3 +1973,18 @@ item 的 id 字段名：   itemId   （factId / firstParty / score / role / titl
    顺带一条 stop 脚本本来就有的好设计：它改完会自检（`:23` 若阀门没写成 false 或 worker 没活），失败就**把阀门改回 true**（`:25`）——关阀失败不会把网站留在关着的状态。
 
 单元状态也一并量了：`sample 05:15 / heal 05:35 / restore 05:30 / verify 05:50` 全部 enabled 且挂着，`stop` 已 disabled，`refresh` 下一次是 **10-19 04:30**（这正是"清理必须在今早 06:30 之后真的把六个单元删掉"的理由——否则明天 04:30 它还会自己再跑一趟重排）。
+
+## 04:45 收口用的"全站路由清单"审查已经建好并半跑通（顺带纠掉我自己写的一条假证据）
+
+之前几次全站走查的通病是**按记忆挑几个页面**，而且踩过"猜 URL 得到 404 就当成缺陷"。这次改成从 `apps/web/app/routes.ts`（权威路由表，40 条）抄出清单，分四类预期：
+
+- **A/B 读者页 25 条**（含 `/items/:id`、`/items/:id/original`、`/topics/:slug` 这类带参页——样例链接**从页面 HTML 里抓**，不猜库里的列名；我第一版写了 `reports.readable`、`topic_tags/publications_tags` 这类猜出来的表和列，当场否掉重写）。
+- **C 设计关闭的模块 4 条期望 404**：`industry/features.ts` 里 `leaderboard:false`、`codexResetMonitor:false` 是简报决定的主动关闭。
+- **D 后台 4 条期望 401/302**。
+- **E 一段"这 404 到底是设计还是部署滞后"的证明**。
+
+04:44 用 `R114_PART=cheap` 只跑了 C/D/E/F 八条：**8/8 通过**（四条 404、四条后台 302），`total/wrong/miss` 计数器与 `chk()` 的正文标记判定都工作正常；A/B 留到复位并静默之后（现在机器 123 MB，不该压 25 次 SSR）。
+
+**E 段第一次跑就露出我自己造的假证据**：那行写的是 `git -C /opt/geohot/app show HEAD:industry/features.ts | sha256sum`，打出来 `e3b0c44298fc1c14`——**这是空输入的 SHA-256**，也就是命令根本没拿到文件（`/opt/geohot/app` 是多克隆混合部署，那棵工作树里并没有这个路径的 HEAD 版本）。如果我只看"两行都有值、格式齐"就会把它当成"生产与 HEAD 不同一份"的证据。改成量 `prod_sha256_16` 并把"仓库 HEAD 那份"放到**本地**算：`git show HEAD:industry/features.ts | sha256sum` = `f67d2dc6738229ab`，与生产**逐字节相同** ⇒ 那四个 404 确为设计。（另外别拿 `git hash-object` 的前 16 位去比 sha256 的前 16 位，一个是 SHA-1 一个是 SHA-256，长度凑巧一样看着像同类。）
+
+**可复用的形状**：`x | sha256sum` 打出 `e3b0c442…` = 左边命令什么都没输出。**任何"比对哈希"的量具，第一步先确认它不是空串的哈希**，否则它永远能给出一个看起来很专业的值。
