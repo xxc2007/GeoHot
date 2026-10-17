@@ -1174,7 +1174,7 @@ today's paper as it was"说的就是这件事。⇒ 真正要拍的不是"闸门
 | 定时器 | OnCalendar | ExecStart | 干什么 |
 | --- | --- | --- | --- |
 | `r114-stop` | `*-*-* 21:30:00` | `r114-stop-realtime.sh` | `COLLECT_ENABLED=false` + 重启 worker + `stop geohot-archive.timer`，写 `/etc/geohot/r114-stop.done`，自我解除武装 |
-| `r114-refresh` | `*-*-* 04:30:00` | `r114-refresh.sh` | `backfill-papers --from=2026-01-01 --to=2026-09-30 --kinds=daily --refresh --apply`，外面 `timeout 900`、`--max-old-space-size=192`，摘要写 `/root/r114-refresh-*.json` |
+| `r114-refresh` | `*-*-* 04:30:00` | `r114-refresh.sh` | **两段半年各 1100 s**：`--from=2026-01-01 --to=2026-05-31` 与 `--from=2026-06-01 --to=2026-09-30`，`--kinds=daily --refresh --apply`；外面 `systemd-run --scope -p MemoryMax=260M -p CPUWeight=50 -p IOWeight=10` + `ionice -c3` + `--max-old-space-size=192`，摘要写 `/root/r114-refresh-<stamp>-<from>.json` |
 | `r114-restore` | `*-*-* 05:30:00` | `r114-restore-realtime.sh` | 三项复位 + 写 `r114-restore.done` + 解除自己与 refresh 的武装（**故意不动 verify**，它排在复位之后 20 分钟） |
 | `r114-verify` | `*-*-* 05:50:00` | `r114-verify.sh` | 落日志：阀门/worker/归档定时器现值 + 近 20 分钟重抓数 + Jan–Sep 未判完 + 昨夜被重排的历史期次数 + `MemAvailable` |
 
@@ -1200,7 +1200,7 @@ today's paper as it was"说的就是这件事。⇒ 真正要拍的不是"闸门
 （`receipts` 的 purpose 分布：score 1,309 ∶ prefilter 821 ∶ **translate_body 722** ∶ structure 595 ∶ understand 396 ∶ summarize 276 ∶ story_digest 269 ∶ group 234 ∶ report_lead 4）。
 ⇒ **不是腿坏了，是"每完成一篇要烧几次调用"变了**：午后 ≈110 次调用出 118 行（≈1 次/篇），现在 ≈5—8 次调用才出 1 行。
 
-机制写在 `editorial/translate.ts:468`：`ORDER BY p.discovered_at DESC LIMIT ${opts.limit ?? 30}`，
+机制写在**改动前**的 `editorial/translate.ts`（提交 `e3b85cb` 之前在第 467 行）：`ORDER BY p.discovered_at DESC LIMIT ${opts.limit ?? 30}`，
 外面是 `:478` 每轮 `budgetMs ?? 4 分钟` 与 `pgboss.schedule` 里 `cron.content.translate = */5 * * * *`（确认在排、`last_job` 更新于 17:31:57）。
 ⇒ **每轮只从"最近发现的 30 条"里挑**。今天档案带独占、17:32 进口又重启，"最近发现"那一档正是**首导的过刊长文**，
 一轮 4 分钟的预算全花在巨型文章的分段上，短文章排在 30 条之外一整轮轮不到 ⇒ 行数（=完成篇数）掉 7 倍，调用数几乎不变。
@@ -1270,11 +1270,15 @@ today's paper as it was"说的就是这件事。⇒ 真正要拍的不是"闸门
 推送前对 63 个提交的载荷跑了一遍密钥形态扫描，两条命中都是假阳：一条是 CJK 斜杠词串撞了 base64 正则，
 一条是注释里的 `WORKBUDDY_API_KEY=local-workbuddy` 占位符。
 
-**把 04:30 那一趟重排拆成两个半年，是因为"截断的整年扫描"会静默饿死九月。** 原来一条
-`timeout 900` 的 `backfill-papers.ts --from=2026-01-01 --to=2026-09-30 --refresh`，walk 从一月开始，
-超时就从一月重来——一月若吃掉 15 分钟，九月永远排不到（和"多门共享一次调用要把配额按门数放大"同一族）。
-现在 `run_half 01-01..05-31 1100` + `run_half 06-01..09-30 1100`，两段各自有预算、串行不重叠，
-最坏 05:10 收工，仍在 05:30 复位之前。备份留在 `/opt/geohot/bin/r114-refresh.sh.bak-114040`。
+**撤回 19:40 那句"拆两段是为了防九月被饿死"——独立复核把理由证伪了。** 我说"截断的整年扫描会从一月重来、
+九月永远排不到"，可台账里我自己记着：`--from=2026-01-01 --to=2026-09-30 --kinds=daily --refresh --apply`
+在 `timeout 1000` 下 **8 分 21 秒就跑完全程、rc=0**（runbook 那天那段）；而且 `backfill-papers.ts` 自己有
+预算停止（到点 `exit 0` 而不是被 kill），所以"被 timeout 砍断就会从一月重来"这个前提也不成立。
+**拆两段照做，但理由改成实的**：`1100 + 1100 s` 给每半年一个独立的、可观测的预算，谁的摘要文件没生成
+就用 `refresh-end rc=` 立刻看出来（第一版 `echo "… rc=$?"` 里 `$(date)` 会把 `$?` 洗成 0，已改）；
+最坏 05:06:40 收工，仍在 05:30 复位之前。备份 `r114-refresh.sh.bak-114040` 与 `.bak-preIonice` 都在。
+另：`scripts/recompose-report.ts` 头部那句"versioned and reversible"也改成了实话（只留版本归档、回退要手写 SQL），
+这是**注释级**改动，生产上那份要等下一船代码一起换（现在属注释漂移，不影响运行）。
 
 **新装的每小时取样器第一版自己就是假绿的，已改掉。** 一条语句里塞 6 个相关子查询，在负载 2.4、
 可用内存 59 MB 的机器上撞了 `statement_timeout` 死掉——但脚本仍 `exit 0` 并往日志里写了一行"看起来健康"的记录
@@ -1441,6 +1445,21 @@ unsettled=13854 queued=16746 judged60=120 zh60=12 calls60=654 redis20=42`。定�
 所以"判了 187 条但尺子没动"不等于没干活——要看 `judged_by_band`；② 队列里 `jan_sep` 行共 **13,899 条**
 （−1 带 12,614 + −2 带里的一部分），另有 2,375 条 other、616 条 today，合计 16,891 条 `created`，
 与取样器的 `queued` 对得上。**以后报"还剩多少历史"必须连着带号一起报，光报总数会被这 3,865 条骗。**
+
+**翻译腿在窗口里只有 5 条/时，但这不是"停了"，是"全在啃长文"——而且这件事今晚可以验。** 20:56—22:10 的 74 分钟里：
+`translations` 只 +5 行，可 `receipts` 里 `translate_body` 花了 **96 次** ⇒ **19.2 次调用/篇**；5 条尝试全是 `partial`。
+把这个数放到墙钟上就通了：一次 translate_body 平均 ~130 秒、3 路并发 ⇒ 这条腿的**天花板 ≈83 次调用/时**，
+实际 87 次/时 ⇒ **它已经跑在自己的墙上，不是被判定抢了槽**。问题是"这 96 次调用换回来 5 篇半成品"：
+新查询的两半是 `ORDER BY by_fresh` 在前 ⇒ 每轮 3 条 lane 全被最**新**的那批长文占住，而一篇 19 批的长文要跨
+≈10 轮（50 分钟）才能凑齐，期间 `translation_attempts.attempts` 涨到 3 就被排除——于是它**永久停在 partial**（#231 的
+`OR NOT tr.complete` 让它能重试，但 `attempts >= 3` 又把门关上）。**不去改它**，理由有二：
+① 我把顺序改成"短文优先"会让新到的长文**永远排不到**，那等于用读者的新鲜度换完成数；
+② 这条腿的成本单位正是 #219 那条待拍板的事（预算按 HTML 字符、渲染按文本字数），今晚动它属越权。
+**留一个可证伪的预测**：两半的顺序决定了"先啃 15 篇长文、再扫 15 篇短文"，按每轮 3 篇、长文 3 次上限，
+**约 00:30 前后短文那一半应该接手，届时 `translations` 的行数会从 5 条/时跳到 20—30 条/时**——
+如果 00:40 的取样没跳，就说明我对"两半怎么被消耗"的理解是错的，那才是要修的东西。
+
+
 
 
 

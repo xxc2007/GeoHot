@@ -3,7 +3,8 @@
 // Why: an edition is a snapshot of the copy at compose time. Correcting an item's Chinese copy afterwards
 // leaves the paper showing the old text — on 2026-10-02 the daily still printed seven English titles hours
 // after those items had been translated, while their own pages were Chinese. `saveReport` overwrites the
-// content and files the previous version into `report_revisions`, so recomposing is versioned and reversible.
+// content and files the previous version into `report_revisions` — keep that in mind, but nothing reads a
+// revision back: rolling an issue back is manual SQL (the --apply path says so too).
 //
 //   node --env-file=.env --env-file=.env.pipeline scripts/recompose-report.ts --kind daily --key 2026-10-02
 //   node --env-file=.env --env-file=.env.pipeline scripts/recompose-report.ts --kind daily --key 2026-10-02 --apply
