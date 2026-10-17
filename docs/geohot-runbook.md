@@ -1816,3 +1816,32 @@ current_edition_rows_expect1|1    jan_sep_settled_days|4 (12 s)    PASS=4 FAIL=1
 **三、仓库自带的浏览器量具确认在这台机器上可用**（不需要新写脚本）：`scripts/mobile-audit.ts`、`scripts/mobile-flow.ts` 都接受 `--base`，Chrome 从 `--chrome` 或 playwright 候选路径解析；Git Bash 下要带 `MSYS_NO_PATHCONV=1`，否则 `--routes /,/daily` 里的 `/` 会被改写成 Windows 路径。冒烟另存了一份在 `D:/tmp/r114-mobile-smoke/report.json`（3 张 PNG + JSON），复位后 07:1x 用全路由集正式跑一遍，作为"网站所有功能正常"那一半的证据（另一半是 07:05 的 HTTP/SQL 功能审查）。
 
 顺带记一条本次冒烟量到的真实形状（都是既有设计，不是缺陷）：首页移动端 `hiddenBehindBar=0`（底部条没有挡住内容）、`/daily` 显示「第 13 期」说明期号在读者面兑现、`/all` 顶栏分类条横向可滚（`wide` 里那 6 条是横向导航，不是溢出）。
+
+## 03:3x｜新加的那条"补抓有没有印进本期"判据，差点因为字段名写错而成了一条永远为零的假红
+
+**要量什么**：日报一期覆盖 `[key-1 08:00, key 08:00)` 北京时间（控制组直接读到 `C_edition_window|10-16 08:00|10-17 08:00`），而这次暂停 20:56—05:30 **整个落在 2026-10-18 那一期的窗口里**。所以"补充因历史回填而缺失的实时信息"不能只数复位后抓回多少条，要数**08:0x 排版有没有把它们收进报纸**。判据设计成一对：`A`=那一期里"复位后才被发现"的条目数，`B`=同一窗口内已精选已公开、按发布闸门应当可刊的补抓条数。A≈0 而 B 很大 ⇒ 抓回来了但没印进这一期（要么没判完，要么是排版前几分钟才抓回）。
+
+**差点出事的地方**：我先照 `compose.ts` 里的内存态类型写了 `i->>'id'`。控制组一跑，**CTE 只返回 1 行**——不是 17+12=29。原因不是 JSON 路径写错，是**落库的 `content` 形状和 TypeScript 里那个形状不一样**：
+
+```
+顶层键（camelCase）： date flashes generator highlights lead metrics sections windowEnd windowStart
+2026-10-17 那期：     3 个 section ∶ 17 条 items ∶ 12 条 flashes ∶ highlights 为空
+item 的 id 字段名：   itemId   （factId / firstParty / score / role / title / summary / sourceUrl …）
+```
+
+`id` 只存在于内存态，序列化后是 `itemId` ⇒ 照类型定义写 SQL 会得到 `29` 个 NULL，`UNION` 把它们并成 1 行，然后 `A` **永远等于 0**。这条判据如果就这么上线，第二天早上会把"补抓完全没印进报纸"当成实测结论报出去——和我 10-12 记过的 `content->'items'`（顶层没有 `items`）是同一族，只是这次错在叶子层而不是根层。
+
+**改正后的双向验证**（同一个文件，只把日期字面量换成已存在的 10-17）：
+
+| 判据 | 10-18（现在还没排版） | 10-17 控制组 |
+| --- | --- | --- |
+| `A_refilled_printed_in_edition` | 0 | **2** |
+| `A2_printed_total_and_nulls` | 0 \| 0 | **29 \| 0** |
+| `B_refilled_selected_in_window` | 0 | **28** |
+| `C_edition_window` | 无行 | 10-16 08:00 → 10-17 08:00 |
+
+⇒ 既能归零也能非零，且拿到一份**平日参照**：正常一天的日报里"当天 05:30 之后才发现"的条目只有 ≈2 条（分母 28）。今早 08:20 那个 A 如果显著高于 2，就说明补抓真的进了报纸；如果 A≈0 而 B 几十条，就是"抓回来了但这一期没印"，那要如实写进日志。
+
+顺带把整份 `r114-after0800.lf` 在 03:35 真跑了一遍（原文，键 2026-10-18）：`PSQL_RC=0 PSQL2_RC=0`，三条读者页 200（首页 1.30 s、日报 0.25 s、归档 0.15 s），`today_5xx=0`（今日累计 1,062 个源站请求），`D_max_discovered_now=10-17 20:54`（暂停仍然真实）。
+
+**记进记忆的一条硬事实**：`reports.content` 是 camelCase 序列化，条 id 在 `itemId`、时间窗在 `windowStart/windowEnd`（表上另有 `window_start/window_end` 列，两者同源）；数"一期有没有内容"要摊 `sections[].items[] ∪ flashes[] ∪ highlights[]` 三个容器，只数 `sections` 会把 12 条快讯漏掉。
