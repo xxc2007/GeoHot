@@ -638,8 +638,13 @@ sudo systemctl list-timers --all            # 档案 timer 与 api/web/brain 不
 脚本末尾 `disable --now` 自己的 timer 并落一个 `.done` 防重跑）。
 **复位脚本要复位的东西见下面第 4 条，不止阀门一个。**
 
-验证脚本（`<轮次>-restore-verify.sh`，恢复后 11 分钟由 `systemd-run` 排队跑一次）的三把尺在 12:17 重做过，
-下一轮直接照这套判：
+验证脚本（`<轮次>-restore-verify.sh`）跑在**另一个武装好的具名 timer** 上（本轮 17:42，`Persistent=true`），
+它把 `/etc/geohot/r113-restore.done` 的 mtime 当恢复时刻、把改阀门那份 `.env` 备份的 mtime 当缺口起点，
+所以站长提前手动复位也不会读错窗。
+**为什么不用 `systemd-run --on-active` 排队**：不是它不能用——12:42 用 `/bin/touch` 等 95 秒复验，它确实开火了
+（12:38 我只等 20 秒就判它"不 fire"，那是**我那把量具太急**，临时 timer 受 `AccuracySec` 默认 1 分钟取整影响）；
+是具名 `OnCalendar` 的事后可审计性更好：`systemctl list-timers` 直接看得到"排没排上"，临时单元跑完就消失。
+脚本的三把尺在 12:17 重做过，下一轮直接照这套判：
 - **缺口补回来多少只能按 `published_at` 数，不能按 `timeline_at`**：实时条目的 `timeline_at` 恒等于
   `discovered_at`（`content/materials.ts:85` 的 `backfill && publishedAt ? publishedAt : discoveredAt`），
   旧判据「`timeline_at` 落在缺口内 + `discovered_at` 晚于恢复」是**不可满足式**，永远数出 0（同一份样本上
@@ -648,6 +653,11 @@ sudo systemctl list-timers --all            # 档案 timer 与 api/web/brain 不
   editions 16`。今晚 17:30 之后 `gap_items_recovered` **应当明显高于 95**（七个多小时攒在 feed 里等重抓），
   只要它贴近 0 就说明重抓没接上，别把"阀门=true"当成"缺口补回来了"。
 - **空读数 ≠ 零**：`psql` 的 stderr 现在一起进日志，查询一死会留下"读数为空"那一行，而不是伪装成一组 0。
+- **复位那一分钟是守护最容易误伤的时刻**：worker 重启 + 666 个到期源挤在十几分钟内重抓 + 归档周期当轮补跑，
+  三件事叠在一起；`geohot-conc-guard` 若此时判"读者面退化"，它会**再重启一次 worker**（把在飞条目钉住最多 30 分钟）
+  并写 `conc-guard.tripped` 把自己**解除武装**，而它其实降无可降（4/3 就是地板）。所以 verify 会把
+  `GUARD_TRIPPED=` 一起落账：读到 `yes` 就等于"保护已经不在了"，重新武装（`rm` 标记 + `start` 它的 timer）
+  是站长的闸门、是一次有意的动作，脚本**不替人做**。
 
 **六条必须知道的副作用**：
 
