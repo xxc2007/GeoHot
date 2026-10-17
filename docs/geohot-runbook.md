@@ -659,7 +659,7 @@ sudo systemctl list-timers --all            # 档案 timer 与 api/web/brain 不
   `GUARD_TRIPPED=` 一起落账：读到 `yes` 就等于"保护已经不在了"，重新武装（`rm` 标记 + `start` 它的 timer）
   是站长的闸门、是一次有意的动作，脚本**不替人做**。
 
-**六条必须知道的副作用**：
+**七条必须知道的副作用**：
 
 1. `COLLECT_ENABLED=false` 会连带**关掉正文抽取的消费者**：`registerExtractionJobs` 只在
    `jobs/sources.ts:30` 注册，而 `apps/worker/src/main.ts:23` 那一行在 `if (isCollectEnabled())` 后面，
@@ -749,3 +749,15 @@ sudo systemctl list-timers --all            # 档案 timer 与 api/web/brain 不
    `backfill-papers --refresh --apply`（第 110 号工单），那是另一次付费与另一次读者面可见的内容改写，归站长拍。
    顺带一条同族的读表警戒：`backfill-papers.ts:138` 写明"`failed` 故意不算未完成……交给 `--refresh`"——
    所以"某一期ripe却不出刊"这类结论，先确认它卡在哪个状态，再决定是等队列还是重排。
+7. **第 6 条的 `--refresh` 在队列按"入库先后"派发时是永远打不开的门——12:47 用只读排程实测：Jan–Sep 的
+   273 天全部落在 `等 N 条判完` 那一支，`会重排` 0 期**。代码里的顺序就是原因：
+   `consider()` 先 `if (waiting) return …'等 N 条判完'`，**再**判 `exists && !refresh`，
+   所以只要那一天还有一条没判完，`--refresh` 连"要不要重排"都不会去问。
+   ⇒ 这两件事是**串联**的：档案队列现在按"什么时候排进来的"派发（`pgboss` 按 `priority DESC, created_on` 取作业，
+   队列里那 13,084 条是十几天里陆续排进去的，顺序与新闻日期无关），
+   所以判定摊在 273 天上是"每天都薄一点"，没有一天过完、也就没有一期能被重排；
+   而按 `timeline_at` 从旧到新排（`sweepUnprocessed` 里那段 reserved 的写法本来就是为这个写的）
+   ⇒ 平均 48 条/天 ÷ 167 篇/时 ⇒ **每 ≈17 分钟真正过完一天**，过完的那天立刻变成 `--refresh` 可动的期次。
+   这不是"两种偏好"，是"能不能兑现连贯"的前后件关系；但改队列次序要动 pg-boss 的作业表（应用里没有
+   受支持的 cancel 通道，`grep cancelJob` 只命中 `http-fetch.ts` 的流取消），
+   属于对共享队列的批量写操作 ⇒ **仍然归站长拍**，我这边把命令、收益与回滚都备好了（工单 #254）。
