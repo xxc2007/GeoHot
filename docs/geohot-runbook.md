@@ -636,16 +636,33 @@ sudo systemctl list-timers --all            # 档案 timer 与 api/web/brain 不
 复位交给一个**跑一次就自删**的定时器：`/opt/geohot/bin/<轮次>-restore-realtime.sh`
 + `geohot-<轮次>-restore.service/.timer`（`OnCalendar=*-*-* HH:MM:00 Asia/Shanghai`、`Persistent=true`、
 脚本末尾 `disable --now` 自己的 timer 并落一个 `.done` 防重跑）。
+**复位脚本要复位的东西见下面第 4 条，不止阀门一个。**
+
+验证脚本（`<轮次>-restore-verify.sh`，恢复后 11 分钟由 `systemd-run` 排队跑一次）的三把尺在 12:17 重做过，
+下一轮直接照这套判：
+- **缺口补回来多少只能按 `published_at` 数，不能按 `timeline_at`**：实时条目的 `timeline_at` 恒等于
+  `discovered_at`（`content/materials.ts:85` 的 `backfill && publishedAt ? publishedAt : discoveredAt`），
+  旧判据「`timeline_at` 落在缺口内 + `discovered_at` 晚于恢复」是**不可满足式**，永远数出 0（同一份样本上
+  实测：新尺 95 条、旧尺 0 条，而 15,358/15,358 条实时条目 `timeline_at = discovered_at`）。
+- **常态对照**：昨天同期（20:00 恢复锚点、缺口 10:00–20:00）用新尺是 `rediscovered 2,050 / gap_recovered 95 / gap_judged 94 /
+  editions 16`。今晚 17:30 之后 `gap_items_recovered` **应当明显高于 95**（七个多小时攒在 feed 里等重抓），
+  只要它贴近 0 就说明重抓没接上，别把"阀门=true"当成"缺口补回来了"。
+- **空读数 ≠ 零**：`psql` 的 stderr 现在一起进日志，查询一死会留下"读数为空"那一行，而不是伪装成一组 0。
 
 **五条必须知道的副作用**：
 
 1. `COLLECT_ENABLED=false` 会连带**关掉正文抽取的消费者**：`registerExtractionJobs` 只在
    `jobs/sources.ts:30` 注册，而 `apps/worker/src/main.ts:23` 那一行在 `if (isCollectEnabled())` 后面，
    没有第二个注册点。于是 `body_status='pending'` 且需要抓页面的条目会先按标题/摘要判（与抽取最终失败同一口径）。
-   **这条保护不是全覆盖**：`jobs/content.ts:131` 在 `!result.output` 时用 `queueProcessing(step:"extract")` **显式指定步骤**，
-   会盖过 `route()` 的阀门判断，把作业排进没有消费者的 `content.extract-body` 队列——不花钱，但占排队位，
-   靠 `QUEUED_STALE=30 分钟` 被安全网反复重排（2026-10-17 关阀期间见到 1,423 行 `new` 的 `processing_queued_at` 老于 35 分钟，
-   全在档案带）。关阀期间若发现一批 `new` 长期不动，先按 `processing_error` 分族再决定要不要处理。
+   ~~**这条保护不是全覆盖**：`jobs/content.ts:131` 会盖过阀门判断、把作业排进没有消费者的队列~~
+   ——**这一条 12:19 被生产台账证伪，撤回**：`!result.output` 只有一个来源（`analyze.ts:493` 的 `waitsForPage`），
+   而 `waitsForPage` 自己就带 `isCollectEnabled()`（`analyze.ts:212`），所以阀门关着时这条分支根本走不到；
+   实测 `content.extract-body` 在 02:11:54Z 关阀之后**新建 0 个作业**，而同一个队列在关阀前 2 分钟还在正常完成
+   （累计 41,713 个 `completed`，最新 10:09:31）⇒ 队列活着、只是没被喂。**别照着这段去"修"那个 131 行**，
+   两处阀门判定（`route()` 与 `waitsForPage()`）都在，已经是双保险。
+   当时看到的「一批 `new` 长期不动」也不是孤儿：那是**深积压的排队等待**——12:19 实测队列里 `created` 的判定作业
+   已经等了 **53–58 小时**，且 16,876 个排队作业 ≈ 13,084 条档案 `new` + 3,786 条首导 `new`（一一对上，没有丢行）。
+   正确的读法：`processing_queued_at` 老 ≠ 作业丢了，先比"排队作业数 vs `new` 行数"，再谈孤儿。
    2026-10-17 实测暴露面：全库 54 行 pending、其中实时带 26 行，档案带 13,212/13,218 已是 `ok` ⇒ 代价可控，
    但**每次关阀前都要先量这个数**；`isCollectEnabled` 的默认值是 **true**（`config.ts:79`），
    键不在 `.env` 里就等于开着，所以这个阀门必须显式写。
