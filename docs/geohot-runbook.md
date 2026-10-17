@@ -2021,3 +2021,19 @@ item 的 id 字段名：   itemId   （factId / firstParty / score / role / titl
 `changed_count=0`：这一夜的四次重排**一字未改**（连导读长度都相同，01-11 仍是 0）。正文相应改成"今夜又重排 __EDITIONS__ 期，逐期比归档版本：改动 __CHANGED__ 期"，`__EDITIONS__/__CHANGED__` 现在都由这份工件算，不再取读数里那个"04:00 之后重新生成过的期"（它会把 08:00 当天那期也算进去）。工件里另加了一条过滤 `key < '2026-10-01'`，正是为了这个区分。
 
 三处自己的坑当场被抓（都在跑第二遍时才露）：CTE 里没 select `id` 却让外层 `p.report_id = t.id`；`prev` 那份我一开始写成 `rr.report_id`（该表别名是 `pr`）；以及**旧闸门文案还写着 `reprinted_since_0400=`，而它比的已经是工件来的 `ED`**——文案不跟着口径改，下一次读日志的人就会被误导。规矩还是那条：**改口径必须同时改名字与文案**。
+
+## 05:0x 复位前把"自动复位"这条链逐闸门读了一遍：archive 停在 `failed(timeout)` 的因果、账本里那条不存在的 stop 行、以及 verify 为什么不会自己跑
+
+"填完之后立马恢复正常"这一半是交给 systemd 无人值守执行的，所以 05:03 用一次只读 ssh 把**脚本本身**（不是我记忆里我写它时的样子）读了一遍。五个结论，每条都带当场证据：
+
+**1. 兜底 `r114-heal.sh` 的真实闸门是三把，顺序是：今天的旗标 → 阀门确实关着 → 05:30—09:00。** 04:14 与 04:35 它各留了一行 `heal-skipped window=05:30-09:00 now=… valve=COLLECT_ENABLED=false`——**它说话，就说明前两把门已经放行**，只是时钟还没到。这正是 **#275** 的现场验证：旗标按 `$(date +%F)` 命名，`stop` 在 10-17 20:57 落的是 `r114-stop.done.2026-10-17`，跨午夜后第一行 `[ ! -e …/$DAY ] && exit 0` 会让兜底**连一行日志都不留**地熄火；04:14 补的 `r114-stop.done.2026-10-18` 把它救回来，两枚旗标现在都在盘上。
+
+**2. `geohot-archive.service` 从 10-17 20:55:38 起是 `failed (Result: timeout)`——这是本窗口自己的脚印，不是还在坏。** 因果链在 journal 里连着：20:53:02 `phase=collect-1 started` → 20:54:53 定时器被停（`geohot-archive.timer: Deactivated`）→ 同一秒服务收到 stop 作业、`phase=status-after started` → `TimeoutStopSec=45s` 到点，20:55:38 systemd 把整个 cgroup（bash / timeout / MainThread / DelayedTaskScheduler / SignalInspector）SIGKILL，`Failed with result 'timeout'`。所以**最后一轮档案周期没走到收尾记账**。它会不会挡住复位：不会——单元是 `static`、只由定时器触发，而 `r114-restore-realtime.sh` 在 `start geohot-archive.timer` 之前就有 `systemctl reset-failed geohot-archive.service`。写这一段是为了下一次有人在白天看到 `failed … 8h ago` 不去追一个幽灵。
+
+**3. 账本里有一条"不存在"的记录，正文那句因此不能只靠它。** `/var/log/geohot-r114-window.log` 全文 177 行，只有一条 `stop-begin`，时间是 **20:15:17**，紧跟着 `stop-skipped hour=20 -- closing the valve is only legal at 21:xx-22:xx`（那次是拿真单元跑的守卫测试，**时钟守卫按设计拒绝了**）。真正关阀发生在 20:56，是我手工做的，所以**没有 `stopped [...]` 这一行**。这不影响"暂停 8.6 小时"，但依据要写清：旗标 mtime 20:57 + 复位 05:30 + 读者面读数里**最后**那条 `window_req` 的界就是 20:56→05:30（第一条是 21:30→05:30；取第一条会静默漏掉前 34 分钟的流量）。
+
+**4. #269 由脚本尾巴坐实：复位成功会 `disable --now` 掉 restore / refresh / heal / **verify** 四把定时器，所以 05:50 那次自动复验根本不会跑。** 复位的证据只能从外面来：本轮已排 05:16 取窗内最后一个样（净排的分母）、05:33 取复位结果，加上 :15 取样器与 06:2x 的读数。下一轮的修法就一句话：**restore 不该替 verify 关门，让 verify 跑完自己 disable 自己**。
+
+**5. 阀门配置里有一个静默降级位**：单元文件写 `Environment=GEOHOT_ARCHIVE_APPLY=0`，真值靠 `EnvironmentFile=/etc/geohot/archive-cycle.conf` 覆盖成 `=1`。哪天这个 conf 被清空，档案周期会**一声不响地变成 dry-run**。现值记一份：`APPLY=1 / MAX_ITEMS=40 / SLICES=2 / PER_MONTH=500 / FROM=2026-01-01`。
+
+顺带把 ETA 的第二把尺对上了。04:30/04:33 那两段 `refresh` 都以 `rc=0` 收工，尾巴上各留一份"还差多少条才判完那天"的直方图（`N × 等 M 条判完`，按 `天数 × 条数` 求和）：**1—5 月 147 天 / 8,713 条，6—9 月 122 天 / 4,557 条，合计 269 天 / 13,270 条**。同一时刻取样器的 `unsettled=13326`——两把尺差 **56 条**（实时带与尾部那批不在这 273 天的日账里）。按一夜 ≈745 条就是 **≈17.8 夜**，与 #262 的 ≈18 夜是同一个数；换个说法：每夜要结算 ≈15 天。守护这一夜没动过保护：`guard[conc=4 translate=3 slow=0 availMB=151 swapMB=933 err5xx6m=0 bad=0]`。
