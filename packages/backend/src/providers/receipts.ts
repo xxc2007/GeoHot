@@ -134,7 +134,10 @@ async function checkBudget(tx: Db, service: string): Promise<void> {
  * 加了别名反而拼不出语句——`${alias}.` 在模板里是一个**参数**，不是字符串拼接。
  */
 export function unbilledAttempt() {
-  return sql`(status = 'failed' AND usage IS NULL)`;
+  // Older releases marked uncertain/billed attempts failed. Preserve that evidence too.
+  return sql`(status = 'failed' AND usage IS NULL AND coalesce(cost, 0) = 0
+    AND coalesce(error, '') NOT LIKE '自动放行：%'
+    AND coalesce(error, '') NOT LIKE '人工核对：供应商已计费%')`;
 }
 
 /**
