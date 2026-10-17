@@ -649,7 +649,7 @@ sudo systemctl list-timers --all            # 档案 timer 与 api/web/brain 不
   只要它贴近 0 就说明重抓没接上，别把"阀门=true"当成"缺口补回来了"。
 - **空读数 ≠ 零**：`psql` 的 stderr 现在一起进日志，查询一死会留下"读数为空"那一行，而不是伪装成一组 0。
 
-**五条必须知道的副作用**：
+**六条必须知道的副作用**：
 
 1. `COLLECT_ENABLED=false` 会连带**关掉正文抽取的消费者**：`registerExtractionJobs` 只在
    `jobs/sources.ts:30` 注册，而 `apps/worker/src/main.ts:23` 那一行在 `if (isCollectEnabled())` 后面，
@@ -702,18 +702,40 @@ sudo systemctl list-timers --all            # 档案 timer 与 api/web/brain 不
    **要更高并发必须先解决内存**（加内存，或把重活与读者高峰错峰），而不是改守护的阈值。
 4. **自动复位的脚本必须枚举"本轮我手工停过的每一样东西"，不能只回最显眼的那个阀门**。12:04 现场抓到：
    `r113-restore-realtime.sh` 原本只做 `COLLECT_ENABLED=true` + 重启 worker，**没有**
-   `systemctl start geohot-archive.timer`——照它跑完，实时恢复了、归档周期却永久停着，
-   而归档周期同时负责"结算日出刊"（`archive-cycle.sh` 的 `select-papers`/`select-news` 相位），
-   ⇒ **日报静默停更，没有任何报警会响**。已补进脚本（旧版备份在 `/opt/geohot/backups/r113-restore-script-*`），
-   并用 `bash -n` + 现场 `cat` + `grep -c` 三重确认只有一条。定时器是 `Persistent=true`，
-   所以 17:30 一 `start` 会立刻补跑一轮，当天 08:00 之后新结算的日子当轮就出刊。
+   `systemctl start geohot-archive.timer`——照它跑完，实时恢复了、**回填却永久停着**：档案进口（`collect-*` 相位）
+   与历史期次补刊（`papers` 相位，生产 `/etc/geohot/archive-cycle.conf` 里 `GEOHOT_ARCHIVE_APPLY=1`，
+   11:00:46–11:01:45 那一轮 `exit=0` 就是它在写）都挂在这个定时器上，而"回填"正是这一轮的全部意义。
+   **一处必须说准的边界（12:31 复核代码后改正——我原先写的"停掉它 ⇒ 日报静默停更"是把功记错了对象）**：
+   **当期**期次（今天/本周/本月）由 worker 出——`schedules.ts` 里 `reports.daily` cron `0 8 * * *`、
+   `reports.weekly` 周一 10:00、`reports.monthly` 每月 1 日 10:30、`reports.catch-up` 每小时 :15；
+   今天 08:01:24 那期日报是 worker 那一枪出的（定时器 11:01 才停）。归档周期的 `papers` 补的是
+   **结算了却从没印过的历史期次**。所以停一天它的后果是"回填与历史补刊停摆"，不是"明天读者看不到日报"。
+   已补进脚本（旧版备份在 `/opt/geohot/backups/r113-restore-script-*`），并用 `bash -n` + 现场 `cat` + `grep -c` 三重确认只有一条。
+   定时器是 `Persistent=true` + `OnCalendar=*:00/15`，一 `start` 补跑**一轮**（不是九十六轮）；
+   `flock -n` 拿不到锁时那一轮只打一行 "another cycle holds the lock; skipped" 就 `exit 0` ⇒
+   **别把"start 成功"当成"这轮真跑了"**，验证要看 `geohot-archive.service` 的 `ExecMainStartTimestamp`（verify 脚本已把它写进日志）。
    **做法**：写"到点自动恢复"的脚本前，先把这一轮手工执行过的所有 `stop`/`sed`/`restart` 列成清单，
    逐条对着清单写复位——只按"我要改什么"的记忆写，漏掉的必然是顺手做的那一下。
 5. **窗口结束后实时带不会自己长出欠账，但 `failed` 带会**：12:06 实测 `processing_state='new'` 的实时条目 **0 条**
    （队列里 priority 0 的作业也 0 条），说明暂停期间实时带是真的排空、不是被压住——恢复后只需要等新稿。
-   可是有 **219 条实时条目停在 `failed`**（`sweepUnprocessed` 只捞 `new`，永不自动重来）：
+   可是有 **219 条实时条目停在 `failed`**（安全网的门口只写 `processing_state = 'new'`（`jobs/content.ts:241`），
+   `failed` 只能靠 `requeueFailed` 那一条 UPDATE 回到 `new`，而它还多一道"最近 30 天"的窗（`content.ts:290`））：
    76 条死门 403 `FreeTierError`（opencode，早已不在池里，重来会走活的门）、
    76 条付费写作产不出可用中文（54 条"无中文正文 / finish_reason: length"、22 条"中英混排"，即 #236 那一族）、
    10 条内容安全 403、~16 条 unusable output。按发现日摊在 10-04…10-16，最多的单日 58 条（10-10）。
    **要补这批只能显式 `requeueFailed`（`jobs/content.ts`，付费、且 priority 0 会插到档案前面约 1.3 小时槽位）**，
    这一轮没有擅自花这笔钱，留给站长拍。
+   **但别把这句推广成"`failed` 全被永久钉死"**：`unknown` 收据那一族自带自动回路——
+   `ops.recover` 每 10 分钟跑 `autoReleaseUnknownReceipts`（`admin/runs.ts:137`），放行时顺带把条目改回 `new` 并重排，
+   `receipt_attempts.error LIKE '自动放行…'` 那条记录还兼作"只自动放行一次"的记号。
+   本批 219 条按 `processing_error` 分族里**一条 `receipt … outcome unknown` 都没有**，所以"这一批不会自己回来"成立；
+   反过来，下次看到一批 `failed`，先分族再决定要不要花钱重排。
+6. **回填判出来的材料不会自己爬进已经印出的那一期**（这是"连贯"这件事上最容易漏的一环）：
+   归档周期的 `papers` 相位对**已有期次一律跳过**——`scripts/backfill-papers.ts:174`
+   `if (exists && !values.refresh)` 直接记一条"已有可读刊期（未重排）"，而周期脚本里
+   `FINAL_REFRESH="${FINAL_REFRESH:-0}"`（`deploy/geohot/archive-cycle.sh:13`）只有设成 1 才带 `--refresh`
+   （`:198`）。⇒ 生产现值下，**这一轮判完的 ≈1,300 条档案条目进得了日页、分类页、精选流，
+   但进不了 1—9 月那些已经印过的日报/周报/月报**；要让它们出现在期次里，必须显式跑一次
+   `backfill-papers --refresh --apply`（第 110 号工单），那是另一次付费与另一次读者面可见的内容改写，归站长拍。
+   顺带一条同族的读表警戒：`backfill-papers.ts:138` 写明"`failed` 故意不算未完成……交给 `--refresh`"——
+   所以"某一期ripe却不出刊"这类结论，先确认它卡在哪个状态，再决定是等队列还是重排。
