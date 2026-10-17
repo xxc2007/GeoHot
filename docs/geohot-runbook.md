@@ -733,8 +733,15 @@ sudo systemctl list-timers --all            # 档案 timer 与 api/web/brain 不
    76 条死门 403 `FreeTierError`（opencode，早已不在池里，重来会走活的门）、
    76 条付费写作产不出可用中文（54 条"无中文正文 / finish_reason: length"、22 条"中英混排"，即 #236 那一族）、
    10 条内容安全 403、~16 条 unusable output。按发现日摊在 10-04…10-16，最多的单日 58 条（10-10）。
-   **要补这批只能显式 `requeueFailed`（`jobs/content.ts`，付费、且 priority 0 会插到档案前面约 1.3 小时槽位）**，
-   这一轮没有擅自花这笔钱，留给站长拍。
+   **要补这批只能显式 `requeueFailed`（`jobs/content.ts`，付费、且 priority 0 会插到档案前面约 1.3 小时槽位）**。
+   **13:17 已按站长 13:06 的自主授权执行了一半——只重排"死门 403"那一族 76 条**（opencode 早已摘出池，
+   重排后走的是活门，成功率高；实测 `active`/首导带不受影响、审计文件 root-only）：
+   执行前 `failed` 实时带 219 → 执行后 143，`new` 实时带 0 → 76，两个数对得上（差 76 = 重排条数 + 那 1 分钟新判掉的）。
+   **剩下三族故意不动**：77 条"付费写作产不出可用中文"（#236 未修，重来大概率原样再败）、
+   10 条内容安全 403（`ProviderRejectedError` 不可重试 ⇒ 一次就回 `failed`，白花一次钱）、
+   ~37 条 unusable output（多数仍指向在用的门，属于同一族的重复失败）。
+   教训一条：**重排要按 `processing_error` 分族做，不是按"failed 一堆"整体做**——
+   整体重排的账单里有一半是买第二次同样的失败。
    **但别把这句推广成"`failed` 全被永久钉死"**：`unknown` 收据那一族自带自动回路——
    `ops.recover` 每 10 分钟跑 `autoReleaseUnknownReceipts`（`admin/runs.ts:137`），放行时顺带把条目改回 `new` 并重排，
    `receipt_attempts.error LIKE '自动放行…'` 那条记录还兼作"只自动放行一次"的记号。
