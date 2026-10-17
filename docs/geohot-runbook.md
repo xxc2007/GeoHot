@@ -1611,6 +1611,30 @@ stop / refresh / restore / heal / verify 五个 timer **全部 disable 掉**。�
 ⇒ **结论：不是缺陷，不要改文案**。真正的代价已经记在上一节（少收 ≈720 条实时进口），不在读者界面的措辞上。
 教训还是那条老规矩：**"读代码读出来的发现"要先量生产再立案**——这次是反过来用，量完把怀疑撤掉。
 
+### 第一百一十四轮 · 03:01 跑仓库自己的只读完整性审计（提前跑，不等收尾）：一条硬项、两条已核查放行
+
+`node --env-file=.env scripts/audit-content-integrity.ts --from=2026-01-01 --to=2026-10-18 --json`
+（renice 19 + ionice -c3 + 300 秒 timeout，实测 20 秒跑完）。`AUDIT_RC=1` 的唯一 HARD 项是：
+
+- **`selected_backfill_without_date` = 36**（10-12 那轮是 13，**回填期间涨到 36**）：档案行被判成精选却没有新闻日期
+  ⇒ `compose.ts:101` 那一支要求 `p.published_at IS NOT NULL`，所以它们**永远进不了任何一期**——是"白花钱判它"那一族（#162）。
+  按信源分族（不是孤例）：SpaceMapper 中文转载层 6、法国地质矿产局 4、西班牙气象局 2、巴西气象局灾害预警 2、
+  GMD 当期目录 2、Synspective 雷达 2、Biodiversity Data Journal 2、Eurotopics 1。代价口径：一条判定 ≈5 次调用 ⇒ 36 条 ≈180 次付费调用。
+  **修法归站长**（#162 的 A 逐源调选择器 / B 让 undated 不进 `selected`），我不擅自改精选口径。
+
+**两条"看着像缺陷、量完不是"**：
+① `backfilled_daily_editions_with_material_but_no_number` = **271** 期有内容却没期号，我怀疑读取层把它们说成「未出刊」（#141 的老账）。
+  抓了三期页面看上下文：那三个「未出刊」全在**上一天/下一天的导航条**上——"1月1日 · 未出刊"、"1月26日 · 未出刊"，
+  这两天是真的没有可刊条目（1月1日结构性无料；1月26日的 selected 都在更早的期次印过）；**正在看的这一期没有被标成未出刊**。
+  库里同期读数：2026-01-02 1 件、01-03 8 件、01-04 8 件，`issue_no` 均为空 ⇒ 无号是正常的，标注也是对的。**#141 的这条担忧在日报页上不成立。**
+② `fact_printed_on_multiple_days` = 65（软项）：`6320872` 之后新期次不该再有，存量 65 条不挡任何硬判据，按软项挂着。
+
+顺带三条全绿：`blank_editions=0`、`missing_title_or_source=0`、`chinese_title_english_summary=0`、`editions_printing_stale_copy=0`、
+`settled_days_unprinted_with_material=0`（**出刊没有漏印**），`editions_stored=284`。
+
+证据：`D:/tmp/audit-ci-0259.out`（全量 JSON）、`D:/tmp/r114-issueno2.lf`（导航条上下文抓取）。
+
+
 
 ### 第一百一十四轮 · 02:33 先把「暂停到底损失多少」变成可比的数
 
