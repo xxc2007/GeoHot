@@ -1874,3 +1874,26 @@ item 的 id 字段名：   itemId   （factId / firstParty / score / role / titl
 - 还有一条设计错是我自己的：`任何 HARD 红 ⇒ 拒绝发布`。而 `selected_backfill_without_date` **本来就是红的**（基线 36，#162 挂账），这条闸门会让发布永远被拒。改成**基线差**：基线为 0、现在不为 0 的 HARD 项才拦（本轮造成的），既有挂账只打印不拦。双向实测：新增项 ⇒ REFUSE；挂账从 36 涨到 38 ⇒ 放行并打印 `挂账的 HARD（本轮未新增，仍等站长拍）`。
 
 顺带把 `__UNDATED__` 加进日志的代价段，并把"复位后抓回多少"从**承诺**（"下一轮扫描补回"）换成**读数**（`__REFILL__` / `__PAUSED__`），并加了"抓回为 0 就不许写'实时没被落下'"这条闸门——庆祝句不能盖在一个没验证的将来时上面。
+
+## 04:00｜收尾次序（照这个跑，别凭记忆重推）
+
+自动部分已经在走：04:30 两段半年重排、05:30 复位、每小时 :15 取样、:35 兜底。下面是**人工部分**，每一步都写清"工件落在哪、闸门是什么、失败时怎么办"。所有临时文件都在 `D:/tmp`，仓库里不留。
+
+1. **05:06 早查（后台 watcher `bar1euekz` 的第一跳）** → `D:/tmp/checkpoint-0506.out`。
+   看三样：`refresh-begin/end/all-done` 三段是否齐、两段 rc（**124＝被 timeout 截断，是正常收工不是失败**）、`report_revisions_now` 是不是从 44 往上走。这一跳只是早发现，**不作数**（重排可能还在跑，且它在 05:30 之前只有 ≈36 分钟预算）。
+2. **06:20 夜窗终读（同 watcher 第二跳）** → `D:/tmp/morning-0620.out`。这是唯一算数的读数来源。
+   必须齐的标签：`unsettled_jan_sep_now` `reprinted_since_0400` `report_revisions_now` `judged_in_window` `judged_band_same_window|jan_sep` `zh_in_window` `new_after_restore` `refilled_from_pause` `window_req/window_5xx` `stop_flag/restore_flag` `valve=`（**同一行出现两次，取最后一条**）。
+   若 `restore_flag=0` 或 `valve=COLLECT_ENABLED=false` ⇒ **别发日志**，先查 `r114-heal.timer`（05:30—09:00 窗口自己会补做复位），复位成功后再回到第 2 步重读。
+3. **07:05 前后：内容完整性复跑**（`D:/tmp/r114-audit-ci.lf`，只读、nice 19 + ionice 3、`timeout 300`）→ 存成 `D:/tmp/audit-ci-latest.out`。
+   它是发布闸门的第二个输入：`fill-draft.cjs` 拿它和基线 `audit-ci-0259.out` 做**基线差**——基线为 0 而现在不为 0 的 HARD 项 ⇒ 拒绝发布；既有挂账（`selected_backfill_without_date`）只打印。
+4. **07:05 全站功能审查**（`D:/tmp/r114-audit2.lf` = v4）→ `D:/tmp/audit-0705.out`。
+   `PASS=n FAIL=0` 且**必须有那条断言**：`复位后采集真的在跑（近 2 小时有新发现）`。`FAIL≠0` 就先判读：红色来自量具还是站点，判据在 v4 的头注里。
+5. **填数并发布（一条命令的复制粘贴）**
+   `node /d/tmp/fill-draft.cjs --integrity=D:/tmp/audit-ci-latest.out` → 打印 `映射/交叉/期次两把尺/复位证据/读者面/汉字`，最后一行是可粘贴的 `--set=…`。
+   把它贴进 `node /d/tmp/ship-final-114.cjs … --time=HH:MM`（**先不带 `--write`**，眼验预览与字数）→ 加 `--write` → 再用 `D:/tmp/r114-ship-final-server.lf`（入参 `EXPECT=<本地 sha> WANT_DATE=2026-10-18 WANT_TIME=HH:MM WANT_TITLE_FRAG=一夜净排`）投到生产并核对生产那份 sha 与本地一致、页面里能数到标题片段。
+   闸门自己会拒的事：占位符没填全、字数不在 300—420、阀门未确认复位、抓回数为 0、审查有 FAIL、期次两把尺分叉、内容完整性有新增 HARD 红。**被拒不要绕，先弄清是哪一边错。**
+6. **提交与发布 GitHub**：`git add docs/geohot-runbook.md industry/changelog.json`（**逐文件 add，不用 `-A`**）→ 提交 → 先看 `git merge-base --is-ancestor origin/main HEAD`（03:2x 实测 origin/main 是 HEAD 祖先、领先 6 个提交、789 份文件清单一致 ⇒ **普通 `git push` 就是 fast-forward**，临时索引那套不需要）→ 推完核对远端 tree。禁 force。README 不许动（已量过：本轮改动只碰 `docs/` 与 `industry/`）。
+7. **浏览器面**（生产已在 07:0x 之后是常态负载）：
+   `node scripts/mobile-audit.ts --base https://xxc2007.me/geohot --chrome "C:/Program Files/Google/Chrome/Application/chrome.exe" --routes "/,/daily,/all,/hot,/topics,/changelog" --out D:/tmp/r114-mobile-final`（Git Bash 要带 `MSYS_NO_PATHCONV=1`），再来一遍 `scripts/mobile-flow.ts` 同 base。03:3x 已冒烟过：`problems: []`、`hiddenBehindBar=0`。
+8. **收尾清理**：`D:/tmp/r114-cleanup.lf`（服务器侧，`R114_DRY=1` 先干跑）。它自己会拒绝的条件：不是 2026-10-18、早于 06:30、阀门没开、worker/归档定时器没在跑、没有当天的 restore 旗标。它会**先把日志/JSON/脚本/systemd 单元归档**到 `/root/r114-audit-<date>` 再删，然后把 `D:/tmp` 的清干净、`git status` 只剩既有的 `.mimosa/`。
+9. **给站长的报告**：进度与 ETA（#262 现算的数）、#270 续开夜窗的拍板请求（约 18 夜、每夜代价 720 条实时进口）、#271 白天重量翻译收益、#272 日报 og 卡冷渲染 ≈10 秒、以及本轮**没做**的事：门槛 46/49/52、666 条信源、workbuddy 对端墙、翻译四个旋钮、`providers/llm.ts` 的 `headroomFor` 都按原样不动。
