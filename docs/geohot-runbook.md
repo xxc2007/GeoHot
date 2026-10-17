@@ -1751,5 +1751,5 @@ current_edition_rows_expect1|1    jan_sep_settled_days|4 (12 s)    PASS=4 FAIL=1
 
 **五、两条我自己的量具缺陷，记下来免得再犯**：
 
-- 我按 `GEOHOT_COLLECT_ENABLED=` 去 `.env` 里 grep 阀门，什么都没打到——**真正的键是独立 env 文件里的 `COLLECT_ENABLED=false`**（`r114-refresh.sh` 第 11 行的守卫读的就是它）。凭名字猜配置键等于没验；这次靠取样日志里那格 `collect=false` 才是权威读数。
+- 我按 `GEOHOT_COLLECT_ENABLED=` 去 `.env` 里 grep 阀门，什么都没打到，随即在日志里写下「真正的键在另一个独立 env 文件里」——**这句是错的，五分钟后就地更正**：`r114-refresh.sh` 第 8 行 `ENVF=/opt/geohot/app/.env`，文件从头到尾就是 `.env`，我猜错的只是**键名**（没有 `GEOHOT_` 前缀，就叫 `COLLECT_ENABLED=false`，第 11 行守卫 `grep -qx 'COLLECT_ENABLED=false' "$ENVF"` 读的就是它）。连带结论：05:06 读量脚本第 153 行那格 `valve=` 本来是对的，我差点去「修」一个没坏的东西。教训按最狠的那条记：**猜键名和猜文件都算没验**，配置键的正解是把定义它的那一行读出来照抄，不是按前缀习惯拼一个。
 - 预检脚本整条 RC=1，但那条命令是 `dmesg | grep -ci 'out of memory'`——**没有匹配时 grep 退出 1，`pipefail` 把「零 OOM」这件好消息变成了失败码**。测量脚本的退出码不该和判据的语义混在一起：要么显式 `|| true` 并单独打印计数，要么让它真的失败。下一次读到 RC=1 时先问「这是判据还是量具」。
