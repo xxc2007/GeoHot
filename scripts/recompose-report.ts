@@ -8,6 +8,7 @@
 //
 //   node --env-file=.env --env-file=.env.pipeline scripts/recompose-report.ts --kind daily --key 2026-10-02
 //   node --env-file=.env --env-file=.env.pipeline scripts/recompose-report.ts --kind daily --key 2026-10-02 --apply
+//   批量按天重排时加 --skip-unchanged：语料与已出刊那版逐条对得上就直接退出，不花导语那次调用（#276）
 //
 // Local dev needs both env files (the model endpoint — the brain stub on 3055 — lives in `.env.pipeline`;
 // without it the call fails with "Model default is not configured"). Production has a single `.env` with the
@@ -23,6 +24,7 @@ const { values } = parseArgs({
     kind: { type: "string" },
     key: { type: "string" },
     apply: { type: "boolean", default: false },
+    skipUnchanged: { type: "boolean", default: false },
   },
 });
 const kind = values.kind ?? "";
@@ -67,6 +69,25 @@ if (range) {
 if (kind === "daily") {
   const ahead = await editionsAhead("daily", key);
   if (ahead.length) console.log(`注意：${key} 之后已出刊 ${ahead.length} 期（${ahead.join(" ")}）。日报的去重只看更早的期次，重排这一期可能把那些期已经发过的事再印一遍；要版面一致，那几期也各跑一次本脚本。`);
+}
+
+// 第 114 轮实测（#276）：04:30 那轮按天重排了 4 期，逐期与归档那份比，条目数与导读长度一字未差——
+// 也就是白付了 4 次导语的模型调用。重排是花钱动作，所以"语料没变"必须在这里就拒，而不是付完钱再发现白写一遍。
+// 判据取**条目 id 集合相等**：组稿的排序是确定性的，进出的集合相同 ⇒ 版面相同。
+// 已知让步：精选导读与 highlights 是模型选的，同一份输入理论上可能选出不一样的组合；
+// 今夜 4 期的实测是组合没变（条数与导读长度都对得上）。真要让版面重出，别加这个旗标即可。
+const printedIds = new Set<string>([...items, ...flashes].map((i: any) => String(i.itemId ?? "")).filter(Boolean));
+if (range && values.skipUnchanged) {
+  const nowIds = new Set<string>((await candidates(new Date(range.start), new Date(range.end))).map((c) => c.itemId));
+  const sameSize = nowIds.size === printedIds.size;
+  const missing = [...printedIds].filter((id) => !nowIds.has(id));
+  const added = [...nowIds].filter((id) => !printedIds.has(id));
+  if (sameSize && !missing.length && !added.length) {
+    console.log(`语料没变（${nowIds.size} 条候选与已出刊那版逐条对得上）——按 --skip-unchanged 跳过，不花这次模型调用`);
+    await closeDb();
+    process.exit(0);
+  }
+  console.log(`语料变了：已出刊 ${printedIds.size} 条 ∶ 当前候选 ${nowIds.size} 条（新增 ${added.length} 条、掉了 ${missing.length} 条）⇒ 继续重排`);
 }
 
 if (!values.apply) {
