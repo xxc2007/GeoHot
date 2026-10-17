@@ -1899,3 +1899,13 @@ item 的 id 字段名：   itemId   （factId / firstParty / score / role / titl
 9. **给站长的报告**：进度与 ETA（#262 现算的数）、#270 续开夜窗的拍板请求（约 18 夜、每夜代价 720 条实时进口）、#271 白天重量翻译收益、#272 日报 og 卡冷渲染 ≈10 秒、以及本轮**没做**的事：门槛 46/49/52、666 条信源、workbuddy 对端墙、翻译四个旋钮、`providers/llm.ts` 的 `headroomFor` 都按原样不动。
 
 **04:0x 发布链最后一次核对（全部读代码/读现值，没动生产）**：`ship-final-114.cjs` 会更新 `latestVersion`、按 `JSON.stringify(j,null,2)+"\n"` 输出（与线上那份逐字节同形，缩进 1/4/tab 都试出来过不一样）、替换前后都断言 `releases=52`、并钉住"第二条必须是 2026-10-17 09:15 那条"防止替换位置错；服务器那半边顺序是 `sha 相等 → 服务端内容闸门 → cp -p 备份 → install -m 644 -o geohot 到 .tmp 再 mv -f → 再量一次 sha 相等 → sleep 6 → 带 `?cb=` 绕过页面 max-age=300 抓页面数标题片段、同时确认被撤回的「60—133」不再出现`。现值：`releases=52`、`latestVersion=2026-10-17T17:58`、第二条=2026-10-17 09:15。包装链 `timeout → systemd-run --scope -p MemoryMax=260M -p CPUWeight=50 -p IOWeight=10 → ionice -c3 → node` 在这台（systemd 249、mq-deadline）实测 rc=0，所以 04:30 那一步不会死在自己的资源限制语法上。
+
+## 04:0x｜"把每扇模型门都用上"这条查完了：没有闲置的门，但查出一条惰性的缓存
+
+查这事的动机是目标里的"调用所有大模型的最大能力"——如果有一扇接进来的门在空转，那就是白扔的产能。结论分三层，全部现量：
+
+- **池成员 ≠ 台账服务名**。`MODEL_POOL` 8 个成员（模型名）落在 5 个服务上（provider 名），而 `receipt_attempts` 按服务记数——所以"8 个成员只有 5 个服务在跑"是**我的读法错**，不是漏了 3 扇门。近 3 小时这 5 个服务全在接单，应答率 ≥99%（workbuddy 860∶844、workbuddy-cn 627∶625、dots 387∶379、agnes-cn 306∶301、llm 288∶281）。
+- **`budgets` 里 10 条 24h 零尝试的行不是漂移**（deepseek/zhipu/dashscope/mimo/embedding/jina/openrouter/opencode/dajiala/socialdata）——那是第 95 轮摘门后留下的熔断行；摘门只改 `.env` 不动表，所以表里必然留着。**没有凭据的门不会出现在这里"等着被用"**：`GEMINI_*` 在生产 `.env` 里 0 行，把它塞进池子只会造出"死门钉住条目"那一族事故（#252 修过 76 条 opencode 403）。所以**没动池子**，这条按"无事可做"结案。
+- **真正的闲置在别处**：`embeddings` 表 **0 行**，`embedding` 门 24h **0 次尝试**，而 24h 的调用构成是 score 5,638 ∶ **prefilter 3,055** ∶ structure 1,713 ∶ understand 530——非翻译调用/判完条目 = **4.24**。也就是第 59 轮加固过的"向量缓存预筛"在生产上是惰性的：预筛现在是一次真 LLM 往返，不是本地向量比对，于是每条"这条不属于地理"都要付费判定（窗口内 `relevance=block` 占 260/1,031 ≈ 25%）。若这一层能本地拦掉，单作业墙钟从 ≈128 秒降到 ≈95 秒 ⇒ **槽位数不变、吞吐 +35%**。这是本轮唯一既没被额度也没被内存槽挡住的可得产能，缺的只是一把 embedding 凭据（与 #240「Jina 从来没有 key」同族）。已开 **#273** 记下算账、判据与"做成了应当看见什么"，等站长给键；我没有单方面引入凭据。
+
+顺带一条量具自纠：那条查 `pg_class` 的语句我写了 `ORDER BY 3` 而 select 只有两列（`ORDER BY position 3 is not in select list`）——和 `GROUP BY 1` 数到常量是同一族：**位置数的是 select 列表里的位置，包括常量和表达式**。
