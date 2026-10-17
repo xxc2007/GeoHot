@@ -86,10 +86,16 @@ jobs:
       - name: Configure a throwaway site
         run: |
           node scripts/init-env.ts > /dev/null
-          # No outside calls in CI: nothing is collected and no model is asked.
-          sed -i 's/^COLLECT_ENABLED=.*/COLLECT_ENABLED=false/; s/^MODEL_CALLS_ENABLED=.*/MODEL_CALLS_ENABLED=false/; s|^SITE_URL=.*|SITE_URL=http://web:3000|' .env
-          # The smoke check reaches the site by its compose service name.
-          echo "MCP_ALLOWED_HOSTS=web" >> .env
+          # Normalize blank inline comments once with Node's dotenv parser: Compose treats
+          # some empty-value/comment combinations differently. Never print generated secrets.
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          import { parseEnv } from 'node:util';
+          const env = parseEnv(readFileSync('.env', 'utf8'));
+          Object.assign(env, { COLLECT_ENABLED: 'false', MODEL_CALLS_ENABLED: 'false',
+            SITE_URL: 'http://web:3000', API_PORT: '3001', WEB_PORT: '3000', MCP_ALLOWED_HOSTS: 'web' });
+          writeFileSync('.env', Object.entries(env).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join('\n') + '\n');
+          NODE
       - name: Build and start with docker compose
         run: docker compose up -d --build
       - name: Smoke check
