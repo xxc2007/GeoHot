@@ -126,14 +126,15 @@ AVAIL=$(awk '/MemAvailable/{print int($2/1024)}' /proc/meminfo)
 PREV=$(cat /run/geohot-r114-lowmem 2>/dev/null || echo 0)
 STREAK=$(next_streak "$PREV" "${AVAIL:-0}" "$GEOHOT_FLOOR_AVAIL_MB")
 mkdir -p /run 2>/dev/null && printf '%s' "$STREAK" > /run/geohot-r114-lowmem 2>/dev/null
-# 停摆检测：存量不降 = 判定腿没在干活（门被板凳、worker 卡住、队列被钉住）。
+# 停摆检测：判定腿的存量不降 = 判定腿没在干活（门被板凳、worker 卡住、队列被钉住）。
 # 静默等到死期限是最贵的一种失败：这几天什么都不产出，还占着实时。连续 6 轮（3 小时）不降就恢复实时。
-# 状态一行两列：上次存量 与 上次计数（只存存量就会把存量当计数，见 next_stall 的注释）。
+# **只按判定腿($J)记，不按合计**——翻译量会随判定推进合理地上涨（新入选的要翻），拿合计判会把"正在干活"误读成停摆。
+# 状态一行两列：上次判定存量 与 上次计数（只存存量就会把存量当计数，见 next_stall 的注释）。
 STATE=$(cat /run/geohot-r114-left 2>/dev/null || echo '')
-PREVLEFT=$(printf '%s' "$STATE" | cut -d' ' -f1)
+PREVJ=$(printf '%s' "$STATE" | cut -d' ' -f1)
 PREVSTALL=$(printf '%s' "$STATE" | cut -d' ' -f2)
-STALL=$(next_stall "$PREVLEFT" "$PREVSTALL" "$LEFT")
-mkdir -p /run 2>/dev/null && printf '%s %s' "$LEFT" "$STALL" > /run/geohot-r114-left 2>/dev/null
+STALL=$(next_stall "$PREVJ" "$PREVSTALL" "$J")
+mkdir -p /run 2>/dev/null && printf '%s %s' "$J" "$STALL" > /run/geohot-r114-left 2>/dev/null
 E5=$(tail -n 4000 /var/log/nginx/access.log 2>/dev/null | awk -v d="$(date +%d/%b/%Y)" \
      'index($4, "[" d ":")==1 && substr($9,1,1)=="5" && index($7, "/geohot")>0 {c++} END {print c+0}')
 ACT=$(decide "$LEFT" "${AVAIL:-0}" "${E5:-0}" "$(date +%s)" "${DEADLINE_EPOCH:-0}" "$STREAK" "$STALL")
