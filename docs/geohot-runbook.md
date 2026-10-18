@@ -2855,3 +2855,29 @@ sudo -u geohot /usr/bin/ionice -c3 node --max-old-space-size=192 --env-file=.env
 
 **新硬规矩（写进操作纪律）**：**窗口开着时不许在机上打任何大表扫描**。`gated-probe.sh` 的闸门只管"进门前"的 load，
 管不了载荷自身的重量——这一枪就是反例。窗口内的进度读数一律用哨兵/闸门的日志（零 DB），分档类查询放到窗口外。
+
+### 23:2x 已经动过的一处线上配置：/geohot 的爬虫限速（可逆，只影响本站）
+
+**动机**：今晚两扇窗都被"读者面 5xx"收掉，而 5xx 的署名 100% 是 AhrefsBot / SemrushBot / Mozi / MJ12 这一族
+（深页 `/all?tag=…`、`/items/…`、`/og/…png` 在归档周期的重相位超时）。这不是"回填太猛"能解的，是外部抓取撞上重相位。
+
+**做法（只动 geohot）**：
+1. 新文件 `/etc/nginx/conf.d/25-geohot-bots.conf`（http 层）：`map $http_user_agent $geohot_bot_key` + `limit_req_zone … rate=2r/s`。
+   **非目标 UA 的 key 必须是空串**——nginx 对空 key 不计流量；写成常量 `0` 会让全体访客共用一个桶（经典坑）。
+2. `/etc/nginx/sites-available/xxc2007.me` 的 `location ^~ /geohot` 内加两行：
+   `limit_req zone=geohot_bots burst=10 nodelay;` 与 `limit_req_status 429;`。
+
+**为什么这条能救窗口**：**429 属于 4xx，不进"读者面 5xx"的窗**——守卫不会再因为爬虫把整扇回填窗收掉，
+而那批真正会超时的深页请求被限速削平了（顺序抓取约 1 r/s 的正常爬虫不受影响，突发会被 429 挡）。
+
+**实测（23:22，当场）**：`nginx -t` 过 → reload → 普通 UA 首页 `200 / 0.053 s`、深页 `200 / 0.101 s`；
+爬虫 UA 连打 25 次 = **200×12 + 429×13**；随后 `audit-routes.sh` 全量 **34/34 PASS、SLOW=0**。
+
+**回滚（一条命令；备份在盘上）**：
+```
+cp -p /etc/nginx/sites-available/xxc2007.me.bak-bots-20261018-232234 /etc/nginx/sites-available/xxc2007.me && \
+rm -f /etc/nginx/conf.d/25-geohot-bots.conf && nginx -t && systemctl reload nginx
+```
+**代价**：这几个 SEO 工具的抓取会变慢（它们会退避）；Googlebot/Bingbot 不在名单里。
+**根治仍是加内存**（891 MB 装不下 7 个 pg 后端 ×143 MB 的工作集，swap 一过 900 MB 就 `wa 82%`），归 #205。
+提醒：仓库里的 `nginx.conf.example` 是**目标配置不是线上快照**，所以这条改动只记在这里，别指望从仓库反推线上。
