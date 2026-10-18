@@ -102,10 +102,10 @@ next_stall() {
 # 低内存计数：哨兵自己不记状态，靠 /run 里那一个数字。抽成函数是为了能被夹具测到（生产跑的与测的是同一份）。
 #   $1 上次计数  $2 本次可用 MB  $3 可用 MB 数（坏值一律当 0）  $4 地板
 next_streak() {
-  local prev="${1:-0}" avail="${2:-0}" floor="${3:-90}"
+  local prev="${1:-0}" avail="${2:-0}" floor="${3:-60}"
   case "$prev" in ''|*[!0-9]*) prev=0 ;; esac
   case "$avail" in ''|*[!0-9]*) avail=0 ;; esac
-  case "$floor" in ''|*[!0-9]*) floor=90 ;; esac
+  case "$floor" in ''|*[!0-9]*) floor=60 ;; esac
   if [ "$avail" -lt "$floor" ]; then echo $(( prev + 1 )); else echo 0; fi
 }
 # "看不见"计数：存量或读者面 5xx 任一读数拿不到合法数字就 +1，两个都好则归零。
@@ -131,7 +131,30 @@ e5_count() {
        n++; if (first=="") first=substr($4,14,5); last=substr($4,14,5)
        hh=substr($4,14,2)+0; mi=substr($4,17,2)+0; ss=substr($4,20,2)+0
        if (t0>0 && now-(t0+hh*3600+mi*60+ss) <= w && substr($9,1,1)=="5" && index($7, "/geohot")>0) c++
-     } END {print c+0, n+0, first"-"last}'
+     } END { if (n+0 == 0) print "-1 0 无当日样本"; else print c+0, n+0, first"-"last }'
+}
+# 只数纯数字：psql 一旦多打一行（.psqlrc 的 \timing 会打 `Time: 3.501 ms`），
+# `tail -1 | tr -dc 0-9` 会造出 3501 这种"看着像存量"的假数——宁可读数失败，也不要假数。
+digits_only() { case "${1:-}" in ''|*[!0-9]*) echo -1 ;; *) printf '%s' "$1" ;; esac; }
+# 读者优先闸门的去留（闸门脚本与 selftest 跑同一份）：
+#   $1 近窗 5xx（-1=读不到）  $2 现在 epoch  $3 冷却截止 epoch（0=没有）  $4 上次是不是我们停的（1/0）
+#   $5 worker 现在 active?  $6 预算  $7 闸门是否被 disarmed 旗标按住（1=按住）
+# 返回：SKIP_DISARMED / SKIP_BLIND / HELD / TRIP / RELEASE / IDLE
+gate_action() {
+  local e5="${1:--1}" now="${2:-0}" until="${3:-0}" we_stopped="${4:-0}" active="$5" budget="${6:-0}" disarmed="${7:-0}"
+  # 入参先消毒：非数字一律当"读不到"（-1）或 0。不能让 [ x -le -1 ] 这种整数比较报错把一次判定变成脚本失败。
+  case "$e5" in ''|*[!0-9]*) e5=-1 ;; esac
+  case "$now" in ''|*[!0-9]*) now=0 ;; esac
+  case "$until" in ''|*[!0-9]*) until=0 ;; esac
+  case "$we_stopped" in ''|*[!0-9]*) we_stopped=0 ;; esac
+  case "$budget" in ''|*[!0-9]*) budget=0 ;; esac
+  [ "$disarmed" = 1 ] && { echo SKIP_DISARMED; return; }
+  if [ "$e5" -le -1 ]; then echo SKIP_BLIND; return; fi
+  if [ "$until" -gt 0 ] && [ "$now" -lt "$until" ]; then echo HELD; return; fi
+  if [ "$e5" -gt "$budget" ]; then echo TRIP; return; fi
+  # 只有"确实是本闸门停掉的"才允许自动起回来； operator 自己停的 worker 不去碰它。
+  if [ "$we_stopped" = 1 ] && [ "$active" != "active" ]; then echo RELEASE; return; fi
+  echo IDLE
 }
 DECIDE
 }
@@ -170,17 +193,17 @@ fi
 set -a; . "$ENVF" >/dev/null 2>&1; set +a
 # 排空 = 两条腿都空。判定腿只数**没判过的**（processing_state='new'，走 articles_processing_idx，现读 3.5 s）；
 # 之前把 analyzed 也算进"没排完"是错的——analyzed 就是"判过了"，那样存量永远不会归零，窗口只能等死期限。
-J=$(PGOPTIONS="-c statement_timeout=20s" psql "$DATABASE_URL" -At -v ON_ERROR_STOP=1 -c \
-  "SELECT count(*) FROM articles a WHERE a.processing_state='new' AND a.timeline_at < '2026-10-01+08'" 2>/dev/null | tail -1 | tr -dc '0-9')
-T=$(PGOPTIONS="-c statement_timeout=20s" psql "$DATABASE_URL" -At -v ON_ERROR_STOP=1 -c \
-  "SELECT count(*) FROM publications p JOIN articles a ON a.id=p.article_id LEFT JOIN translations tr ON tr.article_id=p.article_id AND tr.lang='zh' WHERE p.selected AND p.visibility='public' AND p.body_mode='full' AND coalesce(a.language,'')<>'zh' AND p.timeline_at < '2026-10-01+08' AND (tr.article_id IS NULL OR (tr.origin<>'source' AND (tr.revision<a.revision OR NOT tr.complete)))" 2>/dev/null | tail -1 | tr -dc '0-9')
+J=$(digits_only "$(PGOPTIONS="-c statement_timeout=30s" psql "$DATABASE_URL" -At -v ON_ERROR_STOP=1 -c \
+  "SELECT count(*) FROM articles a WHERE a.processing_state='new' AND a.timeline_at < '2026-10-01+08'" 2>/dev/null | tail -1)")
+T=$(digits_only "$(PGOPTIONS="-c statement_timeout=30s" psql "$DATABASE_URL" -At -v ON_ERROR_STOP=1 -c \
+  "SELECT count(*) FROM publications p JOIN articles a ON a.id=p.article_id LEFT JOIN translations tr ON tr.article_id=p.article_id AND tr.lang='zh' WHERE p.selected AND p.visibility='public' AND p.body_mode='full' AND coalesce(a.language,'')<>'zh' AND p.timeline_at < '2026-10-01+08' AND (tr.article_id IS NULL OR (tr.origin<>'source' AND (tr.revision<a.revision OR NOT tr.complete)))" 2>/dev/null | tail -1)")
 [ -n "$J" ] || J=-1
 [ -n "$T" ] || T=-1
 # 第三个条件：一到九月还有**没扫完的切片**时，"判完了"不等于"回填完了"。
 # 17:29 现读 archive_ingest：Jan–Sep 还有 128 片 pending/running（十月那 119 片不算——当月门本来每轮都走）。
 # 不算这一项的话，判定腿只要追上进口就会误报"排空"，窗口在半成品上收工。
-S=$(PGOPTIONS="-c statement_timeout=20s" psql "$DATABASE_URL" -At -v ON_ERROR_STOP=1 -c \
-  "SELECT count(*) FROM archive_ingest WHERE month < '2026-10' AND status <> 'done'" 2>/dev/null | tail -1 | tr -dc '0-9')
+S=$(digits_only "$(PGOPTIONS="-c statement_timeout=30s" psql "$DATABASE_URL" -At -v ON_ERROR_STOP=1 -c \
+  "SELECT count(*) FROM archive_ingest WHERE month < '2026-10' AND status <> 'done'" 2>/dev/null | tail -1)")
 [ -n "$S" ] || S=-1
 if [ "$J" -le -1 ] || [ "$T" -le -1 ] || [ "$S" -le -1 ]; then LEFT=-1; else LEFT=$(( J + T + S )); fi
 AVAIL=$(awk '/MemAvailable/{print int($2/1024)}' /proc/meminfo)
@@ -200,7 +223,7 @@ STALL=$(next_stall "$PREVJ" "$PREVSTALL" "$J")
 E5_WINDOW_SEC=${R114_E5_WINDOW_SEC:-700}
 NOWE=$(date +%s)
 TODAY0=$(date -d "today 00:00:00" +%s 2>/dev/null || echo 0)
-E5RAO=$(e5_count "${R114_NGX:-/var/log/nginx/access.log}" "${R114_E5_TAIL:-20000}" "$E5_WINDOW_SEC" "$(date +%d/%b/%Y)" "$TODAY0" "$NOWE")
+E5RAO=$(e5_count "${R114_NGX:-/var/log/nginx/access.log}" "${R114_E5_TAIL:-20000}" "$E5_WINDOW_SEC" "$(LC_ALL=C date +%d/%b/%Y)" "$TODAY0" "$NOWE")
 E5=$(printf '%s' "$E5RAO" | cut -d' ' -f1)
 E5N=$(printf '%s' "$E5RAO" | cut -d' ' -f2)
 E5SPAN=$(printf '%s' "$E5RAO" | cut -d' ' -f3)
@@ -209,7 +232,10 @@ case "$E5" in ''|*[!0-9]*) E5=-1 ;; esac
 OPENED=$(date -r /etc/geohot/r114-stop.done +%s 2>/dev/null || echo 0)
 # 看不见 = 存量或读者面读数任一坏掉；连续 GEOHOT_BLIND_STREAK 轮就恢复实时（瞎着的哨兵没资格替站长按着进口）。
 BLIND=$(next_blind "$PREVBLIND" "$LEFT" "$E5")
-mkdir -p /run 2>/dev/null && printf '%s %s %s' "$J" "$STALL" "$BLIND" > /run/geohot-r114-left 2>/dev/null
+# 存量这一列只在读到数字时才更新：把 -1 写进状态文件，下一轮 next_stall 会因"上次不是数字"直接归零，
+# 于是一次 psql 抖动就把停摆计数清空（停摆这条保命规则变成永远够不着）。
+NEWJ="$J"; case "$J" in ''|*[!0-9]*) NEWJ="$PREVJ" ;; esac
+mkdir -p /run 2>/dev/null && printf '%s %s %s' "$NEWJ" "$STALL" "$BLIND" > /run/geohot-r114-left 2>/dev/null
 E5FORJUDGE="$E5"; [ "$E5" -lt 0 ] && E5FORJUDGE=0
 ACT=$(decide "$LEFT" "${AVAIL:-0}" "$E5FORJUDGE" "$NOWE" "${DEADLINE_EPOCH:-0}" "$STREAK" "$STALL" "$BLIND" "$OPENED")
 echo "$(date -Is) watch 待判=$J 待翻=$T 未扫片=$S 合计=$LEFT avail=${AVAIL:-?}MB lowmem_streak=$STREAK stall_streak=$STALL blind=$BLIND err5xx=${E5}/${E5_WINDOW_SEC}s(样本${E5N:-?}行 ${E5SPAN:-无}) 已开$(( OPENED>0 ? (NOWE-OPENED)/60 : 0 ))min -> $ACT"
@@ -217,6 +243,11 @@ case "$ACT" in
   RESTORE*)
     R114_FORCE=1 bash "$BIN/r114-restore-realtime.sh"; rc=$?
     echo "$(date -Is) watch-restore rc=$rc ($ACT)"
+    if [ "$rc" != 0 ]; then
+      # 恢复失败就绝不能拆哨兵：阀还关着、又没人再问下一次，就是"没人看着的黑洞"。留着它 10 分钟后再试。
+      echo "$(date -Is) watch-restore-failed 保留哨兵与全部定时器（现值 $(grep -m1 -E '^COLLECT_ENABLED=' "$ENVF" 2>/dev/null)）"
+      exit 0
+    fi
     systemctl disable --now geohot-r114-drain-watch.timer 2>/dev/null
     systemctl disable --now geohot-r114-stop.timer geohot-r114-restore.timer 2>/dev/null
     echo "$(date -Is) watch-done 哨兵与两枚窗口定时器已拆"
@@ -225,13 +256,17 @@ case "$ACT" in
     case "$ACT" in
       *drained*|*deadline*)
         systemctl disable --now geohot-r114-longwindow-start.timer 2>/dev/null
-        echo "$(date -Is) watch-nightly-off 依据 $ACT 收工，今晚起不再自动开窗（要再开得手工 --arm-nightly）；归档周期交回日常节律"
+        systemctl start geohot-archive.timer 2>/dev/null
+        echo "$(date -Is) watch-nightly-off 依据 $ACT 收工：晚间排程已拆，归档周期交回日常节律（active=$(systemctl is-active geohot-archive.timer 2>&1)）"
         ;;
       *)
-        # 还在夜窗政策里：恢复的是"白天"，而 114 那半 reverter 会把归档定时器一起点起来——
-        # 17:30 那一轮跑了 28 分钟没完，正好和读者/爬虫撞在一起，所以白天要把它按住。
-        systemctl stop geohot-archive.timer 2>/dev/null
-        echo "$(date -Is) watch-archive-daypause 白天按住归档周期（active=$(systemctl is-active geohot-archive.timer 2>&1)），今晚 21:00 由 --start 再放行"
+        # 还在夜窗政策里才按住白天这一档；晚间排程已不在（--disarm-nightly 之后）再 stop 就没人负责起回来了。
+        if [ "$(systemctl is-enabled geohot-r114-longwindow-start.timer 2>/dev/null)" = "enabled" ]; then
+          systemctl stop geohot-archive.timer 2>/dev/null
+          echo "$(date -Is) watch-archive-daypause 白天按住归档周期（active=$(systemctl is-active geohot-archive.timer 2>&1)），今晚由 --start 再放行"
+        else
+          echo "$(date -Is) watch-archive-normal 晚间排程已不在，归档周期留在日常节律（active=$(systemctl is-active geohot-archive.timer 2>&1)）"
+        fi
         ;;
     esac
     ;;
@@ -239,8 +274,79 @@ esac
 WATCH
 }
 
+gate_body() { cat <<'GATE'
+#!/bin/bash
+# 第 115 轮的读者优先闸门：读者的路一红，就把 geohot-worker（判定腿＋翻译腿）按停一段冷却，
+# 而不是只恢复实时——18:27 实测：停 worker ⇒ 首页 503/15.3 s → 200/0.076 s，pg 后端 21→10、负载 1.73→0.38；
+# 而只关阀（17:47 那次）读者面照旧红。真正的负载旋钮是这个进程，不是阀门。
+set -uo pipefail
+LOG=${R115_LOG:-/var/log/geohot-r115-readergate.log}
+exec >> "$LOG" 2>&1
+BIN=${GEOHOT_BIN:-/opt/geohot/bin}
+ENVF=${R114_ENVF:-/opt/geohot/app/.env}
+RUN=${R115_RUN:-/run/geohot-r115-gate}
+DISARM=${R115_DISARM:-/etc/geohot/r115-gate.disarmed}
+BUDGET=${R115_BUDGET_ERR5XX:-0}
+WIN=${R115_E5_WINDOW_SEC:-700}
+COOL=${R115_COOLDOWN_MIN:-30}
+. "$BIN/r114-drain-decide.sh"
+NOW=$(date +%s); T0=$(date -d "today 00:00:00" +%s 2>/dev/null || echo 0)
+RAO=$(e5_count "${R114_NGX:-/var/log/nginx/access.log}" "${R114_E5_TAIL:-20000}" "$WIN" "$(LC_ALL=C date +%d/%b/%Y)" "$T0" "$NOW")
+E5=$(printf '%s' "$RAO" | cut -d' ' -f1)
+SPAN=$(printf '%s' "$RAO" | cut -d' ' -f3)
+case "$E5" in ''|*[!0-9-]*) E5=-1 ;; esac
+# 状态一行两列：冷却截止 epoch 与 "是不是本闸门停的 worker"（1/0）
+UNTIL=$(cut -d' ' -f1 "$RUN" 2>/dev/null || echo 0)
+WE=$(cut -d' ' -f2 "$RUN" 2>/dev/null || echo 0)
+ACT=$(systemctl is-active geohot-worker 2>&1)
+DIS=0; [ -e "$DISARM" ] && DIS=1
+V=$(grep -m1 -E '^COLLECT_ENABLED=' "$ENVF" 2>/dev/null)
+A=$(gate_action "$E5" "$NOW" "${UNTIL:-0}" "${WE:-0}" "$ACT" "$BUDGET" "$DIS")
+case "$A" in
+  TRIP)
+    if [ "${R115_DRY:-0}" = 1 ]; then
+      echo "$(date -Is) DRY-TRIP 本会停 worker（现在没停）5xx=$E5/${WIN}s(样本 $SPAN) valve=$V worker=$ACT"
+    else
+      systemctl stop geohot-worker; RC=$?
+      echo "$(( NOW + COOL * 60 )) 1" > "$RUN" 2>/dev/null
+      echo "$(date -Is) TRIPPED 5xx=$E5/${WIN}s(样本 $SPAN) valve=$V worker=$(systemctl is-active geohot-worker 2>&1) stop_rc=$RC 冷却 ${COOL} 分钟"
+    fi
+    ;;
+  RELEASE)
+    if [ "${R115_DRY:-0}" = 1 ]; then
+      echo "$(date -Is) DRY-RELEASE 本会起 worker（现在没起）worker=$ACT"
+    else
+      systemctl start geohot-worker; RC=$?
+      rm -f "$RUN" 2>/dev/null
+      echo "$(date -Is) RELEASED 5xx=0/${WIN}s(样本 $SPAN) worker=$(systemctl is-active geohot-worker 2>&1) start_rc=$RC"
+    fi
+    ;;
+  HELD)
+    echo "$(date -Is) HELD 冷却还剩 $(( (UNTIL - NOW) / 60 )) 分钟 worker=$ACT 5xx=${E5}/${WIN}s"
+    ;;
+  SKIP_BLIND)
+    echo "$(date -Is) SKIP 5xx 量具读不到（nginx 无当日样本或字段漂移）——闸门不动生产，但这不是绿灯" ;;
+  SKIP_DISARMED) echo "$(date -Is) SKIP disarmed 旗标在 $DISARM" ;;
+  *) : ;;
+esac
+GATE
+}
+
 unit_svc() { printf '[Unit]\nDescription=%s\nAfter=network-online.target\n\n[Service]\nType=oneshot\nUser=root\nEnvironment=R114_DEADLINE_EPOCH=%s\nEnvironment=R114_FLOOR_AVAIL_MB=%s\nEnvironment=R114_BUDGET_ERR5XX=%s\nEnvironment=R114_LOWMEM_STREAK=%s\nEnvironment=R114_STALL_STREAK=%s\nEnvironment=R114_BLIND_STREAK=%s\nEnvironment=R114_E5_WINDOW_SEC=%s\nEnvironment=R114_MAX_WINDOW_SEC=%s\nExecStart=/bin/bash %s\n' "$2" "$3" "$4" "$5" "$6" "$7" "$8" "$9" "${10}" "${11}"; }
 unit_tm() { printf '[Unit]\nDescription=%s\n\n[Timer]\nOnCalendar=%s\nRandomizedDelaySec=30\nPersistent=false\nUnit=%s.service\n\n[Install]\nWantedBy=timers.target\n' "$2" "$3" "$1"; }
+unit_gate_svc() { printf '[Unit]\nDescription=GEOHOT reader-first worker gate\n\n[Service]\nType=oneshot\nUser=root\nEnvironment=R115_E5_WINDOW_SEC=%s\nEnvironment=R115_COOLDOWN_MIN=%s\nEnvironment=R114_NGX=/var/log/nginx/access.log\nExecStart=/bin/bash %s\n' "$1" "$2" "$3"; }
+GATE_CADENCE=${R115_GATE_CADENCE:-"*:03/10"}
+COOLDOWN=${R115_COOLDOWN_MIN:-30}
+GATE_SCRIPT=${R115_GATE_SCRIPT:-$BIN/r115-reader-gate.sh}
+
+install_gate() { # 只落闸门脚本，不 enable
+  mkdir -p "$BIN"
+  gate_body > "$GATE_SCRIPT.tmp" && mv "$GATE_SCRIPT.tmp" "$GATE_SCRIPT"; chmod 700 "$GATE_SCRIPT"; chown root:root "$GATE_SCRIPT"
+  unit_gate_svc "$E5WIN" "$COOLDOWN" "$GATE_SCRIPT" > "$SYS/geohot-r115-reader-gate.service"
+  unit_tm geohot-r115-reader-gate "GEOHOT reader-first worker gate (10 min)" "$GATE_CADENCE" > "$SYS/geohot-r115-reader-gate.timer"
+  systemctl daemon-reload
+  ls -l "$GATE_SCRIPT" | awk '{print "  gate_script="$1, $5, $9}'
+}
 
 install_files() { # 落盘判据与哨兵，并重装两枚单元；不碰阀门、不 enable
   mkdir -p "$BIN"
@@ -263,11 +369,14 @@ case "$MODE" in
   . "$T/decide.sh"
   export GEOHOT_FLOOR_AVAIL_MB="$FLOOR" GEOHOT_BUDGET_ERR5XX="$BUDGET" GEOHOT_LOWMEM_STREAK="$STREAK_N" GEOHOT_STALL_STREAK="$STALL_N" GEOHOT_BLIND_STREAK="$BLIND_N"
   chk() { # chk <说明> <期望动作> <剩余> <可用> <5xx> <现在> <期限> <低内存连击> <停摆连击> <看不见连击> <开窗epoch>
-    local got; got=$(decide "$3" "$4" "$5" "$6" "$7" "${8:-1}" "${9:-0}" "${10:-0}" "${11:-0}")
-    case "$got" in
-      "$2"*) echo "  OK   $1 → $got" ;;
-      *) echo "  WRONG $1：期望 $2 得到 $got"; exit 1 ;;
-    esac; }
+    # 期望里带 "|" 就逐字比（把撤窗理由也钉住），只给类别名（RESTORE／HOLD）才做前缀比。
+    local got ok=0; got=$(decide "$3" "$4" "$5" "$6" "$7" "${8:-1}" "${9:-0}" "${10:-0}" "${11:-0}")
+    case "$2" in
+      *"|"*) [ "$got" = "$2" ] && ok=1 ;;
+      *) case "$got" in "$2"*) ok=1 ;; esac ;;
+    esac
+    [ "$ok" = 1 ] && echo "  OK   $1 → $got" || { echo "  WRONG $1：期望 [$2] 得到 [$got]"; exit 1; }
+}
   chk "排空（0 条）"            RESTORE 0    300 0 1000 2000 1
   chk "未排空且健康"            HOLD   1200  300 0 1000 2000 1
   chk "读者面出 5xx"            RESTORE 1200 300 3 1000 2000 1
@@ -309,7 +418,7 @@ case "$MODE" in
     && echo "  OK   next_blind：存量-1→+1、5xx 读不到→+1、两个都好→归零" || { echo "  WRONG 看不见计数器不对"; exit 1; }
   # 5xx 尺自己也要被量：合成一份 nginx 日志，四条行分别该"进窗/进窗/出窗/非本站/非 5xx"。
   # 这条夹具是为本轮踩过的那个偏移坑写的——$4 的小时从第 14 个字符起，写成 13 会把小时读成 0，窗口过滤器就永远数不到（假绿）。
-  DPF=$(date +%d/%b/%Y); T0F=1000000000; NOWF=$(( T0F + 17*3600 + 34*60 + 30 ))
+  DPF=$(LC_ALL=C date +%d/%b/%Y); T0F=1000000000; NOWF=$(( T0F + 17*3600 + 34*60 + 30 ))
   { printf '1.1.1.1 - - [%s:17:34:00 +0800] "GET /geohot/ HTTP/1.1" 503 12 "-" "probe"\n' "$DPF"
     printf '1.1.1.1 - - [%s:17:00:00 +0800] "GET /geohot/reports HTTP/1.1" 504 12 "-" "probe"\n' "$DPF"
     printf '1.1.1.1 - - [%s:16:00:00 +0800] "GET /geohot/ HTTP/1.1" 500 12 "-" "probe"\n' "$DPF"
@@ -322,12 +431,42 @@ case "$MODE" in
   [ "$(printf '%s' "$R2H" | cut -d' ' -f1)" = 3 ] || { echo "  WRONG 2 小时窗该数到 3 条（16:00 那条要进来），得到 [$R2H]"; exit 1; }
   [ "$(printf '%s' "$R40" | cut -d' ' -f3)" = "17:34-17:29" ] || { echo "  WRONG 跨度显示不对（说明 substr 偏移又漂了），得到 [$R40]"; exit 1; }
   echo "  OK   e5_count：40 分钟窗 2 条／2 小时窗 3 条／跨度显示 17:34-17:29（非本站与非 5xx 都没被误数）"
+  # 死掉的量具不能报 0：nginx 读不到、或日期前缀对不上（LC_TIME 非英文就会这样），必须给 -1 让 blind 涨。
+  RDEAD=$(e5_count "$T/不存在的日志" 500 700 "$DPF" "$T0F" "$NOWF")
+  [ "$(printf '%s' "$RDEAD" | cut -d' ' -f1)" = -1 ] \
+    && echo "  OK   日志读不到时 e5_count 给 -1（不是 0）：[$RDEAD]" || { echo "  WRONG 死掉的 5xx 量具报成 0，读者规则就永远够不着"; exit 1; }
+  RCN=$(e5_count "$T/acc.log" 500 700 "18/十月/2026" "$T0F" "$NOWF")
+  [ "$(printf '%s' "$RCN" | cut -d' ' -f1)" = -1 ] \
+    && echo "  OK   月份前缀不匹配（locale 漂移）也给 -1：[$RCN]" || { echo "  WRONG locale 一改这把尺就永远数到 0"; exit 1; }
+  [ "$(digits_only 'Time: 3.501 ms')" = -1 ] && [ "$(digits_only 14693)" = 14693 ] && [ "$(digits_only '')" = -1 ] \
+    && echo "  OK   digits_only：把 psql 多打的那行（\\timing）挡成 -1，不制造 3501 这种假存量" || { echo "  WRONG 假数没被挡住"; exit 1; }
+  # 读者优先闸门（第 115 轮新增）：TRIP／HELD／RELEASE／SKIP 四条路都要能被夹具走到。
+  [ "$(gate_action 3 1000 0 0 active 0 0)" = TRIP ] \
+    && echo "  OK   gate：5xx=3 且没在冷却 → TRIP" || { echo "  WRONG 闸门见到 5xx 不跳"; exit 1; }
+  [ "$(gate_action 0 1000 9999999999 1 inactive 0 0)" = HELD ] \
+    && echo "  OK   gate：冷却没到就 HELD（不会反复停/起 worker）" || { echo "  WRONG 冷却期被无视"; exit 1; }
+  [ "$(gate_action 0 10000 9000 1 inactive 0 0)" = RELEASE ] \
+    && echo "  OK   gate：冷却已过、5xx 归零、且确实是本闸门停的 → RELEASE" || { echo "  WRONG 闸门不会把 worker 交回去"; exit 1; }
+  [ "$(gate_action 0 10000 0 0 inactive 0 0)" = IDLE ] \
+    && echo "  OK   gate：不是我们停的 worker 就绝不去 start（operator 手工停的保持原样）" || { echo "  WRONG 闸门会擅自启动别人停的进程"; exit 1; }
+  [ "$(gate_action -1 1000 0 1 active 0 0)" = SKIP_BLIND ] && [ "$(gate_action 9 1000 0 1 active 0 1)" = SKIP_DISARMED ] \
+    && echo "  OK   gate：量具坏→SKIP_BLIND（不动生产但也不装绿）；disarmed 旗标在→谁也不动" || { echo "  WRONG 闸门在坏量具或被解除时还动生产"; exit 1; }
+  [ "$(gate_action x 1000 '' '' active 0 0)" = SKIP_BLIND ] \
+    && echo "  OK   gate：非数字入参被兜住（不会把 shell 报错当成一次跳闸）" || { echo "  WRONG 非数字入参没兜住"; exit 1; }
+  bash -n "$T/watch.sh" >/dev/null && grep -q 'gate_action' "$T/decide.sh" \
+    && echo "  OK   闸门判据与哨兵判据同源（同一份 decide 文件，测的=跑的）" || { echo "  WRONG 闸门另抄了一份判据"; exit 1; }
+  gate_body > "$T/gate.sh"; bash -n "$T/gate.sh" && echo "  OK   闸门脚本语法过" || { echo "  WRONG 闸门脚本语法不过"; exit 1; }
+  grep -q 'R115_DRY' "$T/gate.sh" && echo "  OK   闸门带 DRY 分支（真机上要先只判不动地试跑一次）" || { echo "  WRONG 闸门没有 DRY 分支"; exit 1; }
+  unit_gate_svc 700 30 "$BIN/r115-reader-gate.sh" > "$T/gate.service"
+  grep -q '^ExecStart=/bin/bash /opt/geohot/bin/r115-reader-gate.sh$' "$T/gate.service" \
+    && grep -q 'Environment=R115_COOLDOWN_MIN=30' "$T/gate.service" \
+    && echo "  OK   闸门单元 ExecStart 指向脚本、冷却时长走 Environment=" || { echo "  WRONG 闸门单元形状不对：$(grep '^ExecStart' "$T/gate.service")"; exit 1; }
   # 与旧写法做**差分**：同一组输入必须给出不同答案，否则这条修复根本没落地。
   legacy_decide() { local left="${1:-0}"; if [ "$left" -le -1 ]; then echo "HOLD|unknown_left"; return; fi; if [ "${3:-0}" -gt 0 ]; then echo "RESTORE|reader_5xx=$3"; return; fi; echo "HOLD|legacy"; }
   [ "$(legacy_decide -1 300 5)" = "HOLD|unknown_left" ] && [ "$(decide -1 300 5 1000 2000 1 0 0)" != "HOLD|unknown_left" ] \
     && echo "  OK   差分对照：旧判据在这组输入下说 HOLD（正是要修的），新判据说 $(decide -1 300 5 1000 2000 1 0 0)" \
     || { echo "  WRONG 新旧判据没测出差别 —— 要么顺序没真改，要么夹具在骗人"; exit 1; }
-  if ( chk "故意给错的期望" HOLD -1 300 5 1000 2000 1 0 0 ) 2>/dev/null; then
+  if ( chk "故意给错的期望" HOLD -1 300 5 1000 2000 1 0 0 ) >/dev/null 2>&1; then
     echo "  WRONG 断言器失效：故意写错的期望也该红"; exit 1
   else
     echo "  OK   EXPECTED_RED：故意写错的期望确实被拒（证明上面那一串 OK 不是永远绿的）"
@@ -443,6 +582,39 @@ case "$MODE" in
     "$(grep -m1 -E '^COLLECT_ENABLED=' "$ENVF")" "$(systemctl is-active geohot-worker)"
   echo NIGHTLY_DISARMED
   ;;
+--gate-on)
+  [ "$(id -u)" = 0 ] || { echo "REFUSE 需要 root"; exit 1; }
+  bash "$0" --selftest >/dev/null || { echo "REFUSE 自测不过，不装闸门"; exit 1; }
+  install_gate
+  systemd-analyze calendar "$GATE_CADENCE" | head -2
+  systemctl enable --now geohot-r115-reader-gate.timer || { echo "REFUSE 闸门定时器 enable 失败"; exit 1; }
+  printf 'gate=%s/%s worker=%s cooldown=%s 分钟 5xx 窗=%s 秒\n' \
+    "$(systemctl is-enabled geohot-r115-reader-gate.timer 2>&1)" "$(systemctl is-active geohot-r115-reader-gate.timer 2>&1)" \
+    "$(systemctl is-active geohot-worker)" "$COOLDOWN" "$E5WIN"
+  echo "READER_GATE_ON 读者的路一红就按停 geohot-worker（判定腿＋翻译腿），冷却 $COOLDOWN 分钟后自动起回"
+  ;;
+--gate-off)
+  [ "$(id -u)" = 0 ] || { echo "REFUSE 需要 root"; exit 1; }
+  systemctl disable --now geohot-r115-reader-gate.timer 2>/dev/null
+  # 闸门停过 worker 就得负责起回来——不能"撤闸门"顺手留下一个停着的引擎。
+  WE=$(cut -d' ' -f2 "${R115_RUN:-/run/geohot-r115-gate}" 2>/dev/null || echo 0)
+  if [ "${WE:-0}" = 1 ]; then systemctl start geohot-worker 2>/dev/null; ACT=已交回; else ACT=本就没停过; fi
+  rm -f "${R115_RUN:-/run/geohot-r115-gate}" 2>/dev/null
+  printf 'gate=%s/%s worker=%s（%s）\n' "$(systemctl is-enabled geohot-r115-reader-gate.timer 2>&1)" \
+    "$(systemctl is-active geohot-r115-reader-gate.timer 2>&1)" "$(systemctl is-active geohot-worker)" "$ACT"
+  echo GATE_OFF
+  ;;
+--gate-status|--gate-trial)
+  [ "$(id -u)" = 0 ] || { echo "REFUSE 需要 root"; exit 1; }
+  printf 'gate=%s/%s worker=%s valve=%s 状态文件=[%s]\n' "$(systemctl is-enabled geohot-r115-reader-gate.timer 2>&1)" \
+    "$(systemctl is-active geohot-r115-reader-gate.timer 2>&1)" "$(systemctl is-active geohot-worker)" \
+    "$(grep -m1 -E '^COLLECT_ENABLED=' "$ENVF")" "$(cat /run/geohot-r115-gate 2>/dev/null)"
+  if [ "$MODE" = "--gate-trial" ]; then
+    # 真机试跑：DRY 模式——只做判定与打日志，绝不停/起任何单元。
+    R115_DRY=1 bash "${R115_GATE_SCRIPT:-$BIN/r115-reader-gate.sh}"; echo "TRIAL_RC=$?"
+  fi
+  tail -4 /var/log/geohot-r115-readergate.log 2>/dev/null || echo "  （还没有闸门日志）"
+  ;;
 --restore)
   [ "$(id -u)" = 0 ] || { echo "REFUSE 需要 root"; exit 1; }
   R114_FORCE=1 bash "$REVERTER"; rc=$?
@@ -483,5 +655,5 @@ case "$MODE" in
   echo "最近几次判定（尺就是生产那一份，不另抄）："
   tail -8 "$LOG" 2>/dev/null || echo "（还没有长窗口日志）"
   ;;
-*) echo "用法: $0 --selftest|--start|--arm-nightly|--disarm-nightly|--refresh|--once|--restore|--status"; exit 2;;
+*) echo "用法: $0 --selftest|--start|--arm-nightly|--disarm-nightly|--gate-on|--gate-off|--gate-status|--gate-trial|--refresh|--once|--restore|--status"; exit 2;;
 esac
