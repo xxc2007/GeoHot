@@ -51,6 +51,16 @@ case "$MAXPC" in ''|*[!0-9.]*) echo "REFUSE --max-per-cpu 要个小数"; exit 2;
 case "$MINAVAIL" in ''|*[!0-9]*) echo "REFUSE --min-avail-mb 要个整数"; exit 2;; esac
 case "$MAXSWAP" in ''|*[!0-9]*) echo "REFUSE --max-swap-mb 要个整数"; exit 2;; esac
 
+# 窗口开着时（阀门 false）**禁止**载荷里出现 `pgboss.job`：那一类分档/年龄查询要扫 60 万行的队列表，
+# 2026-10-18 23:04 我就用一枪把 load1 从 1.47 打到 3.99、swap 870→928 MB，两分钟后爬虫撞上来出 5xx、哨兵收窗。
+# 为什么写成工具而不是再写一条注释：同一条纪律 10-15、10-17、10-18 已经写在注释里三次了，**写在注释里等于没写**。
+# 这条只管"窗口内"，窗口外照样能打——那时它是诊断，不是风险。阀门状态由远端读，路径可用 GATE_ENVF 覆盖（便于自测）。
+HEAVY=0
+grep -qi 'pgboss\.job' "$PAYLOAD" && HEAVY=1
+if [ "$HEAVY" = 1 ]; then
+  echo "  [gate] 载荷含 pgboss.job —— 窗口内会被拒（阀门 true 时放行）"
+fi
+
 GATE=$(printf '%s\n' \
 'set -u' \
 'NP=$(nproc); L1=$(cut -d" " -f1 /proc/loadavg)' \
@@ -59,12 +69,23 @@ GATE=$(printf '%s\n' \
 '# 当晚真值：Swap 2047 总 / 868 已用，而我连报了三拍 "swap=0MB"——量具瞎了比没量具更坏，因为它会给出"看着干净"的数。' \
 'SW=$(free -m | awk "/[Ss]wap/{print \$3; exit}")' \
 'BLIND=""' \
-'case "$NP" in ''|*[!0-9]*) BLIND="$BLIND nproc";; esac' \
-'case "$L1" in ''|*[!0-9.]*) BLIND="$BLIND load1";; esac' \
-'case "$AV" in ''|*[!0-9]*) BLIND="$BLIND avail";; esac' \
-'case "$SW" in ''|*[!0-9]*) BLIND="$BLIND swap";; esac' \
+'# 注意：这里用 "" 而不是 \x27\x27 表示"空串"那一支——printf 的参数是**单引号包着的整行**，' \
+'# 行内再写一对单引号会把字符串截断、拼成 `case "$NP" in |*[!0-9]*)` 这种残缺 pattern（22:0x 真踩过一次，rc=2 拒绝）。' \
+'is_num() { case "$1" in ""|*[!0-9]*) return 1 ;; *) return 0 ;; esac; }' \
+'is_num "$NP" || BLIND="$BLIND nproc"' \
+'is_num "$AV" || BLIND="$BLIND avail"' \
+'is_num "$SW" || BLIND="$BLIND swap"' \
+'case "$L1" in ""|*[!0-9.]*) BLIND="$BLIND load1" ;; esac' \
 'if [ -n "$BLIND" ]; then' \
 '  printf "GATE_BLIND 读不到%s —— 闸门宁可拒绝也不放载荷过去（load1=[%s] avail=[%s] swap=[%s]）\n" "$BLIND" "$L1" "$AV" "$SW"' \
+'  exit 3' \
+'fi' \
+'# 窗口开着时不做队列大表扫描（见本地那一段注释；阀门状态从应用的 env 读，路径可覆盖以便自测）' \
+'VE=${GATE_ENVF:-/opt/geohot/app/.env}' \
+'V=$(grep -m1 -E "^COLLECT_ENABLED=" "$VE" 2>/dev/null | cut -d= -f2)' \
+'if [ "'"$HEAVY"'" = 1 ] && [ "$V" = false ]; then' \
+'  echo "REFUSE_WINDOW_HEAVY 窗口开着（COLLECT_ENABLED=false）时不做 pgboss.job 大表扫描 —— 载荷一行都没跑"' \
+'  echo "  写成工具的缘由：2026-10-18 23:04 一枪分档查询把 load1 1.47→3.99、swap 870→928 MB，两分钟后读者面 5xx、哨兵收窗。"' \
 '  exit 3' \
 'fi' \
 'CAP=$(awk -v n="$NP" -v m="'"$MAXPC"'" "BEGIN{printf \"%.2f\", n*m}")' \
