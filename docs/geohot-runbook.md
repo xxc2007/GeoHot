@@ -2,6 +2,34 @@
 
 给站长本人和以后接手这个站的 AI 助手。仓库根的 `../README.md` 讲"这是什么"，`docs/manual.md` 讲"怎么跑起来"，这份讲**每天怎么把它往前推**。所有命令都是本机（Windows 11 + Git Bash + Node v24.19.0）实际存在、逐项核对过的；没跑过的我会标出来。
 
+## 30 秒看清"窗口现在是什么姿态"（每次都现读，别引用旧快照）
+
+2026-10-18 这一夜把窗口机制改了三处（连续窗口上限 0、开窗定时器摘掉、/geohot 爬虫限速）。**读姿态只有四条命令**：
+
+```bash
+sudo grep -m1 '^COLLECT_ENABLED=' /opt/geohot/app/.env            # false=窗口开着（实时停） true=实时在跑
+systemctl is-active geohot-worker geohot-archive.timer geohot-r114-drain-watch.timer
+tail -1 /var/log/geohot-r114-longwindow.log                       # 哨兵：判完30min=全部X/档案Y、starve、5xx、-> HOLD/RESTORE
+tail -1 /var/log/geohot-r115-readergate.log                       # 闸门：IDLE/TRIPPED/HELD/RELEASED + 冷却状态
+```
+
+**窗口的五条收口**（哨兵每 10 分钟判一次，任一命中就 `RESTORE`）：排空（`left ≤ 0`）／本站 5xx／`avail < 60 MB` 连续 3 拍／
+3 小时零判完／3 轮读不到量具；外加死期限 `10-24 06:00`。`MAX_WINDOW_SEC=0` 表示**不按时间收口**（单窗上限这条不参与）。
+
+**三条回滚/救急命令**（都在机上）：
+```bash
+bash /opt/geohot/bin/r114-restore-realtime.sh                     # 立刻交回实时（阀门写 true + 重启 worker）
+systemctl enable --now geohot-r114-longwindow-start.timer         # 恢复每晚 21:00 自动开窗
+cp -p /etc/nginx/sites-available/xxc2007.me.bak-bots-20261018-232234 \
+      /etc/nginx/sites-available/xxc2007.me && rm -f /etc/nginx/conf.d/25-geohot-bots.conf \
+      && nginx -t && systemctl reload nginx                       # 撤掉 /geohot 的爬虫限速
+```
+
+**读进度只数三格**（别自己重算）：哨兵那行的 `判完30min=全部X/档案Y`（`Y>0` 才是档案带接手了）、
+`待判 / 待翻 / 未扫片` 三格、以及 `starve_streak=N/36`（连续 6 小时档案带零判完会打 `STARVE-ALERT`，那是份额问题，解药是 `--promote`）。
+**窗口开着时不要在机上打任何大表扫描**——`deploy/geohot/gated-probe.sh` 现在会拒绝含 `pgboss.job` 的载荷（阀门 false 时），这是 10-18 23:04 那次自伤的教训。
+
+
 约定的启动方式（下文所有命令都假设这四样在跑）：
 
 ```bash
