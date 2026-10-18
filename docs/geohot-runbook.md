@@ -2181,7 +2181,8 @@ GitHub `3b3bb4e..aed1ce6` 快进推上去，三端 0/0。07:10 手机宽度 390 
 
 **今天这期已按 08:01 出刊：rev=1、10 条分节 + 12 条快讯 = 22 条**（`after0800.out`；控制组 10-17 那期 printed_ids=29 非空、joinable=29，证明这把尺能红也能绿）。
 补抓的料**印进这一期的只有 6 条**，而窗口内"已判且精选"的补抓料是 29 条——差的 23 条不是没抓到，是输在**一期容量（快讯上限 12）与按 fact 去重**上，正是 #264 那一族。
-`backfill-papers --refresh` 的 DRY 对 2026-10-18 回答「**等 425 条判完**」⇒ 加厚会在这一天判完后自动发生，**不是漏印、也不需要我手工重排**；#276 的闸门保证那一遍只在语料真变时花钱。
+`backfill-papers --refresh` 的 DRY 对 2026-10-18 回答「**等 425 条判完**」⇒ 这一天要等判完才够料；#276 的闸门保证那一遍只在语料真变时花钱。
+~~加厚会在判完后自动发生，不需要手工重排~~ —— **这句 08:4x 写下的判断在 09:0x 被我自己证伪**：没有任何东西会刷新已存在的期次，必须补印一次。见下一节。
 补抓节奏：05 时 538、06 时 93、07 时 371、08 时 34；今日到源 3,352 次、**2 次 5xx**（04 时 1、07 时 1）。
 
 **抓到一条我自己的 SQL bug**：白天复验脚本第一次跑出来 `unsettled_jan_sep_now|16077`，比 06:20 的 13,050 多 3,027——第一反应是"池子暴涨"。
@@ -2193,3 +2194,31 @@ GitHub `3b3bb4e..aed1ce6` 快进推上去，三端 0/0。07:10 手机宽度 390 
 这段样本只有 2.2 小时、又赶上一次性补扫，不能当稳态；**"16—17 夜"这个数要用一个完整 24 小时（06:20→次日 06:20）来定档**，只算夜窗会高估日净收益。这条已经写进给站长的续开权衡（#262、#270）。
 
 **夜窗机件现状**：`list-timers --all` 里只剩 `r114-sample.timer` 在排（每小时只读取样），stop/refresh/heal/restore/verify 五把已被 restore 那一步一起 disable ⇒ **今晚不会自己再关一次采集**；三枚按天命名的旗标仍在（#275 那个坑要等续开时一起处理）。
+
+## 09:0x 「判完会自动加厚」证伪：这套系统从不刷新已存在的期次，夜窗第二天早上必须补印一次
+
+08:4x 我写下"加厚会在这一天判完后自动发生，不需要我手工重排"。读代码复验时这句话站不住，三条都是现场量的：
+
+1. `apps/worker/src/schedules.ts:70` 的 `reports.catch-up`（每小时 :15）调 `catchUpReports()`，而 `packages/backend/src/reports/compose.ts:520` 那一行是 `if (!exists) await attempt(...)` —— **只在期次不存在时组刊**，注释自己就写了"Catch-up never opens an edition whose window is still going"。
+2. 唯一会带 `--refresh` 的常驻入口是归档周期收尾那一步：`deploy/geohot/archive-cycle.sh:13` 是 `FINAL_REFRESH="${FINAL_REFRESH:-0}"`，`:198` 只在它为 1 时才加 `--refresh`。生产那份 `/etc/geohot/archive-cycle.conf` 现场只有 `GEOHOT_ARCHIVE_APPLY/MAX_ITEMS/SLICES/PER_MONTH/FROM` 五个键，**没有 FINAL_REFRESH ⇒ 取默认 0**。
+3. 昨晚真正跑过补印的是 `r114-refresh.timer`（`OnCalendar=*-*-* 04:30:00`, `Persistent=true`），04:30:01 systemd 有 Starting/Finished 两行为证；但 restore 那一步把它连同其余四把一起 disable 了（#269），现在 `is-enabled=disabled / is-active=inactive`，清理脚本还要把这两件删掉。
+
+⇒ 结论反过来：**2026-10-18 这期停在 rev=1、10 条分节 + 12 条快讯，窗口里那些判完的补抓料永远不会进报纸**——这是夜窗造成的、必须由我关掉的那个洞，不是"等队列自己结算"。
+
+**补印这件动作怎么做（每开一次夜窗，第二天上午都要做一次）**：尺只用生产那一条，不要自己重抄候选条件（07:33 我抄漏了中文文案闸、fact 去重、`NOT backfill OR archive` 排除，量出"303 条没印"的假洞）。
+
+```bash
+cd /opt/geohot/app && sudo -u geohot /usr/bin/ionice -c3 node --max-old-space-size=192 --env-file=.env \
+  scripts/backfill-papers.ts --from=2026-10-18 --to=2026-10-18 --kinds=daily --refresh          # 先看计划
+# 三种计划行决定要不要动笔：
+#   「等 N 条判完」  -> 不动，等判完再问
+#   「不重排」       -> 语料与已印那版逐条相同（#276 闸门），不动、不花钱
+#   「会重排」       -> 才跑下面这条，成本 ≈1 次导语调用，report_revisions 留着上一版可回滚
+sudo -u geohot /usr/bin/ionice -c3 node --max-old-space-size=192 --env-file=.env \
+  scripts/backfill-papers.ts --from=2026-10-18 --to=2026-10-18 --kinds=daily --refresh --apply --database-url-env=DATABASE_URL
+```
+
+判据用**会自增的量**：`reports.revision` 从 1 变 2 才算系统重做了，条目数与快讯数随后重读。写库到读者看见还有 8—9 分钟（延迟在源站 loader 不在 CF）。
+08:56 现场：`BEFORE|1|10|349` —— 窗口内 `new` 从 08:54 的 354 降到 349，约 100—150 条/时，预计 11:30—12:00 判完，补印由监工在那之后自动做一次（远端脚本带三道闸门 + 一个"过了次日 12:00 就拒绝再动笔"的时间闸门，且这条拒绝当场自测过一次：rc=4）。
+
+**这条洞是设计里的老账，不是夜窗新造的**：`archive-cycle.sh:170` 的注释早就写着"首版就永久缺那些后来到的条目"，而"收尾那一次 `--refresh`"（#110）在生产里从来没被排成常驻单元。要把它变成常驻，只有两条路：把 `GEOHOT_ARCHIVE_FINAL_REFRESH=1` 写进 `/etc/geohot/archive-cycle.conf`（每 15 分钟对整个区间比一次语料，改后必须 `systemctl restart geohot-worker` 之外还要 daemon-reload），或给"只比最近 N 天"排一对常驻单元。两条都要先量"一轮多少条查询、几个期次会真的变"再决定——归 #110、#280。
