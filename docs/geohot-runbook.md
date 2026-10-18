@@ -2457,3 +2457,13 @@ sudo -u geohot /usr/bin/ionice -c3 node --max-old-space-size=192 --env-file=.env
 - **服务器上留下的东西**：回滚清单 `/root/r114-reband-20261018T145347.tsv`（2,806 行，root 600）与更早两份 12:4x 的；备份 `industry/changelog.json.bak-final-20261018T042229Z` / `…T060351Z`；日志 `/var/log/geohot-r114-window.log`、`/var/log/geohot-reprint-today.log`、`/var/log/geohot-r114-sample.log`。我自己的 `/tmp` 中间件（`r114-final-cl.new`、`r114-full-dry.txt`、`r114-starved-ids.txt`）已逐个列 size/mtime 后删除。**要一次拆干净**：`disable --now` 三枚 timer + 删 `/etc/systemd/system/geohot-r114-*.{service,timer}` 与 `/opt/geohot/bin/{install-night-window.sh,r114-*.sh}` + `daemon-reload`（`reprint-settled-day.sh` 在补印成功前请留着，它是今天那期变厚的唯一路径）。
 - **未结且需要人拍的**：#270（第二夜）、#264（1,256 条被 `compose.ts:95` 挡在每一期之外，存量 0 条落今天）、#262（要不要收窄当期目录门）、#283/#285/#272—#275。
 - **下一个证据点**：15:43 那一枪会带回 `REPRINT_DONE=YES` 或又一次 `NOT_READY`，以及当日期次在库与接口两侧的 `rev|分节|快讯|readable`。若补印成真，最终日志那条要**原地改第 3 要点**（`__RP_TIME__/__E_ITEMS__/__A_ITEMS__/__E_WAIT__` 已接好，填充后预估 396 汉字），不是新增一条。
+
+### 更正上一条里的一句（15:1x，我自己写完就去删了工具）
+
+快照里写"`__RP_TIME__/__E_ITEMS__/__A_ITEMS__/__E_WAIT__` 已接好"——**那套脚手架随后按"收尾清空所有临时产物"的规矩删了**（`fill-draft.cjs`、`ship-final-114.cjs`、`ship-run-114.sh`、`make-revision.cjs`、`run-verifier.sh`、`r114-postship-verify.lf` 都在本轮清掉的 30 件里）。所以**别把它当成"一行就能重发"**。若补印成真、要把那一次写进今天这条日志，实际只需要两样东西：
+
+1. 四个数全在服务器一行里：`/var/log/geohot-reprint-today.log` 最后的 `REPRINT_DONE=YES rev A->B 分节条目 X->Y`，配同一时刻之前的 `现读 rev=A 分节条目=X 窗口内(new+analyzed 在途)=W`（前值必须与同一行成对，别跨轮取）。
+2. 替换走 `industry/changelog.json` 的**原地替换**：按 `date+time` 定位首条后整体换掉那一项（找不到就报错），文件必须仍然逐字节等于 `JSON.stringify(j,null,2)+"\n"`；发完当场证明三件事——生产 sha == 本地、页面 `?cb=<epoch>` 里新句命中且**旧时刻残留 = 0**（这是"原地"而不是"变成两条"的唯一证据）、硬判据 `settled_days_unprinted_with_material` 仍 `[ok] 0`。
+3. 风格闸门照旧：要点合计 300—420 汉字，**数在占位符填充之后**（这一条的现值是 405，加一句"定时器 HH:MM 补印成功（分节条目 10→N）"约 +13，仍在上限内；超了就砍导语，不要砍事实）。
+
+**更省事的退路**：什么都不改。已发出去那条不含任何"补印已成"的说法（导语只说"装了每小时自查的补印定时器"，为真），补印落地只是让它更早被兑现，不是让文字变错。是否值得为一句更完整的说明重跑一次发布，交给站长判。
