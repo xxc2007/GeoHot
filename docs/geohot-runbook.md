@@ -2310,3 +2310,12 @@ sudo -u geohot /usr/bin/ionice -c3 node --max-old-space-size=192 --env-file=.env
 真漂移两处，都不在今天：`GEOHOT_TRANSLATE_CONCURRENCY` 在 `.env` 里有、`.env.example` 里没有（翻译并发那轮留的）；`geohot-conc-guard.{service,timer}` 装着但 `deploy/geohot/systemd/` 没有模板（桥文件与守护单元 GitHub 上没有，老账）。再加**本次故意留的** `geohot-reprint-today` 一对——它自拆，不进模板目录是有意为之。
 
 `verify-deploy` 另报三处哈希变过（介绍站首页、根 sitemap、`/nc15/`）。**归因清楚再动手**：这些文件的 mtime 都是 `2026-10-17 09:57:05`，而 `baseline-main.txt` 的 `captured_at=2026-10-08T11:07:19Z`；今天这一侧只写过 `industry/changelog.json`（数据）和 systemd 单元，journalctl 里没有今天动过 nginx/intro 的记录 ⇒ **是基线过期，不是这次改动打到邻居站**。按脚本自己的话"先人工确认再更新基线"：等站长确认 10-17 那次介绍站/纪念册改动是有意的，再单独跑一次纯基线船（#284）。**别顺手 `rollback.sh`**——那会把 10-17 的内容撤回 10-08。
+
+## 12:48 把 2026-10-18 那期堵住的 49 条作业从 −2 带提到 0 带（一次有凭据的队列元数据写）
+
+尾巴为什么不动：12:45 现场数（`r114-tail-band.sh`），这期窗口里还剩 74 条 `new`，其中 **49 条的作业在 −2"迟到新闻"带**、19 条**根本没有 created/retry 作业**、只有 6 条在 0 带。−2 带排在 −1 那 1.2 万条之后 ⇒ 按这个排法这一期**几周都补不了印**。
+这 49 条的新闻日期本来就落在今早 08:00 之前——是我这一轮的暂停把它们推迟成"迟到"，所以提带是我该收的尾，不是新增策略。
+
+做法（`/d/tmp/r114-reband-today.sh`，DRY 默认、要 `GO` 才写）：先按"窗口内 + 仍是 new + 作业 priority<0 + state∈(created,retry)"导出 `jobid|articleid|旧优先级` 到 `/root/r114-reband-<UTC>.tsv`，**条数不在 30—80 之间就直接拒绝**（防我把另一批东西当成尾巴），jobid 必须唯一；然后 `UPDATE pgboss.job SET priority=0 WHERE id::text IN (…)`，**写完立刻断言"这批里 priority=0 的条数 = 导出条数"**。
+现场：DRY 报 49 条全是 −2（与 12:45 那次独立读数逐字相同）→ GO 报 `UPDATE 49` → 断言 `49 / 49`；队列变 `0=276 −1=12,015 −2=3,878`（−2 少 49，对得上）。回滚是同一份 tsv 逐条 `UPDATE … SET priority=-2 WHERE id::text='…'`。
+**边界**：只改 `pgboss.job.priority` 这一个字段，不碰内容、不碰作业状态、不删不增；19 条无作业的留给每分钟一次的 `content.sweep`（schedules.ts:40），一小时后若还在，就是 #191 那一族没被回收，另开单。
