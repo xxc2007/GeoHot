@@ -2294,3 +2294,11 @@ sudo -u geohot /usr/bin/ionice -c3 node --max-old-space-size=192 --env-file=.env
 **我自己撞的坑（值得记）**：给链子加"原地替换"开关时把变量起名 `RT`，而链子第 43 行 `RT=$(…)` 早就被用来存**复位时刻**——同名覆盖后闸门收到 `--replace-today="05:31"`。闸门当场拒绝（这正是它该做的事），但教训是：**往一份跑了好几天的脚本里塞新变量，第一件事是 grep 变量名有没有被用过**，而且要先跑 dry——真跑一次就把当天那条发错一次。
 配套加的两条闸门也验过两侧：`--replace-today` 必须逐字指认现首条且同一天，其余条目 deep-equal 不许动（53→53）；不给开关还走新增语义（指认 10-17 17:58，且当天已有条目就拒）。
 `fill-draft.cjs` 也补了一处：**只有正文真的引用到的格子才要求实值**——补印那三格是条件性的，把没引用的格子也算成"没有实值"会让不发这些格的版本永久发不出去（12:2x 就这么红给我看过一次）。
+
+## 12:2x 机上现在多了一对**常驻**单元：`geohot-reprint-today.{timer,service}`（自带截止与自拆）
+
+第 114 轮的连贯性义务（把 2026-10-18 那期在判完后补印一次）**不能靠我这一侧的会话活着**，所以装成了服务器上的小时级定时器：`OnCalendar=*-*-* *:40:00`、`Persistent=false`、脚本 `/opt/geohot/bin/reprint-settled-day.sh`（0700 root-only）、日志 `/var/log/geohot-reprint-today.log`。
+它自己带四道闸：`等 N 条判完`→不动笔；`不重排`（语料逐条相同）→写 `/etc/geohot/reprint-today.done` 并**自拆**；计划行三种都没匹配→不猜、把原文尾部留在日志并退 3；`revision` 没自增→下一小时再来。过了 **2026-10-19 12:00** 不管三七二十九先自拆（这一期之后由次日报纸与归档负责）。
+**已验**：手动 `systemctl start` 两次，都在 `rev=1 分节条目=10 窗口内(new+analyzed 在途)=2188` 之后打出 `NOT_READY（还在判，不动笔）`，期次逐字节没动（`1|10`）——也就是"判完之前它不会花钱"这句话是量过的，不是我保证的。
+**装它的时候踩了自己一脚**：想改日志标签时用 `sed -i "s/…分节条目=\$BITEMS…/"`，双引号那层把 `$BITEMS` 展开成空串，日志一度打成 `分节条目= `；修法是改本地那份安装器再整体重装（幂等），而不是在机器上继续 sed。**远程一次性改文件，宁可重装，不要在远端打补丁**。
+拆它（补印成功那天随时）：`sudo systemctl disable --now geohot-reprint-today.timer && sudo rm -f /etc/systemd/system/geohot-reprint-today.{timer,service} /opt/geohot/bin/reprint-settled-day.sh /etc/geohot/reprint-today.done`（日志留着自己看）。
