@@ -2381,3 +2381,21 @@ sudo -u geohot /usr/bin/ionice -c3 node --max-old-space-size=192 --env-file=.env
 **因此 ETA 有两种写法，必须一起给**：只靠夜窗 ⇒ 一昼夜净排 ≈371 条 ⇒ **≈36 个昼夜**；
 若白天份额能从 5% 提到哪怕 20%，同一个 13,217 条的池子就是另一个数量级。份额是站长的政策旋钮（#116 同族），
 **我不单方面抬**；`inflow_top_source` 那六路要不要收窄（#136/#143/#189 同族）也是同一场决定。
+
+## 14:0x 最终版更新日志发出去了（原地替换 12:22 那条，不是新增）
+
+`c278b50` → 生产 `industry/changelog.json` sha256 `305e578e177d7396…`，`PROD_MATCHES_LOCAL=YES`、`RENDER_PROVED=YES`
+（读者页新标题命中 2 次、旧时刻 `12:22` 残留 0 次 ⇒ 确实是一条被原地改掉，没有变成两条）。服务器留了上一份
+`changelog.json.bak-final-20261018T060351Z`（prior_sha `ca561d1d…`），回滚就是把那份放回去。GitHub 侧 `HEAD=origin/main=c278b50`。
+
+**为什么"最终版"里没有"今天这期补印成 X 条"**：14:0x 现场 `rev=1 分节=10 快讯=12`，补印还没发生（窗口内 new 只以 ≈4.6 条/时在排）。
+所以导语写的是"**装了每小时自查的补印定时器**"这件已交付的事实，正文里不留未发生的数字——`fill-draft` 那道
+"要 `REPRINT_DONE=YES` 才许填那三格"的闸门本来就会拒绝，这次是它替我把话拦下来的。补印真落地就原地再改这一条。
+
+**发版后复验的两条审计（各自标签，别再混）**：`r114-audit2` 52 项 → **PASS=52 FAIL=0**；
+`r114-fullsite-manifest` 30 条路由 → **total=30 wrong_status=0 missing_marker=0**；内容诚信 12 项里硬判据只红那一条既有挂账
+`selected_backfill_without_date=36`（基线同为 36），`settled_days_unprinted_with_material`、`blank_editions`、
+`editions_printing_stale_copy` 三项都是 `[ok] = 0`。
+**顺带记一条我这轮又犯过的错**：复验器里我用 `grep '"blank_editions": 0'` 去判——这份审计打的从来不是 JSON，
+是 `[ok  ] 名字 = 0　中文说明`，于是两条必红。修成"按 `硬判据不通过 1 项（selected_backfill_without_date）` 这句做基线差"才对了。
+**还有一条更基本的**：改完 `.lf` 我却拿旧的 `vbody.sh` 去跑，等于"改了源码没重装"——同一类错误今天第二次。
