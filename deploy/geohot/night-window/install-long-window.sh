@@ -290,6 +290,10 @@ BUDGET=${R115_BUDGET_ERR5XX:-0}
 WIN=${R115_E5_WINDOW_SEC:-700}
 COOL=${R115_COOLDOWN_MIN:-30}
 . "$BIN/r114-drain-decide.sh"
+# 判据文件必须是带 gate_action 的那一份。18:53 装机时它还是 18:25 那版（没有这个函数），
+# 于是每次运行只留下一行 command not found、case 谁都匹配不上、什么也不做——一个安静失效的假闸门。
+declare -F gate_action >/dev/null || { echo "$(date -Is) FATAL 判据文件缺 gate_action（先 --refresh 或 --gate-on 重装判据）"; exit 1; }
+declare -F e5_count >/dev/null || { echo "$(date -Is) FATAL 判据文件缺 e5_count"; exit 1; }
 NOW=$(date +%s); T0=$(date -d "today 00:00:00" +%s 2>/dev/null || echo 0)
 RAO=$(e5_count "${R114_NGX:-/var/log/nginx/access.log}" "${R114_E5_TAIL:-20000}" "$WIN" "$(LC_ALL=C date +%d/%b/%Y)" "$T0" "$NOW")
 E5=$(printf '%s' "$RAO" | cut -d' ' -f1)
@@ -457,6 +461,8 @@ case "$MODE" in
     && echo "  OK   闸门判据与哨兵判据同源（同一份 decide 文件，测的=跑的）" || { echo "  WRONG 闸门另抄了一份判据"; exit 1; }
   gate_body > "$T/gate.sh"; bash -n "$T/gate.sh" && echo "  OK   闸门脚本语法过" || { echo "  WRONG 闸门脚本语法不过"; exit 1; }
   grep -q 'R115_DRY' "$T/gate.sh" && echo "  OK   闸门带 DRY 分支（真机上要先只判不动地试跑一次）" || { echo "  WRONG 闸门没有 DRY 分支"; exit 1; }
+  grep -q 'FATAL 判据文件缺 gate_action' "$T/gate.sh" \
+    && echo "  OK   判据文件缺函数时闸门硬失败（18:53 那次就是安静失效：只留一行 command not found，什么也不做）" || { echo "  WRONG 闸门在判据缺失时会安静失效"; exit 1; }
   unit_gate_svc 700 30 "$BIN/r115-reader-gate.sh" > "$T/gate.service"
   grep -q '^ExecStart=/bin/bash /opt/geohot/bin/r115-reader-gate.sh$' "$T/gate.service" \
     && grep -q 'Environment=R115_COOLDOWN_MIN=30' "$T/gate.service" \
@@ -585,7 +591,11 @@ case "$MODE" in
 --gate-on)
   [ "$(id -u)" = 0 ] || { echo "REFUSE 需要 root"; exit 1; }
   bash "$0" --selftest >/dev/null || { echo "REFUSE 自测不过，不装闸门"; exit 1; }
+  # 闸门靠 source 判据文件里的 gate_action／e5_count；只装闸门不重落判据 = 装了个每 10 分钟报 command not found 的死人。
+  install_files
   install_gate
+  declare -F gate_action >/dev/null; [ -f "$DECIDE" ] && grep -q 'gate_action()' "$DECIDE" \
+    && echo "  OK   判据文件已含 gate_action（闸门与哨兵共用这一份）" || { echo "  WRONG 判据文件里没有 gate_action，闸门会是安静失效的死人"; exit 1; }
   systemd-analyze calendar "$GATE_CADENCE" | head -2
   systemctl enable --now geohot-r115-reader-gate.timer || { echo "REFUSE 闸门定时器 enable 失败"; exit 1; }
   printf 'gate=%s/%s worker=%s cooldown=%s 分钟 5xx 窗=%s 秒\n' \
