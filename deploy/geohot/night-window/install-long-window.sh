@@ -331,7 +331,7 @@ case "$A" in
   SKIP_BLIND)
     echo "$(date -Is) SKIP 5xx 量具读不到（nginx 无当日样本或字段漂移）——闸门不动生产，但这不是绿灯" ;;
   SKIP_DISARMED) echo "$(date -Is) SKIP disarmed 旗标在 $DISARM" ;;
-  *) : ;;
+  *) echo "$(date -Is) IDLE 5xx=${E5}/${WIN}s(样本 $SPAN) worker=$ACT valve=$V 冷却文件=[$(cat "$RUN" 2>/dev/null)]" ;;
 esac
 GATE
 }
