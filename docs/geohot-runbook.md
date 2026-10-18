@@ -2319,3 +2319,30 @@ sudo -u geohot /usr/bin/ionice -c3 node --max-old-space-size=192 --env-file=.env
 做法（`/d/tmp/r114-reband-today.sh`，DRY 默认、要 `GO` 才写）：先按"窗口内 + 仍是 new + 作业 priority<0 + state∈(created,retry)"导出 `jobid|articleid|旧优先级` 到 `/root/r114-reband-<UTC>.tsv`，**条数不在 30—80 之间就直接拒绝**（防我把另一批东西当成尾巴），jobid 必须唯一；然后 `UPDATE pgboss.job SET priority=0 WHERE id::text IN (…)`，**写完立刻断言"这批里 priority=0 的条数 = 导出条数"**。
 现场：DRY 报 49 条全是 −2（与 12:45 那次独立读数逐字相同）→ GO 报 `UPDATE 49` → 断言 `49 / 49`；队列变 `0=276 −1=12,015 −2=3,878`（−2 少 49，对得上）。回滚是同一份 tsv 逐条 `UPDATE … SET priority=-2 WHERE id::text='…'`。
 **边界**：只改 `pgboss.job.priority` 这一个字段，不碰内容、不碰作业状态、不删不增；19 条无作业的留给每分钟一次的 `content.sweep`（schedules.ts:40），一小时后若还在，就是 #191 那一族没被回收，另开单。
+
+## 13:1x 补印为什么还没开火：sweep 的排序会把"最新日期的档案料"饿死（含我自己三把坏尺）
+
+12:48 那一节留了一句"19 条无作业的留给每分钟的 `content.sweep`，一小时后若还在就是 #191 那一族"。**一小时后它们还在**，
+而且 `processing_queued_at` 一直是 NULL、入库最长 324 分钟 ⇒ 不是冷却，是被排序饿死。根因读代码就够，不用猜
+（`packages/backend/src/jobs/content.ts:237`）：每 1 分钟一批 500，两支都按**最老**排——archive 按 `timeline_at ASC` 取 100
+（`:251`），ordinary 按 `discovered_at ASC` 吃剩下的（`:253`）。新闻日期最新的档案料在两支里都排最后（490 行早就记作
+"双重排最后"），而补印闸门问的恰恰是"这一天判完了没有"。
+
+**动作**（`/d/tmp/r114-starved-enqueue.sh`，默认 DRY，条数不在 1—60 直接拒绝）：只调用仓库自己的 `queueProcessing()`
+——同一个函数、同一条路，**不造 job 行、不改份额、不改并发、不改优先级**。现场：`QUEUED_OK=19/19 fails=0`、
+`NODE_RC=0` 单独判；复量"窗口内 new 且无活作业"从 19 变 **0**，权威尺 DRY 从「等 41 条判完」变「等 29 条判完」，
+剩下 29 条是几分钟前刚入库的（`created_at < now()-3min` 这道门，sweep 自己会捞）。临时 `.ts` 放在 `/opt/geohot/app/.r114-starved/`
+里——CJS/ESM 都按**文件所在目录**往上找 `node_modules`，扔 `/tmp` 就解析不到 `@aihot/*`；同一条命令里 `rm -rf` 并断言目录没了。
+`scripts/enqueue-analysis.ts` 不是这个工具：它按 `discovered_at DESC` 撒网、只认 `participation_mode='editorial'`、没有按 id 的入口。
+
+**补印闸门自己的真相**（`/opt/geohot/bin/reprint-settled-day.sh`）：决策只看 DRY 那句原文（`等 N 条判完`→不动、
+`不重排`→算了结自拆、`会重排`→`--apply` 并断言 `revision` 自增）。日志里 `窗口内(new+analyzed 在途)=2188` 只是诊断量，
+**是个守恒量**：条目从 new 进 analyzed 不减少它，只有被印进某一期才离开。我 12:55 把它读成"闸门永远不可能绿"，
+是把诊断量当判据——差一点就去"修"一把好尺。
+
+**本轮我自己弄坏的三把尺（都记下来，因为它们都是"看起来像业务事实"的错）**
+1. 作业名写成 `analyze-news` ⇒ 所有 `count(*)` 返回 0，读起来像"队列空了"。真名 **`content.analyze`**，载荷键 **`data->>'articleId'`**。
+   自查判据：**若"无排队作业"等于对应的 `new` 总数，就是名字/键错了，不是业务事实**。
+2. `state` 枚举里 **没有 `retrying`**（合法档 `created / retry / active`）。只数 created+retry 会把正在判的算成孤儿：26 ∶ 19 就是这么来的。
+3. nginx access log 的时间戳是 `18/Oct/2026:13:00:02`，拿 `date +%F`（2026-10-18）去匹配 `$4` 一行都匹不上 ⇒
+   `today_req=0 today_5xx=0`，读起来像"今天零故障"。这是**假绿**，尺要自己声明"req=0 说明我坏了"。
