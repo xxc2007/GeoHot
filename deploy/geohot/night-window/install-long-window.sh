@@ -158,13 +158,22 @@ next_starve() {
 # 字段偏移：$4 = "[18/Oct/2026:17:41:27"，日期占 2—12、冒号在 13，所以小时从 **14** 起（用 13 会把小时读成 0，
 # 窗口过滤器于是永远数不到东西——17:44 我自己就栽过一次，这条由 selftest 的夹具钉住）。
 #   $1 日志  $2 尾读行数  $3 窗口秒  $4 今天前缀(18/Oct/2026)  $5 今晨 epoch  $6 现在 epoch
-e5_count() {
-  tail -n "$2" "$1" 2>/dev/null | awk -v d="$4" -v t0="$5" -v now="$6" -v w="$3" \
-    'index($4, "[" d ":")==1 {
-       n++; if (first=="") first=substr($4,14,5); last=substr($4,14,5)
-       hh=substr($4,14,2)+0; mi=substr($4,17,2)+0; ss=substr($4,20,2)+0
-       if (t0>0 && now-(t0+hh*3600+mi*60+ss) <= w && substr($9,1,1)=="5" && index($7, "/geohot")>0) c++
-     } END { if (n+0 == 0) print "-1 0 无当日样本"; else print c+0, n+0, first"-"last }'
+e5_count() { # $1 日志 $2 tail 行数 $3 窗口秒 $4 今天日期 $5 今天零点 $6 now [$7 昨天日期] [$8 昨天零点]
+  # **午夜盲点**（2026-10-19 00:00 真机抓到）：700 秒窗天生跨午夜，而这里只匹配「今天」的日期前缀
+  # ⇒ 00:00—00:11 之间窗口被截断成几十秒，样本只有 2 行、读数却是 0（不是 -1，所以 blind 也不会涨）。
+  # 修法：把昨天也传进来；每行按它自己那天的零点算 age。`age >= -5` 容忍几秒的时钟前跳（nginx 在请求结束时写日志）。
+  tail -n "$2" "$1" 2>/dev/null | awk -v d="$4" -v t0="$5" -v d2="${7:-}" -v t02="${8:-0}" -v now="$6" -v w="$3" '
+    { base=0
+      if (d2 != "" && index($4, "[" d2 ":")==1) base=t02
+      else if (index($4, "[" d ":")==1) base=t0
+      else next
+      n++; if (first=="") first=substr($4,14,5); last=substr($4,14,5)
+      hh=substr($4,14,2)+0; mi=substr($4,17,2)+0; ss=substr($4,20,2)+0
+      if (base>0 && substr($9,1,1)=="5" && index($7, "/geohot")>0) {
+        age=now-(base+hh*3600+mi*60+ss)
+        if (age >= -5 && age <= w) c++
+      }
+    } END { if (n+0 == 0) print "-1 0 无当日样本"; else print c+0, n+0, first"-"last }'
 }
 # 只数纯数字：psql 一旦多打一行（.psqlrc 的 \timing 会打 `Time: 3.501 ms`），
 # `tail -1 | tr -dc 0-9` 会造出 3501 这种"看着像存量"的假数——宁可读数失败，也不要假数。
@@ -267,7 +276,9 @@ STARVE=$(next_starve "$PREVSTARVE" "$DONEA")
 E5_WINDOW_SEC=${R114_E5_WINDOW_SEC:-700}
 NOWE=$(date +%s)
 TODAY0=$(date -d "today 00:00:00" +%s 2>/dev/null || echo 0)
-E5RAO=$(e5_count "${R114_NGX:-/var/log/nginx/access.log}" "${R114_E5_TAIL:-20000}" "$E5_WINDOW_SEC" "$(LC_ALL=C date +%d/%b/%Y)" "$TODAY0" "$NOWE")
+E5RAO=$(e5_count "${R114_NGX:-/var/log/nginx/access.log}" "${R114_E5_TAIL:-20000}" "$E5_WINDOW_SEC" \
+  "$(LC_ALL=C date +%d/%b/%Y)" "$TODAY0" "$NOWE" \
+  "$(LC_ALL=C date -d yesterday +%d/%b/%Y 2>/dev/null)" "$(( TODAY0 - 86400 ))")
 E5=$(printf '%s' "$E5RAO" | cut -d' ' -f1)
 E5N=$(printf '%s' "$E5RAO" | cut -d' ' -f2)
 E5SPAN=$(printf '%s' "$E5RAO" | cut -d' ' -f3)
@@ -345,7 +356,9 @@ COOL=${R115_COOLDOWN_MIN:-30}
 declare -F gate_action >/dev/null || { echo "$(date -Is) FATAL 判据文件缺 gate_action（先 --refresh 或 --gate-on 重装判据）"; exit 1; }
 declare -F e5_count >/dev/null || { echo "$(date -Is) FATAL 判据文件缺 e5_count"; exit 1; }
 NOW=$(date +%s); T0=$(date -d "today 00:00:00" +%s 2>/dev/null || echo 0)
-RAO=$(e5_count "${R114_NGX:-/var/log/nginx/access.log}" "${R114_E5_TAIL:-20000}" "$WIN" "$(LC_ALL=C date +%d/%b/%Y)" "$T0" "$NOW")
+RAO=$(e5_count "${R114_NGX:-/var/log/nginx/access.log}" "${R114_E5_TAIL:-20000}" "$WIN" \
+  "$(LC_ALL=C date +%d/%b/%Y)" "$T0" "$NOW" \
+  "$(LC_ALL=C date -d yesterday +%d/%b/%Y 2>/dev/null)" "$(( T0 - 86400 ))")
 E5=$(printf '%s' "$RAO" | cut -d' ' -f1)
 SPAN=$(printf '%s' "$RAO" | cut -d' ' -f3)
 case "$E5" in ''|*[!0-9-]*) E5=-1 ;; esac
@@ -522,6 +535,22 @@ case "$MODE" in
   RCN=$(e5_count "$T/acc.log" 500 700 "18/十月/2026" "$T0F" "$NOWF")
   [ "$(printf '%s' "$RCN" | cut -d' ' -f1)" = -1 ] \
     && echo "  OK   月份前缀不匹配（locale 漂移）也给 -1：[$RCN]" || { echo "  WRONG locale 一改这把尺就永远数到 0"; exit 1; }
+  # —— 午夜盲点（2026-10-19 00:00 真机抓到：`err5xx=0/700s(样本2行 00:00-00:00)`）：
+  # 700 秒窗天生跨午夜，旧实现只匹配"今天"的日期前缀 ⇒ 00:00—00:11 之间窗口被截成几十秒、读数还是 0（不是 -1，blind 也不会涨）。
+  # 新语义：昨天 23:59 的 5xx 照样数进来；昨天 20:00 那条（远在窗外）不许进；六参数旧调用保持"只看今天"。
+  DY='08/Sep/2001'; DT='09/Sep/2001'; T0Y=1000000000; T0T=$(( T0Y + 86400 )); NOWM=$(( T0T + 300 ))
+  { printf '1.1.1.1 - - [%s:23:59:00 +0800] "GET /geohot/ HTTP/1.1" 503 12 "-" "probe"\n' "$DY"
+    printf '1.1.1.1 - - [%s:20:00:00 +0800] "GET /geohot/ HTTP/1.1" 502 12 "-" "probe"\n' "$DY"
+    printf '1.1.1.1 - - [%s:00:04:00 +0800] "GET /geohot/ HTTP/1.1" 503 12 "-" "probe"\n' "$DT"
+  } > "$T/acc2.log"
+  RM=$(e5_count "$T/acc2.log" 500 700 "$DT" "$T0T" "$NOWM" "$DY" "$T0Y")
+  [ "$(printf '%s' "$RM" | cut -d' ' -f1)" = 2 ] \
+    && echo "  OK   跨午夜窗口数到 2 条（昨天 23:59 + 今天 00:04），昨天 20:00 那条没被算：[$RM]" \
+    || { echo "  WRONG 跨午夜窗口应数到 2 条，得到 [$RM]（午夜后 11 分钟里守卫会瞎）"; exit 1; }
+  RM6=$(e5_count "$T/acc2.log" 500 700 "$DT" "$T0T" "$NOWM")
+  [ "$(printf '%s' "$RM6" | cut -d' ' -f1)" = 1 ] \
+    && echo "  OK   六参数旧调用仍只数今天 1 条（向后兼容，不把昨天的旧行误算进来）" \
+    || { echo "  WRONG 六参数语义变了，得到 [$RM6]"; exit 1; }
   [ "$(digits_only 'Time: 3.501 ms')" = -1 ] && [ "$(digits_only 14693)" = 14693 ] && [ "$(digits_only '')" = -1 ] \
     && echo "  OK   digits_only：把 psql 多打的那行（\\timing）挡成 -1，不制造 3501 这种假存量" || { echo "  WRONG 假数没被挡住"; exit 1; }
   # 读者优先闸门（第 115 轮新增）：TRIP／HELD／RELEASE／SKIP 四条路都要能被夹具走到。
