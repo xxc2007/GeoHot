@@ -2634,7 +2634,14 @@ sudo -u geohot /usr/bin/ionice -c3 node --max-old-space-size=192 --env-file=.env
 （5 分钟 13.01、15 分钟 6.65），`MemAvailable` 255 → **74 MB**（哨兵自己那一拍读的数），而它那个 700 秒窗口里
 **本站 5xx = 12** ⇒ 判据第一条（读者的命排在最前）**当场开火：`20:53 RESTORE|reader_5xx=12`**，连续窗口在开了 92 分钟后收场。
 
-**归因**：这不是"窗口本身伤读者"的新证据，是**我这个旁观者加压**。同族教训 10-15／10-17 已经写过两遍
+**归因（21:0x 已按分钟拆开，下面这段是改正后的版本）**：我那两把读数确实把机器压到了 `load1=16.40 / avail=74 MB`，
+但**那 12 条 5xx 的主因不是我**。按分钟数（同一份 nginx 日志、只看本站）：**20:49 → 5、20:50 → 4**、20:51 → 2、20:52 → 2、20:55 → 1，
+而我的探针 **20:51:46 才起跑** ⇒ 那 12—13 条里有 **9 条发生在我动手之前**（这一点已经够改结论了：**读者面在我到场之前就在红**）。
+同一路读数还按路径拆了一遍，但**那张表是"今天全天 195 条"的分布，不是这 12 条的分布**，别混着引：
+`/geohot/all` 47 次、约 50 个不同 `/geohot/items/<id>`、约 40 个 `/geohot/story/<uuid>`、12 个 `/geohot/topics/*/page/N`、6 张 og 图
+⇒ 全天那一族的形状确实是外部深页爬虫（每分钟只 1—2 条、路径几乎不重复），而**我没能把 20:49—20:52 这四分钟按路径再拆一次**——
+这一格归因仍是半成品，写在这是为了下次别又把整天的形状当成十分钟的证据。
+同族教训 10-15／10-17 已经写过两遍
 （"验收自己让路""探针自带 load 闸门"），但那条闸门只写在我一次性脚本的注释里——**规矩写在我身上就等于没写**。
 这一轮把它落成工具：`deploy/geohot/gated-probe.sh`。设计点三条：① 闸门与载荷拼成**同一条 ssh 会话的同一个 bash 进程**，
 分两次连会留时差、load 在那段时间里会变；② 越线 `exit 3`，载荷**一行都不执行**，并把当时的 load／avail／swap 打出来，
@@ -2650,8 +2657,8 @@ sudo -u geohot /usr/bin/ionice -c3 node --max-old-space-size=192 --env-file=.env
 ④ −2 带那条查询报了 `operator does not exist: text = uuid`——`data->>'articleId'` 是 text，**要么两边都 ::text、要么把提取值 ::uuid**，
 第一版拼错所以那一格没读到数（**读数失败要显式说"没读到"，不能拿空结果当结论**）。
 
-**还欠的一笔归因**：那 12 条 5xx 里有多少是我、多少是外部深页爬虫那一族，21:04 那一枪按分钟与路径拆开。
-无论是哪种，**判据这一次给对了**：它没有跟我讨论动机，它只看见读者红了。
+**那笔归因已经还掉了一半（见上面改正后的段落）**：按分钟拆做完了（9 条在我之前），按路径拆只做到全天那一层，
+这四分钟内部的"我 ∶ 爬虫"仍是**未决**。无论是哪种，**判据这一次给对了**：它没有跟我讨论动机，它只看见读者红了。
 
 **`collect-news exit=1` 结案**：是 `web-eclac-news`（联合国拉美经委会）19:30 那一轮的**偶发 HTTP 403**，
 19:45 与 20:00 两轮 `errors=0`；该门今天入库 0 行、上一条 10-16 01:21 ⇒ 不是窗口、不是配置、不需要动。
@@ -2692,6 +2699,10 @@ sudo -u geohot /usr/bin/ionice -c3 node --max-old-space-size=192 --env-file=.env
   所以"连续窗口"是**显式授权路径**，不是绕过了守卫；且 stopper 自检不过会**自己把阀门改回 true**（半开的窗口比没窗口更坏）。
 - **D 恢复脚本不碰 r115 读者闸门**：查过是**对的**，不是漏。闸门自己有 HELD/RELEASE/冷却与 `we_stopped` 记账，
   restore 重启 worker 之后如果读者面又红，本来就该由它按住——两侧不互相覆盖，才是"读者优先"这句话的实现方式。
+  **21:4x 更正这一条的结论**：方向对、断言错。restore 不"改"闸门，但它**硬要求 `worker=active`**，
+  而闸门正按着 worker（冷却 30 分钟）⇒ 20:54 那一枪 `restore-FAILED worker=deactivating`，阀门已改 true、worker 却被闸门按住，
+  哨兵 21:00 读到"阀是 true"就自拆了。**两侧不覆盖 ≠ 两侧不互相绊倒**：现在两边都认旗标 `/run/geohot-r115-gate`，
+  被按着时关阀侧跳过 restart、恢复侧把 HELD 当合法态放行（详见下面 21:0x—21:4x 那节）。
 - **E `reset-failed` + 把 `geohot-archive.timer` 交回日常节律** ⇒ 都在，且带 6×10 秒重试与 `restore-FAILED` 退出码 1（哨兵因此保留、下一拍再试）。
 - **F 暂停期缺口由谁补**：restore 本身不含"补账"动作，这是**设计而不是缺陷**——补账落在四处，且当场都在跑：
   ① `reports.catch-up` 每小时 :15 跑，**关阀期间也算**（10-17 的关阀行为清单里它列在"其余日程照跑"那一格，今天 20:15 那一格是阀门为 false 时读到的）；
@@ -2705,3 +2716,59 @@ sudo -u geohot /usr/bin/ionice -c3 node --max-old-space-size=192 --env-file=.env
 `geohot-r114-{stop,restore}.timer` 与 `r114-sample` 之外的旧排程都是 disabled/inactive 成对成立；
 唯一被前缀漏掉的是 **`r114-sample.timer`（没有 `geohot-` 前缀）**——它还在每小时 :15 白跑一趟只读取样，
 本轮**故意留着**当第二把尺（正是它帮我轧平上面那笔账），窗口收工后随脚手架一起清。
+
+## 21:0x—21:4x 这一轮的三个缺陷全是"只有真跑才露"，其中一个是我的自测把生产改了
+
+这一节里三件都是**动作类**发现（不是读数类）：排程少跑一整夜、恢复被判失败、自测动了生产。共同点是
+**本地夹具看不见它们**——夹具验的是函数逻辑，这三处坏在函数与 systemd、与另一个单元、与我自己的执行时刻的接缝上。
+
+**① 21:00 那扇夜窗静悄悄没开。** `geohot-r114-longwindow-start.service` 在 journald 里**全天零痕迹**，
+而 timer 是 enabled/active、`OnCalendar=*-*-* 21:00:00` 经 `systemd-analyze calendar` 判合法。
+为什么那一次没派发我没钉死（候选：20:5x 我自己撤窗/重装的动作就落在 21:00 前后几分钟里）；
+能钉死的是**耐久缺陷**：生成的 timer 写着 `Persistent=false` ⇒ **"错过"和"没排上"在系统里是同一件事，而且不留一个字**。
+一夜只响一次的开窗，错过一次就是少一整夜，且没有日志可查——这正是它危险的地方。
+修法：`unit_tm` 加第 4 个参数（默认仍是 `false`），`--arm-nightly` 的调用点显式传 `true`，夹具两条各钉一半——
+**函数能出 true、默认出 false**，以及**调用点真的带上了 true**（"只改函数、调用点没跟上"是这类参数化最常见的静默坏法）。
+现值：机上 `geohot-r114-longwindow-start.timer` 的 `Trigger:` 是 `*-*-* 21:00:00` 且单元里 `Persistent=true`。
+
+**② 20:54 那次 `restore-FAILED` 不是 restart 慢，是两个单元互相绊倒。** 时间线（全部现读）：
+20:53:00 哨兵因读者面红开火跑 restore ⇒ 阀门 sed 成 true 成功 ⇒ `systemctl restart geohot-worker` 打出
+`Job for geohot-worker.service canceled.` ⇒ 6×10 秒轮询读到 `worker=deactivating` 六次 ⇒ `restore-FAILED`、保留 heal.timer。
+而 `/var/log/geohot-r115-readergate.log` 同一分钟写的是 `TRIPPED ... worker=inactive stop_rc=0 冷却 30 分钟`，
+21:03 `HELD 冷却还剩 19 分钟`、21:13 `剩 9 分钟`、21:23:06 `RELEASED ... start_rc=0`。
+⇒ **闸门把 worker 按在冷却里，restore 却把"worker=active"当成功条件**——它永远等不到，且它等不到的时候
+阀门已经是 true 了：21:00:23 哨兵读到"阀 true"就 `watch-valve-open` 自拆。**站点于是处在最坏的中间态：
+说好的"恢复实时"只恢复了一半（阀门开了、进程没起），而看着像全恢复了。**
+修法：两侧都认旗标 `/run/geohot-r115-gate`——关阀侧被按着时**跳过 restart**并记 `stop-worker-held`（等闸门自己起回），
+恢复侧把 HELD 当合法态、记 `restore-worker-held`，不再拿 `worker=active` 判生死。
+
+**③ 我的 `--selftest` 把生产改了。** 21:22 我跑它验上面那条修法，它按"此刻几点"分叉断言，
+于是走了**真实的关阀路径**：真的 `systemctl stop geohot-archive.timer`、真的写 `/etc/geohot/r114-stop.done`。
+夹具的前提依赖执行时刻 ⇒ 它不再是夹具，是一次生产变更。修法：`date`／`systemctl`／`touch` 三枚桩（PATH 前置临时目录），
+断言改成与时钟无关的两条硬性质——**假 03 点必须拒绝且零次外部调用**、**假 21 点 + DRY 必须干跑且零次调用**，
+再补一条**桩自证**（调 systemctl 必须落进记录里），替掉原先那把会真写 `/etc` 的 EXPECTED_RED。
+第一版桩我自己本地就抓到三处坏：`printf '…%H…'` 是非法格式符、`run_as 21 R114_DRY=1 bash` 把赋值当命令、
+以及"故意写坏的副本"那一路仍然会重定向到真 `/etc`。机上终态：**夜窗自测 16 OK / 0 WRONG、长窗口自测 67 OK / 0 WRONG**，
+两份正文用新加的 `--bodies-only` 重新落盘（只重生成正文 + 当场 `bash -n` + 两次 DRY + 验阀门没被动过，
+不动排程不动阀门）：`stop=566ad840252c497e`、`restore=63c5431650accd6c`。
+
+**顺带一次姿态回归（自己造成的）**：`--arm-nightly` 会把 `MAX_WINDOW_SEC` 按默认值重写回 34200（9.5 小时）并
+重新 enable 05:30 那枚 `r114-restore.timer`——我今天要的是**连续窗口**，这两处一加就等于把窗口又变回一夜。
+用 `R114_MAX_WINDOW_SEC=86400 … --refresh` + `--arm-nightly` 改回，再把 archive.timer 起回来、restore.timer 关掉。
+21:32:38 现读为证：两个 geohot-r114 服务单元都带 `Environment=R114_MAX_WINDOW_SEC=86400`、
+`archive.timer enabled/active`、`r114-restore.timer disabled`、`r114-stop.timer disabled/inactive`、
+`drain-watch` 与 `longwindow-start` 均 enabled/active、阀门 `COLLECT_ENABLED=false`、worker active、首页两枪 200（2.91 s / 0.99 s）。
+⇒ **凡是"重装/再授权"类命令会顺手改别的字段，跑完必须把姿态字段逐条读回来**，不能只读退出码。
+
+**21:38 #291 第一枪（带闸门，`gated-probe.sh` 过闸：load1 0.96 ∶ 上限 3.00、avail 111 MB ∶ 地板 80、swap 0）**：
+21:30:10 重开以来判完 **实时带 13 ∶ 档案带 0**；把区间放大到 20:00 起仍是 **全部 118 ∶ 档案 0**。
+进口那条我按 22:3x 定的口径直接数了 `discovered_at`：**开窗（21:30:10）以后新建档 0 条**、
+前一小时 302 条、今天全天 3,039 条——**0 这一格才是"关阀真的生效"的正面证据**（比读 `.env` 文本强，10-17 那张清单的第一条）。
+今天这期（#280）19:40 / 20:40 两枪都还是 `NOT_READY ∶ 等 5 条判完`、库里 `revision=1 / 分节 10 件`。
+读者面这一段没有 5xx（闸门日志 21:33:30 `IDLE 5xx=0/700s`），avail 165 MB、load 1.04。
+
+**我先前那条预测写错了，这里更正**：20:3x 记的"按 128 条/时，233 条 priority 0 的实时残留约 21:10 排完，档案带该在那之后接手"——
+**错在把"连续跑的速率"当成了"连续跑的时间"**。这一晚从 19:19 强制撤窗、20:53 撤窗、21:23 闸门按住 worker 到 21:30 重开，
+实时带从没拿到过 100 分钟不断的槽位，所以那 233 条一条都没排干净。按现在的口径重算：**接管点 ≈ 连续运行 2 小时后，即今晚 23:30 前后**；
+若到那时档案带仍是 0，`starve_streak` 会在 36 轮（6 小时）时打 `STARVE-ALERT`，那时证据就归站长——
+解药是份额旋钮 `rebalance-archive-queue.ts --promote`（脚本自己写着"只有站长能动"），不是撤窗。
