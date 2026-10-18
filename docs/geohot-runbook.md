@@ -2897,6 +2897,9 @@ sudo -u geohot /usr/bin/ionice -c3 node --max-old-space-size=192 --env-file=.env
 
 **为什么这条能救窗口**：**429 属于 4xx，不进"读者面 5xx"的窗**——守卫不会再因为爬虫把整扇回填窗收掉，
 而那批真正会超时的深页请求被限速削平了（顺序抓取约 1 r/s 的正常爬虫不受影响，突发会被 429 挡）。
+**一个部署细节（别当成缺陷）**：站点在 Cloudflare 后面，`$binary_remote_addr` 拿到的是 **CF 边缘 IP**，
+所以桶实际上是"每个爬虫 × 每个边缘节点"共享——比"每访客"更粗，但方向是对的（它限的就是爬虫本身）。
+若哪天要精确到访客，把 key 换成 `$http_cf_connecting_ip`（CF 会带这个头），换之前同样先 `nginx -t` 再 reload。
 
 **实测（23:22，当场）**：`nginx -t` 过 → reload → 普通 UA 首页 `200 / 0.053 s`、深页 `200 / 0.101 s`；
 爬虫 UA 连打 25 次 = **200×12 + 429×13**；随后 `audit-routes.sh` 全量 **34/34 PASS、SLOW=0**。
