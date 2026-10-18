@@ -30,9 +30,15 @@ ENVF=${R114_ENVF:-/opt/geohot/app/.env}
 exec >> "$LOG" 2>&1
 echo "$(date -Is) stop-begin"
 H=$(date +%H)
-case "$H" in 21|22) : ;; *)
-  echo "$(date -Is) stop-skipped hour=$H -- closing the valve is only legal at 21:xx-22:xx"
-  exit 0;; esac
+if [ "${R114_FORCE:-0}" = 1 ]; then
+  # 操作者点名要"现在就停"（16:5x 站长把话改成"先把实时更新直接停了"）。时钟闸门本来是为
+  # Persistent 定时器在开机时补跑而设的，不是给人工动作设的，所以这条分支绕开它——但绕开的是"几点"，
+  # 不是下面那道"停完必须能证明恢复得了"的闸门：那道一道都不许绕。
+  echo "$(date -Is) stop-forced hour=$H by operator (clock guard bypassed, revert gate still armed)"
+elif case "$H" in 21|22) true ;; *) false ;; esac; then : ; else
+  echo "$(date -Is) stop-skipped hour=$H -- closing the valve is only legal at 21:xx-22:xx (or with R114_FORCE=1)"
+  exit 0
+fi
 if [ "${R114_DRY:-0}" = 1 ]; then
   echo "$(date -Is) stop-dryrun would: COLLECT_ENABLED=false + restart geohot-worker + stop geohot-archive.timer"
   exit 0
