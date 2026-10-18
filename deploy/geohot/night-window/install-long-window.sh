@@ -120,7 +120,13 @@ T=$(PGOPTIONS="-c statement_timeout=20s" psql "$DATABASE_URL" -At -v ON_ERROR_ST
   "SELECT count(*) FROM publications p JOIN articles a ON a.id=p.article_id LEFT JOIN translations tr ON tr.article_id=p.article_id AND tr.lang='zh' WHERE p.selected AND p.visibility='public' AND p.body_mode='full' AND coalesce(a.language,'')<>'zh' AND p.timeline_at < '2026-10-01+08' AND (tr.article_id IS NULL OR (tr.origin<>'source' AND (tr.revision<a.revision OR NOT tr.complete)))" 2>/dev/null | tail -1 | tr -dc '0-9')
 [ -n "$J" ] || J=-1
 [ -n "$T" ] || T=-1
-if [ "$J" -le -1 ] || [ "$T" -le -1 ]; then LEFT=-1; else LEFT=$(( J + T )); fi
+# 第三个条件：一到九月还有**没扫完的切片**时，"判完了"不等于"回填完了"。
+# 17:29 现读 archive_ingest：Jan–Sep 还有 128 片 pending/running（十月那 119 片不算——当月门本来每轮都走）。
+# 不算这一项的话，判定腿只要追上进口就会误报"排空"，窗口在半成品上收工。
+S=$(PGOPTIONS="-c statement_timeout=20s" psql "$DATABASE_URL" -At -v ON_ERROR_STOP=1 -c \
+  "SELECT count(*) FROM archive_ingest WHERE month < '2026-10' AND status <> 'done'" 2>/dev/null | tail -1 | tr -dc '0-9')
+[ -n "$S" ] || S=-1
+if [ "$J" -le -1 ] || [ "$T" -le -1 ] || [ "$S" -le -1 ]; then LEFT=-1; else LEFT=$(( J + T + S )); fi
 AVAIL=$(awk '/MemAvailable/{print int($2/1024)}' /proc/meminfo)
 # 低内存要连续两次才算：一次抽样就撤窗，等于把窗口交给最抖的那一格读数。
 PREV=$(cat /run/geohot-r114-lowmem 2>/dev/null || echo 0)
@@ -138,7 +144,7 @@ mkdir -p /run 2>/dev/null && printf '%s %s' "$J" "$STALL" > /run/geohot-r114-lef
 E5=$(tail -n 4000 /var/log/nginx/access.log 2>/dev/null | awk -v d="$(date +%d/%b/%Y)" \
      'index($4, "[" d ":")==1 && substr($9,1,1)=="5" && index($7, "/geohot")>0 {c++} END {print c+0}')
 ACT=$(decide "$LEFT" "${AVAIL:-0}" "${E5:-0}" "$(date +%s)" "${DEADLINE_EPOCH:-0}" "$STREAK" "$STALL")
-echo "$(date -Is) watch 待判=$J 待翻=$T 合计=$LEFT avail=${AVAIL:-?}MB lowmem_streak=$STREAK stall_streak=$STALL err5xx=${E5:-?} -> $ACT"
+echo "$(date -Is) watch 待判=$J 待翻=$T 未扫片=$S 合计=$LEFT avail=${AVAIL:-?}MB lowmem_streak=$STREAK stall_streak=$STALL err5xx=${E5:-?} -> $ACT"
 case "$ACT" in
   RESTORE*)
     R114_FORCE=1 bash "$BIN/r114-restore-realtime.sh"; rc=$?
