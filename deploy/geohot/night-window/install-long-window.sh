@@ -5,7 +5,7 @@
 # （`pgboss.job.state='completed'` join `articles.timeline_at` 现读）。实时带一直在吃那 4 个内存槽，
 # 关进口是当下唯一能让档案带拿到全部槽位的动作——份额与门槛都不用改。
 #
-# 为什么不能手停就走：会话会结束，站长不会半夜来问"排完了没有"。所以这里装一把每 30 分钟自问的排空哨兵，
+# 为什么不能手停就走：会话会结束，站长不会半夜来问"排完了没有"。所以这里装一把每 10 分钟自问的排空哨兵，
 # 它自己判五件事：排空了→恢复；读者的路红了→立刻恢复（读者的命优先于历史）；内存撑不住→恢复；
 # 存量三小时一点不降（静默停摆）→恢复；量具连续读不到（看不见就没资格替站长按着进口）→恢复；到最迟期限→无论如何恢复。
 # 这五条排在"读不到存量"这条**之前**——顺序反了的话，量具一坏就把另外四条保命规则一起屏蔽掉（17:34—17:36 实测漏过 5xx）。
@@ -17,8 +17,18 @@
 # 用法（都要 root）：
 #   bash install-long-window.sh --selftest              # 不碰系统，只验判据与单元模板
 #   bash install-long-window.sh --start                 # 先装并 enable 哨兵，再关阀（顺序不可反：先有回去的路再出门）
+#                                                       # 关阀后再放行归档周期——扫片与出刊只有它会干，夜里正是它干活的时候
+#   bash install-long-window.sh --arm-nightly           # 每晚 21:00 自动 --start；白天立刻按住归档周期（115 轮的实测依据见下）
+#   bash install-long-window.sh --disarm-nightly        # 撤掉晚间排程，并把归档周期交回日常节律
+#   bash install-long-window.sh --refresh               # 窗口开着时改判据：只重落脚本与单元，不碰阀、不 enable
+#   bash install-long-window.sh --once                  # 手工跑一轮生产哨兵（同一条代码路径）
 #   bash install-long-window.sh --restore               # 手工恢复并拆哨兵
-#   bash install-long-window.sh --status                # 现读：阀、哨兵、剩余存量、最近判定
+#   bash install-long-window.sh --status                # 现读：阀、哨兵、晚间排程、最近判定
+#
+# 为什么白天不该开这一扇（115 轮的实测）：17:00 开、17:47 撤，撤窗后读者面仍红（18:00—18:06 是 34/65 请求 5xx），
+# 因为关阀只停"新进口"，那 1.6 万条已排队的判定作业与 15 分钟归档周期照跑——阀门不是负载旋钮。
+# 真正与 5xx 同段的是 17:30 起跑、跑了 34 分钟没收的那一轮归档周期，加上一波外部深页爬虫
+# （单 IP 203.10.99.26 45 分钟 147 次请求），底盘是 7 个空闲 pg 后端各 140 MB ≈ 980 MB > 物理 891 MB ⇒ 页缓存被挤光。
 set -uo pipefail
 
 BIN=${GEOHOT_BIN:-/opt/geohot/bin}
@@ -128,7 +138,7 @@ DECIDE
 
 watch_body() { cat <<'WATCH'
 #!/bin/bash
-# 每 30 分钟问一次：历史排完了吗？读者的路还顺吗？到期限了吗？
+# 每 10 分钟问一次：历史排完了吗？读者的路还顺吗？到期限了吗？
 set -uo pipefail
 LOG=${R114_LOG:-/var/log/geohot-r114-longwindow.log}
 exec >> "$LOG" 2>&1
@@ -215,7 +225,13 @@ case "$ACT" in
     case "$ACT" in
       *drained*|*deadline*)
         systemctl disable --now geohot-r114-longwindow-start.timer 2>/dev/null
-        echo "$(date -Is) watch-nightly-off 依据 $ACT 收工，今晚起不再自动开窗（要再开得手工 --arm-nightly）"
+        echo "$(date -Is) watch-nightly-off 依据 $ACT 收工，今晚起不再自动开窗（要再开得手工 --arm-nightly）；归档周期交回日常节律"
+        ;;
+      *)
+        # 还在夜窗政策里：恢复的是"白天"，而 114 那半 reverter 会把归档定时器一起点起来——
+        # 17:30 那一轮跑了 28 分钟没完，正好和读者/爬虫撞在一起，所以白天要把它按住。
+        systemctl stop geohot-archive.timer 2>/dev/null
+        echo "$(date -Is) watch-archive-daypause 白天按住归档周期（active=$(systemctl is-active geohot-archive.timer 2>&1)），今晚 21:00 由 --start 再放行"
         ;;
     esac
     ;;
@@ -321,6 +337,19 @@ case "$MODE" in
     && echo "  OK   哨兵每 10 分钟问一次（30 分钟太慢：今天那阵 5xx 会白占半小时实时）" || { echo "  WRONG 哨兵节奏不是 10 分钟（现在是 $CADENCE）"; exit 1; }
   grep -qE 'e5_count "\$\{R114_NGX' "$T/watch.sh" \
     && echo "  OK   哨兵用的是判据文件里那一份 e5_count（测的与跑的是同一把尺）" || { echo "  WRONG 哨兵没调共享的 e5_count，尺被另抄了一份"; exit 1; }
+  # 归档周期的节律要跟着窗口走：白天按住（17:30 那一轮跑 28 分钟未完，与读者面 5xx 撞在同一区间），夜里放行。
+  grep -q 'systemctl stop geohot-archive.timer' "$T/watch.sh" \
+    && echo "  OK   哨兵撤窗后把归档周期按回白天静默（reverter 会顺手 start，这一句必须在它后面）" || { echo "  WRONG 撤窗后白天又开始跑归档周期"; exit 1; }
+  grep -q 'ARCHIVE_ON_IN_WINDOW' "$0" \
+    && echo "  OK   --start 在关阀之后放行归档周期（窗口里才是它该扫片与出刊的时候）" || { echo "  WRONG --start 没放行归档周期，夜里没供给"; exit 1; }
+  # 顺序也要判：关阀那半（114 stop.sh）自己会 stop 本定时器，放行必须跑在它后面，否则等于没放行。
+  # 只在 --start..--restore 之间找：直接 grep "$0" 会先命中本 selftest 自己这两行（连着红过两次，都是量具在骗人）。
+  START_BLK=$(awk '/^--start\)/{f=1} /^--restore\)/{f=0} f' "$0")
+  ARCH_LN=$(printf '%s\n' "$START_BLK" | grep -n 'echo "ARCHIVE_ON_IN_WINDOW rc=' | cut -d: -f1 | head -1)
+  STOP_LN=$(printf '%s\n' "$START_BLK" | grep -n 'R114_FORCE=1 bash "$STOPPER"; rc' | cut -d: -f1 | head -1)
+  { [ -n "$ARCH_LN" ] && [ -n "$STOP_LN" ] && [ "$ARCH_LN" -gt "$STOP_LN" ]; } \
+    && echo "  OK   放行归档跑在关阀之后（第 $STOP_LN 行关阀 → 第 $ARCH_LN 行放行）" \
+    || { echo "  WRONG 放行没跑在关阀之后（关阀=$STOP_LN 放行=$ARCH_LN），会被 stop.sh 抵消"; exit 1; }
   grep -q 'WantedBy=timers.target' "$T/watch.timer" && echo "  OK   哨兵 timer 带 [Install]（enable 得动）" || { echo "  WRONG timer 缺 [Install]"; exit 1; }
   grep -q 'Persistent=false' "$T/watch.timer" && echo "  OK   Persistent=false（错过一轮不补跑）" || { echo "  WRONG 哨兵会补跑"; exit 1; }
   unit_svc geohot-r114-drain-watch "d" 1700000000 60 0 3 6 4 2400 "$BIN/x.sh" > "$T/watch.service"
@@ -358,9 +387,14 @@ case "$MODE" in
   R114_FORCE=1 bash "$STOPPER"; rc=$?
   echo "STOP_RC=$rc"
   [ "$rc" = 0 ] || { echo "关阀退 $rc：哨兵已装但窗口没开，请人工看 $LOG；现值 $(grep -m1 -E '^COLLECT_ENABLED=' "$ENVF")"; exit 1; }
+  # 窗口里要让归档周期跑：它那两轮活（扫片 supply + 判完的日子出刊）只有它会干，白天停着就是为了避开读者，
+  # 夜里正是它该干活的时候。114 那半 stop.sh 会顺手 stop 掉本定时器，所以这一句必须跑在它后面。
+  systemctl start geohot-archive.timer
+  ARC_RC=$?
+  echo "ARCHIVE_ON_IN_WINDOW rc=$ARC_RC active=$(systemctl is-active geohot-archive.timer 2>&1)"
   printf 'valve=%s worker=%s archive_timer=%s watch=%s\n' "$(grep -m1 -E '^COLLECT_ENABLED=' "$ENVF")" \
     "$(systemctl is-active geohot-worker)" "$(systemctl is-active geohot-archive.timer)" "$(systemctl is-active geohot-r114-drain-watch.timer)"
-  echo "LONG_WINDOW_OPEN 剩余存量由哨兵每 30 分钟读一次：排空/5xx/低内存/过期限 都恢复"
+  echo "LONG_WINDOW_OPEN 剩余存量由哨兵每 10 分钟读一次：5xx→低内存→停摆→看不见→单窗上限→期限→排空 都恢复"
   ;;
 --arm-nightly)
   # 每晚 21:00 自己开一扇（低峰时段独占），天亮前由哨兵/兜底定时器收口。
@@ -377,6 +411,9 @@ case "$MODE" in
   systemctl daemon-reload
   systemd-analyze calendar "*-*-* $NIGHT:00:00" | head -2
   systemctl enable --now geohot-r114-longwindow-start.timer || { echo "REFUSE 今晚这扇排不上（enable 失败），阀门没动"; exit 1; }
+  # 排上今晚这扇之后，白天这一段立刻按住归档周期（依据：17:30 那一轮跑了 28 分钟未完，与读者面 5xx 撞在同一区间）
+  systemctl stop geohot-archive.timer 2>/dev/null
+  echo "DAY_ARCHIVE=paused active=$(systemctl is-active geohot-archive.timer 2>&1) —— 今晚 $NIGHT:00 由 --start 放行归档周期"
   printf 'nightly=%s/%s watch=%s/%s valve=%s\n' \
     "$(systemctl is-enabled geohot-r114-longwindow-start.timer 2>&1)" "$(systemctl is-active geohot-r114-longwindow-start.timer 2>&1)" \
     "$(systemctl is-enabled geohot-r114-drain-watch.timer 2>&1)" "$(systemctl is-active geohot-r114-drain-watch.timer 2>&1)" \
@@ -387,8 +424,11 @@ case "$MODE" in
 --disarm-nightly)
   [ "$(id -u)" = 0 ] || { echo "REFUSE 需要 root"; exit 1; }
   systemctl disable --now geohot-r114-longwindow-start.timer 2>/dev/null
-  printf 'nightly=%s/%s valve=%s worker=%s\n' "$(systemctl is-enabled geohot-r114-longwindow-start.timer 2>&1)" \
-    "$(systemctl is-active geohot-r114-longwindow-start.timer 2>&1)" "$(grep -m1 -E '^COLLECT_ENABLED=' "$ENVF")" "$(systemctl is-active geohot-worker)"
+  # 政策撤了就把归档周期交回日常节律（这才是这台机一直以来的常态）
+  systemctl start geohot-archive.timer 2>/dev/null
+  printf 'nightly=%s/%s archive_timer=%s valve=%s worker=%s\n' "$(systemctl is-enabled geohot-r114-longwindow-start.timer 2>&1)" \
+    "$(systemctl is-active geohot-r114-longwindow-start.timer 2>&1)" "$(systemctl is-active geohot-archive.timer 2>&1)" \
+    "$(grep -m1 -E '^COLLECT_ENABLED=' "$ENVF")" "$(systemctl is-active geohot-worker)"
   echo NIGHTLY_DISARMED
   ;;
 --restore)
@@ -396,6 +436,14 @@ case "$MODE" in
   R114_FORCE=1 bash "$REVERTER"; rc=$?
   systemctl disable --now geohot-r114-drain-watch.timer 2>/dev/null
   systemctl disable --now geohot-r114-stop.timer geohot-r114-restore.timer 2>/dev/null
+  # 夜窗政策还在生效（晚间定时器仍 enabled）⇒ 白天这一段继续按住归档周期；政策已撤则交回日常节律。
+  NIGHT_ON=$(systemctl is-enabled geohot-r114-longwindow-start.timer 2>/dev/null || echo unknown)
+  if [ "$NIGHT_ON" = "enabled" ]; then
+    systemctl stop geohot-archive.timer 2>/dev/null
+    echo "DAY_ARCHIVE=paused（夜窗政策仍生效，21:00 由 --start 放行归档周期）"
+  else
+    echo "DAY_ARCHIVE=normal（晚间定时器=$NIGHT_ON，归档周期按日常节律跑）"
+  fi
   printf 'RESTORE_RC=%s valve=%s worker=%s archive_timer=%s\n' "$rc" "$(grep -m1 -E '^COLLECT_ENABLED=' "$ENVF")" \
     "$(systemctl is-active geohot-worker)" "$(systemctl is-active geohot-archive.timer)"
   ;;
