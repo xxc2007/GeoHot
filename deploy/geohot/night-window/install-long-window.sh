@@ -239,7 +239,7 @@ esac
 WATCH
 }
 
-unit_svc() { printf '[Unit]\nDescription=%s\nAfter=network-online.target\n\n[Service]\nType=oneshot\nUser=root\nEnvironment=R114_DEADLINE_EPOCH=%s\nEnvironment=R114_FLOOR_AVAIL_MB=%s\nEnvironment=R114_BUDGET_ERR5XX=%s\nEnvironment=R114_LOWMEM_STREAK=%s\nEnvironment=R114_STALL_STREAK=%s\nEnvironment=R114_BLIND_STREAK=%s\nEnvironment=R114_E5_WINDOW_SEC=%s\nExecStart=/bin/bash %s\n' "$2" "$3" "$4" "$5" "$6" "$7" "$8" "$9" "${10}"; }
+unit_svc() { printf '[Unit]\nDescription=%s\nAfter=network-online.target\n\n[Service]\nType=oneshot\nUser=root\nEnvironment=R114_DEADLINE_EPOCH=%s\nEnvironment=R114_FLOOR_AVAIL_MB=%s\nEnvironment=R114_BUDGET_ERR5XX=%s\nEnvironment=R114_LOWMEM_STREAK=%s\nEnvironment=R114_STALL_STREAK=%s\nEnvironment=R114_BLIND_STREAK=%s\nEnvironment=R114_E5_WINDOW_SEC=%s\nEnvironment=R114_MAX_WINDOW_SEC=%s\nExecStart=/bin/bash %s\n' "$2" "$3" "$4" "$5" "$6" "$7" "$8" "$9" "${10}" "${11}"; }
 unit_tm() { printf '[Unit]\nDescription=%s\n\n[Timer]\nOnCalendar=%s\nRandomizedDelaySec=30\nPersistent=false\nUnit=%s.service\n\n[Install]\nWantedBy=timers.target\n' "$2" "$3" "$1"; }
 
 install_files() { # 落盘判据与哨兵，并重装两枚单元；不碰阀门、不 enable
@@ -352,10 +352,22 @@ case "$MODE" in
     || { echo "  WRONG 放行没跑在关阀之后（关阀=$STOP_LN 放行=$ARCH_LN），会被 stop.sh 抵消"; exit 1; }
   grep -q 'WantedBy=timers.target' "$T/watch.timer" && echo "  OK   哨兵 timer 带 [Install]（enable 得动）" || { echo "  WRONG timer 缺 [Install]"; exit 1; }
   grep -q 'Persistent=false' "$T/watch.timer" && echo "  OK   Persistent=false（错过一轮不补跑）" || { echo "  WRONG 哨兵会补跑"; exit 1; }
-  unit_svc geohot-r114-drain-watch "d" 1700000000 60 0 3 6 4 2400 "$BIN/x.sh" > "$T/watch.service"
+  unit_svc geohot-r114-drain-watch "d" 1700000000 60 0 3 6 4 2400 34200 "$BIN/x.sh" > "$T/watch.service"
   grep -q 'Environment=R114_DEADLINE_EPOCH=' "$T/watch.service" && echo "  OK   期限与两个阈值经 Environment= 传进单元（不写死在脚本里）" || { echo "  WRONG 单元没带阈值"; exit 1; }
   grep -q 'Environment=R114_BLIND_STREAK=4' "$T/watch.service" && grep -q 'Environment=R114_E5_WINDOW_SEC=2400' "$T/watch.service" \
     && echo "  OK   看不见阈值与 5xx 窗口也走 Environment=（改这两个不用重编脚本）" || { echo "  WRONG 单元没带 blind/5xx 窗口"; exit 1; }
+  grep -q 'Environment=R114_MAX_WINDOW_SEC=34200' "$T/watch.service" \
+    && echo "  OK   单窗上限也走 Environment=（不在脚本里写死）" || { echo "  WRONG 上限没进单元"; exit 1; }
+  # 本轮真踩的坑：unit_svc 多加一个参数而模板没跟上，ExecStart 就变成 `/bin/bash 34200`（把秒数当脚本跑），
+  # 21:00 那一枪会静默失败——今晚既不开窗也不放行归档。断言只认"以 .sh 结尾"这个形状。
+  EXW=$(grep '^ExecStart=' "$T/watch.service" | sed 's|^ExecStart=/bin/bash ||')
+  case "$EXW" in
+    *.sh) echo "  OK   哨兵 ExecStart 指向脚本 [$EXW]" ;;
+    *) echo "  WRONG 哨兵 ExecStart 不是脚本而是 [$EXW] —— 参数个数与模板对不上"; exit 1 ;;
+  esac
+  unit_svc geohot-r114-longwindow-start "d" 1700000000 60 0 3 6 4 2400 34200 "/opt/geohot/app/deploy/geohot/night-window/install-long-window.sh --start" > "$T/night.service"
+  grep -q '^ExecStart=/bin/bash /opt/geohot/app/deploy/geohot/night-window/install-long-window.sh --start$' "$T/night.service" \
+    && echo "  OK   晚间单元跑的是仓库副本且带 --start" || { echo "  WRONG 晚间单元 ExecStart 形状不对：[$(grep '^ExecStart=' "$T/night.service")]"; exit 1; }
   echo "  INFO 本次阈值：内存地板 ${FLOOR} MB（连击 ${STREAK_N} 次）∶ 5xx 预算 ${BUDGET} 条（最近 ${E5WIN} s 锚时刻）∶ 停摆 ${STALL_N} 轮（=3 小时存量不降就撤窗）∶ 看不见 ${BLIND_N} 轮∶ 期限 epoch $DEADLINE_EPOCH"
   [ "$DEADLINE_EPOCH" -gt "$(date +%s)" ] || echo "  NOTE 期限不在将来 —— --start 会拒绝这个值"
   echo SELFTEST_OK
