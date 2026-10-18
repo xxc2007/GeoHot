@@ -49,6 +49,10 @@ if ! grep -qx 'COLLECT_ENABLED=false' "$ENVF" || ! systemctl is-active --quiet g
   exit 1
 fi
 touch "/etc/geohot/r114-stop.done.$(date +%F)"
+# 旗标名字里带日期是 114 轮的坑（#275）：窗口 21:00→05:30 天生跨午夜，第二天早上按
+# $(date +%F) 去找"今天那份"就找不到 ⇒ 靠它兜底的机制会静默熄火。稳定名字留一份，
+# 内容是哪一次开的窗口——读的人不必再做日期算术。
+date -Is > /etc/geohot/r114-stop.done
 systemctl disable --now geohot-r114-stop.timer 2>/dev/null
 echo "$(date -Is) stopped [$(grep -E '^COLLECT_ENABLED=' "$ENVF")] worker=$(systemctl is-active geohot-worker) archive_timer=$(systemctl is-active geohot-archive.timer)"
 echo "$(date -Is) stop-end"
@@ -84,11 +88,18 @@ if [ "$ok" != 1 ]; then
   echo "$(date -Is) restore-FAILED valve=$(grep -E '^COLLECT_ENABLED=' "$ENVF") worker=$(systemctl is-active geohot-worker) archive_timer=$(systemctl is-active geohot-archive.timer) -- leaving geohot-r114-heal.timer armed"
   exit 1
 fi
+STOPPED_AT=$(cat /etc/geohot/r114-stop.done 2>/dev/null || echo 无)
+# 读的是**不带日期**的那份：05:30 那一刻 `$(date +%F)` 已经是第二天，按日期名去找必然读成"无"，
+# 于是这次窗口在日志里看起来像"从来没关过阀"（#275 的原形）。
+echo "$(date -Is) restore-window stopped_at=$STOPPED_AT"
 touch "/etc/geohot/r114-restore.done.$(date +%F)"
+date -Is > /etc/geohot/r114-restore.done
 systemctl disable --now geohot-r114-restore.timer 2>/dev/null
 systemctl disable --now geohot-r114-refresh.timer 2>/dev/null
 systemctl disable --now geohot-r114-heal.timer 2>/dev/null
-systemctl disable --now geohot-r114-verify.timer 2>/dev/null
+# 不复位 verify（#269）：恢复之后正该自动验一次；过去这一行把 05:50 那把复验定时器一起 disable 掉了，
+# 于是"复位成功"这件事再也没有独立的证据。heal 只在恢复失败时才需要留着（上面 FAILED 分支那句）。
+systemctl is-enabled geohot-r114-verify.timer 2>/dev/null | sed 's/^/verify_timer_enabled=/'
 echo "$(date -Is) restored [$(grep -E '^COLLECT_ENABLED=' "$ENVF")] worker=$(systemctl is-active geohot-worker) archive_timer=$(systemctl is-active geohot-archive.timer)"
 echo "$(date -Is) restore-end"
 RESTORE
@@ -133,6 +144,20 @@ case "$MODE" in
   grep -q 'WantedBy=timers.target' "$T/stop.timer" && echo "  OK   生成的 timer 带 [Install] WantedBy=timers.target（enable 得动）" \
     || { echo "  WRONG timer 没有 [Install] 段 ⇒ --arm 的 systemctl enable 必然失败"; exit 1; }
   grep -q 'Persistent=true' "$T/stop.timer" && echo "  OK   Persistent=true（恢复那半靠它兜住错过的时刻）" || { echo "  WRONG 丢了 Persistent"; exit 1; }
+  # —— #275 / #269 两条：旗标要跨得过午夜，恢复那半不许杀掉自己的复验。
+  # 这两条是**文本级**断言（自测不碰 /etc，也不碰 systemd），它们防的是"改回去"，不是"运行时一定对"。
+  grep -qx 'date -Is > /etc/geohot/r114-stop.done' "$T/stop.sh" \
+    && echo "  OK   关阀写了不带日期的那份旗标（跨午夜还读得到）" || { echo "  WRONG 关阀旗标只有带日期的名字 —— 05:30 读它就是'从没关过阀'"; exit 1; }
+  grep -q 'cat /etc/geohot/r114-stop.done' "$T/restore.sh" \
+    && echo "  OK   恢复那半真的会去读它（不是写给人看的装饰品）" || { echo "  WRONG 没人读那份旗标"; exit 1; }
+  if grep -q 'disable --now geohot-r114-verify' "$T/restore.sh"; then
+    echo "  WRONG 恢复又去 disable 复验定时器了（#269：05:50 那把尺会被静默拔掉）"; exit 1
+  else echo "  OK   恢复不碰 verify 定时器"; fi
+  # 证这条断言真的有电：故意造一份"退回旧写法"的副本，它必须判红。
+  sed 's|systemctl disable --now geohot-r114-heal.timer|systemctl disable --now geohot-r114-verify.timer|' "$T/restore.sh" > "$T/restore.broken.sh"
+  if grep -q 'disable --now geohot-r114-verify' "$T/restore.broken.sh"; then
+    echo "  OK   EXPECTED_RED：把旧写法塞回去，这条断言确实会红（说明它不是永远绿的摆设）"
+  else echo "  WRONG 这条断言抓不到已知的坏写法 —— 尺坏了"; exit 1; fi
   echo 'SELFTEST_OK（本模式不碰 /opt、不碰 systemd）'
   ;;
 --install)
