@@ -12,17 +12,22 @@
 # 用法（凭据与主机一律从环境取，仓库里不写源站地址与用户名）：
 #   export GATE_SSH_TARGET='<ssh-user>@<host>'
 #   export GATE_SSH_OPTS="-o BatchMode=yes -o ConnectTimeout=25 -o UserKnownHostsFile=... -i ..."
-#   deploy/geohot/gated-probe.sh /d/tmp/探针.lf [--out /d/tmp/结果.out] [--max-per-cpu 1.5] [--min-avail-mb 120] [--max-swap-mb 1400]
+#   deploy/geohot/gated-probe.sh /d/tmp/探针.lf [--out /d/tmp/结果.out] [--max-per-cpu 1.5] [--min-avail-mb 80] [--max-swap-mb 1400]
+#
+# 默认值怎么定下来的（2026-10-18 21:09 现场校准，第一版写 120 结果把自家诊断挡在门外）：
+#   这台 891 MB 的机器夜里 MemAvailable 的**正常区间就是 100—250 MB**（当晚实测 105/106/111/123/128/132/135/157/182/191/198/255），
+#   而读者面守护的地坪是 40 MB、事故那一拍读到的是 74 MB。所以地板取 **80 MB**：低于常态、高于"已经在痛"的那一档。
+#   教训一条：**闸门的地坪要拿常态分布定，不是拿我希望的数值定**——定高了，工具会在最需要它的时候被绕过。
 set -uo pipefail
 
-PAYLOAD=""; OUT=""; MAXPC=1.5; MINAVAIL=120; MAXSWAP=1400
+PAYLOAD=""; OUT=""; MAXPC=1.5; MINAVAIL=80; MAXSWAP=1400
 while [ $# -gt 0 ]; do
   case "$1" in
     --out) OUT="${2:-}"; shift 2;;
     --max-per-cpu) MAXPC="${2:-}"; shift 2;;
     --min-avail-mb) MINAVAIL="${2:-}"; shift 2;;
     --max-swap-mb) MAXSWAP="${2:-}"; shift 2;;
-    -h|--help) sed -n '1,17p' "$0"; exit 0;;
+    -h|--help) sed -n "1,26p" "$0"; exit 0;;
     *) [ -n "$PAYLOAD" ] || PAYLOAD="$1"; shift;;
   esac
 done
