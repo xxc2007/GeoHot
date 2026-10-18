@@ -2268,3 +2268,10 @@ sudo -u geohot /usr/bin/ionice -c3 node --max-old-space-size=192 --env-file=.env
 2. `Persistent=false` 只挂在 stop 上 ⇒ **关机跨过 21:30 就错过开阀**（其余五把都会在开机后补跑一次）。
 
 续开不是重做机件，是把已经归档的那套放回去再打开一条命令：清理脚本会先把 6 对单元与 14 个 `/opt/geohot/bin/r114-*`（8 份脚本 + 6 份 `.bak-*`）逐字节 `cmp` 归档进 `/root/r114-audit-<YYYYMMDD>/` 再删。恢复顺序：`cp` 单元回 `/etc/systemd/system/`、脚本回 `/opt/geohot/bin/`（0700）→ `daemon-reload` → `/opt/geohot/bin/r114-nightly-on.sh`（它自己会删掉各脚本里那行自我 disable，再 `systemctl enable --now r114-stop.timer r114-refresh.timer r114-restore.timer r114-verify.timer` 并打印 `list-timers`）。**开之前先处理 #275**：`r114-stop.done.$(date +%F)` 按"开阀那天"命名，跨过午夜后 heal 找不到当天旗标就静默 rc=0 退出，本轮是靠手工补旗标过的；续开成每晚一次的话这个坑每夜都踩。
+
+## 12:1x 收尾之后机上会多留一把定时器（是有意的，别当成清理没干净）
+
+第 114 轮清理脚本改成**只删 5 对单元**（heal/stop/refresh/restore/verify），`r114-sample.{timer,service}` 与 `/opt/geohot/bin/r114-sample.sh` 一起**留着**。
+理由不是偷懒，是证据：#262 现在唯一缺的就是"白天的 Jan–Sep 池子到底涨多少"这一条，而今天已经两次栽在窗口太短就下结论（07:1x 那句 18%/31% 被 11:05 的 75%/66% 推翻；2.2 小时的回涨样本不敢当稳态）。这把定时器每小时只跑一条只读取样（`statement_timeout` 挡着、不写库），留着换证据比清干净值。
+**同时留脚本是硬要求**：只删单元不删脚本的话，`r114-sample.sh` 消失而 timer 还每小时敲一次 `ExecStart`，服务会以"文件不存在"失败并把单元刷成 `failed`——下一次审计看到 failed 单元就说不清是谁家的了。
+拆它（判完增长问题之后随时一条）：`sudo systemctl disable --now r114-sample.timer && sudo rm -f /etc/systemd/system/r114-sample.{timer,service} /var/log/geohot-r114-sample.log`
