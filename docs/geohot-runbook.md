@@ -2280,3 +2280,17 @@ sudo -u geohot /usr/bin/ionice -c3 node --max-old-space-size=192 --env-file=.env
 理由不是偷懒，是证据：#262 现在唯一缺的就是"白天的 Jan–Sep 池子到底涨多少"这一条，而今天已经两次栽在窗口太短就下结论（07:1x 那句 18%/31% 被 11:05 的 75%/66% 推翻；2.2 小时的回涨样本不敢当稳态）。这把定时器每小时只跑一条只读取样（`statement_timeout` 挡着、不写库），留着换证据比清干净值。
 **同时留脚本是硬要求**：只删单元不删脚本的话，`r114-sample.sh` 消失而 timer 还每小时敲一次 `ExecStart`，服务会以"文件不存在"失败并把单元刷成 `failed`——下一次审计看到 failed 单元就说不清是谁家的了。
 拆它（判完增长问题之后随时一条）：`sudo systemctl disable --now r114-sample.timer && sudo rm -f /etc/systemd/system/r114-sample.{timer,service} /var/log/geohot-r114-sample.log`
+
+## 12:2x 清理执行、当天那条更新日志原地改成最终版、以及我自己撞到的变量名冲突
+
+**清理已执行**（12:13）：5 对单元与 13 个 `/opt/geohot/bin/r114-*` 先逐字节 `cmp` 归档进 `/root/r114-audit-20261018/`（37 份证据）再删，三枚旗标连 full-iso mtime 一起存进 `flags.txt`，一次性令牌用完就撕。留下的只有 `r114-sample.{timer,service}` + 它那份脚本（一起留，理由见上一节）。执行后现场：`systemctl --failed` 空、八台 geohot 单元全 active、`COLLECT_ENABLED=true`、最新入库 12:13:23、队列 0 带 286。
+
+**收尾复验**（12:15）：全站功能审查 **PASS=52 FAIL=0**；路由清单 **total=30 wrong_status=0 missing_marker=0**；今日到源 5,521 次、**2 次 5xx**（一次 Wiley 图片 502、一次条目页 503）；守护在 09:14 与 12:14 各抓到一次首页踩 8 秒地板（13.5 s 那次正压在归档周期起跳上，与"读者面尖峰真源是 15 分钟归档周期"这条老账一致）。
+
+**更新日志当天只留一条**：12:22 把 07:06 那条**原地替换**成最终版——正文第一句从"判完一天重排一天"改成"**补印靠人工重排**"。
+驱动这次改口的不是外部意见，是 09:0x 那次证伪：`compose.ts:520` 的 catch-up 只补不存在的期次、生产 `archive-cycle.conf` 没有 `FINAL_REFRESH`（默认 0）、`r114-refresh.timer` 已被 disable ⇒ 已出刊的那一期不会自己变厚，"重排"这个说法会把人工动作写成像系统自己会做的事。
+发法仍是那条链：`REPL="2026-10-18 07:06" bash /d/tmp/ship-run-114.sh write && … ship`；验到 `PROD_MATCHES_LOCAL=YES`（prod sha `ca561d1d…` 与本地逐字节同）与 `RENDER_PROVED=YES`（新标题命中 2、**旧句残留 0**），仓库备份 `changelog.json.bak-final-20261018T042229Z`。三端随后对齐：GitHub `f859073` = 本地 = 生产内容。
+
+**我自己撞的坑（值得记）**：给链子加"原地替换"开关时把变量起名 `RT`，而链子第 43 行 `RT=$(…)` 早就被用来存**复位时刻**——同名覆盖后闸门收到 `--replace-today="05:31"`。闸门当场拒绝（这正是它该做的事），但教训是：**往一份跑了好几天的脚本里塞新变量，第一件事是 grep 变量名有没有被用过**，而且要先跑 dry——真跑一次就把当天那条发错一次。
+配套加的两条闸门也验过两侧：`--replace-today` 必须逐字指认现首条且同一天，其余条目 deep-equal 不许动（53→53）；不给开关还走新增语义（指认 10-17 17:58，且当天已有条目就拒）。
+`fill-draft.cjs` 也补了一处：**只有正文真的引用到的格子才要求实值**——补印那三格是条件性的，把没引用的格子也算成"没有实值"会让不发这些格的版本永久发不出去（12:2x 就这么红给我看过一次）。
