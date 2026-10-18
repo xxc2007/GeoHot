@@ -29,9 +29,9 @@ STOPPER=${R114_STOPPER:-$BIN/r114-stop-realtime.sh}
 REVERTER=${R114_REVERTER:-$BIN/r114-restore-realtime.sh}
 DL_DEFAULT=$(date -d "2026-10-24 06:00:00" +%s 2>/dev/null || echo 0)
 DEADLINE_EPOCH=${R114_DEADLINE_EPOCH:-$DL_DEFAULT}
-FLOOR=${R114_FLOOR_AVAIL_MB:-90}
+FLOOR=${R114_FLOOR_AVAIL_MB:-60}
 BUDGET=${R114_BUDGET_ERR5XX:-0}
-STREAK_N=${R114_LOWMEM_STREAK:-2}
+STREAK_N=${R114_LOWMEM_STREAK:-3}
 STALL_N=${R114_STALL_STREAK:-6}
 
 decide_body() { cat <<'DECIDE'
@@ -45,7 +45,7 @@ decide_body() { cat <<'DECIDE'
 #             GEOHOT_STALL_STREAK（停摆要连续几次才撤，默认 6 = 3 小时，每 30 分钟一次）
 decide() {
   local left="${1:-0}" avail="${2:-0}" e5="${3:-0}" now="${4:-0}" deadline="${5:-0}" streak="${6:-1}" stalled="${7:-0}"
-  local floor="${GEOHOT_FLOOR_AVAIL_MB:-90}" budget="${GEOHOT_BUDGET_ERR5XX:-0}" need="${GEOHOT_LOWMEM_STREAK:-2}"
+  local floor="${GEOHOT_FLOOR_AVAIL_MB:-60}" budget="${GEOHOT_BUDGET_ERR5XX:-0}" need="${GEOHOT_LOWMEM_STREAK:-3}"
   local stallneed="${GEOHOT_STALL_STREAK:-6}"
   # 读不到存量 = -1，绝不能当成"排空了"。这是这类哨兵最危险的假绿。
   if [ "$left" -le -1 ]; then echo "HOLD|unknown_left"; return; fi
@@ -91,9 +91,9 @@ exec >> "$LOG" 2>&1
 BIN=${GEOHOT_BIN:-/opt/geohot/bin}
 ENVF=${R114_ENVF:-/opt/geohot/app/.env}
 DEADLINE_EPOCH=${R114_DEADLINE_EPOCH:-0}
-export GEOHOT_FLOOR_AVAIL_MB=${R114_FLOOR_AVAIL_MB:-90}
+export GEOHOT_FLOOR_AVAIL_MB=${R114_FLOOR_AVAIL_MB:-60}
 export GEOHOT_BUDGET_ERR5XX=${R114_BUDGET_ERR5XX:-0}
-export GEOHOT_LOWMEM_STREAK=${R114_LOWMEM_STREAK:-2}
+export GEOHOT_LOWMEM_STREAK=${R114_LOWMEM_STREAK:-3}
 export GEOHOT_STALL_STREAK=${R114_STALL_STREAK:-6}
 VALVE_FRESH_MIN=${R114_VALVE_FRESH_MIN:-90}
 . "$BIN/r114-drain-decide.sh"
@@ -183,16 +183,18 @@ case "$MODE" in
   chk "排空（0 条）"            RESTORE 0    300 0 1000 2000 1
   chk "未排空且健康"            HOLD   1200  300 0 1000 2000 1
   chk "读者面出 5xx"            RESTORE 1200 300 3 1000 2000 1
-  chk "低内存第一次（不算）"    HOLD   1200  60 0 1000 2000 1
-  chk "低内存第二次（要撤）"    RESTORE 1200 60 0 1000 2000 2
+  chk "低内存第一次（不算）"    HOLD   1200  40 0 1000 2000 1
+  chk "低内存第三次（要撤）"    RESTORE 1200 40 0 1000 2000 3
   chk "到最迟期限"              RESTORE 1200 300 0 2500 2000 1
   chk "存量读不到（-1）"        HOLD     -1   300 0 1000 99999999999 1
   # 证这把尺真的有电：相邻的两个数必须给相反的答案。
   chk "只差一条就不算排空"      HOLD      1   300 0 1000 2000 1
   chk "5xx 预算 0 时一条也算红" RESTORE 1200 300 1 1000 2000 1
   # 计数器本身也要测：坏读数（空、非数字）不能把窗口拖垮，也不能让它一次抖动就撤窗。
-  [ "$(next_streak 0 60 90)" = 1 ]      && [ "$(next_streak 1 60 90)" = 2 ]      && [ "$(next_streak 2 300 90)" = 0 ] \
-    && echo "  OK   next_streak：60→1、再 60→2、回到 300 归零" || { echo "  WRONG 低内存计数器不对"; exit 1; }
+  [ "$(next_streak 0 40 60)" = 1 ] && [ "$(next_streak 1 40 60)" = 2 ] && [ "$(next_streak 2 300 60)" = 0 ] \
+    && echo "  OK   next_streak：40→1、再 40→2、回到 300 归零" || { echo "  WRONG 低内存计数器不对"; exit 1; }
+  # 地板刚从 90 降到 60 的理由要能被测到：17:22 生产读到 avail=86MB（正常范围内），它不该被记成低内存。
+  chk "86 MB（生产刚读到的值）不算低内存"  HOLD 1200 86 0 1000 2000 1
   [ "$(next_streak '' 60 90)" = 1 ] && [ "$(next_streak x y 90)" = 1 ] && echo "  OK   坏读数（空/非数字）当 0 处理：仍从第一次算起，不会直接撤窗" \
     || { echo "  WRONG 坏读数没被兜住"; exit 1; }
   # 停摆：静默等到死期限是最贵的失败，所以"存量不降"要能自己撤窗；但第一轮不记账、降了就归零。
@@ -207,7 +209,7 @@ case "$MODE" in
   unit_tm geohot-r114-drain-watch "d" "*:00/30" > "$T/watch.timer"
   grep -q 'WantedBy=timers.target' "$T/watch.timer" && echo "  OK   哨兵 timer 带 [Install]（enable 得动）" || { echo "  WRONG timer 缺 [Install]"; exit 1; }
   grep -q 'Persistent=false' "$T/watch.timer" && echo "  OK   Persistent=false（错过一轮不补跑）" || { echo "  WRONG 哨兵会补跑"; exit 1; }
-  unit_svc geohot-r114-drain-watch "d" 1700000000 90 0 2 6 "$BIN/x.sh" > "$T/watch.service"
+  unit_svc geohot-r114-drain-watch "d" 1700000000 60 0 3 6 "$BIN/x.sh" > "$T/watch.service"
   grep -q 'Environment=R114_DEADLINE_EPOCH=' "$T/watch.service" && echo "  OK   期限与两个阈值经 Environment= 传进单元（不写死在脚本里）" || { echo "  WRONG 单元没带阈值"; exit 1; }
   echo "  INFO 本次阈值：内存地板 ${FLOOR} MB（连击 ${STREAK_N} 次）∶ 5xx 预算 ${BUDGET} 条（尾读 4000 行）∶ 停摆 ${STALL_N} 轮（=3 小时存量不降就撤窗）∶ 期限 epoch $DEADLINE_EPOCH"
   [ "$DEADLINE_EPOCH" -gt "$(date +%s)" ] || echo "  NOTE 期限不在将来 —— --start 会拒绝这个值"
