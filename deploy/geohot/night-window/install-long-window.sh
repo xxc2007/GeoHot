@@ -7,6 +7,8 @@
 #
 # 为什么不能手停就走：会话会结束，站长不会半夜来问"排完了没有"。所以这里装一把每 30 分钟自问的排空哨兵，
 # 它自己判三件事：排空了→恢复；不健康了→立刻恢复（读者的命优先于历史）；到最迟期限→无论如何恢复。
+# 期限为什么定在 2026-10-24 06:00：17:07 现读要干 16,268 件（判 14,692 ∶ 翻 1,576），判定 ≈178 件/时、翻译 ≈43 篇/时，
+# 且翻译量会随判定推进继续长出（档案带精选产出率 ≈20% ⇒ 还要再翻 ≈2,900 篇）⇒ 投影 ≈4.5 天，留一天余量。
 # 三件事共用一份判据文件（$BIN/r114-drain-decide.sh）——**自测跑的就是生产要 source 的那一份**，
 # 不复制第二份判据，免得"测的是一份、装的是一份"。
 #
@@ -25,7 +27,7 @@ WATCH=${R114_WATCH:-$BIN/r114-drain-watch.sh}
 DECIDE=${R114_DECIDE:-$BIN/r114-drain-decide.sh}
 STOPPER=${R114_STOPPER:-$BIN/r114-stop-realtime.sh}
 REVERTER=${R114_REVERTER:-$BIN/r114-restore-realtime.sh}
-DL_DEFAULT=$(date -d "2026-10-22 06:00:00" +%s 2>/dev/null || echo 0)
+DL_DEFAULT=$(date -d "2026-10-24 06:00:00" +%s 2>/dev/null || echo 0)
 DEADLINE_EPOCH=${R114_DEADLINE_EPOCH:-$DL_DEFAULT}
 FLOOR=${R114_FLOOR_AVAIL_MB:-90}
 BUDGET=${R114_BUDGET_ERR5XX:-0}
@@ -93,10 +95,15 @@ if [ "$V" = "COLLECT_ENABLED=true" ]; then
   exit 0
 fi
 set -a; . "$ENVF" >/dev/null 2>&1; set +a
-LEFT=$(PGOPTIONS="-c statement_timeout=20s" psql "$DATABASE_URL" -At -v ON_ERROR_STOP=1 -c \
-  "SELECT count(*) FROM articles a WHERE a.timeline_at < '2026-10-01+08' AND a.processing_state IN ('new','analyzed')" 2>/dev/null \
-  | tail -1 | tr -dc '0-9')
-[ -n "$LEFT" ] || LEFT=-1
+# 排空 = 两条腿都空。判定腿只数**没判过的**（processing_state='new'，走 articles_processing_idx，现读 3.5 s）；
+# 之前把 analyzed 也算进"没排完"是错的——analyzed 就是"判过了"，那样存量永远不会归零，窗口只能等死期限。
+J=$(PGOPTIONS="-c statement_timeout=20s" psql "$DATABASE_URL" -At -v ON_ERROR_STOP=1 -c \
+  "SELECT count(*) FROM articles a WHERE a.processing_state='new' AND a.timeline_at < '2026-10-01+08'" 2>/dev/null | tail -1 | tr -dc '0-9')
+T=$(PGOPTIONS="-c statement_timeout=20s" psql "$DATABASE_URL" -At -v ON_ERROR_STOP=1 -c \
+  "SELECT count(*) FROM publications p JOIN articles a ON a.id=p.article_id LEFT JOIN translations tr ON tr.article_id=p.article_id AND tr.lang='zh' WHERE p.selected AND p.visibility='public' AND p.body_mode='full' AND coalesce(a.language,'')<>'zh' AND p.timeline_at < '2026-10-01+08' AND (tr.article_id IS NULL OR (tr.origin<>'source' AND (tr.revision<a.revision OR NOT tr.complete)))" 2>/dev/null | tail -1 | tr -dc '0-9')
+[ -n "$J" ] || J=-1
+[ -n "$T" ] || T=-1
+if [ "$J" -le -1 ] || [ "$T" -le -1 ]; then LEFT=-1; else LEFT=$(( J + T )); fi
 AVAIL=$(awk '/MemAvailable/{print int($2/1024)}' /proc/meminfo)
 # 低内存要连续两次才算：一次抽样就撤窗，等于把窗口交给最抖的那一格读数。
 PREV=$(cat /run/geohot-r114-lowmem 2>/dev/null || echo 0)
@@ -105,7 +112,7 @@ mkdir -p /run 2>/dev/null && printf '%s' "$STREAK" > /run/geohot-r114-lowmem 2>/
 E5=$(tail -n 4000 /var/log/nginx/access.log 2>/dev/null | awk -v d="$(date +%d/%b/%Y)" \
      'index($4, "[" d ":")==1 && substr($9,1,1)=="5" && index($7, "/geohot")>0 {c++} END {print c+0}')
 ACT=$(decide "$LEFT" "${AVAIL:-0}" "${E5:-0}" "$(date +%s)" "${DEADLINE_EPOCH:-0}" "$STREAK")
-echo "$(date -Is) watch left=$LEFT avail=${AVAIL:-?}MB lowmem_streak=$STREAK err5xx=${E5:-?} -> $ACT"
+echo "$(date -Is) watch 待判=$J 待翻=$T 合计=$LEFT avail=${AVAIL:-?}MB lowmem_streak=$STREAK err5xx=${E5:-?} -> $ACT"
 case "$ACT" in
   RESTORE*)
     R114_FORCE=1 bash "$BIN/r114-restore-realtime.sh"; rc=$?
@@ -121,10 +128,14 @@ WATCH
 unit_svc() { printf '[Unit]\nDescription=%s\nAfter=network-online.target\n\n[Service]\nType=oneshot\nUser=root\nEnvironment=R114_DEADLINE_EPOCH=%s\nEnvironment=R114_FLOOR_AVAIL_MB=%s\nEnvironment=R114_BUDGET_ERR5XX=%s\nEnvironment=R114_LOWMEM_STREAK=%s\nExecStart=/bin/bash %s\n' "$2" "$3" "$4" "$5" "$6" "$7"; }
 unit_tm() { printf '[Unit]\nDescription=%s\n\n[Timer]\nOnCalendar=%s\nRandomizedDelaySec=30\nPersistent=false\nUnit=%s.service\n\n[Install]\nWantedBy=timers.target\n' "$2" "$3" "$1"; }
 
-read_left() {
-  set -a; . "$ENVF" >/dev/null 2>&1; set +a
-  PGOPTIONS="-c statement_timeout=20s" psql "$DATABASE_URL" -At -v ON_ERROR_STOP=1 -c \
-    "SELECT count(*) FROM articles a WHERE a.timeline_at < '2026-10-01+08' AND a.processing_state IN ('new','analyzed')" 2>&1 | tail -1
+install_files() { # 落盘判据与哨兵，并重装两枚单元；不碰阀门、不 enable
+  mkdir -p "$BIN"
+  decide_body > "$DECIDE.tmp" && mv "$DECIDE.tmp" "$DECIDE"; chmod 700 "$DECIDE"; chown root:root "$DECIDE"
+  watch_body  > "$WATCH.tmp"  && mv "$WATCH.tmp"  "$WATCH";  chmod 700 "$WATCH";  chown root:root "$WATCH"
+  ls -l "$DECIDE" "$WATCH" | awk '{print $1, $5, $9}'
+  unit_svc geohot-r114-drain-watch "GEOHOT long-window drain sentinel" "$DEADLINE_EPOCH" "$FLOOR" "$BUDGET" "$STREAK_N" "$WATCH" > "$SYS/geohot-r114-drain-watch.service"
+  unit_tm  geohot-r114-drain-watch "GEOHOT long-window drain sentinel (30 min)" "*:00/30" > "$SYS/geohot-r114-drain-watch.timer"
+  systemctl daemon-reload
 }
 
 MODE=${1:-}
@@ -176,13 +187,7 @@ case "$MODE" in
     COLLECT_ENABLED=true) : ;;
     *) echo "REFUSE 阀门现值不是 true：$(grep -m1 -E '^COLLECT_ENABLED=' "$ENVF")（只从'正在实时'进窗口）"; exit 1;;
   esac
-  mkdir -p "$BIN"
-  decide_body > "$DECIDE.tmp" && mv "$DECIDE.tmp" "$DECIDE"; chmod 700 "$DECIDE"; chown root:root "$DECIDE"
-  watch_body  > "$WATCH.tmp"  && mv "$WATCH.tmp"  "$WATCH";  chmod 700 "$WATCH";  chown root:root "$WATCH"
-  ls -l "$DECIDE" "$WATCH" | awk '{print $1, $5, $9}'
-  unit_svc geohot-r114-drain-watch "GEOHOT long-window drain sentinel" "$DEADLINE_EPOCH" "$FLOOR" "$BUDGET" "$STREAK_N" "$WATCH" > "$SYS/geohot-r114-drain-watch.service"
-  unit_tm  geohot-r114-drain-watch "GEOHOT long-window drain sentinel (30 min)" "*:00/30" > "$SYS/geohot-r114-drain-watch.timer"
-  systemctl daemon-reload
+  install_files
   systemd-analyze calendar "*:00/30" | head -2
   systemctl enable --now geohot-r114-drain-watch.timer || { echo "REFUSE 哨兵 enable 失败，阀门不动"; exit 1; }
   echo "SENTINEL_ARMED $(systemctl is-enabled geohot-r114-drain-watch.timer)/$(systemctl is-active geohot-r114-drain-watch.timer)"
@@ -201,13 +206,28 @@ case "$MODE" in
   printf 'RESTORE_RC=%s valve=%s worker=%s archive_timer=%s\n' "$rc" "$(grep -m1 -E '^COLLECT_ENABLED=' "$ENVF")" \
     "$(systemctl is-active geohot-worker)" "$(systemctl is-active geohot-archive.timer)"
   ;;
+--refresh)
+  # 窗口开着的时候改判据走这条路：只重落脚本与单元，绝不碰阀门、绝不 enable（--start 才有那个门槛）。
+  [ "$(id -u)" = 0 ] || { echo "REFUSE 需要 root"; exit 1; }
+  bash "$0" --selftest || { echo "REFUSE 自测不过，不落盘"; exit 1; }
+  install_files
+  printf 'watch=%s/%s valve=%s（refresh 不该改这两个）\n' "$(systemctl is-enabled geohot-r114-drain-watch.timer 2>&1)" \
+    "$(systemctl is-active geohot-r114-drain-watch.timer 2>&1)" "$(grep -m1 -E '^COLLECT_ENABLED=' "$ENVF")"
+  echo REFRESH_DONE
+  ;;
+--once)
+  # 手工走一轮生产脚本（与定时器那一次完全同一条代码路径）：排空了它就会当场恢复，这是特性不是副作用。
+  [ "$(id -u)" = 0 ] || { echo "REFUSE 需要 root"; exit 1; }
+  bash "$WATCH"; echo "ONCE_RC=$?"
+  tail -3 "$LOG"
+  ;;
 --status)
   printf 'valve=%s worker=%s archive_timer=%s reprint=%s watch=%s/%s\n' "$(grep -m1 -E '^COLLECT_ENABLED=' "$ENVF")" \
     "$(systemctl is-active geohot-worker)" "$(systemctl is-active geohot-archive.timer)" \
     "$(systemctl is-active geohot-reprint-today.timer)" \
     "$(systemctl is-enabled geohot-r114-drain-watch.timer 2>&1)" "$(systemctl is-active geohot-r114-drain-watch.timer 2>&1)"
-  echo "left=$(read_left)"
+  echo "最近几次判定（尺就是生产那一份，不另抄）："
   tail -8 "$LOG" 2>/dev/null || echo "（还没有长窗口日志）"
   ;;
-*) echo "用法: $0 --selftest|--start|--restore|--status"; exit 2;;
+*) echo "用法: $0 --selftest|--start|--refresh|--once|--restore|--status"; exit 2;;
 esac
