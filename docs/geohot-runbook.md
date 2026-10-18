@@ -2222,3 +2222,22 @@ sudo -u geohot /usr/bin/ionice -c3 node --max-old-space-size=192 --env-file=.env
 08:56 现场：`BEFORE|1|10|349` —— 窗口内 `new` 从 08:54 的 354 降到 349，约 100—150 条/时，预计 11:30—12:00 判完，补印由监工在那之后自动做一次（远端脚本带三道闸门 + 一个"过了次日 12:00 就拒绝再动笔"的时间闸门，且这条拒绝当场自测过一次：rc=4）。
 
 **这条洞是设计里的老账，不是夜窗新造的**：`archive-cycle.sh:170` 的注释早就写着"首版就永久缺那些后来到的条目"，而"收尾那一次 `--refresh`"（#110）在生产里从来没被排成常驻单元。要把它变成常驻，只有两条路：把 `GEOHOT_ARCHIVE_FINAL_REFRESH=1` 写进 `/etc/geohot/archive-cycle.conf`（每 15 分钟对整个区间比一次语料，改后必须 `systemctl restart geohot-worker` 之外还要 daemon-reload），或给"只比最近 N 天"排一对常驻单元。两条都要先量"一轮多少条查询、几个期次会真的变"再决定——归 #110、#280。
+
+## 09:0x 续开夜窗的那一条命令（清理之后要从归档里取回，先把排程抄成凭据）
+
+第 114 轮这对机件在 09:01 现场 `systemctl cat` + 读脚本抄出来的**真实生效值**（不是设计意图）：
+
+| 单元 | OnCalendar | Persistent | 现状态 | 干什么 |
+|---|---|---|---|---|
+| `r114-stop` | `*-*-* 21:30:00` | **false** | disabled | `COLLECT_ENABLED=false` + `systemctl stop geohot-archive.timer` + restart worker；失败就当场把阀门改回来（脚本 23—27 行是回滚分支） |
+| `r114-refresh` | `*-*-* 04:30:00` | true | disabled | 逐期重排已判完的历史日报（#276 的闸门之后只对"语料真变了"的期花钱） |
+| `r114-restore` | `*-*-* 05:30:00` | true | disabled | 阀门改回 `true` + `systemctl start geohot-archive.timer`，成功后把 refresh/heal/restore/verify 四把一起 disable（这就是 #269：05:50 那次自动复验不会跑） |
+| `r114-verify` | `*-*-* 05:50:00` | true | disabled | 复位后复验（本轮实际靠人工那一跳补上） |
+| `r114-heal` | `*-*-* *:35:00` | true | disabled | 兜底：绝不让站点停在暂停态 |
+| `r114-sample` | `*-*-* *:15:00` | true | **enabled，还在排** | 每小时只读取样（排空速率的唯一台账） |
+
+**两个必须知道的偏差**：
+1. stop 的排程是 **21:30**，而本轮实际 20:56 就人工开跑了（#266，早 34 分钟）⇒ 按现成单元续开一夜是 **8.0 小时**暂停，不是本轮量出 575 条缺口时的那个 8.6 小时；把代价换算成 8.0 小时要重量，不许顺手按比例缩放。
+2. `Persistent=false` 只挂在 stop 上 ⇒ **关机跨过 21:30 就错过开阀**（其余五把都会在开机后补跑一次）。
+
+续开不是重做机件，是把已经归档的那套放回去再打开一条命令：清理脚本会先把 6 对单元与 14 个 `/opt/geohot/bin/r114-*`（8 份脚本 + 6 份 `.bak-*`）逐字节 `cmp` 归档进 `/root/r114-audit-<YYYYMMDD>/` 再删。恢复顺序：`cp` 单元回 `/etc/systemd/system/`、脚本回 `/opt/geohot/bin/`（0700）→ `daemon-reload` → `/opt/geohot/bin/r114-nightly-on.sh`（它自己会删掉各脚本里那行自我 disable，再 `systemctl enable --now r114-stop.timer r114-refresh.timer r114-restore.timer r114-verify.timer` 并打印 `list-timers`）。**开之前先处理 #275**：`r114-stop.done.$(date +%F)` 按"开阀那天"命名，跨过午夜后 heal 找不到当天旗标就静默 rc=0 退出，本轮是靠手工补旗标过的；续开成每晚一次的话这个坑每夜都踩。
