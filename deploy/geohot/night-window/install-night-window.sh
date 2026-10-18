@@ -98,7 +98,9 @@ unit_svc() { # unit_svc <name> <desc> <exec>
   printf '[Unit]\nDescription=%s\nAfter=network-online.target\n\n[Service]\nType=oneshot\nUser=root\nExecStart=%s\n' "$2" "$3"
 }
 unit_tm() { # unit_tm <name> <desc> <oncalendar>
-  printf '[Unit]\nDescription=%s\n\n[Timer]\nOnCalendar=%s\nRandomizedDelaySec=30\nPersistent=true\nUnit=%s.service\n' "$2" "$3" "$1"
+  # [Install] 不是装饰：15:0x 机上 --install 之后 `is-enabled` 打的是 **static**，
+  # 没有 WantedBy 的单元 enable 会直接失败 ⇒ --arm 那一步会断。缺它就叫"半装"。
+  printf '[Unit]\nDescription=%s\n\n[Timer]\nOnCalendar=%s\nRandomizedDelaySec=30\nPersistent=true\nUnit=%s.service\n\n[Install]\nWantedBy=timers.target\n' "$2" "$3" "$1"
 }
 
 MODE=${1:-}
@@ -125,6 +127,12 @@ case "$MODE" in
   R114_ENVF="$T/.env" R114_LOG="$T/log" R114_DRY=1 bash "$T/restore.sh"
   grep -q 'restore-dryrun' "$T/log" && echo "  OK   恢复脚本 DRY 分支可跑（它才是保命的那一半）" || { echo "  WRONG restore-dryrun 没出现"; exit 1; }
   grep -qx 'COLLECT_ENABLED=true' "$T/.env" && echo "  OK   自测结束后阀门仍是 true" || { echo "  WRONG 自测把阀门改了"; exit 1; }
+  # 15:0x 机上装完才暴露的那一类：`is-enabled` 打 static ⇒ enable 会失败 ⇒ --arm 断在最后一步。
+  # 现在本地就把生成的 timer 拿出来查 [Install]，别让"半装"再到机上才发现。
+  unit_tm geohot-r114-stop "d" "*-*-* 21:00:00" > "$T/stop.timer"
+  grep -q 'WantedBy=timers.target' "$T/stop.timer" && echo "  OK   生成的 timer 带 [Install] WantedBy=timers.target（enable 得动）" \
+    || { echo "  WRONG timer 没有 [Install] 段 ⇒ --arm 的 systemctl enable 必然失败"; exit 1; }
+  grep -q 'Persistent=true' "$T/stop.timer" && echo "  OK   Persistent=true（恢复那半靠它兜住错过的时刻）" || { echo "  WRONG 丢了 Persistent"; exit 1; }
   echo 'SELFTEST_OK（本模式不碰 /opt、不碰 systemd）'
   ;;
 --install)
