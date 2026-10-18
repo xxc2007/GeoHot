@@ -76,7 +76,7 @@ decide() {
     echo "HOLD|low_mem=${avail}MB streak=$streak/$need"; return
   fi
   # 停摆放在期限之前：先恢复实时（站点继续活着），而不是干等到死期限再恢复。
-  if [ "$stalled" -ge "$stallneed" ]; then echo "RESTORE|stalled=${stalled}轮_存量未降"; return; fi
+  if [ "$stalled" -ge "$stallneed" ]; then echo "RESTORE|stalled=${stalled}轮_零判完"; return; fi
   if [ "$blind" -ge "$blindneed" ]; then echo "RESTORE|gauge_blind=${blind}轮读不到量具"; return; fi
   # 单窗上限（默认 9.5 小时）：夜里那一扇就算没排空也该在天亮前让回实时，
   # 万一 05:30 那半恢复单元没跑成（它是机器侧的另一条路，不是这里的责任），这条自己会收口。
@@ -90,7 +90,7 @@ decide() {
   echo "HOLD|left=$left avail=${avail}MB e5=$e5 stalled=$stalled/$stallneed"
 }
 # 停摆计数：需要**上次的存量**、**上次的计数**、**本次存量**，再加**最近 30 分钟真判完的条数**。
-#   $1 上次存量（空=第一轮）  $2 上次计数  $3 本次存量  $4 近 30 分钟判完条数（读不到给空=无证据）
+#   $1 上次存量（空=第一轮）  $2 上次计数  $3 本次存量  $4 近 30 分钟判完条数（生产只会传数字或 -1；-1=量具死了，本轮当无证据）
 # 为什么要有第 4 个输入（2026-10-18 19:4x 实测）：连续窗口里归档进口照跑（一轮 +15 条），而队列按优先级
 # 先消化实时带残留（19:40 现读 233 条 priority 0），那段时间判定腿存量必然只涨不降——近 60 分钟判完 97 条
 # 全落在实时带、档案带 0 条。只比存量就会把"正在干活"读成停摆，18 轮（约 22:2x）后自己撤窗、把实时放回来，
@@ -114,17 +114,35 @@ next_streak() {
   case "$floor" in ''|*[!0-9]*) floor=60 ;; esac
   if [ "$avail" -lt "$floor" ]; then echo $(( prev + 1 )); else echo 0; fi
 }
-# "看不见"计数：存量或读者面 5xx 任一读数拿不到合法数字就 +1，两个都好则归零。
+# "看不见"计数：存量、读者面 5xx、"有没有在干活"三把尺任一读不到合法数字就 +1，全好才归零。
 # 为什么要单独一条：17:34—17:36 连续两轮 psql 读空（存量=-1），那时哨兵既不知道排没排空、也不知道读者好不好，
 # 却还在说 HOLD —— 一个看不见读者的哨兵没有资格替站长把实时按着。
 #   $1 上次计数  $2 合计存量（-1 或非数字=读不到）  $3 近窗 5xx 条数（空或非数字=读不到）
+#   $4 近 30 分钟判完条数：**没传第 4 个参数就不参与判断**（夹具与旧调用保持原语义），传了但坏掉（-1/非数字）就算瞎一格
 next_blind() {
-  local prev="${1-0}" left="${2-}" e5="${3-}"
+  local prev="${1-0}" left="${2-}" e5="${3-}" dn="${4-}"
   case "$prev" in ''|*[!0-9]*) prev=0 ;; esac
   case "$left" in ''|*[!0-9]*) echo $(( prev + 1 )); return ;; esac
   if [ "$left" -le -1 ]; then echo $(( prev + 1 )); return; fi
   case "$e5" in ''|*[!0-9]*) echo $(( prev + 1 )); return ;; esac
+  # 判据改了口径之后，"有没有在干活"这把尺自己也会死（表没了、列改名、连接超时）。
+  # 它死了却不被数进看不见，就会**安静退回旧口径**——那正是这一轮要杀掉的那条误撤窗规则，等于换个门重新进来。
+  if [ "$#" -ge 4 ]; then
+    case "$dn" in ''|*[!0-9]*) echo $(( prev + 1 )); return ;; esac
+    if [ "$dn" -le -1 ]; then echo $(( prev + 1 )); return; fi
+  fi
   echo 0
+}
+# 档案带"饿着"计数——与停摆是两件事：停摆问"这台机还在不在产出"，这条问"回填带连续多少轮一条都没判完"。
+#   $1 上次计数  $2 近 30 分钟**档案带**判完条数（-1 或非数字=读不到 → 保持不动，不推进也不清零）
+# 为什么只报警、不撤窗：档案带被别的带吃掉槽位时，恢复实时只会把那条带变得更长——正解是份额旋钮，
+# 而它自己写着"只有站长能动"（scripts/rebalance-archive-queue.ts:11—16）。所以这条把形状打进日志交人判，不替站长动手。
+next_starve() {
+  local prev="${1-0}" d="${2-}"
+  case "$prev" in ''|*[!0-9]*) prev=0 ;; esac
+  case "$d" in ''|*[!0-9]*) echo "$prev"; return ;; esac
+  if [ "$d" -le -1 ]; then echo "$prev"; return; fi
+  if [ "$d" -gt 0 ]; then echo 0; else echo $(( prev + 1 )); fi
 }
 # 读者面 5xx 按**时刻**锚，不按"尾读 N 行"：旧尺数的是"今天之内、且落在最后 4000 行里"，而 4000 行覆盖多长
 # 会随流量伸缩（17:24 读到 0、17:34 读到 30、17:36 读到 45 那种两义读数就是这么来的）。
@@ -221,14 +239,22 @@ mkdir -p /run 2>/dev/null && printf '%s' "$STREAK" > /run/geohot-r114-lowmem 2>/
 # 静默等到死期限是最贵的一种失败：这几天什么都不产出，还占着实时。连续 18 轮（3 小时）零判完才恢复实时。
 # **存量只看判定腿($J)，但"在不在干活"以近 30 分钟判完条数($DONE)为准**——19:21 开窗后头一小时存量必涨
 # （归档进口 +15/轮，队列先消化实时带残留 233 条），拿存量差判停摆会在此刻把窗口撤掉。
-# 状态一行三列：上次判定存量、上次停摆计数、上次看不见计数（只存存量就会把存量当计数，见 next_stall 的注释）。
-DONE=$(digits_only "$(PGOPTIONS="-c statement_timeout=25s" psql "$DATABASE_URL" -At -v ON_ERROR_STOP=1 -c \
-  "SELECT count(*) FROM analyses WHERE created_at > now()-interval '30 minutes'" 2>/dev/null | tail -1)")
+# 一次查询取两个数：全部判完($DONE，用来判"这台机还在不在产出"）与**档案带**判完($DONEA，用来判"回填有没有被吃掉槽位"）。
+# 分带这件事不能省：对抗审计指出 DONE 不分带会让"档案带永远轮不到、别的带一直在产"这种形状变成永久绿——
+# 那种形状的解药是份额（`rebalance-archive-queue.ts:11—16` 写着只有站长能动），不是撤窗，所以它只报警不动手。
+# 状态一行四列：上次判定存量、上次停摆计数、上次看不见计数、上次饿着计数（只存存量就会把存量当计数，见 next_stall 的注释）。
+DONEPAIR=$(PGOPTIONS="-c statement_timeout=25s" psql "$DATABASE_URL" -At -F'|' -v ON_ERROR_STOP=1 -c \
+  "SELECT count(*) FILTER (WHERE a.timeline_at < '2026-10-01+08'), count(*) FROM analyses n JOIN articles a ON a.id = n.article_id WHERE n.created_at > now()-interval '30 minutes'" 2>/dev/null | tail -1)
+DONEA=$(digits_only "$(printf '%s' "$DONEPAIR" | cut -d'|' -f1)")
+DONE=$(digits_only "$(printf '%s' "$DONEPAIR" | cut -d'|' -f2)")
+STARVE_N=${R114_ARCHIVE_STARVE_ROUNDS:-36}
 STATE=$(cat /run/geohot-r114-left 2>/dev/null || echo '')
 PREVJ=$(printf '%s' "$STATE" | cut -d' ' -f1)
 PREVSTALL=$(printf '%s' "$STATE" | cut -d' ' -f2)
 PREVBLIND=$(printf '%s' "$STATE" | cut -d' ' -f3)
+PREVSTARVE=$(printf '%s' "$STATE" | cut -d' ' -f4)
 STALL=$(next_stall "$PREVJ" "$PREVSTALL" "$J" "$DONE")
+STARVE=$(next_starve "$PREVSTARVE" "$DONEA")
 E5_WINDOW_SEC=${R114_E5_WINDOW_SEC:-700}
 NOWE=$(date +%s)
 TODAY0=$(date -d "today 00:00:00" +%s 2>/dev/null || echo 0)
@@ -239,15 +265,19 @@ E5SPAN=$(printf '%s' "$E5RAO" | cut -d' ' -f3)
 case "$E5" in ''|*[!0-9]*) E5=-1 ;; esac
 # 开窗时刻：拿关阀旗标的 mtime（跨午夜也读得到，且不依赖本轮会话活着）。读不到就传 0，那条上限规则自己不参与。
 OPENED=$(date -r /etc/geohot/r114-stop.done +%s 2>/dev/null || echo 0)
-# 看不见 = 存量或读者面读数任一坏掉；连续 GEOHOT_BLIND_STREAK 轮就恢复实时（瞎着的哨兵没资格替站长按着进口）。
-BLIND=$(next_blind "$PREVBLIND" "$LEFT" "$E5")
+# 看不见 = 存量、读者面 5xx、"有没有在干活"任一读不到合法数字；连续 GEOHOT_BLIND_STREAK 轮就恢复实时（瞎着的哨兵没资格替站长按着进口）。
+# 第四个参数是这一轮新加的：判完那把尺死了必须**当成瞎一格**，否则它会安静退回"比存量差"的旧口径，
+# 而旧口径正是这一轮杀掉的误撤窗规则——死量具不能换个门重新进来。
+BLIND=$(next_blind "$PREVBLIND" "$LEFT" "$E5" "$DONE")
 # 存量这一列只在读到数字时才更新：把 -1 写进状态文件，下一轮 next_stall 会因"上次不是数字"直接归零，
 # 于是一次 psql 抖动就把停摆计数清空（停摆这条保命规则变成永远够不着）。
 NEWJ="$J"; case "$J" in ''|*[!0-9]*) NEWJ="$PREVJ" ;; esac
-mkdir -p /run 2>/dev/null && printf '%s %s %s' "$NEWJ" "$STALL" "$BLIND" > /run/geohot-r114-left 2>/dev/null
+mkdir -p /run 2>/dev/null && printf '%s %s %s %s' "$NEWJ" "$STALL" "$BLIND" "$STARVE" > /run/geohot-r114-left 2>/dev/null
 E5FORJUDGE="$E5"; [ "$E5" -lt 0 ] && E5FORJUDGE=0
 ACT=$(decide "$LEFT" "${AVAIL:-0}" "$E5FORJUDGE" "$NOWE" "${DEADLINE_EPOCH:-0}" "$STREAK" "$STALL" "$BLIND" "$OPENED")
-echo "$(date -Is) watch 待判=$J 待翻=$T 未扫片=$S 合计=$LEFT 判完30min=${DONE:-无} avail=${AVAIL:-?}MB lowmem_streak=$STREAK stall_streak=$STALL blind=$BLIND err5xx=${E5}/${E5_WINDOW_SEC}s(样本${E5N:-?}行 ${E5SPAN:-无}) 已开$(( OPENED>0 ? (NOWE-OPENED)/60 : 0 ))min -> $ACT"
+echo "$(date -Is) watch 待判=$J 待翻=$T 未扫片=$S 合计=$LEFT 判完30min=全部$DONE/档案$DONEA avail=${AVAIL:-?}MB lowmem_streak=$STREAK stall_streak=$STALL starve_streak=$STARVE/$STARVE_N blind=$BLIND err5xx=${E5}/${E5_WINDOW_SEC}s(样本${E5N:-?}行 ${E5SPAN:-无}) 已开$(( OPENED>0 ? (NOWE-OPENED)/60 : 0 ))min -> $ACT"
+# 饿着只报警、不改窗口去留：档案带被别的带吃掉槽位时，恢复实时只会让那条带更长；解药在站长手里（份额旋钮）。
+[ "$STARVE" -ge "$STARVE_N" ] && echo "$(date -Is) watch STARVE-ALERT 档案带已连续 ${STARVE} 轮（≈$(( STARVE * 10 / 60 )) 小时）零判完，而同期全部判完=$DONE 条、待判=$J —— 这是份额问题不是死人问题：撤窗帮不上，要动的是 scripts/rebalance-archive-queue.ts --promote（脚本自己写着只有站长能动）"
 case "$ACT" in
   RESTORE*)
     R114_FORCE=1 bash "$BIN/r114-restore-realtime.sh"; rc=$?
@@ -420,9 +450,27 @@ case "$MODE" in
     || { echo "  WRONG 判完证据没接进停摆计数（窗口会在头一小时被误撤）"; exit 1; }
   [ "$(next_stall 14760 1 14774 0)" = 2 ] && echo "  OK   存量在涨且零判完 → 照常 +1：真停摆仍然够得着" \
     || { echo "  WRONG 判完=0 时不再推进计数，停摆这条成了永远够不着的死规则"; exit 1; }
-  [ "$(next_stall 14760 1 14774 '')" = 2 ] && [ "$(next_stall 14760 1 14774 x)" = 2 ] \
-    && echo "  OK   判完读不到（空/非数字）→ 退回旧口径 +1，不把'读不到'当'在干活'" \
+  [ "$(next_stall 14760 1 14774 '')" = 2 ] && [ "$(next_stall 14760 1 14774 x)" = 2 ] && [ "$(next_stall 14760 1 14774 -1)" = 2 ] \
+    && echo "  OK   判完读不到（空/非数字/**-1**，生产就是这三个形状）→ 退回旧口径 +1，不把'读不到'当'在干活'" \
     || { echo "  WRONG 坏判完读数被当成了干活证据"; exit 1; }
+  # 量具死了不能只是"退回旧口径"就完事——那等于这条 commit 要杀的规则换个门重新进来。它必须同时被数成"瞎一格"。
+  [ "$(next_blind 0 14692 0 -1)" = 1 ] && [ "$(next_blind 0 14692 0 x)" = 1 ] && [ "$(next_blind 0 14692 0 66)" = 0 ] \
+    && echo "  OK   next_blind 接了第 4 把尺：判完量具死了＝瞎一格，活着且有产出＝归零" \
+    || { echo "  WRONG 死掉的判完量具没被数进看不见，哨兵会安静用回旧口径"; exit 1; }
+  # 没传第 4 个参数必须**完全不参与**（旧夹具与任何漏改的调用点都不能被这条改动带红）。
+  [ "$(next_blind 0 14692 0)" = 0 ] && [ "$(next_blind 2 14692 0)" = 0 ] \
+    && echo "  OK   只给三个参数时 next_blind 保持原语义（新尺默认不参与，夹具不会被改坏）" \
+    || { echo "  WRONG 三参数调用被第四把尺污染"; exit 1; }
+  # 档案带"饿着"计数：这是对抗审计打出来的那条——判完总数不分带，会让"别的带一直在产、回填一条轮不到"变成永久绿。
+  [ "$(next_starve '' 5)" = 0 ] && [ "$(next_starve 7 0)" = 8 ] && [ "$(next_starve 7 -1)" = 7 ] && [ "$(next_starve 7 x)" = 7 ] \
+    && echo "  OK   next_starve：档案带有判完归零、零判完 +1、读不到保持不动（既不推进也不清空）" \
+    || { echo "  WRONG 饿着计数器不对"; exit 1; }
+  grep -q 'STARVE-ALERT' "$T/watch.sh" \
+    && echo "  OK   哨兵里确有那条饿着报警行（只报警不动窗口——解药是份额，写着只有站长能动）" \
+    || { echo "  WRONG 饿着报警没落进哨兵"; exit 1; }
+  grep -q "RESTORE|stalled=\${stalled}轮_零判完" "$T/decide.sh" \
+    && echo "  OK   撤窗理由写的是'零判完'，不再是那句已作废的'存量未降'" \
+    || { echo "  WRONG 撤窗文案还在说存量未降（打印会骗下一个读日志的人）"; exit 1; }
   chk "停摆 17 轮（还没到阈值）" HOLD    1200 300 0 1000 2000 1 17
   chk "停摆 18 轮 → 撤窗"        RESTORE 1200 300 0 1000 2000 1 18
   # 单窗上限（9.5 小时）：天亮前必须让回实时，且不依赖"另一半定时器有没有跑成"。now=100000，期限给到无穷远以免抢先。
