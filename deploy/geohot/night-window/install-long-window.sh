@@ -513,12 +513,21 @@ case "$MODE" in
   unit_svc geohot-r114-longwindow-start "d" 1700000000 60 0 3 6 4 2400 34200 "/opt/geohot/app/deploy/geohot/night-window/install-long-window.sh --start" > "$T/night.service"
   grep -q '^ExecStart=/bin/bash /opt/geohot/app/deploy/geohot/night-window/install-long-window.sh --start$' "$T/night.service" \
     && echo "  OK   晚间单元跑的是仓库副本且带 --start" || { echo "  WRONG 晚间单元 ExecStart 形状不对：[$(grep '^ExecStart=' "$T/night.service")]"; exit 1; }
+  printf '%s\n' "$START_BLK" | grep -q 'WINDOW_ALREADY_OPEN' \
+    && echo "  OK   窗口已开时 --start 会跳过（21:00 那一枪不会在 journald 留 exit 1 的假事故）" || { echo "  WRONG --start 不幂等"; exit 1; }
   echo "  INFO 本次阈值：内存地板 ${FLOOR} MB（连击 ${STREAK_N} 次）∶ 5xx 预算 ${BUDGET} 条（最近 ${E5WIN} s 锚时刻）∶ 停摆 ${STALL_N} 轮（=3 小时存量不降就撤窗）∶ 看不见 ${BLIND_N} 轮∶ 期限 epoch $DEADLINE_EPOCH"
   [ "$DEADLINE_EPOCH" -gt "$(date +%s)" ] || echo "  NOTE 期限不在将来 —— --start 会拒绝这个值"
   echo SELFTEST_OK
   ;;
 --start)
   [ "$(id -u)" = 0 ] || { echo "REFUSE 需要 root"; exit 1; }
+  # 幂等：窗口已经开着（阀 false 且哨兵 armed）时，晚间定时器再打一枪应当什么都不做，
+  # 而不是撞"阀门现值不是 true"这道门、在 journald 里留一条 exit 1 让人误以为今晚没开窗。
+  if [ "$(grep -m1 -E '^COLLECT_ENABLED=' "$ENVF")" = "COLLECT_ENABLED=false" ] \
+     && [ "$(systemctl is-enabled geohot-r114-drain-watch.timer 2>/dev/null)" = "enabled" ]; then
+    echo "WINDOW_ALREADY_OPEN 阀已关、哨兵已 armed —— 这一枪跳过，窗口继续按同一条判据跑"
+    exit 0
+  fi
   [ "$DEADLINE_EPOCH" -gt "$(date +%s)" ] || { echo "REFUSE 最迟期限 epoch=$DEADLINE_EPOCH 不在将来（R114_DEADLINE_EPOCH 给错了）"; exit 1; }
   bash "$0" --selftest || { echo "REFUSE 自测不过，不装也不关阀"; exit 1; }
   [ -x "$STOPPER" ] && [ -x "$REVERTER" ] || { echo "REFUSE 关阀/恢复两半不在 $BIN（先跑 install-night-window.sh --install）"; exit 1; }
