@@ -2815,3 +2815,23 @@ sudo -u geohot /usr/bin/ionice -c3 node --max-old-space-size=192 --env-file=.env
 （它只认字面路径）。想改成"两种写法都认"的 ERE 时，`"?` 这一支在本机 grep 上连 `/etc/geohot` 都匹配不到——
 ⇒ **文本级断言一律用 `-F` 定长串**，并且要拿三种形状（新写法／旧写法／故意只剩带日期的那份）各跑一次，
 证明它**接受前两种、拒绝第三种**。这一轮的机上流程也确实照这条红了又停下：`--bodies-only` 之前自测先 ABORT，生产一个字节没动。
+
+## 23:0x 姿势定稿：一次连续窗口（上限 0、每晚开窗定时器已摘）——原来那两件会互相抵消
+
+**发现（23:0x，读代码 + 机上现值）**：`MAX_WINDOW_SEC=86400` 会在 **10-19 21:30** 用 `RESTORE|max_window` 把实时放回来；
+而 `geohot-r114-longwindow-start.timer` 每晚 21:00 又关一次（`--start` 幂等，窗口开着时它跳过，不会刷新开窗时刻）。
+两件拼起来的真实占空比是 **"停 24 小时 ∶ 放 23.5 小时" 交替**，不是"快速回填"。
+**判据：连续窗口不能既有日级重开、又只有 24 小时上限——两条都"合理"的规则叠在一起会把意图抵消掉。**
+
+**现姿态（机上现值 23:05）**：`R114_MAX_WINDOW_SEC=0`（判据里只有 `maxsec -gt 0` 才计时 ⇒ 0 = 不按时间收口）、
+`geohot-r114-longwindow-start.timer` **disabled/inactive**、`geohot-r114-restore.timer` 仍 disabled、阀门 `false`、
+旗标 mtime 仍是 `21:30:10`（`--refresh` 不动阀门）、哨兵/归档/worker 全 active，改完 `SELFTEST_OK`。
+⇒ **收口只剩五条**：排空（`left ≤ 0`）／本站 5xx／`avail < 60 MB` 连续 3 拍／3 小时零判完／3 轮读不到量具，外加死期限 `10-24 06:00`。
+
+**ETA（现测口径）**：待判 15,054 条 ÷ 档案带拿满槽后的 150—167 条/时 ≈ **90—100 小时（≈4 天）** ⇒ 10-22 夜—10-23 凌晨排空；
+排空那一刻哨兵自己打 `RESTORE|drained` 交回实时，不需要人工。
+**代价**：这四天首页停在 10-18 那一期（比 115 轮估的"三天"多一天）。
+
+**单点风险（登记，不掩盖）**：摘掉日级定时器与 24 小时上限之后，若哨兵定时器本身停摆，就没有第二个自动收口者（死期限也是它读的）。
+兜底两条命令：`systemctl enable --now geohot-r114-longwindow-start.timer`（恢复日级开窗）
+或 `bash /opt/geohot/bin/r114-restore-realtime.sh`（立刻交回实时）；两者都在 `/opt/geohot/bin/`。
