@@ -376,7 +376,10 @@ GATE
 }
 
 unit_svc() { printf '[Unit]\nDescription=%s\nAfter=network-online.target\n\n[Service]\nType=oneshot\nUser=root\nEnvironment=R114_DEADLINE_EPOCH=%s\nEnvironment=R114_FLOOR_AVAIL_MB=%s\nEnvironment=R114_BUDGET_ERR5XX=%s\nEnvironment=R114_LOWMEM_STREAK=%s\nEnvironment=R114_STALL_STREAK=%s\nEnvironment=R114_BLIND_STREAK=%s\nEnvironment=R114_E5_WINDOW_SEC=%s\nEnvironment=R114_MAX_WINDOW_SEC=%s\nExecStart=/bin/bash %s\n' "$2" "$3" "$4" "$5" "$6" "$7" "$8" "$9" "${10}" "${11}"; }
-unit_tm() { printf '[Unit]\nDescription=%s\n\n[Timer]\nOnCalendar=%s\nRandomizedDelaySec=30\nPersistent=false\nUnit=%s.service\n\n[Install]\nWantedBy=timers.target\n' "$2" "$3" "$1"; }
+unit_tm() { # unit_tm <单元名> <描述> <OnCalendar> [Persistent]（默认 false：错过一轮不补跑）
+  # 第 4 个参数是为"每晚只响一次的开窗"加的：那一枚错过一次就少一整夜，必须补跑；
+  # 哨兵与闸门每一轮都一样，错过就错过，绝不能开机时补一堆（2026-10-18 21:00 那一枪就是这么静悄悄丢掉的）。
+  printf '[Unit]\nDescription=%s\n\n[Timer]\nOnCalendar=%s\nRandomizedDelaySec=30\nPersistent=%s\nUnit=%s.service\n\n[Install]\nWantedBy=timers.target\n' "$2" "$3" "${4:-false}" "$1"; }
 unit_gate_svc() { printf '[Unit]\nDescription=GEOHOT reader-first worker gate\n\n[Service]\nType=oneshot\nUser=root\nEnvironment=R115_E5_WINDOW_SEC=%s\nEnvironment=R115_COOLDOWN_MIN=%s\nEnvironment=R114_NGX=/var/log/nginx/access.log\nExecStart=/bin/bash %s\n' "$1" "$2" "$3"; }
 GATE_CADENCE=${R115_GATE_CADENCE:-"*:03/10"}
 COOLDOWN=${R115_COOLDOWN_MIN:-30}
@@ -579,6 +582,16 @@ case "$MODE" in
   unit_svc geohot-r114-longwindow-start "d" 1700000000 60 0 3 6 4 2400 34200 "/opt/geohot/app/deploy/geohot/night-window/install-long-window.sh --start" > "$T/night.service"
   grep -q '^ExecStart=/bin/bash /opt/geohot/app/deploy/geohot/night-window/install-long-window.sh --start$' "$T/night.service" \
     && echo "  OK   晚间单元跑的是仓库副本且带 --start" || { echo "  WRONG 晚间单元 ExecStart 形状不对：[$(grep '^ExecStart=' "$T/night.service")]"; exit 1; }
+  # 21:00 那一枪今天静悄悄没响（service 全天零痕迹），而 Persistent=false 让"错过"变成"今晚没了"。
+  # 开窗那枚与哨兵那两枚的语义正好相反，所以要分开钉：错过的夜晚必须补，错过的十分钟不许补。
+  [ "$(unit_tm x d '*-*-* 21:00:00' true | grep -c '^Persistent=true$')" = 1 ] \
+    && [ "$(unit_tm x d '*-*-* 21:00:00' | grep -c '^Persistent=false$')" = 1 ] \
+    && echo "  OK   unit_tm 第 4 个参数：开窗那枚可要 Persistent=true，哨兵/闸门仍默认 false" \
+    || { echo "  WRONG Persistent 参数没生效（错过一次开窗就少一整夜）"; exit 1; }
+  NIGHT_BLK=$(awk '/^--arm-nightly\)/{f=1} /^--disarm-nightly\)/{f=0} f' "$0")
+  printf '%s\n' "$NIGHT_BLK" | grep -qF '"*-*-* $NIGHT:00:00" true > "$SYS/geohot-r114-longwindow-start.timer"' \
+    && echo "  OK   --arm-nightly 生成的那枚 timer 确实带着 true（不是只改了函数、调用点没跟上）" \
+    || { echo "  WRONG --arm-nightly 还在生成 Persistent=false 的开窗定时器"; exit 1; }
   printf '%s\n' "$START_BLK" | grep -q 'WINDOW_ALREADY_OPEN' \
     && echo "  OK   窗口已开时 --start 会跳过（21:00 那一枪不会在 journald 留 exit 1 的假事故）" || { echo "  WRONG --start 不幂等"; exit 1; }
   echo "  INFO 本次阈值：内存地板 ${FLOOR} MB（连击 ${STREAK_N} 次）∶ 5xx 预算 ${BUDGET} 条（最近 ${E5WIN} s 锚时刻）∶ 停摆 ${STALL_N} 轮（=3 小时零判完才撤窗，存量涨不算停摆）∶ 看不见 ${BLIND_N} 轮∶ 期限 epoch $DEADLINE_EPOCH"
@@ -639,7 +652,7 @@ case "$MODE" in
   NIGHT=${R114_NIGHT_HOUR:-21}
   install_files
   unit_svc geohot-r114-longwindow-start "GEOHOT long-window nightly open ($NIGHT:00)" "$DEADLINE_EPOCH" "$FLOOR" "$BUDGET" "$STREAK_N" "$STALL_N" "$BLIND_N" "$E5WIN" "$MAXSEC" "$DIST --start" > "$SYS/geohot-r114-longwindow-start.service"
-  unit_tm  geohot-r114-longwindow-start "GEOHOT long-window nightly open" "*-*-* $NIGHT:00:00" > "$SYS/geohot-r114-longwindow-start.timer"
+  unit_tm  geohot-r114-longwindow-start "GEOHOT long-window nightly open" "*-*-* $NIGHT:00:00" true > "$SYS/geohot-r114-longwindow-start.timer"
   systemctl daemon-reload
   systemd-analyze calendar "*-*-* $NIGHT:00:00" | head -2
   systemctl enable --now geohot-r114-longwindow-start.timer || { echo "REFUSE 今晚这扇排不上（enable 失败），阀门没动"; exit 1; }
