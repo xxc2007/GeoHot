@@ -43,11 +43,22 @@ if [ "${R114_DRY:-0}" = 1 ]; then
   echo "$(date -Is) stop-dryrun would: COLLECT_ENABLED=false + restart geohot-worker + stop geohot-archive.timer"
   exit 0
 fi
+# r115 读者闸门可能正按着 geohot-worker（5xx 触发后的 30 分钟冷却）。那一刻两件事都不能照旧做：
+#   ① 不能 restart——那会把闸门刚停的单元又拉起来，两个自动化抢同一个 worker；
+#   ② 不能拿"worker 必须 active"当关阀成功的判据——2026-10-18 20:53 那次就是这么把一次**正常**的收窗
+#      判成半停、回滚成开阀（restore-FAILED），于是当晚 21:00 那扇再也开不起来。
+# 闸门按着期间"worker 是停的"就是预期状态：它起回时读到的已经是 false 了。
+HELD=0; [ -f /run/geohot-r115-gate ] && HELD=1
 sed -i -e 's/^COLLECT_ENABLED=.*/COLLECT_ENABLED=false/' "$ENVF"
-systemctl restart geohot-worker
+if [ "$HELD" = 1 ]; then
+  echo "$(date -Is) stop-worker-held 读者闸门正按着 worker（旗标 $(cat /run/geohot-r115-gate 2>/dev/null)）——跳过 restart，等它自己起回"
+else
+  systemctl restart geohot-worker
+fi
 systemctl stop geohot-archive.timer
 sleep 20
-if ! grep -qx 'COLLECT_ENABLED=false' "$ENVF" || ! systemctl is-active --quiet geohot-worker; then
+W=$(systemctl is-active geohot-worker)
+if ! grep -qx 'COLLECT_ENABLED=false' "$ENVF" || { [ "$W" != active ] && [ "$HELD" != 1 ]; }; then
   echo "$(date -Is) stop-FAILED -> reverting to ON (a half-stopped window is worse than no window)"
   sed -i -e 's/^COLLECT_ENABLED=.*/COLLECT_ENABLED=true/' "$ENVF"
   systemctl restart geohot-worker
@@ -79,15 +90,26 @@ if [ "${R114_DRY:-0}" = 1 ]; then
   echo "$(date -Is) restore-dryrun valve=$(grep -E '^COLLECT_ENABLED=' "$ENVF") worker=$(systemctl is-active geohot-worker) archive_timer=$(systemctl is-active geohot-archive.timer)"
   exit 0
 fi
+# 与关阀那一半同一把互锁（见 stop_body 的注释）：r115 闸门按着 worker 期间，
+#   ① 不去 restart（两个自动化抢一个单元，20:53 那次就是 restart 作业被 cancel、worker 卡在 deactivating 六十秒）；
+#   ② 不把"worker 必须 active"当恢复成功的判据——那时 worker 停着是**读者优先**的正常状态。
+# 但也不能把话说圆：阀门与归档定时器都归位了，采集要等闸门到点起回时才真正恢复，所以日志必须写清解除时刻。
+HELD=0; GATE_UNTIL=$(cut -d' ' -f1 /run/geohot-r115-gate 2>/dev/null || echo '')
+[ -n "$GATE_UNTIL" ] && HELD=1
 sed -i -e 's/^COLLECT_ENABLED=.*/COLLECT_ENABLED=true/' "$ENVF"
-systemctl restart geohot-worker
+if [ "$HELD" = 1 ]; then
+  echo "$(date -Is) restore-worker-held 读者闸门按着 worker（解除时刻 $(date -d "@$GATE_UNTIL" '+%F %T' 2>/dev/null || echo "$GATE_UNTIL")）——跳过 restart；到点它起回时读到的就是 true"
+else
+  systemctl restart geohot-worker
+fi
 systemctl reset-failed geohot-archive.service 2>/dev/null
 systemctl start geohot-archive.timer
 ok=0
 for _ in 1 2 3 4 5 6; do
   sleep 10
-  if grep -qx 'COLLECT_ENABLED=true' "$ENVF" && systemctl is-active --quiet geohot-worker \
-     && systemctl is-active --quiet geohot-archive.timer; then ok=1; break; fi
+  W=$(systemctl is-active geohot-worker)
+  if grep -qx 'COLLECT_ENABLED=true' "$ENVF" && systemctl is-active --quiet geohot-archive.timer \
+     && { [ "$W" = active ] || [ "$HELD" = 1 ]; }; then ok=1; break; fi
   echo "$(date -Is) restore-retrying worker=$(systemctl is-active geohot-worker) archive_timer=$(systemctl is-active geohot-archive.timer)"
 done
 if [ "$ok" != 1 ]; then
@@ -130,17 +152,46 @@ case "$MODE" in
   bash -n "$T/stop.sh"    && echo "  OK   stop.sh 语法过"    || { echo "  WRONG stop.sh 语法不过"; exit 1; }
   bash -n "$T/restore.sh" && echo "  OK   restore.sh 语法过" || { echo "  WRONG restore.sh 语法不过"; exit 1; }
   printf 'COLLECT_ENABLED=true\n' > "$T/.env"; : > "$T/log"
-  R114_ENVF="$T/.env" R114_LOG="$T/log" bash "$T/stop.sh"; rc=$?
-  grep -q 'stop-skipped\|stop-dryrun' "$T/log" || { echo "  WRONG 关阀脚本既没按时钟拒绝也没走 DRY：闸门不可信"; cat "$T/log"; exit 1; }
-  echo "  OK   关阀脚本现在这时刻拒绝（日志：$(grep -o 'stop-[a-z]*' "$T/log" | tail -1)），且阀门没被动过：$(cat "$T/.env")"
-  grep -qx 'COLLECT_ENABLED=true' "$T/.env" || { echo "  WRONG 非 21/22 点却改了阀门 —— 时钟闸门失效"; exit 1; }
-  R114_ENVF="$T/.env" R114_LOG="$T/log" R114_DRY=1 bash "$T/stop.sh"
-  # 15:0x 自测第一次跑出来的真相：时钟闸门在 DRY 判断**之前**，所以非 21/22 点连 `--dry` 都到不了
-  # （`stop-dryrun` 打不出来）。我原来断言它该打出来——那是尺写错，不是脚本错。
-  # 更强的性质是：**任何模式在非关阀时刻都会拒绝，而且绝不写阀门**。
-  grep -q 'stop-skipped' "$T/log" && echo "  OK   非 21/22 点连 R114_DRY=1 也被时钟闸门挡在 sed 之前（打的是 stop-skipped）" \
-    || { echo "  WRONG 非关阀时刻没拒绝"; cat "$T/log"; exit 1; }
-  echo "  INFO 关阀脚本的 DRY 分支只在 21/22 点可达（时钟闸门在前）——那一支要留到真机上验，这里不算验过"
+  # 自测不许依赖墙上时钟，也不许有能力碰生产（2026-10-18 21:22 的实锤事故：这条断言原本写成"非 21/22 点应当拒绝"，
+  # 而 --selftest 恰好在 21:22 被调用 ⇒ 它把关阀脚本**真跑了一遍**：停了归档定时器、还往 /etc 写了关阀旗标。
+  # 一处自测能改生产，比脚本本身有 bug 更糟。）两道修：① 时刻用桩给定 ⇒ 测试与钟点无关；
+  # ② PATH 上的 systemctl／touch 换成记账桩 ⇒ 哪天又走错分支，也碰不到 systemd 和 /etc。
+  mkdir -p "$T/bin"; : > "$T/systemctl.calls"
+  cat > "$T/bin/systemctl" <<'EOS'
+#!/bin/sh
+case "$1" in is-active|is-enabled) echo active ;; esac
+printf '%s\n' "$*" >> "${R114_STUB_LOG:-/dev/null}"
+exit 0
+EOS
+  cat > "$T/bin/touch" <<'EOS'
+#!/bin/sh
+printf 'touch %s\n' "$*" >> "${R114_STUB_LOG:-/dev/null}"
+exit 0
+EOS
+  cat > "$T/bin/date" <<'EOS'
+#!/bin/sh
+if [ "$1" = "+%H" ] && [ -n "${R114_FAKE_HOUR:-}" ]; then printf '%s\n' "$R114_FAKE_HOUR"; exit 0; fi
+exec /bin/date "$@"
+EOS
+  chmod 755 "$T/bin/systemctl" "$T/bin/touch" "$T/bin/date"
+  run_as() { env R114_FAKE_HOUR="$1" R114_STUB_LOG="$T/systemctl.calls" PATH="$T/bin:$PATH" R114_ENVF="$T/.env" R114_LOG="$T/log" "${@:2}"; }
+  : > "$T/systemctl.calls"
+  run_as 03 bash "$T/stop.sh"; rc=$?
+  grep -q 'stop-skipped' "$T/log" || { echo "  WRONG 假时刻 03 点却没按时钟拒绝（闸门不可信）"; cat "$T/log"; exit 1; }
+  grep -qx 'COLLECT_ENABLED=true' "$T/.env" || { echo "  WRONG 非关阀时刻却改了阀门"; exit 1; }
+  [ ! -s "$T/systemctl.calls" ] && echo "  OK   03 点这一枪：拒绝、不写阀、一次 systemctl／touch 都没调" \
+    || { echo "  WRONG 非关阀时刻仍动了系统：$(cat "$T/systemctl.calls")"; exit 1; }
+  : > "$T/systemctl.calls"
+  run_as 21 R114_DRY=1 bash "$T/stop.sh"
+  grep -q 'stop-dryrun' "$T/log" || { echo "  WRONG 21 点的 DRY 分支没到（时钟闸门与 DRY 的先后又漂了）"; cat "$T/log"; exit 1; }
+  [ ! -s "$T/systemctl.calls" ] && echo "  OK   21 点 + R114_DRY=1：进 DRY 分支，仍然一次都没调 systemctl／touch（DRY 在 sed 之前）" \
+    || { echo "  WRONG DRY 分支竟动了系统"; cat "$T/systemctl.calls"; exit 1; }
+  # "零调用"这类断言最容易变成永远绿的摆设（桩根本没生效也会零调用）。拿桩自己作证：调它一次，账上必须多一行。
+  : > "$T/systemctl.calls"
+  R114_STUB_LOG="$T/systemctl.calls" PATH="$T/bin:$PATH" systemctl restart geohot-worker >/dev/null 2>&1
+  [ -s "$T/systemctl.calls" ] && echo "  OK   桩会被记账（上面那两条'零调用'是真的零调用，不是桩没生效）" \
+    || { echo "  WRONG 桩不记账 ⇒ '一次 systemctl 都没调'是永远绿的假断言"; exit 1; }
+  printf 'COLLECT_ENABLED=true\n' > "$T/.env"; : > "$T/log"
   R114_ENVF="$T/.env" R114_LOG="$T/log" R114_DRY=1 bash "$T/restore.sh"
   grep -q 'restore-dryrun' "$T/log" && echo "  OK   恢复脚本 DRY 分支可跑（它才是保命的那一半）" || { echo "  WRONG restore-dryrun 没出现"; exit 1; }
   grep -qx 'COLLECT_ENABLED=true' "$T/.env" && echo "  OK   自测结束后阀门仍是 true" || { echo "  WRONG 自测把阀门改了"; exit 1; }
@@ -159,12 +210,47 @@ case "$MODE" in
   if grep -q 'disable --now geohot-r114-verify' "$T/restore.sh"; then
     echo "  WRONG 恢复又去 disable 复验定时器了（#269：05:50 那把尺会被静默拔掉）"; exit 1
   else echo "  OK   恢复不碰 verify 定时器"; fi
+  # r115 读者闸门与这两半的互锁（2026-10-18 20:53 实测的代价：闸门按着 worker 期间，
+  # 关阀/恢复那句"worker 必须 active"恒假 ⇒ 一次正常的收窗被判成半停并回滚，当晚 21:00 那扇就再也没开起来）。
+  grep -q 'stop-worker-held' "$T/stop.sh" && grep -q 'HELD=0' "$T/stop.sh" \
+    && echo "  OK   关阀认得闸门：按着期间不 restart、也不拿 worker=active 当成功条件" \
+    || { echo "  WRONG 关阀会跟读者闸门抢同一个 worker"; exit 1; }
+  if grep -q '! systemctl is-active --quiet geohot-worker' "$T/stop.sh"; then
+    echo "  WRONG 那句恒假断言还在（闸门冷却期内必然为假，会把正常收窗判成失败）"; exit 1
+  else echo "  OK   旧的 worker=active 硬断言已从关阀那半摘掉"; fi
+  grep -q 'restore-worker-held' "$T/restore.sh" && grep -q 'GATE_UNTIL=' "$T/restore.sh" \
+    && echo "  OK   恢复那半同样让路，并把闸门的解除时刻打进日志（不把'恢复了'说成'已在采集'）" \
+    || { echo "  WRONG 恢复不认识闸门"; exit 1; }
   # 证这条断言真的有电：故意造一份"退回旧写法"的副本，它必须判红。
   sed 's|systemctl disable --now geohot-r114-heal.timer|systemctl disable --now geohot-r114-verify.timer|' "$T/restore.sh" > "$T/restore.broken.sh"
   if grep -q 'disable --now geohot-r114-verify' "$T/restore.broken.sh"; then
     echo "  OK   EXPECTED_RED：把旧写法塞回去，这条断言确实会红（说明它不是永远绿的摆设）"
   else echo "  WRONG 这条断言抓不到已知的坏写法 —— 尺坏了"; exit 1; fi
   echo 'SELFTEST_OK（本模式不碰 /opt、不碰 systemd）'
+  ;;
+--bodies-only)
+  # 只重落关阀/恢复那两份函数体，**不动任何单元、不 enable**。
+  # 为什么单开这一档：--install 会顺手重写 geohot-r114-stop.timer(21:00) 与 geohot-r114-restore.timer(05:30)——
+  # 本轮的姿势是"连续窗口"，那两枚是**故意** disable 的（05:30 那把会在档案正要开跑时截断窗口）。
+  # 为了换两个函数体去惊动它们，就是把一次小修变成一次政策变更。
+  [ "$(id -u)" = 0 ] || { echo "REFUSE 需要 root"; exit 1; }
+  bash "$0" --selftest >/dev/null || { echo "REFUSE 自测不过，不落盘"; exit 1; }
+  mkdir -p "$BIN"
+  V_BEFORE=$(grep -m1 -E '^COLLECT_ENABLED=' "$ENVF")
+  stop_body > "$BIN/r114-stop-realtime.sh.tmp" && mv "$BIN/r114-stop-realtime.sh.tmp" "$BIN/r114-stop-realtime.sh"
+  restore_body > "$BIN/r114-restore-realtime.sh.tmp" && mv "$BIN/r114-restore-realtime.sh.tmp" "$BIN/r114-restore-realtime.sh"
+  chmod 700 "$BIN/r114-stop-realtime.sh" "$BIN/r114-restore-realtime.sh"
+  chown root:root "$BIN/r114-stop-realtime.sh" "$BIN/r114-restore-realtime.sh"
+  bash -n "$BIN/r114-stop-realtime.sh" && bash -n "$BIN/r114-restore-realtime.sh" && echo "  OK   两份落盘的都语法过" || { echo "  WRONG 落盘的语法不过"; exit 1; }
+  R114_DRY=1 bash "$BIN/r114-stop-realtime.sh"; SC=$?
+  R114_DRY=1 bash "$BIN/r114-restore-realtime.sh"; RC2=$?
+  [ "$SC" = 0 ] && [ "$RC2" = 0 ] && echo "  OK   两份都能以 R114_DRY=1 空跑（rc=0）" || { echo "  WRONG 空跑就失败：真跑更不敢信 stop=$SC restore=$RC2"; exit 1; }
+  V_AFTER=$(grep -m1 -E '^COLLECT_ENABLED=' "$ENVF")
+  [ "$V_BEFORE" = "$V_AFTER" ] && echo "  OK   空跑之后阀门原样（$V_AFTER）——DRY 分支真的没写盘" \
+    || { echo "  WRONG DRY 把阀门改了：$V_BEFORE → $V_AFTER"; exit 1; }
+  printf '  现值 stop=%s restore=%s 阀门=%s\n' "$(sha256sum "$BIN/r114-stop-realtime.sh" | cut -c1-16)" \
+    "$(sha256sum "$BIN/r114-restore-realtime.sh" | cut -c1-16)" "$(cut -d= -f2 <<<"$V_AFTER")"
+  echo BODIES_ONLY_DONE
   ;;
 --install)
   [ "$(id -u)" = 0 ] || { echo "REFUSE 需要 root"; exit 1; }
