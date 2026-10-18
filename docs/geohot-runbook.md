@@ -2302,3 +2302,11 @@ sudo -u geohot /usr/bin/ionice -c3 node --max-old-space-size=192 --env-file=.env
 **已验**：手动 `systemctl start` 两次，都在 `rev=1 分节条目=10 窗口内(new+analyzed 在途)=2188` 之后打出 `NOT_READY（还在判，不动笔）`，期次逐字节没动（`1|10`）——也就是"判完之前它不会花钱"这句话是量过的，不是我保证的。
 **装它的时候踩了自己一脚**：想改日志标签时用 `sed -i "s/…分节条目=\$BITEMS…/"`，双引号那层把 `$BITEMS` 展开成空串，日志一度打成 `分节条目= `；修法是改本地那份安装器再整体重装（幂等），而不是在机器上继续 sed。**远程一次性改文件，宁可重装，不要在远端打补丁**。
 拆它（补印成功那天随时）：`sudo systemctl disable --now geohot-reprint-today.timer && sudo rm -f /etc/systemd/system/geohot-reprint-today.{timer,service} /opt/geohot/bin/reprint-settled-day.sh /etc/geohot/reprint-today.done`（日志留着自己看）。
+
+## 12:4x 机器自己的两道闸门红了 5 + 4 条：一条假红是我造成的，三处哈希是基线过期
+
+收尾时跑了 `deploy/geohot/verify-config-drift.sh` 与 `verify-deploy.sh`。**先记调用方式**：这两道要**以 root 跑**——我第一遍用 `sudo -u geohot` 跑，漂移核对第 5 节报"读不到 `/etc/geohot/archive-cycle.conf`（权限？）"，那是**我的调用造成的假红**；换 root 重跑同一节就通过（线上五个键仓库样例全认得）。另外它们是 **bash 脚本**，别用 `node --env-file` 去跑（会 `ERR_UNKNOWN_FILE_EXTENSION`）。
+
+真漂移两处，都不在今天：`GEOHOT_TRANSLATE_CONCURRENCY` 在 `.env` 里有、`.env.example` 里没有（翻译并发那轮留的）；`geohot-conc-guard.{service,timer}` 装着但 `deploy/geohot/systemd/` 没有模板（桥文件与守护单元 GitHub 上没有，老账）。再加**本次故意留的** `geohot-reprint-today` 一对——它自拆，不进模板目录是有意为之。
+
+`verify-deploy` 另报三处哈希变过（介绍站首页、根 sitemap、`/nc15/`）。**归因清楚再动手**：这些文件的 mtime 都是 `2026-10-17 09:57:05`，而 `baseline-main.txt` 的 `captured_at=2026-10-08T11:07:19Z`；今天这一侧只写过 `industry/changelog.json`（数据）和 systemd 单元，journalctl 里没有今天动过 nginx/intro 的记录 ⇒ **是基线过期，不是这次改动打到邻居站**。按脚本自己的话"先人工确认再更新基线"：等站长确认 10-17 那次介绍站/纪念册改动是有意的，再单独跑一次纯基线船（#284）。**别顺手 `rollback.sh`**——那会把 10-17 的内容撤回 10-08。
