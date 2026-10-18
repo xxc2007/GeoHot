@@ -50,6 +50,15 @@ E5WIN=${R114_E5_WINDOW_SEC:-700}
 MAXSEC=${R114_MAX_WINDOW_SEC:-34200}
 CADENCE=${R114_WATCH_CADENCE:-"*:00/10"}
 
+# night_ok <HH>：这一枪能不能**新开**一扇独占窗口。
+# 为什么要在 --start 上再设一道（2026-10-18 22:1x 对抗代理打中的 BLOCKER）：
+# 我把每晚开窗那枚 timer 改成了 `Persistent=true`（错过 21:00 就少一整夜，且不留日志），
+# 而 systemd 的 Persistent 补跑不看时刻——机器在 03:00 或 10:00 起来时，昨天错过的 21:00 会**立刻补一枪**，
+# `--start` 又带着 `R114_FORCE=1` 绕开关阀脚本自己的时钟闸，于是"白天把实时关掉一整天"变成可能，
+# 上限只有死期限（10-24 06:00）那么长。17:0x 那一扇实测就是 57 条 5xx／首页 15.3 s。
+# ⇒ 界不在死期限，界在"这一枪落在几点"。人工白天要开，明写 `R114_ANY_HOUR=1`，绕路比用脚本麻烦。
+night_ok() { case "${1-}" in 21|22|23|00|01|02|03|04|05) return 0 ;; *) return 1 ;; esac; }
+
 decide_body() { cat <<'DECIDE'
 # 唯一一份窗口去留判据。只吃数字、不碰世界，所以每个分支都能被夹具走到。
 #   $1 剩余待判(档案)  $2 可用内存 MB  $3 近读窗口内本站 5xx  $4 现在(epoch)  $5 最迟期限(epoch)
@@ -263,8 +272,10 @@ E5=$(printf '%s' "$E5RAO" | cut -d' ' -f1)
 E5N=$(printf '%s' "$E5RAO" | cut -d' ' -f2)
 E5SPAN=$(printf '%s' "$E5RAO" | cut -d' ' -f3)
 case "$E5" in ''|*[!0-9]*) E5=-1 ;; esac
-# 开窗时刻：拿关阀旗标的 mtime（跨午夜也读得到，且不依赖本轮会话活着）。读不到就传 0，那条上限规则自己不参与。
-OPENED=$(date -r /etc/geohot/r114-stop.done +%s 2>/dev/null || echo 0)
+# 开窗时刻：优先拿关阀旗标的 mtime（跨午夜也读得到，且不依赖本轮会话活着）。
+# 旗标读不到时退到 /run 那份备份（2026-10-18 对抗代理 M5：`date -r` 失败会 echo 0，而 decide 里"0=不按上限收口"，
+# 于是 `/etc/geohot` 一旦没了/写失败，**单窗上限这一条就静默消失**，只剩死期限那条六天外的界）。两个都没有才传 0。
+OPENED=$(date -r /etc/geohot/r114-stop.done +%s 2>/dev/null || cat /run/geohot-r114-opened 2>/dev/null || echo 0)
 # 看不见 = 存量、读者面 5xx、"有没有在干活"任一读不到合法数字；连续 GEOHOT_BLIND_STREAK 轮就恢复实时（瞎着的哨兵没资格替站长按着进口）。
 # 第四个参数是这一轮新加的：判完那把尺死了必须**当成瞎一格**，否则它会安静退回"比存量差"的旧口径，
 # 而旧口径正是这一轮杀掉的误撤窗规则——死量具不能换个门重新进来。
@@ -277,7 +288,7 @@ E5FORJUDGE="$E5"; [ "$E5" -lt 0 ] && E5FORJUDGE=0
 ACT=$(decide "$LEFT" "${AVAIL:-0}" "$E5FORJUDGE" "$NOWE" "${DEADLINE_EPOCH:-0}" "$STREAK" "$STALL" "$BLIND" "$OPENED")
 echo "$(date -Is) watch 待判=$J 待翻=$T 未扫片=$S 合计=$LEFT 判完30min=全部$DONE/档案$DONEA avail=${AVAIL:-?}MB lowmem_streak=$STREAK stall_streak=$STALL starve_streak=$STARVE/$STARVE_N blind=$BLIND err5xx=${E5}/${E5_WINDOW_SEC}s(样本${E5N:-?}行 ${E5SPAN:-无}) 已开$(( OPENED>0 ? (NOWE-OPENED)/60 : 0 ))min -> $ACT"
 # 饿着只报警、不改窗口去留：档案带被别的带吃掉槽位时，恢复实时只会让那条带更长；解药在站长手里（份额旋钮）。
-[ "$STARVE" -ge "$STARVE_N" ] && echo "$(date -Is) watch STARVE-ALERT 档案带已连续 ${STARVE} 轮（≈$(( STARVE * 10 / 60 )) 小时）零判完，而同期全部判完=$DONE 条、待判=$J —— 这是份额问题不是死人问题：撤窗帮不上，要动的是 scripts/rebalance-archive-queue.ts --promote（脚本自己写着只有站长能动）"
+[ "$STARVE" -ge "$STARVE_N" ] && echo "$(date -Is) watch STARVE-ALERT 档案带已连续 ${STARVE} 轮零判完（按默认 10 分钟一轮约 $(( STARVE * 10 / 60 )) 小时；哨兵节奏若改过要按 timer 自己的 OnCalendar 折算）, 同期全部判完=$DONE 条、待判=$J —— 这是份额问题不是死人问题：撤窗帮不上，要动的是 scripts/rebalance-archive-queue.ts --promote（脚本自己写着只有站长能动）"
 case "$ACT" in
   RESTORE*)
     R114_FORCE=1 bash "$BIN/r114-restore-realtime.sh"; rc=$?
@@ -592,6 +603,24 @@ case "$MODE" in
   printf '%s\n' "$NIGHT_BLK" | grep -qF '"*-*-* $NIGHT:00:00" true > "$SYS/geohot-r114-longwindow-start.timer"' \
     && echo "  OK   --arm-nightly 生成的那枚 timer 确实带着 true（不是只改了函数、调用点没跟上）" \
     || { echo "  WRONG --arm-nightly 还在生成 Persistent=false 的开窗定时器"; exit 1; }
+  # —— Persistent=true 换来的"错过的夜晚要补跑"必须被时刻闸兜住，否则补跑会落在白天（对抗代理的 BLOCKER）。
+  NIGHT_HITS=""; NIGHT_MISS=""
+  for h in 21 22 23 00 01 02 03 04 05; do night_ok "$h" || NIGHT_HITS="$NIGHT_HITS $h"; done
+  for h in 06 07 08 12 16 17 18 19 20 0600 ""; do night_ok "$h" && NIGHT_MISS="$NIGHT_MISS $h"; done
+  [ -z "$NIGHT_HITS" ] && [ -z "$NIGHT_MISS" ] \
+    && echo "  OK   night_ok 真值表：21—05 全放行、06/07/08/12/16/17/18/19/20 与空串全拒绝" \
+    || { echo "  WRONG night_ok 时刻闸不对（该放没放=[$NIGHT_HITS] 该拒没拒=[$NIGHT_MISS]）"; exit 1; }
+  printf '%s\n' "$START_BLK" | grep -q 'REFUSE_DAYLIGHT' \
+    && echo "  OK   --start 真的接了时刻闸，拒绝时出声且 exit 0（不让 journald 留一条假事故）" \
+    || { echo "  WRONG --start 没接时刻闸：Persistent 补跑能在白天把实时关掉"; exit 1; }
+  printf '%s\n' "$START_BLK" | grep -q 'R114_ANY_HOUR' \
+    && echo "  OK   白天人工授权留了显式入口（R114_ANY_HOUR=1），不是让人去改脚本" \
+    || { echo "  WRONG 白天没有合法入口，绕路只能徒手改脚本"; exit 1; }
+  WATCH_BLK=$(awk '/^watch_body\(\)/{f=1} /^gate_body\(\)/{f=0} f' "$0")
+  printf '%s\n' "$WATCH_BLK" | grep -q 'cat /run/geohot-r114-opened' \
+    && printf '%s\n' "$START_BLK" | grep -q 'date +%s > /run/geohot-r114-opened' \
+    && echo "  OK   单窗上限有第二把锚：旗标读不到时退到 /run 那份（M5：不然上限会静默消失）" \
+    || { echo "  WRONG 开窗时刻只有旗标一把尺，旗标坏了就没上限"; exit 1; }
   printf '%s\n' "$START_BLK" | grep -q 'WINDOW_ALREADY_OPEN' \
     && echo "  OK   窗口已开时 --start 会跳过（21:00 那一枪不会在 journald 留 exit 1 的假事故）" || { echo "  WRONG --start 不幂等"; exit 1; }
   echo "  INFO 本次阈值：内存地板 ${FLOOR} MB（连击 ${STREAK_N} 次）∶ 5xx 预算 ${BUDGET} 条（最近 ${E5WIN} s 锚时刻）∶ 停摆 ${STALL_N} 轮（=3 小时零判完才撤窗，存量涨不算停摆）∶ 看不见 ${BLIND_N} 轮∶ 期限 epoch $DEADLINE_EPOCH"
@@ -608,6 +637,12 @@ case "$MODE" in
     exit 0
   fi
   [ "$DEADLINE_EPOCH" -gt "$(date +%s)" ] || { echo "REFUSE 最迟期限 epoch=$DEADLINE_EPOCH 不在将来（R114_DEADLINE_EPOCH 给错了）"; exit 1; }
+  if [ "${R114_ANY_HOUR:-0}" != 1 ] && ! night_ok "$(date +%H)"; then
+    echo "REFUSE_DAYLIGHT 此刻 $(date +%H) 点不在许可时段（21:00—05:59）——这一枪跳过，阀门一个字节没动"
+    echo "  为什么：开窗那枚 timer 是 Persistent=true，开机补跑不看时刻；白天开一扇实测 57 条 5xx／首页 15.3 s。"
+    echo "  真要在白天开（人工授权）：R114_ANY_HOUR=1 bash $0 --start"
+    exit 0
+  fi
   bash "$0" --selftest || { echo "REFUSE 自测不过，不装也不关阀"; exit 1; }
   [ -x "$STOPPER" ] && [ -x "$REVERTER" ] || { echo "REFUSE 关阀/恢复两半不在 $BIN（先跑 install-night-window.sh --install）"; exit 1; }
   case "$(grep -m1 -E '^COLLECT_ENABLED=' "$ENVF")" in
@@ -632,6 +667,10 @@ case "$MODE" in
   R114_FORCE=1 bash "$STOPPER"; rc=$?
   echo "STOP_RC=$rc"
   [ "$rc" = 0 ] || { echo "关阀退 $rc：哨兵已装但窗口没开，请人工看 $LOG；现值 $(grep -m1 -E '^COLLECT_ENABLED=' "$ENVF")"; exit 1; }
+  # 第二条"开窗时刻"账：旗标 mtime 是主尺，这份 /run 是备尺（见上面 OPENED 那条注释）。写失败不影响窗口，只少一把备尺，所以要出声。
+  date +%s > /run/geohot-r114-opened 2>/dev/null \
+    && echo "OPENED_ANCHOR /run/geohot-r114-opened=$(cat /run/geohot-r114-opened)" \
+    || echo "NOTE 备尺写不进 /run（主尺仍靠 $(date -r /etc/geohot/r114-stop.done +%s 2>/dev/null || echo 读不到) 的 mtime）"
   # 窗口里要让归档周期跑：它那两轮活（扫片 supply + 判完的日子出刊）只有它会干，白天停着就是为了避开读者，
   # 夜里正是它该干活的时候。114 那半 stop.sh 会顺手 stop 掉本定时器，所以这一句必须跑在它后面。
   systemctl start geohot-archive.timer
