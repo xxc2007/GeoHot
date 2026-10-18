@@ -138,7 +138,10 @@ for _ in 1 2 3 4 5 6; do
   echo "$(date -Is) restore-retrying worker=$(systemctl is-active geohot-worker) archive_timer=$(systemctl is-active geohot-archive.timer)"
 done
 if [ "$ok" != 1 ]; then
-  echo "$(date -Is) restore-FAILED valve=$(grep -E '^COLLECT_ENABLED=' "$ENVF") worker=$(systemctl is-active geohot-worker) archive_timer=$(systemctl is-active geohot-archive.timer) -- leaving geohot-r114-heal.timer armed"
+  # 这句原来声称还留着一枚 heal 定时器兜底——**机上根本没有那枚单元**（22:5x 现读：heal 与 verify 都不存在），
+  # 于是它把"还有一条重试的路"说给读者听。真正的重试者是哨兵：它每 10 分钟一拍，读到 RESTORE 就再打一枪。
+  # （注意：这句注释本身就在正文里，所以别再写回那串字面量——自测正是拿它当拒绝条件。）
+  echo "$(date -Is) restore-FAILED valve=$(grep -E '^COLLECT_ENABLED=' "$ENVF") worker=$(systemctl is-active geohot-worker) archive_timer=$(systemctl is-active geohot-archive.timer) -- 哨兵保留、下一拍（≤10 分钟）会再试；机上没有 heal 定时器，别等它"
   exit 1
 fi
 STOPPED_AT=$(cat "$FLAGD/r114-stop.done" 2>/dev/null || echo 无)
@@ -281,6 +284,13 @@ EOS
   if grep -q 'disable --now geohot-r114-verify' "$T/restore.sh"; then
     echo "  WRONG 恢复又去 disable 复验定时器了（#269：05:50 那把尺会被静默拔掉）"; exit 1
   else echo "  OK   恢复不碰 verify 定时器"; fi
+  # 失败语要说真话：机上没有 heal 定时器（22:5x 现读，heal 与 verify 都不存在），
+  # 那句"leaving heal armed"会让人以为还有第二条重试的路——真正的重试者是每 10 分钟一拍的哨兵。
+  grep -qF 'leaving geohot-r114-heal.timer armed' "$T/restore.sh" \
+    && { echo "  WRONG 失败语还在说有 heal 定时器兜底，而机上没有那枚单元"; exit 1; } \
+    || grep -qF '下一拍（≤10 分钟）会再试' "$T/restore.sh" \
+    && echo "  OK   恢复失败语点的是真正的重试者（哨兵下一拍），不再提不存在的 heal 定时器" \
+    || { echo "  WRONG 失败语既没提 heal 也没提哨兵——别让人猜"; exit 1; }
   # r115 读者闸门与这两半的互锁（2026-10-18 20:53 实测的代价：闸门按着 worker 期间，
   # 关阀/恢复那句"worker 必须 active"恒假 ⇒ 一次正常的收窗被判成半停并回滚，当晚 21:00 那扇就再也没开起来）。
   grep -q 'stop-worker-held' "$T/stop.sh" && grep -q 'HELD=0' "$T/stop.sh" \
