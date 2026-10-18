@@ -2835,3 +2835,23 @@ sudo -u geohot /usr/bin/ionice -c3 node --max-old-space-size=192 --env-file=.env
 **单点风险（登记，不掩盖）**：摘掉日级定时器与 24 小时上限之后，若哨兵定时器本身停摆，就没有第二个自动收口者（死期限也是它读的）。
 兜底两条命令：`systemctl enable --now geohot-r114-longwindow-start.timer`（恢复日级开窗）
 或 `bash /opt/geohot/bin/r114-restore-realtime.sh`（立刻交回实时）；两者都在 `/opt/geohot/bin/`。
+
+### 23:11 这一扇窗 1 小时 41 分就收了——而收窗的 5xx 是爬虫打的，外加我自己那一枪重查询
+
+**时间线（现读）**：23:04 我打了一枪"队里按 priority 分档 + 最老年龄"的读数——两次 `pgboss.job` 大表扫描 + 一次 join，落盘有效，
+但跑完 `load1` 1.47→**3.99**、`swap` 870→928 MB。23:05:30—23:05:52 出现 3 条 503/504，**全部是外部爬虫**
+（SemrushBot 打 `/geohot/all?tag=…`、AhrefsBot 打 `/geohot/items/…` 与 `/geohot/og/…png`）。
+23:08 现读 `load1 9.14`、**`wa 82%`**、swap 928 MB、7 个 pg 后端各 ~143 MB（10-15 那档 swap thrash）。
+23:11:20 哨兵 `RESTORE|reader_5xx=5` rc=0 ⇒ 窗口收（21:30:10→23:11:20），阀门回 true。
+
+**恢复（照 10-15 那档）**：`systemctl restart geohot-web geohot-api geohot-worker`（不动阀门、不动哨兵），12 秒后
+`load1 9.46→3.68`、`swap 928→540 MB`、`avail 105→269 MB`；窗口日志是 `restored [COLLECT_ENABLED=true] worker=active archive_timer=active`，
+闸门旗标与冷却文件都不存在 ⇒ **完整恢复，不是 20:54 那种半恢复**（HELD 互锁这次没被触发，因为没有闸门旗标）。
+
+**三条归因（缺一条都会讲错）**：① 我自己的重查询把 page cache 挤掉、换页开始；② 15 分钟归档周期的重相位；
+③ 外部深页爬虫（与 20:49 那一波同族）。⇒ **夜里"读者面红"多半不是人读红，而是爬虫撞上重相位**。
+想让窗口不被误伤，只有两条路：加内存（#205）或在 nginx 对这批 UA 限速/拒（政策变更，归站长）。
+**我没有动 nginx、也没有调 5xx 预算**——把"读者的命排最前"这条规则保住，比多跑一夜重要。
+
+**新硬规矩（写进操作纪律）**：**窗口开着时不许在机上打任何大表扫描**。`gated-probe.sh` 的闸门只管"进门前"的 load，
+管不了载荷自身的重量——这一枪就是反例。窗口内的进度读数一律用哨兵/闸门的日志（零 DB），分档类查询放到窗口外。
