@@ -60,7 +60,7 @@ decide_body() { cat <<'DECIDE'
 #   环境变量：GEOHOT_FLOOR_AVAIL_MB（内存地板，默认 60：114 轮整夜窗口里 availMB 最低也有 139，17:22 现读 86 属正常）
 #             GEOHOT_BUDGET_ERR5XX（5xx 预算，默认 0：读者的路一红就撤，历史让位）
 #             GEOHOT_LOWMEM_STREAK（低内存要连续几次才撤，默认 3 = 30 分钟）
-#             GEOHOT_STALL_STREAK（停摆要连续几次才撤，默认 18 = 3 小时，每 10 分钟一次）
+#             GEOHOT_STALL_STREAK（停摆要连续几次才撤，默认 18 = 3 小时，每 10 分钟一次；判据是"零判完"，存量涨不算停摆）
 #             GEOHOT_BLIND_STREAK（看不见要连续几次才撤，默认 3 = 30 分钟：瞎着的哨兵不如开实时）
 #             GEOHOT_MAX_WINDOW_SEC（单窗上限，默认 34200 = 9.5 小时：天亮前必须让回实时，不靠另一半天亮定时器）
 decide() {
@@ -89,14 +89,20 @@ decide() {
   if [ "$left" -le 0 ]; then echo "RESTORE|drained"; return; fi
   echo "HOLD|left=$left avail=${avail}MB e5=$e5 stalled=$stalled/$stallneed"
 }
-# 停摆计数：需要**上次的存量**和**上次的计数**两个输入——只给存量就会把存量本身当计数加一（我第一版就是这么错的）。
-#   $1 上次存量（空=第一轮）  $2 上次计数  $3 本次存量
+# 停摆计数：需要**上次的存量**、**上次的计数**、**本次存量**，再加**最近 30 分钟真判完的条数**。
+#   $1 上次存量（空=第一轮）  $2 上次计数  $3 本次存量  $4 近 30 分钟判完条数（读不到给空=无证据）
+# 为什么要有第 4 个输入（2026-10-18 19:4x 实测）：连续窗口里归档进口照跑（一轮 +15 条），而队列按优先级
+# 先消化实时带残留（19:40 现读 233 条 priority 0），那段时间判定腿存量必然只涨不降——近 60 分钟判完 97 条
+# 全落在实时带、档案带 0 条。只比存量就会把"正在干活"读成停摆，18 轮（约 22:2x）后自己撤窗、把实时放回来，
+# 而"先停实时"正是站长这一次明令的前提。判完条数 >0 是它在干活的硬证据，比存量差直接。
 next_stall() {
-  local prev="${1-}" cnt="${2-0}" now="${3-}"
+  local prev="${1-}" cnt="${2-0}" now="${3-}" done_n="${4-}"
   case "$cnt" in ''|*[!0-9]*) cnt=0 ;; esac
   case "$prev" in ''|*[!0-9]*) echo 0; return ;; esac
   # 本次读不到存量：计数**保持不动**——既不 +1（一次 psql 抖动不该往撤窗走），也不归零（那会掩盖真停摆）。
   case "$now" in ''|*[!0-9]*) echo "$cnt"; return ;; esac
+  # 有判完就是没停摆，哪怕存量在涨（进口比排水快的头几个小时正是这种形状）。
+  case "$done_n" in ''|*[!0-9]*) : ;; *) if [ "$done_n" -gt 0 ]; then echo 0; return; fi ;; esac
   if [ "$now" -lt "$prev" ]; then echo 0; else echo $(( cnt + 1 )); fi
 }
 # 低内存计数：哨兵自己不记状态，靠 /run 里那一个数字。抽成函数是为了能被夹具测到（生产跑的与测的是同一份）。
@@ -211,15 +217,18 @@ AVAIL=$(awk '/MemAvailable/{print int($2/1024)}' /proc/meminfo)
 PREV=$(cat /run/geohot-r114-lowmem 2>/dev/null || echo 0)
 STREAK=$(next_streak "$PREV" "${AVAIL:-0}" "$GEOHOT_FLOOR_AVAIL_MB")
 mkdir -p /run 2>/dev/null && printf '%s' "$STREAK" > /run/geohot-r114-lowmem 2>/dev/null
-# 停摆检测：判定腿的存量不降 = 判定腿没在干活（门被板凳、worker 卡住、队列被钉住）。
-# 静默等到死期限是最贵的一种失败：这几天什么都不产出，还占着实时。连续 6 轮（3 小时）不降就恢复实时。
-# **只按判定腿($J)记，不按合计**——翻译量会随判定推进合理地上涨（新入选的要翻），拿合计判会把"正在干活"误读成停摆。
-# 状态一行两列：上次判定存量 与 上次计数（只存存量就会把存量当计数，见 next_stall 的注释）。
+# 停摆检测：真没在判完 = 停摆（门被板凳、worker 卡住、队列被钉住）。
+# 静默等到死期限是最贵的一种失败：这几天什么都不产出，还占着实时。连续 18 轮（3 小时）零判完才恢复实时。
+# **存量只看判定腿($J)，但"在不在干活"以近 30 分钟判完条数($DONE)为准**——19:21 开窗后头一小时存量必涨
+# （归档进口 +15/轮，队列先消化实时带残留 233 条），拿存量差判停摆会在此刻把窗口撤掉。
+# 状态一行三列：上次判定存量、上次停摆计数、上次看不见计数（只存存量就会把存量当计数，见 next_stall 的注释）。
+DONE=$(digits_only "$(PGOPTIONS="-c statement_timeout=25s" psql "$DATABASE_URL" -At -v ON_ERROR_STOP=1 -c \
+  "SELECT count(*) FROM analyses WHERE created_at > now()-interval '30 minutes'" 2>/dev/null | tail -1)")
 STATE=$(cat /run/geohot-r114-left 2>/dev/null || echo '')
 PREVJ=$(printf '%s' "$STATE" | cut -d' ' -f1)
 PREVSTALL=$(printf '%s' "$STATE" | cut -d' ' -f2)
 PREVBLIND=$(printf '%s' "$STATE" | cut -d' ' -f3)
-STALL=$(next_stall "$PREVJ" "$PREVSTALL" "$J")
+STALL=$(next_stall "$PREVJ" "$PREVSTALL" "$J" "$DONE")
 E5_WINDOW_SEC=${R114_E5_WINDOW_SEC:-700}
 NOWE=$(date +%s)
 TODAY0=$(date -d "today 00:00:00" +%s 2>/dev/null || echo 0)
@@ -238,7 +247,7 @@ NEWJ="$J"; case "$J" in ''|*[!0-9]*) NEWJ="$PREVJ" ;; esac
 mkdir -p /run 2>/dev/null && printf '%s %s %s' "$NEWJ" "$STALL" "$BLIND" > /run/geohot-r114-left 2>/dev/null
 E5FORJUDGE="$E5"; [ "$E5" -lt 0 ] && E5FORJUDGE=0
 ACT=$(decide "$LEFT" "${AVAIL:-0}" "$E5FORJUDGE" "$NOWE" "${DEADLINE_EPOCH:-0}" "$STREAK" "$STALL" "$BLIND" "$OPENED")
-echo "$(date -Is) watch 待判=$J 待翻=$T 未扫片=$S 合计=$LEFT avail=${AVAIL:-?}MB lowmem_streak=$STREAK stall_streak=$STALL blind=$BLIND err5xx=${E5}/${E5_WINDOW_SEC}s(样本${E5N:-?}行 ${E5SPAN:-无}) 已开$(( OPENED>0 ? (NOWE-OPENED)/60 : 0 ))min -> $ACT"
+echo "$(date -Is) watch 待判=$J 待翻=$T 未扫片=$S 合计=$LEFT 判完30min=${DONE:-无} avail=${AVAIL:-?}MB lowmem_streak=$STREAK stall_streak=$STALL blind=$BLIND err5xx=${E5}/${E5_WINDOW_SEC}s(样本${E5N:-?}行 ${E5SPAN:-无}) 已开$(( OPENED>0 ? (NOWE-OPENED)/60 : 0 ))min -> $ACT"
 case "$ACT" in
   RESTORE*)
     R114_FORCE=1 bash "$BIN/r114-restore-realtime.sh"; rc=$?
@@ -398,13 +407,22 @@ case "$MODE" in
   chk "86 MB（生产刚读到的值）不算低内存"  HOLD 1200 86 0 1000 2000 1
   [ "$(next_streak '' 60 90)" = 1 ] && [ "$(next_streak x y 90)" = 1 ] && echo "  OK   坏读数（空/非数字）当 0 处理：仍从第一次算起，不会直接撤窗" \
     || { echo "  WRONG 坏读数没被兜住"; exit 1; }
-  # 停摆：静默等到死期限是最贵的失败，所以"存量不降"要能自己撤窗；但第一轮不记账、降了就归零。
+  # 停摆：静默等到死期限是最贵的失败，所以"零判完且存量不降"要能自己撤窗；但第一轮不记账、降了就归零。
   [ "$(next_stall '' 0 14692)" = 0 ] && [ "$(next_stall 14692 0 14692)" = 1 ] && [ "$(next_stall 14692 4 14692)" = 5 ] \
     && [ "$(next_stall 14692 3 14690)" = 0 ] \
     && echo "  OK   next_stall：首轮 0、持平 +1、4→5、有降归零" || { echo "  WRONG 停摆计数器不对"; exit 1; }
   # 相邻数证明它有电：读不到存量时必须**不记账**，否则一次 psql 抖动就把窗口撤了。
   [ "$(next_stall 14692 5 '')" = 5 ] && echo "  OK   存量读不到时计数保持不动（不 +1 也不归零，绝不撤窗）" \
     || { echo "  WRONG 坏读数会推进停摆计数"; exit 1; }
+  # 第 4 个输入（近 30 分钟判完条数）——这一条是为 19:21 开窗后头一小时那个形状写的：存量在涨（进口 +15/轮、
+  # 队列先消化实时带残留），但 97 条确实在判完。只比存量会把窗口在 22:2x 撤掉，把站长明令先停的实时放回来。
+  [ "$(next_stall 14760 1 14774 66)" = 0 ] && echo "  OK   存量在涨但有判完(66 条/30min) → 归零：正在干活不叫停摆" \
+    || { echo "  WRONG 判完证据没接进停摆计数（窗口会在头一小时被误撤）"; exit 1; }
+  [ "$(next_stall 14760 1 14774 0)" = 2 ] && echo "  OK   存量在涨且零判完 → 照常 +1：真停摆仍然够得着" \
+    || { echo "  WRONG 判完=0 时不再推进计数，停摆这条成了永远够不着的死规则"; exit 1; }
+  [ "$(next_stall 14760 1 14774 '')" = 2 ] && [ "$(next_stall 14760 1 14774 x)" = 2 ] \
+    && echo "  OK   判完读不到（空/非数字）→ 退回旧口径 +1，不把'读不到'当'在干活'" \
+    || { echo "  WRONG 坏判完读数被当成了干活证据"; exit 1; }
   chk "停摆 17 轮（还没到阈值）" HOLD    1200 300 0 1000 2000 1 17
   chk "停摆 18 轮 → 撤窗"        RESTORE 1200 300 0 1000 2000 1 18
   # 单窗上限（9.5 小时）：天亮前必须让回实时，且不依赖"另一半定时器有没有跑成"。now=100000，期限给到无穷远以免抢先。
@@ -515,7 +533,7 @@ case "$MODE" in
     && echo "  OK   晚间单元跑的是仓库副本且带 --start" || { echo "  WRONG 晚间单元 ExecStart 形状不对：[$(grep '^ExecStart=' "$T/night.service")]"; exit 1; }
   printf '%s\n' "$START_BLK" | grep -q 'WINDOW_ALREADY_OPEN' \
     && echo "  OK   窗口已开时 --start 会跳过（21:00 那一枪不会在 journald 留 exit 1 的假事故）" || { echo "  WRONG --start 不幂等"; exit 1; }
-  echo "  INFO 本次阈值：内存地板 ${FLOOR} MB（连击 ${STREAK_N} 次）∶ 5xx 预算 ${BUDGET} 条（最近 ${E5WIN} s 锚时刻）∶ 停摆 ${STALL_N} 轮（=3 小时存量不降就撤窗）∶ 看不见 ${BLIND_N} 轮∶ 期限 epoch $DEADLINE_EPOCH"
+  echo "  INFO 本次阈值：内存地板 ${FLOOR} MB（连击 ${STREAK_N} 次）∶ 5xx 预算 ${BUDGET} 条（最近 ${E5WIN} s 锚时刻）∶ 停摆 ${STALL_N} 轮（=3 小时零判完才撤窗，存量涨不算停摆）∶ 看不见 ${BLIND_N} 轮∶ 期限 epoch $DEADLINE_EPOCH"
   [ "$DEADLINE_EPOCH" -gt "$(date +%s)" ] || echo "  NOTE 期限不在将来 —— --start 会拒绝这个值"
   echo SELFTEST_OK
   ;;
