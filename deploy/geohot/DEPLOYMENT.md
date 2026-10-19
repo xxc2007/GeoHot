@@ -341,3 +341,7 @@ cd /opt/geohot/app && sudo -u geohot bash deploy/geohot/verify-deploy.sh   # 必
 可在后续低负载维护窗口单独 `ALTER TABLE receipt_attempts VALIDATE CONSTRAINT receipt_attempts_billing_status_check`。若要完善历史标签，必须另审有界主键批次脚本，仅把仍为 unknown 的 received/正费用行记为 billed、pending 行记为 reserved，保留任何已有明确决定；不能把无法证明免费的行改为 unbilled。该可选工作不阻塞预算安全和工作流恢复。
 
 新列默认 unknown 能使旧 writer 漏填时保守计数，但旧二进制的预算谓词仍有 failed/usage-NULL 漏计，**不能让旧、新付费调用进程混跑**。完成迁移后统一更新 API、worker、archive/backfill runner 和手动长驻脚本，核验所有费用读点使用新列，再恢复调度。回滚可保留增量列，但恢复旧源码时须保持付费调用停止，直到安全预算检查重新就位。部署成功需另外完成线上验收，本机测试通过不等于已上线。
+
+`0069_timeline_anchor_covering.sql` 为首页全历史分组提供窄覆盖索引，保留原聚合、日计数和下一发布时间的同次读取。它与 `queryGroupedAnchors` 的局部 custom plan 配套：通用计划不能从参数化中文正则推断固定中文部分索引。索引不包含无界标题或正文；旧索引保留，回滚源码时也可保留新增索引。
+
+与 0068 元数据变更不同，0069 的普通 `CREATE INDEX` 会扫描 `publications`、写索引/WAL，并在事务内阻止并发写入。仅在付费调度和档案写入已暂停、在途操作已排空、资源门禁允许的维护窗口，以短 `lock_timeout` 和有界 `statement_timeout` 运行正常迁移；失败须回滚后另选窗口，不能假登记成功。不要在这里私自换成事务中不能执行的 `CONCURRENTLY`。上线后核验索引 valid/ready、实际参数 custom plan 及一轮受限缓冲区/首页时序；可见性映射未覆盖的脏页仍会访问 heap，本机 index-only 结果不保证生产零 heap fetch。不能以延长缓存、截断历史或跳过撤稿复核替代验收。
