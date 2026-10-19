@@ -173,10 +173,10 @@ export async function endSession(cookieHeader: string | undefined) {
 }
 
 /** Every manual change: who, when, what, why. */
-export async function audit(actor: string, action: string, subject: string | null, reason: string | null, before: unknown, after: unknown, requestId?: string) {
-  await sql`INSERT INTO audit_log (actor, action, subject, reason, before, after, request_id)
-            VALUES (${actor}, ${action}, ${subject}, ${reason}, ${before === null || before === undefined ? null : sql.json(before as never)},
-                    ${after === null || after === undefined ? null : sql.json(after as never)}, ${requestId ?? null})`;
+export async function audit(actor: string, action: string, subject: string | null, reason: string | null, before: unknown, after: unknown, requestId?: string, db: import("../db.ts").Db = sql) {
+  await db`INSERT INTO audit_log (actor, action, subject, reason, before, after, request_id)
+            VALUES (${actor}, ${action}, ${subject}, ${reason}, ${before === null || before === undefined ? null : db.json(before as never)},
+                    ${after === null || after === undefined ? null : db.json(after as never)}, ${requestId ?? null})`;
 }
 
 export function actorOf(p: AdminPrincipal): string {

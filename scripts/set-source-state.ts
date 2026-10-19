@@ -16,6 +16,7 @@ import process from "node:process";
 import { readFileSync } from "node:fs";
 import postgres from "postgres";
 import { assertSupportedConfig } from "@aihot/backend/sources/config-keys";
+import { lockRegistry, SourceRegistryConflict } from "@aihot/backend/sources/registry";
 
 const args = process.argv.slice(2);
 const apply = args.includes("--apply");
@@ -83,7 +84,9 @@ try {
     console.log(`（dry run：${changes.length} 条待写。要执行请加 --apply --database-url=…）`);
   } else {
     await sql.begin(async (tx) => {
-      for (const c of changes) {
+      const policy = await lockRegistry(tx);
+      if (policy.target_enabled !== null && changes.some(c => c.enabled !== undefined)) throw new SourceRegistryConflict("Managed enabled changes require reviewed source replacement or a reasoned admin pause; seed-pack alignment is refused");
+      for (const c of [...changes].sort((a,b) => Number(a.enabled === true)-Number(b.enabled === true) || a.id.localeCompare(b.id))) {
         // The admin's own toggle side effects are reproduced where they apply (admin/sources.ts:118):
         // disabling parks health at 'paused', re-enabling clears a stale one and sets next_fetch_at to
         // now (otherwise a source switched back on can stay dormant for a whole interval). `tx.json` is

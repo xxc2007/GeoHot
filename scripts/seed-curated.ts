@@ -36,6 +36,7 @@ import { queueProcessing } from "@aihot/backend/jobs/content";
 import { stopBoss } from "@aihot/backend/jobs/queue";
 import { sha256 } from "@aihot/backend/lib/ids";
 import { normalizeUrl } from "@aihot/backend/lib/url";
+import { resolveIngestSource } from "@aihot/backend/sources/registry";
 
 const { values: opt } = parseArgs({
   options: {
@@ -135,7 +136,7 @@ const srcSpan = spanStart && spanEnd ? Math.max(1, spanEnd.getTime() - spanStart
 const remap = (t: Date) => new Date(anchor.getTime() - LEAD_MS - Math.round((spanEnd!.getTime() - t.getTime())
   * ((STALE_MS - 3 * LEAD_MS) / srcSpan)));
 
-interface Planned { key: string; sourceId: string; url: string; title: string; input: MaterialInput; authored: Date | null }
+interface Planned { key: string; sourceId: string; url: string; title: string; input: MaterialInput; authored: Date | null; reported: CuratedLine }
 /** The corpus names its sources; both routes pass that name on instead of inventing one. */
 const sourceNameOf = (p: Planned) => (p.input.raw as { _geohot?: { sourceName?: string } } | null | undefined)?._geohot?.sourceName ?? undefined;
 const seen = new Map<string, string>();
@@ -173,7 +174,7 @@ for (let i = 0; i < raw.length; i++) {
     : anchor;
   const synopsisOnly = archive && (l.raw?.archive as { bodyIsSynopsis?: boolean } | undefined)?.bodyIsSynopsis === true;
   plan.push({
-    key, sourceId, url, title, authored: authoredOf(l),
+    key, sourceId, url, title, authored: authoredOf(l), reported: l,
     input: {
       id: rowId, sourceId, url, title, via, language: originalTitle ? (l.language ?? "en") : l.language ?? null,
       author: typeof l.author === "string" && l.author.trim() ? l.author.trim().slice(0, 200) : null,
@@ -214,14 +215,16 @@ if (wantedIds.length) {
   for (const r of rows) known.set(r.id, r);
 }
 const missing = wantedIds.filter((id) => !known.has(id));
+const [registryPolicy] = missing.length ? await sql`SELECT target_enabled FROM source_registry_policy WHERE singleton` : [];
+const managedRegistry = registryPolicy?.target_enabled !== null && registryPolicy?.target_enabled !== undefined;
 const nonEditorial = wantedIds.filter((id) => known.has(id) && known.get(id)!.participation_mode !== "editorial");
 const ingestedTimes = plan.map((p) => p.input.publishedAt).filter((d): d is Date => !!d);
 console.log(`input ${inputPath}: ${raw.length} material line(s), ${plan.length} to ingest; dropped `
   + `${dropped.noTitle} without title, ${dropped.noUrl + dropped.badUrl} without a usable url, ${dropped.duplicateUrl} duplicate url`);
 console.log(`sources: ${known.size}/${wantedIds.length} registered in the sources table`
   + `, ${missing.length} missing, ${nonEditorial.length} not editorial`);
-if (missing.length) console.log(`!! MISSING SOURCE: ${missing.join(", ")} — without registration the item lands in an `
-  + `auto-created 'external' source whose participation mode is 'isolated', so it is never published. `
+if (missing.length) console.log(`!! MISSING SOURCE: ${missing.join(", ")} — without registration the item lands in `
+  + (managedRegistry ? `private pending-review evidence only; no article/source/job is created. ` : `an auto-created isolated 'external' source if explicitly allowed; it is never published. `)
   + `(--enforce-source stops here, --allow-unknown-source reproduces the webhook.)`);
 if (nonEditorial.length) console.log(`!! NOT EDITORIAL: ${nonEditorial.map((id) => `${id}:${known.get(id)!.participation_mode}`).join(", ")} `
   + `— settleNonEditorial() marks those articles 'skipped': recorded, no analysis, never 精选. Switch them to `
@@ -232,7 +235,7 @@ if (missing.length && opt["enforce-source"]) {
   await closeDb();
   process.exit(2);
 }
-if (missing.length && !opt["allow-unknown-source"]) {
+if (missing.length && !opt["allow-unknown-source"] && !managedRegistry) {
   dropped.unknownSource = plan.filter((p) => !known.has(p.sourceId)).length;
   for (let i = plan.length - 1; i >= 0; i--) if (!known.has(plan[i]!.sourceId)) plan.splice(i, 1);
   console.log(`skipped ${dropped.unknownSource} item(s) of unregistered source(s); nothing was created for them.`);
@@ -266,7 +269,8 @@ if (dryRun) {
 }
 
 // --------------------------------------------------------------------------- write through the entrance
-let created = 0, revised = 0, unchanged = 0, queued = 0, autoCreated = 0, webhookReported = 0, realigned = 0;
+let created = 0, revised = 0, unchanged = 0, queued = 0, autoCreated = 0, webhookReported = 0, realigned = 0, quarantined = 0;
+const blockedKeys = new Set<string>();
 const perSource = new Map<string, { created: number; revised: number; unchanged: number }>();
 const note = (id: string, kind: "created" | "revised" | "unchanged") => {
   const s = perSource.get(id) ?? { created: 0, revised: 0, unchanged: 0 };
@@ -293,6 +297,7 @@ async function realignPlannedTimes() {
     FROM articles WHERE identity_key = ANY(${plan.map((p) => p.key)})`;
   const byKey = new Map(rows.map((r) => [r.identity_key, r]));
   for (const p of plan) {
+    if (blockedKeys.has(p.key)) continue;
     const row = byKey.get(p.key);
     const planned = p.input.publishedAt, discover = p.input.discoveredAt;
     if (!row || !planned || !discover) continue;
@@ -324,20 +329,26 @@ async function realignPlannedTimes() {
 if (route === "inproc") {
   const toQueue: string[] = [];
   for (const p of plan) {
+    const resolution = await resolveIngestSource(p.sourceId,sourceNameOf(p)?.slice(0,200) ?? p.sourceId,
+      { sourceId:p.sourceId, sourceName:sourceNameOf(p), items:[p.reported] },"seed-curated");
+    if (resolution.quarantined) { quarantined++;blockedKeys.add(p.key);continue; }
+    if (!resolution.source?.enabled) { blockedKeys.add(p.key);problems.push(`${p.sourceId}: source paused`);process.exitCode=1;continue; }
     if (!known.has(p.sourceId)) {
-      const [row] = await sql<{ id: string }[]>`
-        INSERT INTO sources (id, name, kind, config, tier, participation_mode, interval_minutes, enabled, health, tags)
-        VALUES (${p.sourceId}, ${sourceNameOf(p)?.slice(0, 200) ?? p.sourceId}, 'external', '{}'::jsonb, 'T2', 'isolated', 1440, true, 'ok', ${["ingest:auto-created"]})
-        ON CONFLICT (id) DO NOTHING RETURNING id`;
-      if (row) autoCreated++;
+      autoCreated++;
       known.set(p.sourceId, { kind: "external", tier: "T2", participation_mode: "isolated" });
     }
-    if (archive) {
-      const [existing] = await sql`SELECT body_text FROM articles WHERE identity_key = ${p.key}`;
-      // A research synopsis is evidence for a new material, never a replacement for an extracted original.
-      if (existing?.body_text) { p.input.bodyText = null; p.input.bodyHtml = null; }
-    }
-    const res = await upsertMaterial(p.input);
+    const res = await sql.begin(async tx => {
+      // Recheck under the source row lock: a pause after planning must not admit a new material.
+      const [source] = await tx`SELECT id FROM sources WHERE id=${p.sourceId} AND enabled FOR UPDATE`;
+      if (!source) return null;
+      if (archive) {
+        const [existing] = await tx`SELECT body_text FROM articles WHERE identity_key = ${p.key}`;
+        // A research synopsis is evidence for a new material, never a replacement for an extracted original.
+        if (existing?.body_text) { p.input.bodyText = null; p.input.bodyHtml = null; }
+      }
+      return upsertMaterial(p.input,tx);
+    });
+    if (!res) { blockedKeys.add(p.key);problems.push(`${p.sourceId}: source paused during import`);process.exitCode=1;continue; }
     const kind = res.created ? "created" : res.revised ? "revised" : "unchanged";
     if (res.created) created++; else if (res.revised) revised++; else unchanged++;
     note(p.sourceId, kind);
@@ -376,7 +387,9 @@ if (route === "inproc") {
       });
       const text = await res.text();
       if (!res.ok) { console.error(`!! ${res.status} on ${sourceId} batch ${Math.floor(i / size) + 1}: ${text.slice(0, 240)}`); problems.push(`${sourceId} batch failed with ${res.status}`); continue; }
-      const answered = (JSON.parse(text) as { created: number }).created;
+      const answer = JSON.parse(text) as { created: number; quarantined?: number };
+      if (answer.quarantined) { quarantined += answer.quarantined;for (const p of batch) blockedKeys.add(p.key);continue; }
+      const answered = answer.created;
       webhookReported += answered;
       for (const r of await read()) {
         const was = before.get(r.identity_key);
@@ -396,7 +409,7 @@ for (const [sourceId, s] of perSource) console.log(`   ${sourceId}: ${s.created}
 if (realigned) console.log(`re-anchored + re-stamped ${realigned} row(s) (planned times and raw._geohot): upsertMaterial keeps an `
   + `existing row's times and its raw, so without this they would stay stale-on-discovery history (no event, no heat).`);
 // Read the rows back: what the framework itself decided about history and about the live heat window.
-const allKeys = plan.map((p) => p.key);
+const allKeys = plan.filter(p => !blockedKeys.has(p.key)).map((p) => p.key);
 const check = allKeys.length ? (await sql<{ rows: number; historical: number; outside_heat_window: number }[]>`
   SELECT count(*)::int AS rows,
          count(*) FILTER (WHERE backfill AND (published_at IS NULL OR discovered_at - published_at > make_interval(secs => ${STALE_MS / 1000})))::int AS historical,
@@ -405,7 +418,7 @@ const check = allKeys.length ? (await sql<{ rows: number; historical: number; ou
 console.log(JSON.stringify({
   route, dryRun, archive, asOf: anchor.toISOString(), rescaled: needsRescale, keepTimes, input: inputPath,
   read: raw.length, planned: plan.length, created, updated: revised, skipped: unchanged, dropped,
-  queued, autoCreatedSources: autoCreated, webhookReported, realignedToPlannedTimes: realigned,
+  queued, autoCreatedSources: autoCreated, webhookReported, realignedToPlannedTimes: realigned, quarantined,
   inDb: check,
 }));
 console.log(archive

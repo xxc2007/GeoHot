@@ -9,6 +9,7 @@ import { upsertMaterial } from "../content/materials.ts";
 import { queueProcessing } from "../jobs/content.ts";
 import { normalizeUrl } from "../lib/url.ts";
 import { parsePublishedAt } from "../sources/dates.ts";
+import { resolveIngestSource } from "../sources/registry.ts";
 
 export const MAX_ITEMS = 50;
 
@@ -38,6 +39,9 @@ export interface IngestAnswer {
   revised: number;
   /** Items this call could not use, with the index they came at: a 200 that dropped half the batch silently is what made a push look healthy. */
   skipped: Array<{ index: number; reason: string }>;
+  quarantined?: number;
+  sourceStatus?: "pending_review";
+  submissionId?: number;
 }
 
 export async function ingestItems(body: unknown): Promise<IngestAnswer> {
@@ -48,19 +52,20 @@ export async function ingestItems(body: unknown): Promise<IngestAnswer> {
   const sourceId = typeof body.sourceId === "string" ? body.sourceId.trim() : "";
   const items = Array.isArray(body.items) ? (body.items as ItemIn[]) : [];
   if (!sourceId || !items.length) throw new IngestError(400, "sourceId and items[] required");
+  if (sourceId.length > 120) throw new IngestError(400, "sourceId exceeds 120 characters");
+  let encoded: string;
+  try { encoded = JSON.stringify(body); } catch { throw new IngestError(400, "request body must be JSON"); }
+  if (Buffer.byteLength(encoded, "utf8") > 512 * 1024) throw new IngestError(413, "request evidence exceeds 512 KiB");
   if (items.length > MAX_ITEMS) throw new IngestError(413, `items[] exceeds max ${MAX_ITEMS} per request`);
   for (const [index, item] of items.entries()) {
     if (!isObject(item)) throw new IngestError(400, `items[${index}] must be an object`);
   }
 
-  const [source] = await sql<{ id: string; participation_mode: string; enabled: boolean; config: Record<string, unknown> }[]>`
-    INSERT INTO sources (id, name, kind, config, tier, participation_mode, interval_minutes, enabled, health, tags)
-    VALUES (${sourceId.slice(0, 120)}, ${typeof body.sourceName === "string" && body.sourceName.trim() ? body.sourceName.trim().slice(0, 200) : sourceId.slice(0, 120)},
-            'external', '{}'::jsonb, 'T2', 'isolated', 1440, true, 'ok', ${["ingest:auto-created"]})
-    -- Touching the row is what makes the enabled gate run; last_ok_at is only earned by items that were
-    -- really taken, so a call that stored nothing does not look like a healthy fetch.
-    ON CONFLICT (id) DO UPDATE SET updated_at = now() WHERE sources.enabled
-    RETURNING id, participation_mode, enabled, config`;
+  const resolution = await resolveIngestSource(sourceId, typeof body.sourceName === "string" && body.sourceName.trim() ? body.sourceName.trim().slice(0,200) : sourceId, body);
+  if (resolution.quarantined) return { ok: true, created: 0, revised: 0, skipped: [], quarantined: items.length, sourceStatus: "pending_review", submissionId: resolution.submissionId };
+  return sql.begin(async tx => {
+  const [source] = await tx<{ id: string; participation_mode: string; enabled: boolean; config: Record<string, unknown> }[]>`
+    SELECT id,participation_mode,enabled,config FROM sources WHERE id=${sourceId} AND enabled FOR UPDATE`;
   // No row means the source exists and is paused: a push into a paused source must be refused, not
   // quietly accepted with its items stored (upstream b813579).
   if (!source) throw new IngestError(409, "source paused");
@@ -69,7 +74,11 @@ export async function ingestItems(body: unknown): Promise<IngestAnswer> {
   const skipped: IngestAnswer["skipped"] = [];
   let created = 0;
   let revised = 0;
-  for (const [index, it] of items.entries()) {
+  // Shared URL identities can be delivered by different sources concurrently. Consistent identity
+  // order prevents a multi-item transaction locking A/B while another locks B/A.
+  const ordered = items.map((it,index) => ({ it,index,key: typeof it.url === "string" ? normalizeUrl(it.url.trim()) ?? "" : "" }))
+    .sort((a,b) => a.key.localeCompare(b.key) || a.index-b.index);
+  for (const {index,it} of ordered) {
     const title = typeof it.title === "string" ? it.title.trim() : "";
     const rawUrl = typeof it.url === "string" ? it.url.trim() : "";
     if (!title || !rawUrl) {
@@ -101,10 +110,10 @@ export async function ingestItems(body: unknown): Promise<IngestAnswer> {
       raw: it.raw ?? null,
       via: "ingest",
       backfill: it.raw?._aihot?.backfill ? "reported-backfill" : it.raw?._aihot?.baseline ? "reported-baseline" : null,
-    });
+    }, tx);
     if (res.created) created += 1;
     if (res.revised) revised += 1;
-    if (res.created || res.revised) await queueProcessing(res.articleId);
+    if (res.created || res.revised) await queueProcessing(res.articleId, { db: tx });
   }
 
   // Nothing taken at all is a broken request, not a successful one: it says so instead of answering 200.
@@ -112,9 +121,10 @@ export async function ingestItems(body: unknown): Promise<IngestAnswer> {
   // reporter retrying a batch is not told its push failed.
   const accepted = items.length - skipped.length;
   if (accepted === 0) throw new IngestError(422, `no item could be stored: ${skipped.map((s) => `${s.index}: ${s.reason}`).join("; ").slice(0, 400)}`);
-  await sql`UPDATE sources SET last_fetch_at = now(), last_ok_at = now() WHERE id = ${source.id}`;
-  await sql`
+  await tx`UPDATE sources SET last_fetch_at = now(), last_ok_at = now() WHERE id = ${source.id}`;
+  await tx`
     INSERT INTO ingest_events (client, kind, status, summary)
-    VALUES ('ingest-items', 'items', 'ok', ${sql.json({ sourceId: source.id, received: items.length, created, revised, skipped: skipped.length } as never)})`;
-  return { ok: true, created, revised, skipped };
+    VALUES ('ingest-items', 'items', 'ok', ${tx.json({ sourceId: source.id, received: items.length, created, revised, skipped: skipped.length } as never)})`;
+  return { ok: true, created, revised, skipped: skipped.sort((a,b) => a.index-b.index) };
+  });
 }

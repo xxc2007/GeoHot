@@ -1,4 +1,5 @@
 import { passwordWindow } from "@aihot/backend/lib/password-window";
+import { SourceRegistryConflict } from "@aihot/backend/sources/registry";
 // Admin sign-in and the /api/admin guard. Public routes never read the session.
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { config } from "@aihot/backend/config";
@@ -63,6 +64,7 @@ export function adminHandler(fn: AdminHandler) {
         // zod's own message is the whole issue list; the operator needs the field, not the schema dump.
         return sendProblem(req, reply, { status: 400, code: "invalid_request", detail: `请求内容不符合格式：${error.issues.slice(0, 3).map((i) => i.path.join(".") || "正文").join("、")}` });
       }
+      if (error instanceof SourceRegistryConflict) return sendProblem(req, reply, { status: 409, code: error.code, detail: error.message });
       if ((error as { code?: string }).code === "conflict") return sendProblem(req, reply, { status: 409, code: "conflict", detail: (error as Error).message });
       req.log.error({ err: error, path: req.url.split("?")[0] }, "admin api error");
       // The toast in the back office shows `detail`, and this operator is not a developer: Postgres,

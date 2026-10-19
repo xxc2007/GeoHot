@@ -7,10 +7,11 @@ import path from "node:path";
 import { FEATURES } from "@aihot/industry/features";
 import { isCategoryKey } from "@aihot/contracts/taxonomy";
 import { REPO_ROOT } from "@aihot/backend/config";
-import { closeDb, sql } from "@aihot/backend/db";
+import { closeDb } from "@aihot/backend/db";
 import { importModelDirectory } from "@aihot/backend/leaderboard/directory";
 import { seedTopics } from "@aihot/backend/publication/topics";
 import { assertSupportedConfig } from "@aihot/backend/sources/config-keys";
+import { registryChange } from "@aihot/backend/sources/registry";
 
 interface SeedSource {
   id: string;
@@ -38,20 +39,26 @@ if (process.argv.includes("--topics-only")) {
 
 const { sources } = JSON.parse(readFileSync(path.join(REPO_ROOT, "industry/sources.json"), "utf8")) as { sources: SeedSource[] };
 let added = 0;
+let candidates = 0;
 for (const s of sources) {
   assertSupportedConfig(s.kind, s.config);
   if (s.defaultCategory !== undefined && !isCategoryKey(s.defaultCategory)) {
     throw new Error(`${s.id}: defaultCategory "${s.defaultCategory}" is not a category key (see industry/taxonomy.ts)`);
   }
-  const inserted = await sql`
+  const inserted = await registryChange(async (tx, policy) => {
+  const enabled = policy.target_enabled === null && (s.enabled ?? true);
+  const result = await tx`
     INSERT INTO sources (id, name, kind, config, tier, first_party, owner_entity_id, participation_mode, interval_minutes, tags, site_fulltext, syndicate_fulltext, enabled, next_fetch_at, default_category)
-    VALUES (${s.id}, ${s.name}, ${s.kind}, ${sql.json(s.config as never)}, ${s.tier ?? "T2"}, ${s.first_party ?? false}, ${s.owner_entity_id ?? null},
+    VALUES (${s.id}, ${s.name}, ${s.kind}, ${tx.json(s.config as never)}, ${s.tier ?? "T2"}, ${s.first_party ?? false}, ${s.owner_entity_id ?? null},
             ${s.participation_mode ?? "editorial"}, ${s.interval_minutes ?? 60}, ${s.tags ?? []}, ${s.site_fulltext ?? false}, ${s.syndicate_fulltext ?? false},
-            ${s.enabled ?? true}, now(), ${s.defaultCategory ?? null})
+            ${enabled}, now(), ${s.defaultCategory ?? null})
     ON CONFLICT (id) DO NOTHING RETURNING id`;
+  if (policy.target_enabled !== null) candidates += result.length;
+  return result;
+  });
   added += inserted.length;
 }
-console.log(`sources: ${added} added, ${sources.length - added} already there`);
+console.log(`sources: ${added} added, ${sources.length - added} already there; ${candidates} disabled candidates pending review`);
 if (FEATURES.leaderboard) {
   const { models, aliases } = await importModelDirectory();
   console.log(`leaderboard directory: ${models} models, ${aliases} names added`);
