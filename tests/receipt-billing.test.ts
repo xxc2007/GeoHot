@@ -278,7 +278,10 @@ test("0068 upgrades legacy attempts conservatively and old writers cannot defaul
     const before = await tx`SELECT id,status,usage,cost,error FROM receipt_attempts ORDER BY id`;
     await tx.unsafe(migration);
     const rows = await tx`SELECT * FROM receipt_attempts ORDER BY id`;
-    assert.deepEqual(rows.map((r) => r.billing_status), ["reserved", "billed", "unknown", "unknown", "unknown", "billed", "unknown"]);
+    // Metadata-only deployment keeps every historical label unknown. All still reserve spend;
+    // refining a received/pending label is optional and must not rewrite the tiny host's full table.
+    assert.deepEqual(rows.map((r) => r.billing_status), Array(7).fill("unknown"));
+    assert.equal((await tx`SELECT count(*)::int AS n FROM receipt_attempts WHERE billing_status <> 'unbilled'`)[0]!.n, 7);
     assert.deepEqual(rows.map(({ billing_status: _billing, ...r }) => r), [...before]);
     const [legacy] = await tx`INSERT INTO receipt_attempts(status) VALUES('unknown') RETURNING id,billing_status`;
     assert.equal(legacy!.billing_status, "unknown");
