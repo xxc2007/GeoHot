@@ -86,9 +86,9 @@ test("every workbuddy preset carries the headroom and the vision verdict the mea
   assert.equal(MODELS["workbuddy-deepseek-flash"]!.vision, true);
   assert.equal(MODELS["workbuddy-hy3"]!.vision, false);
   // The second pair. Each headroom is the smallest that clears that model's own measured chain, so neither can
-  // borrow 16,000: glm would land `unknown` on structure, and step-5-preview does not need the room.
+  // borrow 16,000: glm would land `unknown` on structure. Step's summary needs its own larger cap.
   assert.equal(MODELS["workbuddy-glm-flash"]!.reasoningHeadroom, 8_000);
-  assert.equal(MODELS["workbuddy-step5-preview"]!.reasoningHeadroom, 4_000);
+  assert.deepEqual(MODELS["workbuddy-step5-preview"]!.reasoningHeadroom, { default: 4_000, summarize_article: 8_000 });
   // step-5-preview reads images (3 of 3 named the colour and the number); glm refuses and says so. Both catalog
   // files claim `supportsImages: true` for glm anyway — the second false claim on this channel after hy3.
   assert.equal(MODELS["workbuddy-step5-preview"]!.vision, true);

@@ -316,7 +316,8 @@ export const MODELS: Record<string, ModelSpec> = {
   "workbuddy-step5-preview": {
     key: "workbuddy-step5-preview", service: "workbuddy", model: "step-5-preview",
     baseUrlEnv: "WORKBUDDY_BASE_URL", apiKeyEnv: "WORKBUDDY_API_KEY",
-    extra: { reasoning_effort: "high" }, jsonMode: true, vision: true, reasoningHeadroom: 4_000,
+    // Preserve the production summary fix: the smaller cap was exhausted by hidden reasoning.
+    extra: { reasoning_effort: "high" }, jsonMode: true, vision: true, reasoningHeadroom: { default: 4_000, summarize_article: 8_000 },
   },
   // ── The same four models, reached through the *Chinese* WorkBuddy account ────────────────────────────
   //
@@ -363,7 +364,7 @@ export const MODELS: Record<string, ModelSpec> = {
   "workbuddy-cn-step5-preview": {
     key: "workbuddy-cn-step5-preview", service: "workbuddy-cn", model: "step-5-preview",
     baseUrlEnv: "WORKBUDDY_CN_BASE_URL", apiKeyEnv: "WORKBUDDY_CN_API_KEY",
-    extra: { reasoning_effort: "high" }, jsonMode: true, vision: true, reasoningHeadroom: 4_000,
+    extra: { reasoning_effort: "high" }, jsonMode: true, vision: true, reasoningHeadroom: { default: 4_000, summarize_article: 8_000 },
   },
 };
 
@@ -462,7 +463,9 @@ function requestFor<S extends z.ZodType>(opts: ChatJsonOptions<S>, spec: ModelSp
     ? { chat_template_kwargs: { enable_thinking: false } } : spec.extra;
   const reasoning = /reasoning_effort|"thinking"/.test(JSON.stringify(extra ?? {})) || spec.key.endsWith("-think")
     || (spec.key === "space-bunny-free" && opts.purpose === "summarize_article" && !legacySummaryParameters);
-  const headroom = reasoning ? headroomFor(spec, opts.purpose) : 0;
+  const legacyStepSummary = legacySummaryParameters && opts.purpose === "summarize_article"
+    && ["workbuddy-step5-preview", "workbuddy-cn-step5-preview"].includes(spec.key);
+  const headroom = reasoning ? (legacyStepSummary ? 4_000 : headroomFor(spec, opts.purpose)) : 0;
   const maxTokens = Math.min(MAX_OUTPUT_TOKENS, Math.max(opts.maxTokens ?? 1500, 512) + headroom);
   const userText = typeof opts.user === "string" ? opts.user : JSON.stringify(opts.user);
   const json = spec.jsonMode && opts.json !== false;
@@ -508,7 +511,9 @@ export async function chatJson<S extends z.ZodType>(opts: ChatJsonOptions<S>): P
   const candidates = candidateNames.flatMap((name) => {
     const model = MODELS[name]!;
     const current = { name, request: requestFor(opts, model).request };
-    return ["dots3-note-prev", "space-bunny-free"].includes(model.key) && opts.purpose === "summarize_article"
+    // Legacy identities are recovery-only: reuse paid answers and respect pending/unknown;
+    // a failed old identity may retry only through the current dispatch parameters.
+    return ["dots3-note-prev", "space-bunny-free", "workbuddy-step5-preview", "workbuddy-cn-step5-preview"].includes(model.key) && opts.purpose === "summarize_article"
       ? [current, { name, request: requestFor(opts, model, true).request }] : [current];
   });
   const needsVision = Array.isArray(opts.user) && opts.user.some((part) => part.type === "image_url");
