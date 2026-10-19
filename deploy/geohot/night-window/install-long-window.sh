@@ -78,14 +78,11 @@ decide() {
   local left="${1:-0}" avail="${2:-0}" e5="${3:-0}" now="${4:-0}" deadline="${5:-0}" streak="${6:-1}" stalled="${7:-0}" blind="${8:-0}" opened="${9:-0}"
   local floor="${GEOHOT_FLOOR_AVAIL_MB:-60}" budget="${GEOHOT_BUDGET_ERR5XX:-0}" need="${GEOHOT_LOWMEM_STREAK:-3}"
   local stallneed="${GEOHOT_STALL_STREAK:-18}" blindneed="${GEOHOT_BLIND_STREAK:-3}" maxsec="${GEOHOT_MAX_WINDOW_SEC:-34200}"
-  # 顺序要紧：读者的命、内存、停摆、看不见、期限，全都排在"读不到存量"之前。
+  # 顺序要紧：所有 RESTORE 保护都先于低内存短暂观察与"读不到存量"的 HOLD。
   # 17:34—17:36 那两条 HOLD|unknown_left 里就藏着 err5xx=30/45 —— 旧写法把 unknown_left 顶在第一行，
   # 量具一坏就把 5xx/低内存/期限三条保命规则一起屏蔽了，这是这类哨兵最危险的失效模式。
   if [ "$e5" -gt "$budget" ]; then echo "RESTORE|reader_5xx=$e5"; return; fi
-  if [ "$avail" -lt "$floor" ]; then
-    if [ "$streak" -ge "$need" ]; then echo "RESTORE|low_mem=${avail}MB streak=$streak"; return; fi
-    echo "HOLD|low_mem=${avail}MB streak=$streak/$need"; return
-  fi
+  if [ "$avail" -lt "$floor" ] && [ "$streak" -ge "$need" ]; then echo "RESTORE|low_mem=${avail}MB streak=$streak"; return; fi
   # 停摆放在期限之前：先恢复实时（站点继续活着），而不是干等到死期限再恢复。
   if [ "$stalled" -ge "$stallneed" ]; then echo "RESTORE|stalled=${stalled}轮_零判完"; return; fi
   if [ "$blind" -ge "$blindneed" ]; then echo "RESTORE|gauge_blind=${blind}轮读不到量具"; return; fi
@@ -95,6 +92,8 @@ decide() {
     echo "RESTORE|max_window=$(( (now - opened) / 60 ))min"; return
   fi
   if [ "$deadline" -gt 0 ] && [ "$now" -ge "$deadline" ]; then echo "RESTORE|deadline"; return; fi
+  # 低内存尚未攒够连击只延后内存规则；到期或超出单窗上限时仍必须恢复。
+  if [ "$avail" -lt "$floor" ]; then echo "HOLD|low_mem=${avail}MB streak=$streak/$need"; return; fi
   # 读不到存量 = -1，绝不能当成"排空了"；但也不能拿它当"继续开"的理由一直压着——blind 那条已经在管它。
   if [ "$left" -le -1 ]; then echo "HOLD|unknown_left"; return; fi
   if [ "$left" -le 0 ]; then echo "RESTORE|drained"; return; fi
@@ -183,7 +182,7 @@ digits_only() { case "${1:-}" in ''|*[!0-9]*) echo -1 ;; *) printf '%s' "$1" ;; 
 # 读者优先闸门的去留（闸门脚本与 selftest 跑同一份）：
 #   $1 近窗 5xx（-1=读不到）  $2 现在 epoch  $3 冷却截止 epoch（0=没有）  $4 上次是不是我们停的（1/0）
 #   $5 worker 现在 active?  $6 预算  $7 闸门是否被 disarmed 旗标按住（1=按住）
-# 返回：SKIP_DISARMED / SKIP_BLIND / HELD / TRIP / RELEASE / IDLE
+# 返回：SKIP_DISARMED / SKIP_BLIND / SKIP_OPERATOR_STOPPED / HELD / TRIP / RELEASE / CONFIRM_RELEASE / IDLE
 gate_action() {
   local e5="${1:--1}" now="${2:-0}" until="${3:-0}" we_stopped="${4:-0}" active="$5" budget="${6:-0}" disarmed="${7:-0}"
   # 入参先消毒：非数字一律当"读不到"（-1）或 0。不能让 [ x -le -1 ] 这种整数比较报错把一次判定变成脚本失败。
@@ -195,9 +194,16 @@ gate_action() {
   [ "$disarmed" = 1 ] && { echo SKIP_DISARMED; return; }
   if [ "$e5" -le -1 ]; then echo SKIP_BLIND; return; fi
   if [ "$until" -gt 0 ] && [ "$now" -lt "$until" ]; then echo HELD; return; fi
-  if [ "$e5" -gt "$budget" ]; then echo TRIP; return; fi
+  if [ "$e5" -gt "$budget" ]; then
+    # operator 已经停下的 worker 不归本闸门认领，红指标也不能伪造恢复责任。
+    if [ "$we_stopped" != 1 ] && [ "$active" != active ]; then echo SKIP_OPERATOR_STOPPED; else echo TRIP; fi
+    return
+  fi
   # 只有"确实是本闸门停掉的"才允许自动起回来； operator 自己停的 worker 不去碰它。
-  if [ "$we_stopped" = 1 ] && [ "$active" != "active" ]; then echo RELEASE; return; fi
+  if [ "$we_stopped" = 1 ]; then
+    if [ "$active" = active ]; then echo CONFIRM_RELEASE; else echo RELEASE; fi
+    return
+  fi
   echo IDLE
 }
 DECIDE
@@ -377,17 +383,34 @@ case "$A" in
       echo "$(date -Is) DRY-TRIP 本会停 worker（现在没停）5xx=$E5/${WIN}s(样本 $SPAN) valve=$V worker=$ACT"
     else
       systemctl stop geohot-worker; RC=$?
-      echo "$(( NOW + COOL * 60 )) 1" > "$RUN" 2>/dev/null
-      echo "$(date -Is) TRIPPED 5xx=$E5/${WIN}s(样本 $SPAN) valve=$V worker=$(systemctl is-active geohot-worker 2>&1) stop_rc=$RC 冷却 ${COOL} 分钟"
+      ACT=$(systemctl is-active geohot-worker 2>&1); ACTIVE_RC=$?
+      # 停止回执成功且读回 inactive，才取得恢复责任。失败不能伪造 WE=1，已有责任原样保留。
+      if [ "$RC" -eq 0 ] && [ "$ACTIVE_RC" -eq 3 ] && [ "$ACT" = inactive ]; then
+        printf '%s 1\n' "$(( NOW + COOL * 60 ))" > "$RUN" 2>/dev/null \
+          || { echo "$(date -Is) TRIP-STATE-FAILED worker=$ACT 无法记录恢复责任"; exit 1; }
+        echo "$(date -Is) TRIPPED 5xx=$E5/${WIN}s(样本 $SPAN) valve=$V worker=$ACT stop_rc=$RC 冷却 ${COOL} 分钟"
+      else
+        echo "$(date -Is) TRIP-FAILED worker=$ACT stop_rc=$RC active_rc=$ACTIVE_RC 既有恢复责任保留，不认领新责任"
+        exit 1
+      fi
     fi
     ;;
-  RELEASE)
+  RELEASE|CONFIRM_RELEASE)
     if [ "${R115_DRY:-0}" = 1 ]; then
-      echo "$(date -Is) DRY-RELEASE 本会起 worker（现在没起）worker=$ACT"
+      echo "$(date -Is) DRY-RELEASE action=$A worker=$ACT（本轮只判不动）"
     else
-      systemctl start geohot-worker; RC=$?
-      rm -f "$RUN" 2>/dev/null
-      echo "$(date -Is) RELEASED 5xx=0/${WIN}s(样本 $SPAN) worker=$(systemctl is-active geohot-worker 2>&1) start_rc=$RC"
+      RC=0
+      if [ "$A" = RELEASE ]; then systemctl start geohot-worker; RC=$?; fi
+      ACT=$(systemctl is-active geohot-worker 2>&1); ACTIVE_RC=$?
+      # 启动回执与实际读回都成功才交清恢复责任；已有 active 也要重新读回。
+      # 失败留原状态，下一轮会重试启动，或确认已恢复的 worker 后再清责任。
+      if [ "$RC" -eq 0 ] && [ "$ACTIVE_RC" -eq 0 ] && [ "$ACT" = active ]; then
+        rm -f "$RUN" 2>/dev/null || { echo "$(date -Is) RELEASE-STATE-FAILED worker=$ACT 状态文件保留待重试"; exit 1; }
+        echo "$(date -Is) RELEASED 5xx=0/${WIN}s(样本 $SPAN) worker=$ACT start_rc=$RC"
+      else
+        echo "$(date -Is) RELEASE-FAILED worker=$ACT start_rc=$RC active_rc=$ACTIVE_RC 状态文件保留待重试"
+        exit 1
+      fi
     fi
     ;;
   HELD)
@@ -396,6 +419,7 @@ case "$A" in
   SKIP_BLIND)
     echo "$(date -Is) SKIP 5xx 量具读不到（nginx 无当日样本或字段漂移）——闸门不动生产，但这不是绿灯" ;;
   SKIP_DISARMED) echo "$(date -Is) SKIP disarmed 旗标在 $DISARM" ;;
+  SKIP_OPERATOR_STOPPED) echo "$(date -Is) SKIP worker=$ACT 非本闸门停止，5xx=$E5，不认领恢复责任" ;;
   *) echo "$(date -Is) IDLE 5xx=${E5}/${WIN}s(样本 $SPAN) worker=$ACT valve=$V 冷却文件=[$(cat "$RUN" 2>/dev/null)]" ;;
 esac
 GATE
@@ -455,6 +479,9 @@ case "$MODE" in
   chk "低内存第一次（不算）"    HOLD   1200  40 0 1000 2000 1
   chk "低内存第三次（要撤）"    RESTORE 1200 40 0 1000 2000 3
   chk "到最迟期限"              RESTORE 1200 300 0 2500 2000 1
+  # 低内存未攒够连击时只能暂缓内存规则，不能遮住已经到达的硬期限。
+  chk "到期限 + 低内存第一次" "RESTORE|deadline" 1200 40 0 2000 2000 1
+  chk "过期限 + 低内存第二次" "RESTORE|deadline" -1 40 0 2500 2000 2
   chk "存量读不到（-1）"        HOLD     -1   300 0 1000 99999999999 1
   # 证这把尺真的有电：相邻的两个数必须给相反的答案。
   chk "只差一条就不算排空"      HOLD      1   300 0 1000 2000 1
@@ -505,6 +532,9 @@ case "$MODE" in
   # 单窗上限（9.5 小时）：天亮前必须让回实时，且不依赖"另一半定时器有没有跑成"。now=100000，期限给到无穷远以免抢先。
   chk "开窗 8 小时（未到上限）"    HOLD    1200 300 0 100000 99999999999 1 0 0 71200
   chk "开窗 9.6 小时 → 撤窗"      RESTORE 1200 300 0 100000 99999999999 1 0 0 65440
+  chk "单窗上限前 1 秒 + 低内存第一次" HOLD 1200 40 0 100000 99999999999 1 0 0 65801
+  chk "恰到单窗上限 + 低内存第一次" "RESTORE|max_window=570min" 1200 40 0 100000 99999999999 1 0 0 65800
+  chk "超过单窗上限 + 低内存第二次" "RESTORE|max_window=576min" -1 40 0 100000 99999999999 2 0 0 65440
   chk "开窗时刻未知（0）不按上限"   HOLD    1200 300 0 100000 99999999999 1 0 0 0
   # —— 本轮修的顺序：量具读不到时，读者的 5xx／低内存／期限必须仍然撤得了窗。
   # 17:34—17:36 那两条 HOLD|unknown_left 里就藏着 err5xx=30/45，旧写法把 unknown_left 顶在第一行，一坏全盲。
@@ -558,10 +588,14 @@ case "$MODE" in
   # 读者优先闸门（第 115 轮新增）：TRIP／HELD／RELEASE／SKIP 四条路都要能被夹具走到。
   [ "$(gate_action 3 1000 0 0 active 0 0)" = TRIP ] \
     && echo "  OK   gate：5xx=3 且没在冷却 → TRIP" || { echo "  WRONG 闸门见到 5xx 不跳"; exit 1; }
+  [ "$(gate_action 3 1000 0 0 inactive 0 0)" = SKIP_OPERATOR_STOPPED ] \
+    && echo "  OK   gate：operator 已停的 worker 遇红也不认领" || { echo "  WRONG 闸门会认领 operator 已停的 worker"; exit 1; }
   [ "$(gate_action 0 1000 9999999999 1 inactive 0 0)" = HELD ] \
     && echo "  OK   gate：冷却没到就 HELD（不会反复停/起 worker）" || { echo "  WRONG 冷却期被无视"; exit 1; }
   [ "$(gate_action 0 10000 9000 1 inactive 0 0)" = RELEASE ] \
     && echo "  OK   gate：冷却已过、5xx 归零、且确实是本闸门停的 → RELEASE" || { echo "  WRONG 闸门不会把 worker 交回去"; exit 1; }
+  [ "$(gate_action 0 10000 9000 1 active 0 0)" = CONFIRM_RELEASE ] \
+    && echo "  OK   gate：本闸门责任尚在且 worker 已 active → 确认恢复" || { echo "  WRONG 已 active 的恢复责任没有收口路径"; exit 1; }
   [ "$(gate_action 0 10000 0 0 inactive 0 0)" = IDLE ] \
     && echo "  OK   gate：不是我们停的 worker 就绝不去 start（operator 手工停的保持原样）" || { echo "  WRONG 闸门会擅自启动别人停的进程"; exit 1; }
   [ "$(gate_action -1 1000 0 1 active 0 0)" = SKIP_BLIND ] && [ "$(gate_action 9 1000 0 1 active 0 1)" = SKIP_DISARMED ] \
@@ -571,6 +605,142 @@ case "$MODE" in
   bash -n "$T/watch.sh" >/dev/null && grep -q 'gate_action' "$T/decide.sh" \
     && echo "  OK   闸门判据与哨兵判据同源（同一份 decide 文件，测的=跑的）" || { echo "  WRONG 闸门另抄了一份判据"; exit 1; }
   gate_body > "$T/gate.sh"; bash -n "$T/gate.sh" && echo "  OK   闸门脚本语法过" || { echo "  WRONG 闸门脚本语法不过"; exit 1; }
+  # 离线跑完整闸门：真实判据/日志尺，只有 systemctl 用受控替身；路径全部落在临时目录。
+  # 替身拒绝未声明动作，绝不调用本机或生产 systemctl。
+  mkdir -p "$T/gate-bin"
+  cp "$T/decide.sh" "$T/gate-bin/r114-drain-decide.sh"
+  printf 'COLLECT_ENABLED=false\n' > "$T/gate-valve"
+  printf '1.1.1.1 - - [%s] "GET /geohot/ HTTP/1.1" 200 12 "-" "fixture"\n' \
+    "$(LC_ALL=C date '+%d/%b/%Y:%H:%M:%S %z')" > "$T/gate-access"
+  gate_fixture() (
+    local mode="$1" rc=0
+    export FIX_MODE="$mode" FIX_CALLS="$T/gate-calls" FIX_INITIAL_ACTIVE=0
+    export GEOHOT_BIN="$T/gate-bin" R114_ENVF="$T/gate-valve" R114_NGX="$T/gate-access"
+    export R115_RUN="$T/gate-run" R115_LOG="$T/gate-log" R115_DISARM="$T/gate-disarmed" R115_DRY=0
+    export R115_BUDGET_ERR5XX=0 R115_E5_WINDOW_SEC=700
+    printf '1 1\n' > "$R115_RUN"; : > "$FIX_CALLS"; : > "$R115_LOG"
+    systemctl() {
+      case "$*" in
+        'start geohot-worker')
+          echo start >> "$FIX_CALLS"
+          case "$FIX_MODE" in start-fails|start-fails-active) return 1 ;; esac ;;
+        'is-active geohot-worker')
+          if [ "$FIX_INITIAL_ACTIVE" = 1 ]; then echo active; return 0; fi
+          if [ -s "$FIX_CALLS" ]; then
+            case "$FIX_MODE" in
+              success|remove-fails|start-fails-active) echo active; return 0 ;;
+              readback-fails) echo active; return 3 ;;
+            esac
+          fi
+          echo inactive; return 3 ;;
+        *) echo "UNEXPECTED systemctl $*" >&2; return 99 ;;
+      esac
+    }
+    export -f systemctl
+    rm() {
+      if [ "$*" = "-f $R115_RUN" ]; then
+        case "$FIX_MODE" in remove-fails|confirm-remove-fails) return 1 ;; esac
+      fi
+      command rm "$@"
+    }
+    export -f rm
+    case "$mode" in confirm-active|confirm-remove-fails) FIX_INITIAL_ACTIVE=1 ;; esac
+    [ "$mode" != blind ] || R114_NGX="$T/no-access-log"
+    export R114_NGX
+    bash "$T/gate.sh" || rc=$?
+    case "$mode" in
+      start-fails|inactive|start-fails-active|readback-fails|remove-fails|confirm-remove-fails)
+        [ "$rc" -ne 0 ] && [ "$(cat "$R115_RUN" 2>/dev/null)" = '1 1' ] \
+          && ! grep -q ' RELEASED ' "$R115_LOG" \
+          || { echo "  WRONG gate $mode：失败必须报非零并保留恢复责任，rc=$rc state=[$(cat "$R115_RUN" 2>/dev/null)]"; cat "$R115_LOG"; exit 1; }
+        # 下一轮真实脚本必须会重试，并在读回 active 后才清责任。
+        local expected=1
+        [ "$mode" != confirm-remove-fails ] || expected=0
+        [ "$(wc -l < "$FIX_CALLS")" -eq "$expected" ] || { echo "  WRONG gate $mode：首轮启动次数不对"; exit 1; }
+        case "$mode" in
+          start-fails-active|remove-fails|confirm-remove-fails) FIX_INITIAL_ACTIVE=1; expected=0 ;;
+        esac
+        export FIX_MODE=success; : > "$FIX_CALLS"
+        bash "$T/gate.sh" && [ ! -e "$R115_RUN" ] && [ "$(wc -l < "$FIX_CALLS")" -eq "$expected" ] \
+          || { echo "  WRONG gate $mode：下一轮没有成功重试"; exit 1; } ;;
+      success|confirm-active)
+        [ "$rc" = 0 ] && [ ! -e "$R115_RUN" ] && grep -q ' RELEASED ' "$R115_LOG" \
+          || { echo "  WRONG gate $mode：成功且 active 后未清责任"; exit 1; }
+        if [ "$mode" = confirm-active ]; then
+          [ ! -s "$FIX_CALLS" ] || { echo "  WRONG 已 active 时不应重新启动"; exit 1; }
+        fi ;;
+      blind)
+        [ "$rc" = 0 ] && [ ! -s "$FIX_CALLS" ] && [ "$(cat "$R115_RUN")" = '1 1' ] && grep -q ' SKIP ' "$R115_LOG" \
+          || { echo "  WRONG gate blind：缺指标时不能启动或丢失责任"; exit 1; } ;;
+    esac
+    echo "  OK   gate 离线执行 $mode（失败保留责任、恢复读回、重试与缺指标）"
+  )
+  for fixture in start-fails inactive start-fails-active readback-fails remove-fails confirm-remove-fails success confirm-active blind; do gate_fixture "$fixture" || exit 1; done
+  ownership_fixture() (
+    local mode="$1" rc=0
+    export FIX_MODE="$mode" FIX_CALLS="$T/ownership-calls" FIX_WORKER="$T/ownership-worker"
+    export GEOHOT_BIN="$T/gate-bin" R114_ENVF="$T/gate-valve" R114_NGX="$T/ownership-access"
+    export R115_RUN="$T/ownership-run" R115_LOG="$T/ownership-log" R115_DISARM="$T/gate-disarmed" R115_DRY=0
+    export R115_BUDGET_ERR5XX=0 R115_E5_WINDOW_SEC=700 R115_COOLDOWN_MIN=30
+    : > "$FIX_CALLS"; : > "$R115_LOG"; rm -f "$R115_RUN"
+    echo active > "$FIX_WORKER"
+    [ "$mode" != operator ] || echo inactive > "$FIX_WORKER"
+    [ "$mode" != stop-fails-owned ] || printf '1 1\n' > "$R115_RUN"
+    printf '1.1.1.1 - - [%s] "GET /geohot/ HTTP/1.1" 503 12 "-" "fixture"\n' \
+      "$(LC_ALL=C date '+%d/%b/%Y:%H:%M:%S %z')" > "$R114_NGX"
+    systemctl() {
+      case "$*" in
+        'is-active geohot-worker')
+          cat "$FIX_WORKER"; [ "$(cat "$FIX_WORKER")" = active ] || return 3 ;;
+        'stop geohot-worker')
+          echo stop >> "$FIX_CALLS"
+          case "$FIX_MODE" in
+            stop-fails|stop-fails-owned) return 1 ;;
+            stop-fails-inactive) echo inactive > "$FIX_WORKER"; return 1 ;;
+            stop-stays-active) return 0 ;;
+            *) echo inactive > "$FIX_WORKER" ;;
+          esac ;;
+        'start geohot-worker') echo start >> "$FIX_CALLS"; echo active > "$FIX_WORKER" ;;
+        *) echo "UNEXPECTED systemctl $*" >&2; return 99 ;;
+      esac
+    }
+    export -f systemctl
+    bash "$T/gate.sh" || rc=$?
+    case "$mode" in
+      operator)
+        [ "$rc" = 0 ] && [ ! -e "$R115_RUN" ] && [ ! -s "$FIX_CALLS" ] \
+          || { echo "  WRONG operator 红指标后被认领或操作"; exit 1; } ;;
+      stop-fails|stop-fails-inactive|stop-stays-active|stop-fails-owned)
+        [ "$rc" -ne 0 ] && ! grep -q ' TRIPPED ' "$R115_LOG" \
+          || { echo "  WRONG $mode 停止失败却报成功"; cat "$R115_LOG"; exit 1; }
+        if [ "$mode" = stop-fails-owned ]; then
+          [ "$(cat "$R115_RUN")" = '1 1' ] || { echo "  WRONG 停止失败丢失已有责任"; exit 1; }
+        else
+          [ ! -e "$R115_RUN" ] || { echo "  WRONG $mode 伪造新恢复责任"; exit 1; }
+        fi
+        echo "  OK   gate 所有权 $mode（失败非零且不伪造责任）"; exit 0 ;;
+      trip-success)
+        [ "$rc" = 0 ] && [ "$(cut -d' ' -f2 "$R115_RUN")" = 1 ] && grep -q ' TRIPPED ' "$R115_LOG" \
+          || { echo "  WRONG stop 成功且 inactive 后未持有责任"; exit 1; } ;;
+    esac
+    # 红 → 冷却期绿 → 冷却结束绿；operator 始终不归闸门负责，成功停下的才自动恢复。
+    sed 's/ 503 / 200 /' "$R114_NGX" > "$T/ownership-green"
+    cp "$T/ownership-green" "$R114_NGX"
+    bash "$T/gate.sh" || exit 1
+    if [ "$mode" = trip-success ]; then
+      ! grep -q '^start$' "$FIX_CALLS" && [ -e "$R115_RUN" ] || { echo "  WRONG 冷却期提前恢复"; exit 1; }
+      printf '1 1\n' > "$R115_RUN"
+    fi
+    bash "$T/gate.sh" || exit 1
+    [ ! -e "$R115_RUN" ] || { echo "  WRONG 绿灯到期后责任未收口"; exit 1; }
+    if [ "$mode" = operator ]; then
+      [ ! -s "$FIX_CALLS" ] && [ "$(cat "$FIX_WORKER")" = inactive ] || { echo "  WRONG operator 跨轮被自动启动"; exit 1; }
+    else
+      [ "$(grep -c '^start$' "$FIX_CALLS")" = 1 ] && [ "$(cat "$FIX_WORKER")" = active ] || { echo "  WRONG 持有责任后未正确恢复"; exit 1; }
+    fi
+    echo "  OK   gate 所有权 $mode（红→冷却→绿跨轮）"
+  )
+  for fixture in operator stop-fails stop-fails-inactive stop-stays-active stop-fails-owned trip-success; do ownership_fixture "$fixture" || exit 1; done
   grep -q 'R115_DRY' "$T/gate.sh" && echo "  OK   闸门带 DRY 分支（真机上要先只判不动地试跑一次）" || { echo "  WRONG 闸门没有 DRY 分支"; exit 1; }
   grep -q 'FATAL 判据文件缺 gate_action' "$T/gate.sh" \
     && echo "  OK   判据文件缺函数时闸门硬失败（18:53 那次就是安静失效：只留一行 command not found，什么也不做）" || { echo "  WRONG 闸门在判据缺失时会安静失效"; exit 1; }
