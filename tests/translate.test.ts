@@ -3,7 +3,6 @@
 // Links and images inside a paragraph survive the model, and the post an X item quotes is translated.
 import { gate, purgeTagged, stub, tag, within } from "./setup.ts";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { after, before, test } from "node:test";
 import { closeDb, sql } from "@aihot/backend/db";
 import { upsertMaterial } from "@aihot/backend/content/materials";
@@ -175,16 +174,7 @@ test("the translation window covers the backlog it exists to clear, and a bad en
   assert.equal(translateConcurrency("-2"), 3);
   assert.equal(translateConcurrency("2"), 2);
   assert.equal(translateConcurrency("99"), 6, "超过 6 一律压到 6");
-  // 上面那些只证明了这个函数本身；真正咬人的是"待翻查询有没有走它"。这一段读的是源码文本，理由与
-  // admin-source-policy.test.ts 相同：这是不建夹具、不抢共享库里那些未来时间锚点，就能抓住"有人把
-  // SQL 改回写死 3 天"的唯一一层。
-  const src = readFileSync(new URL("../packages/backend/src/editorial/translate.ts", import.meta.url), "utf8");
-  const functionBody = src.slice(src.indexOf("export async function translatePending("));
-  const pending = /WITH cand AS \([\s\S]*?LIMIT \$\{total\}/.exec(functionBody)?.[0] ?? "";
-  assert.ok(pending, "translatePending 的待翻 CTE 查询必须存在");
-  assert.match(functionBody, /const total = opts\.limit \?\? 30/, "最终 LIMIT 的 total 必须来自调用者限制");
-  assert.match(pending, /now\(\) - \$\{TRANSLATE_WINDOW_DAYS\} \* interval '1 day'/, "窗口必须走那个变量");
-  assert.equal(/interval '\d+ days'/.test(pending), false, "查询里不许再出现写死的天数窗口（`${窗口} * interval '1 day'` 那种写法不算）");
+  // Actual SQL scope/eligibility is covered by translation-history-fairness.test.ts fixtures.
 });
 
 // 2026-10-16 实测 12 小时 116 次 translate_body 调用：<180 s 的 107 次全部 received，≥180 s 的 9 次全挂。

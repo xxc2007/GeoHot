@@ -345,3 +345,9 @@ cd /opt/geohot/app && sudo -u geohot bash deploy/geohot/verify-deploy.sh   # 必
 `0069_timeline_anchor_covering.sql` 为首页全历史分组提供窄覆盖索引，保留原聚合、日计数和下一发布时间的同次读取。它与 `queryGroupedAnchors` 的局部 custom plan 配套：通用计划不能从参数化中文正则推断固定中文部分索引。索引不包含无界标题或正文；旧索引保留，回滚源码时也可保留新增索引。
 
 与 0068 元数据变更不同，0069 的普通 `CREATE INDEX` 会扫描 `publications`、写索引/WAL，并在事务内阻止并发写入。仅在付费调度和档案写入已暂停、在途操作已排空、资源门禁允许的维护窗口，以短 `lock_timeout` 和有界 `statement_timeout` 运行正常迁移；失败须回滚后另选窗口，不能假登记成功。不要在这里私自换成事务中不能执行的 `CONCURRENTLY`。上线后核验索引 valid/ready、实际参数 custom plan 及一轮受限缓冲区/首页时序；可见性映射未覆盖的脏页仍会访问 heap，本机 index-only 结果不保证生产零 heap fetch。不能以延长缓存、截断历史或跳过撤稿复核替代验收。
+
+历史翻译可显式设置 `GEOHOT_TRANSLATE_FROM=YYYY-MM-DD`，按北京时间当天零点同时圈定正文发现／当前修订与引用父条目的发现范围。非法日期拒绝该轮，不能悄悄退回短窗口。未配置或空值时维持正文最近 30 天、引用最近 3 天，可分别用 `GEOHOT_TRANSLATE_WINDOW_DAYS` / `GEOHOT_TRANSLATE_QUOTE_WINDOW_DAYS` 调整。范围依据发现／修订时间，不是论文发表日；设置前先对账实际最早待译时间。
+
+`content.translate` 仍由唯一 coordinator 执行。正文按 fresh/short 去重交错补足，显式历史模式给最老待译条目首个正文机会；引用每轮先获得一个共享工作槽中的机会，最多一次可能付费的模型派发，正文和引用合计不超过既有 `GEOHOT_TRANSLATE_CONCURRENCY`（默认 3）。不增加模型账号、预算或第二套定时器。Busy/Unknown 回执只延期，不消耗文章翻译尝试、不另拆片购买，也不由翻译器释放；正常故障重试上限、修订和来源译文保护维持。
+
+本补丁不解决超过 60,000 字符的原文尾部，也未把引用进程内失败次数改成持久账本。验收须分别报告 complete、partial、attempts 已满、receipt 等待、范围外与合法排除，不能用当前范围 pending=0 声称全部历史翻译完毕。先排空旧 coordinator，再以相同模型池和原并发启新版本；观察正文完整结果、引用净完成、回执与读者健康后再判断进展。

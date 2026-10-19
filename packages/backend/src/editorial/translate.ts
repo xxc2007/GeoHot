@@ -23,6 +23,8 @@ import { modelFor } from "./models.ts";
 import { looksZh } from "./writing.ts";
 import { shutdownSignal } from "../jobs/queue.ts";
 import { promptText, promptVersion } from "./prompts.ts";
+import { ReceiptBusyError, ReceiptUnknownError } from "../providers/receipts.ts";
+import { fairTranslationOrder, translationScope, translateWindowDays as windowDays, type TranslationRank } from "./translation-scheduling.ts";
 
 export const TRANSLATE_PROMPT_VERSION = promptVersion("translate-body", "translate-post");
 const BATCH_CHARS = 3500;
@@ -106,6 +108,10 @@ function stopsTheRun(error: unknown): boolean {
   return error instanceof TranslationInterruptedError || /disabled|not configured|budget/i.test((error as Error).message);
 }
 
+function receiptDeferred(error: unknown): boolean {
+  return error instanceof ReceiptBusyError || error instanceof ReceiptUnknownError;
+}
+
 /** Translates batches; a batch whose answer does not line up is halved once, and a half that answers is kept. */
 async function translateAll(articleId: string, revision: number, parts: string[], system: string, attemptTag?: string): Promise<{ answers: Array<string | null>; errors: string[] }> {
   const out: Array<string | null> = new Array(parts.length).fill(null);
@@ -117,7 +123,7 @@ async function translateAll(articleId: string, revision: number, parts: string[]
   // 而翻成功的那批只有 3,135 字）。现在按"这块没翻出来"处理：折半、缺块单问，其余照旧入库。
   const ask = (batch: string[], index: number): Promise<string[] | null> =>
     translateBatch(articleId, revision, index, batch, system, attemptTag).catch((error: unknown) => {
-      if (stopsTheRun(error)) throw error;
+      if (stopsTheRun(error) || receiptDeferred(error)) throw error;
       errors.push((error as Error).message);
       return null;
     });
@@ -362,20 +368,23 @@ const quoteFailures = new Map<string, number>();
  * translation of the quoted post's own item is reused when it was collected and translated, else
  * DeepSeek (the translate model) translates it. Returns how many were stored.
  */
-export async function translateQuotes(opts: { days?: number; limit?: number; budgetMs?: number } = {}): Promise<number> {
+export async function translateQuotes(opts: { days?: number; from?: Date; limit?: number; maxModelCalls?: number; budgetMs?: number } = {}): Promise<number> {
   const started = Date.now();
-  const rows = await sql<{ tweet_id: string; text: string; text_hash: string | null; own_zh: string | null }[]>`
-    SELECT DISTINCT ON (q.tweet_id) q.tweet_id, a.x_post->'quoted'->>'text' AS text, qt.text_hash,
+  const from = opts.from ?? (opts.days === undefined ? translationScope().quoteFrom : new Date(started - opts.days * 86400_000));
+  const rows = await sql<{ tweet_id: string; text: string; text_hash: string | null; own_zh: string | null; discovered_at: Date }[]>`
+    SELECT DISTINCT ON (q.tweet_id) q.tweet_id, a.x_post->'quoted'->>'text' AS text, qt.text_hash, p.discovered_at,
       (SELECT tr.body_text FROM articles o JOIN translations tr ON tr.article_id = o.id AND tr.lang = 'zh' AND tr.revision >= o.revision
        WHERE o.identity_key = 'x:' || q.tweet_id AND tr.complete AND coalesce(tr.body_text, '') <> '') AS own_zh
     FROM publications p JOIN articles a ON a.id = p.article_id
     CROSS JOIN LATERAL (SELECT substring(a.x_post->'quoted'->>'url' from '/status/([0-9]+)') AS tweet_id) q
     LEFT JOIN quote_translations qt ON qt.tweet_id = q.tweet_id
     WHERE p.channel = 'x' AND p.selected AND p.visibility = 'public' AND p.body_mode = 'full'
-      AND p.discovered_at > now() - make_interval(days => ${opts.days ?? 3})
+      AND p.discovered_at >= ${from}
       AND q.tweet_id IS NOT NULL AND coalesce(a.x_post->'quoted'->>'text', '') <> ''
-    ORDER BY q.tweet_id, p.discovered_at DESC`;
+    ORDER BY q.tweet_id, p.discovered_at DESC, p.article_id`;
+  rows.sort((a, b) => a.discovered_at.getTime() - b.discovered_at.getTime() || a.tweet_id.localeCompare(b.tweet_id));
   let stored = 0;
+  let calls = 0;
   for (const r of rows) {
     if (stored >= (opts.limit ?? 30) || Date.now() - started > (opts.budgetMs ?? 2 * 60_000) || shutdownSignal.signal.aborted) break;
     const hash = sha256(r.text);
@@ -387,9 +396,12 @@ export async function translateQuotes(opts: { days?: number; limit?: number; bud
     let zh = r.own_zh && looksZh(r.own_zh) ? r.own_zh : null;
     let origin: "reused" | "model" = "reused";
     if (!zh) {
+      if (calls >= (opts.maxModelCalls ?? 30)) break;
       origin = "model";
       const subject = `quote:${r.tweet_id}`;
       try {
+        if (shutdownSignal.signal.aborted) throw new TranslationInterruptedError("worker shutting down");
+        calls += 1;
         const res = await chatJson({
           model: await modelFor("translate", r.tweet_id), purpose: "translate_quoted", subject, promptVersion: TRANSLATE_PROMPT_VERSION,
           system: SYSTEM_POST, user: JSON.stringify({ segments: [r.text] }), schema: Output, temperature: 0.2,
@@ -401,7 +413,9 @@ export async function translateQuotes(opts: { days?: number; limit?: number; bud
         // skipped. A reply that did not parse left its receipt `failed`, so the next run would pay for
         // that one again — `quoteFailures` bounds how many times it may (a reply that parsed but says
         // nothing usable stays replayed for free; an answer that is empty is empty tomorrow too).
-        if (/disabled|not configured|budget/i.test((error as Error).message)) throw error;
+        if (stopsTheRun(error)) throw error;
+        // These refusals prove dispatch never started. Let another quote use the one paid opportunity.
+        if (receiptDeferred(error)) { calls -= 1; continue; }
         quoteFailures.set(failKey, (quoteFailures.get(failKey) ?? 0) + 1);
         continue;
       }
@@ -425,11 +439,8 @@ export async function translateQuotes(opts: { days?: number; limit?: number; bud
  */
 /** 窗口天数：环境变量给就用，给的是垃圾就用默认值，最小 1 天（0 或负数会把这一腿整个关死）。 */
 export function translateWindowDays(raw: string | undefined = process.env.GEOHOT_TRANSLATE_WINDOW_DAYS, dflt = 30): number {
-  const n = Math.floor(Number(raw));
-  return Number.isFinite(n) && n >= 1 ? n : dflt;
+  return windowDays(raw, dflt);
 }
-
-const TRANSLATE_WINDOW_DAYS = translateWindowDays();
 
 /** 同时翻几篇（1–6，默认 3）。0 / 负数 / 非数字退回默认，超过 6 一律压到 6：worker 只有 240 MB。 */
 export function translateConcurrency(raw: string | undefined = process.env.GEOHOT_TRANSLATE_CONCURRENCY, dflt = 3): number {
@@ -438,8 +449,8 @@ export function translateConcurrency(raw: string | undefined = process.env.GEOHO
 }
 
 /**
- * Every few minutes: selected full-text items discovered or revised within TRANSLATE_WINDOW_DAYS that
- * lack a translation of their current revision, then the posts selected X posts quote. Stops after a time
+ * Every few minutes: selected full-text items discovered or revised within the resolved scope that
+ * lack a translation of their current revision, and one independent quote opportunity in the same lanes. Stops after a time
  * budget. A translation of an older revision is not shown (items.ts), so a revised item is translated
  * again whatever its age.
  *
@@ -452,33 +463,34 @@ export function translateConcurrency(raw: string | undefined = process.env.GEOHO
  * （6 条，frontiers 系列），尾巴按预算就不翻，重试只是把缺的几块补上，补完仍是 partial——那也符合本意：
  * 读者渲染只有 20,000 字（BODY_CAP_CHARS），超出部分是永远不会印出来的。
  */
-export async function translatePending(opts: { limit?: number; budgetMs?: number } = {}): Promise<{ done: TranslateResult[]; quotes: number }> {
+export async function translatePending(opts: { limit?: number; budgetMs?: number; from?: string } = {}): Promise<{ done: TranslateResult[]; quotes: number }> {
   const started = Date.now();
   const total = opts.limit ?? 30;
-  const freshHalf = Math.max(1, Math.ceil(total / 2));
-  // 一轮只拿"最近发现的 N 条"会把整轮预算喂给刚进口的那批过刊长文：2026-10-17 实测每完成一篇从 ≈1 次调用
-  // 涨到 5—8 次，调用数没跌、译文行数从 65—118 条/时塌到 12—16。所以名额拆两半——一半保新鲜度（实时读者先看到中文），
-  // 一半按正文体积升序（同样的调用数完成更多篇）。两半重叠只会让结果变少，最后那道 LIMIT 保证不超额。
-  const rows = await sql<{ article_id: string }[]>`
+  if (!Number.isSafeInteger(total) || total < 1) throw new Error("Translation limit must be a positive integer");
+  const scope = translationScope({ now: new Date(started), from: opts.from });
+  // All streams share eligibility. Fetch narrow ranks, then interleave and replenish overlap.
+  const ranked = await sql<TranslationRank[]>`
     WITH cand AS (
       SELECT p.article_id, p.discovered_at, octet_length(coalesce(a.body_html, a.body_text, '')) AS bytes
       FROM publications p JOIN articles a ON a.id = p.article_id
       LEFT JOIN translations tr ON tr.article_id = p.article_id AND tr.lang = 'zh'
       WHERE p.selected AND p.visibility = 'public' AND p.body_mode = 'full' AND coalesce(a.language, '') <> 'zh'
-        AND (p.discovered_at > now() - ${TRANSLATE_WINDOW_DAYS} * interval '1 day'
+        AND (p.discovered_at >= ${scope.bodyFrom}
              OR EXISTS (SELECT 1 FROM article_revisions r WHERE r.article_id = a.id AND r.revision = a.revision AND r.revision > 1
-                        AND r.created_at > now() - ${TRANSLATE_WINDOW_DAYS} * interval '1 day'))
+                        AND r.created_at >= ${scope.bodyFrom}))
         AND (tr.article_id IS NULL OR (tr.origin <> 'source' AND (tr.revision < a.revision OR NOT tr.complete)))
         AND NOT EXISTS (SELECT 1 FROM translation_attempts t WHERE t.article_id = p.article_id AND t.revision = a.revision
                         AND (t.outcome IN ('skipped', 'translated') OR t.attempts >= 3))
     ), ranked AS (
       SELECT article_id,
-             row_number() OVER (ORDER BY discovered_at DESC) AS by_fresh,
-             row_number() OVER (ORDER BY bytes ASC, discovered_at DESC) AS by_short
+             row_number() OVER (ORDER BY discovered_at DESC, article_id) AS by_fresh,
+             row_number() OVER (ORDER BY bytes ASC, discovered_at DESC, article_id) AS by_short,
+             row_number() OVER (ORDER BY discovered_at ASC, article_id) AS by_old
       FROM cand
     )
-    SELECT article_id FROM ranked WHERE by_fresh <= ${freshHalf} OR by_short <= ${total - freshHalf}
-    ORDER BY by_fresh, by_short LIMIT ${total}`;
+    SELECT article_id, by_fresh, by_short, by_old FROM ranked
+    WHERE by_fresh <= ${total} OR by_short <= ${total} OR (${scope.historical} AND by_old = 1)`;
+  const rows = fairTranslationOrder(ranked, total, scope.historical);
   const done: TranslateResult[] = [];
   // 逐条 await 时这一腿的吞吐由对端墙钟决定（2026-10-16 实测一次 translate_body 调用平均 130 秒
   // ⇒ 一轮 4 分钟只吃得下 1–2 篇，3,123 篇待翻要 6–11 天）。并发的不是"同一篇的分段"而是"篇与篇"，
@@ -487,17 +499,26 @@ export async function translatePending(opts: { limit?: number; budgetMs?: number
   const conc = translateConcurrency();
   let stop = false;
   let next = 0;
+  let quoteClaimed = false;
+  let quotes = 0;
+  const budgetMs = opts.budgetMs ?? 4 * 60_000;
   async function lane() {
-    while (!stop && next < rows.length) {
-      if (Date.now() - started > (opts.budgetMs ?? 4 * 60_000) || shutdownSignal.signal.aborted) { stop = true; return; }
-      const r = rows[next++]!;
+    while (!stop && (!quoteClaimed || next < rows.length)) {
+      if (Date.now() - started > budgetMs || shutdownSignal.signal.aborted) { stop = true; return; }
+      if (!quoteClaimed) {
+        quoteClaimed = true;
+        try { quotes = await translateQuotes({ from: scope.quoteFrom, limit: 1, maxModelCalls: 1, budgetMs: budgetMs - (Date.now() - started) }); }
+        catch (error) { if (stopsTheRun(error)) { stop = true; return; } throw error; }
+        continue;
+      }
+      const articleId = rows[next++]!;
       let outcome: "translated" | "partial" | "skipped" | "failed";
       let reason: string | null = null;
       // The attempt is recorded against the revision actually read: when the text was revised while the
       // model was answering, the new revision still has no attempt and is translated on the next run.
       let revision: number | null = null;
       try {
-        const result = await translateArticle(r.article_id);
+        const result = await translateArticle(articleId);
         done.push(result);
         outcome = result.status;
         reason = result.reason ?? null;
@@ -508,30 +529,26 @@ export async function translatePending(opts: { limit?: number; budgetMs?: number
         // 停机、被关掉、没配置、熔断四类停整轮且不计尝试——批次层吞错时问的是同一个判据 stopsTheRun()，
         // 两层不一致就会把"熔断"当成一块坏文本咽下去，整轮继续对着墙死的门敲门。
         if (stopsTheRun(error)) { stop = true; return; }
+        if (receiptDeferred(error)) continue;
         const message = (error as Error).message;
-        done.push({ articleId: r.article_id, status: "skipped", reason: message.slice(0, 200) });
+        done.push({ articleId, status: "skipped", reason: message.slice(0, 200) });
         outcome = "failed";
         reason = message.slice(0, 300);
       }
       await sql`
         INSERT INTO translation_attempts (article_id, revision, attempts, outcome, reason)
-        SELECT ${r.article_id}, coalesce(${revision}::int, a.revision), 1, ${outcome}, ${reason} FROM articles a WHERE a.id = ${r.article_id}
+        SELECT ${articleId}, coalesce(${revision}::int, a.revision), 1, ${outcome}, ${reason} FROM articles a WHERE a.id = ${articleId}
         ON CONFLICT (article_id) DO UPDATE SET
           attempts = CASE WHEN translation_attempts.revision = EXCLUDED.revision THEN translation_attempts.attempts + 1 ELSE 1 END,
           revision = EXCLUDED.revision, outcome = EXCLUDED.outcome, reason = EXCLUDED.reason, updated_at = now()`;
     }
   }
-  await Promise.all(Array.from({ length: Math.min(conc, rows.length) }, () => lane()));
-  const budgetMs = opts.budgetMs ?? 4 * 60_000;
-  let quotes = 0;
-  const left = budgetMs - (Date.now() - started);
-  if (left > 0 && !shutdownSignal.signal.aborted) {
-    try {
-      quotes = await translateQuotes({ budgetMs: left });
-    } catch (error) {
-      if (error instanceof TranslationInterruptedError || /disabled|not configured|budget/i.test((error as Error).message)) return { done, quotes };
-      throw error;
-    }
-  }
+  // Quotes occupy one of these same lanes, never an extra concurrent provider slot.
+  const lanes = await Promise.allSettled(Array.from({ length: Math.min(conc, rows.length + 1) }, async () => {
+    try { await lane(); } catch (error) { stop = true; throw error; }
+  }));
+  // A failed lane must not let the cron return/retry while another lane still persists paid answers.
+  const failed = lanes.find((result) => result.status === "rejected");
+  if (failed?.status === "rejected") throw failed.reason;
   return { done, quotes };
 }
