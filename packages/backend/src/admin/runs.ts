@@ -118,12 +118,14 @@ async function release(id: number, error: string, actor: string, note: string, b
   // summarize/structure 那五个，这个字符串从来没出现过（git log -S 只有上游基线那一笔），
   // 于是 `jobs/content.ts` 注释里承诺的「ops 释放一次就把条目排回去」从未发生：
   // 一次 240 秒超时就把一条条目永久留在 'failed'。
-  const article = /^article:([^@]+)@/.exec(before.subject ?? "")?.[1];
+  const extraction = before.purpose === "body_fallback" || before.purpose === "x_article";
+  const article = extraction ? /^article:([^@#]+)$/.exec(before.subject ?? "")?.[1]
+    : /^article:([^@]+)@/.exec(before.subject ?? "")?.[1];
   let requeued = false;
   if (article) {
     const [a] = await sql`UPDATE articles SET processing_state = 'new', processing_attempts = 0, processing_retry_at = NULL, processing_error = NULL, updated_at = now()
                           WHERE id = ${article} AND processing_state = 'failed' RETURNING id`;
-    if (a) requeued = !!(await queueProcessing(article, { step: "analyze" }));
+    if (a) requeued = !!(await queueProcessing(article, { step: extraction ? "extract" : "analyze" }));
   }
   await audit(actor, "receipt.release", `receipt:${id}`, note, { status: "unknown" },
     { status: "failed", billed, billingStatus: before.billingStatus, attemptId: before.attemptId, requeued });

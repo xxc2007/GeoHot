@@ -79,7 +79,7 @@ export async function extractFromUrl(url: string, opts: { allowJina: boolean; su
     // 额度满了不是「这页没有正文」。原先这里 `if (error instanceof BudgetExceededError) return null`，
     // 而 null 在 `extractArticleBody` 那条路上就是 `body_status='unconfirmed'`——一次 jina 的 5 次/分钟
     // 窗口就能把当天所有等兜底的页面永久判成无正文（`waitsForPage` 只等 'pending'，再也不会回头看它们）。
-    // 抛出去：`jobs/content.ts` 的 `afterFailure` 认得这个错，会按 retry 窗口排回去而不消耗条目的重试次数。
+    // 抛出去：`jobs/content.ts` 的抽取 handler 会按 retry 窗口排回去而不消耗条目的重试次数。
     throw error;
   }
 }
