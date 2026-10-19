@@ -23,7 +23,7 @@ const server = http.createServer(async (_req, res) => {
 await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
 const provider = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
 const exits = new Map<ChildProcess, Promise<number | null>>();
-async function start(role: string) {
+async function start(role: string, disconnectBeforeReady: boolean | "blocked-startup" = false) {
   const child = spawn(process.execPath, ["apps/worker/src/main.ts"], {
     cwd: process.cwd(), windowsHide: true, stdio: ["ignore", "pipe", "pipe", "ipc"],
     // Deliberately do not inherit user model credentials or load any env files.
@@ -36,6 +36,17 @@ async function start(role: string) {
   });
   children.push(child);
   exits.set(child, new Promise((resolve) => child.once("exit", resolve)));
+  if (disconnectBeforeReady) {
+    child.stdout!.resume(); child.stderr!.resume();
+    if (disconnectBeforeReady === "blocked-startup") {
+      await within((async () => {
+        while (!(await sql`SELECT 1 FROM pg_stat_activity WHERE application_name='aihot-jobs-content-executor' AND wait_event_type='Lock' LIMIT 1`)[0]) {
+          await new Promise((resolve) => setTimeout(resolve, 20));
+        }
+      })(), 5000);
+    }
+    child.disconnect(); return child;
+  }
   let output = "";
   await within(new Promise<void>((resolve, reject) => {
     child.stdout!.on("data", (data: Buffer) => { output += data.toString(); });
@@ -108,4 +119,26 @@ test("losing the private launcher IPC channel drains and exits the managed execu
   const executor = await start("content-executor");
   executor.disconnect();
   assert.equal(await within(exits.get(executor)!, 2000), 0);
+});
+
+test("losing launcher IPC before READY cannot leave an unmanaged executor running", async () => {
+  const executor = await start("content-executor", true);
+  assert.equal(await within(exits.get(executor)!, 5000), 0);
+});
+
+test("losing launcher IPC during a blocked schema check drains before registering consumers", async () => {
+  const locked = gate(), unlock = gate();
+  const holding = sql.begin(async (tx) => {
+    await tx`LOCK TABLE pgboss.version IN ACCESS EXCLUSIVE MODE`;
+    locked.open();
+    await unlock.promise;
+  });
+  let executor: ChildProcess | undefined;
+  try {
+    await within(locked.promise, 2000);
+    executor = await start("content-executor", "blocked-startup");
+  } finally {
+    unlock.open(); await holding;
+  }
+  assert.equal(await within(exits.get(executor!)!, 5000), 0);
 });

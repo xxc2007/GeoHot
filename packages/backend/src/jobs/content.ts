@@ -206,6 +206,7 @@ export async function registerExtractionJobs(boss: PgBoss, concurrency = positiv
     if (!job) return;
     const { articleId } = job.data;
     try {
+      if (shutdownSignal.signal.aborted) throw new AnalysisInterruptedError("worker shutting down before extraction");
       const state = await extractArticleBody(articleId);
       await queueProcessing(articleId, { step: "analyze" });
       return { state };
