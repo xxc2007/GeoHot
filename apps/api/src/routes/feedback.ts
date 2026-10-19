@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { FeedbackRejected, submitFeedback, type FeedbackInput } from "@aihot/backend/operations/feedback";
+import { admitFeedback, FeedbackRejected, submitFeedback, type FeedbackInput } from "@aihot/backend/operations/feedback";
 import { sendProblem } from "../http/respond.ts";
 
 type FeedbackBody = Pick<FeedbackInput, "content" | "email" | "pageUrl" | "screenshot">;
@@ -32,10 +32,34 @@ async function readBody(raw: unknown, contentType: string): Promise<FeedbackBody
   };
 }
 
-export function registerFeedback(app: FastifyInstance) {
+export function registerFeedback(app: FastifyInstance, uploadDeadlineMs = 15_000) {
+  const admitted = new WeakMap<object, ReturnType<typeof admitFeedback>>();
+  const deadlines = new WeakMap<object, ReturnType<typeof setTimeout>>();
+  const clearDeadline = (req: object) => { clearTimeout(deadlines.get(req)); deadlines.delete(req); };
+  const release = (req: object) => { clearDeadline(req); admitted.get(req)?.release(); admitted.delete(req); };
   // Bounded by the same request limit as JSON; native multipart parsing avoids base64 on the wire.
   app.addContentTypeParser("multipart/form-data", { parseAs: "buffer" }, (_req, body, done) => done(null, body));
-  app.post("/api/site/feedback", { bodyLimit: 12 * 1024 * 1024 }, async (req, reply) => {
+  app.post("/api/site/feedback", {
+    bodyLimit: 12 * 1024 * 1024,
+    onRequest: async (req, reply) => {
+      const forwarded = process.env.TRUST_PROXY === "true" ? req.headers["x-real-ip"] : undefined;
+      try {
+        admitted.set(req, admitFeedback(String(forwarded ?? req.ip ?? "")));
+        // Absolute upload deadline, rather than inactivity: trickling bytes cannot hold both slots.
+        const timer = setTimeout(() => { req.raw.destroy(); release(req); }, uploadDeadlineMs);
+        timer.unref();
+        deadlines.set(req, timer);
+      }
+      catch (error) {
+        if (!(error instanceof FeedbackRejected)) throw error;
+        return sendProblem(req, reply, { status: error.status, code: error.code, detail: error.message, retryAfter: error.retryAfter });
+      }
+    },
+    preValidation: async (req) => { clearDeadline(req); },
+    onResponse: async (req) => { release(req); },
+    onRequestAbort: async (req) => { release(req); },
+    onError: async (req) => { release(req); },
+  }, async (req, reply) => {
     try {
       const body = await readBody(req.body, String(req.headers["content-type"] ?? ""));
       // The per-reader limit and the ban list key on the client address. `X-Real-IP` is a header any client
@@ -43,7 +67,7 @@ export function registerFeedback(app: FastifyInstance) {
       // Fastify's own trustProxy from the same value); otherwise the socket address is the truth.
       const forwarded = process.env.TRUST_PROXY === "true" ? req.headers["x-real-ip"] : undefined;
       const ip = String(forwarded ?? req.ip ?? "");
-      const result = await submitFeedback({ ...body, ip, userAgent: String(req.headers["user-agent"] ?? "") });
+      const result = await submitFeedback({ ...body, ip, userAgent: String(req.headers["user-agent"] ?? "") }, admitted.get(req)?.ticket);
       return reply.header("Cache-Control", "no-store").code(201).send(result);
     } catch (error) {
       if (error instanceof FeedbackRejected) return sendProblem(req, reply, { status: error.status, code: error.code, detail: error.message, retryAfter: error.retryAfter });

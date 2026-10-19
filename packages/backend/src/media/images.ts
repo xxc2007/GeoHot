@@ -8,6 +8,13 @@ import { config } from "../config.ts";
 import { guardedFetch, type GuardedResponse } from "../lib/http-fetch.ts";
 
 import { IMAGE_WIDTHS } from "./renditions.ts";
+import { CapacityExceeded, CapacityGate } from "../lib/capacity.ts";
+export { CapacityExceeded } from "../lib/capacity.ts";
+
+// Per process: bounded distinct renditions, four downloads and two native transforms.
+const renditionGate = new CapacityGate(8, 16);
+const downloadGate = new CapacityGate(4, 8);
+const transformGate = new CapacityGate(2, 8);
 
 const CACHE_DIR = path.join(config.dataDir, "imgcache");
 const ORIGINAL_TTL_MS = 60_000;
@@ -55,11 +62,12 @@ function original(url: string): Promise<GuardedResponse> {
   failures.delete(url);
   let job = originals.get(url);
   if (!job) {
-    job = fetchOriginal(url).then((res) => {
+    job = downloadGate.run(() => fetchOriginal(url)).then((res) => {
       rememberOriginal(url, res);
       return res;
     }).catch((error: unknown) => {
       // A failed original is not refetched for a minute; this also coalesces failures across signed modes.
+      if (error instanceof CapacityExceeded) throw error;
       failures.set(url, { until: Date.now() + 60_000, error });
       if (failures.size > 512) failures.delete(failures.keys().next().value!);
       throw error;
@@ -120,7 +128,8 @@ export function produceImage(url: string, mode: string): Promise<{ body: Buffer;
   const key = `${mode}|${url}`;
   let job = inflight.get(key);
   if (!job) {
-    job = produce(url, mode).finally(() => inflight.delete(key));
+    if (inflight.size >= 24) return Promise.reject(new CapacityExceeded("too many image renditions"));
+    job = renditionGate.run(() => produce(url, mode)).finally(() => inflight.delete(key));
     inflight.set(key, job);
   }
   return job;
@@ -157,6 +166,10 @@ const ANIMATION_MAX_PIXELS = 200_000_000;
  * request. Returns the bytes saved (0 when nothing changed).
  */
 export async function convertAnimated(url: string, mode: string): Promise<number> {
+  return transformGate.run(() => convertAnimatedWithinCapacity(url, mode));
+}
+
+async function convertAnimatedWithinCapacity(url: string, mode: string): Promise<number> {
   const file = cacheFile(url, mode);
   const [body, type] = await Promise.all([readFile(file).catch(() => null), readFile(`${file}.type`, "utf8").catch(() => null)]);
   if (!body || type !== "image/gif") return 0;
@@ -179,6 +192,10 @@ export async function convertAnimated(url: string, mode: string): Promise<number
 
 /** Deterministic output for a signed rendition: the request's Accept header never changes the bytes. */
 export async function resizeImage(body: Buffer, upstreamType: string, mode: string): Promise<{ body: Buffer; type: string }> {
+  return transformGate.run(() => resizeWithinCapacity(body, upstreamType, mode));
+}
+
+async function resizeWithinCapacity(body: Buffer, upstreamType: string, mode: string): Promise<{ body: Buffer; type: string }> {
   const ico = decodeIco(body);
   if (!upstreamType.startsWith("image/") && !ico) throw new Error("upstream is not an image");
   const type = ico ? "image/png" : upstreamType.split(";")[0]!;

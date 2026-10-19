@@ -21,7 +21,8 @@ test("Chinese anchor covering index needs custom planning and preserves dirty-ro
   const migration = readFileSync(new URL("../database/migrations/0069_timeline_anchor_covering.sql", import.meta.url), "utf8");
   assert.ok(migration.includes(`title ~ '${CJK_COPY_PATTERN}'`), "frozen DDL must match the live Chinese-copy gate");
   const source = readFileSync(new URL("../packages/backend/src/publication/timeline.ts", import.meta.url), "utf8");
-  assert.match(source.slice(source.indexOf("async function queryGroupedAnchors")), /const rows = await withCustomPlans\(/);
+  assert.match(source.slice(source.indexOf("async function queryGroupedAnchors")), /const rows = await withPublicRead\(/);
+  assert.match(source, /g\.gk COLLATE "C" DESC`, 8000, true\)/, "anchor custom planning must share its bounded read transaction");
   const now = new Date("2026-10-19T10:00:00Z");
   const execute = `EXECUTE timeline_anchor_probe('${now.toISOString()}','${CJK_COPY_PATTERN}')`;
   const plan = async (analyze = false) => (await db.unsafe(`EXPLAIN (${analyze ? "ANALYZE, BUFFERS, TIMING OFF," : ""} FORMAT JSON) ${execute}`))[0]!["QUERY PLAN"][0];

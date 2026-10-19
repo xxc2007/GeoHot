@@ -1,10 +1,11 @@
+import { withPublicRead } from "./read-budget.ts";
 // Home timeline: selected items folded into reading groups (reference SELECTED_READING):
 // one card per story, per fact outside a story, or per standalone article. A card sits at its latest
 // development's first appearance, so a new development brings it back up while a representative swap
 // never moves it; the representative is the first-party pick of the story's initiating fact.
 import type { GroupInfo, TimelineCard, TimelineFilters, TimelineResponse } from "@aihot/contracts/site";
 import { beijingDate } from "@aihot/contracts/time";
-import { sql, withCustomPlans } from "../db.ts";
+import { sql } from "../db.ts";
 import { decodeCursor, encodeCursor, InvalidCursorError, queryBinding } from "../lib/cursor.ts";
 import {
   ITEM_COLUMNS, ITEM_FROM, categoryCondition, channelCondition, chineseCopyCondition, releasedCondition, selectedCondition, tagCondition, toFeedItemSummary, topicCondition,
@@ -100,7 +101,7 @@ async function groupedSnapshot(q: TimelineQuery, now: Date): Promise<GroupedSnap
 async function queryGroupedAnchors(q: TimelineQuery, now: Date): Promise<GroupedSnapshot> {
   // Generic plans cannot prove title ~ $pattern implies the narrow Chinese partial index.
   // Keep anchors and the next release in one read, with actual filter values planned locally.
-  const rows = await withCustomPlans((db) => db<{ gk: string | null; anchor_at: Date | null; pending_at: Date | null }[]>`
+  const rows = await withPublicRead((db) => db<{ gk: string | null; anchor_at: Date | null; pending_at: Date | null }[]>`
     WITH base AS (
       SELECT p.sort_at, coalesce('s' || p.story_id::text, 'f' || p.fact_id::text, 'a' || p.article_id) AS gk
       FROM publications p
@@ -112,7 +113,7 @@ async function queryGroupedAnchors(q: TimelineQuery, now: Date): Promise<Grouped
     )
     SELECT g.gk, g.anchor_at, waiting.t AS pending_at
     FROM waiting LEFT JOIN (SELECT gk, max(sort_at) AS anchor_at FROM base GROUP BY gk) g ON true
-    ORDER BY g.anchor_at DESC NULLS LAST, g.gk COLLATE "C" DESC`);
+    ORDER BY g.anchor_at DESC NULLS LAST, g.gk COLLATE "C" DESC`, 8000, true);
   const readAt = Date.now();
   const waiting = rows[0]?.pending_at ?? null;
   return {
