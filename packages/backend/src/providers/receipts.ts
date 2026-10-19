@@ -36,17 +36,19 @@ export class ReceiptUnknownError extends Error {
   }
 }
 
-/** Raised by a call when the provider clearly did not accept (and will not bill) the request. */
+/** An execution refusal can be retried, but does not itself prove that the provider did not bill. */
 export class ProviderRejectedError extends Error {
   readonly status: number | null;
   readonly retryable: boolean;
   readonly modelKey?: string;
-  constructor(message: string, status: number | null, retryable: boolean, modelKey?: string) {
+  readonly billingStatus: "unknown" | "unbilled";
+  constructor(message: string, status: number | null, retryable: boolean, modelKey?: string, billingStatus: "unknown" | "unbilled" = "unknown") {
     super(message);
     this.name = "ProviderRejectedError";
     this.status = status;
     this.retryable = retryable;
     this.modelKey = modelKey;
+    this.billingStatus = billingStatus;
   }
 }
 
@@ -101,11 +103,11 @@ interface ReceiptRow {
 async function checkBudget(tx: Db, service: string): Promise<void> {
   const [budget] = await tx<{ per_minute: number; per_hour: number; per_day: number }[]>`
     SELECT per_minute, per_hour, per_day FROM budgets WHERE service = ${service}`;
-  if (!budget) return; // default rows come with the migrations; a service an operator removed is unlimited
+  if (!budget) throw new BudgetExceededError(service, "missing", 3600);
   // 三个窗保护的是两件不同的事，所以计数口径也不同：
   // · 分钟窗是**速率**——只要真打出去了就算，429 也算（对方确实在被我们敲）。
-  // · 小时/天窗是**花费**——只有对方真答了（`usage` 有值）、或者结果说不清（`unknown`，可能已计费）、
-  //   或还在飞（`pending`）才算。连不上、DNS 失败、被 429 挡回来都不产生账单。
+  // · 小时/天窗是**花费**——已收到结果、结果说不清、还在飞的都算；只有明确未计费才排除。
+  //   执行失败、放行重发或 usage 缺失不能证明免费，费用归属独立保存在 billing_status。
   // 第三十四轮评审指出的后果：原先三个窗都数全部尝试，一次代理故障（每篇 5 步 × 重试 8 次）
   // 就能把当天 6000 次的额度烧光而一条中文稿都不产出——那正是"全站停止更新"的形状。
   const unbilled = unbilledAttempt();
@@ -130,11 +132,11 @@ async function checkBudget(tx: Db, service: string): Promise<void> {
  * 熔断器、后台的「已用」和运维告警数的是同一件事——第三十四轮把熔断器改成只数真花了钱的尝试，
  * 却没改另外两处，于是一次代理故障之后，后台显示的 used 比熔断器实际用的大，
  * 告警能报「24 小时额度用完」而 paidRequest 还在放行。
- * 列名一律不带表别名：三个使用点里 status 与 usage 都只可能来自 receipt_attempts（budgets 没有这两列），
+ * 列名一律不带表别名：费用读点里 billing_status 只可能来自 receipt_attempts，
  * 加了别名反而拼不出语句——`${alias}.` 在模板里是一个**参数**，不是字符串拼接。
  */
 export function unbilledAttempt() {
-  return sql`(status = 'failed' AND usage IS NULL)`;
+  return sql`(billing_status = 'unbilled')`;
 }
 
 /**
@@ -191,7 +193,7 @@ export async function paidRequest(
     const logicalKey = logicalKeyFor(selected);
     const existing = rows.find((r) => r.logical_key === logicalKey);
     if (existing) {
-      // failed: the provider did not take the request, or its answer was unusable; a new attempt is allowed.
+      // failed permits a new attempt, but does not refund the prior attempt's possible bill.
       const [r] = await tx<{ attempts: number }[]>`
         UPDATE receipts SET status = 'pending', attempts = attempts + 1, error = NULL, updated_at = now() WHERE id = ${existing.id} RETURNING attempts`;
       const attemptId = await startAttempt(tx, existing.id, r!.attempts, selected);
@@ -219,11 +221,12 @@ export async function paidRequest(
     outcome = await claimed.chosen.call();
   } catch (error) {
     const status = error instanceof ProviderRejectedError ? "failed" : "unknown";
+    const billingStatus = error instanceof ProviderRejectedError ? error.billingStatus : "unknown";
     // "unknown": the request may have reached the provider (timeout, reset): do not re-send automatically.
     const message = (error instanceof ProviderRejectedError ? error.message : String(error)).slice(0, 2000);
     await sql.begin(async (tx) => {
       await tx`UPDATE receipts SET status = ${status}, error = ${message}, updated_at = now() WHERE id = ${receiptId}`;
-      await tx`UPDATE receipt_attempts SET status = ${status}, error = ${message}, latency_ms = ${Date.now() - started}, finished_at = now() WHERE id = ${attemptId}`;
+      await tx`UPDATE receipt_attempts SET status = ${status}, billing_status = ${billingStatus}, error = ${message}, latency_ms = ${Date.now() - started}, finished_at = now() WHERE id = ${attemptId}`;
     });
     throw error;
   }
@@ -243,7 +246,7 @@ export async function paidRequest(
       WHERE id = ${receiptId}`;
     await tx`
       UPDATE receipt_attempts SET
-        status = 'received', request_id = ${outcome.requestId ?? null}, usage = ${outcome.usage ? tx.json(outcome.usage as never) : null},
+        status = 'received', billing_status = 'billed', request_id = ${outcome.requestId ?? null}, usage = ${outcome.usage ? tx.json(outcome.usage as never) : null},
         cost = ${outcome.cost?.amount ?? null}, currency = ${outcome.cost?.currency ?? null}, cost_basis = ${outcome.cost?.basis ?? null},
         latency_ms = ${Date.now() - started}, finished_at = now()
       WHERE id = ${attemptId}`;
@@ -253,14 +256,15 @@ export async function paidRequest(
 
 async function startAttempt(tx: Db, receiptId: number, attempt: number, req: ReceiptRequest): Promise<number> {
   const [row] = await tx<{ id: number }[]>`
-    INSERT INTO receipt_attempts (receipt_id, attempt, service, model, status) VALUES (${receiptId}, ${attempt}, ${req.service}, ${req.model ?? null}, 'pending')
+    INSERT INTO receipt_attempts (receipt_id, attempt, service, model, status, billing_status) VALUES (${receiptId}, ${attempt}, ${req.service}, ${req.model ?? null}, 'pending', 'reserved')
     RETURNING id`;
   return row!.id;
 }
 
 async function markUnknown(tx: Db, receiptId: number, reason: string) {
   await tx`UPDATE receipts SET status = 'unknown', error = ${reason}, updated_at = now() WHERE id = ${receiptId}`;
-  await tx`UPDATE receipt_attempts SET status = 'unknown', error = ${reason}, finished_at = now() WHERE receipt_id = ${receiptId} AND status = 'pending'`;
+  await tx`UPDATE receipt_attempts SET status = 'unknown', billing_status = CASE WHEN billing_status = 'reserved' THEN 'unknown' ELSE billing_status END,
+           error = ${reason}, finished_at = now() WHERE receipt_id = ${receiptId} AND status = 'pending'`;
 }
 
 /**

@@ -528,7 +528,7 @@ export async function chatJson<S extends z.ZodType>(opts: ChatJsonOptions<S>): P
           signal: AbortSignal.timeout(opts.timeoutMs ?? (prepared.reasoning ? 240_000 : 120_000)),
         });
       } catch (error) {
-        if (isConnectFailure(error)) throw new ProviderRejectedError(`connect failed: ${String(error)}`, null, true, model.key);
+        if (isConnectFailure(error)) throw new ProviderRejectedError(`connect failed: ${String(error)}`, null, true, model.key, "unbilled");
         throw error;
       }
       const text = await res.text();

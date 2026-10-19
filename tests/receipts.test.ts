@@ -131,8 +131,8 @@ test("with the valve off nothing is sent", async () => {
 });
 
 test("an unknown outcome is released automatically once, so a lost answer costs at most one repeat", async () => {
-  // A service without a budget row: the budget tests above may have used up deepseek's.
-  const req = { service: "invariant-unbudgeted", purpose: "invariant_test", subject: `lost-${tag()}`, identity: { lost: tag() } };
+  // An exclusive, explicit budget avoids sharing deepseek's spend window with other cases.
+  const req = { service: `invariant-budgeted-${tag()}`, purpose: "invariant_test", subject: `lost-${tag()}`, identity: { lost: tag() } };
   let sent = 0;
   const lost = () => {
     sent += 1;
@@ -141,22 +141,28 @@ test("an unknown outcome is released automatically once, so a lost answer costs 
   const status = async () => (await sql<{ status: string }[]>`SELECT status FROM receipts WHERE subject = ${req.subject}`)[0]!.status;
   const age = () => sql`UPDATE receipts SET updated_at = now() - interval '31 minutes' WHERE subject = ${req.subject}`;
 
-  await assert.rejects(paidRequest(req, lost));
-  assert.equal(await status(), "unknown");
-  await autoReleaseUnknownReceipts();
-  assert.equal(await status(), "unknown", "not within half an hour");
+  await sql`INSERT INTO budgets(service,per_minute,per_hour,per_day) VALUES(${req.service},3,3,3)`;
+  try {
+    await assert.rejects(paidRequest(req, lost));
+    assert.equal(await status(), "unknown");
+    await autoReleaseUnknownReceipts();
+    assert.equal(await status(), "unknown", "not within half an hour");
 
-  await age();
-  await autoReleaseUnknownReceipts();
-  assert.equal(await status(), "failed");
-  await assert.rejects(paidRequest(req, lost));
-  assert.equal(sent, 2, "one repeat after the release");
+    await age();
+    await autoReleaseUnknownReceipts();
+    assert.equal(await status(), "failed");
+    await assert.rejects(paidRequest(req, lost));
+    assert.equal(sent, 2, "one repeat after the release");
 
-  await age();
-  await autoReleaseUnknownReceipts();
-  assert.equal(await status(), "unknown", "a second loss waits for the admin");
-  await assert.rejects(paidRequest(req, lost), ReceiptUnknownError);
-  assert.equal(sent, 2);
+    await age();
+    await autoReleaseUnknownReceipts();
+    assert.equal(await status(), "unknown", "a second loss waits for the admin");
+    await assert.rejects(paidRequest(req, lost), ReceiptUnknownError);
+    assert.equal(sent, 2);
+  } finally {
+    await sql`DELETE FROM receipts WHERE service=${req.service}`;
+    await sql`DELETE FROM budgets WHERE service=${req.service}`;
+  }
 });
 
 test("the spend windows count what cost money, not every attempt", async () => {
@@ -168,10 +174,10 @@ test("the spend windows count what cost money, not every attempt", async () => {
     INSERT INTO receipts (logical_key, service, purpose, status, request, attempts)
     VALUES (${`unbilled-${t}`}, 'deepseek', 'invariant_test', 'failed', '{}'::jsonb, 1) RETURNING id`;
   const insert = (status: string, from: number, to: number) => sql`
-    INSERT INTO receipt_attempts (receipt_id, attempt, service, origin, status, started_at, finished_at)
-    SELECT ${seed!.id}, n, 'deepseek', 'live', ${status}::text, now() - interval '2 hours', now() - interval '2 hours'
+    INSERT INTO receipt_attempts (receipt_id, attempt, service, origin, status, billing_status, started_at, finished_at)
+    SELECT ${seed!.id}, n, 'deepseek', 'live', ${status}::text, 'unbilled', now() - interval '2 hours', now() - interval '2 hours'
     FROM generate_series(${from}::int, ${to}::int) n`;
-  const billed = sql`NOT (status = 'failed' AND usage IS NULL)`;
+  const billed = sql`billing_status <> 'unbilled'`;
   const spend = async () => (await sql<{ hour: number; day: number }[]>`
     SELECT count(*) FILTER (WHERE started_at > now() - interval '1 hour' AND ${billed})::int AS hour,
            count(*) FILTER (WHERE ${billed})::int AS day
@@ -186,7 +192,7 @@ test("the spend windows count what cost money, not every attempt", async () => {
     assert.equal(provider.hits() - before, 1, "300 次没打到对方的尝试不该占花费额度");
 
     // 同样这 300 行，换成「结果说不清」（可能已经计费）就必须立刻算数。
-    await sql`UPDATE receipt_attempts SET status = 'unknown' WHERE receipt_id = ${seed!.id}`;
+    await sql`UPDATE receipt_attempts SET status = 'unknown', billing_status = 'unknown' WHERE receipt_id = ${seed!.id}`;
     const d = await spend();
     await sql`UPDATE budgets SET per_hour = ${d.hour}, per_day = ${d.day} WHERE service = 'deepseek'`;
     assert.ok(d.day >= 300, "unknown 是花费：usage 是空的也不能免掉");

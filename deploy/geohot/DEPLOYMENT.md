@@ -329,3 +329,11 @@ cd /opt/geohot/app && sudo -u geohot bash deploy/geohot/verify-deploy.sh   # 必
 以 root 和 `--no-same-owner` 解包回滚应用时，归档中的 `.env` 即使仍为 0600，也可能归属 root，导致 geohot 进程无法读入并反复启动。回滚后、启动前明确恢复该已知配置文件为 geohot:geohot/0600，只检查归属和权限，不打印内容。先停止已启动的新版本 worker 并排空在途请求，再恢复源码；不要让内存中的新模块继续配合磁盘上的旧源码运行。
 
 发布后要求公网 health 返回目标 release、四单元 active、档案 timer active，完整 `verify-deploy.sh` 为 ALL CHECKS PASSED。若启动中曾有 502，保留原日志和真实窗口；只有后续稳定状态才列为上线验收。回滚或迁移备份含私有环境配置，只存放私有目录，不进入公开源码仓库。
+
+## 0068 费用归属迁移的切换边界
+
+`0068_receipt_attempt_billing.sql` 为每次尝试单独保存费用状态：小时/天额度只排除明确 `unbilled` 的行，未知、预留和已消费都占额度；执行失败或放行重试不再免掉旧尝试。缺预算行拒绝新发送。历史 failed/usage-NULL 先保守记 unknown，可能使近 24 小时的使用数上升；不要自动调大上限来绕开它。
+
+迁移内的 UPDATE 会更新整张 `receipt_attempts`，产生全表写入、死元组与 WAL。这台生产机的内存和 swap 余量有限；上线前先只读核验表行数估计、大小及 UPDATE 的普通 EXPLAIN（不要用会实际执行写入的 EXPLAIN ANALYZE），在停止付费调度、暂停档案导入并排空在途请求之后选择维护窗口。若整表更新不可承受，应先准备并单独审查分批迁移方案：元数据新增列并默认 unknown 后，以主键有界分批补 received/正费用行的 billed 和 pending 行的 reserved，每批提交、保留进度。分批期间默认 unknown 始终占额度，不能为减少 I/O 把未处理行改为免费；该替代路径需与 schema_migrations 的完成标记一致，不能临时跳过登记或重跑 ADD COLUMN。
+
+新列默认 unknown 能使旧 writer 漏填时保守计数，但旧二进制的预算谓词仍有 failed/usage-NULL 漏计，**不能让旧、新付费调用进程混跑**。完成迁移后统一更新 API、worker、archive/backfill runner 和手动长驻脚本，核验所有费用读点使用新列，再恢复调度。回滚可保留增量列，但恢复旧源码时须保持付费调用停止，直到安全预算检查重新就位。部署成功需另外完成线上验收，本机测试通过不等于已上线。

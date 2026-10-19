@@ -370,7 +370,7 @@ test("hour and day local budget windows use the same protected fallback", async 
   const [counts] = await sql<{ hour: number; day: number }[]>`SELECT
     count(*) FILTER (WHERE started_at > now() - interval '1 hour')::int AS hour,
     count(*)::int AS day FROM receipt_attempts WHERE service='llm' AND origin='live'
-      AND started_at > now()-interval '1 day' AND NOT (status='failed' AND usage IS NULL)`;
+      AND started_at > now()-interval '1 day' AND billing_status <> 'unbilled'`;
   assert.ok(counts!.hour > 0 && counts!.day > 0);
   try {
     await sql`UPDATE budgets SET per_hour = ${counts!.hour} WHERE service='llm'`;
@@ -383,7 +383,7 @@ test("hour and day local budget windows use the same protected fallback", async 
 test("all locally blocked candidates wait for the earliest real budget window", async () => {
   const [counts] = await sql<{ day: number }[]>`SELECT count(*)::int AS day FROM receipt_attempts
     WHERE service='llm' AND origin='live' AND started_at > now()-interval '1 day'
-      AND NOT (status='failed' AND usage IS NULL)`;
+      AND billing_status <> 'unbilled'`;
   assert.ok(counts!.day > 0);
   const subject = `earliest-budget-${unique()}`;
   const beforeA = a.hits(), beforeB = b.hits();

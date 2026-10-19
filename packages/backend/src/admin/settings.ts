@@ -53,9 +53,7 @@ export async function setTargetEnabled(key: string, enabled: boolean, reason: st
 }
 
 export async function listBudgets() {
-  // used_* 走的是熔断器同一个花费口径（`unbilledAttempt`）：连不上、被 429 挡回来的尝试不产生账单，
-  // 也不该在这里显示成"已经用掉"。以前这里数全部尝试，于是代理故障之后后台的 used 比熔断器实际
-  // 用的大，读者看到的数字和放行判断说的不是同一件事。
+  // 与熔断器同一口径：明确未计费才排除；未知费用和发送前预留都占额度，usage 缺失不代表免费。
   const unbilled = unbilledAttempt();
   return sql`
     SELECT b.service, b.per_minute, b.per_hour, b.per_day, b.note, b.updated_at,
