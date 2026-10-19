@@ -351,3 +351,5 @@ cd /opt/geohot/app && sudo -u geohot bash deploy/geohot/verify-deploy.sh   # 必
 `content.translate` 仍由唯一 coordinator 执行。正文按 fresh/short 去重交错补足，显式历史模式给最老待译条目首个正文机会；引用每轮先获得一个共享工作槽中的机会，最多一次可能付费的模型派发，正文和引用合计不超过既有 `GEOHOT_TRANSLATE_CONCURRENCY`（默认 3）。不增加模型账号、预算或第二套定时器。Busy/Unknown 回执只延期，不消耗文章翻译尝试、不另拆片购买，也不由翻译器释放；正常故障重试上限、修订和来源译文保护维持。
 
 本补丁不解决超过 60,000 字符的原文尾部，也未把引用进程内失败次数改成持久账本。验收须分别报告 complete、partial、attempts 已满、receipt 等待、范围外与合法排除，不能用当前范围 pending=0 声称全部历史翻译完毕。先排空旧 coordinator，再以相同模型池和原并发启新版本；观察正文完整结果、引用净完成、回执与读者健康后再判断进展。
+
+保留生产已有的单次调用协作停止：`TranslationControl.signal/deadlineAt` 逐层传给正文、折半、缺块重试与引用。`translatePending` 对每轮另设不超过开始后 50 分钟的批次停止边界，给一小时 cron claim 留出当前付费请求落库时间；普通 `budgetMs` 仍只停止领取新文章，不把长正文强行截成重复轮次。到期／signal 只阻止下一批发送，不传给 provider HTTP 的 AbortSignal，也不阻止已发出的答复、回执及可完成的译文落库。所有工作槽排空后本轮才返回；中断不消耗翻译尝试次数。

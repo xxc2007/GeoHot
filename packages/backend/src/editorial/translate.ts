@@ -40,6 +40,14 @@ const Output = z.object({ t: z.array(z.string()) });
 
 class TranslationInterruptedError extends Error {}
 
+/** Cooperative invocation stop: persist a paid answer already sent, then buy no next batch. */
+export interface TranslationControl { signal?: AbortSignal; deadlineAt?: number }
+function checkTranslation(control: TranslationControl) {
+  if (shutdownSignal.signal.aborted || control.signal?.aborted || (control.deadlineAt !== undefined && Date.now() >= control.deadlineAt)) {
+    throw new TranslationInterruptedError("translation invocation stopped");
+  }
+}
+
 const SYSTEM_BODY = promptText("translate-body");
 
 const SYSTEM_POST = promptText("translate-post");
@@ -76,13 +84,13 @@ function segmentsOf($: cheerio.CheerioAPI): Element[] {
   return out;
 }
 
-async function translateBatch(articleId: string, revision: number, index: number, parts: string[], system: string, attemptTag?: string): Promise<string[] | null> {
-  if (shutdownSignal.signal.aborted) throw new TranslationInterruptedError("worker shutting down");
+async function translateBatch(articleId: string, revision: number, index: number, parts: string[], system: string, attemptTag?: string, control: TranslationControl = {}): Promise<string[] | null> {
+  checkTranslation(control);
   // One article, one translator: the shard key is the article id, not the batch index, or a long body
   // would be rendered in several prose styles stitched together.
   const workUnit = `article:${articleId}@${revision}`;
   const model = await modelFor("translate", articleId);
-  if (shutdownSignal.signal.aborted) throw new TranslationInterruptedError("worker shutting down");
+  checkTranslation(control);
   const res = await chatJson({
     model,
     purpose: "translate_body",
@@ -113,7 +121,7 @@ function receiptDeferred(error: unknown): boolean {
 }
 
 /** Translates batches; a batch whose answer does not line up is halved once, and a half that answers is kept. */
-async function translateAll(articleId: string, revision: number, parts: string[], system: string, attemptTag?: string): Promise<{ answers: Array<string | null>; errors: string[] }> {
+async function translateAll(articleId: string, revision: number, parts: string[], system: string, attemptTag?: string, control: TranslationControl = {}): Promise<{ answers: Array<string | null>; errors: string[] }> {
   const out: Array<string | null> = new Array(parts.length).fill(null);
   const errors: string[] = [];
   // 一批"报错"不等于整篇作废。2026-10-16 实测 12 小时 116 次 translate_body 调用：<180 s 的 107 次全部
@@ -122,7 +130,7 @@ async function translateAll(articleId: string, revision: number, parts: string[]
   // 还要占掉 translation_attempts 三次机会里的一次。长正文批次多，被钉死的全是长正文（p50 20,136 字，
   // 而翻成功的那批只有 3,135 字）。现在按"这块没翻出来"处理：折半、缺块单问，其余照旧入库。
   const ask = (batch: string[], index: number): Promise<string[] | null> =>
-    translateBatch(articleId, revision, index, batch, system, attemptTag).catch((error: unknown) => {
+    translateBatch(articleId, revision, index, batch, system, attemptTag, control).catch((error: unknown) => {
       if (stopsTheRun(error) || receiptDeferred(error)) throw error;
       errors.push((error as Error).message);
       return null;
@@ -252,7 +260,8 @@ export function polishZh(html: string): string {
   return $.html();
 }
 
-export async function translateArticle(articleId: string): Promise<TranslateResult> {
+export async function translateArticle(articleId: string, control: TranslationControl = {}): Promise<TranslateResult> {
+  checkTranslation(control);
   const [row] = await sql<{ revision: number; channel: string; language: string | null; body_html: string | null; body_text: string | null; x_post: { text?: string } | null; title: string; selected: boolean; body_mode: string; visibility: string }[]>`
     SELECT a.revision, p.channel, a.language, a.body_html, a.body_text, a.x_post, p.title, p.selected, p.body_mode, p.visibility
     FROM publications p JOIN articles a ON a.id = p.article_id WHERE p.article_id = ${articleId}`;
@@ -265,7 +274,7 @@ export async function translateArticle(articleId: string): Promise<TranslateResu
     const meaningful = collapseWhitespace(text.replace(/https?:\/\/\S+/g, ""));
     if (bodyIsChinese(row.language, text)) return result({ status: "skipped", reason: "already Chinese" });
     if (meaningful.length < X_MIN_CHARS) return result({ status: "skipped", reason: "short post" });
-    const { answers: [t], errors } = await translateAll(articleId, row.revision, [text], SYSTEM_POST);
+    const { answers: [t], errors } = await translateAll(articleId, row.revision, [text], SYSTEM_POST, undefined, control);
     // 回声不是译文：把英文原样还回来的答复会被存成"AI 翻译"给读者看（红线：不把英文当中文发布）。
     if (!t || !looksZh(t)) {
       // 但"这一轮根本没拿到答复"（超时、坏答复、熔断前的报错）不能记成终态：skipped 与 partial 都会把
@@ -296,7 +305,7 @@ export async function translateArticle(articleId: string): Promise<TranslateResu
   }
   const shielded = chosen.map((el) => shield($(el).html() ?? ""));
   const restore = (answers: Array<string | null>) => answers.map((t, i) => (t === null ? null : unshield(t, shielded[i]!)));
-  const first = await translateAll(articleId, row.revision, shielded.map((b) => b.html), SYSTEM_BODY);
+  const first = await translateAll(articleId, row.revision, shielded.map((b) => b.html), SYSTEM_BODY, undefined, control);
   const errors = [...first.errors];
   const translations = restore(first.answers);
   // 回声不是译文：原文有词而答复一个汉字都没有的块按"没翻出来"处理（走下面的一次重问、再不行保留
@@ -308,7 +317,7 @@ export async function translateArticle(articleId: string): Promise<TranslateResu
   // Blocks whose answer dropped a link or an image are asked once more, on their own receipt.
   const missing = translations.flatMap((t, i) => (t === null ? [i] : []));
   if (missing.length) {
-    const again = await translateAll(articleId, row.revision, missing.map((i) => shielded[i]!.html), SYSTEM_BODY, "retry");
+    const again = await translateAll(articleId, row.revision, missing.map((i) => shielded[i]!.html), SYSTEM_BODY, "retry", control);
     errors.push(...again.errors);
     missing.forEach((i, k) => (translations[i] = again.answers[k] ? unshield(again.answers[k]!, shielded[i]!) : null));
   }
@@ -368,7 +377,7 @@ const quoteFailures = new Map<string, number>();
  * translation of the quoted post's own item is reused when it was collected and translated, else
  * DeepSeek (the translate model) translates it. Returns how many were stored.
  */
-export async function translateQuotes(opts: { days?: number; from?: Date; limit?: number; maxModelCalls?: number; budgetMs?: number } = {}): Promise<number> {
+export async function translateQuotes(opts: { days?: number; from?: Date; limit?: number; maxModelCalls?: number; budgetMs?: number } & TranslationControl = {}): Promise<number> {
   const started = Date.now();
   const from = opts.from ?? (opts.days === undefined ? translationScope().quoteFrom : new Date(started - opts.days * 86400_000));
   const rows = await sql<{ tweet_id: string; text: string; text_hash: string | null; own_zh: string | null; discovered_at: Date }[]>`
@@ -386,6 +395,7 @@ export async function translateQuotes(opts: { days?: number; from?: Date; limit?
   let stored = 0;
   let calls = 0;
   for (const r of rows) {
+    checkTranslation(opts);
     if (stored >= (opts.limit ?? 30) || Date.now() - started > (opts.budgetMs ?? 2 * 60_000) || shutdownSignal.signal.aborted) break;
     const hash = sha256(r.text);
     if (r.text_hash === hash || !quoteTranslatable(r.text)) continue;
@@ -400,10 +410,11 @@ export async function translateQuotes(opts: { days?: number; from?: Date; limit?
       origin = "model";
       const subject = `quote:${r.tweet_id}`;
       try {
-        if (shutdownSignal.signal.aborted) throw new TranslationInterruptedError("worker shutting down");
+        const model = await modelFor("translate", r.tweet_id);
+        checkTranslation(opts);
         calls += 1;
         const res = await chatJson({
-          model: await modelFor("translate", r.tweet_id), purpose: "translate_quoted", subject, promptVersion: TRANSLATE_PROMPT_VERSION,
+          model, purpose: "translate_quoted", subject, promptVersion: TRANSLATE_PROMPT_VERSION,
           system: SYSTEM_POST, user: JSON.stringify({ segments: [r.text] }), schema: Output, temperature: 0.2,
           maxTokens: Math.min(4000, Math.ceil(r.text.length * 1.5) + 200), timeoutMs: 120_000,
         });
@@ -463,8 +474,11 @@ export function translateConcurrency(raw: string | undefined = process.env.GEOHO
  * （6 条，frontiers 系列），尾巴按预算就不翻，重试只是把缺的几块补上，补完仍是 partial——那也符合本意：
  * 读者渲染只有 20,000 字（BODY_CAP_CHARS），超出部分是永远不会印出来的。
  */
-export async function translatePending(opts: { limit?: number; budgetMs?: number; from?: string } = {}): Promise<{ done: TranslateResult[]; quotes: number }> {
+export async function translatePending(opts: { limit?: number; budgetMs?: number; from?: string } & TranslationControl = {}): Promise<{ done: TranslateResult[]; quotes: number }> {
   const started = Date.now();
+  // Preserve production's cap below the one-hour cron claim. The ordinary four-minute budget
+  // stops new articles; only explicit invocation control / this cap stops batches within a body.
+  const control = { signal: opts.signal, deadlineAt: Math.min(opts.deadlineAt ?? Infinity, started + 50 * 60_000) };
   const total = opts.limit ?? 30;
   if (!Number.isSafeInteger(total) || total < 1) throw new Error("Translation limit must be a positive integer");
   const scope = translationScope({ now: new Date(started), from: opts.from });
@@ -504,10 +518,11 @@ export async function translatePending(opts: { limit?: number; budgetMs?: number
   const budgetMs = opts.budgetMs ?? 4 * 60_000;
   async function lane() {
     while (!stop && (!quoteClaimed || next < rows.length)) {
+      try { checkTranslation(control); } catch (error) { if (stopsTheRun(error)) { stop = true; return; } throw error; }
       if (Date.now() - started > budgetMs || shutdownSignal.signal.aborted) { stop = true; return; }
       if (!quoteClaimed) {
         quoteClaimed = true;
-        try { quotes = await translateQuotes({ from: scope.quoteFrom, limit: 1, maxModelCalls: 1, budgetMs: budgetMs - (Date.now() - started) }); }
+        try { quotes = await translateQuotes({ from: scope.quoteFrom, limit: 1, maxModelCalls: 1, budgetMs: budgetMs - (Date.now() - started), ...control }); }
         catch (error) { if (stopsTheRun(error)) { stop = true; return; } throw error; }
         continue;
       }
@@ -518,7 +533,7 @@ export async function translatePending(opts: { limit?: number; budgetMs?: number
       // model was answering, the new revision still has no attempt and is translated on the next run.
       let revision: number | null = null;
       try {
-        const result = await translateArticle(articleId);
+        const result = await translateArticle(articleId, control);
         done.push(result);
         outcome = result.status;
         reason = result.reason ?? null;
