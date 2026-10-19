@@ -11,6 +11,8 @@ const T = tag(), SOURCE = `test-translation-fair-${T}`;
 const quoteIds: string[] = [];
 let holding = false, active = 0, peak = 0;
 let release = gate<void>();
+let quoteRelease = gate<void>();
+let shortStarted = gate<void>();
 let starts = gate<void>();
 const seen: string[] = [];
 const provider = await stub(async (_hit, req) => {
@@ -18,8 +20,9 @@ const provider = await stub(async (_hit, req) => {
   const segments = JSON.parse(body.messages[1].content).segments as string[];
   const marker = segments.join(" ").match(/MARK_[a-z]+/)?.[0] ?? "unknown";
   seen.push(marker);active++;peak = Math.max(peak, active);
+  if (marker === "MARK_short") shortStarted.open();
   if (active === 3) starts.open();
-  if (holding) await release.promise;
+  if (holding) await (marker === "MARK_quoteparallel" ? quoteRelease.promise : release.promise);
   active--;
   if (marker === "MARK_badquote") return { id: "stub", choices: [{ message: { content: "not JSON" } }] };
   return { id: "stub", choices: [{ message: { content: JSON.stringify({ t: segments.map(s => `中文译文${"词".repeat(Math.max(1, Math.ceil(s.length * .3)))}。`) }) } }] };
@@ -44,14 +47,14 @@ async function article(marker: string, discovered: Date, size = 100, quote?: str
 async function reset() {
   if (quoteIds.length) await sql`DELETE FROM quote_translations WHERE tweet_id = ANY(${quoteIds}::text[])`;
   await sql`DELETE FROM articles WHERE source_id=${SOURCE}`;
-  seen.length = 0;active = 0;peak = 0;holding = false;release = gate<void>();starts = gate<void>();
+  seen.length = 0;active = 0;peak = 0;holding = false;release = gate<void>();quoteRelease = gate<void>();shortStarted = gate<void>();starts = gate<void>();
 }
 before(async () => {
   await sql`INSERT INTO sources(id,name,kind,tier,participation_mode,site_fulltext,next_fetch_at)
    VALUES(${SOURCE},'Translation fairness','rss','T1','editorial',true,'2100-01-01')`;
 });
 after(async () => {
-  release.open();
+  release.open();quoteRelease.open();
   if (quoteIds.length) await sql`DELETE FROM quote_translations WHERE tweet_id = ANY(${quoteIds}::text[])`;
   await purgeTagged(T);await provider.close();await stopBoss();await closeDb();
 });
@@ -87,10 +90,13 @@ test("quote begins alongside busy bodies within the same three lanes, old/short 
     assert.ok(seen.slice(0, 3).includes("MARK_quoteparallel"));
     assert.ok(seen.slice(0, 3).includes("MARK_old"));
     assert.ok(seen.slice(0, 3).includes("MARK_fresh"));
-  } finally { holding = false;release.open(); }
+    // Release ONLY the quote. Both long bodies remain blocked; its reused lane must start short.
+    quoteRelease.open();
+    await within(Promise.race([shortStarted.promise, running.then(() => assert.fail("short never started"))]), 20_000, "short body in reused quote lane");
+    assert.equal(active, 3, "old and fresh still held while short starts");
+    assert.equal(seen[3], "MARK_short");
+  } finally { holding = false;release.open();quoteRelease.open(); }
   await running;
-  const bodyStarts = seen.filter(s => s !== "MARK_quoteparallel");
-  assert.deepEqual(bodyStarts.slice(0, 3), ["MARK_old", "MARK_fresh", "MARK_short"]);
   assert.ok(peak <= 3);
 });
 
