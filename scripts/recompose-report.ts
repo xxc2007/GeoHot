@@ -8,7 +8,7 @@
 //
 //   node --env-file=.env --env-file=.env.pipeline scripts/recompose-report.ts --kind daily --key 2026-10-02
 //   node --env-file=.env --env-file=.env.pipeline scripts/recompose-report.ts --kind daily --key 2026-10-02 --apply
-//   批量按天重排时加 --skip-unchanged：语料与已出刊那版逐条对得上就直接退出，不花导语那次调用（#276）
+//   批量按天重排时加 --skip-unchanged：组稿输入及去重依赖指纹完全相同就退出，不花导语调用。
 //
 // Local dev needs both env files (the model endpoint — the brain stub on 3055 — lives in `.env.pipeline`;
 // without it the call fails with "Model default is not configured"). Production has a single `.env` with the
@@ -16,8 +16,7 @@
 import { parseArgs } from "node:util";
 import { hasChineseCopy } from "@aihot/contracts/copy";
 import { closeDb, sql } from "@aihot/backend/db";
-import { candidates, composeDaily, composeMonthly, composeWeekly, dailyWindow, editionsAhead, monthlyWindow } from "@aihot/backend/reports/compose";
-import { beijingMidnight, isoWeekRange } from "@aihot/contracts/time";
+import { composeDaily, composeMonthly, composeWeekly, editionsAhead, reportInput, reportInputUnchanged } from "@aihot/backend/reports/compose";
 
 const { values } = parseArgs({
   options: {
@@ -25,6 +24,7 @@ const { values } = parseArgs({
     key: { type: "string" },
     apply: { type: "boolean", default: false },
     skipUnchanged: { type: "boolean", default: false },
+    "skip-unchanged": { type: "boolean", default: false },
   },
 });
 const kind = values.kind ?? "";
@@ -47,53 +47,29 @@ console.log(`${kind} ${key}：第 ${row.revision} 版（${row.generated_at.toISO
 const english = [...items, ...flashes].filter((i: any) => !hasChineseCopy(String(i.title ?? "")));
 console.log(`其中标题不含中文的：${english.length} 条${english.length ? `（如「${String(english[0].title).slice(0, 50)}」）` : ""}`);
 
-// What the current material would yield — a preview that does not write anything.
-// 窗口必须由 beijingMidnight 换算：`isoWeekRange` 给的是日期字符串，`new Date("2026-01-04")` 读成 UTC 零点，
-// 比真窗口早 8 小时——以前这里数出来的候选条数说的不是这一期实际看到的区间。月报现在也预览（monthlyWindow 同源）。
-const range = kind === "daily"
-  ? dailyWindow(key)
-  : kind === "weekly"
-    ? (() => { const r = isoWeekRange(key); return r ? { start: beijingMidnight(r.start), end: beijingMidnight(r.end) } : null; })()
-    : kind === "monthly"
-      ? (() => { const w = monthlyWindow(key); return { start: beijingMidnight(w.start), end: beijingMidnight(w.end) }; })()
-      : null;
-if (range) {
-  const list = await candidates(new Date(range.start), new Date(range.end));
-  console.log(`按当前语料重排会取到 ${list.length} 条候选（标题全部含中文：${list.every((c) => hasChineseCopy(c.title))}）`);
-} else {
-  // 走到这里只剩一种可能：周号本身不合法（`isoWeekRange` 拒 W00/W54/2025-W53 这类）。窗口算不出来，
-  // 所以预览没有——重排仍会跑，只是它取哪段区间这里说不清。
-  console.log(`（${kind} ${key}：这一期的窗口算不出来，只报告上面那一版）`);
-}
+// Use the exact composition windows (including the final day of weekly/monthly editions).
+const input = await reportInput(kind as "daily" | "weekly" | "monthly", key);
+console.log(`按当前语料重排会取到 ${input.all.length} 条候选（标题全部含中文：${input.all.every((c) => hasChineseCopy(c.title))}）`);
 
 if (kind === "daily") {
   const ahead = await editionsAhead("daily", key);
   if (ahead.length) console.log(`注意：${key} 之后已出刊 ${ahead.length} 期（${ahead.join(" ")}）。日报的去重只看更早的期次，重排这一期可能把那些期已经发过的事再印一遍；要版面一致，那几期也各跑一次本脚本。`);
 }
 
-// 第 114 轮实测（#276）：04:30 那轮按天重排了 4 期，逐期与归档那份比，条目数与导读长度一字未差——
-// 也就是白付了 4 次导语的模型调用。重排是花钱动作，所以"语料没变"必须在这里就拒，而不是付完钱再发现白写一遍。
-// 判据取**条目 id 集合相等**：组稿的排序是确定性的，进出的集合相同 ⇒ 版面相同。
-// 已知让步：精选导读与 highlights 是模型选的，同一份输入理论上可能选出不一样的组合；
-// 今夜 4 期的实测是组合没变（条数与导读长度都对得上）。真要让版面重出，别加这个旗标即可。
-const printedIds = new Set<string>([...items, ...flashes].map((i: any) => String(i.itemId ?? "")).filter(Boolean));
-if (range && values.skipUnchanged) {
-  const nowIds = new Set<string>((await candidates(new Date(range.start), new Date(range.end))).map((c) => c.itemId));
-  const sameSize = nowIds.size === printedIds.size;
-  const missing = [...printedIds].filter((id) => !nowIds.has(id));
-  const added = [...nowIds].filter((id) => !printedIds.has(id));
-  if (sameSize && !missing.length && !added.length) {
-    console.log(`语料没变（${nowIds.size} 条候选与已出刊那版逐条对得上）——按 --skip-unchanged 跳过，不花这次模型调用`);
+// The same fingerprint as actual composition; old editions without it rebuild once.
+const skipUnchanged = values.skipUnchanged || values["skip-unchanged"];
+if (skipUnchanged) {
+  if (await reportInputUnchanged(kind as "daily" | "weekly" | "monthly", key, input.fingerprint)) {
+    console.log("组稿输入及依赖完全相同——跳过，不花这次模型调用");
     await closeDb();
     process.exit(0);
   }
-  console.log(`语料变了：已出刊 ${printedIds.size} 条 ∶ 当前候选 ${nowIds.size} 条（新增 ${added.length} 条、掉了 ${missing.length} 条）⇒ 继续重排`);
 }
 
 if (!values.apply) {
   console.log("（dry run：没有改库。要重排请加 --apply；旧版会写进 report_revisions，但仓库里没有回退通道——回退要手写 SQL 把那一行的 content 写回 reports）");
 } else {
-  const res = kind === "daily" ? await composeDaily(key, "copy-refresh") : kind === "weekly" ? await composeWeekly(key, "copy-refresh") : await composeMonthly(key, "copy-refresh");
+  const res = kind === "daily" ? await composeDaily(key, "copy-refresh", skipUnchanged) : kind === "weekly" ? await composeWeekly(key, "copy-refresh", skipUnchanged) : await composeMonthly(key, "copy-refresh", skipUnchanged);
   console.log(`已重排：${JSON.stringify(res)}`);
 }
 await closeDb();

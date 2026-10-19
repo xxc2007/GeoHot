@@ -25,6 +25,7 @@ import { chatJson, ModelOutputError } from "../providers/llm.ts";
 import { completeReceipt } from "../providers/receipts.ts";
 import { shutdownSignal } from "../jobs/queue.ts";
 import { chineseCopyCondition } from "../publication/items.ts";
+import { sha256, stableJson } from "../lib/ids.ts";
 
 export const REPORT_VERSION = promptVersion("report-daily-lead", "report-period");
 
@@ -41,6 +42,9 @@ const DEFAULT_SECTION = "未归类";
 const REPORT_SECTIONS = [...SECTION_ORDER, DEFAULT_SECTION];
 /** How many of the day's entries the lead writer is shown. Longer editions are introduced by their real size. */
 const LEAD_BRIEF_LIMIT = 30;
+const SECTION_LIMIT = 8;
+const FLASH_LIMIT = 12;
+const PERIOD_LIMIT = { weekly: 40, monthly: 60 };
 
 export interface ReportEntry {
   itemId: string;
@@ -60,6 +64,7 @@ export interface ReportEntry {
 export interface Candidate extends ReportEntry {
   category: string | null;
   factKey: string;
+  inputRevision: number;
 }
 
 function roleOf(kind: string, firstParty: boolean): string {
@@ -76,10 +81,10 @@ export async function candidates(start: Date, end: Date): Promise<Candidate[]> {
     await tx`SELECT pg_advisory_xact_lock(hashtext('report_candidates'))`;
     return tx<{
       id: string; title: string; summary: string | null; url: string; category: string | null; score: number | null; first_party: boolean;
-      source_id: string; source_name: string; source_kind: string; fact_public_id: string | null; story_public_id: string | null; at: Date; backfill: boolean;
+      source_id: string; source_name: string; source_kind: string; fact_public_id: string | null; story_public_id: string | null; at: Date; backfill: boolean; input_revision: number;
     }[]>`
       SELECT p.article_id AS id, p.title, p.summary, p.url, p.category, p.score, p.first_party, s.id AS source_id, s.name AS source_name,
-             s.kind AS source_kind, f.public_id AS fact_public_id, st.public_id::text AS story_public_id, p.timeline_at AS at, p.backfill
+             s.kind AS source_kind, f.public_id AS fact_public_id, st.public_id::text AS story_public_id, p.timeline_at AS at, p.backfill, ar.revision AS input_revision
       FROM publications p JOIN sources s ON s.id = p.source_id
       -- The archive's own provenance lives on the article; publications.backfill only says "history", not
       -- which kind of history.
@@ -112,10 +117,12 @@ export async function candidates(start: Date, end: Date): Promise<Candidate[]> {
     const c: Candidate = {
       itemId: r.id, factId: r.fact_public_id, storyPublicId: r.story_public_id, title: r.title, summary: r.summary ?? "",
       sourceName: r.source_name, sourceUrl: r.url, sourceId: r.source_id, firstParty: r.first_party, role: roleOf(r.source_kind, r.first_party),
-      score: r.score === null ? null : Number(r.score), publishedAt: r.at.toISOString(), category: r.category, factKey: key,
+      score: r.score === null ? null : Number(r.score), publishedAt: r.at.toISOString(), category: r.category, factKey: key, inputRevision: r.input_revision,
     };
     const prev = byFact.get(key);
-    if (!prev || Number(c.firstParty) - Number(prev.firstParty) > 0 || (c.firstParty === prev.firstParty && (c.score ?? 0) > (prev.score ?? 0))) byFact.set(key, c);
+    if (!prev || Number(c.firstParty) - Number(prev.firstParty) > 0
+      || (c.firstParty === prev.firstParty && ((c.score ?? 0) > (prev.score ?? 0)
+        || ((c.score ?? 0) === (prev.score ?? 0) && c.itemId.localeCompare(prev.itemId) < 0)))) byFact.set(key, c);
   }
   // Score, then the item's own moment, then its id. Sorting by score alone leaves ties in whatever order
   // the row scan happened to return (this SELECT has no ORDER BY), and these entries are handed to the
@@ -309,27 +316,61 @@ export function dailyWindow(date: string): { start: Date; end: Date } {
   return { start: new Date(end.getTime() - 86400000), end };
 }
 
-export async function composeDaily(date: string, reason = "scheduled"): Promise<{ key: string; entries: number }> {
-  const { start, end } = dailyWindow(date);
-  const covered = await recentlyCovered("daily", date);
+/** Hash the same loaded inputs used for composition, including dependencies outside this issue.
+ * Missing legacy fingerprints deliberately require one rebuild. Never infer freshness from item IDs.
+ */
+export async function reportInput(kind: "daily" | "weekly" | "monthly", key: string) {
+  const range = kind === "daily" ? null : kind === "weekly" ? isoWeekRange(key) : monthlyWindow(key);
+  if (kind === "weekly" && !range) throw new Error(`bad week label ${key}`);
+  const startDate = range?.start ?? key;
+  const endDate = range?.end ?? key;
+  const { start, end } = kind === "daily" ? dailyWindow(key)
+    : { start: beijingMidnight(startDate), end: beijingMidnight(addDays(endDate, 1)) };
+  const covered = kind === "daily" ? await recentlyCovered("daily", key) : new Set<string>();
   const all = await candidates(start, end);
+  const dailyCount = kind === "daily" ? 0 : Number((await sql<{ n: number }[]>`
+    SELECT count(*) AS n FROM reports WHERE kind='daily' AND key >= ${startDate} AND key <= ${endDate}`)[0]?.n ?? 0);
+  const model = await modelFor("report", kind === "daily" ? key : `${kind}:${key}`);
+  const fingerprint = sha256(stableJson({ contract: "report-input-v1", kind, key, start, end,
+    version: REPORT_VERSION, model, siteName: SITE.name, categories: CATEGORIES, all,
+    layout: { sections: REPORT_SECTIONS, sectionLimit: SECTION_LIMIT, flashLimit: FLASH_LIMIT,
+      leadBriefLimit: LEAD_BRIEF_LIMIT, periodLimit: kind === "daily" ? null : PERIOD_LIMIT[kind] },
+    covered: [...covered].sort(), dailyCount }));
+  return { start, end, startDate, endDate, covered, all, dailyCount, model, fingerprint };
+}
+
+export async function reportInputUnchanged(kind: "daily" | "weekly" | "monthly", key: string, fingerprint: string): Promise<boolean> {
+  return (await unchangedEntries(kind, key, fingerprint)) !== null;
+}
+
+async function unchangedEntries(kind: "daily" | "weekly" | "monthly", key: string, fingerprint: string): Promise<number | null> {
+  const [row] = await sql<{ content: Record<string, any> }[]>`SELECT content
+    FROM reports WHERE kind=${kind} AND key=${key}`;
+  if (row?.content.generator?.inputFingerprint !== fingerprint) return null;
+  return kind === "daily" ? (row.content.sections ?? []).reduce((n: number, s: any) => n + (s.items ?? []).length, 0)
+    : (row.content.storyOrder ?? []).length;
+}
+
+export async function composeDaily(date: string, reason = "scheduled", skipUnchanged = false): Promise<{ key: string; entries: number; unchanged?: boolean }> {
+  const { start, end, covered, all, model, fingerprint } = await reportInput("daily", date);
+  const unchanged = skipUnchanged ? await unchangedEntries("daily", date, fingerprint) : null;
+  if (unchanged !== null) return { key: date, entries: unchanged, unchanged: true };
   const fresh = all.filter((c) => !covered.has(c.factKey) && !covered.has(`a:${c.itemId}`));
   const perSection = new Map<string, Candidate[]>();
   const flashes: Array<{ itemId: string; factId: string | null; title: string; sourceName: string; sourceUrl: string; publishedAt: string }> = [];
   for (const c of fresh) {
     const label = SECTION_OF[c.category ?? ""] ?? DEFAULT_SECTION;
     const list = perSection.get(label) ?? [];
-    if (list.length < 8) list.push(c);
+    if (list.length < SECTION_LIMIT) list.push(c);
     // factId 跟着进存版：下一期靠它按事件判重，而不是只按昨天那一篇的 itemId。
-    else if (flashes.length < 12) flashes.push({ itemId: c.itemId, factId: c.factId, title: c.title, sourceName: c.sourceName, sourceUrl: c.sourceUrl, publishedAt: c.publishedAt });
+    else if (flashes.length < FLASH_LIMIT) flashes.push({ itemId: c.itemId, factId: c.factId, title: c.title, sourceName: c.sourceName, sourceUrl: c.sourceUrl, publishedAt: c.publishedAt });
     perSection.set(label, list);
   }
   const sections = REPORT_SECTIONS.filter((l) => perSection.get(l)?.length).map((label) => ({
     label,
-    items: perSection.get(label)!.map(({ category: _c, factKey: _f, ...entry }) => entry),
+    items: perSection.get(label)!.map(({ category: _c, factKey: _f, inputRevision: _r, ...entry }) => entry),
   }));
   const ordered = sections.flatMap((s) => s.items).sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
-  const model = await modelFor("report", date);
   const lead = ordered.length ? await writeLead("daily", date, ordered, model) : null;
   const content = {
     date,
@@ -347,7 +388,7 @@ export async function composeDaily(date: string, reason = "scheduled"): Promise<
     },
     windowStart: start.toISOString(),
     windowEnd: end.toISOString(),
-    generator: { version: REPORT_VERSION, model, leadRule: lead?.refused ?? null, repeatsSuppressed: all.length - fresh.length },
+    generator: { version: REPORT_VERSION, model, inputFingerprint: fingerprint, leadRule: lead?.refused ?? null, repeatsSuppressed: all.length - fresh.length },
   };
   await saveReport("daily", date, start, end, content, reason, model);
   if (lead?.receiptId) await completeReceipt(sql, lead.receiptId);
@@ -377,7 +418,7 @@ function sectionsOf(entries: Candidate[]): Array<{ heading: string; summary: str
   const bySection = new Map<string, ReportEntry[]>();
   for (const e of entries) {
     const label = SECTION_OF[e.category ?? ""] ?? DEFAULT_SECTION;
-    bySection.set(label, [...(bySection.get(label) ?? []), (({ category: _c, factKey: _f, ...entry }) => entry)(e)]);
+    bySection.set(label, [...(bySection.get(label) ?? []), (({ category: _c, factKey: _f, inputRevision: _r, ...entry }) => entry)(e)]);
   }
   return [...bySection.entries()].map(([heading, storyRefs]) => ({ heading, summary: null, storyRefs }));
 }
@@ -391,18 +432,16 @@ export function periodPrompt(kind: "weekly" | "monthly", startDate: string, endD
   };
 }
 
-async function composePeriod(kind: "weekly" | "monthly", key: string, startDate: string, endDateInclusive: string, reason: string) {
-  const start = beijingMidnight(startDate);
-  const end = beijingMidnight(addDays(endDateInclusive, 1));
-  const all = await candidates(start, end);
-  const top = all.slice(0, kind === "weekly" ? 40 : 60);
-  const dailyCount = (await sql<{ n: number }[]>`SELECT count(*) AS n FROM reports WHERE kind = 'daily' AND key >= ${startDate} AND key <= ${endDateInclusive}`)[0]?.n ?? 0;
+async function composePeriod(kind: "weekly" | "monthly", key: string, startDate: string, endDateInclusive: string, reason: string, skipUnchanged = false) {
+  const { start, end, all, dailyCount, model, fingerprint } = await reportInput(kind, key);
+  const unchanged = skipUnchanged ? await unchangedEntries(kind, key, fingerprint) : null;
+  if (unchanged !== null) return { key, entries: unchanged, unchanged: true };
+  const top = all.slice(0, PERIOD_LIMIT[kind]);
   let themes: Array<{ heading: string; summary: string | null; storyRefs: ReportEntry[] }> = [];
   let headline = "";
   let overview = "";
   let receiptId: number | null = null;
   let proseRule: string | null = null;
-  const model = await modelFor("report", `${kind}:${key}`);
   if (top.length) {
     const res = await chatJson({
       model, purpose: `report_${kind}`, subject: `report:${kind}:${key}`, promptVersion: REPORT_VERSION,
@@ -426,7 +465,7 @@ async function composePeriod(kind: "weekly" | "monthly", key: string, startDate:
         themes = res.data.themes.map((t) => ({
           heading: t.heading,
           summary: t.summary,
-          storyRefs: t.refs.map((r) => top[Number(r) - 1]).filter((e): e is Candidate => !!e).map(({ category: _c, factKey: _f, ...e }) => e),
+          storyRefs: t.refs.map((r) => top[Number(r) - 1]).filter((e): e is Candidate => !!e).map(({ category: _c, factKey: _f, inputRevision: _r, ...e }) => e),
         }));
         // The 大标题 names what the issue is about, which is the judgement the identity guard exists for: it
         // may only say what this issue's own entries say, or the issue keeps its generic name.
@@ -450,17 +489,17 @@ async function composePeriod(kind: "weekly" | "monthly", key: string, startDate:
     themes,
     storyOrder: top.map((e) => e.itemId),
     metrics: { totalStories: themes.reduce((n, t) => n + t.storyRefs.length, 0), selectedCount: all.length, reportsCovered: Number(dailyCount) },
-    generator: { version: REPORT_VERSION, model, proseRule },
+    generator: { version: REPORT_VERSION, model, inputFingerprint: fingerprint, proseRule },
   };
   await saveReport(kind, key, start, end, content, reason, model);
   if (receiptId) await completeReceipt(sql, receiptId);
   return { key, entries: top.length };
 }
 
-export async function composeWeekly(label: string, reason = "scheduled") {
+export async function composeWeekly(label: string, reason = "scheduled", skipUnchanged = false) {
   const range = isoWeekRange(label);
   if (!range) throw new Error(`bad week label ${label}`);
-  return composePeriod("weekly", label, range.start, range.end, reason);
+  return composePeriod("weekly", label, range.start, range.end, reason, skipUnchanged);
 }
 
 /**
@@ -478,9 +517,9 @@ export function monthlyWindow(key: string): { start: string; end: string; closes
   return { start: `${key}-01`, end: addDays(next, -1), closes: beijingMidnight(next) };
 }
 
-export async function composeMonthly(label: string, reason = "scheduled") {
+export async function composeMonthly(label: string, reason = "scheduled", skipUnchanged = false) {
   const w = monthlyWindow(label);
-  return composePeriod("monthly", label, w.start, w.end, reason);
+  return composePeriod("monthly", label, w.start, w.end, reason, skipUnchanged);
 }
 
 /**

@@ -29,7 +29,7 @@ import { parseArgs } from "node:util";
 import { writeFile } from "node:fs/promises";
 import { closeDb, sql } from "@aihot/backend/db";
 import { addDays, beijingDate, beijingMidnight, isoWeekLabel, isoWeekRange, isValidDate } from "@aihot/contracts/time";
-import { candidates, composeDaily, composeMonthly, composeWeekly, dailyWindow, editionsAhead, monthlyWindow } from "@aihot/backend/reports/compose";
+import { candidates, composeDaily, composeMonthly, composeWeekly, dailyWindow, editionsAhead, monthlyWindow, reportInput, reportInputUnchanged } from "@aihot/backend/reports/compose";
 import { loadReport } from "@aihot/backend/publication/reports";
 
 const { values } = parseArgs({
@@ -172,22 +172,15 @@ async function consider(kind: "daily" | "weekly" | "monthly", key: string, start
       : status === "empty-not-published" ? "已有空刊或不可读刊期，尚未出刊" : status });
   }
   if (waiting) return plan.push({ ...state, note: `等 ${waiting} 条判完` });
-  // 第 114 轮实测（#276）：`--refresh` 会照着把已出刊的期次再组一遍，哪怕语料一个字没多。04:30 那轮重排了 4 期，
-  // 逐期与 `report_revisions` 里归档的那份比，条目数与导读长度完全相同 ⇒ 白花 4 次导语调用（组稿才是花钱的地方）。
-  // 判据用**条目 id 集合相等**：候选集合相同 ⇒ 组稿输入相同（排序确定、去重只看更早的期次）⇒ 版面也相同。
-  // 逃生门是既有的 `--force`（它本来就表示"别问，重排"）：要修一份语料没变但版面写坏了的刊（01-11 连着三次没写出导读就是这种），
-  // 显式 `--force --refresh`，而不是把这条判据放宽。同一把尺在 scripts/recompose-report.ts 的 --skip-unchanged 里也有一份。
+  // Freshness includes current copy and prior-edition dedupe, not just citation IDs.
   if (exists && values.refresh && !values.force) {
-    const printed = new Set<string>(
-      [...existing.sections.flatMap((s) => s.items), ...existing.flashes].map((i) => String(i.itemId ?? "")).filter(Boolean),
-    );
-    const now = new Set<string>(list.map((c) => c.itemId));
-    if (printed.size > 0 && printed.size === now.size && [...printed].every((id) => now.has(id))) {
-      return plan.push({ ...state, note: `语料与已出刊那版逐条相同（${now.size} 条），不重排；强行重排用 --force --refresh` });
+    const input = await reportInput(kind, key);
+    if (await reportInputUnchanged(kind, key, input.fingerprint)) {
+      return plan.push({ ...state, note: "组稿输入及依赖完全相同，不重排；强行重排用 --force --refresh" });
     }
   }
   if (exists && !values.refresh) return plan.push({ ...state, note: existing.readable ? "已有可读刊期（未重排）" : "已有不可读刊期（需 --refresh 复核）" });
-  if (!items) return plan.push({ ...state, note: exists ? "无条目可重排" : "已判完但没有可刊条目" });
+  if (!items && !exists) return plan.push({ ...state, note: exists ? "无条目可重排" : "已判完但没有可刊条目" });
   const note = values.apply ? exists ? "已重排" : "已出刊" : exists ? "会重排" : "会出刊";
   if (kind === "daily" && !values.refresh) {
     const ahead = await editionsAhead("daily", key);
@@ -226,7 +219,7 @@ for (let t = Number(beijingMidnight(from)); t <= Number(beijingMidnight(to)) && 
   if (stoppedForBudget) break;
   const date = beijingDate(new Date(t));
   const { start, end } = dailyWindow(date);
-  await consider("daily", date, start, end, () => composeDaily(date, "archive-backfill"));
+  await consider("daily", date, start, end, () => composeDaily(date, "archive-backfill", values.refresh && !values.force));
 }
 
 const seenWeeks = new Set<string>();
@@ -244,7 +237,7 @@ for (let t = Number(beijingMidnight(from)); t <= Number(beijingMidnight(to)); t 
   const start = beijingMidnight(range.start);
   const end = beijingMidnight(addDays(range.end, 1));
   if (Number(end) > now.getTime()) { partial.push(`weekly ${week} 窗口还没关`); continue; }
-  await consider("weekly", week, start, end, () => composeWeekly(week, "archive-backfill"));
+  await consider("weekly", week, start, end, () => composeWeekly(week, "archive-backfill", values.refresh && !values.force));
   t = Number(beijingMidnight(range.end));
 }
 
@@ -260,7 +253,7 @@ for (let t = Number(beijingMidnight(from)); t <= Number(beijingMidnight(to)); t 
   const w = monthlyWindow(ym);
   if (w.start < from || w.end > to) { partial.push(`monthly ${ym}（${w.start}→${w.end} 不在区间内）`); continue; }
   if (w.closes.getTime() > now.getTime()) { partial.push(`monthly ${ym} 窗口还没关`); continue; }
-  await consider("monthly", ym, beijingMidnight(w.start), w.closes, () => composeMonthly(ym, "archive-backfill"));
+  await consider("monthly", ym, beijingMidnight(w.start), w.closes, () => composeMonthly(ym, "archive-backfill", values.refresh && !values.force));
 }
 
 const byNote = new Map<string, number>();
