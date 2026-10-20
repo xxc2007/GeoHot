@@ -5,7 +5,8 @@
 // (no title, no url, no address to normalise, a repeat inside the same call) is named back to the
 // reporter, and last_ok_at moves only on a call that actually took something.
 import { sql } from "../db.ts";
-import { upsertMaterial } from "../content/materials.ts";
+import { upsertMaterial,identityKeyFor } from "../content/materials.ts";
+import {strongMaterialKeys,lockMaterialKeys} from '../content/material-identity.ts';
 import { queueProcessing } from "../jobs/content.ts";
 import { normalizeUrl } from "../lib/url.ts";
 import { parsePublishedAt } from "../sources/dates.ts";
@@ -24,6 +25,7 @@ export class IngestError extends Error {
 interface ItemIn {
   title?: unknown;
   url?: unknown;
+  doi?: unknown;
   publishedAt?: unknown;
   author?: unknown;
   raw?: { _aihot?: { backfill?: boolean; baseline?: boolean } } & Record<string, unknown>;
@@ -74,10 +76,16 @@ export async function ingestItems(body: unknown): Promise<IngestAnswer> {
   const skipped: IngestAnswer["skipped"] = [];
   let created = 0;
   let revised = 0;
+  let quarantined = 0;
   // Shared URL identities can be delivered by different sources concurrently. Consistent identity
   // order prevents a multi-item transaction locking A/B while another locks B/A.
   const ordered = items.map((it,index) => ({ it,index,key: typeof it.url === "string" ? normalizeUrl(it.url.trim()) ?? "" : "" }))
     .sort((a,b) => a.key.localeCompare(b.key) || a.index-b.index);
+  // A batch shares a transaction: acquire the complete strong-key set before its first item.
+  await lockMaterialKeys(tx,ordered.flatMap(({it,key})=>{
+    const m={sourceId:source.id,url:key,title:typeof it.title==='string'?it.title:'',doi:typeof it.doi==='string'?it.doi:undefined,via:'ingest' as const};
+    return strongMaterialKeys(m,identityKeyFor(m));
+  }));
   for (const {index,it} of ordered) {
     const title = typeof it.title === "string" ? it.title.trim() : "";
     const rawUrl = typeof it.url === "string" ? it.url.trim() : "";
@@ -100,6 +108,8 @@ export async function ingestItems(body: unknown): Promise<IngestAnswer> {
       sourceId: source.id,
       url,
       title,
+      doi:typeof it.doi==='string'?it.doi:undefined,
+      observation:it,
       author: typeof it.author === "string" ? it.author.slice(0, 200) : null,
       // A number is a legal publishedAt (a collector's epoch), and an offset is what a zone-less
       // "2026-09-26 10:00" is read in: without one the item joined the wrong newspaper day.
@@ -111,6 +121,7 @@ export async function ingestItems(body: unknown): Promise<IngestAnswer> {
       via: "ingest",
       backfill: it.raw?._aihot?.backfill ? "reported-backfill" : it.raw?._aihot?.baseline ? "reported-baseline" : null,
     }, tx);
+    if(res.quarantined){quarantined++;skipped.push({index,reason:`material identity conflict ${res.conflictId}; evidence retained`});continue;}
     if (res.created) created += 1;
     if (res.revised) revised += 1;
     if (res.created || res.revised) await queueProcessing(res.articleId, { db: tx });
@@ -120,11 +131,11 @@ export async function ingestItems(body: unknown): Promise<IngestAnswer> {
   // An item that reached the store unchanged (the same content pushed again) still counts as taken, so a
   // reporter retrying a batch is not told its push failed.
   const accepted = items.length - skipped.length;
-  if (accepted === 0) throw new IngestError(422, `no item could be stored: ${skipped.map((s) => `${s.index}: ${s.reason}`).join("; ").slice(0, 400)}`);
-  await tx`UPDATE sources SET last_fetch_at = now(), last_ok_at = now() WHERE id = ${source.id}`;
+  if (accepted === 0 && !quarantined) throw new IngestError(422, `no item could be stored: ${skipped.map((s) => `${s.index}: ${s.reason}`).join("; ").slice(0, 400)}`);
+  if(accepted>0)await tx`UPDATE sources SET last_fetch_at = now(), last_ok_at = now() WHERE id = ${source.id}`;
   await tx`
     INSERT INTO ingest_events (client, kind, status, summary)
     VALUES ('ingest-items', 'items', 'ok', ${tx.json({ sourceId: source.id, received: items.length, created, revised, skipped: skipped.length } as never)})`;
-  return { ok: true, created, revised, skipped: skipped.sort((a,b) => a.index-b.index) };
+  return { ok: true, created, revised, skipped: skipped.sort((a,b) => a.index-b.index),...(quarantined?{quarantined}:{}) };
   });
 }

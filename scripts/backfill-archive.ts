@@ -34,7 +34,6 @@
 import { parseArgs } from "node:util";
 import { pathToFileURL } from "node:url";
 import { closeDb, sql } from "@aihot/backend/db";
-import { identityKeyForUrl } from "@aihot/backend/lib/url";
 import { archiveDoorFilter } from "@aihot/backend/sources/archive-site";
 import { upsertMaterial } from "@aihot/backend/content/materials";
 import { queueProcessing } from "@aihot/backend/jobs/content";
@@ -382,16 +381,8 @@ async function runSiteSlice(source: SourceRow, month: string): Promise<void> {
     for (const [n, c] of items.entries()) {
       if (localNew >= PER_MONTH || stored >= MAX_ITEMS) { if (n < items.length) cut = true; break; }
       localSeen++;
-      const urlKey = identityKeyForUrl(c.url);
-      if (urlKey) {
-        // 只认本来源自己的那一行：同一个 URL 也可能先被别的来源收进来（Crossref 门与站点门就错开 `doi:` 与
-        // URL 两种身份），给别人的行盖章等于拿这本刊的刊期去改另一条来源的日期。Crossref 门那处**不能**这样收窄：
-        // 它查的是"这个 URL 是否已经以另一种身份在库里"，收窄了就会把同一篇存两遍。
-        const [twin] = await sql<{ id: string }[]>`SELECT id FROM articles WHERE identity_key = ${urlKey} AND source_id = ${source.id}`;
-        if (twin) { duplicate++; localDup++; localFixed += await stampIssueDate(twin.id, c.publishedAt); continue; }
-      }
       if (values.apply) {
-        const { articleId, created } = await upsertMaterial({
+        const { articleId, created, quarantined } = await upsertMaterial({
           sourceId: source.id,
           url: c.url,
           title: c.title,
@@ -400,8 +391,12 @@ async function runSiteSlice(source: SourceRow, month: string): Promise<void> {
           bodyStatus: "pending",
           via: "import",
           backfill: "archive",
+          observationOnlyExisting:true,
+          observation:c,
           raw: { _geohot: { site: { issue: issue.url } } },
         });
+        if(quarantined){failed=true;cut=true;break;}
+        if(!created){duplicate++;localDup++;const [owner]=await sql`SELECT source_id FROM articles WHERE id=${articleId}`;if(owner?.source_id===source.id)localFixed+=await stampIssueDate(articleId,c.publishedAt);}
         if (created) {
           stored++;
           localNew++;
@@ -494,21 +489,14 @@ for (const month of selectedMonths) {
         // 只有标题加落地页的行，判分交给模型与编辑闸门。下限放到 0 时这里只保留"标题与日期必须真"那条守卫。
         if (body.length < MIN_ABSTRACT) { thin++; localThin++; continue; }
         judged++;
-        // A paper this journal already sent through its own feed has a URL identity, not a `doi:` one, so
-        // upsertMaterial would not see it as the same article. Check the URL form first and skip: the live
-        // record is the one with the full text.
-        const urlKey = identityKeyForUrl(w.URL || `https://doi.org/${w.DOI}`);
-        if (urlKey) {
-          const [twin] = await sql<{ id: string }[]>`SELECT id FROM articles WHERE identity_key = ${urlKey}`;
-          if (twin) { duplicate++; localDup++; continue; }
-        }
         if (values.apply) {
           const first = w.author?.[0];
-          const { articleId, created } = await upsertMaterial({
+          const { articleId, created, quarantined } = await upsertMaterial({
             sourceId: source.id,
             url: w.URL || `https://doi.org/${w.DOI}`,
             title,
             identityKey: `doi:${w.DOI.toLowerCase()}`,
+            doi: w.DOI,
             author: first?.family ?? first?.name ?? null,
             language: looksZh(title) ? "zh" : "en",
             publishedAt: at,
@@ -516,8 +504,12 @@ for (const month of selectedMonths) {
             bodyStatus: "ok",
             via: "import",
             backfill: "archive",
+            observationOnlyExisting:true,
+            observation:w,
             raw: { _geohot: { crossref: { doi: w.DOI, container: w["container-title"]?.[0] ?? null } } },
           });
+          if(quarantined){stoppedOnError=true;wholePage=false;break;}
+          if(!created){duplicate++;localDup++;}
           if (created) {
             stored++;
             localNew++;

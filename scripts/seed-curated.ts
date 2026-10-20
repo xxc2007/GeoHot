@@ -176,6 +176,7 @@ for (let i = 0; i < raw.length; i++) {
   plan.push({
     key, sourceId, url, title, authored: authoredOf(l), reported: l,
     input: {
+      observation:l,
       id: rowId, sourceId, url, title, via, language: originalTitle ? (l.language ?? "en") : l.language ?? null,
       author: typeof l.author === "string" && l.author.trim() ? l.author.trim().slice(0, 200) : null,
       publishedAt, discoveredAt, ...(archive ? { backfill: "archive" } : {}),
@@ -357,6 +358,7 @@ if (route === "inproc") {
       return upsertMaterial(p.input,tx);
     });
     if (!res) { blockedKeys.add(p.key);problems.push(`${p.sourceId}: source paused during import`);process.exitCode=1;continue; }
+    if(res.quarantined){quarantined++;blockedKeys.add(p.key);process.exitCode=1;continue;}
     const kind = res.created ? "created" : res.revised ? "revised" : "unchanged";
     if (res.created) created++; else if (res.revised) revised++; else unchanged++;
     note(p.sourceId, kind);

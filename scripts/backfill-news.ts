@@ -72,6 +72,7 @@ export function monthsIn(from: string, to: string): number {
 export function material(c: Candidate, sourceId: string, discoveredAt: Date): MaterialInput | null {
   if (!c.publishedAt || !Number.isFinite(c.publishedAt.getTime())) return null;
   return { sourceId, url: c.url, title: c.title, publishedAt: c.publishedAt, discoveredAt,
+    identityKey:c.identityKey,doi:c.doi,observation:c,
     via: "import", backfill: "archive", bodyStatus: "pending" };
 }
 export interface Dependencies {
@@ -197,6 +198,7 @@ export async function run(o: Options, rules: ArchiveRule[], sources: SourceRow[]
           seen.add(itemKey); stats.eligible++;
           if (o.apply) {
             const result = await d.store!(m);
+            if(result.quarantined){stats.errors++;interrupted=true;d.log?.({source:rule.sourceId,stop:'material-identity-conflict',conflictId:result.conflictId});break;}
             if (result.created) stats.created++;
             if (result.revised) stats.revised++;
             // Queue even duplicates: a previous crash between insert and enqueue is repaired on resume.

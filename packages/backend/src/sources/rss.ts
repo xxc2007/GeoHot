@@ -325,6 +325,7 @@ export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}
         media: media.slice(0, 6),
         categories: arr(it.category).map((c) => text(c)).filter(Boolean),
         raw: { guid: text(it.guid) || null },
+        observation:{kind:'rss-entry',entry:it},
       });
     }
     assertReadable(items, out);
@@ -361,6 +362,7 @@ export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}
         media: content ? imagesFrom(content, entryUrl) : mrssMedia(e, entryUrl),
         categories: arr(e.category).map((c: any) => c?.["@term"] ?? text(c)).filter(Boolean),
         raw: { id: text(e.id) || null },
+        observation:{kind:'atom-entry',entry:e},
       });
     }
     assertReadable(entries, out);

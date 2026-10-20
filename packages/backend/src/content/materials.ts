@@ -4,6 +4,7 @@ import { sql, type Db } from "../db.ts";
 import { newArticleId, sha256 } from "../lib/ids.ts";
 import { identityKeyForUrl } from "../lib/url.ts";
 import { collapseWhitespace } from "../lib/text.ts";
+import {strongMaterialKeys,resolveMaterialIdentity,claimMaterialAliases,observeMaterial} from './material-identity.ts';
 
 export interface MediaItem {
   kind: "image" | "video";
@@ -31,6 +32,12 @@ export interface MaterialInput {
   url: string;
   title: string;
   identityKey?: string;
+  /** Validated structured primary-document DOI; never a body/reference extraction. */
+  doi?: string;
+  /** Complete entrance rendering retained privately, never used as canonical copy. */
+  observation?: unknown;
+  /** Archive listing/synopsis enriches provenance without replacing an existing canonical copy. */
+  observationOnlyExisting?: boolean;
   author?: string | null;
   language?: string | null;
   publishedAt?: Date | null;
@@ -55,6 +62,8 @@ export interface MaterialResult {
   created: boolean;
   revised: boolean;
   backfill: boolean;
+  quarantined?: boolean;
+  conflictId?: number;
 }
 
 // Material first discovered more than this long after its source time is archived by source time,
@@ -134,7 +143,18 @@ export async function upsertMaterial(m: MaterialInput, db: Db = sql): Promise<Ma
 }
 
 async function upsertIn(db: Db, m: MaterialInput): Promise<MaterialResult> {
-  const identityKey = identityKeyFor(m);
+  // All entrances acquire their discovery source before material locks. Otherwise an HTTP batch
+  // holding source FOR UPDATE could wait on an alias held by an insert waiting for the source FK.
+  await db`SELECT id FROM sources WHERE id=${m.sourceId} FOR KEY SHARE`;
+  let identityKey = identityKeyFor(m);
+  const keys=strongMaterialKeys(m,identityKey);
+  const resolution=await resolveMaterialIdentity(db,m,keys);
+  if(resolution.conflictId!==null)return {articleId:'',created:false,revised:false,backfill:false,quarantined:true,conflictId:resolution.conflictId};
+  if(resolution.id) {
+    const [resolved]=await db`SELECT identity_key FROM articles WHERE id=${resolution.id} FOR UPDATE`;
+    if(!resolved)throw new Error('Resolved material disappeared');
+    identityKey=resolved.identity_key;
+  }
   const discoveredAt = m.discoveredAt ?? new Date();
   const title = collapseWhitespace(m.title).slice(0, 1000) || m.url;
 
@@ -152,6 +172,8 @@ async function upsertIn(db: Db, m: MaterialInput): Promise<MaterialResult> {
       ${m.xPost ? db.json(m.xPost as never) : null}, ${m.raw === undefined ? null : db.json(m.raw as never)})
     ON CONFLICT (identity_key) DO NOTHING RETURNING id`;
   if (inserted) {
+    await claimMaterialAliases(db,keys,newId);
+    await observeMaterial(db,m,newId,null);
     await db`INSERT INTO article_revisions (article_id, revision, content_hash, title, body_text)
              VALUES (${newId}, 1, ${hash}, ${title}, ${m.bodyText ?? null})`;
     await db`INSERT INTO article_discoveries (article_id, source_id, via, discovered_at)
@@ -161,9 +183,12 @@ async function upsertIn(db: Db, m: MaterialInput): Promise<MaterialResult> {
 
   const [existing] = await db<{ id: string; source_id: string; revision: number; content_hash: string | null; backfill: boolean; title: string; body_text: string | null; excerpt: string | null }[]>`
     SELECT id, source_id, revision, content_hash, backfill, title, body_text, excerpt FROM articles WHERE identity_key = ${identityKey} FOR UPDATE`;
+  await claimMaterialAliases(db,keys,existing!.id);
+  await observeMaterial(db,m,existing!.id,null);
   await db`INSERT INTO article_discoveries (article_id, source_id, via, discovered_at)
            VALUES (${existing!.id}, ${m.sourceId}, ${m.via}, ${discoveredAt}) ON CONFLICT DO NOTHING`;
   const unchanged: MaterialResult = { articleId: existing!.id, created: false, revised: false, backfill: existing!.backfill };
+  if(m.observationOnlyExisting)return unchanged;
   // Another source listing the same material (an aggregator, a translated mirror, a hot signal) is a
   // discovery only: its title and summary are its own rendering, and taking them made the article flip
   // between the two sources' versions on every fetch. Only the article's own source revises it.
