@@ -16155,7 +16155,7 @@
       },
       "tier": "T1",
       "first_party": true,
-      "owner_entity_id": null,
+      "owner_entity_id": "usgs",
       "participation_mode": "editorial",
       "interval_minutes": 60,
       "tags": [
@@ -16181,7 +16181,7 @@
       },
       "tier": "T1",
       "first_party": true,
-      "owner_entity_id": null,
+      "owner_entity_id": "usgs",
       "participation_mode": "editorial",
       "interval_minutes": 60,
       "tags": [
@@ -16207,7 +16207,7 @@
       },
       "tier": "T1",
       "first_party": true,
-      "owner_entity_id": null,
+      "owner_entity_id": "nasa",
       "participation_mode": "editorial",
       "interval_minutes": 240,
       "tags": [
@@ -16233,7 +16233,7 @@
       },
       "tier": "T1",
       "first_party": true,
-      "owner_entity_id": null,
+      "owner_entity_id": "nasa",
       "participation_mode": "editorial",
       "interval_minutes": 240,
       "tags": [
@@ -16259,7 +16259,7 @@
       },
       "tier": "T1",
       "first_party": true,
-      "owner_entity_id": null,
+      "owner_entity_id": "nasa",
       "participation_mode": "editorial",
       "interval_minutes": 240,
       "tags": [
@@ -16285,7 +16285,7 @@
       },
       "tier": "T1",
       "first_party": true,
-      "owner_entity_id": null,
+      "owner_entity_id": "nasa",
       "participation_mode": "editorial",
       "interval_minutes": 240,
       "tags": [
@@ -16311,7 +16311,7 @@
       },
       "tier": "T1",
       "first_party": true,
-      "owner_entity_id": null,
+      "owner_entity_id": "nasa",
       "participation_mode": "editorial",
       "interval_minutes": 240,
       "tags": [
@@ -16337,7 +16337,7 @@
       },
       "tier": "T1",
       "first_party": true,
-      "owner_entity_id": null,
+      "owner_entity_id": "nasa",
       "participation_mode": "editorial",
       "interval_minutes": 240,
       "tags": [
@@ -16363,7 +16363,7 @@
       },
       "tier": "T1",
       "first_party": true,
-      "owner_entity_id": null,
+      "owner_entity_id": "noaa",
       "participation_mode": "editorial",
       "interval_minutes": 240,
       "tags": [
@@ -16389,7 +16389,7 @@
       },
       "tier": "T1",
       "first_party": true,
-      "owner_entity_id": null,
+      "owner_entity_id": "noaa",
       "participation_mode": "editorial",
       "interval_minutes": 240,
       "tags": [
@@ -16415,7 +16415,7 @@
       },
       "tier": "T1",
       "first_party": true,
-      "owner_entity_id": null,
+      "owner_entity_id": "noaa",
       "participation_mode": "editorial",
       "interval_minutes": 240,
       "tags": [
@@ -16441,7 +16441,7 @@
       },
       "tier": "T1",
       "first_party": true,
-      "owner_entity_id": null,
+      "owner_entity_id": "noaa",
       "participation_mode": "editorial",
       "interval_minutes": 240,
       "tags": [
@@ -16467,7 +16467,7 @@
       },
       "tier": "T1",
       "first_party": true,
-      "owner_entity_id": null,
+      "owner_entity_id": "noaa",
       "participation_mode": "editorial",
       "interval_minutes": 240,
       "tags": [
@@ -19816,7 +19816,7 @@
       },
       "tier": "T1",
       "first_party": true,
-      "owner_entity_id": null,
+      "owner_entity_id": "noaa",
       "participation_mode": "editorial",
       "interval_minutes": 240,
       "tags": [
