@@ -366,6 +366,63 @@ export const MODELS: Record<string, ModelSpec> = {
     baseUrlEnv: "WORKBUDDY_CN_BASE_URL", apiKeyEnv: "WORKBUDDY_CN_API_KEY",
     extra: { reasoning_effort: "high" }, jsonMode: true, vision: true, reasoningHeadroom: { default: 4_000, summarize_article: 8_000 },
   },
+
+  // ── Qoder CN (maggie gateway on the workstation, reached through a reverse tunnel) ───────────────────
+  //
+  // What this door is: the operator's own Qoder CN subscription behind `maggie`, an OpenAI-compatible
+  // gateway that listens on the workstation's loopback and nowhere else. Production reaches it over
+  // `ssh -R 127.0.0.1:3425:127.0.0.1:3425`, so these presets are only *configured* on hosts where
+  // QODER_CN_BASE_URL is set; unset keys make each member simply unusable and the pool falls back to the
+  // doors that do answer (see `usable()`).
+  //
+  // Why it gets a budget row of its own rather than riding `llm`: the breaker, the health ledger and the
+  // refusal ledger are all keyed on `service`. The quota behind this door belongs to the operator and is
+  // counted in a 5-hour window rather than per minute; exhausting it must never make the site believe
+  // Agnes or dots are down. One door, one budget row, one health verdict.
+  //
+  // Measured 2026-10-20 on the workstation, `POST /v1/chat/completions`, real editorial prompts:
+  //   • `dfmodel`, `reasoning_effort: max`, JSON mode: 200 with valid JSON and `reasoning_tokens` present.
+  //     Structural steps 1.1–7.4 s; understand-shaped 60 k-character prompts 4.0–8.1 s; one full-article
+  //     translation 9,649 prompt tokens → 21,006 completion tokens (14,127 hidden) in 80.8 s.
+  //   • Concurrency: 8 lanes 3.2 s, 16 lanes 19.8 s, **24 lanes 44.8 s with 5 × HTTP 429**. The window is
+  //     therefore ~16 in flight; above it the gate answers 429, and a 429 spends a worker slot.
+  //   • Vision: a 1×1 PNG was read correctly ("Pink") in 1.1 s, so `vision: true` is written from the
+  //     measurement — this channel's catalog has overstated image support twice before.
+  //
+  // ⚠️ The one property that does NOT transfer from the other doors: **this gateway ignores `max_tokens`.**
+  //   Asked for 200 it returned 3,231 completion tokens; for 16 it returned 1,817; for
+  //   `max_completion_tokens: 16` it returned 11,991. Two consequences, both recorded here rather than left
+  //   for the next reader to rediscover:
+  //     1. `reasoningHeadroom` cannot do its job on this door. Its contract elsewhere in this file — give the
+  //        cap room so the cap fires before the clock, so a long chain ends `failed` (retryable) instead of
+  //        `unknown` (paid for, not retried, waiting on an operator) — assumes the cap is *honoured*. Under a
+  //        gateway that ignores it a small headroom neither protects nor truncates; the request runs to
+  //        completion and the clock is the only bound left. So the table below keeps the shape the other
+  //        doors use (one receipt identity, and a `finish_reason: length` that would still be reported if it
+  //        ever came) and the real protection is the per-step `timeoutMs` the callers already pass:
+  //        240 s understand, 180 s translate, 120 s quoted translation.
+  //     2. The three call sites the other doors cannot serve are exactly the three this door can, because
+  //        the 21,006-token translation finished in 80.8 s — 3.85 ms per output token, the fastest rate of
+  //        any door in this file (deepseek-v4.1-flash 4.9–6.7, step-5-preview 9.49, glm 17.80). At that rate
+  //        understand's 16,384-token ask is ~63 s against a 240 s clock and translate's 8,000 is ~31 s
+  //        against 180 s, so the cap-and-clock meeting point that forced glm out of UNDERSTAND_MODEL and
+  //        TRANSLATE_MODEL does not bind here at all.
+  //
+  // Effort: `max` where the catalog advertises it. dfmodel advertises low / high / max and qfmodel
+  // low / medium / xhigh, so each preset sends a value its upstream has a contract for and neither is
+  // silently downgraded to a sibling's spelling.
+  "qoder-cn-dfmodel": {
+    key: "qoder-cn-dfmodel", service: "qoder-cn", model: "qoder-cn/dfmodel",
+    baseUrlEnv: "QODER_CN_BASE_URL", apiKeyEnv: "QODER_CN_API_KEY",
+    extra: { reasoning_effort: "max" }, jsonMode: true, vision: true,
+    reasoningHeadroom: { default: 16_000, summarize_article: 32_000, translate_quoted: 8_000 },
+  },
+  "qoder-cn-qfmodel": {
+    key: "qoder-cn-qfmodel", service: "qoder-cn", model: "qoder-cn/qfmodel",
+    baseUrlEnv: "QODER_CN_BASE_URL", apiKeyEnv: "QODER_CN_API_KEY",
+    extra: { reasoning_effort: "xhigh" }, jsonMode: true, vision: true,
+    reasoningHeadroom: { default: 16_000, summarize_article: 32_000, translate_quoted: 8_000 },
+  },
 };
 
 export type ContentPart = { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } };
