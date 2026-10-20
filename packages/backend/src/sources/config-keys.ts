@@ -5,7 +5,7 @@ import type { SourceRow } from "./types.ts";
 
 // Rules applied in collect.ts to every kind read through collectSource, plus the date offset every
 // entrance now reads a zone-less timestamp in (sources/dates.ts).
-const COLLECTED = ["_aihot", "allowUrlPrefixes", "denyUrlPrefixes", "ingestNoiseFilter", "itemUrlPrefixRewrite", "sortByPublishedAt", "detail", "fetchPublicContent", "publishedAtUtcOffset", "publishedAtDateOrder"];
+const COLLECTED = ["_aihot", "allowUrlPrefixes", "denyUrlPrefixes", "denyUrlFileExtensions", "ingestNoiseFilter", "itemUrlPrefixRewrite", "sortByPublishedAt", "detail", "fetchPublicContent", "publishedAtUtcOffset", "publishedAtDateOrder"];
 
 // Registered, but not read on the polling path: the ISSN the journal behind an rss source is actually
 // filed under. Its reader is the archive backfill (scripts/backfill-archive.ts), which asks Crossref for
@@ -83,6 +83,10 @@ export function unsupportedConfig(kind: SourceRow["kind"], config: Record<string
   const out: string[] = [];
   for (const [key, value] of Object.entries(config ?? {})) {
     if (!allowed.has(key)) out.push(key);
+    else if (key === "denyUrlFileExtensions" && value !== null && value !== undefined &&
+      (!Array.isArray(value) || value.length > 32 || !value.every((v) => typeof v === "string" && /^[a-z0-9]{1,12}$/i.test(v)))) {
+      out.push(`${key}（要最多 32 个、各 1–12 位 ASCII 字母数字扩展名，不带点）`);
+    }
     else if (VALUES[key] && !VALUES[key]!.includes(String(value))) out.push(`${key}=${String(value)}`);
     else if (value !== null && value !== undefined && LIST_KEYS.includes(key) && !isStringList(value)) out.push(`${key}（要字符串数组）`);
     else if (NESTED[key] && value && typeof value === "object") {

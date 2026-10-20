@@ -11307,7 +11307,7 @@
       },
       "tier": "T1",
       "first_party": true,
-      "owner_entity_id": null,
+      "owner_entity_id": "uk-environment-agency",
       "participation_mode": "editorial",
       "interval_minutes": 240,
       "tags": [
@@ -17248,7 +17248,7 @@
       },
       "tier": "T1",
       "first_party": true,
-      "owner_entity_id": null,
+      "owner_entity_id": "esa",
       "participation_mode": "editorial",
       "interval_minutes": 240,
       "tags": [
@@ -17561,7 +17561,7 @@
       },
       "tier": "T1",
       "first_party": true,
-      "owner_entity_id": null,
+      "owner_entity_id": "esa",
       "participation_mode": "editorial",
       "interval_minutes": 240,
       "tags": [
@@ -17581,18 +17581,19 @@
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.gov.br/cemaden/rss.xml",
+        "denyUrlFileExtensions": ["png", "jpg", "jpeg", "gif", "webp", "svg", "ico"],
         "_aihot": {
           "initialBackfillLimit": 15
         }
       },
       "tier": "T1",
       "first_party": true,
-      "owner_entity_id": null,
+      "owner_entity_id": "cemaden",
       "participation_mode": "editorial",
       "interval_minutes": 60,
       "tags": [
         "官方",
-        "英文",
+        "葡萄牙文",
         "灾害事件",
         "学科前沿"
       ],
@@ -18453,7 +18454,7 @@
       },
       "tier": "T1",
       "first_party": true,
-      "owner_entity_id": null,
+      "owner_entity_id": "uk-defra",
       "participation_mode": "editorial",
       "interval_minutes": 240,
       "tags": [

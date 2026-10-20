@@ -20,6 +20,9 @@ const pageReads = new Map<string, number>();
 const ARTICLE_BODY = "A complete article with enough material to preserve the same extraction result without downloading it twice. ".repeat(6);
 const html = (head: string, body: string) => `<html><head>${head}</head><body>${body}</body></html>`;
 const pages: Record<string, (base: string) => string> = {
+  "/attachments.xml": () => `<rss version="2.0"><channel><title>t</title>` +
+    ["forecast", "forecast/map.PNG/view", "forecast/report.pdf"].map((p) =>
+      `<item><title>Forecast ${p} ${T}</title><link>https://example.org/rules-${T}/${p}</link><pubDate>${new Date().toUTCString()}</pubDate></item>`).join("") + `</channel></rss>`,
   "/feed.xml": () =>
     `<?xml version="1.0"?><rss version="2.0"><channel><title>t</title>` +
     ["news/a", "business/b"].map((p) => `<item><title>Entry ${p} ${T}</title><link>https://example.org/rules-${T}/${p}</link><pubDate>${new Date().toUTCString()}</pubDate></item>`).join("") +
@@ -54,6 +57,7 @@ process.env.JINA_BASE_URL = base;
 process.env.JINA_API_KEY = "test-key";
 
 const SOURCES = {
+  attachments: { kind: "rss", config: { feedUrl: `${base}/attachments.xml`, denyUrlFileExtensions: ["png", "jpeg"] } },
   unsupported: { kind: "rss", config: { feedUrl: `${base}/feed.xml`, adapter: "feed_cards" } },
   denied: { kind: "rss", config: { feedUrl: `${base}/feed.xml`, denyUrlPrefixes: [`https://example.org/rules-${T}/business/`] } },
   detail: {
@@ -106,6 +110,16 @@ test("a config entry the collector does not implement fails the fetch instead of
 test("feed entries outside the source's URL rules are skipped", async () => {
   assert.equal((await collectSource(id("denied"), { force: true })).status, "ok");
   assert.deepEqual((await articles(id("denied"))).map((a) => a.url), [`https://example.org/rules-${T}/news/a`]);
+});
+
+test("image wrapper filtering agrees across real collection and admin preview", async () => {
+  const preview = await previewSource({ id: id("attachments"), kind: "rss", config: SOURCES.attachments.config } as never);
+  assert.equal(preview.offered, 3);
+  assert.equal(preview.count, 2);
+  const collected = await collectSource(id("attachments"), { force: true });
+  assert.equal(collected.status, "ok");
+  assert.deepEqual((await articles(id("attachments"))).map((a) => a.url).sort(), preview.items.map((a) => a.url).sort());
+  assert.ok(preview.items.some((a) => a.url.endsWith("report.pdf")));
 });
 
 test("「试抓一次」数的是本站规则留下的条数，与采集同一条流水线", async () => {
