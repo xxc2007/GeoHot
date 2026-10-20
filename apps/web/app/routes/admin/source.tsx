@@ -34,6 +34,7 @@ interface Source {
   next_fetch_at: string | null;
   created_at: string;
   updated_at: string;
+  review_version: string;
 }
 
 /** X runs: pages read, and older stretches still to read (backlog) or given up (dropped). */
@@ -342,7 +343,7 @@ export default function SourceDetail({ loaderData }: Route.ComponentProps) {
         onSubmit={async (reason) => {
           const p = patch();
           if (!p) return false;
-          const r = await run("PATCH", base, { patch: p, version: new Date(s.updated_at).toISOString(), reason }, { label: "save", success: "已保存" });
+          const r = await run("PATCH", base, { patch: p, version: `r${s.review_version}`, reason }, { label: "save", success: "已保存" });
           return r !== null;
         }}
       />
@@ -355,7 +356,7 @@ export default function SourceDetail({ loaderData }: Route.ComponentProps) {
         busy={pending === "toggle"}
         onClose={() => setDialog(null)}
         onSubmit={async (reason) => {
-          const r = await run("PATCH", base, { patch: { enabled: !s.enabled }, version: new Date(s.updated_at).toISOString(), reason }, { label: "toggle", success: s.enabled ? "已暂停" : "已恢复" });
+          const r = await run("PATCH", base, { patch: { enabled: !s.enabled }, version: `r${s.review_version}`, reason }, { label: "toggle", success: s.enabled ? "已暂停" : "已恢复" });
           return r !== null;
         }}
       />

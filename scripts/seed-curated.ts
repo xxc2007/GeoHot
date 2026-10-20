@@ -271,6 +271,14 @@ if (dryRun) {
 // --------------------------------------------------------------------------- write through the entrance
 let created = 0, revised = 0, unchanged = 0, queued = 0, autoCreated = 0, webhookReported = 0, realigned = 0, quarantined = 0;
 const blockedKeys = new Set<string>();
+const httpOutcomes: Array<{ planIndex: number; sourceId: string; status: "accepted" | "quarantined" | "rejected"; httpStatus: number | null; reason?: string }> = [];
+const recordHttp = (items: Planned[], status: "accepted" | "quarantined" | "rejected", httpStatus: number | null, reason?: string) => {
+  for (const p of items) {
+    if (status !== "accepted") blockedKeys.add(p.key);
+    httpOutcomes.push({ planIndex: plan.indexOf(p), sourceId: p.sourceId, status, httpStatus, ...(reason ? { reason } : {}) });
+  }
+  if (status === "rejected" && items.length) process.exitCode = 1;
+};
 const perSource = new Map<string, { created: number; revised: number; unchanged: number }>();
 const note = (id: string, kind: "created" | "revised" | "unchanged") => {
   const s = perSource.get(id) ?? { created: 0, revised: 0, unchanged: 0 };
@@ -378,20 +386,51 @@ if (route === "inproc") {
       const read = async () => (await sql<{ identity_key: string; revision: number }[]>`
         SELECT identity_key, revision FROM articles WHERE identity_key = ANY(${keys})`);
       const before = new Map((await read()).map((r) => [r.identity_key, r.revision]));
-      const res = await fetch(`${base}/api/ingest/items`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ sourceId, sourceName: sourceNameOf(batch[0]!), items: batch.map((p) => ({
-          title: p.title, url: p.url, publishedAt: p.input.publishedAt?.toISOString(), raw: p.input.raw as never,
-        })) }),
-      });
-      const text = await res.text();
-      if (!res.ok) { console.error(`!! ${res.status} on ${sourceId} batch ${Math.floor(i / size) + 1}: ${text.slice(0, 240)}`); problems.push(`${sourceId} batch failed with ${res.status}`); continue; }
-      const answer = JSON.parse(text) as { created: number; quarantined?: number };
-      if (answer.quarantined) { quarantined += answer.quarantined;for (const p of batch) blockedKeys.add(p.key);continue; }
+      let res: Response;
+      try {
+        res = await fetch(`${base}/api/ingest/items`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ sourceId, sourceName: sourceNameOf(batch[0]!), items: batch.map((p) => ({
+            title: p.title, url: p.url, publishedAt: p.input.publishedAt?.toISOString(), raw: p.input.raw as never,
+          })) }),
+          signal: AbortSignal.timeout(30_000),
+          redirect: "manual",
+        });
+      } catch {
+        recordHttp(batch,"rejected",null,"request_failed");
+        console.error(`!! request failed on ${sourceId} batch ${Math.floor(i / size) + 1}; no times realigned`);
+        continue;
+      }
+      if (!res.ok) {
+        await res.body?.cancel().catch(() => {});
+        recordHttp(batch,"rejected",res.status,"http_rejected");
+        console.error(`!! ${res.status} on ${sourceId} batch ${Math.floor(i / size) + 1}; no times realigned`);
+        continue;
+      }
+      let answer: { ok?: boolean; created: number; revised: number; quarantined?: number; sourceStatus?: string; skipped?: Array<{ index: number; reason: string }> };
+      try {
+        answer = await res.json() as typeof answer;
+        if (!answer || answer.ok !== true || !Number.isSafeInteger(answer.created) || answer.created < 0 || answer.created > batch.length
+          || !Number.isSafeInteger(answer.revised) || answer.revised < 0 || answer.revised > batch.length) throw new Error("Invalid answer");
+        if (res.status === 202) {
+          if (answer.quarantined !== batch.length || answer.sourceStatus !== "pending_review" || answer.created !== 0 || answer.revised !== 0) throw new Error("Invalid quarantine");
+        } else if (res.status !== 200 || answer.quarantined || !Array.isArray(answer.skipped)
+          || answer.skipped.some(s => !s || !Number.isInteger(s.index) || s.index < 0 || s.index >= batch.length)
+          || new Set(answer.skipped.map(s => s.index)).size !== answer.skipped.length
+          || answer.created + answer.revised > batch.length - answer.skipped.length) throw new Error("Invalid accepted answer");
+      } catch {
+        recordHttp(batch,"rejected",res.status,"invalid_response");
+        continue;
+      }
+      if (res.status === 202) { quarantined += batch.length;recordHttp(batch,"quarantined",202);continue; }
+      const skipped = new Set(answer.skipped!.map(s => s.index));
+      recordHttp(batch.filter((_,index) => skipped.has(index)),"rejected",200,"reported_skipped");
+      recordHttp(batch.filter((_,index) => !skipped.has(index)),"accepted",200);
       const answered = answer.created;
       webhookReported += answered;
       for (const r of await read()) {
+        if (blockedKeys.has(r.identity_key)) continue;
         const was = before.get(r.identity_key);
         const kind = was === undefined ? "created" : r.revision > was ? "revised" : "unchanged";
         if (kind === "created") created++; else if (kind === "revised") revised++; else unchanged++;
@@ -419,9 +458,12 @@ console.log(JSON.stringify({
   route, dryRun, archive, asOf: anchor.toISOString(), rescaled: needsRescale, keepTimes, input: inputPath,
   read: raw.length, planned: plan.length, created, updated: revised, skipped: unchanged, dropped,
   queued, autoCreatedSources: autoCreated, webhookReported, realignedToPlannedTimes: realigned, quarantined,
+  httpOutcomes,
   inDb: check,
 }));
-console.log(archive
+console.log(!check.rows
+  ? "No accepted stored rows; no historical or live-eligibility claim."
+  : archive
   ? `archive: ${check.rows} stored row(s), ${check.historical} historical; original source dates preserved for archival publication and papers.`
   : check.historical
   ? `!! ${check.historical} row(s) are flagged historical: they found no event and add no heat. Drop --keep-times or use --as-of.`

@@ -3,7 +3,8 @@ import { gate, tag, within } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import postgres from "postgres";
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
+import http from "node:http";
 import { mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -20,8 +21,9 @@ execFileSync(process.execPath,['scripts/migrate.ts'],{cwd:process.cwd(),env:proc
 const {sql,closeDb}=await import('@aihot/backend/db');
 const {stopBoss,ensureQueue,QUEUES}=await import('@aihot/backend/jobs/queue');
 const {setRegistryTarget,registryChange}=await import('@aihot/backend/sources/registry');
-const {createSource,replaceSources,updateSource}=await import('@aihot/backend/admin/sources');
+const {createSource,replaceSources,updateSource,sourceDetail,listSources}=await import('@aihot/backend/admin/sources');
 const {ingestItems}=await import('@aihot/backend/ingest/items');
+const {upsertMaterial}=await import('@aihot/backend/content/materials');
 
 async function reset() {
   await sql`UPDATE source_registry_policy SET target_enabled=NULL WHERE singleton`;
@@ -38,7 +40,7 @@ async function state() {
   const [row]=await sql`SELECT target_enabled,enabled_count,policy_version,(SELECT count(*)::int FROM sources WHERE enabled) AS actual FROM source_registry_policy WHERE singleton`;
   assert.equal(row!.enabled_count,row!.actual);return row!;
 }
-async function version(id:string) { const [r]=await sql`SELECT updated_at FROM sources WHERE id=${id}`;return new Date(r!.updated_at).toISOString(); }
+async function version(id:string) { const [r]=await sql`SELECT review_version::text AS review_version FROM sources WHERE id=${id}`;return `r${r!.review_version}`; }
 before(reset);
 after(async()=>{try{await reset();}finally{await stopBoss();await closeDb();await admin.unsafe(`DROP DATABASE "${dbName}"`);await admin.end();}});
 
@@ -202,4 +204,67 @@ test('explicit legacy delete updates managed counter and transactional audit',as
   assert.equal(result.status,0,result.stdout+result.stderr);
   assert.equal((await state()).enabled_count,0);
   assert.equal((await sql`SELECT count(*)::int AS n FROM audit_log WHERE action='source.delete' AND subject='source:registry-1'`)[0]!.n,1);
+});
+
+test('review approval rejects changed metadata even inside one timestamp millisecond',async()=>{
+  await reset();await fixture(2,1);await setRegistryTarget(1,1,'test','review-version precision');
+  await sql`UPDATE sources SET updated_at='2026-10-20T00:00:00.000100Z' WHERE id='registry-2'`;
+  const oldVersion=await version('registry-2'),policy=await state();
+  const oldDetail=await sourceDetail('registry-2');
+  await sql`UPDATE sources SET config='{"changedAfterReview":true}'::jsonb,updated_at='2026-10-20T00:00:00.000900Z' WHERE id='registry-2'`;
+  assert.equal(new Date(oldDetail!.source.updated_at).toISOString(),new Date((await sourceDetail('registry-2'))!.source.updated_at).toISOString());
+  await assert.rejects(replaceSources({disable:[{id:'registry-1',version:await version('registry-1')}],enable:[{id:'registry-2',version:oldVersion}],expectedPolicyVersion:policy.policy_version,reason:'Approved before metadata changed',evidence:'test:stale-review'},'test'));
+  assert.equal((await sql`SELECT enabled FROM sources WHERE id='registry-2'`)[0]!.enabled,false);
+});
+
+test('review tokens are lossless on admin reads, ignore health, resist forged writes and never reuse recreated ids',async()=>{
+  await reset();await fixture(2,1);await setRegistryTarget(1,1,'test','review token invariants');
+  // The real driver parses int8 as Number elsewhere: these review reads must explicitly use text.
+  await sql`SELECT setval('source_review_version_seq',9007199254740992,true)`;
+  await sql`UPDATE sources SET name='Reviewed candidate',updated_at='2026-10-20T00:00:00Z' WHERE id='registry-2'`;
+  const before=await sourceDetail('registry-2'),token=`r${before!.source.review_version}`;
+  assert.equal(before!.source.review_version,'9007199254740993');
+  assert.equal((await listSources({q:'registry-2'})).rows[0]!.review_version,'9007199254740993');
+  await assert.rejects(updateSource('registry-2',{patch:{name:'Legacy timestamp in managed policy'},version:new Date(before!.source.updated_at).toISOString()},'test'),/current review version/);
+  await sql`UPDATE sources SET cursor='{"next":1}'::jsonb,health='degraded',fail_count=1,last_fetch_at=now(),updated_at=now(),review_version=1 WHERE id='registry-2'`;
+  assert.equal(await version('registry-2'),token);
+  await updateSource('registry-2',{patch:{name:'Edited through current UI'},version:token,reason:'reviewed edit'},'test');
+  assert.notEqual(await version('registry-2'),token);
+  await assert.rejects(updateSource('registry-2',{patch:{name:'Stale UI overwrite'},version:token},'test'),/其他操作修改/);
+  const old=await version('registry-2');
+  await sql`DELETE FROM sources WHERE id='registry-2'`;
+  await sql`INSERT INTO sources(id,name,kind,enabled,review_version) VALUES('registry-2','Recreated','external',false,1)`;
+  assert.notEqual(await version('registry-2'),old);
+  assert.notEqual(await version('registry-2'),'r1');
+});
+
+test('curated HTTP failures never realign rejected existing history and report nonzero',async()=>{
+  await reset();await fixture(1,1);await setRegistryTarget(1,1,'test','HTTP rejection boundary');
+  const material=await upsertMaterial({sourceId:'registry-1',url:'https://example.com/registry-http-rejected',title:'Original history',publishedAt:new Date('2026-01-02T00:00:00Z'),discoveredAt:new Date('2026-01-02T01:00:00Z'),via:'import',backfill:'archive'});
+  await sql`UPDATE sources SET enabled=false,health='paused' WHERE id='registry-1'`;
+  const before=await sql`SELECT published_at,discovered_at,backfill,raw FROM articles WHERE id=${material.articleId}`;
+  const dir=mkdtempSync(path.join(tmpdir(),'geohot-registry-http-'));
+  let mode='409';
+  const server=http.createServer((req,res)=>{req.resume();req.on('end',()=>{
+    const status=mode==='quarantine'?202:mode==='accepted'||mode==='skipped'||mode==='invalid'?200:Number(mode);
+    res.writeHead(status,{'content-type':'application/json'});
+    res.end(mode==='invalid'?'invalid PRIVATE_SECRET_SHOULD_NOT_LOG':JSON.stringify(mode==='quarantine'?{ok:true,created:0,revised:0,skipped:[],quarantined:1,sourceStatus:'pending_review'}:mode==='accepted'?{ok:true,created:0,revised:0,skipped:[]}:mode==='skipped'?{ok:true,created:0,revised:0,skipped:[{index:0,reason:'test skipped'}]}:{ok:false,error:'PRIVATE_SECRET_SHOULD_NOT_LOG'}));
+  });});
+  await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
+  try{
+    const input=path.join(dir,'rejected.jsonl');writeFileSync(input,JSON.stringify({kind:'material',sourceId:'registry-1',url:'https://example.com/registry-http-rejected',title:'Rejected rewrite',publishedAt:'2026-01-02T00:00:00Z'})+'\n');
+    for(mode of ['301','409','404','500','invalid','skipped','quarantine','accepted']){
+      const result=await new Promise<{code:number|null;out:string;err:string}>((resolve,reject)=>{const child=spawn(process.execPath,['scripts/seed-curated.ts','--route','http','--input',input,'--base-url',`http://127.0.0.1:${(server.address() as {port:number}).port}`],{env:{...process.env,INGEST_TOKEN:'registry-local-fake-token-0123456789'},stdio:['ignore','pipe','pipe']});let out='',err='';child.stdout.on('data',b=>out+=b);child.stderr.on('data',b=>err+=b);child.on('error',reject);child.on('close',code=>resolve({code,out,err}));});
+      const answer=JSON.parse(result.out.split(/\r?\n/).findLast(line=>line.startsWith('{'))!);
+      assert.equal(result.out.includes('PRIVATE_SECRET_SHOULD_NOT_LOG')||result.err.includes('PRIVATE_SECRET_SHOULD_NOT_LOG'),false);
+      if(mode==='accepted'){
+        assert.equal(result.code,0,result.err);assert.equal(answer.httpOutcomes[0].status,'accepted');
+        assert.equal((await sql`SELECT backfill FROM articles WHERE id=${material.articleId}`)[0]!.backfill,false);
+      }else{
+        if(mode==='quarantine'){assert.equal(result.code,0);assert.equal(answer.httpOutcomes[0].status,'quarantined');assert.equal(answer.quarantined,1)}
+        else{assert.notEqual(result.code,0,`${mode} must be a failed import`);assert.equal(answer.httpOutcomes[0].status,'rejected')}
+        assert.deepEqual(await sql`SELECT published_at,discovered_at,backfill,raw FROM articles WHERE id=${material.articleId}`,before,`${mode} must preserve existing material`);
+      }
+    }
+  }finally{await new Promise<void>(resolve=>server.close(()=>resolve()));rmSync(dir,{recursive:true,force:true});}
 });

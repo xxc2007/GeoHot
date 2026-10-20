@@ -16,10 +16,12 @@ node scripts/source-registry-policy.ts --target=666 --expected-enabled=666 --rea
 
 - INSERT、DELETE、UPDATE OF enabled 由数据库触发器先锁唯一策略行再改变来源行，计数超额整个事务回滚。普通游标、健康状态写入不拿容量锁。直接数据库超级用户禁用触发器、删除策略行或手改计数器不属于此门禁能防御的权限边界。
 - 管理员创建来源默认保存为 disabled 候选。显式 enabled 仍受数据库上限约束。常规来源写入口保持原有接口；紧急暂停须提供原因，可暂时低于目标，不能把缺口显示成完整覆盖。
-- `POST /api/admin/sources/replace` 使用原有管理员会话与 CSRF 校验。请求包含 `disable`、`enable` 两组等长且互不重叠的 `{id,version}`、`expectedPolicyVersion`、`reason`、`evidence`。来源 version 是当前 updated_at 的 ISO 字符串。候选必须已存在且暂停；先停旧来源、再启新来源，最终真实 enabled 数与计数器都须等于目标。来源变动、审核记录与重发布任务在同一事务提交或全部回滚。
+- `POST /api/admin/sources/replace` 使用原有管理员会话与 CSRF 校验。请求包含 `disable`、`enable` 两组等长且互不重叠的 `{id,version}`、`expectedPolicyVersion`、`reason`、`evidence`。来源 version 使用 `r` 加来源详情或列表返回的 `review_version` 字符串，例如 `r123`，不再使用会丢失微秒的 updated_at。候选必须已存在且暂停；先停旧来源、再启新来源，最终真实 enabled 数与计数器都须等于目标。来源变动、审核记录与重发布任务在同一事务提交或全部回滚。
+- 增量迁移 `0072_source_review_versions.sql` 为审核引入不可循环的单调序列。来源元数据或 enabled 改变时由触发器分配新版本，直接 SQL、seed 和管理修改同样受约束；同毫秒内的修改、删除后同 ID 重建也不会复用审核令牌。游标、健康和调度时间更新不会使审核失效。版本读取转为数据库 text，不能在 JavaScript 中先转成 Number。后台编辑使用相同的 `rN`；managed 模式的 PATCH 与置换都要求此令牌，旧 timestamp 只在未启用策略时保留普通 PATCH 兼容。管理员变更先取策略锁再取来源锁；采集的普通健康、游标写入仍不取策略锁。
 - policy_version 表示策略配置版本；来源版本防止过期审核覆盖新状态。互不相交的置换可按策略锁顺序提交，涉及相同来源的旧请求被拒绝。若紧急暂停留下缺口，等量置换不能顺便填平它，应先独立审核缺口恢复方案。
 - 未知来源的 webhook 投递返回 HTTP 202、`sourceStatus=pending_review` 和 submissionId；created/revised 均为零。证据进入私有 ingest_source_submissions，单次最多 512 KiB，按来源、客户端和规范化 payload 哈希幂等。不会注册来源、创建文章或排模型任务。202 表示保留待审证据，不代表内容已经发布。新证据的总量仍需运维留存策略，本补丁未实现总库配额或自动清理。
 - 已暂停来源继续拒绝投递。`seed-curated` 的本机与 HTTP 路径同样识别隔离结果，不报告假创建；managed 模式默认保留未知证据，`--allow-unknown-source` 不能绕过门禁，`--enforce-source` 仍可显式拒绝未知项。
+- `seed-curated --route http` 对所有非成功状态、网络失败、无效回复和明确跳过的条目标记 rejected，禁止其参与后续时间重锚或成功统计，并以非零退出码报告失败。最终 JSON 的 `httpOutcomes` 按 planIndex 逐项区分 accepted、quarantined、rejected 及 HTTP 状态；202 仅表示证据待审。上游错误正文不回显到终端。
 - seed 只补缺失的 disabled 候选，保留既有来源状态；set-source-state 拒绝在 managed 模式按清单自动更改 enabled，使用审核后的管理操作。
 
 私有证据不能通过公开 API 或模型提示词读取。数据库备份应包含新表；本补丁尚未提供待审队列 UI、接受/拒绝/重放工具或自动来源质量评审。需要先审核来源及内容、注册候选并完成容量置换，再显式重新投递；不能仅修改 submission.status 就声称文章已入库。
