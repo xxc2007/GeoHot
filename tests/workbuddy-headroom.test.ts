@@ -100,11 +100,10 @@ test("every workbuddy preset carries the headroom and the vision verdict the mea
   // only `service` and the two env vars differ, and that separation is the whole point (two accounts, two
   // breakers). Anything that drifts here means the two doors stopped being the same model.
   //
-  // The headroom is the one field that is deliberately NOT shared for deepseek: on 2026-10-16 the operator put
-  // only the *international* door into the pool (`x0.00 · Free now`) and left the Chinese one out, so only the
-  // door that serves carries the per-purpose table. A member that is not serving does not get re-numbered; see
-  // the test below for what has to happen before the Chinese door may be added.
-  const SHARED = ["workbuddy-cn-hy3", "workbuddy-cn-glm-flash", "workbuddy-cn-step5-preview"] as const;
+  // 2026-10-20：国际版那一扇被对端渠道校验整扇关掉（三个模型逐个试都是 `code:11128` "not sent from an
+  // official client"），站长把这三把模型改由仍答话的中国版承载。所以 deepseek 也进了这张表：现在
+  // **两扇门逐字段相等，包括那张按 purpose 的余量表**——服务的门必须带得上它自己的 summarize 表。
+  const SHARED = ["workbuddy-cn-deepseek-flash", "workbuddy-cn-hy3", "workbuddy-cn-glm-flash", "workbuddy-cn-step5-preview"] as const;
   for (const cn of SHARED) {
     const intl = cn.replace("workbuddy-cn-", "workbuddy-") as keyof typeof MODELS;
     assert.equal(MODELS[cn]!.model, MODELS[intl]!.model, `${cn} must name the same upstream model as ${intl}`);
@@ -116,36 +115,23 @@ test("every workbuddy preset carries the headroom and the vision verdict the mea
     assert.equal(MODELS[cn]!.apiKeyEnv, "WORKBUDDY_CN_API_KEY");
     assert.notEqual(MODELS[cn]!.key, MODELS[intl]!.key);
   }
-  // deepseek's two doors still agree on everything except the headroom, which is the only thing the
-  // pool membership decision was allowed to change.
-  for (const field of ["model", "vision", "service"] as const) {
-    if (field === "service") continue; // each door rides its own breaker by design
-    assert.equal(MODELS["workbuddy-cn-deepseek-flash"]![field], MODELS["workbuddy-deepseek-flash"]![field],
-      `deepseek's two doors drifted on ${field}`);
-  }
-  assert.deepEqual(MODELS["workbuddy-cn-deepseek-flash"]!.extra, MODELS["workbuddy-deepseek-flash"]!.extra);
 });
 
-// The one thing that must not be forgotten if the Chinese door is ever added to the pool: it needs the same
-// per-purpose table first. Its summarize prompt is the same prompt, so a flat 16,000 truncates exactly the
-// way the international door's did (4 of 6 runs empty). Pinned so that adding it later is a decision with an
-// argument attached, not a one-line .env edit followed by silent long-article failures.
-test("the Chinese deepseek door carries a flat headroom because it is not in the pool — and that is what adding it would have to fix", () => {
-  const cn = MODELS["workbuddy-cn-deepseek-flash"]!;
-  const intl = MODELS["workbuddy-deepseek-flash"]!;
-  assert.equal(typeof cn.reasoningHeadroom, "number", "the Chinese door is expected to stay un-tuned while it is out of the pool");
-  assert.equal(cn.reasoningHeadroom, 16_000);
-  // And the gap is real, not cosmetic: the flat number cannot serve summarize.
-  const summarizeAsked = 2_048;
-  const measuredChain = 18_809;
-  assert.ok(
-    headroomFor(cn, "summarize_article") < measuredChain - summarizeAsked,
-    "the Chinese door's flat headroom would now clear summarize — if it is still out of the pool, this test is stale",
-  );
-  assert.ok(
-    headroomFor(intl, "summarize_article") > measuredChain - summarizeAsked,
-    "the international door's table must clear the chain it was measured against",
-  );
+// 2026-10-20：这张表的存在理由从"加池前必须先补"变成了"它就是服务中的那一扇门的配置"。
+// 中国版 deepseek 现在承载全部十一步，所以它的 summarize 必须清得过 18,809 那条实测链；
+// 如果哪天它退回单值 16,000，长文就会以 18,048 的 cap 截断（国际版实测 6 次里 4 次空答复）。
+// 国际版那扇保留同一张表，是为了渠道恢复时两扇门不需要再对一次数。
+test("both deepseek doors carry the per-purpose table, because the serving door needs it to write long summaries", () => {
+  const TABLE = { default: 16_000, summarize_article: 32_000, translate_quoted: 8_000 };
+  for (const key of ["workbuddy-deepseek-flash", "workbuddy-cn-deepseek-flash"] as const) {
+    assert.deepEqual(MODELS[key]!.reasoningHeadroom, TABLE, `${key} lost the per-purpose headroom table`);
+    const summarizeAsked = 2_048;
+    const measuredChain = 18_809;
+    assert.ok(
+      headroomFor(MODELS[key]!, "summarize_article") > measuredChain - summarizeAsked,
+      `${key}: a flat headroom would truncate the 18,809-token summarize chain this prompt actually produced`,
+    );
+  }
 });
 
 test("the two new presets differ from the zhipu entries of the same upstream model, or they would spend its breaker", () => {

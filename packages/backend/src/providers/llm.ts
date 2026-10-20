@@ -340,16 +340,21 @@ export const MODELS: Record<string, ModelSpec> = {
   // deepseek / hy3 / glm / step-5-preview), same measured rates that sized each headroom. The one thing
   // that does differ is the account, and that lives in the two env vars.
   //
-  // ⚠️ 2026-10-16 站长只把**国际版**那一扇加进生产池（`x0.00 · Free now`，credit 记 0），中国版这扇
-  // **留在池外**，所以它的 `reasoningHeadroom` 仍是原来的单值 16,000 —— 上面那张按 purpose 的表是为
-  // 国际版实测出来的，没有把它顺手抄到这里：一扇不用的门不需要新的数字，改了反而看不出它没被启用。
-  // **要把它加进池子，必须先给它同一张表**（`{ default: 16_000, summarize_article: 32_000,
-  // translate_quoted: 8_000 }`），否则它的 summarize 会以 18,048 的 cap 截断长文——这正是国际版实测
-  // 出来的那个缺陷（6 次里 4 次空答复）。判据钉在 tests/workbuddy-headroom.test.ts。
+  // ⚠️ 2026-10-20：**国际版那一扇整扇被对端关掉了**，所以这三把模型现在只经中国版这一扇服务。
+  // 实测（本机桥与生产桥各一次，三个模型逐个试）：`POST /v2/chat/completions` 一律
+  // `HTTP 400 {"code":11128,"msg":"request illegal",…"This call failed channel verification,
+  // possibly because it was not sent from an official client."}`——不是某个模型被限，是整条渠道被拒。
+  // 生产上近 24 小时的 `workbuddy` 台账是 37 次尝试、0 次应答、全 11128（`budgets` 那一行也因此把
+  // `per_minute` 压到 0：不绕过、不再派发）。这是对端的渠道策略，代码这边既不能也不该绕。
+  // 站长因此把这三把模型改由仍然答话的中国版账号承载：同三个上游 id、同一个 `max`/`high` 档位。
+  // 于是这一扇**必须**带上与国际版同一张按 purpose 的表——它的 summarize 是同一个提示词，单值 16,000
+  // 会让长文以 18,048 的 cap 截断（国际版实测 6 次里 4 次空答复）。判据钉在
+  // tests/workbuddy-headroom.test.ts，那条用例现在要求两扇门逐字段相等，包括这张表。
   "workbuddy-cn-deepseek-flash": {
     key: "workbuddy-cn-deepseek-flash", service: "workbuddy-cn", model: "deepseek-v4.1-flash",
     baseUrlEnv: "WORKBUDDY_CN_BASE_URL", apiKeyEnv: "WORKBUDDY_CN_API_KEY",
-    extra: { reasoning_effort: "max" }, jsonMode: true, vision: true, reasoningHeadroom: 16_000,
+    extra: { reasoning_effort: "max" }, jsonMode: true, vision: true,
+    reasoningHeadroom: { default: 16_000, summarize_article: 32_000, translate_quoted: 8_000 },
   },
   "workbuddy-cn-hy3": {
     key: "workbuddy-cn-hy3", service: "workbuddy-cn", model: "hy3",
