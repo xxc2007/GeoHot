@@ -264,3 +264,14 @@ test("three actual unusable long-body outcomes remain bounded without clearing o
   const [attempt]=await sql`SELECT attempts FROM translation_attempts WHERE article_id=${id}`;
   assert.equal(attempt!.attempts,3);
 });
+
+test("new fragment polishing never rewrites protected literal DOI URL or scientific numeric text", async () => {
+  const url=`https://example.org/${T}/123tonnes`,doi=`doi:10.1234/${T}/12metres`;
+  const id=await selectedBody('immutable-polish',`<p>Scientific repository ${url} and ${doi} ${"River observation and discharge study. ".repeat(1900)}</p>`);
+  assert.equal((await translateArticle(id)).status,'translated');
+  const [tr]=await sql`SELECT body_html,complete FROM translations WHERE article_id=${id}`;
+  const text=cheerio.load(tr!.body_html,null,false).root().text();
+  assert.ok(text.includes(url),'URL spelling is immutable after all polishing');
+  assert.ok(text.includes(doi),'DOI spelling is immutable after all polishing');
+  assert.equal(tr!.complete,true);
+});
