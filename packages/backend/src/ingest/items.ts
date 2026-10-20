@@ -44,6 +44,7 @@ export interface IngestAnswer {
   quarantined?: number;
   sourceStatus?: "pending_review";
   submissionId?: number;
+  identityConflicts?: Array<{ index: number; conflictId: number }>;
 }
 
 export async function ingestItems(body: unknown): Promise<IngestAnswer> {
@@ -77,6 +78,7 @@ export async function ingestItems(body: unknown): Promise<IngestAnswer> {
   let created = 0;
   let revised = 0;
   let quarantined = 0;
+  const identityConflicts: Array<{ index: number; conflictId: number }> = [];
   // Shared URL identities can be delivered by different sources concurrently. Consistent identity
   // order prevents a multi-item transaction locking A/B while another locks B/A.
   const ordered = items.map((it,index) => ({ it,index,key: typeof it.url === "string" ? normalizeUrl(it.url.trim()) ?? "" : "" }))
@@ -123,7 +125,7 @@ export async function ingestItems(body: unknown): Promise<IngestAnswer> {
       via: "ingest",
       backfill: it.raw?._aihot?.backfill ? "reported-backfill" : it.raw?._aihot?.baseline ? "reported-baseline" : null,
     }, tx);
-    if(res.quarantined){quarantined++;skipped.push({index,reason:`material identity conflict ${res.conflictId}; evidence retained`});continue;}
+    if(res.quarantined){quarantined++;identityConflicts.push({index,conflictId:res.conflictId!});skipped.push({index,reason:`material identity conflict ${res.conflictId}; evidence retained`});continue;}
     if (res.created) created += 1;
     if (res.revised) revised += 1;
     if (res.created || res.revised) await queueProcessing(res.articleId, { db: tx });
@@ -138,6 +140,6 @@ export async function ingestItems(body: unknown): Promise<IngestAnswer> {
   await tx`
     INSERT INTO ingest_events (client, kind, status, summary)
     VALUES ('ingest-items', 'items', 'ok', ${tx.json({ sourceId: source.id, received: items.length, created, revised, skipped: skipped.length } as never)})`;
-  return { ok: true, created, revised, skipped: skipped.sort((a,b) => a.index-b.index),...(quarantined?{quarantined}:{}) };
+  return { ok: true, created, revised, skipped: skipped.sort((a,b) => a.index-b.index),...(quarantined?{quarantined,identityConflicts:identityConflicts.sort((a,b)=>a.index-b.index)}:{}) };
   });
 }

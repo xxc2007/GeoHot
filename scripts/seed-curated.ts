@@ -37,6 +37,7 @@ import { stopBoss } from "@aihot/backend/jobs/queue";
 import { sha256 } from "@aihot/backend/lib/ids";
 import { normalizeUrl } from "@aihot/backend/lib/url";
 import { resolveIngestSource } from "@aihot/backend/sources/registry";
+import { classifyIngestResponse } from "@aihot/contracts/ingest";
 
 const { values: opt } = parseArgs({
   options: {
@@ -410,25 +411,17 @@ if (route === "inproc") {
         console.error(`!! ${res.status} on ${sourceId} batch ${Math.floor(i / size) + 1}; no times realigned`);
         continue;
       }
-      let answer: { ok?: boolean; created: number; revised: number; quarantined?: number; sourceStatus?: string; skipped?: Array<{ index: number; reason: string }> };
+      let answer: ReturnType<typeof classifyIngestResponse>;
       try {
-        answer = await res.json() as typeof answer;
-        if (!answer || answer.ok !== true || !Number.isSafeInteger(answer.created) || answer.created < 0 || answer.created > batch.length
-          || !Number.isSafeInteger(answer.revised) || answer.revised < 0 || answer.revised > batch.length) throw new Error("Invalid answer");
-        if (res.status === 202) {
-          if (answer.quarantined !== batch.length || answer.sourceStatus !== "pending_review" || answer.created !== 0 || answer.revised !== 0) throw new Error("Invalid quarantine");
-        } else if (res.status !== 200 || answer.quarantined || !Array.isArray(answer.skipped)
-          || answer.skipped.some(s => !s || !Number.isInteger(s.index) || s.index < 0 || s.index >= batch.length)
-          || new Set(answer.skipped.map(s => s.index)).size !== answer.skipped.length
-          || answer.created + answer.revised > batch.length - answer.skipped.length) throw new Error("Invalid accepted answer");
+        answer = classifyIngestResponse(await res.json(),res.status,batch.length);
       } catch {
         recordHttp(batch,"rejected",res.status,"invalid_response");
         continue;
       }
-      if (res.status === 202) { quarantined += batch.length;recordHttp(batch,"quarantined",202);continue; }
-      const skipped = new Set(answer.skipped!.map(s => s.index));
-      recordHttp(batch.filter((_,index) => skipped.has(index)),"rejected",200,"reported_skipped");
-      recordHttp(batch.filter((_,index) => !skipped.has(index)),"accepted",200);
+      quarantined += answer.quarantined.length;
+      recordHttp(answer.quarantined.map(index=>batch[index]!),"quarantined",res.status);
+      recordHttp(answer.rejected.map(index=>batch[index]!),"rejected",res.status,"reported_skipped");
+      recordHttp(answer.accepted.map(index=>batch[index]!),"accepted",res.status);
       const answered = answer.created;
       webhookReported += answered;
       for (const r of await read()) {
