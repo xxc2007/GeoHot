@@ -4,7 +4,7 @@
 
 仅既有规范 URL、显式主文档 DOI、DOI resolver 整条路径，以及既有显式 identity 参与强身份解析。DOI 只从结构化字段或 resolver URL 取得，按一次解码、格式校验与大小写规范化处理；不从正文、标题或参考文献推断。不同页面且没有共同 DOI/已登记 alias 的材料保持独立。保留 fragment 的 section 不取得父页面或父文档 DOI alias。不同 DOI 指向相同 URL 的矛盾输入隔离，不按事件/标题相似度合并。
 
-事务顺序为来源 `FOR KEY SHARE`、排序后的所有候选强键 advisory transaction lock、canonical article 行锁、alias/discovery/observation/revision 写入。HTTP 已有来源 `FOR UPDATE`，并在首条材料前预锁整批强键，避免批内反向强键顺序。唯一 alias 是最后的所有权约束；既有 alias 从不重指向另一 article。所有入口必须升级后再并行恢复写入，旧二进制不遵守 advisory 锁，不能混跑。任意外部手写事务也须遵守该锁序。
+事务顺序为来源 `FOR KEY SHARE`、排序后的所有候选强键 advisory transaction lock、canonical article 行锁、alias/discovery/observation/revision 写入。HTTP 已有来源 `FOR UPDATE`，并在首条材料前预锁整批强键，然后解析整批既有 alias/legacy 行并按 canonical ID 排序锁住全部行。仅排序 incoming URL 不够：互不相同的 URL aliases 可能反序指向同两条 canonical 行。唯一 alias 是最后的所有权约束；既有 alias 从不重指向另一 article。所有入口必须升级后再并行恢复写入，旧二进制不遵守 advisory 锁，不能混跑。任意外部手写事务也须遵守该锁序。
 
 相同材料返回原 article ID，跨来源只增加发现与观察，不获得修改 canonical copy 的权限。同来源正常更新继续使用既有 revision/content hash 规则。归档两门显式 `observationOnlyExisting`，即使同来源的摘要和标题不同，也不覆盖现有正文或产生付费 revision。归档先前的 URL 提前跳过已移除，因此重复入口仍能保留发现。原 site 期日修正仍限定 canonical article 的 source 所有权。
 

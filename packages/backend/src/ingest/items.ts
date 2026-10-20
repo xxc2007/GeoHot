@@ -6,7 +6,7 @@
 // reporter, and last_ok_at moves only on a call that actually took something.
 import { sql } from "../db.ts";
 import { upsertMaterial,identityKeyFor } from "../content/materials.ts";
-import {strongMaterialKeys,lockMaterialKeys} from '../content/material-identity.ts';
+import {strongMaterialKeys,lockMaterialKeys,lockMaterialBatchRows} from '../content/material-identity.ts';
 import { queueProcessing } from "../jobs/content.ts";
 import { normalizeUrl } from "../lib/url.ts";
 import { parsePublishedAt } from "../sources/dates.ts";
@@ -82,10 +82,12 @@ export async function ingestItems(body: unknown): Promise<IngestAnswer> {
   const ordered = items.map((it,index) => ({ it,index,key: typeof it.url === "string" ? normalizeUrl(it.url.trim()) ?? "" : "" }))
     .sort((a,b) => a.key.localeCompare(b.key) || a.index-b.index);
   // A batch shares a transaction: acquire the complete strong-key set before its first item.
-  await lockMaterialKeys(tx,ordered.flatMap(({it,key})=>{
+  const batchKeys=ordered.flatMap(({it,key})=>{
     const m={sourceId:source.id,url:key,title:typeof it.title==='string'?it.title:'',doi:typeof it.doi==='string'?it.doi:undefined,via:'ingest' as const};
     return strongMaterialKeys(m,identityKeyFor(m));
-  }));
+  });
+  await lockMaterialKeys(tx,batchKeys);
+  await lockMaterialBatchRows(tx,batchKeys,ordered.map(r=>r.key));
   for (const {index,it} of ordered) {
     const title = typeof it.title === "string" ? it.title.trim() : "";
     const rawUrl = typeof it.url === "string" ? it.url.trim() : "";

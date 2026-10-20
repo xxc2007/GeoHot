@@ -21,14 +21,22 @@ export function strongMaterialKeys(m:MaterialInput,primary:string):string[] {
   const fragmentScoped=primary.startsWith('url:')&&primary.includes('#');
   if(!fragmentScoped) {
     const url=identityKeyForUrl(m.url);if(url)keys.add(url);
-    const explicit=m.doi??(primary.startsWith('doi:')?primary.slice(4):null);
-    const doi=explicit?normalizeDoi(explicit):normalizeDoi(m.url);
-    if(doi)keys.add('doi:'+doi);
+    // Each evidence channel is independent. An explicit DOI must never suppress a different
+    // DOI proven by a resolver URL; retain both so the resolver quarantines the contradiction.
+    for(const evidence of [m.doi,primary.startsWith('doi:')?primary.slice(4):null,m.url]) {
+      const doi=evidence?normalizeDoi(evidence):null;if(doi)keys.add('doi:'+doi);
+    }
   }
   return [...keys].sort();
 }
 export async function lockMaterialKeys(db:Db,keys:string[]) {
   for(const key of [...new Set(keys)].sort())await db`SELECT pg_advisory_xact_lock(hashtextextended(${key},734073))`;
+}
+/** Different incoming aliases may resolve to the same canonical rows in opposite batch order. */
+export async function lockMaterialBatchRows(db:Db,keys:string[],urls:string[]) {
+  await db`SELECT a.id FROM articles a WHERE a.identity_key=ANY(${keys}::text[]) OR a.url=ANY(${urls}::text[])
+    OR a.id IN (SELECT article_id FROM article_identity_aliases WHERE alias_key=ANY(${keys}::text[]))
+    ORDER BY a.id FOR UPDATE`;
 }
 export async function observeMaterial(db:Db,m:MaterialInput,articleId:string|null,conflictId:number|null) {
   const payload=stableJson(m),hash=sha256(stableJson({...m,discoveredAt:undefined}));

@@ -7,6 +7,7 @@ import {normalizeDoi} from '@aihot/backend/content/material-identity';
 import {identityKeyForUrl} from '@aihot/backend/lib/url';
 import {ingestItems} from '@aihot/backend/ingest/items';
 import {spawnSync} from 'node:child_process';
+import postgres from 'postgres';
 const T=tag(),live=`alias-live-${T}`,archive=`alias-archive-${T}`,ingest=`alias-ingest-${T}`;
 before(async()=>{for(const id of [live,archive,ingest])await sql`INSERT INTO sources(id,name,kind) VALUES(${id},${id},'external')`;});
 after(async()=>{await sql`DELETE FROM receipts WHERE logical_key=${`alias-receipt-${T}`}`;await purgeTagged(live,archive,ingest);await closeDb();});
@@ -117,4 +118,49 @@ test('same-source archive synopsis records its full observation without replacin
  assert.deepEqual(await sql`SELECT revision,title,body_text,content_hash,updated_at FROM articles WHERE id=${a.articleId}`,before);
  const [obs]=await sql`SELECT payload FROM material_observations WHERE article_id=${a.articleId} AND via='import'`;
  assert.equal(obs!.payload.bodyText,'Archive abstract');
+});
+test('explicit DOI cannot suppress independent resolver URL DOI evidence or steal its URL alias',async()=>{
+ const a=await upsertMaterial({sourceId:archive,url:`https://publisher.example/${T}-A`,doi:`10.1234/${T}-A`,title:'A',via:'fetch'});
+ const url=`https://doi.org/10.1234/${T}-B`;
+ const bad=await upsertMaterial({sourceId:live,url,doi:`10.1234/${T}-A`,title:'Contradictory evidence',via:'import'});
+ assert.equal(bad.quarantined,true);assert.equal(bad.created,false);
+ assert.equal((await sql`SELECT count(*)::int AS n FROM article_identity_aliases WHERE alias_key=${identityKeyForUrl(url)}`)[0]!.n,0);
+ const b=await upsertMaterial({sourceId:ingest,url,title:'Actual B',via:'fetch'});
+ assert.equal(b.created,true);assert.notEqual(b.articleId,a.articleId);assert.equal(b.quarantined,undefined);
+});
+test('disjoint incoming aliases lock shared canonical rows in one stable batch order',async()=>{
+ const a=await upsertMaterial({sourceId:archive,url:`https://batch.example/${T}/A`,doi:`10.1234/${T}-batchA`,title:'A',via:'fetch'});
+ const b=await upsertMaterial({sourceId:archive,url:`https://batch.example/${T}/B`,doi:`10.1234/${T}-batchB`,title:'B',via:'fetch'});
+ const aliases=[
+  {source:live,url:`https://alias-a.example/${T}/1-A`,doi:`10.1234/${T}-batchA`},
+  {source:live,url:`https://alias-a.example/${T}/2-B`,doi:`10.1234/${T}-batchB`},
+  {source:ingest,url:`https://alias-b.example/${T}/1-B`,doi:`10.1234/${T}-batchB`},
+  {source:ingest,url:`https://alias-b.example/${T}/2-A`,doi:`10.1234/${T}-batchA`}
+ ];
+ for(const v of aliases)await upsertMaterial({sourceId:v.source,url:v.url,doi:v.doi,title:'Alias rendering',via:'fetch'});
+ const gate=postgres(process.env.DATABASE_URL!,{max:1});
+ await sql.unsafe("CREATE FUNCTION material_alias_batch_gate() RETURNS trigger LANGUAGE plpgsql AS $$BEGIN IF NEW.via='ingest' THEN PERFORM pg_advisory_lock(420073);PERFORM pg_advisory_unlock(420073);END IF;RETURN NEW;END$$");
+ await sql.unsafe('CREATE TRIGGER material_alias_batch_gate BEFORE INSERT ON material_observations FOR EACH ROW EXECUTE FUNCTION material_alias_batch_gate()');
+ await gate`SELECT pg_advisory_lock(420073)`;
+ const record=(p:ReturnType<typeof ingestItems>)=>p.then(value=>({ok:true,value}),error=>({ok:false,error}));
+ const first=record(ingestItems({sourceId:live,items:aliases.filter(v=>v.source===live).map(v=>({url:v.url,title:'HTTP alias'}))}));
+ const second=record(ingestItems({sourceId:ingest,items:aliases.filter(v=>v.source===ingest).map(v=>({url:v.url,title:'HTTP alias'}))}));
+ try {
+  try {
+  const deadline=Date.now()+8000;
+  while(true){
+   const [r]=await sql`SELECT count(*) FILTER(WHERE query LIKE '%INSERT INTO material_observations%')::int AS gated,
+     count(*) FILTER(WHERE query LIKE '%SELECT a.id FROM articles a%')::int AS canonical_wait
+     FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock'`;
+   if(r!.gated===1&&r!.canonical_wait===1)break;
+   if(Date.now()>deadline)throw new Error('Expected one observation gate and one canonical batch wait');
+   await new Promise(r=>setTimeout(r,10));
+  }
+  }finally{await gate`SELECT pg_advisory_unlock(420073)`;}
+  const results=await Promise.all([first,second]);assert.ok(results.every(r=>r.ok),JSON.stringify(results));
+  assert.equal((await sql`SELECT count(*)::int AS n FROM articles WHERE id=ANY(${[a.articleId,b.articleId]})`)[0]!.n,2);
+ }finally{
+  await Promise.allSettled([first,second]);
+  await sql.unsafe('DROP TRIGGER material_alias_batch_gate ON material_observations');await sql.unsafe('DROP FUNCTION material_alias_batch_gate()');await gate.end();
+ }
 });
