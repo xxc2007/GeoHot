@@ -138,8 +138,8 @@ test("the door is named for humans, and its budget row exists so the breaker is 
   const rows = await sql<{ service: string; per_minute: number; per_hour: number; per_day: number }[]>`
     SELECT service, per_minute, per_hour, per_day FROM budgets WHERE service = 'qoder-cn'`;
   assert.equal(rows.length, 1, "0074_qoder_cn_budget.sql did not seed the row");
-  assert.equal(rows[0]!.per_minute, 30, "24 concurrent requests returned five 429s, so the window is about 16 in flight");
-  assert.equal(rows[0]!.per_hour, 1_200, "eight slots x 3,600 s / 146 s per article x five steps is 986 calls an hour");
+  assert.equal(rows[0]!.per_minute, 60, "0075 preserves the integrated local budget; it is not an official provider rate guarantee");
+  assert.equal(rows[0]!.per_hour, 3_600, "0075 preserves the integrated local hourly budget without resetting receipts");
   assert.equal(rows[0]!.per_day, 12_000);
   // The receipt must name the door, not the upstream: service is what the breaker and the health ledger key on.
   const receipt = await sql<{ service: string; model: string }[]>`

@@ -1,0 +1,29 @@
+-- qoder-cn 的余量回收：把 0074 留下的 30/1200 抬到 60/3600。
+--
+-- 为什么需要这一行（实测，不是估算）：
+--   0074 的 per_hour 1,200 是按"8 个分析槽 + 6 条翻译 lane"的 14 路算的，其中 8 槽来自
+--   `ANALYZE_CONCURRENCY`。2026-10-20 14:50 的生产读数推翻了那个前提：
+--   生产机的 geohot-worker 跑的是 `role=coordinator`（`packages/backend/src/jobs/worker-role.ts`
+--   里 `content: role !== "coordinator"`），**它根本不消费 `content.analyze`**；那 4 个"服务器槽位"
+--   在分析腿上从来不存在。真正的分析容量只有工作站上那一个 content-executor 的 8 个 lane。
+--
+--   把执行器提到 12 lane 之后：12 × 3600/102s ≈ 423 篇/时，每篇 5 次串行调用 ≈ 2,117 次/时。
+--   池里 qoder 成员占 9/12，即 1,588 次/时 —— 已经越过 1,200，会被这一行判成
+--   BudgetExceededError("hour") 而把流量推给更慢的门。**1,200 变成了新瓶颈，那等于白接。**
+--   3,600 相对 2,117 留 70% 余量，仍能盖住"池里只剩 qoder 一扇门"的极端情形。
+--
+--   分钟窗同理：12 lane × 5 次 / 102 s × 60 ≈ 35 次/分（全部门合计），qoder 份额约 26 次/分，
+--   贴着 30 的边。60 把"分钟窗成为短调用档真瓶颈"这个可能一起排掉。
+--
+-- 为什么敢抬：这扇门不是按次计费的 API，是站长的 Qoder CN 订阅，经工作站回环上的 maggie 网关。
+--   它真正的墙是网关的**并发窗**，不是次数：2026-10-20 实测 16 路全 200、19 路全 200、
+--   24 路 19 成 5 条 429。12 分析 lane + 3 翻译 lane = 15 路，仍在窗内。
+--   这两行是记账与熔断，不是成本闸门；把它们压在容量之下只会让流量绕去更慢的门。
+--
+-- 判据仍然是 receipts，不是这两行：若 30 分钟内 service='qoder-cn' 出现成片 429，
+-- 按 #132 的规矩先回退 per_minute 到 12 再观察，不要靠继续加数字试探对端。并发窗才是硬约束，
+-- 所以真要回退，第一件事是把 ANALYZE_CONCURRENCY 降回来，而不是改这两行。
+--
+-- 回滚：UPDATE budgets SET per_minute = 30, per_hour = 1200 WHERE service = 'qoder-cn';
+UPDATE budgets SET per_minute = 60, per_hour = 3600, updated_at = now()
+ WHERE service = 'qoder-cn';
