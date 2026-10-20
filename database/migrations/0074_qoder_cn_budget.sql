@@ -1,0 +1,35 @@
+-- Qoder CN（工作站上的 maggie 网关）的熔断行。
+--
+-- 为什么要单独一行，而不是复用 llm 或 agnes-cn：熔断、健康账本、退回账本三样都按 service 记账。
+-- 这扇门背后是站长的 Qoder CN 订阅额度，它按 5 小时窗计而不是按分钟；把它挂在 llm 上会出现
+-- "用超了 qoder，站点却以为 Agnes 挂了"——而那正是 0064 为 WorkBuddy 中国版单开一行的同一条理由。
+--
+-- 数值的依据（2026-10-20 实测，全部来自工作站上对 /v1/chat/completions 的真实请求）：
+--   • 并发：8 路 3.2 s 全 200；16 路 19.8 s 全 200；**24 路 44.8 s，19/24 成功、5 条 HTTP 429**。
+--     所以"同时在飞"的安全窗是 ~16，撞 429 会白占一个 worker 槽位（可重试，但要重花一次墙钟）。
+--   • 单调用墙钟（真实 editorial 提示词）：结构类 1.1–7.4 s；6 万字符理解型 4.0–8.1 s；
+--     整篇翻译（9,649 prompt → 21,006 completion，其中 14,127 是隐藏链）80.8 s
+--     = 3.85 ms/输出 token，是这份文件里最快的门（deepseek-v4.1-flash 4.9–6.7、step-5-preview 9.49、
+--     glm 17.80）。
+--
+-- 三个数与"谁在用它"的关系（这才是选数字的依据，不是"保守"）：
+--   同时在飞的上界由 worker 槽位决定，不由这扇门决定：8 个分析槽 + 6 条翻译 lane = 14。
+--   per_minute 30 在短调用档（5 s）只撑到 2.5 并发，在 80 s 翻译档撑到 40 并发——所以分钟窗
+--   只在短调用档真正生效，它不是瓶颈，也不会放任超出 16 并发窗的突发。
+--   per_hour 1,200 来自最坏但真实的一档：一篇分析是 5 次串行调用，146 s 墙钟 ⇒ 8 槽满负荷
+--   就是 8 × 3600/146 × 5 = 986 次/时；再把翻译 lane 加上，1,200 刚好盖住"全部流量都走这扇门"
+--   的极端情形，留 22% 余量。低于这个数会让这扇门在满负荷时成为新瓶颈，那等于白接。
+--   per_day 12,000 沿用 workbuddy-cn 的形状（0064），不是控成本：真正的墙在订阅的 5 小时窗上，
+--   而我们**没有测过它**——那属于站长的账号，替别人决定风险不是"达到限制之前"。
+--
+-- 判据不是这一行的数字，而是两样东西：receipts 里 service='qoder-cn' 的每分钟调用数与应答率、
+-- 以及 `content.analyze` 的每小时完成篇数（scripts/archive-progress.ts）。若 30 分钟内大范围出现
+-- 429/超时，按 #132 的规矩先退 per_minute 到 12 再观察，不要靠加数字试探对端。
+--
+-- 回滚：DELETE FROM budgets WHERE service='qoder-cn';
+--      并把 qoder-cn-dfmodel / qoder-cn-qfmodel 从 MODEL_POOL（以及 UNDERSTAND_MODEL、
+--      TRANSLATE_MODEL 这类步骤变量）里摘掉——只删这一行会让那两步每次调用都落
+--      BudgetExceededError("missing")，那是"停发"而不是"回退到别的门"。
+INSERT INTO budgets (service, per_minute, per_hour, per_day, note) VALUES
+  ('qoder-cn', 30, 1200, 12000, '模型调用熔断（Qoder CN 订阅，经工作站 127.0.0.1:3425 的 maggie 网关；dfmodel / qfmodel。实测 16 并发全 200、24 并发 5 条 429；8 槽满负荷的分析腿是 986 次/时，故 1,200 盖住全走这扇门的极端情形）')
+ON CONFLICT (service) DO NOTHING;
