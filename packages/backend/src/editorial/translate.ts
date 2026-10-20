@@ -316,7 +316,9 @@ async function translateOversized(block: Element, articleId: string, revision: n
       const sourceBare = source.replace(/⟦G\d+⟧/g, "");
       if (/\p{L}{2,}/u.test(sourceBare) && (!looksZh(bare) || bare.trim() === sourceBare.trim())) return null;
       if (sourceBare.length >= 300 && bare.length / sourceBare.length < 0.22) return null;
-      const output = answer.replace(/⟦G(\d+)⟧/g, (_match, i: string) => tokens[Number(i)]!);
+      // Polish translated words while immutable source text is still shielded. Restored DOI/URL
+      // spellings may look like units (e.g. /12metres) and must never pass through zhText afterwards.
+      const output = zhText(answer).replace(/⟦G(\d+)⟧/g, (_match, i: string) => tokens[Number(i)]!);
       return (source.match(/^\s*/)?.[0] ?? "") + output.trim() + (source.match(/\s*$/)?.[0] ?? "");
     };
     const translations: Array<string | null> = [];
@@ -339,7 +341,7 @@ async function translateOversized(block: Element, articleId: string, revision: n
       translations.push(translated);
     }
     // Do not replace half a text node. Paid successful fragments remain reusable on the next run.
-    if (translations.every(t => t !== null)) node.data = zhText(translations.join(""));
+    if (translations.every(t => t !== null)) node.data = translations.join("");
     else intact = false;
   }
   return { done: intact ? 1 : 0, errors };
