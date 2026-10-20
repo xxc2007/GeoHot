@@ -428,9 +428,9 @@ export async function translateArticle(articleId: string, control: TranslationCo
   const errors = legacy.errors;
   for (let i = chosen.length; i < blocks.length; i++) {
     const el = blocks[i]!;
-    const extra = ($(el).html() ?? "").length > BATCH_CHARS
-      ? await translateOversized(el, articleId, row.revision, i, control)
-      : await translateBlocks([el], `long-v1:block:${i}`);
+    // Every newly covered block needs immutable scientific tokens, including
+    // short paragraphs. Keep the legacy prefix and its paid payloads sealed.
+    const extra = await translateOversized(el, articleId, row.revision, i, control);
     done += extra.done;
     errors.push(...extra.errors);
   }

@@ -18,6 +18,7 @@ const articleIds: string[] = [];
 const requests: string[][] = [];
 let echoLast = false;
 let misaligned = false;
+let inventTailNumber = false;
 let corrupt: "html" | "token" | undefined;
 let afterAnswer: (() => void | Promise<void>) | undefined;
 let originalBudget: { per_minute: number; per_hour: number; per_day: number } | undefined;
@@ -26,7 +27,7 @@ const provider = await stub(async (_hit, req) => {
   requests.push(segments);
   await afterAnswer?.();
   return { id: "stub", choices: [{ message: { content: JSON.stringify({ t: misaligned && segments.length > 1 ? [] : segments.map(s =>
-    echoLast && s.includes("LEGACY_LAST") ? s : `${corrupt === "html" ? '<script>injected()</script>' : ''}完整正文译文${s.includes("UNIQUE_TAIL") ? "最后一段已译" : ""}。${"中文内容".repeat(Math.ceil(s.length / 10))}${corrupt === "token" ? "" : (s.match(/⟦G\d+⟧/g) ?? []).join("")}。`) }) } }],
+    inventTailNumber && s.includes("ADVERSARIAL_TAIL") ? '<span>完整正文译文 https://example.org/123tonnes 和 doi:10.1234/12metres，测量值 9999。</span>' : echoLast && s.includes("LEGACY_LAST") ? s : `${corrupt === "html" ? '<script>injected()</script>' : ''}完整正文译文${s.includes("UNIQUE_TAIL") ? "最后一段已译" : ""}。${"中文内容".repeat(Math.ceil(s.length / 10))}${corrupt === "token" ? "" : (s.match(/⟦G\d+⟧/g) ?? []).join("")}。`) }) } }],
     usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 } };
 });
 
@@ -36,9 +37,35 @@ async function primeLegacy(id: string, index: number, parts: string[], attemptTa
     schema: z.object({ t: z.array(z.string()) }), temperature: 0.2,
     maxTokens: Math.min(8000, Math.ceil(parts.join("").length * 1.2) + 400), timeoutMs: 180_000, attemptTag });
 }
+test("new short tail rejects changed literal URLs DOI and measured numbers", async () => {
+  const prefix = [...Array.from({length:19},(_,i)=>`Scientific prefix ${T} ${i} `.padEnd(3100,"x")), `Boundary ${T} `.padEnd(1000,"x")];
+  const tail = "ADVERSARIAL_TAIL See https://example.org/123tonnes and doi:10.1234/12metres, measured 12.50. Short tail scientific observation.";
+  const id = await selectedBody("short-tail-corruption", [...prefix,tail].map(s=>`<p>${s}</p>`).join(""));
+  inventTailNumber = true;
+  try { await translateArticle(id); } finally { inventTailNumber = false; }
+  const [tr] = await sql`SELECT complete,body_html FROM translations WHERE article_id=${id}`;
+  assert.equal(tr!.complete, false, "changed scientific values must never be marked complete");
+  assert.equal(cheerio.load(tr!.body_html,null,false)("p").last().text(), tail);
+});
+test("new short tail preserves scientific text and inline DOM after valid translation", async () => {
+  const prefix = [...Array.from({length:19},(_,i)=>`Scientific prefix ${T} ${i} `.padEnd(3100,"x")), `Boundary ${T} `.padEnd(1000,"x")];
+  const url="https://example.org/123tonnes", doi="doi:10.1234/12metres";
+  const tail=`<p class="scientific">UNIQUE_TAIL Study <a href="${url}" title="reference">Scientific river</a> ${url} and ${doi}, measured 12.50. More scientific observation data.</p>`;
+  const id=await selectedBody("short-tail-valid", prefix.map(s=>`<p>${s}</p>`).join("")+tail);
+  assert.equal((await translateArticle(id)).status,"translated");
+  const [tr]=await sql`SELECT complete,body_html FROM translations WHERE article_id=${id}`;
+  assert.equal(tr!.complete,true);
+  const last=cheerio.load(tr!.body_html,null,false)("p").last();
+  assert.equal(last.find("a").length,1);
+  assert.equal(last.find("a").attr("href"),url);
+  for(const literal of [url,doi,"12.50"]) assert.ok(last.text().includes(literal),`immutable ${literal}`);
+  const hits=provider.hits();
+  await translateArticle(id);
+  assert.equal(provider.hits(),hits,"completed short tail must reuse settled receipts");
+});
 for (const retry of [false, true]) test(`legacy last batch${retry ? " and retry" : ""} is sealed before new tail work`, async () => {
   const prefix = [...Array.from({ length: 19 }, (_, i) => (`Scientific legacy ${T} ${retry} ${i}. `).padEnd(3100, "x")), `LEGACY_LAST ${T} ${retry} `.padEnd(1000, "x")];
-  const tail = `UNIQUE_TAIL Scientific river data ${T} ${retry}. `.padEnd(200, "x");
+  const tail = `UNIQUE_TAIL Scientific river data ${T.replace(/\d/g, "x")} ${retry}. `.padEnd(200, "x");
   const id = await selectedBody(`sealed-${retry}`, [...prefix, tail].map(s => `<p>${s}</p>`).join(""));
   for (let i = 0; i < prefix.length; i++) {
     echoLast = retry && i === prefix.length - 1;
@@ -58,7 +85,7 @@ for (const retry of [false, true]) test(`legacy last batch${retry ? " and retry"
 test("legacy failed group and its successful halves keep their original indexes and payloads", async () => {
   const prefix = Array.from({length:18}, (_,i) => `Legacy half ${T} ${i} `.padEnd(3100,'x'));
   const left = `Legacy left ${T} `.padEnd(1650,'x'), right = `Legacy right ${T} `.padEnd(1650,'x');
-  const last = `Legacy end ${T} `.padEnd(500,'x'), tail = `New tail ${T} `.padEnd(600,'x');
+  const last = `Legacy end ${T} `.padEnd(500,'x'), tail = `New tail ${T.replace(/\d/g,"x")} `.padEnd(600,'x');
   const id = await selectedBody('halves', [...prefix,left,right,last,tail].map(s=>`<p>${s}</p>`).join(''));
   for(let i=0;i<prefix.length;i++)await primeLegacy(id,i,[prefix[i]!]);
   misaligned=true;
