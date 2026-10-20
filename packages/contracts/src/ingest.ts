@@ -20,7 +20,7 @@ export function classifyIngestResponse(value: unknown, status: number, total: nu
     if (!row || typeof row !== 'object' || !index(row.index) || skipped.includes(row.index)) return invalid();
     skipped.push(row.index);
   }
-  const quarantineCount = a.quarantined ?? 0;
+  const quarantineCount = a.quarantined === undefined ? 0 : a.quarantined;
   if (!count(quarantineCount)) return invalid();
   const conflicts: number[] = [];
   if (a.identityConflicts !== undefined) {

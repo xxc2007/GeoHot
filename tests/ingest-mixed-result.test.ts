@@ -17,6 +17,7 @@ after(async()=>{await app.close();await stopBoss();await closeDb();await admin.u
 for(const queue of Object.values(QUEUES))await ensureQueue(queue);
 
 test('response contract separates source review, mixed material quarantine, skips and acceptance',()=>{
+assert.throws(()=>classifyIngestResponse({ok:true,created:0,revised:0,skipped:[],quarantined:null},200,1),/Invalid ingest response/);
 assert.deepEqual(classifyIngestResponse({ok:true,created:0,revised:0,skipped:[],quarantined:2,sourceStatus:'pending_review'},202,2),{created:0,revised:0,accepted:[],quarantined:[0,1],rejected:[]});
 assert.deepEqual(classifyIngestResponse({ok:true,created:1,revised:0,skipped:[{index:1,reason:'identity conflict'},{index:2,reason:'invalid'}],quarantined:1,identityConflicts:[{index:1,conflictId:'9007199254740993'}]},202,3),{created:1,revised:0,accepted:[0],quarantined:[1],rejected:[2]});
 for(const value of [
