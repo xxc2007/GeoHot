@@ -18,13 +18,13 @@ import { sql } from "../db.ts";
 import { sanitizeBody, textToHtml } from "../content/sanitize.ts";
 import { chatJson } from "../providers/llm.ts";
 import { collapseWhitespace } from "../lib/text.ts";
-import { sha256 } from "../lib/ids.ts";
 import { modelFor } from "./models.ts";
 import { looksZh } from "./writing.ts";
 import { shutdownSignal } from "../jobs/queue.ts";
 import { promptText, promptVersion } from "./prompts.ts";
 import { ReceiptBusyError, ReceiptUnknownError } from "../providers/receipts.ts";
 import { fairTranslationOrder, translationScope, translateWindowDays as windowDays, type TranslationRank } from "./translation-scheduling.ts";
+import { translationSelectorRead } from "./translation-selector.ts";
 
 export const TRANSLATE_PROMPT_VERSION = promptVersion("translate-body", "translate-post");
 const BATCH_CHARS = 3500;
@@ -365,12 +365,13 @@ function quoteTranslatable(text: string): boolean {
   return words.length >= 10 && (words.match(/\p{L}/gu) ?? []).length >= 2 && !hasChineseCopy(words);
 }
 
-/**
- * 解析失败的重问要封顶：这个循环每 5 分钟跑一遍、窗口 3 天，一条系统性解不开的引用帖本会一直付费
- * 重问（≈288 次/天）。按 (tweet, 文本哈希) 记失败次数，单个进程内至多问 3 次；文本一变哈希就变、
- * 重新计数，进程重启后清零——封顶的目的是把"解不开"的成本按住，不是禁掉重试。
- */
-const quoteFailures = new Map<string, number>();
+/** Failed/cached unusable answers have a durable bound; deferred receipts only rotate priority. */
+async function quoteAttempt(tweetId: string, hash: string, outcome: "failed" | "deferred" | "skipped" | "translated", reason: string, db: import("../db.ts").Db = sql) {
+  await db`INSERT INTO quote_translation_attempts(tweet_id,text_hash,attempts,outcome,reason)
+    VALUES(${tweetId},${hash},${outcome === "failed" ? 1 : 0},${outcome},${reason})
+    ON CONFLICT(tweet_id,text_hash) DO UPDATE SET attempts=quote_translation_attempts.attempts+EXCLUDED.attempts,
+      outcome=EXCLUDED.outcome,reason=EXCLUDED.reason,last_checked_at=clock_timestamp()`;
+}
 
 /**
  * The posts that selected X posts of the last `days` quote, translated once per quoted post: the
@@ -380,27 +381,34 @@ const quoteFailures = new Map<string, number>();
 export async function translateQuotes(opts: { days?: number; from?: Date; limit?: number; maxModelCalls?: number; budgetMs?: number } & TranslationControl = {}): Promise<number> {
   const started = Date.now();
   const from = opts.from ?? (opts.days === undefined ? translationScope().quoteFrom : new Date(started - opts.days * 86400_000));
-  const rows = await sql<{ tweet_id: string; text: string; text_hash: string | null; own_zh: string | null; discovered_at: Date }[]>`
-    SELECT DISTINCT ON (q.tweet_id) q.tweet_id, a.x_post->'quoted'->>'text' AS text, qt.text_hash, p.discovered_at,
-      (SELECT tr.body_text FROM articles o JOIN translations tr ON tr.article_id = o.id AND tr.lang = 'zh' AND tr.revision >= o.revision
-       WHERE o.identity_key = 'x:' || q.tweet_id AND tr.complete AND coalesce(tr.body_text, '') <> '') AS own_zh
+  const rows = await translationSelectorRead(tx => tx<{ tweet_id: string; text: string; text_hash: string; own_zh: string | null; discovered_at: Date }[]>`
+    WITH quoted AS (
+    SELECT DISTINCT ON (q.tweet_id) q.tweet_id, a.x_post->'quoted'->>'text' AS text, p.discovered_at,
+      encode(sha256(convert_to(a.x_post->'quoted'->>'text','UTF8')),'hex') AS text_hash
     FROM publications p JOIN articles a ON a.id = p.article_id
     CROSS JOIN LATERAL (SELECT substring(a.x_post->'quoted'->>'url' from '/status/([0-9]+)') AS tweet_id) q
-    LEFT JOIN quote_translations qt ON qt.tweet_id = q.tweet_id
     WHERE p.channel = 'x' AND p.selected AND p.visibility = 'public' AND p.body_mode = 'full'
       AND p.discovered_at >= ${from}
       AND q.tweet_id IS NOT NULL AND coalesce(a.x_post->'quoted'->>'text', '') <> ''
-    ORDER BY q.tweet_id, p.discovered_at DESC, p.article_id`;
-  rows.sort((a, b) => a.discovered_at.getTime() - b.discovered_at.getTime() || a.tweet_id.localeCompare(b.tweet_id));
+    ORDER BY q.tweet_id, p.discovered_at DESC, p.article_id
+    ), candidates AS MATERIALIZED (
+      SELECT q.*, t.last_checked_at FROM quoted q
+      LEFT JOIN quote_translations qt ON qt.tweet_id=q.tweet_id
+      LEFT JOIN quote_translation_attempts t ON t.tweet_id=q.tweet_id AND t.text_hash=q.text_hash
+      WHERE qt.text_hash IS DISTINCT FROM q.text_hash AND coalesce(t.attempts,0)<3 AND coalesce(t.outcome,'')<>'skipped'
+      ORDER BY t.last_checked_at NULLS FIRST,q.discovered_at,q.tweet_id LIMIT 30
+    )
+    SELECT q.tweet_id,q.text,q.text_hash,q.discovered_at,
+      (SELECT tr.body_text FROM articles o JOIN translations tr ON tr.article_id = o.id AND tr.lang = 'zh' AND tr.revision >= o.revision
+       WHERE o.identity_key = 'x:' || q.tweet_id AND tr.complete AND coalesce(tr.body_text, '') <> '') AS own_zh
+    FROM candidates q ORDER BY q.last_checked_at NULLS FIRST,q.discovered_at,q.tweet_id`);
   let stored = 0;
   let calls = 0;
   for (const r of rows) {
     checkTranslation(opts);
     if (stored >= (opts.limit ?? 30) || Date.now() - started > (opts.budgetMs ?? 2 * 60_000) || shutdownSignal.signal.aborted) break;
-    const hash = sha256(r.text);
-    if (r.text_hash === hash || !quoteTranslatable(r.text)) continue;
-    const failKey = `${r.tweet_id}:${hash}`;
-    if ((quoteFailures.get(failKey) ?? 0) >= 3) continue;
+    const hash = r.text_hash;
+    if (!quoteTranslatable(r.text)) { await quoteAttempt(r.tweet_id,hash,"skipped","not_translatable");continue; }
     // Reuse our own translation of that tweet only if it is Chinese; an English copy would be stored as a
     // "译文" and shown as one.
     let zh = r.own_zh && looksZh(r.own_zh) ? r.own_zh : null;
@@ -422,20 +430,22 @@ export async function translateQuotes(opts: { days?: number; from?: Date; limit?
       } catch (error) {
         // Switched-off calls or an exhausted budget stop the run; one unusable answer is counted and
         // skipped. A reply that did not parse left its receipt `failed`, so the next run would pay for
-        // that one again — `quoteFailures` bounds how many times it may (a reply that parsed but says
-        // nothing usable stays replayed for free; an answer that is empty is empty tomorrow too).
+        // that one again. Durable per-hash failures bound both rejected output and a cached answer
+        // that parsed but is unusable; checked hashes rotate behind untouched candidates.
         if (stopsTheRun(error)) throw error;
         // These refusals prove dispatch never started. Let another quote use the one paid opportunity.
-        if (receiptDeferred(error)) { calls -= 1; continue; }
-        quoteFailures.set(failKey, (quoteFailures.get(failKey) ?? 0) + 1);
+        if (receiptDeferred(error)) { calls -= 1;await quoteAttempt(r.tweet_id,hash,"deferred","receipt_deferred");continue; }
+        await quoteAttempt(r.tweet_id,hash,"failed","provider_error");
         continue;
       }
     }
-    if (!zh || !looksZh(zh)) continue;
-    await sql`
+    if (!zh || !looksZh(zh)) { await quoteAttempt(r.tweet_id,hash,"failed","unusable_response");continue; }
+    await sql.begin(async tx => {
+    await tx`
       INSERT INTO quote_translations (tweet_id, text_hash, text_zh, origin) VALUES (${r.tweet_id}, ${hash}, ${zh}, ${origin})
       ON CONFLICT (tweet_id) DO UPDATE SET text_hash = EXCLUDED.text_hash, text_zh = EXCLUDED.text_zh, origin = EXCLUDED.origin, created_at = now()`;
-    quoteFailures.delete(failKey);
+    await quoteAttempt(r.tweet_id,hash,"translated","stored",tx);
+    });
     stored += 1;
   }
   return stored;
@@ -483,7 +493,7 @@ export async function translatePending(opts: { limit?: number; budgetMs?: number
   if (!Number.isSafeInteger(total) || total < 1) throw new Error("Translation limit must be a positive integer");
   const scope = translationScope({ now: new Date(started), from: opts.from });
   // All streams share eligibility. Fetch narrow ranks, then interleave and replenish overlap.
-  const ranked = await sql<TranslationRank[]>`
+  const ranked = await translationSelectorRead(tx => tx<TranslationRank[]>`
     WITH cand AS (
       SELECT p.article_id, p.discovered_at, octet_length(coalesce(a.body_html, a.body_text, '')) AS bytes
       FROM publications p JOIN articles a ON a.id = p.article_id
@@ -503,7 +513,7 @@ export async function translatePending(opts: { limit?: number; budgetMs?: number
       FROM cand
     )
     SELECT article_id, by_fresh, by_short, by_old FROM ranked
-    WHERE by_fresh <= ${total} OR by_short <= ${total} OR (${scope.historical} AND by_old = 1)`;
+    WHERE by_fresh <= ${total} OR by_short <= ${total} OR (${scope.historical} AND by_old = 1)`);
   const rows = fairTranslationOrder(ranked, total, scope.historical);
   const done: TranslateResult[] = [];
   // 逐条 await 时这一腿的吞吐由对端墙钟决定（2026-10-16 实测一次 translate_body 调用平均 130 秒
