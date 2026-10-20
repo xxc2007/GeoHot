@@ -9,6 +9,7 @@ import { sha256, stableJson } from "../lib/ids.ts";
 import { collapseWhitespace } from "../lib/text.ts";
 import { itemUrl } from "./links.ts";
 import { hasChineseCopy } from "@aihot/contracts/copy";
+import { hasSelectionEvidence } from "./selection-evidence.ts";
 import { enqueue, QUEUES, shutdownSignal } from "../jobs/queue.ts";
 import {
   bodyModeOf, channelOf, displayTags, FACT_MEMBER_ROLES, isIndexable, isPoolEligible, isSelectable, mayRedistribute, type SourceFacts,
@@ -26,6 +27,7 @@ interface ArticleRow {
   backfill: boolean;
   body_status: string;
   body_text: string | null;
+  excerpt: string | null;
   x_post: unknown;
   grouped_at: Date | null;
 }
@@ -46,6 +48,7 @@ interface AnalysisRow {
 interface OverrideRow {
   fields: Record<string, unknown>;
   visibility: string | null;
+  reason: string | null;
 }
 
 interface PublicationRow {
@@ -149,7 +152,7 @@ export async function publishArticle(articleId: string, options: PublishOptions 
 export async function publishArticleTx(tx: Tx, articleId: string, options: PublishOptions = {}): Promise<PublishResult | null> {
   const [article] = await tx<ArticleRow[]>`
     SELECT id, source_id, url, title, language, published_at, discovered_at, timeline_at, backfill, body_status,
-           body_text, x_post, grouped_at
+           body_text, excerpt, x_post, grouped_at
     FROM articles WHERE id = ${articleId} FOR UPDATE`;
   if (!article) return null;
   // Reports take this lock exclusively while reading candidates. Hold it through commit so a
@@ -162,7 +165,7 @@ export async function publishArticleTx(tx: Tx, articleId: string, options: Publi
   const [analysis] = await tx<AnalysisRow[]>`
     SELECT id, relevance, category, tags, subjects, title_zh, summary_zh, reason_zh, score, selected
     FROM analyses WHERE article_id = ${articleId} ORDER BY input_revision DESC, id DESC LIMIT 1`;
-  const [override] = await tx<OverrideRow[]>`SELECT fields, visibility FROM editorial_overrides WHERE article_id = ${articleId}`;
+  const [override] = await tx<OverrideRow[]>`SELECT fields, visibility, reason FROM editorial_overrides WHERE article_id = ${articleId}`;
   const [membership] = await tx<{ fact_id: number; story_id: number | null }[]>`
     SELECT fa.fact_id, f.story_id FROM fact_articles fa JOIN facts f ON f.id = fa.fact_id
     LEFT JOIN stories s ON s.id = f.story_id
@@ -189,7 +192,11 @@ export async function publishArticleTx(tx: Tx, articleId: string, options: Publi
   const visibility = source.participation_mode === "isolated" ? "withdrawn" : (override?.visibility ?? "public");
 
   const eligible = isPoolEligible({ participationMode: source.participation_mode, relevance, title, summary });
-  const selected = isSelectable(eligible, judgedSelected, source.tier);
+  const sourceEvidence = hasSelectionEvidence({ title: article.title, bodyStatus: article.body_status, bodyText: article.body_text, excerpt: article.excerpt, xPost: article.x_post });
+  // Keep an explicitly forced editorial choice with its existing required operation reason.
+  // This preserves operator intent; it does not claim that the reason proves factual accuracy.
+  const editorSelected = f.selected === true && [override?.reason, f.reason].some(reason => typeof reason === "string" && reason.trim().length > 0);
+  const selected = isSelectable(eligible, judgedSelected, source.tier) && (sourceEvidence || editorSelected);
   const reason = selected ? pickString(f.reason, analysis?.reason_zh ?? null) : null;
   const hasXPost = !!article.x_post;
   const channel = channelOf(source.kind, hasXPost);

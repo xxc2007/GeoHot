@@ -73,6 +73,7 @@ before(async () => {
     sourceId: SOURCE, url: `https://example.com/${T}-a`, title: `Source ${T} a`, bodyText: "A bulletin.",
     bodyStatus: "ok", via: "fetch", publishedAt: INSIDE, discoveredAt: INSIDE,
   });
+  ids.push(articleId); // Cleanup must know the material even if a later setup assertion fails.
   assert.equal(backfill, false, "夹具落进了回填窗口，成刊层根本不会看它");
   await sql`INSERT INTO analyses (article_id, input_revision, origin, relevance, category, title_zh, summary_zh, score, selected)
             VALUES (${articleId}, 1, 'rule', 'pass', 'physical', ${`赣江沿线启动加密监测 ${T}`}, ${`赣江沿线水文站启动加密监测，读数并列。`}, 90, true)`;
@@ -81,7 +82,6 @@ before(async () => {
   // `unsettled()` counts a `new` row as still-pending, so a fixture left at `new` makes the runner report
   // 「等 1 条判完」 and it never reaches the branch under test. Real items arrive here via the analyzer.
   await sql`UPDATE articles SET processing_state = 'analyzed' WHERE id = ${articleId}`;
-  ids.push(articleId);
 });
 
 after(async () => {
