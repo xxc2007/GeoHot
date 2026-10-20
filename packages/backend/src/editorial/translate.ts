@@ -29,7 +29,7 @@ import { translationSelectorRead } from "./translation-selector.ts";
 
 export const TRANSLATE_PROMPT_VERSION = promptVersion("translate-body", "translate-post");
 const BATCH_CHARS = 3500;
-/** Longer bodies get their first part translated and are marked incomplete. */
+/** Receipt compatibility boundary: never repack the prefix purchased by older workers. */
 const MAX_CHARS = 60_000;
 /** X posts shorter than this carry their meaning in the Chinese title and summary. */
 const X_MIN_CHARS = 60;
@@ -85,7 +85,7 @@ function segmentsOf($: cheerio.CheerioAPI): Element[] {
   return out;
 }
 
-async function translateBatch(articleId: string, revision: number, index: number, parts: string[], system: string, attemptTag?: string, control: TranslationControl = {}): Promise<string[] | null> {
+async function translateBatch(articleId: string, revision: number, index: number | string, parts: string[], system: string, attemptTag?: string, control: TranslationControl = {}): Promise<string[] | null> {
   checkTranslation(control);
   // One article, one translator: the shard key is the article id, not the batch index, or a long body
   // would be rendered in several prose styles stitched together.
@@ -132,7 +132,7 @@ function databaseFailure(error: unknown): boolean {
 }
 
 /** Translates batches; a batch whose answer does not line up is halved once, and a half that answers is kept. */
-async function translateAll(articleId: string, revision: number, parts: string[], system: string, attemptTag?: string, control: TranslationControl = {}): Promise<{ answers: Array<string | null>; errors: string[] }> {
+async function translateAll(articleId: string, revision: number, parts: string[], system: string, attemptTag?: string, control: TranslationControl = {}, space?: string): Promise<{ answers: Array<string | null>; errors: string[] }> {
   const out: Array<string | null> = new Array(parts.length).fill(null);
   const errors: string[] = [];
   // 一批"报错"不等于整篇作废。2026-10-16 实测 12 小时 116 次 translate_body 调用：<180 s 的 107 次全部
@@ -141,7 +141,7 @@ async function translateAll(articleId: string, revision: number, parts: string[]
   // 还要占掉 translation_attempts 三次机会里的一次。长正文批次多，被钉死的全是长正文（p50 20,136 字，
   // 而翻成功的那批只有 3,135 字）。现在按"这块没翻出来"处理：折半、缺块单问，其余照旧入库。
   const ask = (batch: string[], index: number): Promise<string[] | null> =>
-    translateBatch(articleId, revision, index, batch, system, attemptTag, control).catch((error: unknown) => {
+    translateBatch(articleId, revision, space === undefined ? index : `${space}:${index}`, batch, system, attemptTag, control).catch((error: unknown) => {
       if (databaseFailure(error) || stopsTheRun(error) || receiptDeferred(error)) throw error;
       errors.push((error as Error).message);
       return null;
@@ -271,6 +271,80 @@ export function polishZh(html: string): string {
   return $.html();
 }
 
+/** New work only: retain the original DOM and translate bounded text-node partitions. */
+async function translateOversized(block: Element, articleId: string, revision: number, ordinal: number, control: TranslationControl) {
+  const nodes: Array<Extract<AnyNode, { type: "text" }>> = [];
+  const visit = (children: AnyNode[]) => {
+    for (const node of children) {
+      if (node.type === "text") nodes.push(node);
+      else if (node.type === "tag" && !["pre", "code", "picture", "video"].includes(node.name)) visit(node.children);
+    }
+  };
+  visit(block.children);
+  let intact = true;
+  const errors: string[] = [];
+  for (let n = 0; n < nodes.length; n++) {
+    const node = nodes[n]!;
+    const original = node.data;
+    if (!/[A-Za-zÀ-ɏЀ-ӿ぀-ヿ]/.test(original)) continue;
+    // Shield immutable numbers, literal token syntax and HTML metacharacters BEFORE partitioning.
+    const tokens: string[] = [];
+    const encoded = original.replace(/⟦[^⟧]*⟧|https?:\/\/[^\s<>"']+|(?:doi:\s*)?10\.\d{4,9}\/[^\s<>"']+|[<>&]|[[(（][\d\s,;:–—-]+[\])）]|[+-]?\d+(?:[ \u00a0\u202f]\d{3})*(?:[.,:/−–-]\d+)*(?:[eE][+-]?\d+)?/giu, text => {
+      tokens.push(text);
+      return `⟦G${tokens.length - 1}⟧`;
+    });
+    const parts: string[] = [];
+    let part = "";
+    // Whitespace/word boundaries are preferred; code-point cutting is only the fallback for a long word.
+    for (const word of encoded.match(/⟦G\d+⟧|[^\s⟦]+|\s+|⟦/gu) ?? []) {
+      const atoms = /^⟦G\d+⟧$/.test(word) ? [word] : Array.from(word);
+      if (part && part.length + word.length > 3000) { parts.push(part); part = ""; }
+      for (const atom of atoms) {
+        if (part && part.length + atom.length > 3000) { parts.push(part); part = ""; }
+        part += atom;
+      }
+    }
+    if (part) parts.push(part);
+    if (parts.join("") !== encoded) throw new Error("long translation partition did not preserve input");
+    const restore = (answer: string | null, source: string) => {
+      if (!answer || /[<>&]/.test(answer)) return null;
+      const expected: string[] = source.match(/⟦G\d+⟧/g) ?? [];
+      const found: string[] = answer.match(/⟦G\d+⟧/g) ?? [];
+      if (found.join("|") !== expected.join("|") || expected.some(t => found.filter(x => x === t).length !== 1)) return null;
+      const bare = answer.replace(/⟦G\d+⟧/g, "");
+      if (/[\d⟦⟧]/.test(bare)) return null;
+      const sourceBare = source.replace(/⟦G\d+⟧/g, "");
+      if (/\p{L}{2,}/u.test(sourceBare) && (!looksZh(bare) || bare.trim() === sourceBare.trim())) return null;
+      if (sourceBare.length >= 300 && bare.length / sourceBare.length < 0.22) return null;
+      const output = answer.replace(/⟦G(\d+)⟧/g, (_match, i: string) => tokens[Number(i)]!);
+      return (source.match(/^\s*/)?.[0] ?? "") + output.trim() + (source.match(/\s*$/)?.[0] ?? "");
+    };
+    const translations: Array<string | null> = [];
+    for (let f = 0; f < parts.length; f++) {
+      const source = parts[f]!;
+      // Whitespace-only partitions are original text, not empty translations.
+      if (!/[A-Za-zÀ-ɏЀ-ӿ぀-ヿ]/.test(source.replace(/⟦G\d+⟧/g, ""))) {
+        translations.push(source.replace(/⟦G(\d+)⟧/g, (_match, i: string) => tokens[Number(i)]!));
+        continue;
+      }
+      const space = `long-v1:block:${ordinal}:node:${n}:part:${f}`;
+      const first = await translateAll(articleId, revision, [source], SYSTEM_BODY, undefined, control, space);
+      errors.push(...first.errors);
+      let translated = restore(first.answers[0] ?? null, source);
+      if (translated === null) {
+        const retry = await translateAll(articleId, revision, [source], SYSTEM_BODY, "retry", control, space);
+        errors.push(...retry.errors);
+        translated = restore(retry.answers[0] ?? null, source);
+      }
+      translations.push(translated);
+    }
+    // Do not replace half a text node. Paid successful fragments remain reusable on the next run.
+    if (translations.every(t => t !== null)) node.data = zhText(translations.join(""));
+    else intact = false;
+  }
+  return { done: intact ? 1 : 0, errors };
+}
+
 export async function translateArticle(articleId: string, control: TranslationControl = {}): Promise<TranslateResult> {
   checkTranslation(control);
   const [row] = await sql<{ revision: number; channel: string; language: string | null; body_html: string | null; body_text: string | null; x_post: { text?: string } | null; title: string; selected: boolean; body_mode: string; visibility: string }[]>`
@@ -305,7 +379,7 @@ export async function translateArticle(articleId: string, control: TranslationCo
   const $ = cheerio.load(bodyHtml, null, false);
   const blocks = segmentsOf($);
   if (!blocks.length) return result({ status: "skipped", reason: "no translatable text" });
-  // Beyond the cap, only the leading blocks are translated; the rest keep the original text.
+  // Reconstruct the historical receipt prefix exactly; subsequent work has its own sealed batches.
   let budget = MAX_CHARS;
   const chosen: Element[] = [];
   for (const el of blocks) {
@@ -314,49 +388,67 @@ export async function translateArticle(articleId: string, control: TranslationCo
     budget -= html.length;
     chosen.push(el);
   }
-  const shielded = chosen.map((el) => shield($(el).html() ?? ""));
-  const restore = (answers: Array<string | null>) => answers.map((t, i) => (t === null ? null : unshield(t, shielded[i]!)));
-  const first = await translateAll(articleId, row.revision, shielded.map((b) => b.html), SYSTEM_BODY, undefined, control);
-  const errors = [...first.errors];
-  const translations = restore(first.answers);
-  // 回声不是译文：原文有词而答复一个汉字都没有的块按"没翻出来"处理（走下面的一次重问、再不行保留
-  // 原文），否则整段英文会被标成"正文 · AI 翻译"贴进正文（红线）。原文本来只有数字/符号的块不算。
-  const sourceTexts = chosen.map((el) => $(el).text());
-  translations.forEach((t, i) => {
-    if (t && !looksZh(t) && /\p{L}{2,}/u.test(sourceTexts[i] ?? "")) translations[i] = null;
-  });
-  // Blocks whose answer dropped a link or an image are asked once more, on their own receipt.
-  const missing = translations.flatMap((t, i) => (t === null ? [i] : []));
-  if (missing.length) {
-    const again = await translateAll(articleId, row.revision, missing.map((i) => shielded[i]!.html), SYSTEM_BODY, "retry", control);
-    errors.push(...again.errors);
-    missing.forEach((i, k) => (translations[i] = again.answers[k] ? unshield(again.answers[k]!, shielded[i]!) : null));
-  }
-  let done = 0;
-  chosen.forEach((el, i) => {
-    const t = translations[i];
-    if (t) {
-      $(el).html(polishZh(t));
-      done += 1;
+  // The old prefix and its retry must remain entirely sealed from newly covered work.
+  const translateBlocks = async (chosen: Element[], space?: string) => {
+    const shielded = chosen.map((el) => shield($(el).html() ?? ""));
+    const restore = (answers: Array<string | null>) => answers.map((t, i) => (t === null ? null : unshield(t, shielded[i]!)));
+    const first = await translateAll(articleId, row.revision, shielded.map((b) => b.html), SYSTEM_BODY, undefined, control, space);
+    const errors = [...first.errors];
+    const translations = restore(first.answers);
+    // 回声不是译文：原文有词而答复一个汉字都没有的块按"没翻出来"处理（走下面的一次重问、再不行保留
+    // 原文），否则整段英文会被标成"正文 · AI 翻译"贴进正文（红线）。原文本来只有数字/符号的块不算。
+    const sourceTexts = chosen.map((el) => $(el).text());
+    translations.forEach((t, i) => {
+      if (t && !looksZh(t) && /\p{L}{2,}/u.test(sourceTexts[i] ?? "")) translations[i] = null;
+    });
+    // Blocks whose answer dropped a link or an image are asked once more, on their own receipt.
+    const missing = translations.flatMap((t, i) => (t === null ? [i] : []));
+    if (missing.length) {
+      const again = await translateAll(articleId, row.revision, missing.map((i) => shielded[i]!.html), SYSTEM_BODY, "retry", control, space);
+      errors.push(...again.errors);
+      missing.forEach((i, k) => (translations[i] = again.answers[k] ? unshield(again.answers[k]!, shielded[i]!) : null));
     }
-  });
+    if (space !== undefined) translations.forEach((t, i) => {
+      if (t && !looksZh(t) && /\p{L}{2,}/u.test(sourceTexts[i] ?? "")) translations[i] = null;
+    });
+    let done = 0;
+    chosen.forEach((el, i) => {
+      const t = translations[i];
+      if (t) {
+        $(el).html(polishZh(t));
+        done += 1;
+      }
+    });
+    return { done, errors };
+  };
+  const legacy = await translateBlocks(chosen);
+  let done = legacy.done;
+  const errors = legacy.errors;
+  for (let i = chosen.length; i < blocks.length; i++) {
+    const el = blocks[i]!;
+    const extra = ($(el).html() ?? "").length > BATCH_CHARS
+      ? await translateOversized(el, articleId, row.revision, i, control)
+      : await translateBlocks([el], `long-v1:block:${i}`);
+    done += extra.done;
+    errors.push(...extra.errors);
+  }
   if (!done) {
     // 一次都没成，且是"报错"造成的：抛给 translatePending 记可重试的 failed。写成 skipped 就是终态，
     // 一整个时段门都被墙死时，每一篇只会有一次机会就被永久排除。
     if (errors.length) throw new Error(`no block translated (${errors.length} batch error${errors.length > 1 ? "s" : ""}): ${errors[0]!.slice(0, 160)}`);
+    // New fragments with unusable answers are real bounded failures, never permanent empty work.
+    if (chosen.length < blocks.length) throw new Error("no long-body fragment translated");
     return result({ status: "skipped", reason: "no batch translated" });
   }
   const complete = done === blocks.length;
-  // 没翻全的原因要能在账上区分开：是模型有几块没答好，还是正文本来就超了 60,000 字的预算。
-  // 不写出来的话两种情况都只剩一个 `partial`，下一次没人知道该修哪一头。
-  const failed = chosen.length - done;
-  const dropped = blocks.length - chosen.length;
+  // Every eligible block is now attempted; only actual unusable answers remain incomplete.
+  const failed = blocks.length - done;
   const html = sanitizeBody($.html());
   await store(articleId, row.revision, row.title, html, cheerio.load(html, null, false).root().text().trim(), complete);
   return result({
     status: complete ? "translated" : "partial",
     segments: done,
-    reason: complete ? undefined : failed > 0 ? `${failed} of ${chosen.length} blocks kept in the original` : `${dropped} blocks over the ${MAX_CHARS}-character budget`,
+    reason: complete ? undefined : `${failed} of ${blocks.length} blocks kept in the original`,
   });
 }
 
@@ -495,9 +587,8 @@ export function translateConcurrency(raw: string | undefined = process.env.GEOHO
  * 每条 attempts=1 就被这两个谓词一起排除——旧的那道是 `tr.revision < a.revision`（存了就不算缺），
  * 新的一道是 outcome 里有 'partial'。于是读者面上永久留着「中文正文里夹几段英文」。重问的成本有界：
  * 已经翻出来的块走 receipts 缓存（logical_key 里有正文哈希与 model，同一篇同一 revision 命中同一把门），
- * 只有没答上的块才是真请求；再加 attempts>=3 封顶。另一类 partial 是 "over the 60000-character budget"
- * （6 条，frontiers 系列），尾巴按预算就不翻，重试只是把缺的几块补上，补完仍是 partial——那也符合本意：
- * 读者渲染只有 20,000 字（BODY_CAP_CHARS），超出部分是永远不会印出来的。
+ * 只有没答上的块才是真请求；再加 attempts>=3 封顶。历史60000预算前缀保留原回执分组，新增尾部独立推进。
+ * 已被旧预算误计封顶/跳过的历史条目需独立、精确且保留审计证据的修复，不在此自动清除旧attempts。
  */
 export async function translatePending(opts: { limit?: number; budgetMs?: number; from?: string } & TranslationControl = {}): Promise<{ done: TranslateResult[]; quotes: number }> {
   const started = Date.now();
