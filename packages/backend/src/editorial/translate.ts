@@ -13,6 +13,7 @@
 import * as cheerio from "cheerio";
 import type { AnyNode, Element } from "domhandler";
 import { z } from "zod";
+import postgres from "postgres";
 import { bodyIsChinese, hasChineseCopy } from "@aihot/contracts/copy";
 import { sql } from "../db.ts";
 import { sanitizeBody, textToHtml } from "../content/sanitize.ts";
@@ -120,6 +121,16 @@ function receiptDeferred(error: unknown): boolean {
   return error instanceof ReceiptBusyError || error instanceof ReceiptUnknownError;
 }
 
+/** SQL/refused connections are infrastructure failures, never evidence of an unusable translation. */
+function databaseFailure(error: unknown): boolean {
+  if (error instanceof postgres.PostgresError) return true;
+  if (!error || typeof error !== "object") return false;
+  // postgres.js decorates query/transport errors with these own, non-enumerable fields.
+  // Inspect only their presence: SQL and parameters may contain private source/receipt content.
+  if (Object.hasOwn(error, "query") && Object.hasOwn(error, "parameters")) return true;
+  return ["CONNECTION_CLOSED", "CONNECTION_ENDED", "CONNECTION_DESTROYED", "CONNECT_TIMEOUT"].includes((error as { code?: string }).code ?? "");
+}
+
 /** Translates batches; a batch whose answer does not line up is halved once, and a half that answers is kept. */
 async function translateAll(articleId: string, revision: number, parts: string[], system: string, attemptTag?: string, control: TranslationControl = {}): Promise<{ answers: Array<string | null>; errors: string[] }> {
   const out: Array<string | null> = new Array(parts.length).fill(null);
@@ -131,7 +142,7 @@ async function translateAll(articleId: string, revision: number, parts: string[]
   // 而翻成功的那批只有 3,135 字）。现在按"这块没翻出来"处理：折半、缺块单问，其余照旧入库。
   const ask = (batch: string[], index: number): Promise<string[] | null> =>
     translateBatch(articleId, revision, index, batch, system, attemptTag, control).catch((error: unknown) => {
-      if (stopsTheRun(error) || receiptDeferred(error)) throw error;
+      if (databaseFailure(error) || stopsTheRun(error) || receiptDeferred(error)) throw error;
       errors.push((error as Error).message);
       return null;
     });
@@ -417,9 +428,10 @@ export async function translateQuotes(opts: { days?: number; from?: Date; limit?
       if (calls >= (opts.maxModelCalls ?? 30)) break;
       origin = "model";
       const subject = `quote:${r.tweet_id}`;
+      // Routing reads settings before dispatch; its failures must not consume content attempts.
+      const model = await modelFor("translate", r.tweet_id);
+      checkTranslation(opts);
       try {
-        const model = await modelFor("translate", r.tweet_id);
-        checkTranslation(opts);
         calls += 1;
         const res = await chatJson({
           model, purpose: "translate_quoted", subject, promptVersion: TRANSLATE_PROMPT_VERSION,
@@ -428,6 +440,9 @@ export async function translateQuotes(opts: { days?: number; from?: Date; limit?
         });
         zh = res.data.t.length === 1 ? res.data.t[0]!.trim() : null;
       } catch (error) {
+        // chatJson also claims/persists receipts and checks budgets in SQL. Propagate all DB errors,
+        // including cancellation/lock timeout after a sent response, leaving paid evidence intact.
+        if (databaseFailure(error)) throw error;
         // Switched-off calls or an exhausted budget stop the run; one unusable answer is counted and
         // skipped. A reply that did not parse left its receipt `failed`, so the next run would pay for
         // that one again. Durable per-hash failures bound both rejected output and a cached answer
@@ -549,6 +564,7 @@ export async function translatePending(opts: { limit?: number; budgetMs?: number
         reason = result.reason ?? null;
         revision = result.revision ?? null;
       } catch (error) {
+        if (databaseFailure(error)) throw error;
         // A deploy stops between paid fragments, never aborts a sent request. Received answers stay
         // in receipts and are reused next run; do not mark an interrupted article terminal/partial.
         // 停机、被关掉、没配置、熔断四类停整轮且不计尝试——批次层吞错时问的是同一个判据 stopsTheRun()，
