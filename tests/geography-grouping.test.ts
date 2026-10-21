@@ -47,8 +47,8 @@ const provider = await stub(async (_hit, req) => {
     .map((m) => ({ id: m[1], ...rules.batch(m[2] ?? "") }));
   return answer({ query: "速报", decisions });
 });
-process.env.DEEPSEEK_BASE_URL = `${provider.url}/v1`;
-process.env.DEEPSEEK_API_KEY = "test-key";
+process.env.LLM_BASE_URL = `${provider.url}/v1`;
+process.env.LLM_API_KEY = "test-key";
 process.env.GROUP_MODEL = "deepseek-flash";
 process.env.GROUP_REVIEW_MODEL = "deepseek-flash";
 

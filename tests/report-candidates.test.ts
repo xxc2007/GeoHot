@@ -37,8 +37,8 @@ const provider = await stub((hit) => ({
   choices: [{ message: { content: JSON.stringify({ title: "测试导语", leadParagraph: "测试摘要", highlights: [1] }) } }],
   usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 },
 }));
-process.env.DEEPSEEK_BASE_URL = `${provider.url}/v1`;
-process.env.DEEPSEEK_API_KEY = "test-key";
+process.env.LLM_BASE_URL = `${provider.url}/v1`;
+process.env.LLM_API_KEY = "test-key";
 
 before(async () => {
   // Clean this family's slate: a run aborted before its `after` leaves 精选 items and issues behind, and the

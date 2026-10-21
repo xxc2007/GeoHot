@@ -72,9 +72,9 @@ function worker(queue: string) {
     process.send({ ready: true });
   `;
   const env = { ...process.env, TEST_ANALYZE_QUEUE: queue, MODEL_CALLS_ENABLED: "true", AIHOT_CREDENTIALS_DIR: "/nonexistent-test-credentials",
-    PREFILTER_MODEL: "qwen3.7-flash", SCORE_MODEL: "glm-5.3-flash-selection", STRUCTURE_MODEL: "qwen3.8-flash", UNDERSTAND_MODEL: "glm-5.3-flash" };
-  for (const name of ["DASHSCOPE_BASE_URL", "ZHIPU_BASE_URL", "DEEPSEEK_BASE_URL"]) (env as Record<string, string>)[name] = `${provider.url}/v1`;
-  for (const name of ["DASHSCOPE_API_KEY", "ZHIPU_API_KEY", "DEEPSEEK_API_KEY"]) (env as Record<string, string>)[name] = "test-key";
+  };
+  for (const name of ["LLM_BASE_URL", "LLM_BASE_URL", "LLM_BASE_URL"]) (env as Record<string, string>)[name] = `${provider.url}/v1`;
+  for (const name of ["LLM_API_KEY", "LLM_API_KEY", "LLM_API_KEY"]) (env as Record<string, string>)[name] = "test-key";
   const child = spawn(process.execPath, ["--input-type=module", "-e", script], { cwd: process.cwd(), env, stdio: ["ignore", "pipe", "pipe", "ipc"] });
   children.add(child);
   const ready = gate();

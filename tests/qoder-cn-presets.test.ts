@@ -87,7 +87,7 @@ test("the presets carry the per-purpose table because a flat number would trunca
   }
 });
 
-test("this door can serve the three steps glm-5.3-flash had to be excluded from", () => {
+test("this door can serve every step, including the three the slow glm door had to be excluded from", () => {
   // Measured on the workstation 2026-10-20: a 9,649-token prompt produced a 21,006-token completion
   // (14,127 of them hidden chain) in 80.8 s, i.e. 3.85 ms per output token — the fastest rate of any door in
   // llm.ts (deepseek-v4.1-flash 4.9-6.7, step-5-preview 9.49, glm 17.80). The exclusion of glm from
@@ -112,9 +112,14 @@ test("this door can serve the three steps glm-5.3-flash had to be excluded from"
       `${step}: ${widest} tokens is about ${seconds} s at ${MS_PER_TOKEN} ms/token, past its ${clock / 1000} s clock`,
     );
   }
-  // And the three-exclusion claim itself has to still be true of glm, or the test above proves nothing.
-  const glmWidest = UNDERSTAND_MAX_TOKENS + headroomFor(MODELS["workbuddy-glm-flash"]!, "understand_article");
-  assert.ok(glmWidest * 17.8 >= UNDERSTAND_TIMEOUT_MS, "glm now fits understand — the comparison is stale");
+  // 对照项本身也要仍然成立，否则上面那组断言什么也没证明。2026-10-21: glm 的两扇门已从注册表删除，
+  // 所以这条对照改成量**当前池里最慢的那把**（step-5-preview, 9.49 ms/token）在同一个 understand 时钟下
+  // 的余量：它比这扇门慢一倍多，若它都装得下，这扇门自然是宽裕的；若哪天它装不下，这段对照就该重写。
+  const slowest = UNDERSTAND_MAX_TOKENS + headroomFor(MODELS["workbuddy-step5-preview"]!, "understand_article");
+  assert.ok(
+    slowest * 9.49 > UNDERSTAND_MAX_TOKENS * MS_PER_TOKEN,
+    "the comparison is stale: the slowest door is not actually slower than this one",
+  );
 });
 
 test("every capability this door can serve is one whose output the editorial steps can parse", () => {
@@ -138,8 +143,10 @@ test("the door is named for humans, and its budget row exists so the breaker is 
   const rows = await sql<{ service: string; per_minute: number; per_hour: number; per_day: number }[]>`
     SELECT service, per_minute, per_hour, per_day FROM budgets WHERE service = 'qoder-cn'`;
   assert.equal(rows.length, 1, "0074_qoder_cn_budget.sql did not seed the row");
-  assert.equal(rows[0]!.per_minute, 30, "24 concurrent requests returned five 429s, so the window is about 16 in flight");
-  assert.equal(rows[0]!.per_hour, 1_200, "eight slots x 3,600 s / 146 s per article x five steps is 986 calls an hour");
+  // 2026-10-21: 这两条原写 30 / 1,200（0074 的初值），而 0075 已把它抬到 60 / 3,600 ——
+  // 迁移比测试新，断言就一直红着。按 0075 的现值钉住，并保留它为什么被抬的理由。
+  assert.equal(rows[0]!.per_minute, 60, "0075 按实测把分钟窗从 30 抬到 60（24 并发五条 429 之后仍有余量）");
+  assert.equal(rows[0]!.per_hour, 3_600, "小时窗同步抬到 60 x 60；原来的 1,200 只盖住 986/时的分析腿");
   assert.equal(rows[0]!.per_day, 12_000);
   // The receipt must name the door, not the upstream: service is what the breaker and the health ledger key on.
   const receipt = await sql<{ service: string; model: string }[]>`

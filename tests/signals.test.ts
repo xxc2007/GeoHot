@@ -34,8 +34,12 @@ const provider = await stub((_hit, req) => {
 // 归并复核那一步用的是 MiMo（`tests/setup.ts` 的 `AIHOT_MODELS`），所以它也得指向同一个 stub：
 // 只配 dashscope/deepseek 时，这两条用例会以「Model mimo-v2.6-flash is not configured」红
 // ——从 `6220fe1` 起就是红的，与本机有没有真密钥无关，因为测试根本不该要真密钥。
-for (const name of ["DASHSCOPE_BASE_URL", "DEEPSEEK_BASE_URL", "XIAOMI_MIMO_BASE_URL"]) process.env[name] = `${provider.url}/v1`;
-for (const name of ["DASHSCOPE_API_KEY", "DEEPSEEK_API_KEY", "XIAOMI_MIMO_API_KEY"]) process.env[name] = "test-key";
+for (const name of ["LLM_BASE_URL", "LLM_BASE_URL", "LLM_BASE_URL"]) process.env[name] = `${provider.url}/v1`;
+for (const name of ["LLM_API_KEY", "LLM_API_KEY", "LLM_API_KEY"]) process.env[name] = "test-key";
+// 2026-10-21: embedding 那一层不走 LLM_*，它回落的是 DASHSCOPE_*（providers/embeddings.ts:36-37）。
+// 本文件既打开 EMBEDDINGS_ENABLED、又要它真的答，所以这两组都得指向同一个 stub。
+process.env.DASHSCOPE_BASE_URL = `${provider.url}/v1`;
+process.env.DASHSCOPE_API_KEY = "test-key";
 // 这个文件要真的走一次归并判定，所以自己把闸门打开（`tests/alerts.test.ts` 同形）：
 // 以前它靠"运行者恰好带了 `.env.pipeline`"才绿，而那份 env 同时把 `COLLECT_ENABLED` 也打开了，
 // 于是 `tests/env-valves.test.ts` 判红——同一个环境里两条判据不可能同时成立。
@@ -66,8 +70,8 @@ async function report(suffix: string, opts: { title: string; backfill?: string; 
 let savedBudgets: Array<{ service: string; per_minute: number; per_hour: number; per_day: number }> = [];
 
 before(async () => {
-  savedBudgets = await sql`SELECT service, per_minute, per_hour, per_day FROM budgets WHERE service IN ('dashscope', 'deepseek', 'mimo')`;
-  await sql`UPDATE budgets SET per_minute = 1000, per_hour = 10000, per_day = 100000 WHERE service IN ('dashscope', 'deepseek', 'mimo')`;
+  savedBudgets = await sql`SELECT service, per_minute, per_hour, per_day FROM budgets WHERE service IN ('agnes-cn', 'agnes-cn', 'agnes-cn')`;
+  await sql`UPDATE budgets SET per_minute = 1000, per_hour = 10000, per_day = 100000 WHERE service IN ('agnes-cn', 'agnes-cn', 'agnes-cn')`;
   await sql`INSERT INTO sources (id, name, kind, tier, participation_mode, next_fetch_at) VALUES
             (${EDITORIAL}, 'Test editorial', 'rss', 'T1', 'editorial', '2100-01-01'),
             (${SIGNAL}, 'Test signal', 'rss', 'T2', 'hot_signal', '2100-01-01')`;
