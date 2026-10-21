@@ -35,8 +35,8 @@ const provider = await stub(() => ({
   choices: [{ message: { content: JSON.stringify(answer) } }],
   usage: { prompt_tokens: 20, completion_tokens: 20, total_tokens: 40, brain: { capability: "report", pass: 1, fixture: null, author: null, rule: "rule:list-lead" } },
 }));
-process.env.DEEPSEEK_BASE_URL = `${provider.url}/v1`;
-process.env.DEEPSEEK_API_KEY = "test-key";
+process.env.LLM_BASE_URL = `${provider.url}/v1`;
+process.env.LLM_API_KEY = "test-key";
 process.env.REPORT_MODEL = "deepseek-flash";
 
 const ids: string[] = [];

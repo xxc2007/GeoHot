@@ -15,9 +15,9 @@ test("refresh fingerprints track copy, revision, prior coverage and period metri
     title: "河流地貌观测结果", leadParagraph: "河流地貌研究提供新的观测资料。", highlights: [1],
     headline: "河流地貌观测结果", overview: "河流地貌研究提供新的观测资料。", themes: [],
   }) } }] }));
-  const previous = { REPORT_MODEL: process.env.REPORT_MODEL, DEEPSEEK_BASE_URL: process.env.DEEPSEEK_BASE_URL, DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY };
-  const budget = await sql`SELECT * FROM budgets WHERE service='deepseek'`;
-  Object.assign(process.env, { REPORT_MODEL: "deepseek-flash", DEEPSEEK_BASE_URL: provider.url, DEEPSEEK_API_KEY: "local-test-key" });
+  const previous = { REPORT_MODEL: process.env.REPORT_MODEL, LLM_BASE_URL: process.env.LLM_BASE_URL, LLM_API_KEY: process.env.LLM_API_KEY };
+  const budget = await sql`SELECT * FROM budgets WHERE service='agnes-cn'`;
+  Object.assign(process.env, { REPORT_MODEL: "deepseek-flash", LLM_BASE_URL: provider.url, LLM_API_KEY: "local-test-key" });
   let articleId = "", factId: number | undefined;
   const factPublicId = `fact-${source}`;
   async function saved(kind = "daily", key = day) { return (await sql`SELECT revision,content FROM reports WHERE kind=${kind} AND key=${key}`)[0]!; }
@@ -30,7 +30,7 @@ test("refresh fingerprints track copy, revision, prior coverage and period metri
   }
   try {
     await getBoss();
-    await sql`INSERT INTO budgets(service,per_minute,per_hour,per_day) VALUES('deepseek',500,5000,50000)
+    await sql`INSERT INTO budgets(service,per_minute,per_hour,per_day) VALUES('agnes-cn',500,5000,50000)
       ON CONFLICT(service) DO UPDATE SET per_minute=500,per_hour=5000,per_day=50000`;
     await sql`INSERT INTO sources(id,name,kind,tier,participation_mode) VALUES(${source},${source},'rss','T1','editorial')`;
     articleId = (await upsertMaterial({ sourceId: source, url: `https://example.com/${source}`, title: "River observations",
@@ -105,7 +105,7 @@ test("refresh fingerprints track copy, revision, prior coverage and period metri
     await sql`DELETE FROM article_revisions WHERE article_id=${articleId}`;
     await sql`DELETE FROM articles WHERE source_id=${source}`; await sql`DELETE FROM sources WHERE id=${source}`;
     if (factId !== undefined) await sql`DELETE FROM facts WHERE id=${factId}`;
-    await sql`DELETE FROM budgets WHERE service='deepseek'`;
+    await sql`DELETE FROM budgets WHERE service='agnes-cn'`;
     for (const b of budget) await sql`INSERT INTO budgets ${sql(b)}`;
     for (const [key,value] of Object.entries(previous)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
     await provider.close();

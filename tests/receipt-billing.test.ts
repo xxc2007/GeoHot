@@ -14,8 +14,8 @@ import { chatJson, MODELS } from "@aihot/backend/providers/llm";
 import { BudgetExceededError, paidRequest, ProviderRejectedError, ReceiptBusyError, rejectReceivedResponse, unbilledAttempt } from "@aihot/backend/providers/receipts";
 
 const provider = await stub(() => new Reply(500, { error: "upstream result is uncertain" }));
-process.env.DEEPSEEK_BASE_URL = `${provider.url}/v1`;
-process.env.DEEPSEEK_API_KEY = "test-key";
+process.env.LLM_BASE_URL = `${provider.url}/v1`;
+process.env.LLM_API_KEY = "test-key";
 after(async () => { await provider.close(); await closeDb(); });
 
 async function fixture(run: (service: string, req: { service: string; purpose: string; subject: string; identity: string }) => Promise<void>, limit = 1) {
@@ -204,11 +204,11 @@ test("provider rejection is not proof of a free request; only explicit unbilled 
 
 test("an actual localhost HTTP 500 stays charged against the spend window", async () => {
   await fixture(async (service) => {
-    const model = MODELS["deepseek-flash"]!;
+    const model = MODELS["default"]!;
     const previous = model.service;
     model.service = service;
     try {
-      const ask = () => chatJson({ model: "deepseek-flash", purpose: "billing_test", subject: service, system: "s", user: service, promptVersion: "billing", schema: z.object({ ok: z.boolean() }) });
+      const ask = () => chatJson({ model: "default", purpose: "billing_test", subject: service, system: "s", user: service, promptVersion: "billing", schema: z.object({ ok: z.boolean() }) });
       const hits = provider.hits();
       await assert.rejects(ask(), ProviderRejectedError);
       await assert.rejects(ask(), BudgetExceededError);

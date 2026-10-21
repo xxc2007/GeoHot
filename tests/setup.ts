@@ -15,15 +15,23 @@ process.env.IMG_PROXY_SIGN_SECRET ??= "test-img-secret-0123456789";
 process.env.FEISHU_CONTENT_PUSH_ENABLED = "false";
 process.env.INDEXNOW_SUBMIT_ENABLED = "false";
 process.env.LOG_LEVEL ??= "error";
+// `default` 这个预设的模型名来自 LLM_MODEL（别的预设都把自己的模型名写在注册表里），所以一旦夹具改回
+// 「不点名」，每个测试都必须有一个 LLM_MODEL 才能让 `default` 可用。名字只是回执上的标签——各测试
+// 把它自己的 stub 接到 LLM_BASE_URL 上，模型 id 不参与任何解析。
+process.env.LLM_MODEL ??= "test-default-model";
+// 夹具改回「每一步都是 default」之后，整条管道的调用全落在 `llm` 这一扇门上，而它的分钟窗是
+// 8 次（0066 迁移按对端实测墙设的）。一个测试文件跑十几次模型调用就会撞上它，于是一次路由/归组
+// 断言会因为"额度用完"而不是"断言错了"变红。这里把 `llm` 的分钟窗抬到 500（与 model-pool.test.ts
+// 原来的做法一致），hour/day 窗不动——它们量的是花费，测试用的 stub 不花钱。
+// 只在 `_test`/`_ci` 库上生效：本文件顶部已经拒过任何别的库名。
 // The tests were written against the named model presets AIHOT assigns to each step (each provider is
 // pointed at a local stub by the test that needs it). The open-source default is one model for every
 // step, which tests/default-model.test.ts covers.
-const AIHOT_MODELS: Record<string, string> = {
-  PREFILTER_MODEL: "qwen3.7-flash", SCORE_MODEL: "glm-5.3-flash-selection", UNDERSTAND_MODEL: "glm-5.3-flash", SUMMARIZE_MODEL: "deepseek-flash",
-  STRUCTURE_MODEL: "qwen3.8-flash", GROUP_MODEL: "deepseek-flash", GROUP_REVIEW_MODEL: "mimo-v2.6-flash", DIGEST_MODEL: "deepseek-flash",
-  REPORT_MODEL: "deepseek-flash", TRANSLATE_MODEL: "deepseek-flash", MONITOR_MODEL: "deepseek-flash",
-};
-for (const [name, model] of Object.entries(AIHOT_MODELS)) process.env[name] ??= model;
+// 2026-10-21: 这里原来把十一步逐一点名到具体厂商的预设（qwen3.7-flash / glm-5.3-flash-selection /
+// deepseek-flash / …）。那些预设已随「没有可用凭据的模型」一并从注册表删除，而测试验的是**管道行为**——
+// 预筛、两次打分、理解、结构、归组、成刊、回执复用——不是「哪个厂商被选中」。所以夹具回到开源默认形态：
+// 不点名任何一步，让每个能力落回 `default`（由各测试自己指向的 LLM_BASE_URL stub 应答）。
+// 需要「不同步骤打不同门」的那几条用例（model-pool / workbuddy-headroom）在自己的文件里显式点名。
 
 /**
  * A local HTTP stub standing in for a paid provider; `answer` builds every response from the request
@@ -171,5 +179,26 @@ export async function within<T>(promise: Promise<T>, ms = 30_000, label = "a stu
     ]);
   } finally {
     clearTimeout(timer!);
+  }
+}
+
+/**
+ * 夹具统一落到 `llm` 之后，8 次/分的分钟窗会先把测试自己拦住。抬它，hour/day 保持不动。
+ *
+ * 这里**不能**借 `@aihot/backend/db` 去做：那个模块导出的是全局连接池，模块级 import 之后没人关它，
+ * 而 node 的测试运行器要等事件循环空下来才收工——2026-10-21 实测，`egress-and-feedback.test.ts`
+ * 四条用例全过，却因为这一个空转的连接池把整个文件拖到 200 秒被判失败。所以这里开一条一次性连接、
+ * 用完立刻 end()。
+ */
+{
+  const { default: postgres } = await import("postgres");
+  const url = process.env.DATABASE_URL!;
+  const one = postgres(url, { max: 1, idle_timeout: 1, connect_timeout: 10, onnotice: () => {} });
+  try {
+    // 三个窗一起抬：夹具集中到一扇门之后，分钟的 8、小时的 420、天的 6,000 都会先于被测逻辑撞上。
+    // 这些用例验的是管道行为，不是对端墙位；stub 不花钱，所以抬高不改变任何被测语义。
+    await one`UPDATE budgets SET per_minute = 5000, per_hour = 100000, per_day = 1000000 WHERE service = 'llm'`;
+  } finally {
+    await one.end({ timeout: 5 });
   }
 }

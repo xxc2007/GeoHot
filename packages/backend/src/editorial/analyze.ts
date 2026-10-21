@@ -58,19 +58,16 @@ export function tierThreshold(tier: string): number | null {
 export const UNDERSTAND_FLOOR = SELECTION.understandFloor;
 
 /**
- * Call parameters per score model. The GLM scorer runs at temperature 1 with high reasoning (the model
- * registry adds top_p and thinking) and up to 180 s per call.
+ * Call parameters for the scoring step. Production leaves `SCORE_MODEL` unset, so scoring runs on the
+ * default model — the reasoning one — and `providers/llm.ts` raises its timeout to 240 s only when the
+ * caller does not name one. A shorter number here silently halves the reasoning model's budget on the
+ * largest prompt of the five (up to 60 000 characters of body), and an abort is not a connect failure:
+ * the receipt lands `unknown`, the money is spent and ops has to release it.
  *
- * The fallback is what production actually uses: `SCORE_MODEL` is unset, so scoring runs on the default
- * model — the reasoning one. `providers/llm.ts` raises its timeout to 240 s only when the caller does not
- * name one, so a 120 s number here silently cut the reasoning model's budget in half on the largest prompt
- * of the five (up to 60 000 characters of body). An abort is not a connect failure: the receipt lands
- * `unknown`, the money is spent and ops has to release it.
+ * 2026-10-21: the per-model table this used to be (one GLM scorer at temperature 1 / 180 s) went away
+ * with the zhipu presets — no ZHIPU_API_KEY was ever configured on this deployment, so that branch never ran.
  */
-const SCORE_CALL: Record<string, { temperature: number; maxTokens: number; timeoutMs: number }> = {
-  "glm-5.3-flash-selection": { temperature: 1, maxTokens: 65_536, timeoutMs: 180_000 },
-};
-const scoreCall = (model: string) => SCORE_CALL[model] ?? { temperature: 0.2, maxTokens: 1024, timeoutMs: 240_000 };
+const scoreCall = (_model: string) => ({ temperature: 0.2, maxTokens: 1024, timeoutMs: 240_000 });
 
 /**
  * understand 的时钟。它必须长到让**上限先于时钟**触发：被上限截断的答复落 `failed`（可重试，且收据

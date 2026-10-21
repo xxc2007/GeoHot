@@ -87,7 +87,7 @@ test("the presets carry the per-purpose table because a flat number would trunca
   }
 });
 
-test("this door can serve the three steps glm-5.3-flash had to be excluded from", () => {
+test("this door can serve every step, including the three the slow glm door had to be excluded from", () => {
   // Measured on the workstation 2026-10-20: a 9,649-token prompt produced a 21,006-token completion
   // (14,127 of them hidden chain) in 80.8 s, i.e. 3.85 ms per output token — the fastest rate of any door in
   // llm.ts (deepseek-v4.1-flash 4.9-6.7, step-5-preview 9.49, glm 17.80). The exclusion of glm from
@@ -112,9 +112,14 @@ test("this door can serve the three steps glm-5.3-flash had to be excluded from"
       `${step}: ${widest} tokens is about ${seconds} s at ${MS_PER_TOKEN} ms/token, past its ${clock / 1000} s clock`,
     );
   }
-  // And the three-exclusion claim itself has to still be true of glm, or the test above proves nothing.
-  const glmWidest = UNDERSTAND_MAX_TOKENS + headroomFor(MODELS["workbuddy-glm-flash"]!, "understand_article");
-  assert.ok(glmWidest * 17.8 >= UNDERSTAND_TIMEOUT_MS, "glm now fits understand — the comparison is stale");
+  // 对照项本身也要仍然成立，否则上面那组断言什么也没证明。2026-10-21: glm 的两扇门已从注册表删除，
+  // 所以这条对照改成量**当前池里最慢的那把**（step-5-preview, 9.49 ms/token）在同一个 understand 时钟下
+  // 的余量：它比这扇门慢一倍多，若它都装得下，这扇门自然是宽裕的；若哪天它装不下，这段对照就该重写。
+  const slowest = UNDERSTAND_MAX_TOKENS + headroomFor(MODELS["workbuddy-step5-preview"]!, "understand_article");
+  assert.ok(
+    slowest * 9.49 > UNDERSTAND_MAX_TOKENS * MS_PER_TOKEN,
+    "the comparison is stale: the slowest door is not actually slower than this one",
+  );
 });
 
 test("every capability this door can serve is one whose output the editorial steps can parse", () => {

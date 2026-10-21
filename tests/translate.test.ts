@@ -47,8 +47,8 @@ const provider = await stub(async (_hit, req) => {
   });
   return { id: "stub", choices: [{ message: { content: JSON.stringify({ t }) } }], usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 } };
 });
-process.env.DEEPSEEK_BASE_URL = `${provider.url}/v1`;
-process.env.DEEPSEEK_API_KEY = "test-key";
+process.env.LLM_BASE_URL = `${provider.url}/v1`;
+process.env.LLM_API_KEY = "test-key";
 const app = await buildApp();
 
 // Discovered "later" than anything else in the test database, so a one-item run takes this article. The

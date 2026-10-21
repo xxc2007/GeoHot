@@ -28,8 +28,8 @@ const provider = await stub(() => ({
   choices: [{ message: { content: JSON.stringify({ title: `占位标题 ${T}`, leadParagraph: "占位导语，够长的一段中文说明。", highlights: [1] }) } }],
   usage: { prompt_tokens: 20, completion_tokens: 20, total_tokens: 40 },
 }));
-process.env.DEEPSEEK_BASE_URL = `${provider.url}/v1`;
-process.env.DEEPSEEK_API_KEY = "test-key";
+process.env.LLM_BASE_URL = `${provider.url}/v1`;
+process.env.LLM_API_KEY = "test-key";
 process.env.REPORT_MODEL = "deepseek-flash";
 
 /**

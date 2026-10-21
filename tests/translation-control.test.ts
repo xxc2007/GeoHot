@@ -19,8 +19,8 @@ const provider = await stub(async (_hit, req) => {
   return { id: "stub", choices: [{ message: { content: JSON.stringify({ t: malformed && segments.length > 1 ? [] : segments.map(s => echo ? s : `中文译文${"词".repeat(Math.max(1, Math.ceil(s.length * .3)))}。`) }) } }] };
 });
 process.env.TRANSLATE_MODEL = "deepseek-flash";
-process.env.DEEPSEEK_BASE_URL = `${provider.url}/v1`;
-process.env.DEEPSEEK_API_KEY = "test-key";
+process.env.LLM_BASE_URL = `${provider.url}/v1`;
+process.env.LLM_API_KEY = "test-key";
 process.env.GEOHOT_TRANSLATE_CONCURRENCY = "3";
 
 async function material(marker: string, short: boolean, quoted = false) {

@@ -90,15 +90,23 @@ export const MODELS: Record<string, ModelSpec> = {
     get jsonMode() { return process.env.AGNES_CN_JSON_MODE !== "false"; },
     get vision() { return process.env.AGNES_CN_VISION === "true"; },
   },
-  // OpenCode Zen. The key offered on 2026-10-09 lists 82 models but answers exactly one: every `-free`
-  // tier returns 403 (not enabled on the account) and every paid model 402 (no balance). This entry is that
-  // one model, registered `jsonMode: false` because it ignores `response_format` and answers in prose.
-  // Every step but 标题摘要 parses a JSON object, so in a pool it is dropped for the other ten and can only
-  // ever carry the summary step — `editorial/models.ts:membersFor` enforces that rather than hoping.
-  "space-bunny-free": {
-    key: "space-bunny-free", service: "opencode", model: "space-bunny-free",
-    baseUrlEnv: "OPENCODE_BASE_URL", apiKeyEnv: "OPENCODE_API_KEY", jsonMode: false,
-  },
+  // ── 已删除的注册表成员（2026-10-21 站长要求“把用不了的、无效的模型痕迹彻底清除”）──────────────
+  //
+  // 下面这些曾经登记过、但**一个都没有可用凭据**（或已被站长否决），留在注册表里只会让后台的模型下拉框
+  // 列出一堆选了就报 `Model X is not configured` 的选项，也让 `MODEL_POOL` 里写错名字时看起来像“能用”。
+  // 删的是**注册表条目**，不是历史：`receipts` / `receipt_attempts` / `budgets` 里已有的行一律不动
+  // （它们是账单与审计的依据，删了就无法解释过去的花费）。
+  //
+  //   space-bunny-free            opencode  —— 无 OPENCODE_API_KEY；且它只认 summary 一步
+  //   or-nemotron-ultra/-nano/-super、or-dots-studio、or-lfm、or-north-mini-code、openrouter-free
+  //                               openrouter —— 无 OPENROUTER_API_KEY
+  //   glm-5.3-flash、glm-5.3-flash-selection   zhipu —— 无 ZHIPU_API_KEY
+  //   deepseek-flash、deepseek-flash-think     deepseek —— 无 DEEPSEEK_API_KEY
+  //   qwen3.7-flash、qwen3.8-flash、qwen3-vl-flash  dashscope —— 无 DASHSCOPE_API_KEY
+  //   mimo-v2.6-flash             mimo —— 无 XIAOMI_MIMO_API_KEY
+  //
+  // 要重新启用其中任意一把，不是把旧条目抄回来：先配好那扇门的 key，再按上面那几条注释里
+  // 记的实测参数（档位 / jsonMode / vision）重新登记，并跑 `tests/model-pool.test.ts`。
   // 小红书 dots（站长 2026-10-10 给的 key，文档 https://dots.ai/platform/docs）。实测：512K 上下文、
   // 文档默认 RPM 60 / TPM 150 万；`api-key` 头与 `Authorization: Bearer` **两种都收**（同一把 key 两种
   // 写法都回 200），所以 providers 不需要为它加第二种认证头。开思考一次 13–19 秒、1.1k–1.6k 隐藏 token，
@@ -109,90 +117,6 @@ export const MODELS: Record<string, ModelSpec> = {
     key: "dots3-note-prev", service: "dots", baseUrlEnv: "DOTS_BASE_URL", apiKeyEnv: "DOTS_API_KEY",
     get model() { return process.env.DOTS_MODEL ?? "dots3-note-prev"; },
     extra: { chat_template_kwargs: { enable_thinking: true }, reasoning_effort: "high" }, jsonMode: true,
-  },
-  // OpenRouter：站长 2026-10-10 给的两把 key 实测都是**管理/开通**用的（`GET /api/v1/key` 回
-  // `is_management_key: true`，任何 chat/completions 都 401 `User not found`）。管理 key 的用途正是签发普通
-  // key——用 `POST /api/v1/keys` 当场签出一把推理 key（name=geohot-inference-…，HTTP 201），它就能推理了。
-  // 每个成员一条（池子按 shard 把活分给成员，得能单独点名才轮得到它们）；六条都是免费档，
-  // 免费档的额度是**按账号**算的（约 20 次/分钟），所以它们共用 `openrouter` 这一行熔断，见迁移 0056。
-  // 实测（同一提示、JSON 模式）：ultra 12 秒 / nano-reasoning 19 秒 / super 45 秒 /
-  // dots-studio 与 lfm 秒级 / north-mini-code 偏代码；gemma-4 两条当时对端 429。
-  "or-nemotron-ultra": {
-    key: "or-nemotron-ultra", service: "openrouter", model: "nvidia/nemotron-3-ultra-550b-a55b:free",
-    baseUrlEnv: "OPENROUTER_BASE_URL", apiKeyEnv: "OPENROUTER_API_KEY",
-    extra: { reasoning_effort: "high" }, jsonMode: true,
-  },
-  "or-nemotron-nano": {
-    key: "or-nemotron-nano", service: "openrouter", model: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
-    baseUrlEnv: "OPENROUTER_BASE_URL", apiKeyEnv: "OPENROUTER_API_KEY",
-    extra: { reasoning_effort: "high" }, jsonMode: true,
-  },
-  "or-nemotron-super": {
-    key: "or-nemotron-super", service: "openrouter", model: "nvidia/nemotron-3-super-120b-a12b:free",
-    baseUrlEnv: "OPENROUTER_BASE_URL", apiKeyEnv: "OPENROUTER_API_KEY",
-    extra: { reasoning_effort: "high" }, jsonMode: true,
-  },
-  // 同一个模型（小红书 dots）在 OpenRouter 上也有一份免费档：直连那条是主路，这条是多出来的一条并发放量。
-  "or-dots-studio": {
-    key: "or-dots-studio", service: "openrouter", model: "dots-studio/dots-3-note-preview:free",
-    baseUrlEnv: "OPENROUTER_BASE_URL", apiKeyEnv: "OPENROUTER_API_KEY", jsonMode: true,
-  },
-  "or-lfm": {
-    key: "or-lfm", service: "openrouter", model: "liquid/lfm-2.5-2.6b:free",
-    baseUrlEnv: "OPENROUTER_BASE_URL", apiKeyEnv: "OPENROUTER_API_KEY", jsonMode: true,
-  },
-  "or-north-mini-code": {
-    key: "or-north-mini-code", service: "openrouter", model: "cohere/north-mini-code:free",
-    baseUrlEnv: "OPENROUTER_BASE_URL", apiKeyEnv: "OPENROUTER_API_KEY", jsonMode: true,
-  },
-  // 兜底通路：`OPENROUTER_MODEL` 一改就换名字，不用改代码（key 到位前它是唯一那条登记）。
-  "openrouter-free": {
-    key: "openrouter-free", service: "openrouter", baseUrlEnv: "OPENROUTER_BASE_URL", apiKeyEnv: "OPENROUTER_API_KEY",
-    get model() { return process.env.OPENROUTER_MODEL ?? "nvidia/nemotron-3-ultra-550b-a55b:free"; },
-    jsonMode: true,
-  },
-  // Named presets (the models AIHOT itself runs on); each needs its own key.
-  // GLM 5.3 Flash always reasons; the lowest effort keeps short structured tasks fast.
-  "glm-5.3-flash": {
-    key: "glm-5.3-flash", service: "zhipu", model: "glm-5.3-flash",
-    baseUrlEnv: "ZHIPU_BASE_URL", apiKeyEnv: "ZHIPU_API_KEY",
-    extra: { thinking: { type: "enabled" }, reasoning_effort: "low" }, jsonMode: true,
-  },
-  // The scorer's parameters for glm-5.3-flash (score calls; temperature 1 is set per call).
-  "glm-5.3-flash-selection": {
-    key: "glm-5.3-flash-selection", service: "zhipu", model: "glm-5.3-flash",
-    baseUrlEnv: "ZHIPU_BASE_URL", apiKeyEnv: "ZHIPU_API_KEY",
-    extra: { thinking: { type: "enabled", clear_thinking: false }, reasoning_effort: "high", top_p: 0.95 }, jsonMode: true,
-  },
-  // DeepSeek Flash reasons by default; structured tasks switch it off unless the -think variant is used.
-  "deepseek-flash": {
-    key: "deepseek-flash", service: "deepseek", model: "deepseek-flash",
-    baseUrlEnv: "DEEPSEEK_BASE_URL", apiKeyEnv: "DEEPSEEK_API_KEY",
-    extra: { thinking: { type: "disabled" } }, jsonMode: true,
-  },
-  "deepseek-flash-think": {
-    key: "deepseek-flash-think", service: "deepseek", model: "deepseek-flash",
-    baseUrlEnv: "DEEPSEEK_BASE_URL", apiKeyEnv: "DEEPSEEK_API_KEY", jsonMode: true,
-  },
-  "qwen3.7-flash": {
-    key: "qwen3.7-flash", service: "dashscope", model: "qwen3.7-flash",
-    baseUrlEnv: "DASHSCOPE_BASE_URL", apiKeyEnv: "DASHSCOPE_API_KEY",
-    extra: { enable_thinking: false }, jsonMode: true,
-  },
-  "qwen3.8-flash": {
-    key: "qwen3.8-flash", service: "dashscope", model: "qwen3.8-flash",
-    baseUrlEnv: "DASHSCOPE_BASE_URL", apiKeyEnv: "DASHSCOPE_API_KEY",
-    extra: { enable_thinking: false }, jsonMode: true,
-  },
-  "mimo-v2.6-flash": {
-    key: "mimo-v2.6-flash", service: "mimo", model: "mimo-v2.6-flash",
-    baseUrlEnv: "XIAOMI_MIMO_BASE_URL", apiKeyEnv: "XIAOMI_MIMO_API_KEY",
-    extra: { thinking: { type: "disabled" } }, jsonMode: true,
-  },
-  "qwen3-vl-flash": {
-    key: "qwen3-vl-flash", service: "dashscope", model: "qwen3-vl-flash",
-    baseUrlEnv: "DASHSCOPE_BASE_URL", apiKeyEnv: "DASHSCOPE_API_KEY",
-    extra: { enable_thinking: false }, jsonMode: false, vision: true,
   },
   // WorkBuddy (the DSH desktop channel). These go through tooling/workbuddy-bridge.ts, which owns the
   // signed-in desktop credential and folds the upstream's mandatory SSE back into one JSON reply —
@@ -244,13 +168,19 @@ export const MODELS: Record<string, ModelSpec> = {
   "workbuddy-hy3": {
     key: "workbuddy-hy3", service: "workbuddy", model: "hy3",
     baseUrlEnv: "WORKBUDDY_BASE_URL", apiKeyEnv: "WORKBUDDY_API_KEY",
-    extra: { reasoning_effort: "max" }, jsonMode: true, vision: false, reasoningHeadroom: 16_000,
+    // translate_quoted 的 120 s 时钟只容得下 8,192 的余量（ask 4,000 + 8,192 = 12,192 × 8.79 ms = 107 s）；
+    // 其余步骤维持 16,000——那是 24 h 里 99.5% 成功率下实际在用的值。
+    extra: { reasoning_effort: "max" }, jsonMode: true, vision: false,
+    reasoningHeadroom: { default: 16_000, translate_quoted: 8_192 },
   },
   "workbuddy-deepseek-flash": {
     key: "workbuddy-deepseek-flash", service: "workbuddy", model: "deepseek-v4.1-flash",
     baseUrlEnv: "WORKBUDDY_BASE_URL", apiKeyEnv: "WORKBUDDY_API_KEY",
     extra: { reasoning_effort: "max" }, jsonMode: true, vision: true,
-    reasoningHeadroom: { default: 16_000, summarize_article: 32_000, translate_quoted: 8_000 },
+    // 2026-10-21 按「时钟安全上限」重算（上限必须在步骤时钟前触发，否则长链落 unknown）：
+    // understand 15,360 / translate_body 15,360 / translate_quoted 11,264 / summarize 29,696。
+    // summarize 保留 32,000：它是重尾，按实测 13 次重放的分布取到时钟边缘（34,048 × 6.72 = 229 s < 240 s）。
+    reasoningHeadroom: { default: 16_000, summarize_article: 32_000, translate_quoted: 11_264 },
   },
   // The channel's other two models. Neither belongs to WorkBuddy — `glm-5.3-flash` and `step-5-preview` are
   // the desktop catalog's own entries, reachable through the same bridge, so they ride `service: "workbuddy"`
@@ -308,16 +238,14 @@ export const MODELS: Record<string, ModelSpec> = {
   // image. Both catalog files nevertheless declare `supportsImages: true` for glm: the second time this
   // channel's catalog has claimed an image capability the model does not have (hy3 was the first), which is
   // why `vision` here is written from the measurement and never from the catalog.
-  "workbuddy-glm-flash": {
-    key: "workbuddy-glm-flash", service: "workbuddy", model: "glm-5.3-flash",
-    baseUrlEnv: "WORKBUDDY_BASE_URL", apiKeyEnv: "WORKBUDDY_API_KEY",
-    extra: { reasoning_effort: "max" }, jsonMode: true, vision: false, reasoningHeadroom: 8_000,
-  },
   "workbuddy-step5-preview": {
     key: "workbuddy-step5-preview", service: "workbuddy", model: "step-5-preview",
     baseUrlEnv: "WORKBUDDY_BASE_URL", apiKeyEnv: "WORKBUDDY_API_KEY",
     // Preserve the production summary fix: the smaller cap was exhausted by hidden reasoning.
-    extra: { reasoning_effort: "high" }, jsonMode: true, vision: true, reasoningHeadroom: { default: 4_000, summarize_article: 8_000 },
+    // 9.49–13.68 ms/token：summary 那一步能把余量给到 13,312（2,048 + 13,312 = 15,360 × 13.68 = 210 s < 240 s）；
+    // understand 的 16,384 起跳就已经越过时钟，所以那里保持 4,000 不让它更难触发。
+    extra: { reasoning_effort: "high" }, jsonMode: true, vision: true,
+    reasoningHeadroom: { default: 4_000, summarize_article: 13_312 },
   },
   // ── The same four models, reached through the *Chinese* WorkBuddy account ────────────────────────────
   //
@@ -340,31 +268,30 @@ export const MODELS: Record<string, ModelSpec> = {
   // deepseek / hy3 / glm / step-5-preview), same measured rates that sized each headroom. The one thing
   // that does differ is the account, and that lives in the two env vars.
   //
-  // ⚠️ 2026-10-16 站长只把**国际版**那一扇加进生产池（`x0.00 · Free now`，credit 记 0），中国版这扇
-  // **留在池外**，所以它的 `reasoningHeadroom` 仍是原来的单值 16,000 —— 上面那张按 purpose 的表是为
-  // 国际版实测出来的，没有把它顺手抄到这里：一扇不用的门不需要新的数字，改了反而看不出它没被启用。
-  // **要把它加进池子，必须先给它同一张表**（`{ default: 16_000, summarize_article: 32_000,
-  // translate_quoted: 8_000 }`），否则它的 summarize 会以 18,048 的 cap 截断长文——这正是国际版实测
-  // 出来的那个缺陷（6 次里 4 次空答复）。判据钉在 tests/workbuddy-headroom.test.ts。
-  "workbuddy-cn-deepseek-flash": {
-    key: "workbuddy-cn-deepseek-flash", service: "workbuddy-cn", model: "deepseek-v4.1-flash",
-    baseUrlEnv: "WORKBUDDY_CN_BASE_URL", apiKeyEnv: "WORKBUDDY_CN_API_KEY",
-    extra: { reasoning_effort: "max" }, jsonMode: true, vision: true, reasoningHeadroom: 16_000,
-  },
+  // ⚠️ 2026-10-20：**国际版那一扇整扇被对端关掉了**，所以这三把模型现在只经中国版这一扇服务。
+  // 实测（本机桥与生产桥各一次，三个模型逐个试）：`POST /v2/chat/completions` 一律
+  // `HTTP 400 {"code":11128,"msg":"request illegal",…"This call failed channel verification,
+  // possibly because it was not sent from an official client."}`——不是某个模型被限，是整条渠道被拒。
+  // 生产上近 24 小时的 `workbuddy` 台账是 37 次尝试、0 次应答、全 11128（`budgets` 那一行也因此把
+  // `per_minute` 压到 0：不绕过、不再派发）。这是对端的渠道策略，代码这边既不能也不该绕。
+  // 站长因此把这三把模型改由仍然答话的中国版账号承载：同三个上游 id、同一个 `max`/`high` 档位。
+  // 于是这一扇**必须**带上与国际版同一张按 purpose 的表——它的 summarize 是同一个提示词，单值 16,000
+  // 会让长文以 18,048 的 cap 截断（国际版实测 6 次里 4 次空答复）。判据钉在
+  // tests/workbuddy-headroom.test.ts，那条用例现在要求两扇门逐字段相等，包括这张表。
   "workbuddy-cn-hy3": {
     key: "workbuddy-cn-hy3", service: "workbuddy-cn", model: "hy3",
     baseUrlEnv: "WORKBUDDY_CN_BASE_URL", apiKeyEnv: "WORKBUDDY_CN_API_KEY",
-    extra: { reasoning_effort: "max" }, jsonMode: true, vision: false, reasoningHeadroom: 16_000,
-  },
-  "workbuddy-cn-glm-flash": {
-    key: "workbuddy-cn-glm-flash", service: "workbuddy-cn", model: "glm-5.3-flash",
-    baseUrlEnv: "WORKBUDDY_CN_BASE_URL", apiKeyEnv: "WORKBUDDY_CN_API_KEY",
-    extra: { reasoning_effort: "max" }, jsonMode: true, vision: false, reasoningHeadroom: 8_000,
+    extra: { reasoning_effort: "max" }, jsonMode: true, vision: false,
+    // 与国际版同一条上游模型，所以同一张表（translate_quoted 的 120 s 时钟只容得下 8,192）。
+    reasoningHeadroom: { default: 16_000, translate_quoted: 8_192 },
   },
   "workbuddy-cn-step5-preview": {
     key: "workbuddy-cn-step5-preview", service: "workbuddy-cn", model: "step-5-preview",
     baseUrlEnv: "WORKBUDDY_CN_BASE_URL", apiKeyEnv: "WORKBUDDY_CN_API_KEY",
-    extra: { reasoning_effort: "high" }, jsonMode: true, vision: true, reasoningHeadroom: { default: 4_000, summarize_article: 8_000 },
+    extra: { reasoning_effort: "high" }, jsonMode: true, vision: true,
+    // 与国际版同一条上游模型，所以同一张表（13,312 是按国际版实测的 13.68 ms/token 定的；
+    // 中国版实测 18.09 ms/token 更慢，但同一个 cap 更早触发只会落可重试的 failed，不会落 unknown）。
+    reasoningHeadroom: { default: 4_000, summarize_article: 13_312 },
   },
 
   // ── Qoder CN (maggie gateway on the workstation, reached through a reverse tunnel) ───────────────────
@@ -514,12 +441,10 @@ function isConnectFailure(error: unknown): boolean {
 function requestFor<S extends z.ZodType>(opts: ChatJsonOptions<S>, spec: ModelSpec, legacySummaryParameters = false) {
   const temperature = opts.temperature ?? 0.2;
   // Dots documents disabling thinking for short answers. Keep selection/understanding unchanged;
-  // Space Bunny summaries need the existing reasoning headroom. Previous summary parameters
-  // for both models below are recovery identities, never new dispatch choices.
+  // Dots 的 summary 关思考；下面两个 step5 的旧参数只作为「恢复身份」，不是新的派发选择。
   const extra = spec.key === "dots3-note-prev" && opts.purpose === "summarize_article" && !legacySummaryParameters
     ? { chat_template_kwargs: { enable_thinking: false } } : spec.extra;
-  const reasoning = /reasoning_effort|"thinking"/.test(JSON.stringify(extra ?? {})) || spec.key.endsWith("-think")
-    || (spec.key === "space-bunny-free" && opts.purpose === "summarize_article" && !legacySummaryParameters);
+  const reasoning = /reasoning_effort|"thinking"/.test(JSON.stringify(extra ?? {})) || spec.key.endsWith("-think");
   const legacyStepSummary = legacySummaryParameters && opts.purpose === "summarize_article"
     && ["workbuddy-step5-preview", "workbuddy-cn-step5-preview"].includes(spec.key);
   const headroom = reasoning ? (legacyStepSummary ? 4_000 : headroomFor(spec, opts.purpose)) : 0;
@@ -570,7 +495,7 @@ export async function chatJson<S extends z.ZodType>(opts: ChatJsonOptions<S>): P
     const current = { name, request: requestFor(opts, model).request };
     // Legacy identities are recovery-only: reuse paid answers and respect pending/unknown;
     // a failed old identity may retry only through the current dispatch parameters.
-    return ["dots3-note-prev", "space-bunny-free", "workbuddy-step5-preview", "workbuddy-cn-step5-preview"].includes(model.key) && opts.purpose === "summarize_article"
+    return ["dots3-note-prev", "workbuddy-step5-preview", "workbuddy-cn-step5-preview"].includes(model.key) && opts.purpose === "summarize_article"
       ? [current, { name, request: requestFor(opts, model, true).request }] : [current];
   });
   const needsVision = Array.isArray(opts.user) && opts.user.some((part) => part.type === "image_url");

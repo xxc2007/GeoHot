@@ -17,18 +17,18 @@ import { autoReleaseUnknownReceipts } from "@aihot/backend/admin/runs";
 const usage = { prompt_tokens: 80, completion_tokens: 20, total_tokens: 100 };
 let answer: (hit: number) => string = () => '{"ok":true}';
 const provider = await stub((hit) => ({ id: `stub-${hit}`, choices: [{ message: { content: answer(hit) } }], usage }));
-process.env.DEEPSEEK_BASE_URL = `${provider.url}/v1`;
-process.env.DEEPSEEK_API_KEY = "test-key";
+process.env.LLM_BASE_URL = `${provider.url}/v1`;
+process.env.LLM_API_KEY = "test-key";
 
 const ask = (subject: string) =>
-  chatJson({ model: "deepseek-flash", purpose: "invariant_test", subject, promptVersion: "t1", system: "s", user: `input ${subject}`, schema: z.object({ ok: z.boolean() }) });
+  chatJson({ model: "default", purpose: "invariant_test", subject, promptVersion: "t1", system: "s", user: `input ${subject}`, schema: z.object({ ok: z.boolean() }) });
 
 let savedBudget: { per_minute: number; per_hour: number; per_day: number } | undefined;
 before(async () => {
-  [savedBudget] = await sql<{ per_minute: number; per_hour: number; per_day: number }[]>`SELECT per_minute, per_hour, per_day FROM budgets WHERE service = 'deepseek'`;
+  [savedBudget] = await sql<{ per_minute: number; per_hour: number; per_day: number }[]>`SELECT per_minute, per_hour, per_day FROM budgets WHERE service = 'llm'`;
 });
 after(async () => {
-  if (savedBudget) await sql`UPDATE budgets SET per_minute = ${savedBudget.per_minute}, per_hour = ${savedBudget.per_hour}, per_day = ${savedBudget.per_day} WHERE service = 'deepseek'`;
+  if (savedBudget) await sql`UPDATE budgets SET per_minute = ${savedBudget.per_minute}, per_hour = ${savedBudget.per_hour}, per_day = ${savedBudget.per_day} WHERE service = 'llm'`;
   await provider.close();
   await closeDb();
 });
@@ -36,7 +36,7 @@ after(async () => {
 test("the migrations seed a budget for every paid service", async () => {
   const rows = await sql<{ service: string }[]>`SELECT service FROM budgets`;
   const services = new Set(rows.map((r) => r.service));
-  for (const s of ["jina", "socialdata", "dajiala", "zhipu", "deepseek", "mimo", "dashscope"]) assert.ok(services.has(s), `no budget for ${s}`);
+  for (const s of ["jina", "socialdata", "dajiala", "llm", "agnes-cn", "dots", "qoder-cn", "workbuddy", "workbuddy-cn"]) assert.ok(services.has(s), `no budget for ${s}`);
 });
 
 test("an answer already received is reused instead of bought again", async () => {
@@ -55,7 +55,7 @@ test("an answer that parses but cannot be used is refused, and the refusal outli
   const subject = `usable-${tag()}`;
   const unusable = (d: { ok: boolean }) => (d.ok ? null : "结构对，但这条答复不能上版面");
   const askUsable = (usable: (d: { ok: boolean }) => string | null) =>
-    chatJson({ model: "deepseek-flash", purpose: "invariant_test", subject, promptVersion: "t1", system: "s", user: `input ${subject}`, schema: z.object({ ok: z.boolean() }), usable });
+    chatJson({ model: "default", purpose: "invariant_test", subject, promptVersion: "t1", system: "s", user: `input ${subject}`, schema: z.object({ ok: z.boolean() }), usable });
   const statusOf = async (id: number) => (await sql<{ status: string; error: string }[]>`SELECT status, error FROM receipts WHERE id = ${id}`)[0];
 
   answer = () => '{"ok":false}';
@@ -87,7 +87,7 @@ test("retries of unusable answers stop at the budget, and every request sent is 
   answer = () => "sorry, not json";
   const subject = `budget-${tag()}`;
   const service = `budget-fixture-${tag()}`;
-  const model = MODELS["deepseek-flash"]!;
+  const model = MODELS["default"]!;
   const originalService = model.service;
   // An exclusive budget avoids shared attempts aging out of the rolling minute during this case.
   try {
@@ -117,16 +117,19 @@ test("retries of unusable answers stop at the budget, and every request sent is 
 });
 
 test("with the valve off nothing is sent", async () => {
+  const savedKey = process.env.LLM_API_KEY;
   config.modelCallsEnabled = false;
   try {
     const before = provider.hits();
     await assert.rejects(ask(`valve-${tag()}`), /disabled/);
     assert.equal(provider.hits(), before);
-    process.env.DASHSCOPE_API_KEY = "test-key";
+    process.env.LLM_API_KEY = "test-key";
     assert.equal(embeddingsAvailable(), false);
   } finally {
     config.modelCallsEnabled = true;
-    delete process.env.DASHSCOPE_API_KEY;
+    // 2026-10-21: 这条用例原先在收尾处直接 delete LLM_API_KEY。夹具改用 `default` 之后，
+    // 那一步会把**后面的用例**一起弄坏（default 的可用性就看这个 key）。存旧值、按原样还原。
+    process.env.LLM_API_KEY = savedKey;
   }
 });
 
@@ -172,21 +175,21 @@ test("the spend windows count what cost money, not every attempt", async () => {
   const t = tag();
   const [seed] = await sql<{ id: number }[]>`
     INSERT INTO receipts (logical_key, service, purpose, status, request, attempts)
-    VALUES (${`unbilled-${t}`}, 'deepseek', 'invariant_test', 'failed', '{}'::jsonb, 1) RETURNING id`;
+    VALUES (${`unbilled-${t}`}, 'llm', 'invariant_test', 'failed', '{}'::jsonb, 1) RETURNING id`;
   const insert = (status: string, from: number, to: number) => sql`
     INSERT INTO receipt_attempts (receipt_id, attempt, service, origin, status, billing_status, started_at, finished_at)
-    SELECT ${seed!.id}, n, 'deepseek', 'live', ${status}::text, 'unbilled', now() - interval '2 hours', now() - interval '2 hours'
+    SELECT ${seed!.id}, n, 'llm', 'live', ${status}::text, 'unbilled', now() - interval '2 hours', now() - interval '2 hours'
     FROM generate_series(${from}::int, ${to}::int) n`;
   const billed = sql`billing_status <> 'unbilled'`;
   const spend = async () => (await sql<{ hour: number; day: number }[]>`
     SELECT count(*) FILTER (WHERE started_at > now() - interval '1 hour' AND ${billed})::int AS hour,
            count(*) FILTER (WHERE ${billed})::int AS day
-    FROM receipt_attempts WHERE service = 'deepseek' AND origin = 'live' AND started_at > now() - interval '1 day'`)[0]!;
+    FROM receipt_attempts WHERE service = 'llm' AND origin = 'live' AND started_at > now() - interval '1 day'`)[0]!;
 
   try {
     await insert("failed", 1, 300);
     const c = await spend();
-    await sql`UPDATE budgets SET per_minute = 1000, per_hour = ${c.hour + 1}, per_day = ${c.day + 1} WHERE service = 'deepseek'`;
+    await sql`UPDATE budgets SET per_minute = 1000, per_hour = ${c.hour + 1}, per_day = ${c.day + 1} WHERE service = 'llm'`;
     const before = provider.hits();
     await ask(`unbilled-call-${t}`);
     assert.equal(provider.hits() - before, 1, "300 次没打到对方的尝试不该占花费额度");
@@ -194,7 +197,7 @@ test("the spend windows count what cost money, not every attempt", async () => {
     // 同样这 300 行，换成「结果说不清」（可能已经计费）就必须立刻算数。
     await sql`UPDATE receipt_attempts SET status = 'unknown', billing_status = 'unknown' WHERE receipt_id = ${seed!.id}`;
     const d = await spend();
-    await sql`UPDATE budgets SET per_hour = ${d.hour}, per_day = ${d.day} WHERE service = 'deepseek'`;
+    await sql`UPDATE budgets SET per_hour = ${d.hour}, per_day = ${d.day} WHERE service = 'llm'`;
     assert.ok(d.day >= 300, "unknown 是花费：usage 是空的也不能免掉");
     await assert.rejects(() => ask(`unknown-call-${t}`), BudgetExceededError, "额度立刻不够，而不是被免单");
   } finally {

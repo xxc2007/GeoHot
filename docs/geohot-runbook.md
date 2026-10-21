@@ -31,6 +31,29 @@ cp -p /etc/nginx/sites-available/xxc2007.me.bak-bots-20261018-232234 \
 `待判 / 待翻 / 未扫片` 三格、以及 `starve_streak=N/36`（连续 6 小时档案带零判完会打 `STARVE-ALERT`，那是份额问题，解药是 `--promote`）。
 **窗口开着时不要在机上打任何大表扫描**——`deploy/geohot/gated-probe.sh` 现在会拒绝含 `pgboss.job` 的载荷（阀门 false 时），这是 10-18 23:04 那次自伤的教训。
 
+**先确认判定腿真的有消费者，再看它跑得多快**（2026-10-20 23:0x 实测事故）：`/etc/systemd/system/geohot-worker.service.d/80-content-executor.conf`
+从 10-19 17:58 起把服务器 worker 定成 `WORKER_ROLE=coordinator`，而 `coordinator` 这个角色**不注册** `content.analyze` / `content.extract-body`
+（见 `packages/backend/src/jobs/worker-role.ts` 与 `deploy/geohot/CONTENT-EXECUTOR.md`：那两个队列原本归工作站上的 `content-executor` 领）。
+PC 端那个执行器停了之后，16,827 个待判作业**没有任何消费者**，而日志与闸门一切正常、读者面也一切正常——看起来就是“回填卡住了”。
+一条命令认出它：
+
+```bash
+systemctl show geohot-worker -p Environment | tr ' ' '\n' | grep WORKER_ROLE   # 有 coordinator 就是这一种
+```
+
+解药是把那份 drop-in 移走再 `daemon-reload && systemctl restart geohot-worker`（移走而不是删，它同时带着 `DATABASE_POOL_MAX=3` / `PGBOSS_POOL_MAX=2`）：
+
+```bash
+sudo mv /etc/systemd/system/geohot-worker.service.d/80-content-executor.conf \
+        /opt/geohot/backups/80-content-executor.conf.disabled-$(date +%Y%m%d-%H%M%S)
+sudo systemctl daemon-reload && sudo systemctl restart geohot-worker
+journalctl -u geohot-worker -n 1 --no-pager    # 要看到 "role":"all"
+```
+
+想回切受控拆分就把那份文件放回去、`daemon-reload`、重启，**并且**先把 PC 执行器开起来，否则又是零消费者。
+判据不是“有没有报错”，而是 `pgboss.job` 里 `content.analyze` 的 `state='active'` 是否等于 `ANALYZE_CONCURRENCY`。
+
+
 
 约定的启动方式（下文所有命令都假设这四样在跑）：
 

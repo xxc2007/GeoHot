@@ -24,8 +24,8 @@ const provider = await stub(async (_hit, req) => {
   const ids = [...body.messages[1]!.content.matchAll(/【候选 (C\d+)】/g)].map((m) => m[1]!);
   return { id: `stub-${T}`, choices: [{ message: { content: JSON.stringify({ query: FACT_TITLE, decisions: ids.map((id) => ({ id, relation: "SAME_OCCURRENCE", confidence: 0.95, note: "" })) }) } }], usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 } };
 });
-process.env.DEEPSEEK_BASE_URL = `${provider.url}/v1`;
-process.env.DEEPSEEK_API_KEY = "test-key";
+process.env.LLM_BASE_URL = `${provider.url}/v1`;
+process.env.LLM_API_KEY = "test-key";
 process.env.GROUP_MODEL = "deepseek-flash";
 
 let storyId = 0;

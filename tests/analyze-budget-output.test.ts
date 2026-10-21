@@ -22,13 +22,15 @@ test("analysis worker counts rejected drafts despite structure budget waits", as
   const env = {
     MODEL_CALLS_ENABLED: "true", COLLECT_ENABLED: "false",
     LLM_BASE_URL: "", LLM_API_KEY: "test-key", LLM_MODEL: "test-score-model",
-    DEEPSEEK_BASE_URL: "", DEEPSEEK_API_KEY: "test-key",
-    DASHSCOPE_BASE_URL: "", DASHSCOPE_API_KEY: "test-key",
-    PREFILTER_MODEL: "default", SCORE_MODEL: "default", SUMMARIZE_MODEL: "deepseek-flash",
-    STRUCTURE_MODEL: "qwen3.8-flash", UNDERSTAND_MODEL: "default",
+    // 三扇门，与这条用例原来的形状一致：写作一扇（照常答）、结构一扇（被熔断）、其余落 default。
+    PREFILTER_MODEL: "default", SCORE_MODEL: "default", UNDERSTAND_MODEL: "default",
+    SUMMARIZE_MODEL: "agnes-3.0-flash-cn",
+    STRUCTURE_MODEL: "workbuddy-cn-hy3",
+    AGNES_CN_BASE_URL: "", AGNES_CN_API_KEY: "test-key",
+    WORKBUDDY_CN_BASE_URL: "", WORKBUDDY_CN_API_KEY: "test-key",
   };
   const previousEnv = Object.fromEntries(Object.keys(env).map((key) => [key, process.env[key]]));
-  const budgets = await sql`SELECT * FROM budgets WHERE service IN ('llm','deepseek','dashscope')`;
+  const budgets = await sql`SELECT * FROM budgets WHERE service IN ('llm','agnes-cn','workbuddy-cn')`;
   const settings = await sql`SELECT * FROM settings WHERE key LIKE 'models.%'`;
   let validWriting = false;
   const calls: string[] = [];
@@ -49,12 +51,16 @@ test("analysis worker counts rejected drafts despite structure budget waits", as
   });
   const articleIds: string[] = [];
   try {
-    Object.assign(env, { LLM_BASE_URL: `${provider.url}/v1`, DEEPSEEK_BASE_URL: `${provider.url}/v1`, DASHSCOPE_BASE_URL: `${provider.url}/v1` });
+    Object.assign(env, {
+      LLM_BASE_URL: `${provider.url}/v1`,
+      AGNES_CN_BASE_URL: `${provider.url}/v1`,
+      WORKBUDDY_CN_BASE_URL: `${provider.url}/v1`,
+    });
     Object.assign(process.env, env);
     config.modelCallsEnabled = true;
     await sql`DELETE FROM settings WHERE key LIKE 'models.%'`;
     await sql`INSERT INTO budgets (service,per_minute,per_hour,per_day) VALUES
-      ('llm',500,5000,50000),('deepseek',500,5000,50000),('dashscope',0,5000,50000)
+      ('llm',500,5000,50000),('agnes-cn',500,5000,50000),('workbuddy-cn',0,5000,50000)
       ON CONFLICT (service) DO UPDATE SET per_minute=excluded.per_minute,per_hour=excluded.per_hour,per_day=excluded.per_day`;
     invalidateModelCache();
     await sql`INSERT INTO sources(id,name,kind,tier,participation_mode,next_fetch_at)
@@ -103,7 +109,7 @@ test("analysis worker counts rejected drafts despite structure budget waits", as
     });
 
     await t.test("successful structure also counts three rejected drafts and reuses the other completed steps", async () => {
-      await sql`UPDATE budgets SET per_minute=500 WHERE service='dashscope'`;
+      await sql`UPDATE budgets SET per_minute=500 WHERE service='workbuddy-cn'`;
       const id = await article("rejected-structure-complete");
       const writingBefore = calls.filter((step) => step === "summarize").length;
       const structureBefore = calls.filter((step) => step === "structure").length;
@@ -117,7 +123,7 @@ test("analysis worker counts rejected drafts despite structure budget waits", as
       assert.equal(calls.filter((step) => step === "structure").length - structureBefore, 1);
       assert.equal((await sql`SELECT 1 FROM analyses WHERE article_id=${id}`).length, 0);
       assert.equal((await sql`SELECT 1 FROM publications WHERE article_id=${id}`).length, 0);
-      await sql`UPDATE budgets SET per_minute=0 WHERE service='dashscope'`;
+      await sql`UPDATE budgets SET per_minute=0 WHERE service='workbuddy-cn'`;
     });
 
     await t.test("usable writing plus structure budget exhaustion waits without adding output failures", async () => {
@@ -134,7 +140,7 @@ test("analysis worker counts rejected drafts despite structure budget waits", as
         assert.equal(row!.processing_state, "new");
         assert.equal(row!.processing_attempts, 1, "local budget refusal is not an output failure");
         assert.ok(row!.processing_retry_at);
-        assert.match(row!.processing_error, /Budget for dashscope exhausted/);
+        assert.match(row!.processing_error, /Budget for workbuddy-cn exhausted/);
       }
       const [receipt] = await sql`SELECT status,attempts FROM receipts WHERE subject=${`article:${id}@1`} AND purpose='summarize_article'`;
       assert.equal(receipt!.status, "received");
@@ -146,7 +152,7 @@ test("analysis worker counts rejected drafts despite structure budget waits", as
 
     await t.test("a structure outcome unknown keeps its recovery state despite rejected writing", async () => {
       validWriting = true;
-      await sql`UPDATE budgets SET per_minute=500 WHERE service='dashscope'`;
+      await sql`UPDATE budgets SET per_minute=500 WHERE service='workbuddy-cn'`;
       const id = await article("unknown");
       const input = await loadAnalyzeInput(id);
       assert.ok(input);
@@ -181,7 +187,7 @@ test("analysis worker counts rejected drafts despite structure budget waits", as
     await sql`DELETE FROM pgboss.queue WHERE name=${queue}`;
     if (articleIds.length) await sql`DELETE FROM receipts WHERE subject=ANY(${articleIds.map((id) => `article:${id}@1`)}::text[])`;
     await purgeTagged(T);
-    await sql`DELETE FROM budgets WHERE service IN ('llm','deepseek','dashscope')`;
+    await sql`DELETE FROM budgets WHERE service IN ('llm','agnes-cn','workbuddy-cn')`;
     for (const row of budgets) await sql`INSERT INTO budgets ${sql(row)}`;
     await sql`DELETE FROM settings WHERE key LIKE 'models.%'`;
     for (const row of settings) await sql`INSERT INTO settings ${sql(row)}`;
