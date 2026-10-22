@@ -87,6 +87,16 @@ GEOHOT 基于开源框架 [AIHOT](https://github.com/KKKKhazix/AIHOT) 构建，�
 | 模型处理 | worker 执行分析与写作任务，调用经过[回执与预算控制](packages/backend/src/providers/receipts.ts)；公开页面读取已生成内容，阅读本身不触发模型调用。 |
 | 一致性 | 网页、RSS、API 与 MCP 共享发布读取层，减少不同出口的内容口径差异。 |
 
+### 底层原理与运行流程
+
+上半部分沿着一条材料展开采集、预筛、评分与公开条件的分支，下半部分说明已生成结果如何经统一读取层到达不同出口。橙色表示拦截、等待或控制条件，绿色表示公开结果。图中不固化信源数量、模型名称或评分门槛，避免把运行配置变成过时的架构说明。
+
+[![GEOHOT · 从公开信源到读者](docs/architecture/flow.zh.svg)](docs/architecture/flow.zh.svg)
+
+点击图片可打开矢量原图放大阅读。实现依据：[apps/worker/src/main.ts](apps/worker/src/main.ts) · [packages/backend/src/editorial/analyze.ts](packages/backend/src/editorial/analyze.ts) · [packages/backend/src/providers/receipts.ts](packages/backend/src/providers/receipts.ts) · [packages/backend/src/publication/rules.ts](packages/backend/src/publication/rules.ts) · [packages/backend/src/publication/](packages/backend/src/publication/) · [industry/selection.ts](industry/selection.ts) · [apps/web/server.ts](apps/web/server.ts)。
+
+后续修改可编辑 [`render.mjs`](docs/architecture/render.mjs) 中的双语文字与节点，运行 `node docs/architecture/render.mjs` 同步生成两种语言的图。
+
 ## 站点与开放接口
 
 以下路径均相对于线上站点的 `/geohot/` 前缀。

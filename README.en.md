@@ -87,6 +87,16 @@ GEOHOT is built on the open-source [AIHOT](https://github.com/KKKKhazix/AIHOT) f
 | Model processing | The worker runs analysis and writing through [receipts and budget controls](packages/backend/src/providers/receipts.ts). Public pages read generated content; reading does not trigger model calls. |
 | Consistency | Web pages, RSS, APIs and MCP share a publication read layer to keep their content aligned. |
 
+### How it works
+
+The upper half follows an item through collection, prefiltering, scoring and publication decisions. The lower half shows how stored results reach each public interface through a shared read layer. Amber marks blocking, waiting or control conditions; green marks public results. Source counts, model names and numeric thresholds remain in configuration rather than being frozen into the diagram.
+
+[![GEOHOT · From public sources to readers](docs/architecture/flow.en.svg)](docs/architecture/flow.en.svg)
+
+Open the image to zoom in. Source references: [apps/worker/src/main.ts](apps/worker/src/main.ts) · [packages/backend/src/editorial/analyze.ts](packages/backend/src/editorial/analyze.ts) · [packages/backend/src/providers/receipts.ts](packages/backend/src/providers/receipts.ts) · [packages/backend/src/publication/rules.ts](packages/backend/src/publication/rules.ts) · [packages/backend/src/publication/](packages/backend/src/publication/) · [industry/selection.ts](industry/selection.ts) · [apps/web/server.ts](apps/web/server.ts).
+
+To update both diagrams, edit the bilingual labels in [`render.mjs`](docs/architecture/render.mjs) and run `node docs/architecture/render.mjs`.
+
 ## Pages and open interfaces
 
 Paths below are relative to the live site’s `/geohot/` prefix.
