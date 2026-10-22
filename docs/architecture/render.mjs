@@ -82,8 +82,8 @@ const spec = {
       "select",
       600,
       1155,
-      "两次分数之和达到等级门槛？\n且信源允许入选",
-      "Score sum reaches the tier threshold?\nSource must also permit selection",
+      "两次评分之和达标？\n信源允许入选？",
+      "Score sum meets threshold?\nSource permits selection?",
       "decision"
     ],
     [
@@ -290,50 +290,66 @@ const spec = {
   ]
 };
 
+
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const directory = path.dirname(fileURLToPath(import.meta.url));
 const escape = s => String(s).replace(/[&<>\"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const height = n => n[5] === 'decision' ? (n[3].includes('\n') || n[4].includes('\n') ? 156 : 104) : 86;
+const units = line => Array.from(line).reduce((sum,c)=>sum+(/[^\u0000-\u00ff]/.test(c)?1:.56),0);
 for (let lang=0; lang<2; lang++) {
- const language=lang?'en':'zh';
- const elements=[];
- const text=(x,y,lines,size=20,weight=400,anchor='middle',fill='#252a2e')=>{
+ const language=lang?'en':'zh', elements=[], labels=[];
+ const text=(x,y,lines,size=20,weight=400,anchor='middle',fill='#252a2e',attrs='')=>{
    const rows=String(lines).split('\n');
-   elements.push('<text x="'+x+'" y="'+y+'" text-anchor="'+anchor+'" font-size="'+size+'" font-weight="'+weight+'" fill="'+fill+'">'+rows.map((s,i)=>'<tspan x="'+x+'" dy="'+(i?27:0)+'">'+escape(s)+'</tspan>').join('')+'</text>');
+   elements.push('<text '+attrs+' x="'+x+'" y="'+y+'" text-anchor="'+anchor+'" font-size="'+size+'" font-weight="'+weight+'" fill="'+fill+'">'+rows.map((s,i)=>'<tspan x="'+x+'" dy="'+(i?27:0)+'">'+escape(s)+'</tspan>').join('')+'</text>');
  };
  const nodes=new Map(spec.nodes.map(n=>[n[0],n]));
- const h=n=>n[5]==='decision'?104:86;
  const colors={result:['#edf6ee','#267349'],guard:['#fff5e9','#aa681f'],decision:['#ffffff','#68737b']};
- // Draw edges before nodes. Paths stay in the vertical gutters between columns.
  for (const [from,to,zh,en,kind] of spec.edges) {
-  const a=nodes.get(from),b=nodes.get(to); let d,lx,ly;
+  const a=nodes.get(from),b=nodes.get(to); let d,lx,ly,anchor='middle';
+  const fork=['base','shared','pub'].includes(from);
   if(kind==='side') {
-   d='M '+(a[1]+165)+' '+a[2]+' H '+(b[1]-165);lx=(a[1]+b[1])/2;ly=a[2]-h(a)/2-16;
+   d='M '+(a[1]+165)+' '+a[2]+' H '+(b[1]-165);lx=(a[1]+b[1])/2;ly=a[2]-height(a)/2-16;
   } else if(kind==='gutter') {
-   d='M '+(a[1]-165)+' '+a[2]+' H 790 V '+(b[2]-90)+' H '+b[1]+' V '+(b[2]-h(b)/2);lx=780;ly=1065;
+   d='M '+(a[1]-165)+' '+a[2]+' H 790 V '+(b[2]-90)+' H '+b[1]+' V '+(b[2]-height(b)/2);lx=774;ly=1065;anchor='end';
   } else if(kind==='outer') {
-   const x=1182; d='M '+(a[1]+165)+' '+a[2]+' H '+x+' V '+b[2]+' H '+(b[1]+165);lx=x-9;ly=1080;
+   const x=1182; d='M '+(a[1]+165)+' '+a[2]+' H '+x+' V '+b[2]+' H '+(b[1]+165);lx=x-16;ly=1080;anchor='end';
   } else {
-   const y1=a[2]+h(a)/2,y2=b[2]-h(b)/2;
-   const mid=(y1+y2)/2;
+   const y1=a[2]+height(a)/2,y2=b[2]-height(b)/2,mid=(y1+y2)/2;
    d='M '+a[1]+' '+y1+' V '+mid+' H '+b[1]+' V '+y2;
-   lx=['base','shared','pub'].includes(from)?b[1]:a[1]===b[1]?a[1]+14:(a[1]+b[1])/2;ly=mid-12;
+   lx=fork?b[1]:a[1]===b[1]?a[1]+18:(a[1]+b[1])/2;ly=mid-12;
+   if(a[1]===b[1]){anchor='start';if(fork)lx=b[1]+18;}
+   // This horizontal label shares a gutter with the read path; keep it entirely to its left.
+   if(from==='moderate' && to==='readwall'){lx=768;anchor='end';}
   }
-  elements.push('<path d="'+d+'" fill="none" stroke="#4e585f" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>');
-  if(zh)text(lx,ly,lang?en:zh,16,400,kind==='outer'?'end':['base','shared','pub'].includes(from)?'middle':a[1]===b[1]?'start':'middle');
+  elements.push('<path data-edge="'+from+'-'+to+'" d="'+d+'" fill="none" stroke="#4e585f" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>');
+  if(zh)labels.push({from,to,x:lx,y:ly,copy:lang?en:zh,anchor});
  }
- // A starting dot mirrors a conventional activity diagram.
  elements.push('<circle cx="600" cy="146" r="7" fill="#252a2e"/><path d="M 600 153 V 172" stroke="#4e585f" stroke-width="1.7" marker-end="url(#arrow)"/>');
  for (const n of spec.nodes) {
-   const [id,x,y,zh,en,type]=n, [fill,stroke]=colors[type]||['#f4f5f6','#899198'];
-   if(type==='decision')elements.push('<path d="M '+x+' '+(y-52)+' L '+(x+165)+' '+y+' L '+x+' '+(y+52)+' L '+(x-165)+' '+y+' Z" fill="'+fill+'" stroke="'+stroke+'" stroke-width="1.7"/>');
-   else elements.push('<rect x="'+(x-165)+'" y="'+(y-43)+'" width="330" height="86" rx="7" fill="'+fill+'" stroke="'+stroke+'" stroke-width="'+(type?2:1.5)+'"/>');
+   const [id,x,y,zh,en,type]=n,[fill,stroke]=colors[type]||['#f4f5f6','#899198'],half=height(n)/2;
+   elements.push('<g data-node="'+id+'" data-kind="'+(type||'process')+'" data-cx="'+x+'" data-cy="'+y+'" data-half-height="'+half+'">');
+   if(type==='decision')elements.push('<path d="M '+x+' '+(y-half)+' L '+(x+165)+' '+y+' L '+x+' '+(y+half)+' L '+(x-165)+' '+y+' Z" fill="'+fill+'" stroke="'+stroke+'" stroke-width="1.7"/>');
+   else elements.push('<rect x="'+(x-165)+'" y="'+(y-half)+'" width="330" height="'+height(n)+'" rx="7" fill="'+fill+'" stroke="'+stroke+'" stroke-width="'+(type?2:1.5)+'"/>');
    const copy=lang?en:zh,lines=copy.split('\n');
-   const units=Math.max(...lines.map(line=>Array.from(line).reduce((sum,c)=>sum+(/[^\u0000-\u00ff]/.test(c)?1:.56),0)));
-   const size=Math.min(lang?17:20,(type==='decision'?255:300)/units);
-   text(x,y-(lines.length-1)*13.5+7,copy,Number(size.toFixed(2)),type==='decision'?500:400);
+   let size=lang?17:20;
+   // Fit every line to the available diamond width at its top AND bottom, with padding.
+   // A rectangle-width check alone misses text touching the diagonal border.
+   for(;size>10;size-=.25){
+    const fits=lines.every((line,i)=>{
+     const baseline=(i-(lines.length-1)/2)*27+size*.32;
+     const edge=Math.max(Math.abs(baseline-size*.9),Math.abs(baseline+size*.3));
+     const available=type==='decision'?330*(1-edge/half)-28:300;
+     return units(line)*size<=available;
+    });
+    if(fits)break;
+   }
+   text(x,y-(lines.length-1)*13.5+size*.32,copy,size,type==='decision'?500:400,'middle','#252a2e','data-node-label="'+id+'"');
+   elements.push('</g>');
  }
+ // Labels are placed in clear gutters with explicit anchors; no line runs through their text.
+ for(const label of labels)text(label.x,label.y,label.copy,16,400,label.anchor,'#252a2e','data-edge-label="'+label.from+'-'+label.to+'"');
  for(const [id,zh,en] of spec.notes||[]) { const n=nodes.get(id);text(600,n[2]-64,lang?en:zh,16,400,'middle','#626c74'); }
  text(600,45,spec.title[lang],30,600);
  text(600,82,spec.subtitle[lang],18,400,'middle','#59646c');
@@ -344,9 +360,13 @@ for (let lang=0; lang<2; lang++) {
   else elements.push('<rect x="'+(x-13)+'" y="103" width="26" height="21" rx="3" fill="'+fill+'" stroke="'+stroke+'"/>');
   text(x+23,119,legend[i],16,400,'start','#59646c');
  }
- text(600,spec.height-67,spec.foot?.[lang]||(lang?'Logical flow based on repository source. Each website has its own release boundary.':'依据仓库源码绘制的逻辑流程；三个网站各有独立发布边界。'),16,400,'middle','#626c74');
- text(600,spec.height-35,lang?'Documentation illustration · 22 October 2026 · SVG, editable text and paths':'文档示意图 · 2026 年 10 月 22 日 · SVG 文字与路径可编辑',15,400,'middle','#78838b');
- const svg='<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="'+spec.height+'" viewBox="0 0 1200 '+spec.height+'" role="img" aria-labelledby="title description" xml:lang="'+language+'"><title id="title">'+escape(spec.title[lang])+'</title><desc id="description">'+escape(spec.intro[lang])+'</desc><defs><marker id="arrow" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M 0 0 L 9 3.5 L 0 7 L 2 3.5 Z" fill="#4e585f"/></marker></defs><rect width="1200" height="'+spec.height+'" fill="#ffffff"/><g font-family="Segoe UI, Microsoft YaHei, Noto Sans CJK SC, Arial, sans-serif">'+elements.join('')+'</g></svg>\n';
+ // The Chinese editions omit the bottom annotations requested for removal.
+ const outputHeight=lang?spec.height:Math.max(...spec.nodes.map(n=>n[2]+height(n)/2))+55;
+ if(lang){
+  text(600,outputHeight-67,spec.foot?.[1]||'Logical flow based on repository source. Each website has its own release boundary.',16,400,'middle','#626c74');
+  text(600,outputHeight-35,'Documentation illustration · 22 October 2026 · SVG, editable text and paths',15,400,'middle','#78838b');
+ }
+ const svg='<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="'+outputHeight+'" viewBox="0 0 1200 '+outputHeight+'" role="img" aria-labelledby="title description" xml:lang="'+language+'"><title id="title">'+escape(spec.title[lang])+'</title><desc id="description">'+escape(spec.intro[lang])+'</desc><defs><marker id="arrow" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M 0 0 L 9 3.5 L 0 7 L 2 3.5 Z" fill="#4e585f"/></marker></defs><rect width="1200" height="'+outputHeight+'" fill="#ffffff"/><g font-family="Segoe UI, Microsoft YaHei, Noto Sans CJK SC, Arial, sans-serif">'+elements.join('')+'</g></svg>\n';
  fs.writeFileSync(path.join(directory,'flow.'+language+'.svg'),svg);
  console.log('Rendered flow.'+language+'.svg');
 }
