@@ -319,7 +319,7 @@ for (let lang=0; lang<2; lang++) {
    const y1=a[2]+height(a)/2,y2=b[2]-height(b)/2,mid=(y1+y2)/2;
    d='M '+a[1]+' '+y1+' V '+mid+' H '+b[1]+' V '+y2;
    lx=fork?b[1]:a[1]===b[1]?a[1]+18:(a[1]+b[1])/2;ly=mid-12;
-   if(a[1]===b[1]){anchor='start';if(fork)lx=b[1]+18;}
+   if(a[1]===b[1]){anchor='start';if(fork)lx=b[1]+18;else if(y2-y1<60)ly=mid+5;}
    // This horizontal label shares a gutter with the read path; keep it entirely to its left.
    if(from==='moderate' && to==='readwall'){lx=768;anchor='end';}
   }
