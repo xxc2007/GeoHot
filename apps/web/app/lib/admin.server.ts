@@ -1,6 +1,6 @@
 // Admin loaders read /api/admin/* with the visitor's own cookie; the web process holds no session.
 import { data, redirect } from "react-router";
-import { appPath } from "./public-path";
+import { appPath } from "./public-path.ts";
 
 const API_BASE = process.env.API_BASE_URL || "http://127.0.0.1:3001";
 
