@@ -10,7 +10,6 @@ import { publicPath } from "../lib/public-path";
 import { CodeBlock, CopyButton } from "../components/CodeBlock";
 import { IconArrowUpRight, IconChevronRight } from "../components/icons";
 import { AsideCard, ReadingLayout } from "../components/ui/Page";
-import { PillTabs } from "../components/ui/Tabs";
 
 /** Shared caches may keep this page for five minutes. */
 export function headers() {
@@ -28,9 +27,9 @@ const RESOURCES: Array<[label: string, href: string, note: string]> = [
 ];
 
 const TABS = [
-  { key: "mcp", label: "MCP" },
-  { key: "rss", label: "RSS" },
-  { key: "api", label: "REST API" },
+  { key: "mcp", label: "MCP", note: "填一个地址，让 Agent 直接查询", hint: "适合 Agent 与开发工具" },
+  { key: "rss", label: "RSS", note: "复制订阅地址，更新自动送达", hint: "适合阅读器与自动化" },
+  { key: "api", label: "REST API", note: "用匿名 GET 请求，自由组合内容", hint: "适合自己写程序" },
 ] as const;
 type TabKey = (typeof TABS)[number]["key"];
 
@@ -269,8 +268,9 @@ export default function AgentPage() {
   return (
     <ReadingLayout aside={aside}>
       <header>
-        <h1 className="text-[24px] font-semibold leading-[1.3] text-ink">让 Agent 直接使用 {SITE.name}</h1>
-        <p className="mt-1.5 text-[13px] text-ink-3">三条接入路径都是匿名只读、无需 API Key：MCP、RSS、REST API v1。</p>
+        <p className="mb-3 text-[12px] font-semibold tracking-[0.16em] text-accent">Agent 接入</p>
+        <h1 className="text-[28px] font-bold leading-[1.35] text-ink sm:text-[34px]">把 {SITE.name} 接进你的 Agent</h1>
+        <p className="measure mt-4 text-[15px] leading-[1.9] text-ink-3">精选、热点、日报、周报和月报，都能在你熟悉的工具里读。MCP、RSS、API 读取同一份公开内容，按使用方式选一种就行。</p>
         <div className="mt-3.5 flex flex-wrap items-center gap-1.5">
           <span className={pill}>匿名只读</span>
           <span className={`${pill} mono`}>API v1</span>
@@ -290,13 +290,18 @@ export default function AgentPage() {
         ))}
       </div>
 
-      <div className="sticky top-0 z-20 -mx-4 mt-7 bg-bg/90 px-4 py-2 backdrop-blur-md lg:mx-0 lg:px-0">
-        <PillTabs layoutId="agent-tab" label="接入方式" active={tab} onSelect={(k: string) => select(k as TabKey)} items={TABS.map((t) => ({ key: t.key, label: t.label }))} />
-      </div>
+      <nav aria-label="接入方式" className="my-8 grid gap-3 sm:grid-cols-3">
+        {TABS.map(t => <button key={t.key} type="button" onClick={() => select(t.key)} aria-pressed={tab === t.key}
+          className={`rounded-card border p-5 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent ${tab === t.key ? "border-accent bg-accent/5" : "border-line bg-surface hover:border-accent/50"}`}>
+          <span className="block text-[12px] text-ink-4">{t.hint}</span>
+          <span className="mt-2 block text-[19px] font-bold text-ink">{t.label}</span>
+          <span className="mt-2 block text-[13px] leading-[1.75] text-ink-3">{t.note}</span>
+        </button>)}
+      </nav>
 
       {/* Not role=tabpanel: the switch above is a radiogroup, and a tabpanel without a tab is a
           contract nothing satisfies. A named region carries the same "where am I" for a reader. */}
-      <div className="mt-7" role="region" aria-label="接入方式说明">
+      <div className="border-t border-line pt-7" role="region" aria-label="接入方式说明">
         {tab === "mcp" && <McpTab base={base} />}
         {tab === "rss" && <RssTab base={base} />}
         {tab === "api" && <ApiTab base={base} />}

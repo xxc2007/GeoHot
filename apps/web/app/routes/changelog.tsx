@@ -7,6 +7,7 @@ import { setChangelogSeen } from "../lib/local-state";
 import { AsideCard, ReadingLayout } from "../components/ui/Page";
 import { IconChevronRight } from "../components/icons";
 import { Inline, dateHeading } from "../features/changelog/text";
+import { MajorRelease } from "../features/changelog/MajorRelease";
 
 /** Shared caches may keep this page for five minutes. */
 export function headers() {
@@ -24,6 +25,7 @@ interface Release {
   kind: string;
   title: string;
   body: string[];
+  major?: boolean;
 }
 
 export async function loader({ request }: { request: Request }) {
@@ -66,7 +68,7 @@ function ReleaseBody({ lines }: { lines: string[] }) {
   // value that also shrinks min-content; `break-word` does not. Verified in the real browser at 390px.
   // The measure is the site's own token rather than 52em: at this 13.5px the old cap measured 47 Han
   // characters to a line, over the 42 the rest of the site's prose holds.
-  const text = "measure mt-2 text-[13.5px] leading-[1.8] text-ink-3 wrap-anywhere";
+  const text = "measure mt-3 text-[14px] leading-[1.9] text-ink-3 wrap-anywhere sm:text-[15px]";
   return blocks.map((b, i) =>
     Array.isArray(b) ? (
       <ul key={i} className={`${text} space-y-1`}>
@@ -149,8 +151,8 @@ export default function ChangelogPage() {
   return (
     <ReadingLayout aside={aside}>
       <header className="pb-6">
-        <h1 className="text-[24px] font-semibold leading-[1.3] text-ink">更新日志</h1>
-        <p className="mt-1.5 text-[13px] text-ink-3">新增、更新、优化、修复与公告，都写在这里。</p>
+        <h1 className="text-[26px] font-bold leading-[1.3] text-ink">更新日志</h1>
+        <p className="mt-2 text-[14px] text-ink-3">新功能、调整与修复，都写在这里。</p>
       </header>
       {retired && (
         <p className="mb-5 rounded-control bg-bg-sunk px-4 py-3 text-[13px] leading-[1.7] text-ink-2">
@@ -161,16 +163,18 @@ export default function ChangelogPage() {
         {[...groups.entries()].map(([date, releases]) => {
           const h = dateHeading(date);
           return (
-            <section key={date} id={`d-${date}`} className="card scroll-mt-6 px-5 lg:px-7">
-              <h2 className="flex items-baseline gap-3 border-b border-line-soft py-4">
-                <time dateTime={date} className="text-[18px] font-bold text-ink">
+            <section key={date} id={`d-${date}`} className="scroll-mt-6 space-y-4">
+              {releases.filter(r => r.major).map(r => <MajorRelease key={`${r.date}-${r.time}`} date={r.date} time={r.time} />)}
+              {releases.some(r => !r.major) && <div className="card px-5 sm:px-7">
+              <h2 className="flex items-baseline gap-3 border-b border-line-soft py-5">
+                <time dateTime={date} className="text-[20px] font-bold text-ink sm:text-[22px]">
                   {h.label}
                 </time>
                 <span className="text-[12px] text-ink-4">{h.weekday}</span>
               </h2>
               <ol>
-                {releases.map((r) => (
-                  <li key={`${r.date}-${r.time}-${r.title}`} className="grid gap-x-8 gap-y-2 border-b border-line-soft py-5 last:border-b-0 sm:grid-cols-[88px_minmax(0,1fr)]">
+                {releases.filter(r => !r.major).map((r) => (
+                  <li key={`${r.date}-${r.time}-${r.title}`} className="grid gap-x-8 gap-y-3 border-b border-line-soft py-6 last:border-b-0 sm:grid-cols-[88px_minmax(0,1fr)]">
                     <div className="flex items-center gap-3 sm:block">
                       <span className="mono block text-[12.5px] text-ink-3">{r.time}</span>
                       <span className="inline-flex items-center gap-1.5 text-[11.5px] text-ink-4 sm:mt-1.5">
@@ -179,12 +183,13 @@ export default function ChangelogPage() {
                       </span>
                     </div>
                     <article className="min-w-0 sm:border-l sm:border-line sm:pl-8">
-                      <h3 className="text-[15px] font-bold leading-snug text-ink">{r.title}</h3>
+                      <h3 className="text-[16px] font-bold leading-[1.5] text-ink sm:text-[17px]">{r.title}</h3>
                       <ReleaseBody lines={r.body} />
                     </article>
                   </li>
                 ))}
               </ol>
+              </div>}
             </section>
           );
         })}

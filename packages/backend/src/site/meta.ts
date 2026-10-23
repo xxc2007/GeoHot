@@ -9,6 +9,7 @@ export interface ChangelogRelease {
   kind: "更新" | "优化" | "公告" | "下线" | "修复";
   title: string;
   body: string[];
+  major?: boolean;
 }
 
 let changelogCache: { mtimeMs: number; data: { latestVersion: string; releases: ChangelogRelease[] } } | null = null;

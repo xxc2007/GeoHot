@@ -9,6 +9,7 @@ import { Kicker } from "../components/ui/Kicker";
 import { buttonClass } from "../components/ui/Controls";
 import { IconArrowRight } from "../components/icons";
 import { SignalRiver, type RiverSource } from "../features/about/SignalRiver";
+import { publicPath } from "../lib/public-path";
 
 /** Shared caches may keep this page for five minutes. */
 export function headers() {
@@ -148,7 +149,7 @@ function Maker({ maker, contact }: { maker: NonNullable<typeof ABOUT.maker>; con
       <div>
         <Kicker>做这个站的人</Kicker>
         <h2 id="maker" className="mt-4 flex items-center gap-3.5 text-[26px] font-black leading-[1.3] tracking-[-0.02em] text-ink xl:gap-4 xl:text-[34px]">
-          {contact.makerAvatar && <MakerFace src={contact.makerAvatar} />}
+          <MakerFace src={publicPath("/images/maker-xinchen.jpg")} />
           <span>
             嗨，我是 <span className="whitespace-nowrap text-accent">{maker.name}</span>
           </span>
