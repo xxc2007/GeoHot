@@ -27,7 +27,7 @@ interface Usage {
 
 interface Models {
   days: number;
-  statistics?: Record<"usage" | "prices" | "benches" | "history", { state: "ready" | "unavailable"; asOf: string | null; message?: string }>;
+  statistics?: Record<"configuration" | "usage" | "prices" | "benches" | "history", { state: "ready" | "unavailable"; asOf: string | null; message?: string }>;
   capabilities: Array<{ key: string; label: string; env: string; defaultModel: string; vision: boolean; current: { model: string; serving: string; source: "admin" | "env" | "default" }; usage: Usage[] }>;
   choices: Array<{ key: string; service: string; vision: boolean }>;
   history: Array<{ at: string; actor: string; subject: string; reason: string | null; before: { model: string; source: string } | null; after: { model: string; source: string } | null }>;
@@ -58,7 +58,8 @@ export default function ModelsAdmin({ loaderData: m }: Route.ComponentProps) {
     >
       {Object.entries(m.statistics ?? {}).some(([, s]) => s.state === "unavailable") && (
         <p role="status" className="mb-5 rounded-control bg-bg-sunk px-4 py-3 text-ui text-ink-3">
-          部分统计暂时不可用，请稍后刷新。当前模型配置仍可查看；未加载的统计不代表没有调用或记录。
+          {m.statistics?.configuration?.state === "unavailable" ? "当前模型配置暂时不可用，请稍后刷新。" : "部分统计暂时不可用，请稍后刷新。当前模型配置仍可查看。"}
+          未加载的统计不代表没有调用或记录。
         </p>
       )}
       <div className="grid gap-5">
