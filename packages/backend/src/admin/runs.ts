@@ -20,74 +20,93 @@ const failuresSql = sql`CASE WHEN jsonb_typeof(detail->'failed') = 'array'
         THEN (SELECT left(string_agg(e #>> '{}', '；'), 300) FROM jsonb_array_elements(detail->'failed') e) END`;
 
 export async function runsOverview() {
-  const [heartbeats, latest, timeline, queues, failedJobs, lagging, receipts, receiptIssues, deliveries, errors, ingest, leaderboard] = await Promise.all([
-    sql<{ key: string; value: Record<string, unknown>; updated_at: Date }[]>`SELECT key, value, updated_at FROM settings WHERE key LIKE 'heartbeat.%' ORDER BY key`,
-    sql`
-      WITH latest AS (
-        SELECT DISTINCT ON (job) job, started_at, finished_at, status, left(error, 400) AS error, ${failuresSql} AS failures
-        FROM job_runs ORDER BY job, started_at DESC
-      ), counts AS (
-        SELECT job, count(*) FILTER (WHERE status = 'failed')::int AS failed_24h, count(*)::int AS runs_24h
-        FROM job_runs WHERE started_at > now() - interval '24 hours' GROUP BY job
+  return sql.begin(async tx => {
+    await tx`SET TRANSACTION READ ONLY`;
+    await tx`SET LOCAL statement_timeout = '4000ms'`;
+    await tx`SET LOCAL lock_timeout = '250ms'`;
+    await tx`SET LOCAL max_parallel_workers_per_gather = 0`;
+    const [heartbeats, latest, timeline, queues, failedJobs, lagging, receipts, receiptIssues, deliveries, errors, ingest, leaderboard] = await Promise.all([
+      tx<{ key: string; value: Record<string, unknown>; updated_at: Date }[]>`SELECT key, value, updated_at FROM settings WHERE key LIKE 'heartbeat.%' ORDER BY key`,
+      tx`
+        WITH latest AS (
+          SELECT DISTINCT ON (job) job, started_at, finished_at, status, left(error, 400) AS error, ${failuresSql} AS failures
+          FROM job_runs ORDER BY job, started_at DESC
+        ), counts AS (
+          SELECT job, count(*) FILTER (WHERE status = 'failed')::int AS failed_24h, count(*)::int AS runs_24h
+          FROM job_runs WHERE started_at > now() - interval '24 hours' GROUP BY job
+        )
+        SELECT latest.*, coalesce(counts.failed_24h, 0) AS failed_24h, coalesce(counts.runs_24h, 0) AS runs_24h
+        FROM latest LEFT JOIN counts USING (job) ORDER BY job`,
+      tx`SELECT id, job, started_at, finished_at, status, left(error, 300) AS error, ${failuresSql} AS failures FROM job_runs ORDER BY started_at DESC LIMIT 80`,
+      tx<{ name: string; state: string; n: number; oldest: Date }[]>`
+        SELECT name, state, count(*)::int AS n, min(created_on) AS oldest FROM pgboss.job
+        WHERE state IN ('created', 'retry', 'active') GROUP BY 1, 2 ORDER BY 1, 2`,
+      tx`
+      WITH totals AS MATERIALIZED (
+        SELECT name, count(*)::int AS failed, max(completed_on) AS last
+        FROM pgboss.job WHERE state = 'failed' AND completed_on > now() - interval '24 hours' GROUP BY name
       )
-      SELECT latest.*, coalesce(counts.failed_24h, 0) AS failed_24h, coalesce(counts.runs_24h, 0) AS runs_24h
-      FROM latest LEFT JOIN counts USING (job) ORDER BY job`,
-    sql`SELECT id, job, started_at, finished_at, status, left(error, 300) AS error, ${failuresSql} AS failures FROM job_runs ORDER BY started_at DESC LIMIT 80`,
-    sql<{ name: string; state: string; n: number; oldest: Date }[]>`
-      SELECT name, state, count(*)::int AS n, min(created_on) AS oldest FROM pgboss.job
-      WHERE state IN ('created', 'retry', 'active') GROUP BY 1, 2 ORDER BY 1, 2`,
-    sql`
-      SELECT name, count(*)::int AS failed, max(completed_on) AS last, left((array_agg(output::text ORDER BY completed_on DESC))[1], 300) AS last_output
-      FROM pgboss.job WHERE state = 'failed' AND completed_on > now() - interval '24 hours' GROUP BY 1 ORDER BY 2 DESC`,
-    sql`
-      SELECT id, name, kind, health, fail_count, last_ok_at, last_fetch_at, next_fetch_at, interval_minutes, left(last_error, 200) AS last_error
-      FROM sources
-      WHERE enabled AND kind NOT IN ('mp_account', 'external')
-        AND (health = 'failing' OR next_fetch_at < now() - interval '30 minutes' OR last_ok_at < now() - make_interval(mins => greatest(interval_minutes * 6, 360)))
-      ORDER BY health = 'failing' DESC, next_fetch_at LIMIT 60`,
-    sql<{ status: string; n: number }[]>`SELECT status, count(*)::int AS n FROM receipts WHERE created_at > now() - interval '7 days' GROUP BY 1`,
-    sql`
-      SELECT id, service, model, purpose, subject, status, attempts, left(error, 240) AS error, created_at, updated_at FROM receipts
-      WHERE status = 'unknown' OR (status = 'failed' AND updated_at > now() - interval '3 days') OR (status = 'pending' AND updated_at < now() - interval '15 minutes')
-      ORDER BY status = 'unknown' DESC, updated_at DESC LIMIT 40`,
-    sql`
-      SELECT id, target_key, subject_kind, subject_id, status, attempts, left(response, 240) AS response, created_at, updated_at FROM deliveries
-      WHERE status IN ('unknown', 'failed') OR (status = 'sending' AND updated_at < now() - interval '15 minutes')
-      ORDER BY status = 'unknown' DESC, updated_at DESC LIMIT 40`,
-    sql`
-      SELECT ${failureGroupSql} AS error, count(*)::int AS n, max(discovered_at) AS last,
-             (array_agg(id ORDER BY discovered_at DESC))[1] AS example
-      FROM articles WHERE processing_state = 'failed' AND discovered_at > now() - interval '30 days' GROUP BY 1 ORDER BY 2 DESC LIMIT 20`,
-    sql`SELECT client, kind, status, left(error, 200) AS error, summary, created_at FROM ingest_events ORDER BY created_at DESC LIMIT 20`,
-    sql<{ value: { at: string; sources: Record<string, { ok: boolean; at: string; lastOkAt: string | null; changed?: boolean; rows?: number; error?: string }> } }[]>`
-      SELECT value FROM settings WHERE key = 'leaderboard.fetch'`,
-  ]);
-  // Articles waiting to retry after a passing provider problem (they are not failed).
-  const [retrying] = await sql<{ n: number; next: Date | null }[]>`
-    SELECT count(*)::int AS n, min(processing_retry_at) AS next FROM articles WHERE processing_state = 'new' AND processing_attempts > 0`;
-  const now = Date.now();
-  return {
-    checkedAt: new Date(now).toISOString(),
-    processes: heartbeats.map((h) => ({
-      role: h.key.slice("heartbeat.".length),
-      ...h.value,
-      at: h.updated_at,
-      alive: now - h.updated_at.getTime() < STALE_HEARTBEAT_MS,
-    })),
-    jobs: latest,
-    timeline,
-    queues,
-    failedJobs,
-    lagging,
-    receipts: { counts: Object.fromEntries(receipts.map((r) => [r.status, r.n])), issues: receiptIssues },
-    deliveries,
-    errors,
-    retrying: { count: retrying?.n ?? 0, next: retrying?.next ?? null },
-    ingest,
-    leaderboard: leaderboard[0]
-      ? { at: leaderboard[0].value.at, sources: Object.entries(leaderboard[0].value.sources).map(([key, v]) => ({ key, ...v })).sort((a, b) => Number(a.ok) - Number(b.ok) || a.key.localeCompare(b.key)) }
-      : null,
-  };
+      SELECT totals.*, left(recent.output::text,300) AS last_output FROM totals
+      LEFT JOIN LATERAL (
+        SELECT output FROM pgboss.job j WHERE j.name = totals.name
+          AND j.state = 'failed' AND j.completed_on = totals.last LIMIT 1
+      ) recent ON true ORDER BY failed DESC`,
+      tx`
+        SELECT id, name, kind, health, fail_count, last_ok_at, last_fetch_at, next_fetch_at, interval_minutes, left(last_error, 200) AS last_error
+        FROM sources
+        WHERE enabled AND kind NOT IN ('mp_account', 'external')
+          AND (health = 'failing' OR next_fetch_at < now() - interval '30 minutes' OR last_ok_at < now() - make_interval(mins => greatest(interval_minutes * 6, 360)))
+        ORDER BY health = 'failing' DESC, next_fetch_at LIMIT 60`,
+      tx<{ status: string; n: number }[]>`SELECT status, count(*)::int AS n FROM receipts WHERE created_at > now() - interval '7 days' GROUP BY 1`,
+      tx`
+        SELECT id, service, model, purpose, subject, status, attempts, left(error, 240) AS error, created_at, updated_at FROM receipts
+        WHERE id IN (
+          (SELECT id FROM receipts WHERE status = 'unknown' ORDER BY updated_at DESC LIMIT 40)
+          UNION ALL
+          (SELECT id FROM receipts WHERE status = 'failed' AND updated_at > now() - interval '3 days' ORDER BY updated_at DESC LIMIT 40)
+          UNION ALL
+          (SELECT id FROM receipts WHERE status = 'pending' AND updated_at < now() - interval '15 minutes' ORDER BY updated_at DESC LIMIT 40)
+        )
+        ORDER BY status = 'unknown' DESC, updated_at DESC LIMIT 40`,
+      tx`
+        SELECT id, target_key, subject_kind, subject_id, status, attempts, left(response, 240) AS response, created_at, updated_at FROM deliveries
+        WHERE status IN ('unknown', 'failed') OR (status = 'sending' AND updated_at < now() - interval '15 minutes')
+        ORDER BY status = 'unknown' DESC, updated_at DESC LIMIT 40`,
+      tx`
+        SELECT ${failureGroupSql} AS error, count(*)::int AS n, max(discovered_at) AS last,
+               (array_agg(id ORDER BY discovered_at DESC))[1] AS example
+        FROM articles WHERE processing_state = 'failed' AND discovered_at > now() - interval '30 days' GROUP BY 1 ORDER BY 2 DESC LIMIT 20`,
+      tx`SELECT client, kind, status, left(error, 200) AS error, summary, created_at FROM ingest_events ORDER BY created_at DESC LIMIT 20`,
+      tx<{ value: { at: string; sources: Record<string, { ok: boolean; at: string; lastOkAt: string | null; changed?: boolean; rows?: number; error?: string }> } }[]>`
+        SELECT value FROM settings WHERE key = 'leaderboard.fetch'`,
+    ]);
+    // Articles waiting to retry after a passing provider problem (they are not failed).
+    const [retrying] = await tx<{ n: number; next: Date | null }[]>`
+      SELECT count(*)::int AS n, min(processing_retry_at) AS next FROM articles WHERE processing_state = 'new' AND processing_attempts > 0`;
+    const now = Date.now();
+    return {
+      checkedAt: new Date(now).toISOString(),
+      processes: heartbeats.map((h) => ({
+        role: h.key.slice("heartbeat.".length),
+        ...h.value,
+        at: h.updated_at,
+        alive: now - h.updated_at.getTime() < STALE_HEARTBEAT_MS,
+      })),
+      jobs: latest,
+      timeline,
+      queues,
+      failedJobs,
+      lagging,
+      receipts: { counts: Object.fromEntries(receipts.map((r) => [r.status, r.n])), issues: receiptIssues },
+      deliveries,
+      errors,
+      retrying: { count: retrying?.n ?? 0, next: retrying?.next ?? null },
+      ingest,
+      leaderboard: leaderboard[0]
+        ? { at: leaderboard[0].value.at, sources: Object.entries(leaderboard[0].value.sources).map(([key, v]) => ({ key, ...v })).sort((a, b) => Number(a.ok) - Number(b.ok) || a.key.localeCompare(b.key)) }
+        : null,
+    };
+  });
 }
 
 /**

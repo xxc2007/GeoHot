@@ -13,7 +13,7 @@ import { publicPath } from "../../lib/public-path";
 type Counts = Partial<Record<"feedback" | "sources" | "runs" | "monitor", number>>;
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const [me, counts] = await Promise.all([adminGet<AdminMe>(request, "/api/admin/me"), adminGet<Counts>(request, "/api/admin/nav-counts").catch(() => ({}) as Counts)]);
+  const [me, counts] = await Promise.all([adminGet<AdminMe>(request, "/api/admin/me"), adminGet<Counts>(request, "/api/admin/nav-counts", 1500).catch(() => ({}) as Counts)]);
   return { me, counts };
 }
 
@@ -48,7 +48,7 @@ const NAV: Array<{ group: string; items: Array<{ to: string; label: string; coun
 
 function NavItem({ to, label, count, tone }: { to: string; label: string; count?: number; tone?: "bad" | "accent" }) {
   return (
-    <NavLink to={to} prefetch="intent" className="group relative block">
+    <NavLink to={to} className="group relative block">
       {({ isActive }) => (
         <span className={`relative flex items-center justify-between rounded-control px-3 py-[7px] text-[13.5px] transition-colors ${isActive ? "font-medium text-ink" : "text-ink-3 hover:text-ink"}`}>
           {isActive && <motion.span layoutId="admin-nav" className="absolute inset-0 rounded-control bg-surface shadow-sm ring-1 ring-line" transition={{ type: "spring", stiffness: 520, damping: 38 }} />}

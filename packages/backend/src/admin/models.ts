@@ -6,6 +6,7 @@ import { sql } from "../db.ts";
 import { CAPABILITIES, invalidateModelCache, modelSources, type Capability, type CapabilityKey } from "../editorial/models.ts";
 import { MODELS } from "../providers/llm.ts";
 import { audit } from "./auth.ts";
+import { modelStatisticRead, statisticReader } from "./model-statistics-read.ts";
 
 interface UsageRow {
   purpose: string;
@@ -26,31 +27,62 @@ interface UsageRow {
   currency: string | null;
 }
 
-export async function modelsOverview(days = 7) {
-  const since = new Date(Date.now() - days * 86400_000);
-  const [sources, usage, prices, history, benches] = await Promise.all([
-    modelSources(),
-    sql<UsageRow[]>`
-      SELECT r.purpose, r.service, a.model, r.request->>'promptVersion' AS prompt_version, count(*)::int AS calls,
+/** Aggregate all attempts against maintained narrow labels: the read never touches request TOAST.
+ * A backfill gap is explicitly unavailable, never an incomplete but apparently successful total. */
+export async function readModelUsage(db: import("../db.ts").Tx, since: Date) {
+  const rows = await db<(UsageRow & { missing_labels: number })[]>`
+      SELECT r.purpose, r.service, a.model, r.prompt_version, count(*)::int AS calls,
              count(*) FILTER (WHERE a.status = 'received')::int AS ok,
              count(*) FILTER (WHERE a.status = 'failed')::int AS failed,
              count(*) FILTER (WHERE a.status = 'unknown')::int AS unknown,
              percentile_disc(0.5) WITHIN GROUP (ORDER BY a.latency_ms) AS p50,
              percentile_disc(0.95) WITHIN GROUP (ORDER BY a.latency_ms) AS p95,
              sum((a.usage->>'prompt_tokens')::bigint) AS tokens_in, sum((a.usage->>'completion_tokens')::bigint) AS tokens_out,
-             sum(a.cost) FILTER (WHERE a.cost_basis = 'actual') AS actual_cost, max(a.currency) AS currency
-      FROM receipt_attempts a JOIN receipts r ON r.id = a.receipt_id
-      WHERE a.started_at >= ${since} AND a.origin = 'live' AND a.model IS NOT NULL
-      GROUP BY 1, 2, 3, 4 ORDER BY 1, 5 DESC`,
-    sql<{ service: string; model: string; currency: string; input_per_mtok: string | null; output_per_mtok: string | null }[]>`
-      SELECT service, model, currency, input_per_mtok, output_per_mtok FROM service_prices`,
-    sql<{ at: Date; actor: string; subject: string; reason: string | null; before: unknown; after: unknown }[]>`
-      SELECT created_at AS at, actor, subject, reason, before, after FROM audit_log WHERE action = 'models.switch' ORDER BY created_at DESC LIMIT 30`,
-    sql<{ id: string; label: string; sample_size: number; prompt_version: string | null; models: string[]; summary: unknown; created_at: Date }[]>`
-      SELECT id, label, sample_size, prompt_version, models,
-             (SELECT coalesce(jsonb_object_agg(key, value - 'sweep'), '{}'::jsonb) FROM jsonb_each(r.summary)) AS summary,
-             created_at FROM selectbench_runs r ORDER BY created_at DESC LIMIT 8`,
+             sum(a.cost) FILTER (WHERE a.cost_basis = 'actual') AS actual_cost, max(a.currency) AS currency,
+             count(*) FILTER (WHERE r.receipt_id IS NULL)::int AS missing_labels
+      FROM receipt_attempts a LEFT JOIN receipt_model_labels r ON r.receipt_id = a.receipt_id
+      WHERE a.started_at >= ${since} AND a.origin = 'live' AND a.model IS NOT NULL AND a.receipt_id IS NOT NULL
+      GROUP BY 1, 2, 3, 4 ORDER BY 1, 5 DESC`;
+  if (rows.some(row => row.missing_labels > 0)) throw Object.assign(new Error("model statistics labels are still being backfilled"), { code: "MODEL_LABEL_BACKFILL_PENDING" });
+  return rows.map(({ missing_labels: _missing, ...row }) => row);
+}
+
+const usageReaders = new Map<number, () => Promise<import("./model-statistics-read.ts").StatisticResult<UsageRow[]>>>();
+const readPrices = statisticReader(() => modelStatisticRead(db =>
+  db<{ service: string; model: string; currency: string; input_per_mtok: string | null; output_per_mtok: string | null }[]>`
+    SELECT service, model, currency, input_per_mtok, output_per_mtok FROM service_prices`), () => []);
+const readBenches = statisticReader(() => modelStatisticRead(db =>
+  db<{ id: string; label: string; sample_size: number; prompt_version: string | null; models: string[]; summary: unknown; created_at: Date }[]>`
+    SELECT id, label, sample_size, prompt_version, models,
+           (SELECT coalesce(jsonb_object_agg(key, value - 'sweep'), '{}'::jsonb) FROM jsonb_each(r.summary)) AS summary,
+           created_at FROM selectbench_runs r ORDER BY created_at DESC LIMIT 8`), () => []);
+
+export async function modelsOverview(days = 7) {
+  days = Number.isFinite(days) ? Math.max(1, Math.min(90, Math.floor(days))) : 7;
+  let readUsage = usageReaders.get(days);
+  if (!readUsage) {
+    const windowDays = days;
+    readUsage = statisticReader(() => modelStatisticRead(db =>
+      readModelUsage(db, new Date(Date.now() - windowDays * 86400_000))), () => []);
+    usageReaders.set(days, readUsage);
+  }
+  const [sourcesResult, usageResult, pricesResult, historyResult, benchesResult] = await Promise.all([
+    modelSources().then(rows => ({ rows, status: { state: "ready" as const, asOf: new Date().toISOString() } }),
+      () => ({ rows: null, status: { state: "unavailable" as const, asOf: null, message: "当前模型配置暂时不可用，请稍后刷新。" } })),
+    readUsage(), readPrices(),
+    // Switch history is always fresh, like model configuration.
+    modelStatisticRead(db => db<{ at: Date; actor: string; subject: string; reason: string | null; before: unknown; after: unknown }[]>`
+      SELECT created_at AS at, actor, subject, reason, before, after FROM audit_log
+      WHERE action = 'models.switch' ORDER BY created_at DESC LIMIT 30`)
+      .then(rows => ({ rows, status: { state: "ready" as const, asOf: new Date().toISOString() } }),
+        () => ({ rows: [], status: { state: "unavailable" as const, asOf: null, message: "切换记录暂时不可用，请稍后刷新。" } })),
+    readBenches(),
   ]);
+  const sources = sourcesResult.rows;
+  const usage = usageResult.rows;
+  const prices = pricesResult.rows;
+  const history = historyResult.rows;
+  const benches = benchesResult.rows;
   // The receipt row already carries its own service, so price by that. Resolving a provider from the model
   // name instead would misattribute the two Agnes doors, which answer under one model name.
   const priced = (u: UsageRow) => {
@@ -59,7 +91,7 @@ export async function modelsOverview(days = 7) {
     if (!p || (!p.input_per_mtok && !p.output_per_mtok)) return null;
     return { amount: (Number(u.tokens_in ?? 0) / 1e6) * Number(p.input_per_mtok ?? 0) + (Number(u.tokens_out ?? 0) / 1e6) * Number(p.output_per_mtok ?? 0), currency: p.currency };
   };
-  const capabilities = (Object.entries(CAPABILITIES) as Array<[CapabilityKey, Capability]>).map(([key, c]) => ({
+  const capabilities = sources ? (Object.entries(CAPABILITIES) as Array<[CapabilityKey, Capability]>).map(([key, c]) => ({
     key,
     label: c.label,
     env: c.env,
@@ -85,9 +117,11 @@ export async function modelsOverview(days = 7) {
         currency: u.currency,
         estimate: priced(u),
       })),
-  }));
+  })) : [];
   const choices = Object.values(MODELS).map((m) => ({ key: m.key, service: m.service, vision: !!m.vision }));
-  return { days, capabilities, choices, history, benches };
+  return { days, capabilities, choices, history, benches, statistics: {
+    configuration: sourcesResult.status, usage: usageResult.status, prices: pricesResult.status, history: historyResult.status, benches: benchesResult.status,
+  } };
 }
 
 /** Switches a capability to another registered model (or back to the environment/default when null). */

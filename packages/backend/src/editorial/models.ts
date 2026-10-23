@@ -63,8 +63,10 @@ const known = (name: string) => Object.hasOwn(MODELS, name);
 
 function healthRead<T>(read: (db: Tx) => Promise<T>): Promise<T> {
   return sql.begin(async db => {
-    await db`SET LOCAL statement_timeout = '2000ms'`;
-    await db`SET LOCAL lock_timeout = '250ms'`;
+    // Preserve a caller's stricter deadline (including infrastructure-failure injection).
+    await db`SELECT
+      set_config('statement_timeout', least(coalesce(nullif((extract(epoch FROM current_setting('statement_timeout')::interval)*1000)::bigint, 0), 2000), 2000)::text, true),
+      set_config('lock_timeout', least(coalesce(nullif((extract(epoch FROM current_setting('lock_timeout')::interval)*1000)::bigint, 0), 250), 250)::text, true)`;
     await db`SET LOCAL max_parallel_workers_per_gather = 0`;
     return read(db);
   }) as Promise<T>;
@@ -113,7 +115,7 @@ export function pickFromPool(configured: string, shardKey?: string): string {
 
 async function overrides(): Promise<Record<string, string>> {
   if (cache && Date.now() - cache.at < 60_000) return cache.overrides;
-  const rows = await sql<{ key: string; value: { model?: string } }[]>`SELECT key, value FROM settings WHERE key LIKE 'models.%'`;
+  const rows = await healthRead(db => db<{ key: string; value: { model?: string } }[]>`SELECT key, value FROM settings WHERE key LIKE 'models.%'`);
   const map: Record<string, string> = {};
   // The admin stores one model per capability (switchModel rejects a comma list), so anything else in the
   // settings table is not ours to interpret and is ignored rather than half-applied.

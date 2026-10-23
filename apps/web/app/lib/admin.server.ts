@@ -3,11 +3,17 @@ import { data, redirect } from "react-router";
 
 const API_BASE = process.env.API_BASE_URL || "http://127.0.0.1:3001";
 
-export async function adminGet<T>(request: Request, path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+export async function adminGet<T>(request: Request, path: string, timeoutMs = 30_000): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
     headers: { accept: "application/json", cookie: request.headers.get("cookie") ?? "", "user-agent": request.headers.get("user-agent") ?? "" },
-    signal: AbortSignal.any([request.signal, AbortSignal.timeout(30_000)]),
-  });
+      signal: AbortSignal.any([request.signal, AbortSignal.timeout(timeoutMs)]),
+    });
+  } catch (error) {
+    if (request.signal.aborted) throw error;
+    throw data({ message: "后台请求暂时超时，请稍后重试。" }, { status: 503 });
+  }
   if (res.status === 401) {
     const url = new URL(request.url);
     throw redirect(`/admin/login?${new URLSearchParams({ return: url.pathname + url.search })}`);

@@ -28,8 +28,22 @@ const latest = async () => (await runsOverview()).jobs.find((j) => j.job === JOB
 
 after(async () => {
   await sql`DELETE FROM job_runs WHERE job = ${JOB}`;
+  await (await getBoss()).deleteQueue(JOB).catch(() => {});
   await stopBoss();
   await closeDb();
+});
+
+test("failed queue totals keep only the latest job output", async () => {
+  const boss = await getBoss();
+  await boss.createQueue(JOB);
+  const oldId = await boss.send(JOB, { fixture: "old" });
+  const newId = await boss.send(JOB, { fixture: "new" });
+  await sql`UPDATE pgboss.job SET state='failed', completed_on=now()-interval '2 minutes', output=${sql.json({ message: "older", padding: "x".repeat(100_000) })} WHERE id=${oldId}`;
+  await sql`UPDATE pgboss.job SET state='failed', completed_on=now()-interval '1 minute', output=${sql.json({ message: "latest" })} WHERE id=${newId}`;
+  const row = (await runsOverview()).failedJobs.find(j => j.name === JOB);
+  assert.equal(row?.failed, 2);
+  assert.match(String(row?.last_output), /latest/);
+  assert.doesNotMatch(String(row?.last_output), /older/);
 });
 
 test("一轮跑完但期次没排出来，后台那一行要说得出是哪几期", async () => {

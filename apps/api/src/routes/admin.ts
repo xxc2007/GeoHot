@@ -5,6 +5,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { FEATURES } from "@aihot/industry/features";
 import { actorOf } from "@aihot/backend/admin/auth";
 import { InvalidInput } from "@aihot/backend/admin/invalid";
+import { sharedAdminRead } from "@aihot/backend/admin/read-cache";
 
 import { importSelectBenchRun, listSelectBenchRuns, selectBenchRun } from "@aihot/backend/admin/selectbench";
 import { modelsOverview, switchModel } from "@aihot/backend/admin/models";
@@ -115,7 +116,8 @@ export function registerAdmin(app: FastifyInstance) {
   }));
 
   // Runs (F20)
-  app.get("/api/admin/runs", adminHandler(async () => runsOverview()));
+  const readRuns = sharedAdminRead(10_000, runsOverview);
+  app.get("/api/admin/runs", adminHandler(async () => readRuns()));
   app.post("/api/admin/receipts/:id/release", adminHandler(async (req, reply, admin) => orNotFound(req, reply, await releaseReceipt(rowId(req), body(req) as never, actorOf(admin)))));
   app.post("/api/admin/deliveries/:id/resolve", adminHandler(async (req, reply, admin) => orNotFound(req, reply, await resolveDelivery(rowId(req), body(req) as never, actorOf(admin)))));
   app.post("/api/admin/processing/requeue", adminHandler(async (req, _reply, admin) => requeueFailedArticles(body(req) as never, actorOf(admin))));
@@ -166,8 +168,12 @@ export function registerAdmin(app: FastifyInstance) {
 
   // Attention counts for the navigation. The monitor column is gated like the routes above: counting
   // rows in a module this site does not run would light up a badge the operator cannot clear.
-  app.get("/api/admin/nav-counts", adminHandler(async () => {
-    const [c] = await sql<Record<string, number>[]>`
+  const readNavCounts = sharedAdminRead(10_000, () => sql.begin(async tx => {
+    await tx`SET TRANSACTION READ ONLY`;
+    await tx`SET LOCAL statement_timeout = '1000ms'`;
+    await tx`SET LOCAL lock_timeout = '250ms'`;
+    await tx`SET LOCAL max_parallel_workers_per_gather = 0`;
+    const [c] = await tx<Record<string, number>[]>`
       SELECT (SELECT count(*)::int FROM feedback WHERE status = 'new') AS feedback,
              (SELECT count(*)::int FROM sources WHERE enabled AND health = 'failing') AS sources,
              (SELECT count(*)::int FROM receipts WHERE status = 'unknown') + (SELECT count(*)::int FROM deliveries WHERE status = 'unknown') AS runs,
@@ -175,6 +181,7 @@ export function registerAdmin(app: FastifyInstance) {
                + (SELECT count(*)::int FROM monitor_posts WHERE processed_at IS NULL AND collected_at < now() - interval '20 minutes')` : sql`0`} AS monitor`;
     return c;
   }));
+  app.get("/api/admin/nav-counts", adminHandler(async () => readNavCounts()));
 
   // Audit trail
   app.get("/api/admin/audit", adminHandler(async (req) => {
