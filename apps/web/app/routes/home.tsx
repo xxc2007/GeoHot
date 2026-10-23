@@ -24,13 +24,18 @@ export async function loader({ request }: Route.LoaderArgs) {
   const category = categoryParam && isCategoryKey(categoryParam) ? categoryParam : null;
   const tag = url.searchParams.get("tag")?.trim() || null;
   const upstream = new Headers();
-  const data = await loadOr404<TimelineResponse>(`/api/site/timeline${queryString({ channel: channel === "all" ? null : channel, category, tag })}`, { responseHeaders: upstream, signal: request.signal });
+  // Keep the first document light; Timeline continues from this cursor in 40-card batches.
+  const data = await loadOr404<TimelineResponse>(`/api/site/timeline${queryString({ channel: channel === "all" ? null : channel, category, tag, limit: 12 })}`, { responseHeaders: upstream, signal: request.signal });
   // 精选按站长制定的标准由模型筛选，也可在后台更正。精选超过三天没有更新时，
   // 展示仍在更新的收录池；其中部分条目未达精选标准。精选恢复后这一块自动消失。
   const newest = data.cards[0]?.anchorAt ? Date.parse(data.cards[0].anchorAt) : 0;
-  const live = newest > 0 && newest < Date.now() - 3 * 86400_000
+  const pool = newest > 0 && newest < Date.now() - 3 * 86400_000
     ? await loadOr404<PoolResponse>(`/api/site/pool${queryString({ channel: channel === "all" ? null : channel, category, tag })}`, { signal: request.signal })
     : null;
+  // The fallback shows eight headlines. Do not serialize 40 summaries, scores and tags into hydration.
+  const live = pool ? { total: pool.total, items: pool.items.slice(0, 8).map(({ id, title, timelineAt, publishedAt, source }) => ({
+    id, title, timelineAt, publishedAt, source: { name: source.name },
+  })) } : null;
   return withHeaders({ data, live, filters: { channel, category, tag, topic: null } }, { headers: releaseBoundCache(data.refreshAt, 60, Date.now(), upstream) });
 }
 
@@ -112,7 +117,7 @@ export default function Home() {
             <span className="text-[12px] text-ink-4">按收录时间排列，部分条目未达精选标准</span>
           </div>
           <ul className="divide-y divide-line-soft">
-            {live.items.slice(0, 8).map((it) => {
+            {live.items.map((it) => {
               const at = it.timelineAt ?? it.publishedAt;
               return (
                 <li key={it.id} className="flex items-baseline gap-3 py-2">
