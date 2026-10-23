@@ -28,8 +28,8 @@ try {
       const ids = await db<{ id: number }[]>`SELECT id FROM receipt_attempts WHERE id>${cursor} ORDER BY id LIMIT ${size}`;
       if (!ids.length) return null;
       await db`INSERT INTO admin_model_attempt_metrics(id,receipt_id,started_at,origin,model,status,latency_ms,tokens_in,tokens_out,cost,cost_basis,currency)
-        SELECT id,receipt_id,started_at,origin,model,status,latency_ms,(usage->>'prompt_tokens')::bigint,
-          (usage->>'completion_tokens')::bigint,cost,cost_basis,currency
+        SELECT id,receipt_id,started_at,origin,model,status,latency_ms,admin_metric_token_count(usage->'prompt_tokens'),
+          admin_metric_token_count(usage->'completion_tokens'),cost,cost_basis,currency
         FROM receipt_attempts WHERE id=ANY(${ids.map(row => row.id)}::bigint[])
         ON CONFLICT(id) DO NOTHING`;
       return ids.at(-1)!.id;

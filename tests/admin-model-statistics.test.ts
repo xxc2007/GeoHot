@@ -20,6 +20,9 @@ test("derived metrics follow an attempt from pending to received and cascade wit
     const [metric] = await db`SELECT status,tokens_in,tokens_out,latency_ms,cost FROM admin_model_attempt_metrics WHERE id=${attempt!.id}`;
     assert.deepEqual(metric, {status:'received',tokens_in:123,tokens_out:45,latency_ms:87,cost:0.123456});
     assert.equal((await db`SELECT cost FROM receipt_attempts WHERE id=${attempt!.id}`)[0]!.cost,0.123456);
+    await db`UPDATE receipt_attempts SET usage='{"prompt_tokens":"unknown","completion_tokens":1e100}' WHERE id=${attempt!.id}`;
+    assert.deepEqual((await db`SELECT tokens_in,tokens_out FROM admin_model_attempt_metrics WHERE id=${attempt!.id}`)[0],
+      {tokens_in:null,tokens_out:null},'unrecognized token counts remain unknown without rejecting the ledger write');
     await db`DELETE FROM receipts WHERE id=${receipt!.id}`;
     assert.equal((await db`SELECT id FROM admin_model_attempt_metrics WHERE id=${attempt!.id}`).length,0);
     throw new Error('rollback metrics fixture');

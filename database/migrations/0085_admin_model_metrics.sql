@@ -13,11 +13,16 @@ CREATE TABLE IF NOT EXISTS admin_model_attempt_metrics (
   cost_basis text,
   currency text
 );
+-- Unrecognized provider metadata must never make a receipt write fail.
+CREATE OR REPLACE FUNCTION admin_metric_token_count(value jsonb) RETURNS bigint
+LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
+  SELECT CASE WHEN value #>> '{}' ~ '^[0-9]{1,18}$' THEN (value #>> '{}')::bigint END
+$$;
 CREATE OR REPLACE FUNCTION maintain_admin_model_metrics() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   INSERT INTO admin_model_attempt_metrics(id,receipt_id,started_at,origin,model,status,latency_ms,tokens_in,tokens_out,cost,cost_basis,currency)
   VALUES(NEW.id,NEW.receipt_id,NEW.started_at,NEW.origin,NEW.model,NEW.status,NEW.latency_ms,
-    (NEW.usage->>'prompt_tokens')::bigint,(NEW.usage->>'completion_tokens')::bigint,NEW.cost,NEW.cost_basis,NEW.currency)
+    admin_metric_token_count(NEW.usage->'prompt_tokens'),admin_metric_token_count(NEW.usage->'completion_tokens'),NEW.cost,NEW.cost_basis,NEW.currency)
   ON CONFLICT(id) DO UPDATE SET receipt_id=EXCLUDED.receipt_id,started_at=EXCLUDED.started_at,origin=EXCLUDED.origin,
     model=EXCLUDED.model,status=EXCLUDED.status,latency_ms=EXCLUDED.latency_ms,tokens_in=EXCLUDED.tokens_in,
     tokens_out=EXCLUDED.tokens_out,cost=EXCLUDED.cost,cost_basis=EXCLUDED.cost_basis,currency=EXCLUDED.currency;
