@@ -614,23 +614,30 @@ export async function translatePending(opts: { limit?: number; budgetMs?: number
   const scope = translationScope({ now: new Date(started), from: opts.from });
   // All streams share eligibility. Fetch narrow ranks, then interleave and replenish overlap.
   const ranked = await translationSelectorRead(tx => tx<TranslationRank[]>`
-    WITH cand AS (
-      SELECT p.article_id, p.discovered_at, octet_length(coalesce(a.body_html, a.body_text, '')) AS bytes
-      FROM publications p JOIN articles a ON a.id = p.article_id
+    WITH cand AS MATERIALIZED (
+      SELECT p.article_id, p.discovered_at
+      FROM publications p
+      JOIN LATERAL (
+        SELECT id,revision FROM articles
+        WHERE id=p.article_id AND coalesce(language,'') <> 'zh' OFFSET 0
+      ) a ON true
       LEFT JOIN translations tr ON tr.article_id = p.article_id AND tr.lang = 'zh'
-      WHERE p.selected AND p.visibility = 'public' AND p.body_mode = 'full' AND coalesce(a.language, '') <> 'zh'
+      WHERE p.selected AND p.visibility = 'public' AND p.body_mode = 'full'
         AND (p.discovered_at >= ${scope.bodyFrom}
              OR EXISTS (SELECT 1 FROM article_revisions r WHERE r.article_id = a.id AND r.revision = a.revision AND r.revision > 1
                         AND r.created_at >= ${scope.bodyFrom}))
         AND (tr.article_id IS NULL OR (tr.origin <> 'source' AND (tr.revision < a.revision OR NOT tr.complete)))
         AND NOT EXISTS (SELECT 1 FROM translation_attempts t WHERE t.article_id = p.article_id AND t.revision = a.revision
                         AND (t.outcome IN ('skipped', 'translated') OR t.attempts >= 3))
+    ), sized AS (
+      SELECT c.article_id,c.discovered_at,octet_length(coalesce(a.body_html,a.body_text,'')) AS bytes
+      FROM cand c JOIN articles a ON a.id=c.article_id
     ), ranked AS (
       SELECT article_id,
              row_number() OVER (ORDER BY discovered_at DESC, article_id) AS by_fresh,
              row_number() OVER (ORDER BY bytes ASC, discovered_at DESC, article_id) AS by_short,
              row_number() OVER (ORDER BY discovered_at ASC, article_id) AS by_old
-      FROM cand
+      FROM sized
     )
     SELECT article_id, by_fresh, by_short, by_old FROM ranked
     WHERE by_fresh <= ${total} OR by_short <= ${total} OR (${scope.historical} AND by_old = 1)`);

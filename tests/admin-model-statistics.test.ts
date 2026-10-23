@@ -8,6 +8,27 @@ import { modelStatisticRead, statisticReader } from "../packages/backend/src/adm
 
 after(closeDb);
 
+test("derived metrics follow an attempt from pending to received and cascade without changing billing", async () => {
+  await assert.rejects(sql.begin(async db => {
+    const [receipt] = await db`INSERT INTO receipts(logical_key,service,purpose,status,request)
+      VALUES(${'metrics-trigger-' + Date.now()},'metrics-test','score_article','pending','{}') RETURNING id`;
+    const [attempt] = await db`INSERT INTO receipt_attempts(receipt_id,attempt,service,model,status)
+      VALUES(${receipt!.id},1,'metrics-test','model-test','pending') RETURNING id`;
+    assert.equal((await db`SELECT status FROM admin_model_attempt_metrics WHERE id=${attempt!.id}`)[0]!.status, 'pending');
+    await db`UPDATE receipt_attempts SET status='received',usage='{"prompt_tokens":123,"completion_tokens":45}',
+      latency_ms=87,cost=0.123456,cost_basis='actual',currency='USD' WHERE id=${attempt!.id}`;
+    const [metric] = await db`SELECT status,tokens_in,tokens_out,latency_ms,cost FROM admin_model_attempt_metrics WHERE id=${attempt!.id}`;
+    assert.deepEqual(metric, {status:'received',tokens_in:123,tokens_out:45,latency_ms:87,cost:0.123456});
+    assert.equal((await db`SELECT cost FROM receipt_attempts WHERE id=${attempt!.id}`)[0]!.cost,0.123456);
+    await db`UPDATE receipt_attempts SET usage='{"prompt_tokens":"unknown","completion_tokens":1e100}' WHERE id=${attempt!.id}`;
+    assert.deepEqual((await db`SELECT tokens_in,tokens_out FROM admin_model_attempt_metrics WHERE id=${attempt!.id}`)[0],
+      {tokens_in:null,tokens_out:null},'unrecognized token counts remain unknown without rejecting the ledger write');
+    await db`DELETE FROM receipts WHERE id=${receipt!.id}`;
+    assert.equal((await db`SELECT id FROM admin_model_attempt_metrics WHERE id=${attempt!.id}`).length,0);
+    throw new Error('rollback metrics fixture');
+  }), /rollback metrics fixture/);
+});
+
 test("model statistics coalesce concurrent refreshes, cache successes and cool down failures", async () => {
   let time = 0, calls = 0;
   let release!: (rows: number[]) => void;
@@ -51,6 +72,8 @@ test("database cancels statistics and transaction limits cannot leak into later 
 
 test("receipt-label materialization preserves attempts, exact percentiles, versions, origins and billing", async () => {
   await sql.begin(async db => {
+    await db`CREATE TEMP TABLE settings(key text,value jsonb) ON COMMIT DROP`;
+    await db`INSERT INTO settings VALUES('admin.modelLabelsReady','true'),('admin.modelMetricsReady','true')`;
     await db`CREATE TEMP TABLE receipts(id int, purpose text, service text, request jsonb) ON COMMIT DROP`;
     await db`CREATE TEMP TABLE receipt_model_labels(receipt_id int, purpose text, service text, prompt_version text) ON COMMIT DROP`;
     await db`CREATE TEMP TABLE receipt_attempts(receipt_id int, model text, status text, latency_ms int, usage jsonb, cost numeric, cost_basis text, currency text, started_at timestamptz, origin text) ON COMMIT DROP`;
@@ -71,6 +94,9 @@ test("receipt-label materialization preserves attempts, exact percentiles, versi
       (1,'same','received',999,NULL,5,'actual','USD',now(),'replay'),
       (1,'same','received',999,NULL,5,'actual','USD',now()-interval '8 days','live'),
       (1,NULL,'received',999,NULL,5,'actual','USD',now(),'live')`;
+    await db`CREATE TEMP TABLE admin_model_attempt_metrics ON COMMIT DROP AS
+      SELECT receipt_id,model,status,latency_ms,(usage->>'prompt_tokens')::bigint AS tokens_in,
+        (usage->>'completion_tokens')::bigint AS tokens_out,cost,cost_basis,currency,started_at,origin FROM receipt_attempts`;
     const since = new Date(Date.now() - 7 * 86400_000);
     const rewritten = await readModelUsage(db, since);
     const original = await db`

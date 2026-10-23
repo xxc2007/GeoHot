@@ -29,8 +29,13 @@ export async function runsOverview() {
       tx<{ key: string; value: Record<string, unknown>; updated_at: Date }[]>`SELECT key, value, updated_at FROM settings WHERE key LIKE 'heartbeat.%' ORDER BY key`,
       tx`
         WITH latest AS (
-          SELECT DISTINCT ON (job) job, started_at, finished_at, status, left(error, 400) AS error, ${failuresSql} AS failures
-          FROM job_runs ORDER BY job, started_at DESC
+          SELECT recent.job, recent.started_at, recent.finished_at, recent.status,
+                 left(recent.error, 400) AS error, ${failuresSql} AS failures
+          FROM (SELECT DISTINCT job FROM job_runs) names
+          CROSS JOIN LATERAL (
+            SELECT job, started_at, finished_at, status, error, detail
+            FROM job_runs WHERE job = names.job ORDER BY started_at DESC LIMIT 1
+          ) recent
         ), counts AS (
           SELECT job, count(*) FILTER (WHERE status = 'failed')::int AS failed_24h, count(*)::int AS runs_24h
           FROM job_runs WHERE started_at > now() - interval '24 hours' GROUP BY job
