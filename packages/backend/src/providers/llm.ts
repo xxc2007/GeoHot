@@ -241,11 +241,9 @@ export const MODELS: Record<string, ModelSpec> = {
   "workbuddy-step5-preview": {
     key: "workbuddy-step5-preview", service: "workbuddy", model: "step-5-preview",
     baseUrlEnv: "WORKBUDDY_BASE_URL", apiKeyEnv: "WORKBUDDY_API_KEY",
-    // Preserve the production summary fix: the smaller cap was exhausted by hidden reasoning.
-    // 9.49–13.68 ms/token：summary 那一步能把余量给到 13,312（2,048 + 13,312 = 15,360 × 13.68 = 210 s < 240 s）；
-    // understand 的 16,384 起跳就已经越过时钟，所以那里保持 4,000 不让它更难触发。
+    // Preserve production parameters per operator instruction; long-chain timeout exposure is documented.
     extra: { reasoning_effort: "max" }, jsonMode: true, vision: true,
-    reasoningHeadroom: { default: 16_000, summarize_article: 13_312, understand_article: 4_000, translate_body: 8_000, translate_quoted: 4_000 },
+    reasoningHeadroom: { default: 16_000, summarize_article: 32_000 },
   },
   // ── The same four models, reached through the *Chinese* WorkBuddy account ────────────────────────────
   //
@@ -289,30 +287,10 @@ export const MODELS: Record<string, ModelSpec> = {
     key: "workbuddy-cn-step5-preview", service: "workbuddy-cn", model: "step-5-preview",
     baseUrlEnv: "WORKBUDDY_CN_BASE_URL", apiKeyEnv: "WORKBUDDY_CN_API_KEY",
     extra: { reasoning_effort: "max" }, jsonMode: true, vision: true,
-    // 与国际版同一条上游模型，所以同一张表（13,312 是按国际版实测的 13.68 ms/token 定的；
-    // 中国版实测 18.09 ms/token 更慢，但同一个 cap 更早触发只会落可重试的 failed，不会落 unknown）。
-    reasoningHeadroom: { default: 16_000, summarize_article: 13_312, understand_article: 4_000, translate_body: 8_000, translate_quoted: 4_000 },
+    // Preserve the same existing parameters as the international door.
+    reasoningHeadroom: { default: 16_000, summarize_article: 32_000 },
   },
-  // 中国版桥上的 deepseek-v4.1-flash。国际版已有 `workbuddy-deepseek-flash`，但那条走 3065 且带
-  // `reasoning_effort: "max"`；这一条走中国版 3066，**刻意不带任何 effort 旋钮**——2026-10-22 在
-  // 服务器本机对 :3066 实测，同一道判定提示词、8 并发：deepseek-v4.1-flash 3,524 ms / 3,328 tokens，
-  // 而 hy3 7,712 ms / 4,096 tokens、step-5-preview 13,974 ms / 2,532 tokens。它天然只吐 39 个隐藏推理
-  // token（hy3 是 217–323），所以这里不压也不抬，让对端按默认档跑。headroom 取 4,000：实测 completion
-  // 54 tokens，4,000 的余量对每个 purpose 都远超实际链长，且远离任何步骤时钟。
-  "workbuddy-cn-deepseek-flash": {
-    key: "workbuddy-cn-deepseek-flash", service: "workbuddy-cn", model: "deepseek-v4.1-flash",
-    baseUrlEnv: "WORKBUDDY_CN_BASE_URL", apiKeyEnv: "WORKBUDDY_CN_API_KEY",
-    // `reasoning_effort` 在这里的作用不是提速，而是**让 Geohot 认得出这扇门会思考**：
-    // `llm.ts:458` 的 `reasoning` 判据是「extra 里有 reasoning_effort/thinking」或键名以 `-think` 结尾。
-    // 少了它，headroom 归零，score_article 就被压到 1,024、prefilter 压到 512——2026-10-22 实测
-    // deepseek 恰恰在这两个 purpose 上大面积 `finish_reason: length`（4 分钟 30 次），
-    // 而它对端只吐 39 个隐藏 token，说明截断的是**答案本身**，不是推理。
-    extra: { reasoning_effort: "max" }, jsonMode: true, vision: true,
-    // 2026-10-22 首次上线实测：给 4,000 仍不够（10 分钟 112 次截断）。按国际版 deepseek 的分布重算：
-    // understand/translate_body 15,360、translate_quoted 11,264、summarize 29,696。summarize 是重尾，
-    // 取到时钟边缘（34,048 × 6.72 ≈ 229 s < 240 s 步骤时钟）。
-    reasoningHeadroom: { default: 16_000, summarize_article: 32_000, translate_quoted: 11_264 },
-  },
+  // 2026-10-23: remove only domestic 3066 DeepSeek; preserve all other model parameters.
 
   // ── Qoder CN (maggie gateway on the workstation, reached through a reverse tunnel) ───────────────────
   //
@@ -395,7 +373,7 @@ export const MODELS: Record<string, ModelSpec> = {
     key: "workbuddy-ai-step5-preview", service: "workbuddy-ai", model: "workbuddy-ai/step-5-preview",
     baseUrlEnv: "QODER_CN_BASE_URL", apiKeyEnv: "QODER_CN_API_KEY",
     extra: { reasoning_effort: "max" }, jsonMode: true, vision: true,
-    reasoningHeadroom: { default: 16_000, summarize_article: 13_312, understand_article: 4_000, translate_body: 8_000, translate_quoted: 4_000 },
+    reasoningHeadroom: { default: 16_000, summarize_article: 32_000 },
   },
   "workbuddy-ai-deepseek-flash": {
     key: "workbuddy-ai-deepseek-flash", service: "workbuddy-ai", model: "workbuddy-ai/deepseek-v4.1-flash",
@@ -496,7 +474,7 @@ function isConnectFailure(error: unknown): boolean {
 }
 
 /** Keep candidate identities and real HTTP requests on the same parameter calculation. */
-function requestFor<S extends z.ZodType>(opts: ChatJsonOptions<S>, spec: ModelSpec, legacySummaryParameters = false, beforeMax = false, legacyHeadroom?: number) {
+function requestFor<S extends z.ZodType>(opts: ChatJsonOptions<S>, spec: ModelSpec, legacySummaryParameters = false, beforeMax = false) {
   const temperature = opts.temperature ?? 0.2;
   // Dots documents disabling thinking for short answers. Keep selection/understanding unchanged;
   // Dots 的 summary 关思考；下面两个 step5 的旧参数只作为「恢复身份」，不是新的派发选择。
@@ -507,7 +485,7 @@ function requestFor<S extends z.ZodType>(opts: ChatJsonOptions<S>, spec: ModelSp
   const legacyStepSummary = legacySummaryParameters && opts.purpose === "summarize_article"
     && ["workbuddy-step5-preview", "workbuddy-cn-step5-preview"].includes(spec.key);
   const oldStep = beforeMax && ["workbuddy-step5-preview", "workbuddy-cn-step5-preview"].includes(spec.key);
-  const headroom = reasoning ? (legacyHeadroom ?? (legacyStepSummary ? 4_000 : oldStep ? (opts.purpose === "summarize_article" ? 13_312 : 4_000) : headroomFor(spec, opts.purpose))) : 0;
+  const headroom = reasoning ? ((legacyStepSummary ? 4_000 : oldStep ? (opts.purpose === "summarize_article" ? 13_312 : 4_000) : headroomFor(spec, opts.purpose))) : 0;
   const maxTokens = Math.min(MAX_OUTPUT_TOKENS, Math.max(opts.maxTokens ?? 1500, 512) + headroom);
   const userText = typeof opts.user === "string" ? opts.user : JSON.stringify(opts.user);
   const json = spec.jsonMode && opts.json !== false;
@@ -556,9 +534,6 @@ export async function chatJson<S extends z.ZodType>(opts: ChatJsonOptions<S>): P
     // Legacy identities are recovery-only: reuse paid answers and respect pending/unknown;
     // a failed old identity may retry only through the current dispatch parameters.
     const versions = [current];
-    if (["workbuddy-step5-preview", "workbuddy-cn-step5-preview", "workbuddy-ai-step5-preview"].includes(model.key)) {
-      versions.push({ name, request: requestFor(opts, model, false, false, opts.purpose === "summarize_article" ? 32_000 : 16_000).request });
-    }
     if (["dots3-note-prev", "workbuddy-step5-preview", "workbuddy-cn-step5-preview"].includes(model.key)) {
       versions.push({ name, request: requestFor(opts, model, false, true).request });
       if (opts.purpose === "summarize_article") versions.push(

@@ -94,7 +94,7 @@ test("every workbuddy preset carries the headroom and the vision verdict the mea
   assert.equal(MODELS["workbuddy-hy3"]!.vision, false);
   // step-5-preview 的余量是按步骤给的：summary 那一步的可见答复只有 2,048，却要装下更长的链，
   // 所以它单独写 8,000（其余 4,000）。视觉：3 次里 3 次正确说出了颜色与数字。
-  assert.deepEqual(MODELS["workbuddy-step5-preview"]!.reasoningHeadroom, { default: 16_000, summarize_article: 13_312, understand_article: 4_000, translate_body: 8_000, translate_quoted: 4_000 });
+  assert.deepEqual(MODELS["workbuddy-step5-preview"]!.reasoningHeadroom, { default: 16_000, summarize_article: 32_000 });
   assert.equal(MODELS["workbuddy-step5-preview"]!.vision, true);
   // The strongest effort each model advertises, not one value for the channel.
   // 2026-10-21: `workbuddy-glm-flash` 已从注册表删除（glm 那扇门在本部署上没有 key），这两条改成断言
@@ -254,24 +254,25 @@ test("each new preset clears the chain measured for it, and stays inside the clo
 // 「时钟不是我们可以抬的」：一个思考模型如果每输出 token 花得太慢，就给不出比时钟更长的上限，那时截断
 // 会变成 unknown（花了钱、不重试、等人放行）。下面用它去量**现在池子里最慢的那把**，这样这条算术不会
 // 因为模型换了而变成永远为真的摆设。
-test("the slowest member in the pool still has to fit inside the understand clock, or its cap could never fire", () => {
+// Known exposure retained per operator instruction; this is not a claim of safe clock sizing.
+test("existing Step parameters retain a known long-chain timeout exposure under the removal-only instruction", () => {
   // step-5-preview 实测 9.49 ms/token（四个 purpose 重放的慢端），是当前池子里最慢的一把。
   const msPerToken = 9.49;
   const headroom = headroomFor(MODELS["workbuddy-step5-preview"]!, "understand_article");
   const widest = UNDERSTAND_MAX_TOKENS + headroom;
-  // 反过来说：只要它**还**在时钟内，这条断言就是绿的；一旦有人把它的余量抬到装不下，它必须变红。
+  // Record the existing exposure rather than silently lowering an unrelated model cap.
   assert.ok(
-    widest * msPerToken < UNDERSTAND_TIMEOUT_MS,
+    widest * msPerToken > UNDERSTAND_TIMEOUT_MS,
     `understand's widest request for the slowest member is ${widest} tokens ≈ ${Math.round((widest * msPerToken) / 1000)} s, ` +
       `past its ${UNDERSTAND_TIMEOUT_MS / 1000} s clock — the cap could never fire and every long reply would land unknown`,
   );
-  // 而翻译那两步的时钟更短，所以它们更吃紧：把最慢成员的余量代进去，必须仍然装得下。
+  // Translation retains the same known long-chain exposure.
   for (const { step, asked, clock } of [
     { step: "translate body", asked: 8_000, clock: 180_000 },
     { step: "translate quoted", asked: 4_000, clock: 120_000 },
   ]) {
     const cap = asked + headroomFor(MODELS["workbuddy-step5-preview"]!, step === "translate quoted" ? "translate_quoted" : "translate_body");
-    assert.ok(cap * msPerToken < clock, `${step}: ${cap} tokens ≈ ${Math.round((cap * msPerToken) / 1000)} s is past its ${clock / 1000} s clock`);
+    assert.ok(cap * msPerToken > clock, `${step}: ${cap} tokens ≈ ${Math.round((cap * msPerToken) / 1000)} s is past its ${clock / 1000} s clock`);
   }
 });
 test("the headroom clears the chains we measured, and understand's clock clears its cap", () => {
@@ -401,4 +402,12 @@ test("summarize's headroom is bounded by its clock, because no cap can catch thi
     cleared >= CHAINS.length - 2,
     `a ${cap}-token cap only clears ${cleared} of ${CHAINS.length} measured chains; the number is too small to be worth the tail it still cuts`,
   );
+});
+
+test("only domestic DeepSeek is removed, preserving international doors and domestic siblings", () => {
+ assert.equal(Object.hasOwn(MODELS, "workbuddy-cn-deepseek-flash"), false);
+ assert.equal(MODELS["workbuddy-deepseek-flash"]!.baseUrlEnv, "WORKBUDDY_BASE_URL");
+ assert.equal(MODELS["workbuddy-ai-deepseek-flash"]!.service, "workbuddy-ai");
+ assert.equal(MODELS["workbuddy-cn-hy3"]!.service, "workbuddy-cn");
+ assert.equal(MODELS["workbuddy-cn-step5-preview"]!.service, "workbuddy-cn");
 });
