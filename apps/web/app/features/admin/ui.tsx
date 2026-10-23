@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router";
 import { ago, bj } from "./format";
+import { focusWhenReady, returnFocus } from "../../lib/focus-when-ready";
 
 export function AdminPage({ title, subtitle, actions, children }: { title: ReactNode; subtitle?: ReactNode; actions?: ReactNode; children: ReactNode }) {
   return (
@@ -183,11 +184,10 @@ export function ButtonLink({ to, children, tone = "secondary", size = "md" }: { 
 const INPUT = "w-full rounded-control bg-surface px-3 py-2 text-[13.5px] text-ink ring-1 ring-line-strong outline-none transition-shadow placeholder:text-ink-4 focus:ring-2 focus:ring-accent";
 
 export function Field({ label, hint, children }: { label: ReactNode; hint?: ReactNode; children: ReactNode }) {
-  const id = useId();
   return (
-    <label htmlFor={id} className="block">
+    <label className="block">
       <span className="mb-1 block text-[12.5px] font-medium text-ink-2">{label}</span>
-      <span className="[&>*]:w-full" id={id}>{children}</span>
+      <span className="[&>*]:w-full">{children}</span>
       {hint && <span className="mt-1 block text-[12px] text-ink-4">{hint}</span>}
     </label>
   );
@@ -294,25 +294,51 @@ export function ReasonDialog({
 }) {
   const [reason, setReason] = useState("");
   const ref = useRef<HTMLTextAreaElement>(null);
+  const dialog = useRef<HTMLFormElement>(null);
+  const titleId = useId();
+  const close = useRef(onClose);
+  close.current = onClose;
   useEffect(() => {
     if (!open) return;
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setReason("");
-    const t = setTimeout(() => ref.current?.focus(), 60);
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    const stopFocusRetry = focusWhenReady(() => ref.current);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        close.current();
+        return;
+      }
+      if (e.key !== "Tab") return;
+      const focusable = [...(dialog.current?.querySelectorAll<HTMLElement>("button, input, textarea, select, a[href], [tabindex]") ?? [])]
+        .filter((el) => !el.matches(":disabled") && el.tabIndex >= 0 && el.getClientRects().length > 0);
+      const at = focusable.indexOf(document.activeElement as HTMLElement);
+      if (!focusable.length) {
+        e.preventDefault();
+        dialog.current?.focus();
+      } else if (at < 0 || (e.shiftKey ? at === 0 : at === focusable.length - 1)) {
+        e.preventDefault();
+        focusable[e.shiftKey ? focusable.length - 1 : 0]!.focus();
+      }
+    };
     window.addEventListener("keydown", onKey);
     return () => {
-      clearTimeout(t);
+      stopFocusRetry();
       window.removeEventListener("keydown", onKey);
+      returnFocus(opener);
     };
-  }, [open, onClose]);
+  }, [open]);
   return (
     <AnimatePresence>
       {open && (
         <motion.div className="fixed inset-0 z-[75] flex items-end justify-center p-3 sm:items-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
           <div className="absolute inset-0 bg-ink/30 backdrop-blur-[2px]" onClick={onClose} />
           <motion.form
+            ref={dialog}
             role="dialog"
             aria-modal="true"
+            aria-labelledby={titleId}
+            tabIndex={-1}
             initial={{ y: 16, scale: 0.98, opacity: 0 }}
             animate={{ y: 0, scale: 1, opacity: 1 }}
             exit={{ y: 10, scale: 0.98, opacity: 0 }}
@@ -325,7 +351,7 @@ export function ReasonDialog({
               if (closed !== false) onClose();
             }}
           >
-            <h2 className="text-[16px] font-semibold text-ink">{title}</h2>
+            <h2 id={titleId} className="text-[16px] font-semibold text-ink">{title}</h2>
             {description && <div className="mt-1.5 text-[13px] leading-relaxed text-ink-3">{description}</div>}
             {children && <div className="mt-4 space-y-3">{children}</div>}
             <div className="mt-4">

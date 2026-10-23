@@ -67,6 +67,10 @@ const runStartedAt = Date.now();
 const outOfPhaseBudget = () => Number.isFinite(PHASE_SECONDS) && PHASE_SECONDS > 0
   && Date.now() - runStartedAt > PHASE_SECONDS * 1000 - CALL_HEADROOM_MS;
 let stoppedForBudget = false;
+let stopRequested = false;
+const requestStop = () => { stopRequested = true; };
+process.on("SIGTERM", requestStop);
+process.on("SIGINT", requestStop);
 const requestedKinds = values.kinds!.split(",").map((k) => k.trim());
 const allowedKinds = ["daily", "weekly", "monthly"];
 if (requestedKinds.some((k) => !allowedKinds.includes(k))) {
@@ -190,9 +194,9 @@ async function consider(kind: "daily" | "weekly" | "monthly", key: string, start
   if (!values.apply) return;
   // The budget is spent composing, not planning: stop here, before a paid call that the cycle's own SIGTERM
   // would cut in half. One line for the period that got away, then the loops below break.
-  if (outOfPhaseBudget()) {
+  if (stopRequested || outOfPhaseBudget()) {
     stoppedForBudget = true;
-    plan[plan.length - 1] = { ...state, note: "本轮时间预算用完，这一期没开始" };
+    plan[plan.length - 1] = { ...state, note: stopRequested ? "收到停止请求，这一期没开始" : "本轮时间预算用完，这一期没开始" };
     return;
   }
   try {
@@ -216,7 +220,7 @@ async function consider(kind: "daily" | "weekly" | "monthly", key: string, start
 
 for (let t = Number(beijingMidnight(from)); t <= Number(beijingMidnight(to)) && t <= Number(beijingMidnight(due)); t += DAY) {
   if (!kinds.includes("daily")) break;
-  if (stoppedForBudget) break;
+  if (stoppedForBudget || stopRequested) break;
   const date = beijingDate(new Date(t));
   const { start, end } = dailyWindow(date);
   await consider("daily", date, start, end, () => composeDaily(date, "archive-backfill", values.refresh && !values.force));
@@ -224,7 +228,7 @@ for (let t = Number(beijingMidnight(from)); t <= Number(beijingMidnight(to)) && 
 
 const seenWeeks = new Set<string>();
 for (let t = Number(beijingMidnight(from)); t <= Number(beijingMidnight(to)); t += DAY) {
-  if (stoppedForBudget) break;
+  if (stoppedForBudget || stopRequested) break;
   const week = isoWeekLabel(beijingDate(new Date(t)));
   if (!kinds.includes("weekly") || seenWeeks.has(week)) continue;
   seenWeeks.add(week);
@@ -243,7 +247,7 @@ for (let t = Number(beijingMidnight(from)); t <= Number(beijingMidnight(to)); t 
 
 const seenMonths = new Set<string>();
 for (let t = Number(beijingMidnight(from)); t <= Number(beijingMidnight(to)); t += DAY) {
-  if (stoppedForBudget) break;
+  if (stoppedForBudget || stopRequested) break;
   const ym = beijingDate(new Date(t)).slice(0, 7);
   if (!kinds.includes("monthly") || seenMonths.has(ym)) continue;
   seenMonths.add(ym);
@@ -271,12 +275,16 @@ if (behind.length) {
   for (const s of behind.slice(0, 12)) console.log("  " + s);
   if (behind.length > 12) console.log("  …另 " + (behind.length - 12) + " 个");
 }
-if (stoppedForBudget) {
+if (stopRequested) {
+  console.log("\n收到停止请求：在飞的期次已经收尾，后续期次留给下一轮。");
+} else if (stoppedForBudget) {
   console.log(`\n时间预算（GEOHOT_PHASE_SECONDS=${PHASE_SECONDS}s，留 ${(CALL_HEADROOM_MS / 1000) | 0}s 给在飞的那一次调用）用尽，后面还有期次没跑：本轮正常收尾，下一轮接着从旧到新做。`);
 }
 if (values["verify-complete"]) console.log(`\n报刊层验收：${blockers.length ? "未通过" : "通过"}；阻断 ${blockers.length} 期。该结果不验证来源覆盖、failed/unknown 处置、最终重排新鲜度或整个目标。`);
 else if (!values.apply) console.log("\n默认只做计划不写库。确认后用 --apply --database-url-env=DATABASE_URL 跑。");
 await closeDb();
+process.off("SIGTERM", requestStop);
+process.off("SIGINT", requestStop);
 process.exitCode = failures.length || blockers.length ? 1 : 0;
 if (values["summary-file"]) {
   await writeFile(values["summary-file"], JSON.stringify({
