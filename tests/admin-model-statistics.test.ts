@@ -150,10 +150,45 @@ test("narrow labels track request changes, backfill resumes, and receipt deletio
     const repeated = execFileSync(process.execPath, ["scripts/backfill-admin-model-labels.ts", "--batch=1", `--progress=${progress}`], { env: process.env, encoding: "utf8" });
     assert.match(repeated, /complete/);
     assert.doesNotMatch(repeated, /batchAdded=/, "saved cursor resumes without re-reading prior requests");
+    await sql`DELETE FROM receipt_model_labels WHERE receipt_id=${ids[0]!}`;
+    assert.throws(() => execFileSync(process.execPath, ["scripts/backfill-admin-model-labels.ts", `--after=${ids.at(-1)!}`, `--progress=${progress}`], { env: process.env, stdio: "pipe" }), /Command failed/);
+    assert.equal((await sql`SELECT value FROM settings WHERE key='admin.modelLabelsReady'`)[0]!.value, false, "a skipped historical gap cannot be declared ready");
+    execFileSync(process.execPath, ["scripts/backfill-admin-model-labels.ts", "--after=0", `--progress=${progress}`], { env: process.env, stdio: "pipe" });
+    assert.equal((await sql`SELECT value FROM settings WHERE key='admin.modelLabelsReady'`)[0]!.value, true);
+
   } finally {
     if (ids.length) await sql`DELETE FROM receipts WHERE id=ANY(${ids}::bigint[])`;
     assert.equal((await sql`SELECT 1 FROM receipt_model_labels WHERE receipt_id=ANY(${ids}::bigint[])`).length, 0);
     try { unlinkSync(progress); } catch { /* no progress if setup failed */ }
     rmdirSync(directory);
   }
+});
+
+
+test("not-ready flag stops before reading attempts and transient failures never advance a cursor", async () => {
+  await sql.begin(async db => {
+    await db`CREATE TEMP TABLE settings(key text,value jsonb) ON COMMIT DROP`;
+    await db`INSERT INTO settings VALUES('admin.modelLabelsReady','false')`;
+    // Deliberately lacks every statistics column: a read of this table would fail SQL parsing.
+    await db`CREATE TEMP TABLE receipt_attempts(poison int) ON COMMIT DROP`;
+    await assert.rejects(readModelUsage(db, new Date()), /still being backfilled/);
+  });
+  const { retryModelLabelBatch } = await import("../packages/backend/src/admin/model-label-backfill.ts");
+  let cursor = 100, calls = 0;
+  const sizes: number[] = [];
+  const waits: number[] = [];
+  const recovered = await retryModelLabelBatch(async size => {
+    sizes.push(size);
+    assert.equal(cursor, 100);
+    if (++calls < 3) throw Object.assign(new Error("busy"), { code: calls === 1 ? "57014" : "55P03" });
+    return { cursor: 112 };
+  }, 100, async ms => { waits.push(ms); });
+  cursor = recovered.result.cursor;
+  assert.equal(cursor, 112);
+  assert.deepEqual(sizes, [100, 50, 25]);
+  assert.deepEqual(waits, [100, 200]);
+  calls = 0;
+  await assert.rejects(retryModelLabelBatch(async () => { calls++; throw Object.assign(new Error("still busy"), { code: "57014" }); }, 25, async () => {}), /still busy/);
+  assert.equal(calls, 6, "the initial attempt plus at most five retries");
+  assert.equal(cursor, 112, "a fully failed batch cannot advance the caller's durable cursor");
 });

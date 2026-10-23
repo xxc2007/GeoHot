@@ -30,6 +30,8 @@ interface UsageRow {
 /** Aggregate all attempts against maintained narrow labels: the read never touches request TOAST.
  * A backfill gap is explicitly unavailable, never an incomplete but apparently successful total. */
 export async function readModelUsage(db: import("../db.ts").Tx, since: Date) {
+  const [ready] = await db<{ ready: boolean }[]>`SELECT value='true'::jsonb AS ready FROM settings WHERE key='admin.modelLabelsReady'`;
+  if (!ready?.ready) throw Object.assign(new Error("model statistics labels are still being backfilled"), { code: "MODEL_LABEL_BACKFILL_PENDING" });
   const rows = await db<(UsageRow & { missing_labels: number })[]>`
       SELECT r.purpose, r.service, a.model, r.prompt_version, count(*)::int AS calls,
              count(*) FILTER (WHERE a.status = 'received')::int AS ok,
