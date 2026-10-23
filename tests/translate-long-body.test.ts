@@ -27,7 +27,7 @@ const provider = await stub(async (_hit, req) => {
   requests.push(segments);
   await afterAnswer?.();
   return { id: "stub", choices: [{ message: { content: JSON.stringify({ t: misaligned && segments.length > 1 ? [] : segments.map(s =>
-    inventTailNumber && s.includes("ADVERSARIAL_TAIL") ? '<span>完整正文译文 https://example.org/123tonnes 和 doi:10.1234/12metres，测量值 9999。</span>' : echoLast && s.includes("LEGACY_LAST") ? s : `${corrupt === "html" ? '<script>injected()</script>' : ''}完整正文译文${s.includes("UNIQUE_TAIL") ? "最后一段已译" : ""}。${"中文内容".repeat(Math.ceil(s.length / 10))}${corrupt === "token" ? "" : (s.match(/⟦G\d+⟧/g) ?? []).join("")}。`) }) } }],
+    inventTailNumber && s.includes("ADVERSARIAL_TAIL") ? '<span>完整正文译文 https://example.org/123tonnes 和 doi:10.1234/12metres，测量值 9999。</span>' : echoLast && s.includes("LEGACY_LAST") ? s : `${corrupt === "html" ? '<script>injected()</script>' : ''}完整正文译文${s.includes("UNIQUE_TAIL") ? "最后一段已译" : ""}。${"中文内容".repeat(Math.ceil(s.length / 10))}${corrupt === "token" ? "" : (s.match(/⟦G\d+⟧/g) ?? []).join(" ")}。`) }) } }],
     usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 } };
 });
 
@@ -135,8 +135,8 @@ after(async () => {
   await stopBoss();
   await closeDb();
 });
-async function selectedBody(name: string, body: string) {
-  const { articleId } = await upsertMaterial({ sourceId: SOURCE, url: `https://example.org/${T}/${name}`,
+async function selectedBody(name: string, body: string, url?: string) {
+  const { articleId } = await upsertMaterial({ sourceId: SOURCE, url: url ?? `https://example.org/${T}/${name}`,
     title: `Long scientific bulletin ${name} ${T}`, bodyHtml: body, bodyText: body.replace(/<[^>]*>/g, ""),
     language: "en", bodyStatus: "ok", via: "fetch", publishedAt: new Date() });
   articleIds.push(articleId);
@@ -315,4 +315,22 @@ test("new fragment polishing never rewrites protected literal DOI URL or scienti
   assert.ok(text.includes(url),'URL spelling is immutable after all polishing');
   assert.ok(text.includes(doi),'DOI spelling is immutable after all polishing');
   assert.equal(tr!.complete,true);
+});
+
+
+test("NHC prose in pre is translated with protected numbers while ordinary code stays untouched", async () => {
+  const bulletin = "NWS National Hurricane Center Miami FL EP222026. Wind 60 kt and pressure 990 mb. " + "Satellite imagery indicates an organized tropical storm. ".repeat(10);
+  const id = await selectedBody("nhc-pre", `<pre>${bulletin}</pre>`, `https://www.nhc.noaa.gov/${T}/discussion.shtml`);
+  assert.equal((await translateArticle(id)).status, "translated");
+  const [tr] = await sql`SELECT complete,body_html FROM translations WHERE article_id=${id}`;
+  assert.equal(tr!.complete, true);
+  const pre = cheerio.load(tr!.body_html,null,false)("pre").text();
+  assert.match(pre, /完整正文译文/);
+  assert.deepEqual(pre.match(/\d+/g), bulletin.match(/\d+/g));
+  const calls = requests.length;
+  await translateArticle(id);
+  assert.equal(requests.length, calls, "the new namespace reuses paid prose translations");
+  const code = await selectedBody("ordinary-pre", "<pre>const value = 123; function compute() { return value; }</pre>");
+  assert.equal((await translateArticle(code)).status, "skipped");
+  assert.equal(requests.length, calls, "ordinary code never reaches a translator");
 });

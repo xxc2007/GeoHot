@@ -272,7 +272,7 @@ export function polishZh(html: string): string {
 }
 
 /** New work only: retain the original DOM and translate bounded text-node partitions. */
-async function translateOversized(block: Element, articleId: string, revision: number, ordinal: number, control: TranslationControl) {
+async function translateOversized(block: Element, articleId: string, revision: number, ordinal: number, control: TranslationControl, namespace = "long-v1") {
   const nodes: Array<Extract<AnyNode, { type: "text" }>> = [];
   const visit = (children: AnyNode[]) => {
     for (const node of children) {
@@ -329,7 +329,7 @@ async function translateOversized(block: Element, articleId: string, revision: n
         translations.push(source.replace(/⟦G(\d+)⟧/g, (_match, i: string) => tokens[Number(i)]!));
         continue;
       }
-      const space = `long-v1:block:${ordinal}:node:${n}:part:${f}`;
+      const space = `${namespace}:block:${ordinal}:node:${n}:part:${f}`;
       const first = await translateAll(articleId, revision, [source], SYSTEM_BODY, undefined, control, space);
       errors.push(...first.errors);
       let translated = restore(first.answers[0] ?? null, source);
@@ -349,8 +349,8 @@ async function translateOversized(block: Element, articleId: string, revision: n
 
 export async function translateArticle(articleId: string, control: TranslationControl = {}): Promise<TranslateResult> {
   checkTranslation(control);
-  const [row] = await sql<{ revision: number; channel: string; language: string | null; body_html: string | null; body_text: string | null; x_post: { text?: string } | null; title: string; selected: boolean; body_mode: string; visibility: string }[]>`
-    SELECT a.revision, p.channel, a.language, a.body_html, a.body_text, a.x_post, p.title, p.selected, p.body_mode, p.visibility
+  const [row] = await sql<{ url: string; revision: number; channel: string; language: string | null; body_html: string | null; body_text: string | null; x_post: { text?: string } | null; title: string; selected: boolean; body_mode: string; visibility: string }[]>`
+    SELECT a.url, a.revision, p.channel, a.language, a.body_html, a.body_text, a.x_post, p.title, p.selected, p.body_mode, p.visibility
     FROM publications p JOIN articles a ON a.id = p.article_id WHERE p.article_id = ${articleId}`;
   if (!row) return { articleId, status: "skipped", reason: "not published" };
   const result = (r: Omit<TranslateResult, "articleId" | "revision">): TranslateResult => ({ articleId, revision: row.revision, ...r });
@@ -380,7 +380,12 @@ export async function translateArticle(articleId: string, control: TranslationCo
   if (!bodyHtml || bodyIsChinese(row.language, row.body_text ?? "")) return result({ status: "skipped", reason: "no foreign-language body" });
   const $ = cheerio.load(bodyHtml, null, false);
   const blocks = segmentsOf($);
-  if (!blocks.length) return result({ status: "skipped", reason: "no translatable text" });
+  // NHC publishes plain-text official bulletins inside <pre>, not executable source code.
+  // Keep generic code/pre excluded, and keep new work outside all historical receipt indexes.
+  const nhc = ["nhc.noaa.gov", "www.nhc.noaa.gov"].includes(new URL(row.url).hostname);
+  const prose = nhc ? $("pre").toArray().filter((el) => !$(el).find("code").length
+    && /NWS National Hurricane Center/i.test($(el).text())) as Element[] : [];
+  if (!blocks.length && !prose.length) return result({ status: "skipped", reason: "no translatable text" });
   // Reconstruct the historical receipt prefix exactly; subsequent work has its own sealed batches.
   let budget = MAX_CHARS;
   const chosen: Element[] = [];
@@ -432,23 +437,29 @@ export async function translateArticle(articleId: string, control: TranslationCo
     done += extra.done;
     errors.push(...extra.errors);
   }
+  for (let i = 0; i < prose.length; i++) {
+    const extra = await translateOversized(prose[i]!, articleId, row.revision, i, control, "nhc-pre-v1");
+    done += extra.done;
+    errors.push(...extra.errors);
+  }
   if (!done) {
     // 一次都没成，且是"报错"造成的：抛给 translatePending 记可重试的 failed。写成 skipped 就是终态，
     // 一整个时段门都被墙死时，每一篇只会有一次机会就被永久排除。
     if (errors.length) throw new Error(`no block translated (${errors.length} batch error${errors.length > 1 ? "s" : ""}): ${errors[0]!.slice(0, 160)}`);
     // New fragments with unusable answers are real bounded failures, never permanent empty work.
-    if (chosen.length < blocks.length) throw new Error("no long-body fragment translated");
+    if (chosen.length < blocks.length || prose.length) throw new Error("no long-body fragment translated");
     return result({ status: "skipped", reason: "no batch translated" });
   }
-  const complete = done === blocks.length;
+  const total = blocks.length + prose.length;
+  const complete = done === total;
   // Every eligible block is now attempted; only actual unusable answers remain incomplete.
-  const failed = blocks.length - done;
+  const failed = total - done;
   const html = sanitizeBody($.html());
   await store(articleId, row.revision, row.title, html, cheerio.load(html, null, false).root().text().trim(), complete);
   return result({
     status: complete ? "translated" : "partial",
     segments: done,
-    reason: complete ? undefined : `${failed} of ${blocks.length} blocks kept in the original`,
+    reason: complete ? undefined : `${failed} of ${total} blocks kept in the original`,
   });
 }
 

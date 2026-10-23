@@ -38,3 +38,12 @@
 将 `deploy/geohot/public-cache.conf` 放入 Nginx `http {}` 的 conf.d，主 GEOHOT proxy location 内 include `public-cache-location.conf`。仅更改 GEOHOT 两个主 location；先 `nginx -t`，再 reload，并验证 MISS→HIT、Cookie/Authorization BYPASS、错误 no-store、邻站文件不变。不得忽略源站缓存头或设置过期 serve-stale。
 
 现场保存了改动前 vhost 的私有副本与 SHA，可按当前整体 SHA 做 CAS 撤回；不能用旧整份配置覆盖他人后续修改。缓存清理在验收后仅清理本次暂存，不清 PostgreSQL shared buffers、系统页缓存、账本或仍有用途的热缓存。
+
+## 12:45 后续读回
+
+- 生产 smoke 的全部检查通过：页面、RSS、MCP 初始化、前缀链接与跨出口一致性；294 期索引与 v1 列表一致。读者中文标题采样通过。此检查不写反馈、后台或生产样例。
+- 国内 DeepSeek 从 12 个环境变量精确移除，运行进程读回均为零引用；其余成员顺序和重复权重未改变。模型 settings 覆盖表为空。两条国际 DeepSeek 注册项保留。
+- 两个 worker 在 300 秒停止窗口内正常退出。恢复后 coordinator 与 content-executor 角色正确；executor 使用分析 4、抽取 2、翻译 3、数据库池 3、队列池 2，避免 891MiB 主机被后台并发挤满。
+- 新发现：NHC 公报的 `<pre>` 被按代码跳过，现场 Vance Discussion Number 7 的 reason 为 no translatable text。仅为 NHC 官方公报增加独立回执命名空间、保护数字的正文处理，迁移只重新开放该原因的旧记录，保留 attempts 与全部回执。
+- 最新全量后端执行 756 项，746 通过；失败包括未同步的 Step 参数期望和复用测试库中已老化的无 attempt 夹具。修正 Step 期望并在新建测试库中验证；账单回归在干净库通过。NHC 新增回归通过。以上保留原始失败日志，不能把首次全量执行写成全绿。最终 CI 使用全新数据库。
+- 之前 58 项网页测试和构建结果复用；没有网页实现改动，不重复构建与测试。AIHOT 对比仍缺同条件网络指标，不能宣称已达到其速度。
