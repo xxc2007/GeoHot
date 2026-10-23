@@ -273,6 +273,9 @@ export function polishZh(html: string): string {
 
 /** New work only: retain the original DOM and translate bounded text-node partitions. */
 async function translateOversized(block: Element, articleId: string, revision: number, ordinal: number, control: TranslationControl, namespace = "long-v1") {
+  const system = namespace === "nhc-pre-v2"
+    ? `${SYSTEM_BODY}\nNHC 公报的 ⟦G数字⟧ 是不可改动的数据标记：每个标记必须原样、按输入顺序出现一次，包括日期与概率。不得新增阿拉伯数字；月份名称请用汉字翻译。保持行与表格顺序，不重排日期。`
+    : SYSTEM_BODY;
   const nodes: Array<Extract<AnyNode, { type: "text" }>> = [];
   const visit = (children: AnyNode[]) => {
     for (const node of children) {
@@ -330,11 +333,11 @@ async function translateOversized(block: Element, articleId: string, revision: n
         continue;
       }
       const space = `${namespace}:block:${ordinal}:node:${n}:part:${f}`;
-      const first = await translateAll(articleId, revision, [source], SYSTEM_BODY, undefined, control, space);
+      const first = await translateAll(articleId, revision, [source], system, undefined, control, space);
       errors.push(...first.errors);
       let translated = restore(first.answers[0] ?? null, source);
       if (translated === null) {
-        const retry = await translateAll(articleId, revision, [source], SYSTEM_BODY, "retry", control, space);
+        const retry = await translateAll(articleId, revision, [source], system, "retry", control, space);
         errors.push(...retry.errors);
         translated = restore(retry.answers[0] ?? null, source);
       }
@@ -438,7 +441,7 @@ export async function translateArticle(articleId: string, control: TranslationCo
     errors.push(...extra.errors);
   }
   for (let i = 0; i < prose.length; i++) {
-    const extra = await translateOversized(prose[i]!, articleId, row.revision, i, control, "nhc-pre-v1");
+    const extra = await translateOversized(prose[i]!, articleId, row.revision, i, control, "nhc-pre-v2");
     done += extra.done;
     errors.push(...extra.errors);
   }
