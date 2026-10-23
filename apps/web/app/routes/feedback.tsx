@@ -5,7 +5,8 @@ import { Presence } from "../components/ui/Presence";
 import { pageMeta } from "../lib/seo";
 import { KEYS } from "../lib/local-state";
 import { publicPath } from "../lib/public-path";
-import { IconCheck, IconClose, IconImage } from "../components/icons";
+import { IconCheck, IconClose, IconImage, IconUsers } from "../components/icons";
+import { buttonClass } from "../components/ui/Controls";
 import { RingMark } from "../components/Logo";
 import { AsideCard, ReadingLayout } from "../components/ui/Page";
 
@@ -156,7 +157,13 @@ export default function FeedbackPage() {
   return (
     <ReadingLayout aside={<FeedbackAside />}>
       <header>
-        <h1 className="text-[24px] font-semibold leading-[1.3] text-ink">说说你的想法</h1>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-[24px] font-semibold leading-[1.3] text-ink">说说你的想法</h1>
+          <Link to="/admin/feedback" className={`${buttonClass("secondary", "md")} shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent`}>
+            <IconUsers size={16} className="text-accent" />
+            管理反馈
+          </Link>
+        </div>
         <p className="mt-2 text-[14.5px] leading-relaxed text-ink-3">发现 bug、想要的功能、看不顺眼的地方，都可以告诉我，我都会看到。</p>
       </header>
 
