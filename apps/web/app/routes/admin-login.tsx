@@ -6,7 +6,7 @@ import { SITE } from "@aihot/industry/site";
 import { apiGet } from "../lib/api.server";
 import { Wordmark } from "../components/Logo";
 import { buttonClass } from "../components/ui/Controls";
-import { publicPath } from "../lib/public-path";
+import { appPath, publicPath } from "../lib/public-path";
 
 const ERRORS: Record<string, string> = {
   wrong: "密码不对，再试一次。",
@@ -16,9 +16,9 @@ const ERRORS: Record<string, string> = {
 
 export async function loader({ request }: Route.LoaderArgs) {
   const url = new URL(request.url);
-  const returnTo = url.searchParams.get("return") ?? "/admin";
+  const returnTo = appPath(url.searchParams.get("return") ?? "/admin");
   const options = await apiGet<{ password: boolean; feishu: boolean }>("/api/auth/options", { signal: request.signal }).catch(() => ({ password: true, feishu: false }));
-  return { returnTo: returnTo.startsWith("/admin") ? returnTo : "/admin", error: url.searchParams.get("error"), ...options };
+  return { returnTo: /^\/admin(?:\/|\?|$)/.test(returnTo) ? returnTo : "/admin", error: url.searchParams.get("error"), ...options };
 }
 
 export const meta: Route.MetaFunction = () => [{ title: `登录 · ${SITE.name} 后台` }, { name: "robots", content: "noindex, nofollow" }];
