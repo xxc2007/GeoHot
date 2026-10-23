@@ -230,6 +230,7 @@ export async function paidRequest(
       await tx`UPDATE receipts SET status = ${status}, error = ${message}, updated_at = now() WHERE id = ${receiptId}`;
       await tx`UPDATE receipt_attempts SET status = ${status}, billing_status = ${billingStatus}, error = ${message}, latency_ms = ${Date.now() - started}, finished_at = now() WHERE id = ${attemptId}`;
     });
+    if (status === "unknown") throw new ReceiptUnknownError(receiptId, `Provider outcome is unknown; ${message}`);
     throw error;
   }
 

@@ -130,7 +130,7 @@ function itemsText(heading: string, res: ItemList): string {
 export function buildMcpServer(): McpServer {
   const server = new McpServer(
     { name: SITE.mcpPrefix, version: PUBLIC_VERSIONS.mcp },
-    { capabilities: { tools: { listChanged: true } }, instructions: INSTRUCTIONS },
+    { capabilities: { tools: { listChanged: true } }, instructions: INSTRUCTIONS, maxToolInputElements: 1000 },
   );
 
   server.registerTool(
@@ -385,7 +385,7 @@ export function registerMcp(app: FastifyInstance) {
     }
   };
 
-  app.route({ method: ["GET", "POST", "DELETE"], url: "/api/mcp", handler: serve });
+  app.route({ method: ["GET", "POST", "DELETE"], url: "/api/mcp", bodyLimit: 64 * 1024, handler: serve });
   app.options("/api/mcp", async (req, reply) => {
     reply.header("Cache-Control", "no-store");
     if (!allowedOrigin(req.headers.origin)) return reply.code(403).type("application/json").send({ error: "origin_not_allowed" });

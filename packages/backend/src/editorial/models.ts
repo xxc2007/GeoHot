@@ -21,7 +21,7 @@
 // or a model with no JSON mode on a step that parses JSON. A pool is a way to spend more capacity, not a
 // way to make work fail loudly. A single explicit model is NOT filtered that way — naming one model and
 // having it silently substituted would be worse than the error.
-import { sql } from "../db.ts";
+import { sql, type Tx } from "../db.ts";
 import { credential } from "../config.ts";
 import { sha256 } from "../lib/ids.ts";
 import { MODELS } from "../providers/llm.ts";
@@ -60,6 +60,15 @@ let cache: { at: number; overrides: Record<string, string> } | null = null;
  * reaching `chatJson` means a `service` of `undefined`, which matches no budgets row — and no budgets row
  * means no circuit breaker at all (receipts.ts returns early). */
 const known = (name: string) => Object.hasOwn(MODELS, name);
+
+function healthRead<T>(read: (db: Tx) => Promise<T>): Promise<T> {
+  return sql.begin(async db => {
+    await db`SET LOCAL statement_timeout = '2000ms'`;
+    await db`SET LOCAL lock_timeout = '250ms'`;
+    await db`SET LOCAL max_parallel_workers_per_gather = 0`;
+    return read(db);
+  }) as Promise<T>;
+}
 
 /** Split a configured value into the model names it lists, dropping anything not in the registry. */
 export function poolOf(configured: string): string[] {
@@ -185,7 +194,7 @@ async function readSick(): Promise<Set<string>> {
     // down, however the failures are spread across its members, and this rule cannot latch because it only
     // sees the last ten minutes. The member grouping is what keeps one drowning member from taking its
     // siblings with it when the door as a whole still looks busy.
-    const rows = await sql<{ service: string; model: string | null }[]>`
+    const rows = await healthRead(db => db<{ service: string; model: string | null }[]>`
       SELECT a.service, a.model FROM receipt_attempts a LEFT JOIN receipts r ON r.id = a.receipt_id
        WHERE a.started_at > now() - interval '10 minutes'
          AND a.origin = 'live' AND a.status IN ('received', 'failed', 'unknown')
@@ -193,7 +202,7 @@ async function readSick(): Promise<Set<string>> {
       HAVING count(*) >= 6 AND count(*) FILTER (WHERE a.status = 'received' AND NOT coalesce(
         r.status = 'failed' AND a.attempt = r.attempts
         AND (r.error LIKE 'answer refused:%' OR r.error LIKE 'unusable output:%'), false
-      )) * 2 < count(*)`;
+      )) * 2 < count(*)`);
     sick = new Set(rows.map((r) => benchedKey(r.service, r.model)));
     // The burst/forget cycle the rule above closes: measured 2026-10-11, OpenRouter was refused 37 times in
     // half an hour and answered nothing, yet at 07:36 the verdict was `sick=[]` — during a burst the door
@@ -222,7 +231,7 @@ async function readSick(): Promise<Set<string>> {
     // 现在改成「最近一次拒绝还在 1 小时内 ⇒ 关着；超过 1 小时 ⇒ 放它再试」——试的代价是 6 次调用，
     // 占满速时每小时约 700 次里的 6 次，换来的是额度一恢复就能立刻重新分担分片。
     // `max(started_at)` 就是该成员最新一次尝试的时刻（ranked 只留最新 6 条），所以这一个比较就是冷却计时器。
-    const refused = await sql<{ service: string; model: string | null }[]>`
+    const refused = await healthRead(db => db<{ service: string; model: string | null }[]>`
       WITH ranked AS (
         SELECT a.service, a.model, a.started_at, (a.status = 'failed' AND (
              a.error LIKE '%free-models-per-day%'
@@ -241,7 +250,7 @@ async function readSick(): Promise<Set<string>> {
       )
       SELECT service, model FROM ranked WHERE newest <= 6 GROUP BY service, model
         HAVING count(*) = 6 AND count(*) FILTER (WHERE quota_refusal) = 6
-           AND max(started_at) > now() - interval '1 hour'`;
+           AND max(started_at) > now() - interval '1 hour'`);
     for (const r of refused) sick.add(benchedKey(r.service, r.model));
   } catch {
     // Reading the ledger must never decide the request. If the rate rule could not run, no door is benched;
@@ -309,14 +318,14 @@ async function readRefusalPairs(): Promise<Map<string, { refused: number; accept
     // `service = ANY(...)`: without it the plan seq-scans all 98,670 rows (14,886 pages, 956 ms measured on
     // production 2026-10-11); with it the same answer comes off receipts_service_time_idx in 3,546 pages.
     // `model IS NOT NULL`: a receipt without the model name cannot accuse one model of anything.
-    const rows = await sql<{ model: string; purpose: string; refused: number; accepted: number }[]>`
+    const rows = await healthRead(db => db<{ model: string; purpose: string; refused: number; accepted: number }[]>`
       SELECT model, purpose,
         count(*) FILTER (WHERE ${refused})::int AS refused,
         count(*) FILTER (WHERE status IN ('received', 'completed'))::int AS accepted
       FROM receipts
       WHERE created_at > now() - interval '24 hours' AND origin = 'live' AND service = ANY(${REGISTRY_SERVICES})
         AND model IS NOT NULL
-      GROUP BY 1, 2`;
+      GROUP BY 1, 2`);
     for (const r of rows) pairs.set(`${r.model}|${r.purpose}`, { refused: r.refused, accepted: r.accepted });
   } catch {
     // Same rule as the health read: a ledger query that fails must not decide the request.

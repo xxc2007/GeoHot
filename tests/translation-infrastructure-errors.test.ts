@@ -11,7 +11,7 @@ const dbName=`geohot_translate_infra_${T}_test`;await admin.unsafe(`CREATE DATAB
 url.pathname='/'+dbName;process.env.DATABASE_URL=url.toString();process.env.DATABASE_POOL_MAX='1';
 execFileSync(process.execPath,['scripts/migrate.ts'],{env:process.env,stdio:'pipe'});
 const provider=await stub(()=>({choices:[{message:{content:JSON.stringify({t:['中文译文保留了原文通报的事实内容。']})}}]}));
-process.env.TRANSLATE_MODEL='deepseek-flash';process.env.DEEPSEEK_BASE_URL=`${provider.url}/v1`;process.env.DEEPSEEK_API_KEY='test-key';
+process.env.TRANSLATE_MODEL='default';process.env.LLM_BASE_URL=`${provider.url}/v1`;process.env.LLM_API_KEY='test-key';
 const{sql,closeDb}=await import('@aihot/backend/db');const{stopBoss}=await import('@aihot/backend/jobs/queue');
 const{upsertMaterial}=await import('@aihot/backend/content/materials');const{publishArticle}=await import('@aihot/backend/publication/publish');
 const{translateQuotes,translatePending}=await import('@aihot/backend/editorial/translate');const{invalidateModelCache}=await import('@aihot/backend/editorial/models');

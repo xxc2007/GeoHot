@@ -245,7 +245,7 @@ export const MODELS: Record<string, ModelSpec> = {
     // 9.49–13.68 ms/token：summary 那一步能把余量给到 13,312（2,048 + 13,312 = 15,360 × 13.68 = 210 s < 240 s）；
     // understand 的 16,384 起跳就已经越过时钟，所以那里保持 4,000 不让它更难触发。
     extra: { reasoning_effort: "max" }, jsonMode: true, vision: true,
-    reasoningHeadroom: { default: 16_000, summarize_article: 32_000 },
+    reasoningHeadroom: { default: 16_000, summarize_article: 13_312, understand_article: 4_000, translate_body: 8_000, translate_quoted: 4_000 },
   },
   // ── The same four models, reached through the *Chinese* WorkBuddy account ────────────────────────────
   //
@@ -291,7 +291,7 @@ export const MODELS: Record<string, ModelSpec> = {
     extra: { reasoning_effort: "max" }, jsonMode: true, vision: true,
     // 与国际版同一条上游模型，所以同一张表（13,312 是按国际版实测的 13.68 ms/token 定的；
     // 中国版实测 18.09 ms/token 更慢，但同一个 cap 更早触发只会落可重试的 failed，不会落 unknown）。
-    reasoningHeadroom: { default: 16_000, summarize_article: 32_000 },
+    reasoningHeadroom: { default: 16_000, summarize_article: 13_312, understand_article: 4_000, translate_body: 8_000, translate_quoted: 4_000 },
   },
   // 中国版桥上的 deepseek-v4.1-flash。国际版已有 `workbuddy-deepseek-flash`，但那条走 3065 且带
   // `reasoning_effort: "max"`；这一条走中国版 3066，**刻意不带任何 effort 旋钮**——2026-10-22 在
@@ -395,7 +395,7 @@ export const MODELS: Record<string, ModelSpec> = {
     key: "workbuddy-ai-step5-preview", service: "workbuddy-ai", model: "workbuddy-ai/step-5-preview",
     baseUrlEnv: "QODER_CN_BASE_URL", apiKeyEnv: "QODER_CN_API_KEY",
     extra: { reasoning_effort: "max" }, jsonMode: true, vision: true,
-    reasoningHeadroom: { default: 16_000, summarize_article: 32_000 },
+    reasoningHeadroom: { default: 16_000, summarize_article: 13_312, understand_article: 4_000, translate_body: 8_000, translate_quoted: 4_000 },
   },
   "workbuddy-ai-deepseek-flash": {
     key: "workbuddy-ai-deepseek-flash", service: "workbuddy-ai", model: "workbuddy-ai/deepseek-v4.1-flash",
@@ -496,16 +496,18 @@ function isConnectFailure(error: unknown): boolean {
 }
 
 /** Keep candidate identities and real HTTP requests on the same parameter calculation. */
-function requestFor<S extends z.ZodType>(opts: ChatJsonOptions<S>, spec: ModelSpec, legacySummaryParameters = false) {
+function requestFor<S extends z.ZodType>(opts: ChatJsonOptions<S>, spec: ModelSpec, legacySummaryParameters = false, beforeMax = false, legacyHeadroom?: number) {
   const temperature = opts.temperature ?? 0.2;
   // Dots documents disabling thinking for short answers. Keep selection/understanding unchanged;
   // Dots 的 summary 关思考；下面两个 step5 的旧参数只作为「恢复身份」，不是新的派发选择。
-  const extra = spec.key === "dots3-note-prev" && opts.purpose === "summarize_article" && !legacySummaryParameters
+  let extra = spec.key === "dots3-note-prev" && opts.purpose === "summarize_article" && !legacySummaryParameters
     ? { chat_template_kwargs: { enable_thinking: false } } : spec.extra;
+  if (beforeMax && extra && "reasoning_effort" in extra) extra = { ...extra, reasoning_effort: "high" };
   const reasoning = /reasoning_effort|"thinking"/.test(JSON.stringify(extra ?? {})) || spec.key.endsWith("-think");
   const legacyStepSummary = legacySummaryParameters && opts.purpose === "summarize_article"
     && ["workbuddy-step5-preview", "workbuddy-cn-step5-preview"].includes(spec.key);
-  const headroom = reasoning ? (legacyStepSummary ? 4_000 : headroomFor(spec, opts.purpose)) : 0;
+  const oldStep = beforeMax && ["workbuddy-step5-preview", "workbuddy-cn-step5-preview"].includes(spec.key);
+  const headroom = reasoning ? (legacyHeadroom ?? (legacyStepSummary ? 4_000 : oldStep ? (opts.purpose === "summarize_article" ? 13_312 : 4_000) : headroomFor(spec, opts.purpose))) : 0;
   const maxTokens = Math.min(MAX_OUTPUT_TOKENS, Math.max(opts.maxTokens ?? 1500, 512) + headroom);
   const userText = typeof opts.user === "string" ? opts.user : JSON.stringify(opts.user);
   const json = spec.jsonMode && opts.json !== false;
@@ -553,8 +555,18 @@ export async function chatJson<S extends z.ZodType>(opts: ChatJsonOptions<S>): P
     const current = { name, request: requestFor(opts, model).request };
     // Legacy identities are recovery-only: reuse paid answers and respect pending/unknown;
     // a failed old identity may retry only through the current dispatch parameters.
-    return ["dots3-note-prev", "workbuddy-step5-preview", "workbuddy-cn-step5-preview"].includes(model.key) && opts.purpose === "summarize_article"
-      ? [current, { name, request: requestFor(opts, model, true).request }] : [current];
+    const versions = [current];
+    if (["workbuddy-step5-preview", "workbuddy-cn-step5-preview", "workbuddy-ai-step5-preview"].includes(model.key)) {
+      versions.push({ name, request: requestFor(opts, model, false, false, opts.purpose === "summarize_article" ? 32_000 : 16_000).request });
+    }
+    if (["dots3-note-prev", "workbuddy-step5-preview", "workbuddy-cn-step5-preview"].includes(model.key)) {
+      versions.push({ name, request: requestFor(opts, model, false, true).request });
+      if (opts.purpose === "summarize_article") versions.push(
+        { name, request: requestFor(opts, model, true).request },
+        { name, request: requestFor(opts, model, true, true).request },
+      );
+    }
+    return versions;
   });
   const needsVision = Array.isArray(opts.user) && opts.user.some((part) => part.type === "image_url");
   const fallbackNames = await budgetFallbackModelsForPurpose(opts.purpose, opts.model, needsVision);

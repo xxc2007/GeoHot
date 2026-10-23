@@ -80,6 +80,6 @@ async function queryMonthMarks(
        WHERE kind = 'daily' AND issue_no IS NOT NULL AND key >= ${first} AND key <= ${last})
     SELECT coalesce(d.date, i.date) AS date, coalesce(d.items, 0) AS items, i.issue_no
       FROM days d FULL JOIN issues i ON i.date = d.date
-     ORDER BY 1`);
+     ORDER BY 1`, 8000, true);
   return rows.map((r) => ({ date: r.date, items: Number(r.items), issue: r.issue_no === null ? null : Number(r.issue_no) }));
 }

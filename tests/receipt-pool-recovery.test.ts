@@ -506,7 +506,7 @@ test("fallback score refusals report the actual provider and never try a third p
       assert.equal(result.scores!.refused,true,JSON.stringify({scores:result.scores,scoreCalls,refuseScoreAt,a:a.hits()-beforeA,b:b.hits()-beforeB,third:third.hits()}));
       assert.equal(result.scores!.values.length,refusedAt-1);
       assert.equal(result.scores!.model,refusedAt===1?"agnes-3.0-flash-cn":"default,agnes-3.0-flash-cn");
-      assert.equal(a.hits(),beforeA+refusedAt); assert.equal(b.hits(),beforeB+1); assert.equal(third.hits(),0);
+      assert.equal(a.hits(),beforeA+refusedAt); assert.equal(b.hits(),beforeB+3-refusedAt); assert.equal(third.hits(),0);
       const [refusal]=await sql<{service:string;status:string}[]>`SELECT service,status FROM receipts
         WHERE subject=${`article:${id}@1`} AND purpose='score_article' AND status='failed'`;
       assert.equal(refusal!.service,"agnes-cn"); assert.equal(refusal!.status,"failed");

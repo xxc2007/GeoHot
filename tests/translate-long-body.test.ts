@@ -117,8 +117,8 @@ test("a stop after the old cap settles the sent tail and resumes without rebuyin
   assert.ok(requests.length > before, "resume advances beyond the settled tail request");
   assert.equal(new Set(requests.map(parts => JSON.stringify(parts))).size, requests.length, "no paid payload was dispatched twice");
 });
-process.env.DEEPSEEK_BASE_URL = `${provider.url}/v1`;
-process.env.DEEPSEEK_API_KEY = "test-key";
+process.env.LLM_BASE_URL = `${provider.url}/v1`;
+process.env.LLM_API_KEY = "test-key";
 
 before(async () => {
   [originalBudget] = await sql`SELECT per_minute,per_hour,per_day FROM budgets WHERE service='deepseek'`;
@@ -213,6 +213,20 @@ for (const kind of ["html", "token"] as const) test(`oversized ${kind} corruptio
   try { await assert.rejects(translateArticle(id), /no long-body fragment translated/); }
   finally { corrupt = undefined; }
   assert.equal((await sql`SELECT 1 FROM translations WHERE article_id=${id} AND complete`).length, 0);
+});
+
+test("the first sent timeout stops overlapping split and retry dispatch while billing stays unknown", async (t) => {
+  const id = await selectedBody("first-timeout", `<p>Scientific source ${T} river discharge data.</p><p>Independent source observations ${T}.</p>`);
+  let sends = 0;
+  const mock = t.mock.method(globalThis, "fetch", async () => { sends++; throw new DOMException("fixture sent timeout", "TimeoutError"); });
+  try {
+    await assert.rejects(translateArticle(id), e => (e as Error).name === "ReceiptUnknownError");
+    assert.equal(sends, 1, "an unknown original must not buy halves or a retry");
+    await assert.rejects(translateArticle(id), e => (e as Error).name === "ReceiptUnknownError");
+    assert.equal(sends, 1);
+    const rows = await sql`SELECT r.status,a.billing_status FROM receipts r JOIN receipt_attempts a ON a.receipt_id=r.id WHERE r.subject LIKE ${`article:${id}@1#%`}`;
+    assert.deepEqual(rows.map(row => [row.status,row.billing_status]), [["unknown","unknown"]]);
+  } finally { mock.mock.restore(); }
 });
 
 for (const status of ["unknown", "pending"] as const) test(`a paid long-fragment ${status} refuses all renamed or split dispatch`, async () => {

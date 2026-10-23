@@ -47,7 +47,9 @@ echo "rev=$short sha=${sha:0:12}… tree=${tree:0:12}…  base_path='$BASE_PATH'
 dirty="$(git status --porcelain --untracked-files=no)"
 [[ -z "$dirty" ]] || { echo "✗ 已跟踪内容有未提交改动，先提交或清理："; printf '%s\n' "$dirty" | head -20; exit 1; }
 
-pkg="/tmp/geohot-deploy-$short.tar.gz"
+local_stage="$(mktemp -d "${TMPDIR:-/tmp}/geohot-deploy.XXXXXXXX")"
+trap 'rm -f "$local_stage/bundle.tar.gz"; rmdir "$local_stage"' EXIT
+pkg="$local_stage/bundle.tar.gz"
 git archive --format=tar "$REV" | gzip > "$pkg"
 echo "artifact: $pkg  members=$(tar -tzf "$pkg" | wc -l)  bytes=$(wc -c < "$pkg")"
 tar -tzf "$pkg" | grep -qE '(^|/)(node_modules|\.data|\.env|\.git)/' && { echo "✗ 包里出现不该部署的路径" >&2; exit 1; }
@@ -67,20 +69,29 @@ SSH_KNOWN="${GEOHOT_SSH_KNOWN_HOSTS:-}"
 ssh_opts=(-o BatchMode=yes -o ConnectTimeout=25 -o ServerAliveInterval=30 -i "$SSH_KEY")
 [[ -n "$SSH_KNOWN" ]] && ssh_opts+=(-o UserKnownHostsFile="$SSH_KNOWN" -o HostKeyAlias=xxc2007.me)
 
-pkg_sha="$(sha256sum "$pkg" | cut -c1-16)"
-scp -o BatchMode=yes -i "$SSH_KEY" ${SSH_KNOWN:+-o UserKnownHostsFile="$SSH_KNOWN"} "$pkg" "$SSH_TARGET:/tmp/"
+pkg_sha="$(sha256sum "$pkg" | cut -d' ' -f1)"
+upload_dir="$(ssh "${ssh_opts[@]}" "$SSH_TARGET" 'umask 077; mktemp -d /tmp/geohot-upload.XXXXXXXX')"
+[[ "$upload_dir" =~ ^/tmp/geohot-upload\.[A-Za-z0-9]+$ ]] || { echo "ABORT: invalid private staging path" >&2; exit 1; }
+scp -o BatchMode=yes -i "$SSH_KEY" ${SSH_KNOWN:+-o UserKnownHostsFile="$SSH_KNOWN"} "$pkg" "$SSH_TARGET:$upload_dir/bundle.tar.gz"
 
 # 远端序列。注意三处刻意的写法：
 #   1) 解包**不带 --delete**：`/opt/geohot/app` 是多克隆混合部署，有些文件（如 workbuddy 桥）
 #      在仓库里没有对应路径，带删除会当场杀掉承担大头判定的那道门。
 #   2) `tar` 的 --owner/--group 对解包不生效，所以 chown -R 是承重的，不是例行公事。
 #   3) 构建前显式把 BASE_PATH 传进去（这次事故的第 ① 条），重启覆盖六个单元（第 ② 条）。
-ssh "${ssh_opts[@]}" "$SSH_TARGET" "sudo BASE_PATH='$BASE_PATH' PKG_SHA='$pkg_sha' APP_ROOT='$APP_ROOT' UNITS='$(unit_list)' bash -s" <<'REMOTE'
+ssh "${ssh_opts[@]}" "$SSH_TARGET" "sudo BASE_PATH='$BASE_PATH' PKG_SHA='$pkg_sha' UPLOAD_DIR='$upload_dir' APP_ROOT='$APP_ROOT' UNITS='$(unit_list)' bash -s" <<'REMOTE'
 set -uo pipefail
 cd "$APP_ROOT" || { echo "ABORT: $APP_ROOT 不存在"; exit 1; }
-[ "$(sha256sum /tmp/$(ls -t /tmp | grep -m1 'geohot-deploy-.*\.tar\.gz') | cut -c1-16)" = "$PKG_SHA" ] \
+umask 077
+[[ "$UPLOAD_DIR" =~ ^/tmp/geohot-upload\.[A-Za-z0-9]+$ ]] || exit 1
+stage="$(mktemp -d /tmp/geohot-root-stage.XXXXXXXX)" || exit 1
+PKG="$stage/bundle.tar.gz"
+trap 'rm -f "$PKG"; rmdir "$stage"' EXIT
+install -m 600 "$UPLOAD_DIR/bundle.tar.gz" "$PKG" || exit 1
+rm -f "$UPLOAD_DIR/bundle.tar.gz"
+rmdir "$UPLOAD_DIR" || exit 1
+[ "$(sha256sum "$PKG" | cut -d' ' -f1)" = "$PKG_SHA" ] \
   || { echo "ABORT: 上传包哈希不符"; exit 1; }
-PKG="/tmp/$(ls -t /tmp | grep -m1 'geohot-deploy-.*\.tar\.gz')"
 
 echo "== 部署前：停定时器 + 拿住归档周期的锁 =="
 # DEPLOYMENT.md 要求解包前停 timer 并拿锁：archive-cycle.sh 是 bash 边读边执行的脚本，

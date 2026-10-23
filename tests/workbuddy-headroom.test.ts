@@ -94,14 +94,14 @@ test("every workbuddy preset carries the headroom and the vision verdict the mea
   assert.equal(MODELS["workbuddy-hy3"]!.vision, false);
   // step-5-preview 的余量是按步骤给的：summary 那一步的可见答复只有 2,048，却要装下更长的链，
   // 所以它单独写 8,000（其余 4,000）。视觉：3 次里 3 次正确说出了颜色与数字。
-  assert.deepEqual(MODELS["workbuddy-step5-preview"]!.reasoningHeadroom, { default: 4_000, summarize_article: 13_312 });
+  assert.deepEqual(MODELS["workbuddy-step5-preview"]!.reasoningHeadroom, { default: 16_000, summarize_article: 13_312, understand_article: 4_000, translate_body: 8_000, translate_quoted: 4_000 });
   assert.equal(MODELS["workbuddy-step5-preview"]!.vision, true);
   // The strongest effort each model advertises, not one value for the channel.
   // 2026-10-21: `workbuddy-glm-flash` 已从注册表删除（glm 那扇门在本部署上没有 key），这两条改成断言
   // **现存**的两个档位仍然各写各的：deepseek/hy3 是 `max`，step-5-preview 只声明到 `high`。
   assert.deepEqual(MODELS["workbuddy-deepseek-flash"]!.extra, { reasoning_effort: "max" });
   assert.deepEqual(MODELS["workbuddy-hy3"]!.extra, { reasoning_effort: "max" });
-  assert.deepEqual(MODELS["workbuddy-step5-preview"]!.extra, { reasoning_effort: "high" });
+  assert.deepEqual(MODELS["workbuddy-step5-preview"]!.extra, { reasoning_effort: "max" });
   // The Chinese account reaches the same four ids through 3066. Same model, same dials, same vision verdicts —
   // only `service` and the two env vars differ, and that separation is the whole point (two accounts, two
   // breakers). Anything that drifts here means the two doors stopped being the same model.
