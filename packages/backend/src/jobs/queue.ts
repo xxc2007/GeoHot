@@ -2,6 +2,7 @@
 import { PgBoss, type SendOptions } from "pg-boss";
 import { config } from "../config.ts";
 import { sql, type Db } from "../db.ts";
+import { bossOptions } from "./worker-role.ts";
 
 let boss: PgBoss | null = null;
 let starting: Promise<PgBoss> | null = null;
@@ -55,7 +56,7 @@ export async function getBoss(): Promise<PgBoss> {
     // every later publish rolled back on the *first* failure, with no way back except restarting the
     // process. Clear it so the next call tries again; the awaiting caller still receives this error.
     starting = (async () => {
-      const b = new PgBoss({ connectionString: config.databaseUrl, max: 4, schema: "pgboss", application_name: "aihot-jobs" });
+      const b = new PgBoss({ connectionString: config.databaseUrl, schema: "pgboss", ...bossOptions() });
       b.on("error", (err) => console.error("[pg-boss]", err));
       try {
         await b.start();

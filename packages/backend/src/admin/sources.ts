@@ -2,7 +2,8 @@
 // duplicate checks, pause/resume and manual collection. Every change is audited.
 import { z } from "zod";
 import { isCategoryKey } from "@aihot/contracts/taxonomy";
-import { sql } from "../db.ts";
+import { sql, type Db, type Tx } from "../db.ts";
+import { registryChange, SourceRegistryConflict } from "../sources/registry.ts";
 import { enqueue, QUEUES } from "../jobs/queue.ts";
 import { republishKey } from "../jobs/publication.ts";
 import { normalizeUrl } from "../lib/url.ts";
@@ -33,7 +34,7 @@ export async function listSources(f: SourceListFilters) {
   const q = f.q?.trim() ? `%${f.q.trim()}%` : null;
   // 同名信源是允许的（id 才唯一），所以 s.name 排到最后仍然不唯一——翻页要稳就得收到 id 为止。
   const rows = await sql`
-    SELECT s.id, s.name, s.kind, s.tier, s.participation_mode, s.enabled, s.health, s.fail_count, s.interval_minutes,
+    SELECT s.id, s.name, s.kind, s.tier, s.participation_mode, s.enabled, s.health, s.fail_count, s.interval_minutes,s.review_version::text AS review_version,
            s.last_ok_at, s.last_fetch_at, s.last_error, s.first_party, s.next_fetch_at,
            (SELECT count(*)::int FROM articles a WHERE a.source_id = s.id AND a.discovered_at > now() - interval '7 days') AS items_7d,
            (SELECT count(*)::int FROM publications p WHERE p.source_id = s.id AND p.selected AND p.discovered_at > now() - interval '30 days') AS selected_30d
@@ -53,7 +54,7 @@ export async function listSources(f: SourceListFilters) {
 }
 
 export async function sourceDetail(id: string) {
-  const [source] = await sql`SELECT * FROM sources WHERE id = ${id}`;
+  const [source] = await sql`SELECT *,review_version::text AS review_version FROM sources WHERE id = ${id}`;
   if (!source) return null;
   const runs = await sql`SELECT id, started_at, finished_at, status, found_count, new_count, error, detail FROM fetch_runs WHERE source_id = ${id} ORDER BY started_at DESC LIMIT 30`;
   const items = await sql`
@@ -115,10 +116,14 @@ const EDITABLE = z
 
 export async function updateSource(id: string, input: { patch: unknown; version: string; reason?: string }, actor: string) {
   const patch = EDITABLE.parse(input.patch);
-  return sql.begin(async (tx) => {
-    const [before] = await tx`SELECT * FROM sources WHERE id = ${id} FOR UPDATE`;
+  const change = async (tx: Tx) => {
+    const [before] = await tx`SELECT *,review_version::text AS review_version FROM sources WHERE id = ${id} FOR UPDATE`;
     if (!before) return null;
-    if (new Date(before.updated_at as Date).toISOString() !== input.version) throw new Conflict("信源已被其他操作修改，请刷新后再改");
+    // Unmanaged legacy clients retain timestamp editing; managed approval and current UI use rN.
+    const versionMatches = /^r[1-9]\d*$/.test(input.version)
+      ? input.version === `r${before.review_version}`
+      : new Date(before.updated_at as Date).toISOString() === input.version;
+    if (!versionMatches) throw new Conflict("信源已被其他操作修改，请刷新后再改");
     if (patch.config) assertSupportedConfig(before.kind as SourceRow["kind"], patch.config);
     const keys = Object.keys(patch) as Array<keyof typeof patch>;
     if (!keys.length) return before;
@@ -126,8 +131,8 @@ export async function updateSource(id: string, input: { patch: unknown; version:
     const [after] = await tx`UPDATE sources SET ${tx(values as never, ...(keys as string[]))}, updated_at = now(),
       health = CASE WHEN ${patch.enabled ?? null}::boolean IS FALSE THEN 'paused' WHEN ${patch.enabled ?? null}::boolean IS TRUE AND health = 'paused' THEN 'unknown' ELSE health END,
       next_fetch_at = CASE WHEN ${patch.enabled ?? null}::boolean IS TRUE THEN now() ELSE next_fetch_at END
-      WHERE id = ${id} RETURNING *`;
-    await audit(actor, "source.update", `source:${id}`, input.reason ?? null, Object.fromEntries(keys.map((k) => [k, before[k]])), patch);
+      WHERE id = ${id} RETURNING *,review_version::text AS review_version`;
+    await audit(actor, "source.update", `source:${id}`, input.reason ?? null, Object.fromEntries(keys.map((k) => [k, before[k]])), patch, undefined, tx);
     // What public exits show for this source's articles is derived from these fields: re-derive them
     // all (in the worker) so a revoked licence or an isolated source stops on every exit.
     if (keys.some((k) => PUBLICATION_FIELDS.includes(k) && JSON.stringify(before[k]) !== JSON.stringify(patch[k]))) {
@@ -136,6 +141,11 @@ export async function updateSource(id: string, input: { patch: unknown; version:
       await enqueue(QUEUES.republishSource, { sourceId: id }, { singletonKey: id }, tx);
     }
     return after;
+  };
+  return registryChange(async (tx, policy) => {
+    if (policy.target_enabled !== null && !/^r[1-9]\d{0,18}$/.test(input.version)) throw new SourceRegistryConflict("Managed source updates require the current review version");
+    if (policy.target_enabled !== null && patch.enabled === false && !input.reason?.trim()) throw new SourceRegistryConflict("Managed source pause requires a reason");
+    return change(tx);
   });
 }
 
@@ -146,6 +156,7 @@ const CreateSchema = z
   .object({
     id: z.string().regex(/^[a-z0-9][a-z0-9-]{2,79}$/),
     name: z.string().min(1).max(200),
+    enabled: z.boolean().optional(),
     kind: z.enum(["rss", "web_list", "json_list", "x_search", "mp_account", "external"]),
     config: z.record(z.string(), z.unknown()),
     tier: z.enum(["T1", "T1_5", "T2", "EXCLUDE_MP"]).default("T2"),
@@ -174,26 +185,51 @@ export function sourceIdentity(kind: string, config: Record<string, unknown>): s
   }
 }
 
-export async function findDuplicateSource(kind: string, config: Record<string, unknown>) {
+export async function findDuplicateSource(kind: string, config: Record<string, unknown>, db: Db = sql) {
   const identity = sourceIdentity(kind, config);
   if (!identity) return null;
-  const rows = await sql<{ id: string; kind: string; config: Record<string, unknown>; name: string }[]>`SELECT id, kind, config, name FROM sources WHERE kind = ${kind}`;
+  const rows = await db<{ id: string; kind: string; config: Record<string, unknown>; name: string }[]>`SELECT id, kind, config, name FROM sources WHERE kind = ${kind}`;
   return rows.find((r) => sourceIdentity(r.kind, r.config) === identity) ?? null;
 }
 
 export async function createSource(input: unknown, actor: string) {
   const s = CreateSchema.parse(input);
   assertSupportedConfig(s.kind, s.config);
-  const dup = await findDuplicateSource(s.kind, s.config);
+  return registryChange(async (tx, policy) => {
+  const dup = await findDuplicateSource(s.kind, s.config, tx);
   if (dup) return { created: false as const, duplicate: dup };
-  const [row] = await sql`
-    INSERT INTO sources (id, name, kind, config, tier, participation_mode, interval_minutes, first_party, tags, site_fulltext, syndicate_fulltext, next_fetch_at, default_category)
-    VALUES (${s.id}, ${s.name}, ${s.kind}, ${sql.json(s.config as never)}, ${s.tier}, ${s.participation_mode}, ${s.interval_minutes}, ${s.first_party}, ${s.tags},
-            ${s.site_fulltext}, ${s.syndicate_fulltext}, now(), ${s.default_category})
-    ON CONFLICT (id) DO NOTHING RETURNING *`;
+  const [row] = await tx`
+    INSERT INTO sources (id, name, kind, config, tier, participation_mode, interval_minutes, first_party, tags, site_fulltext, syndicate_fulltext, next_fetch_at, default_category,enabled)
+    VALUES (${s.id}, ${s.name}, ${s.kind}, ${tx.json(s.config as never)}, ${s.tier}, ${s.participation_mode}, ${s.interval_minutes}, ${s.first_party}, ${s.tags},
+            ${s.site_fulltext}, ${s.syndicate_fulltext}, now(), ${s.default_category},${s.enabled ?? (policy.target_enabled === null)})
+    ON CONFLICT (id) DO NOTHING RETURNING *,review_version::text AS review_version`;
   if (!row) throw new Conflict(`信源 ID ${s.id} 已存在`);
-  await audit(actor, "source.create", `source:${s.id}`, null, null, s);
+  await audit(actor, "source.create", `source:${s.id}`, null, null, s, undefined, tx);
   return { created: true as const, source: row };
+  });
+}
+
+/** Reviewed candidates already exist disabled. Pause and enable atomically; never delete history. */
+export async function replaceSources(input: { disable: Array<{ id: string; version: string }>; enable: Array<{ id: string; version: string }>; expectedPolicyVersion: number; reason: string; evidence: string }, actor: string) {
+  const member = z.object({ id: z.string().min(1).max(120), version: z.string().regex(/^r[1-9]\d{0,18}$/) });
+  input = z.object({ disable: z.array(member).min(1).max(50), enable: z.array(member).min(1).max(50), expectedPolicyVersion: z.number().int().positive(), reason: z.string().trim().min(1).max(500), evidence: z.string().trim().min(1).max(1000) }).strict().parse(input);
+  const all = [...input.disable,...input.enable];
+  if (!input.reason?.trim() || !input.evidence?.trim() || input.reason.length > 500 || input.evidence.length > 1000 || !input.disable.length || input.disable.length !== input.enable.length || new Set(all.map(s => s.id)).size !== all.length) throw new SourceRegistryConflict("Replacement needs disjoint equal sets and review evidence");
+  return registryChange(async (tx, policy) => {
+    if (policy.target_enabled === null || policy.policy_version !== input.expectedPolicyVersion) throw new SourceRegistryConflict("Managed policy version changed");
+    const rows = await tx`SELECT id,enabled,health,updated_at,review_version::text AS review_version FROM sources WHERE id = ANY(${all.map(s => s.id)}::text[]) ORDER BY id FOR UPDATE`;
+    for (const s of all) {
+      const row = rows.find(r => r.id === s.id);
+      if (!row || `r${row.review_version}` !== s.version || row.enabled !== input.disable.some(d => d.id === s.id)) throw new SourceRegistryConflict("Source state or version changed");
+    }
+    for (const s of input.disable) await tx`UPDATE sources SET enabled=false,health='paused',updated_at=now() WHERE id=${s.id}`;
+    for (const s of input.enable) await tx`UPDATE sources SET enabled=true,health=CASE WHEN health='paused' THEN 'unknown' ELSE health END,next_fetch_at=now(),updated_at=now() WHERE id=${s.id}`;
+    const [after] = await tx`SELECT target_enabled,enabled_count,policy_version,(SELECT count(*)::int FROM sources WHERE enabled) AS actual FROM source_registry_policy WHERE singleton`;
+    if (after!.actual !== after!.enabled_count || after!.enabled_count !== policy.target_enabled) throw new SourceRegistryConflict("Replacement must restore the configured target");
+    await audit(actor,"source.replace",null,input.reason,rows,{ ...after, disable: input.disable.map(s => s.id), enable: input.enable.map(s => s.id), evidence: input.evidence },undefined,tx);
+    for (const s of all) await enqueue(QUEUES.republishSource,{ sourceId:s.id },{ singletonKey:s.id },tx);
+    return after;
+  });
 }
 
 export async function fetchNow(id: string, actor: string) {

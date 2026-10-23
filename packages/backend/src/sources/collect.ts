@@ -242,7 +242,10 @@ export async function collectSource(sourceId: string, opts: { force?: boolean } 
     let detail: Record<string, unknown> | null = null;
     let listing: ListingRun | null = null;
     if (source.kind === "rss") {
-      const rss = await fetchRss(source, opts);
+      // A validator acknowledges upstream bytes, not our bounded storage of them. While a tail
+      // remains, those same unchanged bytes must be read again to reach the unread entries.
+      const pendingTail = typeof source.cursor?.listingTailAfter === "string" && source.cursor.listingTailAfter.length > 0;
+      const rss = await fetchRss(source, { force: opts.force || pendingTail });
       candidates = rss.candidates;
       // The first import has a smaller backfill cap than later runs: allow the next run to read
       // the ordinary window before accepting 304s. Persist validators only after store succeeds.
@@ -374,6 +377,9 @@ export async function collectSource(sourceId: string, opts: { force?: boolean } 
       + (known.get(c.url) === undefined && d?.publishedAtAuthoritative !== true && !c.publishedAt ? 1 : 0), 0);
     const storedRun = await store(sourceId, candidates, firstImport ? "first-import" : null, () => outOfRound.stop());
     ({ created, revised } = storedRun);
+    // A time budget can expire before even the first item, leaving no tail anchor. Do not allow
+    // a 304 to acknowledge that unhandled listing; the next ordinary run must fetch its bytes.
+    if (source.kind === "rss" && storedRun.stopped) delete nextCursor.rss;
     // A round that read nothing keeps the remembered position untouched. An unchanged feed answers 304 and
     // hands back an empty listing (`rss.ts` returns `{candidates: [], notModified: true}`), which
     // `takeListingRun` reads as "the whole listing fit in the head, nothing below it" — `resumeAfter: null`.

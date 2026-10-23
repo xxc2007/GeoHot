@@ -27,12 +27,11 @@ test("dots summary request normalization and exact legacy recovery", async (t) =
   const env = {
     DOTS_MODEL: "test-dots", DOTS_BASE_URL: "", DOTS_API_KEY: "stub-only",
     LLM_MODEL: "test-llm", LLM_BASE_URL: "", LLM_API_KEY: "stub-only",
-    DASHSCOPE_BASE_URL: "", DASHSCOPE_API_KEY: "stub-only",
     SUMMARIZE_MODEL: "dots3-note-prev,default", PREFILTER_MODEL: "default", SCORE_MODEL: "default",
-    STRUCTURE_MODEL: "qwen3.8-flash", UNDERSTAND_MODEL: "default", COLLECT_ENABLED: "false",
+    COLLECT_ENABLED: "false",
   };
   const savedEnv = Object.fromEntries(Object.keys(env).map((key) => [key, process.env[key]]));
-  const budgets = await sql`SELECT * FROM budgets WHERE service IN('dots','llm','dashscope')`;
+  const budgets = await sql`SELECT * FROM budgets WHERE service IN('dots','llm','agnes-cn')`;
   const settings = await sql`SELECT * FROM settings WHERE key LIKE 'models.%'`;
   const bodies: Array<Record<string, any>> = [];
   const ids: string[] = [];
@@ -65,12 +64,12 @@ test("dots summary request normalization and exact legacy recovery", async (t) =
     return row!.id as number;
   }
   try {
-    Object.assign(env, { DOTS_BASE_URL: `${provider.url}/v1`, LLM_BASE_URL: `${provider.url}/v1`, DASHSCOPE_BASE_URL: `${provider.url}/v1` });
+    Object.assign(env, { DOTS_BASE_URL: `${provider.url}/v1`, LLM_BASE_URL: `${provider.url}/v1` });
     Object.assign(process.env, env);
     config.modelCallsEnabled = true;
     await sql`DELETE FROM settings WHERE key LIKE 'models.%'`;
     await sql`INSERT INTO budgets(service,per_minute,per_hour,per_day) VALUES
-      ('dots',500,5000,50000),('llm',500,5000,50000),('dashscope',0,5000,50000)
+      ('dots',500,5000,50000),('llm',500,5000,50000),('workbuddy-cn',0,5000,50000)
       ON CONFLICT(service) DO UPDATE SET per_minute=excluded.per_minute,per_hour=excluded.per_hour,per_day=excluded.per_day`;
     invalidateModelCache();
 
@@ -172,7 +171,7 @@ test("dots summary request normalization and exact legacy recovery", async (t) =
     await sql`DELETE FROM pgboss.queue WHERE name=${queue}`;
     await sql`DELETE FROM receipts WHERE subject LIKE ${`${prefix}%`} OR subject=ANY(${ids.map((id) => `article:${id}@1`)}::text[])`;
     await purgeTagged(T);
-    await sql`DELETE FROM budgets WHERE service IN('dots','llm','dashscope')`;
+    await sql`DELETE FROM budgets WHERE service IN('dots','llm','agnes-cn')`;
     for (const row of budgets) await sql`INSERT INTO budgets ${sql(row)}`;
     await sql`DELETE FROM settings WHERE key LIKE 'models.%'`;
     for (const row of settings) await sql`INSERT INTO settings ${sql(row)}`;

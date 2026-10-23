@@ -65,38 +65,38 @@ test("an outage is announced once, repeated hourly, and closed with one recovery
 test("额度告警与后台的「已用」数的是真花了钱的尝试，与熔断器同一个口径", async () => {
   // 第三十四轮把熔断器改成只数真产生账单的尝试，这两处当时没跟着改：一次代理故障（几百次连不上的尝试）
   // 就能让告警报「24 小时额度用完」而 paidRequest 还在放行，运维照告警去充值，真相是那条链一条稿子没出。
-  const billed = sql`NOT (status = 'failed' AND usage IS NULL)`; // 独立算式：不从被测代码里抄，抄了就测不出漂移
+  const billed = sql`billing_status <> 'unbilled'`; // 独立算式：不从被测 helper 生成期望值
   const spend = async () => (await sql<{ n: number }[]>`
     SELECT count(*)::int AS n FROM receipt_attempts
-    WHERE service = 'deepseek' AND origin = 'live' AND started_at > now() - interval '1 day' AND ${billed}`)[0]!.n;
-  const [saved] = await sql<{ per_day: number }[]>`SELECT per_day FROM budgets WHERE service = 'deepseek'`;
+    WHERE service = 'agnes-cn' AND origin = 'live' AND started_at > now() - interval '1 day' AND ${billed}`)[0]!.n;
+  const [saved] = await sql<{ per_day: number }[]>`SELECT per_day FROM budgets WHERE service = 'agnes-cn'`;
   const [seed] = await sql<{ id: number }[]>`
     INSERT INTO receipts (logical_key, service, purpose, status, request, attempts)
-    VALUES (${'alert-unbilled-' + T}, 'deepseek', 'invariant_test', 'failed', '{}'::jsonb, 1) RETURNING id`;
+    VALUES (${'alert-unbilled-' + T}, 'agnes-cn', 'invariant_test', 'failed', '{}'::jsonb, 1) RETURNING id`;
   try {
     const before = await spend();
-    await sql`UPDATE budgets SET per_day = ${before + 1} WHERE service = 'deepseek'`;
+    await sql`UPDATE budgets SET per_day = ${before + 1} WHERE service = 'agnes-cn'`;
     await sql`
-      INSERT INTO receipt_attempts (receipt_id, attempt, service, origin, status, started_at, finished_at)
-      SELECT ${seed!.id}, n, 'deepseek', 'live', 'failed', now() - interval '2 hours', now() - interval '2 hours'
+      INSERT INTO receipt_attempts (receipt_id, attempt, service, origin, status, billing_status, started_at, finished_at)
+      SELECT ${seed!.id}, n, 'agnes-cn', 'live', 'failed', 'unbilled', now() - interval '2 hours', now() - interval '2 hours'
       FROM generate_series(1, 300) n`;
     const [total] = await sql<{ n: number }[]>`
       SELECT count(*)::int AS n FROM receipt_attempts
-      WHERE service = 'deepseek' AND origin = 'live' AND started_at > now() - interval '1 day'`;
+      WHERE service = 'agnes-cn' AND origin = 'live' AND started_at > now() - interval '1 day'`;
     assert.ok(total!.n >= before + 1, "夹具没有越过旧口径的上限，那这条断言就没在盯任何东西");
 
     const keys = (await collectFindings()).map((f) => f.key);
-    assert.equal(keys.includes("budget.day.deepseek"), false, "连不上的尝试不产生账单，不该报额度用完");
-    const row = (await listBudgets()).find((b) => b.service === "deepseek");
+    assert.equal(keys.includes("budget.day.agnes-cn"), false, "连不上的尝试不产生账单，不该报额度用完");
+    const row = (await listBudgets()).find((b) => b.service === "agnes-cn");
     assert.equal(row!.used_day, before, "后台的「已用」与告警数的是同一个数");
 
     // 同样这 300 行，换成「结果说不清」（可能已经计费）就必须立刻算数——两个方向都要红得起来。
-    await sql`UPDATE receipt_attempts SET status = 'unknown' WHERE receipt_id = ${seed!.id}`;
+    await sql`UPDATE receipt_attempts SET status = 'unknown', billing_status = 'unknown' WHERE receipt_id = ${seed!.id}`;
     const after = (await collectFindings()).map((f) => f.key);
-    assert.equal(after.includes("budget.day.deepseek"), true, "可能已经计费的尝试要立刻占额度");
-    assert.equal((await listBudgets()).find((b) => b.service === "deepseek")!.used_day, before + 300, "后台的「已用」跟着涨 300");
+    assert.equal(after.includes("budget.day.agnes-cn"), true, "可能已经计费的尝试要立刻占额度");
+    assert.equal((await listBudgets()).find((b) => b.service === "agnes-cn")!.used_day, before + 300, "后台的「已用」跟着涨 300");
   } finally {
-    await sql`UPDATE budgets SET per_day = ${saved!.per_day} WHERE service = 'deepseek'`;
+    await sql`UPDATE budgets SET per_day = ${saved!.per_day} WHERE service = 'agnes-cn'`;
     await sql`DELETE FROM receipt_attempts WHERE receipt_id = ${seed!.id}`;
     await sql`DELETE FROM receipts WHERE id = ${seed!.id}`;
   }

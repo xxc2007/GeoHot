@@ -81,6 +81,13 @@ export const isCollectEnabled = () => envFlag("COLLECT_ENABLED", true);
 /** The same rule as `config.modelCallsEnabled`, read where it is used (that field is a snapshot, and tests flip it). */
 export const isModelCallsEnabled = () => envFlag("MODEL_CALLS_ENABLED", true);
 
+/** Executors must declare both valves, rather than relying on development defaults. */
+export function assertContentExecutorValves(): void {
+  if (!env.COLLECT_ENABLED || !isCollectEnabled() || !env.MODEL_CALLS_ENABLED) {
+    throw new Error("content-executor requires explicit COLLECT_ENABLED=true and MODEL_CALLS_ENABLED (true for live work, false for staging)");
+  }
+}
+
 /** Loopback addresses: right on the developer's machine, wrong for anything a reader can reach. */
 const LOCAL_HOST = /^(?:localhost|127\.\d+\.\d+\.\d+|\[?::1\]?)$/i;
 

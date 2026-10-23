@@ -46,7 +46,9 @@ export function registerIngest(app: FastifyInstance) {
     if (!authorized(req)) return unauthorized(reply);
     if (limited(`items:${req.ip}`, 10)) return reply.code(429).header("Retry-After", "60").send({ ok: false, error: "rate limited" });
     try {
-      return await ingestItems((req.body ?? {}) as never);
+      const answer = await ingestItems((req.body ?? {}) as never);
+      if (answer.quarantined) reply.code(202);
+      return answer;
     } catch (error) {
       if (error instanceof IngestError) return reply.code(error.status).send({ ok: false, error: error.message });
       req.log.error({ err: error }, "ingest items failed");

@@ -76,10 +76,10 @@ const provider = await stub((_hit, req) => {
   if (marker === "BADWRITE") return answer("title_zh: Earthquake bulletin\nsummary_zh: A network released an earthquake bulletin.");
   return answer(`title_zh: 翻译标题 ${marker}\nsummary_zh: 翻译摘要 ${marker}。第二句补充影响。`);
 });
-for (const env of ["DASHSCOPE_BASE_URL", "ZHIPU_BASE_URL", "DEEPSEEK_BASE_URL"]) process.env[env] = `${provider.url}/v1`;
-for (const env of ["DASHSCOPE_API_KEY", "ZHIPU_API_KEY", "DEEPSEEK_API_KEY"]) process.env[env] = "test-key";
-// AIHOT's own assignment of models to steps (the open-source default is one model for all of them).
-Object.assign(process.env, { PREFILTER_MODEL: "qwen3.7-flash", SCORE_MODEL: "glm-5.3-flash-selection", UNDERSTAND_MODEL: "glm-5.3-flash", SUMMARIZE_MODEL: "deepseek-flash", STRUCTURE_MODEL: "qwen3.8-flash" });
+// 2026-10-21: 这条文件原来把每一步点名到不同厂商的预设，并在同一个 stub 上开三扇门。
+// 预设删掉后改为开放源码默认：每一步都落 `default`，由 LLM_* 指向这里的 stub。
+for (const env of ["LLM_BASE_URL"]) process.env[env] = `${provider.url}/v1`;
+for (const env of ["LLM_API_KEY"]) process.env[env] = "test-key";
 
 before(async () => {
   await sql`INSERT INTO sources (id, name, kind, tier, participation_mode, next_fetch_at) VALUES
@@ -109,17 +109,17 @@ test("paid unusable writing counts as an output failure instead of a parallel bu
   const id = await article("BADWRITE");
   const input = (await loadAnalyzeInput(id))!;
   await runAnalysis(input, { stages: "selection" });
-  const [budget] = await sql<{ per_minute: number }[]>`SELECT per_minute FROM budgets WHERE service='dashscope'`;
+  const [budget] = await sql<{ per_minute: number }[]>`SELECT per_minute FROM budgets WHERE service='agnes-cn'`;
   assert.ok(budget);
   try {
-    await sql`UPDATE budgets SET per_minute=0 WHERE service='dashscope'`;
+    await sql`UPDATE budgets SET per_minute=0 WHERE service='agnes-cn'`;
     await assert.rejects(runAnalysis(input), ModelOutputError);
     const [receipt] = await sql<{ status: string; attempts: number }[]>`SELECT status, attempts FROM receipts
       WHERE subject=${`article:${id}@${input.revision}`} AND purpose='summarize_article'`;
     assert.equal(receipt!.status, "failed"); assert.equal(receipt!.attempts, 1);
     assert.equal(calls("BADWRITE").filter(s => s === "summarize").length, 1);
   } finally {
-    await sql`UPDATE budgets SET per_minute=${budget!.per_minute} WHERE service='dashscope'`;
+    await sql`UPDATE budgets SET per_minute=${budget!.per_minute} WHERE service='agnes-cn'`;
   }
   await assert.rejects(runAnalysis(input), ModelOutputError, "successful structure cannot settle a rejected paid draft as unknown");
   assert.equal(calls("BADWRITE").filter(s => s === "summarize").length, 2);
@@ -157,7 +157,16 @@ test("a selected item: prefilter, two scores, the content understanding and the 
   assert.deepEqual([r.output.writer, r.output.itemType, r.output.prefilter.label, r.output.fact.title], ["understand", "disaster_event", "PASS", "事实 CLEAR"]);
   const score = requests.find((q) => q.marker === "CLEAR" && q.step === "score")!;
   assert.match(score.user, /【标题】\nCLEAR earthquake bulletin/, "the score reads the original title, before any writing");
-  assert.deepEqual([score.body.temperature, score.body.reasoning_effort, score.body.max_tokens], [1, "high", 65536]);
+  // 2026-10-21: 这条原来钉的是 glm-5.3-flash-selection 那一档打分参数（temperature 1 / high / 65 536），
+  // 那条预设已从注册表删除，打分现在走 default。钉的改成**默认档**的真实形状：0.2 温度、
+  // 不额外塞 reasoning_effort、上限是步骤自己问的 1,024 加上该预设的思考余量。
+  assert.equal(score.body.temperature, 0.2, "the default scorer runs at 0.2");
+  assert.equal(score.body.reasoning_effort, undefined, "the fixture sets no LLM_EXTRA_JSON, so no effort is sent");
+  // 思考余量只加给**开思考**的预设（llm.ts 的 requestFor：reasoning 为真才算 headroom）。
+  // 这个夹具没有设 LLM_EXTRA_JSON，所以 default 不开思考、余量为 0，上限就等于步骤问的 1,024。
+  // 生产上 LLM_EXTRA_JSON={"reasoning_effort":"high"}，那时它才会加 6,000——这一层由
+  // tests/workbuddy-headroom.test.ts 里的 agnes-cn 用例单独钉。
+  assert.equal(score.body.max_tokens, 1_024, "no reasoning on this fixture, so the cap equals the ask");
   const understand = requests.find((q) => q.marker === "CLEAR" && q.step === "understand")!;
   assert.ok(understand.user.startsWith("请按系统规则理解以下单篇材料，一次返回全部六个字段。"));
   assert.ok(understand.system.includes("【摘要答案前置规则") && understand.system.includes("【标题自洽规则"));

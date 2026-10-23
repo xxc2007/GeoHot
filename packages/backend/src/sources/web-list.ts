@@ -54,6 +54,20 @@ export function allowed(url: string, source: SourceRow): boolean {
   const allow: string[] = (source.config.allowUrlPrefixes ?? []).map(overHttps);
   const deny: string[] = (source.config.denyUrlPrefixes ?? []).map(overHttps);
   const target = overHttps(url);
+  const extensions: string[] | null | undefined = source.config.denyUrlFileExtensions;
+  if (extensions?.length) {
+    try {
+      // Plone exposes an image's HTML wrapper at file.png/view. Queries never name a file.
+      const parts = new URL(target).pathname.split("/");
+      if (parts.at(-1) === "") parts.pop();
+      if (parts.at(-1)?.toLowerCase() === "view") parts.pop();
+      const file = decodeURIComponent(parts.at(-1) ?? "");
+      const extension = /\.([a-z0-9]{1,12})$/i.exec(file)?.[1]?.toLowerCase();
+      if (extension && extensions.some((e) => e.toLowerCase() === extension)) return false;
+    } catch {
+      return false;
+    }
+  }
   if (deny.some((p) => target.startsWith(p))) return false;
   return allow.length === 0 || allow.some((p) => target.startsWith(p));
 }

@@ -32,7 +32,9 @@ function dispatcherFor(viaProxy: boolean): Dispatcher | undefined {
   }
   if (config.allowPrivateNetworkFetch) return undefined;
   // Direct connections resolve through the guarded lookup: the address actually dialled is checked.
-  directAgent ??= new Agent({ connect: { lookup: guardedLookup as never } });
+  // Happy Eyeballs would race an AAAA record we cannot reach against the A record that works, and
+  // on this host the v6 attempt only surfaces as a bare ETIMEDOUT. The lookup already orders v4 first.
+  directAgent ??= new Agent({ connect: { lookup: guardedLookup as never, autoSelectFamily: false } });
   return directAgent;
 }
 

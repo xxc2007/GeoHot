@@ -338,6 +338,34 @@ function commonHeaders(c: Credential): Record<string, string> {
 }
 
 /**
+ * 官方客户端每次对话请求都带的一组「会话头」。
+ *
+ * 2026-10-21 实测：**国际版的上游渠道校验看的不是 QIMEI 设备指纹，而是这组会话头。**
+ * 缺了它，无论 `CODEBUDDY_QIMEI36` 填不填、`X-IDE-*` 写不写，上游一律回
+ * `HTTP 400 {"code":11128,"msg":"request illegal","displayTips":{"en":"This call failed channel
+ * verification, possibly because it was not sent from an official client."}}`。
+ *
+ * 收窄过程（同一份凭据、同一个模型，每次只改头）：
+ *   · 只加 `X-Domain` 或只加 `X-User-Id` —— 仍然 400
+ *   · 只加四个 ID 里的任意一个 —— 仍然 400
+ *   · `X-Conversation-ID` + `X-Conversation-Request-ID` + `X-Conversation-Message-ID` —— **200**
+ *   · 上述三个再补 `X-Request-ID` —— 也是 200（官方客户端就是四个都发）
+ * 所以门槛是那个三元组；`X-Request-ID` 跟着发是因为官方客户端发它，少发不多得。
+ * 四个值在官方客户端里就是 `randomUUID()`，每次请求新生成，彼此无关联。
+ *
+ * 这也解释了 2026-10-19 18:32 那次「突然整条渠道被拒」：不是账号被封、不是额度用完、
+ * 不是模型被限——是这一组头从来没发过，而对端在那一刻上线了这项校验。
+ */
+function conversationHeaders(): Record<string, string> {
+  return {
+    "X-Conversation-ID": randomUUID(),
+    "X-Conversation-Request-ID": randomUUID(),
+    "X-Conversation-Message-ID": randomUUID(),
+    "X-Request-ID": randomUUID(),
+  };
+}
+
+/**
  * 续期：`POST /v2/plugin/auth/token/refresh`，refreshToken 走 `X-Refresh-Token` 头，无 body。
  * 实测（2026-10-11）这条端点回 200 且 `expiresIn` 是 27609882 秒（≈319 天），所以正常情况下桥根本走不到这里；
  * 它存在只是为了让「token 过期」不变成一个必须手工重启桥的故障。
@@ -544,6 +572,7 @@ async function chat(raw: ChatBody, catalog: Map<string, CatalogModel>): Promise<
         "Content-Type": "application/json",
         Authorization: `Bearer ${current.accessToken}`,
         ...commonHeaders(current),
+        ...conversationHeaders(),
       },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),

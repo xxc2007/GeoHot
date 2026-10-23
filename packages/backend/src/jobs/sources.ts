@@ -9,7 +9,7 @@ import { registerExtractionJobs } from "./content.ts";
 /** Read once at startup: a typo here must not reach pg-boss as `localConcurrency: NaN` (config.positiveInt). */
 const FETCH_CONCURRENCY = positiveInt(process.env.FETCH_CONCURRENCY, "FETCH_CONCURRENCY", 8);
 
-export async function registerSourceJobs(boss: PgBoss) {
+export async function registerSourceJobs(boss: PgBoss, opts: { includeExtraction?: boolean } = {}) {
   await ensureQueue(QUEUES.fetchSource);
   await boss.work<{ sourceId: string; force?: boolean }>(QUEUES.fetchSource, { localConcurrency: FETCH_CONCURRENCY, pollingIntervalSeconds: 2 }, async ([job]) => {
     if (!job) return;
@@ -27,5 +27,5 @@ export async function registerSourceJobs(boss: PgBoss) {
     if (!job) return;
     return checkMpAccount(job.data.sourceId, job.data.reason ?? "schedule");
   });
-  await registerExtractionJobs(boss);
+  if (opts.includeExtraction !== false) await registerExtractionJobs(boss);
 }

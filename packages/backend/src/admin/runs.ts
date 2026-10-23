@@ -96,23 +96,39 @@ export async function runsOverview() {
  * processing (one action, not two). Only an unknown receipt is released, once.
  */
 async function release(id: number, error: string, actor: string, note: string, billed: boolean | null) {
-  const [before] = await sql<{ subject: string | null; purpose: string }[]>`
-    UPDATE receipts SET status = 'failed', error = ${error}, updated_at = now() WHERE id = ${id} AND status = 'unknown' RETURNING subject, purpose`;
+  const billingStatus = billed === null ? "unknown" : billed ? "billed" : "unbilled";
+  const before = await sql.begin(async (tx) => {
+    const [row] = await tx<{ subject: string | null; purpose: string; attempts: number }[]>`
+      UPDATE receipts SET status = 'failed', error = ${error}, updated_at = now()
+      WHERE id = ${id} AND status = 'unknown' RETURNING subject, purpose, attempts`;
+    if (!row) return null;
+    // A later release must not refund an earlier automatically released attempt. Legacy migration 0022
+    // wrote attempt 1 for receipts whose original attempt counter was zero.
+    const [attempt] = await tx<{ id: number; billing_status: string }[]>`
+      UPDATE receipt_attempts SET status = 'failed',
+        billing_status = CASE WHEN ${billed}::boolean IS NULL AND billing_status IN ('billed', 'unbilled')
+                         THEN billing_status ELSE ${billingStatus} END, error = ${error}
+      WHERE receipt_id = ${id} AND attempt = ${Math.max(row.attempts, 1)} AND status = 'unknown' RETURNING id, billing_status`;
+    if (!attempt) throw new Conflict("当前未知尝试缺失，无法核对费用；回执未放行");
+    return { ...row, attemptId: attempt.id, billingStatus: attempt.billing_status };
+  });
   if (!before) return null;
-  await sql`UPDATE receipt_attempts SET status = 'failed', error = ${error} WHERE receipt_id = ${id} AND status = 'unknown'`;
   // 认 subject 的形状，不认 purpose：走文章处理链的调用 subject 都是 `article:<id>@…`，
   // 而这里原先判的是 `purpose === "analyze_article"`——真实 purpose 是 prefilter/score/understand/
   // summarize/structure 那五个，这个字符串从来没出现过（git log -S 只有上游基线那一笔），
   // 于是 `jobs/content.ts` 注释里承诺的「ops 释放一次就把条目排回去」从未发生：
   // 一次 240 秒超时就把一条条目永久留在 'failed'。
-  const article = /^article:([^@]+)@/.exec(before.subject ?? "")?.[1];
+  const extraction = before.purpose === "body_fallback" || before.purpose === "x_article";
+  const article = extraction ? /^article:([^@#]+)$/.exec(before.subject ?? "")?.[1]
+    : /^article:([^@]+)@/.exec(before.subject ?? "")?.[1];
   let requeued = false;
   if (article) {
     const [a] = await sql`UPDATE articles SET processing_state = 'new', processing_attempts = 0, processing_retry_at = NULL, processing_error = NULL, updated_at = now()
                           WHERE id = ${article} AND processing_state = 'failed' RETURNING id`;
-    if (a) requeued = !!(await queueProcessing(article, { step: "analyze" }));
+    if (a) requeued = !!(await queueProcessing(article, { step: extraction ? "extract" : "analyze" }));
   }
-  await audit(actor, "receipt.release", `receipt:${id}`, note, { status: "unknown" }, { status: "failed", billed, requeued });
+  await audit(actor, "receipt.release", `receipt:${id}`, note, { status: "unknown" },
+    { status: "failed", billed, billingStatus: before.billingStatus, attemptId: before.attemptId, requeued });
   return { id, status: "failed", subject: before.subject, purpose: before.purpose, requeued };
 }
 

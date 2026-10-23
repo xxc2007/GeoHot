@@ -58,19 +58,16 @@ export function tierThreshold(tier: string): number | null {
 export const UNDERSTAND_FLOOR = SELECTION.understandFloor;
 
 /**
- * Call parameters per score model. The GLM scorer runs at temperature 1 with high reasoning (the model
- * registry adds top_p and thinking) and up to 180 s per call.
+ * Call parameters for the scoring step. Production leaves `SCORE_MODEL` unset, so scoring runs on the
+ * default model — the reasoning one — and `providers/llm.ts` raises its timeout to 240 s only when the
+ * caller does not name one. A shorter number here silently halves the reasoning model's budget on the
+ * largest prompt of the five (up to 60 000 characters of body), and an abort is not a connect failure:
+ * the receipt lands `unknown`, the money is spent and ops has to release it.
  *
- * The fallback is what production actually uses: `SCORE_MODEL` is unset, so scoring runs on the default
- * model — the reasoning one. `providers/llm.ts` raises its timeout to 240 s only when the caller does not
- * name one, so a 120 s number here silently cut the reasoning model's budget in half on the largest prompt
- * of the five (up to 60 000 characters of body). An abort is not a connect failure: the receipt lands
- * `unknown`, the money is spent and ops has to release it.
+ * 2026-10-21: the per-model table this used to be (one GLM scorer at temperature 1 / 180 s) went away
+ * with the zhipu presets — no ZHIPU_API_KEY was ever configured on this deployment, so that branch never ran.
  */
-const SCORE_CALL: Record<string, { temperature: number; maxTokens: number; timeoutMs: number }> = {
-  "glm-5.3-flash-selection": { temperature: 1, maxTokens: 65_536, timeoutMs: 180_000 },
-};
-const scoreCall = (model: string) => SCORE_CALL[model] ?? { temperature: 0.2, maxTokens: 1024, timeoutMs: 240_000 };
+const scoreCall = (_model: string) => ({ temperature: 0.2, maxTokens: 1024, timeoutMs: 240_000 });
 
 /**
  * understand 的时钟。它必须长到让**上限先于时钟**触发：被上限截断的答复落 `failed`（可重试，且收据
@@ -249,28 +246,40 @@ async function runScores(a: AnalyzeInputArticle, threshold: number, opts: StepOp
   const receiptIds: number[] = [];
   const answeredModels: string[] = [];
   let reused = true;
-  // One after the other: the second call reuses the provider's cached prompt.
-  for (let i = 0; i < SCORE_CALLS; i++) {
-    checkAnalysisRunning();
-    try {
-      const res = await chatJson({
-        model, purpose: "score_article", subject: subjectOf(a), promptVersion: PROMPT_VERSIONS.score, system: SCORE_SYSTEM, user: input,
-        schema: ScoreSchema, temperature: call.temperature, maxTokens: call.maxTokens, timeoutMs: call.timeoutMs,
-        // Each call is its own paid request; an explicit re-evaluation gets new ones.
-        attemptTag: tagged(opts.attemptTag, `score-${i + 1}`),
-      });
-      values.push(res.data.attentionScore);
-      receiptIds.push(res.receiptId);
-      answeredModels.push(res.model);
-      reused &&= res.reused;
-    } catch (error) {
+  // 2026-10-22: 这两次调用原本串行，注释理由是「第二次复用 provider 的 prompt cache」。实测在
+  // 891MB/2 核机器上 score_article 单次 p50=63s、p90=164s，串行等于把整篇 job 的墙钟拉长一倍，
+  // 而我们的四扇门（workbuddy-ai / workbuddy-cn / dots / agnes）都不做跨请求 prompt 缓存，
+  // 省下的那点 input token 远小于并行省下的时间。改为并发发出，结果按序落位，语义完全不变
+  // （两次独立采样、各自独立计费、各自一条 receipt；任一被内容过滤则整体判 refused）。
+  const settled = await Promise.all(
+    Array.from({ length: SCORE_CALLS }, async (_, i) => {
+      checkAnalysisRunning();
+      try {
+        const res = await chatJson({
+          model, purpose: "score_article", subject: subjectOf(a), promptVersion: PROMPT_VERSIONS.score, system: SCORE_SYSTEM, user: input,
+          schema: ScoreSchema, temperature: call.temperature, maxTokens: call.maxTokens, timeoutMs: call.timeoutMs,
+          // Each call is its own paid request; an explicit re-evaluation gets new ones.
+          attemptTag: tagged(opts.attemptTag, `score-${i + 1}`),
+        });
+        return { ok: true as const, res };
+      } catch (error) {
+        return { ok: false as const, error };
+      }
+    }),
+  );
+  for (const item of settled) {
+    if (!item.ok) {
       // The model's content filter declines the material (Zhipu 1301): not scored, so not selected.
-      if (isContentFilter(error)) {
-        const refusedModel = error instanceof ProviderRejectedError ? error.modelKey : undefined;
+      if (isContentFilter(item.error)) {
+        const refusedModel = item.error instanceof ProviderRejectedError ? item.error.modelKey : undefined;
         return { model: [...new Set([...answeredModels, refusedModel ?? model])].join(","), threshold, values, receiptIds, reused: false, refused: true };
       }
-      throw error;
+      throw item.error;
     }
+    values.push(item.res.data.attentionScore);
+    receiptIds.push(item.res.receiptId);
+    answeredModels.push(item.res.model);
+    reused &&= item.res.reused;
   }
   return { model: [...new Set(answeredModels)].join(","), threshold, values, receiptIds, reused };
 }

@@ -40,8 +40,8 @@ const provider = await stub(() => ({
     ...(brain ? { brain: { capability: "report", pass: 1, ...brain } } : {}),
   },
 }));
-process.env.DEEPSEEK_BASE_URL = `${provider.url}/v1`;
-process.env.DEEPSEEK_API_KEY = "test-key";
+process.env.LLM_BASE_URL = `${provider.url}/v1`;
+process.env.LLM_API_KEY = "test-key";
 process.env.REPORT_MODEL = "deepseek-flash";
 
 const ids: string[] = [];

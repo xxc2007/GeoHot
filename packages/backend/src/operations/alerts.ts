@@ -220,6 +220,14 @@ const PROVIDERS: Record<string, { name: string; stops: string; where: string }> 
     stops: MODEL_STOPS,
     where: "WorkBuddy 中国版桌面端与它 3066 端口上的桥（凭据变量名与国际版是同一个 WORKBUDDY_CREDENTIAL_JSON，中国版那份由单元的第二个 EnvironmentFile /opt/geohot/workbuddy-cn.env 提供；只写进 .env 会被国际版那行盖回去）",
   },
+  // Qoder CN is the operator's own subscription, reached through the `maggie` gateway on the workstation
+  // over a reverse tunnel. The console it points at is not a vendor dashboard: it is the Qoder CN account
+  // itself, and the thing to look at is the 5-hour usage window, not a balance.
+  "qoder-cn": {
+    name: "Qoder CN（工作站 maggie 网关）",
+    stops: MODEL_STOPS,
+    where: "Qoder CN 账号的 5 小时用量窗（网关在工作站 127.0.0.1:3425，生产靠 ssh -R 反向隧道到达；先看隧道是否还在，再看用量窗）",
+  },
   socialdata: { name: "SocialData", stops: "X（推特）上的新内容收不到", where: "SocialData 后台" },
   jina: { name: "Jina", stops: "部分文章取不到正文", where: "Jina 后台" },
   dajiala: { name: "极致了（Dajiala）", stops: "公众号新文章收不到", where: "极致了后台" },

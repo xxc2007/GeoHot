@@ -232,6 +232,7 @@ test("no-entity topics match only tags audited as scoped to their own definition
     ["east-china-coastal-city-region", []],           // 同上
     ["ring-of-fire", ["地震", "火山", "海啸与风暴潮"]], // 环带本身表达不了；地震/火山就是它的实质，环带外震情是已知残留
     ["earthquakes", ["地震"]],
+    ["volcanoes", ["火山"]],                         // 泛地貌或灾害标签不足以判断火山主题
     ["tropical-cyclones", ["台风与寒潮", "海啸与风暴潮"]],
     ["cryosphere", ["冰川与冻土", "海平面"]],
     ["ocean-coast", ["海洋", "海平面"]],

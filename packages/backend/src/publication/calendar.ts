@@ -1,3 +1,4 @@
+import { withPublicRead } from "./read-budget.ts";
 // 日期入口的数据层：某一个月里，哪几天有本站可列的内容、哪几天真的出过日报。
 //
 // 为什么要有这一份：`/all` 的翻页上限是 50 页 × 40 = 2,000 条（`POOL_MAX_PAGES`），而站上「可列出的条目」
@@ -46,7 +47,19 @@ export interface DayMark {
  * 卡片若把空刊画成"第 N 期"，就是给同一个事实第二个答案。
  * 所以"有点但没有期号"= 那天有内容却没出成报，日历要能把这两种分开画。
  */
+const pendingMonths = new Map<string, Promise<DayMark[]>>();
 export async function monthMarks(
+  month: string, filters: DayMarkFilters = {}, now?: Date,
+): Promise<DayMark[]> {
+  const key = JSON.stringify([month, filters.channel ?? null, filters.category ?? null, filters.tag ?? null, [...(filters.topicTags ?? [])].sort(), now?.toISOString() ?? null]);
+  const pending = pendingMonths.get(key);
+  if (pending) return pending;
+  const load = queryMonthMarks(month, filters, now);
+  pendingMonths.set(key, load);
+  try { return await load; } finally { pendingMonths.delete(key); }
+}
+
+async function queryMonthMarks(
   month: string,
   filters: DayMarkFilters = {},
   now: Date = new Date(),
@@ -55,7 +68,7 @@ export async function monthMarks(
   const from = beijingMidnight(first);
   const to = beijingMidnight(addDays(last, 1));
   const scoped = sql`${channelCondition(filters.channel)} ${categoryCondition(filters.category)} ${tagCondition(filters.tag)} ${topicCondition(filters.topicTags)}`;
-  const rows = await sql<{ date: string; items: number; issue_no: number | null }[]>`
+  const rows = await withPublicRead(async (db) => db<{ date: string; items: number; issue_no: number | null }[]>`
     WITH days AS (
       SELECT to_char(p.timeline_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD') AS date, count(*)::int AS items
         FROM publications p
@@ -67,6 +80,6 @@ export async function monthMarks(
        WHERE kind = 'daily' AND issue_no IS NOT NULL AND key >= ${first} AND key <= ${last})
     SELECT coalesce(d.date, i.date) AS date, coalesce(d.items, 0) AS items, i.issue_no
       FROM days d FULL JOIN issues i ON i.date = d.date
-     ORDER BY 1`;
+     ORDER BY 1`);
   return rows.map((r) => ({ date: r.date, items: Number(r.items), issue: r.issue_no === null ? null : Number(r.issue_no) }));
 }

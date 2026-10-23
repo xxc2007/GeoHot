@@ -7,6 +7,7 @@ import { audit } from "@aihot/backend/admin/auth";
 import { setVisibility } from "@aihot/backend/admin/content";
 import { closeDb, sql } from "@aihot/backend/db";
 import { stopBoss } from "@aihot/backend/jobs/queue";
+import { lockRegistry } from "@aihot/backend/sources/registry";
 
 const ACTOR = "ops-script";
 const argv = process.argv.slice(2);
@@ -69,13 +70,15 @@ for (const r of await sql<{ kind: string; key: string; content: unknown }[]>`SEL
 }
 
 await sql.begin(async (tx) => {
+  await lockRegistry(tx);
+  await tx`SELECT id FROM sources WHERE id IN ${tx(ids)} ORDER BY id FOR UPDATE`;
   // `embeddings.ref_id` 没有外键（0006 建表时就是 (kind, ref_id, model) 主键），硬删条目会把向量留成孤儿：
   // 归组每判一次都要读这张表，孤儿行永远不会被命中，却永久占着体积。删条目就顺手删它自己的向量。
   await tx`DELETE FROM embeddings WHERE kind = 'article' AND ref_id IN ${tx(articleIds)}`;
   await tx`DELETE FROM articles WHERE source_id IN ${tx(ids)}`;
   await tx`DELETE FROM sources WHERE id IN ${tx(ids)}`;
+  for (const s of sources) await audit(ACTOR, "source.delete", `source:${s.id}`, reason, { name: s.name }, null, undefined, tx);
 });
-for (const s of sources) await audit(ACTOR, "source.delete", `source:${s.id}`, reason, { name: s.name }, null);
 console.log(`deleted ${sources.length} sources and ${articleIds.length} articles; withdrew ${selected.length} selected first; ${reports} report(s) no longer cite them`);
 await stopBoss();
 await closeDb();

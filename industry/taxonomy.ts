@@ -213,6 +213,10 @@ export const ENTITIES: Record<string, { name: string; displayTag: string | null;
   cma: { name: "中国气象局", displayTag: "中国气象局", aliases: ["中国气象局", "CMA", "中央气象台", "国家气象中心"] },
   noaa: { name: "NOAA", displayTag: "NOAA", aliases: ["NOAA", "美国国家海洋和大气管理局", "国家飓风中心", "NHC"] },
   nasa: { name: "NASA", displayTag: "NASA", aliases: ["NASA", "美国宇航局", "JPL", "Landsat"] },
+  // Publishing owners only: no new display tags or blanket ownership of gov.uk.
+  cemaden: { name: "巴西国家自然灾害监测和预警中心 CEMADEN", displayTag: null, aliases: ["CEMADEN", "巴西国家自然灾害监测和预警中心"] },
+  "uk-defra": { name: "英国环境食品与乡村事务部", displayTag: null, aliases: ["Defra", "Department for Environment, Food & Rural Affairs", "英国环境食品与乡村事务部"] },
+  "uk-environment-agency": { name: "英国环境署", displayTag: null, aliases: ["UK Environment Agency", "英国环境署"] },
   esa: { name: "欧洲空间局 ESA", displayTag: "欧空局", aliases: ["ESA", "欧空局", "欧洲空间局"] },
   copernicus: { name: "哥白尼计划", displayTag: "哥白尼计划", aliases: ["Copernicus", "哥白尼", "Sentinel", "哨兵卫星"] },
   jaxa: { name: "JAXA", displayTag: "JAXA", aliases: ["JAXA", "日本宇宙航空研究开发机构", "ALOS"] },
@@ -257,6 +261,9 @@ export const ENTITIES: Record<string, { name: string; displayTag: string | null;
  * 行业没有这个问题时可以留空数组。
  */
 export const IDENTITY_LEXICON: ReadonlyArray<{ id: string; name: string; patterns: RegExp[] }> = [
+  { id: "cemaden", name: "巴西国家自然灾害监测和预警中心 CEMADEN", patterns: [/\bcemaden\b|巴西国家自然灾害监测和预警中心/i] },
+  { id: "uk-defra", name: "英国环境食品与乡村事务部", patterns: [/\bdefra\b|\bDepartment for Environment, Food (?:&|and) Rural Affairs\b|英国环境食品与乡村事务部/i] },
+  { id: "uk-environment-agency", name: "英国环境署", patterns: [/\b(?:UK|British|England[’']s) Environment Agency\b|英国环境署/i] },
   { id: "unfpa", name: "联合国人口基金", patterns: [/\bunfpa\b|united nations population fund|联合国人口基金/i] },
   { id: "iom", name: "国际移民组织", patterns: [/\biom\b|international organization for migration|国际移民组织/i] },
   { id: "adb", name: "亚洲开发银行", patterns: [/\badb\b|asian development bank|亚洲开发银行/i] },

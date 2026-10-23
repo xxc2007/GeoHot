@@ -165,9 +165,18 @@ function benched(sick: Set<string>, name: string): boolean {
 }
 
 let health: { at: number; sick: Set<string> } | null = null;
+let healthInflight: Promise<Set<string>> | null = null;
 
 export async function sickServices(): Promise<Set<string>> {
   if (health && Date.now() - health.at < 60_000) return health.sick;
+  // 2026-10-22: 64 个 analyze 并发同时过期会让这条 6 小时窗口查询并发执行 64 次，
+  // 每次在 891MB/2 核的机器上跑 115 秒，把连接池和 IO 全部吃光。单飞后同一时刻只有一个在飞。
+  if (healthInflight) return healthInflight;
+  healthInflight = readSick().finally(() => { healthInflight = null; });
+  return healthInflight;
+}
+
+async function readSick(): Promise<Set<string>> {
   let sick = new Set<string>();
   try {
     // A paid answer can arrive but fail the caller's output gate. Discount only the explicitly
@@ -203,19 +212,36 @@ export async function sickServices(): Promise<Set<string>> {
     // wording of an *account* wall, and one walled member of a door must not bench its siblings. The six
     // newest attempts of the refusing member are all refusals within seconds of each other, so this still
     // fires for the member that is actually refusing.
+    //
+    // 2026-10-22：`Qoder CN: usage limit reached: Billing daily co…` 与 `您已达到免费用户的 API 速率限制`
+    // 是同一类墙的另外两种措辞，此前六个模式一个都不匹配，于是那扇门每分钟被派 6 次、连拒一整天。
+    // 加上这两条后它会被正常判定为「额度墙」而不是「故障」。
+    //
+    // 冷却期从「等那 6 条记录老出 6 小时窗口」改成**一小时**：额度墙是会自己开的（Qoder 的日额度按自然日
+    // 重置，WorkBuddy 的频率墙在十几分钟后自己松），把它按「故障」关 6 小时等于白扔一扇门一整天。
+    // 现在改成「最近一次拒绝还在 1 小时内 ⇒ 关着；超过 1 小时 ⇒ 放它再试」——试的代价是 6 次调用，
+    // 占满速时每小时约 700 次里的 6 次，换来的是额度一恢复就能立刻重新分担分片。
+    // `max(started_at)` 就是该成员最新一次尝试的时刻（ranked 只留最新 6 条），所以这一个比较就是冷却计时器。
     const refused = await sql<{ service: string; model: string | null }[]>`
       WITH ranked AS (
-        SELECT a.service, a.model, (a.status = 'failed' AND (a.error LIKE '%free-models-per-day%'
+        SELECT a.service, a.model, a.started_at, (a.status = 'failed' AND (
+             a.error LIKE '%free-models-per-day%'
           OR a.error LIKE '%insufficient_quota%' OR a.error LIKE '%exceeded your current quota%'
           OR a.error LIKE '%FreeTierError%' OR a.error LIKE '%今日文本额度已用完%'
-          OR a.error LIKE '%usage exceeds frequency limit%')) AS quota_refusal,
+          OR a.error LIKE '%usage exceeds frequency limit%'
+          OR a.error LIKE '%usage limit reached%'
+          OR a.error LIKE '%您的使用量已超出频率限制%'
+          OR a.error LIKE '%额度已用尽%'
+          OR a.error LIKE '%购买加量包%'
+          OR a.error LIKE '%API 速率限制%')) AS quota_refusal,
                row_number() OVER (PARTITION BY a.service, a.model ORDER BY a.started_at DESC, a.id DESC) AS newest
           FROM receipt_attempts a
          WHERE a.started_at > now() - interval '6 hours'
            AND a.origin = 'live' AND a.status IN ('received', 'failed', 'unknown')
       )
       SELECT service, model FROM ranked WHERE newest <= 6 GROUP BY service, model
-        HAVING count(*) = 6 AND count(*) FILTER (WHERE quota_refusal) = 6`;
+        HAVING count(*) = 6 AND count(*) FILTER (WHERE quota_refusal) = 6
+           AND max(started_at) > now() - interval '1 hour'`;
     for (const r of refused) sick.add(benchedKey(r.service, r.model));
   } catch {
     // Reading the ledger must never decide the request. If the rate rule could not run, no door is benched;
@@ -258,6 +284,7 @@ export function refusesThisStep(counts: { refused: number; accepted: number }): 
 }
 
 let stepRefusals: { at: number; pairs: Map<string, { refused: number; accepted: number }> } | null = null;
+let stepRefusalsInflight: Promise<Map<string, { refused: number; accepted: number }>> | null = null;
 
 /** The ledger read costs about a second on production (`receipts` is ~100k rows and the window is 17k of them),
  * so it is cached five minutes rather than the health rule's minute. That is not freshness lost: a day quota
@@ -269,6 +296,13 @@ const REGISTRY_SERVICES = [...new Set(Object.values(MODELS).map((m) => m.service
 /** Refused-versus-accepted counts for every (model, purpose) the ledger shows in the last 24 hours. */
 async function refusalPairs(): Promise<Map<string, { refused: number; accepted: number }>> {
   if (stepRefusals && Date.now() - stepRefusals.at < REFUSAL_CACHE_MS) return stepRefusals.pairs;
+  // 2026-10-22: 同上。这条 24 小时聚合扫 2543MB 的 receipts，64 并发同时打会把机器打穿。
+  if (stepRefusalsInflight) return stepRefusalsInflight;
+  stepRefusalsInflight = readRefusalPairs().finally(() => { stepRefusalsInflight = null; });
+  return stepRefusalsInflight;
+}
+
+async function readRefusalPairs(): Promise<Map<string, { refused: number; accepted: number }>> {
   const pairs = new Map<string, { refused: number; accepted: number }>();
   const refused = sql`status = 'failed' AND (error LIKE 'answer refused:%' OR error LIKE 'unusable output:%')`;
   try {

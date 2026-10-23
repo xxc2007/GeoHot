@@ -71,10 +71,9 @@ async function main() {
     FROM archive_ingest ai JOIN sources s ON s.id = ai.source_id
     WHERE ${archiveDoorFilter(sql`s`)}`;
 
-  // 吞吐：从**计费收据**数"近 12 小时真判了几篇"。`origin='live'` 排除测试与回填自检。
-  // 不产生账单的那一类（连不上、DNS 失败、被 429 挡回）用 `providers/receipts.ts` 的 `unbilledAttempt()`，
-  // 判据不在这里重抄。但两处数的不是同一张表，别说成"口径一致"：熔断器数 `receipt_attempts`（含重试），
-  // 这里数 `receipts`（真发出去一次的调用一行）——按篇算 ETA 要的是后者，它不能当预算用量读。
+  // 吞吐按近 12 小时发起且有已计费或可能计费尝试的逻辑收据估计；未知不表示已产出判断。
+  // `origin='live'` 排除回放与导入。费用判据仍来自 attempts，不能从 receipt 的执行状态推断。
+  // 这里按逻辑请求去重（可能重试多次），不能当预算使用次数读。
   // `arch_scored` 只认 join 得上 `articles` 的行：主体被删过的收据 left join 出来是 NULL，
   // 会算进 `scored` 而不算进 `arch_scored`。两个数之差就是"认不出条目的调用"，不是"没在判档案"。
   const [t] = await sql<{ prefiltered: number; scored: number; arch_scored: number; billed: number }[]>`
@@ -84,7 +83,7 @@ async function main() {
       FROM receipts r LEFT JOIN articles a ON a.id = ${subjectArticle(sql`r.subject`)}
       WHERE r.origin = 'live' AND r.service <> 'embedding' AND r.subject LIKE 'article:%'
         AND r.created_at > now() - interval '12 hours'
-        AND NOT ${unbilledAttempt()})
+        AND EXISTS (SELECT 1 FROM receipt_attempts WHERE receipt_id = r.id AND NOT ${unbilledAttempt()}))
     SELECT count(DISTINCT id) FILTER (WHERE purpose = 'prefilter_article')::int AS prefiltered,
            count(DISTINCT id) FILTER (WHERE purpose = 'score_article')::int AS scored,
            count(DISTINCT id) FILTER (WHERE purpose = 'score_article' AND is_archive)::int AS arch_scored,

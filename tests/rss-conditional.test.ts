@@ -12,22 +12,24 @@ import { buildApp } from '../apps/api/src/app.ts';
 
 const T = tag();
 let version = 1;
-/** The 150-entry listing's own ETag: bumping it answers 200 with the same bytes (a round that must read on). */
-let longVersion = 1;
+/** The long listing's bytes and validators stay fixed while the collector drains them. */
+const longVersion = 1;
+const longPublishedAt = Date.now();
 let broken = false;
 let redirectNew = false;
 const requests: Array<{ path: string; etag?: string; modified?: string }> = [];
 const modified = 'Mon, 28 Sep 2026 10:00:00 GMT';
-const server = http.createServer((req, res) => {
+const server = http.createServer(async (req, res) => {
   const path = req.url ?? '/';
   requests.push({ path, etag: req.headers['if-none-match'], modified: req.headers['if-modified-since'] });
+  if (path === '/slow.xml') await new Promise(resolve => setTimeout(resolve, 25));
   if (path === '/redirect') { res.writeHead(302, { location: redirectNew ? '/new.xml' : '/old.xml' }); res.end(); return; }
   // A listing longer than one round reads (60 head + 60 tail): 150 entries, unchanged when the ETag moves.
   if (path === '/long.xml') {
     const longEtag = `"L${longVersion}"`;
     if (req.headers['if-none-match'] === longEtag) { res.writeHead(304, { etag: longEtag, 'last-modified': modified }); res.end(); return; }
     const entries = Array.from({ length: 150 }, (_, i) =>
-      `<item><title>Long ${i} ${T}</title><link>https://example.org/rss-long-${T}/${i}</link><pubDate>${new Date(Date.now() - 1000 * i).toUTCString()}</pubDate></item>`).join('');
+      `<item><title>Long ${i} ${T}</title><link>https://example.org/rss-long-${T}/${i}</link><pubDate>${new Date(longPublishedAt - 1000 * i).toUTCString()}</pubDate></item>`).join('');
     res.writeHead(200, { 'content-type': 'application/rss+xml', etag: longEtag, 'last-modified': modified });
     res.end(`<rss version="2.0"><channel><title>Long feed</title>${entries}</channel></rss>`);
     return;
@@ -96,12 +98,8 @@ test('RSS first backfill, ordinary window, 304, revision and config edits preser
   assert.equal(requests.at(-1)!.etag, '"v2"');
 });
 
-test('a 304 round leaves the remembered listing tail where it was, so nothing below the head is lost', async () => {
-  // The invariant is "how many items this round stored decides what the source may remember reading"
-  // (collect.ts). A round that stored nothing because the feed did not change used to clear `listingTailAfter`
-  // — `takeListingRun([])` answers "there was nothing below the head" — so the next 200 restarted its tail at
-  // item 61 and a feed alternating 200/304 never reached item 121. Five sources carry that cursor in the
-  // development database today (GDACS, USGS, CENC, MWR, Public Domain Review), each with listings of 96-321.
+test('an unchanged RSS listing drains its pending tail before accepting conditional 304 responses', async () => {
+  // A stable ETag must not freeze the thirty entries below this round's 60 head + 60 tail.
   const id = `rss-long-tail-${T}`;
   await source(id, '/long.xml', false);
   const first = await collectSource(id);
@@ -111,19 +109,38 @@ test('a 304 round leaves the remembered listing tail where it was, so nothing be
   const saved = (await cursor(id)).listingTailAfter;
   assert.equal(typeof saved, 'string', 'the tail position is remembered (the listing key of item 120)');
   const third = await collectSource(id);
-  assert.deepEqual([third.status, third.found, third.created, third.dropped], ['ok', 0, 0, 0], 'an unchanged feed is a 304: nothing read, nothing stored');
-  const [run] = await sql`SELECT detail FROM fetch_runs WHERE source_id=${id} ORDER BY id DESC LIMIT 1`;
-  assert.deepEqual(run!.detail, { notModified: true, httpStatus: 304 });
-  assert.equal((await cursor(id)).listingTailAfter, saved, 'and the round that read nothing does not decide what was read');
-  longVersion = 2;
+  assert.deepEqual([third.status, third.found, third.created], ['ok', 150, 30], 'unchanged bytes still contain unread items 121–150');
+  assert.equal(requests.at(-1)!.etag, undefined, 'pending-tail recovery does not send an ETag');
+  assert.equal(requests.at(-1)!.modified, undefined, 'Last-Modified must not freeze the same tail either');
   const fourth = await collectSource(id);
-  assert.deepEqual([fourth.found, fourth.created], [150, 30], 'the next round goes on from item 121 instead of restarting at 61');
-  longVersion = 3;
+  assert.deepEqual([fourth.found, fourth.created], [150, 0], 'a final bounded read retires the covered cursor');
+  assert.equal((await cursor(id)).listingTailAfter, undefined);
   const fifth = await collectSource(id);
-  assert.deepEqual([fifth.found, fifth.created], [150, 0], 'the listing is covered: nothing new left to read');
-  assert.equal((await cursor(id)).listingTailAfter, undefined, 'and the position retires on its own once covered');
+  assert.deepEqual([fifth.found, fifth.created], [0, 0], 'normal conditional savings resume once the listing is covered');
+  assert.equal(requests.at(-1)!.etag, `"L${longVersion}"`);
   const [stored] = await sql`SELECT count(*)::int AS n FROM articles WHERE source_id=${id}`;
   assert.equal(stored!.n, 150, 'every entry of the listing reached the database, none silently skipped');
+});
+
+test('a zero-progress collection budget cannot acknowledge RSS bytes as fully stored', async () => {
+  const id = `rss-budget-tail-${T}`;
+  await source(id, '/slow.xml');
+  const previousBudget = process.env.COLLECT_ROUND_BUDGET_MS;
+  try {
+    process.env.COLLECT_ROUND_BUDGET_MS = '1';
+    const stopped = await collectSource(id);
+    assert.deepEqual([stopped.status, stopped.found, stopped.created], ['ok', 1, 0]);
+    assert.equal((await cursor(id)).listingTailAfter, undefined, 'no handled item exists to anchor a retry');
+    assert.equal((await cursor(id)).rss, undefined, 'unhandled bytes must not acquire a reusable validator');
+  } finally {
+    if (previousBudget === undefined) delete process.env.COLLECT_ROUND_BUDGET_MS;
+    else process.env.COLLECT_ROUND_BUDGET_MS = previousBudget;
+  }
+  const recovered = await collectSource(id);
+  assert.equal(recovered.created, 1, 'the next ordinary collection retries the same unchanged bytes');
+  assert.equal(requests.at(-1)!.etag, undefined);
+  assert.equal((await collectSource(id)).found, 0, 'a fully handled retry can use 304 again');
+  assert.equal(requests.at(-1)!.etag, '"shared"');
 });
 
 test('Last-Modified works without ETag and changing redirect targets cannot accept an unrelated 304', async () => {

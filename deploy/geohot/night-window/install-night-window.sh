@@ -27,7 +27,7 @@ stop_body() { cat <<'STOP'
 #   against a boot-time replay of the Persistent nightly opener. That hole is closed one level up,
 #   by `night_ok` inside `--start` (2026-10-18 22:1x adversarial BLOCKER: a 03:00 or 10:00 boot
 #   replays the missed 21:00 fire, FORCE-bypasses this guard, and can hold realtime off for the
-#   rest of the day -- bounded only by the 10-24 deadline, which is not a daytime bound).
+#   rest of the day -- bounded only by the 10-31 deadline, which is not a daytime bound).
 #  (2) refuse-and-revert if the valve/worker do not come back as intended, so a failed stop leaves the site ON.
 set -uo pipefail
 LOG=${R114_LOG:-/var/log/geohot-r114-window.log}

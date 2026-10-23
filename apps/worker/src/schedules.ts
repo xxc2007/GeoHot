@@ -39,7 +39,7 @@ export const SCHEDULES: Scheduled[] = [
   // Revisit minute-budget waits each minute; the single scan consumer keeps the 500-row/archive quota.
   { name: "content.sweep", cron: "* * * * *", run: sweepUnprocessed },
   // Full-text translations of newly selected items (model calls; off with MODEL_CALLS_ENABLED=false).
-  { name: "content.translate", cron: "*/5 * * * *", run: () => translatePending() },
+  { name: "content.translate", cron: "* * * * *", run: () => translatePending() },
   { name: "hot.rank", cron: "*/5 * * * *", run: () => computeHotRanking() },
   { name: "hot.snapshot", cron: "2 * * * *", run: () => snapshotHeat() },
   { name: "stories.status", cron: "7 * * * *", run: refreshStoryStatuses },

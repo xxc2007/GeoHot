@@ -1,6 +1,8 @@
 # /etc/systemd/system/geohot-worker.service
 # GEOHOT worker（pg-boss 队列消费者 + 全部定时任务）。
-# ★★ 必须单实例 ★★ —— 依据（代码实测）：
+# ★★ 调度 owner 必须单实例 ★★ —— 依据（代码实测）：
+# 可选 WORKER_ROLE=coordinator 配合一个本机 content-executor；详见 ../CONTENT-EXECUTOR.md。
+# 执行器不注册这里的 cron/source/media/notify，不能再启动一个默认 all 冒充执行器。
 #   1) 每个 cron 任务注册在独立队列上且 policy:"singleton"（apps/worker/src/schedules.ts:102），
 #      并用 boss.schedule(...) 以 tz:"Asia/Shanghai" 挂表（:103）；worker 启动时还会把不在
 #      SCHEDULES 表里的旧 cron 队列 unschedule 掉（:108-111）——两个 worker 会互相踩这张表。

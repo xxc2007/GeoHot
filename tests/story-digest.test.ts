@@ -41,8 +41,8 @@ const provider = await stub((_hit, req) => {
     usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20, ...(brain ? { brain: { capability: "digest", pass: 1, ...brain } } : {}) },
   };
 });
-process.env.DEEPSEEK_BASE_URL = `${provider.url}/v1`;
-process.env.DEEPSEEK_API_KEY = "test-key";
+process.env.LLM_BASE_URL = `${provider.url}/v1`;
+process.env.LLM_API_KEY = "test-key";
 process.env.DIGEST_MODEL = "deepseek-flash";
 
 let storyId = 0;

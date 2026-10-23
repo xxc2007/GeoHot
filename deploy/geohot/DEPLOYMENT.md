@@ -1,5 +1,7 @@
 # 部署记录：xxc2007.me/geohot/
 
+2026-10-19 新增可选的[服务器调度 / 本机内容执行角色](CONTENT-EXECUTOR.md)。默认 all 保持原行为；拆分需要受控交接，不是启动第二个完整 worker。
+
 2026-10-01 实装。这份记录写的是**实际做了什么、怎么验证的、哪一步曾经猜错**，
 不是计划。主站（南昌十五中纪念册）全程未被改动，每一步都有哈希可比。
 
@@ -329,3 +331,25 @@ cd /opt/geohot/app && sudo -u geohot bash deploy/geohot/verify-deploy.sh   # 必
 以 root 和 `--no-same-owner` 解包回滚应用时，归档中的 `.env` 即使仍为 0600，也可能归属 root，导致 geohot 进程无法读入并反复启动。回滚后、启动前明确恢复该已知配置文件为 geohot:geohot/0600，只检查归属和权限，不打印内容。先停止已启动的新版本 worker 并排空在途请求，再恢复源码；不要让内存中的新模块继续配合磁盘上的旧源码运行。
 
 发布后要求公网 health 返回目标 release、四单元 active、档案 timer active，完整 `verify-deploy.sh` 为 ALL CHECKS PASSED。若启动中曾有 502，保留原日志和真实窗口；只有后续稳定状态才列为上线验收。回滚或迁移备份含私有环境配置，只存放私有目录，不进入公开源码仓库。
+
+## 0068 费用归属迁移的切换边界
+
+`0068_receipt_attempt_billing.sql` 为每次尝试单独保存费用状态：小时/天额度只排除明确 `unbilled` 的行，未知、预留和已消费都占额度；执行失败或放行重试不再免掉旧尝试。缺预算行拒绝新发送。历史 failed/usage-NULL 先保守记 unknown，可能使近 24 小时的使用数上升；不要自动调大上限来绕开它。
+
+迁移只新增常量默认 `unknown` 的非空列，并建立 `NOT VALID` 的检查约束，不执行历史全表 UPDATE 或立即验证扫描；新写入和更新仍受检查约束保护。历史 unknown 与 reserved/billed 对预算完全同义，均占额度，费用安全不依赖精细标签回填。停旧付费调度、暂停档案导入并排空在途请求后，以短 `lock_timeout` 运行正常迁移并登记 `schema_migrations`；等锁失败应退出，在下一安全窗口重试，不能无限等锁或跳过登记。
+
+可在后续低负载维护窗口单独 `ALTER TABLE receipt_attempts VALIDATE CONSTRAINT receipt_attempts_billing_status_check`。若要完善历史标签，必须另审有界主键批次脚本，仅把仍为 unknown 的 received/正费用行记为 billed、pending 行记为 reserved，保留任何已有明确决定；不能把无法证明免费的行改为 unbilled。该可选工作不阻塞预算安全和工作流恢复。
+
+新列默认 unknown 能使旧 writer 漏填时保守计数，但旧二进制的预算谓词仍有 failed/usage-NULL 漏计，**不能让旧、新付费调用进程混跑**。完成迁移后统一更新 API、worker、archive/backfill runner 和手动长驻脚本，核验所有费用读点使用新列，再恢复调度。回滚可保留增量列，但恢复旧源码时须保持付费调用停止，直到安全预算检查重新就位。部署成功需另外完成线上验收，本机测试通过不等于已上线。
+
+`0069_timeline_anchor_covering.sql` 为首页全历史分组提供窄覆盖索引，保留原聚合、日计数和下一发布时间的同次读取。它与 `queryGroupedAnchors` 的局部 custom plan 配套：通用计划不能从参数化中文正则推断固定中文部分索引。索引不包含无界标题或正文；旧索引保留，回滚源码时也可保留新增索引。
+
+与 0068 元数据变更不同，0069 的普通 `CREATE INDEX` 会扫描 `publications`、写索引/WAL，并在事务内阻止并发写入。仅在付费调度和档案写入已暂停、在途操作已排空、资源门禁允许的维护窗口，以短 `lock_timeout` 和有界 `statement_timeout` 运行正常迁移；失败须回滚后另选窗口，不能假登记成功。不要在这里私自换成事务中不能执行的 `CONCURRENTLY`。上线后核验索引 valid/ready、实际参数 custom plan 及一轮受限缓冲区/首页时序；可见性映射未覆盖的脏页仍会访问 heap，本机 index-only 结果不保证生产零 heap fetch。不能以延长缓存、截断历史或跳过撤稿复核替代验收。
+
+历史翻译可显式设置 `GEOHOT_TRANSLATE_FROM=YYYY-MM-DD`，按北京时间当天零点同时圈定正文发现／当前修订与引用父条目的发现范围。非法日期拒绝该轮，不能悄悄退回短窗口。未配置或空值时维持正文最近 30 天、引用最近 3 天，可分别用 `GEOHOT_TRANSLATE_WINDOW_DAYS` / `GEOHOT_TRANSLATE_QUOTE_WINDOW_DAYS` 调整。范围依据发现／修订时间，不是论文发表日；设置前先对账实际最早待译时间。
+
+`content.translate` 仍由唯一 coordinator 执行。正文按 fresh/short 去重交错补足，显式历史模式给最老待译条目首个正文机会；引用每轮先获得一个共享工作槽中的机会，最多一次可能付费的模型派发，正文和引用合计不超过既有 `GEOHOT_TRANSLATE_CONCURRENCY`（默认 3）。不增加模型账号、预算或第二套定时器。Busy/Unknown 回执只延期，不消耗文章翻译尝试、不另拆片购买，也不由翻译器释放；正常故障重试上限、修订和来源译文保护维持。
+
+本补丁不解决超过 60,000 字符的原文尾部，也未把引用进程内失败次数改成持久账本。验收须分别报告 complete、partial、attempts 已满、receipt 等待、范围外与合法排除，不能用当前范围 pending=0 声称全部历史翻译完毕。先排空旧 coordinator，再以相同模型池和原并发启新版本；观察正文完整结果、引用净完成、回执与读者健康后再判断进展。
+
+保留生产已有的单次调用协作停止：`TranslationControl.signal/deadlineAt` 逐层传给正文、折半、缺块重试与引用。`translatePending` 对每轮另设不超过开始后 50 分钟的批次停止边界，给一小时 cron claim 留出当前付费请求落库时间；普通 `budgetMs` 仍只停止领取新文章，不把长正文强行截成重复轮次。到期／signal 只阻止下一批发送，不传给 provider HTTP 的 AbortSignal，也不阻止已发出的答复、回执及可完成的译文落库。所有工作槽排空后本轮才返回；中断不消耗翻译尝试次数。

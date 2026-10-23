@@ -43,8 +43,8 @@ const provider = await stub(() => ({
   choices: [{ message: { content: JSON.stringify({ title: "测试导语", leadParagraph: "测试本期摘要。".repeat(20), highlights: [1], headline: "测试期次", overview: "测试本期摘要。".repeat(20), themes: [{ heading: "学科", summary: "测试主题提要", refs: [1] }] }) } }],
   usage: { prompt_tokens: 20, completion_tokens: 20, total_tokens: 40 },
 }));
-process.env.DEEPSEEK_BASE_URL = `${provider.url}/v1`;
-process.env.DEEPSEEK_API_KEY = "test-key";
+process.env.LLM_BASE_URL = `${provider.url}/v1`;
+process.env.LLM_API_KEY = "test-key";
 process.env.REPORT_MODEL = "deepseek-flash";
 
 interface Seeded {

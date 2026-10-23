@@ -200,17 +200,35 @@ export async function registerContentJobs(boss: PgBoss, concurrency = ANALYZE_CO
  * Body extraction before analysis. Failures are retried a few times; after that the article is judged
  * on the excerpt it has ("unconfirmed" body, never a wrong one).
  */
-export async function registerExtractionJobs(boss: PgBoss) {
+export async function registerExtractionJobs(boss: PgBoss, concurrency = positiveInt(process.env.EXTRACT_CONCURRENCY, "EXTRACT_CONCURRENCY", 4)) {
   await ensureQueue(QUEUES.extractBody);
-  await boss.work<{ articleId: string }>(QUEUES.extractBody, { localConcurrency: 4, pollingIntervalSeconds: 2 }, async ([job]) => {
+  await boss.work<{ articleId: string }>(QUEUES.extractBody, { localConcurrency: concurrency, pollingIntervalSeconds: 2 }, async ([job]) => {
     if (!job) return;
     const { articleId } = job.data;
     try {
+      if (shutdownSignal.signal.aborted) throw new AnalysisInterruptedError("worker shutting down before extraction");
       const state = await extractArticleBody(articleId);
       await queueProcessing(articleId, { step: "analyze" });
       return { state };
     } catch (error) {
+      if (shutdownSignal.signal.aborted || error instanceof AnalysisInterruptedError) throw error;
       const message = String(error instanceof Error ? error.message : error).slice(0, 500);
+      if (error instanceof BudgetExceededError || error instanceof ReceiptBusyError) {
+        const seconds = error instanceof BudgetExceededError ? error.retryAfterSeconds : 60;
+        await sql`UPDATE articles SET processing_state = 'new', processing_error = ${`extract: ${message}`},
+          processing_queued_at = NULL, processing_retry_at = ${new Date(Date.now() + seconds * 1000)}, updated_at = now() WHERE id = ${articleId}`;
+        return { state: "waiting" };
+      }
+      // paidRequest throws the original transport error on the first unknown outcome. Only a
+      // subsequent replay throws ReceiptUnknownError; both must wait for the same recovery action.
+      const unknown = error instanceof ReceiptUnknownError ? error.receiptId : (await sql<{ id: number }[]>`
+        SELECT id FROM receipts WHERE subject = ${`article:${articleId}`} AND status = 'unknown'
+          AND purpose IN ('body_fallback', 'x_article') ORDER BY id DESC LIMIT 1`)[0]?.id;
+      if (unknown !== undefined) {
+        await sql`UPDATE articles SET processing_state = 'failed', processing_error = ${`extract: receipt ${unknown} outcome unknown`},
+          processing_queued_at = NULL, updated_at = now() WHERE id = ${articleId}`;
+        return { state: "unknown-receipt" };
+      }
       const [a] = await sql<{ processing_attempts: number }[]>`
         UPDATE articles SET processing_attempts = processing_attempts + 1, processing_error = ${`extract: ${message}`},
           processing_queued_at = NULL, processing_retry_at = now() + interval '10 minutes'

@@ -11,6 +11,11 @@ import { onlyXArticleLink, xArticleText } from "../sources/x.ts";
 import { sanitizeBody, stripChromeHtml, trimTrailingChrome } from "./sanitize.ts";
 import { markdownBody } from "./markdown.ts";
 import { contentHash } from "./materials.ts";
+import { shutdownSignal } from "../jobs/queue.ts";
+
+function checkExtractionRunning(): void {
+  if (shutdownSignal.signal.aborted) throw new Error("worker shutting down between extraction stages");
+}
 
 export interface ExtractedBody {
   html: string;
@@ -52,6 +57,7 @@ export function readable(html: string, url: string): ExtractedBody | null {
 }
 
 export async function extractFromUrl(url: string, opts: { allowJina: boolean; subject: string }): Promise<ExtractedBody | null> {
+  checkExtractionRunning();
   try {
     const res = await guardedFetch(url, { timeoutMs: 20_000, maxBytes: 6 * 1024 * 1024 });
     const type = res.headers.get("content-type") ?? "";
@@ -63,6 +69,7 @@ export async function extractFromUrl(url: string, opts: { allowJina: boolean; su
     // fall through to Jina
   }
   if (!opts.allowJina) return null;
+  checkExtractionRunning();
   try {
     const page = await jinaRead(url, { purpose: "body_fallback", subject: opts.subject });
     // A real Markdown parser, not the four-regex approximation this used to be (upstream 3e36e48):
@@ -79,7 +86,7 @@ export async function extractFromUrl(url: string, opts: { allowJina: boolean; su
     // 额度满了不是「这页没有正文」。原先这里 `if (error instanceof BudgetExceededError) return null`，
     // 而 null 在 `extractArticleBody` 那条路上就是 `body_status='unconfirmed'`——一次 jina 的 5 次/分钟
     // 窗口就能把当天所有等兜底的页面永久判成无正文（`waitsForPage` 只等 'pending'，再也不会回头看它们）。
-    // 抛出去：`jobs/content.ts` 的 `afterFailure` 认得这个错，会按 retry 窗口排回去而不消耗条目的重试次数。
+    // 抛出去：`jobs/content.ts` 的抽取 handler 会按 retry 窗口排回去而不消耗条目的重试次数。
     throw error;
   }
 }
@@ -129,6 +136,7 @@ export async function extractArticleBody(articleId: string, allowJina = process.
  * the judging steps are told the article was not fetched.
  */
 async function extractXArticle(articleId: string, tweetId: string): Promise<"ok" | "unconfirmed"> {
+  checkExtractionRunning();
   const found = await getArticle(tweetId, { purpose: "x_article", subject: `article:${articleId}` });
   const got = found ? xArticleText(found) : null;
   if (!got) {

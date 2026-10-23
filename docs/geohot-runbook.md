@@ -14,7 +14,9 @@ tail -1 /var/log/geohot-r115-readergate.log                       # 闸门：IDL
 ```
 
 **窗口的五条收口**（哨兵每 10 分钟判一次，任一命中就 `RESTORE`）：排空（`left ≤ 0`）／本站 5xx／`avail < 60 MB` 连续 3 拍／
-3 小时零判完／3 轮读不到量具；外加死期限 `10-24 06:00`。`MAX_WINDOW_SEC=0` 表示**不按时间收口**（单窗上限这条不参与）。
+3 小时零判完／3 轮读不到量具；外加死期限 `10-31 06:00`（10-19 01:4x 三次改判：重开后 110 分钟合计只净减 51 条（−28/时）、近 80 分钟 −36/时；
+30 分钟的 −98 只是判定爆发，01:40 又被 +23 的进口打回。两段模型：119 片按 1.58 片/时约 75 小时扫完 → 之后 ≈−116/时，合计 ≈14,400 需 ≈124 小时 ⇒ 10-27 夜；
+翻译尾 1,541 条按 24～43/时再 1.5～2.7 天 ⇒ 10-29～10-30，10-31 兜底）。`MAX_WINDOW_SEC=0` 表示**不按时间收口**（单窗上限这条不参与）。
 
 **三条回滚/救急命令**（都在机上）：
 ```bash
@@ -28,6 +30,29 @@ cp -p /etc/nginx/sites-available/xxc2007.me.bak-bots-20261018-232234 \
 **读进度只数三格**（别自己重算）：哨兵那行的 `判完30min=全部X/档案Y`（`Y>0` 才是档案带接手了）、
 `待判 / 待翻 / 未扫片` 三格、以及 `starve_streak=N/36`（连续 6 小时档案带零判完会打 `STARVE-ALERT`，那是份额问题，解药是 `--promote`）。
 **窗口开着时不要在机上打任何大表扫描**——`deploy/geohot/gated-probe.sh` 现在会拒绝含 `pgboss.job` 的载荷（阀门 false 时），这是 10-18 23:04 那次自伤的教训。
+
+**先确认判定腿真的有消费者，再看它跑得多快**（2026-10-20 23:0x 实测事故）：`/etc/systemd/system/geohot-worker.service.d/80-content-executor.conf`
+从 10-19 17:58 起把服务器 worker 定成 `WORKER_ROLE=coordinator`，而 `coordinator` 这个角色**不注册** `content.analyze` / `content.extract-body`
+（见 `packages/backend/src/jobs/worker-role.ts` 与 `deploy/geohot/CONTENT-EXECUTOR.md`：那两个队列原本归工作站上的 `content-executor` 领）。
+PC 端那个执行器停了之后，16,827 个待判作业**没有任何消费者**，而日志与闸门一切正常、读者面也一切正常——看起来就是“回填卡住了”。
+一条命令认出它：
+
+```bash
+systemctl show geohot-worker -p Environment | tr ' ' '\n' | grep WORKER_ROLE   # 有 coordinator 就是这一种
+```
+
+解药是把那份 drop-in 移走再 `daemon-reload && systemctl restart geohot-worker`（移走而不是删，它同时带着 `DATABASE_POOL_MAX=3` / `PGBOSS_POOL_MAX=2`）：
+
+```bash
+sudo mv /etc/systemd/system/geohot-worker.service.d/80-content-executor.conf \
+        /opt/geohot/backups/80-content-executor.conf.disabled-$(date +%Y%m%d-%H%M%S)
+sudo systemctl daemon-reload && sudo systemctl restart geohot-worker
+journalctl -u geohot-worker -n 1 --no-pager    # 要看到 "role":"all"
+```
+
+想回切受控拆分就把那份文件放回去、`daemon-reload`、重启，**并且**先把 PC 执行器开起来，否则又是零消费者。
+判据不是“有没有报错”，而是 `pgboss.job` 里 `content.analyze` 的 `state='active'` 是否等于 `ANALYZE_CONCURRENCY`。
+
 
 
 约定的启动方式（下文所有命令都假设这四样在跑）：

@@ -23,8 +23,8 @@ const provider = await stub(async (_hit, req) => {
   if (segments.some((s) => s.includes("Poison"))) return reply("这一次模型没有交回 JSON");
   return reply(JSON.stringify({ t: segments.map((s) => (s.includes("Alpha") ? "阿尔法库水位读数已译。" : s.includes("Bravo") ? "布拉沃站流量已译。" : "译文")) }));
 });
-process.env.DEEPSEEK_BASE_URL = `${provider.url}/v1`;
-process.env.DEEPSEEK_API_KEY = "test-key";
+process.env.LLM_BASE_URL = `${provider.url}/v1`;
+process.env.LLM_API_KEY = "test-key";
 const app = await buildApp();
 
 before(async () => {
