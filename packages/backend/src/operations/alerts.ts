@@ -220,6 +220,11 @@ const PROVIDERS: Record<string, { name: string; stops: string; where: string }> 
     stops: MODEL_STOPS,
     where: "WorkBuddy 中国版桌面端与它 3066 端口上的桥（凭据变量名与国际版是同一个 WORKBUDDY_CREDENTIAL_JSON，中国版那份由单元的第二个 EnvironmentFile /opt/geohot/workbuddy-cn.env 提供；只写进 .env 会被国际版那行盖回去）",
   },
+  "workbuddy-ai": {
+    name: "WorkBuddy 国际站渠道",
+    stops: MODEL_STOPS,
+    where: "WorkBuddy 国际版客户端与当前配置的本机桥；检查该渠道的会话和凭据状态",
+  },
   // Qoder CN is the operator's own subscription, reached through the `maggie` gateway on the workstation
   // over a reverse tunnel. The console it points at is not a vendor dashboard: it is the Qoder CN account
   // itself, and the thing to look at is the 5-hour usage window, not a balance.

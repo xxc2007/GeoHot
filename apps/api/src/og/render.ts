@@ -7,6 +7,7 @@ import satori from "satori";
 import sharp from "sharp";
 import { SITE } from "@aihot/industry/site";
 import { config, REPO_ROOT } from "@aihot/backend/config";
+import { ogRenderCapacity } from "./capacity.ts";
 
 export const OG_TEMPLATE_VERSION = "og-2026-09-30.1";
 const WIDTH = 1200;
@@ -132,6 +133,7 @@ async function render(card: OgCard, etag: string): Promise<{ png: Buffer; etag: 
   } catch {
     // not cached yet
   }
+  return ogRenderCapacity.run(async () => {
   const svg = await satori(await tree(card) as never, { width: WIDTH, height: HEIGHT, fonts: await fonts() });
   const png = await sharp(Buffer.from(svg)).png(OG_PNG).toBuffer();
   await mkdir(CACHE_DIR, { recursive: true });
@@ -139,4 +141,5 @@ async function render(card: OgCard, etag: string): Promise<{ png: Buffer; etag: 
   await writeFile(tmp, png);
   await rename(tmp, file);
   return { png, etag };
+  });
 }

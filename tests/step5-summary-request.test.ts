@@ -48,14 +48,14 @@ test("both Step doors preserve production summary caps and legacy receipt protec
     invalidateModelCache();
     for (const model of ["workbuddy-step5-preview", "workbuddy-cn-step5-preview"]) {
       const otherDoor = model === "workbuddy-step5-preview" ? "workbuddy-cn-step5-preview" : "workbuddy-step5-preview";
-      await t.test(`${model}: new summary uses 15360 (2048 + 13312); other purposes retain 4000 headroom and the hard cap`, async () => {
+      await t.test(`${model}: new summary preserves 34048 (2048 + 32000); other purposes retain 16000 headroom and the hard cap`, async () => {
         await chatJson(opts(model, "new"));
-        assert.equal(bodies.at(-1)!.max_tokens, 15360);
-        assert.equal(bodies.at(-1)!.reasoning_effort, "high");
+        assert.equal(bodies.at(-1)!.max_tokens, 34048);
+        assert.equal(bodies.at(-1)!.reasoning_effort, "max");
         for (const purpose of ["score_article", "understand_article", "translate_body"]) {
           await chatJson({ ...opts(model, purpose), purpose });
-          assert.equal(bodies.at(-1)!.max_tokens, 6048);
-          assert.equal(bodies.at(-1)!.reasoning_effort, "high");
+          assert.equal(bodies.at(-1)!.max_tokens, 18_048);
+          assert.equal(bodies.at(-1)!.reasoning_effort, "max");
         }
         await chatJson({ ...opts(model, "cap"), maxTokens: 100_000 });
         assert.equal(bodies.at(-1)!.max_tokens, 65_536);
@@ -80,7 +80,7 @@ test("both Step doors preserve production summary caps and legacy receipt protec
         const id = await legacy(model, "failed", "failed"), hits = provider.hits();
         const result = await chatJson(opts(model, "failed"));
         assert.notEqual(result.receiptId, id); assert.equal(provider.hits(), hits + 1);
-        assert.equal(bodies.at(-1)!.max_tokens, 15360);
+        assert.equal(bodies.at(-1)!.max_tokens, 34048);
         assert.equal((await sql`SELECT attempts FROM receipts WHERE id=${id}`)[0]!.attempts, 1);
       });
     }

@@ -3,7 +3,7 @@ import { Form, Link, useSearchParams } from "react-router";
 import type { Route } from "./+types/audit";
 import { adminGet } from "../../lib/admin.server";
 import { bj } from "../../features/admin/format";
-import { AdminPage, Card, DataTable, Input, Json, Pager } from "../../features/admin/ui";
+import { AdminPage, Button, Card, DataTable, Input, Json, Pager } from "../../features/admin/ui";
 
 interface Row {
   id: number;
@@ -37,6 +37,7 @@ export default function Audit({ loaderData }: Route.ComponentProps) {
       <Form method="get" className="mb-4 flex max-w-xl gap-2">
         <Input name="action" defaultValue={sp.get("action") ?? ""} placeholder="操作前缀，例如 content. 或 source." aria-label="按操作筛选" />
         <Input name="subject" defaultValue={sp.get("subject") ?? ""} placeholder="对象，例如 source:openai-blog" aria-label="按对象筛选" />
+        <Button type="submit" tone="primary">筛选</Button>
       </Form>
       <Card pad={false}>
         <DataTable

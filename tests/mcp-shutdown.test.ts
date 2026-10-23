@@ -8,7 +8,9 @@ test("closing the API drains a live MCP subscription before closing HTTP", { tim
   const app = Fastify();
   registerMcp(app);
   const address = await app.listen({ host: "127.0.0.1", port: 0 });
+  const exchange = new AbortController();
   const response = await fetch(`${address}/api/mcp`, {
+    signal: exchange.signal,
     method: "POST",
     headers: { "content-type": "application/json", accept: "application/json, text/event-stream", "mcp-protocol-version": "2026-07-28", "mcp-method": "subscriptions/listen" },
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "subscriptions/listen", params: {
@@ -25,6 +27,7 @@ test("closing the API drains a live MCP subscription before closing HTTP", { tim
     await app.close();
     while (!(await reader.read()).done) { /* consume the SDK's graceful-close result */ }
   } finally {
+    exchange.abort();
     app.server.closeAllConnections();
     await app.close();
   }

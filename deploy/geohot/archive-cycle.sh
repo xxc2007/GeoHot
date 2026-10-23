@@ -56,15 +56,20 @@ WRITE_ARGS=()
 if [[ "$APPLY" == 1 ]]; then WRITE_ARGS=(--apply --database-url-env=DATABASE_URL); fi
 printf 'archive-cycle: range=%s..%s apply=%s final-refresh=%s ledger=%s\n' "$FROM" "$TO" "$APPLY" "$FINAL_REFRESH" "$RUN_DIR"
 DEADLINE=$(( $(date +%s) + 2400 ))
+STOP_REQUESTED=0
+# A managed stop drains the current Node phase; never start another collection or paper phase.
+trap 'STOP_REQUESTED=1' TERM INT
 
 run_phase() {
   local name="$1"; shift
+  if (( STOP_REQUESTED )) && [[ "$name" != status-after ]]; then return 143; fi
   printf 'archive-cycle: phase=%s started\n' "$name"
   local result=0
   local remaining=$(( DEADLINE - $(date +%s) ))
   # Reserve the final minute for the observation snapshot, within the 40-minute cycle.
   if [[ "$name" != status-after ]]; then remaining=$((remaining - 60)); fi
   local seconds="$PHASE_SECONDS"
+  if (( STOP_REQUESTED )) && [[ "$name" == status-after ]] && (( seconds > 15 )); then seconds=15; fi
   (( remaining < seconds )) && seconds=$remaining
   if (( seconds <= 0 )); then
     result=124
@@ -77,7 +82,7 @@ run_phase() {
     # 代价是**这一次已经付过钱的回答被扔掉**：于是同一个日期一轮一轮地重蹈，直到某次调用整个落在窗口里才出刊。
     # 2026-10-13 实测：papers 连续 14 轮全部 exit=124；daily 02-28 与 03-13 各这样连报七轮才排出来。
     # 第二次 unknown（自动放行之后又断一次的）才真的留给人工判。
-    GEOHOT_PHASE_SECONDS="$seconds" timeout --signal=TERM --kill-after=30s "${seconds}s" "$NODE" "${NODE_ARGS[@]}" "$@" >"$RUN_DIR/$name.log" 2>&1 || result=$?
+    GEOHOT_PHASE_SECONDS="$seconds" timeout --signal=TERM --kill-after=255s "${seconds}s" "$NODE" "${NODE_ARGS[@]}" "$@" >"$RUN_DIR/$name.log" 2>&1 || result=$?
   fi
   printf '%s\t%s\n' "$name" "$result" >>"$RUN_DIR/exits.tsv"
   printf 'archive-cycle: phase=%s exit=%s\n' "$name" "$result"
@@ -125,7 +130,9 @@ try {
     months.push(month);
     if (++m > 12) { m = 1; y++; }
   }
-  const eligible = sources.filter(x => !only.size || only.has(x.id)).flatMap(x => months
+  const matchedSources = sources.filter(x => !only.size || only.has(x.id));
+  if (!matchedSources.length) throw new Error('No matching archive sources; check enabled doors and source filter');
+  const eligible = matchedSources.flatMap(x => months
     .filter(month => month >= current || !done.has(`${x.id}|${month}`))
     .map(month => ({ source: x.id, month })));
   let cursor = 0;
@@ -136,7 +143,7 @@ try {
   const selected = Array.from({length:count},(_,i) => eligible[(start+i) % eligible.length]);
   const quota = count ? Math.floor(Number(maxItems)/count) : 0;
   const next = eligible.length ? (start+count) % eligible.length : 0;
-  writeFileSync(`${runDir}/slices.json`,JSON.stringify({eligible:eligible.length,start,next,quota,selected},null,2)+'\n');
+  writeFileSync(`${runDir}/slices.json`,JSON.stringify({eligible:eligible.length,completed:eligible.length === 0,start,next,quota,selected},null,2)+'\n');
   writeFileSync(`${runDir}/slices.tsv`,selected.map(x => `${x.source}\t${x.month}\t${quota}`).join('\n')+(count?'\n':''));
   writeFileSync(`${stateDir}/next-slice.tmp`,`${next}\n`);
   renameSync(`${stateDir}/next-slice.tmp`,`${stateDir}/next-slice`);
@@ -144,14 +151,17 @@ try {
 NODE
 )
 if run_phase select-slices --input-type=module -e "$SELECTOR" "$FROM" "$TO" "$RUN_DIR" "$STATE_DIR" "$SLICES" "$MAX_ITEMS" "${GEOHOT_ARCHIVE_SOURCE:-}"; then
-  # 空选择不等于"今天没活干"。eligible=0 只有两种来路：包里带档案门的信源一条都不剩（`config.issn` 丢了），
-  # 或 `GEOHOT_ARCHIVE_SOURCE` 打错了字。两种都该叫出来，而不是让采集阶段一个都不跑、整轮 exit 0——
-  # 单独跑 `scripts/backfill-archive.ts` 遇到"没有任何带门的信源"就是 exit 1，这一轮不能比它更宽容。
+  # The selector refuses missing doors or a mismatched filter. An empty valid selection means
+  # all historical slices are done; paper refresh and news collection may still have work.
   if [[ ! -s "$RUN_DIR/slices.tsv" ]]; then
+    if grep -q '"completed": true' "$RUN_DIR/slices.json"; then
+      printf 'archive-cycle: historical archive slices complete; no collection needed\n'
+    else
     eligible_now=$(sed -n 's/.*"eligible":[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$RUN_DIR/slices.json" 2>/dev/null | head -1)
     printf 'archive-cycle: select-slices 选出 0 片（eligible=%s）——采集没有可跑的信源，按失败处理\n' "${eligible_now:-未知}" >&2
     printf 'collect-none\t1\n' >>"$RUN_DIR/exits.tsv"
     CYCLE_RESULT=1
+    fi
   fi
   slice_no=0
   while IFS=$'\t' read -r source month quota; do

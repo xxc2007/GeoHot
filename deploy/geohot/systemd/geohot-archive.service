@@ -19,7 +19,7 @@ Environment=FINAL_REFRESH=0
 EnvironmentFile=-/etc/geohot/archive-cycle.conf
 ExecStart=/bin/bash /opt/geohot/app/deploy/geohot/archive-cycle.sh
 TimeoutStartSec=45min
-TimeoutStopSec=45s
+TimeoutStopSec=285s
 KillMode=control-group
 MemoryMax=320M
 MemorySwapMax=256M

@@ -13,22 +13,23 @@
 import * as cheerio from "cheerio";
 import type { AnyNode, Element } from "domhandler";
 import { z } from "zod";
+import postgres from "postgres";
 import { bodyIsChinese, hasChineseCopy } from "@aihot/contracts/copy";
 import { sql } from "../db.ts";
 import { sanitizeBody, textToHtml } from "../content/sanitize.ts";
 import { chatJson } from "../providers/llm.ts";
 import { collapseWhitespace } from "../lib/text.ts";
-import { sha256 } from "../lib/ids.ts";
 import { modelFor } from "./models.ts";
 import { looksZh } from "./writing.ts";
 import { shutdownSignal } from "../jobs/queue.ts";
 import { promptText, promptVersion } from "./prompts.ts";
 import { ReceiptBusyError, ReceiptUnknownError } from "../providers/receipts.ts";
 import { fairTranslationOrder, translationScope, translateWindowDays as windowDays, type TranslationRank } from "./translation-scheduling.ts";
+import { translationSelectorRead } from "./translation-selector.ts";
 
 export const TRANSLATE_PROMPT_VERSION = promptVersion("translate-body", "translate-post");
 const BATCH_CHARS = 3500;
-/** Longer bodies get their first part translated and are marked incomplete. */
+/** Receipt compatibility boundary: never repack the prefix purchased by older workers. */
 const MAX_CHARS = 60_000;
 /** X posts shorter than this carry their meaning in the Chinese title and summary. */
 const X_MIN_CHARS = 60;
@@ -84,7 +85,7 @@ function segmentsOf($: cheerio.CheerioAPI): Element[] {
   return out;
 }
 
-async function translateBatch(articleId: string, revision: number, index: number, parts: string[], system: string, attemptTag?: string, control: TranslationControl = {}): Promise<string[] | null> {
+async function translateBatch(articleId: string, revision: number, index: number | string, parts: string[], system: string, attemptTag?: string, control: TranslationControl = {}): Promise<string[] | null> {
   checkTranslation(control);
   // One article, one translator: the shard key is the article id, not the batch index, or a long body
   // would be rendered in several prose styles stitched together.
@@ -120,8 +121,18 @@ function receiptDeferred(error: unknown): boolean {
   return error instanceof ReceiptBusyError || error instanceof ReceiptUnknownError;
 }
 
+/** SQL/refused connections are infrastructure failures, never evidence of an unusable translation. */
+function databaseFailure(error: unknown): boolean {
+  if (error instanceof postgres.PostgresError) return true;
+  if (!error || typeof error !== "object") return false;
+  // postgres.js decorates query/transport errors with these own, non-enumerable fields.
+  // Inspect only their presence: SQL and parameters may contain private source/receipt content.
+  if (Object.hasOwn(error, "query") && Object.hasOwn(error, "parameters")) return true;
+  return ["CONNECTION_CLOSED", "CONNECTION_ENDED", "CONNECTION_DESTROYED", "CONNECT_TIMEOUT"].includes((error as { code?: string }).code ?? "");
+}
+
 /** Translates batches; a batch whose answer does not line up is halved once, and a half that answers is kept. */
-async function translateAll(articleId: string, revision: number, parts: string[], system: string, attemptTag?: string, control: TranslationControl = {}): Promise<{ answers: Array<string | null>; errors: string[] }> {
+async function translateAll(articleId: string, revision: number, parts: string[], system: string, attemptTag?: string, control: TranslationControl = {}, space?: string): Promise<{ answers: Array<string | null>; errors: string[] }> {
   const out: Array<string | null> = new Array(parts.length).fill(null);
   const errors: string[] = [];
   // 一批"报错"不等于整篇作废。2026-10-16 实测 12 小时 116 次 translate_body 调用：<180 s 的 107 次全部
@@ -130,8 +141,8 @@ async function translateAll(articleId: string, revision: number, parts: string[]
   // 还要占掉 translation_attempts 三次机会里的一次。长正文批次多，被钉死的全是长正文（p50 20,136 字，
   // 而翻成功的那批只有 3,135 字）。现在按"这块没翻出来"处理：折半、缺块单问，其余照旧入库。
   const ask = (batch: string[], index: number): Promise<string[] | null> =>
-    translateBatch(articleId, revision, index, batch, system, attemptTag, control).catch((error: unknown) => {
-      if (stopsTheRun(error) || receiptDeferred(error)) throw error;
+    translateBatch(articleId, revision, space === undefined ? index : `${space}:${index}`, batch, system, attemptTag, control).catch((error: unknown) => {
+      if (databaseFailure(error) || stopsTheRun(error) || receiptDeferred(error)) throw error;
       errors.push((error as Error).message);
       return null;
     });
@@ -260,10 +271,89 @@ export function polishZh(html: string): string {
   return $.html();
 }
 
+/** New work only: retain the original DOM and translate bounded text-node partitions. */
+async function translateOversized(block: Element, articleId: string, revision: number, ordinal: number, control: TranslationControl, namespace = "long-v1") {
+  const system = namespace === "nhc-pre-v2"
+    ? `${SYSTEM_BODY}\nNHC 公报的 ⟦G数字⟧ 是不可改动的数据标记：每个标记必须原样、按输入顺序出现一次，包括日期与概率。不得新增阿拉伯数字；月份名称请用汉字翻译。保持行与表格顺序，不重排日期。`
+    : SYSTEM_BODY;
+  const nodes: Array<Extract<AnyNode, { type: "text" }>> = [];
+  const visit = (children: AnyNode[]) => {
+    for (const node of children) {
+      if (node.type === "text") nodes.push(node);
+      else if (node.type === "tag" && !["pre", "code", "picture", "video"].includes(node.name)) visit(node.children);
+    }
+  };
+  visit(block.children);
+  let intact = true;
+  const errors: string[] = [];
+  for (let n = 0; n < nodes.length; n++) {
+    const node = nodes[n]!;
+    const original = node.data;
+    if (!/[A-Za-zÀ-ɏЀ-ӿ぀-ヿ]/.test(original)) continue;
+    // Shield immutable numbers, literal token syntax and HTML metacharacters BEFORE partitioning.
+    const tokens: string[] = [];
+    const encoded = original.replace(/⟦[^⟧]*⟧|https?:\/\/[^\s<>"']+|(?:doi:\s*)?10\.\d{4,9}\/[^\s<>"']+|[<>&]|[[(（][\d\s,;:–—-]+[\])）]|[+-]?\d+(?:[ \u00a0\u202f]\d{3})*(?:[.,:/−–-]\d+)*(?:[eE][+-]?\d+)?/giu, text => {
+      tokens.push(text);
+      return `⟦G${tokens.length - 1}⟧`;
+    });
+    const parts: string[] = [];
+    let part = "";
+    // Whitespace/word boundaries are preferred; code-point cutting is only the fallback for a long word.
+    for (const word of encoded.match(/⟦G\d+⟧|[^\s⟦]+|\s+|⟦/gu) ?? []) {
+      const atoms = /^⟦G\d+⟧$/.test(word) ? [word] : Array.from(word);
+      if (part && part.length + word.length > 3000) { parts.push(part); part = ""; }
+      for (const atom of atoms) {
+        if (part && part.length + atom.length > 3000) { parts.push(part); part = ""; }
+        part += atom;
+      }
+    }
+    if (part) parts.push(part);
+    if (parts.join("") !== encoded) throw new Error("long translation partition did not preserve input");
+    const restore = (answer: string | null, source: string) => {
+      if (!answer || /[<>&]/.test(answer)) return null;
+      const expected: string[] = source.match(/⟦G\d+⟧/g) ?? [];
+      const found: string[] = answer.match(/⟦G\d+⟧/g) ?? [];
+      if (found.join("|") !== expected.join("|") || expected.some(t => found.filter(x => x === t).length !== 1)) return null;
+      const bare = answer.replace(/⟦G\d+⟧/g, "");
+      if (/[\d⟦⟧]/.test(bare)) return null;
+      const sourceBare = source.replace(/⟦G\d+⟧/g, "");
+      if (/\p{L}{2,}/u.test(sourceBare) && (!looksZh(bare) || bare.trim() === sourceBare.trim())) return null;
+      if (sourceBare.length >= 300 && bare.length / sourceBare.length < 0.22) return null;
+      // Polish translated words while immutable source text is still shielded. Restored DOI/URL
+      // spellings may look like units (e.g. /12metres) and must never pass through zhText afterwards.
+      const output = zhText(answer).replace(/⟦G(\d+)⟧/g, (_match, i: string) => tokens[Number(i)]!);
+      return (source.match(/^\s*/)?.[0] ?? "") + output.trim() + (source.match(/\s*$/)?.[0] ?? "");
+    };
+    const translations: Array<string | null> = [];
+    for (let f = 0; f < parts.length; f++) {
+      const source = parts[f]!;
+      // Whitespace-only partitions are original text, not empty translations.
+      if (!/[A-Za-zÀ-ɏЀ-ӿ぀-ヿ]/.test(source.replace(/⟦G\d+⟧/g, ""))) {
+        translations.push(source.replace(/⟦G(\d+)⟧/g, (_match, i: string) => tokens[Number(i)]!));
+        continue;
+      }
+      const space = `${namespace}:block:${ordinal}:node:${n}:part:${f}`;
+      const first = await translateAll(articleId, revision, [source], system, undefined, control, space);
+      errors.push(...first.errors);
+      let translated = restore(first.answers[0] ?? null, source);
+      if (translated === null) {
+        const retry = await translateAll(articleId, revision, [source], system, "retry", control, space);
+        errors.push(...retry.errors);
+        translated = restore(retry.answers[0] ?? null, source);
+      }
+      translations.push(translated);
+    }
+    // Do not replace half a text node. Paid successful fragments remain reusable on the next run.
+    if (translations.every(t => t !== null)) node.data = translations.join("");
+    else intact = false;
+  }
+  return { done: intact ? 1 : 0, errors };
+}
+
 export async function translateArticle(articleId: string, control: TranslationControl = {}): Promise<TranslateResult> {
   checkTranslation(control);
-  const [row] = await sql<{ revision: number; channel: string; language: string | null; body_html: string | null; body_text: string | null; x_post: { text?: string } | null; title: string; selected: boolean; body_mode: string; visibility: string }[]>`
-    SELECT a.revision, p.channel, a.language, a.body_html, a.body_text, a.x_post, p.title, p.selected, p.body_mode, p.visibility
+  const [row] = await sql<{ url: string; revision: number; channel: string; language: string | null; body_html: string | null; body_text: string | null; x_post: { text?: string } | null; title: string; selected: boolean; body_mode: string; visibility: string }[]>`
+    SELECT a.url, a.revision, p.channel, a.language, a.body_html, a.body_text, a.x_post, p.title, p.selected, p.body_mode, p.visibility
     FROM publications p JOIN articles a ON a.id = p.article_id WHERE p.article_id = ${articleId}`;
   if (!row) return { articleId, status: "skipped", reason: "not published" };
   const result = (r: Omit<TranslateResult, "articleId" | "revision">): TranslateResult => ({ articleId, revision: row.revision, ...r });
@@ -293,8 +383,13 @@ export async function translateArticle(articleId: string, control: TranslationCo
   if (!bodyHtml || bodyIsChinese(row.language, row.body_text ?? "")) return result({ status: "skipped", reason: "no foreign-language body" });
   const $ = cheerio.load(bodyHtml, null, false);
   const blocks = segmentsOf($);
-  if (!blocks.length) return result({ status: "skipped", reason: "no translatable text" });
-  // Beyond the cap, only the leading blocks are translated; the rest keep the original text.
+  // NHC publishes plain-text official bulletins inside <pre>, not executable source code.
+  // Keep generic code/pre excluded, and keep new work outside all historical receipt indexes.
+  const nhc = ["nhc.noaa.gov", "www.nhc.noaa.gov"].includes(new URL(row.url).hostname);
+  const prose = nhc ? $("pre").toArray().filter((el) => !$(el).find("code").length
+    && /NWS National Hurricane Center/i.test($(el).text())) as Element[] : [];
+  if (!blocks.length && !prose.length) return result({ status: "skipped", reason: "no translatable text" });
+  // Reconstruct the historical receipt prefix exactly; subsequent work has its own sealed batches.
   let budget = MAX_CHARS;
   const chosen: Element[] = [];
   for (const el of blocks) {
@@ -303,49 +398,71 @@ export async function translateArticle(articleId: string, control: TranslationCo
     budget -= html.length;
     chosen.push(el);
   }
-  const shielded = chosen.map((el) => shield($(el).html() ?? ""));
-  const restore = (answers: Array<string | null>) => answers.map((t, i) => (t === null ? null : unshield(t, shielded[i]!)));
-  const first = await translateAll(articleId, row.revision, shielded.map((b) => b.html), SYSTEM_BODY, undefined, control);
-  const errors = [...first.errors];
-  const translations = restore(first.answers);
-  // 回声不是译文：原文有词而答复一个汉字都没有的块按"没翻出来"处理（走下面的一次重问、再不行保留
-  // 原文），否则整段英文会被标成"正文 · AI 翻译"贴进正文（红线）。原文本来只有数字/符号的块不算。
-  const sourceTexts = chosen.map((el) => $(el).text());
-  translations.forEach((t, i) => {
-    if (t && !looksZh(t) && /\p{L}{2,}/u.test(sourceTexts[i] ?? "")) translations[i] = null;
-  });
-  // Blocks whose answer dropped a link or an image are asked once more, on their own receipt.
-  const missing = translations.flatMap((t, i) => (t === null ? [i] : []));
-  if (missing.length) {
-    const again = await translateAll(articleId, row.revision, missing.map((i) => shielded[i]!.html), SYSTEM_BODY, "retry", control);
-    errors.push(...again.errors);
-    missing.forEach((i, k) => (translations[i] = again.answers[k] ? unshield(again.answers[k]!, shielded[i]!) : null));
-  }
-  let done = 0;
-  chosen.forEach((el, i) => {
-    const t = translations[i];
-    if (t) {
-      $(el).html(polishZh(t));
-      done += 1;
+  // The old prefix and its retry must remain entirely sealed from newly covered work.
+  const translateBlocks = async (chosen: Element[], space?: string) => {
+    const shielded = chosen.map((el) => shield($(el).html() ?? ""));
+    const restore = (answers: Array<string | null>) => answers.map((t, i) => (t === null ? null : unshield(t, shielded[i]!)));
+    const first = await translateAll(articleId, row.revision, shielded.map((b) => b.html), SYSTEM_BODY, undefined, control, space);
+    const errors = [...first.errors];
+    const translations = restore(first.answers);
+    // 回声不是译文：原文有词而答复一个汉字都没有的块按"没翻出来"处理（走下面的一次重问、再不行保留
+    // 原文），否则整段英文会被标成"正文 · AI 翻译"贴进正文（红线）。原文本来只有数字/符号的块不算。
+    const sourceTexts = chosen.map((el) => $(el).text());
+    translations.forEach((t, i) => {
+      if (t && !looksZh(t) && /\p{L}{2,}/u.test(sourceTexts[i] ?? "")) translations[i] = null;
+    });
+    // Blocks whose answer dropped a link or an image are asked once more, on their own receipt.
+    const missing = translations.flatMap((t, i) => (t === null ? [i] : []));
+    if (missing.length) {
+      const again = await translateAll(articleId, row.revision, missing.map((i) => shielded[i]!.html), SYSTEM_BODY, "retry", control, space);
+      errors.push(...again.errors);
+      missing.forEach((i, k) => (translations[i] = again.answers[k] ? unshield(again.answers[k]!, shielded[i]!) : null));
     }
-  });
+    if (space !== undefined) translations.forEach((t, i) => {
+      if (t && !looksZh(t) && /\p{L}{2,}/u.test(sourceTexts[i] ?? "")) translations[i] = null;
+    });
+    let done = 0;
+    chosen.forEach((el, i) => {
+      const t = translations[i];
+      if (t) {
+        $(el).html(polishZh(t));
+        done += 1;
+      }
+    });
+    return { done, errors };
+  };
+  const legacy = await translateBlocks(chosen);
+  let done = legacy.done;
+  const errors = legacy.errors;
+  for (let i = chosen.length; i < blocks.length; i++) {
+    const el = blocks[i]!;
+    const extra = await translateOversized(el, articleId, row.revision, i, control);
+    done += extra.done;
+    errors.push(...extra.errors);
+  }
+  for (let i = 0; i < prose.length; i++) {
+    const extra = await translateOversized(prose[i]!, articleId, row.revision, i, control, "nhc-pre-v2");
+    done += extra.done;
+    errors.push(...extra.errors);
+  }
   if (!done) {
     // 一次都没成，且是"报错"造成的：抛给 translatePending 记可重试的 failed。写成 skipped 就是终态，
     // 一整个时段门都被墙死时，每一篇只会有一次机会就被永久排除。
     if (errors.length) throw new Error(`no block translated (${errors.length} batch error${errors.length > 1 ? "s" : ""}): ${errors[0]!.slice(0, 160)}`);
+    // New fragments with unusable answers are real bounded failures, never permanent empty work.
+    if (chosen.length < blocks.length || prose.length) throw new Error("no long-body fragment translated");
     return result({ status: "skipped", reason: "no batch translated" });
   }
-  const complete = done === blocks.length;
-  // 没翻全的原因要能在账上区分开：是模型有几块没答好，还是正文本来就超了 60,000 字的预算。
-  // 不写出来的话两种情况都只剩一个 `partial`，下一次没人知道该修哪一头。
-  const failed = chosen.length - done;
-  const dropped = blocks.length - chosen.length;
+  const total = blocks.length + prose.length;
+  const complete = done === total;
+  // Every eligible block is now attempted; only actual unusable answers remain incomplete.
+  const failed = total - done;
   const html = sanitizeBody($.html());
   await store(articleId, row.revision, row.title, html, cheerio.load(html, null, false).root().text().trim(), complete);
   return result({
     status: complete ? "translated" : "partial",
     segments: done,
-    reason: complete ? undefined : failed > 0 ? `${failed} of ${chosen.length} blocks kept in the original` : `${dropped} blocks over the ${MAX_CHARS}-character budget`,
+    reason: complete ? undefined : `${failed} of ${total} blocks kept in the original`,
   });
 }
 
@@ -365,12 +482,13 @@ function quoteTranslatable(text: string): boolean {
   return words.length >= 10 && (words.match(/\p{L}/gu) ?? []).length >= 2 && !hasChineseCopy(words);
 }
 
-/**
- * 解析失败的重问要封顶：这个循环每 5 分钟跑一遍、窗口 3 天，一条系统性解不开的引用帖本会一直付费
- * 重问（≈288 次/天）。按 (tweet, 文本哈希) 记失败次数，单个进程内至多问 3 次；文本一变哈希就变、
- * 重新计数，进程重启后清零——封顶的目的是把"解不开"的成本按住，不是禁掉重试。
- */
-const quoteFailures = new Map<string, number>();
+/** Failed/cached unusable answers have a durable bound; deferred receipts only rotate priority. */
+async function quoteAttempt(tweetId: string, hash: string, outcome: "failed" | "deferred" | "skipped" | "translated", reason: string, db: import("../db.ts").Db = sql) {
+  await db`INSERT INTO quote_translation_attempts(tweet_id,text_hash,attempts,outcome,reason)
+    VALUES(${tweetId},${hash},${outcome === "failed" ? 1 : 0},${outcome},${reason})
+    ON CONFLICT(tweet_id,text_hash) DO UPDATE SET attempts=quote_translation_attempts.attempts+EXCLUDED.attempts,
+      outcome=EXCLUDED.outcome,reason=EXCLUDED.reason,last_checked_at=clock_timestamp()`;
+}
 
 /**
  * The posts that selected X posts of the last `days` quote, translated once per quoted post: the
@@ -380,27 +498,34 @@ const quoteFailures = new Map<string, number>();
 export async function translateQuotes(opts: { days?: number; from?: Date; limit?: number; maxModelCalls?: number; budgetMs?: number } & TranslationControl = {}): Promise<number> {
   const started = Date.now();
   const from = opts.from ?? (opts.days === undefined ? translationScope().quoteFrom : new Date(started - opts.days * 86400_000));
-  const rows = await sql<{ tweet_id: string; text: string; text_hash: string | null; own_zh: string | null; discovered_at: Date }[]>`
-    SELECT DISTINCT ON (q.tweet_id) q.tweet_id, a.x_post->'quoted'->>'text' AS text, qt.text_hash, p.discovered_at,
-      (SELECT tr.body_text FROM articles o JOIN translations tr ON tr.article_id = o.id AND tr.lang = 'zh' AND tr.revision >= o.revision
-       WHERE o.identity_key = 'x:' || q.tweet_id AND tr.complete AND coalesce(tr.body_text, '') <> '') AS own_zh
+  const rows = await translationSelectorRead(tx => tx<{ tweet_id: string; text: string; text_hash: string; own_zh: string | null; discovered_at: Date }[]>`
+    WITH quoted AS (
+    SELECT DISTINCT ON (q.tweet_id) q.tweet_id, a.x_post->'quoted'->>'text' AS text, p.discovered_at,
+      encode(sha256(convert_to(a.x_post->'quoted'->>'text','UTF8')),'hex') AS text_hash
     FROM publications p JOIN articles a ON a.id = p.article_id
     CROSS JOIN LATERAL (SELECT substring(a.x_post->'quoted'->>'url' from '/status/([0-9]+)') AS tweet_id) q
-    LEFT JOIN quote_translations qt ON qt.tweet_id = q.tweet_id
     WHERE p.channel = 'x' AND p.selected AND p.visibility = 'public' AND p.body_mode = 'full'
       AND p.discovered_at >= ${from}
       AND q.tweet_id IS NOT NULL AND coalesce(a.x_post->'quoted'->>'text', '') <> ''
-    ORDER BY q.tweet_id, p.discovered_at DESC, p.article_id`;
-  rows.sort((a, b) => a.discovered_at.getTime() - b.discovered_at.getTime() || a.tweet_id.localeCompare(b.tweet_id));
+    ORDER BY q.tweet_id, p.discovered_at DESC, p.article_id
+    ), candidates AS MATERIALIZED (
+      SELECT q.*, t.last_checked_at FROM quoted q
+      LEFT JOIN quote_translations qt ON qt.tweet_id=q.tweet_id
+      LEFT JOIN quote_translation_attempts t ON t.tweet_id=q.tweet_id AND t.text_hash=q.text_hash
+      WHERE qt.text_hash IS DISTINCT FROM q.text_hash AND coalesce(t.attempts,0)<3 AND coalesce(t.outcome,'')<>'skipped'
+      ORDER BY t.last_checked_at NULLS FIRST,q.discovered_at,q.tweet_id LIMIT 30
+    )
+    SELECT q.tweet_id,q.text,q.text_hash,q.discovered_at,
+      (SELECT tr.body_text FROM articles o JOIN translations tr ON tr.article_id = o.id AND tr.lang = 'zh' AND tr.revision >= o.revision
+       WHERE o.identity_key = 'x:' || q.tweet_id AND tr.complete AND coalesce(tr.body_text, '') <> '') AS own_zh
+    FROM candidates q ORDER BY q.last_checked_at NULLS FIRST,q.discovered_at,q.tweet_id`);
   let stored = 0;
   let calls = 0;
   for (const r of rows) {
     checkTranslation(opts);
     if (stored >= (opts.limit ?? 30) || Date.now() - started > (opts.budgetMs ?? 2 * 60_000) || shutdownSignal.signal.aborted) break;
-    const hash = sha256(r.text);
-    if (r.text_hash === hash || !quoteTranslatable(r.text)) continue;
-    const failKey = `${r.tweet_id}:${hash}`;
-    if ((quoteFailures.get(failKey) ?? 0) >= 3) continue;
+    const hash = r.text_hash;
+    if (!quoteTranslatable(r.text)) { await quoteAttempt(r.tweet_id,hash,"skipped","not_translatable");continue; }
     // Reuse our own translation of that tweet only if it is Chinese; an English copy would be stored as a
     // "译文" and shown as one.
     let zh = r.own_zh && looksZh(r.own_zh) ? r.own_zh : null;
@@ -409,9 +534,10 @@ export async function translateQuotes(opts: { days?: number; from?: Date; limit?
       if (calls >= (opts.maxModelCalls ?? 30)) break;
       origin = "model";
       const subject = `quote:${r.tweet_id}`;
+      // Routing reads settings before dispatch; its failures must not consume content attempts.
+      const model = await modelFor("translate", r.tweet_id);
+      checkTranslation(opts);
       try {
-        const model = await modelFor("translate", r.tweet_id);
-        checkTranslation(opts);
         calls += 1;
         const res = await chatJson({
           model, purpose: "translate_quoted", subject, promptVersion: TRANSLATE_PROMPT_VERSION,
@@ -420,22 +546,27 @@ export async function translateQuotes(opts: { days?: number; from?: Date; limit?
         });
         zh = res.data.t.length === 1 ? res.data.t[0]!.trim() : null;
       } catch (error) {
+        // chatJson also claims/persists receipts and checks budgets in SQL. Propagate all DB errors,
+        // including cancellation/lock timeout after a sent response, leaving paid evidence intact.
+        if (databaseFailure(error)) throw error;
         // Switched-off calls or an exhausted budget stop the run; one unusable answer is counted and
         // skipped. A reply that did not parse left its receipt `failed`, so the next run would pay for
-        // that one again — `quoteFailures` bounds how many times it may (a reply that parsed but says
-        // nothing usable stays replayed for free; an answer that is empty is empty tomorrow too).
+        // that one again. Durable per-hash failures bound both rejected output and a cached answer
+        // that parsed but is unusable; checked hashes rotate behind untouched candidates.
         if (stopsTheRun(error)) throw error;
         // These refusals prove dispatch never started. Let another quote use the one paid opportunity.
-        if (receiptDeferred(error)) { calls -= 1; continue; }
-        quoteFailures.set(failKey, (quoteFailures.get(failKey) ?? 0) + 1);
+        if (receiptDeferred(error)) { calls -= 1;await quoteAttempt(r.tweet_id,hash,"deferred","receipt_deferred");continue; }
+        await quoteAttempt(r.tweet_id,hash,"failed","provider_error");
         continue;
       }
     }
-    if (!zh || !looksZh(zh)) continue;
-    await sql`
+    if (!zh || !looksZh(zh)) { await quoteAttempt(r.tweet_id,hash,"failed","unusable_response");continue; }
+    await sql.begin(async tx => {
+    await tx`
       INSERT INTO quote_translations (tweet_id, text_hash, text_zh, origin) VALUES (${r.tweet_id}, ${hash}, ${zh}, ${origin})
       ON CONFLICT (tweet_id) DO UPDATE SET text_hash = EXCLUDED.text_hash, text_zh = EXCLUDED.text_zh, origin = EXCLUDED.origin, created_at = now()`;
-    quoteFailures.delete(failKey);
+    await quoteAttempt(r.tweet_id,hash,"translated","stored",tx);
+    });
     stored += 1;
   }
   return stored;
@@ -456,7 +587,7 @@ export function translateWindowDays(raw: string | undefined = process.env.GEOHOT
 /** 同时翻几篇（1–6，默认 3）。0 / 负数 / 非数字退回默认，超过 6 一律压到 6：worker 只有 240 MB。 */
 export function translateConcurrency(raw: string | undefined = process.env.GEOHOT_TRANSLATE_CONCURRENCY, dflt = 3): number {
   const n = Math.floor(Number(raw));
-  return Number.isFinite(n) && n >= 1 ? Math.min(20, n) : dflt;
+  return Number.isFinite(n) && n >= 1 ? Math.min(6, n) : dflt;
 }
 
 /**
@@ -470,20 +601,19 @@ export function translateConcurrency(raw: string | undefined = process.env.GEOHO
  * 每条 attempts=1 就被这两个谓词一起排除——旧的那道是 `tr.revision < a.revision`（存了就不算缺），
  * 新的一道是 outcome 里有 'partial'。于是读者面上永久留着「中文正文里夹几段英文」。重问的成本有界：
  * 已经翻出来的块走 receipts 缓存（logical_key 里有正文哈希与 model，同一篇同一 revision 命中同一把门），
- * 只有没答上的块才是真请求；再加 attempts>=3 封顶。另一类 partial 是 "over the 60000-character budget"
- * （6 条，frontiers 系列），尾巴按预算就不翻，重试只是把缺的几块补上，补完仍是 partial——那也符合本意：
- * 读者渲染只有 20,000 字（BODY_CAP_CHARS），超出部分是永远不会印出来的。
+ * 只有没答上的块才是真请求；再加 attempts>=3 封顶。历史60000预算前缀保留原回执分组，新增尾部独立推进。
+ * 已被旧预算误计封顶/跳过的历史条目需独立、精确且保留审计证据的修复，不在此自动清除旧attempts。
  */
 export async function translatePending(opts: { limit?: number; budgetMs?: number; from?: string } & TranslationControl = {}): Promise<{ done: TranslateResult[]; quotes: number }> {
   const started = Date.now();
   // Preserve production's cap below the one-hour cron claim. The ordinary four-minute budget
   // stops new articles; only explicit invocation control / this cap stops batches within a body.
   const control = { signal: opts.signal, deadlineAt: Math.min(opts.deadlineAt ?? Infinity, started + 50 * 60_000) };
-  const total = opts.limit ?? 200;
+  const total = opts.limit ?? 30;
   if (!Number.isSafeInteger(total) || total < 1) throw new Error("Translation limit must be a positive integer");
   const scope = translationScope({ now: new Date(started), from: opts.from });
   // All streams share eligibility. Fetch narrow ranks, then interleave and replenish overlap.
-  const ranked = await sql<TranslationRank[]>`
+  const ranked = await translationSelectorRead(tx => tx<TranslationRank[]>`
     WITH cand AS (
       SELECT p.article_id, p.discovered_at, octet_length(coalesce(a.body_html, a.body_text, '')) AS bytes
       FROM publications p JOIN articles a ON a.id = p.article_id
@@ -503,7 +633,7 @@ export async function translatePending(opts: { limit?: number; budgetMs?: number
       FROM cand
     )
     SELECT article_id, by_fresh, by_short, by_old FROM ranked
-    WHERE by_fresh <= ${total} OR by_short <= ${total} OR (${scope.historical} AND by_old = 1)`;
+    WHERE by_fresh <= ${total} OR by_short <= ${total} OR (${scope.historical} AND by_old = 1)`);
   const rows = fairTranslationOrder(ranked, total, scope.historical);
   const done: TranslateResult[] = [];
   // 逐条 await 时这一腿的吞吐由对端墙钟决定（2026-10-16 实测一次 translate_body 调用平均 130 秒
@@ -539,6 +669,7 @@ export async function translatePending(opts: { limit?: number; budgetMs?: number
         reason = result.reason ?? null;
         revision = result.revision ?? null;
       } catch (error) {
+        if (databaseFailure(error)) throw error;
         // A deploy stops between paid fragments, never aborts a sent request. Received answers stay
         // in receipts and are reused next run; do not mark an interrupted article terminal/partial.
         // 停机、被关掉、没配置、熔断四类停整轮且不计尝试——批次层吞错时问的是同一个判据 stopsTheRun()，

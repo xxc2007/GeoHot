@@ -18,6 +18,14 @@ export default function PosterSheet({ id, title, open, onClose }: { id: string; 
   const dialog = useRef<HTMLDivElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
 
+  // A temporary image failure must not survive closing and reopening the sheet.
+  // The item route keeps this component mounted after its first use.
+  useEffect(() => {
+    if (!open) return;
+    setLoaded(false);
+    setFailed(false);
+  }, [open, src]);
+
   // The sheet claims to be a modal dialog, so it has to behave like one: the same three things
   // components/ui/Lightbox.tsx and features/item/TocSheet.tsx do (TocSheet's header records that this
   // exact bug — Tab walking out into the article behind the scrim, Escape dropping the reader on <body> —

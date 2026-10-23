@@ -3,6 +3,7 @@ import Fastify, { LogController, type FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
 import { OAUTH_PROBE_PATHS, resolveRedirect } from "@aihot/contracts/http-policy";
 import { sql } from "@aihot/backend/db";
+import { CapacityExceeded } from "@aihot/backend/lib/capacity";
 import { registerSite } from "./routes/site.ts";
 import { registerLeaderboard } from "./routes/leaderboard.ts";
 import { registerOg } from "./routes/og.ts";
@@ -92,6 +93,10 @@ export async function buildApp(): Promise<FastifyInstance> {
   });
 
   app.setErrorHandler((error, req, reply) => {
+    if (error instanceof CapacityExceeded) {
+      reply.header("X-Accel-Expires", "0");
+      return sendProblem(req, reply, { status: 429, code: "capacity_exhausted", detail: "Image rendering is busy; retry shortly.", retryAfter: 2 });
+    }
     req.log.error({ err: error }, "unhandled");
     const status = (error as { statusCode?: number }).statusCode ?? 500;
     if (status === 400 || status === 413 || status === 415) {

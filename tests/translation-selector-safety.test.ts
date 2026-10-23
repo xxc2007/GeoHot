@@ -14,8 +14,8 @@ const provider=await stub((_hit,req)=>{
   const text=JSON.parse(JSON.parse(req.body).messages[1].content).segments[0] as string;
   return {choices:[{message:{content:JSON.stringify({t:[text.includes('UNUSABLE')?'An English echo without a translation.':'引用的中文译文，保留原文事实。']})}}]};
 });
-process.env.TRANSLATE_MODEL='deepseek-flash';
-process.env.DEEPSEEK_BASE_URL=`${provider.url}/v1`;process.env.DEEPSEEK_API_KEY='test-key';
+process.env.TRANSLATE_MODEL='default';
+process.env.LLM_BASE_URL=`${provider.url}/v1`;process.env.LLM_API_KEY='test-key';
 before(async()=>{await sql`INSERT INTO sources(id,name,kind,tier,participation_mode,site_fulltext) VALUES(${SOURCE},'selector fixture','rss','T1','editorial',true)`;});
 after(async()=>{
   if(quoteIds.length)await sql`DELETE FROM quote_translations WHERE tweet_id=ANY(${quoteIds}::text[])`;

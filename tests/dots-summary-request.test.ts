@@ -85,7 +85,7 @@ test("dots summary request normalization and exact legacy recovery", async (t) =
         const body = bodies.at(-1)!;
         assert.equal(body.max_tokens, 8048);
         assert.deepEqual(body.chat_template_kwargs, { enable_thinking: true });
-        assert.equal(body.reasoning_effort, "high");
+        assert.equal(body.reasoning_effort, "max");
       }
     });
 
