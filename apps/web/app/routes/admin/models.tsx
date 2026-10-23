@@ -27,6 +27,7 @@ interface Usage {
 
 interface Models {
   days: number;
+  statistics?: Record<"usage" | "prices" | "benches" | "history", { state: "ready" | "unavailable"; asOf: string | null; message?: string }>;
   capabilities: Array<{ key: string; label: string; env: string; defaultModel: string; vision: boolean; current: { model: string; serving: string; source: "admin" | "env" | "default" }; usage: Usage[] }>;
   choices: Array<{ key: string; service: string; vision: boolean }>;
   history: Array<{ at: string; actor: string; subject: string; reason: string | null; before: { model: string; source: string } | null; after: { model: string; source: string } | null }>;
@@ -55,6 +56,11 @@ export default function ModelsAdmin({ loaderData: m }: Route.ComponentProps) {
       subtitle="每项能力当前用哪个模型、来自哪里（后台切换 > 环境变量 > 代码默认），以及近期的成功率、耗时与费用。切换只影响之后的新任务，已有结果不重算；换精选模型前先看 SelectBench 同批对比。"
       actions={<FilterChips param="days" options={[{ value: "1", label: "24 小时" }, { value: "", label: "7 天" }, { value: "30", label: "30 天" }]} />}
     >
+      {Object.entries(m.statistics ?? {}).some(([, s]) => s.state === "unavailable") && (
+        <p role="status" className="mb-5 rounded-control bg-bg-sunk px-4 py-3 text-ui text-ink-3">
+          部分统计暂时不可用，请稍后刷新。当前模型配置仍可查看；未加载的统计不代表没有调用或记录。
+        </p>
+      )}
       <div className="grid gap-5">
         {m.capabilities.map((c) => {
           const total = c.usage.reduce((a, u) => a + u.calls, 0);
@@ -128,7 +134,7 @@ export default function ModelsAdmin({ loaderData: m }: Route.ComponentProps) {
                   ]}
                 />
               ) : (
-                <Empty>{m.days} 天内没有调用{total === 0 && c.vision ? "（只在有图片时使用）" : ""}</Empty>
+                <Empty>{m.statistics?.usage.state === "unavailable" ? "调用统计暂时不可用" : <>{m.days} 天内没有调用{total === 0 && c.vision ? "（只在有图片时使用）" : ""}</>}</Empty>
               )}
             </Card>
           );
@@ -151,7 +157,7 @@ export default function ModelsAdmin({ loaderData: m }: Route.ComponentProps) {
               ]}
             />
           ) : (
-            <Empty>还没有在后台切换过模型</Empty>
+            <Empty>{m.statistics?.history.state === "unavailable" ? "切换记录暂时不可用" : "还没有在后台切换过模型"}</Empty>
           )}
         </Card>
         <Card title="同批样本对比（SelectBench）" right={<Link to="/admin/selectbench" className="text-accent">全部运行</Link>} pad={false}>
@@ -168,7 +174,7 @@ export default function ModelsAdmin({ loaderData: m }: Route.ComponentProps) {
               ]}
             />
           ) : (
-            <Empty>还没有导入对比运行</Empty>
+            <Empty>{m.statistics?.benches.state === "unavailable" ? "对比运行暂时不可用" : "还没有导入对比运行"}</Empty>
           )}
         </Card>
       </div>

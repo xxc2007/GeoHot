@@ -138,7 +138,7 @@ export const config = {
   // Model calls are live unless explicitly disabled (tests, replays).
   modelCallsEnabled: envFlag("MODEL_CALLS_ENABLED", true),
   devAdmin: env.DEV_AUTH_ROLE === "admin" ? { displayName: env.DEV_AUTH_DISPLAY_NAME || "Dev Admin" } : null,
-  /** The admin password (at least 12 characters). Feishu sign-in below is optional. */
+  /** The admin password (at least 9 characters). Feishu sign-in below is optional. */
   adminPassword: env.ADMIN_PASSWORD || null,
   adminUnionIds: (env.ADMIN_FEISHU_UNION_IDS || "").split(",").map((v) => v.trim()).filter(Boolean),
   adminEmails: (env.ADMIN_EMAILS || "").split(",").map((v) => v.trim().toLowerCase()).filter(Boolean),

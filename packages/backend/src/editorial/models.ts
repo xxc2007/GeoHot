@@ -113,7 +113,7 @@ export function pickFromPool(configured: string, shardKey?: string): string {
 
 async function overrides(): Promise<Record<string, string>> {
   if (cache && Date.now() - cache.at < 60_000) return cache.overrides;
-  const rows = await sql<{ key: string; value: { model?: string } }[]>`SELECT key, value FROM settings WHERE key LIKE 'models.%'`;
+  const rows = await healthRead(db => db<{ key: string; value: { model?: string } }[]>`SELECT key, value FROM settings WHERE key LIKE 'models.%'`);
   const map: Record<string, string> = {};
   // The admin stores one model per capability (switchModel rejects a comma list), so anything else in the
   // settings table is not ours to interpret and is ignored rather than half-applied.

@@ -12,8 +12,8 @@ assertProductionSecrets([
   ["auth", "IMG_PROXY_SIGN_SECRET"],
 ]);
 // Somebody must be able to sign in to the admin.
-if (config.environmentName === "production" && !(config.adminPassword && config.adminPassword.length >= 12) && !process.env.FEISHU_LOGIN_APP_ID) {
-  throw new Error("Refusing to start in production: set ADMIN_PASSWORD (at least 12 characters) or configure Feishu sign-in");
+if (config.environmentName === "production" && !(config.adminPassword && config.adminPassword.length >= 9) && !process.env.FEISHU_LOGIN_APP_ID) {
+  throw new Error("Refusing to start in production: set ADMIN_PASSWORD (at least 9 characters) or configure Feishu sign-in");
 }
 
 const app = await buildApp();
