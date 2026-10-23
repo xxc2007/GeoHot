@@ -42,8 +42,15 @@ export async function runsOverview() {
         SELECT name, state, count(*)::int AS n, min(created_on) AS oldest FROM pgboss.job
         WHERE state IN ('created', 'retry', 'active') GROUP BY 1, 2 ORDER BY 1, 2`,
       tx`
-        SELECT name, count(*)::int AS failed, max(completed_on) AS last, left((array_agg(output::text ORDER BY completed_on DESC))[1], 300) AS last_output
-        FROM pgboss.job WHERE state = 'failed' AND completed_on > now() - interval '24 hours' GROUP BY 1 ORDER BY 2 DESC`,
+      WITH totals AS MATERIALIZED (
+        SELECT name, count(*)::int AS failed, max(completed_on) AS last
+        FROM pgboss.job WHERE state = 'failed' AND completed_on > now() - interval '24 hours' GROUP BY name
+      )
+      SELECT totals.*, left(recent.output::text,300) AS last_output FROM totals
+      LEFT JOIN LATERAL (
+        SELECT output FROM pgboss.job j WHERE j.name = totals.name
+          AND j.state = 'failed' AND j.completed_on = totals.last LIMIT 1
+      ) recent ON true ORDER BY failed DESC`,
       tx`
         SELECT id, name, kind, health, fail_count, last_ok_at, last_fetch_at, next_fetch_at, interval_minutes, left(last_error, 200) AS last_error
         FROM sources

@@ -27,20 +27,10 @@ interface UsageRow {
   currency: string | null;
 }
 
-/** Materialize only matching receipt labels: extracting a large TOASTed request once per
- * receipt avoids repeating it for every attempt. All attempts still enter the exact aggregates. */
-export function readModelUsage(db: import("../db.ts").Tx, since: Date) {
-  return db<UsageRow[]>`
-      WITH attempts AS MATERIALIZED (
-        SELECT receipt_id, model, status, latency_ms, usage, cost, cost_basis, currency
-        FROM receipt_attempts
-        WHERE started_at >= ${since} AND origin = 'live' AND model IS NOT NULL
-      ), receipt_keys AS MATERIALIZED (
-        SELECT DISTINCT receipt_id FROM attempts
-      ), receipt_labels AS MATERIALIZED (
-        SELECT r.id, r.purpose, r.service, r.request->>'promptVersion' AS prompt_version
-        FROM receipt_keys k JOIN receipts r ON r.id = k.receipt_id
-      )
+/** Aggregate all attempts against maintained narrow labels: the read never touches request TOAST.
+ * A backfill gap is explicitly unavailable, never an incomplete but apparently successful total. */
+export async function readModelUsage(db: import("../db.ts").Tx, since: Date) {
+  const rows = await db<(UsageRow & { missing_labels: number })[]>`
       SELECT r.purpose, r.service, a.model, r.prompt_version, count(*)::int AS calls,
              count(*) FILTER (WHERE a.status = 'received')::int AS ok,
              count(*) FILTER (WHERE a.status = 'failed')::int AS failed,
@@ -48,9 +38,13 @@ export function readModelUsage(db: import("../db.ts").Tx, since: Date) {
              percentile_disc(0.5) WITHIN GROUP (ORDER BY a.latency_ms) AS p50,
              percentile_disc(0.95) WITHIN GROUP (ORDER BY a.latency_ms) AS p95,
              sum((a.usage->>'prompt_tokens')::bigint) AS tokens_in, sum((a.usage->>'completion_tokens')::bigint) AS tokens_out,
-             sum(a.cost) FILTER (WHERE a.cost_basis = 'actual') AS actual_cost, max(a.currency) AS currency
-      FROM attempts a JOIN receipt_labels r ON r.id = a.receipt_id
+             sum(a.cost) FILTER (WHERE a.cost_basis = 'actual') AS actual_cost, max(a.currency) AS currency,
+             count(*) FILTER (WHERE r.receipt_id IS NULL)::int AS missing_labels
+      FROM receipt_attempts a LEFT JOIN receipt_model_labels r ON r.receipt_id = a.receipt_id
+      WHERE a.started_at >= ${since} AND a.origin = 'live' AND a.model IS NOT NULL AND a.receipt_id IS NOT NULL
       GROUP BY 1, 2, 3, 4 ORDER BY 1, 5 DESC`;
+  if (rows.some(row => row.missing_labels > 0)) throw Object.assign(new Error("model statistics labels are still being backfilled"), { code: "MODEL_LABEL_BACKFILL_PENDING" });
+  return rows.map(({ missing_labels: _missing, ...row }) => row);
 }
 
 const usageReaders = new Map<number, () => Promise<import("./model-statistics-read.ts").StatisticResult<UsageRow[]>>>();

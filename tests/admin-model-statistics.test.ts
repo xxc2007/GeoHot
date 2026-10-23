@@ -52,12 +52,14 @@ test("database cancels statistics and transaction limits cannot leak into later 
 test("receipt-label materialization preserves attempts, exact percentiles, versions, origins and billing", async () => {
   await sql.begin(async db => {
     await db`CREATE TEMP TABLE receipts(id int, purpose text, service text, request jsonb) ON COMMIT DROP`;
+    await db`CREATE TEMP TABLE receipt_model_labels(receipt_id int, purpose text, service text, prompt_version text) ON COMMIT DROP`;
     await db`CREATE TEMP TABLE receipt_attempts(receipt_id int, model text, status text, latency_ms int, usage jsonb, cost numeric, cost_basis text, currency text, started_at timestamptz, origin text) ON COMMIT DROP`;
     await db`INSERT INTO receipts VALUES
       (1,'score_article','door-a',jsonb_build_object('promptVersion','v1','prompt',repeat(md5('large prompt'),2000))),
       (2,'score_article','door-a','{"promptVersion":"v2"}'),
       (3,'score_article','door-b','{}'),
       (4,'translate_body','door-b',NULL)`;
+    await db`INSERT INTO receipt_model_labels SELECT id,purpose,service,request->>'promptVersion' FROM receipts`;
     await db`INSERT INTO receipt_attempts VALUES
       (1,'same','received',10,'{"prompt_tokens":100,"completion_tokens":20}',0.3,'actual','USD',now(),'live'),
       (1,'same','failed',100,'{"prompt_tokens":50}',0.4,'estimated','USD',now(),'live'),
@@ -92,6 +94,8 @@ test("receipt-label materialization preserves attempts, exact percentiles, versi
     assert.equal(v1.p95, 200);
     assert.equal(Number(v1.tokens_in), 150);
     assert.equal(Number(v1.actual_cost), 0.3);
+    await db`DELETE FROM receipt_model_labels WHERE receipt_id=2`;
+    await assert.rejects(readModelUsage(db, since), /still being backfilled/);
   });
 });
 
@@ -114,5 +118,42 @@ test("cached measurements cannot hide a new model switch or its audit history", 
     if (saved[0]) await sql`INSERT INTO settings(key,value,updated_by) VALUES('models.score',${sql.json(saved[0].value)},${saved[0].updated_by})`;
     await sql`DELETE FROM audit_log WHERE actor=${actor}`;
     invalidateModelCache();
+  }
+});
+
+test("narrow labels track request changes, backfill resumes, and receipt deletion cascades", async () => {
+  const { execFileSync } = await import("node:child_process");
+  const { mkdtempSync, unlinkSync, rmdirSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const directory = mkdtempSync(join(tmpdir(), "geohot-model-labels-"));
+  const progress = join(directory, "progress.json");
+  const ids: number[] = [];
+  const marker = "label-test-" + Date.now();
+  try {
+    for (let i = 0; i < 3; i++) {
+      const [row] = await sql`INSERT INTO receipts(logical_key,service,purpose,status,request)
+        VALUES(${marker+i},'door-a','score_article','unknown',${sql.json({ promptVersion: "v1", prompt: "private body never logged" })}) RETURNING id`;
+      ids.push(row!.id);
+    }
+    const labels = await sql`SELECT prompt_version FROM receipt_model_labels WHERE receipt_id=ANY(${ids}::bigint[])`;
+    assert.equal(labels.length, 3);
+    assert.ok(labels.every(row => row.prompt_version === "v1"));
+    await sql`UPDATE receipts SET request='{"promptVersion":"v2"}',service='door-b' WHERE id=${ids[0]!}`;
+    assert.deepEqual([...(await sql`SELECT service,prompt_version FROM receipt_model_labels WHERE receipt_id=${ids[0]!}`)], [{ service: "door-b", prompt_version: "v2" }]);
+    await sql`DELETE FROM receipt_model_labels WHERE receipt_id=ANY(${ids}::bigint[])`;
+    const first = execFileSync(process.execPath, ["scripts/backfill-admin-model-labels.ts", "--batch=1", `--after=${ids[0]!-1}`, `--progress=${progress}`], { env: process.env, encoding: "utf8" });
+    assert.match(first, /complete/);
+    assert.doesNotMatch(first, /private body/);
+    const restored = await sql`SELECT prompt_version FROM receipt_model_labels WHERE receipt_id=ANY(${ids}::bigint[]) ORDER BY receipt_id`;
+    assert.deepEqual(restored.map(row => row.prompt_version), ["v2", "v1", "v1"]);
+    const repeated = execFileSync(process.execPath, ["scripts/backfill-admin-model-labels.ts", "--batch=1", `--progress=${progress}`], { env: process.env, encoding: "utf8" });
+    assert.match(repeated, /complete/);
+    assert.doesNotMatch(repeated, /batchAdded=/, "saved cursor resumes without re-reading prior requests");
+  } finally {
+    if (ids.length) await sql`DELETE FROM receipts WHERE id=ANY(${ids}::bigint[])`;
+    assert.equal((await sql`SELECT 1 FROM receipt_model_labels WHERE receipt_id=ANY(${ids}::bigint[])`).length, 0);
+    try { unlinkSync(progress); } catch { /* no progress if setup failed */ }
+    rmdirSync(directory);
   }
 });

@@ -19,10 +19,12 @@ export function statisticReader<T>(read: () => PromiseLike<readonly T[]>, empty:
       const value: StatisticResult<T[]> = { rows: [...rows], status: { state: "ready", asOf: new Date(now()).toISOString() } };
       cached = { until: now() + 30_000, value };
       return value;
-    }, () => {
+    }, (error: unknown) => {
       // Never turn missing measurements into a successful zero, and never expose SQL/error details.
       const value: StatisticResult<T[]> = { rows: empty(), status: {
-        state: "unavailable", asOf: null, message: "统计暂时不可用（查询超时或数据库繁忙），请稍后刷新。",
+        state: "unavailable", asOf: null, message: (error as { code?: string })?.code === "MODEL_LABEL_BACKFILL_PENDING"
+          ? "统计元数据正在回填，完整统计暂时不可用，请稍后刷新。"
+          : "统计暂时不可用（查询超时或数据库繁忙），请稍后刷新。",
       } };
       cached = { until: now() + 5_000, value };
       return value;
