@@ -510,8 +510,11 @@ test("fallback score refusals report the actual provider and never try a third p
       const result=await runAnalysis(input,{stages:"selection"});
       assert.equal(result.scores!.refused,true,JSON.stringify({scores:result.scores,scoreCalls,a:a.hits()-beforeA,b:b.hits()-beforeB,third:third.hits()}));
       const scoreRows=await sql<{id:number;service:string;status:string;logical_key:string}[]>`SELECT id,service,status,logical_key FROM receipts
-        WHERE subject=${`article:${id}@1`} AND purpose='score_article' ORDER BY logical_key`;
+        WHERE subject=${`article:${id}@1`} AND purpose='score_article'
+        ORDER BY CASE WHEN logical_key LIKE '%:score-1' THEN 1 ELSE 2 END`;
       assert.equal(scoreRows.length,2,"both already admitted score calls settle and retain receipts");
+      assert.ok(scoreRows[0]!.logical_key.endsWith(':score-1'));
+      assert.ok(scoreRows[1]!.logical_key.endsWith(':score-2'));
       const firstRefusal=scoreRows.findIndex(row=>row.status==='failed');
       assert.ok(firstRefusal>=0,"the fallback provider refusal must be recorded");
       assert.deepEqual(result.scores!.values,Array(firstRefusal).fill(80),"only the logical score prefix before refusal is returned");
