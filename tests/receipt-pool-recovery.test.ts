@@ -20,14 +20,13 @@ let enteredA: { promise: Promise<void>; open: (value: void) => void } | null = n
 let holdB: { promise: Promise<void>; open: (value: void) => void } | null = null;
 let enteredB: { promise: Promise<void>; open: (value: void) => void } | null = null;
 let analysisAnswers = false;
-let refuseScoreAt = 0;
+let refuseFallbackScore = false;
 let scoreCalls = 0;
 const contentFor = (body: string) => {
   if (!analysisAnswers) return '{"ok":true}';
   const request = JSON.parse(body) as { messages: Array<{ content: string }> };
   if (request.messages[0]!.content.includes("宽召回")) return '{"label":"PASS","reason":"local test"}';
   scoreCalls += 1;
-  if (scoreCalls === refuseScoreAt) return new Reply(400, { error: { code: "1301", message: "local contentFilter" } });
   return '{"attentionScore":80}';
 };
 const a = await stub(async (_hit, req) => {
@@ -35,13 +34,17 @@ const a = await stub(async (_hit, req) => {
   if (holdA) await holdA.promise;
   if (failA) return new Reply(503, { error: "local rejection" });
   const content = contentFor(req.body);
-  return content instanceof Reply ? content : { choices: [{ message: { content } }] };
+  return { choices: [{ message: { content } }] };
 });
 const b = await stub(async (_hit, req) => {
   enteredB?.open();
   if (holdB) await holdB.promise;
   const content = contentFor(req.body);
-  return content instanceof Reply ? content : { choices: [{ message: { content } }] };
+  // Refuse the fallback provider, independently of concurrent HTTP arrival order.
+  if (analysisAnswers && refuseFallbackScore && !JSON.parse(req.body).messages[0].content.includes("宽召回")) {
+    return new Reply(400, { error: { code: "1301", message: "local contentFilter" } });
+  }
+  return { choices: [{ message: { content } }] };
 });
 process.env.LLM_BASE_URL = `${a.url}/v1`;
 process.env.LLM_API_KEY = "stub-only";
@@ -425,11 +428,13 @@ test("real selection run reports actual score providers across partial-chain bud
   try {
     const result = await runAnalysis(input, { stages: "selection" });
     assert.deepEqual(result.scores!.values, [80,80]);
-    assert.equal(result.scores!.model, "default,agnes-3.0-flash-cn");
-    const scoreRows = await sql<{ service: string; logical_key: string }[]>`SELECT service, logical_key FROM receipts
-      WHERE id=ANY(${result.scores!.receiptIds}::bigint[]) ORDER BY id`;
-    assert.equal(scoreRows[0]!.service, "llm"); assert.ok(scoreRows[0]!.logical_key.endsWith(":score-1"));
-    assert.equal(scoreRows[1]!.service, "agnes-cn"); assert.ok(scoreRows[1]!.logical_key.endsWith(":score-2"));
+    const rows = await sql<{ id: number; service: string; logical_key: string }[]>`SELECT id, service, logical_key FROM receipts
+      WHERE id=ANY(${result.scores!.receiptIds}::bigint[])`;
+    const scoreRows = result.scores!.receiptIds.map(id => rows.find(row => row.id === id)!);
+    assert.deepEqual(scoreRows.map(row => row.service).sort(), ["agnes-cn", "llm"], "one score uses remaining local budget and the other uses fallback");
+    assert.ok(scoreRows[0]!.logical_key.endsWith(":score-1"));
+    assert.ok(scoreRows[1]!.logical_key.endsWith(":score-2"));
+    assert.equal(result.scores!.model, scoreRows.map(row => row.service === "llm" ? "default" : "agnes-3.0-flash-cn").join(","));
     const beforeA = a.hits(), beforeB = b.hits();
     const replay = await runAnalysis(input, { stages: "selection" });
     assert.deepEqual(replay.scores!.receiptIds, result.scores!.receiptIds);
@@ -500,12 +505,23 @@ test("fallback score refusals report the actual provider and never try a third p
       const [row]=await sql<{used:number}[]>`SELECT count(*)::int AS used FROM receipt_attempts
         WHERE service='llm' AND origin='live' AND started_at>now()-interval '1 minute'`;
       await sql`UPDATE budgets SET per_minute=${row!.used+refusedAt} WHERE service='llm'`;
-      refuseScoreAt=refusedAt; scoreCalls=0;
+      refuseFallbackScore=true; scoreCalls=0;
       const beforeA=a.hits(),beforeB=b.hits();
       const result=await runAnalysis(input,{stages:"selection"});
-      assert.equal(result.scores!.refused,true,JSON.stringify({scores:result.scores,scoreCalls,refuseScoreAt,a:a.hits()-beforeA,b:b.hits()-beforeB,third:third.hits()}));
-      assert.equal(result.scores!.values.length,refusedAt-1);
-      assert.equal(result.scores!.model,refusedAt===1?"agnes-3.0-flash-cn":"default,agnes-3.0-flash-cn");
+      assert.equal(result.scores!.refused,true,JSON.stringify({scores:result.scores,scoreCalls,a:a.hits()-beforeA,b:b.hits()-beforeB,third:third.hits()}));
+      const scoreRows=await sql<{id:number;service:string;status:string;logical_key:string}[]>`SELECT id,service,status,logical_key FROM receipts
+        WHERE subject=${`article:${id}@1`} AND purpose='score_article'
+        ORDER BY CASE WHEN logical_key LIKE '%:score-1' THEN 1 ELSE 2 END`;
+      assert.equal(scoreRows.length,2,"both already admitted score calls settle and retain receipts");
+      assert.ok(scoreRows[0]!.logical_key.endsWith(':score-1'));
+      assert.ok(scoreRows[1]!.logical_key.endsWith(':score-2'));
+      const firstRefusal=scoreRows.findIndex(row=>row.status==='failed');
+      assert.ok(firstRefusal>=0,"the fallback provider refusal must be recorded");
+      assert.deepEqual(result.scores!.values,Array(firstRefusal).fill(80),"only the logical score prefix before refusal is returned");
+      assert.deepEqual(result.scores!.receiptIds,scoreRows.slice(0,firstRefusal).map(row=>row.id));
+      const models=scoreRows.slice(0,firstRefusal+1).map(row=>row.service==='llm'?'default':'agnes-3.0-flash-cn');
+      assert.equal(result.scores!.model,[...new Set(models)].join(','));
+      assert.ok(scoreRows.filter(row=>row.status==='failed').every(row=>row.service==='agnes-cn'),"only the refusing fallback is recorded as failed");
       assert.equal(a.hits(),beforeA+refusedAt); assert.equal(b.hits(),beforeB+3-refusedAt); assert.equal(third.hits(),0);
       const [refusal]=await sql<{service:string;status:string}[]>`SELECT service,status FROM receipts
         WHERE subject=${`article:${id}@1`} AND purpose='score_article' AND status='failed'`;
@@ -513,7 +529,7 @@ test("fallback score refusals report the actual provider and never try a third p
       await resetMinutes();
     }
   } finally {
-    analysisAnswers=false; refuseScoreAt=0; scoreCalls=0;
+    analysisAnswers=false; refuseFallbackScore=false; scoreCalls=0;
     process.env.PREFILTER_MODEL="default,agnes-3.0-flash-cn";
     process.env.SCORE_MODEL="default,agnes-3.0-flash-cn";
     for(const name of names) {if(old[name]===undefined) delete process.env[name]; else process.env[name]=old[name];}
