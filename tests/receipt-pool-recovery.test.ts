@@ -34,7 +34,7 @@ const a = await stub(async (_hit, req) => {
   if (holdA) await holdA.promise;
   if (failA) return new Reply(503, { error: "local rejection" });
   const content = contentFor(req.body);
-  return content instanceof Reply ? content : { choices: [{ message: { content } }] };
+  return { choices: [{ message: { content } }] };
 });
 const b = await stub(async (_hit, req) => {
   enteredB?.open();
@@ -44,7 +44,7 @@ const b = await stub(async (_hit, req) => {
   if (analysisAnswers && refuseFallbackScore && !JSON.parse(req.body).messages[0].content.includes("宽召回")) {
     return new Reply(400, { error: { code: "1301", message: "local contentFilter" } });
   }
-  return content instanceof Reply ? content : { choices: [{ message: { content } }] };
+  return { choices: [{ message: { content } }] };
 });
 process.env.LLM_BASE_URL = `${a.url}/v1`;
 process.env.LLM_API_KEY = "stub-only";
