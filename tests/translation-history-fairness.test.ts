@@ -6,6 +6,7 @@ import { upsertMaterial } from "@aihot/backend/content/materials";
 import { publishArticle } from "@aihot/backend/publication/publish";
 import { translatePending, translateQuotes } from "@aihot/backend/editorial/translate";
 import { stopBoss } from "@aihot/backend/jobs/queue";
+import { pendingTranslationRanks } from "@aihot/backend/editorial/translation-selector";
 
 const T = tag(), SOURCE = `test-translation-fair-${T}`;
 const quoteIds: string[] = [];
@@ -57,6 +58,29 @@ after(async () => {
   release.open();quoteRelease.open();
   if (quoteIds.length) await sql`DELETE FROM quote_translations WHERE tweet_id = ANY(${quoteIds}::text[])`;
   await purgeTagged(T);await provider.close();await stopBoss();await closeDb();
+});
+
+test("body selector ranks all pages globally without buying model requests", async () => {
+  await reset();
+  const prefix = `${T}-batch-`, hits = provider.hits();
+  await sql`INSERT INTO articles(id,source_id,identity_key,url,title,language,discovered_at,timeline_at,body_text,body_status)
+    SELECT ${prefix}||n,${SOURCE},${prefix}||n,'https://example.org/'||${prefix}||n,'Batch fixture','en',
+           '2026-10-01'::timestamptz+n*interval '1 microsecond','2026-10-01',repeat('x',131-n),'ok'
+    FROM generate_series(1,130) n`;
+  await sql`INSERT INTO publications(article_id,source_id,channel,title,url,discovered_at,timeline_at,selected,visibility,body_mode)
+    SELECT id,source_id,'news',title,url,discovered_at,timeline_at,true,'public','full' FROM articles WHERE source_id=${SOURCE}`;
+  const expected = await sql`WITH ranked AS (
+      SELECT id AS article_id,row_number() OVER(ORDER BY discovered_at DESC,id) AS by_fresh,
+             row_number() OVER(ORDER BY octet_length(body_text),discovered_at DESC,id) AS by_short,
+             row_number() OVER(ORDER BY discovered_at,id) AS by_old
+      FROM articles WHERE source_id=${SOURCE})
+    SELECT * FROM ranked WHERE by_fresh<=3 OR by_short<=3 OR by_old=1 ORDER BY article_id`;
+  let checkpoints=0;
+  const actual = await pendingTranslationRanks(new Date('2026-01-01'),3,true,()=>{ checkpoints++; });
+  assert.deepEqual([...actual].sort((a,b)=>a.article_id.localeCompare(b.article_id)),[...expected]);
+  assert.ok(checkpoints>=4,'read phase checks interruption between pages');
+  assert.equal(provider.hits(),hits,'selection never calls a model');
+  await assert.rejects(pendingTranslationRanks(new Date(),3,false,()=>{throw new Error('stop selector');}),/stop selector/);
 });
 
 test("explicit historical cutoff includes old body and old quote, keeps source copy and exact boundary", async () => {
