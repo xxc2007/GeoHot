@@ -67,8 +67,8 @@ test("body selector ranks all pages globally without buying model requests", asy
     SELECT ${prefix}||n,${SOURCE},${prefix}||n,'https://example.org/'||${prefix}||n,'Batch fixture','en',
            '2026-10-01'::timestamptz+n*interval '1 microsecond','2026-10-01',repeat('x',131-n),'ok'
     FROM generate_series(1,130) n`;
-  await sql`INSERT INTO publications(article_id,source_id,channel,title,url,discovered_at,timeline_at,selected,visibility,body_mode)
-    SELECT id,source_id,'news',title,url,discovered_at,timeline_at,true,'public','full' FROM articles WHERE source_id=${SOURCE}`;
+  await sql`INSERT INTO publications(article_id,source_id,channel,title,url,discovered_at,timeline_at,sort_at,selected,visibility,body_mode)
+    SELECT id,source_id,'news',title,url,discovered_at,timeline_at,timeline_at,true,'public','full' FROM articles WHERE source_id=${SOURCE}`;
   const expected = await sql`WITH ranked AS (
       SELECT id AS article_id,row_number() OVER(ORDER BY discovered_at DESC,id) AS by_fresh,
              row_number() OVER(ORDER BY octet_length(body_text),discovered_at DESC,id) AS by_short,

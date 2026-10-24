@@ -613,7 +613,9 @@ export async function translatePending(opts: { limit?: number; budgetMs?: number
   if (!Number.isSafeInteger(total) || total < 1) throw new Error("Translation limit must be a positive integer");
   const scope = translationScope({ now: new Date(started), from: opts.from });
   // Complete the bounded read phase before buying any translation batches.
-  const ranked = await pendingTranslationRanks(scope.bodyFrom, total, scope.historical, () => checkTranslation(control));
+  const ranked = await pendingTranslationRanks(scope.bodyFrom, total, scope.historical, () => checkTranslation(control))
+    .catch(error => { if (stopsTheRun(error)) return null; throw error; });
+  if (ranked === null) return { done: [], quotes: 0 };
   const rows = fairTranslationOrder(ranked, total, scope.historical);
   const done: TranslateResult[] = [];
   // 逐条 await 时这一腿的吞吐由对端墙钟决定（2026-10-16 实测一次 translate_body 调用平均 130 秒
