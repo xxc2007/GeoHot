@@ -22,6 +22,9 @@ export async function readUsage(db: Tx, range: UsageRange, service: string, mode
     (SELECT value='true'::jsonb FROM settings WHERE key='admin.modelMetricsReady') AS ready`;
   if (!ready?.ready) throw Object.assign(new Error("statistics backfill pending"), { code: "MODEL_LABEL_BACKFILL_PENDING" });
   await db`SET LOCAL work_mem='16MB'`;
+  // Compilation costs more than execution for this short-lived dashboard aggregate. A discouraged
+  // sort can also inflate estimated cost and trigger JIT; do not spend the read deadline compiling.
+  await db`SET LOCAL jit=off`;
   // Bucket cardinality is much smaller than the planner's independent-column estimate. Prefer
   // bounded hash aggregation to repeated external sorts; scoped to this read transaction only.
   await db`SET LOCAL enable_sort=off`;
