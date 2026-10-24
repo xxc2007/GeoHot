@@ -384,6 +384,27 @@ test("routing telemetry never launders refused attempts into successes after a l
   } finally { await sql`DELETE FROM receipts WHERE id=${r!.id}`; invalidateModelCache(); }
 });
 
+test("shared-endpoint cooldown requires two explicitly unbilled pre-connection failures and reopens", async () => {
+  const old=process.env.QODER_CN_BASE_URL;
+  process.env.QODER_CN_BASE_URL='http://127.0.0.1:39127/v1';
+  const spec=MODELS['workbuddy-ai-deepseek-flash']!;
+  const [r]=await sql`INSERT INTO receipts(logical_key,service,model,purpose,status)
+    VALUES(${`connect-probe-${T}`},${spec.service},${spec.model},'pool_health_probe','failed') RETURNING id`;
+  try {
+    for(let i=1;i<=2;i++) await sql`INSERT INTO receipt_attempts(receipt_id,attempt,service,model,status,error,billing_status)
+      VALUES(${r!.id},${i},${spec.service},${spec.model},'failed','connect failed: ECONNREFUSED','unknown')`;
+    invalidateModelCache();
+    assert.ok(!(await sickServices()).has('endpoint:http://127.0.0.1:39127'));
+    await sql`UPDATE receipt_attempts SET billing_status='unbilled' WHERE receipt_id=${r!.id}`;
+    invalidateModelCache();
+    assert.ok((await sickServices()).has('endpoint:http://127.0.0.1:39127'));
+    assert.ok(!(await sickServices()).has('endpoint:https://independent.example'));
+    await sql`UPDATE receipt_attempts SET started_at=now()-interval '3 minutes' WHERE receipt_id=${r!.id}`;
+    invalidateModelCache();
+    assert.ok(!(await sickServices()).has('endpoint:http://127.0.0.1:39127'));
+  } finally { if(old===undefined)delete process.env.QODER_CN_BASE_URL;else process.env.QODER_CN_BASE_URL=old; await sql`DELETE FROM receipts WHERE id=${r!.id}`;invalidateModelCache(); }
+});
+
 test("判关要够多样本、要真退得比答得多、按模型而不是服务判，而且永远不清空池子", () => {
   assert.equal(refusesThisStep({ refused: 660, accepted: 208 }), true, "生产那一天的实际形状");
   assert.equal(refusesThisStep({ refused: 9, accepted: 0 }), false, "样本下限挡住一次抖动");
