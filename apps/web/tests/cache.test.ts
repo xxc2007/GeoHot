@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import { once } from "node:events";
+import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { after, before, test } from "node:test";
@@ -78,6 +79,18 @@ after(async () => {
 });
 
 test("home links request valid single-fetch data under the deployment basename", async () => {
+  const nginx = readFileSync(new URL("../../../deploy/geohot/public-cache.conf", import.meta.url), "utf8");
+  const routeMap = nginx.match(/map \$uri \$geohot_cache_route \{([\s\S]*?)\n\}/)?.[1];
+  assert.ok(routeMap);
+  const cacheablePaths = [...routeMap.matchAll(/^\s+~(\S+)\s+1;/gm)].map(([, pattern]) => new RegExp(pattern));
+  const isCacheable = (pathname: string) => cacheablePaths.some((pattern) => pattern.test(pathname));
+  for (const pathname of ["/geohot.data", "/geohot/_root.data", "/geohot/_.data/admin", "/geohot/admin.data", "/geohot/api/admin/sources"]) {
+    assert.equal(isCacheable(pathname), false, `${pathname} must not enter the public route cache`);
+  }
+  const skipMap = nginx.match(/map "\$geohot_cache_method:\$geohot_cache_route:\$http_authorization:\$http_cookie" \$geohot_skip_cache \{([\s\S]*?)\n\}/)?.[1];
+  assert.ok(skipMap);
+  assert.match(skipMap, /default\s+1;/);
+  assert.deepEqual([...skipMap.matchAll(/"([^"]*)"\s+0;/g)].map(([, key]) => key), ["1:1::"]);
   const html = await (await fetch(`${origin}/`)).text();
   const links = [...html.matchAll(/<a\b[^>]*>/g)].map(([tag]) => tag);
   const brand = links.find((tag) => tag.includes('aria-label="GEOHOT 首页"'));
@@ -91,6 +104,10 @@ test("home links request valid single-fetch data under the deployment basename",
     // A bare /geohot becomes /geohot.data outside the app; /geohot/ stays inside it.
     const target = new URL(href, origin);
     target.pathname += target.pathname.endsWith("/") ? "_.data" : ".data";
+    if (target.pathname.startsWith("/geohot/")) {
+      assert.equal(target.pathname, "/geohot/_.data");
+      assert.ok(isCacheable(target.pathname), "the actual root single-fetch URL must be in the public route whitelist");
+    }
     target.searchParams.set("_routes", "routes/home");
     const response = await fetch(target);
     assert.equal(response.status, 200, `home data at ${target.pathname}`);
