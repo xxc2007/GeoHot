@@ -57,7 +57,7 @@ export function ErrorBoundary() {
     const timer = setInterval(retry, 20_000);
     document.addEventListener("visibilitychange", retry);
     return () => { clearInterval(timer); document.removeEventListener("visibilitychange", retry); };
-  }, [refresh]);
+  }, [refresh.revalidate, refresh.state]);
   return <AdminPage title="运行"><Card><p className="text-[14px] text-ink-2">运行统计暂时读取失败，页面会自动重试，也可立即重新加载。</p><div className="mt-4"><Button disabled={refresh.state !== "idle"} onClick={() => refresh.revalidate()}>重新加载</Button></div></Card></AdminPage>;
 }
 
@@ -80,7 +80,7 @@ export default function RunsAdmin({ loaderData }: Route.ComponentProps) {
     const t = setInterval(reload, 20_000);
     document.addEventListener("visibilitychange", reload);
     return () => { clearInterval(t); document.removeEventListener("visibilitychange", reload); };
-  }, [refresh]);
+  }, [refresh.load, refresh.state]);
 
   const backlog = new Map<string, Record<string, { n: number; oldest: string }>>();
   for (const q of r.queues) backlog.set(q.name, { ...(backlog.get(q.name) ?? {}), [q.state]: { n: q.n, oldest: q.oldest } });
