@@ -139,7 +139,7 @@ test("every capability this door can serve is one whose output the editorial ste
 test("the door is named for humans, and its budget row exists so the breaker is not silently unlimited", async () => {
   // Without a budgets row `checkBudget` throws BudgetExceededError("missing") on the first paid call —
   // a stopped door, not a free one. The row is what makes the exhaustion visible instead of mysterious.
-  assert.equal(providerName("qoder-cn"), "Qoder CN（工作站 maggie 网关）");
+  assert.equal(providerName("qoder-cn"), "Qoder CN（工作站 magpie 网关）");
   const rows = await sql<{ service: string; per_minute: number; per_hour: number; per_day: number }[]>`
     SELECT service, per_minute, per_hour, per_day FROM budgets WHERE service = 'qoder-cn'`;
   assert.equal(rows.length, 1, "0074_qoder_cn_budget.sql did not seed the row");
