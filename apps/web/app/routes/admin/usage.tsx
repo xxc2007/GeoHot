@@ -32,7 +32,7 @@ function Ranking({rows,mode,kind}:{rows:Metric[];mode:string;kind:"model"|"purpo
   return <div className="max-h-[420px] space-y-4 overflow-y-auto pr-2">{ordered.map((r,i)=><div key={`${r.service}/${r.model}/${r.purpose}`}>
     <div className="mb-1.5 flex justify-between gap-3 text-[13px]"><span className="min-w-0 break-all text-ink">{kind==="model"?r.model:names[r.purpose??""]??r.purpose}<span className="ml-2 text-ink-4">{kind==="model"?r.service:""}</span></span><span className="num shrink-0">{compact(value(r,mode))}</span></div>
     <div className="h-1.5 overflow-hidden rounded-full bg-bg-sunk"><div className="h-full rounded-full bg-accent" style={{width:`${100*value(r,mode)/max}%`,opacity:Math.max(.4,1-i*.035)}}/></div>
-    <div className="mt-1 text-[11.5px] text-ink-4">{num(r.calls)} 次请求 · {r.calls?Math.round(r.ok/r.calls*100):0}% 返回成功{r.latencyMs!==null?` · 中位 ${(r.latencyMs/1000).toFixed(1)} 秒`:""}</div>
+    <div className="mt-1 text-[11.5px] text-ink-4">{num(r.calls)} 次请求 · {r.calls?Math.round(r.ok/r.calls*100):0}% 返回成功{r.latencyMs!==null?` · 平均 ${(r.latencyMs/1000).toFixed(1)} 秒`:""}</div>
   </div>)}</div>;
 }
 export function ErrorBoundary(){const r=useRevalidator();return <AdminPage title="用量总览"><Card><p role="alert" className="text-ink-3">用量暂时无法加载，请稍后重试。调用工作流不受此页面影响。</p><button className="mt-4 text-accent" onClick={()=>r.revalidate()}>重新加载</button></Card></AdminPage>;}
@@ -41,10 +41,10 @@ export default function UsagePage({loaderData:d}:Route.ComponentProps){
   useEffect(()=>{if(!interval)return;const run=()=>{if(document.visibilityState==="visible"&&refresh.state==="idle")refresh.revalidate();};const id=setInterval(run,interval*1000);document.addEventListener("visibilitychange",run);return()=>{clearInterval(id);document.removeEventListener("visibilitychange",run);};},[interval,refresh.state,refresh.revalidate]);
   const total=d.rows.find(r=>r.kind==="total");const models=d.rows.filter(r=>r.kind==="model");const days=d.rows.filter(r=>r.kind==="day");
   const today=d.status.asOf?new Date(d.status.asOf).toLocaleDateString("en-CA",{timeZone:"Asia/Shanghai"}):"2000-01-01";
-  const end=new Date(`${today}T00:00:00+08:00`);const count=d.range==="all"?366:d.range==="today"?1:Number(d.range);
+  const end=new Date(`${today}T00:00:00+08:00`);const selectedCount=d.range==="all"?366:d.range==="today"?1:Number(d.range);const count=Math.max(91,selectedCount);
   const start=new Date(end.getTime()-(count-1)*86400000);
   const firstDay=start.toLocaleDateString("en-CA",{timeZone:"Asia/Shanghai"});const padding=(new Date(`${firstDay}T12:00:00Z`).getUTCDay()+6)%7;
-  const cells=Array.from({length:Math.ceil((padding+count)/7)*7},(_,i)=>{const index=i-padding;if(index<0||index>=count)return null;const day=new Date(start.getTime()+index*86400000).toLocaleDateString("en-CA",{timeZone:"Asia/Shanghai"});return{day,row:days.find(r=>r.day===day)};});
+  const cells=Array.from({length:Math.ceil((padding+count)/7)*7},(_,i)=>{const index=i-padding;if(index<0||index>=count)return null;const day=new Date(start.getTime()+index*86400000).toLocaleDateString("en-CA",{timeZone:"Asia/Shanghai"});return{day,selected:index>=count-selectedCount,row:days.find(r=>r.day===day)};});
   const maxDay=Math.max(1,...days.map(r=>value(r,mode)));const hours=d.rows.filter(r=>r.kind==="hour");const maxHour=Math.max(1,...hours.map(r=>value(r,mode)));
   const setRange=(range:string)=>{const q=new URLSearchParams(params);q.set("range",range);setParams(q);};
   const control="rounded-control border border-line bg-surface px-3 py-1.5 text-[13px] text-ink focus:outline-accent";
@@ -69,8 +69,8 @@ export default function UsagePage({loaderData:d}:Route.ComponentProps){
         {[["请求次数",num(total?.calls??0),`${num(total?.failed??0)} 次失败`],["已知 Token",compact((total?.tokensIn??0)+(total?.tokensOut??0)),`输入 ${compact(total?.tokensIn??0)} · 输出 ${compact(total?.tokensOut??0)}`],["成功返回率",`${total?.calls?((total.ok/total.calls)*100).toFixed(1):"0"}%`,"返回成功不等于内容入选"],["执行中",num(total?.pending??0),"上游结果尚未返回"],["结果未知",num(total?.unknown??0),"保留回执，待核验"],["缺少计价",num(total?.unpriced??0),"不按零费用计入"]].map(([label,n,sub])=><div key={label} className="border-b border-r border-line p-4"><div className="num text-[25px] font-semibold tracking-tight text-ink">{n}</div><div className="mt-1 text-[13px] text-ink-2">{label}</div><div className="mt-1 text-[11px] text-ink-4">{sub}</div></div>)}
       </div>
       <Card className="mb-5" title="用量趋势" right={<div className="flex gap-2">{[["tokens","Token"],["calls","请求"]].map(([v,l])=><button key={v} aria-pressed={mode===v} className={mode===v?"font-medium text-accent":"text-ink-4"} onClick={()=>setMode(v)}>{l}</button>)}</div>}>
-        <div className="mb-3 flex justify-between text-[12px] text-ink-4"><span>{firstDay} — {today}{d.range==="all"?"（活动图展示最近一年）":""}</span><span>少 ··· 多</span></div>
-        <div className="overflow-x-auto pb-2"><div className="grid grid-flow-col grid-rows-7 gap-[4px]" style={{gridTemplateColumns:`repeat(${cells.length/7},minmax(10px,1fr))`,minWidth:d.range==="all"?650:undefined,maxWidth:d.range==="today"?28:undefined}}>{cells.map((c,i)=>c?<Cell key={i} n={c.row?value(c.row,mode):0} max={maxDay} label={`${c.day} · ${compact(c.row?value(c.row,mode):0)} ${mode==="tokens"?"已知 Token":"次请求"}`}/>:<span key={i}/>)}</div></div>
+        <div className="mb-3 flex justify-between text-[12px] text-ink-4"><span>{firstDay} — {today}{d.range==="all"?"（活动图展示最近一年）":"（仅着色所选范围）"}</span><span>少 ··· 多</span></div>
+        <div className="overflow-x-auto pb-2"><div className="grid grid-flow-col grid-rows-7 gap-[4px]" style={{gridTemplateColumns:`repeat(${cells.length/7},minmax(10px,1fr))`,minWidth:d.range==="all"?650:undefined,maxWidth:cells.length/7*20}}>{cells.map((c,i)=>c?.selected?<Cell key={i} n={c.row?value(c.row,mode):0} max={maxDay} label={`${c.day} · ${compact(c.row?value(c.row,mode):0)} ${mode==="tokens"?"已知 Token":"次请求"}`}/>:<span key={i} title={c?`${c.day} · 不在所选范围`:undefined} className="aspect-square rounded-[3px] border border-line-soft"/>)}</div></div>
         <p className="mt-3 text-[12px] text-ink-4">{num(total?.missingUsage??0)} 次请求未返回完整 Token 数据；图表只累计已知值。缓存读取未单独记录，未折算或补算。</p>
       </Card>
       <div className="grid gap-5 lg:grid-cols-2">
