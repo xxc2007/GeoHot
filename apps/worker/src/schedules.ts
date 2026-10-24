@@ -1,7 +1,7 @@
 // Cron-style schedules (Asia/Shanghai). Each run is recorded in job_runs; missed slots run once.
 import type { PgBoss } from "pg-boss";
 import { FEATURES } from "@aihot/industry/features";
-import { credential, isCollectEnabled } from "@aihot/backend/config";
+import { isCollectEnabled } from "@aihot/backend/config";
 import { ensureQueue, recordRun } from "@aihot/backend/jobs/queue";
 import { sweepUnprocessed } from "@aihot/backend/jobs/content";
 import { translatePending } from "@aihot/backend/editorial/translate";
@@ -15,7 +15,6 @@ import { catchUpReports, composeDaily, composeMonthly, composeWeekly } from "@ai
 import { addDays, beijingDate, isoWeekLabel } from "@aihot/contracts/time";
 import { runLeaderboardRound } from "@aihot/backend/leaderboard/method/run";
 import { refreshLeaderboard } from "@aihot/backend/leaderboard/fetch/refresh";
-import { monitorTick } from "@aihot/backend/monitor/scan";
 import { dailyRetention } from "@aihot/backend/operations/retention";
 import { submitIndexNow } from "@aihot/backend/operations/indexnow";
 import { checkAlerts, sendDigest } from "@aihot/backend/operations/alerts";
@@ -100,14 +99,7 @@ export const SCHEDULES: Scheduled[] = [
         { name: "sources.mp-reconcile", cron: "*/15 * * * *", run: () => scheduleMpReconcile() },
       ]
     : []),
-  // Codex reset monitor: checked every minute, scanned every 5 (every 3 while hot). It reads X through
-  // SocialData, so without that key there is nothing to run.
-  ...(collecting && FEATURES.codexResetMonitor && credential("collectors", "SOCIALDATA_API_KEY")
-    ? [
-        { name: "monitor.tick", cron: "* * * * *", run: () => monitorTick() },
-        { name: "monitor.lookback", cron: "40 4 * * *", run: () => monitorTick({ lookbackHours: 48 }) },
-      ]
-    : []),
+
 ];
 
 export async function registerSchedules(boss: PgBoss) {
