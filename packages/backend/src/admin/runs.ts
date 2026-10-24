@@ -25,7 +25,7 @@ export async function runsOverview() {
     await tx`SET LOCAL statement_timeout = '4000ms'`;
     await tx`SET LOCAL lock_timeout = '250ms'`;
     await tx`SET LOCAL max_parallel_workers_per_gather = 0`;
-    const [heartbeats, latest, timeline, queues, failedJobs, lagging, receipts, receiptIssues, deliveries, errors, ingest, leaderboard] = await Promise.all([
+    const [heartbeats, latest, timeline, queues, failedJobs, lagging, receipts, receiptIssues, deliveries, errors, ingest, leaderboard, unknownTotals] = await Promise.all([
       tx<{ key: string; value: Record<string, unknown>; updated_at: Date }[]>`SELECT key, value, updated_at FROM settings WHERE key LIKE 'heartbeat.%' ORDER BY key`,
       tx`
         WITH latest AS (
@@ -84,6 +84,7 @@ export async function runsOverview() {
       tx`SELECT client, kind, status, left(error, 200) AS error, summary, created_at FROM ingest_events ORDER BY created_at DESC LIMIT 20`,
       tx<{ value: { at: string; sources: Record<string, { ok: boolean; at: string; lastOkAt: string | null; changed?: boolean; rows?: number; error?: string }> } }[]>`
         SELECT value FROM settings WHERE key = 'leaderboard.fetch'`,
+      tx<{ n: number }[]>`SELECT count(*)::int AS n FROM receipts WHERE status = 'unknown'`,
     ]);
     // Articles waiting to retry after a passing provider problem (they are not failed).
     const [retrying] = await tx<{ n: number; next: Date | null }[]>`
@@ -91,6 +92,7 @@ export async function runsOverview() {
     const now = Date.now();
     return {
       checkedAt: new Date(now).toISOString(),
+      stale: false,
       processes: heartbeats.map((h) => ({
         role: h.key.slice("heartbeat.".length),
         ...h.value,
@@ -102,7 +104,7 @@ export async function runsOverview() {
       queues,
       failedJobs,
       lagging,
-      receipts: { counts: Object.fromEntries(receipts.map((r) => [r.status, r.n])), issues: receiptIssues },
+      receipts: { counts: Object.fromEntries(receipts.map((r) => [r.status, r.n])), issues: receiptIssues, unknownTotal: unknownTotals[0]?.n ?? 0 },
       deliveries,
       errors,
       retrying: { count: retrying?.n ?? 0, next: retrying?.next ?? null },
