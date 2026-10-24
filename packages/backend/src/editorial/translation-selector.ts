@@ -51,7 +51,7 @@ export async function pendingTranslationRanks(from: Date, total: number, histori
              row_number() OVER (ORDER BY discovered_at DESC,article_id) AS by_fresh,
              row_number() OVER (ORDER BY bytes ASC,discovered_at DESC,article_id) AS by_short,
              row_number() OVER (ORDER BY discovered_at ASC,article_id) AS by_old
-      FROM jsonb_to_recordset(${JSON.stringify(candidates)}::jsonb)
+      FROM jsonb_to_recordset(${tx.json(candidates)}::jsonb)
         AS c(article_id text,discovered_at timestamptz,bytes integer)
     )
     SELECT article_id,by_fresh,by_short,by_old FROM ranked
