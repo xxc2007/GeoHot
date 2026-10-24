@@ -8,7 +8,9 @@ const BASENAME = (() => {
   const raw = (process.env.BASE_PATH ?? "").trim();
   if (!raw || raw === "/") return "/";
   const path = raw.startsWith("/") ? raw : `/${raw}`;
-  return path.replace(/\/+$/, "");
+  // Home links must retain the slash: single-fetch appends .data to a bare basename
+  // (/geohot.data, outside the app), but /geohot/ correctly requests /geohot/_.data.
+  return `${path.replace(/\/+$/, "")}/`;
 })();
 
 export default {
