@@ -15,10 +15,8 @@ import { publicPath } from "../../lib/public-path";
 import { markRead, useReadSet } from "../../lib/local-state";
 import { isHydrated, isReload, markHydrated, readSnapshot, restoreAnchor, saveSnapshot } from "./restore";
 
-// The server's own maximum page. `apps/api/src/routes/site.ts:99` already defaults to 40, so stating it
-// here does not make the pages bigger — it makes them not depend on a server-side default that someone
-// could change under us (the head request comes from the loader, this one from the browser; if they ever
-// disagree, a "page" silently stops being the same size mid-scroll).
+// Keep follow-up pages at the API ceiling: the home loader sends only 12 cards in the first
+// document, then this cursor continues the same ordered feed in fewer network round trips.
 const PAGE_LIMIT = 40;
 
 interface ListState {

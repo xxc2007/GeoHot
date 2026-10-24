@@ -4,7 +4,6 @@ import { Form, Link, useNavigation, useSearchParams } from "react-router";
 import { CATEGORY_KEYS, CATEGORY_LABELS, type CategoryKey, type ChannelKey } from "@aihot/contracts/taxonomy";
 import { IconClose, IconSearch } from "../../components/icons";
 import { PillTabs } from "../../components/ui/Tabs";
-import { publicPath } from "../../lib/public-path";
 
 /** Same page with some query parameters changed (paging state dropped). */
 export function hrefWith(base: string, params: URLSearchParams, patch: Record<string, string | null>) {
@@ -31,18 +30,10 @@ export function hrefWith(base: string, params: URLSearchParams, patch: Record<st
  */
 export function CategoryTabs({ base, category, channel = "all", layoutId, size = "md", className = "" }: { base: string; category: CategoryKey | null; channel?: ChannelKey; layoutId: string; size?: "md" | "sm"; className?: string }) {
   const [params] = useSearchParams();
-  // On the home feed the filter row points back at the app root. React Router resolves that to the bare
-  // base (`/geohot`), and its own client router cannot match the bare base — clicking a chip landed on the
-  // 404 page with `/geohot?category=physical` in the bar. So for the root we hand over the full public
-  // path (`/geohot/?category=…`) and let the browser do a real navigation; every other row keeps the
-  // client-side Link, which is what the router handles correctly.
-  const at = (patch: Record<string, string | null>) => {
-    const href = hrefWith(base, params, patch);
-    // The router's own prefetch only exists on the client-side route: hover starts the .data fetch, so
-    // the chip commits without waiting for the round trip. The home row's hard anchors get the document
-    // warmed inside PillTabs instead, which is why they need no flag here.
-    return base === "/" ? ({ to: publicPath(href), hard: true } as const) : ({ to: href, prefetch: "intent" } as const);
-  };
+  // Home and /all both use router navigation so filtering keeps the shell and loaded modules.
+  const at = (patch: Record<string, string | null>) => ({
+    to: hrefWith(base, params, patch), prefetch: "intent" as const,
+  });
   const items = [
     { key: "all", label: "全部", ...at({ category: null, channel: null }) },
     ...CATEGORY_KEYS.map((k) => ({ key: k, label: CATEGORY_LABELS[k], ...at({ category: k, channel: null }) })),

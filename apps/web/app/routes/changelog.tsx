@@ -101,6 +101,8 @@ export default function ChangelogPage() {
   const retired = data.kind && !kind ? data.kind : null;
   const groups = new Map<string, Release[]>();
   for (const r of data.releases) if (!kind || r.kind === kind) groups.set(r.date, [...(groups.get(r.date) ?? []), r]);
+  // Pin the newest matching major once. Keep groups intact for month counts and stable date links.
+  const pinned = [...groups.values()].flat().find(release => release.major);
   // Month → the newest date shown in it (the jump target) and how many entries it holds.
   const months = new Map<string, { first: string; count: number }>();
   for (const [date, releases] of groups) {
@@ -154,6 +156,7 @@ export default function ChangelogPage() {
         <h1 className="text-[26px] font-bold leading-[1.3] text-ink">更新日志</h1>
         <p className="mt-2 text-[14px] text-ink-3">新功能、调整与修复，都写在这里。</p>
       </header>
+      {pinned && <div className="mb-6 scroll-mt-6" id={groups.get(pinned.date)?.length === 1 ? `d-${pinned.date}` : undefined}><MajorRelease date={pinned.date} time={pinned.time} /></div>}
       {retired && (
         <p className="mb-5 rounded-control bg-bg-sunk px-4 py-3 text-[13px] leading-[1.7] text-ink-2">
           「{retired}」这一类已经并到现在的五种类型里，所以下面按全部给你看。
@@ -161,11 +164,12 @@ export default function ChangelogPage() {
       )}
       <div className="space-y-4">
         {[...groups.entries()].map(([date, releases]) => {
+          const remaining = releases.filter(release => release !== pinned);
+          if (!remaining.length) return null;
           const h = dateHeading(date);
           return (
             <section key={date} id={`d-${date}`} className="scroll-mt-6 space-y-4">
-              {releases.filter(r => r.major).map(r => <MajorRelease key={`${r.date}-${r.time}`} date={r.date} time={r.time} />)}
-              {releases.some(r => !r.major) && <div className="card px-5 sm:px-7">
+              <div className="card px-5 sm:px-7">
               <h2 className="flex items-baseline gap-3 border-b border-line-soft py-5">
                 <time dateTime={date} className="text-[20px] font-bold text-ink sm:text-[22px]">
                   {h.label}
@@ -173,7 +177,7 @@ export default function ChangelogPage() {
                 <span className="text-[12px] text-ink-4">{h.weekday}</span>
               </h2>
               <ol>
-                {releases.filter(r => !r.major).map((r) => (
+                {remaining.map((r) => (
                   <li key={`${r.date}-${r.time}-${r.title}`} className="grid gap-x-8 gap-y-3 border-b border-line-soft py-6 last:border-b-0 sm:grid-cols-[88px_minmax(0,1fr)]">
                     <div className="flex items-center gap-3 sm:block">
                       <span className="mono block text-[12.5px] text-ink-3">{r.time}</span>
@@ -189,7 +193,7 @@ export default function ChangelogPage() {
                   </li>
                 ))}
               </ol>
-              </div>}
+              </div>
             </section>
           );
         })}

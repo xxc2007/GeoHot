@@ -1,7 +1,6 @@
 import { Link, useLocation } from "react-router";
 import { TABBAR, tabIsActive } from "./nav";
 import { useChangelogDot } from "./Sidebar";
-import { publicPath } from "../../lib/public-path";
 
 /** Bottom tab bar of the mobile shell (up to 960px), as on the original site. */
 export function MobileTabBar({ changelogVersion }: { changelogVersion: string | null }) {
@@ -13,8 +12,6 @@ export function MobileTabBar({ changelogVersion }: { changelogVersion: string | 
         {TABBAR.map((t) => {
           const active = tabIsActive(t, pathname);
           const Icon = t.icon;
-          // Same reason as the sidebar: the client router cannot match the bare basename, so the home
-          // tab points straight at `<base>/` with a real anchor instead of going through a router Link.
           const className = `relative flex flex-col items-center justify-center gap-[3px] text-[11px] transition-colors ${active ? "font-semibold text-accent" : "text-ink-3 active:text-ink"}`;
           const body = (
             <>
@@ -29,11 +26,7 @@ export function MobileTabBar({ changelogVersion }: { changelogVersion: string | 
               )}
             </>
           );
-          return t.to === "/" ? (
-            <a key={t.to} href={publicPath("/")} aria-current={active ? "page" : undefined} className={className}>
-              {body}
-            </a>
-          ) : (
+          return (
             <Link key={t.to} to={t.to} prefetch="intent" aria-current={active ? "page" : undefined} className={className}>
               {body}
             </Link>
