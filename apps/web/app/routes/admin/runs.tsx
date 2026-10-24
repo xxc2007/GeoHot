@@ -1,6 +1,6 @@
 import { SITE } from "@aihot/industry/site";
 import { useState } from "react";
-import { Link, useFetcher } from "react-router";
+import { Link, useFetcher, useRevalidator } from "react-router";
 import { useEffect } from "react";
 import type { Route } from "./+types/runs";
 import { adminGet } from "../../lib/admin.server";
@@ -11,13 +11,14 @@ import { AdminPage, Badge, Button, Card, DataTable, Dot, Empty, Field, Json, Rea
 type Row = Record<string, any>;
 interface Runs {
   checkedAt: string;
+  stale?: boolean;
   processes: Array<{ role: string; pid: number; host: string; release: string; startedAt: string; at: string; alive: boolean }>;
   jobs: Row[];
   timeline: Row[];
   queues: Array<{ name: string; state: string; n: number; oldest: string }>;
   failedJobs: Row[];
   lagging: Row[];
-  receipts: { counts: Record<string, number>; issues: Row[] };
+  receipts: { counts: Record<string, number>; issues: Row[]; unknownTotal: number };
   deliveries: Row[];
   errors: Row[];
   retrying: { count: number; next: string | null };
@@ -49,6 +50,11 @@ export async function loader({ request }: Route.LoaderArgs) {
 
 export const meta: Route.MetaFunction = () => [{ title: `运行 · ${SITE.name} 后台` }];
 
+export function ErrorBoundary() {
+  const refresh = useRevalidator();
+  return <AdminPage title="运行"><Card><p className="text-[14px] text-ink-2">运行统计暂时读取失败，可稍后重新加载。</p><div className="mt-4"><Button disabled={refresh.state !== "idle"} onClick={() => refresh.revalidate()}>重新加载</Button></div></Card></AdminPage>;
+}
+
 const STATE_LABEL: Record<string, string> = { created: "排队", retry: "等待重试", active: "执行中" };
 
 export default function RunsAdmin({ loaderData }: Route.ComponentProps) {
@@ -76,6 +82,7 @@ export default function RunsAdmin({ loaderData }: Route.ComponentProps) {
 
   return (
     <AdminPage title="运行" subtitle={<>任务、队列、信源延迟与需要人工核对的回执和投递。每 20 秒自动刷新 · 最近检查 {bj(r.checkedAt)}</>}>
+      {r.stale && <p role="status" className="mb-5 rounded-panel border border-line bg-surface p-4 text-[13px] text-ink-2">本次统计暂时读取失败，暂时显示上方“最近检查”时间的快照；页面会继续尝试刷新。</p>}
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-5">
         <Stat
           label="worker"
@@ -84,7 +91,7 @@ export default function RunsAdmin({ loaderData }: Route.ComponentProps) {
         />
         <Stat label="队列积压" value={num(queued)} tone={queued > 500 ? "warn" : undefined} hint="排队与等待重试" />
         <Stat label="失败的定时任务" value={num(failing.length)} tone={failing.length ? "bad" : "ok"} hint="最近一次运行失败" />
-        <Stat label="回执结果未知" value={num(r.receipts.issues.filter((x) => x.status === "unknown").length)} tone={r.receipts.issues.some((x) => x.status === "unknown") ? "bad" : "ok"} hint={`7 天 ${num(Object.values(r.receipts.counts).reduce((a, b) => a + b, 0))} 次付费请求`} />
+        <Stat label="回执结果未知" value={num(r.receipts.unknownTotal)} tone={r.receipts.unknownTotal ? "bad" : "ok"} hint={`7 天 ${num(Object.values(r.receipts.counts).reduce((a, b) => a + b, 0))} 条请求回执`} />
         <Stat label="投递待核实" value={num(r.deliveries.filter((d) => d.status === "unknown").length)} tone={r.deliveries.some((d) => d.status === "unknown") ? "bad" : "ok"} />
       </div>
 

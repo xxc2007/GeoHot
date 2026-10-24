@@ -116,7 +116,11 @@ export function registerAdmin(app: FastifyInstance) {
   }));
 
   // Runs (F20)
-  const readRuns = sharedAdminRead(10_000, runsOverview);
+  const readRuns = sharedAdminRead(10_000, runsOverview, {
+    staleIfErrorMs: 120_000,
+    canUseStale: error => ["57014", "55P03", "53300", "ECONNRESET", "ETIMEDOUT", "CONNECTION_CLOSED"].includes(String((error as { code?: string })?.code)),
+    markStale: value => ({ ...value, stale: true }),
+  });
   app.get("/api/admin/runs", adminHandler(async () => readRuns()));
   app.post("/api/admin/receipts/:id/release", adminHandler(async (req, reply, admin) => orNotFound(req, reply, await releaseReceipt(rowId(req), body(req) as never, actorOf(admin)))));
   app.post("/api/admin/deliveries/:id/resolve", adminHandler(async (req, reply, admin) => orNotFound(req, reply, await resolveDelivery(rowId(req), body(req) as never, actorOf(admin)))));
