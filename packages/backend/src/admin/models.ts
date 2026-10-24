@@ -102,7 +102,7 @@ export async function modelsOverview(days = 7) {
     if (!p || (!p.input_per_mtok && !p.output_per_mtok)) return null;
     return { amount: (Number(u.tokens_in ?? 0) / 1e6) * Number(p.input_per_mtok ?? 0) + (Number(u.tokens_out ?? 0) / 1e6) * Number(p.output_per_mtok ?? 0), currency: p.currency };
   };
-  const capabilities = sources ? (Object.entries(CAPABILITIES) as Array<[CapabilityKey, Capability]>).map(([key, c]) => ({
+  const capabilities = sources ? (Object.entries(CAPABILITIES) as Array<[CapabilityKey, Capability]>).filter(([key]) => key !== "monitor").map(([key, c]) => ({
     key,
     label: c.label,
     env: c.env,
@@ -138,7 +138,7 @@ export async function modelsOverview(days = 7) {
 /** Switches a capability to another registered model (or back to the environment/default when null). */
 export async function switchModel(capability: string, model: string | null, reason: string, actor: string) {
   const c = (CAPABILITIES as Record<string, Capability>)[capability];
-  if (!c) throw Object.assign(new Error("unknown capability"), { statusCode: 400 });
+  if (!c || capability === "monitor") throw Object.assign(new Error("unknown capability"), { statusCode: 400 });
   if (!reason.trim()) throw Object.assign(new Error("a reason is required"), { statusCode: 400 });
   if (model !== null) {
     // Object.hasOwn, not `MODELS[model]`: `constructor` and `__proto__` are truthy lookups on a plain object,

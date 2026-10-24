@@ -106,38 +106,6 @@ export async function collectFindings(now = Date.now()): Promise<Finding[]> {
     });
   }
 
-  // Reset monitor: posts are recognized in order, so one that keeps failing holds up every later one.
-  const [stuck] = await sql<{ url: string; collected_at: Date; failures: { count: number; error?: string } | null }[]>`
-    SELECT p.url, p.collected_at, s.value AS failures FROM monitor_posts p LEFT JOIN monitor_state s ON s.key = 'failures:' || p.id
-    WHERE p.processed_at IS NULL ORDER BY p.published_at, p.id LIMIT 1`;
-  if (stuck && now - stuck.collected_at.getTime() > 60 * 60_000) {
-    out.push({
-      key: "monitor.stuck",
-      level: "today",
-      title: "Codex 重置监控卡住了",
-      impact: "新的重置消息确认不了，内容群收不到重置通知",
-      heals: "暂时没有",
-      action: "转给 AI 处理",
-      detail: `${stuck.url} 等待 ${duration(now - stuck.collected_at.getTime())}${stuck.failures ? `，识别失败 ${stuck.failures.count} 次：${stuck.failures.error ?? ""}` : ""}；后台“Codex 重置 → 帖子与识别 → 待识别”可跳过`,
-      since: stuck.collected_at,
-    });
-  }
-  // Claims held back from a post (a quote not in it, an unsure confirmation) wait for a person.
-  const held = await sql<{ url: string }[]>`
-    SELECT url FROM monitor_posts WHERE processed_at > ${new Date(now - 48 * 3600_000)} AND jsonb_array_length(coalesce(recognition->'held', '[]'::jsonb)) > 0
-      AND (recognition->>'reviewed')::boolean IS NOT TRUE ORDER BY published_at DESC LIMIT 5`;
-  if (held.length) {
-    out.push({
-      key: "monitor.review",
-      level: "today",
-      title: "有 Codex 重置消息需要你确认",
-      impact: "系统对这几条帖子的判断没把握，结论暂时没有生效，也没有推送",
-      heals: "不会",
-      action: "到后台“Codex 重置 → 帖子与识别 → 需复核”看一下；确认后需要的话在群里说明",
-      detail: held.map((h) => h.url).join(" "),
-    });
-  }
-
   if (backupConfigured()) {
     const [b] = await sql<{ value: { at: string; uploaded: boolean; filesError?: string } }[]>`SELECT value FROM settings WHERE key = 'backup.last'`;
     const age = b ? now - Date.parse(b.value.at) : Infinity;
@@ -225,13 +193,27 @@ const PROVIDERS: Record<string, { name: string; stops: string; where: string }> 
     stops: MODEL_STOPS,
     where: "WorkBuddy 国际版客户端与当前配置的本机桥；检查该渠道的会话和凭据状态",
   },
-  // Qoder CN is the operator's own subscription, reached through the `maggie` gateway on the workstation
+  // Qoder CN is the operator's own subscription, reached through the `magpie` gateway on the workstation
   // over a reverse tunnel. The console it points at is not a vendor dashboard: it is the Qoder CN account
   // itself, and the thing to look at is the 5-hour usage window, not a balance.
   "qoder-cn": {
-    name: "Qoder CN（工作站 maggie 网关）",
+    name: "Qoder CN（工作站 magpie 网关）",
     stops: MODEL_STOPS,
     where: "Qoder CN 账号的 5 小时用量窗（网关在工作站 127.0.0.1:3425，生产靠 ssh -R 反向隧道到达；先看隧道是否还在，再看用量窗）",
+  },
+  // CodeArts 与 qoder-cn / workbuddy-ai 共用同一条回环隧道（工作站 127.0.0.1:3425 的 magpie 网关），
+  // 但**另一份额度**：CodeArts Max 计划自己的一把。报警要指向站长真正该去看的那扇窗，不是网关进程。
+  codearts: {
+    name: "CodeArts（工作站 magpie 网关）",
+    stops: MODEL_STOPS,
+    where: "CodeArts Max 计划的用量窗口；先确认工作站到生产机的反向隧道还在（127.0.0.1:3425），再看计划用量",
+  },
+  // MiniMax Code 与 qoder-cn / workbuddy-ai / codearts 共用同一条回环隧道，但**又是另一份额度**：
+  // MiniMax Code Max 计划自己的一把（M3.1-Flash 订阅限免）。报警要指向站长真正该去看的那扇窗。
+  "minimax-code": {
+    name: "MiniMax Code（工作站 magpie 网关）",
+    stops: MODEL_STOPS,
+    where: "MiniMax Code Max 计划的用量窗口；先确认工作站到生产机的反向隧道还在（127.0.0.1:3425），再看计划用量",
   },
   socialdata: { name: "SocialData", stops: "X（推特）上的新内容收不到", where: "SocialData 后台" },
   jina: { name: "Jina", stops: "部分文章取不到正文", where: "Jina 后台" },
