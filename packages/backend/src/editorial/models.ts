@@ -128,19 +128,21 @@ async function readOverrides(): Promise<Record<string, string>> {
   }
 }
 
-async function routingSamples(): Promise<RoutingSample[]> {
+export async function modelRoutingSamples(): Promise<RoutingSample[]> {
   if (routing && Date.now() - routing.at < 60_000) return routing.samples;
   if (Date.now() < routingRetryAfter) return routing && Date.now() - routing.at < 5 * 60_000 ? routing.samples : [];
   if (routingInflight) return routingInflight;
   routingInflight = healthRead(db => db<RoutingSample[]>`
-    WITH recent AS MATERIALIZED (
-      SELECT receipt_id,model,status,latency_ms FROM admin_model_attempt_metrics
+    WITH sampled AS MATERIALIZED (
+      SELECT id,receipt_id,model,status,latency_ms FROM admin_model_attempt_metrics
       WHERE origin='live' AND started_at>now()-interval '30 minutes'
       ORDER BY started_at DESC LIMIT 1200
+    ), recent AS (
+      SELECT *,row_number() OVER(PARTITION BY receipt_id ORDER BY id DESC) AS newest FROM sampled
     )
     SELECT r.service,m.model,r.purpose,count(*)::int AS total,
-      count(*) FILTER(WHERE m.status='received' AND r.status IN ('received','completed'))::int AS accepted,
-      percentile_cont(.5) WITHIN GROUP(ORDER BY m.latency_ms) FILTER(WHERE m.status='received' AND r.status IN ('received','completed')) AS median_ms,
+      count(*) FILTER(WHERE m.newest=1 AND m.status='received' AND r.status IN ('received','completed'))::int AS accepted,
+      percentile_cont(.5) WITHIN GROUP(ORDER BY m.latency_ms) FILTER(WHERE m.newest=1 AND m.status='received' AND r.status IN ('received','completed')) AS median_ms,
       count(*) FILTER(WHERE m.status='pending')::int AS pending
     FROM recent m JOIN receipts r ON r.id=m.receipt_id GROUP BY r.service,m.model,r.purpose`)
     .then(samples => { routing = { at: Date.now(), samples }; return samples; })
@@ -405,7 +407,7 @@ export async function modelFor(capability: CapabilityKey, shardKey?: string, pur
   const serving = await servingMembers(listed, capability);
   const step = purpose && c.purposes.includes(purpose) ? purpose : c.purposes.length === 1 ? c.purposes[0] : undefined;
   if (!step || !shardKey || serving.length < 2) return pickMember(serving, shardKey) || c.default;
-  const weights = routingWeights(serving.map(name => ({ name, service: MODELS[name]!.service, model: MODELS[name]!.model! })), step, await routingSamples());
+  const weights = routingWeights(serving.map(name => ({ name, service: MODELS[name]!.service, model: MODELS[name]!.model! })), step, await modelRoutingSamples());
   return pickMember(serving.flatMap(name => Array.from({ length: weights.get(name) ?? 1 }, () => name)), shardKey) || c.default;
 }
 

@@ -10,7 +10,7 @@ import { upsertMaterial } from "@aihot/backend/content/materials";
 import { analyzeArticle } from "@aihot/backend/editorial/analyze";
 import { stopBoss } from "@aihot/backend/jobs/queue";
 import { MODELS } from "@aihot/backend/providers/llm";
-import { CAPABILITIES, poolOf, pickFromPool, modelFor, modelSources, invalidateModelCache, sickServices, refusesThisStep, shedRefusingMembers } from "@aihot/backend/editorial/models";
+import { CAPABILITIES, poolOf, pickFromPool, modelFor, modelSources, invalidateModelCache, sickServices, refusesThisStep, shedRefusingMembers, modelRoutingSamples } from "@aihot/backend/editorial/models";
 import { newArticleId } from "@aihot/backend/lib/ids";
 
 for (const name of Object.keys(process.env)) if ((/_MODEL$/.test(name) && name !== "LLM_MODEL" && name !== "EMBEDDING_MODEL") || name === "MODEL_POOL") delete process.env[name];
@@ -369,6 +369,18 @@ test("two explicit authentication refusals cool only that member, and a later su
       VALUES(${r!.id},3,'agnes-cn','auth-test','received',now()-interval '19 minutes')`;
     invalidateModelCache();
     assert.ok(!(await sickServices()).has('agnes-cn|auth-test'));
+  } finally { await sql`DELETE FROM receipts WHERE id=${r!.id}`; invalidateModelCache(); }
+});
+
+test("routing telemetry never launders refused attempts into successes after a later retry succeeds", async () => {
+  const [r] = await sql`INSERT INTO receipts(logical_key,service,model,purpose,status,attempts)
+    VALUES(${`routing-probe-${T}`},'agnes-cn','routing-probe','pool_routing_probe','completed',7) RETURNING id`;
+  try {
+    for(let i=1;i<=7;i++) await sql`INSERT INTO receipt_attempts(receipt_id,attempt,service,model,status,latency_ms)
+      VALUES(${r!.id},${i},'agnes-cn','routing-probe','received',${i===7 ? 12000 : 1000})`;
+    invalidateModelCache();
+    const row=(await modelRoutingSamples()).find(s=>s.purpose==='pool_routing_probe' && s.model==='routing-probe');
+    assert.ok(row); assert.equal(row.total,7); assert.equal(row.accepted,1); assert.equal(row.median_ms,12000);
   } finally { await sql`DELETE FROM receipts WHERE id=${r!.id}`; invalidateModelCache(); }
 });
 
