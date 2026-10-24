@@ -1,30 +1,15 @@
-// Model per capability: the code default (`default`, the deployment's own model), an environment
-// override, and an admin switch kept in settings (every switch is audited). Read at call time and
-// cached for a minute, so a switch applies to the next call without a restart; a changed model only
-// affects work done from then on (history is not re-judged).
-//
-// A capability may name a **pool** — `MODEL_POOL=default,agnes-3.0-flash-cn`, or the same list on one
-// step's own variable. Work is then spread across the members by a hash of the shard key, which is the id
-// of the thing being processed (an article id, a story id, an issue key).
-//
-// Two properties decide that choice, and they are why it is a hash of the id rather than round-robin:
-//
-//  - The receipts cache keys on service, purpose, model and the request's own identity — **not** on the
-//    subject (receipts.ts:logicalKeyFor). So the model must be a function of something that stays put
-//    while the request stays the same. An id does; a revision does not, because the prompts truncate the
-//    body (input.ts caps it at 7,000 characters) — a revision can bump on a change the model never sees,
-//    and if the shard key moved with it, half those articles would be handed to the *other* endpoint to
-//    re-judge byte-identical words, for a second, different answer.
-//  - "Why did this item get this score" has to stay answerable a week later, which round-robin cannot do.
-//
-// Members that cannot serve are dropped from the pool rather than chosen and failed: an unconfigured key,
-// or a model with no JSON mode on a step that parses JSON. A pool is a way to spend more capacity, not a
-// way to make work fail loudly. A single explicit model is NOT filtered that way — naming one model and
-// having it silently substituted would be worse than the error.
+// Model routing preserves explicit administrator choices and configured pool membership/weights.
+// Pools first apply credential, format, ledger-health and output-refusal gates. Within a
+// one-minute telemetry snapshot, the work-unit hash is deterministic; sufficient same-purpose
+// accepted results adjust each member's weight by 1–4 for latency and in-flight load.
+// Unmeasured members keep their configured share. Received responses and pending/unknown work
+// are still recovered across the whole configured pool by the paid-request ledger before dispatch.
+// Optional telemetry failure falls back to the prior health/budget route without model probes.
 import { sql, type Tx } from "../db.ts";
 import { credential } from "../config.ts";
 import { sha256 } from "../lib/ids.ts";
 import { MODELS } from "../providers/llm.ts";
+import { routingWeights, type RoutingSample } from "./routing-weights.ts";
 
 export interface Capability {
   label: string;
@@ -54,6 +39,10 @@ export const CAPABILITIES = {
 export type CapabilityKey = keyof typeof CAPABILITIES;
 
 let cache: { at: number; overrides: Record<string, string> } | null = null;
+let overridesInflight: Promise<Record<string, string>> | null = null;
+let routing: { at: number; samples: RoutingSample[] } | null = null;
+let routingInflight: Promise<RoutingSample[]> | null = null;
+let routingRetryAfter = 0;
 
 /** A name the registry actually carries. `Object.hasOwn` and not `MODELS[name] !== undefined`:
  * `constructor`, `__proto__` and `toString` are all "not undefined" on a plain object, and one of those
@@ -115,6 +104,13 @@ export function pickFromPool(configured: string, shardKey?: string): string {
 
 async function overrides(): Promise<Record<string, string>> {
   if (cache && Date.now() - cache.at < 60_000) return cache.overrides;
+  if (overridesInflight) return overridesInflight;
+  overridesInflight = readOverrides().finally(() => { overridesInflight = null; });
+  return overridesInflight;
+}
+
+async function readOverrides(): Promise<Record<string, string>> {
+  try {
   const rows = await healthRead(db => db<{ key: string; value: { model?: string } }[]>`SELECT key, value FROM settings WHERE key LIKE 'models.%'`);
   const map: Record<string, string> = {};
   // The admin stores one model per capability (switchModel rejects a comma list), so anything else in the
@@ -125,6 +121,35 @@ async function overrides(): Promise<Record<string, string>> {
   }
   cache = { at: Date.now(), overrides: map };
   return map;
+  } catch (error) {
+    // A brief database outage must not silently switch an administrator's chosen model.
+    if (cache && Date.now() - cache.at < 5 * 60_000 && ["57014", "55P03", "ECONNRESET", "CONNECT_TIMEOUT"].includes((error as { code?: string }).code ?? "")) return cache.overrides;
+    throw error;
+  }
+}
+
+export async function modelRoutingSamples(): Promise<RoutingSample[]> {
+  if (routing && Date.now() - routing.at < 60_000) return routing.samples;
+  if (Date.now() < routingRetryAfter) return routing && Date.now() - routing.at < 5 * 60_000 ? routing.samples : [];
+  if (routingInflight) return routingInflight;
+  routingInflight = healthRead(db => db<RoutingSample[]>`
+    WITH sampled AS MATERIALIZED (
+      SELECT id,receipt_id,model,status,latency_ms FROM admin_model_attempt_metrics
+      WHERE origin='live' AND started_at>now()-interval '30 minutes'
+      ORDER BY started_at DESC LIMIT 1200
+    ), recent AS (
+      SELECT *,row_number() OVER(PARTITION BY receipt_id ORDER BY id DESC) AS newest FROM sampled
+    )
+    SELECT r.service,m.model,r.purpose,count(*)::int AS total,
+      count(*) FILTER(WHERE m.newest=1 AND m.status='received' AND r.status IN ('received','completed'))::int AS accepted,
+      percentile_cont(.5) WITHIN GROUP(ORDER BY m.latency_ms) FILTER(WHERE m.newest=1 AND m.status='received' AND r.status IN ('received','completed')) AS median_ms,
+      count(*) FILTER(WHERE m.status='pending')::int AS pending
+    FROM recent m JOIN receipts r ON r.id=m.receipt_id GROUP BY r.service,m.model,r.purpose`)
+    .then(samples => { routing = { at: Date.now(), samples }; return samples; })
+    // Optional telemetry failure retains the existing health/budget routing rather than stopping work.
+    .catch(() => { routingRetryAfter=Date.now()+60_000; return routing && Date.now() - routing.at < 5 * 60_000 ? routing.samples : []; })
+    .finally(() => { routingInflight = null; });
+  return routingInflight;
 }
 
 /**
@@ -233,6 +258,8 @@ async function readSick(): Promise<Set<string>> {
     // 现在改成「最近一次拒绝还在 1 小时内 ⇒ 关着；超过 1 小时 ⇒ 放它再试」——试的代价是 6 次调用，
     // 占满速时每小时约 700 次里的 6 次，换来的是额度一恢复就能立刻重新分担分片。
     // `max(started_at)` 就是该成员最新一次尝试的时刻（ranked 只留最新 6 条），所以这一个比较就是冷却计时器。
+    // Low-volume review models may never reach six failures in ten minutes. Two explicit
+    // authentication refusals cool that member for one hour; a newer success cancels the streak.
     const refused = await healthRead(db => db<{ service: string; model: string | null }[]>`
       WITH ranked AS (
         SELECT a.service, a.model, a.started_at, (a.status = 'failed' AND (
@@ -245,13 +272,15 @@ async function readSick(): Promise<Set<string>> {
           OR a.error LIKE '%额度已用尽%'
           OR a.error LIKE '%购买加量包%'
           OR a.error LIKE '%API 速率限制%')) AS quota_refusal,
+               (a.status='failed' AND (a.error LIKE 'HTTP 401:%' OR a.error LIKE 'HTTP 403:%')) AS auth_refusal,
                row_number() OVER (PARTITION BY a.service, a.model ORDER BY a.started_at DESC, a.id DESC) AS newest
           FROM receipt_attempts a
          WHERE a.started_at > now() - interval '6 hours'
            AND a.origin = 'live' AND a.status IN ('received', 'failed', 'unknown')
       )
       SELECT service, model FROM ranked WHERE newest <= 6 GROUP BY service, model
-        HAVING count(*) = 6 AND count(*) FILTER (WHERE quota_refusal) = 6
+        HAVING ((count(*) = 6 AND count(*) FILTER (WHERE quota_refusal) = 6)
+             OR (count(*) FILTER(WHERE newest<=2)=2 AND count(*) FILTER(WHERE newest<=2 AND auth_refusal)=2))
            AND max(started_at) > now() - interval '1 hour'`);
     for (const r of refused) sick.add(benchedKey(r.service, r.model));
   } catch {
@@ -360,6 +389,8 @@ export function invalidateModelCache() {
   cache = null;
   health = null;
   stepRefusals = null;
+  routing = null;
+  routingRetryAfter = 0;
 }
 
 /** The model a capability uses now: admin switch, else its own environment, else `MODEL_POOL`, else the code
@@ -368,12 +399,16 @@ export function invalidateModelCache() {
  * A pool skips services that are failing right now (see `sickServices`) and members that cannot write this
  * step's copy (see `refusesThisStep`), but never empties: if every member is down the choice falls back to
  * the full list, because the budget breaker and the retry ladder — not this function — decide when to stop trying. */
-export async function modelFor(capability: CapabilityKey, shardKey?: string): Promise<string> {
+export async function modelFor(capability: CapabilityKey, shardKey?: string, purpose?: string): Promise<string> {
   const c: Capability = CAPABILITIES[capability];
   const chosen = (await overrides())[capability] ?? process.env[c.env] ?? process.env.MODEL_POOL ?? c.default;
   const listed = membersFor(chosen, capability);
   if (poolOf(chosen).length <= 1) return pickMember(listed, shardKey) || c.default;
-  return pickMember(await servingMembers(listed, capability), shardKey) || c.default;
+  const serving = await servingMembers(listed, capability);
+  const step = purpose && c.purposes.includes(purpose) ? purpose : c.purposes.length === 1 ? c.purposes[0] : undefined;
+  if (!step || !shardKey || serving.length < 2) return pickMember(serving, shardKey) || c.default;
+  const weights = routingWeights(serving.map(name => ({ name, service: MODELS[name]!.service, model: MODELS[name]!.model! })), step, await modelRoutingSamples());
+  return pickMember(serving.flatMap(name => Array.from({ length: weights.get(name) ?? 1 }, () => name)), shardKey) || c.default;
 }
 
 /**

@@ -7,6 +7,7 @@ import { InvalidInput } from "./invalid.ts";
 import { audit } from "./auth.ts";
 import { Conflict } from "./sources.ts";
 import { failureGroupSql, queueProcessing, requeueFailed } from "../jobs/content.ts";
+import { enqueue, QUEUES } from "../jobs/queue.ts";
 
 const STALE_HEARTBEAT_MS = 3 * 60_000;
 
@@ -136,7 +137,17 @@ async function release(id: number, error: string, actor: string, note: string, b
                          THEN billing_status ELSE ${billingStatus} END, error = ${error}
       WHERE receipt_id = ${id} AND attempt = ${Math.max(row.attempts, 1)} AND status = 'unknown' RETURNING id, billing_status`;
     if (!attempt) throw new Conflict("当前未知尝试缺失，无法核对费用；回执未放行");
-    return { ...row, attemptId: attempt.id, billingStatus: attempt.billing_status };
+    // Grouping has no @revision subject and does not fail the article's processing state.
+    // Recover only this released request, atomically with its ledger change. Force bypasses an
+    // old automatic membership; groupArticle still checks manual decisions before any reset.
+    const groupArticle = row.purpose === "group_review"
+      ? /^article:([^:@#]+):fact:\d+$/.exec(row.subject ?? "")?.[1]
+      : row.purpose === "group_article" || row.purpose === "group_signal"
+        ? /^article:([^:@#]+)$/.exec(row.subject ?? "")?.[1] : undefined;
+    const groupRequeued = groupArticle ? !!(await enqueue(QUEUES.group,
+      { articleId: groupArticle, force: true, ...(row.purpose === "group_signal" ? { signalOnly: true } : {}) },
+      { singletonKey: groupArticle }, tx)) : false;
+    return { ...row, attemptId: attempt.id, billingStatus: attempt.billing_status, groupRequeued };
   });
   if (!before) return null;
   // 认 subject 的形状，不认 purpose：走文章处理链的调用 subject 都是 `article:<id>@…`，
@@ -147,7 +158,7 @@ async function release(id: number, error: string, actor: string, note: string, b
   const extraction = before.purpose === "body_fallback" || before.purpose === "x_article";
   const article = extraction ? /^article:([^@#]+)$/.exec(before.subject ?? "")?.[1]
     : /^article:([^@]+)@/.exec(before.subject ?? "")?.[1];
-  let requeued = false;
+  let requeued = before.groupRequeued;
   if (article) {
     const [a] = await sql`UPDATE articles SET processing_state = 'new', processing_attempts = 0, processing_retry_at = NULL, processing_error = NULL, updated_at = now()
                           WHERE id = ${article} AND processing_state = 'failed' RETURNING id`;

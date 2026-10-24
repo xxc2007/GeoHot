@@ -10,7 +10,7 @@ import { upsertMaterial } from "@aihot/backend/content/materials";
 import { analyzeArticle } from "@aihot/backend/editorial/analyze";
 import { stopBoss } from "@aihot/backend/jobs/queue";
 import { MODELS } from "@aihot/backend/providers/llm";
-import { CAPABILITIES, poolOf, pickFromPool, modelFor, modelSources, invalidateModelCache, sickServices, refusesThisStep, shedRefusingMembers } from "@aihot/backend/editorial/models";
+import { CAPABILITIES, poolOf, pickFromPool, modelFor, modelSources, invalidateModelCache, sickServices, refusesThisStep, shedRefusingMembers, modelRoutingSamples } from "@aihot/backend/editorial/models";
 import { newArticleId } from "@aihot/backend/lib/ids";
 
 for (const name of Object.keys(process.env)) if ((/_MODEL$/.test(name) && name !== "LLM_MODEL" && name !== "EMBEDDING_MODEL") || name === "MODEL_POOL") delete process.env[name];
@@ -354,6 +354,34 @@ test("答不出这一步中文的门只在这一步被跳过，它在别的步�
     await sql`DELETE FROM receipts WHERE logical_key LIKE ${`step-refusal-${stamp}%`}`; // 探针行会级联掉它的 attempts
     invalidateModelCache();
   }
+});
+
+test("two explicit authentication refusals cool only that member, and a later success reopens it", async () => {
+  const [r] = await sql`INSERT INTO receipts(logical_key,service,model,purpose,status)
+    VALUES(${`auth-probe-${T}`},'agnes-cn','auth-test','pool_health_probe','failed') RETURNING id`;
+  try {
+    for(let i=1;i<=2;i++) await sql`INSERT INTO receipt_attempts(receipt_id,attempt,service,model,status,error,started_at)
+      VALUES(${r!.id},${i},'agnes-cn','auth-test','failed','HTTP 401: authentication expired',now()-interval '20 minutes')`;
+    invalidateModelCache();
+    assert.ok((await sickServices()).has('agnes-cn|auth-test'));
+    assert.ok(!(await sickServices()).has('agnes-cn|healthy-sibling'));
+    await sql`INSERT INTO receipt_attempts(receipt_id,attempt,service,model,status,started_at)
+      VALUES(${r!.id},3,'agnes-cn','auth-test','received',now()-interval '19 minutes')`;
+    invalidateModelCache();
+    assert.ok(!(await sickServices()).has('agnes-cn|auth-test'));
+  } finally { await sql`DELETE FROM receipts WHERE id=${r!.id}`; invalidateModelCache(); }
+});
+
+test("routing telemetry never launders refused attempts into successes after a later retry succeeds", async () => {
+  const [r] = await sql`INSERT INTO receipts(logical_key,service,model,purpose,status,attempts)
+    VALUES(${`routing-probe-${T}`},'agnes-cn','routing-probe','pool_routing_probe','completed',7) RETURNING id`;
+  try {
+    for(let i=1;i<=7;i++) await sql`INSERT INTO receipt_attempts(receipt_id,attempt,service,model,status,latency_ms)
+      VALUES(${r!.id},${i},'agnes-cn','routing-probe','received',${i===7 ? 12000 : 1000})`;
+    invalidateModelCache();
+    const row=(await modelRoutingSamples()).find(s=>s.purpose==='pool_routing_probe' && s.model==='routing-probe');
+    assert.ok(row); assert.equal(row.total,7); assert.equal(row.accepted,1); assert.equal(row.median_ms,12000);
+  } finally { await sql`DELETE FROM receipts WHERE id=${r!.id}`; invalidateModelCache(); }
 });
 
 test("判关要够多样本、要真退得比答得多、按模型而不是服务判，而且永远不清空池子", () => {
