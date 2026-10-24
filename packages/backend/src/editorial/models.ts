@@ -192,12 +192,16 @@ export async function modelRoutingSamples(): Promise<RoutingSample[]> {
  * the whole service, which is the conservative reading of an attempt we cannot attribute.
  */
 const benchedKey = (service: string, model: string | null): string => (model ? `${service}|${model}` : service);
+function endpointKey(spec: (typeof MODELS)[string]): string | null {
+  try { return `endpoint:${new URL(credential("models",spec.baseUrlEnv) ?? "").origin}`; } catch { return null; }
+}
 
 /** Is this registry member out of service? Either the whole door was benched (an unattributable attempt) or
  * this member's own record was. The second test is the one that keeps a healthy sibling serving. */
 function benched(sick: Set<string>, name: string): boolean {
   const spec = MODELS[name]!;
-  return sick.has(spec.service) || sick.has(benchedKey(spec.service, spec.model));
+  const endpoint=endpointKey(spec);
+  return sick.has(spec.service) || sick.has(benchedKey(spec.service, spec.model)) || (endpoint !== null && sick.has(endpoint));
 }
 
 let health: { at: number; sick: Set<string> } | null = null;
@@ -260,7 +264,7 @@ async function readSick(): Promise<Set<string>> {
     // `max(started_at)` 就是该成员最新一次尝试的时刻（ranked 只留最新 6 条），所以这一个比较就是冷却计时器。
     // Low-volume review models may never reach six failures in ten minutes. Two explicit
     // authentication refusals cool that member for one hour; a newer success cancels the streak.
-    const refused = await healthRead(db => db<{ service: string; model: string | null }[]>`
+    const refused = await healthRead(db => db<{ service: string; model: string | null; connect_failed: boolean }[]>`
       WITH ranked AS (
         SELECT a.service, a.model, a.started_at, (a.status = 'failed' AND (
              a.error LIKE '%free-models-per-day%'
@@ -273,16 +277,31 @@ async function readSick(): Promise<Set<string>> {
           OR a.error LIKE '%购买加量包%'
           OR a.error LIKE '%API 速率限制%')) AS quota_refusal,
                (a.status='failed' AND (a.error LIKE 'HTTP 401:%' OR a.error LIKE 'HTTP 403:%')) AS auth_refusal,
+               (a.status='failed' AND a.billing_status='unbilled' AND a.error LIKE 'connect failed:%') AS connect_refusal,
                row_number() OVER (PARTITION BY a.service, a.model ORDER BY a.started_at DESC, a.id DESC) AS newest
           FROM receipt_attempts a
          WHERE a.started_at > now() - interval '6 hours'
            AND a.origin = 'live' AND a.status IN ('received', 'failed', 'unknown')
       )
-      SELECT service, model FROM ranked WHERE newest <= 6 GROUP BY service, model
-        HAVING ((count(*) = 6 AND count(*) FILTER (WHERE quota_refusal) = 6)
+      SELECT service, model,
+        (count(*) FILTER(WHERE newest<=2)=2 AND count(*) FILTER(WHERE newest<=2 AND connect_refusal)=2
+         AND max(started_at)>now()-interval '2 minutes') AS connect_failed
+      FROM ranked WHERE newest <= 6 GROUP BY service, model
+        HAVING (((count(*) = 6 AND count(*) FILTER (WHERE quota_refusal) = 6)
              OR (count(*) FILTER(WHERE newest<=2)=2 AND count(*) FILTER(WHERE newest<=2 AND auth_refusal)=2))
-           AND max(started_at) > now() - interval '1 hour'`);
-    for (const r of refused) sick.add(benchedKey(r.service, r.model));
+           AND max(started_at) > now() - interval '1 hour')
+        OR (count(*) FILTER(WHERE newest<=2)=2 AND count(*) FILTER(WHERE newest<=2 AND connect_refusal)=2
+            AND max(started_at)>now()-interval '2 minutes')`);
+    for (const r of refused) {
+      sick.add(benchedKey(r.service, r.model));
+      // Only pre-connection failures with explicit unbilled evidence propagate to a shared
+      // infrastructure endpoint. HTTP rejection, resets and unknown outcomes never do.
+      if (r.connect_failed) for(const spec of Object.values(MODELS)) {
+        if(spec.service===r.service && (r.model===null || spec.model===r.model)) {
+          const key=endpointKey(spec); if(key) sick.add(key);
+        }
+      }
+    }
   } catch {
     // Reading the ledger must never decide the request. If the rate rule could not run, no door is benched;
     // if only the quota rule failed, the rate verdict above still stands (throwing it away would re-open the
