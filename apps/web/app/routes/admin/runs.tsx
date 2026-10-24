@@ -52,7 +52,13 @@ export const meta: Route.MetaFunction = () => [{ title: `运行 · ${SITE.name} 
 
 export function ErrorBoundary() {
   const refresh = useRevalidator();
-  return <AdminPage title="运行"><Card><p className="text-[14px] text-ink-2">运行统计暂时读取失败，可稍后重新加载。</p><div className="mt-4"><Button disabled={refresh.state !== "idle"} onClick={() => refresh.revalidate()}>重新加载</Button></div></Card></AdminPage>;
+  useEffect(() => {
+    const retry = () => { if (document.visibilityState === "visible" && refresh.state === "idle") refresh.revalidate(); };
+    const timer = setInterval(retry, 20_000);
+    document.addEventListener("visibilitychange", retry);
+    return () => { clearInterval(timer); document.removeEventListener("visibilitychange", retry); };
+  }, [refresh.revalidate, refresh.state]);
+  return <AdminPage title="运行"><Card><p className="text-[14px] text-ink-2">运行统计暂时读取失败，页面会自动重试，也可立即重新加载。</p><div className="mt-4"><Button disabled={refresh.state !== "idle"} onClick={() => refresh.revalidate()}>重新加载</Button></div></Card></AdminPage>;
 }
 
 const STATE_LABEL: Record<string, string> = { created: "排队", retry: "等待重试", active: "执行中" };
@@ -70,9 +76,11 @@ export default function RunsAdmin({ loaderData }: Route.ComponentProps) {
 
   // Live view: refresh every 20 s while visible.
   useEffect(() => {
-    const t = setInterval(() => document.visibilityState === "visible" && refresh.state === "idle" && refresh.load("/admin/runs"), 20_000);
-    return () => clearInterval(t);
-  }, [refresh]);
+    const reload = () => { if (document.visibilityState === "visible" && refresh.state === "idle") refresh.load("/admin/runs"); };
+    const t = setInterval(reload, 20_000);
+    document.addEventListener("visibilitychange", reload);
+    return () => { clearInterval(t); document.removeEventListener("visibilitychange", reload); };
+  }, [refresh.load, refresh.state]);
 
   const backlog = new Map<string, Record<string, { n: number; oldest: string }>>();
   for (const q of r.queues) backlog.set(q.name, { ...(backlog.get(q.name) ?? {}), [q.state]: { n: q.n, oldest: q.oldest } });
