@@ -43,12 +43,13 @@ const api = createServer((req, res) => {
 });
 
 before(async () => {
+  const build = await import(new URL("../build/server/index.js", import.meta.url).href);
   deadline = Math.floor(Date.now() / 1000) + 20;
   refreshAt = new Date((deadline + 5) * 1000).toISOString();
   api.listen(0, "127.0.0.1");
   await once(api, "listening");
   web = spawn(process.execPath, [fileURLToPath(new URL("../server.ts", import.meta.url))], {
-    env: { ...process.env, WEB_PORT: "0", TRUST_PROXY: "false", API_BASE_URL: `http://127.0.0.1:${(api.address() as AddressInfo).port}` },
+    env: { ...process.env, SITE_URL: `https://xxc2007.me${build.basename.replace(/\/+$/, "")}`, WEB_PORT: "0", TRUST_PROXY: "false", API_BASE_URL: `http://127.0.0.1:${(api.address() as AddressInfo).port}` },
     stdio: ["ignore", "pipe", "pipe"],
   });
   await new Promise<void>((resolve, reject) => {
@@ -74,6 +75,31 @@ after(async () => {
   }
   api.closeAllConnections();
   await new Promise<void>((resolve) => api.close(() => resolve()));
+});
+
+test("home links request valid single-fetch data under the deployment basename", async () => {
+  const html = await (await fetch(`${origin}/`)).text();
+  const links = [...html.matchAll(/<a\b[^>]*>/g)].map(([tag]) => tag);
+  const brand = links.find((tag) => tag.includes('aria-label="GEOHOT 首页"'));
+  assert.ok(brand, "the sidebar brand must link to home");
+  const category = links.find((tag) => /href="[^"]*\?category=physical"/.test(tag));
+  assert.ok(category, "the home category chip must be present");
+  for (const link of [brand, category]) {
+    const href = link.match(/href="([^"]+)"/)?.[1];
+    assert.ok(href);
+    // React Router's singleFetchUrl rule is shared by navigation and link prefetch.
+    // A bare /geohot becomes /geohot.data outside the app; /geohot/ stays inside it.
+    const target = new URL(href, origin);
+    target.pathname += target.pathname.endsWith("/") ? "_.data" : ".data";
+    target.searchParams.set("_routes", "routes/home");
+    const response = await fetch(target);
+    assert.equal(response.status, 200, `home data at ${target.pathname}`);
+    const body = await response.text();
+    assert.ok(body.includes("routes/home") && body.includes("cards"), "the response must contain the home loader, not a route error");
+    assert.doesNotMatch(body, /not_found|ErrorResponse/);
+    if (target.searchParams.has("category")) assert.ok(body.includes("physical"));
+  }
+  assert.doesNotMatch(logs, /SITE_URL path and the built basename disagree/);
 });
 
 test("public route subsets produce the same complete navigation data; filters still differ", async () => {
