@@ -193,13 +193,27 @@ const PROVIDERS: Record<string, { name: string; stops: string; where: string }> 
     stops: MODEL_STOPS,
     where: "WorkBuddy 国际版客户端与当前配置的本机桥；检查该渠道的会话和凭据状态",
   },
-  // Qoder CN is the operator's own subscription, reached through the `maggie` gateway on the workstation
+  // Qoder CN is the operator's own subscription, reached through the `magpie` gateway on the workstation
   // over a reverse tunnel. The console it points at is not a vendor dashboard: it is the Qoder CN account
   // itself, and the thing to look at is the 5-hour usage window, not a balance.
   "qoder-cn": {
-    name: "Qoder CN（工作站 maggie 网关）",
+    name: "Qoder CN（工作站 magpie 网关）",
     stops: MODEL_STOPS,
     where: "Qoder CN 账号的 5 小时用量窗（网关在工作站 127.0.0.1:3425，生产靠 ssh -R 反向隧道到达；先看隧道是否还在，再看用量窗）",
+  },
+  // CodeArts 与 qoder-cn / workbuddy-ai 共用同一条回环隧道（工作站 127.0.0.1:3425 的 magpie 网关），
+  // 但**另一份额度**：CodeArts Max 计划自己的一把。报警要指向站长真正该去看的那扇窗，不是网关进程。
+  codearts: {
+    name: "CodeArts（工作站 magpie 网关）",
+    stops: MODEL_STOPS,
+    where: "CodeArts Max 计划的用量窗口；先确认工作站到生产机的反向隧道还在（127.0.0.1:3425），再看计划用量",
+  },
+  // MiniMax Code 与 qoder-cn / workbuddy-ai / codearts 共用同一条回环隧道，但**又是另一份额度**：
+  // MiniMax Code Max 计划自己的一把（M3.1-Flash 订阅限免）。报警要指向站长真正该去看的那扇窗。
+  "minimax-code": {
+    name: "MiniMax Code（工作站 magpie 网关）",
+    stops: MODEL_STOPS,
+    where: "MiniMax Code Max 计划的用量窗口；先确认工作站到生产机的反向隧道还在（127.0.0.1:3425），再看计划用量",
   },
   socialdata: { name: "SocialData", stops: "X（推特）上的新内容收不到", where: "SocialData 后台" },
   jina: { name: "Jina", stops: "部分文章取不到正文", where: "Jina 后台" },
