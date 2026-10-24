@@ -1,0 +1,20 @@
+{
+  "results": [
+    "1440px: pin/order/anchor/counts/filter, canvas pause/keyboard/pointer/replay/visibility/offscreen, workflow tabs, payload/batch controls, overflow OK",
+    "390px: pin/order/anchor/counts/filter, canvas pause/keyboard/pointer/replay/visibility/offscreen, workflow tabs, payload/batch controls, overflow OK",
+    "reduced: static rendering and content fallback OK",
+    "no-js: static rendering and content fallback OK"
+  ],
+  "sizes": [
+    {
+      "name": "changelog-Bo2zJ_Pu.js",
+      "raw": 18160,
+      "gzip": 7299
+    },
+    {
+      "name": "changelog-C62uYPBX.css",
+      "raw": 6285,
+      "gzip": 1717
+    }
+  ]
+}
