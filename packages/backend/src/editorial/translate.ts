@@ -90,7 +90,7 @@ async function translateBatch(articleId: string, revision: number, index: number
   // One article, one translator: the shard key is the article id, not the batch index, or a long body
   // would be rendered in several prose styles stitched together.
   const workUnit = `article:${articleId}@${revision}`;
-  const model = await modelFor("translate", articleId);
+  const model = await modelFor("translate", articleId, "translate_body");
   checkTranslation(control);
   const res = await chatJson({
     model,
@@ -535,7 +535,7 @@ export async function translateQuotes(opts: { days?: number; from?: Date; limit?
       origin = "model";
       const subject = `quote:${r.tweet_id}`;
       // Routing reads settings before dispatch; its failures must not consume content attempts.
-      const model = await modelFor("translate", r.tweet_id);
+      const model = await modelFor("translate", r.tweet_id, "translate_quoted");
       checkTranslation(opts);
       try {
         calls += 1;

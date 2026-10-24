@@ -1268,7 +1268,7 @@
       "name": "QGIS 官方博客",
       "kind": "rss",
       "config": {
-        "feedUrl": "https://blog.qgis.org/feed/",
+        "feedUrl": "https://blog.qgis.org/index.xml",
         "allowUrlPrefixes": [
           "https://blog.qgis.org/"
         ],
@@ -19020,7 +19020,7 @@
       "name": "巴黎天文台 · 科研动态",
       "kind": "rss",
       "config": {
-        "feedUrl": "https://observatoiredeparis.psl.eu/spip.php?page=backend&amp;id_rubrique=7",
+        "feedUrl": "https://observatoiredeparis.psl.eu/spip.php?page=backend&id_rubrique=7",
         "_aihot": {
           "initialBackfillLimit": 12
         }

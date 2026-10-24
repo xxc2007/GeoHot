@@ -15,6 +15,7 @@ import { unsupportedConfig } from "./config-keys.ts";
 import { fetchJsonList } from "./json-list.ts";
 import { fetchXSearch, planXShards, readXSearch, shardHandle, shardQuery, SHARDABLE_SQL, tweetToCandidate, type XBacklog, type XRead } from "./x.ts";
 import { FetchError, type Candidate, type SourceRow } from "./types.ts";
+import { sourceErrorMessage } from "./errors.ts";
 
 export interface CollectResult {
   sourceId: string;
@@ -411,7 +412,7 @@ export async function collectSource(sourceId: string, opts: { force?: boolean } 
                 detail = ${sql.json(detail as never)} WHERE id = ${run!.id}`;
     return { sourceId, status: "ok", found, created, revised, dropped };
   } catch (error) {
-    const message = String(error instanceof Error ? error.message : error).slice(0, 1000);
+    const message = sourceErrorMessage(error);
     const budget = error instanceof BudgetExceededError;
     await sql`
       UPDATE sources SET last_fetch_at = now(),

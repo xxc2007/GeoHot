@@ -330,7 +330,7 @@ export async function reportInput(kind: "daily" | "weekly" | "monthly", key: str
   const all = await candidates(start, end);
   const dailyCount = kind === "daily" ? 0 : Number((await sql<{ n: number }[]>`
     SELECT count(*) AS n FROM reports WHERE kind='daily' AND key >= ${startDate} AND key <= ${endDate}`)[0]?.n ?? 0);
-  const model = await modelFor("report", kind === "daily" ? key : `${kind}:${key}`);
+  const model = await modelFor("report", kind === "daily" ? key : `${kind}:${key}`, `report_${kind}`);
   const fingerprint = sha256(stableJson({ contract: "report-input-v1", kind, key, start, end,
     version: REPORT_VERSION, model, siteName: SITE.name, categories: CATEGORIES, all,
     layout: { sections: REPORT_SECTIONS, sectionLimit: SECTION_LIMIT, flashLimit: FLASH_LIMIT,

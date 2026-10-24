@@ -11,12 +11,14 @@ import { Conflict } from "@aihot/backend/admin/sources";
 import { listBudgets } from "@aihot/backend/admin/settings";
 import { collectFindings } from "@aihot/backend/operations/alerts";
 import { chatJson, MODELS } from "@aihot/backend/providers/llm";
+import { enqueue, QUEUES, stopBoss } from "@aihot/backend/jobs/queue";
+import { groupArticle } from "@aihot/backend/events/group";
 import { BudgetExceededError, paidRequest, ProviderRejectedError, ReceiptBusyError, rejectReceivedResponse, unbilledAttempt } from "@aihot/backend/providers/receipts";
 
 const provider = await stub(() => new Reply(500, { error: "upstream result is uncertain" }));
 process.env.LLM_BASE_URL = `${provider.url}/v1`;
 process.env.LLM_API_KEY = "test-key";
-after(async () => { await provider.close(); await closeDb(); });
+after(async () => { await provider.close(); await stopBoss(); await closeDb(); });
 
 async function fixture(run: (service: string, req: { service: string; purpose: string; subject: string; identity: string }) => Promise<void>, limit = 1) {
   const service = `billing-${tag()}`;
@@ -152,6 +154,89 @@ test("release rolls back when the current attempt is missing, and concurrent rel
     const logs = await sql`SELECT after FROM audit_log WHERE action='receipt.release' AND subject=${`receipt:${id}`}`;
     assert.equal(logs.length, 1);
     assert.equal(logs[0]!.after.attemptId, (await attempts(service))[0]!.id);
+  });
+});
+
+for (const purpose of ["group_article", "group_review", "group_signal"]) {
+  test(`releasing ${purpose} restores the original group queue without refunding or releasing twice`, async () => {
+    await fixture(async (service, base) => {
+      const articleId = `group-${service}`;
+      const req = { ...base, purpose, subject: `article:${articleId}${purpose === "group_review" ? ":fact:42" : ""}` };
+      try {
+        const id = await lose(req);
+        await age(id);
+        await autoReleaseUnknownReceipts();
+        const jobs = await sql`SELECT name,data,singleton_key FROM pgboss.job WHERE data->>'articleId'=${articleId}`;
+        assert.equal(jobs.length, 1);
+        assert.equal(jobs[0]!.name, QUEUES.group);
+        assert.equal(jobs[0]!.singleton_key, articleId);
+        assert.deepEqual(jobs[0]!.data, { articleId, force: true, ...(purpose === "group_signal" ? { signalOnly: true } : {}) });
+        assert.equal((await attempts(service))[0]!.billing_status, "unknown");
+        const [log] = await sql`SELECT after FROM audit_log WHERE action='receipt.release' AND subject=${`receipt:${id}`}`;
+        assert.equal(log!.after.requeued, true);
+        // A second lost answer keeps its own unknown reservation and must not trigger another job.
+        await lose(req);
+        await age(id);
+        await autoReleaseUnknownReceipts();
+        assert.equal((await sql`SELECT status FROM receipts WHERE id=${id}`)[0]!.status, "unknown");
+        assert.deepEqual((await attempts(service)).map((r) => r.billing_status), ["unknown", "unknown"]);
+        assert.equal((await sql`SELECT id FROM pgboss.job WHERE data->>'articleId'=${articleId}`).length, 1);
+      } finally {
+        await sql`DELETE FROM pgboss.job WHERE data->>'articleId'=${articleId}`;
+      }
+    }, 2);
+  });
+}
+
+test("manual group release shares the original singleton and cannot enqueue a duplicate", async () => {
+  await fixture(async (service, base) => {
+    const articleId = `group-${service}`;
+    try {
+      await enqueue(QUEUES.group, { articleId, force: true }, { singletonKey: articleId });
+      const id = await lose({ ...base, purpose: "group_review", subject: `article:${articleId}:fact:42` });
+      await releaseReceipt(id, { billed: true, note: "confirmed lost grouping response" }, "test");
+      assert.equal((await sql`SELECT id FROM pgboss.job WHERE name=${QUEUES.group} AND singleton_key=${articleId}`).length, 1);
+      assert.equal((await attempts(service))[0]!.billing_status, "billed");
+      await assert.rejects(releaseReceipt(id, { billed: true, note: "duplicate" }, "test"), Conflict);
+    } finally {
+      await sql`DELETE FROM pgboss.job WHERE data->>'articleId'=${articleId}`;
+    }
+  });
+});
+
+test("only exact article grouping purposes and subject shapes can restore a group job", async () => {
+  for (const [purpose, suffix] of [["group_article", ":fact:42"], ["group_review", ""], ["group_review", ":fact:42:extra"], ["group_signal", "@revision"], ["group_story", ""]]) {
+    await fixture(async (service, base) => {
+      const articleId = `group-${service}`;
+      const id = await lose({ ...base, purpose: purpose!, subject: `article:${articleId}${suffix}` });
+      await releaseReceipt(id, { billed: false, note: "confirmed no charge" }, "test");
+      assert.equal((await sql`SELECT id FROM pgboss.job WHERE data->>'articleId'=${articleId}`).length, 0);
+      assert.equal((await attempts(service))[0]!.billing_status, "unbilled");
+    });
+  }
+});
+
+test("a recovered forced grouping job preserves an intervening manual standalone decision", async () => {
+  await fixture(async (service, base) => {
+    const articleId = `group-${service}`;
+    await sql`INSERT INTO sources(id,name,kind) VALUES(${service},${service},'rss')`;
+    await sql`INSERT INTO articles(id,source_id,identity_key,url,title,discovered_at,timeline_at)
+      VALUES(${articleId},${service},${articleId},${`https://example.com/${articleId}`},'Manual grouping recovery',now(),now())`;
+    try {
+      const id = await lose({ ...base, purpose: "group_review", subject: `article:${articleId}:fact:42` });
+      await sql`INSERT INTO grouping_overrides(article_id,reason,actor) VALUES(${articleId},'keep separate','test')`;
+      await releaseReceipt(id, { billed: true, note: "confirmed grouping response lost" }, "test");
+      const [job] = await sql`SELECT data FROM pgboss.job WHERE name=${QUEUES.group} AND singleton_key=${articleId}`;
+      assert.equal(job!.data.force, true);
+      const result = await groupArticle(job!.data.articleId, { force: job!.data.force });
+      assert.equal(result.verdict, "manual");
+      assert.equal((await sql`SELECT article_id FROM grouping_overrides WHERE article_id=${articleId}`).length, 1);
+      assert.equal((await sql`SELECT fact_id FROM fact_articles WHERE article_id=${articleId}`).length, 0);
+    } finally {
+      await sql`DELETE FROM pgboss.job WHERE data->>'articleId'=${articleId}`;
+      await sql`DELETE FROM articles WHERE id=${articleId}`;
+      await sql`DELETE FROM sources WHERE id=${service}`;
+    }
   });
 });
 

@@ -356,6 +356,22 @@ test("答不出这一步中文的门只在这一步被跳过，它在别的步�
   }
 });
 
+test("two explicit authentication refusals cool only that member, and a later success reopens it", async () => {
+  const [r] = await sql`INSERT INTO receipts(logical_key,service,model,purpose,status)
+    VALUES(${`auth-probe-${T}`},'agnes-cn','auth-test','pool_health_probe','failed') RETURNING id`;
+  try {
+    for(let i=1;i<=2;i++) await sql`INSERT INTO receipt_attempts(receipt_id,attempt,service,model,status,error,started_at)
+      VALUES(${r!.id},${i},'agnes-cn','auth-test','failed','HTTP 401: authentication expired',now()-interval '20 minutes')`;
+    invalidateModelCache();
+    assert.ok((await sickServices()).has('agnes-cn|auth-test'));
+    assert.ok(!(await sickServices()).has('agnes-cn|healthy-sibling'));
+    await sql`INSERT INTO receipt_attempts(receipt_id,attempt,service,model,status,started_at)
+      VALUES(${r!.id},3,'agnes-cn','auth-test','received',now()-interval '19 minutes')`;
+    invalidateModelCache();
+    assert.ok(!(await sickServices()).has('agnes-cn|auth-test'));
+  } finally { await sql`DELETE FROM receipts WHERE id=${r!.id}`; invalidateModelCache(); }
+});
+
 test("判关要够多样本、要真退得比答得多、按模型而不是服务判，而且永远不清空池子", () => {
   assert.equal(refusesThisStep({ refused: 660, accepted: 208 }), true, "生产那一天的实际形状");
   assert.equal(refusesThisStep({ refused: 9, accepted: 0 }), false, "样本下限挡住一次抖动");
