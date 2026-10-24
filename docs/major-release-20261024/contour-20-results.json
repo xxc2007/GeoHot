@@ -1,0 +1,20 @@
+{
+  "results": [
+    "1440px: pin/order/anchor/counts/filter, 2.0 contours/automatic motion/keyboard/pointer/visibility/offscreen, workflow tabs, payload/batch controls, overflow OK",
+    "390px: pin/order/anchor/counts/filter, 2.0 contours/automatic motion/keyboard/pointer/visibility/offscreen, workflow tabs, payload/batch controls, overflow OK",
+    "reduced: static rendering and content fallback OK",
+    "no-js: static rendering and content fallback OK"
+  ],
+  "sizes": [
+    {
+      "name": "changelog-CsY9_K41.css",
+      "raw": 5740,
+      "gzip": 1630
+    },
+    {
+      "name": "changelog-DnmMwXQo.js",
+      "raw": 19530,
+      "gzip": 7944
+    }
+  ]
+}

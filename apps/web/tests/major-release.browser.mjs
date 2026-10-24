@@ -37,12 +37,12 @@ try{
   const total=await page.locator('nav[aria-label="按月份"] a span').allTextContents();
   assert.equal(total.reduce((n,s)=>n+parseInt(s),0),releases.releases.length,'month statistics include pinned item once');
   await canvas.scrollIntoViewIfNeeded();await page.waitForFunction(()=>document.querySelector('.major-release canvas').dataset.running==='true');
-  await article.getByRole('button',{name:'暂停动态',exact:true}).click();
-  await page.waitForFunction(()=>document.querySelector('.major-release canvas').dataset.running==='false');
-  const still=await canvas.screenshot();await page.waitForTimeout(160);assert.ok((await canvas.screenshot()).equals(still),'paused canvas retains identical pixels');
-  await canvas.focus();await page.keyboard.press('ArrowLeft');assert.ok(!(await canvas.screenshot()).equals(still),'keyboard changes actual ridge pixels');
-  const box=await canvas.boundingBox();await page.mouse.click(box.x+box.width*.88,box.y+box.height*.35);assert.ok(!(await canvas.screenshot()).equals(still),'pointer changes actual ridge pixels');
-  await article.getByRole('button',{name:'重播 / 复位',exact:true}).click();await page.waitForFunction(()=>document.querySelector('.major-release canvas').dataset.running==='true');
+  assert.equal(await article.locator('.major-motion-controls').count(),0,'no motion controls or instructions');
+  assert.doesNotMatch(await article.innerText(),/暂停动态|重播|移动指针|触摸山脊/);
+  const animated=await canvas.screenshot();await page.waitForTimeout(160);
+  assert.ok(!(await canvas.screenshot()).equals(animated),'contour pixels animate');
+  await canvas.focus();await page.keyboard.press('ArrowLeft');
+  const box=await canvas.boundingBox();await page.mouse.move(box.x+box.width*.7,box.y+box.height*.45);
   await page.evaluate(()=>{Object.defineProperty(document,'hidden',{value:true,configurable:true});document.dispatchEvent(new Event('visibilitychange'));});
   assert.equal(await canvas.getAttribute('data-running'),'false','simulated background visibility event stops frame loop');
   await page.evaluate(()=>{Object.defineProperty(document,'hidden',{value:false,configurable:true});document.dispatchEvent(new Event('visibilitychange'));});
@@ -63,12 +63,12 @@ try{
   const filtered=releases.releases.filter(r=>r.kind==='优化');
   const filteredMonths=await page.locator('nav[aria-label="按月份"] a span').allTextContents();assert.equal(filteredMonths.reduce((n,s)=>n+parseInt(s),0),filtered.length);
   assert.equal(requests.some(url=>!/^(http:\/\/127\.0\.0\.1:8945|data:)/.test(url)),false,'visual interaction adds no external requests');
-  assert.deepEqual(errors,[]);results.push(`${width}px: pin/order/anchor/counts/filter, canvas pause/keyboard/pointer/replay/visibility/offscreen, workflow tabs, payload/batch controls, overflow OK`);await page.close();
+  assert.deepEqual(errors,[]);results.push(`${width}px: pin/order/anchor/counts/filter, 2.0 contours/automatic motion/keyboard/pointer/visibility/offscreen, workflow tabs, payload/batch controls, overflow OK`);await page.close();
  }
  for(const mode of ['reduced','no-js']){
   const page=await browser.newPage({viewport:{width:390,height:900},reducedMotion:mode==='reduced'?'reduce':'no-preference',javaScriptEnabled:mode!=='no-js',hasTouch:mode==='reduced'});
   await page.goto(base,{waitUntil:'networkidle'});
-  if(mode==='reduced'){await page.waitForFunction(()=>document.querySelector('.major-release canvas').dataset.painted==='true');assert.equal(await page.locator('.major-release canvas').getAttribute('data-running'),'false');assert.equal(await page.getByRole('button',{name:'已减少动态'}).isDisabled(),true);const shot=await page.locator('.major-release canvas').screenshot();await page.waitForTimeout(150);assert.ok((await page.locator('.major-release canvas').screenshot()).equals(shot));const bounds=await page.locator('.major-release canvas').boundingBox();await page.touchscreen.tap(bounds.x+bounds.width*.9,bounds.y+bounds.height*.3);assert.ok(!(await page.locator('.major-release canvas').screenshot()).equals(shot),'touch changes ridge even when automatic motion is reduced');}
+  if(mode==='reduced'){await page.waitForFunction(()=>document.querySelector('.major-release canvas').dataset.painted==='true');assert.equal(await page.locator('.major-release canvas').getAttribute('data-running'),'false');const shot=await page.locator('.major-release canvas').screenshot();await page.waitForTimeout(150);assert.ok((await page.locator('.major-release canvas').screenshot()).equals(shot));const bounds=await page.locator('.major-release canvas').boundingBox();await page.touchscreen.tap(bounds.x+bounds.width*.7,bounds.y+bounds.height*.45);assert.ok(!(await page.locator('.major-release canvas').screenshot()).equals(shot),'touch changes ridge even when automatic motion is reduced');}
   else{assert.equal(await page.locator('.major-terrain-fallback').isVisible(),true);assert.match(await page.locator('.major-release').innerText(),/每一条线索保留来源入口/);}
   results.push(`${mode}: static rendering and content fallback OK`);await page.close();
  }
