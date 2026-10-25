@@ -13,7 +13,7 @@ except (ValueError,OSError):pass
 percent=round(100*(1-(idle-old.get('idle',idle))/max(1,total-old.get('total',total))),1) if old else None
 (root/'previous.json').write_text(json.dumps({'idle':idle,'total':total}))
 services=[]
-names=['nginx','postgresql','artalk','geohot-api','geohot-web','geohot-worker','geohot-content-executor','geohot-magpie','geohot-archive']
+names=['nginx','postgresql@17-main','artalk','geohot-api','geohot-web','geohot-worker','geohot-content-executor','geohot-magpie','geohot-archive']
 try:
  text=subprocess.run(['systemctl','show',*[n+'.service' for n in names],'-p','Id','-p','ActiveState','-p','MemoryCurrent','-p','NRestarts'],capture_output=True,text=True,timeout=4).stdout
  for block in text.strip().split('\n\n'):
