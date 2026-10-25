@@ -31,6 +31,7 @@ test("identity outage stays inside the admin frame without protected content", a
   assert.equal(r.status, 503);
   assert.match(r.html, /后台连接暂时不可用/);
   assert.match(r.html, /审计记录/);
+  assert.match(r.html, /translate="no" class="notranslate /);
   assert.doesNotMatch(r.html, /回到精选|队列积压|测试管理员/);
 });
 
