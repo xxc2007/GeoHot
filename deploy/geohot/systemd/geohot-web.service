@@ -15,7 +15,8 @@
 [Unit]
 Description=GEOHOT web (SSR, 127.0.0.1:3000)
 After=network.target geohot-api.service
-Requires=geohot-api.service
+# Keep the control console available while the business API restarts or fails.
+Wants=geohot-api.service
 
 [Service]
 Type=simple
