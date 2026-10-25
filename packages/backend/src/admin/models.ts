@@ -1,6 +1,7 @@
-// Admin "模型与评测": the model each capability uses and where that choice comes from,
+import {snapshotReader,snapshotStore} from "./statistic-snapshot.ts";
+// Admin "模型": the model each capability uses and where that choice comes from,
 // the prompt versions in use, quality / latency / cost of the last days per model, the switch history
-// and the SelectBench runs that compare models on the same batch. A switch is audited and applies to
+// A switch is audited and applies to
 // new work only.
 import { sql } from "../db.ts";
 import { CAPABILITIES, invalidateModelCache, modelSources, type Capability, type CapabilityKey } from "../editorial/models.ts";
@@ -58,42 +59,34 @@ export async function readModelUsage(db: import("../db.ts").Tx, since: Date) {
   return rows.map(({ missing_labels: _missing, ...row }) => row);
 }
 
-const usageReaders = new Map<number, () => Promise<import("./model-statistics-read.ts").StatisticResult<UsageRow[]>>>();
+const usageReaders = new Map<number, ReturnType<typeof snapshotReader<UsageRow>>>();
 const readPrices = statisticReader(() => modelStatisticRead(db =>
   db<{ service: string; model: string; currency: string; input_per_mtok: string | null; output_per_mtok: string | null }[]>`
     SELECT service, model, currency, input_per_mtok, output_per_mtok FROM service_prices`), () => []);
-const readBenches = statisticReader(() => modelStatisticRead(db =>
-  db<{ id: string; label: string; sample_size: number; prompt_version: string | null; models: string[]; summary: unknown; created_at: Date }[]>`
-    SELECT id, label, sample_size, prompt_version, models,
-           (SELECT coalesce(jsonb_object_agg(key, value - 'sweep'), '{}'::jsonb) FROM jsonb_each(r.summary)) AS summary,
-           created_at FROM selectbench_runs r ORDER BY created_at DESC LIMIT 8`), () => []);
-
 export async function modelsOverview(days = 7) {
   days = Number.isFinite(days) ? Math.max(1, Math.min(90, Math.floor(days))) : 7;
   let readUsage = usageReaders.get(days);
   if (!readUsage) {
     const windowDays = days;
-    readUsage = statisticReader(() => modelStatisticRead(db =>
-      readModelUsage(db, new Date(Date.now() - windowDays * 86400_000))), () => []);
+    readUsage = snapshotReader(() => modelStatisticRead(db =>
+      readModelUsage(db, new Date(Date.now() - windowDays * 86400_000))), snapshotStore<UsageRow>(`models/${windowDays}`));
     usageReaders.set(days, readUsage);
   }
-  const [sourcesResult, usageResult, pricesResult, historyResult, benchesResult] = await Promise.all([
+  const [sourcesResult, usageResult, pricesResult, historyResult] = await Promise.all([
     modelSources().then(rows => ({ rows, status: { state: "ready" as const, asOf: new Date().toISOString() } }),
       () => ({ rows: null, status: { state: "unavailable" as const, asOf: null, message: "当前模型配置暂时不可用，请稍后刷新。" } })),
-    readUsage(), readPrices(),
+    readUsage.get(), readPrices(),
     // Switch history is always fresh, like model configuration.
     modelStatisticRead(db => db<{ at: Date; actor: string; subject: string; reason: string | null; before: unknown; after: unknown }[]>`
       SELECT created_at AS at, actor, subject, reason, before, after FROM audit_log
       WHERE action = 'models.switch' ORDER BY created_at DESC LIMIT 30`)
       .then(rows => ({ rows, status: { state: "ready" as const, asOf: new Date().toISOString() } }),
         () => ({ rows: [], status: { state: "unavailable" as const, asOf: null, message: "切换记录暂时不可用，请稍后刷新。" } })),
-    readBenches(),
   ]);
   const sources = sourcesResult.rows;
   const usage = usageResult.rows;
   const prices = pricesResult.rows;
   const history = historyResult.rows;
-  const benches = benchesResult.rows;
   // The receipt row already carries its own service, so price by that. Resolving a provider from the model
   // name instead would misattribute the two Agnes doors, which answer under one model name.
   const priced = (u: UsageRow) => {
@@ -130,8 +123,8 @@ export async function modelsOverview(days = 7) {
       })),
   })) : [];
   const choices = Object.values(MODELS).map((m) => ({ key: m.key, service: m.service, vision: !!m.vision }));
-  return { days, capabilities, choices, history, benches, statistics: {
-    configuration: sourcesResult.status, usage: usageResult.status, prices: pricesResult.status, history: historyResult.status, benches: benchesResult.status,
+  return { days, capabilities, choices, history, statistics: {
+    configuration: sourcesResult.status, usage: usageResult.status, prices: pricesResult.status, history: historyResult.status,
   } };
 }
 

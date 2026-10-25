@@ -1,3 +1,4 @@
+import {CNY_FX,toCny} from "@aihot/contracts/cny";
 import type { OfficialRate, OfficialCostReport, CostBounds } from "@aihot/contracts/model-costs";
 
 const verifiedOn="2026-10-25";
@@ -33,7 +34,7 @@ export interface PricingBucket {
   pricedIn:number;pricedOut:number;cachedTokens:number;unknownCacheIn:number;cacheUnknownCalls:number;
 }
 export function officialCosts(buckets:PricingBucket[],ready=true):OfficialCostReport {
-  const report:OfficialCostReport={state:ready?"ready":"backfill",verifiedOn,policy:"按当前核验的官方单价折算所选历史用量，不还原历史调价；不是实际账单或订阅扣款。缺少缓存明细时显示区间，缺少完整 Token 的请求不计金额。币种分别累计。",models:[],rates:OFFICIAL_RATES,totals:[],calls:0,pricedCalls:0,missingUsage:0,unmappedCalls:0,cacheUnknownCalls:0};
+  const report:OfficialCostReport={fx:CNY_FX,state:ready?"ready":"backfill",verifiedOn,policy:"按当前核验的官方单价折算所选历史用量，不还原历史调价；不是实际账单或订阅扣款。缺少缓存明细时显示区间，缺少完整 Token 的请求不计金额。美元按已核验汇率折合人民币；汇总后取整显示，计算保留原始精度。",models:[],rates:OFFICIAL_RATES,totals:[],calls:0,pricedCalls:0,missingUsage:0,unmappedCalls:0,cacheUnknownCalls:0};
   const groups=new Map<string,OfficialCostReport['models'][number]>();
   for(const b of buckets){
     const id=b.model==='agnes-3.0-flash'?(b.service==='agnes-cn'?'agnes-cn':b.service==='llm'?'agnes':undefined):aliases[b.model??''];
@@ -53,6 +54,7 @@ export function officialCosts(buckets:PricingBucket[],ready=true):OfficialCostRe
       m[type]!.high+=(base+b.unknownCacheIn*Math.max(input,cached))*factor.high/1e6;
     }
   }
+  for(const m of groups.values()){if(!m.currency)continue;for(const type of ['list','current'] as const)if(m[type])m[type]={low:toCny(m[type]!.low,m.currency)!,high:toCny(m[type]!.high,m.currency)!};m.currency='CNY';}
   report.models=[...groups.values()].sort((a,b)=>b.calls-a.calls);
   if(ready)for(const m of report.models){if(!m.currency||!m.list||!m.current)continue;let t=report.totals.find(t=>t.currency===m.currency);if(!t){t={currency:m.currency,list:{low:0,high:0},current:{low:0,high:0}};report.totals.push(t);}for(const type of ['list','current'] as const){t[type].low+=m[type]!.low;t[type].high+=m[type]!.high;}}
   return report;

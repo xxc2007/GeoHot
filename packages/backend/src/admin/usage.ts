@@ -1,7 +1,8 @@
 import type { OfficialCostReport } from "@aihot/contracts/model-costs";
 import { officialCosts, type PricingBucket } from "./official-pricing.ts";
 import type { Tx } from "../db.ts";
-import { modelStatisticRead, statisticReader } from "./model-statistics-read.ts";
+import {snapshotReader,snapshotStore} from "./statistic-snapshot.ts";
+import { modelStatisticRead } from "./model-statistics-read.ts";
 
 export const USAGE_RANGES = ["today", "7", "30", "90", "all"] as const;
 export type UsageRange = typeof USAGE_RANGES[number];
@@ -85,13 +86,15 @@ export async function readUsage(db: Tx, range: UsageRange, service: string, mode
     actualCost: r.kind === "currency" ? r.actualCost : null, estimatedCost: r.kind === "currency" ? r.estimatedCost : null }));
 }
 
-const readers = new Map<string, ReturnType<typeof statisticReader<UsageMetric>>>();
-export async function usageOverview(value?: string, service = "", model = "") {
-  const range=usageRange(value);
-  service=service.slice(0,100);model=model.slice(0,200);
-  const key=JSON.stringify([range,service,model]);let read=readers.get(key);
-  if(!read){if(readers.size>=32)readers.delete(readers.keys().next().value!);
-    read=statisticReader(() => modelStatisticRead(db => readUsage(db,range,service,model)),()=>[]);readers.set(key,read);}
-  const result=await read();
-  return {range,service,model,timeZone:"Asia/Shanghai",refreshSeconds:30,...result};
+const readers = new Map<string, ReturnType<typeof snapshotReader<UsageMetric>>>();
+function usageReader(range:UsageRange,service:string,model:string){
+  const key=JSON.stringify(['usage',range,service,model]);let read=readers.get(key);
+  if(!read){if(readers.size>=24)readers.delete(readers.keys().next().value!);
+    read=snapshotReader(()=>modelStatisticRead(db=>readUsage(db,range,service,model)),snapshotStore<UsageMetric>(key));readers.set(key,read);}
+  return read;
+}
+export async function primeUsageSnapshot(range:UsageRange){const reader=usageReader(range,'','');await reader.get();await reader.refresh();return reader.get();}
+export async function usageOverview(value?:string,service='',model=''){
+  const range=usageRange(value);service=service.slice(0,100);model=model.slice(0,200);
+  return {range,service,model,timeZone:'Asia/Shanghai',refreshSeconds:30,...await usageReader(range,service,model).get()};
 }
