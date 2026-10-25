@@ -2,6 +2,7 @@
 // Identity is still checked against the single production database on every request.
 import Fastify from 'fastify';
 import postgres from 'postgres';
+import rateLimit from '@fastify/rate-limit';
 import { config } from '@aihot/backend/config';
 import { sessionPrincipal } from '@aihot/backend/admin/auth';
 import { adminHandler } from '../api/src/routes/admin-auth.ts';
@@ -22,6 +23,7 @@ export async function createAdminControl(options: { authenticate?: typeof sessio
   });
   const authenticate = options.authenticate ?? ((cookie: string | undefined) => sessionPrincipal(cookie, db!));
   const app = Fastify({ bodyLimit: 1_048_576, requestTimeout: 25_000 });
+  await app.register(rateLimit, { global: true, max: 600, timeWindow: '1 minute' });
   app.get('/api/admin/me', adminHandler(async (_req, _reply, admin) => ({ name: admin.name, csrf: admin.csrf, dev: admin.dev }), authenticate));
   await registerServerConsole(app, undefined, authenticate);
   if (db) app.addHook('onClose', async () => { await db.end({ timeout: 2 }); });

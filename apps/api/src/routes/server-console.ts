@@ -32,7 +32,7 @@ export function embedMagpie(html: string, prefix: string, csrf: string) {
 
 export async function registerServerConsole(app: FastifyInstance, forward = magpieRequest, authenticate: typeof sessionPrincipal = sessionPrincipal) {
   const guard = (fn: Parameters<typeof adminHandler>[0]) => adminHandler(fn, authenticate);
-  await app.register(rateLimit, { global:false });
+  if (!app.hasDecorator('rateLimit')) await app.register(rateLimit, { global:true, max:600, timeWindow:'1 minute' });
   app.get("/api/admin/server", {config:{rateLimit:{max:30,timeWindow:'1 minute'}}}, guard(async (_req, reply) => {
     try {
       const text = await readFile(process.env.SERVER_STATUS_FILE || "/run/geohot-server/status.json", "utf8");

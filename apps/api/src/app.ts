@@ -17,6 +17,7 @@ import { registerFeeds } from "./routes/feeds.ts";
 import { registerStatic } from "./routes/static.ts";
 import { registerMcp } from "./routes/mcp.ts";
 import { sendProblem } from "./http/respond.ts";
+import rateLimit from "@fastify/rate-limit";
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -35,6 +36,9 @@ export async function buildApp(): Promise<FastifyInstance> {
     routerOptions: { ignoreTrailingSlash: false, maxParamLength: 300 },
   });
 
+  // Register before routes so every admin authentication read is protected.
+  await app.register(rateLimit, { global: true, max: 600, timeWindow: '1 minute',
+    allowList: req => !req.url.startsWith('/api/admin/') });
   app.addHook("onRequest", async (req) => {
     req.requestId = req.id;
   });

@@ -37,7 +37,7 @@ test('Magpie resource bootstrap leaves external resources external and includes 
 
 test('Magpie readiness waits for its rendered title and repairs dynamically inserted icon paths', () => {
  const html=embedMagpie('<html><head></head></html>','/geohot/api/admin/magpie-proxy','test');
- const script=[...html.matchAll(/<script>(.*?)<\/script>/g)][1]![1]!;
+ const script=[...html.matchAll(/<script>(.*?)<\/script>/gi)][1]![1]!;
  let title='';let observe:(records:unknown[])=>void=()=>{};const messages:unknown[]=[];
  class Element { src:string; constructor(src:string){this.src=src;} getAttribute(){return this.src;} setAttribute(_key:string,value:string){this.src=value;} querySelectorAll(){return [];} }
  runInNewContext(script, { Element, HTMLScriptElement:class{}, MutationObserver:class { constructor(callback:typeof observe){observe=callback;} observe(){} },
