@@ -12,14 +12,18 @@ export const magpiePrefix = () => `${deployBase(config.siteUrl)}/api/admin/magpi
 function scriptString(value: string) {
   return JSON.stringify(value).replace(/[<>\u2028\u2029]/g, c => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`);
 }
-async function magpieRequest(resource: string, init: {method:string;headers:Record<string,string>;body?:string}):Promise<Response> {
+export async function magpieRequest(resource: string, init: {method:string;headers:Record<string,string>;body?:string}):Promise<Response> {
   return new Promise((resolve, reject) => {
+    const target = new URL(resource, 'http://127.0.0.1:3430');
+    // Magpie deliberately holds an idle trace poll for 25 seconds. Keep its deadline
+    // above that interval, but below the reverse proxy's 60-second read timeout.
+    const idlePoll = target.pathname === '/api/gateway/trace' && target.searchParams.get('wait') === '1';
     // Keep host/port constants separate from the resource path, including after URL normalization.
     const call = httpRequest({ hostname:'127.0.0.1', port:3430, path:resource, method:init.method, headers:init.headers }, res => {
       const headers=new Headers();for(const [k,v] of Object.entries(res.headers))if(v!==undefined)headers.set(k,Array.isArray(v)?v.join(','):v);
       resolve(new Response([204,304].includes(res.statusCode??200)?null:Readable.toWeb(res) as never,{status:res.statusCode??502,headers}));
     });
-    call.setTimeout(20_000,()=>call.destroy(new Error('Magpie timeout')));call.on('error',reject);call.end(init.body);
+    call.setTimeout(idlePoll ? 45_000 : 20_000,()=>call.destroy(new Error('Magpie timeout')));call.on('error',reject);call.end(init.body);
   });
 }
 /** Rewrite only the trusted, fixed loopback application's own resource URLs. */
