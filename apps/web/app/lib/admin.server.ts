@@ -13,6 +13,7 @@ export async function adminGet<T>(request: Request, path: string, timeoutMs = 30
     });
   } catch (error) {
     if (request.signal.aborted) throw error;
+    console.warn(JSON.stringify({ level: "warn", msg: "admin read failed", path: path.split("?")[0], phase: "connect", error: error instanceof Error ? error.name : "unknown" }));
     throw data({ message: "后台请求暂时超时，请稍后重试。" }, { status: 503 });
   }
   if (res.status === 401) {
@@ -21,6 +22,7 @@ export async function adminGet<T>(request: Request, path: string, timeoutMs = 30
   }
   if (res.status === 404) throw data({ message: "not_found" }, { status: 404 });
   if (!res.ok) {
+    console.warn(JSON.stringify({ level: "warn", msg: "admin read failed", path: path.split("?")[0], phase: "response", status: res.status }));
     let detail = `api ${res.status}`;
     try {
       detail = ((await res.json()) as { detail?: string }).detail ?? detail;
@@ -29,5 +31,12 @@ export async function adminGet<T>(request: Request, path: string, timeoutMs = 30
     }
     throw data({ message: detail }, { status: res.status >= 500 ? 503 : res.status });
   }
-  return (await res.json()) as T;
+  try {
+    // The deadline also covers the response body, which can reset after headers arrived.
+    return (await res.json()) as T;
+  } catch (error) {
+    if (request.signal.aborted) throw error;
+    console.warn(JSON.stringify({ level: "warn", msg: "admin read failed", path: path.split("?")[0], phase: "body", error: error instanceof Error ? error.name : "unknown" }));
+    throw data({ message: "后台响应暂时中断，请稍后重试。" }, { status: 503 });
+  }
 }

@@ -1,6 +1,7 @@
 import { SITE } from "@aihot/industry/site";
 import { motion } from "motion/react";
-import { NavLink, Outlet, useLocation, useNavigation, type ShouldRevalidateFunction } from "react-router";
+import { NavLink, Outlet, useLocation, useNavigation, useRevalidator, type ShouldRevalidateFunction } from "react-router";
+import { useEffect, type ReactNode } from "react";
 import type { Route } from "./+types/layout";
 import { RingMark } from "../../components/Logo";
 import { NavigationProgress } from "../../components/shell/Chrome";
@@ -16,8 +17,11 @@ export async function loader({ request }: Route.LoaderArgs) {
   return { me, counts };
 }
 
-// Counts follow every navigation and command; the identity does not change.
-export const shouldRevalidate: ShouldRevalidateFunction = () => true;
+// Each API call still authenticates. Avoid re-reading the shell identity on ordinary page changes;
+// actions and an explicit same-page retry must still revalidate it.
+export const shouldRevalidate: ShouldRevalidateFunction = ({ currentUrl, nextUrl, formMethod, defaultShouldRevalidate }) =>
+  formMethod && formMethod !== "GET" ? defaultShouldRevalidate
+    : currentUrl.pathname !== nextUrl.pathname || currentUrl.search !== nextUrl.search ? false : defaultShouldRevalidate;
 
 export const meta: Route.MetaFunction = () => [{ title: `${SITE.name} 后台` }, { name: "robots", content: "noindex, nofollow" }];
 
@@ -61,7 +65,24 @@ function NavItem({ to, label, count, tone }: { to: string; label: string; count?
 }
 
 export default function AdminLayout({ loaderData }: Route.ComponentProps) {
-  const { me, counts } = loaderData;
+  return <AdminFrame me={loaderData.me} counts={loaderData.counts}><Outlet /></AdminFrame>;
+}
+
+export function ErrorBoundary() {
+  const refresh = useRevalidator();
+  useEffect(() => {
+    const id = setInterval(() => { if (document.visibilityState === "visible" && refresh.state === "idle") refresh.revalidate(); }, 15_000);
+    return () => clearInterval(id);
+  }, [refresh.state, refresh.revalidate]);
+  // This shell never supplies an authenticated identity or protected child content on failure.
+  return <AdminFrame counts={{}}><section className="mx-auto max-w-3xl p-6 lg:p-10">
+    <h1 className="text-xl font-semibold text-ink">后台连接暂时不可用</h1>
+    <p role="status" className="mt-3 text-ink-3">尚未完成身份核验或页面读取。正在自动重试，其他后台入口仍可访问。</p>
+    <button className="mt-5 rounded-control bg-ink px-4 py-2 text-bg disabled:opacity-50" disabled={refresh.state !== "idle"} onClick={() => refresh.revalidate()}>重新连接</button>
+  </section></AdminFrame>;
+}
+
+function AdminFrame({ me, counts, children }: { me?: AdminMe; counts: Counts; children: ReactNode }) {
   const navigation = useNavigation();
   const location = useLocation();
   const flat = NAV.flatMap((g) => g.items);
@@ -87,8 +108,8 @@ export default function AdminLayout({ loaderData }: Route.ComponentProps) {
         </nav>
         <div className="mt-3 border-t border-line px-2 pt-3 text-[12.5px] text-ink-3">
           <div className="flex items-center justify-between gap-2">
-            <span className="truncate">{me.name}</span>
-            {me.dev && <span className="rounded bg-amber/15 px-1.5 text-[11px] font-medium text-amber">开发</span>}
+            <span className="truncate">{me?.name ?? "等待身份核验"}</span>
+            {me?.dev && <span className="rounded bg-amber/15 px-1.5 text-[11px] font-medium text-amber">开发</span>}
           </div>
           <form method="post" action={publicPath("/api/auth/logout")} className="mt-1.5">
             <button type="submit" className="text-ink-4 hover:text-ink-2">退出登录</button>
@@ -100,7 +121,7 @@ export default function AdminLayout({ loaderData }: Route.ComponentProps) {
           <div className="flex items-center gap-2 px-4 pt-3">
             <RingMark className="size-5 text-accent" />
             <span className="text-[14px] font-semibold text-ink">{SITE.name} 后台</span>
-            {me.dev && <span className="rounded bg-amber/15 px-1.5 text-[11px] font-medium text-amber">开发</span>}
+            {me?.dev && <span className="rounded bg-amber/15 px-1.5 text-[11px] font-medium text-amber">开发</span>}
           </div>
           <nav className="no-scrollbar flex gap-1 overflow-x-auto px-3 py-2">
             {flat.map((i) => {
@@ -116,7 +137,7 @@ export default function AdminLayout({ loaderData }: Route.ComponentProps) {
           </nav>
         </div>
         <main className="min-w-0 flex-1">
-          <Outlet />
+          {children}
         </main>
       </div>
       <Toaster />

@@ -25,6 +25,7 @@ interface Runs {
   ingest: Row[];
   leaderboard: { at: string; sources: Array<{ key: string; ok: boolean; at: string; lastOkAt: string | null; changed?: boolean; rows?: number; error?: string }> } | null;
 }
+type RunsLoad = { overview: Runs | null; unavailable: boolean };
 
 
 /**
@@ -45,7 +46,13 @@ function Result({ row }: { row: Row }) {
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
-  return adminGet<Runs>(request, "/api/admin/runs");
+  try {
+    const result = await adminGet<Runs | { unavailable: true }>(request, "/api/admin/runs", 10_000);
+    return { overview: "unavailable" in result ? null : result, unavailable: "unavailable" in result } satisfies RunsLoad;
+  } catch (error) {
+    if (error instanceof Response || request.signal.aborted) throw error;
+    return { overview: null, unavailable: true } satisfies RunsLoad;
+  }
 }
 
 export const meta: Route.MetaFunction = () => [{ title: `运行 · ${SITE.name} 后台` }];
@@ -65,7 +72,12 @@ const STATE_LABEL: Record<string, string> = { created: "排队", retry: "等待�
 
 export default function RunsAdmin({ loaderData }: Route.ComponentProps) {
   const refresh = useFetcher<typeof loader>();
-  const r = refresh.data ?? loaderData;
+  const [lastGood, setLastGood] = useState(loaderData.overview);
+  const r = refresh.data?.overview ?? lastGood ?? loaderData.overview;
+  useEffect(() => {
+    const value = refresh.data?.overview ?? loaderData.overview;
+    if (value) setLastGood(value);
+  }, [refresh.data, loaderData.overview]);
   const { run, pending } = useAdminAction();
   const [receipt, setReceipt] = useState<Row | null>(null);
   const [billed, setBilled] = useState("false");
@@ -82,6 +94,8 @@ export default function RunsAdmin({ loaderData }: Route.ComponentProps) {
     return () => { clearInterval(t); document.removeEventListener("visibilitychange", reload); };
   }, [refresh.load, refresh.state]);
 
+  if (!r) return <AdminPage title="运行"><Card><p role="status" className="text-[14px] text-ink-2">运行统计正在生成或连接暂时不可用，页面会自动更新；尚未取得数据，不代表队列为空或工作流停止。</p><div className="mt-4"><Button disabled={refresh.state !== "idle"} onClick={() => refresh.load("/admin/runs")}>重新加载</Button></div></Card></AdminPage>;
+
   const backlog = new Map<string, Record<string, { n: number; oldest: string }>>();
   for (const q of r.queues) backlog.set(q.name, { ...(backlog.get(q.name) ?? {}), [q.state]: { n: q.n, oldest: q.oldest } });
   const queued = r.queues.filter((q) => q.state !== "active").reduce((a, q) => a + q.n, 0);
@@ -90,12 +104,12 @@ export default function RunsAdmin({ loaderData }: Route.ComponentProps) {
 
   return (
     <AdminPage title="运行" subtitle={<>任务、队列、信源延迟与需要人工核对的回执和投递。每 20 秒自动刷新 · 最近检查 {bj(r.checkedAt)}</>}>
-      {r.stale && <p role="status" className="mb-5 rounded-panel border border-line bg-surface p-4 text-[13px] text-ink-2">本次统计暂时读取失败，暂时显示上方“最近检查”时间的快照；页面会继续尝试刷新。</p>}
+      {(r.stale || refresh.data?.unavailable) && <p role="status" className="mb-5 rounded-panel border border-line bg-surface p-4 text-[13px] text-ink-2">正在更新统计，暂时显示上方“最近检查”时间的快照；页面会继续尝试刷新。</p>}
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-5">
         <Stat
           label="worker"
           value={<span className="inline-flex items-center gap-2 text-[18px]"><Dot tone={worker?.alive ? "ok" : "bad"} />{worker ? (worker.alive ? "运行中" : "心跳中断") : "无心跳"}</span>}
-          hint={worker ? `${worker.host} · 心跳 ${ago(worker.at)}` : "worker 未上报心跳"}
+          hint={worker ? `${worker.host} · 心跳 ${ago(worker.at, new Date(r.checkedAt).getTime())}` : "worker 未上报心跳"}
         />
         <Stat label="队列积压" value={num(queued)} tone={queued > 500 ? "warn" : undefined} hint="排队与等待重试" />
         <Stat label="失败的定时任务" value={num(failing.length)} tone={failing.length ? "bad" : "ok"} hint="最近一次运行失败" />

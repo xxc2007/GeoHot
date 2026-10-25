@@ -8,8 +8,24 @@ import { audit } from "./auth.ts";
 import { Conflict } from "./sources.ts";
 import { failureGroupSql, queueProcessing, requeueFailed } from "../jobs/content.ts";
 import { enqueue, QUEUES } from "../jobs/queue.ts";
+import { snapshotReader, snapshotStore } from "./statistic-snapshot.ts";
 
 const STALE_HEARTBEAT_MS = 3 * 60_000;
+
+const runsSnapshot = snapshotReader(async () => {
+  try { return [await runsOverview()]; }
+  catch (error) {
+    console.warn(JSON.stringify({ level: "warn", msg: "admin runs snapshot refresh failed", code: String((error as { code?: string })?.code ?? "unknown") }));
+    throw error;
+  }
+}, snapshotStore<Awaited<ReturnType<typeof runsOverview>>>("runs-overview-v1"));
+
+/** Operational scans never sit on the HTTP critical path or repeat for every browser poll. */
+export async function readRunsOverview() {
+  const snapshot = await runsSnapshot.get();
+  const overview = snapshot.rows[0];
+  return overview ? { ...overview, stale: snapshot.status.state !== "ready" } : { unavailable: true as const };
+}
 
 /**
  * `job_runs.status` records whether the *run* finished, not whether every period it was supposed to lay out
