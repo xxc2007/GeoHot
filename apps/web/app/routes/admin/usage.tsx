@@ -1,3 +1,4 @@
+import {toCny,cnyInteger} from "@aihot/contracts/cny";
 import type { OfficialCostReport } from "@aihot/contracts/model-costs";
 import { OfficialCosts } from "../../features/admin/official-costs";
 import { useEffect, useState } from "react";
@@ -18,13 +19,18 @@ interface Usage {range:string;service:string;model:string;rows:Metric[];status:{
 export async function loader({request}:Route.LoaderArgs){
   const q=new URL(request.url).searchParams;const p=new URLSearchParams();
   for(const k of ["range","service","model"])if(q.has(k))p.set(k,q.get(k)!);
-  return adminGet<Usage>(request,`/api/admin/usage?${p}`,10_000);
+  try{return await adminGet<Usage>(request,`/api/admin/usage?${p}`,10_000);}
+  catch(error){
+    // Authentication redirects and cancelled navigation must keep their original semantics.
+    if(error instanceof Response||request.signal.aborted)throw error;
+    return {range:['today','7','30','90','all'].includes(p.get('range')??'')?p.get('range')!:'7',service:p.get('service')??'',model:p.get('model')??'',rows:[],status:{state:'unavailable',asOf:null,message:'后台连接暂时不可用，正在自动重试；尚未取得数据，不代表用量为零。'}} satisfies Usage;
+  }
 }
 export const meta:Route.MetaFunction=()=>[{title:`用量总览 · ${SITE.name} 后台`}];
 const compact=(n:number)=>new Intl.NumberFormat("zh-CN",{notation:"compact",maximumFractionDigits:1}).format(n);
 const value=(r:Metric,mode:string)=>mode==="tokens"?r.tokensIn+r.tokensOut:r.calls;
 const names:Record<string,string>={prefilter_article:"精选预筛",score_article:"精选评分",understand_article:"内容理解",summarize_article:"标题摘要",structure_article:"结构抽取",group_article:"事件归组",group_signal:"线索归组",group_review:"归组复核",story_digest:"事件综述",translate_body:"全文翻译",translate_quoted:"引用翻译",report_daily:"地理日报",report_weekly:"地理周报",report_monthly:"地理月报",report_lead:"报刊导语"};
-function amount(n:number|null,currency:string|null){return n===null?"未返回":`${currency??""} ${n.toLocaleString("zh-CN",{maximumFractionDigits:4})}`;}
+function amount(n:number|null,currency:string|null){return n===null?"未返回":`${cnyInteger(toCny(n,currency))} 元`;}
 function Cell({n,max,label}:{n:number;max:number;label:string}){
   return <span tabIndex={0} aria-label={label} title={label} className="block aspect-square min-w-0 rounded-[3px] outline-offset-2 focus:outline-2 focus:outline-accent"
     style={{background:n?`color-mix(in srgb, var(--accent) ${25+75*Math.sqrt(n/Math.max(1,max))}%, var(--bg-sunk))`:"var(--bg-sunk)"}}/>;
@@ -39,10 +45,17 @@ function Ranking({rows,mode,kind}:{rows:Metric[];mode:string;kind:"model"|"purpo
   </div>)}</div>;
 }
 export function ErrorBoundary(){const r=useRevalidator();return <AdminPage title="用量总览"><Card><p role="alert" className="text-ink-3">用量暂时无法加载，请稍后重试。调用工作流不受此页面影响。</p><button className="mt-4 text-accent" onClick={()=>r.revalidate()}>重新加载</button></Card></AdminPage>;}
-export default function UsagePage({loaderData:d}:Route.ComponentProps){
+export default function UsagePage({loaderData}:Route.ComponentProps){
+  const [lastGood,setLastGood]=useState<Usage|null>(loaderData.status.state==='unavailable'?null:loaderData);
+  useEffect(()=>{if(loaderData.status.state!=='unavailable')setLastGood(loaderData);},[loaderData]);
+  const sameScope=lastGood&&lastGood.range===loaderData.range&&lastGood.service===loaderData.service&&lastGood.model===loaderData.model;
+  const d=loaderData.status.state==='unavailable'&&sameScope&&lastGood.status.asOf&&Date.now()-Date.parse(lastGood.status.asOf)<86400_000
+    ?{...lastGood,status:{...lastGood.status,state:'stale',message:'后台暂时无法更新，保留上次成功统计；正在自动重试。'}}:loaderData;
   const [params,setParams]=useSearchParams();const refresh=useRevalidator();const [interval,setIntervalSeconds]=useState(30);const [mode,setMode]=useState("tokens");
-  useEffect(()=>{if(!interval)return;const run=()=>{if(document.visibilityState==="visible"&&refresh.state==="idle")refresh.revalidate();};const id=setInterval(run,interval*1000);document.addEventListener("visibilitychange",run);return()=>{clearInterval(id);document.removeEventListener("visibilitychange",run);};},[interval,refresh.state,refresh.revalidate]);
+  useEffect(()=>{if(!interval)return;const run=()=>{if(document.visibilityState==="visible"&&refresh.state==="idle")refresh.revalidate();};const id=setInterval(run,(d.status.state==='unavailable'?2:d.status.state==='stale'?5:interval)*1000);document.addEventListener("visibilitychange",run);return()=>{clearInterval(id);document.removeEventListener("visibilitychange",run);};},[interval,refresh.state,refresh.revalidate,d.status.state]);
   const total=d.rows.find(r=>r.kind==="total");const models=d.rows.filter(r=>r.kind==="model");const days=d.rows.filter(r=>r.kind==="day");
+  const currencies=d.rows.filter(r=>r.kind==='currency'&&r.currency);
+  const ledgerSum=(key:'actualCost'|'estimatedCost')=>{const amounts=currencies.filter(r=>r[key]!==null).map(r=>toCny(r[key]!,r.currency)).filter((n):n is number=>n!==null);return amounts.length?amounts.reduce((a,b)=>a+b,0):null;};
   const today=d.status.asOf?new Date(d.status.asOf).toLocaleDateString("en-CA",{timeZone:"Asia/Shanghai"}):"2000-01-01";
   const end=new Date(`${today}T00:00:00+08:00`);const selectedCount=d.range==="all"?366:d.range==="today"?1:Number(d.range);const count=Math.max(91,selectedCount);
   const start=new Date(end.getTime()-(count-1)*86400000);
@@ -67,7 +80,8 @@ export default function UsagePage({loaderData:d}:Route.ComponentProps){
       <datalist id="usage-models">{[...new Set(models.map(r=>r.model))].map(s=><option key={s} value={s??""}/>)}</datalist>
       <button className={control} type="submit">筛选</button><button className={control} type="button" onClick={()=>setParams({range:d.range})}>清除筛选</button>
     </Form>
-    {d.status.state!=="ready"?<Card><p role="status" className="text-ink-3">{d.status.message} 未加载的数据不代表用量为零。</p></Card>:<>
+    {d.status.state==='stale'&&<p role="status" className="mb-4 text-[13px] text-ink-3">{d.status.message}</p>}
+    {d.status.state==='unavailable'?<Card><p role="status" className="text-ink-3">{d.status.message} 未加载的数据不代表用量为零。</p></Card>:<>
       <div className="mb-5 grid grid-cols-2 overflow-hidden rounded-panel bg-surface ring-1 ring-line md:grid-cols-3 xl:grid-cols-6">
         {[["请求次数",num(total?.calls??0),`${num(total?.failed??0)} 次失败`],["已知 Token",compact((total?.tokensIn??0)+(total?.tokensOut??0)),`输入 ${compact(total?.tokensIn??0)} · 输出 ${compact(total?.tokensOut??0)}`],["成功返回率",`${total?.calls?((total.ok/total.calls)*100).toFixed(1):"0"}%`,"返回成功不等于内容入选"],["执行中",num(total?.pending??0),"上游结果尚未返回"],["结果未知",num(total?.unknown??0),"保留回执，待核验"],["缺少上游账单",num(total?.unpriced??0),"不按零费用计入"]].map(([label,n,sub])=><div key={label} className="border-b border-r border-line p-4"><div className="num text-[25px] font-semibold tracking-tight text-ink">{n}</div><div className="mt-1 text-[13px] text-ink-2">{label}</div><div className="mt-1 text-[11px] text-ink-4">{sub}</div></div>)}
       </div>
@@ -81,7 +95,7 @@ export default function UsagePage({loaderData:d}:Route.ComponentProps){
         <Card title="模型用量"><Ranking rows={models} mode={mode} kind="model"/></Card>
         <Card title="任务用量"><Ranking rows={d.rows.filter(r=>r.kind==="purpose")} mode={mode} kind="purpose"/></Card>
         <Card title="按时段" right="北京时间"><div className="overflow-x-auto"><div className="min-w-[380px] space-y-1">{Array.from({length:7},(_,i)=><div key={i} className="grid items-center gap-[3px]" style={{gridTemplateColumns:"26px repeat(24,minmax(8px,1fr))"}}><span className="text-[11px] text-ink-4">周{["一","二","三","四","五","六","日"][i]}</span>{Array.from({length:24},(_,h)=>{const r=hours.find(r=>r.dow===i+1&&r.hour===h);return <Cell key={h} n={r?value(r,mode):0} max={maxHour} label={`周${i+1} ${h}:00 · ${compact(r?value(r,mode):0)} ${mode==="tokens"?"已知 Token":"次请求"}`}/>;})}</div>)}<div className="ml-7 flex justify-between text-[11px] text-ink-4"><span>0 时</span><span>6 时</span><span>12 时</span><span>18 时</span><span>23 时</span></div></div></div></Card>
-        <Card title="上游账单记录"><div className="space-y-4">{d.rows.filter(r=>r.kind==="currency"&&r.currency).map(r=><div key={r.currency} className="flex justify-between gap-4 border-b border-line pb-3 text-[13px]"><span>{r.currency}</span><div className="text-right"><p>上游实报 {amount(r.actualCost,r.currency)}</p><p className="mt-1 text-ink-4">估算 {amount(r.estimatedCost,r.currency)}</p></div></div>)}<p className="text-[12px] leading-relaxed text-ink-3">按币种分别显示，实际金额与估算分开。未返回费用的请求不视为免费；此处不是上游账户余额或套餐剩余额度。</p></div></Card>
+        <Card title="上游账单记录"><div className="space-y-4"><div className="border-b border-line pb-3 text-[13px]"><p>上游实报 {amount(ledgerSum('actualCost'),'CNY')}</p><p className="mt-1 text-ink-4">上游估算 {amount(ledgerSum('estimatedCost'),'CNY')}</p></div><p className="text-[12px] leading-relaxed text-ink-3">统一折合人民币，汇总后四舍五入到元；实际金额与估算分开。未返回费用的请求不视为免费；此处不是上游账户余额或套餐剩余额度。</p></div></Card>
       </div>
     </>}
   </AdminPage>;

@@ -8,6 +8,7 @@ export interface OfficialModelCost {
   missingUsage:number;cacheUnknownCalls:number;list:CostBounds|null;current:CostBounds|null;reason?:string;
 }
 export interface OfficialCostReport {
+  fx:{usdToCny:number;date:string;source:string};
   state:"ready"|"backfill";verifiedOn:string;policy:string;models:OfficialModelCost[];rates:OfficialRate[];
   totals:Array<{currency:string;list:CostBounds;current:CostBounds}>;
   calls:number;pricedCalls:number;missingUsage:number;unmappedCalls:number;cacheUnknownCalls:number;

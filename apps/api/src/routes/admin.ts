@@ -6,7 +6,6 @@ import { actorOf } from "@aihot/backend/admin/auth";
 import { InvalidInput } from "@aihot/backend/admin/invalid";
 import { sharedAdminRead } from "@aihot/backend/admin/read-cache";
 
-import { importSelectBenchRun, listSelectBenchRuns, selectBenchRun } from "@aihot/backend/admin/selectbench";
 import { modelsOverview, switchModel } from "@aihot/backend/admin/models";
 import { usageOverview } from "@aihot/backend/admin/usage";
 
@@ -147,17 +146,6 @@ export function registerAdmin(app: FastifyInstance) {
   app.post("/api/admin/models/:capability", adminHandler(async (req, _reply, admin) => {
     const b = body<{ model: string | null; reason: string }>(req);
     return switchModel(param(req, "capability"), b.model ?? null, String(b.reason ?? ""), actorOf(admin));
-  }));
-
-  // SelectBench
-  app.get("/api/admin/selectbench", adminHandler(async () => ({ runs: await listSelectBenchRuns() })));
-  app.get("/api/admin/selectbench/:id", adminHandler(async (req, reply) => {
-    const f = q(req);
-    return orNotFound(req, reply, await selectBenchRun(param(req, "id"), { model: f.model, outcome: f.outcome, stratum: f.stratum, disagree: f.disagree === "1" }));
-  }));
-  app.post("/api/admin/selectbench/import", adminHandler(async (req, _reply, admin) => {
-    const b = body<{ label: string; report: unknown }>(req);
-    return importSelectBenchRun(b.report, String(b.label || "导入的对比运行"), actorOf(admin));
   }));
 
   // Attention counts for the navigation. The monitor column is gated like the routes above: counting

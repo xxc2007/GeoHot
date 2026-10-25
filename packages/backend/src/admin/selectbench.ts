@@ -81,37 +81,3 @@ export async function importSelectBenchRun(report: unknown, label: string, actor
   await audit(actor, "selectbench.import", `selectbench:${id}`, null, null, { label, models: names, sampleSize });
   return { id };
 }
-
-export async function listSelectBenchRuns() {
-  return sql`
-    SELECT r.id, r.label, r.split, r.sample_size, r.prompt_version, r.models,
-           (SELECT coalesce(jsonb_object_agg(key, value - 'sweep'), '{}'::jsonb) FROM jsonb_each(r.summary)) AS summary,
-           r.created_at, r.imported_by,
-           (SELECT count(*)::int FROM selectbench_results x WHERE x.run_id = r.id) AS cases
-    FROM selectbench_runs r ORDER BY r.created_at DESC LIMIT 100`;
-}
-
-export async function selectBenchRun(id: string, f: { model?: string; outcome?: string; stratum?: string; disagree?: boolean }) {
-  const [run] = await sql`SELECT * FROM selectbench_runs WHERE id = ${id}`;
-  if (!run) return null;
-  const outcome = f.outcome ?? null;
-  // One row per case with every model's decision, so disagreements are visible side by side.
-  const rows = await sql`
-    SELECT case_id, min(title) AS title, min(stratum) AS stratum, min(gold) AS gold,
-           jsonb_object_agg(model, jsonb_build_object('decision', decision, 'score', score, 'relevance', relevance, 'category', category, 'reason', reason, 'error', error, 'receiptId', receipt_id)) AS by_model
-    FROM selectbench_results WHERE run_id = ${id} AND (${f.stratum ?? null}::text IS NULL OR stratum = ${f.stratum ?? null})
-    GROUP BY case_id
-    HAVING (${outcome}::text IS NULL OR bool_or(
-      model = ${f.model ?? (run.models as string[])[0]!} AND CASE ${outcome}
-        WHEN 'fp' THEN decision = 'select' AND gold = 'reject'
-        WHEN 'fn' THEN decision = 'reject' AND gold = 'select'
-        WHEN 'tp' THEN decision = 'select' AND gold = 'select'
-        WHEN 'tn' THEN decision = 'reject' AND gold = 'reject'
-        WHEN 'either' THEN gold = 'either'
-        WHEN 'error' THEN decision IS NULL
-        ELSE true END))
-      AND (${!!f.disagree} IS FALSE OR count(DISTINCT decision) > 1)
-    ORDER BY min(stratum), case_id LIMIT 400`;
-  const strata = await sql`SELECT stratum, count(DISTINCT case_id)::int AS n FROM selectbench_results WHERE run_id = ${id} GROUP BY 1 ORDER BY 2 DESC`;
-  return { run, rows, strata };
-}

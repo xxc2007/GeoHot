@@ -1,3 +1,4 @@
+import {CNY_FX} from "@aihot/contracts/cny";
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {officialCosts,peakFactor,type PricingBucket} from '../packages/backend/src/admin/official-pricing.ts';
@@ -9,8 +10,9 @@ test('official estimate uses cache tokens, reports unknown cache bounds and excl
 });
 test('Agnes international and domestic prices stay separate; promotional zero is not list zero',()=>{
   const r=officialCosts([bucket({service:'llm',model:'agnes-3.0-flash',cachedTokens:0}),bucket({service:'agnes-cn',model:'agnes-3.0-flash',cachedTokens:0}),bucket({service:'dots',model:'dots3-note-prev',cachedTokens:0})]);
-  assert.equal(r.totals.length,2);assert.equal(r.totals.find(t=>t.currency==='CNY')!.list.high,1.35);
-  assert.ok(Math.abs(r.totals.find(t=>t.currency==='USD')!.list.high-.62)<1e-9);
+  assert.equal(r.totals.length,1);assert.equal(r.totals[0]!.currency,'CNY');
+  assert.ok(Math.abs(r.totals[0]!.list.high-(1.35+.62*CNY_FX.usdToCny))<1e-9);
+  assert.ok(r.models.every(m=>m.currency==='CNY'));
   assert.ok(r.totals.every(t=>t.current.high===0));
 });
 test('DeepSeek applies peak boundaries, weekends and verified Chinese holidays',()=>{
@@ -19,7 +21,7 @@ test('DeepSeek applies peak boundaries, weekends and verified Chinese holidays',
   assert.deepEqual(peakFactor('2026-10-24',9),{low:1,high:1});
   assert.deepEqual(peakFactor('2026-10-01',9),{low:1,high:1});
   assert.deepEqual(peakFactor('2027-10-01',9),{low:1,high:2});
-  assert.equal(officialCosts([bucket({model:'deepseek-v4.1-flash',cachedTokens:0})]).totals[0]!.list.high,1.5);
+  assert.equal(officialCosts([bucket({model:'deepseek-v4.1-flash',cachedTokens:0})]).totals[0]!.list.high,1.5*CNY_FX.usdToCny);
 });
 test('unknown gateway aliases and incomplete cache backfill never produce a guessed fee',()=>{
   const unknown=officialCosts([bucket({model:'qoder-cn/dfmodel'})]);assert.equal(unknown.unmappedCalls,1);assert.equal(unknown.pricedCalls,0);assert.equal(unknown.models[0]!.list,null);assert.deepEqual(unknown.totals,[]);
