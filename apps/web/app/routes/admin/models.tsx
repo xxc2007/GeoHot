@@ -1,6 +1,6 @@
 import { SITE } from "@aihot/industry/site";
 import { useState } from "react";
-import {useRevalidator} from "react-router";
+import {Link,useRevalidator} from "react-router";
 import {useEffect} from "react";
 import {toCny,cnyInteger} from "@aihot/contracts/cny";
 import type { Route } from "./+types/models";
@@ -56,7 +56,7 @@ export default function ModelsAdmin({ loaderData: m }: Route.ComponentProps) {
   return (
     <AdminPage
       title="模型"
-      subtitle="每项能力当前用哪个模型、来自哪里（后台切换 > 环境变量 > 代码默认），以及近期的成功率、耗时与费用。切换只影响之后的新任务，已有结果不重算；换精选模型前先看 SelectBench 同批对比。"
+      subtitle={<>每项能力当前用哪个模型、来自哪里，以及近期的成功率、耗时与上游账单。切换只影响之后的新任务，已有结果不重算。<Link to="/admin/usage" className="ml-1 text-accent">官方价费用见用量总览。</Link></>}
       actions={<FilterChips param="days" options={[{ value: "1", label: "24 小时" }, { value: "", label: "7 天" }, { value: "30", label: "30 天" }]} />}
     >
       {m.statistics?.usage.state==='stale'&&<p role="status" className="mb-4 text-[13px] text-ink-3">调用统计显示上次成功结果（{m.statistics.usage.asOf?bj(m.statistics.usage.asOf):'—'}），正在后台更新。模型配置按当前设置读取。</p>}
@@ -125,7 +125,7 @@ export default function ModelsAdmin({ loaderData: m }: Route.ComponentProps) {
                     { key: "t", label: "输入 / 输出 token", align: "right", render: (u) => <span className="whitespace-nowrap">{`${num(u.tokensIn)} / ${num(u.tokensOut)}`}</span> },
                     {
                       key: "$",
-                      label: "费用",
+                      label: "上游账单",
                       align: "right",
                       render: (u) =>
                         u.actualCost !== null ? (
@@ -133,7 +133,7 @@ export default function ModelsAdmin({ loaderData: m }: Route.ComponentProps) {
                         ) : u.estimate ? (
                           <span title="按用量 × 单价推算">≈ {cnyInteger(toCny(u.estimate.amount,u.estimate.currency))} 元</span>
                         ) : (
-                          <span className="whitespace-nowrap text-ink-4" title="服务商没有返回费用，按 token 数和你的模型单价自己估算">未定价</span>
+                          <span className="whitespace-nowrap text-ink-4" title="服务商未返回实际费用；官方价格折算请查看用量总览">未返回</span>
                         ),
                     },
                   ]}
