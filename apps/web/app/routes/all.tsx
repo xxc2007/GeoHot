@@ -48,7 +48,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     // 搜索页整张不画：搜索结果问的是"哪些条目含这个词"，与"哪几天有内容"不是一个问题。
     // 拿不到也不画——一张"本月 0 条"的空卡排在满屏结果上面，比没有卡更糟。
     q ? null
-      : await loadOr404<{ month: string; days: CalendarDay[] }>(
+      : loadOr404<{ month: string; days: CalendarDay[] }>(
           `/api/site/calendar${queryString({ month, channel: channel === "all" ? null : channel, category, tag })}`,
           { signal: request.signal },
         ).catch(() => null),

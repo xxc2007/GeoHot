@@ -1,0 +1,14 @@
+[Unit]
+Description=GEOHOT credential-free server status sample
+[Service]
+Type=oneshot
+User=root
+Group=geohot
+UMask=0027
+ExecStart=/usr/bin/python3 /opt/geohot/app/deploy/geohot/server-status.py
+MemoryMax=24M
+Nice=10
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/run/geohot-server

@@ -1,0 +1,8 @@
+[Unit]
+Description=Check Magpie version once every 24 hours
+[Timer]
+OnActiveSec=24h
+OnUnitInactiveSec=24h
+AccuracySec=1min
+[Install]
+WantedBy=timers.target
