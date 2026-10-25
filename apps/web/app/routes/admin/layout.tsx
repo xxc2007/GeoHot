@@ -52,7 +52,7 @@ const NAV: Array<{ group: string; items: Array<{ to: string; label: string; coun
 
 function NavItem({ to, label, count, tone }: { to: string; label: string; count?: number; tone?: "bad" | "accent" }) {
   return (
-    <NavLink to={to} className="group relative block">
+    <NavLink to={to} reloadDocument={to === "/admin/magpie"} className="group relative block">
       {({ isActive }) => (
         <span className={`relative flex items-center justify-between rounded-control px-3 py-[7px] text-[13.5px] transition-colors ${isActive ? "font-medium text-ink" : "text-ink-3 hover:text-ink"}`}>
           {isActive && <motion.span layoutId="admin-nav" className="absolute inset-0 rounded-control bg-surface shadow-sm ring-1 ring-line" transition={{ type: "spring", stiffness: 520, damping: 38 }} />}
@@ -130,7 +130,7 @@ function AdminFrame({ me, counts, children }: { me?: AdminMe; counts: Counts; ch
               const active = location.pathname === i.to || location.pathname.startsWith(`${i.to}/`);
               const n = i.count ? counts[i.count] : 0;
               return (
-                <NavLink key={i.to} to={i.to} className={`shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-[13px] ${active ? "bg-ink text-bg" : "text-ink-3"}`}>
+                <NavLink key={i.to} to={i.to} reloadDocument={i.to === "/admin/magpie"} className={`shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-[13px] ${active ? "bg-ink text-bg" : "text-ink-3"}`}>
                   {i.label}
                   {!!n && <span className="num ml-1 text-[11px] opacity-70">{n}</span>}
                 </NavLink>

@@ -58,6 +58,7 @@ export async function registerServerConsole(app: FastifyInstance, forward = magp
       reply.header("Cache-Control", "no-store").header("X-Frame-Options", "SAMEORIGIN").header("Content-Security-Policy", "frame-ancestors 'self'");
       if (upstream.headers.has("location")) return reply.code(upstream.status).header("Location", magpiePrefix() + new URL(upstream.headers.get("location")!, target).pathname).send();
       const contentType = upstream.headers.get("content-type") || "application/octet-stream";
+      if (staticResource && upstream.ok && !contentType.includes("text/html")) reply.header("Cache-Control", target.searchParams.has('v') ? "private, max-age=86400, immutable" : "private, max-age=60");
       if (contentType.includes("text/event-stream")) {
         reply.type(contentType);
         if (!upstream.body) return reply.send();
