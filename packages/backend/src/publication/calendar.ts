@@ -48,15 +48,32 @@ export interface DayMark {
  * 所以"有点但没有期号"= 那天有内容却没出成报，日历要能把这两种分开画。
  */
 const pendingMonths = new Map<string, Promise<DayMark[]>>();
+const recentMonths = new Map<string, { until: number; days?: DayMark[]; error?: unknown }>();
 export async function monthMarks(
   month: string, filters: DayMarkFilters = {}, now?: Date,
 ): Promise<DayMark[]> {
   const key = JSON.stringify([month, filters.channel ?? null, filters.category ?? null, filters.tag ?? null, [...(filters.topicTags ?? [])].sort(), now?.toISOString() ?? null]);
+  const recent = now ? undefined : recentMonths.get(key);
+  if (recent && recent.until > Date.now()) {
+    if (recent.error) throw recent.error;
+    return recent.days!;
+  }
   const pending = pendingMonths.get(key);
   if (pending) return pending;
   const load = queryMonthMarks(month, filters, now);
   pendingMonths.set(key, load);
-  try { return await load; } finally { pendingMonths.delete(key); }
+  try {
+    const days = await load;
+    if (!now) recentMonths.set(key, { until: Date.now() + 30_000, days });
+    return days;
+  } catch (error) {
+    // A busy monthly aggregate must not be retried on every crawler request.
+    if (!now) recentMonths.set(key, { until: Date.now() + 2000, error });
+    throw error;
+  } finally {
+    pendingMonths.delete(key);
+    if (recentMonths.size > 128) for (const k of [...recentMonths.keys()].slice(0, recentMonths.size - 128)) recentMonths.delete(k);
+  }
 }
 
 async function queryMonthMarks(

@@ -46,6 +46,8 @@ export default [
     route("admin/sources/:id", "routes/admin/source.tsx"),
     route("admin/feedback", "routes/admin/feedback.tsx"),
     route("admin/runs", "routes/admin/runs.tsx"),
+    route("admin/server", "routes/admin/server.tsx"),
+    route("admin/magpie", "routes/admin/magpie.tsx"),
     route("admin/models", "routes/admin/models.tsx"),
     route("admin/usage", "routes/admin/usage.tsx"),
     route("admin/settings", "routes/admin/settings.tsx"),

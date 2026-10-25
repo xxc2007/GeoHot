@@ -87,10 +87,10 @@ test("home links request valid single-fetch data under the deployment basename",
   for (const pathname of ["/geohot.data", "/geohot/_root.data", "/geohot/_.data/admin", "/geohot/admin.data", "/geohot/api/admin/sources"]) {
     assert.equal(isCacheable(pathname), false, `${pathname} must not enter the public route cache`);
   }
-  const skipMap = nginx.match(/map "\$geohot_cache_method:\$geohot_cache_route:\$http_authorization:\$http_cookie" \$geohot_skip_cache \{([\s\S]*?)\n\}/)?.[1];
+  const skipMap = nginx.match(/map "\$geohot_cache_method:\$geohot_cache_route:\$http_authorization" \$geohot_skip_cache \{([\s\S]*?)\n\}/)?.[1];
   assert.ok(skipMap);
   assert.match(skipMap, /default\s+1;/);
-  assert.deepEqual([...skipMap.matchAll(/"([^"]*)"\s+0;/g)].map(([, key]) => key), ["1:1::"]);
+  assert.deepEqual([...skipMap.matchAll(/"([^"]*)"\s+0;/g)].map(([, key]) => key), ["1:1:"]);
   const html = await (await fetch(`${origin}/`)).text();
   const links = [...html.matchAll(/<a\b[^>]*>/g)].map(([tag]) => tag);
   const brand = links.find((tag) => tag.includes('aria-label="GEOHOT 首页"'));

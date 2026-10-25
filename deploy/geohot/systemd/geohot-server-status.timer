@@ -1,0 +1,8 @@
+[Unit]
+Description=Sample GEOHOT server every 20 seconds
+[Timer]
+OnBootSec=30
+OnUnitInactiveSec=20
+AccuracySec=2
+[Install]
+WantedBy=timers.target

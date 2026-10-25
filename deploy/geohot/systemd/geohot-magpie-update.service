@@ -1,0 +1,11 @@
+[Unit]
+Description=Check and apply the official Magpie release with rollback
+After=network-online.target
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /opt/geohot/app/deploy/geohot/magpie-update.sh
+TimeoutStartSec=15min
+Nice=15
+IOSchedulingClass=idle
+MemoryMax=120M
+UMask=0077
