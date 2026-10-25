@@ -1,0 +1,36 @@
+[Unit]
+Description=GEOHOT server-only Magpie model gateway
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=geohot-magpie
+Group=geohot-magpie
+WorkingDirectory=/var/lib/geohot-magpie
+Environment=HOME=/var/lib/geohot-magpie
+Environment=MAGPIE_ADDR=127.0.0.1:3426
+Environment=GOMEMLIMIT=70MiB
+Environment=GOMAXPROCS=1
+Environment=NODE_OPTIONS=--max-old-space-size=80
+ExecStart=/usr/local/bin/geohot-magpie serve
+Restart=always
+RestartSec=10
+TimeoutStopSec=180
+KillSignal=SIGTERM
+MemoryHigh=160M
+MemoryMax=220M
+TasksMax=80
+CPUWeight=20
+Nice=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/geohot-magpie
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target
