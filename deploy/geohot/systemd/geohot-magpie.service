@@ -15,6 +15,8 @@ Environment=GOMEMLIMIT=70MiB
 Environment=GOMAXPROCS=1
 Environment=NODE_OPTIONS=--max-old-space-size=80
 ExecStart=/usr/local/bin/geohot-magpie serve
+ExecStartPost=/usr/bin/curl --silent --show-error --fail --retry 20 --retry-connrefused --retry-delay 1 --max-time 10 --output /dev/null http://127.0.0.1:3426/v1/models
+TimeoutStartSec=120
 Restart=always
 RestartSec=10
 TimeoutStopSec=180

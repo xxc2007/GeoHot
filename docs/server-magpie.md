@@ -22,6 +22,16 @@ MINIMAX_CODE_BASE_URL=http://127.0.0.1:3426/v1
 
 `.env` 中的对应地址同步更新。模型名称、预算、权重、并发和回执机制保持既有配置。不要把网关地址改成工作站 IP，不要恢复 3425 反向隧道作为日常依赖。
 
+三个应用服务的本次覆盖文件还应包含以下启动顺序，让系统启动时先启动网关；网关短暂退出不连带停止工作流，由现有重试和预算机制处理：
+
+```ini
+[Unit]
+Wants=geohot-magpie.service
+After=geohot-magpie.service
+[Service]
+EnvironmentFile=/etc/geohot/magpie-server.env
+```
+
 ## 维护与验证
 
 ```sh
