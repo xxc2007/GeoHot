@@ -87,7 +87,7 @@ function AdminFrame({ me, counts, children }: { me?: AdminMe; counts: Counts; ch
   const location = useLocation();
   const flat = NAV.flatMap((g) => g.items);
   return (
-    <div className="flex min-h-dvh bg-bg">
+    <div translate="no" className="notranslate flex min-h-dvh bg-bg">
       <NavigationProgress active={navigation.state === "loading"} />
       <aside className="sticky top-0 hidden h-dvh w-[216px] shrink-0 flex-col border-r border-line bg-bg-sunk/50 px-3 py-4 lg:flex">
         <a href={publicPath("/")} className="mb-5 flex items-center gap-2 px-2">

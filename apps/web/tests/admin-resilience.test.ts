@@ -31,6 +31,7 @@ test("identity outage stays inside the admin frame without protected content", a
   assert.equal(r.status, 503);
   assert.match(r.html, /后台连接暂时不可用/);
   assert.match(r.html, /审计记录/);
+  assert.match(r.html, /translate="no" class="notranslate /);
   assert.doesNotMatch(r.html, /回到精选|队列积压|测试管理员/);
 });
 
@@ -54,6 +55,16 @@ test("expired sessions still redirect to sign-in", async () => {
   assert.equal(r.status, 302);
   assert.match(r.headers.get("location") ?? "", /\/admin\/login\?/);
   assert.doesNotMatch(r.html, /测试管理员/);
+});
+
+test("successful polls remain compatible with the flat data shape used by already-open tabs", async () => {
+  await withApi(api, async () => {
+    const value = await build.routes["routes/admin/runs"].module.loader({ request: new Request('https://example.test/admin/runs'), params: {}, context: {} });
+    assert.deepEqual(value.queues, []);
+    assert.deepEqual(value.jobs, []);
+    assert.deepEqual(value.overview?.queues, []);
+    assert.equal(value.unavailable, false);
+  });
 });
 
 test("ordinary admin navigation reuses identity while explicit retry and actions still reload it", async () => {

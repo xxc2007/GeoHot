@@ -48,7 +48,9 @@ function Result({ row }: { row: Row }) {
 export async function loader({ request }: Route.LoaderArgs) {
   try {
     const result = await adminGet<Runs | { unavailable: true }>(request, "/api/admin/runs", 10_000);
-    return { overview: "unavailable" in result ? null : result, unavailable: "unavailable" in result } satisfies RunsLoad;
+    // Keep the flat success fields for tabs opened before this release; their polling code still
+    // reads queues/jobs directly. The recovery-aware client uses overview and the unavailable flag.
+    return { ...result, overview: "unavailable" in result ? null : result, unavailable: "unavailable" in result } satisfies RunsLoad;
   } catch (error) {
     if (error instanceof Response || request.signal.aborted) throw error;
     return { overview: null, unavailable: true } satisfies RunsLoad;
