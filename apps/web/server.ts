@@ -196,7 +196,12 @@ process.on("unhandledRejection", (reason) => {
 });
 
 server.keepAliveTimeout = 65_000;
-server.listen(PORT, HOST, () => console.log(JSON.stringify({ level: "info", msg: "web started", port: (server.address() as import("node:net").AddressInfo).port, pid: process.pid })));
+server.listen(PORT, HOST, () => {
+  const port = (server.address() as import("node:net").AddressInfo).port;
+  // Resolve port 0 too: preview/tests may ask the OS for a free port.
+  process.env.ADMIN_CONTROL_BASE_URL ||= `http://127.0.0.1:${port}`;
+  console.log(JSON.stringify({ level: "info", msg: "web started", port, pid: process.pid }));
+});
 
 const shutdown = () => server.close(() => { void control.close().finally(() => process.exit(0)); });
 process.on("SIGTERM", shutdown);
