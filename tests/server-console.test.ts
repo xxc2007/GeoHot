@@ -4,12 +4,22 @@ import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { runInNewContext } from 'node:vm';
+import { createServer } from 'node:http';
 import './setup.ts';
 import Fastify from 'fastify';
 import { config } from '@aihot/backend/config';
 import { closeDb } from '@aihot/backend/db';
-import { embedMagpie, registerServerConsole } from '../apps/api/src/routes/server-console.ts';
+import { embedMagpie, magpieRequest, registerServerConsole } from '../apps/api/src/routes/server-console.ts';
 after(closeDb);
+
+test('an idle Magpie trace poll returns its normal 25-second response instead of a proxy 503', async () => {
+ const server=createServer((_req,res)=>{setTimeout(()=>{res.writeHead(200,{'content-type':'application/json'});res.end('{"seq":1,"routes":[]}');},25_100);});
+ await new Promise<void>((resolve,reject)=>{server.once('error',reject);server.listen(3430,'127.0.0.1',resolve);});
+ try {
+  const response=await magpieRequest('/api/gateway/trace?after=1&wait=1',{method:'GET',headers:{}});
+  assert.equal(response.status,200);assert.deepEqual(await response.json(),{seq:1,routes:[]});
+ } finally {server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
+});
 
 test('Magpie stays behind admin authentication and CSRF; fixed server key never goes to the browser', async()=>{
  const dir=await mkdtemp(path.join(os.tmpdir(),'magpie-proxy-test-'));

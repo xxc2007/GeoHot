@@ -1,9 +1,18 @@
 import './setup.ts';
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
+import { spawnSync } from 'node:child_process';
 import { closeDb } from '@aihot/backend/db';
 import { createAdminControl, isAdminControlPath } from '../apps/web/admin-control.ts';
 after(closeDb);
+
+test('the independent control process retains the production development-login prohibition', () => {
+  const result = spawnSync(process.execPath, ['--input-type=module', '-e', `import {createAdminControl} from ${JSON.stringify(new URL('../apps/web/admin-control.ts',import.meta.url).href)};await createAdminControl();`], {
+    env: {...process.env, NODE_ENV:'production', AIHOT_ENVIRONMENT:'development', SITE_URL:'https://example.test', DEV_AUTH_ROLE:'admin'}, encoding:'utf8', timeout:10_000,
+  });
+  assert.notEqual(result.status,0);
+  assert.match(result.stderr,/DEV_AUTH_ROLE \(dev login bypass\)/);
+});
 
 test('control reads survive an unavailable business API and immediately reject revoked identity', async () => {
   let valid = true;

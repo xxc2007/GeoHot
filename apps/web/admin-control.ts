@@ -3,7 +3,7 @@
 import Fastify from 'fastify';
 import postgres from 'postgres';
 import rateLimit from '@fastify/rate-limit';
-import { config } from '@aihot/backend/config';
+import { assertProductionSecrets, config } from '@aihot/backend/config';
 import { sessionPrincipal } from '@aihot/backend/admin/auth';
 import { adminHandler } from '../api/src/routes/admin-auth.ts';
 import { registerServerConsole } from '../api/src/routes/server-console.ts';
@@ -13,6 +13,7 @@ export function isAdminControlPath(path: string) {
 }
 
 export async function createAdminControl(options: { authenticate?: typeof sessionPrincipal } = {}) {
+  if (!options.authenticate) assertProductionSecrets([['auth', 'SESSION_SECRET'], ['auth', 'IMG_PROXY_SIGN_SECRET']]);
   const db = options.authenticate ? null : postgres(config.databaseUrl, {
     max: 1, idle_timeout: 30, connect_timeout: 3,
     connection: { application_name: 'geohot_admin_control', statement_timeout: 2000, lock_timeout: 500, jit: 'off' },
