@@ -41,9 +41,9 @@ export async function registerServerConsole(app: FastifyInstance, forward = magp
   app.route({ method: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"], url: "/api/admin/magpie-proxy/*", config:{rateLimit:{max:240,timeWindow:'1 minute'}}, handler: adminHandler(async (req, reply, admin) => {
     const suffix = (req.params as { "*": string })["*"];
     // URL is never supplied by the caller; do not proxy the model gateway or token sign-in routes.
-    if (!suffix || suffix === "index.html" || !/^(?:api\/|assets\/|[^/]+\.(?:js|css|svg|png|ico|woff2?)(?:$|\?))/.test(suffix)) {
-      if (suffix && suffix !== "index.html") return reply.code(404).send({ error: "not_found" });
-    }
+    const staticResource = /^(?:(?:assets|plugins|fonts)\/)?[a-zA-Z0-9_./-]+\.(?:js|css|svg|png|ico|woff2?|ttf)$/.test(suffix);
+    if (suffix && suffix !== "index.html" && !suffix.startsWith("api/") && !staticResource) return reply.code(404).send({ error: "not_found" });
+    if (suffix.split('/').some(part => part === '.' || part === '..') || suffix.includes('\\')) return reply.code(400).send({ error: "invalid_path" });
     if (req.headers.origin && req.headers.origin !== new URL(config.siteUrl).origin) return reply.code(403).send({ error: "forbidden" });
     let secret: string;
     try { secret = (await readFile(process.env.MAGPIE_WEB_KEY_FILE || "/etc/geohot/magpie-web-key", "utf8")).trim(); }
@@ -63,8 +63,15 @@ export async function registerServerConsole(app: FastifyInstance, forward = magp
         if (!upstream.body) return reply.send();
         return reply.send(Readable.fromWeb(upstream.body as never));
       }
-      const bytes = Buffer.from(await upstream.arrayBuffer());
-      if (bytes.length > 8_000_000) return reply.code(502).send({ error: "response_too_large" });
+      const chunks: Uint8Array[] = []; let size = 0;
+      if (upstream.body) {
+        const reader = upstream.body.getReader();
+        try { while (true) { const part = await reader.read(); if (part.done) break; size += part.value.length;
+          if (size > 8_000_000) { await reader.cancel(); return reply.code(502).send({ error: "response_too_large" }); }
+          chunks.push(part.value);
+        } } finally { reader.releaseLock(); }
+      }
+      const bytes = Buffer.concat(chunks);
       reply.code(upstream.status).type(contentType);
       return contentType.includes("text/html") ? embedMagpie(bytes.toString("utf8"), magpiePrefix(), admin.csrf) : bytes;
     } catch { return reply.code(503).send({ error: "magpie_unavailable" }); }

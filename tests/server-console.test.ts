@@ -24,7 +24,9 @@ test('Magpie stays behind admin authentication and CSRF; fixed server key never 
   assert.equal((await app.inject({method:'POST',url:'/api/admin/magpie-proxy/api/test',payload:{}})).statusCode,403);
   assert.equal((await app.inject({method:'POST',url:'/api/admin/magpie-proxy/api/test',headers:{'x-csrf-token':'dev',origin:'https://outside.invalid'},payload:{}})).statusCode,403);
   assert.equal((await app.inject('/api/admin/magpie-proxy/v1/models')).statusCode,404);
-  assert.equal(calls,1);
+  for (const resource of ['plugins/gateway/client.js','plugins/usage/page.js','fonts/local.woff2']) assert.equal((await app.inject('/api/admin/magpie-proxy/'+resource)).statusCode,200);
+  assert.equal((await app.inject('/api/admin/magpie-proxy/private/secret.json')).statusCode,404);
+  assert.equal(calls,4);
  }finally{config.devAdmin=original;globalThis.fetch=oldFetch;if(oldKey===undefined)delete process.env.MAGPIE_WEB_KEY_FILE;else process.env.MAGPIE_WEB_KEY_FILE=oldKey;await app.close();await rm(dir,{recursive:true,force:true});}
 });
 test('Magpie resource bootstrap leaves external resources external and includes the deployment prefix',()=>{
