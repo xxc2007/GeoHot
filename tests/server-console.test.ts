@@ -3,6 +3,7 @@ import { after, test } from 'node:test';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { runInNewContext } from 'node:vm';
 import './setup.ts';
 import Fastify from 'fastify';
 import { config } from '@aihot/backend/config';
@@ -32,4 +33,20 @@ test('Magpie stays behind admin authentication and CSRF; fixed server key never 
 test('Magpie resource bootstrap leaves external resources external and includes the deployment prefix',()=>{
  const html=embedMagpie('<html><head></head><body><img src="/icon.svg"><a href="https://vendor.invalid/">vendor</a></body></html>','/geohot/api/admin/magpie-proxy','dev');
  assert.match(html,/src="\/geohot\/api\/admin\/magpie-proxy\/icon.svg"/);assert.match(html,/href="https:\/\/vendor.invalid\/"/);assert.match(html,/x-csrf-token/);
+});
+
+test('Magpie readiness waits for its rendered title and repairs dynamically inserted icon paths', () => {
+ const html=embedMagpie('<html><head></head></html>','/geohot/api/admin/magpie-proxy','test');
+ const script=[...html.matchAll(/<script>(.*?)<\/script>/g)][1]![1]!;
+ let title='';let observe:(records:unknown[])=>void=()=>{};const messages:unknown[]=[];
+ class Element { src:string; constructor(src:string){this.src=src;} getAttribute(){return this.src;} setAttribute(_key:string,value:string){this.src=value;} querySelectorAll(){return [];} }
+ runInNewContext(script, { Element, HTMLScriptElement:class{}, MutationObserver:class { constructor(callback:typeof observe){observe=callback;} observe(){} },
+   document:{documentElement:new Element(''),getElementById:()=>({textContent:title})},
+   parent:{postMessage:(message:unknown)=>messages.push(message)},location:{origin:'https://example.test'},addEventListener:()=>{} });
+ const icon=new Element('/api/icons/test.svg');
+ observe([{type:'childList',addedNodes:[icon]}]);
+ assert.equal(icon.src,'/geohot/api/admin/magpie-proxy/api/icons/test.svg');
+ assert.equal(messages.length,0);
+ title='供应商';observe([]);observe([]);
+ assert.deepEqual(JSON.parse(JSON.stringify(messages)),[{type:'geohot:magpie:ready'}]);
 });

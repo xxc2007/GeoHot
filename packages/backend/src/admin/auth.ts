@@ -3,7 +3,7 @@
 // Development may impersonate an admin with DEV_AUTH_ROLE=admin; production refuses to start with it.
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { config, credential } from "../config.ts";
-import { sql } from "../db.ts";
+import { sql, type Db } from "../db.ts";
 import { sha256 } from "../lib/ids.ts";
 
 export const SESSION_COOKIE = "aihot_admin";
@@ -155,10 +155,10 @@ export async function passwordLogin(password: string, returnTo: string, userAgen
   return { token, returnTo: safeReturn(returnTo), userId: user!.id };
 }
 
-export async function sessionPrincipal(cookieHeader: string | undefined): Promise<AdminPrincipal | null> {
+export async function sessionPrincipal(cookieHeader: string | undefined, db: Db = sql): Promise<AdminPrincipal | null> {
   const token = parseCookies(cookieHeader)[SESSION_COOKIE];
   if (token) {
-    const [row] = await sql<{ user_id: number; csrf_token: string; name: string | null; email: string | null }[]>`
+    const [row] = await db<{ user_id: number; csrf_token: string; name: string | null; email: string | null }[]>`
       SELECT s.user_id, s.csrf_token, u.display_name AS name, u.email FROM admin_sessions s JOIN admin_users u ON u.id = s.user_id
       WHERE s.id_hash = ${sha256(token)} AND s.expires_at > now()`;
     if (row) return { userId: row.user_id, name: row.name ?? row.email ?? `admin:${row.user_id}`, csrf: row.csrf_token, dev: false };

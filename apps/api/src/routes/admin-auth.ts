@@ -46,10 +46,12 @@ const publicLoginPage = (returnTo: string, error?: string) => toPublicPath(login
 export type AdminHandler = (req: FastifyRequest, reply: FastifyReply, admin: AdminPrincipal) => Promise<unknown>;
 
 /** Guard for /api/admin/*: a live session (or the development stand-in); writes need the CSRF token. */
-export function adminHandler(fn: AdminHandler) {
+export function adminHandler(fn: AdminHandler, authenticate: typeof sessionPrincipal = sessionPrincipal) {
   return async (req: FastifyRequest, reply: FastifyReply) => {
     reply.header("Cache-Control", "no-store");
-    const admin = await sessionPrincipal(req.headers.cookie);
+    let admin: AdminPrincipal | null;
+    try { admin = await authenticate(req.headers.cookie); }
+    catch { return sendProblem(req, reply, { status: 503, code: "unavailable", detail: "身份核验暂时不可用，请稍后重试。" }); }
     if (!admin) return sendProblem(req, reply, { status: 401, code: "unauthorized", detail: "Sign in to the admin first." });
     if (req.method !== "GET" && req.method !== "HEAD" && req.headers["x-csrf-token"] !== admin.csrf) {
       return sendProblem(req, reply, { status: 403, code: "forbidden", detail: "Missing or stale CSRF token." });
