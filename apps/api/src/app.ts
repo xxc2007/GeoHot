@@ -76,7 +76,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   registerOg(app);
   registerAdminAuth(app);
   registerAdmin(app);
-  registerServerConsole(app);
+  await registerServerConsole(app);
 
   registerIngest(app);
   registerV1(app);
