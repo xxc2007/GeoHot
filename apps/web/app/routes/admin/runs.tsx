@@ -75,7 +75,7 @@ export default function RunsAdmin({ loaderData }: Route.ComponentProps) {
   const [lastGood, setLastGood] = useState(loaderData.overview);
   const r = refresh.data?.overview ?? lastGood ?? loaderData.overview;
   useEffect(() => {
-    const value = refresh.data?.overview ?? loaderData.overview;
+    const value = refresh.data === undefined ? loaderData.overview : refresh.data.overview;
     if (value) setLastGood(value);
   }, [refresh.data, loaderData.overview]);
   const { run, pending } = useAdminAction();
