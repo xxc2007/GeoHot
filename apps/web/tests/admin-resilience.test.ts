@@ -57,6 +57,16 @@ test("expired sessions still redirect to sign-in", async () => {
   assert.doesNotMatch(r.html, /测试管理员/);
 });
 
+test("successful polls remain compatible with the flat data shape used by already-open tabs", async () => {
+  await withApi(api, async () => {
+    const value = await build.routes["routes/admin/runs"].module.loader({ request: new Request('https://example.test/admin/runs'), params: {}, context: {} });
+    assert.deepEqual(value.queues, []);
+    assert.deepEqual(value.jobs, []);
+    assert.deepEqual(value.overview?.queues, []);
+    assert.equal(value.unavailable, false);
+  });
+});
+
 test("ordinary admin navigation reuses identity while explicit retry and actions still reload it", async () => {
   let identities = 0;
   await withApi(url => { if (url.pathname.endsWith("/me")) identities++; return api(url); }, async () => {
