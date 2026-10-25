@@ -46,6 +46,8 @@ for (const s of sources) {
     throw new Error(`${s.id}: defaultCategory "${s.defaultCategory}" is not a category key (see industry/taxonomy.ts)`);
   }
   const inserted = await registryChange(async (tx, policy) => {
+  const [capacity] = await tx`SELECT target_total,(SELECT count(*)::int FROM sources s WHERE NOT EXISTS(SELECT 1 FROM source_retirements t WHERE t.source_id=s.id)) AS actual FROM source_registry_policy WHERE singleton`;
+  if ((await tx`SELECT 1 FROM source_retirements WHERE source_id=${s.id}`).length || (capacity?.target_total != null && capacity.actual >= capacity.target_total)) return [];
   const enabled = policy.target_enabled === null && (s.enabled ?? true);
   const result = await tx`
     INSERT INTO sources (id, name, kind, config, tier, first_party, owner_entity_id, participation_mode, interval_minutes, tags, site_fulltext, syndicate_fulltext, enabled, next_fetch_at, default_category)
