@@ -13,6 +13,7 @@ interface SourceRow {
   tier: string;
   participation_mode: string;
   enabled: boolean;
+  reserve_status?: "ready" | "quarantine" | null;
   health: string;
   fail_count: number;
   interval_minutes: number;
@@ -28,7 +29,7 @@ interface SourceRow {
 interface SourcesData {
   page: number;
   rows: SourceRow[];
-  totals: { total: number; enabled: number; failing: number; degraded: number };
+  totals: { total: number; enabled: number; failing: number; degraded: number; reserves: number; ready: number };
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -45,15 +46,17 @@ export default function Sources({ loaderData }: Route.ComponentProps) {
   return (
     <AdminPage
       title="信源"
-      subtitle="列表按健康度排序：失败的在最前。点进详情可以预览抓取、手动采集、调整频率与参与方式。"
+      subtitle="正式信源持续采集；备用信源定期复核，持续失败时自动替换。历史来源档案不计入可用池。"
       actions={<ButtonLink to="/admin/sources/new" tone="primary">新建信源</ButtonLink>}
     >
-      <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-5">
         <Stat label="全部" value={num(totals.total)} />
-        <Stat label="启用" value={num(totals.enabled)} />
+        <Stat label="正式采集" value={num(totals.enabled)} />
+        <Stat label="备用" value={num(totals.reserves)} />
         <Stat label="失败" value={num(totals.failing)} tone={totals.failing ? "bad" : "ok"} />
         <Stat label="不稳定" value={num(totals.degraded)} tone={totals.degraded ? "warn" : undefined} />
       </div>
+      {totals.reserves > 0 && <p className="mb-4 text-sm text-ink-3">备用 {num(totals.reserves)} 个，最近验证可用 {num(totals.ready)} 个；隔离待复核的信源不会自动启用。</p>}
       <Card pad={false}>
         <div className="flex flex-col gap-3 border-b border-line p-3 lg:flex-row lg:items-center lg:justify-between">
           <Form method="get" className="flex w-full max-w-md gap-2" preventScrollReset>
@@ -61,7 +64,7 @@ export default function Sources({ loaderData }: Route.ComponentProps) {
             <Input name="q" defaultValue={sp.get("q") ?? ""} placeholder="名称、ID 或地址" aria-label="搜索信源" />
           </Form>
           <div className="flex flex-wrap items-center gap-3">
-            <FilterChips param="health" options={[{ value: "", label: "全部" }, { value: "failing", label: "失败" }, { value: "degraded", label: "不稳定" }, { value: "paused", label: "暂停" }]} />
+            <FilterChips param="health" options={[{ value: "", label: "全部" }, { value: "failing", label: "失败" }, { value: "degraded", label: "不稳定" }, { value: "reserve", label: "备用" }, { value: "paused", label: "暂停" }]} />
             <Select
               aria-label="类型"
               className="!w-auto"
@@ -117,7 +120,7 @@ export default function Sources({ loaderData }: Route.ComponentProps) {
               render: (r) => (
                 <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
                   <Dot tone={r.enabled ? healthTone(r.health) : "muted"} />
-                  {r.enabled ? HEALTH_LABEL[r.health] ?? r.health : "已暂停"}
+                  {r.enabled ? HEALTH_LABEL[r.health] ?? r.health : r.reserve_status === "ready" ? "备用可用" : r.reserve_status === "quarantine" ? "隔离待复核" : "已暂停"}
                   {r.fail_count > 0 && <span className="num text-[11.5px] text-ink-4">×{r.fail_count}</span>}
                 </span>
               ),

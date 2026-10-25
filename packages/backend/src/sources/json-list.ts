@@ -117,7 +117,8 @@ function embeddedJson(html: string, source: SourceRow): unknown {
 
 export async function fetchJsonList(source: SourceRow): Promise<Candidate[]> {
   const c = source.config;
-  const url = String(c.url ?? "");
+  // An explicit daily date placeholder keeps publication cutoffs moving; a fixed cutoff freezes a feed.
+  const url = String(c.url ?? "").replaceAll("{today}",new Date().toISOString().slice(0,10));
   const headers: Record<string, string> = { accept: "application/json, text/html;q=0.9", ...(c.headers ?? {}) };
   if (/^https:\/\/api\.github\.com\//.test(url)) {
     const token = credential("collectors", "GITHUB_TOKEN");
@@ -152,6 +153,14 @@ export async function fetchJsonList(source: SourceRow): Promise<Candidate[]> {
     if (!title || !url) continue;
     const externalId = c.externalIdPath ? getPath(item, c.externalIdPath) : null;
     const summary = firstString(item, c.summaryPaths);
+    // Scholarly metadata can carry a future print issue alongside an already published online date.
+    // Keep the publisher's real calendar date, never substitute DOI registration time.
+    let publishedAt = parsePublishedAt(getPath(item, c.publishedAtPath), { unit: c.publishedAtUnit, utcOffset: c.publishedAtUtcOffset, dateOrder: c.publishedAtDateOrder });
+    if (c.publishedAtUnit === "date_parts") {
+      const paths = ["published-online.date-parts.0", String(c.publishedAtPath ?? ""), "issued.date-parts.0"];
+      publishedAt = paths.map(p => parsePublishedAt(getPath(item,p), {unit:"date_parts"})).find(d=>d && d.getTime()<=Date.now()+86400_000) ?? null;
+      if (!publishedAt) continue;
+    }
     const raw = item && typeof item === "object" ? { ...(item as Record<string, unknown>) } : { value: item };
     for (const k of c.rawDropKeys ?? []) delete (raw as Record<string, unknown>)[k];
     const summaryIsBody = c.summaryIsBody === true && !!summary;
@@ -160,7 +169,7 @@ export async function fetchJsonList(source: SourceRow): Promise<Candidate[]> {
       title: collapseWhitespace(stripTags(title)),
       author: firstString(item, c.authorPaths),
       // The shared date rule: an epoch that is not a finite number is "no date", not an Invalid Date.
-      publishedAt: parsePublishedAt(getPath(item, c.publishedAtPath), { unit: c.publishedAtUnit, utcOffset: c.publishedAtUtcOffset, dateOrder: c.publishedAtDateOrder }),
+      publishedAt,
       excerpt: summary ? collapseWhitespace(stripTags(summary)).slice(0, 2000) : null,
       bodyText: summaryIsBody ? stripTags(summary!) : null,
       bodyStatus: summaryIsBody ? "ok" : "pending",

@@ -111,6 +111,14 @@ export function parsePublishedAt(value: unknown, opts: PublishedAtOptions = {}):
   const unit = opts.unit ?? "";
   if (unit === "epoch_ms" || unit === "epoch_s") return fromEpoch(value, unit);
   if (unit === "yyyymmdd") return fromYmd(value);
+  if (unit === "date_parts") {
+    if (!Array.isArray(value) || value.length < 1 || value.length > 3 || !value.every(Number.isInteger)) return null;
+    const [y, m = 1, d = 1] = value;
+    if (y < 1800 || y > 2200 || m < 1 || m > 12 || d < 1 || d > 31) return null;
+    const iso = `${y}-${String(m).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+    const date = new Date(`${iso}T00:00:00Z`);
+    return Number.isFinite(date.getTime()) && date.toISOString().startsWith(iso) ? date : null;
+  }
   if (value instanceof Date) return Number.isFinite(value.getTime()) ? value : null;
   if (typeof value === "number") return Number.isFinite(value) ? fromEpoch(value, "epoch_ms") : null;
 
