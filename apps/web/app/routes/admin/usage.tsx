@@ -1,3 +1,5 @@
+import type { OfficialCostReport } from "@aihot/contracts/model-costs";
+import { OfficialCosts } from "../../features/admin/official-costs";
 import { useEffect, useState } from "react";
 import { Form, useRevalidator, useSearchParams } from "react-router";
 import type { Route } from "./+types/usage";
@@ -7,6 +9,7 @@ import { AdminPage, Card } from "../../features/admin/ui";
 import { bj, num } from "../../features/admin/format";
 
 interface Metric {
+  pricing?:OfficialCostReport;
   kind:string;service:string|null;model:string|null;purpose:string|null;day:string|null;dow:number|null;hour:number|null;currency:string|null;
   calls:number;ok:number;failed:number;pending:number;unknown:number;tokensIn:number;tokensOut:number;missingUsage:number;unpriced:number;
   actualCost:number|null;estimatedCost:number|null;latencyMs:number|null;
@@ -66,18 +69,19 @@ export default function UsagePage({loaderData:d}:Route.ComponentProps){
     </Form>
     {d.status.state!=="ready"?<Card><p role="status" className="text-ink-3">{d.status.message} 未加载的数据不代表用量为零。</p></Card>:<>
       <div className="mb-5 grid grid-cols-2 overflow-hidden rounded-panel bg-surface ring-1 ring-line md:grid-cols-3 xl:grid-cols-6">
-        {[["请求次数",num(total?.calls??0),`${num(total?.failed??0)} 次失败`],["已知 Token",compact((total?.tokensIn??0)+(total?.tokensOut??0)),`输入 ${compact(total?.tokensIn??0)} · 输出 ${compact(total?.tokensOut??0)}`],["成功返回率",`${total?.calls?((total.ok/total.calls)*100).toFixed(1):"0"}%`,"返回成功不等于内容入选"],["执行中",num(total?.pending??0),"上游结果尚未返回"],["结果未知",num(total?.unknown??0),"保留回执，待核验"],["缺少计价",num(total?.unpriced??0),"不按零费用计入"]].map(([label,n,sub])=><div key={label} className="border-b border-r border-line p-4"><div className="num text-[25px] font-semibold tracking-tight text-ink">{n}</div><div className="mt-1 text-[13px] text-ink-2">{label}</div><div className="mt-1 text-[11px] text-ink-4">{sub}</div></div>)}
+        {[["请求次数",num(total?.calls??0),`${num(total?.failed??0)} 次失败`],["已知 Token",compact((total?.tokensIn??0)+(total?.tokensOut??0)),`输入 ${compact(total?.tokensIn??0)} · 输出 ${compact(total?.tokensOut??0)}`],["成功返回率",`${total?.calls?((total.ok/total.calls)*100).toFixed(1):"0"}%`,"返回成功不等于内容入选"],["执行中",num(total?.pending??0),"上游结果尚未返回"],["结果未知",num(total?.unknown??0),"保留回执，待核验"],["缺少上游账单",num(total?.unpriced??0),"不按零费用计入"]].map(([label,n,sub])=><div key={label} className="border-b border-r border-line p-4"><div className="num text-[25px] font-semibold tracking-tight text-ink">{n}</div><div className="mt-1 text-[13px] text-ink-2">{label}</div><div className="mt-1 text-[11px] text-ink-4">{sub}</div></div>)}
       </div>
+      <OfficialCosts report={total?.pricing}/>
       <Card className="mb-5" title="用量趋势" right={<div className="flex gap-2">{[["tokens","Token"],["calls","请求"]].map(([v,l])=><button key={v} aria-pressed={mode===v} className={mode===v?"font-medium text-accent":"text-ink-4"} onClick={()=>setMode(v)}>{l}</button>)}</div>}>
         <div className="mb-3 flex justify-between text-[12px] text-ink-4"><span>{firstDay} — {today}{d.range==="all"?"（活动图展示最近一年）":"（仅着色所选范围）"}</span><span>少 ··· 多</span></div>
         <div className="overflow-x-auto pb-2"><div className="grid grid-flow-col grid-rows-7 gap-[4px]" style={{gridTemplateColumns:`repeat(${cells.length/7},minmax(10px,1fr))`,minWidth:d.range==="all"?650:undefined,maxWidth:cells.length/7*20}}>{cells.map((c,i)=>c?.selected?<Cell key={i} n={c.row?value(c.row,mode):0} max={maxDay} label={`${c.day} · ${compact(c.row?value(c.row,mode):0)} ${mode==="tokens"?"已知 Token":"次请求"}`}/>:<span key={i} title={c?`${c.day} · 不在所选范围`:undefined} className="aspect-square rounded-[3px] border border-line-soft"/>)}</div></div>
-        <p className="mt-3 text-[12px] text-ink-4">{num(total?.missingUsage??0)} 次请求未返回完整 Token 数据；图表只累计已知值。缓存读取未单独记录，未折算或补算。</p>
+        <p className="mt-3 text-[12px] text-ink-4">{num(total?.missingUsage??0)} 次请求未返回完整 Token 数据；图表只累计已知值。费用区间与缓存计价规则见上方官方定价估算。</p>
       </Card>
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <Card title="模型用量"><Ranking rows={models} mode={mode} kind="model"/></Card>
         <Card title="任务用量"><Ranking rows={d.rows.filter(r=>r.kind==="purpose")} mode={mode} kind="purpose"/></Card>
         <Card title="按时段" right="北京时间"><div className="overflow-x-auto"><div className="min-w-[380px] space-y-1">{Array.from({length:7},(_,i)=><div key={i} className="grid items-center gap-[3px]" style={{gridTemplateColumns:"26px repeat(24,minmax(8px,1fr))"}}><span className="text-[11px] text-ink-4">周{["一","二","三","四","五","六","日"][i]}</span>{Array.from({length:24},(_,h)=>{const r=hours.find(r=>r.dow===i+1&&r.hour===h);return <Cell key={h} n={r?value(r,mode):0} max={maxHour} label={`周${i+1} ${h}:00 · ${compact(r?value(r,mode):0)} ${mode==="tokens"?"已知 Token":"次请求"}`}/>;})}</div>)}<div className="ml-7 flex justify-between text-[11px] text-ink-4"><span>0 时</span><span>6 时</span><span>12 时</span><span>18 时</span><span>23 时</span></div></div></div></Card>
-        <Card title="费用记录"><div className="space-y-4">{d.rows.filter(r=>r.kind==="currency"&&r.currency).map(r=><div key={r.currency} className="flex justify-between gap-4 border-b border-line pb-3 text-[13px]"><span>{r.currency}</span><div className="text-right"><p>上游实报 {amount(r.actualCost,r.currency)}</p><p className="mt-1 text-ink-4">估算 {amount(r.estimatedCost,r.currency)}</p></div></div>)}<p className="text-[12px] leading-relaxed text-ink-3">按币种分别显示，实际金额与估算分开。未返回费用的请求不视为免费；此处不是上游账户余额或套餐剩余额度。</p></div></Card>
+        <Card title="上游账单记录"><div className="space-y-4">{d.rows.filter(r=>r.kind==="currency"&&r.currency).map(r=><div key={r.currency} className="flex justify-between gap-4 border-b border-line pb-3 text-[13px]"><span>{r.currency}</span><div className="text-right"><p>上游实报 {amount(r.actualCost,r.currency)}</p><p className="mt-1 text-ink-4">估算 {amount(r.estimatedCost,r.currency)}</p></div></div>)}<p className="text-[12px] leading-relaxed text-ink-3">按币种分别显示，实际金额与估算分开。未返回费用的请求不视为免费；此处不是上游账户余额或套餐剩余额度。</p></div></Card>
       </div>
     </>}
   </AdminPage>;
