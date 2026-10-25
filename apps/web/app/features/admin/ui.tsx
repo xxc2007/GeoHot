@@ -83,10 +83,12 @@ export function healthTone(h: string | null | undefined): Tone {
 }
 
 export function Time({ at, title }: { at: string | null | undefined; title?: string }) {
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => { setHydrated(true); }, []);
   if (!at) return <span className="text-ink-4">—</span>;
   return (
     <time dateTime={String(at)} title={title ?? bj(at, true)} className="num whitespace-nowrap" suppressHydrationWarning>
-      {ago(at)}
+      {hydrated ? ago(at) : bj(at)}
     </time>
   );
 }
