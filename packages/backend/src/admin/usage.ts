@@ -7,7 +7,7 @@ import { modelStatisticRead } from "./model-statistics-read.ts";
 export const USAGE_RANGES = ["today", "7", "30", "90", "all"] as const;
 export type UsageRange = typeof USAGE_RANGES[number];
 export function usageRange(value?: string): UsageRange {
-  return USAGE_RANGES.includes(value as UsageRange) ? value as UsageRange : "7";
+  return USAGE_RANGES.includes(value as UsageRange) ? value as UsageRange : "all";
 }
 export interface UsageMetric {
   pricing?: OfficialCostReport;

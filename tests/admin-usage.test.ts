@@ -7,7 +7,7 @@ import { switchModel } from "../packages/backend/src/admin/models.ts";
 after(closeDb);
 
 test("usage validates ranges and retired monitor cannot be configured",async()=>{
-  assert.equal(usageRange("nonsense"),"7");assert.equal(usageRange("all"),"all");
+  assert.equal(usageRange(),"all");assert.equal(usageRange("nonsense"),"all");assert.equal(usageRange("7"),"7");assert.equal(usageRange("all"),"all");
   await assert.rejects(switchModel("monitor","default","unused feature","test"),/unknown capability/);
 });
 test("usage counts attempts including retries, separates currencies and missing measurements, uses Shanghai days",async()=>{

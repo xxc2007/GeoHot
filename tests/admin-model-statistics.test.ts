@@ -73,6 +73,8 @@ test("database cancels statistics and transaction limits cannot leak into later 
 test("receipt-label materialization preserves attempts, exact percentiles, versions, origins and billing", async () => {
   await sql.begin(async db => {
     await db`CREATE TEMP TABLE settings(key text,value jsonb) ON COMMIT DROP`;
+    // A cached plan bound to public.settings is not invalidated by a new shadow table.
+    await db`SET LOCAL search_path = pg_temp, public`;
     await db`INSERT INTO settings VALUES('admin.modelLabelsReady','true'),('admin.modelMetricsReady','true')`;
     await db`CREATE TEMP TABLE receipts(id int, purpose text, service text, request jsonb) ON COMMIT DROP`;
     await db`CREATE TEMP TABLE receipt_model_labels(receipt_id int, purpose text, service text, prompt_version text) ON COMMIT DROP`;
@@ -196,6 +198,8 @@ test("narrow labels track request changes, backfill resumes, and receipt deletio
 test("not-ready flag stops before reading attempts and transient failures never advance a cursor", async () => {
   await sql.begin(async db => {
     await db`CREATE TEMP TABLE settings(key text,value jsonb) ON COMMIT DROP`;
+    // A cached plan bound to public.settings is not invalidated by a new shadow table.
+    await db`SET LOCAL search_path = pg_temp, public`;
     await db`INSERT INTO settings VALUES('admin.modelLabelsReady','false')`;
     // Deliberately lacks every statistics column: a read of this table would fail SQL parsing.
     await db`CREATE TEMP TABLE receipt_attempts(poison int) ON COMMIT DROP`;

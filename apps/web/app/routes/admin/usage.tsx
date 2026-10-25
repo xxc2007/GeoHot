@@ -23,7 +23,7 @@ export async function loader({request}:Route.LoaderArgs){
   catch(error){
     // Authentication redirects and cancelled navigation must keep their original semantics.
     if(error instanceof Response||request.signal.aborted)throw error;
-    return {range:['today','7','30','90','all'].includes(p.get('range')??'')?p.get('range')!:'7',service:p.get('service')??'',model:p.get('model')??'',rows:[],status:{state:'unavailable',asOf:null,message:'后台连接暂时不可用，正在自动重试；尚未取得数据，不代表用量为零。'}} satisfies Usage;
+    return {range:['today','7','30','90','all'].includes(p.get('range')??'')?p.get('range')!:'all',service:p.get('service')??'',model:p.get('model')??'',rows:[],status:{state:'unavailable',asOf:null,message:'后台连接暂时不可用，正在自动重试；尚未取得数据，不代表用量为零。'}} satisfies Usage;
   }
 }
 export const meta:Route.MetaFunction=()=>[{title:`用量总览 · ${SITE.name} 后台`}];
