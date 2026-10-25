@@ -5,6 +5,7 @@ import rateLimit from "@fastify/rate-limit";
 import type { FastifyInstance } from "fastify";
 import { config } from "@aihot/backend/config";
 import { deployBase } from "@aihot/contracts/http-policy";
+import { sessionPrincipal } from "@aihot/backend/admin/auth";
 import { adminHandler } from "./admin-auth.ts";
 
 export const magpiePrefix = () => `${deployBase(config.siteUrl)}/api/admin/magpie-proxy`;
@@ -25,12 +26,14 @@ async function magpieRequest(resource: string, init: {method:string;headers:Reco
 export function embedMagpie(html: string, prefix: string, csrf: string) {
   if(!/^\/[a-zA-Z0-9/_-]+$/.test(prefix))throw new Error('invalid Magpie deployment prefix');
   const bootstrap = `<base href="${prefix}/"><script>(()=>{const base=${scriptString(prefix)},csrf=${scriptString(csrf)};const rewrite=(s)=>{const u=new URL(s,location.href);return u.origin===location.origin&&!u.pathname.startsWith(base+'/')?base+u.pathname+u.search+u.hash:u.href};const original=window.fetch;window.fetch=(input,init={})=>{const r=input instanceof Request?input:null;const h=new Headers(init.headers||(r&&r.headers)||{});if(!['GET','HEAD'].includes((init.method||(r&&r.method)||'GET').toUpperCase()))h.set('x-csrf-token',csrf);return original(r?new Request(rewrite(r.url),r):rewrite(String(input)),{...init,headers:h})};const ES=window.EventSource;if(ES)window.EventSource=class extends ES{constructor(url,options){super(rewrite(String(url)),options)}};})();</script>`;
-  return html.replace(/(src|href|action)=(['"])\/(?!\/)/g, `$1=$2${prefix}/`).replace(/<head([^>]*)>/i, `<head$1>${bootstrap}`);
+  const readiness = `<script>(()=>{const base=${scriptString(prefix)};let failed=false,sent=false;const send=(state)=>parent.postMessage({type:'geohot:magpie:'+state},location.origin);const check=()=>{if(!failed&&!sent&&document.getElementById('pageTitle')?.textContent?.trim()){sent=true;send('ready')}};const fix=(node)=>{if(!(node instanceof Element))return;for(const el of [node,...node.querySelectorAll('[src]')]){const src=el.getAttribute('src');if(src&&src.startsWith('/')&&!src.startsWith('//')&&!src.startsWith(base+'/'))el.setAttribute('src',base+src)}};new MutationObserver(records=>{for(const r of records){if(r.type==='attributes')fix(r.target);else for(const n of r.addedNodes)fix(n)}check()}).observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['src']});addEventListener('load',()=>{fix(document.documentElement);check()},{once:true});addEventListener('error',e=>{if(e.target instanceof HTMLScriptElement){failed=true;send('failed')}},true);})();</script>`;
+  return html.replace(/(src|href|action)=(['"])\/(?!\/)/g, `$1=$2${prefix}/`).replace(/<head([^>]*)>/i, `<head$1>${bootstrap}${readiness}`);
 }
 
-export async function registerServerConsole(app: FastifyInstance, forward = magpieRequest) {
-  await app.register(rateLimit, { global:false });
-  app.get("/api/admin/server", {config:{rateLimit:{max:30,timeWindow:'1 minute'}}}, adminHandler(async (_req, reply) => {
+export async function registerServerConsole(app: FastifyInstance, forward = magpieRequest, authenticate: typeof sessionPrincipal = sessionPrincipal) {
+  const guard = (fn: Parameters<typeof adminHandler>[0]) => adminHandler(fn, authenticate);
+  if (!app.hasDecorator('rateLimit')) await app.register(rateLimit, { global:true, max:600, timeWindow:'1 minute' });
+  app.get("/api/admin/server", {config:{rateLimit:{max:30,timeWindow:'1 minute'}}}, guard(async (_req, reply) => {
     try {
       const text = await readFile(process.env.SERVER_STATUS_FILE || "/run/geohot-server/status.json", "utf8");
       if (text.length > 100_000) throw new Error("oversize sample");
@@ -38,7 +41,7 @@ export async function registerServerConsole(app: FastifyInstance, forward = magp
       return { ...sample, stale: Date.now() - Date.parse(sample.checkedAt) > 90_000 };
     } catch { return reply.code(503).send({ unavailable: true }); }
   }));
-  app.route({ method: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"], url: "/api/admin/magpie-proxy/*", config:{rateLimit:{max:240,timeWindow:'1 minute'}}, handler: adminHandler(async (req, reply, admin) => {
+  app.route({ method: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"], url: "/api/admin/magpie-proxy/*", config:{rateLimit:{max:240,timeWindow:'1 minute'}}, handler: guard(async (req, reply, admin) => {
     const suffix = (req.params as { "*": string })["*"];
     // URL is never supplied by the caller; do not proxy the model gateway or token sign-in routes.
     const staticResource = /^(?:(?:assets|plugins|fonts)\/)?[a-zA-Z0-9_./-]+\.(?:js|css|svg|png|ico|woff2?|ttf)$/.test(suffix);
@@ -56,7 +59,11 @@ export async function registerServerConsole(app: FastifyInstance, forward = magp
     try {
       const upstream = await forward(target.pathname+target.search, { method: req.method, headers, body: ["GET", "HEAD"].includes(req.method) ? undefined : JSON.stringify(req.body) });
       reply.header("Cache-Control", "no-store").header("X-Frame-Options", "SAMEORIGIN").header("Content-Security-Policy", "frame-ancestors 'self'");
-      if (upstream.headers.has("location")) return reply.code(upstream.status).header("Location", magpiePrefix() + new URL(upstream.headers.get("location")!, target).pathname).send();
+      if (upstream.headers.has("location")) {
+        const next = new URL(upstream.headers.get("location")!, target);
+        if (next.origin !== target.origin) return reply.code(502).send({ error: "invalid_redirect" });
+        return reply.code(upstream.status).header("Location", magpiePrefix() + next.pathname + next.search).send();
+      }
       const contentType = upstream.headers.get("content-type") || "application/octet-stream";
       if (staticResource && upstream.ok && !contentType.includes("text/html")) reply.header("Cache-Control", target.searchParams.has('v') ? "private, max-age=86400, immutable" : "private, max-age=60");
       if (contentType.includes("text/event-stream")) {

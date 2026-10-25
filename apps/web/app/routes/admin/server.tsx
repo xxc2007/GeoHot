@@ -8,6 +8,11 @@ interface Sample { checkedAt:string; stale?:boolean; host:string; os:string; ker
 export async function loader({request}:Route.LoaderArgs){return adminGet<Sample>(request,"/api/admin/server",5000);}
 const mb=(n:number)=>`${Math.round(n/1024/1024).toLocaleString()} MB`;
 const gb=(n:number)=>`${(n/1024**3).toFixed(1)} GB`;
+export function ErrorBoundary() {
+ const r=useRevalidator();
+ useEffect(()=>{const timer=setInterval(()=>{if(document.visibilityState==="visible"&&r.state==="idle")void r.revalidate();},20_000);return()=>clearInterval(timer);},[r.state,r.revalidate]);
+ return <AdminPage title="服务器" subtitle="服务器指标暂时未能读取，正在自动重试。"><Card title="指标暂不可用"><p className="text-sm text-ink-3">本次没有取得新的采样数据，请稍后重新连接。</p><button className="mt-4 rounded-lg bg-ink px-4 py-2 text-white" disabled={r.state!=="idle"} onClick={()=>void r.revalidate()}>重新连接</button></Card></AdminPage>;
+}
 export default function Server({loaderData:s}:Route.ComponentProps){
  const r=useRevalidator();useEffect(()=>{const timer=setInterval(()=>{if(document.visibilityState==="visible"&&r.state==="idle")r.revalidate();},20_000);return()=>clearInterval(timer);},[r.state,r.revalidate]);
  return <AdminPage title="服务器" subtitle={`每 20 秒更新 · 采样时间 ${new Date(s.checkedAt).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai',hour12:false})}${s.stale?' · 当前为上次采样':''}`}>

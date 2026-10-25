@@ -7,6 +7,7 @@ import { createServer, request as httpRequest } from "node:http";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { createRequestListener } from "@react-router/node";
+import { createAdminControl, isAdminControlPath } from "./admin-control.ts";
 import { deployBase, isApiOwned, resolveRedirect, toAppPath, toPublicPath } from "@aihot/contracts/http-policy";
 
 const PORT = Number(process.env.WEB_PORT || process.env.PORT || 3000);
@@ -38,6 +39,7 @@ const TYPES: Record<string, string> = {
 
 const build = await import(pathToFileURL(path.resolve(import.meta.dirname, "build/server/index.js")).href);
 const ssr = createRequestListener({ build, mode: "production" });
+const control = await createAdminControl();
 
 /**
  * The path this deployment answers on (`/geohot`), taken from the build so it can never disagree with the
@@ -151,6 +153,11 @@ async function handle(req: import("node:http").IncomingMessage, res: import("nod
     return res.end(decision.location ? undefined : decision.status === 410 ? "Gone" : "Not found");
   }
 
+  if (isAdminControlPath(appPath)) {
+    req.url = appPath + search;
+    control.routing(req, res);
+    return;
+  }
   if (isApiOwned(appPath)) {
     // The visitor's address, decided here: the one the trusted proxy saw, or this connection's own.
     // Which header that is depends on who is in front. nginx appends its own `$remote_addr`, so with a
@@ -189,8 +196,13 @@ process.on("unhandledRejection", (reason) => {
 });
 
 server.keepAliveTimeout = 65_000;
-server.listen(PORT, HOST, () => console.log(JSON.stringify({ level: "info", msg: "web started", port: (server.address() as import("node:net").AddressInfo).port, pid: process.pid })));
+server.listen(PORT, HOST, () => {
+  const port = (server.address() as import("node:net").AddressInfo).port;
+  // Resolve port 0 too: preview/tests may ask the OS for a free port.
+  process.env.ADMIN_CONTROL_BASE_URL ||= `http://127.0.0.1:${port}`;
+  console.log(JSON.stringify({ level: "info", msg: "web started", port, pid: process.pid }));
+});
 
-const shutdown = () => server.close(() => process.exit(0));
+const shutdown = () => server.close(() => { void control.close().finally(() => process.exit(0)); });
 process.on("SIGTERM", shutdown);
 process.on("SIGINT", shutdown);
