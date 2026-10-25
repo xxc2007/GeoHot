@@ -63,15 +63,15 @@ const usageReaders = new Map<number, ReturnType<typeof snapshotReader<UsageRow>>
 const readPrices = statisticReader(() => modelStatisticRead(db =>
   db<{ service: string; model: string; currency: string; input_per_mtok: string | null; output_per_mtok: string | null }[]>`
     SELECT service, model, currency, input_per_mtok, output_per_mtok FROM service_prices`), () => []);
+function modelUsageReader(days:number){
+  let reader=usageReaders.get(days);
+  if(!reader){reader=snapshotReader(()=>modelStatisticRead(db=>readModelUsage(db,new Date(Date.now()-days*86400_000))),snapshotStore<UsageRow>(`models/${days}`));usageReaders.set(days,reader);}
+  return reader;
+}
+export async function primeModelUsageSnapshot(days=7){const reader=modelUsageReader(days);await reader.get();await reader.refresh();return reader.get();}
 export async function modelsOverview(days = 7) {
   days = Number.isFinite(days) ? Math.max(1, Math.min(90, Math.floor(days))) : 7;
-  let readUsage = usageReaders.get(days);
-  if (!readUsage) {
-    const windowDays = days;
-    readUsage = snapshotReader(() => modelStatisticRead(db =>
-      readModelUsage(db, new Date(Date.now() - windowDays * 86400_000))), snapshotStore<UsageRow>(`models/${windowDays}`));
-    usageReaders.set(days, readUsage);
-  }
+  const readUsage=modelUsageReader(days);
   const [sourcesResult, usageResult, pricesResult, historyResult] = await Promise.all([
     modelSources().then(rows => ({ rows, status: { state: "ready" as const, asOf: new Date().toISOString() } }),
       () => ({ rows: null, status: { state: "unavailable" as const, asOf: null, message: "当前模型配置暂时不可用，请稍后刷新。" } })),

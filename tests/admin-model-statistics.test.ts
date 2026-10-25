@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import { invalidateModelCache } from "@aihot/backend/editorial/models";
 import { closeDb, sql } from "@aihot/backend/db";
-import { modelsOverview, switchModel, readModelUsage } from "../packages/backend/src/admin/models.ts";
+import { modelsOverview, switchModel, readModelUsage, primeModelUsageSnapshot } from "../packages/backend/src/admin/models.ts";
 import { modelStatisticRead, statisticReader } from "../packages/backend/src/admin/model-statistics-read.ts";
 
 after(closeDb);
@@ -132,6 +132,8 @@ test("cached measurements cannot hide a new model switch or its audit history", 
   try {
     await sql`DELETE FROM settings WHERE key='models.score'`;
     invalidateModelCache();
+    // Cold snapshots are deliberately non-blocking; initialize before testing cache reuse.
+    assert.equal((await primeModelUsageSnapshot()).status.state,'ready');
     const before = await modelsOverview();
     await switchModel("score", "default", "fresh switch test", actor);
     const after = await modelsOverview();
