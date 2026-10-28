@@ -347,3 +347,11 @@ for(const state of ['unknown','pending','received'])test('mixed retry namespaces
  else await assert.rejects(translateArticle(id),/unknown|pending/);
  assert.equal(provider.hits(),hits);
 });
+
+test('completed legacy retry wins over failed v2 without another provider call',async()=>{
+ const text='LEGACY_LAST completed '+T+' scientific observation.';const id=await selectedBody('mixed-completed','<p>'+text+'</p>');
+ echoLast=true;try{await primeLegacy(id,0,[text]);}finally{echoLast=false;}
+ await primeLegacy(id,0,[text],'retry');await primeLegacy(id,0,[text],'retry-zh-v2');
+ await sql`UPDATE receipts SET status='failed' WHERE subject=${'article:'+id+'@1#0'} AND logical_key LIKE '%:retry-zh-v2'`;
+ const hits=provider.hits();assert.equal((await translateArticle(id)).status,'translated');assert.equal(provider.hits(),hits);
+});

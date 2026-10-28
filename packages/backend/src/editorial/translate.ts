@@ -99,11 +99,11 @@ async function translateBatch(articleId: string, revision: number, index: number
   // Preserve historical retry receipts (including pending/unknown) when the legacy prefix resumes.
   // More recent deployments use retry-zh-v2; do not change a paid request's namespace.
   if (attemptTag === "retry-zh-v2") {
-    const prior = await sql<{id:number;logical_key:string;status:string}[]>`SELECT id,logical_key,status FROM receipts WHERE purpose='translate_body' AND subject=${workUnit+'#'+index} AND (logical_key LIKE '%:retry' OR logical_key LIKE '%:retry-zh-v2')`;
+    const prior = await sql<{id:number;logical_key:string;status:string;reusable:boolean}[]>`SELECT id,logical_key,status,(response IS NOT NULL) AS reusable FROM receipts WHERE purpose='translate_body' AND subject=${workUnit+'#'+index} AND (logical_key LIKE '%:retry' OR logical_key LIKE '%:retry-zh-v2')`;
     const unresolved=prior.find(r=>r.status==='unknown'||r.status==='pending');
     if(unresolved?.status==='unknown')throw new ReceiptUnknownError(unresolved.id,'Translation retry outcome unknown');
     if(unresolved)throw new ReceiptBusyError('Translation retry already pending');
-    const received=prior.find(r=>r.status==='received'&&r.logical_key.endsWith(':retry-zh-v2'))??prior.find(r=>r.status==='received');
+    const received=prior.find(r=>((r.status==='received'||r.status==='completed')&&r.reusable)&&r.logical_key.endsWith(':retry-zh-v2'))??prior.find(r=>((r.status==='received'||r.status==='completed')&&r.reusable));
     const existing=received??prior.find(r=>r.logical_key.endsWith(':retry-zh-v2'))??prior[0];
     if(existing)attemptTag=existing.logical_key.endsWith(':retry-zh-v2')?'retry-zh-v2':'retry';
   }
