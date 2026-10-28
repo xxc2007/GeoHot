@@ -1,3 +1,4 @@
+import { workflowReadyCondition } from "./readiness.ts";
 import type { FeedItemSummary } from "@aihot/contracts/site";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -50,7 +51,7 @@ async function loadCounts(now: Date): Promise<CountsSnapshot> {
     queryTopicCounts(now, windowStart),
     sql<{ t: Date | null }[]>`
       SELECT min(p.visible_after) AS t FROM publications p
-      WHERE p.visibility = 'public' AND p.selected AND p.visible_after > ${now} AND ${chineseCopyCondition()}`,
+      WHERE p.visibility = 'public' AND p.selected AND p.visible_after > ${now} AND ${workflowReadyCondition()} AND ${chineseCopyCondition()}`,
   ]);
   const readAt = Date.now();
   const releasing = gate?.t ? gate.t.getTime() : Infinity;

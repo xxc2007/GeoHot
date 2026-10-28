@@ -12,6 +12,7 @@ import { sanitizeBody, stripChromeHtml, trimTrailingChrome } from "./sanitize.ts
 import { markdownBody } from "./markdown.ts";
 import { contentHash } from "./materials.ts";
 import { shutdownSignal } from "../jobs/queue.ts";
+import * as cheerio from "cheerio";
 
 function checkExtractionRunning(): void {
   if (shutdownSignal.signal.aborted) throw new Error("worker shutting down between extraction stages");
@@ -33,7 +34,65 @@ export interface ExtractedBody {
 const MIN_BODY_CHARS = 120;
 
 export function readable(html: string, url: string): ExtractedBody | null {
+  // This journal keeps figures and appendices beside the text in interactive drawers. Readability
+  // drops those drawers, including the actual research figures. Extract their content before it runs.
+  if (/^(www\.)?ecologyandsociety\.org$/i.test(new URL(url).hostname)) {
+    const $ = cheerio.load(html);
+    const text = $(".article__text").first();
+    if (text.length && text.text().trim().length >= MIN_BODY_CHARS) {
+      const parts = [text.html() ?? ""];
+      const figures: string[] = [];
+      $(".article__figures .article__figure").each((_, el) => {
+        const block = $(el);
+        const full = block.find(".article__figure-full").first().clone();
+        if (full.length) {
+          full.find("script, style, meta, link, title").remove();
+          // The publisher's CDN can cache an empty HTML response at the bare image URL. A stable
+          // query keeps the same original image while avoiding that poisoned cache entry.
+          full.find("img[src]").each((_, image) => {
+            const src = new URL($(image).attr("src")!, url);
+            src.searchParams.set("geohot", "original");
+            $(image).attr("src", src.toString());
+          });
+          const caption = full.find("h1").first();
+          const captionHtml = caption.html();
+          caption.remove();
+          figures.push(`<figure>${full.html() ?? ""}${captionHtml ? `<figcaption>${captionHtml}</figcaption>` : ""}</figure>`);
+        } else {
+          // Attachment links are content; the download/open icons and repeated preview images are UI.
+          const attachment = block.find("figure").first().clone();
+          attachment.find("img, script, style").remove();
+          if (attachment.find("a[href]").length) figures.push($.html(attachment));
+        }
+      });
+      if (figures.length) parts.push("<h2>Figures, Tables, &amp; Appendices</h2>", ...figures);
+      // The structured selection is already the article; a second heuristic pass would remove its
+      // figure drawer again. Reuse the normal sanitizer and image collection below instead.
+      return extractedBody(parts.join(""), url);
+    }
+  }
   const { document } = parseHTML(html);
+  let coverHtml = "";
+  if (new URL(url).hostname.toLowerCase() === "news.mongabay.com") {
+    // The cover is a CSS background outside Readability's body. Its explicit cover node avoids
+    // unrelated recommendations and branding that generic page metadata can name.
+    const style = document.querySelector(".article-cover-image__bg")?.getAttribute("style") ?? "";
+    const match = /(?:^|;)\s*--cover-image-large\s*:\s*url\(\s*(['"]?)([^'"()\s]+)\1\s*\)/i.exec(style);
+    if (match) {
+      try {
+        const imageUrl = new URL(match[2]!);
+        if (imageUrl.protocol === "https:" && imageUrl.hostname === "imgs.mongabay.com" && !imageUrl.port && !imageUrl.username && !imageUrl.password) {
+          const figure = document.createElement("figure");
+          const image = document.createElement("img");
+          image.setAttribute("src", imageUrl.href);
+          figure.appendChild(image);
+          coverHtml = figure.outerHTML;
+        }
+      } catch {
+        // An invalid cover leaves the readable article intact.
+      }
+    }
+  }
   try {
     const base = document.createElement("base");
     base.setAttribute("href", url);
@@ -43,7 +102,22 @@ export function readable(html: string, url: string): ExtractedBody | null {
   }
   const article = new Readability(document as unknown as ConstructorParameters<typeof Readability>[0], { charThreshold: MIN_BODY_CHARS, keepClasses: false }).parse();
   if (!article?.content) return null;
-  const clean = stripChromeHtml(trimTrailingChrome(sanitizeBody(article.content, url)));
+  if (new URL(url).hostname.toLowerCase() === "news.mongabay.com") {
+    const $ = cheerio.load(article.content, null, false);
+    $("img[src]").each((_, image) => {
+      try {
+        if (/(^|\.)gravatar\.com$/i.test(new URL($(image).attr("src")!, url).hostname)) $(image).remove();
+      } catch {
+        // Other malformed images remain subject to the normal sanitizer.
+      }
+    });
+    article.content = $.html();
+  }
+  return extractedBody(coverHtml + article.content, url);
+}
+
+function extractedBody(html: string, url: string): ExtractedBody | null {
+  const clean = stripChromeHtml(trimTrailingChrome(sanitizeBody(html, url)));
   const text = stripBoilerplate(stripTags(clean));
   if (text.length < MIN_BODY_CHARS || isBoilerplateBody(text)) return null;
   const images: ExtractedBody["images"] = [];

@@ -202,7 +202,13 @@ async function queryHotCovers(entries: Array<{ storyId: number; representativeIt
 
 export async function loadHot(): Promise<HotResponse> {
   const ranking = await latestHotRanking();
-  if (!ranking) return { computedAt: null, ruleVersion: null, windowHours: 48, entries: [] };
+  if (!ranking) {
+    // A successful empty computation still has a cut-off time. Do not publish stale entries,
+    // and do not turn an empty result into the indistinguishable "never computed" state.
+    const [latest] = await sql<{ computed_at: Date; rule_version: string }[]>`
+      SELECT computed_at, rule_version FROM hot_rankings ORDER BY computed_at DESC LIMIT 1`;
+    return { computedAt: latest?.computed_at.toISOString() ?? null, ruleVersion: latest?.rule_version ?? null, windowHours: 48, entries: [] };
+  }
   const at = new Date(ranking.computedAt);
   const [sparks, covers, extras] = await Promise.all([
     sparklines(

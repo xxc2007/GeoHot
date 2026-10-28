@@ -5,6 +5,7 @@ import { CJK_COPY_PATTERN, isLabelOnlyCopy } from "@aihot/contracts/copy";
 import type { FeedItemSummary, ItemSummary, MediaView, SourceKind, XPostView } from "@aihot/contracts/site";
 import { sql } from "../db.ts";
 import { proxiedImage, proxiedImageSet } from "../media/imgproxy.ts";
+import { workflowReadyCondition } from "./readiness.ts";
 import { displayTags } from "./rules.ts";
 
 export interface ItemRow {
@@ -110,7 +111,7 @@ export function chineseCopyCondition() {
  * is `rules.isReleased`, used where a page reads one item instead of a list.
  */
 export function releasedCondition(now: Date) {
-  return sql`(NOT p.selected OR p.visible_after <= ${now})`;
+  return sql`(NOT p.selected OR p.visible_after <= ${now}) AND ${workflowReadyCondition()}`;
 }
 
 /**
@@ -128,7 +129,7 @@ export function listedCondition(now: Date) {
  * /all hid them).
  */
 export function selectedCondition(now: Date) {
-  return sql`p.visibility = 'public' AND p.selected AND p.visible_after <= ${now} AND ${chineseCopyCondition()}`;
+  return sql`p.visibility = 'public' AND p.selected AND ${releasedCondition(now)} AND ${chineseCopyCondition()}`;
 }
 
 export function channelCondition(channel: ChannelKey | null | undefined) {

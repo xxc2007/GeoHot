@@ -27,7 +27,7 @@ let storyId = 0;
 async function signal(which: string, suffix: string, observedAt: Date) {
   const { articleId } = await upsertMaterial({
     sourceId: which, url: `https://example.com/${T}-${suffix}`, title: `Bulletin ${T} ${suffix}`,
-    bodyText: "A field bulletin.", bodyStatus: "ok", via: "fetch", publishedAt: observedAt,
+    bodyText: "完整的中文公告正文。", bodyStatus: "ok", via: "fetch", publishedAt: observedAt,
   });
   const titleZh = `测试热榜${T}的报道`;
   const summaryZh = `${which} 测定 5.2 级，深度 32 千米。`;
@@ -49,8 +49,8 @@ const entryOf = async (rankingId: number) =>
 
 before(async () => {
   for (const s of sources) {
-    await sql`INSERT INTO sources (id, name, kind, tier, participation_mode, enabled, next_fetch_at, last_ok_at)
-              VALUES (${s}, ${`热榜测试${s}`}, 'rss', 'T1', 'editorial', true, '2100-01-01', ${new Date(at.getTime() + HOUR)})`;
+    await sql`INSERT INTO sources (id, name, kind, tier, participation_mode, site_fulltext, enabled, next_fetch_at, last_ok_at)
+              VALUES (${s}, ${`热榜测试${s}`}, 'rss', 'T1', 'editorial', true, true, '2100-01-01', ${new Date(at.getTime() + HOUR)})`;
   }
   const [story] = await sql<{ id: number }[]>`
     INSERT INTO stories (public_id, title, first_report_at, latest_at) VALUES (${randomUUID()}, ${`测试热榜事件${T}`}, ${at}, ${at}) RETURNING id`;

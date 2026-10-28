@@ -34,11 +34,11 @@ function cacheSeconds(header: string): Record<string, number> {
 }
 
 before(async () => {
-  await sql`INSERT INTO sources (id, name, kind, tier, participation_mode, next_fetch_at)
-             VALUES (${SOURCE}, 'OG cache test', 'rss', 'T1', 'editorial', '2100-01-01')`;
+  await sql`INSERT INTO sources (id, name, kind, tier, participation_mode, site_fulltext, next_fetch_at)
+             VALUES (${SOURCE}, 'OG cache test', 'rss', 'T1', 'editorial', true, '2100-01-01')`;
   const { articleId } = await upsertMaterial({
     sourceId: SOURCE, url: `https://example.com/${T}-og-item`, title: `Source ${T} bulletin`,
-    bodyText: "A field bulletin.", bodyStatus: "ok", via: "fetch",
+    bodyText: "完整的中文公告正文。", bodyStatus: "ok", via: "fetch",
   });
   const title = `测试事件${T}：一台站测定 5.2 级`;
   const summary = `测试事件${T} 一台站测定 5.2 级，震源深度 32 千米。`;

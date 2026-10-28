@@ -35,8 +35,8 @@ async function publishFact(title: string, selected: boolean, suffix: string) {
 }
 
 before(async () => {
-  await sql`INSERT INTO sources (id, name, kind, tier, participation_mode, enabled, next_fetch_at)
-            VALUES (${SOURCE}, ${`后续测试源 ${T}`}, 'rss', 'T1', 'editorial', true, '2100-01-01')`;
+  await sql`INSERT INTO sources (id, name, kind, tier, participation_mode, site_fulltext, enabled, next_fetch_at)
+            VALUES (${SOURCE}, ${`后续测试源 ${T}`}, 'rss', 'T1', 'editorial', true, true, '2100-01-01')`;
   const [story] = await sql<{ id: number; public_id: string }[]>`
     INSERT INTO stories (public_id, title, first_report_at, latest_at) VALUES (${randomUUID()}, ${`测试事件 ${T}`}, now(), now()) RETURNING id, public_id::text`;
   storyId = story!.id;

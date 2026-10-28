@@ -1,19 +1,23 @@
 // Item detail and Markdown export, both behind the same visibility and licence rules.
 import type { ItemDetail, SiteItemDetail, OutlineEntry, StoryRef } from "@aihot/contracts/site";
 import * as cheerio from "cheerio";
-import type { AnyNode, Element } from "domhandler";
 import TurndownService from "turndown";
 import { sql } from "../db.ts";
 import { proxyBodyImages } from "../media/imgproxy.ts";
 import { textToHtml } from "../content/sanitize.ts";
+import { dedupeConsecutiveFigures, translationTextDefect } from "../content/body-quality.ts";
 import { ITEM_COLUMNS, ITEM_FROM, chineseCopyCondition, releasedCondition, toItemSummary, videoMedia, xView, type ItemRow } from "./items.ts";
 import { listTopics, topicMatchTags } from "./topics.ts";
 import { bodyIsChinese } from "@aihot/contracts/copy";
 import { itemUrl } from "./links.ts";
 import { itemHasPage } from "./rules.ts";
+import { workflowReadyCondition } from "./readiness.ts";
 import { SITE } from "@aihot/industry/site";
 
 interface DetailRow extends ItemRow {
+  article_revision: number;
+  preparation_media: unknown;
+  tr_revision: number | null;
   body_html: string | null;
   body_text: string | null;
   body_status: string;
@@ -26,53 +30,10 @@ export type DetailResult =
   | { kind: "found"; detail: ItemDetail; row: DetailRow }
   | { kind: "not_found" };
 
-/**
- * 一篇正文最多给读者渲染这么多字的可见文本。上限是被实测逼出来的：2026-10-16 打开 260 道
- * "feed 自带全文"的门之后，会翻成 full 的 15,751 条里有 223 条正文超过 60,000 字（最长的一条
- * 412,027 字是一整篇 SWP 长篇报告）——那种页面在这台 891 MB 的机器上既渲染得慢，也不是读者要的。
- * 切在块边界上，切不到就明说（`truncated`），绝不静默把结尾抹掉。
- */
-export const BODY_CAP_CHARS = 20_000;
-
-/** Child tags that make an element a container rather than a leaf block. */
-const BLOCK = /^(p|h[2-5]|li|blockquote|figcaption|td|th|dt|dd|caption|ul|ol|table|div)$/;
-
-/** Cut a body at block boundaries once its visible text passes the cap; says whether it cut. */
-export function capBody(html: string, maxChars = BODY_CAP_CHARS): { html: string; shown: number; total: number; truncated: boolean } {
-  const $ = cheerio.load(html, null, false);
-  const total = $.root().text().length;
-  if (total <= maxChars) return { html, shown: total, total, truncated: false };
-  // 按文档顺序累加"叶子块"（里面没有别的块的那一段），越过上限就把它和它之后的全部丢掉：
-  // 这样切出来的结尾永远落在一个完整段落之后，不会留下半个标签或半句话。
-  const leaves: { el: AnyNode; len: number }[] = [];
-  const walk = (nodes: AnyNode[]) => {
-    for (const node of nodes) {
-      if (node.type !== "tag") { if (node.type === "text" && leaves.length) leaves[leaves.length - 1]!.len += (node.data ?? "").length; continue; }
-      const el = node as Element;
-      const hasBlockChild = el.children.some((c) => c.type === "tag" && BLOCK.test((c as Element).name));
-      if (!hasBlockChild) { leaves.push({ el, len: $(el).text().length }); continue; }
-      walk(el.children);
-    }
-  };
-  walk($.root().children().toArray());
-  // 切点之后一块都不留：逐块问"这块还塞得下吗"会让切点后面那些小编块（标题、图注）重新
-  // 溜回上限之内，拼出一段没有上文的孤零零小标题——读者看到的就是缝合怪。
-  let used = 0;
-  let cutAt = -1;
-  for (let i = 0; i < leaves.length; i++) {
-    const leaf = leaves[i]!;
-    if (used + leaf.len > maxChars && used > 0) { cutAt = i; break; }
-    used += leaf.len;
-  }
-  if (cutAt < 0 || used > maxChars) {
-    // 块边界帮不上忙：要么全文只有一个叶子块（一个 <p> 装 40 万字），要么第一块本身就超了。
-    // 退到按 HTML 字符数硬切，切在最后一个 '>' 之前，保证不吐出一个断标签。
-    const rough = html.slice(0, maxChars * 1.2);
-    const at = rough.lastIndexOf(">");
-    return { html: at > 0 ? rough.slice(0, at + 1) : rough, shown: maxChars, total, truncated: true };
-  }
-  for (const leaf of leaves.slice(cutAt)) $(leaf.el).remove();
-  return { html: $.html(), shown: used, total, truncated: true };
+/** Preserve the entire stored body. Reader performance must never discard article content. */
+export function prepareArticleBody(html: string): { html: string; shown: number; total: number; truncated: boolean } {
+  const total = cheerio.load(html, null, false).root().text().length;
+  return { html, shown: total, total, truncated: false };
 }
 
 /** Adds stable ids to h2–h4 and returns the outline. */
@@ -102,11 +63,11 @@ async function itemTopics(tags: string[]): Promise<Array<{ slug: string; name: s
     .map((t) => ({ slug: t.slug, name: t.name }));
 }
 
-async function loadRow(id: string): Promise<DetailRow | null> {
+async function loadRow(id: string, preparingMedia = false): Promise<DetailRow | null> {
   const [row] = await sql<DetailRow[]>`
-    SELECT ${ITEM_COLUMNS}, a.body_html, a.body_text, a.body_status, tr.body_html AS tr_html, tr.complete AS tr_complete
+    SELECT ${ITEM_COLUMNS}, a.revision AS article_revision, a.media AS preparation_media, tr.revision AS tr_revision, a.body_html, a.body_text, a.body_status, tr.body_html AS tr_html, tr.complete AS tr_complete
     ${ITEM_FROM}
-    WHERE p.article_id = ${id}`;
+    WHERE p.article_id = ${id} ${preparingMedia ? sql`` : sql`AND ${workflowReadyCondition()}`}`;
   return row ?? null;
 }
 
@@ -119,9 +80,18 @@ export function pageFacts(row: Pick<ItemRow, "visibility" | "source_mode" | "sel
  * Public detail (rules.itemHasPage): items the lists leave out (low relevance, merged duplicates, no
  * Chinese summary yet) keep a noindex page; withdrawn, hot_signal and not-yet-released items are a 404.
  */
-export async function loadItemDetail(id: string, now = new Date()): Promise<DetailResult> {
-  const row = await loadRow(id);
-  if (!row || !itemHasPage(pageFacts(row), now)) return { kind: "not_found" };
+export function loadItemDetail(id: string, now = new Date()): Promise<DetailResult> {
+  return buildItemDetail(id, now, false);
+}
+
+/** Worker-only input for prewarming before release. Never exposed by a public route or parameter. */
+export function loadItemForMediaPreparation(id: string): Promise<DetailResult> {
+  return buildItemDetail(id, new Date(), true);
+}
+
+async function buildItemDetail(id: string, now: Date, preparingMedia: boolean): Promise<DetailResult> {
+  const row = await loadRow(id, preparingMedia);
+  if (!row || (preparingMedia ? row.visibility === "withdrawn" || row.source_mode !== "editorial" : !itemHasPage(pageFacts(row), now))) return { kind: "not_found" };
 
   const summary = toItemSummary(row);
   if (row.channel === "x") summary.x = xView(row, false, true);
@@ -167,16 +137,16 @@ export async function loadItemDetail(id: string, now = new Date()): Promise<Deta
     const isZh = bodyIsChinese(row.language, row.body_text ?? "");
     // 采集器常常只交回纯文本（RSS 的 description 之外没有 html）：这一类正文也得给读者看，
     // 否则投影说是 full、页面却什么也不渲染——读者看到的是"有正文这条不存在"。
-    const original = proxyBodyImages(row.body_html ?? (row.body_text ? textToHtml(row.body_text) : ""));
-    const zh = isZh ? original : row.tr_html ? proxyBodyImages(row.tr_html) : null;
-    // 先按上限切块、再打目录锚点：锚点只能描述读者真看到的那一段，否则「本文目录」会链向页面上没有的标题。
-    const shown = capBody(zh ?? original);
+    const original = proxyBodyImages(dedupeConsecutiveFigures(row.body_html || (row.body_text ? textToHtml(row.body_text) : "")));
+    const zh = isZh ? original : row.tr_html && !translationTextDefect(row.tr_html) ? proxyBodyImages(dedupeConsecutiveFigures(row.tr_html)) : null;
+    // 原文和译文都保留到结尾，目录锚点覆盖全部章节；语言投影仍只发送当前阅读语言。
+    const shown = prepareArticleBody(zh ?? original);
     const primary = withOutline(shown.html);
-    const cappedOriginal = zh && !isZh ? capBody(original) : null;
+    const preparedOriginal = zh && !isZh ? prepareArticleBody(original) : null;
     outline = primary.outline;
     body = {
       zh: zh ? primary.html : null,
-      original: cappedOriginal ? withOutline(cappedOriginal.html).html : isZh ? null : primary.html,
+      original: preparedOriginal ? withOutline(preparedOriginal.html).html : isZh ? null : primary.html,
       zhKind: isZh ? "original" : zh ? "translation" : null,
       complete: isZh ? true : row.tr_complete ?? false,
       truncated: shown.truncated,
@@ -259,13 +229,13 @@ export async function exportMarkdown(id: string): Promise<{ filename: string; bo
     const q = row.x_post.quoted as { handle?: string; text?: string; url?: string } | null | undefined;
     if (q?.text) lines.push(`## 引用 @${q.handle ?? ""}`, "", ...String(q.text).split("\n").map((l) => `> ${l}`), "", ...(q.url ? [q.url, ""] : []));
     if (q?.text && row.quoted_zh) lines.push("### 引用中文译文", "", ...row.quoted_zh.split("\n").map((l) => `> ${l}`), "");
-  } else if (row.body_mode === "full" && row.body_html) {
+  } else if (row.body_mode === "full" && (row.body_html || row.body_text)) {
     // The same question the page asks (`loadRow`'s reading projection above), spelled once
     // (`contracts/copy.ts`): a declared language wins over a sample, and a declared `en` is an English
     // body even when the article quotes a Chinese line.
     const isZh = bodyIsChinese(row.language, row.body_text ?? "");
     if (!isZh && row.tr_html && row.tr_complete) lines.push("## 正文 · 中文译文", "", turndown.turndown(row.tr_html), "");
-    lines.push(isZh ? "## 正文" : "## 正文 · 原文", "", turndown.turndown(row.body_html), "");
+    lines.push(isZh ? "## 正文" : "## 正文 · 原文", "", turndown.turndown(row.body_html || textToHtml(row.body_text!)), "");
   }
   // The download carries the site's own identity, not the framework's (upstream a75140b): `aihot-…md`
   // in a reader's Downloads folder is the upstream name, which this deployment must not use.

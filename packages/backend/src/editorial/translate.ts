@@ -16,11 +16,15 @@ import { z } from "zod";
 import postgres from "postgres";
 import { bodyIsChinese, hasChineseCopy } from "@aihot/contracts/copy";
 import { sql } from "../db.ts";
+import { publishArticleTx } from "../publication/publish.ts";
 import { sanitizeBody, textToHtml } from "../content/sanitize.ts";
+import { dedupeConsecutiveFigures, isNhcProseBulletin, translationTextDefect } from "../content/body-quality.ts";
 import { chatJson } from "../providers/llm.ts";
 import { collapseWhitespace } from "../lib/text.ts";
 import { modelFor } from "./models.ts";
+import { translateNhcWindProbability } from "../content/nhc-wind-probability.ts";
 import { looksZh } from "./writing.ts";
+import { isImmutablePhotoCredit } from "./photo-credit.ts";
 import { shutdownSignal } from "../jobs/queue.ts";
 import { promptText, promptVersion } from "./prompts.ts";
 import { ReceiptBusyError, ReceiptUnknownError } from "../providers/receipts.ts";
@@ -42,7 +46,7 @@ const Output = z.object({ t: z.array(z.string()) });
 class TranslationInterruptedError extends Error {}
 
 /** Cooperative invocation stop: persist a paid answer already sent, then buy no next batch. */
-export interface TranslationControl { signal?: AbortSignal; deadlineAt?: number }
+export interface TranslationControl { signal?: AbortSignal; deadlineAt?: number; allowUnselected?: boolean }
 function checkTranslation(control: TranslationControl) {
   if (shutdownSignal.signal.aborted || control.signal?.aborted || (control.deadlineAt !== undefined && Date.now() >= control.deadlineAt)) {
     throw new TranslationInterruptedError("translation invocation stopped");
@@ -214,6 +218,7 @@ export function unshield(translated: string, s: Shielded): string | null {
   if (!intact || seen.size !== s.links.length) return null;
   const srcText = cheerio.load(s.html, null, false).root().text().replace(/\s+/g, " ").trim();
   const outText = $.root().text().replace(/\s+/g, " ").trim();
+  if (translationTextDefect(outText)) return null;
   // 引用编号被采集层摊成纯文本时，上面那道链接计数接不住：源括号里有数字、译文括号里只剩标点，
   // 读者看到的就是"话说到一半，出处是空的"（2026-10-16 量到 8 条，全在 Frontiers 那一族）。
   // 整块按"这块没翻出来"处理：折半与缺块重问会再问它一次，还不行就保留原文（宁可原文，不要空括号）。
@@ -315,7 +320,7 @@ async function translateOversized(block: Element, articleId: string, revision: n
       const found: string[] = answer.match(/⟦G\d+⟧/g) ?? [];
       if (found.join("|") !== expected.join("|") || expected.some(t => found.filter(x => x === t).length !== 1)) return null;
       const bare = answer.replace(/⟦G\d+⟧/g, "");
-      if (/[\d⟦⟧]/.test(bare)) return null;
+      if (/[\d⟦⟧]/.test(bare) || translationTextDefect(bare)) return null;
       const sourceBare = source.replace(/⟦G\d+⟧/g, "");
       if (/\p{L}{2,}/u.test(sourceBare) && (!looksZh(bare) || bare.trim() === sourceBare.trim())) return null;
       if (sourceBare.length >= 300 && bare.length / sourceBare.length < 0.22) return null;
@@ -352,12 +357,12 @@ async function translateOversized(block: Element, articleId: string, revision: n
 
 export async function translateArticle(articleId: string, control: TranslationControl = {}): Promise<TranslateResult> {
   checkTranslation(control);
-  const [row] = await sql<{ url: string; revision: number; channel: string; language: string | null; body_html: string | null; body_text: string | null; x_post: { text?: string } | null; title: string; selected: boolean; body_mode: string; visibility: string }[]>`
-    SELECT a.url, a.revision, p.channel, a.language, a.body_html, a.body_text, a.x_post, p.title, p.selected, p.body_mode, p.visibility
+  const [row] = await sql<{ url: string; revision: number; channel: string; language: string | null; body_html: string | null; body_text: string | null; x_post: { text?: string } | null; title: string; selected: boolean; eligible: boolean; body_mode: string; visibility: string }[]>`
+    SELECT a.url, a.revision, p.channel, a.language, a.body_html, a.body_text, a.x_post, p.title, p.selected, p.eligible, p.body_mode, p.visibility
     FROM publications p JOIN articles a ON a.id = p.article_id WHERE p.article_id = ${articleId}`;
   if (!row) return { articleId, status: "skipped", reason: "not published" };
   const result = (r: Omit<TranslateResult, "articleId" | "revision">): TranslateResult => ({ articleId, revision: row.revision, ...r });
-  if (!row.selected || row.visibility !== "public" || row.body_mode !== "full") return result({ status: "skipped", reason: "not a selected full-text item" });
+  if ((!row.selected && !row.eligible && !control.allowUnselected) || row.visibility !== "public" || row.body_mode !== "full") return result({ status: "skipped", reason: "not a selected or eligible full-text item" });
 
   if (row.channel === "x") {
     const text = String(row.x_post?.text ?? row.body_text ?? "").trim();
@@ -379,7 +384,22 @@ export async function translateArticle(articleId: string, control: TranslationCo
   // 只给纯文本正文的采集器不少（RSS 常常只有 text）：没有 html 就把 text 当正文翻。这一腿原来会在
   // `!row.body_html` 处直接 skip，而 skipped 是终态（translatePending 用它排除条目），于是这一类条目
   // 永远不会有中文译文——正是读者要的「英文版还要有中文版」那一条。
-  const bodyHtml = row.body_html ?? (row.body_text ? textToHtml(row.body_text) : "");
+  let bodyHtml = row.body_html ?? (row.body_text ? textToHtml(row.body_text) : "");
+  const fixed = cheerio.load(bodyHtml, null, false);
+  const pre = fixed.root().children();
+  if (pre.length === 1 && pre.is("pre") && !pre.find("code").length) {
+    const translated = translateNhcWindProbability(row.url, pre.text());
+    if (translated !== null) {
+      pre.text(translated);
+      const html = sanitizeBody(fixed.html());
+      await store(articleId, row.revision, row.title, html, translated, true);
+      return result({ status: "translated", segments: 1, reason: "fixed NHC probability template; numeric grid preserved" });
+    }
+  }
+
+  // This explicitly requested, previously ineligible repair has no legacy selected-body batches.
+  // Preserve the receipt layout of existing selected articles, including their original prefix.
+  if (!row.selected && control.allowUnselected) bodyHtml = dedupeConsecutiveFigures(bodyHtml);
   if (!bodyHtml || bodyIsChinese(row.language, row.body_text ?? "")) return result({ status: "skipped", reason: "no foreign-language body" });
   const $ = cheerio.load(bodyHtml, null, false);
   const blocks = segmentsOf($);
@@ -387,7 +407,7 @@ export async function translateArticle(articleId: string, control: TranslationCo
   // Keep generic code/pre excluded, and keep new work outside all historical receipt indexes.
   const nhc = ["nhc.noaa.gov", "www.nhc.noaa.gov"].includes(new URL(row.url).hostname);
   const prose = nhc ? $("pre").toArray().filter((el) => !$(el).find("code").length
-    && /NWS National Hurricane Center/i.test($(el).text())) as Element[] : [];
+    && (/NWS National Hurricane Center/i.test($(el).text()) || isNhcProseBulletin(row.url, $(el).text()))) as Element[] : [];
   if (!blocks.length && !prose.length) return result({ status: "skipped", reason: "no translatable text" });
   // Reconstruct the historical receipt prefix exactly; subsequent work has its own sealed batches.
   let budget = MAX_CHARS;
@@ -400,32 +420,36 @@ export async function translateArticle(articleId: string, control: TranslationCo
   }
   // The old prefix and its retry must remain entirely sealed from newly covered work.
   const translateBlocks = async (chosen: Element[], space?: string) => {
-    const shielded = chosen.map((el) => shield($(el).html() ?? ""));
+    const originals = chosen.map((el) => $(el).html() ?? "");
+    const immutableCredits = chosen.map((el) => isImmutablePhotoCredit(el.name, $(el).text()));
+    const shielded = originals.map((html) => shield(html));
     const restore = (answers: Array<string | null>) => answers.map((t, i) => (t === null ? null : unshield(t, shielded[i]!)));
     const first = await translateAll(articleId, row.revision, shielded.map((b) => b.html), SYSTEM_BODY, undefined, control, space);
     const errors = [...first.errors];
     const translations = restore(first.answers);
+    // Preserve attribution HTML before computing retries; keep the historical first batch intact.
+    immutableCredits.forEach((credit, i) => { if (credit) translations[i] = originals[i]!; });
     // 回声不是译文：原文有词而答复一个汉字都没有的块按"没翻出来"处理（走下面的一次重问、再不行保留
     // 原文），否则整段英文会被标成"正文 · AI 翻译"贴进正文（红线）。原文本来只有数字/符号的块不算。
     const sourceTexts = chosen.map((el) => $(el).text());
     translations.forEach((t, i) => {
-      if (t && !looksZh(t) && /\p{L}{2,}/u.test(sourceTexts[i] ?? "")) translations[i] = null;
+      if (!immutableCredits[i] && t && !looksZh(t) && /\p{L}{2,}/u.test(sourceTexts[i] ?? "")) translations[i] = null;
     });
     // Blocks whose answer dropped a link or an image are asked once more, on their own receipt.
     const missing = translations.flatMap((t, i) => (t === null ? [i] : []));
     if (missing.length) {
-      const again = await translateAll(articleId, row.revision, missing.map((i) => shielded[i]!.html), SYSTEM_BODY, "retry", control, space);
+      const again = await translateAll(articleId, row.revision, missing.map((i) => shielded[i]!.html), SYSTEM_BODY, "retry-zh-v2", control, space);
       errors.push(...again.errors);
       missing.forEach((i, k) => (translations[i] = again.answers[k] ? unshield(again.answers[k]!, shielded[i]!) : null));
     }
-    if (space !== undefined) translations.forEach((t, i) => {
-      if (t && !looksZh(t) && /\p{L}{2,}/u.test(sourceTexts[i] ?? "")) translations[i] = null;
+    translations.forEach((t, i) => {
+      if (!immutableCredits[i] && t && !looksZh(t) && /\p{L}{2,}/u.test(sourceTexts[i] ?? "")) translations[i] = null;
     });
     let done = 0;
     chosen.forEach((el, i) => {
       const t = translations[i];
       if (t) {
-        $(el).html(polishZh(t));
+        $(el).html(immutableCredits[i] ? t : polishZh(t));
         done += 1;
       }
     });
@@ -436,6 +460,7 @@ export async function translateArticle(articleId: string, control: TranslationCo
   const errors = legacy.errors;
   for (let i = chosen.length; i < blocks.length; i++) {
     const el = blocks[i]!;
+    if (isImmutablePhotoCredit(el.name, $(el).text())) { done += 1; continue; }
     const extra = await translateOversized(el, articleId, row.revision, i, control);
     done += extra.done;
     errors.push(...extra.errors);
@@ -468,12 +493,16 @@ export async function translateArticle(articleId: string, control: TranslationCo
 
 async function store(articleId: string, revision: number, title: string, html: string, text: string, complete: boolean) {
   // Never over a translation of a later revision (a slow run finishing after a newer one).
-  await sql`
-    INSERT INTO translations (article_id, lang, revision, title, body_html, body_text, complete, origin)
+  await sql.begin(async tx => {
+    await tx`
+      INSERT INTO translations (article_id, lang, revision, title, body_html, body_text, complete, origin)
     VALUES (${articleId}, 'zh', ${revision}, ${title}, ${html}, ${text}, ${complete}, 'model')
     ON CONFLICT (article_id, lang) DO UPDATE SET revision = EXCLUDED.revision, title = EXCLUDED.title, body_html = EXCLUDED.body_html,
       body_text = EXCLUDED.body_text, complete = EXCLUDED.complete, origin = 'model', created_at = now()
     WHERE translations.origin <> 'source' AND translations.revision <= EXCLUDED.revision`;
+    // One transaction: a successful translation and its public sync announcement commit together.
+    if (complete) await publishArticleTx(tx, articleId, { refreshSelected: true });
+  });
 }
 
 /** A quoted post worth translating: at least a few letters beyond its links, and not already Chinese. */

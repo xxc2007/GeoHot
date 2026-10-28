@@ -1,3 +1,4 @@
+import {supportStory,cleanupReaderFixtures} from "./complete-reader-fixture.ts";
 // The homepage board survives an empty recompute.
 //
 // The ranking job runs every five minutes (`hot.rank`). When a recompute finds no event that reached two
@@ -39,6 +40,7 @@ async function addStory(title: string): Promise<{ id: number; publicId: string }
   const [row] = await sql<{ id: number }[]>`
     INSERT INTO stories (public_id, title, first_report_at, latest_at) VALUES (${publicId}, ${title}, ${AHEAD}, ${AHEAD}) RETURNING id`;
   storyIds.push(row!.id);
+  await supportStory(row!.id,T);
   return { id: row!.id, publicId };
 }
 
@@ -63,6 +65,7 @@ async function saveBoard(at: Date, entries: HotEntry[]): Promise<number> {
 }
 
 after(async () => {
+  await cleanupReaderFixtures(T);
   if (rankingIds.length) await sql`DELETE FROM hot_rankings WHERE id = ANY(${rankingIds}::bigint[])`;
   if (storyIds.length) await sql`DELETE FROM story_signals WHERE story_id = ANY(${storyIds}::bigint[])`;
   if (storyIds.length) await sql`DELETE FROM stories WHERE id = ANY(${storyIds}::bigint[])`;

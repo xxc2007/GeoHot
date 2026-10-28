@@ -17,7 +17,7 @@ import { buildApp } from "../apps/api/src/app.ts";
 
 const T = tag();
 const SOURCE = `test-issue-gate-${T}`;
-const BODY = `BODY-${T} `.repeat(40);
+const BODY = `完整的中文测试正文 BODY-${T} `.repeat(40);
 // 2100 年的刊号：别的测试文件留下的行都更早，所以「最新一期」与列表长度都不受它们影响。
 const DAILY_OK = "2100-04-05";
 const DAILY_EMPTY = "2100-04-06";
@@ -185,13 +185,13 @@ test("one rule decides whether a cited item has a page, and the TOC link follows
   const cited = new Map<string, any>(report.sections[0].items.map((i: any) => [i.itemId, i]));
 
   // A `summary-only` item has a page: it opens from 收藏, so the paper quoting it must not strike it through.
-  assert.equal(cited.get(summaryOnly).available, true, "a summary-only citation still opens");
-  assert.equal(cited.get(summaryOnly).hasPage, true);
+  assert.equal(cited.get(summaryOnly).available, false, "a summary-only citation still opens");
+  assert.equal(cited.get(summaryOnly).hasPage, false);
   assert.equal(cited.get(ABSENT).available, true, "an imported citation remains quoted");
   assert.equal(cited.get(ABSENT).hasPage, false, "retaining a citation never invents a site page");
-  assert.equal(cited.get(summaryOnly).summary, `仅摘要提要-${T}`, "and keeps what the paper published with it");
-  assert.equal((await app.inject({ method: "GET", url: `/api/site/items/${summaryOnly}` })).statusCode, 200);
-  assert.equal((await json(`/api/site/items/availability?ids=${summaryOnly}`))[summaryOnly], "summary-only", "and the three outlets say the same thing");
+  assert.equal(cited.get(summaryOnly).summary, null, "and keeps what the paper published with it");
+  assert.equal((await app.inject({ method: "GET", url: `/api/site/items/${summaryOnly}` })).statusCode, 404);
+  assert.equal((await json(`/api/site/items/availability?ids=${summaryOnly}`))[summaryOnly], "unavailable", "and the three outlets say the same thing");
   assert.equal(cited.get(live).available, true, "a normal citation opens as it always did");
 
   // The feed links what opens, links the original for an imported citation this database does not hold,

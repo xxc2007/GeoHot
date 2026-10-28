@@ -15,7 +15,7 @@ import { buildApp } from "../apps/api/src/app.ts";
 
 const T = tag();
 const SOURCE = `test-read-guards-${T}`;
-const BODY = `BODY-${T} `.repeat(40);
+const BODY = `完整的中文测试正文 BODY-${T} `.repeat(40);
 const app = await buildApp();
 
 before(async () => {

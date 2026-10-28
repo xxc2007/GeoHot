@@ -26,7 +26,7 @@ import { buildApp } from "../apps/api/src/app.ts";
 
 const T = tag();
 const SOURCE = `test-publication-${T}`;
-const BODY = `FULLTEXT-${T} `.repeat(40);
+const BODY = `完整的中文测试正文 FULLTEXT-${T} `.repeat(40);
 const REPORT_KEY = `2099-12-${String(10 + Math.floor(Math.random() * 19))}`;
 const WEEK_KEY = "2099-W01";
 const WEEK_EMPTY = "2099-W02";
@@ -220,7 +220,7 @@ test("a withdrawn item leaves the hot board and the hot APIs at once, not at the
   for (const url of exits) assert.ok(!(await get(url)).body.includes(rep!), `${url} still shows the withdrawn item`);
 });
 
-test("item pages follow the live rule: unsummarised editorial items keep one, hot_signal items have none", async () => {
+test("incomplete editorial and hot_signal items both stay off reader pages", async () => {
   const SIGNAL = `${SOURCE}-signal`;
   await sql`INSERT INTO sources (id, name, kind, tier, participation_mode, site_fulltext, syndicate_fulltext, next_fetch_at)
             VALUES (${SIGNAL}, 'Test signal', 'rss', 'T1', 'hot_signal', true, false, '2100-01-01')`;
@@ -235,10 +235,8 @@ test("item pages follow the live rule: unsummarised editorial items keep one, ho
   await publishArticle(signal);
 
   const page = await get(`/api/site/items/${plain}`);
-  assert.equal(page.status, 200, "an unsummarised editorial item keeps its page");
-  const detail = JSON.parse(page.body) as { summary: string | null; indexable: boolean; markdownAvailable: boolean };
-  assert.deepEqual([detail.summary, detail.indexable, detail.markdownAvailable], [null, false, true], "noindex, with its body for export");
-  assert.equal((await get(`/items/${plain}/markdown`)).status, 200);
+  assert.equal(page.status, 404, "an unsummarised editorial item stays private");
+  assert.equal((await get(`/items/${plain}/markdown`)).status, 404);
   assert.equal((await get(`/api/site/items/${signal}`)).status, 404, "hot_signal material has no page");
   assert.equal((await get(`/items/${signal}/markdown`)).status, 404);
 
@@ -247,8 +245,8 @@ test("item pages follow the live rule: unsummarised editorial items keep one, ho
   const [fact] = await sql<{ id: number }[]>`INSERT INTO facts (public_id, story_id, title) VALUES (${`f-${T}`}, ${story!.id}, ${`事实-${T}`}) RETURNING id`;
   await sql`INSERT INTO fact_articles (fact_id, article_id, role) VALUES (${fact!.id}, ${plain}, 'report'), (${fact!.id}, ${signal}, 'report')`;
   const storyPage = await get(`/api/site/stories/${publicId}`);
-  assert.equal(storyPage.status, 200, "a story whose only page is unsummarised still has a page");
-  assert.ok(storyPage.body.includes(plain), "it lists the unsummarised editorial report");
+  assert.equal(storyPage.status, 404, "an event without complete reader reports stays private");
+  assert.ok(!storyPage.body.includes(plain), "it does not leak an unfinished report");
   assert.ok(!storyPage.body.includes(signal) && !storyPage.body.includes(`SIGNAL-SUMMARY-${T}`), "and not the hot_signal one");
 });
 
@@ -389,7 +387,7 @@ test("share images keep detail metadata and access rules while conditional reads
     assert.ok(queries.every((q) => !/body_html|body_text|translations|fact_articles/.test(q)), "cards only load their public metadata");
   } finally { sql.options.debug = previous; }
   await sql`UPDATE publications SET visibility = 'summary-only' WHERE article_id = ${id}`;
-  assert.equal((await get(paths[0]![0]!, { "if-none-match": paths[0]![1]! })).status, 304, "summary-only pages keep the same allowed share summary");
+  assert.equal((await get(paths[0]![0]!, { "if-none-match": paths[0]![1]! })).status, 404, "summary-only cannot reuse a public share summary");
   await sql`UPDATE publications SET visibility = 'withdrawn' WHERE article_id = ${id}`;
   for (const [path, etag] of paths) assert.equal((await get(path!, { "if-none-match": etag! })).status, 404, "cached ETags never bypass current visibility");
 });

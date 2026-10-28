@@ -1,3 +1,4 @@
+import { workflowReadyCondition } from "./readiness.ts";
 import { withPublicRead } from "./read-budget.ts";
 // Home timeline: selected items folded into reading groups (reference SELECTED_READING):
 // one card per story, per fact outside a story, or per standalone article. A card sits at its latest
@@ -109,7 +110,7 @@ async function queryGroupedAnchors(q: TimelineQuery, now: Date): Promise<Grouped
     ),
     waiting AS (
       SELECT min(p.visible_after) AS t FROM publications p
-      WHERE p.visibility = 'public' AND p.selected AND p.visible_after > ${now} AND ${chineseCopyCondition()} ${filterSql(q)}
+      WHERE p.visibility = 'public' AND p.selected AND p.visible_after > ${now} AND ${workflowReadyCondition()} AND ${chineseCopyCondition()} ${filterSql(q)}
     )
     SELECT g.gk, g.anchor_at, waiting.t AS pending_at
     FROM waiting LEFT JOIN (SELECT gk, max(sort_at) AS anchor_at FROM base GROUP BY gk) g ON true

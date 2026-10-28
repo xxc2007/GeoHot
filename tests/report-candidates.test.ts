@@ -46,8 +46,8 @@ before(async () => {
   await sql`DELETE FROM articles WHERE source_id LIKE ${"test-report-boundary-%"}`;
   await sql`DELETE FROM reports WHERE kind = 'daily' AND key = ANY(${ISSUES}::text[])`;
   await sql`DELETE FROM sources WHERE id LIKE ${"test-report-boundary-%"}`;
-  await sql`INSERT INTO sources (id, name, kind, tier, participation_mode, next_fetch_at)
-            VALUES (${SOURCE}, 'Report boundary test', 'rss', 'T1', 'editorial', '2100-01-01')`;
+  await sql`INSERT INTO sources (id, name, kind, tier, participation_mode, site_fulltext, next_fetch_at)
+            VALUES (${SOURCE}, 'Report boundary test', 'rss', 'T1', 'editorial', true, '2100-01-01')`;
 });
 after(async () => {
   await purgeTagged(SOURCE);
@@ -64,7 +64,7 @@ async function analyzed(label: string, timelineAt: Date): Promise<string> {
     sourceId: SOURCE,
     url: `https://example.com/report-boundary-${T}-${label}`,
     title: `Report boundary ${label}`,
-    bodyText: `Report boundary ${label} body`,
+    bodyText: `完整的中文边界测试正文 ${label}`,
     bodyStatus: "ok",
     publishedAt: timelineAt,
     discoveredAt: timelineAt,

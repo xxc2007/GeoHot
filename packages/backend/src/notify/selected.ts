@@ -1,6 +1,7 @@
 // Selected-item pushes to the content groups. One card per new fact: a short same-title lease holds
 // back concurrent duplicates until grouping settles the fact, and the fact (or the article when it
 // has none) is the dedupe identity per target. Old, backfilled or silenced items are never pushed.
+import { workflowReadyCondition } from "../publication/readiness.ts";
 import { sql } from "../db.ts";
 import { sha256 } from "../lib/ids.ts";
 import { itemUrl } from "../publication/links.ts";
@@ -16,6 +17,7 @@ export type PushOutcome =
   | { status: "retry"; after: Date; reason: string };
 
 interface Row {
+  workflow_ready: boolean;
   article_id: string;
   selected: boolean;
   visibility: string;
@@ -58,7 +60,7 @@ function card(r: Row) {
 
 export async function pushSelected(articleId: string, now = new Date()): Promise<PushOutcome> {
   const [r] = await sql<Row[]>`
-    SELECT p.article_id, p.selected, p.visibility, p.title, p.summary, p.reason, p.category, s.name AS source_name, p.url,
+    SELECT ${workflowReadyCondition()} AS workflow_ready, p.article_id, p.selected, p.visibility, p.title, p.summary, p.reason, p.category, s.name AS source_name, p.url,
            p.timeline_at, p.discovered_at, p.visible_after, p.backfill, p.fact_id,
            coalesce((o.fields->>'silent')::boolean, false) AS silent
     FROM publications p JOIN sources s ON s.id = p.source_id LEFT JOIN editorial_overrides o ON o.article_id = p.article_id
@@ -66,7 +68,9 @@ export async function pushSelected(articleId: string, now = new Date()): Promise
   if (!r || !r.selected || r.visibility !== "public") return { status: "skipped", reason: "not public selected" };
   if (r.silent) return { status: "skipped", reason: "silenced" };
   if (r.backfill || now.getTime() - r.timeline_at.getTime() > MAX_AGE_MS) return { status: "skipped", reason: "not live" };
-  if (r.visible_after && r.visible_after > now) return { status: "retry", after: new Date(r.visible_after.getTime() + 5_000), reason: "release gate" };
+  if (!r.visible_after || r.visible_after > now) return { status: "retry", after: new Date((r.visible_after?.getTime() ?? now.getTime()) + 5_000), reason: "release gate" };
+
+  if (!r.workflow_ready) return { status: "retry", after: new Date(now.getTime() + 5 * 60_000), reason: "workflow incomplete" };
 
   // Same-title lease: a concurrent report with the same headline waits for grouping.
   const leaseKey = `selected-title:${sha256(normalizedTitle(r.title)).slice(0, 24)}`;

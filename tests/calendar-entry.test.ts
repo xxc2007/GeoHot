@@ -19,7 +19,7 @@ import { beijingDate, isDay, isMonth } from "@aihot/contracts/time";
 const T = tag();
 const SOURCE = `test-calendar-${T}`;
 const TAG = `calendar-${T}`;
-const BODY = `BODY-${T} `.repeat(40);
+const BODY = `完整的中文测试正文 BODY-${T} `.repeat(40);
 const filters = { channel: "all" as const, category: null, tag: TAG, topic: null };
 
 /** 一条已发布、已过释放闸门的中文条目，`publishedAt` 由用例给（投影会据此算 timeline_at）。 */

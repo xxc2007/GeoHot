@@ -3,6 +3,7 @@
 import * as cheerio from "cheerio";
 import sanitizeHtml from "sanitize-html";
 import { stripBoilerplate } from "../lib/text.ts";
+import { dedupeConsecutiveFigures } from "./body-quality.ts";
 
 const ALLOWED_TAGS = [
   "p", "br", "hr", "h2", "h3", "h4", "h5", "ul", "ol", "li", "blockquote", "pre", "code", "table", "thead", "tbody",
@@ -227,7 +228,7 @@ export function sanitizeBody(html: string, baseUrl?: string): string {
     transformTags: {
       h1: "h2",
       h6: "h5",
-      div: (tagName, attribs) => ({ tagName: "p", attribs }),
+      div: (_tagName, attribs) => ({ tagName: "p", attribs }),
       section: "p",
       article: "p",
       a: (tagName, attribs) => ({
@@ -251,7 +252,7 @@ export function sanitizeBody(html: string, baseUrl?: string): string {
   });
   // Flattened first, then the record page is judged between siblings: the div-to-p transform above can leave
   // a paragraph nested inside a block that stands for the same text.
-  return dropRecordPageChrome(normalizeBlocks(cleaned));
+  return dedupeConsecutiveFigures(dropRecordPageChrome(normalizeBlocks(cleaned)));
 }
 
 const BLOCK_TAGS = new Set(["p", "h2", "h3", "h4", "h5", "ul", "ol", "li", "blockquote", "pre", "table", "figure", "hr", "dl", "picture", "video"]);

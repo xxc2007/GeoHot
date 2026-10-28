@@ -1,6 +1,8 @@
+import { bodyMediaReadyCondition } from "./media-readiness.ts";
 // Publishing: derive the public projection of one article from its material, the latest judgement,
 // manual overrides and grouping, then record selected-set changes in the sync ledger.
 // Rebuilding only re-reads stored results; it never calls a model.
+import { refreshWorkflowReadinessTx } from "./readiness.ts";
 import { SITE } from "@aihot/industry/site";
 import { isCategoryKey, toPublicApiCategory } from "@aihot/contracts/taxonomy";
 import { config } from "../config.ts";
@@ -92,6 +94,10 @@ export interface V1ItemPayload {
 
 export interface PublishOptions {
   now?: Date;
+  /** Re-announce a newly completed body to clients that already consumed its older ledger row. */
+  refreshSelected?: boolean;
+  /** Media completion republishes without recursively scheduling itself. */
+  skipMediaPreparation?: boolean;
   /** Historical import: the item was already public, so it is released at its discovery time. */
   releasedAt?: Date | null;
 }
@@ -307,7 +313,12 @@ export async function publishArticleTx(tx: Tx, articleId: string, options: Publi
     const at = visibleAfter && visibleAfter > now ? visibleAfter : now;
     await enqueue(QUEUES.notifySelected, { articleId }, { singletonKey: `selected:${articleId}`, startAfter: new Date(at.getTime() + 5_000) }, tx);
     // Its images are fetched and resized now, before the release gate lets readers in.
-    await enqueue(QUEUES.prepareMedia, { articleId }, { singletonKey: `media:${articleId}` }, tx);
+
+  }
+
+  if (!options.skipMediaPreparation && visibility === "public" && eligible && bodyMode === "full") {
+    const [media] = await tx<{ ready: boolean }[]>`SELECT ${bodyMediaReadyCondition()} AS ready FROM articles ready_a WHERE ready_a.id=${articleId}`;
+    if (!media?.ready) await enqueue(QUEUES.prepareMedia, { articleId }, { singletonKey: `media:${articleId}` }, tx);
   }
 
   // Selected sync ledger: the public selected set is (selected AND visibility = public AND a Chinese
@@ -316,7 +327,8 @@ export async function publishArticleTx(tx: Tx, articleId: string, options: Publi
   // it out made the Agent exit disagree with the site: 59 entries in the snapshot against 48 on the
   // home timeline, the extra 11 being English-only rows no reader can be shown (measured 2026-10-04).
   // An item that later gets its Chinese copy re-enters through this same write.
-  const inSet = selected && visibility === "public" && hasChineseCopy(next.title);
+  const workflowReady = await refreshWorkflowReadinessTx(tx, articleId);
+  const inSet = selected && visibility === "public" && hasChineseCopy(next.title) && workflowReady;
   const [state] = await tx<{ in_set: boolean; payload_hash: string | null }[]>`SELECT in_set, payload_hash FROM selected_state WHERE article_id = ${articleId}`;
   let ledger: "upsert" | "remove" | null = null;
   if (inSet) {
@@ -325,7 +337,7 @@ export async function publishArticleTx(tx: Tx, articleId: string, options: Publi
       publishedAt: article.published_at, discoveredAt: article.discovered_at, category, score: next.score, selected: true, reason,
     });
     const payloadHash = sha256(stableJson(payload));
-    if (!state || !state.in_set || state.payload_hash !== payloadHash) {
+    if (options.refreshSelected || !state || !state.in_set || state.payload_hash !== payloadHash) {
       const visibleAt = visibleAfter && visibleAfter > now ? visibleAfter : now;
       const seq = await appendLedger(tx, articleId, "upsert", payload, visibleAt, now);
       await tx`INSERT INTO selected_state (article_id, in_set, payload_hash, last_seq) VALUES (${articleId}, true, ${payloadHash}, ${seq})

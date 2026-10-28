@@ -52,7 +52,7 @@ const reportIds: string[] = [];
 async function addReport(suffix: string, title: string, summary: string, publishedAt = new Date()) {
   const { articleId } = await upsertMaterial({
     sourceId: SOURCE, url: `https://example.com/${T}-${suffix}`, title: `Source ${T} ${suffix}`,
-    bodyText: "A field bulletin.", bodyStatus: "ok", via: "fetch", publishedAt,
+    bodyText: "完整的中文公告正文。", bodyStatus: "ok", via: "fetch", publishedAt,
   });
   await sql`INSERT INTO analyses (article_id, input_revision, origin, relevance, category, title_zh, summary_zh, score, selected, output)
             VALUES (${articleId}, 1, 'rule', 'pass', 'physical', ${title}, ${summary}, 80, false, ${sql.json({ fact: { title } })})`;
@@ -72,8 +72,8 @@ const liveStory = async () =>
     SELECT title, digest, version, frame FROM stories WHERE id = ${storyId}`)[0]!;
 
 before(async () => {
-  await sql`INSERT INTO sources (id, name, kind, tier, participation_mode, next_fetch_at, last_ok_at)
-            VALUES (${SOURCE}, 'Test digest', 'rss', 'T1', 'editorial', '2100-01-01', now())`;
+  await sql`INSERT INTO sources (id, name, kind, tier, participation_mode, site_fulltext, next_fetch_at, last_ok_at)
+            VALUES (${SOURCE}, 'Test digest', 'rss', 'T1', 'editorial', true, '2100-01-01', now())`;
   const [story] = await sql<{ id: number }[]>`
     INSERT INTO stories (public_id, title, first_report_at, latest_at) VALUES (${randomUUID()}, ${`测试事件${T}的旧标题`}, now(), now()) RETURNING id`;
   storyId = story!.id;
@@ -233,6 +233,7 @@ test("事件页列出的报道、综述的证据与报道数读同一份查询�
     assert.equal(await loadStoryDetail(storyId), null, "事件页也随之没有内容，两处一起消失");
   } finally {
     await sql`UPDATE sources SET participation_mode = 'editorial' WHERE id = ${SOURCE}`;
+    for(const id of reportIds)await publishArticle(id);
   }
 
   // Drift guard: the read layer must not grow a second copy of this set.

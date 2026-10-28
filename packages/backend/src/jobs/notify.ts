@@ -3,6 +3,7 @@ import type { PgBoss } from "pg-boss";
 import { pushSelected } from "../notify/selected.ts";
 import { prepareArticleMedia, warmShareImage } from "../media/prepare.ts";
 import { enqueue, ensureQueue, QUEUES } from "./queue.ts";
+import { balancedResources } from "../operations/resource-budget.ts";
 
 const MAX_RETRIES = 6;
 
@@ -32,8 +33,10 @@ export async function registerNotifyJobs(boss: PgBoss) {
   });
 
   await ensureQueue(QUEUES.prepareMedia);
-  await boss.work<{ articleId: string }>(QUEUES.prepareMedia, { localConcurrency: 1, pollingIntervalSeconds: 5 }, async ([job]) => {
+  await boss.work<{ articleId: string }>(QUEUES.prepareMedia, { localConcurrency: 1, pollingIntervalSeconds: balancedResources() ? 1 : 5 }, async ([job]) => {
     if (!job) return;
-    return prepareArticleMedia(job.data.articleId);
+    const result = await prepareArticleMedia(job.data.articleId);
+    if (!result.ready || result.failed > 0) throw new Error(`Body media not ready: ${result.failed} rendition failure(s)`);
+    return result;
   });
 }

@@ -191,6 +191,9 @@ const TEASER_MARKS = [
 
 export function isTeaser(text: string): boolean {
   const t = text.trim();
+  // Mongabay truncates its feed mid-sentence, then appends attribution. The excerpt can exceed
+  // TEASER_BELOW; the ellipsis is before that footer rather than at the end of the text.
+  if (/(?:…|\.{3})\s*This article was originally published on Mongabay\.?\s*$/i.test(t)) return true;
   return t.length < TEASER_BELOW && TEASER_MARKS.some((m) => m.test(t));
 }
 
@@ -202,7 +205,10 @@ function feedText(bodyHtml: string | null, summaryHtml: string, source: SourceRo
   const bodyText = bodyHtml ? stripTags(bodyHtml) : null;
   const teaser = !!bodyText && source.participation_mode === "editorial" && isTeaser(bodyText);
   const excerpt = summaryHtml ? collapseWhitespace(stripTags(summaryHtml)).slice(0, 2000) : teaser ? collapseWhitespace(bodyText!) : null;
-  return bodyText && bodyText.length > 280 && !teaser
+  // Its full-text feed omits the separate research figures and PDF appendices. Leave the body pending
+  // so the existing extraction queue reads the article page, including those attachments.
+  const needsAttachments = source.id === "rss-ecsociety";
+  return bodyText && bodyText.length > 280 && !teaser && !needsAttachments
     ? { excerpt, bodyHtml, bodyText, bodyStatus: "ok" }
     : { excerpt, bodyHtml: null, bodyText: null, bodyStatus: "pending" };
 }
