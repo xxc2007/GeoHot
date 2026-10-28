@@ -1,3 +1,4 @@
+import {load} from 'cheerio';
 /** Exact adjacent figure copies are responsive/carousel duplicates, not new illustrations. */
 export function dedupeConsecutiveFigures(html: string): string {
   const figures = [...html.matchAll(/<figure\b[^>]*>[\s\S]*?<\/figure>/g)];
@@ -45,6 +46,6 @@ export function originalBodyDefect(url:string, html:string, text:string):string|
   if(!scientific)return null;
   const start=text.trim().replace(/^References\s*:?\s*/i,'');
   const citation=/^[\p{Lu}][\p{L}'’.-]+,\s*(?:[A-Z]\.\s*){1,5}/u.test(start);
-  const narrative=[...html.matchAll(/<h[2-5]\b[^>]*>([\s\S]*?)<\/h[2-5]>/gi)].some(m=>/Abstract|Introduction|Method|Result|Discussion|Conclusion/i.test(m[1]!.replace(/<[^>]+>/g,'')));
+  const narrative=[...html.matchAll(/<h[2-5]\b[^>]*>([\s\S]*?)<\/h[2-5]>/gi)].some(m=>/Abstract|Introduction|Method|Result|Discussion|Conclusion/i.test(load(m[1]!,null,false).root().text()));
   return citation && (text.match(/doi\.org\//g)?.length??0)>=3 && !narrative ? 'source:references-only' : null;
 }
