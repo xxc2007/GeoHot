@@ -294,6 +294,7 @@ test("three actual unusable long-body outcomes remain bounded without clearing o
   corrupt='html';
   try {
     for(let i=1;i<=3;i++) {
+      await sql`UPDATE translation_attempts SET updated_at=now()-interval '7 hours' WHERE article_id=${id}`;
       await translatePending({limit:1});
       const [a]=await sql`SELECT attempts,outcome FROM translation_attempts WHERE article_id=${id}`;
       assert.deepEqual({...a},{attempts:i,outcome:'failed'});
@@ -333,4 +334,24 @@ test("NHC prose in pre is translated with protected numbers while ordinary code 
   const code = await selectedBody("ordinary-pre", "<pre>const value = 123; function compute() { return value; }</pre>");
   assert.equal((await translateArticle(code)).status, "skipped");
   assert.equal(requests.length, calls, "ordinary code never reaches a translator");
+});
+
+for(const state of ['unknown','pending','received'])test('mixed retry namespaces preserve '+state+' v2 without buying another answer',async()=>{
+ const text='LEGACY_LAST mixed '+T+' '+state+' scientific observation.';const id=await selectedBody('mixed-'+state,'<p>'+text+'</p>');
+ echoLast=true;try{await primeLegacy(id,0,[text]);}finally{echoLast=false;}
+ await primeLegacy(id,0,[text],'retry');await primeLegacy(id,0,[text],'retry-zh-v2');
+ await sql`UPDATE receipts SET status='failed' WHERE subject=${'article:'+id+'@1#0'} AND logical_key LIKE '%:retry'`;
+ await sql`UPDATE receipts SET status=${state} WHERE subject=${'article:'+id+'@1#0'} AND logical_key LIKE '%:retry-zh-v2'`;
+ const hits=provider.hits();
+ if(state==='received')assert.equal((await translateArticle(id)).status,'translated');
+ else await assert.rejects(translateArticle(id),/unknown|pending/);
+ assert.equal(provider.hits(),hits);
+});
+
+test('completed legacy retry wins over failed v2 without another provider call',async()=>{
+ const text='LEGACY_LAST completed '+T+' scientific observation.';const id=await selectedBody('mixed-completed','<p>'+text+'</p>');
+ echoLast=true;try{await primeLegacy(id,0,[text]);}finally{echoLast=false;}
+ await primeLegacy(id,0,[text],'retry');await primeLegacy(id,0,[text],'retry-zh-v2');
+ await sql`UPDATE receipts SET status='failed' WHERE subject=${'article:'+id+'@1#0'} AND logical_key LIKE '%:retry-zh-v2'`;
+ const hits=provider.hits();assert.equal((await translateArticle(id)).status,'translated');assert.equal(provider.hits(),hits);
 });

@@ -11,6 +11,7 @@ import { after, before, test } from "node:test";
 import { closeDb, sql } from "@aihot/backend/db";
 import { stopBoss } from "@aihot/backend/jobs/queue";
 import { upsertMaterial } from "@aihot/backend/content/materials";
+import { refreshWorkflowReadinessTx } from "@aihot/backend/publication/readiness";
 import { publishArticle } from "@aihot/backend/publication/publish";
 import { itemAvailability } from "@aihot/backend/publication/availability";
 import { isIndexable } from "@aihot/backend/publication/rules";
@@ -32,7 +33,7 @@ const SOURCE = `test-copy-gate-${T}`;
 /** The one tag both items carry, so the topic page and the topic counts have something to match. */
 const TAG = `copy-gate-${T}`;
 const TOPIC = `copy-gate-${T}`;
-const BODY = `BODY-${T} `.repeat(40);
+const BODY = `完整的中文测试正文 BODY-${T} `.repeat(40);
 const app = await buildApp();
 
 before(async () => {
@@ -140,6 +141,7 @@ test("an item no one has written up in Chinese is on no list, and keeps its own 
   // And with the Chinese written, it lists itself: the same row, no other change.
   await sql`UPDATE analyses SET title_zh = ${`赣江上游洪水与沿岸预警 ${T}`} WHERE article_id = ${english}`;
   await sql`UPDATE publications SET title = ${`赣江上游洪水与沿岸预警 ${T}`} WHERE article_id = ${english}`;
+  await sql.begin(tx=>refreshWorkflowReadinessTx(tx,english));
   const relisted = await loadTimeline({ ...mine, limit: 40, now: new Date() });
   assert.ok(relisted.cards.some((c) => c.item.id === english), "the item joins the front page once its Chinese copy exists");
 });
@@ -201,11 +203,7 @@ test("存量把机器标签当标题的条目，页面上退回原文；没有�
   // 遇到存量时怎么办——页面自己说「以下标题与提要是原文」，那就真的给原文，而不是给一句 `title_zh:`。
   await sql`UPDATE publications SET title = ${"title_zh:"}, summary = ${"summary_zh:"}, original_title = ${`Gan river patrol ${T}`} WHERE article_id = ${id}`;
   const found = await loadItemDetail(id, new Date());
-  assert.equal(found.kind, "found", "条目页照样打得开");
-  if (found.kind === "found") {
-    assert.equal(found.detail.title, `Gan river patrol ${T}`, "标题位是来源自己的原标题");
-    assert.equal(found.detail.summary, null, "只剩标签的摘要不是摘要");
-  }
+  assert.equal(found.kind, "not_found", "损坏的旧稿留在后台，不能回退原文绕过完整性门禁");
 
   const now = new Date();
   const plain = await loadPool({ channel: "all", category: null, tag: null, topic: null, page: 1, now });
@@ -255,8 +253,8 @@ test("事件页：没有中文标题的事件照样打开，但不对爬虫作�
             SELECT id, ${english}, 'report' FROM facts WHERE story_id = ${untranslated.id}`;
   await sql`UPDATE publications SET visibility = 'summary-only' WHERE article_id = ${english}`;
   const withSummaryOnly = await loadStoryDetail(untranslated.id);
-  assert.equal(withSummaryOnly?.reportCount, 2, "summary-only 的报道仍在这个事件的页面与报道数里");
-  assert.ok(withSummaryOnly?.timeline.some((r) => r.id === english), "时间线也列它");
+  assert.equal(withSummaryOnly?.reportCount, 1, "仅摘要报道不进入公开事件页");
+  assert.ok(!withSummaryOnly?.timeline.some((r) => r.id === english), "时间线隐藏仅摘要报道");
   await sql`UPDATE publications SET visibility = 'withdrawn' WHERE article_id = ${english}`;
   const afterWithdrawal = await loadStoryDetail(untranslated.id);
   assert.equal(afterWithdrawal?.reportCount, 1, "撤回的那条仍然消失——这道门只管 withdrawn，不是只管 public");

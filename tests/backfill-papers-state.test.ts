@@ -19,9 +19,9 @@ const dir = mkdtempSync(path.join(tmpdir(), "geohot-paper-state-"));
 const summaryFile = path.join(dir, "summary.json");
 let articleId = "";
 before(async () => {
-  await sql`INSERT INTO sources (id, name, kind, tier, participation_mode) VALUES (${source}, 'CLI test', 'rss', 'T1', 'editorial')`;
+  await sql`INSERT INTO sources (id, name, kind, tier, participation_mode, site_fulltext) VALUES (${source}, 'CLI test', 'rss', 'T1', 'editorial', true)`;
   const item = await upsertMaterial({ sourceId: source, url: `https://example.com/${T}`, title: 'Archive bulletin', publishedAt: inside,
-    discoveredAt: new Date(), via: 'import', backfill: 'archive', bodyStatus: 'ok', bodyText: 'A geographic bulletin.' });
+    discoveredAt: new Date(), via: 'import', backfill: 'archive', bodyStatus: 'ok', bodyText: "完整的中文公告正文。" });
   articleId = item.articleId;
 });
 after(async () => {

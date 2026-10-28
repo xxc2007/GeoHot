@@ -54,7 +54,7 @@ process.env.GROUP_REVIEW_MODEL = "deepseek-flash";
 
 before(async () => {
   for (const id of SOURCES) {
-    await sql`INSERT INTO sources (id, name, kind, tier, participation_mode, next_fetch_at) VALUES (${id}, ${id}, 'rss', 'T1', 'editorial', '2100-01-01')`;
+    await sql`INSERT INTO sources (id, name, kind, tier, participation_mode, site_fulltext, next_fetch_at) VALUES (${id}, ${id}, 'rss', 'T1', 'editorial', true, '2100-01-01')`;
   }
 });
 after(async () => {

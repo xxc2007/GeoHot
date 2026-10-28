@@ -1,3 +1,7 @@
+import {recoverBodyIntegrity} from "@aihot/backend/operations/recover-body-integrity";
+import { recoverBodyMedia } from "@aihot/backend/operations/recover-body-media";
+import { recoverWorkflowReadiness } from "@aihot/backend/operations/recover-workflow-readiness";
+import { balancedResources, resourceCron, runScheduledWithResources } from "@aihot/backend/operations/resource-budget";
 // Cron-style schedules (Asia/Shanghai). Each run is recorded in job_runs; missed slots run once.
 import type { PgBoss } from "pg-boss";
 import { FEATURES } from "@aihot/industry/features";
@@ -26,6 +30,7 @@ import { sourceHealthWeekly } from "@aihot/backend/operations/reports";
 import { markStalePendingReceipts } from "@aihot/backend/providers/receipts";
 import { markStaleDeliveries } from "@aihot/backend/notify/deliver";
 import { recoverBudgetBlockedGrouping } from "@aihot/backend/operations/recover-grouping";
+import { coalesceTranslationTicks } from "@aihot/backend/operations/coalesce-translation-ticks";
 
 interface Scheduled {
   name: string;
@@ -40,7 +45,7 @@ export const SCHEDULES: Scheduled[] = [
   // Revisit minute-budget waits each minute; the single scan consumer keeps the 500-row/archive quota.
   { name: "content.sweep", cron: "* * * * *", run: sweepUnprocessed },
   // Full-text translations of newly selected items (model calls; off with MODEL_CALLS_ENABLED=false).
-  { name: "content.translate", cron: "* * * * *", run: () => translatePending() },
+  { name: "content.translate", cron: "* * * * *", run: () => translatePending(balancedResources() ? { limit: 6, budgetMs: 60_000, deadlineAt: Date.now() + 120_000 } : {}) },
   { name: "hot.rank", cron: "*/5 * * * *", run: () => computeHotRanking() },
   { name: "hot.snapshot", cron: "2 * * * *", run: () => snapshotHeat() },
   { name: "stories.status", cron: "7 * * * *", run: refreshStoryStatuses },
@@ -78,7 +83,7 @@ export const SCHEDULES: Scheduled[] = [
   {
     name: "ops.recover",
     cron: "*/10 * * * *",
-    run: async () => ({ receipts: await markStalePendingReceipts(), released: await autoReleaseUnknownReceipts(), deliveries: await markStaleDeliveries(), grouping: await recoverBudgetBlockedGrouping() }),
+    run: async () => ({ receipts: await markStalePendingReceipts(), released: await autoReleaseUnknownReceipts(), deliveries: await markStaleDeliveries(), grouping: await recoverBudgetBlockedGrouping(), bodyMedia: await recoverBodyMedia(), workflow: await recoverWorkflowReadiness(), bodyIntegrity: await recoverBodyIntegrity() }),
   },
   { name: "ops.alerts", cron: "*/10 * * * *", run: () => checkAlerts() },
   // One message with the follow-ups that do not touch readers (nothing when there are none).
@@ -94,7 +99,7 @@ export const SCHEDULES: Scheduled[] = [
     : []),
   ...(collecting
     ? [
-        { name: "sources.schedule", cron: "* * * * *", run: () => scheduleDueSources() },
+        { name: "sources.schedule", cron: "* * * * *", run: () => scheduleDueSources(balancedResources() ? 12 : undefined) },
         { name: "sources.reserves", cron: "*/5 * * * *", run: maintainReserves },
         { name: "sources.adapt-intervals", cron: "20 4 * * *", run: adaptIntervals },
         // WeChat official accounts (paid), each once per its interval.
@@ -108,9 +113,17 @@ export async function registerSchedules(boss: PgBoss) {
   for (const s of SCHEDULES) {
     const queue = `cron.${s.name}`;
     await ensureQueue(queue, { policy: "singleton", retryLimit: 1, expireInSeconds: 3600 });
-    await boss.schedule(queue, s.cron, {}, { tz: "Asia/Shanghai", missed: s.missed ?? "skip" });
+    await boss.schedule(queue, resourceCron(s.name, s.cron), {}, { tz: "Asia/Shanghai", missed: s.missed ?? "skip" });
     // Schedules fire at minute boundaries; a 15 s pickup keeps them on time with a third of the polling.
-    await boss.work(queue, { pollingIntervalSeconds: 15 }, async () => recordRun(s.name, s.run));
+    const admittedTranslation = balancedResources() && s.name === "content.translate";
+    await boss.work(queue, { pollingIntervalSeconds: admittedTranslation ? 5 : balancedResources() ? 30 : 15 },
+      async () => {
+        if (admittedTranslation) {
+          // Coalescing failure must not prevent the actual workflow scan.
+          await coalesceTranslationTicks().catch(error => console.warn("translation tick coalescing deferred", String(error)));
+        }
+        return recordRun(s.name, () => runScheduledWithResources(s.name, s.run, admittedTranslation));
+      });
   }
   // A schedule removed from the table (a module switched off) must not keep firing from an earlier run.
   const names = new Set(SCHEDULES.map((s) => `cron.${s.name}`));

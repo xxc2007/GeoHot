@@ -1,3 +1,4 @@
+import { workflowReadyCondition } from "./readiness.ts";
 // Starred items live in the browser; this tells the page which ones are still public. A starred item
 // stays available as long as its page does (rules.itemHasPage), whether or not it is in the lists.
 import { sql } from "../db.ts";
@@ -21,7 +22,7 @@ export async function itemAvailability(ids: string[], now = new Date()): Promise
     for (const id of batch) out[id] = "unavailable";
     const rows = await sql<{ id: string; visibility: string; source_mode: string; selected: boolean; visible_after: Date | null }[]>`
       SELECT p.article_id AS id, p.visibility, s.participation_mode AS source_mode, p.selected, p.visible_after
-      FROM publications p JOIN sources s ON s.id = p.source_id WHERE p.article_id IN ${sql(batch)}`;
+      FROM publications p JOIN sources s ON s.id = p.source_id WHERE p.article_id IN ${sql(batch)} AND ${workflowReadyCondition()}`;
     for (const r of rows) {
       if (!itemHasPage({ visibility: r.visibility, sourceMode: r.source_mode, selected: r.selected, visibleAfter: r.visible_after }, now)) continue;
       out[r.id] = r.visibility === "summary-only" ? "summary-only" : "public";

@@ -1,5 +1,15 @@
+import {READER_POLICY_VERSION} from "../publication/readiness.ts";
 import { sql, type Tx } from "../db.ts";
 import type { TranslationRank } from "./translation-scheduling.ts";
+
+/** Content refusals stay terminal; outages and missing fragments can recover without erasing history. */
+export function translationAttemptBlockedSql() {
+  return sql`(t.outcome IN ('skipped','translated')
+    OR (t.attempts>=3 AND t.outcome<>'partial' AND NOT
+      (t.outcome='failed' AND coalesce(t.reason,'') ~* '(connect failed|fetch failed|ECONN|CONNECT_TIMEOUT|connection.*closed|network|HTTP (429|5[0-9]{2}))'))
+    OR (t.outcome IN ('failed','partial') AND t.updated_at > now() -
+      CASE WHEN t.attempts>=3 THEN interval '6 hours' ELSE interval '5 minutes' END))`;
+}
 
 /** Bound selector SQL on the server; release the read transaction before any model request. */
 export async function translationSelectorRead<T>(read: (tx: Tx) => Promise<T>, timeoutMs = 2000): Promise<T> {
@@ -16,7 +26,7 @@ export async function pendingTranslationRanks(from: Date, total: number, histori
   checkpoint();
   const publications = await translationSelectorRead(tx => tx<{ article_id: string }[]>`
     SELECT article_id FROM publications
-    WHERE selected AND visibility='public' AND body_mode='full' ORDER BY article_id`);
+    WHERE (selected OR eligible) AND visibility='public' AND body_mode='full' ORDER BY article_id`);
   const candidates: { article_id: string; discovered_at: string; bytes: number }[] = [];
   for (let offset = 0; offset < publications.length; offset += 128) {
     checkpoint();
@@ -30,13 +40,16 @@ export async function pendingTranslationRanks(from: Date, total: number, histori
           WHERE id=p.article_id AND coalesce(language,'') <> 'zh' OFFSET 0
         ) a ON true
         LEFT JOIN translations tr ON tr.article_id=p.article_id AND tr.lang='zh'
+        LEFT JOIN article_workflow_readiness repair ON repair.article_id=p.article_id AND repair.policy_version=${READER_POLICY_VERSION}
         WHERE p.article_id=ANY(${ids}::text[])
-          AND p.selected AND p.visibility='public' AND p.body_mode='full'
+          AND (p.selected OR p.eligible) AND p.visibility='public' AND p.body_mode='full'
           AND (p.discovered_at >= ${from}
                OR EXISTS (SELECT 1 FROM article_revisions r WHERE r.article_id=a.id AND r.revision=a.revision AND r.revision>1 AND r.created_at >= ${from}))
-          AND (tr.article_id IS NULL OR (tr.origin <> 'source' AND (tr.revision<a.revision OR NOT tr.complete)))
+          AND coalesce(repair.quality_error,'') NOT LIKE 'source:%'
+          AND (tr.article_id IS NULL OR (tr.origin <> 'source' AND (tr.revision<a.revision OR NOT tr.complete OR repair.quality_error IS NOT NULL)))
           AND NOT EXISTS (SELECT 1 FROM translation_attempts t WHERE t.article_id=p.article_id AND t.revision=a.revision
-                          AND (t.outcome IN ('skipped','translated') OR t.attempts>=3))
+                          AND CASE WHEN repair.quality_error IS NOT NULL AND t.outcome='translated'
+                            THEN t.updated_at > now()-interval '6 hours' ELSE ${translationAttemptBlockedSql()} END)
       )
       SELECT c.article_id,c.discovered_at::text,octet_length(coalesce(a.body_html,a.body_text,'')) AS bytes
       FROM cand c JOIN LATERAL (SELECT body_html,body_text FROM articles WHERE id=c.article_id OFFSET 0) a ON true`);

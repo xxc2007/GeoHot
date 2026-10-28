@@ -1,3 +1,5 @@
+import { realTimePriority } from "../operations/resource-budget.ts";
+import { isHistorical } from "../content/materials.ts";
 import { sql } from "../db.ts";
 import { enqueue, ensureQueue, QUEUES } from "../jobs/queue.ts";
 import { audit } from "../admin/auth.ts";
@@ -13,7 +15,7 @@ export async function recoverBudgetBlockedGrouping(): Promise<{ requeued: number
     if (!lock?.acquired) return { requeued: 0 };
     // Include every terminal outcome before choosing the latest per article. A later success or
     // different failure must never be replaced by evidence from an earlier budget failure.
-    const candidates = await tx<{ article_id: string; signal_only: boolean; failed_job_id: string }[]>`
+    const candidates = await tx<{ article_id: string; signal_only: boolean; failed_job_id: string; published_at: Date | null; discovered_at: Date; backfill: boolean; backfill_reason: string | null }[]>`
       WITH recent AS MATERIALIZED (
         SELECT id, created_on, completed_on, state, data->>'articleId' AS article_id,
           data->'signalOnly' = 'true'::jsonb AS signal_only,
@@ -28,8 +30,9 @@ export async function recoverBudgetBlockedGrouping(): Promise<{ requeued: number
                THEN (retry_after #>> '{}')::int END AS retry_seconds
         FROM recent ORDER BY article_id, completed_on DESC, created_on DESC, id DESC
       )
-      SELECT rp.article_id, coalesce(j.signal_only, false) AS signal_only,j.id AS failed_job_id
+      SELECT rp.article_id, coalesce(j.signal_only, false) AS signal_only,j.id AS failed_job_id, a.published_at, a.discovered_at, a.backfill, a.backfill_reason
       FROM latest j JOIN regroup_pending rp ON rp.article_id = j.article_id
+      JOIN LATERAL (SELECT published_at,discovered_at,backfill,backfill_reason FROM articles WHERE id=rp.article_id OFFSET 0) a ON true
       WHERE j.state = 'failed' AND j.error_name = 'BudgetExceededError'
         AND j.retry_seconds BETWEEN 0 AND 86400
         AND j.completed_on + j.retry_seconds * interval '1 second' <= now()
@@ -44,7 +47,7 @@ export async function recoverBudgetBlockedGrouping(): Promise<{ requeued: number
     let requeued = 0;
     for (const candidate of candidates) {
       const jobId=await enqueue(QUEUES.group, { articleId: candidate.article_id, force: true,
-        ...(candidate.signal_only ? { signalOnly: true } : {}) }, { singletonKey: candidate.article_id }, tx);
+        ...(candidate.signal_only ? { signalOnly: true } : {}) }, { singletonKey: candidate.article_id, priority: realTimePriority({ historical: isHistorical(candidate), archive: candidate.backfill_reason === "archive", signal: candidate.signal_only, observedAt: (candidate.published_at ?? candidate.discovered_at).getTime() }) }, tx);
       if(jobId) {
         await audit("ops.recover","grouping.budget-recovery",`article:${candidate.article_id}`,
           "Restore an expired local budget deferral; receipt and billing evidence unchanged",

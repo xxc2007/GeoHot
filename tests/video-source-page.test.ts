@@ -8,6 +8,7 @@ import { after, before, test } from "node:test";
 import { closeDb, sql } from "@aihot/backend/db";
 import { upsertMaterial } from "@aihot/backend/content/materials";
 import { publishArticle } from "@aihot/backend/publication/publish";
+import { prepareArticleMedia } from "@aihot/backend/media/prepare";
 import { loadItemDetail } from "@aihot/backend/publication/detail";
 import { stopBoss } from "@aihot/backend/jobs/queue";
 
@@ -17,19 +18,20 @@ const ids: string[] = [];
 
 async function publishMaterial(sourceId: string, url: string, media: unknown[], title: string) {
   const { articleId } = await upsertMaterial({
-    sourceId, url, title, bodyText: null, excerpt: "频道里这条视频的说明文字。", bodyStatus: "pending", media: media as never, via: "fetch",
+    sourceId, url, title, bodyText: "频道里这条视频的完整说明文字。", excerpt: "频道里这条视频的说明文字。", bodyStatus: "ok", media: media as never, via: "fetch",
   });
   await sql`INSERT INTO analyses (article_id, input_revision, origin, relevance, category, title_zh, summary_zh, score, selected, output)
             VALUES (${articleId}, 1, 'rule', 'pass', 'physical', ${`本站标题 ${T}`}, ${`${T} 的提要。`}, 60, true, ${sql.json({ fact: null })})`;
   // releasedAt: an ungrouped new item waits out the release gate; this fixture is "already public".
   await publishArticle(articleId, { releasedAt: new Date(Date.now() - 60_000) });
+  await prepareArticleMedia(articleId,{produce:async()=>({body:Buffer.from("fixture"),type:"image/webp"})});
   ids.push(articleId);
   return articleId;
 }
 
 before(async () => {
-  await sql`INSERT INTO sources (id, name, kind, tier, participation_mode, enabled, next_fetch_at) VALUES
-            (${VIDEO}, ${`视频频道源 ${T}`}, 'rss', 'T2', 'editorial', true, '2100-01-01')`;
+  await sql`INSERT INTO sources (id, name, kind, tier, participation_mode, site_fulltext, enabled, next_fetch_at) VALUES
+            (${VIDEO}, ${`视频频道源 ${T}`}, 'rss', 'T2', 'editorial', true, true, '2100-01-01')`;
 });
 
 after(async () => {

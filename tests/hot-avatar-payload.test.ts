@@ -1,3 +1,4 @@
+import {supportStory,cleanupReaderFixtures} from "./complete-reader-fixture.ts";
 import { tag } from './setup.ts';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -26,6 +27,7 @@ const imageUrl = (i: number) => inputs[i]!.avatar ? `https://example.org/${t}/${
 let rankingId: number | undefined;
 const storyIds: number[] = [];
 after(async () => {
+  await cleanupReaderFixtures(t);
   if (rankingId !== undefined) await sql`DELETE FROM hot_rankings WHERE id=${rankingId}`;
   if (storyIds.length) await sql`DELETE FROM story_signals WHERE story_id=ANY(${storyIds}::bigint[])`;
   if (storyIds.length) await sql`DELETE FROM stories WHERE id=ANY(${storyIds}::bigint[])`;
@@ -46,6 +48,7 @@ test('faces are 精选组 sources by tier (T1, T1.5, T2), at most 6; 氛围组 o
   for (let i=0;i<3;i++) {
     const [story] = await sql<{id:number;public_id:string}[]>`INSERT INTO stories(public_id,title) VALUES(${randomUUID()},${`热榜头像测试${t}`}) RETURNING id,public_id`;
     storyIds.push(story!.id);
+    await supportStory(story!.id,t);
     for (const [p, person] of inputs.entries()) await sql`INSERT INTO story_signals(story_id,article_id,participant_key,source_id,kind,observed_at)
       VALUES(${story!.id},${sourceId(p)},${sourceId(p)},${sourceId(p)},${person.kind},${at})`;
     entries.push({ rank:i+1,storyId:story!.id,storyPublicId:story!.public_id,title:t,heat:10,trend:'flat',trendPct:0,badges:[],

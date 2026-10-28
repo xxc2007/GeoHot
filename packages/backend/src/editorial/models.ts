@@ -1,3 +1,5 @@
+import {balancedResources} from "../operations/resource-budget.ts";
+import {unhealthyModel} from "../operations/model-health.ts";
 // Model routing preserves explicit administrator choices and configured pool membership/weights.
 // Pools first apply credential, format, ledger-health and output-refusal gates. Within a
 // one-minute telemetry snapshot, the work-unit hash is deterministic; sufficient same-purpose
@@ -225,45 +227,25 @@ async function readSick(): Promise<Set<string>> {
     // down, however the failures are spread across its members, and this rule cannot latch because it only
     // sees the last ten minutes. The member grouping is what keeps one drowning member from taking its
     // siblings with it when the door as a whole still looks busy.
-    const rows = await healthRead(db => db<{ service: string; model: string | null }[]>`
-      SELECT a.service, a.model FROM receipt_attempts a LEFT JOIN receipts r ON r.id = a.receipt_id
-       WHERE a.started_at > now() - interval '10 minutes'
-         AND a.origin = 'live' AND a.status IN ('received', 'failed', 'unknown')
-       GROUP BY GROUPING SETS ((a.service), (a.service, a.model))
-      HAVING count(*) >= 6 AND count(*) FILTER (WHERE a.status = 'received' AND NOT coalesce(
-        r.status = 'failed' AND a.attempt = r.attempts
-        AND (r.error LIKE 'answer refused:%' OR r.error LIKE 'unusable output:%'), false
-      )) * 2 < count(*)`);
-    sick = new Set(rows.map((r) => benchedKey(r.service, r.model)));
-    // The burst/forget cycle the rule above closes: measured 2026-10-11, OpenRouter was refused 37 times in
-    // half an hour and answered nothing, yet at 07:36 the verdict was `sick=[]` — during a burst the door
-    // fails and is benched, then nobody calls it, its failures age out of the ten-minute window, and the very
-    // next article is handed to it again. A day quota does not reopen in sixty seconds.
-    //
-    // `usage exceeds frequency limit` is WorkBuddy's own wording (2026-10-12 生产实测：抬到 40/900 后
-    // 10 分钟 49 次、退回 30/600 之后今天下午仍在 25 分钟内拒绝 168 次，报文形状
-    // `workbuddy rate limited (HTTP 429): {"code":…,"msg":"usage exceeds frequency limit, but don't worry,
-    // your usage will resume…"}`). It matched none of the five patterns below, so this rule — the only one
-    // that survives the burst/forget cycle — could never bench that door: the pool kept handing it the
-    // shards pinned by article id, and after `MAX_OUTPUT_FAILURES` those articles land in `failed` with no
-    // Chinese copy at all. That is the same failure mode the comment under `refusesThisStep` documents for
-    // `opencode`, reached through the provider's 429 instead of our output gate.
-    // Partitioned by member for the same reason the rate rule is: `usage exceeds frequency limit` is the
-    // wording of an *account* wall, and one walled member of a door must not bench its siblings. The six
-    // newest attempts of the refusing member are all refusals within seconds of each other, so this still
-    // fires for the member that is actually refusing.
-    //
-    // 2026-10-22：`Qoder CN: usage limit reached: Billing daily co…` 与 `您已达到免费用户的 API 速率限制`
-    // 是同一类墙的另外两种措辞，此前六个模式一个都不匹配，于是那扇门每分钟被派 6 次、连拒一整天。
-    // 加上这两条后它会被正常判定为「额度墙」而不是「故障」。
-    //
-    // 冷却期从「等那 6 条记录老出 6 小时窗口」改成**一小时**：额度墙是会自己开的（Qoder 的日额度按自然日
-    // 重置，WorkBuddy 的频率墙在十几分钟后自己松），把它按「故障」关 6 小时等于白扔一扇门一整天。
-    // 现在改成「最近一次拒绝还在 1 小时内 ⇒ 关着；超过 1 小时 ⇒ 放它再试」——试的代价是 6 次调用，
-    // 占满速时每小时约 700 次里的 6 次，换来的是额度一恢复就能立刻重新分担分片。
-    // `max(started_at)` 就是该成员最新一次尝试的时刻（ranked 只留最新 6 条），所以这一个比较就是冷却计时器。
-    // Low-volume review models may never reach six failures in ten minutes. Two explicit
-    // authentication refusals cool that member for one hour; a newer success cancels the streak.
+    const slowTimeoutGuard = balancedResources();
+    const rows = await healthRead(db => db<{service:string;model:string|null;attempts:number;answered:number;timeouts:number}[]>`
+      SELECT a.service, a.model,
+        count(*) FILTER (WHERE a.started_at > now()-interval '10 minutes')::int AS attempts,
+        count(*) FILTER (WHERE a.started_at > now()-interval '10 minutes' AND a.status='received' AND NOT coalesce(
+          r.status='failed' AND a.attempt=r.attempts AND (r.error LIKE 'answer refused:%' OR r.error LIKE 'unusable output:%'),false))::int AS answered,
+        count(*) FILTER (WHERE a.status='unknown' AND a.latency_ms>=120000 AND a.finished_at>now()-interval '10 minutes')::int AS timeouts
+      FROM receipt_attempts a LEFT JOIN receipts r ON r.id=a.receipt_id
+      WHERE a.started_at>now()- ${slowTimeoutGuard ? 14 : 10} * interval '1 minute'
+        AND a.origin='live' AND a.status IN ('received','failed','unknown')
+      GROUP BY GROUPING SETS ((a.service),(a.service,a.model))`);
+    // Only pool eligibility changes. Original pending/unknown receipts retain their recovery owner;
+    // no request is resent here. A successful answer clears this extra rule, or time ages it out.
+    sick = new Set(rows.filter(r=>unhealthyModel(r,slowTimeoutGuard && r.model!==null)).map(r=>benchedKey(r.service,r.model)));
+    // A latest explicit quota/authentication refusal cools this member for one hour immediately
+    // on the next single-flight health refresh (at most 60 s). Six paid refusals are unnecessary
+    // evidence of a declared wall. A newer success clears it; expiry permits real workflow work
+    // again, without probes or resending pending/unknown receipts. Generic 429/5xx retain the
+    // existing failure-rate policy. Only two explicitly unbilled connect failures bench an endpoint.
     const refused = await healthRead(db => db<{ service: string; model: string | null; connect_failed: boolean }[]>`
       WITH ranked AS (
         SELECT a.service, a.model, a.started_at, (a.status = 'failed' AND (
@@ -287,8 +269,7 @@ async function readSick(): Promise<Set<string>> {
         (count(*) FILTER(WHERE newest<=2)=2 AND count(*) FILTER(WHERE newest<=2 AND connect_refusal)=2
          AND max(started_at)>now()-interval '2 minutes') AS connect_failed
       FROM ranked WHERE newest <= 6 GROUP BY service, model
-        HAVING (((count(*) = 6 AND count(*) FILTER (WHERE quota_refusal) = 6)
-             OR (count(*) FILTER(WHERE newest<=2)=2 AND count(*) FILTER(WHERE newest<=2 AND auth_refusal)=2))
+        HAVING ((count(*) FILTER (WHERE newest=1 AND (quota_refusal OR auth_refusal)) = 1)
            AND max(started_at) > now() - interval '1 hour')
         OR (count(*) FILTER(WHERE newest<=2)=2 AND count(*) FILTER(WHERE newest<=2 AND connect_refusal)=2
             AND max(started_at)>now()-interval '2 minutes')`);

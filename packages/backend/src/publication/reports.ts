@@ -1,3 +1,4 @@
+import { workflowReadyCondition } from "./readiness.ts";
 // Reports through the public read layer: website DTOs and the v1 shapes. Only real reports are
 // listed; a missing date is a 404, never another day. Withdrawn citations are marked, not shown.
 import type { ReportCitation, ReportDetail, ReportIndexEntry, ReportNavigationEntry, ReportKind } from "@aihot/contracts/site";
@@ -37,19 +38,19 @@ interface Availability {
 async function availability(ids: string[], now = new Date()): Promise<Map<string, Availability>> {
   const out = new Map<string, Availability>();
   if (ids.length === 0) return out;
-  const rows = await sql<{ id: string; visibility: string; source_mode: string; selected: boolean; visible_after: Date | null;
+  const rows = await sql<{ id: string; visibility: string; source_mode: string; selected: boolean; visible_after: Date | null; workflow_ready: boolean;
     first_party: boolean; source_id: string; icon_url: string | null; story_public_id: string | null; at: Date | null }[]>`
-    SELECT p.article_id AS id, p.visibility, s.participation_mode AS source_mode, p.selected, p.visible_after,
+    SELECT ${workflowReadyCondition()} AS workflow_ready, p.article_id AS id, p.visibility, s.participation_mode AS source_mode, p.selected, p.visible_after,
       p.first_party, p.source_id, s.icon_url, st.public_id::text AS story_public_id,
       coalesce(p.published_at, p.discovered_at) AS at
     FROM publications p LEFT JOIN sources s ON s.id = p.source_id LEFT JOIN stories st ON st.id = p.story_id
     WHERE p.article_id IN ${sql(ids)}`;
   for (const r of rows) {
     out.set(r.id, {
-      available: itemHasPage({ visibility: r.visibility, sourceMode: r.source_mode, selected: r.selected, visibleAfter: r.visible_after }, now),
+      available: r.workflow_ready && itemHasPage({ visibility: r.visibility, sourceMode: r.source_mode, selected: r.selected, visibleAfter: r.visible_after }, now),
       // Why there is no page matters: a withdrawn or non-public item must not be quoted again anywhere,
       // while a public item whose source simply left the editorial set still owes the reader its source.
-      public: r.visibility === "public",
+      public: r.workflow_ready && r.visibility === "public",
       firstParty: r.first_party,
       sourceId: r.source_id,
       sourceIcon: r.icon_url,

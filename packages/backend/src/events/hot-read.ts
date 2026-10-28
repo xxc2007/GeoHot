@@ -1,5 +1,6 @@
 // Reading the latest published hot ranking. The web shows heat values; machine exits only ranks.
 import type { HotParticipant, HotStripEntry } from "@aihot/contracts/site";
+import { workflowReadyCondition } from "../publication/readiness.ts";
 import { sql } from "../db.ts";
 import { CJK_COPY_PATTERN } from "@aihot/contracts/copy";
 import { proxiedImage, proxiedImageSet } from "../media/imgproxy.ts";
@@ -75,7 +76,13 @@ async function queryLatestHotRanking(): Promise<HotRanking | null> {
   // Then drop the entries the board can no longer stand behind: an event merged into another one (the group
   // step rewrites `stories.merged_into`), one whose page is gone, and one whose heading never got Chinese.
   const live = await publishableStories(row.entries.map((e) => e.storyId));
-  const entries = row.entries.filter((e) => live.has(e.storyId)).map((e, i) => (i === e.rank - 1 ? e : { ...e, rank: i + 1 }));
+  const ids = row.entries.flatMap(e => e.representativeItemId ? [e.representativeItemId] : []);
+  const ready = new Set(ids.length ? (await sql<{ article_id: string }[]>`SELECT p.article_id FROM publications p WHERE p.article_id = ANY(${ids}::text[]) AND p.visibility = 'public' AND ${workflowReadyCondition()}`).map(r => r.article_id) : []);
+  const entries = row.entries.filter((e) => live.has(e.storyId)).map((e, i) => ({
+    ...e, rank: i + 1,
+    ...(e.representativeItemId && !ready.has(e.representativeItemId)
+      ? { representativeItemId: null, representativeUrl: null, representativeSource: null } : {}),
+  }));
   if (entries.length === 0) return null;
   return { id: row.id, computedAt: row.computed_at.toISOString(), ruleVersion: row.rule_version, entries, coverage: row.evidence };
 }
@@ -94,7 +101,12 @@ async function queryLatestHotRanking(): Promise<HotRanking | null> {
 async function publishableStories(storyIds: number[]): Promise<Set<number>> {
   if (storyIds.length === 0) return new Set();
   const rows = await sql<{ id: number }[]>`
-    SELECT id FROM stories WHERE id = ANY(${storyIds}::bigint[]) AND merged_into IS NULL AND title ~ ${CJK_COPY_PATTERN}`;
+    SELECT id FROM stories WHERE id = ANY(${storyIds}::bigint[]) AND merged_into IS NULL AND title ~ ${CJK_COPY_PATTERN} AND EXISTS (
+      SELECT 1 FROM facts ready_f JOIN fact_articles ready_fa ON ready_fa.fact_id = ready_f.id
+      JOIN publications p ON p.article_id = ready_fa.article_id JOIN sources ready_source ON ready_source.id = p.source_id
+      WHERE ready_f.story_id = stories.id AND p.visibility <> 'withdrawn' AND ready_source.participation_mode = 'editorial'
+        AND (NOT p.selected OR p.visible_after <= now()) AND ${workflowReadyCondition()}
+    )`;
   return new Set(rows.map((r) => Number(r.id)));
 }
 

@@ -43,7 +43,7 @@ const provider = await stub(async (_hit, req) => {
     // 答复按块长比例给：对一条 1,800 字的段落只回两个字「译文」，正是第一百一十一轮那道长度守卫要拦的
     // "只交出前半句"，拿它当"这块翻出来了"的替身，这条用例就证明不了它想证明的东西（坏批次恢复）。
     // 「译文」仍然只出现一次，下面的计数断言照旧按块数走。
-    return `译文${"词".repeat(Math.max(1, Math.round(s.length * 0.3)))}。`;
+    return `译文${"冰川监测记录".repeat(Math.max(1, Math.round(s.length * 0.05)))}。`;
   });
   return { id: "stub", choices: [{ message: { content: JSON.stringify({ t }) } }], usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 } };
 });
@@ -99,13 +99,13 @@ test("a text corrected while its translation was running is translated again, an
 
   const [attempt] = await sql<{ revision: number; outcome: string }[]>`SELECT revision, outcome FROM translation_attempts WHERE article_id = ${id}`;
   assert.deepEqual({ ...attempt }, { revision: 1, outcome: "translated" }, "the attempt is booked on the revision translated");
-  const stale = await detail(id);
-  assert.equal(stale.body.zh, null, "a translation of the old wording is not shown");
-  assert.ok(stale.body.original?.includes("twenty"));
+  assert.equal((await app.inject({method:"GET",url:`/api/site/items/${id}`})).statusCode,404,"a stale translation keeps the article private");
 
   await translatePending({ limit: 1 });
   const [tr] = await sql<{ revision: number }[]>`SELECT revision FROM translations WHERE article_id = ${id}`;
   assert.equal(tr?.revision, 2, "the corrected text is translated on the next run");
+  await sql`UPDATE analyses SET input_revision=2 WHERE article_id=${id}`;
+  await publishArticle(id);
   const current = await detail(id);
   assert.ok(current.body.zh?.includes("二十美元") && current.body.complete, "the page shows the translation of the corrected text");
 });
@@ -214,6 +214,7 @@ test("a batch the model answers badly does not throw away the blocks already tra
   // 但 partial 不是终点。2026-10-16 线上实测 5 条 partial（nature-geoscience 3/43 块、ecsociety 16/89、
   // phys-org 12/35、dw 9/25、copernicus-essd 1/5）每条 attempts=1 就被待翻查询永久排除，读者面上中文正文里
   // 就永久留着那几段英文。再跑一轮要把同一篇重新挑起来：已翻出来的块走 receipts 缓存不再付费，只有缺的那块是真请求。
+  await sql`UPDATE translation_attempts SET updated_at=now()-interval '6 minutes' WHERE article_id=${id}`;
   const again = await translatePending({ limit: 5 });
   assert.ok(again.done.some((d) => d.articleId === id), "partial 的条目要被重新挑起来：" + JSON.stringify(again.done.map((d) => d.articleId)));
   const [at2] = await sql<{ outcome: string; attempts: number }[]>`SELECT outcome, attempts FROM translation_attempts WHERE article_id = ${id}`;

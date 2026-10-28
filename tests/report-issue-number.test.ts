@@ -43,7 +43,7 @@ const ids: string[] = [];
 async function item(suffix: string, title: string, inside: Date) {
   const { articleId, backfill } = await upsertMaterial({
     sourceId: SOURCE, url: `https://example.com/${T}-${suffix}`, title: `Source ${T} ${suffix}`,
-    bodyText: "A bulletin.", bodyStatus: "ok", via: "fetch", publishedAt: inside, discoveredAt: inside,
+    bodyText: "完整的中文公告正文。", bodyStatus: "ok", via: "fetch", publishedAt: inside, discoveredAt: inside,
   });
   assert.equal(backfill, false, "这条夹具落进了回填窗口，成刊层根本不会看它");
   await sql`INSERT INTO analyses (article_id, input_revision, origin, relevance, category, title_zh, summary_zh, score, selected)
@@ -62,8 +62,8 @@ const maxNo = async () =>
   (await sql<{ m: number }[]>`SELECT coalesce(max(issue_no), 0) AS m FROM reports WHERE kind = 'daily'`)[0]!.m;
 
 before(async () => {
-  await sql`INSERT INTO sources (id, name, kind, tier, participation_mode, next_fetch_at, last_ok_at)
-            VALUES (${SOURCE}, 'Report numbering', 'rss', 'T1', 'editorial', '2100-01-01', now())`;
+  await sql`INSERT INTO sources (id, name, kind, tier, participation_mode, site_fulltext, next_fetch_at, last_ok_at)
+            VALUES (${SOURCE}, 'Report numbering', 'rss', 'T1', 'editorial', true, '2100-01-01', now())`;
   await item("a", `帕米尔高原冰川湖监测站投入运行 ${T}`, INSIDE1);
   await item("b", `塔里木河下游生态输水进入第二周 ${T}`, INSIDE2);
   // 导语会被署名闸门拒掉（fixture 为空、rule 标注），拒掉不影响期号——号看的是版面有没有条目。

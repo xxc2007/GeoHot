@@ -1,3 +1,4 @@
+import { releasedCondition } from "../publication/items.ts";
 // Content-group deliveries (Feishu custom-bot webhooks): selected cards and reset pushes.
 // One row per target and dedupe key, so nothing is pushed twice; an outcome we cannot know
 // ("unknown") is never retried automatically; content older than a target's enabled_at is never
@@ -95,7 +96,7 @@ export async function resendDelivery(id: number): Promise<{ status: string }> {
   // 只推还在公开精选里的那条：编辑撤回之后重放旧卡片，等于把已经收回的东西再发给一群真人。
   if (d.subject_kind === "selected") {
     const [live] = await sql<{ article_id: string }[]>`
-      SELECT article_id FROM publications WHERE article_id = ${d.subject_id} AND visibility = 'public' AND selected`;
+      SELECT p.article_id FROM publications p WHERE p.article_id = ${d.subject_id} AND p.visibility = 'public' AND p.selected AND ${releasedCondition(new Date())}`;
     if (!live) throw new Rejected("这条内容已经不是公开精选了（被撤回或取消精选），不重发");
   }
   // 领取这一行：条件写在这里，两个标签页或一次双击只有一次能真的发出去。

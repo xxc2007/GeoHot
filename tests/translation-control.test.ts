@@ -16,7 +16,7 @@ const provider = await stub(async (_hit, req) => {
   const segments = JSON.parse(JSON.parse(req.body).messages[1].content).segments as string[];
   calls++;
   if (holding) { asked.open();await release.promise; }
-  return { id: "stub", choices: [{ message: { content: JSON.stringify({ t: malformed && segments.length > 1 ? [] : segments.map(s => echo ? s : `中文译文${"词".repeat(Math.max(1, Math.ceil(s.length * .3)))}。`) }) } }] };
+  return { id: "stub", choices: [{ message: { content: JSON.stringify({ t: malformed && segments.length > 1 ? [] : segments.map(s => echo ? s : `中文译文${"完整中文词语".repeat(Math.max(1, Math.ceil(s.length * .3)))}。`) }) } }] };
 });
 process.env.TRANSLATE_MODEL = "deepseek-flash";
 process.env.LLM_BASE_URL = `${provider.url}/v1`;
