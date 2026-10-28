@@ -1,3 +1,4 @@
+import {READER_POLICY_VERSION} from "@aihot/backend/publication/readiness";
 import {tag} from './setup.ts';
 import assert from 'node:assert/strict';
 import {test,before,after} from 'node:test';
@@ -10,12 +11,13 @@ import {loadItemShare} from '@aihot/backend/publication/og';
 import {v1Items} from '@aihot/backend/publication/v1';
 import {itemFeed} from '@aihot/backend/publication/feeds';
 import {prepareArticleMedia} from '@aihot/backend/media/prepare';
+import {recoverBodyIntegrity} from '@aihot/backend/operations/recover-body-integrity';
 import {stopBoss} from '@aihot/backend/jobs/queue';
 import {pendingTranslationRanks} from '@aihot/backend/editorial/translation-selector';
 import {recoverWorkflowReadiness} from '@aihot/backend/operations/recover-workflow-readiness';
 const source='reader-complete-'+tag();let n=0;
 before(async()=>{await sql`INSERT INTO sources(id,name,kind,tier,participation_mode,site_fulltext,next_fetch_at) VALUES(${source},'完整工作流测试','rss','T1','editorial',true,'2100-01-01')`;});
-after(async()=>{await sql`DELETE FROM articles WHERE source_id=${source}`;await sql`DELETE FROM sources WHERE id=${source}`;await stopBoss();await closeDb();});
+after(async()=>{await sql`DELETE FROM pgboss.job WHERE data->>'articleId' IN (SELECT id FROM articles WHERE source_id=${source})`;await sql`DELETE FROM articles WHERE source_id=${source}`;await sql`DELETE FROM sources WHERE id=${source}`;await stopBoss();await closeDb();});
 async function article(language='zh',html:string|null=null) {
  const {articleId:id}=await upsertMaterial({sourceId:source,url:`https://example.com/${source}/${++n}`,title:'原始报道',bodyText:language==='zh'?'这是完整中文正文，包含最后一段结尾。':'A complete original article with its final paragraph.',bodyHtml:html,language,bodyStatus:'ok',via:'fetch'});
  await sql`INSERT INTO analyses(article_id,input_revision,origin,relevance,title_zh,summary_zh,score,selected) VALUES(${id},1,'rule','pass','完整中文标题','完整的中文摘要。',80,false)`;
@@ -39,7 +41,7 @@ test('summary-only and revoked full-text permission stay hidden even with stored
  await publishArticle(id); // ordinary source publication returns public, so test explicit override separately
  await sql`UPDATE publications SET body_mode='summary' WHERE article_id=${id}`;
  await sql`INSERT INTO article_workflow_readiness(article_id,revision,analysis_id,ready,policy_version)
- SELECT article_id,revision,analysis_id,true,2 FROM publications WHERE article_id=${id} ON CONFLICT(article_id) DO UPDATE SET ready=true,policy_version=2`;
+ SELECT article_id,revision,analysis_id,true,${READER_POLICY_VERSION} FROM publications WHERE article_id=${id} ON CONFLICT(article_id) DO UPDATE SET ready=true,policy_version=${READER_POLICY_VERSION}`;
  await hidden(id);
  await sql`UPDATE sources SET site_fulltext=false WHERE id=${source}`;await publishArticle(id);await hidden(id);
  await sql`UPDATE sources SET site_fulltext=true WHERE id=${source}`;
@@ -76,7 +78,7 @@ test('a legacy translated attempt with a quality defect becomes retryable after 
  assert.ok((await ranks()).some(x=>x.article_id===id));
 });
 test('one locked article cannot roll back or starve the rest of a recovery batch',async()=>{
- const key='workflow_readiness_selected_cursor';const [saved]=await sql`SELECT value FROM settings WHERE key=${key}`;
+ const key=`workflow_readiness_v${READER_POLICY_VERSION}_selected_cursor`;const [saved]=await sql`SELECT value FROM settings WHERE key=${key}`;
  await sql`DELETE FROM settings WHERE key=${key}`;
  const ids:string[]=[];
  for(let i=0;i<3;i++){
@@ -92,11 +94,22 @@ test('one locked article cannot roll back or starve the rest of a recovery batch
   const result=await recoverWorkflowReadiness({selectedOnly:true,limit:3,budgetMs:4000});
   assert.equal('failed' in result ? result.failed:undefined,1);
   const rows=await sql`SELECT article_id,policy_version FROM article_workflow_readiness WHERE article_id=ANY(${ids})`;
-  assert.equal(rows.find(x=>x.article_id===ids[0])?.policy_version,2);
-  assert.equal(rows.find(x=>x.article_id===ids[2])?.policy_version,2);
+  assert.equal(rows.find(x=>x.article_id===ids[0])?.policy_version,READER_POLICY_VERSION);
+  assert.equal(rows.find(x=>x.article_id===ids[2])?.policy_version,READER_POLICY_VERSION);
   assert.equal(rows.find(x=>x.article_id===ids[1])?.policy_version,1);
  }finally{
   release();await holding;await sql`DELETE FROM settings WHERE key=${key}`;
   if(saved)await sql`INSERT INTO settings(key,value) VALUES(${key},${sql.json(saved.value as never)})`;
  }
+});
+
+test('publisher body defects invalidate public release and return through the ordinary extraction queue',async()=>{
+ const id=await article();
+ await sql`UPDATE articles SET url=${'https://doi.org/10.5194/nhess-26-fixture'}, body_html='<p>Ata, M. Y.: Reference, https://doi.org/1 https://doi.org/2 https://doi.org/3</p>', body_text='Ata, M. Y.: Reference, https://doi.org/1 https://doi.org/2 https://doi.org/3' WHERE id=${id}`;
+ assert.equal((await sql`SELECT 1 FROM article_workflow_readiness WHERE article_id=${id}`).length,0);
+ await publishArticle(id);await hidden(id);
+ const [fact]=await sql`SELECT quality_error FROM article_workflow_readiness WHERE article_id=${id}`;assert.equal(fact.quality_error,'source:references-only');
+ const result=await recoverBodyIntegrity();assert.ok(result.queued>=1);
+ const [job]=await sql`SELECT data FROM pgboss.job WHERE name='content.extract-body' AND data->>'articleId'=${id} AND state='created'`;assert.equal(job.data.articleId,id);
+ const [body]=await sql`SELECT body_status FROM articles WHERE id=${id}`;assert.equal(body.body_status,'pending');await hidden(id);
 });

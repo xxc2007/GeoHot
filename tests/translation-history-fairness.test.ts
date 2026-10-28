@@ -26,7 +26,7 @@ const provider = await stub(async (_hit, req) => {
   if (holding) await (marker === "MARK_quoteparallel" ? quoteRelease.promise : release.promise);
   active--;
   if (marker === "MARK_badquote") return { id: "stub", choices: [{ message: { content: "not JSON" } }] };
-  return { id: "stub", choices: [{ message: { content: JSON.stringify({ t: segments.map(s => `中文译文${"词".repeat(Math.max(1, Math.ceil(s.length * .3)))}。`) }) } }] };
+  return { id: "stub", choices: [{ message: { content: JSON.stringify({ t: segments.map(s => `中文译文${"完整中文词语".repeat(Math.max(1, Math.ceil(s.length * .3)))}。`) }) } }] };
 });
 process.env.TRANSLATE_MODEL = "deepseek-flash";
 process.env.LLM_BASE_URL = `${provider.url}/v1`;

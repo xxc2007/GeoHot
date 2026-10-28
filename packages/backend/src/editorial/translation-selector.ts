@@ -1,3 +1,4 @@
+import {READER_POLICY_VERSION} from "../publication/readiness.ts";
 import { sql, type Tx } from "../db.ts";
 import type { TranslationRank } from "./translation-scheduling.ts";
 
@@ -39,11 +40,12 @@ export async function pendingTranslationRanks(from: Date, total: number, histori
           WHERE id=p.article_id AND coalesce(language,'') <> 'zh' OFFSET 0
         ) a ON true
         LEFT JOIN translations tr ON tr.article_id=p.article_id AND tr.lang='zh'
-        LEFT JOIN article_workflow_readiness repair ON repair.article_id=p.article_id AND repair.policy_version=2
+        LEFT JOIN article_workflow_readiness repair ON repair.article_id=p.article_id AND repair.policy_version=${READER_POLICY_VERSION}
         WHERE p.article_id=ANY(${ids}::text[])
           AND (p.selected OR p.eligible) AND p.visibility='public' AND p.body_mode='full'
           AND (p.discovered_at >= ${from}
                OR EXISTS (SELECT 1 FROM article_revisions r WHERE r.article_id=a.id AND r.revision=a.revision AND r.revision>1 AND r.created_at >= ${from}))
+          AND coalesce(repair.quality_error,'') NOT LIKE 'source:%'
           AND (tr.article_id IS NULL OR (tr.origin <> 'source' AND (tr.revision<a.revision OR NOT tr.complete OR repair.quality_error IS NOT NULL)))
           AND NOT EXISTS (SELECT 1 FROM translation_attempts t WHERE t.article_id=p.article_id AND t.revision=a.revision
                           AND CASE WHEN repair.quality_error IS NOT NULL AND t.outcome='translated'

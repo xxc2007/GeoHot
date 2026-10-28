@@ -13,6 +13,7 @@ import { markdownBody } from "./markdown.ts";
 import { contentHash } from "./materials.ts";
 import { shutdownSignal } from "../jobs/queue.ts";
 import * as cheerio from "cheerio";
+import {originalBodyDefect} from "./body-quality.ts";
 
 function checkExtractionRunning(): void {
   if (shutdownSignal.signal.aborted) throw new Error("worker shutting down between extraction stages");
@@ -34,6 +35,33 @@ export interface ExtractedBody {
 const MIN_BODY_CHARS = 120;
 
 export function readable(html: string, url: string): ExtractedBody | null {
+  // Copernicus collapses narrative sections while keeping its bibliography expanded. Readability
+  // can therefore select only references. Its explicit article sections contain the complete paper.
+  if (/(^|\.)copernicus\.org$/i.test(new URL(url).hostname)) {
+    const $=cheerio.load(html);
+    const article=$('div.article').filter((_,el)=>$(el).children('#abstract').length>0).first();
+    const sections=article.children().filter((_,el)=>/^(abstract|section\d+)$/.test($(el).attr('id')??''));
+    if(sections.length>1){
+      const body=$('<div></div>');sections.each((_,el)=>{body.append($(el).clone());});
+      body.find('script,style,.triangleWrapper,.co-arrow-open,.co-arrow-closed').remove();
+      body.find('.h1').each((_,el)=>{$(el).replaceWith(`<h2>${$(el).html()??''}</h2>`);});
+      body.find('img[data-webversion]').each((_,el)=>{$(el).attr('src',$(el).attr('data-webversion')!);});
+      // The publisher supplies an exact static equation beside MathML. Preserve it as an image;
+      // sanitization and the translator's existing image shielding retain every symbol and layout.
+      body.find('math').each((_,el)=>{
+        const formula=$(el).parent();const picture=formula.find('svg image').first();
+        const src=picture.attr('xlink:href')||picture.attr('href')||picture.attr('src');
+        if(src)formula.replaceWith($('<img>').attr('src',new URL(src,url).href).attr('alt',$(el).text()));
+        else $(el).replaceWith($('<code>').text($(el).text()));
+      });
+      body.find('.fig .caption').each((_,el)=>{$(el).replaceWith(`<figcaption>${$(el).html()??''}</figcaption>`);});
+      body.find('.fig').each((_,el)=>{$(el).replaceWith(`<figure>${$(el).html()??''}</figure>`);});
+      const files=new Set<string>();
+      $('a[href]').each((_,el)=>{try{const u=new URL($(el).attr('href')!,url);if(u.origin===new URL(url).origin&&u.pathname.startsWith(new URL(url).pathname)&&/-\d{4}(?:-supplement)?\.pdf$/i.test(u.pathname))files.add(u.href);}catch{}});
+      if(files.size){body.append('<h2>Full text and supplementary files</h2>');for(const href of files)body.append($('<p>').append($('<a>').attr('href',href).text(href.split('/').pop()!)));}
+      return extractedBody(body.html()??'',url);
+    }
+  }
   // This journal keeps figures and appendices beside the text in interactive drawers. Readability
   // drops those drawers, including the actual research figures. Extract their content before it runs.
   if (/^(www\.)?ecologyandsociety\.org$/i.test(new URL(url).hostname)) {
@@ -119,6 +147,7 @@ export function readable(html: string, url: string): ExtractedBody | null {
 function extractedBody(html: string, url: string): ExtractedBody | null {
   const clean = stripChromeHtml(trimTrailingChrome(sanitizeBody(html, url)));
   const text = stripBoilerplate(stripTags(clean));
+  if(originalBodyDefect(url,clean,text))return null;
   if (text.length < MIN_BODY_CHARS || isBoilerplateBody(text)) return null;
   const images: ExtractedBody["images"] = [];
   for (const m of clean.matchAll(/<img\b[^>]*\bsrc="([^"]+)"[^>]*>/gi)) {
@@ -154,6 +183,7 @@ export async function extractFromUrl(url: string, opts: { allowJina: boolean; su
     // stored bodies began with 「国家气象中心 版权所有…未经授权禁止下载使用」. Strip the boilerplate,
     // and if nothing real is left, this page has no body (an unconfirmed item beats a footer item).
     const text = stripBoilerplate(stripTags(html));
+    if(originalBodyDefect(url,html,text))return null;
     if (text.length < MIN_BODY_CHARS || isBoilerplateBody(text)) return null;
     return { html, text, images: [], via: "jina" };
   } catch (error) {

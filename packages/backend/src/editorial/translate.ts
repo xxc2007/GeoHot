@@ -96,6 +96,12 @@ async function translateBatch(articleId: string, revision: number, index: number
   const workUnit = `article:${articleId}@${revision}`;
   const model = await modelFor("translate", articleId, "translate_body");
   checkTranslation(control);
+  // Preserve historical retry receipts (including pending/unknown) when the legacy prefix resumes.
+  // More recent deployments use retry-zh-v2; do not change a paid request's namespace.
+  if (attemptTag === "retry-zh-v2") {
+    const [legacy] = await sql`SELECT 1 FROM receipts WHERE purpose='translate_body' AND subject=${workUnit+'#'+index} AND logical_key LIKE '%:retry' LIMIT 1`;
+    if (legacy) attemptTag = "retry";
+  }
   const res = await chatJson({
     model,
     purpose: "translate_body",

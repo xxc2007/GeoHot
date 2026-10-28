@@ -7,7 +7,7 @@ export async function recoverWorkflowReadiness(options: {selectedOnly?:boolean;s
   if(!resourceHeadroom())return {checked:0,ready:0,held:true};
   const limit=Math.max(1,Math.min(options.limit??250,250));
   const deadline=Date.now()+Math.max(100,Math.min(options.budgetMs??4000,10000));
-  const key=options.summaryOnly ? 'workflow_readiness_summary_cursor' : options.selectedOnly ? 'workflow_readiness_selected_cursor':'workflow_readiness_cursor';
+  const key=`workflow_readiness_v${READER_POLICY_VERSION}_${options.summaryOnly?'summary':options.selectedOnly?'selected':'all'}_cursor`;
   return sql.begin(async tx=>{
     await tx`SET LOCAL statement_timeout='2s'`;
     await tx`SET LOCAL lock_timeout='250ms'`;

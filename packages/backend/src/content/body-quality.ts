@@ -35,3 +35,16 @@ export function translationTextDefect(text: string): string | null {
   if ((text.match(/\\u[0-9a-fA-F]{4}/g) ?? []).length >= 4) return "literal-unicode-escapes";
   return null;
 }
+
+/** Positive extraction failures, not a character-count approximation of article completeness. */
+export function originalBodyDefect(url:string, html:string, text:string):string|null {
+  let host='';try{host=new URL(url).hostname;}catch{return null;}
+  if (/(^|\.)mongabay\.com$/i.test(host) && /(?:…|\.{3})\s*(?:This article was originally published on Mongabay|本文原发表于\s*Mongabay)[.。\s]*$/i.test(text)) return 'source:feed-teaser';
+  let scientific=false;
+  try {const u=new URL(url);scientific=/(^|\.)copernicus\.org$/i.test(u.hostname)||(/^doi\.org$/i.test(u.hostname)&&/^\/10\.5194\//.test(u.pathname));}catch{return null;}
+  if(!scientific)return null;
+  const start=text.trim().replace(/^References\s*:?\s*/i,'');
+  const citation=/^[\p{Lu}][\p{L}'’.-]+,\s*(?:[A-Z]\.\s*){1,5}/u.test(start);
+  const narrative=[...html.matchAll(/<h[2-5]\b[^>]*>([\s\S]*?)<\/h[2-5]>/gi)].some(m=>/Abstract|Introduction|Method|Result|Discussion|Conclusion/i.test(m[1]!.replace(/<[^>]+>/g,'')));
+  return citation && (text.match(/doi\.org\//g)?.length??0)>=3 && !narrative ? 'source:references-only' : null;
+}

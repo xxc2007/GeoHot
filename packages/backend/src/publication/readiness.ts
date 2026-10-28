@@ -2,10 +2,10 @@ import { bodyMediaReadyCondition } from "./media-readiness.ts";
 // Read-time workflow gate. Keep the stored publication public so background workers can finish it.
 // Only indexed facts are read here; no model calls or mutable queue-state guesses on reader requests.
 import { sql, type Tx } from "../db.ts";
-import { translationTextDefect } from "../content/body-quality.ts";
+import { translationTextDefect, originalBodyDefect } from "../content/body-quality.ts";
 import { CJK_COPY_PATTERN, hasChineseCopy } from "@aihot/contracts/copy";
 
-export const READER_POLICY_VERSION = 2;
+export const READER_POLICY_VERSION = 3;
 
 /** Correlated against publications p; valid even when callers do not join articles/sources. */
 export function rawWorkflowReadyCondition(includeMedia = true) {
@@ -51,7 +51,7 @@ export function workflowReadyCondition() {
 
 /** Compute only in background/write transactions, after every publication/media write has settled. */
 export async function refreshWorkflowReadinessTx(tx: Tx, articleId: string): Promise<boolean> {
-  const [article] = await tx<{source_id:string}[]>`SELECT source_id FROM articles WHERE id=${articleId} FOR UPDATE`;
+  const [article] = await tx<{source_id:string;url:string;body_html:string|null;body_text:string|null}[]>`SELECT source_id,url,body_html,body_text FROM articles WHERE id=${articleId} FOR UPDATE`;
   if (!article) return false;
   // Serialise policy changes with recomputation; the source trigger invalidates every affected fact.
   await tx`SELECT id FROM sources WHERE id=${article.source_id} FOR SHARE`;
@@ -59,13 +59,14 @@ export async function refreshWorkflowReadinessTx(tx: Tx, articleId: string): Pro
     SELECT p.revision,p.analysis_id,${rawWorkflowReadyCondition()} AS ready
     FROM publications p WHERE p.article_id=${articleId}`;
   if (!row) return false;
-  let qualityError:string|null=null;
+  let qualityError:string|null=originalBodyDefect(article.url,article.body_html??'',article.body_text??'');
+  if(qualityError)row.ready=false;
   {
     const [translation] = await tx<{body_html:string;body_text:string;complete:boolean}[]>`SELECT coalesce(tr.body_html,'') AS body_html,coalesce(tr.body_text,'') AS body_text,tr.complete FROM translations tr
       JOIN articles a ON a.id=tr.article_id WHERE a.id=${articleId} AND tr.lang='zh' AND tr.revision=a.revision
       AND NOT (coalesce(a.language,'')='zh' OR (coalesce(a.language,'')<>'en' AND left(a.body_text,400) ~ ${CJK_COPY_PATTERN}))`;
     if(translation?.complete) {
-      qualityError=translationTextDefect(translation.body_html)||translationTextDefect(translation.body_text)||(!hasChineseCopy(translation.body_text)?'missing-chinese-translation':null);
+      qualityError=qualityError||translationTextDefect(translation.body_html)||translationTextDefect(translation.body_text)||(!hasChineseCopy(translation.body_text)?'missing-chinese-translation':null);
       if(qualityError)row.ready=false;
     }
   }

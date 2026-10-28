@@ -294,6 +294,7 @@ test("three actual unusable long-body outcomes remain bounded without clearing o
   corrupt='html';
   try {
     for(let i=1;i<=3;i++) {
+      await sql`UPDATE translation_attempts SET updated_at=now()-interval '7 hours' WHERE article_id=${id}`;
       await translatePending({limit:1});
       const [a]=await sql`SELECT attempts,outcome FROM translation_attempts WHERE article_id=${id}`;
       assert.deepEqual({...a},{attempts:i,outcome:'failed'});

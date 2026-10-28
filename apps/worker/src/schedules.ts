@@ -1,3 +1,4 @@
+import {recoverBodyIntegrity} from "@aihot/backend/operations/recover-body-integrity";
 import { recoverBodyMedia } from "@aihot/backend/operations/recover-body-media";
 import { recoverWorkflowReadiness } from "@aihot/backend/operations/recover-workflow-readiness";
 import { balancedResources, resourceCron, runScheduledWithResources } from "@aihot/backend/operations/resource-budget";
@@ -82,7 +83,7 @@ export const SCHEDULES: Scheduled[] = [
   {
     name: "ops.recover",
     cron: "*/10 * * * *",
-    run: async () => ({ receipts: await markStalePendingReceipts(), released: await autoReleaseUnknownReceipts(), deliveries: await markStaleDeliveries(), grouping: await recoverBudgetBlockedGrouping(), bodyMedia: await recoverBodyMedia(), workflow: await recoverWorkflowReadiness() }),
+    run: async () => ({ receipts: await markStalePendingReceipts(), released: await autoReleaseUnknownReceipts(), deliveries: await markStaleDeliveries(), grouping: await recoverBudgetBlockedGrouping(), bodyMedia: await recoverBodyMedia(), workflow: await recoverWorkflowReadiness(), bodyIntegrity: await recoverBodyIntegrity() }),
   },
   { name: "ops.alerts", cron: "*/10 * * * *", run: () => checkAlerts() },
   // One message with the follow-ups that do not touch readers (nothing when there are none).
