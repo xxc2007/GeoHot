@@ -1,0 +1,20 @@
+{
+  "zh": {
+    "source": "flow.zh.svg",
+    "sourceSha256": "8a841a009a9a871ffa357e73a13f6ba06940b491085c0900dde477e6ee7b569d",
+    "png": "flow.zh.16901a4b8fe5.png",
+    "sha256": "16901a4b8fe5319b229973fa1e7fe751ff48d8f9be4dfd51c6299124f82e3555",
+    "width": 3600,
+    "height": 6354,
+    "bytes": 768483
+  },
+  "en": {
+    "source": "flow.en.svg",
+    "sourceSha256": "852563ccda299131becbdf6f6287558c9d9af794cf9c63468cd3af59f1990522",
+    "png": "flow.en.630ca94064fa.png",
+    "sha256": "630ca94064faa08ae8c97ceabdb983fdc1caa53ddd1995376ca7cadedb9c56c5",
+    "width": 3600,
+    "height": 6720,
+    "bytes": 722006
+  }
+}

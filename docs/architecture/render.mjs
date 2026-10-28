@@ -292,6 +292,7 @@ const spec = {
 
 
 import fs from 'node:fs';
+import { exportDiagram } from './raster.mjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const directory = path.dirname(fileURLToPath(import.meta.url));
@@ -368,5 +369,6 @@ for (let lang=0; lang<2; lang++) {
  }
  const svg='<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="'+outputHeight+'" viewBox="0 0 1200 '+outputHeight+'" role="img" aria-labelledby="title description" xml:lang="'+language+'"><title id="title">'+escape(spec.title[lang])+'</title><desc id="description">'+escape(spec.intro[lang])+'</desc><defs><marker id="arrow" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M 0 0 L 9 3.5 L 0 7 L 2 3.5 Z" fill="#4e585f"/></marker></defs><rect width="1200" height="'+outputHeight+'" fill="#ffffff"/><g font-family="Segoe UI, Microsoft YaHei, Noto Sans CJK SC, Arial, sans-serif">'+elements.join('')+'</g></svg>\n';
  fs.writeFileSync(path.join(directory,'flow.'+language+'.svg'),svg);
+ exportDiagram({directory,language,svg,svgFilename:'flow.'+language+'.svg'});
  console.log('Rendered flow.'+language+'.svg');
 }

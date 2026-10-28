@@ -91,11 +91,11 @@ GEOHOT 基于开源框架 [AIHOT](https://github.com/KKKKhazix/AIHOT) 构建，�
 
 上半部分沿着一条材料展开采集、预筛、评分与公开条件的分支，下半部分说明已生成结果如何经统一读取层到达不同出口。橙色表示拦截、等待或控制条件，绿色表示公开结果。图中不固化信源数量、模型名称或评分门槛，避免把运行配置变成过时的架构说明。
 
-[![GEOHOT · 从公开信源到读者](docs/architecture/flow.zh.svg)](docs/architecture/flow.zh.svg)
+[![GEOHOT · 从公开信源到读者](docs/architecture/flow.zh.16901a4b8fe5.png)](https://raw.githubusercontent.com/xxc2007/GeoHot/main/docs/architecture/flow.zh.16901a4b8fe5.png)
 
-点击图片可打开矢量原图放大阅读。实现依据：[apps/worker/src/main.ts](apps/worker/src/main.ts) · [packages/backend/src/editorial/analyze.ts](packages/backend/src/editorial/analyze.ts) · [packages/backend/src/providers/receipts.ts](packages/backend/src/providers/receipts.ts) · [packages/backend/src/publication/rules.ts](packages/backend/src/publication/rules.ts) · [packages/backend/src/publication/](packages/backend/src/publication/) · [industry/selection.ts](industry/selection.ts) · [apps/web/server.ts](apps/web/server.ts)。
+点击图片直接打开 3600 像素宽的 PNG 原图，再次点击可按原尺寸放大查看。[可编辑 SVG 源文件](docs/architecture/flow.zh.svg)。实现依据：[apps/worker/src/main.ts](apps/worker/src/main.ts) · [packages/backend/src/editorial/analyze.ts](packages/backend/src/editorial/analyze.ts) · [packages/backend/src/providers/receipts.ts](packages/backend/src/providers/receipts.ts) · [packages/backend/src/publication/rules.ts](packages/backend/src/publication/rules.ts) · [packages/backend/src/publication/](packages/backend/src/publication/) · [industry/selection.ts](industry/selection.ts) · [apps/web/server.ts](apps/web/server.ts)。
 
-后续修改可编辑 [`render.mjs`](docs/architecture/render.mjs) 中的双语文字与节点，运行 `node docs/architecture/render.mjs` 同步生成两种语言的图。
+后续修改可编辑 [`render.mjs`](docs/architecture/render.mjs) 中的双语文字与节点，先运行 `npm ci --prefix docs/architecture` 安装文档导出工具，再运行 `node docs/architecture/render.mjs` 同步生成中英文 SVG 与高清 PNG；[导出说明](docs/architecture/README.md)。
 
 ## 站点与开放接口
 

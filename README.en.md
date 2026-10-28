@@ -91,11 +91,11 @@ GEOHOT is built on the open-source [AIHOT](https://github.com/KKKKhazix/AIHOT) f
 
 The upper half follows an item through collection, prefiltering, scoring and publication decisions. The lower half shows how stored results reach each public interface through a shared read layer. Amber marks blocking, waiting or control conditions; green marks public results. Source counts, model names and numeric thresholds remain in configuration rather than being frozen into the diagram.
 
-[![GEOHOT · From public sources to readers](docs/architecture/flow.en.svg)](docs/architecture/flow.en.svg)
+[![GEOHOT · From public sources to readers](docs/architecture/flow.en.630ca94064fa.png)](https://raw.githubusercontent.com/xxc2007/GeoHot/main/docs/architecture/flow.en.630ca94064fa.png)
 
-Open the image to zoom in. Source references: [apps/worker/src/main.ts](apps/worker/src/main.ts) · [packages/backend/src/editorial/analyze.ts](packages/backend/src/editorial/analyze.ts) · [packages/backend/src/providers/receipts.ts](packages/backend/src/providers/receipts.ts) · [packages/backend/src/publication/rules.ts](packages/backend/src/publication/rules.ts) · [packages/backend/src/publication/](packages/backend/src/publication/) · [industry/selection.ts](industry/selection.ts) · [apps/web/server.ts](apps/web/server.ts).
+Click the image to open the 3600 px PNG directly, then click again to view it at its original size. [Editable SVG source](docs/architecture/flow.en.svg). Source references: [apps/worker/src/main.ts](apps/worker/src/main.ts) · [packages/backend/src/editorial/analyze.ts](packages/backend/src/editorial/analyze.ts) · [packages/backend/src/providers/receipts.ts](packages/backend/src/providers/receipts.ts) · [packages/backend/src/publication/rules.ts](packages/backend/src/publication/rules.ts) · [packages/backend/src/publication/](packages/backend/src/publication/) · [industry/selection.ts](industry/selection.ts) · [apps/web/server.ts](apps/web/server.ts).
 
-To update both diagrams, edit the bilingual labels in [`render.mjs`](docs/architecture/render.mjs) and run `node docs/architecture/render.mjs`.
+To update both diagrams, install the documentation tool with `npm ci --prefix docs/architecture`, edit the bilingual labels in [`render.mjs`](docs/architecture/render.mjs), and run `node docs/architecture/render.mjs` to regenerate the SVG sources and high-resolution PNGs. See the [export notes](docs/architecture/README.md).
 
 ## Pages and open interfaces
 

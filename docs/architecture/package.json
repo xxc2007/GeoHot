@@ -1,0 +1,9 @@
+{
+  "name": "geohot-architecture-diagrams",
+  "private": true,
+  "type": "module",
+  "diagramRepository": "xxc2007/GeoHot",
+  "dependencies": {
+    "@resvg/resvg-js": "2.6.2"
+  }
+}
