@@ -24,6 +24,7 @@ interface ReportRow {
 
 interface Availability {
   available: boolean;
+  unavailableReason?: ReportCitation["unavailableReason"];
   /** False only when the item itself is withdrawn or not public — see `citationFrom`'s struck-through branch. */
   public?: boolean;
   firstParty: boolean;
@@ -39,18 +40,19 @@ async function availability(ids: string[], now = new Date()): Promise<Map<string
   const out = new Map<string, Availability>();
   if (ids.length === 0) return out;
   const rows = await sql<{ id: string; visibility: string; source_mode: string; selected: boolean; visible_after: Date | null; workflow_ready: boolean;
-    first_party: boolean; source_id: string; icon_url: string | null; story_public_id: string | null; at: Date | null }[]>`
+    site_fulltext: boolean; first_party: boolean; source_id: string; icon_url: string | null; story_public_id: string | null; at: Date | null }[]>`
     SELECT ${workflowReadyCondition()} AS workflow_ready, p.article_id AS id, p.visibility, s.participation_mode AS source_mode, p.selected, p.visible_after,
-      p.first_party, p.source_id, s.icon_url, st.public_id::text AS story_public_id,
+      s.site_fulltext, p.first_party, p.source_id, s.icon_url, st.public_id::text AS story_public_id,
       coalesce(p.published_at, p.discovered_at) AS at
     FROM publications p LEFT JOIN sources s ON s.id = p.source_id LEFT JOIN stories st ON st.id = p.story_id
     WHERE p.article_id IN ${sql(ids)}`;
   for (const r of rows) {
     out.set(r.id, {
       available: r.workflow_ready && itemHasPage({ visibility: r.visibility, sourceMode: r.source_mode, selected: r.selected, visibleAfter: r.visible_after }, now),
+      unavailableReason: r.visibility === "withdrawn" ? "withdrawn" : r.visibility !== "public" || r.source_mode !== "editorial" ? "not-public" : !r.site_fulltext ? "source-restricted" : !r.workflow_ready ? "workflow-pending" : undefined,
       // Why there is no page matters: a withdrawn or non-public item must not be quoted again anywhere,
       // while a public item whose source simply left the editorial set still owes the reader its source.
-      public: r.workflow_ready && r.visibility === "public",
+      public: r.visibility === "public",
       firstParty: r.first_party,
       sourceId: r.source_id,
       sourceIcon: r.icon_url,
@@ -160,7 +162,7 @@ function citationFrom(raw: Record<string, any>, avail: Map<string, Availability>
     //    still has to say where the claim came from, so title, source name and original address stay.
     const struck = a?.public === false;
     return {
-      itemId: id, title: String(raw.title ?? ""), summary: null,
+      itemId: id, title: String(raw.title ?? ""), summary: null, unavailableReason: a?.unavailableReason,
       sourceName: struck ? "" : String(raw.sourceName ?? raw.source?.name ?? ""),
       sourceUrl: struck ? "" : String(raw.sourceUrl ?? raw.links?.original ?? ""),
       sourceId: struck ? null : raw.sourceId ?? a?.sourceId ?? null, sourceIconUrl: null,

@@ -6,6 +6,7 @@ import { sql, closeDb } from "@aihot/backend/db";
 import { upsertMaterial } from "@aihot/backend/content/materials";
 import { publishArticle } from "@aihot/backend/publication/publish";
 import { composeDaily, composeWeekly, reportInput } from "@aihot/backend/reports/compose";
+import { refreshWorkflowReadinessTx } from "@aihot/backend/publication/readiness";
 import { getBoss, stopBoss } from "@aihot/backend/jobs/queue";
 
 after(async () => { await stopBoss(); await closeDb(); });
@@ -32,9 +33,9 @@ test("refresh fingerprints track copy, revision, prior coverage and period metri
     await getBoss();
     await sql`INSERT INTO budgets(service,per_minute,per_hour,per_day) VALUES('agnes-cn',500,5000,50000)
       ON CONFLICT(service) DO UPDATE SET per_minute=500,per_hour=5000,per_day=50000`;
-    await sql`INSERT INTO sources(id,name,kind,tier,participation_mode) VALUES(${source},${source},'rss','T1','editorial')`;
+    await sql`INSERT INTO sources(id,name,kind,tier,participation_mode,site_fulltext) VALUES(${source},${source},'rss','T1','editorial',true)`;
     articleId = (await upsertMaterial({ sourceId: source, url: `https://example.com/${source}`, title: "River observations",
-      publishedAt: new Date("2016-06-01T12:00:00Z"), via: "import", backfill: "archive", bodyStatus: "ok", bodyText: "Observed river morphology." })).articleId;
+      publishedAt: new Date("2016-06-01T12:00:00Z"), via: "import", backfill: "archive", bodyStatus: "ok", bodyText: "完整的中文河流地貌观测正文。" })).articleId;
     await sql`INSERT INTO analyses(article_id,input_revision,origin,relevance,category,title_zh,summary_zh,score,selected)
       VALUES(${articleId},1,'rule','pass','physical','河流地貌观测结果','河流地貌研究提供新的观测资料。',90,true)`;
     await publishArticle(articleId);
@@ -49,16 +50,20 @@ test("refresh fingerprints track copy, revision, prior coverage and period metri
     assert.equal(same.unchanged, true); assert.equal(same.entries, 1);
     assert.equal(provider.hits(), 1); assert.equal((await saved()).revision, first.revision);
     await sql`UPDATE publications SET title='河流地貌观测得到修订结果',summary='新的中文纠错摘要说明河流观测结果。',score=91 WHERE article_id=${articleId}`;
+    await sql.begin(tx=>refreshWorkflowReadinessTx(tx,articleId));
     assert.equal((await composeDaily(day, "test", true)).unchanged, undefined);
     assert.equal(provider.hits(), 2); assert.equal((await saved()).content.sections[0].items[0].title, "河流地貌观测得到修订结果");
     const copied = await saved();
     await sql`UPDATE articles SET revision=revision+1 WHERE id=${articleId}`;
+    await sql`UPDATE analyses SET input_revision=(SELECT revision FROM articles WHERE id=${articleId}) WHERE article_id=${articleId}`;
+    await sql.begin(tx=>refreshWorkflowReadinessTx(tx,articleId));
     assert.equal((await composeDaily(day, "test", true)).unchanged, undefined);
     assert.equal((await saved()).revision, copied.revision + 1);
     assert.equal(provider.hits(), 2, "unchanged actual model brief reuses its paid receipt even when article revision changes");
     const withoutFact = (await reportInput("daily", day)).fingerprint;
     factId = (await sql`INSERT INTO facts(public_id,title) VALUES(${factPublicId},'河流观测事实') RETURNING id`)[0]!.id;
     await sql`UPDATE publications SET fact_id=${factId!} WHERE article_id=${articleId}`;
+    await sql.begin(tx=>refreshWorkflowReadinessTx(tx,articleId));
     assert.notEqual((await reportInput("daily", day)).fingerprint, withoutFact);
     await composeDaily(day, "test", true);
     assert.equal((await saved()).content.sections[0].items[0].factId, factPublicId);
@@ -83,6 +88,7 @@ test("refresh fingerprints track copy, revision, prior coverage and period metri
     assert.equal((await saved()).revision, restored.revision); assert.equal(provider.hits(), hits);
     assert.equal((await sql`SELECT count(*)::int AS n FROM report_revisions`)[0]!.n, revisions);
     await sql`UPDATE publications SET summary='译文更新后的河流观测摘要。' WHERE article_id=${articleId}`;
+    await sql.begin(tx=>refreshWorkflowReadinessTx(tx,articleId));
     await cli(["scripts/recompose-report.ts", "--kind=daily", `--key=${day}`, "--skip-unchanged", "--apply"]);
     assert.equal((await saved()).revision, restored.revision + 1);
     assert.equal((await saved()).content.sections[0].items[0].summary, "译文更新后的河流观测摘要。");

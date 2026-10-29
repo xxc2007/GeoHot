@@ -25,6 +25,7 @@ import { chatJson, ModelOutputError } from "../providers/llm.ts";
 import { completeReceipt } from "../providers/receipts.ts";
 import { shutdownSignal } from "../jobs/queue.ts";
 import { chineseCopyCondition } from "../publication/items.ts";
+import { workflowReadyCondition } from "../publication/readiness.ts";
 import { sha256, stableJson } from "../lib/ids.ts";
 
 export const REPORT_VERSION = promptVersion("report-daily-lead", "report-period");
@@ -93,7 +94,7 @@ export async function candidates(start: Date, end: Date): Promise<Candidate[]> {
       -- Attribute each item by the later of arrival and release; either range can use its index.
       -- 报纸是中文的：门槛用读取层那一条（items.chineseCopyCondition），不在这儿再抄一遍正则——
       -- 列表和版面必须说同一句话，两份写法早晚不一致。
-      WHERE p.visibility = 'public' AND p.selected
+      WHERE p.visibility = 'public' AND p.selected AND ${workflowReadyCondition()}
         -- Anything that arrived late is kept out of the paper of the day it was found, and archive material is
         -- the exception the owner asked for: a 2026-01 issue is made of 2026-01 material, even when it was only
         -- ingested in October. first-import and stale-on-discovery still keep today's paper as it was.

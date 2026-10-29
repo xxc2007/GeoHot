@@ -349,6 +349,7 @@ export interface ReportCitation {
   publishedAt: string | null;
   /** False once the item was withdrawn; the citation then shows as removed. */
   available: boolean;
+  unavailableReason?: "withdrawn" | "source-restricted" | "workflow-pending" | "not-public";
   /** False for preserved citations with no reader-facing item page; link to sourceUrl instead. */
   hasPage?: boolean;
 }

@@ -17,6 +17,7 @@ import { computeHotRanking, snapshotHeat } from "@aihot/backend/events/hot";
 import { refreshStoryStatuses } from "@aihot/backend/events/digest";
 import { linkRelatedStories } from "@aihot/backend/events/group";
 import { catchUpReports, composeDaily, composeMonthly, composeWeekly } from "@aihot/backend/reports/compose";
+import { repairReportWorkflow } from "@aihot/backend/reports/repair";
 import { addDays, beijingDate, isoWeekLabel } from "@aihot/contracts/time";
 import { runLeaderboardRound } from "@aihot/backend/leaderboard/method/run";
 import { refreshLeaderboard } from "@aihot/backend/leaderboard/fetch/refresh";
@@ -74,6 +75,7 @@ export const SCHEDULES: Scheduled[] = [
     },
   },
   { name: "reports.catch-up", cron: "15 * * * *", run: () => catchUpReports() },
+  { name: "reports.repair", cron: "9-59/15 * * * *", run: repairReportWorkflow },
   { name: "ops.retention", cron: "30 3 * * *", missed: "once", run: () => dailyRetention() },
   { name: "sources.icons", cron: "40 4 * * *", missed: "once", run: () => refreshSourceIcons() },
   // IndexNow for new indexable pages (off unless INDEXNOW_SUBMIT_ENABLED).
@@ -83,7 +85,7 @@ export const SCHEDULES: Scheduled[] = [
   {
     name: "ops.recover",
     cron: "*/10 * * * *",
-    run: async () => ({ receipts: await markStalePendingReceipts(), released: await autoReleaseUnknownReceipts(), deliveries: await markStaleDeliveries(), grouping: await recoverBudgetBlockedGrouping(), bodyMedia: await recoverBodyMedia(), workflow: await recoverWorkflowReadiness(), reportReadiness: await recoverWorkflowReadiness({reportsOnly:true,limit:75,budgetMs:1500}), bodyIntegrity: await recoverBodyIntegrity() }),
+    run: async () => ({ receipts: await markStalePendingReceipts(), released: await autoReleaseUnknownReceipts(), deliveries: await markStaleDeliveries(), grouping: await recoverBudgetBlockedGrouping(), bodyMedia: await recoverBodyMedia(), reportMedia: await recoverBodyMedia({reportsOnly:true}), workflow: await recoverWorkflowReadiness(), reportReadiness: await recoverWorkflowReadiness({reportsOnly:true,limit:75,budgetMs:1500}), bodyIntegrity: await recoverBodyIntegrity() }),
   },
   { name: "ops.alerts", cron: "*/10 * * * *", run: () => checkAlerts() },
   // One message with the follow-ups that do not touch readers (nothing when there are none).

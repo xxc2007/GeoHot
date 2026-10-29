@@ -52,7 +52,7 @@ async function item(suffix: string, title: string, category: string | null) {
   // exception of archive material, which is attributed to its own day — tests/archive-paper-rule.test.ts).
   const { articleId, backfill } = await upsertMaterial({
     sourceId: SOURCE, url: `https://example.com/${T}-${suffix}`, title: `Source ${T} ${suffix}`,
-    bodyText: "A bulletin.", bodyStatus: "ok", via: "fetch", publishedAt: INSIDE, discoveredAt: INSIDE,
+    bodyText: "完整的中文水文公报正文。", bodyStatus: "ok", via: "fetch", publishedAt: INSIDE, discoveredAt: INSIDE,
   });
   assert.equal(backfill, false, "这条夹具落进了回填窗口，成刊层根本不会看它");
   await sql`INSERT INTO analyses (article_id, input_revision, origin, relevance, category, title_zh, summary_zh, score, selected)
@@ -78,8 +78,8 @@ const LEAD_SUBJECT = `report:daily:${ISSUE}`;
 const PERIOD_SUBJECT = `report:weekly:${WEEK}`;
 
 before(async () => {
-  await sql`INSERT INTO sources (id, name, kind, tier, participation_mode, next_fetch_at, last_ok_at)
-            VALUES (${SOURCE}, 'Report gate', 'rss', 'T1', 'editorial', '2100-01-01', now())`;
+  await sql`INSERT INTO sources (id, name, kind, tier, participation_mode, site_fulltext, next_fetch_at, last_ok_at)
+            VALUES (${SOURCE}, 'Report gate', 'rss', 'T1', 'editorial', true, '2100-01-01', now())`;
   await item("a", `赣江上游出现洪水，沿岸水文站发布预警 ${T}`, "physical");
   await item("b", `新版基础地形图对外提供，空间数据库同步升级 ${T}`, "geotech");
 });

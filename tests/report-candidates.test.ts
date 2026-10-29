@@ -8,6 +8,7 @@ import { upsertMaterial } from "@aihot/backend/content/materials";
 import { stopBoss } from "@aihot/backend/jobs/queue";
 import { publishArticle, publishArticleTx } from "@aihot/backend/publication/publish";
 import { candidates, composeDaily } from "@aihot/backend/reports/compose";
+import { repairReportWorkflow } from "@aihot/backend/reports/repair";
 
 const T = tag();
 const SOURCE = `test-report-boundary-${T}`;
@@ -50,6 +51,7 @@ before(async () => {
             VALUES (${SOURCE}, 'Report boundary test', 'rss', 'T1', 'editorial', true, '2100-01-01')`;
 });
 after(async () => {
+  for(const key of ISSUES) await sql`DELETE FROM settings WHERE key=${`report_workflow_repair_v1:daily:${key}`}`;
   await purgeTagged(SOURCE);
   // 手工插入的事实没有 story，`purgeTagged` 顺着 stories 找不到它；报道行删掉了，事实本体要自己收走。
   if (flashFacts.length > 0) await sql`DELETE FROM facts WHERE id = ANY(${flashFacts}::bigint[])`;
@@ -82,6 +84,22 @@ async function selected(label: string, timelineAt: Date, releasedAt: Date): Prom
   assert.equal(published?.selected, true);
   return articleId;
 }
+
+test("report candidates require current complete workflow and licensed full text", async () => {
+  const id=await selected("workflow-admission",at(5,1),at(5,2));
+  const included=async()=> (await candidates(at(5),at(6))).some(c=>c.itemId===id);
+  assert.equal(await included(),true);
+  await sql`UPDATE articles SET body_status='pending' WHERE id=${id}`;
+  await publishArticle(id);
+  assert.equal(await included(),false,"a selected title and summary cannot stand in for unfinished body");
+  await sql`UPDATE articles SET body_status='ok' WHERE id=${id}`;
+  await publishArticle(id);
+  assert.equal(await included(),true);
+  try {
+    await sql`UPDATE sources SET site_fulltext=false WHERE id=${SOURCE}`;
+    assert.equal(await included(),false,"source policy changes immediately invalidate report admission");
+  } finally { await sql`UPDATE sources SET site_fulltext=true WHERE id=${SOURCE}`; await publishArticle(id); }
+});
 
 test("reports assign delayed and boundary releases to the period readers first see them", async () => {
   const onTime = await selected("on-time", at(0, 23, 58), at(0, 23, 59));
@@ -263,4 +281,23 @@ test("导语标题用了「本周/本月/今日」这一类话时整条拒收", 
   }
   // 导语正文不在这条判据里：一段自然的中文里出现"当天"是叙述，不是一个会过期的标签。
   assert.equal(unusableLead({ ...ok, leadParagraph: "本周的救援仍在继续，这是当天最要紧的变化。" }), null);
+});
+
+test("historical repair versions the old edition, uses complete candidates and reuses unchanged work", async () => {
+  const key=issue(5),id=await selected("repair-complete",at(5,3),at(5,4));
+  await sql`DELETE FROM reports WHERE kind='daily' AND key=${key}`;
+  await sql`INSERT INTO reports(kind,key,window_start,window_end,content,generated_at,origin)
+    VALUES('daily',${key},${at(5)},${at(6)},${sql.json({sections:[{label:'自然地理',items:[{itemId:'missing-old-reference',title:'旧引用'}]}],flashes:[]})},now(),'manual')`;
+  const beforeHits=provider.hits();
+  const repaired=await repairReportWorkflow({kind:'daily',key});
+  assert.equal('outcome' in repaired && repaired.outcome,'recomposed');
+  const [r]=await sql`SELECT id,revision,content FROM reports WHERE kind='daily' AND key=${key}`;
+  const refs=r!.content.sections.flatMap((s:{items:{itemId:string}[]})=>s.items).map((c:{itemId:string})=>c.itemId);
+  assert.ok(refs.includes(id));assert.ok(!refs.includes('missing-old-reference'));
+  assert.equal(r!.revision,2);
+  assert.equal((await sql`SELECT count(*)::int AS n FROM report_revisions WHERE report_id=${r!.id}`)[0]!.n,1);
+  assert.equal(provider.hits(),beforeHits+1);
+  await repairReportWorkflow({kind:'daily',key});
+  assert.equal(provider.hits(),beforeHits+1,'unchanged repair must not purchase another model response');
+  assert.equal((await sql`SELECT revision FROM reports WHERE id=${r!.id}`)[0]!.revision,2);
 });

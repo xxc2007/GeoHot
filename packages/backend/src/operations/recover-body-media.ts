@@ -5,7 +5,7 @@ import { textWorkflowReadyCondition } from "../publication/readiness.ts";
 import { bodyMediaReadyCondition, bodyMediaFingerprint, bodyMediaRequiredCondition } from "../publication/media-readiness.ts";
 
 /** Five ordinary jobs per existing ops.recover tick, 250 indexed headers scanned, persistent keyset cursor. */
-export async function recoverBodyMedia() {
+export async function recoverBodyMedia(options: { reportsOnly?: boolean } = {}) {
   if (!resourceHeadroom()) return { queued: 0, held: true };
   await ensureQueue(QUEUES.prepareMedia);
   return sql.begin(async tx => {
@@ -14,11 +14,13 @@ export async function recoverBodyMedia() {
     await tx`SET LOCAL max_parallel_workers_per_gather=0`;
     const [lock]=await tx`SELECT pg_try_advisory_xact_lock(hashtext('recover:body-media')) AS acquired`;
     if (!lock?.acquired) return { queued: 0, held: true };
-    const [saved]=await tx<{ value: { at: string; id: string } | null }[]>`SELECT value FROM settings WHERE key='body_media_recovery_cursor'`;
+    const key=options.reportsOnly?'body_media_reports_recovery_cursor':'body_media_recovery_cursor';
+    const [saved]=await tx<{ value: { at: string; id: string } | null }[]>`SELECT value FROM settings WHERE key=${key}`;
     const cursor=saved?.value;
     const headers=await tx<{ article_id: string; timeline_at: Date }[]>`
       SELECT p.article_id,p.timeline_at FROM publications p
       WHERE p.visibility='public' AND p.eligible AND p.body_mode='full'
+        ${options.reportsOnly ? tx`AND p.article_id IN (SELECT cited->>'itemId' FROM reports r CROSS JOIN LATERAL jsonb_array_elements(coalesce(r.content->'sections',r.content->'themes','[]'::jsonb)) grp CROSS JOIN LATERAL jsonb_array_elements(coalesce(grp->'items',grp->'storyRefs','[]'::jsonb)) cited)` : tx``}
         ${cursor ? tx`AND (p.timeline_at,p.article_id)<(${cursor.at}::timestamptz,${cursor.id})` : tx``}
       ORDER BY p.timeline_at DESC,p.article_id DESC LIMIT 250`;
     const candidates=headers.length ? await tx<{ article_id: string; revision: number; fingerprint: string; timeline_at: Date }[]>`
@@ -41,9 +43,9 @@ export async function recoverBodyMedia() {
       }
     }
     const last=candidates.length===5 ? candidates.at(-1) : headers.at(-1);
-    if (last) await tx`INSERT INTO settings(key,value) VALUES('body_media_recovery_cursor',${tx.json({at:last.timeline_at.toISOString(),id:last.article_id})}::jsonb)
+    if (last) await tx`INSERT INTO settings(key,value) VALUES(${key},${tx.json({at:last.timeline_at.toISOString(),id:last.article_id})}::jsonb)
       ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value`;
-    else await tx`DELETE FROM settings WHERE key='body_media_recovery_cursor'`;
+    else await tx`DELETE FROM settings WHERE key=${key}`;
     return {queued,scanned:headers.length};
   });
 }
