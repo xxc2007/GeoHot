@@ -83,13 +83,13 @@ async function route(articleId: string, db: Db): Promise<Route | null> {
  * (paid) request; the same tag reuses its receipt. With `db`, the job commits with the caller's write.
  * Posts of non-editorial sources skip the analysis queue: they only need recording and grouping.
  */
-export async function queueProcessing(articleId: string, opts: { step?: Step; attemptTag?: string; db?: Db } = {}): Promise<string | null> {
+export async function queueProcessing(articleId: string, opts: { step?: Step; attemptTag?: string; serverOnlyExtraction?: boolean; db?: Db } = {}): Promise<string | null> {
   const db = opts.db ?? sql;
   const r = await route(articleId, db);
   if (!r) return null;
   const step = opts.step ?? r.step;
   await db`UPDATE articles SET processing_queued_at = now() WHERE id = ${articleId}`;
-  if (step === "extract") return enqueue(QUEUES.extractBody, { articleId }, { singletonKey: articleId, priority: r.priority }, opts.db);
+  if (step === "extract") return enqueue(QUEUES.extractBody, opts.serverOnlyExtraction ? { articleId, serverOnly: true } : { articleId }, { singletonKey: articleId, priority: r.priority }, opts.db);
   if (r.signal && !opts.attemptTag) {
     return enqueue(QUEUES.group, { articleId, signalOnly: true }, { singletonKey: articleId, priority: r.priority }, opts.db);
   }
@@ -205,13 +205,26 @@ export async function registerExtractionJobs(boss: PgBoss, concurrency = positiv
   await boss.work<{ articleId: string }>(QUEUES.extractBody, { localConcurrency: concurrency, pollingIntervalSeconds: balancedResources() ? 5 : 2 }, async ([job]) => {
     if (!job) return;
     const { articleId } = job.data;
+    const handBack = async () => {
+      await sql.begin(async tx => {
+        // If a producer already queued a sibling, mark it too before short-policy deduplication.
+        await tx`UPDATE pgboss.job SET data = data || '{"serverOnly":true}'::jsonb
+          WHERE name=${QUEUES.extractBody} AND state < 'active' AND data->>'articleId'=${articleId}`;
+        await queueProcessing(articleId, { step: "extract", serverOnlyExtraction: true, db: tx });
+      });
+      if (process.connected) process.send?.({ type: "geohot:extracted", state: "server-fallback" });
+      return { state: "server-fallback" };
+    };
     try {
       if (shutdownSignal.signal.aborted) throw new AnalysisInterruptedError("worker shutting down before extraction");
       const state = await extractArticleBody(articleId);
+      if (state === "deferred") return handBack();
       await queueProcessing(articleId, { step: "analyze" });
+      if (process.env.WORKER_ROLE === "extraction-executor" && process.connected) process.send?.({ type: "geohot:extracted", state });
       return { state };
     } catch (error) {
       if (shutdownSignal.signal.aborted || error instanceof AnalysisInterruptedError) throw error;
+      if (process.env.WORKER_ROLE === "extraction-executor") return handBack();
       const message = String(error instanceof Error ? error.message : error).slice(0, 500);
       if (error instanceof BudgetExceededError || error instanceof ReceiptBusyError) {
         const seconds = error instanceof BudgetExceededError ? error.retryAfterSeconds : 60;

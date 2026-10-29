@@ -1,17 +1,17 @@
 // Pure startup policy, shared by the queue client and the worker entrypoint. No database imports.
-export type WorkerRole = "all" | "coordinator" | "content-executor";
+export type WorkerRole = "all" | "coordinator" | "content-executor" | "extraction-executor";
 
 export function workerPlan(raw: string | undefined = process.env.WORKER_ROLE) {
   const role = raw?.trim() || "all";
-  if (role !== "all" && role !== "coordinator" && role !== "content-executor") {
-    throw new Error("WORKER_ROLE must be all, coordinator or content-executor");
+  if (role !== "all" && role !== "coordinator" && role !== "content-executor" && role !== "extraction-executor") {
+    throw new Error("WORKER_ROLE must be all, coordinator, content-executor or extraction-executor");
   }
   return {
     role: role as WorkerRole,
-    content: role !== "coordinator",
+    content: role === "all" || role === "content-executor",
     extraction: role !== "coordinator",
-    coordinator: role !== "content-executor",
-    heartbeat: role === "content-executor" ? "content-executor" : "worker",
+    coordinator: role === "all" || role === "coordinator",
+    heartbeat: role.endsWith("-executor") ? role : "worker",
   };
 }
 
@@ -24,7 +24,7 @@ export function poolSize(raw: string | undefined, name: string, fallback: number
 
 export function bossOptions(role = workerPlan().role, raw: string | undefined = process.env.PGBOSS_POOL_MAX) {
   const max = poolSize(raw, "PGBOSS_POOL_MAX", 4);
-  return role === "content-executor"
-    ? { max, application_name: "aihot-jobs-content-executor", schedule: false, supervise: false, migrate: false, createSchema: false }
+  return role.endsWith("-executor")
+    ? { max, application_name: `aihot-jobs-${role}`, schedule: false, supervise: false, migrate: false, createSchema: false }
     : { max, application_name: "aihot-jobs" };
 }

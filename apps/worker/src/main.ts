@@ -1,5 +1,5 @@
 // Worker process: queues and schedules for collection, processing, events, reports, monitors and ops.
-import { assertProductionSecrets, assertContentExecutorValves, isCollectEnabled, positiveInt } from "@aihot/backend/config";
+import { assertProductionSecrets, assertContentExecutorValves, assertExtractionExecutorValves, isCollectEnabled, positiveInt } from "@aihot/backend/config";
 import { FEATURES } from "@aihot/industry/features";
 import { closeDb, sql } from "@aihot/backend/db";
 import { getBoss, shutdownSignal, stopBoss } from "@aihot/backend/jobs/queue";
@@ -15,7 +15,7 @@ import { startHeartbeat } from "@aihot/backend/operations/heartbeat";
 import { guardProcessExit } from "@aihot/backend/operations/process-exit";
 
 const plan = workerPlan();
-guardProcessExit(plan.role === "content-executor" ? "content-executor" : "worker");
+guardProcessExit(plan.coordinator ? "worker" : plan.role);
 
 let stopping = false;
 let startupDone = false;
@@ -54,7 +54,8 @@ async function initialized<T>(operation: Promise<T>): Promise<T> {
 }
 
 assertProductionSecrets(plan.coordinator ? [["auth", "IMG_PROXY_SIGN_SECRET"]] : []);
-if (!plan.coordinator) assertContentExecutorValves();
+if (plan.role === "extraction-executor") assertExtractionExecutorValves();
+else if (!plan.coordinator) assertContentExecutorValves();
 
 if (stopping) await finishShutdown();
 if (plan.coordinator) await initialized(ensureContentTargets());

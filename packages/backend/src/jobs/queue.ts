@@ -1,4 +1,5 @@
 import { installResourceIntake } from "../operations/resource-intake.ts";
+import { installExtractionAssist } from "../operations/extraction-assist.ts";
 // Job queue on PostgreSQL (pg-boss). Business code enqueues by name; the worker process owns handlers.
 import { PgBoss, type SendOptions } from "pg-boss";
 import { config } from "../config.ts";
@@ -59,6 +60,7 @@ export async function getBoss(): Promise<PgBoss> {
     starting = (async () => {
       const b = new PgBoss({ connectionString: config.databaseUrl, schema: "pgboss", ...bossOptions() });
       installResourceIntake(b);
+      installExtractionAssist(b);
       b.on("error", (err) => console.error("[pg-boss]", err));
       try {
         await b.start();

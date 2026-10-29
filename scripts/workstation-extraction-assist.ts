@@ -1,0 +1,140 @@
+// Finite, foreground supervisor. No scheduled task and no production credentials on disk.
+import { spawn, execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { parseArgs } from "node:util";
+import { createHash, randomUUID } from "node:crypto";
+import { readFileSync, writeFileSync, mkdirSync, openSync, closeSync, unlinkSync } from "node:fs";
+import path from "node:path";
+import { freemem } from "node:os";
+import { assistEligible } from "../packages/backend/src/operations/extraction-assist.ts";
+
+const exec = promisify(execFile);
+const root = path.resolve(import.meta.dirname, "..");
+const { values } = parseArgs({ options: { config: { type: "string" }, "run-seconds": { type: "string" } } });
+if (!values.config) throw new Error("--config must name a private JSON file outside the repository");
+const configPath = path.resolve(values.config);
+if (configPath === root || configPath.startsWith(root + path.sep)) throw new Error("Keep private helper configuration outside the repository");
+const config = JSON.parse(readFileSync(configPath, "utf8")) as { host: string; hostKeyAlias: string; identityFile: string; localPort: number; stateDirectory: string };
+if (!/^[a-z0-9_.-]+@[a-z0-9.-]+$/i.test(config.host) || !/^[a-z0-9.-]+$/i.test(config.hostKeyAlias)
+    || !Number.isInteger(config.localPort) || config.localPort < 1024 || config.localPort > 65535
+    || !path.isAbsolute(config.identityFile) || !path.isAbsolute(config.stateDirectory)) throw new Error("Invalid private helper configuration");
+const stateDirectory = path.resolve(config.stateDirectory);
+if (stateDirectory === root || stateDirectory.startsWith(root + path.sep)) throw new Error("Keep helper state outside the repository");
+const duration = values["run-seconds"] === undefined ? 0 : Number(values["run-seconds"]);
+if (!Number.isInteger(duration) || duration < 0 || duration > 600) throw new Error("Finite trial must be between 1 and 600 seconds; omit for read-only check");
+if (process.platform !== "win32") throw new Error("This supervisor currently verifies Windows AC power only");
+const sshArgs = ["-i", config.identityFile, "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", "-o", "ServerAliveInterval=5",
+  "-o", "ServerAliveCountMax=2", "-o", `HostKeyAlias=${config.hostKeyAlias}`];
+const clean = await exec("git", ["status", "--porcelain", "--untracked-files=normal"], { cwd: root });
+if (clean.stdout.trim()) throw new Error("Refusing a dirty runtime checkout");
+const release = (await exec("git", ["rev-parse", "HEAD"], { cwd: root })).stdout.trim();
+const files = (await exec("git", ["ls-files", "apps/worker/src", "packages/backend/src", "packages/contracts/src", "industry", "package-lock.json"], { cwd: root })).stdout.trim().split(/\r?\n/)
+  .filter(file => /\.(ts|json|md)$/.test(file));
+const manifest = files.map(file => ({ file, sha256: createHash("sha256").update(readFileSync(path.join(root, file), "utf8").replace(/\r\n/g, "\n")).digest("hex") }));
+const wireManifest = JSON.stringify(manifest);
+const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+async function remote(command: string, input?: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const proc = spawn("ssh", [...sshArgs, config.host, command], { windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
+    let output = "";
+    const timeout = setTimeout(() => { proc.kill(); reject(new Error("Remote evidence timed out")); }, 10_000);
+    proc.stdout.on("data", data => { output += data; if (output.length > 256_000) proc.kill(); });
+    proc.stderr.resume(); // Never echo remote environment or credential diagnostics.
+    proc.once("error", () => { clearTimeout(timeout); reject(new Error("SSH unavailable")); });
+    proc.once("exit", code => { clearTimeout(timeout); code === 0 ? resolve(output) : reject(new Error("Remote evidence unavailable")); });
+    proc.stdin.on("error", () => {});
+    proc.stdin.end(input);
+  });
+}
+async function sample() {
+  const at = Date.now();
+  const [wire, power] = await Promise.all([
+    remote("sudo -n python3 /opt/geohot/app/deploy/geohot/probe-extraction-assist.py", wireManifest),
+    exec("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SystemInformation]::PowerStatus.PowerLineStatus.ToString()"], { windowsHide: true, timeout: 5000 }),
+  ]);
+  return { ...JSON.parse(wire), at, localFreeMiB: freemem() / 1048576, onAC: power.stdout.trim() === "Online" };
+}
+const first = await sample();
+console.log(JSON.stringify({ mode: duration ? "finite-trial" : "read-only", release, eligible: assistEligible(first), resources: first }));
+if (!duration || !assistEligible(first)) process.exit(duration ? 2 : 0);
+
+mkdirSync(config.stateDirectory, { recursive: true });
+const lock = path.join(config.stateDirectory, "extraction-assist.lock");
+const lease = path.join(config.stateDirectory, "extraction-assist-lease.json");
+const lockFd = openSync(lock, "wx", 0o600); // Stale lock needs deliberate operator inspection, never PID-based stealing.
+writeFileSync(lockFd, JSON.stringify({ pid: process.pid, release, at: new Date().toISOString() }));
+closeSync(lockFd);
+let child: ReturnType<typeof spawn> | undefined;
+let tunnel: ReturnType<typeof spawn> | undefined;
+let tunnelExited: Promise<void> | undefined;
+let childExited: Promise<number | null> | undefined;
+let stop = false;
+const progress = { handled: 0, fullBodiesStored: 0, handedBack: 0 };
+for (const signal of ["SIGINT", "SIGTERM"] as const) process.on(signal, () => { stop = true; });
+let exitCode = 0;
+try {
+  // A single good snapshot cannot open intake after a pressure spike.
+  for (let n = 0; n < 4; n++) {
+    await pause(15_000);
+    if (stop || !assistEligible(await sample())) throw new Error("Admission did not stay healthy for 60 seconds");
+  }
+  // Fetch only the database credential, in memory. No auth/model/device credentials are copied.
+  const credentials = JSON.parse(await remote("cd /opt/geohot/app && sudo -n -u geohot node --env-file=.env --input-type=module -e 'console.log(JSON.stringify({databaseUrl:process.env.DATABASE_URL}))'")) as { databaseUrl: string };
+  const database = new URL(credentials.databaseUrl);
+  if (!['postgres:', 'postgresql:'].includes(database.protocol) || !["127.0.0.1", "localhost"].includes(database.hostname) || database.port && database.port !== "5432") throw new Error("Unexpected server database endpoint");
+  database.hostname = "127.0.0.1"; database.port = String(config.localPort);
+  tunnel = spawn("ssh", [...sshArgs, "-o", "ExitOnForwardFailure=yes", "-N", "-L", `127.0.0.1:${config.localPort}:127.0.0.1:5432`, config.host], { windowsHide: true, stdio: "ignore" });
+  tunnelExited = new Promise(resolve => {
+    const ended = () => { if (!stop) exitCode = 2; stop = true; resolve(); };
+    tunnel!.once("exit", ended); tunnel!.once("error", ended);
+  });
+  await pause(1000);
+  const evidence = await sample();
+  if (stop || !assistEligible(evidence)) throw new Error("Admission closed before worker startup");
+  writeFileSync(lease, JSON.stringify(evidence), { mode: 0o600 });
+  child = spawn(process.execPath, ["apps/worker/src/main.ts"], { cwd: root, windowsHide: true, stdio: ["ignore", "pipe", "pipe", "ipc"],
+    env: { SystemRoot: process.env.SystemRoot, PATH: process.env.PATH, TEMP: process.env.TEMP, TMP: process.env.TMP,
+      DATABASE_URL: database.toString(), DATABASE_POOL_MAX: "1", PGBOSS_POOL_MAX: "1", EXTRACT_CONCURRENCY: "1",
+      WORKER_ROLE: "extraction-executor", COLLECT_ENABLED: "true", MODEL_CALLS_ENABLED: "false", JINA_BODY_FALLBACK: "false",
+      NODE_ENV: "production", AIHOT_ENVIRONMENT: "production", SITE_URL: "https://xxc2007.me/geohot", TZ: "Asia/Shanghai",
+      AIHOT_RELEASE: release, AIHOT_CREDENTIALS_DIR: path.join(config.stateDirectory, `no-credentials-${randomUUID()}`), GEOHOT_ASSIST_LEASE_FILE: lease,
+      FEISHU_CONTENT_PUSH_ENABLED: "false", INDEXNOW_SUBMIT_ENABLED: "false", ALLOW_PRIVATE_NETWORK_FETCH: "false" } });
+  child.stdout!.resume(); child.stderr!.resume();
+  childExited = new Promise(resolve => {
+    child!.once("exit", code => { if (!stop) exitCode = 3; stop = true; resolve(code); });
+    child!.once("error", () => { stop = true; resolve(1); });
+  });
+  child.on("message", message => {
+    if (message && typeof message === "object" && "type" in message && message.type === "geohot:extracted" && "state" in message) {
+      progress.handled++;
+      if (message.state === "ok") progress.fullBodiesStored++;
+      if (message.state === "server-fallback") progress.handedBack++;
+    }
+  });
+  const until = Date.now() + duration * 1000;
+  while (!stop && Date.now() < until) {
+    await pause(5000);
+    const evidence = await sample();
+    if (stop || Date.now() >= until || !assistEligible(evidence)) { stop = true; break; }
+    writeFileSync(lease, JSON.stringify(evidence), { mode: 0o600 });
+  }
+} catch {
+  exitCode = 2;
+  console.log(JSON.stringify({ state: "admission-closed" }));
+} finally {
+  stop = true;
+  try { writeFileSync(lease, "{}", { mode: 0o600 }); } catch { exitCode = 3; }
+  if (child && child.exitCode === null && child.connected) child.send({ type: "geohot:shutdown" }, () => {});
+  if (childExited) {
+    let timeout: NodeJS.Timeout | undefined;
+    const result = await Promise.race([childExited.then(code => ({ code })), new Promise<null>(resolve => { timeout = setTimeout(() => resolve(null), 275_000); })]);
+    clearTimeout(timeout);
+    if (!result) { child!.kill(); await childExited; exitCode = 3; }
+    else if (result.code !== 0) exitCode = 3;
+  }
+  tunnel?.kill(); if (tunnelExited) await tunnelExited;
+  try { unlinkSync(lease); } catch { exitCode = 3; }
+  if (exitCode !== 3) { try { unlinkSync(lock); } catch { exitCode = 3; } }
+  console.log(JSON.stringify({ state: exitCode === 3 ? "isolated" : "stopped", progress, release }));
+}
+process.exitCode = exitCode;
