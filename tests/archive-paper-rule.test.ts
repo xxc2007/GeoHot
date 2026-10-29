@@ -40,7 +40,7 @@ const NEXT_KEY = addDays(DAY_KEY, 1);
 // question is whether the archived paper is in the printed edition at all.
 const provider = await stub(() => ({
   id: `archive-paper-${T}`,
-  choices: [{ message: { content: JSON.stringify({ title: "测试导语", leadParagraph: "测试本期摘要。".repeat(20), highlights: [1], headline: "测试期次", overview: "测试本期摘要。".repeat(20), themes: [{ heading: "学科", summary: "测试主题提要", refs: [1] }] }) } }],
+  choices: [{ message: { content: JSON.stringify({ title: "测试导语", leadParagraph: "测试本期摘要。".repeat(20), highlights: [1], headline: "测试期次", overview: "测试本期摘要。".repeat(20), themes: [{ heading: "学科", summary: "测试主题提要", refs: [1, 2, 3] }] }) } }],
   usage: { prompt_tokens: 20, completion_tokens: 20, total_tokens: 40 },
 }));
 process.env.LLM_BASE_URL = `${provider.url}/v1`;
@@ -60,7 +60,7 @@ async function seed(label: string, publishedAt: Date | null, discoveredAt: Date,
     sourceId: SOURCE,
     url: `https://example.com/archive-paper-${T}-${label}`,
     title: `Archive paper rule ${label}`,
-    bodyText: `Abstract text for ${label}. `.repeat(6),
+    bodyText: `完整的中文历史研究正文 ${label}。`.repeat(6),
     bodyStatus: "ok",
     publishedAt,
     discoveredAt,
@@ -92,8 +92,8 @@ before(async () => {
   await sql`DELETE FROM articles WHERE source_id LIKE ${"test-archive-paper-%"}`;
   await sql`DELETE FROM sources WHERE id LIKE ${"test-archive-paper-%"}`;
   await dropPeriods();
-  await sql`INSERT INTO sources (id, name, kind, tier, participation_mode, next_fetch_at)
-            VALUES (${SOURCE}, 'Archive paper test', 'rss', 'T1', 'editorial', '2100-01-01')`;
+  await sql`INSERT INTO sources (id, name, kind, tier, participation_mode, site_fulltext, next_fetch_at)
+            VALUES (${SOURCE}, 'Archive paper test', 'rss', 'T1', 'editorial', true, '2100-01-01')`;
 });
 after(async () => {
   await sql`DELETE FROM articles WHERE source_id = ${SOURCE}`;
