@@ -163,6 +163,16 @@ export async function collectFindings(now = Date.now()): Promise<Finding[]> {
 
 const MODEL_STOPS = "用到这家模型的步骤停了（看后台“模型与评测”），新内容可能进不了精选";
 const PROVIDERS: Record<string, { name: string; stops: string; where: string }> = {
+  raccoon: {
+    name: "商汤小浣熊",
+    stops: "小浣熊模型承担的分析、翻译和组稿暂缓，其他健康模型继续按预算接单",
+    where: "网站后台 magpie 的商汤小浣熊供应商与账户额度",
+  },
+  "qoder-global": {
+    name: "Qoder 国际版",
+    stops: "国际版 Qoder 模型承担的内容任务暂缓，国内版与其他健康供应商独立运行",
+    where: "网站后台 magpie 的 Qoder 国际版账户与授权状态",
+  },
   llm: { name: "默认模型服务", stops: "新文章的精选、摘要、归组和日报停了", where: "模型服务商的控制台" },
   zhipu: { name: "智谱", stops: MODEL_STOPS, where: "智谱开放平台" },
   dashscope: { name: "阿里云百炼", stops: MODEL_STOPS, where: "阿里云百炼控制台" },

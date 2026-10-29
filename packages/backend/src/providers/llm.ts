@@ -65,6 +65,23 @@ export function headroomFor(spec: ModelSpec, purpose: string): number {
 }
 
 export const MODELS: Record<string, ModelSpec> = {
+  // Only the three explicitly selected free Raccoon models. One account shares one budget.
+  "raccoon-sensenova-flash": {
+    key:"raccoon-sensenova-flash",service:"raccoon",model:"raccoon/sn-sensenova-6-8-flash",
+    baseUrlEnv:"RACCOON_BASE_URL",apiKeyEnv:"RACCOON_API_KEY",
+    extra:{reasoning_effort:"max"},jsonMode:true,vision:true,reasoningHeadroom:8_000,
+  },
+  "raccoon-sensenova-flash-lite": {
+    key:"raccoon-sensenova-flash-lite",service:"raccoon",model:"raccoon/sn-sensenova-6-8-flash-lite",
+    baseUrlEnv:"RACCOON_BASE_URL",apiKeyEnv:"RACCOON_API_KEY",
+    extra:{reasoning_effort:"max"},jsonMode:true,vision:true,reasoningHeadroom:8_000,
+  },
+  "raccoon-deepseek-1017": {
+    key:"raccoon-deepseek-1017",service:"raccoon",model:"raccoon/sn-deepseek-v4-1-flash-1017",
+    baseUrlEnv:"RACCOON_BASE_URL",apiKeyEnv:"RACCOON_API_KEY",
+    extra:{reasoning_effort:"max"},jsonMode:true,vision:true,
+    reasoningHeadroom:{default:20_000,summarize_article:32_000,translate_quoted:11_264},
+  },
   // Read from the environment at call time.
   default: {
     key: "default", service: "llm", baseUrlEnv: "LLM_BASE_URL", apiKeyEnv: "LLM_API_KEY",
@@ -292,9 +309,9 @@ export const MODELS: Record<string, ModelSpec> = {
   },
   // 2026-10-23: remove only domestic 3066 DeepSeek; preserve all other model parameters.
 
-  // ── Qoder CN (maggie gateway on the workstation, reached through a reverse tunnel) ───────────────────
+  // ── Qoder CN (magpie gateway on the workstation, reached through a reverse tunnel) ───────────────────
   //
-  // What this door is: the operator's own Qoder CN subscription behind `maggie`, an OpenAI-compatible
+  // What this door is: the operator's own Qoder CN subscription behind `magpie`, an OpenAI-compatible
   // gateway that listens on the workstation's loopback and nowhere else. Production reaches it over
   // `ssh -R 127.0.0.1:3425:127.0.0.1:3425`, so these presets are only *configured* on hosts where
   // QODER_CN_BASE_URL is set; unset keys make each member simply unusable and the pool falls back to the
@@ -349,8 +366,22 @@ export const MODELS: Record<string, ModelSpec> = {
     reasoningHeadroom: { default: 16_000, summarize_article: 32_000, translate_quoted: 8_000 },
   },
 
+  // Global Qoder subscriptions have their own credentials and breaker, separate from CN.
+  "qoder-global-dfmodel": {
+    key: "qoder-global-dfmodel", service: "qoder-global", model: "qoder/dfmodel",
+    baseUrlEnv: "QODER_GLOBAL_BASE_URL", apiKeyEnv: "QODER_GLOBAL_API_KEY",
+    extra: { reasoning_effort: "max" }, jsonMode: true, vision: false,
+    reasoningHeadroom: { default: 16_000, summarize_article: 32_000, translate_quoted: 8_000 },
+  },
+  "qoder-global-qfmodel": {
+    key: "qoder-global-qfmodel", service: "qoder-global", model: "qoder/qfmodel",
+    baseUrlEnv: "QODER_GLOBAL_BASE_URL", apiKeyEnv: "QODER_GLOBAL_API_KEY",
+    extra: { reasoning_effort: "xhigh" }, jsonMode: true, vision: false,
+    reasoningHeadroom: { default: 16_000, summarize_article: 32_000, translate_quoted: 8_000 },
+  },
+
   // ── WorkBuddy AI（国际版）的三把模型，走同一台 magpie 网关 ──────────────────────────────
-  // 站长 WorkBuddy AI 国际版订阅里的模型，经 `maggie` 网关（OpenAI 兼容，工作站 loopback:3425）
+  // 站长 WorkBuddy AI 国际版订阅里的模型，经 `magpie` 网关（OpenAI 兼容，工作站 loopback:3425）
   // 暴露；生产通过反向隧道 `ssh -R 127.0.0.1:3425:127.0.0.1:3425` 访问，与 qoder-cn 共用同一条隧道。
   // 单独开 service `workbuddy-ai`：熔断器/健康账本/拒绝账本都按 service 记账，这份额度撞墙时
   // 不该让站点以为 qoder 或中国版 WorkBuddy 也倒了。
@@ -385,6 +416,81 @@ export const MODELS: Record<string, ModelSpec> = {
     // 否则 headroom 归零、score 被压到 1,024。用 max 同时满足判据和站长的质量要求。
     extra: { reasoning_effort: "max" }, jsonMode: true, vision: true,
     reasoningHeadroom: { default: 20_000, summarize_article: 32_000, translate_quoted: 11_264 },
+  },
+
+  // ── CodeArts（站长当前会话所用的那条通道）────────────────────────────────────────────
+  // 2026-10-24 站长指令：「把当前运行的这个模型 DeepSeek-V4.1-Flash · CodeArts Max 接入 geohot
+  // 网站的方方面面，用最大的上下文和思考强度，确保发挥最大性能……接入到网站的模型池里」。
+  // 网关目录（工作站 magpie，回环 127.0.0.1:3425，生产靠反向隧道到达）里这一档的真实 id 是
+  // `codearts/deepseek-v4.1-flash`，owned_by=codearts。它与 workbuddy-ai 那档是**同一个上游模型、
+  // 另一份额度**（CodeArts Max 计划自己的一把），所以另开 service `codearts`：熔断器、健康账本、
+  // 拒绝账本三样都按 service 记账，这一门撞墙时站点不该以为 WorkBuddy 国际版也倒了——与 0064 给
+  // WorkBuddy 中国版单开一行、0074 给 qoder-cn 单开一行是同一条理由。
+  //
+  // 容量（2026-10-24 网关 /v1/models 实测，不是估算）：
+  //   • 上下文 / 最大输入 **1,048,576（1M）** —— 全站最大的输入窗。长文摘要、整篇翻译、日报/周报
+  //     这几步的整段正文都塞得下，不必再靠分段裁切（`body-cap` / 分块那些护栏仍然是安全网，但
+  //     在这扇门上不会成为质量上限）。
+  //   • max_output **65,536** —— 恰好等于本文件的 `MAX_OUTPUT_TOKENS`，也就是下游的截断阈值与
+  //     这扇门的真实上限重合：不会出现"提示词要求 8,000、上游只给 4,096"的静默降级。
+  //   • reasoning_levels ["minimal","low","medium","high","xhigh","max"]、modalities 含 image。
+  //
+  // effort：按站长 2026-10-22 的硬指令（「不要调推理，一定要用最大的推理强度，确保模型发挥最大
+  // 性能，保证模型工作流的质量」）取上游自己列出的最高档 `max`，不降档、不猜别名。
+  // reasoningHeadroom 先沿用同上游模型 workbuddy-ai-deepseek-flash 的实测值（20k/32k/11,264），
+  // 待本门在 receipts 上跑出真实的隐藏推理量后再按证据校正——headroom 是"预算"，不是"限制"，
+  // 偏大只多花钱和时间，偏小才会把 JSON 截断。
+  "codearts-deepseek-v4.1-flash": {
+    key: "codearts-deepseek-v4.1-flash", service: "codearts", model: "codearts/deepseek-v4.1-flash-1017",
+    baseUrlEnv: "CODEARTS_BASE_URL", apiKeyEnv: "CODEARTS_API_KEY",
+    extra: { reasoning_effort: "max" }, jsonMode: true, vision: true,
+    reasoningHeadroom: { default: 20_000, summarize_article: 32_000, translate_quoted: 11_264 },
+  },
+
+  // ── MiniMax Code（站长当前会话所用的那条通道：M3.1-Flash 订阅限免）───────────────────────
+  // 2026-10-24 站长指令：「把当前运行的这个模型接入 geohot 网站的方方面面……接入到网站的模型池里，
+  // 用最大的上下文和思考强度，确保发挥最大性能，辅助网站的运行工作流」。网关目录（工作站 magpie，
+  // 回环 127.0.0.1:3425，生产靠反向隧道到达）里这一档的真实 id 是
+  // `minimax-code/MiniMax-M3.1-Flash`，owned_by=minimax-code，display「M3.1-Flash（订阅限免）」。
+  // 与 workbuddy-ai / codearts 那两档一样是**同一条隧道后面的另一个订阅额度桶**（MiniMax Code Max
+  // 计划自己的一把），所以另开 service `minimax-code`——与 0064 中国版、0074 qoder-cn、0088 codearts
+  // 同一条理由：checkBudget() 按 service 判，sickServices() 按 (service, model) 分区，这一门撞墙时
+  // 站点不该以为别的门也倒了。
+  //
+  // 实测（2026-10-24 工作站直连 127.0.0.1:3425 共 12 组；服务器侧同脚本复核 61 条记录，全 200、零 429）：
+  //   • 上下文 / 最大输入 **1,048,576（1M）**，**而且是真能吃下去的那种**：20 万字符（100,218
+  //     prompt token）一次请求 200——工作站侧 4.8 s、生产机侧 10.1 s（cached_tokens 100,217）。
+  //     这一门的窗不会成为上游拒收的理由——**要真吃满，得先改流水线自己的装配**
+  //     （结构步在 editorial/input.ts:94 把正文截到 7,000 字，翻译按 parts 分段、输出封 8,000 token），
+  //     那是另一轮授权。
+  //   • max_output **524,288** —— 比本文件的 MAX_OUTPUT_TOKENS（65,536）还大 8 倍，所以本流水线
+  //     的截断阈值永远是更紧的那一道；不会出现"提示词要 8,000、上游只给 4,096"的静默降级。
+  //   • JSON 模式可用：`response_format: {type:"json_object"}` 两次都出可解析 JSON（宽松版与严格
+  //     schema 版都过），站点每一步的 zod 校验吃得下。
+  //   • **思考是常开的**（网关目录 reasoning.onlyReasoning=true、canDisableThinking=false）：五种
+  //     旋钮拼写（reasoning_effort=max / effort=low / thinking:{type:"enabled"} / reasoning_split /
+  //     一个旋钮都不给）实测**行为完全一样**（隐藏推理 8,387–8,833 字符、墙钟 20–22 s）——这一档没有
+  //     "档位"可调。所以 extra 里仍然写 reasoning_effort: "max"：一是执行站长"最大思考强度"的字面指令，
+  //     二是本文件的 headroom 判据（requestFor 里的 /reasoning_effort|"thinking"/ 正则）要求 extra 带
+  //     旋钮，否则 headroom 归零、score 那一档会被压到 1,024 token。
+  //   • **max_tokens 被严守**（请求 16 → completion_tokens=16、finish_reason=length），但**推理与正文
+  //     争同一份预算**："max_tokens=2000" 那组四种旋钮全部 finish_reason=length、content 是字面量
+  //     "null"——思考把整份预算吃光，答案没出来。所以这一门的余量**故意比 codearts 那档宽**
+  //     （32k/48k/11,264，而不是 20k/32k/11,264）：max_tokens 是上限不是账单，宽余量只多花实际生成的
+  //     那部分；窄余量会把 JSON 截断成 "null"，那一步直接废掉（回执被拒、下次重试另付费）。
+  //     translate_quoted 仍保持 11,264——那一步有 120 s 的钟，思考烧太久是超时而不是截断。
+  //   • 速度是全站最快的门：短提示 p50 约 1.5–2.0 s（codearts 6.4 s、workbuddy-ai 2.9 s）；并发
+  //     8/16/24 全部 200、**24 路零 429**，总墙钟 2.7 s（服务器侧复核：61 条记录全 200、零 429）。
+  //   • 网关会报 prompt_tokens_details.cached_tokens（197–232），说明上游有提示词缓存。
+  //   • **一个已知的计量坑**：usage.completion_tokens_details.reasoning_tokens 恒为 0（61/61），
+  //     尽管响应里带着 reasoning_content（实测 45–8,833 字符）。也就是这一门**真实的思考量在账本上
+  //     显示为 0**——站点"隐藏推理占比"这个指标对这一门会偏低，读数时按 reasoning_content 长度另算；
+  //     截断明细里那行 `"0 of them hidden chain"` 同理，**别读成"没推理"**。
+  "minimax-code-m3.1-flash": {
+    key: "minimax-code-m3.1-flash", service: "minimax-code", model: "minimax-code/MiniMax-M3.1-Flash",
+    baseUrlEnv: "MINIMAX_CODE_BASE_URL", apiKeyEnv: "MINIMAX_CODE_API_KEY",
+    extra: { reasoning_effort: "max" }, jsonMode: true, vision: true,
+    reasoningHeadroom: { default: 32_000, summarize_article: 48_000, translate_quoted: 11_264 },
   },
 };
 
