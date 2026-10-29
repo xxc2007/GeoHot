@@ -1,7 +1,7 @@
 // The day-grouped feed (精选 home, topics): a time rail with cards on desktop, dated rows under grey
 // day bars on phones. Keeps its place across back navigation and keeps loading the next page as the
 // reader nears the end, so the whole list is one continuous scroll — there is no "加载更多" to click.
-// There is no "new items" prompt either: readers refresh for the latest head (feedback #1199).
+// The head refreshes quietly while idle at the top; reading/back-navigation keeps its place.
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigation } from "react-router";
 import { Collapse } from "../../components/ui/Presence";
@@ -12,6 +12,7 @@ import { RingMark } from "../../components/Logo";
 import { EmptyState } from "../../components/ui/Page";
 import { beijingDate, beijingTime, beijingWeekday, dayLabel, todayOf } from "../../lib/format";
 import { publicPath } from "../../lib/public-path";
+import { atQuietPageHead } from "../../lib/live-refresh";
 import { markRead, useReadSet } from "../../lib/local-state";
 import { isHydrated, isReload, markHydrated, readSnapshot, restoreAnchor, saveSnapshot } from "./restore";
 
@@ -148,9 +149,12 @@ export function Timeline({ initial, filters }: { initial: TimelineResponse; filt
   // filter already visited restores what that history entry had loaded and folded; a new one starts over.
   const filterKey = filterQuery(filters);
   const lastFilterKey = useRef(filterKey);
+  const lastInitial = useRef(initial);
   const pageRequest = useRef<AbortController | null>(null);
   useEffect(() => () => pageRequest.current?.abort(), []);
   useLayoutEffect(() => {
+    const changed = lastInitial.current !== initial;
+    lastInitial.current = initial;
     if (lastFilterKey.current !== filterKey) {
       lastFilterKey.current = filterKey;
       pageRequest.current?.abort();
@@ -163,6 +167,11 @@ export function Timeline({ initial, filters }: { initial: TimelineResponse; filt
       } else {
         setState(fromResponse(initial));
       }
+    } else if (changed && navigation.state === "idle" && !pageRequest.current && atQuietPageHead()) {
+      setState(prev => ({ ...fromResponse(initial), collapsed: prev.collapsed }));
+      setStalled(false);
+      setLoadError(false);
+      setFreshKeys(new Set());
     }
   }, [filterKey, initial, historyKey]);
 

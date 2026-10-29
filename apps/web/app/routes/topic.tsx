@@ -7,6 +7,7 @@ import { breadcrumbLd, pageMeta, titled } from "../lib/seo";
 import { DayList, Pagination } from "../features/feed/DayList";
 import { todayOf } from "../lib/format";
 import { EmptyState, MoreLink } from "../components/ui/Page";
+import { useLivePublicData } from "../lib/use-live-public-data";
 
 /** Selected items of a topic: shared caches keep the page as long as its api answer (one minute). */
 export function headers() {
@@ -45,7 +46,8 @@ export function meta({ loaderData }: Route.MetaArgs) {
 }
 
 export default function TopicPage() {
-  const { data } = useLoaderData<typeof loader>();
+  const { data: initial } = useLoaderData<typeof loader>();
+  const data = useLivePublicData(initial, initial.page === 1 ? `/api/site/topics/${encodeURIComponent(initial.topic.slug)}?page=1` : null);
   const { topic, items, page, pageCount } = data;
   const href = (p: number) => (p <= 1 ? `/topics/${topic.slug}` : `/topics/${topic.slug}/page/${p}`);
   const first = (page - 1) * 20 + 1;
