@@ -207,13 +207,20 @@ export function pageFetchable(url: string, sourceKind: string): boolean {
 }
 
 /** Fetches and stores the body of one article. Unconfirmed bodies are recorded as such. */
-export async function extractArticleBody(articleId: string, allowJina = process.env.JINA_BODY_FALLBACK !== "false"): Promise<"ok" | "unconfirmed" | "skipped"> {
+export async function extractArticleBody(articleId: string, allowJina = process.env.JINA_BODY_FALLBACK !== "false"): Promise<"ok" | "unconfirmed" | "skipped" | "deferred"> {
   const [a] = await sql<{ id: string; url: string; body_status: string; revision: number; x_post: { tweetId?: string } | null }[]>`
     SELECT id, url, body_status, revision, x_post FROM articles WHERE id = ${articleId}`;
   if (!a || a.body_status === "ok") return "skipped";
+  // Defence in depth if a row changes after the helper's atomic non-X claim.
+  if (process.env.WORKER_ROLE === "extraction-executor") {
+    if (a.x_post?.tweetId) return "deferred";
+    allowJina = false;
+  }
   if (a.x_post?.tweetId) return extractXArticle(a.id, a.x_post.tweetId);
   const got = await extractFromUrl(a.url, { allowJina, subject: `article:${a.id}` });
   if (!got) {
+    // A PC's region/network or lack of paid fallback cannot downgrade the server's pending body.
+    if (process.env.WORKER_ROLE === "extraction-executor") return "deferred";
     await sql`UPDATE articles SET body_status = 'unconfirmed', updated_at = now() WHERE id = ${articleId} AND body_status <> 'ok'`;
     return "unconfirmed";
   }

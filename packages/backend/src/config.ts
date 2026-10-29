@@ -88,6 +88,14 @@ export function assertContentExecutorValves(): void {
   }
 }
 
+/** A public-page helper must not silently acquire a paid fallback or an analysis consumer. */
+export function assertExtractionExecutorValves(): void {
+  if (!env.COLLECT_ENABLED || !isCollectEnabled() || env.MODEL_CALLS_ENABLED !== "false"
+      || env.JINA_BODY_FALLBACK !== "false") {
+    throw new Error("extraction-executor requires COLLECT_ENABLED=true, MODEL_CALLS_ENABLED=false and JINA_BODY_FALLBACK=false");
+  }
+}
+
 /** Loopback addresses: right on the developer's machine, wrong for anything a reader can reach. */
 const LOCAL_HOST = /^(?:localhost|127\.\d+\.\d+\.\d+|\[?::1\]?)$/i;
 
