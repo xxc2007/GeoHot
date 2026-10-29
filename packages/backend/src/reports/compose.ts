@@ -469,10 +469,11 @@ async function composePeriod(kind: "weekly" | "monthly", key: string, startDate:
           heading: t.heading,
           summary: t.summary,
           storyRefs: t.refs.map((r) => top[Number(r) - 1]).filter((e): e is Candidate => !!e).map(({ category: _c, factKey: _f, inputRevision: _r, ...e }) => e),
-        }));
+        })).filter(t=>t.storyRefs.length>0);
         // The 大标题 names what the issue is about, which is the judgement the identity guard exists for: it
         // may only say what this issue's own entries say, or the issue keeps its generic name.
         headline = guardedStoryTitle(res.data.headline, entriesIdentity(top)) ?? "";
+        if (!themes.length) { headline="";overview="";proseRule="model-empty-references"; }
       } else {
         proseRule = rule ?? "no-signed-copy";
       }
@@ -490,13 +491,13 @@ async function composePeriod(kind: "weekly" | "monthly", key: string, startDate:
     ...(headline ? { headline } : {}),
     ...(overview ? { overview } : {}),
     themes,
-    storyOrder: top.map((e) => e.itemId),
+    storyOrder: [...new Set(themes.flatMap(t=>t.storyRefs.map(e=>e.itemId)))],
     metrics: { totalStories: themes.reduce((n, t) => n + t.storyRefs.length, 0), selectedCount: all.length, reportsCovered: Number(dailyCount) },
     generator: { version: REPORT_VERSION, model, inputFingerprint: fingerprint, proseRule },
   };
   await saveReport(kind, key, start, end, content, reason, model);
   if (receiptId) await completeReceipt(sql, receiptId);
-  return { key, entries: top.length };
+  return { key, entries: content.storyOrder.length };
 }
 
 export async function composeWeekly(label: string, reason = "scheduled", skipUnchanged = false) {

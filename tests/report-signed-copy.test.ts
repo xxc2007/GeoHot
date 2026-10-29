@@ -212,3 +212,17 @@ test("日报导语那一步答不出 JSON：期照出，退回读层自己的三
   assert.equal(content!.generator.leadRule, "model-unparsable", "拒绝原因与周报同一口径");
   assert.equal(content!.sections.flatMap((s: any) => s.items).length, 2, "条目一条不少");
 });
+
+test("周月报主题没有有效引用时保留完整候选分栏，不生成空刊", async () => {
+  for(const refs of [[],[999]]) {
+    await fresh(PERIOD_SUBJECT);
+    brain={fixture:`empty-refs-${T}`,author:`编辑${T}`,rule:null};
+    answer={headline:"水文监测进展",overview:"完整的中文水文观测综述。",themes:[{heading:"水文观测",summary:"完整的主题说明。",refs}]};
+    const result=await composeWeekly(WEEK,"workflow-integrity-repair");
+    const content=await contentOf("weekly",WEEK);
+    assert.equal(result.entries,2);
+    assert.equal(content!.themes.flatMap((t:{storyRefs:unknown[]})=>t.storyRefs).length,2);
+    assert.equal(content!.storyOrder.length,2);
+    assert.equal(content!.overview,undefined,"无有效引用的模型综述不冒充经过核验的报刊内容");
+  }
+});
