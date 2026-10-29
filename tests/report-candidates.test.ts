@@ -304,7 +304,7 @@ test("historical repair versions the old edition, uses complete candidates and r
   assert.equal((await sql`SELECT revision FROM reports WHERE id=${r!.id}`)[0]!.revision,2);
   const all=(await reportInput('daily',key)).all;
   await sql`INSERT INTO reports(kind,key,window_start,window_end,content,generated_at,origin)
-    VALUES('daily',${issue(4)},${at(4)},${at(5)},${sql.json({sections:[],flashes:all})},now(),'manual')
+    VALUES('daily',${issue(4)},${at(4)},${at(5)},${sql.json({sections:[],flashes:all.map(c=>({itemId:c.itemId,factId:c.factId}))})},now(),'manual')
     ON CONFLICT(kind,key) DO UPDATE SET content=EXCLUDED.content`;
   const waiting=await repairReportWorkflow({kind:'daily',key});
   assert.equal('outcome' in waiting && waiting.outcome,'waiting-for-material');
