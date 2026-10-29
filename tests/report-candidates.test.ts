@@ -310,4 +310,23 @@ test("historical repair versions the old edition, uses complete candidates and r
   assert.equal('outcome' in waiting && waiting.outcome,'waiting-for-material');
   assert.equal((await sql`SELECT revision FROM reports WHERE id=${r!.id}`)[0]!.revision,2,'deduplication leaving zero usable references must preserve the old edition');
   assert.equal(provider.hits(),afterRepairHits);
+  const cursorKey='report_workflow_repair_v1_cursor',stampKey=`report_workflow_repair_v1:daily:${key}`;
+  const [savedCursor]=await sql`SELECT value FROM settings WHERE key=${cursorKey}`;
+  try {
+    await sql`INSERT INTO settings(key,value) VALUES(${cursorKey},${sql.json({kind:'daily',key:'1900-01-01',rank:2})})
+      ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value`;
+    await sql`UPDATE settings SET value=${sql.json({outcome:'retry-wait',retryAt:new Date(Date.now()+3_600_000).toISOString()})} WHERE key=${stampKey}`;
+    const cooling=await repairReportWorkflow({kind:'daily',key});
+    assert.equal('wrapped' in cooling && cooling.wrapped,true,'future retries must respect cooling even with an explicit target');
+    await sql`UPDATE settings SET value=${sql.json({outcome:'retry-wait',retryAt:new Date(Date.now()-60_000).toISOString()})} WHERE key=${stampKey}`;
+    const due=await repairReportWorkflow();
+    assert.ok(!('wrapped' in due),'a due retry must be revisited even when the historical cursor is past it');
+    const [retried]=await sql`SELECT value FROM settings WHERE key=${stampKey}`;
+    assert.equal(retried!.value.outcome,'waiting-for-material');
+    assert.equal((await sql`SELECT revision FROM reports WHERE id=${r!.id}`)[0]!.revision,2);
+    assert.equal(provider.hits(),afterRepairHits,'retry selection cannot bypass deduplication or buy an empty report');
+  } finally {
+    if(savedCursor) await sql`INSERT INTO settings(key,value) VALUES(${cursorKey},${sql.json(savedCursor.value)}) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value`;
+    else await sql`DELETE FROM settings WHERE key=${cursorKey}`;
+  }
 });
