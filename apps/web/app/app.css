@@ -528,7 +528,11 @@
   padding: 0.1em 0.35em;
   border-radius: var(--radius-mark);
 }
+.prose { min-width: 0; overflow-wrap: anywhere; }
 .prose pre {
+  max-width: 100%;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   position: relative;
   font-family: var(--font-mono);
   font-size: 13px;
@@ -539,6 +543,7 @@
   padding: 0.9em 1em;
   overflow-x: auto;
 }
+.prose pre.bulletin-data { white-space: pre; overflow-wrap: normal; }
 .prose pre code { background: none; border: 0; padding: 0; font-size: inherit; }
 .prose table {
   display: block;

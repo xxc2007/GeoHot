@@ -1,0 +1,30 @@
+/* Admin-only containment: long provider names and wide tables must not set the page width. */
+.admin-shell { min-width: 0; width: 100%; }
+.admin-shell main, .admin-page, .admin-card, .admin-table-region { min-width: 0; max-width: 100%; }
+.admin-shell main .grid, .admin-shell main .grid > * { min-width: 0; }
+.admin-card-header > * { min-width: 0; max-width: 100%; }
+.admin-card-title { flex: 1 1 16rem; overflow-wrap: anywhere; }
+.admin-card-title span { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+.admin-card-header > div { flex-wrap: wrap; }
+.admin-shell main [class~="overflow-x-auto"] {
+  min-width: 0; max-width: 100%; overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.admin-table-scroll { width: 100%; scrollbar-width: thin; }
+.admin-table-scroll:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.admin-table-hint { display: none; }
+@media (max-width: 767px) {
+  .admin-page > header, .admin-card-header { overflow-wrap: anywhere; }
+  .admin-page > header > *, .admin-card > div { min-width: 0; max-width: 100%; }
+  .admin-card-title { flex-basis: 100%; }
+  .admin-shell main :where(p, label, pre, code) { overflow-wrap: anywhere; }
+  .admin-shell main pre { max-width: 100%; overflow-x: auto; }
+  .admin-table-hint {
+    display: block; margin: 0; padding: 8px 12px;
+    font-size: 12px; line-height: 1.5; color: var(--ink-4);
+    border-bottom: 1px solid var(--line);
+  }
+  .admin-shell main input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+  .admin-shell main select, .admin-shell main textarea { font-size: 16px; }
+  .admin-shell main img { max-width: 100%; }
+}

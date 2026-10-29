@@ -113,3 +113,12 @@ test('publisher body defects invalidate public release and return through the or
  const [job]=await sql`SELECT data FROM pgboss.job WHERE name='content.extract-body' AND data->>'articleId'=${id} AND state='created'`;assert.equal(job.data.articleId,id);
  const [body]=await sql`SELECT body_status FROM articles WHERE id=${id}`;assert.equal(body.body_status,'pending');await hidden(id);
 });
+
+test('periodical citations have a bounded independent readiness recovery lane',async()=>{
+ const id=await article();await sql`UPDATE article_workflow_readiness SET policy_version=1 WHERE article_id=${id}`;
+ const key='2200-01',cursor='workflow_readiness_v'+READER_POLICY_VERSION+'_reports_cursor';
+ await sql`DELETE FROM settings WHERE key=${cursor}`;
+ await sql`INSERT INTO reports(kind,key,window_start,window_end,content,generated_at) VALUES('monthly',${key},'2200-01-01','2200-02-01',${sql.json({themes:[{storyRefs:[{itemId:id}]}]})},now())`;
+ try{const result=await recoverWorkflowReadiness({reportsOnly:true,limit:1,budgetMs:1000});assert.equal(result.checked,1);assert.equal((await loadItemDetail(id)).kind,'found');}
+ finally{await sql`DELETE FROM reports WHERE kind='monthly' AND key=${key}`;await sql`DELETE FROM settings WHERE key=${cursor}`;}
+});

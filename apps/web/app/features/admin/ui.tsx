@@ -8,7 +8,7 @@ import { focusWhenReady, returnFocus } from "../../lib/focus-when-ready";
 
 export function AdminPage({ title, subtitle, actions, children }: { title: ReactNode; subtitle?: ReactNode; actions?: ReactNode; children: ReactNode }) {
   return (
-    <div className="mx-auto w-full max-w-[1320px] px-4 pb-24 pt-6 sm:px-6 lg:px-8 lg:pt-8">
+    <div className="admin-page mx-auto min-w-0 w-full max-w-[1320px] px-4 pb-24 pt-6 sm:px-6 lg:px-8 lg:pt-8">
       <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
           <h1 className="text-[22px] font-semibold tracking-tight text-ink sm:text-[24px]">{title}</h1>
@@ -23,10 +23,10 @@ export function AdminPage({ title, subtitle, actions, children }: { title: React
 
 export function Card({ title, right, children, className = "", pad = true }: { title?: ReactNode; right?: ReactNode; children: ReactNode; className?: string; pad?: boolean }) {
   return (
-    <section className={`rounded-panel bg-surface ring-1 ring-line ${className}`}>
+    <section className={`admin-card min-w-0 rounded-panel bg-surface ring-1 ring-line ${className}`}>
       {(title || right) && (
-        <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
-          <h2 className="text-[14px] font-semibold text-ink">{title}</h2>
+        <div className="admin-card-header flex min-w-0 flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
+          <h2 className="admin-card-title min-w-0 text-[14px] font-semibold text-ink">{title}</h2>
           {right && <div className="flex items-center gap-2 text-[12.5px] text-ink-3">{right}</div>}
         </div>
       )}
@@ -104,7 +104,9 @@ export interface Column<T> {
 export function DataTable<T>({ rows, columns, rowKey, empty = "暂无数据", onRowClick, dense }: { rows: T[]; columns: Column<T>[]; rowKey: (r: T) => string | number; empty?: ReactNode; onRowClick?: (r: T) => void; dense?: boolean }) {
   if (!rows.length) return <Empty>{empty}</Empty>;
   return (
-    <div className="overflow-x-auto">
+    <div className="admin-table-region min-w-0">
+      <p className="admin-table-hint">左右滑动查看完整表格</p>
+      <div className="admin-table-scroll overflow-x-auto" role="region" aria-label="数据表，可左右滑动查看完整列" tabIndex={0}>
       <table className="w-full min-w-[640px] border-collapse text-left text-[13px]">
         <thead>
           <tr className="border-b border-line text-[12px] text-ink-3">
@@ -131,6 +133,7 @@ export function DataTable<T>({ rows, columns, rowKey, empty = "暂无数据", on
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

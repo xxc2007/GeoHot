@@ -221,7 +221,7 @@ export function sanitizeBody(html: string, baseUrl?: string): string {
       td: ["colspan", "rowspan", "align"],
       span: [],
     },
-    allowedClasses: { code: [/^language-[\w-]+$/], pre: [/^language-[\w-]+$/] },
+    allowedClasses: { code: [/^language-[\w-]+$/], pre: [/^language-[\w-]+$/, "bulletin-data"] },
     allowedSchemes: ["http", "https"],
     allowedSchemesByTag: { img: ["http", "https", "data"] },
     allowProtocolRelative: true,

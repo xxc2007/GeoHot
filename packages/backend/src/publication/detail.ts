@@ -1,3 +1,4 @@
+import {readableBulletin} from '../content/readable-bulletin.ts';
 // Item detail and Markdown export, both behind the same visibility and licence rules.
 import type { ItemDetail, SiteItemDetail, OutlineEntry, StoryRef } from "@aihot/contracts/site";
 import * as cheerio from "cheerio";
@@ -137,8 +138,8 @@ async function buildItemDetail(id: string, now: Date, preparingMedia: boolean): 
     const isZh = bodyIsChinese(row.language, row.body_text ?? "");
     // 采集器常常只交回纯文本（RSS 的 description 之外没有 html）：这一类正文也得给读者看，
     // 否则投影说是 full、页面却什么也不渲染——读者看到的是"有正文这条不存在"。
-    const original = proxyBodyImages(dedupeConsecutiveFigures(row.body_html || (row.body_text ? textToHtml(row.body_text) : "")));
-    const zh = isZh ? original : row.tr_html && !translationTextDefect(row.tr_html) ? proxyBodyImages(dedupeConsecutiveFigures(row.tr_html)) : null;
+    const original = proxyBodyImages(readableBulletin(row.url,dedupeConsecutiveFigures(row.body_html || (row.body_text ? textToHtml(row.body_text) : ""))));
+    const zh = isZh ? original : row.tr_html && !translationTextDefect(row.tr_html) ? proxyBodyImages(readableBulletin(row.url,dedupeConsecutiveFigures(row.tr_html))) : null;
     // 原文和译文都保留到结尾，目录锚点覆盖全部章节；语言投影仍只发送当前阅读语言。
     const shown = prepareArticleBody(zh ?? original);
     const primary = withOutline(shown.html);

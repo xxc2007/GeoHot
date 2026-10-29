@@ -11,6 +11,8 @@ import { AdminPage, Badge, Button, Card, DataTable, Dot, Empty, Field, Json, Rea
 type Row = Record<string, any>;
 interface Runs {
   checkedAt: string;
+  processesCheckedAt?: string | null;
+  queueSnapshot?: Array<{name:string;queued:number;active:number;at:string}> | null;
   stale?: boolean;
   processes: Array<{ role: string; pid: number; host: string; release: string; startedAt: string; at: string; alive: boolean }>;
   jobs: Row[];
@@ -100,20 +102,26 @@ export default function RunsAdmin({ loaderData }: Route.ComponentProps) {
 
   const backlog = new Map<string, Record<string, { n: number; oldest: string }>>();
   for (const q of r.queues) backlog.set(q.name, { ...(backlog.get(q.name) ?? {}), [q.state]: { n: q.n, oldest: q.oldest } });
-  const queued = r.queues.filter((q) => q.state !== "active").reduce((a, q) => a + q.n, 0);
+  if (r.queueSnapshot) {
+    backlog.clear();
+    for (const q of r.queueSnapshot) backlog.set(q.name, {created:{n:q.queued,oldest:""},active:{n:q.active,oldest:""}});
+  }
+  const queueStates: Array<"created"|"retry"|"active"> = r.queueSnapshot ? ["created","active"] : ["created","retry","active"];
+  const queued = r.queueSnapshot ? r.queueSnapshot.reduce((n,q)=>n+q.queued,0) : r.queues.filter((q) => q.state !== "active").reduce((a, q) => a + q.n, 0);
+  const queueAt = r.queueSnapshot?.reduce((old,q)=>q.at<old?q.at:old,r.queueSnapshot[0]!.at);
   const worker = r.processes.find((p) => p.role === "worker");
   const failing = r.jobs.filter((j) => j.status === "failed");
 
   return (
     <AdminPage title="运行" subtitle={<>任务、队列、信源延迟与需要人工核对的回执和投递。每 20 秒自动刷新 · 最近检查 {bj(r.checkedAt)}</>}>
-      {(r.stale || refresh.data?.unavailable) && <p role="status" className="mb-5 rounded-panel border border-line bg-surface p-4 text-[13px] text-ink-2">正在更新统计，暂时显示上方“最近检查”时间的快照；页面会继续尝试刷新。</p>}
+      {(r.stale || refresh.data?.unavailable) && <p role="status" className="mb-5 rounded-panel border border-line bg-surface p-4 text-[13px] text-ink-2">详细统计暂时显示上方“最近检查”时间的快照；心跳与队列使用各自的检测时间。页面会继续尝试刷新。</p>}
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-5">
         <Stat
           label="worker"
           value={<span className="inline-flex items-center gap-2 text-[18px]"><Dot tone={worker?.alive ? "ok" : "bad"} />{worker ? (worker.alive ? "运行中" : "心跳中断") : "无心跳"}</span>}
-          hint={worker ? `${worker.host} · 心跳 ${ago(worker.at, new Date(r.checkedAt).getTime())}` : "worker 未上报心跳"}
+          hint={worker ? `${worker.host} · 心跳 ${ago(worker.at, new Date(r.processesCheckedAt ?? r.checkedAt).getTime())}` : "worker 未上报心跳"}
         />
-        <Stat label="队列积压" value={num(queued)} tone={queued > 500 ? "warn" : undefined} hint="排队与等待重试" />
+        <Stat label="队列积压" value={num(queued)} tone={queued > 500 ? "warn" : undefined} hint={queueAt ? `排队与等待重试 · 检测 ${bj(queueAt)}` : "排队与等待重试（详细统计快照）"} />
         <Stat label="失败的定时任务" value={num(failing.length)} tone={failing.length ? "bad" : "ok"} hint="最近一次运行失败" />
         <Stat label="回执结果未知" value={num(r.receipts.unknownTotal)} tone={r.receipts.unknownTotal ? "bad" : "ok"} hint={`7 天 ${num(Object.values(r.receipts.counts).reduce((a, b) => a + b, 0))} 条请求回执`} />
         <Stat label="投递待核实" value={num(r.deliveries.filter((d) => d.status === "unknown").length)} tone={r.deliveries.some((d) => d.status === "unknown") ? "bad" : "ok"} />
@@ -128,9 +136,9 @@ export default function RunsAdmin({ loaderData }: Route.ComponentProps) {
             empty="队列是空的"
             columns={[
               { key: "n", label: "队列", render: ([name]) => <span className="font-mono text-[12.5px]">{name}</span> },
-              ...(["created", "retry", "active"] as const).map((st) => ({
+              ...queueStates.map((st) => ({
                 key: st,
-                label: STATE_LABEL[st],
+                label: r.queueSnapshot && st === "created" ? "排队及重试" : STATE_LABEL[st],
                 align: "right" as const,
                 render: ([, v]: [string, Record<string, { n: number; oldest: string }>]) => (v[st] ? <span title={`最早 ${bj(v[st]!.oldest, true)}`}>{num(v[st]!.n)}</span> : <span className="text-ink-4">0</span>),
               })),

@@ -3,11 +3,11 @@ import {resourceHeadroom} from './resource-budget.ts';
 import {refreshWorkflowReadinessTx,READER_POLICY_VERSION} from '../publication/readiness.ts';
 
 /** Bounded persistent recovery in the existing ops.recover tick; no provider calls or new queues. */
-export async function recoverWorkflowReadiness(options: {selectedOnly?:boolean;summaryOnly?:boolean;limit?:number;budgetMs?:number}={}) {
+export async function recoverWorkflowReadiness(options: {selectedOnly?:boolean;summaryOnly?:boolean;reportsOnly?:boolean;limit?:number;budgetMs?:number}={}) {
   if(!resourceHeadroom())return {checked:0,ready:0,held:true};
   const limit=Math.max(1,Math.min(options.limit??250,250));
   const deadline=Date.now()+Math.max(100,Math.min(options.budgetMs??4000,10000));
-  const key=`workflow_readiness_v${READER_POLICY_VERSION}_${options.summaryOnly?'summary':options.selectedOnly?'selected':'all'}_cursor`;
+  const key=`workflow_readiness_v${READER_POLICY_VERSION}_${options.reportsOnly?'reports':options.summaryOnly?'summary':options.selectedOnly?'selected':'all'}_cursor`;
   return sql.begin(async tx=>{
     await tx`SET LOCAL statement_timeout='2s'`;
     await tx`SET LOCAL lock_timeout='250ms'`;
@@ -18,6 +18,7 @@ export async function recoverWorkflowReadiness(options: {selectedOnly?:boolean;s
     const cursor=saved?.value;
     const headers=await tx<{article_id:string;timeline_at:Date}[]>`SELECT p.article_id,p.timeline_at FROM publications p
       WHERE p.visibility='public' AND p.body_mode='full'
+      ${options.reportsOnly ? tx`AND p.article_id IN (SELECT cited->>'itemId' FROM reports r CROSS JOIN LATERAL jsonb_array_elements(coalesce(r.content->'themes','[]'::jsonb)) grp CROSS JOIN LATERAL jsonb_array_elements(coalesce(grp->'storyRefs','[]'::jsonb)) cited WHERE r.kind IN ('weekly','monthly'))` : tx``}
       AND EXISTS (SELECT 1 FROM sources policy_s WHERE policy_s.id=p.source_id AND policy_s.site_fulltext) ${options.selectedOnly ? tx`AND p.selected` : tx``}
       ${options.summaryOnly ? tx`AND (p.visibility='summary-only' OR EXISTS (SELECT 1 FROM sources recovery_s WHERE recovery_s.id=p.source_id AND NOT recovery_s.site_fulltext))` : tx``}
       ${cursor ? tx`AND (p.timeline_at,p.article_id)<(${cursor.at}::timestamptz,${cursor.id})` : tx``}
