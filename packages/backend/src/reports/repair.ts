@@ -28,7 +28,7 @@ export async function repairReportWorkflow(target?: Pick<Header,"kind"|"key">) {
       ${cursor ? sql`AND (CASE r.kind WHEN 'monthly' THEN 0 WHEN 'weekly' THEN 1 ELSE 2 END > ${cursor.rank}
         OR (r.kind=${cursor.kind} AND r.key<${cursor.key}))` : sql``}
       AND (EXISTS (SELECT 1 FROM settings campaign WHERE campaign.key='report_workflow_repair_v1:'||r.kind||':'||r.key)
-        OR EXISTS (SELECT 1 FROM jsonb_array_elements(coalesce(r.content->'sections',r.content->'themes','[]'::jsonb)) grp
+        OR EXISTS (SELECT 1 FROM jsonb_array_elements(coalesce(r.content->'sections',r.content->'themes','[]'::jsonb) || jsonb_build_array(jsonb_build_object('items',coalesce(r.content->'flashes','[]'::jsonb)))) grp
         CROSS JOIN LATERAL jsonb_array_elements(coalesce(grp->'items',grp->'storyRefs','[]'::jsonb)) cited
         LEFT JOIN publications p ON p.article_id=cited->>'itemId'
         WHERE cited->>'itemId' IS NOT NULL AND (p.article_id IS NULL OR NOT (${workflowReadyCondition()}))))

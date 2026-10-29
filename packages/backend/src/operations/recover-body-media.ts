@@ -20,7 +20,7 @@ export async function recoverBodyMedia(options: { reportsOnly?: boolean } = {}) 
     const headers=await tx<{ article_id: string; timeline_at: Date }[]>`
       SELECT p.article_id,p.timeline_at FROM publications p
       WHERE p.visibility='public' AND p.eligible AND p.body_mode='full'
-        ${options.reportsOnly ? tx`AND p.article_id IN (SELECT cited->>'itemId' FROM reports r CROSS JOIN LATERAL jsonb_array_elements(coalesce(r.content->'sections',r.content->'themes','[]'::jsonb)) grp CROSS JOIN LATERAL jsonb_array_elements(coalesce(grp->'items',grp->'storyRefs','[]'::jsonb)) cited)` : tx``}
+        ${options.reportsOnly ? tx`AND p.article_id IN (SELECT cited->>'itemId' FROM reports r CROSS JOIN LATERAL jsonb_array_elements(coalesce(r.content->'sections',r.content->'themes','[]'::jsonb) || jsonb_build_array(jsonb_build_object('items',coalesce(r.content->'flashes','[]'::jsonb)))) grp CROSS JOIN LATERAL jsonb_array_elements(coalesce(grp->'items',grp->'storyRefs','[]'::jsonb)) cited)` : tx``}
         ${cursor ? tx`AND (p.timeline_at,p.article_id)<(${cursor.at}::timestamptz,${cursor.id})` : tx``}
       ORDER BY p.timeline_at DESC,p.article_id DESC LIMIT 250`;
     const candidates=headers.length ? await tx<{ article_id: string; revision: number; fingerprint: string; timeline_at: Date }[]>`
