@@ -1,194 +1,87 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Presence } from "./Presence";
 import { IconArrowLeft, IconArrowRight, IconClose } from "../icons.tsx";
 import { focusWhenReady, returnFocus } from "../../lib/focus-when-ready.ts";
-
-export interface LightboxImage {
-  src: string;
-  alt?: string | null;
-}
-
-/** While a two-finger page zoom is live the browser owns the gesture: no drag, paging or swipe-close. */
-const pinchZoomed = () => (window.visualViewport?.scale ?? 1) > 1.01;
-
-/** How a drag that goes nowhere settles back; the overlay tint follows the same curve. */
-const SETTLE_MS = 220;
-const SETTLE = `${SETTLE_MS}ms cubic-bezier(0.22,1,0.36,1)`;
-
-/**
- * Pictures shown full size over the page. While open, keyboard focus stays in the viewer (Tab moves
- * between its buttons), the page behind does not scroll, Escape closes it and the arrow keys move
- * between pictures; closing puts focus back where it was. One touch finger drags: sideways pages
- * (with several pictures), downwards closes, anything shorter springs back — a pinch zoom, though,
- * is left to the browser, and while the page is zoomed in the drag gestures stand down.
- */
+export interface LightboxImage { src: string; alt?: string | null }
+type Pose = { scale: number; x: number; y: number };
+const FIT: Pose = { scale: 1, x: 0, y: 0 };
+/** Image zoom has its own viewport; controls stay fixed and the page behind never moves. */
 export function Lightbox({ images, index, onIndex, onClose }: { images: LightboxImage[]; index: number | null; onIndex: (i: number) => void; onClose: () => void }) {
-  const open = index !== null && !!images[index];
-  const dialog = useRef<HTMLDivElement>(null);
-  const picture = useRef<HTMLImageElement>(null);
-  const closeButton = useRef<HTMLButtonElement>(null);
-  const state = useRef({ index, count: images.length, onIndex, onClose });
-  state.current = { index, count: images.length, onIndex, onClose };
-  // The finger drives inline styles directly: state would re-render the portal on every touchmove.
-  // `axis` locks past 8px and never flips, so one diagonal swipe commits to a single direction.
-  const drag = useRef<{ x: number; y: number; dx: number; dy: number; axis: null | "x" | "y" } | null>(null);
-  // Set after a real drag so the click that trails touchend cannot read as a tap on the backdrop.
-  const suppressTap = useRef(false);
-
-  const step = (by: number) => {
-    const { index: at, count, onIndex: go } = state.current;
-    if (at !== null && count > 1) go((at + by + count) % count);
+ const open = index !== null && !!images[index];
+ const dialog=useRef<HTMLDivElement>(null), viewport=useRef<HTMLDivElement>(null), picture=useRef<HTMLImageElement>(null), close=useRef<HTMLButtonElement>(null);
+ const state=useRef({index,images,onIndex,onClose});state.current={index,images,onIndex,onClose};
+ const pose=useRef<Pose>(FIT), points=useRef(new Map<number,{x:number;y:number}>());
+ const [scale,setScale]=useState(1), lastTap=useRef(0),lastTouch=useRef(0),multi=useRef(false);
+ const gesture=useRef<{pose:Pose;x:number;y:number;distance:number;dx:number;dy:number}|null>(null);
+ const maxZoom=()=>{const img=picture.current;return Math.max(12,img&&img.clientWidth?img.naturalWidth/img.clientWidth:1,img&&img.clientHeight?img.naturalHeight/img.clientHeight:1);};
+ const paint=(next:Pose)=>{
+  const box=viewport.current,img=picture.current,s=Math.max(1,Math.min(maxZoom(),next.scale));
+  const bx=box&&img?Math.max(0,(img.clientWidth*s-box.clientWidth)/2):0,by=box&&img?Math.max(0,(img.clientHeight*s-box.clientHeight)/2):0;
+  const p={scale:s,x:Math.max(-bx,Math.min(bx,next.x)),y:Math.max(-by,Math.min(by,next.y))};pose.current=p;setScale(s);
+  if(img)img.style.transform=`translate(${p.x}px,${p.y}px) scale(${s})`;
+ };
+ const zoom=(s:number,x=0,y=0)=>{const p=pose.current,n=Math.max(1,Math.min(maxZoom(),s)),r=n/p.scale;paint({scale:n,x:x-(x-p.x)*r,y:y-(y-p.y)*r});};
+ const step=(by:number)=>{const s=state.current;if(s.index!==null&&s.images.length>1)s.onIndex((s.index+by+s.images.length)%s.images.length);};
+ useEffect(()=>{points.current.clear();multi.current=false;gesture.current=null;paint(FIT);},[index,open]);
+ useEffect(()=>{
+  if(!open)return;
+  const opener=document.activeElement instanceof HTMLElement?document.activeElement:null,root=document.documentElement,prior=root.style.overflow;root.style.overflow='hidden';
+  const stop=focusWhenReady(()=>close.current);
+  const key=(e:KeyboardEvent)=>{
+   if(e.key==='Escape')state.current.onClose();
+   else if(e.key==='+'||e.key==='=')zoom(pose.current.scale*1.5);
+   else if(e.key==='-')zoom(pose.current.scale/1.5);
+   else if(e.key==='0')paint(FIT);
+   else if(e.key.startsWith('Arrow')){
+    if(pose.current.scale>1)paint({...pose.current,x:pose.current.x+(e.key==='ArrowLeft'?60:e.key==='ArrowRight'?-60:0),y:pose.current.y+(e.key==='ArrowUp'?60:e.key==='ArrowDown'?-60:0)});
+    else if(e.key==='ArrowLeft'||e.key==='ArrowRight')step(e.key==='ArrowLeft'?-1:1);
+   }else if(e.key==='Tab'){
+    const all=[...(dialog.current?.querySelectorAll<HTMLElement>('button:not(:disabled)')??[])],at=all.indexOf(document.activeElement as HTMLElement);
+    all[(at+(e.shiftKey?-1:1)+all.length)%all.length]?.focus();
+   }else return;e.preventDefault();
   };
-
-  /** End a drag: `spring` eases the last pose back into place, otherwise inline styles drop at once. */
-  const settle = (spring: boolean) => {
-    const img = picture.current;
-    const overlay = dialog.current;
-    if (img && spring) {
-      img.style.transition = `transform ${SETTLE}`;
-      img.style.transform = "translate(0, 0)";
-    } else if (img) {
-      img.style.transition = "";
-      img.style.transform = "";
-    }
-    if (overlay && spring) {
-      overlay.style.transition = `background-color ${SETTLE}`;
-      overlay.style.backgroundColor = "rgba(0,0,0,0.85)";
-    } else if (overlay) {
-      overlay.style.transition = "";
-      overlay.style.backgroundColor = "";
-    }
-    if (spring) {
-      setTimeout(() => {
-        if (drag.current) return; // a new drag started before the spring finished; it owns the styles now
-        if (picture.current) { picture.current.style.transition = ""; picture.current.style.transform = ""; }
-        if (dialog.current) { dialog.current.style.transition = ""; dialog.current.style.backgroundColor = ""; }
-      }, SETTLE_MS + 20);
-    }
-  };
-
-  useEffect(() => {
-    if (!open) return;
-    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const root = document.documentElement;
-    const overflow = root.style.overflow;
-    root.style.overflow = "hidden";
-    const stopFocusRetry = focusWhenReady(() => closeButton.current);
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") state.current.onClose();
-      else if (e.key === "ArrowRight") step(1);
-      else if (e.key === "ArrowLeft") step(-1);
-      else if (e.key === "Tab") {
-        const focusable = [...(dialog.current?.querySelectorAll<HTMLElement>("button") ?? [])];
-        if (!focusable.length) return;
-        const at = focusable.indexOf(document.activeElement as HTMLElement);
-        const next = e.shiftKey ? (at <= 0 ? focusable.length - 1 : at - 1) : at === focusable.length - 1 ? 0 : at + 1;
-        focusable[next]!.focus();
-      } else return;
-      e.preventDefault();
-    };
-    document.addEventListener("keydown", onKey);
-    return () => {
-      stopFocusRetry();
-      document.removeEventListener("keydown", onKey);
-      root.style.overflow = overflow;
-      returnFocus(opener);
-    };
-  }, [open]);
-
-  const current = open ? images[index!]! : null;
-  const many = images.length > 1;
-  const onTouchStart = (e: React.TouchEvent) => {
-    suppressTap.current = false; // a fresh touch re-arms tap-to-close if the last release fired no click
-    if (state.current.index === null || e.touches.length !== 1 || pinchZoomed()) return;
-    if (e.target instanceof Element && e.target.closest("button")) return; // buttons tap, they do not drag
-    const t = e.touches[0];
-    drag.current = { x: t.clientX, y: t.clientY, dx: 0, dy: 0, axis: null };
-  };
-  const onTouchMove = (e: React.TouchEvent) => {
-    const d = drag.current;
-    if (!d) return;
-    if (e.touches.length > 1 || pinchZoomed()) {
-      drag.current = null; // a pinch took over mid-drag: hand the pose back and stand down
-      settle(true);
-      return;
-    }
-    const t = e.touches[0];
-    d.dx = t.clientX - d.x;
-    d.dy = t.clientY - d.y;
-    if (d.axis === null && Math.hypot(d.dx, d.dy) > 8) d.axis = Math.abs(d.dx) > Math.abs(d.dy) ? "x" : "y";
-    const img = picture.current;
-    if (!img || d.axis === null) return;
-    img.style.transition = "none";
-    if (d.axis === "x") {
-      if (many) img.style.transform = `translate(${d.dx}px, 0)`;
-    } else {
-      const dy = Math.max(0, d.dy); // only downwards; the tint follows the same clamp
-      img.style.transform = `translate(0, ${dy}px)`;
-      if (dialog.current) dialog.current.style.backgroundColor = `rgba(0,0,0,${Math.max(0.3, 0.85 - dy / 600)})`;
-    }
-  };
-  const onTouchEnd = () => {
-    const d = drag.current;
-    if (!d) return;
-    drag.current = null;
-    if (d.axis !== null) suppressTap.current = true;
-    if (d.axis === "x" && many && Math.abs(d.dx) > 60) {
-      settle(false); // snap flat before the swap so the next picture enters from the resting pose
-      step(d.dx < 0 ? 1 : -1);
-    } else if (d.axis === "y" && d.dy > 110) {
-      settle(false);
-      state.current.onClose();
-    } else if (d.axis !== null) {
-      settle(true);
-    }
-  };
-  const onTouchCancel = () => {
-    if (!drag.current) return;
-    drag.current = null;
-    settle(true);
-  };
-
-  const nav = "absolute top-1/2 grid size-11 -translate-y-1/2 place-items-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20";
-  if (typeof document === "undefined") return null;
-  return createPortal(
-    <Presence show={open} enter="anim-fade-in" exit="anim-fade-out" duration={160}>
-      <div
-        ref={dialog}
-        role="dialog"
-        aria-modal="true"
-        aria-label={many && index !== null ? `图片 ${index + 1} / ${images.length}` : "图片"}
-        onClick={() => {
-          if (suppressTap.current) { suppressTap.current = false; return; }
-          onClose();
-        }}
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        onTouchEnd={onTouchEnd}
-        onTouchCancel={onTouchCancel}
-        className="fixed inset-0 z-[80] grid cursor-zoom-out touch-pinch-zoom place-items-center bg-black/85 p-4 sm:p-10"
-      >
-        {current && (
-          <img key={current.src} ref={picture} src={current.src} decoding="async" alt={current.alt ?? ""} className="lightbox-img anim-zoom-in min-h-0 min-w-0 max-h-[calc(100dvh-5rem)] max-w-full rounded-control object-contain shadow-2xl" />
-        )}
-        <button ref={closeButton} type="button" aria-label="关闭" onClick={(e) => { e.stopPropagation(); onClose(); }} className="absolute right-[max(16px,env(safe-area-inset-right))] top-[max(16px,env(safe-area-inset-top))] grid size-11 place-items-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20">
-          <IconClose size={18} />
-        </button>
-        {many && index !== null && (
-          <>
-            <button type="button" aria-label="上一张" onClick={(e) => { e.stopPropagation(); onIndex((index - 1 + images.length) % images.length); }} className={`${nav} left-[max(12px,env(safe-area-inset-left))] sm:left-5`}>
-              <IconArrowLeft size={18} />
-            </button>
-            <button type="button" aria-label="下一张" onClick={(e) => { e.stopPropagation(); onIndex((index + 1) % images.length); }} className={`${nav} right-[max(12px,env(safe-area-inset-right))] sm:right-5`}>
-              <IconArrowRight size={18} />
-            </button>
-            <span className="num pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-black/40 px-2.5 py-0.5 text-[12px] text-white/85">
-              {index + 1} / {images.length}
-            </span>
-          </>
-        )}
-      </div>
-    </Presence>, document.body
-  );
+  const resize=()=>paint(pose.current),box=viewport.current;
+  const wheel=(e:WheelEvent)=>{e.preventDefault();const b=box!.getBoundingClientRect();zoom(pose.current.scale*Math.exp(-e.deltaY*.002),e.clientX-b.left-b.width/2,e.clientY-b.top-b.height/2);};
+  document.addEventListener('keydown',key);window.addEventListener('resize',resize);box?.addEventListener('wheel',wheel,{passive:false});
+  return()=>{stop();document.removeEventListener('keydown',key);window.removeEventListener('resize',resize);box?.removeEventListener('wheel',wheel);root.style.overflow=prior;returnFocus(opener);};
+ },[open]);
+ const begin=()=>{const [a,b]=[...points.current.values()];gesture.current=a?{pose:{...pose.current},x:b?(a.x+b.x)/2:a.x,y:b?(a.y+b.y)/2:a.y,distance:b?Math.hypot(a.x-b.x,a.y-b.y):0,dx:0,dy:0}:null;};
+ const current=open?images[index!]:null,button='grid min-h-11 min-w-11 place-items-center rounded-full px-3 text-white hover:bg-white/20 focus-visible:outline-2 focus-visible:outline-white disabled:opacity-35';
+ if(typeof document==='undefined')return null;
+ return createPortal(<Presence show={open} enter="anim-fade-in" exit="anim-fade-out" duration={160}>
+  <div ref={dialog} role="dialog" aria-modal="true" aria-label={`图片查看器 ${index!==null?index+1:0} / ${images.length}`} className="fixed inset-0 z-[80] overflow-hidden bg-black/90 text-white">
+   <div className="absolute inset-x-2 top-[max(12px,env(safe-area-inset-top))] z-20 flex items-center justify-between gap-1">
+    <span className="hidden shrink-0 rounded-full bg-black/60 px-2 py-2 text-xs min-[360px]:block">{index!==null?index+1:0} / {images.length}</span>
+    <div role="toolbar" aria-label="图片缩放" className="flex items-center rounded-full bg-black/70">
+     <button type="button" aria-label="缩小图片" disabled={scale<=1} className={button} onClick={()=>zoom(scale/1.5)}>−</button>
+     <span className="min-w-10 text-center text-xs tabular-nums" aria-live="polite">{Math.round(scale*100)}%</span>
+     <button type="button" aria-label="放大图片" disabled={scale>=maxZoom()} className={button} onClick={()=>zoom(scale*1.5)}>＋</button>
+     <button type="button" aria-label="适应窗口" className={`${button} text-xs`} onClick={()=>paint(FIT)}>适应</button>
+     <button type="button" aria-label="原始尺寸" className={`${button} text-xs`} onClick={()=>{const img=picture.current;if(img)zoom(Math.max(1,img.naturalWidth/img.clientWidth));}}>1:1</button>
+    </div>
+    <button ref={close} type="button" aria-label="关闭" className={`${button} shrink-0 bg-black/60`} onClick={onClose}><IconClose size={20}/></button>
+   </div>
+   <div ref={viewport} className="absolute inset-x-3 bottom-16 top-20 grid touch-none place-items-center overflow-hidden sm:inset-x-16" style={{cursor:scale>1?'grab':'zoom-in'}}
+    onPointerDown={e=>{if(e.pointerType==='mouse'&&e.button!==0)return;points.current.set(e.pointerId,{x:e.clientX,y:e.clientY});if(points.current.size>1){multi.current=true;lastTap.current=0;}e.currentTarget.setPointerCapture(e.pointerId);begin();}}
+    onPointerMove={e=>{
+     if(!points.current.has(e.pointerId))return;points.current.set(e.pointerId,{x:e.clientX,y:e.clientY});const g=gesture.current,[a,b]=[...points.current.values()];if(!g||!a)return;
+     const x=b?(a.x+b.x)/2:a.x,y=b?(a.y+b.y)/2:a.y;g.dx=x-g.x;g.dy=y-g.y;
+     if(b&&g.distance>0){const n=Math.max(1,Math.min(maxZoom(),g.pose.scale*Math.hypot(a.x-b.x,a.y-b.y)/g.distance)),box=viewport.current!.getBoundingClientRect(),cx=g.x-box.left-box.width/2,cy=g.y-box.top-box.height/2,r=n/g.pose.scale;paint({scale:n,x:cx-(cx-g.pose.x)*r+g.dx,y:cy-(cy-g.pose.y)*r+g.dy});}
+     else if(g.pose.scale>1)paint({scale:g.pose.scale,x:g.pose.x+g.dx,y:g.pose.y+g.dy});
+    }}
+    onPointerUp={e=>{
+     if(e.pointerType!=='mouse')lastTouch.current=Date.now();const g=gesture.current,single=points.current.size===1;points.current.delete(e.pointerId);
+     if(single&&!multi.current&&g&&g.distance===0){
+      if(g.pose.scale===1&&Math.abs(g.dx)>60&&Math.abs(g.dx)>Math.abs(g.dy))step(g.dx<0?1:-1);
+      else if(g.pose.scale===1&&g.dy>110&&Math.abs(g.dy)>Math.abs(g.dx))onClose();
+      else if(Math.hypot(g.dx,g.dy)<8&&e.pointerType!=='mouse'){const now=Date.now();if(now-lastTap.current<300){zoom(pose.current.scale>1?1:2.5);lastTap.current=0;}else lastTap.current=now;}
+     }if(!points.current.size)multi.current=false;begin();
+    }} onPointerCancel={e=>{points.current.delete(e.pointerId);if(!points.current.size)multi.current=false;begin();}} onDoubleClick={()=>{if(Date.now()-lastTouch.current>500)zoom(pose.current.scale>1?1:2.5);}}>
+    {current&&<img key={current.src} ref={picture} src={current.src} alt={current.alt??''} draggable={false} decoding="async" onLoad={()=>paint(FIT)} className="max-h-full max-w-full select-none object-contain shadow-2xl" style={{transformOrigin:'center',willChange:'transform'}}/>}
+   </div>
+   {images.length>1&&<><button type="button" aria-label="上一张" className={`${button} absolute bottom-3 left-4 bg-black/60 sm:bottom-1/2`} onClick={()=>step(-1)}><IconArrowLeft size={20}/></button><button type="button" aria-label="下一张" className={`${button} absolute bottom-3 right-4 bg-black/60 sm:bottom-1/2`} onClick={()=>step(1)}><IconArrowRight size={20}/></button></>}
+   <p className="pointer-events-none absolute inset-x-16 bottom-5 text-center text-xs text-white/70">双击或双指缩放 · 放大后拖动查看</p>
+  </div>
+ </Presence>,document.body);
 }

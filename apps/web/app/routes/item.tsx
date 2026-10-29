@@ -20,6 +20,7 @@ import { StarButton } from "../features/feed/parts";
 import { GroupSources } from "../features/feed/ReadingGroup";
 import { StoryFollowups } from "../features/item/StoryFollowups";
 import { MediaGallery } from "../features/item/MediaGallery";
+import { ArticleBody } from "../features/item/ArticleBody";
 import { QuotedPost } from "../features/item/QuotedPost";
 import { IconArrowLeft, IconCopy, IconDownload, IconExternal, IconImage, IconList, IconMenu, IconShare } from "../components/icons";
 import { ChunkBoundary } from "../components/ui/ChunkBoundary";
@@ -505,7 +506,7 @@ export default function ItemPage() {
                   </details>
                 </noscript>
               )}
-              <div className="prose" dangerouslySetInnerHTML={{ __html: bodyHtml }} />
+              <ArticleBody html={bodyHtml} />
             </section>
           )}
 

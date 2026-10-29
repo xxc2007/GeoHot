@@ -27,7 +27,7 @@ function inline(s: string, site: string): string {
   return out;
 }
 
-export function slugifyHeading(text: string, i: number): string {
+export function slugifyHeading(i: number): string {
   return `s${i + 1}`;
 }
 
@@ -53,7 +53,7 @@ export function renderMarkdown(md: string, site: string): RenderedCopy {
     if (heading) {
       const level = heading[1]!.length;
       const text = heading[2]!.trim();
-      const id = slugifyHeading(text, h++);
+      const id = slugifyHeading(h++);
       if (level === 2) outline.push({ id, text });
       html.push(`<h${level} id="${id}">${inline(text, site)}</h${level}>`);
       i++;

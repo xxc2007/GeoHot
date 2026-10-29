@@ -127,7 +127,9 @@ export default function SettingsAdmin({ loaderData: s }: Route.ComponentProps) {
         </Card>
       </div>
       <Card className="mt-5" title="付费请求上限" right={<span>已用：近 1 小时 / 近 24 小时</span>} pad={false}>
-        <div className="overflow-x-auto">
+        <div className="admin-table-region min-w-0">
+          <p className="admin-table-hint">左右滑动查看完整表格</p>
+          <div className="admin-table-scroll overflow-x-auto" role="region" aria-label="请求上限，可左右滑动查看每天、已用及保存" tabIndex={0}>
           <table className="w-full min-w-[640px] text-[13px]">
             <thead>
               <tr className="border-b border-line text-left text-[12px] text-ink-3">
@@ -141,6 +143,7 @@ export default function SettingsAdmin({ loaderData: s }: Route.ComponentProps) {
             </thead>
             <tbody>{s.budgets.map((b) => <BudgetRow key={`${b.service}-${b.updated_at}`} b={b} />)}</tbody>
           </table>
+          </div>
         </div>
       </Card>
     </AdminPage>

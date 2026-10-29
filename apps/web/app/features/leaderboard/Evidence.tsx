@@ -18,7 +18,7 @@ function position(r: DOMRect): CSSProperties {
 }
 
 /** Confidence as a dotted label. On desktop, hovering a sensitive ranking shows its scenario rank range. */
-export function EvidenceBadge({ confidence, stability, rank }: { confidence: LbConfidence; stability: LbStability | null; rank: number }) {
+export function EvidenceBadge({ confidence, stability }: { confidence: LbConfidence; stability: LbStability | null }) {
   const id = useId();
   const [at, setAt] = useState<CSSProperties | null>(null);
   const open = at !== null;

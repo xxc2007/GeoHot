@@ -122,7 +122,7 @@ function Stability({ d }: { d: LbModelDetail }) {
           <span className="mt-1 block text-[30px] font-bold leading-tight text-ink">{s.from === s.to ? `第 ${s.from} 名` : `${s.from}—${s.to} 名`}</span>
           {d.overall.confidence && (
             <span className="mt-1 block">
-              <EvidenceBadge confidence={d.overall.confidence} stability={null} rank={rank} />
+              <EvidenceBadge confidence={d.overall.confidence} stability={null} />
             </span>
           )}
         </div>

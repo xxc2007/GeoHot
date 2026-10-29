@@ -28,7 +28,7 @@ export function Podium({ entries, board }: { entries: LbBoardEntry[]; board: str
               <span className={`mono text-[11px] font-bold tracking-[0.16em] ${RANK_TEXT[i]}`}>NO.{String(e.rank).padStart(2, "0")}</span>
               <span className="flex items-center gap-2 text-[11.5px] text-ink-4">
                 <span className="num">{e.sourceCount} 项评测</span>
-                <EvidenceBadge confidence={e.confidence} stability={e.stability} rank={e.rank} />
+                <EvidenceBadge confidence={e.confidence} stability={e.stability} />
               </span>
             </span>
             <span className="mt-2.5 flex items-center gap-3">

@@ -156,7 +156,7 @@ export function BoardTable({ entries, board }: { entries: LbBoardEntry[]; board:
             </td>
             <td className="relative z-10 hidden px-3 py-3 lg:table-cell">
               <span className="num block text-[13px] text-ink-2">{e.sourceCount} 项评测</span>
-              <EvidenceBadge confidence={e.confidence} stability={e.stability} rank={e.rank} />
+              <EvidenceBadge confidence={e.confidence} stability={e.stability} />
             </td>
             <td className="mono hidden px-3 py-3 text-[14.5px] font-medium text-ink lg:table-cell">{price(e, e.price?.cachedCny)}</td>
             <td className="mono hidden px-3 py-3 text-[14.5px] font-medium text-ink lg:table-cell">{price(e, e.price?.inputCny)}</td>

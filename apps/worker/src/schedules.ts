@@ -83,7 +83,7 @@ export const SCHEDULES: Scheduled[] = [
   {
     name: "ops.recover",
     cron: "*/10 * * * *",
-    run: async () => ({ receipts: await markStalePendingReceipts(), released: await autoReleaseUnknownReceipts(), deliveries: await markStaleDeliveries(), grouping: await recoverBudgetBlockedGrouping(), bodyMedia: await recoverBodyMedia(), workflow: await recoverWorkflowReadiness(), bodyIntegrity: await recoverBodyIntegrity() }),
+    run: async () => ({ receipts: await markStalePendingReceipts(), released: await autoReleaseUnknownReceipts(), deliveries: await markStaleDeliveries(), grouping: await recoverBudgetBlockedGrouping(), bodyMedia: await recoverBodyMedia(), workflow: await recoverWorkflowReadiness(), reportReadiness: await recoverWorkflowReadiness({reportsOnly:true,limit:75,budgetMs:1500}), bodyIntegrity: await recoverBodyIntegrity() }),
   },
   { name: "ops.alerts", cron: "*/10 * * * *", run: () => checkAlerts() },
   // One message with the follow-ups that do not touch readers (nothing when there are none).

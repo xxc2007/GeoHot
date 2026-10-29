@@ -17,6 +17,7 @@ import { THEME_BOOT_SCRIPT } from "./lib/local-state";
 import { apiGet } from "./lib/api.server";
 import { appPath, basePath, publicPath } from "./lib/public-path";
 import { useHydratedFlag } from "./lib/hydration";
+import { isNetworkRouteError } from "./lib/route-error";
 
 /**
  * The page background of each theme, for the two `<meta name="theme-color">` tags a browser paints into
@@ -215,19 +216,25 @@ export default function App() {
 export function ErrorBoundary() {
   const error = useRouteError();
   const site = useRouteLoaderData<typeof loader>("root");
-  const { pathname } = useLocation();
-  const status = isRouteErrorResponse(error) ? error.status : 500;
+  const { pathname, search, hash } = useLocation();
+  const connectionError = isNetworkRouteError(error);
+  const status = isRouteErrorResponse(error) ? error.status : connectionError ? 503 : 500;
   const notFound = status === 404;
   const body = (
     <div className="flex min-h-[70vh] items-center justify-center px-2 py-16">
       <div className="max-w-sm text-center">
         <RingMark className="mx-auto mb-5 size-10 text-accent" />
         <div className="mono text-[12px] text-ink-4">{status}</div>
-        <h1 className="mt-1.5 text-[20px] font-bold text-ink">{notFound ? "这里没有内容" : "暂时无法加载"}</h1>
+        <h1 className="mt-1.5 text-[20px] font-bold text-ink">{notFound ? "这里没有内容" : connectionError ? "连接暂时中断" : "暂时无法加载"}</h1>
         <p className="mt-2 text-[13.5px] leading-relaxed text-ink-3">
-          {notFound ? "你访问的页面不存在，或内容已不再公开。" : "服务暂时繁忙，请稍后再试。已经加载过的内容不受影响。"}
+          {notFound ? "你访问的页面不存在，或内容已不再公开。" : connectionError ? "未能连接到页面服务，请检查网络后重新加载。已经加载过的内容不受影响。" : "服务暂时繁忙，请稍后再试。已经加载过的内容不受影响。"}
         </p>
-        <div className="mt-6 flex justify-center gap-2.5">
+        <div className="mt-6 flex flex-wrap justify-center gap-2.5">
+          {!notFound && (
+            <Link to={{ pathname, search, hash }} reloadDocument className={buttonClass("primary")}>
+              重新加载当前页
+            </Link>
+          )}
           <Link to="/" reloadDocument className={buttonClass("primary")}>
             回到精选
           </Link>
