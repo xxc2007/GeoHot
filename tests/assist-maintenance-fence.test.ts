@@ -8,6 +8,16 @@ import importlib.util,tempfile,pathlib,json,sys
 sys.dont_write_bytecode=True
 spec=importlib.util.spec_from_file_location('fence','deploy/geohot/assist-maintenance-fence.py')
 m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+import ast
+tree=ast.parse(pathlib.Path('deploy/geohot/magpie-maintenance.py').read_text())
+fn=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='owns_maintenance')
+scope={};exec(compile(ast.Module(body=[fn],type_ignores=[]),'maintenance','exec'),scope)
+owns=scope['owns_maintenance']
+assert not owns({'owner':'workstation-extraction','session':'a'*32})
+assert not owns({'owner':'release','workerWasActive':True,'at':100})
+assert not owns({})
+assert owns({'owner':'magpie-update','workerWasActive':True,'at':100})
+assert owns({'workerWasActive':False,'at':100}) # Existing maintenance evidence survives upgrade.
 with tempfile.TemporaryDirectory() as d:
  p=pathlib.Path(d)/'owner.json'
  m.acquire(p,'a'*32)
