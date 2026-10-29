@@ -1,3 +1,4 @@
+import { balancedResources, resourceHeadroom, realTimePriority } from "../operations/resource-budget.ts";
 // Content processing: body extraction when the source needs it → analysis → publish → event grouping.
 // Every article reaches the queues through queueProcessing, which records when it was queued, so the
 // safety net only picks up articles nothing is working on and sends those still waiting for a body to
@@ -32,6 +33,7 @@ interface Route {
   historical: boolean;
   /** Pulled from the scholarly record on purpose (`backfill_reason = 'archive'`); it does not go stale. */
   archive: boolean;
+  priority: number;
 }
 
 /**
@@ -58,7 +60,7 @@ async function route(articleId: string, db: Db): Promise<Route | null> {
   // 现在按"用手上已有的摘要判"走 —— 与抽取最终失败时本来就走的那一支同一个口径，读者侧最多少一条
   // 内容，不会多出一条错的。
   const extractable = pending && (needsPage || needsXArticle) && isCollectEnabled();
-  return { step: extractable ? "extract" : "analyze", signal, historical, archive: row.backfill_reason === "archive" };
+  return { step: extractable ? "extract" : "analyze", signal, historical, archive: row.backfill_reason === "archive", priority: realTimePriority({ historical, archive: row.backfill_reason === "archive", signal, observedAt: (row.published_at ?? row.discovered_at).getTime() }) };
 }
 
 /**
@@ -73,10 +75,8 @@ async function route(articleId: string, db: Db): Promise<Route | null> {
  * against 1.9% of ordinary ones. So archive work is served between live work and late news — the ordering
  * that costs the reader least: today's paper still goes first, and 09:00 news still goes before the record.
  */
-const PRIORITY = { live: 0, liveSignal: -1, history: -2, archive: -1 } as const;
 
 /** Which band of history this article belongs to: the record (no decay) or late news (decaying). */
-const historyPriority = (r: { archive: boolean }) => (r.archive ? PRIORITY.archive : PRIORITY.history);
 
 /**
  * The one way to hand an article to processing. `attemptTag` makes an explicit re-evaluation a new
@@ -89,13 +89,13 @@ export async function queueProcessing(articleId: string, opts: { step?: Step; at
   if (!r) return null;
   const step = opts.step ?? r.step;
   await db`UPDATE articles SET processing_queued_at = now() WHERE id = ${articleId}`;
-  if (step === "extract") return enqueue(QUEUES.extractBody, { articleId }, { singletonKey: articleId, priority: r.historical ? historyPriority(r) : PRIORITY.live }, opts.db);
+  if (step === "extract") return enqueue(QUEUES.extractBody, { articleId }, { singletonKey: articleId, priority: r.priority }, opts.db);
   if (r.signal && !opts.attemptTag) {
-    return enqueue(QUEUES.group, { articleId, signalOnly: true }, { singletonKey: articleId, priority: r.historical ? historyPriority(r) : PRIORITY.liveSignal }, opts.db);
+    return enqueue(QUEUES.group, { articleId, signalOnly: true }, { singletonKey: articleId, priority: r.priority }, opts.db);
   }
   const tagged = !!opts.attemptTag;
   return enqueue(QUEUES.analyze, tagged ? { articleId, attemptTag: opts.attemptTag } : { articleId },
-    { singletonKey: tagged ? `manual:analyze:${articleId}:${opts.attemptTag}` : articleId, priority: r.historical ? historyPriority(r) : PRIORITY.live }, opts.db);
+    { singletonKey: tagged ? `manual:analyze:${articleId}:${opts.attemptTag}` : articleId, priority: tagged && r.signal && !r.historical ? r.priority + 1 : r.priority }, opts.db);
 }
 
 /**
@@ -121,7 +121,7 @@ export async function processArticle(articleId: string, opts: { attemptTag?: str
   if (row.participation_mode !== "editorial") {
     // Normally queued straight for grouping (queueProcessing); an explicit re-evaluation lands here.
     const { group } = await settleNonEditorial(articleId);
-    if (group) await enqueue(QUEUES.group, { articleId, signalOnly: true }, { singletonKey: articleId, priority: PRIORITY.liveSignal });
+    if (group) await enqueue(QUEUES.group, { articleId, signalOnly: true }, { singletonKey: articleId, priority: realTimePriority({ historical: row.historical, archive: false, signal: true, observedAt: (row.published_at ?? row.discovered_at).getTime() }) });
     return { state: "skipped" };
   }
   try {
@@ -135,7 +135,7 @@ export async function processArticle(articleId: string, opts: { attemptTag?: str
     if (result.stale) return { state: "stale" }; // the newer revision has its own job
     await publishArticle(articleId);
     // History is archived but founds no event (isHistorical).
-    if (result.output.relevance === "pass" && !row.historical) await enqueue(QUEUES.group, { articleId }, { singletonKey: articleId, priority: PRIORITY.live });
+    if (result.output.relevance === "pass" && !row.historical) await enqueue(QUEUES.group, { articleId }, { singletonKey: articleId, priority: realTimePriority({ historical: row.historical, archive: false, signal: false, observedAt: (row.published_at ?? row.discovered_at).getTime() }) });
     return { state: result.output.relevance };
   } catch (error) {
     if (error instanceof AnalysisInterruptedError || shutdownSignal.signal.aborted) throw error;
@@ -181,7 +181,7 @@ const ANALYZE_CONCURRENCY = positiveInt(process.env.ANALYZE_CONCURRENCY, "ANALYZ
 
 export async function registerContentJobs(boss: PgBoss, concurrency = ANALYZE_CONCURRENCY) {
   await ensureQueue(QUEUES.analyze);
-  await boss.work<{ articleId: string; attemptTag?: string }>(QUEUES.analyze, { localConcurrency: concurrency, pollingIntervalSeconds: 2 }, async ([job]) => {
+  await boss.work<{ articleId: string; attemptTag?: string }>(QUEUES.analyze, { localConcurrency: concurrency, pollingIntervalSeconds: balancedResources() ? 5 : 2 }, async ([job]) => {
     if (!job) return;
     const { articleId, attemptTag } = job.data;
     try {
@@ -202,7 +202,7 @@ export async function registerContentJobs(boss: PgBoss, concurrency = ANALYZE_CO
  */
 export async function registerExtractionJobs(boss: PgBoss, concurrency = positiveInt(process.env.EXTRACT_CONCURRENCY, "EXTRACT_CONCURRENCY", 4)) {
   await ensureQueue(QUEUES.extractBody);
-  await boss.work<{ articleId: string }>(QUEUES.extractBody, { localConcurrency: concurrency, pollingIntervalSeconds: 2 }, async ([job]) => {
+  await boss.work<{ articleId: string }>(QUEUES.extractBody, { localConcurrency: concurrency, pollingIntervalSeconds: balancedResources() ? 5 : 2 }, async ([job]) => {
     if (!job) return;
     const { articleId } = job.data;
     try {
@@ -252,7 +252,11 @@ export async function registerExtractionJobs(boss: PgBoss, concurrency = positiv
  * ever reach their higher-priority queue. Ordinary work gets all unused archive places; when fewer
  * ordinary rows are eligible, archives use the remainder. Queue priorities still put live news first.
  */
-export async function sweepUnprocessed(): Promise<{ enqueued: number; published: number }> {
+export async function sweepUnprocessed(): Promise<{ enqueued: number; published: number; deferred?: true; reason?: string }> {
+  const balanced = balancedResources();
+  const limit = balanced ? 50 : 500;
+  const reserve = balanced ? 10 : 100;
+  let enqueued = 0, published = 0, deferred = false;
   const rows = await sql<{ id: string }[]>`
     WITH eligible AS MATERIALIZED (
       SELECT id, discovered_at, timeline_at, coalesce(backfill_reason = 'archive', false) AS archive FROM articles
@@ -266,27 +270,34 @@ export async function sweepUnprocessed(): Promise<{ enqueued: number; published:
       -- ——于是没有一天能过完。生产实测（2026-10-11 19:30）：283 个有档案材料的日子已结算 0 个，
       -- 最接近结算的那天还等 5 条；队里 255 条档案单横跨 2026-01 到 2026-10。
       -- 只改"取哪 100 条"，不改份额、不改优先级、不多花一次调用。
-      SELECT id, discovered_at, timeline_at, archive FROM eligible WHERE archive ORDER BY timeline_at, id LIMIT 100
+      SELECT id, discovered_at, timeline_at, archive FROM eligible WHERE archive ORDER BY timeline_at, id LIMIT ${reserve}
     ), ordinary AS (
       SELECT id, discovered_at, timeline_at, archive FROM eligible WHERE NOT archive ORDER BY discovered_at, id
-      LIMIT (500 - (SELECT count(*) FROM reserved))
+      LIMIT (${limit} - (SELECT count(*) FROM reserved))
     ), remainder AS (
       SELECT id, discovered_at, timeline_at, archive FROM eligible WHERE archive AND id NOT IN (SELECT id FROM reserved)
-      ORDER BY timeline_at, id LIMIT (500 - (SELECT count(*) FROM reserved) - (SELECT count(*) FROM ordinary))
+      ORDER BY timeline_at, id LIMIT (${limit} - (SELECT count(*) FROM reserved) - (SELECT count(*) FROM ordinary))
     )
     SELECT id FROM (
       SELECT * FROM reserved UNION ALL SELECT * FROM ordinary UNION ALL SELECT * FROM remainder
     ) chosen ORDER BY (CASE WHEN archive THEN timeline_at ELSE discovered_at END), id`;
-  for (const r of rows) await queueProcessing(r.id);
+  for (const r of rows) {
+    if (balanced && !resourceHeadroom()) { deferred = true; break; }
+    await queueProcessing(r.id); enqueued++;
+  }
+  if (balanced && !resourceHeadroom()) return { enqueued, published, deferred: true, reason: "resource-pressure-between-items" };
   // 另一半：分析已经落库、发布投影却没跑成（崩溃正好落在 `analyze.ts` 提交与 `publishArticle` 之间）。
   // 这一半不排队、不花钱——投影是确定性计算，直接补一次；漏掉它，条目就永久停在"分析过了但站上找不到"。
   const unprojected = await sql<{ id: string }[]>`
     SELECT a.id FROM articles a
     WHERE a.processing_state = 'analyzed' AND a.updated_at < now() - interval '10 minutes'
       AND NOT EXISTS (SELECT 1 FROM publications p WHERE p.article_id = a.id)
-    ORDER BY a.discovered_at ASC LIMIT 500`;
-  for (const r of unprojected) await publishArticle(r.id);
-  return { enqueued: rows.length, published: unprojected.length };
+    ORDER BY a.discovered_at ASC LIMIT ${balanced ? 10 : 500}`;
+  for (const r of unprojected) {
+    if (balanced && !resourceHeadroom()) { deferred = true; break; }
+    await publishArticle(r.id); published++;
+  }
+  return { enqueued, published, ...(deferred ? { deferred: true as const, reason: "resource-pressure-between-items" } : {}) };
 }
 
 /**

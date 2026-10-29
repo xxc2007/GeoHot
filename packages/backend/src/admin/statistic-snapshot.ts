@@ -1,3 +1,4 @@
+import {balancedResources,readResourceSample} from "../operations/resource-budget.ts";
 import {createHash,randomUUID} from 'node:crypto';
 import {mkdir,readFile,writeFile,rename,readdir,stat,unlink} from 'node:fs/promises';
 import path from 'node:path';
@@ -7,11 +8,12 @@ export interface Snapshot<T>{rows:T[];status:{state:'ready'|'stale'|'unavailable
 interface Saved<T>{at:number;rows:T[]}
 /** One heavy admin aggregate at a time across ranges and pages. Never queue scans on refresh storms. */
 let aggregateBusy=false;
-export function snapshotReader<T>(read:()=>PromiseLike<readonly T[]>,store?:{load:()=>Promise<Saved<T>|null>;save:(v:Saved<T>)=>Promise<void>},now=Date.now){
+function aggregateHeadroom(){try{const s=readResourceSample();return s.availableMiB>=128&&s.memoryFull<2&&s.ioFull<8&&s.cpuSome<30&&s.diskFreeMiB>=3072;}catch{return false;}}
+export function snapshotReader<T>(read:()=>PromiseLike<readonly T[]>,store?:{load:()=>Promise<Saved<T>|null>;save:(v:Saved<T>)=>Promise<void>},now=Date.now,policy?:{freshMs:number;canRefresh:()=>boolean}){
   let saved:Saved<T>|null=null,loaded=false,loading:Promise<void>|undefined,pending:Promise<void>|undefined,retryAt=0;
   const refresh=()=>{
     if(pending)return pending;
-    if(aggregateBusy||now()<retryAt)return Promise.resolve();
+    if(aggregateBusy||now()<retryAt||(balancedResources()&&!(policy?.canRefresh??aggregateHeadroom)()))return Promise.resolve();
     aggregateBusy=true;
     pending=Promise.resolve().then(read).then(async rows=>{
       saved={at:now(),rows:[...rows]};retryAt=0;
@@ -21,9 +23,9 @@ export function snapshotReader<T>(read:()=>PromiseLike<readonly T[]>,store?:{loa
   };
   const get=async():Promise<Snapshot<T>>=>{
     if(!loaded){loading??=(async()=>{try{const v=await store?.load();if(v&&v.at<=now()+60_000&&now()-v.at<86400_000)saved=v;}catch{}loaded=true;})();await loading;}
-    const fresh=!!saved&&now()-saved.at<30_000;
+    const fresh=!!saved&&now()-saved.at<(policy?.freshMs??(balancedResources()?300_000:30_000));
     if(!fresh)void refresh();
-    if(saved&&now()-saved.at<86400_000)return {rows:saved.rows,status:{state:fresh?'ready':'stale',asOf:new Date(saved.at).toISOString(),...(!fresh?{message:'显示上次成功统计，正在后台更新；更新时间见上方。'}:{})}};
+    if(saved&&now()-saved.at<86400_000)return {rows:saved.rows,status:{state:fresh?'ready':'stale',asOf:new Date(saved.at).toISOString(),...(!fresh?{message:pending?'显示上次成功统计，正在后台更新；更新时间见上方。':'统计更新暂缓（服务器繁忙或正在重试），保留上次成功数据；页面会继续尝试。'}:{})}};
     return {rows:[],status:{state:'unavailable',asOf:null,message:'正在生成统计，页面会自动更新；尚未取得数据，不代表用量为零。'}};
   };
   return {get,refresh};

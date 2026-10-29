@@ -9,8 +9,18 @@ import { Conflict } from "./sources.ts";
 import { failureGroupSql, queueProcessing, requeueFailed } from "../jobs/content.ts";
 import { enqueue, QUEUES } from "../jobs/queue.ts";
 import { snapshotReader, snapshotStore } from "./statistic-snapshot.ts";
+import { modelStatisticRead } from "./model-statistics-read.ts";
 
 const STALE_HEARTBEAT_MS = 3 * 60_000;
+
+/** Small live status, bounded independently of the cached historical aggregate. */
+export async function readLiveRunsState() {
+  return modelStatisticRead(async db => {
+    const processes = await db<{ key: string; value: Record<string, unknown>; updated_at: Date }[]>`SELECT key, value, updated_at FROM settings WHERE key LIKE 'heartbeat.%' ORDER BY key`;
+    const queues = await db<{name:string; queued:number; active:number; at:Date|null}[]>`SELECT name, queued_count AS queued, active_count AS active, monitor_on AS at FROM pgboss.queue WHERE queued_count > 0 OR active_count > 0 ORDER BY name`;
+    return { processes, queues };
+  }, 1000).catch(() => null);
+}
 
 const runsSnapshot = snapshotReader(async () => {
   try { return [await runsOverview()]; }
@@ -24,7 +34,19 @@ const runsSnapshot = snapshotReader(async () => {
 export async function readRunsOverview() {
   const snapshot = await runsSnapshot.get();
   const overview = snapshot.rows[0];
-  return overview ? { ...overview, stale: snapshot.status.state !== "ready" } : { unavailable: true as const };
+  if (!overview) return { unavailable: true as const };
+  // Fresh, tiny heartbeat reads must not wait for the expensive multi-table statistics snapshot.
+  const fresh = await readLiveRunsState();
+  const live = fresh?.processes;
+  const now = Date.now();
+  const processes = live ? live.map(h => ({ role: h.key.slice("heartbeat.".length), ...h.value, at: h.updated_at,
+    alive: now - h.updated_at.getTime() < STALE_HEARTBEAT_MS })) : overview.processes.map(p => ({...p, alive: now - new Date(p.at).getTime() < STALE_HEARTBEAT_MS}));
+  // pg-boss maintains this tiny queue metadata table itself. Reading it avoids scanning the job
+  // archive just to show whether the live queue is moving; its monitor timestamp remains explicit.
+  const queueSnapshot = fresh?.queues;
+  return { ...overview, processes, processesCheckedAt: live ? new Date(now).toISOString() : null,
+    queueSnapshot: queueSnapshot?.length && queueSnapshot.every(q => q.at) ? queueSnapshot : null,
+    stale: snapshot.status.state !== "ready" };
 }
 
 /**

@@ -241,7 +241,7 @@ function confidenceOf(entry: RankingRow): LbConfidence {
   return (entry.coverage ?? 0) >= 0.7 ? "HIGH" : "MEDIUM";
 }
 
-function modelRef(view: RunView, m: ModelRow): LbModelRef {
+function modelRef(m: ModelRow): LbModelRef {
   return {
     slug: m.slug,
     name: m.name,
@@ -270,7 +270,7 @@ export async function loadBoard(key: LeaderboardBoardKey): Promise<LbBoardRespon
       return {
         rank: e.rank,
         score: e.score,
-        model: modelRef(view, m),
+        model: modelRef(m),
         sourceCount: e.detail?.sourceCount ?? e.metric_count ?? 0,
         coverage: e.coverage ?? 0,
         confidence: confidenceOf(e),
@@ -385,7 +385,7 @@ export async function loadModel(slug: string): Promise<LbModelDetail | null> {
 
   return {
     run: view.info,
-    model: { ...modelRef(view, m), contextWindowTokens: m.context_window_tokens },
+    model: { ...modelRef(m), contextWindowTokens: m.context_window_tokens },
     price: view.prices.get(m.id) ?? null,
     overall: {
       rank: overallEntry?.rank ?? null,
@@ -430,7 +430,7 @@ function nearbyComparisons(view: RunView, board: BoardView, slug: string, rank: 
     const order = new Map(SOURCE_GROUPS.flatMap((g) => g.sources.map((s) => s.key)).map((k, i) => [k, i]));
     rows.sort((a, b) => (order.get(a.sourceKey) ?? 999) - (order.get(b.sourceKey) ?? 999));
     return {
-      model: modelRef(view, om),
+      model: modelRef(om),
       rank: other.rank,
       net: c.net,
       sharedWeight: c.shared,

@@ -13,7 +13,7 @@ export const UNDERSTAND_SYSTEM = promptText("understand");
 
 /** A body longer than this is cut (whole bodies are sent; a few run past the context). */
 export const MAX_BODY_CHARS = 60_000;
-const capBody = (s: string) => (s.length > MAX_BODY_CHARS ? s.slice(0, MAX_BODY_CHARS) : s);
+const capBody = (s: string, max = MAX_BODY_CHARS) => (s.length > max ? s.slice(0, max) : s);
 
 // ── Text helpers ─────────────────────────────────────────────────────────────────────────────
 
@@ -85,8 +85,10 @@ function materialQuality(a: AnalyzeInputArticle): string {
   return "无有效文本";
 }
 
-/** The material as the prefilter and the content understanding read it. */
-export function renderContext(a: AnalyzeInputArticle, opts: { annotateQuoted?: boolean } = {}): string {
+/** The material as the prefilter and the content understanding read it.
+ *  `bodyChars` is the door's own budget: the wide-window doors read more of the article than the
+ *  site's 60,000-character default (see `material-budget.ts`). */
+export function renderContext(a: AnalyzeInputArticle, opts: { annotateQuoted?: boolean; bodyChars?: number } = {}): string {
   const lines: string[] = [];
   lines.push(`【来源】${a.source.name}（${a.source.kind}，tier=${a.source.tier || "未分级"}）`);
   if (a.source.tags?.length) lines.push(`【来源标签】${a.source.tags.join(", ")}`);
@@ -113,7 +115,7 @@ export function renderContext(a: AnalyzeInputArticle, opts: { annotateQuoted?: b
   }
   lines.push("");
   lines.push(opts.annotateQuoted && quoted ? "【正文（作者自己的内容）】" : "【正文】");
-  lines.push(capBody(a.xPost ? String(a.xPost.text ?? a.title) : (a.bodyText ?? a.excerpt ?? "(无正文)")));
+  lines.push(capBody(a.xPost ? String(a.xPost.text ?? a.title) : (a.bodyText ?? a.excerpt ?? "(无正文)"), opts.bodyChars));
   lines.push("");
   lines.push(`【材料质量】${materialQuality(a)}`);
   return lines.join("\n");
@@ -127,8 +129,8 @@ export function missingEvidence(a: AnalyzeInputArticle): boolean {
   return !a.bodyText?.trim() && !a.excerpt?.trim() && !String(a.xPost?.text ?? "").trim() && !String(a.xPost?.quoted?.text ?? "").trim();
 }
 
-export const understandUser = (a: AnalyzeInputArticle) =>
-  ["请按系统规则理解以下单篇材料，一次返回全部六个字段。", renderContext(a, { annotateQuoted: true })].join("\n\n");
+export const understandUser = (a: AnalyzeInputArticle, bodyChars?: number) =>
+  ["请按系统规则理解以下单篇材料，一次返回全部六个字段。", renderContext(a, { annotateQuoted: true, bodyChars })].join("\n\n");
 
 // ── Identity context and guard ────────────────────────────────────────────────────────────────
 

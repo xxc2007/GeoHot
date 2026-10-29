@@ -5,6 +5,7 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
 import { config } from "../config.ts";
+import { normalizeSourceImageUrl } from "./source-image-url.ts";
 import { guardedFetch, type GuardedResponse } from "../lib/http-fetch.ts";
 
 import { IMAGE_WIDTHS } from "./renditions.ts";
@@ -62,7 +63,7 @@ function original(url: string): Promise<GuardedResponse> {
   failures.delete(url);
   let job = originals.get(url);
   if (!job) {
-    job = downloadGate.run(() => fetchOriginal(url)).then((res) => {
+    job = downloadGate.run(() => fetchImageOriginal(url)).then((res) => {
       rememberOriginal(url, res);
       return res;
     }).catch((error: unknown) => {
@@ -77,8 +78,21 @@ function original(url: string): Promise<GuardedResponse> {
   return job;
 }
 
-async function fetchOriginal(url: string): Promise<GuardedResponse> {
-  const res = await guardedFetch(url, { timeoutMs: 20_000, maxBytes: 15 * 1024 * 1024, headers: { accept: "image/avif,image/webp,image/*,*/*;q=0.8" } });
+export async function fetchImageOriginal(url: string, fetcher = guardedFetch): Promise<GuardedResponse> {
+  // Old signed URLs and persisted media must recover too; verify signatures before this fetch layer.
+  url = normalizeSourceImageUrl(url);
+  const options = { timeoutMs: 20_000, maxBytes: 15 * 1024 * 1024, headers: { accept: "image/avif,image/webp,image/*,*/*;q=0.8" } };
+  let res = await fetcher(url, options);
+  // Measured on this journal's newly published figures: the CDN caches HTTP 200 with zero bytes
+  // and text/html, although the original PNG exists. Retry the same path once outside that cache;
+  // the successful rendition is persisted under the original stable URL by produce().
+  const retry = new URL(url);
+  if (res.status === 200 && res.body.length === 0 && /^(www\.)?ecologyandsociety\.org$/i.test(retry.hostname)) {
+    retry.searchParams.set("geohot_retry", String(Date.now()));
+    // Its attachment handler also returns that empty response to the longer site UA. Keep the
+    // fetcher's own GEOHOT identity in the short form the handler accepts; no browser impersonation.
+    res = await fetcher(retry.toString(), { ...options, headers: { ...options.headers, "user-agent": "GEOHOT" } });
+  }
   if (res.status !== 200) throw new Error(`upstream ${res.status}`);
   return res;
 }

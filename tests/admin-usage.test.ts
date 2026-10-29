@@ -34,6 +34,11 @@ test("usage counts attempts including retries, separates currencies and missing 
     assert.equal(rows.find(r=>r.kind==='day')!.day,'2026-01-02');
     assert.equal(rows.find(r=>r.kind==='hour')!.hour,2);
     assert.equal((await readUsage(db,'all',service,'different-model')).find(r=>r.kind==='total')!.calls,0);
+    assert.equal((await readUsage(db,'date',service,'','2026-01-02')).find(r=>r.kind==='total')!.calls,3);
+    assert.equal((await readUsage(db,'date',service,'','2026-01-03')).find(r=>r.kind==='total')!.calls,0);
+    await assert.rejects(readUsage(db,'date',service,'','invalid'),/Invalid usage date/);
+    const shared = await readUsage(db,'*',service,'');
+    assert.equal(shared.find(r=>r.kind==='total'&&r.rangeKey==='all')!.calls,3);
     assert.equal((await db`SELECT status FROM receipts WHERE id=${r!.id}`)[0]!.status,'pending','read does not mutate ledger');
     await db`DELETE FROM receipt_model_labels WHERE receipt_id=${r!.id}`;
     await assert.rejects(readUsage(db,'all','', 'hy3'),/label gap/);
