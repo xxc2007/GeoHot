@@ -3,6 +3,7 @@ import { beijingDate, beijingTime } from "@aihot/contracts/time";
 import { sql } from "../db.ts";
 import { collapseWhitespace, truncate } from "../lib/text.ts";
 import { produceImage } from "../media/images.ts";
+import { DEFAULT_MATERIAL_BODY_CHARS } from "./material-budget.ts";
 import type { ContentPart } from "../providers/llm.ts";
 
 export interface AnalyzeInputArticle {
@@ -73,8 +74,10 @@ const KIND_LABEL: Record<string, string> = {
   rss: "RSS", web_list: "网页", json_list: "网页接口", x_search: "X 帖子", mp_account: "微信公众号", external: "外部上报",
 };
 
-/** The material as the structure step reads it (source facts, text, link). */
-export function buildMaterial(a: AnalyzeInputArticle): string {
+/** The material as the structure step reads it (source facts, text, link).
+ *  `bodyChars` is the door's own budget: the wide-window doors get more of the article (see
+ *  `material-budget.ts`), everyone else keeps the site's 7,000-character default. */
+export function buildMaterial(a: AnalyzeInputArticle, bodyChars = DEFAULT_MATERIAL_BODY_CHARS): string {
   const lines: string[] = [];
   lines.push("<source>");
   lines.push(`名称：${a.source.name}`);
@@ -91,7 +94,7 @@ export function buildMaterial(a: AnalyzeInputArticle): string {
   } else {
     lines.push(`标题：${collapseWhitespace(a.title)}`);
     const body = a.bodyText ?? a.excerpt ?? "";
-    lines.push(body ? `正文：\n${truncate(body, 7000)}` : "正文：（无）");
+    lines.push(body ? `正文：\n${truncate(body, bodyChars)}` : "正文：（无）");
     if (a.translationZh && !a.bodyText) lines.push(`正文中文译文：\n${truncate(a.translationZh, 5000)}`);
   }
   lines.push(`原文链接：${a.url}`);

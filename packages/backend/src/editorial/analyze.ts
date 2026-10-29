@@ -19,6 +19,7 @@ import { BudgetExceededError, completeReceipt, ProviderRejectedError } from "../
 import { collapseWhitespace } from "../lib/text.ts";
 import { modelFor } from "./models.ts";
 import { buildMaterial, firstImagePart, loadAnalyzeInput, type AnalyzeInputArticle } from "./input.ts";
+import { copyBodyChars, materialBodyChars } from "./material-budget.ts";
 import { pageFetchable } from "../content/extract.ts";
 import { shutdownSignal } from "../jobs/queue.ts";
 import {
@@ -293,7 +294,7 @@ async function runStructure(a: AnalyzeInputArticle, opts: StepOpts): Promise<Non
     subject: subjectOf(a),
     promptVersion: PROMPT_VERSIONS.structure,
     system: STRUCTURE_SYSTEM,
-    user: buildMaterial(a),
+    user: buildMaterial(a, materialBodyChars(model)),
     schema: StructureSchema,
     temperature: 0.2,
     maxTokens: 800,
@@ -321,7 +322,7 @@ export function noChineseAnswer(data: { titleZh?: string; summaryZh?: string; bo
 /** The content understanding; null when the model's content filter declines the material. */
 async function runUnderstand(a: AnalyzeInputArticle, opts: StepOpts): Promise<AnalysisRun["writing"]> {
   const model = await modelFor("understand", a.id);
-  const text = understandUser(a);
+  const text = understandUser(a, copyBodyChars(model));
   const call = (image: ContentPart | null) => {
     checkAnalysisRunning();
     return chatJson({

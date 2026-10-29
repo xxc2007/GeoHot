@@ -8,12 +8,13 @@ test('official estimate uses cache tokens, reports unknown cache bounds and excl
   assert.equal(r.pricedCalls,2);assert.equal(r.calls,4);assert.equal(r.missingUsage,2);assert.equal(r.cacheUnknownCalls,1);
   assert.deepEqual(r.totals[0]!.list,{low:9.0625,high:9.8125});
 });
-test('Agnes international and domestic prices stay separate; promotional zero is not list zero',()=>{
+test('Agnes international and domestic standard prices stay separate without promotional discounts',()=>{
   const r=officialCosts([bucket({service:'llm',model:'agnes-3.0-flash',cachedTokens:0}),bucket({service:'agnes-cn',model:'agnes-3.0-flash',cachedTokens:0}),bucket({service:'dots',model:'dots3-note-prev',cachedTokens:0})]);
   assert.equal(r.totals.length,1);assert.equal(r.totals[0]!.currency,'CNY');
   assert.ok(Math.abs(r.totals[0]!.list.high-(1.35+.62*CNY_FX.usdToCny))<1e-9);
   assert.ok(r.models.every(m=>m.currency==='CNY'));
-  assert.ok(r.totals.every(t=>t.current.high===0));
+  assert.ok(r.totals.every(t=>t.current.high===t.list.high));
+  assert.ok(r.models.every(m=>m.current?.high===m.list?.high));
 });
 test('DeepSeek applies peak boundaries, weekends and verified Chinese holidays',()=>{
   for(const h of [9,11,14,17])assert.deepEqual(peakFactor('2026-10-23',h),{low:2,high:2});

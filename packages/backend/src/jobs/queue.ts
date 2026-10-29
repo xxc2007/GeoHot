@@ -1,3 +1,4 @@
+import { installResourceIntake } from "../operations/resource-intake.ts";
 // Job queue on PostgreSQL (pg-boss). Business code enqueues by name; the worker process owns handlers.
 import { PgBoss, type SendOptions } from "pg-boss";
 import { config } from "../config.ts";
@@ -57,6 +58,7 @@ export async function getBoss(): Promise<PgBoss> {
     // process. Clear it so the next call tries again; the awaiting caller still receives this error.
     starting = (async () => {
       const b = new PgBoss({ connectionString: config.databaseUrl, schema: "pgboss", ...bossOptions() });
+      installResourceIntake(b);
       b.on("error", (err) => console.error("[pg-boss]", err));
       try {
         await b.start();
@@ -163,14 +165,15 @@ export async function recordRun<T>(job: string, fn: () => Promise<T>): Promise<T
   try {
     const result = await fn();
     const detail = result && typeof result === "object" ? result : { result };
+    const status = result && typeof result === "object" && "deferred" in result && result.deferred === true ? "skipped" : "ok";
     // The work is finished at this point; writing the log line must not be able to downgrade it.
     // `sql.json` throws on anything JSON cannot hold, and until 2026-10-05 such a result made this run
     // land in the `catch` below — `/admin/runs` then showed a completed job as failed, and the operator
     // re-ran work that had already succeeded. Fall back to a detail that always serialises.
     try {
-      await sql`UPDATE job_runs SET status = 'ok', finished_at = now(), detail = ${sql.json(detail as never)} WHERE id = ${row!.id}`;
+      await sql`UPDATE job_runs SET status = ${status}, finished_at = now(), detail = ${sql.json(detail as never)} WHERE id = ${row!.id}`;
     } catch {
-      await sql`UPDATE job_runs SET status = 'ok', finished_at = now(), detail = ${sql.json({ result: "ok", detailUnloggable: true } as never)} WHERE id = ${row!.id}`.catch(() => {});
+      await sql`UPDATE job_runs SET status = ${status}, finished_at = now(), detail = ${sql.json({ result: status, detailUnloggable: true } as never)} WHERE id = ${row!.id}`.catch(() => {});
     }
     return result;
   } catch (error) {

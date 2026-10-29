@@ -136,7 +136,7 @@ export function registerAdmin(app: FastifyInstance) {
   app.get("/api/admin/models", adminHandler(async (req) => modelsOverview(Math.min(90, Number(q(req).days) || 7))));
   app.get("/api/admin/usage", adminHandler(async (req, reply) => {
     reply.header("Cache-Control", "no-store");
-    return usageOverview(q(req).range,q(req).service,q(req).model);
+    return usageOverview(q(req).range,q(req).service,q(req).model,q(req).date,q(req).month);
   }));
   app.post("/api/admin/models/:capability", adminHandler(async (req, _reply, admin) => {
     const b = body<{ model: string | null; reason: string }>(req);

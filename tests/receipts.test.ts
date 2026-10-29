@@ -11,7 +11,7 @@ import { config } from "@aihot/backend/config";
 import { closeDb, sql } from "@aihot/backend/db";
 import { chatJson, ModelOutputError, MODELS } from "@aihot/backend/providers/llm";
 import { embeddingsAvailable } from "@aihot/backend/providers/embeddings";
-import { BudgetExceededError, completeReceipt, paidRequest, ReceiptUnknownError, rejectReceivedResponse } from "@aihot/backend/providers/receipts";
+import { BudgetExceededError, completeReceipt, paidRequest, ReceiptUnknownError, ProviderRejectedError, rejectReceivedResponse } from "@aihot/backend/providers/receipts";
 import { autoReleaseUnknownReceipts } from "@aihot/backend/admin/runs";
 
 const usage = { prompt_tokens: 80, completion_tokens: 20, total_tokens: 100 };
@@ -146,7 +146,7 @@ test("an unknown outcome is released automatically once, so a lost answer costs 
 
   await sql`INSERT INTO budgets(service,per_minute,per_hour,per_day) VALUES(${req.service},3,3,3)`;
   try {
-    await assert.rejects(paidRequest(req, lost));
+    await assert.rejects(paidRequest(req, lost), ReceiptUnknownError);
     assert.equal(await status(), "unknown");
     await autoReleaseUnknownReceipts();
     assert.equal(await status(), "unknown", "not within half an hour");
@@ -166,6 +166,34 @@ test("an unknown outcome is released automatically once, so a lost answer costs 
     await sql`DELETE FROM receipts WHERE service=${req.service}`;
     await sql`DELETE FROM budgets WHERE service=${req.service}`;
   }
+});
+
+test("only proven unbilled connection failures may switch dispatch, while unknowns block the whole recovery set", async () => {
+  const stamp = tag();
+  const services = [`connect-a-${stamp}`, `connect-b-${stamp}`];
+  await sql`INSERT INTO budgets(service,per_minute,per_hour,per_day) VALUES(${services[0]!},20,20,20),(${services[1]!},20,20,20)`;
+  try {
+    for (const mode of ["unbilled", "http", "unknown"] as const) {
+      const a = { service: services[0]!, purpose: "invariant_test", identity: { stamp, mode } };
+      const b = { ...a, service: services[1]! };
+      let fallbackCalls = 0;
+      const next = async () => { fallbackCalls++; return { response: { ok: true } }; };
+      const failure = async () => {
+        if (mode === "unknown") throw new Error("connection lost after sending");
+        throw new ProviderRejectedError("local fixture refusal", mode === "http" ? 403 : null, true, undefined, mode === "unbilled" ? "unbilled" : "unknown");
+      };
+      const pending = paidRequest(a, failure, [], [{ request: b, call: next }]);
+      if (mode === "unbilled") { assert.equal((await pending).response && fallbackCalls, 1); }
+      else {
+        await assert.rejects(pending, mode === "unknown" ? ReceiptUnknownError : ProviderRejectedError);
+        assert.equal(fallbackCalls, 0);
+        if (mode === "unknown") {
+          await assert.rejects(paidRequest(b, next, [a]), ReceiptUnknownError);
+          assert.equal(fallbackCalls, 0, "unknown A also blocks a direct attempt through B");
+        }
+      }
+    }
+  } finally { await sql`DELETE FROM budgets WHERE service IN (${services[0]!},${services[1]!})`; }
 });
 
 test("the spend windows count what cost money, not every attempt", async () => {

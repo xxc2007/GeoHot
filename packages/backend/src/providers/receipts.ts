@@ -171,8 +171,8 @@ export async function paidRequest(
       await markUnknown(tx, unresolved.id, "placeholder went stale without a recorded result");
       return { kind: "unknown" as const, row: unresolved };
     }
-    // Only a local budget refusal before an attempt exists can change the dispatch. An HTTP refusal or
-    // unknown outcome never reaches this loop. Every choice is checked while all candidate locks hold.
+    // Choose within local budgets while candidate locks hold. Unknown outcomes never change dispatch;
+    // a proven unbilled connection failure can re-enter with the remaining candidates below.
     let chosen = dispatches[0]!;
     let earliestBudgetError: BudgetExceededError | undefined;
     const blockedServices = new Set<string>();
@@ -231,6 +231,14 @@ export async function paidRequest(
       await tx`UPDATE receipt_attempts SET status = ${status}, billing_status = ${billingStatus}, error = ${message}, latency_ms = ${Date.now() - started}, finished_at = now() WHERE id = ${attemptId}`;
     });
     if (status === "unknown") throw new ReceiptUnknownError(receiptId, `Provider outcome is unknown; ${message}`);
+    if (error instanceof ProviderRejectedError && error.retryable && error.billingStatus === "unbilled") {
+      const remaining = dispatches.filter(d => logicalKeyFor(d.request) !== claimed.logicalKey);
+      if (remaining.length) {
+        // Keep the full recovery set: a concurrent caller's pending/unknown receipt still blocks a
+        // second purchase, and an already received alternative is reused before any dispatch.
+        return paidRequest(remaining[0]!.request, remaining[0]!.call, candidates, remaining.slice(1));
+      }
+    }
     throw error;
   }
 

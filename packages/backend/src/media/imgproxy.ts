@@ -6,6 +6,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { deployBase } from "@aihot/contracts/http-policy";
 import { config, credential } from "../config.ts";
+import { normalizeSourceImageUrl } from "./source-image-url.ts";
 
 import { IMAGE_WIDTHS, RESPONSIVE_MODES, type ProxyMode, type ResponsiveImageKind } from "./renditions.ts";
 export type { ProxyMode } from "./renditions.ts";
@@ -55,6 +56,7 @@ export function proxiedImage(url: string | null | undefined, mode: ProxyMode, ab
   if (!url) return null;
   if (url.startsWith("data:")) return url;
   if (!/^https?:\/\//i.test(url)) return null;
+  url = normalizeSourceImageUrl(url);
   const exp = proxyExpiry(nowMs, lifetimeSeconds);
   const path = `/api/img-proxy?u=${encodeURIComponent(url)}&mode=${mode}&exp=${exp}&sig=${signature(url, mode, exp).slice(0, SIG_HEX)}`;
   return absolute ? `${config.siteUrl}${path}` : `${SITE_BASE}${path}`;
