@@ -2,6 +2,28 @@
 set -euo pipefail
 exec 9>/run/lock/geohot-magpie-update.lock
 flock -n 9 || exit 0
+# Share the same atomic exclusion as workstation extraction and source releases.
+owner=/var/lib/geohot-maintenance/worker-owner.json
+if ! python3 - "$owner" "$$" <<'PY'
+import os,json,sys
+try:fd=os.open(sys.argv[1],os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o600)
+except FileExistsError:sys.exit(1)
+with os.fdopen(fd,'w') as f:json.dump({'owner':'magpie-update','pid':sys.argv[2]},f)
+PY
+then
+ echo 'Magpie update deferred: another maintenance or workstation session owns the fence'
+ exit 0
+fi
+finish_owner(){
+ python3 - "$owner" "$$" <<'PY'
+import pathlib,json,sys
+p=pathlib.Path(sys.argv[1])
+if p.exists():
+ row=json.loads(p.read_text())
+ if row.get('owner')=='magpie-update' and row.get('pid')==sys.argv[2]:p.unlink()
+PY
+}
+trap finish_owner EXIT
 bin=/usr/local/bin/geohot-magpie
 home=/var/lib/geohot-magpie
 backup=/var/lib/geohot-magpie-update

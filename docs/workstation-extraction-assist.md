@@ -31,7 +31,23 @@ node scripts/workstation-extraction-assist.ts --config C:/private/geohot-assist.
 node scripts/workstation-extraction-assist.ts --config C:/private/geohot-assist.json --run-seconds 600
 ```
 
-试运行期间不能部署源码、迁移数据库或更改模型/网关配置。先正常停止辅助程序，核验子进程退出、隧道关闭及队列交回，再维护。不能以 SSH 断开、PG 无连接或心跳过期单独证明任务排空。自动化维护 fence 尚须独立实现和演练，因此不能将有限工具改成开机自启来绕过这个前提。
+运行期间不能部署源码、迁移数据库或更改模型/网关配置。辅助程序通过服务器现有 `worker-owner.json` 的 O_EXCL 独占规则登记会话；维护程序必须同样原子申请此 owner，有其他 owner 时退出。该 owner 不停止服务器 all 工作流。只有本机会话自己的探测认可该 owner，其余辅助程序和维护均拒绝进入。先禁用未来计划运行，等待当前会话正常完成，核验子进程退出、隧道关闭及队列交回，再维护。不能以 SSH 断开、PG 无连接或心跳过期单独证明任务排空。
+
+## 可选的登录后自动协同
+
+安装前须完成 fence 互斥及有限试运行验收。计划任务使用当前普通用户登录态，不保存 Windows 密码；开机未登录时不参与。登录后触发，之后每五分钟重试准入；任务重叠时忽略新一轮。每轮最多处理十分钟，一分钟连续健康后才启动单槽抽取，不启用本机模型调用。服务器始终保持 all 角色，负责采集、分析、翻译和发布，本机离线不会停止服务器工作流。
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-workstation-assist.ps1 -Config C:/private/geohot-assist.json
+# 维护前禁用后续轮次；不强杀在途任务
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-workstation-assist.ps1 -Config C:/private/geohot-assist.json -Remove
+```
+
+突然关机、强杀进程、SSH 失败或无法证明排空时，保留服务器 owner 和本机实例锁，后续自动运行拒绝参与。必须核验实际子进程、隧道和在途任务后人工恢复，不能按过期时间或 PID 自动抢锁。计划任务二十分钟兜底终止也遵守此隔离规则。服务器维护遵守 owner 是启用前提；所有维护先关闭计划任务并等待排空，再原子取得 owner。更新源码时本机也须同步，版本不符时辅助暂停，不自动拉取覆盖正在运行的文件。旧版六个协同任务继续禁用。
+
+生产自动维护核查：Magpie 自动升级使用同一个原子 owner，遇辅助会话延期；archive 是现有队列的数据生产，不做 DDL；liveness 尊重现有 owner。R115 与紧急降并发保护继续生效，必要时可以优先停止服务器任务；本机探测因此关闭领取并收尾，不用禁用保护来换速度。人工 deploy/night-window 等维护命令也须先按上述流程禁用并排空本机辅助，不能直接执行不含 owner 的旧脚本。
+
+计划任务的准入、处理计数及隔离结果写入私有 stateDirectory 下按日划分的 assist 日志，不输出数据库或模型凭据。`fullBodiesStored` 只代表抽取，不代表完整工作流已发布。效果须结合 analyses、完整 translations、新公开文章的小时产出和队列净增长一起验收。
 
 失去电源、网络、资源、版本或维护许可后，撤销租约并通过 IPC 停止新领取，保留隧道等待在途操作收尾。父进程退出触发子进程 IPC disconnect；睡眠期间租约自行过期。超时/清理异常报告 isolated 并保留实例锁，由操作员核查，禁止自动偷锁或清理队列。手工检查旧锁前核验其 PID 与实际命令、在途作业和连接，不能仅凭 PID 不存在推断所有工作完成。
 
