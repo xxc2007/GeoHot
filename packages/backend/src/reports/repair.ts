@@ -25,14 +25,17 @@ export async function repairReportWorkflow(target?: Pick<Header,"kind"|"key">) {
     const headers = await sql<Header[]>`SELECT r.kind,r.key,CASE r.kind WHEN 'monthly' THEN 0 WHEN 'weekly' THEN 1 ELSE 2 END AS rank
       FROM reports r WHERE r.window_end<=now()
       ${target ? sql`AND r.kind=${target.kind} AND r.key=${target.key}` : sql``}
+      AND NOT EXISTS (SELECT 1 FROM settings cooling WHERE cooling.key='report_workflow_repair_v1:'||r.kind||':'||r.key
+        AND (cooling.value->>'retryAt')::timestamptz>now())
       ${cursor ? sql`AND (CASE r.kind WHEN 'monthly' THEN 0 WHEN 'weekly' THEN 1 ELSE 2 END > ${cursor.rank}
-        OR (r.kind=${cursor.kind} AND r.key<${cursor.key}))` : sql``}
+        OR (r.kind=${cursor.kind} AND r.key<${cursor.key})
+        OR EXISTS (SELECT 1 FROM settings retry WHERE retry.key='report_workflow_repair_v1:'||r.kind||':'||r.key AND (retry.value->>'retryAt')::timestamptz<=now()))` : sql``}
       AND (EXISTS (SELECT 1 FROM settings campaign WHERE campaign.key='report_workflow_repair_v1:'||r.kind||':'||r.key)
         OR EXISTS (SELECT 1 FROM jsonb_array_elements(coalesce(r.content->'sections',r.content->'themes','[]'::jsonb) || jsonb_build_array(jsonb_build_object('items',coalesce(r.content->'flashes','[]'::jsonb)))) grp
         CROSS JOIN LATERAL jsonb_array_elements(coalesce(grp->'items',grp->'storyRefs','[]'::jsonb)) cited
         LEFT JOIN publications p ON p.article_id=cited->>'itemId'
         WHERE cited->>'itemId' IS NOT NULL AND (p.article_id IS NULL OR NOT (${workflowReadyCondition()}))))
-      ORDER BY rank,r.key DESC LIMIT 5`;
+      ORDER BY CASE WHEN EXISTS (SELECT 1 FROM settings retry WHERE retry.key='report_workflow_repair_v1:'||r.kind||':'||r.key AND (retry.value->>'retryAt')::timestamptz<=now()) THEN 0 ELSE 1 END,rank,r.key DESC LIMIT 5`;
     if (!headers.length) { if (!target) await sql`DELETE FROM settings WHERE key=${CURSOR}`; return { wrapped: true }; }
     for (const h of headers) {
       if (!resourceHeadroom()) return { held: true };
@@ -52,6 +55,8 @@ export async function repairReportWorkflow(target?: Pick<Header,"kind"|"key">) {
           catch (error) {
             // A period waiting for its receipt/budget must not prevent unrelated old editions advancing.
             // Do not stamp its fingerprint: a later cycle can recover the ordinary receipt.
+            await sql`INSERT INTO settings(key,value) VALUES(${stampKey},${sql.json({outcome:"retry-wait",retryAt:new Date(Date.now()+35*60_000).toISOString()})})
+              ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value`;
             if (!target) await sql`INSERT INTO settings(key,value) VALUES(${CURSOR},${sql.json(h)}) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value`;
             throw error;
           }
