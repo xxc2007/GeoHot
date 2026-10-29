@@ -1,5 +1,6 @@
 import {balancedResources} from "../operations/resource-budget.ts";
 import {unhealthyModel} from "../operations/model-health.ts";
+import { modelCooldown } from "../operations/model-cooldown.ts";
 // Model routing preserves explicit administrator choices and configured pool membership/weights.
 // Pools first apply credential, format, ledger-health and output-refusal gates. Within a
 // one-minute telemetry snapshot, the work-unit hash is deterministic; sufficient same-purpose
@@ -210,12 +211,12 @@ let health: { at: number; sick: Set<string> } | null = null;
 let healthInflight: Promise<Set<string>> | null = null;
 
 export async function sickServices(): Promise<Set<string>> {
-  if (health && Date.now() - health.at < 60_000) return health.sick;
+  if (health && Date.now() - health.at < 60_000) return modelCooldown.overlay(health.sick);
   // 2026-10-22: 64 个 analyze 并发同时过期会让这条 6 小时窗口查询并发执行 64 次，
   // 每次在 891MB/2 核的机器上跑 115 秒，把连接池和 IO 全部吃光。单飞后同一时刻只有一个在飞。
-  if (healthInflight) return healthInflight;
+  if (healthInflight) return healthInflight.then(sick => modelCooldown.overlay(sick));
   healthInflight = readSick().finally(() => { healthInflight = null; });
-  return healthInflight;
+  return healthInflight.then(sick => modelCooldown.overlay(sick));
 }
 
 async function readSick(): Promise<Set<string>> {

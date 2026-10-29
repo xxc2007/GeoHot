@@ -5,6 +5,7 @@ import type { z } from "zod";
 import { config, credential } from "../config.ts";
 import { sha256 } from "../lib/ids.ts";
 import { logicalKeyFor, paidRequest, ProviderRejectedError, rejectReceivedResponse, type ReceiptRequest } from "./receipts.ts";
+import { modelCooldown } from "../operations/model-cooldown.ts";
 
 export interface ModelSpec {
   key: string;
@@ -657,6 +658,7 @@ export async function chatJson<S extends z.ZodType>(opts: ChatJsonOptions<S>): P
     const key = credential("models", model.apiKeyEnv)!;
     return { request: prepared.request, call: async () => {
       const started = Date.now();
+      const cooldownTicket = modelCooldown.begin();
       let res: Response;
       try {
         res = await fetch(`${url.replace(/\/$/, "")}/chat/completions`, {
@@ -671,6 +673,9 @@ export async function chatJson<S extends z.ZodType>(opts: ChatJsonOptions<S>): P
       }
       const text = await res.text();
       if (!res.ok) {
+        // A cached healthy snapshot must not send every remaining translation shard into a declared wall.
+        // This changes only later selection; the failed request keeps its normal ledger/billing outcome.
+        modelCooldown.reject(model.service, model.model, res.status, text);
         const retryable = res.status === 429 || res.status >= 500;
         throw new ProviderRejectedError(`HTTP ${res.status}: ${text.slice(0, 500)}`, res.status, retryable, model.key);
       }
@@ -681,6 +686,7 @@ export async function chatJson<S extends z.ZodType>(opts: ChatJsonOptions<S>): P
         json = { unparsable: text.slice(0, 20000) };
       }
       const usage = (json.usage as Record<string, unknown> | undefined) ?? null;
+      modelCooldown.accept(model.service, model.model, cooldownTicket);
       return {
         response: { ...json, _latencyMs: Date.now() - started },
         requestId: (json.id as string | undefined) ?? res.headers.get("x-request-id"),
