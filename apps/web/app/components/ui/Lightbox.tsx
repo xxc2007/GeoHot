@@ -81,7 +81,6 @@ export function Lightbox({ images, index, onIndex, onClose }: { images: Lightbox
     {current&&<img key={current.src} ref={picture} src={current.src} alt={current.alt??''} draggable={false} decoding="async" onLoad={()=>paint(FIT)} className="max-h-full max-w-full select-none object-contain shadow-2xl" style={{transformOrigin:'center',willChange:'transform'}}/>}
    </div>
    {images.length>1&&<><button type="button" aria-label="上一张" className={`${button} absolute bottom-3 left-4 bg-black/60 sm:bottom-1/2`} onClick={()=>step(-1)}><IconArrowLeft size={20}/></button><button type="button" aria-label="下一张" className={`${button} absolute bottom-3 right-4 bg-black/60 sm:bottom-1/2`} onClick={()=>step(1)}><IconArrowRight size={20}/></button></>}
-   <p className="pointer-events-none absolute inset-x-16 bottom-5 text-center text-xs text-white/70">双击或双指缩放 · 放大后拖动查看</p>
   </div>
  </Presence>,document.body);
 }
