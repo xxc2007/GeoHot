@@ -26,7 +26,7 @@ restore(){
  rc=$?
  if [ "$rc" != 0 ] && [ "$copied" = 1 ];then
   tar -xf "$backup/source-before.tar"
-  if [ "$build_switched" = 1 ];then mv apps/web/build "$candidate/failed-build";mv "$backup/web-build" apps/web/build;systemctl restart geohot-web;fi
+  if [ "$build_switched" = 1 ];then if [ -d apps/web/build ];then mv apps/web/build "$candidate/failed-build";fi;mv "$backup/web-build" apps/web/build;systemctl restart geohot-web;fi
   if [ "$api_restarted" = 1 ];then systemctl restart geohot-api;fi
   if [ -f "$backup/cache-before.conf" ];then cp "$backup/cache-before.conf" /etc/nginx/snippets/geohot-public-cache.conf;nginx -t && systemctl reload nginx;fi
   echo 'Previous source restored; additional schema columns retained for compatible rollback'
@@ -92,8 +92,8 @@ done
 cp -an apps/web/build/client/assets/. "$candidate/apps/web/build/client/assets/"
 chown -R geohot:geohot "$candidate/apps/web/build"
 mv apps/web/build "$backup/web-build"
-mv "$candidate/apps/web/build" apps/web/build
 build_switched=1
+mv "$candidate/apps/web/build" apps/web/build
 systemctl restart geohot-web
 curl --fail --silent --max-time 15 http://127.0.0.1:3000/geohot/ -o /dev/null
 cp /etc/nginx/snippets/geohot-public-cache.conf "$backup/cache-before.conf"
