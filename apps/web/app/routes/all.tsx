@@ -1,4 +1,5 @@
 import { SITE, withSubject } from "@aihot/industry/site";
+import { useMemo } from "react";
 import { Link, useLoaderData, useNavigation, useSearchParams } from "react-router";
 import type { Route } from "./+types/all";
 import type { PoolResponse } from "@aihot/contracts/site";
@@ -13,6 +14,7 @@ import { DateCalendar, type CalendarDay } from "../features/calendar/DateCalenda
 import { beijingTime, todayOf } from "../lib/format";
 import { EmptyState } from "../components/ui/Page";
 import { RingMark } from "../components/Logo";
+import { useLivePublicData } from "../lib/use-live-public-data";
 
 export async function loader({ request }: Route.LoaderArgs) {
   const url = new URL(request.url);
@@ -87,8 +89,15 @@ function pageHref(params: URLSearchParams, page: number) {
 }
 
 export default function AllPage() {
-  const { data, calendar, date, month } = useLoaderData<typeof loader>();
+  const { data: initial, calendar: initialCalendar, date, month } = useLoaderData<typeof loader>();
   const [params] = useSearchParams();
+  const bundle = useMemo(() => [initial, initialCalendar] as const, [initial, initialCalendar]);
+  const calendarParams = new URLSearchParams({ month });
+  if (initial.filters.channel !== "all") calendarParams.set("channel", initial.filters.channel);
+  if (initial.filters.category) calendarParams.set("category", initial.filters.category);
+  if (initial.filters.tag) calendarParams.set("tag", initial.filters.tag);
+  const [data, calendar] = useLivePublicData(bundle, initial.page === 1 && !initial.filters.q && !date
+    ? [`/api/site/pool?${params}`, `/api/site/calendar?${calendarParams}`] : null);
   const navigation = useNavigation();
   const f = data.filters;
   const busy = navigation.state === "loading" && navigation.location?.pathname === "/all";

@@ -7,6 +7,7 @@ import { loadOr404, queryString, releaseBoundCache } from "../lib/api.server";
 import { listPath, organizationLd, pageMeta } from "../lib/seo";
 import { Wordmark } from "../components/Logo";
 import { Timeline } from "../features/feed/Timeline";
+import { useLivePublicData } from "../lib/use-live-public-data";
 import { HotTopics } from "../features/feed/HotTopics";
 import { CategoryTabs, SearchField, SearchIconLink } from "../features/feed/Filters";
 import { beijingDate, beijingWeekday, monthDayTime, shortSourceName } from "../lib/format";
@@ -80,7 +81,12 @@ function TodayLabel() {
 }
 
 export default function Home() {
-  const { data, live, filters } = useLoaderData<typeof loader>();
+  const { data: initial, live, filters } = useLoaderData<typeof loader>();
+  const params = new URLSearchParams({ limit: "12" });
+  if (filters.channel !== "all") params.set("channel", filters.channel);
+  if (filters.category) params.set("category", filters.category);
+  if (filters.tag) params.set("tag", filters.tag);
+  const data = useLivePublicData(initial, `/api/site/timeline?${params}`);
   const title = filters.tag ? `#${filters.tag}` : "精选";
   return (
     <div className="pb-6">
