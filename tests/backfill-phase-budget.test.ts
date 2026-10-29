@@ -67,10 +67,10 @@ function runPapers(phaseSeconds: string): Promise<{ code: number | null; out: st
 const ids: string[] = [];
 
 before(async () => {
-  await sql`INSERT INTO sources (id, name, kind, tier, participation_mode, next_fetch_at, last_ok_at)
-            VALUES (${SOURCE}, 'Phase budget', 'rss', 'T1', 'editorial', '2100-01-01', now())`;
+  await sql`INSERT INTO sources (id, name, kind, tier, participation_mode, site_fulltext, next_fetch_at, last_ok_at)
+            VALUES (${SOURCE}, 'Phase budget', 'rss', 'T1', 'editorial', true, '2100-01-01', now())`;
   const { articleId, backfill } = await upsertMaterial({
-    sourceId: SOURCE, url: `https://example.com/${T}-a`, title: `Source ${T} a`, bodyText: "A bulletin.",
+    sourceId: SOURCE, url: `https://example.com/${T}-a`, title: `Source ${T} a`, bodyText: "完整的中文水文公报正文。",
     bodyStatus: "ok", via: "fetch", publishedAt: INSIDE, discoveredAt: INSIDE,
   });
   ids.push(articleId); // Cleanup must know the material even if a later setup assertion fails.

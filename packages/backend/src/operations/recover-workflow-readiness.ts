@@ -18,7 +18,7 @@ export async function recoverWorkflowReadiness(options: {selectedOnly?:boolean;s
     const cursor=saved?.value;
     const headers=await tx<{article_id:string;timeline_at:Date}[]>`SELECT p.article_id,p.timeline_at FROM publications p
       WHERE p.visibility='public' AND p.body_mode='full'
-      ${options.reportsOnly ? tx`AND p.article_id IN (SELECT cited->>'itemId' FROM reports r CROSS JOIN LATERAL jsonb_array_elements(coalesce(r.content->'themes','[]'::jsonb)) grp CROSS JOIN LATERAL jsonb_array_elements(coalesce(grp->'storyRefs','[]'::jsonb)) cited WHERE r.kind IN ('weekly','monthly'))` : tx``}
+      ${options.reportsOnly ? tx`AND p.article_id IN (SELECT cited->>'itemId' FROM reports r CROSS JOIN LATERAL jsonb_array_elements(coalesce(r.content->'sections',r.content->'themes','[]'::jsonb) || jsonb_build_array(jsonb_build_object('items',coalesce(r.content->'flashes','[]'::jsonb)))) grp CROSS JOIN LATERAL jsonb_array_elements(coalesce(grp->'items',grp->'storyRefs','[]'::jsonb)) cited)` : tx``}
       AND EXISTS (SELECT 1 FROM sources policy_s WHERE policy_s.id=p.source_id AND policy_s.site_fulltext) ${options.selectedOnly ? tx`AND p.selected` : tx``}
       ${options.summaryOnly ? tx`AND (p.visibility='summary-only' OR EXISTS (SELECT 1 FROM sources recovery_s WHERE recovery_s.id=p.source_id AND NOT recovery_s.site_fulltext))` : tx``}
       ${cursor ? tx`AND (p.timeline_at,p.article_id)<(${cursor.at}::timestamptz,${cursor.id})` : tx``}

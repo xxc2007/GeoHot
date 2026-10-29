@@ -157,7 +157,9 @@ function Story({ c, dated, className = "" }: { c: ReportCitation; dated: boolean
         </>
       ) : (
         <p className="mt-3 text-body leading-relaxed text-ink-4">
-          <span className="line-through">{c.title}</span> · 该内容已按来源方要求下架或调整展示方式。
+          <span className={c.unavailableReason === "withdrawn" ? "line-through" : undefined}>{c.title}</span>
+          {c.unavailableReason === "source-restricted" ? " · 原报道暂不具备站内全文展示条件。" : c.unavailableReason === "workflow-pending" ? " · 正文、译文或配图尚在核验。" : " · 该报道当前不可公开阅读。"}
+          {c.sourceUrl && <span className="ml-2 inline-block"><Original c={c} /></span>}
         </p>
       )}
     </article>

@@ -25,6 +25,7 @@ import { chatJson, ModelOutputError } from "../providers/llm.ts";
 import { completeReceipt } from "../providers/receipts.ts";
 import { shutdownSignal } from "../jobs/queue.ts";
 import { chineseCopyCondition } from "../publication/items.ts";
+import { workflowReadyCondition } from "../publication/readiness.ts";
 import { sha256, stableJson } from "../lib/ids.ts";
 
 export const REPORT_VERSION = promptVersion("report-daily-lead", "report-period");
@@ -93,7 +94,7 @@ export async function candidates(start: Date, end: Date): Promise<Candidate[]> {
       -- Attribute each item by the later of arrival and release; either range can use its index.
       -- 报纸是中文的：门槛用读取层那一条（items.chineseCopyCondition），不在这儿再抄一遍正则——
       -- 列表和版面必须说同一句话，两份写法早晚不一致。
-      WHERE p.visibility = 'public' AND p.selected
+      WHERE p.visibility = 'public' AND p.selected AND ${workflowReadyCondition()}
         -- Anything that arrived late is kept out of the paper of the day it was found, and archive material is
         -- the exception the owner asked for: a 2026-01 issue is made of 2026-01 material, even when it was only
         -- ingested in October. first-import and stale-on-discovery still keep today's paper as it was.
@@ -351,7 +352,7 @@ async function unchangedEntries(kind: "daily" | "weekly" | "monthly", key: strin
     : (row.content.storyOrder ?? []).length;
 }
 
-export async function composeDaily(date: string, reason = "scheduled", skipUnchanged = false): Promise<{ key: string; entries: number; unchanged?: boolean }> {
+export async function composeDaily(date: string, reason = "scheduled", skipUnchanged = false): Promise<{ key: string; entries: number; unchanged?: boolean; waiting?: boolean }> {
   const { start, end, covered, all, model, fingerprint } = await reportInput("daily", date);
   const unchanged = skipUnchanged ? await unchangedEntries("daily", date, fingerprint) : null;
   if (unchanged !== null) return { key: date, entries: unchanged, unchanged: true };
@@ -371,6 +372,7 @@ export async function composeDaily(date: string, reason = "scheduled", skipUncha
     items: perSection.get(label)!.map(({ category: _c, factKey: _f, inputRevision: _r, ...entry }) => entry),
   }));
   const ordered = sections.flatMap((s) => s.items).sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+  if (reason === "workflow-integrity-repair" && !ordered.length) return { key:date,entries:0,waiting:true };
   const lead = ordered.length ? await writeLead("daily", date, ordered, model) : null;
   const content = {
     date,
@@ -437,6 +439,7 @@ async function composePeriod(kind: "weekly" | "monthly", key: string, startDate:
   const unchanged = skipUnchanged ? await unchangedEntries(kind, key, fingerprint) : null;
   if (unchanged !== null) return { key, entries: unchanged, unchanged: true };
   const top = all.slice(0, PERIOD_LIMIT[kind]);
+  if (reason === "workflow-integrity-repair" && !top.length) return { key,entries:0,waiting:true };
   let themes: Array<{ heading: string; summary: string | null; storyRefs: ReportEntry[] }> = [];
   let headline = "";
   let overview = "";
@@ -466,10 +469,11 @@ async function composePeriod(kind: "weekly" | "monthly", key: string, startDate:
           heading: t.heading,
           summary: t.summary,
           storyRefs: t.refs.map((r) => top[Number(r) - 1]).filter((e): e is Candidate => !!e).map(({ category: _c, factKey: _f, inputRevision: _r, ...e }) => e),
-        }));
+        })).filter(t=>t.storyRefs.length>0);
         // The 大标题 names what the issue is about, which is the judgement the identity guard exists for: it
         // may only say what this issue's own entries say, or the issue keeps its generic name.
         headline = guardedStoryTitle(res.data.headline, entriesIdentity(top)) ?? "";
+        if (!themes.length) { headline="";overview="";proseRule="model-empty-references"; }
       } else {
         proseRule = rule ?? "no-signed-copy";
       }
@@ -487,13 +491,13 @@ async function composePeriod(kind: "weekly" | "monthly", key: string, startDate:
     ...(headline ? { headline } : {}),
     ...(overview ? { overview } : {}),
     themes,
-    storyOrder: top.map((e) => e.itemId),
+    storyOrder: [...new Set(themes.flatMap(t=>t.storyRefs.map(e=>e.itemId)))],
     metrics: { totalStories: themes.reduce((n, t) => n + t.storyRefs.length, 0), selectedCount: all.length, reportsCovered: Number(dailyCount) },
     generator: { version: REPORT_VERSION, model, inputFingerprint: fingerprint, proseRule },
   };
   await saveReport(kind, key, start, end, content, reason, model);
   if (receiptId) await completeReceipt(sql, receiptId);
-  return { key, entries: top.length };
+  return { key, entries: content.storyOrder.length };
 }
 
 export async function composeWeekly(label: string, reason = "scheduled", skipUnchanged = false) {
