@@ -48,7 +48,7 @@ test("a quota refusal after a cached healthy verdict immediately routes the next
     for (const [key, value] of Object.entries({ COOLDOWN_TEST_BASE: old.base, COOLDOWN_TEST_KEY: old.key, TRANSLATE_MODEL: old.pool })) {
       if (value === undefined) delete process.env[key]; else process.env[key] = value;
     }
-    modelCooldown.accept(service, "bad", Infinity); invalidateModelCache();
+    modelCooldown.accept(service, "bad", modelCooldown.begin()); invalidateModelCache();
     await closeDb(); await new Promise<void>(resolve => server.close(() => resolve()));
   }
 });

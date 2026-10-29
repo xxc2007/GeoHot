@@ -658,6 +658,7 @@ export async function chatJson<S extends z.ZodType>(opts: ChatJsonOptions<S>): P
     const key = credential("models", model.apiKeyEnv)!;
     return { request: prepared.request, call: async () => {
       const started = Date.now();
+      const cooldownTicket = modelCooldown.begin();
       let res: Response;
       try {
         res = await fetch(`${url.replace(/\/$/, "")}/chat/completions`, {
@@ -685,7 +686,7 @@ export async function chatJson<S extends z.ZodType>(opts: ChatJsonOptions<S>): P
         json = { unparsable: text.slice(0, 20000) };
       }
       const usage = (json.usage as Record<string, unknown> | undefined) ?? null;
-      modelCooldown.accept(model.service, model.model, started);
+      modelCooldown.accept(model.service, model.model, cooldownTicket);
       return {
         response: { ...json, _latencyMs: Date.now() - started },
         requestId: (json.id as string | undefined) ?? res.headers.get("x-request-id"),
