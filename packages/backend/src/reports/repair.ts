@@ -45,20 +45,22 @@ export async function repairReportWorkflow(target?: Pick<Header,"kind"|"key">) {
         if (!input.all.length) outcome = "waiting-for-material";
         else {
           const compose = h.kind === "daily" ? composeDaily : h.kind === "weekly" ? composeWeekly : composeMonthly;
-          try { await compose(h.key,"workflow-integrity-repair",true); }
+          try {
+            const result=await compose(h.key,"workflow-integrity-repair",true);
+            outcome=result.entries>0?"recomposed":"waiting-for-material";
+          }
           catch (error) {
             // A period waiting for its receipt/budget must not prevent unrelated old editions advancing.
             // Do not stamp its fingerprint: a later cycle can recover the ordinary receipt.
             if (!target) await sql`INSERT INTO settings(key,value) VALUES(${CURSOR},${sql.json(h)}) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value`;
             throw error;
           }
-          outcome = "recomposed";
         }
         await sql`INSERT INTO settings(key,value) VALUES(${stampKey},${sql.json({fingerprint:input.fingerprint,outcome,at:new Date().toISOString()})})
           ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value`;
       }
       if (!target) await sql`INSERT INTO settings(key,value) VALUES(${CURSOR},${sql.json(h)}) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value`;
-      if (outcome === "recomposed") return { kind:h.kind,key:h.key,outcome,candidates:input.all.length };
+      if (outcome === "recomposed" || target) return { kind:h.kind,key:h.key,outcome,candidates:input.all.length };
     }
     return { scanned:headers.length };
   } finally { await sql`DELETE FROM settings WHERE key=${LEASE} AND value->>'token'=${token}`; }

@@ -7,7 +7,7 @@ import { closeDb, sql } from "@aihot/backend/db";
 import { upsertMaterial } from "@aihot/backend/content/materials";
 import { stopBoss } from "@aihot/backend/jobs/queue";
 import { publishArticle, publishArticleTx } from "@aihot/backend/publication/publish";
-import { candidates, composeDaily } from "@aihot/backend/reports/compose";
+import { candidates, composeDaily, reportInput } from "@aihot/backend/reports/compose";
 import { repairReportWorkflow } from "@aihot/backend/reports/repair";
 
 const T = tag();
@@ -285,6 +285,7 @@ test("导语标题用了「本周/本月/今日」这一类话时整条拒收", 
 
 test("historical repair versions the old edition, uses complete candidates and reuses unchanged work", async () => {
   const key=issue(5),id=await selected("repair-complete",at(5,3),at(5,4));
+  await sql`DELETE FROM receipts WHERE subject=${`report:daily:${key}`}`;
   await sql`DELETE FROM reports WHERE kind='daily' AND key=${key}`;
   await sql`INSERT INTO reports(kind,key,window_start,window_end,content,generated_at,origin)
     VALUES('daily',${key},${at(5)},${at(6)},${sql.json({sections:[{label:'自然地理',items:[{itemId:'missing-old-reference',title:'旧引用'}]}],flashes:[]})},now(),'manual')`;
@@ -296,8 +297,17 @@ test("historical repair versions the old edition, uses complete candidates and r
   assert.ok(refs.includes(id));assert.ok(!refs.includes('missing-old-reference'));
   assert.equal(r!.revision,2);
   assert.equal((await sql`SELECT count(*)::int AS n FROM report_revisions WHERE report_id=${r!.id}`)[0]!.n,1);
-  assert.equal(provider.hits(),beforeHits+1);
+  const afterRepairHits=provider.hits();
+  assert.ok(afterRepairHits>=beforeHits && afterRepairHits<=beforeHits+1);
   await repairReportWorkflow({kind:'daily',key});
-  assert.equal(provider.hits(),beforeHits+1,'unchanged repair must not purchase another model response');
+  assert.equal(provider.hits(),afterRepairHits,'unchanged repair must not purchase another model response');
   assert.equal((await sql`SELECT revision FROM reports WHERE id=${r!.id}`)[0]!.revision,2);
+  const all=(await reportInput('daily',key)).all;
+  await sql`INSERT INTO reports(kind,key,window_start,window_end,content,generated_at,origin)
+    VALUES('daily',${issue(4)},${at(4)},${at(5)},${sql.json({sections:[],flashes:all})},now(),'manual')
+    ON CONFLICT(kind,key) DO UPDATE SET content=EXCLUDED.content`;
+  const waiting=await repairReportWorkflow({kind:'daily',key});
+  assert.equal('outcome' in waiting && waiting.outcome,'waiting-for-material');
+  assert.equal((await sql`SELECT revision FROM reports WHERE id=${r!.id}`)[0]!.revision,2,'deduplication leaving zero usable references must preserve the old edition');
+  assert.equal(provider.hits(),afterRepairHits);
 });

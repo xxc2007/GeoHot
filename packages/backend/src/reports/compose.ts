@@ -352,7 +352,7 @@ async function unchangedEntries(kind: "daily" | "weekly" | "monthly", key: strin
     : (row.content.storyOrder ?? []).length;
 }
 
-export async function composeDaily(date: string, reason = "scheduled", skipUnchanged = false): Promise<{ key: string; entries: number; unchanged?: boolean }> {
+export async function composeDaily(date: string, reason = "scheduled", skipUnchanged = false): Promise<{ key: string; entries: number; unchanged?: boolean; waiting?: boolean }> {
   const { start, end, covered, all, model, fingerprint } = await reportInput("daily", date);
   const unchanged = skipUnchanged ? await unchangedEntries("daily", date, fingerprint) : null;
   if (unchanged !== null) return { key: date, entries: unchanged, unchanged: true };
@@ -372,6 +372,7 @@ export async function composeDaily(date: string, reason = "scheduled", skipUncha
     items: perSection.get(label)!.map(({ category: _c, factKey: _f, inputRevision: _r, ...entry }) => entry),
   }));
   const ordered = sections.flatMap((s) => s.items).sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+  if (reason === "workflow-integrity-repair" && !ordered.length) return { key:date,entries:0,waiting:true };
   const lead = ordered.length ? await writeLead("daily", date, ordered, model) : null;
   const content = {
     date,
@@ -438,6 +439,7 @@ async function composePeriod(kind: "weekly" | "monthly", key: string, startDate:
   const unchanged = skipUnchanged ? await unchangedEntries(kind, key, fingerprint) : null;
   if (unchanged !== null) return { key, entries: unchanged, unchanged: true };
   const top = all.slice(0, PERIOD_LIMIT[kind]);
+  if (reason === "workflow-integrity-repair" && !top.length) return { key,entries:0,waiting:true };
   let themes: Array<{ heading: string; summary: string | null; storyRefs: ReportEntry[] }> = [];
   let headline = "";
   let overview = "";
