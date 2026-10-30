@@ -1,0 +1,15 @@
+[Unit]
+Description=Daily idle official-price check + fx_rates refresh (official refreshFx channel)
+After=network-online.target
+[Service]
+Type=oneshot
+Environment=TZ=Asia/Shanghai
+ExecStart=/usr/bin/python3 /opt/geohot/app/deploy/geohot/pricing-check.py
+TimeoutStartSec=10min
+Nice=19
+IOSchedulingClass=idle
+CPUQuota=20%
+CPUWeight=10
+IOWeight=10
+MemoryMax=160M
+UMask=0077

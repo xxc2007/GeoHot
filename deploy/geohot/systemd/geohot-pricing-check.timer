@@ -1,0 +1,10 @@
+[Unit]
+Description=Retry idle official-price check at 05:50 Beijing time
+[Timer]
+# 错开 geohot-magpie-update 的 03:30/04:30/05:30 三个升级窗口（多档 RandomizedDelay 各自独立）。
+OnCalendar=*-*-* 05:50:00 Asia/Shanghai
+RandomizedDelaySec=5min
+Persistent=true
+Unit=geohot-pricing-check.service
+[Install]
+WantedBy=timers.target
