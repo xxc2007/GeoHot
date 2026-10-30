@@ -22,9 +22,14 @@
   但搬家时**把本站的 Sitemap 行丢了**。2026-10-07 第四十八轮补回一行 `Sitemap: https://xxc2007.me/geohot/sitemap.xml`
   （改前备份在 `/opt/geohot/backups/robots.root.*.bak`）。robots.txt 是**按主机**读的——`/geohot/robots.txt`
   那份对爬虫不作数，所以这一行只能待在根文件里；介绍站以后重新部署 `robots.txt` 时要带上它，否则会再次静默失联。
-- 六个常驻单元全部 `active`：`geohot-brain`(3055) · `geohot-api`(3001) · `geohot-worker` · `geohot-web`(3000) ·
-  `geohot-workbuddy`(3065) · `geohot-workbuddy-cn`(3066)，只监听 `127.0.0.1`，每个都带 `MemoryMax`
-  （160/200/240/320/200/200 MB），OOM 只会杀自己
+- 常驻单元按装机清单核对 `active`（verify-deploy.sh 第 2 节同款"装了才判"）：`geohot-api`(3001) ·
+  `geohot-worker` · `geohot-web`(3000) 三个无条件必备，`geohot-workbuddy`(3065) · `geohot-workbuddy-cn`(3066)
+  与 `geohot-brain`(3055) 装了才要求 active，只监听 `127.0.0.1`，每个都带 `MemoryMax`
+  （160/200/240/320/200/200 MB），OOM 只会杀自己。
+  **本机 `geohot-brain` 自 2026-10-21 起 inactive 且 unit disabled，是有意状态**：判定改走
+  `LLM_BASE_URL`（`https://apihub.agnes-ai.com/v1`）网关，backend 不再有活跃的 3055 stub 消费者
+  （`provenance.ts` 只解析历史回执里的 `usage.brain` 块）；`.env` 的 `MODEL_CALLS_ENABLED=true`
+  指的是网关模型调用，不再依赖本地 stub。哪台机器重新依赖 3055，就把 unit 装回来，验收脚本会重新要求它 active。
 - **读者面内存保护（2026-10-15 实测后加）**：`geohot-api` 与 `geohot-web` 各带 `MemoryLow=150M / 90M`
   （≈ 各自己的常驻工作集）。背景：891 MB 的机器上内存超售，内核把这两个进程共约 350 MB 换到 77 MB/s 的
   机械盘 swap 上，读者每点一次分类都要从磁盘把页换回来——实测主缺页 2,180 次/秒、点一次卡 2–6 s。
