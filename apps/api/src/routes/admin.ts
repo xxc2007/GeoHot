@@ -12,10 +12,9 @@ import { usageOverview } from "@aihot/backend/admin/usage";
 import { contentChain, detachFromFact, mergeStories, overrideFields, rerun, rewriteStoryDigest, searchContent, setSeoIndexed, setVisibility } from "@aihot/backend/admin/content";
 import { banSource, eraseFeedback, feedbackScreenshot, listFeedback, unbanSource, updateFeedback } from "@aihot/backend/admin/feedback";
 import { releaseReceipt, requeueFailedArticles, resolveDelivery, readRunsOverview } from "@aihot/backend/admin/runs";
-import { listBudgets, listTargets, replaceContactQr, setTargetEnabled, updateBudget } from "@aihot/backend/admin/settings";
+import { deleteBudget, listBudgets, listTargets, setTargetEnabled, updateBudget } from "@aihot/backend/admin/settings";
 import { createSource, fetchNow, listSources, previewSource, sourceDetail, updateSource, replaceSources } from "@aihot/backend/admin/sources";
 import { sql } from "@aihot/backend/db";
-import { loadContact } from "@aihot/backend/site/contact";
 import { sendProblem } from "../http/respond.ts";
 import { adminHandler } from "./admin-auth.ts";
 
@@ -42,12 +41,6 @@ const idOf = (value: unknown, name: string) => {
   if (!Number.isInteger(n) || n <= 0) throw new InvalidInput(`${name} 必须是数字`);
   return n;
 };
-
-function decodeImage(dataUrl: unknown): Buffer {
-  const m = /^data:image\/(png|jpeg|webp);base64,(.+)$/s.exec(String(dataUrl ?? ""));
-  if (!m) throw Object.assign(new Error("image must be a PNG, JPEG or WebP data URL"), { statusCode: 400 });
-  return Buffer.from(m[2]!, "base64");
-}
 
 export function registerAdmin(app: FastifyInstance) {
   app.post("/api/admin/sources/replace", adminHandler(async (req, _reply, admin) => replaceSources(body(req) as never, actorOf(admin))));
@@ -120,16 +113,17 @@ export function registerAdmin(app: FastifyInstance) {
   app.post("/api/admin/processing/requeue", adminHandler(async (req, _reply, admin) => requeueFailedArticles(body(req) as never, actorOf(admin))));
 
   // Settings
-  app.get("/api/admin/settings", adminHandler(async () => ({ contact: await loadContact(), targets: await listTargets(), budgets: await listBudgets() })));
-  app.post("/api/admin/settings/contact-qr", adminHandler(async (req, _reply, admin) => {
-    const b = body<{ slot: "wechatQr" | "feishuQr"; image: string }>(req);
-    return replaceContactQr({ slot: b.slot, data: decodeImage(b.image) }, actorOf(admin));
-  }));
+  app.get("/api/admin/settings", adminHandler(async () => ({ targets: await listTargets(), budgets: await listBudgets() })));
   app.post("/api/admin/notify-targets/:key", adminHandler(async (req, reply, admin) => {
     const b = body<{ enabled: boolean; reason: string }>(req);
     return orNotFound(req, reply, await setTargetEnabled(param(req, "key"), !!b.enabled, b.reason, actorOf(admin)));
   }));
   app.put("/api/admin/budgets/:service", adminHandler(async (req, _reply, admin) => updateBudget(param(req, "service"), body(req) as never, actorOf(admin))));
+  // 只删预算行（retire 一扇门）：receipts / receipt_attempts / metrics 历史不动（是账单与审计依据）。
+  app.delete("/api/admin/budgets/:service", adminHandler(async (req, reply, admin) => {
+    const b = body<{ reason: string }>(req);
+    return orNotFound(req, reply, await deleteBudget(param(req, "service"), b.reason, actorOf(admin)));
+  }));
 
 
   // Models and evaluation (F20)

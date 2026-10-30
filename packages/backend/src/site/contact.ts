@@ -1,21 +1,10 @@
-// About-page contact codes: replaceable from the admin without code changes (file names carry a content
-// hash), or shipped in the industry pack (industry/brand/contact/). The page shows a code only when set.
-// The maker block can show the avatar of an X account the site follows as a source (ABOUT.maker).
+// The maker's avatar for the about page: the X account the site follows as a source (ABOUT.maker),
+// served at 400px through the image proxy. The QR contact codes this module once served were retired
+// on 2026-10-31 — the page never rendered one (both slots were always null) — leaving this the only
+// reader of /api/site/contact.
 import { ABOUT } from "@aihot/industry/site";
 import { sql } from "../db.ts";
 import { proxiedImage } from "../media/imgproxy.ts";
-
-export interface ContactSettings {
-  wechatQr: string | null;
-  feishuQr: string | null;
-}
-
-const DEFAULTS: ContactSettings = { wechatQr: null, feishuQr: null };
-
-export async function loadContact(): Promise<ContactSettings> {
-  const [row] = await sql<{ value: Partial<ContactSettings> }[]>`SELECT value FROM settings WHERE key = 'contact_qr'`;
-  return { ...DEFAULTS, ...(row?.value ?? {}) };
-}
 
 /** The maker's avatar at 400px through the image proxy, or null without a maker source or icon. */
 export async function loadMakerAvatar(): Promise<string | null> {

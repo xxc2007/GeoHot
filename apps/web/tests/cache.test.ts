@@ -34,7 +34,7 @@ const api = createServer((req, res) => {
   if (url.pathname === "/api/site/hot") return res.end(JSON.stringify({ entries: [] }));
   if (url.pathname === "/api/site/echo-client") return res.end(JSON.stringify({ forwarded: req.headers["x-forwarded-for"], real: req.headers["x-real-ip"] }));
   if (url.pathname === "/api/site/items/long-lived") return res.end(JSON.stringify({ id: "long-lived", title: "t" }));
-  if (url.pathname === "/api/site/contact") return res.end(JSON.stringify({ wechatQr: "/qr.png", feishuQr: "/qr.png" }));
+  if (url.pathname === "/api/site/contact") return res.end(JSON.stringify({ makerAvatar: null }));
   if (url.pathname === "/api/site/stories/merged") {
     res.statusCode = 308;
     return res.end(JSON.stringify({ mergedInto: "surviving-story" }));

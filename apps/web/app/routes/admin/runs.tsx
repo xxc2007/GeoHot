@@ -49,7 +49,9 @@ function Result({ row }: { row: Row }) {
 
 export async function loader({ request }: Route.LoaderArgs) {
   try {
-    const result = await adminGet<Runs | { unavailable: true }>(request, "/api/admin/runs", 10_000);
+    // SSR loader 直连 127.0.0.1:3001；服务器 io 压力常态偏高时（PSI full avg10 曾实测 27.78）该聚合
+    // 会贴着 10s 超时——放宽到 25s，配合下方 lastGood+20s 轮询兜底，页面不再一进就 unavailable。
+    const result = await adminGet<Runs | { unavailable: true }>(request, "/api/admin/runs", 25_000);
     // Keep the flat success fields for tabs opened before this release; their polling code still
     // reads queues/jobs directly. The recovery-aware client uses overview and the unavailable flag.
     return { ...result, overview: "unavailable" in result ? null : result, unavailable: "unavailable" in result } satisfies RunsLoad;

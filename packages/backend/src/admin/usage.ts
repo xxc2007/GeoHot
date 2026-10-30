@@ -1,6 +1,6 @@
 import type { OfficialCostReport } from "@aihot/contracts/model-costs";
-import { officialCosts, type PricingBucket } from "./official-pricing.ts";
-import type { Tx } from "../db.ts";
+import { officialCosts, resolveFx, type PricingBucket } from "./official-pricing.ts";
+import { type Tx } from "../db.ts";
 import {snapshotReader,snapshotStore} from "./statistic-snapshot.ts";
 import { readResourceSample } from "../operations/resource-budget.ts";
 import { modelStatisticRead } from "./model-statistics-read.ts";
@@ -90,17 +90,21 @@ export async function readUsage(db: Tx, range: UsageRange | "*", service: string
       coalesce(sum(unknown_cache_in),0)::float8 AS "unknownCacheIn",coalesce(sum(cache_unknown_calls),0)::int AS "cacheUnknownCalls"
     FROM base GROUP BY GROUPING SETS((range_key),(range_key,service,model),(range_key,purpose),(range_key,day),(range_key,dow,hour),(range_key,currency),(range_key,service,model,day,dow,hour))`;
   if (rows.some(r => r.missingLabels)) throw Object.assign(new Error("statistics label gap"), { code: "MODEL_LABEL_BACKFILL_PENDING" });
-  const pricingFor=(rangeKey:UsageRange)=>officialCosts(rows.filter(r=>r.kind==="pricing"&&r.rangeKey===rangeKey),!!ready.fees_ready);
+  // 汇率单一来源：fx_rates 表最新一行（pricing-check timer 每日落库），无行回落 CNY_FX 常量。
+  const [fxRow] = await db<{ rate: number; as_of: string; source_url: string | null }[]>`
+    SELECT rate, as_of::text AS as_of, source_url FROM fx_rates WHERE pair = 'USD/CNY' ORDER BY as_of DESC LIMIT 1`;
+  const fx = resolveFx(fxRow);
+  const pricingFor=(rangeKey:UsageRange)=>officialCosts(rows.filter(r=>r.kind==="pricing"&&r.rangeKey===rangeKey),!!ready.fees_ready,fx);
   const result: UsageMetric[] = rows.filter(r=>r.kind!=="pricing").map(({ missingLabels: _missing, pricingCalls:_pc,pricedIn:_pi,pricedOut:_po,cachedTokens:_ct,unknownCacheIn:_uc,cacheUnknownCalls:_cc, ...r }) => ({ ...r,kind:r.kind as UsageMetric["kind"],...(r.kind==="total"?{pricing:pricingFor(r.rangeKey)}:{}), tokensIn: r.tokensIn ?? 0, tokensOut: r.tokensOut ?? 0,
     // Costs only have meaning within a currency group; never add USD to CNY.
     actualCost: r.kind === "currency" ? r.actualCost : null, estimatedCost: r.kind === "currency" ? r.estimatedCost : null }));
   // An empty successful filtered read is zero; unavailable scans still throw.
-  if (!result.length && range !== "*") result.push(emptyUsage(range, !!ready.fees_ready));
+  if (!result.length && range !== "*") result.push(emptyUsage(range, !!ready.fees_ready, fx));
   return result;
 }
 
-function emptyUsage(rangeKey: UsageRange, pricingReady = true): UsageMetric {
-  return {rangeKey,kind:'total',service:null,model:null,purpose:null,day:null,dow:null,hour:null,currency:null,calls:0,ok:0,failed:0,pending:0,unknown:0,tokensIn:0,tokensOut:0,missingUsage:0,unpriced:0,actualCost:null,estimatedCost:null,latencyMs:null,pricing:officialCosts([],pricingReady)};
+function emptyUsage(rangeKey: UsageRange, pricingReady = true, fx?: { usdToCny: number; date: string; source: string }): UsageMetric {
+  return {rangeKey,kind:'total',service:null,model:null,purpose:null,day:null,dow:null,hour:null,currency:null,calls:0,ok:0,failed:0,pending:0,unknown:0,tokensIn:0,tokensOut:0,missingUsage:0,unpriced:0,actualCost:null,estimatedCost:null,latencyMs:null,pricing:officialCosts([],pricingReady,fx)};
 }
 
 // The compact metrics table has a eight-second SQL deadline, and ranges share one scan.

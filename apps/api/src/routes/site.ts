@@ -15,7 +15,7 @@ import { loadDevelopments, loadGroupReports } from "@aihot/backend/publication/g
 import { loadTopicTags } from "@aihot/backend/publication/topics";
 import { loadHotStrip } from "@aihot/backend/events/hot-read";
 import { loadChangelog, siteMeta } from "@aihot/backend/site/meta";
-import { loadContact, loadMakerAvatar } from "@aihot/backend/site/contact";
+import { loadMakerAvatar } from "@aihot/backend/site/contact";
 import { loadSiteStats } from "@aihot/backend/site/stats";
 import { itemAvailability } from "@aihot/backend/publication/availability";
 import { listTopicSummaries, loadTopicPage, topicGroups } from "@aihot/backend/publication/topics";
@@ -182,8 +182,9 @@ export function registerSite(app: FastifyInstance) {
   }));
 
   app.get("/api/site/contact", siteHandler(async (req, reply) => {
-    const [contact, makerAvatar] = await Promise.all([loadContact(), loadMakerAvatar()]);
-    return sendJsonWithEtag(req, reply, { ...contact, makerAvatar }, { etagPrefix: "contact", cacheControl: "public, max-age=300, s-maxage=300" });
+    // QR 联系码已下线（2026-10-31）：仅保留 makerAvatar 一个字段供关于页头像。
+    const makerAvatar = await loadMakerAvatar();
+    return sendJsonWithEtag(req, reply, { makerAvatar }, { etagPrefix: "contact", cacheControl: "public, max-age=300, s-maxage=300" });
   }));
 
   app.get("/api/site/stats", siteHandler(async (req, reply) => {
