@@ -178,8 +178,12 @@ def extract_prices(model_id: str, html: str) -> dict[str, float] | None:
             found["input"], found["output"] = float(m.group(1)), float(m.group(2))
         else:
             found[key] = float(m.group(1))
-    # 单条正则的键是 in/cached/out；统一成 input/cached/output 返回。
-    return {"input": found["in"], "cached": found["cached"], "output": found["out"]} if {"in", "cached", "out"} <= found.keys() else None
+    # 返回形状统一为 input/cached/output：单条正则写的键是 in/cached/out，组合正则直接写了 input/…。
+    if {"input", "cached", "output"} <= found.keys():
+        return found
+    if {"in", "cached", "out"} <= found.keys():
+        return {"input": found["in"], "cached": found["cached"], "output": found["out"]}
+    return None
 
 
 def run_refresh_fx() -> tuple[bool, str]:
