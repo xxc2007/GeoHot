@@ -178,7 +178,8 @@ def extract_prices(model_id: str, html: str) -> dict[str, float] | None:
             found["input"], found["output"] = float(m.group(1)), float(m.group(2))
         else:
             found[key] = float(m.group(1))
-    return found if {"input", "cached", "output"} <= found.keys() else None
+    # 单条正则的键是 in/cached/out；统一成 input/cached/output 返回。
+    return {"input": found["in"], "cached": found["cached"], "output": found["out"]} if {"in", "cached", "out"} <= found.keys() else None
 
 
 def run_refresh_fx() -> tuple[bool, str]:
@@ -191,6 +192,9 @@ def run_refresh_fx() -> tuple[bool, str]:
         "const mod = await import('./packages/backend/src/leaderboard/fetch/refresh.ts');"
         "const r = await mod.refreshFx();"
         "console.log(JSON.stringify(r));"
+        # 后端模块持有 postgres 连接池（keepalive），进程不会自然退出——不显式退出会
+        # 一直等到 subprocess 超时（2026-10-31 02:57 实测 240s 全耗在等 EOF）。
+        "process.exit(0);"
     )
     try:
         out = subprocess.run(
