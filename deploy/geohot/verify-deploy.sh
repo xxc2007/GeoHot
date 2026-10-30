@@ -151,17 +151,20 @@ if command -v systemctl >/dev/null 2>&1; then
   if [[ -z "$(systemctl list-unit-files 'geohot-*' --no-legend 2>/dev/null)" ]]; then
     bad "systemd 里没有任何 geohot-* 单元 —— 常驻进程一个都没装（见 deploy/geohot/install-units.sh）"
   else
-    # geohot-brain 退出无条件必备清单（2026-10-30）：本机自 2026-10-21 起 inactive 且 unit disabled，
-    # 是有意状态——.env 的 MODEL_CALLS_ENABLED=true 下判定全部走 LLM_BASE_URL 网关，不再有活跃的
-    # 3055 stub 消费者（backend 只在 provenance.ts 解析历史回执里的 usage.brain 块）。判据与
-    # workbuddy 桥同款："装了才要求 active，没装不判红"；装了却停着仍然红——stub 还在 tooling/ 里，
-    # 哪台机器真的装它运行，就说明那台机器依赖 3055 有进程在听。
-    if [[ -n "$(systemctl list-unit-files geohot-brain.service --no-legend 2>/dev/null)" ]]; then
-      state=$(systemctl is-active geohot-brain 2>/dev/null || true)
-      [[ "$state" == "active" ]] && ok "geohot-brain active" \
-        || bad "geohot-brain 状态=$state —— 单元装着却停了；不依赖 3055 的机器应把 unit 一并 disable/移除，而不是留一个死的必检项"
+    # geohot-brain 的判据是"开机自启了才要求 active"（2026-10-30 二次对齐）：unit 文件留在
+    # /etc/systemd/system 只是一段没在用的文本——只要它 disabled（不自启），它就不是这台机器的
+    # 常驻链路，机器判定走 LLM_BASE_URL 网关（.env:20），3055 上没有活跃消费者（provenance.ts
+    # 只解析历史回执的 usage.brain 块）。enable 却 inactive 才判红：那是"嘴上说要跑、实际没跑"，
+    # 属于真故障；disabled 且 inactive 记 note，便于人看到这台机器当前不跑 stub。
+    brain_enabled="$(systemctl is-enabled geohot-brain.service 2>/dev/null || true)"
+    brain_state="$(systemctl is-active geohot-brain.service 2>/dev/null || true)"
+    if [[ "$brain_enabled" == "enabled" || "$brain_enabled" == "enabled-runtime" || "$brain_enabled" == "static" ]]; then
+      [[ "$brain_state" == "active" ]] && ok "geohot-brain active" \
+        || bad "geohot-brain 状态=$brain_state（开机自启）—— 自启却不运行就是模型这一路断了，修它或明确 disable"
+    elif [[ "$brain_state" == "active" ]]; then
+      ok "geohot-brain active（临时运行，未自启）"
     else
-      note "geohot-brain 未安装（本机判定走 LLM_BASE_URL 网关，不走 3055 stub）——跳过该单元检查"
+      note "geohot-brain disabled+inactive：本机不跑 3055 stub，判定走 LLM_BASE_URL 网关（有意状态，见 DEPLOYMENT.md 常驻单元一节）"
     fi
     for u in geohot-api geohot-worker geohot-web; do
       state=$(systemctl is-active "$u" 2>/dev/null || true)
@@ -217,10 +220,11 @@ fi
 # （tooling/brain-stub.ts 的 SOURCE_SHA256），这里拿磁盘上的同一文件重算一次比对。不一致就是跑旧代码。
 # 不用 mtime 比较：`git archive` 给整棵树盖上的是**提交时刻**，整包升级后源码 mtime 必然晚于进程
 # 启动时刻，用"源码比进程新"判会每次部署都误报。
-# 与上面的单元检查同款"装了才判"：brain 单元没装的机器（判定走 LLM_BASE_URL 网关）healthz 无人应答，
-# 走 3055 探测只会白等 10 秒还留一条噪音 note——先看 unit 文件在不在再探测。
-if [[ -z "$(systemctl list-unit-files geohot-brain.service --no-legend 2>/dev/null)" ]]; then
-  note "geohot-brain 未安装，healthz 指纹与出货契约检查整体跳过"
+# 与上面的单元检查同一份判据：brain 没在跑（无论 unit 文件在不在，disabled 即不跑）的机器，
+# healthz 无人应答，走 3055 探测只会白等 10 秒还留一条噪音 note——brain_state 已在上面算过，
+# 非 active 就不再探测。
+if [[ "$brain_state" != "active" ]]; then
+  note "geohot-brain 未运行，healthz 指纹与出货契约检查整体跳过"
   brain_hz=""
 else
   brain_hz="$(curl -s --max-time 10 http://127.0.0.1:3055/healthz || true)"
