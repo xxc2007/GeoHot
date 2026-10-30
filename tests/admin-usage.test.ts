@@ -24,8 +24,9 @@ test("usage counts attempts including retries, separates currencies and missing 
     assert.equal(total.calls,3);assert.equal(total.ok,1);assert.equal(total.failed,1);assert.equal(total.unknown,1);
     assert.equal(total.tokensIn,105);assert.equal(total.tokensOut,22);assert.equal(total.missingUsage,1);assert.equal(total.unpriced,1);
     assert.equal(total.pricing!.pricedCalls,2);assert.equal(total.pricing!.cacheUnknownCalls,1);
+    // 缓存未知（attempt3 无 cached_tokens）按缓存命中价单一口径计：区间消失，上下界同值。
     assert.ok(Math.abs(total.pricing!.totals[0]!.list.low-.00015925)<1e-10);
-    assert.ok(Math.abs(total.pricing!.totals[0]!.list.high-.000163)<1e-10);
+    assert.ok(Math.abs(total.pricing!.totals[0]!.list.high-.00015925)<1e-10);
     const cache=await db`SELECT tokens_cached,cache_checked FROM admin_model_attempt_metrics WHERE receipt_id=${r!.id} AND origin='live' ORDER BY id`;
     assert.equal(cache[0]!.tokens_cached,40);assert.equal(cache[2]!.tokens_cached,null);assert.ok(cache.every(r=>r.cache_checked));
     assert.equal(total.actualCost,null);assert.equal(total.estimatedCost,null);

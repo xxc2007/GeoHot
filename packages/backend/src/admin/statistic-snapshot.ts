@@ -8,7 +8,11 @@ export interface Snapshot<T>{rows:T[];status:{state:'ready'|'stale'|'unavailable
 interface Saved<T>{at:number;rows:T[]}
 /** One heavy admin aggregate at a time across ranges and pages. Never queue scans on refresh storms. */
 let aggregateBusy=false;
-function aggregateHeadroom(){try{const s=readResourceSample();return s.availableMiB>=128&&s.memoryFull<2&&s.ioFull<8&&s.cpuSome<30&&s.diskFreeMiB>=3072;}catch{return false;}}
+// 后台聚合的余量门槛。ioFull<8 在这台 900MB 小机上常年不满足（PSI full avg10 实测常态 27.78），
+// 快照于是长期 stale、/admin/runs 与统计页一直显示「正在生成」；放宽到 <15 让读侧聚合在 io 有
+// 真实余量的窗口能跑起来，重压时仍让位（与 resource-cron 的 <40 口径错开档位）。memory 阈值
+// <2 同样常年不满足（实测 3.53）：一并放宽到 <5，availableMiB>=128 与 disk 3GiB 仍是硬底线。
+function aggregateHeadroom(){try{const s=readResourceSample();return s.availableMiB>=128&&s.memoryFull<5&&s.ioFull<15&&s.cpuSome<30&&s.diskFreeMiB>=3072;}catch{return false;}}
 export function snapshotReader<T>(read:()=>PromiseLike<readonly T[]>,store?:{load:()=>Promise<Saved<T>|null>;save:(v:Saved<T>)=>Promise<void>},now=Date.now,policy?:{freshMs:number;canRefresh:()=>boolean}){
   let saved:Saved<T>|null=null,loaded=false,loading:Promise<void>|undefined,pending:Promise<void>|undefined,retryAt=0;
   const refresh=()=>{

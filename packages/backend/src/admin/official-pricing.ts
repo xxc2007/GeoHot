@@ -1,7 +1,9 @@
-import {CNY_FX,toCny} from "@aihot/contracts/cny";
+import {CNY_FX} from "@aihot/contracts/cny";
 import type { OfficialRate, OfficialCostReport, CostBounds } from "@aihot/contracts/model-costs";
 
-const verifiedOn="2026-10-28";
+// 2026-10-31 全量重核：9 条官方定价页当日实测（8 条 WebFetch + dots 浏览器实测），与下述常量
+// 逐一比对 0 差异；每日闲时由 geohot-pricing-check.timer 复核（deploy/geohot/pricing-check.py）。
+const verifiedOn="2026-10-31";
 function rate(id:string,name:string,currency:"USD"|"CNY",input:number,cached:number,output:number,source:string,note:string):OfficialRate {
   return {id,name,currency,input,cached,output,currentInput:input,currentCached:cached,currentOutput:output,source,note,verifiedOn};
 }
@@ -37,8 +39,21 @@ export interface PricingBucket {
   service:string|null;model:string|null;day:string|null;hour:number|null;calls:number;pricingCalls:number;
   pricedIn:number;pricedOut:number;cachedTokens:number;unknownCacheIn:number;cacheUnknownCalls:number;
 }
-export function officialCosts(buckets:PricingBucket[],ready=true):OfficialCostReport {
-  const report:OfficialCostReport={fx:CNY_FX,state:ready?"ready":"backfill",verifiedOn,policy:"按最新核验的官方标准单价折算所选历史用量，不应用限免、赠送或促销价；DeepSeek 按请求开始时的北京时间峰谷规则计价，不还原历史调价；不是实际账单或订阅扣款。缺少缓存明细时显示区间，缺少完整 Token 的请求不计金额。美元按已核验汇率折合人民币；汇总后取整显示，计算保留原始精度。",models:[],rates:OFFICIAL_RATES,totals:[],calls:0,pricedCalls:0,missingUsage:0,unmappedCalls:0,cacheUnknownCalls:0};
+/**
+ * 汇率单一来源：优先 fx_rates 表最新行（geohot-pricing-check timer 经官方 refreshFx 每日落库的
+ * 欧洲央行价），无行时回落 CNY_FX 兜底常量（packages/contracts/src/cny.ts，商务部核验值）。
+ * 独立成纯函数便于单测覆盖「有行/无行」两路。
+ */
+export function resolveFx(latest: { rate: number; as_of: string; source_url: string | null } | null | undefined): { usdToCny: number; date: string; source: string } {
+  if (latest && Number.isFinite(latest.rate) && latest.rate > 0) {
+    return { usdToCny: latest.rate, date: latest.as_of, source: latest.source_url ?? "https://api.frankfurter.app/latest?from=USD&to=CNY" };
+  }
+  return CNY_FX;
+}
+
+export function officialCosts(buckets:PricingBucket[],ready=true,fx:{usdToCny:number;date:string;source:string}=CNY_FX):OfficialCostReport {
+  const toCnyAt=(value:number,currency:string|null):number|null=>currency==='CNY'?value:currency==='USD'?value*fx.usdToCny:null;
+  const report:OfficialCostReport={fx,state:ready?"ready":"backfill",verifiedOn,policy:"按最新核验的官方标准单价折算所选历史用量，不应用限免、赠送或促销价；DeepSeek 按请求开始时的北京时间峰谷规则计价，不还原历史调价；不是实际账单或订阅扣款。缓存明细缺失的请求按缓存命中价折算（单一口径，不显示区间），缺少完整 Token 的请求不计金额。美元按 fx_rates 表最新汇率（无记录时按常量兜底）折合人民币；汇总后取整显示，计算保留原始精度。",models:[],rates:OFFICIAL_RATES,totals:[],calls:0,pricedCalls:0,missingUsage:0,unmappedCalls:0,cacheUnknownCalls:0};
   const groups=new Map<string,OfficialCostReport['models'][number]>();
   for(const b of buckets){
     const id=b.model==='agnes-3.0-flash'?(b.service==='agnes-cn'?'agnes-cn':b.service==='llm'?'agnes':undefined):b.model==='glm-5.3-flash'?(b.service==='workbuddy-cn'?'glm53flash':b.service==='workbuddy'||b.service==='workbuddy-ai'?'glm53flash-intl':undefined):aliases[b.model??''];
@@ -51,14 +66,17 @@ export function officialCosts(buckets:PricingBucket[],ready=true):OfficialCostRe
     if(!ready)continue;
     const factor=r.id==='deepseek'?peakFactor(b.day!,b.hour!):{low:1,high:1};
     const knownMiss=Math.max(0,b.pricedIn-b.cachedTokens-b.unknownCacheIn);
+    // 缓存未知（unknownCacheIn）的请求按缓存命中价单一口径计：它是一个估计，不是区间——上下界
+    // 各取 min/max 价曾把 6.1 万次缓存未知请求撑成 5,443–5,463 元的假区间；按 cached 价（大多数
+    // 提供商对重复前缀给出命中）是这批请求最可能落的档，合计因此显示为单值。
     for(const type of ['list'] as const){
       const input=type==='list'?r.input:r.currentInput, cached=type==='list'?r.cached:r.currentCached, output=type==='list'?r.output:r.currentOutput;
       const base=knownMiss*input+b.cachedTokens*cached+b.pricedOut*output;
-      m[type]!.low+=(base+b.unknownCacheIn*Math.min(input,cached))*factor.low/1e6;
-      m[type]!.high+=(base+b.unknownCacheIn*Math.max(input,cached))*factor.high/1e6;
+      m[type]!.low+=(base+b.unknownCacheIn*cached)*factor.low/1e6;
+      m[type]!.high+=(base+b.unknownCacheIn*cached)*factor.high/1e6;
     }
   }
-  for(const m of groups.values()){if(!m.currency)continue;for(const type of ['list','current'] as const)if(m[type])m[type]={low:toCny(m[type]!.low,m.currency)!,high:toCny(m[type]!.high,m.currency)!};m.currency='CNY';}
+  for(const m of groups.values()){if(!m.currency)continue;for(const type of ['list','current'] as const)if(m[type])m[type]={low:toCnyAt(m[type]!.low,m.currency)!,high:toCnyAt(m[type]!.high,m.currency)!};m.currency='CNY';}
   report.models=[...groups.values()].sort((a,b)=>b.calls-a.calls);
   // Legacy current fields mirror standard prices for older dashboard clients; no promotional calculation.
   for(const m of report.models) m.current=m.list?{...m.list}:null;

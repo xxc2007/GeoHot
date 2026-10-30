@@ -3,10 +3,11 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {officialCosts,peakFactor,type PricingBucket} from '../packages/backend/src/admin/official-pricing.ts';
 const bucket=(over:Partial<PricingBucket>={}):PricingBucket=>({service:'workbuddy',model:'hy3',day:'2026-10-23',hour:9,calls:1,pricingCalls:1,pricedIn:1e6,pricedOut:1e6,cachedTokens:250000,unknownCacheIn:0,cacheUnknownCalls:0,...over});
-test('official estimate uses cache tokens, reports unknown cache bounds and excludes missing token calls',()=>{
+test('official estimate uses cache tokens, prices unknown cache at the cached rate (single value) and excludes missing token calls',()=>{
   const r=officialCosts([bucket(),bucket({unknownCacheIn:1e6,cachedTokens:0,cacheUnknownCalls:1}),bucket({calls:2,pricingCalls:0,pricedIn:0,pricedOut:0,cachedTokens:0})]);
   assert.equal(r.pricedCalls,2);assert.equal(r.calls,4);assert.equal(r.missingUsage,2);assert.equal(r.cacheUnknownCalls,1);
-  assert.deepEqual(r.totals[0]!.list,{low:9.0625,high:9.8125});
+  // unknownCacheIn 按缓存命中价（hy3 cached=.25）单口径：不再撑出 min/max 上下界区间。
+  assert.deepEqual(r.totals[0]!.list,{low:9.0625,high:9.0625});
 });
 test('Agnes international and domestic standard prices stay separate without promotional discounts',()=>{
   const r=officialCosts([bucket({service:'llm',model:'agnes-3.0-flash',cachedTokens:0}),bucket({service:'agnes-cn',model:'agnes-3.0-flash',cachedTokens:0}),bucket({service:'dots',model:'dots3-note-prev',cachedTokens:0})]);

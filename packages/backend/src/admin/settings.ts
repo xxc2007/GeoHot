@@ -1,37 +1,12 @@
-// Operator settings: about-page QR codes (replaced without a release), notification targets
-// (switching a group on records enabled_at so older content is never back-filled) and per-service
-// request budgets (the circuit breaker paid calls check before sending).
-import { mkdir, writeFile } from "node:fs/promises";
-import path from "node:path";
-import sharp from "sharp";
-import { config } from "../config.ts";
+// Operator settings: notification targets (switching a group on records enabled_at so older content
+// is never back-filled) and per-service request budgets (the circuit breaker paid calls check before
+// sending). About-page QR codes were retired on 2026-10-31: the page never rendered one (both slots
+// were always null), so the upload path, the admin route and the ContactSettings QR fields went with it.
 import { sql } from "../db.ts";
+import { config } from "../config.ts";
 import { InvalidInput } from "./invalid.ts";
-import { sha256 } from "../lib/ids.ts";
-import { loadContact, type ContactSettings } from "../site/contact.ts";
 import { audit } from "./auth.ts";
 import { unbilledAttempt } from "../providers/receipts.ts";
-
-const MAX_QR_BYTES = 2 * 1024 * 1024;
-
-export async function replaceContactQr(input: { slot: keyof ContactSettings; data: Buffer }, actor: string) {
-  if (input.slot !== "wechatQr" && input.slot !== "feishuQr") throw new InvalidInput("unknown slot");
-  if (input.data.length > MAX_QR_BYTES) throw new InvalidInput("二维码图片最大 2MB");
-  const meta = await sharp(input.data).metadata().catch(() => null);
-  if (!meta || !["png", "jpeg", "webp"].includes(meta.format ?? "")) throw new InvalidInput("需要 PNG、JPG 或 WebP 图片");
-  if ((meta.width ?? 0) < 120 || (meta.height ?? 0) < 120) throw new InvalidInput("图片太小，二维码可能扫不出来");
-  const ext = meta.format === "jpeg" ? "jpg" : meta.format!;
-  const name = `qr-${input.slot === "wechatQr" ? "wechat" : "feishu"}-${sha256(input.data).slice(0, 8)}.${ext}`;
-  const dir = path.join(config.dataDir, "uploads");
-  await mkdir(dir, { recursive: true });
-  await writeFile(path.join(dir, name), input.data);
-  const before = await loadContact();
-  const next = { ...before, [input.slot]: `/contact/${name}` };
-  await sql`INSERT INTO settings (key, value, updated_by) VALUES ('contact_qr', ${sql.json(next)}, ${actor})
-            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_by = EXCLUDED.updated_by, updated_at = now()`;
-  await audit(actor, "settings.contact_qr", "settings:contact_qr", null, { [input.slot]: before[input.slot] }, { [input.slot]: next[input.slot] });
-  return next;
-}
 
 export async function listTargets() {
   return sql`
@@ -72,4 +47,19 @@ export async function updateBudget(service: string, input: { perMinute: number; 
     RETURNING service, per_minute, per_hour, per_day`;
   await audit(actor, "budget.update", `budget:${service}`, input.reason, before ?? null, after);
   return after;
+}
+
+/**
+ * Retire a service's budget row outright (not just zero it): the row is gone from the breaker table
+ * and the admin list, while receipts / receipt_attempts / metrics stay untouched — they are the bill
+ * and the audit trail for the spend that already happened. With no row, checkBudget's "missing"
+ * branch keeps any accidental call to a retired service from going out (receipts.ts:104-105).
+ */
+export async function deleteBudget(service: string, reason: string, actor: string): Promise<{ service: string; per_minute: number; per_hour: number; per_day: number } | null> {
+  if (!reason?.trim()) throw new InvalidInput("reason is required");
+  const [before] = await sql<{ service: string; per_minute: number; per_hour: number; per_day: number }[]>`SELECT service, per_minute, per_hour, per_day FROM budgets WHERE service = ${service}`;
+  if (!before) return null;
+  await sql`DELETE FROM budgets WHERE service = ${service}`;
+  await audit(actor, "budget.delete", `budget:${service}`, reason, before, null);
+  return before;
 }

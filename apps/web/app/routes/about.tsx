@@ -17,8 +17,6 @@ export function headers() {
 }
 
 interface ContactSettings {
-  wechatQr: string | null;
-  feishuQr: string | null;
   /** The maker's X avatar through the image proxy, when the site follows that account. */
   makerAvatar?: string | null;
 }
@@ -27,7 +25,7 @@ export async function loader({ request }: { request: Request }) {
   // 这两个都是装饰，读不到不能带走整页（所以不是 loadOr404）。但"读不到"和"没有"是两件事：
   // 数字的位置空着会被读成"这个站没有内容"，所以把失败单独记下来，由页面自己说明。
   const [contact, stats] = await Promise.all([
-    apiGet<ContactSettings>("/api/site/contact", { signal: request.signal }).catch((): ContactSettings => ({ wechatQr: null, feishuQr: null, makerAvatar: null })),
+    apiGet<ContactSettings>("/api/site/contact", { signal: request.signal }).catch((): ContactSettings => ({ makerAvatar: null })),
     apiGet<SiteStats>("/api/site/stats", { signal: request.signal }).catch(() => null),
   ]);
   return { contact, stats, statsFailed: stats === null };
@@ -125,25 +123,8 @@ function MakerFace({ src }: { src: string }) {
   return <img src={src} alt={`${ABOUT.maker?.name ?? ""}的头像`} width={48} height={48} onError={() => setFailed(true)} className="size-11 shrink-0 rounded-full bg-bg-sunk object-cover ring-1 ring-line xl:size-12" />;
 }
 
-function QrCard({ src, kind, title, note }: { src: string; kind: string; title: string; note: string }) {
-  return (
-    <figure className="card flex items-center gap-5 p-5">
-      <img src={src} alt={`${kind}二维码`} width={112} height={112} loading="lazy" className="size-[104px] shrink-0 rounded-tile border border-line bg-white object-contain p-1.5 sm:size-[112px]" />
-      <figcaption className="min-w-0">
-        <div className="text-[12px] text-ink-4">{kind}</div>
-        <div className="mt-1 text-[16px] font-semibold leading-snug text-ink">{title}</div>
-        <p className="mt-2 text-[13px] leading-[1.7] text-ink-3">{note}</p>
-      </figcaption>
-    </figure>
-  );
-}
-
-/** The optional maker block (ABOUT.maker): a greeting on the left, the contact codes that are set on the right. */
-function Maker({ maker, contact }: { maker: NonNullable<typeof ABOUT.maker>; contact: ContactSettings }) {
-  const codes = [
-    contact.wechatQr && maker.wechat ? <QrCard key="wechat" src={contact.wechatQr} kind="微信公众号" title={maker.wechat.title} note={maker.wechat.note} /> : null,
-    contact.feishuQr && maker.feishu ? <QrCard key="feishu" src={contact.feishuQr} kind="飞书群" title={maker.feishu.title} note={maker.feishu.note} /> : null,
-  ].filter(Boolean);
+/** The optional maker block (ABOUT.maker): the greeting; contact moved to the feedback page (QR codes retired 2026-10-31). */
+function Maker({ maker }: { maker: NonNullable<typeof ABOUT.maker> }) {
   return (
     <section aria-labelledby="maker" className="mt-20 grid gap-10 xl:mt-28 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-16">
       <div>
@@ -171,12 +152,6 @@ function Maker({ maker, contact }: { maker: NonNullable<typeof ABOUT.maker>; con
           </p>
         </div>
       </div>
-      {codes.length > 0 && (
-        <div className="grid content-start gap-3">
-          <h3 className="text-[15px] font-semibold text-ink">如果觉得有点用，欢迎加入</h3>
-          {codes}
-        </div>
-      )}
     </section>
   );
 }
@@ -196,7 +171,7 @@ function Latest({ item, className = "" }: { item: SiteStats["latest"][number] | 
 }
 
 export default function AboutPage() {
-  const { contact, stats, statsFailed } = useLoaderData<typeof loader>();
+  const { stats, statsFailed } = useLoaderData<typeof loader>();
   const [focus, setFocus] = useState<number | null>(null);
   const [at, setAt] = useState(0);
   const shown = useRef(0);
@@ -274,7 +249,7 @@ export default function AboutPage() {
         {statsFailed && <p className="mt-3 text-[12.5px] text-ink-4">这四格的统计数字这次没有读到，稍后刷新就有了；上面的流程说明与它们无关。</p>}
       </section>
 
-      {ABOUT.maker && <Maker maker={ABOUT.maker} contact={contact} />}
+      {ABOUT.maker && <Maker maker={ABOUT.maker} />}
 
       <p className="mt-16 well rounded-card measure px-5 py-4 text-[13px] leading-[1.85] text-ink-3">
         {ABOUT.copyright}
