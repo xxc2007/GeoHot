@@ -493,6 +493,118 @@ export const MODELS: Record<string, ModelSpec> = {
     extra: { reasoning_effort: "max" }, jsonMode: true, vision: true,
     reasoningHeadroom: { default: 32_000, summarize_article: 48_000, translate_quoted: 11_264 },
   },
+
+  // ── 2026-10-30 全量扩池：本机 magpie 的全部供应商同步到服务器 magpie 后的新门 ──────────────
+  //
+  // 背景：站长指令「把本机 magpie 配置复制同步到服务器 magpie，所有模型都用最大思考强度、最大
+  // 上下文、支持图片输入，以最强配置接入模型池」。服务器 magpie（127.0.0.1:3426）同步后目录
+  // 66 个模型；以下每扇门都在服务器本机对 3426 实测过（1-token 请求 200 + JSON 模式 200，
+  // 2026-10-30）。没接进来的两扇：officeace/deepseek-v4.1（凭据缺华为云 MaaS modelAppKey，
+  // 上游回 MaaSNotLinked）、workbuddy-ai/deepseek-v4.1-flash-sg（账号被上游风控限制）——
+  // 先配置好那边的凭据再按同款写法登记。
+  //
+  // 参数口径（与其他门一致的原则）：
+  //   • extra 固定 reasoning_effort: "max"——站长 2026-10-22 的硬指令「不要调推理，一定要用最大的
+  //     推理强度」，不降档。max 不在目录档位里的（qfmodel 系 xhigh 封顶）取各自目录最高档。
+  //   • vision 全部按网关 /v1/models 目录 modalities 写（目录称 image 的才 true），目录谎报过两次
+  //     的教训见 workbuddy-step5-preview 注释；这几扇是同日实测目录，未见反例。
+  //   • reasoningHeadroom 沿用同上游模型的既有实测值（deepseek-v4.1-flash 系 20k/32k/11,264、
+  //     glm-5.3 系 16k/32k/11,264、minimax-m3.1 系 32k/48k/11,264），这些是与已接入门**同一条
+  //     上游模型**的量级，不是猜的；待各门 receipts 跑出真实隐藏链长后再按证据校正。
+  //   • 上下文：全部 ≥ 250k（qoder 系 1M、glm 系 1M、deepseek 系 1M、claude 250k），流水线自己的
+  //     装配（结构步 7,000 字截断、翻译分段）不会成为这些门的质量上限。
+  //
+  // service 全部单开一行：熔断器/健康账本/拒绝账本按 service 记账，任何一个订阅撞墙都不连坐别的门。
+  // QWENWORK_BASE_URL / TRAE_CN_BASE_URL / TRAE_GLOBAL_BASE_URL / AUTOCLAW_CN_BASE_URL /
+  // LOOMY_BASE_URL / ANTIGRAVITY_BASE_URL / WORKBUDDY_DESKTOP_BASE_URL 各自指向 127.0.0.1:3426/v1，
+  // 在 /opt/geohot/app/.env 里与 CODEARTS/MINIMAX_CODE 同款写法（unset 即整体下线，membersFor 会把它
+  // 从池里剥掉，见 usable()）。
+  "qwenwork-pro": {
+    key: "qwenwork-pro", service: "qwenwork", model: "qwenwork/pro",
+    baseUrlEnv: "QWENWORK_BASE_URL", apiKeyEnv: "QWENWORK_API_KEY",
+    extra: { reasoning_effort: "max" }, jsonMode: true, vision: true,
+    reasoningHeadroom: { default: 16_000, summarize_article: 32_000, translate_quoted: 11_264 },
+  },
+  "qwenwork-flash": {
+    key: "qwenwork-flash", service: "qwenwork", model: "qwenwork/flash",
+    baseUrlEnv: "QWENWORK_BASE_URL", apiKeyEnv: "QWENWORK_API_KEY",
+    extra: { reasoning_effort: "max" }, jsonMode: true, vision: true,
+    reasoningHeadroom: { default: 16_000, summarize_article: 32_000, translate_quoted: 11_264 },
+  },
+  "qwenwork-qwen38-max": {
+    key: "qwenwork-qwen38-max", service: "qwenwork", model: "qwenwork/qwen3.8-max-preview",
+    baseUrlEnv: "QWENWORK_BASE_URL", apiKeyEnv: "QWENWORK_API_KEY",
+    extra: { reasoning_effort: "max" }, jsonMode: true, vision: true,
+    reasoningHeadroom: { default: 16_000, summarize_article: 32_000, translate_quoted: 11_264 },
+  },
+  "antigravity-gemini-38-flash": {
+    key: "antigravity-gemini-38-flash", service: "antigravity", model: "antigravity/gemini-3.8-flash",
+    baseUrlEnv: "ANTIGRAVITY_BASE_URL", apiKeyEnv: "ANTIGRAVITY_API_KEY",
+    extra: { reasoning_effort: "high" }, jsonMode: true, vision: true,
+    reasoningHeadroom: { default: 16_000, summarize_article: 32_000, translate_quoted: 11_264 },
+  },
+  "antigravity-claude-opus-thinking": {
+    key: "antigravity-claude-opus-thinking", service: "antigravity", model: "antigravity/claude-opus-4-6-thinking",
+    baseUrlEnv: "ANTIGRAVITY_BASE_URL", apiKeyEnv: "ANTIGRAVITY_API_KEY",
+    extra: { reasoning_effort: "max" }, jsonMode: true, vision: true,
+    reasoningHeadroom: { default: 16_000, summarize_article: 32_000, translate_quoted: 11_264 },
+  },
+  "trae-cn-glm538-flash-max": {
+    key: "trae-cn-glm538-flash-max", service: "trae-cn", model: "trae-cn/glm-5.3-flash-max",
+    baseUrlEnv: "TRAE_CN_BASE_URL", apiKeyEnv: "TRAE_CN_API_KEY",
+    extra: { reasoning_effort: "xhigh" }, jsonMode: true, vision: true,
+    reasoningHeadroom: { default: 16_000, summarize_article: 32_000, translate_quoted: 11_264 },
+  },
+  "trae-cn-deepseek-flash-max": {
+    key: "trae-cn-deepseek-flash-max", service: "trae-cn", model: "trae-cn/deepseek-v4.1-flash-max",
+    baseUrlEnv: "TRAE_CN_BASE_URL", apiKeyEnv: "TRAE_CN_API_KEY",
+    extra: { reasoning_effort: "xhigh" }, jsonMode: true, vision: true,
+    reasoningHeadroom: { default: 20_000, summarize_article: 32_000, translate_quoted: 11_264 },
+  },
+  "trae-global-deepseek-flash-max": {
+    key: "trae-global-deepseek-flash-max", service: "trae-global", model: "trae-global/deepseek-v4.1-flash-max",
+    baseUrlEnv: "TRAE_GLOBAL_BASE_URL", apiKeyEnv: "TRAE_GLOBAL_API_KEY",
+    extra: { reasoning_effort: "max" }, jsonMode: true, vision: true,
+    reasoningHeadroom: { default: 20_000, summarize_article: 32_000, translate_quoted: 11_264 },
+  },
+  "autoclaw-cn-zaicoding-glm53": {
+    key: "autoclaw-cn-zaicoding-glm53", service: "autoclaw-cn", model: "autoclaw-cn/zaicoding_glm-5.3",
+    baseUrlEnv: "AUTOCLAW_CN_BASE_URL", apiKeyEnv: "AUTOCLAW_CN_API_KEY",
+    extra: { reasoning_effort: "max" }, jsonMode: true, vision: true,
+    reasoningHeadroom: { default: 16_000, summarize_article: 32_000, translate_quoted: 11_264 },
+  },
+  "loomy-deepseek-v41-flash": {
+    key: "loomy-deepseek-v41-flash", service: "loomy", model: "loomy/DeepSeek-V4.1-Flash",
+    baseUrlEnv: "LOOMY_BASE_URL", apiKeyEnv: "LOOMY_API_KEY",
+    extra: { reasoning_effort: "max" }, jsonMode: true, vision: true,
+    reasoningHeadroom: { default: 20_000, summarize_article: 32_000, translate_quoted: 11_264 },
+  },
+  "loomy-glm53-flash": {
+    key: "loomy-glm53-flash", service: "loomy", model: "loomy/GLM-5.3-Flash",
+    baseUrlEnv: "LOOMY_BASE_URL", apiKeyEnv: "LOOMY_API_KEY",
+    extra: { reasoning_effort: "max" }, jsonMode: true, vision: true,
+    reasoningHeadroom: { default: 16_000, summarize_article: 32_000, translate_quoted: 11_264 },
+  },
+  "loomy-spark-x26": {
+    key: "loomy-spark-x26", service: "loomy", model: "loomy/spark-x2.6",
+    baseUrlEnv: "LOOMY_BASE_URL", apiKeyEnv: "LOOMY_API_KEY",
+    extra: { reasoning_effort: "max" }, jsonMode: true, vision: true,
+    reasoningHeadroom: { default: 16_000, summarize_article: 32_000, translate_quoted: 11_264 },
+  },
+  "minimax-code-global-m31-flash": {
+    key: "minimax-code-global-m31-flash", service: "minimax-code-global", model: "minimax-code-global/MiniMax-M3.1-Flash",
+    baseUrlEnv: "MINIMAX_CODE_GLOBAL_BASE_URL", apiKeyEnv: "MINIMAX_CODE_GLOBAL_API_KEY",
+    // 与 minimax-code 同一条上游模型另一份全球订阅额度，headroom 同款（那一档的实测注释见上）。
+    extra: { reasoning_effort: "max" }, jsonMode: true, vision: true,
+    reasoningHeadroom: { default: 32_000, summarize_article: 48_000, translate_quoted: 11_264 },
+  },
+  "workbuddy-desktop-deepseek-flash": {
+    key: "workbuddy-desktop-deepseek-flash", service: "workbuddy-desktop", model: "workbuddy/deepseek-v4.1-flash",
+    baseUrlEnv: "WORKBUDDY_DESKTOP_BASE_URL", apiKeyEnv: "WORKBUDDY_DESKTOP_API_KEY",
+    // 服务器 magpie 的 workbuddy（中国版桌面订阅）门，与 3066 桥那扇同一上游、另一份凭据。
+    extra: { reasoning_effort: "max" }, jsonMode: true, vision: true,
+    reasoningHeadroom: { default: 16_000, summarize_article: 32_000, translate_quoted: 11_264 },
+  },
 };
 
 export type ContentPart = { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } };
