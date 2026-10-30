@@ -50,3 +50,13 @@ curl --fail http://127.0.0.1:3426/v1/models
 切换前的 `.env` 和迁移核验材料保存在服务器私有 `/var/lib/geohot-magpie-migration-20261025/`。需要回退时先确认本机和旧隧道确实可用，再恢复原地址和移除本次 `90-magpie-server.conf` 覆盖文件，正常收尾后重启相应进程。不得仅恢复旧地址而忘记重新启用对应隧道。
 
 备份含凭据，必须保持私有；不能打包进公开仓库或通用网站备份。
+
+## MiniMax 凭据的双端竞争与再同步（2026-10-30）
+
+服务器与本机的 MiniMax Code (Global) 登录共用同一组 OAuth 刷新令牌。本机重新登录或刷新后旧令牌可能被上游轮换作废，服务器侧随即报 "signed out"——2026-10-30 上午的整批失效就是这么来的。处理办法不是在服务器端重新授权，而是把本机最新凭据再同步一次：
+
+1. 本机 magpie 数据目录（`D:\data\plugin-auth.json`、`logins.json`）里取 `minimax-code-global*` 各条目；
+2. 按键覆盖合并进 `/var/lib/geohot-magpie/.config/magpie/` 同名文件（先备份到 `/var/lib/geohot-magpie-backup-<stamp>/`，属主 0600 geohot-magpie）；
+3. `sudo systemctl restart geohot-magpie`，用 1-token 探针验证 3426 该门 200。
+
+两边同时持有凭据时，任何一侧刷新都可能再次作废另一侧；哪一侧失效就从活的那一侧再同步一次。OfficeAce 门与此无关：账号已登录，但要先在 OfficeAce 客户端完成「接入华为云 MaaS 模型」（产生 modelAppKey），否则上游一律 MaaSNotLinked。
