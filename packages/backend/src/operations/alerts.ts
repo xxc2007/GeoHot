@@ -225,6 +225,49 @@ const PROVIDERS: Record<string, { name: string; stops: string; where: string }> 
     stops: MODEL_STOPS,
     where: "MiniMax Code Max 计划的用量窗口；先确认工作站到生产机的反向隧道还在（127.0.0.1:3425），再看计划用量",
   },
+  // ── 2026-10-30 全量扩池的八扇新门。全部走服务器 magpie（127.0.0.1:3426，serve-only systemd
+  // 单元 geohot-magpie），凭据与签到都在服务器本地配置里；报警去处置那条指向网站后台 magpie
+  // 页对应供应商的面板——那是站长真正能看额度和会话状态的地方。
+  qwenwork: {
+    name: "QwenWork（服务器 magpie 网关）",
+    stops: MODEL_STOPS,
+    where: "网站后台 magpie 的 QwenWork 供应商（个人免费版额度与登录状态）",
+  },
+  antigravity: {
+    name: "Antigravity（服务器 magpie 网关）",
+    stops: MODEL_STOPS,
+    where: "网站后台 magpie 的 Antigravity 供应商（Google AI Pro 订阅与地区限制状态）",
+  },
+  "trae-cn": {
+    name: "Trae 国内版（服务器 magpie 网关）",
+    stops: MODEL_STOPS,
+    where: "网站后台 magpie 的 Trae CN 供应商（Credits 余额与登录状态）",
+  },
+  "trae-global": {
+    name: "Trae 国际版（服务器 magpie 网关）",
+    stops: MODEL_STOPS,
+    where: "网站后台 magpie 的 Trae Global 供应商（Free plan 额度与登录状态）",
+  },
+  "autoclaw-cn": {
+    name: "AutoClaw 国内版（服务器 magpie 网关）",
+    stops: MODEL_STOPS,
+    where: "网站后台 magpie 的 AutoClaw 国内 (Zhipu) 供应商（额度与每日签到状态）",
+  },
+  loomy: {
+    name: "Loomy 讯飞（服务器 magpie 网关）",
+    stops: MODEL_STOPS,
+    where: "网站后台 magpie 的 Loomy（讯飞）供应商（额度与登录状态）",
+  },
+  "minimax-code-global": {
+    name: "MiniMax Code Global（服务器 magpie 网关）",
+    stops: MODEL_STOPS,
+    where: "网站后台 magpie 的 MiniMax Code (Global) 供应商；这一门出现过整账号签出（sign in again），报警时先看会话状态",
+  },
+  "workbuddy-desktop": {
+    name: "WorkBuddy 中国版桌面订阅（服务器 magpie 网关）",
+    stops: MODEL_STOPS,
+    where: "网站后台 magpie 的 WorkBuddy 供应商（中国版 copilot.tencent.com 那份账号在服务器网关里的会话）",
+  },
   socialdata: { name: "SocialData", stops: "X（推特）上的新内容收不到", where: "SocialData 后台" },
   jina: { name: "Jina", stops: "部分文章取不到正文", where: "Jina 后台" },
   dajiala: { name: "极致了（Dajiala）", stops: "公众号新文章收不到", where: "极致了后台" },
