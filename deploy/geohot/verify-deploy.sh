@@ -142,8 +142,8 @@ artalk=$(status_of "$MAIN/comment/")
 
 # ---------------------------------------------------------------------------
 echo "== 2. GEOHOT 路由状态（前缀下）=="
-# 常驻单元：DEPLOYMENT.md:10 记的是四个（brain/api/worker/web）。少一个 geohot-brain 不是"少个可选进程"，
-# 而是 config.ts:92 的 MODEL_CALLS_ENABLED 缺省 true 之下每一次分析请求都打到没人听的 127.0.0.1:3055。
+# 常驻单元：api/worker/web 三个无条件必备；geohot-brain 自 2026-10-30 起改为"装了才判"（见下方守卫）——
+# 判定已走 LLM_BASE_URL 网关，brain inactive 的机器不再有分析请求打到没人听的 127.0.0.1:3055。
 if command -v systemctl >/dev/null 2>&1; then
   # 只有"这台机器根本没有 systemd"才可以跳过这一节。systemctl 在、而 geohot-* 一个都没装，
   # 是这条不变量最坏的那种破法（四个常驻进程一个都不在），以前它被写成"没有单元文件就免检"，
@@ -151,11 +151,23 @@ if command -v systemctl >/dev/null 2>&1; then
   if [[ -z "$(systemctl list-unit-files 'geohot-*' --no-legend 2>/dev/null)" ]]; then
     bad "systemd 里没有任何 geohot-* 单元 —— 常驻进程一个都没装（见 deploy/geohot/install-units.sh）"
   else
-    for u in geohot-brain geohot-api geohot-worker geohot-web; do
+    # geohot-brain 退出无条件必备清单（2026-10-30）：本机自 2026-10-21 起 inactive 且 unit disabled，
+    # 是有意状态——.env 的 MODEL_CALLS_ENABLED=true 下判定全部走 LLM_BASE_URL 网关，不再有活跃的
+    # 3055 stub 消费者（backend 只在 provenance.ts 解析历史回执里的 usage.brain 块）。判据与
+    # workbuddy 桥同款："装了才要求 active，没装不判红"；装了却停着仍然红——stub 还在 tooling/ 里，
+    # 哪台机器真的装它运行，就说明那台机器依赖 3055 有进程在听。
+    if [[ -n "$(systemctl list-unit-files geohot-brain.service --no-legend 2>/dev/null)" ]]; then
+      state=$(systemctl is-active geohot-brain 2>/dev/null || true)
+      [[ "$state" == "active" ]] && ok "geohot-brain active" \
+        || bad "geohot-brain 状态=$state —— 单元装着却停了；不依赖 3055 的机器应把 unit 一并 disable/移除，而不是留一个死的必检项"
+    else
+      note "geohot-brain 未安装（本机判定走 LLM_BASE_URL 网关，不走 3055 stub）——跳过该单元检查"
+    fi
+    for u in geohot-api geohot-worker geohot-web; do
       state=$(systemctl is-active "$u" 2>/dev/null || true)
-      [[ "$state" == "active" ]] && ok "$u active" || bad "$u 状态=$state —— 四个单元都要 active（见 deploy/geohot/systemd/）"
+      [[ "$state" == "active" ]] && ok "$u active" || bad "$u 状态=$state —— api/worker/web 三个单元都要 active（见 deploy/geohot/systemd/）"
     done
-    # 另外两条是 2026-10-10 之后加上的链路。它们不在"四个"里，所以这一节以前对它们的存在与死活一概不问：
+    # 另外两条是 2026-10-10 之后加上的链路。它们不在常驻三单元里，所以这一节以前对它们的存在与死活一概不问：
     # workbuddy 桥装了却停着，判定调用会静默改道或全停；archive.timer 没在岗，档案就不再进口，
     # 已出的刊期默认不重排，后来到的条目就永久缺席。两种都没有报错，只有内容变薄。
     # 判据是"装了才要求，没装不判红"——不是每台机器都跑档案进口。
@@ -205,7 +217,14 @@ fi
 # （tooling/brain-stub.ts 的 SOURCE_SHA256），这里拿磁盘上的同一文件重算一次比对。不一致就是跑旧代码。
 # 不用 mtime 比较：`git archive` 给整棵树盖上的是**提交时刻**，整包升级后源码 mtime 必然晚于进程
 # 启动时刻，用"源码比进程新"判会每次部署都误报。
-brain_hz="$(curl -s --max-time 10 http://127.0.0.1:3055/healthz || true)"
+# 与上面的单元检查同款"装了才判"：brain 单元没装的机器（判定走 LLM_BASE_URL 网关）healthz 无人应答，
+# 走 3055 探测只会白等 10 秒还留一条噪音 note——先看 unit 文件在不在再探测。
+if [[ -z "$(systemctl list-unit-files geohot-brain.service --no-legend 2>/dev/null)" ]]; then
+  note "geohot-brain 未安装，healthz 指纹与出货契约检查整体跳过"
+  brain_hz=""
+else
+  brain_hz="$(curl -s --max-time 10 http://127.0.0.1:3055/healthz || true)"
+fi
 brain_sha="$(printf '%s' "$brain_hz" | tr -d ' \n' | grep -oE '"sha256":"[0-9a-f]{64}"' | head -1 | sed -E 's/.*:"([0-9a-f]{64})"/\1/')"
 if [[ -z "$brain_sha" ]]; then
   note "brain healthz 没报 source.sha256（stub 没答？或版本太旧），跳过这一条"
@@ -221,9 +240,10 @@ else
 fi
 # 出货契约：stub 只回空稿、等人工中文稿。condense/echo 是开发与测试显式打开的（tooling/brain-stub.ts:32-41
 # 记着 2026-10-02 那次"中文站出现整条英文卡片"的事故）。生产上这一项必须是 empty。
+# brain 未安装时 brain_hz 已被置空，这里同样只走 note 分支，不会对着空串误报。
 hz_sum="$(printf '%s' "$brain_hz" | tr -d ' \n' | grep -oE '"summarize":"[a-z]+"' | head -1 | sed -E 's/.*:"([a-z]+)"/\1/')"
 if [[ -z "$hz_sum" ]]; then
-  note "读不到 brain healthz 的 defaults.summarize（stub 没在 127.0.0.1:3055 上答？），跳过这一条"
+  note "读不到 brain healthz 的 defaults.summarize（stub 没在 127.0.0.1:3055 上答，或单元未安装），跳过这一条"
 elif [[ "$hz_sum" == "empty" ]]; then
   ok "brain 缺人工稿时回空稿（summarize=empty）"
 else
