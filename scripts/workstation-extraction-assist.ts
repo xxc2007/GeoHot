@@ -31,7 +31,10 @@ const release = (await exec("git", ["rev-parse", "HEAD"], { cwd: root })).stdout
 const files = (await exec("git", ["ls-files", "apps/worker/src", "packages/backend/src", "packages/contracts/src", "industry", "package-lock.json"], { cwd: root })).stdout.trim().split(/\r?\n/)
   .filter(file => /\.(ts|json|md)$/.test(file));
 const manifest = files.map(file => ({ file, sha256: createHash("sha256").update(readFileSync(path.join(root, file), "utf8").replace(/\r\n/g, "\n")).digest("hex") }));
-const wireManifest = JSON.stringify(manifest);
+const session = randomUUID().replaceAll("-", "");
+let fenced = false;
+let fenceAttempted = false;
+let lastEvidence: unknown;
 const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 async function remote(command: string, input?: string): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -49,10 +52,14 @@ async function remote(command: string, input?: string): Promise<string> {
 async function sample() {
   const at = Date.now();
   const [wire, power] = await Promise.all([
-    remote("sudo -n python3 /opt/geohot/app/deploy/geohot/probe-extraction-assist.py", wireManifest),
+    remote("sudo -n python3 /opt/geohot/app/deploy/geohot/probe-extraction-assist.py", JSON.stringify({ manifest, session: fenced ? session : undefined })),
     exec("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SystemInformation]::PowerStatus.PowerLineStatus.ToString()"], { windowsHide: true, timeout: 5000 }),
   ]);
-  return { ...JSON.parse(wire), at, localFreeMiB: freemem() / 1048576, onAC: power.stdout.trim() === "Online" };
+  const evidence = JSON.parse(wire);
+  if (fenced && evidence.fenceOwned !== true) evidence.maintenance = true;
+  const result = { ...evidence, at, localFreeMiB: freemem() / 1048576, onAC: power.stdout.trim() === "Online" };
+  lastEvidence = result;
+  return result;
 }
 const first = await sample();
 console.log(JSON.stringify({ mode: duration ? "finite-trial" : "read-only", release, eligible: assistEligible(first), resources: first }));
@@ -78,6 +85,15 @@ try {
     await pause(15_000);
     if (stop || !assistEligible(await sample())) throw new Error("Admission did not stay healthy for 60 seconds");
   }
+  fenceAttempted = true; // A lost acquire response may still have created the remote owner.
+  const acquisition = JSON.parse(await remote("sudo -n python3 /opt/geohot/app/deploy/geohot/assist-maintenance-fence.py", JSON.stringify({ action: "acquire", session })));
+  if (acquisition.acquired === false) {
+    fenceAttempted = false; // Known contention is a normal deferral, not an ambiguous acquisition.
+    throw new Error("Maintenance owns admission");
+  }
+  if (acquisition.acquired !== true) throw new Error("Unknown fence acquisition result");
+  fenced = true;
+  if (stop || !assistEligible(await sample())) throw new Error("Fenced admission closed");
   // Fetch only the database credential, in memory. No auth/model/device credentials are copied.
   const credentials = JSON.parse(await remote("cd /opt/geohot/app && sudo -n -u geohot node --env-file=.env --input-type=module -e 'console.log(JSON.stringify({databaseUrl:process.env.DATABASE_URL}))'")) as { databaseUrl: string };
   const database = new URL(credentials.databaseUrl);
@@ -120,7 +136,7 @@ try {
   }
 } catch {
   exitCode = 2;
-  console.log(JSON.stringify({ state: "admission-closed" }));
+  console.log(JSON.stringify({ state: "admission-closed", resources: lastEvidence }));
 } finally {
   stop = true;
   try { writeFileSync(lease, "{}", { mode: 0o600 }); } catch { exitCode = 3; }
@@ -133,6 +149,11 @@ try {
     else if (result.code !== 0) exitCode = 3;
   }
   tunnel?.kill(); if (tunnelExited) await tunnelExited;
+  if (fenceAttempted && !fenced) exitCode = 3; // Do not automatically retry an uncertain acquisition.
+  if (fenced && exitCode !== 3) {
+    try { await remote("sudo -n python3 /opt/geohot/app/deploy/geohot/assist-maintenance-fence.py", JSON.stringify({ action: "release", session })); }
+    catch { exitCode = 3; } // Keep the local instance lock when drain/release cannot be proved.
+  }
   try { unlinkSync(lease); } catch { exitCode = 3; }
   if (exitCode !== 3) { try { unlinkSync(lock); } catch { exitCode = 3; } }
   console.log(JSON.stringify({ state: exitCode === 3 ? "isolated" : "stopped", progress, release }));

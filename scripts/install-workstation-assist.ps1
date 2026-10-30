@@ -1,0 +1,24 @@
+param([Parameter(Mandatory=$true)][string]$Config, [switch]$Remove)
+$ErrorActionPreference = 'Stop'
+$taskName = 'GEOHOT-Safe-Extraction-Assist'
+if ($Remove) {
+    Disable-ScheduledTask -TaskName $taskName | Out-Null
+    Write-Output 'Disabled future runs. Let any finite session finish before maintenance.'
+    exit 0
+}
+$repoPath = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+$configPath = (Resolve-Path -LiteralPath $Config).Path
+$privateConfig = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
+if ($configPath.StartsWith($repoPath + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { throw 'Configuration must be outside the repository.' }
+$statePath = [IO.Path]::GetFullPath($privateConfig.stateDirectory)
+if ($statePath -eq $repoPath -or $statePath.StartsWith($repoPath + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { throw 'State must be outside the repository.' }
+if ($configPath.Contains('"') -or $repoPath.Contains('"')) { throw 'Unsupported quote in path.' }
+Get-Command node.exe | Out-Null
+$runnerPath = Join-Path $repoPath 'scripts/run-workstation-assist.ps1'
+$action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument ('-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "{0}" -Config "{1}"' -f $runnerPath,$configPath) -WorkingDirectory $repoPath
+$logon = New-ScheduledTaskTrigger -AtLogOn -User ([Security.Principal.WindowsIdentity]::GetCurrent().Name)
+$periodic = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 5)
+$settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -StartWhenAvailable -RunOnlyIfNetworkAvailable -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Minutes 20)
+$principal = New-ScheduledTaskPrincipal -UserId ([Security.Principal.WindowsIdentity]::GetCurrent().Name) -LogonType Interactive -RunLevel Limited
+Register-ScheduledTask -TaskName $taskName -Action $action -Trigger @($logon,$periodic) -Settings $settings -Principal $principal -Description 'Bounded single-slot public body extraction. Server remains independent. Maintenance ownership and resource gates fail closed.' -Force | Out-Null
+Write-Output ('Installed {0}; current-user logon and five-minute eligibility retries, overlapping sessions ignored.' -f $taskName)
