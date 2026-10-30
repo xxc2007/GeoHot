@@ -122,31 +122,71 @@ def fetch(url: str) -> str:
     raise RuntimeError(f"too many redirects from {url}")
 
 
-# 每条来源页的宽松抽取器。页面改版会变 None → 记"解析失败"，不误报价格变了。
+# 每条来源页的宽松抽取器（形状 2026-10-31 在生产机上逐页实测）。页面改版会变 None →
+# 记"解析失败"，不误报价格变了。hy3（腾讯云）对无 cookie 请求返回反爬 JS shim，抓不到正文。
 EXTRACTORS: dict[str, list[tuple[str, str]]] = {
+    # dots 定价块："dots3-note-prev$0.14$0.28"（无缓存价，缓存按输入计价）。
     "dots": [(r"dots3-note-prev\s*\$\s*([\d.]+)\s*\$\s*([\d.]+)", "in_out")],
-    "agnes": [(r"Input tokens\s*\|\s*\*?\*?`\$([\d.]+)", "in"), (r"Output tokens\s*\|\s*\*?\*?`\$([\d.]+)", "out"), (r"Cached input\s*\|\s*\*?\*?`\$([\d.]+)", "cached")],
-    "agnes-cn": [(r"输入\s*\|\s*¥\s*([\d.]+)", "in"), (r"输出\s*\|\s*¥\s*([\d.]+)", "out"), (r"输入缓存命中\s*\|\s*¥\s*([\d.]+)", "cached")],
+    # deepseek 表格：三段 rowspan 行，OFF-PEAK 在前（谷时=常量口径）。
+    "deepseek": [
+        (r"1M INPUT TOKENS<br>\(CACHE MISS\)</td><td>OFF-PEAK</td><td>\$([\d.]+)", "in"),
+        (r"1M INPUT TOKENS<br>\(CACHE HIT\)</td><td>OFF-PEAK</td><td>\$([\d.]+)", "cached"),
+        (r"1M OUTPUT TOKENS</td><td>OF[^<]*</td><td>\$([\d.]+)", "out"),
+    ],
+    # minimax 博客正文有一句加粗摘要，格式稳定。
+    "minimax": [(r"Flat pricing per 1M tokens: \$([\d.]+) input · \$([\d.]+) output · \$([\d.]+) cached input", "in_out_cached")],
+    # step5 表格行：<code>step-5-preview</code>…$1.00…$0.10…$2.70。
+    "step5": [(r"<code>step-5-preview</code></td><td[^>]*>1M tokens</td><td[^>]*>\$([\d.]+)</td><td[^>]*>\$([\d.]+)</td><td[^>]*>\$([\d.]+)", "in_cached_out")],
+    # bigmodel 国内表格行：GLM-5.3-Flash | 1M | 0.8 | 2.8 | 限时免费 | 0.23。
+    "glm53flash": [(r"<td>GLM-5\.3-Flash</td><td[^>]*>1M</td><td[^>]*>([\d.]+)</td><td[^>]*>([\d.]+)</td><td>[^<]*</td><td[^>]*>([\d.]+)", "in_out_cached")],
+    # z.ai 国际表格行：GLM-5.3-Flash | $0.15 | $0.03 | Limited-time Free | $0.50。
+    "glm53flash-intl": [(r"<td[^>]*>GLM-5\.3-Flash</td><td[^>]*>\$([\d.]+)</td><td[^>]*>\$([\d.]+)</td><td[^>]*>[^<]*</td><td[^>]*>\$([\d.]+)", "in_cached_out")],
+    # agnes 国际表格行：Input tokens | $0.05 …。
+    "agnes": [
+        (r"Input tokens</td><td><code>\$([\d.]+)", "in"),
+        (r"Cached input</td><td><code>\$([\d.]+)", "cached"),
+        (r"Output tokens</td><td><code>\$([\d.]+)", "out"),
+    ],
+    # agnes-cn 正文卡片："输入缓存命中：¥0.035 / 百万 Token；输入：¥0.35 …；输出：¥1.00 …"。
+    "agnes-cn": [
+        (r"输入：\s*<code>¥([\d.]+)", "in"),
+        (r"输入缓存命中：\s*<code>¥([\d.]+)", "cached"),
+        (r"输出：\s*<code>¥([\d.]+)", "out"),
+    ],
 }
 
 
+def _grouped(found: dict[str, float], order: list[str], groups: tuple[str, ...]) -> None:
+    for key, value in zip(order, groups):
+        found[key] = float(value)
+
+
 def extract_prices(model_id: str, html: str) -> dict[str, float] | None:
-    if model_id == "dots":
-        m = re.search(EXTRACTORS["dots"][0][0], html, re.S)
-        if not m:
-            return None
-        return {"input": float(m.group(1)), "cached": float(m.group(1)), "output": float(m.group(2))}
     found: dict[str, float] = {}
     for pattern, key in EXTRACTORS.get(model_id, []):
-        m = re.search(pattern, html)
+        m = re.search(pattern, html, re.S)
         if not m:
             return None
-        found[key] = float(m.group(1))
+        if key == "in_out":  # dots: no cache price column — cache bills at the input rate.
+            found["input"] = found["cached"] = float(m.group(1))
+            found["output"] = float(m.group(2))
+        elif key == "in_out_cached":  # in, out, cached
+            found["input"], found["output"], found["cached"] = float(m.group(1)), float(m.group(2)), float(m.group(3))
+        elif key == "in_cached_out":  # in, cached, out
+            found["input"], found["cached"], found["output"] = float(m.group(1)), float(m.group(2)), float(m.group(3))
+        elif key == "in_out":
+            found["input"], found["output"] = float(m.group(1)), float(m.group(2))
+        else:
+            found[key] = float(m.group(1))
     return found if {"input", "cached", "output"} <= found.keys() else None
 
 
 def run_refresh_fx() -> tuple[bool, str]:
-    """跑官方链路 refreshFx()（与 worker 同一模块、同一 .env）。失败返回 False+原因。"""
+    """跑官方链路 refreshFx()（与 worker 同一模块、同一 .env）。失败返回 False+原因。
+
+    第一次真实跑（2026-10-31 02:47）整个 node import 链路约 100 秒，90s 超时会误杀
+    已经在等 frankfurter 响应的进程——放宽到 240s 并保留 stderr 尾部。
+    """
     code = (
         "const mod = await import('./packages/backend/src/leaderboard/fetch/refresh.ts');"
         "const r = await mod.refreshFx();"
@@ -155,17 +195,19 @@ def run_refresh_fx() -> tuple[bool, str]:
     try:
         out = subprocess.run(
             ["node", "--env-file=.env", "--input-type=module", "-e", code],
-            cwd=APP, capture_output=True, text=True, timeout=90,
+            cwd=APP, capture_output=True, text=True, timeout=240,
             user="geohot" if os.geteuid() == 0 else None,
         )
         if out.returncode != 0:
             return False, (out.stderr or out.stdout or f"node exit {out.returncode}")[-400:]
         line = next((l for l in out.stdout.splitlines() if l.startswith("{")), "")
         if not line:
-            return False, f"refreshFx 无 JSON 输出: {out.stdout[-200:]}"
+            return False, f"refreshFx 无 JSON 输出: {out.stdout[-200:]} | stderr: {out.stderr[-200:]}"
         data = json.loads(line)
         return True, f"asOf={data.get('asOf')} rate={data.get('rate')}"
-    except (subprocess.TimeoutExpired, json.JSONDecodeError, OSError) as exc:
+    except subprocess.TimeoutExpired as exc:
+        return False, f"TimeoutExpired after 240s: {(exc.stderr or b'')[-200:] if isinstance(exc.stderr, bytes) else exc.stderr}"
+    except (json.JSONDecodeError, OSError) as exc:
         return False, f"{type(exc).__name__}: {exc}"
 
 
@@ -181,19 +223,20 @@ def write_pricing_checks(payload: dict) -> str:
         return "读不到 .env"
     if not db:
         return "DATABASE_URL 未配置"
-    day = payload["day"]
     body = json.dumps(payload, ensure_ascii=False)
     diffs, errors = len(payload["diffs"]), len(payload["errors"])
-    # URL 只进参数，不进 SQL 文本；postgres 库做全参数绑定。
+    # 值全部经参数绑定（${} 占位）进 SQL 文本，外部输入不拼接。
     code = (
         "import postgres from 'postgres';"
         "const sql = postgres(process.env.PC_DB_URL, {max: 1});"
         "await sql`CREATE TABLE IF NOT EXISTS pricing_checks (id bigserial PRIMARY KEY, checked_at timestamptz NOT NULL DEFAULT now(), day text NOT NULL, payload jsonb NOT NULL, diffs int NOT NULL, errors int NOT NULL)`;"
+        "const day = process.env.PC_DAY, body = process.env.PC_BODY;"
+        "const diffs = Number(process.env.PC_DIFFS), errors = Number(process.env.PC_ERRORS);"
         "await sql`INSERT INTO pricing_checks (day, payload, diffs, errors) VALUES (${day}, ${body}, ${diffs}, ${errors})`;"
         "await sql.end();"
         "console.log('ok');"
     )
-    env = {**os.environ, "PC_DB_URL": db}
+    env = {**os.environ, "PC_DB_URL": db, "PC_DAY": payload["day"], "PC_BODY": body, "PC_DIFFS": str(diffs), "PC_ERRORS": str(errors)}
     try:
         out = subprocess.run(
             ["node", "--env-file=.env", "--input-type=module", "-e", code],
