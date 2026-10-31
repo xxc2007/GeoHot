@@ -133,27 +133,26 @@ export default function FeedbackPage() {
   };
 
   if (state.kind === "done") {
-    // 成功页脱离阅读栏：整块可用视口内水平垂直居中（2026-10-31 站长要求），卡片收窄成庆祝卡。
+    // 成功页脱离阅读栏：整块可用视口内水平垂直居中，内容直接坐在页面背景上（2026-10-31 站长要求
+    // 与大背景融为一体，不做浮起的卡片）。
     return (
-      <div className="flex min-h-[calc(100dvh-9rem)] w-full items-center justify-center px-4 py-10">
-        <div className="card w-full max-w-xl px-6 py-14 text-center shadow-[0_18px_50px_-24px_rgba(15,42,53,0.35)]">
-          <div className="anim-pop-in mx-auto flex size-16 items-center justify-center rounded-full bg-accent text-accent-contrast">
-            <IconCheck size={30} />
-          </div>
-          <h1 className="mt-7 text-[24px] font-semibold text-ink">收到了，谢谢你</h1>
-          <p className="mt-2 text-[14px] text-ink-3">
-            反馈编号 <span className="mono font-semibold text-ink">#{state.id}</span>，需要回复时我们会引用这个编号。
-          </p>
-          <p className="mt-4">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-bg-sunk px-3 py-1 text-[12.5px] text-ink-3 ring-1 ring-line-soft">
-              <span className="size-1.5 rounded-full bg-accent" />
-              当前状态：已收到，正在进入工作流
-            </span>
-          </p>
-          <Link to="/" reloadDocument className="mt-8 inline-flex h-10 items-center rounded-full bg-ink px-6 text-[14px] font-medium text-bg transition-opacity hover:opacity-90">
-            回到精选
-          </Link>
+      <div className="flex min-h-[calc(100dvh-9rem)] w-full flex-col items-center justify-center px-4 py-10 text-center">
+        <div className="anim-pop-in flex size-16 items-center justify-center rounded-full bg-accent text-accent-contrast">
+          <IconCheck size={30} />
         </div>
+        <h1 className="mt-7 text-[24px] font-semibold text-ink">收到了，谢谢你</h1>
+        <p className="mt-2 text-[14px] text-ink-3">
+          反馈编号 <span className="mono font-semibold text-ink">#{state.id}</span>，需要回复时我们会引用这个编号。
+        </p>
+        <p className="mt-4">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-bg-sunk px-3 py-1 text-[12.5px] text-ink-3 ring-1 ring-line-soft">
+            <span className="size-1.5 rounded-full bg-accent" />
+            当前状态：已收到，正在进入工作流
+          </span>
+        </p>
+        <Link to="/" reloadDocument className="mt-8 inline-flex h-10 items-center rounded-full bg-ink px-6 text-[14px] font-medium text-bg transition-opacity hover:opacity-90">
+          回到精选
+        </Link>
       </div>
     );
   }
