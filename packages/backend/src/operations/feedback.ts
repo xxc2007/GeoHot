@@ -102,8 +102,6 @@ async function storeFeedback(input: FeedbackInput): Promise<{ id: number }> {
   // http(s) address is kept; anything else (javascript:, data:) is dropped rather than stored.
   const pageUrl = httpPageUrl(input.pageUrl);
   const source = feedbackSourceHash(input.ip, input.userAgent);
-  const [banned] = await sql`SELECT 1 FROM feedback_bans WHERE source_hash = ${source}`;
-  if (banned) throw new FeedbackRejected(403, "forbidden", "暂时无法提交反馈。");
 
   let screenshotKey: string | null = null;
   if (input.screenshot) {
@@ -123,15 +121,36 @@ async function storeFeedback(input: FeedbackInput): Promise<{ id: number }> {
   }
   let row: { id: number } | undefined;
   try { [row] = await sql<{ id: number }[]>`
-    INSERT INTO feedback (content, email, page_url, screenshot_key, source_hash, forward_error)
-    VALUES (${content}, ${email}, ${pageUrl}, ${screenshotKey}, ${source}, 'pending') RETURNING id`; }
+    INSERT INTO feedback (content, email, page_url, screenshot_key, source_hash, ip, forward_error)
+    VALUES (${content}, ${email}, ${pageUrl}, ${screenshotKey}, ${source}, ${input.ip}, 'pending') RETURNING id`; }
   catch (error) {
     if (screenshotKey) await unlink(path.join(config.dataDir, "feedback-screenshots", screenshotKey.slice(6))).catch(() => {});
     throw error;
   }
   const id = row!.id;
+  void fillLocation(id, input.ip).catch(() => {});
   void forwardFeedbackToEmail(id).catch(() => {});
   return { id };
+}
+
+/** 内网与保留地址不外查，直接标注；公网地址查一次 ipwho.is（https），失败就留给管理员看 IP 原文。 */
+function isRoutableIp(ip: string): boolean {
+  return /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.test(ip) && !ip.startsWith("0.") && !ip.startsWith("10.")
+    && !ip.startsWith("127.") && !ip.startsWith("169.254.") && !ip.startsWith("172.16.") && !ip.startsWith("172.17.")
+    && !ip.startsWith("172.18.") && !ip.startsWith("172.19.") && !ip.startsWith("172.2") && !ip.startsWith("172.30.")
+    && !ip.startsWith("172.31.") && !ip.startsWith("192.168.") && !ip.startsWith("224.") && !ip.startsWith("239.")
+    && !ip.startsWith("240.") && ip !== "255.255.255.255";
+}
+
+async function fillLocation(id: number, ip: string): Promise<void> {
+  let location: string;
+  if (!isRoutableIp(ip)) location = "内网或保留地址";
+  else {
+    const res = await fetch(`https://ipwho.is/${ip}`, { signal: AbortSignal.timeout(8_000) });
+    const j = (await res.json()) as { success?: boolean; city?: string; region?: string; country?: string };
+    location = j.success && (j.city || j.country) ? [j.city, j.region, j.country].filter(Boolean).join(" · ") : "未知";
+  }
+  await sql`UPDATE feedback SET location = ${location} WHERE id = ${id} AND location IS NULL`;
 }
 
 /**

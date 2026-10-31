@@ -10,7 +10,7 @@ import { modelsOverview, switchModel } from "@aihot/backend/admin/models";
 import { usageOverview } from "@aihot/backend/admin/usage";
 
 import { contentChain, detachFromFact, mergeStories, overrideFields, rerun, rewriteStoryDigest, searchContent, setSeoIndexed, setVisibility } from "@aihot/backend/admin/content";
-import { banSource, eraseFeedback, feedbackScreenshot, listFeedback, unbanSource, updateFeedback } from "@aihot/backend/admin/feedback";
+import { eraseFeedback, feedbackScreenshot, listFeedback, updateFeedback } from "@aihot/backend/admin/feedback";
 import { releaseReceipt, requeueFailedArticles, resolveDelivery, readRunsOverview } from "@aihot/backend/admin/runs";
 import { deleteBudget, listBudgets, updateBudget } from "@aihot/backend/admin/settings";
 import { createSource, fetchNow, listSources, previewSource, sourceDetail, updateSource, replaceSources } from "@aihot/backend/admin/sources";
@@ -95,15 +95,6 @@ export function registerAdmin(app: FastifyInstance) {
     if (!data) return notFound(req, reply);
     const ext = file!.split(".").pop();
     return reply.type(ext === "jpeg" || ext === "jpg" ? "image/jpeg" : `image/${ext}`).send(data);
-  }));
-  app.post("/api/admin/feedback-bans", adminHandler(async (req, reply, admin) => {
-    const b = body<{ sourceHash: string; reason: string }>(req);
-    await banSource(String(b.sourceHash ?? ""), String(b.reason ?? ""), actorOf(admin));
-    return reply.code(204).send();
-  }));
-  app.delete("/api/admin/feedback-bans/:hash", adminHandler(async (req, reply, admin) => {
-    await unbanSource(param(req, "hash"), actorOf(admin));
-    return reply.code(204).send();
   }));
 
   // Runs (F20)
