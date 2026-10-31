@@ -373,6 +373,13 @@ export async function composeDaily(date: string, reason = "scheduled", skipUncha
   }));
   const ordered = sections.flatMap((s) => s.items).sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
   if (reason === "workflow-integrity-repair" && !ordered.length) return { key:date,entries:0,waiting:true };
+  // 停机护栏：SIGTERM 之后不再发起新的付费调用。queue.ts 的承诺（"long loops stop between items, and a
+  // paid call already in flight is allowed to finish"）前提是循环在项间检查信号——组稿链此前只有
+  // catchUpReports 的期次间检查（下方 catch-up 处），期次内部没有：排空窗（stopBoss 255s）深处被
+  // exit(0) 截断的调用会留下 pending→unknown 回执（认领事务已提交，答复永远不会来），叠加供应商
+  // 超时就会直达 admin 永久滞留。analyze 链在 content.ts 的同名检查点早有对照。抛错后 repair 盖
+  // retry-wait（repair.ts 的 catch）、catch-up 由下个 worker 重投，不留任何截断中的调用。
+  if (shutdownSignal.signal.aborted) throw new Error("worker shutting down before report compose call");
   const lead = ordered.length ? await writeLead("daily", date, ordered, model) : null;
   const content = {
     date,
@@ -446,6 +453,8 @@ async function composePeriod(kind: "weekly" | "monthly", key: string, startDate:
   let receiptId: number | null = null;
   let proseRule: string | null = null;
   if (top.length) {
+    // 同 composeDaily 的停机护栏：weekly/monthly 的 period 调用也不得在排空窗深处发起。
+    if (shutdownSignal.signal.aborted) throw new Error("worker shutting down before report compose call");
     const res = await chatJson({
       model, purpose: `report_${kind}`, subject: `report:${kind}:${key}`, promptVersion: REPORT_VERSION,
       ...periodPrompt(kind, startDate, endDateInclusive, top), schema: PeriodSchema, temperature: 0.3, maxTokens: 2500,

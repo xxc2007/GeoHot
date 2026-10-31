@@ -233,12 +233,22 @@ export async function autoReleaseUnknownReceipts(now = Date.now()) {
     ORDER BY r.id LIMIT 200`;
   let released = 0;
   let requeued = 0;
+  let errors = 0;
   for (const r of rows) {
-    const done = await release(r.id, AUTO_RELEASE_NOTE, "ops.recover", "结果未知，自动放行一次", null);
+    let done: { requeued: boolean } | null = null;
+    try {
+      done = await release(r.id, AUTO_RELEASE_NOTE, "ops.recover", "结果未知，自动放行一次", null);
+    } catch {
+      // One receipt whose attempt ledger no longer matches (legacy 0022 shapes did produce those) throws
+      // out of release() — a poison row must not stop the rest of this batch, nor the recoveries queued
+      // behind it in ops.recover. It stays visible in the runs overview receiptIssues for the admin.
+      errors += 1;
+      continue;
+    }
     if (done) released += 1;
     if (done?.requeued) requeued += 1;
   }
-  return { released, requeued };
+  return { released, requeued, errors };
 }
 
 /** Failed articles (one failure group, or all of the last 30 days) back into processing. */

@@ -7,7 +7,7 @@ import type { PgBoss } from "pg-boss";
 import { FEATURES } from "@aihot/industry/features";
 import { isCollectEnabled } from "@aihot/backend/config";
 import { ensureQueue, recordRun } from "@aihot/backend/jobs/queue";
-import { sweepUnprocessed } from "@aihot/backend/jobs/content";
+import { ageStaleLiveJobs, sweepUnprocessed } from "@aihot/backend/jobs/content";
 import { translatePending } from "@aihot/backend/editorial/translate";
 import { adaptIntervals, scheduleDueSources } from "@aihot/backend/sources/collect";
 import { maintainReserves } from "@aihot/backend/sources/reserves";
@@ -80,12 +80,13 @@ export const SCHEDULES: Scheduled[] = [
   { name: "sources.icons", cron: "40 4 * * *", missed: "once", run: () => refreshSourceIcons() },
   // IndexNow for new indexable pages (off unless INDEXNOW_SUBMIT_ENABLED).
   { name: "seo.indexnow", cron: "50 5 * * *", missed: "once", run: () => submitIndexNow() },
-  // Work a stopped process left half way becomes visible, and unknown paid requests get their one
-  // automatic release, before the alerts look.
+  // Work a stopped process left half way becomes visible, unknown paid requests get their one
+  // automatic release, and the starved tail of the created backlog is lifted back to the priority
+  // water line, before the alerts look.
   {
     name: "ops.recover",
     cron: "*/10 * * * *",
-    run: async () => ({ receipts: await markStalePendingReceipts(), released: await autoReleaseUnknownReceipts(), deliveries: await markStaleDeliveries(), grouping: await recoverBudgetBlockedGrouping(), bodyMedia: await recoverBodyMedia(), reportMedia: await recoverBodyMedia({reportsOnly:true}), workflow: await recoverWorkflowReadiness(), reportReadiness: await recoverWorkflowReadiness({reportsOnly:true,limit:75,budgetMs:1500}), bodyIntegrity: await recoverBodyIntegrity() }),
+    run: async () => ({ backlogAging: await ageStaleLiveJobs(), receipts: await markStalePendingReceipts(), released: await autoReleaseUnknownReceipts(), deliveries: await markStaleDeliveries(), grouping: await recoverBudgetBlockedGrouping(), bodyMedia: await recoverBodyMedia(), reportMedia: await recoverBodyMedia({reportsOnly:true}), workflow: await recoverWorkflowReadiness(), reportReadiness: await recoverWorkflowReadiness({reportsOnly:true,limit:75,budgetMs:1500}), bodyIntegrity: await recoverBodyIntegrity() }),
   },
   { name: "ops.alerts", cron: "*/10 * * * *", run: () => checkAlerts() },
   // One message with the follow-ups that do not touch readers (nothing when there are none).

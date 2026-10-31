@@ -14,7 +14,9 @@
 # 这里以前写着"唯一的排除项是 .github/"，那是 2026-10-02 之前的状态：GitHub 拒绝没有 `workflow` 作用域的
 # token 创建或更新 `.github/workflows/*`（实测 push 报 "refusing to allow an OAuth App to create or update
 # workflow … without `workflow` scope"），所以 CI 定义的正本搬到了 `tooling/ci-check.yml`，`.github/` 不再是
-# 被"排除"的东西——本地就没有这个目录。要跑 Actions 的人按 tooling/ci-check.yml 头部那两行复制回去。
+# 被"排除"的东西。自 2026-10-31 起仓库里两份定义（tooling/ci-check.yml 与 .github/workflows/check.yml）
+# 逐字节同步——48ced10 的 NODE_ENV=test 修复曾只落在 .github 一份、tooling 正本漂移，已回灌；改 CI 必须
+# 两处同改（先改 .github 这份 Actions 实际执行的，再同步 tooling 正本，diff 为空才算完）。
 #
 # 跑之前必须满足的三件事（脚本自己会检查后两件，第一件不会）：
 #   1) `gh` 已登录且令牌有 repo 作用域：`gh auth status` 能看到账号；`gh api repos/$REPO --jq .permissions.push`

@@ -83,6 +83,30 @@ async function route(articleId: string, db: Db): Promise<Route | null> {
  * (paid) request; the same tag reuses its receipt. With `db`, the job commits with the caller's write.
  * Posts of non-editorial sources skip the analysis queue: they only need recording and grouping.
  */
+/**
+ * 分钟键优先级（realTimePriority：观察分钟 × 2，content.ts:67 注的 "pg-boss serves higher priority
+ * first"）让新到的 live 任务永远压住旧任务——积压期 created 队列头部会结构性饿死：2026-10-31 实测
+ * 4305 条 content.analyze 全部 started_on IS NULL、最老 10-26，而并发并未饱和。aging 把攒过 2 小时的
+ * live 任务分批提到当前水位，让它们重新参与竞争；已经提到水位的任务由 `priority < 水位` 过滤自然
+ * 退出（水位每分钟涨 2，它们随之下沉、下个 tick 再次被捞起，始终贴着水位线竞争）。
+ * 不动 -1/-2 的历史/回填让行设计（resource-budget.ts）：`priority > 0` 把负优先级挡在外面；
+ * 非 balanced 档位下水位居 0，整个步骤按过滤条件自然空转。读者面不经过这两条队列，无感知。
+ */
+export async function ageStaleLiveJobs(now = Date.now(), limit = 500): Promise<{ lifted: number }> {
+  const water = realTimePriority({ historical: false, archive: false, signal: false, observedAt: now }, now);
+  const rows = await sql<{ id: string }[]>`
+    UPDATE pgboss.job SET priority = ${water}
+    WHERE id IN (
+      SELECT id FROM pgboss.job
+      WHERE name IN (${QUEUES.analyze}, ${QUEUES.extractBody})
+        AND state = 'created' AND priority > 0 AND priority < ${water}
+        AND created_on < now() - interval '2 hours'
+      ORDER BY created_on
+      LIMIT ${limit}
+    ) RETURNING id`;
+  return { lifted: rows.length };
+}
+
 export async function queueProcessing(articleId: string, opts: { step?: Step; attemptTag?: string; serverOnlyExtraction?: boolean; db?: Db } = {}): Promise<string | null> {
   const db = opts.db ?? sql;
   const r = await route(articleId, db);
