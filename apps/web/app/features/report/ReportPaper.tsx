@@ -324,7 +324,7 @@ function FrontPage({ report, pages, leadStory, count, now }: { report: ReportDet
           </nav>
         )}
       </aside>
-      {report.cover && <Lightbox images={[{ src: report.cover.url, alt: report.lead?.title ?? "" }]} index={viewing ? 0 : null} onIndex={() => {}} onClose={() => setViewing(false)} />}
+      {report.cover && <Lightbox fill images={[{ src: report.cover.url, alt: report.lead?.title ?? "" }]} index={viewing ? 0 : null} onIndex={() => {}} onClose={() => setViewing(false)} />}
     </section>
   );
 }
