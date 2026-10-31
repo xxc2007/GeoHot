@@ -1,13 +1,24 @@
-// Feedback: content, optional email, page URL, one optional screenshot. The screenshot
-// goes to the internal Feishu chat and only its image key is stored. Abuse control uses an unreadable
-// source identifier (HMAC of client IP + UA family), per-source bans and a per-minute limit.
+// Feedback: content, optional email, page URL, one optional screenshot. The screenshot goes to
+// the operator (email first, dormant feishu as fallback) and only a marker is stored. Abuse
+// control uses an unreadable source identifier (HMAC of client IP + UA family), per-source bans
+// and a per-minute limit.
 import { createHmac, randomUUID } from "node:crypto";
 import { mkdir, writeFile, readdir, stat, unlink } from "node:fs/promises";
 import path from "node:path";
 import { config, credential } from "../config.ts";
 import { sql } from "../db.ts";
 import { CapacityGate } from "../lib/capacity.ts";
+import { emailFeedbackEnabled, forwardFeedbackToEmail } from "../notify/email.ts";
 import { feishuInternalEnabled, forwardFeedbackToFeishu } from "../notify/feishu.ts";
+
+/**
+ * The operator mailbox (FEEDBACK_EMAIL_ENABLED + SMTP credentials) takes precedence; the dormant
+ * feishu forward stays as the fallback for deployments that still run it.
+ */
+export async function forwardFeedbackToOperator(id: number): Promise<"sent" | "disabled" | "busy"> {
+  if (emailFeedbackEnabled()) return forwardFeedbackToEmail(id);
+  return forwardFeedbackToFeishu(id);
+}
 
 export class FeedbackRejected extends Error {
   readonly status: number;
@@ -109,7 +120,7 @@ async function storeFeedback(input: FeedbackInput): Promise<{ id: number }> {
   if (input.screenshot) {
     if (!/^image\/(png|jpeg|webp|gif)$/.test(input.screenshot.mime)) throw new FeedbackRejected(400, "invalid_request", "截图需要是 PNG、JPG、WebP 或 GIF。");
     if (input.screenshot.data.length > 8 * 1024 * 1024) throw new FeedbackRejected(400, "invalid_request", "截图最大 8MB。");
-    // Stored locally only until it is forwarded (notify/feishu.ts); the database keeps only an identifier.
+    // Stored locally only until it is forwarded (notify/email.ts); the database keeps only an identifier.
     const name = `${randomUUID()}.${input.screenshot.mime.split("/")[1]}`;
     const dir = path.join(config.dataDir, "feedback-screenshots");
     await mkdir(dir, { recursive: true });
@@ -130,17 +141,18 @@ async function storeFeedback(input: FeedbackInput): Promise<{ id: number }> {
     throw error;
   }
   const id = row!.id;
-  void forwardFeedbackToFeishu(id).catch(() => {});
+  void forwardFeedbackToOperator(id).catch(() => {});
   return { id };
 }
 
 /**
- * Every few minutes: feedback that did not reach the internal chat (Feishu down, a screenshot upload
- * failing) is tried again for a week. Newer than a few minutes is still being sent by its submission.
+ * Every few minutes: feedback that did not reach the operator (mailbox down, a screenshot read
+ * failing) is tried again for a week. Newer than a few minutes is still being sent by its
+ * submission.
  */
 export async function forwardPendingFeedback(): Promise<{ sent: number; failed: number }> {
   await cleanupFeedbackScreenshots();
-  if (!feishuInternalEnabled()) return { sent: 0, failed: 0 };
+  if (!emailFeedbackEnabled() && !feishuInternalEnabled()) return { sent: 0, failed: 0 };
   const rows = await sql<{ id: number }[]>`
     SELECT id FROM feedback WHERE forwarded_at IS NULL AND forward_error IS NOT NULL
       AND created_at < now() - interval '5 minutes' AND created_at > now() - interval '7 days'
@@ -149,7 +161,7 @@ export async function forwardPendingFeedback(): Promise<{ sent: number; failed: 
   let failed = 0;
   for (const r of rows) {
     try {
-      if ((await forwardFeedbackToFeishu(r.id)) === "sent") sent += 1;
+      if ((await forwardFeedbackToOperator(r.id)) === "sent") sent += 1;
     } catch {
       failed += 1;
     }
@@ -157,7 +169,7 @@ export async function forwardPendingFeedback(): Promise<{ sent: number; failed: 
   return { sent, failed };
 }
 
-/** Retention is independent of whether the optional chat integration is enabled. */
+/** Retention is independent of whether the optional operator mailbox is enabled. */
 export async function cleanupFeedbackScreenshots(now = Date.now()): Promise<void> {
   await storageGate.run(async () => {
     await sql`UPDATE feedback SET screenshot_key = 'gone:upload'
