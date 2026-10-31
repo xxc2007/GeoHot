@@ -11,6 +11,7 @@ import { Link } from "react-router";
 import type { ReportCitation, ReportDetail, ReportKind, ReportNavigationEntry } from "@aihot/contracts/site";
 import { shortSourceName } from "../../lib/format";
 import { Badge } from "../../components/ui/Badge";
+import { Lightbox, type LightboxImage } from "../../components/ui/Lightbox";
 import { IconArrowLeft, IconArrowRight, IconArrowUpRight } from "../../components/icons";
 import { Kicker } from "../../components/ui/Kicker";
 import { SourceAvatar } from "../../components/ui/SourceAvatar";
@@ -223,7 +224,7 @@ function pagesOf(report: ReportDetail, leadStory: ReportCitation | null): Page[]
  * The lead's picture; landscape pictures are cropped to between 16:10 and 2:1. A picture that is not
  * the lead's own (a weekly or monthly's, from its first highlight) is captioned with its story.
  */
-function LeadPicture({ cover, title, onError, priority = false, className = "" }: { cover: NonNullable<ReportDetail["cover"]>; title: string; onError: () => void; priority?: boolean; className?: string }) {
+function LeadPicture({ cover, title, onError, priority = false, className = "", onOpen }: { cover: NonNullable<ReportDetail["cover"]>; title: string; onError: () => void; priority?: boolean; className?: string; onOpen: () => void }) {
   const ratio = cover.width && cover.height ? cover.width / cover.height : 16 / 9;
   const shown = ratio >= 1.25 ? Math.min(2, Math.max(1.6, ratio)) : Math.max(0.8, ratio);
   return (
@@ -232,7 +233,8 @@ function LeadPicture({ cover, title, onError, priority = false, className = "" }
         <img src={cover.url} srcSet={cover.srcSet}
           sizes={priority ? "(min-width: 1700px) 780px, (min-width: 1580px) calc(100vw - 920px), (min-width: 1420px) calc(100vw - 880px), (min-width: 1024px) calc(100vw - 540px), (min-width: 640px) 608px, calc(100vw - 32px)" : "auto, (min-width: 1180px) 300px, (min-width: 640px) 608px, calc(100vw - 32px)"}
           width={cover.width ?? undefined} height={cover.height ?? undefined}
-          alt={cover.caption ? "" : `《${title}》的配图`} loading={priority ? "eager" : "lazy"} fetchPriority={priority ? "high" : "auto"} decoding="async" onError={onError} className="size-full object-cover" />
+          alt={cover.caption ? "" : `《${title}》的配图`} loading={priority ? "eager" : "lazy"} fetchPriority={priority ? "high" : "auto"} decoding="async" onError={onError} onClick={onOpen}
+          className="size-full cursor-zoom-in object-cover transition-opacity hover:opacity-95" />
       </div>
       {cover.caption && <figcaption className="mt-2.5 line-clamp-2 text-[12.5px] leading-[1.6] text-ink-4">图 · {cover.caption}</figcaption>}
     </figure>
@@ -260,7 +262,7 @@ function FrontPage({ report, pages, leadStory, count, now }: { report: ReportDet
     <section aria-label="头版" className="grid @[880px]:grid-cols-[minmax(0,1fr)_300px] @[1040px]:grid-cols-[minmax(0,1fr)_340px]">
       <div id={leadStory ? (anchorOf(leadStory) ?? undefined) : undefined} className="min-w-0 scroll-mt-6 py-7 @[880px]:border-r @[880px]:border-line @[880px]:py-10 @[880px]:pr-10">
         <Kicker>{daily ? "头条" : "本期导读"}</Kicker>
-        {cover && wide && <LeadPicture cover={cover} title={title} onError={() => setBroken(cover.url)} priority className="mt-5" />}
+        {cover && wide && <LeadPicture cover={cover} title={title} onError={() => setBroken(cover.url)} onOpen={() => setViewing(true)} priority className="mt-5" />}
         <h2 className="mt-4 text-display font-display font-black leading-[1.28] tracking-[-0.03em] text-ink [text-wrap:balance] @[520px]:text-display-lg @[1040px]:text-display-xl @[1040px]:leading-[1.22]">
           {leadStory ? <CitationTitle c={leadStory}>{title}</CitationTitle> : title}
         </h2>
@@ -270,7 +272,7 @@ function FrontPage({ report, pages, leadStory, count, now }: { report: ReportDet
           ) : (
             <p className="mt-5 text-[13.5px] leading-[1.8] text-ink-3 @[880px]:mt-6">{leadAbsentNote(report.kind)}</p>
           )}
-          {cover && !wide && <LeadPicture cover={cover} title={title} onError={() => setBroken(cover.url)} />}
+          {cover && !wide && <LeadPicture cover={cover} title={title} onError={() => setBroken(cover.url)} onOpen={() => setViewing(true)} />}
         </div>
         {leadStory && (
           <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12.5px] text-ink-3">
@@ -396,6 +398,8 @@ function History({ report, index }: { report: ReportDetail; index: ReportNavigat
 }
 
 export function ReportPaper({ report, index, now }: { report: ReportDetail; index: ReportNavigationEntry[]; now: number }) {
+  // 期刊图与 P1 文章图共用同一只查看器：点击放大、滚轮/双击缩放、键盘与拖动（2026-10-31 站长要求）。
+  const [viewing, setViewing] = useState(false);
   const daily = report.kind === "daily";
   const leadStory = leadStoryOf(report);
   const pages = pagesOf(report, leadStory);
@@ -404,8 +408,10 @@ export function ReportPaper({ report, index, now }: { report: ReportDetail; inde
   // at its anchor, so it has to appear on the same condition. It used to appear always, and on the first
   // weekly or monthly of a series (#report-history matched nothing) it sat there as a dead in-page link.
   const hasHistory = !daily && index.some((e) => e.key !== report.key);
+  const viewerImages: LightboxImage[] = report.cover ? [{ src: report.cover.url, alt: report.lead?.title ?? "" }] : [];
   return (
-    <article data-paper="" className="@container">
+    <>
+      <article data-paper="" className="@container">
       <Masthead report={report} index={index} now={now} />
       {/* 一条判据：读者能不能真的翻开这一期。以前这里数的是 `count`，而 `count` 不看条目还在不在——
           引注全部下架的那一期于是同一页上既写着报眼的「本期未出刊」，又印着一版导语、
@@ -472,5 +478,7 @@ export function ReportPaper({ report, index, now }: { report: ReportDetail; inde
         </p>
       </footer>
     </article>
+      {report.cover && <Lightbox images={viewerImages} index={viewing ? 0 : null} onIndex={() => {}} onClose={() => setViewing(false)} />}
+    </>
   );
 }
