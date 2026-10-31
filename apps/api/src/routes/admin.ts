@@ -11,7 +11,7 @@ import { usageOverview } from "@aihot/backend/admin/usage";
 
 import { contentChain, detachFromFact, mergeStories, overrideFields, rerun, rewriteStoryDigest, searchContent, setSeoIndexed, setVisibility } from "@aihot/backend/admin/content";
 import { eraseFeedback, feedbackScreenshot, listFeedback, replyFeedback, updateFeedback } from "@aihot/backend/admin/feedback";
-import { releaseReceipt, requeueFailedArticles, resolveDelivery, readRunsOverview } from "@aihot/backend/admin/runs";
+import { releaseReceipt, requeueFailedArticles, readRunsOverview } from "@aihot/backend/admin/runs";
 import { deleteBudget, listBudgets, updateBudget } from "@aihot/backend/admin/settings";
 import { createSource, fetchNow, listSources, previewSource, sourceDetail, updateSource, replaceSources } from "@aihot/backend/admin/sources";
 import { sql } from "@aihot/backend/db";
@@ -100,7 +100,6 @@ export function registerAdmin(app: FastifyInstance) {
   // Runs (F20)
   app.get("/api/admin/runs", adminHandler(async () => readRunsOverview()));
   app.post("/api/admin/receipts/:id/release", adminHandler(async (req, reply, admin) => orNotFound(req, reply, await releaseReceipt(rowId(req), body(req) as never, actorOf(admin)))));
-  app.post("/api/admin/deliveries/:id/resolve", adminHandler(async (req, reply, admin) => orNotFound(req, reply, await resolveDelivery(rowId(req), body(req) as never, actorOf(admin)))));
   app.post("/api/admin/processing/requeue", adminHandler(async (req, _reply, admin) => requeueFailedArticles(body(req) as never, actorOf(admin))));
 
   // Operator reply to one feedback, from the site mailbox to the reader's address.
@@ -137,7 +136,7 @@ export function registerAdmin(app: FastifyInstance) {
     const [c] = await tx<Record<string, number>[]>`
       SELECT (SELECT count(*)::int FROM feedback WHERE status = 'new') AS feedback,
              (SELECT count(*)::int FROM sources WHERE enabled AND health = 'failing') AS sources,
-             (SELECT count(*)::int FROM receipts WHERE status = 'unknown') + (SELECT count(*)::int FROM deliveries WHERE status = 'unknown') AS runs,
+             (SELECT count(*)::int FROM receipts WHERE status = 'unknown') AS runs,
              0 AS monitor`;
     return c;
   }));

@@ -52,3 +52,11 @@ test("无截图时不产生附件部件，边界闭合", () => {
   assert.equal((mail.match(/--geohot-\w+--/g) ?? []).length, 1, "恰好一个结束边界");
   assert.ok((mail.match(/--geohot-\w+\r\n/g) ?? []).length >= 1, "至少一个部件分隔");
 });
+
+test("读者留了邮箱时输出 Reply-To 头，未留邮箱时不输出", () => {
+  const withReply = buildFeedbackMail({ from: "xxc200707@qq.com", to: "xxc200707@qq.com", subject: "s", text: "t", replyTo: "reader@example.com", date: new Date("2026-10-31T02:00:00Z") });
+  assert.ok(withReply.includes("Reply-To: <reader@example.com>"), "Reply-To 指向读者邮箱");
+  assert.ok(withReply.indexOf("Reply-To:") > withReply.indexOf("To:") && withReply.indexOf("Reply-To:") < withReply.indexOf("Subject:"), "Reply-To 在 To 与 Subject 之间");
+  const withoutReply = buildFeedbackMail({ from: "a@qq.com", to: "b@qq.com", subject: "s", text: "t", date: new Date("2026-10-31T02:00:00Z") });
+  assert.ok(!withoutReply.includes("Reply-To:"), "无 replyTo 时不输出该头");
+});

@@ -134,7 +134,7 @@ export default function FeedbackPage() {
 
   if (state.kind === "done") {
     // 成功页脱离阅读栏：整块可用视口内水平垂直居中，内容直接坐在页面背景上（2026-10-31 站长要求
-    // 与大背景融为一体，不做浮起的卡片）。
+    // 与大背景融为一体，不做浮起的卡片）。状态恒为「已收到」：刚提交的反馈只可能是这个状态。
     return (
       <div className="flex min-h-[calc(100dvh-9rem)] w-full flex-col items-center justify-center px-4 py-10 text-center">
         <div className="anim-pop-in flex size-16 items-center justify-center rounded-full bg-accent text-accent-contrast">
@@ -147,9 +147,10 @@ export default function FeedbackPage() {
         <p className="mt-4">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-bg-sunk px-3 py-1 text-[12.5px] text-ink-3 ring-1 ring-line-soft">
             <span className="size-1.5 rounded-full bg-accent" />
-            当前状态：已收到，正在进入工作流
+            当前状态：已收到
           </span>
         </p>
+        <p className="mt-3 text-[13px] text-ink-4">记下编号；之后可用「编号 + 提交时留的邮箱」在本页下方查询处理进度。</p>
         <Link to="/" reloadDocument className="mt-8 inline-flex h-10 items-center rounded-full bg-ink px-6 text-[14px] font-medium text-bg transition-opacity hover:opacity-90">
           回到精选
         </Link>
@@ -278,6 +279,98 @@ export default function FeedbackPage() {
           </button>
         </div>
       </form>
+      <StatusLookup field={field} />
     </ReadingLayout>
+  );
+}
+
+const STATUS_ZH: Record<string, string> = { 已收到: "ok", 处理中: "warn", 已回复: "ok", 已解决: "ok" };
+
+/** 折叠的「查询处理状态」卡：编号 + 提交时留的邮箱 → 一个状态词。接口对查不到的回答是同一个
+ *  通用空态（不区分编号不存在与邮箱不匹配），因此页面也只给一种提示，不给探测留缝。 */
+function StatusLookup({ field }: { field: string }) {
+  const [open, setOpen] = useState(false);
+  const [id, setId] = useState("");
+  const [email, setEmail] = useState("");
+  const [result, setResult] = useState<{ kind: "status" | "missing" | "error"; status?: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const lookup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const num = Number(id);
+    if (!Number.isInteger(num) || num <= 0) return setResult({ kind: "error" });
+    setBusy(true);
+    setResult(null);
+    try {
+      const qs = new URLSearchParams({ id: String(num) });
+      if (email.trim()) qs.set("email", email.trim());
+      const res = await fetch(publicPath(`/api/site/feedback-status?${qs}`));
+      const body = (await res.json().catch(() => ({}))) as { status?: string | null };
+      if (res.status === 429) setResult({ kind: "error" });
+      else setResult(body.status ? { kind: "status", status: body.status } : { kind: "missing" });
+    } catch {
+      setResult({ kind: "error" });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="card mt-6 overflow-hidden">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+        className="flex w-full items-center justify-between px-5 py-4 text-left sm:px-6"
+      >
+        <span>
+          <span className="block text-[14.5px] font-semibold text-ink">查询处理状态</span>
+          <span className="mt-0.5 block text-[12.5px] text-ink-4">用反馈编号和提交时留的邮箱查看处理进度</span>
+        </span>
+        <span aria-hidden className={`text-ink-4 transition-transform ${open ? "rotate-180" : ""}`}>▾</span>
+      </button>
+      {open && (
+        <form onSubmit={lookup} className="space-y-4 border-t border-line-soft px-5 pb-5 pt-4 sm:px-6">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label htmlFor="fb-lookup-id" className="mb-2 block text-[13px] font-semibold text-ink">反馈编号</label>
+              <input id="fb-lookup-id" inputMode="numeric" value={id} onChange={(e) => setId(e.target.value.replace(/\D/g, ""))} placeholder="例如 12" className={`${field} h-11 px-4 text-[14.5px]`} />
+            </div>
+            <div>
+              <label htmlFor="fb-lookup-email" className="mb-2 block text-[13px] font-semibold text-ink">
+                邮箱 <span className="font-normal text-ink-4">（提交时留了才填）</span>
+              </label>
+              <input id="fb-lookup-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="reader@example.com" className={`${field} h-11 px-4 text-[14.5px]`} />
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="submit"
+              disabled={busy || !id.trim()}
+              className="inline-flex h-10 items-center justify-center rounded-full bg-ink px-5 text-[13.5px] font-medium text-bg transition-opacity hover:opacity-90 disabled:bg-line-strong disabled:text-ink-4"
+            >
+              {busy && <RingMark className="size-4" spinning />}
+              查询
+            </button>
+            {result?.kind === "status" && (
+              <span className={`inline-flex items-center gap-1.5 rounded-full bg-bg-sunk px-3 py-1 text-[13px] ring-1 ring-line-soft ${STATUS_ZH[result.status ?? ""] === "warn" ? "text-ink" : "text-ink-2"}`}>
+                <span className={`size-1.5 rounded-full ${STATUS_ZH[result.status ?? ""] === "warn" ? "bg-hot" : "bg-accent"}`} />
+                当前状态：{result.status}
+              </span>
+            )}
+          </div>
+          <Presence show={result?.kind === "missing"} enter="anim-notice-in" exit="anim-fade-out" duration={160}>
+            <p role="status" className="rounded-tile bg-bg-sunk px-3.5 py-2.5 text-[13px] text-ink-3">
+              没有查到对应的反馈：请确认编号无误；提交时留了邮箱的反馈需要填同一个邮箱才能查询。
+            </p>
+          </Presence>
+          <Presence show={result?.kind === "error"} enter="anim-notice-in" exit="anim-fade-out" duration={160}>
+            <p role="alert" className="rounded-tile bg-hot-soft px-3.5 py-2.5 text-[13px] text-hot">
+              {busy ? "" : "查询没有成功：请填写反馈编号，稍后再试。"}
+            </p>
+          </Presence>
+        </form>
+      )}
+    </section>
   );
 }

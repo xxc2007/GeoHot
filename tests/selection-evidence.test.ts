@@ -10,7 +10,7 @@ execFileSync(process.execPath,['scripts/migrate.ts'],{env:process.env,stdio:'pip
 const {sql,closeDb}=await import('@aihot/backend/db');const {upsertMaterial}=await import('@aihot/backend/content/materials');
 const {publishArticle}=await import('@aihot/backend/publication/publish');const {stopBoss,ensureQueue,QUEUES}=await import('@aihot/backend/jobs/queue');
 after(async()=>{await stopBoss();await closeDb();await admin.unsafe(`DROP DATABASE "${name}"`);await admin.end()});
-await ensureQueue(QUEUES.notifySelected);await ensureQueue(QUEUES.prepareMedia);
+await ensureQueue(QUEUES.prepareMedia);
 await sql`INSERT INTO sources(id,name,kind,tier,participation_mode,site_fulltext) VALUES('evidence-test','Official science','rss','T1','editorial',true)`;
 async function article(n:number,extra:Record<string,unknown>={}){
 const title='二氧化碳直接辐射强迫增强可致印度夏季降温';

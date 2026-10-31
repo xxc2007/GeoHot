@@ -34,6 +34,9 @@ export interface MailInput {
   /** Plain UTF-8 body; sent base64-encoded as text/plain. */
   text: string;
   attachment?: MailAttachment | null;
+  /** Reply-To header. The feedback forward sets it to the reader's address so answering the mail
+   *  in the QQ web client reaches them directly instead of the site's own mailbox. */
+  replyTo?: string | null;
   /** Fixed timestamp for tests; real sends omit it. */
   date?: Date;
 }
@@ -53,6 +56,7 @@ export function buildFeedbackMail(input: MailInput): string {
   const head = [
     `From: =?UTF-8?B?${Buffer.from("GEOHOT 反馈", "utf8").toString("base64")}?= <${input.from}>`,
     `To: <${input.to}>`,
+    ...(input.replyTo ? [`Reply-To: <${input.replyTo}>`] : []),
     `Subject: ${encodedWord(input.subject.replace(/[\r\n]+/g, " "))}`,
     `Date: ${(input.date ?? new Date()).toUTCString()}`,
     "MIME-Version: 1.0",
@@ -241,7 +245,7 @@ async function deliverFeedbackByEmail(id: number): Promise<"sent" | "disabled"> 
   try {
     await smtpTransport.submit({
       host, port, user, pass, from: user, to,
-      data: buildFeedbackMail({ from: user, to, subject, text, attachment, date: new Date() }),
+      data: buildFeedbackMail({ from: user, to, subject, text, attachment, replyTo: fb.email, date: new Date() }),
     });
   } catch (error) {
     await sql`UPDATE feedback SET forward_error = ${String(error instanceof Error ? error.message : error).slice(0, 300)} WHERE id = ${fb.id}`;

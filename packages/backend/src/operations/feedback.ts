@@ -92,6 +92,27 @@ export async function submitFeedback(input: FeedbackInput, ticket?: object): Pro
   finally { ownAdmission?.release(); }
 }
 
+/**
+ * Reader-side status lookup by feedback number + the email it was submitted with. The row's own
+ * email decides the doorway (2026-10-31):
+ *  - the row has an email → only that address (case-insensitive) gets the status;
+ *  - the row has no email → the id alone suffices, because the reader was never asked to keep a
+ *    secret and nothing but the status word ever leaves the row.
+ * Unknown id, wrong email and spam-verdict rows all answer the same null → the API replies one
+ * generic "没有查到": the id space is small enough that distinguishing "unknown id" from "wrong
+ * email" would let anyone probe which numbers exist.
+ */
+export async function feedbackStatus(id: number, email: string | null): Promise<{ status: string } | null> {
+  const [row] = await sql<{ status: string; email: string | null }[]>`SELECT status, email FROM feedback WHERE id = ${id}`;
+  if (!row) return null;
+  // Spam verdicts are internal; the reader gets the generic answer like everyone else.
+  if (row.status === "spam") return null;
+  // The row's own email decides the doorway: no email on the row → status for anyone with the id
+  // (the spec's "本无邮箱即放行"); an email on the row → only the matching address passes.
+  if (row.email && (!email || row.email.toLowerCase() !== email.toLowerCase())) return null;
+  return { status: row.status };
+}
+
 async function storeFeedback(input: FeedbackInput): Promise<{ id: number }> {
   const content = input.content.trim();
   if (content.length < 2) throw new FeedbackRejected(400, "invalid_request", "请写下反馈内容。");

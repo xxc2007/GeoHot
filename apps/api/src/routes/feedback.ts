@@ -1,8 +1,25 @@
 import type { FastifyInstance } from "fastify";
-import { admitFeedback, FeedbackRejected, submitFeedback, type FeedbackInput } from "@aihot/backend/operations/feedback";
+import { admitFeedback, FeedbackRejected, feedbackStatus, submitFeedback, type FeedbackInput } from "@aihot/backend/operations/feedback";
 import { sendProblem } from "../http/respond.ts";
 
 type FeedbackBody = Pick<FeedbackInput, "content" | "email" | "pageUrl" | "screenshot">;
+
+// Status lookups key on the client address, same shape as the submission limiter: bounded identities,
+// so one address cannot walk the id space faster than a few per minute. Small on purpose — a reader
+// checks their own number once, not ten times.
+const recentLookups = new Map<string, number[]>();
+function admitLookup(ip: string): boolean {
+  const now = Date.now();
+  const list = (recentLookups.get(ip) ?? []).filter((t) => now - t < 60_000);
+  if (list.length >= 20) return false;
+  list.push(now);
+  recentLookups.set(ip, list);
+  if (recentLookups.size > 5_000) for (const [k, v] of recentLookups) if (!v.length || now - v[v.length - 1]! > 120_000) recentLookups.delete(k);
+  return true;
+}
+
+/** 状态以中文展示给读者（后台仍是英文枚举，二者各自唯一）。 */
+const STATUS_ZH: Record<string, string> = { new: "已收到", triaged: "处理中", replied: "已回复", resolved: "已解决", spam: "已收到" };
 
 async function readBody(raw: unknown, contentType: string): Promise<FeedbackBody> {
   if (Buffer.isBuffer(raw)) {
@@ -74,5 +91,19 @@ export function registerFeedback(app: FastifyInstance, uploadDeadlineMs = 15_000
       req.log.error({ err: error }, "feedback failed");
       return sendProblem(req, reply, { status: 503, code: "temporarily_unavailable", detail: "暂时无法提交，请稍后再试。", retryAfter: 30 });
     }
+  });
+
+  // Reader-side status lookup: feedback number + the email it was submitted with. The answer is one
+  // status word or a generic not-found — never the row itself — and it is rate limited per address.
+  app.get("/api/site/feedback-status", async (req, reply) => {
+    const forwarded = process.env.TRUST_PROXY === "true" ? req.headers["x-real-ip"] : undefined;
+    const ip = String(forwarded ?? req.ip ?? "");
+    const q = (req.query ?? {}) as { id?: string; email?: string };
+    const id = Number(q.id);
+    const email = (q.email ?? "").trim() || null;
+    if (!Number.isInteger(id) || id <= 0 || id > 2_147_483_647) return reply.header("Cache-Control", "no-store").code(404).send({ status: null });
+    if (!admitLookup(ip)) return sendProblem(req, reply, { status: 429, code: "rate_limited", detail: "查询太频繁，请稍后再试。", retryAfter: 60 });
+    const result = await feedbackStatus(id, email);
+    return reply.header("Cache-Control", "no-store").send({ status: result ? (STATUS_ZH[result.status] ?? result.status) : null });
   });
 }

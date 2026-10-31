@@ -21,7 +21,6 @@ interface Runs {
   failedJobs: Row[];
   lagging: Row[];
   receipts: { counts: Record<string, number>; issues: Row[]; unknownTotal: number };
-  deliveries: Row[];
   errors: Row[];
   retrying: { count: number; next: string | null };
   ingest: Row[];
@@ -87,8 +86,6 @@ export default function RunsAdmin({ loaderData }: Route.ComponentProps) {
   const { run, pending } = useAdminAction();
   const [receipt, setReceipt] = useState<Row | null>(null);
   const [billed, setBilled] = useState("false");
-  const [delivery, setDelivery] = useState<Row | null>(null);
-  const [outcome, setOutcome] = useState<"sent" | "drop" | "resend">("sent");
   // Failure group to put back into processing ("" = every failure of the last 30 days).
   const [requeue, setRequeue] = useState<string | null>(null);
 
@@ -115,7 +112,7 @@ export default function RunsAdmin({ loaderData }: Route.ComponentProps) {
   const failing = r.jobs.filter((j) => j.status === "failed");
 
   return (
-    <AdminPage title="运行" subtitle={<>任务、队列、信源延迟与需要人工核对的回执和投递。每 20 秒自动刷新 · 最近检查 {bj(r.checkedAt)}</>}>
+    <AdminPage title="运行" subtitle={<>任务、队列、信源延迟与需要人工核对的回执。每 20 秒自动刷新 · 最近检查 {bj(r.checkedAt)}</>}>
       {(r.stale || refresh.data?.unavailable) && <p role="status" className="mb-5 rounded-panel border border-line bg-surface p-4 text-[13px] text-ink-2">详细统计暂时显示上方“最近检查”时间的快照；心跳与队列使用各自的检测时间。页面会继续尝试刷新。</p>}
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-5">
         <Stat
@@ -126,7 +123,6 @@ export default function RunsAdmin({ loaderData }: Route.ComponentProps) {
         <Stat label="队列积压" value={num(queued)} tone={queued > 500 ? "warn" : undefined} hint={queueAt ? `排队与等待重试 · 检测 ${bj(queueAt)}` : "排队与等待重试（详细统计快照）"} />
         <Stat label="失败的定时任务" value={num(failing.length)} tone={failing.length ? "bad" : "ok"} hint="最近一次运行失败" />
         <Stat label="回执结果未知" value={num(r.receipts.unknownTotal)} tone={r.receipts.unknownTotal ? "bad" : "ok"} hint={`7 天 ${num(Object.values(r.receipts.counts).reduce((a, b) => a + b, 0))} 条请求回执`} />
-        <Stat label="投递待核实" value={num(r.deliveries.filter((d) => d.status === "unknown").length)} tone={r.deliveries.some((d) => d.status === "unknown") ? "bad" : "ok"} />
       </div>
 
       <div className="grid gap-5 xl:grid-cols-2">
@@ -194,21 +190,6 @@ export default function RunsAdmin({ loaderData }: Route.ComponentProps) {
               { key: "p", label: "用途", render: (x) => (x.subject && /^[\w-]{10,}$/.test(x.subject) && x.purpose.includes("analy") ? <Link className="text-accent" to={`/admin/content/${x.subject}`}>{x.purpose}</Link> : x.purpose) },
               { key: "e", label: "错误", render: (x) => <span className="line-clamp-2 text-[12px] text-ink-3" title={x.error ?? ""}>{x.error}</span> },
               { key: "a", label: "", render: (x) => (x.status === "unknown" ? <Button size="sm" onClick={() => setReceipt(x)}>核对</Button> : null) },
-            ]}
-          />
-        </Card>
-        <Card title="需要核实的投递" pad={false}>
-          <DataTable
-            dense
-            rows={r.deliveries}
-            rowKey={(d) => d.id}
-            empty="没有待核实的投递"
-            columns={[
-              { key: "t", label: "目标", render: (d) => d.target_key },
-              { key: "s", label: "状态", render: (d) => <Badge tone={d.status === "unknown" ? "bad" : "warn"}>{d.status}</Badge> },
-              { key: "sub", label: "内容", render: (d) => (d.subject_kind === "selected" ? <Link className="text-accent" to={`/admin/content/${d.subject_id}`}>{d.subject_id}</Link> : `${d.subject_kind} ${d.subject_id}`) },
-              { key: "at", label: "时间", render: (d) => <Time at={d.updated_at} /> },
-              { key: "a", label: "", render: (d) => <Button size="sm" onClick={() => setDelivery(d)}>处理</Button> },
             ]}
           />
         </Card>
@@ -355,24 +336,6 @@ export default function RunsAdmin({ loaderData }: Route.ComponentProps) {
         onClose={() => setRequeue(null)}
         onSubmit={async (reason) => (await run("POST", "/api/admin/processing/requeue", { group: requeue || null, reason }, { label: "requeue", success: "已重新排队" })) !== null}
       />
-      <ReasonDialog
-        open={!!delivery}
-        title="处理投递"
-        description="先到对应飞书群确认有没有收到。确认没收到再重发；开发环境不会真的发出。"
-        confirmLabel="确认"
-        danger={outcome === "resend"}
-        busy={pending === "delivery"}
-        onClose={() => setDelivery(null)}
-        onSubmit={async (note) => (await run("POST", `/api/admin/deliveries/${delivery!.id}/resolve`, { outcome, note }, { label: "delivery", success: "已处理" })) !== null}
-      >
-        <Field label="结果">
-          <Select value={outcome} onChange={(e) => setOutcome(e.target.value as typeof outcome)}>
-            <option value="sent">群里已收到，标记为已送达</option>
-            <option value="drop">不再发送</option>
-            <option value="resend">群里没有，重新发送</option>
-          </Select>
-        </Field>
-      </ReasonDialog>
     </AdminPage>
   );
 }
