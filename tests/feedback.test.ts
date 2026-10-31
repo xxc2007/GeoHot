@@ -1,105 +1,120 @@
-// Feedback reaches the internal Feishu chat with its screenshot even when Feishu fails at first: a
-// failed upload or send is tried again, only the Feishu image key is kept, a screenshot that cannot be
-// uploaded for a day is dropped (the text still goes), and imported feedback is never forwarded again.
+// Feedback reaches the operator's mailbox with its screenshot even when the send fails at first: a
+// failed SMTP send is retried by the sweep with the same image, a screenshot whose file is gone for
+// a day is dropped (the text still goes), imported feedback is never forwarded again, and only one
+// send is in flight at a time. The SMTP transport is stubbed, so nothing leaves the process.
 import { tag, gate } from "./setup.ts";
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { after, test } from "node:test";
+import { after, before, test } from "node:test";
 import { config } from "@aihot/backend/config";
 import { closeDb, sql } from "@aihot/backend/db";
-import { forwardFeedbackToFeishu } from "@aihot/backend/notify/feishu";
+import { forwardFeedbackToEmail, smtpTransport, type SmtpOptions } from "@aihot/backend/notify/email";
 import { forwardPendingFeedback, submitFeedback } from "@aihot/backend/operations/feedback";
 
 const T = tag();
 config.dataDir = mkdtempSync(path.join(tmpdir(), "aihot-feedback-"));
-process.env.FEISHU_APP_ID = "test-app";
-process.env.FEISHU_APP_SECRET = "test-secret";
-process.env.FEISHU_INTERNAL_CHAT_ID = "oc_test";
+process.env.FEEDBACK_EMAIL_ENABLED = "true";
+process.env.FEEDBACK_SMTP_USER = "feedback@test.local";
+process.env.FEEDBACK_SMTP_PASS = "test-auth-code";
+process.env.FEEDBACK_EMAIL_TO = "operator@test.local";
 
-// Feishu's message app, answered here: uploads and sends fail while the switches say so.
-const feishu = { uploadFails: false, sendFails: false, sent: [] as Array<{ title: string; content: unknown[][] }> };
-let uploadHold: ReturnType<typeof gate<void>> | undefined;
-let uploadEntered: ReturnType<typeof gate<void>> | undefined;
-let uploadCount = 0;
-const realFetch = globalThis.fetch;
-globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
-  const url = String(input instanceof Request ? input.url : input);
-  if (!url.startsWith("https://open.feishu.cn/")) return realFetch(input, init);
-  if (url.endsWith("/auth/v3/tenant_access_token/internal")) return Response.json({ code: 0, tenant_access_token: "t", expire: 7200 });
-  if (url.endsWith("/im/v1/images")) {
-    uploadCount++; uploadEntered?.open(); await uploadHold?.promise;
-    return Response.json(feishu.uploadFails ? { code: 99, msg: "upload broken" } : { code: 0, data: { image_key: `img_${T}` } });
+// The SMTP wire, answered here: sends fail while the switch says so, and every payload is recorded.
+const mailbox = { fails: 0, sent: [] as Array<{ to: string; subject: string; text: string; data: string }> };
+const realSubmit = smtpTransport.submit;
+let sendHold: ReturnType<typeof gate<void>> | undefined;
+let sendEntered: ReturnType<typeof gate<void>> | undefined;
+smtpTransport.submit = (o: SmtpOptions) => {
+  if (sendHold) {
+    sendEntered?.open();
+    return sendHold.promise.then(() => record(o));
   }
-  if (url.includes("/im/v1/messages")) {
-    if (feishu.sendFails) return Response.json({ code: 99, msg: "send broken" });
-    const content = JSON.parse(JSON.parse(String(init?.body)).content).zh_cn;
-    feishu.sent.push(content);
-    return Response.json({ code: 0, data: { message_id: "m1" } });
+  return record(o);
+  function record(o: SmtpOptions) {
+    if (mailbox.fails > 0) { mailbox.fails -= 1; return Promise.reject(new Error("smtp send broken")); }
+    // 主题是单个 RFC2047 编码词（PR #61 起为 QQ 兼容），正文 base64 且 76 字符折行——都解码成
+    // 原文再记录，断言才不必和折叠对齐较劲。
+    const encoded = o.data.match(/^Subject: =\?UTF-8\?B\?([A-Za-z0-9+/=]+)\?=/m);
+    const subject = encoded ? Buffer.from(encoded[1]!, "base64").toString("utf8")
+      : (o.data.match(/^Subject: (.*)$/m)?.[1] ?? "");
+    const textPart = o.data.match(/Content-Type: text\/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n([\s\S]*?)\r\n--/m);
+    const text = textPart ? Buffer.from(textPart[1]!.replace(/\r\n/g, ""), "base64").toString("utf8") : "";
+    mailbox.sent.push({ to: o.to, subject, text, data: o.data });
+    return Promise.resolve();
   }
-  throw new Error(`unexpected request ${url}`);
-}) as typeof fetch;
-
+};
+before(async () => {
+  // feedback 表由多个测试文件共享（security-capacity 也写入），而 sweep 的候选是
+  // `ORDER BY id LIMIT 20`：上一个测试进程留下的陈旧行（指向已清理的 tmpdir 截图）会把
+  // 本轮刚提交的记录挤出候选批次，让 sweep 断言空转。开跑前清表。
+  await sql`DELETE FROM feedback`;
+});
 after(async () => {
-  globalThis.fetch = realFetch;
+  await sql`DELETE FROM feedback`;
+  smtpTransport.submit = realSubmit;
   await closeDb();
 });
 
 const PNG = Buffer.from("89504e470d0a1a0a0000000d4948445200000001000000010806000000", "hex");
 let n = 0;
+// Submitted with the channel off, so each test drives every attempt itself.
 async function submit(): Promise<{ id: number; file: string }> {
   n += 1;
-  // Submitted while forwarding is off, so the test drives every attempt itself.
-  delete process.env.FEISHU_INTERNAL_ENABLED;
+  delete process.env.FEEDBACK_EMAIL_ENABLED;
   const { id } = await submitFeedback({ content: `反馈 ${T}-${n}`, screenshot: { mime: "image/png", data: Buffer.concat([PNG, Buffer.from(`${T}-${n}`)]) }, ip: `203.0.113.${n}`, userAgent: "test" });
-  process.env.FEISHU_INTERNAL_ENABLED = "true";
+  process.env.FEEDBACK_EMAIL_ENABLED = "true";
   const [row] = await sql<{ screenshot_key: string }[]>`SELECT screenshot_key FROM feedback WHERE id = ${id}`;
   return { id, file: path.join(config.dataDir, "feedback-screenshots", row!.screenshot_key.slice("local:".length)) };
 }
 const state = async (id: number) =>
   (await sql<{ forwarded: boolean; forward_error: string | null; screenshot_key: string | null }[]>`
     SELECT forwarded_at IS NOT NULL AS forwarded, forward_error, screenshot_key FROM feedback WHERE id = ${id}`)[0]!;
-const sentFor = (id: number) => feishu.sent.find((m) => m.title === `反馈 #${id}`);
+const sentFor = (id: number) => mailbox.sent.find((m) => m.subject.includes(`反馈 #${id}`));
 const olderBy = (id: number, interval: string) => sql`UPDATE feedback SET created_at = now() - ${interval}::interval WHERE id = ${id}`;
 
-test("a failed screenshot upload keeps the feedback waiting, and the sweep sends it with the image", async () => {
+test("a failed send keeps the feedback waiting, and the sweep delivers it with the image", async () => {
   const { id, file } = await submit();
   assert.equal((await state(id)).forward_error, "pending");
-  feishu.uploadFails = true;
-  await assert.rejects(forwardFeedbackToFeishu(id));
+  mailbox.fails = 1;
+  await assert.rejects(forwardFeedbackToEmail(id));
   const waiting = await state(id);
-  assert.deepEqual([waiting.forwarded, waiting.forward_error], [false, "feishu upload: upload broken"], "the reason is kept for the admin");
-  assert.ok(existsSync(file) && !sentFor(id), "nothing is sent without the screenshot yet");
+  assert.deepEqual([waiting.forwarded, waiting.forward_error], [false, "smtp send broken"], "the reason is kept for the admin");
+  assert.ok(existsSync(file) && !sentFor(id), "nothing is sent while the transport is down");
 
-  feishu.uploadFails = false;
   await olderBy(id, "10 minutes");
   await forwardPendingFeedback();
-  assert.deepEqual({ ...(await state(id)) }, { forwarded: true, forward_error: null, screenshot_key: `feishu:img_${T}` });
-  assert.ok(sentFor(id)?.content.some((p) => JSON.stringify(p).includes(`img_${T}`)), "the message carries the image");
-  assert.ok(!existsSync(file), "the local file is gone once uploaded");
+  assert.deepEqual({ ...(await state(id)) }, { forwarded: true, forward_error: null, screenshot_key: "emailed" });
+  const marker = Buffer.concat([PNG, Buffer.from(`${T}-1`)]).toString("base64").slice(0, 40);
+  assert.ok(sentFor(id)!.data.includes(marker), "the message carries the image");
+  assert.ok(!existsSync(file), "the local file is gone once emailed");
 });
 
-test("a send that fails after the upload goes out with the same image next time", async () => {
+test("a send that fails goes out with the same image next time", async () => {
   const { id, file } = await submit();
-  feishu.sendFails = true;
-  await assert.rejects(forwardFeedbackToFeishu(id));
-  assert.equal((await state(id)).screenshot_key, `feishu:img_${T}`);
+  mailbox.fails = 1;
+  await assert.rejects(forwardFeedbackToEmail(id));
+  assert.match((await state(id)).screenshot_key ?? "", /^local:/, "the screenshot stays until the send lands");
+  assert.ok(existsSync(file));
+  mailbox.fails = 0;
+  assert.equal(await forwardFeedbackToEmail(id), "sent");
+  const marker = Buffer.concat([PNG, Buffer.from(`${T}-2`)]).toString("base64").slice(0, 40);
+  assert.ok(sentFor(id)!.data.includes(marker), "the image is not lost between attempts");
   assert.ok(!existsSync(file));
-  feishu.sendFails = false;
-  assert.equal(await forwardFeedbackToFeishu(id), "sent");
-  assert.ok(sentFor(id)?.content.some((p) => JSON.stringify(p).includes(`img_${T}`)), "the uploaded image is not lost");
 });
 
-test("a screenshot that cannot be uploaded for a day is dropped, and the text still goes", async () => {
+test("a screenshot whose file is gone for a day is dropped, and the text still goes", async () => {
   const { id, file } = await submit();
-  feishu.uploadFails = true;
+  mailbox.fails = 1;
+  await assert.rejects(forwardFeedbackToEmail(id));
+  mailbox.fails = 0;
+  const { unlink } = await import("node:fs/promises");
+  await unlink(file);
   await olderBy(id, "25 hours");
-  assert.equal(await forwardFeedbackToFeishu(id), "sent");
-  feishu.uploadFails = false;
-  assert.deepEqual({ ...(await state(id)) }, { forwarded: true, forward_error: null, screenshot_key: "gone:upload" });
+  assert.equal(await forwardFeedbackToEmail(id), "sent");
+  assert.deepEqual({ ...(await state(id)) }, { forwarded: true, forward_error: null, screenshot_key: "gone:missing" });
   assert.ok(!existsSync(file), "no copy of the screenshot is kept");
-  assert.ok(JSON.stringify(sentFor(id)?.content).includes("截图未能上传"), "the chat is told the screenshot is missing");
+  assert.ok(sentFor(id)!.text.includes("（截图文件已不存在）"), "the mail is told the screenshot is missing");
 });
 
 test("imported feedback that was never forwarded is not sent now", async () => {
@@ -111,28 +126,28 @@ test("imported feedback that was never forwarded is not sent now", async () => {
 });
 
 // The HTTP admission ends before background forwarding; this boundary must limit actual image reads.
-test("slow chat uploads keep only one image in flight and leave other records retryable", async () => {
-  process.env.FEISHU_INTERNAL_ENABLED = "false";
+test("slow sends keep only one mail in flight and leave other records retryable", async () => {
+  process.env.FEEDBACK_EMAIL_ENABLED = "false";
   const ids: number[] = [];
   for (let n = 60; n < 72; n++) {
     const { id } = await submitFeedback({ content: `bounded ${T}`, screenshot: { mime: "image/png", data: PNG }, ip: `203.0.113.${n}`, userAgent: "test" });
     ids.push(id);
   }
-  process.env.FEISHU_INTERNAL_ENABLED = "true";
-  uploadHold = gate(); uploadEntered = gate();
-  const before = uploadCount;
-  const first = forwardFeedbackToFeishu(ids[0]!);
-  await uploadEntered.promise;
+  process.env.FEEDBACK_EMAIL_ENABLED = "true";
+  sendHold = gate(); sendEntered = gate();
+  const before = mailbox.sent.length;
+  const first = forwardFeedbackToEmail(ids[0]!);
+  await sendEntered.promise;
   try {
-    const rest = await Promise.all(ids.slice(1).map(forwardFeedbackToFeishu));
+    const rest = await Promise.all(ids.slice(1).map(forwardFeedbackToEmail));
     assert.ok(rest.every((result) => result === "busy"));
-    assert.equal(uploadCount - before, 1);
+    assert.equal(mailbox.sent.length - before, 0);
     for (const id of ids.slice(1)) {
       const waiting = await state(id);
       assert.equal(waiting.forwarded, false);
       assert.equal(waiting.forward_error, "pending");
       assert.match(waiting.screenshot_key!, /^local:/);
     }
-  } finally { uploadHold.open(); await first; uploadHold = undefined; uploadEntered = undefined; }
-  assert.equal(await forwardFeedbackToFeishu(ids[1]!), "sent", "capacity recovers after the slow upload");
+  } finally { sendHold.open(); await first; sendHold = undefined; sendEntered = undefined; }
+  assert.equal(await forwardFeedbackToEmail(ids[1]!), "sent", "capacity recovers after the slow send");
 });
