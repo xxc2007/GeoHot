@@ -87,7 +87,10 @@ test("COLLECT_ENABLED and MODEL_CALLS_ENABLED read through that one rule", () =>
 
 test("development stays closed by what is shipped, not by a default", () => {
   // The defaults above are on, so a clean clone is only safe because the template writes the valves down.
-  const NAMES = ["COLLECT_ENABLED", "MODEL_CALLS_ENABLED", "FEISHU_CONTENT_PUSH_ENABLED", "FEISHU_INTERNAL_ENABLED", "INDEXNOW_SUBMIT_ENABLED"];
+  // The feishu valves left the template on 2026-10-31 (the operator runs no Feishu; the only
+  // outbound channel a fresh clone can turn on is the feedback mailbox). FEISHU_* keys default
+  // to off in code, so their absence here is still the closed state the test exists to prove.
+  const NAMES = ["COLLECT_ENABLED", "MODEL_CALLS_ENABLED", "FEEDBACK_EMAIL_ENABLED", "INDEXNOW_SUBMIT_ENABLED"];
   const example = readFileSync(path.join(REPO_ROOT, ".env.example"), "utf8");
   for (const name of NAMES) {
     assert.match(example, new RegExp(`^${name}=false$`, "m"), `.env.example must ship ${name}=false`);

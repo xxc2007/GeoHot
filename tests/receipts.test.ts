@@ -233,3 +233,37 @@ test("the spend windows count what cost money, not every attempt", async () => {
     await sql`DELETE FROM receipts WHERE id = ${seed!.id}`;
   }
 });
+
+test("one poison unknown receipt cannot stop the batch: the rest still release and the failure is counted", async () => {
+  // release() needs a matching unknown attempt row for the receipt's current attempt; a row whose
+  // ledger drifted (the legacy 0022 migration produced those) throws Conflict out of release().
+  // Before the isolation fix that throw aborted the whole auto-release pass — and with it every
+  // recovery queued behind it in ops.recover, every 10 minutes. The poison row itself is unreachable
+  // even for the admin (releaseReceipt walks the same release()), so it stays put where the runs
+  // overview receiptIssues surfaces it for manual triage.
+  const stamp = tag();
+  const healthy = `poison-healthy-${stamp}`;
+  const poison = `poison-row-${stamp}`;
+  const [h] = await sql<{ id: number }[]>`
+    INSERT INTO receipts (logical_key, service, purpose, subject, status, attempts, error)
+    VALUES (${"lk-healthy-" + stamp}, ${"test"}, ${"invariant_test"}, ${healthy}, 'unknown', 2, ${"TimeoutError: test"})
+    RETURNING id`;
+  await sql`INSERT INTO receipt_attempts (receipt_id, attempt, service, status, error)
+    VALUES (${h!.id}, 2, ${"test"}, 'unknown', ${"TimeoutError: test"})`;
+  // The poison row: status unknown with NO attempt row at all — max(attempts,1) finds nothing unknown.
+  await sql`
+    INSERT INTO receipts (logical_key, service, purpose, subject, status, attempts, error)
+    VALUES (${"lk-poison-" + stamp}, ${"test"}, ${"invariant_test"}, ${poison}, 'unknown', 2, ${"TimeoutError: test"})`;
+  await sql`UPDATE receipts SET created_at = now() - interval '31 minutes', updated_at = now() - interval '31 minutes'
+    WHERE subject IN (${healthy}, ${poison})`;
+  try {
+    const result = await autoReleaseUnknownReceipts();
+    assert.ok(result.errors >= 1, "the poison row is counted as an error, not swallowed");
+    const rows = await sql<{ subject: string; status: string }[]>`SELECT subject, status FROM receipts WHERE subject IN (${healthy}, ${poison})`;
+    const bySubject = new Map(rows.map((r) => [r.subject, r.status]));
+    assert.equal(bySubject.get(healthy), "failed", "the healthy sibling still releases");
+    assert.equal(bySubject.get(poison), "unknown", "the poison row stays for the runs overview");
+  } finally {
+    await sql`DELETE FROM receipts WHERE subject IN (${healthy}, ${poison})`;
+  }
+});

@@ -79,7 +79,7 @@ export function buildFeedbackMail(input: MailInput): string {
   return head.join("\r\n") + "\r\n\r\n" + parts.join("\r\n") + "\r\n";
 }
 
-interface SmtpOptions {
+export interface SmtpOptions {
   host: string;
   port: number;
   user: string;
@@ -123,8 +123,14 @@ function readReply(sock: tls.TLSSocket): Promise<number> {
   });
 }
 
+/**
+ * The wire transport, behind an injectable object: tests stub `smtpTransport.submit` to record
+ * payloads instead of opening real TLS sockets. Production always uses the TLS implementation.
+ */
+export const smtpTransport: { submit: (o: SmtpOptions) => Promise<void> } = { submit: submitOverTls };
+
 /** One SMTP submission: EHLO → AUTH LOGIN → MAIL → RCPT → DATA → QUIT, each reply code checked. */
-export async function smtpSubmit(o: SmtpOptions): Promise<void> {
+async function submitOverTls(o: SmtpOptions): Promise<void> {
   const sock = await connect(o.host, o.port, o.timeoutMs ?? 30_000);
   try {
     const expect = async (code: number, label: string) => {
@@ -233,7 +239,7 @@ async function deliverFeedbackByEmail(id: number): Promise<"sent" | "disabled"> 
   const subject = `GEOHOT 反馈 #${fb.id}：${fb.content.slice(0, 40)}`;
 
   try {
-    await smtpSubmit({
+    await smtpTransport.submit({
       host, port, user, pass, from: user, to,
       data: buildFeedbackMail({ from: user, to, subject, text, attachment, date: new Date() }),
     });

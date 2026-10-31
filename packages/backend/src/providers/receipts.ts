@@ -160,8 +160,10 @@ export async function paidRequest(
     const rows = await tx<ReceiptRow[]>`
       SELECT id, logical_key, status, response, created_at, updated_at FROM receipts
        WHERE logical_key = ANY(${keys}::text[]) ORDER BY id FOR UPDATE`;
-    // 历史回执的 response 会被定期裁剪（见 ops 脚本 prune-receipts）：裁剪过的行仍算已收款，
-    // 但拿不回原始答复，复用它会得到一个空 body。宁可重新调用，也不要让解析器读到 null。
+    // 复用要求原始答复还在行上：response 为 NULL 的 received/completed 行仍算已收款，但拿不回原始
+    // 答复，复用它会得到一个空 body（无论 NULL 来自历史上的外部清理，还是未来可能加入的保留策略）。
+    // 宁可重新调用，也不要让解析器读到 null。仓库里目前没有裁剪 receipts.response 的代码路径，
+    // 这条护栏是为"行已收款而答复已不在"这一类数据形态兜底。
     const received = rows.find((r) => (r.status === "received" || r.status === "completed") && r.response !== null);
     if (received) return { kind: "reuse" as const, row: received };
     const unresolved = rows.find((r) => r.status === "unknown" || r.status === "pending");

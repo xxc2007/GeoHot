@@ -14,7 +14,10 @@ type Header = { kind: "daily" | "weekly" | "monthly"; key: string; rank: number 
 export async function repairReportWorkflow(target?: Pick<Header,"kind"|"key">) {
   if (!isModelCallsEnabled() || !resourceHeadroom()) return { held: true };
   const token = randomUUID();
-  const [lease] = await sql`INSERT INTO settings(key,value) VALUES(${LEASE},${sql.json({ token, until: new Date(Date.now()+3_600_000).toISOString() })})
+  // 租约只需盖过一次运行（单期次组稿 ≤ 数分钟）；30 分钟而非 1 小时：SIGKILL/OOM/exit(0) 截断不会走
+  // finally 清理（repair.ts 底部），残留租约会让之后每个 :15 tick 静默 {held:true}——30 分钟把崩溃后的
+  // 静默窗压回 ≤2 个运行周期，与 2026-10-31 评审 finding「repair 租约无心跳/接管」的结论一致。
+  const [lease] = await sql`INSERT INTO settings(key,value) VALUES(${LEASE},${sql.json({ token, until: new Date(Date.now()+1_800_000).toISOString() })})
     ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value
     WHERE (settings.value->>'until')::timestamptz < now() RETURNING key`;
   if (!lease) return { held: true };
@@ -61,7 +64,15 @@ export async function repairReportWorkflow(target?: Pick<Header,"kind"|"key">) {
             throw error;
           }
         }
-        await sql`INSERT INTO settings(key,value) VALUES(${stampKey},${sql.json({fingerprint:input.fingerprint,outcome,at:new Date().toISOString()})})
+        // 成功重组也盖一枚 60 分钟冷却（仅定时循环；--kind/--key 的显式定向 repair 是人工动作，不拦）：
+        // 引文材料里在途收据的状态会让 fingerprint 每个 tick 都变，没有这枚冷却时，同一期次被连续
+        // 重组（实测 W24 在 08:10/09:09/09:54 三连 recompose、candidates 均 74，读者面前同一期次
+        // 3 小时换了三个版本）。冷却复用 failure 路径已有的 retry-wait 语义与同一张 settings 行，
+        // headers 查询的 NOT EXISTS cooling 对它的让位已有测试覆盖（report-candidates.test.ts）。
+        const stamp = outcome === "recomposed" && !target
+          ? { fingerprint: input.fingerprint, outcome, at: new Date().toISOString(), retryAt: new Date(Date.now() + 60 * 60_000).toISOString() }
+          : { fingerprint: input.fingerprint, outcome, at: new Date().toISOString() };
+        await sql`INSERT INTO settings(key,value) VALUES(${stampKey},${sql.json(stamp)})
           ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value`;
       }
       if (!target) await sql`INSERT INTO settings(key,value) VALUES(${CURSOR},${sql.json(h)}) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value`;

@@ -435,7 +435,8 @@ bash deploy/geohot/verify-github-sync.sh        # 独立复跑一遍逐字节核
 
 - 发布要求工作区干净（脚本自己会查），并且是**快进推送**：不 force、不改写线上历史。
 - `deploy/geohot/publish-excludes` **现在是空的** ⇒ 公开仓库与本地 HEAD 逐字节一致，一个文件都不缺。
-  CI 定义的正本在 `tooling/ci-check.yml`（不在 `.github/`，原因写在那份文件头部与 `publish-excludes` 里）。
+  CI 定义有两份且自 2026-10-31 起逐字节同步：发布可写的正本在 `tooling/ci-check.yml`，Actions 实际执行
+  的是 `.github/workflows/check.yml`——改 CI 两处同改（原因见那份文件头部与 `publish-excludes`）。
 - "发布成功"的定义不是命令返回 0，而是 `verify-github-sync.sh` 全绿：两边每个 blob 哈希相等、
   每张配图从远端取回来验签名与尺寸、SVG 过严格 XML 解析、README 的相对引用逐个命中。
 

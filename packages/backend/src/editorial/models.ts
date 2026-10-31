@@ -260,6 +260,13 @@ async function readSick(): Promise<Set<string>> {
           OR a.error LIKE '%购买加量包%'
           OR a.error LIKE '%API 速率限制%')) AS quota_refusal,
                (a.status='failed' AND (a.error LIKE 'HTTP 401:%' OR a.error LIKE 'HTTP 403:%')) AS auth_refusal,
+               -- 确定性配置拒绝：这两类错误对同一成员必然复现（账号/参数/开关问题），不存在"换个时刻
+               -- 就好了"。2026-10-30~31 实测：minimax-code-global 的 HTTP 404「switched off in Magpie」
+               -- 与 workbuddy-cn 的 HTTP 400 code 11150「reasoning effort value is not supported by the
+               -- current model」在 24h 内烧掉约 985 条 translate_body 收据失败——此前只有 10 分钟失败率
+               -- 窗在管它们，窗口一过期就复烧。与 quota/auth 同等对待：最新一次即冷却一小时。
+               (a.status='failed' AND (a.error LIKE '%switched off in Magpie%'
+            OR a.error LIKE '%is not supported by the current model%')) AS config_refusal,
                (a.status='failed' AND a.billing_status='unbilled' AND a.error LIKE 'connect failed:%') AS connect_refusal,
                row_number() OVER (PARTITION BY a.service, a.model ORDER BY a.started_at DESC, a.id DESC) AS newest
           FROM receipt_attempts a
@@ -270,7 +277,7 @@ async function readSick(): Promise<Set<string>> {
         (count(*) FILTER(WHERE newest<=2)=2 AND count(*) FILTER(WHERE newest<=2 AND connect_refusal)=2
          AND max(started_at)>now()-interval '2 minutes') AS connect_failed
       FROM ranked WHERE newest <= 6 GROUP BY service, model
-        HAVING ((count(*) FILTER (WHERE newest=1 AND (quota_refusal OR auth_refusal)) = 1)
+        HAVING ((count(*) FILTER (WHERE newest=1 AND (quota_refusal OR auth_refusal OR config_refusal)) = 1)
            AND max(started_at) > now() - interval '1 hour')
         OR (count(*) FILTER(WHERE newest<=2)=2 AND count(*) FILTER(WHERE newest<=2 AND connect_refusal)=2
             AND max(started_at)>now()-interval '2 minutes')`);
