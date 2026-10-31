@@ -244,6 +244,8 @@ function LeadPicture({ cover, title, onError, priority = false, className = "", 
 /** The front page: the lead beside a column of the issue's highlights and the index of pages. */
 function FrontPage({ report, pages, leadStory, count, now }: { report: ReportDetail; pages: Page[]; leadStory: ReportCitation | null; count: number; now: number }) {
   const daily = report.kind === "daily";
+  // 期刊图与 P1 文章图共用同一只查看器：点击放大、滚轮/双击缩放、键盘与拖动（2026-10-31 站长要求）。
+  const [viewing, setViewing] = useState(false);
   // A picture that fails to load is dropped, and the lead is set as if it had none.
   const [broken, setBroken] = useState<string | null>(null);
   const cover = report.cover && report.cover.url !== broken ? report.cover : null;
@@ -322,6 +324,7 @@ function FrontPage({ report, pages, leadStory, count, now }: { report: ReportDet
           </nav>
         )}
       </aside>
+      {report.cover && <Lightbox images={[{ src: report.cover.url, alt: report.lead?.title ?? "" }]} index={viewing ? 0 : null} onIndex={() => {}} onClose={() => setViewing(false)} />}
     </section>
   );
 }
@@ -398,8 +401,6 @@ function History({ report, index }: { report: ReportDetail; index: ReportNavigat
 }
 
 export function ReportPaper({ report, index, now }: { report: ReportDetail; index: ReportNavigationEntry[]; now: number }) {
-  // 期刊图与 P1 文章图共用同一只查看器：点击放大、滚轮/双击缩放、键盘与拖动（2026-10-31 站长要求）。
-  const [viewing, setViewing] = useState(false);
   const daily = report.kind === "daily";
   const leadStory = leadStoryOf(report);
   const pages = pagesOf(report, leadStory);
@@ -408,10 +409,8 @@ export function ReportPaper({ report, index, now }: { report: ReportDetail; inde
   // at its anchor, so it has to appear on the same condition. It used to appear always, and on the first
   // weekly or monthly of a series (#report-history matched nothing) it sat there as a dead in-page link.
   const hasHistory = !daily && index.some((e) => e.key !== report.key);
-  const viewerImages: LightboxImage[] = report.cover ? [{ src: report.cover.url, alt: report.lead?.title ?? "" }] : [];
   return (
-    <>
-      <article data-paper="" className="@container">
+    <article data-paper="" className="@container">
       <Masthead report={report} index={index} now={now} />
       {/* 一条判据：读者能不能真的翻开这一期。以前这里数的是 `count`，而 `count` 不看条目还在不在——
           引注全部下架的那一期于是同一页上既写着报眼的「本期未出刊」，又印着一版导语、
@@ -478,7 +477,5 @@ export function ReportPaper({ report, index, now }: { report: ReportDetail; inde
         </p>
       </footer>
     </article>
-      {report.cover && <Lightbox images={viewerImages} index={viewing ? 0 : null} onIndex={() => {}} onClose={() => setViewing(false)} />}
-    </>
   );
 }
