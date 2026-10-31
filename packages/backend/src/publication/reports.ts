@@ -7,6 +7,7 @@ import { cached, type Cached } from "../lib/cache.ts";
 import { proxiedImage, proxiedImageSet } from "../media/imgproxy.ts";
 import { listedCondition } from "./items.ts";
 import { itemHasPage } from "./rules.ts";
+import { CJK_COPY_PATTERN } from "@aihot/contracts/copy";
 import { dailyUrl, itemUrl, reportUrl, siteUrl } from "./links.ts";
 import { SITE, withSubject } from "@aihot/industry/site";
 
@@ -34,24 +35,36 @@ interface Availability {
   publishedAt: Date | null;
 }
 
-/** The same rule the item page itself answers with (rules.itemHasPage), so a paper never strikes through
- *  a title that opens, and never links one that does not. */
+/** The same rule the item page itself answers with, at its two grades: a full page or a restricted
+ *  preview (summary-licence source, workflow still running) both open — so a paper never strikes
+ *  through a title that opens, and never links one that does not. `unavailableReason` is only set
+ *  for rows with no page at all. */
 async function availability(ids: string[], now = new Date()): Promise<Map<string, Availability>> {
   const out = new Map<string, Availability>();
   if (ids.length === 0) return out;
   const rows = await sql<{ id: string; visibility: string; source_mode: string; selected: boolean; visible_after: Date | null; workflow_ready: boolean;
-    site_fulltext: boolean; first_party: boolean; source_id: string; icon_url: string | null; story_public_id: string | null; at: Date | null }[]>`
+    source_fulltext: boolean; has_copy: boolean; first_party: boolean; source_id: string; icon_url: string | null; story_public_id: string | null; at: Date | null }[]>`
     SELECT ${workflowReadyCondition()} AS workflow_ready, p.article_id AS id, p.visibility, s.participation_mode AS source_mode, p.selected, p.visible_after,
-      s.site_fulltext, p.first_party, p.source_id, s.icon_url, st.public_id::text AS story_public_id,
+      s.site_fulltext AS source_fulltext, (p.title ~ ${CJK_COPY_PATTERN} AND nullif(btrim(p.summary), '') IS NOT NULL) AS has_copy,
+      p.first_party, p.source_id, s.icon_url, st.public_id::text AS story_public_id,
       coalesce(p.published_at, p.discovered_at) AS at
     FROM publications p LEFT JOIN sources s ON s.id = p.source_id LEFT JOIN stories st ON st.id = p.story_id
     WHERE p.article_id IN ${sql(ids)}`;
   for (const r of rows) {
+    // The page's own gate (detail.ts), both grades: a full page, or the summary-licence restricted
+    // page (public, released, Chinese copy — the source lends no full text). A full-licence row whose
+    // workflow is still running, an admin's summary-only pull and a row with nothing to show stay off,
+    // exactly as the page 404s them.
+    const hasPage = itemHasPage({ visibility: r.visibility, sourceMode: r.source_mode, selected: r.selected, visibleAfter: r.visible_after }, now)
+      && r.visibility !== "summary-only"
+      && (r.workflow_ready || (!r.source_fulltext && !!r.has_copy));
     out.set(r.id, {
-      available: r.workflow_ready && itemHasPage({ visibility: r.visibility, sourceMode: r.source_mode, selected: r.selected, visibleAfter: r.visible_after }, now),
-      unavailableReason: r.visibility === "withdrawn" ? "withdrawn" : r.visibility !== "public" || r.source_mode !== "editorial" ? "not-public" : !r.site_fulltext ? "source-restricted" : !r.workflow_ready ? "workflow-pending" : undefined,
+      available: hasPage,
+      unavailableReason: !hasPage
+        ? r.visibility === "withdrawn" ? "withdrawn" : r.visibility !== "public" || r.source_mode !== "editorial" ? "not-public" : !r.workflow_ready ? "workflow-pending" : undefined
+        : undefined,
       // Why there is no page matters: a withdrawn or non-public item must not be quoted again anywhere,
-      // while a public item whose source simply left the editorial set still owes the reader its source.
+      // while a public item whose source left the editorial set still owes the reader its source.
       public: r.visibility === "public",
       firstParty: r.first_party,
       sourceId: r.source_id,

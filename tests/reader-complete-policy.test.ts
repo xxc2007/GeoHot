@@ -7,7 +7,6 @@ import {upsertMaterial} from '@aihot/backend/content/materials';
 import {publishArticle} from '@aihot/backend/publication/publish';
 import {loadItemDetail,exportMarkdown} from '@aihot/backend/publication/detail';
 import {itemAvailability} from '@aihot/backend/publication/availability';
-import {loadItemShare} from '@aihot/backend/publication/og';
 import {v1Items} from '@aihot/backend/publication/v1';
 import {itemFeed} from '@aihot/backend/publication/feeds';
 import {prepareArticleMedia} from '@aihot/backend/media/prepare';
@@ -24,9 +23,15 @@ async function article(language='zh',html:string|null=null) {
  await publishArticle(id);return id;
 }
 async function hidden(id:string) {
- assert.equal((await loadItemDetail(id)).kind,'not_found');
- assert.equal(await exportMarkdown(id),null);assert.equal(await loadItemShare(id),null);
- assert.equal((await itemAvailability([id]))[id],'unavailable');
+ // 「藏」的两级：详情读得返回 not_found，或返回正文为空的受限页——两条路里完整正文都不出站、
+ // 不进列表、不进导出。摘要许可/summary-only 行取受限页那条（页面不冒充全文），其余走 404；
+ // 收藏可用性同步两级：404 级回答 unavailable，受限页级回答 summary-only（同一句提示）。
+ const detail=await loadItemDetail(id);
+ const noBody=detail.kind==='not_found'||(detail.kind==='found'&&detail.detail.readingMode!=='full'&&detail.detail.body===null);
+ assert.ok(noBody,'要么 404，要么无正文的受限页；完整正文一个字不出站');
+ assert.equal(await exportMarkdown(id),null);
+ const avail=(await itemAvailability([id]))[id];
+ assert.ok(avail==='unavailable'||(avail==='summary-only'&&detail.kind==='found'),`收藏可用性两级一致（${avail}）`);
  assert.ok(!(await itemFeed('all',null)).includes(id));
  const items=await v1Items({mode:'all',window:'7d',by:'timeline',category:null,q:null,limit:100,cursor:null});
  assert.ok(!items.items.some(x=>x.id===id));
@@ -36,13 +41,16 @@ test('old readiness cannot bypass the versioned gate; republishing restores a co
  await sql`UPDATE article_workflow_readiness SET policy_version=1,ready=true WHERE article_id=${id}`;
  await hidden(id);await publishArticle(id);assert.equal((await loadItemDetail(id)).kind,'found');
 });
-test('summary-only and revoked full-text permission stay hidden even with stored ready=true',async()=>{
+test('summary-only and revoked full-text permission stay bodyless even with stored ready=true',async()=>{
  const id=await article();await sql`UPDATE publications SET visibility='summary-only' WHERE article_id=${id}`;
  await publishArticle(id); // ordinary source publication returns public, so test explicit override separately
  await sql`UPDATE publications SET body_mode='summary' WHERE article_id=${id}`;
  await sql`INSERT INTO article_workflow_readiness(article_id,revision,analysis_id,ready,policy_version)
  SELECT article_id,revision,analysis_id,true,${READER_POLICY_VERSION} FROM publications WHERE article_id=${id} ON CONFLICT(article_id) DO UPDATE SET ready=true,policy_version=${READER_POLICY_VERSION}`;
  await hidden(id);
+ // 手写 ready=true 也造不出正文页：同一行最多落到受限页（标题/摘要/原文入口），完整正文仍被门禁拦住。
+ const summaryOnly=await loadItemDetail(id);
+ assert.ok(summaryOnly.kind==='not_found'||(summaryOnly.kind==='found'&&summaryOnly.detail.readingMode!=='full'&&summaryOnly.detail.body===null),'手写 ready 不绕过正文门禁');
  await sql`UPDATE sources SET site_fulltext=false WHERE id=${source}`;await publishArticle(id);await hidden(id);
  await sql`UPDATE sources SET site_fulltext=true WHERE id=${source}`;
 });

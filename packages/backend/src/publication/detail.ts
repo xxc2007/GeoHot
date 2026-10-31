@@ -7,9 +7,9 @@ import { sql } from "../db.ts";
 import { proxyBodyImages } from "../media/imgproxy.ts";
 import { textToHtml } from "../content/sanitize.ts";
 import { dedupeConsecutiveFigures, translationTextDefect } from "../content/body-quality.ts";
-import { ITEM_COLUMNS, ITEM_FROM, chineseCopyCondition, releasedCondition, toItemSummary, videoMedia, xView, type ItemRow } from "./items.ts";
+import { ITEM_COLUMNS, ITEM_FROM, chineseCopyCondition, releaseGateCondition, releasedCondition, toItemSummary, videoMedia, xView, type ItemRow } from "./items.ts";
 import { listTopics, topicMatchTags } from "./topics.ts";
-import { bodyIsChinese } from "@aihot/contracts/copy";
+import { bodyIsChinese, hasChineseCopy, isLabelOnlyCopy } from "@aihot/contracts/copy";
 import { itemUrl } from "./links.ts";
 import { itemHasPage } from "./rules.ts";
 import { workflowReadyCondition } from "./readiness.ts";
@@ -25,6 +25,8 @@ interface DetailRow extends ItemRow {
   tr_html: string | null;
   tr_complete: boolean | null;
   media: unknown;
+  workflow_ready: boolean;
+  source_fulltext: boolean;
 }
 
 export type DetailResult =
@@ -64,11 +66,23 @@ async function itemTopics(tags: string[]): Promise<Array<{ slug: string; name: s
     .map((t) => ({ slug: t.slug, name: t.name }));
 }
 
+/** The SQL twin of `rules.itemHasPage` widened one notch: public visibility, an editorial source,
+ *  past the release gate (the summary-only admin pull keeps hiding everywhere, as pinned). Body
+ *  completeness is NOT part of it — a summary-licence item keeps its restricted page (title, summary,
+ *  source, original link), and a full-licence item whose workflow is still running gets the same page.
+ *  The release half is the one spelling (`releaseGateCondition`); what the lists show is decided by
+ *  the list predicates, and the page only has to stop lying about a citation the paper already printed. */
+function pageGate(now: Date) {
+  return sql`p.visibility = 'public' AND s.participation_mode = 'editorial' AND ${releaseGateCondition(now)}`;
+}
+
 async function loadRow(id: string, preparingMedia = false): Promise<DetailRow | null> {
   const [row] = await sql<DetailRow[]>`
-    SELECT ${ITEM_COLUMNS}, a.revision AS article_revision, a.media AS preparation_media, tr.revision AS tr_revision, a.body_html, a.body_text, a.body_status, tr.body_html AS tr_html, tr.complete AS tr_complete
+    SELECT ${ITEM_COLUMNS}, ${preparingMedia ? sql`true` : workflowReadyCondition()} AS workflow_ready,
+      s.site_fulltext AS source_fulltext,
+      a.revision AS article_revision, a.media AS preparation_media, tr.revision AS tr_revision, a.body_html, a.body_text, a.body_status, tr.body_html AS tr_html, tr.complete AS tr_complete
     ${ITEM_FROM}
-    WHERE p.article_id = ${id} ${preparingMedia ? sql`` : sql`AND ${workflowReadyCondition()}`}`;
+    WHERE p.article_id = ${id} ${preparingMedia ? sql`` : sql`AND ${pageGate(new Date())}`}`;
   return row ?? null;
 }
 
@@ -80,6 +94,13 @@ export function pageFacts(row: Pick<ItemRow, "visibility" | "source_mode" | "sel
 /**
  * Public detail (rules.itemHasPage): items the lists leave out (low relevance, merged duplicates, no
  * Chinese summary yet) keep a noindex page; withdrawn, hot_signal and not-yet-released items are a 404.
+ *
+ * Two grades on one row, decided after the row is in memory:
+ *  · workflow ready → the complete reading page as before;
+ *  · public + editorial + released + Chinese title + summary, but the source lends no full text → a
+ *    restricted page (title, AI summary, source, original link — everything a daily already shows) so
+ *    a citation never lands on a 404. Nothing pretends to be the article; a workflow still running on
+ *    a full-licence row stays a 404 (docs/complete-reader-policy.md).
  */
 export function loadItemDetail(id: string, now = new Date()): Promise<DetailResult> {
   return buildItemDetail(id, now, false);
@@ -97,13 +118,24 @@ async function buildItemDetail(id: string, now: Date, preparingMedia: boolean): 
   const summary = toItemSummary(row);
   if (row.channel === "x") summary.x = xView(row, false, true);
   const topics = await itemTopics(row.tags);
-  if (row.visibility === "summary-only") {
+  // The page gate above is deliberately lighter than the full-body gate, so the read grades the row
+  // itself: the complete page needs the workflow's own verdict; without it the row either stays in the
+  // back office (full-licence row — docs/complete-reader-policy.md 放行条件 2: 提取未确认的材料只留在
+  // 后台) or opens the summary-licence restricted page — title, AI summary, source, original link,
+  // exactly the citation a daily already printed (`site_fulltext = false` is a permanent licence state:
+  // 62,860 rows in production). An admin's `summary-only` pull keeps hiding everywhere (pageGate). A
+  // restricted page only earns its place when it can carry that citation: a Chinese title and a
+  // non-empty summary — an unsummarised row or a label-only wreck (`title_zh:`) has nothing to show,
+  // and an empty shell is worse than a 404.
+  if (isLabelOnlyCopy(row.title) || isLabelOnlyCopy(row.summary)) return { kind: "not_found" };
+  if (!row.workflow_ready) {
+    if (row.source_fulltext || !hasChineseCopy(row.title) || !row.summary?.trim()) return { kind: "not_found" };
     const detail: ItemDetail = {
       ...summary,
       reason: null,
       tags: [],
       x: null,
-      readingMode: "summary-only",
+      readingMode: "summary-licence",
       author: null,
       language: row.language,
       body: null,
@@ -200,13 +232,15 @@ async function buildItemDetail(id: string, now: Date, preparingMedia: boolean): 
 /**
  * Same predicate for the export button and the export route: a public page with something to export
  * (a summary, the post, or a full-text body). An item behind the release gate has no page, so it has no
- * export either — the button and the route must not offer what the page itself refuses.
+ * export either — the button and the route must not offer what the page itself refuses. A restricted
+ * preview page (summary-licence source, or a workflow still running) exports nothing: what it shows is
+ * the citation the paper already printed, not a copyable article.
  */
 export function markdownAvailable(row: {
-  visibility: string; source_mode: string; selected: boolean; visible_after: Date | null;
+  visibility: string; source_mode: string; selected: boolean; visible_after: Date | null; workflow_ready: boolean;
   summary: string | null; body_mode: string; body_html?: string | null; channel: string; x_post: Record<string, any> | null;
 }, now = new Date()): boolean {
-  if (row.visibility !== "public" || !itemHasPage(pageFacts(row), now)) return false;
+  if (row.visibility !== "public" || !row.workflow_ready || !itemHasPage(pageFacts(row), now)) return false;
   return !!row.summary || (row.channel === "x" && !!row.x_post?.text) || (row.body_mode === "full" && !!row.body_html);
 }
 

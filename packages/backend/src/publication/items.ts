@@ -105,13 +105,19 @@ export function chineseCopyCondition() {
   return sql`p.title ~ ${CJK_COPY_PATTERN}`;
 }
 /**
- * The release gate: a selected item reaches the public only once `visible_after` has passed (~180 s after
- * it met the selection conditions, so a grouping decision can settle first). `visible_after IS NULL` never
- * releases a selected row — the same three-valued logic the SQL has always had. The row-level twin of this
- * is `rules.isReleased`, used where a page reads one item instead of a list.
+ * The release gate, spelled once: a selected item reaches the public only once `visible_after` has
+ * passed (~180 s after it met the selection conditions, so a grouping decision can settle first).
+ * `visible_after IS NULL` never releases a selected row — the same three-valued logic the SQL has
+ * always had. The row-level twin is `rules.isReleased`, used where a page reads one item instead of
+ * a list. `releasedCondition` is the list exit (release + workflow readiness together); the detail
+ * page's lighter gate reuses this fragment without the readiness half (a restricted page may open
+ * while verification is still running).
  */
+export function releaseGateCondition(now: Date) {
+  return sql`(NOT p.selected OR p.visible_after <= ${now})`;
+}
 export function releasedCondition(now: Date) {
-  return sql`(NOT p.selected OR p.visible_after <= ${now}) AND ${workflowReadyCondition()}`;
+  return sql`${releaseGateCondition(now)} AND ${workflowReadyCondition()}`;
 }
 
 /**
