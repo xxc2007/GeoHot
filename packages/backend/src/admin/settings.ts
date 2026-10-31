@@ -1,31 +1,12 @@
-// Operator settings: notification targets (switching a group on records enabled_at so older content
-// is never back-filled) and per-service request budgets (the circuit breaker paid calls check before
-// sending). About-page QR codes were retired on 2026-10-31: the page never rendered one (both slots
-// were always null), so the upload path, the admin route and the ContactSettings QR fields went with it.
+// Operator settings: per-service request budgets (the circuit breaker paid calls check before
+// sending). The notification-target admin surface was retired on 2026-10-31 with the QR codes
+// before it: the operator runs no Feishu, both seeded targets had never been enabled and the
+// content-push valve is off, so the settings card, the toggle endpoint and their queries went —
+// the dormant delivery chain (deliver.ts, valve-gated) is untouched.
 import { sql } from "../db.ts";
-import { config } from "../config.ts";
 import { InvalidInput } from "./invalid.ts";
 import { audit } from "./auth.ts";
 import { unbilledAttempt } from "../providers/receipts.ts";
-
-export async function listTargets() {
-  return sql`
-    SELECT t.key, t.purpose, t.kind, t.enabled, t.enabled_at, t.config_ref, t.note, t.updated_at,
-           (SELECT count(*)::int FROM deliveries d WHERE d.target_key = t.key AND d.created_at > now() - interval '7 days') AS deliveries_7d,
-           (SELECT max(d.sent_at) FROM deliveries d WHERE d.target_key = t.key) AS last_sent_at
-    FROM notify_targets t ORDER BY t.purpose, t.key`;
-}
-
-export async function setTargetEnabled(key: string, enabled: boolean, reason: string, actor: string) {
-  if (!reason?.trim()) throw new InvalidInput("reason is required");
-  const [before] = await sql`SELECT enabled, enabled_at FROM notify_targets WHERE key = ${key}`;
-  if (!before) return null;
-  const [after] = await sql`
-    UPDATE notify_targets SET enabled = ${enabled}, enabled_at = CASE WHEN ${enabled} AND NOT enabled THEN now() ELSE enabled_at END, updated_at = now()
-    WHERE key = ${key} RETURNING key, enabled, enabled_at`;
-  await audit(actor, enabled ? "notify.enable" : "notify.disable", `notify-target:${key}`, reason, before, after);
-  return { ...after, pushEnabledHere: config.feishuContentPushEnabled };
-}
 
 export async function listBudgets() {
   // 与熔断器同一口径：明确未计费才排除；未知费用和发送前预留都占额度，usage 缺失不代表免费。
