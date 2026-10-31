@@ -148,7 +148,10 @@ async function fillLocation(id: number, ip: string): Promise<void> {
   else {
     const res = await fetch(`https://ipwho.is/${ip}`, { signal: AbortSignal.timeout(8_000) });
     const j = (await res.json()) as { success?: boolean; city?: string; region?: string; country?: string };
-    location = j.success && (j.city || j.country) ? [j.city, j.region, j.country].filter(Boolean).join(" · ") : "未知";
+    // 邻接行政区划同名很常见（Tokyo · Tokyo · Japan）：相邻重复段折叠，只显示有信息量的部分。
+    const parts = [j.city, j.region, j.country].filter(Boolean) as string[];
+    const deduped = parts.filter((p, i) => p !== parts[i - 1]);
+    location = deduped.length ? deduped.join(" · ") : "未知";
   }
   await sql`UPDATE feedback SET location = ${location} WHERE id = ${id} AND location IS NULL`;
 }

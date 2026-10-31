@@ -254,3 +254,26 @@ async function deliverFeedbackByEmail(id: number): Promise<"sent" | "disabled"> 
   await sql`UPDATE feedback SET forwarded_at = now(), forward_error = NULL WHERE id = ${fb.id}`;
   return "sent";
 }
+
+/** Operator-to-reader reply from the site mailbox (admin feedback page). Shares the forwarder's
+ *  single-flight gate so replies and forwards never open parallel SMTP sessions on one account. */
+export async function sendOperatorReply(to: string, subject: string, text: string): Promise<void> {
+  const user = credential("integrations", "FEEDBACK_SMTP_USER");
+  const pass = credential("integrations", "FEEDBACK_SMTP_PASS");
+  if (!user || !pass) throw new Error("FEEDBACK_SMTP_USER/PASS 未配置，无法发送回复");
+  const host = credential("integrations", "FEEDBACK_SMTP_HOST") ?? "smtp.qq.com";
+  const port = Number(credential("integrations", "FEEDBACK_SMTP_PORT") ?? "465");
+  await emailDelivery.run(() => smtpTransport.submit({
+    host, port, user, pass, from: user, to,
+    data: buildFeedbackMail({
+      from: user, to,
+      subject: subject.replace(/\r?\n/g, " ").slice(0, 120),
+      text: `${text}\r\n\r\n——\r\n${siteSignature()}`,
+      date: new Date(),
+    }),
+  }));
+}
+
+function siteSignature(): string {
+  return `GEOHOT（${config.siteUrl}）管理员`;
+}
