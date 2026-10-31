@@ -1,5 +1,9 @@
-// Feedback handling: list, status and note, per-source bans, and deletion on request
+// Feedback handling: list, status and note, and deletion on request
 // (privacy notice: feedback material is removed once handling ends or when the sender asks).
+// 2026-10-31: the per-source ban feature was removed at the operator's request — the rate limits
+// in operations/feedback.ts stay; the feedback_bans table is kept for history but nothing reads it.
+// The same change started storing the raw submitter IP (migration 0100) so the admin can see
+// time / IP / location per feedback; the HMAC source_hash stays as the rate-limit key.
 import { unlink } from "node:fs/promises";
 import path from "node:path";
 import { config } from "../config.ts";
@@ -18,16 +22,14 @@ export async function listFeedback(f: { status?: string; q?: string; page?: numb
   // 并列行没有确定次序时，同一条可能在第 1、2 页各出现一次，也可能一页都不出现。
   const rows = await sql`
     SELECT fb.id, fb.content, fb.email, fb.page_url, split_part(fb.screenshot_key, ':', 1) AS screenshot, fb.source_hash, fb.status, fb.note,
-           fb.forwarded_at, fb.forward_error, fb.created_at, fb.updated_at,
-           EXISTS (SELECT 1 FROM feedback_bans b WHERE b.source_hash = fb.source_hash) AS banned,
+           fb.forwarded_at, fb.forward_error, fb.created_at, fb.updated_at, fb.ip, fb.location,
            (SELECT count(*)::int FROM feedback o WHERE o.source_hash = fb.source_hash) AS from_source
     FROM feedback fb
     WHERE (${f.status ?? null}::text IS NULL OR fb.status = ${f.status ?? null})
       AND (${q}::text IS NULL OR fb.content ILIKE ${q} OR fb.email ILIKE ${q} OR fb.page_url ILIKE ${q})
     ORDER BY fb.created_at DESC, fb.id LIMIT 50 OFFSET ${(page - 1) * 50}`;
   const counts = await sql<{ status: string; n: number }[]>`SELECT status, count(*)::int AS n FROM feedback GROUP BY 1`;
-  const bans = await sql`SELECT source_hash, reason, created_by, created_at FROM feedback_bans ORDER BY created_at DESC LIMIT 100`;
-  return { page, rows, counts: Object.fromEntries(counts.map((c) => [c.status, c.n])), bans };
+  return { page, rows, counts: Object.fromEntries(counts.map((c) => [c.status, c.n])) };
 }
 
 /** A malformed request from the back office: mapped to 400 by the admin handler, not logged as a 500. */
@@ -48,20 +50,6 @@ export async function updateFeedback(id: number, input: { status?: string; note?
   });
 }
 
-/** Refuses further feedback from one source (an unreadable hash of IP and browser family). */
-export async function banSource(sourceHash: string, reason: string, actor: string) {
-  // An empty hash would ban nothing and still leave a row; an empty reason is not a signed decision.
-  if (!sourceHash?.trim()) throw new InvalidInput("缺少要封禁的来源标识");
-  if (!reason?.trim()) throw new InvalidInput("reason is required");
-  await sql`INSERT INTO feedback_bans (source_hash, reason, created_by) VALUES (${sourceHash}, ${reason}, ${actor}) ON CONFLICT (source_hash) DO NOTHING`;
-  await audit(actor, "feedback.ban", `feedback-source:${sourceHash}`, reason, null, null);
-}
-
-export async function unbanSource(sourceHash: string, actor: string) {
-  const rows = await sql`DELETE FROM feedback_bans WHERE source_hash = ${sourceHash} RETURNING reason`;
-  if (rows.length) await audit(actor, "feedback.unban", `feedback-source:${sourceHash}`, null, { reason: rows[0]!.reason }, null);
-}
-
 function screenshotPath(key: string | null): string | null {
   if (!key?.startsWith("local:")) return null;
   const name = key.slice("local:".length);
@@ -73,9 +61,11 @@ export async function feedbackScreenshot(id: number): Promise<string | null> {
   return screenshotPath(row?.screenshot_key ?? null);
 }
 
-/** Removes the sender's material (text, email, page, screenshot) and keeps only the handling record. */
+/** Removes the sender's material (text, email, page, screenshot) and keeps only the handling record.
+ *  The reason is optional since 2026-10-31: the operator may erase without stating one; the audit
+ *  line still records who erased and when. */
 export async function eraseFeedback(id: number, reason: string, actor: string) {
-  if (!reason.trim()) throw new InvalidInput("reason is required");
+  const why = reason.trim() || "（未填原因）";
   const [row] = await sql<{ screenshot_key: string | null }[]>`SELECT screenshot_key FROM feedback WHERE id = ${id}`;
   if (!row) return null;
   const file = screenshotPath(row.screenshot_key);
@@ -84,6 +74,6 @@ export async function eraseFeedback(id: number, reason: string, actor: string) {
   // the privacy promise of this command is kept either way: only the path is removed here.
   await sql`UPDATE feedback SET content = '（已按要求删除）', email = NULL, page_url = NULL, screenshot_key = NULL, updated_at = now() WHERE id = ${id}`;
   if (file) await unlink(file).catch(() => {});
-  await audit(actor, "feedback.erase", `feedback:${id}`, reason, null, null);
+  await audit(actor, "feedback.erase", `feedback:${id}`, why, null, null);
   return { erased: true };
 }

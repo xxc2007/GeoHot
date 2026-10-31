@@ -24,15 +24,15 @@ interface Feedback {
   forward_error: string | null;
   created_at: string;
   updated_at: string;
-  banned: boolean;
   from_source: number;
+  ip: string | null;
+  location: string | null;
 }
 
 interface Data {
   page: number;
   rows: Feedback[];
   counts: Record<string, number>;
-  bans: Array<{ source_hash: string; reason: string | null; created_by: string | null; created_at: string }>;
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -46,7 +46,7 @@ const TONE: Record<string, "accent" | "warn" | "ok" | "muted"> = { new: "accent"
 function FeedbackCard({ f }: { f: Feedback }) {
   const { run, pending } = useAdminAction();
   const [note, setNote] = useState(f.note ?? "");
-  const [dialog, setDialog] = useState<null | "ban" | "erase">(null);
+  const [dialog, setDialog] = useState<null | "erase">(null);
   const base = `/api/admin/feedback/${f.id}`;
   // 截图是浏览器自己去取的地址：子路径部署下裸的 `/api/...` 会打到同一台机器上的邻站（见 lib/public-path.ts）。
   const screenshot = publicPath(`${base}/screenshot`);
@@ -59,12 +59,14 @@ function FeedbackCard({ f }: { f: Feedback }) {
         <span className="num font-medium text-ink-2">#{f.id}</span>
         <Badge tone={TONE[f.status] ?? "muted"}>{FEEDBACK_STATUS[f.status] ?? f.status}</Badge>
         <Time at={f.created_at} />
+        <span className="text-ink-4" title={`北京时间 ${bj(f.created_at, true)}`}>{bj(f.created_at)}</span>
+        {f.ip && <span className="font-mono text-[11.5px] text-ink-4" title="来源 IP（2026-10-31 起记录）">{f.ip}</span>}
+        {f.location && <Badge tone="info" title="按来源 IP 查询的所在地">{f.location}</Badge>}
         {f.email && <a className="text-accent" href={`mailto:${f.email}`}>{f.email}</a>}
         {f.page_url && (pageHref
           ? <a className="max-w-[320px] truncate hover:text-accent" href={pageHref} target="_blank" rel="noreferrer">{f.page_url}</a>
           : <span className="max-w-[320px] truncate text-ink-4" title="这不是一个 http(s) 地址，只作原文显示">{f.page_url}</span>)}
         {f.from_source > 1 && <Badge tone="info" title="同一来源（IP 与浏览器家族的不可逆标识）">同来源 {f.from_source} 条</Badge>}
-        {f.banned && <Badge tone="bad">来源已封禁</Badge>}
         {!f.forwarded_at && f.status === "new" && (
           <Badge tone="warn" title={f.forward_error && f.forward_error !== "pending" ? `还没有转发到站长邮箱：${f.forward_error}` : "还没有转发到站长邮箱"}>未转发</Badge>
         )}
@@ -91,24 +93,15 @@ function FeedbackCard({ f }: { f: Feedback }) {
           <Button size="md" disabled={note === (f.note ?? "")} busy={pending === "note"} onClick={() => run("PATCH", base, { note: note || null, version }, { label: "note", success: "备注已保存" })}>
             保存备注
           </Button>
-          <Button tone="ghost" onClick={() => setDialog(f.banned ? null : "ban")} disabled={f.banned} title="拒绝这个来源的后续反馈">封禁来源</Button>
           <Button tone="ghost" onClick={() => setDialog("erase")} title="按隐私说明删除提交者的资料">删除资料</Button>
         </div>
       </div>
       <ReasonDialog
-        open={dialog === "ban"}
-        title="封禁这个反馈来源"
-        description="同一来源之后提交反馈会被拒绝。来源标识不可还原成 IP。"
-        danger
-        confirmLabel="封禁"
-        onClose={() => setDialog(null)}
-        onSubmit={async (reason) => (await run("POST", "/api/admin/feedback-bans", { sourceHash: f.source_hash, reason }, { label: "ban", success: "已封禁" })) !== null}
-      />
-      <ReasonDialog
         open={dialog === "erase"}
         title="删除提交者资料"
-        description="删除正文、邮箱、页面地址和截图，只保留处理记录。不可恢复。"
+        description="删除正文、邮箱、页面地址和截图，只保留处理记录。不可恢复。原因可填可不填，都会写入审计记录。"
         danger
+        requireReason={false}
         confirmLabel="删除"
         onClose={() => setDialog(null)}
         onSubmit={async (reason) => (await run("POST", `${base}/erase`, { reason }, { label: "erase", success: "资料已删除" })) !== null}
@@ -118,9 +111,8 @@ function FeedbackCard({ f }: { f: Feedback }) {
 }
 
 export default function FeedbackAdmin({ loaderData }: Route.ComponentProps) {
-  const { rows, counts, bans, page } = loaderData;
+  const { rows, counts, page } = loaderData;
   const [sp] = useSearchParams();
-  const { run } = useAdminAction();
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
   return (
     <AdminPage title="反馈" subtitle={`回复用 QQ 邮箱（${SITE.contactEmail ?? "站主邮箱未配置"}）发送，收件人、主题、正文都确认后再发；“已修复上线”要有生产证据。签名统一 ${SITE.name}。`}>
@@ -138,22 +130,6 @@ export default function FeedbackAdmin({ loaderData }: Route.ComponentProps) {
         {rows.length ? rows.map((f) => <FeedbackCard key={`${f.id}-${f.updated_at}`} f={f} />) : <Card><Empty>没有符合条件的反馈</Empty></Card>}
       </div>
       <Pager page={page} hasMore={rows.length === 50} />
-      {bans.length > 0 && (
-        <Card className="mt-8" title="已封禁的来源">
-          <ul className="space-y-2 text-[13px]">
-            {bans.map((b) => (
-              <li key={b.source_hash} className="flex flex-wrap items-center justify-between gap-2">
-                <span>
-                  <span className="font-mono text-[12px] text-ink-3">{b.source_hash}</span> · {b.reason} · {b.created_by} · {bj(b.created_at, true)}
-                </span>
-                <Button size="sm" tone="ghost" onClick={() => run("DELETE", `/api/admin/feedback-bans/${encodeURIComponent(b.source_hash)}`, undefined, { label: `unban-${b.source_hash}`, success: "已解除封禁" })}>
-                  解除
-                </Button>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      )}
     </AdminPage>
   );
 }
