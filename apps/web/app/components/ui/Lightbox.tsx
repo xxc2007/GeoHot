@@ -19,9 +19,12 @@ export function Lightbox({ images, index, onIndex, onClose, fill = false }: { im
   const img=picture.current,box=viewport.current;
   if(!fill||!img||!box)return FIT;
   const iw=img.clientWidth,ih=img.clientHeight,bw=box.clientWidth,bh=box.clientHeight;
-  // contain 之后左右留边占比：横图在宽视口下宽不满即放大到宽满（高度自然溢出可拖动）。
+  // contain 之后左右留边占比：横图在宽视口下宽不满才放大，上限「宽恰好铺满」（scale=bw/iw）。
+  // 2026-10-31 二修：上一版依赖 paint 的 maxZoom(≥12×) 兜底，scale 被放到 282%，上下大面积裁切。
+  // 显式 min(wide, 2)：4:3 图在 16:9 视口的宽满约 1.33×，远到不了裁切。
   const sideGap=(bw-iw)/bw;
-  return sideGap>0.15?{scale:bw/iw,x:0,y:(bh-ih*(bw/iw))/2}:FIT;
+  const wide=Math.max(1,bw/iw);
+  return sideGap>0.15?{scale:Math.min(wide,2),x:0,y:(bh-ih*Math.min(wide,2))/2}:FIT;
 };
 const paint=(next:Pose)=>{
   const box=viewport.current,img=picture.current,s=Math.max(1,Math.min(maxZoom(),next.scale));
