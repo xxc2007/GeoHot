@@ -69,11 +69,28 @@ export async function eraseFeedback(id: number, reason: string, actor: string) {
   const [row] = await sql<{ screenshot_key: string | null }[]>`SELECT screenshot_key FROM feedback WHERE id = ${id}`;
   if (!row) return null;
   const file = screenshotPath(row.screenshot_key);
-  // The row is cleared first. Unlinking first meant that a failing UPDATE left a feedback row still
-  // advertising a `screenshot_key` whose file was already gone — the 后台 thumbnail broken forever, and
-  // the privacy promise of this command is kept either way: only the path is removed here.
-  await sql`UPDATE feedback SET content = '（已按要求删除）', email = NULL, page_url = NULL, screenshot_key = NULL, updated_at = now() WHERE id = ${id}`;
+  // 2026-10-31 站长要求：删除后条目直接从列表消失（整行删除），不留"已按要求删除"的外壳；
+  // 审计日志保留是什么被删、谁删的。投递历史表（deliveries）不动。
+  await sql`DELETE FROM feedback WHERE id = ${id}`;
   if (file) await unlink(file).catch(() => {});
-  await audit(actor, "feedback.erase", `feedback:${id}`, why, null, null);
+  await audit(actor, "feedback.erase", `feedback:${id}`, why, { hadScreenshot: row.screenshot_key !== null }, null);
   return { erased: true };
+}
+
+/** Operator reply, straight from the site mailbox to the reader's address (2026-10-31). Sends over
+ *  the same SMTP channel as the forwarder, references the feedback number, and flips the status to
+ *  replied so the exchange stays inside the admin. */
+export async function replyFeedback(id: number, input: { subject?: string; body: string }, actor: string) {
+  const body = (input.body ?? "").trim();
+  if (body.length < 2) throw new InvalidInput("请写下回复内容。");
+  if (body.length > 8000) throw new InvalidInput("回复内容最多 8000 字。");
+  const [fb] = await sql<{ id: number; email: string | null }[]>`
+    SELECT id, email FROM feedback WHERE id = ${id}`;
+  if (!fb) return null;
+  if (!fb.email) throw new InvalidInput("这条反馈没有留下邮箱，无法回复。");
+  const { sendOperatorReply } = await import("../notify/email.ts");
+  await sendOperatorReply(fb.email, `GEOHOT 反馈 #${fb.id} 的回复`, body);
+  await sql`UPDATE feedback SET status = 'replied', updated_at = now() WHERE id = ${id}`;
+  await audit(actor, "feedback.reply", `feedback:${id}`, (input.subject ?? "").trim(), { to: fb.email }, { sent: true, status: "replied" });
+  return { replied: true, email: fb.email };
 }

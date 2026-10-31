@@ -46,6 +46,8 @@ const TONE: Record<string, "accent" | "warn" | "ok" | "muted"> = { new: "accent"
 function FeedbackCard({ f }: { f: Feedback }) {
   const { run, pending } = useAdminAction();
   const [note, setNote] = useState(f.note ?? "");
+  const [replyOpen, setReplyOpen] = useState(false);
+  const [replyBody, setReplyBody] = useState("");
   const [dialog, setDialog] = useState<null | "erase">(null);
   const base = `/api/admin/feedback/${f.id}`;
   // 截图是浏览器自己去取的地址：子路径部署下裸的 `/api/...` 会打到同一台机器上的邻站（见 lib/public-path.ts）。
@@ -79,6 +81,36 @@ function FeedbackCard({ f }: { f: Feedback }) {
       )}
       {f.screenshot === "emailed" && <p className="mt-2 text-[12.5px] text-ink-4">截图已随反馈发往站长邮箱。</p>}
       {f.screenshot === "gone" && <p className="mt-2 text-[12.5px] text-ink-4">截图未能随转发上传，已删除。</p>}
+      {f.email && (
+        <div className="mt-3 rounded-panel bg-bg-sunk p-3 ring-1 ring-line-soft">
+          <button type="button" className="text-[13px] font-medium text-accent hover:underline" onClick={() => setReplyOpen(!replyOpen)}>
+            {replyOpen ? "收起回复" : "回复读者"}
+          </button>
+          {replyOpen && (
+            <div className="mt-2 space-y-2">
+              <Input readOnly value={`收件人：${f.email} · 发件人：${SITE.contactEmail ?? SITE.contactEmail}`} aria-label="回复收发件人" className="!bg-surface text-[12.5px] text-ink-4" />
+              <Textarea
+                rows={3}
+                aria-label="回复正文"
+                placeholder={`写给读者 #${f.id} 的回复……发送后状态自动变为「已回复」。`}
+                value={replyBody}
+                onChange={(e) => setReplyBody(e.target.value)}
+              />
+              <div className="flex justify-end">
+                <Button
+                  size="md"
+                  tone="primary"
+                  disabled={replyBody.trim().length < 2 || !!pending}
+                  busy={pending === "reply"}
+                  onClick={() => run("POST", `${base}/reply`, { body: replyBody }, { label: "reply", success: "回复已发送" }) !== null && setReplyBody("")}
+                >
+                  用 {SITE.contactEmail ?? "站主邮箱"} 发送
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
       <div className="mt-3 grid gap-2 sm:grid-cols-[180px_1fr_auto] sm:items-start">
         <Select
           aria-label="处理状态"
@@ -93,18 +125,18 @@ function FeedbackCard({ f }: { f: Feedback }) {
           <Button size="md" disabled={note === (f.note ?? "")} busy={pending === "note"} onClick={() => run("PATCH", base, { note: note || null, version }, { label: "note", success: "备注已保存" })}>
             保存备注
           </Button>
-          <Button tone="ghost" onClick={() => setDialog("erase")} title="按隐私说明删除提交者的资料">删除资料</Button>
+          <Button tone="ghost" onClick={() => setDialog("erase")} title="删除这条反馈：列表中直接消失，操作写入审计">删除</Button>
         </div>
       </div>
       <ReasonDialog
         open={dialog === "erase"}
-        title="删除提交者资料"
-        description="删除正文、邮箱、页面地址和截图，只保留处理记录。不可恢复。原因可填可不填，都会写入审计记录。"
+        title="删除这条反馈"
+        description="整条从列表中删除（含正文、邮箱、页面地址和截图文件）。不可恢复。原因可填可不填，都会写入审计记录。"
         danger
         requireReason={false}
         confirmLabel="删除"
         onClose={() => setDialog(null)}
-        onSubmit={async (reason) => (await run("POST", `${base}/erase`, { reason }, { label: "erase", success: "资料已删除" })) !== null}
+        onSubmit={async (reason) => (await run("POST", `${base}/erase`, { reason }, { label: "erase", success: "已删除" })) !== null}
       />
     </article>
   );

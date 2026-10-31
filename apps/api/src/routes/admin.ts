@@ -10,7 +10,7 @@ import { modelsOverview, switchModel } from "@aihot/backend/admin/models";
 import { usageOverview } from "@aihot/backend/admin/usage";
 
 import { contentChain, detachFromFact, mergeStories, overrideFields, rerun, rewriteStoryDigest, searchContent, setSeoIndexed, setVisibility } from "@aihot/backend/admin/content";
-import { eraseFeedback, feedbackScreenshot, listFeedback, updateFeedback } from "@aihot/backend/admin/feedback";
+import { eraseFeedback, feedbackScreenshot, listFeedback, replyFeedback, updateFeedback } from "@aihot/backend/admin/feedback";
 import { releaseReceipt, requeueFailedArticles, resolveDelivery, readRunsOverview } from "@aihot/backend/admin/runs";
 import { deleteBudget, listBudgets, updateBudget } from "@aihot/backend/admin/settings";
 import { createSource, fetchNow, listSources, previewSource, sourceDetail, updateSource, replaceSources } from "@aihot/backend/admin/sources";
@@ -102,6 +102,9 @@ export function registerAdmin(app: FastifyInstance) {
   app.post("/api/admin/receipts/:id/release", adminHandler(async (req, reply, admin) => orNotFound(req, reply, await releaseReceipt(rowId(req), body(req) as never, actorOf(admin)))));
   app.post("/api/admin/deliveries/:id/resolve", adminHandler(async (req, reply, admin) => orNotFound(req, reply, await resolveDelivery(rowId(req), body(req) as never, actorOf(admin)))));
   app.post("/api/admin/processing/requeue", adminHandler(async (req, _reply, admin) => requeueFailedArticles(body(req) as never, actorOf(admin))));
+
+  // Operator reply to one feedback, from the site mailbox to the reader's address.
+  app.post("/api/admin/feedback/:id/reply", adminHandler(async (req, reply, admin) => orNotFound(req, reply, await replyFeedback(rowId(req), body(req) as never, actorOf(admin)))));
 
   // Settings
   app.get("/api/admin/settings", adminHandler(async () => ({ budgets: await listBudgets() })));
