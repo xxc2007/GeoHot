@@ -7,15 +7,23 @@ export interface LightboxImage { src: string; alt?: string | null }
 type Pose = { scale: number; x: number; y: number };
 const FIT: Pose = { scale: 1, x: 0, y: 0 };
 /** Image zoom has its own viewport; controls stay fixed and the page behind never moves. */
-export function Lightbox({ images, index, onIndex, onClose }: { images: LightboxImage[]; index: number | null; onIndex: (i: number) => void; onClose: () => void }) {
+export function Lightbox({ images, index, onIndex, onClose, fill = false }: { images: LightboxImage[]; index: number | null; onIndex: (i: number) => void; onClose: () => void; /** 横图在宽视口下 contain 会留大边：fill 让初始帧放大到宽满（期刊头版图用），P1 的 contain 语义不变。 */ fill?: boolean }) {
  const open = index !== null && !!images[index];
  const dialog=useRef<HTMLDivElement>(null), viewport=useRef<HTMLDivElement>(null), picture=useRef<HTMLImageElement>(null), close=useRef<HTMLButtonElement>(null);
- const state=useRef({index,images,onIndex,onClose});state.current={index,images,onIndex,onClose};
+ const state=useRef({index,images,onIndex,onClose,fill});state.current={index,images,onIndex,onClose,fill};
  const pose=useRef<Pose>(FIT), points=useRef(new Map<number,{x:number;y:number}>());
  const [scale,setScale]=useState(1), lastTap=useRef(0),lastTouch=useRef(0),multi=useRef(false);
  const gesture=useRef<{pose:Pose;x:number;y:number;distance:number;dx:number;dy:number}|null>(null);
  const maxZoom=()=>{const img=picture.current;return Math.max(12,img&&img.clientWidth?img.naturalWidth/img.clientWidth:1,img&&img.clientHeight?img.naturalHeight/img.clientHeight:1);};
- const paint=(next:Pose)=>{
+ const initialPose=():Pose=>{
+  const img=picture.current,box=viewport.current;
+  if(!fill||!img||!box)return FIT;
+  const iw=img.clientWidth,ih=img.clientHeight,bw=box.clientWidth,bh=box.clientHeight;
+  // contain 之后左右留边占比：横图在宽视口下宽不满即放大到宽满（高度自然溢出可拖动）。
+  const sideGap=(bw-iw)/bw;
+  return sideGap>0.15?{scale:bw/iw,x:0,y:(bh-ih*(bw/iw))/2}:FIT;
+};
+const paint=(next:Pose)=>{
   const box=viewport.current,img=picture.current,s=Math.max(1,Math.min(maxZoom(),next.scale));
   const bx=box&&img?Math.max(0,(img.clientWidth*s-box.clientWidth)/2):0,by=box&&img?Math.max(0,(img.clientHeight*s-box.clientHeight)/2):0;
   const p={scale:s,x:Math.max(-bx,Math.min(bx,next.x)),y:Math.max(-by,Math.min(by,next.y))};pose.current=p;setScale(s);
@@ -23,7 +31,7 @@ export function Lightbox({ images, index, onIndex, onClose }: { images: Lightbox
  };
  const zoom=(s:number,x=0,y=0)=>{const p=pose.current,n=Math.max(1,Math.min(maxZoom(),s)),r=n/p.scale;paint({scale:n,x:x-(x-p.x)*r,y:y-(y-p.y)*r});};
  const step=(by:number)=>{const s=state.current;if(s.index!==null&&s.images.length>1)s.onIndex((s.index+by+s.images.length)%s.images.length);};
- useEffect(()=>{points.current.clear();multi.current=false;gesture.current=null;paint(FIT);},[index,open]);
+ useEffect(()=>{points.current.clear();multi.current=false;gesture.current=null;paint(initialPose());},[index,open,fill]);
  useEffect(()=>{
   if(!open)return;
   const opener=document.activeElement instanceof HTMLElement?document.activeElement:null,root=document.documentElement,prior=root.style.overflow;root.style.overflow='hidden';
@@ -78,7 +86,7 @@ export function Lightbox({ images, index, onIndex, onClose }: { images: Lightbox
       else if(Math.hypot(g.dx,g.dy)<8&&e.pointerType!=='mouse'){const now=Date.now();if(now-lastTap.current<300){zoom(pose.current.scale>1?1:2.5);lastTap.current=0;}else lastTap.current=now;}
      }if(!points.current.size)multi.current=false;begin();
     }} onPointerCancel={e=>{points.current.delete(e.pointerId);if(!points.current.size)multi.current=false;begin();}} onDoubleClick={()=>{if(Date.now()-lastTouch.current>500)zoom(pose.current.scale>1?1:2.5);}}>
-    {current&&<img key={current.src} ref={picture} src={current.src} alt={current.alt??''} draggable={false} decoding="async" onLoad={()=>paint(FIT)} className="max-h-full max-w-full select-none object-contain shadow-2xl" style={{transformOrigin:'center',willChange:'transform'}}/>}
+    {current&&<img key={current.src} ref={picture} src={current.src} alt={current.alt??''} draggable={false} decoding="async" onLoad={()=>paint(initialPose())} className="max-h-full max-w-full select-none object-contain shadow-2xl" style={{transformOrigin:'center',willChange:'transform'}}/>}
    </div>
    {images.length>1&&<><button type="button" aria-label="上一张" className={`${button} absolute bottom-3 left-4 bg-black/60 sm:bottom-1/2`} onClick={()=>step(-1)}><IconArrowLeft size={20}/></button><button type="button" aria-label="下一张" className={`${button} absolute bottom-3 right-4 bg-black/60 sm:bottom-1/2`} onClick={()=>step(1)}><IconArrowRight size={20}/></button></>}
   </div>
