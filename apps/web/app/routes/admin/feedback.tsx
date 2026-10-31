@@ -16,7 +16,7 @@ interface Feedback {
   email: string | null;
   page_url: string | null;
   /** local (viewable here until forwarded), feishu (in the internal chat), gone (could not be forwarded), or null. */
-  screenshot: "local" | "feishu" | "gone" | null;
+  screenshot: "local" | "feishu" | "emailed" | "gone" | null;
   source_hash: string;
   status: string;
   note: string | null;
@@ -66,7 +66,7 @@ function FeedbackCard({ f }: { f: Feedback }) {
         {f.from_source > 1 && <Badge tone="info" title="同一来源（IP 与浏览器家族的不可逆标识）">同来源 {f.from_source} 条</Badge>}
         {f.banned && <Badge tone="bad">来源已封禁</Badge>}
         {!f.forwarded_at && f.status === "new" && (
-          <Badge tone="warn" title={f.forward_error && f.forward_error !== "pending" ? `还没有转发到内部飞书群：${f.forward_error}` : "还没有转发到内部飞书群"}>未转发</Badge>
+          <Badge tone="warn" title={f.forward_error && f.forward_error !== "pending" ? `还没有转发到站长邮箱：${f.forward_error}` : "还没有转发到站长邮箱"}>未转发</Badge>
         )}
       </div>
       <p className="mt-2.5 whitespace-pre-wrap text-[14px] leading-relaxed text-ink">{f.content}</p>
@@ -75,8 +75,9 @@ function FeedbackCard({ f }: { f: Feedback }) {
           <img src={screenshot} alt="反馈截图" loading="lazy" className="max-h-48 rounded-control ring-1 ring-line" />
         </a>
       )}
-      {f.screenshot === "feishu" && <p className="mt-2 text-[12.5px] text-ink-4">截图已随反馈转到内部飞书群。</p>}
-      {f.screenshot === "gone" && <p className="mt-2 text-[12.5px] text-ink-4">截图未能转到飞书，已删除。</p>}
+      {f.screenshot === "emailed" && <p className="mt-2 text-[12.5px] text-ink-4">截图已随反馈发往站长邮箱。</p>}
+      {f.screenshot === "feishu" && <p className="mt-2 text-[12.5px] text-ink-4">截图已随反馈转到内部飞书群（历史）。</p>}
+      {f.screenshot === "gone" && <p className="mt-2 text-[12.5px] text-ink-4">截图未能随转发上传，已删除。</p>}
       <div className="mt-3 grid gap-2 sm:grid-cols-[180px_1fr_auto] sm:items-start">
         <Select
           aria-label="处理状态"
