@@ -133,7 +133,9 @@ function Original({ c, className = "" }: { c: ReportCitation; className?: string
 /** Imported citations keep their published copy even when their item page is absent locally. */
 function CitationTitle({ c, children, anchor, className = "transition-colors hover:text-accent" }: { c: ReportCitation; children: ReactNode; anchor?: string; className?: string }) {
   if (anchor) return <Link to={anchor} className={className}>{children}</Link>;
-  if (c.itemId && c.hasPage !== false) return <Link to={`/items/${c.itemId}`} prefetch="intent" className={className}>{children}</Link>;
+  // itemId 存在即可导航到条目页——那里有自己的读取门禁（未就绪时显示后台状态，不泄露全文）。
+  // hasPage 只是「能否完整阅读」，不再是「标题是否可点」的条件（2026-10-31 站长要求：标题一律可点）。
+  if (c.itemId) return <Link to={`/items/${c.itemId}`} prefetch="intent" className={className}>{children}</Link>;
   if (c.sourceUrl) return <a href={c.sourceUrl} target="_blank" rel="noopener noreferrer" className={className} aria-label={`阅读原文：${c.title}（新标签页）`}>{children}</a>;
   return <span className={className}>{children}</span>;
 }
@@ -158,7 +160,11 @@ function Story({ c, dated, className = "" }: { c: ReportCitation; dated: boolean
         </>
       ) : (
         <p className="mt-3 text-body leading-relaxed text-ink-4">
-          <span className={c.unavailableReason === "withdrawn" ? "line-through" : undefined}>{c.title}</span>
+          {/* 2026-10-31 站长要求：标题一律可点。条目存在（非 withdrawn）→ 站内条目页（公开的诊断级信息）；
+              条目页不可用但有原文链接 → 原文；撤回的保持纯文本不复活。 */}
+          <CitationTitle c={c}>
+            <span className={c.unavailableReason === "withdrawn" ? "line-through" : "hover:text-accent"}>{c.title}</span>
+          </CitationTitle>
           {c.unavailableReason === "source-restricted" ? " · 原报道暂不具备站内全文展示条件。" : c.unavailableReason === "workflow-pending" ? " · 正文、译文或配图尚在核验。" : " · 该报道当前不可公开阅读。"}
           {c.sourceUrl && <span className="ml-2 inline-block"><Original c={c} /></span>}
         </p>

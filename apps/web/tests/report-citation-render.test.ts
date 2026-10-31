@@ -7,7 +7,7 @@ import { MemoryRouter } from "react-router";
 import { createServer } from "vite";
 import type { ReportCitation, ReportDetail, ReportNavigationEntry } from "@aihot/contracts/site";
 
-test("report headings and flashes only link existing item pages, otherwise their original", async () => {
+test("report headings and flashes always navigate: itemId to the item page, else the original", async () => {
   const server = await createServer({ configFile: false, root: path.resolve(import.meta.dirname, ".."),
     server: { middlewareMode: true }, appType: "custom" });
   try {
@@ -27,16 +27,16 @@ test("report headings and flashes only link existing item pages, otherwise their
         report, index: [{ key: report.key, no: 1 }], now: Date.now(),
       })));
     };
+    // 2026-10-31: hasPage no longer gates the title link — navigation and the read gate are
+    // separate. A citation with an itemId navigates to its item page even when the page is not
+    // fully readable there; only a citation with no itemId at all falls back to the original.
     const missing = render(citation);
-    assert.ok(missing.includes('href="https://example.org/original"'));
-    assert.ok(!missing.includes("/items/absent-citation"));
-    assert.ok(!missing.includes("/items/flash-citation"));
-    const present = render({ ...citation, hasPage: true });
-    assert.ok(present.includes("/items/absent-citation"));
-    assert.ok(present.includes("/items/flash-citation"));
-    const unlinked = render({ ...citation, sourceUrl: "" });
+    assert.ok(missing.includes("/items/absent-citation"), "hasPage=false still navigates to the item page");
+    assert.ok(missing.includes("/items/flash-citation"));
+    const pageless = render({ ...citation, itemId: null });
+    assert.ok(pageless.includes('href="https://example.org/original"'), "no itemId falls back to the original");
+    const unlinked = render({ ...citation, itemId: null, sourceUrl: "" });
     assert.ok(!unlinked.includes('href=""'));
-    assert.ok(!unlinked.includes("/items/absent-citation"));
     assert.ok(unlinked.includes(citation.title));
   } finally { await server.close(); }
 });
