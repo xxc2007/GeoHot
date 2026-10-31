@@ -177,7 +177,7 @@ export default function ItemPage() {
     : null;
   const isX = item.channel === "x" && !!item.x;
   const publishedIso = item.publishedAt ?? item.discoveredAt;
-  const summaryOnly = item.readingMode === "summary-only";
+  const summaryOnly = item.readingMode !== "full";
   const showOutline = item.outline.length >= 3;
   const originalLabel = isX ? "在 X 查看原推" : "打开原文";
   // 视频块的可访问名跟着平台说：X 上是「原推」，视频频道上没有任何"推"可打开。
@@ -457,7 +457,11 @@ export default function ItemPage() {
             </div>
           )}
 
-          {summaryOnly && <p className="mt-7 rounded-control bg-bg-sunk px-4 py-3 text-[13.5px] leading-relaxed text-ink-3">应来源方要求，这里只提供摘要与原文入口。完整内容请阅读原文。</p>}
+          {summaryOnly && (
+            <p className="mt-7 rounded-control bg-bg-sunk px-4 py-3 text-[13.5px] leading-relaxed text-ink-3">
+              这一条不提供站内全文：来源仅准摘要。标题、导读与来源信息保持可见，完整内容请阅读原文。
+            </p>
+          )}
 
           {item.body && bodyHtml && (
             <section className="mt-9 border-t border-line pt-4 xl:mt-10">

@@ -154,7 +154,14 @@ export interface OutlineEntry {
 }
 
 export interface ItemDetail extends ItemSummary {
-  readingMode: "full" | "summary-only";
+  /**
+   * How much of the item this page may show:
+   *  · `full` — the complete reading page (workflow-verified body, licence allows full text);
+   *  · `summary-licence` — the source lends no full text: title, AI summary, source and original link
+   *    only. Same layout as `full`; the page states why the body is absent, and nothing pretends
+   *    to be the article.
+   */
+  readingMode: "full" | "summary-licence";
   author: string | null;
   language: string | null;
   /**
