@@ -12,11 +12,11 @@ import { CapacityExceeded, CapacityGate } from "../lib/capacity.ts";
 
 export const emailFeedbackEnabled = () => envFlag("FEEDBACK_EMAIL_ENABLED", false);
 
-/** RFC 2047 B-encoding, folded so no header line exceeds ~76 characters. */
+/** RFC 2047 B-encoding as ONE encoded word: QQ mail mis-decodes folded multi-encoded-word
+ * subjects (its list preview mangles everything after the first fold), and single long
+ * encoded words are what QQ itself emits — every client tested accepts them. */
 export function encodedWord(text: string): string {
-  const chunks: string[] = [];
-  for (let i = 0; i < text.length; i += 24) chunks.push(text.slice(i, i + 24));
-  return chunks.map((c) => `=?UTF-8?B?${Buffer.from(c, "utf8").toString("base64")}?=`).join("\r\n ");
+  return `=?UTF-8?B?${Buffer.from(text, "utf8").toString("base64")}?=`;
 }
 
 const wrappedBase64 = (data: Buffer) => data.toString("base64").replace(/(.{76})/g, "$1\r\n").trim();
