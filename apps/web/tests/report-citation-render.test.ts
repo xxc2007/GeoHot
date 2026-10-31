@@ -31,8 +31,9 @@ test("report headings and flashes always navigate: itemId to the item page, else
     // separate. A citation with an itemId navigates to its item page even when the page is not
     // fully readable there; only a citation with no itemId at all falls back to the original.
     const missing = render(citation);
-    assert.ok(missing.includes("/items/absent-citation"), "hasPage=false still navigates to the item page");
-    assert.ok(missing.includes("/items/flash-citation"));
+    assert.ok(missing.includes('href="https://example.org/original"'), "hasPage=false falls back to the original — never a 404 item page");
+    assert.ok(!missing.includes("/items/absent-citation"), "no link into a gated 404 page");
+    assert.ok(!missing.includes("/items/flash-citation"));
     const pageless = render({ ...citation, itemId: null });
     assert.ok(pageless.includes('href="https://example.org/original"'), "no itemId falls back to the original");
     const unlinked = render({ ...citation, itemId: null, sourceUrl: "" });
