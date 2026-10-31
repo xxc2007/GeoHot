@@ -76,7 +76,6 @@ function FeedbackCard({ f }: { f: Feedback }) {
         </a>
       )}
       {f.screenshot === "emailed" && <p className="mt-2 text-[12.5px] text-ink-4">截图已随反馈发往站长邮箱。</p>}
-      {f.screenshot === "feishu" && <p className="mt-2 text-[12.5px] text-ink-4">截图已随反馈转到内部飞书群（历史）。</p>}
       {f.screenshot === "gone" && <p className="mt-2 text-[12.5px] text-ink-4">截图未能随转发上传，已删除。</p>}
       <div className="mt-3 grid gap-2 sm:grid-cols-[180px_1fr_auto] sm:items-start">
         <Select

@@ -1,7 +1,6 @@
 // Feedback: content, optional email, page URL, one optional screenshot. The screenshot goes to
-// the operator (email first, dormant feishu as fallback) and only a marker is stored. Abuse
-// control uses an unreadable source identifier (HMAC of client IP + UA family), per-source bans
-// and a per-minute limit.
+// the operator's mailbox and only a marker is stored. Abuse control uses an unreadable source
+// identifier (HMAC of client IP + UA family), per-source bans and a per-minute limit.
 import { createHmac, randomUUID } from "node:crypto";
 import { mkdir, writeFile, readdir, stat, unlink } from "node:fs/promises";
 import path from "node:path";
@@ -9,16 +8,6 @@ import { config, credential } from "../config.ts";
 import { sql } from "../db.ts";
 import { CapacityGate } from "../lib/capacity.ts";
 import { emailFeedbackEnabled, forwardFeedbackToEmail } from "../notify/email.ts";
-import { feishuInternalEnabled, forwardFeedbackToFeishu } from "../notify/feishu.ts";
-
-/**
- * The operator mailbox (FEEDBACK_EMAIL_ENABLED + SMTP credentials) takes precedence; the dormant
- * feishu forward stays as the fallback for deployments that still run it.
- */
-export async function forwardFeedbackToOperator(id: number): Promise<"sent" | "disabled" | "busy"> {
-  if (emailFeedbackEnabled()) return forwardFeedbackToEmail(id);
-  return forwardFeedbackToFeishu(id);
-}
 
 export class FeedbackRejected extends Error {
   readonly status: number;
@@ -141,7 +130,7 @@ async function storeFeedback(input: FeedbackInput): Promise<{ id: number }> {
     throw error;
   }
   const id = row!.id;
-  void forwardFeedbackToOperator(id).catch(() => {});
+  void forwardFeedbackToEmail(id).catch(() => {});
   return { id };
 }
 
@@ -152,7 +141,7 @@ async function storeFeedback(input: FeedbackInput): Promise<{ id: number }> {
  */
 export async function forwardPendingFeedback(): Promise<{ sent: number; failed: number }> {
   await cleanupFeedbackScreenshots();
-  if (!emailFeedbackEnabled() && !feishuInternalEnabled()) return { sent: 0, failed: 0 };
+  if (!emailFeedbackEnabled()) return { sent: 0, failed: 0 };
   const rows = await sql<{ id: number }[]>`
     SELECT id FROM feedback WHERE forwarded_at IS NULL AND forward_error IS NOT NULL
       AND created_at < now() - interval '5 minutes' AND created_at > now() - interval '7 days'
@@ -161,7 +150,7 @@ export async function forwardPendingFeedback(): Promise<{ sent: number; failed: 
   let failed = 0;
   for (const r of rows) {
     try {
-      if ((await forwardFeedbackToOperator(r.id)) === "sent") sent += 1;
+      if ((await forwardFeedbackToEmail(r.id)) === "sent") sent += 1;
     } catch {
       failed += 1;
     }
