@@ -199,7 +199,7 @@ export default function FeedbackPage() {
               <textarea
                 id="fb-content"
                 required
-                rows={9}
+                rows={6}
                 maxLength={MAX_TEXT}
                 value={draft.content}
                 onChange={(e) => setDraft({ ...draft, content: e.target.value })}
@@ -289,7 +289,7 @@ const STATUS_ZH: Record<string, string> = { 已收到: "ok", 处理中: "warn", 
 /** 折叠的「查询处理状态」卡：编号 + 提交时留的邮箱 → 一个状态词。接口对查不到的回答是同一个
  *  通用空态（不区分编号不存在与邮箱不匹配），因此页面也只给一种提示，不给探测留缝。 */
 function StatusLookup({ field }: { field: string }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
   const [id, setId] = useState("");
   const [email, setEmail] = useState("");
   const [result, setResult] = useState<{ kind: "status" | "missing" | "error"; status?: string } | null>(null);
