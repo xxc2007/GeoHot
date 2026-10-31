@@ -10,7 +10,6 @@ import { registerEventJobs } from "@aihot/backend/jobs/events";
 import { registerNotifyJobs } from "@aihot/backend/jobs/notify";
 import { registerPublicationJobs } from "@aihot/backend/jobs/publication";
 import { registerSchedules } from "./schedules.ts";
-import { ensureContentTargets } from "@aihot/backend/notify/deliver";
 import { startHeartbeat } from "@aihot/backend/operations/heartbeat";
 import { guardProcessExit } from "@aihot/backend/operations/process-exit";
 
@@ -58,7 +57,6 @@ if (plan.role === "extraction-executor") assertExtractionExecutorValves();
 else if (!plan.coordinator) assertContentExecutorValves();
 
 if (stopping) await finishShutdown();
-if (plan.coordinator) await initialized(ensureContentTargets());
 const boss = await initialized(getBoss());
 if (plan.content) await initialized(registerContentJobs(boss, plan.coordinator ? undefined : positiveInt(process.env.ANALYZE_CONCURRENCY, "ANALYZE_CONCURRENCY", 4)));
 if (!plan.coordinator) {

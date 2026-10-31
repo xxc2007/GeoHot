@@ -1,4 +1,7 @@
-// Daily housekeeping: expired leases, old run history, files past their life and derived caches.
+// Daily housekeeping: expired leases, old run history and derived caches. The former stored_files
+// block is gone with the table itself (migration 0101): nothing wrote that table, and its unlink
+// path had no containment check — a legacy or polluted key with "../" would have deleted outside
+// the data directory.
 import { readdir, stat, unlink } from "node:fs/promises";
 import path from "node:path";
 import { config } from "../config.ts";
@@ -30,10 +33,7 @@ export async function dailyRetention(now = new Date()) {
   const leases = await sql`DELETE FROM delivery_leases WHERE expires_at < ${now}`;
   // Scheduled-task history: 30 days (failures 90) is enough for the runs view.
   const runs = await sql`DELETE FROM job_runs WHERE started_at < ${new Date(now.getTime() - 30 * 86400_000)} AND (status IS DISTINCT FROM 'failed' OR started_at < ${new Date(now.getTime() - 90 * 86400_000)})`;
-  // Raw files with a bounded life.
-  const files = await sql<{ key: string }[]>`DELETE FROM stored_files WHERE expires_at < ${now} RETURNING key`;
-  for (const f of files) await unlink(path.join(config.dataDir, f.key)).catch(() => {});
   const monthMs = 30 * 86400_000;
   const prunedCache = (await pruneCache(path.join(config.dataDir, "imgcache"), monthMs, now.getTime())) + (await pruneCache(path.join(config.dataDir, "ogcache"), monthMs, now.getTime()));
-  return { deletedLeases: leases.count, deletedJobRuns: runs.count, deletedFiles: files.length, prunedCache };
+  return { deletedLeases: leases.count, deletedJobRuns: runs.count, prunedCache };
 }

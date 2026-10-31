@@ -90,22 +90,6 @@ export async function collectFindings(now = Date.now()): Promise<Finding[]> {
   // ---- Money, and things only the owner can do --------------------------------------------------
   out.push(...(await providerFindings()));
 
-  // Content-group pushes the Feishu webhook refused (a removed bot, a changed address); nothing resends them.
-  const [refused] = await sql<{ n: number; target: string | null; response: string | null }[]>`
-    SELECT count(*)::int AS n, max(t.note) AS target, left(max(d.response), 200) AS response FROM deliveries d JOIN notify_targets t ON t.key = d.target_key
-    WHERE d.status = 'failed' AND d.updated_at > now() - interval '1 day'`;
-  if (refused!.n > 0) {
-    out.push({
-      key: "deliveries.failed",
-      level: "today",
-      title: "飞书内容群有推送没发出去",
-      impact: `过去 24 小时 ${refused!.n} 条精选或重置通知没进${refused!.target ?? "内容群"}`,
-      heals: "不会自动重发",
-      action: "转给 AI 处理；如果推送机器人被移出了群，需要你把它加回去",
-      detail: refused!.response ?? "",
-    });
-  }
-
   if (backupConfigured()) {
     const [b] = await sql<{ value: { at: string; uploaded: boolean; filesError?: string } }[]>`SELECT value FROM settings WHERE key = 'backup.last'`;
     const age = b ? now - Date.parse(b.value.at) : Infinity;
@@ -127,14 +111,12 @@ export async function collectFindings(now = Date.now()): Promise<Finding[]> {
   }
 
   // ---- Follow-ups for the daily digest ------------------------------------------------------------
-  const [r] = await sql<{ receipts: number; services: string | null; deliveries: number }[]>`
+  const [r] = await sql<{ receipts: number; services: string | null }[]>`
     SELECT (SELECT count(*)::int FROM receipts WHERE status = 'unknown') AS receipts,
-           (SELECT string_agg(DISTINCT service || '/' || purpose, '、') FROM receipts WHERE status = 'unknown') AS services,
-           (SELECT count(*)::int FROM deliveries WHERE status = 'unknown') AS deliveries`;
+           (SELECT string_agg(DISTINCT service || '/' || purpose, '、') FROM receipts WHERE status = 'unknown') AS services`;
   if (r!.receipts > 0) {
     out.push({ key: "receipts.unknown", level: "digest", title: `${r!.receipts} 个付费请求自动重试过一次，结果仍未知`, detail: `${r!.services}；后台“运行”页核对后放行` });
   }
-  if (r!.deliveries > 0) out.push({ key: "deliveries.unknown", level: "digest", title: `${r!.deliveries} 条飞书内容群推送不确定是否送达`, detail: "后台“运行”页核对群里有没有，再标记或重发" });
 
   // Runnable jobs (deferred ones excluded) that have waited more than two hours.
   const queues = await sql<{ name: string; n: number; oldest: Date }[]>`

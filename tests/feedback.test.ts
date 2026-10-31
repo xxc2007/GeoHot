@@ -151,3 +151,27 @@ test("slow sends keep only one mail in flight and leave other records retryable"
   } finally { sendHold.open(); await first; sendHold = undefined; sendEntered = undefined; }
   assert.equal(await forwardFeedbackToEmail(ids[1]!), "sent", "capacity recovers after the slow send");
 });
+
+// Reader-side status lookup (2026-10-31): the row's own email decides the doorway — with an email
+// on the row only the matching address passes; a row without one answers by id alone. Unknown id,
+// wrong email and spam rows all answer null, and nothing but the status word ever leaves.
+test("feedback status lookup: email match, no-email rows, wrong email, spam", async () => {
+  const { feedbackStatus } = await import("@aihot/backend/operations/feedback");
+  const [withEmail] = await sql<{ id: number }[]>`
+    INSERT INTO feedback (content, email, source_hash) VALUES (${`带邮箱 ${T}`}, 'Reader@Example.com', ${`lookup:${T}`}) RETURNING id`;
+  const [withoutEmail] = await sql<{ id: number }[]>`
+    INSERT INTO feedback (content, source_hash) VALUES (${`无邮箱 ${T}`}, ${`lookup:${T}`}) RETURNING id`;
+  // 留了邮箱：同地址（大小写不敏感）放行，其他地址与空邮箱一律拒绝。
+  assert.deepEqual(await feedbackStatus(withEmail!.id, "reader@example.com"), { status: "new" });
+  assert.equal((await feedbackStatus(withEmail!.id, "Reader@EXAMPLE.com"))?.status, "new");
+  assert.equal(await feedbackStatus(withEmail!.id, "other@example.com"), null, "wrong email never passes");
+  assert.equal(await feedbackStatus(withEmail!.id, null), null, "no email given while the row has one");
+  // 本无邮箱：仅凭编号即可查询（读者当时没被要求留任何凭据）。
+  assert.deepEqual(await feedbackStatus(withoutEmail!.id, null), { status: "new" });
+  assert.deepEqual(await feedbackStatus(withoutEmail!.id, "whatever@example.com"), { status: "new" });
+  // 不存在的编号与 spam 判定都是同一个通用 null。
+  assert.equal(await feedbackStatus(2147483000, null), null);
+  await sql`UPDATE feedback SET status = 'spam' WHERE id = ${withEmail!.id}`;
+  assert.equal(await feedbackStatus(withEmail!.id, "reader@example.com"), null, "spam rows answer the generic null");
+  await sql`DELETE FROM feedback WHERE id IN (${withEmail!.id}, ${withoutEmail!.id})`;
+});

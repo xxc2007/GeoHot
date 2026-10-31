@@ -1,19 +1,15 @@
-// Feishu delivery. Two separate apps: the login app (admin OAuth) and the message app (internal
-// feedback chat, operations alert chat, image upload). Content groups use custom bot webhooks.
-// Alerts and feedback never go to content groups, and content never goes to internal chats.
-// Everything outward is off unless explicitly enabled (development and parallel runs stay silent).
-import { readFile, unlink } from "node:fs/promises";
-import path from "node:path";
+// Feishu messaging for operations alerts: the alert chat, falling back to the internal chat.
+// The former content-group webhook push and the feishu feedback forward were torn out with the
+// notify chain (2026-10-31); feedback now goes only over SMTP (notify/email.ts). Everything outward
+// is off unless explicitly enabled (development and parallel runs stay silent).
 import { beijingDate, beijingTime } from "@aihot/contracts/time";
 import { config, credential, envFlag } from "../config.ts";
-import { sql } from "../db.ts";
-import { CapacityExceeded, CapacityGate } from "../lib/capacity.ts";
 
 const API = "https://open.feishu.cn/open-apis";
 
 // 同一个阀门只有一种读法（`envFlag`：`1` 与 `true` 都算开），但它必须在使用点现读环境——
-// 反馈与告警的测试是在运行时改 `process.env` 的，取成启动时的快照就会把它们全部改成"永远不发"。
-// 以前这里写的是 `=== "true"`，于是 `FEISHU_INTERNAL_ENABLED=1` 的意思是"内容照推、告警与反馈永不发"。
+// 告警的测试是在运行时改 `process.env` 的，取成启动时的快照就会把它们全部改成"永远不发"。
+// 以前这里写的是 `=== "true"`，于是 `FEISHU_INTERNAL_ENABLED=1` 的意思是"告警永不发"。
 export const feishuInternalEnabled = () => envFlag("FEISHU_INTERNAL_ENABLED", false);
 
 let tokenCache: { token: string; expires: number } | null = null;
@@ -35,16 +31,6 @@ async function tenantToken(): Promise<string> {
   return tokenCache.token;
 }
 
-async function uploadImage(data: Buffer, filename: string): Promise<string> {
-  const form = new FormData();
-  form.set("image_type", "message");
-  form.set("image", new Blob([new Uint8Array(data)]), filename);
-  const res = await fetch(`${API}/im/v1/images`, { method: "POST", headers: { authorization: `Bearer ${await tenantToken()}` }, body: form, signal: AbortSignal.timeout(30_000) });
-  const json = (await res.json()) as { code: number; data?: { image_key: string }; msg?: string };
-  if (json.code !== 0 || !json.data) throw new Error(`feishu upload: ${json.msg}`);
-  return json.data.image_key;
-}
-
 async function sendToChat(chatId: string, msgType: "text" | "post" | "interactive", content: unknown): Promise<string> {
   const res = await fetch(`${API}/im/v1/messages?receive_id_type=chat_id`, {
     method: "POST",
@@ -53,8 +39,8 @@ async function sendToChat(chatId: string, msgType: "text" | "post" | "interactiv
     signal: AbortSignal.timeout(20_000),
   });
   const json = (await res.json()) as { code: number; data?: { message_id: string }; msg?: string };
-  if (json.code !== 0) throw new Error(`feishu send: ${json.msg}`);
-  return json.data?.message_id ?? "";
+  if (json.code !== 0 || !json.data) throw new Error(`feishu send: ${json.msg}`);
+  return json.data.message_id;
 }
 
 // ---- Operations alerts ------------------------------------------------------------------------------
@@ -122,102 +108,4 @@ export async function sendAlert(title: string, lines: string[]): Promise<"sent" 
   if (!chat) return "disabled";
   await sendToChat(chat, "text", { text });
   return "sent";
-}
-
-/** A screenshot that still cannot be uploaded this long after the feedback is given up: the text goes without it. */
-const SCREENSHOT_GIVE_UP_MS = 24 * 3600_000;
-
-/**
- * The screenshot to attach, uploaded now or on an earlier try. Only the Feishu image key is kept (privacy
- * notice): the local file is removed once uploaded, or once the upload is given up.
- */
-async function screenshotFor(fb: { id: number; screenshot_key: string | null; created_at: Date }): Promise<{ imageKey: string | null; note: string | null }> {
-  const key = fb.screenshot_key;
-  if (key?.startsWith("feishu:")) return { imageKey: key.slice("feishu:".length), note: null };
-  if (key === "gone:upload") return { imageKey: null, note: "（截图未能上传，已删除）" };
-  if (key === "gone:missing") return { imageKey: null, note: "（截图文件已不存在）" };
-  if (!key?.startsWith("local:")) return { imageKey: null, note: null };
-  const file = path.join(config.dataDir, "feedback-screenshots", key.slice("local:".length));
-  const data = await readFile(file).catch(() => null);
-  if (!data) {
-    await sql`UPDATE feedback SET screenshot_key = 'gone:missing' WHERE id = ${fb.id}`;
-    return { imageKey: null, note: "（截图文件已不存在）" };
-  }
-  try {
-    const imageKey = await uploadImage(data, path.basename(file));
-    await sql`UPDATE feedback SET screenshot_key = ${`feishu:${imageKey}`} WHERE id = ${fb.id}`;
-    await unlink(file).catch(() => {});
-    return { imageKey, note: null };
-  } catch (error) {
-    // The forwarding sweep tries again; after a day the text goes without it.
-    if (Date.now() - fb.created_at.getTime() < SCREENSHOT_GIVE_UP_MS) throw error;
-    await sql`UPDATE feedback SET screenshot_key = 'gone:upload' WHERE id = ${fb.id}`;
-    await unlink(file).catch(() => {});
-    return { imageKey: null, note: "（截图未能上传，已删除）" };
-  }
-}
-
-/**
- * Forwards one feedback to the internal chat, with its screenshot. Until that succeeds the feedback keeps
- * the reason in forward_error, and the forwarding sweep (operations/feedback.ts) tries it again.
- */
-const feedbackDelivery = new CapacityGate(1, 0);
-export async function forwardFeedbackToFeishu(id: number): Promise<"sent" | "disabled" | "busy"> {
-  if (!feishuInternalEnabled()) return "disabled";
-  // Acquire before reading any screenshot. Busy records stay pending in the database for
-  // the existing sweep; there is no in-memory backlog of image buffers or upload promises.
-  try { return await feedbackDelivery.run(() => deliverFeedback(id)); }
-  catch (error) {
-    if (error instanceof CapacityExceeded) return "busy";
-    throw error;
-  }
-}
-
-async function deliverFeedback(id: number): Promise<"sent" | "disabled"> {
-  const chat = credential("integrations", "FEISHU_INTERNAL_CHAT_ID");
-  if (!chat) return "disabled";
-  const [fb] = await sql<{ id: number; content: string; email: string | null; note: string | null; page_url: string | null; screenshot_key: string | null; created_at: Date }[]>`
-    SELECT id, content, email, note, page_url, screenshot_key, created_at FROM feedback WHERE id = ${id} AND forwarded_at IS NULL`;
-  if (!fb) return "disabled";
-  try {
-    const shot = await screenshotFor(fb);
-    const paragraphs: unknown[][] = [
-      [{ tag: "text", text: fb.content }],
-      [{ tag: "text", text: `页面：${fb.page_url ?? "—"}` }],
-      [{ tag: "text", text: `邮箱：${fb.email ?? "（未留）"}` }],
-    ];
-    if (fb.note) paragraphs.push([{ tag: "text", text: fb.note }]);
-    if (shot.imageKey) paragraphs.push([{ tag: "img", image_key: shot.imageKey }]);
-    else if (shot.note) paragraphs.push([{ tag: "text", text: shot.note }]);
-    await sendToChat(chat, "post", { zh_cn: { title: `反馈 #${fb.id}`, content: paragraphs } });
-    await sql`UPDATE feedback SET forwarded_at = now(), forward_error = NULL WHERE id = ${id}`;
-    return "sent";
-  } catch (error) {
-    await sql`UPDATE feedback SET forward_error = ${String(error instanceof Error ? error.message : error).slice(0, 300)} WHERE id = ${id}`;
-    throw error;
-  }
-}
-
-/** Custom-bot webhook for content groups (selected cards, reset pushes). */
-export async function postWebhook(url: string, card: unknown): Promise<{ ok: boolean; status: number; body: string }> {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ msg_type: "interactive", card }),
-    signal: AbortSignal.timeout(15_000),
-  });
-  const body = await res.text();
-  // "送达"必须是一个答复，不是"没有反证"。原来写的是 `let ok = res.ok`，只有当 body 能解析成 JSON 时才
-  // 收紧——于是一张 HTTP 200 的 HTML 拦截页（代理、登录墙、风控）会被当成"已送达"结案，群里其实什么都没有，
-  // 而 `code === 0 || StatusCode === 0` 又允许"业务码非零、镜像码为 0"混过去。
-  // 现在：解析不出 JSON 就不是 ack；只有 code（老端点镜像在 StatusCode）为 0 才是 ack。
-  let ack: boolean;
-  try {
-    const json = JSON.parse(body) as { code?: number; StatusCode?: number };
-    const verdict = json.code ?? json.StatusCode;
-    ack = res.ok && verdict === 0;
-  } catch {
-    ack = false;
-  }
-  return { ok: ack, status: res.status, body: body.slice(0, 500) };
 }

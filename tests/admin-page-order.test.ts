@@ -7,7 +7,6 @@
 //
 // 真实后果（第三十四轮评审提出，本轮核对成立）：后台三张列表都是 OFFSET 翻页，排序列都不唯一——
 //   admin/feedback.ts 按 created_at（同一秒提交的两条会并列）
-//   admin/monitor.ts  按 published_at（一批推文常常同一时刻）
 //   admin/sources.ts  按 enabled、health、name（同名信源是允许的，id 才唯一）
 // 并列行的相对次序由执行计划决定，翻页时同一条可能出现在两页、也可能一页都不出现。
 // 读者侧那两条（publication/pool.ts、publication/topics.ts）一直是以 `p.article_id` 收尾的，
