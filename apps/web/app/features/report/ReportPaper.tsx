@@ -11,7 +11,7 @@ import { Link } from "react-router";
 import type { ReportCitation, ReportDetail, ReportKind, ReportNavigationEntry } from "@aihot/contracts/site";
 import { shortSourceName } from "../../lib/format";
 import { Badge } from "../../components/ui/Badge";
-import { Lightbox, type LightboxImage } from "../../components/ui/Lightbox";
+import { Lightbox } from "../../components/ui/Lightbox";
 import { IconArrowLeft, IconArrowRight, IconArrowUpRight } from "../../components/icons";
 import { Kicker } from "../../components/ui/Kicker";
 import { SourceAvatar } from "../../components/ui/SourceAvatar";
