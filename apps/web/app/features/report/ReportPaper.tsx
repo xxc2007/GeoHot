@@ -133,9 +133,9 @@ function Original({ c, className = "" }: { c: ReportCitation; className?: string
 /** Imported citations keep their published copy even when their item page is absent locally. */
 function CitationTitle({ c, children, anchor, className = "transition-colors hover:text-accent" }: { c: ReportCitation; children: ReactNode; anchor?: string; className?: string }) {
   if (anchor) return <Link to={anchor} className={className}>{children}</Link>;
-  // itemId 存在即可导航到条目页——那里有自己的读取门禁（未就绪时显示后台状态，不泄露全文）。
-  // hasPage 只是「能否完整阅读」，不再是「标题是否可点」的条件（2026-10-31 站长要求：标题一律可点）。
-  if (c.itemId) return <Link to={`/items/${c.itemId}`} prefetch="intent" className={className}>{children}</Link>;
+  // 目标选择（2026-10-31 二修）：有公开条目页 → 站内页；条目存在但读者页不可得
+  // （hasPage=false：来源仅准摘要等）→ 原文，绝不送读者去 404；两者皆无 → 纯文本。
+  if (c.itemId && c.hasPage !== false) return <Link to={`/items/${c.itemId}`} prefetch="intent" className={className}>{children}</Link>;
   if (c.sourceUrl) return <a href={c.sourceUrl} target="_blank" rel="noopener noreferrer" className={className} aria-label={`阅读原文：${c.title}（新标签页）`}>{children}</a>;
   return <span className={className}>{children}</span>;
 }
@@ -150,10 +150,10 @@ function Story({ c, dated, className = "" }: { c: ReportCitation; dated: boolean
       </div>
       {c.available ? (
         <>
-          <h3 className="mt-3 text-title font-display font-bold leading-[1.5] tracking-[-0.01em] text-ink [overflow-wrap:anywhere] [text-wrap:pretty] @[760px]:text-[20px]">
+          <h3 className="mt-3 text-[21px] font-display font-bold leading-[1.45] tracking-[-0.01em] text-ink [overflow-wrap:anywhere] [text-wrap:pretty] @[760px]:text-[26px] @[760px]:leading-[1.4]">
             <CitationTitle c={c}>{c.title}</CitationTitle>
           </h3>
-          {c.summary && <p className="mt-2 line-clamp-4 text-lead leading-[1.85] text-ink-2 [overflow-wrap:anywhere] @[560px]:text-justify">{c.summary}</p>}
+          {c.summary && <p className="mt-2.5 line-clamp-4 text-[16px] leading-[1.8] text-ink-2 [overflow-wrap:anywhere] @[760px]:text-[17.5px] @[760px]:leading-[1.75] @[560px]:text-justify">{c.summary}</p>}
           <div className="mt-auto pt-3">
             <Original c={c} />
           </div>
@@ -163,7 +163,7 @@ function Story({ c, dated, className = "" }: { c: ReportCitation; dated: boolean
           {/* 2026-10-31 站长要求：标题一律可点。条目存在（非 withdrawn）→ 站内条目页（公开的诊断级信息）；
               条目页不可用但有原文链接 → 原文；撤回的保持纯文本不复活。 */}
           <CitationTitle c={c}>
-            <span className={c.unavailableReason === "withdrawn" ? "line-through" : "hover:text-accent"}>{c.title}</span>
+            <span className={c.unavailableReason === "withdrawn" ? "line-through" : undefined}>{c.title}</span>
           </CitationTitle>
           {c.unavailableReason === "source-restricted" ? " · 原报道暂不具备站内全文展示条件。" : c.unavailableReason === "workflow-pending" ? " · 正文、译文或配图尚在核验。" : " · 该报道当前不可公开阅读。"}
           {c.sourceUrl && <span className="ml-2 inline-block"><Original c={c} /></span>}
