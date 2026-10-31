@@ -12,7 +12,7 @@ import { usageOverview } from "@aihot/backend/admin/usage";
 import { contentChain, detachFromFact, mergeStories, overrideFields, rerun, rewriteStoryDigest, searchContent, setSeoIndexed, setVisibility } from "@aihot/backend/admin/content";
 import { banSource, eraseFeedback, feedbackScreenshot, listFeedback, unbanSource, updateFeedback } from "@aihot/backend/admin/feedback";
 import { releaseReceipt, requeueFailedArticles, resolveDelivery, readRunsOverview } from "@aihot/backend/admin/runs";
-import { deleteBudget, listBudgets, listTargets, setTargetEnabled, updateBudget } from "@aihot/backend/admin/settings";
+import { deleteBudget, listBudgets, updateBudget } from "@aihot/backend/admin/settings";
 import { createSource, fetchNow, listSources, previewSource, sourceDetail, updateSource, replaceSources } from "@aihot/backend/admin/sources";
 import { sql } from "@aihot/backend/db";
 import { sendProblem } from "../http/respond.ts";
@@ -113,11 +113,7 @@ export function registerAdmin(app: FastifyInstance) {
   app.post("/api/admin/processing/requeue", adminHandler(async (req, _reply, admin) => requeueFailedArticles(body(req) as never, actorOf(admin))));
 
   // Settings
-  app.get("/api/admin/settings", adminHandler(async () => ({ targets: await listTargets(), budgets: await listBudgets() })));
-  app.post("/api/admin/notify-targets/:key", adminHandler(async (req, reply, admin) => {
-    const b = body<{ enabled: boolean; reason: string }>(req);
-    return orNotFound(req, reply, await setTargetEnabled(param(req, "key"), !!b.enabled, b.reason, actorOf(admin)));
-  }));
+  app.get("/api/admin/settings", adminHandler(async () => ({ budgets: await listBudgets() })));
   app.put("/api/admin/budgets/:service", adminHandler(async (req, _reply, admin) => updateBudget(param(req, "service"), body(req) as never, actorOf(admin))));
   // 只删预算行（retire 一扇门）：receipts / receipt_attempts / metrics 历史不动（是账单与审计依据）。
   app.delete("/api/admin/budgets/:service", adminHandler(async (req, reply, admin) => {

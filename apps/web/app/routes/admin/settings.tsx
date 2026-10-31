@@ -3,11 +3,10 @@ import { useState } from "react";
 import type { Route } from "./+types/settings";
 import { adminGet } from "../../lib/admin.server";
 import { useAdminAction } from "../../features/admin/action";
-import { bj, num } from "../../features/admin/format";
-import { AdminPage, Badge, Button, Card, DataTable, Input, ReasonDialog } from "../../features/admin/ui";
+import { num } from "../../features/admin/format";
+import { AdminPage, Button, Card, Input, ReasonDialog } from "../../features/admin/ui";
 
 interface Settings {
-  targets: Array<{ key: string; purpose: string; kind: string; enabled: boolean; enabled_at: string | null; config_ref: string | null; note: string | null; deliveries_7d: number; last_sent_at: string | null }>;
   budgets: Array<{ service: string; per_minute: number; per_hour: number; per_day: number; note: string | null; updated_at: string; used_day: number; used_hour: number }>;
 }
 
@@ -47,44 +46,10 @@ function BudgetRow({ b }: { b: Settings["budgets"][number] }) {
   );
 }
 
-function TargetToggle({ t }: { t: Settings["targets"][number] }) {
-  const { run, pending } = useAdminAction();
-  const [open, setOpen] = useState(false);
-  return (
-    <>
-      <Button size="sm" tone={t.enabled ? "danger" : "primary"} onClick={() => setOpen(true)}>{t.enabled ? "停用" : "启用"}</Button>
-      <ReasonDialog
-        open={open}
-        title={`${t.enabled ? "停用" : "启用"}：${t.note ?? t.key}`}
-        description={t.enabled ? "停用后新的推送不再发往这个群。" : "启用时间会被记录：启用之前的内容不会补推。开发与彩排环境即使启用也不会真的发出。"}
-        danger={t.enabled}
-        confirmLabel={t.enabled ? "停用" : "启用"}
-        busy={pending === "target"}
-        onClose={() => setOpen(false)}
-        onSubmit={async (reason) => (await run("POST", `/api/admin/notify-targets/${encodeURIComponent(t.key)}`, { enabled: !t.enabled, reason }, { label: "target", success: "已更新" })) !== null}
-      />
-    </>
-  );
-}
-
 export default function SettingsAdmin({ loaderData: s }: Route.ComponentProps) {
   return (
     <AdminPage title="设置" subtitle="不改代码即可替换的运营设置。每次修改都写入审计记录。">
-      <div className="grid gap-5 xl:grid-cols-2">
-        <Card title="通知目的地" pad={false}>
-          <DataTable
-            rows={s.targets}
-            rowKey={(t) => t.key}
-            columns={[
-              { key: "k", label: "目的地", render: (t) => <div><div className="font-medium text-ink">{t.note ?? t.key}</div><div className="font-mono text-[11.5px] text-ink-4">{t.key} · {t.config_ref}</div></div> },
-              { key: "e", label: "状态", render: (t) => (t.enabled ? <Badge tone="ok">启用于 {bj(t.enabled_at)}</Badge> : <Badge>停用</Badge>) },
-              { key: "d", label: "7 天投递", align: "right", render: (t) => num(t.deliveries_7d) },
-              { key: "a", label: "", align: "right", render: (t) => <TargetToggle t={t} /> },
-            ]}
-          />
-        </Card>
-      </div>
-      <Card className="mt-5" title="付费请求上限" right={<span>已用：近 1 小时 / 近 24 小时</span>} pad={false}>
+      <Card title="付费请求上限" right={<span>已用：近 1 小时 / 近 24 小时</span>} pad={false}>
         <div className="admin-table-region min-w-0">
           <p className="admin-table-hint">左右滑动查看完整表格</p>
           <div className="admin-table-scroll overflow-x-auto" role="region" aria-label="请求上限，可左右滑动查看每天、已用及保存" tabIndex={0}>
