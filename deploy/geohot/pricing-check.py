@@ -300,7 +300,15 @@ def main() -> int:
     print(f"fx: {'成功 ' + fx_msg if fx_ok else '失败 ' + fx_msg}")
     print(f"pricing_checks: {db_msg}")
 
-    return 1 if (diffs or errors) else 0
+    # 退出码只反映「价格变了」（需要人去改常量）：diffs>0 → 1。
+    # 解析失败（hy3 反爬壳、dots 纯 SPA 这类页面形态问题）与汇率故障记入 errors 落库+journal，
+    # 但不算任务失败——systemd 常驻 failed 会把真正需要看的差异淹没（2026-10-31 验收指出）。
+    # refreshFx 失败是链路故障，单独算失败（exit 2），它坏了 fx_rates 就不再更新。
+    if diffs:
+        return 1
+    if not fx_ok:
+        return 2
+    return 0
 
 
 if __name__ == "__main__":
