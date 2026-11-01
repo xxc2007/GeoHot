@@ -10,6 +10,22 @@ export interface ChangelogRelease {
   title: string;
   body: string[];
   major?: boolean;
+  /** 按发布顺序编号的站点版本：2.0.0 = 2026-10-24 重大更新，此后逐版递增；此前从 1.0.0 起算。 */
+  version?: string;
+}
+
+/**
+ * 版本号由发布顺序唯一决定，不写进 changelog.json——同一份历史无论何时重算，结果都一致。
+ * 无重大更新标记时整体按 1.0.x 编号兜底。
+ */
+export function withVersionNumbers(data: { latestVersion: string; releases: ChangelogRelease[] }) {
+  const total = data.releases.length;
+  const majorIdx = data.releases.findIndex((r) => r.major);
+  const releases = data.releases.map((r, i) => ({
+    ...r,
+    version: majorIdx < 0 ? `1.0.${total - 1 - i}` : i === majorIdx ? "2.0.0" : i < majorIdx ? `2.0.${majorIdx - i}` : `1.0.${total - 1 - i}`,
+  }));
+  return { latestVersion: data.latestVersion, releases };
 }
 
 let changelogCache: { mtimeMs: number; data: { latestVersion: string; releases: ChangelogRelease[] } } | null = null;

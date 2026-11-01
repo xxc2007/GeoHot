@@ -26,6 +26,8 @@ interface Release {
   title: string;
   body: string[];
   major?: boolean;
+  /** 按发布顺序编号的站点版本（2.0.0 = 2026-10-24 重大更新），API 层注入。 */
+  version?: string;
 }
 
 export async function loader({ request }: { request: Request }) {
@@ -187,7 +189,10 @@ export default function ChangelogPage() {
                       </span>
                     </div>
                     <article className="min-w-0 sm:border-l sm:border-line sm:pl-8">
-                      <h3 className="text-[16px] font-bold leading-[1.5] text-ink sm:text-[17px]">{r.title}</h3>
+                      <h3 className="text-[16px] font-bold leading-[1.5] text-ink sm:text-[17px]">
+                        {r.title}
+                        {r.version && <span className="mono ml-2 align-middle text-[12px] font-normal text-ink-4">v{r.version}</span>}
+                      </h3>
                       <ReleaseBody lines={r.body} />
                     </article>
                   </li>

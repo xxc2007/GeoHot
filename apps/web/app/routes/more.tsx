@@ -5,7 +5,6 @@ import { Link, useRouteLoaderData } from "react-router";
 import type { loader as rootLoader } from "../root";
 import { useChangelogDot } from "../components/shell/Sidebar";
 import { pageMeta } from "../lib/seo";
-import { publicPath } from "../lib/public-path";
 import { ThemeSwitch } from "../components/shell/ThemeSwitch";
 import { IconBookmark, IconChart, IconChevronRight, IconGitHub, IconGrid, IconHeart, IconHistory, IconMessage, IconMoon, IconPlug } from "../components/icons";
 
@@ -105,7 +104,8 @@ export default function MorePage() {
       <div className="mt-5 flex flex-wrap justify-center gap-x-4 gap-y-1 text-[12px] text-ink-4">
         <Link to="/terms" className="tap-hit inline-flex min-h-6 items-center px-1.5 hover:text-ink-2">使用规则</Link>
         <Link to="/privacy" className="tap-hit inline-flex min-h-6 items-center px-1.5 hover:text-ink-2">隐私说明</Link>
-        <a href={publicPath("/feed.xml")} className="tap-hit inline-flex min-h-6 items-center px-1.5 hover:text-ink-2">RSS</a>
+        {/* RSS 去Agent接入页而不是直接给/feed.xml：手机浏览器打开裸XML只会看到一屏源码，订阅地址在Agent页有说明和复制按钮。 */}
+        <Link to="/agent" className="tap-hit inline-flex min-h-6 items-center px-1.5 hover:text-ink-2">RSS</Link>
         {SITE.icp && <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer" className="tap-hit inline-flex min-h-6 items-center px-1.5 hover:text-ink-2">{SITE.icp}</a>}
       </div>
     </div>
