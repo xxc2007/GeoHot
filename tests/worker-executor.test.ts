@@ -46,7 +46,7 @@ async function start(role: string, disconnectBeforeReady: boolean | "blocked-sta
       DATABASE_URL: process.env.DATABASE_URL, NODE_ENV: "development", AIHOT_CREDENTIALS_DIR: "/nonexistent-test-credentials",
       WORKER_ROLE: role, MODEL_CALLS_ENABLED: role === "content-executor" ? "true" : "false",
       JINA_BODY_FALLBACK: "false",
-      COLLECT_ENABLED: role.endsWith("-executor") ? "true" : "false", DATABASE_POOL_MAX: "1", PGBOSS_POOL_MAX: "1",
+      COLLECT_ENABLED: role.endsWith("-executor") ? "true" : "false", DATABASE_POOL_MAX: "2", PGBOSS_POOL_MAX: "2",
       EXTRACT_CONCURRENCY: "1", GEOHOT_ASSIST_LEASE_FILE: assistLease,
       ALLOW_PRIVATE_NETWORK_FETCH: allowTestFetch ? "true" : "false",
       LLM_BASE_URL: `${provider}/v1`, LLM_API_KEY: "local-test-key", LLM_MODEL: "local-stub", PREFILTER_MODEL: "default",
