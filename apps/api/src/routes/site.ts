@@ -14,7 +14,7 @@ import { loadStoryFollowups } from "@aihot/backend/publication/followups";
 import { loadDevelopments, loadGroupReports } from "@aihot/backend/publication/groups";
 import { loadTopicTags } from "@aihot/backend/publication/topics";
 import { loadHotStrip } from "@aihot/backend/events/hot-read";
-import { loadChangelog, siteMeta } from "@aihot/backend/site/meta";
+import { loadChangelog, siteMeta, withVersionNumbers } from "@aihot/backend/site/meta";
 import { loadMakerAvatar } from "@aihot/backend/site/contact";
 import { loadSiteStats } from "@aihot/backend/site/stats";
 import { itemAvailability } from "@aihot/backend/publication/availability";
@@ -192,7 +192,7 @@ export function registerSite(app: FastifyInstance) {
   }));
 
   app.get("/api/site/changelog", siteHandler(async (req, reply) => {
-    return sendJsonWithEtag(req, reply, loadChangelog(), { etagPrefix: "changelog", cacheControl: "public, max-age=300, s-maxage=300" });
+    return sendJsonWithEtag(req, reply, withVersionNumbers(loadChangelog()), { etagPrefix: "changelog", cacheControl: "public, max-age=300, s-maxage=300" });
   }));
 
   app.get("/api/site/items/availability", siteHandler(async (req, reply) => {
