@@ -16,7 +16,7 @@ if ($configPath.Contains('"') -or $repoPath.Contains('"')) { throw 'Unsupported 
 Get-Command node.exe | Out-Null
 if ($SlotCount -lt 1 -or $SlotCount -gt 2) { throw 'SlotCount must be 1 or 2; more slots need fresh PSI-clean weeks on the server.' }
 $runnerPath = Join-Path $repoPath 'scripts/run-workstation-assist.ps1'
-$slotsArg = if ($SlotCount -gt 1) { ' --slots {0}' -f $SlotCount } else { '' }
+$slotsArg = if ($SlotCount -gt 1) { ' -SlotCount {0}' -f $SlotCount } else { '' }
 $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument ('-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "{0}" -Config "{1}"{2}' -f $runnerPath,$configPath,$slotsArg) -WorkingDirectory $repoPath
 $logon = New-ScheduledTaskTrigger -AtLogOn -User ([Security.Principal.WindowsIdentity]::GetCurrent().Name)
 $periodic = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 5)
