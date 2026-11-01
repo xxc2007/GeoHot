@@ -14,7 +14,7 @@ $statePath = [IO.Path]::GetFullPath($privateConfig.stateDirectory)
 if ($statePath -eq $repoPath -or $statePath.StartsWith($repoPath + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { throw 'State must be outside the repository.' }
 if ($configPath.Contains('"') -or $repoPath.Contains('"')) { throw 'Unsupported quote in path.' }
 Get-Command node.exe | Out-Null
-if ($SlotCount -lt 1 -or $SlotCount -gt 2) { throw 'SlotCount must be 1 or 2; more slots need fresh PSI-clean weeks on the server.' }
+if ($SlotCount -lt 1 -or $SlotCount -gt 4) { throw 'SlotCount must be 1..4; more slots need fresh PSI-clean weeks on the server.' }
 $runnerPath = Join-Path $repoPath 'scripts/run-workstation-assist.ps1'
 $slotsArg = if ($SlotCount -gt 1) { ' -SlotCount {0}' -f $SlotCount } else { '' }
 $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument ('-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "{0}" -Config "{1}"{2}' -f $runnerPath,$configPath,$slotsArg) -WorkingDirectory $repoPath
