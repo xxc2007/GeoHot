@@ -32,8 +32,13 @@ export function extractionClaim(text: string): string | null {
 export function installExtractionAssist(boss: PgBoss) {
   if (process.env.WORKER_ROLE !== "extraction-executor") return;
   const file = process.env.GEOHOT_ASSIST_LEASE_FILE;
-  if (!file || process.env.EXTRACT_CONCURRENCY !== "1" || process.env.DATABASE_POOL_MAX !== "1"
-      || process.env.PGBOSS_POOL_MAX !== "1") throw new Error("extraction assist requires a supervisor lease and one slot / one connection per pool");
+  const slots = Number(process.env.EXTRACT_CONCURRENCY);
+  const databasePool = Number(process.env.DATABASE_POOL_MAX);
+  const pgbossPool = Number(process.env.PGBOSS_POOL_MAX);
+  if (!file || !Number.isInteger(slots) || slots < 1 || slots > 4
+      || databasePool !== slots + 1 || pgbossPool !== slots + 1) {
+    throw new Error("extraction assist requires a supervisor lease, 1..4 slots, and one more pooled connection than slots");
+  }
   const adapter = boss.getDb();
   const execute = adapter.executeSql.bind(adapter);
   adapter.executeSql = async (text, values) => {

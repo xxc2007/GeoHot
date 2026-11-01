@@ -3,7 +3,7 @@ import { spawn, execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { parseArgs } from "node:util";
 import { createHash, randomUUID } from "node:crypto";
-import { readFileSync, writeFileSync, mkdirSync, openSync, closeSync, unlinkSync, createWriteStream, type WriteStream } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, openSync, closeSync, unlinkSync, createWriteStream, readdirSync, type WriteStream } from "node:fs";
 import path from "node:path";
 import { freemem } from "node:os";
 import { assistEligible } from "../packages/backend/src/operations/extraction-assist.ts";
@@ -22,18 +22,28 @@ const stateDirectory = path.resolve(config.stateDirectory);
 if (stateDirectory === root || stateDirectory.startsWith(root + path.sep)) throw new Error("Keep helper state outside the repository");
 const duration = values["run-seconds"] === undefined ? 0 : Number(values["run-seconds"]);
 if (!Number.isInteger(duration) || duration < 0 || duration > 600) throw new Error("Finite trial must be between 1 and 600 seconds; omit for read-only check");
-// Slots are separate single-slot worker processes: the backend asserts one slot and one pooled
-// connection per process (extraction-assist.ts), and pg-boss's SKIP LOCKED claim keeps two processes
-// from taking the same job. Cap of 2 mirrors the 2026-11-01 second authorization; more needs fresh
-// PSI-clean weeks on the server. Default stays 1 so every existing caller behaves as before.
+// In-process slots: the worker runs EXTRACT_CONCURRENCY parallel extract handlers and the two pg
+// pools get one more connection than slots. The backend re-asserts the same envelope (1..4) on
+// startup, so a supervisor/backend disagreement fails closed instead of silently reconfiguring.
+// Cap of 4 mirrors the widened 2026-11-01 authorization; more needs fresh PSI-clean server weeks.
+// Default stays 1 so every existing caller behaves as before.
 const slotCount = values.slots === undefined ? 1 : Number(values.slots);
-if (!Number.isInteger(slotCount) || slotCount < 1 || slotCount > 2) throw new Error("--slots must be 1 or 2");
+if (!Number.isInteger(slotCount) || slotCount < 1 || slotCount > 4) throw new Error("--slots must be 1..4");
 // Child diagnostics and per-child bookkeeping; all child log files live inside the validated state
 // directory and carry only digits in their names, so no path fragment ever reaches open().
 const children: Array<ReturnType<typeof spawn>> = [];
 const childExits: Array<Promise<number | null>> = [];
 const childLogs: WriteStream[] = [];
 let childExited: Promise<number | null> | undefined;
+/** Keep the newest 20 child logs (10 rounds at 2 slots); diagnostics rot, not evidence. */
+function pruneChildLogs(dir: string): void {
+  const KEEP = 20;
+  const names = readdirSync(dir).filter(n => /^assist-child-\d{12}-\d+\.log$/.test(n)).sort();
+  for (const name of names.slice(0, Math.max(0, names.length - KEEP))) {
+    const victim = dir + path.sep + name;
+    if (victim.startsWith(dir + path.sep)) { try { unlinkSync(victim); } catch { /* locked by a running round */ } }
+  }
+}
 if (process.platform !== "win32") throw new Error("This supervisor currently verifies Windows AC power only");
 const sshArgs = ["-i", config.identityFile, "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", "-o", "ServerAliveInterval=5",
   "-o", "ServerAliveCountMax=2", "-o", `HostKeyAlias=${config.hostKeyAlias}`];
@@ -132,17 +142,18 @@ try {
   // logs to its own diagnostics file under the state directory; the file name is built only from a
   // date stamp and the loop counter, and the confinement guard below fails closed.
   for (let slot = 1; slot <= slotCount; slot++) {
-    const stamp = new Date().toISOString().slice(0, 10).replaceAll("-", "");
+    const stamp = new Date().toISOString().replace(/\D/g, "").slice(0, 12);
     const childLogName = "assist-child-" + stamp + "-" + slot + ".log";
-    if (!/^assist-child-\d{8}-\d+\.log$/.test(childLogName)) throw new Error("Child log name must match the whitelist");
+    if (!/^assist-child-\d{12}-\d+\.log$/.test(childLogName)) throw new Error("Child log name must match the whitelist");
     const childLogPath = stateDirectory + path.sep + childLogName;
     if (!childLogPath.startsWith(stateDirectory + path.sep)) throw new Error("Child log path escaped the state directory");
+    pruneChildLogs(stateDirectory);
     const childLog = createWriteStream(childLogPath, { flags: "a", mode: 0o600 });
     childLogs.push(childLog);
     childLog.write(new Date().toISOString() + " child slot " + slot + "/" + slotCount + " starting (release " + release + ")\n");
   child = spawn(process.execPath, ["apps/worker/src/main.ts"], { cwd: root, windowsHide: true, stdio: ["ignore", "pipe", "pipe", "ipc"],
     env: { SystemRoot: process.env.SystemRoot, PATH: process.env.PATH, TEMP: process.env.TEMP, TMP: process.env.TMP,
-      DATABASE_URL: database.toString(), DATABASE_POOL_MAX: "1", PGBOSS_POOL_MAX: "1", EXTRACT_CONCURRENCY: "1",
+      DATABASE_URL: database.toString(), DATABASE_POOL_MAX: String(slotCount + 1), PGBOSS_POOL_MAX: String(slotCount + 1), EXTRACT_CONCURRENCY: String(slotCount),
       WORKER_ROLE: "extraction-executor", COLLECT_ENABLED: "true", MODEL_CALLS_ENABLED: "false", JINA_BODY_FALLBACK: "false",
       NODE_ENV: "production", AIHOT_ENVIRONMENT: "production", SITE_URL: "https://xxc2007.me/geohot", TZ: "Asia/Shanghai",
       AIHOT_RELEASE: release, AIHOT_CREDENTIALS_DIR: path.join(config.stateDirectory, `no-credentials-${randomUUID()}`), GEOHOT_ASSIST_LEASE_FILE: lease,

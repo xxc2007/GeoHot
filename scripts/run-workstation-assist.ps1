@@ -13,7 +13,7 @@ if (Test-Path -LiteralPath (Join-Path $statePath 'extraction-assist.lock')) {
 }
 Set-Location -LiteralPath $repoPath
 Add-Content -LiteralPath $logPath -Value ('{0} starting eligibility check' -f (Get-Date -Format o))
-if ($SlotCount -lt 1 -or $SlotCount -gt 2) { throw 'SlotCount must be 1 or 2.' }
+if ($SlotCount -lt 1 -or $SlotCount -gt 4) { throw 'SlotCount must be 1..4.' }
 $slotsArg = @(); if ($SlotCount -gt 1) { $slotsArg = @('--slots', "$SlotCount") }
 & node.exe (Join-Path $repoPath 'scripts/workstation-extraction-assist.ts') --config $configPath --run-seconds 600 @slotsArg 2>&1 | Out-File -LiteralPath $logPath -Append -Encoding utf8
 exit $LASTEXITCODE
