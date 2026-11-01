@@ -15,6 +15,15 @@ test("explicit quota/auth refusal closes that member immediately, with expiry an
   assert.equal(cooldown.overlay(new Set(), 4_000_001).size, 0);
 });
 
+test("autoclaw quota wording (免费额度已用完) benches the member too", () => {
+  // 2026-11-02 生产实测：autoclaw-cn 429「GLM-5.3 免费额度已用完,开通连续包月会员继续使用」——
+  // 旧 matcher 只认「额度已用尽」，这扇门 2 小时 37 次全失败仍进不了一小时冷却。
+  const cooldown = new ModelCooldown();
+  cooldown.reject("autoclaw-cn", "zaicoding-glm53", 429,
+    'HTTP 429: {"error":{"message":"AutoClaw: GLM-5.3 免费额度已用完,开通连续包月会员继续使用"}}', 100);
+  assert.ok(cooldown.overlay(new Set(), 101).has("autoclaw-cn|zaicoding-glm53"));
+});
+
 test("ordinary rate/transport/output failures do not masquerade as an explicit quota wall", () => {
   const cooldown = new ModelCooldown();
   for (const [status, text] of [[429, "too many requests"], [429, "usage exceeds frequency limit"], [429, "您的使用量已超出频率限制"],
