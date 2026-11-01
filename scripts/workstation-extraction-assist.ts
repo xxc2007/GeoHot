@@ -73,7 +73,16 @@ async function sample() {
   lastEvidence = result;
   return result;
 }
-const first = await sample();
+let first: Awaited<ReturnType<typeof sample>> | null = null;
+try {
+  first = await sample();
+} catch (error) {
+  // A transient SSH/PowerShell stall killed the process outright (top-level throw, exit 1) with no
+  // log line beyond the header, so a scheduled round looked silently dead. One miss is a normal
+  // deferral: report it and let the next five-minute retry take the shot.
+  console.log(JSON.stringify({ mode: duration ? "finite-trial" : "read-only", release, eligible: false, error: String((error as Error).message ?? error) }));
+  process.exit(duration ? 2 : 0);
+}
 console.log(JSON.stringify({ mode: duration ? "finite-trial" : "read-only", release, eligible: assistEligible(first), resources: first }));
 if (!duration || !assistEligible(first)) process.exit(duration ? 2 : 0);
 
