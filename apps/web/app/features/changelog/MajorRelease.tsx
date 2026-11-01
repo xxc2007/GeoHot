@@ -67,9 +67,46 @@ function PayloadComparison() {
   </section>;
 }
 
+/** 每个重大更新（major: true）一张卡：标题、导语、要点与入口都写在数据里，组件只负责展示。 */
+const MAJOR_RELEASES: Record<string, {
+  title: string;
+  lead: string;
+  note: string;
+  sections: Array<[string, string]>;
+  links: Array<[string, string]>;
+  showJourney?: boolean;
+}> = {
+  "2026-10-24T07:30": {
+    title: "把世界的地理变化，串成每天读得懂的线索",
+    lead: "从建站到现在，GEOHOT 逐步接入地理信源、整理中文内容，再把单条消息串成事件与日报。这次把这些变化放在一起，带你重新认识地理热点。",
+    note: "围绕地理阅读持续改进。这里记录已经实现的能力；历史覆盖和翻译进度，以具体页面显示为准。",
+    sections: [
+      ["地理，是内容的主线", "自然、人文、区域、政治、历史、前沿地理与地理信息系统，七个分类帮助你找到关心的领域。重要消息尽量交代地点、时间、影响范围和来源。"],
+      ["外文长文，也能接着读", "阅读页保留原文入口，并提供中文摘要和全文翻译。长文翻译支持分段续接，科学数字、单位与原文顺序得到专门保护；未完成的内容会显示实际状态。"],
+      ["今天追踪，也能回看过去", "全部动态按日期浏览；事件页汇集多方报道；日报、周报和月报提供另一种回顾方式。历史导入与补刊支持恢复处理，已有内容的日期不会被新收录时间替代。"],
+      ["阅读之外，留好反馈和接入入口", "本地收藏方便下次继续看；反馈可以附截图，站长从管理入口查看。MCP、RSS 与 REST API 向阅读器、Agent 和自己的程序提供匿名只读接入。"],
+    ],
+    links: [["浏览全部动态", "/all"], ["读地理日报", "/daily"], ["接入你的 Agent", "/agent"]],
+    showJourney: true,
+  },
+  "2026-11-01T23:59": {
+    title: "从读到回信：站点有了完整的读者服务闭环",
+    lead: "2.0 把地理消息串成了读得懂的线索；这一个月，我们把「读」延伸成「能对话」——你提交的每条反馈都直达站长邮箱，处理进度随时可查，答复直接回进你的邮箱。",
+    note: "一个月 40 多次更新，这里挑四条主线。全部明细在下面的时间线里，每条都带版本号。",
+    sections: [
+      ["反馈直达，进度可查", "反馈页提交的内容连同截图实时投进站长邮箱，失败自动重试；留了邮箱就能查处理进度，后台回复的邮件带着你的地址，直接回信就能继续对话。"],
+      ["渠道归一，说的是同一件事", "联系邮箱、安全联系文件、隐私说明与使用规则同一口径；没有内部聊天工具，也没有多余的推送通道，全站联系渠道只有邮箱和反馈页。"],
+      ["读得更顺，看得更全", "日报、周报、月报的条目标题全部可点，图片接上缩放查看器；来源只准摘要的条目也有落地页，标题、导读与原文入口齐全，不再点进 404。"],
+      ["后台更有力气", "正文抽取支持多路并行、逐步留痕；模型门池扩容到十几扇并按官方价每日核对；服务器吃紧时辅助自动让路，读者页面优先。"],
+    ],
+    links: [["去反馈", "/feedback"], ["读更新日志", "/changelog"], ["浏览全部动态", "/all"]],
+  },
+};
+
 export function MajorRelease({ date, time }: { date: string; time: string }) {
   const article = useRef<HTMLElement>(null);
   const id = useId();
+  const content = MAJOR_RELEASES[`${date}T${time}`] ?? Object.values(MAJOR_RELEASES)[0]!;
   useEffect(() => {
     const element = article.current;
     if (!element) return;
@@ -85,20 +122,15 @@ export function MajorRelease({ date, time }: { date: string; time: string }) {
         <span className="font-semibold tracking-[0.2em] text-accent">重大更新 · 置顶</span>
         <time dateTime={`${date}T${time}:00+08:00`} className="text-ink-3">{date.replaceAll("-", " / ")} · {time}</time>
       </div>
-      <TerrainCanvas />
-      <h2 id={`${id}-title`} className="text-[23px] font-bold leading-[1.45] text-ink sm:text-[28px]">把世界的地理变化，串成每天读得懂的线索</h2>
-      <p className="measure mt-5 text-[15px] leading-[1.9] text-ink-2">从建站到现在，GEOHOT 逐步接入地理信源、整理中文内容，再把单条消息串成事件与日报。这次把这些变化放在一起，带你重新认识地理热点。</p>
-      <p className="measure mt-3 text-[14px] leading-[1.9] text-ink-3">围绕地理阅读持续改进。这里记录已经实现的能力；历史覆盖和翻译进度，以具体页面显示为准。</p>
+      {content.showJourney && <TerrainCanvas />}
+      <h2 id={`${id}-title`} className="text-[23px] font-bold leading-[1.45] text-ink sm:text-[28px]">{content.title}</h2>
+      <p className="measure mt-5 text-[15px] leading-[1.9] text-ink-2">{content.lead}</p>
+      <p className="measure mt-3 text-[14px] leading-[1.9] text-ink-3">{content.note}</p>
     </header>
     <div className="space-y-9 px-5 py-7 sm:px-8 sm:py-9">
-      <Journey /><PayloadComparison />
-      {[
-        ["地理，是内容的主线", "自然、人文、区域、政治、历史、前沿地理与地理信息系统，七个分类帮助你找到关心的领域。重要消息尽量交代地点、时间、影响范围和来源。"],
-        ["外文长文，也能接着读", "阅读页保留原文入口，并提供中文摘要和全文翻译。长文翻译支持分段续接，科学数字、单位与原文顺序得到专门保护；未完成的内容会显示实际状态。"],
-        ["今天追踪，也能回看过去", "全部动态按日期浏览；事件页汇集多方报道；日报、周报和月报提供另一种回顾方式。历史导入与补刊支持恢复处理，已有内容的日期不会被新收录时间替代。"],
-        ["阅读之外，留好反馈和接入入口", "本地收藏方便下次继续看；反馈可以附截图，站长从管理入口查看。MCP、RSS 与 REST API 向阅读器、Agent 和自己的程序提供匿名只读接入。"],
-      ].map(([title, body]) => <section key={title} className="border-t border-line-soft pt-7"><h3 className="text-[20px] font-bold text-ink">{title}</h3><p className="measure mt-3 text-[14px] leading-[1.9] text-ink-3">{body}</p></section>)}
-      <footer className="flex flex-wrap gap-x-6 gap-y-3 border-t border-line-soft pt-6 text-[14px] font-medium text-accent"><Link to="/all">浏览全部动态</Link><Link to="/daily">读地理日报</Link><Link to="/agent">接入你的 Agent</Link></footer>
+      {content.showJourney && <Journey />}{content.showJourney && <PayloadComparison />}
+      {content.sections.map(([title, body]) => <section key={title} className="border-t border-line-soft pt-7"><h3 className="text-[20px] font-bold text-ink">{title}</h3><p className="measure mt-3 text-[14px] leading-[1.9] text-ink-3">{body}</p></section>)}
+      <footer className="flex flex-wrap gap-x-6 gap-y-3 border-t border-line-soft pt-6 text-[14px] font-medium text-accent">{content.links.map(([label, to]) => <Link key={to} to={to}>{label}</Link>)}</footer>
     </div>
   </article>;
 }

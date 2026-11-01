@@ -16,16 +16,28 @@ export interface ChangelogRelease {
 
 /**
  * 版本号由发布顺序唯一决定，不写进 changelog.json——同一份历史无论何时重算，结果都一致。
- * 无重大更新标记时整体按 1.0.x 编号兜底。
+ * releases 最新在前（i 越小越新）。时间从旧到新扫一遍，每个 major 条目开启一个大版本：
+ * 第一个里程碑是 2.0.0，之后每个新里程碑主版本加一（3.0.0、4.0.0……）。
+ * 一个时代 = 里程碑 + 比它新、直到下一个里程碑之前的所有条目；时代内修订号按时间先后
+ * 递增（里程碑 0，它下一条 1，再下一条 2……最新一条最大）。首个里程碑之前的条目从
+ * 1.0.0（最旧）按时间先后递增。
  */
 export function withVersionNumbers(data: { latestVersion: string; releases: ChangelogRelease[] }) {
   const total = data.releases.length;
-  const majorIdx = data.releases.findIndex((r) => r.major);
-  const releases = data.releases.map((r, i) => ({
-    ...r,
-    version: majorIdx < 0 ? `1.0.${total - 1 - i}` : i === majorIdx ? "2.0.0" : i < majorIdx ? `2.0.${majorIdx - i}` : `1.0.${total - 1 - i}`,
-  }));
-  return { latestVersion: data.latestVersion, releases };
+  const versions = new Array<string>(total).fill("1.0.0");
+  // 时间升序遍历：i 从 total-1（最旧）到 0（最新）
+  let era = 1; // 里程碑前是 1.x；每遇一个里程碑 +1（第一个里程碑 → 2.0.0）
+  let patch = -1; // 当前时代内已编号的条目数
+  for (let i = total - 1; i >= 0; i--) {
+    if (data.releases[i]?.major) {
+      era += 1;
+      patch = 0;
+    } else {
+      patch += 1;
+    }
+    versions[i] = `${era}.0.${patch}`;
+  }
+  return { latestVersion: data.latestVersion, releases: data.releases.map((r, i) => ({ ...r, version: versions[i] })) };
 }
 
 let changelogCache: { mtimeMs: number; data: { latestVersion: string; releases: ChangelogRelease[] } } | null = null;
