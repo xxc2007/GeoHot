@@ -3,14 +3,14 @@ import { spawn, execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { parseArgs } from "node:util";
 import { createHash, randomUUID } from "node:crypto";
-import { readFileSync, writeFileSync, mkdirSync, openSync, closeSync, unlinkSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, openSync, closeSync, unlinkSync, createWriteStream, type WriteStream } from "node:fs";
 import path from "node:path";
 import { freemem } from "node:os";
 import { assistEligible } from "../packages/backend/src/operations/extraction-assist.ts";
 
 const exec = promisify(execFile);
 const root = path.resolve(import.meta.dirname, "..");
-const { values } = parseArgs({ options: { config: { type: "string" }, "run-seconds": { type: "string" } } });
+const { values } = parseArgs({ options: { config: { type: "string" }, "run-seconds": { type: "string" }, slots: { type: "string" } } });
 if (!values.config) throw new Error("--config must name a private JSON file outside the repository");
 const configPath = path.resolve(values.config);
 if (configPath === root || configPath.startsWith(root + path.sep)) throw new Error("Keep private helper configuration outside the repository");
@@ -22,6 +22,18 @@ const stateDirectory = path.resolve(config.stateDirectory);
 if (stateDirectory === root || stateDirectory.startsWith(root + path.sep)) throw new Error("Keep helper state outside the repository");
 const duration = values["run-seconds"] === undefined ? 0 : Number(values["run-seconds"]);
 if (!Number.isInteger(duration) || duration < 0 || duration > 600) throw new Error("Finite trial must be between 1 and 600 seconds; omit for read-only check");
+// Slots are separate single-slot worker processes: the backend asserts one slot and one pooled
+// connection per process (extraction-assist.ts), and pg-boss's SKIP LOCKED claim keeps two processes
+// from taking the same job. Cap of 2 mirrors the 2026-11-01 second authorization; more needs fresh
+// PSI-clean weeks on the server. Default stays 1 so every existing caller behaves as before.
+const slotCount = values.slots === undefined ? 1 : Number(values.slots);
+if (!Number.isInteger(slotCount) || slotCount < 1 || slotCount > 2) throw new Error("--slots must be 1 or 2");
+// Child diagnostics and per-child bookkeeping; all child log files live inside the validated state
+// directory and carry only digits in their names, so no path fragment ever reaches open().
+const children: Array<ReturnType<typeof spawn>> = [];
+const childExits: Array<Promise<number | null>> = [];
+const childLogs: WriteStream[] = [];
+let childExited: Promise<number | null> | undefined;
 if (process.platform !== "win32") throw new Error("This supervisor currently verifies Windows AC power only");
 const sshArgs = ["-i", config.identityFile, "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", "-o", "ServerAliveInterval=5",
   "-o", "ServerAliveCountMax=2", "-o", `HostKeyAlias=${config.hostKeyAlias}`];
@@ -74,7 +86,6 @@ closeSync(lockFd);
 let child: ReturnType<typeof spawn> | undefined;
 let tunnel: ReturnType<typeof spawn> | undefined;
 let tunnelExited: Promise<void> | undefined;
-let childExited: Promise<number | null> | undefined;
 let stop = false;
 const progress = { handled: 0, fullBodiesStored: 0, handedBack: 0 };
 for (const signal of ["SIGINT", "SIGTERM"] as const) process.on(signal, () => { stop = true; });
@@ -108,6 +119,18 @@ try {
   const evidence = await sample();
   if (stop || !assistEligible(evidence)) throw new Error("Admission closed before worker startup");
   writeFileSync(lease, JSON.stringify(evidence), { mode: 0o600 });
+  // One shared admission lease, one SSH tunnel, N independent single-slot worker processes. Each child
+  // logs to its own diagnostics file under the state directory; the file name is built only from a
+  // date stamp and the loop counter, and the confinement guard below fails closed.
+  for (let slot = 1; slot <= slotCount; slot++) {
+    const stamp = new Date().toISOString().slice(0, 10).replaceAll("-", "");
+    const childLogName = "assist-child-" + stamp + "-" + slot + ".log";
+    if (!/^assist-child-\d{8}-\d+\.log$/.test(childLogName)) throw new Error("Child log name must match the whitelist");
+    const childLogPath = stateDirectory + path.sep + childLogName;
+    if (!childLogPath.startsWith(stateDirectory + path.sep)) throw new Error("Child log path escaped the state directory");
+    const childLog = createWriteStream(childLogPath, { flags: "a", mode: 0o600 });
+    childLogs.push(childLog);
+    childLog.write(new Date().toISOString() + " child slot " + slot + "/" + slotCount + " starting (release " + release + ")\n");
   child = spawn(process.execPath, ["apps/worker/src/main.ts"], { cwd: root, windowsHide: true, stdio: ["ignore", "pipe", "pipe", "ipc"],
     env: { SystemRoot: process.env.SystemRoot, PATH: process.env.PATH, TEMP: process.env.TEMP, TMP: process.env.TMP,
       DATABASE_URL: database.toString(), DATABASE_POOL_MAX: "1", PGBOSS_POOL_MAX: "1", EXTRACT_CONCURRENCY: "1",
@@ -115,18 +138,23 @@ try {
       NODE_ENV: "production", AIHOT_ENVIRONMENT: "production", SITE_URL: "https://xxc2007.me/geohot", TZ: "Asia/Shanghai",
       AIHOT_RELEASE: release, AIHOT_CREDENTIALS_DIR: path.join(config.stateDirectory, `no-credentials-${randomUUID()}`), GEOHOT_ASSIST_LEASE_FILE: lease,
       FEISHU_CONTENT_PUSH_ENABLED: "false", INDEXNOW_SUBMIT_ENABLED: "false", ALLOW_PRIVATE_NETWORK_FETCH: "false" } });
-  child.stdout!.resume(); child.stderr!.resume();
-  childExited = new Promise(resolve => {
-    child!.once("exit", code => { if (!stop) exitCode = 3; stop = true; resolve(code); });
-    child!.once("error", () => { stop = true; resolve(1); });
-  });
-  child.on("message", message => {
-    if (message && typeof message === "object" && "type" in message && message.type === "geohot:extracted" && "state" in message) {
-      progress.handled++;
-      if (message.state === "ok") progress.fullBodiesStored++;
-      if (message.state === "server-fallback") progress.handedBack++;
-    }
-  });
+    child.stdout!.pipe(childLog, { end: false });
+    child.stderr!.pipe(childLog, { end: false });
+    const current: ReturnType<typeof spawn> = child;
+    childExits.push(new Promise(resolve => {
+      current.once("exit", code => { if (!stop) exitCode = 3; resolve(code); });
+      current.once("error", () => { stop = true; resolve(1); });
+    }));
+    current.on("message", message => {
+      if (message && typeof message === "object" && "type" in message && message.type === "geohot:extracted" && "state" in message) {
+        progress.handled++;
+        if (message.state === "ok") progress.fullBodiesStored++;
+        if (message.state === "server-fallback") progress.handedBack++;
+      }
+    });
+    children.push(current);
+  }
+  childExited = childExits.length ? Promise.all(childExits).then(codes => codes.every(code => code === 0) ? 0 : 3) : undefined;
   const until = Date.now() + duration * 1000;
   while (!stop && Date.now() < until) {
     await pause(5000);
@@ -140,14 +168,15 @@ try {
 } finally {
   stop = true;
   try { writeFileSync(lease, "{}", { mode: 0o600 }); } catch { exitCode = 3; }
-  if (child && child.exitCode === null && child.connected) child.send({ type: "geohot:shutdown" }, () => {});
+  for (const child of children) if (child.exitCode === null && child.connected) child.send({ type: "geohot:shutdown" }, () => {});
   if (childExited) {
     let timeout: NodeJS.Timeout | undefined;
     const result = await Promise.race([childExited.then(code => ({ code })), new Promise<null>(resolve => { timeout = setTimeout(() => resolve(null), 275_000); })]);
     clearTimeout(timeout);
-    if (!result) { child!.kill(); await childExited; exitCode = 3; }
+    if (!result) { for (const child of children) child.kill(); await childExited; exitCode = 3; }
     else if (result.code !== 0) exitCode = 3;
   }
+  for (const childLog of childLogs) childLog.end();
   tunnel?.kill(); if (tunnelExited) await tunnelExited;
   if (fenceAttempted && !fenced) exitCode = 3; // Do not automatically retry an uncertain acquisition.
   if (fenced && exitCode !== 3) {
