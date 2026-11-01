@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$Config, [switch]$Remove)
+param([Parameter(Mandatory=$true)][string]$Config, [int]$SlotCount = 1, [switch]$Remove)
 $ErrorActionPreference = 'Stop'
 $taskName = 'GEOHOT-Safe-Extraction-Assist'
 if ($Remove) {
@@ -14,11 +14,13 @@ $statePath = [IO.Path]::GetFullPath($privateConfig.stateDirectory)
 if ($statePath -eq $repoPath -or $statePath.StartsWith($repoPath + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { throw 'State must be outside the repository.' }
 if ($configPath.Contains('"') -or $repoPath.Contains('"')) { throw 'Unsupported quote in path.' }
 Get-Command node.exe | Out-Null
+if ($SlotCount -lt 1 -or $SlotCount -gt 2) { throw 'SlotCount must be 1 or 2; more slots need fresh PSI-clean weeks on the server.' }
 $runnerPath = Join-Path $repoPath 'scripts/run-workstation-assist.ps1'
-$action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument ('-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "{0}" -Config "{1}"' -f $runnerPath,$configPath) -WorkingDirectory $repoPath
+$slotsArg = if ($SlotCount -gt 1) { ' --slots {0}' -f $SlotCount } else { '' }
+$action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument ('-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "{0}" -Config "{1}"{2}' -f $runnerPath,$configPath,$slotsArg) -WorkingDirectory $repoPath
 $logon = New-ScheduledTaskTrigger -AtLogOn -User ([Security.Principal.WindowsIdentity]::GetCurrent().Name)
 $periodic = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 5)
 $settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -StartWhenAvailable -RunOnlyIfNetworkAvailable -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Minutes 20)
 $principal = New-ScheduledTaskPrincipal -UserId ([Security.Principal.WindowsIdentity]::GetCurrent().Name) -LogonType Interactive -RunLevel Limited
-Register-ScheduledTask -TaskName $taskName -Action $action -Trigger @($logon,$periodic) -Settings $settings -Principal $principal -Description 'Bounded single-slot public body extraction. Server remains independent. Maintenance ownership and resource gates fail closed.' -Force | Out-Null
-Write-Output ('Installed {0}; current-user logon and five-minute eligibility retries, overlapping sessions ignored.' -f $taskName)
+Register-ScheduledTask -TaskName $taskName -Action $action -Trigger @($logon,$periodic) -Settings $settings -Principal $principal -Description ('Bounded {0}-slot public body extraction. Server remains independent. Maintenance ownership and resource gates fail closed.' -f $SlotCount) -Force | Out-Null
+Write-Output ('Installed {0}; current-user logon and five-minute eligibility retries, overlapping sessions ignored, {1} slot(s).' -f $taskName,$SlotCount)
