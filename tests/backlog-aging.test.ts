@@ -10,7 +10,8 @@ import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import { closeDb, sql } from "@aihot/backend/db";
 import { getBoss, stopBoss, ensureQueue, QUEUES } from "@aihot/backend/jobs/queue";
-import { ageStaleLiveJobs } from "@aihot/backend/jobs/content";
+import { ageStaleLiveJobs, agingBandPriority } from "@aihot/backend/jobs/content";
+import { realTimePriority } from "@aihot/backend/operations/resource-budget";
 
 const T = tag();
 const JOB = QUEUES.analyze;
@@ -73,28 +74,40 @@ test("old live jobs lift to the water line; fresh keeps its own; backfill yields
   }
 });
 
-test("aging batch is bounded: a fresh arrival surfaces after one band, not the whole backlog", async () => {
+test("aging band sits under the live line: a fresh arrival always outranks the band", async () => {
   const boss = await getBoss();
   process.env.GEOHOT_RESOURCE_PROFILE = "balanced";
   try {
-    // 2026-11-02 生产实测：每 tick 把 500 个最老任务抬到水位，消费只有 ~25-50/h，队首老化带
-    // 常驻压住新文章（两小时完成的 57 个分析全部是 older 组，fresh<8h 为 0）。批量缩到 25 后，
-    // 认领顺序必须是：有界老化带 → 新到任务 → 未抬升的旧尾。
+    // 2026-11-02 生产实测（两轮）：每 tick 把最老任务抬到"当前水位"——每个新 tick 的带都精确落在
+    // 全部已入队任务（含新文章）之上，积压 5100 条按 created_on 过带，读者面滞后 ≈ 积压/速率 ≈ 40h。
+    // 04:05 部署 lifted=25 后复测仍如此（26 个完成全是 older 组）。带必须落在 48h 活新闻线之下
+    // （water − 2×2880 分钟），且只升不降（`priority < band` 才有资格）：新文章、刚入队的任务
+    // （优先级=当时水位）永远在带上方，先于旧任务被服务。
     await ensureQueue(QUEUES.analyze);
+    const water = realTimePriority({ historical: false, archive: false, signal: false, observedAt: Date.now() });
     const stale = [];
     for (let i = 0; i < 30; i++) stale.push(await insertJob(100 + i, 5, `stale-${i}`));
-    await insertJob(2_000_000, 0.5, "fresh");
+    const fresh = await insertJob(water, 0.5, "fresh");
 
     const { lifted } = await ageStaleLiveJobs();
     assert.equal(lifted, 25, "exactly one bounded band is lifted when the backlog exceeds it");
 
+    const rows = await sql<{ id: string; priority: number }[]>`
+      SELECT id, priority FROM pgboss.job WHERE id IN (${stale[0]}, ${stale[1]}, ${stale[2]}, ${stale[3]}, ${stale[4]}, ${fresh})`;
+    const byId = new Map(rows.map((r) => [r.id, r.priority]));
+    const band = agingBandPriority(water);
+    assert.ok(band > 0 && band < water, "the band sits strictly under the live water line");
+    assert.equal(byId.get(stale[0]), band, "stale jobs lift to the band, not the water line");
+    assert.equal(byId.get(fresh), water, "fresh keeps its own (water-line) priority");
+
+    // Claim order: fresh (water) → bounded band (oldest created first) → un-lifted stale tail.
     const labels: Array<string | undefined> = [];
-    for (let i = 0; i < 26; i++) {
+    for (let i = 0; i < 27; i++) {
       const [job] = await boss.fetch<{ tag?: string; label?: string }>(JOB, { batchSize: 1 });
       labels.push(job?.data?.label);
     }
-    assert.ok(labels.slice(0, 25).every((l) => l?.startsWith("stale-")), "the band is stale jobs");
-    assert.equal(labels[25], "fresh", "fresh surfaces right after the bounded band");
+    assert.equal(labels[0], "fresh", "fresh outranks the band");
+    assert.ok(labels.slice(1, 26).every((l) => l?.startsWith("stale-")), "then the bounded band");
   } finally {
     delete process.env.GEOHOT_RESOURCE_PROFILE;
   }
