@@ -97,17 +97,32 @@ async function route(articleId: string, db: Db): Promise<Route | null> {
  * 生产实测（快照两轮读者面滞后 37→41h）：ops.recover 每 10 分钟抬 500 个，消费只有 ~25-50/h，
  * 队首 486+ 个 10-22~10-29 的旧任务常驻水位线上方；组合模式 IntakeBudget 并发上限 2-3、
  * BacklogShare 的历史分口又只认 48h+ 的任务，2h-48h 死区两头够不着——两小时内完成的 57 个分析
- * 全部是 older 组，新文章（fresh<8h）0 个被服务。批量缩到 25：抬升上限 150/h 仍高于消费能力
- * （旧任务不会饿死，只是贴着水位排空），新任务最多被压一个 tick（≤10 分钟）就回到队首。
+ * 全部是 older 组，新文章（fresh<8h）0 个被服务。
+ *
+ * 带的位置同样要紧（2026-11-02 04:05 部署 lifted=25 后生产复测补正）：把带抬到"当前水位"意味着
+ * 每个新 tick 的带都精确落在全部已入队任务之上——新文章的优先级是它入队那一刻的水位，带永远
+ * 比它高 2×tick 分钟数。积压 5100 条按 created_on 顺序过带（25/tick），读者面滞后 ≈ 积压/速率，
+ * 与观测的 40h 精确吻合，批量再小也只等比缩水。所以带必须落在"活新闻线"之下：与代码库其余
+ * 部分的 48h 衰减/历史分口（resource-budget.ts 的 isHistorical、BacklogShare 的 cutoff）同一条线
+ * ——water − 2×2880 分钟。带内资格 `priority < band` 只升不降：已在活线内的任务（新文章、
+ * 刚入队的）不会被降级，48h 以内的滞留旧任务仍按 created_on 顺序先于历史回填被服务。
+ * 不动 -1/-2 的历史/回填让行设计（resource-budget.ts）：`priority > 0` 把负优先级挡在外面；
+ * 非 balanced 档位下水位居 0，整个步骤按过滤条件自然空转。读者面不经过这两条队列，无感知。
  */
+const LIVE_LINE_MINUTES = 2880;
+
+export function agingBandPriority(water: number): number {
+  return Math.max(1, water - LIVE_LINE_MINUTES * 2);
+}
 export async function ageStaleLiveJobs(now = Date.now(), limit = 25): Promise<{ lifted: number }> {
   const water = realTimePriority({ historical: false, archive: false, signal: false, observedAt: now }, now);
+  const band = agingBandPriority(water);
   const rows = await sql<{ id: string }[]>`
-    UPDATE pgboss.job SET priority = ${water}
+    UPDATE pgboss.job SET priority = ${band}
     WHERE id IN (
       SELECT id FROM pgboss.job
       WHERE name IN (${QUEUES.analyze}, ${QUEUES.extractBody})
-        AND state = 'created' AND priority > 0 AND priority < ${water}
+        AND state = 'created' AND priority > 0 AND priority < ${band}
         AND created_on < now() - interval '2 hours'
       ORDER BY created_on
       LIMIT ${limit}
