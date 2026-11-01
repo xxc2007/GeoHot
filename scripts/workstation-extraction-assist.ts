@@ -48,7 +48,14 @@ if (process.platform !== "win32") throw new Error("This supervisor currently ver
 const sshArgs = ["-i", config.identityFile, "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", "-o", "ServerAliveInterval=5",
   "-o", "ServerAliveCountMax=2", "-o", `HostKeyAlias=${config.hostKeyAlias}`];
 const clean = await exec("git", ["status", "--porcelain", "--untracked-files=normal"], { cwd: root });
-if (clean.stdout.trim()) throw new Error("Refusing a dirty runtime checkout");
+if (clean.stdout.trim()) {
+  // 静默死守则：这里曾是裸 throw，报错发生在 PS 包装器写完 header 之后、任何日志行之前，
+  // 一次部署残留就能让计划任务连静默失败几十轮（2026-11-01 实测 83 轮）。改为把脏文件名
+  // 打进 stdout（PS 包装器会落盘），值班的人 grep 一次就能定位；仍然拒启——脏运行时是
+  // 哈希清单完整性检查的前提，不脏才跑。
+  console.log(JSON.stringify({ mode: duration ? "finite-trial" : "read-only", release: null, eligible: false, error: "Refusing a dirty runtime checkout", dirty: clean.stdout.trim().split(/\r?\n/).slice(0, 10) }));
+  process.exit(duration ? 2 : 0);
+}
 const release = (await exec("git", ["rev-parse", "HEAD"], { cwd: root })).stdout.trim();
 const files = (await exec("git", ["ls-files", "apps/worker/src", "packages/backend/src", "packages/contracts/src", "industry", "package-lock.json"], { cwd: root })).stdout.trim().split(/\r?\n/)
   .filter(file => /\.(ts|json|md)$/.test(file));

@@ -7,13 +7,17 @@ export function assistEligible(value: unknown, now = Date.now()): boolean {
   if (!value || typeof value !== "object") return false;
   const s = value as Record<string, unknown>;
   const finite = (key: string) => typeof s[key] === "number" && Number.isFinite(s[key]);
+  // ioFull 放宽到 <60（2026-11-02）：IO 压力高时恰恰是积压最厚的时候，本机抽取走独立 SSH
+  // 通道、零模型调用，帮忙消化反而减轻服务器本地磁盘队列；读者体验的门（memoryFull、
+  // remoteFreeMiB、R115、维护锁、apiHealthy）一项不松。站长 2026-11-01/02 两次授权本机
+  // 侧门控按实况放宽，服务器侧保护不变。
   return ["at", "localFreeMiB", "remoteFreeMiB", "memoryFull", "ioFull"].every(finite)
     && now >= (s.at as number) && now - (s.at as number) <= 20_000
     && s.onAC === true && s.apiHealthy === true && s.workerAll === true && s.sourceMatches === true
     && s.maintenance === false && s.r115 === false
     && (s.localFreeMiB as number) >= 2048 && (s.remoteFreeMiB as number) >= 96
     && (s.memoryFull as number) >= 0 && (s.memoryFull as number) < 10
-    && (s.ioFull as number) >= 0 && (s.ioFull as number) < 30;
+    && (s.ioFull as number) >= 0 && (s.ioFull as number) < 60;
 }
 
 /** Keep X/SocialData jobs on the server; no paid-provider job is claimed by this helper. */
