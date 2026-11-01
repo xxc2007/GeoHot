@@ -91,8 +91,16 @@ async function route(articleId: string, db: Db): Promise<Route | null> {
  * 退出（水位每分钟涨 2，它们随之下沉、下个 tick 再次被捞起，始终贴着水位线竞争）。
  * 不动 -1/-2 的历史/回填让行设计（resource-budget.ts）：`priority > 0` 把负优先级挡在外面；
  * 非 balanced 档位下水位居 0，整个步骤按过滤条件自然空转。读者面不经过这两条队列，无感知。
+ *
+ * 每轮抬升的批量必须小于 tick 间的实际消费量，否则"老化带"自身压住新到任务：pg-boss 取任务按
+ * `priority desc`（plans.js 的 fetch ORDER BY），aging 又按 created_on 挑最老的 500 个——2026-11-02
+ * 生产实测（快照两轮读者面滞后 37→41h）：ops.recover 每 10 分钟抬 500 个，消费只有 ~25-50/h，
+ * 队首 486+ 个 10-22~10-29 的旧任务常驻水位线上方；组合模式 IntakeBudget 并发上限 2-3、
+ * BacklogShare 的历史分口又只认 48h+ 的任务，2h-48h 死区两头够不着——两小时内完成的 57 个分析
+ * 全部是 older 组，新文章（fresh<8h）0 个被服务。批量缩到 25：抬升上限 150/h 仍高于消费能力
+ * （旧任务不会饿死，只是贴着水位排空），新任务最多被压一个 tick（≤10 分钟）就回到队首。
  */
-export async function ageStaleLiveJobs(now = Date.now(), limit = 500): Promise<{ lifted: number }> {
+export async function ageStaleLiveJobs(now = Date.now(), limit = 25): Promise<{ lifted: number }> {
   const water = realTimePriority({ historical: false, archive: false, signal: false, observedAt: now }, now);
   const rows = await sql<{ id: string }[]>`
     UPDATE pgboss.job SET priority = ${water}
