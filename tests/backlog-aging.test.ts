@@ -9,7 +9,7 @@ import { tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import { closeDb, sql } from "@aihot/backend/db";
-import { getBoss, stopBoss, QUEUES } from "@aihot/backend/jobs/queue";
+import { getBoss, stopBoss, ensureQueue, QUEUES } from "@aihot/backend/jobs/queue";
 import { ageStaleLiveJobs } from "@aihot/backend/jobs/content";
 
 const T = tag();
@@ -37,6 +37,8 @@ test("old live jobs lift to the water line; fresh keeps its own; backfill yields
   const boss = await getBoss();
   process.env.GEOHOT_RESOURCE_PROFILE = "balanced";
   try {
+    // 单文件跑（不随全套 npm test 顺序经过会建队列行的其他测试）时 job_common 的 q_fkey 需要这一行存在。
+    await ensureQueue(QUEUES.analyze);
     const oldA = await insertJob(40, 5, "old-a");
     const oldB = await insertJob(60, 3, "old-b");
     const fresh = await insertJob(2_000_000, 0.5, "fresh");
@@ -66,6 +68,33 @@ test("old live jobs lift to the water line; fresh keeps its own; backfill yields
       labels.push(job?.data?.label);
     }
     assert.deepEqual(labels, ["old-a", "old-b", "fresh", "backfill-archive", "backfill-history"]);
+  } finally {
+    delete process.env.GEOHOT_RESOURCE_PROFILE;
+  }
+});
+
+test("aging batch is bounded: a fresh arrival surfaces after one band, not the whole backlog", async () => {
+  const boss = await getBoss();
+  process.env.GEOHOT_RESOURCE_PROFILE = "balanced";
+  try {
+    // 2026-11-02 生产实测：每 tick 把 500 个最老任务抬到水位，消费只有 ~25-50/h，队首老化带
+    // 常驻压住新文章（两小时完成的 57 个分析全部是 older 组，fresh<8h 为 0）。批量缩到 25 后，
+    // 认领顺序必须是：有界老化带 → 新到任务 → 未抬升的旧尾。
+    await ensureQueue(QUEUES.analyze);
+    const stale = [];
+    for (let i = 0; i < 30; i++) stale.push(await insertJob(100 + i, 5, `stale-${i}`));
+    await insertJob(2_000_000, 0.5, "fresh");
+
+    const { lifted } = await ageStaleLiveJobs();
+    assert.equal(lifted, 25, "exactly one bounded band is lifted when the backlog exceeds it");
+
+    const labels: Array<string | undefined> = [];
+    for (let i = 0; i < 26; i++) {
+      const [job] = await boss.fetch<{ tag?: string; label?: string }>(JOB, { batchSize: 1 });
+      labels.push(job?.data?.label);
+    }
+    assert.ok(labels.slice(0, 25).every((l) => l?.startsWith("stale-")), "the band is stale jobs");
+    assert.equal(labels[25], "fresh", "fresh surfaces right after the bounded band");
   } finally {
     delete process.env.GEOHOT_RESOURCE_PROFILE;
   }
