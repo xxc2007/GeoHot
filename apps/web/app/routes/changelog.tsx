@@ -159,10 +159,10 @@ export default function ChangelogPage() {
         <h1 className="text-[26px] font-bold leading-[1.3] text-ink">更新日志</h1>
         <p className="mt-2 text-[14px] text-ink-3">新功能、调整与修复，都写在这里。</p>
       </header>
-      {/* 三个大版本的专题卡：3.0、2.0 来自 changelog 的 major 条目；1.0 是建站回顾，
-          时代开启点在站内首条（2026-09-29），没有独立的 major 条目，这里按版本固定注入。 */}
-      <div className="mb-6 scroll-mt-6"><MajorRelease date="2026-10-01" time="22:40" /></div>
+      {/* 三个大版本的专题卡，固定 3.0 → 2.0 → 1.0（最新在最前）：3.0/2.0 来自 changelog 的
+          major 条目（groups 本就按日期倒序），1.0 是建站回顾、时代开启点在站内首条，固定排最后。 */}
       {majors.map((major) => <div key={`${major.date}-${major.time}`} className="mb-6 scroll-mt-6"><MajorRelease date={major.date} time={major.time} /></div>)}
+      <div className="mb-6 scroll-mt-6"><MajorRelease date="2026-10-01" time="22:40" /></div>
       {retired && (
         <p className="mb-5 rounded-control bg-bg-sunk px-4 py-3 text-[13px] leading-[1.7] text-ink-2">
           「{retired}」这一类已经并到现在的五种类型里，所以下面按全部给你看。
