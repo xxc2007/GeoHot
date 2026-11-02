@@ -10,7 +10,7 @@ test("helper admits only current, healthy samples; missing/stale/maintenance/pow
     apiHealthy: true, workerAll: true, sourceMatches: true, maintenance: false, r115: false };
   assert.equal(assistEligible(sample, now), true);
   for (const patch of [{ at: now - 21_000 }, { at: now + 1000 }, { onAC: false }, { localFreeMiB: 1000 },
-    { remoteFreeMiB: 50 }, { memoryFull: NaN }, { ioFull: 31 }, { apiHealthy: false },
+    { remoteFreeMiB: 50 }, { memoryFull: NaN }, { ioFull: 61 }, { apiHealthy: false },
     { workerAll: false }, { sourceMatches: false }, { maintenance: true }, { r115: true }]) {
     assert.equal(assistEligible({ ...sample, ...patch }, now), false, JSON.stringify(patch));
   }
