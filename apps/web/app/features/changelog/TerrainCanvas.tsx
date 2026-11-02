@@ -1,21 +1,33 @@
 import { useEffect, useRef } from "react";
 
 // Shared vector geometry for the static fallback and animated scan-line relief.
+// 字形在同一 viewBox（1000×260）里按版本平移组合：1.0 = 一 + 点 + 0；2.0 = 二 + 点 + 0；3.0 = 三 + 点 + 0。
+const ONE = "M459 40 H499 V86 H594 V121 H499 V200 H594 V235 H364 V200 H459 V121 H364 V86 H459 Z";
 const TWO = "M449 86 C450 36 475 12 518 12 C566 12 591 36 591 77 C591 114 567 140 535 165 L493 200 H594 V235 H445 V208 C445 174 474 151 512 120 C540 98 551 87 551 70 C551 53 540 43 523 43 C503 43 490 57 489 86 Z";
+const THREE = "M445 12 H596 V46 H494 V101 H584 V136 H494 V200 H596 V235 H445 V163 H536 C556 163 566 152 566 124 C566 96 556 85 536 85 H445 Z";
 const ZERO = "M733 12 C791 12 813 51 813 124 C813 198 791 239 733 239 C677 239 654 198 654 124 C654 51 677 12 733 12 Z M733 48 C706 48 696 71 696 124 C696 178 706 203 733 203 C760 203 771 178 771 124 C771 71 760 48 733 48 Z";
 const DOT = "M612 201 H642 V235 H612 Z";
 const ROWS = 43, COLS = 360, W = 1000, H = 260;
 
-function StillContours() {
+const GLYPHS: Record<string, string[]> = {
+  "1.0": [ONE, DOT, ZERO],
+  "2.0": [TWO, DOT, ZERO],
+  "3.0": [THREE, DOT, ZERO],
+};
+
+function StillContours({ version }: { version: string }) {
+  const paths = GLYPHS[version] ?? GLYPHS["2.0"]!;
   return <svg viewBox="0 0 1000 260" preserveAspectRatio="none" aria-hidden="true" className="major-terrain-fallback">
-    <defs><pattern id="major-lines" width="1000" height="5.5" patternUnits="userSpaceOnUse"><path d="M0 0H1000" stroke="currentColor" strokeWidth="1.2" /></pattern></defs>
+    <defs><pattern id={`major-lines-${version.replace(".", "-")}`} width="1000" height="5.5" patternUnits="userSpaceOnUse"><path d="M0 0H1000" stroke="currentColor" strokeWidth="1.2" /></pattern></defs>
     <g opacity=".2">{Array.from({ length: ROWS }, (_, i) => <path key={i} d={`M0 ${20 + i * 5.5}H1000`} stroke="currentColor" strokeWidth=".7" />)}</g>
-    <g fill="url(#major-lines)" fillRule="evenodd"><path d={TWO} /><path d={DOT} /><path d={ZERO} /></g>
+    <g fill={`url(#major-lines-${version.replace(".", "-")})`} fillRule="evenodd">{paths.map((d, i) => <path key={i} d={d} />)}</g>
   </svg>;
 }
 
-export function TerrainCanvas() {
+/** 版本大字的动态等高线地形画：地形由该版本的字形（1.0 / 2.0 / 3.0）掩膜生成。 */
+export function TerrainCanvas({ version = "2.0" }: { version?: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const glyphs = GLYPHS[version] ?? GLYPHS["2.0"]!;
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -26,7 +38,7 @@ export function TerrainCanvas() {
     const brush = mask.getContext("2d", { willReadFrequently: true });
     if (!brush) return;
     brush.fillStyle = "white"; brush.filter = "blur(2px)";
-    for (const path of [TWO, DOT, ZERO]) brush.fill(new Path2D(path), "evenodd");
+    for (const path of glyphs) brush.fill(new Path2D(path), "evenodd");
     const pixels = brush.getImageData(0, 0, W, H).data;
     const relief = Array.from({ length: ROWS }, (_, row) => Float32Array.from({ length: COLS + 1 }, (_, col) => {
       const x = Math.min(W - 1, Math.round(col / COLS * W));
@@ -112,10 +124,11 @@ export function TerrainCanvas() {
       canvas.removeEventListener("pointermove", point); canvas.removeEventListener("pointerdown", point); canvas.removeEventListener("pointerleave", leave); canvas.removeEventListener("pointerup", leave); canvas.removeEventListener("pointercancel", leave); canvas.removeEventListener("keydown", key); canvas.removeEventListener("blur", leave);
       document.removeEventListener("visibilitychange", sync); media.removeEventListener("change", changed);
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- glyphs 由 version 唯一决定
+  }, [version]);
   return <div className="major-terrain-wrap"><div className="major-terrain">
-    <StillContours />
-    <canvas ref={canvasRef} tabIndex={0} role="img" aria-label="GEOHOT 2.0 动态等高线" />
+    <StillContours version={version} />
+    <canvas ref={canvasRef} tabIndex={0} role="img" aria-label={`GEOHOT ${version} 动态等高线`} />
     <span className="major-terrain-word" aria-hidden="true">GEOHOT</span>
   </div></div>;
 }
