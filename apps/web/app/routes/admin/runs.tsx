@@ -186,7 +186,9 @@ export default function RunsAdmin({ loaderData }: Route.ComponentProps) {
             columns={[
               { key: "id", label: "回执", render: (x) => <span className="num">#{x.id}</span> },
               { key: "s", label: "状态", render: (x) => <Badge tone={x.status === "unknown" ? "bad" : "warn"}>{x.status}</Badge> },
-              { key: "w", label: "服务", render: (x) => <span className="whitespace-nowrap">{x.service}{x.model ? ` · ${x.model}` : ""}</span> },
+              // model 存的是「service/model」全名：前缀与 service 相同时不再重复拼一遍（截图里
+              // 「qoder-cn · qoder-cn/dfmodel」的观感问题）。
+              { key: "w", label: "服务", render: (x) => <span className="whitespace-nowrap">{x.service}{x.model && !x.model.startsWith(`${x.service}/`) ? ` · ${x.model}` : ""}</span> },
               { key: "p", label: "用途", render: (x) => (x.subject && /^[\w-]{10,}$/.test(x.subject) && x.purpose.includes("analy") ? <Link className="text-accent" to={`/admin/content/${x.subject}`}>{x.purpose}</Link> : x.purpose) },
               { key: "e", label: "错误", render: (x) => <span className="line-clamp-2 text-[12px] text-ink-3" title={x.error ?? ""}>{x.error}</span> },
               { key: "a", label: "", render: (x) => (x.status === "unknown" ? <Button size="sm" onClick={() => setReceipt(x)}>核对</Button> : null) },
