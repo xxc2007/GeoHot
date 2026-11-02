@@ -145,7 +145,9 @@ try {
   });
   await pause(1000);
   // worker 启动前不再重复资格判定（理由同上）；写租约用首检证据，运行中循环马上会接手刷新。
-  writeFileSync(lease, first, { mode: 0o600 });
+  // 注意 writeFileSync 只收 string/Buffer——first 是对象，必须序列化（PR #91 曾在这里抛
+  // "data argument must be of type string"，被裸 catch 吞成 handled=0）。
+  writeFileSync(lease, JSON.stringify(first), { mode: 0o600 });
   // One shared admission lease, one SSH tunnel, N independent single-slot worker processes. Each child
   // logs to its own diagnostics file under the state directory; the file name is built only from a
   // date stamp and the loop counter, and the confinement guard below fails closed.
