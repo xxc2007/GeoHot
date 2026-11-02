@@ -103,8 +103,9 @@ export default function ChangelogPage() {
   const retired = data.kind && !kind ? data.kind : null;
   const groups = new Map<string, Release[]>();
   for (const r of data.releases) if (!kind || r.kind === kind) groups.set(r.date, [...(groups.get(r.date) ?? []), r]);
-  // Pin the newest matching major once. Keep groups intact for month counts and stable date links.
-  const pinned = [...groups.values()].flat().find(release => release.major);
+  // 每个重大更新（major）一张置顶专题卡，最新在最上；有时间线卡片有专属组件，其余按通用重大更新卡渲染。
+  // Keep groups intact for month counts and stable date links.
+  const majors = [...groups.values()].flat().filter(release => release.major);
   // Month → the newest date shown in it (the jump target) and how many entries it holds.
   const months = new Map<string, { first: string; count: number }>();
   for (const [date, releases] of groups) {
@@ -158,7 +159,10 @@ export default function ChangelogPage() {
         <h1 className="text-[26px] font-bold leading-[1.3] text-ink">更新日志</h1>
         <p className="mt-2 text-[14px] text-ink-3">新功能、调整与修复，都写在这里。</p>
       </header>
-      {pinned && <div className="mb-6 scroll-mt-6" id={groups.get(pinned.date)?.length === 1 ? `d-${pinned.date}` : undefined}><MajorRelease date={pinned.date} time={pinned.time} /></div>}
+      {/* 三个大版本的专题卡：3.0、2.0 来自 changelog 的 major 条目；1.0 是建站回顾，
+          时代开启点在站内首条（2026-09-29），没有独立的 major 条目，这里按版本固定注入。 */}
+      <div className="mb-6 scroll-mt-6"><MajorRelease date="2026-10-01" time="22:40" /></div>
+      {majors.map((major) => <div key={`${major.date}-${major.time}`} className="mb-6 scroll-mt-6"><MajorRelease date={major.date} time={major.time} /></div>)}
       {retired && (
         <p className="mb-5 rounded-control bg-bg-sunk px-4 py-3 text-[13px] leading-[1.7] text-ink-2">
           「{retired}」这一类已经并到现在的五种类型里，所以下面按全部给你看。
@@ -166,7 +170,7 @@ export default function ChangelogPage() {
       )}
       <div className="space-y-4">
         {[...groups.entries()].map(([date, releases]) => {
-          const remaining = releases.filter(release => release !== pinned);
+          const remaining = releases.filter(release => !majors.includes(release));
           if (!remaining.length) return null;
           const h = dateHeading(date);
           return (
