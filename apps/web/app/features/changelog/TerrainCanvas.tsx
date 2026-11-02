@@ -1,35 +1,41 @@
 import { useEffect, useRef } from "react";
 
-// Shared vector geometry for the static fallback and animated scan-line relief.
-// 字形全部对齐原版 TWO 的骨架：笔画宽 ~40，字面 12..235，与 ZERO（733 圆环）同基线；DOT 是「.」。
-// 1 = 顶部斜旗 + 竖笔 + 全宽底座；2 = 原版（勿动）；3 = 三条左对齐横带 + 右端双圆钩（外轮廓一笔画，
-// 无自交——even-odd 填充下自交会扣出空洞，第一版 THREE 就栽在这）。几何已用扫描线栅格化逐行验证。
-const ONE = "M449 12 H509 L509 86 H594 V121 H509 V200 H594 V235 H364 V200 H469 V86 H449 Z";
-const TWO = "M449 86 C450 36 475 12 518 12 C566 12 591 36 591 77 C591 114 567 140 535 165 L493 200 H594 V235 H445 V208 C445 174 474 151 512 120 C540 98 551 87 551 70 C551 53 540 43 523 43 C503 43 490 57 489 86 Z";
-const THREE = "M449 12 H594 V235 H449 V200 H549 C558 200 561 194 561 168 C561 142 558 136 549 136 H494 V105 H549 C558 105 561 99 561 79 C561 53 558 47 549 47 H449 Z";
-const ZERO = "M733 12 C791 12 813 51 813 124 C813 198 791 239 733 239 C677 239 654 198 654 124 C654 51 677 12 733 12 Z M733 48 C706 48 696 71 696 124 C696 178 706 203 733 203 C760 203 771 178 771 124 C771 71 760 48 733 48 Z";
-const DOT = "M612 201 H642 V235 H612 Z";
+// 版本大字的掩膜生成：直接用系统无衬线粗体把版本号文本画进离屏画布，与 2.0 原版地形画同源
+//（2.0 的字形轮廓本质就是字体形状）。不再手写字形路径——1.0 画成「土」、3.0 扭成 E 形的教训
+//（2026-11-02 两次返工）：手写贝塞尔轮廓对不上标准字形，字体渲染永远是对的。
+// 布局：文本右对齐到 x=813（原版 0 的右缘），基线 y=239（原版 0 的底），大写字高约 227px，
+// 字号按文本宽度反推，保证 1.0/2.0/3.0 乃至未来的 4.0 都落在同一构图框里。
 const ROWS = 43, COLS = 360, W = 1000, H = 260;
+const TEXT_RIGHT = 813, BASELINE = 239, TARGET_HEIGHT = 227;
 
-const GLYPHS: Record<string, string[]> = {
-  "1.0": [ONE, DOT, ZERO],
-  "2.0": [TWO, DOT, ZERO],
-  "3.0": [THREE, DOT, ZERO],
-};
+function buildMask(version: string, brush: OffscreenCanvasRenderingContext2D | CanvasRenderingContext2D): void {
+  // 先以基准字号量宽，再缩放到目标高度（cap-height ≈ 0.72 × font-size，用 actualBoundingBox 实测更准）
+  const probe = 200;
+  brush.clearRect(0, 0, W, H);
+  brush.font = `900 ${probe}px system-ui, "Segoe UI", "Helvetica Neue", Arial, sans-serif`;
+  const m = brush.measureText(version);
+  const capHeight = m.actualBoundingBoxAscent > 0 ? m.actualBoundingBoxAscent : probe * 0.72;
+  const size = Math.round(probe * (TARGET_HEIGHT / capHeight));
+  brush.font = `900 ${size}px system-ui, "Segoe UI", "Helvetica Neue", Arial, sans-serif`;
+  brush.textAlign = "right";
+  brush.textBaseline = "alphabetic";
+  brush.fillStyle = "white";
+  brush.fillText(version, TEXT_RIGHT, BASELINE);
+}
 
 function StillContours({ version }: { version: string }) {
-  const paths = GLYPHS[version] ?? GLYPHS["2.0"]!;
+  // 静态回落：直接用同样的字体画文本（SVG <text>），动画不可用时观感一致。
+  const fontSize = Math.round(TARGET_HEIGHT / 0.72);
   return <svg viewBox="0 0 1000 260" preserveAspectRatio="none" aria-hidden="true" className="major-terrain-fallback">
     <defs><pattern id={`major-lines-${version.replace(".", "-")}`} width="1000" height="5.5" patternUnits="userSpaceOnUse"><path d="M0 0H1000" stroke="currentColor" strokeWidth="1.2" /></pattern></defs>
     <g opacity=".2">{Array.from({ length: ROWS }, (_, i) => <path key={i} d={`M0 ${20 + i * 5.5}H1000`} stroke="currentColor" strokeWidth=".7" />)}</g>
-    <g fill={`url(#major-lines-${version.replace(".", "-")})`} fillRule="evenodd">{paths.map((d, i) => <path key={i} d={d} />)}</g>
+    <text x={TEXT_RIGHT} y={BASELINE} textAnchor="end" fontFamily='system-ui, "Segoe UI", "Helvetica Neue", Arial, sans-serif' fontWeight="900" fontSize={fontSize} fill={`url(#major-lines-${version.replace(".", "-")})`}>{version}</text>
   </svg>;
 }
 
-/** 版本大字的动态等高线地形画：地形由该版本的字形（1.0 / 2.0 / 3.0）掩膜生成。 */
+/** 版本大字的动态等高线地形画：地形由该版本号的字体掩膜生成（1.0 / 2.0 / 3.0 …通用）。 */
 export function TerrainCanvas({ version = "2.0" }: { version?: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const glyphs = GLYPHS[version] ?? GLYPHS["2.0"]!;
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -39,8 +45,7 @@ export function TerrainCanvas({ version = "2.0" }: { version?: string }) {
     const mask = document.createElement("canvas"); mask.width = W; mask.height = H;
     const brush = mask.getContext("2d", { willReadFrequently: true });
     if (!brush) return;
-    brush.fillStyle = "white"; brush.filter = "blur(2px)";
-    for (const path of glyphs) brush.fill(new Path2D(path), "evenodd");
+    buildMask(version, brush);
     const pixels = brush.getImageData(0, 0, W, H).data;
     const relief = Array.from({ length: ROWS }, (_, row) => Float32Array.from({ length: COLS + 1 }, (_, col) => {
       const x = Math.min(W - 1, Math.round(col / COLS * W));
@@ -126,7 +131,7 @@ export function TerrainCanvas({ version = "2.0" }: { version?: string }) {
       canvas.removeEventListener("pointermove", point); canvas.removeEventListener("pointerdown", point); canvas.removeEventListener("pointerleave", leave); canvas.removeEventListener("pointerup", leave); canvas.removeEventListener("pointercancel", leave); canvas.removeEventListener("keydown", key); canvas.removeEventListener("blur", leave);
       document.removeEventListener("visibilitychange", sync); media.removeEventListener("change", changed);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- glyphs 由 version 唯一决定
+    // 掩膜只依赖 version；fonts.ready 后重画一次，避免首帧字体未加载量宽偏差。
   }, [version]);
   return <div className="major-terrain-wrap"><div className="major-terrain">
     <StillContours version={version} />
