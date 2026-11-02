@@ -10,6 +10,7 @@ RUN apt-get update \
 FROM base AS build
 ARG NPM_REGISTRY=
 COPY package.json package-lock.json ./
+COPY scripts/patch-embedded-pg.mjs scripts/patch-embedded-pg.mjs
 COPY apps/api/package.json apps/api/
 COPY apps/web/package.json apps/web/
 COPY apps/worker/package.json apps/worker/
