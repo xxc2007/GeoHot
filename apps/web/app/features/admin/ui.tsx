@@ -107,7 +107,7 @@ export function DataTable<T>({ rows, columns, rowKey, empty = "暂无数据", on
     <div className="admin-table-region min-w-0">
       <p className="admin-table-hint">左右滑动查看完整表格</p>
       <div className="admin-table-scroll overflow-x-auto" role="region" aria-label="数据表，可左右滑动查看完整列" tabIndex={0}>
-      <table className="w-full min-w-[640px] border-collapse text-left text-[13px]">
+      <table className="w-full max-w-full min-w-[640px] border-collapse text-left text-[13px]">
         <thead>
           <tr className="border-b border-line text-[12px] text-ink-3">
             {columns.map((c) => (

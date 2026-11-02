@@ -13,6 +13,11 @@
 .admin-table-scroll { width: 100%; scrollbar-width: thin; }
 .admin-table-scroll:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .admin-table-hint { display: none; }
+/* 桌面端也压得住：grid 双列布局下（xl:grid-cols-2），服务名 nowrap + 长错误文本会把表格
+   沿 grid 轨道撑出卡片、滚动条落到视口外（runs 页回执表实测 2026-11-02）。卡片建立
+   overflow hidden 的格式化上下文把撑破收掉，表格在卡内横向滚动；单元格长文本允许断行。 */
+.admin-card { overflow: hidden; }
+.admin-card td { overflow-wrap: anywhere; }
 @media (max-width: 767px) {
   .admin-page > header, .admin-card-header { overflow-wrap: anywhere; }
   .admin-page > header > *, .admin-card > div { min-width: 0; max-width: 100%; }
