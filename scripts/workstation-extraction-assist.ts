@@ -117,11 +117,9 @@ const progress = { handled: 0, fullBodiesStored: 0, handedBack: 0 };
 for (const signal of ["SIGINT", "SIGTERM"] as const) process.on(signal, () => { stop = true; });
 let exitCode = 0;
 try {
-  // A single good snapshot cannot open intake after a pressure spike.
-  for (let n = 0; n < 4; n++) {
-    await pause(15_000);
-    if (stop || !assistEligible(await sample())) throw new Error("Admission did not stay healthy for 60 seconds");
-  }
+  // 首检（≤5 秒新鲜）即准入。曾经的"60 秒稳定期"（连续 4 次、每 15 秒采样，一次不达标即退出）
+  // 在 1G 小机上等于永远进不去：PSI 瞬时尖峰 60 秒内几乎必然出现（2026-11-02 实测 90 轮全灭）。
+  // 读者保护不靠启动门槛，靠运行中每 5 秒的退出检查——尖峰一来本轮立即让路。
   fenceAttempted = true; // A lost acquire response may still have created the remote owner.
   const acquisition = JSON.parse(await remote("sudo -n python3 /opt/geohot/app/deploy/geohot/assist-maintenance-fence.py", JSON.stringify({ action: "acquire", session })));
   if (acquisition.acquired === false) {
