@@ -256,7 +256,7 @@ async function readSick(): Promise<Set<string>> {
           OR a.error LIKE '%usage exceeds frequency limit%'
           OR a.error LIKE '%usage limit reached%'
           OR a.error LIKE '%您的使用量已超出频率限制%'
-          OR a.error LIKE '%额度已用尽%'
+          OR a.error LIKE '%额度已用尽%' OR a.error LIKE '%额度已用完%'
           OR a.error LIKE '%购买加量包%'
           OR a.error LIKE '%API 速率限制%')) AS quota_refusal,
                (a.status='failed' AND (a.error LIKE 'HTTP 401:%' OR a.error LIKE 'HTTP 403:%')) AS auth_refusal,
