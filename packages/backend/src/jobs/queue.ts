@@ -32,7 +32,11 @@ export const QUEUE_OPTIONS: Record<string, QueueOptions> = {
   // 于是同一条目可能被再跑一遍（钱花两次），或者干脆留在"分析过但没有投影"的缝里。
   [QUEUES.analyze]: { policy: "short", retryLimit: 4, retryDelay: 30, retryBackoff: true, expireInSeconds: 1500 },
   [QUEUES.extractBody]: { policy: "short", retryLimit: 2, retryDelay: 120, expireInSeconds: 300 },
-  [QUEUES.group]: { policy: "short", retryLimit: 4, retryDelay: 20, retryBackoff: true, expireInSeconds: 600 },
+  // 归组的最坏付费链：一次 judgeBatch 批判 + 低分候选逐个 confirmMerge（候选上限 RECALL_TOP_FACTS=10，
+  // events/group.ts），单次 chatJson 上限 240 秒（providers/llm.ts）→ 最坏 11 × 240 = 2640 秒，
+  // 取 2700 留余量。原先 600 秒——与 analyze 队列同形状的事故：pg-boss 在付费调用还在跑时把任务
+  // 判死重投，同一批候选再买一次。部署后 updateQueue 的 drift 对齐机制会在启动时改掉存量队列。
+  [QUEUES.group]: { policy: "short", retryLimit: 4, retryDelay: 20, retryBackoff: true, expireInSeconds: 2700 },
   [QUEUES.digest]: { policy: "short", retryLimit: 3, retryDelay: 60, retryBackoff: true, expireInSeconds: 900 },
   [QUEUES.fetchSource]: { policy: "short", retryLimit: 0, expireInSeconds: 600 },
   [QUEUES.fetchXShard]: { policy: "short", retryLimit: 0, expireInSeconds: 900 },

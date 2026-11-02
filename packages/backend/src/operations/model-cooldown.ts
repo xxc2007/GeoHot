@@ -16,7 +16,9 @@ export class ModelCooldown {
   private generation = 0;
   begin(): number { return this.generation; }
   reject(service: string, model: string, status: number, message: string, now = Date.now()): void {
-    if (status === 401 || status === 403 || status >= 400 && status < 600 && (QUOTA.test(message) || CONFIG.test(message))) {
+    // 402 与 401/403 同为确定性拒绝（额度/付费墙，如 Loomy「积分余额不足」），不依赖消息正则——
+    // 余额类文案千变万化，命中率永远追不上。命中即冷却一小时，不进 10 分钟失败率窗的复烧循环。
+    if (status === 401 || status === 402 || status === 403 || status >= 400 && status < 600 && (QUOTA.test(message) || CONFIG.test(message))) {
       this.until.set(`${service}|${model}`, { until: now + HOUR, generation: ++this.generation });
     }
   }

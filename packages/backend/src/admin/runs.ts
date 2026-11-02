@@ -179,7 +179,13 @@ async function release(id: number, error: string, actor: string, note: string, b
     const groupRequeued = groupArticle ? !!(await enqueue(QUEUES.group,
       { articleId: groupArticle, force: true, ...(row.purpose === "group_signal" ? { signalOnly: true } : {}) },
       { singletonKey: groupArticle }, tx)) : false;
-    return { ...row, attemptId: attempt.id, billingStatus: attempt.billing_status, groupRequeued };
+    // 综述的调用 subject 是 `story:<id>@<报道数>`（digest.ts），释放后综述停在旧版/缺失：
+    // 队列 3 次重试约 7 分钟就烧完，而自动放行要等 30 分钟，无人重排。与 admin/content.ts 的
+    // 手动重排同形（singletonKey `story:<id>`，digest 队列 retryLimit=3 封顶，不会无限转）。
+    const storyId = row.purpose === "story_digest"
+      ? /^story:(\d+)@/.exec(row.subject ?? "")?.[1] : undefined;
+    const digestRequeued = storyId ? !!(await enqueue(QUEUES.digest, { storyId }, { singletonKey: `story:${storyId}` }, tx)) : false;
+    return { ...row, attemptId: attempt.id, billingStatus: attempt.billing_status, groupRequeued, digestRequeued };
   });
   if (!before) return null;
   // 认 subject 的形状，不认 purpose：走文章处理链的调用 subject 都是 `article:<id>@…`，
@@ -196,6 +202,7 @@ async function release(id: number, error: string, actor: string, note: string, b
                           WHERE id = ${article} AND processing_state = 'failed' RETURNING id`;
     if (a) requeued = !!(await queueProcessing(article, { step: extraction ? "extract" : "analyze" }));
   }
+  if (before.digestRequeued) requeued = true;
   await audit(actor, "receipt.release", `receipt:${id}`, note, { status: "unknown" },
     { status: "failed", billed, billingStatus: before.billingStatus, attemptId: before.attemptId, requeued });
   return { id, status: "failed", subject: before.subject, purpose: before.purpose, requeued };

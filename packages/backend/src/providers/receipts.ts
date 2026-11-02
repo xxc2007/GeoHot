@@ -275,7 +275,11 @@ async function startAttempt(tx: Db, receiptId: number, attempt: number, req: Rec
 }
 
 async function markUnknown(tx: Db, receiptId: number, reason: string) {
-  await tx`UPDATE receipts SET status = 'unknown', error = ${reason}, updated_at = now() WHERE id = ${receiptId}`;
+  // `AND status = 'pending'`：只有还挂在占位上的收据才能被翻成 unknown。`markStalePendingReceipts`
+  // 先在事务外 SELECT 陈旧 pending 再逐个开事务翻转，中间若那笔付费请求正常完成（received），
+  // 无条件 UPDATE 会把一笔已收到答案的收据翻转成 unknown 制造毒行——与 paidRequest 内部
+  // 持行锁的同类翻转（status 判定后更新）同一个守卫。rowcount=0 时 attempts 的翻转也一并跳过。
+  await tx`UPDATE receipts SET status = 'unknown', error = ${reason}, updated_at = now() WHERE id = ${receiptId} AND status = 'pending'`;
   await tx`UPDATE receipt_attempts SET status = 'unknown', billing_status = CASE WHEN billing_status = 'reserved' THEN 'unknown' ELSE billing_status END,
            error = ${reason}, finished_at = now() WHERE receipt_id = ${receiptId} AND status = 'pending'`;
 }
