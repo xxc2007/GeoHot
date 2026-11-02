@@ -1,5 +1,8 @@
 // Immediate process-local overlay on the durable ledger health snapshot. No receipts are changed.
-const QUOTA = /free-models-per-day|insufficient_quota|exceeded your current quota|FreeTierError|今日文本额度已用完|额度已用尽|购买加量包/i;
+// 2026-11-02 生产实测（receipt_attempts 2h 37 次全失败）：autoclaw-cn 的 429 文案是「GLM-5.3 免费额度
+// 已用完,开通连续包月会员继续使用」——旧 matcher 只认「额度已用尽」（尽），不认「已用完」（完），
+// 这扇门就永远进不了一小时冷却，每次轮转都白烧一次调用。
+const QUOTA = /free-models-per-day|insufficient_quota|exceeded your current quota|FreeTierError|今日文本额度已用完|额度已用[尽完]|购买加量包/i;
 // 确定性配置拒绝，与 readSick 的 config_refusal（models.ts）同一口径：成员被上游停用（HTTP 404
 // "switched off in Magpie"，minimax-code-global 实测形态）或因稳定的参数原因被拒（HTTP 400 code
 // 11150 "reasoning effort value is not supported by the current model"，workbuddy-cn 实测形态）。
