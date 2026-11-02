@@ -190,9 +190,11 @@ try {
     if (stop || Date.now() >= until || !assistEligible(evidence)) { stop = true; break; }
     writeFileSync(lease, JSON.stringify(evidence), { mode: 0o600 });
   }
-} catch {
+} catch (error) {
   exitCode = 2;
-  console.log(JSON.stringify({ state: "admission-closed", resources: lastEvidence }));
+  // 之前裸 catch 吞掉错误消息：90 轮全灭时无法归因是 fence、凭据、隧道还是子进程哪一环。
+  // 把原因打进日志（PS 包装器会落盘），值班 grep 一次定位。
+  console.log(JSON.stringify({ state: "admission-closed", error: String((error as Error)?.message ?? error), resources: lastEvidence }));
 } finally {
   stop = true;
   try { writeFileSync(lease, "{}", { mode: 0o600 }); } catch { exitCode = 3; }
