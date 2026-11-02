@@ -50,6 +50,9 @@ async function build(readAt = new Date()): Promise<string> {
     listReports("monthly"),
   ]);
   const latestDaily = dailyIndex[0] ? { key: dailyIndex[0].key, t: new Date(dailyIndex[0].generatedAt) } : null;
+  // 首页/列表卡的 lastmod 时钟。放行门（releasedCondition）一律用本构建的 readAt：同文件里 items
+  // 查询已经这么用（见下），stories 曾用 `now`（= latestItem.t，最新精选条的过去时刻）——
+  // visible_after 落在两者之间的故事页这轮构建不列，下一轮才列，双钟口径归一。
   const now = latestItem?.t ?? new Date();
   entries.push(
     { loc: "/", lastmod: now, changefreq: "hourly", priority: 1 },
@@ -96,7 +99,7 @@ async function build(readAt = new Date()): Promise<string> {
     SELECT public_id::text, latest_at FROM stories WHERE merged_into IS NULL AND title ~ ${CJK_COPY_PATTERN} AND EXISTS (
       SELECT 1 FROM facts f JOIN fact_articles fa ON fa.fact_id = f.id JOIN publications p ON p.article_id = fa.article_id
       WHERE f.story_id = stories.id AND fa.role = ANY(${FACT_MEMBER_ROLES}) AND p.visibility = 'public' AND p.eligible
-        AND ${releasedCondition(now)})
+        AND ${releasedCondition(readAt)})
     ORDER BY latest_at DESC NULLS LAST LIMIT 500`;
   for (const s of stories) entries.push({ loc: `/story/${s.public_id}`, lastmod: s.latest_at, changefreq: "daily", priority: 0.5 });
   // Model pages exist only for models on a public top-30 board; source pages for every registered source.

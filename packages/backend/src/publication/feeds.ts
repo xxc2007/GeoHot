@@ -59,14 +59,18 @@ function pubDateOf(r: { window_end: Date | null; generated_at: Date }): Date {
   return r.window_end ?? r.generated_at;
 }
 
-function channel(meta: { title: string; description: string; homePath: string; selfPath: string; ttl: number }, items: string[]): string {
+function channel(meta: { title: string; description: string; homePath: string; selfPath: string; ttl: number }, items: string[], built?: Date): string {
+  // <lastBuildDate>：逐条 pubDate 有而频道头没有，聚合器只能自己猜频道有多新。
+  // 口径与首条 pubDate 相同（条目 feed 取首条的 coalesce(published_at, discovered_at)，
+  // 日报/周月报取窗口尾——见 pubDateOf）；空频道时回退到调用方的 now。
+  const builtTag = built ? `\n    <lastBuildDate>${rfc822(built)}</lastBuildDate>` : "";
   return `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
   <channel>
     <title>${escapeXml(meta.title)}</title>
     <link>${escapeXml(siteUrl(meta.homePath))}</link>
     <description>${escapeXml(meta.description)}</description>
-    <language>zh-CN</language>
+    <language>zh-CN</language>${builtTag}
     <atom:link href="${escapeXml(siteUrl(meta.selfPath))}" rel="self" type="application/rss+xml" />
     <ttl>${meta.ttl}</ttl>
     <generator>${escapeXml(`${SITE.name} (${siteUrl("/agent")})`)}</generator>
@@ -149,7 +153,8 @@ export async function itemFeed<K extends ItemFeedKind>(
     ? sql`${listedCondition(now)} AND p.eligible AND coalesce(p.published_at, p.discovered_at) > ${now}::timestamptz - interval '7 days'
         AND coalesce(p.published_at, p.discovered_at) <= ${now}`
     : sql`${selectedCondition(now)} ${categoryCondition(category)}
-        ${category ? sql`AND coalesce(p.published_at, p.discovered_at) >= ${new Date(now.getTime() - 7 * 86400_000)}` : sql``}`;
+        ${category ? sql`AND coalesce(p.published_at, p.discovered_at) >= ${new Date(now.getTime() - 7 * 86400_000)}
+        AND coalesce(p.published_at, p.discovered_at) <= ${now}` : sql``}`;
   const rows = await sql<FeedRow[]>`
     WITH page AS MATERIALIZED (
       SELECT p.article_id FROM publications p WHERE ${scope}
@@ -180,7 +185,7 @@ export async function itemFeed<K extends ItemFeedKind>(
     const m = FEEDS[kind === "selected" ? "selected" : kind === "selected-full" ? "selectedFull" : "all"];
     meta = { title: m.title, description: m.description, homePath: m.homePath, selfPath: m.path, ttl: m.pollHintMinutes };
   }
-  return channel(meta, rows.map((r) => itemXml(r, includeContent)));
+  return channel(meta, rows.map((r) => itemXml(r, includeContent)), rows[0] ? (rows[0].published_at ?? rows[0].discovered_at) : now);
 }
 
 /**
@@ -231,7 +236,7 @@ export async function dailyFeed(): Promise<string> {
       <author>${AUTHOR} (${escapeXml(SITE.name)})</author>
     </item>`;
   });
-  return channel({ title: m.title, description: m.description, homePath: m.homePath, selfPath: m.path, ttl: m.pollHintMinutes }, items);
+  return channel({ title: m.title, description: m.description, homePath: m.homePath, selfPath: m.path, ttl: m.pollHintMinutes }, items, rows[0] ? pubDateOf(rows[0]) : undefined);
 }
 
 /**
@@ -264,7 +269,7 @@ export async function reportFeed(kind: "weekly" | "monthly"): Promise<string> {
       <author>${AUTHOR} (${escapeXml(SITE.name)})</author>
     </item>`;
   });
-  return channel({ title: m.title, description: m.description, homePath: m.homePath, selfPath: m.path, ttl: m.pollHintMinutes }, items);
+  return channel({ title: m.title, description: m.description, homePath: m.homePath, selfPath: m.path, ttl: m.pollHintMinutes }, items, rows[0] ? pubDateOf(rows[0]) : undefined);
 }
 
 export function isFeedCategory(v: string): v is PublicApiCategoryKey {

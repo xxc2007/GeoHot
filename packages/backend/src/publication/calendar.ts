@@ -16,6 +16,7 @@ import { withPublicRead } from "./read-budget.ts";
 import { addDays, beijingMidnight } from "@aihot/contracts/time";
 import { sql } from "../db.ts";
 import { categoryCondition, channelCondition, listedCondition, tagCondition, topicCondition } from "./items.ts";
+import { readableReports } from "./reports.ts";
 import type { PoolQuery } from "./pool.ts";
 
 /** 与 `/api/site/pool` 同一组可作用在条目上的筛选；不给就等于不筛。 */
@@ -46,6 +47,10 @@ export interface DayMark {
  * 空刊不占号（第四十四轮的规则），而归档/翻页/RSS/v1/MCP 五个出口都不列空刊——
  * 卡片若把空刊画成"第 N 期"，就是给同一个事实第二个答案。
  * 所以"有点但没有期号"= 那天有内容却没出成报，日历要能把这两种分开画。
+ *
+ * 拿到号还要**过 readable 门**：引用全部失效的期次在归档/RSS/v1 里都不列（`readableReports` 是
+ * 五个出口共用的那一道门），日历若仍把它的期号画出来，读者点进 `/daily/N` 只会看到一版空报头。
+ * 门外的日期保持"有点但无期号"的既有语义（issue 为 null），期号本身不动——号码永不移动。
  */
 const pendingMonths = new Map<string, Promise<DayMark[]>>();
 const recentMonths = new Map<string, { until: number; days?: DayMark[]; error?: unknown }>();
@@ -85,18 +90,26 @@ async function queryMonthMarks(
   const from = beijingMidnight(first);
   const to = beijingMidnight(addDays(last, 1));
   const scoped = sql`${channelCondition(filters.channel)} ${categoryCondition(filters.category)} ${tagCondition(filters.tag)} ${topicCondition(filters.topicTags)}`;
-  const rows = await withPublicRead(async (db) => db<{ date: string; items: number; issue_no: number | null }[]>`
-    WITH days AS (
-      SELECT to_char(p.timeline_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD') AS date, count(*)::int AS items
-        FROM publications p
-       WHERE ${listedCondition(now)} AND p.eligible AND p.published_at IS NOT NULL ${scoped}
-         AND p.timeline_at >= ${from} AND p.timeline_at < ${to}
-       GROUP BY 1),
-    issues AS (
-      SELECT key AS date, issue_no FROM reports
-       WHERE kind = 'daily' AND issue_no IS NOT NULL AND key >= ${first} AND key <= ${last})
-    SELECT coalesce(d.date, i.date) AS date, coalesce(d.items, 0) AS items, i.issue_no
-      FROM days d FULL JOIN issues i ON i.date = d.date
-     ORDER BY 1`, 8000, true);
-  return rows.map((r) => ({ date: r.date, items: Number(r.items), issue: r.issue_no === null ? null : Number(r.issue_no) }));
+  const [rows, readable] = await Promise.all([
+    withPublicRead(async (db) => db<{ date: string; items: number; issue_no: number | null }[]>`
+      WITH days AS (
+        SELECT to_char(p.timeline_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD') AS date, count(*)::int AS items
+          FROM publications p
+         WHERE ${listedCondition(now)} AND p.eligible AND p.published_at IS NOT NULL ${scoped}
+           AND p.timeline_at >= ${from} AND p.timeline_at < ${to}
+         GROUP BY 1),
+      issues AS (
+        SELECT key AS date, issue_no FROM reports
+         WHERE kind = 'daily' AND issue_no IS NOT NULL AND key >= ${first} AND key <= ${last})
+      SELECT coalesce(d.date, i.date) AS date, coalesce(d.items, 0) AS items, i.issue_no
+        FROM days d FULL JOIN issues i ON i.date = d.date
+       ORDER BY 1`, 8000, true),
+    // 索引每进程缓存 60 秒，这里的额外成本是一次内存集合求交，不是一次查询。
+    readableReports("daily", 400).then(({ rows }) => new Set(rows.map((r) => r.key))),
+  ]);
+  return rows.map((r) => ({
+    date: r.date,
+    items: Number(r.items),
+    issue: r.issue_no === null || !readable.has(r.date) ? null : Number(r.issue_no),
+  }));
 }

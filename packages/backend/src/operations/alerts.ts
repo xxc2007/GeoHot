@@ -128,6 +128,22 @@ export async function collectFindings(now = Date.now()): Promise<Finding[]> {
     }
   }
 
+  // 本机抽取辅助（extraction-executor 子 worker）停了心跳：它不承担读者面，但这台机器自己停了
+  // 而没有任何声音（2026-11-02 实测停 5.5 小时无告警面）。只进 09:00 日报——夜间关机是合法
+  // 下线，次日日报里看见即可，不打扰；根本没有这台机器参与过的痕迹（无心跳行）不出声。
+  const [assist] = await sql<{ value: { at?: string; host?: string } | null }[]>`SELECT value FROM settings WHERE key = 'heartbeat.extraction-executor'`;
+  if (assist?.value?.at) {
+    const age = now - Date.parse(assist.value.at);
+    if (Number.isFinite(age) && age > 30 * 60_000) {
+      out.push({
+        key: "assist.heartbeat",
+        level: "digest",
+        title: "本机抽取辅助停了，正文积压消化少一台帮手",
+        detail: `心跳停在 ${beijingStamp(new Date(assist.value.at))}（${duration(age)} 前）；白天登录后准入会自动恢复，或按 docs/workstation-extraction-assist.md 手工启动`,
+      });
+    }
+  }
+
   // A leaderboard source keeps its last snapshot while failing.
   const [lb] = await sql<{ value: { sources?: Record<string, { ok: boolean; lastOkAt: string | null; error?: string }> } }[]>`SELECT value FROM settings WHERE key = 'leaderboard.fetch'`;
   const stale = Object.entries(lb?.value.sources ?? {}).filter(([, s]) => !s.ok && s.lastOkAt && now - Date.parse(s.lastOkAt) > 26 * 3600_000);
@@ -356,6 +372,13 @@ export async function sendDigest(now = Date.now()) {
   const items = (await collectFindings(now)).filter((f) => f.level === "digest");
   const lines = items.map((f, i) => `${i + 1}. ${f.title}${f.detail ? `\n   ${f.detail}` : ""}`);
   if (!lines.length) return { items: 0 };
-  await sendAlert(`📋 系统日报 · ${beijingDay(now)}`, ["以下事项不影响读者，你不用处理；需要的话把整条转给 AI。", ...lines]);
+  // 与 checkAlerts 的 dispatch 同一容错：sendAlert 直接 await 的话，一次飞书异常会让 ops.digest
+  // 任务失败（retryLimit=1），当天 09:00 的系统日报静默丢失。发不出去记进日志，任务照常收尾。
+  try {
+    const outcome = await sendAlert(`📋 系统日报 · ${beijingDay(now)}`, ["以下事项不影响读者，你不用处理；需要的话把整条转给 AI。", ...lines]);
+    if (outcome !== "sent") console.log(JSON.stringify({ level: "warn", msg: `digest not delivered: ${outcome}` }));
+  } catch (error) {
+    console.log(JSON.stringify({ level: "error", msg: "digest send failed", kind: error instanceof Error ? error.name : "unknown" }));
+  }
   return { items: lines.length };
 }

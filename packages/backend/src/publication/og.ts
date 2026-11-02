@@ -4,7 +4,7 @@ import type { CategoryKey } from '@aihot/contracts/taxonomy';
 import { sql } from '../db.ts';
 import { itemHasPage } from './rules.ts';
 import { workflowReadyCondition } from './readiness.ts';
-import { CJK_COPY_PATTERN } from '@aihot/contracts/copy';
+import { CJK_COPY_PATTERN, isLabelOnlyCopy } from '@aihot/contracts/copy';
 
 export async function loadItemShare(id: string, now = new Date()) {
   const [row] = await sql<{
@@ -24,6 +24,9 @@ export async function loadItemShare(id: string, now = new Date()) {
   // daily already quotes its title and summary, and the card shows exactly those, nothing more. A row
   // with nothing to show (unsummarised, no Chinese copy) has neither page nor card.
   if (!row || !itemHasPage({ visibility: row.visibility, sourceMode: row.source_mode, selected: row.selected, visibleAfter: row.visible_after }, now)) return null;
+  // 条目页对 label-only 行回 404（detail.ts 的同一条规则）：卡片若照发，就是把一张 404 页面的
+  // 分享卡递给爬虫——标题里只有 `title_zh:` 这类字段标签、没有可看的词。
+  if (isLabelOnlyCopy(row.title) || isLabelOnlyCopy(row.summary)) return null;
   // The same grades the detail page answers with: a summary-licence row with copy keeps its card —
   // exactly the citation facts the daily printed; a full-licence row still being verified, or a row
   // with nothing to show, has neither page nor card.

@@ -138,9 +138,11 @@ export async function loadPool(query: PoolQuery): Promise<PoolResponse> {
   const terms = q ? searchTerms(q) : [];
   // 日历选出来的那一天。按 `timeline_at`（读者看到它的时刻）圈整天，与 `DayList` 分日、
   // 与 `monthMarks` 数日子用的是同一个口径——三处不一致的话，日历上有个点、点进去却是空的。
+  // `published_at IS NOT NULL` 与那两处对齐：DayList 把没有发布时间的行挪去「无发布日期」，
+  // 日历的日子也不数它们（calendar.ts 的 days CTE 同谓词），日期页若只按 timeline 圈就会比日历多。
   const date = isDay(query.date) ? query.date : null;
   const dayCondition = date
-    ? sql`AND p.timeline_at >= ${beijingMidnight(date)} AND p.timeline_at < ${beijingMidnight(addDays(date, 1))}`
+    ? sql`AND p.published_at IS NOT NULL AND p.timeline_at >= ${beijingMidnight(date)} AND p.timeline_at < ${beijingMidnight(addDays(date, 1))}`
     : sql``;
   // `scoped` 是"这一屏的其它筛选"，`filters` 再加上选中的那一天。两者必须分开：
   // 「今日 N 条」问的是今天，把某一天的窗口 AND 进去会让两个窗口互斥、任何历史日期页都印出「今日 0 条」
