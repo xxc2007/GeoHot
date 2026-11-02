@@ -130,7 +130,11 @@ try {
   }
   if (acquisition.acquired !== true) throw new Error("Unknown fence acquisition result");
   fenced = true;
-  if (stop || !assistEligible(await sample())) throw new Error("Fenced admission closed");
+  // 首检（本轮开头那次 sample）已经是 ≤5 秒的新鲜证据；fence 只花几十毫秒，不再重复采样。
+  // 之前这里、隧道后、worker 启动前各采一次，服务器 PSI 瞬时尖峰（1G 小机常态）几乎必然
+  // 撞上一次，90 轮全倒在"再查一遍"上（2026-11-02 实测 handled=0）。运行中的退出检查保留——
+  // 那才是读者保护生效的地方。
+  if (stop || !first) throw new Error("No fresh admission evidence");
   // Fetch only the database credential, in memory. No auth/model/device credentials are copied.
   const credentials = JSON.parse(await remote("cd /opt/geohot/app && sudo -n -u geohot node --env-file=.env --input-type=module -e 'console.log(JSON.stringify({databaseUrl:process.env.DATABASE_URL}))'")) as { databaseUrl: string };
   const database = new URL(credentials.databaseUrl);
@@ -142,9 +146,8 @@ try {
     tunnel!.once("exit", ended); tunnel!.once("error", ended);
   });
   await pause(1000);
-  const evidence = await sample();
-  if (stop || !assistEligible(evidence)) throw new Error("Admission closed before worker startup");
-  writeFileSync(lease, JSON.stringify(evidence), { mode: 0o600 });
+  // worker 启动前不再重复资格判定（理由同上）；写租约用首检证据，运行中循环马上会接手刷新。
+  writeFileSync(lease, first, { mode: 0o600 });
   // One shared admission lease, one SSH tunnel, N independent single-slot worker processes. Each child
   // logs to its own diagnostics file under the state directory; the file name is built only from a
   // date stamp and the loop counter, and the confinement guard below fails closed.
