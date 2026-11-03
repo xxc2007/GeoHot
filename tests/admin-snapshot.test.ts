@@ -7,6 +7,15 @@ test('CNY conversion retains precision until display and never disguises a small
   assert.equal(cnyInteger(.49),'＜1');assert.equal(cnyInteger(0),'0');assert.equal(cnyInteger(1.5),'2');
   assert.equal(cnyInteger(toCny(.1+.1,'USD')),'1');
 });
+test('toCny takes the server-resolved fx_rates quote and falls back to CNY_FX without one',()=>{
+  // 服务端把 fx_rates 最新行随载荷下发（usage 页 pricing.fx / models 页 fx），web 端折算
+  // 与服务端同一口径；不再各自拿 6.718 常量算出与同页官方价估算不同的数。
+  const live={usdToCny:6.6529,date:'2026-10-30',source:'https://api.frankfurter.app/latest?from=USD&to=CNY'};
+  assert.equal(toCny(1,'USD',live),6.6529);
+  assert.equal(toCny(1,'CNY',live),1,'CNY rows never go through fx');
+  assert.equal(toCny(1,'EUR',live),null,'unhandled currencies stay unconverted');
+  assert.equal(toCny(1,'USD'),CNY_FX.usdToCny,'absent quote keeps the verified fallback');
+});
 test('snapshot cold reads never wait for the aggregate; one scan serves concurrent refreshes',async()=>{
   let release!:(v:number[])=>void,calls=0;const r=snapshotReader(()=>{calls++;return new Promise<number[]>(resolve=>release=resolve);});
   const cold=await r.get();assert.equal(cold.status.state,'unavailable');assert.deepEqual(cold.rows,[]);

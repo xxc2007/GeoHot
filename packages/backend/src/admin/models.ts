@@ -8,6 +8,7 @@ import { CAPABILITIES, invalidateModelCache, modelSources, type Capability, type
 import { MODELS } from "../providers/llm.ts";
 import { audit } from "./auth.ts";
 import { modelStatisticRead, statisticReader } from "./model-statistics-read.ts";
+import { resolveFx } from "./official-pricing.ts";
 
 interface UsageRow {
   purpose: string;
@@ -123,7 +124,11 @@ export async function modelsOverview(days = 7) {
       })),
   })) : [];
   const choices = Object.values(MODELS).map((m) => ({ key: m.key, service: m.service, vision: !!m.vision }));
-  return { days, capabilities, choices, history, statistics: {
+  // 汇率单一来源：服务端把 fx_rates 最新行解析好随载荷下发，web 端折算与用量页的官方价
+  // 估算同口径；无行时 resolveFx 回落 CNY_FX 兜底常量，客户端不再各拿常量自算。
+  const [fxRow] = await sql<{ rate: number; as_of: string; source_url: string | null }[]>`
+    SELECT rate, as_of::text AS as_of, source_url FROM fx_rates WHERE pair = 'USD/CNY' ORDER BY as_of DESC LIMIT 1`;
+  return { days, capabilities, choices, history, fx: resolveFx(fxRow), statistics: {
     configuration: sourcesResult.status, usage: usageResult.status, prices: pricesResult.status, history: historyResult.status,
   } };
 }
