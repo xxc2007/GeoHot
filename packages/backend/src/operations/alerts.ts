@@ -13,6 +13,31 @@ import { unbilledAttempt } from "../providers/receipts.ts";
 
 const REPEAT_MS: Record<Exclude<Level, "digest">, number> = { now: 3600_000, today: 24 * 3600_000 };
 
+// The content alarms above are muted for 20 minutes after a worker start so a normal restart does
+// not cry wolf. A worker that crashes *inside* that window — alive for under 20 minutes every
+// time — restarts forever with `startedAt` always fresh, and every alarm stays muted. Sampling
+// `startedAt` changes per pass closes that gap: three changes inside an hour ≈ three restarts, i.e.
+// a process that never survived its own grace period. Two deployments plus one crash within an
+// hour also reaches the threshold: the false direction here is one extra alarm, never silence.
+const RESTART_GRACE_MS = 20 * 60_000;
+const BOOT_WINDOW_MS = 60 * 60_000;
+const BOOT_RESTART_MIN = 3;
+/** Per-pass observation of the worker boot key. collectFindings only computes; checkAlerts persists
+ *  (an update here must not silently re-write what the caller is about to write to alerts.state). */
+interface WorkerBootSeen { lastStartedAt: string | null; changes: string[] }
+export function observeWorkerBoots(hb: { value: { startedAt?: string } } | undefined, seen: WorkerBootSeen | undefined, now: number): { restartedRecently: boolean; restarts: number; next: WorkerBootSeen } {
+  const bootSeen: WorkerBootSeen = { lastStartedAt: seen?.lastStartedAt ?? null, changes: [...(seen?.changes ?? [])] };
+  const startedAt = hb?.value.startedAt;
+  if (startedAt && startedAt !== bootSeen.lastStartedAt) {
+    bootSeen.changes.push(new Date(now).toISOString());
+    bootSeen.lastStartedAt = startedAt;
+  }
+  bootSeen.changes = bootSeen.changes.filter((t) => now - Date.parse(t) <= BOOT_WINDOW_MS);
+  // Concurrent api processes can drop one sample on read-modify-write; losing one delays the
+  // threshold by one pass, it never silences a loop that is still restarting.
+  return { restartedRecently: bootSeen.changes.length >= BOOT_RESTART_MIN, restarts: bootSeen.changes.length, next: bootSeen };
+}
+
 // The valves are read through the one rule (`envFlag`), at the moment the alert is judged: an operator who
 // writes COLLECT_ENABLED=0 to stop the collection must not get a "网站停止收录新内容" alarm from a reader that
 // only recognised the literal word "false", and must not get a model-stall alarm either.
@@ -21,7 +46,8 @@ const modelsOn = () => isModelCallsEnabled();
 /** How long the site may go without a new article before it counts as stalled (small source lists are quieter). */
 const QUIET_MS = positiveInt(process.env.ALERT_QUIET_MINUTES, "ALERT_QUIET_MINUTES", 360) * 60_000;
 
-/** Everything wrong right now, with its level. */
+/** Everything wrong right now, with its level. The worker-boot sampling rides along on the return
+ *  value so a caller (checkAlerts, or a test) decides when it is persisted. */
 export async function collectFindings(now = Date.now()): Promise<Finding[]> {
   const out: Finding[] = [];
 
@@ -29,8 +55,12 @@ export async function collectFindings(now = Date.now()): Promise<Finding[]> {
   // Content flow, judged by outcome: whatever broke (worker, egress proxy, models, queues), readers see
   // a site that stops changing. Skipped for 20 minutes after the worker starts, and where the valves are off.
   const [hb] = await sql<{ value: { startedAt?: string } }[]>`SELECT value FROM settings WHERE key = 'heartbeat.worker'`;
-  const settled = !hb?.value.startedAt || now - Date.parse(hb.value.startedAt) > 20 * 60_000;
-  if (settled && collecting()) {
+  const settled = !hb?.value.startedAt || now - Date.parse(hb.value.startedAt) > RESTART_GRACE_MS;
+  const [seenRow] = await sql<{ value: WorkerBootSeen }[]>`SELECT value FROM settings WHERE key = 'alerts.workerBootSeen'`;
+  const boots = observeWorkerBoots(hb, seenRow?.value, now);
+  const restartedRecently = boots.restartedRecently;
+  const loopNote = restartedRecently ? `worker 60 分钟内重启 ${boots.restarts} 次，疑似崩溃循环；` : "";
+  if ((settled || restartedRecently) && collecting()) {
     const [last] = await sql<{ at: Date | null }[]>`SELECT max(discovered_at) AS at FROM articles WHERE discovered_at > ${new Date(now - 4 * QUIET_MS)}`;
     const [anySource] = await sql`SELECT 1 FROM sources WHERE enabled LIMIT 1`;
     if (anySource && (!last?.at || now - last.at.getTime() > QUIET_MS)) {
@@ -41,7 +71,7 @@ export async function collectFindings(now = Date.now()): Promise<Finding[]> {
         impact: last?.at ? `最后一篇新文章收录于 ${beijingStamp(last.at)}，之后网站不会出现新内容` : "很久没有收录任何新文章",
         heals: "没有",
         action: "转给 AI 立即处理",
-        detail: `articles.discovered_at 超过 ${Math.round(QUIET_MS / 60_000)} 分钟没有新值（ALERT_QUIET_MINUTES）；查 sources.schedule、出网代理与采集失败`,
+        detail: `${loopNote}articles.discovered_at 超过 ${Math.round(QUIET_MS / 60_000)} 分钟没有新值（ALERT_QUIET_MINUTES）；查 sources.schedule、出网代理与采集失败`,
         since: last?.at ?? undefined,
       });
     }
@@ -66,7 +96,7 @@ export async function collectFindings(now = Date.now()): Promise<Finding[]> {
           .join("；") + "，精选和热点会缺内容",
         heals: p!.waiting >= 10 ? "服务恢复后会自动补处理" : "不会，需要修好后重新处理这些文章",
         action: "转给 AI 处理",
-        detail: errors.map((e) => `${e.error}（${e.n}）`).join("；") || "没有记录错误",
+        detail: loopNote + (errors.map((e) => `${e.error}（${e.n}）`).join("；") || "没有记录错误"),
         since: p!.waiting >= 10 && p!.oldest ? p!.oldest : undefined,
       });
     }
@@ -156,7 +186,7 @@ export async function collectFindings(now = Date.now()): Promise<Finding[]> {
     });
   }
 
-  return out;
+  return Object.assign(out, { workerBootSeen: boots.next });
 }
 
 const MODEL_STOPS = "用到这家模型的步骤停了（看后台“模型与评测”），新内容可能进不了精选";
@@ -319,7 +349,10 @@ interface AlertState {
 
 /** Every 10 minutes: new problems and recoveries of the now/today levels go out; digest items wait for 09:00. */
 export async function checkAlerts(now = Date.now()) {
-  const found = (await collectFindings(now)).filter((f) => f.level !== "digest");
+  const findings = await collectFindings(now);
+  // The boot sampling rides on the return value; persist it here, in the same round as alerts.state.
+  const bootSeen = (findings as Finding[] & { workerBootSeen?: WorkerBootSeen }).workerBootSeen;
+  const found = findings.filter((f) => f.level !== "digest");
   const [row] = await sql<{ value: AlertState }[]>`SELECT value FROM settings WHERE key = 'alerts.state'`;
   const state: AlertState = { ...(row?.value ?? {}) };
   const sent: string[] = [];
@@ -364,6 +397,12 @@ export async function checkAlerts(now = Date.now()) {
   }
   await sql`INSERT INTO settings (key, value, updated_by) VALUES ('alerts.state', ${sql.json(state as never)}, 'alerts')
             ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`;
+  // Same round, same shape: the boot key is written even when nothing else fired, so the next pass
+  // counts restarts against an up-to-date lastStartedAt instead of recounting the old one.
+  if (bootSeen) {
+    await sql`INSERT INTO settings (key, value, updated_by) VALUES ('alerts.workerBootSeen', ${sql.json(bootSeen as never)}, 'alerts')
+              ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`;
+  }
   return { open: Object.keys(state), sent, notDelivered };
 }
 
