@@ -37,6 +37,21 @@
 # 其余依据：上传上限取反馈截图 8 MB（feedback.ts:64）与 Fastify 10 MB bodyLimit（app.ts:30）之间的
 # 10m；MCP 走 Streamable-HTTP 的长寿命 SSE（mcp.ts:283-285 带 X-Accel-Buffering: no），故该
 # location 关缓冲、读超时拉到 1h。
+#
+# ── 2026-11-03 安全审计补记（snippet 层的两件事，服务器已实装）──────────────────────────
+#
+# 5) `include snippets/geohot-public-cache.conf` 的那一行会把安全头整套吞掉：snippet 里有自己的
+#    `add_header X-Geohot-Public-Cache …`，nginx 规则是「location 一旦出现 add_header 就不再继承
+#    server 级头」——本 vhost 头部注释第 1 条警告过的正是这个陷阱。修法在 snippet 里，不在本片段：
+#    geohot-public-cache.conf 的 X-Geohot-Public-Cache 行后追加了同 vhost server 级现值五条
+#    （nosniff / Referrer-Policy / X-Frame-Options SAMEORIGIN / Permissions-Policy /
+#    CSP-Report-Only；仓库模板 deploy/geohot/public-cache-location.conf 以服务器为准回写，其中
+#    proxy_cache_key 带 `report-workflow-v1:` 前缀）。回滚＝恢复备份的 snippet 并 reload。
+#
+# 6) :443 的 `location ^~ /geohot/` 块内要单独写一行 HSTS（同因不继承）：server 级是
+#    `add_header Strict-Transport-Security "max-age=15552000" always;`（2026-11-03 从 86400 提升，
+#    不加 includeSubDomains——www 已 301、无其他子域）。:80 路径无需写（RFC 6797：非安全传输
+#    上浏览器忽略 STS）。改动与 snippet 同一备份→改→nginx -t→reload 窗口落地。
 # =============================================================================
 
 # ---- ADD ----
