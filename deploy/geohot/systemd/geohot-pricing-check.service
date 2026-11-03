@@ -5,6 +5,14 @@ After=network-online.target
 Type=oneshot
 Environment=TZ=Asia/Shanghai
 ExecStart=/usr/bin/python3 /opt/geohot/app/deploy/geohot/pricing-check.py
+# 沙箱加固（2026-11-03，服务器同参数实测整管道跑通：抓页+refreshFx+写库）。
+# ReadWritePaths 覆盖 magpie-maintenance 的 owner/lock 状态目录；数据库走 TCP、
+# nginx 日志只读、临时文件走 PrivateTmp，均不需额外放行。
+NoNewPrivileges=yes
+ProtectSystem=strict
+PrivateTmp=yes
+ProtectHome=read-only
+ReadWritePaths=/var/lib/geohot-maintenance
 TimeoutStartSec=10min
 Nice=19
 IOSchedulingClass=idle

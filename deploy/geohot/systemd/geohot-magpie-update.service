@@ -4,6 +4,13 @@ After=network-online.target
 [Service]
 Type=oneshot
 ExecStart=/bin/bash /opt/geohot/app/deploy/geohot/magpie-update.sh
+# 保守加固（2026-11-03）：不写 ProtectSystem=strict——magpie 二进制替换要写
+# /usr/local/bin、状态在 /var/lib/geohot-maintenance 与 /var/lib/geohot-magpie，
+# 且该单元无法安全手动验证（触发即真更新），strict 的失败面留待逐单元证据。
+# 以下三行对脚本全部写路径实测无冲突（无 sudo、无 /tmp 共享、无 /root /home 写）。
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=read-only
 TimeoutStartSec=15min
 Nice=15
 IOSchedulingClass=idle
