@@ -786,6 +786,16 @@ sudo systemctl list-timers --all            # 档案 timer 与 api/web/brain 不
    而守护自己在 11:05/11:10/11:15/11:20/11:25 五次探针全 `bad=0`——**慢样本与内存余量同向，与"谁在跑"只部分相关**。
    结论：**这台机器的读者面余量就是内存**，归档周期与判定并发都只是往上加压的人；
    **要更高并发必须先解决内存**（加内存，或把重活与读者高峰错峰），而不是改守护的阈值。
+   **并发有两处真值，改 `.env` 一处不生效（2026-11-03 实证）**：worker 的并发环境变量由
+   systemd drop-in `/etc/systemd/system/geohot-worker.service.d/zzzzz-combined-worker-20261026.conf`
+   从 `/etc/geohot/combined-worker.env` 注入，对 worker 进程是**生效真值**，会静默覆盖 `/opt/geohot/app/.env` 里的同名键；
+   而 `conc-guard.sh` 只读写 `.env`（`ENVF=/opt/geohot/app/.env`，25 行声明，49/52 行 sed 读
+   `ANALYZE_CONCURRENCY`/`GEOHOT_TRANSLATE_CONCURRENCY`，71-72 行写回）——
+   **所以只改 `.env` 抬并发，守护探针看的值和 worker 真用的值会分家，且 worker 根本不会生效**；
+   改并发必须两处同步，或把那一项从 drop-in 的 `EnvironmentFile` 摘掉。
+   现状实证（2026-11-03）：`combined-worker.env` 里 `GEOHOT_TRANSLATE_CONCURRENCY=1`，
+   `.env` 第 57 行同键 =3，worker 进程 environ 实际读到 =1（drop-in 赢了）；
+   **这些数值本体不动**——drop-in 里的 translate=1、FETCH=1 是 11-02 调参保留下来的定值，不是漂移。
 4. **自动复位的脚本必须枚举"本轮我手工停过的每一样东西"，不能只回最显眼的那个阀门**。12:04 现场抓到：
    `r113-restore-realtime.sh` 原本只做 `COLLECT_ENABLED=true` + 重启 worker，**没有**
    `systemctl start geohot-archive.timer`——照它跑完，实时恢复了、**回填却永久停着**：档案进口（`collect-*` 相位）
