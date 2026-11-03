@@ -228,8 +228,9 @@ test("no-entity topics match only tags audited as scoped to their own definition
   const audited: Array<[string, string[]]> = [
     ["qinghai-tibet-plateau", ["高原"]],               // 词表里 青藏高原→高原 是唯一锚；黄土高原等近邻会随之进来，是已知残留
     ["arctic-ocean", ["冰川与冻土"]],                 // 定义点名格陵兰冰盖；非极地冰川随之进来，是已知残留
-    ["arid-west-asia-north-africa", []],              // 词表产不出任何 scoped 写法，宁可空态也不错收
-    ["east-china-coastal-city-region", []],           // 同上
+    // arid-west-asia-north-africa / east-china-coastal-city-region 两个空态区域主题已于 2026-11-03
+    // 撤下（词表产不出 scoped 写法，长期 0 条精选对读者是坏空态）；按站长指示换成有真实内容的机构
+    // 主题 cas（中国科学院）与 mwr（水利部）——机构主题走 entity: 键匹配，不依赖地域词表，不受本钉子约束。
     ["ring-of-fire", ["地震", "火山", "海啸与风暴潮"]], // 环带本身表达不了；地震/火山就是它的实质，环带外震情是已知残留
     ["earthquakes", ["地震"]],
     ["volcanoes", ["火山"]],                         // 泛地貌或灾害标签不足以判断火山主题

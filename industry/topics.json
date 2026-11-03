@@ -64,28 +64,35 @@
       ]
     },
     {
-      "slug": "arid-west-asia-north-africa",
-      "name": "中东与北非干旱区",
+      "slug": "cas",
+      "name": "中国科学院",
       "group": "company",
-      "tags": [],
-      "definition": "从撒哈拉到伊朗高原的干旱地带：缺水、油气区位与边界争端如何互相放大，并外溢为迁移与通道风险。",
+      "entityId": "cas",
+      "tags": [
+        "中国科学院",
+        "研究/发现"
+      ],
+      "definition": "中国科学院：国内地理学、湖泊与湿地、冰川冻土与区域可持续研究最集中的科研体系，也是本站研究/发现条目的主要机构来源之一。",
       "related": [
+        "research-findings",
         "river-basins",
-        "energy-resources",
-        "geopolitics",
-        "population-migration"
+        "cryosphere"
       ]
     },
     {
-      "slug": "east-china-coastal-city-region",
-      "name": "东部沿海城市群",
+      "slug": "mwr",
+      "name": "水利部",
       "group": "company",
-      "tags": [],
-      "definition": "中国东部沿海的城市密集带：台风与风暴潮的第一线、经济与交通密度最高，也是沉降与海平面上升风险叠加的地区。",
+      "entityId": "mwr",
+      "tags": [
+        "水利部",
+        "水资源",
+        "洪水与干旱"
+      ],
+      "definition": "水利部：江河治理、水资源管理与水旱灾害防御的官方出口，汛期通报与水量调度直接关系流域沿线。",
       "related": [
-        "urban-geography",
-        "tropical-cyclones",
-        "transport-geography"
+        "river-basins",
+        "climate-anomaly"
       ]
     },
     {
@@ -305,7 +312,7 @@
         "ocean-coast",
         "climate-anomaly",
         "disaster-events",
-        "east-china-coastal-city-region"
+        "mwr"
       ]
     },
     {
@@ -339,7 +346,7 @@
         "landforms",
         "climate-anomaly",
         "ecosystems",
-        "arid-west-asia-north-africa"
+        "mwr"
       ]
     },
     {
@@ -435,7 +442,7 @@
         "population-migration",
         "transport-geography",
         "administrative-divisions",
-        "east-china-coastal-city-region"
+        "economic-geography"
       ]
     },
     {
@@ -513,7 +520,7 @@
       "related": [
         "administrative-divisions",
         "energy-resources",
-        "arid-west-asia-north-africa"
+        "population-migration"
       ]
     },
     {

@@ -175,3 +175,27 @@ test("feedback status lookup: email match, no-email rows, wrong email, spam", as
   assert.equal(await feedbackStatus(withEmail!.id, "reader@example.com"), null, "spam rows answer the generic null");
   await sql`DELETE FROM feedback WHERE id IN (${withEmail!.id}, ${withoutEmail!.id})`;
 });
+
+// 后台取截图的路径解析只认生成端写下的名字集（uuid.扩展名）：`..`、怪扩展名与不在
+// local: 前缀下的值都解析不到路径——截图键永远到不了 path.join 那一步。
+test("admin screenshot path resolution rejects dot segments and foreign names", async () => {
+  const { feedbackScreenshot } = await import("@aihot/backend/admin/feedback");
+  const { randomUUID } = await import("node:crypto");
+  const good = `${randomUUID()}.png`;
+  const keys = ["local:..", "local:.", "local:abc.exe", "local:sub/inner.png", "emailed", null, `local:${good}`];
+  const ids: number[] = [];
+  for (const [i, key] of keys.entries()) {
+    const [row] = await sql<{ id: number }[]>`
+      INSERT INTO feedback (content, source_hash, screenshot_key) VALUES (${`路径 ${T} ${i}`}, ${`path:${T}:${i}`}, ${key}) RETURNING id`;
+    ids.push(row!.id);
+  }
+  for (const [i, id] of ids.entries()) {
+    const resolved = await feedbackScreenshot(id);
+    if (keys[i] === `local:${good}`) {
+      assert.ok(resolved?.endsWith(path.join("feedback-screenshots", good)), "正常 UUID 名照常解析");
+    } else {
+      assert.equal(resolved, null, `键 ${JSON.stringify(keys[i])} 不得解析出路径`);
+    }
+  }
+  await sql`DELETE FROM feedback WHERE id IN (${ids[0]}, ${ids[1]}, ${ids[2]}, ${ids[3]}, ${ids[4]}, ${ids[6]})`;
+});

@@ -18,6 +18,7 @@ import {
   SESSION_DAYS,
   sessionPrincipal,
   STATE_COOKIE,
+  timingSafeEqualString,
   type AdminPrincipal,
 } from "@aihot/backend/admin/auth";
 import { ZodError } from "zod";
@@ -53,7 +54,10 @@ export function adminHandler(fn: AdminHandler, authenticate: typeof sessionPrinc
     try { admin = await authenticate(req.headers.cookie); }
     catch { return sendProblem(req, reply, { status: 503, code: "unavailable", detail: "身份核验暂时不可用，请稍后重试。" }); }
     if (!admin) return sendProblem(req, reply, { status: 401, code: "unauthorized", detail: "Sign in to the admin first." });
-    if (req.method !== "GET" && req.method !== "HEAD" && req.headers["x-csrf-token"] !== admin.csrf) {
+    // The token reaches the guard on every write request, so the comparison is constant-time like the
+    // password and session checks; a missing or repeated header (undefined / string[]) is not a token.
+    const csrfHeader = req.headers["x-csrf-token"];
+    if (req.method !== "GET" && req.method !== "HEAD" && (typeof csrfHeader !== "string" || !timingSafeEqualString(csrfHeader, admin.csrf))) {
       return sendProblem(req, reply, { status: 403, code: "forbidden", detail: "Missing or stale CSRF token." });
     }
     try {

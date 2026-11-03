@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { MediaView } from "@aihot/contracts/site";
 import { Lightbox } from "../../components/ui/Lightbox";
+import { safeExternalHref } from "../../lib/safe-url.ts";
 
 /** A round play mark over a video's still. */
 function PlayMark() {
@@ -21,6 +22,9 @@ function PlayMark() {
  */
 export function MediaGallery({ media, postUrl, videoLabel }: { media: MediaView[]; postUrl: string; videoLabel: string }) {
   const [open, setOpen] = useState<number | null>(null);
+  // 帖子地址来自采集链，只有 http(s) 才配成为视频块的链接（lib/safe-url.ts）；不安全时视频块
+  // 仍显示画面与播放标记，只是不再是可以点开的链接。
+  const postHref = safeExternalHref(postUrl);
   const shown = media.slice(0, 9);
   const images = shown.filter((m) => m.kind !== "video");
   // A gallery picture is the post's content, never decoration: with no description from its author, say
@@ -50,10 +54,17 @@ export function MediaGallery({ media, postUrl, videoLabel }: { media: MediaView[
             />
           );
           return m.kind === "video" ? (
-            <a key={m.url} href={postUrl} target="_blank" rel="noopener noreferrer" aria-label={videoLabel} className={tile}>
-              {img}
-              <PlayMark />
-            </a>
+            postHref ? (
+              <a key={m.url} href={postHref} target="_blank" rel="noopener noreferrer" aria-label={videoLabel} className={tile}>
+                {img}
+                <PlayMark />
+              </a>
+            ) : (
+              <div key={m.url} className={tile}>
+                {img}
+                <PlayMark />
+              </div>
+            )
           ) : (
             <button key={m.url} type="button" onClick={() => setOpen(images.indexOf(m))} aria-label={`查看大图：${alt}`} className={`${tile} cursor-zoom-in`}>
               {img}

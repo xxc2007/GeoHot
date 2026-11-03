@@ -3,6 +3,7 @@ import { Collapse } from "../../components/ui/Presence";
 import type { CodexResetContextPost } from "@aihot/contracts/monitor";
 import { IconArrowUpRight, IconChevronRight } from "../../components/icons";
 import { SourceAvatar } from "../../components/ui/SourceAvatar";
+import { safeExternalHref } from "../../lib/safe-url.ts";
 import { stamp } from "./format";
 
 export interface CardPost {
@@ -30,6 +31,8 @@ function Context({ c, original }: { c: CodexResetContextPost; original: boolean 
 export function PostCard({ post, stage, avatar, compact = false }: { post: CardPost; stage?: string; avatar?: string | null; compact?: boolean }) {
   const [showOriginal, setShowOriginal] = useState(false);
   const hasTranslation = !!post.translation;
+  // 采集链给的地址只有 http(s) 才配成为链接（lib/safe-url.ts）；不安全时这一行只作文字。
+  const postHref = safeExternalHref(post.url);
   return (
     <article className={`min-w-0 rounded-card border border-line-strong bg-surface ${compact ? "px-4 py-3" : "p-4 sm:px-6"}`}>
       <header className="flex items-center gap-2.5">
@@ -51,9 +54,13 @@ export function PostCard({ post, stage, avatar, compact = false }: { post: CardP
         <time className="num" dateTime={post.publishedAt ?? undefined}>
           {stamp(post.publishedAt)}
         </time>
-        <a href={post.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 text-accent transition-colors hover:text-accent-ink">
-          在 X 查看 <IconArrowUpRight size={12} />
-        </a>
+        {postHref ? (
+          <a href={postHref} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 text-accent transition-colors hover:text-accent-ink">
+            在 X 查看 <IconArrowUpRight size={12} />
+          </a>
+        ) : (
+          <span title="帖子地址不是 http(s) 地址，只作文字显示" className="text-ink-4">在 X 查看</span>
+        )}
       </footer>
       {hasTranslation && (
         <>

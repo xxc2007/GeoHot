@@ -1,0 +1,49 @@
+# 版本 tag 与 Release 实时同步：changelog.json 每次随 main 更新（新条目/新重大更新），
+# 本工作流自动按发布顺序编号补齐缺失的 v* 附注 tag，并为最新版本建/刷新 GitHub Release
+# ——不再依赖人工在部署后记得打 tag（2026-11-02 发现 v3.0.1~v3.0.4 漏打的教训）。
+# 逐条规则与算法见 scripts/list-release-versions.mjs（与线上 withVersionNumbers 同一算法）。
+name: sync-version-tags
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - industry/changelog.json
+permissions:
+  contents: write
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Tag new changelog versions
+        run: |
+          node scripts/list-release-versions.mjs > /tmp/plan.txt
+          while IFS="$(printf '\t')" read -r tag datetime title; do
+            if git tag -l "$tag" | grep -q .; then
+              continue
+            fi
+            commit=$(git rev-list -1 --before="$datetime" "${GITHUB_SHA}")
+            if [ -z "$commit" ]; then
+              commit="$GITHUB_SHA"
+            fi
+            git tag -a "$tag" "$commit" -m "$tag ${title}"
+            echo "tagged $tag -> ${commit:0:8}"
+          done < /tmp/plan.txt
+          git push origin --tags
+      - name: Release the newest version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          head -1 /tmp/plan.txt | while IFS="$(printf '\t')" read -r tag datetime title; do
+            if gh release view "$tag" --repo xxc2007/GeoHot > /dev/null 2>&1; then
+              echo "release $tag already exists"
+              exit 0
+            fi
+            gh release create "$tag" --repo xxc2007/GeoHot --title "$tag ${title}" --notes "明细见站内更新日志 https://xxc2007.me/geohot/changelog"
+          done

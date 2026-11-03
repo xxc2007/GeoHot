@@ -10,6 +10,7 @@ import { useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import type { ReportCitation, ReportDetail, ReportKind, ReportNavigationEntry } from "@aihot/contracts/site";
 import { shortSourceName } from "../../lib/format";
+import { safeExternalHref } from "../../lib/safe-url.ts";
 import { Badge } from "../../components/ui/Badge";
 import { Lightbox } from "../../components/ui/Lightbox";
 import { IconArrowLeft, IconArrowRight, IconArrowUpRight } from "../../components/icons";
@@ -122,9 +123,15 @@ function Source({ c, size = 16 }: { c: ReportCitation; size?: number }) {
  * chose: first-hand first, then the best scored), so there is one place to go.
  */
 function Original({ c, className = "" }: { c: ReportCitation; className?: string }) {
-  if (!c.sourceUrl) return null;
+  // 引文的来源地址来自采集链，只有 http(s) 才配成为链接（lib/safe-url.ts）；不安全时按纯文本显示。
+  const sourceHref = safeExternalHref(c.sourceUrl);
+  if (!sourceHref) return c.sourceUrl ? (
+    <span title="原文地址不是 http(s) 地址，只作文字显示" className={`${LINK} text-meta text-ink-4 ${className}`}>
+      原文
+    </span>
+  ) : null;
   return (
-    <a href={c.sourceUrl} target="_blank" rel="noopener noreferrer" aria-label={`阅读${shortSourceName(c.sourceName)}原文：${c.title}（新标签页）`} className={`${LINK} text-meta text-ink-3 ${className}`}>
+    <a href={sourceHref} target="_blank" rel="noopener noreferrer" aria-label={`阅读${shortSourceName(c.sourceName)}原文：${c.title}（新标签页）`} className={`${LINK} text-meta text-ink-3 ${className}`}>
       原文 <IconArrowUpRight size={12} />
     </a>
   );
@@ -135,8 +142,10 @@ function CitationTitle({ c, children, anchor, className = "transition-colors hov
   if (anchor) return <Link to={anchor} className={className}>{children}</Link>;
   // 目标选择（2026-10-31 二修）：有公开条目页 → 站内页；条目存在但读者页不可得
   // （hasPage=false：来源仅准摘要等）→ 原文，绝不送读者去 404；两者皆无 → 纯文本。
+  // 原文那一格同样只认 http(s)（lib/safe-url.ts）：不安全的地址按纯文本，不写进 href。
+  const sourceHref = safeExternalHref(c.sourceUrl);
   if (c.itemId && c.hasPage !== false) return <Link to={`/items/${c.itemId}`} prefetch="intent" className={className}>{children}</Link>;
-  if (c.sourceUrl) return <a href={c.sourceUrl} target="_blank" rel="noopener noreferrer" className={className} aria-label={`阅读原文：${c.title}（新标签页）`}>{children}</a>;
+  if (sourceHref) return <a href={sourceHref} target="_blank" rel="noopener noreferrer" className={className} aria-label={`阅读原文：${c.title}（新标签页）`}>{children}</a>;
   return <span className={className}>{children}</span>;
 }
 

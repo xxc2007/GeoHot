@@ -36,9 +36,11 @@ export async function buildApp(): Promise<FastifyInstance> {
     routerOptions: { ignoreTrailingSlash: false, maxParamLength: 300 },
   });
 
-  // Register before routes so every admin authentication read is protected.
-  await app.register(rateLimit, { global: true, max: 600, timeWindow: '1 minute',
-    allowList: req => !req.url.startsWith('/api/admin/') });
+  // Register before routes so every admin authentication read is protected. No path is exempted:
+  // /api/admin/* shares the global per-IP cap like everything else (route-level overrides in
+  // server-console.ts still win where they are tighter), which bounds a forged-flood or a runaway
+  // admin tab to the same 600/min as the public read paths.
+  await app.register(rateLimit, { global: true, max: 600, timeWindow: '1 minute' });
   app.addHook("onRequest", async (req) => {
     req.requestId = req.id;
   });
