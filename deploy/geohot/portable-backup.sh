@@ -39,8 +39,12 @@ execFileSync('pg_dump', ['--format=custom','--no-owner','--no-acl','--file',proc
     PGUSER:decodeURIComponent(u.username), PGPASSWORD:decodeURIComponent(u.password) }, stdio:'inherit' });
 NODE
 pg_restore --list "$WORK/database.dump" > "$WORK/database-contents.txt"
+# `.zcode` 与 `.mimosa` 是工具留下的一次性目录，里面写着生产 IP、私钥路径和 sudo 配方（2026-11-03
+# 实测 .zcode 有 44 个文件含 ADMIN_PASSWORD 与 /opt/geohot 的 .env 位置）。它们进不了恢复流程，
+# 却会原样进备份包——包会在别人的机器上解开，所以这里按"不是站点的一部分"排除，而不是按体积。
 tar -czf "$WORK/application.tgz" --exclude='./node_modules' --exclude='./.git' \
   --exclude='./.data' --exclude='./.pgdata' --exclude='./apps/web/build' --exclude='./apps/web/.react-router' \
+  --exclude='./.zcode' --exclude='./.mimosa' --exclude='./apps/web/.mimosa' \
   --exclude='./apps/web/node_modules' --exclude='./apps/api/node_modules' --exclude='./apps/worker/node_modules' .
 if [[ -d .data ]]; then
   tar -czf "$WORK/persistent-data.tgz" --exclude='./imgcache' --exclude='./ogcache' --exclude='./backups' -C .data .

@@ -383,7 +383,7 @@ DATABASE_URL=postgres://geohot:geohot@127.0.0.1:5433/geohot_test npm test
 # 用完删掉：DROP DATABASE geohot_test
 ```
 
-`npm test` 是 `node --test --test-concurrency=1 --test-timeout=120000 "tests/*.test.ts"`（串行跑，测试之间共享这个库）。测试不访问任何外部服务——前提是 `.env` 里那两个阀是 false（第 11 节第 1 条）。
+`npm test` 是 `node --test --test-concurrency=1 --test-timeout=120000 "tests/*.test.ts" "scripts/*.test.ts"`（串行跑，测试之间共享这个库）。第二个 glob 是 2026-11-04 补的：`scripts/backfill-news.test.ts`、`scripts/backfill-news-rss.test.ts`、`scripts/news-archive-expanded.test.ts` 三个文件测的是回填脚本的翻页与断点逻辑，过去只匹配 `tests/` 根，写了却永远没人跑（28 个用例）。它们不读数据库，也不需要 `tests/setup.ts`。测试不访问任何外部服务——前提是 `.env` 里那两个阀是 false（第 11 节第 1 条）。
 
 ```bash
 npm run build -w @aihot/web && node --test apps/web/tests/*.test.ts
