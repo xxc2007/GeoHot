@@ -47,7 +47,12 @@ function pruneChildLogs(dir: string): void {
 if (process.platform !== "win32") throw new Error("This supervisor currently verifies Windows AC power only");
 const sshArgs = ["-i", config.identityFile, "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", "-o", "ServerAliveInterval=5",
   "-o", "ServerAliveCountMax=2", "-o", `HostKeyAlias=${config.hostKeyAlias}`];
-const clean = await exec("git", ["status", "--porcelain", "--untracked-files=normal"], { cwd: root });
+// 脏检查只看辅助运行时真正哈希的路径（apps/worker/src、packages/backend/src、contracts、
+// industry、package-lock.json）。全树检查会把自己锁死：并行工作流编辑 apps/api/apps/web
+// （与抽取运行时无关）时，98 轮全被拒启（2026-11-03 实测）。哈希清单本身仍然逐文件校验，
+// 运行时文件的任何改动照旧拒启——完整性不减，误伤归零。
+const RUNTIME_PATHS = ["apps/worker/src", "packages/backend/src", "packages/contracts/src", "industry", "package-lock.json"];
+const clean = await exec("git", ["status", "--porcelain", "--untracked-files=normal", "--", ...RUNTIME_PATHS], { cwd: root });
 if (clean.stdout.trim()) {
   // 静默死守则：这里曾是裸 throw，报错发生在 PS 包装器写完 header 之后、任何日志行之前，
   // 一次部署残留就能让计划任务连静默失败几十轮（2026-11-01 实测 83 轮）。改为把脏文件名

@@ -153,6 +153,17 @@ const ownClusterExists = () => existsSync(VERSION_FILE);
 const collisionHint = () => (ownClusterExists() ? "" : ` — this .pgdata holds no cluster, so that server belongs to another checkout; start yours on a free port: npm run db:up -- --daemon --port=5455`);
 
 // ---- daemon: re-spawn this same file detached, record its PID, wait for readiness, then exit ----
+// 前台模式只留给真人在交互终端里跑（Ctrl-C 干净停库）。无头调用方（工作流子代理、cron、CI 之外的
+// 自动化）跑前台会得到一个自己分配 console 的 node.exe —— Windows Terminal 弹一个黑框，会话结束
+// 后进程孤儿化（2026-11-01/02 两晚实测）。检测到无头上下文时自动转 daemon（detached+windowsHide，
+// 无窗口），调用方拿到的行为完全一致：端口起来即返回。
+// 无头上下文（工作流子代理/自动化，非交互终端）自动转 daemon——前台 node.exe 会自建 console
+// 弹黑框且会话后孤儿化。真人前台跑加 --foreground。
+const headless = !process.stdout.isTTY || process.env.CI !== undefined;
+const wantForeground = process.argv.includes("--foreground") || (!headless && !process.argv.includes("--daemon"));
+if (!wantForeground && !process.argv.includes("--daemon")) {
+  process.argv.push("--daemon");
+}
 if (process.argv.includes("--daemon")) {
   if (await listening()) {
     console.log(`dev-db: already listening on 127.0.0.1:${PORT} — nothing to do${collisionHint()}`);
