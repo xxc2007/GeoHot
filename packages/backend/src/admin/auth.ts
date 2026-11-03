@@ -109,6 +109,18 @@ async function feishuUser(code: string): Promise<FeishuUser> {
 
 export class LoginRejected extends Error {}
 
+/**
+ * Constant-time string comparison for secrets that arrive as text (the CSRF token): both sides go
+ * through the same HMAC first, so the digest length never leaks the expected value's length. The
+ * login password below uses this shape; the CSRF token in `routes/admin-auth.ts` needs it just as
+ * much — it is handed to the guard on every write request.
+ */
+export function timingSafeEqualString(a: string, b: string): boolean {
+  const given = createHmac("sha256", "csrf-token").update(a).digest();
+  const wanted = createHmac("sha256", "csrf-token").update(b).digest();
+  return timingSafeEqual(given, wanted);
+}
+
 async function createSession(userId: number, userAgent: string | undefined): Promise<string> {
   const token = randomBytes(32).toString("base64url");
   await sql`INSERT INTO admin_sessions (id_hash, user_id, csrf_token, expires_at, user_agent)

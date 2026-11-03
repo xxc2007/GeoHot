@@ -94,7 +94,8 @@ export function registerAdmin(app: FastifyInstance) {
     const data = file ? await readFile(file).catch(() => null) : null;
     if (!data) return notFound(req, reply);
     const ext = file!.split(".").pop();
-    return reply.type(ext === "jpeg" || ext === "jpg" ? "image/jpeg" : `image/${ext}`).send(data);
+    // The type comes from the stored file's extension; nosniff keeps a browser from second-guessing it.
+    return reply.type(ext === "jpeg" || ext === "jpg" ? "image/jpeg" : `image/${ext}`).header("X-Content-Type-Options", "nosniff").send(data);
   }));
 
   // Runs (F20)

@@ -2,6 +2,7 @@
 // it. The item's own text and translation often only make sense next to it.
 import type { XPostView } from "@aihot/contracts/site";
 import { IconArrowUpRight } from "../../components/icons";
+import { safeExternalHref } from "../../lib/safe-url.ts";
 
 type Quoted = NonNullable<XPostView["quoted"]>;
 
@@ -18,6 +19,8 @@ function Author({ quoted }: { quoted: Pick<Quoted, "authorName" | "handle"> }) {
 /** Item page: the whole quoted post, in Chinese with the original a tap away (the original view shows the original). */
 export function QuotedPost({ quoted, original = false }: { quoted: Quoted; original?: boolean }) {
   const zh = original ? null : quoted.translation;
+  // 采集链给的地址只有 http(s) 才配成为链接（lib/safe-url.ts）；不安全时不渲染这个入口。
+  const quotedHref = safeExternalHref(quoted.url);
   return (
     <figure className="mt-6 rounded-tile border border-line px-4 py-3.5">
       <figcaption className="flex flex-wrap items-baseline gap-x-1.5 text-[13px]">
@@ -30,8 +33,8 @@ export function QuotedPost({ quoted, original = false }: { quoted: Quoted; origi
           <p className="mt-1.5 whitespace-pre-line text-[14px] leading-[1.7] text-ink-3">{quoted.text}</p>
         </details>
       )}
-      {quoted.url && (
-        <a href={quoted.url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-0.5 text-[13px] text-accent hover:text-accent-ink">
+      {quotedHref && (
+        <a href={quotedHref} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-0.5 text-[13px] text-accent hover:text-accent-ink">
           在 X 查看被引用的帖子 <IconArrowUpRight size={13} />
         </a>
       )}

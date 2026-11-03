@@ -7,6 +7,7 @@ import type { Development, GroupInfo, GroupReport, ItemDetailGroup, TimelineFilt
 import { IconArrowUpRight, IconChevronDown } from "../../components/icons";
 import { monthDayTime, shortSourceName } from "../../lib/format";
 import { publicPath } from "../../lib/public-path";
+import { safeExternalHref } from "../../lib/safe-url.ts";
 import { groupReportsUrl, storyDevelopmentsUrl } from "./group-urls";
 import { isReload } from "./restore";
 import { sessionCache } from "./session-cache";
@@ -197,17 +198,23 @@ export function GroupSources({ group, filters, parentId }: { group: ItemDetailGr
       </Toggle>
       <Panel open={open} id={panelId} labelledBy={toggleId}>
         <ul className="divide-y divide-line-soft">
-          {others.map((r) => (
-            <li key={r.id} className="flex items-baseline gap-2 py-1.5 text-[13px]">
-              <span className="w-[108px] shrink-0 truncate text-ink-4">{shortSourceName(r.source.name)}</span>
-              <Link to={`/items/${r.id}`} className="min-w-0 flex-1 truncate text-ink-2 hover:text-accent">
-                {r.title}
-              </Link>
-              <a href={r.originalUrl} target="_blank" rel="noopener noreferrer" aria-label="打开原文" className="shrink-0 text-ink-4 hover:text-accent">
-                <IconArrowUpRight size={13} />
-              </a>
-            </li>
-          ))}
+          {others.map((r) => {
+            // 采集链给的地址只有 http(s) 才配成为链接（lib/safe-url.ts）；不安全时这行只留站内条目链接。
+            const originalHref = safeExternalHref(r.originalUrl);
+            return (
+              <li key={r.id} className="flex items-baseline gap-2 py-1.5 text-[13px]">
+                <span className="w-[108px] shrink-0 truncate text-ink-4">{shortSourceName(r.source.name)}</span>
+                <Link to={`/items/${r.id}`} className="min-w-0 flex-1 truncate text-ink-2 hover:text-accent">
+                  {r.title}
+                </Link>
+                {originalHref && (
+                  <a href={originalHref} target="_blank" rel="noopener noreferrer" aria-label="打开原文" className="shrink-0 text-ink-4 hover:text-accent">
+                    <IconArrowUpRight size={13} />
+                  </a>
+                )}
+              </li>
+            );
+          })}
         </ul>
         <LoadState loading={state.loading} error={state.error} next={state.next} empty={others.length === 0} loaded={state.loaded} onMore={() => load(state.next)} onRetry={() => load(null)} />
       </Panel>

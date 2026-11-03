@@ -53,7 +53,10 @@ export async function updateFeedback(id: number, input: { status?: string; note?
 function screenshotPath(key: string | null): string | null {
   if (!key?.startsWith("local:")) return null;
   const name = key.slice("local:".length);
-  return /^[\w.-]+$/.test(name) ? path.join(config.dataDir, "feedback-screenshots", name) : null;
+  // Same name set the writer produces (`${randomUUID()}.${ext}` in operations/feedback.ts) and the
+  // forwarder accepts (notify/email.ts): lowercase hex-and-dash UUID plus a known image extension.
+  // `..` and `.` are not members, so no dot-segment can travel through the join.
+  return /^[a-f0-9-]+\.(png|jpeg|webp|gif)$/.test(name) ? path.join(config.dataDir, "feedback-screenshots", name) : null;
 }
 
 export async function feedbackScreenshot(id: number): Promise<string | null> {

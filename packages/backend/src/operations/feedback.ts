@@ -86,6 +86,14 @@ export interface FeedbackInput {
   userAgent: string;
 }
 
+/** File-header magic for the four accepted screenshot formats, keyed by the mime subtype. */
+const MAGIC: Record<string, (data: Buffer) => boolean> = {
+  png: (d) => d.length >= 8 && d.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])),
+  jpeg: (d) => d.length >= 3 && d[0] === 0xff && d[1] === 0xd8 && d[2] === 0xff,
+  webp: (d) => d.length >= 12 && d.subarray(0, 4).toString("latin1") === "RIFF" && d.subarray(8, 12).toString("latin1") === "WEBP",
+  gif: (d) => d.length >= 6 && (d.subarray(0, 6).toString("latin1") === "GIF87a" || d.subarray(0, 6).toString("latin1") === "GIF89a"),
+};
+
 export async function submitFeedback(input: FeedbackInput, ticket?: object): Promise<{ id: number }> {
   const ownAdmission = ticket && admissions.delete(ticket) ? null : admitFeedback(input.ip);
   try { return await storageGate.run(() => storeFeedback(input)); }
@@ -128,6 +136,9 @@ async function storeFeedback(input: FeedbackInput): Promise<{ id: number }> {
   if (input.screenshot) {
     if (!/^image\/(png|jpeg|webp|gif)$/.test(input.screenshot.mime)) throw new FeedbackRejected(400, "invalid_request", "截图需要是 PNG、JPG、WebP 或 GIF。");
     if (input.screenshot.data.length > 8 * 1024 * 1024) throw new FeedbackRejected(400, "invalid_request", "截图最大 8MB。");
+    // The browser names the type; the bytes have to agree. A file whose header is not the declared
+    // image format (an HTML page renamed .png, say) never reaches the storage or the operator's mailbox.
+    if (!MAGIC[input.screenshot.mime.split("/")[1]]?.(input.screenshot.data)) throw new FeedbackRejected(400, "invalid_request", "截图文件内容与声明的图片格式不符，请重新截图后再提交。");
     // Stored locally only until it is forwarded (notify/email.ts); the database keeps only an identifier.
     const name = `${randomUUID()}.${input.screenshot.mime.split("/")[1]}`;
     const dir = path.join(config.dataDir, "feedback-screenshots");

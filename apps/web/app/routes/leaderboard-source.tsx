@@ -8,6 +8,7 @@ import { BrandMark } from "../features/leaderboard/BrandMark";
 import { StatusChip } from "../features/leaderboard/StatusChip";
 import { pct, shortStamp } from "../features/leaderboard/format";
 import { IconArrowLeft, IconArrowUpRight, IconChevronDown } from "../components/icons";
+import { safeExternalHref } from "../lib/safe-url.ts";
 
 export async function loader({ params, request }: Route.LoaderArgs) {
   return loadOr404<LbSourceDetail>(`/api/site/leaderboard/sources/${encodeURIComponent(params.key)}`, { signal: request.signal });
@@ -57,6 +58,8 @@ function Stat({ label, children }: { label: string; children: React.ReactNode })
 export default function LeaderboardSourcePage() {
   const d = useLoaderData<typeof loader>();
   const { source } = d;
+  // 采集来的官方评测地址只有 http(s) 才配成为链接（lib/safe-url.ts）；不安全时按纯文本显示。
+  const officialHref = safeExternalHref(source.officialUrl);
   return (
     <div className="pb-12">
       <Link to="/leaderboard/sources" className="mt-4 inline-flex items-center gap-1.5 py-2 text-[13px] text-ink-3 transition-colors hover:text-accent lg:mt-0">
@@ -74,16 +77,23 @@ export default function LeaderboardSourcePage() {
             </p>
           </div>
         </div>
-        {source.officialUrl && (
+        {officialHref ? (
           <a
-            href={source.officialUrl}
+            href={officialHref}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex h-8 shrink-0 items-center gap-1.5 self-start rounded-full border border-line-strong bg-surface px-3 text-[12.5px] text-ink-2 transition-colors hover:border-ink-4 hover:text-ink"
+            className="inline-flex h-8 shrink-0 items-center gap-1.5 self-start rounded-full border border-line-strong bg-surface px-3 text-[12.5px] font-medium text-ink-2 transition-colors hover:border-ink-4 hover:text-ink"
           >
             官方评测 <IconArrowUpRight size={13} />
           </a>
-        )}
+        ) : source.officialUrl ? (
+          <span
+            title="官方评测地址不是 http(s) 地址，只作文字显示"
+            className="inline-flex h-8 shrink-0 cursor-default items-center gap-1.5 self-start rounded-full border border-line-strong bg-surface px-3 text-[12.5px] font-medium text-ink-4"
+          >
+            官方评测
+          </span>
+        ) : null}
       </header>
 
       <section className="mt-6 grid grid-cols-2 gap-x-4 gap-y-5 border-y border-line py-5 lg:grid-cols-4" aria-label={`在 ${SITE.name} 中`}>

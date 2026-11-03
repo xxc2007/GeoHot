@@ -12,10 +12,11 @@ const env = process.env;
 export const isProduction = env.NODE_ENV === "production";
 
 /**
- * Whether this process is meant to answer public traffic. The two gates disagree by design today —
- * `assertProductionSecrets` below keys off NODE_ENV, the dev-login bypass keys off AIHOT_ENVIRONMENT
- * (`environmentName`, and `admin/auth.ts` with it) — so a deployment that sets only one of them is half
- * hardened. Anything that would leak the deployment's own public address to readers checks both.
+ * Whether this process is meant to answer public traffic: NODE_ENV or AIHOT_ENVIRONMENT naming
+ * production, either one. Every hardening gate keys off this — `assertProductionSecrets` below and
+ * the SITE_URL check in `siteUrl()` — so a deployment that sets only one of the two variables is
+ * still fully checked; the dev-login bypass separately refuses AIHOT_ENVIRONMENT=production
+ * (`environmentName`, `admin/auth.ts`), and a deployment that sets neither gate is development.
  */
 const servesPublicTraffic = isProduction || env.AIHOT_ENVIRONMENT === "production";
 
@@ -180,7 +181,7 @@ const PLACEHOLDER = /^(changeme|placeholder|dummy|test|xxx+|your[-_ ].*|<.*>)$/i
 
 /** Production refuses to start with missing or placeholder critical secrets, or dev-login bypasses. */
 export function assertProductionSecrets(names: Array<[CredentialGroup, string]>): void {
-  if (!isProduction) return;
+  if (!servesPublicTraffic) return;
   const problems: string[] = [];
   for (const [group, name] of names) {
     const value = credential(group, name);

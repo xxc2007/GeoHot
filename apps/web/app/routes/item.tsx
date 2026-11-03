@@ -10,6 +10,7 @@ import { breadcrumbLd, pageMeta, siteUrl, titled } from "../lib/seo";
 import { fullDateTime, relativeTime } from "../lib/format";
 import { markRead } from "../lib/local-state";
 import { publicPath } from "../lib/public-path";
+import { safeExternalHref } from "../lib/safe-url.ts";
 import { backPlace } from "../lib/back-place";
 import { SelectedBadge } from "../components/ui/Badge";
 import { ScoreLabel } from "../components/ui/Score";
@@ -180,6 +181,9 @@ export default function ItemPage() {
   const summaryOnly = item.readingMode !== "full";
   const showOutline = item.outline.length >= 3;
   const originalLabel = isX ? "在 X 查看原推" : "打开原文";
+  // 原文地址来自采集链，前端不假设上游已经筛过 scheme（lib/safe-url.ts）：只有 http(s) 才成为
+  // 链接，其余按纯文本显示，绝不把别的 scheme 写进 href。
+  const originalHref = safeExternalHref(item.links.original);
   // 视频块的可访问名跟着平台说：X 上是「原推」，视频频道上没有任何"推"可打开。
   const videoLabel = isX ? "打开原推播放视频" : "打开原视频观看";
   // 使用规则第 3 条（/terms#s4）对全站一体适用，但灾害与预警类条目要在读者决定行动的那一段话下面指回去一次。
@@ -246,14 +250,23 @@ export default function ItemPage() {
   // Desktop actions head the right rail, one row as tall as 返回 at the head of the left one.
   const actions = (
     <div className="flex items-center gap-1">
-      <a
-        href={item.links.original}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-full border border-line-strong bg-surface px-3.5 text-[12.5px] font-medium text-ink-2 transition-colors hover:border-ink-4 hover:text-ink"
-      >
-        {originalLabel} <IconExternal size={13} />
-      </a>
+      {originalHref ? (
+        <a
+          href={originalHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-full border border-line-strong bg-surface px-3.5 text-[12.5px] font-medium text-ink-2 transition-colors hover:border-ink-4 hover:text-ink"
+        >
+          {originalLabel} <IconExternal size={13} />
+        </a>
+      ) : (
+        <span
+          title="原文地址不是 http(s) 地址，只作文字显示"
+          className="inline-flex h-8 flex-1 cursor-default items-center justify-center gap-1.5 rounded-full border border-line-strong bg-surface px-3.5 text-[12.5px] font-medium text-ink-4"
+        >
+          {originalLabel}
+        </span>
+      )}
       {showOutline && (
         <button
           type="button"
@@ -367,9 +380,15 @@ export default function ItemPage() {
           </button>
         )}
         <StarButton item={item} size={32} />
-        <a href={item.links.original} target="_blank" rel="noopener noreferrer" className="inline-flex h-8 items-center gap-1 px-1.5 text-[14px] text-ink-2">
-          <IconExternal size={15} /> 原文
-        </a>
+        {originalHref ? (
+          <a href={originalHref} target="_blank" rel="noopener noreferrer" className="inline-flex h-8 items-center gap-1 px-1.5 text-[14px] text-ink-2">
+            <IconExternal size={15} /> 原文
+          </a>
+        ) : (
+          <span title="原文地址不是 http(s) 地址，只作文字显示" className="inline-flex h-8 cursor-default items-center gap-1 px-1.5 text-[14px] text-ink-4">
+            <IconExternal size={15} /> 原文
+          </span>
+        )}
         <button type="button" aria-label="分享" onClick={share} className="tap-hit inline-flex size-8 items-center justify-center rounded-full text-ink-3 hover:text-ink">
           <IconShare size={17} />
         </button>
@@ -520,9 +539,15 @@ export default function ItemPage() {
 
           <p className="mt-8 text-[13px] text-ink-4">
             来源：
-            <a href={item.links.original} target="_blank" rel="noopener noreferrer" className="text-ink-3 hover:text-accent">
-              {isX ? item.x!.authorName : item.source.name}
-            </a>
+            {originalHref ? (
+              <a href={originalHref} target="_blank" rel="noopener noreferrer" className="text-ink-3 hover:text-accent">
+                {isX ? item.x!.authorName : item.source.name}
+              </a>
+            ) : (
+              <span title="原文地址不是 http(s) 地址，只作文字显示" className="text-ink-4">
+                {isX ? item.x!.authorName : item.source.name}
+              </span>
+            )}
             <span> · {hostOf(item.links.original)}</span>
           </p>
 
