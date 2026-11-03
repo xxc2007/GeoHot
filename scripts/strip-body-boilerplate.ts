@@ -25,7 +25,7 @@ import { appendFileSync } from "node:fs";
 import path from "node:path";
 import { contentHash } from "@aihot/backend/content/materials";
 import { chromeMarks, dropRecordPageChrome, stripChromeHtml } from "@aihot/backend/content/sanitize";
-import { isBoilerplateBody, stripBoilerplate, stripTags } from "@aihot/backend/lib/text";
+import { BOILERPLATE_SQL, PAGE_CHROME_SQL, SOURCE_LINE_SQL, isBoilerplateBody, stripBoilerplate, stripTags } from "@aihot/backend/lib/text";
 import { closeDb, sql } from "@aihot/backend/db";
 import { queueProcessing } from "@aihot/backend/jobs/content";
 import { enqueue, QUEUES, stopBoss } from "@aihot/backend/jobs/queue";
@@ -119,10 +119,9 @@ const rows = chrome
       SELECT id, title, source_id, body_text, body_html, revision
       FROM articles
       WHERE body_status = 'ok' AND body_text IS NOT NULL AND length(body_text) BETWEEN 20 AND 6000
-        AND (body_text ~ '版权所有|Copyright|未经授权禁止|凡本网注明|ICP备|违法和不良信息举报'
-          OR body_text ~ '免责声明|转载请注明出处|技术支持[：:]'
-          OR body_text ~ '大字体|【(?:编辑|责编|排版|校对)[：:]|责任编辑[：:]|[（(]完[)）]$'
-          OR body_text ~ '^[0-9]{4}年[0-9]{1,2}月[0-9]{1,2}日[^。]{0,20}来源[：:]')
+        AND (body_text ~ ${BOILERPLATE_SQL}
+          OR body_text ~ ${PAGE_CHROME_SQL}
+          OR body_text ~ ${SOURCE_LINE_SQL})
       ORDER BY discovered_at DESC LIMIT ${limit}`;
 
 // 每一行先算一次清洗结果，`lost` 必须看清洗后的文本：第三十三轮之前这里写的是 `isBoilerplateBody(r.clean)`，

@@ -85,6 +85,21 @@ const PAGE_CHROME_LEAD = /^\d{4}年\d{1,2}月\d{1,2}日\s*\d{1,2}[:：]\d{2}(?:[
 const PAGE_CHROME_TAIL = /[（(]\s*(?:完|全文完)\s*[)）]\s*$/;
 
 /**
+ * 脚本侧预筛用的 SQL 判据（POSIX 正则，`~` 用）。判据本体只写在上面那几条 JS 规则里，这里给的是它们的 SQL 拼法：
+ * POSIX 没有 `(?<!\S)` / `(?!\S)` 这类断言，所以这三条只能是 JS 规则的**子集**——宁可少挑几行（漏掉的下一轮再洗），
+ * 也不能多挑：预筛挑中的行会被收口脚本按 `stripBoilerplate` 删削，多挑就是多删。
+ *
+ * 2026-11-04 之前它们是各脚本里手抄的两份（`scripts/strip-body-boilerplate.ts` 一份、
+ * `scripts/strip-summary-boilerplate.ts` 一份），后一份的值外面还裹了一对单引号——绑定参数时那对引号进了正则，
+ * 让「'版权所有」与「All rights reserved'」两个分支永远匹配不到，候选靠着 `Copyright` 那一支才没漏成空集。
+ * 现在只有这里一份，`tests/boilerplate.test.ts` 钉住"每个分支都得有样本、样本必须真被删掉"。
+ */
+export const BOILERPLATE_SQL =
+  "版权所有|Copyright|未经授权禁止|凡本网注明|ICP[备证]|违法和不良信息举报|免责声明|转载请注明出处|技术支持[：:]|All rights reserved";
+export const PAGE_CHROME_SQL = "大字体|【(?:编辑|责编|排版|校对)[：:]|责任编辑[：:]|[（(]完[)）]$";
+export const SOURCE_LINE_SQL = "^[0-9]{4}年[0-9]{1,2}月[0-9]{1,2}日[^。]{0,20}来源[：:]";
+
+/**
  * 前端模板没渲染出来的占位符与列表页角标。线上实测（web-dlyj-toc，2026-10-11 抽查 18 条里 14 条）整段是
  * `PDF(8989 KB) 中国A级景区运营效率测度… {{javascript:window.custom_author_cn_index=0;}} {{article.zuoZhe_CN}}
  * 作者信息 + …`——那是页面骨架，不是文章：骨架也有七百字，中文密度也过阈值，所以**长度判不出来**，
