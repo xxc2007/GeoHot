@@ -80,19 +80,20 @@
       ]
     },
     {
-      "slug": "mwr",
-      "name": "水利部",
+      "slug": "esa",
+      "name": "欧洲空间局",
       "group": "company",
-      "entityId": "mwr",
+      "entityId": "esa",
       "tags": [
-        "水利部",
-        "水资源",
-        "洪水与干旱"
+        "ESA",
+        "遥感影像",
+        "观测/数据发布"
       ],
-      "definition": "水利部：江河治理、水资源管理与水旱灾害防御的官方出口，汛期通报与水量调度直接关系流域沿线。",
+      "definition": "欧洲空间局（ESA）：哥白尼哨兵系列之外另一大对地观测与深空任务出口，气候卫星数据、导航与电信研究的一手发布源。",
       "related": [
-        "river-basins",
-        "climate-anomaly"
+        "copernicus",
+        "remote-sensing",
+        "observation-releases"
       ]
     },
     {
@@ -312,7 +313,7 @@
         "ocean-coast",
         "climate-anomaly",
         "disaster-events",
-        "mwr"
+        "copernicus"
       ]
     },
     {
@@ -346,7 +347,7 @@
         "landforms",
         "climate-anomaly",
         "ecosystems",
-        "mwr"
+        "ocean-coast"
       ]
     },
     {
