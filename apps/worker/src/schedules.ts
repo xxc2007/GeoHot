@@ -29,7 +29,7 @@ import { forwardPendingFeedback } from "@aihot/backend/operations/feedback";
 import { backupConfigured, runBackup } from "@aihot/backend/operations/backup";
 import { sourceHealthWeekly } from "@aihot/backend/operations/reports";
 import { markStalePendingReceipts } from "@aihot/backend/providers/receipts";
-import { recoverBudgetBlockedGrouping } from "@aihot/backend/operations/recover-grouping";
+import { recoverBudgetBlockedGrouping, recoverStalledGrouping } from "@aihot/backend/operations/recover-grouping";
 import { coalesceTranslationTicks } from "@aihot/backend/operations/coalesce-translation-ticks";
 
 interface Scheduled {
@@ -85,7 +85,7 @@ export const SCHEDULES: Scheduled[] = [
   {
     name: "ops.recover",
     cron: "*/10 * * * *",
-    run: async () => ({ backlogAging: await ageStaleLiveJobs(), receipts: await markStalePendingReceipts(), released: await autoReleaseUnknownReceipts(), grouping: await recoverBudgetBlockedGrouping(), bodyMedia: await recoverBodyMedia(), reportMedia: await recoverBodyMedia({reportsOnly:true}), workflow: await recoverWorkflowReadiness(), reportReadiness: await recoverWorkflowReadiness({reportsOnly:true,limit:75,budgetMs:1500}), bodyIntegrity: await recoverBodyIntegrity() }),
+    run: async () => ({ backlogAging: await ageStaleLiveJobs(), receipts: await markStalePendingReceipts(), released: await autoReleaseUnknownReceipts(), grouping: await recoverBudgetBlockedGrouping(), stalledGrouping: await recoverStalledGrouping(), bodyMedia: await recoverBodyMedia(), reportMedia: await recoverBodyMedia({reportsOnly:true}), workflow: await recoverWorkflowReadiness(), reportReadiness: await recoverWorkflowReadiness({reportsOnly:true,limit:75,budgetMs:1500}), bodyIntegrity: await recoverBodyIntegrity() }),
   },
   { name: "ops.alerts", cron: "*/10 * * * *", run: () => checkAlerts() },
   // One message with the follow-ups that do not touch readers (nothing when there are none).
