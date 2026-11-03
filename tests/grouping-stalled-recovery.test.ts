@@ -83,7 +83,10 @@ test("an unexpired or expired budget deferral belongs to the budget variant alon
 
 test("a completed latest run whose pending row survived is recovered after a short cooldown", async () => {
   const id = await article();
-  await terminal(id, { age: 7200 });
+  // pg-boss stamps `completed_on` when the job finishes, so "just completed" is age 0. Reusing the
+  // two-hour-old stamp the failure fixtures want would backdate the completion and hand the row to the
+  // ten-minute rule, which is the opposite of what this case is about.
+  await terminal(id, { age: 0 });
   // The successful decision deletes the row; a delete that failed after success leaves this state.
   await sql`UPDATE pgboss.job SET state='completed'::pgboss.job_state, output='{}'::jsonb WHERE data->>'articleId'=${id} AND name=${QUEUES.group}`;
   await recoverStalledGrouping();

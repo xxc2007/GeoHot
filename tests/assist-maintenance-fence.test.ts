@@ -1,9 +1,36 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { execFileSync } from "node:child_process";
+import { existsSync, readdirSync } from "node:fs";
+import path from "node:path";
 
-test("server assist fence excludes concurrent maintenance and retains isolation after disconnect", () => {
-  const result = execFileSync(process.env.GEOHOT_TEST_PYTHON || "python3", ["-c", `
+/**
+ * On a stock Windows box `python3` is the Microsoft Store alias: it prints "Python was not found" and exits
+ * 9009, which reads as a broken fence when the only thing missing is an interpreter. Resolve a real one
+ * first — the override, then the PATH names, then the per-user installs — and skip with the reason if the
+ * machine has none. The fence itself is unchanged; nothing is asserted about a stub that never ran.
+ */
+function resolvePython(): string | null {
+  const storeRoot = process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, "Programs", "Python") : null;
+  const discovered = storeRoot && existsSync(storeRoot)
+    ? readdirSync(storeRoot).filter((d) => /^Python3\d+$/.test(d)).sort().reverse()
+        .map((d) => path.join(storeRoot, d, "python.exe")).filter(existsSync)
+    : [];
+  for (const bin of [process.env.GEOHOT_TEST_PYTHON, "python3", "python", ...discovered]) {
+    if (!bin) continue;
+    try {
+      execFileSync(bin, ["-c", "import sys; assert sys.version_info[0] == 3"], { stdio: ["ignore", "ignore", "ignore"] });
+      return bin;
+    } catch { /* the Store alias, a broken install and a missing file all land here alike */ }
+  }
+  return null;
+}
+const PYTHON = resolvePython();
+
+test("server assist fence excludes concurrent maintenance and retains isolation after disconnect", {
+  skip: PYTHON ? false : "no working python3 here: GEOHOT_TEST_PYTHON is unset and `python3` is the Microsoft Store alias",
+}, () => {
+  const result = execFileSync(PYTHON as string, ["-c", `
 import importlib.util,tempfile,pathlib,json,sys
 sys.dont_write_bytecode=True
 spec=importlib.util.spec_from_file_location('fence','deploy/geohot/assist-maintenance-fence.py')

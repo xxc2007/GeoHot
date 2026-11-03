@@ -18,7 +18,9 @@ after(async () => {
 
 test("adminRead is transparent on the happy path", async () => {
   const rows = await adminRead((db) => db<{ one: number }[]>`SELECT 1 AS one`);
-  assert.deepEqual(rows, [{ one: 1 }]);
+  // `rows` is a postgres.js Result subclass, not a plain array: a strict deepEqual would compare
+  // prototypes and fail a wrapper that is in fact transparent. Compare the values it carries.
+  assert.deepEqual(rows.map((r) => r.one), [1]);
 });
 
 test("a scan past the deadline is stopped database-side, mapped to a refresh message, with no leftover settings", async () => {
