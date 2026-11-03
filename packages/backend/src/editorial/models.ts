@@ -209,6 +209,8 @@ function benched(sick: Set<string>, name: string): boolean {
 
 let health: { at: number; sick: Set<string> } | null = null;
 let healthInflight: Promise<Set<string>> | null = null;
+/** Rate-limited so a persistently unreadable ledger warns once a minute instead of once per task. */
+let healthReadFailureAt = 0;
 
 export async function sickServices(): Promise<Set<string>> {
   if (health && Date.now() - health.at < 60_000) return modelCooldown.overlay(health.sick);
@@ -291,10 +293,24 @@ async function readSick(): Promise<Set<string>> {
         }
       }
     }
-  } catch {
+  } catch (error) {
     // Reading the ledger must never decide the request. If the rate rule could not run, no door is benched;
     // if only the quota rule failed, the rate verdict above still stands (throwing it away would re-open the
     // burst/forget cycle the second rule exists to close). Neither case means "all providers are down".
+    //
+    // Swallowing it in silence was the other half of that decision, and it was wrong: a ledger read that
+    // keeps timing out looks exactly like "every door is healthy", so the one failure mode that benches
+    // nothing was also the one nobody could see. Report it — once a minute, however many tasks ask.
+    const now = Date.now();
+    if (now - healthReadFailureAt >= 60_000) {
+      healthReadFailureAt = now;
+      console.error(JSON.stringify({
+        level: "error",
+        msg: "model health ledger unreadable; this pass benches nothing",
+        error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+        at: new Date(now).toISOString(),
+      }));
+    }
   }
   health = { at: Date.now(), sick };
   return sick;

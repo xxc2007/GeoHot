@@ -79,8 +79,11 @@ test("崩溃循环不再静音内容告警：settled 之外看 startedAt 变化�
   const bootKeys = async () => stuckKeys((await collectFindings(t0)).map((f) => f.key));
 
   // ① startedAt 只有 5 分钟（settled=false，现缺口），但窗口内已有 3 次重启：两条告警都要出声。
-  await setHeartbeat(new Date(t0 - 5 * 60_000).toISOString());
-  await setBootSeen({ lastStartedAt: "2026-01-01T00:00:00.000Z", changes: [t0 - 50 * 60_000, t0 - 30 * 60_000, t0 - 10 * 60_000].map((t) => new Date(t).toISOString()) });
+  // lastStartedAt 必须对齐当前的 startedAt：夹具里那 3 条才真的是"已经记下的 3 次"。若让它停在旧值，
+  // 这一轮又观察到一个没见过的启动时刻，按判据就该记成第 4 次（采样是"变化即计 1 次"，不是"猜总数"）。
+  const freshStartedAt = new Date(t0 - 5 * 60_000).toISOString();
+  await setHeartbeat(freshStartedAt);
+  await setBootSeen({ lastStartedAt: freshStartedAt, changes: [t0 - 50 * 60_000, t0 - 30 * 60_000, t0 - 10 * 60_000].map((t) => new Date(t).toISOString()) });
   const loop = await collectFindings(t0);
   assert.deepEqual(stuckKeys(loop.map((f) => f.key)), ["content.collect", "content.process"], "宽限窗内反复重启要照常报警");
   for (const key of stuckKeys(loop.map((f) => f.key))) {
@@ -95,11 +98,13 @@ test("崩溃循环不再静音内容告警：settled 之外看 startedAt 变化�
   // ③ checkAlerts 一轮后 lastStartedAt 更新为当前 startedAt：下一轮不再重复计数。
   await setBootSeen({ lastStartedAt: "2026-01-01T00:00:00.000Z", changes: [new Date(t0 - 10 * 60_000).toISOString()] });
   await checkAlerts(t0);
-  const [seen] = await sql<{ value: { lastStartedAt: string } }[]>`SELECT value FROM settings WHERE key = 'alerts.workerBootSeen'`;
-  assert.equal(seen!.value.lastStartedAt, new Date(t0 - 5 * 60_000).toISOString());
-  // 采样已消费（本轮计了 1 次），同输入再跑不涨：不会每 10 分钟白送一次计数。
+  const [seen] = await sql<{ value: { lastStartedAt: string; changes: string[] } }[]>`SELECT value FROM settings WHERE key = 'alerts.workerBootSeen'`;
+  assert.equal(seen!.value.lastStartedAt, freshStartedAt);
+  // 采样已消费：这一轮把新鲜的 startedAt 记成 1 条新样本，旧的那 1 条还在窗内，落盘总数是 2。
+  assert.equal(seen!.value.changes.length, 2, "本轮计的是 1 次新增，不是把旧样本抹掉");
+  // 同输入再跑不涨：不会每 10 分钟白送一次计数。
   const again = await collectFindings(t0 + 60_000);
-  assert.equal((again as unknown as { workerBootSeen: { changes: string[] } }).workerBootSeen.changes.length, 1);
+  assert.equal((again as unknown as { workerBootSeen: { changes: string[] } }).workerBootSeen.changes.length, seen!.value.changes.length);
 
   // ④ 无心跳行：settled=true 原语义不变，boot 采样也不把缺席当成重启。
   await sql`DELETE FROM settings WHERE key = 'heartbeat.worker'`;

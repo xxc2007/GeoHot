@@ -76,7 +76,11 @@ export async function collectFindings(now = Date.now()): Promise<Finding[]> {
       });
     }
   }
-  if (settled && collecting() && modelsOn()) {
+  // The same escape as content.collect above: a worker that dies inside the twenty-minute grace
+  // window every time keeps `settled` false forever, so a queue that never drains would report
+  // nothing at all. `restartedRecently` is sampled per pass (three `startedAt` changes an hour),
+  // never inferred from `settled`.
+  if ((settled || restartedRecently) && collecting() && modelsOn()) {
     const [p] = await sql<{ waiting: number; oldest: Date | null; failed: number }[]>`
       SELECT count(*) FILTER (WHERE processing_state = 'new' AND discovered_at < now() - interval '2 hours')::int AS waiting,
              min(discovered_at) FILTER (WHERE processing_state = 'new') AS oldest,
