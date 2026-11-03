@@ -5,3 +5,8 @@ After=network.target
 [Service]
 Type=oneshot
 ExecStart=/opt/geohot/bin/conc-guard.sh
+# 刻意不加沙箱（2026-11-03 复核维持，同 conc-guard.sh 头注释，沙箱化归工单 #200）：
+# 触发分支要写 /var/log 日志、改写 /opt/geohot/app/.env、备份到 /opt/geohot/backups、
+# 并 systemctl restart geohot-worker——ProtectSystem=strict 会挡住全部写动作，
+# 且触发路径无法在不重启 worker 的前提下闭环验证。
+
