@@ -29,6 +29,7 @@ interface Usage {
 
 interface Models {
   days: number;
+  fx?: { usdToCny: number; date: string; source: string };
   statistics?: Record<"configuration" | "usage" | "prices" | "history", { state: "ready" | "stale" | "unavailable"; asOf: string | null; message?: string }>;
   capabilities: Array<{ key: string; label: string; env: string; defaultModel: string; vision: boolean; current: { model: string; serving: string; source: "admin" | "env" | "default" }; usage: Usage[] }>;
   choices: Array<{ key: string; service: string; vision: boolean }>;
@@ -129,9 +130,9 @@ export default function ModelsAdmin({ loaderData: m }: Route.ComponentProps) {
                       align: "right",
                       render: (u) =>
                         u.actualCost !== null ? (
-                          `${cnyInteger(toCny(u.actualCost,u.currency))} 元`
+                          `${cnyInteger(toCny(u.actualCost,u.currency,m.fx))} 元`
                         ) : u.estimate ? (
-                          <span title="按用量 × 单价推算">≈ {cnyInteger(toCny(u.estimate.amount,u.estimate.currency))} 元</span>
+                          <span title="按用量 × 单价推算">≈ {cnyInteger(toCny(u.estimate.amount,u.estimate.currency,m.fx))} 元</span>
                         ) : (
                           <span className="whitespace-nowrap text-ink-4" title="服务商未返回实际费用；官方价格折算请查看用量总览">未返回</span>
                         ),

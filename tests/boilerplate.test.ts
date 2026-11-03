@@ -6,7 +6,7 @@
 // 它们混在正文元素里，读者看到的 HTML 也带着，所以文本和 HTML 两层都要过同一份规则。
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { isBoilerplateBody, stripBoilerplate, stripTruncatedShellTail } from "@aihot/backend/lib/text";
+import { BOILERPLATE_SQL, PAGE_CHROME_SQL, SOURCE_LINE_SQL, isBoilerplateBody, stripBoilerplate, stripTruncatedShellTail } from "@aihot/backend/lib/text";
 import { cleanArticleTextForLLM, finalizeCopy, type TranslateInput } from "@aihot/backend/editorial/writing";
 import { readable } from "@aihot/backend/content/extract";
 import { chromeMarks, dropRecordPageChrome, sanitizeBody, stripChromeHtml } from "@aihot/backend/content/sanitize";
@@ -473,4 +473,43 @@ test("chromeMarks counts what the rule removes, and nothing the reader cannot se
   // 正则那版在这里数到 1，于是这行会被判成"有改动"、bump revision、白花一次重翻——而读者看见的东西没变：
   // 藏在可播壳里的空壳，浏览器根本不渲染。
   assert.equal(chromeMarks('<video src="https://x/a.mp4"><video src="https://x/a.mp4"><video></video></video></video>'), 0);
+});
+
+// 预筛与判据不许分家：收口脚本的 SQL 候选串（`lib/text.ts` 的 BOILERPLATE_SQL / PAGE_CHROME_SQL / SOURCE_LINE_SQL）
+// 挑中的行，`stripBoilerplate` 必须真的会动它——挑进来又不洗是白扫一遍，更坏的是"按子串删"在别的地方删出洞。
+// 每个分支配一条样本：往 SQL 串里加分支而不补样本，这条会点名。判"挑不挑得中"用 JS 正则近似 POSIX——
+// 这三条串只用到 `| [] (?:) ^ $`，两边同义。
+// 这条规则本身是有来历的：2026-11-04 之前 strip-summary 那份手抄的串外面裹了一对单引号，
+// 「'版权所有」与「All rights reserved'」两个分支永远匹配不到，候选全靠 `Copyright` 那一支混进来。
+const SUBSET_CASES: Array<{ name: string; pattern: string; sample: string; gone: RegExp }> = [
+  { name: "BOILERPLATE_SQL", pattern: BOILERPLATE_SQL, sample: "某某台 版权所有 特此声明", gone: /版权/ },
+  { name: "BOILERPLATE_SQL", pattern: BOILERPLATE_SQL, sample: "Copyright 2009 by someone", gone: /Copyright/ },
+  { name: "BOILERPLATE_SQL", pattern: BOILERPLATE_SQL, sample: "未经授权禁止转载本文", gone: /未经授权禁止/ },
+  { name: "BOILERPLATE_SQL", pattern: BOILERPLATE_SQL, sample: "凡本网注明来源的作品", gone: /凡本网注明/ },
+  { name: "BOILERPLATE_SQL", pattern: BOILERPLATE_SQL, sample: "京ICP备05055842号", gone: /ICP备/ },
+  { name: "BOILERPLATE_SQL", pattern: BOILERPLATE_SQL, sample: "违法和不良信息举报电话：010-1", gone: /违法和不良信息举报/ },
+  { name: "BOILERPLATE_SQL", pattern: BOILERPLATE_SQL, sample: "【免责声明】本文仅代表作者观点", gone: /免责声明/ },
+  { name: "BOILERPLATE_SQL", pattern: BOILERPLATE_SQL, sample: "转载请注明出处", gone: /转载请注明出处/ },
+  { name: "BOILERPLATE_SQL", pattern: BOILERPLATE_SQL, sample: "技术支持：某某公司", gone: /技术支持[：:]/ },
+  { name: "BOILERPLATE_SQL", pattern: BOILERPLATE_SQL, sample: "All rights reserved", gone: /All rights reserved/ },
+  { name: "PAGE_CHROME_SQL", pattern: PAGE_CHROME_SQL, sample: "大字体 小字体", gone: /大字体|小字体/ },
+  { name: "PAGE_CHROME_SQL", pattern: PAGE_CHROME_SQL, sample: "【编辑:刘阳禾】", gone: /【编辑/ },
+  { name: "PAGE_CHROME_SQL", pattern: PAGE_CHROME_SQL, sample: "责任编辑：王一兰", gone: /责任编辑[：:]/ },
+  { name: "PAGE_CHROME_SQL", pattern: PAGE_CHROME_SQL, sample: "（完）", gone: /[（(]完[)）]/ },
+  { name: "SOURCE_LINE_SQL", pattern: SOURCE_LINE_SQL, sample: "2026年10月06日 14:02　来源： 中国新闻网 中新网杭州10月6日电", gone: /来源[：:]/ },
+];
+
+test("the stripper's SQL prefilter only selects what the rule actually removes", () => {
+  for (const { name, pattern, sample, gone } of SUBSET_CASES) {
+    assert.ok(new RegExp(pattern).test(sample), `${name} 应当挑中这一类：${sample}`);
+    const cleaned = stripBoilerplate(sample);
+    assert.ok(!gone.test(cleaned), `挑中了就得真删掉：${sample} → ${cleaned}`);
+  }
+  // 反方向：判据不动的普通句子不该被预筛挑中（否则脚本白扫一遍，值守的人也会被名单误导）。
+  const prose = "第二次青藏科考发布 2020–2025 青藏高原冰川质量变化数据集，整体亏损速率较上一个五年加快约 1.7 倍。";
+  assert.ok(!new RegExp(BOILERPLATE_SQL).test(prose), "普通正文不该被页脚预筛挑中");
+  // 但预筛是子集，故意允许"多挑"：带时刻与「来源：」的灾害句也会被挑进来，最终删不删由判据说了算。
+  const quakeLine = "2026年10月06日 14:02 来源：中国地震台网中心测定，云南德宏州盈江县发生5.1级地震。";
+  assert.ok(new RegExp(SOURCE_LINE_SQL).test(quakeLine), "子集宁可多挑：这条会被预筛选进候选");
+  assert.equal(stripBoilerplate(quakeLine), quakeLine, "判据不许删它——时刻与机构名是灾害数据");
 });

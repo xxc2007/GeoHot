@@ -20,7 +20,7 @@
 import { parseArgs } from "node:util";
 import { config } from "@aihot/backend/config";
 import { closeDb, sql } from "@aihot/backend/db";
-import { collapseWhitespace, stripBoilerplate } from "@aihot/backend/lib/text";
+import { BOILERPLATE_SQL, collapseWhitespace, stripBoilerplate } from "@aihot/backend/lib/text";
 
 const { values } = parseArgs({
   options: {
@@ -44,8 +44,8 @@ if (!Number.isSafeInteger(limit) || limit < 1) {
   process.exit(2);
 }
 // 与 `scripts/audit-content-integrity.ts` 同一条 SQL 形状：这一段外壳话术的判据只在 `lib/text.ts` 写一份，
-// 这里拼的是"哪一列需要洗"，不是第二份规则。
-const SHELL = "'版权所有|Copyright|未经授权禁止|凡本网注明|ICP[备证]|违法和不良信息举报|转载请注明出处|技术支持[：:]|All rights reserved'";
+// 这里拼的是"哪一列需要洗"，不是第二份规则。判据本身从 `lib/text.ts` 取（`BOILERPLATE_SQL`），
+// 2026-11-04 之前这里是手抄的一份、值外面还裹着单引号，两个分支被那对引号吃了。
 const targetOf = (u: string) => { try { const x = new URL(u); return x.host + x.pathname; } catch { return ""; } };
 if (values.apply) {
   const given = values["database-url-env"] ? process.env.DATABASE_URL ?? "" : values["database-url"] ?? "";
@@ -60,8 +60,8 @@ const rows = await sql<{ articleId: string; analysisId: string | null; pub: stri
   SELECT p.article_id AS "articleId", x.id AS "analysisId", p.summary AS pub, x.summary_zh AS ana
   FROM publications p
   LEFT JOIN analyses x ON x.article_id = p.article_id
-  WHERE p.visibility = 'public' AND coalesce(p.summary, '') ~ ${SHELL}
-     OR (x.summary_zh IS NOT NULL AND x.summary_zh ~ ${SHELL})
+  WHERE p.visibility = 'public' AND coalesce(p.summary, '') ~ ${BOILERPLATE_SQL}
+     OR (x.summary_zh IS NOT NULL AND x.summary_zh ~ ${BOILERPLATE_SQL})
   ORDER BY p.article_id LIMIT ${limit}`;
 
 let changed = 0;

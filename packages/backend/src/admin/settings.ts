@@ -7,15 +7,17 @@ import { sql } from "../db.ts";
 import { InvalidInput } from "./invalid.ts";
 import { audit } from "./auth.ts";
 import { unbilledAttempt } from "../providers/receipts.ts";
+import { adminReadOrBusy } from "./admin-read.ts";
 
 export async function listBudgets() {
   // 与熔断器同一口径：明确未计费才排除；未知费用和发送前预留都占额度，usage 缺失不代表免费。
   const unbilled = unbilledAttempt();
-  return sql`
+  // 管理页读带数据库侧 deadline：每行两个 receipt_attempts 子查询随尝试数增长。
+  return adminReadOrBusy((db) => db`
     SELECT b.service, b.per_minute, b.per_hour, b.per_day, b.note, b.updated_at,
            (SELECT count(*)::int FROM receipt_attempts a WHERE a.service = b.service AND a.origin = 'live' AND a.started_at > now() - interval '1 day' AND NOT ${unbilled}) AS used_day,
            (SELECT count(*)::int FROM receipt_attempts a WHERE a.service = b.service AND a.origin = 'live' AND a.started_at > now() - interval '1 hour' AND NOT ${unbilled}) AS used_hour
-    FROM budgets b ORDER BY b.service`;
+    FROM budgets b ORDER BY b.service`, 4_000);
 }
 
 export async function updateBudget(service: string, input: { perMinute: number; perHour: number; perDay: number; reason: string }, actor: string) {

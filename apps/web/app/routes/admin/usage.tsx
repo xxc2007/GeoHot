@@ -34,7 +34,7 @@ export const meta:Route.MetaFunction=()=>[{title:`用量总览 · ${SITE.name} �
 const compact=(n:number)=>new Intl.NumberFormat("zh-CN",{notation:"compact",maximumFractionDigits:1}).format(n);
 const value=(r:Metric,mode:string)=>mode==="tokens"?r.tokensIn+r.tokensOut:r.calls;
 const names:Record<string,string>={prefilter_article:"精选预筛",score_article:"精选评分",understand_article:"内容理解",summarize_article:"标题摘要",structure_article:"结构抽取",group_article:"事件归组",group_signal:"线索归组",group_review:"归组复核",story_digest:"事件综述",translate_body:"全文翻译",translate_quoted:"引用翻译",report_daily:"地理日报",report_weekly:"地理周报",report_monthly:"地理月报",report_lead:"报刊导语"};
-function amount(n:number|null,currency:string|null){return n===null?"未返回":`${cnyInteger(toCny(n,currency))} 元`;}
+function amount(n:number|null,currency:string|null,fx?:Parameters<typeof toCny>[2]){return n===null?"未返回":`${cnyInteger(toCny(n,currency,fx))} 元`;}
 function Cell({n,max,label}:{n:number;max:number;label:string}){
   return <span tabIndex={0} aria-label={label} title={label} className="block aspect-square min-w-0 rounded-[3px] outline-offset-2 focus:outline-2 focus:outline-accent"
     style={{background:n?`color-mix(in srgb, var(--accent) ${25+75*Math.sqrt(n/Math.max(1,max))}%, var(--bg-sunk))`:"var(--bg-sunk)"}}/>;
@@ -59,7 +59,9 @@ export default function UsagePage({loaderData}:Route.ComponentProps){
   useEffect(()=>{if(!interval&&d.status.state!=='stale'&&d.status.state!=='unavailable')return;const run=()=>{if(document.visibilityState==="visible"&&refresh.state==="idle")refresh.revalidate();};const id=setInterval(run,(d.status.state==='unavailable'?2:d.status.state==='stale'?5:interval)*1000);document.addEventListener("visibilitychange",run);return()=>{clearInterval(id);document.removeEventListener("visibilitychange",run);};},[interval,refresh.state,refresh.revalidate,d.status.state]);
   const total=d.rows.find(r=>r.kind==="total");const models=d.rows.filter(r=>r.kind==="model");const days=d.rows.filter(r=>r.kind==="day");
   const currencies=d.rows.filter(r=>r.kind==='currency'&&r.currency);
-  const ledgerSum=(key:'actualCost'|'estimatedCost')=>{const amounts=currencies.filter(r=>r[key]!==null).map(r=>toCny(r[key]!,r.currency)).filter((n):n is number=>n!==null);return amounts.length?amounts.reduce((a,b)=>a+b,0):null;};
+  // 与同页官方价估算同一汇率（服务端 fx_rates 最新行）：以前这里拿常量自算，同一页两种口径。
+  const fx=total?.pricing?.fx;
+  const ledgerSum=(key:'actualCost'|'estimatedCost')=>{const amounts=currencies.filter(r=>r[key]!==null).map(r=>toCny(r[key]!,r.currency,fx)).filter((n):n is number=>n!==null);return amounts.length?amounts.reduce((a,b)=>a+b,0):null;};
   const today=d.calendar.today;
   const end=new Date(`${d.date??today}T00:00:00+08:00`);const selectedCount=d.range==="all"?366:d.range==="today"||d.range==="date"?1:Number(d.range);const count=Math.max(91,selectedCount);
   const start=new Date(end.getTime()-(count-1)*86400000);
@@ -102,7 +104,7 @@ export default function UsagePage({loaderData}:Route.ComponentProps){
         <Card title="模型用量"><Ranking rows={models} mode={mode} kind="model"/></Card>
         <Card title="任务用量"><Ranking rows={d.rows.filter(r=>r.kind==="purpose")} mode={mode} kind="purpose"/></Card>
         <Card title="按时段" right="北京时间"><div className="overflow-x-auto"><div className="min-w-[380px] space-y-1">{Array.from({length:7},(_,i)=><div key={i} className="grid items-center gap-[3px]" style={{gridTemplateColumns:"26px repeat(24,minmax(8px,1fr))"}}><span className="text-[11px] text-ink-4">周{["一","二","三","四","五","六","日"][i]}</span>{Array.from({length:24},(_,h)=>{const r=hours.find(r=>r.dow===i+1&&r.hour===h);return <Cell key={h} n={r?value(r,mode):0} max={maxHour} label={`周${i+1} ${h}:00 · ${compact(r?value(r,mode):0)} ${mode==="tokens"?"已知 Token":"次请求"}`}/>;})}</div>)}<div className="ml-7 flex justify-between text-[11px] text-ink-4"><span>0 时</span><span>6 时</span><span>12 时</span><span>18 时</span><span>23 时</span></div></div></div></Card>
-        <Card title="上游账单记录"><div className="space-y-4"><div className="border-b border-line pb-3 text-[13px]"><p>上游实报 {amount(ledgerSum('actualCost'),'CNY')}</p><p className="mt-1 text-ink-4">上游估算 {amount(ledgerSum('estimatedCost'),'CNY')}</p></div><p className="text-[12px] leading-relaxed text-ink-3">统一折合人民币，汇总后四舍五入到元；实际金额与估算分开。未返回费用的请求不视为免费；此处不是上游账户余额或套餐剩余额度。</p></div></Card>
+        <Card title="上游账单记录"><div className="space-y-4"><div className="border-b border-line pb-3 text-[13px]"><p>上游实报 {amount(ledgerSum('actualCost'),'CNY',fx)}</p><p className="mt-1 text-ink-4">上游估算 {amount(ledgerSum('estimatedCost'),'CNY',fx)}</p></div><p className="text-[12px] leading-relaxed text-ink-3">统一折合人民币，汇总后四舍五入到元；实际金额与估算分开。未返回费用的请求不视为免费；此处不是上游账户余额或套餐剩余额度。</p></div></Card>
       </div>
     </>}
   </AdminPage>;
