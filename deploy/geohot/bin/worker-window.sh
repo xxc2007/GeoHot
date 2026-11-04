@@ -8,7 +8,7 @@
 #   - 夜里读者极少，可以把内存线与槽位放开，用 ≈171 条/小时的速率啃积压。
 #
 # 用法：worker-window.sh day|night
-#   day   —— MemoryHigh=120M / MemoryMax=200M / MemorySwapMax=256M，COMBINED_LIMIT=1、LANE_LIMIT=1
+#   day   —— MemoryHigh=90M / MemoryMax=150M / MemorySwapMax=128M，COMBINED_LIMIT=1、LANE_LIMIT=1
 #   night —— MemoryHigh=260M / MemoryMax=320M / MemorySwapMax=768M，COMBINED_LIMIT=3、LANE_LIMIT=2
 #
 # 两档都会重启 worker（EnvironmentFile 里的槽位只有重启才生效）；重启本身被 r115 闸门的
@@ -36,7 +36,9 @@ fi
 
 case "$mode" in
   day)
-    mem_high=120M; mem_max=200M; swap_max=256M
+    # 2026-11-05 03:1x 实测：120M/200M/256M 在 891MB 机器上仍会把 swap 顶到 700MB+、首页 503 21s；
+    # 白天档再收紧一档，宁可少跑几条，也不让读者页面掉进换页。
+    mem_high=90M; mem_max=150M; swap_max=128M
     limits=$'GEOHOT_INTAKE_COMBINED_LIMIT=1\nGEOHOT_INTAKE_LANE_LIMIT=1'
     ;;
   night)
