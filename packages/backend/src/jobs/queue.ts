@@ -49,17 +49,15 @@ export const QUEUE_OPTIONS: Record<string, QueueOptions> = {
 };
 
 const ensured = new Set<string>();
-/** Set by stopBoss(): after this the process must not open a queue again (see getBoss). */
-let stopped = false;
 /** `updateQueue` throws on these two, so they are filtered out of the patch and only reported. */
 const NOT_UPDATABLE = new Set(["policy", "partition"]);
 
 export async function getBoss(): Promise<PgBoss> {
-  // 停机之后再被启回来是真实存在的路径：关闭期间在飞的循环还会调 enqueue，而 getBoss 看到 boss=null
-  // 就重新 start()（coordinator 会重连库、重跑 migrate/supervise）。结果是「已经在关的进程又开了一条队」，
-  // 作业写进去之后再无 worker 认领。停机就是停机：这里直接拒绝，让调用方按「正在停止」处理。
-  if (stopped) throw new Error("queue stopped: the process is shutting down");
   if (boss) return boss;
+  // 注意：`stopBoss()` 之后这里会再起一个 pg-boss —— 这是**有意**的（tests/queue-start-retry.test.ts
+  // 断言「缓存里没有留下上一生的引用」）。2026-11-05 的 18 线审计把这条记成缺陷，但它的前提是
+  // 「进程该退出却还在入队」，那要收口在退出路径（apps/worker/src/main.ts），不能在缓存层挡：
+  // 挡了会让收尾期仍在飞的付费任务 enqueue 失败、作业变 retry（analyze-shutdown 用例当场翻红）。
   if (!starting) {
     // A failed `start()` must not be remembered. pg-boss can fail to start on a transient database blip,
     // and callers enqueue inside business transactions — `publishArticle` puts the selected-notify and
@@ -104,13 +102,9 @@ export const STOP_TIMEOUT_MS = 255_000;
 
 export async function stopBoss(): Promise<void> {
   shutdownSignal.abort();
-  // 旗子等 drain 结束再落下：`boss.stop({graceful})` 会等在飞的任务跑完，而一个正在收尾的付费任务
-  // 仍可能需要 enqueue 后续（摘要、媒体）。那期间队列是活的，不该被当成"已停机"拒绝；
-  // 要挡的是"stop 已经返回、进程本该退出，却又被顺手开回来"。
   if (boss) await boss.stop({ graceful: true, timeout: STOP_TIMEOUT_MS });
   boss = null;
   starting = null;
-  stopped = true;
 }
 
 export async function ensureQueue(name: string, options: QueueOptions = QUEUE_OPTIONS[name] ?? {}): Promise<void> {
