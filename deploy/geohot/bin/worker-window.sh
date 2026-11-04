@@ -41,7 +41,10 @@ case "$mode" in
     ;;
   night)
     mem_high=260M; mem_max=320M; swap_max=768M
-    limits=$'GEOHOT_INTAKE_COMBINED_LIMIT=3\nGEOHOT_INTAKE_LANE_LIMIT=2'
+    # 2026-11-04 22:15 实测：3 槽 + LANE=2 让首页从 0.4s 掉到 15s、两分钟后 503（_diag/t8/night-rehearsal.md）。
+    # 这台 891MB / 2 vCPU 的瓶颈是换页，多给内存线有用，多给槽位没用，所以夜里只放到 2 槽。
+    limits=$'GEOHOT_INTAKE_COMBINED_LIMIT=2
+GEOHOT_INTAKE_LANE_LIMIT=1'
     ;;
   *)
     echo "usage: $0 day|night" >&2
@@ -68,30 +71,35 @@ systemctl show geohot-worker -p MemoryHigh -p MemoryMax -p MemorySwapMax -p Acti
   tr '\n' ' '
 echo
 
-# 读者保护：夜间档是「多给资源」，但多发的那两个槽会不会把 891MB 顶穿，只有真跑起来才知道。
-# 切档后连续探两次首页，两次都超时 / 非 200 / 超过阈值就自动退回 day，并留一行日志。
-# 这是 2026-11-04 那次 load 19 的教训：宁可夜里少干一点，也不能让读者开不了页面。
+# 读者保护：夜间档是「多给资源」，但这台机器的瓶颈是换页 —— 2026-11-04 22:15 实测：
+# 切档瞬间两次探测都合格，90 秒后首页 15s，180 秒后直接 503。所以不能只看两眼就收工。
+# 持续观察 GEOHOT_WINDOW_GUARD_WINDOW（默认 180 秒）、每 GEOHOT_WINDOW_GUARD_EVERY（默认 30 秒）探一次；
+# 任何一次非 200 / 超时 / 超过 GEOHOT_WINDOW_GUARD_MS（默认 4000）就退回 day。
 guard_ms=${GEOHOT_WINDOW_GUARD_MS:-4000}
-guard_tries=${GEOHOT_WINDOW_GUARD_TRIES:-2}
+guard_window=${GEOHOT_WINDOW_GUARD_WINDOW:-180}
+guard_every=${GEOHOT_WINDOW_GUARD_EVERY:-30}
 if [[ "${GEOHOT_WINDOW_NO_GUARD:-0}" != "1" && "$mode" == "night" ]]; then
-  bad=0
-  for _ in $(seq 1 "$guard_tries"); do
-    # 不用 `read < <(…)`：curl 的输出没有换行时 read 返回 1，配合 `set -e` 会让脚本静默中止。
-    probe=$(curl -s -o /dev/null -w "%{http_code} %{time_total}" --max-time 20 http://127.0.0.1:3000/geohot/ || echo "000 99")
+  deadline=$(( $(date +%s) + guard_window ))
+  bad=0; total=0
+  while [ "$(date +%s)" -lt "$deadline" ]; do
+    # 探测失败（curl 返回 28/7）不能带崩脚本：显式吞掉退出码。
+    probe=$(curl -s -o /dev/null -w "%{http_code} %{time_total}" --max-time 20 http://127.0.0.1:3000/geohot/ 2>/dev/null) || probe="000 99"
     code=${probe%% *}
     secs=${probe##* }
+    total=$((total + 1))
     too_slow=$(awk -v s="${secs:-99}" -v g="$guard_ms" 'BEGIN{print (s*1000 > g) ? 1 : 0}')
     if [[ "$code" != "200" || "$too_slow" == "1" ]]; then
       bad=$((bad + 1))
-      echo "guard: probe ${code} ${secs}s (threshold $((guard_ms))ms)" >&2
+      echo "guard: probe ${code} ${secs}s over $((guard_ms))ms" >&2
+      break
     fi
-    sleep 3
+    sleep "$guard_every"
   done
-  if [[ "$bad" -ge "$guard_tries" ]]; then
-    logger -t geohot-window "night window tripped the reader guard (${bad}/${guard_tries}); reverting to day"
-    echo "guard: reverting to day (${bad}/${guard_tries} probes failed)" >&2
+  if [[ "$bad" -gt 0 ]]; then
+    logger -t geohot-window "night window failed the reader guard after ${total} probe(s); reverting to day"
+    echo "guard: reverting to day after ${total} probe(s)" >&2
     GEOHOT_WINDOW_NO_GUARD=1 "$0" day
     exit 0
   fi
-  echo "guard: ok ($((guard_tries - bad))/${guard_tries} probes within $((guard_ms))ms)"
+  echo "guard: ok (${total} probes within $((guard_ms))ms over ${guard_window}s)"
 fi
