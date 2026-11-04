@@ -3,7 +3,7 @@ import { spawn, execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { parseArgs } from "node:util";
 import { createHash, randomUUID } from "node:crypto";
-import { readFileSync, writeFileSync, mkdirSync, openSync, closeSync, unlinkSync, createWriteStream, readdirSync, type WriteStream } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, openSync, closeSync, unlinkSync, renameSync, createWriteStream, readdirSync, type WriteStream } from "node:fs";
 import net from "node:net";
 import { createInterface } from "node:readline";
 import path from "node:path";
@@ -222,7 +222,31 @@ if (!duration || !assistEligible(first)) {
 mkdirSync(config.stateDirectory, { recursive: true });
 const lock = path.join(config.stateDirectory, "extraction-assist.lock");
 const lease = path.join(config.stateDirectory, "extraction-assist-lease.json");
-const lockFd = openSync(lock, "wx", 0o600); // Stale lock needs deliberate operator inspection, never PID-based stealing.
+// 本地实例锁：活着的进程绝不被抢；但 2026-11-04 现场证明"只留给操作者处理"这一条在
+// 无人值守的计划任务上等于永久停摆——12:29 那轮崩掉留下的锁让之后每 5 分钟的运行都
+// 只打印 isolated: existing instance lock 就退出。所以加一条有界的接管：记录里的 pid
+// 已经不存在、且锁本身超过 LOCK_STALE_MS（30 分钟，远大于单轮 10 分钟上限），才轮换留证。
+const LOCK_STALE_MS = 30 * 60_000;
+function pidAlive(pid: number): boolean {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try { process.kill(pid, 0); return true; } catch (error) { return (error as NodeJS.ErrnoException).code === "EPERM"; }
+}
+function openLock(): number {
+  try { return openSync(lock, "wx", 0o600); }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+    let held: { pid?: number; at?: string } = {};
+    try { held = JSON.parse(readFileSync(lock, "utf8")) as { pid?: number; at?: string }; } catch { /* unreadable = not ours to judge */ }
+    const age = held.at ? Date.now() - Date.parse(held.at) : Infinity;
+    if (held.pid && pidAlive(held.pid)) throw error;
+    if (!(age > LOCK_STALE_MS)) throw error;
+    const rotated = `${lock}.stale-${new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z")}-pid${held.pid ?? 0}`;
+    renameSync(lock, rotated);
+    console.log(JSON.stringify({ state: "lock-rotated", rotated, ageMs: Number.isFinite(age) ? age : null }));
+    return openSync(lock, "wx", 0o600);
+  }
+}
+const lockFd = openLock();
 writeFileSync(lockFd, JSON.stringify({ pid: process.pid, release, at: new Date().toISOString() }));
 closeSync(lockFd);
 let child: ReturnType<typeof spawn> | undefined;
