@@ -8,6 +8,8 @@ import { beijingDate, isDay, isMonth } from "@aihot/contracts/time";
 import { loadOr404, queryString } from "../lib/api.server";
 import { listPath, pageMeta } from "../lib/seo";
 import { CategoryTabs, SearchField } from "../features/feed/Filters";
+import { MobileFeedSwitch } from "../features/feed/MobileHome";
+import { Wordmark } from "../components/Logo";
 import { PillTabs } from "../components/ui/Tabs";
 import { DayList, Pagination } from "../features/feed/DayList";
 import { DateCalendar, type CalendarDay } from "../features/calendar/DateCalendar";
@@ -150,6 +152,13 @@ export default function AllPage() {
           )}
         </div>
         <SearchField variant="bar" defaultValue={f.q ?? ""} keep={keep} autoFocus={params.get("search") === "1"} />
+        {/* 与首页同一条 精选/全部 切换：手机上没有"全部"标签了，读者在两个列表之间来回时
+            总得有个看得见的入口（截图上这条切换就在搜索框下面一行）。 */}
+        <div className="mt-3 flex items-center justify-between gap-3">
+          <Wordmark size={20} className="text-ink" />
+          <MobileFeedSwitch at="all" channel={f.channel} />
+          <span className="w-[42px]" aria-hidden="true" />
+        </div>
         <div className="-mx-4 mt-3 border-b border-line-soft px-4 pb-3">
           <CategoryTabs base="/all" category={f.category} channel={f.channel} layoutId="all-cat-mobile" size="sm" className="min-w-0" />
         </div>

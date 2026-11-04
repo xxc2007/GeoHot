@@ -75,7 +75,9 @@ export const TABBAR: NavItem[] = [
 export const MORE_PATHS = ["/more", "/starred", ...OPTIONAL_PATHS, "/agent", "/about", "/changelog", "/feedback", "/terms", "/privacy"];
 
 export function tabIsActive(item: NavItem, pathname: string): boolean {
-  if (item.end) return pathname === item.to;
+  // 精选 与 全部 是同一个"列表"表面的两段（手机首屏那条切换），标签栏里只有精选这一格：
+  // 站在 /all 上时若一格都不亮，读者会以为自己不在任何栏目里。
+  if (item.end) return pathname === item.to || pathname === "/all";
   if (item.to === "/more") return MORE_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
   if (item.to === "/daily") return /^\/(daily|weekly|monthly)(\/|$)/.test(pathname);
   return pathname === item.to || pathname.startsWith(`${item.to}/`);
