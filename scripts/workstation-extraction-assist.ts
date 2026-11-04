@@ -116,7 +116,9 @@ async function startWatcher(): Promise<{ next: (timeoutMs: number) => Promise<st
   const payload = Buffer.from(JSON.stringify({ manifest, session: fenced ? session : undefined })).toString("base64");
   // 载荷（manifest 上百条哈希）不能塞进命令行：Windows 会直接 ENAMETOOLONG（2026-11-04 现场）。
   // 改成写到这条会话的 stdin，远端先 read 一行进环境变量，再进循环。
-  const remote = "sh -c 'IFS= read -r P; export GEOHOT_PROBE_INPUT_B64=\"$P\"; while :; do python3 /opt/geohot/app/deploy/geohot/probe-extraction-assist.py; sleep " + WATCH_SEC + "; done'";
+  // 远端脚本落地在 /opt/geohot/bin/probe-watch.sh：命令行里只留一个纯 ASCII 调用，
+  // 免掉 PowerShell/cmd/ssh 三层引号互相打架（2026-11-04 现场：会话起几秒就关）。
+  const remote = `sudo -n sh /opt/geohot/bin/probe-watch.sh ${WATCH_SEC}`;
   const proc = spawn("ssh", [...sshArgs, config.host, remote], { windowsHide: true, stdio: ["pipe", "pipe", "ignore"] });
   proc.stdin!.on("error", () => {});
   proc.stdin!.write(payload + "\n");
@@ -140,6 +142,37 @@ async function startWatcher(): Promise<{ next: (timeoutMs: number) => Promise<st
     stop: () => { try { proc.kill(); } catch { /* already gone */ } },
   };
 }
+// 启动期三件事（采样、取维护权、取库凭据）合并成一条 SSH 会话：服务器的 ufw 对 22/tcp
+// 限 6 条/30 秒，分开做就是 4 条连接一口气打出去，被 DROP 时只表现为"隧道起不来"或会话
+// 无故关闭（2026-11-04 10:1x 现场，四轮全折在这）。远端脚本见 deploy/geohot/bin/probe-watch.sh。
+async function bootstrap(): Promise<{ probe: Record<string, unknown>; fence: Record<string, unknown>; databaseUrl: string }> {
+  const payload = Buffer.from(JSON.stringify({ manifest, session })).toString("base64");
+  return await new Promise((resolve, reject) => {
+    const proc = spawn("ssh", [...sshArgs, config.host, "sudo -n sh /opt/geohot/bin/probe-watch.sh once"], { windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
+    let out = "";
+    let err = "";
+    let settled = false;
+    const fin = (fn: () => void) => { if (settled) return; settled = true; clearTimeout(timer); fn(); };
+    const timer = setTimeout(() => { try { proc.kill(); } catch { /* gone */ } fin(() => reject(new Error("bootstrap timed out"))); }, 60_000);
+    proc.stdout.on("data", data => { out += String(data); });
+    proc.stderr.on("data", data => { err = (err + String(data)).slice(-400); });
+    proc.once("error", () => fin(() => reject(new Error("SSH unavailable"))));
+    proc.once("exit", code => fin(() => {
+      if (code !== 0) { reject(new Error("bootstrap failed: " + err.split("\n").slice(-2).join(" | ").slice(-300))); return; }
+      try {
+        const lines = out.trim().split(/\r?\n/).filter(Boolean).map(line => JSON.parse(line) as Record<string, unknown>);
+        const probe = lines.find(l => l.probe)?.probe as Record<string, unknown> | undefined;
+        const fence = lines.find(l => l.fence)?.fence as Record<string, unknown> | undefined;
+        const databaseUrl = lines.find(l => l.db)?.db as string | undefined;
+        if (!probe || !fence || typeof databaseUrl !== "string") { reject(new Error("bootstrap output incomplete")); return; }
+        resolve({ probe, fence, databaseUrl });
+      } catch (error) { reject(new Error("bootstrap output unreadable: " + String((error as Error).message ?? error))); }
+    }));
+    proc.stdin!.on("error", () => {});
+    proc.stdin!.end(payload + "\n");
+  });
+}
+
 async function sample() {
   const at = Date.now();
   const [wire, power] = await Promise.all([
@@ -153,8 +186,15 @@ async function sample() {
   return result;
 }
 let first: Awaited<ReturnType<typeof sample>> | null = null;
+let boot: Awaited<ReturnType<typeof bootstrap>> | null = null;
 try {
-  first = await sample();
+  if (duration) {
+    boot = await bootstrap();
+    const power = await exec("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SystemInformation]::PowerStatus.PowerLineStatus.ToString()"], { windowsHide: true, timeout: 5000 }).catch(() => ({ stdout: "Online" }));
+    first = { ...boot.probe, at: Date.now(), localFreeMiB: freemem() / 1048576, onAC: power.stdout.trim() === "Online" } as Awaited<ReturnType<typeof sample>>;
+  } else {
+    first = await sample();
+  }
 } catch (error) {
   // A transient SSH/PowerShell stall killed the process outright (top-level throw, exit 1) with no
   // log line beyond the header, so a scheduled round looked silently dead. One miss is a normal
@@ -184,7 +224,7 @@ try {
   // 在 1G 小机上等于永远进不去：PSI 瞬时尖峰 60 秒内几乎必然出现（2026-11-02 实测 90 轮全灭）。
   // 读者保护不靠启动门槛，靠运行中每 5 秒的退出检查——尖峰一来本轮立即让路。
   fenceAttempted = true; // A lost acquire response may still have created the remote owner.
-  const acquisition = JSON.parse(await remote("sudo -n python3 /opt/geohot/app/deploy/geohot/assist-maintenance-fence.py", JSON.stringify({ action: "acquire", session })));
+  const acquisition = boot?.fence ?? {};
   if (acquisition.acquired === false) {
     fenceAttempted = false; // Known contention is a normal deferral, not an ambiguous acquisition.
     throw new Error("Maintenance owns admission");
@@ -201,8 +241,7 @@ try {
   if (stop || !first) throw new Error("No fresh admission evidence");
   // Fetch only the database credential, in memory. No auth/model/device credentials are copied.
   await pause(2500);
-  const credentials = JSON.parse(await remote("cd /opt/geohot/app && sudo -n -u geohot node --env-file=.env --input-type=module -e 'console.log(JSON.stringify({databaseUrl:process.env.DATABASE_URL}))'")) as { databaseUrl: string };
-  const database = new URL(credentials.databaseUrl);
+  const database = new URL(boot!.databaseUrl);
   if (!['postgres:', 'postgresql:'].includes(database.protocol) || !["127.0.0.1", "localhost"].includes(database.hostname) || database.port && database.port !== "5432") throw new Error("Unexpected server database endpoint");
   database.hostname = "127.0.0.1"; database.port = String(config.localPort);
   await pause(2500);
