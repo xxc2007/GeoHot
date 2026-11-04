@@ -16,6 +16,7 @@ import { PillTabs } from "../../components/ui/Tabs";
 import { beijingDate, beijingWeekday } from "../../lib/format";
 import { listPath } from "../../lib/seo";
 import { FeedItem } from "./FeedItem";
+import { TimelineSlot } from "./Timeline";
 import { SearchField } from "./Filters";
 
 export type FeedTab = "selected" | "all";
@@ -129,13 +130,16 @@ export function MobilePoolList({ pool, filters }: { pool: PoolResponse | null; f
   }
   return (
     <div className="lg:hidden">
-      <div className="mt-4 divide-y divide-line-soft">
+      {/* 与精选那一页同一套行版式（左侧 48px 时间格 + 右侧卡片），不是另拼一个"简化列表"：
+          站长 2026-11-04 报"全部页每条的时间没了"，根因是这里自己写了个 div，绕开了 TimelineSlot
+          里的 <time>。复用同一个组件，时间格式、行距、分隔线就不会再分叉。 */}
+      <ol className="mt-4 divide-y divide-line-soft lg:pt-1">
         {pool.items.map((item: FeedItemSummary) => (
-          <div key={item.id} className="py-3">
+          <TimelineSlot key={item.id} at={item.timelineAt} dataKey={item.id}>
             <FeedItem item={item} filters={filters} showTags />
-          </div>
+          </TimelineSlot>
         ))}
-      </div>
+      </ol>
       {pool.items.length === 0 && (
         <p className="py-8 text-center text-[14px] text-ink-3">这一筛选下还没有收录内容。</p>
       )}
