@@ -262,14 +262,18 @@ ready=0
 for i in $(seq 1 30); do
   a=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 http://127.0.0.1:3001/api/health || echo 000)
   w=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 http://127.0.0.1:3000/geohot/ || echo 000)
-  if [ "$a" = "200" ] && [ "$w" = "200" ]; then
+  # 被代理的 JSON 也要通：只看 /api/health 与首页时，web→api 的代理可能还没接上，
+  # 紧接着的 smoke 就会拿到 HTML 错误页（`SyntaxError: Unexpected token '<'`）。
+  j=$(curl -s --max-time 3 http://127.0.0.1:3000/geohot/api/site/meta 2>/dev/null | head -c 1)
+  if [ "$a" = "200" ] && [ "$w" = "200" ] && [ "$j" = "{" ]; then
     s2a=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 http://127.0.0.1:3001/api/health || echo 000)
     s2w=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 http://127.0.0.1:3000/geohot/ || echo 000)
-    if [ "$s2a" = "200" ] && [ "$s2w" = "200" ]; then ready=1; echo "api/web 连续两次 200（第 $i 次探测）"; break; fi
+    s2j=$(curl -s --max-time 3 http://127.0.0.1:3000/geohot/api/site/meta 2>/dev/null | head -c 1)
+    if [ "$s2a" = "200" ] && [ "$s2w" = "200" ] && [ "$s2j" = "{" ]; then ready=1; echo "api/web/JSON 代理连续两次就绪（第 $i 次探测）"; break; fi
   fi
   sleep 2
 done
-(( ready )) || echo "警告：90 秒内没等到 api/web 连续两次 200，验收里的 smoke 可能因此假红"
+(( ready )) || echo "警告：90 秒内没等到 api/web/JSON 代理连续两次就绪，验收里的 smoke 可能因此假红"
 
 date +%s >> /run/geohot-deploy-window
 echo "== 验收 =="
