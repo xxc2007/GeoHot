@@ -23,7 +23,7 @@ const MAX_PAGE = 50;
  */
 const AUTO_PAGES = 25;
 
-function withPage(query: string, page: number): string {
+export function withPage(query: string, page: number): string {
   const sp = new URLSearchParams(query);
   sp.delete("deep");
   sp.delete("anchorAt");
