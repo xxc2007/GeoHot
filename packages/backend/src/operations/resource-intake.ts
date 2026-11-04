@@ -38,6 +38,25 @@ export function intakeAvailableLanes(work: Array<{ name: string; count: number }
   return new Set([...CONTROLLED].map(name => intakeLane(name, combined)).filter(lane => !occupied.has(lane)));
 }
 
+/**
+ * 受控队列一共占了多少个名额。
+ *
+ * 2026-11-04 生产实测：每小时只完成 21 条 analyze / 22 条 extract，而单任务 p50 才 51 秒 ——
+ * 差的不是模型速度。根因是调用点把 `intakeActive()` 的 0/1 结果当成「全局是否忙」传给
+ * `IntakeBudget.execute()`，而后者见到 `active >= 1` 就拒绝一切取任务：**整个流水线同一时刻
+ * 只有一个任务在跑**，`ANALYZE_CONCURRENCY=3` / `EXTRACT_CONCURRENCY=2` 从未生效。
+ * 名额本来就该按 lane 分（analysis / fetch / processing 各一），这里只回答"总数是否已满"。
+ */
+export function intakeBusy(work: Array<{ name: string; count: number }>, slots: number | undefined): number {
+  const total = work.filter(w => CONTROLLED.has(w.name)).reduce((n, w) => n + w.count, 0);
+  let limit = 0;
+  if (slots === undefined) limit = NaN;
+  else limit = slots;
+  // slots 为 undefined 时退回旧行为（任一个在跑就算满），供测试与未改造的调用点使用。
+  if (!Number.isFinite(limit)) return total >= 1 ? 1 : 0;
+  return total >= limit ? 1 : 0;
+}
+
 export function intakeActive(queue: string, work: Array<{ name: string; count: number }>, combined: boolean, combinedLimit = 3): number {
   const controlled = work.filter(w => CONTROLLED.has(w.name));
   // Extraction is network/body I/O. In the combined runtime it shares collection's slot rather
@@ -192,7 +211,9 @@ export function installResourceIntake(boss: PgBoss) {
     const combinedLimit = sample.availableMiB >= 160 && sample.memoryFull < 5 && sample.ioFull < 15 ? 3 : 2;
     const work = boss.getWipData();
     const combined = process.env.WORKER_ROLE === "all";
-    const active = intakeActive(queue, work, combined, combinedLimit);
+    // 名额：组合运行 2–3（内存宽裕时 3），非组合 2；可用 GEOHOT_INTAKE_COMBINED_LIMIT 覆盖。
+    const slots = combined ? (COMBINED_OVERRIDE || combinedLimit) : 2;
+    const active = intakeBusy(work, slots);
     const availableLanes = intakeAvailableLanes(work, combined, combinedLimit);
     const result = await budget.execute(execute, text, values, sample, now, active, availableLanes);
     if (result.rows.length && now - lastGrantLog >= 5000) {

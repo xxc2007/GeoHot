@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { IntakeBudget, intakeQueue, intakeActive, intakeAvailableLanes } from "../packages/backend/src/operations/resource-intake.ts";
+import { IntakeBudget, intakeQueue, intakeActive, intakeAvailableLanes, intakeBusy } from "../packages/backend/src/operations/resource-intake.ts";
 import { BacklogShare } from "../packages/backend/src/operations/backlog-share.ts";
 const { fetchNextJob } = await import(new URL("../node_modules/pg-boss/dist/plans.js", import.meta.url).href);
 const claim = (name: string) => fetchNextJob({ schema: "pgboss", table: "job", name, policy: "short", limit: 1 }).text as string;
@@ -41,3 +41,22 @@ test("old work receives a bounded share through the existing atomic claim, with 
   for (let n = 0; n < 3; n++) await empty.execute(fallback, "content.analyze", claim("content.analyze"), [], Date.now());
   assert.equal(attempts.length, 4);
 });
+
+// 2026-11-04：生产每小时只完成 21 条 analyze，而单任务 p50 是 51 秒 —— 卡点不是模型，是调用点把
+// intakeActive() 的 0/1 当成"全局是否忙"，execute() 见 active>=1 就拒绝一切取任务，于是
+// ANALYZE_CONCURRENCY / EXTRACT_CONCURRENCY 从未生效。名额应按 lane 数算（analysis/fetch/processing 各一）。
+test("intake admits one job per lane instead of one job per pipeline", () => {
+  // 一个 analyze 在跑：analysis lane 占满，但 fetch 与 processing 还空着 ⇒ 不该整条流水线停摆。
+  assert.equal(intakeBusy([{ name: "content.analyze", count: 1 }], 3), 0);
+  // 两个在跑（analysis + fetch）：还剩 processing 一格。
+  assert.equal(intakeBusy([{ name: "content.analyze", count: 1 }, { name: "content.extract-body", count: 1 }], 3), 0);
+  // 三格占满才停下来。
+  assert.equal(intakeBusy([
+    { name: "content.analyze", count: 1 }, { name: "content.extract-body", count: 1 }, { name: "events.group", count: 1 },
+  ], 3), 1);
+  // 不可控队列不占名额。
+  assert.equal(intakeBusy([{ name: "notify.selected", count: 9 }], 3), 0);
+  // 没给名额时退回旧行为（任一个在跑就算满），供未改造的调用点与测试使用。
+  assert.equal(intakeBusy([{ name: "content.analyze", count: 1 }], undefined), 1);
+});
+
