@@ -1,6 +1,6 @@
 // Paid requests: an answer already received is reused, the rate window counts every request actually sent
 // (retries of one logical request included) while the spend windows count only what could have cost money,
-// a lost answer is bought again at most once, an answer
+// a collected answer that went missing is released as unknown instead of being bought again, an answer
 // that parses but cannot be used is refused so the next round asks again, and the valve stops calls before
 // they are sent.
 import { stub, tag } from "./setup.ts";
@@ -165,6 +165,41 @@ test("an unknown outcome is released automatically once, so a lost answer costs 
   } finally {
     await sql`DELETE FROM receipts WHERE service=${req.service}`;
     await sql`DELETE FROM budgets WHERE service=${req.service}`;
+  }
+});
+
+test("a collected receipt whose answer is gone is released as unknown, not bought a second time", async () => {
+  // 2026-11-04 审计（高危）：status='received' 且 response 为 NULL 的行，旧逻辑既不复用也不当
+  // unknown，而是走 existing 分支 attempts+1 再买一次 —— 同一笔账付两遍。这里钉死新行为：
+  // 翻成 unknown、把原因写进 error、且第二次调用一次都不发出去。
+  const req = { service: `lost-answer-${tag()}`, purpose: "invariant_test", subject: `lost-answer-${tag()}`, identity: { lost: tag() } };
+  await sql`INSERT INTO budgets(service,per_minute,per_hour,per_day) VALUES(${req.service},3,3,3)`;
+  const ok = async () => ({ response: { ok: true }, cost: { amount: 1, currency: "credit", basis: "estimated" as const } });
+  let second = 0;
+  const secondCall = async () => {
+    second += 1;
+    return { response: { ok: true } };
+  };
+  try {
+    const first = await paidRequest(req, ok);
+    assert.equal(first.reused, false);
+    await sql`UPDATE receipts SET response = NULL WHERE id = ${first.receiptId}`;
+
+    await assert.rejects(paidRequest(req, secondCall), ReceiptUnknownError);
+    assert.equal(second, 0, "答复丢失不能换一次重新购买");
+
+    const [row] = await sql<{ status: string; error: string | null; attempts: number }[]>`
+      SELECT status, error, attempts FROM receipts WHERE id = ${first.receiptId}`;
+    assert.equal(row!.status, "unknown");
+    assert.match(row!.error ?? "", /answer missing from a collected receipt/);
+    assert.equal(Number(row!.attempts), 1, "attempts 不该再加一次");
+
+    const attempts = await sql`SELECT 1 FROM receipt_attempts WHERE receipt_id = ${first.receiptId}`;
+    assert.equal(attempts.length, 1, "不该为丢失的答复开第二次收据尝试");
+  } finally {
+    await sql`DELETE FROM receipt_attempts WHERE receipt_id IN (SELECT id FROM receipts WHERE service = ${req.service})`;
+    await sql`DELETE FROM receipts WHERE service = ${req.service}`;
+    await sql`DELETE FROM budgets WHERE service = ${req.service}`;
   }
 });
 

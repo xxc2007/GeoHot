@@ -355,8 +355,8 @@ async function manualDecision(db: Db, articleId: string): Promise<{ factId: numb
 }
 
 /** The automatic membership a report already has (a revision keeps it). */
-async function currentMembership(articleId: string): Promise<{ factId: number; storyId: number } | null> {
-  const [row] = await sql<{ fact_id: number; story_id: number }[]>`
+async function currentMembership(articleId: string, db: Db = sql): Promise<{ factId: number; storyId: number } | null> {
+  const [row] = await db<{ fact_id: number; story_id: number }[]>`
     SELECT fa.fact_id, f.story_id FROM fact_articles fa JOIN facts f ON f.id = fa.fact_id JOIN stories st ON st.id = f.story_id
     WHERE fa.article_id = ${articleId} AND fa.role IN ('primary', 'report') AND st.merged_into IS NULL
     ORDER BY (fa.role = 'primary') DESC, fa.created_at LIMIT 1`;
@@ -751,7 +751,16 @@ async function decide(articleId: string, opts: GroupOptions): Promise<GroupResul
     const late = await manualDecision(tx, articleId);
     if (late) {
       await tx`UPDATE articles SET grouped_at = coalesce(grouped_at, now()) WHERE id = ${articleId}`;
-      return { manual: late, factId: null, storyId: null };
+      return { manual: late, factId: null, storyId: null, raced: null };
+    }
+    // 上面 :645 那次 kept 判定发生在拿到这把行锁**之前**：同一篇文章被两个 worker 同时处理时，
+    // 两个都读到"还没挂到任何事件上"，锁只让它们先后进入事务。第二个如果不在这里再看一眼，
+    // 就会给同一篇文章再造一个 story/fact —— 读者看到两条事件页，热榜把一次地震数成两次。
+    // 拿到锁后复查成员关系，先到的那次说了算。
+    const raced = await currentMembership(articleId, tx);
+    if (raced) {
+      await tx`UPDATE articles SET grouped_at = coalesce(grouped_at, now()) WHERE id = ${articleId}`;
+      return { manual: null, factId: null, storyId: null, raced };
     }
     const story = storyId ?? (await createStory(tx, newTitle, observedAt));
     const fact = factId ?? (await createFact(tx, story, newTitle, frame, observedAt));
@@ -766,6 +775,8 @@ async function decide(articleId: string, opts: GroupOptions): Promise<GroupResul
   for (const id of receipts) await completeReceipt(sql, id);
   await publishArticle(articleId);
   if (written.manual) return { verdict: "manual", factId: written.manual.factId };
+  // 另一个 worker 先一步把这篇挂到了事件上：把它这次已经花掉的收据结掉，按 kept 回报。
+  if (written.raced) return { verdict: "kept", factId: written.raced.factId, storyId: written.raced.storyId };
   const result: GroupResult = { verdict, factId: written.factId!, storyId: written.storyId! };
 
   // Other stories this report is firmly tied to: one story may have grown two roots. Best effort:
