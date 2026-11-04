@@ -61,6 +61,11 @@ if [ -r "$DW" ]; then
   read -r DS DE < "$DW" 2>/dev/null || true
   case "${DS:-}" in ''|*[!0-9]*) DS=0 ;; esac
   case "${DE:-}" in ''|*[!0-9]*) DE=0 ;; esac
+  # **部署还在跑的时候，文件里只有开始那个 epoch**（结束那个要等验收前才追加）。
+  # 06:40–06:42 那次就是这一段：重启全在窗口里，闸门只认"两个 epoch 都在"的文件，
+  # 于是把自家人打出来的 6 条 5xx 记成读者事故、冻 10 分钟。单值即视为"窗口还没关"，
+  # 右端取 NOW（再看不超过冷却小时的合理范围，防止一个旧文件长期把闸门蒙住）。
+  if (( DE == 0 && DS > 0 && DS >= NOW - WIN - GRACE )); then DE=$(( NOW > DS ? NOW : DS )); fi
   if (( DE > 0 && DE >= NOW - WIN - GRACE )); then
     (( DS - 60 < EXF || EXF == 0 )) && EXF=$(( DS - 60 ))
     (( DE + 60 > EXT )) && EXT=$(( DE + 60 ))

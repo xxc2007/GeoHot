@@ -1,10 +1,9 @@
-// 2026-11-05 06:42 复核：部署刚结束，r115 闸门照样 FENCED 10 分钟，日志里 `worker=deactivating`、
-// `grace=0`。两处同时坏了：
-//   1. deploy.sh 的 `date +%s > /run/geohot-deploy-window` 跑在操作者机器上（Windows Git Bash 没有
-//      /run），服务器那份从来没被写过——mktemp 之后 `grep -c .` 是 0；
-//   2. 闸门把"读部署窗口"藏在 `if (( GRACE > 0 ))` 里，于是关掉按单元时间戳算的宽限，会连带
-//      关掉唯一可靠的排除手段。
-// 这两条都是"看不出坏了"的静默失效，所以用静态守卫钉住：文件在，写法就得在。
+// 2026-11-05 06:40–06:42：部署刚跑完，r115 闸门把 worker 冻了 10 分钟，日志是
+//   FENCED 5xx=6/700s grace=0 worker=deactivating
+// `worker=deactivating` 说明 5xx 全是我们自己重启打出来的，而 grace=0 说明排除区间没生效。
+// 根因不是"窗口写在本机"（那两行本来就在 `<<'REMOTE'` 里，跑在服务器上），而是闸门只认
+// **两个 epoch 都在** 的窗口文件——部署进行中文件里只有开始那个，结束的得等验收前才追加。
+// 于是整段重启窗口照计。两条守卫钉住：窗口写在远端块内；单值窗口按"还没关"处理。
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -13,25 +12,32 @@ import { REPO_ROOT } from "@aihot/backend/config";
 
 const read = (rel: string) => readFileSync(path.join(REPO_ROOT, rel), "utf8");
 
-test("部署窗口写在服务器上，不是操作者机器上", () => {
-  const deploy = read("deploy/geohot/deploy.sh");
-  const writes = deploy.split("\n").filter((line) => line.includes("/run/geohot-deploy-window"));
-  assert.ok(writes.length >= 2, "deploy.sh 应该写两次窗口（开始 / 结束）");
-  for (const line of writes) {
-    assert.match(
-      line,
-      /ssh .*sudo tee (?:-a )?\/run\/geohot-deploy-window/,
-      `窗口只能通过 ssh 写到服务器，本机写等于没写：${line.trim()}`,
+test("部署窗口写在远端 heredoc 里，跟着服务器执行", () => {
+  const lines = read("deploy/geohot/deploy.sh").split("\n");
+  const open = lines.findIndex((line) => line.includes("<<'REMOTE'"));
+  const close = lines.findIndex((line, i) => i > open && line.trim() === "REMOTE");
+  assert.ok(open > 0 && close > open, "deploy.sh 应该有 <<'REMOTE' … REMOTE 远端块");
+
+  const writes = lines
+    .map((line, i) => ({ line, i }))
+    .filter(({ line }) => line.includes("/run/geohot-deploy-window"));
+  assert.equal(writes.length, 2, "开始与结束各写一次");
+  for (const { line, i } of writes) {
+    assert.ok(
+      i > open && i < close,
+      `窗口必须写在远端块里（本机 Git Bash 没有 /run）：${line.trim()}`,
     );
+    assert.match(line, /^date \+%s >+ \/run\/geohot-deploy-window$/, line.trim());
   }
 });
 
-test("闸门读部署窗口不依赖 GRACE", () => {
+test("闸门把只有开始时间的窗口当成还没关", () => {
   const gate = read("deploy/geohot/bin/r115-reader-gate.sh");
-  assert.match(gate, /DW=\/run\/geohot-deploy-window/, "闸门要知道窗口文件在哪");
-  assert.ok(
-    !/GRACE > 0 \)[^\n]*\[ -r "\$DW" \]/.test(gate),
-    "窗口不能藏在 GRACE > 0 里面：关宽限不等于关掉部署排除",
+  assert.match(gate, /DW=\/run\/geohot-deploy-window/);
+  assert.match(
+    gate,
+    /DE == 0 && DS > 0 && DS >= NOW - WIN - GRACE/,
+    "部署进行中只有 DS：右端要按 NOW 补上，否则重启窗口内的 5xx 全算读者事故",
   );
-  assert.match(gate, /if \[ -r "\$DW" \]; then/, "窗口可读就该生效");
+  assert.match(gate, /if \[ -r "\$DW" \]; then/, "窗口可读就该生效，不该藏在 GRACE > 0 里");
 });
