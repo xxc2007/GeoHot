@@ -5,12 +5,12 @@ import type { PoolResponse, TimelineResponse } from "@aihot/contracts/site";
 import { CATEGORY_LABELS, CHANNEL_LABELS, isCategoryKey, isChannelKey } from "@aihot/contracts/taxonomy";
 import { loadOr404, queryString, releaseBoundCache } from "../lib/api.server";
 import { listPath, organizationLd, pageMeta } from "../lib/seo";
-import { Wordmark } from "../components/Logo";
 import { Timeline } from "../features/feed/Timeline";
+import { MobileDaySection, MobileHomeTop } from "../features/feed/MobileHome";
 import { useLivePublicData } from "../lib/use-live-public-data";
 import { HotTopics } from "../features/feed/HotTopics";
-import { CategoryTabs, SearchField, SearchIconLink } from "../features/feed/Filters";
-import { beijingDate, beijingWeekday, monthDayTime, shortSourceName } from "../lib/format";
+import { CategoryTabs, SearchField } from "../features/feed/Filters";
+import { beijingDate, monthDayTime, shortSourceName } from "../lib/format";
 
 export async function loader({ request }: Route.LoaderArgs) {
   const url = new URL(request.url);
@@ -70,15 +70,6 @@ export function headers({ loaderHeaders }: Route.HeadersArgs) {
   return loaderHeaders;
 }
 
-function TodayLabel() {
-  const today = beijingDate(Date.now());
-  const [, m, d] = today.split("-").map(Number) as [number, number, number];
-  return (
-    <span className="text-[12.5px] text-ink-4" suppressHydrationWarning>
-      {m}月{d}日 · {beijingWeekday(today).replace("星期", "周")}
-    </span>
-  );
-}
 
 export default function Home() {
   const { data: initial, live, filters } = useLoaderData<typeof loader>();
@@ -88,13 +79,13 @@ export default function Home() {
   if (filters.tag) params.set("tag", filters.tag);
   const data = useLivePublicData(initial, `/api/site/timeline?${params}`);
   const title = filters.tag ? `#${filters.tag}` : "精选";
+  // 日期栏右侧那个"N 条"是当天的时间线总条数，来自响应里的 `dayCounts`（服务端按北京日期分桶），
+  // 不是这一屏已经渲染的 12 张卡——否则读者会看到"12 条"，然后往下滚还有几十张。
+  const todayCount = data.dayCounts[beijingDate(Date.now())] ?? null;
   return (
     <div className="pb-6">
-      {/* Phones: brand bar, today's hot topics, then the feed under "最新精选". */}
-      <div className="flex h-14 items-center justify-between lg:hidden">
-        <Wordmark size={20} className="text-ink" />
-        <TodayLabel />
-      </div>
+      {/* 手机：搜索条 + 品牌行（精选/全部 切换）——站长 2026-11-04 截图里的第一屏。 */}
+      <MobileHomeTop category={filters.category} channel={filters.channel} />
       {/* One h1 at every width: on phones it is read but not drawn (the brand bar and 最新精选 already own that
           space), from lg it is the visible page title, exactly as before. Only the desktop filter row is hidden. */}
       <h1 className="sr-only text-[24px] font-semibold leading-[1.3] text-ink lg:not-sr-only">{title}</h1>
@@ -106,12 +97,6 @@ export default function Home() {
       </div>
 
       {data.hot && <HotTopics asOf={data.hotAsOf} entries={data.hot} generatedAt={data.generatedAt} />}
-
-      <h2 className="mt-6 text-[20px] font-bold text-ink lg:hidden">{filters.tag ? title : "最新精选"}</h2>
-      <div className="-mx-4 mt-3 flex items-center gap-2 pl-4 pr-2 lg:hidden">
-        <CategoryTabs base="/" category={filters.category} channel={filters.channel} layoutId="home-cat-mobile" size="sm" className="min-w-0 flex-1" />
-        <SearchIconLink />
-      </div>
 
       {live && live.items.length > 0 && (
         <section aria-labelledby="live-title" className="mb-6 mt-3 rounded-card border border-line bg-surface px-4 py-3 lg:px-5">
@@ -148,6 +133,9 @@ export default function Home() {
         </section>
       )}
 
-      <Timeline initial={data} filters={data.filters} />    </div>
+      <MobileDaySection count={todayCount}>
+        <Timeline initial={data} filters={data.filters} />
+      </MobileDaySection>
+    </div>
   );
 }
