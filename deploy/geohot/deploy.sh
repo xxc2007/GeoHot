@@ -196,6 +196,9 @@ for u in $UNITS; do [[ -n "$(systemctl list-unit-files "$u.service" --no-legend)
 # 而且之后每条 systemctl 都会带一句 "unit file changed on disk, run daemon-reload"（2026-11-04 现场）。
 systemctl daemon-reload
 # shellcheck disable=SC2086
+# 换血窗口：闸门靠这个文件把"我们自己重启时打出来的 502/503"排除掉，不然每次部署都会
+# 触发 r115 TRIP，把 worker 冻 30 分钟（实测 03:5x）。
+date +%s > /run/geohot-deploy-window
 systemctl restart "${RUN[@]}"
 sleep 8
 for u in "${RUN[@]}"; do printf '%s=%s ' "${u%.service}" "$(systemctl is-active "$u")"; done; echo
@@ -235,6 +238,7 @@ for i in $(seq 1 30); do
 done
 (( ready )) || echo "警告：90 秒内没等到 api/web 连续两次 200，验收里的 smoke 可能因此假红"
 
+date +%s >> /run/geohot-deploy-window
 echo "== 验收 =="
 # 失败项要看得见。以前这里是 `verify-deploy.sh 2>&1 | tail -6`，而 smoke 的 ✗ 行在输出中段，
 # tail 只剩最后 RESULT 那一块 —— 于是"FAIL（2 项）"报了个计数，具体哪两条要人再手工跑一遍。

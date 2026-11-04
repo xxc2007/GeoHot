@@ -51,6 +51,19 @@ if (( GRACE > 0 )); then
     if (( E + GRACE > EXT )); then EXT=$(( E + GRACE )); fi
   done
 fi
+# 部署自己的换血窗口：deploy.sh 在重启前/后各写一个 epoch 到 /run/geohot-deploy-window，
+# 单靠单元的 ActiveEnterTimestamp 不足以覆盖"最后一次 restart 之前"的 502（实测 03:5x 那次部署
+# 就是 api/web 先起的 502 落在 [最晚-180s] 之前，闸门照样 TRIP、把 worker 冻了 30 分钟）。
+DW=/run/geohot-deploy-window
+if (( GRACE > 0 )) && [ -r "$DW" ]; then
+  read -r DS DE < "$DW" 2>/dev/null || true
+  case "${DS:-}" in ''|*[!0-9]*) DS=0 ;; esac
+  case "${DE:-}" in ''|*[!0-9]*) DE=0 ;; esac
+  if (( DE > 0 && DE >= NOW - WIN - GRACE )); then
+    (( DS - 60 < EXF || EXF == 0 )) && EXF=$(( DS - 60 ))
+    (( DE + 60 > EXT )) && EXT=$(( DE + 60 ))
+  fi
+fi
 export R114_E5_EXCLUDE_FROM=$EXF R114_E5_EXCLUDE_TO=$EXT
 RAO=$(e5_count "${R114_NGX:-/var/log/nginx/access.log}" "${R114_E5_TAIL:-20000}" "$WIN" \
   "$(LC_ALL=C date +%d/%b/%Y)" "$T0" "$NOW" \
