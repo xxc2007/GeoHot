@@ -391,12 +391,11 @@ function readableRows(index: ReportIndex, shape: "daily" | "periodic", limit: nu
   // already seen, which is the opposite of paging. Keys are fixed-width and zero-padded per kind, so
   // text order is chronological — the same fact `reportIndexRows`' `ORDER BY key DESC` relies on.
   return index.rows
-    // "Readable" has to mean the same thing here as it does on the page: an item the index does not
-    // know about (`withPage` absent — stale citation, deleted row) has no page to send the reader to,
-    // exactly like an item the gate deliberately withheld (`withoutPage`). Asking `!withoutPage` only
-    // separated the second case, so a daily citing a vanished id was listed in the index and sitemap
-    // while its own page answered 404.
-    .filter((r) => citedItemIds(r.content, shape).some((id) => index.withPage.has(id)))
+    // 这一条**不能**改成 `withPage.has(id)`：本库没有的 id（旧引用、已删除的行）在渲染时是
+    // "指向原文链接"的引用，读者不会被送到一个 404（见 tests/rss-conditional.test.ts 里
+    // 「an id this database has no row for is offered its original article」）。索引要排除的是
+    // `withoutPage` 那一类——**本库有这一行、但页面按发布/工作流闸门拒绝放行**的条目。
+    .filter((r) => citedItemIds(r.content, shape).some((id) => !index.withoutPage.has(id)))
     .filter((r) => !before || r.key < before)
     .slice(0, limit);
 }
