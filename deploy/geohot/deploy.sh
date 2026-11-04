@@ -181,9 +181,12 @@ echo "== 验收前：把定时器放回它原来的岗位 =="
 # 而线上其实是好的）：停 timer 是我的新代码做的，判 timer 不在岗也是我的新代码做的，验收夹在中间。
 # 先还原再验收不会让档案周期在验收中途开跑：锁还在下面这个 fd 8 手里，周期那边打不开锁就等/退，
 # 下一个 15 分钟档期才真正干活。本来没开的机器不会因为一次上线被打开。
-if (( TIMER_WAS_ACTIVE )); then
+# 判据是「它该在岗」而不是「进来时在岗」：机器上曾经有一次恢复没落地，timer 停在 inactive，
+# 之后每次上线都读到 TIMER_WAS_ACTIVE=0 ⇒ 自己把自己钉死（2026-11-04 15:49 实测，
+# 验收连红两次都是这条）。enabled 的 timer 就该在岗，进来时不在岗更该拉起来。
+if (( TIMER_WAS_ACTIVE )) || systemctl is-enabled --quiet geohot-archive.timer 2>/dev/null; then
   systemctl start geohot-archive.timer
-  echo "geohot-archive.timer 已恢复：$(systemctl is-active geohot-archive.timer)"
+  echo "geohot-archive.timer 已恢复：$(systemctl is-active geohot-archive.timer)（进来时 was_active=$TIMER_WAS_ACTIVE）"
 fi
 
 echo "== 验收 =="

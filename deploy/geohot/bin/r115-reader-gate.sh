@@ -24,10 +24,12 @@ case "$LAST_RELEASE" in ''|*[!0-9]*) LAST_RELEASE=0 ;; esac
 if (( LAST_RELEASE > 0 && NOW - LAST_RELEASE < 3600 && COOL < 30 )); then COOL=30; fi
 # **重启宽限**（2026-11-04）：单元重启那一两分钟里 nginx 对正在换血的 upstream 回 502/503。
 # 09:23 一次部署攒出 12 条 5xx ⇒ 闸门把 worker 停了 30 分钟，那不是读者受害，是我们自己在重启。
-# 取 api/web/worker 最近一次 ActiveEnterTimestamp，落在窗口内就排除 [重启-120s, 重启+GRACE（默认 300s，够一次滚动重启加 web 重建）] 这段；
+# 取 api/web/worker 最近一次 ActiveEnterTimestamp，落在窗口内就排除 [重启-180s, 重启+GRACE（默认 600s）] 这段；
+# 300s/120s 在 2026-11-04 16:06 那次部署上仍漏了 3 条（TRIPPED 5xx=6 grace=3）：一次部署要 90–150 秒，
+# 而 nginx 对换血中的 upstream 回 502 常落在最后一次 restart 之后，所以默认放宽，真读者的 5xx 照旧 0 容忍；
 # 真读者的 5xx 发生在别的时刻，照旧计数。R115_RESTART_GRACE_SEC=0 可关回原行为。
-GRACE=${R115_RESTART_GRACE_SEC:-300}
-case "$GRACE" in ''|*[!0-9]*) GRACE=300 ;; esac
+GRACE=${R115_RESTART_GRACE_SEC:-600}
+case "$GRACE" in ''|*[!0-9]*) GRACE=600 ;; esac
 EXF=0; EXT=0
 if (( GRACE > 0 )); then
   # 一次部署是**滚动重启**：api 先起、web 后起，只取"最后一个"单元的时刻会漏掉前一半的 5xx。
@@ -38,7 +40,7 @@ if (( GRACE > 0 )); then
     E=$(date -d "$TS" +%s 2>/dev/null || true)
     case "${E:-}" in ''|*[!0-9]*) continue ;; esac
     (( E > NOW - WIN )) || continue
-    if (( EXF == 0 || E - 120 < EXF )); then EXF=$(( E - 120 )); fi
+    if (( EXF == 0 || E - 180 < EXF )); then EXF=$(( E - 180 )); fi
     if (( E + GRACE > EXT )); then EXT=$(( E + GRACE )); fi
   done
 fi
