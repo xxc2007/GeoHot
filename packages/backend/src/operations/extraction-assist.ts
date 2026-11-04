@@ -3,6 +3,23 @@ import type { PgBoss } from "pg-boss";
 import { intakeQueue } from "./resource-intake.ts";
 
 /** Local supervisor evidence is deliberately short lived; a suspended PC cannot reuse it. */
+const ASSIST_LIMITS = {
+  localFreeMiB: 2048,
+  remoteFreeMiB: 96,
+  memoryFull: 10,
+  ioFull: 60,
+} as const;
+function limit(name: keyof typeof ASSIST_LIMITS): number {
+  // 门槛可按机器调整，默认值不变（等于不配置时的老行为）。2026-11-04：891MB 那台机器上
+  // MemAvailable 长期在 68–123MB 之间抖动，96MB 的固定门槛让本机辅助几乎永远进不来；把它
+  // 变成显式旋钮，站长按机器的实况调，而不是改代码。memoryFull / r115 / 维护锁这些"箱体在
+  // 抖"的门不随这个旋钮走。
+  const raw = process.env[`GEOHOT_ASSIST_${name.replace(/([A-Z])/g, "_$1").toUpperCase()}`];
+  if (raw === undefined || raw === "") return ASSIST_LIMITS[name];
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < 0) throw new Error(`GEOHOT_ASSIST_${name} must be a non-negative number`);
+  return value;
+}
 export function assistEligible(value: unknown, now = Date.now()): boolean {
   if (!value || typeof value !== "object") return false;
   const s = value as Record<string, unknown>;
@@ -15,9 +32,9 @@ export function assistEligible(value: unknown, now = Date.now()): boolean {
     && now >= (s.at as number) && now - (s.at as number) <= 20_000
     && s.onAC === true && s.apiHealthy === true && s.workerAll === true && s.sourceMatches === true
     && s.maintenance === false && s.r115 === false
-    && (s.localFreeMiB as number) >= 2048 && (s.remoteFreeMiB as number) >= 96
-    && (s.memoryFull as number) >= 0 && (s.memoryFull as number) < 10
-    && (s.ioFull as number) >= 0 && (s.ioFull as number) < 60;
+    && (s.localFreeMiB as number) >= limit("localFreeMiB") && (s.remoteFreeMiB as number) >= limit("remoteFreeMiB")
+    && (s.memoryFull as number) >= 0 && (s.memoryFull as number) < limit("memoryFull")
+    && (s.ioFull as number) >= 0 && (s.ioFull as number) < limit("ioFull");
 }
 
 /** Keep X/SocialData jobs on the server; no paid-provider job is claimed by this helper. */

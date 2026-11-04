@@ -46,16 +46,20 @@ except Exception:
 
 owner = pathlib.Path('/var/lib/geohot-maintenance/worker-owner.json')
 own_session = False
+# 导入 fence 只为复用它的 ownership/staleness 判据：本探针原先只把"文件存在"当成维护占用，
+# 于是一个被杀掉的会话留下的 worker-owner.json 会把本机辅助永久拒在门外（2026-11-03 16:24
+# 那份就是这样挡到 11-04 的）。stale 的判定规则写在 fence 里，两边必须是同一个。
+spec = importlib.util.spec_from_file_location('assist_fence', root / 'deploy/geohot/assist-maintenance-fence.py')
+fence = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(fence)
 if session:
-    spec = importlib.util.spec_from_file_location('assist_fence', root / 'deploy/geohot/assist-maintenance-fence.py')
-    fence = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(fence)
     own_session = fence.owned(owner, session)
+stale_owner = fence.stale(owner)
 print(json.dumps({
     'at': int(time.time() * 1000), 'remoteFreeMiB': mem, 'memoryFull': psi('memory'), 'ioFull': psi('io'),
     'sourceMatches': matches, 'apiHealthy': healthy,
     'workerAll': unit('ActiveState') == 'active' and worker_env.get(b'WORKER_ROLE', b'all') == b'all',
-    'maintenance': owner.exists() and not own_session,
+    'maintenance': owner.exists() and not own_session and not stale_owner,
     'fenceOwned': own_session,
     'r115': pathlib.Path('/run/geohot-r115-gate').exists() or pathlib.Path('/etc/geohot/r115-gate.disarmed').exists()
 }))
