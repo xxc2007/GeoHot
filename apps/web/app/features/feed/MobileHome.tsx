@@ -117,8 +117,16 @@ export function MobileDaySection({ count, children }: { count: number | null; ch
  * 「全部」那一段：首屏 loader 取好的第一页收录池。用与时间线同一张卡片（`FeedItem`），
  * 只是带上分类标签、并按收录时间排序——读者从精选切过来看到的是同一套排版，不用重新认界面。
  */
-export function MobilePoolList({ pool, filters }: { pool: PoolResponse; filters: TimelineFilters }) {
+export function MobilePoolList({ pool, filters }: { pool: PoolResponse | null; filters: TimelineFilters }) {
   const more = listPath("/all", { channel: filters.channel !== "all" ? filters.channel : null, category: filters.category, tag: filters.tag });
+  if (!pool) {
+    return (
+      <div className="lg:hidden">
+        <p className="py-8 text-center text-[14px] text-ink-3">收录池这一会儿读不到，</p>
+        <Link to={more} className="mx-auto block w-fit text-[13px] text-accent hover:underline">去全部列表看看 →</Link>
+      </div>
+    );
+  }
   return (
     <div className="lg:hidden">
       <div className="mt-4 divide-y divide-line-soft">

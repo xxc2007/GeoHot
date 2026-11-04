@@ -33,14 +33,15 @@ export async function loader({ request }: Route.LoaderArgs) {
   // Keep the first document light; Timeline continues from this cursor in 40-card batches.
   const [data, pool] = await Promise.all([
     loadOr404<TimelineResponse>(`/api/site/timeline${queryString({ ...scope, limit: 12 })}`, { responseHeaders: upstream, signal: request.signal }),
-    loadOr404<PoolResponse>(`/api/site/pool${queryString({ ...scope, limit: 12 })}`, { signal: request.signal }),
+    // 手机「全部」那一段是首页的增强项：它读不到就退回只有精选，不该把整页变成 404。
+    loadOr404<PoolResponse>(`/api/site/pool${queryString({ ...scope, limit: 12 })}`, { signal: request.signal }).catch(() => null),
   ]);
   // 精选按站长制定的标准由模型筛选，也可在后台更正。精选超过三天没有更新时，
   // 展示仍在更新的收录池；其中部分条目未达精选标准。精选恢复后这一块自动消失。
   const newest = data.cards[0]?.anchorAt ? Date.parse(data.cards[0].anchorAt) : 0;
   const stale = newest > 0 && newest < Date.now() - 3 * 86400_000;
   // The fallback shows eight headlines. Do not serialize 40 summaries, scores and tags into hydration.
-  const live = stale ? { total: pool.total, items: pool.items.slice(0, 8).map(({ id, title, timelineAt, publishedAt, source }) => ({
+  const live = stale && pool ? { total: pool.total, items: pool.items.slice(0, 8).map(({ id, title, timelineAt, publishedAt, source }) => ({
     id, title, timelineAt, publishedAt, source: { name: source.name },
   })) } : null;
   return withHeaders({ data, pool, tab, live, filters: { channel, category, tag, topic: null } }, { headers: releaseBoundCache(data.refreshAt, 60, Date.now(), upstream) });
@@ -155,7 +156,7 @@ export default function Home() {
       {/* 手机切「精选 / 全部」只换这一块里的列表：日期栏留着（它说的是"今天有多少条"），
           两段共用同一条折叠开关。Timeline 只渲染一份——窄屏切到「全部」时用 `max-lg:hidden`
           让位，桌面永远显示精选。 */}
-      <MobileDaySection count={tab === "all" ? pool.todayCount : todayCount}>
+      <MobileDaySection count={tab === "all" ? pool?.todayCount ?? null : todayCount}>
         <div className={tab === "all" ? "max-lg:hidden" : undefined}>
           <Timeline initial={data} filters={data.filters} />
         </div>
