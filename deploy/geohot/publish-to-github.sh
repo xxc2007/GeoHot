@@ -160,7 +160,7 @@ unset GIT_INDEX_FILE
 # `core.quotepath=off` 也是承重的那一半：默认配置会把非 ASCII 路径整条加引号（`"资料/秘密/.env"`），
 # 结尾那个引号让每条 `$` 锚失效——`.env` 与 `*.pem` 这类形状刚好都是靠 `$` 收尾匹配的。
 # 本机全局配置里写着 `core.quotepath=false` 所以看不出来，换一台机器就是另一回事。
-BAD_PATHS=$(git -c core.quotepath=off ls-tree -r --name-only "$tree" | grep -E '(^|/)(\.env(\.[a-z0-9-]+)?|id_(rsa|ed25519|ecdsa|dsa|openssh)[^/]*|[^/]*\.(pem|key|p8)|secrets[^/]*|credentials[^/]*)$|(^|/)\.data/' | grep -vE '\.example$' || true)
+BAD_PATHS=$(git -c core.quotepath=off ls-tree -r --name-only "$tree" | grep -E '(^|/)(\.env(\.[a-z0-9-]+)?|id_(rsa|ed25519|ecdsa|dsa|openssh)[^/]*|[^/]*\.(pem|key|p8)|secrets[^/]*|credentials[^/]*)$|(^|/)(\.data|\.zcode|\.mimosa)/' | grep -vE '\.example$' || true)
 if [[ -n "$BAD_PATHS" ]]; then
   echo "✗ 要发布的树里有 .env / 私钥 / *.pem 这类路径，公开仓不收：" >&2
   printf '%s\n' "$BAD_PATHS" | sed 's/^/    /' >&2

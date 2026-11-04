@@ -35,6 +35,10 @@ package/
 fontsource-noto-sans-sc-*.tgz
 
 # --- Agent scratch & process residue -------------------------------------
+# 两个 agent 工作目录曾经在仓库里长到 880,136 个文件 / 6.03 GB（.mimosa）。它们只是本机运行痕迹，
+# 不进索引；发布闸门（deploy/geohot/publish-to-github.sh 的 BAD_PATHS）也一并挡住。
+.zcode/
+.mimosa/
 # An agent's working area must never reach the index: a checkpoint commit once
 # swept in .audit-shots/*.html and after-home*.txt, which are throwaway renders
 # of pages that the running site already serves. Root-anchored where the residue
