@@ -189,6 +189,23 @@ if (( TIMER_WAS_ACTIVE )) || systemctl is-enabled --quiet geohot-archive.timer 2
   echo "geohot-archive.timer 已恢复：$(systemctl is-active geohot-archive.timer)（进来时 was_active=$TIMER_WAS_ACTIVE）"
 fi
 
+# 验收前等一次「连续两次都 200」：单元刚拉起来的那几秒，nginx 会把 API/SSR 的请求交给还没
+# 就绪的 upstream，于是 smoke 拿到的是 HTML 错误页而不是 JSON（`SyntaxError: Unexpected token '<'`）。
+# 这条假红 2026-10-12 起反复出现，每次都要人隔一分钟手工重跑 —— 与其解释，不如在这里等。
+echo "== 等单元回到能服务读者的状态 =="
+ready=0
+for i in $(seq 1 30); do
+  a=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 http://127.0.0.1:3001/api/health || echo 000)
+  w=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 http://127.0.0.1:3000/geohot/ || echo 000)
+  if [ "$a" = "200" ] && [ "$w" = "200" ]; then
+    s2a=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 http://127.0.0.1:3001/api/health || echo 000)
+    s2w=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 http://127.0.0.1:3000/geohot/ || echo 000)
+    if [ "$s2a" = "200" ] && [ "$s2w" = "200" ]; then ready=1; echo "api/web 连续两次 200（第 $i 次探测）"; break; fi
+  fi
+  sleep 2
+done
+(( ready )) || echo "警告：90 秒内没等到 api/web 连续两次 200，验收里的 smoke 可能因此假红"
+
 echo "== 验收 =="
 # 失败项要看得见。以前这里是 `verify-deploy.sh 2>&1 | tail -6`，而 smoke 的 ✗ 行在输出中段，
 # tail 只剩最后 RESULT 那一块 —— 于是"FAIL（2 项）"报了个计数，具体哪两条要人再手工跑一遍。
