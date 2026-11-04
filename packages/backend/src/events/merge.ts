@@ -10,8 +10,13 @@ import { publishArticle } from "../publication/publish.ts";
 export async function mergeStoryInto(fromId: number, intoId: number, reason: string, actor: string): Promise<{ moved: number } | null> {
   if (fromId === intoId) throw new Error("cannot merge a story into itself");
   const articles = await sql.begin(async (tx) => {
-    const [from] = await tx<{ public_id: string; merged_into: number | null }[]>`SELECT public_id, merged_into FROM stories WHERE id = ${fromId} FOR UPDATE`;
-    const [into] = await tx<{ merged_into: number | null }[]>`SELECT merged_into FROM stories WHERE id = ${intoId} FOR UPDATE`;
+    // 两条 `FOR UPDATE` 以前按参数顺序加锁（from 先、into 后）：后台合并、grouping 的 consolidate
+    // 与 redirectEmptiedStories 同时做 A→B 和 B→A 时会 40P01 死锁，失败那笔合并没有生效。
+    // 一次查询按 id 升序取锁，所有调用方拿到的顺序就一致了。
+    const locked = await tx<{ id: number; public_id: string; merged_into: number | null }[]>`
+      SELECT id, public_id, merged_into FROM stories WHERE id IN (${fromId}, ${intoId}) ORDER BY id FOR UPDATE`;
+    const from = locked.find((row) => row.id === fromId);
+    const into = locked.find((row) => row.id === intoId);
     if (!from || !into || from.merged_into || into.merged_into) return null;
     await tx`UPDATE facts SET story_id = ${intoId}, updated_at = now() WHERE story_id = ${fromId}`;
     // A report with evidence in both stories keeps one row: (story, article) is unique.

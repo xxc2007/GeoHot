@@ -346,7 +346,10 @@ export function registerMcp(app: FastifyInstance) {
 
   const serve = async (req: FastifyRequest, reply: FastifyReply) => {
     reply.header("Cache-Control", "no-store");
-    const host = String(req.headers["x-forwarded-host"] ?? req.headers.host ?? "").split(":")[0]!.toLowerCase();
+    // x-forwarded-host 是客户端可写的请求头：不过反代时信它等于让任何人自带域名通过 421 的
+    // DNS-rebinding 检查。只有部署声明 TRUST_PROXY=true（与 app.ts 的 trustProxy、feedback.ts 同一判据）时才采用。
+    const forwarded = process.env.TRUST_PROXY === "true" ? req.headers["x-forwarded-host"] : undefined;
+    const host = String(forwarded ?? req.headers.host ?? "").split(":")[0]!.toLowerCase();
     if (!ALLOWED_HOSTS.has(host)) return reply.code(421).type("application/json").send({ error: "misdirected_request" });
     if (!allowedOrigin(req.headers.origin)) return reply.code(403).type("application/json").send({ error: "origin_not_allowed" });
     corsHeaders(reply, req.headers.origin);

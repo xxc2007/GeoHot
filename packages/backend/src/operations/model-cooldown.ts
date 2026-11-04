@@ -50,7 +50,9 @@ export class ModelCooldown {
   }
 
   private async flush(): Promise<void> {
-    if (this.flushPromise) return;
+    // 在飞时直接 return 会丢掉这次落库的请求：reject() 之后 scheduleFlush 已把 timer 清空，
+    // 那批 until 要等到下一个事件才写（进程若被 worker 重启打断就永久丢了）。补一次重排。
+    if (this.flushPromise) { this.scheduleFlush(); return; }
     const now = Date.now();
     const payload: Record<string, { until: number; generation: number }> = {};
     for (const [key, entry] of this.until) if (entry.until > now) payload[key] = entry;
