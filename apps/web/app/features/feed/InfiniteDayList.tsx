@@ -16,6 +16,12 @@ import { DayList } from "./DayList";
 
 /** The API clamps at 50; keep the client from asking for page 51 forever. */
 const MAX_PAGE = 50;
+/**
+ * 自动续读先走 25 页（1000 条，正好是收录池的一半）。再往下不是不放，是不想一次把 2000 张卡
+ * 都塞进移动端的内存：到这一档停下，给一个「继续往下看更早的」按钮，按一次再自动接着往下走。
+ * 读者平时读到几十条就走了，真正的整档翻阅仍然一次点击都不用重复。
+ */
+const AUTO_PAGES = 25;
 
 function withPage(query: string, page: number): string {
   const sp = new URLSearchParams(query);
@@ -44,6 +50,9 @@ export function InfiniteDayList({ initialItems, initialPage, pageCount, query, t
   const [failed, setFailed] = useState<string | null>(null);
   const lastPage = Math.min(pageCount, MAX_PAGE);
   const [done, setDone] = useState(initialPage >= lastPage);
+  // 到 AUTO_PAGES 就先停自动续读，等读者按一下再放；按钮按过之后不再拦。
+  const [autoPaused, setAutoPaused] = useState(initialPage >= AUTO_PAGES);
+  const [released, setReleased] = useState(initialPage >= AUTO_PAGES);
   const seen = useRef(new Set(initialItems.map((item) => item.id)));
   const sentinel = useRef<HTMLDivElement | null>(null);
   // 触底可能在一次滚动里连触发几次：正在取的时候第二次直接返回，请求不会并发打出去。
@@ -64,6 +73,7 @@ export function InfiniteDayList({ initialItems, initialPage, pageCount, query, t
       for (const item of fresh) seen.current.add(item.id);
       if (fresh.length > 0) setItems((prev) => [...prev, ...fresh]);
       setPage(body.page);
+      if (body.page >= AUTO_PAGES && !released) setAutoPaused(true);
       if (body.page >= Math.min(body.pageCount, MAX_PAGE) || body.items.length === 0) setDone(true);
     } catch (error) {
       setFailed((error as Error)?.message ?? "加载失败");
@@ -71,17 +81,17 @@ export function InfiniteDayList({ initialItems, initialPage, pageCount, query, t
       inflight.current = false;
       setLoading(false);
     }
-  }, [lastPage, page, query]);
+  }, [lastPage, page, query, released]);
 
   useEffect(() => {
     const node = sentinel.current;
-    if (!node || done) return;
+    if (!node || done || autoPaused) return;
     const observer = new IntersectionObserver((entries) => {
       if (entries.some((entry) => entry.isIntersecting)) void load();
     }, { rootMargin: "600px 0px" });
     observer.observe(node);
     return () => observer.disconnect();
-  }, [done, load]);
+  }, [autoPaused, done, load]);
 
   return (
     <div>
@@ -105,7 +115,16 @@ export function InfiniteDayList({ initialItems, initialPage, pageCount, query, t
         {!loading && !failed && done && (
           <span>{page >= MAX_PAGE ? "最多提供 50 页；更早的日子请用上面的日历挑一天，或者用搜索、主题页。" : "已经到底了。"}</span>
         )}
-        {!loading && !failed && !done && (
+        {!loading && !failed && !done && autoPaused && !released && (
+          <button
+            type="button"
+            onClick={() => { setReleased(true); setAutoPaused(false); void load(); }}
+            className="inline-flex h-9 items-center rounded-full border border-line-strong bg-surface px-4 text-[13px] text-ink-2 hover:border-ink-4 hover:text-ink"
+          >
+            继续往下看更早的（还有 {Math.max(lastPage - page, 0)} 页）
+          </button>
+        )}
+        {!loading && !failed && !done && !autoPaused && (
           // 触底会自动取；这个按钮留给"键盘 / 屏幕阅读器 / 观察器不支持"的场合，不是唯一入口。
           <button type="button" onClick={() => void load()} className="inline-flex h-9 items-center rounded-full border border-line-strong bg-surface px-4 text-[13px] text-ink-2 hover:border-ink-4 hover:text-ink">
             加载更多
