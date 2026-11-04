@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$Config, [int]$SlotCount = 1)
+﻿param([Parameter(Mandatory=$true)][string]$Config, [int]$SlotCount = 1)
 $ErrorActionPreference = 'Stop'
 $configPath = (Resolve-Path -LiteralPath $Config).Path
 $privateConfig = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
