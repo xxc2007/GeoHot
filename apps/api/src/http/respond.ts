@@ -70,7 +70,9 @@ export function weakEtag(prefix: string, body: string): string {
   return `W/"${prefix}-${createHash("sha256").update(body).digest("hex").slice(0, 16)}"`;
 }
 
-function etagMatches(header: string | undefined, etag: string): boolean {
+// 导出的原因：static.ts 的静态文件（sitemap/llms.txt/图标…）也要同一套 If-None-Match 判据，
+// 以前那边写成 `if-none-match === etag`，浏览器带 `W/"x-1", W/"x-2"` 就永远拿不到 304。
+export function etagMatches(header: string | undefined, etag: string): boolean {
   if (!header) return false;
   const strip = (t: string) => t.trim().replace(/^W\//, "");
   return header.split(",").some((t) => t.trim() === "*" || strip(t) === strip(etag));

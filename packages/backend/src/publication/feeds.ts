@@ -105,6 +105,10 @@ function fullContent(r: FeedRow, aihot: string): string | null {
     // Whether the stored body is Chinese is one rule (`contracts/copy.ts`), asked the same way the item
     // page asks it: a declared language decides, and a declared `en` stays English whatever it quotes.
     html = !bodyIsChinese(r.language ?? null, r.body_text ?? "") && r.tr_html && r.tr_complete ? r.tr_html : r.body_html;
+  } else if (r.body_text) {
+    // 只存正文文本的全文条目（页面用 textToHtml 渲染）以前在 /feed/full.xml 里没有 content:encoded，
+    // 全文源退化成摘要 —— 与页面同一份判据：能渲染就内联。
+    html = textToHtml(r.body_text);
   }
   if (!html) return null;
   return `${proxyBodyImages(html, true, FEED_IMAGE_SECONDS)}<p>—— 本文由 ${escapeXml(SITE.name)} 聚合整理，完整版与更多动态见 <a href="${aihot}">${aihot}</a></p>`;
