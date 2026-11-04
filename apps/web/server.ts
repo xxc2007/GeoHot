@@ -1,7 +1,7 @@
 // Production web server: built client assets, the shared redirect table and SSR. Api-owned paths are
 // proxied to the api process, so one port serves the whole site; a reverse proxy in front may also send
 // them to the api directly.
-import { createReadStream } from "node:fs";
+import { createReadStream, existsSync } from "node:fs";
 import { stat } from "node:fs/promises";
 import { createServer, request as httpRequest } from "node:http";
 import path from "node:path";
@@ -37,7 +37,23 @@ const TYPES: Record<string, string> = {
   ".map": "application/json",
 };
 
-const build = await import(pathToFileURL(path.resolve(import.meta.dirname, "build/server/index.js")).href);
+// 2026-11-04：干净 clone 上直接 `node --env-file=.env apps/web/server.ts` 会在这里抛一个
+// ERR_MODULE_NOT_FOUND —— 对第一次跑这个仓库的人，那句话等于"这个项目坏了"。
+// 这里把缺的那一步直接说出来（构建产物不进 git，必须先建）。
+const buildEntry = path.resolve(import.meta.dirname, "build/server/index.js");
+if (!existsSync(buildEntry)) {
+  console.error(
+    [
+      "web 还没构建过：apps/web/build/server/index.js 不存在。",
+      "先跑一次：",
+      "  npm run build -w @aihot/web",
+      "然后重新启动：",
+      "  node --env-file=.env --env-file=.env.ports apps/web/server.ts",
+    ].join("\n"),
+  );
+  process.exit(9);
+}
+const build = await import(pathToFileURL(buildEntry).href);
 const ssr = createRequestListener({ build, mode: "production" });
 const control = await createAdminControl();
 
