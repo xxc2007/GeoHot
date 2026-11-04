@@ -391,6 +391,10 @@ function readableRows(index: ReportIndex, shape: "daily" | "periodic", limit: nu
   // already seen, which is the opposite of paging. Keys are fixed-width and zero-padded per kind, so
   // text order is chronological — the same fact `reportIndexRows`' `ORDER BY key DESC` relies on.
   return index.rows
+    // 这一条**不能**改成 `withPage.has(id)`：本库没有的 id（旧引用、已删除的行）在渲染时是
+    // "指向原文链接"的引用，读者不会被送到一个 404（见 tests/rss-conditional.test.ts 里
+    // 「an id this database has no row for is offered its original article」）。索引要排除的是
+    // `withoutPage` 那一类——**本库有这一行、但页面按发布/工作流闸门拒绝放行**的条目。
     .filter((r) => citedItemIds(r.content, shape).some((id) => !index.withoutPage.has(id)))
     .filter((r) => !before || r.key < before)
     .slice(0, limit);

@@ -229,3 +229,53 @@ export async function loadTopicPage(slug: string, page: number, now?: Date): Pro
   const related = row.related.map((r) => topics.find((t) => t.slug === r)).filter((t): t is TopicSummary => !!t).map((t) => ({ slug: t.slug, name: t.name }));
   return { topic: { ...topic, related }, items: rows.map(toFeedItemSummary), page, pageCount, generatedAt: at.toISOString() };
 }
+
+export interface TopicFreshness {
+  slug: string;
+  name: string;
+  /** Rows published inside the window (the same tag rule the topic page uses). */
+  fresh: number;
+  /** Most recent publication that belongs to the topic, or null when it never had one. */
+  lastSeen: Date | null;
+}
+
+/**
+ * 主题有没有跟上最近的新闻。
+ *
+ * 站点有 43 个主题，其中几个（地震台网、IPCC、OSM）靠的是**一两条信源**；信源被停用或开始报错之后，
+ * 主题页不会变空，它只是停在上一次收录的那天——读者看到的是"这一块最近没动静"，
+ * 而真相是"我们没有再去取"。`topics.audit` 每天把这组数字写进日志，让这件事有声音。
+ *
+ * 读法是页面用的那条判据（`topicMatchTags`），因此主题页面上能看到的最新一条，就是这里的时间。
+ */
+export async function topicFreshness(days = 14, now = new Date()): Promise<TopicFreshness[]> {
+  const windowStart = new Date(now.getTime() - days * 86400_000);
+  const rows = await sql<{ slug: string; name: string; fresh: string; last_seen: Date | null }[]>`
+    SELECT t.slug,
+           t.name,
+           count(p.*)::text AS fresh,
+           max(p.discovered_at) AS last_seen
+      FROM topics t
+      LEFT JOIN publications p
+             ON p.discovered_at >= ${windowStart}
+            AND p.tags && (CASE WHEN t.entity_id IS NOT NULL THEN ARRAY['entity:' || t.entity_id] ELSE t.tags END)
+     GROUP BY t.slug, t.name
+     ORDER BY count(p.*) ASC, t.slug`;
+  return rows.map((r) => ({ slug: r.slug, name: r.name, fresh: Number(r.fresh), lastSeen: r.last_seen }));
+}
+
+/** 每日一次：把"最近 N 天没有新条目的主题"写成一行日志，供运维与站长复核。 */
+export async function auditTopicFreshness(days = 14, now = new Date()): Promise<{ topics: number; stale: string[] }> {
+  const rows = await topicFreshness(days, now);
+  const stale = rows.filter((r) => r.fresh === 0).map((r) => r.slug);
+  console.log(JSON.stringify({
+    level: "info",
+    msg: "topic freshness audit",
+    days,
+    topics: rows.length,
+    stale: stale.length,
+    staleSlugs: stale,
+    stalest: rows.slice(0, 5).map((r) => ({ slug: r.slug, lastSeen: r.lastSeen?.toISOString().slice(0, 10) ?? null })),
+  }));
+  return { topics: rows.length, stale };
+}

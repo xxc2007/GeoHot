@@ -24,6 +24,7 @@ import { refreshLeaderboard } from "@aihot/backend/leaderboard/fetch/refresh";
 import { dailyRetention } from "@aihot/backend/operations/retention";
 import { submitIndexNow } from "@aihot/backend/operations/indexnow";
 import { checkAlerts, sendDigest } from "@aihot/backend/operations/alerts";
+import { auditTopicFreshness } from "@aihot/backend/publication/topics";
 import { autoReleaseUnknownReceipts } from "@aihot/backend/admin/runs";
 import { forwardPendingFeedback } from "@aihot/backend/operations/feedback";
 import { backupConfigured, runBackup } from "@aihot/backend/operations/backup";
@@ -94,6 +95,9 @@ export const SCHEDULES: Scheduled[] = [
   { name: "feedback.forward", cron: "*/10 * * * *", run: () => forwardPendingFeedback() },
   ...(backupConfigured() ? [{ name: "ops.backup", cron: "10 4 * * *", missed: "once" as const, run: () => runBackup() }] : []),
   { name: "reports.source-health", cron: "0 9 * * 1", missed: "once", run: () => sourceHealthWeekly() },
+  // 主题跟没跟上最近的新闻：每天一次，只读一次库、只写一行日志（不建收据、不发模型）。
+  // 有主题连续两周没有新条目时，站长会在日报里看到 slug 列表，而不是等到读者发现那一页停在上个月。
+  { name: "topics.audit", cron: "20 6 * * *", missed: "once", run: () => auditTopicFreshness() },
   // Four upstream checks a day; a new run is published only when the evidence changed. With collection
   // off only the computation runs, over the snapshots already stored.
   ...(FEATURES.leaderboard

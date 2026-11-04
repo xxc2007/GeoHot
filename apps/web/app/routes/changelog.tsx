@@ -105,7 +105,9 @@ export default function ChangelogPage() {
   for (const r of data.releases) if (!kind || r.kind === kind) groups.set(r.date, [...(groups.get(r.date) ?? []), r]);
   // 每个重大更新（major）一张置顶专题卡，最新在最上；有时间线卡片有专属组件，其余按通用重大更新卡渲染。
   // Keep groups intact for month counts and stable date links.
-  const majors = [...groups.values()].flat().filter(release => release.major);
+  // 专题卡不跟着类型过滤走：`groups` 已按当前 kind 过滤，用它取 major 会让 3.0/2.0 卡在
+  // `/changelog?kind=fix` 里消失、只剩固定的 1.0 卡。专题卡是版面骨架，永远从全量取。
+  const majors = data.releases.filter(release => release.major);
   // Month → the newest date shown in it (the jump target) and how many entries it holds.
   const months = new Map<string, { first: string; count: number }>();
   for (const [date, releases] of groups) {

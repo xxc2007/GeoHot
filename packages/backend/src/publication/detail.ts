@@ -237,10 +237,13 @@ async function buildItemDetail(id: string, now: Date, preparingMedia: boolean): 
  * the citation the paper already printed, not a copyable article.
  */
 export function markdownAvailable(row: {
-  visibility: string; source_mode: string; selected: boolean; visible_after: Date | null; workflow_ready: boolean;
+  title: string; visibility: string; source_mode: string; selected: boolean; visible_after: Date | null; workflow_ready: boolean;
   summary: string | null; body_mode: string; body_html?: string | null; channel: string; x_post: Record<string, any> | null;
 }, now = new Date()): boolean {
   if (row.visibility !== "public" || !row.workflow_ready || !itemHasPage(pageFacts(row), now)) return false;
+  // Same "label-only wrecks have nothing to show" check the page makes above (`title_zh:` rows answer
+  // 404): the export route must not hand out a 300-second CDN-cached file whose body is the label.
+  if (isLabelOnlyCopy(row.title) || isLabelOnlyCopy(row.summary)) return false;
   return !!row.summary || (row.channel === "x" && !!row.x_post?.text) || (row.body_mode === "full" && !!row.body_html);
 }
 

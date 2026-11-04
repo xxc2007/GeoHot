@@ -465,4 +465,11 @@ console.log(!check.rows
   : `historical: 0 — every row is eligible to found an event and carry heat.`);
 await stopBoss();
 await closeDb();
+// 规划阶段的 problems 早在写入循环之前就打印过；循环里 push 进去的那些（源被暂停、导入期间被暂停、
+// 隔离、未知源）以前只体现在退出码上——117 行只进 102 行、零提示。这里补一次统一回显。
+if (problems.length && process.exitCode) {
+  console.error(`!! ${problems.length} material line(s) were not stored:`);
+  for (const p of problems) console.error(`   · ${p}`);
+  console.error(`   (dropped: ${dropped.unknownSource} unknown source, ${quarantined} quarantined)`);
+}
 if (dropped.unknownSource) process.exitCode = 1;

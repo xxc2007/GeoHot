@@ -160,18 +160,25 @@ const collisionHint = () => (ownClusterExists() ? "" : ` — this .pgdata holds 
 // 无头上下文（工作流子代理/自动化，非交互终端）自动转 daemon——前台 node.exe 会自建 console
 // 弹黑框且会话后孤儿化。真人前台跑加 --foreground。
 const headless = !process.stdout.isTTY || process.env.CI !== undefined;
-const wantForeground = process.argv.includes("--foreground") || (!headless && !process.argv.includes("--daemon"));
-if (!wantForeground && !process.argv.includes("--daemon")) {
+// 派生出来的那个子进程**就是**守护进程本体：它必须跑前台（detached + windowsHide 已经保证没有窗口），
+// 否则它同样判定 headless → 再补一次 --daemon → 无限自我 spawn（2026-11-04 本地部署实测：
+// 7 秒 107 个 node 进程、日志 11833 行 launching pid、10 分钟后 nothing listening）。
+const daemonChild = process.env.GEOHOT_DEV_DB_DAEMON_CHILD === "1";
+const wantForeground = daemonChild || process.argv.includes("--foreground") || (!headless && !process.argv.includes("--daemon"));
+if (!daemonChild && !wantForeground && !process.argv.includes("--daemon")) {
   process.argv.push("--daemon");
 }
-if (process.argv.includes("--daemon")) {
+if (process.argv.includes("--daemon") && !daemonChild) {
   if (await listening()) {
     console.log(`dev-db: already listening on 127.0.0.1:${PORT} — nothing to do${collisionHint()}`);
     process.exit(0);
   }
   const log = openSync(LOG_FILE, "a");
   // The detached child re-derives everything from argv, so the port override has to travel with it.
-  const child = spawn(process.execPath, [import.meta.filename, `--port=${PORT}`], { cwd: ROOT, detached: true, stdio: ["ignore", log, log], windowsHide: true });
+  const child = spawn(process.execPath, [import.meta.filename, `--port=${PORT}`, "--foreground"], {
+    cwd: ROOT, detached: true, stdio: ["ignore", log, log], windowsHide: true,
+    env: { ...process.env, GEOHOT_DEV_DB_DAEMON_CHILD: "1" },
+  });
   if (!child.pid) {
     console.error("dev-db: could not start the detached process");
     process.exit(1);
@@ -179,8 +186,20 @@ if (process.argv.includes("--daemon")) {
   console.log(`dev-db: launching pid ${child.pid} (log: ${LOG_FILE})`);
   // The first run creates the cluster with initdb, which takes minutes on a spinning disk, so the
   // timeout is generous. The PID file is only written once the port answers: initdb needs .pgdata empty.
-  if (!(await waitFor(() => listening(), 600_000))) {
-    console.error(`dev-db: nothing listening on ${PORT} after 10 min — see ${LOG_FILE}`);
+  // 子进程若自己死了，就别再白等 10 分钟：把日志尾部带出来，否则调用方只看到一行
+  // "nothing listening after 10 min"，无从判断是 initdb 慢还是端口被占。
+  const tailOfLog = () => {
+    try {
+      const text = readFileSync(LOG_FILE, "utf8").trimEnd().split("\n");
+      return text.slice(-6).join("\n");
+    } catch { return ""; }
+  };
+  const ready = await waitFor(() => (child.exitCode === null ? listening() : false), 600_000);
+  if (!ready) {
+    const early = child.exitCode !== null;
+    console.error(`dev-db: ${early ? `the detached process exited (code ${child.exitCode})` : `nothing listening on ${PORT} after 10 min`} — see ${LOG_FILE}`);
+    const tail = tailOfLog();
+    if (tail) console.error(tail);
     process.exit(1);
   }
   writeFileSync(PID_FILE, `${child.pid}\n`);

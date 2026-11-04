@@ -109,7 +109,8 @@ export function MobileDaySection({ count, children }: { count: number | null; ch
           />
         </span>
       </button>
-      <div className={open ? "" : "hidden"}>{children}</div>
+      {/* 收起状态只在手机断点生效：桌面没有这个按钮，内容必须一直在。 */}
+      <div className={open ? "" : "hidden lg:block"}>{children}</div>
     </section>
   );
 }
