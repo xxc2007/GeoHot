@@ -688,8 +688,13 @@ export function escapeControlCharsInStrings(json: string): string {
 }
 
 function isConnectFailure(error: unknown): boolean {
-  const code = (error as { cause?: { code?: string } })?.cause?.code ?? (error as { code?: string })?.code;
-  return ["ECONNREFUSED", "ENOTFOUND", "EAI_AGAIN", "UND_ERR_CONNECT_TIMEOUT", "ECONNRESET_BEFORE_SEND", "CERT_HAS_EXPIRED"].includes(code ?? "");
+  const cause = (error as { cause?: { code?: string; message?: string } }).cause;
+  const code = cause?.code ?? (error as { code?: string })?.code;
+  // `ECONNRESET_BEFORE_SEND` 是 undici 的私有标记，不是 Node 的错误码；真实被拒的写法是
+  // `ECONNRESET` + `syscall: "connect"`（连接还没建立就断了）。两种都要认成"没发出去"，
+  // 否则这类重置会被当成普通失败，白白消耗一次回执与预算。
+  if (code === "ECONNRESET") return cause?.message === "before send" || /before send/i.test(cause?.message ?? "");
+  return ["ECONNREFUSED", "ENOTFOUND", "EAI_AGAIN", "UND_ERR_CONNECT_TIMEOUT", "CERT_HAS_EXPIRED"].includes(code ?? "");
 }
 
 /** Keep candidate identities and real HTTP requests on the same parameter calculation. */

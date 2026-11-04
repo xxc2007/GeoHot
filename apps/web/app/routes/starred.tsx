@@ -37,11 +37,26 @@ export default function StarredPage() {
   const starredIds = starred.map((s) => s.id).join(",");
   useEffect(() => {
     if (!mounted || !starredIds) return;
+    const ids = starredIds.split(",");
     const controller = new AbortController();
-    fetch(publicPath(`/api/site/items/availability?ids=${encodeURIComponent(starredIds)}`), { signal: controller.signal })
-      .then((r) => (r.ok ? r.json() : {}))
-      .then((data) => { if (!controller.signal.aborted) setAvailability(data); })
-      .catch(() => {});
+    // 收藏上限是 500（`local-state.ts` 的 STAR_LIMIT）。全部拼进一个 `?ids=` 会撞网关的 URL 长度上限：
+    // 414 之后旧写法把非 2xx 静默当成 `{}`，收藏页于是显示「什么都没收藏」。按 100 一批取。
+    void (async () => {
+      const out: Record<string, string> = {};
+      for (let i = 0; i < ids.length; i += 100) {
+        try {
+          const res = await fetch(
+            publicPath(`/api/site/items/availability?ids=${encodeURIComponent(ids.slice(i, i + 100).join(","))}`),
+            { signal: controller.signal },
+          );
+          if (!res.ok) continue;
+          Object.assign(out, (await res.json()) as Record<string, string>);
+        } catch {
+          if (controller.signal.aborted) return;
+        }
+      }
+      if (!controller.signal.aborted) setAvailability(out);
+    })();
     return () => controller.abort();
   }, [mounted, starredIds]);
 
