@@ -13,7 +13,14 @@ export function proxiedRenditions(answers: unknown[]): Array<{ url: string; mode
   const text = JSON.stringify(answers).replaceAll("&amp;", "&").replaceAll("\\u0026", "&");
   const seen = new Map<string, { url: string; mode: string }>();
   for (const m of text.matchAll(/\/api\/img-proxy\?u=([^&"\s\\]+)&mode=([a-z0-9-]+)/g)) {
-    const url = decodeURIComponent(m[1]!);
+    let url: string;
+    try {
+      url = decodeURIComponent(m[1]!);
+    } catch {
+      // 正文里出现被截断的百分号编码（`%zz`、`%E4`）时，跳过这一张而不是整篇抛 URIError：
+      // 否则 prepareArticleMedia 每次重投都失败，这条目的图片永远是裂的。
+      continue;
+    }
     seen.set(`${m[2]}|${url}`, { url, mode: m[2]! });
   }
   return [...seen.values()];

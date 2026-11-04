@@ -71,9 +71,10 @@ export function registerOg(app: FastifyInstance) {
 
   app.get("/og/pages/:file", async (req, reply) => {
     const name = (req.params as { file: string }).file.replace(/\.png$/, "");
-    const card = PAGES[name];
+    // `PAGES["__proto__"]` 命中的是 Object.prototype（truthy），旧守卫会放它进渲染器再抛 TypeError。
+    const card = Object.hasOwn(PAGES, name) ? PAGES[name] : undefined;
     if ((name === "leaderboard" && !FEATURES.leaderboard) || (name === "codex-reset" && !FEATURES.codexResetMonitor)) return notFound(reply);
-    if (!card || !(req.params as { file: string }).file.endsWith(".png")) return notFound(reply);
+    if (!card || typeof card.title !== "string" || !(req.params as { file: string }).file.endsWith(".png")) return notFound(reply);
     return send(req, reply, card, STATIC_IMAGE_CACHE);
   });
 

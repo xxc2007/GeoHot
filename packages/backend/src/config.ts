@@ -146,7 +146,15 @@ export const config = {
   environmentName: str("AIHOT_ENVIRONMENT", isProduction ? "production" : "development"),
   // Model calls are live unless explicitly disabled (tests, replays).
   modelCallsEnabled: envFlag("MODEL_CALLS_ENABLED", true),
-  devAdmin: env.DEV_AUTH_ROLE === "admin" ? { displayName: env.DEV_AUTH_DISPLAY_NAME || "Dev Admin" } : null,
+  // 开发期冒充管理员必须自带一枚令牌：只有角色名时不构成旁路。
+  // （2026-11-04 之前 `DEV_AUTH_ROLE=admin` 一项就够，且 CSRF 令牌是字面量 "dev"，
+  //   等于只要 env 里有这两个词，任何请求带上 `X-CSRF-Token: dev` 就能改数据。）
+  devAdmin: env.DEV_AUTH_ROLE === "admin"
+    ? {
+        displayName: env.DEV_AUTH_DISPLAY_NAME || "Dev Admin",
+        csrf: env.DEV_AUTH_TOKEN && env.DEV_AUTH_TOKEN.length >= 16 ? env.DEV_AUTH_TOKEN : null,
+      }
+    : null,
   /** The admin password (at least 9 characters). Feishu sign-in below is optional. */
   adminPassword: env.ADMIN_PASSWORD || null,
   adminUnionIds: (env.ADMIN_FEISHU_UNION_IDS || "").split(",").map((v) => v.trim()).filter(Boolean),

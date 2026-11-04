@@ -48,7 +48,17 @@ export function parseCookies(header: string | undefined): Record<string, string>
   const out: Record<string, string> = {};
   for (const part of (header ?? "").split(";")) {
     const i = part.indexOf("=");
-    if (i > 0) out[part.slice(0, i).trim()] = decodeURIComponent(part.slice(i + 1).trim());
+    if (i > 0) {
+      const name = part.slice(0, i).trim();
+      const raw = part.slice(i + 1).trim();
+      // 扫器随手发一个 `aihot_admin=%` 就能让 decodeURIComponent 抛 URIError 冒成 500；
+      // 这里把它当作"没带会话"，值保持原样，鉴权照旧走下面那条路。
+      try {
+        out[name] = decodeURIComponent(raw);
+      } catch {
+        out[name] = raw;
+      }
+    }
   }
   return out;
 }
@@ -175,7 +185,11 @@ export async function sessionPrincipal(cookieHeader: string | undefined, db: Db 
       WHERE s.id_hash = ${sha256(token)} AND s.expires_at > now()`;
     if (row) return { userId: row.user_id, name: row.name ?? row.email ?? `admin:${row.user_id}`, csrf: row.csrf_token, dev: false };
   }
-  if (config.devAdmin && config.environmentName !== "production") return { userId: null, name: config.devAdmin.displayName, csrf: "dev", dev: true };
+  // 2026-11-04：令牌从字面量 "dev" 换成 `DEV_AUTH_TOKEN`（≥16 字符）。没有令牌就没有旁路，
+  // 而生产环境本来就会因为 env 里出现 `DEV_AUTH_*` 直接拒绝启动（config.ts 的 assertProductionSecrets）。
+  if (config.devAdmin?.csrf && config.environmentName !== "production") {
+    return { userId: null, name: config.devAdmin.displayName, csrf: config.devAdmin.csrf, dev: true };
+  }
   return null;
 }
 
