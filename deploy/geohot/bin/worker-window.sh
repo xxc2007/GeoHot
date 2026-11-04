@@ -24,7 +24,12 @@ esac
 # 护栏：timer 带 Persistent=true，开机时会把错过的 01:00 补跑一次。
 # 如果补跑发生在白天，夜间档（3 槽 + 320M）就会直接顶到读者身上——所以按钟点兜一层。
 hour=$(date +%H)
-if [[ "$mode" == "night" && "$hour" -ge 7 ]]; then
+# `date +%H` 给的是 08 / 09 这种带前导零的串，直接进 `[[ -ge ]]` 会被当成八进制：
+# 08 不是合法八进制，bash 会报 value too great for base 并中止。强制十进制。
+hour=$((10#$hour))
+# 护栏：Persistent=true 的补跑可能把 01:00 那次带进白天，所以夜里之外一律降级 day。
+# 演练夜间档（白天要验证 01:00 那条路）用 GEOHOT_WINDOW_FORCE=1，它只跳过钟点判断。
+if [[ "$mode" == "night" && "$hour" -ge 7 && "${GEOHOT_WINDOW_FORCE:-0}" != "1" ]]; then
   echo "night requested at ${hour}:00, outside the 01:00-07:00 window; falling back to day" >&2
   mode=day
 fi
