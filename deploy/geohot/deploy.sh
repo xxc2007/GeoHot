@@ -156,10 +156,26 @@ fi
 tail -3 /tmp/deploy-migrate.log
 
 echo "== 带前缀重建 web（BASE_PATH=$BASE_PATH；构建与重启是相邻两步，不能拆开去干别的）=="
+# 2026-11-04 17:14 实测：`react-router build` 会清掉 `build/client/assets`，于是每次部署都让
+# **已经打开的页面**请求到 404 —— 启动日志里那条 `No route matches URL
+# "/geohot/assets/MobileHome-tJoU-3W8.js"` 就是读者手里那张旧 HTML 去要旧哈希资源。
+# 读者不该为我们的部署刷新一次页面才能继续用：把上一版的 assets 先挪开，构建后再并回去
+# （名字带哈希，同名即同内容，不会互相覆盖），只留最近两版，多的按 mtime 删掉。
+ASSETS_DIR="$APP_ROOT/apps/web/build/client/assets"
+sudo -n test -d "$ASSETS_DIR" && sudo -n mv "$ASSETS_DIR" "$ASSETS_DIR.prev" || true
 if ! sudo -u geohot env BASE_PATH="$BASE_PATH" bash -lc "cd $APP_ROOT && npm run build -w @aihot/web" > /tmp/deploy-build.log 2>&1; then
-  echo "ABORT: web 构建失败 —— 不重启：重启进一个坏 bundle 就是 2026-10-12 那次 6 分钟整站 404"; tail -8 /tmp/deploy-build.log; exit 1
+  echo "ABORT: web 构建失败 —— 不重启：重启进一个坏 bundle 就是 2026-10-12 那次 6 分钟整站 404"; tail -8 /tmp/deploy-build.log
+  sudo -n test -d "$ASSETS_DIR.prev" && sudo -n mv "$ASSETS_DIR.prev" "$ASSETS_DIR" || true
+  exit 1
 fi
 tail -3 /tmp/deploy-build.log
+if sudo -n test -d "$ASSETS_DIR.prev"; then
+  sudo -n cp -an "$ASSETS_DIR.prev/." "$ASSETS_DIR/" || true   # -n：新构建的同名文件优先
+  sudo -n rm -rf "$ASSETS_DIR.prev.old" || true
+  sudo -n mv "$ASSETS_DIR.prev" "$ASSETS_DIR.prev.old" || true
+  sudo -n rm -rf "$ASSETS_DIR.prev.old" || true
+  echo "assets: 旧版哈希资源已并入（打开着的旧页面不会 404）"
+fi
 
 echo "== 重启常驻单元（只重启本机装了的）=="
 # 上面那句"只有装了才重启"以前只是注释：这里真按 list-unit-files 过一遍，

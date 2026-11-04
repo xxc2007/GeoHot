@@ -1,6 +1,7 @@
 import type { PgBoss, Db } from "pg-boss";
 import { BacklogShare } from "./backlog-share.ts";
 import { balancedResources, readResourceSample, resourcePressured, observeScheduledResources, scheduledResourcePressured, type ResourceSample } from "./resource-budget.ts";
+import { positiveInt } from "../config.ts";
 
 const CONTROLLED = new Set([
   "content.analyze", "content.extract-body", "events.group", "events.digest", "sources.fetch", "sources.fetch-x",
@@ -140,8 +141,13 @@ export class IntakeBudget {
     this.offers.set(queue, { seen: now, emptyUntil: prior?.emptyUntil ?? 0 });
     if (resourcePressured(sample)) { this.paused = true; this.healthySince = undefined; this.shortBurst = undefined; }
     if (this.paused) {
-      const recovered = Object.values(sample).every(Number.isFinite) && sample.availableMiB >= 80 && sample.memoryFull < 10
-        && sample.ioFull < 30 && sample.cpuSome < 50 && sample.loadPerCpu < 1.5 && sample.diskFreeMiB >= 3072;
+      // 与 resource-budget 的旋钮同源：暂停与恢复必须用同一套阈值，否则机器会卡在"刚恢复又被判压力"。
+      const recovered = Object.values(sample).every(Number.isFinite)
+        && sample.availableMiB >= positiveInt(process.env.GEOHOT_RECOVER_AVAILABLE_MIB, "GEOHOT_RECOVER_AVAILABLE_MIB", 80)
+        && sample.memoryFull < positiveInt(process.env.GEOHOT_RECOVER_MEMORY_FULL, "GEOHOT_RECOVER_MEMORY_FULL", 10)
+        && sample.ioFull < positiveInt(process.env.GEOHOT_RECOVER_IO_FULL, "GEOHOT_RECOVER_IO_FULL", 30)
+        && sample.cpuSome < 50 && sample.loadPerCpu < 1.5
+        && sample.diskFreeMiB >= 3072;
       if (!recovered) this.healthySince = undefined;
       else this.healthySince ??= now;
       if (this.healthySince !== undefined && now - this.healthySince >= 15_000) this.paused = false;

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { IntakeBudget, intakeQueue, intakeActive, intakeAvailableLanes, intakeBusy } from "../packages/backend/src/operations/resource-intake.ts";
+import { resourcePressured } from "../packages/backend/src/operations/resource-budget.ts";
 import { BacklogShare } from "../packages/backend/src/operations/backlog-share.ts";
 const { fetchNextJob } = await import(new URL("../node_modules/pg-boss/dist/plans.js", import.meta.url).href);
 const claim = (name: string) => fetchNextJob({ schema: "pgboss", table: "job", name, policy: "short", limit: 1 }).text as string;
@@ -58,5 +59,20 @@ test("intake admits one job per lane instead of one job per pipeline", () => {
   assert.equal(intakeBusy([{ name: "notify.selected", count: 9 }], 3), 0);
   // 没给名额时退回旧行为（任一个在跑就算满），供未改造的调用点与测试使用。
   assert.equal(intakeBusy([{ name: "content.analyze", count: 1 }], undefined), 1);
+});
+
+// 阈值旋钮：默认值不变（memoryFull 20 就判压力），但机器可以把门口挪一点，而不必改代码。
+test("pressure thresholds stay at the old defaults until an operator moves them", () => {
+  const sample = { availableMiB: 140, memoryFull: 25, ioFull: 40, cpuSome: 5, diskFreeMiB: 30000, loadPerCpu: 1 };
+  assert.equal(resourcePressured(sample), true, "memoryFull 25 is over the 20 default");
+  const before = process.env.GEOHOT_PRESSURE_MEMORY_FULL;
+  try {
+    process.env.GEOHOT_PRESSURE_MEMORY_FULL = "30";
+    assert.equal(resourcePressured(sample), false, "an operator-raised ceiling admits the same machine");
+    assert.equal(resourcePressured({ ...sample, memoryFull: 31 }), true, "the new ceiling still bites above it");
+  } finally {
+    if (before === undefined) delete process.env.GEOHOT_PRESSURE_MEMORY_FULL;
+    else process.env.GEOHOT_PRESSURE_MEMORY_FULL = before;
+  }
 });
 
