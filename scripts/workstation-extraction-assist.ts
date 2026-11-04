@@ -192,6 +192,10 @@ try {
     boot = await bootstrap();
     const power = await exec("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SystemInformation]::PowerStatus.PowerLineStatus.ToString()"], { windowsHide: true, timeout: 5000 }).catch(() => ({ stdout: "Online" }));
     first = { ...boot.probe, at: Date.now(), localFreeMiB: freemem() / 1048576, onAC: power.stdout.trim() === "Online" } as Awaited<ReturnType<typeof sample>>;
+    // 电源状态由本机读、探针里没有这一项：`lastEvidence` 只在 `sample()` 里赋值，bootstrap 这条路
+    // 从来没写过，于是循环第一轮拿到的 onAC 永远是 false，`assistEligible` 立刻不满足、
+    // 子进程刚起就被 shutdown —— 2026-11-04 11:0x 起的每一次运行都是 `handled=0` 的真实原因。
+    lastEvidence = first;
   } else {
     first = await sample();
   }
@@ -334,7 +338,19 @@ try {
       console.log(JSON.stringify({ state: "evidence-miss", misses, error: String((error as Error)?.message ?? error) }));
       continue;
     }
-    if (stop || Date.now() >= until || !assistEligible(evidence)) { stop = true; break; }
+    if (stop || Date.now() >= until) { stop = true; break; }
+    if (!assistEligible(evidence)) {
+      // 资格不满足时把"是哪一条"打出来：以前只有一句 handled=0 和 stopping，值班只能靠猜。
+      const e = evidence as Record<string, unknown>;
+      const failed: Record<string, unknown> = {};
+      if (Date.now() - Number(e.at) > 20_000) failed.staleMs = Date.now() - Number(e.at);
+      for (const key of ["onAC", "apiHealthy", "workerAll", "sourceMatches"]) if (e[key] !== true) failed[key] = e[key] ?? null;
+      for (const key of ["maintenance", "r115"]) if (e[key] !== false) failed[key] = e[key] ?? null;
+      for (const key of ["localFreeMiB", "remoteFreeMiB", "memoryFull", "ioFull"]) failed[key] = e[key];
+      console.log(JSON.stringify({ state: "evidence-ineligible", failed }));
+      stop = true;
+      break;
+    }
     writeFileSync(lease, JSON.stringify(evidence), { mode: 0o600 });
   }
 } catch (error) {
