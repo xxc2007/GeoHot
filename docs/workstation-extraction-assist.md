@@ -12,7 +12,7 @@
 
 ## 使用
 
-先将本批经审查合并的源码及 `deploy/geohot/probe-extraction-assist.py` 同步到服务器，再从干净、匹配的本机发布目录运行。私有 JSON 放在仓库外：
+先将本批经审查合并的源码及 `deploy/geohot/probe-extraction-assist.py` 同步到服务器，再从干净、匹配的本机发布目录运行。私有 JSON 放在仓库外（本机现状：`D:地理热点网站_assistgeohot-assist.json`，已被 `.gitignore` 覆盖；下面示例里的 `C:/private/…` 只是占位，照抄前换成自己的仓库外目录）：
 
 ```json
 {
