@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { IntakeBudget, intakeQueue, intakeActive, intakeAvailableLanes, intakeBusy } from "../packages/backend/src/operations/resource-intake.ts";
 import { resourcePressured } from "../packages/backend/src/operations/resource-budget.ts";
+import { r115FenceActive } from "../packages/backend/src/operations/resource-intake.ts";
 import { BacklogShare } from "../packages/backend/src/operations/backlog-share.ts";
 const { fetchNextJob } = await import(new URL("../node_modules/pg-boss/dist/plans.js", import.meta.url).href);
 const claim = (name: string) => fetchNextJob({ schema: "pgboss", table: "job", name, policy: "short", limit: 1 }).text as string;
@@ -76,3 +77,24 @@ test("pressure thresholds stay at the old defaults until an operator moves them"
   }
 });
 
+// 闸门冻结：读到未过期的截止时间就停领活；文件不存在/已过期/写坏了都当放行（宁可多干活，
+// 也不让一个坏文件把整条流水线永久冻死）。
+// 闸门冻结：读到未过期的截止时间就停领活；文件不存在/已过期/写坏了都当放行（宁可多干活，
+// 也不让一个坏文件把整条流水线永久冻死）。
+test("the reader gate freezes intake by file, and a broken file never freezes it forever", async () => {
+  const { mkdtempSync, writeFileSync, rmSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const dir = mkdtempSync(join(tmpdir(), "fence-"));
+  const path = join(dir, "fence");
+  const now = Date.now();
+  try {
+    assert.equal(r115FenceActive(now, path), false, "no file, no fence");
+    writeFileSync(path, `${Math.floor(now / 1000) + 60} 1 fence\n`);
+    assert.equal(r115FenceActive(now, path), true, "an unexpired deadline freezes intake");
+    writeFileSync(path, `${Math.floor(now / 1000) - 1} 1 fence\n`);
+    assert.equal(r115FenceActive(now, path), false, "an expired deadline releases it");
+    writeFileSync(path, "closed\n");
+    assert.equal(r115FenceActive(now, path), false, "a hand-edited file is not a fence");
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
