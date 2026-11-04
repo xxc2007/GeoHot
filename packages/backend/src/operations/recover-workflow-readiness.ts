@@ -23,19 +23,27 @@ export async function recoverWorkflowReadiness(options: {selectedOnly?:boolean;s
       ${options.summaryOnly ? tx`AND (p.visibility='summary-only' OR EXISTS (SELECT 1 FROM sources recovery_s WHERE recovery_s.id=p.source_id AND NOT recovery_s.site_fulltext))` : tx``}
       ${cursor ? tx`AND (p.timeline_at,p.article_id)<(${cursor.at}::timestamptz,${cursor.id})` : tx``}
       ORDER BY p.timeline_at DESC,p.article_id DESC LIMIT ${limit}`;
-    let checked=0,ready=0,scanned=0,failed=0;let last:typeof headers[number]|undefined;
+    let checked=0,ready=0,scanned=0,failed=0;let last:typeof headers[number]|undefined;const errors:Array<{articleId:string;code:string;error:string}>=[];
     for(const row of headers){
       if(Date.now()>=deadline)break;
       const [existing]=await tx`SELECT 1 FROM article_workflow_readiness WHERE article_id=${row.article_id} AND policy_version=${READER_POLICY_VERSION}`;
       if(!existing){
         try {ready+=Number(await tx.savepoint(sp=>refreshWorkflowReadinessTx(sp,row.article_id)));checked++;}
-        catch(error){if(['57014','55P03','40P01'].includes((error as {code?:string}).code??''))failed++;else throw error;}
+        catch(error){
+          // 单篇的确定性报错不能把整轮游标卡死：以前这里只有超时/锁冲突被吞，其余错误直接抛出，
+          // 于是 sql.begin 回滚、游标停在原地，那篇文章后面的每一条都要陪它一起等（而且没有日志）。
+          // 现在一律记一次（第一次带原文、其余只计数），游标照常前进；真连不上库会先在 headers 查询上失败。
+          const code=(error as {code?:string}).code??'';
+          failed++;
+          if(!errors.length)errors.push({articleId:row.article_id,code,error:error instanceof Error?(error.name+': '+error.message):String(error)});
+        }
       }
       last=row;scanned++;
     }
     if(last)await tx`INSERT INTO settings(key,value) VALUES(${key},${tx.json({at:last.timeline_at.toISOString(),id:last.article_id})})
       ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value`;
     else if(!headers.length)await tx`DELETE FROM settings WHERE key=${key}`;
-    return {checked,ready,scanned,failed,headers:headers.length,advanced:last?.article_id??null,wrapped:!headers.length};
+    if(errors.length)console.error(JSON.stringify({level:"error",msg:"workflow readiness recompute threw; cursor still advanced",...errors[0],failed}));
+    return {checked,ready,scanned,failed,headers:headers.length,advanced:last?.article_id??null,wrapped:!headers.length,errors};
   });
 }

@@ -38,8 +38,10 @@ export const QUEUE_OPTIONS: Record<string, QueueOptions> = {
   // 判死重投，同一批候选再买一次。部署后 updateQueue 的 drift 对齐机制会在启动时改掉存量队列。
   [QUEUES.group]: { policy: "short", retryLimit: 4, retryDelay: 20, retryBackoff: true, expireInSeconds: 2700 },
   [QUEUES.digest]: { policy: "short", retryLimit: 3, retryDelay: 60, retryBackoff: true, expireInSeconds: 900 },
-  [QUEUES.fetchSource]: { policy: "short", retryLimit: 0, expireInSeconds: 600 },
-  [QUEUES.fetchXShard]: { policy: "short", retryLimit: 0, expireInSeconds: 900 },
+  // 抓取失败一次就落终态，而 alerts 只统计 created/retry 且排除 cron.* ⇒ 抓取失败在任何告警面都看不见。
+  // 给一次 30 秒后的重试：上游偶尔的 DNS/超时不必等到下一次轮询窗口。
+  [QUEUES.fetchSource]: { policy: "short", retryLimit: 1, retryDelay: 30, expireInSeconds: 600 },
+  [QUEUES.fetchXShard]: { policy: "short", retryLimit: 1, retryDelay: 30, expireInSeconds: 900 },
   [QUEUES.mpCheck]: { policy: "short", retryLimit: 3, retryDelay: 60, retryBackoff: true, expireInSeconds: 600 },
   [QUEUES.republishSource]: { policy: "short", retryLimit: 2, retryDelay: 60, expireInSeconds: 3600 },
 
@@ -52,6 +54,10 @@ const NOT_UPDATABLE = new Set(["policy", "partition"]);
 
 export async function getBoss(): Promise<PgBoss> {
   if (boss) return boss;
+  // 注意：`stopBoss()` 之后这里会再起一个 pg-boss —— 这是**有意**的（tests/queue-start-retry.test.ts
+  // 断言「缓存里没有留下上一生的引用」）。2026-11-05 的 18 线审计把这条记成缺陷，但它的前提是
+  // 「进程该退出却还在入队」，那要收口在退出路径（apps/worker/src/main.ts），不能在缓存层挡：
+  // 挡了会让收尾期仍在飞的付费任务 enqueue 失败、作业变 retry（analyze-shutdown 用例当场翻红）。
   if (!starting) {
     // A failed `start()` must not be remembered. pg-boss can fail to start on a transient database blip,
     // and callers enqueue inside business transactions — `publishArticle` puts the selected-notify and

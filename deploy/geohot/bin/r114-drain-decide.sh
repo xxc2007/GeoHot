@@ -140,7 +140,13 @@ gate_action() {
   if [ "$until" -gt 0 ] && [ "$now" -lt "$until" ]; then echo HELD; return; fi
   if [ "$e5" -gt "$budget" ]; then
     # operator 已经停下的 worker 不归本闸门认领，红指标也不能伪造恢复责任。
-    if [ "$we_stopped" != 1 ] && [ "$active" != active ]; then echo SKIP_OPERATOR_STOPPED; else echo TRIP; fi
+    # 但"探针答不出来"不等于"操作者停的"：`systemctl is-active` 超时/被拒时输出是 unknown/空，
+    # 以前一律按操作者停机跳过 —— 于是 5xx 早已超预算，闸门却一直 SLIP，读者在挨打而没人动手。
+    # 只有明确读到 inactive/failed 才认"别人停的"，读不准就按 TRIP 处理（日志里 worker=unknown 可见）。
+    if [ "$we_stopped" = 1 ]; then echo TRIP
+    elif [ "$active" = active ]; then echo TRIP
+    elif [ "$active" = inactive ] || [ "$active" = failed ]; then echo SKIP_OPERATOR_STOPPED
+    else echo TRIP; fi
     return
   fi
   # 只有已记录停止意图、由本闸门承担恢复责任的才可自动恢复；operator 自己停的 worker 不碰。
