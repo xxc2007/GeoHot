@@ -305,10 +305,14 @@ try {
   const until = Date.now() + duration * 1000;
   let misses = 0;
   while (!stop && Date.now() < until) {
-    let evidence;
+    let evidence: Awaited<ReturnType<typeof sample>>;
     try {
       // 样本来自那条长连接（服务端每 WATCH_SEC 秒打印一行），整个运行期不再新开 SSH。
-      evidence = JSON.parse(await watcher!.next(30_000));
+      // 远端每行是 {"probe":{…}}（probe-watch.sh 的封装），这里必须拆开再判资格：
+      // 直接拿整行去判 assistEligible，sourceMatches 永远是 undefined，于是"刚起就停"
+      // （2026-11-04 11:00 现场：子进程日志只有 starting/stopping 两行）。
+      const payload = JSON.parse(await watcher!.next(30_000)) as Record<string, unknown>;
+      evidence = (payload.probe ?? payload) as Awaited<ReturnType<typeof sample>>;
       if (fenced && evidence.fenceOwned !== true) evidence.maintenance = true;
       const online = (lastEvidence as { onAC?: boolean } | undefined)?.onAC === true;
       evidence = { ...evidence, at: Date.now(), localFreeMiB: freemem() / 1048576, onAC: online };

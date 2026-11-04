@@ -19,7 +19,10 @@ import re
 import sys
 import time
 
-STALE_AFTER = int(os.environ.get('GEOHOT_FENCE_STALE_SECONDS', '1200'))
+# 一次本机辅助最多跑 600 秒（supervisor 的 --run-seconds 上限），死在半路的会话留下的
+# owner 文件过了 900 秒必然没有活人：再守着它只会让下一轮干等 20 分钟。
+# 2026-11-04 现场：失败一轮之后连续三轮都读到 maintenance:true。
+STALE_AFTER = int(os.environ.get('GEOHOT_FENCE_STALE_SECONDS', '900'))
 
 
 def token_ok(token):
