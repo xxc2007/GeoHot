@@ -38,8 +38,10 @@ export const QUEUE_OPTIONS: Record<string, QueueOptions> = {
   // 判死重投，同一批候选再买一次。部署后 updateQueue 的 drift 对齐机制会在启动时改掉存量队列。
   [QUEUES.group]: { policy: "short", retryLimit: 4, retryDelay: 20, retryBackoff: true, expireInSeconds: 2700 },
   [QUEUES.digest]: { policy: "short", retryLimit: 3, retryDelay: 60, retryBackoff: true, expireInSeconds: 900 },
-  [QUEUES.fetchSource]: { policy: "short", retryLimit: 0, expireInSeconds: 600 },
-  [QUEUES.fetchXShard]: { policy: "short", retryLimit: 0, expireInSeconds: 900 },
+  // 抓取失败一次就落终态，而 alerts 只统计 created/retry 且排除 cron.* ⇒ 抓取失败在任何告警面都看不见。
+  // 给一次 30 秒后的重试：上游偶尔的 DNS/超时不必等到下一次轮询窗口。
+  [QUEUES.fetchSource]: { policy: "short", retryLimit: 1, retryDelay: 30, expireInSeconds: 600 },
+  [QUEUES.fetchXShard]: { policy: "short", retryLimit: 1, retryDelay: 30, expireInSeconds: 900 },
   [QUEUES.mpCheck]: { policy: "short", retryLimit: 3, retryDelay: 60, retryBackoff: true, expireInSeconds: 600 },
   [QUEUES.republishSource]: { policy: "short", retryLimit: 2, retryDelay: 60, expireInSeconds: 3600 },
 
@@ -47,10 +49,16 @@ export const QUEUE_OPTIONS: Record<string, QueueOptions> = {
 };
 
 const ensured = new Set<string>();
+/** Set by stopBoss(): after this the process must not open a queue again (see getBoss). */
+let stopped = false;
 /** `updateQueue` throws on these two, so they are filtered out of the patch and only reported. */
 const NOT_UPDATABLE = new Set(["policy", "partition"]);
 
 export async function getBoss(): Promise<PgBoss> {
+  // 停机之后再被启回来是真实存在的路径：关闭期间在飞的循环还会调 enqueue，而 getBoss 看到 boss=null
+  // 就重新 start()（coordinator 会重连库、重跑 migrate/supervise）。结果是「已经在关的进程又开了一条队」，
+  // 作业写进去之后再无 worker 认领。停机就是停机：这里直接拒绝，让调用方按「正在停止」处理。
+  if (stopped) throw new Error("queue stopped: the process is shutting down");
   if (boss) return boss;
   if (!starting) {
     // A failed `start()` must not be remembered. pg-boss can fail to start on a transient database blip,
@@ -96,9 +104,13 @@ export const STOP_TIMEOUT_MS = 255_000;
 
 export async function stopBoss(): Promise<void> {
   shutdownSignal.abort();
+  // 旗子等 drain 结束再落下：`boss.stop({graceful})` 会等在飞的任务跑完，而一个正在收尾的付费任务
+  // 仍可能需要 enqueue 后续（摘要、媒体）。那期间队列是活的，不该被当成"已停机"拒绝；
+  // 要挡的是"stop 已经返回、进程本该退出，却又被顺手开回来"。
   if (boss) await boss.stop({ graceful: true, timeout: STOP_TIMEOUT_MS });
   boss = null;
   starting = null;
+  stopped = true;
 }
 
 export async function ensureQueue(name: string, options: QueueOptions = QUEUE_OPTIONS[name] ?? {}): Promise<void> {

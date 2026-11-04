@@ -82,6 +82,14 @@ scp -o BatchMode=yes -i "$SSH_KEY" ${SSH_KNOWN:+-o UserKnownHostsFile="$SSH_KNOW
 ssh "${ssh_opts[@]}" "$SSH_TARGET" "sudo BASE_PATH='$BASE_PATH' PKG_SHA='$pkg_sha' REV='$short' UPLOAD_DIR='$upload_dir' APP_ROOT='$APP_ROOT' UNITS='$(unit_list)' bash -s" <<'REMOTE'
 set -uo pipefail
 cd "$APP_ROOT" || { echo "ABORT: $APP_ROOT 不存在"; exit 1; }
+
+# 单元模板、drop-in、闸门脚本都按 /opt/geohot/{app,bin} 写死；`GEOHOT_APP_ROOT` 指到别处时，
+# 这一轮铺下去的模板会把机器的单元指向真正在跑的那个目录之外 —— 装上去的东西和服务对不上。
+# 想这么干的人得显式说 ALLOW_ALT_APP_ROOT=1（测试机/迁移期），否则这里就停。
+if [ "$APP_ROOT" != "/opt/geohot/app" ] && [ "${ALLOW_ALT_APP_ROOT:-0}" != "1" ]; then
+  echo "ABORT: APP_ROOT=$APP_ROOT 与单元里写死的 /opt/geohot/app 不一致（要装到别处请设 ALLOW_ALT_APP_ROOT=1）"
+  exit 1
+fi
 umask 077
 [[ "$UPLOAD_DIR" =~ ^/tmp/geohot-upload\.[A-Za-z0-9]+$ ]] || exit 1
 stage="$(mktemp -d /tmp/geohot-root-stage.XXXXXXXX)" || exit 1
@@ -107,7 +115,9 @@ exec 8>"$LOCK"
 flock -w 900 8 || { echo "ABORT: 900 秒内拿不到 archive-cycle 锁（有一轮周期还在跑）—— 线上未改动"; exit 1; }
 
 echo "== 部署前代码快照 =="
-bash deploy/geohot/snapshot-code.sh > /tmp/deploy-snapshot.log 2>&1 || { echo "ABORT: 快照失败（回滚点没生成，不能继续）"; tail -3 /tmp/deploy-snapshot.log; exit 1; }
+SNAPSHOT=$(bash deploy/geohot/snapshot-code.sh 2>&1 | tee /tmp/deploy-snapshot.log | grep -oE '/[^ ]+.tar.gz' | tail -1)
+[ -n "$SNAPSHOT" ] && [ -f "$SNAPSHOT" ] || { echo "ABORT: 快照失败（回滚点没生成，不能继续）"; tail -3 /tmp/deploy-snapshot.log; exit 1; }
+echo "snapshot: $SNAPSHOT"
 tail -2 /tmp/deploy-snapshot.log
 
 echo "== 解包（不删除额外文件）=="
@@ -191,6 +201,14 @@ sudo -n test -d "$ASSETS_DIR" && sudo -n mv "$ASSETS_DIR" "$ASSETS_DIR.prev" || 
 if ! sudo -u geohot env BASE_PATH="$BASE_PATH" bash -lc "cd $APP_ROOT && npm run build -w @aihot/web" > /tmp/deploy-build.log 2>&1; then
   echo "ABORT: web 构建失败 —— 不重启：重启进一个坏 bundle 就是 2026-10-12 那次 6 分钟整站 404"; tail -8 /tmp/deploy-build.log
   sudo -n test -d "$ASSETS_DIR.prev" && sudo -n mv "$ASSETS_DIR.prev" "$ASSETS_DIR" || true
+  # 只把 assets 挪回来是不够的：盘上已经是「新代码 + 旧 build」，下次谁一重启就带进一个和源码对不上的树。
+  # 用上线前那份快照整树还原（.env 不在包里，不受影响）。
+  if [ -n "$SNAPSHOT" ] && [ -f "$SNAPSHOT" ]; then
+    echo "rollback: 用 $SNAPSHOT 整树还原源码（构建失败不该把新代码留在盘上）"
+    sudo -n tar -xzf "$SNAPSHOT" -C "$(dirname "$APP_ROOT")" && sudo -n chown -R geohot:geohot "$APP_ROOT" && echo "rollback: 源码已回到上线前"
+  else
+    echo "rollback: 没找到快照包，源码仍是本次上传的版本（手工还原见 DEPLOYMENT.md）"
+  fi
   exit 1
 fi
 tail -3 /tmp/deploy-build.log
@@ -262,6 +280,15 @@ bash deploy/geohot/verify-deploy.sh > /tmp/deploy-verify.log 2>&1
 VERIFY_RC=$?
 grep -E '^(  ✗|✗)' /tmp/deploy-verify.log | head -20
 tail -5 /tmp/deploy-verify.log
+if [ "$VERIFY_RC" != "0" ]; then
+  # 验没通过时，机器上写着「这次部署的 rev」的指纹会骗人：health 报新提交、跑的可能是旧的。
+  # 把它还原成上线前那份，并把回滚命令打出来（别再让人去翻 DEPLOYMENT.md 里那一条）。
+  if [ -f "$APP_ROOT/.env.bak-release" ]; then
+    cp -a "$APP_ROOT/.env.bak-release" "$APP_ROOT/.env" && chown geohot:geohot "$APP_ROOT/.env"
+    echo "release: 验收没过，.env 的 AIHOT_RELEASE 已还原（指纹不再自称本次提交）"
+  fi
+  [ -n "$SNAPSHOT" ] && echo "rollback: sudo tar -xzf $SNAPSHOT -C $(dirname "$APP_ROOT") && sudo chown -R geohot:geohot $APP_ROOT && sudo systemctl restart $(echo $UNITS)"
+fi
 rm -f "$PKG"
 exit "$VERIFY_RC"
 REMOTE

@@ -61,3 +61,23 @@ test("reader-gate 5xx 计数可以排除单元重启的宽限窗口", {
     rmSync(dir, { recursive: true, force: true });
   }
 });
+/**
+ * 2026-11-05：闸门把 `systemctl is-active` 读不准（unknown/空）当成"操作者已停机"跳过。
+ * 那意味着 5xx 早已超预算，闸门却一直 SKIP，读者在挨打而没人动手。判据现在只认明确的
+ * inactive/failed 为"别人停的"，读不准就按 TRIP 处理（日志里 worker=unknown 可见）。
+ */
+test("reader-gate 读不准 worker 状态时不把责任推给操作者", {
+  skip: hasBash() ? false : "no usable bash here",
+}, () => {
+  const decide = path.resolve("deploy/geohot/bin/r114-drain-decide.sh");
+  const call = (active: string, we = "0") =>
+    execFileSync(BASH, ["-c", '. "$1"; gate_action 7 1700000000 0 "$2" "$3" 0 0', "gate", decide, we, active],
+      { encoding: "utf8" }).trim();
+  assert.equal(call("unknown"), "TRIP");
+  assert.equal(call(""), "TRIP");
+  assert.equal(call("active"), "TRIP");
+  assert.equal(call("inactive"), "SKIP_OPERATOR_STOPPED");
+  assert.equal(call("failed"), "SKIP_OPERATOR_STOPPED");
+  // 本闸门自己停的，无论读成什么都要 TRIP（恢复责任是它的）。
+  assert.equal(call("unknown", "1"), "TRIP");
+});

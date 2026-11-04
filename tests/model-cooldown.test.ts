@@ -1,3 +1,4 @@
+import "./setup.ts";
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import { closeDb } from "../packages/backend/src/db.ts";
