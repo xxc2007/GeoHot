@@ -46,19 +46,41 @@ export function readResourceSample(): ResourceSample {
   };
 }
 
+/**
+ * 压力阈值是"这台机器多大才不算过载"的判断，默认值来自一台更宽裕的机器（891MB 的线上机
+ * 24 小时有 15–20 的 memoryFull 是常态）。2026-11-04 生产实测：`memoryFull` 长期在 20–23、
+ * `ioFull` 37–44，而 `resourcePressured()` 的门是 20 / 50 ⇒ 取任务几乎全程被暂停，队列每小时
+ * 只消化 21 条。把阈值做成人可调的旋钮（**默认值一字未改**），站上就能自己决定"多让一点"
+ * 还是"多压一点"，而不必改代码。
+ */
+const threshold = (name: string, fallback: number): number => {
+  const raw = Number(process.env[name]);
+  return Number.isFinite(raw) && raw > 0 ? raw : fallback;
+};
+
 export function resourcePressured(sample: ResourceSample): boolean {
-  return !Object.values(sample).every(Number.isFinite) || sample.availableMiB < 64 || sample.memoryFull >= 20 || sample.ioFull >= 50
-    || sample.cpuSome >= 75 || sample.loadPerCpu >= 2 || sample.diskFreeMiB < 2048;
+  return !Object.values(sample).every(Number.isFinite)
+    || sample.availableMiB < threshold("GEOHOT_PRESSURE_AVAILABLE_MIB", 64)
+    || sample.memoryFull >= threshold("GEOHOT_PRESSURE_MEMORY_FULL", 20)
+    || sample.ioFull >= threshold("GEOHOT_PRESSURE_IO_FULL", 50)
+    || sample.cpuSome >= threshold("GEOHOT_PRESSURE_CPU_SOME", 75)
+    || sample.loadPerCpu >= threshold("GEOHOT_PRESSURE_LOAD_PER_CPU", 2)
+    || sample.diskFreeMiB < 2048;
 }
 
 /** Check between repeatable scan items; never interrupts an in-flight paid call. */
 export function resourceHeadroom(): boolean {
   if (!balancedResources()) return true;
-  try { const s = readResourceSample(); return !resourcePressured(s) && s.availableMiB >= 80 && s.memoryFull < 15 && s.ioFull < 40; } catch { return false; }
+  try {
+    const s = readResourceSample();
+    return !resourcePressured(s) && s.availableMiB >= threshold("GEOHOT_HEADROOM_AVAILABLE_MIB", 80)
+      && s.memoryFull < threshold("GEOHOT_HEADROOM_MEMORY_FULL", 15) && s.ioFull < threshold("GEOHOT_HEADROOM_IO_FULL", 40);
+  } catch { return false; }
 }
 
 export function scheduledResourcePressured(sample: ResourceSample): boolean {
-  return resourcePressured(sample) || sample.availableMiB < 80 || sample.memoryFull >= 15 || sample.ioFull >= 40;
+  return resourcePressured(sample) || sample.availableMiB < threshold("GEOHOT_HEADROOM_AVAILABLE_MIB", 80)
+    || sample.memoryFull >= threshold("GEOHOT_HEADROOM_MEMORY_FULL", 15) || sample.ioFull >= threshold("GEOHOT_HEADROOM_IO_FULL", 40);
 }
 
 // Only repeatable scans are deferred. Their article/source work stays in PostgreSQL and the next
