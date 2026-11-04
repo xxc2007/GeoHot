@@ -1,0 +1,10 @@
+[Unit]
+Description=GEOHOT reader-first worker gate
+
+[Service]
+Type=oneshot
+User=root
+Environment=R115_E5_WINDOW_SEC=700
+Environment=R115_COOLDOWN_MIN=30
+Environment=R114_NGX=/var/log/nginx/access.log
+ExecStart=/bin/bash /opt/geohot/bin/r115-reader-gate.sh

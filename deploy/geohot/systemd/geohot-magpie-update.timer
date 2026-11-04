@@ -1,8 +1,9 @@
 [Unit]
-Description=Check Magpie version once every 24 hours
+Description=Retry idle Magpie maintenance at 03:30, 04:30 and 05:30 Beijing time
 [Timer]
-OnActiveSec=24h
-OnUnitInactiveSec=24h
-AccuracySec=1min
+OnCalendar=*-*-* 03..05:30:00 Asia/Shanghai
+RandomizedDelaySec=5min
+Persistent=true
+Unit=geohot-magpie-update.service
 [Install]
 WantedBy=timers.target

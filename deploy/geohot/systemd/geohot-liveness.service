@@ -1,0 +1,12 @@
+[Unit]
+Description=GEOHOT protected worker heartbeat recovery
+After=postgresql.service
+
+[Service]
+Type=oneshot
+ExecStartPre=/usr/bin/python3 /opt/geohot/app/deploy/geohot/magpie-maintenance.py --recover
+ExecStart=/usr/bin/node /opt/geohot/app/deploy/geohot/worker-liveness.mjs
+TimeoutStartSec=60
+Nice=10
+MemoryMax=80M
+UMask=0077
