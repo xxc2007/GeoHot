@@ -127,6 +127,13 @@ if [ -n "$KEEP_BASELINE" ]; then
 fi
 chown -R geohot:geohot "$APP_ROOT"
 
+# 版本指纹：api 的 /api/health 读 AIHOT_RELEASE，环境变量是**机器级**的静态值，
+# 部署不更新它 ⇒ 线上一直自称旧提交（2026-11-04 实测 health 报 4bf1f89，实际跑 70d2ac3）。
+# 这里把本次部署的 rev 落成文件，api 侧 fallback 读它；环境变量仍优先，方便临时覆盖。
+printf '%s
+' "$REV" > "$APP_ROOT/.release" && chown geohot:geohot "$APP_ROOT/.release"
+echo "release: $APP_ROOT/.release = $REV"
+
 # 迁移与构建的失败必须中止，不能"记个日志继续重启"：那正是"200 但站是错的"那一类，
 # 而 `... | tail -3` 在 pipefail 下虽然能带出退出码，没有 set -e 也没人看它。
 echo "== 迁移 =="

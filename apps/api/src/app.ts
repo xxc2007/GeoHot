@@ -1,6 +1,8 @@
 import { FEATURES } from "@aihot/industry/features";
 import Fastify, { LogController, type FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { OAUTH_PROBE_PATHS, resolveRedirect } from "@aihot/contracts/http-policy";
 import { sql } from "@aihot/backend/db";
 import { CapacityExceeded } from "@aihot/backend/lib/capacity";
@@ -18,6 +20,20 @@ import { registerStatic } from "./routes/static.ts";
 import { registerMcp } from "./routes/mcp.ts";
 import { sendProblem } from "./http/respond.ts";
 import rateLimit from "@fastify/rate-limit";
+
+// 版本指纹的读法：环境变量优先（临时覆盖/CI），否则读部署时落下的 .release。
+// 为什么不是纯环境变量：`AIHOT_RELEASE` 是机器级的静态值，部署不会改它，于是线上会一直
+// 自称旧提交（2026-11-04 实测 /api/health 报 4bf1f89，实际跑的是 70d2ac3）。
+function releaseId(): string {
+  const fromEnv = process.env.AIHOT_RELEASE;
+  if (fromEnv) return fromEnv;
+  const file = process.env.GEOHOT_RELEASE_FILE ?? fileURLToPath(new URL("../../../.release", import.meta.url));
+  try {
+    return readFileSync(file, "utf8").trim() || "dev";
+  } catch {
+    return "dev";
+  }
+}
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -78,7 +94,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   app.get("/api/health", async (_req, reply) => {
     const started = Date.now();
     await sql`SELECT 1`;
-    return reply.header("Cache-Control", "no-store").send({ ok: true, db: "ok", ms: Date.now() - started, release: process.env.AIHOT_RELEASE ?? "dev" });
+    return reply.header("Cache-Control", "no-store").send({ ok: true, db: "ok", ms: Date.now() - started, release: releaseId() });
   });
 
   registerSite(app);
