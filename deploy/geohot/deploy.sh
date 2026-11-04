@@ -192,6 +192,9 @@ echo "== 重启常驻单元（只重启本机装了的）=="
 # 没装桥的机器就不会在事故中途被一串 "Failed to restart …: Unit not loaded" 糊脸。
 RUN=()
 for u in $UNITS; do [[ -n "$(systemctl list-unit-files "$u.service" --no-legend)" ]] && RUN+=("$u.service"); done
+# 本次部署刚铺下来的 drop-in / 单元文件要先被 systemd 看见，否则 restart 用的还是旧配置，
+# 而且之后每条 systemctl 都会带一句 "unit file changed on disk, run daemon-reload"（2026-11-04 现场）。
+systemctl daemon-reload
 # shellcheck disable=SC2086
 systemctl restart "${RUN[@]}"
 sleep 8
