@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$Config, [int]$SlotCount = 1)
+﻿param([Parameter(Mandatory=$true)][string]$Config, [int]$SlotCount = 1)
 $ErrorActionPreference = 'Stop'
 $configPath = (Resolve-Path -LiteralPath $Config).Path
 $privateConfig = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
@@ -10,6 +10,12 @@ $logPath = Join-Path $statePath ('assist-{0}.log' -f (Get-Date -Format 'yyyy-MM-
 if (Test-Path -LiteralPath (Join-Path $statePath 'extraction-assist.lock')) {
     Add-Content -LiteralPath $logPath -Value ('{0} isolated: existing instance lock; no task started' -f (Get-Date -Format o))
     exit 3
+}
+# 891MB 的服务器上 MemAvailable 常在 92–129MB 之间抖，默认 96MiB 的门有半数时间不满足，
+# 结果是计划任务每 5 分钟起来一次、每次都判"不合格"（2026-11-04 10:30 现场）。
+# 阈值写在配置里，谁在这台机器上跑就谁定，脚本不替人拍板。
+if ($privateConfig.PSObject.Properties.Name -contains 'remoteFreeMiB') {
+    $env:GEOHOT_ASSIST_REMOTE_FREE_MIB = [string]$privateConfig.remoteFreeMiB
 }
 Set-Location -LiteralPath $repoPath
 Add-Content -LiteralPath $logPath -Value ('{0} starting eligibility check' -f (Get-Date -Format o))

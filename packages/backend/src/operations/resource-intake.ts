@@ -18,11 +18,23 @@ const SHORT_BURST_JOBS = 3;
 const intakeLane = (name: string, combined: boolean) => FETCH_LANE.has(name) || combined && name === "content.extract-body" ? "fetch" : combined && name === "content.analyze" ? "analysis" : "processing";
 const shortKind = (name: string, combined: boolean): "fetch" | "media" | undefined => intakeLane(name, combined) === "fetch" ? "fetch" : name === "media.prepare" ? "media" : undefined;
 
+// 2026-11-04：生产（891MB）实测每小时只完成 21 条 analyze / 22 条 extract，而单任务 p50 是
+// 51 秒 —— 说明卡的不是模型速度，是下面这两道上限：组合名额 3（可用内存 <160MB 时降到 2）
+// 且每个 lane 只允许 1 个在跑。把上限做成人可调的旋钮（默认值一字未改），站上就能在不改代码
+// 的前提下决定"多压一点"还是"多让一点"。真读者受害时仍由 r115 闸门兜底。
+const envNumber = (name: string, fallback: number): number => {
+  const raw = Number(process.env[name]);
+  return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : fallback;
+};
+const LANE_LIMIT = envNumber("GEOHOT_INTAKE_LANE_LIMIT", 1);
+const COMBINED_OVERRIDE = envNumber("GEOHOT_INTAKE_COMBINED_LIMIT", 0);
+
 /** Candidate lanes from the same local WIP snapshot used by the unchanged hard active limit. */
 export function intakeAvailableLanes(work: Array<{ name: string; count: number }>, combined: boolean, combinedLimit = 3): ReadonlySet<string> {
   const controlled = work.filter(w => CONTROLLED.has(w.name));
-  if (controlled.reduce((n, w) => n + w.count, 0) >= (combined ? combinedLimit : 2)) return new Set();
-  const occupied = new Set(controlled.filter(w => w.count > 0).map(w => intakeLane(w.name, combined)));
+  const totalLimit = combined ? (COMBINED_OVERRIDE || combinedLimit) : 2;
+  if (controlled.reduce((n, w) => n + w.count, 0) >= totalLimit) return new Set();
+  const occupied = new Set(controlled.filter(w => w.count >= LANE_LIMIT).map(w => intakeLane(w.name, combined)));
   return new Set([...CONTROLLED].map(name => intakeLane(name, combined)).filter(lane => !occupied.has(lane)));
 }
 
@@ -33,7 +45,8 @@ export function intakeActive(queue: string, work: Array<{ name: string; count: n
   const kind = (name: string) => intakeLane(name, combined);
   const total = controlled.reduce((n, w) => n + w.count, 0);
   const lane = controlled.filter(w => kind(w.name) === kind(queue)).reduce((n, w) => n + w.count, 0);
-  return total >= (combined ? combinedLimit : 2) || lane >= 1 ? 1 : 0;
+  const totalLimit = combined ? (COMBINED_OVERRIDE || combinedLimit) : 2;
+  return total >= totalLimit || lane >= LANE_LIMIT ? 1 : 0;
 }
 
 // pg-boss's public Db adapter is wrapped before start. Only its dequeue statement is admitted here;
