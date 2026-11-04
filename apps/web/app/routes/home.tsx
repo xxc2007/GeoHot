@@ -38,10 +38,10 @@ export async function loader({ request }: Route.LoaderArgs) {
   const [data, pool, calendar] = await Promise.all([
     loadOr404<TimelineResponse>(`/api/site/timeline${queryString({ ...scope, limit: 12 })}`, { responseHeaders: upstream, signal: request.signal }),
     // 手机「全部」那一段是首页的增强项：它读不到就退回只有精选，不该把整页变成 404。
-    // 这个接口的页大小固定 40（`POOL_PAGE_SIZE`），手机上只留 12 张卡——多出来的 28 条
-    // 会把首屏 HTML 撑大，而读者要往下看时会走「查看全部」去 /all。
+    // 这个接口的页大小固定 40（`POOL_PAGE_SIZE`）。以前这里截到 12 张卡、剩下的靠
+    // 「查看全部 N 条」跳到 /all；站长 2026-11-04 明确不要那个"点一下才能继续读"，
+    // 所以整页交给客户端的触底续读（`MobilePoolList`），这一页原样保留 40 条。
     loadOr404<PoolResponse>(`/api/site/pool${queryString(scope)}`, { signal: request.signal })
-      .then((page) => ({ ...page, items: page.items.slice(0, 12) }))
       .catch(() => null),
     tab === "all"
       ? loadOr404<{ month: string; days: CalendarDay[] }>(`/api/site/calendar${queryString({ month, ...scope })}`, { signal: request.signal }).catch(() => null)
