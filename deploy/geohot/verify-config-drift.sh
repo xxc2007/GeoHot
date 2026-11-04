@@ -116,7 +116,15 @@ for u in "${UNIT_NAMES[@]}"; do
     dropins_seen=$((dropins_seen+1))
     changed=$(grep -oE '^[[:space:]]*(Exec(Start|StartPre|StartPost|Stop|Reload)(\[\w*\])?|Environment(A)?File?|WorkingDirectory|Memory(Max|High)|CPUQuota|Restart)[[:space:]]*=' "$di" | tr -d ' ' | sort -u | tr '\n' ' ')
     if [ -n "$changed" ]; then
-      bad "$di 覆盖了改变行为的指令（$changed）——照仓库恢复不出这一段，要么把它折进 deploy/geohot/systemd/$u，要么在这份文档里登记它"
+      # 核对的是**可恢复性**，不是"必须折进主文件"：仓库里也带着这一段、且逐字节一致，就说明
+      # 新克隆 + install-units.sh 能原样装回来。2026-11-04 把 10 份 drop-in 入库之后这里仍然全红，
+      # 就是因为只问了"机器上有、主文件里没有"，没问"仓库里有没有"。
+      repo_di="$APP/deploy/geohot/systemd/$u.d/$(basename "$di")"
+      if [ -f "$repo_di" ] && cmp -s "$di" "$repo_di"; then
+        note "  $di 覆盖了改变行为的指令（$changed）——仓库里有同一份（deploy/geohot/systemd/$u.d/），install-units.sh 会装回来"
+      else
+        bad "$di 覆盖了改变行为的指令（$changed）——照仓库恢复不出这一段，要么把它折进 deploy/geohot/systemd/$u，要么在这份文档里登记它"
+      fi
     else
       note "  $di：只写了不改运行语义的指令"
     fi
