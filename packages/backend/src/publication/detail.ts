@@ -238,13 +238,15 @@ async function buildItemDetail(id: string, now: Date, preparingMedia: boolean): 
  */
 export function markdownAvailable(row: {
   title: string; visibility: string; source_mode: string; selected: boolean; visible_after: Date | null; workflow_ready: boolean;
-  summary: string | null; body_mode: string; body_html?: string | null; channel: string; x_post: Record<string, any> | null;
+  summary: string | null; body_mode: string; body_html?: string | null; body_text?: string | null; channel: string; x_post: Record<string, any> | null;
 }, now = new Date()): boolean {
   if (row.visibility !== "public" || !row.workflow_ready || !itemHasPage(pageFacts(row), now)) return false;
   // Same "label-only wrecks have nothing to show" check the page makes above (`title_zh:` rows answer
   // 404): the export route must not hand out a 300-second CDN-cached file whose body is the label.
   if (isLabelOnlyCopy(row.title) || isLabelOnlyCopy(row.summary)) return false;
-  return !!row.summary || (row.channel === "x" && !!row.x_post?.text) || (row.body_mode === "full" && !!row.body_html);
+  // 页面在 `body_text` only 时也能渲染正文（见上面 169 行的 textToHtml 分支），
+  // 所以"能导出 Markdown"的判据必须与它一致，否则这类全文条目点导出返回 null。
+  return !!row.summary || (row.channel === "x" && !!row.x_post?.text) || (row.body_mode === "full" && (!!row.body_html || !!row.body_text));
 }
 
 const turndown = new TurndownService({ headingStyle: "atx", codeBlockStyle: "fenced", bulletListMarker: "-" });

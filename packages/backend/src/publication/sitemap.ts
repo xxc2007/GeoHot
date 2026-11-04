@@ -109,9 +109,12 @@ async function build(readAt = new Date()): Promise<string> {
   // an embargoed item is how a URL that answers 404 for its first three minutes gets handed to a crawler.
   // The table is aliased because `releasedCondition` qualifies its columns (`p.selected`): without the
   // alias every build threw 42P01 and /sitemap.xml answered 503 on a fresh install.
-  const items = await sql<{ id: string; t: Date }[]>`
+  // `MAX_URLS - entries.length` 在 entries 已经装满时会变成负数，而 PostgreSQL 拒绝负 LIMIT
+  // （整份 sitemap 直接 503）。没有名额就不查，名额用 Math.max(0, …) 夹住。
+  const room = Math.max(0, MAX_URLS - entries.length);
+  const items = room === 0 ? [] : await sql<{ id: string; t: Date }[]>`
     SELECT p.article_id AS id, p.updated_at AS t FROM publications p
-    WHERE p.visibility = 'public' AND p.indexable AND ${releasedCondition(readAt)} ORDER BY p.timeline_at DESC LIMIT ${MAX_URLS - entries.length}`;
+    WHERE p.visibility = 'public' AND p.indexable AND ${releasedCondition(readAt)} ORDER BY p.timeline_at DESC LIMIT ${room}`;
   for (const it of items) entries.push({ loc: `/items/${it.id}`, lastmod: it.t, changefreq: "monthly", priority: 0.5 });
 
   const body = entries

@@ -23,7 +23,10 @@ export async function withPublicRead<T>(read: (db: Tx) => Promise<T>, timeoutMs 
       return read(tx);
     }) as Promise<T>);
   } catch (error) {
-    if (error instanceof CapacityExceeded || (error as { code?: string }).code === "57014") {
+    // 57014 = statement_timeout，55P03 = 我们自己设的 lock_timeout（1.5s）——两者对读者是同一件事：
+    // 这一次读没抢到，过一会儿再来。漏掉 55P03 会让锁超时变成 500。
+    const code = (error as { code?: string }).code;
+    if (error instanceof CapacityExceeded || code === "57014" || code === "55P03") {
       throw new PublicReadBusyError("Public aggregate reads are temporarily busy");
     }
     throw error;

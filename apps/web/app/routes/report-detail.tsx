@@ -54,7 +54,15 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   return withHeaders(
     { report, index: nav?.items ?? [], navFailed, today: beijingDate(now), now },
     // 往期栏没读到时不能按 3600 秒缓存：那会把一个空栏播一个小时。这一期本身照旧可缓存。
-    { headers: { "Cache-Control": navFailed ? "public, max-age=0, s-maxage=60" : "public, max-age=0, s-maxage=3600, stale-while-revalidate=600" } },
+    // 未出刊（`readable === false`）的期次也不能按一小时缓存：窗口合上之前的那段里，
+    // 共享缓存会把「还没出刊」的正文和 noindex 元数据继续发出去。
+    {
+      headers: {
+        "Cache-Control": navFailed || !report.readable
+          ? "public, max-age=0, s-maxage=60"
+          : "public, max-age=0, s-maxage=3600, stale-while-revalidate=600",
+      },
+    },
   );
 }
 
