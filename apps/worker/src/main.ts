@@ -12,6 +12,7 @@ import { registerPublicationJobs } from "@aihot/backend/jobs/publication";
 import { registerSchedules } from "./schedules.ts";
 import { startHeartbeat } from "@aihot/backend/operations/heartbeat";
 import { guardProcessExit } from "@aihot/backend/operations/process-exit";
+import { modelCooldown } from "@aihot/backend/operations/model-cooldown";
 
 const plan = workerPlan();
 guardProcessExit(plan.coordinator ? "worker" : plan.role);
@@ -57,6 +58,7 @@ if (plan.role === "extraction-executor") assertExtractionExecutorValves();
 else if (!plan.coordinator) assertContentExecutorValves();
 
 if (stopping) await finishShutdown();
+await modelCooldown.load();
 const boss = await initialized(getBoss());
 if (plan.content) await initialized(registerContentJobs(boss, plan.coordinator ? undefined : positiveInt(process.env.ANALYZE_CONCURRENCY, "ANALYZE_CONCURRENCY", 4)));
 if (!plan.coordinator) {

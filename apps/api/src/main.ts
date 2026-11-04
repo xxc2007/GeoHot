@@ -3,6 +3,7 @@ import { closeDb } from "@aihot/backend/db";
 import { startHeartbeat } from "@aihot/backend/operations/heartbeat";
 import { startWorkerWatchdog } from "@aihot/backend/operations/watch";
 import { guardProcessExit } from "@aihot/backend/operations/process-exit";
+import { modelCooldown } from "@aihot/backend/operations/model-cooldown";
 import { buildApp } from "./app.ts";
 
 guardProcessExit("api");
@@ -16,6 +17,7 @@ if (config.environmentName === "production" && !(config.adminPassword && config.
   throw new Error("Refusing to start in production: set ADMIN_PASSWORD (at least 9 characters) or configure Feishu sign-in");
 }
 
+await modelCooldown.load();
 const app = await buildApp();
 await app.listen({ port: config.apiPort, host: process.env.API_HOST || "127.0.0.1" });
 startHeartbeat(`api:${config.apiPort}`);

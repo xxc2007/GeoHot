@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { after, test } from "node:test";
+import { closeDb } from "../packages/backend/src/db.ts";
 import { ModelCooldown } from "../packages/backend/src/operations/model-cooldown.ts";
 
 test("explicit quota/auth refusal closes that member immediately, with expiry and success recovery", () => {
@@ -43,3 +44,21 @@ test("same-millisecond and backwards wall clocks cannot let an older request cle
   cooldown.accept("provider", "model", older);
   assert.equal(cooldown.overlay(new Set(), 100).has("provider|model"), true);
 });
+
+test("a refusal survives the process: the next process reads the cooldown back", async () => {
+  const { sql } = await import("../packages/backend/src/db.ts");
+  await sql`DELETE FROM settings WHERE key = 'model-cooldown.v1'`;
+  const first = new ModelCooldown();
+  await first.load();
+  const now = Date.now();
+  first.reject("agnes-cn", "restart-survivor", 429, '{"msg":"额度已用尽"}', now);
+  assert.ok(first.overlay(new Set(), now + 1).has("agnes-cn|restart-survivor"));
+  await new Promise((resolve) => setTimeout(resolve, 2_600));
+  const second = new ModelCooldown();
+  await second.load();
+  assert.ok(second.overlay(new Set(), now + 2).has("agnes-cn|restart-survivor"),
+    "the hour-long refusal must not be forgotten by a restart");
+  await sql`DELETE FROM settings WHERE key = 'model-cooldown.v1'`;
+});
+
+after(closeDb);
