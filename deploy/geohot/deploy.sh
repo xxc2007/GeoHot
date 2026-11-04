@@ -245,3 +245,5 @@ exit "$VERIFY_RC"
 REMOTE
 
 echo "DEPLOY_DONE rev=$short"
+
+# 2026-11-04：闸门脚本跟着部署走，别再靠手工 scp（见 PR #137）。
