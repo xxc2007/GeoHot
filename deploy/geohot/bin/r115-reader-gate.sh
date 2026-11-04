@@ -55,7 +55,9 @@ fi
 # 单靠单元的 ActiveEnterTimestamp 不足以覆盖"最后一次 restart 之前"的 502（实测 03:5x 那次部署
 # 就是 api/web 先起的 502 落在 [最晚-180s] 之前，闸门照样 TRIP、把 worker 冻了 30 分钟）。
 DW=/run/geohot-deploy-window
-if (( GRACE > 0 )) && [ -r "$DW" ]; then
+# 部署窗口与重启宽限是两件事：GRACE=0（关掉按单元时间戳算的宽限）时，部署自己写的窗口
+# 也必须照样生效，否则「关宽限」会连带关掉唯一可靠的排除手段。
+if [ -r "$DW" ]; then
   read -r DS DE < "$DW" 2>/dev/null || true
   case "${DS:-}" in ''|*[!0-9]*) DS=0 ;; esac
   case "${DE:-}" in ''|*[!0-9]*) DE=0 ;; esac

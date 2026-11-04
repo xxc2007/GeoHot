@@ -231,7 +231,10 @@ systemctl daemon-reload
 # shellcheck disable=SC2086
 # 换血窗口：闸门靠这个文件把"我们自己重启时打出来的 502/503"排除掉，不然每次部署都会
 # 触发 r115 TRIP，把 worker 冻 30 分钟（实测 03:5x）。
-date +%s > /run/geohot-deploy-window
+# **必须写到服务器上**：deploy.sh 跑在操作者机器上（Windows Git Bash 没有 /run），以前这里
+# `date +%s > /run/…` 写的是本机，服务器那份从来没出现过——2026-11-05 06:42 复核：文件空，
+# 闸门照样 FENCED 10 分钟。
+ssh "${ssh_opts[@]}" "$SSH_TARGET" "date +%s | sudo tee /run/geohot-deploy-window >/dev/null"
 systemctl restart "${RUN[@]}"
 sleep 8
 for u in "${RUN[@]}"; do printf '%s=%s ' "${u%.service}" "$(systemctl is-active "$u")"; done; echo
@@ -275,7 +278,7 @@ for i in $(seq 1 30); do
 done
 (( ready )) || echo "警告：90 秒内没等到 api/web/JSON 代理连续两次就绪，验收里的 smoke 可能因此假红"
 
-date +%s >> /run/geohot-deploy-window
+ssh "${ssh_opts[@]}" "$SSH_TARGET" "date +%s | sudo tee -a /run/geohot-deploy-window >/dev/null"
 echo "== 验收 =="
 # 失败项要看得见。以前这里是 `verify-deploy.sh 2>&1 | tail -6`，而 smoke 的 ✗ 行在输出中段，
 # tail 只剩最后 RESULT 那一块 —— 于是"FAIL（2 项）"报了个计数，具体哪两条要人再手工跑一遍。
