@@ -1,5 +1,6 @@
 import { readFileSync, statfsSync } from "node:fs";
 import { availableParallelism } from "node:os";
+import { positiveInt } from "../config.ts";
 
 /** Opt-in for the small production host; local configuration and ordinary workers keep their policy. */
 export function balancedResources(): boolean {
@@ -53,10 +54,9 @@ export function readResourceSample(): ResourceSample {
  * 只消化 21 条。把阈值做成人可调的旋钮（**默认值一字未改**），站上就能自己决定"多让一点"
  * 还是"多压一点"，而不必改代码。
  */
-const threshold = (name: string, fallback: number): number => {
-  const raw = Number(process.env[name]);
-  return Number.isFinite(raw) && raw > 0 ? raw : fallback;
-};
+// 配置数字一律走 config.positiveInt（tests/env-valves.test.ts 钉着这条：手写
+// `Number(process.env.X || …)` 会把一个拼写错误变成 NaN，然后静默改变行为）。
+const threshold = (name: string, fallback: number): number => positiveInt(process.env[name], name, fallback);
 
 export function resourcePressured(sample: ResourceSample): boolean {
   return !Object.values(sample).every(Number.isFinite)
