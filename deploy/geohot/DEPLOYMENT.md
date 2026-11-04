@@ -242,6 +242,13 @@ curl -s -o /dev/null -w '%{http_code} %{num_redirects} %{url_effective}\n' -L ht
   传输 → `createdb` → `pg_restore -j`（custom 格式支持并行，PG 16/17 都是）→ 数一遍那七张关键表 → 重跑 smoke）与第 10 节（换域名/换服务器的清单，
   含"哪些密钥必须重新签发"和"改 `industry/**` 必须重建 web"）。本次没有在那台机器上跑过恢复——
   那一节是写给下一次真要搬的人的，第一次跑要人在旁边。
+- **读者优先的硬底线（2026-11-04 实测定下来的）**：`geohot-worker.service.d/zzzzzzz-reader-first-memory.conf`
+  把 worker 钉在 `MemoryHigh=120M` / `MemoryMax=200M` / `MemorySwapMax=256M`。
+  同一台 891MB / 2 vCPU 的机器上，worker 不受约束时首页要 15.0–17.3 秒才回 503；
+  停掉 worker 立刻回到 0.30–0.52 秒；只加这三条内存线（并发不变）首页就是 0.28–0.84 秒，worker 照跑。
+  也就是说这台机器的瓶颈是内存换页，不是 CPU——**先给 worker 划线，再谈吞吐**。
+  另外 `zz-reader-safety-20261026.conf` 已经给了 `CPUWeight=20` / `IOWeight=20` / `Nice=5` /
+  `NODE_OPTIONS=--max-old-space-size=128`，新文件不再重复这些键（重复写会按 drop-in 排序互相覆盖，看不出谁在生效）。
 - `api`/`worker`/`web` 三个模板这轮补上了 `MemoryMax`（160/200/240/320 那一组）。
   **2026-10-15 起两条路线已经并成一条**：`install-units.sh` 在默认 `GEOHOT_APP_ROOT=/opt/geohot/app` 下
   安装的就是 `deploy/geohot/systemd/` 这 8 个模板（带 `ProtectSystem=strict` 等加固块），
