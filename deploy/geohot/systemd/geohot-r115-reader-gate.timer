@@ -1,0 +1,11 @@
+[Unit]
+Description=GEOHOT reader-first worker gate (10 min)
+
+[Timer]
+OnCalendar=*:03/10
+RandomizedDelaySec=30
+Persistent=false
+Unit=geohot-r115-reader-gate.service
+
+[Install]
+WantedBy=timers.target

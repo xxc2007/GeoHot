@@ -67,7 +67,13 @@ emit_unit() {
 #   才退回下面的生成路线，并且明说退回来的是没有加固块的那一份。
 TEMPLATE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/systemd"
 ALL_UNITS=(geohot-brain.service geohot-api.service geohot-worker.service geohot-web.service
-           geohot-workbuddy.service geohot-workbuddy-cn.service geohot-archive.service geohot-archive.timer)
+           geohot-workbuddy.service geohot-workbuddy-cn.service geohot-archive.service geohot-archive.timer
+           # 2026-11-04 补登：这三条只活在过去的工作流注释里，机器上装着、仓库里没有，照仓库恢复不出这台机器。
+           geohot-liveness.service geohot-liveness.timer
+           geohot-r115-reader-gate.service geohot-r115-reader-gate.timer
+           geohot-swap-cache.service
+           geohot-magpie.service geohot-magpie-update.service geohot-magpie-update.timer
+           geohot-pricing-check.service geohot-pricing-check.timer)
 if [[ "$APP_ROOT" == "/opt/geohot/app" && -d "$TEMPLATE_DIR" ]]; then
   echo "route=templates  从 $TEMPLATE_DIR 安装 ${#ALL_UNITS[@]} 个单元（带加固块；这一条与线上现值一致）"
   src_missing=0
@@ -94,6 +100,19 @@ if [[ "$APP_ROOT" == "/opt/geohot/app" && -d "$TEMPLATE_DIR" ]]; then
     echo "DRY-RUN 结束：上面是将要写进 /etc/systemd/system 的 ${#ALL_UNITS[@]} 个单元（左=线上现值，右=仓库模板）。确认后：bash install-units.sh --apply"
     exit 0
   fi
+  # drop-in 也要一起装：这十份 *.service.d/*.conf 是工作流一层层叠上去的（EnvironmentFile / MemoryMax /
+  # Restart），机器上在生效、仓库里没有 = 照仓库恢复出来的单元跑的不是这台机器。2026-11-04 把它们收进
+  # systemd/<unit>.service.d/ 并在这里一起拷，只拷贝、不改任何一份的内容。
+  for d in "$TEMPLATE_DIR"/*.service.d "$TEMPLATE_DIR"/*.timer.d; do
+    [[ -d "$d" ]] || continue
+    unit="$(basename "$d")"
+    sudo mkdir -p "/etc/systemd/system/$unit"
+    for f in "$d"/*.conf; do
+      [[ -f "$f" ]] || continue
+      sudo cp "$f" "/etc/systemd/system/$unit/$(basename "$f")"
+      echo "wrote $unit/$(basename "$f")"
+    done
+  done
   sudo systemctl daemon-reload
   # 新机器上光有单元还不够：geohot-archive.timer 装着、而 /etc/geohot/archive-cycle.conf 不在，
   # archive-cycle.sh 会退回脚本默认值（MAX_ITEMS=100 / PER_MONTH=30 / SLICES=6），
