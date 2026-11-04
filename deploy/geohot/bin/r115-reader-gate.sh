@@ -20,6 +20,13 @@ declare -F e5_count >/dev/null || { echo "$(date -Is) FATAL 判据文件缺 e5_c
 NOW=$(date +%s); T0=$(date -d "today 00:00:00" +%s 2>/dev/null || echo 0)
 # Repeated degradation within an hour keeps the old, longer backoff.
 LAST_RELEASE=$(cat "${RUN}.last-release" 2>/dev/null || echo 0)
+# 2026-11-04 决策：默认从"停整个 worker"改成"冻住取任务"。线上 24 小时停了 15 次、合计 392 分钟，
+# 每次 stop 之后的重启又会在 upstream 换血时回一批 502，于是下一次 5xx 立刻再触发一次。
+# fence 模式下闸门只写 /run/geohot-r115-fence（第一段是冷却截止 epoch），进程留在原地、不再领新任务，
+# 在飞的任务照常落地写回执。R115_ACTION=stop 保留为回退档。
+MODE=${R115_ACTION:-fence}
+FENCE=${GEOHOT_R115_FENCE:-/run/geohot-r115-fence}
+
 case "$LAST_RELEASE" in ''|*[!0-9]*) LAST_RELEASE=0 ;; esac
 if (( LAST_RELEASE > 0 && NOW - LAST_RELEASE < 3600 && COOL < 30 )); then COOL=30; fi
 # **重启宽限**（2026-11-04）：单元重启那一两分钟里 nginx 对正在换血的 upstream 回 502/503。
@@ -79,6 +86,13 @@ case "$A" in
         echo "$(date -Is) TRIP-STATE-FAILED 无法提交停止意图，原责任保留，未 stop"
         exit 1
       fi
+      if [ "$MODE" = fence ]; then
+        # 冻结：进程活着、不领新任务；在飞任务自己落地。恢复不需要重启，也就不会再有重启 502。
+        printf '%s 1 fence
+' "$(( NOW + COOL * 60 ))" > "$FENCE" || { echo "$(date -Is) FENCE-FAILED 无法写 $FENCE"; exit 1; }
+        echo "$(date -Is) FENCED 5xx=$E5/${WIN}s(样本 $SPAN) grace=$GRACED valve=$V worker=$ACT 冻结 ${COOL} 分钟（进程不重启）"
+        exit 0
+      fi
       systemctl stop geohot-worker; RC=$?
       ACT=$(systemctl is-active geohot-worker 2>&1); ACTIVE_RC=$?
       # 停止意图已经承担恢复责任；stop/读回失败也保留它，下一轮按 active/inactive 收口。
@@ -99,6 +113,14 @@ case "$A" in
         echo "$(date -Is) RECOVERY-WAIT 健康连续确认未满足，保留恢复责任"
         exit 0
       fi
+      if [ "$MODE" = fence ]; then
+        rm -f -- "$FENCE" || { echo "$(date -Is) RELEASE-FAILED worker=$ACT 栅栏文件删不掉"; exit 1; }
+        printf '%s
+' "$NOW" > "${RUN}.last-release"
+        rm -f "$RUN" 2>/dev/null || true
+        echo "$(date -Is) RELEASED 5xx=0/${WIN}s(样本 $SPAN) worker=$ACT mode=fence（进程一直在跑）"
+        exit 0
+      fi
       RC=0
       if [ "$A" = RELEASE ]; then systemctl start geohot-worker; RC=$?; fi
       ACT=$(systemctl is-active geohot-worker 2>&1); ACTIVE_RC=$?
@@ -117,7 +139,13 @@ case "$A" in
   HELD)
     # A queued maintenance restart can race a previous stop transaction. An owned cooldown
     # remains a stop intent; reassert it without changing its deadline or recovery owner.
-    if [ "$WE" = 1 ] && [ "$ACT" = active ] && [ "${R115_DRY:-0}" != 1 ]; then
+    if [ "$MODE" = fence ]; then
+      if [ ! -e "$FENCE" ] && [ "$UNTIL" -gt "$NOW" ] && [ "${R115_DRY:-0}" != 1 ]; then
+        printf '%s 1 fence
+' "$UNTIL" > "$FENCE" || true
+        echo "$(date -Is) HELD-FENCE-REASSERTED until=$UNTIL"
+      fi
+    elif [ "$WE" = 1 ] && [ "$ACT" = active ] && [ "${R115_DRY:-0}" != 1 ]; then
       systemctl stop --no-block geohot-worker
       echo "$(date -Is) HELD-STOP-SUBMITTED rc=$? worker=$ACT 恢复责任保留"
     fi

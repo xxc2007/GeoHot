@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import type { PgBoss, Db } from "pg-boss";
 import { BacklogShare } from "./backlog-share.ts";
 import { balancedResources, readResourceSample, resourcePressured, observeScheduledResources, scheduledResourcePressured, type ResourceSample } from "./resource-budget.ts";
@@ -72,6 +73,26 @@ export function intakeActive(queue: string, work: Array<{ name: string; count: n
 // pg-boss's public Db adapter is wrapped before start. Only its dequeue statement is admitted here;
 // completion, receipt persistence, enqueue, maintenance and critical cron work always reach the DB.
 // This shape is checked against the installed pg-boss SQL generator in resource-intake.test.ts.
+/**
+ * R115 的"停整个 worker"改成"先冻住取任务"（2026-11-04 决策）。
+ *
+ * 线上 24 小时里 r115 停了 15 次、合计 392 分钟：每次停都是 `systemctl stop`，重启又会在
+ * upstream 换血时回一批 502，于是下一次 5xx 立刻再触发一次 —— 自己把自己钉在停机里。
+ * 真正需要的是"别再领新活"，而不是"把进程杀掉"：在飞的任务（单条 p50 51 秒）让它落地、
+ * 回执照常写库，读者压力几秒内就缓下来。
+ *
+ * 闸门只写一个文件（默认 /run/geohot-r115-fence，可用 GEOHOT_R115_FENCE 覆盖），内容第一段是
+ * 冷却截止的 epoch 秒；进程活着、但不领新任务。文件不存在或已过期即视为放行。
+ */
+export function r115FenceActive(now: number = Date.now(), path = process.env.GEOHOT_R115_FENCE ?? "/run/geohot-r115-fence"): boolean {
+  try {
+    const raw = readFileSync(path, "utf8").trim();
+    if (!raw) return false;
+    const until = Number(raw.split(/\s+/)[0]);
+    return Number.isFinite(until) && now < until * 1000;
+  } catch { return false; }
+}
+
 export function intakeQueue(text: string): string | null {
   if (!/^\s*WITH\b/i.test(text) || !/UPDATE\s+pgboss\.\w+\s+j\s+SET\s+state\s*=\s*'active'\s*,\s*started_on\s*=/i.test(text)) return null;
   const queue = /WHERE\s+name\s*=\s*'([\w.-]+)'/i.exec(text)?.[1];
@@ -221,6 +242,14 @@ export function installResourceIntake(boss: PgBoss) {
     const slots = combined ? (COMBINED_OVERRIDE || combinedLimit) : 2;
     const active = intakeBusy(work, slots);
     const availableLanes = intakeAvailableLanes(work, combined, combinedLimit);
+    // 闸门冻结期间不领新任务，但进程与在飞任务都留着（回执照常写库）。
+    if (r115FenceActive(now)) {
+      if (now - lastLog >= 60_000) {
+        lastLog = now;
+        console.log(JSON.stringify({ level: "info", msg: "background queue intake fenced by the reader gate", queue }));
+      }
+      return { rows: [] };
+    }
     const result = await budget.execute(execute, text, values, sample, now, active, availableLanes);
     if (result.rows.length && now - lastGrantLog >= 5000) {
       console.log(JSON.stringify({ level: "info", msg: "background queue admitted", queue,
