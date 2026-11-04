@@ -101,4 +101,6 @@ console.log(shown.length ? `端口：${shown.map(([k, v]) => `${k}=${v}`).join("
 console.log(`管理员密码：${password}`);
 console.log(`  —— 也写在 .env 的 ADMIN_PASSWORD 里。浏览器打开 ${ports.web ? `http://localhost:${ports.web}` : "http://localhost:3000"}/admin/login，用户名不需要，只输这个密码。`);
 console.log("随机生成并已写入的密钥：SESSION_SECRET、IMG_PROXY_SIGN_SECRET、POSTGRES_PASSWORD、INGEST_TOKEN。");
-console.log("下一步：npm run db:up -- --daemon" + (ports.db ? ` --port=${ports.db}` : ""));
+// 用 --foreground 而不是 --daemon：后者要另起一个分离进程，日志落在文件里，第一次跑的人往往
+// 看不到启动失败的原因（README 的最短路径也是前台跑）。
+console.log("下一步：npm run db:up -- --foreground" + (ports.db ? ` --port=${ports.db}` : "") + "，然后 npm run db:migrate");

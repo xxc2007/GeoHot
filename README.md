@@ -126,14 +126,22 @@ npm run env:init
 
 初始化脚本会生成本地环境文件和所需随机密钥，并拒绝覆盖已有配置。想换端口（避开正在跑的栈）用 `npm run env:init -- --db-port 5455 --api-port 3288 --web-port 3090 --brain-port 3065`，它会把这些值写进 `.env` 的每一处。端口对照表与故障排查见[运营与开发手册](docs/manual.md) 第 3.7 节；仓库提供本地模型 stub 和固定夹具，用于开发与 CI 验证。
 
-本地跑起来的最短路径（四条命令，另开两个终端更清楚）：
+本地跑起来的最短路径（六条命令，另开两个终端更清楚）：
 
 ```bash
-npm run db:up -- --foreground        # embedded PostgreSQL，默认 127.0.0.1:5433（--daemon 也行）
-node --env-file=.env --env-file=.env.pipeline apps/api/src/main.ts   # 接口，API_PORT
+npm run db:up -- --foreground --port=5455   # embedded PostgreSQL。端口只认 --port / DEV_DB_PORT，不读 .env
+npm run db:migrate                          # 建表（干净库约 96 条迁移，1 秒）
+node --env-file-if-exists=.env scripts/seed.ts                # 主题 43 / 信源 668（这个脚本没有 npm 别名）
+node --env-file=.env --env-file=.env.pipeline apps/api/src/main.ts    # 接口，API_PORT
 node --env-file=.env --env-file=.env.pipeline apps/worker/src/main.ts # 队列与定时任务
-npm run build -w @aihot/web && node --env-file=.env apps/web/server.ts  # 网页，WEB_PORT（server.ts 读构建产物，先 build）
+npm run build -w @aihot/web && node --env-file=.env apps/web/server.ts  # 网页，WEB_PORT（先 build，server.ts 读产物）
 ```
+
+两点容易踩：
+
+- `db:up` 的端口**不跟 `env:init` 走**（它读 `--port`、`DEV_DB_PORT`，否则回落 5433）。换过端口就显式写 `--port=5455`，否则会去抢本机已经在跑的库。
+- 本地构建是**域名根**形态：没有 `BASE_PATH`，线上 `/geohot` 前缀由反代与 web 层决定。所以本地冒烟用 `node scripts/smoke.ts --base http://127.0.0.1:3090`（不带前缀）；带 `/geohot` 会得到 38 条 404。
+- `npm run seed:curated -- --enforce-source` 在干净库上会 **exit 1**：15 行属于两个 `enabled:false` 的信源（`rss-copernicus-c3s` 7 行、`web-thepaper-topnews` 8 行），脚本会打印 `!! 15 material line(s) were not stored` 与逐条原因。要它全绿就先启用这两个信源，或去掉 `--enforce-source`。
 
 `.env` 里采集、模型调用等外部访问开关一律 `false`（测试也继承这份，开了就会真打外部服务）。需要跑真实管道时叠加独立的 `.env.pipeline` —— 那份里它们是 `true`，两份永不合并。
 

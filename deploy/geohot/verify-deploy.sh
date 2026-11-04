@@ -469,7 +469,23 @@ if command -v systemctl >/dev/null 2>&1 && [[ "$(systemctl is-active geohot-arch
   systemctl stop geohot-archive.timer && note "冒烟期间暂停 geohot-archive.timer（跑完自动恢复）"
 fi
 if command -v node >/dev/null 2>&1 && [[ -f "$APP_ROOT/scripts/smoke.ts" ]]; then
-  if (cd "$APP_ROOT" && node scripts/smoke.ts --base "$BASE"); then ok "smoke.ts 全绿"; else bad "smoke.ts 有失败项（见上方输出）"; fi
+  # 重启之后的头几十秒里，web 的代理还没接上 api，smoke 会拿回 HTML 错误页
+  # （`reader copy SyntaxError: Unexpected token '<', "<html>"`）。2026-10-12 起这条假红反复出现，
+  # 每次都要人隔一分钟手工重跑；部署侧的就绪探测只看了 /api/health 与 /geohot/，管不到被代理的 JSON。
+  # 所以这里自己重试：最多 3 次、每次间隔 20 秒，第一次就过则不打扰任何人。
+  smoke_ok=0
+  for attempt in 1 2 3; do
+    if (cd "$APP_ROOT" && node scripts/smoke.ts --base "$BASE"); then smoke_ok=1; break; fi
+    if (( attempt < 3 )); then
+      echo "  … smoke 第 $attempt 次没过，等 20 秒再来（重启窗口内的代理/SSR 还在起）"
+      sleep 20
+    fi
+  done
+  if (( smoke_ok )); then
+    if (( attempt > 1 )); then ok "smoke.ts 全绿（第 $attempt 次，重启窗口后重试成功）"; else ok "smoke.ts 全绿"; fi
+  else
+    bad "smoke.ts 有失败项（3 次都失败，见上方输出）"
+  fi
 else
   note "跳过：本机没有 node 或缺 $APP_ROOT/scripts/smoke.ts（在服务器上跑才有效）"
 fi
