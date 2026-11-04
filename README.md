@@ -124,9 +124,18 @@ npm ci
 npm run env:init
 ```
 
-初始化脚本会生成本地环境文件和所需随机密钥，并拒绝覆盖已有配置。数据库、API、worker 与网页服务的启动顺序、端口设置和检查命令见[运营与开发手册](docs/manual.md)；仓库提供本地模型 stub 和固定夹具，用于开发与 CI 验证。
+初始化脚本会生成本地环境文件和所需随机密钥，并拒绝覆盖已有配置。想换端口（避开正在跑的栈）用 `npm run env:init -- --db-port 5455 --api-port 3288 --web-port 3090 --brain-port 3065`，它会把这些值写进 `.env` 的每一处。端口对照表与故障排查见[运营与开发手册](docs/manual.md) 第 3.7 节；仓库提供本地模型 stub 和固定夹具，用于开发与 CI 验证。
 
-默认保持采集、模型调用等外部访问开关关闭。需要运行真实管道时，按手册叠加独立环境配置，保留开发与测试环境的隔离。
+本地跑起来的最短路径（四条命令，另开两个终端更清楚）：
+
+```bash
+npm run db:up -- --foreground        # embedded PostgreSQL，默认 127.0.0.1:5433（--daemon 也行）
+node --env-file=.env --env-file=.env.pipeline apps/api/src/main.ts   # 接口，API_PORT
+node --env-file=.env --env-file=.env.pipeline apps/worker/src/main.ts # 队列与定时任务
+npm run build -w @aihot/web && node --env-file=.env apps/web/server.ts  # 网页，WEB_PORT（server.ts 读构建产物，先 build）
+```
+
+`.env` 里采集、模型调用等外部访问开关一律 `false`（测试也继承这份，开了就会真打外部服务）。需要跑真实管道时叠加独立的 `.env.pipeline` —— 那份里它们是 `true`，两份永不合并。
 
 希望用于其他垂直领域，可从 `industry/` 入手配置站名、分类、信源、提示词与品牌。目录职责和迁移步骤见[行业定制指南](docs/customize.md)，实际配置值以代码为准；部署说明见[运行手册](docs/geohot-runbook.md)。
 

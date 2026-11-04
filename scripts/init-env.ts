@@ -52,10 +52,13 @@ for (const file of targets) {
   }
 }
 
-/** Rewrite one `KEY=` line (uncommenting it when needed), appending it when the template has no such key. */
+/** Rewrite **every** `KEY=` line (uncommenting it when needed), appending when the template has no such key.
+ *  `.env.example` 里同一个键会出现两处：注释模板里一处、后面"给 CI 用的裸空键"一处。Node 的
+ *  `--env-file` 是后者胜，只改第一处等于把值写进去又被空行清掉（2026-11-04 本地部署实测：
+ *  `env:init --api-port 3288` 生成的文件里 `API_PORT=""`，api 落回 3001 撞上 live 栈）。 */
 function setLine(text: string, key: string, value: string): string {
-  if (new RegExp(`^# ?${key}=`, "m").test(text)) return text.replace(new RegExp(`^# ?${key}=.*$`, "m"), `${key}=${value}`);
-  if (new RegExp(`^${key}=`, "m").test(text)) return text.replace(new RegExp(`^${key}=.*$`, "m"), `${key}=${value}`);
+  const matches = text.match(new RegExp(`^#? ?${key}=`, "gm"));
+  if (matches) return text.replace(new RegExp(`^#? ?${key}=.*$`, "gm"), `${key}=${value}`);
   return `${text.trimEnd()}\n${key}=${value}\n`;
 }
 
