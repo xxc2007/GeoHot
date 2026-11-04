@@ -67,3 +67,31 @@ echo "window=$mode mem_high=$mem_high mem_max=$mem_max swap_max=$swap_max"
 systemctl show geohot-worker -p MemoryHigh -p MemoryMax -p MemorySwapMax -p ActiveState |
   tr '\n' ' '
 echo
+
+# 读者保护：夜间档是「多给资源」，但多发的那两个槽会不会把 891MB 顶穿，只有真跑起来才知道。
+# 切档后连续探两次首页，两次都超时 / 非 200 / 超过阈值就自动退回 day，并留一行日志。
+# 这是 2026-11-04 那次 load 19 的教训：宁可夜里少干一点，也不能让读者开不了页面。
+guard_ms=${GEOHOT_WINDOW_GUARD_MS:-4000}
+guard_tries=${GEOHOT_WINDOW_GUARD_TRIES:-2}
+if [[ "${GEOHOT_WINDOW_NO_GUARD:-0}" != "1" && "$mode" == "night" ]]; then
+  bad=0
+  for _ in $(seq 1 "$guard_tries"); do
+    # 不用 `read < <(…)`：curl 的输出没有换行时 read 返回 1，配合 `set -e` 会让脚本静默中止。
+    probe=$(curl -s -o /dev/null -w "%{http_code} %{time_total}" --max-time 20 http://127.0.0.1:3000/geohot/ || echo "000 99")
+    code=${probe%% *}
+    secs=${probe##* }
+    too_slow=$(awk -v s="${secs:-99}" -v g="$guard_ms" 'BEGIN{print (s*1000 > g) ? 1 : 0}')
+    if [[ "$code" != "200" || "$too_slow" == "1" ]]; then
+      bad=$((bad + 1))
+      echo "guard: probe ${code} ${secs}s (threshold $((guard_ms))ms)" >&2
+    fi
+    sleep 3
+  done
+  if [[ "$bad" -ge "$guard_tries" ]]; then
+    logger -t geohot-window "night window tripped the reader guard (${bad}/${guard_tries}); reverting to day"
+    echo "guard: reverting to day (${bad}/${guard_tries} probes failed)" >&2
+    GEOHOT_WINDOW_NO_GUARD=1 "$0" day
+    exit 0
+  fi
+  echo "guard: ok ($((guard_tries - bad))/${guard_tries} probes within $((guard_ms))ms)"
+fi
