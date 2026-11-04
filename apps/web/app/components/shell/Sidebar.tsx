@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router";
 import { Wordmark } from "../Logo";
 import { useChangelogSeen } from "../../lib/local-state";
-import { SIDEBAR, tabIsActive, type NavItem } from "./nav";
+import { SIDEBAR, navIsActive, type NavItem } from "./nav";
 import { ThemeSwitch } from "./ThemeSwitch";
 import { IconGitHub } from "../icons";
 
@@ -19,7 +19,7 @@ export function useChangelogDot(latestVersion: string | null): boolean {
 function SideLink({ item, dot }: { item: NavItem; dot: boolean }) {
   const { pathname } = useLocation();
   // Weekly and monthly reports belong to the daily report entry, as the phone tab bar has it.
-  const isActive = tabIsActive(item, pathname);
+  const isActive = navIsActive(item, pathname);
   const Icon = item.icon;
   const className = `flex h-10 items-center gap-2.5 rounded-control px-2.5 text-[14px] transition-colors duration-150 ${
     isActive ? "bg-accent/10 font-semibold text-ink dark:bg-accent-soft" : "font-medium text-ink-3 hover:bg-bg-sunk hover:text-ink"

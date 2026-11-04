@@ -74,11 +74,25 @@ export const TABBAR: NavItem[] = [
 /** Pages reached from the mobile "更多" tab keep that tab highlighted. Closed modules are absent. */
 export const MORE_PATHS = ["/more", "/starred", ...OPTIONAL_PATHS, "/agent", "/about", "/changelog", "/feedback", "/terms", "/privacy"];
 
-export function tabIsActive(item: NavItem, pathname: string): boolean {
-  // 精选 与 全部 是同一个"列表"表面的两段（手机首屏那条切换），标签栏里只有精选这一格：
-  // 站在 /all 上时若一格都不亮，读者会以为自己不在任何栏目里。
-  if (item.end) return pathname === item.to || pathname === "/all";
+/**
+ * 侧栏与标签栏共用的"这一格是不是当前页"。
+ *
+ * 注意：「/all」不算精选。精选与全部是两条并列的导航项（侧栏里同时存在），
+ * 只有手机底部标签栏把"全部"折叠进了精选那一格 —— 那条特例在 tabIsActive 里，
+ * 别写回这里，否则 /all 上侧栏会同时点亮"精选"和"全部地理动态"（2026-11-04 站长报的就是这个）。
+ */
+export function navIsActive(item: NavItem, pathname: string): boolean {
+  if (item.end) return pathname === item.to;
   if (item.to === "/more") return MORE_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
   if (item.to === "/daily") return /^\/(daily|weekly|monthly)(\/|$)/.test(pathname);
   return pathname === item.to || pathname.startsWith(`${item.to}/`);
+}
+
+/**
+ * 底部标签栏专用：它只有五格，没有"全部"这一格，站在 /all 上时点亮精选，
+ * 否则读者会以为自己不在任何栏目里。侧栏不走这条（见 navIsActive 的注释）。
+ */
+export function tabIsActive(item: NavItem, pathname: string): boolean {
+  if (item.end) return pathname === item.to || pathname === "/all";
+  return navIsActive(item, pathname);
 }
