@@ -9,7 +9,8 @@ import { loadOr404, queryString } from "../lib/api.server";
 import { listPath, pageMeta } from "../lib/seo";
 import { CategoryTabs, SearchField } from "../features/feed/Filters";
 import { PillTabs } from "../components/ui/Tabs";
-import { DayList, Pagination } from "../features/feed/DayList";
+import { Pagination } from "../features/feed/DayList";
+import { InfiniteDayList } from "../features/feed/InfiniteDayList";
 import { DateCalendar, type CalendarDay } from "../features/calendar/DateCalendar";
 import { beijingTime, todayOf } from "../lib/format";
 import { EmptyState } from "../components/ui/Page";
@@ -104,6 +105,15 @@ export default function AllPage() {
   // 搜索表单带过去的筛选里**故意没有 `date`**：搜索问的是"哪些条目含这个词"，把它锁在已选的那一天里
   // 会让读者以为搜索坏了，而搜索页又不画日历（没有可反悔的入口）。所以从日期页发起搜索＝回到全部日期。
   const keep = { channel: f.channel === "all" ? null : f.channel, category: f.category, tag: f.tag };
+  // 触底追加时用的查询串：与这一屏的 loader 同参数（去掉 page / deep / anchorAt / search）。
+  const listQuery = (() => {
+    const sp = new URLSearchParams(params);
+    sp.delete("page");
+    sp.delete("deep");
+    sp.delete("anchorAt");
+    sp.delete("search");
+    return sp.toString();
+  })();
   // 日历的两种走法：点某一天 = 带着当前筛选去看那一天；换月份 = 只看那一月的日历，不留在旧的那一天上。
   const listHref = (over: Record<string, string | null>) => {
     const sp = new URLSearchParams();
@@ -206,11 +216,23 @@ export default function AllPage() {
             </EmptyState>
           </div>
         ) : (
-          <DayList items={data.items} today={todayOf(data.generatedAt)} todayCount={f.q ? null : data.todayCount} showTags />
+          // 2026-11-04：站长要求"像精选页一样一直往下拉"，分页器换成触底自动续。
+          // 首屏仍是 SSG/SSR 出来的这一页，追加只在浏览器里发生；<noscript> 里保留分页链接。
+          <InfiniteDayList
+            initialItems={data.items}
+            initialPage={data.page}
+            pageCount={data.pageCount}
+            query={listQuery}
+            today={todayOf(data.generatedAt)}
+            todayCount={f.q ? null : data.todayCount}
+            showTags
+          />
         )}
       </div>
-      <Pagination page={data.page} pageCount={data.pageCount} href={(p) => pageHref(params, p)} />
-      {data.page >= 50 && <p className="mt-4 text-center text-[12px] text-ink-4">{calendar ? "最多提供 50 页；更早的日子请用上面这张日历挑一天，或者用搜索、主题页。" : "最多提供 50 页；更早的内容请去掉搜索词后用日期入口挑一天，或者用主题页。"}</p>}
+      <noscript>
+        <Pagination page={data.page} pageCount={data.pageCount} href={(p) => pageHref(params, p)} />
+        {data.page >= 50 && <p className="mt-4 text-center text-[12px] text-ink-4">{calendar ? "最多提供 50 页；更早的日子请用上面这张日历挑一天，或者用搜索、主题页。" : "最多提供 50 页；更早的内容请去掉搜索词后用日期入口挑一天，或者用主题页。"}</p>}
+      </noscript>
     </div>
   );
 }
