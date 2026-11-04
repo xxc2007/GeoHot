@@ -20,17 +20,22 @@ const TWO_STAGES = [
 function Journey({ stages }: { stages: typeof TWO_STAGES }) {
   const [stage, setStage] = useState(0);
   const id = useId();
+  // 站数由 stages 决定：2.0 是五站、3.0 是四步。列数写死 5 时四步那组会左对齐剩下半列，
+  // 连线又固定画到 90% 宽，于是「04」右边拖出一截没有站点的线；连线只从首站中心画到末站中心。
+  const count = stages.length;
+  const first = 1000 / (count * 2);
+  const flowPath = `M${first} 20H${1000 - first}`;
   return <section className="major-journey">
     <h3 className="text-[20px] font-bold text-ink">一条消息，走过五站</h3>
     <p className="mt-2 text-[13px] leading-relaxed text-ink-3">点选一站，看看线索如何变成可阅读的内容。</p>
-    <div className="major-stations" role="tablist" aria-label="消息的五个阶段" onKeyDown={event => {
+    <div className="major-stations" style={{ gridTemplateColumns: `repeat(${count}, minmax(0, 1fr))` }} role="tablist" aria-label={`消息的 ${count} 个阶段`} onKeyDown={event => {
       const delta = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
       if (!delta && !["Home", "End"].includes(event.key)) return;
       event.preventDefault();
       const next = event.key === "Home" ? 0 : event.key === "End" ? 4 : (stage + delta + 5) % 5;
       setStage(next); document.getElementById(`${id}-stage-${next}`)?.focus();
     }}>
-      <svg viewBox="0 0 1000 40" preserveAspectRatio="none" aria-hidden="true" className="major-flow"><path d="M100 20H900" className="major-flow-track" /><path d="M100 20H900" className="major-flow-pulse" /></svg>
+      <svg viewBox="0 0 1000 40" preserveAspectRatio="none" aria-hidden="true" className="major-flow"><path d={flowPath} className="major-flow-track" /><path d={flowPath} className="major-flow-pulse" /></svg>
       {stages.map(([title], index) => <button key={title} type="button" role="tab" id={`${id}-stage-${index}`} aria-controls={`${id}-panel`} aria-selected={stage === index} tabIndex={stage === index ? 0 : -1} onClick={() => setStage(index)}>
         <span className="major-station-number">0{index + 1}</span><span>{title}</span>
       </button>)}
@@ -83,17 +88,22 @@ function ReplyJourney() {
   ] as const;
   const [stage, setStage] = useState(0);
   const id = useId();
+  // 四步就是四列、连线只画到「04」的中心：旧写法借用五站的网格与 10%–90% 的连线，
+  // 「04」右边会拖出一截没有站点的线。
+  const count = STAGES.length;
+  const first = 1000 / (count * 2);
+  const flowPath = `M${first} 20H${1000 - first}`;
   return <section className="major-journey">
     <h3 className="text-[20px] font-bold text-ink">一条反馈，走完这四步</h3>
     <p className="mt-2 text-[13px] leading-relaxed text-ink-3">点选一步，看看你的反馈怎么走、怎么回。</p>
-    <div className="major-stations" role="tablist" aria-label="反馈的四个阶段" onKeyDown={event => {
+    <div className="major-stations" style={{ gridTemplateColumns: `repeat(${count}, minmax(0, 1fr))` }} role="tablist" aria-label={`反馈的 ${count} 个阶段`} onKeyDown={event => {
       const delta = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
       if (!delta && !["Home", "End"].includes(event.key)) return;
       event.preventDefault();
       const next = event.key === "Home" ? 0 : event.key === "End" ? 3 : (stage + delta + 4) % 4;
       setStage(next); document.getElementById(`${id}-stage-${next}`)?.focus();
     }}>
-      <svg viewBox="0 0 1000 40" preserveAspectRatio="none" aria-hidden="true" className="major-flow"><path d="M100 20H900" className="major-flow-track" /><path d="M100 20H900" className="major-flow-pulse" /></svg>
+      <svg viewBox="0 0 1000 40" preserveAspectRatio="none" aria-hidden="true" className="major-flow"><path d={flowPath} className="major-flow-track" /><path d={flowPath} className="major-flow-pulse" /></svg>
       {STAGES.map(([title], index) => <button key={title} type="button" role="tab" id={`${id}-stage-${index}`} aria-controls={`${id}-panel`} aria-selected={stage === index} tabIndex={stage === index ? 0 : -1} onClick={() => setStage(index)}>
         <span className="major-station-number">0{index + 1}</span><span>{title}</span>
       </button>)}
