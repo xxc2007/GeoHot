@@ -48,12 +48,19 @@ export function cacheUntil(reply: FastifyReply, defaultSeconds: number, refreshA
 
 export function siteHandler(fn: Handler): Handler {
   return async (req, reply) => {
+    const startedAt = performance.now();
     try {
       return await fn(req, reply);
     } catch (error) {
       if (error instanceof BadRequest) return sendProblem(req, reply, { status: 400, code: "invalid_request", detail: error.message });
       if (error instanceof InvalidCursorError) return sendProblem(req, reply, { status: 400, code: "invalid_cursor", detail: error.message });
       if (error instanceof SearchBusyError || error instanceof PublicReadBusyError) {
+        // 2026-11-04：这一类 503 以前不写日志（只有兜底那一条才有），于是"读者到底为什么被拒"
+        // 全靠猜。现在每次拒绝都留一行 warn，带上是哪个出口、等了几毫秒、retryAfter 多少。
+        req.log.warn(
+          { path: req.url.split("?")[0], ms: Math.round(performance.now() - startedAt), kind: error.constructor.name, retryAfter: error.retryAfter },
+          "public read rejected",
+        );
         return sendProblem(req, reply, { status: 503, code: "temporarily_unavailable", detail: "search busy", retryAfter: error.retryAfter });
       }
       req.log.error({ err: error, path: req.url.split("?")[0] }, "site api error");
