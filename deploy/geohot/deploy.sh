@@ -127,6 +127,16 @@ if [ -n "$KEEP_BASELINE" ]; then
 fi
 chown -R geohot:geohot "$APP_ROOT"
 
+# 闸门脚本住在 /opt/geohot/bin，而 tar 只铺 $APP_ROOT ⇒ 仓库里改了脚本，机器上那份不动。
+# 2026-11-04 现场：PR #136 已合并且部署，`/opt/geohot/bin/r115-reader-gate.sh` 里仍没有
+# `R115_ACTION`，闸门继续按 stop 模式停 worker —— 正是 PR #108 记过的同一条坑（那次是
+# install-units.sh 补了拷贝，但 deploy.sh 这条日常路径没补）。这里补上，让"部署"一次就够。
+if [ -d "$APP_ROOT/deploy/geohot/bin" ]; then
+  install -d -m 755 /opt/geohot/bin
+  install -m 755 "$APP_ROOT"/deploy/geohot/bin/*.sh /opt/geohot/bin/
+  echo "bin: 已同步 $(ls -1 "$APP_ROOT"/deploy/geohot/bin/*.sh | wc -l) 个闸门/判定脚本到 /opt/geohot/bin"
+fi
+
 # 版本指纹：api 的 /api/health 读 AIHOT_RELEASE，环境变量是**机器级**的静态值，
 # 部署不更新它 ⇒ 线上一直自称旧提交（2026-11-04 实测 health 报 4bf1f89，实际跑 70d2ac3）。
 # 这里把本次部署的 rev 落成文件，api 侧 fallback 读它；环境变量仍优先，方便临时覆盖。
