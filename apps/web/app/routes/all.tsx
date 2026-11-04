@@ -1,6 +1,6 @@
 import { SITE, withSubject } from "@aihot/industry/site";
 import { useMemo } from "react";
-import { Link, useLoaderData, useNavigate, useNavigation, useSearchParams } from "react-router";
+import { Link, useLoaderData, useNavigation, useSearchParams } from "react-router";
 import type { Route } from "./+types/all";
 import type { PoolResponse } from "@aihot/contracts/site";
 import { isCategoryKey, isChannelKey } from "@aihot/contracts/taxonomy";
@@ -8,8 +8,6 @@ import { beijingDate, isDay, isMonth } from "@aihot/contracts/time";
 import { loadOr404, queryString } from "../lib/api.server";
 import { listPath, pageMeta } from "../lib/seo";
 import { CategoryTabs, SearchField } from "../features/feed/Filters";
-import { MobileFeedSwitch } from "../features/feed/MobileHome";
-import { Wordmark } from "../components/Logo";
 import { PillTabs } from "../components/ui/Tabs";
 import { DayList, Pagination } from "../features/feed/DayList";
 import { DateCalendar, type CalendarDay } from "../features/calendar/DateCalendar";
@@ -101,7 +99,6 @@ export default function AllPage() {
   const [data, calendar] = useLivePublicData(bundle, initial.page === 1 && !initial.filters.q && !date
     ? [`/api/site/pool?${params}`, `/api/site/calendar?${calendarParams}`] : null);
   const navigation = useNavigation();
-  const navigate = useNavigate();
   const f = data.filters;
   const busy = navigation.state === "loading" && navigation.location?.pathname === "/all";
   // 搜索表单带过去的筛选里**故意没有 `date`**：搜索问的是"哪些条目含这个词"，把它锁在已选的那一天里
@@ -153,20 +150,9 @@ export default function AllPage() {
           )}
         </div>
         <SearchField variant="bar" defaultValue={f.q ?? ""} keep={keep} autoFocus={params.get("search") === "1"} />
-        {/* 与首页同一条 精选/全部 切换：手机上没有"全部"标签了，读者在两个列表之间来回时
-            总得有个看得见的入口（截图上这条切换就在搜索框下面一行）。 */}
-        <div className="mt-3 flex items-center justify-between gap-3">
-          <Wordmark size={20} className="text-ink" />
-          {/* 「全部」这一段点回「精选」= 回首页同一段：两段现在是同一个页面的两个状态，
-              所以这里只做一次站内跳转，筛选条件照样带过去。 */}
-          <MobileFeedSwitch
-            value="all"
-            onChange={(next) => {
-              if (next === "selected") navigate(listPath("/", { channel: f.channel === "all" ? null : f.channel, category: f.category, tag: f.tag }));
-            }}
-          />
-          <span className="w-[42px]" aria-hidden="true" />
-        </div>
+        {/* 2026-11-04 站长退回：这条品牌+切换行把日历挤到了第二屏，手机上"全部"那一屏
+            原本就是标题 → 搜索 → 分类 → 月历。切换只留在首页那一屏（两段本来就是同一个列表表面），
+            这里不再重复一遍。 */}
         <div className="-mx-4 mt-3 border-b border-line-soft px-4 pb-3">
           <CategoryTabs base="/all" category={f.category} channel={f.channel} layoutId="all-cat-mobile" size="sm" className="min-w-0" />
         </div>
