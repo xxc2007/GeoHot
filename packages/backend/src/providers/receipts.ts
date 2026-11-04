@@ -86,6 +86,8 @@ export interface ReceiptResult {
 
 const PENDING_STALE_MS = 10 * 60 * 1000;
 
+/** 收据行已收款但 response 缺失时写进 error 的原因（收据页与排查都读它）。 */
+const MISSING_ANSWER_REASON = "answer missing from a collected receipt; not re-buying";
 export function logicalKeyFor(req: ReceiptRequest): string {
   const identity = sha256(stableJson(req.identity));
   return [req.service, req.purpose, req.model ?? "-", identity, req.attemptTag ?? "0"].join(":");
@@ -166,6 +168,23 @@ export async function paidRequest(
     // 这条护栏是为"行已收款而答复已不在"这一类数据形态兜底。
     const received = rows.find((r) => (r.status === "received" || r.status === "completed") && r.response !== null);
     if (received) return { kind: "reuse" as const, row: received };
+    // 已收款、答复却不在（response 为 NULL）：这不是"没买过"，是"买过但答案丢了"。
+    // 旧逻辑会走到下面 existing 分支 attempts+1 再买一次 —— 同一笔账付两遍，而且账单上看不出
+    // 异常。既不重买也不把 null 递给解析器：按 unknown 释放（自动放行一次，之后由后台人工处理），
+    // 原因写进 error 让它在收据页上可见。
+    const lostAnswer = rows.find((r) => (r.status === "received" || r.status === "completed") && r.response === null);
+    if (lostAnswer) {
+      await tx`
+        UPDATE receipts SET status = 'unknown', error = ${MISSING_ANSWER_REASON}, updated_at = now()
+         WHERE id = ${lostAnswer.id} AND status IN ('received', 'completed')`;
+      console.error(JSON.stringify({
+        level: "error",
+        msg: "a collected receipt has no answer on record; released as unknown instead of buying it again",
+        receiptId: lostAnswer.id,
+        logicalKey: lostAnswer.logical_key,
+      }));
+      return { kind: "unknown" as const, row: lostAnswer };
+    }
     const unresolved = rows.find((r) => r.status === "unknown" || r.status === "pending");
     if (unresolved) {
       if (unresolved.status === "unknown") return { kind: "unknown" as const, row: unresolved };

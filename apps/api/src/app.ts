@@ -30,7 +30,11 @@ export async function buildApp(): Promise<FastifyInstance> {
     // attempts and feedback (routes/admin-auth.ts:36) only mean something when they key on the real
     // visitor, and a process exposed directly — with no proxy to set X-Forwarded-For — must not believe
     // a header any client can name. Off unless TRUST_PROXY=true says there is a proxy in front.
-    trustProxy: process.env.TRUST_PROXY === "true",
+    // 2026-11-04 审计：`trustProxy: true` 把 X-Forwarded-For 的**最左段**当客户端，而 nginx 用
+    // `$proxy_add_x_forwarded_for` 追加——最左段是请求方自己写的。任何人都能靠轮换这一行头把
+    // 每 IP 600/min 的限流打成无限。这里只信本机反代（nginx 与 api 同机，源地址 127.0.0.1），
+    // proxy-addr 于是取"最右边一个不可信地址"，也就是 nginx 真正看到的来访者。
+    trustProxy: process.env.TRUST_PROXY === "true" ? ["127.0.0.1/32", "::1/128"] : false,
     genReqId: () => randomUUID(),
     bodyLimit: 10 * 1024 * 1024,
     routerOptions: { ignoreTrailingSlash: false, maxParamLength: 300 },
