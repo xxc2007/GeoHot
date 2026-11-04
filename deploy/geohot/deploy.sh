@@ -111,7 +111,20 @@ bash deploy/geohot/snapshot-code.sh > /tmp/deploy-snapshot.log 2>&1 || { echo "A
 tail -2 /tmp/deploy-snapshot.log
 
 echo "== 解包（不删除额外文件）=="
+# 基线是**这台机器**的状态，不是仓库的内容：包里的 `baseline-main.txt` 是某次 `--save-baseline` 的旧值，
+# 解包会把它盖掉，于是刚钉过基线的验收立刻又红（2026-11-04 踩过：钉完 20 分钟再部署，三份哈希又"变了"）。
+# 所以解包前把机器上那份收起来、解包后放回去；`--save-baseline` 仍然是唯一改写它的路径。
+BASELINE="$APP_ROOT/deploy/geohot/baseline-main.txt"
+KEEP_BASELINE=""
+if [ -f "$BASELINE" ]; then
+  KEEP_BASELINE=$(mktemp)
+  cp -a "$BASELINE" "$KEEP_BASELINE"
+fi
 tar -xzf "$PKG" -C "$APP_ROOT" || { echo "ABORT: extract"; exit 1; }
+if [ -n "$KEEP_BASELINE" ]; then
+  cp -a "$KEEP_BASELINE" "$BASELINE" && rm -f "$KEEP_BASELINE"
+  echo "baseline: 保留机器上那份（包里的是旧值，已被放回原样）"
+fi
 chown -R geohot:geohot "$APP_ROOT"
 
 # 迁移与构建的失败必须中止，不能"记个日志继续重启"：那正是"200 但站是错的"那一类，
