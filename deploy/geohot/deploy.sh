@@ -79,7 +79,7 @@ scp -o BatchMode=yes -i "$SSH_KEY" ${SSH_KNOWN:+-o UserKnownHostsFile="$SSH_KNOW
 #      在仓库里没有对应路径，带删除会当场杀掉承担大头判定的那道门。
 #   2) `tar` 的 --owner/--group 对解包不生效，所以 chown -R 是承重的，不是例行公事。
 #   3) 构建前显式把 BASE_PATH 传进去（这次事故的第 ① 条），重启覆盖六个单元（第 ② 条）。
-ssh "${ssh_opts[@]}" "$SSH_TARGET" "sudo BASE_PATH='$BASE_PATH' PKG_SHA='$pkg_sha' UPLOAD_DIR='$upload_dir' APP_ROOT='$APP_ROOT' UNITS='$(unit_list)' bash -s" <<'REMOTE'
+ssh "${ssh_opts[@]}" "$SSH_TARGET" "sudo BASE_PATH='$BASE_PATH' PKG_SHA='$pkg_sha' REV='$REV' UPLOAD_DIR='$upload_dir' APP_ROOT='$APP_ROOT' UNITS='$(unit_list)' bash -s" <<'REMOTE'
 set -uo pipefail
 cd "$APP_ROOT" || { echo "ABORT: $APP_ROOT 不存在"; exit 1; }
 umask 077
@@ -132,7 +132,20 @@ chown -R geohot:geohot "$APP_ROOT"
 # 这里把本次部署的 rev 落成文件，api 侧 fallback 读它；环境变量仍优先，方便临时覆盖。
 printf '%s
 ' "$REV" > "$APP_ROOT/.release" && chown geohot:geohot "$APP_ROOT/.release"
-echo "release: $APP_ROOT/.release = $REV"
+# 光落文件不够：api 读 `AIHOT_RELEASE` 是**环境变量优先**，而机器上的 .env 里就写死了旧值，
+# 于是文件永远被盖掉（2026-11-04 实测：.release 写了，health 仍报 4bf1f89）。这里把 .env 的
+# 那一行改成本次 rev，并留一份 .env.bak-release 供回滚。
+if [ -f "$APP_ROOT/.env" ]; then
+  cp -a "$APP_ROOT/.env" "$APP_ROOT/.env.bak-release"
+  if grep -q '^AIHOT_RELEASE=' "$APP_ROOT/.env"; then
+    sed -i "s|^AIHOT_RELEASE=.*|AIHOT_RELEASE=$REV|" "$APP_ROOT/.env"
+  else
+    printf 'AIHOT_RELEASE=%s
+' "$REV" >> "$APP_ROOT/.env"
+  fi
+  chown geohot:geohot "$APP_ROOT/.env" "$APP_ROOT/.env.bak-release"
+fi
+echo "release: $APP_ROOT/.release = $REV（.env 里的 AIHOT_RELEASE 同步为本次 rev）"
 
 # 迁移与构建的失败必须中止，不能"记个日志继续重启"：那正是"200 但站是错的"那一类，
 # 而 `... | tail -3` 在 pipefail 下虽然能带出退出码，没有 set -e 也没人看它。
