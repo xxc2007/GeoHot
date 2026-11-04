@@ -6,7 +6,8 @@ import { CATEGORY_LABELS, CHANNEL_LABELS, isCategoryKey, isChannelKey } from "@a
 import { loadOr404, queryString, releaseBoundCache } from "../lib/api.server";
 import { listPath, organizationLd, pageMeta } from "../lib/seo";
 import { Timeline } from "../features/feed/Timeline";
-import { MobileDaySection, MobileHomeTop } from "../features/feed/MobileHome";
+import { useEffect, useState } from "react";
+import { MobileDaySection, MobileHomeTop, MobilePoolList, type FeedTab } from "../features/feed/MobileHome";
 import { useLivePublicData } from "../lib/use-live-public-data";
 import { HotTopics } from "../features/feed/HotTopics";
 import { CategoryTabs, SearchField } from "../features/feed/Filters";
@@ -24,20 +25,25 @@ export async function loader({ request }: Route.LoaderArgs) {
   if (categoryParam && !isCategoryKey(categoryParam)) throw new Response("Not found", { status: 404 });
   const category = categoryParam && isCategoryKey(categoryParam) ? categoryParam : null;
   const tag = url.searchParams.get("tag")?.trim() || null;
+  // 手机首屏那两段（精选 / 全部）在同一个路由里切换：两份第一页都在这一屏取好，
+  // 切换只是换一块已经在内存里的列表——不再过网络，也不会白屏。
+  const tab: FeedTab = url.searchParams.get("tab") === "all" ? "all" : "selected";
+  const scope = { channel: channel === "all" ? null : channel, category, tag };
   const upstream = new Headers();
   // Keep the first document light; Timeline continues from this cursor in 40-card batches.
-  const data = await loadOr404<TimelineResponse>(`/api/site/timeline${queryString({ channel: channel === "all" ? null : channel, category, tag, limit: 12 })}`, { responseHeaders: upstream, signal: request.signal });
+  const [data, pool] = await Promise.all([
+    loadOr404<TimelineResponse>(`/api/site/timeline${queryString({ ...scope, limit: 12 })}`, { responseHeaders: upstream, signal: request.signal }),
+    loadOr404<PoolResponse>(`/api/site/pool${queryString({ ...scope, limit: 12 })}`, { signal: request.signal }),
+  ]);
   // 精选按站长制定的标准由模型筛选，也可在后台更正。精选超过三天没有更新时，
   // 展示仍在更新的收录池；其中部分条目未达精选标准。精选恢复后这一块自动消失。
   const newest = data.cards[0]?.anchorAt ? Date.parse(data.cards[0].anchorAt) : 0;
-  const pool = newest > 0 && newest < Date.now() - 3 * 86400_000
-    ? await loadOr404<PoolResponse>(`/api/site/pool${queryString({ channel: channel === "all" ? null : channel, category, tag })}`, { signal: request.signal })
-    : null;
+  const stale = newest > 0 && newest < Date.now() - 3 * 86400_000;
   // The fallback shows eight headlines. Do not serialize 40 summaries, scores and tags into hydration.
-  const live = pool ? { total: pool.total, items: pool.items.slice(0, 8).map(({ id, title, timelineAt, publishedAt, source }) => ({
+  const live = stale ? { total: pool.total, items: pool.items.slice(0, 8).map(({ id, title, timelineAt, publishedAt, source }) => ({
     id, title, timelineAt, publishedAt, source: { name: source.name },
   })) } : null;
-  return withHeaders({ data, live, filters: { channel, category, tag, topic: null } }, { headers: releaseBoundCache(data.refreshAt, 60, Date.now(), upstream) });
+  return withHeaders({ data, pool, tab, live, filters: { channel, category, tag, topic: null } }, { headers: releaseBoundCache(data.refreshAt, 60, Date.now(), upstream) });
 }
 
 /**
@@ -72,7 +78,20 @@ export function headers({ loaderHeaders }: Route.HeadersArgs) {
 
 
 export default function Home() {
-  const { data: initial, live, filters } = useLoaderData<typeof loader>();
+  const { data: initial, pool, tab: initialTab, live, filters } = useLoaderData<typeof loader>();
+  // 手机上的「精选 / 全部」是一屏里的两段：点一下只换列表，不再过一次加载。
+  // 地址栏跟着写 `?tab=all`（replaceState，不触发导航），这样分享出去的链接还能落在同一段；
+  // 前进/后退时 loader 重新给 `initialTab`，下面的 effect 把状态拉回去。
+  const [tab, setTab] = useState<FeedTab>(initialTab);
+  useEffect(() => setTab(initialTab), [initialTab]);
+  const chooseTab = (next: FeedTab) => {
+    setTab(next);
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    if (next === "all") url.searchParams.set("tab", "all");
+    else url.searchParams.delete("tab");
+    window.history.replaceState(window.history.state, "", url);
+  };
   const params = new URLSearchParams({ limit: "12" });
   if (filters.channel !== "all") params.set("channel", filters.channel);
   if (filters.category) params.set("category", filters.category);
@@ -85,7 +104,7 @@ export default function Home() {
   return (
     <div className="pb-6">
       {/* 手机：搜索条 + 品牌行（精选/全部 切换）——站长 2026-11-04 截图里的第一屏。 */}
-      <MobileHomeTop category={filters.category} channel={filters.channel} />
+      <MobileHomeTop category={filters.category} channel={filters.channel} tab={tab} onTab={chooseTab} />
       {/* One h1 at every width: on phones it is read but not drawn (the brand bar and 最新精选 already own that
           space), from lg it is the visible page title, exactly as before. Only the desktop filter row is hidden. */}
       <h1 className="sr-only text-[24px] font-semibold leading-[1.3] text-ink lg:not-sr-only">{title}</h1>
@@ -133,8 +152,16 @@ export default function Home() {
         </section>
       )}
 
-      <MobileDaySection count={todayCount}>
-        <Timeline initial={data} filters={data.filters} />
+      {/* 手机切「精选 / 全部」只换这一块里的列表：日期栏留着（它说的是"今天有多少条"），
+          两段共用同一条折叠开关。Timeline 只渲染一份——窄屏切到「全部」时用 `max-lg:hidden`
+          让位，桌面永远显示精选。 */}
+      <MobileDaySection count={tab === "all" ? pool.todayCount : todayCount}>
+        <div className={tab === "all" ? "max-lg:hidden" : undefined}>
+          <Timeline initial={data} filters={data.filters} />
+        </div>
+        <div className={tab === "all" ? undefined : "hidden"}>
+          <MobilePoolList pool={pool} filters={filters} />
+        </div>
       </MobileDaySection>
     </div>
   );

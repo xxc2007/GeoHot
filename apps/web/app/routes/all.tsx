@@ -1,6 +1,6 @@
 import { SITE, withSubject } from "@aihot/industry/site";
 import { useMemo } from "react";
-import { Link, useLoaderData, useNavigation, useSearchParams } from "react-router";
+import { Link, useLoaderData, useNavigate, useNavigation, useSearchParams } from "react-router";
 import type { Route } from "./+types/all";
 import type { PoolResponse } from "@aihot/contracts/site";
 import { isCategoryKey, isChannelKey } from "@aihot/contracts/taxonomy";
@@ -101,6 +101,7 @@ export default function AllPage() {
   const [data, calendar] = useLivePublicData(bundle, initial.page === 1 && !initial.filters.q && !date
     ? [`/api/site/pool?${params}`, `/api/site/calendar?${calendarParams}`] : null);
   const navigation = useNavigation();
+  const navigate = useNavigate();
   const f = data.filters;
   const busy = navigation.state === "loading" && navigation.location?.pathname === "/all";
   // 搜索表单带过去的筛选里**故意没有 `date`**：搜索问的是"哪些条目含这个词"，把它锁在已选的那一天里
@@ -156,7 +157,14 @@ export default function AllPage() {
             总得有个看得见的入口（截图上这条切换就在搜索框下面一行）。 */}
         <div className="mt-3 flex items-center justify-between gap-3">
           <Wordmark size={20} className="text-ink" />
-          <MobileFeedSwitch at="all" channel={f.channel} />
+          {/* 「全部」这一段点回「精选」= 回首页同一段：两段现在是同一个页面的两个状态，
+              所以这里只做一次站内跳转，筛选条件照样带过去。 */}
+          <MobileFeedSwitch
+            value="all"
+            onChange={(next) => {
+              if (next === "selected") navigate(listPath("/", { channel: f.channel === "all" ? null : f.channel, category: f.category, tag: f.tag }));
+            }}
+          />
           <span className="w-[42px]" aria-hidden="true" />
         </div>
         <div className="-mx-4 mt-3 border-b border-line-soft px-4 pb-3">

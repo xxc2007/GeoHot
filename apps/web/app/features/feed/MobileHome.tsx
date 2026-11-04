@@ -3,26 +3,38 @@
 // 版式来自站长 2026-11-04 给的 AIHOT 截图：最上面一条搜索框（带"搜索"按钮），下面一行品牌 +
 // 两段切换 + 两个图标，再下面"当前热点"、日期栏，最后才是信息流。这里只搬版式，内容一律用本站
 // 自己的数据：本站没有"模型榜"与"我的"，那两格在底部导航里换成本站真实存在的栏目（见 nav.ts）。
+//
+// 2026-11-04 第二轮：精选与全部不再是两个页面。首屏 loader 把两份第一页都取好，切换只改一个
+// 客户端状态（并把 tab 写进地址栏），所以点下去立刻换列表，没有整页刷新、也没有二次请求。
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router";
+import type { FeedItemSummary, PoolResponse, TimelineFilters } from "@aihot/contracts/site";
+import { withSubject } from "@aihot/industry/site";
 import { Wordmark } from "../../components/Logo";
 import { IconChevronDown, IconClock, IconSearch } from "../../components/icons";
 import { PillTabs } from "../../components/ui/Tabs";
 import { beijingDate, beijingWeekday } from "../../lib/format";
+import { listPath } from "../../lib/seo";
+import { FeedItem } from "./FeedItem";
 import { SearchField } from "./Filters";
 
-/** 精选 / 全部 两段切换：截图里的那一条，落在本站的两个列表上。 */
-export function MobileFeedSwitch({ at, channel = "all" }: { at: "selected" | "all"; channel?: string }) {
-  const items = [
-    { key: "selected", label: "精选", to: "/", prefetch: "intent" as const },
-    {
-      key: "all",
-      label: "全部",
-      to: channel === "all" ? "/all" : `/all?channel=${channel}`,
-      prefetch: "intent" as const,
-    },
-  ];
-  return <PillTabs items={items} active={at} layoutId="mobile-feed-switch" size="sm" label="列表" />;
+export type FeedTab = "selected" | "all";
+
+/** 精选 / 全部 两段切换：受控组件，切换不导航（两边的数据都在首屏 loader 里）。 */
+export function MobileFeedSwitch({ value, onChange }: { value: FeedTab; onChange: (next: FeedTab) => void }) {
+  return (
+    <PillTabs
+      items={[
+        { key: "selected", label: "精选" },
+        { key: "all", label: "全部" },
+      ]}
+      active={value}
+      onSelect={(key) => onChange(key === "all" ? "all" : "selected")}
+      layoutId="mobile-feed-switch"
+      size="sm"
+      label="列表"
+    />
+  );
 }
 
 /**
@@ -31,7 +43,7 @@ export function MobileFeedSwitch({ at, channel = "all" }: { at: "selected" | "al
  * 搜索条与 /all 页同一个组件（`SearchField variant="bar"`），走 GET `/all?q=`，所以键盘回车、
  * 屏幕阅读器的 `role="search"` 和浏览器的"后退保留输入"都跟桌面一致，不另写一套。
  */
-export function MobileHomeTop({ category, channel }: { category: string | null; channel: string }) {
+export function MobileHomeTop({ category, channel, tab, onTab }: { category: string | null; channel: string; tab: FeedTab; onTab: (next: FeedTab) => void }) {
   return (
     <div className="lg:hidden">
       <div className="pt-1">
@@ -39,7 +51,7 @@ export function MobileHomeTop({ category, channel }: { category: string | null; 
       </div>
       <div className="mt-3 flex items-center justify-between gap-3">
         <Wordmark size={20} className="text-ink" />
-        <MobileFeedSwitch at="selected" channel={channel} />
+        <MobileFeedSwitch value={tab} onChange={onTab} />
         <div className="flex shrink-0 items-center gap-1">
           <Link
             to="/daily"
@@ -98,5 +110,34 @@ export function MobileDaySection({ count, children }: { count: number | null; ch
       </button>
       <div className={open ? "" : "hidden"}>{children}</div>
     </section>
+  );
+}
+
+/**
+ * 「全部」那一段：首屏 loader 取好的第一页收录池。用与时间线同一张卡片（`FeedItem`），
+ * 只是带上分类标签、并按收录时间排序——读者从精选切过来看到的是同一套排版，不用重新认界面。
+ */
+export function MobilePoolList({ pool, filters }: { pool: PoolResponse; filters: TimelineFilters }) {
+  const more = listPath("/all", { channel: filters.channel !== "all" ? filters.channel : null, category: filters.category, tag: filters.tag });
+  return (
+    <div className="lg:hidden">
+      <div className="mt-4 divide-y divide-line-soft">
+        {pool.items.map((item: FeedItemSummary) => (
+          <div key={item.id} className="py-3">
+            <FeedItem item={item} filters={filters} showTags />
+          </div>
+        ))}
+      </div>
+      {pool.items.length === 0 && (
+        <p className="py-8 text-center text-[14px] text-ink-3">这一筛选下还没有收录内容。</p>
+      )}
+      <Link
+        to={more}
+        className="mt-3 inline-flex text-[13px] text-accent hover:underline"
+        prefetch="intent"
+      >
+        查看全部 {pool.total.toLocaleString("zh-CN")} 条{withSubject("动态")} →
+      </Link>
+    </div>
   );
 }
