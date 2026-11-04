@@ -4,6 +4,8 @@ import { promisify } from "node:util";
 import { parseArgs } from "node:util";
 import { createHash, randomUUID } from "node:crypto";
 import { readFileSync, writeFileSync, mkdirSync, openSync, closeSync, unlinkSync, createWriteStream, readdirSync, type WriteStream } from "node:fs";
+import net from "node:net";
+import { createInterface } from "node:readline";
 import path from "node:path";
 import { freemem } from "node:os";
 import { assistEligible } from "../packages/backend/src/operations/extraction-assist.ts";
@@ -69,19 +71,74 @@ const session = randomUUID().replaceAll("-", "");
 let fenced = false;
 let fenceAttempted = false;
 let lastEvidence: unknown;
+// 服务端循环的采样间隔（秒）。10 秒 = 每 30 秒 3 条 SSH 会话，是 ufw LIMIT 的一半。
+const WATCH_SEC = 10;
 const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+// 隧道是否真的能连上：只探 TCP，不发协议。1 秒的固定等待在负载尖峰时不够，
+// 孩子会在隧道还没起来时直接 ECONNREFUSED 退出（2026-11-04 09:55）。
+function portOpen(port: number, timeoutMs = 1000): Promise<boolean> {
+  return new Promise(resolve => {
+    const socket = net.connect({ host: "127.0.0.1", port });
+    const done = (ok: boolean) => { socket.removeAllListeners(); socket.destroy(); resolve(ok); };
+    socket.setTimeout(timeoutMs, () => done(false));
+    socket.once("connect", () => done(true));
+    socket.once("error", () => done(false));
+  });
+}
 async function remote(command: string, input?: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const proc = spawn("ssh", [...sshArgs, config.host, command], { windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
     let output = "";
-    const timeout = setTimeout(() => { proc.kill(); reject(new Error("Remote evidence timed out")); }, 10_000);
+    // 10s 在 891MB 的机器上不够：sudo + python 启动 + 3 次 systemctl 都可能撞上 PSI 尖峰，
+  // 2026-11-04 09:55 一轮就是这样把"证据超时"变成"隔离"，还顺手留下新的锁。25s 只放宽读数，
+  // 不放松任何判据。
+  const timeout = setTimeout(() => { proc.kill(); reject(new Error("Remote evidence timed out")); }, 25_000);
     proc.stdout.on("data", data => { output += data; if (output.length > 256_000) proc.kill(); });
-    proc.stderr.resume(); // Never echo remote environment or credential diagnostics.
+    // 探针从不打印凭据（它只报哈希、内存、PSI、单元状态），所以把 stderr 的最后 400 字节带上：
+    // 以前整段丢弃，换来的是 "Remote evidence unavailable" 这种没法定因的报错（2026-11-04 现场）。
+    let stderr = "";
+    proc.stderr.on("data", data => { stderr = (stderr + String(data)).slice(-400); });
     proc.once("error", () => { clearTimeout(timeout); reject(new Error("SSH unavailable")); });
-    proc.once("exit", code => { clearTimeout(timeout); code === 0 ? resolve(output) : reject(new Error("Remote evidence unavailable")); });
+    proc.once("exit", code => {
+      clearTimeout(timeout);
+      if (code === 0) resolve(output);
+      else reject(new Error("Remote evidence unavailable: " + stderr.split("\n").slice(-3).join(" | ").slice(-300)));
+    });
     proc.stdin.on("error", () => {});
     proc.stdin.end(input);
   });
+}
+// 一条长连接、服务端循环采样：每 10 秒新开一条 SSH 会被 ufw 的 22/tcp LIMIT 掐断，
+// 之后 supervisor 只看到 `Connection timed out`，把好好的辅助读成"证据丢失"并收摊
+// （2026-11-04 10:04/10:12 两次现场，都是跑到第 3–5 条任务时断的）。
+// 现在整个运行期只多一条连接，样本由远端每 WATCH_SEC 秒打印一行 JSON。
+async function startWatcher(): Promise<{ next: (timeoutMs: number) => Promise<string>; stop: () => void }> {
+  const payload = Buffer.from(JSON.stringify({ manifest, session: fenced ? session : undefined })).toString("base64");
+  // 载荷（manifest 上百条哈希）不能塞进命令行：Windows 会直接 ENAMETOOLONG（2026-11-04 现场）。
+  // 改成写到这条会话的 stdin，远端先 read 一行进环境变量，再进循环。
+  const remote = "sh -c 'IFS= read -r P; export GEOHOT_PROBE_INPUT_B64=\"$P\"; while :; do python3 /opt/geohot/app/deploy/geohot/probe-extraction-assist.py; sleep " + WATCH_SEC + "; done'";
+  const proc = spawn("ssh", [...sshArgs, config.host, remote], { windowsHide: true, stdio: ["pipe", "pipe", "ignore"] });
+  proc.stdin!.on("error", () => {});
+  proc.stdin!.write(payload + "\n");
+  const lines: string[] = [];
+  let wake: (() => void) | undefined;
+  let closed = false;
+  const rl = createInterface({ input: proc.stdout! });
+  rl.on("line", line => { lines.push(line); wake?.(); });
+  proc.once("exit", () => { closed = true; wake?.(); });
+  proc.once("error", () => { closed = true; wake?.(); });
+  return {
+    next: (timeoutMs: number) => new Promise<string>((resolve, reject) => {
+      const tick = () => {
+        if (lines.length) { resolve(lines.shift()!); return; }
+        if (closed) { reject(new Error("probe session closed")); return; }
+        wake = () => { wake = undefined; tick(); };
+      };
+      tick();
+      setTimeout(() => reject(new Error("probe line timed out")), timeoutMs);
+    }),
+    stop: () => { try { proc.kill(); } catch { /* already gone */ } },
+  };
 }
 async function sample() {
   const at = Date.now();
@@ -117,6 +174,7 @@ closeSync(lockFd);
 let child: ReturnType<typeof spawn> | undefined;
 let tunnel: ReturnType<typeof spawn> | undefined;
 let tunnelExited: Promise<void> | undefined;
+let watcher: Awaited<ReturnType<typeof startWatcher>> | undefined;
 let stop = false;
 const progress = { handled: 0, fullBodiesStored: 0, handedBack: 0 };
 for (const signal of ["SIGINT", "SIGTERM"] as const) process.on(signal, () => { stop = true; });
@@ -133,26 +191,41 @@ try {
   }
   if (acquisition.acquired !== true) throw new Error("Unknown fence acquisition result");
   fenced = true;
+  // 启动期接连 4–5 条 SSH 会撞上 ufw 的 22/tcp LIMIT，被掐后表现为"隧道起不来"。
+  // 每条之间让 2.5 秒，把 6/30s 的额度留出余量（2026-11-04 10:1x 现场）。
+  await pause(2500);
   // 首检（本轮开头那次 sample）已经是 ≤5 秒的新鲜证据；fence 只花几十毫秒，不再重复采样。
   // 之前这里、隧道后、worker 启动前各采一次，服务器 PSI 瞬时尖峰（1G 小机常态）几乎必然
   // 撞上一次，90 轮全倒在"再查一遍"上（2026-11-02 实测 handled=0）。运行中的退出检查保留——
   // 那才是读者保护生效的地方。
   if (stop || !first) throw new Error("No fresh admission evidence");
   // Fetch only the database credential, in memory. No auth/model/device credentials are copied.
+  await pause(2500);
   const credentials = JSON.parse(await remote("cd /opt/geohot/app && sudo -n -u geohot node --env-file=.env --input-type=module -e 'console.log(JSON.stringify({databaseUrl:process.env.DATABASE_URL}))'")) as { databaseUrl: string };
   const database = new URL(credentials.databaseUrl);
   if (!['postgres:', 'postgresql:'].includes(database.protocol) || !["127.0.0.1", "localhost"].includes(database.hostname) || database.port && database.port !== "5432") throw new Error("Unexpected server database endpoint");
   database.hostname = "127.0.0.1"; database.port = String(config.localPort);
-  tunnel = spawn("ssh", [...sshArgs, "-o", "ExitOnForwardFailure=yes", "-N", "-L", `127.0.0.1:${config.localPort}:127.0.0.1:5432`, config.host], { windowsHide: true, stdio: "ignore" });
+  await pause(2500);
+  tunnel = spawn("ssh", [...sshArgs, "-o", "ExitOnForwardFailure=yes", "-o", "ServerAliveInterval=15", "-N", "-L", `127.0.0.1:${config.localPort}:127.0.0.1:5432`, config.host], { windowsHide: true, stdio: ["ignore", "ignore", "pipe"] });
+  // 隧道死掉时要留下原因：ufw 22/tcp LIMIT 一旦把我们掐掉，这里就是唯一能看到
+  // "Connection timed out" 的地方（2026-11-04 10:1x 现场）。
+  let tunnelError = "";
+  tunnel.stderr?.on("data", data => { tunnelError = (tunnelError + String(data)).slice(-200); });
   tunnelExited = new Promise(resolve => {
     const ended = () => { if (!stop) exitCode = 2; stop = true; resolve(); };
     tunnel!.once("exit", ended); tunnel!.once("error", ended);
   });
-  await pause(1000);
+  // 等隧道真的能连上再起子进程：固定等 1 秒在负载尖峰时不够，孩子会直接 ECONNREFUSED 退出，
+  // 而 supervisor 把"孩子非零退出"读成隔离（2026-11-04 09:55 现场）。最多 12 秒，连上就走。
+  await Promise.race([
+    (async () => { for (let i = 0; i < 24; i++) { if (await portOpen(config.localPort)) return; await pause(500); } throw new Error("SSH tunnel did not come up"); })(),
+    tunnelExited!.then(() => { throw new Error("SSH tunnel exited before the workers started: " + tunnelError.trim()); }),
+  ]);
   // worker 启动前不再重复资格判定（理由同上）；写租约用首检证据，运行中循环马上会接手刷新。
   // 注意 writeFileSync 只收 string/Buffer——first 是对象，必须序列化（PR #91 曾在这里抛
   // "data argument must be of type string"，被裸 catch 吞成 handled=0）。
   writeFileSync(lease, JSON.stringify(first), { mode: 0o600 });
+  watcher = await startWatcher();
   // One shared admission lease, one SSH tunnel, N independent single-slot worker processes. Each child
   // logs to its own diagnostics file under the state directory; the file name is built only from a
   // date stamp and the loop counter, and the confinement guard below fails closed.
@@ -191,9 +264,23 @@ try {
   }
   childExited = childExits.length ? Promise.all(childExits).then(codes => codes.every(code => code === 0) ? 0 : 3) : undefined;
   const until = Date.now() + duration * 1000;
+  let misses = 0;
   while (!stop && Date.now() < until) {
-    await pause(5000);
-    const evidence = await sample();
+    let evidence;
+    try {
+      // 样本来自那条长连接（服务端每 WATCH_SEC 秒打印一行），整个运行期不再新开 SSH。
+      evidence = JSON.parse(await watcher!.next(30_000));
+      if (fenced && evidence.fenceOwned !== true) evidence.maintenance = true;
+      const online = (lastEvidence as { onAC?: boolean } | undefined)?.onAC === true;
+      evidence = { ...evidence, at: Date.now(), localFreeMiB: freemem() / 1048576, onAC: online };
+      misses = 0;
+    } catch (error) {
+      // 一次读数失败（SSH 抖动、PSI 尖峰）不该等于"本轮结束"：租约仍在 20 秒内有效，
+      // 孩子自己会在租约过期时关掉 intake。连续三次读不到才收摊，按可重试退出。
+      if (++misses >= 4) { console.log(JSON.stringify({ state: "evidence-lost", misses, error: String((error as Error)?.message ?? error) })); stop = true; exitCode = 2; break; }
+      console.log(JSON.stringify({ state: "evidence-miss", misses, error: String((error as Error)?.message ?? error) }));
+      continue;
+    }
     if (stop || Date.now() >= until || !assistEligible(evidence)) { stop = true; break; }
     writeFileSync(lease, JSON.stringify(evidence), { mode: 0o600 });
   }
@@ -214,6 +301,7 @@ try {
     else if (result.code !== 0) exitCode = 3;
   }
   for (const childLog of childLogs) childLog.end();
+  watcher?.stop();
   tunnel?.kill(); if (tunnelExited) await tunnelExited;
   if (fenceAttempted && !fenced) exitCode = 3; // Do not automatically retry an uncertain acquisition.
   if (fenced && exitCode !== 3) {
