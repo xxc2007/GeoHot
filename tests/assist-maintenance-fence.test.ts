@@ -63,6 +63,22 @@ with tempfile.TemporaryDirectory() as d:
  except FileExistsError:pass
  else:raise AssertionError('helper entered maintenance')
  assert json.loads(p.read_text())['owner']=='release'
+ # 2026-11-04: 被杀的会话留下的 workstation owner 不再永久锁死本机辅助。超过 STALE_AFTER 的
+ # workstation owner 被改名留证后接管；他人 owner 与新鲜锁照旧 fail closed。
+ import os,time
+ q=pathlib.Path(d)/'stale.json'
+ m.acquire(q,'c'*32)
+ os.utime(q,(time.time()-3600,)*2)
+ m.acquire(q,'d'*32)
+ assert m.owned(q,'d'*32)
+ assert any(n.startswith('worker-owner.json.stale-') for n in os.listdir(d)), 'stale owner must be kept as evidence'
+ m.release(q,'d'*32)
+ f=pathlib.Path(d)/'foreign.json'
+ f.write_text(json.dumps({'owner':'release'}))
+ os.utime(f,(time.time()-3600,)*2)
+ try:m.acquire(f,'e'*32)
+ except FileExistsError:pass
+ else:raise AssertionError('a foreign owner is never taken over, however old')
 print('FENCE_OK')
 `], { encoding: "utf8" });
   assert.match(result, /FENCE_OK/);

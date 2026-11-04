@@ -65,12 +65,22 @@ def rotate(path):
 
 
 def acquire(path, token):
+    """Take ownership, or take over an abandoned workstation owner and report the evidence name."""
     token_ok(token)
-    fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
-    with os.fdopen(fd, 'w') as stream:
-        json.dump({'owner': 'workstation-extraction', 'session': token}, stream)
-        stream.flush()
-        os.fsync(stream.fileno())
+    rotated = None
+    for attempt in (1, 2):
+        try:
+            fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        except FileExistsError:
+            if attempt == 2 or not stale(path):
+                raise
+            rotated = rotate(path)
+            continue
+        with os.fdopen(fd, 'w') as stream:
+            json.dump({'owner': 'workstation-extraction', 'session': token}, stream)
+            stream.flush()
+            os.fsync(stream.fileno())
+        return rotated
 
 
 def release(path, token):
@@ -85,20 +95,11 @@ if __name__ == '__main__':
     if request['action'] == 'acquire':
         if pathlib.Path('/run/geohot-r115-gate').exists() or pathlib.Path('/etc/geohot/r115-gate.disarmed').exists():
             raise RuntimeError('resource maintenance active')
-        rotated = None
         try:
-            acquire(owner, request['session'])
+            rotated = acquire(owner, request['session'])
         except FileExistsError:
-            if stale(owner):
-                rotated = rotate(owner)
-                try:
-                    acquire(owner, request['session'])
-                except FileExistsError:
-                    print(json.dumps({'acquired': False}))
-                    sys.exit(0)
-            else:
-                print(json.dumps({'acquired': False}))
-                sys.exit(0)
+            print(json.dumps({'acquired': False}))
+            sys.exit(0)
         print(json.dumps({'acquired': True, 'staleRotated': rotated}))
     elif request['action'] == 'release':
         release(owner, request['session'])
