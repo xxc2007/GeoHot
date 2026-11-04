@@ -12,6 +12,7 @@ import { useLivePublicData } from "../lib/use-live-public-data";
 import { HotTopics } from "../features/feed/HotTopics";
 import { CategoryTabs, SearchField } from "../features/feed/Filters";
 import { beijingDate, monthDayTime, shortSourceName } from "../lib/format";
+import { DateCalendar, type CalendarDay } from "../features/calendar/DateCalendar";
 
 export async function loader({ request }: Route.LoaderArgs) {
   const url = new URL(request.url);
@@ -31,7 +32,10 @@ export async function loader({ request }: Route.LoaderArgs) {
   const scope = { channel: channel === "all" ? null : channel, category, tag };
   const upstream = new Headers();
   // Keep the first document light; Timeline continues from this cursor in 40-card batches.
-  const [data, pool] = await Promise.all([
+  // 「全部」那一段要带着月历（站长 2026-11-04 当面退回了没有日历的版式）：日历只在 tab=all 时取，
+  // 精选那一段不多付一次接口。取不到就只是不画，不把整页变成 404。
+  const month = beijingDate(Date.now()).slice(0, 7);
+  const [data, pool, calendar] = await Promise.all([
     loadOr404<TimelineResponse>(`/api/site/timeline${queryString({ ...scope, limit: 12 })}`, { responseHeaders: upstream, signal: request.signal }),
     // 手机「全部」那一段是首页的增强项：它读不到就退回只有精选，不该把整页变成 404。
     // 这个接口的页大小固定 40（`POOL_PAGE_SIZE`），手机上只留 12 张卡——多出来的 28 条
@@ -39,6 +43,9 @@ export async function loader({ request }: Route.LoaderArgs) {
     loadOr404<PoolResponse>(`/api/site/pool${queryString(scope)}`, { signal: request.signal })
       .then((page) => ({ ...page, items: page.items.slice(0, 12) }))
       .catch(() => null),
+    tab === "all"
+      ? loadOr404<{ month: string; days: CalendarDay[] }>(`/api/site/calendar${queryString({ month, ...scope })}`, { signal: request.signal }).catch(() => null)
+      : Promise.resolve(null),
   ]);
   // 精选按站长制定的标准由模型筛选，也可在后台更正。精选超过三天没有更新时，
   // 展示仍在更新的收录池；其中部分条目未达精选标准。精选恢复后这一块自动消失。
@@ -48,7 +55,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   const live = stale && pool ? { total: pool.total, items: pool.items.slice(0, 8).map(({ id, title, timelineAt, publishedAt, source }) => ({
     id, title, timelineAt, publishedAt, source: { name: source.name },
   })) } : null;
-  return withHeaders({ data, pool, tab, live, filters: { channel, category, tag, topic: null } }, { headers: releaseBoundCache(data.refreshAt, 60, Date.now(), upstream) });
+  return withHeaders({ data, pool, calendar, month, tab, live, filters: { channel, category, tag, topic: null } }, { headers: releaseBoundCache(data.refreshAt, 60, Date.now(), upstream) });
 }
 
 /**
@@ -83,7 +90,7 @@ export function headers({ loaderHeaders }: Route.HeadersArgs) {
 
 
 export default function Home() {
-  const { data: initial, pool, tab: initialTab, live, filters } = useLoaderData<typeof loader>();
+  const { data: initial, pool, calendar, month, tab: initialTab, live, filters } = useLoaderData<typeof loader>();
   // 手机上的「精选 / 全部」是一屏里的两段：点一下只换列表，不再过一次加载。
   // 地址栏跟着写 `?tab=all`（replaceState，不触发导航），这样分享出去的链接还能落在同一段；
   // 前进/后退时 loader 重新给 `initialTab`，下面的 effect 把状态拉回去。
@@ -106,6 +113,17 @@ export default function Home() {
   // 日期栏右侧那个"N 条"是当天的时间线总条数，来自响应里的 `dayCounts`（服务端按北京日期分桶），
   // 不是这一屏已经渲染的 12 张卡——否则读者会看到"12 条"，然后往下滚还有几十张。
   const todayCount = data.dayCounts[beijingDate(Date.now())] ?? null;
+  // 月历点某一天 = 去 /all 看那一天（同一组筛选带过去）；换月份 = 那一个月的日历。
+  const allHref = (over: Record<string, string | null>) => {
+    const sp = new URLSearchParams();
+    for (const [k, v] of Object.entries({ channel: filters.channel === "all" ? null : filters.channel, category: filters.category, tag: filters.tag, ...over })) {
+      if (v) sp.set(k, v);
+    }
+    const qs = sp.toString();
+    return qs ? `/all?${qs}` : "/all";
+  };
+  const dayHref = (d: string) => allHref({ date: d, month: d.slice(0, 7) });
+  const monthHref = (m: string) => allHref({ date: null, month: m });
   return (
     <div className="pb-6">
       {/* 手机：搜索条 + 品牌行（精选/全部 切换）——站长 2026-11-04 截图里的第一屏。 */}
@@ -160,6 +178,14 @@ export default function Home() {
       {/* 手机切「精选 / 全部」只换这一块里的列表：日期栏留着（它说的是"今天有多少条"），
           两段共用同一条折叠开关。Timeline 只渲染一份——窄屏切到「全部」时用 `max-lg:hidden`
           让位，桌面永远显示精选。 */}
+      {/* 全部那一段的月历：与 /all 页同一张卡，位置在日期栏之前（AIHOT 的手机版式里，
+          日期栏上面先是"这一天有多少条"的入口）。精选段不画——那一屏是当天精选，年份是时间轴。 */}
+      {tab === "all" && calendar && (
+        <div className="lg:hidden">
+          <DateCalendar className="mb-4" month={calendar.month ?? month} days={calendar.days} selected={null} today={beijingDate(Date.now())} dayHref={dayHref} monthHref={monthHref} />
+        </div>
+      )}
+
       <MobileDaySection count={tab === "all" ? pool?.todayCount ?? null : todayCount}>
         <div className={tab === "all" ? "max-lg:hidden" : undefined}>
           <Timeline initial={data} filters={data.filters} />
