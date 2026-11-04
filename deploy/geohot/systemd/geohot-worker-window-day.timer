@@ -1,0 +1,12 @@
+[Unit]
+Description=GEOHOT worker 切回读者优先档
+Documentation=file:///opt/geohot/app/deploy/geohot/DEPLOYMENT.md
+
+[Timer]
+OnCalendar=*-*-* 07:00:00
+Persistent=true
+AccuracySec=30s
+Unit=geohot-worker-window-day.service
+
+[Install]
+WantedBy=timers.target

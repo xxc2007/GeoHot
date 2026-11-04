@@ -1,0 +1,12 @@
+[Unit]
+Description=GEOHOT worker 切夜间档（吃满算力）
+Documentation=file:///opt/geohot/app/deploy/geohot/DEPLOYMENT.md
+
+[Timer]
+OnCalendar=*-*-* 01:00:00
+Persistent=true
+AccuracySec=30s
+Unit=geohot-worker-window-night.service
+
+[Install]
+WantedBy=timers.target

@@ -50,13 +50,24 @@ test("wrong-password HTTP traffic is still throttled with uncached redirect", as
   } finally { await app.close(); }
 });
 
-test("public aggregates reject excess work, return retryable no-store HTTP, and recover", async () => {
+test("public aggregates bound concurrency, reject past the queue, and recover", async () => {
+  // 2026-11-04：闸门从 (2, 0) 改成 (4, 8)。首页一次就要并发 3 个请求，原来一个访客就能占满
+  // 2 个槽、第二个人直接被 503。这里的断言跟着新形状走：4 个在跑 + 8 个排队，第 13 个才被拒。
   const hold = gate();
-  const both = gate();
   let active = 0;
-  const read = () => withPublicRead(async () => { if (++active === 2) both.open(); await hold.promise; return 1; });
-  const first = read(); const second = read();
-  await both.promise;
+  let peak = 0;
+  const read = () => withPublicRead(async () => {
+    active += 1;
+    peak = Math.max(peak, active);
+    await hold.promise;
+    active -= 1;
+    return 1;
+  });
+  const running = Array.from({ length: 4 }, read);
+  while (active < 4) await new Promise((resolve) => setTimeout(resolve, 10));
+  const queued = Array.from({ length: 8 }, read);
+  await new Promise((resolve) => setTimeout(resolve, 200));
+
   const app = Fastify();
   app.get("/busy", siteHandler(async () => withPublicRead(async () => 3)));
   try {
@@ -65,7 +76,13 @@ test("public aggregates reject excess work, return retryable no-store HTTP, and 
     assert.equal(response.statusCode, 503);
     assert.equal(response.headers["cache-control"], "no-store");
     assert.equal(response.headers["retry-after"], "2");
-  } finally { hold.open(); await Promise.all([first, second]); await app.close(); }
+  } finally {
+    hold.open();
+    const done = await Promise.all([...running, ...queued]);
+    await app.close();
+    assert.equal(done.length, 12, "排队的那 8 个都要跑完，不能丢");
+    assert.equal(peak, 4, "同时最多 4 个重活");
+  }
   assert.equal(await withPublicRead(async () => 4), 4);
 });
 

@@ -1,0 +1,7 @@
+[Unit]
+Description=GEOHOT worker 切夜间档（吃满算力）
+Documentation=file:///opt/geohot/app/deploy/geohot/DEPLOYMENT.md
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/env bash /opt/geohot/bin/worker-window.sh night

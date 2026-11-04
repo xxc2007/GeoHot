@@ -4,7 +4,10 @@ import tailwindcss from "@tailwindcss/vite";
 import { defineConfig, type Plugin } from "vite";
 import { isApiOwned, resolveRedirect, toAppPath, toPublicPath } from "@aihot/contracts/http-policy";
 
-const API = new URL(process.env.API_BASE_URL || "http://127.0.0.1:3001");
+// 2026-11-04：这里原来是模块级常量，而 @react-router/dev 注入 .env 比这个模块求值更晚，
+// 于是「api 换了端口」时浏览器侧的 /api/* 全 502（SSR 反而正常，极难排查）。
+// 改成每次请求现读：同一个进程里 env 变了也能跟上，且不改变默认行为。
+const apiTarget = () => new URL(process.env.API_BASE_URL || "http://127.0.0.1:3001");
 /**
  * The path this build is served on (`BASE_PATH=/geohot`), normalised the way Vite wants it. Unset or `/`
  * keeps the default, so a site that owns the domain root builds exactly what it built before.
@@ -44,8 +47,9 @@ function devEdge(): Plugin {
           return res.end();
         }
         if (!isApiOwned(appPath)) return next();
+        const api = apiTarget();
         const upstream = httpRequest(
-          { hostname: API.hostname, port: API.port, path: appPath + search, method: req.method, headers: req.headers },
+          { hostname: api.hostname, port: api.port, path: appPath + search, method: req.method, headers: req.headers },
           (up) => {
             const out = { ...up.headers };
             if (DEPLOY_BASE && typeof out.location === "string") out.location = toPublicPath(out.location, DEPLOY_BASE);

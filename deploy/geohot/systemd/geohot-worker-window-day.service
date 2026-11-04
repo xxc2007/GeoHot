@@ -1,0 +1,7 @@
+[Unit]
+Description=GEOHOT worker 切回读者优先档
+Documentation=file:///opt/geohot/app/deploy/geohot/DEPLOYMENT.md
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/env bash /opt/geohot/bin/worker-window.sh day
