@@ -22,11 +22,34 @@ NOW=$(date +%s); T0=$(date -d "today 00:00:00" +%s 2>/dev/null || echo 0)
 LAST_RELEASE=$(cat "${RUN}.last-release" 2>/dev/null || echo 0)
 case "$LAST_RELEASE" in ''|*[!0-9]*) LAST_RELEASE=0 ;; esac
 if (( LAST_RELEASE > 0 && NOW - LAST_RELEASE < 3600 && COOL < 30 )); then COOL=30; fi
+# **重启宽限**（2026-11-04）：单元重启那一两分钟里 nginx 对正在换血的 upstream 回 502/503。
+# 09:23 一次部署攒出 12 条 5xx ⇒ 闸门把 worker 停了 30 分钟，那不是读者受害，是我们自己在重启。
+# 取 api/web/worker 最近一次 ActiveEnterTimestamp，落在窗口内就排除 [重启-120s, 重启+GRACE（默认 300s，够一次滚动重启加 web 重建）] 这段；
+# 真读者的 5xx 发生在别的时刻，照旧计数。R115_RESTART_GRACE_SEC=0 可关回原行为。
+GRACE=${R115_RESTART_GRACE_SEC:-300}
+case "$GRACE" in ''|*[!0-9]*) GRACE=300 ;; esac
+EXF=0; EXT=0
+if (( GRACE > 0 )); then
+  # 一次部署是**滚动重启**：api 先起、web 后起，只取"最后一个"单元的时刻会漏掉前一半的 5xx。
+  # 所以取窗口内所有重启的最早与最晚，用一整段 [最早-15s, 最晚+GRACE] 覆盖这次换血。
+  for U in geohot-api geohot-web geohot-worker; do
+    TS=$(systemctl show -p ActiveEnterTimestamp --value "$U" 2>/dev/null || true)
+    [ -n "${TS:-}" ] || continue
+    E=$(date -d "$TS" +%s 2>/dev/null || true)
+    case "${E:-}" in ''|*[!0-9]*) continue ;; esac
+    (( E > NOW - WIN )) || continue
+    if (( EXF == 0 || E - 120 < EXF )); then EXF=$(( E - 120 )); fi
+    if (( E + GRACE > EXT )); then EXT=$(( E + GRACE )); fi
+  done
+fi
+export R114_E5_EXCLUDE_FROM=$EXF R114_E5_EXCLUDE_TO=$EXT
 RAO=$(e5_count "${R114_NGX:-/var/log/nginx/access.log}" "${R114_E5_TAIL:-20000}" "$WIN" \
   "$(LC_ALL=C date +%d/%b/%Y)" "$T0" "$NOW" \
   "$(LC_ALL=C date -d yesterday +%d/%b/%Y 2>/dev/null)" "$(( T0 - 86400 ))")
 E5=$(printf '%s' "$RAO" | cut -d' ' -f1)
 SPAN=$(printf '%s' "$RAO" | cut -d' ' -f3)
+GRACED=$(printf '%s' "$RAO" | cut -d' ' -f4)
+case "$GRACED" in ''|*[!0-9]*) GRACED=0 ;; esac
 case "$E5" in ''|*[!0-9-]*) E5=-1 ;; esac
 # 状态前两列兼容旧文件：冷却截止 epoch 与本闸门是否承担恢复责任（1/0）。
 # 第三列 stop-pending 表示停止意图已提交，并不谎称 stop 已成功；旧两列文件照常恢复。
@@ -58,7 +81,7 @@ case "$A" in
       ACT=$(systemctl is-active geohot-worker 2>&1); ACTIVE_RC=$?
       # 停止意图已经承担恢复责任；stop/读回失败也保留它，下一轮按 active/inactive 收口。
       if [ "$RC" -eq 0 ] && [ "$ACTIVE_RC" -eq 3 ] && [ "$ACT" = inactive ]; then
-        echo "$(date -Is) TRIPPED 5xx=$E5/${WIN}s(样本 $SPAN) valve=$V worker=$ACT stop_rc=$RC 冷却 ${COOL} 分钟"
+        echo "$(date -Is) TRIPPED 5xx=$E5/${WIN}s(样本 $SPAN) grace=$GRACED valve=$V worker=$ACT stop_rc=$RC 冷却 ${COOL} 分钟"
       else
         echo "$(date -Is) TRIP-FAILED worker=$ACT stop_rc=$RC active_rc=$ACTIVE_RC stop-pending 恢复责任保留"
         exit 1
@@ -102,5 +125,5 @@ case "$A" in
     echo "$(date -Is) SKIP 5xx 量具读不到（nginx 无当日样本或字段漂移）——闸门不动生产，但这不是绿灯" ;;
   SKIP_DISARMED) echo "$(date -Is) SKIP disarmed 旗标在 $DISARM" ;;
   SKIP_OPERATOR_STOPPED) echo "$(date -Is) SKIP worker=$ACT 非本闸门停止，5xx=$E5，不认领恢复责任" ;;
-  *) echo "$(date -Is) IDLE 5xx=${E5}/${WIN}s(样本 $SPAN) worker=$ACT valve=$V 冷却文件=[$(cat "$RUN" 2>/dev/null)]" ;;
+  *) echo "$(date -Is) IDLE 5xx=${E5}/${WIN}s(样本 $SPAN) grace=$GRACED worker=$ACT valve=$V 冷却文件=[$(cat "$RUN" 2>/dev/null)]" ;;
 esac

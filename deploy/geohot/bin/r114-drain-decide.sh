@@ -99,7 +99,13 @@ e5_count() { # $1 日志 $2 tail 行数 $3 窗口秒 $4 今天日期 $5 今天�
   # **午夜盲点**（2026-10-19 00:00 真机抓到）：700 秒窗天生跨午夜，而这里只匹配「今天」的日期前缀
   # ⇒ 00:00—00:11 之间窗口被截断成几十秒，样本只有 2 行、读数却是 0（不是 -1，所以 blind 也不会涨）。
   # 修法：把昨天也传进来；每行按它自己那天的零点算 age。`age >= -5` 容忍几秒的时钟前跳（nginx 在请求结束时写日志）。
-  tail -n "$2" "$1" 2>/dev/null | awk -v d="$4" -v t0="$5" -v d2="${7:-}" -v t02="${8:-0}" -v now="$6" -v w="$3" '
+  # **重启宽限**（2026-11-04）：单元重启的那一两分钟里 nginx 对正在换血的 upstream 回 502/503，
+  # 2026-11-04 09:23 的一次部署就攒出 12 条 5xx，把 worker 停了 30 分钟——那不是读者受害，是我们
+  # 自己在重启。调用方可用 R114_E5_EXCLUDE_FROM/TO（epoch 区间）把这段排除；不传就是原行为。
+  local exf="${R114_E5_EXCLUDE_FROM:-0}" ext="${R114_E5_EXCLUDE_TO:-0}"
+  case "$exf" in ''|*[!0-9]*) exf=0 ;; esac
+  case "$ext" in ''|*[!0-9]*) ext=0 ;; esac
+  tail -n "$2" "$1" 2>/dev/null | awk -v d="$4" -v t0="$5" -v d2="${7:-}" -v t02="${8:-0}" -v now="$6" -v w="$3" -v exf="$exf" -v ext="$ext" '
     { base=0
       if (d2 != "" && index($4, "[" d2 ":")==1) base=t02
       else if (index($4, "[" d ":")==1) base=t0
@@ -108,9 +114,11 @@ e5_count() { # $1 日志 $2 tail 行数 $3 窗口秒 $4 今天日期 $5 今天�
       hh=substr($4,14,2)+0; mi=substr($4,17,2)+0; ss=substr($4,20,2)+0
       if (base>0 && substr($9,1,1)=="5" && index($7, "/geohot")>0) {
         age=now-(base+hh*3600+mi*60+ss)
-        if (age >= -5 && age <= w) c++
+        abs=base+hh*3600+mi*60+ss
+        skip=(ext>exf && abs>=exf && abs<=ext)
+        if (age >= -5 && age <= w) { if (skip) x++; else c++ }
       }
-    } END { if (n+0 == 0) print "-1 0 无当日样本"; else print c+0, n+0, first"-"last }'
+    } END { if (n+0 == 0) print "-1 0 无当日样本"; else print c+0, n+0, first"-"last, x+0 }'
 }
 # 只数纯数字：psql 一旦多打一行（.psqlrc 的 \timing 会打 `Time: 3.501 ms`），
 # `tail -1 | tr -dc 0-9` 会造出 3501 这种"看着像存量"的假数——宁可读数失败，也不要假数。

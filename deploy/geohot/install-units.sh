@@ -155,6 +155,15 @@ if [[ "$APP_ROOT" == "/opt/geohot/app" && -d "$TEMPLATE_DIR" ]]; then
   fi
   grep -E '^(DRIFT:|RESULT:)' "$drift_log" || true
   rm -f "$drift_log"
+  # 闸门脚本与单元同源：/opt/geohot/bin/{r115-reader-gate,r114-drain-decide,reader-recovery-ready}.sh
+  # 在线上跑，仓库里的 deploy/geohot/bin/ 是它们唯一的源。以前靠手工 scp，于是"仓库改了、机器没改"
+  # 这类漂移没人发现（2026-11-04 就靠手工装了重启宽限）。这里随模板一起同步，安装后机器与仓库一致。
+  SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  if [ -d "$SELF_DIR/bin" ]; then
+    install -d -m 755 /opt/geohot/bin
+    install -m 755 "$SELF_DIR"/bin/*.sh /opt/geohot/bin/
+    echo "synced $(find "$SELF_DIR/bin" -maxdepth 1 -name '*.sh' | wc -l) gate script(s) into /opt/geohot/bin"
+  fi
   echo "installed ${#ALL_UNITS[@]} units from templates; verify-config-drift 全绿"
   echo "enable+start with: sudo systemctl enable --now geohot-brain geohot-api geohot-worker geohot-web geohot-workbuddy geohot-workbuddy-cn && sudo systemctl enable --now geohot-archive.timer"
   exit 0
