@@ -7,12 +7,20 @@
 import { closeDb } from "../db.ts";
 
 export function guardProcessExit(component: string): void {
+  // 只走一个出口：先让日志离开管道（500ms），但 closeDb 更快时也不要插队 exit；
+  // 连续异常只处理第一次，避免叠出一堆互相打断的 timer。
+  let exiting = false;
   const report = (kind: "unhandledRejection" | "uncaughtException") => (error: unknown) => {
+    if (exiting) return;
+    exiting = true;
     const err = error instanceof Error ? error : new Error(String(error));
     console.error(JSON.stringify({ level: "fatal", component, kind, message: err.message, stack: err.stack?.split("\n").slice(0, 8).join(" | ") }));
     // Give the log line a chance to leave the pipe, then close the pool and go. systemd restarts us.
-    setTimeout(() => process.exit(1), 500);
-    void closeDb().catch(() => {}).finally(() => process.exit(1));
+    const timer = setTimeout(() => process.exit(1), 500);
+    void closeDb().catch(() => {}).finally(() => {
+      clearTimeout(timer);
+      process.exit(1);
+    });
   };
   process.on("unhandledRejection", report("unhandledRejection"));
   process.on("uncaughtException", report("uncaughtException"));

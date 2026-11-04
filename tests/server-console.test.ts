@@ -29,7 +29,7 @@ test('Magpie stays behind admin authentication and CSRF; fixed server key never 
  try{
   config.devAdmin=null as never;
   assert.equal((await app.inject('/api/admin/magpie-proxy/')).statusCode,401);
-  config.devAdmin={displayName:'isolated test'} as never;
+  config.devAdmin={displayName:'isolated test',csrf:'test-dev-token-0123456789'} as never;
   process.env.MAGPIE_WEB_KEY_FILE=path.join(dir,'key');await writeFile(process.env.MAGPIE_WEB_KEY_FILE,'private-server-test-key');
   const page=await app.inject('/api/admin/magpie-proxy/');assert.equal(page.statusCode,200);assert.match(page.body,/magpie-proxy\/app.js/);assert.doesNotMatch(page.body,/private-server-test-key/);assert.equal(page.headers['set-cookie'],undefined);assert.equal(page.headers['cache-control'],'no-store');
   assert.equal((await app.inject({method:'POST',url:'/api/admin/magpie-proxy/api/test',payload:{}})).statusCode,403);
