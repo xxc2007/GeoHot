@@ -137,6 +137,21 @@ if [ -d "$APP_ROOT/deploy/geohot/bin" ]; then
   echo "bin: 已同步 $(ls -1 "$APP_ROOT"/deploy/geohot/bin/*.sh | wc -l) 个闸门/判定脚本到 /opt/geohot/bin"
 fi
 
+# 单元模板与 drop-in 同 bin 一样只住在仓库里：install-units.sh 会铺它们，但那条是「装机路线」，
+# 日常部署走不到 ⇒ 仓库里把 worker 的内存线改成 90M/150M/128M，机器上那份仍是 120M/200M，
+# 每次部署重启都退回旧值（2026-11-05 实测 verify-config-drift 的唯一 DRIFT 就是这一段）。
+# 只覆盖同名文件、不删机器上多出来的，也不动 enable 状态。
+if [ -d "$APP_ROOT/deploy/geohot/systemd" ]; then
+  installed=0
+  while IFS= read -r -d '' f; do
+    rel="${f#"$APP_ROOT"/deploy/geohot/systemd/}"
+    install -D -m 644 "$f" "/etc/systemd/system/$rel"
+    installed=$((installed + 1))
+  done < <(find "$APP_ROOT/deploy/geohot/systemd" -type f \( -name '*.service' -o -name '*.timer' -o -name '*.conf' \) -print0)
+  systemctl daemon-reload
+  echo "systemd: 已同步 $installed 个单元模板与 drop-in 到 /etc/systemd/system"
+fi
+
 # 版本指纹：api 的 /api/health 读 AIHOT_RELEASE，环境变量是**机器级**的静态值，
 # 部署不更新它 ⇒ 线上一直自称旧提交（2026-11-04 实测 health 报 4bf1f89，实际跑 70d2ac3）。
 # 这里把本次部署的 rev 落成文件，api 侧 fallback 读它；环境变量仍优先，方便临时覆盖。
