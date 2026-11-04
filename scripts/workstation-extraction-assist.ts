@@ -203,7 +203,17 @@ try {
   process.exit(duration ? 2 : 0);
 }
 console.log(JSON.stringify({ mode: duration ? "finite-trial" : "read-only", release, eligible: assistEligible(first), resources: first }));
-if (!duration || !assistEligible(first)) process.exit(duration ? 2 : 0);
+if (!duration || !assistEligible(first)) {
+  // 首检不合格时我们可能已经在那条合并连接里拿到了维护权：直接 process.exit 会把 owner
+  // 文件留在服务器上，下一轮读到 maintenance:true 白白干等（2026-11-04 11:15 现场，
+  // 连续多轮都是这个形状）。退出前先把刚拿到的那份还回去，失败也只留给陈旧窗口兜底。
+  const acquired = (boot?.fence as { acquired?: boolean } | undefined)?.acquired === true;
+  if (acquired) {
+    try { await remote("sudo -n python3 /opt/geohot/app/deploy/geohot/assist-maintenance-fence.py", JSON.stringify({ action: "release", session })); }
+    catch { /* the 900 s stale window is the backstop */ }
+  }
+  process.exit(duration ? 2 : 0);
+}
 
 mkdirSync(config.stateDirectory, { recursive: true });
 const lock = path.join(config.stateDirectory, "extraction-assist.lock");
