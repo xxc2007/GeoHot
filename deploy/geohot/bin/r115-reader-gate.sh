@@ -118,7 +118,14 @@ case "$A" in
         printf '%s
 ' "$NOW" > "${RUN}.last-release"
         rm -f "$RUN" 2>/dev/null || true
-        echo "$(date -Is) RELEASED 5xx=0/${WIN}s(样本 $SPAN) worker=$ACT mode=fence（进程一直在跑）"
+        # 文案必须与事实一致：fence 档的承诺是"由本闸门释放时进程没被停过"，
+        # 而不是"此刻一定在跑"——运维重启期间 worker=$ACT 会是 inactive，
+        # 写成"进程一直在跑"会让复盘时误判是谁停的（2026-11-04 19:13 那条就这样）。
+        if [ "$ACT" = active ]; then
+          echo "$(date -Is) RELEASED 5xx=0/${WIN}s(样本 $SPAN) worker=$ACT mode=fence（本闸门未停进程）"
+        else
+          echo "$(date -Is) RELEASED 5xx=0/${WIN}s(样本 $SPAN) worker=$ACT mode=fence（进程由他人停/重启，非本闸门）"
+        fi
         exit 0
       fi
       RC=0
