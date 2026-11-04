@@ -189,7 +189,13 @@ export async function readXSearch(
 
   const seen = new Set<string>();
   const tweets = all.filter((t) => !t.retweeted_status && !seen.has(t.id_str) && !!seen.add(t.id_str));
-  const maxId = tweets.reduce<string | null>((m, t) => (m === null || BigInt(t.id_str) > BigInt(m) ? t.id_str : m), lastId);
+  // `id_str` 缺失或不是纯数字时 `BigInt()` 会抛 `SyntaxError`，整轮采集跟着断（`:192` 老注释说的就是这个）。
+  // 逐条挡掉坏 id：既算不进 `maxId`，也不该让这一轮的其它推文白采。
+  const numeric = (id: string | undefined): boolean => !!id && /^\d+$/.test(id);
+  const maxId = tweets.reduce<string | null>(
+    (m, t) => (numeric(t.id_str) && (m === null || BigInt(t.id_str) > BigInt(m)) ? t.id_str : m),
+    numeric(lastId ?? undefined) ? lastId : null,
+  );
   return { tweets, lastId: maxId, backlog, pages, truncated, backlogPages, dropped };
 }
 

@@ -11,7 +11,7 @@ import { MobileDaySection, MobileHomeTop, MobilePoolList, type FeedTab } from ".
 import { useLivePublicData } from "../lib/use-live-public-data";
 import { HotTopics } from "../features/feed/HotTopics";
 import { CategoryTabs, SearchField } from "../features/feed/Filters";
-import { beijingDate, monthDayTime, shortSourceName } from "../lib/format";
+import { beijingDate, monthDayTime, shortSourceName, todayOf } from "../lib/format";
 import { DateCalendar, type CalendarDay } from "../features/calendar/DateCalendar";
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -112,7 +112,7 @@ export default function Home() {
   const title = filters.tag ? `#${filters.tag}` : "精选";
   // 日期栏右侧那个"N 条"是当天的时间线总条数，来自响应里的 `dayCounts`（服务端按北京日期分桶），
   // 不是这一屏已经渲染的 12 张卡——否则读者会看到"12 条"，然后往下滚还有几十张。
-  const todayCount = data.dayCounts[beijingDate(Date.now())] ?? null;
+  const todayCount = data.dayCounts[todayOf(data.generatedAt)] ?? null;
   // 月历点某一天 = 去 /all 看那一天（同一组筛选带过去）；换月份 = 那一个月的日历。
   const allHref = (over: Record<string, string | null>) => {
     const sp = new URLSearchParams();

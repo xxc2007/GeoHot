@@ -63,7 +63,13 @@ export async function apiGet<T>(
     throw new ApiError(res.status, code, retry ? Number(retry) : null);
   }
   res.headers.forEach((value, name) => init?.responseHeaders?.set(name, value));
-  return (await res.json()) as T;
+  // 200 但空体/HTML（代理把上游错误页原样回给我们）不该变成未捕获的 SyntaxError ——
+  // 那会被上层兜成 503，把「接口返回了垃圾」误报成「接口不可用」。
+  try {
+    return (await res.json()) as T;
+  } catch {
+    throw new ApiError(502, "bad_json", null);
+  }
 }
 
 /** Maps API failures to route responses: real 404s, search-busy page, otherwise 503. */
