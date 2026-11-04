@@ -24,7 +24,17 @@ const body = <T = Record<string, unknown>>(req: FastifyRequest) => (req.body ?? 
 const param = (req: FastifyRequest, name: string) => (req.params as Record<string, string>)[name]!;
 const notFound = (req: FastifyRequest, reply: FastifyReply) => sendProblem(req, reply, { status: 404, code: "not_found", detail: "Not found." });
 const orNotFound = <T>(req: FastifyRequest, reply: FastifyReply, value: T | null) => (value === null || value === undefined ? notFound(req, reply) : value);
-const page = (req: FastifyRequest) => Math.max(1, Number(q(req).page) || 1);
+/**
+ * 2026-11-04 独立审计 ②：`?page=1e999` 会被 `Number()` 变成 `Infinity`，乘 100 之后交给
+ * `OFFSET`，Postgres 直接报 `invalid input syntax` —— 对操作者表现为 500，对爬虫表现为
+ * 「随便试试就能打崩一页」。这里同时挡住非有限值和过大的页码。
+ */
+const PAGE_MAX = 500;
+const page = (req: FastifyRequest) => {
+  const raw = Number(q(req).page);
+  if (!Number.isFinite(raw)) return 1;
+  return Math.min(PAGE_MAX, Math.max(1, Math.trunc(raw)));
+};
 
 /**
  * A numeric :id from the path. Number() of "abc" is NaN, and a NaN compared against a bigint column is
