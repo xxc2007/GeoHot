@@ -9,7 +9,7 @@ import { FEATURES } from "@aihot/industry/features";
 import { CATEGORY_KEYS } from "@aihot/contracts/taxonomy";
 import { deployBase } from "@aihot/contracts/http-policy";
 import { REPO_ROOT, config } from "@aihot/backend/config";
-import { applyPublicHeaders, sendTextWithEtag } from "../http/respond.ts";
+import { applyPublicHeaders, etagMatches, sendTextWithEtag } from "../http/respond.ts";
 import { sitemapXml } from "@aihot/backend/publication/sitemap";
 import { llmsTxt, loadLlmsAvailability } from "@aihot/backend/publication/llms";
 
@@ -50,7 +50,7 @@ async function sendFile(req: FastifyRequest, reply: FastifyReply, file: string, 
   reply.header("Content-Type", opts.type ?? TYPES[path.extname(file)] ?? "application/octet-stream");
   reply.header("Cache-Control", opts.cacheControl);
   reply.header("ETag", entry.etag);
-  if (req.headers["if-none-match"] === entry.etag) return reply.code(304).send();
+  if (etagMatches(req.headers["if-none-match"], entry.etag)) return reply.code(304).send();
   return reply.send(entry.body);
 }
 

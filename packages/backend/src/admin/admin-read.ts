@@ -26,7 +26,9 @@ export async function adminReadOrBusy<T>(read: (db: Tx) => Promise<T>, timeoutMs
   try {
     return await adminRead(read, timeoutMs);
   } catch (error) {
-    if ((error as { code?: string }).code === "57014") {
+    // 包装器自己设的 lock_timeout 报 55P03，和 statement_timeout 的 57014 是同一件事：
+    // 只认前者会让锁等待也冒成 500（model-label-backfill.ts 早就同时识别两者了）。
+    if (["57014", "55P03"].includes((error as { code?: string }).code ?? "")) {
       throw Object.assign(new Error("后台读取暂时超时，请稍后刷新"), { code: "ADMIN_READ_TIMEOUT" });
     }
     throw error;

@@ -83,7 +83,10 @@ export async function parseFilters(q: Record<string, string>): Promise<FilterPar
   const category = q.category ?? null;
   if (category !== null && !isCategoryKey(category)) throw new BadRequest("invalid category");
   const tag = q.tag?.trim() ? q.tag.trim().slice(0, 60) : null;
-  const topic = q.topic?.trim() || null;
+  // tag 早就截到 60，topic 却原样透传给 loadTopicTags：`?topic=` 能带 8KB 直接进 DB 查询。
+  const rawTopic = q.topic?.trim() || null;
+  if (rawTopic && rawTopic.length > 60) throw new BadRequest("invalid topic");
+  const topic = rawTopic;
   let topicTags: string[] | null = null;
   if (topic) {
     topicTags = await loadTopicTags(topic);
@@ -215,8 +218,13 @@ export function registerSite(app: FastifyInstance) {
 
   app.get("/api/site/topics/:slug", siteHandler(async (req, reply) => {
     const slug = (req.params as { slug: string }).slug;
-    const page = Number(looseQuery(req).page ?? 1);
-    const data = Number.isInteger(page) ? await loadTopicPage(slug, page) : null;
+    // `?page=abc` / `?page=-1` / `?page=0` 以前经 Number() 变成 NaN/负数/0，loadTopicPage 对 page<1
+    // 返回 null，于是参数错误被报成 404「topic page not found」——像是主题不存在。先校验再查。
+    const rawPage = looseQuery(req).page;
+    if (rawPage !== undefined && !/^\d+$/.test(String(rawPage))) throw new BadRequest("invalid page");
+    const page = rawPage === undefined ? 1 : Number(rawPage);
+    if (!Number.isSafeInteger(page) || page < 1) throw new BadRequest("invalid page");
+    const data = await loadTopicPage(slug, page);
     if (!data) return sendProblem(req, reply, { status: 404, code: "not_found", detail: "topic page not found", cacheControl: "public, max-age=60" });
     // The stamp tells the page which day is「今天」; it must not move the ETag, or the 60-second cache never hits.
     const { generatedAt: _, ...content } = data;

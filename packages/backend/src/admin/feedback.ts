@@ -49,7 +49,9 @@ export async function updateFeedback(id: number, input: { status?: string; note?
     const [after] = await tx`
       UPDATE feedback SET status = coalesce(${input.status ?? null}, status), note = ${input.note === undefined ? before.note : input.note}, updated_at = now()
       WHERE id = ${id} RETURNING id, status, note, updated_at`;
-    await audit(actor, "feedback.update", `feedback:${id}`, null, { status: before.status, note: before.note }, { status: after!.status, note: after!.note });
+    // 第 8 参是 db（第 7 参是 requestId）：不传的时候 audit() 走全局 sql（另一条连接），回滚后审计行照样留下，
+    // 还可能在持 FOR UPDATE 时再借一条连接。
+    await audit(actor, "feedback.update", `feedback:${id}`, null, { status: before.status, note: before.note }, { status: after!.status, note: after!.note }, undefined, tx);
     return after;
   });
 }
