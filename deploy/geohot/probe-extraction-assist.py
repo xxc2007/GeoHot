@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Read-only, no credentials: current release/resource admission for a finite PC helper."""
+import base64 as _b64
 import hashlib
 import json
+import os
 import pathlib
 import subprocess
 import sys
@@ -10,8 +12,16 @@ import urllib.request
 import importlib.util
 sys.dont_write_bytecode = True
 
+
 root = pathlib.Path('/opt/geohot/app')
-request = json.load(sys.stdin)
+# 读一次输入：默认 stdin（因此每次调用一条连接）；设了 GEOHOT_PROBE_INPUT_B64 就从环境读，
+# 这样 supervisor 可以用**一条** SSH 会话在服务端循环采样，而不是每 10 秒新开一条——
+# 后者会把 ufw 的 22/tcp LIMIT 打满，之后连上来就是 `Connection timed out`（2026-11-04 现场）。
+_raw_b64 = os.environ.get('GEOHOT_PROBE_INPUT_B64')
+if _raw_b64:
+    request = json.loads(_b64.b64decode(_raw_b64).decode('utf-8'))
+else:
+    request = json.load(sys.stdin)
 session = request.get('session') if isinstance(request, dict) else None
 manifest = request.get('manifest') if isinstance(request, dict) else request
 if not isinstance(manifest, list) or not 1 <= len(manifest) <= 1000:
