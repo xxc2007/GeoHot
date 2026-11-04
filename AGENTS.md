@@ -25,7 +25,7 @@
   node --env-file=.env --env-file=.env.pipeline apps/worker/src/main.ts    # 队列与定时任务
   npm run dev:web                                                          # http://localhost:3000
   ```
-  **默认端口在这台机器上保不住过**（本站 api 现在实际跑在 3199；哪一格被谁占着是随时间变的，动手前用 `netstat -ano | grep LISTENING` 现查）。换端口不要改代码：数据库是 `npm run db:up -- --daemon --port=5455`（或 `DEV_DB_PORT`，必须与 `.env` 的 `DATABASE_URL` 一致，不一致 `dev-db` 会打印 WARNING），其余走 `--*-port` 生成的 `.env`，或者第三个 env 文件 `.env.ports`（本机 live 栈就是这么起的：`--env-file=.env --env-file=.env.pipeline --env-file=.env.ports`）。`npm run dev:web` 的 `--port 3000` 写死在 `apps/web/package.json` 里，换 web 端口用 `node --env-file=.env apps/web/server.ts`。完整对照表见 `docs/manual.md` 第 3.7 节。
+  **默认端口在这台机器上保不住过**（本站 api 现在实际跑在 3199；哪一格被谁占着是随时间变的，动手前用 `netstat -ano | grep LISTENING` 现查）。换端口不要改代码：数据库是 `npm run db:up -- --daemon --port=5455`（或 `DEV_DB_PORT`，必须与 `.env` 的 `DATABASE_URL` 一致，不一致 `dev-db` 会打印 WARNING），其余走 `--*-port` 生成的 `.env`，或者第三个 env 文件 `.env.ports`（本机 live 栈就是这么起的：`--env-file=.env --env-file=.env.pipeline --env-file=.env.ports`）。`npm run dev:web` 的 `--port 3000` 写死在 `apps/web/package.json` 里，换 web 端口用 `node --env-file=.env apps/web/server.ts`（注意它读的是构建产物 `apps/web/build/server/index.js`，**干净 clone 上要先 `npm run build -w @aihot/web`**，否则 server 会打印这句提示并以退出码 9 结束）。完整对照表见 `docs/manual.md` 第 3.7 节。
   `.env.pipeline` 是**一次性**的第二层 env，只用于让管道真跑（打开 `COLLECT_ENABLED`/`MODEL_CALLS_ENABLED`、设 `TZ=Asia/Shanghai`）；`.env` 里六个阀一律 false，**永远不要把 `.env.pipeline` 的内容合并进 `.env`**。跑 migrate/seed 用 `npm run db:migrate`、`node --env-file-if-exists=.env scripts/seed.ts`，语料用 `npm run seed:curated`。
 - 改完至少跑（库名仍以 `_test`/`_ci` 结尾，`tests/setup.ts:10` 会拒）：
   ```bash
