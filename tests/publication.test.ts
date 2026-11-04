@@ -679,3 +679,24 @@ test("the MCP daily tool and the read layer never disagree about whether an issu
   assert.equal(withdrawn.detail.sections[0].items[0].itemId, doomed, "the paper still prints the line it published…");
   assert.equal(withdrawn.detail.sections[0].items[0].available, false, "…struck through, which is exactly what makes the issue unreadable");
 });
+
+test("a far-future visible_at cannot pin the sync watermark forever", async () => {
+  // 2026-11-04 独立审计 ①：一条坏数据（visible_at 落在很远的未来）曾把 v1 水位永久钉在它前一位，
+  // 因为 worker 里没有任何「到期就放行」的作业。地平线之内的行照旧压住水位，之外的忽略。
+  const [maxRow] = await sql<{ m: number }[]>`SELECT coalesce(max(seq), 0)::int AS m FROM selected_ledger`;
+  const seq = maxRow!.m;
+  const far = new Date(Date.now() + 365 * 24 * 3600_000);
+  await sql`INSERT INTO selected_ledger (seq, article_id, op, visible_at) VALUES (${seq + 1}, ${`ghost-${T}`}, 'upsert', ${far})`;
+  try {
+    assert.equal(await effectiveWatermark(), seq + 1, "一年后的 visible_at 不该压住水位（它本身就是最大 seq，所以水位到它）");
+  } finally {
+    await sql`DELETE FROM selected_ledger WHERE article_id = ${`ghost-${T}`}`;
+  }
+  // 地平线之内（180 秒后）的行仍然必须压住水位 —— 发布闸门的本意不能一起被放宽。
+  await sql`INSERT INTO selected_ledger (seq, article_id, op, visible_at) VALUES (${seq + 2}, ${`soon-${T}`}, 'upsert', ${new Date(Date.now() + 180_000)})`;
+  try {
+    assert.equal(await effectiveWatermark(), seq + 1, "即将放行的行仍要压住水位（seq+2 挡在门前）");
+  } finally {
+    await sql`DELETE FROM selected_ledger WHERE article_id = ${`soon-${T}`}`;
+  }
+});

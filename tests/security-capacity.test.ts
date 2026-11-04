@@ -95,16 +95,20 @@ test("screenshot retention runs with chat disabled and preserves shared live fil
   const folder = path.join(dir, "feedback-screenshots");
   await mkdir(folder, { recursive: true });
   const shared = "aabbcc.png", orphan = "ddeeff.png";
-  const old = new Date(Date.now() - 25 * 3600_000);
-  for (const name of [shared, orphan]) { await writeFile(path.join(folder, name), "fixture"); await utimes(path.join(folder, name), old, old); }
+  // 保留窗口 = 邮件重试窗口 = 7 天（2026-11-04 独立审计 ③：24 小时的截图清理早于 7 天的重试）。
+  const stale = new Date(Date.now() - 8 * 24 * 3600_000);
+  const recent = new Date(Date.now() - 25 * 3600_000);
+  for (const name of [shared, orphan]) { await writeFile(path.join(folder, name), "fixture"); await utimes(path.join(folder, name), stale, stale); }
   await sql`INSERT INTO feedback(content,source_hash,screenshot_key,created_at) VALUES
-    (${prefix + " old"},'test','local:aabbcc.png',${old}), (${prefix + " live"},'test','local:aabbcc.png',now())`;
+    (${prefix + " stale"},'test','local:aabbcc.png',${stale}), (${prefix + " recent"},'test','local:bbccdd.png',${recent}), (${prefix + " live"},'test','local:aabbcc.png',now())`;
   await forwardPendingFeedback();
   assert.ok(await stat(path.join(folder, shared)));
   await assert.rejects(stat(path.join(folder, orphan)), { code: "ENOENT" });
-  const [row] = await sql`SELECT screenshot_key FROM feedback WHERE content=${prefix + " old"}`;
-  assert.equal(row!.screenshot_key, "gone:upload");
-  await sql`UPDATE feedback SET created_at=${old} WHERE content=${prefix + " live"}`;
+  const [staleRow] = await sql`SELECT screenshot_key FROM feedback WHERE content=${prefix + " stale"}`;
+  assert.equal(staleRow!.screenshot_key, "gone:upload", "8 天前的截图该按窗口清掉");
+  const [recentRow] = await sql`SELECT screenshot_key FROM feedback WHERE content=${prefix + " recent"}`;
+  assert.equal(recentRow!.screenshot_key, "local:bbccdd.png", "25 小时前的截图还在邮件重试窗口内，必须保留");
+  await sql`UPDATE feedback SET created_at=${stale} WHERE content=${prefix + " live"}`;
   await cleanupFeedbackScreenshots();
   await assert.rejects(stat(path.join(folder, shared)), { code: "ENOENT" });
 });

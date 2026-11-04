@@ -212,11 +212,20 @@ export async function forwardPendingFeedback(): Promise<{ sent: number; failed: 
   return { sent, failed };
 }
 
+/**
+ * 保留窗口必须盖住邮件重试窗口：`forwardPendingFeedback` 会重试 7 天（下面那条
+ * `created_at > now() - interval '7 days'`），而截图曾按 24 小时清理 —— 第 2–7 天的重试
+ * 就永远带不上图，管理员只能看到「截图已清理」。2026-11-04 独立审计 ③。
+ * 两个地方引用同一个常量，避免再漂。
+ */
+const FEEDBACK_ATTACHMENT_WINDOW_MS = 7 * 24 * 3600_000;
+
 /** Retention is independent of whether the optional operator mailbox is enabled. */
 export async function cleanupFeedbackScreenshots(now = Date.now()): Promise<void> {
+  const cutoff = new Date(now - FEEDBACK_ATTACHMENT_WINDOW_MS);
   await storageGate.run(async () => {
     await sql`UPDATE feedback SET screenshot_key = 'gone:upload'
-      WHERE screenshot_key LIKE 'local:%' AND created_at < ${new Date(now - 24 * 3600_000)}`;
+      WHERE screenshot_key LIKE 'local:%' AND created_at < ${cutoff}`;
     const rows = await sql<{ screenshot_key: string }[]>`SELECT DISTINCT screenshot_key FROM feedback WHERE screenshot_key LIKE 'local:%'`;
     const live = new Set(rows.map((r) => r.screenshot_key.slice(6)));
     const dir = path.join(config.dataDir, "feedback-screenshots");
@@ -224,7 +233,7 @@ export async function cleanupFeedbackScreenshots(now = Date.now()): Promise<void
       if (!/^[a-f0-9-]+\.(png|jpeg|webp|gif)$/.test(name) || live.has(name)) continue;
       const file = path.join(dir, name);
       const info = await stat(file).catch(() => null);
-      if (info && info.mtimeMs < now - 24 * 3600_000) await unlink(file).catch(() => {});
+      if (info && info.mtimeMs < now - FEEDBACK_ATTACHMENT_WINDOW_MS) await unlink(file).catch(() => {});
     }
   });
 }

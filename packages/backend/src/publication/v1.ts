@@ -100,10 +100,22 @@ export async function ledgerEpoch(): Promise<string> {
   return again!.value.epoch;
 }
 
-/** Highest sequence whose entries (and all earlier ones) have passed the release gate. */
+/**
+ * Highest sequence whose entries (and all earlier ones) have passed the release gate.
+ *
+ * 2026-11-04 独立审计 ①：原来只要有一行 `visible_at > now`（一次误写、一个跑偏的
+ * `releasedAt` 就够），`min(seq)-1` 就永远停在它前一位，把整个 v1 水位钉死；而 worker 里
+ * 没有任何「到期就放行」的作业去解这个死结。真实的待放行窗口只有
+ * `selectedVisibleAfterSeconds`（默认 180 秒）加报告编排的余量，所以这里只看地平线
+ * 之内的行：更远的行不参与水位计算（它们本来就 invisible，到期后由自己的 `visible_at`
+ * 决定）。这样一条坏数据最多影响一天，不会永久钉死所有人。
+ */
+const WATERMARK_HORIZON_MS = 24 * 3600_000;
+
 export async function effectiveWatermark(now = new Date()): Promise<number> {
+  const horizon = new Date(now.getTime() + WATERMARK_HORIZON_MS);
   const [row] = await sql<{ w: number }[]>`
-    SELECT coalesce((SELECT min(seq) - 1 FROM selected_ledger WHERE visible_at > ${now}),
+    SELECT coalesce((SELECT min(seq) - 1 FROM selected_ledger WHERE visible_at > ${now} AND visible_at <= ${horizon}),
                     (SELECT coalesce(max(seq), 0) FROM selected_ledger)) AS w`;
   return Number(row?.w ?? 0);
 }
