@@ -13,7 +13,12 @@ const numberType = (oid: number) => ({
 export const sql = postgres(config.databaseUrl, {
   max: poolSize(process.env.DATABASE_POOL_MAX, "DATABASE_POOL_MAX", 10),
   // Keep connections through quiet minutes: a reconnect costs a SCRAM exchange on the next request.
-  idle_timeout: 600,
+  // 但「一直留着」有代价：云主机那条链路上空闲太久的 socket 会被中途掐掉，池子拿到一条死连接就报
+  // `timeout exceeded when trying to connect`（2026-11-05 02:09 让 worker 整个进程崩过一次，01:xx
+  // 也打断过 cron.sources.mp-reconcile）。所以留得比闲时短、并给连接一个最大寿命：到期由客户端主动换新，
+  // 不等内核替我们发现对端已经没了。
+  idle_timeout: 120,
+  max_lifetime: 30 * 60,
   connect_timeout: 10,
   onnotice: () => {},
   // Prepared statements keep PostgreSQL's plan cache: planning a detail read took longer than running
