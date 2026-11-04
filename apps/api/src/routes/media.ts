@@ -32,10 +32,11 @@ export function registerMedia(app: FastifyInstance) {
     }
     try {
       const { body, type } = await produceImage(verdict.url, verdict.mode);
-      const maxAge = Math.max(60, Math.min(7 * 86400, Number(q.exp) - Math.floor(Date.now() / 1000)));
+      // 签名只剩不到一分钟时不能仍声明 60 秒：那会让共享缓存在授权过期后继续供图。
+      const maxAge = Math.max(0, Math.min(7 * 86400, Number(q.exp) - Math.floor(Date.now() / 1000)));
       return reply
         .header("Content-Type", type)
-        .header("Cache-Control", `public, max-age=${maxAge}, s-maxage=${maxAge}`)
+        .header("Cache-Control", maxAge === 0 ? "no-store" : `public, max-age=${maxAge}, s-maxage=${maxAge}`)
         .header("X-Content-Type-Options", "nosniff")
         .header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox")
         .send(body);
@@ -43,7 +44,8 @@ export function registerMedia(app: FastifyInstance) {
       if (error instanceof CapacityExceeded) return reply.code(503).header("Cache-Control", "no-store").header("Retry-After", "2").send("Image processing busy; retry shortly");
 
       req.log.warn({ err: String(error), host: new URL(verdict.url).hostname }, "img-proxy upstream failed");
-      return reply.code(502).header("Cache-Control", "public, max-age=300").type("text/plain; charset=utf-8").send("Upstream image unavailable");
+      // 上游瞬时失败不缓存：300 秒的共享缓存会把这一次失败回放五分钟，恢复后的图片照旧是坏的。
+      return reply.code(502).header("Cache-Control", "no-store").type("text/plain; charset=utf-8").send("Upstream image unavailable");
     }
   });
 }

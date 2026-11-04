@@ -101,13 +101,16 @@ export default function RunsAdmin({ loaderData }: Route.ComponentProps) {
 
   const backlog = new Map<string, Record<string, { n: number; oldest: string }>>();
   for (const q of r.queues) backlog.set(q.name, { ...(backlog.get(q.name) ?? {}), [q.state]: { n: q.n, oldest: q.oldest } });
-  if (r.queueSnapshot) {
+  // 空数组不等于"有快照"：`queueSnapshot[0]!.at` 在 `[]` 上直接抛 TypeError，整页掉进错误边界。
+  // 这里统一收敛成 `snapshot`（null 表示没有可用快照），下面的分支只认它。
+  const snapshot = r.queueSnapshot?.length ? r.queueSnapshot : null;
+  if (snapshot) {
     backlog.clear();
-    for (const q of r.queueSnapshot) backlog.set(q.name, {created:{n:q.queued,oldest:""},active:{n:q.active,oldest:""}});
+    for (const q of snapshot) backlog.set(q.name, {created:{n:q.queued,oldest:""},active:{n:q.active,oldest:""}});
   }
-  const queueStates: Array<"created"|"retry"|"active"> = r.queueSnapshot ? ["created","active"] : ["created","retry","active"];
-  const queued = r.queueSnapshot ? r.queueSnapshot.reduce((n,q)=>n+q.queued,0) : r.queues.filter((q) => q.state !== "active").reduce((a, q) => a + q.n, 0);
-  const queueAt = r.queueSnapshot?.reduce((old,q)=>q.at<old?q.at:old,r.queueSnapshot[0]!.at);
+  const queueStates: Array<"created"|"retry"|"active"> = snapshot ? ["created","active"] : ["created","retry","active"];
+  const queued = snapshot ? snapshot.reduce((n,q)=>n+q.queued,0) : r.queues.filter((q) => q.state !== "active").reduce((a, q) => a + q.n, 0);
+  const queueAt = snapshot?.reduce((old,q)=>q.at<old?q.at:old, snapshot[0]!.at);
   const worker = r.processes.find((p) => p.role === "worker");
   const failing = r.jobs.filter((j) => j.status === "failed");
 
