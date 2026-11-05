@@ -19,6 +19,7 @@ import { linkRelatedStories } from "@aihot/backend/events/group";
 import { catchUpReports, composeDaily, composeMonthly, composeWeekly } from "@aihot/backend/reports/compose";
 import { repairReportWorkflow } from "@aihot/backend/reports/repair";
 import { assignTopicsAndReport } from "@aihot/backend/publication/topic-assign";
+import { proposeTopics, rotateTopics } from "@aihot/backend/publication/topic-rotate";
 import { addDays, beijingDate, isoWeekLabel } from "@aihot/contracts/time";
 import { runLeaderboardRound } from "@aihot/backend/leaderboard/method/run";
 import { refreshLeaderboard } from "@aihot/backend/leaderboard/fetch/refresh";
@@ -102,6 +103,9 @@ export const SCHEDULES: Scheduled[] = [
   // 主题归类：每十分钟把最近三天的分配复算一次（实时跟上门票），每天凌晨再把 45 天全量校一遍。
   { name: "topics.assign", cron: "*/10 * * * *", missed: "once", run: () => assignTopicsAndReport(3) },
   { name: "topics.assign-backfill", cron: "40 3 * * *", missed: "once", run: () => assignTopicsAndReport(45) },
+  // 轮换：每月 1 号 04:10 检查归档/复活，每天 04:30 把「热起来但没主题认领」的标签记成候选。
+  { name: "topics.rotate", cron: "10 4 1 * *", missed: "once", run: () => rotateTopics() },
+  { name: "topics.proposals", cron: "30 4 * * *", missed: "once", run: () => proposeTopics() },
   // Four upstream checks a day; a new run is published only when the evidence changed. With collection
   // off only the computation runs, over the snapshots already stored.
   ...(FEATURES.leaderboard

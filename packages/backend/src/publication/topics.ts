@@ -17,11 +17,13 @@ export interface TopicRow {
   definition: string;
   related: string[];
   position: number;
+  /** 归档时间：近 30 天零新条目时置位；归档主题不进列表与导航，页面仍可访问。 */
+  dormant_at: Date | null;
 }
 
 type TopicCount = { slug: string; total: number; recent: number; pages: number; indexable: boolean; latest: Date | null };
 const topicsCache = cached(
-  () => sql<TopicRow[]>`SELECT slug, name, grp, entity_id, tags, keywords, definition, related, position FROM topics ORDER BY position`,
+  () => sql<TopicRow[]>`SELECT slug, name, grp, entity_id, tags, keywords, definition, related, position, dormant_at FROM topics ORDER BY position`,
   { freshMs: 60_000, maxStaleMs: 10 * 60_000 },
 );
 
@@ -191,7 +193,7 @@ export interface TopicSummary {
 export async function listTopicSummaries(now?: Date): Promise<TopicSummary[]> {
   const topics = await listTopics();
   const counts = new Map((await topicPageCounts(now)).map((c) => [c.slug, c]));
-  return topics.map((t) => {
+  return topics.filter((t) => !t.dormant_at).map((t) => {
     const c = counts.get(t.slug);
     return { slug: t.slug, name: t.name, group: t.grp, definition: t.definition, total: c?.total ?? 0, recent: c?.recent ?? 0, indexable: c?.indexable ?? false, latestAt: c?.latest?.toISOString() ?? null };
   });
