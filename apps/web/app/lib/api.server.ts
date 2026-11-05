@@ -33,7 +33,53 @@ export class ApiRedirect extends Error {
   }
 }
 
+/**
+ * 上一份好答案的短期底稿。
+ *
+ * 2026-11-06 01:4x 现场：夜档（2 个名额）一开，SSR 取时间线偶尔要 15 秒以上，`AbortSignal.timeout`
+ * 一断就整页 503（读者看到的是「暂时不可用」，其实只是这一屏的数据晚了半分钟）。
+ * 现在把每个 GET 上一份成功正文留最多 10 分钟：拿不到新的时候先把这份交出去，
+ * 页面照常可读；真正没有底稿时才让错误继续往上走。
+ */
+const LAST_GOOD_TTL_MS = 10 * 60_000;
+const LAST_GOOD_MAX = 64;
+const lastGood = new Map<string, { at: number; body: unknown }>();
+
+function rememberGood(path: string, body: unknown): void {
+  if (lastGood.size >= LAST_GOOD_MAX && !lastGood.has(path)) {
+    const oldest = [...lastGood.entries()].sort((a, b) => a[1].at - b[1].at)[0];
+    if (oldest) lastGood.delete(oldest[0]);
+  }
+  lastGood.set(path, { at: Date.now(), body });
+}
+
+function lastGoodFor<T>(path: string): T | null {
+  const hit = lastGood.get(path);
+  if (!hit) return null;
+  if (Date.now() - hit.at > LAST_GOOD_TTL_MS) {
+    lastGood.delete(path);
+    return null;
+  }
+  return hit.body as T;
+}
+
 export async function apiGet<T>(
+  path: string,
+  init?: { signal?: AbortSignal; headers?: Record<string, string>; responseHeaders?: Headers; redirect?: RequestRedirect },
+): Promise<T> {
+  try {
+    const body = await apiGetFresh<T>(path, init);
+    rememberGood(path, body);
+    return body;
+  } catch (error) {
+    // 只有「读不到 / 超时 / 上游 5xx」才用底稿；404、重定向、4xx 是页面自己的答案，照原样返回。
+    const stale = !(error instanceof ApiRedirect) && (error instanceof ApiError ? error.status >= 500 : true) ? lastGoodFor<T>(path) : null;
+    if (stale !== null) return stale;
+    throw error;
+  }
+}
+
+async function apiGetFresh<T>(
   path: string,
   init?: { signal?: AbortSignal; headers?: Record<string, string>; responseHeaders?: Headers; redirect?: RequestRedirect },
 ): Promise<T> {
