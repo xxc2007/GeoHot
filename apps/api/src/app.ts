@@ -60,7 +60,15 @@ export async function buildApp(): Promise<FastifyInstance> {
   // /api/admin/* shares the global per-IP cap like everything else (route-level overrides in
   // server-console.ts still win where they are tighter), which bounds a forged-flood or a runaway
   // admin tab to the same 600/min as the public read paths.
-  await app.register(rateLimit, { global: true, max: 600, timeWindow: '1 minute' });
+  // 2026-11-06 06:39 现场：部署验收在回环上连取十几个页面，每个页面的 SSR 又各打若干 API，
+// 一下子越过 600/min，`/feed/*.xml` 拿到 429，验收与冒烟读到的是错误页 HTML。
+// 回环不是读者：放行它，真实读者的每 IP 上限不变（Cloudflare 侧仍按 CF-Connecting-IP 记账）。
+await app.register(rateLimit, {
+  global: true,
+  max: 600,
+  timeWindow: '1 minute',
+  allowList: ['127.0.0.1', '::1'],
+});
   app.addHook("onRequest", async (req) => {
     req.requestId = req.id;
   });
