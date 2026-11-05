@@ -16,7 +16,7 @@ import { beijingDate, beijingWeekday } from "../../lib/format";
 import { listPath } from "../../lib/seo";
 import { publicPath } from "../../lib/public-path";
 import { FeedItem } from "./FeedItem";
-import { TimelineSlot } from "./Timeline";
+import { DayHeader, TimelineSlot } from "./Timeline";
 import { SearchField } from "./Filters";
 
 export type FeedTab = "selected" | "all";
@@ -193,18 +193,51 @@ export function MobilePoolList({ pool, filters }: { pool: PoolResponse | null; f
       </div>
     );
   }
+  // 按北京时间分日。站长 2026-11-05 报：手机上「全部」有每条的时间，却没有「精选」那样的日期栏，
+  // 一直往下滑就分不清某条是今天的还是前几天的。这里按天切段，日期栏与精选用同一套组件。
+  // 「今天」取数据自己带的 generatedAt（服务端与客户端读到同一个值，不会水合对不上），
+  // 而不是 Date.now()：页面开着跨过零点时，"今天"应当还是这一页生成时的那一天。
+  const today = beijingDate(Date.parse(pool.generatedAt) || Date.now());
+  const groups: Array<{ day: string; items: FeedItemSummary[] }> = [];
+  for (const item of items) {
+    const day = beijingDate(new Date(item.timelineAt).getTime());
+    const last = groups[groups.length - 1];
+    if (last && last.day === day) last.items.push(item);
+    else groups.push({ day, items: [item] });
+  }
+
+  const slots = (list: FeedItemSummary[]) => (
+    <ol className="divide-y divide-line-soft">
+      {list.map((item: FeedItemSummary) => (
+        <TimelineSlot key={item.id} at={item.timelineAt} dataKey={item.id}>
+          <FeedItem item={item} filters={filters} showTags />
+        </TimelineSlot>
+      ))}
+    </ol>
+  );
+
   return (
     <div className="lg:hidden">
       {/* 与精选那一页同一套行版式（左侧 48px 时间格 + 右侧卡片），不是另拼一个"简化列表"：
           站长 2026-11-04 报"全部页每条的时间没了"，根因是这里自己写了个 div，绕开了 TimelineSlot
           里的 <time>。复用同一个组件，时间格式、行距、分隔线就不会再分叉。 */}
-      <ol className="mt-4 divide-y divide-line-soft lg:pt-1">
-        {items.map((item: FeedItemSummary) => (
-          <TimelineSlot key={item.id} at={item.timelineAt} dataKey={item.id}>
-            <FeedItem item={item} filters={filters} showTags />
-          </TimelineSlot>
-        ))}
-      </ol>
+      <div className="mt-4 lg:pt-1">
+        {groups.map((group) =>
+          group.day === today ? (
+            // 今天这一段用精选那条可折叠栏（"今天 · 11月5日 周四 · N 条"），条数是这一天的总量。
+            <MobileDaySection key={group.day} count={pool.todayCount ?? group.items.length}>
+              {slots(group.items)}
+            </MobileDaySection>
+          ) : (
+            // 更早的日子用同一根日期栏（手机上是整宽的灰条："11月4日 周三"）。条数只在今天给，
+            // 因为翻页里的"这一天还剩多少"我并不知道，写个加载到一半的数字比不写更糟。
+            <section key={group.day} aria-label={group.day + " 的条目"}>
+              <DayHeader day={group.day} today={today} count={null} />
+              {slots(group.items)}
+            </section>
+          ),
+        )}
+      </div>
       {items.length === 0 && (
         <p className="py-8 text-center text-[14px] text-ink-3">这一筛选下还没有收录内容。</p>
       )}
