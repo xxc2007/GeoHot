@@ -86,9 +86,11 @@ export async function apiGet<T>(
  * 首屏真正要紧的是那一条时间线（决定这一屏说什么），其余是配菜：收录池、日历、热点、
  * 主题计数都只影响侧栏与筛选条，晚半分钟不如立刻用上一份。预算按路径给，底稿兜底照旧。
  */
-const SSR_BUDGET_MS = 8_000;
-const SSR_AUX_BUDGET_MS = 6_000;
-const AUX_PATHS = ["/api/site/pool", "/api/site/calendar", "/api/site/hot", "/api/site/topics", "/api/site/counts"];
+// 2026-11-06 复核：8 秒的预算本身就是「读者先干等 8 秒」的许可；首页正常 0.4–1.6 秒、
+// 忙时 2–4 秒。首屏 3.5 秒、配菜 1.5 秒，超时交给上一份好答案（lastGood）。
+const SSR_BUDGET_MS = 3_500;
+const SSR_AUX_BUDGET_MS = 1_500;
+const AUX_PATHS = ["/api/site/pool", "/api/site/calendar", "/api/site/hot", "/api/site/topics"];
 
 function ssrBudgetMs(path: string): number {
   return AUX_PATHS.some((prefix) => path.startsWith(prefix)) ? SSR_AUX_BUDGET_MS : SSR_BUDGET_MS;
