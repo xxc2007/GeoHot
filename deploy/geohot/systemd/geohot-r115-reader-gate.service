@@ -4,6 +4,8 @@ Description=GEOHOT reader-first worker gate
 [Service]
 Type=oneshot
 User=root
+# 一轮观察窗 700 秒 + 冷却/释放动作，默认 90 秒的启动超时会把它中途杀掉。
+TimeoutStartSec=330
 Environment=R115_E5_WINDOW_SEC=700
 Environment=R115_COOLDOWN_MIN=30
 Environment=R114_NGX=/var/log/nginx/access.log

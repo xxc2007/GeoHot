@@ -76,7 +76,13 @@ systemctl set-property geohot-worker \
   "MemoryHigh=$mem_high" "MemoryMax=$mem_max" "MemorySwapMax=$swap_max"
 
 # 槽位在 EnvironmentFile 里，只有重启才重新读。
-systemctl restart geohot-worker
+# 但闸门（fence 档）正按着 worker 时不重启：一次 01:00/07:00 的例行切档把冻结解开，
+# 等于替读者面把刹车松开（2026-11-06 复核 recovery-paths）。
+if [ -e /run/geohot-r115-fence ]; then
+  echo "window=: reader gate holds a fence, worker left as it is (env written for the next start)"
+else
+  systemctl restart geohot-worker
+fi
 
 echo "window=$mode mem_high=$mem_high mem_max=$mem_max swap_max=$swap_max"
 systemctl show geohot-worker -p MemoryHigh -p MemoryMax -p MemorySwapMax -p ActiveState |

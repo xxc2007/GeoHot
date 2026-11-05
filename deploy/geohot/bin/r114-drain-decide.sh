@@ -135,8 +135,16 @@ gate_action() {
   case "$until" in ''|*[!0-9]*) until=0 ;; esac
   case "$we_stopped" in ''|*[!0-9]*) we_stopped=0 ;; esac
   case "$budget" in ''|*[!0-9]*) budget=0 ;; esac
-  [ "$disarmed" = 1 ] && { echo SKIP_DISARMED; return; }
-  if [ "$e5" -le -1 ]; then echo SKIP_BLIND; return; fi
+  # 2026-11-06 复核：disarm 与「读不到」都不该让「本闸门自己停的 worker」留在原地。
+  # 以前这两条在 we_stopped 之前就 return，闸门一被 disarm/一眼读不到，'它就永远不还人'。
+  if [ "$disarmed" = 1 ]; then
+    if [ "$we_stopped" = 1 ]; then echo RELEASE; else echo SKIP_DISARMED; fi
+    return
+  fi
+  if [ "$e5" -le -1 ]; then
+    if [ "$we_stopped" = 1 ]; then echo RELEASE; else echo SKIP_BLIND; fi
+    return
+  fi
   if [ "$until" -gt 0 ] && [ "$now" -lt "$until" ]; then echo HELD; return; fi
   if [ "$e5" -gt "$budget" ]; then
     # operator 已经停下的 worker 不归本闸门认领，红指标也不能伪造恢复责任。
