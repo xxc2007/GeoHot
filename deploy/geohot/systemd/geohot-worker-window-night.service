@@ -4,4 +4,7 @@ Documentation=file:///opt/geohot/app/deploy/geohot/DEPLOYMENT.md
 
 [Service]
 Type=oneshot
+# 夜间读者极少：页面预算放宽到 8 秒、热身 30 秒，避免切档瞬间的冷探测把整夜算力退回白天档。
+Environment=GEOHOT_WINDOW_GUARD_MS=8000
+Environment=GEOHOT_WINDOW_GUARD_WARMUP=30
 ExecStart=/usr/bin/env bash /opt/geohot/bin/worker-window.sh night

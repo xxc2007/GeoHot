@@ -23,6 +23,14 @@ test("one unlucky probe no longer ends the night window", () => {
   assert.match(source, /if \[\[ "\$bad" -ge "\$guard_fails" \]\]; then\n    logger -t geohot-window/, "only a streak reverts to day");
 });
 
+test("the night unit gives the switch a wider page budget than the day guard", () => {
+  // 2026-11-06 06:11 现场：即使热身 15 秒，切档后第一次探测仍可能撞上 4 秒以上的冷页面，
+  // 夜间读者极少，把预算放宽到 8 秒，别让一次冷探测把整夜算力退回白天档。
+  const unit = readFileSync(new URL("../deploy/geohot/systemd/geohot-worker-window-night.service", import.meta.url), "utf8");
+  assert.match(unit, /Environment=GEOHOT_WINDOW_GUARD_MS=8000/);
+  assert.match(unit, /Environment=GEOHOT_WINDOW_GUARD_WARMUP=30/);
+});
+
 test("the script still parses", () => {
   execFileSync("bash", ["-n", fileURLToPath(SCRIPT)], { stdio: "pipe" });
 });
