@@ -9,15 +9,26 @@ export function balancedResources(): boolean {
   return value === "balanced";
 }
 
-/** Prioritise fresh work without changing publication dates or the historical-content boundary. */
-export function realTimePriority(input: { historical: boolean; archive: boolean; signal: boolean; observedAt: number }, now = Date.now()): number {
+/** 读者面能看到的活先跑：这两个数字只用来把「能过读者门禁的条目」排到队列前面。 */
+export const PUBLISHABLE_BOOST = 100_000_000;
+const MAX_PRIORITY = 2_147_483_646;
+
+/**
+ * Prioritise fresh work without changing publication dates or the historical-content boundary.
+ *
+ * `publishable`（来源允许站内全文）的活再加一档：2026-11-05 现场是 analyze 队列里 7,432 条
+ * `created`，其中大头是「只准摘要、永远过不了读者门禁」的来信，把 284 篇可以公开的条目堵在后面。
+ * 抬高一档不改变任何一篇文章的处理方式，只改谁先被领取。
+ */
+export function realTimePriority(input: { historical: boolean; archive: boolean; signal: boolean; observedAt: number; publishable?: boolean }, now = Date.now()): number {
   if (input.historical) return input.archive ? -1 : -2;
   if (!balancedResources()) return input.signal ? -1 : 0;
   // A minute-based key keeps newer arrivals ahead even when an old job has waited long enough
   // to cross an age band. Historical work retains its negative priority and remains queued.
   const minute = Number.isFinite(input.observedAt) ? Math.floor(Math.min(input.observedAt, now) / 60_000) : 0;
-  const priority = Math.min(2_147_483_646, Math.max(20, minute * 2));
-  return priority - (input.signal ? 1 : 0);
+  const priority = Math.min(MAX_PRIORITY, Math.max(20, minute * 2));
+  const boost = input.publishable ? PUBLISHABLE_BOOST : 0;
+  return Math.min(MAX_PRIORITY, priority + boost) - (input.signal ? 1 : 0);
 }
 
 export interface ResourceSample {

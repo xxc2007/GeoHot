@@ -33,6 +33,8 @@ interface Route {
   historical: boolean;
   /** Pulled from the scholarly record on purpose (`backfill_reason = 'archive'`); it does not go stale. */
   archive: boolean;
+  /** 来源允许站内全文；为真的活会被抬到队列前面（`PUBLISHABLE_BOOST`）。 */
+  publishable: boolean;
   priority: number;
 }
 
@@ -43,9 +45,9 @@ interface Route {
  * history adds no heat).
  */
 async function route(articleId: string, db: Db): Promise<Route | null> {
-  const [row] = await db<{ body_status: string; participation_mode: string; kind: string; config: Record<string, unknown>; url: string; bare: boolean; backfill: boolean; backfill_reason: string | null; published_at: Date | null; discovered_at: Date }[]>`
+  const [row] = await db<{ body_status: string; participation_mode: string; kind: string; config: Record<string, unknown>; url: string; bare: boolean; backfill: boolean; backfill_reason: string | null; published_at: Date | null; discovered_at: Date; site_fulltext: boolean }[]>`
     SELECT a.body_status, s.participation_mode, s.kind, s.config, a.url, (coalesce(a.body_text, '') = '' AND a.x_post IS NULL) AS bare,
-           a.backfill, a.backfill_reason, a.published_at, a.discovered_at
+           a.backfill, a.backfill_reason, a.published_at, a.discovered_at, s.site_fulltext
     FROM articles a JOIN sources s ON s.id = a.source_id WHERE a.id = ${articleId}`;
   if (!row) return null;
   const historical = isHistorical(row);
@@ -60,7 +62,9 @@ async function route(articleId: string, db: Db): Promise<Route | null> {
   // 现在按"用手上已有的摘要判"走 —— 与抽取最终失败时本来就走的那一支同一个口径，读者侧最多少一条
   // 内容，不会多出一条错的。
   const extractable = pending && (needsPage || needsXArticle) && isCollectEnabled();
-  return { step: extractable ? "extract" : "analyze", signal, historical, archive: row.backfill_reason === "archive", priority: realTimePriority({ historical, archive: row.backfill_reason === "archive", signal, observedAt: (row.published_at ?? row.discovered_at).getTime() }) };
+  // 能过读者门禁的活（来源允许站内全文）排在前面：只准摘要的来信再快也不会出现在读者面。
+  const publishable = row.site_fulltext === true;
+  return { step: extractable ? "extract" : "analyze", signal, historical, archive: row.backfill_reason === "archive", publishable, priority: realTimePriority({ historical, archive: row.backfill_reason === "archive", signal, publishable, observedAt: (row.published_at ?? row.discovered_at).getTime() }) };
 }
 
 /**
