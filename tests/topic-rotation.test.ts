@@ -83,3 +83,22 @@ test("候选主题只收有量、且没有主题认领的标签", async () => {
   const rows = await sql`SELECT tag, articles FROM topic_proposals WHERE tag = ${hot}`;
   assert.equal(rows.length, 1);
 });
+
+test("机构主题的标签与「杂项」体裁标签都不该成为候选", async () => {
+  const entityTag = `${stamp}-entitytag`;
+  const now = new Date();
+  // 机构主题按 entity:<id> 匹配，但它的 tags 里也写着同一批标签名 —— 这些名字不能被当成「无人认领」。
+  await sql`INSERT INTO topics (slug, name, grp, tags, definition, related, position, entity_id)
+    VALUES (${stamp + "-entity"}, ${stamp + "-entity"}, 'company', ARRAY[${entityTag}]::text[], 'fixture', ARRAY[]::text[], 903, ${stamp + "-entity"})
+    ON CONFLICT (slug) DO UPDATE SET tags = excluded.tags, entity_id = excluded.entity_id`;
+  for (let n = 0; n < 9; n++) {
+    const at = new Date(now.getTime() - (n + 1) * 3600_000);
+    await seedArticle(`${stamp}-entity-${n}`, entityTag, at);
+    await seedArticle(`${stamp}-generic-${n}`, "评论/解读", at);
+  }
+  const proposals = await proposeTopics(now);
+  assert.equal(proposals.some((p) => p.tag === entityTag), false, "机构主题认领过的标签不该再当候选");
+  assert.equal(proposals.some((p) => p.tag === "评论/解读"), false, "体裁类杂项标签不该成为主题候选");
+  const left = await sql`SELECT tag FROM topic_proposals WHERE tag IN (${entityTag}, ${"评论/解读"})`;
+  assert.equal(left.length, 0, "候选表里也不该留着这两类标签");
+});

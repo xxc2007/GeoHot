@@ -7,6 +7,14 @@ export const REVIVE_FLOOR = 3;
 /** 候选主题的门槛：近 30 天至少这么多条，且没有任何主题认领。 */
 export const PROPOSAL_FLOOR = 8;
 
+/**
+ * 这些标签描述的是稿子的体裁或「不好归类」，不是读者的兴趣点。
+ *
+ * 2026-11-05 的首轮候选里它们占了四席（评论/解读 3171、非地理/通用 2164、机构/动态 1783、其他 958），
+ * 升成主题等于把「杂项」挂到导航上；登记在这里让它们永远不出现在候选里。
+ */
+export const GENERIC_TAGS = ["评论/解读", "非地理/通用", "机构/动态", "其他", "转载", "快讯"];
+
 export interface RotationResult {
   checked: number;
   archived: string[];
@@ -66,8 +74,14 @@ export interface ProposalRow {
 export async function proposeTopics(now = new Date()): Promise<ProposalRow[]> {
   const since = new Date(now.getTime() - ROTATE_WINDOW_DAYS * 86400_000);
   const topics = await sql<{ tags: string[]; entity_id: string | null }[]>`SELECT tags, entity_id FROM topics`;
+  // 已认领 = 标签本身 ∪ 机构键。机构主题（如 cma）用 entity:<id> 匹配，但它的 tags 里也写着「中国气象局」——
+  // 只算 topicMatchTags 会让这些标签永远当「新候选」，2026-11-05 那次 14 个候选里有 3 个就是这么来的。
   const claimed = new Set<string>();
-  for (const t of topics) for (const tag of topicMatchTags(t)) claimed.add(tag);
+  for (const t of topics) {
+    for (const tag of topicMatchTags(t)) claimed.add(tag);
+    for (const tag of t.tags ?? []) claimed.add(tag);
+  }
+  const generic = new Set(GENERIC_TAGS);
 
   const rows = await sql<{ tag: string; articles: number; first_seen: Date; last_seen: Date }[]>`
     SELECT tag, count(*)::int AS articles, min(timeline_at) AS first_seen, max(timeline_at) AS last_seen
@@ -79,7 +93,10 @@ export async function proposeTopics(now = new Date()): Promise<ProposalRow[]> {
      ORDER BY articles DESC
      LIMIT 50
   `;
-  const fresh = rows.filter((r) => !claimed.has(r.tag));
+  const fresh = rows.filter((r) => !claimed.has(r.tag) && !generic.has(r.tag));
+  const keep = fresh.map((r) => r.tag);
+  // 曾经的热词冷下来了（或已被主题认领）就先撤掉，免得看板上一直挂着过期结论。
+  await sql`DELETE FROM topic_proposals WHERE NOT (tag = ANY(${keep}))`;
   if (fresh.length) {
     await sql`
       INSERT INTO topic_proposals ${sql(fresh.map((r) => ({ tag: r.tag, articles: r.articles, first_seen: r.first_seen, last_seen: r.last_seen, seen_at: now })))}
