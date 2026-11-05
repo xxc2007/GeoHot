@@ -64,6 +64,8 @@ export interface AssignResult {
   scanned: number;
   assigned: number;
   rows: number;
+  /** 写失败的批次；下一轮会重算，不进覆盖率之外的口径。 */
+  failed?: number;
 }
 
 /**
@@ -87,11 +89,16 @@ export async function assignTopics(opts: { days?: number; now?: Date } = {}): Pr
   const batch = 500;
   let assigned = 0;
   let written = 0;
+  let failed = 0;
   for (let i = 0; i < rows.length; i += batch) {
     const slice = rows.slice(i, i + batch);
     const ids = slice.map((r) => r.article_id);
     const matches = slice.map((r) => ({ id: r.article_id, hits: topicsFor(r, topics) }));
-    written += await sql.begin(async (tx) => {
+    // 2026-11-06 现场：一批写到一半连接被服务端收起（`write CONNECTION_CLOSED`，db.ts 的 idle_timeout），
+    // 于是整轮抛错——`topics.assign` 的 job_runs 停在 running、之后每次到点都被当成「上一轮还没完」而跳过，
+    // 三个小时里主题分配一条没动。写坏了这一批就重来一次；两次都不行只记数、接着写下一批，
+    // 下一轮（10 分钟）会把这一批再算一遍。
+    const writeBatch = () => sql.begin(async (tx) => {
       await tx`DELETE FROM publication_topics WHERE article_id IN ${tx(ids)}`;
       const flat: Array<{ id: string; slug: string; source: string }> = [];
       for (const m of matches) for (const h of m.hits) flat.push({ id: m.id, slug: h.slug, source: h.source });
@@ -100,9 +107,21 @@ export async function assignTopics(opts: { days?: number; now?: Date } = {}): Pr
                ON CONFLICT (article_id, slug) DO NOTHING`;
       return flat.length;
     });
-    assigned += matches.filter((m) => m.hits.length > 0).length;
+    try {
+      written += await writeBatch();
+      assigned += matches.filter((m) => m.hits.length > 0).length;
+    } catch (error) {
+      failed += 1;
+      try {
+        written += await writeBatch();
+        assigned += matches.filter((m) => m.hits.length > 0).length;
+      } catch (second) {
+        const detail = second instanceof Error ? second.message : String(second);
+        console.error(JSON.stringify({ level: "error", msg: "topic assignment batch failed; continuing", batch: i / batch, ids: ids.length, error: detail }));
+      }
+    }
   }
-  return { scanned: rows.length, assigned, rows: written };
+  return { scanned: rows.length, assigned, rows: written, ...(failed ? { failed } : {}) };
 }
 
 /** 定时任务用：把结果写成一行日志，运维能看到覆盖率的趋势。 */
