@@ -139,18 +139,11 @@ export function listedCondition(now: Date) {
  * /all hid them).
  */
 export function selectedCondition(now: Date) {
-  // 精选里的每一条，读者点进去都得有东西可读。全文条目要就绪凭据（正文、媒体、检查都落定）；
-  // 摘要条目只在「来源本来就不提供全文」时放行——它的详情页就是摘要 + 去原文，与 /all 里那张
-  // 卡的承诺一致。2026-11-05 现场：今天选中的 8 条里有 7 条来自 site_fulltext=false 的来源，
-  // 被这里只认全文的门挡在外面，于是「全部」在更新、「精选」一条也没有。
-  return sql`p.visibility = 'public' AND p.selected AND ${releaseGateCondition(now)} AND ${chineseCopyCondition()}
-    AND (
-      ${workflowReadyCondition()}
-      OR (p.body_mode = 'summary'
-          AND NOT EXISTS (SELECT 1 FROM sources policy_summary_source
-            WHERE policy_summary_source.id = p.source_id AND policy_summary_source.site_fulltext)
-          AND btrim(coalesce(p.summary, '')) <> '')
-    )`;
+  // 精选与首页只放「走完全流程」的那一条：适用采集、筛选、当前版分析、完整正文、适用译文与媒体
+  // 准备都落定。2026-11-05 我曾为了让「精选」当天不为空，在这里给「来源不提供全文」的摘要条目开了
+  // 一个口子；站长当天指出这违反 AGENTS.md 的「完整读者内容强制规则」——读者面看到的每一条都必须
+  // 经过完整工作流。口子已收回，空着就空着：那是链路还没追上，不是门该放宽。
+  return sql`p.visibility = 'public' AND p.selected AND ${releaseGateCondition(now)} AND ${chineseCopyCondition()} AND ${workflowReadyCondition()}`;
 }
 
 export function channelCondition(channel: ChannelKey | null | undefined) {
