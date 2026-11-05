@@ -257,3 +257,14 @@ export function SearchBusy() {
     </div>
   );
 }
+
+// React Router 只把 loader 的头当成「建议」：没有这个导出时，服务端的公共读缓存判定看到的是空头，
+// 于是所有页面（包括历史日期）都退回 `private, no-store`。这里把 loader 算好的那份原样交出去。
+export const headers: Route.HeadersFunction = ({ loaderHeaders }) => {
+  const out: Record<string, string> = {};
+  for (const name of ["Cache-Control", "X-Robots-Tag"]) {
+    const value = loaderHeaders.get(name);
+    if (value) out[name] = value;
+  }
+  return out;
+};
