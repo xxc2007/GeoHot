@@ -44,13 +44,19 @@ case "$mode" in
     # 2026-11-05 20:2x 复发（积压 1.07 万、COMBINED=2/LANE=2 时公网 / 与 /all 25 秒 000，loopback 12 秒；
     # 停 worker 后 1.4s/0.47s；只把名额收到 1/1/1、进程不重启地放回来，loopback 1.7s/0.39s 且 CF 3.4s）。
     # 结论：白天在这台机器上，一个名额就是读者体验的上限——多一个名额换来的吞吐抵不过一次换页。
-    limits=$'GEOHOT_INTAKE_COMBINED_LIMIT=1\nGEOHOT_INTAKE_LANE_LIMIT=1\nGEOHOT_INTAKE_ANALYSIS_SLOTS=1'
+    # 2026-11-06 02:5x 现场：没有任何作业在跑、首页 0.37s，intake 却一直说 resource pressure ——
+    # 这台机器 swap 常年 600MB、PSI 的 avg10 一碰 swap 就上 60+，用它当开关等于永远不干活。
+    # 白天仍留一条相对紧的线（1 个名额），夜档更松；读者面由 r115 闸门 + 上一份好答案兜住。
+    limits=$'GEOHOT_INTAKE_COMBINED_LIMIT=1\nGEOHOT_INTAKE_LANE_LIMIT=1\nGEOHOT_INTAKE_ANALYSIS_SLOTS=1\nGEOHOT_PRESSURE_MEMORY_FULL=70\nGEOHOT_PRESSURE_IO_FULL=80\nGEOHOT_PRESSURE_LOAD_PER_CPU=6\nGEOHOT_RECOVER_MEMORY_FULL=95\nGEOHOT_RECOVER_IO_FULL=95\nGEOHOT_RECOVER_AVAILABLE_MIB=96'
     ;;
   night)
     mem_high=260M; mem_max=320M; swap_max=768M
     # 2026-11-04 22:15 实测：3 槽 + LANE=2 让首页从 0.4s 掉到 15s、两分钟后 503（_diag/t8/night-rehearsal.md）。
     # 这台 891MB / 2 vCPU 的瓶颈是换页，多给内存线有用，多给槽位没用，所以夜里只放到 2 槽。
-    limits=$'GEOHOT_INTAKE_COMBINED_LIMIT=2\nGEOHOT_INTAKE_LANE_LIMIT=1\nGEOHOT_INTAKE_ANALYSIS_SLOTS=2'
+    # 夜档（国内凌晨）读者最少；压力门的线放到「能干活」为止，真正的刹车是闸门与窗口守护。
+    # 2026-11-06 02:5x 现场：memoryFull 80–93、ioFull 90+ 一直挂在压力门上，而 CPU 95% 空转、
+    # 首页 0.37s —— 卡住的是门槛，不是机器。
+    limits=$'GEOHOT_INTAKE_COMBINED_LIMIT=2\nGEOHOT_INTAKE_LANE_LIMIT=1\nGEOHOT_INTAKE_ANALYSIS_SLOTS=2\nGEOHOT_PRESSURE_MEMORY_FULL=90\nGEOHOT_PRESSURE_IO_FULL=90\nGEOHOT_PRESSURE_LOAD_PER_CPU=8\nGEOHOT_RECOVER_MEMORY_FULL=95\nGEOHOT_RECOVER_IO_FULL=95\nGEOHOT_RECOVER_AVAILABLE_MIB=96'
     ;;
   *)
     echo "usage: $0 day|night" >&2
