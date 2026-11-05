@@ -17,6 +17,10 @@ const EMPTY_TTL_MS = 10_000;
 const TURN_WAIT_MS = 12_000;
 const SHORT_BURST_MS = 10_000;
 const SHORT_BURST_JOBS = 3;
+// 分析链路的饥饿下限：超过这么久没领到活就越过短任务连发。60 秒 × 一条 25 秒的任务，一天约 1400 次，
+// 正好跟得上线上新进量（1496 条/24 小时），又不会把抓取与配图挤到饿死。
+// 读在调用点上，而不是模块加载时：运维改旋钮（或测试改环境）不必重启进程。
+const analysisStarveMs = () => positiveInt(process.env.GEOHOT_INTAKE_ANALYSIS_STARVE_MS, "GEOHOT_INTAKE_ANALYSIS_STARVE_MS", 60_000);
 const intakeLane = (name: string, combined: boolean) => FETCH_LANE.has(name) || combined && name === "content.extract-body" ? "fetch" : combined && name === "content.analyze" ? "analysis" : "processing";
 const shortKind = (name: string, combined: boolean): "fetch" | "media" | undefined => intakeLane(name, combined) === "fetch" ? "fetch" : name === "media.prepare" ? "media" : undefined;
 
@@ -145,7 +149,14 @@ export class IntakeBudget {
     // bounded burst exists, and an occupied/empty short-work lane cannot reserve other lanes.
     const burstQueue = this.shortBurst ? contenders.find(name => shortKind(name, this.combined) === this.shortBurst!.kind) : undefined;
     if (this.shortBurst && !burstQueue) this.shortBurst = undefined;
-    const preferred = burstQueue ?? contenders[0];
+    // 2026-11-05 线上读数：24 小时里分析链路新进 1496 条、只跑完 493 条（≈20 条/小时），而全流水线
+    // 完成 9142 条 —— 名额被便宜的内部活（抓取探测、摘要、配图）占满，读者的「精选」只能排在后面。
+    // 一条 analyze 中位 25 秒，要跟上新进量只需每天 ~10 个槽位小时（不到总名额的三成）。所以给它一条
+    // **饥饿下限**：超过 STARVE_MS 没领到活，就直接越过短任务连发（burst），先轮到自己；没过线时
+    // 一切照旧，burst 与轮转的公平性都不动。
+    const analysisQueue = this.combined ? contenders.find(name => intakeLane(name, this.combined) === "analysis") : undefined;
+    const starved = analysisQueue !== undefined && now - (this.served.get(analysisQueue) ?? -Infinity) >= analysisStarveMs();
+    const preferred = starved ? analysisQueue! : burstQueue ?? contenders[0];
     if (preferred && preferred !== queue) {
       if (held?.queue !== preferred) this.waiting.set(scope, { queue: preferred, since: now });
       return false;

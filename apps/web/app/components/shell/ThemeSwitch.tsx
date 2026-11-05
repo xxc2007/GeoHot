@@ -26,9 +26,18 @@ export function ThemeSwitch({ className = "" }: { className?: string }) {
       setThemePreference(nextPref);
       document.documentElement.setAttribute("data-theme", resolvedTheme(nextPref));
     };
-    const doc = document as Document & { startViewTransition?: (cb: () => void) => unknown };
-    if (doc.startViewTransition && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) doc.startViewTransition(apply);
-    else apply();
+    // 切换动画会被打断：标签页在这一瞬被隐藏、或者下一次点击又起了一次切换，浏览器会把
+    // 这次 Transition 作废并让 `ready` 以 InvalidStateError 拒绝。若只挂回调，被作废那次
+    // 的选择就丢了（点了深色却还是浅色）。所以在 `ready` 拒绝时补做一次 apply —— 幂等。
+    const startTransition = (document as unknown as { startViewTransition?: (cb: () => void) => { ready: Promise<unknown> } }).startViewTransition;
+    if (!startTransition || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      apply();
+      return;
+    }
+    const transition = startTransition(apply);
+    transition.ready.catch(() => apply());
+    // `finished` 同样会以 InvalidStateError 拒绝（被下一次切换顶掉时），不接就是一个未处理的拒绝。
+    (transition as { finished?: Promise<unknown> }).finished?.catch(() => {});
   };
 
   return (

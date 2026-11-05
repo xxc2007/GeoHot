@@ -98,3 +98,47 @@ test("the reader gate freezes intake by file, and a broken file never freezes it
     assert.equal(r115FenceActive(now, path), false, "a hand-edited file is not a fence");
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+
+// 2026-11-05：24 小时分析新进 1496 条、只跑完 493 条，而全流水线完成 9142 条 —— 名额被便宜的内部活
+// 占满，判「精选」的那条链路排不进去。给它一条饥饿下限：超过 60 秒没领到活，就先于「谁最久没被服务」
+// 的轮转顺序轮到自己（名额总数与其它车道的轮次都不变）。
+test("an analysis lane starved past the floor takes more turns than the same timeline without it", async () => {
+  const go = async (budget: IntakeBudget, queue: string, now: number) => {
+    let sent = false;
+    const db = async () => { sent = true; return { rows: [{ id: "job" }] }; };
+    await budget.execute(db, claim(queue), [], healthy, now, 0, intakeAvailableLanes([], true, 2));
+    return sent;
+  };
+  // 两个车道都在持续轮询（生产里 analyze 每 2–5 秒问一次），谁问都不改变别人的 offer。
+  const run = async (budget: IntakeBudget) => {
+    assert.equal(await go(budget, "sources.fetch", 0), false, "暂停期不放行");
+    assert.equal(await go(budget, "sources.fetch", 20_000), true);
+    assert.equal(await go(budget, "content.analyze", 21_000), true);
+    let analysisTurns = 0;
+    for (let n = 1; n <= 10; n++) {
+      // 两次询问至少隔 1 秒（领到活之后有 1 秒冷却），跟线上两条轮询线程的节奏一致。
+      const t = 100_000 + n * 4_000;
+      await go(budget, "sources.fetch", t);
+      if (await go(budget, "content.analyze", t + 1_000)) analysisTurns += 1;
+    }
+    return analysisTurns;
+  };
+  const before = process.env.GEOHOT_INTAKE_ANALYSIS_STARVE_MS;
+  try {
+    // 下限极小 ⇒ 分析车道每次来都被当作"饿着"，几乎每问必得；下限极大 ⇒ 回到纯轮转。
+    process.env.GEOHOT_INTAKE_ANALYSIS_STARVE_MS = "1";
+    const starved = await run(new IntakeBudget(true));
+    process.env.GEOHOT_INTAKE_ANALYSIS_STARVE_MS = "600000";
+    const patient = await run(new IntakeBudget(true));
+    assert.ok(starved >= 8, `饥饿下限生效时分析链路几乎每问必得（实际 ${starved}/10）`);
+    assert.ok(patient <= 5, `下限抬高后回到轮转（实际 ${patient}/10）`);
+    assert.ok(starved > patient, "同一条时间线上，饥饿下限确实把名额挪给了分析链路");
+    // 生产默认值是 60 秒：不是无限优先，只是给它一条不至于饿死的下限。
+    delete process.env.GEOHOT_INTAKE_ANALYSIS_STARVE_MS;
+    const byDefault = await run(new IntakeBudget(true));
+    assert.ok(byDefault >= patient, `默认 60 秒不该比纯轮转更少（${byDefault} vs ${patient}）`);
+  } finally {
+    if (before === undefined) delete process.env.GEOHOT_INTAKE_ANALYSIS_STARVE_MS;
+    else process.env.GEOHOT_INTAKE_ANALYSIS_STARVE_MS = before;
+  }
+});
