@@ -139,7 +139,18 @@ export function listedCondition(now: Date) {
  * /all hid them).
  */
 export function selectedCondition(now: Date) {
-  return sql`p.visibility = 'public' AND p.selected AND ${releasedCondition(now)} AND ${chineseCopyCondition()}`;
+  // 精选里的每一条，读者点进去都得有东西可读。全文条目要就绪凭据（正文、媒体、检查都落定）；
+  // 摘要条目只在「来源本来就不提供全文」时放行——它的详情页就是摘要 + 去原文，与 /all 里那张
+  // 卡的承诺一致。2026-11-05 现场：今天选中的 8 条里有 7 条来自 site_fulltext=false 的来源，
+  // 被这里只认全文的门挡在外面，于是「全部」在更新、「精选」一条也没有。
+  return sql`p.visibility = 'public' AND p.selected AND ${releaseGateCondition(now)} AND ${chineseCopyCondition()}
+    AND (
+      ${workflowReadyCondition()}
+      OR (p.body_mode = 'summary'
+          AND NOT EXISTS (SELECT 1 FROM sources policy_summary_source
+            WHERE policy_summary_source.id = p.source_id AND policy_summary_source.site_fulltext)
+          AND btrim(coalesce(p.summary, '')) <> '')
+    )`;
 }
 
 export function channelCondition(channel: ChannelKey | null | undefined) {
