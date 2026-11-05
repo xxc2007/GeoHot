@@ -216,6 +216,9 @@ function benched(sick: Set<string>, name: string): boolean {
 }
 
 let health: { at: number; sick: Set<string> } | null = null;
+/** 2026-11-05: 失效发生在一次读盘在飞期间时，那次读盘会把「失效前」的结论写回缓存，
+ * 于是紧接着的请求看到一个已经过时的健康结论。代数只用来丢弃过期写回。 */
+let healthGeneration = 0;
 let healthInflight: Promise<Set<string>> | null = null;
 /** Rate-limited so a persistently unreadable ledger warns once a minute instead of once per task. */
 let healthReadFailureAt = 0;
@@ -230,6 +233,7 @@ export async function sickServices(): Promise<Set<string>> {
 }
 
 async function readSick(): Promise<Set<string>> {
+  const generation = healthGeneration;
   let sick = new Set<string>();
   try {
     // A paid answer can arrive but fail the caller's output gate. Discount only the explicitly
@@ -320,7 +324,7 @@ async function readSick(): Promise<Set<string>> {
       }));
     }
   }
-  health = { at: Date.now(), sick };
+  if (generation === healthGeneration) health = { at: Date.now(), sick };
   return sick;
 }
 
@@ -420,6 +424,7 @@ export function shedRefusingMembers(members: string[], capability: CapabilityKey
 export function invalidateModelCache() {
   cache = null;
   health = null;
+  healthGeneration += 1;
   stepRefusals = null;
   routing = null;
   routingRetryAfter = 0;
