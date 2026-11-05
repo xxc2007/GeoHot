@@ -39,14 +39,13 @@ case "$mode" in
     # 2026-11-05 03:1x 实测：120M/200M/256M 在 891MB 机器上仍会把 swap 顶到 700MB+、首页 503 21s；
     # 白天档再收紧一档，宁可少跑几条，也不让读者页面掉进换页。
     mem_high=90M; mem_max=150M; swap_max=128M
-    limits=$'GEOHOT_INTAKE_COMBINED_LIMIT=2\nGEOHOT_INTAKE_LANE_LIMIT=2'
+    limits=$'GEOHOT_INTAKE_COMBINED_LIMIT=2\nGEOHOT_INTAKE_LANE_LIMIT=2\nGEOHOT_INTAKE_ANALYSIS_SLOTS=2'
     ;;
   night)
     mem_high=260M; mem_max=320M; swap_max=768M
     # 2026-11-04 22:15 实测：3 槽 + LANE=2 让首页从 0.4s 掉到 15s、两分钟后 503（_diag/t8/night-rehearsal.md）。
     # 这台 891MB / 2 vCPU 的瓶颈是换页，多给内存线有用，多给槽位没用，所以夜里只放到 2 槽。
-    limits=$'GEOHOT_INTAKE_COMBINED_LIMIT=2
-GEOHOT_INTAKE_LANE_LIMIT=1'
+    limits=$'GEOHOT_INTAKE_COMBINED_LIMIT=2\nGEOHOT_INTAKE_LANE_LIMIT=1\nGEOHOT_INTAKE_ANALYSIS_SLOTS=2'
     ;;
   *)
     echo "usage: $0 day|night" >&2
