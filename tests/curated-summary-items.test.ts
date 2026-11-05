@@ -1,6 +1,9 @@
-// 「精选」的那道门：全文条目要有就绪凭据，摘要条目只在来源本来就不给全文时放行。
-// 2026-11-05 生产现场：今天选中的 8 条里有 7 条来自 site_fulltext=false 的来源，被「只认全文」挡住，
-// 于是「全部」在更新、「精选」一条也没有。
+// 「精选」的那道门：读者看到的每一条都必须走完整个内部工作流 —— 适用采集、筛选、当前版分析、
+// 完整正文、适用译文与必要媒体准备（AGENTS.md「完整读者内容的强制规则」，2026-10-28）。
+//
+// 2026-11-05 我曾为了让「精选」当天不为空，在这道门上给「来源不提供全文」的摘要条目开过一个口子；
+// 站长当天用一条真实页面（「这一条不提供站内全文：来源仅准摘要」）指出这违反规则，口子已收回。
+// 这组用例现在就钉住「收回了」：摘要条目、没有就绪凭据的条目、空摘要条目，一条都不进精选。
 import { purgeTagged, tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
@@ -8,7 +11,7 @@ import { closeDb, sql } from "@aihot/backend/db";
 import { stopBoss } from "@aihot/backend/jobs/queue";
 import { upsertMaterial } from "@aihot/backend/content/materials";
 import { publishArticle } from "@aihot/backend/publication/publish";
-import { selectedCondition } from "@aihot/backend/publication/items";
+import { listedCondition, selectedCondition } from "@aihot/backend/publication/items";
 
 const T = tag();
 const SUMMARY_SOURCE = `test-curated-summary-${T}`;
@@ -43,15 +46,15 @@ async function published(sourceId: string, title: string): Promise<string> {
   return articleId;
 }
 
-test("一条摘要条目，只要来源本来就不提供全文，就能进精选", async () => {
+test("来源不提供全文的摘要条目，不进精选", async () => {
   const id = await published(SUMMARY_SOURCE, `摘要条目 ${T}`);
   await sql`UPDATE publications SET body_mode = 'summary' WHERE article_id = ${id}`;
   const rows = await sql<{ article_id: string }[]>`
     SELECT p.article_id FROM publications p WHERE p.article_id = ${id} AND ${selectedCondition(new Date())}`;
-  assert.equal(rows.length, 1, "来源不提供全文的摘要条目应当出现在精选里");
+  assert.equal(rows.length, 0, "只准摘要的来源没有走完完整正文，不能出现在精选里");
 });
 
-test("同样的摘要条目，如果来源其实能取全文，就仍然要等就绪凭据", async () => {
+test("能取全文的来源退化成摘要卡，也不进精选", async () => {
   const id = await published(FULL_SOURCE, `等全文 ${T}`);
   await sql`UPDATE publications SET body_mode = 'summary' WHERE article_id = ${id}`;
   const rows = await sql<{ article_id: string }[]>`
@@ -59,12 +62,20 @@ test("同样的摘要条目，如果来源其实能取全文，就仍然要等�
   assert.equal(rows.length, 0, "能取全文的来源不该退化成摘要卡");
 });
 
-test("全文条目没有就绪凭据时仍然不进精选", async () => {
+test("全文条目没有就绪凭据时不进精选", async () => {
   const id = await published(FULL_SOURCE, `全文未就绪 ${T}`);
   await sql`DELETE FROM article_workflow_readiness WHERE article_id = ${id}`;
   const rows = await sql<{ article_id: string }[]>`
     SELECT p.article_id FROM publications p WHERE p.article_id = ${id} AND ${selectedCondition(new Date())}`;
   assert.equal(rows.length, 0);
+});
+
+test("「全部」列表用的是同一道门：没有就绪凭据的条目也不出现在列表里", async () => {
+  const id = await published(FULL_SOURCE, `列表未就绪 ${T}`);
+  await sql`DELETE FROM article_workflow_readiness WHERE article_id = ${id}`;
+  const listed = await sql<{ article_id: string }[]>`
+    SELECT p.article_id FROM publications p WHERE p.article_id = ${id} AND ${listedCondition(new Date())}`;
+  assert.equal(listed.length, 0, "两个出口不能对同一条给出两种答案");
 });
 
 test("没有摘要正文的摘要条目也不进精选（点进去是空的）", async () => {
