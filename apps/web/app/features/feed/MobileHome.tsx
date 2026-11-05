@@ -155,7 +155,10 @@ export function MobilePoolList({ pool, filters }: { pool: PoolResponse | null; f
     setLoading(true);
     setFailed(null);
     try {
-      const res = await fetch(publicPath(poolQuery(filters, page + 1)), { headers: { accept: "application/json" } });
+      // 同 InfiniteDayList：给接续请求一个 15 秒上限。没有它，被中间层挂住的请求会让
+      // 「正在接着取…」永远转下去 —— 2026-11-05 用真实 Edge 复测时亲眼见到这个状态
+      // 卡了 10 秒以上（同一秒另一次刷新 92ms 就回来了）。
+      const res = await fetch(publicPath(poolQuery(filters, page + 1)), { headers: { accept: "application/json" }, signal: AbortSignal.timeout(15_000) });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const body = (await res.json()) as PoolResponse;
       const fresh = body.items.filter((item) => !seen.current.has(item.id));
@@ -164,7 +167,8 @@ export function MobilePoolList({ pool, filters }: { pool: PoolResponse | null; f
       setPage(body.page);
       if (body.page >= Math.min(body.pageCount, MAX_PAGE) || body.items.length === 0) setDone(true);
     } catch (error) {
-      setFailed((error as Error)?.message ?? "加载失败");
+      const name = (error as Error)?.name;
+      setFailed(name === "TimeoutError" || name === "AbortError" ? "这次取超时了，再滑一下试试" : ((error as Error)?.message ?? "加载失败"));
     } finally {
       inflight.current = false;
       setLoading(false);

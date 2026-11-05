@@ -66,7 +66,10 @@ export function InfiniteDayList({ initialItems, initialPage, pageCount, query, t
     setFailed(null);
     try {
       const next = page + 1;
-      const res = await fetch(publicPath(withPage(query, next)), { headers: { accept: "application/json" } });
+      // 15 秒上限：接续请求若被中间层挂住（CF/边缘把长空闲连接晾着），没有 signal 的话
+      // 「正在接着取…」会一直转，读者既读不到下一屏也没法重试。超时后落进 catch，
+      // failed 一栏给出可再滑一次的提示（inflight 在 finally 里复位）。
+      const res = await fetch(publicPath(withPage(query, next)), { headers: { accept: "application/json" }, signal: AbortSignal.timeout(15_000) });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const body = (await res.json()) as PoolResponse;
       const fresh = body.items.filter((item) => !seen.current.has(item.id));
@@ -76,7 +79,8 @@ export function InfiniteDayList({ initialItems, initialPage, pageCount, query, t
       if (body.page >= AUTO_PAGES && !released) setAutoPaused(true);
       if (body.page >= Math.min(body.pageCount, MAX_PAGE) || body.items.length === 0) setDone(true);
     } catch (error) {
-      setFailed((error as Error)?.message ?? "加载失败");
+      const name = (error as Error)?.name;
+      setFailed(name === "TimeoutError" || name === "AbortError" ? "这次取超时了，再滑一下试试" : ((error as Error)?.message ?? "加载失败"));
     } finally {
       inflight.current = false;
       setLoading(false);
