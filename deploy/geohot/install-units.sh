@@ -71,6 +71,9 @@ ALL_UNITS=(geohot-brain.service geohot-api.service geohot-worker.service geohot-
            # 2026-11-04 补登：这三条只活在过去的工作流注释里，机器上装着、仓库里没有，照仓库恢复不出这台机器。
            geohot-liveness.service geohot-liveness.timer
            geohot-r115-reader-gate.service geohot-r115-reader-gate.timer
+           # 2026-11-05 补登：reader-recovery-ready.sh 原本假设"一分钟一次连续两次健康"，
+           # 但仓库里没有任何单元按这个节律调它 —— TRIP 之后的 RELEASE 永远凑不齐样本。
+           geohot-recovery-ready.service geohot-recovery-ready.timer
            geohot-swap-cache.service
            geohot-magpie.service geohot-magpie-update.service geohot-magpie-update.timer
            geohot-pricing-check.service geohot-pricing-check.timer)

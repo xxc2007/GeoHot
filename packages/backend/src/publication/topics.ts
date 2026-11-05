@@ -216,7 +216,11 @@ export async function loadTopicPage(slug: string, page: number, now?: Date): Pro
   const topic = topics.find((t) => t.slug === slug);
   if (!topic) return null;
   const pageCount = Math.max(1, Math.ceil(topic.total / TOPIC_PAGE_SIZE));
-  if (page < 1 || page > pageCount) return null;
+  const related = row.related.map((r) => topics.find((t) => t.slug === r)).filter((t): t is TopicSummary => !!t).map((t) => ({ slug: t.slug, name: t.name }));
+  // `page > pageCount` 不是"主题不存在"：2026-11-05 复核，越界页原先返回 null，
+  // 路由把它写成 404「topic page not found」，读者看到的是"这个主题没了"。
+  // 主题在、页码越界，就该给一页空列表（连同真实 pageCount），页面自己说"没有更多了"。
+  if (page > pageCount) return { topic: { ...topic, related }, items: [], page, pageCount, generatedAt: at.toISOString() };
   // Page ids from the selected set first, then the joins for those rows only.
   const rows = await sql<ItemRow[]>`
     WITH page AS (
@@ -226,7 +230,6 @@ export async function loadTopicPage(slug: string, page: number, now?: Date): Pro
       LIMIT ${TOPIC_PAGE_SIZE} OFFSET ${(page - 1) * TOPIC_PAGE_SIZE})
     SELECT ${ITEM_COLUMNS} ${ITEM_FROM} WHERE p.article_id IN (SELECT article_id FROM page)
     ORDER BY p.timeline_at DESC, p.article_id DESC`;
-  const related = row.related.map((r) => topics.find((t) => t.slug === r)).filter((t): t is TopicSummary => !!t).map((t) => ({ slug: t.slug, name: t.name }));
   return { topic: { ...topic, related }, items: rows.map(toFeedItemSummary), page, pageCount, generatedAt: at.toISOString() };
 }
 

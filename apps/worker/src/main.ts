@@ -25,8 +25,19 @@ function finishShutdown(): Promise<void> {
   return finishing ??= (async () => {
     console.log(JSON.stringify({ level: "info", msg: "worker stopping", role: plan.role }));
     if (heartbeat) clearInterval(heartbeat);
-    await stopBoss();
-    await closeDb();
+    // stopBoss 抛错时不能连带跳过下面两步（2026-11-05 复核：原先没有 try/finally，
+    // boss 停不下来就直接 stack 冒出去，冷却没落库、连接池没关，而被缓存的 rejected promise
+    // 再被 await 一次就是 unhandledRejection —— process-exit 500ms 后 exit(1)，看起来像崩溃）。
+    try {
+      await stopBoss();
+    } catch (error) {
+      console.error(JSON.stringify({ level: "error", msg: "queue did not stop cleanly; finishing shutdown anyway", error: String(error) }));
+    } finally {
+      // 冷却表还留在内存里的那几秒，必须在关库之前写下去：否则最后一次 reject()
+      // 跟着进程一起消失，重启后又被放回轮转——这正是落库这张表要解决的事。
+      await modelCooldown.flushNow().catch(() => {});
+      await closeDb().catch(() => {});
+    }
     process.exit(0);
   })();
 }

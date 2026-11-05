@@ -35,6 +35,12 @@ set -uo pipefail
 
 BIN=${GEOHOT_BIN:-/opt/geohot/bin}
 SYS=${SYSTEMD_SYS:-/etc/systemd/system}
+# 这份安装器里内嵌着 2026-10 那版闸门与判据的**快照**（heredoc），用来在没有仓库的情况下也能装。
+# 2026-11-05 复核：它把快照直接写到 /opt/geohot/bin，跑一次 --refresh 就把线上那份（有 fence、
+# 有部署窗口、unknown 会 TRIP 的现行版）盖回 stop 模式那一套 —— 于是按一次 --gate-on 就退回到
+# 2026-11-04 之前。下面两个变量指向同目录的仓库文件：有它以仓库为准，没有才退回内嵌快照并明说。
+SELF_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+REPO_BIN=$(cd "$SELF_DIR/.." 2>/dev/null && pwd)/bin
 ENVF=${R114_ENVF:-/opt/geohot/app/.env}
 LOG=${R114_LOG:-/var/log/geohot-r114-longwindow.log}
 WATCH=${R114_WATCH:-$BIN/r114-drain-watch.sh}
@@ -448,7 +454,13 @@ GATE_SCRIPT=${R115_GATE_SCRIPT:-$BIN/r115-reader-gate.sh}
 
 install_gate() { # 只落闸门脚本，不 enable
   mkdir -p "$BIN"
-  gate_body > "$GATE_SCRIPT.tmp" && mv "$GATE_SCRIPT.tmp" "$GATE_SCRIPT"; chmod 700 "$GATE_SCRIPT"; chown root:root "$GATE_SCRIPT"
+  if [ -r "$REPO_BIN/r115-reader-gate.sh" ]; then
+    install -m 700 -o root -g root "$REPO_BIN/r115-reader-gate.sh" "$GATE_SCRIPT"
+    echo "  gate_script 从仓库文件安装（不是内嵌快照）：$REPO_BIN/r115-reader-gate.sh"
+  else
+    echo "  !! 没找到 $REPO_BIN/r115-reader-gate.sh，退回内嵌快照——它可能比线上旧，装完请核对 fence 与部署窗口"
+    gate_body > "$GATE_SCRIPT.tmp" && mv "$GATE_SCRIPT.tmp" "$GATE_SCRIPT"; chmod 700 "$GATE_SCRIPT"; chown root:root "$GATE_SCRIPT"
+  fi
   unit_gate_svc "$E5WIN" "$COOLDOWN" "$GATE_SCRIPT" > "$SYS/geohot-r115-reader-gate.service"
   unit_tm geohot-r115-reader-gate "GEOHOT reader-first worker gate (10 min)" "$GATE_CADENCE" > "$SYS/geohot-r115-reader-gate.timer"
   systemctl daemon-reload
@@ -457,7 +469,13 @@ install_gate() { # 只落闸门脚本，不 enable
 
 install_files() { # 落盘判据与哨兵，并重装两枚单元；不碰阀门、不 enable
   mkdir -p "$BIN"
-  decide_body > "$DECIDE.tmp" && mv "$DECIDE.tmp" "$DECIDE"; chmod 700 "$DECIDE"; chown root:root "$DECIDE"
+  if [ -r "$REPO_BIN/r114-drain-decide.sh" ]; then
+    install -m 700 -o root -g root "$REPO_BIN/r114-drain-decide.sh" "$DECIDE"
+    echo "  decide 从仓库文件安装（不是内嵌快照）：$REPO_BIN/r114-drain-decide.sh"
+  else
+    echo "  !! 没找到 $REPO_BIN/r114-drain-decide.sh，退回内嵌快照——unknown 会退化成 SKIP，装完请核对"
+    decide_body > "$DECIDE.tmp" && mv "$DECIDE.tmp" "$DECIDE"; chmod 700 "$DECIDE"; chown root:root "$DECIDE"
+  fi
   watch_body  > "$WATCH.tmp"  && mv "$WATCH.tmp"  "$WATCH";  chmod 700 "$WATCH";  chown root:root "$WATCH"
   ls -l "$DECIDE" "$WATCH" | awk '{print $1, $5, $9}'
   unit_svc geohot-r114-drain-watch "GEOHOT long-window drain sentinel" "$DEADLINE_EPOCH" "$FLOOR" "$BUDGET" "$STREAK_N" "$STALL_N" "$BLIND_N" "$E5WIN" "$MAXSEC" "$WATCH" > "$SYS/geohot-r114-drain-watch.service"

@@ -80,9 +80,13 @@ export async function eraseFeedback(id: number, reason: string, actor: string) {
   const file = screenshotPath(row.screenshot_key);
   // 2026-10-31 站长要求：删除后条目直接从列表消失（整行删除），不留"已按要求删除"的外壳；
   // 审计日志保留是什么被删、谁删的。投递历史表（deliveries）不动。
-  await sql`DELETE FROM feedback WHERE id = ${id}`;
+  // 删除与审计同一事务（2026-11-05）：审计行说"删了这条"，就不该出现"删掉了但没记录"的窗口；
+  // 文件删除放在提交之后——文件系统不在事务里，先删文件再回滚会留下一条指向不存在文件的记录。
+  await sql.begin(async (tx) => {
+    await tx`DELETE FROM feedback WHERE id = ${id}`;
+    await audit(actor, "feedback.erase", `feedback:${id}`, why, { hadScreenshot: row.screenshot_key !== null }, null, undefined, tx);
+  });
   if (file) await unlink(file).catch(() => {});
-  await audit(actor, "feedback.erase", `feedback:${id}`, why, { hadScreenshot: row.screenshot_key !== null }, null);
   return { erased: true };
 }
 
@@ -99,7 +103,11 @@ export async function replyFeedback(id: number, input: { subject?: string; body:
   if (!fb.email) throw new InvalidInput("这条反馈没有留下邮箱，无法回复。");
   const { sendOperatorReply } = await import("../notify/email.ts");
   await sendOperatorReply(fb.email, `GEOHOT 反馈 #${fb.id} 的回复`, body);
-  await sql`UPDATE feedback SET status = 'replied', updated_at = now() WHERE id = ${id}`;
-  await audit(actor, "feedback.reply", `feedback:${id}`, (input.subject ?? "").trim(), { to: fb.email }, { sent: true, status: "replied" });
+  // 状态与审计同一事务；邮件在事务之前发出——SMTP 不参与回滚，发出去的话收不回来，
+  // 所以"已回复"必须在邮件确实发出之后再落库。
+  await sql.begin(async (tx) => {
+    await tx`UPDATE feedback SET status = 'replied', updated_at = now() WHERE id = ${id}`;
+    await audit(actor, "feedback.reply", `feedback:${id}`, (input.subject ?? "").trim(), { to: fb.email }, { sent: true, status: "replied" }, undefined, tx);
+  });
   return { replied: true, email: fb.email };
 }

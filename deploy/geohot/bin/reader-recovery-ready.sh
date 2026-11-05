@@ -31,5 +31,12 @@ prior=0
 [[ ! -r "$state" ]] || read -r prior < "$state"
 [[ "$prior" =~ ^[0-9]+$ ]] || prior=0
 if [[ "$healthy" != 1 ]]; then rm -f -- "$state"; exit 1; fi
+# 两次健康样本的间隔窗口。**上界必须容得下"样本由谁按什么节律写"**：
+# 2026-11-05 复核发现原先写死 150 秒，而唯一调用它的是 10 分钟一跑的闸门
+# （`OnCalendar=*:03/10`，相邻两轮 570–630 秒）——于是 TRIP 之后每次 RELEASE 都拿到
+# "健康连续确认未满足"，/run/geohot-r115-gate 永不释放，三条自动恢复路径同时以为
+# 闸门还按着 worker。现在补了一分钟一轮的 geohot-recovery-ready.timer（它才是这个
+# 脚本原本假设的节律），上界放宽到 660 秒：分钟计时器在时正常 60 秒一次，
+# 计时器坏掉/被停时，闸门自己那 10 分钟一轮也还能凑出"两次连续健康"。
 printf '%s\n' "$now" > "$state"
-(( prior > 0 && now-prior >= 40 && now-prior <= 150 ))
+(( prior > 0 && now-prior >= 40 && now-prior <= 660 ))

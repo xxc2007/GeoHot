@@ -58,7 +58,11 @@ DW=/run/geohot-deploy-window
 # 部署窗口与重启宽限是两件事：GRACE=0（关掉按单元时间戳算的宽限）时，部署自己写的窗口
 # 也必须照样生效，否则「关宽限」会连带关掉唯一可靠的排除手段。
 if [ -r "$DW" ]; then
-  read -r DS DE < "$DW" 2>/dev/null || true
+  # 两行各一个 epoch（deploy.sh 先写开始、验收前再追加结束）。`read -r DS DE < 文件` 只读
+  # **第一行**，结束那个 epoch 从来没被看见过——2026-11-05 复核：DE 恒为空，窗口被当成
+  # "还没关"，右端取 NOW，于是每次部署之后 1300 秒内的 5xx 全被当自家重启排掉。
+  DS=$(sed -n '1p' "$DW" 2>/dev/null || true)
+  DE=$(sed -n '2p' "$DW" 2>/dev/null || true)
   case "${DS:-}" in ''|*[!0-9]*) DS=0 ;; esac
   case "${DE:-}" in ''|*[!0-9]*) DE=0 ;; esac
   # **部署还在跑的时候，文件里只有开始那个 epoch**（结束那个要等验收前才追加）。

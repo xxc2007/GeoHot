@@ -1,0 +1,11 @@
+[Unit]
+Description=GEOHOT reader recovery ready sample (writes /run/geohot-r115-ready)
+# 只读 /proc 与本机首页一条探针，不碰模型、不碰库。写出的样本供闸门 RELEASE 判"两次连续健康"。
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/bin/bash /opt/geohot/bin/reader-recovery-ready.sh
+# 探针失败是这套脚本的**正常结论**（不健康就不写样本），单元不该因此变红。
+SuccessExitStatus=0 1

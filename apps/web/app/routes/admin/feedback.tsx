@@ -102,7 +102,12 @@ function FeedbackCard({ f }: { f: Feedback }) {
                   tone="primary"
                   disabled={replyBody.trim().length < 2 || !!pending}
                   busy={pending === "reply"}
-                  onClick={() => run("POST", `${base}/reply`, { body: replyBody }, { label: "reply", success: "回复已发送" }) !== null && setReplyBody("")}
+                  // `run` 返回的是 Promise：以前写成 `run(...) !== null && setReplyBody("")`，
+                  // Promise 恒不等于 null，于是**请求还没发出去**就把输入框清空了；失败时读者写的字也没了。
+                  onClick={async () => {
+                    const ok = await run("POST", `${base}/reply`, { body: replyBody }, { label: "reply", success: "回复已发送" });
+                    if (ok !== null) setReplyBody("");
+                  }}
                 >
                   用 {SITE.contactEmail ?? "站主邮箱"} 发送
                 </Button>

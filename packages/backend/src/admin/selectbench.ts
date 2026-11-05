@@ -77,7 +77,8 @@ export async function importSelectBenchRun(report: unknown, label: string, actor
         await tx`INSERT INTO selectbench_results ${tx(rows)} ON CONFLICT DO NOTHING`;
       }
     }
+    // 审计与导入同一事务（2026-11-05）：先说"导入了哪次评测"，就不该出现"导入了但没记录"或反过来。
+    await audit(actor, "selectbench.import", `selectbench:${id}`, null, null, { label, models: names, sampleSize }, undefined, tx);
   });
-  await audit(actor, "selectbench.import", `selectbench:${id}`, null, null, { label, models: names, sampleSize });
   return { id };
 }
