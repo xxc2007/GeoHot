@@ -30,9 +30,10 @@ export async function listFeedback(f: { status?: string; q?: string; page?: numb
       FROM feedback fb
       WHERE (${f.status ?? null}::text IS NULL OR fb.status = ${f.status ?? null})
         AND (${q}::text IS NULL OR fb.content ILIKE ${q} OR fb.email ILIKE ${q} OR fb.page_url ILIKE ${q})
-      ORDER BY fb.created_at DESC, fb.id LIMIT 50 OFFSET ${(page - 1) * 50}`;
+      ORDER BY fb.created_at DESC, fb.id LIMIT 51 OFFSET ${(page - 1) * 50}`;
     const counts = await db<{ status: string; n: number }[]>`SELECT status, count(*)::int AS n FROM feedback GROUP BY 1`;
-    return { page, rows, counts: Object.fromEntries(counts.map((c) => [c.status, c.n])) };
+    // 51 行是为了回答「还有没有下一页」：按「这页满 50 条」推断，尾页正好满 50 时点下一页是空表。
+    return { page, rows: rows.slice(0, 50), hasMore: rows.length > 50, counts: Object.fromEntries(counts.map((c) => [c.status, c.n])) };
   });
 }
 

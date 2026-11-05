@@ -29,6 +29,7 @@ interface SourceRow {
 interface SourcesData {
   page: number;
   rows: SourceRow[];
+  hasMore: boolean;
   totals: { total: number; enabled: number; failing: number; degraded: number; reserves: number; ready: number };
 }
 
@@ -40,7 +41,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 export const meta: Route.MetaFunction = () => [{ title: `信源 · ${SITE.name} 后台` }];
 
 export default function Sources({ loaderData }: Route.ComponentProps) {
-  const { rows, totals, page } = loaderData;
+  const { rows, totals, page, hasMore } = loaderData;
   const [sp] = useSearchParams();
   const navigate = useNavigate();
   return (
@@ -132,7 +133,7 @@ export default function Sources({ loaderData }: Route.ComponentProps) {
           ]}
         />
       </Card>
-      <Pager page={page} hasMore={rows.length === 100} />
+      <Pager page={page} hasMore={hasMore} />
     </AdminPage>
   );
 }

@@ -17,7 +17,7 @@ interface Row {
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
-  return adminGet<{ page: number; rows: Row[] }>(request, `/api/admin/audit${new URL(request.url).search}`);
+  return adminGet<{ page: number; rows: Row[]; hasMore: boolean }>(request, `/api/admin/audit${new URL(request.url).search}`);
 }
 
 export const meta: Route.MetaFunction = () => [{ title: `审计记录 · ${SITE.name} 后台` }];
@@ -54,7 +54,7 @@ export default function Audit({ loaderData }: Route.ComponentProps) {
           ]}
         />
       </Card>
-      <Pager page={loaderData.page} hasMore={loaderData.rows.length === 100} />
+      <Pager page={loaderData.page} hasMore={loaderData.hasMore} />
     </AdminPage>
   );
 }

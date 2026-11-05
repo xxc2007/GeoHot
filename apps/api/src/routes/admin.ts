@@ -162,7 +162,8 @@ export function registerAdmin(app: FastifyInstance) {
     const rows = await adminReadOrBusy((db) => db`
       SELECT id, created_at, actor, action, subject, reason, before, after FROM audit_log
       WHERE (${f.subject ?? null}::text IS NULL OR subject = ${f.subject ?? null}) AND (${f.action ?? null}::text IS NULL OR action LIKE ${`${f.action ?? ""}%`})
-      ORDER BY created_at DESC LIMIT 100 OFFSET ${(page(req) - 1) * 100}`);
-    return { page: page(req), rows };
+      ORDER BY created_at DESC LIMIT 101 OFFSET ${(page(req) - 1) * 100}`);
+    // 101 行只为回答「还有没有下一页」：后台按「这页满 100 条」推断，尾页正好满 100 时点下一页是空表。
+    return { page: page(req), rows: rows.slice(0, 100), hasMore: rows.length > 100 };
   }));
 }

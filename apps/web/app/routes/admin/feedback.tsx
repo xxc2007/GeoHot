@@ -32,6 +32,7 @@ interface Feedback {
 interface Data {
   page: number;
   rows: Feedback[];
+  hasMore: boolean;
   counts: Record<string, number>;
 }
 
@@ -148,7 +149,7 @@ function FeedbackCard({ f }: { f: Feedback }) {
 }
 
 export default function FeedbackAdmin({ loaderData }: Route.ComponentProps) {
-  const { rows, counts, page } = loaderData;
+  const { rows, counts, page, hasMore } = loaderData;
   const [sp] = useSearchParams();
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
   return (
@@ -166,7 +167,7 @@ export default function FeedbackAdmin({ loaderData }: Route.ComponentProps) {
       <div className="space-y-3">
         {rows.length ? rows.map((f) => <FeedbackCard key={`${f.id}-${f.updated_at}`} f={f} />) : <Card><Empty>没有符合条件的反馈</Empty></Card>}
       </div>
-      <Pager page={page} hasMore={rows.length === 50} />
+      <Pager page={page} hasMore={hasMore} />
     </AdminPage>
   );
 }
