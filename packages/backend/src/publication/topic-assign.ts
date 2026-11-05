@@ -22,9 +22,9 @@ export interface TopicMatch {
   source: "tags" | "category" | "keyword";
 }
 
-/** 与 `topics.ts` 的 `topicMatchTags` 保持同一口径：机构主题吃 `entity:<id>`，其余吃自己的标签。 */
+/** 与 `topics.ts` 的 `topicMatchTags` 同口径：机构主题吃 `entity:<id>` 加机构名写法，其余吃自己的标签。 */
 function tagKeys(t: TopicRow): string[] {
-  return t.entity_id ? [`entity:${t.entity_id}`] : t.tags;
+  return t.entity_id ? [`entity:${t.entity_id}`, ...(t.org_names ?? [])] : t.tags;
 }
 
 const norm = (value: string | null | undefined) => (value ?? "").toLowerCase();

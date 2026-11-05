@@ -14,6 +14,8 @@ export interface TopicRow {
   entity_id: string | null;
   tags: string[];
   keywords: string[];
+  /** 机构名的各种写法：机构主题除了 `entity:<id>` 也认这些（0109/0110 的理由见迁移注释）。 */
+  org_names: string[];
   definition: string;
   related: string[];
   position: number;
@@ -23,7 +25,7 @@ export interface TopicRow {
 
 type TopicCount = { slug: string; total: number; recent: number; pages: number; indexable: boolean; latest: Date | null };
 const topicsCache = cached(
-  () => sql<TopicRow[]>`SELECT slug, name, grp, entity_id, tags, keywords, definition, related, position, dormant_at FROM topics ORDER BY position`,
+  () => sql<TopicRow[]>`SELECT slug, name, grp, entity_id, tags, keywords, org_names, definition, related, position, dormant_at FROM topics ORDER BY position`,
   { freshMs: 60_000, maxStaleMs: 10 * 60_000 },
 );
 
@@ -119,11 +121,15 @@ export async function loadTopic(slug: string): Promise<TopicRow | null> {
 }
 
 /**
- * Tags that put an article in a topic. A company topic takes only articles actually about the company
- * (its entity subject tag), never mere mentions; field and genre topics match their tags.
+ * Tags that put an article in a topic.
+ *
+ * 机构主题：认这家机构作为来源主体的文章（`entity:<id>`），也认文章标签里写的机构名
+ * （`org_names`：哥白尼 / 粮农组织 / 欧空局 …）。**不**把 `tags` 并进来 —— 0106 那次 gdacs
+ * 吞掉 2,105 条灾害条目，就是机构主题的 tags 里混着体裁词。
+ * 字段/体裁主题仍只认自己的 `tags`。
  */
-export function topicMatchTags(t: Pick<TopicRow, "entity_id" | "tags">): string[] {
-  return t.entity_id ? [`entity:${t.entity_id}`] : t.tags;
+export function topicMatchTags(t: Pick<TopicRow, "entity_id" | "tags" | "org_names">): string[] {
+  return t.entity_id ? [`entity:${t.entity_id}`, ...(t.org_names ?? [])] : t.tags;
 }
 
 export async function loadTopicTags(slug: string): Promise<string[] | null> {

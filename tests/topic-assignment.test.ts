@@ -10,6 +10,7 @@ const topic = (over: Partial<TopicRow> & { slug: string }): TopicRow => ({
   entity_id: null,
   tags: [],
   keywords: [],
+  org_names: [],
   definition: "",
   related: [],
   position: 0,
@@ -19,7 +20,9 @@ const topic = (over: Partial<TopicRow> & { slug: string }): TopicRow => ({
 
 const topics: TopicRow[] = [
   topic({ slug: "earthquakes", tags: ["地震"] }),
-  topic({ slug: "cenc", entity_id: "cenc", tags: ["中国地震台网"] }),
+  topic({ slug: "cenc", entity_id: "cenc", tags: ["中国地震台网"], org_names: ["中国地震台网", "CENC"] }),
+  // 机构主题：来源主体之外，文章标签里写的机构名也算（0109/0110：哥白尼 214 条、欧空局 168 条、粮农组织 119 条）
+  topic({ slug: "copernicus", grp: "company", entity_id: "copernicus", tags: ["遥感影像"], org_names: ["哥白尼", "哥白尼计划"] }),
   topic({ slug: "geopolitics", tags: ["政治地理"], keywords: ["关税", "制裁"] }),
   topic({ slug: "economic-geography", tags: ["经济地理"], keywords: ["供应链", "通胀"] }),
 ];
@@ -52,4 +55,15 @@ test("关键词太短（单个字）时不乱归类", () => {
 test("一条条目同时被标签与关键词命中时只出现一次", () => {
   const hits = topicsFor({ title: "地震后的关税谈判", summary: null, category: null, tags: ["地震"] }, topics);
   assert.deepEqual(hits.map((h) => h.slug).sort(), ["earthquakes", "geopolitics"]);
+});
+test("机构名写在文章标签里，也算这家机构主题的（entity 之外的那一半）", () => {
+  const hits = topicsFor(
+    { title: "哥白尼计划发布全球土地覆盖更新", summary: null, category: null, tags: ["哥白尼", "遥感影像"] },
+    topics,
+  );
+  const hit = hits.find((h) => h.slug === "copernicus");
+  assert.ok(hit, "标签写着哥白尼，就该进哥白尼计划的分类页");
+  assert.equal(hit?.source, "tags");
+  const other = topicsFor({ title: "某地暴雨", summary: null, category: null, tags: ["预警/响应"] }, topics);
+  assert.equal(other.some((h) => h.slug === "copernicus"), false, "体裁标签不该被机构主题认领");
 });
