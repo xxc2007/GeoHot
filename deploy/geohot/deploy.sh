@@ -178,6 +178,13 @@ if [ -d "$APP_ROOT/deploy/geohot/nginx" ]; then
   while IFS= read -r -d '' f; do
     base="$(basename "$f")"
     dest="/etc/nginx/snippets/$base"
+    # 只同步「这台机器真的会读」的片段：snippets 里没有同名文件、也没有任何 include 指向它，
+    # 装进去只会留下一份没人读的副本（2026-11-06 实测 28-geohot-public-admission.conf 被复制错位），
+    # 真正的 conf.d 片段由 install-units/人工步骤负责。
+    if [ ! -f "$dest" ] && ! grep -rqs "snippets/$base" /etc/nginx/sites-enabled /etc/nginx/conf.d; then
+      echo "nginx: 跳过 $base（这台机器没有 include 它）"
+      continue
+    fi
     if ! cmp -s "$f" "$dest"; then
       [ -f "$dest" ] && cp -a "$dest" "/root/nginx-snippet-backup/$base.$(date +%s)"
       install -m 644 "$f" "$dest"
