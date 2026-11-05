@@ -39,7 +39,9 @@ case "$mode" in
     # 2026-11-05 03:1x 实测：120M/200M/256M 在 891MB 机器上仍会把 swap 顶到 700MB+、首页 503 21s；
     # 白天档再收紧一档，宁可少跑几条，也不让读者页面掉进换页。
     mem_high=90M; mem_max=150M; swap_max=128M
-    limits=$'GEOHOT_INTAKE_COMBINED_LIMIT=2\nGEOHOT_INTAKE_LANE_LIMIT=2\nGEOHOT_INTAKE_ANALYSIS_SLOTS=2'
+    # 2026-11-05 17:19 现场：两条并行分析（各拉大正文回写）把 loopback 首页拖到 12 秒超时、负载 3.0、
+    # 可用内存 89MB；停 worker 5 秒后回到 0.76s。白天只留 1 条分析，本机执行器在线时另算 2 条。
+    limits=$'GEOHOT_INTAKE_COMBINED_LIMIT=2\nGEOHOT_INTAKE_LANE_LIMIT=2\nGEOHOT_INTAKE_ANALYSIS_SLOTS=1'
     ;;
   night)
     mem_high=260M; mem_max=320M; swap_max=768M
