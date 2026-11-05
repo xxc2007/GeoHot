@@ -408,7 +408,8 @@ export const MODELS: Record<string, ModelSpec> = {
     reasoningHeadroom: { default: 16_000, summarize_article: 32_000 },
   },
   "workbuddy-ai-deepseek-flash": {
-    key: "workbuddy-ai-deepseek-flash", service: "workbuddy-ai", model: "workbuddy-ai/deepseek-v4.1-flash",
+    // 2026-11-06 复核：3426 上这条只有 -sg 变体（`/v1/models` 实测），原 id 每次派发都 404。
+    key: "workbuddy-ai-deepseek-flash", service: "workbuddy-ai", model: "workbuddy-ai/deepseek-v4.1-flash-sg",
     baseUrlEnv: "QODER_CN_BASE_URL", apiKeyEnv: "QODER_CN_API_KEY",
     // 2026-10-22 站长指令：「不要调推理，一定要用最大的推理强度，确保模型发挥最大性能，
     // 保证模型工作流的质量」。所以这一档固定 reasoning_effort: max，**任何步骤都不降档**。

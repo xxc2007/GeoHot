@@ -121,7 +121,7 @@ GEOHOT 基于开源框架 [AIHOT](https://github.com/KKKKhazix/AIHOT) 构建，�
 
 ```bash
 npm ci
-# 想换端口（避开本机已在跑的栈）就带上四个 --xxx-port；不想换就省掉这一段。
+# 带四个 --xxx-port 就会换端口（避开本机已在跑的栈）；跨过下面这条照抄默认端口。
 # env:init 拒绝覆盖已有配置（避免把线上 .env 洗掉），要重新生成先把它挪开：
 mv .env .env.bak 2>/dev/null; mv .env.pipeline .env.pipeline.bak 2>/dev/null
 npm run env:init -- --db-port=5455 --api-port=3299 --web-port=3099 --brain-port=3065
@@ -132,8 +132,10 @@ npm run env:init -- --db-port=5455 --api-port=3299 --web-port=3099 --brain-port=
 本地跑起来的最短路径（七条命令，另开几个终端更清楚）：
 
 ```bash
-npm run db:up -- --foreground --port=5455   # 内嵌 PostgreSQL；端口只认 --port / DEV_DB_PORT，不读 .env
-npm run db:migrate                          # 建表（干净库 96 条迁移，约 1 秒）
+# 端口必须和上一步 --db-port 一致：db:up 只认 --port / DEV_DB_PORT，不读 .env，
+# 写着 5455 却连 5433 的话，下一条迁移会写进那台已经在跑的库。
+npm run db:up -- --foreground --port=5455
+npm run db:migrate                          # 建表（干净库 105 条迁移，约 2 秒）
 node --env-file-if-exists=.env scripts/seed.ts                     # 主题 43 / 信源 668（无 npm 别名）
 node --env-file=.env --env-file=.env.pipeline tooling/brain-stub.ts                 # 本地模型 stub，BRAIN_PORT=3065
 node --env-file=.env --env-file=.env.pipeline apps/api/src/main.ts                  # 接口，API_PORT=3299

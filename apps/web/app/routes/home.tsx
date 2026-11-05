@@ -41,8 +41,10 @@ export async function loader({ request }: Route.LoaderArgs) {
     // 这个接口的页大小固定 40（`POOL_PAGE_SIZE`）。以前这里截到 12 张卡、剩下的靠
     // 「查看全部 N 条」跳到 /all；站长 2026-11-04 明确不要那个"点一下才能继续读"，
     // 所以整页交给客户端的触底续读（`MobilePoolList`），这一页原样保留 40 条。
-    loadOr404<PoolResponse>(`/api/site/pool${queryString(scope)}`, { signal: request.signal })
-      .catch(() => null),
+    // 精选那一段不渲染收录池（手机「全部」才用）：别让首字节替看不到的东西等一趟。
+    tab === "all"
+      ? loadOr404<PoolResponse>(`/api/site/pool${queryString(scope)}`, { signal: request.signal }).catch(() => null)
+      : Promise.resolve(null),
     tab === "all"
       ? loadOr404<{ month: string; days: CalendarDay[] }>(`/api/site/calendar${queryString({ month, ...scope })}`, { signal: request.signal }).catch(() => null)
       : Promise.resolve(null),

@@ -86,6 +86,7 @@ async function serveStatic(pathname: string, res: import("node:http").ServerResp
   const info = await stat(file).catch(() => null);
   if (!info?.isFile()) return false;
   const immutable = pathname.startsWith("/assets/");
+  applySecurityHeaders(res);
   res.writeHead(200, {
     "Content-Type": TYPES[path.extname(file)] ?? "application/octet-stream",
     "Content-Length": info.size,
@@ -96,12 +97,26 @@ async function serveStatic(pathname: string, res: import("node:http").ServerResp
   return true;
 }
 
+// 2026-11-06 复核：HTML 与 API 两条主路径此前没有任何安全头，CSP 只活在 nginx 片段里，
+// 直连 3000 或未被覆盖的路径就裸奔。这里补最小集合（不碰 script-src，不会白屏）：
+// 禁嵌套、禁插件内容、禁 base 改写，外加 nosniff / Referrer / frame 三件套。
+function applySecurityHeaders(target: import("node:http").ServerResponse, contentType?: string) {
+  const html = String(contentType ?? target.getHeader("Content-Type") ?? "").toLowerCase().startsWith("text/html");
+  if (!target.hasHeader("X-Content-Type-Options")) target.setHeader("X-Content-Type-Options", "nosniff");
+  if (!target.hasHeader("Referrer-Policy")) target.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  if (!target.hasHeader("X-Frame-Options")) target.setHeader("X-Frame-Options", "DENY");
+  if (html && !target.hasHeader("Content-Security-Policy")) {
+    target.setHeader("Content-Security-Policy", "frame-ancestors 'none'; base-uri 'self'; object-src 'none'");
+  }
+}
+
 // One bad request must never take the process down: answer it and keep serving.
 const server = createServer((req, res) => {
   handle(req, res).catch((error: unknown) => {
     const bad = error instanceof BadRequest || error instanceof URIError;
     if (!bad) console.error(JSON.stringify({ level: "error", msg: "web request failed", path: (req.url ?? "").split("?")[0]!.slice(0, 200), error: String(error).slice(0, 500) }));
     if (res.headersSent) return res.destroy();
+    applySecurityHeaders(res);
     res.writeHead(bad ? 400 : 500, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" });
     res.end(bad ? "Bad request" : "Internal error");
   });
@@ -145,6 +160,7 @@ function pageCache(req: import("node:http").IncomingMessage, res: import("node:h
         ? `${directives.join(", ")}, max-age=${Math.min(seconds, BROWSER_MAX_SECONDS)}, s-maxage=${seconds}, must-revalidate`
         : "no-cache");
     }
+    applySecurityHeaders(res);
     return typeof messageOrHeaders === "string" ? writeHead(status, messageOrHeaders) : writeHead(status);
   }) as typeof res.writeHead;
 }

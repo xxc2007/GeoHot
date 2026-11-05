@@ -196,10 +196,12 @@ export interface TopicSummary {
   latestAt: string | null;
 }
 
-export async function listTopicSummaries(now?: Date): Promise<TopicSummary[]> {
+export async function listTopicSummaries(now?: Date, includeDormant = false): Promise<TopicSummary[]> {
   const topics = await listTopics();
   const counts = new Map((await topicPageCounts(now)).map((c) => [c.slug, c]));
-  return topics.filter((t) => !t.dormant_at).map((t) => {
+  // 0104 的契约：归档主题不再出现在列表与导航里，页 仍可访问。页面要拿到归档主题的
+  // 计数与相关主题，列表接口则保持过滤，所以过滤交给调用方决定。
+  return topics.filter((t) => includeDormant || !t.dormant_at).map((t) => {
     const c = counts.get(t.slug);
     return { slug: t.slug, name: t.name, group: t.grp, definition: t.definition, total: c?.total ?? 0, recent: c?.recent ?? 0, indexable: c?.indexable ?? false, latestAt: c?.latest?.toISOString() ?? null };
   });
@@ -223,7 +225,7 @@ export async function loadTopicPage(slug: string, page: number, now?: Date): Pro
   const at = now ?? new Date();
   const row = await loadTopic(slug);
   if (!row || page < 1) return null;
-  const topics = await listTopicSummaries(now);
+  const topics = await listTopicSummaries(now, true);
   const topic = topics.find((t) => t.slug === slug);
   if (!topic) return null;
   const pageCount = Math.max(1, Math.ceil(topic.total / TOPIC_PAGE_SIZE));

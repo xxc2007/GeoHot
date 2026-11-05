@@ -93,8 +93,8 @@ sudo journalctl -u geohot-web -n 3                                              
    而 geohot 没有登录 shell，于是 npm 把缓存写进操作者的家目录、构建时以 EACCES 收场。
    同一个道理，第 3/4/8/9 节所有以 geohot 身份跑 node/npm/git 的地方现在都走一个带 `env HOME=$APP_HOME`
    的前缀，`install-units.sh` 与 `systemd/*.service` 里的 `Environment=HOME=` 是它的运行期对应物。
-3. **单元**：`bash deploy/geohot/install-units.sh`。**2026-10-15 起这是一条路，不是两条**：
-   默认路径（`GEOHOT_APP_ROOT=/opt/geohot/app`）下它直接安装 `deploy/geohot/systemd/` 里的 **8 个**模板
+3. **单元**：`bash deploy/geohot/install-units.sh --apply`（不带 `--apply` 是预演，什么都不会写）。**2026-10-15 起这是一条路，不是两条**：
+   默认路径（`GEOHOT_APP_ROOT=/opt/geohot/app`）下它直接安装 `deploy/geohot/systemd/` 里的 **20 个**模板（`deploy/geohot/systemd/` 目录下共 33 个文件，含 drop-in 与 timer）
    （brain/api/worker/web + 两条 workbuddy 桥 + archive 的 .service/.timer），带加固块
    （`NoNewPrivileges`/`PrivateTmp`/`ProtectSystem=strict`/`ReadWritePaths`/`ProtectKernel*`…）；
    只有当 `GEOHOT_APP_ROOT` 指向别处（模板里 `/opt/geohot/app` 是写死的，systemd 不做插值）才退回
