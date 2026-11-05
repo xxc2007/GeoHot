@@ -48,7 +48,7 @@ test("same-millisecond and backwards wall clocks cannot let an older request cle
 
 test("a refusal survives the process: the next process reads the cooldown back", async () => {
   const { sql } = await import("../packages/backend/src/db.ts");
-  await sql`DELETE FROM settings WHERE key = 'model-cooldown.v1'`;
+  await sql`DELETE FROM settings WHERE key LIKE 'model-cooldown.v1:%'`;
   const first = new ModelCooldown();
   await first.load();
   const now = Date.now();
@@ -59,7 +59,23 @@ test("a refusal survives the process: the next process reads the cooldown back",
   await second.load();
   assert.ok(second.overlay(new Set(), now + 2).has("agnes-cn|restart-survivor"),
     "the hour-long refusal must not be forgotten by a restart");
-  await sql`DELETE FROM settings WHERE key = 'model-cooldown.v1'`;
+  await sql`DELETE FROM settings WHERE key LIKE 'model-cooldown.v1:%'`;
+});
+
+test("flushNow writes the hour-long refusal before the process exits", async () => {
+  // 2026-11-05：worker 一天被停/起六十多次，退出路径原先只 stopBoss + closeDb——
+  // 最后一次 reject() 的冷却会跟着进程消失。flushNow 是退出路径上那一次显式落库。
+  const { sql } = await import("../packages/backend/src/db.ts");
+  await sql`DELETE FROM settings WHERE key LIKE 'model-cooldown.v1:%'`;
+  const cooldown = new ModelCooldown();
+  await cooldown.load();
+  cooldown.reject("agnes-cn", "exit-flush", 402, "insufficient balance");
+  await cooldown.flushNow();
+  const [row] = await sql<{ value: { until: number } }[]>`
+    SELECT value FROM settings WHERE key = 'model-cooldown.v1:agnes-cn|exit-flush'`;
+  assert.ok(row?.value?.until, "flushNow must land the refusal without waiting for the debounce");
+  assert.ok(row!.value.until > Date.now(), "the refusal it wrote must still be in the future");
+  await sql`DELETE FROM settings WHERE key LIKE 'model-cooldown.v1:%'`;
 });
 
 after(closeDb);

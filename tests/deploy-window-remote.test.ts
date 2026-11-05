@@ -40,4 +40,18 @@ test("闸门把只有开始时间的窗口当成还没关", () => {
     "部署进行中只有 DS：右端要按 NOW 补上，否则重启窗口内的 5xx 全算读者事故",
   );
   assert.match(gate, /if \[ -r "\$DW" \]; then/, "窗口可读就该生效，不该藏在 GRACE > 0 里");
+  // 2026-11-05 二次复核：文件里是两行（开始、结束各一个 epoch），而 `read -r DS DE < 文件`
+  // 只吃第一行 —— 结束那个 epoch 从来没被看见，窗口被当成"还没关"，右端取 NOW。
+  assert.match(gate, /DS=\$\(sed -n '1p' "\$DW"/, "开始时间读第一行");
+  assert.match(gate, /DE=\$\(sed -n '2p' "\$DW"/, "结束时间读第二行（read 只读第一行，是上一个版本的真 bug）");
+  assert.doesNotMatch(gate, /read -r DS DE < "\$DW"/, "别再退回按行读两个字段");
+});
+
+test("恢复就绪判据的间隔窗口容得下闸门自己的节律", () => {
+  // 唯一调用 reader-recovery-ready.sh 的计时器是 10 分钟一轮；样本间隔写死 150 秒时
+  // RELEASE 永远拿不到"两次连续健康"，/run/geohot-r115-gate 永不释放。
+  const ready = read("deploy/geohot/bin/reader-recovery-ready.sh");
+  const bound = /now-prior <= (\d+)/.exec(ready);
+  assert.ok(bound, "脚本里应有 now-prior <= N 的上界");
+  assert.ok(Number(bound[1]) >= 600, `上界要容得下 10 分钟一轮的闸门，实际 ${bound?.[1]}`);
 });

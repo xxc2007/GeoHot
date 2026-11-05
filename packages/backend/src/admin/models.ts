@@ -150,13 +150,17 @@ export async function switchModel(capability: string, model: string | null, reas
     if (spec.jsonMode === false && !c.freeText) throw Object.assign(new Error("this step parses JSON, so it needs a model with JSON mode"), { statusCode: 400 });
   }
   const before = (await modelSources())[capability];
-  if (model === null) await sql`DELETE FROM settings WHERE key = ${`models.${capability}`}`;
-  else {
-    await sql`INSERT INTO settings (key, value, updated_by) VALUES (${`models.${capability}`}, ${sql.json({ model })}, ${actor})
-              ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_by = EXCLUDED.updated_by, updated_at = now()`;
-  }
+  // 写设置与写审计放在同一个事务里：审计说「谁把这一步换成了哪个模型」，那笔写入就得是同一件事。
+  // 2026-11-05 复核：原先 audit 走全局连接、写在两次写之后，写失败时审计行照样留着。
+  await sql.begin(async (tx) => {
+    if (model === null) await tx`DELETE FROM settings WHERE key = ${`models.${capability}`}`;
+    else {
+      await tx`INSERT INTO settings (key, value, updated_by) VALUES (${`models.${capability}`}, ${tx.json({ model })}, ${actor})
+                ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_by = EXCLUDED.updated_by, updated_at = now()`;
+    }
+    await audit(actor, "models.switch", `capability:${capability}`, reason, before ?? null, { model }, undefined, tx);
+  });
   invalidateModelCache();
   const after = (await modelSources())[capability];
-  await audit(actor, "models.switch", `capability:${capability}`, reason, before ?? null, after ?? null);
   return { capability, before, after };
 }

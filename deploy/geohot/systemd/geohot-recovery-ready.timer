@@ -1,0 +1,15 @@
+[Unit]
+Description=GEOHOT reader recovery ready sample (one healthy sample per minute)
+# 2026-11-05：reader-recovery-ready.sh 的设计前提是"一分钟一次、连续两次健康"，
+# 但仓库里只有 10 分钟一跑的闸门会调它 —— 于是 TRIP 之后的 RELEASE 永远凑不齐
+# 两次 40–150 秒内的样本（`RECOVERY-WAIT` 无限续期）。这枚计时器补上它假设的节律。
+Documentation=file:///opt/geohot/app/docs/known-issues.md
+
+[Timer]
+OnCalendar=minutely
+RandomizedDelaySec=5
+Persistent=false
+Unit=geohot-recovery-ready.service
+
+[Install]
+WantedBy=timers.target

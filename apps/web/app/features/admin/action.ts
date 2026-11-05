@@ -55,7 +55,15 @@ export function useAdminAction() {
         if (res.status === 401) {
           // `return` stays an app-root path: the api answers with a root-relative Location, and the proxy
           // in front re-applies the prefix the browser needs.
+          toast("登录已过期，正在回到登录页", "error");
           window.location.href = publicPath(`/api/auth/login?return=${encodeURIComponent(appPath(window.location.pathname))}`);
+          return null;
+        }
+        if (res.status === 403) {
+          // 403 大多是 CSRF 令牌过期（后台开了很久没动）而不是没权限：把英文 detail 直接 toast 出去，
+          // 操作者只看到 "forbidden" 不知道下一步做什么。刷新一次凭据、请人再点一次，比跳登录页温和。
+          toast("这次操作被拒绝了（403）：校验可能已过期，已刷新，请再试一次", "error");
+          revalidator.revalidate();
           return null;
         }
         const text = await res.text();

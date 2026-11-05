@@ -85,7 +85,10 @@ export async function loadOr404<T>(
     if (error instanceof ApiRedirect) throw error;
     if (error instanceof ApiError) {
       if (error.status === 404) throw data({ message: "not_found" }, { status: 404 });
-      if (error.status === 503 && opts.busyRedirect) throw redirect(opts.busyRedirect);
+      // 只有「搜索排队」这一种 503 才跳「搜索有点忙」：以前任何 503 都跳过去，于是列表本身
+      // 读不出来时，读者被送到一个和搜索毫无关系的页面（`site.ts` 的两个 503 出口共用同一个
+      // code 是那条 bug 的根；现在它们分别叫 search_busy 与 read_busy）。
+      if (error.status === 503 && error.code === "search_busy" && opts.busyRedirect) throw redirect(opts.busyRedirect);
       if (error.status === 400) throw data({ message: "bad_request" }, { status: 400 });
     }
     throw data({ message: "unavailable" }, { status: 503 });

@@ -61,7 +61,15 @@ export function siteHandler(fn: Handler): Handler {
           { path: req.url.split("?")[0], ms: Math.round(performance.now() - startedAt), kind: error.constructor.name, retryAfter: error.retryAfter },
           "public read rejected",
         );
-        return sendProblem(req, reply, { status: 503, code: "temporarily_unavailable", detail: "search busy", retryAfter: error.retryAfter });
+        // 搜索排队与「列表本身读不出来」是两件事，两者同为 503 但前端要分得开：
+        // 只有 search_busy 才该被跳成「搜索有点忙」，列表失败不该说成搜索（2026-11-05）。
+        const searchBusy = error instanceof SearchBusyError;
+        return sendProblem(req, reply, {
+          status: 503,
+          code: searchBusy ? "search_busy" : "read_busy",
+          detail: searchBusy ? "search busy" : "read busy",
+          retryAfter: error.retryAfter,
+        });
       }
       req.log.error({ err: error, path: req.url.split("?")[0] }, "site api error");
       return sendProblem(req, reply, { status: 503, code: "temporarily_unavailable", detail: "temporarily unavailable", retryAfter: 10 });
