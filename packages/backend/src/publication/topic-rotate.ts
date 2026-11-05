@@ -73,7 +73,7 @@ export interface ProposalRow {
  */
 export async function proposeTopics(now = new Date()): Promise<ProposalRow[]> {
   const since = new Date(now.getTime() - ROTATE_WINDOW_DAYS * 86400_000);
-  const topics = await sql<{ tags: string[]; entity_id: string | null }[]>`SELECT tags, entity_id FROM topics`;
+  const topics = await sql<{ tags: string[]; entity_id: string | null; org_names: string[] }[]>`SELECT tags, entity_id, org_names FROM topics`;
   // 已认领 = 标签本身 ∪ 机构键。机构主题（如 cma）用 entity:<id> 匹配，但它的 tags 里也写着「中国气象局」——
   // 只算 topicMatchTags 会让这些标签永远当「新候选」，2026-11-05 那次 14 个候选里有 3 个就是这么来的。
   const claimed = new Set<string>();
