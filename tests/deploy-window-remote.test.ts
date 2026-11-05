@@ -20,15 +20,21 @@ test("部署窗口写在远端 heredoc 里，跟着服务器执行", () => {
 
   const writes = lines
     .map((line, i) => ({ line, i }))
-    .filter(({ line }) => line.includes("/run/geohot-deploy-window"));
-  assert.equal(writes.length, 2, "开始与结束各写一次");
+    .filter(({ line }) => line.includes("/run/geohot-deploy-window"))
+    .filter(({ line }) => !line.trim().startsWith("#"));
+  assert.ok(writes.length >= 2, "至少要开始、结束各写一次");
   for (const { line, i } of writes) {
     assert.ok(
       i > open && i < close,
       `窗口必须写在远端块里（本机 Git Bash 没有 /run）：${line.trim()}`,
     );
-    assert.match(line, /^date \+%s >+ \/run\/geohot-deploy-window$/, line.trim());
+    assert.match(line, /date \+%s >+ \/run\/geohot-deploy-window|\[ -s \/run\/geohot-deploy-window \] \|\| date/, line.trim());
   }
+  // 起始必须早于迁移/构建：2026-11-05 12:07 实测，起始写在重启前几十秒时，重建 web 那段的
+  // 5xx 落在 [DS-60] 之外，闸门照样 TRIP。
+  const firstWrite = writes[0]!.i;
+  const migration = lines.findIndex((line) => line.includes("== 迁移 =="));
+  assert.ok(firstWrite < migration, "窗口起始要写在迁移之前，才盖得住构建与重建 web 的那几分钟");
 });
 
 test("闸门把只有开始时间的窗口当成还没关", () => {

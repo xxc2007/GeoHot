@@ -83,6 +83,12 @@ ssh "${ssh_opts[@]}" "$SSH_TARGET" "sudo BASE_PATH='$BASE_PATH' PKG_SHA='$pkg_sh
 set -uo pipefail
 cd "$APP_ROOT" || { echo "ABORT: $APP_ROOT 不存在"; exit 1; }
 
+# 部署窗口在这里就打开，而不是等到重启前一行（2026-11-05 12:07 实测）：迁移、构建、
+# 重建 web 都在重启之前，那段里的 5xx 同样是"我们自己弄出来的"，可窗口起始写在重启前
+# 几十秒，闸门按 [DS-60, DE+60] 算，12:07 那三条照样记成读者事故、把 worker 冻了 10 分钟。
+# 起始越早越安全，代价只是窗口多算两分钟。
+date +%s > /run/geohot-deploy-window
+
 # 单元模板、drop-in、闸门脚本都按 /opt/geohot/{app,bin} 写死；`GEOHOT_APP_ROOT` 指到别处时，
 # 这一轮铺下去的模板会把机器的单元指向真正在跑的那个目录之外 —— 装上去的东西和服务对不上。
 # 想这么干的人得显式说 ALLOW_ALT_APP_ROOT=1（测试机/迁移期），否则这里就停。
@@ -234,7 +240,9 @@ systemctl daemon-reload
 # **必须写到服务器上**：deploy.sh 跑在操作者机器上（Windows Git Bash 没有 /run），以前这里
 # `date +%s > /run/…` 写的是本机，服务器那份从来没出现过——2026-11-05 06:42 复核：文件空，
 # 闸门照样 FENCED 10 分钟。
-date +%s > /run/geohot-deploy-window
+# 窗口的起始已经在本块开头写过了（覆盖迁移/构建/重建那两三分钟）；这里只补一次，
+# 防止开头那次因为权限或 /run 满掉而没落盘——有值就不动，别把起始时间往后推。
+[ -s /run/geohot-deploy-window ] || date +%s > /run/geohot-deploy-window
 systemctl restart "${RUN[@]}"
 sleep 8
 for u in "${RUN[@]}"; do printf '%s=%s ' "${u%.service}" "$(systemctl is-active "$u")"; done; echo
