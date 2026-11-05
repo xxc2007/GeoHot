@@ -72,7 +72,8 @@ export function IssueDots({ kind, reportKey, index, className = "" }: { kind: Re
         const grow = easeOutBack(p) * (i === hovered ? 1.4 : 1);
         const x = ((i % columns) + 0.5) * cw;
         const y = (Math.floor(i / columns) + 0.5) * ROW;
-        const r = (c.state === "current" ? 0.26 : c.state === "issue" ? 0.17 : 0.08) * unit * grow;
+        // 同上：easeOutBack 的浮点误差能让半径变成 -3.5e-16，arc() 会抛 IndexSizeError。
+        const r = Math.max(0, (c.state === "current" ? 0.26 : c.state === "issue" ? 0.17 : 0.08) * unit * grow);
         ctx.fillStyle = c.state === "current" ? colors.accent : c.state === "issue" ? colors.ink : colors.idle;
         ctx.beginPath();
         ctx.arc(x, y, r, 0, TAU);
@@ -82,7 +83,7 @@ export function IssueDots({ kind, reportKey, index, className = "" }: { kind: Re
           ctx.strokeStyle = colors.accent;
           ctx.lineWidth = 1;
           ctx.beginPath();
-          ctx.arc(x, y, unit * 0.42 * easeOutBack(p), 0, TAU);
+          ctx.arc(x, y, Math.max(0, unit * 0.42 * easeOutBack(p)), 0, TAU);
           ctx.stroke();
           ctx.globalAlpha = 1;
         }

@@ -264,7 +264,9 @@ export function Halftone({ seed, className = "", children }: { seed: string; cla
           const p = Math.min(1, Math.max(0, (t * 1.5 - (d.x / width) * 0.5) / 0.9));
           if (p <= 0) continue;
           const k = near(d.x, d.y);
-          const r = d.r * easeOutBack(p) * (1 + 0.55 * k * k);
+          // easeOutBack 在 p 极小时会因浮点误差落到 -3.5e-16，canvas 的 arc() 见到负半径直接抛
+          // IndexSizeError（2026-11-05 真浏览器在 /daily 抓到）。半径按 0 兜底。
+          const r = Math.max(0, d.r * easeOutBack(p) * (1 + 0.55 * k * k));
           ctx.moveTo(d.x + r, d.y);
           ctx.arc(d.x, d.y, r, 0, TAU);
         }
