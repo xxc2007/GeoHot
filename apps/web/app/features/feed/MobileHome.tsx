@@ -224,10 +224,9 @@ export function MobilePoolList({ pool, filters }: { pool: PoolResponse | null; f
       <div className="mt-4 lg:pt-1">
         {groups.map((group) =>
           group.day === today ? (
-            // 今天这一段用精选那条可折叠栏（"今天 · 11月5日 周四 · N 条"），条数是这一天的总量。
-            <MobileDaySection key={group.day} count={pool.todayCount ?? group.items.length}>
-              {slots(group.items)}
-            </MobileDaySection>
+            // 今天这一段**不画日期栏**：外层 `MobileDaySection` 已经给了「今天 · 11月5日 周四 · N 条」，
+            // 再画一次就是同一条栏叠两遍（2026-11-05 真机截图里当场看见）。
+            <div key={group.day}>{slots(group.items)}</div>
           ) : (
             // 更早的日子用同一根日期栏（手机上是整宽的灰条："11月4日 周三"）。条数只在今天给，
             // 因为翻页里的"这一天还剩多少"我并不知道，写个加载到一半的数字比不写更糟。
