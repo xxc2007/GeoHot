@@ -23,6 +23,14 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
+      # 2026-11-06 现场：annotated tag 需要 committer 身份，runner 上默认没有，
+      # 于是 `git tag -a` 直接 `fatal: empty ident name (for <runner@…>) not allowed`
+      # —— 自 2026-11-05 起每次 main 带 changelog 的合并都红在这里（tag 没打、Release 没建）。
+      - name: Give git an identity to sign tags with
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
       - name: Tag new changelog versions
         run: |
           node scripts/list-release-versions.mjs > /tmp/plan.txt
@@ -37,7 +45,11 @@ jobs:
             git tag -a "$tag" "$commit" -m "$tag ${title}"
             echo "tagged $tag -> ${commit:0:8}"
           done < /tmp/plan.txt
-          git push origin --tags
+          if ! git push origin --tags; then
+            echo "tag push rejected; fetching and retrying once"
+            git fetch --tags --force origin
+            git push origin --tags
+          fi
       - name: Release the newest version
         env:
           GH_TOKEN: ${{ github.token }}
