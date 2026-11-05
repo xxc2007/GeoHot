@@ -16,6 +16,7 @@ import { deleteBudget, listBudgets, updateBudget } from "@aihot/backend/admin/se
 import { createSource, fetchNow, listSources, previewSource, sourceDetail, updateSource, replaceSources } from "@aihot/backend/admin/sources";
 import { sql } from "@aihot/backend/db";
 import { sendProblem } from "../http/respond.ts";
+import { adminReadOrBusy } from "@aihot/backend/admin/admin-read";
 import { adminHandler } from "./admin-auth.ts";
 
 type Q = Record<string, string | undefined>;
@@ -154,12 +155,14 @@ export function registerAdmin(app: FastifyInstance) {
   app.get("/api/admin/nav-counts", adminHandler(async () => readNavCounts()));
 
   // Audit trail
+  // 审计列表也走 adminRead：它读的是最深的表（OFFSET 可到 49,900），裸 sql 没有 statement_timeout，
+  // 一次慢查询就把后台挂在 5 秒之外（同型问题在 admin-read.ts 已收口）。
   app.get("/api/admin/audit", adminHandler(async (req) => {
     const f = q(req);
-    const rows = await sql`
+    const rows = await adminReadOrBusy((db) => db`
       SELECT id, created_at, actor, action, subject, reason, before, after FROM audit_log
       WHERE (${f.subject ?? null}::text IS NULL OR subject = ${f.subject ?? null}) AND (${f.action ?? null}::text IS NULL OR action LIKE ${`${f.action ?? ""}%`})
-      ORDER BY created_at DESC LIMIT 100 OFFSET ${(page(req) - 1) * 100}`;
+      ORDER BY created_at DESC LIMIT 100 OFFSET ${(page(req) - 1) * 100}`);
     return { page: page(req), rows };
   }));
 }

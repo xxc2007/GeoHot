@@ -44,6 +44,9 @@ export const LABEL_PREFIX = /^\*{0,2}(?:title_zh|summary_zh|body_zh)\*{0,2}\s*[:
  */
 export const LABEL_ONLY_COPY = /^\*{0,2}(?:title_zh|summary_zh|body_zh)\*{0,2}\s*[:：]\s*$/;
 
+/** 同一张判据的 SQL 形状（`btrim(p.title) !~ ${LABEL_ONLY_COPY_PATTERN}`）：列表、RSS、搜索、站点地图都要问同一个问题。 */
+export const LABEL_ONLY_COPY_PATTERN = "^\\*{0,2}(?:title_zh|summary_zh|body_zh)\\*{0,2}\\s*[:：]\\s*$";
+
 export function isLabelOnlyCopy(text: string | null | undefined): boolean {
   return typeof text === "string" && LABEL_ONLY_COPY.test(text.trim());
 }

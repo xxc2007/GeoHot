@@ -124,13 +124,14 @@ export async function setVisibility(id: string, input: unknown, actor: string) {
       WHERE editorial_overrides.version = ${version}
       RETURNING version`;
     if (!written.count) throw new Conflict(STALE);
+    // 审计与改动同一笔事务：改完崩掉不该留下"改了但没人知道谁改的"。
+    await audit(actor, "content.visibility", `content:${id}`, reason, { visibility: before.visibility }, { visibility }, undefined, tx);
     return publishArticleTx(tx, id);
   });
   if (published?.reduced || (before.visibility ?? "public") !== visibility) {
     // On the hot board the change shows at once, not at the next five-minute ranking.
     if (await inHotRanking(id)) await computeHotRanking();
   }
-  await audit(actor, "content.visibility", `content:${id}`, reason, { visibility: before.visibility }, { visibility });
   return published;
 }
 
@@ -144,9 +145,9 @@ export async function setSeoIndexed(id: string, input: unknown, actor: string) {
   const published = await sql.begin(async (tx) => {
     await tx`UPDATE publications SET seo_indexed_at = ${indexed ? (before.seo_indexed_at ?? new Date()) : null},
               seo_excluded_at = ${indexed ? null : new Date()} WHERE article_id = ${id}`;
+    await audit(actor, "content.seo", `content:${id}`, reason, { indexed: before.indexable }, { indexed }, undefined, tx);
     return publishArticleTx(tx, id);
   });
-  await audit(actor, "content.seo", `content:${id}`, reason, { indexed: before.indexable }, { indexed });
   return published;
 }
 
