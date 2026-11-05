@@ -79,6 +79,21 @@ export async function apiGet<T>(
   }
 }
 
+/**
+ * 每一屏数据的等待预算。
+ *
+ * 2026-11-06 02:2x 现场：夜档开着、分析在跑，首页 11 秒才出——15 秒的兜底等于「读者先干等」。 
+ * 首屏真正要紧的是那一条时间线（决定这一屏说什么），其余是配菜：收录池、日历、热点、
+ * 主题计数都只影响侧栏与筛选条，晚半分钟不如立刻用上一份。预算按路径给，底稿兜底照旧。
+ */
+const SSR_BUDGET_MS = 8_000;
+const SSR_AUX_BUDGET_MS = 6_000;
+const AUX_PATHS = ["/api/site/pool", "/api/site/calendar", "/api/site/hot", "/api/site/topics", "/api/site/counts"];
+
+function ssrBudgetMs(path: string): number {
+  return AUX_PATHS.some((prefix) => path.startsWith(prefix)) ? SSR_AUX_BUDGET_MS : SSR_BUDGET_MS;
+}
+
 async function apiGetFresh<T>(
   path: string,
   init?: { signal?: AbortSignal; headers?: Record<string, string>; responseHeaders?: Headers; redirect?: RequestRedirect },
@@ -86,7 +101,9 @@ async function apiGetFresh<T>(
   const res = await fetch(`${API_BASE}${path}`, {
     headers: { accept: "application/json", "x-aihot-ssr": "1", ...init?.headers },
     redirect: init?.redirect ?? "follow",
-    signal: init?.signal ? AbortSignal.any([init.signal, AbortSignal.timeout(15_000)]) : AbortSignal.timeout(15_000),
+    signal: init?.signal
+      ? AbortSignal.any([init.signal, AbortSignal.timeout(ssrBudgetMs(path))])
+      : AbortSignal.timeout(ssrBudgetMs(path)),
   });
   if (res.status >= 300 && res.status < 400) {
     // 只有明确要 manual 的调用才会走到这里；默认还是浏览器那条跟随跳转的路。
