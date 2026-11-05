@@ -80,11 +80,18 @@ echo
 # 读者保护：夜间档是「多给资源」，但这台机器的瓶颈是换页 —— 2026-11-04 22:15 实测：
 # 切档瞬间两次探测都合格，90 秒后首页 15s，180 秒后直接 503。所以不能只看两眼就收工。
 # 持续观察 GEOHOT_WINDOW_GUARD_WINDOW（默认 180 秒）、每 GEOHOT_WINDOW_GUARD_EVERY（默认 30 秒）探一次；
-# 任何一次非 200 / 超时 / 超过 GEOHOT_WINDOW_GUARD_MS（默认 4000）就退回 day。
+# **连续** GEOHOT_WINDOW_GUARD_FAILS（默认 2）次非 200 / 超时 / 超过 GEOHOT_WINDOW_GUARD_MS（默认 4000）才退回 day。
+#
+# 2026-11-06 01:00 现场：夜间档刚切上去，第一次探测正好撞上 worker 重启后的冷页面（503 / 15s），
+# 一次就把整个夜档退回白天 —— 那一晚的多余算力全没了。冷启动不该算作「读者被拖慢」，
+# 所以先给 15 秒热身、并且要求连续两次不合格。
 guard_ms=${GEOHOT_WINDOW_GUARD_MS:-4000}
 guard_window=${GEOHOT_WINDOW_GUARD_WINDOW:-180}
 guard_every=${GEOHOT_WINDOW_GUARD_EVERY:-30}
+guard_fails=${GEOHOT_WINDOW_GUARD_FAILS:-2}
+guard_warmup=${GEOHOT_WINDOW_GUARD_WARMUP:-15}
 if [[ "${GEOHOT_WINDOW_NO_GUARD:-0}" != "1" && "$mode" == "night" ]]; then
+  sleep "$guard_warmup"
   deadline=$(( $(date +%s) + guard_window ))
   bad=0; total=0
   while [ "$(date +%s)" -lt "$deadline" ]; do
@@ -96,13 +103,15 @@ if [[ "${GEOHOT_WINDOW_NO_GUARD:-0}" != "1" && "$mode" == "night" ]]; then
     too_slow=$(awk -v s="${secs:-99}" -v g="$guard_ms" 'BEGIN{print (s*1000 > g) ? 1 : 0}')
     if [[ "$code" != "200" || "$too_slow" == "1" ]]; then
       bad=$((bad + 1))
-      echo "guard: probe ${code} ${secs}s over $((guard_ms))ms" >&2
-      break
+      echo "guard: probe ${code} ${secs}s over $((guard_ms))ms (${bad}/${guard_fails})" >&2
+      if [[ "$bad" -ge "$guard_fails" ]]; then break; fi
+    else
+      bad=0
     fi
     sleep "$guard_every"
   done
-  if [[ "$bad" -gt 0 ]]; then
-    logger -t geohot-window "night window failed the reader guard after ${total} probe(s); reverting to day"
+  if [[ "$bad" -ge "$guard_fails" ]]; then
+    logger -t geohot-window "night window failed the reader guard ${bad} probes in a row; reverting to day"
     echo "guard: reverting to day after ${total} probe(s)" >&2
     GEOHOT_WINDOW_NO_GUARD=1 "$0" day
     exit 0
