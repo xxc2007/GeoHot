@@ -287,12 +287,26 @@ if [[ -n "$(systemctl list-unit-files geohot-workbuddy.service --no-legend 2>/de
   esac
 fi
 for p in / /all /hot /daily /about /agent /terms /privacy /admin/login /feed.xml /sitemap.xml /llms.txt /openapi-v1.json /manifest.webmanifest /og/site.png /icon.png; do
-  code=$(status_of "$BASE$p")
   case "$p" in
     /admin/login) want='^(200|30[1278])$' ;;   # 登录页存在（重定向也接受）
     *)            want='^200$' ;;
   esac
-  if [[ "$code" =~ $want ]]; then ok "$p -> $code"; else bad "$p -> $code（期望 $want）"; fi
+  # feed/sitemap 是现算的（百万行 sitemap 一次 200–400ms，冷缓存下可能几秒），
+  # 而这条检查紧跟在 web/api 重启之后：2026-11-05 19:43 就因为 sitemap 在重启窗口里回转 000 判了失败，
+  # 隔 20 秒手动再取是 200 0.26s。给它们三次机会，别把「还在热身」写成「站点坏了」。
+  case "$p" in
+    /feed.xml|/sitemap.xml) attempts=3 ;;
+    *) attempts=1 ;;
+  esac
+  code=""
+  for attempt in $(seq 1 "$attempts"); do
+    code=$(status_of "$BASE$p")
+    [[ "$code" =~ $want ]] && break
+    [[ "$attempt" -lt "$attempts" ]] && sleep 20
+  done
+  if [[ "$code" =~ $want ]]; then
+    if [[ "$attempts" -gt 1 && "$attempt" -gt 1 ]]; then ok "$p -> $code（第 $attempt 次取到）"; else ok "$p -> $code"; fi
+  else bad "$p -> $code（期望 $want）"; fi
 done
 hc=$(curl -s -A "$UA" --max-time 15 "$BASE/api/health")
 echo "$hc" | grep -q '"ok":true' && echo "$hc" | grep -q '"db":"ok"' && ok "/api/health $hc" || bad "/api/health 异常: $hc"
