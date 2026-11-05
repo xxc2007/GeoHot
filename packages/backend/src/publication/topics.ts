@@ -13,6 +13,7 @@ export interface TopicRow {
   grp: "company" | "field" | "genre";
   entity_id: string | null;
   tags: string[];
+  keywords: string[];
   definition: string;
   related: string[];
   position: number;
@@ -20,7 +21,7 @@ export interface TopicRow {
 
 type TopicCount = { slug: string; total: number; recent: number; pages: number; indexable: boolean; latest: Date | null };
 const topicsCache = cached(
-  () => sql<TopicRow[]>`SELECT slug, name, grp, entity_id, tags, definition, related, position FROM topics ORDER BY position`,
+  () => sql<TopicRow[]>`SELECT slug, name, grp, entity_id, tags, keywords, definition, related, position FROM topics ORDER BY position`,
   { freshMs: 60_000, maxStaleMs: 10 * 60_000 },
 );
 
@@ -148,21 +149,23 @@ export async function topicPageCounts(now?: Date): Promise<TopicCount[]> {
 async function queryTopicCounts(now: Date, windowStart: Date): Promise<TopicCount[]> {
   const rows = await sql<{ slug: string; total: number; recent: number; latest: Date | null }[]>`
     WITH listed AS (
-      SELECT p.article_id, p.timeline_at, u.tag
-      FROM publications p, unnest(p.tags) AS u(tag)
+      SELECT p.article_id, p.timeline_at, p.tags
+      FROM publications p
       WHERE ${selectedCondition(now)}
     ),
-    keys AS (
-      SELECT DISTINCT t.slug, CASE WHEN t.entity_id IS NOT NULL THEN 'entity:' || t.entity_id ELSE u.key END AS key
-      FROM topics t LEFT JOIN LATERAL unnest(t.tags) AS u(key) ON true
+    matched AS (
+      SELECT pt.slug, l.article_id, l.timeline_at
+        FROM publication_topics pt JOIN listed l ON l.article_id = pt.article_id
+       UNION ALL
+      SELECT t.slug, l.article_id, l.timeline_at
+        FROM topics t JOIN listed l ON l.tags && t.tags
     ),
     counted AS (
-      SELECT k.slug,
-        count(DISTINCT l.article_id) AS total,
-        count(DISTINCT l.article_id) FILTER (WHERE l.timeline_at > ${windowStart}) AS recent,
-        max(l.timeline_at) AS latest
-      FROM keys k JOIN listed l ON l.tag = k.key
-      GROUP BY k.slug
+      SELECT slug,
+        count(DISTINCT article_id) AS total,
+        count(DISTINCT article_id) FILTER (WHERE timeline_at > ${windowStart}) AS recent,
+        max(timeline_at) AS latest
+      FROM matched GROUP BY slug
     )
     SELECT t.slug, coalesce(c.total, 0)::int AS total, coalesce(c.recent, 0)::int AS recent, c.latest
     FROM topics t LEFT JOIN counted c ON c.slug = t.slug
@@ -225,7 +228,9 @@ export async function loadTopicPage(slug: string, page: number, now?: Date): Pro
   const rows = await sql<ItemRow[]>`
     WITH page AS (
       SELECT p.article_id FROM publications p
-      WHERE ${selectedCondition(at)} AND p.tags && ${topicMatchTags(row)}::text[]
+      WHERE ${selectedCondition(at)}
+        AND (EXISTS (SELECT 1 FROM publication_topics pt WHERE pt.article_id = p.article_id AND pt.slug = ${row.slug})
+             OR p.tags && ${topicMatchTags(row)}::text[])
       ORDER BY p.timeline_at DESC, p.article_id DESC
       LIMIT ${TOPIC_PAGE_SIZE} OFFSET ${(page - 1) * TOPIC_PAGE_SIZE})
     SELECT ${ITEM_COLUMNS} ${ITEM_FROM} WHERE p.article_id IN (SELECT article_id FROM page)
@@ -254,16 +259,23 @@ export interface TopicFreshness {
 export async function topicFreshness(days = 14, now = new Date()): Promise<TopicFreshness[]> {
   const windowStart = new Date(now.getTime() - days * 86400_000);
   const rows = await sql<{ slug: string; name: string; fresh: string; last_seen: Date | null }[]>`
+    WITH matched AS (
+      SELECT pt.slug, p.discovered_at
+        FROM publication_topics pt JOIN publications p ON p.article_id = pt.article_id
+       WHERE p.discovered_at >= ${windowStart}
+       UNION ALL
+      SELECT t.slug, p.discovered_at
+        FROM topics t JOIN publications p
+          ON p.discovered_at >= ${windowStart}
+         AND p.tags && (CASE WHEN t.entity_id IS NOT NULL THEN ARRAY['entity:' || t.entity_id] ELSE t.tags END)
+    )
     SELECT t.slug,
            t.name,
-           count(p.*)::text AS fresh,
-           max(p.discovered_at) AS last_seen
-      FROM topics t
-      LEFT JOIN publications p
-             ON p.discovered_at >= ${windowStart}
-            AND p.tags && (CASE WHEN t.entity_id IS NOT NULL THEN ARRAY['entity:' || t.entity_id] ELSE t.tags END)
+           count(m.*)::text AS fresh,
+           max(m.discovered_at) AS last_seen
+      FROM topics t LEFT JOIN matched m ON m.slug = t.slug
      GROUP BY t.slug, t.name
-     ORDER BY count(p.*) ASC, t.slug`;
+     ORDER BY count(m.*) ASC, t.slug`;
   return rows.map((r) => ({ slug: r.slug, name: r.name, fresh: Number(r.fresh), lastSeen: r.last_seen }));
 }
 

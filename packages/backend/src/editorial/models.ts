@@ -53,11 +53,19 @@ let routingRetryAfter = 0;
  * means no circuit breaker at all (receipts.ts returns early). */
 const known = (name: string) => Object.hasOwn(MODELS, name);
 
+/** 健康账本读在服务器本机 2 秒够用（2000ms 是 2026-10-22 定的上限，防 6 小时窗口把连接池吃光），
+ * 但本机执行器走 SSH 隧道，同样的查询要几秒。给一个只影响"放宽"的旋钮：默认仍是 2000，
+ * 只有显式配大才放宽——因此服务器侧的行为不变。 */
+const healthReadCapMs = () => {
+  const raw = Number.parseInt(process.env.HEALTH_READ_STATEMENT_TIMEOUT_MS ?? "", 10);
+  return Number.isFinite(raw) && raw >= 500 ? Math.min(raw, 30_000) : 2000;
+};
+
 function healthRead<T>(read: (db: Tx) => Promise<T>): Promise<T> {
   return sql.begin(async db => {
     // Preserve a caller's stricter deadline (including infrastructure-failure injection).
     await db`SELECT
-      set_config('statement_timeout', least(coalesce(nullif((extract(epoch FROM current_setting('statement_timeout')::interval)*1000)::bigint, 0), 2000), 2000)::text, true),
+      set_config('statement_timeout', least(coalesce(nullif((extract(epoch FROM current_setting('statement_timeout')::interval)*1000)::bigint, 0), ${healthReadCapMs()}), ${healthReadCapMs()})::text, true),
       set_config('lock_timeout', least(coalesce(nullif((extract(epoch FROM current_setting('lock_timeout')::interval)*1000)::bigint, 0), 250), 250)::text, true)`;
     await db`SET LOCAL max_parallel_workers_per_gather = 0`;
     return read(db);
