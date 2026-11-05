@@ -34,14 +34,26 @@ const envNumber = (name: string, fallback: number): number => {
 };
 const LANE_LIMIT = envNumber("GEOHOT_INTAKE_LANE_LIMIT", 1);
 const COMBINED_OVERRIDE = envNumber("GEOHOT_INTAKE_COMBINED_LIMIT", 0);
+/**
+ * 分析链路有自己的名额（2026-11-05 线上）：组合名额 2 个时，抓取探测与摘要这类几秒的任务
+ * 把两个槽轮流占着，一条 76 秒的 analyze 只能在旁边等 —— 24 小时新进 1497、跑完 493，
+ * 积压 6,973。analyze 是网络等待型（不占 CPU、每条约几 MB），和 cheap 任务抢同一份名额没有道理，
+ * 所以给它一条独立配额：默认 3 个并发，组合名额只约束其余车道。内存压力与 r115 冻结仍然照旧生效。
+ */
+const analysisSlots = () => envNumber("GEOHOT_INTAKE_ANALYSIS_SLOTS", 3);
+/** all 进程天然是组合运行；独立执行器可用 GEOHOT_INTAKE_LANES=combined 采用同一套分车道配额。 */
+const combinedLanes = () => process.env.WORKER_ROLE === "all" || (process.env.GEOHOT_INTAKE_LANES ?? "").trim() === "combined";
 
 /** Candidate lanes from the same local WIP snapshot used by the unchanged hard active limit. */
 export function intakeAvailableLanes(work: Array<{ name: string; count: number }>, combined: boolean, combinedLimit = 3): ReadonlySet<string> {
   const controlled = work.filter(w => CONTROLLED.has(w.name));
   const totalLimit = combined ? (COMBINED_OVERRIDE || combinedLimit) : 2;
-  if (controlled.reduce((n, w) => n + w.count, 0) >= totalLimit) return new Set();
+  const analysisUsed = combined ? controlled.filter(w => intakeLane(w.name, combined) === "analysis").reduce((n, w) => n + w.count, 0) : 0;
+  const otherUsed = controlled.reduce((n, w) => n + w.count, 0) - analysisUsed;
   const occupied = new Set(controlled.filter(w => w.count >= LANE_LIMIT).map(w => intakeLane(w.name, combined)));
-  return new Set([...CONTROLLED].map(name => intakeLane(name, combined)).filter(lane => !occupied.has(lane)));
+  const analysisRoom = analysisUsed < analysisSlots();
+  const othersRoom = otherUsed < totalLimit;
+  return new Set([...CONTROLLED].map(name => intakeLane(name, combined)).filter(lane => lane === "analysis" ? analysisRoom : othersRoom && !occupied.has(lane)));
 }
 
 /**
@@ -71,7 +83,9 @@ export function intakeActive(queue: string, work: Array<{ name: string; count: n
   const total = controlled.reduce((n, w) => n + w.count, 0);
   const lane = controlled.filter(w => kind(w.name) === kind(queue)).reduce((n, w) => n + w.count, 0);
   const totalLimit = combined ? (COMBINED_OVERRIDE || combinedLimit) : 2;
-  return total >= totalLimit || lane >= LANE_LIMIT ? 1 : 0;
+  if (combined && kind(queue) === "analysis") return lane >= analysisSlots() ? 1 : 0;
+  const analysisUsed = combined ? controlled.filter(w => kind(w.name) === "analysis").reduce((n, w) => n + w.count, 0) : 0;
+  return total - analysisUsed >= totalLimit || lane >= LANE_LIMIT ? 1 : 0;
 }
 
 // pg-boss's public Db adapter is wrapped before start. Only its dequeue statement is admitted here;
@@ -229,7 +243,11 @@ export function installResourceIntake(boss: PgBoss) {
   if (!balancedResources()) return;
   const adapter = boss.getDb();
   const execute = adapter.executeSql.bind(adapter);
-  const budget = new IntakeBudget(process.env.WORKER_ROLE === "all");
+  // 本机执行器（WORKER_ROLE=content-executor）默认把分析算进 processing 车道、共用 2 个名额，
+  // 这与服务器上的组合运行同一套流水线却不是同一份配额。要让它按 analysis/fetch/processing
+  // 分车道跑（这正是本机 4 并发分析的前提），显式设 GEOHOT_INTAKE_LANES=combined。
+  const lanes = combinedLanes();
+  const budget = new IntakeBudget(lanes);
   let cachedAt = -Infinity;
   let sample: ResourceSample;
   let lastLog = -Infinity;
@@ -248,10 +266,10 @@ export function installResourceIntake(boss: PgBoss) {
     // Two controlled jobs under constrained headroom; retain three only with ample memory and low I/O pressure.
     const combinedLimit = sample.availableMiB >= 160 && sample.memoryFull < 5 && sample.ioFull < 15 ? 3 : 2;
     const work = boss.getWipData();
-    const combined = process.env.WORKER_ROLE === "all";
+    const combined = combinedLanes();
     // 名额：组合运行 2–3（内存宽裕时 3），非组合 2；可用 GEOHOT_INTAKE_COMBINED_LIMIT 覆盖。
-    const slots = combined ? (COMBINED_OVERRIDE || combinedLimit) : 2;
-    const active = intakeBusy(work, slots);
+    // 分析链路另有自己的配额（GEOHOT_INTAKE_ANALYSIS_SLOTS，默认 3），下面按队列分别判。
+    const active = intakeActive(queue, work, combined, combinedLimit);
     const availableLanes = intakeAvailableLanes(work, combined, combinedLimit);
     // 闸门冻结期间不领新任务，但进程与在飞任务都留着（回执照常写库）。
     if (r115FenceActive(now)) {

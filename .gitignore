@@ -62,3 +62,8 @@ tooling/corpus/merge-conflicts.md
 # Python 字节码（部署脚本在服务器上用 py_compile 校验过，别把产物带进仓库）
 __pycache__/
 *.pyc
+
+# 本机分析执行器的生产凭据与日志（不是仓库内容）
+.env.local-executor
+_assist/local-executor/worker.log
+_assist/local-executor/worker.log.err

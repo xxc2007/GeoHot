@@ -24,9 +24,23 @@ test("resource admission recognises installed pg-boss claims and never blocks co
 });
 
 test("combined work respects the total cap and occupied lanes", () => {
+  // 2026-11-05：分析链路有了自己的配额（默认 3），组合名额只约束其余车道。
+  // 一个 analyze + 一个 fetch 在跑时，processing 与分析都还有位子。
   const work = [{ name: "content.analyze", count: 1 }, { name: "sources.fetch", count: 1 }];
-  assert.equal(intakeActive("events.group", work, true, 2), 1);
-  assert.equal(intakeAvailableLanes(work, true, 2).size, 0);
+  assert.equal(intakeActive("events.group", work, true, 2), 0, "组合名额只算非分析任务：1 个 fetch 还没满 2");
+  assert.equal(intakeActive("content.analyze", work, true, 2), 0, "分析配额 3，当前只有 1 个");
+  assert.equal(intakeAvailableLanes(work, true, 2).has("analysis"), true);
+  assert.equal(intakeAvailableLanes(work, true, 2).has("processing"), true);
+  // 非分析车道用满组合名额时，只剩分析还能领。
+  const full = [{ name: "sources.fetch", count: 1 }, { name: "events.group", count: 1 }, { name: "content.analyze", count: 1 }];
+  assert.equal(intakeActive("events.digest", full, true, 2), 1);
+  assert.equal(intakeActive("content.analyze", full, true, 2), 0, "便宜活占满组合名额后，分析不该被一起挡住");
+  assert.deepEqual([...intakeAvailableLanes(full, true, 2)], ["analysis"]);
+  // 分析配额本身也会用满：3 个在跑就不再领。
+  const three = [{ name: "content.analyze", count: 3 }];
+  assert.equal(intakeActive("content.analyze", three, true, 2), 1);
+  assert.equal(intakeAvailableLanes(three, true, 2).has("analysis"), false);
+  // 提取与抓取共用 fetch 车道。
   assert.equal(intakeActive("content.extract-body", [{ name: "sources.fetch", count: 1 }], true), 1);
 });
 

@@ -23,7 +23,7 @@ import { copyBodyChars, materialBodyChars } from "./material-budget.ts";
 import { pageFetchable } from "../content/extract.ts";
 import { shutdownSignal } from "../jobs/queue.ts";
 import {
-  buildArticlePrompt, buildLongTweetPrompt, buildShortTweetPrompt, finalizeCopy, guardedReason, isShortTweetInput, looksZh, MAX_BODY_CHARS, missingEvidence,
+  buildArticlePrompt, buildLongTweetPrompt, buildShortTweetPrompt, finalizeCopy, guardedReason, isShortTweetInput, looksZh, missingEvidence,
   needsShortTweetTranslation, parseTranslateOutput, PREFILTER_SYSTEM, prefilterUser, translateInputOf, UNDERSTAND_SYSTEM, understandUser,
   type IdentityGuard,
 } from "./writing.ts";
@@ -100,7 +100,13 @@ export function scoreInputTime(at: Date): string {
 /**
  * The score input: no source facts (the prompt forbids guessing them), the publication time, the
  * original title (items are scored before any Chinese copy exists) and the whole body.
+ *
+ * 2026-11-05：不再吃整篇 60k。线上 7 天的正文 p50 只有 296 字、p90 6,534 字，超过 2 万字的只占
+ * 4%（434/10,445 篇），而这 4% 每次都把最长的一段塞给 5 次付费调用中的 2 次。评分看的是"这条事件
+ * 值不值得读者注意"，前 2 万字足够，省下的输入直接换成更快的回执。
  */
+export const SCORE_BODY_CHARS = 20_000;
+
 export function buildScoreInput(a: AnalyzeInputArticle): string {
   let body: string;
   if (a.xPost) {
@@ -115,7 +121,7 @@ export function buildScoreInput(a: AnalyzeInputArticle): string {
     "请按系统规则评估以下单篇材料所代表的事件。只输出 attentionScore。",
     `【发布时间（北京时间）】\n${at ? scoreInputTime(at) : ""}`,
     `【标题】\n${a.title.trim()}`,
-    `【完整正文】\n${body.length > MAX_BODY_CHARS ? body.slice(0, MAX_BODY_CHARS) : body}`,
+    `【完整正文】\n${body.length > SCORE_BODY_CHARS ? body.slice(0, SCORE_BODY_CHARS) : body}`,
   ].join("\n\n");
 }
 
