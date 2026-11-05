@@ -18,6 +18,7 @@ import { refreshStoryStatuses } from "@aihot/backend/events/digest";
 import { linkRelatedStories } from "@aihot/backend/events/group";
 import { catchUpReports, composeDaily, composeMonthly, composeWeekly } from "@aihot/backend/reports/compose";
 import { repairReportWorkflow } from "@aihot/backend/reports/repair";
+import { assignTopicsAndReport } from "@aihot/backend/publication/topic-assign";
 import { addDays, beijingDate, isoWeekLabel } from "@aihot/contracts/time";
 import { runLeaderboardRound } from "@aihot/backend/leaderboard/method/run";
 import { refreshLeaderboard } from "@aihot/backend/leaderboard/fetch/refresh";
@@ -98,6 +99,9 @@ export const SCHEDULES: Scheduled[] = [
   // 主题跟没跟上最近的新闻：每天一次，只读一次库、只写一行日志（不建收据、不发模型）。
   // 有主题连续两周没有新条目时，站长会在日报里看到 slug 列表，而不是等到读者发现那一页停在上个月。
   { name: "topics.audit", cron: "20 6 * * *", missed: "once", run: () => auditTopicFreshness() },
+  // 主题归类：每十分钟把最近三天的分配复算一次（实时跟上门票），每天凌晨再把 45 天全量校一遍。
+  { name: "topics.assign", cron: "*/10 * * * *", missed: "once", run: () => assignTopicsAndReport(3) },
+  { name: "topics.assign-backfill", cron: "40 3 * * *", missed: "once", run: () => assignTopicsAndReport(45) },
   // Four upstream checks a day; a new run is published only when the evidence changed. With collection
   // off only the computation runs, over the snapshots already stored.
   ...(FEATURES.leaderboard
