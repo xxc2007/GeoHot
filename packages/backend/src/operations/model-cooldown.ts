@@ -43,6 +43,24 @@ export class ModelCooldown {
           this.until.set(key, { until: entry.until, generation: entry.generation ?? 0 });
         }
       }
+      // 旧账本迁移：升级前的进程把整张表写在一行 JSON 上（`model-cooldown.v1`）。不认它，
+      // 升级这一刻还活着的拒绝就凭空消失、死成员被放回轮转。读出、铺成一条成员一行，再删旧行。
+      const [legacy] = await sql<{ value: Record<string, { until?: number; generation?: number }> }[]>`
+        SELECT value FROM settings WHERE key = ${PERSIST_KEY}`;
+      if (legacy && legacy.value && typeof legacy.value === "object") {
+        const carried = Object.entries(legacy.value).filter(([, entry]) => entry && typeof entry.until === "number" && entry.until > now);
+        for (const [key, entry] of carried) {
+          if (!this.until.has(key)) this.until.set(key, { until: entry!.until!, generation: entry!.generation ?? 0 });
+        }
+        const entries = [...this.until].filter(([, entry]) => entry.until > now);
+        for (const [key, entry] of entries) {
+          await sql`INSERT INTO settings (key, value, updated_by, updated_at)
+                     VALUES (${`${PERSIST_KEY}:${key}`}, ${sql.json(entry)}, 'model-cooldown', now())
+                     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_by = EXCLUDED.updated_by, updated_at = now()`;
+        }
+        await sql`DELETE FROM settings WHERE key = ${PERSIST_KEY}`;
+        console.log(JSON.stringify({ level: "info", msg: "model cooldown ledger migrated to per-member rows", carried: carried.length }));
+      }
       this.persistent = true;
     } catch (error) {
       console.error(JSON.stringify({ level: "error", msg: "model cooldown ledger unreadable; starting cold", error: String(error) }));
