@@ -13,6 +13,7 @@ const topic = (over: Partial<TopicRow> & { slug: string }): TopicRow => ({
   definition: "",
   related: [],
   position: 0,
+  dormant_at: null,
   ...over,
 });
 
