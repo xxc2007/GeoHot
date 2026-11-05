@@ -1,7 +1,7 @@
 // Public read layer, item level. Every exit (site API, v1, RSS, MCP, sitemap) reads
 // items through these functions; visibility, release gate and body licences are applied here.
 import type { CategoryKey, ChannelKey } from "@aihot/contracts/taxonomy";
-import { CJK_COPY_PATTERN, isLabelOnlyCopy } from "@aihot/contracts/copy";
+import { CJK_COPY_PATTERN, LABEL_ONLY_COPY_PATTERN, isLabelOnlyCopy } from "@aihot/contracts/copy";
 import type { FeedItemSummary, ItemSummary, MediaView, SourceKind, XPostView } from "@aihot/contracts/site";
 import { sql } from "../db.ts";
 import { proxiedImage, proxiedImageSet } from "../media/imgproxy.ts";
@@ -102,7 +102,11 @@ export const ITEM_FROM = sql`
  * question, and this file was one of six places that spelled the class out by hand.
  */
 export function chineseCopyCondition() {
-  return sql`p.title ~ ${CJK_COPY_PATTERN}`;
+  // 一个汉字都没有的标题不算中文稿；整行只有 `summary_zh:` 这类标签的也不算 —— 后者以前能进列表、
+  // RSS、搜索与站点地图，点进详情页却是 404（同一个问题，四处各答一次）。
+  return sql`p.title ~ ${CJK_COPY_PATTERN}
+    AND btrim(p.title) !~ ${LABEL_ONLY_COPY_PATTERN}
+    AND (p.summary IS NULL OR btrim(p.summary) !~ ${LABEL_ONLY_COPY_PATTERN})`;
 }
 /**
  * The release gate, spelled once: a selected item reaches the public only once `visible_after` has

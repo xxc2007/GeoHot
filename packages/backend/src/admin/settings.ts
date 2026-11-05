@@ -24,12 +24,15 @@ export async function updateBudget(service: string, input: { perMinute: number; 
   if (!input.reason?.trim()) throw new InvalidInput("reason is required");
   for (const v of [input.perMinute, input.perHour, input.perDay]) if (!Number.isInteger(v) || v < 0) throw new InvalidInput("budgets are non-negative integers (0 stops the service)");
   const [before] = await sql`SELECT per_minute, per_hour, per_day FROM budgets WHERE service = ${service}`;
-  const [after] = await sql`
-    INSERT INTO budgets (service, per_minute, per_hour, per_day, note) VALUES (${service}, ${input.perMinute}, ${input.perHour}, ${input.perDay}, ${input.reason})
-    ON CONFLICT (service) DO UPDATE SET per_minute = EXCLUDED.per_minute, per_hour = EXCLUDED.per_hour, per_day = EXCLUDED.per_day, note = EXCLUDED.note, updated_at = now()
-    RETURNING service, per_minute, per_hour, per_day`;
-  await audit(actor, "budget.update", `budget:${service}`, input.reason, before ?? null, after);
-  return after;
+  // 写与审计同一笔事务：否则崩在这两步之间，账单上少了限额、审计里也少了这次改动。
+  return sql.begin(async (tx) => {
+    const [after] = await tx`
+      INSERT INTO budgets (service, per_minute, per_hour, per_day, note) VALUES (${service}, ${input.perMinute}, ${input.perHour}, ${input.perDay}, ${input.reason})
+      ON CONFLICT (service) DO UPDATE SET per_minute = EXCLUDED.per_minute, per_hour = EXCLUDED.per_hour, per_day = EXCLUDED.per_day, note = EXCLUDED.note, updated_at = now()
+      RETURNING service, per_minute, per_hour, per_day`;
+    await audit(actor, "budget.update", `budget:${service}`, input.reason, before ?? null, after, undefined, tx);
+    return after;
+  });
 }
 
 /**
@@ -42,7 +45,9 @@ export async function deleteBudget(service: string, reason: string, actor: strin
   if (!reason?.trim()) throw new InvalidInput("reason is required");
   const [before] = await sql<{ service: string; per_minute: number; per_hour: number; per_day: number }[]>`SELECT service, per_minute, per_hour, per_day FROM budgets WHERE service = ${service}`;
   if (!before) return null;
-  await sql`DELETE FROM budgets WHERE service = ${service}`;
-  await audit(actor, "budget.delete", `budget:${service}`, reason, before, null);
+  await sql.begin(async (tx) => {
+    await tx`DELETE FROM budgets WHERE service = ${service}`;
+    await audit(actor, "budget.delete", `budget:${service}`, reason, before, null, undefined, tx);
+  });
   return before;
 }

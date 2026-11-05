@@ -1,5 +1,5 @@
 // Publication rules. Each rule is defined once here and used by every exit.
-import { hasChineseCopy } from "@aihot/contracts/copy";
+import { hasChineseCopy, isLabelOnlyCopy } from "@aihot/contracts/copy";
 
 export interface SourceFacts {
   id: string;
@@ -25,7 +25,8 @@ export function isPoolEligible(input: {
   title: string | null;
   summary: string | null;
 }): boolean {
-  return input.participationMode === "editorial" && input.relevance === "pass" && !!input.title && !!input.summary;
+  return input.participationMode === "editorial" && input.relevance === "pass" && !!input.title && !!input.summary
+    && !isLabelOnlyCopy(input.title) && !isLabelOnlyCopy(input.summary);
 }
 
 /**

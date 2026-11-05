@@ -10,6 +10,7 @@ import { sql } from "../db.ts";
 import { cached } from "../lib/cache.ts";
 import { escapeXml } from "../lib/text.ts";
 import { siteUrl } from "./links.ts";
+import { chineseCopyCondition } from "./items.ts";
 import { FACT_MEMBER_ROLES } from "./rules.ts";
 import { CJK_COPY_PATTERN } from "@aihot/contracts/copy";
 import { releasedCondition, selectedCondition } from "./items.ts";
@@ -114,7 +115,7 @@ async function build(readAt = new Date()): Promise<string> {
   const room = Math.max(0, MAX_URLS - entries.length);
   const items = room === 0 ? [] : await sql<{ id: string; t: Date }[]>`
     SELECT p.article_id AS id, p.updated_at AS t FROM publications p
-    WHERE p.visibility = 'public' AND p.indexable AND ${releasedCondition(readAt)} ORDER BY p.timeline_at DESC LIMIT ${room}`;
+    WHERE p.visibility = 'public' AND p.indexable AND ${releasedCondition(readAt)} AND ${chineseCopyCondition()} ORDER BY p.timeline_at DESC LIMIT ${room}`;
   for (const it of items) entries.push({ loc: `/items/${it.id}`, lastmod: it.t, changefreq: "monthly", priority: 0.5 });
 
   const body = entries
