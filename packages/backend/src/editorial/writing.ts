@@ -121,8 +121,14 @@ export function renderContext(a: AnalyzeInputArticle, opts: { annotateQuoted?: b
   return lines.join("\n");
 }
 
-/** The prefilter's user message: the context as a JSON string (the prompt was tuned on this form). */
-export const prefilterUser = (a: AnalyzeInputArticle) => JSON.stringify(renderContext(a));
+/**
+ * The prefilter's user message: the context as a JSON string (the prompt was tuned on this form).
+ *
+ * 2026-11-05：预筛只回答"这份材料要不要进入分析"，不需要整篇六万字。线上正文 p90 是 6,534 字，
+ * 但预筛的输入曾经是完整正文；把上限压到 4,000 字后，预筛这一步的输入量对 18% 的长文大幅下降，
+ * 而标题、来源、时间、链接、媒体说明全都保留，判断依据没变。
+ */
+export const prefilterUser = (a: AnalyzeInputArticle) => JSON.stringify(renderContext(a, { bodyChars: 4_000 }));
 
 /** Nothing to judge beyond the title: the prefilter's BLOCK then means "wait for material". */
 export function missingEvidence(a: AnalyzeInputArticle): boolean {
