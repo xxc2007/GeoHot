@@ -180,6 +180,21 @@ case "$A" in
       systemctl stop --no-block geohot-worker
       echo "$(date -Is) HELD-STOP-SUBMITTED rc=$? worker=$ACT 恢复责任保留"
     fi
+    # 冷却期里读者面已经连续健康就没必要把整条流水线关到冷却结束。
+    # 2026-11-06 02:1x 现场：fence 从 01:56 一路 HELD 到 02:26，analyze 队列 7,463 条一条没动，
+    # 而同一时刻首页 0.37s、recovery-ready 每分钟都在写健康样本 —— 等的只是那个计时器。
+    MIN_HOLD=${R115_MIN_HOLD_SEC:-180}
+    if [ "$MODE" = fence ] && [ -e "$FENCE" ] && [ "${R115_DRY:-0}" != 1 ] \
+      && [ "$ACT" = active ] \
+      && [ $(( NOW - (UNTIL - COOL * 60) )) -ge "$MIN_HOLD" ] \
+      && /bin/bash "$BIN/reader-recovery-ready.sh"; then
+      rm -f -- "$FENCE" && {
+        printf '%s\n' "$NOW" > "${RUN}.last-release"
+        echo "$(date -Is) RELEASED-EARLY 5xx=${E5}/${WIN}s 冷却还剩 $(( (UNTIL - NOW) / 60 )) 分钟但读者面已连续健康 worker=$ACT"
+        rm -f "$RUN" 2>/dev/null || true
+        exit 0
+      }
+    fi
     echo "$(date -Is) HELD 冷却还剩 $(( (UNTIL - NOW) / 60 )) 分钟 worker=$ACT 5xx=${E5}/${WIN}s"
     ;;
   SKIP_BLIND)
