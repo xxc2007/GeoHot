@@ -168,6 +168,40 @@ if [ -d "$APP_ROOT/deploy/geohot/systemd" ]; then
   echo "systemd: 已同步 $installed 个单元模板与 drop-in 到 /etc/systemd/system"
 fi
 
+# nginx 片段同理：强制下发的 CSP 与 HSTS 全在 /etc/nginx/snippets/geohot-public-cache.conf 里，
+# 而仓库只有 Report-Only 的那份副本 ⇒ 2026-11-06 之前「补 font-src」这类改动永远到不了线上。
+# 只覆盖同名文件；改完 nginx -t 不过就还原、绝不让部署把站点 reload 成 500。
+if [ -d "$APP_ROOT/deploy/geohot/nginx" ]; then
+  nginxsync=0
+  changed=0
+  mkdir -p /root/nginx-snippet-backup
+  while IFS= read -r -d '' f; do
+    base="$(basename "$f")"
+    dest="/etc/nginx/snippets/$base"
+    if ! cmp -s "$f" "$dest"; then
+      [ -f "$dest" ] && cp -a "$dest" "/root/nginx-snippet-backup/$base.$(date +%s)"
+      install -m 644 "$f" "$dest"
+      changed=1
+    fi
+    nginxsync=$((nginxsync + 1))
+  done < <(find "$APP_ROOT/deploy/geohot/nginx" -type f -name '*.conf' -print0)
+  if [ "$changed" = 1 ]; then
+    if nginx -t >/tmp/nginx-t.log 2>&1; then
+      systemctl reload nginx
+      echo "nginx: 已同步 $nginxsync 个片段并 reload"
+    else
+      while IFS= read -r -d '' f; do
+        base="$(basename "$f")"
+        latest="$(ls -1t /root/nginx-snippet-backup/"$base".* 2>/dev/null | head -1)"
+        [ -n "$latest" ] && install -m 644 "$latest" "/etc/nginx/snippets/$base"
+      done < <(find "$APP_ROOT/deploy/geohot/nginx" -type f -name '*.conf' -print0)
+      echo "nginx: 片段没通过 nginx -t（见 /tmp/nginx-t.log），已还原旧版、没有 reload"
+    fi
+  else
+    echo "nginx: $nginxsync 个片段与仓库一致，未改动"
+  fi
+fi
+
 # 版本指纹：api 的 /api/health 读 AIHOT_RELEASE，环境变量是**机器级**的静态值，
 # 部署不更新它 ⇒ 线上一直自称旧提交（2026-11-04 实测 health 报 4bf1f89，实际跑 70d2ac3）。
 # 这里把本次部署的 rev 落成文件，api 侧 fallback 读它；环境变量仍优先，方便临时覆盖。
