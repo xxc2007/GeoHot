@@ -41,7 +41,10 @@ case "$mode" in
     mem_high=90M; mem_max=150M; swap_max=128M
     # 2026-11-05 17:19 现场：两条并行分析（各拉大正文回写）把 loopback 首页拖到 12 秒超时、负载 3.0、
     # 可用内存 89MB；停 worker 5 秒后回到 0.76s。白天只留 1 条分析，本机执行器在线时另算 2 条。
-    limits=$'GEOHOT_INTAKE_COMBINED_LIMIT=2\nGEOHOT_INTAKE_LANE_LIMIT=2\nGEOHOT_INTAKE_ANALYSIS_SLOTS=1'
+    # 2026-11-05 20:2x 复发（积压 1.07 万、COMBINED=2/LANE=2 时公网 / 与 /all 25 秒 000，loopback 12 秒；
+    # 停 worker 后 1.4s/0.47s；只把名额收到 1/1/1、进程不重启地放回来，loopback 1.7s/0.39s 且 CF 3.4s）。
+    # 结论：白天在这台机器上，一个名额就是读者体验的上限——多一个名额换来的吞吐抵不过一次换页。
+    limits=$'GEOHOT_INTAKE_COMBINED_LIMIT=1\nGEOHOT_INTAKE_LANE_LIMIT=1\nGEOHOT_INTAKE_ANALYSIS_SLOTS=1'
     ;;
   night)
     mem_high=260M; mem_max=320M; swap_max=768M
