@@ -166,10 +166,31 @@ if command -v systemctl >/dev/null 2>&1; then
     else
       note "geohot-brain disabled+inactive：本机不跑 3055 stub，判定走 LLM_BASE_URL 网关（有意状态，见 DEPLOYMENT.md 常驻单元一节）"
     fi
-    for u in geohot-api geohot-worker geohot-web; do
+    # api/web 是读者面，任何机器都得在岗。worker 不一样：891MB 的本机跑任何角色的 worker 都会把
+    # 首页拖到 000（2026-11-06 19:1x 实测：起 worker 60 秒后 load 19.4、home 超时；停掉立刻回到
+    # 0.03–0.14s）。所以「这台机器只做读者面」是一个合法且应当被验收承认的形态，但必须写在磁盘上，
+    # 不能靠人记住——/etc/geohot/readers-only 在位时 worker 允许 inactive，且必须以 disabled 落定
+    # （否则重启机器会自己把它拉起来，把读者面再打一次）。没有这个标记的机器照旧要求三单元全 active。
+    for u in geohot-api geohot-web; do
       state=$(systemctl is-active "$u" 2>/dev/null || true)
-      [[ "$state" == "active" ]] && ok "$u active" || bad "$u 状态=$state —— api/worker/web 三个单元都要 active（见 deploy/geohot/systemd/）"
+      [[ "$state" == "active" ]] && ok "$u active" || bad "$u 状态=$state —— api/web 是读者面，必须 active（见 deploy/geohot/systemd/）"
     done
+    reader_only=""
+    if sudo -n test -f /etc/geohot/readers-only 2>/dev/null; then reader_only=1; fi
+    worker_state=$(systemctl is-active geohot-worker 2>/dev/null || true)
+    worker_enabled=$(systemctl is-enabled geohot-worker 2>/dev/null || true)
+    if [[ -n "$reader_only" ]]; then
+      if [[ "$worker_state" == "active" ]]; then
+        bad "geohot-worker active，但这台机器标了 /etc/geohot/readers-only —— 读者面优先的机器不该同时跑 worker（实测会把首页拖到超时）：停掉并 disable，或删掉标记"
+      elif [[ "$worker_enabled" == "enabled" || "$worker_enabled" == "enabled-runtime" ]]; then
+        bad "geohot-worker 已停但仍是 $worker_enabled —— 下次重启会自己起来，把读者面再打一次；systemctl disable geohot-worker"
+      else
+        ok "geohot-worker 有意停用（/etc/geohot/readers-only，$worker_state/$worker_enabled）：本机只做读者面，抓取与分析交给常驻执行器"
+      fi
+    else
+      [[ "$worker_state" == "active" ]] && ok "geohot-worker active" \
+        || bad "geohot-worker 状态=$worker_state —— 没有 /etc/geohot/readers-only 的机器，三单元都要 active（见 deploy/geohot/systemd/）"
+    fi
     # 另外两条是 2026-10-10 之后加上的链路。它们不在常驻三单元里，所以这一节以前对它们的存在与死活一概不问：
     # workbuddy 桥装了却停着，判定调用会静默改道或全停；archive.timer 没在岗，档案就不再进口，
     # 已出的刊期默认不重排，后来到的条目就永久缺席。两种都没有报错，只有内容变薄。

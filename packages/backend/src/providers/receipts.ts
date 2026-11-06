@@ -154,6 +154,9 @@ export async function paidRequest(
   const keys = [...new Set(candidates.map(logicalKeyFor))];
 
   const claimed = await sql.begin(async (tx) => {
+    // 这把咨询锁是**排队**用的，不是防死锁：同一个 service 的选路与预算判断本来就该一个接一个。
+    // 会话级的 lock_timeout 已由 db.ts 放到 15 秒（全局 2 秒是给读者的上限，排队会被当成故障——
+    // 2026-11-06 13:00 起每小时 350–815 篇因此掉回重试），这里不再重复设置。
     // The same pool may choose a different service after a health change. Lock the full candidate set
     // in a stable order, so two concurrent choices cannot both buy this step. Budgets stay per service.
     for (const service of [...new Set(candidates.map((c) => c.service))].sort()) {
