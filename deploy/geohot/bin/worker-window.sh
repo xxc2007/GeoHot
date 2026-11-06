@@ -78,8 +78,12 @@ systemctl set-property geohot-worker \
 # 槽位在 EnvironmentFile 里，只有重启才重新读。
 # 但闸门（fence 档）正按着 worker 时不重启：一次 01:00/07:00 的例行切档把冻结解开，
 # 等于替读者面把刹车松开（2026-11-06 复核 recovery-paths）。
-if [ -e /run/geohot-r115-fence ]; then
-  echo "window=: reader gate holds a fence, worker left as it is (env written for the next start)"
+if [ -e /etc/geohot/readers-only ]; then
+  # 2026-11-07 01:00：这台机器标了 readers-only（deploy 与验收都按它判），但夜档窗口定时器
+  # 照样重启 worker，把它拉起来 → 首页 503、验收连挂四项。切档只改内存线与 env。
+  echo "window=$mode readers-only: worker left as it is (env written for the next start)"
+elif [ -e /run/geohot-r115-fence ]; then
+  echo "window=$mode: reader gate holds a fence, worker left as it is (env written for the next start)"
 else
   systemctl restart geohot-worker
 fi
