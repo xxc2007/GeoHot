@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 新服务器第四批：白天/夜间两档并发。
-# 这台机器只跑分析（网络为主），白天 1 条、夜里 2 条：夜里主库自己也会开 2 个名额，加起来 4 条，
-# 与「读者优先」的上限一致（9 并发会让主库把首页拖到 6 秒以上，已实测）。
+# 这台机器只跑分析（网络为主），两档都给 8 条：它与杭州 12 条、主库只做读者面，合计 20 条是实测的拐点（26 条反而回落到 276/h），
+# 两档同值：白天也没有别的机器分担，窗口只决定「谁来重启」，不再决定名额（2026-11-07 定档）。
 set -euo pipefail
 
 cat > /usr/local/bin/geohot-exec-window.sh <<'SH'
@@ -9,8 +9,8 @@ cat > /usr/local/bin/geohot-exec-window.sh <<'SH'
 set -euo pipefail
 mode="${1:-day}"
 case "$mode" in
-  day)   slots=2; conc=2; lanes=2 ;;
-  night) slots=3; conc=3; lanes=3 ;;
+  day)   slots=8; conc=8; lanes=8 ;;
+  night) slots=8; conc=8; lanes=8 ;;
   *) echo "usage: $0 day|night"; exit 2 ;;
 esac
 d=/etc/systemd/system/geohot-exec-worker.service.d
