@@ -43,23 +43,35 @@ export async function registerServerConsole(app: FastifyInstance, forward = magp
       const text = await readFile(process.env.SERVER_STATUS_FILE || "/run/geohot-server/status.json", "utf8");
       if (text.length > 100_000) throw new Error("oversize sample");
       const sample = JSON.parse(text);
-      // 协同节点：每台辅助机器（阿里云那两台、本机执行器）都在 settings 里写 heartbeat.<role>，
+      // 协同节点：每台辅助机器（阿里云那两台、本机执行器）都在 settings 里写 heartbeat.<role>@<host>，
       // 带 host 与 updated_at。服务器面板直接读这张表，不必从主库 SSH 出去，也不必让辅助机暴露端口。
+      // 键里必须带主机名：两台执行器的 role 都是 content-executor，只按 role 存会互相覆盖，
+      // 面板上就永远只看得见最后心跳的那一台。
       const beats = await sql<{ key: string; value: Record<string, unknown>; updated_at: Date }[]>`
         SELECT key, value, updated_at FROM settings WHERE key LIKE 'heartbeat.%' ORDER BY key`;
       const nodes = beats.map((row) => {
         const at = row.updated_at instanceof Date ? row.updated_at.getTime() : Date.parse(String(row.updated_at));
         return {
-          role: row.key.slice("heartbeat.".length),
+          role: row.key.slice("heartbeat.".length).split("@")[0],
           host: String(row.value?.host ?? "?"),
           release: String(row.value?.release ?? ""),
           slots: typeof row.value?.slots === "number" ? row.value.slots : null,
           // 远端机器一并把自己的负载/内存/磁盘报上来，面板就不用 SSH 出去取数。
           load: typeof row.value?.load === "number" ? row.value.load : null,
+          loadAll: Array.isArray(row.value?.loadAll) ? row.value.loadAll : null,
+          cpus: typeof row.value?.cpus === "number" ? row.value.cpus : null,
+          cpuPercent: typeof row.value?.cpuPercent === "number" ? row.value.cpuPercent : null,
           memTotal: typeof row.value?.memTotal === "number" ? row.value.memTotal : null,
           memFree: typeof row.value?.memFree === "number" ? row.value.memFree : null,
+          swapTotal: typeof row.value?.swapTotal === "number" ? row.value.swapTotal : null,
+          swapFree: typeof row.value?.swapFree === "number" ? row.value.swapFree : null,
           diskFree: typeof row.value?.diskFree === "number" ? row.value.diskFree : null,
           diskTotal: typeof row.value?.diskTotal === "number" ? row.value.diskTotal : null,
+          uptime: typeof row.value?.uptime === "number" ? row.value.uptime : null,
+          platform: typeof row.value?.platform === "string" ? row.value.platform : null,
+          kernel: typeof row.value?.kernel === "string" ? row.value.kernel : null,
+          services: Array.isArray(row.value?.services) ? row.value.services : [],
+          ports: Array.isArray(row.value?.ports) ? row.value.ports : [],
           at: Number.isFinite(at) ? new Date(at).toISOString() : null,
           alive: Number.isFinite(at) && Date.now() - at < 180_000,
         };

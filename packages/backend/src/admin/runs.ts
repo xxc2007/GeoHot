@@ -38,7 +38,7 @@ export async function readRunsOverview() {
   const fresh = await readLiveRunsState();
   const live = fresh?.processes;
   const now = Date.now();
-  const processes = live ? live.map(h => ({ role: h.key.slice("heartbeat.".length), ...h.value, at: h.updated_at,
+  const processes = live ? live.map(h => ({ role: h.key.slice("heartbeat.".length).split("@")[0], ...h.value, at: h.updated_at,
     alive: now - h.updated_at.getTime() < STALE_HEARTBEAT_MS })) : overview.processes.map(p => ({...p, alive: now - new Date(p.at).getTime() < STALE_HEARTBEAT_MS}));
   // pg-boss maintains this tiny queue metadata table itself. Reading it avoids scanning the job
   // archive just to show whether the live queue is moving; its monitor timestamp remains explicit.
@@ -128,7 +128,7 @@ export async function runsOverview() {
       checkedAt: new Date(now).toISOString(),
       stale: false,
       processes: heartbeats.map((h) => ({
-        role: h.key.slice("heartbeat.".length),
+        role: h.key.slice("heartbeat.".length).split("@")[0],
         ...h.value,
         at: h.updated_at,
         alive: now - h.updated_at.getTime() < STALE_HEARTBEAT_MS,

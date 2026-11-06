@@ -19,6 +19,31 @@ test("接口把体检数据透给面板，字段名与心跳一致", () => {
   }
 });
 
+test("心跳键可以由每台机器自己指定，两台同角色的执行器不会互相覆盖", () => {
+  const source = read("packages/backend/src/operations/heartbeat.ts");
+  // 武汉与杭州的 role 都是 content-executor：只按 role 存，后心跳的那台会把先前的覆盖掉，
+  // 面板上就只显示一台机器。默认键仍是 heartbeat.<role>（主库 worker 与告警面按这个名字找），
+  // 辅助机器在自己的 .env 里用 GEOHOT_HEARTBEAT_KEY 写带主机名的键。
+  assert.match(source, /process\.env\.GEOHOT_HEARTBEAT_KEY/);
+  assert.match(source, /heartbeat\.\$\{role\}/);
+  for (const file of ["apps/api/src/routes/server-console.ts", "packages/backend/src/admin/runs.ts"]) {
+    const consumer = read(file);
+    assert.ok(consumer.includes('.split("@")[0]'), `${file} 要把键里的主机名剥掉再当角色展示`);
+  }
+});
+
+test("远端节点像主库一样报资源与单元状态", () => {
+  const beat = read("packages/backend/src/operations/heartbeat.ts");
+  // 主库面板能看到的四项指标 + 服务表，远端机器都得自己报，主库不 SSH 出去。
+  for (const field of ["cpuPercent", "swapTotal", "swapFree", "uptime", "cpus", "services", "ports"]) {
+    assert.ok(beat.includes(`${field}`), `心跳缺 ${field}`);
+  }
+  assert.ok(beat.includes('"systemctl"'), "单元状态要问 systemctl");
+  const page = read("apps/web/app/routes/admin/server.tsx");
+  assert.ok(page.includes("{(n.services??[]).length===0"), "远端节点要有自己的服务表");
+  assert.ok(page.includes("n.cpuPercent"), "远端节点要有自己的 CPU 卡");
+});
+
 test("面板把远端节点画成表格，缺数据时留破折号", () => {
   const source = read("apps/web/app/routes/admin/server.tsx");
   const card = source.slice(source.indexOf('<Card title="协同节点">'));
