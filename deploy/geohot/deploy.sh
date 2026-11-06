@@ -107,6 +107,29 @@ rmdir "$UPLOAD_DIR" || exit 1
 [ "$(sha256sum "$PKG" | cut -d' ' -f1)" = "$PKG_SHA" ] \
   || { echo "ABORT: 上传包哈希不符"; exit 1; }
 
+
+# 这台机器只有 891MB 内存，夜里归档周期一开就把盘刷满（2026-11-06 16:47 现场：sda %util 92、
+# await 21ms、18 个 D 状态进程）。那种状态下 `node scripts/migrate.ts` 连 127.0.0.1:5432 都会
+# CONNECT_TIMEOUT、`react-router build` 会跑十分钟没结果 —— 迁移与构建本身都是好的，
+# 只是被换页和刷盘挤死了。等压力回落再动手，比事后手工补跑便宜得多；等不到就照常继续，
+# 让原来的失败处理照旧生效（宁可这一轮红，也不要把"机器很慢"写成"代码坏了"）。
+wait_for_quiet() {
+  local label=$1 budget=${2:-240} waited=0 step=10 io_full=0 load1=0
+  while [ "$waited" -lt "$budget" ]; do
+    io_full=$(awk '/^full /{split($2,a,"=");print a[2];exit}' /proc/pressure/io 2>/dev/null || echo 0)
+    load1=$(cut -d' ' -f1 /proc/loadavg 2>/dev/null || echo 0)
+    if [ "${io_full%%.*}" -lt "${GEOHOT_DEPLOY_IO_FULL:-60}" ] && [ "${load1%%.*}" -lt "${GEOHOT_DEPLOY_LOAD:-8}" ]; then
+      [ "$waited" -gt 0 ] && echo "$label: 等了 ${waited} 秒，压力已回落（io.full=${io_full} load=${load1}）"
+      return 0
+    fi
+    [ "$waited" -eq 0 ] && echo "$label: 机器正被 I/O 打满（io.full=${io_full} load=${load1}），先等它缓过来"
+    sleep "$step"
+    waited=$(( waited + step ))
+  done
+  echo "$label: 等了 ${budget} 秒压力仍高（io.full=${io_full} load=${load1}），照常继续"
+  return 0
+}
+
 echo "== 部署前：停定时器 + 拿住归档周期的锁 =="
 # DEPLOYMENT.md 要求解包前停 timer 并拿锁：archive-cycle.sh 是 bash 边读边执行的脚本，
 # 正在跑的那一轮会在解包之后读到换掉的自己。这里不假设它一定开着：记下原状态，最后按原状态还原。
@@ -232,8 +255,18 @@ echo "release: $APP_ROOT/.release = $REV（.env 里的 AIHOT_RELEASE 同步为�
 # 迁移与构建的失败必须中止，不能"记个日志继续重启"：那正是"200 但站是错的"那一类，
 # 而 `... | tail -3` 在 pipefail 下虽然能带出退出码，没有 set -e 也没人看它。
 echo "== 迁移 =="
-if ! sudo -u geohot env BASE_PATH="$BASE_PATH" bash -lc "cd $APP_ROOT && node --env-file=.env scripts/migrate.ts" > /tmp/deploy-migrate.log 2>&1; then
-  echo "ABORT: 迁移失败 —— 不重启，线上继续跑旧代码（半迁移状态下重启更难查）"; tail -5 /tmp/deploy-migrate.log; exit 1
+wait_for_quiet "迁移前" "${GEOHOT_DEPLOY_WAIT_SEC:-240}"
+migrate_once() { sudo -u geohot env BASE_PATH="$BASE_PATH" bash -lc "cd $APP_ROOT && node --env-file=.env scripts/migrate.ts" > /tmp/deploy-migrate.log 2>&1; }
+if ! migrate_once; then
+  # 「连不上库」与「迁移本身报错」是两件事：前者等一轮再试，后者立刻中止。
+  if grep -qE "CONNECT_TIMEOUT|ECONNREFUSED|ETIMEDOUT" /tmp/deploy-migrate.log; then
+    echo "迁移: 连不上库（瞬时 I/O 饥饿），等一轮再试一次"
+    wait_for_quiet "迁移重试前" 180
+    migrate_once || true
+  fi
+  if grep -qE "CONNECT_TIMEOUT|ECONNREFUSED|ETIMEDOUT" /tmp/deploy-migrate.log; then
+    echo "ABORT: 迁移失败 —— 不重启，线上继续跑旧代码（半迁移状态下重启更难查）"; tail -5 /tmp/deploy-migrate.log; exit 1
+  fi
 fi
 tail -3 /tmp/deploy-migrate.log
 
@@ -245,6 +278,7 @@ echo "== 带前缀重建 web（BASE_PATH=$BASE_PATH；构建与重启是相邻�
 # （名字带哈希，同名即同内容，不会互相覆盖），只留最近两版，多的按 mtime 删掉。
 ASSETS_DIR="$APP_ROOT/apps/web/build/client/assets"
 sudo -n test -d "$ASSETS_DIR" && sudo -n mv "$ASSETS_DIR" "$ASSETS_DIR.prev" || true
+wait_for_quiet "构建前" "${GEOHOT_DEPLOY_WAIT_SEC:-240}"
 if ! sudo -u geohot env BASE_PATH="$BASE_PATH" bash -lc "cd $APP_ROOT && npm run build -w @aihot/web" > /tmp/deploy-build.log 2>&1; then
   echo "ABORT: web 构建失败 —— 不重启：重启进一个坏 bundle 就是 2026-10-12 那次 6 分钟整站 404"; tail -8 /tmp/deploy-build.log
   sudo -n test -d "$ASSETS_DIR.prev" && sudo -n mv "$ASSETS_DIR.prev" "$ASSETS_DIR" || true
