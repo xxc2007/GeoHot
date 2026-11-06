@@ -43,11 +43,9 @@ test("闸门单元自己有启动超时，不被 systemd 的 90 秒默认值中�
 
 test("例行切档不替读者面松刹车：fence 在位时不重启 worker", () => {
   const source = read("deploy/geohot/bin/worker-window.sh");
-  // 2026-11-07：判据变成「readers-only > fence > 才重启」，注释里也会出现同样的命令，
-  // 所以先剥注释再判位置。
-  const code = source.split("
-").map(line => line.replace(/^s*#.*$/, "")).join("
-");
+  // 2026-11-07：判据从「只看 fence」变成「readers-only > fence > 才重启」，注释里也会出现
+  // 这行命令，所以先剥注释再判位置。
+  const code = source.split("\n").map(line => line.replace(/^\s*#.*$/, "")).join("\n");
   const fence = code.indexOf("/run/geohot-r115-fence");
   const restart = code.indexOf("systemctl restart geohot-worker");
   assert.ok(fence > 0 && restart > fence, "fence 判定必须在重启之前");
