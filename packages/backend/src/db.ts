@@ -24,7 +24,14 @@ export const sql = postgres(config.databaseUrl, {
   // Prepared statements keep PostgreSQL's plan cache: planning a detail read took longer than running
   // it. Searches plan every execution instead (withCustomPlans). JIT compilation costs more than
   // these short queries ever run.
-  connection: { jit: "off" },
+  //
+  // `lock_timeout`：服务器在 postgresql.auto.conf 里设了全局 2 秒。那是给**读者**定的上限——
+  // 一个读者等不到行锁就该早点回去（publication/read-budget.ts 另外还会收到 1.5 秒）；
+  // 但后台的咨询锁是**排队**用的：同一个 service 的预算判定、同一批素材的身份归并本来就该一个接一个。
+  // 2 秒把排队当故障，2026-11-06 13:00 起每小时 350–815 篇带着 `canceling statement due to lock timeout`
+  // 掉回重试，槽位从 1 加到 13 而出口从 750/h 掉到 300/h。所以在会话级把它放到 15 秒，
+  // 真死锁仍由 deadlock_timeout 兜底，而读者那条路被 read-budget.ts 的 SET LOCAL 继续钉在 1.5 秒。
+  connection: { jit: "off", lock_timeout: 15_000 },
   types: {
     int8: numberType(20),
     numeric: numberType(1700),
