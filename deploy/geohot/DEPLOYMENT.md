@@ -258,6 +258,15 @@ curl -s -o /dev/null -w '%{http_code} %{num_redirects} %{url_effective}\n' -L ht
   `bash /opt/geohot/bin/readers-only.sh on|off|status`——`verify-deploy.sh` 认这个标记
   （worker 允许 inactive，但必须 disabled），`deploy.sh` 重启单元时直接跳过 worker，
   两条路都不再需要人记着。没有这个标记的机器照旧要求 api/worker/web 三单元全 active。
+- **构建不要落在生产机上（2026-11-06 23:1x 定下来的形态）**：同一台机器上跑
+  `npm run build -w @aihot/web` 会把 load 顶到 31、首页 503，随后 `deploy.sh` 的 `timeout 1500`
+  到期退出——**六个单元一个都没重启**，站点靠手工救回来。所以 `deploy.sh` 增加了 `--web-prebuilt`
+  （或 `GEOHOT_WEB_PREBUILT=1`）：在部署机上先构建，只把 `apps/web/build` 打成制品传过去，
+  服务器只负责解包、合并上一版 assets、重启。两条硬约束随之而来：
+  ①制品只能对 **HEAD** 构建（`--rev` 与 HEAD 不一致时脚本拒绝），否则盘上的 build 与源码不是同一棵树；
+  ②在 Git Bash 里构建必须 `MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*'`，否则 MSYS 把
+  `BASE_PATH=/geohot` 当路径转成 `C:/Users/…/geohot`，装上去就是全站 404（2026-11-07 00:2x 真踩过）。
+  脚本里已经带上了这两个变量，另有一道 `grep -q 'C:/Users' build/server/index.js` 的兜底。
 - `api`/`worker`/`web` 三个模板这轮补上了 `MemoryMax`（160/200/240/320 那一组）。
   **2026-10-15 起两条路线已经并成一条**：`install-units.sh` 在默认 `GEOHOT_APP_ROOT=/opt/geohot/app` 下
   安装的就是 `deploy/geohot/systemd/` 这套模板（默认 20 个单元，目录里共 28 个单元模板；带 `ProtectSystem=strict` 等加固块），
