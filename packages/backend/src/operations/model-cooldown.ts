@@ -8,7 +8,11 @@ const QUOTA = /free-models-per-day|insufficient_quota|exceeded your current quot
 // 11150 "reasoning effort value is not supported by the current model"，workbuddy-cn 实测形态）。
 // 这两类错误换个时刻必然复现——2026-10-30~31 它们在 24h 内烧掉约 985 条 translate_body 收据失败，
 // 此前只有 10 分钟失败率窗在管，窗口一过期就复烧。与 quota/auth 同权：命中即冷却一小时。
-const CONFIG = /switched off in Magpie|is not supported by the current model/i;
+// 2026-11-06 再补三族：`unknown or disabled model`（qoder-cn/dfmodel 的网关侧已下线）、
+// `account is signed out`（minimax-code 两个成员，6 小时 373 次失败）、`request illegal`
+// （workbuddy 3065 整条通道对任何模型都 403，6 小时 127 次失败）。这三族都是"换个时刻必然
+// 复现"的确定性拒绝，不带冷却就是每轮轮转白烧一次调用。
+const CONFIG = /switched off in Magpie|is not supported by the current model|unknown or disabled model|account is signed out|sign in again|request illegal/i;
 const HOUR = 3600_000;
 
 // 进程重启会忘掉这一小时的冷却：worker 今天被停/起了六十多次，每次重启都把已经确定死掉的成员
