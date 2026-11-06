@@ -81,7 +81,8 @@ fi
 if (( LAST_RELEASE > 0 && LAST_RELEASE > NOW - WIN )); then
   (( LAST_RELEASE > EXF )) && EXF=$LAST_RELEASE
 fi
-export R114_E5_EXCLUDE_FROM=$EXF R114_E5_EXCLUDE_TO=$EXTRAO=$(e5_count "${R114_NGX:-/var/log/nginx/access.log}" "${R114_E5_TAIL:-20000}" "$WIN" \
+export R114_E5_EXCLUDE_FROM=$EXF R114_E5_EXCLUDE_TO=$EXT
+RAO=$(e5_count "${R114_NGX:-/var/log/nginx/access.log}" "${R114_E5_TAIL:-20000}" "$WIN" \
   "$(LC_ALL=C date +%d/%b/%Y)" "$T0" "$NOW" \
   "$(LC_ALL=C date -d yesterday +%d/%b/%Y 2>/dev/null)" "$(( T0 - 86400 ))")
 E5=$(printf '%s' "$RAO" | cut -d' ' -f1)

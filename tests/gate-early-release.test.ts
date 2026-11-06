@@ -49,3 +49,20 @@ test("after an early release the gate counts only 5xx that happened since", () =
 
   execFileSync("bash", ["-n", fileURLToPath(SCRIPT)]);
 });
+
+/**
+ * 2026-11-06 09:0x 现场：一次编辑把 `export R114_E5_EXCLUDE_FROM=...` 和下一行的
+ * `RAO=$(e5_count ...` 并成了一行（`$EXTRAO=...`），闸门每分钟报
+ * `line 84: EXTRAO: unbound variable` 并整轮退出——闸门等于停摆。
+ * 这里钉住两件事：那行 export 必须自己一行；紧跟其后必须是 RAO 赋值。
+ */
+test("the exclude window export stays on its own line", () => {
+  const text = readFileSync(SCRIPT, "utf8");
+  const lines = text.split("\n");
+  const idx = lines.findIndex((l) => l.includes("export R114_E5_EXCLUDE_FROM="));
+  assert.ok(idx > 0, "export line must exist");
+  assert.match(lines[idx], /^export R114_E5_EXCLUDE_FROM=\$EXF R114_E5_EXCLUDE_TO=\$EXT$/);
+  assert.match(lines[idx + 1] ?? "", /^RAO=\$\(e5_count /);
+
+  execFileSync("bash", ["-n", fileURLToPath(SCRIPT)]);
+});
