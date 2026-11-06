@@ -4,7 +4,7 @@ import type { Route } from "./+types/server";
 import { adminGet } from "../../lib/admin.server";
 import { AdminPage, Card, Stat } from "../../features/admin/ui";
 
-interface Sample { checkedAt:string; stale?:boolean; host:string; os:string; kernel:string; cpus:number; cpuPercent:number|null; uptime:number; load:number[]; memory:{total:number;available:number;swapTotal:number;swapFree:number}; disk:{total:number;free:number}; pressure:Record<string,number>; services:Array<{name:string;state:string;memory:number;restarts:number}>; ports:string[]; versions:Record<string,string>; nodes?:Array<{role:string;host:string;release:string;slots:number|null;load:number|null;memTotal:number|null;memFree:number|null;diskFree:number|null;diskTotal:number|null;at:string|null;alive:boolean}> }
+interface Sample { checkedAt:string; stale?:boolean; host:string; os:string; kernel:string; cpus:number; cpuPercent:number|null; uptime:number; load:number[]; memory:{total:number;available:number;swapTotal:number;swapFree:number}; disk:{total:number;free:number}; pressure:Record<string,number>; services:Array<{name:string;state:string;memory:number;restarts:number}>; ports:string[]; versions:Record<string,string>; nodes?:Array<{role:string;host:string;release:string;slots:number|null;load:number|null;loadAll:number[]|null;cpus:number|null;cpuPercent:number|null;memTotal:number|null;memFree:number|null;swapTotal:number|null;swapFree:number|null;diskFree:number|null;diskTotal:number|null;uptime:number|null;platform:string|null;kernel:string|null;services:Array<{name:string;state:string;memory:number;restarts:number}>;ports:string[];at:string|null;alive:boolean}> }
 export async function loader({request}:Route.LoaderArgs){return adminGet<Sample>(request,"/api/admin/server",5000);}
 const mb=(n:number)=>`${Math.round(n/1024/1024).toLocaleString()} MB`;
 const gb=(n:number)=>`${(n/1024**3).toFixed(1)} GB`;
@@ -25,7 +25,7 @@ export default function Server({loaderData:s}:Route.ComponentProps){
   </tr></thead><tbody>{(s.nodes??[]).length===0
     ?<tr><td className="py-3 text-ink-3" colSpan={8}>还没有辅助节点上报心跳。</td></tr>
     :(s.nodes??[]).map(n=>
-      <tr key={n.role} className="border-t border-line">
+      <tr key={`${n.role}@${n.host}`} className="border-t border-line">
         <td className="py-3">{n.role}</td>
         <td>{n.host}</td>
         <td>{n.slots??"—"}</td>
@@ -36,8 +36,26 @@ export default function Server({loaderData:s}:Route.ComponentProps){
         <td className={n.alive?"text-ok-ink":"text-amber-ink"}>{n.alive?"在岗":"离线"}</td>
       </tr>)}
   </tbody></table></div>
-  <p className="mt-4 text-xs text-ink-3">心跳来自各机器自己的 worker 进程（settings 表的 heartbeat.* 行）。负载是一分钟均值，内存是「已用 / 总量」，三分钟内无心跳即判离线。远端节点的读数由该机 worker 自己采集，主库不需要 SSH 出去，辅助机也不必对外开端口。</p>
+  <p className="mt-4 text-xs text-ink-3">心跳来自各机器自己的 worker 进程（settings 表的 heartbeat.*@host 行）。负载是一分钟均值，内存是「已用 / 总量」，三分钟内无心跳即判离线。远端节点的读数由该机 worker 自己采集，主库不需要 SSH 出去，辅助机也不必对外开端口。</p>
 </Card>
+  {(s.nodes??[]).filter(n=>n.alive&&n.host!==s.host).map(n=>
+    <div key={`node-${n.host}`} className="space-y-3">
+      <div className="flex items-baseline gap-3 pt-2"><h2 className="text-lg font-semibold">{n.host}</h2><span className="text-xs text-ink-3">{n.role} · release {n.release||"—"} · 并发槽 {n.slots??"—"} · {n.kernel||n.platform||""}</span></div>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Stat label="CPU 使用率" value={n.cpuPercent===null?"等待采样":`${n.cpuPercent}%`} hint={`${n.cpus??"?"} 核 · 负载 ${(n.loadAll??[n.load??0]).join(" / ")}`}/>
+        <Stat label="可用内存" value={n.memFree===null?"—":mb(n.memFree)} hint={`总内存 ${n.memTotal===null?"—":mb(n.memTotal)}`} tone={n.memTotal&&n.memFree!==null&&n.memFree/n.memTotal<.15?"bad":"ok"}/>
+        <Stat label="交换空间已用" value={n.swapTotal===null?"—":mb(n.swapTotal-(n.swapFree??0))} hint={`总交换空间 ${mb(n.swapTotal??0)}`}/>
+        <Stat label="磁盘剩余" value={n.diskFree===null?"—":gb(n.diskFree)} hint={`总容量 ${n.diskTotal===null?"—":gb(n.diskTotal)}`}/>
+      </div>
+      <Card title="运行状态"><dl className="grid gap-4 text-sm sm:grid-cols-2">
+        <div><dt className="text-ink-3">主机与开机时长</dt><dd>{n.host} · {n.uptime===null?"—":`${Math.floor(n.uptime/86400)} 天 ${Math.floor(n.uptime%86400/3600)} 小时`}</dd></div>
+        <div><dt className="text-ink-3">最后心跳</dt><dd>{n.at?new Date(n.at).toLocaleString("zh-CN",{timeZone:"Asia/Shanghai",hour12:false}):"—"}</dd></div>
+        <div><dt className="text-ink-3">内部监听端口</dt><dd>{(n.ports??[]).length?n.ports.join("、"):"—"}</dd></div>
+      </dl></Card>
+      <Card title="服务"><div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr className="text-ink-3"><th className="py-2">服务</th><th>状态</th><th>内存</th><th>自动重启次数</th></tr></thead><tbody>{(n.services??[]).length===0
+        ?<tr><td className="py-3 text-ink-3" colSpan={4}>这台机器没有上报单元状态。</td></tr>
+        :(n.services??[]).map(v=><tr key={v.name} className="border-t border-line"><td className="py-3">{v.name}</td><td className={v.state==="active"?"text-ok-ink":"text-amber-ink"}>{v.state==="active"?"运行中":v.state==="inactive"?"已停止":v.state}</td><td>{mb(v.memory)}</td><td>{v.restarts}</td></tr>)}</tbody></table></div></Card>
+    </div>)}
   <Card title="软件与配置"><dl className="grid gap-3 text-sm sm:grid-cols-2">{Object.entries(s.versions).map(([k,v])=><div key={k}><dt className="text-ink-3">{k}</dt><dd>{v}</dd></div>)}</dl><p className="mt-4 text-xs text-ink-3">仅展示运行指标与配置摘要。服务停止可能由读者保护机制触发，具体原因见运行页与服务器日志。</p></Card>
  </AdminPage>;
 }
