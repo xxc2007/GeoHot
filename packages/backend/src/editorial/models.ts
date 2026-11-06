@@ -219,7 +219,10 @@ let health: { at: number; sick: Set<string> } | null = null;
 /** 2026-11-05: 失效发生在一次读盘在飞期间时，那次读盘会把「失效前」的结论写回缓存，
  * 于是紧接着的请求看到一个已经过时的健康结论。代数只用来丢弃过期写回。 */
 let healthGeneration = 0;
-let healthInflight: Promise<Set<string>> | null = null;
+/** 2026-11-06: 单飞的那次读盘也要带代数。失效发生在它飞着的时候，后来者若继续搭这趟车，
+ * 拿到的仍是「失效前」的结论 —— 后台刚把一个门判死，前台一整个窗口里仍会把活派给它。
+ * 所以失效之后不再共享旧的那次，各自按新代数重读；旧的那次只负责别把自己的写回塞进缓存。 */
+let healthInflight: { generation: number; promise: Promise<Set<string>> } | null = null;
 /** Rate-limited so a persistently unreadable ledger warns once a minute instead of once per task. */
 let healthReadFailureAt = 0;
 
@@ -227,9 +230,15 @@ export async function sickServices(): Promise<Set<string>> {
   if (health && Date.now() - health.at < 60_000) return modelCooldown.overlay(health.sick);
   // 2026-10-22: 64 个 analyze 并发同时过期会让这条 6 小时窗口查询并发执行 64 次，
   // 每次在 891MB/2 核的机器上跑 115 秒，把连接池和 IO 全部吃光。单飞后同一时刻只有一个在飞。
-  if (healthInflight) return healthInflight.then(sick => modelCooldown.overlay(sick));
-  healthInflight = readSick().finally(() => { healthInflight = null; });
-  return healthInflight.then(sick => modelCooldown.overlay(sick));
+  const current = healthInflight;
+  if (current && current.generation === healthGeneration) return current.promise.then(sick => modelCooldown.overlay(sick));
+  const entry: { generation: number; promise: Promise<Set<string>> } = {
+    generation: healthGeneration,
+    promise: Promise.resolve(new Set<string>()),
+  };
+  entry.promise = readSick().finally(() => { if (healthInflight === entry) healthInflight = null; });
+  healthInflight = entry;
+  return entry.promise.then(sick => modelCooldown.overlay(sick));
 }
 
 async function readSick(): Promise<Set<string>> {

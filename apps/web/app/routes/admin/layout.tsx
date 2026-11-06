@@ -45,6 +45,7 @@ const NAV: Array<{ group: string; items: Array<{ to: string; label: string; coun
       { to: "/admin/magpie", label: "magpie" },
       { to: "/admin/usage", label: "用量总览" },
       { to: "/admin/models", label: "模型" },
+      { to: "/admin/topics", label: "主题轮换" },
       { to: "/admin/audit", label: "审计记录" },
       { to: "/admin/settings", label: "设置" },
     ],

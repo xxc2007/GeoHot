@@ -40,6 +40,8 @@ interface Scheduled {
   cron: string;
   run: () => Promise<unknown>;
   missed?: "skip" | "once";
+  /** 一次跑多久算「死了」。默认一小时太宽：每小时级的活挂住以后，singleton 会让它一小时不再跑。 */
+  expire?: number;
 }
 
 const collecting = isCollectEnabled();
@@ -101,7 +103,7 @@ export const SCHEDULES: Scheduled[] = [
   // 有主题连续两周没有新条目时，站长会在日报里看到 slug 列表，而不是等到读者发现那一页停在上个月。
   { name: "topics.audit", cron: "20 6 * * *", missed: "once", run: () => auditTopicFreshness() },
   // 主题归类：每十分钟把最近三天的分配复算一次（实时跟上门票），每天凌晨再把 45 天全量校一遍。
-  { name: "topics.assign", cron: "*/10 * * * *", missed: "once", run: () => assignTopicsAndReport(3) },
+  { name: "topics.assign", cron: "*/10 * * * *", missed: "once", expire: 300, run: () => assignTopicsAndReport(3) },
   { name: "topics.assign-backfill", cron: "40 3 * * *", missed: "once", run: () => assignTopicsAndReport(45) },
   // 轮换：每月 1 号 04:10 检查归档/复活，每天 04:30 把「热起来但没主题认领」的标签记成候选。
   { name: "topics.rotate", cron: "10 4 1 * *", missed: "once", run: () => rotateTopics() },
@@ -126,7 +128,7 @@ export const SCHEDULES: Scheduled[] = [
 export async function registerSchedules(boss: PgBoss) {
   for (const s of SCHEDULES) {
     const queue = `cron.${s.name}`;
-    await ensureQueue(queue, { policy: "singleton", retryLimit: 1, expireInSeconds: 3600 });
+    await ensureQueue(queue, { policy: "singleton", retryLimit: 1, expireInSeconds: s.expire ?? 3600 });
     await boss.schedule(queue, resourceCron(s.name, s.cron), {}, { tz: "Asia/Shanghai", missed: s.missed ?? "skip" });
     // Schedules fire at minute boundaries; a 15 s pickup keeps them on time with a third of the polling.
     const admittedTranslation = balancedResources() && s.name === "content.translate";

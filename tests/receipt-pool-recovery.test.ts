@@ -5,7 +5,7 @@ import { z } from "zod";
 import { closeDb, sql } from "@aihot/backend/db";
 import { chatJson } from "@aihot/backend/providers/llm";
 import { BudgetExceededError, ProviderRejectedError, ReceiptBusyError, ReceiptUnknownError, completeReceipt } from "@aihot/backend/providers/receipts";
-import { invalidateModelCache, modelFor } from "@aihot/backend/editorial/models";
+import { invalidateModelCache, modelFor, sickServices } from "@aihot/backend/editorial/models";
 import { runAnalysis, type AnalyzeInputArticle } from "@aihot/backend/editorial/analyze";
 
 const fixtureTag = `pool-recovery-${tag()}`;
@@ -245,6 +245,16 @@ const blockMinute = async (service: string) => {
   await sql`UPDATE budgets SET per_minute = ${row!.used} WHERE service = ${service}`;
 };
 const resetMinutes = async () => sql`UPDATE budgets SET per_minute = 100000 WHERE service IN ('llm','agnes-cn')`;
+// 2026-11-06: 健康结论是每秒都可能变的窗口统计。种完失败后不等它可见就去发请求，
+// 断言失败时看到的是「Missing expected rejection」——把真因埋掉。这里显式等它可见，失败也说得清楚。
+const waitForSick = async (service: string) => {
+  const deadline = Date.now() + 8_000;
+  while (Date.now() < deadline) {
+    if ((await sickServices()).has(service)) return;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  assert.fail(`${service} never became unhealthy after the seeded failures`);
+};
 
 test("local full minute window dispatches an unsent step to an available same-pool service", async () => {
   await blockMinute("llm");
@@ -450,6 +460,7 @@ test("an unhealthy pool member is not used merely because its local budget has r
       FROM generate_series(1, (SELECT count(*)::int+6 FROM receipt_attempts
         WHERE service='agnes-cn' AND origin='live' AND started_at>now()-interval '10 minutes')) n`;
   invalidateModelCache();
+  await waitForSick("agnes-cn");
   await blockMinute("llm");
   const beforeB=b.hits();
   try {
