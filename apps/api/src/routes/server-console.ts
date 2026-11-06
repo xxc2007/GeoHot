@@ -4,6 +4,7 @@ import { request as httpRequest } from "node:http";
 import rateLimit from "@fastify/rate-limit";
 import type { FastifyInstance } from "fastify";
 import { config } from "@aihot/backend/config";
+import { sql } from "@aihot/backend/db";
 import { deployBase } from "@aihot/contracts/http-policy";
 import { sessionPrincipal } from "@aihot/backend/admin/auth";
 import { adminHandler } from "./admin-auth.ts";
@@ -42,7 +43,22 @@ export async function registerServerConsole(app: FastifyInstance, forward = magp
       const text = await readFile(process.env.SERVER_STATUS_FILE || "/run/geohot-server/status.json", "utf8");
       if (text.length > 100_000) throw new Error("oversize sample");
       const sample = JSON.parse(text);
-      return { ...sample, stale: Date.now() - Date.parse(sample.checkedAt) > 90_000 };
+      // 协同节点：每台辅助机器（阿里云那两台、本机执行器）都在 settings 里写 heartbeat.<role>，
+      // 带 host 与 updated_at。服务器面板直接读这张表，不必从主库 SSH 出去，也不必让辅助机暴露端口。
+      const beats = await sql<{ key: string; value: Record<string, unknown>; updated_at: Date }[]>`
+        SELECT key, value, updated_at FROM settings WHERE key LIKE 'heartbeat.%' ORDER BY key`;
+      const nodes = beats.map((row) => {
+        const at = row.updated_at instanceof Date ? row.updated_at.getTime() : Date.parse(String(row.updated_at));
+        return {
+          role: row.key.slice("heartbeat.".length),
+          host: String(row.value?.host ?? "?"),
+          release: String(row.value?.release ?? ""),
+          slots: typeof row.value?.slots === "number" ? row.value.slots : null,
+          at: Number.isFinite(at) ? new Date(at).toISOString() : null,
+          alive: Number.isFinite(at) && Date.now() - at < 180_000,
+        };
+      });
+      return { ...sample, stale: Date.now() - Date.parse(sample.checkedAt) > 90_000, nodes };
     } catch { return reply.code(503).send({ unavailable: true }); }
   }));
   app.route({ method: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"], url: "/api/admin/magpie-proxy/*", config:{rateLimit:{max:240,timeWindow:'1 minute'}}, handler: guard(async (req, reply, admin) => {
