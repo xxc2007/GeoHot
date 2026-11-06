@@ -46,14 +46,22 @@ interface Scheduled {
 
 const collecting = isCollectEnabled();
 
+/**
+ * 一次调度跑多久算「死了」。3600 秒对分钟级的活是灾难：接管它的 worker 一重启，
+ * singleton 会让这条 cron 整整一小时不再跑（2026-11-07 01:0x 实测 `cron.sources.schedule`
+ * 卡了 57 分钟、`cron.sources.reserves` 55 分钟，期间没有任何新信源被排期）。
+ * 默认压到 900 秒，快的活各自显式给更小的值。
+ */
+const DEFAULT_SCHEDULE_EXPIRE = 900;
+
 export const SCHEDULES: Scheduled[] = [
   // Revisit minute-budget waits each minute; the single scan consumer keeps the 500-row/archive quota.
-  { name: "content.sweep", cron: "* * * * *", run: sweepUnprocessed },
+  { name: "content.sweep", cron: "* * * * *", expire: 240, run: sweepUnprocessed },
   // Full-text translations of newly selected items (model calls; off with MODEL_CALLS_ENABLED=false).
-  { name: "content.translate", cron: "* * * * *", run: () => translatePending(balancedResources() ? { limit: 6, budgetMs: 60_000, deadlineAt: Date.now() + 120_000 } : {}) },
-  { name: "hot.rank", cron: "*/5 * * * *", run: () => computeHotRanking() },
+  { name: "content.translate", cron: "* * * * *", expire: 300, run: () => translatePending(balancedResources() ? { limit: 6, budgetMs: 60_000, deadlineAt: Date.now() + 120_000 } : {}) },
+  { name: "hot.rank", cron: "*/5 * * * *", expire: 300, run: () => computeHotRanking() },
   { name: "hot.snapshot", cron: "2 * * * *", run: () => snapshotHeat() },
-  { name: "stories.status", cron: "7 * * * *", run: refreshStoryStatuses },
+  { name: "stories.status", cron: "7 * * * *", expire: 600, run: refreshStoryStatuses },
   { name: "stories.links", cron: "12 * * * *", run: linkRelatedStories },
   {
     name: "reports.daily", cron: "0 8 * * *", missed: "once",
@@ -115,8 +123,8 @@ export const SCHEDULES: Scheduled[] = [
     : []),
   ...(collecting
     ? [
-        { name: "sources.schedule", cron: "* * * * *", run: () => scheduleDueSources(balancedResources() ? 12 : undefined) },
-        { name: "sources.reserves", cron: "*/5 * * * *", run: maintainReserves },
+        { name: "sources.schedule", cron: "* * * * *", expire: 240, run: () => scheduleDueSources(balancedResources() ? 12 : undefined) },
+        { name: "sources.reserves", cron: "*/5 * * * *", expire: 300, run: maintainReserves },
         { name: "sources.adapt-intervals", cron: "20 4 * * *", run: adaptIntervals },
         // WeChat official accounts (paid), each once per its interval.
         { name: "sources.mp-reconcile", cron: "*/15 * * * *", run: () => scheduleMpReconcile() },
@@ -128,7 +136,7 @@ export const SCHEDULES: Scheduled[] = [
 export async function registerSchedules(boss: PgBoss) {
   for (const s of SCHEDULES) {
     const queue = `cron.${s.name}`;
-    await ensureQueue(queue, { policy: "singleton", retryLimit: 1, expireInSeconds: s.expire ?? 3600 });
+    await ensureQueue(queue, { policy: "singleton", retryLimit: 1, expireInSeconds: s.expire ?? DEFAULT_SCHEDULE_EXPIRE });
     await boss.schedule(queue, resourceCron(s.name, s.cron), {}, { tz: "Asia/Shanghai", missed: s.missed ?? "skip" });
     // Schedules fire at minute boundaries; a 15 s pickup keeps them on time with a third of the polling.
     const admittedTranslation = balancedResources() && s.name === "content.translate";
