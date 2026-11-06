@@ -66,3 +66,18 @@ test("readers-only.sh flips the marker, the unit state and the enable bit togeth
   // 只认三个动作，别让人手打错字就把机器定成别的形态。
   assert.match(script, /case "\$\{1:-status\}" in/);
 });
+
+test("the night window timer does not resurrect a readers-only worker", () => {
+  // 注释里也会出现同样的字样（本轮注释就写了这行命令），先剥注释再判位置。
+  const window = readFileSync("deploy/geohot/bin/worker-window.sh", "utf8")
+    .split("\n")
+    .map(line => line.replace(/^\s*#.*$/, ""))
+    .join("\n");
+  // 2026-11-07 01:00：夜档定时器不看标记，直接把 worker 起起来，首页 503、部署验收连挂 4 项。
+  assert.match(window, /if \[ -e \/etc\/geohot\/readers-only \]; then/);
+  const guard = window.indexOf("/etc/geohot/readers-only");
+  const fence = window.indexOf("/run/geohot-r115-fence");
+  const restart = window.indexOf("systemctl restart geohot-worker");
+  assert.ok(guard > 0 && fence > guard, "readers-only 判据要在 fence 判据之前");
+  assert.ok(restart > fence, "restart 必须落在两个判据之后的 else 分支里");
+});
