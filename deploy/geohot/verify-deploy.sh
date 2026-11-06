@@ -294,10 +294,9 @@ for p in / /all /hot /daily /about /agent /terms /privacy /admin/login /feed.xml
   # feed/sitemap 是现算的（百万行 sitemap 一次 200–400ms，冷缓存下可能几秒），
   # 而这条检查紧跟在 web/api 重启之后：2026-11-05 19:43 就因为 sitemap 在重启窗口里回转 000 判了失败，
   # 隔 20 秒手动再取是 200 0.26s。给它们三次机会，别把「还在热身」写成「站点坏了」。
-  case "$p" in
-    /feed.xml|/sitemap.xml) attempts=3 ;;
-    *) attempts=1 ;;
-  esac
+  # 2026-11-06 08:14：部署刚重启完 web，`/all` 在冷缓存里回了 503（同一分钟再取 200 1.5s），
+  # 一次就判「站点坏了」。页面巡检统一给三次机会——三次都失败才算真故障。
+  attempts=3
   code=""
   for attempt in $(seq 1 "$attempts"); do
     code=$(status_of "$BASE$p")
