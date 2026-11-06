@@ -19,7 +19,7 @@ export async function beat(role: string, detail: Record<string, unknown> = {}) {
     // 读不到磁盘就留空，不要让心跳整体失败。
   }
   const value = { ...detail, load: Number(loadavg()[0].toFixed(2)), memTotal: totalmem(), memFree: freemem(), diskFree, diskTotal, slots: Number.isFinite(slots) ? slots : null, pid: process.pid, host: hostname(), release: process.env.AIHOT_RELEASE ?? "dev", startedAt, at: new Date().toISOString() };
-  await sql`INSERT INTO settings (key, value, updated_by) VALUES (${`heartbeat.${role}`}, ${sql.json(value)}, ${role})
+  await sql`INSERT INTO settings (key, value, updated_by) VALUES (${`heartbeat.${role}@${hostname()}`}, ${sql.json(value)}, ${role})
             ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_by = EXCLUDED.updated_by, updated_at = now()`;
 }
 

@@ -43,14 +43,16 @@ export async function registerServerConsole(app: FastifyInstance, forward = magp
       const text = await readFile(process.env.SERVER_STATUS_FILE || "/run/geohot-server/status.json", "utf8");
       if (text.length > 100_000) throw new Error("oversize sample");
       const sample = JSON.parse(text);
-      // 协同节点：每台辅助机器（阿里云那两台、本机执行器）都在 settings 里写 heartbeat.<role>，
+      // 协同节点：每台辅助机器（阿里云那两台、本机执行器）都在 settings 里写 heartbeat.<role>@<host>，
       // 带 host 与 updated_at。服务器面板直接读这张表，不必从主库 SSH 出去，也不必让辅助机暴露端口。
+      // 键里必须带主机名：两台执行器的 role 都是 content-executor，只按 role 存会互相覆盖，
+      // 面板上就永远只看得见最后心跳的那一台。
       const beats = await sql<{ key: string; value: Record<string, unknown>; updated_at: Date }[]>`
         SELECT key, value, updated_at FROM settings WHERE key LIKE 'heartbeat.%' ORDER BY key`;
       const nodes = beats.map((row) => {
         const at = row.updated_at instanceof Date ? row.updated_at.getTime() : Date.parse(String(row.updated_at));
         return {
-          role: row.key.slice("heartbeat.".length),
+          role: row.key.slice("heartbeat.".length).split("@")[0],
           host: String(row.value?.host ?? "?"),
           release: String(row.value?.release ?? ""),
           slots: typeof row.value?.slots === "number" ? row.value.slots : null,

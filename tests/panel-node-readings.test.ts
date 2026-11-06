@@ -19,6 +19,19 @@ test("接口把体检数据透给面板，字段名与心跳一致", () => {
   }
 });
 
+test("心跳键带上主机名，两台同角色的执行器不会互相覆盖", () => {
+  const source = read("packages/backend/src/operations/heartbeat.ts");
+  // 武汉与杭州的 role 都是 content-executor：只按 role 存，后心跳的那台会把先前的覆盖掉，
+  // 面板上就只显示一台机器。键里必须带 hostname()。
+  assert.match(source, /heartbeat\.\$\{role\}@\$\{hostname\(\)\}/);
+  for (const file of ["apps/api/src/routes/server-console.ts", "packages/backend/src/admin/runs.ts"]) {
+    const consumer = read(file);
+    assert.ok(consumer.includes('.split("@")[0]'), `${file} 要把键里的主机名剥掉再当角色展示`);
+  }
+  const migration = read("database/migrations/0111_heartbeat_host_keys.sql");
+  assert.match(migration, /DELETE FROM settings WHERE key LIKE 'heartbeat\.%' AND key NOT LIKE '%@%'/);
+});
+
 test("面板把远端节点画成表格，缺数据时留破折号", () => {
   const source = read("apps/web/app/routes/admin/server.tsx");
   const card = source.slice(source.indexOf('<Card title="协同节点">'));
