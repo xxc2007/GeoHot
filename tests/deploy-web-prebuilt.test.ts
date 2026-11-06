@@ -38,7 +38,12 @@ test("local build disables MSYS path conversion and guards the artifact", () => 
 test("remote side skips the in-place build when the artifact is present", () => {
   assert.match(deploy, /WEB_PREBUILT='\$\(\[\[ -n "\$web_pkg" \]\] && echo 1 \|\| echo 0\)'/);
   assert.match(deploy, /if \[\[ "\$\{WEB_PREBUILT:-0\}" == "1" \]\]; then/);
-  assert.match(deploy, /tar xzf "\$UPLOAD_DIR\/web-build\.tar\.gz" -C "\$APP_ROOT\/apps\/web"/);
+  // 制品先搬进 stage（`$WEB_PKG`）再清上传目录：直接用 `$UPLOAD_DIR/web-build.tar.gz` 会让
+  // `rmdir "$UPLOAD_DIR"` 因目录非空失败，整次部署在最开始就静默退出（2026-11-07 00:5x）。
+  assert.match(deploy, /WEB_PKG="\$stage\/web-build\.tar\.gz"/);
+  assert.match(deploy, /install -m 600 "\$UPLOAD_DIR\/web-build\.tar\.gz" "\$WEB_PKG"/);
+  assert.match(deploy, /tar xzf "\$WEB_PKG" -C "\$APP_ROOT\/apps\/web"/);
+  assert.ok(!/tar xzf "\$UPLOAD_DIR\/web-build/.test(deploy), "不该再从上传目录直接解包");
 
   // 预构建分支里不能再出现本机构建：那正是把生产机拖垮的那一步。
   const pre = deploy.indexOf('if [[ "${WEB_PREBUILT:-0}" == "1" ]]; then');
