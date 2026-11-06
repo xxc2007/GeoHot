@@ -13,6 +13,12 @@
 # 探针/维护锁失败直接退出，让 supervisor 立刻看到会话关闭，而不是静默重试。
 set -u
 MODE="${1:-10}"
+# 循环必须有尽头（2026-11-06 现场）：一条 `while :; do …; sleep 10; done` 从后来被关掉的
+# ssh 会话里漂出来，跑了 2 天 10 小时、写掉 66 GB 日志，把 891 MB 的机器反复打进 I/O 饥饿
+# （`/proc/pressure/io` some avg10 长期 99%），读者面被打到 503/000。父会话没了就没人收尸，
+# 所以这里自带寿命上限：默认 4 小时（一个白天/夜间辅助窗口的上限），要更久显式给更大的值。
+MAX_SECONDS="${GEOHOT_PROBE_MAX_SECONDS:-14400}"
+STARTED_AT="$(date +%s)"
 APP=/opt/geohot/app/deploy/geohot
 
 IFS= read -r PAYLOAD || exit 2
@@ -44,6 +50,11 @@ if [ "${MODE}" = "once" ]; then
 fi
 
 while :; do
+  if [ "$(( $(date +%s) - STARTED_AT ))" -ge "${MAX_SECONDS}" ]; then
+    # 到点自己走人，让 supervisor 读成「这段辅助结束」，而不是一条永远开着的管道。
+    printf '{"probe":{"expired":true,"seconds":%s}}\n' "${MAX_SECONDS}"
+    exit 0
+  fi
   PROBE="$(probe_json)" || exit 3
   printf '{"probe":%s}\n' "${PROBE}"
   sleep "${MODE}"
