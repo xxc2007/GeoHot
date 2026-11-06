@@ -28,7 +28,10 @@ MODE=${R115_ACTION:-fence}
 FENCE=${GEOHOT_R115_FENCE:-/run/geohot-r115-fence}
 
 case "$LAST_RELEASE" in ''|*[!0-9]*) LAST_RELEASE=0 ;; esac
-if (( LAST_RELEASE > 0 && NOW - LAST_RELEASE < 3600 && COOL < 30 )); then COOL=30; fi
+# 早释放之后不再一睡半小时：一次轻微释放只买 5 分钟喘息，而不是 30 分钟停机。
+# 2026-11-06 12:1x 现场：早释放后下一轮又落 FENCED，改前 COOL 被拉到 30 分钟，
+# 上午每 20-40 分钟一次早释放 ⇒ worker 实际在岗率被吃掉大半。
+if (( LAST_RELEASE > 0 && NOW - LAST_RELEASE < 3600 && COOL < 5 )); then COOL=5; fi
 # **重启宽限**（2026-11-04）：单元重启那一两分钟里 nginx 对正在换血的 upstream 回 502/503。
 # 09:23 一次部署攒出 12 条 5xx ⇒ 闸门把 worker 停了 30 分钟，那不是读者受害，是我们自己在重启。
 # 取 api/web/worker 最近一次 ActiveEnterTimestamp，落在窗口内就排除 [重启-180s, 重启+GRACE（默认 600s）] 这段；
