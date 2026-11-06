@@ -94,7 +94,7 @@ sudo journalctl -u geohot-web -n 3                                              
    同一个道理，第 3/4/8/9 节所有以 geohot 身份跑 node/npm/git 的地方现在都走一个带 `env HOME=$APP_HOME`
    的前缀，`install-units.sh` 与 `systemd/*.service` 里的 `Environment=HOME=` 是它的运行期对应物。
 3. **单元**：`bash deploy/geohot/install-units.sh --apply`（不带 `--apply` 是预演，什么都不会写）。**2026-10-15 起这是一条路，不是两条**：
-   默认路径（`GEOHOT_APP_ROOT=/opt/geohot/app`）下它直接安装 `deploy/geohot/systemd/` 里的 **20 个**模板（`deploy/geohot/systemd/` 目录下共 33 个文件，含 drop-in 与 timer）
+   默认路径（`GEOHOT_APP_ROOT=/opt/geohot/app`）下它直接安装 `deploy/geohot/systemd/` 里的 **20 个单元**（`ALL_UNITS`）；那个目录里共有 **28 个单元模板**（18 个 `.service` + 10 个 `.timer`）、**3 个 drop-in 目录**（20 个 `.conf`）与 2 个独立 `.conf` 片段，递归合计 50 个文件
    （brain/api/worker/web + 两条 workbuddy 桥 + archive 的 .service/.timer），带加固块
    （`NoNewPrivileges`/`PrivateTmp`/`ProtectSystem=strict`/`ReadWritePaths`/`ProtectKernel*`…）；
    只有当 `GEOHOT_APP_ROOT` 指向别处（模板里 `/opt/geohot/app` 是写死的，systemd 不做插值）才退回
@@ -251,7 +251,7 @@ curl -s -o /dev/null -w '%{http_code} %{num_redirects} %{url_effective}\n' -L ht
   `NODE_OPTIONS=--max-old-space-size=128`，新文件不再重复这些键（重复写会按 drop-in 排序互相覆盖，看不出谁在生效）。
 - `api`/`worker`/`web` 三个模板这轮补上了 `MemoryMax`（160/200/240/320 那一组）。
   **2026-10-15 起两条路线已经并成一条**：`install-units.sh` 在默认 `GEOHOT_APP_ROOT=/opt/geohot/app` 下
-  安装的就是 `deploy/geohot/systemd/` 这 8 个模板（带 `ProtectSystem=strict` 等加固块），
+  安装的就是 `deploy/geohot/systemd/` 这套模板（默认 20 个单元，目录里共 28 个单元模板；带 `ProtectSystem=strict` 等加固块），
   四个常驻单元的 `TimeoutStopSec` 也已经与线上一致（都是 285——多给不伤，少给才会在 drain 中途 SIGKILL），
   所以本节以前那句"模板按进程分档 30/90/285、走哪条就用哪条，别混"作废。
   只剩一种情况还会用到旧的内联生成路线：`GEOHOT_APP_ROOT` 指向别处（模板里的绝对路径是写死的），
