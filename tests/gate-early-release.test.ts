@@ -32,3 +32,20 @@ test("the gate may release a fence early once the reader is provably healthy", (
   // 语法必须真的成立（bash -n），否则线上每分钟一轮会直接失败。
   execFileSync("bash", ["-n", fileURLToPath(SCRIPT)]);
 });
+/**
+ * 2026-11-06 08:01–08:10 现场：FENCED → RELEASED-EARLY → FENCED 每三分钟打转。
+ * 早释放已经把窗口里那批 5xx 付过一次代价，释放时刻之后的新 5xx 才该重新冻结。
+ */
+test("after an early release the gate counts only 5xx that happened since", () => {
+  const text = readFileSync(SCRIPT, "utf8");
+
+  assert.match(text, /if \(\( LAST_RELEASE > 0 && LAST_RELEASE > NOW - WIN \)\); then/);
+  assert.match(text, /\(\( LAST_RELEASE > EXF \)\) && EXF=\$LAST_RELEASE/);
+
+  // 这段必须在导出排除区间之前（否则 e5_count 拿不到钳制后的起点）。
+  const clamp = text.indexOf("LAST_RELEASE > EXF");
+  const exportLine = text.indexOf("export R114_E5_EXCLUDE_FROM=");
+  assert.ok(clamp > 0 && exportLine > clamp, "release clamp must run before the exclude window is exported");
+
+  execFileSync("bash", ["-n", fileURLToPath(SCRIPT)]);
+});

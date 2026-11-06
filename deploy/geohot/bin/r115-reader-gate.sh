@@ -75,8 +75,13 @@ if [ -r "$DW" ]; then
     (( DE + 60 > EXT )) && EXT=$(( DE + 60 ))
   fi
 fi
-export R114_E5_EXCLUDE_FROM=$EXF R114_E5_EXCLUDE_TO=$EXT
-RAO=$(e5_count "${R114_NGX:-/var/log/nginx/access.log}" "${R114_E5_TAIL:-20000}" "$WIN" \
+# 提前释放之后，窗口里那批 5xx 已经付过一次代价：否则会「释放 → 立刻重新冻结」打转——
+# 2026-11-06 08:01–08:10 现场就是 FENCED / RELEASED-EARLY / FENCED 每三分钟来一次，
+# 每次都把 worker 冻住 30 分钟、又被健康样本放出来。释放时刻之后的新 5xx 照样计数。
+if (( LAST_RELEASE > 0 && LAST_RELEASE > NOW - WIN )); then
+  (( LAST_RELEASE > EXF )) && EXF=$LAST_RELEASE
+fi
+export R114_E5_EXCLUDE_FROM=$EXF R114_E5_EXCLUDE_TO=$EXTRAO=$(e5_count "${R114_NGX:-/var/log/nginx/access.log}" "${R114_E5_TAIL:-20000}" "$WIN" \
   "$(LC_ALL=C date +%d/%b/%Y)" "$T0" "$NOW" \
   "$(LC_ALL=C date -d yesterday +%d/%b/%Y 2>/dev/null)" "$(( T0 - 86400 ))")
 E5=$(printf '%s' "$RAO" | cut -d' ' -f1)
