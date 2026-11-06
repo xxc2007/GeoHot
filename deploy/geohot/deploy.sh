@@ -143,8 +143,16 @@ umask 077
 [[ "$UPLOAD_DIR" =~ ^/tmp/geohot-upload\.[A-Za-z0-9]+$ ]] || exit 1
 stage="$(mktemp -d /tmp/geohot-root-stage.XXXXXXXX)" || exit 1
 PKG="$stage/bundle.tar.gz"
-trap 'rm -f "$PKG"; rmdir "$stage"' EXIT
+WEB_PKG="$stage/web-build.tar.gz"
+trap 'rm -rf "$stage"' EXIT
 install -m 600 "$UPLOAD_DIR/bundle.tar.gz" "$PKG" || exit 1
+# 预构建制品也要先搬进 stage 再清上传目录：2026-11-07 00:5x 实测，只删了 bundle.tar.gz 就
+# `rmdir "$UPLOAD_DIR" || exit 1`，目录里还剩 web-build.tar.gz ⇒ rmdir 报 "Directory not empty"，
+# 整次部署在上传目录这一步静默退出（站点还停在上一版，日志里只有一行 rmdir）。
+if [ -f "$UPLOAD_DIR/web-build.tar.gz" ]; then
+  install -m 600 "$UPLOAD_DIR/web-build.tar.gz" "$WEB_PKG" || exit 1
+  rm -f "$UPLOAD_DIR/web-build.tar.gz"
+fi
 rm -f "$UPLOAD_DIR/bundle.tar.gz"
 rmdir "$UPLOAD_DIR" || exit 1
 [ "$(sha256sum "$PKG" | cut -d' ' -f1)" = "$PKG_SHA" ] \
@@ -325,7 +333,7 @@ if [[ "${WEB_PREBUILT:-0}" == "1" ]]; then
   # 制品在部署机上构建好了（891 MB 的生产机跑不动 vite build：2026-11-06 实测 load 31、首页 503）。
   # 解包时**不清空** `apps/web` 其它内容，只覆盖 `build/`。
   echo "web: 用本地预构建的制品（跳过本机构建）"
-  if ! sudo -n tar xzf "$UPLOAD_DIR/web-build.tar.gz" -C "$APP_ROOT/apps/web"; then
+  if ! sudo -n tar xzf "$WEB_PKG" -C "$APP_ROOT/apps/web"; then
     echo "ABORT: 预构建制品解包失败"; exit 1
   fi
   sudo -n chown -R geohot:geohot "$APP_ROOT/apps/web/build"
