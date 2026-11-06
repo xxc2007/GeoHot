@@ -26,6 +26,23 @@ test("autoclaw quota wording (免费额度已用完) benches the member too", ()
   assert.ok(cooldown.overlay(new Set(), 101).has("autoclaw-cn|zaicoding-glm53"));
 });
 
+test("gateway-side dead members are benched instead of burning a call every rotation", () => {
+  // 2026-11-06 生产实测（6 小时失败数）：minimax-code-global 278 / minimax-code 95（都是
+  // "account is signed out; sign in again"）、workbuddy 3065 通道 127（"request illegal"）、
+  // qoder-cn/dfmodel 53（"unknown or disabled model"）。三族都是确定性拒绝，旧 matcher 一条都不认。
+  const cooldown = new ModelCooldown();
+  const cases = [
+    ["minimax-code-global", "MiniMax Code (Global)", 'HTTP 502: {"error":{"message":"MiniMax Code (Global): this MiniMax Code (Global) account is signed out; sign in again"}}'],
+    ["workbuddy", "hy3", 'HTTP 502: {"error":{"message":"workbuddy rejected (HTTP 403): {\\"code\\":11140,\\"msg\\":\\"request illegal\\"}"}}'],
+    ["qoder-cn", "dfmodel", 'HTTP 400: {"error":{"code":null,"message":"Qoder CN: unknown or disabled model \\"dfmodel\\""}}'],
+  ] as const;
+  for (const [service, model, text] of cases) cooldown.reject(service, model, 502, text, 100);
+  const benched = cooldown.overlay(new Set(), 101);
+  assert.equal(benched.size, 3, "three dead members, three cooldowns");
+  assert.equal(benched.has("minimax-code-global|MiniMax Code (Global)"), true);
+  assert.equal(cooldown.overlay(new Set(), 100 + 3_600_000).size, 0, "an hour later they are retried once more");
+});
+
 test("ordinary rate/transport/output failures do not masquerade as an explicit quota wall", () => {
   const cooldown = new ModelCooldown();
   for (const [status, text] of [[429, "too many requests"], [429, "usage exceeds frequency limit"], [429, "您的使用量已超出频率限制"],
