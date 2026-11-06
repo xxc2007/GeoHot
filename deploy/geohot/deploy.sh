@@ -35,6 +35,14 @@ done
 # 六个常驻单元一个都不能少：api/web/worker/brain + 两条 workbuddy 桥。
 # 桥漏重启的后果不是 502，而是"跑着旧代码还 200"——比崩了更难查。
 UNITS=(geohot-brain geohot-api geohot-worker geohot-web geohot-workbuddy geohot-workbuddy-cn)
+# 只做读者面的机器（/etc/geohot/readers-only）不该在部署时把 worker 拉起来：它一起来，这台 891MB
+# 的机器就把首页拖到超时（2026-11-06 实测 load 19.4、home 000）。验收那边已经认这个形态，这里
+# 同步——否则每次部署都会亲手把读者面打一次，而验收还会因为"worker 不该在跑"判红。
+if sudo -n test -f /etc/geohot/readers-only 2>/dev/null; then
+  KEEP=(); for u in "${UNITS[@]}"; do [[ "$u" == "geohot-worker" ]] || KEEP+=("$u"); done
+  UNITS=("${KEEP[@]}")
+  echo "readers-only: 本机不重启 geohot-worker（${#UNITS[@]} 个单元照常）"
+fi
 # 只有装了才重启：不是每台机器都跑桥（verify-deploy 也按这个口径判）。
 unit_list() { printf '%s ' "${UNITS[@]}"; }
 

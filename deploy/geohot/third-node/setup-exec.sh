@@ -73,27 +73,47 @@ sudo -u geohot bash -lc 'cd '"$APP_DIR"' && npm config set registry https://regi
 
 say "5/7 执行器环境文件"
 install -d -m 750 -o geohot -g geohot "$EXEC_DIR"
-if [ ! -f "$EXEC_DIR/.env" ]; then
+# 2026-11-06 的两次翻车都在这两行上：
+# ① ssh 失败时 `> .env` 已经建出 0 字节文件，`[ ! -f ]` 于是永远为假 —— 脚本「成功」，worker 却读不到
+#    DATABASE_URL，回落 127.0.0.1:5432 无限重启（杭州 iZbp14vh9… 的第一天就是这样）；
+# ② 文件必须 geohot 可读（单元 User=geohot），写成 root:root 600 时 node 报 `.env: not found` 后同样无限重启。
+# 因此：先写临时文件、确认非空再落位；落到 600 之后用 `sudo -u geohot test -r` 亲自验一次可读性。
+if [ ! -s "$EXEC_DIR/.env" ]; then
   # 从主库取真实配置（provider 密钥、SITE_URL 等），随后只覆盖与「这台机器」有关的部分。
-  ssh -i "$PRIMARY_KEY" -o BatchMode=yes "$PRIMARY" 'sudo cat /opt/geohot/app/.env' > "$EXEC_DIR/.env"
-  sed -i 's#\(DATABASE_URL=postgres://[^@]*@127\.0\.0\.1:\)5432#\115432#' "$EXEC_DIR/.env"
+  tmp_env="$(mktemp)"
+  if ! ssh -i "$PRIMARY_KEY" -o BatchMode=yes "$PRIMARY" 'sudo cat /opt/geohot/app/.env' > "$tmp_env" || [ ! -s "$tmp_env" ]; then
+    rm -f "$tmp_env"
+    echo "!! 取不到主库 .env（隧道/密钥/权限）；不写空文件，直接退出 —— 修好 ssh 再重跑本脚本" >&2
+    exit 1
+  fi
+  sed -i 's#\(DATABASE_URL=postgres://[^@]*@127\.0\.0\.1:\)5432#\115432#' "$tmp_env"
   {
-    echo 'WORKER_ROLE=content-executor'
+    # 2026-11-06：这台机器是**唯一常驻的调度者**。主库只做读者面（891MB 跑 worker 会把首页拖到 000），
+    # 武汉是 content-executor，所以 cron（sources.schedule / content.sweep / topics.assign / hot.rank …）
+    # 只有 WORKER_ROLE=all 才带 coordinator:true 才有人跑；写成 content-executor 会让整条定时链静默停摆
+    # （2026-11-06 19:4x 实测：改回 all 后六个 cron 队列立即重新出现）。
+    echo 'WORKER_ROLE=all'
     echo 'COLLECT_ENABLED=true'
     echo 'MODEL_CALLS_ENABLED=true'
     echo 'JINA_BODY_FALLBACK=false'
     echo 'NODE_ENV=production'
     echo 'GEOHOT_INTAKE_LANES=combined'
-    echo 'GEOHOT_INTAKE_COMBINED_LIMIT=3'
-    echo 'GEOHOT_INTAKE_LANE_LIMIT=3'
-    echo 'GEOHOT_INTAKE_ANALYSIS_SLOTS=3'
-    echo 'ANALYZE_CONCURRENCY=3'
+    # 车道上限跟「最忙的那一档」对齐（夜档 4 槽）；当天实际领几条由 window 单元用
+    # Environment=GEOHOT_INTAKE_ANALYSIS_SLOTS / ANALYZE_CONCURRENCY 覆盖（systemd 的 Environment 盖过 EnvironmentFile），
+    # 所以这两个数不写在这里 —— 写死会造成「.env 说 4、单元说 2」的两份真相（2026-11-06 踩过）。
+    echo 'GEOHOT_INTAKE_COMBINED_LIMIT=4'
+    echo 'GEOHOT_INTAKE_LANE_LIMIT=4'
     echo 'EXTRACT_CONCURRENCY=1'
     echo 'DATABASE_POOL_MAX=8'
     echo 'HEALTH_READ_STATEMENT_TIMEOUT_MS=15000'
-  } >> "$EXEC_DIR/.env"
-  chmod 600 "$EXEC_DIR/.env"
-  chown geohot:geohot "$EXEC_DIR/.env"
+  } >> "$tmp_env"
+  # 落位：先 root 600 保住密钥，再 chown 给运行用户 —— install 出来的 root:root 600 是那天无限重启的真因。
+  install -m 600 -o geohot -g geohot "$tmp_env" "$EXEC_DIR/.env"
+  rm -f "$tmp_env"
+  if ! sudo -u geohot test -r "$EXEC_DIR/.env"; then
+    echo "!! $EXEC_DIR/.env 对 geohot 不可读（单元 User=geohot 会报 '.env: not found' 并无限重启）" >&2
+    exit 1
+  fi
 fi
 
 say "6/7 systemd 单元"

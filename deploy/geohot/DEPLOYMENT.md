@@ -243,12 +243,21 @@ curl -s -o /dev/null -w '%{http_code} %{num_redirects} %{url_effective}\n' -L ht
   含"哪些密钥必须重新签发"和"改 `industry/**` 必须重建 web"）。本次没有在那台机器上跑过恢复——
   那一节是写给下一次真要搬的人的，第一次跑要人在旁边。
 - **读者优先的硬底线（2026-11-04 实测定下来的）**：`geohot-worker.service.d/zzzzzzz-reader-first-memory.conf`
-  把 worker 钉在 `MemoryHigh=120M` / `MemoryMax=200M` / `MemorySwapMax=256M`。
+  把 worker 钉在 `MemoryHigh=90M` / `MemoryMax=150M` / `MemorySwapMax=128M`（2026-11-05 #154 把
+  120M/200M 收紧到这一组并把值写进基座 drop-in——只 `set-property` 的话一次重启就退回旧值）。
   同一台 891MB / 2 vCPU 的机器上，worker 不受约束时首页要 15.0–17.3 秒才回 503；
   停掉 worker 立刻回到 0.30–0.52 秒；只加这三条内存线（并发不变）首页就是 0.28–0.84 秒，worker 照跑。
   也就是说这台机器的瓶颈是内存换页，不是 CPU——**先给 worker 划线，再谈吞吐**。
   另外 `zz-reader-safety-20261026.conf` 已经给了 `CPUWeight=20` / `IOWeight=20` / `Nice=5` /
   `NODE_OPTIONS=--max-old-space-size=128`，新文件不再重复这些键（重复写会按 drop-in 排序互相覆盖，看不出谁在生效）。
+- **只做读者面的机器（2026-11-06 定下来的形态）**：891MB / 2 vCPU 那台机器跑不了 worker。
+  同一晚上逐分钟实测：`WORKER_ROLE=all` 起来 60 秒 load 19.4、首页 20 秒超时；换 `coordinator`
+  也在 000/3.5s 之间横跳；停掉立刻回到 0.03–0.14 秒。所以那台机器的正确形态是
+  **`/etc/geohot/readers-only` 在位 + `geohot-worker` stopped & disabled**，抓取与分析交给
+  杭州/武汉的 `geohot-exec-worker`（后台「协同节点」能看到谁在岗）。置位/解除都用
+  `bash /opt/geohot/bin/readers-only.sh on|off|status`——`verify-deploy.sh` 认这个标记
+  （worker 允许 inactive，但必须 disabled），`deploy.sh` 重启单元时直接跳过 worker，
+  两条路都不再需要人记着。没有这个标记的机器照旧要求 api/worker/web 三单元全 active。
 - `api`/`worker`/`web` 三个模板这轮补上了 `MemoryMax`（160/200/240/320 那一组）。
   **2026-10-15 起两条路线已经并成一条**：`install-units.sh` 在默认 `GEOHOT_APP_ROOT=/opt/geohot/app` 下
   安装的就是 `deploy/geohot/systemd/` 这套模板（默认 20 个单元，目录里共 28 个单元模板；带 `ProtectSystem=strict` 等加固块），
