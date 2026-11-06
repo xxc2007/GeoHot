@@ -44,11 +44,15 @@ test("a machine without the marker still has to run all three units", () => {
 });
 
 test("deploy.sh skips geohot-worker under the marker, and only then", () => {
-  assert.match(deploy, /if sudo -n test -f \/etc\/geohot\/readers-only 2>\/dev\/null; then/);
+  // 2026-11-06 实测：判据写成本机 sudo 时，在 Windows 上是命令找不到（127），静默跳过，
+  // worker 又被拉起来把读者面打到超时。所以标记必须问服务器。
+  assert.match(deploy, /if ssh "\$\{ssh_opts\[@\]\}" "\$SSH_TARGET" 'sudo -n test -f \/etc\/geohot\/readers-only' 2>\/dev\/null; then/);
   assert.match(deploy, /\[\[ "\$u" == "geohot-worker" \]\] \|\| KEEP\+=\("\$u"\)/);
   assert.match(deploy, /UNITS=\("\$\{KEEP\[@\]\}"\)/);
   // UNITS 的定义必须在过滤之前（否则 KEEP 从空数组里挑，一个单元都不会重启）。
-  assert.ok(deploy.indexOf("UNITS=(geohot-brain") < deploy.indexOf("readers-only: 本机不重启 geohot-worker"));
+  assert.ok(deploy.indexOf("UNITS=(geohot-brain") < deploy.indexOf("服务器带标记，本次不重启 geohot-worker"));
+  // ssh_opts 必须在过滤之前就绪——否则这行在 dry-run 里也会炸。
+  assert.ok(deploy.indexOf("ssh_opts=(") < deploy.indexOf("readers-only"));
 });
 
 test("readers-only.sh flips the marker, the unit state and the enable bit together", () => {
