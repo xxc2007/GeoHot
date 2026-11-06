@@ -58,12 +58,12 @@ export async function loader({ request }: Route.LoaderArgs) {
   ]);
   // 缓存与索引策略跟着「这一页会不会变」走（2026-11-05 深夜现场：SemrushBot 按
   // `/all?category=…&date=…&month=…&tag=…` 的笛卡尔积逐个爬，每个组合都是一次冷 SSR + 日历查询，
-  // 把 891MB 的机器压到首页 8 秒）。历史日期是死内容，给一天；今天与无日期仍是 60 秒。
+  // 把 891MB 的机器压到首页 8 秒）。历史日期是死内容，给一天；今天与无日期给 5 分钟（读者重复打开应当命中边缘缓存）。
   const today = beijingDate(Date.now());
   const past = Boolean(date && date < today);
   const cache = past
     ? "public, max-age=0, s-maxage=86400, stale-while-revalidate=600"
-    : "public, max-age=0, s-maxage=60, stale-while-revalidate=30";
+    : "public, max-age=0, s-maxage=300, stale-while-revalidate=60";
   const headers: Record<string, string> = { "Cache-Control": cache };
   // 组合筛选页不放进搜索引擎的索引：它们对读者有用，对索引只是同一批条目的一万种切法。
   if ((category || tag || date || q) && page === 1) headers["X-Robots-Tag"] = "noindex, follow";

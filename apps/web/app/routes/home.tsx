@@ -57,7 +57,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   const live = stale && pool ? { total: pool.total, items: pool.items.slice(0, 8).map(({ id, title, timelineAt, publishedAt, source }) => ({
     id, title, timelineAt, publishedAt, source: { name: source.name },
   })) } : null;
-  return withHeaders({ data, pool, calendar, month, tab, live, filters: { channel, category, tag, topic: null } }, { headers: releaseBoundCache(data.refreshAt, 60, Date.now(), upstream) });
+  return withHeaders({ data, pool, calendar, month, tab, live, filters: { channel, category, tag, topic: null } }, { headers: releaseBoundCache(data.refreshAt, 180, Date.now(), upstream) });
 }
 
 /**
