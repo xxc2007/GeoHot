@@ -327,6 +327,10 @@ for p in / /all /hot /daily /about /agent /terms /privacy /admin/login /feed.xml
   if [[ "$code" =~ $want ]]; then
     if [[ "$attempts" -gt 1 && "$attempt" -gt 1 ]]; then ok "$p -> $code（第 $attempt 次取到）"; else ok "$p -> $code"; fi
   else bad "$p -> $code（期望 $want）"; fi
+  # 2026-11-07 07:00：这一串 16 个页面是连着取的，nginx 的 geohot_bots（burst=10）会把它们
+  # 当成爬虫，后几个拿到 429，接着 feed 那几项也读到 HTML 报错页，验收表面「红」了。
+  # 验收不是读者、也不是爬虫：给它一秒的呼吸，别用自己的速度证明站点坏了。
+  sleep 1
 done
 hc=$(curl -s -A "$UA" --max-time 15 "$BASE/api/health")
 echo "$hc" | grep -q '"ok":true' && echo "$hc" | grep -q '"db":"ok"' && ok "/api/health $hc" || bad "/api/health 异常: $hc"
