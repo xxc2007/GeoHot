@@ -101,6 +101,28 @@ export function publicMatchCondition(terms: string[]) {
   );
 }
 
+/**
+ * 30 秒缓存，给「只影响屏上说明文字」的聚合用（页数、今日条数、更新于）。`key === null` 时不缓存
+ * —— 固定时钟（测试、回放）必须每次真查，否则同一进程里两次调用会拿到同一份结果。
+ */
+const metaCache = new Map<string, { at: number; value: unknown }>();
+const metaPending = new Map<string, Promise<unknown>>();
+async function cachedMeta<T>(key: string | null, query: () => Promise<T[]>): Promise<T[]> {
+  if (key === null) return query();
+  const hit = metaCache.get(key);
+  if (hit && Date.now() - hit.at < 30_000) return hit.value as T[];
+  const pending = metaPending.get(key);
+  if (pending) return pending as Promise<T[]>;
+  const load = (async () => {
+    const rows = await query();
+    if (metaCache.size >= 200) metaCache.delete(metaCache.keys().next().value!);
+    metaCache.set(key, { at: Date.now(), value: rows });
+    return rows;
+  })();
+  metaPending.set(key, load);
+  try { return await load; } finally { metaPending.delete(key); }
+}
+
 /** Unfiltered-by-search totals only set the page count; they are reused for 30 seconds per filter. */
 const countCache = new Map<string, { at: number; n: number }>();
 const countPending = new Map<string, Promise<number>>();
@@ -230,11 +252,16 @@ export async function loadPool(query: PoolQuery): Promise<PoolResponse> {
   // 「更新于」与「今日 N 条」「找到 N 条」是同一屏上的三句话，问的必须是同一批条目：以前它是全池的
   // `max(updated_at)`，于是任何一条 eligible 更新都会打掉所有筛选页与搜索页的 ETag，而页面上的日期
   // 说的是这一筛选之外发生的事。
-  const meta = one(await sql<{ today_count: number; updated_at: Date | null }[]>`
+  // 这两句是全站最贵的查询：`listedCondition` 里带 `EXISTS (article_workflow_readiness)`，没有索引能替它裁剪，
+  // 于是每次取样都要把 `publications` 里 6.5 万条 eligible 行逐条去 readiness 里探一次（2026-11-06 生产实测
+  // 单次 4.8–52 秒，`pg_stat_activity` 里常年挂着两三条）。首屏每渲染一次就跑一遍是不可接受的，而它们只是
+  // 屏上的两句说明文字（「今日 N 条」「更新于」），30 秒的陈旧完全看不出来 —— 与下面的 `poolCount` 同一把尺子。
+  const loadMeta = () => sql<{ today_count: number; updated_at: Date | null }[]>`
     SELECT (SELECT count(*) FROM publications p
       WHERE ${listedCondition(now)} AND p.eligible AND p.published_at IS NOT NULL AND p.timeline_at >= ${beijingMidnight(today)} ${scoped}) AS today_count,
       (SELECT max(p.updated_at) FROM publications p
-        WHERE ${listedCondition(now)} AND p.eligible ${filters}) AS updated_at`);
+        WHERE ${listedCondition(now)} AND p.eligible ${filters}) AS updated_at`;
+  const meta = one(await cachedMeta(filterKey === null ? null : `${filterKey}|${today}`, loadMeta));
 
   return {
     filters: { channel: query.channel, category: query.category, tag: query.tag, topic: query.topic ?? null, q, tab },
