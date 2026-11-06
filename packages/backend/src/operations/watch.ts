@@ -31,7 +31,7 @@ const WORKER_DOWN: Finding = {
  * the conditional update lets only one of them send.
  */
 export async function checkWorkerHeartbeat(): Promise<void> {
-  const [hb] = await sql<{ updated_at: Date }[]>`SELECT updated_at FROM settings WHERE key = 'heartbeat.worker'`;
+  const [hb] = await sql<{ updated_at: Date }[]>`SELECT updated_at FROM settings WHERE (key = 'heartbeat.worker' OR key LIKE 'heartbeat.worker@%') ORDER BY updated_at DESC LIMIT 1`;
   if (!hb) return;
   const stale = Date.now() - hb.updated_at.getTime() > WORKER_STALE_MS;
   const next = stale ? "down" : "up";

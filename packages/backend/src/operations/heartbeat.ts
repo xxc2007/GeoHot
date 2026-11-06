@@ -54,8 +54,25 @@ const UNIT_NAMES = [
 
 const run = promisify(execFile);
 
-async function units(): Promise<Array<{ name: string; state: string; memory: number; restarts: number }>> {
-  const found: Array<{ name: string; state: string; memory: number; restarts: number }> = [];
+// 单元状态缓存：每秒问 systemctl 会把 worker 的启动拖慢，而状态本来就一分钟才变一次。
+// beat() 只读缓存，刷新在后台跑，且五分钟最多一次。
+type ServiceRow = { name: string; state: string; memory: number; restarts: number };
+let serviceCache: ServiceRow[] = [];
+let serviceCacheAt = 0;
+let serviceRefreshing = false;
+
+function refreshUnits(): void {
+  if (process.platform !== "linux" || serviceRefreshing) return;
+  if (Date.now() - serviceCacheAt < 300_000) return;
+  serviceRefreshing = true;
+  void units()
+    .then((rows) => { serviceCache = rows; serviceCacheAt = Date.now(); })
+    .catch(() => { serviceCacheAt = Date.now(); })
+    .finally(() => { serviceRefreshing = false; });
+}
+
+async function units(): Promise<ServiceRow[]> {
+  const found: ServiceRow[] = [];
   await Promise.all(UNIT_NAMES.map(async (name) => {
     try {
       const { stdout } = await run("systemctl", ["show", "-p", "ActiveState", "-p", "MemoryCurrent", "-p", "NRestarts", name], { timeout: 2_500 });
@@ -100,7 +117,8 @@ export async function beat(role: string, detail: Record<string, unknown> = {}) {
   } catch {
     // 读不到磁盘就留空，不要让心跳整体失败。
   }
-  const [serviceList, ports] = await Promise.all([units(), Promise.resolve(listeningPorts())]);
+  refreshUnits();
+  const ports = listeningPorts();
   const value = {
     ...detail,
     load: Number(loadavg()[0].toFixed(2)),
@@ -116,7 +134,7 @@ export async function beat(role: string, detail: Record<string, unknown> = {}) {
     uptime: Math.round(uptime()),
     platform: process.platform,
     kernel: process.platform === "linux" ? readFileSync("/proc/sys/kernel/osrelease", "utf8").trim() : "",
-    services: serviceList,
+    services: serviceCache,
     ports,
     slots: Number.isFinite(slots) ? slots : null,
     pid: process.pid,
@@ -125,7 +143,11 @@ export async function beat(role: string, detail: Record<string, unknown> = {}) {
     startedAt,
     at: new Date().toISOString(),
   };
-  await sql`INSERT INTO settings (key, value, updated_by) VALUES (${`heartbeat.${role}@${hostname()}`}, ${sql.json(value)}, ${role})
+  // 键默认仍是 heartbeat.<role>（主库 worker、api 与告警面都按这个名字找），
+  // 但每台辅助机器可以在自己的 .env 里用 GEOHOT_HEARTBEAT_KEY 指定带主机名的键，
+  // 否则两台 content-executor 会写同一行、后心跳的那台把先前的覆盖掉。
+  const key = process.env.GEOHOT_HEARTBEAT_KEY?.trim() || `heartbeat.${role}`;
+  await sql`INSERT INTO settings (key, value, updated_by) VALUES (${key}, ${sql.json(value)}, ${role})
             ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_by = EXCLUDED.updated_by, updated_at = now()`;
 }
 

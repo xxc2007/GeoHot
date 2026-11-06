@@ -54,7 +54,7 @@ export async function collectFindings(now = Date.now()): Promise<Finding[]> {
   // ---- Readers affected now ----------------------------------------------------------------------
   // Content flow, judged by outcome: whatever broke (worker, egress proxy, models, queues), readers see
   // a site that stops changing. Skipped for 20 minutes after the worker starts, and where the valves are off.
-  const [hb] = await sql<{ value: { startedAt?: string } }[]>`SELECT value FROM settings WHERE key = 'heartbeat.worker'`;
+  const [hb] = await sql<{ value: { startedAt?: string } }[]>`SELECT value FROM settings WHERE (key = 'heartbeat.worker' OR key LIKE 'heartbeat.worker@%') ORDER BY (key = 'heartbeat.worker') DESC, updated_at DESC LIMIT 1`;
   const settled = !hb?.value.startedAt || now - Date.parse(hb.value.startedAt) > RESTART_GRACE_MS;
   const [seenRow] = await sql<{ value: WorkerBootSeen }[]>`SELECT value FROM settings WHERE key = 'alerts.workerBootSeen'`;
   const boots = observeWorkerBoots(hb, seenRow?.value, now);
@@ -165,7 +165,7 @@ export async function collectFindings(now = Date.now()): Promise<Finding[]> {
   // 本机抽取辅助（extraction-executor 子 worker）停了心跳：它不承担读者面，但这台机器自己停了
   // 而没有任何声音（2026-11-02 实测停 5.5 小时无告警面）。只进 09:00 日报——夜间关机是合法
   // 下线，次日日报里看见即可，不打扰；根本没有这台机器参与过的痕迹（无心跳行）不出声。
-  const [assist] = await sql<{ value: { at?: string; host?: string } | null }[]>`SELECT value FROM settings WHERE key = 'heartbeat.extraction-executor'`;
+  const [assist] = await sql<{ value: { at?: string; host?: string } | null }[]>`SELECT value FROM settings WHERE (key = 'heartbeat.extraction-executor' OR key LIKE 'heartbeat.extraction-executor@%') ORDER BY (key = 'heartbeat.extraction-executor') DESC, updated_at DESC LIMIT 1`;
   if (assist?.value?.at) {
     const age = now - Date.parse(assist.value.at);
     if (Number.isFinite(age) && age > 30 * 60_000) {
