@@ -23,12 +23,18 @@ BASE_PATH="${GEOHOT_BASE_PATH-/geohot}"          # 构建期前缀；域名根�
 #                                                 那句"显式传空串"就成了假话，而假话的形状正是 2026-10-12 那次整站 404。
 REV="${HEAD_SHA:-HEAD}"
 APPLY=0
+# 本地构建 web 再传制品（`--web-prebuilt`，或 GEOHOT_WEB_PREBUILT=1）。为什么要有这条路：
+# 2026-11-06 23:1x 在 891 MB 的主库上跑 `npm run build -w @aihot/web`，load 冲到 31、首页 503，
+# 部署脚本 `timeout 1500` 到期退出，六个单元一个都没重启。构建是**开发期的活**，不该由生产机承担；
+# 更稳的是在这台有 16 GB 的机器上构建，只把 `apps/web/build` 传过去。
+PREBUILT="${GEOHOT_WEB_PREBUILT:-0}"
 for a in "$@"; do
   case "$a" in
     --apply) APPLY=1 ;;
     --rev=*) REV="${a#--rev=}" ;;
+    --web-prebuilt) PREBUILT=1 ;;
     -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
-    *) echo "未知参数：$a（可用 --apply / --rev=<sha>）" >&2; exit 2 ;;
+    *) echo "未知参数：$a（可用 --apply / --rev=<sha> / --web-prebuilt）" >&2; exit 2 ;;
   esac
 done
 
@@ -48,7 +54,7 @@ dirty="$(git status --porcelain --untracked-files=no)"
 [[ -z "$dirty" ]] || { echo "✗ 已跟踪内容有未提交改动，先提交或清理："; printf '%s\n' "$dirty" | head -20; exit 1; }
 
 local_stage="$(mktemp -d "${TMPDIR:-/tmp}/geohot-deploy.XXXXXXXX")"
-trap 'rm -f "$local_stage/bundle.tar.gz"; rmdir "$local_stage"' EXIT
+trap 'rm -rf "$local_stage"' EXIT
 pkg="$local_stage/bundle.tar.gz"
 git archive --format=tar "$REV" | gzip > "$pkg"
 echo "artifact: $pkg  members=$(tar -tzf "$pkg" | wc -l)  bytes=$(wc -c < "$pkg")"
@@ -83,16 +89,40 @@ fi
 
 
 pkg_sha="$(sha256sum "$pkg" | cut -d' ' -f1)"
+
+# 本地预构建（--web-prebuilt）：只允许对 HEAD 做，否则传上去的 build 与源码不是同一棵树。
+web_pkg=""
+if (( PREBUILT )); then
+  head_sha="$(git rev-parse HEAD)"
+  [[ "$head_sha" == "$sha" ]] || {
+    echo "✗ --web-prebuilt 只能用于 HEAD（当前 HEAD=${head_sha:0:8}，要求 ${sha:0:8}）" >&2; exit 2; }
+  echo "== 本地构建 web（BASE_PATH='$BASE_PATH'，构建不落在生产机上）=="
+  # Git Bash 会把 `BASE_PATH=/geohot` 当路径转成 `C:/Users/…/geohot`：必须关掉 MSYS 的转换，
+  # 否则装上去的 bundle basename 是 Windows 路径，全站 404（2026-11-07 00:2x 真踩过）。
+  if ! MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' BASE_PATH="$BASE_PATH" npm run build -w @aihot/web > "$local_stage/web-build.log" 2>&1; then
+    echo "✗ 本地 web 构建失败："; tail -12 "$local_stage/web-build.log"; exit 1
+  fi
+  tail -2 "$local_stage/web-build.log"
+  grep -q 'C:/Users' apps/web/build/server/index.js && {
+    echo "✗ 构建产物里混进了本机路径（BASE_PATH 被 MSYS 转成了 Windows 路径）" >&2; exit 1; }
+  web_pkg="$local_stage/web-build.tar.gz"
+  tar czf "$web_pkg" -C apps/web build
+  echo "web artifact: $(wc -c < "$web_pkg") bytes"
+fi
+
 upload_dir="$(ssh "${ssh_opts[@]}" "$SSH_TARGET" 'umask 077; mktemp -d /tmp/geohot-upload.XXXXXXXX')"
 [[ "$upload_dir" =~ ^/tmp/geohot-upload\.[A-Za-z0-9]+$ ]] || { echo "ABORT: invalid private staging path" >&2; exit 1; }
 scp -o BatchMode=yes -i "$SSH_KEY" ${SSH_KNOWN:+-o UserKnownHostsFile="$SSH_KNOWN"} "$pkg" "$SSH_TARGET:$upload_dir/bundle.tar.gz"
+if [ -n "$web_pkg" ]; then
+  scp -o BatchMode=yes -i "$SSH_KEY" ${SSH_KNOWN:+-o UserKnownHostsFile="$SSH_KNOWN"} "$web_pkg" "$SSH_TARGET:$upload_dir/web-build.tar.gz"
+fi
 
 # 远端序列。注意三处刻意的写法：
 #   1) 解包**不带 --delete**：`/opt/geohot/app` 是多克隆混合部署，有些文件（如 workbuddy 桥）
 #      在仓库里没有对应路径，带删除会当场杀掉承担大头判定的那道门。
 #   2) `tar` 的 --owner/--group 对解包不生效，所以 chown -R 是承重的，不是例行公事。
 #   3) 构建前显式把 BASE_PATH 传进去（这次事故的第 ① 条），重启覆盖六个单元（第 ② 条）。
-ssh "${ssh_opts[@]}" "$SSH_TARGET" "sudo BASE_PATH='$BASE_PATH' PKG_SHA='$pkg_sha' REV='$short' UPLOAD_DIR='$upload_dir' APP_ROOT='$APP_ROOT' UNITS='$(unit_list)' bash -s" <<'REMOTE'
+ssh "${ssh_opts[@]}" "$SSH_TARGET" "sudo BASE_PATH='$BASE_PATH' PKG_SHA='$pkg_sha' REV='$short' UPLOAD_DIR='$upload_dir' APP_ROOT='$APP_ROOT' WEB_PREBUILT='$([[ -n "$web_pkg" ]] && echo 1 || echo 0)' UNITS='$(unit_list)' bash -s" <<'REMOTE'
 set -uo pipefail
 cd "$APP_ROOT" || { echo "ABORT: $APP_ROOT 不存在"; exit 1; }
 
@@ -291,6 +321,16 @@ echo "== 带前缀重建 web（BASE_PATH=$BASE_PATH；构建与重启是相邻�
 # （名字带哈希，同名即同内容，不会互相覆盖），只留最近两版，多的按 mtime 删掉。
 ASSETS_DIR="$APP_ROOT/apps/web/build/client/assets"
 sudo -n test -d "$ASSETS_DIR" && sudo -n mv "$ASSETS_DIR" "$ASSETS_DIR.prev" || true
+if [[ "${WEB_PREBUILT:-0}" == "1" ]]; then
+  # 制品在部署机上构建好了（891 MB 的生产机跑不动 vite build：2026-11-06 实测 load 31、首页 503）。
+  # 解包时**不清空** `apps/web` 其它内容，只覆盖 `build/`。
+  echo "web: 用本地预构建的制品（跳过本机构建）"
+  if ! sudo -n tar xzf "$UPLOAD_DIR/web-build.tar.gz" -C "$APP_ROOT/apps/web"; then
+    echo "ABORT: 预构建制品解包失败"; exit 1
+  fi
+  sudo -n chown -R geohot:geohot "$APP_ROOT/apps/web/build"
+  echo "web: 制品已落盘（$(sudo -n du -sh "$APP_ROOT/apps/web/build" | cut -f1)）"
+else
 wait_for_quiet "构建前" "${GEOHOT_DEPLOY_WAIT_SEC:-240}"
 if ! sudo -u geohot env BASE_PATH="$BASE_PATH" bash -lc "cd $APP_ROOT && npm run build -w @aihot/web" > /tmp/deploy-build.log 2>&1; then
   echo "ABORT: web 构建失败 —— 不重启：重启进一个坏 bundle 就是 2026-10-12 那次 6 分钟整站 404"; tail -8 /tmp/deploy-build.log
@@ -306,6 +346,7 @@ if ! sudo -u geohot env BASE_PATH="$BASE_PATH" bash -lc "cd $APP_ROOT && npm run
   exit 1
 fi
 tail -3 /tmp/deploy-build.log
+fi
 if sudo -n test -d "$ASSETS_DIR.prev"; then
   sudo -n cp -an "$ASSETS_DIR.prev/." "$ASSETS_DIR/" || true   # -n：新构建的同名文件优先
   sudo -n rm -rf "$ASSETS_DIR.prev.old" || true
