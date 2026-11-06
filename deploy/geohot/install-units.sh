@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Writes the systemd units for the /geohot/ deployment and reloads systemd.
-# 2026-10-15 起默认路线是**安装 deploy/geohot/systemd/ 里的 8 个模板**（带加固块）；
+# 2026-10-15 起默认路线是**安装 deploy/geohot/systemd/ 里 ALL_UNITS 那 20 个单元**（带加固块；目录里共 28 个单元模板）；
 # 下面内联生成的那四个只在 GEOHOT_APP_ROOT 指到别处时用，而且**不带加固块**。
 # Written after the first deployment attempt failed on three things, all of which are fixed here:
 #   1. the units pointed at a checkout that does not exist — see APP_ROOT below. All four scripts read the
@@ -30,7 +30,7 @@
 #       sudo cp -a /etc/systemd/system/geohot-*.service /root/units-backup-$(date +%F)/
 #   写完确认：systemctl list-units 'geohot-*' 与 systemctl cat <单元> 两处都该看到你预期的
 #   APP_ROOT（GEOHOT_APP_ROOT，默认 /opt/geohot/app）与绝对 --env-file 路径。
-#   这一句在 2026-10-15 作废：本脚本默认装的就是带加固块的那一份（八个单元），
+#   这一句在 2026-10-15 作废：本脚本默认装的就是带加固块的那一份（ALL_UNITS 的 20 个单元），
 #   与 bootstrap-server.sh 第 10 节同源；只有 GEOHOT_APP_ROOT 指到别处时才退回下面内联生成的四个。
 #   装完后本脚本会自己跑一遍 verify-config-drift.sh，跑不动或有漂移都按失败退出（以前那里写的是
 #   `| grep -c '' || true`，核对脚本缺失时也印"0 处"，那道闸门永远不会红）。
@@ -62,7 +62,7 @@ emit_unit() {
 #   而 deploy/geohot/systemd/*.service 那份有——两条都在仓库里、都叫"恢复单元"，
 #   照哪一条走取决于你跑了哪个脚本，这就是"GitHub 也能随时迁移"这句话里的洞：
 #   新机器跑本脚本会静默拿到一套零沙箱的单元（工单 #194 第二条讲的就是它）。
-#   现在：默认路径下直接安装 systemd/ 那一份（八个单元齐全、带加固、与线上现值已对齐），
+#   现在：默认路径下直接安装 systemd/ 那一份（20 个单元齐全、带加固、与线上现值已对齐），
 #   只有当 GEOHOT_APP_ROOT 指到别处（模板里 /opt/geohot/app 是写死的，systemd 不做变量插值）
 #   才退回下面的生成路线，并且明说退回来的是没有加固块的那一份。
 TEMPLATE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/systemd"

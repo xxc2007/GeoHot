@@ -121,8 +121,9 @@ GEOHOT 基于开源框架 [AIHOT](https://github.com/KKKKhazix/AIHOT) 构建，�
 
 ```bash
 npm ci
-# 带四个 --xxx-port 就会换端口（避开本机已在跑的栈）；跨过下面这条照抄默认端口。
-# env:init 拒绝覆盖已有配置（避免把线上 .env 洗掉），要重新生成先把它挪开：
+# 带四个 --xxx-port 就会换端口（避开本机已在跑的栈）；不换端口就直接用默认值跑下一条。
+# env:init 拒绝覆盖已有配置（避免把线上 .env 洗掉），所以要重新生成必须先把它挪开——
+# 不挪就会 exit 1（原文：`.env 和 .env.pipeline 已经存在，没有覆盖`）。
 mv .env .env.bak 2>/dev/null; mv .env.pipeline .env.pipeline.bak 2>/dev/null
 npm run env:init -- --db-port=5455 --api-port=3299 --web-port=3099 --brain-port=3065
 ```
@@ -147,6 +148,8 @@ npm run build -w @aihot/web && node --env-file=.env apps/web/server.ts          
 
 跑测试（要一个独立库，别指 `.env` 里的开发库）：
 
+> 库名必须以 `_test` 或 `_ci` 结尾：`tests/setup.ts:10` 会拒绝在别的库上写行（`Invariant tests write rows: point DATABASE_URL at a throwaway database named *_test or *_ci`）。名字取 `geohot_test` 就好，别取 `geohot_test_r22` 这种。
+
 ```bash
 node --input-type=module -e "import postgres from 'postgres'; const s = postgres('postgres://geohot:geohot@127.0.0.1:5455/postgres'); await s.unsafe('CREATE DATABASE geohot_test'); await s.end();"
 DATABASE_URL=postgres://geohot:geohot@127.0.0.1:5455/geohot_test npm run db:migrate
@@ -157,7 +160,7 @@ DATABASE_URL=postgres://geohot:geohot@127.0.0.1:5455/geohot_test npm test
 
 四个容易踩的坑：
 
-- `db:up` 的端口**不跟 `env:init` 走**（它读 `--port`、`DEV_DB_PORT`，否则回落 5433）。换过端口就显式写 `--port=5455`；**先起的若是 5433 上的旧库，`db:migrate` 会把 96 条迁移写到那个库上**（本机若真有线上库，这就是事故）。
+- `db:up` 的端口**不跟 `env:init` 走**（它读 `--port`、`DEV_DB_PORT`，否则回落 5433）。换过端口就显式写 `--port=5455`；**先起的若是 5433 上的旧库，`db:migrate` 会把 105 条迁移写到那个库上**（本机若真有线上库，这就是事故）。
 - 本地构建是**域名根**形态：没有 `BASE_PATH`，线上 `/geohot` 前缀由反代与 web 层决定。冒烟用 `node scripts/smoke.ts --base http://127.0.0.1:3099`（不带前缀）；带 `/geohot` 会得到一串 404。
 - `npm run seed:curated -- --enforce-source` 在干净库上会 **exit 1**：15 行属于两个 `enabled:false` 的信源（`rss-copernicus-c3s` 7 行、`web-thepaper-topnews` 8 行），脚本会打印 `!! 15 material line(s) were not stored` 与逐条原因。要它全绿就先启用这两个信源，或去掉 `--enforce-source`。
 
