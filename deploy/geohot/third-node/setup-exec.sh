@@ -86,8 +86,8 @@ if [ ! -f "$EXEC_DIR/.env" ]; then
     echo 'GEOHOT_INTAKE_LANES=combined'
     echo 'GEOHOT_INTAKE_COMBINED_LIMIT=3'
     echo 'GEOHOT_INTAKE_LANE_LIMIT=3'
-    echo 'GEOHOT_INTAKE_ANALYSIS_SLOTS=2'
-    echo 'ANALYZE_CONCURRENCY=2'
+    echo 'GEOHOT_INTAKE_ANALYSIS_SLOTS=3'
+    echo 'ANALYZE_CONCURRENCY=3'
     echo 'EXTRACT_CONCURRENCY=1'
     echo 'DATABASE_POOL_MAX=8'
     echo 'HEALTH_READ_STATEMENT_TIMEOUT_MS=15000'
@@ -129,7 +129,7 @@ ExecStart=/usr/local/node/bin/node --env-file=$EXEC_DIR/.env apps/worker/src/mai
 Restart=always
 RestartSec=10
 KillSignal=SIGTERM
-TimeoutStopSec=45
+TimeoutStopSec=600
 MemoryHigh=900M
 MemoryMax=1100M
 MemorySwapMax=1024M

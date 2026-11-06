@@ -54,6 +54,12 @@ export async function registerServerConsole(app: FastifyInstance, forward = magp
           host: String(row.value?.host ?? "?"),
           release: String(row.value?.release ?? ""),
           slots: typeof row.value?.slots === "number" ? row.value.slots : null,
+          // 远端机器一并把自己的负载/内存/磁盘报上来，面板就不用 SSH 出去取数。
+          load: typeof row.value?.load === "number" ? row.value.load : null,
+          memTotal: typeof row.value?.memTotal === "number" ? row.value.memTotal : null,
+          memFree: typeof row.value?.memFree === "number" ? row.value.memFree : null,
+          diskFree: typeof row.value?.diskFree === "number" ? row.value.diskFree : null,
+          diskTotal: typeof row.value?.diskTotal === "number" ? row.value.diskTotal : null,
           at: Number.isFinite(at) ? new Date(at).toISOString() : null,
           alive: Number.isFinite(at) && Date.now() - at < 180_000,
         };
