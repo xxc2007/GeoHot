@@ -7,6 +7,6 @@
 -- 2026-11-07 02:2x 现场：`/all` 连续 503（11.3 s / 1.5 s / 9.9 s），api 日志是
 -- `PublicReadBusyError … path=/api/site/timeline ms=19399`。补一条只带静态条件、不带
 -- eligible 的部分索引，让 LIMIT 40 能顺着 timeline_at 倒序走索引，EXISTS 只作为过滤。
-create index concurrently if not exists publications_all_page_idx
+create index if not exists publications_all_page_idx
   on publications (timeline_at desc, article_id)
   where visibility = 'public' and body_mode = 'full';
