@@ -17,6 +17,7 @@ import { createSource, fetchNow, listSources, previewSource, sourceDetail, updat
 import { sql } from "@aihot/backend/db";
 import { sendProblem } from "../http/respond.ts";
 import { adminReadOrBusy } from "@aihot/backend/admin/admin-read";
+import { topicRotationBoard } from "@aihot/backend/admin/topic-rotation";
 import { adminHandler } from "./admin-auth.ts";
 
 type Q = Record<string, string | undefined>;
@@ -119,6 +120,7 @@ export function registerAdmin(app: FastifyInstance) {
 
   // Settings
   app.get("/api/admin/settings", adminHandler(async () => ({ budgets: await listBudgets() })));
+  app.get("/api/admin/topics", adminHandler(async (req) => topicRotationBoard(Math.min(365, Number(q(req).days) || 30))));
   app.put("/api/admin/budgets/:service", adminHandler(async (req, _reply, admin) => updateBudget(param(req, "service"), body(req) as never, actorOf(admin))));
   // 只删预算行（retire 一扇门）：receipts / receipt_attempts / metrics 历史不动（是账单与审计依据）。
   app.delete("/api/admin/budgets/:service", adminHandler(async (req, reply, admin) => {
