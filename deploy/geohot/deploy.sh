@@ -411,6 +411,17 @@ if command -v curl >/dev/null 2>&1; then
     echo "  $line"
     sleep 1
   done
+  # 页面层的缓存要等第一轮返回之后才开始算，间隔 1 秒的第二下仍在冷路径上
+  # （2026-11-07 实测 /all 两次都是 1.55 秒，20 秒后才是 0.25 秒）。
+  # 所以再等一轮，用第三下证明页面真的热了，而不是证明它会返回。
+  sleep "${GEOHOT_WARMUP_SETTLE_SEC:-20}"
+  line="(settled)"
+  for path in "/" "/all"; do
+    read -r code secs <<<"$(curl -s -o /dev/null -m 25 -w '%{http_code} %{time_total}' \
+      "http://127.0.0.1:${WEB_PORT:-3000}${BASE_PATH:-}${path}" || echo "000 0")"
+    line="$line ${path}=${code}/${secs}s"
+  done
+  echo "$line"
 fi
 
 echo "== 启动日志（Node 弃用只在启动时出现，测试套件永远看不到）=="
