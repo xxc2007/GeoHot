@@ -28,6 +28,7 @@ import { submitIndexNow } from "@aihot/backend/operations/indexnow";
 import { checkAlerts, sendDigest } from "@aihot/backend/operations/alerts";
 import { auditTopicFreshness } from "@aihot/backend/publication/topics";
 import { reconcileReadiness } from "@aihot/backend/publication/readiness-reconcile";
+import { reprioritizeAnalyzeQueue } from "@aihot/backend/jobs/reprioritize";
 import { autoReleaseUnknownReceipts } from "@aihot/backend/admin/runs";
 import { forwardPendingFeedback } from "@aihot/backend/operations/feedback";
 import { backupConfigured, runBackup } from "@aihot/backend/operations/backup";
@@ -68,6 +69,8 @@ export const SCHEDULES: Scheduled[] = [
   // 快照永远建不出来，页面就长期显示 unavailable。这里给它一个常驻的生产者，5 分钟一次。
   { name: "runs.snapshot", cron: "*/5 * * * *", expire: 240, run: () => readRunsOverview() },
   { name: "content.readiness", cron: "*/10 * * * *", expire: 300, run: () => reconcileReadiness() },
+  // 队列里堆着几千条时，先进先出等于「先跑上周的稿子」：每 5 分钟把三天内的活抬到队首一次。
+  { name: "content.reprioritize", cron: "*/5 * * * *", expire: 240, run: () => reprioritizeAnalyzeQueue() },
   { name: "hot.snapshot", cron: "2 * * * *", run: () => snapshotHeat() },
   { name: "stories.status", cron: "7 * * * *", expire: 600, run: refreshStoryStatuses },
   { name: "stories.links", cron: "12 * * * *", run: linkRelatedStories },
