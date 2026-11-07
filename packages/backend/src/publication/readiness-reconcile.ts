@@ -21,15 +21,27 @@ export interface ReadinessReconcileReport {
 }
 
 export async function reconcileReadiness(limit = 40): Promise<ReadinessReconcileReport> {
+  // 2026-11-07 第二课：光补「缺行」不够。发布事务先于分析完成，那一行会写成 ready=false，
+  // 之后分析通过却没人重算 —— 当天 18 篇「全文 + 相关性通过」的文章就这样卡在门禁外，
+  // 读者面的「今天」与精选都看不到。所以除了缺行，也重算「未就绪且十分钟没动过」的行。
   const rows = await sql<{ article_id: string }[]>`
-    select p.article_id
-      from publications p
-     where p.visibility = 'public'
-       and not exists (
-         select 1 from article_workflow_readiness r where r.article_id = p.article_id
-       )
-     order by p.discovered_at desc
-     limit ${limit}`;
+    (select p.article_id
+       from publications p
+      where p.visibility = 'public'
+        and not exists (
+          select 1 from article_workflow_readiness r where r.article_id = p.article_id
+        )
+      order by p.discovered_at desc
+      limit ${limit})
+    union
+    (select r.article_id
+       from article_workflow_readiness r
+       join publications p on p.article_id = r.article_id
+      where p.visibility = 'public'
+        and r.ready = false
+        and r.checked_at < now() - interval '10 minutes'
+      order by r.checked_at asc
+      limit ${limit})`;
 
   let refreshed = 0;
   let failed = 0;
