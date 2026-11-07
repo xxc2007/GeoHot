@@ -62,7 +62,7 @@ export const SCHEDULES: Scheduled[] = [
   // Revisit minute-budget waits each minute; the single scan consumer keeps the 500-row/archive quota.
   { name: "content.sweep", cron: "* * * * *", expire: 240, run: sweepUnprocessed },
   // Full-text translations of newly selected items (model calls; off with MODEL_CALLS_ENABLED=false).
-  { name: "content.translate", cron: "* * * * *", expire: 300, run: () => translatePending(balancedResources() ? { limit: 6, budgetMs: 60_000, deadlineAt: Date.now() + 120_000 } : {}) },
+  { name: "content.translate", cron: "*/3 * * * *", expire: 300, run: () => translatePending(balancedResources() ? { limit: 8, budgetMs: 150_000, deadlineAt: Date.now() + 180_000 } : {}) },
   { name: "hot.rank", cron: "*/5 * * * *", expire: 300, run: () => computeHotRanking() },
   // 就绪行自愈：缺行的公开文章对读者永远不可见，而且页面上看不出异常（2026-11-07 丢了 404 篇）。
   // 每十分钟挑最新 40 篇重算一次，幂等、只写事实表、不发模型调用。
