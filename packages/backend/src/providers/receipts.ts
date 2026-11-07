@@ -6,7 +6,7 @@
 // 4. A request whose outcome is unknown (timeout after sending, crash mid-flight) is not re-sent by the
 //    caller. ops.recover releases it once after 30 minutes (admin/runs.ts), so a lost answer costs at
 //    most one repeat; after that it waits for the admin.
-import { sql, type Db } from "../db.ts";
+import { sql, type Db, type Tx } from "../db.ts";
 import { sha256, stableJson } from "../lib/ids.ts";
 
 /** Every class below sets `name`: the operator scripts log `error.name` as the whole failure category
@@ -86,6 +86,41 @@ export interface ReceiptResult {
 
 const PENDING_STALE_MS = 10 * 60 * 1000;
 
+/** How long a paid request may queue behind the per-service budget lock before it gives up and asks
+ *  the caller to come back. The claim transaction is DB-only and measured ~20ms on this host, so a
+ *  three-second cap never trips on ordinary queueing (11 concurrent claims reached 210ms); it trips
+ *  only when something else holds the lock for seconds, which is the 2026-11-08 shape: eleven sessions
+ *  queued 8–11s behind one holder while readers starved. Tripping writes nothing and is retried. */
+const CLAIM_QUEUE_TIMEOUT_MS = 3_000;
+
+/**
+ * Claim transaction with a bounded wait on the advisory lock.
+ * `lock_timeout` is set per transaction, so the 15s session default from db.ts keeps applying to every
+ * other background transaction. The 55P03 mapping lives here only: the two result-writing transactions
+ * that follow the model call are never turned into "busy" by this.
+ */
+async function claimWithQueueLimit<T>(body: (tx: Tx) => Promise<T>): Promise<T> {
+  try {
+    // Wrapped in an object so postgres.js' UnwrapPromiseArray<T> (array-only conditional) stays concrete.
+    const claim = await sql.begin(async (tx) => {
+      await tx`SELECT set_config('lock_timeout', ${`${CLAIM_QUEUE_TIMEOUT_MS}ms`}, true)`;
+      return { result: await body(tx) };
+    });
+    return claim.result;
+  } catch (error) {
+    // 55P03 = lock_not_available. Only our own lock_timeout becomes "come back later": a trigger or a
+    // constraint on the INSERT also raises 55P03 (tests inject exactly that), and swallowing it as
+    // "busy" would retry a write that can never succeed. Lock waits carry "lock timeout"/"could not
+    // obtain lock" in the message; anything else is a real ledger fault and must propagate.
+    const code = (error as { code?: string }).code;
+    const text = String((error as { message?: string }).message ?? "");
+    if (code === "55P03" && /lock timeout|could not obtain lock/i.test(text)) {
+      throw new ReceiptBusyError(`budget lock queue exceeded ${CLAIM_QUEUE_TIMEOUT_MS}ms; retry later`);
+    }
+    throw error;
+  }
+}
+
 /** 收据行已收款但 response 缺失时写进 error 的原因（收据页与排查都读它）。 */
 const MISSING_ANSWER_REASON = "answer missing from a collected receipt; not re-buying";
 export function logicalKeyFor(req: ReceiptRequest): string {
@@ -153,10 +188,11 @@ export async function paidRequest(
   const candidates = [...dispatches.map((d) => d.request), ...recoveryCandidates];
   const keys = [...new Set(candidates.map(logicalKeyFor))];
 
-  const claimed = await sql.begin(async (tx) => {
+  const claimed = await claimWithQueueLimit(async (tx) => {
     // 这把咨询锁是**排队**用的，不是防死锁：同一个 service 的选路与预算判断本来就该一个接一个。
-    // 会话级的 lock_timeout 已由 db.ts 放到 15 秒（全局 2 秒是给读者的上限，排队会被当成故障——
-    // 2026-11-06 13:00 起每小时 350–815 篇因此掉回重试），这里不再重复设置。
+    // 排队必须有上界：2026-11-08 生产上 11 个会话在这把锁上等了 8–11 秒（持锁方 idle in transaction
+    // 18 秒），读者 /api/site/timeline 一并被拖到 3.3 秒、/all 503。claimWithQueueLimit 只把**本事务**
+    // 的 lock_timeout 收到 3 秒，超时变成可重试的 ReceiptBusyError；会话级 15 秒对别的后台事务不变。
     // The same pool may choose a different service after a health change. Lock the full candidate set
     // in a stable order, so two concurrent choices cannot both buy this step. Budgets stay per service.
     for (const service of [...new Set(candidates.map((c) => c.service))].sort()) {
