@@ -453,9 +453,9 @@ export async function modelFor(capability: CapabilityKey, shardKey?: string, pur
   const serving = await servingMembers(listed, capability);
   await keepStarvedHead(serving, listed);
   const step = purpose && c.purposes.includes(purpose) ? purpose : c.purposes.length === 1 ? c.purposes[0] : undefined;
-  if (!step || !shardKey || serving.length < 2) return pickMember(serving, shardKey) || c.default;
+  if (!step || !shardKey || serving.length < 2) return pickMember(weightHead(serving, listed[0]), shardKey) || c.default;
   const weights = routingWeights(serving.map(name => ({ name, service: MODELS[name]!.service, model: MODELS[name]!.model! })), step, await modelRoutingSamples());
-  return pickMember(serving.flatMap(name => Array.from({ length: weights.get(name) ?? 1 }, () => name)), shardKey) || c.default;
+  return pickMember(weightHead(serving.flatMap(name => Array.from({ length: weights.get(name) ?? 1 }, () => name)), listed[0]), shardKey) || c.default;
 }
 
 /**
@@ -475,10 +475,35 @@ export async function modelFor(capability: CapabilityKey, shardKey?: string, pur
  * 上游规则静默饿死的——「把它放第一位」于是永远落不到真实流量上（讯飞 DeepSeek V4.1 Flash 实测：池前两位是它，
  * 10 分钟内一百多次 prefilter/score 全是池尾两家）。给它保留一个探针位；`sick` 里的成员不在此列，
  * 别拿钱去撞已经确诊的墙。 */
+let headProbeLog = 0;
+/** 2026-11-08: 运维把某个成员写在能力位池的第一位，就是要它当主力，而不是「池里恰好有一份」。
+ * 权重规则给每个健康成员至少 1 份，池首因此只占 1/(n) 甚至更少；实测讯飞 DeepSeek V4.1 Flash 排在
+ * PREFILTER/SCORE 首位时，10 分钟窗口只拿到 1/86 的调用。这里把池首补到「不少于其余成员之和」，
+ * 也就是稳定的一半额度，剩下的按原权重分给其他健康成员——顺序即优先级，规则可复核、可测。 */
+export function weightHead(spread: string[], head?: string): string[] {
+  if (!head || spread.length < 2) return spread;
+  if (!spread.includes(head)) return spread;
+  const others = spread.filter((name) => name !== head).length;
+  if (others === 0) return spread;
+  const have = spread.length - others;
+  for (let i = have; i < others; i += 1) spread.push(head);
+  return spread;
+}
+
 async function keepStarvedHead(serving: string[], listed: string[]): Promise<void> {
   const head = listed[0];
   if (!head || serving.includes(head)) return;
-  if (benched(await sickServices(), head)) return;
+  const sick = await sickServices();
+  if (benched(sick, head)) {
+    // 2026-11-08: 顶置成员被判定不可用时，把判定它的键打出来 —— 不然只能看到"没流量"，看不到"谁挡的"。
+    if (Date.now() - headProbeLog > 300_000) {
+      headProbeLog = Date.now();
+      const spec = MODELS[head]!;
+      const hits = [...sick].filter(k => k === spec.service || k.startsWith(spec.service + "|") || k === endpointKey(spec));
+      console.log(JSON.stringify({ event: "routing.head_benched", head, hits, serving }));
+    }
+    return;
+  }
   serving.push(head);
 }
 
