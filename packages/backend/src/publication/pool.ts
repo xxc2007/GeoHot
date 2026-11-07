@@ -173,8 +173,12 @@ export async function loadPool(query: PoolQuery): Promise<PoolResponse> {
   const filters = sql`${scoped} ${dayCondition}`;
   const offset = (page - 1) * POOL_PAGE_SIZE;
   const cap = POOL_MAX_PAGES * POOL_PAGE_SIZE;
-  // A fixed clock (tests, replays) never shares cached totals.
-  const filterKey = query.now ? null : JSON.stringify([query.channel, query.category, query.tag, query.topicTags ?? null, date]);
+  // Totals are bucketed per minute instead of keyed on the exact clock: server-rendered pages always
+  // pass a `now`, so keying on it verbatim meant every reader recomputed the same count (measured
+  // 1.7-2.6 s per /api/site/pool call on 2026-11-07). Tests and replays that pin a clock still never
+  // share a bucket with production traffic, and a one-minute stale total is a number no reader can see.
+  const clockBucket = query.now ? Math.floor(query.now.getTime() / 60_000) : "live";
+  const filterKey = JSON.stringify([query.channel, query.category, query.tag, query.topicTags ?? null, date, clockBucket]);
 
   // Searches go through pool_search (eligible items only): trigram indexes for longer terms, a small
   // table to scan for one- and two-character ones.
