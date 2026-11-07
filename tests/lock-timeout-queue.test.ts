@@ -26,9 +26,18 @@ test("readers still give up early: read-budget keeps its own short lock_timeout"
   assert.ok(m && Number(m[1]) <= 2_000, "读者路径的 lock_timeout 必须 ≤2000ms");
 });
 
-test("the budget lock is not re-tuned inside the claim transaction", () => {
-  // 会话级已经放宽；这里再 SET LOCAL 会让两处数字打架，改一处忘另一处就是下一次事故。
-  const claim = receipts.slice(receipts.indexOf("const claimed = await sql.begin"), receipts.indexOf("if (claimed.kind === \"reuse\")"));
-  assert.doesNotMatch(claim, /set_config\('lock_timeout'/);
+test("the budget lock queue has its own bound, set per transaction", () => {
+  // 2026-11-08 更新：会话级 15 秒仍然是对的（别的后台事务不该被 2 秒砍），但**这一个**事务要更浅的
+  // 上界——生产上 11 个会话在这把锁上等了 8–11 秒、持锁方 idle in transaction 18 秒，读者被一起拖到
+  // 3.3 秒 / 503。所以 claim 自己 SET LOCAL 一个秒级 lock_timeout，超时在 claimWithQueueLimit 里
+  // 映射成 ReceiptBusyError（调用方本来就当"稍后再来"重试），不再无止境排队。
+  const claim = receipts.slice(receipts.indexOf("const claimed = await claimWithQueueLimit"), receipts.indexOf("if (claimed.kind === \"reuse\")"));
   assert.match(claim, /pg_advisory_xact_lock\(hashtext\(\$\{"budget:" \+ service\}\)\)/);
+  const helper = receipts.slice(receipts.indexOf("async function claimWithQueueLimit"), receipts.indexOf("export function logicalKeyFor"));
+  assert.match(helper, /set_config\('lock_timeout',[^)]*,\s*true\)/, "只能用事务级 set_config(..., true)");
+  const m = receipts.match(/const CLAIM_QUEUE_TIMEOUT_MS = ([\d_]+)/);
+  assert.ok(m, "队列上限应当是一个命名常量");
+  const ms = Number(m![1]!.replace(/_/g, ""));
+  assert.ok(ms <= 5_000, `队列上限必须小于会话级的 15 秒（实测 ${ms}ms）`);
+  assert.match(helper, /ReceiptBusyError/, "超时要映射成可重试的 ReceiptBusyError");
 });
