@@ -28,6 +28,7 @@ const PID_FILE = path.join(DATA_DIR, "dev-db.pid");
 const LOG_FILE = path.join(os.tmpdir(), "geohot-dev-db.log");
 const VERSION_FILE = path.join(DATA_DIR, "PG_VERSION");
 const BUNDLE_DIR = path.join(ROOT, "node_modules/@embedded-postgres/windows-x64");
+const PG_CTL = path.join(BUNDLE_DIR, "native", "bin", process.platform === "win32" ? "pg_ctl.exe" : "pg_ctl");
 /** Home of the ASCII lookup package; named by bundle version, so an upgrade cannot reuse a stale copy. */
 const SHIM_ROOT = path.join(path.parse(ROOT).root, "geohot-embedded-postgres");
 
@@ -264,6 +265,23 @@ const clearPidFile = () => {
   if (recordedPid() === process.pid) rmSync(PID_FILE, { force: true });
 };
 
+/**
+ * cluster.stop() 在 Windows 上偶尔只收掉 postmaster，把 `postgres --forkchild=backend` 留在端口上。
+ * 那种残留既不在进程表里可查（按名字找不到），netstat 又显示端口仍 LISTENING，下一次 db:up 直接失败。
+ * 这里补一刀 `pg_ctl stop -m immediate`：还在数据目录里的进程会被它收掉，收不掉就明确说出来。
+ * 2026-11-07 干净克隆复验时踩到（报告 _diag/t8/local-deploy-r66.md §3）。
+ */
+async function reapBackends(): Promise<void> {
+  const lock = path.join(DATA_DIR, "postmaster.pid");
+  if (!existsSync(lock)) return;
+  await new Promise<void>((resolve) => {
+    const child = spawn(PG_CTL, ["-D", DATA_DIR, "stop", "-m", "immediate", "-w", "-t", "15"], { stdio: "ignore" });
+    child.on("exit", () => resolve());
+    child.on("error", () => resolve());
+  });
+  if (existsSync(lock)) relay(new Error("dev-db: postgres 仍在运行（postmaster.pid 未清），请手工结束残留的 postgres.exe 再重试"));
+}
+
 const stop = async (reason: string) => {
   if (stopping) return;
   stopping = true;
@@ -273,6 +291,7 @@ const stop = async (reason: string) => {
   } catch (error) {
     relay(error);
   }
+  await reapBackends();
   clearPidFile();
   process.exit(0);
 };

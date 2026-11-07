@@ -3,12 +3,20 @@ import { sql, type Tx } from "../db.ts";
 import type { TranslationRank } from "./translation-scheduling.ts";
 
 /** Content refusals stay terminal; outages and missing fragments can recover without erasing history. */
+export const TRANSLATION_ATTEMPT_CEILING = 6;
+
+/** Transport noise is not a verdict on the copy: it backs off for minutes, never for the six-hour wall. */
+export const TRANSLATION_TRANSPORT_ERROR =
+  '(connect failed|fetch failed|ECONN|CONNECT_TIMEOUT|connection.*closed|network|HTTP (429|5[0-9]{2}))';
+
 export function translationAttemptBlockedSql() {
   return sql`(t.outcome IN ('skipped','translated')
-    OR (t.attempts>=3 AND t.outcome<>'partial' AND NOT
-      (t.outcome='failed' AND coalesce(t.reason,'') ~* '(connect failed|fetch failed|ECONN|CONNECT_TIMEOUT|connection.*closed|network|HTTP (429|5[0-9]{2}))'))
+    OR (t.attempts>=${TRANSLATION_ATTEMPT_CEILING} AND t.outcome<>'partial' AND NOT
+      (t.outcome='failed' AND coalesce(t.reason,'') ~* ${TRANSLATION_TRANSPORT_ERROR}))
     OR (t.outcome IN ('failed','partial') AND t.updated_at > now() -
-      CASE WHEN t.attempts>=3 THEN interval '6 hours' ELSE interval '5 minutes' END))`;
+      CASE WHEN t.outcome='failed' AND coalesce(t.reason,'') ~* ${TRANSLATION_TRANSPORT_ERROR} THEN interval '5 minutes'
+        WHEN t.attempts>=${TRANSLATION_ATTEMPT_CEILING} THEN interval '6 hours'
+        ELSE interval '5 minutes' END))`;
 }
 
 /** Bound selector SQL on the server; release the read transaction before any model request. */

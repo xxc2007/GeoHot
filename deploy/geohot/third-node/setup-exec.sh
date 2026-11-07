@@ -170,15 +170,25 @@ cat > /usr/local/bin/geohot-exec-window.sh <<'WIN'
 set -euo pipefail
 mode="${1:-day}"
 case "$mode" in
-  day)   slots=2; conc=2 ;;
-  night) slots=3; conc=3 ;;
+  day)   slots=12; conc=12; lanes=12 ;;
+  night) slots=12; conc=12; lanes=12 ;;
   *) echo "usage: $0 day|night" >&2; exit 2 ;;
 esac
 install -d -m 755 /etc/systemd/system/geohot-exec-worker.service.d
 cat > /etc/systemd/system/geohot-exec-worker.service.d/50-window.conf <<CONF
 [Service]
+Environment=GEOHOT_INTAKE_LANES=combined
 Environment=GEOHOT_INTAKE_ANALYSIS_SLOTS=$slots
+Environment=GEOHOT_INTAKE_LANE_LIMIT=$lanes
+Environment=GEOHOT_INTAKE_COMBINED_LIMIT=$lanes
 Environment=ANALYZE_CONCURRENCY=$conc
+Environment=GEOHOT_RESOURCE_PROFILE=balanced
+Environment=GEOHOT_PRESSURE_LOAD_PER_CPU=6
+Environment=GEOHOT_PRESSURE_MEMORY_FULL=60
+Environment=GEOHOT_PRESSURE_IO_FULL=80
+Environment=GEOHOT_PRESSURE_CPU_SOME=95
+Environment=GEOHOT_PRESSURE_AVAILABLE_MIB=48
+TimeoutStopSec=600
 CONF
 systemctl daemon-reload
 systemctl restart geohot-exec-worker.service

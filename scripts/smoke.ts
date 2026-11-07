@@ -41,7 +41,13 @@ let failed = 0;
 const pageHtml: Array<[path: string, html: string]> = [];
 async function check(path: string, expect: (res: Response, body: string) => string | null) {
   try {
-    const res = await fetch(base + path, { redirect: "manual", signal: AbortSignal.timeout(30_000) });
+    // 429 是 nginx 的爬虫/读者桶在说「你跑得太快」，不是站点坏了：部署验收一次连取三十来个出口，
+    // 2026-11-07 两次部署就因此把 feed 与 reader copy 判成了红。给它两秒再来一次，第二次仍是 429 才算真失败。
+    let res = await fetch(base + path, { redirect: "manual", signal: AbortSignal.timeout(30_000) });
+    if (res.status === 429) {
+      await new Promise((resolve) => setTimeout(resolve, 2_000));
+      res = await fetch(base + path, { redirect: "manual", signal: AbortSignal.timeout(30_000) });
+    }
     const body = res.headers.get("content-type")?.startsWith("image/") ? "" : await res.text();
     if (res.status === 503 && LEADERBOARD.includes(path)) {
       console.log(`– ${path}  no leaderboard round published yet`);

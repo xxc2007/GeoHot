@@ -102,10 +102,25 @@ const REPEATABLE = new Set([
   "hot.rank", "hot.snapshot", "stories.status", "stories.links", "reports.catch-up",
 ]);
 
+/** 两个名额：一个常规扫描 + 一个翻译；再多就会和读者面抢内存。 */
+export const RECURRING_TASK_SLOTS = 2;
+function recurringSlots(): number {
+  const raw = Number(process.env.GEOHOT_RECURRING_SLOTS ?? "");
+  return Number.isSafeInteger(raw) && raw >= 1 && raw <= 4 ? raw : RECURRING_TASK_SLOTS;
+}
+
 export class ResourceBudget {
   private healthySince: number | undefined;
   private paused = true;
-  private busy = false;
+  /**
+   * 2026-11-07 现场：杭州这台 `WORKER_ROLE=all` 的机器只有 **一个** 循环任务名额，
+   * `cron.content.translate` 每 4 分钟触发一次却几乎每次都被 sweep/rank/digest 占着，
+   * 日志里连着 `recurring task deferred … reason: recurring-task-slot-busy`。
+   * 结果是译文一直不 complete ⇒ `workflowReadyCondition()` 不放行 ⇒ 读者面整天没有新内容。
+   * 名额给到 2：翻译可以和一个常规扫描并行，但不会无限叠加。
+   */
+  private active = 0;
+  private readonly slots = recurringSlots();
 
   observe(sample: ResourceSample, now: number): boolean {
     const finite = Object.values(sample).every(Number.isFinite);
@@ -129,9 +144,9 @@ export class ResourceBudget {
     // cron sample to reconstruct that same healthy window. Other schedules retain their policy.
     const intakeAdmittedTranslation = admitted && name === "content.translate" && !pressured;
     if (this.paused && !intakeAdmittedTranslation) return { deferred: true, reason: pressured ? "resource-pressure" : "resource-recovery-window" };
-    if (this.busy) return { deferred: true, reason: "recurring-task-slot-busy" };
-    this.busy = true;
-    try { return await fn(); } finally { this.busy = false; }
+    if (this.active >= this.slots) return { deferred: true, reason: "recurring-task-slot-busy" };
+    this.active += 1;
+    try { return await fn(); } finally { this.active -= 1; }
   }
 }
 

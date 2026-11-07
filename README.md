@@ -136,13 +136,16 @@ npm run env:init -- --db-port=5455 --api-port=3299 --web-port=3099 --brain-port=
 # 端口必须和上一步 --db-port 一致：db:up 只认 --port / DEV_DB_PORT，不读 .env，
 # 写着 5455 却连 5433 的话，下一条迁移会写进那台已经在跑的库。
 npm run db:up -- --foreground --port=5455
-npm run db:migrate                          # 建表（干净库 105 条迁移，约 2 秒）
-node --env-file-if-exists=.env scripts/seed.ts                     # 主题 43 / 信源 668（无 npm 别名）
+npm run db:migrate                          # 建表（干净库 108 条迁移，约 2 秒）
+node --env-file-if-exists=.env scripts/seed.ts                     # 主题 43 / 信源 668（迁移另建 gdacs、mnr，库内共 45 个；无 npm 别名）
 node --env-file=.env --env-file=.env.pipeline tooling/brain-stub.ts                 # 本地模型 stub，BRAIN_PORT=3065
 node --env-file=.env --env-file=.env.pipeline apps/api/src/main.ts                  # 接口，API_PORT=3299
 node --env-file=.env --env-file=.env.pipeline apps/worker/src/main.ts               # 队列与定时任务
 npm run build -w @aihot/web && node --env-file=.env apps/web/server.ts              # 网页，WEB_PORT=3099
 ```
+
+前两条是**长驻**的：`db:up --foreground` 和 web 的 `node apps/web/server.ts` 都会占用终端直到 Ctrl-C，别给它们套 `timeout`——到点会把整组子进程一起 SIGTERM，留下的 postgres 后台进程会占住端口（`dev-db.ts` 现在会自己补一刀 `pg_ctl stop -m immediate` 收尾）。
+
 
 `.env.pipeline` 里 `LLM_BASE_URL` 指向 `http://127.0.0.1:3065/v1`：**不启 brain stub 时分析类作业会全部失败**（页面上表现为条目迟迟不进精选）。
 
@@ -153,14 +156,14 @@ npm run build -w @aihot/web && node --env-file=.env apps/web/server.ts          
 ```bash
 node --input-type=module -e "import postgres from 'postgres'; const s = postgres('postgres://geohot:geohot@127.0.0.1:5455/postgres'); await s.unsafe('CREATE DATABASE geohot_test'); await s.end();"
 DATABASE_URL=postgres://geohot:geohot@127.0.0.1:5455/geohot_test npm run db:migrate
-DATABASE_URL=postgres://geohot:geohot@127.0.0.1:5455/geohot_test npm test
+DATABASE_URL=postgres://geohot:geohot@127.0.0.1:5455/geohot_test npm test   # 冷库上约 10 分钟（595 秒量级），超时给足
 ```
 
 只传 `DATABASE_URL` 一个变量：再叠 `--env-file=.env` 会用配置里的阀门顶掉测试默认值（`MODEL_CALLS_ENABLED` 一旦为 true，测试会真的打外部模型）。
 
 四个容易踩的坑：
 
-- `db:up` 的端口**不跟 `env:init` 走**（它读 `--port`、`DEV_DB_PORT`，否则回落 5433）。换过端口就显式写 `--port=5455`；**先起的若是 5433 上的旧库，`db:migrate` 会把 105 条迁移写到那个库上**（本机若真有线上库，这就是事故）。
+- `db:up` 的端口**不跟 `env:init` 走**（它读 `--port`、`DEV_DB_PORT`，否则回落 5433）。换过端口就显式写 `--port=5455`；**先起的若是 5433 上的旧库，`db:migrate` 会把 108 条迁移写到那个库上**（本机若真有线上库，这就是事故）。
 - 本地构建是**域名根**形态：没有 `BASE_PATH`，线上 `/geohot` 前缀由反代与 web 层决定。冒烟用 `node scripts/smoke.ts --base http://127.0.0.1:3099`（不带前缀）；带 `/geohot` 会得到一串 404。
 - `npm run seed:curated -- --enforce-source` 在干净库上会 **exit 1**：15 行属于两个 `enabled:false` 的信源（`rss-copernicus-c3s` 7 行、`web-thepaper-topnews` 8 行），脚本会打印 `!! 15 material line(s) were not stored` 与逐条原因。要它全绿就先启用这两个信源，或去掉 `--enforce-source`。
 
