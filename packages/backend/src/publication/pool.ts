@@ -177,7 +177,10 @@ export async function loadPool(query: PoolQuery): Promise<PoolResponse> {
   // pass a `now`, so keying on it verbatim meant every reader recomputed the same count (measured
   // 1.7-2.6 s per /api/site/pool call on 2026-11-07). Tests and replays that pin a clock still never
   // share a bucket with production traffic, and a one-minute stale total is a number no reader can see.
-  const clockBucket = query.now ? Math.floor(query.now.getTime() / 60_000) : "live";
+  // 2026-11-07 二次实测：冷的一次要 7.05 s，第二次 2.73 s，一分钟桶让缓存每分钟失效一次——
+  // 读者量不大时，等于每分钟第一个访客仍要吃整笔成本。改成五分钟桶，代价只是「今日总数最久
+  // 迟到五分钟」，换掉每分钟一次的整表计数。
+  const clockBucket = query.now ? Math.floor(query.now.getTime() / 300_000) : "live";
   const filterKey = JSON.stringify([query.channel, query.category, query.tag, query.topicTags ?? null, date, clockBucket]);
 
   // Searches go through pool_search (eligible items only): trigram indexes for longer terms, a small
