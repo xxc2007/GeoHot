@@ -10,7 +10,10 @@ export class PublicReadBusyError extends Error {
 // 一个访客就能把 2 个槽占满、queueLimit=0 让第二个访客直接 503。
 // 现在给 4 个槽 + 8 个排队位：排队有界，且「一个访客吃掉全部槽位」不再成立。
 const aggregates = new CapacityGate(4, 8);
-export async function withPublicRead<T>(read: (db: Tx) => Promise<T>, timeoutMs = 8000, customPlan = false): Promise<T> {
+// 2026-11-07：默认 8 秒是照「稳态」定的，可重启后第一次取数（页锚点 cold plan）实测 8.6 秒，
+// 于是读者在部署窗口里拿到的是 503 而不是慢一点。2 vCPU 的机器上冷启动本来就慢，
+// 宁可让这一次等 12 秒，也不要把它判成故障。
+export async function withPublicRead<T>(read: (db: Tx) => Promise<T>, timeoutMs = 12_000, customPlan = false): Promise<T> {
   try {
     return await aggregates.run(() => sql.begin(async (tx) => {
       await tx`SELECT set_config('statement_timeout', ${String(timeoutMs)}, true)`;
