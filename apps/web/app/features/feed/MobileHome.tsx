@@ -142,25 +142,54 @@ function poolQuery(filters: TimelineFilters, page: number): string {
  * 路径上 `pool` 恒为 null，页面就停在「收录池这一会儿读不到」——2026-11-07 站长截图。
  * 这里在缺数据时自己补一次请求：切换不再是死路，只有真的取不到才显示那句提示。
  */
+/**
+ * 「全部」那一段的数据，在精选页闲着的时候先取好。
+ *
+ * 为什么要有它：手机上切「全部」只是客户端换一块列表（`replaceState`，不过网络），
+ * 而收录池在精选那段 URL 里没有 SSR 数据 —— 于是每次切换都要现场等一趟接口，
+ * 站长 2026-11-07 说的「进去之前出现加载页」就是这一趟（`/api/site/pool` 冷 1–5 秒）。
+ * 首页渲染完成 600 毫秒后就把这一份取回来，切过去时直接命中；失败只是回到原来的现取。
+ */
+const poolPrefetch = new Map<string, PoolResponse>();
+const poolInflight = new Map<string, Promise<PoolResponse | null>>();
+
+function prefetchPool(filters: TimelineFilters): void {
+  const key = poolQuery(filters, 1);
+  if (poolPrefetch.has(key) || poolInflight.has(key)) return;
+  const run = (async () => {
+    try {
+      const res = await fetch(publicPath(key), { headers: { accept: "application/json" }, signal: AbortSignal.timeout(20_000) });
+      if (!res.ok) return null;
+      const body = (await res.json()) as PoolResponse;
+      if (Array.isArray(body?.items)) poolPrefetch.set(key, body);
+      return body;
+    } catch {
+      return null;
+    } finally {
+      poolInflight.delete(key);
+    }
+  })();
+  poolInflight.set(key, run);
+}
+
 export function MobilePoolPanel({ pool, filters }: { pool: PoolResponse | null; filters: TimelineFilters }) {
-  const [fetched, setFetched] = useState<PoolResponse | null>(null);
+  const key = poolQuery(filters, 1);
+  const [fetched, setFetched] = useState<PoolResponse | null>(() => poolPrefetch.get(key) ?? null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     if (pool) return;
+    const cached = poolPrefetch.get(key);
+    if (cached) { setFetched(cached); return; }
     let live = true;
+    prefetchPool(filters);
     void (async () => {
-      try {
-        const res = await fetch(publicPath(poolQuery(filters, 1)), { headers: { accept: "application/json" }, signal: AbortSignal.timeout(15_000) });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const body = (await res.json()) as PoolResponse;
-        if (live) setFetched(body);
-      } catch (err) {
-        const name = (err as Error)?.name;
-        if (live) setError(name === "TimeoutError" || name === "AbortError" ? "这次取超时了" : ((err as Error)?.message ?? "加载失败"));
-      }
+      const body = await (poolInflight.get(key) ?? Promise.resolve(null));
+      if (!live) return;
+      if (body) { setFetched(body); setError(null); }
+      else setError("这次没取到");
     })();
     return () => { live = false; };
-  }, [pool, filters]);
+  }, [pool, key, filters]);
   const view = pool ?? fetched;
   if (!view) {
     return (

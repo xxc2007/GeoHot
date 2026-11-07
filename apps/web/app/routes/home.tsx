@@ -14,6 +14,18 @@ import { CategoryTabs, SearchField } from "../features/feed/Filters";
 import { beijingDate, monthDayTime, shortSourceName, todayOf } from "../lib/format";
 import { DateCalendar, type CalendarDay } from "../features/calendar/DateCalendar";
 
+/**
+ * 手机首屏就把「全部」那一份带上。
+ *
+ * 手机切「精选 / 全部」是客户端换列表（`replaceState`，不过网络），所以 loader 不给数据时，
+ * 切过去只能现场等一趟 `/api/site/pool`（冷 1–5 秒）——站长 2026-11-07 截图里那句
+ * 「正在取收录池…」就是这一趟。只对手机 UA 付这份钱：桌面那一段永远不画收录池。
+ */
+function isMobileRequest(request: Request): boolean {
+  const ua = request.headers.get("user-agent") ?? "";
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(ua);
+}
+
 export async function loader({ request }: Route.LoaderArgs) {
   const url = new URL(request.url);
   const q = url.searchParams.get("q");
@@ -42,12 +54,13 @@ export async function loader({ request }: Route.LoaderArgs) {
     // 「查看全部 N 条」跳到 /all；站长 2026-11-04 明确不要那个"点一下才能继续读"，
     // 所以整页交给客户端的触底续读（`MobilePoolList`），这一页原样保留 40 条。
     // 精选那一段不渲染收录池（手机「全部」才用）：别让首字节替看不到的东西等一趟。
-    tab === "all"
+    tab === "all" || isMobileRequest(request)
       ? loadOr404<PoolResponse>(`/api/site/pool${queryString(scope)}`, { signal: request.signal }).catch(() => null)
       : Promise.resolve(null),
-    tab === "all"
-      ? loadOr404<{ month: string; days: CalendarDay[] }>(`/api/site/calendar${queryString({ month, ...scope })}`, { signal: request.signal }).catch(() => null)
-      : Promise.resolve(null),
+    // 月历常取：手机切「全部」是客户端换一块列表（`replaceState`），不走网络，
+    // 所以 loader 里不取就永远画不出来 —— 站长 2026-11-07 报的就是「日历不见了」。
+    // 这张卡本身按分钟缓存（`/api/site/calendar` 那条 60 秒），多付的不是每访客一次查询。
+    loadOr404<{ month: string; days: CalendarDay[] }>(`/api/site/calendar${queryString({ month, ...scope })}`, { signal: request.signal }).catch(() => null),
   ]);
   // 精选按站长制定的标准由模型筛选，也可在后台更正。精选超过三天没有更新时，
   // 展示仍在更新的收录池；其中部分条目未达精选标准。精选恢复后这一块自动消失。
