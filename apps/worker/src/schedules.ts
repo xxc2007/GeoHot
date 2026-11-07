@@ -27,6 +27,7 @@ import { dailyRetention } from "@aihot/backend/operations/retention";
 import { submitIndexNow } from "@aihot/backend/operations/indexnow";
 import { checkAlerts, sendDigest } from "@aihot/backend/operations/alerts";
 import { auditTopicFreshness } from "@aihot/backend/publication/topics";
+import { reconcileReadiness } from "@aihot/backend/publication/readiness-reconcile";
 import { autoReleaseUnknownReceipts } from "@aihot/backend/admin/runs";
 import { forwardPendingFeedback } from "@aihot/backend/operations/feedback";
 import { backupConfigured, runBackup } from "@aihot/backend/operations/backup";
@@ -60,6 +61,9 @@ export const SCHEDULES: Scheduled[] = [
   // Full-text translations of newly selected items (model calls; off with MODEL_CALLS_ENABLED=false).
   { name: "content.translate", cron: "* * * * *", expire: 300, run: () => translatePending(balancedResources() ? { limit: 6, budgetMs: 60_000, deadlineAt: Date.now() + 120_000 } : {}) },
   { name: "hot.rank", cron: "*/5 * * * *", expire: 300, run: () => computeHotRanking() },
+  // 就绪行自愈：缺行的公开文章对读者永远不可见，而且页面上看不出异常（2026-11-07 丢了 404 篇）。
+  // 每十分钟挑最新 40 篇重算一次，幂等、只写事实表、不发模型调用。
+  { name: "content.readiness", cron: "*/10 * * * *", expire: 300, run: () => reconcileReadiness() },
   { name: "hot.snapshot", cron: "2 * * * *", run: () => snapshotHeat() },
   { name: "stories.status", cron: "7 * * * *", expire: 600, run: refreshStoryStatuses },
   { name: "stories.links", cron: "12 * * * *", run: linkRelatedStories },
