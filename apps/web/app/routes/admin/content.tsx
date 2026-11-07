@@ -19,7 +19,8 @@ interface Row {
 
 export async function loader({ request }: Route.LoaderArgs) {
   const q = new URL(request.url).searchParams.get("q")?.trim() ?? "";
-  if (!q) return { q, rows: [] as Row[] };
+  // 空查询也要取数：页面一进来输入框是空的，这里若直接返回 []，整页就是空白（2026-11-07 实测 h=844）。
+  // 接口侧对空查询给出最近 50 条，列与排序和带词查询一致，所以这里不需要第二套渲染。
   const { rows } = await adminGet<{ rows: Row[] }>(request, `/api/admin/content?q=${encodeURIComponent(q)}`);
   return { q, rows };
 }
