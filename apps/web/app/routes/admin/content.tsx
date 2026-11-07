@@ -37,8 +37,8 @@ export default function Content({ loaderData }: Route.ComponentProps) {
         <Input name="q" defaultValue={sp.get("q") ?? ""} placeholder="内容 ID、URL 或标题关键词" aria-label="搜索内容" autoFocus />
         <Button type="submit" tone="primary">查找</Button>
       </Form>
-      {q && (
-        <Card pad={false} title={`“${q}” 的结果`} right={<span>{rows.length === 50 ? "仅显示最近 50 条" : `${rows.length} 条`}</span>}>
+      {(q || rows.length > 0) && (
+        <Card pad={false} title={q ? `“${q}” 的结果` : "最近入库"} right={<span>{rows.length === 50 ? "仅显示最近 50 条" : `${rows.length} 条`}</span>}>
           <DataTable
             rows={rows}
             rowKey={(r) => r.id}
