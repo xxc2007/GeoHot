@@ -70,7 +70,7 @@ export function ErrorBoundary() {
     document.addEventListener("visibilitychange", retry);
     return () => { clearInterval(timer); document.removeEventListener("visibilitychange", retry); };
   }, [refresh.revalidate, refresh.state]);
-  return <AdminPage title="运行"><Card><p className="text-[14px] text-ink-2">运行统计暂时读取失败，页面会自动重试，也可立即重新加载。</p><div className="mt-4"><Button disabled={refresh.state !== "idle"} onClick={() => refresh.revalidate()}>重新加载</Button></div></Card></AdminPage>;
+  return <AdminPage wide title="运行"><Card><p className="text-[14px] text-ink-2">运行统计暂时读取失败，页面会自动重试，也可立即重新加载。</p><div className="mt-4"><Button disabled={refresh.state !== "idle"} onClick={() => refresh.revalidate()}>重新加载</Button></div></Card></AdminPage>;
 }
 
 const STATE_LABEL: Record<string, string> = { created: "排队", retry: "等待重试", active: "执行中" };
