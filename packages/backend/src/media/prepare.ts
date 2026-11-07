@@ -52,10 +52,24 @@ export async function prepareArticleMedia(articleId: string, dependencies: {
   let failed = renditions.length ? 0 : 1;
   let animatedSaved = 0;
   for (const { url, mode } of renditions) {
-    try {
-      const image = await (dependencies.produce ?? produceImage)(url, mode);
-      if (image.type === "image/gif") animatedSaved += await (dependencies.convert ?? convertAnimated)(url, mode);
-    } catch { failed += 1; }
+    // 2026-11-07 现场：1,851 条 `media.prepare` 失败，其中 1,581 条的原因只有一句
+    // 「1 rendition failure(s)」——源站瞬时的超时/防盗链被一次 catch 吞掉，既没有重试也没有 URL，
+    // 那篇文章就永久停在「媒体未就绪」，读者永远看不到（当天 6 篇里有 2 篇卡在这里，
+    // 手工重跑同一个函数立刻 ready:true）。取图是幂等的，值得当场再试两次。
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        const image = await (dependencies.produce ?? produceImage)(url, mode);
+        if (image.type === "image/gif") animatedSaved += await (dependencies.convert ?? convertAnimated)(url, mode);
+        break;
+      } catch (error) {
+        if (attempt === 3) {
+          failed += 1;
+          console.error(JSON.stringify({ level: 40, component: "media", event: "rendition-failed", articleId, mode, url: url.slice(0, 200), message: (error as Error)?.message ?? String(error) }));
+        } else {
+          await new Promise(resolve => setTimeout(resolve, attempt === 1 ? 300 : 1_200));
+        }
+      }
+    }
   }
   const ready = await sql.begin(async tx => {
     // Lock before publishing and recheck the exact body: a slow image fetch cannot bless a newer HTML.
