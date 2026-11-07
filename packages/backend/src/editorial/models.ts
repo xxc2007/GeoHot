@@ -451,6 +451,7 @@ export async function modelFor(capability: CapabilityKey, shardKey?: string, pur
   const listed = membersFor(chosen, capability);
   if (poolOf(chosen).length <= 1) return pickMember(listed, shardKey) || c.default;
   const serving = await servingMembers(listed, capability);
+  await keepStarvedHead(serving, listed);
   const step = purpose && c.purposes.includes(purpose) ? purpose : c.purposes.length === 1 ? c.purposes[0] : undefined;
   if (!step || !shardKey || serving.length < 2) return pickMember(serving, shardKey) || c.default;
   const weights = routingWeights(serving.map(name => ({ name, service: MODELS[name]!.service, model: MODELS[name]!.model! })), step, await modelRoutingSamples());
@@ -470,6 +471,17 @@ export async function modelFor(capability: CapabilityKey, shardKey?: string, pur
  * Inside those candidates the same never-empty refusal-shed still applies, so it is not "no shedding",
  * it is "no substitute for the configured pool".)
  */
+/** 2026-11-08: 配置里排在第一位的成员，如果既没进 `serving`、也没有任何失败证据（`sick` 不含它），那它是被
+ * 上游规则静默饿死的——「把它放第一位」于是永远落不到真实流量上（讯飞 DeepSeek V4.1 Flash 实测：池前两位是它，
+ * 10 分钟内一百多次 prefilter/score 全是池尾两家）。给它保留一个探针位；`sick` 里的成员不在此列，
+ * 别拿钱去撞已经确诊的墙。 */
+async function keepStarvedHead(serving: string[], listed: string[]): Promise<void> {
+  const head = listed[0];
+  if (!head || serving.includes(head)) return;
+  if (benched(await sickServices(), head)) return;
+  serving.push(head);
+}
+
 async function servingMembers(listed: string[], capability: CapabilityKey): Promise<string[]> {
   const sick = await sickServices();
   const healthy = listed.filter((m) => !benched(sick, m));
