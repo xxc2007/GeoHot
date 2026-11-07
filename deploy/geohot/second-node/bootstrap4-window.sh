@@ -29,6 +29,9 @@ Environment=GEOHOT_PRESSURE_MEMORY_FULL=60
 Environment=GEOHOT_PRESSURE_IO_FULL=80
 Environment=GEOHOT_PRESSURE_CPU_SOME=95
 Environment=GEOHOT_PRESSURE_AVAILABLE_MIB=48
+# 翻译指定的门：2026-11-07 的 .env 里钉着 12 个已死的模型键（workbuddy-cn-*、qoder-cn-*、
+# qwenwork-*、trae-*），译文永远不 complete，读者面就停在凌晨那几条。这里是唯一健康的那扇门。
+Environment=TRANSLATE_MODEL=dots3-note-prev
 TimeoutStopSec=600
 CONF
 systemctl daemon-reload
