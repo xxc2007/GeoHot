@@ -21,7 +21,15 @@ import { adminReadOrBusy } from "./admin-read.ts";
 
 export async function searchContent(q: string) {
   const term = q.trim();
-  if (!term) return [];
+  // 空查询不是"没有内容"：后台内容页一进来就是空输入框，返回 [] 等于把整页变成空白。
+  // 这里给最近 50 条入库记录，和带词的查询同一列、同一排序，页面无需第二套渲染。
+  if (!term) {
+    return adminReadOrBusy((db) => db`
+      SELECT a.id, coalesce(p.title, a.title) AS title, a.url, s.name AS source, a.discovered_at, a.processing_state,
+             p.visibility, p.selected, p.score
+      FROM articles a JOIN sources s ON s.id = a.source_id LEFT JOIN publications p ON p.article_id = a.id
+      ORDER BY a.discovered_at DESC LIMIT 50`);
+  }
   const byId = ARTICLE_ID_PATTERN.test(term) ? term : null;
   const url = /^https?:\/\//i.test(term) ? normalizeUrl(term) : null;
   // 管理页读带数据库侧 deadline：无索引可走时的 ILIKE OR 扫描能拖住整个连接。
