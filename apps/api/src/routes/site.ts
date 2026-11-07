@@ -46,6 +46,12 @@ export function cacheUntil(reply: FastifyReply, defaultSeconds: number, refreshA
   return seconds > 0 ? `public, max-age=${seconds}, s-maxage=${seconds}` : "no-cache";
 }
 
+// 2026-11-08：首页时间线在收据锁排队时会读到 2 秒以上、严重时直接 503。读者不该等后台干活，
+// 所以把最近一次成功的时间线留十分钟：真读不出来就把上一次的给读者（带 x-aihot-stale 标记），
+// 页面至少是「几分钟前的首页」，而不是空白或错误页。
+const TIMELINE_STALE_MS = 10 * 60_000;
+const timelineStale = new Map<string, { body: unknown; at: number }>();
+
 export function siteHandler(fn: Handler): Handler {
   return async (req, reply) => {
     const startedAt = performance.now();
@@ -117,11 +123,25 @@ export function registerSite(app: FastifyInstance) {
     // half empty for no reason (measured 2026-10-03: +12 KB raw / +6 KB gzip on the SSR payload).
     const limit = Math.min(Math.max(Number(q.limit) || 40, 1), 40);
     const unfiltered = filters.channel === "all" && !filters.category && !filters.tag && !filters.topic && !q.cursor;
-    const [data, strip] = await Promise.all([
-      loadTimeline({ ...filters, cursor: q.cursor || null, limit }),
-      unfiltered ? loadHotStrip() : null,
-    ]);
+    const staleKey = JSON.stringify({ ...filters, cursor: q.cursor || null, limit });
+    let data: Awaited<ReturnType<typeof loadTimeline>>;
+    let strip: Awaited<ReturnType<typeof loadHotStrip>> | null;
+    try {
+      [data, strip] = await Promise.all([
+        loadTimeline({ ...filters, cursor: q.cursor || null, limit }),
+        unfiltered ? loadHotStrip() : null,
+      ]);
+    } catch (error) {
+      const hit = timelineStale.get(staleKey);
+      if (hit && Date.now() - hit.at <= TIMELINE_STALE_MS) {
+        reply.header("Retry-After", "2");
+        reply.header("x-aihot-stale", "1");
+        return sendJsonWithEtag(req, reply, hit.body, { etagPrefix: "tl-stale", cacheControl: "no-cache" });
+      }
+      throw error;
+    }
     const body = { ...data, hot: strip?.entries ?? null, hotAsOf: strip?.asOf ?? null, generatedAt: new Date().toISOString() };
+    timelineStale.set(staleKey, { body, at: Date.now() });
     const cc = cacheUntil(reply, 60, data.refreshAt);
     return sendJsonWithEtag(req, reply, body, { etagPrefix: "tl", cacheControl: cc, etagOf: { ...data, hot: body.hot, hotAsOf: body.hotAsOf } });
   }));

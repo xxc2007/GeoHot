@@ -1,0 +1,31 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { test } from "node:test";
+
+// 2026-11-08：首页时间线在收据锁排队时会读到 2 秒以上、严重时 503。读者不该等后台干活，
+// 所以 api 侧留了十分钟的上一次成功响应。这条测试钉住三件事：窗口存在、命中时打标记、
+// 没有命中时必须原样把错误抛出去（不能把 503 说成 200 却没有内容）。
+const source = readFileSync(new URL("../apps/api/src/routes/site.ts", import.meta.url), "utf8");
+
+test("时间线留了十分钟的上一次成功响应", () => {
+  assert.match(source, /const TIMELINE_STALE_MS = 10 \* 60_000;/);
+  assert.match(source, /const timelineStale = new Map<string, \{ body: unknown; at: number \}>\(\);/);
+});
+
+test("读不出来时给上一次的那份，并标记 x-aihot-stale", () => {
+  const at = source.indexOf("const staleKey = JSON.stringify(");
+  assert.ok(at > 0, "时间线处理器要在取数前算好 key");
+  const branch = source.slice(at, source.indexOf("timelineStale.set(staleKey", at));
+  assert.match(branch, /if \(hit && Date\.now\(\) - hit\.at <= TIMELINE_STALE_MS\)/);
+  assert.match(branch, /reply\.header\("x-aihot-stale", "1"\)/);
+  assert.match(branch, /etagPrefix: "tl-stale"/);
+});
+
+test("没有可用的上一次响应时，原错误照旧抛给上层", () => {
+  const at = source.indexOf("const staleKey = JSON.stringify(");
+  const branch = source.slice(at, source.indexOf("const body = { ...data", at));
+  assert.match(branch, /\n      throw error;\n/, "兜底不能把失败吞掉");
+  const throwAt = branch.indexOf("throw error;");
+  const catchAt = branch.indexOf("} catch (error) {");
+  assert.ok(catchAt >= 0 && throwAt > catchAt, "throw 必须在 catch 里");
+});
