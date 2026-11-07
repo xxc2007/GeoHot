@@ -29,3 +29,13 @@ test("没有可用的上一次响应时，原错误照旧抛给上层", () => {
   const catchAt = branch.indexOf("} catch (error) {");
   assert.ok(catchAt >= 0 && throwAt > catchAt, "throw 必须在 catch 里");
 });
+
+test("列表页（pool）也有同样的上一次兜底", () => {
+  assert.ok(source.includes("const POOL_STALE_MS = 10 * 60_000;"));
+  assert.match(source, /etagPrefix: "pool-stale"/);
+  const at = source.indexOf("const staleKey = JSON.stringify({ ...filters, q: search");
+  assert.ok(at > 0, "pool 处理器要在取数前算好 key");
+  const branch = source.slice(at, source.indexOf("poolStale.set(staleKey", at));
+  assert.ok(branch.includes("if (hit && Date.now() - hit.at <= POOL_STALE_MS)"));
+  assert.ok(branch.includes("throw error;"), "没有旧值时照旧报错");
+});

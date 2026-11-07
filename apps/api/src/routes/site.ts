@@ -49,6 +49,8 @@ export function cacheUntil(reply: FastifyReply, defaultSeconds: number, refreshA
 // 2026-11-08：首页时间线在收据锁排队时会读到 2 秒以上、严重时直接 503。读者不该等后台干活，
 // 所以把最近一次成功的时间线留十分钟：真读不出来就把上一次的给读者（带 x-aihot-stale 标记），
 // 页面至少是「几分钟前的首页」，而不是空白或错误页。
+const POOL_STALE_MS = 10 * 60_000;
+const poolStale = new Map<string, { body: unknown; at: number }>();
 const TIMELINE_STALE_MS = 10 * 60_000;
 const timelineStale = new Map<string, { body: unknown; at: number }>();
 
@@ -155,7 +157,20 @@ export function registerSite(app: FastifyInstance) {
     // 日历选的那一天。和 `category` 一样：认不出的值要说一句话，不能静默当成"没有筛选"
     // ——否则读者从旧链接进来会看到一整片不属于那一天的卡片（2026-10-11 评审波实测的就是这个）。
     if (q.date !== undefined && !isDay(q.date)) throw new BadRequest("invalid date");
-    const data = await loadPool({ ...filters, q: search, tab, page, date: q.date ?? null });
+    const staleKey = JSON.stringify({ ...filters, q: search, tab, page, date: q.date ?? null });
+    let data: Awaited<ReturnType<typeof loadPool>>;
+    try {
+      data = await loadPool({ ...filters, q: search, tab, page, date: q.date ?? null });
+    } catch (error) {
+      const hit = poolStale.get(staleKey);
+      if (hit && Date.now() - hit.at <= POOL_STALE_MS) {
+        reply.header("Retry-After", "2");
+        reply.header("x-aihot-stale", "1");
+        return sendJsonWithEtag(req, reply, hit.body, { etagPrefix: "pool-stale", cacheControl: "no-cache" });
+      }
+      throw error;
+    }
+    poolStale.set(staleKey, { body: data, at: Date.now() });
     const { generatedAt: _, ...content } = data;
     return sendJsonWithEtag(req, reply, data, { etagPrefix: "pool", cacheControl: "public, max-age=60, s-maxage=60", etagOf: content });
   }));
