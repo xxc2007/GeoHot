@@ -13,6 +13,9 @@ const aggregates = new CapacityGate(4, 8);
 // 2026-11-07：默认 8 秒是照「稳态」定的，可重启后第一次取数（页锚点 cold plan）实测 8.6 秒，
 // 于是读者在部署窗口里拿到的是 503 而不是慢一点。2 vCPU 的机器上冷启动本来就慢，
 // 宁可让这一次等 12 秒，也不要把它判成故障。
+// 2026-11-07：默认 8 秒是照稳态定的，可重启后第一次取数（页锚点冷计划）实测 8.6 秒，
+// 读者在部署窗口拿到的是 503 而不是「慢一点」。2 vCPU 的机器冷启动本来就慢，
+// 宁可让这一次等 12 秒，也不要把它判成故障。
 export async function withPublicRead<T>(read: (db: Tx) => Promise<T>, timeoutMs = 12_000, customPlan = false): Promise<T> {
   try {
     return await aggregates.run(() => sql.begin(async (tx) => {
