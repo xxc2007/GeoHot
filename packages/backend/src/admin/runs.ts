@@ -27,7 +27,13 @@ const runsSnapshot = snapshotReader(async () => {
     console.warn(JSON.stringify({ level: "warn", msg: "admin runs snapshot refresh failed", code: String((error as { code?: string })?.code ?? "unknown") }));
     throw error;
   }
-}, snapshotStore<Awaited<ReturnType<typeof runsOverview>>>("runs-overview-v1"));
+}, snapshotStore<Awaited<ReturnType<typeof runsOverview>>>("runs-overview-v1"), undefined, {
+  // refresh() 是 fire-and-forget（get() 里 `void refresh()`），放开这道余量闸门不会拖慢任何请求：
+  // aggregateBusy 仍然保证同一时刻只有一个聚合在跑。原闸门要求"机器几乎空闲"，而这台 891MB 的
+  // 机器常态不空闲 ⇒ 快照永远建不出来 ⇒ /admin/runs 长期 unavailable（2026-11-07 实测 h=844）。
+  freshMs: 300_000,
+  canRefresh: () => true,
+});
 
 /** Operational scans never sit on the HTTP critical path or repeat for every browser poll. */
 export async function readRunsOverview() {
