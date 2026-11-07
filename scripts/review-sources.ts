@@ -19,7 +19,13 @@ const note = (() => {
   const at = args.indexOf("--note");
   return at === -1 ? undefined : args[at + 1];
 })();
-const action = args.includes("--enable") ? "enable" : args.includes("--reject") ? "reject" : "list";
+const action = args.includes("--enable")
+  ? "enable"
+  : args.includes("--reject")
+    ? "reject"
+    : args.includes("--revive")
+      ? "revive"
+      : "list";
 
 /** Ids are every bare argument except the value consumed by --note. */
 const ids: string[] = [];
@@ -62,6 +68,43 @@ try {
       }
       console.log(`\n共 ${rows.length} 条待审核`);
     }
+  } else if (action === "revive") {
+    // 退役过又复用的信源必须显式复核一次（库里 source_pool_capacity_guard 会抛 23514），
+    // 这里就是那道复核：真抓一次，读数合格才清退役账并启用，读数不合格就留着并写明原因。
+    const { fetchRss } = await import("@aihot/backend/sources/rss");
+    const { evaluateCandidate } = await import("@aihot/backend/ingest/discovery");
+    const rows = await sql<{ id: string; name: string; config: { feedUrl?: string; url?: string } }[]>`
+      SELECT s.id, s.name, s.config FROM sources s
+      WHERE s.id = ANY(${ids}::text[]) AND NOT s.enabled`;
+    let revived = 0;
+    for (const row of rows) {
+      const feedUrl = row.config?.feedUrl ?? row.config?.url;
+      if (!feedUrl) {
+        console.log(`${row.id}	跳过	没有 feedUrl`);
+        continue;
+      }
+      try {
+        const read = await fetchRss({ id: row.id, name: row.name, kind: "rss", config: { feedUrl } } as never, { force: true });
+        const verdict = evaluateCandidate({ items: read.candidates, httpStatus: 200, now: new Date() });
+        if (!verdict.ok) {
+          await sql`UPDATE sources SET review_note = ${"复核未通过（" + verdict.reason + "）：" + read.candidates.length + " 条"} WHERE id = ${row.id}`;
+          console.log(`${row.id}	未通过	${verdict.reason}`);
+          continue;
+        }
+        await sql.begin(async (tx) => {
+          await tx`DELETE FROM source_retirements WHERE source_id = ${row.id}`;
+          await tx`UPDATE sources SET enabled = true, health = unknown, next_fetch_at = now(), updated_at = now(),
+                     review_note = ${"复活：" + read.candidates.length + " 条；最新 " + (verdict.latest ?? "?") } WHERE id = ${row.id}`;
+        });
+        revived += 1;
+        console.log(`${row.id}	已复活	${read.candidates.length} 条`);
+      } catch (e) {
+        await sql`UPDATE sources SET review_note = ${"复核失败：" + (e instanceof Error ? e.message : String(e)).slice(0, 120)} WHERE id = ${row.id}`;
+        console.log(`${row.id}	失败	${e instanceof Error ? e.message.slice(0, 80) : "?"}`);
+      }
+    }
+    console.log(`
+复活 ${revived} / ${rows.length}`);
   } else if (action === "enable") {
     const changed = await sql<{ id: string }[]>`
       UPDATE sources
