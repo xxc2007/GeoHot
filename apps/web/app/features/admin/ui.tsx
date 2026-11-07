@@ -6,17 +6,19 @@ import { Link, useSearchParams } from "react-router";
 import { ago, bj } from "./format";
 import { focusWhenReady, returnFocus } from "../../lib/focus-when-ready";
 
-export function AdminPage({ title, subtitle, actions, children }: { title: ReactNode; subtitle?: ReactNode; actions?: ReactNode; children: ReactNode }) {
+export function AdminPage({ title, subtitle, actions, children, wide = false }: { title: ReactNode; subtitle?: ReactNode; actions?: ReactNode; children: ReactNode; wide?: boolean }) {
+  // 宽表页（内容诊断、运行、服务器、审计）在 2560 屏上按 1320 收会让表格挤成两行换行；
+  // 这里给一个显式的宽档，其余页保持阅读宽度。页头在桌面端吸顶：长表往下滚时标题和操作不会消失。
   return (
-    <div className="admin-page mx-auto min-w-0 w-full max-w-[1320px] px-4 pb-24 pt-6 sm:px-6 lg:px-8 lg:pt-8">
-      <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+    <div className={`admin-page mx-auto min-w-0 w-full px-4 pb-24 pt-6 sm:px-6 lg:px-8 lg:pt-8 ${wide ? "max-w-[1680px]" : "max-w-[1320px]"}`}>
+      <header className="mb-5 flex flex-col gap-3 border-b border-line/70 pb-3 sm:flex-row sm:items-end sm:justify-between lg:sticky lg:top-0 lg:z-20 lg:-mx-8 lg:bg-bg/85 lg:px-8 lg:pt-2 lg:backdrop-blur">
         <div className="min-w-0">
           <h1 className="text-[22px] font-semibold tracking-tight text-ink sm:text-[24px]">{title}</h1>
           {subtitle && <p className="mt-1 text-[13.5px] leading-relaxed text-ink-3">{subtitle}</p>}
         </div>
         {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
       </header>
-      {children}
+      <div className="space-y-5">{children}</div>
     </div>
   );
 }
@@ -25,12 +27,12 @@ export function Card({ title, right, children, className = "", pad = true }: { t
   return (
     <section className={`admin-card min-w-0 rounded-panel bg-surface ring-1 ring-line ${className}`}>
       {(title || right) && (
-        <div className="admin-card-header flex min-w-0 flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
+        <div className="admin-card-header flex min-w-0 flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-2.5 sm:px-5">
           <h2 className="admin-card-title min-w-0 text-[14px] font-semibold text-ink">{title}</h2>
           {right && <div className="flex items-center gap-2 text-[12.5px] text-ink-3">{right}</div>}
         </div>
       )}
-      <div className={pad ? "p-4" : ""}>{children}</div>
+      <div className={pad ? "p-4 sm:p-5" : ""}>{children}</div>
     </section>
   );
 }
@@ -109,9 +111,9 @@ export function DataTable<T>({ rows, columns, rowKey, empty = "暂无数据", on
       <div className="admin-table-scroll overflow-x-auto" role="region" aria-label="数据表，可左右滑动查看完整列" tabIndex={0}>
       <table className="w-full max-w-full min-w-[640px] border-collapse text-left text-[13px]">
         <thead>
-          <tr className="border-b border-line text-[12px] text-ink-3">
+          <tr className="border-b border-line bg-bg-sunk/40 text-[12px] text-ink-3">
             {columns.map((c) => (
-              <th key={c.key} className={`whitespace-nowrap px-3 py-2 font-medium ${c.align === "right" ? "text-right" : ""} ${c.className ?? ""}`}>
+              <th key={c.key} className={`whitespace-nowrap px-3 py-2.5 font-medium first:pl-4 last:pr-4 sm:first:pl-5 sm:last:pr-5 ${c.align === "right" ? "text-right" : ""} ${c.className ?? ""}`}>
                 {c.label}
               </th>
             ))}
@@ -122,10 +124,10 @@ export function DataTable<T>({ rows, columns, rowKey, empty = "暂无数据", on
             <tr
               key={rowKey(r)}
               onClick={onRowClick ? () => onRowClick(r) : undefined}
-              className={`border-b border-line/70 last:border-0 ${onRowClick ? "cursor-pointer transition-colors hover:bg-bg-sunk/60" : ""}`}
+              className={`border-b border-line/70 last:border-0 even:bg-bg-sunk/25 ${onRowClick ? "cursor-pointer transition-colors hover:bg-bg-sunk/60" : ""}`}
             >
               {columns.map((c) => (
-                <td key={c.key} className={`${dense ? "py-1.5" : "py-2.5"} px-3 align-top text-ink-2 ${c.align === "right" ? "num text-right" : ""} ${c.className ?? ""}`}>
+                <td key={c.key} className={`${dense ? "py-1.5" : "py-2.5"} px-3 align-top first:pl-4 last:pr-4 sm:first:pl-5 sm:last:pr-5 text-ink-2 ${c.align === "right" ? "num text-right" : ""} ${c.className ?? ""}`}>
                   {c.render(r)}
                 </td>
               ))}

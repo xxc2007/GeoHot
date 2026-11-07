@@ -33,7 +33,7 @@ function subjectLink(subject: string | null) {
 export default function Audit({ loaderData }: Route.ComponentProps) {
   const [sp] = useSearchParams();
   return (
-    <AdminPage title="审计记录" subtitle="所有人工操作：谁、何时、改了什么、为什么。">
+    <AdminPage wide title="审计记录" subtitle="所有人工操作：谁、何时、改了什么、为什么。">
       <Form method="get" className="mb-4 flex max-w-xl gap-2">
         <Input name="action" defaultValue={sp.get("action") ?? ""} placeholder="操作前缀，例如 content. 或 source." aria-label="按操作筛选" />
         <Input name="subject" defaultValue={sp.get("subject") ?? ""} placeholder="对象，例如 source:openai-blog" aria-label="按对象筛选" />
