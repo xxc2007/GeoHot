@@ -28,8 +28,10 @@ test("精选那一段不再替看不到的收录池付一趟请求", () => {
   const source = read("apps/web/app/routes/home.tsx");
   const pool = source.indexOf("/api/site/pool");
   assert.ok(pool > 0, "pool still loaded somewhere");
-  const guard = source.lastIndexOf('tab === "all"', pool);
-  assert.ok(guard > 0 && pool - guard < 400, "pool 必须只在 tab=all 时取");
+  // 2026-11-07：手机切「全部」是客户端换列表，pool 若只在 tab=all 时取，切过去就要现场等一趟接口
+  // （站长截图里的「正在取收录池…」）。所以这条判据改成「桌面只在 tab=all 取，手机 UA 首屏也取」。
+  const guard = source.lastIndexOf('tab === "all" || isMobileRequest(request)', pool);
+  assert.ok(guard > 0 && pool - guard < 400, "pool 只在 tab=all（或手机 UA）时取");
 });
 
 test("HTML 与错误页都带自己的安全头（CSP 不再只活在 nginx 片段里）", () => {
