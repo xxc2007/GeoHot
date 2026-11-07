@@ -20,7 +20,7 @@ test("池首认配置顺序，不认被重排过的列表", () => {
   assert.equal(source.includes("keepStarvedHead(serving, listed)"), false, "不许再把重排后的列表当池首");
 });
 
-test("探针把配置里的池首补进服务集", () => {
+test("确诊的池首只记一笔账、不重新派活", () => {
   const start = source.indexOf("async function keepStarvedHead(");
   assert.ok(start > 0, "缺少 keepStarvedHead");
   const body = source.slice(start, source.indexOf("\n}\n", start));
@@ -29,6 +29,6 @@ test("探针把配置里的池首补进服务集", () => {
   // 2026-11-08: 判据改成「先取 sick、再判 benched」——确诊时要能把挡人的键打出来，写成一行就没地方打日志。
   assert.ok(body.includes("const sick = await sickServices();"), "探针要读一次 sick");
   assert.ok(body.includes("if (benched(sick, head))"), "确诊时要说明是谁挡的");
-  assert.ok(body.includes("serving.push(head);"), "配置里的池首照旧进服务集");
+  assert.ok(body.indexOf("serving.push(head);") > body.indexOf("if (benched(sick, head))"), "判病的分支在前面先返回");
   assert.ok(body.includes("serving.push(head);"));
 });
