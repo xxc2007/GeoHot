@@ -389,10 +389,19 @@ for u in "${RUN[@]}"; do printf '%s=%s ' "${u%.service}" "$(systemctl is-active 
 # 预热失败不算部署失败（站点仍可能在服务，验收会自己判）。
 if command -v curl >/dev/null 2>&1; then
   echo "== 预热读者面（不给第一个读者留下冷启动的几秒）=="
+  # 串行 + 每页取两次：第一次把 SSR 与缓存建起来，第二次证明它真的热了。
+  # 不能四个连发——2026-11-07 实测那样会把读者侧的名额闸门挤满，/all 与 /topics 当场 503。
   for path in "/" "/all" "/daily" "/topics"; do
-    code=$(curl -s -o /dev/null -m 20 -w '%{http_code}' "http://127.0.0.1:${WEB_PORT:-3000}${BASE_PATH:-}${path}" || echo 000)
-    printf '%s=%s ' "$path" "$code"
-  done; echo
+    line="$path"
+    for round in 1 2; do
+      read -r code secs <<<"$(curl -s -o /dev/null -m 25 -w '%{http_code} %{time_total}' \
+        "http://127.0.0.1:${WEB_PORT:-3000}${BASE_PATH:-}${path}" || echo "000 0")"
+      line="$line ${code}/${secs}s"
+      [ "$code" = "200" ] && [ "$round" = "1" ] && sleep 1
+    done
+    echo "  $line"
+    sleep 1
+  done
 fi
 
 echo "== 启动日志（Node 弃用只在启动时出现，测试套件永远看不到）=="
