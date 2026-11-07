@@ -13,6 +13,18 @@ export function ErrorBoundary() {
  useEffect(()=>{const timer=setInterval(()=>{if(document.visibilityState==="visible"&&r.state==="idle")void r.revalidate();},20_000);return()=>clearInterval(timer);},[r.state,r.revalidate]);
  return <AdminPage title="服务器" subtitle="服务器指标暂时未能读取，正在自动重试。"><Card title="指标暂不可用"><p className="text-sm text-ink-3">本次没有取得新的采样数据，请稍后重新连接。</p><button className="mt-4 rounded-lg bg-ink px-4 py-2 text-white" disabled={r.state!=="idle"} onClick={()=>void r.revalidate()}>重新连接</button></Card></AdminPage>;
 }
+// 2026-11-07 站长：别在页面上显示 iZbp14vh9sicf5z7law47aZ 这种实例 id。
+// 已知机器按所在地称呼，未知机器退回主机名，本机永远叫「本机」。
+const PLACES: Array<[string, string]> = [
+  ["iZbp14vh9sicf5z7law47aZ", "杭州"],
+  ["iZn4a5we2sy73dqo3yih50Z", "武汉"],
+];
+function place(host: string, self: string): string {
+  if (host === self) return "本机";
+  const hit = PLACES.find(([prefix]) => host.startsWith(prefix));
+  return hit ? hit[1] : host;
+}
+
 export default function Server({loaderData:s}:Route.ComponentProps){
  const r=useRevalidator();useEffect(()=>{const timer=setInterval(()=>{if(document.visibilityState==="visible"&&r.state==="idle")r.revalidate();},20_000);return()=>clearInterval(timer);},[r.state,r.revalidate]);
  return <AdminPage title="服务器" subtitle={`每 20 秒更新 · 采样时间 ${new Date(s.checkedAt).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai',hour12:false})}${s.stale?' · 当前为上次采样':''}`}>
@@ -27,7 +39,7 @@ export default function Server({loaderData:s}:Route.ComponentProps){
     :(s.nodes??[]).map(n=>
       <tr key={`${n.role}@${n.host}`} className="border-t border-line">
         <td className="py-3">{n.role}</td>
-        <td>{n.host}</td>
+        <td title={n.host}>{place(n.host, s.host)}</td>
         <td>{n.slots??"—"}</td>
         <td>{n.load===null?"—":n.load.toFixed(2)}</td>
         <td>{n.memTotal&&n.memFree!==null?`${gb(n.memTotal-n.memFree)} / ${gb(n.memTotal)}`:"—"}</td>
@@ -40,7 +52,7 @@ export default function Server({loaderData:s}:Route.ComponentProps){
 </Card>
   {(s.nodes??[]).filter(n=>n.alive&&n.host!==s.host).map(n=>
     <div key={`node-${n.host}`} className="space-y-3">
-      <div className="flex items-baseline gap-3 pt-2"><h2 className="text-lg font-semibold">{n.host}</h2><span className="text-xs text-ink-3">{n.role} · release {n.release||"—"} · 并发槽 {n.slots??"—"} · {n.kernel||n.platform||""}</span></div>
+      <div className="flex items-baseline gap-3 pt-2"><h2 className="text-lg font-semibold">{place(n.host, s.host)}</h2><span className="text-xs text-ink-3">{n.role} · {n.host} · release {n.release||"—"} · 并发槽 {n.slots??"—"} · {n.kernel||n.platform||""}</span></div>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Stat label="CPU 使用率" value={n.cpuPercent===null?"等待采样":`${n.cpuPercent}%`} hint={`${n.cpus??"?"} 核 · 负载 ${(n.loadAll??[n.load??0]).join(" / ")}`}/>
         <Stat label="可用内存" value={n.memFree===null?"—":mb(n.memFree)} hint={`总内存 ${n.memTotal===null?"—":mb(n.memTotal)}`} tone={n.memTotal&&n.memFree!==null&&n.memFree/n.memTotal<.15?"bad":"ok"}/>
