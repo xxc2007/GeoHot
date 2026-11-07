@@ -34,7 +34,9 @@ export async function pendingTranslationRanks(from: Date, total: number, histori
   checkpoint();
   const publications = await translationSelectorRead(tx => tx<{ article_id: string }[]>`
     SELECT article_id FROM publications
-    WHERE (selected OR eligible) AND visibility='public' AND body_mode='full' ORDER BY article_id`);
+    WHERE (selected OR eligible) AND visibility='public' AND body_mode='full'
+      AND discovered_at >= ${from}
+    ORDER BY discovered_at DESC LIMIT 4096`);
   const candidates: { article_id: string; discovered_at: string; bytes: number }[] = [];
   for (let offset = 0; offset < publications.length; offset += 128) {
     checkpoint();
