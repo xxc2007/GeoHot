@@ -108,8 +108,13 @@ async function claimWithQueueLimit<T>(body: (tx: Tx) => Promise<T>): Promise<T> 
     });
     return claim.result;
   } catch (error) {
-    // 55P03 = lock_not_available: our own deadline, not a provider or ledger failure.
-    if ((error as { code?: string }).code === "55P03") {
+    // 55P03 = lock_not_available. Only our own lock_timeout becomes "come back later": a trigger or a
+    // constraint on the INSERT also raises 55P03 (tests inject exactly that), and swallowing it as
+    // "busy" would retry a write that can never succeed. Lock waits carry "lock timeout"/"could not
+    // obtain lock" in the message; anything else is a real ledger fault and must propagate.
+    const code = (error as { code?: string }).code;
+    const text = String((error as { message?: string }).message ?? "");
+    if (code === "55P03" && /lock timeout|could not obtain lock/i.test(text)) {
       throw new ReceiptBusyError(`budget lock queue exceeded ${CLAIM_QUEUE_TIMEOUT_MS}ms; retry later`);
     }
     throw error;
