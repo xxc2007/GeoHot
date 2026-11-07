@@ -391,6 +391,15 @@ if command -v curl >/dev/null 2>&1; then
   echo "== 预热读者面（不给第一个读者留下冷启动的几秒）=="
   # 串行 + 每页取两次：第一次把 SSR 与缓存建起来，第二次证明它真的热了。
   # 不能四个连发——2026-11-07 实测那样会把读者侧的名额闸门挤满，/all 与 /topics 当场 503。
+  # 读者面的重活先自己扛一遍：timeline 在冷缓存下能跑到 8 秒，落到第一个读者头上
+  # 就是一次 503（2026-11-07 实测 PublicReadBusyError ms=8655）。这里直接打接口，
+  # 让 PostgreSQL 的缓存和应用的分钟桶缓存先热起来。
+  for api in "/api/site/timeline?limit=20" "/api/site/pool?channel=all"; do
+    read -r code secs <<<"$(curl -s -o /dev/null -m 30 -w '%{http_code} %{time_total}' \
+      "http://127.0.0.1:${API_PORT:-3001}${api}" || echo "000 0")"
+    echo "  api ${api%%\?*} ${code}/${secs}s"
+    sleep 1
+  done
   for path in "/" "/all" "/daily" "/topics"; do
     line="$path"
     for round in 1 2; do
