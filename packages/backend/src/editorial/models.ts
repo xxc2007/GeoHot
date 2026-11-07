@@ -450,12 +450,16 @@ export async function modelFor(capability: CapabilityKey, shardKey?: string, pur
   const chosen = (await overrides())[capability] ?? process.env[c.env] ?? process.env.MODEL_POOL ?? c.default;
   const listed = membersFor(chosen, capability);
   if (poolOf(chosen).length <= 1) return pickMember(listed, shardKey) || c.default;
+  // 2026-11-08: 池首按**配置顺序**认，不看 `listed` / `serving` 的顺序——它们会被可用性与拒绝账本重排，
+  // 于是在重排后的列表上「顶置」等于没置（实测 UNDERSTAND 的 listed[0] 变成了池尾那家）。
+  const head = poolOf(chosen)[0];
   const serving = await servingMembers(listed, capability);
-  await keepStarvedHead(serving, listed);
+  await keepStarvedHead(serving, head);
+  logRoutedPool(capability, chosen, listed, serving, head);
   const step = purpose && c.purposes.includes(purpose) ? purpose : c.purposes.length === 1 ? c.purposes[0] : undefined;
-  if (!step || !shardKey || serving.length < 2) return pickMember(weightHead(serving, listed[0]), shardKey) || c.default;
+  if (!step || !shardKey || serving.length < 2) return pickMember(weightHead(serving, head), shardKey) || c.default;
   const weights = routingWeights(serving.map(name => ({ name, service: MODELS[name]!.service, model: MODELS[name]!.model! })), step, await modelRoutingSamples());
-  return pickMember(weightHead(serving.flatMap(name => Array.from({ length: weights.get(name) ?? 1 }, () => name)), listed[0]), shardKey) || c.default;
+  return pickMember(weightHead(serving.flatMap(name => Array.from({ length: weights.get(name) ?? 1 }, () => name)), head), shardKey) || c.default;
 }
 
 /**
@@ -490,8 +494,7 @@ export function weightHead(spread: string[], head?: string): string[] {
   return spread;
 }
 
-async function keepStarvedHead(serving: string[], listed: string[]): Promise<void> {
-  const head = listed[0];
+async function keepStarvedHead(serving: string[], head: string | undefined): Promise<void> {
   if (!head || serving.includes(head)) return;
   const sick = await sickServices();
   if (benched(sick, head)) {
@@ -505,6 +508,15 @@ async function keepStarvedHead(serving: string[], listed: string[]): Promise<voi
     return;
   }
   serving.push(head);
+}
+
+/** 2026-11-08: 每个进程对每个能力位只打一行「池子长什么样」，专门用来回答「配置写了池首，为什么流量给的是别人」——
+ * 池首、可用成员、最终服务集三者在同一行里对齐，比事后猜上游规则便宜得多。 */
+let routedPoolLog = new Set<string>();
+function logRoutedPool(capability: CapabilityKey, chosen: string, listed: string[], serving: string[], head: string | undefined): void {
+  if (routedPoolLog.has(capability)) return;
+  routedPoolLog.add(capability);
+  console.log(JSON.stringify({ event: "routing.pool", capability, configured: poolOf(chosen), head, listed, serving }));
 }
 
 async function servingMembers(listed: string[], capability: CapabilityKey): Promise<string[]> {
