@@ -498,14 +498,16 @@ async function keepStarvedHead(serving: string[], head: string | undefined): Pro
   if (!head || serving.includes(head)) return;
   const sick = await sickServices();
   if (benched(sick, head)) {
-    // 2026-11-08: 现场实测——顶置成员被上游规则判「病」之后就此消失，运维看到的只是「配了也不走」。
-    // 顺序是运维的显式指令：照旧进服务集，但每一轮都把挡它的键打出来，让人能决定是修它还是撤它。
+    // 2026-11-08: 顶置成员被上游规则判「病」时也会被静默跳过，运维只看到「配了也不走」。
+    // 这里只把挡它的键打出来（每五分钟一行），人再决定是修它还是撤它——判病本身仍然生效，
+    // 否则"确诊有病"的成员会被重新派活，兜底链的既有语义（不重试同一个死成员）也会被推翻。
     if (Date.now() - headProbeLog > 300_000) {
       headProbeLog = Date.now();
       const spec = MODELS[head]!;
       const hits = [...sick].filter(k => k === spec.service || k.startsWith(spec.service + "|") || k === endpointKey(spec));
-      console.log(JSON.stringify({ event: "routing.head_benched", head, hits, keptBecauseConfigured: true }));
+      console.log(JSON.stringify({ event: "routing.head_benched", head, hits, keptBecauseConfigured: false }));
     }
+    return;
   }
   serving.push(head);
 }
