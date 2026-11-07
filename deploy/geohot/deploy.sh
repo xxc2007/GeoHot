@@ -384,6 +384,17 @@ systemctl restart "${RUN[@]}"
 sleep 8
 for u in "${RUN[@]}"; do printf '%s=%s ' "${u%.service}" "$(systemctl is-active "$u")"; done; echo
 
+# 预热：重启后的前几次 SSR 要 1.8–2.6 秒（2026-11-07 实测 1.86 / 2.64 秒），而验收紧接着就去取页面，
+# 那些秒数会算到读者头上、也会把验收拖进超时。这里先把几个主要出口走一遍，让缓存和模块热起来；
+# 预热失败不算部署失败（站点仍可能在服务，验收会自己判）。
+if command -v curl >/dev/null 2>&1; then
+  echo "== 预热读者面（不给第一个读者留下冷启动的几秒）=="
+  for path in "/" "/all" "/daily" "/topics"; do
+    code=$(curl -s -o /dev/null -m 20 -w '%{http_code}' "http://127.0.0.1:${WEB_PORT:-3000}${BASE_PATH:-}${path}" || echo 000)
+    printf '%s=%s ' "$path" "$code"
+  done; echo
+fi
+
 echo "== 启动日志（Node 弃用只在启动时出现，测试套件永远看不到）=="
 journalctl -u geohot-api -u geohot-worker -u geohot-web -u geohot-brain --since "-2 min" --no-pager \
   | grep -iE "deprecat|error" | head -6 || echo "(no warnings)"
