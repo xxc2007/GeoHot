@@ -114,7 +114,7 @@ async function queryGroupedAnchors(q: TimelineQuery, now: Date): Promise<Grouped
     )
     SELECT g.gk, g.anchor_at, waiting.t AS pending_at
     FROM waiting LEFT JOIN (SELECT gk, max(sort_at) AS anchor_at FROM base GROUP BY gk) g ON true
-    ORDER BY g.anchor_at DESC NULLS LAST, g.gk COLLATE "C" DESC`, 8000, true);
+    ORDER BY g.anchor_at DESC NULLS LAST, g.gk COLLATE "C" DESC`, 12_000, true);
   const readAt = Date.now();
   const waiting = rows[0]?.pending_at ?? null;
   return {

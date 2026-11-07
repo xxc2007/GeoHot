@@ -103,7 +103,7 @@ async function queryMonthMarks(
          WHERE kind = 'daily' AND issue_no IS NOT NULL AND key >= ${first} AND key <= ${last})
       SELECT coalesce(d.date, i.date) AS date, coalesce(d.items, 0) AS items, i.issue_no
         FROM days d FULL JOIN issues i ON i.date = d.date
-       ORDER BY 1`, 8000, true),
+       ORDER BY 1`, 12_000, true),
     // 索引每进程缓存 60 秒，这里的额外成本是一次内存集合求交，不是一次查询。
     readableReports("daily", 400).then(({ rows }) => new Set(rows.map((r) => r.key))),
   ]);
