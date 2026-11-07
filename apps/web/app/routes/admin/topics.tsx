@@ -80,8 +80,8 @@ export default function TopicRotationPage({ loaderData }: Route.ComponentProps) 
             <tr>
               <th className="py-1.5">主题</th>
               <th className="py-1.5">组</th>
-              <th className="py-1.5 text-right">条目</th>
-              <th className="py-1.5">最后一条</th>
+              <th className="py-1.5 pr-6 text-right">条目</th>
+              <th className="py-1.5 whitespace-nowrap">最后一条</th>
               <th className="py-1.5">状态</th>
             </tr>
           </thead>
@@ -90,8 +90,8 @@ export default function TopicRotationPage({ loaderData }: Route.ComponentProps) 
               <tr key={t.slug} className="border-t border-line-soft">
                 <td className="py-1.5"><Link className="text-accent" to={`/topics/${t.slug}`}>{t.name}</Link><span className="ml-2 text-ink-4">{t.slug}</span></td>
                 <td className="py-1.5 text-ink-3">{group[t.group] ?? t.group}</td>
-                <td className="num py-1.5 text-right">{num(t.items30)}</td>
-                <td className="py-1.5 text-ink-3">{t.lastItemAt ? bj(t.lastItemAt) : "—"}</td>
+                <td className="num py-1.5 pr-6 text-right tabular-nums">{num(t.items30)}</td>
+                <td className="py-1.5 whitespace-nowrap text-ink-3 tabular-nums">{t.lastItemAt ? bj(t.lastItemAt) : "—"}</td>
                 <td className="py-1.5">{t.dormantAt ? <span className="text-ink-4">已归档</span> : <span className="text-ink-2">在岗</span>}</td>
               </tr>
             ))}
