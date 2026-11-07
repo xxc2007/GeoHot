@@ -7,7 +7,7 @@ import { loadOr404, queryString, releaseBoundCache } from "../lib/api.server";
 import { listPath, organizationLd, pageMeta } from "../lib/seo";
 import { Timeline } from "../features/feed/Timeline";
 import { useEffect, useState } from "react";
-import { MobileDaySection, MobileHomeTop, MobilePoolList, type FeedTab } from "../features/feed/MobileHome";
+import { MobileDaySection, MobileHomeTop, MobilePoolPanel, type FeedTab } from "../features/feed/MobileHome";
 import { useLivePublicData } from "../lib/use-live-public-data";
 import { HotTopics } from "../features/feed/HotTopics";
 import { CategoryTabs, SearchField } from "../features/feed/Filters";
@@ -193,7 +193,7 @@ export default function Home() {
           <Timeline initial={data} filters={data.filters} />
         </div>
         <div className={tab === "all" ? undefined : "hidden"}>
-          <MobilePoolList pool={pool} filters={filters} />
+          <MobilePoolPanel pool={pool} filters={filters} />
         </div>
       </MobileDaySection>
     </div>
