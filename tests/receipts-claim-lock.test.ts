@@ -14,6 +14,7 @@
 //
 // Kept out of setup.ts on purpose: this file writes rows but never talks to a provider, so it only needs
 // DATABASE_URL to name a throwaway database.
+import "./setup.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { after, test } from "node:test";
