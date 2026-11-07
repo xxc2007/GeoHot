@@ -225,6 +225,14 @@ export async function releaseReceipt(id: number, input: { billed: boolean; note:
 }
 
 const AUTO_RELEASE_AFTER_MS = 30 * 60_000;
+/**
+ * 第二次也是最后一次：一条回执第二次落成 unknown 之后，原本只能等人工。
+ * 2026-11-07 现场：95 条停在 unknown，其中 39 条超过 6 小时、最老 8 天，译文与分析的每一轮都在
+ * `ReceiptUnknownError` 上退回来 —— 「自动放行一次」的守卫让它们永远出不去。
+ * 超过一天仍然未知的，再放行一次（笔记与第一次不同，因此守卫只允许这一次），之后仍归人工。
+ */
+const SECOND_RELEASE_AFTER_MS = 24 * 60 * 60_000;
+const SECOND_AUTO_RELEASE_NOTE = "自动放行：结果未知超过 24 小时，第二次也是最后一次放行";
 const AUTO_RELEASE_NOTE = "自动放行：结果未知超过 30 分钟，未核对是否计费";
 
 /**
@@ -233,18 +241,28 @@ const AUTO_RELEASE_NOTE = "自动放行：结果未知超过 30 分钟，未核�
  * way once and unknown again stays for the admin (the daily ops digest lists it).
  */
 export async function autoReleaseUnknownReceipts(now = Date.now()) {
-  const rows = await sql<{ id: number }[]>`
+  const rows: { id: number; note: string }[] = [];
+  const first = await sql<{ id: number }[]>`
     SELECT r.id FROM receipts r
     WHERE r.status = 'unknown' AND r.updated_at < ${new Date(now - AUTO_RELEASE_AFTER_MS)}
       AND NOT EXISTS (SELECT 1 FROM receipt_attempts a WHERE a.receipt_id = r.id AND a.error LIKE ${AUTO_RELEASE_NOTE + "%"})
     ORDER BY r.id LIMIT 200`;
+  rows.push(...first.map(row => ({ id: row.id, note: AUTO_RELEASE_NOTE })));
+  // 第二次、最后一次：一天之后仍然未知的，再放行一次，避免「一次放行」的守卫把它们永久锁死。
+  const second = await sql<{ id: number }[]>`
+    SELECT r.id FROM receipts r
+    WHERE r.status = 'unknown' AND r.updated_at < ${new Date(now - SECOND_RELEASE_AFTER_MS)}
+      AND EXISTS (SELECT 1 FROM receipt_attempts a WHERE a.receipt_id = r.id AND a.error LIKE ${AUTO_RELEASE_NOTE + "%"})
+      AND NOT EXISTS (SELECT 1 FROM receipt_attempts a WHERE a.receipt_id = r.id AND a.error LIKE ${SECOND_AUTO_RELEASE_NOTE + "%"})
+    ORDER BY r.id LIMIT 100`;
+  rows.push(...second.map(row => ({ id: row.id, note: SECOND_AUTO_RELEASE_NOTE })));
   let released = 0;
   let requeued = 0;
   let errors = 0;
   for (const r of rows) {
     let done: { requeued: boolean } | null = null;
     try {
-      done = await release(r.id, AUTO_RELEASE_NOTE, "ops.recover", "结果未知，自动放行一次", null);
+      done = await release(r.id, r.note, "ops.recover", r.note === SECOND_AUTO_RELEASE_NOTE ? "结果未知，第二次放行" : "结果未知，自动放行一次", null);
     } catch {
       // One receipt whose attempt ledger no longer matches (legacy 0022 shapes did produce those) throws
       // out of release() — a poison row must not stop the rest of this batch, nor the recoveries queued
