@@ -26,10 +26,14 @@ test("首屏预算不再许给读者八秒的空白", () => {
 
 test("精选那一段不再替看不到的收录池付一趟请求", () => {
   const source = read("apps/web/app/routes/home.tsx");
-  const pool = source.indexOf("/api/site/pool");
-  assert.ok(pool > 0, "pool still loaded somewhere");
-  const guard = source.lastIndexOf('tab === "all"', pool);
-  assert.ok(guard > 0 && pool - guard < 400, "pool 必须只在 tab=all 时取");
+  const lines = source.split(String.fromCharCode(10));
+  const poolIdx = lines.findIndex(l => l.includes("/api/site/pool") && !l.trim().startsWith("*") && !l.trim().startsWith("//"));
+  assert.ok(poolIdx > 0, "pool still loaded somewhere");
+  // 2026-11-07：手机切「全部」是客户端换列表，所以条件从「只在 tab=all」放宽成
+  // 「tab=all 或手机 UA」；判据改为「取数那一行的上一行（跳过注释）必须是条件本身」。
+  let j = poolIdx - 1;
+  while (j >= 0 && (lines[j].trim() === "" || (lines[j].trim().startsWith("//") || lines[j].trim().startsWith("*") || lines[j].trim().startsWith("/*")))) j -= 1;
+  assert.ok(j >= 0 && lines[j].includes("tab === " + String.fromCharCode(34) + "all" + String.fromCharCode(34)), "pool 只在 tab=all（或手机 UA）时取，实际上一行是：" + (lines[j] ?? ""));
 });
 
 test("HTML 与错误页都带自己的安全头（CSP 不再只活在 nginx 片段里）", () => {
