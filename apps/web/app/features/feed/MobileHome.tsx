@@ -136,6 +136,44 @@ function poolQuery(filters: TimelineFilters, page: number): string {
   return `/api/site/pool${q ? `?${q}` : ""}`;
 }
 
+/**
+ * 手机「全部」那一段在首页是**客户端切换**出来的（`window.history.replaceState`），
+ * 而首屏只有 `tab=all` 时才由 loader 取收录池。于是「先看精选、再点全部」这条最常见的
+ * 路径上 `pool` 恒为 null，页面就停在「收录池这一会儿读不到」——2026-11-07 站长截图。
+ * 这里在缺数据时自己补一次请求：切换不再是死路，只有真的取不到才显示那句提示。
+ */
+export function MobilePoolPanel({ pool, filters }: { pool: PoolResponse | null; filters: TimelineFilters }) {
+  const [fetched, setFetched] = useState<PoolResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    if (pool) return;
+    let live = true;
+    void (async () => {
+      try {
+        const res = await fetch(publicPath(poolQuery(filters, 1)), { headers: { accept: "application/json" }, signal: AbortSignal.timeout(15_000) });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const body = (await res.json()) as PoolResponse;
+        if (live) setFetched(body);
+      } catch (err) {
+        const name = (err as Error)?.name;
+        if (live) setError(name === "TimeoutError" || name === "AbortError" ? "这次取超时了" : ((err as Error)?.message ?? "加载失败"));
+      }
+    })();
+    return () => { live = false; };
+  }, [pool, filters]);
+  const view = pool ?? fetched;
+  if (!view) {
+    return (
+      <div className="lg:hidden">
+        <p className="py-8 text-center text-[14px] text-ink-3">
+          {error ? `收录池这一会儿读不到（${error}）` : "正在取收录池…"}
+        </p>
+      </div>
+    );
+  }
+  return <MobilePoolList pool={view} filters={filters} />;
+}
+
 export function MobilePoolList({ pool, filters }: { pool: PoolResponse | null; filters: TimelineFilters }) {
   const more = listPath("/all", { channel: filters.channel !== "all" ? filters.channel : null, category: filters.category, tag: filters.tag });
   const [items, setItems] = useState<FeedItemSummary[]>(() => pool?.items ?? []);
