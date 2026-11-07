@@ -75,12 +75,15 @@ if (!searchQuery && !fileArg) {
 const now = new Date();
 
 /** The collector's own row shape, minimally filled: fetchRss only reads config/cursor/participation_mode/id. */
+const DISCOVERY_UA =
+  "Mozilla/5.0 (compatible; GeoHotSourceDiscovery/1.0; +https://xxc2007.me/geohot/)";
+
 function probeRow(feedUrl: string): SourceRow {
   return {
     id: "discovery-probe",
     name: hostOf(feedUrl) || "discovery-probe",
     kind: "rss",
-    config: { feedUrl },
+    config: { feedUrl, headers: { "user-agent": DISCOVERY_UA } },
     tier: "T2",
     participation_mode: "editorial",
     first_party: false,
@@ -122,7 +125,7 @@ async function probe(feedUrl: string): Promise<Probe> {
 async function advertisedFeeds(address: string): Promise<string[]> {
   try {
     const res = await guardedFetch(address, {
-      headers: { accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.5", "user-agent": "Mozilla/5.0 (compatible; GeoHotSourceDiscovery/1.0; +https://xxc2007.me/geohot/)" },
+      headers: { accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.5", "user-agent": DISCOVERY_UA },
       timeoutMs: 20_000,
       maxBytes: 2_000_000,
     });
@@ -155,7 +158,7 @@ async function candidatesFromSearch(search: { query: string; endpoint: string; k
   }
   url.searchParams.set("q", search.query);
   const res = await guardedFetch(url.toString(), {
-    headers: { accept: "application/json", authorization: `Bearer ${search.key}`, "user-agent": "Mozilla/5.0 (compatible; GeoHotSourceDiscovery/1.0; +https://xxc2007.me/geohot/)" },
+    headers: { accept: "application/json", authorization: `Bearer ${search.key}`, "user-agent": DISCOVERY_UA },
     timeoutMs: 25_000,
     maxBytes: 2_000_000,
   });
