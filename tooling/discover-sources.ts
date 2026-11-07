@@ -122,6 +122,11 @@ async function probe(feedUrl: string): Promise<Probe> {
   }
 }
 
+// 2026-11-08：ReliefWeb 那条 feed 在同一台机器上连测，浏览器 UA/空 UA/bot UA 全 202、三种 Accept 全 200——
+// 站点前面挂着 Cloudflare 的机器人管理，按请求/时间片给不同答案。这类结果不是「解析器坏了」，是「人家不让取」，
+// 报给运营的动作完全不同（换路子 vs 修解析），所以单独记一个 blocked。
+const BLOCKED_STATUSES = new Set([401, 403, 406, 429]);
+
 async function advertisedFeeds(address: string): Promise<string[]> {
   try {
     const res = await guardedFetch(address, {
@@ -221,13 +226,15 @@ async function main(): Promise<void> {
   const addresses = search
     ? await candidatesFromSearch(search)
     : candidateLines(readFileSync(fileArg!, "utf8"));
-  const summary = { candidates: addresses.length, inserted: 0, skipped: 0, failed: 0 };
+  const summary = { candidates: addresses.length, inserted: 0, skipped: 0, blocked: 0, failed: 0 };
   for (const address of addresses) {
     const feed = await resolve(address);
     if (!feed.verdict.ok) {
       if (feed.error) {
-        console.error(`fail ${address}: ${feed.error}`);
-        summary.failed++;
+        const blocked = feed.httpStatus !== null && BLOCKED_STATUSES.has(feed.httpStatus);
+        console.error(`${blocked ? "block" : "fail"} ${address}: ${feed.error}`);
+        if (blocked) summary.blocked++;
+        else summary.failed++;
       } else {
         console.error(`skip ${address}: ${formatReviewNote(feed.verdict)}`);
         summary.skipped++;
