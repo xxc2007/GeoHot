@@ -122,7 +122,7 @@ async function probe(feedUrl: string): Promise<Probe> {
 async function advertisedFeeds(address: string): Promise<string[]> {
   try {
     const res = await guardedFetch(address, {
-      headers: { accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.5" },
+      headers: { accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.5", "user-agent": "Mozilla/5.0 (compatible; GeoHotSourceDiscovery/1.0; +https://xxc2007.me/geohot/)" },
       timeoutMs: 20_000,
       maxBytes: 2_000_000,
     });
@@ -155,7 +155,7 @@ async function candidatesFromSearch(search: { query: string; endpoint: string; k
   }
   url.searchParams.set("q", search.query);
   const res = await guardedFetch(url.toString(), {
-    headers: { accept: "application/json", authorization: `Bearer ${search.key}` },
+    headers: { accept: "application/json", authorization: `Bearer ${search.key}`, "user-agent": "Mozilla/5.0 (compatible; GeoHotSourceDiscovery/1.0; +https://xxc2007.me/geohot/)" },
     timeoutMs: 25_000,
     maxBytes: 2_000_000,
   });
