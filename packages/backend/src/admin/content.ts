@@ -19,28 +19,35 @@ import { audit } from "./auth.ts";
 import { Conflict } from "./sources.ts";
 import { adminReadOrBusy } from "./admin-read.ts";
 
-export async function searchContent(q: string) {
+export async function searchContent(q: string, limit = 60) {
   const term = q.trim();
+  // 后台「最近入库」要能一直往下拉：页大小由调用方给，上限 600 防止一次拉穿数据库。
+  const take = Math.min(Math.max(Math.trunc(limit) || 60, 1), 600);
   // 空查询不是"没有内容"：后台内容页一进来就是空输入框，返回 [] 等于把整页变成空白。
   // 这里给最近 50 条入库记录，和带词的查询同一列、同一排序，页面无需第二套渲染。
+  // 多取一行再切掉：尾页正好满的时候，「这页满了」不等于「还有下一页」（tests/admin-list-has-more.test.ts 的判据）。
+  const page = async (run: (take: number) => Promise<Record<string, unknown>[]>) => {
+    const rows = await run(take + 1);
+    return { rows: rows.slice(0, take), hasMore: rows.length > take };
+  };
   if (!term) {
-    return adminReadOrBusy((db) => db`
+    return page((take) => adminReadOrBusy((db) => db`
       SELECT a.id, coalesce(p.title, a.title) AS title, a.url, s.name AS source, a.discovered_at, a.processing_state,
              p.visibility, p.selected, p.score
       FROM articles a JOIN sources s ON s.id = a.source_id LEFT JOIN publications p ON p.article_id = a.id
-      ORDER BY a.discovered_at DESC LIMIT 50`);
+      ORDER BY a.discovered_at DESC LIMIT ${take}`));
   }
   const byId = ARTICLE_ID_PATTERN.test(term) ? term : null;
   const url = /^https?:\/\//i.test(term) ? normalizeUrl(term) : null;
   // 管理页读带数据库侧 deadline：无索引可走时的 ILIKE OR 扫描能拖住整个连接。
-  return adminReadOrBusy((db) => db`
+  return page((take) => adminReadOrBusy((db) => db`
     SELECT a.id, coalesce(p.title, a.title) AS title, a.url, s.name AS source, a.discovered_at, a.processing_state,
            p.visibility, p.selected, p.score
     FROM articles a JOIN sources s ON s.id = a.source_id LEFT JOIN publications p ON p.article_id = a.id
     WHERE (${byId}::text IS NOT NULL AND a.id = ${byId})
        OR (${url}::text IS NOT NULL AND (a.url = ${url} OR a.identity_key = ${url} OR a.url = ${term}))
        OR (${url}::text IS NULL AND (a.title ILIKE ${`%${term}%`} OR p.title ILIKE ${`%${term}%`}))
-    ORDER BY a.discovered_at DESC LIMIT 50`);
+    ORDER BY a.discovered_at DESC LIMIT ${take}`));
 }
 
 export async function contentChain(id: string) {
