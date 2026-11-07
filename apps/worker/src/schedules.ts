@@ -31,6 +31,7 @@ import { reconcileReadiness } from "@aihot/backend/publication/readiness-reconci
 import { autoReleaseUnknownReceipts } from "@aihot/backend/admin/runs";
 import { forwardPendingFeedback } from "@aihot/backend/operations/feedback";
 import { backupConfigured, runBackup } from "@aihot/backend/operations/backup";
+import { readRunsOverview } from "@aihot/backend/admin/runs";
 import { sourceHealthWeekly } from "@aihot/backend/operations/reports";
 import { markStalePendingReceipts } from "@aihot/backend/providers/receipts";
 import { recoverBudgetBlockedGrouping, recoverStalledGrouping } from "@aihot/backend/operations/recover-grouping";
@@ -63,6 +64,9 @@ export const SCHEDULES: Scheduled[] = [
   { name: "hot.rank", cron: "*/5 * * * *", expire: 300, run: () => computeHotRanking() },
   // 就绪行自愈：缺行的公开文章对读者永远不可见，而且页面上看不出异常（2026-11-07 丢了 404 篇）。
   // 每十分钟挑最新 40 篇重算一次，幂等、只写事实表、不发模型调用。
+  // 后台「运行」页的聚合快照过去只由页面访问顺手触发；主库 worker 停掉（readers-only）后没人触发，
+  // 快照永远建不出来，页面就长期显示 unavailable。这里给它一个常驻的生产者，5 分钟一次。
+  { name: "runs.snapshot", cron: "*/5 * * * *", expire: 240, run: () => readRunsOverview() },
   { name: "content.readiness", cron: "*/10 * * * *", expire: 300, run: () => reconcileReadiness() },
   { name: "hot.snapshot", cron: "2 * * * *", run: () => snapshotHeat() },
   { name: "stories.status", cron: "7 * * * *", expire: 600, run: refreshStoryStatuses },
