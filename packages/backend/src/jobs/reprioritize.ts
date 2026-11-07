@@ -12,6 +12,9 @@ import { sql } from "../db.ts";
  * 更老的维持 0（谁都不抢），历史/回填的负优先级一个也不碰。
  *
  * 幂等、可反复跑、不发模型、不碰发布状态。
+ *
+ * 2026-11-07 补一处：新鲜度取 `GREATEST(published_at, discovered_at)`。老稿被重新发现时
+ * `published_at` 还是上周，只按它算就会把「今天新出现的旧报道」当成存量继续压在队尾。
  */
 export interface ReprioritizeResult {
   promoted: number;
@@ -22,13 +25,13 @@ export async function reprioritizeAnalyzeQueue(now = new Date()): Promise<Reprio
   const fresh = await sql<{ n: number }[]>`
     WITH changed AS (
       UPDATE pgboss.job j
-         SET priority = LEAST(2147483646, GREATEST(20, floor(extract(epoch FROM LEAST(coalesce(a.published_at, a.discovered_at), ${now})) / 60) * 2)::int)
+         SET priority = LEAST(2147483646, GREATEST(20, floor(extract(epoch FROM LEAST(GREATEST(coalesce(a.published_at, a.discovered_at), a.discovered_at), ${now})) / 60) * 2)::int)
         FROM articles a
        WHERE j.name = 'content.analyze'
          AND j.state = 'created'
          AND j.priority >= 0
          AND a.id::text = j.data->>'articleId'
-         AND coalesce(a.published_at, a.discovered_at) > ${now}::timestamptz - interval '3 days'
+         AND GREATEST(coalesce(a.published_at, a.discovered_at), a.discovered_at) > ${now}::timestamptz - interval '3 days'
          AND j.priority < 1000
       RETURNING 1
     )
@@ -42,7 +45,7 @@ export async function reprioritizeAnalyzeQueue(now = new Date()): Promise<Reprio
          AND j.state = 'created'
          AND j.priority > 1000
          AND a.id::text = j.data->>'articleId'
-         AND coalesce(a.published_at, a.discovered_at) < ${now}::timestamptz - interval '3 days'
+         AND GREATEST(coalesce(a.published_at, a.discovered_at), a.discovered_at) < ${now}::timestamptz - interval '3 days'
       RETURNING 1
     )
     SELECT count(*)::int AS n FROM changed`;
