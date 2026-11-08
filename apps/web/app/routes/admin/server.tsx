@@ -18,6 +18,7 @@ export function ErrorBoundary() {
 const PLACES: Array<[string, string]> = [
   ["iZbp14vh9sicf5z7law47aZ", "杭州"],
   ["iZn4a5we2sy73dqo3yih50Z", "武汉"],
+  ["geohot-box", "box"],
 ];
 function place(host: string, self: string): string {
   if (host === self) return "本机";
@@ -50,9 +51,11 @@ export default function Server({loaderData:s}:Route.ComponentProps){
   </tbody></table></div>
   <p className="mt-4 text-xs text-ink-3">心跳来自各机器自己的 worker 进程（settings 表的 heartbeat.*@host 行）。负载是一分钟均值，内存是「已用 / 总量」，三分钟内无心跳即判离线。远端节点的读数由该机 worker 自己采集，主库不需要 SSH 出去，辅助机也不必对外开端口。</p>
 </Card>
-  {(s.nodes??[]).filter(n=>n.alive&&n.host!==s.host).map(n=>
-    <div key={`node-${n.host}`} className="space-y-3">
-      <div className="flex items-baseline gap-3 pt-2"><h2 className="text-lg font-semibold">{place(n.host, s.host)}</h2><span className="text-xs text-ink-3">{n.role} · {n.host} · release {n.release||"—"} · 并发槽 {n.slots??"—"} · {n.kernel||n.platform||""}</span></div>
+  {/* 2026-11-08 站长：离线机器原来只剩表格里一行，翻不到它的记录就以为「没接进来」。
+      现在每台上报过心跳的机器都留一块，离线时整块压暗并写明最后一次心跳。 */}
+  {(s.nodes??[]).filter(n=>n.host!==s.host).map(n=>
+    <div key={`node-${n.host}`} className={n.alive?"space-y-3":"space-y-3 opacity-70"}>
+      <div className="flex flex-wrap items-baseline gap-3 pt-2"><h2 className="text-lg font-semibold">{place(n.host, s.host)}</h2><span className="text-xs text-ink-3">{n.role} · {n.host} · release {n.release||"—"} · 并发槽 {n.slots??"—"} · {n.kernel||n.platform||""}</span>{n.alive?null:<span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-ink">离线 · 最后一次心跳 {n.at?new Date(n.at).toLocaleString("zh-CN",{timeZone:"Asia/Shanghai",hour12:false}):"—"}</span>}</div>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Stat label="CPU 使用率" value={n.cpuPercent===null?"等待采样":`${n.cpuPercent}%`} hint={`${n.cpus??"?"} 核 · 负载 ${(n.loadAll??[n.load??0]).join(" / ")}`}/>
         <Stat label="可用内存" value={n.memFree===null?"—":mb(n.memFree)} hint={`总内存 ${n.memTotal===null?"—":mb(n.memTotal)}`} tone={n.memTotal&&n.memFree!==null&&n.memFree/n.memTotal<.15?"bad":"ok"}/>
