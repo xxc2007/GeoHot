@@ -34,26 +34,27 @@ async function pruneCache(dir: string, maxAgeMs: number, now: number): Promise<n
  * 2.7 GB on the primary by November 2026, and every status update wrote a heap+index page into that
  * table. Accounting only reads status, model, usage and cost, so a settled receipt loses its bodies
  * after a week. Failed and unknown rows keep theirs — those are exactly the ones an operator reads.
- * Batched, because one nightly pass must never hold a long transaction on the busiest table of an
- * 891 MB box.
+ *
+ * Paged by id range, not by `ORDER BY id LIMIT n`: there is no index on (status, created_at), so the
+ * ORDER BY form re-scanned the whole 2.7 GB heap for every batch. 2026-11-08 that turned a 207k-row
+ * cleanup into a full-table scan per statement, and the `CREATE INDEX CONCURRENTLY` meant to fix it
+ * had to be cancelled because the box was already at 99% I/O pressure. Id ranges walk the primary key
+ * instead, one commit every 10k ids, so a batch reads kilobytes rather than gigabytes.
  */
 export async function pruneReceiptPayloads(now = new Date()): Promise<number> {
   const cutoff = new Date(now.getTime() - 7 * 86400_000);
-  const batch = 2000;
+  const span = 10_000;
+  const [head] = await sql<{ max: string | null }[]>`SELECT max(id)::text AS max FROM receipts`;
+  const top = Number(head?.max ?? 0);
   let total = 0;
-  for (;;) {
+  for (let from = 0; from <= top; from += span) {
     const rows = await sql<{ id: number }[]>`
       UPDATE receipts SET request = NULL, response = NULL
-      WHERE id IN (
-        SELECT id FROM receipts
-        WHERE status = 'completed' AND created_at < ${cutoff}
-          AND (request IS NOT NULL OR response IS NOT NULL)
-        ORDER BY id
-        LIMIT ${batch}
-      )
+      WHERE id > ${from} AND id <= ${from + span}
+        AND status = 'completed' AND created_at < ${cutoff}
+        AND (request IS NOT NULL OR response IS NOT NULL)
       RETURNING id`;
     total += rows.length;
-    if (rows.length < batch) break;
   }
   return total;
 }
