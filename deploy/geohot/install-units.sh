@@ -76,7 +76,10 @@ ALL_UNITS=(geohot-brain.service geohot-api.service geohot-worker.service geohot-
            geohot-recovery-ready.service geohot-recovery-ready.timer
            geohot-swap-cache.service
            geohot-magpie.service geohot-magpie-update.service geohot-magpie-update.timer
-           geohot-pricing-check.service geohot-pricing-check.timer)
+           geohot-pricing-check.service geohot-pricing-check.timer
+           # 2026-11-09 补登：媒体预热专用进程。原来是部署时在机器上手写的单元，
+           # verify-config-drift.sh 因此永远报「装着但仓库里没有同名模板」。
+           geohot-media.service)
 if [[ "$APP_ROOT" == "/opt/geohot/app" && -d "$TEMPLATE_DIR" ]]; then
   echo "route=templates  从 $TEMPLATE_DIR 安装 ${#ALL_UNITS[@]} 个单元（带加固块；这一条与线上现值一致）"
   src_missing=0
