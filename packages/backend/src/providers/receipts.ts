@@ -94,6 +94,58 @@ const PENDING_STALE_MS = 10 * 60 * 1000;
 const CLAIM_QUEUE_TIMEOUT_MS = 3_000;
 
 /**
+ * 预算锁的分片数：默认 8，`GEOHOT_BUDGET_SHARDS` 覆盖，非法值回落默认。
+ *
+ * 一把锁的代价：20 个执行槽位（杭州 12 + 武汉 8）全排在 `budget:<service>` 这**一条**队列上——
+ * 2026-11-08 生产上 18 个持有 + 1 个未授予就是这条队列。分片后排队按"这一篇稿子"摊到 8 条队列：
+ * 同一篇文章仍然固定走同一条（重试、并发重入、同一批备选模型都要串行），不同文章互不相干。
+ *
+ * 上限定在 64：20 个槽位用不到更多队列，而**越界窗口随分片数变大**（见 checkBudget 里 55P03 上方
+ * 的说明），调大只会削弱预算语义，不会更快。
+ */
+export const BUDGET_SHARD_DEFAULT = 8;
+const BUDGET_SHARD_MAX = 64;
+
+/** 只认十进制正整数；空串、负数、小数、垃圾一律回落默认（与 GEOHOT_TRANSLATE_* 同一套约定）。 */
+export function budgetShardCount(raw: string | undefined = process.env.GEOHOT_BUDGET_SHARDS, dflt = BUDGET_SHARD_DEFAULT): number {
+  const text = (raw ?? "").trim();
+  if (!/^\d+$/.test(text)) return dflt;
+  const n = Number(text);
+  return n >= 1 && n <= BUDGET_SHARD_MAX ? n : dflt;
+}
+
+/**
+ * FNV-1a 32 位。这里故意不用 pg 的 `hashtext`：分片要能在**开事务之前**算出来（少一次数据库往返，
+ * 一次 claim 只走一次网络），也要能在没有数据库的测试里断言"同一个请求永远落在同一个分片"。
+ * 要求只是跨进程、跨版本稳定——算法本身是不是 hashtext 无关紧要。
+ */
+function fnv1a32(text: string): number {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < text.length; i += 1) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash >>> 0;
+}
+
+/** 分片键：与请求相关且稳定。优先 `subject`（文章/查询标识，同一篇重试走同一条队列）；
+ *  没有 subject 时退回 logicalKey（identity 的哈希，对同一个请求同样稳定，且不会把不同请求挤在一起）。 */
+export function budgetShardKey(req: ReceiptRequest): string {
+  const subject = req.subject?.trim();
+  return subject ? subject : logicalKeyFor(req);
+}
+
+/** 分片号 = 稳定哈希 % 分片数。 */
+export function budgetShardOf(key: string, shards: number = budgetShardCount()): number {
+  return fnv1a32(key) % Math.max(1, shards);
+}
+
+/** 锁名：`budget:<service>:<shard>`。service 仍按 budgets 行分，shard 只决定"排哪一条队"。 */
+export function budgetLockName(service: string, shard: number): string {
+  return `budget:${service}:${shard}`;
+}
+
+/**
  * Claim transaction with a bounded wait on the advisory lock.
  * `lock_timeout` is set per transaction, so the 15s session default from db.ts keeps applying to every
  * other background transaction. The 55P03 mapping lives here only: the two result-writing transactions
@@ -138,6 +190,19 @@ interface ReceiptRow {
 }
 
 async function checkBudget(tx: Db, service: string): Promise<void> {
+  // 统计口径与分片无关：下面两条语句都不带 shard（receipt_attempts 也没有分片列），一条 count 数的是
+  // **整个 service** 在窗口里的尝试。分片只决定"排哪一条队"，不决定"数哪些账"——否则每个分片各算
+  // 一份，上限就变成 N 倍，这正是这次改动明令不能出现的结果。
+  //
+  // 代价（明确取舍）：原来一把全局锁让「查预算 → 写 attempts」对同一个 service 是串行的，所以永远
+  // 精确。分片后两条不同队列的 claim 可以同时数到 limit-1 并各写一行，于是某个窗口最多越界
+  // 「并发分片数 - 1」次（≤ BUDGET_SHARD_MAX-1，默认 ≤7）。越界不累积：本事务提交后，下一个 claim
+  // 在任何分片上都看得见已提交的行，立刻回到上限以内。第二道闸是这条语句的位置——它在锁之后、
+  // 写 attempts 之前，已经是本事务能取到的最新读数。
+  //
+  // 没选 SERIALIZABLE 的原因：SSI 确实能把这段窗口关掉（写偏斜会 abort 一个事务），但 abort 恰好
+  // 会在"20 个槽位抢同一个 service"时最频繁——那正是这次要缓解的场景；而且 40001 得沿着每一条
+  // 调用方的重试策略重新布线。宁可保留一个可计算、可监控的小越界。
   const [budget] = await tx<{ per_minute: number; per_hour: number; per_day: number }[]>`
     SELECT per_minute, per_hour, per_day FROM budgets WHERE service = ${service}`;
   if (!budget) throw new BudgetExceededError(service, "missing", 3600);
@@ -188,15 +253,25 @@ export async function paidRequest(
   const candidates = [...dispatches.map((d) => d.request), ...recoveryCandidates];
   const keys = [...new Set(candidates.map(logicalKeyFor))];
 
+  // 这一批请求排哪一条队：由**主请求**的 subject 决定，一次 claim 只算一次。
+  // 同一篇文章的重试、并发重入、同一批备选模型都落同一个 shard；不同文章摊到不同 shard。
+  // 备选服务共用同一个 shard，所以锁集合里 (service, shard) 只差 service，按 service 名排序
+  // 就是全局一致的加锁顺序——不会因为 shard 不同而互相绕成死锁（不同 shard 的锁集合本来就不相交）。
+  const shard = budgetShardOf(budgetShardKey(dispatches[0]!.request));
+
   const claimed = await claimWithQueueLimit(async (tx) => {
-    // 这把咨询锁是**排队**用的，不是防死锁：同一个 service 的选路与预算判断本来就该一个接一个。
+    // 这把咨询锁是**排队**用的，不是防死锁：同一个 (service, shard) 的选路与预算判断本来就该一个接一个。
     // 排队必须有上界：2026-11-08 生产上 11 个会话在这把锁上等了 8–11 秒（持锁方 idle in transaction
     // 18 秒），读者 /api/site/timeline 一并被拖到 3.3 秒、/all 503。claimWithQueueLimit 只把**本事务**
     // 的 lock_timeout 收到 3 秒，超时变成可重试的 ReceiptBusyError；会话级 15 秒对别的后台事务不变。
+    //
+    // 2026-11-08 分片：原来一把 `budget:<service>` 让 20 个执行槽位抢同一条队列，现在按 shard 拆成
+    // `budget:<service>:<0..N-1>`。排队宽度从「全部槽位」降到「同一 shard 的请求」；同一 shard 的
+    // 预算判断仍然串行（同一篇文章不会被并发买两遍）。统计口径不变，见 checkBudget。
     // The same pool may choose a different service after a health change. Lock the full candidate set
     // in a stable order, so two concurrent choices cannot both buy this step. Budgets stay per service.
     for (const service of [...new Set(candidates.map((c) => c.service))].sort()) {
-      await tx`SELECT pg_advisory_xact_lock(hashtext(${"budget:" + service}))`;
+      await tx`SELECT pg_advisory_xact_lock(hashtext(${budgetLockName(service, shard)}))`;
     }
     const rows = await tx<ReceiptRow[]>`
       SELECT id, logical_key, status, response, created_at, updated_at FROM receipts
@@ -265,7 +340,15 @@ export async function paidRequest(
       INSERT INTO receipts (logical_key, service, model, purpose, subject, status, request, attempts)
       VALUES (${logicalKey}, ${selected.service}, ${selected.model ?? null}, ${selected.purpose}, ${selected.subject ?? null}, 'pending',
               ${tx.json((selected.requestSummary ?? {}) as never)}, 1)
+      ON CONFLICT (logical_key) DO NOTHING
       RETURNING id`;
+    if (!row) {
+      // 分片之后，同一个 logical_key 的两条并发请求**理论上**可以从不同队列同时进来（前提是它们的主
+      // subject 不同 ⇒ shard 不同）。receipts.logical_key 的唯一索引仍然是最后一道闸：让输的一方按
+      // 「在飞」退回去重试（调用方本来就当"稍后再来"），而不是让 23505 掀掉一个执行槽位。
+      // 正常情况下 subject 对同一篇文章是稳定的，这条路只作为并发兜底，不参与日常路径。
+      throw new ReceiptBusyError(`Receipt for ${logicalKey} was claimed concurrently`);
+    }
     const attemptId = await startAttempt(tx, row!.id, 1, selected);
     return { kind: "call" as const, id: row!.id, attemptId, chosen, logicalKey };
   });

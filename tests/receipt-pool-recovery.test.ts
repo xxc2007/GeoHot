@@ -4,7 +4,7 @@ import { after, before, test } from "node:test";
 import { z } from "zod";
 import { closeDb, sql } from "@aihot/backend/db";
 import { chatJson } from "@aihot/backend/providers/llm";
-import { BudgetExceededError, ProviderRejectedError, ReceiptBusyError, ReceiptUnknownError, completeReceipt } from "@aihot/backend/providers/receipts";
+import { BudgetExceededError, budgetShardCount, ProviderRejectedError, ReceiptBusyError, ReceiptUnknownError, completeReceipt } from "@aihot/backend/providers/receipts";
 import { invalidateModelCache, modelFor, sickServices } from "@aihot/backend/editorial/models";
 import { runAnalysis, type AnalyzeInputArticle } from "@aihot/backend/editorial/analyze";
 
@@ -328,14 +328,27 @@ test("concurrent fallback claims one remaining service slot without overshooting
   await blockMinute("llm");
   const [row] = await sql<{ used: number }[]>`SELECT count(*)::int AS used FROM receipt_attempts
     WHERE service = 'agnes-cn' AND origin = 'live' AND started_at > now() - interval '1 minute'`;
-  await sql`UPDATE budgets SET per_minute = ${row!.used + 1} WHERE service = 'agnes-cn'`;
+  const budget = row!.used + 1;
+  await sql`UPDATE budgets SET per_minute = ${budget} WHERE service = 'agnes-cn'`;
   const beforeA = a.hits(), beforeB = b.hits();
   try {
     const results = await Promise.allSettled([ask("default", `race-a-${unique()}`), ask("default", `race-b-${unique()}`)]);
-    assert.equal(results.filter((r) => r.status === "fulfilled").length, 1);
-    const rejected = results.find((r) => r.status === "rejected");
-    assert.ok(rejected?.status === "rejected" && rejected.reason instanceof BudgetExceededError);
-    assert.equal(a.hits(), beforeA); assert.equal(b.hits(), beforeB + 1);
+    const fulfilled = results.filter((r) => r.status === "fulfilled").length;
+    // 2026-11-08 分片：这条断言原来要求「恰好一个成功」，那依赖的是 `budget:<service>` **一把**全局锁
+    // 把「查预算 → 写 attempts」串起来。分片后两条请求按各自 subject 取模落在两条队列上（默认 8 片，
+    // 同队概率 1/8），可以同时数到 used=budget-1 并各写一行 —— 这是方案里明确接受的并发窗口越界。
+    // 断言按新契约重写，没有删：a) 至少放行一个；b) 越界不超过「并发请求数-1」（这里是 1，
+    // 绝不可能"每条请求都放行"）；c) 没放行的必须是 BudgetExceededError（不能是别的失败被当成限流）；
+    // d) 顺序请求的精确上限由 receipts-budget-shards.test.ts「分片后预算上限仍生效」钉住。
+    assert.ok(fulfilled >= 1, "只剩一个名额时至少要放行一个");
+    for (const r of results) {
+      if (r.status === "rejected") assert.ok(r.reason instanceof BudgetExceededError, `没放行的必须是超预算，实测 ${String(r.reason)}`);
+    }
+    const [after] = await sql<{ used: number }[]>`SELECT count(*)::int AS used FROM receipt_attempts
+      WHERE service = 'agnes-cn' AND origin = 'live' AND started_at > now() - interval '1 minute'`;
+    assert.ok(after!.used - budget <= fulfilled - 1,
+      `越界只能是并发窗口造成的 ${fulfilled - 1} 次，实测越界 ${after!.used - budget}（分片数 ${budgetShardCount()}）`);
+    assert.equal(a.hits(), beforeA); assert.equal(b.hits(), beforeB + fulfilled);
   } finally { await resetMinutes(); }
 });
 
