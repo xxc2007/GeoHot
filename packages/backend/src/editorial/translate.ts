@@ -32,7 +32,13 @@ import { fairTranslationOrder, translationScope, translateWindowDays as windowDa
 import { translationSelectorRead, pendingTranslationRanks } from "./translation-selector.ts";
 
 export const TRANSLATE_PROMPT_VERSION = promptVersion("translate-body", "translate-post");
-const BATCH_CHARS = 3500;
+/**
+ * 一批 3,500 字换成 1,800 字：2026-11-08 实测 2 小时 29 次 translate_body，22 次「received」却只有
+ * 4 篇译文入库 —— 收到的答复里的段数和请求对不上，整批被丢。回执里唯一一条失败写着
+ * `No JSON object in model output — finish_reason: length`，即答复被 `maxTokens` 截断。
+ * 批更小 + 输出上限抬到 16k，先让「收到的答复能对齐」再谈吞吐。
+ */
+const BATCH_CHARS = 1800;
 /** Receipt compatibility boundary: never repack the prefix purchased by older workers. */
 const MAX_CHARS = 60_000;
 /** X posts shorter than this carry their meaning in the Chinese title and summary. */
@@ -116,7 +122,7 @@ async function translateBatch(articleId: string, revision: number, index: number
     user: JSON.stringify({ segments: parts }),
     schema: Output,
     temperature: 0.2,
-    maxTokens: Math.min(8000, Math.ceil(parts.join("").length * 1.2) + 400),
+    maxTokens: Math.min(16_000, Math.ceil(parts.join("").length * 1.6) + 600),
     timeoutMs: 180_000,
     attemptTag,
   });

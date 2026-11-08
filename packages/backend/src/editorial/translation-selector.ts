@@ -19,9 +19,16 @@ export function translationAttemptBlockedSql() {
         ELSE interval '5 minutes' END))`;
 }
 
+/**
+ * 选稿读的上限从 2 秒放到 8 秒、默认 4 秒：2026-11-08 实测一轮四分钟里 `content.translate` 有 7/24 次
+ * 直接死在 `canceling statement due to statement timeout`，选稿读一超时整轮就作废，读者面因此只有
+ * 3–10 篇/小时的译文（目标 24 篇/2 分钟）。锁等待仍卡在 250ms，读事务仍只读，慢的只是排序扫描。
+ */
+const SELECTOR_TIMEOUT_MAX_MS = 8000;
+
 /** Bound selector SQL on the server; release the read transaction before any model request. */
-export async function translationSelectorRead<T>(read: (tx: Tx) => Promise<T>, timeoutMs = 2000): Promise<T> {
-  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 2000) throw new Error("Invalid translation selector timeout");
+export async function translationSelectorRead<T>(read: (tx: Tx) => Promise<T>, timeoutMs = 4000): Promise<T> {
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > SELECTOR_TIMEOUT_MAX_MS) throw new Error("Invalid translation selector timeout");
   return sql.begin(async tx => {
     await tx`SET TRANSACTION READ ONLY`;
     await tx`SELECT set_config('statement_timeout',${`${timeoutMs}ms`},true),set_config('lock_timeout','250ms',true)`;
@@ -30,9 +37,22 @@ export async function translationSelectorRead<T>(read: (tx: Tx) => Promise<T>, t
 }
 
 /** Bound cold header lookups per statement, then rank the complete candidate set in SQL. */
+/**
+ * 库忙时选稿读会踩到 57014。整轮作废的代价（四分钟 + 一篇都没翻）远高于重排一次：
+ * 只对「语句超时」重试一次，其它错误照旧往上抛。
+ */
+async function selectorRead<T>(read: (tx: Tx) => Promise<T>): Promise<T> {
+  try {
+    return await translationSelectorRead(read);
+  } catch (error) {
+    if ((error as { code?: string }).code !== "57014") throw error;
+    return translationSelectorRead(read);
+  }
+}
+
 export async function pendingTranslationRanks(from: Date, total: number, historical: boolean, checkpoint: () => void): Promise<TranslationRank[]> {
   checkpoint();
-  const publications = await translationSelectorRead(tx => tx<{ article_id: string }[]>`
+  const publications = await selectorRead(tx => tx<{ article_id: string }[]>`
     SELECT article_id FROM publications
     WHERE (selected OR eligible) AND visibility='public' AND body_mode='full'
       AND discovered_at >= ${from}
@@ -41,7 +61,7 @@ export async function pendingTranslationRanks(from: Date, total: number, histori
   for (let offset = 0; offset < publications.length; offset += 128) {
     checkpoint();
     const ids = publications.slice(offset, offset + 128).map(row => row.article_id);
-    const batch = await translationSelectorRead(tx => tx<typeof candidates>`
+    const batch = await selectorRead(tx => tx<typeof candidates>`
       WITH cand AS MATERIALIZED (
         SELECT p.article_id,p.discovered_at
         FROM publications p
@@ -68,7 +88,7 @@ export async function pendingTranslationRanks(from: Date, total: number, histori
   checkpoint();
   if (!candidates.length) return [];
   // SQL retains the database's timestamp precision and ID collation across batch boundaries.
-  return translationSelectorRead(tx => tx<TranslationRank[]>`
+  return selectorRead(tx => tx<TranslationRank[]>`
     WITH ranked AS (
       SELECT article_id,
              row_number() OVER (ORDER BY discovered_at DESC,article_id) AS by_fresh,

@@ -5,6 +5,7 @@
 import { convertAnimated, produceImage } from "./images.ts";
 import { loadItemForMediaPreparation } from "../publication/detail.ts";
 import { sql } from "../db.ts";
+import { stripImageSources } from "./strip.ts";
 import { publishArticleTx } from "../publication/publish.ts";
 import { bodyMediaFingerprint, bodyMediaRequiredCondition } from "../publication/media-readiness.ts";
 
@@ -51,6 +52,7 @@ export async function prepareArticleMedia(articleId: string, dependencies: {
   if (!input.required) return { renditions: 0, failed: 0, animatedSaved: 0, ready: true };
   let failed = renditions.length ? 0 : 1;
   let animatedSaved = 0;
+  const failedUrls: string[] = [];
   for (const { url, mode } of renditions) {
     // 2026-11-07 现场：1,851 条 `media.prepare` 失败，其中 1,581 条的原因只有一句
     // 「1 rendition failure(s)」——源站瞬时的超时/防盗链被一次 catch 吞掉，既没有重试也没有 URL，
@@ -64,6 +66,7 @@ export async function prepareArticleMedia(articleId: string, dependencies: {
       } catch (error) {
         if (attempt === 3) {
           failed += 1;
+          failedUrls.push(url);
           console.error(JSON.stringify({ level: 40, component: "media", event: "rendition-failed", articleId, mode, url: url.slice(0, 200), message: (error as Error)?.message ?? String(error) }));
         } else {
           await new Promise(resolve => setTimeout(resolve, attempt === 1 ? 300 : 1_200));
@@ -71,21 +74,46 @@ export async function prepareArticleMedia(articleId: string, dependencies: {
       }
     }
   }
+  // 2026-11-08 现场：正文里的图一张都取不到时（源站在墙外、防盗链），整篇稿子会永远停在「媒体未就绪」，
+  // 读者一条也看不到（当天 1,792 条 media.prepare 失败、只有 1,053 条成功）。取不到的图本来也显示不出来，
+  // 所以把这几张 <img> 从正文（含中文译文）里摘掉，读者看到的就是一篇完整、没有坏图的稿子。
+  const stripAll = failed > 0 && failed === renditions.length;
   const ready = await sql.begin(async tx => {
     // Lock before publishing and recheck the exact body: a slow image fetch cannot bless a newer HTML.
     await tx`SELECT id FROM articles WHERE id=${articleId} FOR UPDATE`;
+    let bless = input.fingerprint;
+    let effectiveFailed = failed;
+    if (stripAll) {
+      const [article] = await tx<{ body_html: string | null }[]>`SELECT body_html FROM articles WHERE id=${articleId}`;
+      const fromArticle = stripImageSources(article?.body_html ?? "", failedUrls);
+      if (fromArticle.removed > 0) await tx`UPDATE articles SET body_html=${fromArticle.html} WHERE id=${articleId}`;
+      const [translation] = await tx<{ body_html: string | null }[]>`
+        SELECT body_html FROM translations WHERE article_id=${articleId} AND lang='zh' AND revision=${row.article_revision}`;
+      const fromTranslation = stripImageSources(translation?.body_html ?? "", failedUrls);
+      if (fromTranslation.removed > 0) {
+        await tx`UPDATE translations SET body_html=${fromTranslation.html}
+          WHERE article_id=${articleId} AND lang='zh' AND revision=${row.article_revision}`;
+      }
+      const removed = fromArticle.removed + fromTranslation.removed;
+      if (removed > 0) {
+        const [after] = await tx<{ fingerprint: string }[]>`SELECT ${bodyMediaFingerprint()} AS fingerprint FROM articles ready_a WHERE ready_a.id=${articleId}`;
+        bless = after?.fingerprint ?? input.fingerprint;
+        effectiveFailed = 0;
+        console.error(JSON.stringify({ level: 40, component: "media", event: "media-stripped", articleId, removed, urls: failedUrls.length }));
+      }
+    }
     const [current] = await tx<{ fingerprint: string }[]>`SELECT ${bodyMediaFingerprint()} AS fingerprint FROM articles ready_a WHERE ready_a.id=${articleId}`;
-    if (current?.fingerprint !== input.fingerprint) return false;
+    if (effectiveFailed > 0 && current?.fingerprint !== input.fingerprint) return false;
     const [previous] = await tx<{ fingerprint: string; ready: boolean }[]>`SELECT fingerprint,ready FROM article_media_readiness WHERE article_id=${articleId}`;
     await tx`INSERT INTO article_media_readiness(article_id,revision,fingerprint,ready,renditions,failed,attempted_at,prepared_at)
-      VALUES(${articleId},${row.article_revision},${input.fingerprint},${failed === 0},${renditions.length},${failed},now(),CASE WHEN ${failed === 0} THEN now() END)
+      VALUES(${articleId},${row.article_revision},${bless},${effectiveFailed === 0},${renditions.length},${effectiveFailed},now(),CASE WHEN ${effectiveFailed === 0} THEN now() END)
       ON CONFLICT(article_id) DO UPDATE SET revision=EXCLUDED.revision,fingerprint=EXCLUDED.fingerprint,
         ready=EXCLUDED.ready,renditions=EXCLUDED.renditions,failed=EXCLUDED.failed,attempted_at=EXCLUDED.attempted_at,prepared_at=EXCLUDED.prepared_at`;
-    const wasReady = previous?.ready && previous.fingerprint === input.fingerprint;
-    if ((failed === 0 && !wasReady) || (failed > 0 && wasReady)) {
-      await publishArticleTx(tx, articleId, { refreshSelected: failed === 0, skipMediaPreparation: true });
+    const wasReady = previous?.ready && previous.fingerprint === bless;
+    if ((effectiveFailed === 0 && !wasReady) || (effectiveFailed > 0 && wasReady)) {
+      await publishArticleTx(tx, articleId, { refreshSelected: effectiveFailed === 0, skipMediaPreparation: true });
     }
-    return failed === 0;
+    return effectiveFailed === 0;
   });
   return { renditions: renditions.length, failed, animatedSaved, ready: ready as boolean };
 }
