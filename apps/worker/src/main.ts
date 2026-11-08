@@ -70,7 +70,23 @@ else if (!plan.coordinator) assertContentExecutorValves();
 
 if (stopping) await finishShutdown();
 await modelCooldown.load();
-const boss = await initialized(getBoss());
+// 数据库饱和时 pg-boss 的 start 会以 `Connection terminated due to connection timeout` 抛出。一个
+// 瞬时超时就让整台执行器退出，恢复期几台机器跟着起落，重启风暴又反过来加重 I/O —— 2026-11-08
+// 14:07 box 就是这样死的（journalctl 里 fatal 的栈顶正是 PgBoss.start）。这里退避重试到停机信号，
+// systemd 的 Restart=always 仍然是最后一层兜底。
+async function startQueue() {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await getBoss();
+    } catch (error) {
+      if (stopping || attempt >= 8) throw error;
+      const wait = Math.min(60_000, 5_000 * attempt);
+      console.error(JSON.stringify({ level: "warn", msg: "queue start failed, retrying", attempt, wait, error: String(error) }));
+      await new Promise((resolve) => setTimeout(resolve, wait));
+    }
+  }
+}
+const boss = await initialized(startQueue());
 if (plan.content) await initialized(registerContentJobs(boss, plan.coordinator ? undefined : positiveInt(process.env.ANALYZE_CONCURRENCY, "ANALYZE_CONCURRENCY", 4)));
 if (!plan.coordinator) {
   // COLLECT_ENABLED preserves waitsForPage semantics; this role never registers source polling.
