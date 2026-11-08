@@ -32,6 +32,8 @@ test('Magpie stays behind admin authentication and CSRF; fixed server key never 
   config.devAdmin={displayName:'isolated test',csrf:'test-dev-token-0123456789'} as never;
   process.env.MAGPIE_WEB_KEY_FILE=path.join(dir,'key');await writeFile(process.env.MAGPIE_WEB_KEY_FILE,'private-server-test-key');
   const page=await app.inject('/api/admin/magpie-proxy/');assert.equal(page.statusCode,200);assert.match(page.body,/magpie-proxy\/app.js/);assert.doesNotMatch(page.body,/private-server-test-key/);assert.equal(page.headers['set-cookie'],undefined);assert.equal(page.headers['cache-control'],'no-store');
+  // 上游 plugins/library/i18n.js 裸读全局 magpie（ReferenceError），注入必须先占位
+  assert.ok(page.body.includes('window.magpie=window.magpie||{};'), 'magpie global 必须提前占位');
   assert.equal((await app.inject({method:'POST',url:'/api/admin/magpie-proxy/api/test',payload:{}})).statusCode,403);
   assert.equal((await app.inject({method:'POST',url:'/api/admin/magpie-proxy/api/test',headers:{'x-csrf-token':'dev',origin:'https://outside.invalid'},payload:{}})).statusCode,403);
   assert.equal((await app.inject('/api/admin/magpie-proxy/v1/models')).statusCode,404);
