@@ -32,7 +32,9 @@ test("the budget lock queue has its own bound, set per transaction", () => {
   // 3.3 秒 / 503。所以 claim 自己 SET LOCAL 一个秒级 lock_timeout，超时在 claimWithQueueLimit 里
   // 映射成 ReceiptBusyError（调用方本来就当"稍后再来"重试），不再无止境排队。
   const claim = receipts.slice(receipts.indexOf("const claimed = await claimWithQueueLimit"), receipts.indexOf("if (claimed.kind === \"reuse\")"));
-  assert.match(claim, /pg_advisory_xact_lock\(hashtext\(\$\{"budget:" \+ service\}\)\)/);
+  // 2026-11-08 分片：锁名从 `budget:<service>` 变成 `budget:<service>:<shard>`。这条断言只跟着表达式
+  // 改形状，验的东西不变——claim 里仍然只有这一把预算咨询锁、仍然走 budgetLockName（不另拼字符串）。
+  assert.match(claim, /pg_advisory_xact_lock\(hashtext\(\$\{budgetLockName\(service, shard\)\}\)\)/);
   const helper = receipts.slice(receipts.indexOf("async function claimWithQueueLimit"), receipts.indexOf("export function logicalKeyFor"));
   assert.match(helper, /set_config\('lock_timeout',[^)]*,\s*true\)/, "只能用事务级 set_config(..., true)");
   const m = receipts.match(/const CLAIM_QUEUE_TIMEOUT_MS = ([\d_]+)/);

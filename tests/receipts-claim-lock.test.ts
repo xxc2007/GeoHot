@@ -19,11 +19,17 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { after, test } from "node:test";
 import { closeDb, sql } from "@aihot/backend/db";
-import { BudgetExceededError, paidRequest, ReceiptBusyError, ReceiptUnknownError, type CallOutcome, type ReceiptRequest } from "@aihot/backend/providers/receipts";
+import { BudgetExceededError, budgetLockName, budgetShardCount, paidRequest, ReceiptBusyError, ReceiptUnknownError, type CallOutcome, type ReceiptRequest } from "@aihot/backend/providers/receipts";
 
 const source = readFileSync(new URL("../packages/backend/src/providers/receipts.ts", import.meta.url), "utf8");
 const database = new URL(process.env.DATABASE_URL ?? "postgres://unset/unset").pathname.slice(1);
 const canWriteDb = /_(test|ci)$/.test(database);
+
+/** 2026-11-08 分片之后，"预算锁"不再是**一把**：每个 service 有 `budgetShardCount()` 条队列
+ *  （`budget:<service>:<0..N-1>`）。下面涉及"有人在持锁"的用例必须覆盖全部分片，否则它只证明
+ *  "某一条队列空着"，什么也没证明。 */
+const budgetLocks = (service: string): string[] =>
+  Array.from({ length: budgetShardCount() }, (_, shard) => budgetLockName(service, shard));
 
 const tag = () => Math.random().toString(36).slice(2, 10);
 const usage = { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 };
@@ -50,7 +56,12 @@ test("no provider call is made inside the claim transaction", () => {
 
 test("the claim transaction bounds its own lock queue at a few seconds", () => {
   const claim = claimBody();
-  assert.match(claim, /pg_advisory_xact_lock\(hashtext\(\$\{"budget:" \+ service\}\)\)/, "预算咨询锁仍然保留");
+  // 2026-11-08 分片：锁名从 `budget:<service>` 变成 `budget:<service>:<shard>`，所以这条断言只能改
+  // 成新的表达式——但断言的**意思**没变：claim 仍然要拿一把预算咨询锁，而且只拿这一把（走同一个
+  // budgetLockName，别处拼锁名会绕过分片）。分片没有把锁去掉，只是把它拆成 N 条队列。
+  assert.match(claim, /pg_advisory_xact_lock\(hashtext\(\$\{budgetLockName\(service, shard\)\}\)\)/, "预算咨询锁仍然保留（分片后叫 budget:<service>:<shard>）");
+  assert.equal(budgetLockName("llm", 3), "budget:llm:3", "锁名必须带分片号，否则分片退化成原来的全局队列");
+  assert.ok(budgetShardCount() >= 1, "分片数至少 1（= 旧行为）");
   assert.ok(claim.startsWith("const claimed = await claimWithQueueLimit(async (tx) => {"), "claim 必须走带队列上限的包装");
   const helper = source.slice(source.indexOf("async function claimWithQueueLimit"), source.indexOf("export function logicalKeyFor"));
   assert.match(helper, /set_config\('lock_timeout'/, "claim 事务必须自己把 lock_timeout 收紧");
@@ -64,14 +75,16 @@ test("the claim transaction bounds its own lock queue at a few seconds", () => {
 
 test("waiting behind someone else's budget lock returns 'come back later' instead of hanging", { skip: !canWriteDb }, async () => {
   const service = `lockprobe-${tag()}`;
-  const key = `budget:${service}`;
+  // 分片后一个 service 有 N 条队列；持锁方必须把**全部** N 条都拿住，这条用例才仍然在验
+  // "排在别人后面会超时"，而不是"碰巧排在一条空队列上"。
+  const locks = budgetLocks(service);
   const req: ReceiptRequest = { service, purpose: "claim_lock_test", subject: `blocked-${tag()}`, identity: { blocked: tag() } };
   let sent = 0;
   const holder = await sql.reserve();
   try {
     await sql`INSERT INTO budgets (service, per_minute, per_hour, per_day) VALUES (${service}, 5, 5, 5)`;
     await holder`BEGIN`;
-    await holder`SELECT pg_advisory_xact_lock(hashtext(${key}))`;
+    for (const name of locks) await holder`SELECT pg_advisory_xact_lock(hashtext(${name}))`;
 
     const started = Date.now();
     await assert.rejects(
@@ -99,7 +112,7 @@ test("waiting behind someone else's budget lock returns 'come back later' instea
 
 test("the budget lock is free while the model is being called", { skip: !canWriteDb }, async () => {
   const service = `lockprobe-${tag()}`;
-  const key = `budget:${service}`;
+  const locks = budgetLocks(service);
   const req: ReceiptRequest = { service, purpose: "claim_lock_test", subject: `free-${tag()}`, identity: { free: tag() } };
   let open!: () => void;
   let callStarted!: () => void;
@@ -110,10 +123,15 @@ test("the budget lock is free while the model is being called", { skip: !canWrit
     await sql`INSERT INTO budgets (service, per_minute, per_hour, per_day) VALUES (${service}, 5, 5, 5)`;
     const inFlight = paidRequest(req, async () => { callStarted(); await gate; return ok; });
     await startedCall;
-    // 调用在飞时：锁必须已经还回去，且没有任何会话停在 idle in transaction 上。
-    const [free] = await probe<{ free: boolean }[]>`SELECT pg_try_advisory_lock(hashtext(${key})) AS free`;
-    if (free!.free) await probe`SELECT pg_advisory_unlock(hashtext(${key}))`;
-    assert.equal(free!.free, true, "模型调用期间不该还握着预算锁");
+    // 调用在飞时：**每一条**预算队列都必须已经还回去（只查一条会漏掉真正被用的那个分片）。
+    const taken: string[] = [];
+    let free = true;
+    for (const name of locks) {
+      const [row] = await probe<{ got: boolean }[]>`SELECT pg_try_advisory_lock(hashtext(${name})) AS got`;
+      if (row!.got) taken.push(name); else free = false;
+    }
+    for (const name of taken) await probe`SELECT pg_advisory_unlock(hashtext(${name}))`;
+    assert.equal(free, true, "模型调用期间不该还握着任何一条预算锁队列");
     const idle = await probe<{ n: string }[]>`
       SELECT count(*) AS n FROM pg_stat_activity
        WHERE datname = current_database() AND state = 'idle in transaction' AND pid <> pg_backend_pid()`;
