@@ -77,7 +77,9 @@ export async function prepareArticleMedia(articleId: string, dependencies: {
   // 2026-11-08 现场：正文里的图一张都取不到时（源站在墙外、防盗链），整篇稿子会永远停在「媒体未就绪」，
   // 读者一条也看不到（当天 1,792 条 media.prepare 失败、只有 1,053 条成功）。取不到的图本来也显示不出来，
   // 所以把这几张 <img> 从正文（含中文译文）里摘掉，读者看到的就是一篇完整、没有坏图的稿子。
-  const stripAll = failed > 0 && failed === renditions.length;
+  // 严格模式（站长 2026-11-08）：默认不摘图——图取不到就继续重试，绝不拿「没有图的稿子」换读者。
+  // 只有显式设 GEOHOT_MEDIA_STRIP_DEAD=1 才恢复 11-08 那次的兜底行为。
+  const stripAll = process.env.GEOHOT_MEDIA_STRIP_DEAD === "1" && failed > 0 && failed === renditions.length;
   const ready = await sql.begin(async tx => {
     // Lock before publishing and recheck the exact body: a slow image fetch cannot bless a newer HTML.
     await tx`SELECT id FROM articles WHERE id=${articleId} FOR UPDATE`;

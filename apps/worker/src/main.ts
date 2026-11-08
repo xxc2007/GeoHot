@@ -7,7 +7,7 @@ import { registerContentJobs, registerExtractionJobs } from "@aihot/backend/jobs
 import { workerPlan } from "@aihot/backend/jobs/worker-role";
 import { registerSourceJobs } from "@aihot/backend/jobs/sources";
 import { registerEventJobs } from "@aihot/backend/jobs/events";
-import { registerNotifyJobs } from "@aihot/backend/jobs/notify";
+import { registerMediaJobs, registerNotifyJobs } from "@aihot/backend/jobs/notify";
 import { registerPublicationJobs } from "@aihot/backend/jobs/publication";
 import { registerSchedules } from "./schedules.ts";
 import { startHeartbeat } from "@aihot/backend/operations/heartbeat";
@@ -97,6 +97,9 @@ if (plan.extraction) {
   // 2026-11-08 现场：站点可达性受出口影响——杭州到 BBC / The Conversation 等常年 CONNECT_TIMEOUT，
   // 而这两家正是「允许站内全文」的 260 个信源里的主力，海外出口的机器（box）抓它们才快。
   if (isCollectEnabled()) await initialized(registerSourceJobs(boss, { includeExtraction: false }));
+} else if (plan.role === "media") {
+  // 取图专用节点：只领取 media.prepare。图片缓存是**本机磁盘**，所以这一路要跑在网站那台机器上才有意义。
+  await initialized(registerMediaJobs(boss, positiveInt(process.env.MEDIA_CONCURRENCY, "MEDIA_CONCURRENCY", 3)));
 } else {
   if (isCollectEnabled()) await initialized(registerSourceJobs(boss, { includeExtraction: plan.extraction }));
   await initialized(registerEventJobs(boss));

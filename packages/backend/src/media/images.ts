@@ -78,10 +78,23 @@ function original(url: string): Promise<GuardedResponse> {
   return job;
 }
 
+/**
+ * 取图超时：默认 20 秒，2026-11-08 实测从杭州取欧洲机构图站要 28–31 秒（copernicus 的 PNG 31.1 s），
+ * 于是它们全部被判失败、整篇稿子永远停在「媒体未就绪」。出口快的机器（本机 8.9 s）不受影响，
+ * 慢出口的机器用 MEDIA_FETCH_TIMEOUT_MS 调到 45–60 秒即可，不必改代码。
+ * 读坏了回默认值：一个笔误不能把取图超时设成 0 或一天。
+ */
+export function mediaFetchTimeoutMs(raw: string | undefined = process.env.MEDIA_FETCH_TIMEOUT_MS): number {
+  // 只认纯数字：`1e5`、`45 s` 这类写法容易被读成「五天」，宁可回默认值。
+  if (raw === undefined || !/^\d+$/.test(raw.trim())) return 20_000;
+  const n = Number(raw.trim());
+  return Number.isSafeInteger(n) && n >= 5_000 && n <= 120_000 ? n : 20_000;
+}
+
 export async function fetchImageOriginal(url: string, fetcher = guardedFetch): Promise<GuardedResponse> {
   // Old signed URLs and persisted media must recover too; verify signatures before this fetch layer.
   url = normalizeSourceImageUrl(url);
-  const options = { timeoutMs: 20_000, maxBytes: 15 * 1024 * 1024, headers: { accept: "image/avif,image/webp,image/*,*/*;q=0.8" } };
+  const options = { timeoutMs: mediaFetchTimeoutMs(), maxBytes: 15 * 1024 * 1024, headers: { accept: "image/avif,image/webp,image/*,*/*;q=0.8" } };
   let res = await fetcher(url, options);
   // Measured on this journal's newly published figures: the CDN caches HTTP 200 with zero bytes
   // and text/html, although the original PNG exists. Retry the same path once outside that cache;
