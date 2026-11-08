@@ -89,6 +89,13 @@ export function assertContentExecutorValves(): void {
   }
 }
 
+/** 采集节点只出网抓 feed，不跑模型也不写分析结果；它只要采集阀门打开。 */
+export function assertFetcherValves(): void {
+  if (!env.COLLECT_ENABLED || !isCollectEnabled()) {
+    throw new Error("fetcher requires explicit COLLECT_ENABLED=true");
+  }
+}
+
 /** A public-page helper must not silently acquire a paid fallback or an analysis consumer. */
 export function assertExtractionExecutorValves(): void {
   if (!env.COLLECT_ENABLED || !isCollectEnabled() || env.MODEL_CALLS_ENABLED !== "false"

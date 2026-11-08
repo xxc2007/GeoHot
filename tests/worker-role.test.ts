@@ -44,3 +44,13 @@ test("extraction executor cannot own analysis, schedules, or schema maintenance"
     max: 1, application_name: "aihot-jobs-extraction-executor", schedule: false, supervise: false, migrate: false, createSchema: false,
   });
 });
+
+test("采集节点只抓取：不碰模型、不注册抽取、不接管定时任务", () => {
+  assert.deepEqual(roles.workerPlan("fetcher"), {
+    role: "fetcher", content: false, extraction: false, coordinator: false, heartbeat: "fetcher",
+  });
+  // 采集节点必须和内容执行器一样关掉 pg-boss 的 schedule/supervise：定时任务只允许 coordinator 拥有。
+  assert.deepEqual(roles.bossOptions("fetcher" as roles.WorkerRole, "3"), {
+    max: 3, application_name: "aihot-jobs-fetcher", schedule: false, supervise: false, migrate: false, createSchema: false,
+  });
+});

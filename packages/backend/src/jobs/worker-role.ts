@@ -1,17 +1,17 @@
 // Pure startup policy, shared by the queue client and the worker entrypoint. No database imports.
-export type WorkerRole = "all" | "coordinator" | "content-executor" | "extraction-executor";
+export type WorkerRole = "all" | "coordinator" | "content-executor" | "extraction-executor" | "fetcher";
 
 export function workerPlan(raw: string | undefined = process.env.WORKER_ROLE) {
   const role = raw?.trim() || "all";
-  if (role !== "all" && role !== "coordinator" && role !== "content-executor" && role !== "extraction-executor") {
-    throw new Error("WORKER_ROLE must be all, coordinator, content-executor or extraction-executor");
+  if (role !== "all" && role !== "coordinator" && role !== "content-executor" && role !== "extraction-executor" && role !== "fetcher") {
+    throw new Error("WORKER_ROLE must be all, coordinator, content-executor, extraction-executor or fetcher");
   }
   return {
     role: role as WorkerRole,
     content: role === "all" || role === "content-executor",
-    extraction: role !== "coordinator",
+    extraction: role !== "coordinator" && role !== "fetcher",
     coordinator: role === "all" || role === "coordinator",
-    heartbeat: role.endsWith("-executor") ? role : "worker",
+    heartbeat: role.endsWith("-executor") || role === "fetcher" ? role : "worker",
   };
 }
 
@@ -24,7 +24,8 @@ export function poolSize(raw: string | undefined, name: string, fallback: number
 
 export function bossOptions(role = workerPlan().role, raw: string | undefined = process.env.PGBOSS_POOL_MAX) {
   const max = poolSize(raw, "PGBOSS_POOL_MAX", 4);
-  return role.endsWith("-executor")
+  // fetcher 与 *-executor 一样是「只做自己那件事」的节点：不建表、不跑定时任务。
+  return role.endsWith("-executor") || role === "fetcher"
     ? { max, application_name: `aihot-jobs-${role}`, schedule: false, supervise: false, migrate: false, createSchema: false }
     : { max, application_name: "aihot-jobs" };
 }

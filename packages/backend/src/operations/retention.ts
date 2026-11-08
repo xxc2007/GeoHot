@@ -41,8 +41,13 @@ async function pruneCache(dir: string, maxAgeMs: number, now: number): Promise<n
  * had to be cancelled because the box was already at 99% I/O pressure. Id ranges walk the primary key
  * instead, one commit every 10k ids, so a batch reads kilobytes rather than gigabytes.
  */
+const RECEIPT_PAYLOAD_KEEP_MS = 24 * 3600_000;
+
 export async function pruneReceiptPayloads(now = new Date()): Promise<number> {
-  const cutoff = new Date(now.getTime() - 7 * 86400_000);
+  // 2026-11-08 二改：一周太长。结清回执的正文只在「同一逻辑请求马上重试」时有复用价值，
+  // 那发生在几分钟内；账单与成本都记在 usage/cost 列上，不依赖正文。留一天把稳态体积从
+  // 7 天份砍到 1 天份，主库那块慢盘的写放大才会真正降下来。
+  const cutoff = new Date(now.getTime() - RECEIPT_PAYLOAD_KEEP_MS);
   const span = 10_000;
   const [head] = await sql<{ max: string | null }[]>`SELECT max(id)::text AS max FROM receipts`;
   const top = Number(head?.max ?? 0);

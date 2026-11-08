@@ -1,5 +1,5 @@
 // Worker process: queues and schedules for collection, processing, events, reports, monitors and ops.
-import { assertProductionSecrets, assertContentExecutorValves, assertExtractionExecutorValves, isCollectEnabled, positiveInt } from "@aihot/backend/config";
+import { assertProductionSecrets, assertContentExecutorValves, assertExtractionExecutorValves, assertFetcherValves, isCollectEnabled, positiveInt } from "@aihot/backend/config";
 import { FEATURES } from "@aihot/industry/features";
 import { closeDb, sql } from "@aihot/backend/db";
 import { getBoss, shutdownSignal, stopBoss } from "@aihot/backend/jobs/queue";
@@ -66,6 +66,7 @@ async function initialized<T>(operation: Promise<T>): Promise<T> {
 
 assertProductionSecrets(plan.coordinator ? [["auth", "IMG_PROXY_SIGN_SECRET"]] : []);
 if (plan.role === "extraction-executor") assertExtractionExecutorValves();
+else if (plan.role === "fetcher") assertFetcherValves();
 else if (!plan.coordinator) assertContentExecutorValves();
 
 if (stopping) await finishShutdown();
@@ -88,9 +89,14 @@ async function startQueue() {
 }
 const boss = await initialized(startQueue());
 if (plan.content) await initialized(registerContentJobs(boss, plan.coordinator ? undefined : positiveInt(process.env.ANALYZE_CONCURRENCY, "ANALYZE_CONCURRENCY", 4)));
-if (!plan.coordinator) {
+if (plan.extraction) {
   // COLLECT_ENABLED preserves waitsForPage semantics; this role never registers source polling.
   await initialized(registerExtractionJobs(boss, positiveInt(process.env.EXTRACT_CONCURRENCY, "EXTRACT_CONCURRENCY", 2)));
+} else if (plan.role === "fetcher") {
+  // 采集专用节点：只领取 sources.fetch / fetchXShard / mpCheck，不注册任何定时任务。
+  // 2026-11-08 现场：站点可达性受出口影响——杭州到 BBC / The Conversation 等常年 CONNECT_TIMEOUT，
+  // 而这两家正是「允许站内全文」的 260 个信源里的主力，海外出口的机器（box）抓它们才快。
+  if (isCollectEnabled()) await initialized(registerSourceJobs(boss, { includeExtraction: false }));
 } else {
   if (isCollectEnabled()) await initialized(registerSourceJobs(boss, { includeExtraction: plan.extraction }));
   await initialized(registerEventJobs(boss));
