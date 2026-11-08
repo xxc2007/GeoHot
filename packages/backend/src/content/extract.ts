@@ -14,6 +14,7 @@ import { contentHash } from "./materials.ts";
 import { shutdownSignal } from "../jobs/queue.ts";
 import * as cheerio from "cheerio";
 import {originalBodyDefect} from "./body-quality.ts";
+import { inferLanguage } from "./language.ts";
 
 function checkExtractionRunning(): void {
   if (shutdownSignal.signal.aborted) throw new Error("worker shutting down between extraction stages");
@@ -226,11 +227,15 @@ export async function extractArticleBody(articleId: string, allowJina = process.
   }
   // The body is new content: a new revision, so an analysis of the body-less input counts as stale.
   await sql.begin(async (tx) => {
-    const [row] = await tx<{ title: string; excerpt: string | null }[]>`SELECT title, excerpt FROM articles WHERE id = ${articleId} FOR UPDATE`;
+    const [row] = await tx<{ title: string; excerpt: string | null; language: string | null }[]>`SELECT title, excerpt, language FROM articles WHERE id = ${articleId} FOR UPDATE`;
     if (!row) return;
     const hash = contentHash({ title: row.title, bodyText: got.text, excerpt: row.excerpt });
+    // 信源没声明语言时，正文本就是最可靠的证据：这里兜底写一次，门禁才不会把每一篇都当成
+    // 「非中文、必须等全文翻译」（2026-11-08：24 小时 458 篇 language 全空，440 篇因此卡住）。
+    const language = row.language ?? inferLanguage(row.title, got.text);
     const [r] = await tx<{ revision: number }[]>`
       UPDATE articles SET body_html = ${got.html}, body_text = ${got.text}, body_status = 'ok',
+        language = coalesce(language, ${language}),
         media = CASE WHEN jsonb_array_length(media) = 0 THEN ${tx.json(got.images as never)}::jsonb ELSE media END,
         revision = revision + 1, content_hash = ${hash}, processing_state = 'new', updated_at = now()
       WHERE id = ${articleId} RETURNING revision`;
