@@ -11,12 +11,12 @@
 const IMG_TAG = /<img\b[^>]*>/gi;
 const SRC_ATTR = /\bsrc\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i;
 
+// 一次扫完所有实体：链式 replace 会把 `&amp;quot;` 解成 `"`（CodeQL js/double-escaping 也报了这一点），
+// 而这里只需要把 src 里的 `&amp;` 还原成 `&` 才能与取图时用的地址对上。
+const ENTITIES: Record<string, string> = { amp: "&", "#38": "&", quot: '"', "#39": "'", apos: "'" };
+
 function decodeEntities(value: string): string {
-  return value
-    .replace(/&amp;/g, "&")
-    .replace(/&#38;/g, "&")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'");
+  return value.replace(/&(amp|#38|quot|#39|apos);/g, (whole, name: string) => ENTITIES[name] ?? whole);
 }
 
 /** 取出 `<img>` 标签的 src（已解开实体），没有 src 时返回 null。 */
