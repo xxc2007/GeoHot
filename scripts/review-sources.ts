@@ -93,7 +93,7 @@ try {
         }
         await sql.begin(async (tx) => {
           await tx`DELETE FROM source_retirements WHERE source_id = ${row.id}`;
-          await tx`UPDATE sources SET enabled = true, health = unknown, next_fetch_at = now(), updated_at = now(),
+          await tx`UPDATE sources SET enabled = true, health = 'unknown', next_fetch_at = now(), updated_at = now(),
                      review_note = ${"复活：" + read.candidates.length + " 条；最新 " + (verdict.latest ?? "?") } WHERE id = ${row.id}`;
         });
         revived += 1;
