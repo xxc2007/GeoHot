@@ -1,0 +1,47 @@
+# /etc/systemd/system/geohot-media.service
+# 媒体预热专用进程（只跑 media.prepare，不注册任何 cron / 来源 / 通知）。
+#
+# 为什么单独一支：
+#   * 取图是网络活，一条稿件十几张图、每张 3 次重试，跑起来能占住十几分钟；和 content.analyze
+#     挤在同一条 processing lane 时，分析会整段时间拿不到名额（2026-11-08 生产实测）。
+#   * `WORKER_ROLE=media` 在 packages/backend/src/jobs/worker-role.ts 里只注册 registerMediaJobs，
+#     因此给它单独的资源上限是安全的，不会顺带把 cron 抢过来。
+#
+# 资源约束按「主库只有 891 MB / 2 vCPU / 单盘」写：
+#   * MEDIA_CONCURRENCY=1：一次只准备一篇，避免同时开几十个下载把磁盘和网络一起打满；
+#   * MEDIA_FETCH_TIMEOUT_MS=60000：实测同一张 copernicus PNG 在服务器要 28–31 秒，
+#     原来写死的 20 秒在服务器上等于 100% 超时；
+#   * Nice=10 + IOSchedulingClass=idle：读者请求永远排在它前面。
+#
+# 想停就 `systemctl stop geohot-media`；它没有 timer，停了就是彻底不取图（稿件的图会一直
+# 停在「未就绪」，读者面看不到该篇 —— 这是有意的严格模式）。
+[Unit]
+Description=GeoHot media warm-up worker (images only; strict mode)
+After=network-online.target postgresql@17-main.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=geohot
+Group=geohot
+WorkingDirectory=/opt/geohot/app
+EnvironmentFile=/opt/geohot/app/.env
+Environment=WORKER_ROLE=media
+Environment=MEDIA_CONCURRENCY=1
+Environment=MEDIA_FETCH_TIMEOUT_MS=60000
+Environment=PGBOSS_POOL_MAX=4
+ExecStart=/usr/bin/node --env-file=/opt/geohot/app/.env apps/worker/src/main.ts
+Restart=always
+RestartSec=20
+Nice=10
+IOSchedulingClass=idle
+MemoryHigh=220M
+MemoryMax=300M
+CPUQuota=70%
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/geohot/app
+
+[Install]
+WantedBy=multi-user.target
