@@ -26,6 +26,7 @@ import { listReports, loadReport, reportNavigation, loadReportNavigation, loadRe
 import { loadSiteCodexResetPage, loadSiteCodexResetDay } from "@aihot/backend/publication/monitor";
 import { codexResetVersion } from "@aihot/backend/monitor/read";
 import { cached } from "@aihot/backend/lib/cache";
+import { MicroCache } from "@aihot/backend/lib/micro-cache";
 import { looseQuery, sendJsonWithEtag, sendProblem } from "../http/respond.ts";
 
 type Handler = (req: FastifyRequest, reply: FastifyReply) => Promise<unknown>;
@@ -51,6 +52,18 @@ export function cacheUntil(reply: FastifyReply, defaultSeconds: number, refreshA
 // 页面至少是「几分钟前的首页」，而不是空白或错误页。
 const POOL_STALE_MS = 10 * 60_000;
 const poolStale = new Map<string, { body: unknown; at: number }>();
+// 2026-11-08：列表页每次冷读都要 Postgres 算一遍（实测 0.6–1.1 秒，其中 2.7 万行扫描 + 每行一次
+// readiness 探针）。同一页在 45 秒内被重复打开是常态（读者回退、手机切页、爬虫按分类组合走），
+// 而列表在 45 秒内几乎不会变。所以给自己留一份：45 秒内直出，3 分钟内先给旧的再后台刷新，
+// 键数封顶 80 个（翻页与筛选的组合再多也不会把内存吃掉）。
+const POOL_FRESH_MS = 45_000;
+const POOL_SERVE_MS = 3 * 60_000;
+const poolCache = new MicroCache<{ data: Awaited<ReturnType<typeof loadPool>> }>({
+  freshMs: POOL_FRESH_MS,
+  staleMs: POOL_SERVE_MS,
+  maxEntries: 80,
+});
+const poolRefreshing = new Set<string>();
 const TIMELINE_STALE_MS = 10 * 60_000;
 const timelineStale = new Map<string, { body: unknown; at: number }>();
 
@@ -158,21 +171,46 @@ export function registerSite(app: FastifyInstance) {
     // ——否则读者从旧链接进来会看到一整片不属于那一天的卡片（2026-10-11 评审波实测的就是这个）。
     if (q.date !== undefined && !isDay(q.date)) throw new BadRequest("invalid date");
     const staleKey = JSON.stringify({ ...filters, q: search, tab, page, date: q.date ?? null });
+    const etagOf = (value: { data: Awaited<ReturnType<typeof loadPool>> }) => {
+      const { generatedAt: _, ...content } = value.data;
+      return content;
+    };
+    const hit = poolCache.read(staleKey);
+    if (hit?.fresh) {
+      reply.header("x-aihot-cache", "hit");
+      return sendJsonWithEtag(req, reply, hit.data.data, { etagPrefix: "pool", cacheControl: "public, max-age=45, s-maxage=45", etagOf: etagOf(hit.data) });
+    }
+    if (hit?.stale) {
+      // 先给读者手上的这份，再在后台换新的：读者不等数据库，下一次请求就是新的。
+      if (!poolRefreshing.has(staleKey)) {
+        poolRefreshing.add(staleKey);
+        void loadPool({ ...filters, q: search, tab, page, date: q.date ?? null })
+          .then((fresh) => {
+            poolCache.write(staleKey, { data: fresh });
+            poolStale.set(staleKey, { body: fresh, at: Date.now() });
+          })
+          .catch(() => {})
+          .finally(() => poolRefreshing.delete(staleKey));
+      }
+      reply.header("x-aihot-cache", "stale");
+      return sendJsonWithEtag(req, reply, hit.data.data, { etagPrefix: "pool", cacheControl: "public, max-age=45, s-maxage=45", etagOf: etagOf(hit.data) });
+    }
     let data: Awaited<ReturnType<typeof loadPool>>;
     try {
       data = await loadPool({ ...filters, q: search, tab, page, date: q.date ?? null });
     } catch (error) {
-      const hit = poolStale.get(staleKey);
-      if (hit && Date.now() - hit.at <= POOL_STALE_MS) {
+      const previous = poolStale.get(staleKey);
+      if (previous && Date.now() - previous.at <= POOL_STALE_MS) {
         reply.header("Retry-After", "2");
         reply.header("x-aihot-stale", "1");
-        return sendJsonWithEtag(req, reply, hit.body, { etagPrefix: "pool-stale", cacheControl: "no-cache" });
+        return sendJsonWithEtag(req, reply, previous.body, { etagPrefix: "pool-stale", cacheControl: "no-cache" });
       }
       throw error;
     }
+    poolCache.write(staleKey, { data });
     poolStale.set(staleKey, { body: data, at: Date.now() });
     const { generatedAt: _, ...content } = data;
-    return sendJsonWithEtag(req, reply, data, { etagPrefix: "pool", cacheControl: "public, max-age=60, s-maxage=60", etagOf: content });
+    return sendJsonWithEtag(req, reply, data, { etagPrefix: "pool", cacheControl: "public, max-age=45, s-maxage=45", etagOf: content });
   }));
 
   // 日历入口的数据：某个月里哪几天有内容、哪几天出过日报。前端只拿到稀疏的有内容的日子，

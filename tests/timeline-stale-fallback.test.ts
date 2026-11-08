@@ -35,7 +35,13 @@ test("列表页（pool）也有同样的上一次兜底", () => {
   assert.match(source, /etagPrefix: "pool-stale"/);
   const at = source.indexOf("const staleKey = JSON.stringify({ ...filters, q: search");
   assert.ok(at > 0, "pool 处理器要在取数前算好 key");
-  const branch = source.slice(at, source.indexOf("poolStale.set(staleKey", at));
-  assert.ok(branch.includes("if (hit && Date.now() - hit.at <= POOL_STALE_MS)"));
+  // 2026-11-08：池子先走 45 秒的新鲜缓存，读库失败时仍要给「上一次的那份」。
+  // 判据跟着代码形状走：catch 里看 `previous`，没有旧值就把原错误抛出去。
+  const catchAt = source.indexOf("} catch (error) {", at);
+  assert.ok(catchAt > at, "取数失败要有 catch");
+  const branch = source.slice(catchAt, source.indexOf("poolCache.write(staleKey", catchAt));
+  assert.ok(branch.includes("const previous = poolStale.get(staleKey);"));
+  assert.ok(branch.includes("Date.now() - previous.at <= POOL_STALE_MS"));
+  assert.ok(branch.includes('reply.header("x-aihot-stale", "1")'), "兜底要告诉调用方这份是旧的");
   assert.ok(branch.includes("throw error;"), "没有旧值时照旧报错");
 });
