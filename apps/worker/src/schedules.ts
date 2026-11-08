@@ -62,7 +62,10 @@ export const SCHEDULES: Scheduled[] = [
   // Revisit minute-budget waits each minute; the single scan consumer keeps the 500-row/archive quota.
   { name: "content.sweep", cron: "* * * * *", expire: 240, run: sweepUnprocessed },
   // Full-text translations of newly selected items (model calls; off with MODEL_CALLS_ENABLED=false).
-  { name: "content.translate", cron: "*/3 * * * *", expire: 300, run: () => translatePending(balancedResources() ? { limit: 8, budgetMs: 150_000, deadlineAt: Date.now() + 180_000 } : {}) },
+  // 译文的节拍就是读者面的节拍：2026-11-08 实测 441 篇未就绪里 440 篇只差一份中文全文译文，
+  // 而旧节拍（每 3 分钟 8 篇）在资源宽裕时也只有 160 篇/小时的上限。宽裕时提到每 2 分钟 24 篇，
+  // 紧张时仍退回原来的 8 篇——闸门不变，只是不把「机器闲着」也当成紧张。
+  { name: "content.translate", cron: "*/2 * * * *", expire: 300, run: () => translatePending(balancedResources() ? { limit: 24, budgetMs: 110_000, deadlineAt: Date.now() + 120_000 } : { limit: 8, budgetMs: 150_000, deadlineAt: Date.now() + 180_000 }) },
   { name: "hot.rank", cron: "*/5 * * * *", expire: 300, run: () => computeHotRanking() },
   // 就绪行自愈：缺行的公开文章对读者永远不可见，而且页面上看不出异常（2026-11-07 丢了 404 篇）。
   // 每十分钟挑最新 40 篇重算一次，幂等、只写事实表、不发模型调用。
