@@ -336,7 +336,11 @@ export async function sweepUnprocessed(): Promise<{ enqueued: number; published:
       -- 只改"取哪 100 条"，不改份额、不改优先级、不多花一次调用。
       SELECT id, discovered_at, timeline_at, archive FROM eligible WHERE archive ORDER BY timeline_at, id LIMIT ${reserve}
     ), ordinary AS (
-      SELECT id, discovered_at, timeline_at, archive FROM eligible WHERE NOT archive ORDER BY discovered_at, id
+      -- 新鲜度分带：最近 24 小时内的稿子按「越新越前」排，先于陈稿；更老的仍按入库时刻从旧到新，
+      -- 保证回填与补录也能推进。2026-11-08 现场：新稿在 'new' 里排队两小时以上，读者面 5.5 小时不动，
+      -- 而同一时刻队列里 449 条 analyze 全在处理更老的稿子。
+      SELECT id, discovered_at, timeline_at, archive FROM eligible WHERE NOT archive
+      ORDER BY GREATEST(discovered_at, now() - interval '24 hours') DESC, discovered_at, id
       LIMIT (${limit} - (SELECT count(*) FROM reserved))
     ), remainder AS (
       SELECT id, discovered_at, timeline_at, archive FROM eligible WHERE archive AND id NOT IN (SELECT id FROM reserved)
