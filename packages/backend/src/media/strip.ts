@@ -44,3 +44,13 @@ export function stripImageSources(html: string, urls: readonly string[]): { html
   });
   return { html: removed > 0 ? next : html, removed };
 }
+
+/**
+ * 一张图为什么没取到，决定要不要跳过它（站长 2026-11-08 选 A）：
+ * - `refused`：源站自己拒绝（403/404/410/451）。谁都取不到，读者也看不到，跳过这张是唯一合理的处置；
+ * - `transient`：超时、连接被掐、5xx——换个时间或换台出口机器就能取到，严格模式继续重试，不跳。
+ * 判据只看取图这一层抛出来的消息（`packages/backend/src/media/images.ts` 里是 `upstream <status>`）。
+ */
+export function classifyRenditionFailure(message: string): "refused" | "transient" {
+  return /upstream (403|404|410|451)\b/.test(message) ? "refused" : "transient";
+}

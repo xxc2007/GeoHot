@@ -5,7 +5,7 @@
 import { convertAnimated, produceImage } from "./images.ts";
 import { loadItemForMediaPreparation } from "../publication/detail.ts";
 import { sql } from "../db.ts";
-import { stripImageSources } from "./strip.ts";
+import { classifyRenditionFailure, stripImageSources } from "./strip.ts";
 import { publishArticleTx } from "../publication/publish.ts";
 import { bodyMediaFingerprint, bodyMediaRequiredCondition } from "../publication/media-readiness.ts";
 
@@ -53,6 +53,7 @@ export async function prepareArticleMedia(articleId: string, dependencies: {
   let failed = renditions.length ? 0 : 1;
   let animatedSaved = 0;
   const failedUrls: string[] = [];
+  const refusedUrls: string[] = [];
   for (const { url, mode } of renditions) {
     // 2026-11-07 现场：1,851 条 `media.prepare` 失败，其中 1,581 条的原因只有一句
     // 「1 rendition failure(s)」——源站瞬时的超时/防盗链被一次 catch 吞掉，既没有重试也没有 URL，
@@ -67,6 +68,7 @@ export async function prepareArticleMedia(articleId: string, dependencies: {
         if (attempt === 3) {
           failed += 1;
           failedUrls.push(url);
+          if (classifyRenditionFailure((error as Error)?.message ?? String(error)) === "refused") refusedUrls.push(url);
           console.error(JSON.stringify({ level: 40, component: "media", event: "rendition-failed", articleId, mode, url: url.slice(0, 200), message: (error as Error)?.message ?? String(error) }));
         } else {
           await new Promise(resolve => setTimeout(resolve, attempt === 1 ? 300 : 1_200));
@@ -80,18 +82,22 @@ export async function prepareArticleMedia(articleId: string, dependencies: {
   // 严格模式（站长 2026-11-08）：默认不摘图——图取不到就继续重试，绝不拿「没有图的稿子」换读者。
   // 只有显式设 GEOHOT_MEDIA_STRIP_DEAD=1 才恢复 11-08 那次的兜底行为。
   const stripAll = process.env.GEOHOT_MEDIA_STRIP_DEAD === "1" && failed > 0 && failed === renditions.length;
+  // 站长 2026-11-08 选的是 A：源站自己 403/410 拒绝的图，跳过它、保留其余真图后发布；
+  // 超时/连接被掐这类可恢复的失败仍然严格重试，一张都不跳。
+  const stripRefused = refusedUrls.length > 0;
+  const strippedUrls = stripAll ? failedUrls : stripRefused ? refusedUrls : [];
   const ready = await sql.begin(async tx => {
     // Lock before publishing and recheck the exact body: a slow image fetch cannot bless a newer HTML.
     await tx`SELECT id FROM articles WHERE id=${articleId} FOR UPDATE`;
     let bless = input.fingerprint;
     let effectiveFailed = failed;
-    if (stripAll) {
+    if (strippedUrls.length > 0) {
       const [article] = await tx<{ body_html: string | null }[]>`SELECT body_html FROM articles WHERE id=${articleId}`;
-      const fromArticle = stripImageSources(article?.body_html ?? "", failedUrls);
+      const fromArticle = stripImageSources(article?.body_html ?? "", strippedUrls);
       if (fromArticle.removed > 0) await tx`UPDATE articles SET body_html=${fromArticle.html} WHERE id=${articleId}`;
       const [translation] = await tx<{ body_html: string | null }[]>`
         SELECT body_html FROM translations WHERE article_id=${articleId} AND lang='zh' AND revision=${row.article_revision}`;
-      const fromTranslation = stripImageSources(translation?.body_html ?? "", failedUrls);
+      const fromTranslation = stripImageSources(translation?.body_html ?? "", strippedUrls);
       if (fromTranslation.removed > 0) {
         await tx`UPDATE translations SET body_html=${fromTranslation.html}
           WHERE article_id=${articleId} AND lang='zh' AND revision=${row.article_revision}`;
@@ -100,8 +106,8 @@ export async function prepareArticleMedia(articleId: string, dependencies: {
       if (removed > 0) {
         const [after] = await tx<{ fingerprint: string }[]>`SELECT ${bodyMediaFingerprint()} AS fingerprint FROM articles ready_a WHERE ready_a.id=${articleId}`;
         bless = after?.fingerprint ?? input.fingerprint;
-        effectiveFailed = 0;
-        console.error(JSON.stringify({ level: 40, component: "media", event: "media-stripped", articleId, removed, urls: failedUrls.length }));
+        effectiveFailed = failed - strippedUrls.length;
+        console.error(JSON.stringify({ level: 40, component: "media", event: "media-stripped", articleId, removed, urls: strippedUrls.length, refused: refusedUrls.length, transient: failed - refusedUrls.length }));
       }
     }
     const [current] = await tx<{ fingerprint: string }[]>`SELECT ${bodyMediaFingerprint()} AS fingerprint FROM articles ready_a WHERE ready_a.id=${articleId}`;
