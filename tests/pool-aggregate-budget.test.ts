@@ -18,7 +18,9 @@ test("聚合查询限两条并发", () => {
 
 test("聚合查询带语句超时", () => {
   assert.match(source, /const AGGREGATE_TIMEOUT_MS = 15_000;/);
-  assert.match(source, /await tx`SET LOCAL statement_timeout = \$\{AGGREGATE_TIMEOUT_MS\}`/);
+  // `SET` 不吃绑定参数：`SET LOCAL x = $1` 是语法错误（CI 上曾把 /all 打成 503），必须用 unsafe 拼常量。
+  assert.match(source, /await tx\.unsafe\(`SET LOCAL statement_timeout = \$\{AGGREGATE_TIMEOUT_MS\}`\)/);
+  assert.doesNotMatch(source, /tx`SET LOCAL statement_timeout/);
 });
 
 test("超时或超预算时退回上一次的数字", () => {

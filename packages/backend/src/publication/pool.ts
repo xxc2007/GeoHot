@@ -128,7 +128,9 @@ async function budgetedAggregate<T>(build: (client: typeof sql) => Promise<T>): 
   aggregateActive += 1;
   try {
     return await sql.begin(async (tx) => {
-      await tx`SET LOCAL statement_timeout = ${AGGREGATE_TIMEOUT_MS}`;
+      // `SET` 不吃绑定参数（`SET LOCAL x = $1` 直接语法错误，2026-11-09 CI 上把 `/all` 打成 503），
+      // 值是我们自己的常量，用 unsafe 拼进去才是对的写法。
+      await tx.unsafe(`SET LOCAL statement_timeout = ${AGGREGATE_TIMEOUT_MS}`);
       return build(tx as unknown as typeof sql);
     }) as T;
   } finally {
@@ -180,7 +182,9 @@ async function poolCount(
       return n;
     } catch (error) {
       if (hit && Date.now() - hit.at < STALE_FALLBACK_MS) return hit.n;
-      throw error;
+      // 连一次都没成功过：宁可把「共几条」当成 0（页面仍然画得出来），也不把 503 交给读者。
+      // 下一次请求会重新尝试；成功一次之后就靠上面那条陈旧值兜底了。
+      return 0;
     }
   })();
   countPending.set(key, load);
@@ -313,7 +317,10 @@ export async function loadPool(query: PoolQuery): Promise<PoolResponse> {
       WHERE ${listedCondition(now)} AND p.eligible AND p.published_at IS NOT NULL AND p.timeline_at >= ${beijingMidnight(today)} ${scoped}) AS today_count,
       (SELECT max(p.updated_at) FROM publications p
         WHERE ${listedCondition(now)} AND p.eligible ${filters}) AS updated_at`;
-  const meta = one(await cachedMeta(filterKey === null ? null : `${filterKey}|${today}`, loadMeta));
+  // 「今日 N 条」「更新于」两句话失败不该让整页 503：拿不到就写 0 条与当前时刻。
+  const meta = await cachedMeta(filterKey === null ? null : `${filterKey}|${today}`, loadMeta)
+    .then((rows) => one(rows))
+    .catch(() => ({ today_count: 0, updated_at: null as Date | null }));
 
   return {
     filters: { channel: query.channel, category: query.category, tag: query.tag, topic: query.topic ?? null, q, tab },
