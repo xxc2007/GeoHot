@@ -102,41 +102,86 @@ export function publicMatchCondition(terms: string[]) {
 }
 
 /**
- * 30 秒缓存，给「只影响屏上说明文字」的聚合用（页数、今日条数、更新于）。`key === null` 时不缓存
+ * 聚合缓存，给「只影响屏上说明文字」的查询用（页数、今日条数、更新于）。`key === null` 时不缓存
  * —— 固定时钟（测试、回放）必须每次真查，否则同一进程里两次调用会拿到同一份结果。
+ *
+ * 2026-11-09 生产事故后改的三处：
+ *  1. 有效期 30 秒 → 10 分钟。这两句是 `count(*) FROM publications … EXISTS (readiness)`，
+ *     主库磁盘打满时单次要 3–5 分钟；30 秒的缓存等于每 30 秒再点一把火，几分钟内堆到 18 条
+ *     同时在跑，磁盘再也回不来（`io some avg10` 连续 40 分钟 98 以上）。
+ *  2. 全局同时最多两条聚合查询（`slowQueryActive`），超出的直接走陈旧值 —— 页面宁可写五分钟前的
+ *     「今日 12 条」，也不能再加一条三分钟的扫表。
+ *  3. 每条聚合带 15 秒 `statement_timeout`。超时不再抛给读者，而是退回上一次的结果（最长 24 小时），
+ *     读者永远看得到页面，只是数字旧。
  */
+const META_TTL_MS = 10 * 60_000;
+const COUNT_TTL_MS = 10 * 60_000;
+const STALE_FALLBACK_MS = 24 * 3600_000;
+const AGGREGATE_TIMEOUT_MS = 15_000;
+const AGGREGATE_CONCURRENCY = 2;
+
+let aggregateActive = 0;
+
+/** 受预算约束的聚合查询：限并发 + 语句超时。`build` 拿到的是一条新连接（`sql.begin` 的 tx）。 */
+async function budgetedAggregate<T>(build: (client: typeof sql) => Promise<T>): Promise<T> {
+  if (aggregateActive >= AGGREGATE_CONCURRENCY) throw new Error("aggregate budget busy");
+  aggregateActive += 1;
+  try {
+    return await sql.begin(async (tx) => {
+      await tx`SET LOCAL statement_timeout = ${AGGREGATE_TIMEOUT_MS}`;
+      return build(tx as unknown as typeof sql);
+    }) as T;
+  } finally {
+    aggregateActive -= 1;
+  }
+}
+
 const metaCache = new Map<string, { at: number; value: unknown }>();
 const metaPending = new Map<string, Promise<unknown>>();
-async function cachedMeta<T>(key: string | null, query: () => Promise<T[]>): Promise<T[]> {
-  if (key === null) return query();
+async function cachedMeta<T>(key: string | null, build: (client: typeof sql) => Promise<T[]>): Promise<T[]> {
+  if (key === null) return build(sql);
   const hit = metaCache.get(key);
-  if (hit && Date.now() - hit.at < 30_000) return hit.value as T[];
+  if (hit && Date.now() - hit.at < META_TTL_MS) return hit.value as T[];
   const pending = metaPending.get(key);
   if (pending) return pending as Promise<T[]>;
   const load = (async () => {
-    const rows = await query();
-    if (metaCache.size >= 200) metaCache.delete(metaCache.keys().next().value!);
-    metaCache.set(key, { at: Date.now(), value: rows });
-    return rows;
+    try {
+      const rows = await budgetedAggregate(build);
+      if (metaCache.size >= 200) metaCache.delete(metaCache.keys().next().value!);
+      metaCache.set(key, { at: Date.now(), value: rows });
+      return rows;
+    } catch (error) {
+      // 超时、并发超预算、库暂时不可用时，把上一次的数字再交出去一次。
+      if (hit && Date.now() - hit.at < STALE_FALLBACK_MS) return hit.value as T[];
+      throw error;
+    }
   })();
   metaPending.set(key, load);
   try { return await load; } finally { metaPending.delete(key); }
 }
 
-/** Unfiltered-by-search totals only set the page count; they are reused for 30 seconds per filter. */
+/** 分页总数只影响「第几页 / 共几页」；十分钟内复用，超时退回上一次的值。 */
 const countCache = new Map<string, { at: number; n: number }>();
 const countPending = new Map<string, Promise<number>>();
-async function poolCount(key: string | null, query: () => Promise<Array<{ n: number }>>): Promise<number> {
-  if (key === null) return Number(one(await query()).n);
+async function poolCount(
+  key: string | null,
+  build: (client: typeof sql) => Promise<Array<{ n: number }>>,
+): Promise<number> {
+  if (key === null) return Number(one(await build(sql)).n);
   const hit = countCache.get(key);
-  if (hit && Date.now() - hit.at < 30_000) return hit.n;
+  if (hit && Date.now() - hit.at < COUNT_TTL_MS) return hit.n;
   const pending = countPending.get(key);
   if (pending) return pending;
   const load = (async () => {
-    const n = Number(one(await query()).n);
-    if (countCache.size >= 200) countCache.delete(countCache.keys().next().value!);
-    countCache.set(key, { at: Date.now(), n });
-    return n;
+    try {
+      const n = Number(one(await budgetedAggregate(build)).n);
+      if (countCache.size >= 200) countCache.delete(countCache.keys().next().value!);
+      countCache.set(key, { at: Date.now(), n });
+      return n;
+    } catch (error) {
+      if (hit && Date.now() - hit.at < STALE_FALLBACK_MS) return hit.n;
+      throw error;
+    }
   })();
   countPending.set(key, load);
   try { return await load; } finally { countPending.delete(key); }
@@ -195,7 +240,7 @@ export async function loadPool(query: PoolQuery): Promise<PoolResponse> {
           ORDER BY p.timeline_at DESC, p.article_id DESC LIMIT ${POOL_PAGE_SIZE} OFFSET ${offset})
         SELECT ${ITEM_COLUMNS} ${ITEM_FROM} WHERE p.article_id IN (SELECT article_id FROM page)
         ORDER BY p.timeline_at DESC, p.article_id DESC`;
-      return { rows, total: await poolCount(filterKey, () => db<{ n: number }[]>`
+      return { rows, total: await poolCount(filterKey, (client) => client<{ n: number }[]>`
         SELECT count(*) AS n FROM (SELECT 1 FROM publications p WHERE ${listedCondition(now)} AND p.eligible ${filters} LIMIT ${cap}) t`) };
     }
     if (tab === "relevance") {
@@ -263,7 +308,7 @@ export async function loadPool(query: PoolQuery): Promise<PoolResponse> {
   // 于是每次取样都要把 `publications` 里 6.5 万条 eligible 行逐条去 readiness 里探一次（2026-11-06 生产实测
   // 单次 4.8–52 秒，`pg_stat_activity` 里常年挂着两三条）。首屏每渲染一次就跑一遍是不可接受的，而它们只是
   // 屏上的两句说明文字（「今日 N 条」「更新于」），30 秒的陈旧完全看不出来 —— 与下面的 `poolCount` 同一把尺子。
-  const loadMeta = () => sql<{ today_count: number; updated_at: Date | null }[]>`
+  const loadMeta = (client: typeof sql) => client<{ today_count: number; updated_at: Date | null }[]>`
     SELECT (SELECT count(*) FROM publications p
       WHERE ${listedCondition(now)} AND p.eligible AND p.published_at IS NOT NULL AND p.timeline_at >= ${beijingMidnight(today)} ${scoped}) AS today_count,
       (SELECT max(p.updated_at) FROM publications p

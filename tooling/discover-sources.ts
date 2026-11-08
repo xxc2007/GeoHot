@@ -182,7 +182,22 @@ async function candidatesFromSearch(search: { query: string; endpoint: string; k
 }
 
 function nameFor(feedUrl: string): string {
-  return hostOf(feedUrl) || "unknown-host";
+  const host = hostOf(feedUrl) || "unknown-host";
+  // 2026-11-09：同一个站点常常按栏目/学科各发一条 feed（nature.com/subjects/<学科>.rss、
+  // frontiersin.org/journals/<刊>/rss、copernicus 各刊）。名字里带上栏目，信源表才分得清；
+  // 去重键是 feed 地址，不是主机名，见 store()。
+  let tail = "";
+  try {
+    tail = new URL(feedUrl).pathname
+      .replace(/\/+$/, "")
+      .split("/")
+      .filter(Boolean)
+      .slice(-2)
+      .join("-");
+  } catch {
+    tail = "";
+  }
+  return (tail ? `${host}/${tail}` : host).slice(0, 120);
 }
 
 function idFor(feedUrl: string, address: string): string {
@@ -200,8 +215,7 @@ async function store(address: string, feed: Probe, via: string): Promise<"insert
   const candidates = [feedKey, addressKey(address), feed.feedUrl, address];
   const existing = await sql<{ id: string }[]>`
     SELECT id FROM sources
-    WHERE name = ${name}
-       OR coalesce(config->>'url', config->>'feedUrl') = ANY(${candidates}::text[])
+    WHERE coalesce(config->>'url', config->>'feedUrl') = ANY(${candidates}::text[])
     LIMIT 1`;
   if (existing.length) {
     console.error(`skip ${address}: 已存在 ${existing[0]!.id}`);
