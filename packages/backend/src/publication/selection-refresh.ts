@@ -19,9 +19,16 @@ export interface SelectionRefreshReport {
 
 export async function refreshSelection(windowHours = 36): Promise<SelectionRefreshReport> {
   // 补选：公开 + 全文 + 就绪 + 近期，且从未被裁定过。
+  //
+  // `visible_after` 必须一起写（2026-11-14 现场）：读者门禁是 `NOT p.selected OR p.visible_after <= now()`，
+  // 只看 `selected` 与 `visible_after` 两个列。补选只置 `selected = true` 而 `visible_after` 仍是 NULL 时，
+  // 整个条件求值为 NULL —— 条目永远不放行，而且 `selected_ready_at` 已被写死，`publish.ts` 里那段
+  // 「首次满足精选条件才算释放时间」的逻辑以后再也不会补上它。生产上 248 条这样卡住（今天 39 条就绪里 27 条）。
+  // 补选的都是「已经公开、已经全文、已经就绪」的条目，本来就是读者能看的，所以直接给当前时刻。
   const promoted = await sql<{ article_id: string }[]>`
     update publications p
-       set selected = true, selected_ready_at = now(), updated_at = now()
+       set selected = true, selected_ready_at = now(),
+           visible_after = coalesce(p.visible_after, now()), updated_at = now()
      where p.selected = false
        and p.selected_ready_at is null
        and p.visibility = 'public'

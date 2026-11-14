@@ -66,7 +66,7 @@ async function groupPool(q: TimelineQuery, now: Date, storyIds: number[], factId
 
 /**
  * The selected set grouped into cards (fact or standalone item) with their anchor times, newest
- * first. Every timeline page, day count and "new items" probe reads this list; it is kept for five
+ * first. Every timeline page, day count and "new items" probe reads this list; it is kept for thirty
  * seconds per filter scope, and for no longer than the earliest release still waiting in that scope.
  *
  * The anchors and that deadline come from one read on purpose. Read separately, the deadline could be
@@ -75,11 +75,13 @@ async function groupPool(q: TimelineQuery, now: Date, storyIds: number[], factId
  */
 interface GroupedSnapshot {
   readAt: number;
-  /** When this snapshot stops being true: the 5 s window or the next release, whichever is sooner. */
+  /** When this snapshot stops being true: the 30 s window or the next release, whichever is sooner. */
   until: number;
   refreshAt: string | null;
   rows: Array<{ gk: string; anchor: number }>;
 }
+// 2026-11-14：5 秒 → 30 秒。主库被后台分析压着时这条聚合要 2–6 秒，5 秒窗口等于「一直在冷算」。
+const SNAPSHOT_TTL_MS = 30_000;
 const groupedCache = new Map<string, GroupedSnapshot>();
 const groupedPending = new Map<string, Promise<GroupedSnapshot>>();
 async function groupedSnapshot(q: TimelineQuery, now: Date): Promise<GroupedSnapshot> {
@@ -122,7 +124,11 @@ async function queryGroupedAnchors(q: TimelineQuery, now: Date): Promise<Grouped
     refreshAt: waiting ? waiting.toISOString() : null,
     // A release a millisecond away must not turn every page view into a fresh grouped read; one second is
     // far below the reader-visible difference and keeps the probe honest about the next one.
-    until: waiting ? Math.max(readAt + 1000, Math.min(readAt + 5000, waiting.getTime())) : readAt + 5000,
+    //
+    // 2026-11-14：原来只保鲜 5 秒。主库被后台分析压着时这条聚合要 2–6 秒，于是「每 5 秒就有一次
+    // 冷算」——手机首屏在 3.5–7.7 秒之间打转，而内容其实一分钟内不会变。放宽到 30 秒，仍然严格
+    // 服从 `refreshAt`（下一条精选要发布的那一刻），所以不会让读者错过新稿。
+    until: waiting ? Math.max(readAt + 1000, Math.min(readAt + SNAPSHOT_TTL_MS, waiting.getTime())) : readAt + SNAPSHOT_TTL_MS,
     rows: rows.filter((r) => r.gk !== null && r.anchor_at !== null).map((r) => ({ gk: r.gk!, anchor: r.anchor_at!.getTime() })),
   };
 }

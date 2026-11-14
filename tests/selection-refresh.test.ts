@@ -14,6 +14,11 @@ test("补选只动从未被裁定过的全文就绪条目", () => {
   assert.match(source, /r\.ready = true/);
 });
 
+test("补选必须同时写 visible_after，否则 selected 真但 visible_after 空，门禁永远不放行", () => {
+  // 读者门禁是 `NOT p.selected OR p.visible_after <= now()`；三值逻辑下 NULL 不等于 false。
+  assert.match(source, /visible_after = coalesce\(p\.visible_after, now\(\)\)/);
+});
+
 test("撤选只针对非全文的自动选中条目", () => {
   assert.match(source, /p\.body_mode <> 'full'/);
   assert.match(source, /set selected = false/);
