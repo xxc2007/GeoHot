@@ -1,0 +1,22 @@
+[Unit]
+Description=GeoHot box hold-awake (keep one MCP session alive so the box never idles into hibernation)
+Documentation=file:///opt/geohot/bin/box-hold.mjs
+After=network-online.target
+Wants=network-online.target
+# 常驻进程最怕被启动频率上限打死（box 上就踩过 StartLimitBurst），这里直接关掉上限
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/node /opt/geohot/bin/box-hold.mjs
+Restart=always
+RestartSec=10
+Nice=10
+IOSchedulingClass=idle
+MemoryMax=128M
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
