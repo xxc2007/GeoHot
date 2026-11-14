@@ -72,9 +72,14 @@ test("the pool route actually reads, writes and revalidates through the cache", 
   assert.match(source, /freshMs: POOL_FRESH_MS/);
   assert.match(source, /if \(hit\?\.fresh\)/);
   assert.match(source, /poolCache\.write\(staleKey, \{ data \}\);/);
-  // The stale branch must hand the reader a value *before* awaiting the refresh.
-  const stale = source.slice(source.indexOf("if (hit?.stale)"), source.indexOf("let data: Awaited<ReturnType<typeof loadPool>>;"));
-  assert.match(stale, /void loadPool\(/);
+  // The stale branch must hand the reader a value *before* awaiting the refresh. 2026-11-14：刷新那段
+  // 抽成了 `refreshPool`（落盘底稿也要用它），所以这里改盯「stale 分支只调用、不 await」+
+  // 「refreshPool 自己在后台跑」两条，检查的东西和以前一样：读者不等刷新。
+  const stale = source.slice(source.indexOf("if (hit?.stale)"), source.indexOf("// 内存里没有"));
+  assert.match(stale, /refreshPool\(staleKey, args\);/);
+  assert.ok(!/await refreshPool\(/.test(stale), "the stale branch must not make the reader wait for the refresh");
   assert.match(stale, /return sendJsonWithEtag\(req, reply, hit\.data\.data/);
-  assert.ok(!/await loadPool\(/.test(stale), "the stale branch must not make the reader wait for the refresh");
+  const refresh = source.slice(source.indexOf("function refreshPool"), source.indexOf("const TIMELINE_STALE_MS"));
+  assert.match(refresh, /void loadPool\(/);
+  assert.match(refresh, /writePoolSnapshot/);
 });
