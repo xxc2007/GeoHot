@@ -4,7 +4,7 @@ import { FEATURES } from "@aihot/industry/features";
 import { closeDb, sql } from "@aihot/backend/db";
 import { getBoss, shutdownSignal, stopBoss } from "@aihot/backend/jobs/queue";
 import { registerContentJobs, registerExtractionJobs } from "@aihot/backend/jobs/content";
-import { workerPlan } from "@aihot/backend/jobs/worker-role";
+import { jobGroups, workerPlan } from "@aihot/backend/jobs/worker-role";
 import { registerSourceJobs } from "@aihot/backend/jobs/sources";
 import { registerEventJobs } from "@aihot/backend/jobs/events";
 import { registerMediaJobs, registerNotifyJobs } from "@aihot/backend/jobs/notify";
@@ -88,25 +88,23 @@ async function startQueue() {
   }
 }
 const boss = await initialized(startQueue());
-if (plan.content) await initialized(registerContentJobs(boss, plan.coordinator ? undefined : positiveInt(process.env.ANALYZE_CONCURRENCY, "ANALYZE_CONCURRENCY", 4)));
-if (plan.extraction) {
-  // COLLECT_ENABLED preserves waitsForPage semantics; this role never registers source polling.
+const groups = jobGroups(plan.role);
+if (groups.content) await initialized(registerContentJobs(boss, plan.coordinator ? undefined : positiveInt(process.env.ANALYZE_CONCURRENCY, "ANALYZE_CONCURRENCY", 4)));
+if (groups.extraction && !groups.media) {
+  // COLLECT_ENABLED preserves waitsForPage semantics; the fetcher/media roles never register extraction.
   await initialized(registerExtractionJobs(boss, positiveInt(process.env.EXTRACT_CONCURRENCY, "EXTRACT_CONCURRENCY", 2)));
-} else if (plan.role === "fetcher") {
-  // 采集专用节点：只领取 sources.fetch / fetchXShard / mpCheck，不注册任何定时任务。
-  // 2026-11-08 现场：站点可达性受出口影响——杭州到 BBC / The Conversation 等常年 CONNECT_TIMEOUT，
-  // 而这两家正是「允许站内全文」的 260 个信源里的主力，海外出口的机器（box）抓它们才快。
-  if (isCollectEnabled()) await initialized(registerSourceJobs(boss, { includeExtraction: false }));
-} else if (plan.role === "media") {
+}
+if (groups.media) {
   // 取图专用节点：只领取 media.prepare。图片缓存是**本机磁盘**，所以这一路要跑在网站那台机器上才有意义。
   await initialized(registerMediaJobs(boss, positiveInt(process.env.MEDIA_CONCURRENCY, "MEDIA_CONCURRENCY", 3)));
-} else {
-  if (isCollectEnabled()) await initialized(registerSourceJobs(boss, { includeExtraction: plan.extraction }));
-  await initialized(registerEventJobs(boss));
-  await initialized(registerNotifyJobs(boss));
-  await initialized(registerPublicationJobs(boss));
-  await initialized(registerSchedules(boss));
+} else if (groups.source && isCollectEnabled()) {
+  // fetcher 只领取 sources.fetch / fetchXShard / mpCheck；协调节点顺带把抽取一起注册。
+  await initialized(registerSourceJobs(boss, { includeExtraction: false }));
 }
+if (groups.events) await initialized(registerEventJobs(boss));
+if (groups.notify) await initialized(registerNotifyJobs(boss));
+if (groups.publication) await initialized(registerPublicationJobs(boss));
+if (groups.schedules) await initialized(registerSchedules(boss));
 // A new site has no leaderboard until the first scheduled round: compute one now.
 if (plan.coordinator && FEATURES.leaderboard) {
   const [published] = await sql`SELECT 1 FROM lb_runs WHERE status = 'published' LIMIT 1`;
