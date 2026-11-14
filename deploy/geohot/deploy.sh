@@ -78,7 +78,10 @@ SSH_KNOWN="${GEOHOT_SSH_KNOWN_HOSTS:-}"
   exit 2
 }
 ssh_opts=(-o BatchMode=yes -o ConnectTimeout=25 -o ServerAliveInterval=30 -i "$SSH_KEY")
-[[ -n "$SSH_KNOWN" ]] && ssh_opts+=(-o UserKnownHostsFile="$SSH_KNOWN" -o HostKeyAlias=xxc2007.me)
+# 用 if 而不是 [[ ]] && …：set -e 下左侧为假会让整行返回 1，脚本静默退出（2026-11-14 第二次踩）。
+if [[ -n "$SSH_KNOWN" ]]; then
+  ssh_opts+=(-o UserKnownHostsFile="$SSH_KNOWN" -o HostKeyAlias=xxc2007.me)
+fi
 
 # 只做读者面的机器（/etc/geohot/readers-only）不该在部署时把 worker 拉起来：它一起来，这台 891MB
 # 的机器就把首页拖到超时（2026-11-06 实测 load 19.4、home 000）。验收那边已经认这个形态，这里
@@ -108,8 +111,9 @@ if (( PREBUILT )); then
     echo "✗ 本地 web 构建失败："; tail -12 "$local_stage/web-build.log"; exit 1
   fi
   tail -2 "$local_stage/web-build.log"
-  grep -q 'C:/Users' apps/web/build/server/index.js && {
-    echo "✗ 构建产物里混进了本机路径（BASE_PATH 被 MSYS 转成了 Windows 路径）" >&2; exit 1; }
+  if grep -q 'C:/Users' apps/web/build/server/index.js; then
+    echo "✗ 构建产物里混进了本机路径（BASE_PATH 被 MSYS 转成了 Windows 路径）" >&2; exit 1
+  fi
   web_pkg="$local_stage/web-build.tar.gz"
   tar czf "$web_pkg" -C apps/web build
   echo "web artifact: $(wc -c < "$web_pkg") bytes"
