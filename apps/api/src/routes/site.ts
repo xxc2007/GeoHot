@@ -87,6 +87,26 @@ function refreshPool(key: string, args: Parameters<typeof loadPool>[0]): void {
 }
 const TIMELINE_STALE_MS = 10 * 60_000;
 const timelineStale = new Map<string, { body: unknown; at: number }>();
+const timelineRefreshing = new Set<string>();
+
+/**
+ * 后台换一份新的时间线。
+ *
+ * 读者手上那一份已经交出去了（内存或落盘底稿），这一步只负责把下一份准备好：
+ * 成功就同时更新内存与落盘，失败就什么都不做——绝不能让后台刷新把响应拖住。
+ */
+function refreshTimeline(key: string, filters: FilterParams, cursor: string | null, limit: number, unfiltered: boolean): void {
+  if (timelineRefreshing.has(key)) return;
+  timelineRefreshing.add(key);
+  void loadTimeline({ ...filters, cursor, limit })
+    .then((fresh) => {
+      const body = { ...fresh, hot: null, hotAsOf: null, generatedAt: new Date().toISOString() };
+      timelineStale.set(key, { body, at: Date.now() });
+      void writePoolSnapshot(`tl:${key}`, fresh);
+    })
+    .catch(() => {})
+    .finally(() => timelineRefreshing.delete(key));
+}
 
 export function siteHandler(fn: Handler): Handler {
   return async (req, reply) => {
@@ -162,6 +182,19 @@ export function registerSite(app: FastifyInstance) {
     const staleKey = JSON.stringify({ ...filters, cursor: q.cursor || null, limit });
     let data: Awaited<ReturnType<typeof loadTimeline>>;
     let strip: Awaited<ReturnType<typeof loadHotStrip>> | null;
+    // 进程刚起来时内存里什么都没有，而主库在流水线满载时算这一屏要十几秒（2026-11-14 实测冷 13.9 s，
+    // 最坏 120 s）。落盘底稿在 pool 上已经证明能把这一屏从「等数据库」变成「读本地文件」，
+    // 时间线照同一套来：先看看盘上有没有上一份，有就直出并后台换新的。
+    if (!timelineStale.has(staleKey)) {
+      const snapshot = await readPoolSnapshot<Awaited<ReturnType<typeof loadTimeline>>>(`tl:${staleKey}`);
+      if (snapshot) {
+        const body = { ...snapshot.body, hot: null, hotAsOf: null, generatedAt: new Date(snapshot.at).toISOString() };
+        timelineStale.set(staleKey, { body, at: snapshot.at });
+        refreshTimeline(staleKey, filters, q.cursor || null, limit, unfiltered);
+        reply.header("x-aihot-cache", "snapshot");
+        return sendJsonWithEtag(req, reply, body, { etagPrefix: "tl-snapshot", cacheControl: "public, max-age=30, s-maxage=30" });
+      }
+    }
     try {
       [data, strip] = await Promise.all([
         loadTimeline({ ...filters, cursor: q.cursor || null, limit }),
@@ -174,10 +207,19 @@ export function registerSite(app: FastifyInstance) {
         reply.header("x-aihot-stale", "1");
         return sendJsonWithEtag(req, reply, hit.body, { etagPrefix: "tl-stale", cacheControl: "no-cache" });
       }
+      const snapshot = await readPoolSnapshot<Awaited<ReturnType<typeof loadTimeline>>>(`tl:${staleKey}`);
+      if (snapshot) {
+        reply.header("Retry-After", "2");
+        reply.header("x-aihot-stale", "snapshot");
+        return sendJsonWithEtag(req, reply, snapshot.body, { etagPrefix: "tl-snapshot", cacheControl: "no-cache" });
+      }
       throw error;
     }
     const body = { ...data, hot: strip?.entries ?? null, hotAsOf: strip?.asOf ?? null, generatedAt: new Date().toISOString() };
     timelineStale.set(staleKey, { body, at: Date.now() });
+    // 底稿只存这一屏的「内容」（不含热度条：热度读的是另一张表，隔几分钟就不准了）。
+    // `loadTimeline` 的返回值里有时刻字段，序列化后读回来仍是字符串，前端只当字符串用。
+    void writePoolSnapshot(`tl:${staleKey}`, data);
     const cc = cacheUntil(reply, 60, data.refreshAt);
     return sendJsonWithEtag(req, reply, body, { etagPrefix: "tl", cacheControl: cc, etagOf: { ...data, hot: body.hot, hotAsOf: body.hotAsOf } });
   }));

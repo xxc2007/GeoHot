@@ -13,9 +13,11 @@ test("时间线留了十分钟的上一次成功响应", () => {
 });
 
 test("读不出来时给上一次的那份，并标记 x-aihot-stale", () => {
-  const at = source.indexOf("const staleKey = JSON.stringify(");
-  assert.ok(at > 0, "时间线处理器要在取数前算好 key");
-  const branch = source.slice(at, source.indexOf("timelineStale.set(staleKey", at));
+  // 2026-11-14：时间线在现算前多了一支「先读落盘底稿」，`timelineStale.set` 因此出现了两次。
+  // 这里改成从 catch 里切片，盯的仍然是同一件事：算失败时把内存里那份交出去并打标记。
+  const at = source.indexOf("} catch (error) {\n      const hit = timelineStale.get(staleKey);");
+  assert.ok(at > 0, "时间线的现算失败分支要留着内存回落");
+  const branch = source.slice(at, source.indexOf("const body = { ...data", at));
   assert.match(branch, /if \(hit && Date\.now\(\) - hit\.at <= TIMELINE_STALE_MS\)/);
   assert.match(branch, /reply\.header\("x-aihot-stale", "1"\)/);
   assert.match(branch, /etagPrefix: "tl-stale"/);
