@@ -82,7 +82,10 @@ ALL_UNITS=(geohot-brain.service geohot-api.service geohot-worker.service geohot-
            geohot-media.service
            # 2026-11-14 补登：box 保活常驻进程（站长要求 box 24 小时不休眠、不依赖本机）。
            # 它住在主库上，靠 MCP 会话每分钟一次真实调用把沙箱「用着」，平台才不会回收。
-           geohot-box-hold.service)
+           geohot-box-hold.service
+           # 2026-11-14 补登：主库只有一块慢盘，页面冷算要 3.5–15 秒，而 nginx 缓存 60 秒一过期，
+           # 每一分钟就有一个真实读者替全站付这份钱。预热器把「付钱的人」换成定时器。
+           geohot-warm-pages.service geohot-warm-pages.timer)
 if [[ "$APP_ROOT" == "/opt/geohot/app" && -d "$TEMPLATE_DIR" ]]; then
   echo "route=templates  从 $TEMPLATE_DIR 安装 ${#ALL_UNITS[@]} 个单元（带加固块；这一条与线上现值一致）"
   src_missing=0

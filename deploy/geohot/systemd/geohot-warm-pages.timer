@@ -1,0 +1,13 @@
+[Unit]
+Description=Keep the GeoHot reader page cache warm every 20 seconds
+
+[Timer]
+OnBootSec=60s
+# 只有 OnUnitActiveSec 时 systemd 会显示 NEXT n/a（同 box 保活那次踩过），必须补一条 OnCalendar。
+OnCalendar=*-*-* *:*:0/20
+OnUnitActiveSec=20s
+AccuracySec=1s
+Persistent=false
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,12 @@
+[Unit]
+Description=GeoHot reader cache warmer (keeps nginx page cache hot for real readers)
+Documentation=deploy/geohot/bin/warm-pages.sh
+After=nginx.service geohot-web.service
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/opt/geohot/bin/warm-pages.sh
+Nice=19
+IOSchedulingClass=idle
+TimeoutStartSec=180
