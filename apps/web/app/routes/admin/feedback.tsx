@@ -8,7 +8,8 @@ import { bj } from "../../features/admin/format";
 import { FEEDBACK_STATUS } from "../../features/admin/labels";
 import { publicPath } from "../../lib/public-path";
 import { safeExternalHref } from "../../lib/safe-url.ts";
-import { AdminPage, Badge, Button, Card, Empty, FilterChips, Input, Pager, ReasonDialog, Select, Textarea, Time } from "../../features/admin/ui";
+import { AdminPage, Badge, Button, Card, Empty, FilterChips, Input, ReasonDialog, Select, Textarea, Time } from "../../features/admin/ui";
+import { LoadMore, useInfiniteRows } from "../../features/admin/infinite";
 
 interface Feedback {
   id: number;
@@ -149,8 +150,9 @@ function FeedbackCard({ f }: { f: Feedback }) {
 }
 
 export default function FeedbackAdmin({ loaderData }: Route.ComponentProps) {
-  const { rows, counts, page, hasMore } = loaderData;
+  const { counts } = loaderData;
   const [sp] = useSearchParams();
+  const { rows, hasMore, loading, error, loadMore } = useInfiniteRows<Feedback>("/api/admin/feedback", loaderData, sp.toString());
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
   return (
     <AdminPage title="反馈" subtitle={`回复用 QQ 邮箱（${SITE.contactEmail ?? "站主邮箱未配置"}）发送，收件人、主题、正文都确认后再发；“已修复上线”要有生产证据。签名统一 ${SITE.name}。`}>
@@ -167,7 +169,7 @@ export default function FeedbackAdmin({ loaderData }: Route.ComponentProps) {
       <div className="space-y-3">
         {rows.length ? rows.map((f) => <FeedbackCard key={`${f.id}-${f.updated_at}`} f={f} />) : <Card><Empty>没有符合条件的反馈</Empty></Card>}
       </div>
-      <Pager page={page} hasMore={hasMore} />
+      <LoadMore hasMore={hasMore} loading={loading} error={error} onLoad={loadMore} empty="没有更多了" />
     </AdminPage>
   );
 }
