@@ -18,13 +18,16 @@ function feedError(reply: FastifyReply) {
 // 没有能裁剪的索引）。它虽然不走 public read 的槽，却把同一块慢盘占满，
 // 别的读者就被判 busy 拿到 503。订阅源本来就是分钟级内容，这里加一层进程内缓存：
 // 十分钟内只算一次，且过期后**先给旧的再后台换新**，任何一位读者都不必等它算完。
-export const FEED_TTL_MS = 10 * 60_000;
+// 2026-11-14：生产十分钟；测试把它设成 0（见 tests/setup.ts）——同一个进程里改库再读同一个 feed
+// 时不能拿到上一轮的 XML。
+export const FEED_TTL_MS = Number(process.env.GEOHOT_FEED_TTL_MS ?? 10 * 60_000);
 const FEED_STALE_MS = 6 * 3600_000;
 type Cached = { xml: string; at: number };
 const feedCache = new Map<string, Cached>();
 const feedPending = new Map<string, Promise<string>>();
 
 export function cachedFeed(key: string, build: () => Promise<string>): Promise<string> {
+  if (FEED_TTL_MS <= 0) return build();
   const hit = feedCache.get(key);
   const now = Date.now();
   if (hit && now - hit.at < FEED_TTL_MS) return Promise.resolve(hit.xml);
