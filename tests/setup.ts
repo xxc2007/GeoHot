@@ -15,6 +15,10 @@ process.env.IMG_PROXY_SIGN_SECRET ??= "test-img-secret-0123456789";
 process.env.FEISHU_CONTENT_PUSH_ENABLED = "false";
 process.env.INDEXNOW_SUBMIT_ENABLED = "false";
 process.env.LOG_LEVEL ??= "error";
+// 2026-11-14：订阅源在 api 进程里留十分钟缓存（生产上一条 /feed/all.xml 要两分钟）。
+// 但测试会在同一个进程里改库再读同一个 feed，缓存会让断言看到上一轮的 XML（
+// 现场：full feed drops the body）。测试里关掉缓存，读的永远是当下这一份。
+process.env.GEOHOT_FEED_TTL_MS = "0";
 // `default` 这个预设的模型名来自 LLM_MODEL（别的预设都把自己的模型名写在注册表里），所以一旦夹具改回
 // 「不点名」，每个测试都必须有一个 LLM_MODEL 才能让 `default` 可用。名字只是回执上的标签——各测试
 // 把它自己的 stub 接到 LLM_BASE_URL 上，模型 id 不参与任何解析。
