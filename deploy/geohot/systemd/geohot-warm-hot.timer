@@ -1,0 +1,13 @@
+[Unit]
+Description=每 60 秒预热首页与「全部」
+
+[Timer]
+OnBootSec=45s
+# 只有 OnUnitActiveSec 时 list-timers 会显示 NEXT n/a（2026-11-14 踩过），必须补一条 OnCalendar。
+OnCalendar=*-*-* *:*:00
+OnUnitActiveSec=55s
+AccuracySec=2s
+Persistent=true
+
+[Install]
+WantedBy=timers.target

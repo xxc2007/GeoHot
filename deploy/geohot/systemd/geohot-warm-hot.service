@@ -1,0 +1,11 @@
+[Unit]
+Description=预热读者面最贵的两屏（首页与「全部」），让它们永远是缓存命中
+After=network-online.target nginx.service
+
+[Service]
+Type=oneshot
+Environment=GEOHOT_WARM_PATHS=/geohot/ /geohot/all?tab=all
+ExecStart=/opt/geohot/bin/warm-pages.sh
+Nice=19
+IOSchedulingClass=idle
+TimeoutStartSec=120
