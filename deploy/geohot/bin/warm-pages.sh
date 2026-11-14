@@ -11,13 +11,21 @@
 set -u
 
 HOST="xxc2007.me"
-PATHS=(
-  "/geohot/"
-  "/geohot/all?tab=all"
-  "/geohot/hot"
-  "/geohot/daily"
-  "/geohot/topics"
-)
+# 2026-11-15：读者面最贵的是首页与「全部」两屏（时间线 + 收录池要现算）。后台流水线一开，
+# 冷请求 2.5–5 秒；nginx 缓存 60 秒一过期，每一分钟就有一个真读者替全站付这笔钱。
+# 于是把这两屏单独交给一个 60 秒的高频预热带（geohot-warm-hot.timer），其余四屏仍走 2 分钟。
+# 路径可用 GEOHOT_WARM_PATHS 覆盖（空格分隔），方便临时只热某一屏。
+if [ -n "${GEOHOT_WARM_PATHS:-}" ]; then
+  read -r -a PATHS <<<"${GEOHOT_WARM_PATHS}"
+else
+  PATHS=(
+    "/geohot/"
+    "/geohot/all?tab=all"
+    "/geohot/hot"
+    "/geohot/daily"
+    "/geohot/topics"
+  )
+fi
 
 warm() {
   local path="$1"
