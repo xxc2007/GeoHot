@@ -58,7 +58,12 @@ trap 'rm -rf "$local_stage"' EXIT
 pkg="$local_stage/bundle.tar.gz"
 git archive --format=tar "$REV" | gzip > "$pkg"
 echo "artifact: $pkg  members=$(tar -tzf "$pkg" | wc -l)  bytes=$(wc -c < "$pkg")"
-tar -tzf "$pkg" | grep -qE '(^|/)(node_modules|\.data|\.env|\.git)/' && { echo "✗ 包里出现不该部署的路径" >&2; exit 1; }
+# 用 if 而不是 `grep -q && { …; }`：set -euo pipefail 下 grep 无匹配会让整行返回 1，
+# 脚本会在没有任何提示的情况下退出（2026-11-14 部署卡在这里，trace 都打不出）。
+if tar -tzf "$pkg" | grep -qE '(^|/)(node_modules|\.data|\.env|\.git)/'; then
+  echo "✗ 包里出现不该部署的路径" >&2
+  exit 1
+fi
 
 if (( ! APPLY )); then
   echo "（DRY-RUN：包已生成，没有上传也没有解包。确认后用 --apply）"
