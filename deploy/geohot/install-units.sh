@@ -85,7 +85,11 @@ ALL_UNITS=(geohot-brain.service geohot-api.service geohot-worker.service geohot-
            geohot-box-hold.service
            # 2026-11-14 补登：主库只有一块慢盘，页面冷算要 3.5–15 秒，而 nginx 缓存 60 秒一过期，
            # 每一分钟就有一个真实读者替全站付这份钱。预热器把「付钱的人」换成定时器。
-           geohot-warm-pages.service geohot-warm-pages.timer)
+           geohot-warm-pages.service geohot-warm-pages.timer
+           # 2026-11-15 补登：首页与「全部」是读者面最贵的两屏（时间线 + 收录池现算）。
+           # 后台流水线一开，冷请求 2.5–5 秒，而 nginx 缓存 60 秒就过期 —— 让预热带 60 秒来一次，
+           # 真读者就永远命中缓存。其余四屏仍由上面那个 2 分钟的 timer 负责。
+           geohot-warm-hot.service geohot-warm-hot.timer)
 if [[ "$APP_ROOT" == "/opt/geohot/app" && -d "$TEMPLATE_DIR" ]]; then
   echo "route=templates  从 $TEMPLATE_DIR 安装 ${#ALL_UNITS[@]} 个单元（带加固块；这一条与线上现值一致）"
   src_missing=0
