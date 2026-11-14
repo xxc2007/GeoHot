@@ -1,6 +1,17 @@
 {
-  "latestVersion": "2026-11-15T02:50",
+  "latestVersion": "2026-11-15T03:50",
   "releases": [
+    {
+      "version": "v3.0.108",
+      "date": "2026-11-15",
+      "time": "03:50",
+      "title": "备份不再抢读者的盘",
+      "body": [
+        "ops: 夜间 pg_dump 改用 ionice idle + nice 19，永远排在读者后面。",
+        "ops: receipts 与 receipt_attempts 只导结构，dump 体积与读盘量砍半。",
+        "why: 一次全量备份能把主库打到 99%，首页 3.5 秒。"
+      ]
+    },
     {
       "version": "v3.0.107",
       "date": "2026-11-15",
