@@ -33,7 +33,8 @@ test("没有可用的上一次响应时，原错误照旧抛给上层", () => {
 });
 
 test("列表页（pool）也有同样的上一次兜底", () => {
-  assert.ok(source.includes("const POOL_STALE_MS = 10 * 60_000;"));
+  // 2026-11-15：陈旧窗口从 10 分钟放到 30 分钟（主库只有 ~250 IOPS，重算太贵）。
+  assert.ok(source.includes("const POOL_STALE_MS = 30 * 60_000;"));
   assert.match(source, /etagPrefix: "pool-stale"/);
   const at = source.indexOf("const staleKey = JSON.stringify({ ...filters, q: search");
   assert.ok(at > 0, "pool 处理器要在取数前算好 key");

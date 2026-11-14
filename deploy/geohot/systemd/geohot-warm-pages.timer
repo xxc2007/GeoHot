@@ -1,11 +1,14 @@
 [Unit]
-Description=Keep the GeoHot reader page cache warm every 20 seconds
+Description=Keep the GeoHot reader page cache warm every two minutes
 
 [Timer]
 OnBootSec=60s
 # 只有 OnUnitActiveSec 时 systemd 会显示 NEXT n/a（同 box 保活那次踩过），必须补一条 OnCalendar。
-OnCalendar=*-*-* *:*:0/20
-OnUnitActiveSec=20s
+# 2026-11-15：原来每 20 秒一轮，五条路由各触发一次 SSR，主库跟不上时就把自己的
+# pool/timeline 重算堆成雪崩（io.full=99）。两分钟一轮足够让 nginx 那层 60 秒的
+# proxy_cache_valid 不断档，也不再每分钟去逼后台。
+OnCalendar=*-*-* *:0/2:00
+OnUnitActiveSec=120s
 AccuracySec=1s
 Persistent=false
 
