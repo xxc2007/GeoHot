@@ -232,8 +232,11 @@ chown -R geohot:geohot "$APP_ROOT"
 # install-units.sh 补了拷贝，但 deploy.sh 这条日常路径没补）。这里补上，让"部署"一次就够。
 if [ -d "$APP_ROOT/deploy/geohot/bin" ]; then
   install -d -m 755 /opt/geohot/bin
+  # .mjs 也要同步：box-hold.mjs 是常驻的保活脚本（2026-11-14 起住在仓库里），
+  # 只拷 *.sh 会让它每次部署后变成「机器上有、仓库里没有」的漂移。
   install -m 755 "$APP_ROOT"/deploy/geohot/bin/*.sh /opt/geohot/bin/
-  echo "bin: 已同步 $(ls -1 "$APP_ROOT"/deploy/geohot/bin/*.sh | wc -l) 个闸门/判定脚本到 /opt/geohot/bin"
+  install -m 755 "$APP_ROOT"/deploy/geohot/bin/*.mjs /opt/geohot/bin/ 2>/dev/null || true
+  echo "bin: 已同步 $(ls -1 "$APP_ROOT"/deploy/geohot/bin/*.sh "$APP_ROOT"/deploy/geohot/bin/*.mjs 2>/dev/null | wc -l) 个闸门/判定/常驻脚本到 /opt/geohot/bin"
 fi
 
 # 单元模板与 drop-in 同 bin 一样只住在仓库里：install-units.sh 会铺它们，但那条是「装机路线」，
