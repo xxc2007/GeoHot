@@ -18,8 +18,8 @@ import { DateCalendar, type CalendarDay } from "../features/calendar/DateCalenda
  * 手机首屏就把「全部」那一份带上。
  *
  * 手机切「精选 / 全部」是客户端换列表（`replaceState`，不过网络），所以 loader 不给数据时，
- * 切过去只能现场等一趟 `/api/site/pool`（冷 1–5 秒）——站长 2026-11-07 截图里那句
- * 「正在取收录池…」就是这一趟。只对手机 UA 付这份钱：桌面那一段永远不画收录池。
+ * 切过去只能现场等一趟 `/api/site/pool`（冷 1–5 秒）——站长 2026-11-07 截图里那行等待文案
+ * 就是这一趟留下的。只对手机 UA 付这份钱：桌面那一段永远不画收录池。
  */
 function isMobileRequest(request: Request): boolean {
   const ua = request.headers.get("user-agent") ?? "";
