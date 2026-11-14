@@ -4,7 +4,8 @@ import type { Route } from "./+types/topic";
 import type { FeedItemSummary } from "@aihot/contracts/site";
 import { loadOr404 } from "../lib/api.server";
 import { breadcrumbLd, pageMeta, titled } from "../lib/seo";
-import { DayList, Pagination } from "../features/feed/DayList";
+import { Pagination } from "../features/feed/DayList";
+import { InfiniteTopicList } from "../features/topics/InfiniteTopicList";
 import { todayOf } from "../lib/format";
 import { EmptyState, MoreLink } from "../components/ui/Page";
 import { useLivePublicData } from "../lib/use-live-public-data";
@@ -112,9 +113,19 @@ export default function TopicPage() {
           )}
         </div>
       ) : (
-        <DayList items={items} today={todayOf(data.generatedAt)} />
+        // 2026-11-14：站长要求「所有需要按一下下一页的设计都换成一直下拉」，主题页也换成触底续读。
+        // 分页链接留在 <noscript> 里，爬虫与没有 JS 的读者仍能翻页。
+        <InfiniteTopicList
+          slug={topic.slug}
+          initialItems={items}
+          initialPage={page}
+          pageCount={pageCount}
+          today={todayOf(data.generatedAt)}
+        />
       )}
-      <Pagination page={page} pageCount={pageCount} href={href} />
+      <noscript>
+        <Pagination page={page} pageCount={pageCount} href={href} />
+      </noscript>
     </div>
   );
 }
