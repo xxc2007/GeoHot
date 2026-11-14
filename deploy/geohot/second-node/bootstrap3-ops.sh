@@ -21,7 +21,11 @@ SSH="ssh -i $PRIMARY_KEY -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
 echo "backup start $STAMP"
 # 主库导出（custom 格式自带压缩），落在主库 /tmp 再拉回来，避免版本错配。
-$SSH "$PRIMARY" "sudo -u postgres pg_dump -Fc -d geohot -f /tmp/geohot-$STAMP.dump && sudo chmod 644 /tmp/geohot-$STAMP.dump && ls -l /tmp/geohot-$STAMP.dump | awk '{print \$5}'"
+# 2026-11-15 03:2x：一次全量 pg_dump 把主库那块 250 IOPS 的盘读到 io some avg10=99 二十多分钟，
+# 读者首页 3.5 秒、还有 503 —— 备份和读者抢盘，而 receipts / receipt_attempts 两张日志表占了库里一半
+# 体积（2.8 GB + 0.6 GB），恢复它们没有价值。于是：① ionice idle + nice 19，让备份永远排在读者后面；
+# ② 只导这两张表的结构、不导数据（--exclude-table-data），dump 体积与读盘量直接砍半。
+$SSH "$PRIMARY" "sudo -u postgres ionice -c 3 nice -n 19 pg_dump -Fc -d geohot --exclude-table-data=public.receipts --exclude-table-data=public.receipt_attempts -f /tmp/geohot-$STAMP.dump && sudo chmod 644 /tmp/geohot-$STAMP.dump && ls -l /tmp/geohot-$STAMP.dump | awk '{print \$5}'"
 SIZE=$($SSH "$PRIMARY" "stat -c %s /tmp/geohot-$STAMP.dump")
 if [ "${SIZE:-0}" -lt 10000000 ]; then echo "!! dump too small ($SIZE bytes), abort"; $SSH "$PRIMARY" "sudo rm -f /tmp/geohot-$STAMP.dump"; exit 1; fi
 rsync -e "ssh -i $PRIMARY_KEY -o BatchMode=yes" "$PRIMARY:/tmp/geohot-$STAMP.dump" "$DEST/" 2>/dev/null \
@@ -66,8 +70,9 @@ After=network-online.target geohot-exec-tunnel.service
 Type=oneshot
 User=geohot
 ExecStart=/usr/local/bin/geohot-backup.sh
-Nice=10
-IOSchedulingClass=best-effort
+# 备份是「可以慢、但不许抢读者」的活：idle 类 + nice 19，慢盘上它会一直给前台让路。
+Nice=19
+IOSchedulingClass=idle
 IOSchedulingPriority=7
 UNIT
 
