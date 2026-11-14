@@ -3,7 +3,8 @@ import { Form, Link, useSearchParams } from "react-router";
 import type { Route } from "./+types/audit";
 import { adminGet } from "../../lib/admin.server";
 import { bj } from "../../features/admin/format";
-import { AdminPage, Button, Card, DataTable, Input, Json, Pager } from "../../features/admin/ui";
+import { AdminPage, Button, Card, DataTable, Input, Json } from "../../features/admin/ui";
+import { LoadMore, useInfiniteRows } from "../../features/admin/infinite";
 
 interface Row {
   id: number;
@@ -32,6 +33,7 @@ function subjectLink(subject: string | null) {
 
 export default function Audit({ loaderData }: Route.ComponentProps) {
   const [sp] = useSearchParams();
+  const { rows, hasMore, loading, error, loadMore } = useInfiniteRows<Row>("/api/admin/audit", loaderData, sp.toString());
   return (
     <AdminPage wide title="审计记录" subtitle="所有人工操作：谁、何时、改了什么、为什么。">
       <Form method="get" className="mb-4 flex max-w-xl gap-2">
@@ -41,7 +43,7 @@ export default function Audit({ loaderData }: Route.ComponentProps) {
       </Form>
       <Card pad={false}>
         <DataTable
-          rows={loaderData.rows}
+          rows={rows}
           rowKey={(r) => r.id}
           empty="没有记录"
           columns={[
@@ -54,7 +56,7 @@ export default function Audit({ loaderData }: Route.ComponentProps) {
           ]}
         />
       </Card>
-      <Pager page={loaderData.page} hasMore={loaderData.hasMore} />
+      <LoadMore hasMore={hasMore} loading={loading} error={error} onLoad={loadMore} empty="没有更多了" />
     </AdminPage>
   );
 }

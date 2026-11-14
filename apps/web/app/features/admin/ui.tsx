@@ -244,24 +244,6 @@ export function FilterChips({ param, options }: { param: string; options: Array<
   );
 }
 
-export function Pager({ page, hasMore }: { page: number; hasMore: boolean }) {
-  const [sp] = useSearchParams();
-  const to = (p: number) => {
-    const next = new URLSearchParams(sp);
-    if (p > 1) next.set("page", String(p));
-    else next.delete("page");
-    return `?${next}`;
-  };
-  if (page <= 1 && !hasMore) return null;
-  return (
-    <div className="mt-4 flex items-center justify-center gap-2 text-[13px]">
-      {page > 1 && <ButtonLink to={to(page - 1)} size="sm">上一页</ButtonLink>}
-      <span className="num px-2 text-ink-3">第 {page} 页</span>
-      {hasMore && <ButtonLink to={to(page + 1)} size="sm">下一页</ButtonLink>}
-    </div>
-  );
-}
-
 export function Json({ value, collapsed = true, label = "原始数据" }: { value: unknown; collapsed?: boolean; label?: string }) {
   const [open, setOpen] = useState(!collapsed);
   return (

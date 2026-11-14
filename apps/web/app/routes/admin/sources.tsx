@@ -4,7 +4,8 @@ import type { Route } from "./+types/sources";
 import { adminGet } from "../../lib/admin.server";
 import { num } from "../../features/admin/format";
 import { HEALTH_LABEL, KIND_LABEL, MODE_LABEL } from "../../features/admin/labels";
-import { AdminPage, Badge, ButtonLink, Card, DataTable, Dot, FilterChips, healthTone, Input, Pager, Select, Stat, Time } from "../../features/admin/ui";
+import { AdminPage, Badge, ButtonLink, Card, DataTable, Dot, FilterChips, healthTone, Input, Select, Stat, Time } from "../../features/admin/ui";
+import { LoadMore, useInfiniteRows } from "../../features/admin/infinite";
 
 interface SourceRow {
   id: string;
@@ -41,8 +42,8 @@ export async function loader({ request }: Route.LoaderArgs) {
 export const meta: Route.MetaFunction = () => [{ title: `信源 · ${SITE.name} 后台` }];
 
 export default function Sources({ loaderData }: Route.ComponentProps) {
-  const { rows, totals, page, hasMore } = loaderData;
   const [sp] = useSearchParams();
+  const { rows, totals, hasMore, loading, error, loadMore } = { ...loaderData, ...useInfiniteRows<SourceRow>("/api/admin/sources", loaderData, sp.toString()) };
   const navigate = useNavigate();
   return (
     <AdminPage
@@ -133,7 +134,7 @@ export default function Sources({ loaderData }: Route.ComponentProps) {
           ]}
         />
       </Card>
-      <Pager page={page} hasMore={hasMore} />
+      <LoadMore hasMore={hasMore} loading={loading} error={error} onLoad={loadMore} empty="没有更多了" />
     </AdminPage>
   );
 }
