@@ -192,11 +192,31 @@ export function MobilePoolPanel({ pool, filters }: { pool: PoolResponse | null; 
   }, [pool, key, filters]);
   const view = pool ?? fetched;
   if (!view) {
+    // 站长 2026-11-14：「正在取收录池…」这几个字一出现，这一屏就像卡住了。
+    // 换成与真实列表同形状的骨架（左侧时间格 + 右侧两行），页面立刻有结构，
+    // 数据到了原地换掉——观感与 AIHOT 的即时出屏一致，也不再有"等待字样"。
     return (
-      <div className="lg:hidden">
-        <p className="py-8 text-center text-[14px] text-ink-3">
-          {error ? `收录池这一会儿读不到（${error}）` : "正在取收录池…"}
-        </p>
+      <div className="lg:hidden" aria-busy="true" aria-label={error ? `收录池这一会儿读不到（${error}）` : "正在载入收录池"}>
+        <div className="mt-4 animate-pulse lg:pt-1">
+          {Array.from({ length: 6 }, (_, index) => (
+            <div key={index} className="flex items-start gap-3 border-b border-line-soft py-3 last:border-b-0">
+              <span className="mt-1 h-3 w-[42px] shrink-0 rounded bg-line-soft" />
+              <span className="min-w-0 flex-1 space-y-2">
+                <span className="block h-3.5 w-[88%] rounded bg-line-soft" />
+                <span className="block h-3 w-[46%] rounded bg-line-soft" />
+              </span>
+            </div>
+          ))}
+        </div>
+        {error && (
+          <button
+            type="button"
+            onClick={() => { setError(null); prefetchPool(filters); }}
+            className="mx-auto mt-3 flex h-9 items-center rounded-full border border-line-strong bg-surface px-4 text-[13px] text-ink-2"
+          >
+            再试一次
+          </button>
+        )}
       </div>
     );
   }

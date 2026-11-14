@@ -27,6 +27,7 @@ import { loadSiteCodexResetPage, loadSiteCodexResetDay } from "@aihot/backend/pu
 import { codexResetVersion } from "@aihot/backend/monitor/read";
 import { cached } from "@aihot/backend/lib/cache";
 import { MicroCache } from "@aihot/backend/lib/micro-cache";
+import { readPoolSnapshot, writePoolSnapshot } from "../pool-snapshot.ts";
 import { looseQuery, sendJsonWithEtag, sendProblem } from "../http/respond.ts";
 
 type Handler = (req: FastifyRequest, reply: FastifyReply) => Promise<unknown>;
@@ -64,6 +65,26 @@ const poolCache = new MicroCache<{ data: Awaited<ReturnType<typeof loadPool>> }>
   maxEntries: 80,
 });
 const poolRefreshing = new Set<string>();
+
+/**
+ * 把一页收录池写进「落盘底稿」并在后台刷新。
+ *
+ * 2026-11-14：重启之后第一个手机读者会看到「正在取收录池…」——内存里的两份（45 秒 / 3 分钟）
+ * 是空的，冷查询在主库忙时要几十秒。底稿按 key 落在 `.data/pool-snapshot/`，进程起来后
+ * 第一次请求就能直出，页面上不会再出现那句加载字样。
+ */
+function refreshPool(key: string, args: Parameters<typeof loadPool>[0]): void {
+  if (poolRefreshing.has(key)) return;
+  poolRefreshing.add(key);
+  void loadPool(args)
+    .then((fresh) => {
+      poolCache.write(key, { data: fresh });
+      poolStale.set(key, { body: fresh, at: Date.now() });
+      void writePoolSnapshot(key, fresh);
+    })
+    .catch(() => {})
+    .finally(() => poolRefreshing.delete(key));
+}
 const TIMELINE_STALE_MS = 10 * 60_000;
 const timelineStale = new Map<string, { body: unknown; at: number }>();
 
@@ -166,7 +187,7 @@ export function registerSite(app: FastifyInstance) {
     const filters = await parseFilters(q);
     const page = Math.min(Math.max(Number(q.page) || 1, 1), 50);
     const search = q.q?.trim() ? q.q.trim().slice(0, 200) : null;
-    const tab = q.tab === "relevance" ? "relevance" : "time";
+    const tab: "time" | "relevance" = q.tab === "relevance" ? "relevance" : "time";
     // 日历选的那一天。和 `category` 一样：认不出的值要说一句话，不能静默当成"没有筛选"
     // ——否则读者从旧链接进来会看到一整片不属于那一天的卡片（2026-10-11 评审波实测的就是这个）。
     if (q.date !== undefined && !isDay(q.date)) throw new BadRequest("invalid date");
@@ -176,28 +197,33 @@ export function registerSite(app: FastifyInstance) {
       return content;
     };
     const hit = poolCache.read(staleKey);
+    const args = { ...filters, q: search, tab, page, date: q.date ?? null };
     if (hit?.fresh) {
       reply.header("x-aihot-cache", "hit");
       return sendJsonWithEtag(req, reply, hit.data.data, { etagPrefix: "pool", cacheControl: "public, max-age=45, s-maxage=45", etagOf: etagOf(hit.data) });
     }
     if (hit?.stale) {
       // 先给读者手上的这份，再在后台换新的：读者不等数据库，下一次请求就是新的。
-      if (!poolRefreshing.has(staleKey)) {
-        poolRefreshing.add(staleKey);
-        void loadPool({ ...filters, q: search, tab, page, date: q.date ?? null })
-          .then((fresh) => {
-            poolCache.write(staleKey, { data: fresh });
-            poolStale.set(staleKey, { body: fresh, at: Date.now() });
-          })
-          .catch(() => {})
-          .finally(() => poolRefreshing.delete(staleKey));
-      }
+      refreshPool(staleKey, args);
       reply.header("x-aihot-cache", "stale");
       return sendJsonWithEtag(req, reply, hit.data.data, { etagPrefix: "pool", cacheControl: "public, max-age=45, s-maxage=45", etagOf: etagOf(hit.data) });
     }
+    // 内存里没有（进程刚起来 / 这一页很久没人来）：先看落盘底稿，有就直出并后台刷新。
+    // 这一支专门治「重启后第一个手机读者看到正在取收录池」——它读的是本地文件，
+    // 不碰数据库，所以主库再忙也不影响这一屏。
+    if (!hit) {
+      const snapshot = await readPoolSnapshot<Awaited<ReturnType<typeof loadPool>>>(staleKey);
+      if (snapshot) {
+        poolCache.write(staleKey, { data: snapshot.body });
+        poolStale.set(staleKey, { body: snapshot.body, at: snapshot.at });
+        refreshPool(staleKey, args);
+        reply.header("x-aihot-cache", "snapshot");
+        return sendJsonWithEtag(req, reply, snapshot.body, { etagPrefix: "pool", cacheControl: "public, max-age=45, s-maxage=45", etagOf: etagOf({ data: snapshot.body }) });
+      }
+    }
     let data: Awaited<ReturnType<typeof loadPool>>;
     try {
-      data = await loadPool({ ...filters, q: search, tab, page, date: q.date ?? null });
+      data = await loadPool(args);
     } catch (error) {
       const previous = poolStale.get(staleKey);
       if (previous && Date.now() - previous.at <= POOL_STALE_MS) {
@@ -209,6 +235,7 @@ export function registerSite(app: FastifyInstance) {
     }
     poolCache.write(staleKey, { data });
     poolStale.set(staleKey, { body: data, at: Date.now() });
+    void writePoolSnapshot(staleKey, data);
     const { generatedAt: _, ...content } = data;
     return sendJsonWithEtag(req, reply, data, { etagPrefix: "pool", cacheControl: "public, max-age=45, s-maxage=45", etagOf: content });
   }));
