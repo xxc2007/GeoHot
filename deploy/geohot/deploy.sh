@@ -449,9 +449,15 @@ echo "== 验收前：把定时器放回它原来的岗位 =="
 # 判据是「它该在岗」而不是「进来时在岗」：机器上曾经有一次恢复没落地，timer 停在 inactive，
 # 之后每次上线都读到 TIMER_WAS_ACTIVE=0 ⇒ 自己把自己钉死（2026-11-04 15:49 实测，
 # 验收连红两次都是这条）。enabled 的 timer 就该在岗，进来时不在岗更该拉起来。
-if (( TIMER_WAS_ACTIVE )) || systemctl is-enabled --quiet geohot-archive.timer 2>/dev/null; then
+# 只还原「进来时在岗」的那一个。以前这里还有第二个判据 `systemctl is-enabled --quiet`，
+# 于是运维为了救读者面手工停掉的定时器，每次上线都会被重新拉起来：2026-11-15 02:0x 的一次部署
+# 就这样把 geohot-archive.timer 与 geohot-warm-pages.timer 一起复活，主库 I/O 立刻打满、首页 503。
+# enabled 只说明「开机该起」，不代表「现在该跑」——运行期状态由人/窗口脚本决定，部署不该覆盖它。
+if (( TIMER_WAS_ACTIVE )); then
   systemctl start geohot-archive.timer
   echo "geohot-archive.timer 已恢复：$(systemctl is-active geohot-archive.timer)（进来时 was_active=$TIMER_WAS_ACTIVE）"
+else
+  echo "geohot-archive.timer 进来时没在跑，保持不动（需要时手工 systemctl start geohot-archive.timer）"
 fi
 
 # 验收前等一次「连续两次都 200」：单元刚拉起来的那几秒，nginx 会把 API/SSR 的请求交给还没
@@ -474,6 +480,26 @@ for i in $(seq 1 30); do
   sleep 2
 done
 (( ready )) || echo "警告：90 秒内没等到 api/web/JSON 代理连续两次就绪，验收里的 smoke 可能因此假红"
+
+# 验收要看到的是「部署有没有落地」，不是「这台慢盘此刻有多忙」。主库只有一块约 250 IOPS 的盘，
+# 后台流水线一开，页面巡检必然拿到 000/503，于是验收把一次成功的上线判成失败，还顺手把 AIHOT_RELEASE
+# 还原（2026-11-14 21:25、2026-11-15 01:1x、02:0x 三次）。这里先等 I/O 缓过来；等不到就跳过巡检，
+# 并明确告诉人「代码已落盘、巡检稍后手工跑」，而不是给一个假红的 FAIL。
+io_some() {
+  awk -F'avg10=' '/^some/{split($2,a," "); print int(a[1]); exit}' /proc/pressure/io 2>/dev/null || echo 0
+}
+waited=0
+while [ "$(io_some)" -gt 70 ] && [ "$waited" -lt "${GEOHOT_VERIFY_IO_WAIT_SEC:-300}" ]; do
+  sleep 30
+  waited=$((waited + 30))
+done
+if [ "$(io_some)" -gt 70 ]; then
+  echo "⚠ 磁盘仍满载（io some avg10=$(io_some)，已等 ${waited}s）：跳过页面巡检"
+  echo "  代码与单元已落盘并重启，指纹已写；稍后在低负载窗口手工跑 bash deploy/geohot/verify-deploy.sh"
+  date +%s >> /run/geohot-deploy-window
+  rm -f "$PKG"
+  exit 0
+fi
 
 date +%s >> /run/geohot-deploy-window
 echo "== 验收 =="
