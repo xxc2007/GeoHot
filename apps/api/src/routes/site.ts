@@ -51,14 +51,18 @@ export function cacheUntil(reply: FastifyReply, defaultSeconds: number, refreshA
 // 2026-11-08：首页时间线在收据锁排队时会读到 2 秒以上、严重时直接 503。读者不该等后台干活，
 // 所以把最近一次成功的时间线留十分钟：真读不出来就把上一次的给读者（带 x-aihot-stale 标记），
 // 页面至少是「几分钟前的首页」，而不是空白或错误页。
-const POOL_STALE_MS = 10 * 60_000;
+const POOL_STALE_MS = 30 * 60_000;
 const poolStale = new Map<string, { body: unknown; at: number }>();
 // 2026-11-08：列表页每次冷读都要 Postgres 算一遍（实测 0.6–1.1 秒，其中 2.7 万行扫描 + 每行一次
 // readiness 探针）。同一页在 45 秒内被重复打开是常态（读者回退、手机切页、爬虫按分类组合走），
 // 而列表在 45 秒内几乎不会变。所以给自己留一份：45 秒内直出，3 分钟内先给旧的再后台刷新，
 // 键数封顶 80 个（翻页与筛选的组合再多也不会把内存吃掉）。
-const POOL_FRESH_MS = 45_000;
-const POOL_SERVE_MS = 3 * 60_000;
+// 2026-11-15：这一屏的取数在主库上要几十秒（'WITH listed …' 是 2.7 亿行 publications 上的
+// 相关子查询）。原来 45 秒就过期、3 分钟就当陈旧，等于让一台只有 ~250 IOPS 的机器不停重算，
+// 后台一开就雪崩（io.full=99、首页 503）。改成 5 分钟新鲜、30 分钟可用：读者看到的仍是
+// 当天内容，机器不再自我加压。
+const POOL_FRESH_MS = 5 * 60_000;
+const POOL_SERVE_MS = 30 * 60_000;
 const poolCache = new MicroCache<{ data: Awaited<ReturnType<typeof loadPool>> }>({
   freshMs: POOL_FRESH_MS,
   staleMs: POOL_SERVE_MS,
@@ -242,13 +246,13 @@ export function registerSite(app: FastifyInstance) {
     const args = { ...filters, q: search, tab, page, date: q.date ?? null };
     if (hit?.fresh) {
       reply.header("x-aihot-cache", "hit");
-      return sendJsonWithEtag(req, reply, hit.data.data, { etagPrefix: "pool", cacheControl: "public, max-age=45, s-maxage=45", etagOf: etagOf(hit.data) });
+      return sendJsonWithEtag(req, reply, hit.data.data, { etagPrefix: "pool", cacheControl: "public, max-age=300, s-maxage=300", etagOf: etagOf(hit.data) });
     }
     if (hit?.stale) {
       // 先给读者手上的这份，再在后台换新的：读者不等数据库，下一次请求就是新的。
       refreshPool(staleKey, args);
       reply.header("x-aihot-cache", "stale");
-      return sendJsonWithEtag(req, reply, hit.data.data, { etagPrefix: "pool", cacheControl: "public, max-age=45, s-maxage=45", etagOf: etagOf(hit.data) });
+      return sendJsonWithEtag(req, reply, hit.data.data, { etagPrefix: "pool", cacheControl: "public, max-age=300, s-maxage=300", etagOf: etagOf(hit.data) });
     }
     // 内存里没有（进程刚起来 / 这一页很久没人来）：先看落盘底稿，有就直出并后台刷新。
     // 这一支专门治「重启后第一个手机读者看到正在取收录池」——它读的是本地文件，
@@ -260,12 +264,16 @@ export function registerSite(app: FastifyInstance) {
         poolStale.set(staleKey, { body: snapshot.body, at: snapshot.at });
         refreshPool(staleKey, args);
         reply.header("x-aihot-cache", "snapshot");
-        return sendJsonWithEtag(req, reply, snapshot.body, { etagPrefix: "pool", cacheControl: "public, max-age=45, s-maxage=45", etagOf: etagOf({ data: snapshot.body }) });
+        return sendJsonWithEtag(req, reply, snapshot.body, { etagPrefix: "pool", cacheControl: "public, max-age=300, s-maxage=300", etagOf: etagOf({ data: snapshot.body }) });
       }
     }
     let data: Awaited<ReturnType<typeof loadPool>>;
     try {
-      data = await loadPool(args);
+      // 现算最多等 20 秒：再慢就交回底稿/陈旧值，不让一条 2 分钟的查询把后面的请求全堵住。
+      data = await Promise.race([
+        loadPool(args),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("pool budget exceeded")), 20_000).unref()),
+      ]);
     } catch (error) {
       const previous = poolStale.get(staleKey);
       if (previous && Date.now() - previous.at <= POOL_STALE_MS) {
@@ -279,7 +287,7 @@ export function registerSite(app: FastifyInstance) {
     poolStale.set(staleKey, { body: data, at: Date.now() });
     void writePoolSnapshot(staleKey, data);
     const { generatedAt: _, ...content } = data;
-    return sendJsonWithEtag(req, reply, data, { etagPrefix: "pool", cacheControl: "public, max-age=45, s-maxage=45", etagOf: content });
+    return sendJsonWithEtag(req, reply, data, { etagPrefix: "pool", cacheControl: "public, max-age=300, s-maxage=300", etagOf: content });
   }));
 
   // 日历入口的数据：某个月里哪几天有内容、哪几天出过日报。前端只拿到稀疏的有内容的日子，
