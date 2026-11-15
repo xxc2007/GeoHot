@@ -422,3 +422,27 @@ test("判关要够多样本、要真退得比答得多、按模型而不是服�
   assert.deepEqual(shedRefusingMembers(["workbuddy-hy3", "workbuddy-step5-preview"], "summarize", refused), ["workbuddy-step5-preview"],
     "同一个服务的兄弟模型不该跟着被关——判据认模型名");
 });
+
+test("2026-11-15 补登记的 magpie 门：九条都在注册表里，且 auto 系走 MAGPIE_BASE_URL", () => {
+  // 站长要求「magpie 里的所有模型都接进工作流」。这批是拿 1-token 请求实测过 200、且既有的
+  // 上游门里没有覆盖的那些；证据与未登记清单写在 llm.ts 对应注释里。
+  const added = [
+    "auto-hy3", "auto-qfmodel", "auto-deepseek-flash", "auto-deepseek-flash-max",
+    "auto-glm-flash", "auto-gemini-flash",
+    "antigravity-claude-sonnet-46", "trae-cn-glm53-flashx-max", "autoclaw-cn-glm53-flash",
+  ];
+  for (const key of added) {
+    const spec = MODELS[key];
+    assert.ok(spec, `${key} 应该在注册表里`);
+    assert.equal(spec!.key, key, "key 字段必须与注册表键一致（后台与回执都按它记账）");
+    assert.ok(spec!.model.includes("/"), `${key} 的 model 必须是 magpie 的 <service>/<model> 形状`);
+  }
+  for (const key of added.filter((k) => k.startsWith("auto-"))) {
+    assert.equal(MODELS[key]!.baseUrlEnv, "MAGPIE_BASE_URL", "auto 系统一走 magpie 本机地址");
+    assert.equal(MODELS[key]!.service, "auto", "auto 系单开一个 service，限流不连坐别的门");
+  }
+  // 反向：没登记的那些不该悄悄出现（有证据的失败清单）。
+  for (const dead of ["auto-dfmodel", "zcode-glm53-flash", "trae-cn-kimi-k31-pro-max", "copilot-gpt-41"]) {
+    assert.equal(MODELS[dead], undefined, `${dead} 上游实测不通过，不该登记`);
+  }
+});

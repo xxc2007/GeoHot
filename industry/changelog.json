@@ -1,6 +1,17 @@
 {
-  "latestVersion": "2026-11-15T04:15",
+  "latestVersion": "2026-11-15T07:05",
   "releases": [
+    {
+      "version": "v3.0.110",
+      "date": "2026-11-15",
+      "time": "07:05",
+      "title": "magpie 里能答话的门都进了模型池",
+      "body": [
+        "pool: 补登记 auto 系六扇门与 antigravity/trae-cn/autoclaw 各一扇，实测 1-token 200 才登记。",
+        "ops: 三台执行器与本机各补 MAGPIE_BASE_URL，box 与本地隧道新增 3426 转发。",
+        "why: 目录 57 个模型里 19 个有门，其余失败的五扇有证据，见 providers/llm.ts 注释。"
+      ]
+    },
     {
       "version": "v3.0.109",
       "date": "2026-11-15",

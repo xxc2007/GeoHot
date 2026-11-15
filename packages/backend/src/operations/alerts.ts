@@ -264,6 +264,13 @@ const PROVIDERS: Record<string, { name: string; stops: string; where: string }> 
     stops: MODEL_STOPS,
     where: "网站后台 magpie 的 QwenWork 供应商（个人免费版额度与登录状态）",
   },
+  // magpie 的 auto 路由（服务器 127.0.0.1:3426）。它背后是网关自己挑的成员，额度不在
+  // 某一家的面板上，而是 magpie 的 decisions/额度策略；报警要指向网站后台的 magpie 页。
+  auto: {
+    name: "Auto 路由（服务器 magpie 网关）",
+    stops: MODEL_STOPS,
+    where: "网站后台 magpie 的 auto 路由（网关自己的额度策略与成员健康）",
+  },
   antigravity: {
     name: "Antigravity（服务器 magpie 网关）",
     stops: MODEL_STOPS,

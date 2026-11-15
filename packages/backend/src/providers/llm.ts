@@ -550,6 +550,77 @@ export const MODELS: Record<string, ModelSpec> = {
     extra: { reasoning_effort: "max" }, jsonMode: true, vision: true,
     reasoningHeadroom: { default: 16_000, summarize_article: 32_000, translate_quoted: 11_264 },
   },
+  // ── 2026-11-15 补登记：magpie 目录里有、注册表里没有、且实测能答话的九扇门 ────────────────
+  //
+  // 站长要求「把 magpie 里的所有模型都接进网站工作流」。核对方式：`/v1/models` 的 57 个 id 逐个拿
+  // 1-token 请求打服务器本机 3426（2026-11-15T06:05），再与注册表的 `model` 字段对差集：19 个已覆盖，
+  // 38 个没覆盖。38 个里 23 个是 `copilot/*`（账号是 Education，除 `copilot/gpt-4.1` 外一律
+  // `model_not_supported`，且注册表里从来没有 COPILOT_*_URL 这扇门，登记了也只会列在后台下拉框里报错），
+  // 实测失败的另一批见下，都不登记。下面九条是**既没覆盖、又实测 200** 的：
+  //   auto/hy3、auto/qfmodel、auto/deepseek-v4.1-flash、auto/deepseek-v4.1-flash-max、auto/glm-5.3-flash、
+  //   auto/gemini-3.8-flash（magpie 自己的按名路由，1.1–5.6 s 出答复）
+  //   antigravity/claude-sonnet-4-6、trae-cn/glm-5.3-flashx-max、autoclaw-cn/zai_glm-5.3-flash
+  // 未登记（有证据，不是漏了）：`auto/dfmodel` 45 秒超时；`zcode/glm-5.3-flash` 429 `exceed quota limit`、
+  // `zcode/glm-5.2`、`zcode/glm-5-turbo` 400 `model not allowed`；`trae-cn/kimi-k3.1-pro-max` 502
+  // `param is invalid`；`workbuddy/hy3` 与既有 `workbuddy-ai-hy3`/`workbuddy-cn-hy3` 同上游，重复登记只会
+  // 让同一份额度多分一份账。等这些上游解封，按同样写法补登记即可。
+  //
+  // `auto/*` 走 MAGPIE_BASE_URL / MAGPIE_API_KEY（服务器 3426 本机地址），service 记 `auto`——熔断器与
+  // 拒绝账本按 service 分账，`auto` 哪天被限流不会连坐别的门。
+  "auto-hy3": {
+    key: "auto-hy3", service: "auto", model: "auto/hy3",
+    baseUrlEnv: "MAGPIE_BASE_URL", apiKeyEnv: "MAGPIE_API_KEY",
+    extra: { reasoning_effort: "max" }, jsonMode: true, vision: false,
+    reasoningHeadroom: { default: 16_000, summarize_article: 32_000, translate_quoted: 11_264 },
+  },
+  "auto-qfmodel": {
+    key: "auto-qfmodel", service: "auto", model: "auto/qfmodel",
+    baseUrlEnv: "MAGPIE_BASE_URL", apiKeyEnv: "MAGPIE_API_KEY",
+    extra: { reasoning_effort: "xhigh" }, jsonMode: true, vision: false,
+    reasoningHeadroom: { default: 16_000, summarize_article: 32_000, translate_quoted: 11_264 },
+  },
+  "auto-deepseek-flash": {
+    key: "auto-deepseek-flash", service: "auto", model: "auto/deepseek-v4.1-flash",
+    baseUrlEnv: "MAGPIE_BASE_URL", apiKeyEnv: "MAGPIE_API_KEY",
+    extra: { reasoning_effort: "max" }, jsonMode: true, vision: false,
+    reasoningHeadroom: { default: 20_000, summarize_article: 32_000, translate_quoted: 11_264 },
+  },
+  "auto-deepseek-flash-max": {
+    key: "auto-deepseek-flash-max", service: "auto", model: "auto/deepseek-v4.1-flash-max",
+    baseUrlEnv: "MAGPIE_BASE_URL", apiKeyEnv: "MAGPIE_API_KEY",
+    extra: { reasoning_effort: "max" }, jsonMode: true, vision: false,
+    reasoningHeadroom: { default: 20_000, summarize_article: 32_000, translate_quoted: 11_264 },
+  },
+  "auto-glm-flash": {
+    key: "auto-glm-flash", service: "auto", model: "auto/glm-5.3-flash",
+    baseUrlEnv: "MAGPIE_BASE_URL", apiKeyEnv: "MAGPIE_API_KEY",
+    extra: { reasoning_effort: "max" }, jsonMode: true, vision: false,
+    reasoningHeadroom: { default: 16_000, summarize_article: 32_000, translate_quoted: 11_264 },
+  },
+  "auto-gemini-flash": {
+    key: "auto-gemini-flash", service: "auto", model: "auto/gemini-3.8-flash",
+    baseUrlEnv: "MAGPIE_BASE_URL", apiKeyEnv: "MAGPIE_API_KEY",
+    extra: { reasoning_effort: "high" }, jsonMode: true, vision: true,
+    reasoningHeadroom: { default: 16_000, summarize_article: 32_000, translate_quoted: 11_264 },
+  },
+  "antigravity-claude-sonnet-46": {
+    key: "antigravity-claude-sonnet-46", service: "antigravity", model: "antigravity/claude-sonnet-4-6",
+    baseUrlEnv: "ANTIGRAVITY_BASE_URL", apiKeyEnv: "ANTIGRAVITY_API_KEY",
+    extra: { reasoning_effort: "max" }, jsonMode: true, vision: true,
+    reasoningHeadroom: { default: 16_000, summarize_article: 32_000, translate_quoted: 11_264 },
+  },
+  "trae-cn-glm53-flashx-max": {
+    key: "trae-cn-glm53-flashx-max", service: "trae-cn", model: "trae-cn/glm-5.3-flashx-max",
+    baseUrlEnv: "TRAE_CN_BASE_URL", apiKeyEnv: "TRAE_CN_API_KEY",
+    extra: { reasoning_effort: "xhigh" }, jsonMode: true, vision: true,
+    reasoningHeadroom: { default: 16_000, summarize_article: 32_000, translate_quoted: 11_264 },
+  },
+  "autoclaw-cn-glm53-flash": {
+    key: "autoclaw-cn-glm53-flash", service: "autoclaw-cn", model: "autoclaw-cn/zai_glm-5.3-flash",
+    baseUrlEnv: "AUTOCLAW_CN_BASE_URL", apiKeyEnv: "AUTOCLAW_CN_API_KEY",
+    extra: { reasoning_effort: "max" }, jsonMode: true, vision: true,
+    reasoningHeadroom: { default: 16_000, summarize_article: 32_000, translate_quoted: 11_264 },
+  },
   "trae-cn-glm538-flash-max": {
     key: "trae-cn-glm538-flash-max", service: "trae-cn", model: "trae-cn/glm-5.3-flash-max",
     baseUrlEnv: "TRAE_CN_BASE_URL", apiKeyEnv: "TRAE_CN_API_KEY",
