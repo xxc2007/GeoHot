@@ -30,7 +30,10 @@ test("上线前的代码快照：密钥不进包，可恢复的东西都要在",
     writeFileSync(path.join(app, ".data", "cursor.json"), "{}\n");
     const out = path.join(root, "backups");
     // Git Bash 里的 dirname/basename 不认反斜杠，所以给它正斜杠写法；Linux 上这一步是恒等变换。
-    const posix = (p: string) => p.replace(/\\/g, "/");
+    // 盘符还要换成 MSYS 写法：交给本机那个 GNU tar 的 `C:/…` 会被当成远程主机
+    // （`Cannot connect to C: resolve failed`），包会建出来但里面一条代码都没有 —— 这正是
+    // 这条判据在 Windows 上假红过一次的原因。
+    const posix = (p: string) => p.replace(/^([A-Za-z]):/, (_, drive: string) => `/${drive.toLowerCase()}`).replace(/\\/g, "/");
     const run = spawnSync("bash", [SCRIPT, "selftest.tar.gz"], {
       encoding: "utf8", env: { ...process.env, GEOHOT_APP_ROOT: posix(app), GEOHOT_BACKUP_DIR: posix(out) },
     });
@@ -38,7 +41,8 @@ test("上线前的代码快照：密钥不进包，可恢复的东西都要在",
     const pack = path.join(out, "selftest.tar.gz");
     // 列表也走 bash，并且进目录用相对名：本机那个 `tar` 是 Git Bash 的 GNU tar，`C:\…` 或 `C:/…` 会被它
     // 当成远程主机（`Cannot connect to C: resolve failed`），直接用绝对路径递给它是假红。
-    const listing = spawnSync("bash", ["-c", `cd "$1" && tar tzf "$2"`, "bash", posix(out), "selftest.tar.gz"], { encoding: "utf8" }).stdout.split("\n");
+    // tar tzf 在 Git Bash 下按 CRLF 出屏幕，不拆掉行尾的 \r，endsWith("sub/a.txt") 永远不成立。
+    const listing = spawnSync("bash", ["-c", `cd "$1" && tar tzf "$2" | tr -d \"\\r\"`, "bash", posix(out), "selftest.tar.gz"], { encoding: "utf8" }).stdout.split(/\r?\n/);
     assert.ok(listing.some((l) => l.endsWith("sub/a.txt")), "代码要在包里");
     assert.ok(listing.some((l) => l.endsWith(".env.example")), "仓库自带的模板不是密钥，要留着");
     for (const leak of [".env", ".env.pipeline", ".env.bak-20261010", ".data"]) {
