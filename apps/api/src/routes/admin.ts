@@ -6,6 +6,7 @@ import { actorOf } from "@aihot/backend/admin/auth";
 import { InvalidInput } from "@aihot/backend/admin/invalid";
 import { sharedAdminRead } from "@aihot/backend/admin/read-cache";
 
+import { cachePage } from "@aihot/backend/admin/page-cache";
 import { MicroCache } from "@aihot/backend/lib/micro-cache";
 import { modelsOverview, switchModel } from "@aihot/backend/admin/models";
 import { usageOverview } from "@aihot/backend/admin/usage";
@@ -124,8 +125,9 @@ export function registerAdmin(app: FastifyInstance) {
   app.post("/api/admin/feedback/:id/reply", adminHandler(async (req, reply, admin) => orNotFound(req, reply, await replyFeedback(rowId(req), body(req) as never, actorOf(admin)))));
 
   // Settings
-  app.get("/api/admin/settings", adminHandler(async () => ({ budgets: await listBudgets() })));
-  app.get("/api/admin/topics", adminHandler(async (req) => topicRotationBoard(Math.min(365, Number(q(req).days) || 30))));
+  // 后台是「人看一眼」的页面：30 秒内重复打开直接给缓存，过期的旧值先给、后台重算（io 打满时不再 503）。
+  app.get("/api/admin/settings", adminHandler(async () => cachePage("settings", "all", async () => ({ budgets: await listBudgets() }), { freshMs: 30_000 })));
+  app.get("/api/admin/topics", adminHandler(async (req) => { const days = Math.min(365, Number(q(req).days) || 30); return cachePage("topics", String(days), () => topicRotationBoard(days), { freshMs: 120_000 }); }));
   app.put("/api/admin/budgets/:service", adminHandler(async (req, _reply, admin) => updateBudget(param(req, "service"), body(req) as never, actorOf(admin))));
   // 只删预算行（retire 一扇门）：receipts / receipt_attempts / metrics 历史不动（是账单与审计依据）。
   app.delete("/api/admin/budgets/:service", adminHandler(async (req, reply, admin) => {
@@ -135,7 +137,7 @@ export function registerAdmin(app: FastifyInstance) {
 
 
   // Models and evaluation (F20)
-  app.get("/api/admin/models", adminHandler(async (req) => modelsOverview(Math.min(90, Number(q(req).days) || 7))));
+  app.get("/api/admin/models", adminHandler(async (req) => { const days = Math.min(90, Number(q(req).days) || 7); return cachePage("models", String(days), () => modelsOverview(days), { freshMs: 120_000 }); }));
   // 后台的「用量总览」是几条按天/按小时聚合的大查询，在这块慢盘上单次要几十秒；
   // 页面每 30 秒自动刷新一次，等于把同一份聚合反复算。这里给结果做一层进程内缓存：
   //   命中（60 秒内）直接给；过期的旧值也先给，同时后台重算；重算失败仍给旧值（带 x-admin-cache: stale）。
@@ -197,11 +199,16 @@ export function registerAdmin(app: FastifyInstance) {
   // 一次慢查询就把后台挂在 5 秒之外（同型问题在 admin-read.ts 已收口）。
   app.get("/api/admin/audit", adminHandler(async (req) => {
     const f = q(req);
+    const pageNo = page(req);
+    // 审计首页也是「人看一眼」的数据：同一组筛选 30 秒内重复打开不再打数据库（慢盘上它最容易 503）。
+    return cachePage("audit", [f.subject ?? "", f.action ?? "", String(pageNo)].join("|"), () => readAudit(f, pageNo), { freshMs: 30_000 });
+  }));
+  const readAudit = async (f: ReturnType<typeof q>, pageNo: number) => {
     const rows = await adminReadOrBusy((db) => db`
       SELECT id, created_at, actor, action, subject, reason, before, after FROM audit_log
       WHERE (${f.subject ?? null}::text IS NULL OR subject = ${f.subject ?? null}) AND (${f.action ?? null}::text IS NULL OR action LIKE ${`${f.action ?? ""}%`})
-      ORDER BY created_at DESC LIMIT 101 OFFSET ${(page(req) - 1) * 100}`);
+      ORDER BY created_at DESC LIMIT 101 OFFSET ${(pageNo - 1) * 100}`);
     // 101 行只为回答「还有没有下一页」：后台按「这页满 100 条」推断，尾页正好满 100 时点下一页是空表。
-    return { page: page(req), rows: rows.slice(0, 100), hasMore: rows.length > 100 };
-  }));
+    return { page: pageNo, rows: rows.slice(0, 100), hasMore: rows.length > 100 };
+  };
 }
