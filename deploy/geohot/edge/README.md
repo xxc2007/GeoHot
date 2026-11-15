@@ -54,3 +54,17 @@ sudo bash install-edge.sh edge
 3. 把本目录 `geohot-domestic.conf` 的 `server_name` 改成 `cn.xxc2007.me`，监听 443 并 301 从 80 跳过来。
 
 `xxc200707.me` 想用也可以，但要先在华为云做完 ICP 备案（管局 1–20 个工作日），期间它只会拿到 403。
+
+## 一条命令把国内域名接上（需要 Cloudflare 的 DNS 权限）
+
+```bash
+CLOUDFLARE_API_TOKEN=*** CLOUDFLARE_ZONE=xxc2007.me \
+EDGE_DOMAIN=cn.xxc2007.me EDGE_IP=113.45.66.100 \
+  bash deploy/geohot/edge/set-edge-dns.sh --apply
+```
+
+脚本做三件事：`Zone.DNS:Edit` 权限下 upsert 一条**灰云** A 记录 → 等本机解析到位 → `certbot --nginx -d <域名> --redirect`。
+Token 只有这一项权限就够，不需要 Global Key；`--apply` 之前是纯 dry-run。
+
+为什么必须是 `xxc2007.me` 的子域：华为云按「注册域」拦截未备案站点（80/443 都拦，见上一节）；
+`xxc200707.me` 想用，先去华为云做 ICP 备案。
