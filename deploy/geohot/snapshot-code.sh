@@ -33,3 +33,18 @@ if printf '%s\n' "$LISTING" | grep -Eq "(^|/)\.env$|(^|/)\.env\.(pipeline|bak)|(
   fail '包里仍然含有 .env 或 .data，已删除该包'
 fi
 printf 'snapshot-code: %s 个成员 → %s/%s（不含 .env*、.data）\n' "$(printf '%s\n' "$LISTING" | wc -l)" "$OUT_DIR" "$NAME"
+
+# 只保留最近几次的包：2026-11-16 主库磁盘被这些 187 MB 的包吃到只剩 4.4 GB（317 个 = 24 GB）。
+# 保留数用 GEOHOT_BACKUP_KEEP 调，默认 3；判断按修改时间，刚打出来的这个永远不会被删。
+KEEP="${GEOHOT_BACKUP_KEEP:-3}"
+case "$KEEP" in
+  ''|*[!0-9]*) KEEP=3 ;;
+esac
+if (( KEEP >= 1 )); then
+  # shellcheck disable=SC2012 # 包名是受控的（见上面的 NAME 校验），不存在奇怪字符
+  mapfile -t OLD < <(ls -1t "$OUT_DIR"/app-*.tar.gz 2>/dev/null | tail -n +$((KEEP + 1)) || true)
+  if (( ${#OLD[@]} > 0 )); then
+    rm -f -- "${OLD[@]}"
+    printf 'snapshot-code: 清掉 %d 个旧包（保留最近 %d 个）\n' "${#OLD[@]}" "$KEEP"
+  fi
+fi

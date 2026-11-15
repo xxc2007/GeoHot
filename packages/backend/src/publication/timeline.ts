@@ -81,7 +81,9 @@ interface GroupedSnapshot {
   rows: Array<{ gk: string; anchor: number }>;
 }
 // 2026-11-14：5 秒 → 30 秒。主库被后台分析压着时这条聚合要 2–6 秒，5 秒窗口等于「一直在冷算」。
-const SNAPSHOT_TTL_MS = 30_000;
+// 主库只有一块 ~400 IOPS 的盘：这条聚合一次要扫十几万行，30 秒就重算一次等于自残。
+// 读者看的是缓存，10 分钟够新；真有大新闻时 refreshAt（下一条精选的时间）会提前放开。
+const SNAPSHOT_TTL_MS = 10 * 60_000;
 const groupedCache = new Map<string, GroupedSnapshot>();
 const groupedPending = new Map<string, Promise<GroupedSnapshot>>();
 async function groupedSnapshot(q: TimelineQuery, now: Date): Promise<GroupedSnapshot> {
