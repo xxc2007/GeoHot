@@ -83,6 +83,9 @@ ALL_UNITS=(geohot-brain.service geohot-api.service geohot-worker.service geohot-
            # 2026-11-14 补登：box 保活常驻进程（站长要求 box 24 小时不休眠、不依赖本机）。
            # 它住在主库上，靠 MCP 会话每分钟一次真实调用把沙箱「用着」，平台才不会回收。
            geohot-box-hold.service
+           # 2026-11-15 补登：InstaBox 免费档 30 分钟没人用就自动暂停，而沙箱里的执行器只往外连
+           # （SSH 隧道），平台看不到入向活动 —— 主库每 20 分钟打一次 /wake 记账并把它叫醒。
+           geohot-instabox-hold.service
            # 2026-11-15：执行器昼夜档。白天只采集、夜里开一个分析槽——主库慢盘上任何分析并发
            # 都会把 io 压到 99%、读者面掉到 5–15 秒。装到执行器上（杭州/武汉/华为/box）。
            geohot-role-day.service geohot-role-day.timer

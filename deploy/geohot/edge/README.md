@@ -68,3 +68,38 @@ Token 只有这一项权限就够，不需要 Global Key；`--apply` 之前是�
 
 为什么必须是 `xxc2007.me` 的子域：华为云按「注册域」拦截未备案站点（80/443 都拦，见上一节）；
 `xxc200707.me` 想用，先去华为云做 ICP 备案。
+
+## 2026-11-15 实测：`certbot --nginx` 在这条链路上走不通，证书得用 DNS-01
+
+`cn.xxc2007.me` 的 A 记录（灰云）加好之后，`certbot --nginx -d cn.xxc2007.me` 仍然失败：
+
+```
+Detail: 113.45.66.100: Invalid response from
+http://cn.xxc2007.me/.well-known/acme-challenge/<token>: 403
+```
+
+本机 `curl -H "Host: cn.xxc2007.me" http://113.45.66.100/.well-known/acme-challenge/probe` 是 **200**，
+但 Let's Encrypt 的校验节点在境外，华为云对境外来源的 80 端口同样按「未备案注册域」拦掉（`Server: ADM/2.1.1`）。
+所以 HTTP-01 这条路在这里是死的，只能用 DNS-01。
+
+一条命令（`tls` 子命令，需要 `Zone.DNS:Edit` 的 token）：
+
+```bash
+CLOUDFLARE_API_TOKEN=*** sudo -E bash deploy/geohot/edge/install-edge.sh tls
+```
+
+它做四件事：
+1. 装 `certbot` + `python3-certbot-dns-cloudflare`，把 token 写进 `/etc/letsencrypt/cloudflare.ini`（600）；
+2. `certbot certonly --dns-cloudflare --cert-name cn.xxc2007.me`（自动建/删 `_acme-challenge` TXT）；
+3. 写 `geohot-edge-tls.conf`（443 + HSTS）与 `geohot-edge-http.conf`（80 → 301），reload nginx；
+4. 把保温器切到 https，并跑一次 `certbot renew --dry-run` 证明续期链路真的通。
+
+实测（22:4x）：
+
+| 入口 | 杭州 | 上海（本机） |
+|---|---|---|
+| `https://cn.xxc2007.me/geohot/`（命中边缘缓存） | **0.35 / 0.64 s** | **0.11 / 0.04 s** |
+| 同一条路径经 Cloudflare（`xxc2007.me`） | 1.25 s（冷）/ 9.8 s（回源） | 1.9–5.1 s |
+
+续期：`certbot renew` 由 `certbot.timer` 每天跑两次，认证方式已写入
+`/etc/letsencrypt/renewal/cn.xxc2007.me.conf`（`authenticator = dns-cloudflare`），不需要人值守。
