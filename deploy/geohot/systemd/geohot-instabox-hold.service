@@ -11,6 +11,8 @@ Type=simple
 User=root
 Environment=INSTABOX_MACHINE=m_agq566xboeglgwufg5qvn7qxle
 Environment=INSTABOX_TOKEN_FILE=/etc/geohot/instabox-token
+# 空闲暂停是 30 分钟：入向活动必须比它密得多，留出三倍余量
+Environment=INSTABOX_ACTIVE_MS=300000
 ExecStart=/usr/bin/node /opt/geohot/bin/instabox-hold.mjs
 Restart=always
 RestartSec=10
