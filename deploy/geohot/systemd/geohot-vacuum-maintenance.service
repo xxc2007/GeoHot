@@ -1,0 +1,14 @@
+[Unit]
+Description=GeoHot nightly VACUUM for the big receipt tables (reader first)
+Documentation=deploy/geohot/bin/vacuum-maintenance.sh
+After=postgresql@17-main.service
+
+[Service]
+Type=oneshot
+User=root
+Nice=19
+IOSchedulingClass=idle
+IOSchedulingPriority=7
+CPUWeight=20
+TimeoutStartSec=3600
+ExecStart=/opt/geohot/bin/vacuum-maintenance.sh
