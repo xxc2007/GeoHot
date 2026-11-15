@@ -1,0 +1,10 @@
+[Unit]
+Description=每天 23:00（北京时间）开一个分析槽
+
+[Timer]
+OnCalendar=*-*-* 23:00:00 Asia/Shanghai
+Persistent=true
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target

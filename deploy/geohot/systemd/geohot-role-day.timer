@@ -1,0 +1,10 @@
+[Unit]
+Description=每天 07:00（北京时间）切回只采集
+
+[Timer]
+OnCalendar=*-*-* 07:00:00 Asia/Shanghai
+Persistent=true
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target

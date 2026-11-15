@@ -1,0 +1,6 @@
+[Unit]
+Description=GEOHOT 白天只采集（分析停在这里，读者面优先）
+
+[Service]
+Type=oneshot
+ExecStart=/opt/geohot/bin/role-window.sh day /opt/geohot-exec/.env
