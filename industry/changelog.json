@@ -1,6 +1,21 @@
 {
-  "latestVersion": "2026-11-15T18:55",
+  "latestVersion": "2026-11-15T19:40",
   "releases": [
+    {
+      "date": "2026-11-15",
+      "time": "19:40",
+      "major": false,
+      "title": "照文档就能在本地跑起来",
+      "body": [
+        "干净 clone 实测补了三处：后台起库直接调 node 入口（nohup npm 在 Git Bash 里必挂）、冒烟加了 npm 别名并写明要先构建前端。",
+        "迁移条数从 108 改成实际的 114，冒烟地址写明不带 /geohot 前缀。",
+        "新增 tests/readme-deploy-docs.test.ts，钉住这些命令不再回退。"
+      ],
+      "tags": [
+        "docs",
+        "deploy"
+      ]
+    },
     {
       "date": "2026-11-15",
       "time": "18:55",
