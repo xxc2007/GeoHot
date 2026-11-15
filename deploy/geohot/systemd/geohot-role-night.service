@@ -1,0 +1,6 @@
+[Unit]
+Description=GEOHOT 夜间开一个分析槽
+
+[Service]
+Type=oneshot
+ExecStart=/opt/geohot/bin/role-window.sh night /opt/geohot-exec/.env

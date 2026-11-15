@@ -83,6 +83,10 @@ ALL_UNITS=(geohot-brain.service geohot-api.service geohot-worker.service geohot-
            # 2026-11-14 补登：box 保活常驻进程（站长要求 box 24 小时不休眠、不依赖本机）。
            # 它住在主库上，靠 MCP 会话每分钟一次真实调用把沙箱「用着」，平台才不会回收。
            geohot-box-hold.service
+           # 2026-11-15：执行器昼夜档。白天只采集、夜里开一个分析槽——主库慢盘上任何分析并发
+           # 都会把 io 压到 99%、读者面掉到 5–15 秒。装到执行器上（杭州/武汉/华为/box）。
+           geohot-role-day.service geohot-role-day.timer
+           geohot-role-night.service geohot-role-night.timer
            # 2026-11-14 补登：主库只有一块慢盘，页面冷算要 3.5–15 秒，而 nginx 缓存 60 秒一过期，
            # 每一分钟就有一个真实读者替全站付这份钱。预热器把「付钱的人」换成定时器。
            geohot-warm-pages.service geohot-warm-pages.timer
