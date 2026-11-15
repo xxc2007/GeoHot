@@ -177,13 +177,39 @@ export async function passwordLogin(password: string, returnTo: string, userAgen
   return { token, returnTo: safeReturn(returnTo), userId: user!.id };
 }
 
+/**
+ * 会话校验的进程内缓存。
+ *
+ * 2026-11-16 现场：主库那块盘 io 打满时，`/api/auth/password` 与每个后台接口都要做一次
+ * `admin_sessions` 的读，慢到 30 秒拿不到结果——后台连登录都进不去。会话本身有 7 天有效期，
+ * 30 秒的陈旧只影响「登出后其它进程还认 30 秒」，可以接受；而且这一层只缓存命中，不缓存未命中。
+ */
+const SESSION_CACHE_MS = 30_000;
+const sessionCache = new Map<string, { principal: AdminPrincipal; at: number }>();
+
+/** 登出时把这一进程里的缓存一并清掉（别的进程最多再认 30 秒）。 */
+export function forgetSession(token: string): void {
+  sessionCache.delete(sha256(token));
+}
+
+export function resetSessionCache(): void {
+  sessionCache.clear();
+}
+
 export async function sessionPrincipal(cookieHeader: string | undefined, db: Db = sql): Promise<AdminPrincipal | null> {
   const token = parseCookies(cookieHeader)[SESSION_COOKIE];
   if (token) {
+    const idHash = sha256(token);
+    const held = sessionCache.get(idHash);
+    if (held && Date.now() - held.at < SESSION_CACHE_MS) return held.principal;
     const [row] = await db<{ user_id: number; csrf_token: string; name: string | null; email: string | null }[]>`
       SELECT s.user_id, s.csrf_token, u.display_name AS name, u.email FROM admin_sessions s JOIN admin_users u ON u.id = s.user_id
       WHERE s.id_hash = ${sha256(token)} AND s.expires_at > now()`;
-    if (row) return { userId: row.user_id, name: row.name ?? row.email ?? `admin:${row.user_id}`, csrf: row.csrf_token, dev: false };
+    if (row) {
+      const principal: AdminPrincipal = { userId: row.user_id, name: row.name ?? row.email ?? `admin:${row.user_id}`, csrf: row.csrf_token, dev: false };
+      sessionCache.set(idHash, { principal, at: Date.now() });
+      return principal;
+    }
   }
   // 2026-11-04：令牌从字面量 "dev" 换成 `DEV_AUTH_TOKEN`（≥16 字符）。没有令牌就没有旁路，
   // 而生产环境本来就会因为 env 里出现 `DEV_AUTH_*` 直接拒绝启动（config.ts 的 assertProductionSecrets）。
@@ -195,7 +221,10 @@ export async function sessionPrincipal(cookieHeader: string | undefined, db: Db 
 
 export async function endSession(cookieHeader: string | undefined) {
   const token = parseCookies(cookieHeader)[SESSION_COOKIE];
-  if (token) await sql`DELETE FROM admin_sessions WHERE id_hash = ${sha256(token)}`;
+  if (token) {
+    forgetSession(token);
+    await sql`DELETE FROM admin_sessions WHERE id_hash = ${sha256(token)}`;
+  }
 }
 
 /** Every manual change: who, when, what, why. */
