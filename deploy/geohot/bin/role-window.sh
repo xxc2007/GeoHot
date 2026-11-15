@@ -7,19 +7,25 @@
 # 分析（content.analyze）是重写 + 大扫，只能等夜里读者少的时候做。
 #
 # 用法：role-window.sh day|night [env 文件]
-#   day   → WORKER_ROLE=fetcher，分析槽 0
+#   day   → WORKER_ROLE=all，分析槽 0（采集与正文提取照跑）
 #   night → WORKER_ROLE=all，分析槽 1
-# 装法见 deploy/geohot/systemd/geohot-role-{day,night}.{service,timer}：
-#   systemctl enable --now geohot-role-day.timer geohot-role-night.timer
-# 只改这三行并重启 worker，不碰 .env 的其它内容（额度、模型池都在同一份文件里）。
+#
+# 为什么白天也写 WORKER_ROLE=all：`extraction` 在 worker-role.ts 里是
+# `role !== coordinator && role !== fetcher && role !== media` —— 写成 fetcher 会把
+# 「正文提取」一起关掉。2026-11-15 白天三台云机全切 fetcher，6 小时里堆下 420 条
+# `body_status=pending`，读者面因此只剩标题。白天真正要停的只有分析，靠
+# `GEOHOT_INTAKE_ANALYSIS_SLOTS=0` 拦（intake 按 analysis 车道单独计数）。
+#
+# 另一个坑：`ANALYZE_CONCURRENCY=0` 会被 config 当成「不是正整数」回落到 6/4，
+# 反而把分析开大。所以这两个键都写 1，用 slots 决定开不开分析。
 set -u
 
 mode="${1:-day}"
 env_file="${2:-/opt/geohot-exec/.env}"
 
 case "$mode" in
-  day)   role=fetcher; slots=0 ;;
-  night) role=all;     slots=1 ;;
+  day)   role=all; slots=0 ;;
+  night) role=all; slots=1 ;;
   *) echo "用法：$0 day|night [env 文件]" >&2; exit 2 ;;
 esac
 
@@ -41,7 +47,8 @@ set_key() {
 }
 
 set_key WORKER_ROLE "$role"
-set_key ANALYZE_CONCURRENCY "$slots"
+# 恒定写 1：写 0 会被当成非法值回落到 6/4，反而把分析开大。
+set_key ANALYZE_CONCURRENCY "1"
 set_key GEOHOT_INTAKE_ANALYSIS_SLOTS "$slots"
 
 logger -t geohot-role "mode=$mode role=$role slots=$slots file=$env_file"

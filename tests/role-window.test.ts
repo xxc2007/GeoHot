@@ -8,10 +8,16 @@ const dayTimer = readFileSync(new URL("../deploy/geohot/systemd/geohot-role-day.
 const nightTimer = readFileSync(new URL("../deploy/geohot/systemd/geohot-role-night.timer", import.meta.url), "utf8");
 const install = readFileSync(new URL("../deploy/geohot/install-units.sh", import.meta.url), "utf8");
 
-test("白天只采集，夜里一个分析槽", () => {
-  assert.match(script, /day\)\s+role=fetcher; slots=0/);
+test("白天不开分析，但采集与正文提取照跑", () => {
+  assert.match(script, /day\)\s+role=all; slots=0/);
   assert.match(script, /night\)\s+role=all;\s+slots=1/);
   assert.match(script, /set_key WORKER_ROLE "\$role"/);
+  // role=fetcher 会连正文提取一起关掉（worker-role.ts 的 extraction 判据），
+  // 2026-11-15 白天三台全切 fetcher，6 小时堆了 420 条 body_status=pending。
+  assert.doesNotMatch(script, /role=fetcher/);
+  // ANALYZE_CONCURRENCY 写 0 会被 config 回落到 6/4，必须恒定 1，用 slots 拦分析。
+  assert.match(script, /set_key ANALYZE_CONCURRENCY "1"/);
+  assert.match(script, /set_key GEOHOT_INTAKE_ANALYSIS_SLOTS "\$slots"/);
 });
 
 test("改 env 前先备份，改完重启 worker", () => {
