@@ -6,6 +6,7 @@ import { actorOf } from "@aihot/backend/admin/auth";
 import { InvalidInput } from "@aihot/backend/admin/invalid";
 import { sharedAdminRead } from "@aihot/backend/admin/read-cache";
 
+import { MicroCache } from "@aihot/backend/lib/micro-cache";
 import { modelsOverview, switchModel } from "@aihot/backend/admin/models";
 import { usageOverview } from "@aihot/backend/admin/usage";
 
@@ -135,9 +136,40 @@ export function registerAdmin(app: FastifyInstance) {
 
   // Models and evaluation (F20)
   app.get("/api/admin/models", adminHandler(async (req) => modelsOverview(Math.min(90, Number(q(req).days) || 7))));
+  // 后台的「用量总览」是几条按天/按小时聚合的大查询，在这块慢盘上单次要几十秒；
+  // 页面每 30 秒自动刷新一次，等于把同一份聚合反复算。这里给结果做一层进程内缓存：
+  //   命中（60 秒内）直接给；过期的旧值也先给，同时后台重算；重算失败仍给旧值（带 x-admin-cache: stale）。
+  const usageCache = new MicroCache<Awaited<ReturnType<typeof usageOverview>>>({ freshMs: 60_000, staleMs: 30 * 60_000, maxEntries: 64 });
+  const usagePending = new Map<string, Promise<Awaited<ReturnType<typeof usageOverview>>>>();
+  const refreshUsage = (key: string, args: Parameters<typeof usageOverview>) => {
+    if (usagePending.has(key)) return usagePending.get(key)!;
+    const run = usageOverview(...args)
+      .then((data) => { usageCache.write(key, data); return data; })
+      .finally(() => usagePending.delete(key));
+    usagePending.set(key, run);
+    return run;
+  };
   app.get("/api/admin/usage", adminHandler(async (req, reply) => {
     reply.header("Cache-Control", "no-store");
-    return usageOverview(q(req).range,q(req).service,q(req).model,q(req).date,q(req).month);
+    const f = q(req);
+    const args = [f.range, f.service, f.model, f.date, f.month] as Parameters<typeof usageOverview>;
+    const key = args.map((v) => v ?? "").join("|");
+    const hit = usageCache.read(key);
+    if (hit?.fresh) { reply.header("x-admin-cache", "fresh"); return hit.data; }
+    if (hit) {
+      void refreshUsage(key, args).catch(() => {});
+      reply.header("x-admin-cache", "stale");
+      return hit.data;
+    }
+    try {
+      const data = await refreshUsage(key, args);
+      reply.header("x-admin-cache", "miss");
+      return data;
+    } catch (error) {
+      const again = usageCache.read(key);
+      if (again) { reply.header("x-admin-cache", "stale-error"); return again.data; }
+      throw error;
+    }
   }));
   app.post("/api/admin/models/:capability", adminHandler(async (req, _reply, admin) => {
     const b = body<{ model: string | null; reason: string }>(req);
