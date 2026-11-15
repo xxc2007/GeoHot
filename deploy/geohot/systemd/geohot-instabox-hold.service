@@ -1,0 +1,24 @@
+[Unit]
+Description=GeoHot InstaBox hold-awake (free plan pauses after 30 idle minutes; the executor only connects out)
+Documentation=file:///opt/geohot/bin/instabox-hold.mjs
+After=network-online.target
+Wants=network-online.target
+# 常驻进程最怕被启动频率上限打死（box 上就踩过 StartLimitBurst），这里直接关掉上限
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=root
+Environment=INSTABOX_MACHINE=m_agq566xboeglgwufg5qvn7qxle
+Environment=INSTABOX_TOKEN_FILE=/etc/geohot/instabox-token
+ExecStart=/usr/bin/node /opt/geohot/bin/instabox-hold.mjs
+Restart=always
+RestartSec=10
+Nice=10
+IOSchedulingClass=idle
+MemoryMax=96M
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
