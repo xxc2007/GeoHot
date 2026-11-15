@@ -93,7 +93,11 @@ ALL_UNITS=(geohot-brain.service geohot-api.service geohot-worker.service geohot-
            # 2026-11-15 补登：首页与「全部」是读者面最贵的两屏（时间线 + 收录池现算）。
            # 后台流水线一开，冷请求 2.5–5 秒，而 nginx 缓存 60 秒就过期 —— 让预热带 60 秒来一次，
            # 真读者就永远命中缓存。其余四屏仍由上面那个 2 分钟的 timer 负责。
-           geohot-warm-hot.service geohot-warm-hot.timer)
+           geohot-warm-hot.service geohot-warm-hot.timer
+           # 2026-11-15：收据两表（receipts 2.8 GB / receipt_attempts 596 MB）上累积了 8 万多死元组，
+           # autovacuum 在下午自己触发，把慢盘打到 io 98.6、读者页 5 秒。改成表上放宽阈值、
+           # 真正的回收只在这个 04:10 的窗口里做（SKIP_LOCKED，不跟线上读写抢锁）。
+           geohot-vacuum-maintenance.service geohot-vacuum-maintenance.timer)
 if [[ "$APP_ROOT" == "/opt/geohot/app" && -d "$TEMPLATE_DIR" ]]; then
   echo "route=templates  从 $TEMPLATE_DIR 安装 ${#ALL_UNITS[@]} 个单元（带加固块；这一条与线上现值一致）"
   src_missing=0

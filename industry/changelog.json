@@ -1,6 +1,21 @@
 {
-  "latestVersion": "2026-11-15T20:25",
+  "latestVersion": "2026-11-15T21:05",
   "releases": [
+    {
+      "date": "2026-11-15",
+      "time": "21:05",
+      "major": false,
+      "title": "收据表的回收挪到凌晨",
+      "body": [
+        "receipts 2.8 GB、8 万多死元组，autovacuum 下午自己触发，把慢盘打到 io 98.6、读者页 5 秒。",
+        "表上放宽 autovacuum 阈值与成本上限，真正的回收交给每天 04:10 的窗口（SKIP_LOCKED、idle I/O）。",
+        "取消那次 autovacuum 后 io 从 98.6 掉到 2.76，健康检查回到 0 毫秒。"
+      ],
+      "tags": [
+        "ops",
+        "db"
+      ]
+    },
     {
       "date": "2026-11-15",
       "time": "20:25",
