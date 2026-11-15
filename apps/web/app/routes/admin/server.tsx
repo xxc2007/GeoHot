@@ -4,7 +4,7 @@ import type { Route } from "./+types/server";
 import { adminGet } from "../../lib/admin.server";
 import { AdminPage, Card, Stat } from "../../features/admin/ui";
 
-interface Sample { checkedAt:string; stale?:boolean; host:string; os:string; kernel:string; cpus:number; cpuPercent:number|null; uptime:number; load:number[]; memory:{total:number;available:number;swapTotal:number;swapFree:number}; disk:{total:number;free:number}; pressure:Record<string,number>; services:Array<{name:string;state:string;memory:number;restarts:number}>; ports:string[]; versions:Record<string,string>; nodes?:Array<{role:string;host:string;release:string;slots:number|null;load:number|null;loadAll:number[]|null;cpus:number|null;cpuPercent:number|null;memTotal:number|null;memFree:number|null;swapTotal:number|null;swapFree:number|null;diskFree:number|null;diskTotal:number|null;uptime:number|null;platform:string|null;kernel:string|null;services:Array<{name:string;state:string;memory:number;restarts:number}>;ports:string[];at:string|null;alive:boolean}> }
+interface Sample { checkedAt:string; stale?:boolean; host:string; os:string; kernel:string; cpus:number; cpuPercent:number|null; uptime:number; load:number[]; memory:{total:number;available:number;swapTotal:number;swapFree:number}; disk:{total:number;free:number}; pressure:Record<string,number>; services:Array<{name:string;state:string;memory:number;restarts:number}>; ports:string[]; versions:Record<string,string>; nodes?:Array<{role:string;host:string;label:string|null;release:string;slots:number|null;load:number|null;loadAll:number[]|null;cpus:number|null;cpuPercent:number|null;memTotal:number|null;memFree:number|null;swapTotal:number|null;swapFree:number|null;diskFree:number|null;diskTotal:number|null;uptime:number|null;platform:string|null;kernel:string|null;services:Array<{name:string;state:string;memory:number;restarts:number}>;ports:string[];at:string|null;alive:boolean}> }
 export async function loader({request}:Route.LoaderArgs){return adminGet<Sample>(request,"/api/admin/server",5000);}
 const mb=(n:number)=>`${Math.round(n/1024/1024).toLocaleString()} MB`;
 const gb=(n:number)=>`${(n/1024**3).toFixed(1)} GB`;
@@ -15,22 +15,35 @@ export function ErrorBoundary() {
 }
 // 2026-11-07 站长：别在页面上显示 iZbp14vh9sicf5z7law47aZ 这种实例 id。
 // 已知机器按所在地称呼，未知机器退回主机名，本机永远叫「本机」。
-const PLACES: Array<[string, string]> = [
-  ["iZbp14vh9sicf5z7law47aZ", "杭州"],
-  ["iZn4a5we2sy73dqo3yih50Z", "武汉"],
-  ["geohot-box", "box"],
+const PLACES: Array<{ prefix: string; place: string; ip: string }> = [
+  { prefix: "xxc", place: "Azure 主库", ip: "20.194.28.128" },
+  { prefix: "iZbp14vh9sicf5z7law47aZ", place: "杭州", ip: "47.97.97.62" },
+  { prefix: "iZn4a5we2sy73dqo3yih50Z", place: "武汉", ip: "8.148.65.89" },
+  { prefix: "hcss-ecs-6a39", place: "华为云广州", ip: "113.45.66.100" },
+  { prefix: "box-main", place: "box 沙箱", ip: "" },
+  { prefix: "geohot-box", place: "box 沙箱", ip: "" },
+  { prefix: "ThinkBook16", place: "本机 ThinkBook", ip: "" },
 ];
-function place(host: string, self: string): string {
+function known(host: string) { return PLACES.find((p) => host.startsWith(p.prefix)); }
+
+// 面板按「地名 · 公网 IP」认机器：label 由机器自己心跳时带上（GEOHOT_HEARTBEAT_LABEL），
+// 没有 label 的老机器退回主机名前缀表，再退回原始主机名。
+function place(host: string, self: string, label?: string | null): string {
+  if (label && label.trim()) return label.trim();
   if (host === self) return "本机";
-  const hit = PLACES.find(([prefix]) => host.startsWith(prefix));
-  return hit ? hit[1] : host;
+  return known(host)?.place ?? host;
+}
+
+function placeIp(host: string, label?: string | null): string {
+  if (label && label.includes("/")) return label.split("/").pop()!.trim();
+  return known(host)?.ip ?? "";
 }
 
 export default function Server({loaderData:s}:Route.ComponentProps){
  const r=useRevalidator();useEffect(()=>{const timer=setInterval(()=>{if(document.visibilityState==="visible"&&r.state==="idle")r.revalidate();},20_000);return()=>clearInterval(timer);},[r.state,r.revalidate]);
  return <AdminPage title="服务器" subtitle={`每 20 秒更新 · 采样时间 ${new Date(s.checkedAt).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai',hour12:false})}${s.stale?' · 当前为上次采样':''}`}>
   <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Stat label="CPU 使用率" value={s.cpuPercent===null?"等待采样":`${s.cpuPercent}%`} hint={`${s.cpus} 核 · 负载 ${s.load.join(' / ')}`}/><Stat label="可用内存" value={mb(s.memory.available)} hint={`总内存 ${mb(s.memory.total)}`} tone={s.memory.available/s.memory.total<.15?'bad':'ok'}/><Stat label="交换空间已用" value={mb(s.memory.swapTotal-s.memory.swapFree)} hint={`总交换空间 ${mb(s.memory.swapTotal)}`}/><Stat label="磁盘剩余" value={gb(s.disk.free)} hint={`总容量 ${gb(s.disk.total)}`}/></div>
-  <Card title="运行状态"><dl className="grid gap-4 text-sm sm:grid-cols-2"><div><dt className="text-ink-3">系统</dt><dd>{s.os} · {s.kernel}</dd></div><div><dt className="text-ink-3">主机与开机时长</dt><dd>{s.host} · {Math.floor(s.uptime/86400)} 天 {Math.floor(s.uptime%86400/3600)} 小时</dd></div>{Object.entries(s.pressure).map(([k,v])=><div key={k}><dt className="text-ink-3">{k==='memory'?'内存':k==='io'?'磁盘 I/O':'CPU'}压力（10 秒）</dt><dd>{v}%</dd></div>)}<div><dt className="text-ink-3">内部监听端口</dt><dd>{s.ports.join('、')}</dd></div></dl></Card>
+  <Card title="运行状态"><dl className="grid gap-4 text-sm sm:grid-cols-2"><div><dt className="text-ink-3">系统</dt><dd>{s.os} · {s.kernel}</dd></div><div><dt className="text-ink-3">主机与开机时长</dt><dd>{place(s.host, s.host)}{placeIp(s.host) ? ` · ${placeIp(s.host)}` : ""} · {s.host} · {Math.floor(s.uptime/86400)} 天 {Math.floor(s.uptime%86400/3600)} 小时</dd></div>{Object.entries(s.pressure).map(([k,v])=><div key={k}><dt className="text-ink-3">{k==='memory'?'内存':k==='io'?'磁盘 I/O':'CPU'}压力（10 秒）</dt><dd>{v}%</dd></div>)}<div><dt className="text-ink-3">内部监听端口</dt><dd>{s.ports.join('、')}</dd></div></dl></Card>
   <Card title="服务"><div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr className="text-ink-3"><th className="py-2">服务</th><th>状态</th><th>内存</th><th>自动重启次数</th></tr></thead><tbody>{s.services.map(v=><tr key={v.name} className="border-t border-line"><td className="py-3">{v.name}</td><td className={v.state==='active'?'text-ok-ink':'text-amber-ink'}>{v.state==='active'?'运行中':v.state==='inactive'?'已停止':v.state}</td><td>{mb(v.memory)}</td><td>{v.restarts}</td></tr>)}</tbody></table></div></Card>
   <Card title="协同节点">
   <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr className="text-ink-3">
@@ -40,7 +53,7 @@ export default function Server({loaderData:s}:Route.ComponentProps){
     :(s.nodes??[]).map(n=>
       <tr key={`${n.role}@${n.host}`} className="border-t border-line">
         <td className="py-3">{n.role}</td>
-        <td title={n.host}>{place(n.host, s.host)}</td>
+        <td title={`${n.host}${n.label ? " · " + n.label : ""}`}>{place(n.host, s.host, n.label)}{placeIp(n.host, n.label)?<span className="ml-2 text-xs text-ink-3">{placeIp(n.host, n.label)}</span>:null}</td>
         <td>{n.slots??"—"}</td>
         <td>{n.load===null?"—":n.load.toFixed(2)}</td>
         <td>{n.memTotal&&n.memFree!==null?`${gb(n.memTotal-n.memFree)} / ${gb(n.memTotal)}`:"—"}</td>
@@ -55,7 +68,7 @@ export default function Server({loaderData:s}:Route.ComponentProps){
       现在每台上报过心跳的机器都留一块，离线时整块压暗并写明最后一次心跳。 */}
   {(s.nodes??[]).filter(n=>n.host!==s.host).map(n=>
     <div key={`node-${n.host}`} className={n.alive?"space-y-3":"space-y-3 opacity-70"}>
-      <div className="flex flex-wrap items-baseline gap-3 pt-2"><h2 className="text-lg font-semibold">{place(n.host, s.host)}</h2><span className="text-xs text-ink-3">{n.role} · {n.host} · release {n.release||"—"} · 并发槽 {n.slots??"—"} · {n.kernel||n.platform||""}</span>{n.alive?null:<span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-ink">离线 · 最后一次心跳 {n.at?new Date(n.at).toLocaleString("zh-CN",{timeZone:"Asia/Shanghai",hour12:false}):"—"}</span>}</div>
+      <div className="flex flex-wrap items-baseline gap-3 pt-2"><h2 className="text-lg font-semibold">{place(n.host, s.host, n.label)}{placeIp(n.host, n.label)?<span className="ml-2 text-sm font-normal text-ink-3">{placeIp(n.host, n.label)}</span>:null}</h2><span className="text-xs text-ink-3">{n.role} · {n.host} · release {n.release||"—"} · 并发槽 {n.slots??"—"} · {n.kernel||n.platform||""}</span>{n.alive?null:<span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-ink">离线 · 最后一次心跳 {n.at?new Date(n.at).toLocaleString("zh-CN",{timeZone:"Asia/Shanghai",hour12:false}):"—"}</span>}</div>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Stat label="CPU 使用率" value={n.cpuPercent===null?"等待采样":`${n.cpuPercent}%`} hint={`${n.cpus??"?"} 核 · 负载 ${(n.loadAll??[n.load??0]).join(" / ")}`}/>
         <Stat label="可用内存" value={n.memFree===null?"—":mb(n.memFree)} hint={`总内存 ${n.memTotal===null?"—":mb(n.memTotal)}`} tone={n.memTotal&&n.memFree!==null&&n.memFree/n.memTotal<.15?"bad":"ok"}/>
