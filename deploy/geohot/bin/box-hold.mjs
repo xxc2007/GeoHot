@@ -95,14 +95,27 @@ async function tick() {
   log("awake");
 }
 
-// 主循环：任何异常都退避 15 秒后重新握手（重连会顺带唤醒休眠中的 box）。
+// 主循环：任何异常都退避后重新握手（重连会顺带唤醒休眠中的 box）。
+// 2026-11-15：钱包余额为 0 时 initialize 会一直回 409，固定 15 秒重试把日志刷成一片
+// （每 16 秒一条 reconnect）。改成指数退避 15 → 30 → 60 → 120 → 300 秒封顶，
+// 并且只在「失败原因变化」时打一行，失败期间不再逐次刷屏。
+const MAX_BACKOFF_MS = 300_000;
+let backoffMs = 15_000;
+let lastFailure = "";
 for (;;) {
   try {
     await tick();
+    backoffMs = 15_000;
+    lastFailure = "";
   } catch (error) {
-    log(`reconnect: ${(error && error.message) || error}`);
+    const message = (error && error.message) || String(error);
     sid = null;
-    await new Promise((r) => setTimeout(r, 15_000));
+    if (message !== lastFailure) {
+      log(`reconnect: ${message}（退避 ${Math.round(backoffMs / 1000)}s，同样的错误不再逐次打印）`);
+      lastFailure = message;
+    }
+    await new Promise((r) => setTimeout(r, backoffMs));
+    backoffMs = Math.min(MAX_BACKOFF_MS, backoffMs * 2);
     continue;
   }
   await new Promise((r) => setTimeout(r, TICK_MS));
