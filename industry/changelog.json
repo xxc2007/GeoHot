@@ -1,6 +1,22 @@
 {
-  "latestVersion": "2026-11-16T07:20",
+  "latestVersion": "2026-11-16T07:35",
   "releases": [
+    {
+      "date": "2026-11-16",
+      "time": "07:35",
+      "major": false,
+      "title": "订阅解析器补到 5.12",
+      "body": [
+        "上千个订阅源里的 XML 是外来的，解析器自己得扛得住畸形输入。",
+        "fast-xml-parser 从 5.11.1 补到 5.12.0，修掉未闭合标签让 CPU 平方级增长的那个洞（Dependabot #62）。",
+        "四十条订阅/XHTML/长文用例复跑通过。"
+      ],
+      "tags": [
+        "security",
+        "sources",
+        "deps"
+      ]
+    },
     {
       "date": "2026-11-16",
       "time": "07:20",
