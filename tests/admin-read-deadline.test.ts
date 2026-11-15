@@ -24,8 +24,10 @@ test("adminRead is transparent on the happy path", async () => {
 });
 
 test("a scan past the deadline is stopped database-side, mapped to a refresh message, with no leftover settings", async () => {
+  // 只试一次：这条断言守的是「超时确实在数据库侧被掐断并映射成提示」；
+  // 重试策略（默认两次、第二次 12 秒）由 tests/admin-read-retry.test.ts 守。
   await assert.rejects(
-    adminReadOrBusy((db) => db`SELECT pg_sleep(3)`, 500),
+    adminReadOrBusy((db) => db`SELECT pg_sleep(3)`, 500, 1),
     (error: unknown) => (error as Error).message === "后台读取暂时超时，请稍后刷新",
   );
   // SET LOCAL must not leak past the failed transaction into the next one.

@@ -17,9 +17,12 @@ test("超时之后还有第二次机会，而不是直接报忙", () => {
 
 test("第二次把上限抬到 12 秒，且只在超时类错误上重试", () => {
   assert.match(source, /Math\.max\(timeoutMs, 12_000\)/);
-  assert.match(source, /\["57014", "55P03"\]\.includes\(busyCode\(error\)\)/);
-  // 非超时错误必须原样抛，不能被重试吞掉
-  assert.match(source, /if \(!\["57014", "55P03"\]\.includes\(busyCode\(error\)\)\) throw error;/);
+  // 超时类判定收敛在一个 busy() 里：57014 是语句超时，55P03 是包装器自己的 lock_timeout
+  assert.match(source, /const busy = \(error: unknown\): boolean => \["57014", "55P03"\]\.includes\(busyCode\(error\)\);/);
+  // 非超时错误必须原样抛：attempts === 1 或 !busy(error) 时直接走 throw error
+  assert.match(source, /if \(attempts === 1 \|\| !busy\(error\)\)/);
+  // 只试一次的调用点必须能关掉重试（tests/admin-read-deadline.test.ts 用它守超时本身）
+  assert.match(source, /attempts: 1 \| 2 = 2/);
 });
 
 test("两次都超时才回落成原来那句提示", () => {
