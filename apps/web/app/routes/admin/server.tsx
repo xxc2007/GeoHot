@@ -20,6 +20,8 @@ const PLACES: Array<{ prefix: string; place: string; ip: string }> = [
   { prefix: "iZbp14vh9sicf5z7law47aZ", place: "杭州", ip: "47.97.97.62" },
   { prefix: "iZn4a5we2sy73dqo3yih50Z", place: "武汉", ip: "8.148.65.89" },
   { prefix: "hcss-ecs-6a39", place: "华为云广州", ip: "113.45.66.100" },
+  // InstaBox 的机器在它自己的网关后面，没有可直接拨号的公网 IP，所以只留地名。
+  { prefix: "instabox", place: "InstaBox 沙箱", ip: "" },
   { prefix: "box-main", place: "box 沙箱", ip: "" },
   { prefix: "main", place: "box 沙箱", ip: "" },
   { prefix: "geohot-box", place: "box 沙箱", ip: "" },
