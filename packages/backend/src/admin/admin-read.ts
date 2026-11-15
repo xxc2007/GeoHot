@@ -23,14 +23,23 @@ export function adminRead<T>(read: (db: Tx) => Promise<T>, timeoutMs = 8_000): P
 /** A timed-out admin read is a "refresh later", not a server fault: map the cancellation to a
  *  plain message the admin handler already routes through its logged 500 path. */
 export async function adminReadOrBusy<T>(read: (db: Tx) => Promise<T>, timeoutMs = 8_000): Promise<T> {
+  const busyCode = (error: unknown): string => (error as { code?: string }).code ?? "";
   try {
     return await adminRead(read, timeoutMs);
   } catch (error) {
     // 包装器自己设的 lock_timeout 报 55P03，和 statement_timeout 的 57014 是同一件事：
     // 只认前者会让锁等待也冒成 500（model-label-backfill.ts 早就同时识别两者了）。
-    if (["57014", "55P03"].includes((error as { code?: string }).code ?? "")) {
-      throw Object.assign(new Error("后台读取暂时超时，请稍后刷新"), { code: "ADMIN_READ_TIMEOUT" });
+    if (!["57014", "55P03"].includes(busyCode(error))) throw error;
+    // 慢盘上的一次抖动通常是几十秒级别：第一次超时后再给一次更宽的机会，
+    // 后台页面因此在磁盘繁忙时「慢一点但出得来」，而不是直接 503
+    //（2026-11-15 真浏览器巡检 11/14，/admin/settings 与 /admin/audit 都是这一条）。
+    try {
+      return await adminRead(read, Math.max(timeoutMs, 12_000));
+    } catch (again) {
+      if (["57014", "55P03"].includes(busyCode(again))) {
+        throw Object.assign(new Error("后台读取暂时超时，请稍后刷新"), { code: "ADMIN_READ_TIMEOUT" });
+      }
+      throw again;
     }
-    throw error;
   }
 }
