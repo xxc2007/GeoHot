@@ -14,8 +14,14 @@ test("心跳自带机器名，面板优先用它", () => {
 });
 
 test("每台已知机器都写着地名与公网 IP", () => {
-  for (const [place, ip] of [["杭州", "47.97.97.62"], ["武汉", "8.148.65.89"], ["华为云广州", "113.45.66.100"], ["Azure 主库", "20.194.28.128"]]) {
-    assert.match(page, new RegExp(`place: "${place}", ip: "${ip.replace(/\./g, "\\.")}"`), `${place} 缺地名或 IP`);
+  // 直接比字面量，不做正则拼接：CodeQL 会把「自己转义 . 」判成不完整转义（high）。
+  for (const fragment of [
+    'place: "Azure 主库", ip: "20.194.28.128"',
+    'place: "杭州", ip: "47.97.97.62"',
+    'place: "武汉", ip: "8.148.65.89"',
+    'place: "华为云广州", ip: "113.45.66.100"',
+  ]) {
+    assert.ok(page.includes(fragment), `缺这一行：${fragment}`);
   }
 });
 
