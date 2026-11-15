@@ -245,6 +245,21 @@ const blockMinute = async (service: string) => {
   await sql`UPDATE budgets SET per_minute = ${row!.used} WHERE service = ${service}`;
 };
 const resetMinutes = async () => sql`UPDATE budgets SET per_minute = 100000 WHERE service IN ('llm','agnes-cn')`;
+// 2026-11-15: 预算按「当前分钟的已用次数 + N」设，跨分钟边界时 used 归零、剩余变成 used+N（比 N 多），
+// 断言就随机失败（CI 见过连续三次 score 都放行、a=3）。这里重设到「剩余正好 extra」为止，最多三次。
+const pinRemaining = async (service: string, extra: number) => {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const [row] = await sql<{ used: number }[]>`SELECT count(*)::int AS used FROM receipt_attempts
+      WHERE service = ${service} AND origin = 'live' AND started_at > now() - interval '1 minute'`;
+    await sql`UPDATE budgets SET per_minute = ${row!.used + extra} WHERE service = ${service}`;
+    const [after] = await sql<{ used: number; per: number }[]>`SELECT
+      (SELECT count(*)::int FROM receipt_attempts WHERE service = ${service} AND origin = 'live'
+        AND started_at > now() - interval '1 minute') AS used,
+      (SELECT per_minute FROM budgets WHERE service = ${service}) AS per`;
+    if (after!.per - after!.used === extra) return;
+  }
+  assert.fail(`could not pin ${extra} remaining ${service} calls: the minute window kept rolling`);
+};
 // 2026-11-06: 健康结论是每秒都可能变的窗口统计。种完失败后不等它可见就去发请求，
 // 断言失败时看到的是「Missing expected rejection」——把真因埋掉。这里显式等它可见，失败也说得清楚。
 const waitForSick = async (service: string) => {
@@ -526,9 +541,7 @@ test("fallback score refusals report the actual provider and never try a third p
       const input:AnalyzeInputArticle={id,revision:1,title:`A geographic dataset release ${id}`,url:"https://example.com/refusal",
         author:null,publishedAt:new Date("2026-02-01T00:00:00Z"),bodyText:`A geographic dataset release ${id}. `.repeat(30),
         bodyStatus:"ok",excerpt:null,xPost:null,media:[],source:{name:"local refusal",kind:"rss",tier:"T1",firstParty:true}};
-      const [row]=await sql<{used:number}[]>`SELECT count(*)::int AS used FROM receipt_attempts
-        WHERE service='llm' AND origin='live' AND started_at>now()-interval '1 minute'`;
-      await sql`UPDATE budgets SET per_minute=${row!.used+refusedAt} WHERE service='llm'`;
+      await pinRemaining('llm', refusedAt);
       refuseFallbackScore=true; scoreCalls=0;
       const beforeA=a.hits(),beforeB=b.hits();
       const result=await runAnalysis(input,{stages:"selection"});
