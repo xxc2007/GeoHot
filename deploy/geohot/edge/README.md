@@ -40,3 +40,17 @@ sudo bash install-edge.sh edge
 - 边缘**不连数据库**，它只反代主库的 https；主库读不到时会拿到主库 nginx 的 `use_stale` 旧页，
   边缘再用 `proxy_cache_use_stale` 兜一层，所以主库慢的时候国内读者仍然是毫秒级。
 - 主库发布新版本后，边缘最多 120 秒自动跟上，不用重启。
+
+## 国内入口的域名约束（2026-11-15 实测）
+
+华为云对**未备案域名**做 HTTP 拦截：`Host: xxc200707.me` 直接返回 `403 非法阻断374`（`Server: ADM/2.1.1`），
+而 `Host: xxc2007.me`、`Host: cn.xxc2007.me`、`Host: geohot.xxc2007.me` 以及裸 IP 都是 200 —— 拦的是「注册域」这一级，
+`xxc2007.me` 已有备案，所以它的任何子域可以直接打到这台机器。
+
+因此国内 HTTPS 的正确接法不是新域名，而是 **已备案主域的子域**：
+
+1. 在 DNS 加一条 `cn.xxc2007.me A 113.45.66.100`（**灰云 / DNS only**，不要开橙云，否则又绕回 Cloudflare）；
+2. `certbot --nginx -d cn.xxc2007.me`；
+3. 把本目录 `geohot-domestic.conf` 的 `server_name` 改成 `cn.xxc2007.me`，监听 443 并 301 从 80 跳过来。
+
+`xxc200707.me` 想用也可以，但要先在华为云做完 ICP 备案（管局 1–20 个工作日），期间它只会拿到 403。
