@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { isCategoryKey } from "@aihot/contracts/taxonomy";
 import { sql, type Db, type Tx } from "../db.ts";
-import { registryChange, SourceRegistryConflict } from "../sources/registry.ts";
+import { registryChange, setRegistryTarget, SourceRegistryConflict } from "../sources/registry.ts";
 import { enqueue, QUEUES } from "../jobs/queue.ts";
 import { republishKey } from "../jobs/publication.ts";
 import { normalizeUrl } from "../lib/url.ts";
@@ -63,6 +63,42 @@ export async function listSources(f: SourceListFilters) {
     // 操作者点「下一页」会落到一张空表（2026-11-05 审计）。
     return { page, rows: rows.slice(0, 100), hasMore: rows.length > 100, totals };
   });
+}
+
+export interface RegistryPolicyView {
+  target_enabled: number | null;
+  enabled_count: number;
+  policy_version: number;
+  target_total: number;
+  total: number;
+}
+
+/**
+ * 后台「信源」页的旋钮：正式采集目标 / 总目标。
+ * 2026-11-15 站长要求「2000 条信源、1000 正式、1000 备用，要能自己调」。
+ * 目标值只能改 target_enabled（setRegistryTarget 会校验 enabled 计数与版本），
+ * 总目标由迁移写死，这里只读出来给页面显示。
+ */
+export async function sourceRegistryPolicy(): Promise<RegistryPolicyView> {
+  return adminReadOrBusy(async (db) => {
+    const [row] = await db<RegistryPolicyView[]>`
+      SELECT p.target_enabled, p.enabled_count, p.policy_version, p.target_total,
+             (SELECT count(*)::int FROM sources s
+                WHERE NOT EXISTS(SELECT 1 FROM source_retirements t WHERE t.source_id = s.id)) AS total
+      FROM source_registry_policy p WHERE p.singleton`;
+    if (!row) throw new SourceRegistryConflict("Source registry policy missing");
+    return row;
+  });
+}
+
+/** 只动目标值，不动任何信源本身（启停仍在信源列表里逐条做）。 */
+export async function setSourceTarget(input: unknown, actor: string) {
+  const parsed = z.object({
+    target: z.number().int().min(0).max(20000),
+    expectedEnabled: z.number().int().positive(),
+    reason: z.string().trim().min(1).max(500),
+  }).strict().parse(input);
+  return setRegistryTarget(parsed.target, parsed.expectedEnabled, actor, parsed.reason);
 }
 
 export async function sourceDetail(id: string) {

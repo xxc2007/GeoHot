@@ -1,10 +1,10 @@
 import { SITE } from "@aihot/industry/site";
-import { Form, Link, useNavigate, useSearchParams } from "react-router";
+import { Form, Link, useNavigate, useSearchParams, useActionData } from "react-router";
 import type { Route } from "./+types/sources";
-import { adminGet } from "../../lib/admin.server";
+import { adminGet, adminPost } from "../../lib/admin.server";
 import { num } from "../../features/admin/format";
 import { HEALTH_LABEL, KIND_LABEL, MODE_LABEL } from "../../features/admin/labels";
-import { AdminPage, Badge, ButtonLink, Card, DataTable, Dot, FilterChips, healthTone, Input, Select, Stat, Time } from "../../features/admin/ui";
+import { AdminPage, Badge, Button, ButtonLink, Card, DataTable, Dot, FilterChips, healthTone, Input, Select, Stat, Time } from "../../features/admin/ui";
 import { LoadMore, useInfiniteRows } from "../../features/admin/infinite";
 
 interface SourceRow {
@@ -27,22 +27,54 @@ interface SourceRow {
   selected_30d: number;
 }
 
+interface RegistryPolicy {
+  target_enabled: number | null;
+  enabled_count: number;
+  policy_version: number;
+  target_total: number;
+  total: number;
+}
+
 interface SourcesData {
   page: number;
   rows: SourceRow[];
   hasMore: boolean;
   totals: { total: number; enabled: number; failing: number; degraded: number; reserves: number; ready: number };
+  policy: RegistryPolicy | null;
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
   const url = new URL(request.url);
-  return adminGet<SourcesData>(request, `/api/admin/sources${url.search}`);
+  // policy 与列表并行取：任何一个失败都不该让整页打不开（policy 只影响一个卡片）。
+  const [list, policy] = await Promise.all([
+    adminGet<Omit<SourcesData, "policy">>(request, `/api/admin/sources${url.search}`),
+    adminGet<RegistryPolicy>(request, "/api/admin/sources/policy").catch(() => null),
+  ]);
+  return { ...list, policy };
+}
+
+/** 「正式采集目标」的旋钮：只改 policy，不动任何信源；版本变了就提示重新加载。 */
+export async function action({ request }: Route.ActionArgs) {
+  const form = await request.formData();
+  const target = Number(form.get("target"));
+  const expectedEnabled = Number(form.get("expectedEnabled"));
+  const reason = String(form.get("reason") ?? "").trim();
+  if (!Number.isSafeInteger(target) || target < 0) return { error: "目标数要是非负整数" };
+  if (!reason) return { error: "改容量得写一句原因，审计里会留档" };
+  try {
+    await adminPost(request, "/api/admin/sources/policy", { target, expectedEnabled, reason });
+  } catch (error) {
+    const message = (error as { data?: { message?: string } })?.data?.message;
+    return { error: message ?? "写入失败，请稍后重试" };
+  }
+  return { ok: `正式采集目标已改成 ${target}` };
 }
 
 export const meta: Route.MetaFunction = () => [{ title: `信源 · ${SITE.name} 后台` }];
 
 export default function Sources({ loaderData }: Route.ComponentProps) {
   const [sp] = useSearchParams();
+  const actionData = useActionData<typeof action>();
   const { rows, totals, hasMore, loading, error, loadMore } = { ...loaderData, ...useInfiniteRows<SourceRow>("/api/admin/sources", loaderData, sp.toString()) };
   const navigate = useNavigate();
   return (
@@ -58,6 +90,38 @@ export default function Sources({ loaderData }: Route.ComponentProps) {
         <Stat label="失败" value={num(totals.failing)} tone={totals.failing ? "bad" : "ok"} />
         <Stat label="不稳定" value={num(totals.degraded)} tone={totals.degraded ? "warn" : undefined} />
       </div>
+      {/* 2026-11-15 站长：2000 条信源、1000 正式、1000 备用，且要能自己调。
+          这里只调「正式采集目标」，逐条启停仍在下面每一行做；每次改动都写审计。 */}
+      {loaderData.policy ? (
+        <Card className="mb-5">
+          <div className="flex flex-wrap items-end gap-x-6 gap-y-2">
+            <div>
+              <div className="text-[12px] text-ink-4">正式采集</div>
+              <div className="text-[22px] font-semibold tabular-nums">
+                {num(loaderData.policy.enabled_count)} / {num(loaderData.policy.target_enabled ?? 0)}
+              </div>
+            </div>
+            <div className="text-[12px] text-ink-4">
+              池子里共 {num(loaderData.policy.total)} 条，备用 {num(loaderData.policy.total - loaderData.policy.enabled_count)} 条（总目标 {num(loaderData.policy.target_total)}）
+            </div>
+          </div>
+          <Form method="post" className="mt-4 flex flex-wrap items-end gap-3">
+            <input type="hidden" name="expectedEnabled" value={loaderData.policy.enabled_count} />
+            <label className="text-[12px] text-ink-4">
+              新的正式采集目标
+              <Input name="target" type="number" min={0} step={1} defaultValue={loaderData.policy.target_enabled ?? 1000} className="mt-1 w-[120px]" />
+            </label>
+            <label className="text-[12px] text-ink-4">
+              原因（写进审计）
+              <Input name="reason" className="mt-1 w-[280px]" placeholder="例如：扩到 1200 条观察一周" />
+            </label>
+            <Button type="submit">保存</Button>
+            {actionData && "error" in actionData && actionData.error ? <span className="text-[12px] text-bad">{actionData.error}</span> : null}
+            {actionData && "ok" in actionData && actionData.ok ? <span className="text-[12px] text-ok">{actionData.ok}</span> : null}
+          </Form>
+          <p className="mt-2 text-[11px] text-ink-4">目标只是上限；实际采集哪 1000 条由下面列表的启停决定，单条改动一样写审计。</p>
+        </Card>
+      ) : null}
       {totals.reserves > 0 && <p className="mb-4 text-sm text-ink-3">备用 {num(totals.reserves)} 个，最近验证可用 {num(totals.ready)} 个；隔离待复核的信源不会自动启用。</p>}
       <Card pad={false}>
         <div className="flex flex-col gap-3 border-b border-line p-3 lg:flex-row lg:items-center lg:justify-between">

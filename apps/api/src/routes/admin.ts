@@ -13,7 +13,7 @@ import { contentChain, detachFromFact, mergeStories, overrideFields, rerun, rewr
 import { eraseFeedback, feedbackScreenshot, listFeedback, replyFeedback, updateFeedback } from "@aihot/backend/admin/feedback";
 import { releaseReceipt, requeueFailedArticles, readRunsOverview } from "@aihot/backend/admin/runs";
 import { deleteBudget, listBudgets, updateBudget } from "@aihot/backend/admin/settings";
-import { createSource, fetchNow, listSources, previewSource, sourceDetail, updateSource, replaceSources } from "@aihot/backend/admin/sources";
+import { createSource, fetchNow, listSources, previewSource, setSourceTarget, sourceDetail, sourceRegistryPolicy, updateSource, replaceSources } from "@aihot/backend/admin/sources";
 import { sql } from "@aihot/backend/db";
 import { sendProblem } from "../http/respond.ts";
 import { adminReadOrBusy } from "@aihot/backend/admin/admin-read";
@@ -63,6 +63,10 @@ export function registerAdmin(app: FastifyInstance) {
   }));
   app.post("/api/admin/sources", adminHandler(async (req, _reply, admin) => createSource(body(req), actorOf(admin))));
   app.post("/api/admin/sources/preview", adminHandler(async (req) => previewSource(body(req) as never)));
+  // 2026-11-15：站长要「2000 条信源、1000 正式、1000 备用，且能自己调」。
+  // 目标值单独一条路由，改动只动 policy（不动任何信源），并写审计。
+  app.get("/api/admin/sources/policy", adminHandler(async () => sourceRegistryPolicy()));
+  app.post("/api/admin/sources/policy", adminHandler(async (req, _reply, admin) => setSourceTarget(body(req), actorOf(admin))));
   app.get("/api/admin/sources/:id", adminHandler(async (req, reply) => orNotFound(req, reply, await sourceDetail(param(req, "id")))));
   app.patch("/api/admin/sources/:id", adminHandler(async (req, reply, admin) => {
     const b = body<{ patch: unknown; version: string; reason?: string }>(req);
