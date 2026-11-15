@@ -5,6 +5,41 @@ import { deployBase } from "@aihot/contracts/http-policy";
 
 const API_BASE = process.env.API_BASE_URL || "http://127.0.0.1:3001";
 
+/** 后台写操作：把 JSON 交给 API，401 跳登录页，其余错误原样抛出给 action。 */
+export async function adminPost<T>(request: Request, path: string, payload: unknown, timeoutMs = 30_000): Promise<T> {
+  const API_BASE = process.env.API_BASE_URL || "http://127.0.0.1:3001";
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      method: "POST",
+      headers: { "content-type": "application/json", accept: "application/json", cookie: request.headers.get("cookie") ?? "" },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.any([request.signal, AbortSignal.timeout(timeoutMs)]),
+    });
+  } catch (error) {
+    if (request.signal.aborted) throw error;
+    throw data({ message: "后台暂时写不进去，请稍后重试。" }, { status: 503 });
+  }
+  if (res.status === 401) {
+    const url = new URL(request.url);
+    throw redirect(`/admin/login?${new URLSearchParams({ return: appPath(url.pathname) + url.search })}`);
+  }
+  if (!res.ok) {
+    let detail = `api ${res.status}`;
+    try {
+      detail = ((await res.json()) as { detail?: string }).detail ?? detail;
+    } catch {
+      // not JSON
+    }
+    throw data({ message: detail }, { status: res.status === 409 ? 409 : res.status >= 500 ? 503 : res.status });
+  }
+  try {
+    return (await res.json()) as T;
+  } catch {
+    return {} as T;
+  }
+}
+
 export async function adminGet<T>(request: Request, path: string, timeoutMs = 30_000): Promise<T> {
   let res: Response;
   try {
