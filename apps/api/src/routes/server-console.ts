@@ -39,6 +39,28 @@ export function embedMagpie(html: string, prefix: string, csrf: string) {
   return html.replace(/(src|href|action)=(['"])\/(?!\/)/g, `$1=$2${prefix}/`).replace(/<head([^>]*)>/i, `<head$1>${bootstrap}${readiness}`);
 }
 
+/**
+ * 公网地址只从环境变量读：仓库是公开的，把这四台机器的 IP 写进源码等于白送一份拨号清单。
+ * 形如 {"xxc":"203.0.113.9","hcss-ecs-6a39":"198.51.100.7"}，键是主机名前缀，值必须是字符串。
+ */
+export function nodeIps(raw = process.env.GEOHOT_NODE_IPS): Record<string, string> {
+  if (!raw?.trim()) return {};
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    const out: Record<string, string> = {};
+    for (const [prefix, value] of Object.entries(parsed as Record<string, unknown>)) {
+      if (typeof value === "string" && value.trim()) out[prefix] = value.trim();
+    }
+    return out;
+  } catch { return {}; }
+}
+/** 主机名前缀匹配：心跳里的 host 是平台给的机器名，前缀足够区分四台执行器。 */
+export function ipFor(host: string, table: Record<string, string> = nodeIps()): string | null {
+  for (const [prefix, ip] of Object.entries(table)) if (host.startsWith(prefix)) return ip;
+  return null;
+}
+
 export async function registerServerConsole(app: FastifyInstance, forward = magpieRequest, authenticate: typeof sessionPrincipal = sessionPrincipal) {
   const guard = (fn: Parameters<typeof adminHandler>[0]) => adminHandler(fn, authenticate);
   if (!app.hasDecorator('rateLimit')) await app.register(rateLimit, { global:true, max:600, timeWindow:'1 minute' });
@@ -58,6 +80,8 @@ export async function registerServerConsole(app: FastifyInstance, forward = magp
         return {
           role: row.key.slice("heartbeat.".length).split("@")[0],
           host: String(row.value?.host ?? "?"),
+          // 地址由 API 从环境变量补上，页面不再自带一份。
+          ip: ipFor(String(row.value?.host ?? "?")),
           // 地名 + 公网 IP 由机器自己报（GEOHOT_HEARTBEAT_LABEL），面板优先用它做标题。
           label: typeof row.value?.label === "string" ? row.value.label : null,
           release: String(row.value?.release ?? ""),
@@ -82,7 +106,7 @@ export async function registerServerConsole(app: FastifyInstance, forward = magp
           alive: Number.isFinite(at) && Date.now() - at < 180_000,
         };
       });
-      return { ...sample, stale: Date.now() - Date.parse(sample.checkedAt) > 90_000, nodes };
+      return { ...sample, ip: ipFor(String(sample.host ?? "")), stale: Date.now() - Date.parse(sample.checkedAt) > 90_000, nodes };
     } catch { return reply.code(503).send({ unavailable: true }); }
   }));
   app.route({ method: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"], url: "/api/admin/magpie-proxy/*", config:{rateLimit:{max:240,timeWindow:'1 minute'}}, handler: guard(async (req, reply, admin) => {
