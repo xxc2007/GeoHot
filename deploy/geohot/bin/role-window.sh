@@ -8,7 +8,7 @@
 #
 # 用法：role-window.sh day|night [env 文件]
 #   day   → WORKER_ROLE=all，分析槽 0（采集与正文提取照跑）
-#   night → WORKER_ROLE=all，分析槽 1
+#   night → WORKER_ROLE=all，分析槽 2（三台执行器各 2 槽：夜里 6 个并发，白天 0）
 #
 # 为什么白天也写 WORKER_ROLE=all：`extraction` 在 worker-role.ts 里是
 # `role !== coordinator && role !== fetcher && role !== media` —— 写成 fetcher 会把
@@ -25,7 +25,7 @@ env_file="${2:-/opt/geohot-exec/.env}"
 
 case "$mode" in
   day)   role=all; slots=0 ;;
-  night) role=all; slots=1 ;;
+  night) role=all; slots=2 ;;
   *) echo "用法：$0 day|night [env 文件]" >&2; exit 2 ;;
 esac
 

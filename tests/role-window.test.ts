@@ -10,7 +10,7 @@ const install = readFileSync(new URL("../deploy/geohot/install-units.sh", import
 
 test("白天不开分析，但采集与正文提取照跑", () => {
   assert.match(script, /day\)\s+role=all; slots=0/);
-  assert.match(script, /night\)\s+role=all;\s+slots=1/);
+  assert.match(script, /night\)\s+role=all; slots=2/);
   assert.match(script, /set_key WORKER_ROLE "\$role"/);
   // role=fetcher 会连正文提取一起关掉（worker-role.ts 的 extraction 判据），
   // 2026-11-15 白天三台全切 fetcher，6 小时堆了 420 条 body_status=pending。
