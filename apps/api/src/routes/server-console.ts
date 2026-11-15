@@ -58,6 +58,8 @@ export async function registerServerConsole(app: FastifyInstance, forward = magp
         return {
           role: row.key.slice("heartbeat.".length).split("@")[0],
           host: String(row.value?.host ?? "?"),
+          // 地名 + 公网 IP 由机器自己报（GEOHOT_HEARTBEAT_LABEL），面板优先用它做标题。
+          label: typeof row.value?.label === "string" ? row.value.label : null,
           release: String(row.value?.release ?? ""),
           slots: typeof row.value?.slots === "number" ? row.value.slots : null,
           // 远端机器一并把自己的负载/内存/磁盘报上来，面板就不用 SSH 出去取数。
