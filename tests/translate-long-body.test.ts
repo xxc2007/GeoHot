@@ -289,7 +289,7 @@ test("the invocation fifty-minute cap stops oversized work without spending an a
 });
 
 test("three actual unusable long-body outcomes remain bounded without clearing old attempts", async () => {
-  await sql`UPDATE publications SET selected=false WHERE article_id IN(SELECT id FROM articles WHERE source_id=${SOURCE})`;
+  await sql`UPDATE publications SET selected=false, eligible=false WHERE article_id IN(SELECT id FROM articles WHERE source_id=${SOURCE})`;
   const id = await selectedBody('three-bad', `<p>${T} actual-bad ${"Scientific observation 12.50. ".repeat(2300)}</p>`);
   corrupt='html';
   try {
