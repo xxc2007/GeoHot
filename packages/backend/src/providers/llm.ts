@@ -849,7 +849,9 @@ function classifyRejection(status: number, body: string): { category: CooldownCa
     return { category: quota ? "quota_day" : "auth", billingStatus: "unbilled", resetAt, resetAssumed: !resetAt };
   }
   if (status === 400 || status === 404) {
-    return { category: "config", billingStatus: "unbilled", resetAt: null, resetAssumed: false };
+    // 只有 body 明确带配置拒绝文案才冷却；通用 400（如内容审核 1301）不冷却，只标 unbilled
+    const config = /switched off in Magpie|is not supported by the current model|unknown or disabled model|account is signed out|sign in again|request illegal/i.test(body);
+    return { category: config ? "config" : null, billingStatus: "unbilled", resetAt: null, resetAssumed: false };
   }
   if (status === 429) {
     const quota = /free-models-per-day|insufficient_quota|exceeded your current quota|FreeTierError|今日文本额度已用完|额度已用[尽完]|购买加量包|insufficient balance|积分余额不足/i.test(body);
@@ -866,8 +868,8 @@ function classifyRejection(status: number, body: string): { category: CooldownCa
     }
     return { category: null, billingStatus: "unknown", resetAt: null, resetAssumed: false };
   }
-  // 其他 4xx：保守归 config，unbilled
-  return { category: "config", billingStatus: "unbilled", resetAt: null, resetAssumed: false };
+  // 其他 4xx：不识别的不冷却，只标 unbilled（未产生 completion，不重放但不连坐 1h）
+  return { category: null, billingStatus: "unbilled", resetAt: null, resetAssumed: false };
 }
 
 /** Keep candidate identities and real HTTP requests on the same parameter calculation. */

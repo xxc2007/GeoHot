@@ -12,10 +12,9 @@ after(closeDb);
 test("quota_day with explicit reset-at body cools until that timestamp, not one hour", () => {
   const c = new ModelCooldown();
   const now = Date.now();
-  const resetIso = "2026-11-17T00:00:00+08:00";
-  const resetMs = Date.parse(resetIso);
+  const resetMs = now + 8 * 3600_000; // 8h in the future
   c.reject("loomy", "loomy/DeepSeek-V4.1-Flash", 429,
-    `{"error":{"message":"今日文本额度已用完, reset at 2026-11-17 00:00:00 UTC+8"}}`,
+    `{"error":{"message":"今日文本额度已用完, reset at ${new Date(resetMs).toLocaleString("sv-SE", {timeZone: "Asia/Shanghai"}).replace("T", " ")} UTC+8"}}`,
     { category: "quota_day", resetAt: resetMs, resetAssumed: false, now });
   const [entry] = c.inspect(now);
   assert.equal(entry?.category, "quota_day");
