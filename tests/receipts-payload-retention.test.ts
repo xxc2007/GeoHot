@@ -40,6 +40,25 @@ test("结清的回执过一天丢掉正文，失败与未结清的留着", async
   await sql`DELETE FROM receipts WHERE logical_key LIKE ${`${KEY}%`}`;
 });
 
+test("停在半路的回执也留不住正文，但比结清的多给一周宽限", async () => {
+  await sql`DELETE FROM receipts WHERE logical_key LIKE ${`${KEY}%`}`;
+  await seed("received", 24 * 8, `${KEY}:stuck-old`);
+  await seed("pending", 24 * 8, `${KEY}:stuck-pending`);
+  await seed("received", 24, `${KEY}:stuck-fresh`);
+
+  const pruned = await pruneReceiptPayloads(new Date());
+  assert.ok(pruned >= 2, "至少清掉两条半路回执的正文");
+
+  const rows = await sql<{ logical_key: string; request: unknown }[]>`
+    SELECT logical_key, request FROM receipts WHERE logical_key LIKE ${`${KEY}%`} ORDER BY logical_key`;
+  const by = new Map(rows.map((r) => [r.logical_key, r]));
+  assert.equal(by.get(`${KEY}:stuck-old`)!.request, null, "八天前停在 received 的正文该清掉");
+  assert.equal(by.get(`${KEY}:stuck-pending`)!.request, null, "pending 同理");
+  assert.notEqual(by.get(`${KEY}:stuck-fresh`)!.request, null, "一天前的半路回执还在宽限期内，留着");
+
+  await sql`DELETE FROM receipts WHERE logical_key LIKE ${`${KEY}%`}`;
+});
+
 test("保留策略挂在每日维护上，而不是靠人记着跑", async () => {
   const { readFileSync } = await import("node:fs");
   const path = await import("node:path");

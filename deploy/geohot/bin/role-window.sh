@@ -7,8 +7,13 @@
 # 分析（content.analyze）是重写 + 大扫，只能等夜里读者少的时候做。
 #
 # 用法：role-window.sh day|night [env 文件]
-#   day   → WORKER_ROLE=all，分析槽 0（采集与正文提取照跑）
-#   night → WORKER_ROLE=all，分析槽 2（三台执行器各 2 槽：夜里 6 个并发，白天 0）
+#   day   → WORKER_ROLE=all，分析槽 1（采集与正文提取照跑）
+#   night → WORKER_ROLE=all，分析槽 2（四台执行器各 2 槽：夜里 8 个并发）
+#
+# 槽位可用环境变量调：GEOHOT_ROLE_DAY_SLOTS（默认 1）、GEOHOT_ROLE_NIGHT_SLOTS（默认 2）。
+# 2026-11-16 起白天从 0 改成 1：当天实测主库 io some avg10 只有 5.9、load 0.9，
+# 而积压里躺着 2,163 条 content.analyze；把白天压成 0 是旧的保守值，
+# 现在的账是「一台机器一个分析槽，主库压力仍低一个数量级」。
 #
 # 为什么白天也写 WORKER_ROLE=all：`extraction` 在 worker-role.ts 里是
 # `role !== coordinator && role !== fetcher && role !== media` —— 写成 fetcher 会把
@@ -24,8 +29,8 @@ mode="${1:-day}"
 env_file="${2:-/opt/geohot-exec/.env}"
 
 case "$mode" in
-  day)   role=all; slots=0 ;;
-  night) role=all; slots=2 ;;
+  day)   role=all; slots="${GEOHOT_ROLE_DAY_SLOTS:-1}" ;;
+  night) role=all; slots="${GEOHOT_ROLE_NIGHT_SLOTS:-2}" ;;
   *) echo "用法：$0 day|night [env 文件]" >&2; exit 2 ;;
 esac
 

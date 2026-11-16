@@ -1,6 +1,53 @@
 {
-  "latestVersion": "2026-11-16T07:35",
+  "latestVersion": "2026-11-16T09:05",
   "releases": [
+    {
+      "date": "2026-11-16",
+      "time": "09:05",
+      "major": false,
+      "title": "没人结清的回执也留不住正文",
+      "body": [
+        "主库上还躺着 62,402 行停在 received 的回执：恢复机制早把它们判成未知，正文却一直在表里胀着。",
+        "结清的回执照旧一天丢正文；半路的给一周宽限，之后同样丢——行留着给统计，正文不留。",
+        "tests/receipts-payload-retention.test.ts 补一条：八天前的半路回执被清、一天内的还在。"
+      ],
+      "tags": [
+        "ops",
+        "db"
+      ]
+    },
+    {
+      "date": "2026-11-16",
+      "time": "08:52",
+      "major": false,
+      "title": "模型池里不再留着死模型",
+      "body": [
+        "池子里躺着 11 个 magpie 已经不认的别名（79 个成员位），分派过去先撞一次 404 再换人——一小时里一半的失败是它们。",
+        "拿 1-token 探针逐个实测，把实测 404 的成员从五台机器的池子里摘掉，回执里的 404 会跟着少。",
+        "新增 tooling/model-pool-audit.mjs 与 prune-model-pool.sh：账号重新登进 magpie 后重跑探针即可。"
+      ],
+      "tags": [
+        "models",
+        "routing",
+        "ops"
+      ]
+    },
+    {
+      "date": "2026-11-16",
+      "time": "08:45",
+      "major": false,
+      "title": "白天不再整天停机",
+      "body": [
+        "杭州、武汉两台上同时躺着三套昼夜机制，其中一套每天七点把 worker 整个停掉，最新那套要用的脚本又没装。",
+        "于是白天没有任何分析在跑，积压堆到 2,163 条。现在只留一套：白天采集、正文提取加一个分析槽，夜里两个。",
+        "setup-executor-window.sh 负责装好脚本、关掉旧机制。"
+      ],
+      "tags": [
+        "ops",
+        "executors",
+        "reliability"
+      ]
+    },
     {
       "date": "2026-11-16",
       "time": "07:35",

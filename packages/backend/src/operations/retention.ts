@@ -42,12 +42,17 @@ async function pruneCache(dir: string, maxAgeMs: number, now: number): Promise<n
  * instead, one commit every 10k ids, so a batch reads kilobytes rather than gigabytes.
  */
 const RECEIPT_PAYLOAD_KEEP_MS = 24 * 3600_000;
+// 2026-11-16：还有一类回执没人结清——停在上路状态的（received/pending）。恢复机制会在半小时内
+// 把它们判成未知，但 2026-11-16 主库上仍躺着 62,402 行这样的历史沉淀，既有正文也没人读。
+// 给一周的宽限期（期间运维还能翻），之后正文一并丢掉，行本身留着给统计。
+const RECEIPT_STUCK_KEEP_MS = 7 * 24 * 3600_000;
 
 export async function pruneReceiptPayloads(now = new Date()): Promise<number> {
   // 2026-11-08 二改：一周太长。结清回执的正文只在「同一逻辑请求马上重试」时有复用价值，
   // 那发生在几分钟内；账单与成本都记在 usage/cost 列上，不依赖正文。留一天把稳态体积从
   // 7 天份砍到 1 天份，主库那块慢盘的写放大才会真正降下来。
   const cutoff = new Date(now.getTime() - RECEIPT_PAYLOAD_KEEP_MS);
+  const stuckCutoff = new Date(now.getTime() - RECEIPT_STUCK_KEEP_MS);
   const span = 10_000;
   const [head] = await sql<{ max: string | null }[]>`SELECT max(id)::text AS max FROM receipts`;
   const top = Number(head?.max ?? 0);
@@ -60,6 +65,13 @@ export async function pruneReceiptPayloads(now = new Date()): Promise<number> {
         AND (request IS NOT NULL OR response IS NOT NULL)
       RETURNING id`;
     total += rows.length;
+    const stuck = await sql<{ id: number }[]>`
+      UPDATE receipts SET request = NULL, response = NULL
+      WHERE id > ${from} AND id <= ${from + span}
+        AND status IN ('received', 'pending', 'active') AND created_at < ${stuckCutoff}
+        AND (request IS NOT NULL OR response IS NOT NULL)
+      RETURNING id`;
+    total += stuck.length;
   }
   return total;
 }
