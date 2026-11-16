@@ -282,6 +282,42 @@ async function reapBackends(): Promise<void> {
   if (existsSync(lock)) relay(new Error("dev-db: postgres 仍在运行（postmaster.pid 未清），请手工结束残留的 postgres.exe 再重试"));
 }
 
+/**
+ * Windows 上 pg_ctl 给 postgres.exe 开一个控制台窗口，标题就是 postgres.exe 的路径
+ * （2026-11-16 用户截图里的那个黑框 `D:\geohot-embedded-postgre…`：开发库不该占着桌面）。
+ * 这里用隐藏的 PowerShell 认领「可执行文件在本项目 bundle 目录里」的 postgres.exe，
+ * AttachConsole 拿到它的控制台句柄再 ShowWindow(SW_HIDE)。只碰我们自己起的那些进程，
+ * 藏不住也不影响数据库（best-effort）。
+ */
+function hideServerConsole(): void {
+  if (process.platform !== "win32") return;
+  const bundle = BUNDLE_DIR;
+  const script = [
+    "Add-Type -Namespace G -Name W -MemberDefinition @'",
+    '[DllImport("kernel32.dll")] public static extern bool AttachConsole(uint pid);',
+    '[DllImport("kernel32.dll")] public static extern bool FreeConsole();',
+    '[DllImport("kernel32.dll")] public static extern System.IntPtr GetConsoleWindow();',
+    '[DllImport("user32.dll")] public static extern bool ShowWindow(System.IntPtr h, int n);',
+    "'@",
+    `$root = '${bundle.replace(/'/g, "''")}'`,
+    'Get-CimInstance Win32_Process -Filter "Name=\'postgres.exe\'" | Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($root, [StringComparison]::OrdinalIgnoreCase) } | ForEach-Object {',
+    "  [G.W]::FreeConsole() | Out-Null",
+    "  if ([G.W]::AttachConsole([uint32]$_.ProcessId)) { $h = [G.W]::GetConsoleWindow(); if ($h -ne [System.IntPtr]::Zero) { [G.W]::ShowWindow($h, 0) | Out-Null } }",
+    "}",
+  ].join("\n");
+  try {
+    const child = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", script], {
+      stdio: "ignore",
+      windowsHide: true,
+      detached: true,
+    });
+    child.on("error", () => {});
+    child.unref();
+  } catch {
+    /* 藏不住就算了：数据库照样在跑 */
+  }
+}
+
 const stop = async (reason: string) => {
   if (stopping) return;
   stopping = true;
@@ -307,6 +343,7 @@ try {
   }
   console.log(`dev-db: starting postgres on 127.0.0.1:${PORT} as ${USER}`);
   await cluster.start();
+  hideServerConsole();
 
   const client = cluster.getPgClient("postgres");
   await client.connect();
