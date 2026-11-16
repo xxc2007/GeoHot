@@ -72,7 +72,9 @@ async function main() {
       for (const d of dups.slice(0, 5)) console.log(`  ${d.canonical_url} (${d.n} sources)`);
     }
   } else {
-    // Compute on-the-fly: normalize(url) + discriminator from config
+    // Compute on-the-fly: normalize(url) + discriminator from config (nested bodyJson)
+    // Same algorithm as migration 0121 normalize_canonical_url().
+    // NOTE: \\1 in JS template string = literal \1 passed to SQL regexp_replace.
     const dups = await sql`
       WITH normalized AS (
         SELECT
@@ -87,12 +89,22 @@ async function main() {
                   ),
                   '/+$', ''
                 ),
-                '^([a-z]+://[^/]+)', lower('\1')
+                '^([a-z]+://[^/]+)', lower('\\1')
               ),
-              '([?&])utm_[^&]*', '\1', 'g'
+              '([?&])utm_[^&]*', '\\1', 'g'
             ) ||
             COALESCE(
-              '#' || lower(regexp_replace(COALESCE(config->>'searchTopic', config->>'query', config->>'topic', ''), '\s+', '-', 'g')),
+              '#' || lower(regexp_replace(
+                COALESCE(
+                  config->>'searchTopic',
+                  config->>'query',
+                  config->>'topic',
+                  config->'bodyJson'->>'query',
+                  config->'bodyJson'->'messages'->0->>'content',
+                  ''
+                ),
+                '\\s+', '-', 'g'
+              )),
               ''
             ) AS canon
         FROM sources

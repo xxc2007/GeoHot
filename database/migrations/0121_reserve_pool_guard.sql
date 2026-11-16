@@ -21,10 +21,15 @@ ALTER TABLE sources ADD COLUMN IF NOT EXISTS canonical_url text;
 -- ============================================================
 -- STEP 2: 回填 canonical_url
 --   - GET/RSS/web_list: normalize(config->>'url')
---   - POST search (kind 含 search / config.adapter 是 POST 搜索):
+--   - POST search:
 --     normalize(endpoint) + "#" + discriminator
---     discriminator 从 config->>searchTopic 或 config->>query 或 config->>topic 取
---   同 endpoint 不同 query 允许共存；同 query 不同 id 互斥。
+--     discriminator 按优先级从 config 提取：
+--       1. config->>'searchTopic'
+--       2. config->>'query'
+--       3. config->>'topic'
+--       4. config->'bodyJson'->>'query'           (Tavily/Exa/Keenable)
+--       5. config->'bodyJson'->'messages'->0->>'content'  (百度千帆)
+--     同 endpoint 不同 query 允许共存；同 query 不同 id 互斥。
 -- ============================================================
 CREATE OR REPLACE FUNCTION normalize_canonical_url(raw text, cfg jsonb DEFAULT NULL) RETURNS text AS $$
 DECLARE
@@ -42,9 +47,16 @@ BEGIN
   u := regexp_replace(u, '/+$', '');
   -- 小写 scheme+host
   u := regexp_replace(u, '^([a-zA-Z]+://[^/]+)', lower('\1'));
-  -- POST search discriminator: 如果 cfg 提供 searchTopic/query/topic，拼到 fragment
+  -- POST search discriminator: 嵌套 bodyJson 优先
   IF cfg IS NOT NULL THEN
-    disc := COALESCE(cfg->>'searchTopic', cfg->>'query', cfg->>'topic', '');
+    disc := COALESCE(
+      cfg->>'searchTopic',
+      cfg->>'query',
+      cfg->>'topic',
+      cfg->'bodyJson'->>'query',
+      cfg->'bodyJson'->'messages'->0->>'content',
+      ''
+    );
     IF disc != '' THEN
       u := u || '#' || lower(regexp_replace(disc, '\s+', '-', 'g'));
     END IF;

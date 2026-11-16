@@ -208,3 +208,42 @@ test("12. RSS sources with same feed URL still conflict (no discriminator)", asy
   );
   await sql`DELETE FROM sources WHERE id IN (${id1}, ${id2})`;
 });
+
+test("13. POST search (nested bodyJson.query) same endpoint different query coexist", async () => {
+  const id1 = P + "tavily-climate";
+  const id2 = P + "tavily-ocean";
+  // Tavily: bodyJson.query is the discriminator.
+  await sql`INSERT INTO sources(id, name, kind, config, tier, participation_mode, interval_minutes, enabled, health, canonical_url)
+    VALUES (${id1}, 'Tavily Climate', 'external', '{"url":"https://api.tavily.com/search","bodyJson":{"query":"climate change"}}', 'T1', 'editorial', 360, true, 'ok', 'https://api.tavily.com/search#climate-change')`;
+  await sql`INSERT INTO sources(id, name, kind, config, tier, participation_mode, interval_minutes, enabled, health, canonical_url)
+    VALUES (${id2}, 'Tavily Ocean', 'external', '{"url":"https://api.tavily.com/search","bodyJson":{"query":"ocean acidification"}}', 'T1', 'editorial', 360, true, 'ok', 'https://api.tavily.com/search#ocean-acidification')`;
+  const rows = await sql`SELECT count(*)::int AS n FROM sources WHERE id IN (${id1}, ${id2}) AND enabled = true`;
+  assert.equal(rows[0]!.n, 2);
+  await sql`DELETE FROM sources WHERE id IN (${id1}, ${id2})`;
+});
+
+test("14. POST search same nested bodyJson.query conflict (unique index)", async () => {
+  const id1 = P + "exa-dup-1";
+  const id2 = P + "exa-dup-2";
+  await sql`INSERT INTO sources(id, name, kind, config, tier, participation_mode, interval_minutes, enabled, health, canonical_url)
+    VALUES (${id1}, 'Exa 1', 'external', '{"url":"https://api.exa.ai/search","bodyJson":{"query":"biodiversity loss"}}', 'T1', 'editorial', 360, true, 'ok', 'https://api.exa.ai/search#biodiversity-loss')`;
+  await assert.rejects(
+    () => sql`INSERT INTO sources(id, name, kind, config, tier, participation_mode, interval_minutes, enabled, health, canonical_url)
+      VALUES (${id2}, 'Exa 2', 'external', '{"url":"https://api.exa.ai/search","bodyJson":{"query":"biodiversity loss"}}', 'T1', 'editorial', 360, true, 'ok', 'https://api.exa.ai/search#biodiversity-loss')`,
+    /duplicate key|canonical_url/,
+  );
+  await sql`DELETE FROM sources WHERE id IN (${id1}, ${id2})`;
+});
+
+test("15. Qianfan messages[0].content discriminates (same endpoint different prompt)", async () => {
+  const id1 = P + "qianfan-carbon";
+  const id2 = P + "qianfan-water";
+  // 百度千帆: bodyJson.messages[0].content is the discriminator.
+  await sql`INSERT INTO sources(id, name, kind, config, tier, participation_mode, interval_minutes, enabled, health, canonical_url)
+    VALUES (${id1}, 'Qianfan Carbon', 'external', '{"url":"https://qianfan.baidubce.com/v2/chat/completions","bodyJson":{"messages":[{"role":"user","content":"carbon emissions news"}]}}', 'T1', 'editorial', 360, true, 'ok', 'https://qianfan.baidubce.com/v2/chat/completions#carbon-emissions-news')`;
+  await sql`INSERT INTO sources(id, name, kind, config, tier, participation_mode, interval_minutes, enabled, health, canonical_url)
+    VALUES (${id2}, 'Qianfan Water', 'external', '{"url":"https://qianfan.baidubce.com/v2/chat/completions","bodyJson":{"messages":[{"role":"user","content":"water resource crisis"}]}}', 'T1', 'editorial', 360, true, 'ok', 'https://qianfan.baidubce.com/v2/chat/completions#water-resource-crisis')`;
+  const rows = await sql`SELECT count(*)::int AS n FROM sources WHERE id IN (${id1}, ${id2}) AND enabled = true`;
+  assert.equal(rows[0]!.n, 2);
+  await sql`DELETE FROM sources WHERE id IN (${id1}, ${id2})`;
+});
