@@ -100,7 +100,11 @@ ALL_UNITS=(geohot-brain.service geohot-api.service geohot-worker.service geohot-
            # 2026-11-15：收据两表（receipts 2.8 GB / receipt_attempts 596 MB）上累积了 8 万多死元组，
            # autovacuum 在下午自己触发，把慢盘打到 io 98.6、读者页 5 秒。改成表上放宽阈值、
            # 真正的回收只在这个 04:10 的窗口里做（SKIP_LOCKED，不跟线上读写抢锁）。
-           geohot-vacuum-maintenance.service geohot-vacuum-maintenance.timer)
+           geohot-vacuum-maintenance.service geohot-vacuum-maintenance.timer
+           # 2026-11-16：891 MB 的主库在内存压力下会把自己打死 —— `memory full avg10` 到 96、
+           # swap 用掉 833 MB 时，`io some avg10` 也是 99，`/api/health` 要 274 秒。
+           # 重启 api/web 把被换出的页收回来，io 从 98.57 掉到 7.02。这个 timer 每 5 分钟看一眼。
+           geohot-memory-guard.service geohot-memory-guard.timer)
 if [[ "$APP_ROOT" == "/opt/geohot/app" && -d "$TEMPLATE_DIR" ]]; then
   echo "route=templates  从 $TEMPLATE_DIR 安装 ${#ALL_UNITS[@]} 个单元（带加固块；这一条与线上现值一致）"
   src_missing=0

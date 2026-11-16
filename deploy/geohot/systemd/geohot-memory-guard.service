@@ -1,0 +1,10 @@
+[Unit]
+Description=GeoHot memory guard (restart api/web when the box starts thrashing)
+Documentation=deploy/geohot/bin/memory-guard.sh
+
+[Service]
+Type=oneshot
+User=root
+Nice=10
+TimeoutStartSec=180
+ExecStart=/opt/geohot/bin/memory-guard.sh
