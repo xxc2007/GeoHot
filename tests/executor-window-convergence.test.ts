@@ -13,9 +13,11 @@ const script = await readFile(new URL("../deploy/geohot/bin/role-window.sh", imp
 const setup = await readFile(new URL("../deploy/geohot/setup-executor-window.sh", import.meta.url), "utf8");
 
 test("白天给一个分析槽，夜里给两个，都可用环境变量覆盖", () => {
-  assert.match(script, /day\)\s+role=all; slots="\$\{GEOHOT_ROLE_DAY_SLOTS:-1\}"/);
+  assert.match(script, /day\)\s*\n\s*role=all/);
+  assert.match(script, /slots="\$\{GEOHOT_ROLE_DAY_SLOTS:-1\}"/);
   assert.match(script, /night\)\s+role=all; slots="\$\{GEOHOT_ROLE_NIGHT_SLOTS:-2\}"/);
-  assert.doesNotMatch(script, /day\)\s+role=all; slots=0/, "白天槽位不能回到 0");
+  // 白天可以是 0，但只能是显式关掉（GEOHOT_ROLE_DAY_ACTIVE=0），不是默认值。
+  assert.match(script, /if \[ "\$\{GEOHOT_ROLE_DAY_ACTIVE:-1\}" = "0" \]; then slots=0/);
 });
 
 test("ANALYZE_CONCURRENCY 恒为 1：写 0 会被 config 当非法值回落到 6", () => {
