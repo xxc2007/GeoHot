@@ -603,10 +603,12 @@ const JINA_LIST_PREFIX = "https://r.jina.ai/%";
  */
 const paidListingSql = sql`coalesce(config->>'url', '') LIKE ${JINA_LIST_PREFIX} OR coalesce(config->>'feedUrl', '') LIKE ${JINA_LIST_PREFIX}`;
 /** How many due sources one scheduling round may enqueue (`FETCH_SCHEDULE_BATCH=1` slows a pipeline to a walk). */
-const SCHEDULE_BATCH = positiveInt(process.env.FETCH_SCHEDULE_BATCH, "FETCH_SCHEDULE_BATCH", 40);
+export function scheduleBatchLimit(balanced: boolean): number {
+  return positiveInt(process.env.FETCH_SCHEDULE_BATCH, "FETCH_SCHEDULE_BATCH", balanced ? 12 : 40);
+}
 
 /** Every minute: enqueue due sources (enabled, not WeChat/external), oldest due first; X accounts by shard. */
-export async function scheduleDueSources(limit = SCHEDULE_BATCH): Promise<{ enqueued: number; shards: number }> {
+export async function scheduleDueSources(limit = scheduleBatchLimit(false)): Promise<{ enqueued: number; shards: number }> {
   const kinds: string[] = (process.env.COLLECT_KINDS || "rss,web_list,json_list,x_search").split(",");
   // Listings fetched through Jina Reader are paid; development can leave them out.
   const skipJina = process.env.COLLECT_SKIP_JINA === "true";
