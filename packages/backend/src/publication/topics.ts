@@ -31,7 +31,11 @@ const topicsCache = cached(
 
 /** How far back a topic's "recent" figure looks, and the floor on how long a count stays held. */
 const RECENT_WINDOW_MS = 30 * 86400_000;
-const COUNTS_FRESH_MS = 60_000;
+// 主题计数的那条读要扫「精选全集」再 unnest 标签。2026-11-16 现场：主库 io some avg10 99 时，
+// 它在 `pg_stat_activity` 里挂了 178 秒；而它回答的只是 21 行数字。刷新频率从 1 分钟放宽到 5 分钟——
+// 与边缘对 `/topics` 的 300 秒缓存同频，读者看到的数字不会更旧；`until` 里那条「下一批过闸时间」
+// 仍然会让缓存提前失效，所以「有稿件刚要放出来」这种情况不会多等。
+const COUNTS_FRESH_MS = 5 * 60_000;
 const COUNTS_MIN_HOLD_MS = 5_000;
 
 /**
