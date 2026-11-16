@@ -13,6 +13,7 @@ test("shutdown while the original page is in flight cannot start a paid fallback
   let fallbackHits = 0;
   const server = http.createServer(async (req,res) => {
     if (req.url === "/original") { entered.open(); await finish.promise; res.writeHead(404); res.end(); }
+    else if (req.url === "/robots.txt") { res.writeHead(404); res.end(); }
     else { fallbackHits++; res.writeHead(500); res.end(); }
   });
   await new Promise<void>((resolve) => server.listen(0,"127.0.0.1",resolve));

@@ -63,8 +63,9 @@ test("reader-gate 5xx 计数可以排除单元重启的宽限窗口", {
 });
 /**
  * 2026-11-05：闸门把 `systemctl is-active` 读不准（unknown/空）当成"操作者已停机"跳过。
- * 那意味着 5xx 早已超预算，闸门却一直 SKIP，读者在挨打而没人动手。判据现在只认明确的
- * inactive/failed 为"别人停的"，读不准就按 TRIP 处理（日志里 worker=unknown 可见）。
+ * 那意味着 5xx 早已超预算，闸门却一直 SKIP，读者在挨打而没人动手。2026-11-16 复核：
+ * fence 模式下 TRIP 只写栅栏文件、不重启进程，所以 active/inactive/failed/unknown 一律 TRIP——
+ * 读者 5xx 是硬事实，静默跳过等于把它藏起来。
  */
 test("reader-gate 读不准 worker 状态时不把责任推给操作者", {
   skip: hasBash() ? false : "no usable bash here",
@@ -76,8 +77,8 @@ test("reader-gate 读不准 worker 状态时不把责任推给操作者", {
   assert.equal(call("unknown"), "TRIP");
   assert.equal(call(""), "TRIP");
   assert.equal(call("active"), "TRIP");
-  assert.equal(call("inactive"), "SKIP_OPERATOR_STOPPED");
-  assert.equal(call("failed"), "SKIP_OPERATOR_STOPPED");
+  assert.equal(call("inactive"), "TRIP");
+  assert.equal(call("failed"), "TRIP");
   // 本闸门自己停的，无论读成什么都要 TRIP（恢复责任是它的）。
   assert.equal(call("unknown", "1"), "TRIP");
 });

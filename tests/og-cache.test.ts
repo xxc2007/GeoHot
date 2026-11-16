@@ -38,7 +38,7 @@ before(async () => {
              VALUES (${SOURCE}, 'OG cache test', 'rss', 'T1', 'editorial', true, '2100-01-01')`;
   const { articleId } = await upsertMaterial({
     sourceId: SOURCE, url: `https://example.com/${T}-og-item`, title: `Source ${T} bulletin`,
-    bodyText: "完整的中文公告正文。", bodyStatus: "ok", via: "fetch",
+    bodyText: "完整的中文公告正文，一台站测定地震参数，震源深度与烈度分布均已交叉核实，数据来源可追溯，段落连贯信息充分。", bodyStatus: "ok", via: "fetch",
   });
   const title = `测试事件${T}：一台站测定 5.2 级`;
   const summary = `测试事件${T} 一台站测定 5.2 级，震源深度 32 千米。`;
