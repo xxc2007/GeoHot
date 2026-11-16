@@ -5,6 +5,7 @@ import { closeDb, sql } from "@aihot/backend/db";
 import { getBoss, shutdownSignal, stopBoss } from "@aihot/backend/jobs/queue";
 import { registerContentJobs, registerExtractionJobs } from "@aihot/backend/jobs/content";
 import { jobGroups, workerPlan } from "@aihot/backend/jobs/worker-role";
+import { ensureFetchIndex } from "@aihot/backend/jobs/fetch-index";
 import { registerSourceJobs } from "@aihot/backend/jobs/sources";
 import { registerEventJobs } from "@aihot/backend/jobs/events";
 import { registerMediaJobs, registerNotifyJobs } from "@aihot/backend/jobs/notify";
@@ -88,6 +89,10 @@ async function startQueue() {
   }
 }
 const boss = await initialized(startQueue());
+// 取作业的索引：迁移里只能条件建（全新库上 pgboss 的 schema 还没出现），worker 起来之后补一次。
+await ensureFetchIndex()
+  .then((state) => { if (state === "created") console.log("取作业索引已补建 job_common_fetch_idx"); })
+  .catch((error) => console.warn("取作业索引补建失败", (error as Error)?.message));
 const groups = jobGroups(plan.role);
 if (groups.content) await initialized(registerContentJobs(boss, plan.coordinator ? undefined : positiveInt(process.env.ANALYZE_CONCURRENCY, "ANALYZE_CONCURRENCY", 4)));
 if (groups.extraction && !groups.media) {

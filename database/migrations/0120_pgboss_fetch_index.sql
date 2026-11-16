@@ -10,7 +10,14 @@
 -- 而现有索引里没有一个覆盖 `(name, state, start_after, priority, created_on)` 这套顺序，
 -- 每个执行器每秒一次的轮询就变成一次全表扫。
 --
--- 建索引会短暂锁表：142k 行 / 219 MB 在实测中几秒完成，比它省下来的读放大便宜得多。
--- 线上已经手工建过一次（`job_common_fetch_idx`，8672 kB，valid），这里用 IF NOT EXISTS 对齐仓库。
-CREATE INDEX IF NOT EXISTS job_common_fetch_idx
-  ON pgboss.job_common (name, state, start_after, priority DESC, created_on);
+-- 只能条件建：全新库上 pgboss 的 schema 要等它自己启动时才出现，这时候还没得建。
+-- 那一步由 worker 启动时的 `ensureFetchIndex()`（packages/backend/src/jobs/fetch-index.ts）补上。
+DO $$
+BEGIN
+  IF to_regclass('pgboss.job_common') IS NULL THEN
+    RAISE NOTICE 'pgboss.job_common 还不存在，取作业索引留给 worker 启动时补';
+  ELSE
+    CREATE INDEX IF NOT EXISTS job_common_fetch_idx
+      ON pgboss.job_common (name, state, start_after, priority DESC, created_on);
+  END IF;
+END $$;
