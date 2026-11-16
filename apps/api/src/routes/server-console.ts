@@ -109,7 +109,12 @@ export async function registerServerConsole(app: FastifyInstance, forward = magp
       return { ...sample, ip: ipFor(String(sample.host ?? "")), stale: Date.now() - Date.parse(sample.checkedAt) > 90_000, nodes };
     } catch { return reply.code(503).send({ unavailable: true }); }
   }));
-  app.route({ method: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"], url: "/api/admin/magpie-proxy/*", config:{rateLimit:{max:240,timeWindow:'1 minute'}}, handler: guard(async (req, reply, admin) => {
+  // 2026-11-16：嵌进后台的 Magpie 面板自己就要几十上百个资源——首页 index.html 之后是
+  // boot/theme/omarchy/compat/layout/fonts/i18n/kernel 加各插件的 js，再叠上每秒一次的分流
+  // 追踪轮询。240/分钟是给「普通接口」定的数，面板一开就把桶打满：资源拿不到 429，
+  // 于是 `$ is not defined`、整个面板只剩导航栏（真浏览器实测 19 个 429）。
+  // 这里放宽到 1500/分钟：它仍然是上限（跑飞的循环会撞墙），但一个管理员的浏览器不会。
+  app.route({ method: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"], url: "/api/admin/magpie-proxy/*", config:{rateLimit:{max:1500,timeWindow:'1 minute'}}, handler: guard(async (req, reply, admin) => {
     const suffix = (req.params as { "*": string })["*"];
     // URL is never supplied by the caller; do not proxy the model gateway or token sign-in routes.
     const staticResource = /^(?:(?:assets|plugins|fonts)\/)?[a-zA-Z0-9_./-]+\.(?:js|css|svg|png|ico|woff2?|ttf)$/.test(suffix);
