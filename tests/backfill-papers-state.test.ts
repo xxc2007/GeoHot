@@ -21,7 +21,7 @@ let articleId = "";
 before(async () => {
   await sql`INSERT INTO sources (id, name, kind, tier, participation_mode, site_fulltext) VALUES (${source}, 'CLI test', 'rss', 'T1', 'editorial', true)`;
   const item = await upsertMaterial({ sourceId: source, url: `https://example.com/${T}`, title: 'Archive bulletin', publishedAt: inside,
-    discoveredAt: new Date(), via: 'import', backfill: 'archive', bodyStatus: 'ok', bodyText: "完整的中文公告正文。" });
+    discoveredAt: new Date(), via: 'import', backfill: 'archive', bodyStatus: 'ok', bodyText: "本次地理观测记录了一次事件的完整过程。现场团队按规范到达事发地点，使用仪器测量关键参数，并查阅官方通报与历史资料进行交叉核对。正文交代了事件成因、影响范围与后续应对，数据来源可追溯，段落连贯、信息充分，足以支撑版面选稿与成刊判断，不只是一句话快讯。" });
   articleId = item.articleId;
 });
 after(async () => {

@@ -66,7 +66,7 @@ async function analyzed(label: string, timelineAt: Date): Promise<string> {
     sourceId: SOURCE,
     url: `https://example.com/report-boundary-${T}-${label}`,
     title: `Report boundary ${label}`,
-    bodyText: `完整的中文边界测试正文 ${label}`,
+    bodyText: `本次成刊边界测试正文 ${label} 记录了一次事件的完整过程。现场团队按规范到达事发地点，使用仪器测量关键参数，并查阅官方通报与历史资料进行交叉核对。正文交代了事件成因、影响范围与后续应对，数据来源可追溯，段落连贯、信息充分，足以支撑候选筛选，不只是一句话快讯。`,
     bodyStatus: "ok",
     publishedAt: timelineAt,
     discoveredAt: timelineAt,

@@ -18,7 +18,7 @@ const source='reader-complete-'+tag();let n=0;
 before(async()=>{await sql`INSERT INTO sources(id,name,kind,tier,participation_mode,site_fulltext,next_fetch_at) VALUES(${source},'完整工作流测试','rss','T1','editorial',true,'2100-01-01')`;});
 after(async()=>{await sql`DELETE FROM pgboss.job WHERE data->>'articleId' IN (SELECT id FROM articles WHERE source_id=${source})`;await sql`DELETE FROM articles WHERE source_id=${source}`;await sql`DELETE FROM sources WHERE id=${source}`;await stopBoss();await closeDb();});
 async function article(language='zh',html:string|null=null) {
- const {articleId:id}=await upsertMaterial({sourceId:source,url:`https://example.com/${source}/${++n}`,title:'原始报道',bodyText:language==='zh'?'这是完整中文正文，包含最后一段结尾。':'A complete original article with its final paragraph.',bodyHtml:html,language,bodyStatus:'ok',via:'fetch'});
+ const {articleId:id}=await upsertMaterial({sourceId:source,url:`https://example.com/${source}/${++n}`,title:'原始报道',bodyText:language==='zh'?'这是完整中文正文，包含最后一段结尾。现场团队按规范到达事发地点，使用仪器测量关键参数，并查阅官方通报与历史资料进行交叉核对，正文交代事件成因、影响范围与后续应对，数据来源可追溯，段落连贯、信息充分，足以支撑版面选稿。':'A complete original article with its final paragraph. The field team measured key parameters on site, cross-checked official bulletins and historical records, and explained the cause, impact and follow-up response with traceable data sources.',bodyHtml:html,language,bodyStatus:'ok',via:'fetch'});
  await sql`INSERT INTO analyses(article_id,input_revision,origin,relevance,title_zh,summary_zh,score,selected) VALUES(${id},1,'rule','pass','完整中文标题','完整的中文摘要。',80,false)`;
  await publishArticle(id);return id;
 }
@@ -60,7 +60,7 @@ test('partial, stale and malformed translations never fall back to a public fore
   await sql`INSERT INTO translations(article_id,lang,revision,body_html,body_text,complete,origin) VALUES(${id},'zh',${revision},${'<p>'+text+'</p>'},${text},${complete},'model') ON CONFLICT(article_id,lang) DO UPDATE SET revision=EXCLUDED.revision,complete=EXCLUDED.complete,body_html=EXCLUDED.body_html,body_text=EXCLUDED.body_text`;
   await publishArticle(id);await hidden(id);
  }
- await sql`UPDATE translations SET revision=1,complete=true,body_html='<p>完整中文译文及最后段落。</p>',body_text='完整中文译文及最后段落。' WHERE article_id=${id}`;
+ await sql`UPDATE translations SET revision=1,complete=true,body_html='<p>完整中文译文及最后段落。现场团队按规范到达事发地点，使用仪器测量关键参数，并查阅官方通报与历史资料进行交叉核对，正文交代事件成因、影响范围与后续应对，数据来源可追溯，段落连贯、信息充分。</p>',body_text='完整中文译文及最后段落。现场团队按规范到达事发地点，使用仪器测量关键参数，并查阅官方通报与历史资料进行交叉核对，正文交代事件成因、影响范围与后续应对，数据来源可追溯，段落连贯、信息充分。' WHERE article_id=${id}`;
  await publishArticle(id);assert.equal((await loadItemDetail(id)).kind,'found');
 });
 test('plain-text full bodies appear in both the reader page and Markdown export',async()=>{
@@ -113,10 +113,10 @@ test('one locked article cannot roll back or starve the rest of a recovery batch
 
 test('publisher body defects invalidate public release and return through the ordinary extraction queue',async()=>{
  const id=await article();
- await sql`UPDATE articles SET url=${'https://doi.org/10.5194/nhess-26-fixture'}, body_html='<p>Ata, M. Y.: Reference, https://doi.org/1 https://doi.org/2 https://doi.org/3</p>', body_text='Ata, M. Y.: Reference, https://doi.org/1 https://doi.org/2 https://doi.org/3' WHERE id=${id}`;
+ await sql`UPDATE articles SET url=${'https://doi.org/10.5194/nhess-26-fixture'}, body_html='<p>Ata, M. Y.: Citation, https://doi.org/10.1/one, 2007. Behrens, J.: Citation, https://doi.org/10.1/two, 2020. Author, A.: Citation, https://doi.org/10.1/three, 2021. Chen, L.: Citation, https://doi.org/10.1/four, 2019. Davis, R.: Citation, https://doi.org/10.1/five, 2022.</p>', body_text='Ata, M. Y.: Citation, https://doi.org/10.1/one, 2007. Behrens, J.: Citation, https://doi.org/10.1/two, 2020. Author, A.: Citation, https://doi.org/10.1/three, 2021. Chen, L.: Citation, https://doi.org/10.1/four, 2019. Davis, R.: Citation, https://doi.org/10.1/five, 2022.' WHERE id=${id}`;
  assert.equal((await sql`SELECT 1 FROM article_workflow_readiness WHERE article_id=${id}`).length,0);
  await publishArticle(id);await hidden(id);
- const [fact]=await sql`SELECT quality_error FROM article_workflow_readiness WHERE article_id=${id}`;assert.equal(fact.quality_error,'source:references-only');
+ const [fact]=await sql`SELECT quality_error FROM article_workflow_readiness WHERE article_id=${id}`;assert.equal(fact.quality_error,'source-references-only');
  const result=await recoverBodyIntegrity();assert.ok(result.queued>=1);
  const [job]=await sql`SELECT data FROM pgboss.job WHERE name='content.extract-body' AND data->>'articleId'=${id} AND state='created'`;assert.equal(job.data.articleId,id);
  const [body]=await sql`SELECT body_status FROM articles WHERE id=${id}`;assert.equal(body.body_status,'pending');await hidden(id);

@@ -52,7 +52,7 @@ const reportIds: string[] = [];
 async function addReport(suffix: string, title: string, summary: string, publishedAt = new Date()) {
   const { articleId } = await upsertMaterial({
     sourceId: SOURCE, url: `https://example.com/${T}-${suffix}`, title: `Source ${T} ${suffix}`,
-    bodyText: "完整的中文公告正文。", bodyStatus: "ok", via: "fetch", publishedAt,
+    bodyText: "本次地理观测记录了一次事件的完整过程。现场团队按规范到达事发地点，使用仪器测量关键参数，并查阅官方通报与历史资料进行交叉核对。正文交代了事件成因、影响范围与后续应对，数据来源可追溯，段落连贯、信息充分，足以支撑综述摘要与热榜排序，不只是一句话快讯。", bodyStatus: "ok", via: "fetch", publishedAt,
   });
   await sql`INSERT INTO analyses (article_id, input_revision, origin, relevance, category, title_zh, summary_zh, score, selected, output)
             VALUES (${articleId}, 1, 'rule', 'pass', 'physical', ${title}, ${summary}, 80, false, ${sql.json({ fact: { title } })})`;

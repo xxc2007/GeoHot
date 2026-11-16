@@ -6,8 +6,8 @@ import {originalBodyDefect} from '@aihot/backend/content/body-quality';
 const url='https://nhess.copernicus.org/articles/26/5261/2026/';
 const refs='Ata, M. Y.: Citation, https://doi.org/10.1/one, 2007. Behrens, J.: Citation, https://doi.org/10.1/two, 2020. Author, A.: Citation, https://doi.org/10.1/three, 2021.';
 test('a references-only extraction cannot masquerade as the full scientific article',()=>{
- assert.equal(originalBodyDefect(url,'<h2>References</h2><p>'+refs+'</p>',refs),'source:references-only');
- assert.equal(originalBodyDefect('https://doi.org/10.5194/nhess-26-5261-2026','<p>'+refs+'</p>',refs),'source:references-only');
+ assert.equal(originalBodyDefect(url,'<h2>References</h2><p>'+refs+'</p>',refs),'source-references-only');
+ assert.equal(originalBodyDefect('https://doi.org/10.5194/nhess-26-5261-2026','<p>'+refs+'</p>',refs),'source-references-only');
  assert.equal(originalBodyDefect(url,'<h2>Abstract</h2><p>Full narrative</p><h2>References</h2>', 'Full narrative. '+refs),null);
 });
 test('structured Copernicus sections retain narrative, figures, equations, bibliography and PDF links',()=>{
@@ -22,12 +22,12 @@ test('structured Copernicus sections retain narrative, figures, equations, bibli
  assert.equal($('a[href$="nhess-26-5261-2026.pdf"]').length,1);assert.equal($('script').length,0);assert.equal(originalBodyDefect(url,body.html,body.text),null);
 });
 test('an explicit Mongabay feed truncation is not complete merely because it is long',()=>{
- assert.equal(originalBodyDefect('https://news.mongabay.com/story','', 'Source prose. '.repeat(100)+'…This article was originally published on Mongabay'),'source:feed-teaser');
- assert.equal(originalBodyDefect('https://example.com/story','', 'A complete story with a quoted pause… and its final paragraph.'),null);
+ assert.equal(originalBodyDefect('https://news.mongabay.com/story','', 'Source prose. '.repeat(100)+'…This article was originally published on Mongabay'),'source-feed-teaser');
+ assert.equal(originalBodyDefect('https://example.com/story','', 'A complete story with a quoted pause… and its final paragraph. The field team measured key parameters on site, cross-checked official bulletins and historical records, and explained the cause, impact and follow-up response with traceable data sources and named sources throughout.'),null);
 });
 
 test('Mongabay attribution quoted inside complete prose is not a truncation signal',()=>{
  const text='Narrative …This article was originally published on Mongabay. Further complete paragraphs and the final conclusion.';
  assert.equal(originalBodyDefect('https://news.mongabay.com/story','',text),null);
- assert.equal(originalBodyDefect('https://example.com/story','', 'Quoted …This article was originally published on Mongabay'),null);
+ assert.equal(originalBodyDefect('https://example.com/story','', 'Quoted in the middle of a complete narrative …This article was originally published on Mongabay, and the story continues through several further paragraphs with measured observations, named sources, and a closing conclusion that resolves the event.'),null);
 });

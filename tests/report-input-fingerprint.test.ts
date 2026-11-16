@@ -35,7 +35,7 @@ test("refresh fingerprints track copy, revision, prior coverage and period metri
       ON CONFLICT(service) DO UPDATE SET per_minute=500,per_hour=5000,per_day=50000`;
     await sql`INSERT INTO sources(id,name,kind,tier,participation_mode,site_fulltext) VALUES(${source},${source},'rss','T1','editorial',true)`;
     articleId = (await upsertMaterial({ sourceId: source, url: `https://example.com/${source}`, title: "River observations",
-      publishedAt: new Date("2016-06-01T12:00:00Z"), via: "import", backfill: "archive", bodyStatus: "ok", bodyText: "完整的中文河流地貌观测正文。" })).articleId;
+      publishedAt: new Date("2016-06-01T12:00:00Z"), via: "import", backfill: "archive", bodyStatus: "ok", bodyText: "本次河流地貌观测记录了河道形态、沉积物组成与纵剖面变化。研究团队沿断面实测了高程与流速，并对比历史遥感影像，分析了河流下切、侧蚀与堆积过程。正文交代了观测方法、数据来源与地貌成因，段落连贯、信息充分，足以支撑成刊选稿。" })).articleId;
     await sql`INSERT INTO analyses(article_id,input_revision,origin,relevance,category,title_zh,summary_zh,score,selected)
       VALUES(${articleId},1,'rule','pass','physical','河流地貌观测结果','河流地貌研究提供新的观测资料。',90,true)`;
     await publishArticle(articleId);
