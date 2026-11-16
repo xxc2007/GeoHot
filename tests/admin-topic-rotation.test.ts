@@ -1,7 +1,7 @@
 import "./setup.ts";
 import assert from "node:assert/strict";
 import test, { after } from "node:test";
-import { sql } from "../packages/backend/src/db.ts";
+import { closeDb, sql } from "../packages/backend/src/db.ts";
 import { rotationHints, topicRotationBoard } from "../packages/backend/src/admin/topic-rotation.ts";
 
 /** 后台「主题轮换」看板：站长要能看到谁在岗、谁被归档、候选里还排着谁。
@@ -19,6 +19,7 @@ after(async () => {
   await sql`DELETE FROM topic_proposals WHERE tag LIKE ${stamp + "%"}`;
   await sql`DELETE FROM topics WHERE slug LIKE ${stamp + "%"}`;
   await sql`DELETE FROM sources WHERE id = ${SOURCE}`;
+  await closeDb();
 });
 
 async function seedTopic(slug: string, position: number, dormantAt: Date | null = null) {

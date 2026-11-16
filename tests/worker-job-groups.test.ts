@@ -41,11 +41,3 @@ test("media claims media only", () => {
   assert.equal(groups.extraction, false);
   assert.equal(groups.source, false);
 });
-
-test("extraction executor claims extraction only", () => {
-  const groups = jobGroups("extraction-executor");
-  assert.equal(groups.extraction, true);
-  assert.equal(groups.content, false);
-  assert.equal(groups.source, false);
-  assert.equal(groups.events, false);
-});

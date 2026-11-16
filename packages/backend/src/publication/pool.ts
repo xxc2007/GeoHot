@@ -3,6 +3,7 @@ import type { PoolResponse, TimelineFilters } from "@aihot/contracts/site";
 import { addDays, beijingDate, beijingMidnight, isDay } from "@aihot/contracts/time";
 import { positiveInt } from "../config.ts";
 import { one, sql, withCustomPlans, type Db } from "../db.ts";
+import { withPublicRead } from "./read-budget.ts";
 import {
   categoryCondition, channelCondition, ITEM_COLUMNS, ITEM_FROM, listedCondition, tagCondition, toFeedItemSummary, topicCondition,
   type ItemRow,
@@ -298,7 +299,15 @@ export async function loadPool(query: PoolQuery): Promise<PoolResponse> {
     return { rows, total: Number(n) };
   };
 
-  const { rows, total } = q ? await withSearchCapacity(run) : await run(sql);
+  // 2026-11-16：非搜索的首屏取数原来直接跑在裸连接上（无事务、无 statement_timeout、无并发闸）。
+  // 路由层的 20 秒 Promise.race 只是不再 await，底层查询仍在 PG 后端上跑到结束，连接不归还——
+  // 主库一慢，10 个连接全被这种"已放弃"的查询占住，/api/health 与其它读全部排队等死（现场
+  // load 32+、io.full 95%）。现在把它收进 withPublicRead：服务端 12 秒 statement_timeout 到点
+  // 主动取消并回滚事务，连接必归还；4 槽 + 8 队列给并发一个有界上限，超出的走 PublicReadBusyError
+  // 由路由交回底稿/陈旧值。搜索路径本来就有 withSearchCapacity，保持不变。
+  const { rows, total } = q
+    ? await withSearchCapacity(run)
+    : await withPublicRead((db) => run(db));
   const today = beijingDate(now);
   // 表头上那句「今日 N 条」必须与它下面真的分组同一套成员条件（`DayList.tsx` 按 `timelineAt` 分日、
   // 把没有发布时间的行挪去「无发布日期」那一组）：

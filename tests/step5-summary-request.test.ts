@@ -51,11 +51,11 @@ test("both Step doors preserve production summary caps and legacy receipt protec
       await t.test(`${model}: new summary preserves 34048 (2048 + 32000); other purposes retain 16000 headroom and the hard cap`, async () => {
         await chatJson(opts(model, "new"));
         assert.equal(bodies.at(-1)!.max_tokens, 34048);
-        assert.equal(bodies.at(-1)!.reasoning_effort, "max");
+        assert.equal(bodies.at(-1)!.reasoning_effort, "high");
         for (const purpose of ["score_article", "understand_article", "translate_body"]) {
           await chatJson({ ...opts(model, purpose), purpose });
           assert.equal(bodies.at(-1)!.max_tokens, 18_048);
-          assert.equal(bodies.at(-1)!.reasoning_effort, "max");
+          assert.equal(bodies.at(-1)!.reasoning_effort, "high");
         }
         await chatJson({ ...opts(model, "cap"), maxTokens: 100_000 });
         assert.equal(bodies.at(-1)!.max_tokens, 65_536);

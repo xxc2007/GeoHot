@@ -126,7 +126,8 @@ digits_only() { case "${1:-}" in ''|*[!0-9]*) echo -1 ;; *) printf '%s' "$1" ;; 
 # 读者优先闸门的去留（闸门脚本与 selftest 跑同一份）：
 #   $1 近窗 5xx（-1=读不到）  $2 现在 epoch  $3 冷却截止 epoch（0=没有）  $4 本闸门是否承担恢复责任（1/0）
 #   $5 worker 现在 active?  $6 预算  $7 闸门是否被 disarmed 旗标按住（1=按住）
-# 返回：SKIP_DISARMED / SKIP_BLIND / SKIP_OPERATOR_STOPPED / HELD / TRIP / RELEASE / CONFIRM_RELEASE / IDLE
+# 返回：SKIP_DISARMED / SKIP_BLIND / HELD / TRIP / RELEASE / CONFIRM_RELEASE / IDLE
+# 2026-11-16：旧 inactive/failed 静默跳过分支已移除——读者 5xx 必须 TRIP。
 gate_action() {
   local e5="${1:--1}" now="${2:-0}" until="${3:-0}" we_stopped="${4:-0}" active="$5" budget="${6:-0}" disarmed="${7:-0}"
   # 入参先消毒：非数字一律当"读不到"（-1）或 0。不能让 [ x -le -1 ] 这种整数比较报错把一次判定变成脚本失败。
@@ -150,10 +151,10 @@ gate_action() {
     # operator 已经停下的 worker 不归本闸门认领，红指标也不能伪造恢复责任。
     # 但"探针答不出来"不等于"操作者停的"：`systemctl is-active` 超时/被拒时输出是 unknown/空，
     # 以前一律按操作者停机跳过 —— 于是 5xx 早已超预算，闸门却一直 SLIP，读者在挨打而没人动手。
-    # 只有明确读到 inactive/failed 才认"别人停的"，读不准就按 TRIP 处理（日志里 worker=unknown 可见）。
+    # 2026-11-16 复核：worker=inactive/failed 时也不能静默 SKIP——读者 5xx 是硬事实，
+    # fence 模式下 TRIP 只写栅栏文件、不重启进程，不会造成重启循环；静默跳过等于把读者红指标藏起来。
     if [ "$we_stopped" = 1 ]; then echo TRIP
     elif [ "$active" = active ]; then echo TRIP
-    elif [ "$active" = inactive ] || [ "$active" = failed ]; then echo SKIP_OPERATOR_STOPPED
     else echo TRIP; fi
     return
   fi

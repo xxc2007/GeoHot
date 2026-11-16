@@ -159,7 +159,7 @@ def update():
         fd = os.open(OWNER, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
     except FileExistsError:
         stage.unlink(missing_ok=True)
-        print('DEFER: maintenance or workstation owns the fence', flush=True)
+        print('DEFER: another maintenance owner holds the fence', flush=True)
         return
     with os.fdopen(fd, 'w') as stream:
         json.dump(state, stream)

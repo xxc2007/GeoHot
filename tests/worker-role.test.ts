@@ -36,15 +36,6 @@ test("queue pool settings reject invalid values instead of silently exceeding a 
   }
 });
 
-test("extraction executor cannot own analysis, schedules, or schema maintenance", () => {
-  assert.deepEqual(roles.workerPlan("extraction-executor"), {
-    role: "extraction-executor", content: false, extraction: true, coordinator: false, heartbeat: "extraction-executor",
-  });
-  assert.deepEqual(roles.bossOptions("extraction-executor" as roles.WorkerRole, "1"), {
-    max: 1, application_name: "aihot-jobs-extraction-executor", schedule: false, supervise: false, migrate: false, createSchema: false,
-  });
-});
-
 test("采集节点只抓取：不碰模型、不注册抽取、不接管定时任务", () => {
   assert.deepEqual(roles.workerPlan("fetcher"), {
     role: "fetcher", content: false, extraction: false, coordinator: false, heartbeat: "fetcher",

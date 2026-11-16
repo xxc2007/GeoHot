@@ -16,13 +16,15 @@ test("hy3 的别名全部退休，池子里只剩 hy4 flash", () => {
   assert.deepEqual(hy4, ["workbuddy-ai-hy4", "workbuddy-cn-hy4", "workbuddy-desktop-hy4", "workbuddy-hy4"]);
 });
 
-test("每条 hy4 都用上游真实的 id，且带对 provider 前缀", () => {
-  // 2026-11-16 1-token 探针：magpie 3426 认 `workbuddy/hy4-flash`，不认裸 `hy4-flash`
-  // （`magpie knows no model "hy4-flash"`）。3066 桥反过来吃裸 id。两种形状各有出处。
-  assert.equal(MODELS["workbuddy-hy4"]!.model, "hy4-flash");
-  assert.equal(MODELS["workbuddy-cn-hy4"]!.model, "hy4-flash");
-  assert.equal(MODELS["workbuddy-desktop-hy4"]!.model, "workbuddy/hy4-flash");
-  assert.equal(MODELS["workbuddy-ai-hy4"]!.model, "workbuddy-ai/hy4-flash");
+test("每条 hy4 都钉线上有回执的 id，且带对 provider 前缀", () => {
+  // 线上四台服务器现行 llm.ts 的 hy4 id 是 `hy4-preview-f`，近 24h completed 回执挂在这个 id 下。
+  // 本地 ec6ec10 曾改 `hy4-flash`（未部署、无回执），且本机 magpie 目录实际暴露的是
+  // `workbuddy/hy4flash-free`——三种拼写未在服务器 magpie 核实前，不拿没回执的替换线上正在跑的。
+  // 带 provider 前缀是硬要求：裸 id 在 magpie 下 404；3066 桥那扇反过来吃裸 id。
+  assert.equal(MODELS["workbuddy-hy4"]!.model, "hy4-preview-f");
+  assert.equal(MODELS["workbuddy-cn-hy4"]!.model, "hy4-preview-f");
+  assert.equal(MODELS["workbuddy-desktop-hy4"]!.model, "workbuddy/hy4-preview-f");
+  assert.equal(MODELS["workbuddy-ai-hy4"]!.model, "workbuddy-ai/hy4-preview-f");
 
   assert.equal(MODELS["workbuddy-hy4"]!.service, "workbuddy");
   assert.equal(MODELS["workbuddy-cn-hy4"]!.service, "workbuddy-cn");
@@ -30,9 +32,11 @@ test("每条 hy4 都用上游真实的 id，且带对 provider 前缀", () => {
   assert.equal(MODELS["workbuddy-desktop-hy4"]!.baseUrlEnv, "WORKBUDDY_DESKTOP_BASE_URL");
 });
 
-test("hy4 的每一扇都按站长要求写死最强推理档", () => {
+test("hy4 的每一扇都取目录实测的顶档 high（max 会被上游 code 11150 拒）", () => {
+  // 本机 magpie /v1/models 里 workbuddy/hy4flash-free 的 reasoning_levels 只有 high；
+  // 发不认识的 max 会落 HTTP 400 "reasoning effort value is not supported"。
   for (const key of ["workbuddy-hy4", "workbuddy-cn-hy4", "workbuddy-desktop-hy4", "workbuddy-ai-hy4"]) {
-    assert.deepEqual(MODELS[key]!.extra, { reasoning_effort: "max" }, `${key} 必须是 max`);
+    assert.deepEqual(MODELS[key]!.extra, { reasoning_effort: "high" }, `${key} 顶档是 high`);
   }
   // hy4 flash 未实测视觉（hy3 实测是「把图 token 化再答错颜色」），所以不许声明 vision。
   assert.equal(MODELS["workbuddy-desktop-hy4"]!.vision, false);

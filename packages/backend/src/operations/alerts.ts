@@ -162,22 +162,6 @@ export async function collectFindings(now = Date.now()): Promise<Finding[]> {
     }
   }
 
-  // 本机抽取辅助（extraction-executor 子 worker）停了心跳：它不承担读者面，但这台机器自己停了
-  // 而没有任何声音（2026-11-02 实测停 5.5 小时无告警面）。只进 09:00 日报——夜间关机是合法
-  // 下线，次日日报里看见即可，不打扰；根本没有这台机器参与过的痕迹（无心跳行）不出声。
-  const [assist] = await sql<{ value: { at?: string; host?: string } | null }[]>`SELECT value FROM settings WHERE (key = 'heartbeat.extraction-executor' OR key LIKE 'heartbeat.extraction-executor@%') ORDER BY (key = 'heartbeat.extraction-executor') DESC, updated_at DESC LIMIT 1`;
-  if (assist?.value?.at) {
-    const age = now - Date.parse(assist.value.at);
-    if (Number.isFinite(age) && age > 30 * 60_000) {
-      out.push({
-        key: "assist.heartbeat",
-        level: "digest",
-        title: "本机抽取辅助停了，正文积压消化少一台帮手",
-        detail: `心跳停在 ${beijingStamp(new Date(assist.value.at))}（${duration(age)} 前）；白天登录后准入会自动恢复，或按 docs/workstation-extraction-assist.md 手工启动`,
-      });
-    }
-  }
-
   // A leaderboard source keeps its last snapshot while failing.
   const [lb] = await sql<{ value: { sources?: Record<string, { ok: boolean; lastOkAt: string | null; error?: string }> } }[]>`SELECT value FROM settings WHERE key = 'leaderboard.fetch'`;
   const stale = Object.entries(lb?.value.sources ?? {}).filter(([, s]) => !s.ok && s.lastOkAt && now - Date.parse(s.lastOkAt) > 26 * 3600_000);

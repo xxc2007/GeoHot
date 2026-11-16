@@ -24,20 +24,26 @@ export async function itemAvailability(ids: string[], now = new Date()): Promise
   for (let i = 0; i < clean.length; i += CHUNK) {
     const batch = clean.slice(i, i + CHUNK);
     for (const id of batch) out[id] = "unavailable";
-    const rows = await sql<{ id: string; visibility: string; source_mode: string; selected: boolean; visible_after: Date | null; workflow_ready: boolean; source_fulltext: boolean; has_copy: boolean }[]>`
+    const rows = await sql<{ id: string; visibility: string; source_mode: string; selected: boolean; visible_after: Date | null; workflow_ready: boolean; source_fulltext: boolean; has_copy: boolean; body_quality_status: string | null }[]>`
       SELECT p.article_id AS id, p.visibility, s.participation_mode AS source_mode, p.selected, p.visible_after,
         ${workflowReadyCondition()} AS workflow_ready, s.site_fulltext AS source_fulltext,
-        (p.title ~ ${CJK_COPY_PATTERN} AND nullif(btrim(p.summary), '') IS NOT NULL) AS has_copy
+        (p.title ~ ${CJK_COPY_PATTERN} AND nullif(btrim(p.summary), '') IS NOT NULL) AS has_copy,
+        r.body_quality_status
       FROM publications p JOIN sources s ON s.id = p.source_id
+      LEFT JOIN article_workflow_readiness r ON r.article_id = p.article_id
       WHERE p.article_id IN ${sql(batch)}
         AND p.visibility = 'public' AND s.participation_mode = 'editorial'
         AND (NOT p.selected OR p.visible_after <= ${now})`;
     for (const r of rows) {
       if (!itemHasPage({ visibility: r.visibility, sourceMode: r.source_mode, selected: r.selected, visibleAfter: r.visible_after }, now)) continue;
-      // The detail page's own grades (detail.ts): a summary-licence row with copy opens its restricted
-      // page (summary-only here); a full-licence row whose workflow is still running, or a row with
-      // nothing to show (unsummarised), stays unavailable — the page is a 404.
-      out[r.id] = !r.source_fulltext && !r.workflow_ready ? (r.has_copy ? "summary-only" : "unavailable") : r.workflow_ready ? "public" : "unavailable";
+      // Three grades:
+      //  · workflow ready → public;
+      //  · source lends no full text, OR the stored body failed the quality rule (pipeline settled, body
+      //    dirty) → summary-only: the page opens as a safe lead, no body;
+      //  · anything else (pipeline still settling on a full-text source) → unavailable (404).
+      if (r.workflow_ready) { out[r.id] = "public"; continue; }
+      const bodyDirty = r.body_quality_status === "defect";
+      out[r.id] = (!r.source_fulltext || bodyDirty) && r.has_copy ? "summary-only" : "unavailable";
     }
   }
   return out;

@@ -4,8 +4,8 @@ import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { OAUTH_PROBE_PATHS, resolveRedirect } from "@aihot/contracts/http-policy";
-import { sql } from "@aihot/backend/db";
 import { CapacityExceeded } from "@aihot/backend/lib/capacity";
+import { dbHealthProbe, PublicReadBusyError } from "@aihot/backend/publication/read-budget";
 import { registerSite } from "./routes/site.ts";
 import { registerLeaderboard } from "./routes/leaderboard.ts";
 import { registerOg } from "./routes/og.ts";
@@ -101,7 +101,26 @@ await app.register(rateLimit, {
 
   app.get("/api/health", async (_req, reply) => {
     const started = Date.now();
-    await sql`SELECT 1`;
+    // The old probe raced `sql`SELECT 1`` against a 2 s timer, but the timer only rejected
+    // JS: the query kept queueing behind a saturated pool or holding a backend, so on a
+    // wedged box every probe stacked and the probe itself leaked. dbHealthProbe gates to
+    // (1,0) and calls query.cancel() at 2 s — postgres.js dequeues a not-yet-dispatched
+    // probe outright, or cancels the running statement server-side, so the connection is
+    // always returned. Busy / cancelled both surface as an honest 503.
+    try {
+      await dbHealthProbe();
+    } catch (error) {
+      const busy =
+        error instanceof PublicReadBusyError ||
+        error instanceof CapacityExceeded ||
+        (error as { code?: string }).code === "57014";
+      if (!busy) reply.log.warn({ err: error }, "health probe failed");
+      return reply
+        .code(503)
+        .header("Cache-Control", "no-store")
+        .header("Retry-After", "5")
+        .send({ ok: false, db: "unavailable", ms: Date.now() - started, release: releaseId() });
+    }
     return reply.header("Cache-Control", "no-store").send({ ok: true, db: "ok", ms: Date.now() - started, release: releaseId() });
   });
 
@@ -133,8 +152,18 @@ await app.register(rateLimit, {
       reply.header("X-Accel-Expires", "0");
       return sendProblem(req, reply, { status: 429, code: "capacity_exhausted", detail: "Image rendering is busy; retry shortly.", retryAfter: 2 });
     }
-    req.log.error({ err: error }, "unhandled");
     const status = (error as { statusCode?: number }).statusCode ?? 500;
+    // @fastify/rate-limit throws an Error with statusCode=429 after already setting
+    // Retry-After / RateLimit-* headers on the reply. The old handler only let 400/413/415
+    // through and turned every other status — including this 429 — into a 503, and then
+    // overwrote the real window with Retry-After: 30. The 601st request per IP therefore
+    // read as a server outage instead of "slow down". Recognise 429 and pass it through
+    // WITHOUT a retryAfter override: the plugin's header is the authoritative seconds.
+    if (status === 429) {
+      req.log.warn({ path: req.url.split("?")[0], retryAfter: reply.getHeader("retry-after") }, "rate limited");
+      return sendProblem(req, reply, { status: 429, code: "rate_limited", detail: (error as Error).message || "Too many requests." });
+    }
+    req.log.error({ err: error }, "unhandled");
     if (status === 400 || status === 413 || status === 415) {
       return sendProblem(req, reply, { status: status === 400 ? 400 : status, code: "invalid_request", detail: "The request could not be processed." });
     }

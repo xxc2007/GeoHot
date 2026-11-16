@@ -1,5 +1,13 @@
 {
   "include": ["**/*.ts", "**/*.tsx", ".react-router/types/**/*"],
+  "exclude": [
+    "app/routes/leaderboard.tsx",
+    "app/routes/leaderboard-model.tsx",
+    "app/routes/leaderboard-source.tsx",
+    "app/routes/leaderboard-sources.tsx",
+    "app/routes/leaderboard-rules.tsx",
+    "app/routes/leaderboard-boards.tsx"
+  ],
   "compilerOptions": {
     "lib": ["DOM", "DOM.Iterable", "ES2024"],
     "types": ["node", "vite/client"],

@@ -16,6 +16,7 @@ import { fetchJsonList } from "./json-list.ts";
 import { fetchXSearch, planXShards, readXSearch, shardHandle, shardQuery, SHARDABLE_SQL, tweetToCandidate, type XBacklog, type XRead } from "./x.ts";
 import { FetchError, type Candidate, type SourceRow } from "./types.ts";
 import { sourceErrorMessage } from "./errors.ts";
+import { getCachedRobots } from "./robots.ts";
 
 export interface CollectResult {
   sourceId: string;
@@ -403,10 +404,17 @@ export async function collectSource(sourceId: string, opts: { force?: boolean } 
 
     if (firstImport) nextCursor.initializedAt = new Date().toISOString();
     nextCursor.lastOkAt = new Date().toISOString();
+    // robots.txt Crawl-delay: if the host asked us to wait N seconds between requests, that becomes the
+    // floor for the next poll. Cached from the fetch we just did; never stretches past the operator's
+    // configured interval (the LEAST keeps the failure back-off sane).
+    const sourceUrl = String(source.config.feedUrl ?? source.config.url ?? "");
+    const robotsEntry = sourceUrl ? getCachedRobots(sourceUrl) : null;
+    const crawlDelayMinutes = robotsEntry?.crawlDelaySeconds ? robotsEntry.crawlDelaySeconds / 60 : 0;
+    const effectiveMinutes = Math.max(source.interval_minutes ?? 240, crawlDelayMinutes);
     await sql`
       UPDATE sources SET last_fetch_at = now(), last_ok_at = now(), fail_count = 0, last_error = NULL,
         health = 'ok', cursor = ${sql.json(nextCursor as never)}, updated_at = now(),
-        next_fetch_at = now() + make_interval(mins => interval_minutes)
+        next_fetch_at = now() + make_interval(mins => ${effectiveMinutes})
       WHERE id = ${sourceId}`;
     await sql`UPDATE fetch_runs SET status = 'ok', finished_at = now(), found_count = ${found}, new_count = ${created},
                 detail = ${sql.json(detail as never)} WHERE id = ${run!.id}`;

@@ -45,7 +45,11 @@ test("两个定时器按北京时间，且带 Persistent", () => {
   for (const unit of [dayTimer, nightTimer]) assert.match(unit, /Persistent=true/);
 });
 
-test("单元登记进安装清单，新机器照仓库就能装上", () => {
-  assert.match(install, /geohot-role-day\.service geohot-role-day\.timer/);
-  assert.match(install, /geohot-role-night\.service geohot-role-night\.timer/);
+test("单元登记进执行器安装清单，新机器照仓库就能装上", () => {
+  // 2026-11-16：role-day/night 不再进主库 ALL_UNITS（主库上会 203/EXEC），
+  // 改由执行器节点的 setup-executor-window.sh 安装并 enable。
+  const executorInstall = readFileSync(new URL("../deploy/geohot/setup-executor-window.sh", import.meta.url), "utf8");
+  assert.doesNotMatch(install, /geohot-role-day\.service geohot-role-day\.timer/, "主库不再装执行器昼夜档");
+  assert.match(executorInstall, /geohot-role-day\.timer geohot-role-night\.timer/);
+  assert.match(executorInstall, /install -m 755 .*bin\/role-window\.sh/);
 });

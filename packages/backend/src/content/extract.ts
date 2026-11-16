@@ -8,6 +8,8 @@ import { collapseWhitespace, isBoilerplateBody, stripBoilerplate, stripTags } fr
 import { jinaRead } from "../providers/jina.ts";
 import { getArticle } from "../providers/socialdata.ts";
 import { onlyXArticleLink, xArticleText } from "../sources/x.ts";
+import { checkUrl as checkRobotsUrl } from "../sources/robots.ts";
+import { AutoSearchProvider, searchProviderEnabled } from "../sources/search-providers.ts";
 import { sanitizeBody, stripChromeHtml, trimTrailingChrome } from "./sanitize.ts";
 import { markdownBody } from "./markdown.ts";
 import { contentHash } from "./materials.ts";
@@ -24,7 +26,7 @@ export interface ExtractedBody {
   html: string;
   text: string;
   images: Array<{ kind: "image"; url: string; width: number | null; height: number | null }>;
-  via: "readability" | "jina";
+  via: "readability" | "jina" | "keyless-fetch";
 }
 
 // Measured 2026-10-06 on twelve live 中央气象台 warning pages: their whole body is 126–308 characters
@@ -162,6 +164,14 @@ function extractedBody(html: string, url: string): ExtractedBody | null {
 
 export async function extractFromUrl(url: string, opts: { allowJina: boolean; subject: string }): Promise<ExtractedBody | null> {
   checkExtractionRunning();
+  // robots.txt: when we positively know the host disallows this path, do not fetch. When robots.txt is
+  // unreachable (known=false), fail open here — a host going down must not freeze every pending body —
+  // but the decision is recorded in the reason for the admin to see. Admission (scripts/review-sources)
+  // treats the same unknown as reject.
+  const robots = await checkRobotsUrl(url);
+  if (robots.known && !robots.allowed) {
+    return null;
+  }
   try {
     const res = await guardedFetch(url, { timeoutMs: 20_000, maxBytes: 6 * 1024 * 1024 });
     const type = res.headers.get("content-type") ?? "";
@@ -185,7 +195,21 @@ export async function extractFromUrl(url: string, opts: { allowJina: boolean; su
     // and if nothing real is left, this page has no body (an unconfirmed item beats a footer item).
     const text = stripBoilerplate(stripTags(html));
     if(originalBodyDefect(url,html,text))return null;
-    if (text.length < MIN_BODY_CHARS || isBoilerplateBody(text)) return null;
+    if (text.length < MIN_BODY_CHARS || isBoilerplateBody(text)) {
+      // Last-resort fallback: only when the operator explicitly enabled SEARCH_PROVIDER_FALLBACK=true.
+      // Off by default; never runs on the happy path. Returns null (does not throw) so the item stays
+      // unconfirmed rather than burning search-provider quota on every thin Jina page.
+      if (searchProviderEnabled()) {
+        try {
+          const sp = new AutoSearchProvider();
+          const page = await sp.fetchPage(url, { maxChars: 20_000 });
+          if (page && page.text && page.text.length >= MIN_BODY_CHARS && !isBoilerplateBody(page.text)) {
+            return { html: page.text, text: page.text, images: [], via: "keyless-fetch" };
+          }
+        } catch { /* provider unavailable; stay unconfirmed */ }
+      }
+      return null;
+    }
     return { html, text, images: [], via: "jina" };
   } catch (error) {
     // 额度满了不是「这页没有正文」。原先这里 `if (error instanceof BudgetExceededError) return null`，
@@ -212,16 +236,9 @@ export async function extractArticleBody(articleId: string, allowJina = process.
   const [a] = await sql<{ id: string; url: string; body_status: string; revision: number; x_post: { tweetId?: string } | null }[]>`
     SELECT id, url, body_status, revision, x_post FROM articles WHERE id = ${articleId}`;
   if (!a || a.body_status === "ok") return "skipped";
-  // Defence in depth if a row changes after the helper's atomic non-X claim.
-  if (process.env.WORKER_ROLE === "extraction-executor") {
-    if (a.x_post?.tweetId) return "deferred";
-    allowJina = false;
-  }
   if (a.x_post?.tweetId) return extractXArticle(a.id, a.x_post.tweetId);
   const got = await extractFromUrl(a.url, { allowJina, subject: `article:${a.id}` });
   if (!got) {
-    // A PC's region/network or lack of paid fallback cannot downgrade the server's pending body.
-    if (process.env.WORKER_ROLE === "extraction-executor") return "deferred";
     await sql`UPDATE articles SET body_status = 'unconfirmed', updated_at = now() WHERE id = ${articleId} AND body_status <> 'ok'`;
     return "unconfirmed";
   }

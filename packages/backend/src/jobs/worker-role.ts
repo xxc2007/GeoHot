@@ -1,10 +1,10 @@
 // Pure startup policy, shared by the queue client and the worker entrypoint. No database imports.
-export type WorkerRole = "all" | "coordinator" | "content-executor" | "extraction-executor" | "fetcher" | "media";
+export type WorkerRole = "all" | "coordinator" | "content-executor" | "fetcher" | "media";
 
 export function workerPlan(raw: string | undefined = process.env.WORKER_ROLE) {
   const role = raw?.trim() || "all";
-  if (role !== "all" && role !== "coordinator" && role !== "content-executor" && role !== "extraction-executor" && role !== "fetcher" && role !== "media") {
-    throw new Error("WORKER_ROLE must be all, coordinator, content-executor, extraction-executor, fetcher or media");
+  if (role !== "all" && role !== "coordinator" && role !== "content-executor" && role !== "fetcher" && role !== "media") {
+    throw new Error("WORKER_ROLE must be all, coordinator, content-executor, fetcher or media");
   }
   return {
     role: role as WorkerRole,

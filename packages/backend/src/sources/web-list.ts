@@ -127,17 +127,24 @@ function absolute(href: string | undefined, base: string): string | null {
   }
 }
 
+import { checkUrl as checkRobotsUrl } from "./robots.ts";
+
 async function fetchListingText(source: SourceRow): Promise<{ text: string; viaJina: boolean; base: string }> {
   const url = String(source.config.url ?? "");
   if (!url) throw new FetchError("url missing");
   if (url.startsWith(JINA_PREFIX)) {
     const target = url.slice(JINA_PREFIX.length);
-    // The listing's own address is the operator's config, so only its reachability is checked: Jina is
-    // the one that dials it, and guardedFetch never sees this URL.
+    // robots.txt must be checked BEFORE paying Jina: a third-party proxy cannot bypass the target site's
+    // Disallow. Jina fetches the page on our behalf, so the target's robots applies to our crawl.
+    const robots = await checkRobotsUrl(target);
+    if (robots.known && !robots.allowed) throw new FetchError(`robots.txt disallows (Jina fallback blocked): ${robots.reason}`);
     await assertPaidTarget(target);
     const page = await jinaRead(target, { purpose: "source_listing", subject: `source:${source.id}`, cacheToleranceSeconds: source.config.cacheToleranceSeconds, perRead: true });
     return { text: page.markdown, viaJina: true, base: source.config.baseUrl ?? target };
   }
+  // robots.txt: known Disallow → refuse. Unknown → fail-open at runtime.
+  const robots = await checkRobotsUrl(url);
+  if (robots.known && !robots.allowed) throw new FetchError(`robots.txt disallows: ${robots.reason}`);
   const res = await guardedFetch(url, { headers: { accept: "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8" }, timeoutMs: 25_000 });
   if (res.status !== 200) throw new FetchError(`HTTP ${res.status}`, res.status);
   return { text: res.text(), viaJina: false, base: source.config.baseUrl ?? url };

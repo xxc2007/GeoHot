@@ -1,7 +1,7 @@
 import "./setup.ts";
 import assert from "node:assert/strict";
 import test, { after } from "node:test";
-import { sql } from "../packages/backend/src/db.ts";
+import { closeDb, sql } from "../packages/backend/src/db.ts";
 import { listTopicSummaries } from "../packages/backend/src/publication/topics.ts";
 import { proposeTopics, rotateTopics } from "../packages/backend/src/publication/topic-rotate.ts";
 
@@ -16,6 +16,7 @@ after(async () => {
   await sql`DELETE FROM topic_proposals WHERE tag LIKE ${stamp + "%"}`;
   await sql`DELETE FROM topics WHERE slug LIKE ${stamp + "%"}`;
   await sql`DELETE FROM sources WHERE id = ${SOURCE}`;
+  await closeDb();
 });
 
 async function seedTopic(slug: string, tag: string, position: number) {

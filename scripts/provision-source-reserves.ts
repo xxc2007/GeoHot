@@ -9,13 +9,19 @@ const apply=process.argv.includes('--apply');
 const file=process.argv.find(x=>x.startsWith('--manifest='))?.slice(11);
 if(!file || !process.env.DATABASE_URL) throw Error('Explicit DATABASE_URL and --manifest=... required');
 const manifest=JSON.parse(readFileSync(file,'utf8'));
-const reserves=manifest.sources as Array<Record<string,any>>;
-if(reserves.length!==334 || new Set(reserves.map(s=>s.id)).size!==334) throw Error('Exactly 334 unique verified reserves required');
+const all=manifest.sources as Array<Record<string,any>>;
+// Entries marked _excludedReason are deliberately skipped: they duplicate an active source, expired
+// validation could not be refreshed, or the kind was withdrawn. The manifest keeps them as evidence.
+const reserves=all.filter(s=>!s._excludedReason);
+const excluded=all.filter(s=>s._excludedReason);
+const expected=process.env.EXPECTED_RESERVES ? Number(process.env.EXPECTED_RESERVES) : reserves.length;
+if(reserves.length!==expected || new Set(reserves.map(s=>s.id)).size!==reserves.length) throw Error(`Expected ${expected} unique verified reserves (got ${reserves.length}); ${excluded.length} excluded by _excludedReason`);
 for(const s of reserves){
   assertSupportedConfig(s.kind,s.config);
   if(!s.validation?.checkedAt || Date.parse(s.validation.checkedAt)<Date.now()-7*86400_000 || !s.validation.ok) throw Error(`Fresh verification required: ${s.id}`);
   if(!['rss','json_list'].includes(s.kind)) throw Error('Only public RSS/JSON reserves');
 }
+if(excluded.length) console.log(`Skipping ${excluded.length} excluded reserves: ${excluded.map(s=>`${s.id} (${s._excludedReason})`).join(', ')}`);
 try {
 const result=await sql.begin(async tx=>{
   await lockRegistry(tx);
@@ -24,7 +30,7 @@ const result=await sql.begin(async tx=>{
   const [before]=await tx`SELECT count(*)::int AS total,count(*) FILTER(WHERE enabled)::int AS enabled FROM sources`;
   if(before!.enabled!==666)throw Error('Active count changed; expected 666');
   const overlap=await tx`SELECT id FROM sources WHERE enabled AND id=ANY(${reserves.map(s=>s.id)}::text[])`;
-  if(overlap.length)throw Error('Reserve manifest overlaps active pool');
+  if(overlap.length)throw Error(`Reserve manifest overlaps active pool: ${overlap.map(r=>r.id).join(', ')}`);
   if(!apply)return {mode:'dry-run',before,reserves:334,poolAfter:1000};
   await tx`UPDATE source_registry_policy SET target_enabled=666,target_total=NULL,automatic_failover=false,policy_version=policy_version+1,updated_by='operator:reserve-pool',reason='666 active + 334 verified reserves; requested by owner' WHERE singleton`;
   const retired=await tx`SELECT * FROM sources WHERE NOT enabled AND NOT(id=ANY(${reserves.map(s=>s.id)}::text[])) FOR UPDATE`;

@@ -5,6 +5,7 @@ import path from "node:path";
 import { REPO_ROOT } from "../config.ts";
 import { sql } from "../db.ts";
 import { cached } from "../lib/cache.ts";
+import { withPublicRead } from "./read-budget.ts";
 import { ITEM_COLUMNS, ITEM_FROM, chineseCopyCondition, selectedCondition, toFeedItemSummary, type ItemRow } from "./items.ts";
 
 export interface TopicRow {
@@ -56,15 +57,47 @@ function clearTopicCounts() {
 
 async function loadCounts(now: Date): Promise<CountsSnapshot> {
   const windowStart = new Date(now.getTime() - RECENT_WINDOW_MS);
-  const [rows, [gate]] = await Promise.all([
-    queryTopicCounts(now, windowStart),
-    sql<{ t: Date | null }[]>`
+  // 计数 CTE 与「下一批过闸时间」必须在同一条 15 秒有界事务里跑：原来 gate 那条是裸 sql，
+  // io.full=95% 时它会自己挂住（计数那条已被 15s 取消），Promise.all 永不 resolve，
+  // countsHeld 的陈旧回退也接不上——整个主题页被一条 gate 查询拖死。
+  const { rows, gate } = await sql.begin(async (tx) => {
+    await tx.unsafe(`SET LOCAL statement_timeout = 15000`);
+    const rows = await tx<{ slug: string; total: number; recent: number; latest: Date | null }[]>`
+      WITH listed AS (
+        SELECT p.article_id, p.timeline_at, p.tags
+        FROM publications p
+        WHERE ${selectedCondition(now)}
+      ),
+      matched AS (
+        SELECT pt.slug, l.article_id, l.timeline_at
+          FROM publication_topics pt JOIN listed l ON l.article_id = pt.article_id
+         UNION ALL
+        SELECT t.slug, l.article_id, l.timeline_at
+          FROM topics t JOIN listed l ON l.tags && t.tags
+      ),
+      counted AS (
+        SELECT slug,
+          count(DISTINCT article_id) AS total,
+          count(DISTINCT article_id) FILTER (WHERE timeline_at > ${windowStart}) AS recent,
+          max(timeline_at) AS latest
+        FROM matched GROUP BY slug
+      )
+      SELECT t.slug, coalesce(c.total, 0)::int AS total, coalesce(c.recent, 0)::int AS recent, c.latest
+      FROM topics t LEFT JOIN counted c ON c.slug = t.slug
+      ORDER BY t.position`;
+    const [gate] = await tx<{ t: Date | null }[]>`
       SELECT min(p.visible_after) AS t FROM publications p
-      WHERE p.visibility = 'public' AND p.selected AND p.visible_after > ${now} AND ${workflowReadyCondition()} AND ${chineseCopyCondition()}`,
-  ]);
+      WHERE p.visibility = 'public' AND p.selected AND p.visible_after > ${now} AND ${workflowReadyCondition()} AND ${chineseCopyCondition()}`;
+    return { rows, gate };
+  });
+  const counts = rows.map((r) => ({
+    slug: r.slug, total: r.total, recent: r.recent, latest: r.latest,
+    pages: Math.max(1, Math.ceil(r.total / TOPIC_PAGE_SIZE)),
+    indexable: r.total >= 50 || (r.total >= 20 && r.recent > 0),
+  }));
   const readAt = Date.now();
   const releasing = gate?.t ? gate.t.getTime() : Infinity;
-  return { readAt, until: Math.max(readAt + COUNTS_MIN_HOLD_MS, Math.min(readAt + COUNTS_FRESH_MS, releasing)), counts: rows };
+  return { readAt, until: Math.max(readAt + COUNTS_MIN_HOLD_MS, Math.min(readAt + COUNTS_FRESH_MS, releasing)), counts };
 }
 
 async function countsHeld(now: Date | undefined): Promise<CountsSnapshot> {
@@ -72,7 +105,13 @@ async function countsHeld(now: Date | undefined): Promise<CountsSnapshot> {
   if (now) return loadCounts(now);
   if (countsSnapshot && Date.now() < countsSnapshot.until) return countsSnapshot;
   if (countsPending) return countsPending;
-  const load = loadCounts(new Date());
+  // 2026-11-16：计数 CTE 在 io.full=95% 时挂过 178 秒，原来直接把整个主题页拖成 503。
+  // 读不出来就把上一份计数（哪怕已过期）再交一次：页面仍渲染，数字旧几分钟，until 已过
+  // 下一个请求会自动重试；一次都没成功过才真抛。
+  const load = loadCounts(new Date()).catch((err: unknown) => {
+    if (countsSnapshot) return countsSnapshot;
+    throw err;
+  });
   countsPending = load;
   try {
     const snap = await load;
@@ -158,37 +197,6 @@ export async function topicPageCounts(now?: Date): Promise<TopicCount[]> {
  * quadratic once the selected set grows, and every 60 s. The read uses `selectedCondition`, so the counts
  * cover exactly the items a topic page can list: released, public, and with Chinese copy.
  */
-async function queryTopicCounts(now: Date, windowStart: Date): Promise<TopicCount[]> {
-  const rows = await sql<{ slug: string; total: number; recent: number; latest: Date | null }[]>`
-    WITH listed AS (
-      SELECT p.article_id, p.timeline_at, p.tags
-      FROM publications p
-      WHERE ${selectedCondition(now)}
-    ),
-    matched AS (
-      SELECT pt.slug, l.article_id, l.timeline_at
-        FROM publication_topics pt JOIN listed l ON l.article_id = pt.article_id
-       UNION ALL
-      SELECT t.slug, l.article_id, l.timeline_at
-        FROM topics t JOIN listed l ON l.tags && t.tags
-    ),
-    counted AS (
-      SELECT slug,
-        count(DISTINCT article_id) AS total,
-        count(DISTINCT article_id) FILTER (WHERE timeline_at > ${windowStart}) AS recent,
-        max(timeline_at) AS latest
-      FROM matched GROUP BY slug
-    )
-    SELECT t.slug, coalesce(c.total, 0)::int AS total, coalesce(c.recent, 0)::int AS recent, c.latest
-    FROM topics t LEFT JOIN counted c ON c.slug = t.slug
-    ORDER BY t.position`;
-  return rows.map((r) => ({
-    slug: r.slug, total: r.total, recent: r.recent, latest: r.latest,
-    pages: Math.max(1, Math.ceil(r.total / TOPIC_PAGE_SIZE)),
-    indexable: r.total >= 50 || (r.total >= 20 && r.recent > 0),
-  }));
-}
-
 export interface TopicSummary {
   slug: string;
   name: string;
@@ -239,7 +247,10 @@ export async function loadTopicPage(slug: string, page: number, now?: Date): Pro
   // 主题在、页码越界，就该给一页空列表（连同真实 pageCount），页面自己说"没有更多了"。
   if (page > pageCount) return { topic: { ...topic, related }, items: [], page, pageCount, generatedAt: at.toISOString() };
   // Page ids from the selected set first, then the joins for those rows only.
-  const rows = await sql<ItemRow[]>`
+  // 2026-11-16：这条原来跑在裸连接上、无 statement_timeout；主库 io.full=95% 时它在 pg_stat_activity
+  // 里挂住，连接不归还，主题页跟着 503。收进 withPublicRead：服务端 12 秒取消、连接必归还，
+  // 失败由路由层按 503/降级处理。
+  const rows = await withPublicRead<ItemRow[]>((db) => db`
     WITH page AS (
       SELECT p.article_id FROM publications p
       WHERE ${selectedCondition(at)}
@@ -248,7 +259,7 @@ export async function loadTopicPage(slug: string, page: number, now?: Date): Pro
       ORDER BY p.timeline_at DESC, p.article_id DESC
       LIMIT ${TOPIC_PAGE_SIZE} OFFSET ${(page - 1) * TOPIC_PAGE_SIZE})
     SELECT ${ITEM_COLUMNS} ${ITEM_FROM} WHERE p.article_id IN (SELECT article_id FROM page)
-    ORDER BY p.timeline_at DESC, p.article_id DESC`;
+    ORDER BY p.timeline_at DESC, p.article_id DESC`);
   return { topic: { ...topic, related }, items: rows.map(toFeedItemSummary), page, pageCount, generatedAt: at.toISOString() };
 }
 

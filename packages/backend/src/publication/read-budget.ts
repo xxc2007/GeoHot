@@ -38,3 +38,34 @@ export async function withPublicRead<T>(read: (db: Tx) => Promise<T>, timeoutMs 
     throw error;
   }
 }
+
+// Health probe gets its own gate, NOT the reader aggregate gate: a probe must not take a
+// reader slot, and two concurrent probes must not both queue behind the pool. (1, 0) means
+// exactly one probe may be in flight; the next is rejected immediately.
+const healthGate = new CapacityGate(1, 0);
+
+/**
+ * Bounded DB probe for /api/health. The old probe was `sql`SELECT 1`` wrapped in a
+ * Promise.race that rejected the JS promise at 2 s while the underlying query kept
+ * holding — or worse, queueing behind — a pool connection. On a wedged box every probe
+ * stacked, so the probe itself became the second leak (after the slow-read leak it was
+ * meant to detect).
+ *
+ * This version does NOT race an orphaned promise:
+ *  - The gate (1, 0) rejects a second concurrent probe with CapacityExceeded immediately,
+ *    so probes never enqueue behind each other.
+ *  - At 2 s we call query.cancel(). postgres.js removes a not-yet-dispatched query from
+ *    the pool queue outright (no connection ever acquired), or issues a server-side
+ *    cancel once running — the connection is returned either way, never leaked. The
+ *    rejecting error is 57014, same as a server-side statement_timeout.
+ */
+export async function dbHealthProbe(): Promise<void> {
+  return healthGate.run(() => new Promise<void>((resolve, reject) => {
+    const query = sql`SELECT 1`;
+    const timer = setTimeout(() => query.cancel(), 2_000).unref();
+    query.then(
+      () => { clearTimeout(timer); resolve(); },
+      (error: unknown) => { clearTimeout(timer); reject(error); },
+    );
+  }));
+}

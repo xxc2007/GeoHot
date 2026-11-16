@@ -53,12 +53,34 @@ export async function listSources(f: SourceListFilters) {
         AND (${f.enabled ?? null}::text IS NULL OR s.enabled = (${f.enabled ?? null} = 'true'))
       ORDER BY s.enabled DESC, CASE s.health WHEN 'failing' THEN 0 WHEN 'degraded' THEN 1 ELSE 2 END, s.name, s.id
       LIMIT 101 OFFSET ${(page - 1) * 100}`;
-    const [totals] = await db<{ total: number; enabled: number; failing: number; degraded: number; reserves: number; ready: number }[]>`
-      SELECT count(*)::int AS total, count(*) FILTER (WHERE enabled)::int AS enabled,
-             count(*) FILTER (WHERE enabled AND health = 'failing')::int AS failing, count(*) FILTER (WHERE enabled AND health = 'degraded')::int AS degraded,
-             (SELECT count(*)::int FROM source_reserves)::int AS reserves,
-             (SELECT count(*)::int FROM source_reserves WHERE eligible AND validated_at>now()-interval '7 days')::int AS ready
-      FROM sources s WHERE NOT EXISTS(SELECT 1 FROM source_retirements t WHERE t.source_id=s.id)`;
+    // 2026-11-16：全部 = 正式池实际 + 备用候选并集（互斥：备用候选排除已 active 的 id）。
+    // 备用可用 = eligible AND 7 天内 validated AND 未归档 AND 不与 active 重叠（与 getSourcePoolStats.fresh 同义）。
+    // quarantined 列在 0121 上线后才有；COALESCE 兼容生产当前无列。
+    const [totals] = await db<{
+      total: number; enabled: number; failing: number; degraded: number;
+      reserves: number; ready: number; reserve_ineligible: number; retired: number;
+    }[]>`
+      SELECT
+        (count(*) FILTER (WHERE s.enabled AND NOT EXISTS(SELECT 1 FROM source_retirements t WHERE t.source_id=s.id))
+         + (SELECT count(*)::int FROM source_reserves r
+             WHERE NOT EXISTS(SELECT 1 FROM source_retirements t WHERE t.source_id=r.source_id)
+               AND NOT EXISTS(SELECT 1 FROM sources s2 WHERE s2.id=r.source_id AND s2.enabled=true)))::int AS total,
+        count(*) FILTER (WHERE s.enabled AND NOT EXISTS(SELECT 1 FROM source_retirements t WHERE t.source_id=s.id))::int AS enabled,
+        count(*) FILTER (WHERE s.enabled AND s.health = 'failing' AND NOT EXISTS(SELECT 1 FROM source_retirements t WHERE t.source_id=s.id))::int AS failing,
+        count(*) FILTER (WHERE s.enabled AND s.health = 'degraded' AND NOT EXISTS(SELECT 1 FROM source_retirements t WHERE t.source_id=s.id))::int AS degraded,
+        (SELECT count(*)::int FROM source_reserves r
+           WHERE NOT EXISTS(SELECT 1 FROM source_retirements t WHERE t.source_id=r.source_id)
+             AND NOT EXISTS(SELECT 1 FROM sources s2 WHERE s2.id=r.source_id AND s2.enabled=true))::int AS reserves,
+        (SELECT count(*)::int FROM source_reserves r
+           WHERE r.eligible AND r.validated_at > now() - interval '7 days'
+             AND NOT EXISTS(SELECT 1 FROM source_retirements t WHERE t.source_id=r.source_id)
+             AND NOT EXISTS(SELECT 1 FROM sources s2 WHERE s2.id=r.source_id AND s2.enabled=true))::int AS ready,
+        (SELECT count(*)::int FROM source_reserves r
+           WHERE NOT r.eligible
+             AND NOT EXISTS(SELECT 1 FROM source_retirements t WHERE t.source_id=r.source_id)
+             AND NOT EXISTS(SELECT 1 FROM sources s2 WHERE s2.id=r.source_id AND s2.enabled=true))::int AS reserve_ineligible,
+        (SELECT count(*)::int FROM source_retirements)::int AS retired
+      FROM sources s`;
     // 多取一行只为回答「还有没有下一页」：后台按「这页满 100 条」推断，尾页正好满 100 时
     // 操作者点「下一页」会落到一张空表（2026-11-05 审计）。
     return { page, rows: rows.slice(0, 100), hasMore: rows.length > 100, totals };
