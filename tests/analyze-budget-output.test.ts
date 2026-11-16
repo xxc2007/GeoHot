@@ -25,7 +25,7 @@ test("analysis worker counts rejected drafts despite structure budget waits", as
     // 三扇门，与这条用例原来的形状一致：写作一扇（照常答）、结构一扇（被熔断）、其余落 default。
     PREFILTER_MODEL: "default", SCORE_MODEL: "default", UNDERSTAND_MODEL: "default",
     SUMMARIZE_MODEL: "agnes-3.0-flash-cn",
-    STRUCTURE_MODEL: "workbuddy-cn-hy3",
+    STRUCTURE_MODEL: "workbuddy-cn-hy4",
     AGNES_CN_BASE_URL: "", AGNES_CN_API_KEY: "test-key",
     WORKBUDDY_CN_BASE_URL: "", WORKBUDDY_CN_API_KEY: "test-key",
   };
