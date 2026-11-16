@@ -1,5 +1,8 @@
 import { load } from "cheerio";
 import { stripBoilerplate, stripReaderChrome, stripConsentWall, isTemplateShell } from "../lib/text.ts";
+import { CJK_COPY_PATTERN } from "@aihot/contracts/copy";
+
+const CJK_RE = new RegExp(CJK_COPY_PATTERN);
 
 export const BODY_QUALITY_RULE_VERSION = "2026-11-16.2";
 
@@ -119,12 +122,19 @@ export function classifyBodyQuality(
   }
 
   // 4. Title-body mismatch (only when a title is provided and body has substance).
+  //    Skip cross-script pairs: an ASCII original title over a CJK translation body
+  //    (or vice versa) cannot share bigrams by construction; that is a language
+  //    boundary, not a title/body mismatch.
   if (opts.title && opts.title.length >= 8 && realChars >= 80) {
-    const titleBigrams = new Set<string>();
-    for (let i = 0; i < opts.title.length - 1; i++) titleBigrams.add(opts.title.slice(i, i + 2));
-    let overlap = 0;
-    for (const bg of titleBigrams) if (cleaned.includes(bg)) overlap++;
-    if (overlap / titleBigrams.size < 0.15) reasons.push("title-body-mismatch");
+    const titleCjk = CJK_RE.test(opts.title);
+    const bodyCjk = CJK_RE.test(cleaned);
+    if (titleCjk === bodyCjk) {
+      const titleBigrams = new Set<string>();
+      for (let i = 0; i < opts.title.length - 1; i++) titleBigrams.add(opts.title.slice(i, i + 2));
+      let overlap = 0;
+      for (const bg of titleBigrams) if (cleaned.includes(bg)) overlap++;
+      if (overlap / titleBigrams.size < 0.15) reasons.push("title-body-mismatch");
+    }
   }
 
   // 5. Known source-specific defects.

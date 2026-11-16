@@ -17,7 +17,7 @@ test('a volcano topic excludes cyclone alerts and ordinary landforms from its ac
  const now=new Date(Date.now()+60000),before=(await topicPageCounts(now)).find(t=>t.slug===id)!.total;
  const made:string[]=[];
  for(const [title,tags]of [['火山灰扩散的观测结果',['火山','灾害事件']],['台风路径预报',['台风与寒潮','灾害事件']],['河流侵蚀形成的地貌',['地貌']]] as const){
-  const material=await upsertMaterial({sourceId:id,url:`https://example.org/${id}/${made.length}`,title,bodyText:'观测正文报告给出明确地点、测量数据以及变化范围。现场团队按规范到达事发地点，使用仪器测量关键参数，并查阅官方通报与历史资料进行交叉核对，正文交代事件成因、影响范围与后续应对，数据来源可追溯，段落连贯、信息充分，足以支撑成刊选稿。',bodyStatus:'ok',via:'fetch',publishedAt:new Date()});made.push(material.articleId);
+  const material=await upsertMaterial({sourceId:id,url:`https://example.org/${id}/${made.length}`,title,bodyText:`${title}。观测正文报告给出明确地点、测量数据以及变化范围。现场团队按规范到达事发地点，使用仪器测量关键参数，并查阅官方通报与历史资料进行交叉核对，正文交代事件成因、影响范围与后续应对，数据来源可追溯，段落连贯、信息充分，足以支撑成刊选稿。`,bodyStatus:'ok',via:'fetch',publishedAt:new Date()});made.push(material.articleId);
   await sql`INSERT INTO analyses(article_id,input_revision,origin,relevance,category,tags,title_zh,summary_zh,reason_zh,score,selected) VALUES(${material.articleId},1,'model','pass','physical',${[...tags]},${title},'观测结果包含地点和测量依据。','可供核对的观测材料。',90,true)`;
   await publishArticle(material.articleId,{releasedAt:new Date(Date.now()-1000)});
  }

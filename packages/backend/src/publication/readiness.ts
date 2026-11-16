@@ -59,7 +59,8 @@ export function workflowReadyCondition() {
     AND EXISTS (SELECT 1 FROM article_workflow_readiness ready_workflow
     WHERE ready_workflow.article_id=p.article_id AND ready_workflow.revision=p.revision
       AND ready_workflow.analysis_id=p.analysis_id AND ready_workflow.ready
-      AND ready_workflow.body_quality_status='ok')`;
+      AND ready_workflow.body_quality_status='ok'
+      AND ready_workflow.policy_version >= 3)`;
 }
 
 /**

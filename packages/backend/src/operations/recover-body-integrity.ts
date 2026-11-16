@@ -16,7 +16,7 @@ export async function recoverBodyIntegrity(){
   const rows=await tx<{article_id:string}[]>`SELECT w.article_id FROM article_workflow_readiness w
    JOIN publications p ON p.article_id=w.article_id AND p.revision=w.revision AND p.analysis_id=w.analysis_id
    JOIN articles a ON a.id=w.article_id JOIN sources s ON s.id=a.source_id
-   WHERE w.policy_version=${READER_POLICY_VERSION} AND w.quality_error LIKE 'source:%'
+   WHERE w.policy_version=${READER_POLICY_VERSION} AND w.quality_error LIKE 'source-%'
     AND p.visibility='public' AND s.site_fulltext AND s.participation_mode='editorial'
     AND a.body_status IN ('ok','unconfirmed') AND (a.processing_retry_at IS NULL OR a.processing_retry_at<=now())
    ORDER BY w.checked_at,w.article_id LIMIT 5 FOR UPDATE OF a SKIP LOCKED`;

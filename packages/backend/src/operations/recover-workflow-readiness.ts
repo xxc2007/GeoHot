@@ -26,7 +26,7 @@ export async function recoverWorkflowReadiness(options: {selectedOnly?:boolean;s
     let checked=0,ready=0,scanned=0,failed=0;let last:typeof headers[number]|undefined;const errors:Array<{articleId:string;code:string;error:string}>=[];
     for(const row of headers){
       if(Date.now()>=deadline)break;
-      const [existing]=await tx`SELECT 1 FROM article_workflow_readiness WHERE article_id=${row.article_id} AND body_quality_status IS NOT NULL`;
+      const [existing]=await tx`SELECT 1 FROM article_workflow_readiness WHERE article_id=${row.article_id} AND body_quality_status IS NOT NULL AND policy_version=${READER_POLICY_VERSION}`;
       if(!existing){
         try {ready+=Number(await tx.savepoint(sp=>refreshWorkflowReadinessTx(sp,row.article_id)));checked++;}
         catch(error){
