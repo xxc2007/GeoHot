@@ -12,9 +12,13 @@ try {
   // 依赖没装（比如在 CI 只装了部分 workspace），安静退出。
   process.exit(0);
 }
-const NEEDLE = "windowsHide: true, env: Object.assign(Object.assign({}, process.env), { LC_MESSAGES: locale })";
-if (source.includes("windowsHide: true")) {
-  console.log("patch-embedded-pg: already patched");
+// 2026-11-16 现场：黑框又回来了。原因是这个补丁只 replace 了第一处 —— 那是 initdb，
+// 真正常驻的 postgres.exe（第 206 行）仍然不带 windowsHide，Windows 就给它新开一个控制台。
+// 现在按「还剩几处没打」判断，并一次把所有 spawn 都补上。
+const FROM_ALL = '{ env: Object.assign(Object.assign({}, process.env), { LC_MESSAGES: locale }) }';
+const remaining = source.split(FROM_ALL).length - 1;
+if (remaining === 0) {
+  console.log("patch-embedded-pg: already patched (all spawns)");
   process.exit(0);
 }
 const FROM = '{ env: Object.assign(Object.assign({}, process.env), { LC_MESSAGES: locale }) }';
@@ -22,5 +26,6 @@ if (!source.includes(FROM)) {
   console.error("patch-embedded-pg: pattern drifted upstream — inspect node_modules/embedded-postgres/dist/index.js manually");
   process.exit(0); // 不阻塞安装；黑框是小困扰，坏掉安装是大事。
 }
-writeFileSync(file, source.replace(FROM, '{ windowsHide: true, env: Object.assign(Object.assign({}, process.env), { LC_MESSAGES: locale }) }'));
-console.log("patch-embedded-pg: postgres.exe spawn now windowsHide");
+const patched = source.split(FROM).join('{ windowsHide: true, env: Object.assign(Object.assign({}, process.env), { LC_MESSAGES: locale }) }');
+writeFileSync(file, patched);
+console.log(`patch-embedded-pg: ${remaining} 处 spawn 全部改成 windowsHide（含常驻的 postgres.exe）`);
