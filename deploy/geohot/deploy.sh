@@ -252,6 +252,16 @@ if [ -d "$APP_ROOT/deploy/geohot/systemd" ]; then
   done < <(find "$APP_ROOT/deploy/geohot/systemd" -type f \( -name '*.service' -o -name '*.timer' -o -name '*.conf' \) -print0)
   systemctl daemon-reload
   echo "systemd: 已同步 $installed 个单元模板与 drop-in 到 /etc/systemd/system"
+
+# 2026-11-16 事故：机器上手写的 /etc/postgresql/17/main/conf.d/zz-geohot-vacuum.conf 里
+# autovacuum_vacuum_cost_delay = 200 超出 PG17 上限（-1..100），重启数据库直接起不来。
+# 调优片段因此进仓库、由部署同步，并由 tests/postgres-conf-range.test.ts 守范围。
+if [ -d /etc/postgresql/17/main/conf.d ] && [ -f "$here/postgres/zz-geohot-vacuum.conf" ]; then
+  if ! cmp -s "$here/postgres/zz-geohot-vacuum.conf" /etc/postgresql/17/main/conf.d/zz-geohot-vacuum.conf; then
+    sudo install -m 644 "$here/postgres/zz-geohot-vacuum.conf" /etc/postgresql/17/main/conf.d/zz-geohot-vacuum.conf
+    echo "postgres: 调优片段已同步（reload 生效，需重启数据库时它不会再挡住启动）"
+  fi
+fi
 fi
 
 # nginx 片段同理：强制下发的 CSP 与 HSTS 全在 /etc/nginx/snippets/geohot-public-cache.conf 里，
