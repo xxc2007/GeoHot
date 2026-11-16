@@ -27,6 +27,28 @@ else
   )
 fi
 
+# 2026-11-16：机器自己已经忙不过来的时候，预热必须让路。
+# 现场：内存被换出（`memory full avg10=96`、swap 用掉 830 MB）时 `io some avg10` 也是 99，
+# 而预热的每一屏都是一次冷渲染 —— 它在最贵的时候加最贵的活。读者面有 `proxy_cache_use_stale`
+# 兜着，宁可用旧页，也不要在这时候再点一次火。
+IO_FILE="${GEOHOT_WARM_IO_FILE:-/proc/pressure/io}"
+MEM_FILE="${GEOHOT_WARM_MEM_FILE:-/proc/pressure/memory}"
+IO_LIMIT="${GEOHOT_WARM_MAX_IO:-60}"
+MEM_LIMIT="${GEOHOT_WARM_MAX_MEM:-40}"
+
+pressure_avg10() { # $1=some/full $2=文件
+  awk -F'avg10=' -v section="$1" '$0 ~ "^" section {split($2, a, " "); print a[1]; found=1} END {if (!found) print 0}' "$2"
+}
+
+io_now="$(pressure_avg10 some "$IO_FILE")"
+io_iv="${io_now%%.*}"; case "$io_iv" in ''|*[!0-9]*) io_iv=0 ;; esac
+mem_now="$(pressure_avg10 full "$MEM_FILE")"
+mem_iv="${mem_now%%.*}"; case "$mem_iv" in ''|*[!0-9]*) mem_iv=0 ;; esac
+if [ "$io_iv" -ge "$IO_LIMIT" ] || [ "$mem_iv" -ge "$MEM_LIMIT" ]; then
+  echo "-- skip: io some avg10=$io_now memory full avg10=$mem_now（线 ${IO_LIMIT}/${MEM_LIMIT}）让读者面自己缓"
+  exit 0
+fi
+
 warm() {
   local path="$1"
   curl -k -sS -o /dev/null -m 25 \

@@ -58,30 +58,40 @@ console.log(`待登记 ${pending.length} 条（上限 ${limit}，并发 ${concur
 let ok = 0;
 let bad = 0;
 let done = 0;
+let dropped = 0;
 
 async function one(source: Row): Promise<void> {
+  // 这台主库在内存压力下会让 postmaster 拒绝新连接（`write CONNECT_TIMEOUT 127.0.0.1:5432`），
+  // 而 api 自己那条常驻池子那时仍然好用。所以每一次写库都要能重来，而不是只重试开局那一条。
+  const write = <T>(run: () => Promise<T>) => withRetry(run, 6, 15_000);
   try {
     const evidence = await validateReserve(source);
-    ok += 1;
     if (!dry) {
-      await sql`
+      await write(() => sql`
         INSERT INTO source_reserves (source_id, validated_at, validation, eligible, next_check_at)
         VALUES (${source.id}, now(), ${sql.json(evidence)}, true, now() + interval '3 days')
         ON CONFLICT (source_id) DO NOTHING
-      `;
+      `);
     }
+    ok += 1;
   } catch (error) {
-    bad += 1;
-    if (!dry) {
-      await sql`
-        INSERT INTO source_reserves (source_id, validated_at, validation, eligible, next_check_at)
-        VALUES (${source.id}, now(), ${sql.json({ error: String((error as Error)?.message ?? error) })}, false, now() + interval '1 day')
-        ON CONFLICT (source_id) DO NOTHING
-      `;
+    if (dry) {
+      bad += 1;
+    } else {
+      try {
+        await write(() => sql`
+          INSERT INTO source_reserves (source_id, validated_at, validation, eligible, next_check_at)
+          VALUES (${source.id}, now(), ${sql.json({ error: String((error as Error)?.message ?? error) })}, false, now() + interval '1 day')
+          ON CONFLICT (source_id) DO NOTHING
+        `);
+        bad += 1;
+      } catch {
+        dropped += 1; // 连「登记失败」都写不进去：这一条下一轮再来，不要拖死整批
+      }
     }
   } finally {
     done += 1;
-    if (done % 25 === 0) console.log(`  进度 ${done}/${pending.length}（可用 ${ok}，不可用 ${bad}）`);
+    if (done % 25 === 0) console.log(`  进度 ${done}/${pending.length}（可用 ${ok}，不可用 ${bad}，写不进去 ${dropped}）`);
   }
 }
 
@@ -98,7 +108,7 @@ const [totals] = await sql<{ reserves: number; eligible: number; enabled: number
 `;
 
 console.log(
-  `结果：本轮可用 ${ok} / 不可用 ${bad}；现在 备用 ${totals.reserves}（其中验证可用 ${totals.eligible}）、正式 ${totals.enabled}、全部 ${totals.total}`,
+  `结果：本轮可用 ${ok} / 不可用 ${bad} / 未登记 ${dropped}；现在 备用 ${totals.reserves}（其中验证可用 ${totals.eligible}）、正式 ${totals.enabled}、全部 ${totals.total}`,
 );
 
 await closeDb();
