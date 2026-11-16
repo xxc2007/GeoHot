@@ -68,8 +68,8 @@ UNIT
 cat > /etc/systemd/system/geohot-exec-worker.service <<'UNIT'
 [Unit]
 Description=GeoHot content executor (analysis only, 1 slot)
-After=network-online.target geohot-exec-tunnel.service
-Wants=geohot-exec-tunnel.service
+After=network-online.target geohot-exec-db-tunnel.service geohot-exec-model-tunnel.service
+Wants=geohot-exec-db-tunnel.service geohot-exec-model-tunnel.service
 
 [Service]
 Type=simple
@@ -90,11 +90,11 @@ WantedBy=multi-user.target
 UNIT
 
 systemctl daemon-reload
-systemctl enable --now geohot-exec-tunnel.service
+systemctl enable --now geohot-exec-db-tunnel.service geohot-exec-model-tunnel.service
 sleep 8
 systemctl enable --now geohot-exec-worker.service
 sleep 20
-echo "== tunnel =="; systemctl is-active geohot-exec-tunnel.service; ss -ltnp | grep -E '15432|3426' || true
+echo "== tunnel =="; systemctl is-active geohot-exec-db-tunnel.service geohot-exec-model-tunnel.service; ss -ltnp | grep -E '15432|3426' || true
 echo "== worker ==";  systemctl is-active geohot-exec-worker.service
 journalctl -u geohot-exec-worker.service -n 25 --no-pager | tail -25
 echo "== memory =="; systemctl show geohot-exec-worker.service -p MemoryCurrent -p MemoryMax
