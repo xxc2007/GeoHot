@@ -103,7 +103,7 @@ async function call(method: string, params: Record<string, unknown>) {
 test("site reading sends one language while exports retain both, including after withdrawal", async () => {
   const id = await article();
   await sql`UPDATE articles SET language = 'en', body_html = '<h2>Original heading</h2><p>Original full body</p>' WHERE id = ${id}`;
-  await sql`INSERT INTO translations (article_id, revision, body_html, body_text, origin) VALUES (${id}, 1, '<h2>译文标题</h2><p>中文完整正文</p>', '中文完整正文', 'source')`;
+  await sql`INSERT INTO translations (article_id, revision, body_html, body_text, origin) VALUES (${id}, 1, '<h2>译文标题</h2><p>中文完整正文：现场团队按规范到达事发地点，使用仪器测量关键参数，并查阅官方通报与历史资料进行交叉核对，正文交代事件成因、影响范围与后续应对，数据来源可追溯，段落连贯、信息充分，足以支撑成刊选稿。</p>', '中文完整正文：现场团队按规范到达事发地点，使用仪器测量关键参数，并查阅官方通报与历史资料进行交叉核对，正文交代事件成因、影响范围与后续应对，数据来源可追溯，段落连贯、信息充分，足以支撑成刊选稿。', 'source')`;
   await publishArticle(id, released());
   const normal = JSON.parse((await get(`/api/site/items/${id}`)).body);
   const original = JSON.parse((await get(`/api/site/items/${id}/original`)).body);
