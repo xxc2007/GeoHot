@@ -24,7 +24,7 @@ const aliases:Record<string,string>={
   "deepseek-v4.1-flash":"deepseek","workbuddy-ai/deepseek-v4.1-flash":"deepseek","codearts/deepseek-v4.1-flash":"deepseek",
   "deepseek-v4-flash":"deepseek","deepseek-v4-flash-vision-exp":"deepseek",
   "hy3":"hy3","workbuddy-ai/hy3":"hy3","step-5-preview":"step5","workbuddy-ai/step-5-preview":"step5",
-  // 2026-11-16：池子里 hy3 换成 hy4 flash（上游 id `hy4-preview-f`）后，柜台上**没有**它的刊例价
+  // 2026-11-16：池子里 hy3 换成 hy4 flash（上游 id `hy4-flash`）后，柜台上**没有**它的刊例价
   // （腾讯只公布了 hy3 那一档）。这里故意不映射：宁可让它在用量页显示为「无官方价」，
   // 也不要拿 hy3 的价冒充 hy4——那会让成本页把两个不同模型的账算成一笔。
   "MiniMax-M3.1-Flash":"minimax","minimax-code/MiniMax-M3.1-Flash":"minimax","dots3-note-prev":"dots",

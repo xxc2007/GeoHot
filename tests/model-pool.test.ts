@@ -427,7 +427,7 @@ test("2026-11-15 补登记的 magpie 门：九条都在注册表里，且 auto �
   // 站长要求「magpie 里的所有模型都接进工作流」。这批是拿 1-token 请求实测过 200、且既有的
   // 上游门里没有覆盖的那些；证据与未登记清单写在 llm.ts 对应注释里。
   const added = [
-    "auto-hy3", "auto-qfmodel", "auto-deepseek-flash", "auto-deepseek-flash-max",
+    "auto-qfmodel", "auto-deepseek-flash", "auto-deepseek-flash-max",
     "auto-glm-flash", "auto-gemini-flash",
     "antigravity-claude-sonnet-46", "trae-cn-glm53-flashx-max", "autoclaw-cn-glm53-flash",
   ];
