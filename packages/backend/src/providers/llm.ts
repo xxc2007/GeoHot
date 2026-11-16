@@ -5,7 +5,7 @@ import type { z } from "zod";
 import { config, credential } from "../config.ts";
 import { sha256 } from "../lib/ids.ts";
 import { logicalKeyFor, paidRequest, ProviderRejectedError, rejectReceivedResponse, type ReceiptRequest } from "./receipts.ts";
-import { modelCooldown } from "../operations/model-cooldown.ts";
+import { modelCooldown, type CooldownCategory } from "../operations/model-cooldown.ts";
 
 export interface ModelSpec {
   key: string;
@@ -790,6 +790,86 @@ function isConnectFailure(error: unknown): boolean {
   return ["ECONNREFUSED", "ENOTFOUND", "EAI_AGAIN", "UND_ERR_CONNECT_TIMEOUT", "CERT_HAS_EXPIRED"].includes(code ?? "");
 }
 
+/**
+ * 解析上游响应的 `Retry-After` 头：可能是秒数（`30`）也可能是 HTTP-date（`Wed, 21 Oct 2026 07:28:00 GMT`）。
+ * 返回 epoch ms；解析失败或已过期返回 null。不编造时间。
+ */
+function parseRetryAfter(header: string | null): number | null {
+  if (!header) return null;
+  const trimmed = header.trim();
+  const asSeconds = Number(trimmed);
+  if (Number.isFinite(asSeconds) && asSeconds > 0) return Date.now() + asSeconds * 1000;
+  const asDate = Date.parse(trimmed);
+  if (!Number.isNaN(asDate) && asDate > Date.now()) return asDate;
+  return null;
+}
+
+/**
+ * 从错误 body 里窄正则提取 `reset at YYYY-MM-DD HH:MM[:SS] [UTC+8|CST|UTC]` 形态的恢复时间戳。
+ * 只认已观测到的形态；提取不到就返回 null（由调用方走保守默认，不编造）。
+ * 默认按中国时区（CST/UTC+8）解释，因为站点与上游账单都在 +08:00。
+ */
+function parseResetAt(body: string): number | null {
+  const m = /reset at\s+(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}(?::\d{2})?)\s*(UTC([+-]\d+)|CST|UTC)?/i.exec(body);
+  if (!m) return null;
+  const datePart = m[1]!;
+  const timePart = m[2]!.length === 5 ? `${m[2]}:00` : m[2]!;
+  const tz = (m[3] ?? "").toUpperCase();
+  let iso = `${datePart}T${timePart}`;
+  if (tz === "CST" || /^UTC\+?8$/.test(tz)) iso += "+08:00";
+  else if (tz === "UTC") iso += "Z";
+  else {
+    const off = /^UTC([+-])(\d+)$/.exec(tz);
+    if (off) iso += `${off[1]}${off[2]!.padStart(2, "0")}:00`;
+    else iso += "+08:00"; // 未知时区默认按 +08:00
+  }
+  const t = Date.parse(iso);
+  return Number.isNaN(t) ? null : (t > Date.now() ? t : null);
+}
+
+/**
+ * 按 HTTP status 与 body 文本判定冷却分类与是否可安全立即切流。
+ *
+ * 原则（2026-11-16 站长指令）：
+ *   · 400/401/402/403/404/429 是上游明确拒绝请求，没产生 completion → billingStatus=unbilled，
+ *     同次 paidRequest 内立即切到下一个健康成员。
+ *   · 5xx/timeout/连接错误可能已经在服务端产生了结果 → billingStatus=unknown，不重放、不立即切，
+ *     收据落 unknown 等运维；只有 body 明确带账号停用（100003 等）时才按 auth 冷却。
+ *   · 402 + 明确 quota 文案归 quota_day（不是 auth）；100003 即使被包装成 502 也归 auth。
+ */
+function classifyRejection(status: number, body: string): { category: CooldownCategory | null; billingStatus: "unbilled" | "unknown"; resetAt: number | null; resetAssumed: boolean } {
+  // 先看 body 里的 reset 时间戳（日额度恢复时间）
+  const resetAt = parseResetAt(body);
+  if (status === 401 || status === 403) {
+    return { category: "auth", billingStatus: "unbilled", resetAt: null, resetAssumed: false };
+  }
+  if (status === 402) {
+    // 402 + 明确 quota 文案 → quota_day；纯余额不足但无 quota 文案 → auth
+    const quota = /insufficient_quota|exceeded your current quota|FreeTierError|今日文本额度已用完|额度已用[尽完]|购买加量包|insufficient balance|积分余额不足/i.test(body);
+    return { category: quota ? "quota_day" : "auth", billingStatus: "unbilled", resetAt, resetAssumed: !resetAt };
+  }
+  if (status === 400 || status === 404) {
+    return { category: "config", billingStatus: "unbilled", resetAt: null, resetAssumed: false };
+  }
+  if (status === 429) {
+    const quota = /free-models-per-day|insufficient_quota|exceeded your current quota|FreeTierError|今日文本额度已用完|额度已用[尽完]|购买加量包|insufficient balance|积分余额不足/i.test(body);
+    const rate = /usage exceeds frequency limit|usage limit reached|您的使用量已超出频率限制|API 速率限制|too many requests|rate limit/i.test(body);
+    if (quota) return { category: "quota_day", billingStatus: "unbilled", resetAt, resetAssumed: !resetAt };
+    if (rate) return { category: "rate_minute", billingStatus: "unbilled", resetAt, resetAssumed: !resetAt };
+    // 429 但文案不明确：保守归 quota_day，由 1h 冷却兜底
+    return { category: "quota_day", billingStatus: "unbilled", resetAt, resetAssumed: true };
+  }
+  if (status >= 500) {
+    // 5xx：只有 body 明确说账号停用/被封时才按 auth 冷却；否则不进 1h 冷却，billing=unknown
+    if (/100003|account[^\n]{0,40}(suspended|disabled|banned|停用|封禁)|账号[^\n]{0,20}(已被停用|已被封禁|被停)/i.test(body)) {
+      return { category: "auth", billingStatus: "unbilled", resetAt: null, resetAssumed: false };
+    }
+    return { category: null, billingStatus: "unknown", resetAt: null, resetAssumed: false };
+  }
+  // 其他 4xx：保守归 config，unbilled
+  return { category: "config", billingStatus: "unbilled", resetAt: null, resetAssumed: false };
+}
+
 /** Keep candidate identities and real HTTP requests on the same parameter calculation. */
 function requestFor<S extends z.ZodType>(opts: ChatJsonOptions<S>, spec: ModelSpec, legacySummaryParameters = false, beforeMax = false) {
   const temperature = opts.temperature ?? 0.2;
@@ -885,9 +965,16 @@ export async function chatJson<S extends z.ZodType>(opts: ChatJsonOptions<S>): P
       if (!res.ok) {
         // A cached healthy snapshot must not send every remaining translation shard into a declared wall.
         // This changes only later selection; the failed request keeps its normal ledger/billing outcome.
-        modelCooldown.reject(model.service, model.model, res.status, text);
+        const verdict = classifyRejection(res.status, text);
+        if (verdict.category) {
+          modelCooldown.reject(model.service, model.model, res.status, text, {
+            category: verdict.category,
+            resetAt: verdict.resetAt ?? parseRetryAfter(res.headers.get("retry-after")) ?? undefined,
+            resetAssumed: verdict.resetAssumed && !res.headers.get("retry-after"),
+          });
+        }
         const retryable = res.status === 429 || res.status >= 500;
-        throw new ProviderRejectedError(`HTTP ${res.status}: ${text.slice(0, 500)}`, res.status, retryable, model.key);
+        throw new ProviderRejectedError(`HTTP ${res.status}: ${text.slice(0, 500)}`, res.status, retryable, model.key, verdict.billingStatus);
       }
       let json: Record<string, unknown>;
       try {
