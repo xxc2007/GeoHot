@@ -11,7 +11,8 @@ const install = readFileSync(new URL("../deploy/geohot/install-units.sh", import
 test("白天留一个分析槽，采集与正文提取照跑", () => {
   // 2026-11-16：白天从 slots=0 改成 1。当天主库 io avg10 只有 5.9、load 0.9，
   // 而积压里躺着两千多条分析——把白天压成 0 是更早那套保守值。
-  assert.match(script, /day\)\s+role=all; slots="\$\{GEOHOT_ROLE_DAY_SLOTS:-1\}"/);
+  assert.match(script, /day\)\s*\n\s*role=all/);
+  assert.match(script, /slots="\$\{GEOHOT_ROLE_DAY_SLOTS:-1\}"/);
   assert.match(script, /night\)\s+role=all; slots="\$\{GEOHOT_ROLE_NIGHT_SLOTS:-2\}"/);
   assert.match(script, /set_key WORKER_ROLE "\$role"/);
   // role=fetcher 会连正文提取一起关掉（worker-role.ts 的 extraction 判据），
@@ -20,6 +21,17 @@ test("白天留一个分析槽，采集与正文提取照跑", () => {
   // ANALYZE_CONCURRENCY 写 0 会被 config 回落到 6/4，必须恒定 1，用 slots 拦分析。
   assert.match(script, /set_key ANALYZE_CONCURRENCY "1"/);
   assert.match(script, /set_key GEOHOT_INTAKE_ANALYSIS_SLOTS "\$slots"/);
+});
+
+test("白天可以让某几台只采集不开分析（四台一起写会把慢盘打死）", () => {
+  // 2026-11-16 11:00 现场：四台各 1 槽同时分析，主库 io some avg10 99、load 40，
+  // 后台登录 504、/api/health 464 秒。白天只留一台分析，其余三台 slots=0 ——
+  // intake 按分析车道单独计数，写 0 不影响采集与正文提取。
+  assert.match(script, /GEOHOT_ROLE_DAY_ACTIVE:-1/);
+  assert.match(script, /if \[ "\$\{GEOHOT_ROLE_DAY_ACTIVE:-1\}" = "0" \]; then slots=0; else slots="\$\{GEOHOT_ROLE_DAY_SLOTS:-1\}"; fi/);
+  // 夜里不看这个开关：到点全部回到 GEOHOT_ROLE_NIGHT_SLOTS。
+  const night = script.slice(script.indexOf("night) role=all"));
+  assert.doesNotMatch(night.slice(0, 120), /GEOHOT_ROLE_DAY_ACTIVE/);
 });
 
 test("改 env 前先备份，改完重启 worker", () => {

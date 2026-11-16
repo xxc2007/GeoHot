@@ -29,7 +29,15 @@ mode="${1:-day}"
 env_file="${2:-/opt/geohot-exec/.env}"
 
 case "$mode" in
-  day)   role=all; slots="${GEOHOT_ROLE_DAY_SLOTS:-1}" ;;
+  # 2026-11-16 11:00：白天四台各 1 槽一起开工，主库 `io some avg10` 又回到 99、load 40，
+  # 后台登录 504、`/api/health` 要 464 秒——一条慢盘撑不住四个分析器同时写。
+  # 白天只留一台（离主库最近的华为云）做分析，其余三台 `GEOHOT_ROLE_DAY_ACTIVE=0`：
+  # 它们照样采集、照样提取正文（`sources.fetch`/`content.extract-body` 是网络活），
+  # 只是分析槽写 0 —— intake 按 analysis 车道单独计数，这一条不会把整个 worker 关掉。
+  day)
+    role=all
+    if [ "${GEOHOT_ROLE_DAY_ACTIVE:-1}" = "0" ]; then slots=0; else slots="${GEOHOT_ROLE_DAY_SLOTS:-1}"; fi
+    ;;
   night) role=all; slots="${GEOHOT_ROLE_NIGHT_SLOTS:-2}" ;;
   *) echo "用法：$0 day|night [env 文件]" >&2; exit 2 ;;
 esac

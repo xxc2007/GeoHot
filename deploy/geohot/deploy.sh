@@ -261,38 +261,48 @@ if [ -d "$APP_ROOT/deploy/geohot/nginx" ]; then
   nginxsync=0
   changed=0
   mkdir -p /root/nginx-snippet-backup
+  touched="$(mktemp)"
   while IFS= read -r -d '' f; do
     base="$(basename "$f")"
-    dest="/etc/nginx/snippets/$base"
     # 只同步「这台机器真的会读」的片段：snippets 里没有同名文件、也没有任何 include 指向它，
-    # 装进去只会留下一份没人读的副本（2026-11-06 实测 28-geohot-public-admission.conf 被复制错位），
-    # 真正的 conf.d 片段由 install-units/人工步骤负责。
-    if [ ! -f "$dest" ] && ! grep -rqs "snippets/$base" /etc/nginx/sites-enabled /etc/nginx/conf.d; then
+    # 装进去只会留下一份没人读的副本（2026-11-06 实测 28-geohot-public-admission.conf 被复制错位）。
+    # 2026-11-16：conf.d 里的同名副本也是同一份真源（limit_req 的 zone 与 map 就写在那儿），
+    # 只同步 snippets 会留下「仓库改了、线上没改」的第二种漂移，所以两个位置一起看。
+    dests=()
+    if [ -f "/etc/nginx/snippets/$base" ] || grep -rqs "snippets/$base" /etc/nginx/sites-enabled /etc/nginx/conf.d; then
+      dests+=("/etc/nginx/snippets/$base")
+    fi
+    [ -f "/etc/nginx/conf.d/$base" ] && dests+=("/etc/nginx/conf.d/$base")
+    if [ "${#dests[@]}" -eq 0 ]; then
       echo "nginx: 跳过 $base（这台机器没有 include 它）"
       continue
     fi
-    if ! cmp -s "$f" "$dest"; then
-      [ -f "$dest" ] && cp -a "$dest" "/root/nginx-snippet-backup/$base.$(date +%s)"
-      install -m 644 "$f" "$dest"
-      changed=1
-    fi
-    nginxsync=$((nginxsync + 1))
+    for dest in "${dests[@]}"; do
+      if ! cmp -s "$f" "$dest"; then
+        cp -a "$dest" "/root/nginx-snippet-backup/$base.$(date +%s)"
+        install -m 644 "$f" "$dest"
+        echo "$dest" >>"$touched"
+        changed=1
+      fi
+      nginxsync=$((nginxsync + 1))
+    done
   done < <(find "$APP_ROOT/deploy/geohot/nginx" -type f -name '*.conf' -print0)
   if [ "$changed" = 1 ]; then
     if nginx -t >/tmp/nginx-t.log 2>&1; then
       systemctl reload nginx
       echo "nginx: 已同步 $nginxsync 个片段并 reload"
     else
-      while IFS= read -r -d '' f; do
-        base="$(basename "$f")"
+      while IFS= read -r dest; do
+        base="$(basename "$dest")"
         latest="$(ls -1t /root/nginx-snippet-backup/"$base".* 2>/dev/null | head -1)"
-        [ -n "$latest" ] && install -m 644 "$latest" "/etc/nginx/snippets/$base"
-      done < <(find "$APP_ROOT/deploy/geohot/nginx" -type f -name '*.conf' -print0)
+        [ -n "$latest" ] && install -m 644 "$latest" "$dest"
+      done <"$touched"
       echo "nginx: 片段没通过 nginx -t（见 /tmp/nginx-t.log），已还原旧版、没有 reload"
     fi
   else
     echo "nginx: $nginxsync 个片段与仓库一致，未改动"
   fi
+  rm -f "$touched"
 fi
 
 # 版本指纹：api 的 /api/health 读 AIHOT_RELEASE，环境变量是**机器级**的静态值，
