@@ -79,11 +79,38 @@ describe("classifyBodyQuality", () => {
     assert.equal(r.status, "ok", `unexpected defect: ${r.reasons.join(", ")}`);
   });
 
-  test("short earthquake bulletin: NOT killed by consent-wall or template-shell", () => {
+  test("short earthquake bulletin: NOT killed by consent-wall or template-shell; passes as a structured bulletin", () => {
     const r = classifyBodyQuality(FIXTURE_SHORT_BULLETIN.url, "", FIXTURE_SHORT_BULLETIN.text);
     assert.ok(!r.reasons.includes("consent-wall-only"));
     assert.ok(!r.reasons.includes("template-shell"));
     assert.ok(!r.reasons.includes("title-body-mismatch"));
+    assert.equal(r.status, "ok", `structured short bulletin should pass, got ${r.reasons.join(",")}`);
+  });
+
+  test("NHC short advisory: passes as a structured short bulletin", () => {
+    const text = "WTPZ52 KNHC 160239\nNWS National Hurricane Center\nTropical Storm Alert: winds 55 kt near 15.0N 104.7W, moving NW. Warning in effect.";
+    const r = classifyBodyQuality("https://www.nhc.noaa.gov/text/refresh/MIATDSEP2+shtml/260239.shtml", "", text);
+    assert.equal(r.status, "ok", `NHC advisory should pass, got ${r.reasons.join(",")}`);
+  });
+
+  test("short Cookie wall (<80 chars): still hard defect, NOT exempt", () => {
+    const text = "我们使用 Cookie。继续浏览即表示您同意。查看隐私政策。同意并继续。";
+    const r = classifyBodyQuality("https://example.com/cookie", "", text);
+    assert.ok(r.reasons.includes("consent-wall-only"), `short cookie wall must stay defect, got ${r.reasons.join(",")}`);
+    assert.equal(r.status, "defect");
+  });
+
+  test("short template shell (<80 chars): still hard defect, NOT exempt", () => {
+    const text = "{{article.title}} {{article.author}} {{article.date}}";
+    const r = classifyBodyQuality("https://example.com/tpl", "", text);
+    assert.ok(r.reasons.includes("template-shell"), `short template shell must stay defect, got ${r.reasons.join(",")}`);
+    assert.equal(r.status, "defect");
+  });
+
+  test("10-char placeholder: hard defect too-short, not exempt", () => {
+    const r = classifyBodyQuality("https://example.com/placeholder", "", "待更新。");
+    assert.ok(r.reasons.includes("too-short"), `10-char placeholder must be defect, got ${r.reasons.join(",")}`);
+    assert.equal(r.status, "defect");
   });
 
   test("template shell: 3+ {{placeholders}} → defect template-shell", () => {

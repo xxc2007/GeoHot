@@ -1,7 +1,7 @@
 import { load } from "cheerio";
 import { stripBoilerplate, stripReaderChrome, stripConsentWall, isTemplateShell } from "../lib/text.ts";
 
-export const BODY_QUALITY_RULE_VERSION = "2026-11-16.1";
+export const BODY_QUALITY_RULE_VERSION = "2026-11-16.2";
 
 export type BodyStatus = "ok" | "defect";
 
@@ -51,6 +51,26 @@ export function translationTextDefect(text: string): string | null {
 }
 
 /**
+ * Short-bulletin exemption: a cleaned body of 20–79 real chars is a real short bulletin (earthquake
+ * measurement, NHC advisory, government one-liner) when it either shares bigrams with the title or
+ * carries structured time/location/magnitude/announcement signals. Cookie walls, template shells and
+ * 10-char placeholders are NOT exempt — they are caught by the earlier hard-failure branches.
+ */
+function looksStructuredShortBulletin(optsTitle: string | undefined, body: string): boolean {
+  if (optsTitle && optsTitle.length >= 6) {
+    const titleBigrams: string[] = [];
+    for (let i = 0; i < optsTitle.length - 1; i++) titleBigrams.push(optsTitle.slice(i, i + 2));
+    const hits = titleBigrams.filter((bg) => body.includes(bg)).length;
+    if (hits >= Math.max(2, Math.floor(titleBigrams.length * 0.2))) return true;
+  }
+  const hasTime = /\d{1,2}月\d{1,2}日|\d{1,2}[:：]\d{2}|\b(?:UTC|GMT|JST|EST|HKT|CST)\b/i.test(body);
+  const hasMagnitude = /\d+(?:\.\d+)?\s*(?:级|Magnitude|mb|M\s?\d)/i.test(body);
+  const hasPlaceEvent = /(?:省|市|县|州|岛|海|湾|洋|山|河)/.test(body) && /(?:震|雨|风|潮|洪|雪|雾|涝|旱|灾)/.test(body);
+  const hasAnnouncement = /(正式测定|本报讯|消息|公告|通报|快讯|Advisory|Hurricane|Storm|Rainfall|Warning|Bulletin|KNHC|NHC)/i.test(body);
+  return (hasTime && (hasMagnitude || hasPlaceEvent || hasAnnouncement)) || hasMagnitude || hasAnnouncement;
+}
+
+/**
  * Full body quality classification. Returns status=ok when the body looks like a real article;
  * status=defect with machine-readable reasons otherwise. Callers persist {status, reasons, ruleVersion}.
  *
@@ -58,7 +78,7 @@ export function translationTextDefect(text: string): string | null {
  *  - consent-wall: the first 600 chars are entirely Cookie/privacy consent boilerplate
  *  - reader-chrome-only: after stripping reader UI, nothing real remains
  *  - template-shell: ≥3 unrendered {{placeholders}}
- *  - too-short: <120 real chars after cleaning (short bulletins excluded — they pass if coherent)
+ *  - too-short: <20 real chars after cleaning; 20–79 chars pass when they look like a structured short bulletin
  *  - title-body-mismatch: title shares <2 bigrams with body
  *  - source-feed-teaser: known teaser signatures (Mongabay etc.)
  *  - source-references-only: scientific references list without narrative
@@ -89,8 +109,14 @@ export function classifyBodyQuality(
   const consentAction = /我同意|同意并继续|继续浏览即表示您同意|Accept\s+All|I\s+Agree|允许所有|Accept\s+All\s+Cookies/i.test(rawHead200);
   if (consentAction) reasons.push("consent-wall-only");
 
-  // 3. Too short (only when not already flagged as template shell).
-  if (!reasons.includes("template-shell") && realChars < 80) reasons.push("too-short");
+  // 3. Too short. Hard floor at 20 real chars (10-char placeholders stay defect). 20–79 chars are
+  //    exempt when they look like a structured short bulletin; cookie walls / template shells are
+  //    already flagged above and stay defect regardless of length.
+  if (!reasons.includes("template-shell") && realChars < 20) {
+    reasons.push("too-short");
+  } else if (!reasons.includes("template-shell") && realChars < 80 && !looksStructuredShortBulletin(opts.title, cleaned)) {
+    reasons.push("too-short");
+  }
 
   // 4. Title-body mismatch (only when a title is provided and body has substance).
   if (opts.title && opts.title.length >= 8 && realChars >= 80) {
@@ -117,8 +143,9 @@ export function classifyBodyQuality(
     if (citation && (cleaned.match(/doi\.org\//g)?.length ?? 0) >= 3 && !narrative) reasons.push("source-references-only");
   }
 
-  // 6. Boilerplate-only (after cleaning, nothing real left).
-  if (realChars < 60 && !reasons.includes("too-short")) reasons.push("boilerplate-only");
+  // 6. Boilerplate-only (after cleaning, nothing real left). Structured short bulletins are exempt.
+  const isShortBulletin = realChars >= 20 && realChars < 80 && looksStructuredShortBulletin(opts.title, cleaned);
+  if (realChars < 60 && !reasons.includes("too-short") && !isShortBulletin) reasons.push("boilerplate-only");
 
   return {
     status: reasons.length > 0 ? "defect" : "ok",
