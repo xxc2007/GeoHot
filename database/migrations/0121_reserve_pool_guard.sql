@@ -19,12 +19,17 @@ ALTER TABLE source_reserves ADD COLUMN IF NOT EXISTS quarantine_reason text;
 ALTER TABLE sources ADD COLUMN IF NOT EXISTS canonical_url text;
 
 -- ============================================================
--- STEP 2: 回填 canonical_url（基于 config->>url/feedUrl 规范化）
---   规范化规则：小写 host、去 trailing slash、去 utm_* 参数
+-- STEP 2: 回填 canonical_url
+--   - GET/RSS/web_list: normalize(config->>'url')
+--   - POST search (kind 含 search / config.adapter 是 POST 搜索):
+--     normalize(endpoint) + "#" + discriminator
+--     discriminator 从 config->>searchTopic 或 config->>query 或 config->>topic 取
+--   同 endpoint 不同 query 允许共存；同 query 不同 id 互斥。
 -- ============================================================
-CREATE OR REPLACE FUNCTION normalize_canonical_url(raw text) RETURNS text AS $$
+CREATE OR REPLACE FUNCTION normalize_canonical_url(raw text, cfg jsonb DEFAULT NULL) RETURNS text AS $$
 DECLARE
   u text;
+  disc text;
 BEGIN
   IF raw IS NULL OR raw = '' THEN RETURN NULL; END IF;
   u := raw;
@@ -37,12 +42,22 @@ BEGIN
   u := regexp_replace(u, '/+$', '');
   -- 小写 scheme+host
   u := regexp_replace(u, '^([a-zA-Z]+://[^/]+)', lower('\1'));
+  -- POST search discriminator: 如果 cfg 提供 searchTopic/query/topic，拼到 fragment
+  IF cfg IS NOT NULL THEN
+    disc := COALESCE(cfg->>'searchTopic', cfg->>'query', cfg->>'topic', '');
+    IF disc != '' THEN
+      u := u || '#' || lower(regexp_replace(disc, '\s+', '-', 'g'));
+    END IF;
+  END IF;
   RETURN u;
 END $$ LANGUAGE plpgsql;
 
--- 回填 sources.canonical_url
+-- 回填 sources.canonical_url（带 discriminator）
 UPDATE sources
-SET canonical_url = normalize_canonical_url(COALESCE(config->>'url', config->>'feedUrl', ''))
+SET canonical_url = normalize_canonical_url(
+  COALESCE(config->>'url', config->>'feedUrl', ''),
+  config
+)
 WHERE canonical_url IS NULL;
 
 -- ============================================================

@@ -14103,6 +14103,35 @@
         "abstracts": 0,
         "method": "GEOHOT guarded collector"
       }
+    },
+    {
+      "id": "int-nasa-breaking",
+      "name": "NASA · 突发新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.nasa.gov/rss/dyn/breaking_news.rss",
+        "allowUrlPrefixes": [
+          "https://www.nasa.gov/"
+        ]
+      },
+      "tier": "T1",
+      "first_party": true,
+      "tags": [
+        "官方",
+        "英文",
+        "空间科学",
+        "突发"
+      ],
+      "default_category": "physical",
+      "interval_minutes": 120,
+      "priority": 98,
+      "validation": {
+        "ok": true,
+        "checkedAt": "2026-11-16T17:28:10.150Z",
+        "items": 20,
+        "fulltext_available": true,
+        "robots_ok": true
+      }
     }
   ],
   "excluded": [

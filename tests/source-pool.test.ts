@@ -167,3 +167,44 @@ test("9. ineligible reserve (eligible=false) still counts toward cap and cannot 
     await sql`DELETE FROM sources WHERE id = ${id}`;
   }
 });
+
+test("10. POST search sources with same endpoint but different query can coexist (different canonical)", async () => {
+  const id1 = P + "post-search-climate";
+  const id2 = P + "post-search-ocean";
+  // Two POST search sources sharing endpoint but different searchTopic.
+  await sql`INSERT INTO sources(id, name, kind, config, tier, participation_mode, interval_minutes, enabled, health, canonical_url)
+    VALUES (${id1}, 'Tavily Climate', 'external', '{"url":"https://api.tavily.com/search","searchTopic":"climate-change"}', 'T1', 'editorial', 360, true, 'ok', 'https://api.tavily.com/search#climate-change')`;
+  await sql`INSERT INTO sources(id, name, kind, config, tier, participation_mode, interval_minutes, enabled, health, canonical_url)
+    VALUES (${id2}, 'Tavily Ocean', 'external', '{"url":"https://api.tavily.com/search","searchTopic":"oography"}', 'T1', 'editorial', 360, true, 'ok', 'https://api.tavily.com/search#oography')`;
+  // Both should coexist (different canonical_url).
+  const rows = await sql`SELECT count(*)::int AS n FROM sources WHERE id IN (${id1}, ${id2}) AND enabled = true`;
+  assert.equal(rows[0]!.n, 2);
+  await sql`DELETE FROM sources WHERE id IN (${id1}, ${id2})`;
+});
+
+test("11. POST search sources with same endpoint AND same query are rejected (canonical conflict)", async () => {
+  const id1 = P + "post-search-dup-1";
+  const id2 = P + "post-search-dup-2";
+  await sql`INSERT INTO sources(id, name, kind, config, tier, participation_mode, interval_minutes, enabled, health, canonical_url)
+    VALUES (${id1}, 'Tavily Climate A', 'external', '{"url":"https://api.tavily.com/search","searchTopic":"climate-change"}', 'T1', 'editorial', 360, true, 'ok', 'https://api.tavily.com/search#climate-change')`;
+  // Second one with SAME canonical should fail unique index.
+  await assert.rejects(
+    () => sql`INSERT INTO sources(id, name, kind, config, tier, participation_mode, interval_minutes, enabled, health, canonical_url)
+      VALUES (${id2}, 'Tavily Climate B', 'external', '{"url":"https://api.tavily.com/search","searchTopic":"climate-change"}', 'T1', 'editorial', 360, true, 'ok', 'https://api.tavily.com/search#climate-change')`,
+    /duplicate key|canonical_url/,
+  );
+  await sql`DELETE FROM sources WHERE id IN (${id1}, ${id2})`;
+});
+
+test("12. RSS sources with same feed URL still conflict (no discriminator)", async () => {
+  const id1 = P + "rss-dup-1";
+  const id2 = P + "rss-dup-2";
+  await sql`INSERT INTO sources(id, name, kind, config, tier, participation_mode, interval_minutes, enabled, health, canonical_url)
+    VALUES (${id1}, 'RSS A', 'rss', '{"url":"https://example.com/feed.xml"}', 'T1', 'editorial', 360, true, 'ok', 'https://example.com/feed.xml')`;
+  await assert.rejects(
+    () => sql`INSERT INTO sources(id, name, kind, config, tier, participation_mode, interval_minutes, enabled, health, canonical_url)
+      VALUES (${id2}, 'RSS B', 'rss', '{"url":"https://example.com/feed.xml"}', 'T1', 'editorial', 360, true, 'ok', 'https://example.com/feed.xml')`,
+    /duplicate key|canonical_url/,
+  );
+  await sql`DELETE FROM sources WHERE id IN (${id1}, ${id2})`;
+});

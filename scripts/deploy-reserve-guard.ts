@@ -57,6 +57,7 @@ async function main() {
 
   // 5. Canonical URL duplicates in active pool.
   //    If canonical_url column doesn't exist yet, compute it on-the-fly from config.
+  //    Same algorithm as migration: normalize(url) + "#" + discriminator (searchTopic/query/topic).
   let dupCount = 0;
   if (hasCanonical) {
     const dups = await sql`
@@ -71,14 +72,33 @@ async function main() {
       for (const d of dups.slice(0, 5)) console.log(`  ${d.canonical_url} (${d.n} sources)`);
     }
   } else {
-    // Compute on-the-fly: normalize config->>url
+    // Compute on-the-fly: normalize(url) + discriminator from config
     const dups = await sql`
-      SELECT
-        regexp_replace(regexp_replace(regexp_replace(COALESCE(config->>'url', config->>'feedUrl', ''), '#.*$', ''), '/+$', ''), '^([a-z]+://[^/]+)', lower('\1')) AS canon,
-        count(*)::int AS n
-      FROM sources
-      WHERE enabled = true AND COALESCE(config->>'url', config->>'feedUrl', '') != ''
-      GROUP BY canon HAVING count(*) > 1
+      WITH normalized AS (
+        SELECT
+          id,
+          regexp_replace(
+            regexp_replace(
+              regexp_replace(
+                regexp_replace(
+                  regexp_replace(
+                    COALESCE(config->>'url', config->>'feedUrl', ''),
+                    '#.*$', ''
+                  ),
+                  '/+$', ''
+                ),
+                '^([a-z]+://[^/]+)', lower('\1')
+              ),
+              '([?&])utm_[^&]*', '\1', 'g'
+            ) ||
+            COALESCE(
+              '#' || lower(regexp_replace(COALESCE(config->>'searchTopic', config->>'query', config->>'topic', ''), '\s+', '-', 'g')),
+              ''
+            ) AS canon
+        FROM sources
+        WHERE enabled = true AND COALESCE(config->>'url', config->>'feedUrl', '') != ''
+      )
+      SELECT canon, count(*)::int AS n FROM normalized GROUP BY canon HAVING count(*) > 1
     `;
     dupCount = dups.length;
     if (dupCount > 0) {
