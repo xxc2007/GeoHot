@@ -21,8 +21,8 @@ export function failedRecovery(s) {
 }
 
 export function maintenanceBlocksRecovery(owner, role) {
-  return role !== 'worker' || owner?.owner !== 'workstation-extraction'
-    || typeof owner.session !== 'string' || !/^[a-f0-9]{32}$/.test(owner.session);
+  // Server-side maintenance (magpie-update) owns the fence; workstation-extraction helper removed.
+  return role !== 'worker' || owner?.owner !== 'magpie-update';
 }
 
 function ownerBlocksRecovery(role) {
@@ -46,7 +46,7 @@ function run() {
     available:mb('MemAvailable'),load:Number(readFileSync('/proc/loadavg','utf8').split(' ')[0]),
     swap:mb('SwapTotal')-mb('SwapFree'),now,lastRestart:prior.lastRestart??0};
   const state={lastRestart:prior.lastRestart??0};
-  for(const role of ['worker','content-executor']) {
+  for(const role of ['worker']) {
     const roleGate=shared.gate||ownerBlocksRecovery(role);
     const unit='geohot-'+role+'.service';
     const properties=Object.fromEntries(exec('systemctl',['show',unit,'-p','ActiveState','-p','MainPID','-p','ActiveEnterTimestampMonotonic'])

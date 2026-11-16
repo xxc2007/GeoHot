@@ -9,6 +9,7 @@ import { MODELS } from "../providers/llm.ts";
 import { audit } from "./auth.ts";
 import { modelStatisticRead, statisticReader } from "./model-statistics-read.ts";
 import { resolveFx } from "./official-pricing.ts";
+import { modelCooldown } from "../operations/model-cooldown.ts";
 
 interface UsageRow {
   purpose: string;
@@ -128,7 +129,7 @@ export async function modelsOverview(days = 7) {
   // 估算同口径；无行时 resolveFx 回落 CNY_FX 兜底常量，客户端不再各拿常量自算。
   const [fxRow] = await sql<{ rate: number; as_of: string; source_url: string | null }[]>`
     SELECT rate, as_of::text AS as_of, source_url FROM fx_rates WHERE pair = 'USD/CNY' ORDER BY as_of DESC LIMIT 1`;
-  return { days, capabilities, choices, history, fx: resolveFx(fxRow), statistics: {
+  return { days, capabilities, choices, history, fx: resolveFx(fxRow), cooldowns: modelCooldown.inspect(), statistics: {
     configuration: sourcesResult.status, usage: usageResult.status, prices: pricesResult.status, history: historyResult.status,
   } };
 }

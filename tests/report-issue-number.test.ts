@@ -43,7 +43,7 @@ const ids: string[] = [];
 async function item(suffix: string, title: string, inside: Date) {
   const { articleId, backfill } = await upsertMaterial({
     sourceId: SOURCE, url: `https://example.com/${T}-${suffix}`, title: `Source ${T} ${suffix}`,
-    bodyText: "完整的中文公告正文。", bodyStatus: "ok", via: "fetch", publishedAt: inside, discoveredAt: inside,
+    bodyText: "本次地理观测记录了一次事件的完整过程。现场团队按规范到达事发地点，使用仪器测量关键参数，并查阅官方通报与历史资料进行交叉核对。正文交代了事件成因、影响范围与后续应对，数据来源可追溯，段落连贯、信息充分，足以支撑成刊选稿，不只是一句话快讯。", bodyStatus: "ok", via: "fetch", publishedAt: inside, discoveredAt: inside,
   });
   assert.equal(backfill, false, "这条夹具落进了回填窗口，成刊层根本不会看它");
   await sql`INSERT INTO analyses (article_id, input_revision, origin, relevance, category, title_zh, summary_zh, score, selected)

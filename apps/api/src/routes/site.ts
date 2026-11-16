@@ -27,6 +27,10 @@ import { loadSiteCodexResetPage, loadSiteCodexResetDay } from "@aihot/backend/pu
 import { codexResetVersion } from "@aihot/backend/monitor/read";
 import { cached } from "@aihot/backend/lib/cache";
 import { MicroCache } from "@aihot/backend/lib/micro-cache";
+import { onPublicationPurge } from "@aihot/backend/publication/cache-purge";
+import { rm } from "node:fs/promises";
+import path from "node:path";
+import { config } from "@aihot/backend/config";
 import { readPoolSnapshot, writePoolSnapshot } from "../pool-snapshot.ts";
 import { looseQuery, sendJsonWithEtag, sendProblem } from "../http/respond.ts";
 
@@ -170,6 +174,16 @@ export async function parseFilters(q: Record<string, string>): Promise<FilterPar
 }
 
 export function registerSite(app: FastifyInstance) {
+  // 2026-11-16 hotfix: when the repair script (or admin review) pulls an article from public or restores
+  // one, the in-process list caches and the on-disk snapshots must drop the old response immediately —
+  // otherwise the ordinary /items/:id URL keeps serving the polluted page for up to s-maxage.
+  onPublicationPurge(() => {
+    poolCache.clear();
+    poolStale.clear();
+    timelineStale.clear();
+    void rm(path.join(config.dataDir, "pool-snapshot"), { recursive: true, force: true }).catch(() => {});
+  });
+
   app.get("/api/site/meta", siteHandler(async (req, reply) => {
     return sendJsonWithEtag(req, reply, siteMeta(), { etagPrefix: "meta", cacheControl: "public, max-age=60, s-maxage=60" });
   }));

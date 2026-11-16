@@ -97,11 +97,13 @@ test("every workbuddy preset carries the headroom and the vision verdict the mea
   assert.deepEqual(MODELS["workbuddy-step5-preview"]!.reasoningHeadroom, { default: 16_000, summarize_article: 32_000 });
   assert.equal(MODELS["workbuddy-step5-preview"]!.vision, true);
   // The strongest effort each model advertises, not one value for the channel.
-  // 2026-10-21: `workbuddy-glm-flash` 已从注册表删除（glm 那扇门在本部署上没有 key），这两条改成断言
-  // **现存**的两个档位仍然各写各的：deepseek/hy3 是 `max`，step-5-preview 只声明到 `high`。
+  // 2026-11-16 按目录证据分档：deepseek-v4.1-flash 广告到 `max`；hy4 一族（hy4flash-free）只广告到
+  // `high`；step-5-preview 同样只广告 low/medium/high、从不列 max。给后两把发 `max` 是上游没有契约
+  // 的值，会落 code 11150「reasoning effort value is not supported」（2026-10-30~31 在 workbuddy-cn
+  // 烧掉约 985 条 translate_body）。取各自广告的顶档，不是统一 max。
   assert.deepEqual(MODELS["workbuddy-deepseek-flash"]!.extra, { reasoning_effort: "max" });
-  assert.deepEqual(MODELS["workbuddy-hy4"]!.extra, { reasoning_effort: "max" });
-  assert.deepEqual(MODELS["workbuddy-step5-preview"]!.extra, { reasoning_effort: "max" });
+  assert.deepEqual(MODELS["workbuddy-hy4"]!.extra, { reasoning_effort: "high" });
+  assert.deepEqual(MODELS["workbuddy-step5-preview"]!.extra, { reasoning_effort: "high" });
   // The Chinese account reaches the same four ids through 3066. Same model, same dials, same vision verdicts —
   // only `service` and the two env vars differ, and that separation is the whole point (two accounts, two
   // breakers). Anything that drifts here means the two doors stopped being the same model.

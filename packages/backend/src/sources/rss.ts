@@ -7,6 +7,7 @@ import { identityKeyForUrl } from "../lib/url.ts";
 import { sha256, stableJson } from "../lib/ids.ts";
 import { parsePublishedAt, type DateConfig } from "./dates.ts";
 import { FetchError, type Candidate, type SourceRow } from "./types.ts";
+import { checkUrl as checkRobotsUrl } from "./robots.ts";
 
 const parser = new XMLParser({
   ignoreAttributes: false,
@@ -260,6 +261,10 @@ export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}
   const headers: Record<string, string> = { accept: "application/rss+xml, application/atom+xml, application/xml;q=0.9, */*;q=0.8", ...configured };
   if (previous?.etag) headers["if-none-match"] = previous.etag;
   if (previous?.lastModified) headers["if-modified-since"] = previous.lastModified;
+  // robots.txt: known Disallow → refuse. Unknown (network error) → fail-open at runtime (already-enabled
+  // sources must not freeze), but the reason is left in the thrown error path when it happens.
+  const robots = await checkRobotsUrl(url);
+  if (robots.known && !robots.allowed) throw new FetchError(`robots.txt disallows: ${robots.reason}`);
   let res = await guardedFetch(url, { headers, timeoutMs: 25_000 });
   // A redirect may have changed destinations, whose ETag namespace is unrelated to the old one.
   if (res.status === 304 && previous && res.url !== previous.responseUrl) {

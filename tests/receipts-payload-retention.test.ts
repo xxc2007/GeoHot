@@ -2,10 +2,12 @@
 // 每一次状态更新都要在这张表上写一页堆和索引页，891 MB 的机器因此把磁盘 I/O 打满过。
 // 记账只需要状态、模型、用量与费用，所以结清的回执过一天就丢掉正文；失败与未知留着给人看。
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { after } from "node:test";
 import "./setup.ts";
 import { pruneReceiptPayloads } from "@aihot/backend/operations/retention";
-import { sql } from "@aihot/backend/db";
+import { closeDb, sql } from "@aihot/backend/db";
+
+after(async () => { await closeDb(); });
 
 const KEY = "test:receipt-payload-retention";
 

@@ -39,7 +39,7 @@ interface SourcesData {
   page: number;
   rows: SourceRow[];
   hasMore: boolean;
-  totals: { total: number; enabled: number; failing: number; degraded: number; reserves: number; ready: number };
+  totals: { total: number; enabled: number; failing: number; degraded: number; reserves: number; ready: number; reserve_ineligible?: number; retired?: number };
   policy: RegistryPolicy | null;
 }
 
@@ -84,12 +84,16 @@ export default function Sources({ loaderData }: Route.ComponentProps) {
       actions={<ButtonLink to="/admin/sources/new" tone="primary">新建信源</ButtonLink>}
     >
       <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-5">
-        <Stat label="全部" value={num(totals.total)} />
+        <Stat label="全部（实际）" value={num(totals.total)} />
         <Stat label="正式采集" value={num(totals.enabled)} />
-        <Stat label="备用" value={num(totals.reserves)} />
+        <Stat label="备用候选" value={num(totals.reserves)} />
+        <Stat label="备用可用" value={num(totals.ready)} tone={totals.ready ? "ok" : "warn"} />
         <Stat label="失败" value={num(totals.failing)} tone={totals.failing ? "bad" : "ok"} />
-        <Stat label="不稳定" value={num(totals.degraded)} tone={totals.degraded ? "warn" : undefined} />
       </div>
+      <p className="mb-5 text-[12px] text-ink-4">
+        备用可用 = eligible 且未与正式池重叠；备用候选中未达可用 {num(totals.reserve_ineligible ?? 0)} 条待复核，归档/隔离 {num(totals.retired ?? 0)} 条不计入池。
+        目标 {num(loaderData.policy?.target_total ?? 2000)} 为上限，不是实际数。
+      </p>
       {/* 2026-11-15 站长：2000 条信源、1000 正式、1000 备用，且要能自己调。
           这里只调「正式采集目标」，逐条启停仍在下面每一行做；每次改动都写审计。 */}
       {loaderData.policy ? (
@@ -102,7 +106,7 @@ export default function Sources({ loaderData }: Route.ComponentProps) {
               </div>
             </div>
             <div className="text-[12px] text-ink-4">
-              池子里共 {num(loaderData.policy.total)} 条，备用 {num(loaderData.policy.total - loaderData.policy.enabled_count)} 条（总目标 {num(loaderData.policy.target_total)}）
+              实际并集 {num(loaderData.policy.total)} 条（正式 {num(loaderData.policy.enabled_count)} + 备用 {num(loaderData.policy.total - loaderData.policy.enabled_count)}），目标上限 {num(loaderData.policy.target_total)}
             </div>
           </div>
           <Form method="post" className="mt-4 flex flex-wrap items-end gap-3">

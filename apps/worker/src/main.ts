@@ -1,5 +1,5 @@
 // Worker process: queues and schedules for collection, processing, events, reports, monitors and ops.
-import { assertProductionSecrets, assertContentExecutorValves, assertExtractionExecutorValves, assertFetcherValves, isCollectEnabled, positiveInt } from "@aihot/backend/config";
+import { assertProductionSecrets, assertContentExecutorValves, assertFetcherValves, isCollectEnabled, positiveInt } from "@aihot/backend/config";
 import { FEATURES } from "@aihot/industry/features";
 import { closeDb, sql } from "@aihot/backend/db";
 import { getBoss, shutdownSignal, stopBoss } from "@aihot/backend/jobs/queue";
@@ -66,8 +66,7 @@ async function initialized<T>(operation: Promise<T>): Promise<T> {
 }
 
 assertProductionSecrets(plan.coordinator ? [["auth", "IMG_PROXY_SIGN_SECRET"]] : []);
-if (plan.role === "extraction-executor") assertExtractionExecutorValves();
-else if (plan.role === "fetcher") assertFetcherValves();
+if (plan.role === "fetcher") assertFetcherValves();
 else if (!plan.coordinator) assertContentExecutorValves();
 
 if (stopping) await finishShutdown();

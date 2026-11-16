@@ -8,6 +8,7 @@ import { adminGet } from "../../lib/admin.server";
 import { useAdminAction } from "../../features/admin/action";
 import { bj, num } from "../../features/admin/format";
 import { AdminPage, Badge, Button, Card, DataTable, Empty, Field, FilterChips, ReasonDialog, Select } from "../../features/admin/ui";
+import { displayCooldown, fmtTime, secondsUntil, type CooldownEntry } from "../../features/admin/cooldown-status";
 
 interface Usage {
   purpose: string;
@@ -34,6 +35,7 @@ interface Models {
   capabilities: Array<{ key: string; label: string; env: string; defaultModel: string; vision: boolean; current: { model: string; serving: string; source: "admin" | "env" | "default" }; usage: Usage[] }>;
   choices: Array<{ key: string; service: string; vision: boolean }>;
   history: Array<{ at: string; actor: string; subject: string; reason: string | null; before: { model: string; source: string } | null; after: { model: string; source: string } | null }>;
+  cooldowns?: CooldownEntry[];
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -145,6 +147,27 @@ export default function ModelsAdmin({ loaderData: m }: Route.ComponentProps) {
             </Card>
           );
         })}
+      </div>
+
+      <div className="mt-5 grid gap-5">
+        <Card title="冷却中的模型" pad={false}>
+          {m.cooldowns && m.cooldowns.length > 0 ? (
+            <DataTable
+              dense
+              rows={m.cooldowns}
+              rowKey={(c) => c.key}
+              columns={[
+                { key: "model", label: "模型", render: (c) => <span className="whitespace-nowrap font-mono text-[12px]">{c.model}<span className="text-ink-4"> · {c.service}</span></span> },
+                { key: "state", label: "状态", render: (c) => { const d = displayCooldown(c); return <Badge tone={d.tone}>{d.label}</Badge>; } },
+                { key: "evidence", label: "证据时间", render: (c) => <span className="num whitespace-nowrap text-[12px]">{fmtTime(c.evidenceAt)}</span> },
+                { key: "reset", label: "恢复条件", render: (c) => { const d = displayCooldown(c); return <span className="text-[12px] text-ink-2">{d.recovery}</span>; } },
+                { key: "remaining", label: "剩余", align: "right", render: (c) => <span className="num whitespace-nowrap text-[12px]">{secondsUntil(c.until)} s</span> },
+              ]}
+            />
+          ) : (
+            <Empty>当前没有模型被冷却；所有注册成员均按配置健康派发。</Empty>
+          )}
+        </Card>
       </div>
 
       <div className="mt-5 grid gap-5 xl:grid-cols-2">

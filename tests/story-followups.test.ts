@@ -21,7 +21,7 @@ const factIds: number[] = [];
 
 async function publishFact(title: string, selected: boolean, suffix: string) {
   const { articleId } = await upsertMaterial({
-    sourceId: SOURCE, url: `https://example.com/${T}-${suffix}`, title, bodyText: "测试正文。", bodyStatus: "ok", via: "fetch",
+    sourceId: SOURCE, url: `https://example.com/${T}-${suffix}`, title, bodyText: `${title}。本次事件追踪记录了后续发展的完整过程。现场团队持续跟进事态，使用仪器测量关键参数，并查阅官方通报与历史资料进行交叉核对。正文交代了事件成因、影响范围与后续应对，数据来源可追溯，段落连贯、信息充分，足以支撑进展追踪与版面选稿，不只是一句话快讯。`, bodyStatus: "ok", via: "fetch",
   });
   await sql`INSERT INTO analyses (article_id, input_revision, origin, relevance, category, title_zh, summary_zh, score, selected, output)
             VALUES (${articleId}, 1, 'rule', 'pass', 'physical', ${title}, ${`${title} 的提要`}, 80, ${selected}, ${sql.json({ fact: null })})`;

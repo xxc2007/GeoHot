@@ -84,6 +84,15 @@ try {
         continue;
       }
       try {
+        // Admission robots policy: fail-closed. We must be able to fetch robots.txt and see an Allow (or
+        // no matching rule). A network error / timeout means we cannot prove permission — reject.
+        const { checkUrl: checkRobotsUrl } = await import("@aihot/backend/sources/robots");
+        const robots = await checkRobotsUrl(feedUrl);
+        if (!robots.known || !robots.allowed) {
+          await sql`UPDATE sources SET review_note = ${"robots 准入拒绝（" + robots.reason + "）"} WHERE id = ${row.id}`;
+          console.log(`${row.id}	robots拒绝	${robots.reason}`);
+          continue;
+        }
         const read = await fetchRss({ id: row.id, name: row.name, kind: "rss", config: { feedUrl } } as never, { force: true });
         const verdict = evaluateCandidate({ items: read.candidates, httpStatus: 200, now: new Date() });
         if (!verdict.ok) {

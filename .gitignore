@@ -67,3 +67,8 @@ __pycache__/
 .env.local-executor
 _assist/local-executor/worker.log
 _assist/local-executor/worker.log.err
+
+# 部署轮一次性过渡脚本与本机分析 scratch（不进索引；发布闸门另行校验）
+deploy/geohot/tmp/
+tooling/_tmp*
+tooling/_debug-*

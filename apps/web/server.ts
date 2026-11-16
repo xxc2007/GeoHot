@@ -82,7 +82,11 @@ async function serveStatic(pathname: string, res: import("node:http").ServerResp
     throw new BadRequest("malformed percent-encoding");
   }
   const file = path.join(CLIENT_DIR, decoded);
-  if (!file.startsWith(CLIENT_DIR)) return false;
+  // startsWith(CLIENT_DIR) is not enough: a sibling directory named CLIENT_DIR + "-bak" shares the
+  // prefix. Resolve the relative path and reject anything that escapes the client dir, including
+  // percent-encoded ".." that decodeURIComponent unfolded before this check.
+  const rel = path.relative(CLIENT_DIR, file);
+  if (rel.startsWith("..") || path.isAbsolute(rel)) return false;
   const info = await stat(file).catch(() => null);
   if (!info?.isFile()) return false;
   const immutable = pathname.startsWith("/assets/");
@@ -201,19 +205,58 @@ async function handle(req: import("node:http").IncomingMessage, res: import("nod
     const named = TRUST_PROXY ? String(req.headers[(process.env.CLIENT_IP_HEADER ?? "").toLowerCase()] ?? "").trim() : "";
     const client = named || (TRUST_PROXY && forwarded.length ? forwarded[forwarded.length - 1]! : (req.socket.remoteAddress ?? ""));
     const headers = { ...req.headers, "x-forwarded-for": client, "x-real-ip": client };
+    // Budget for the upstream: connect phase 20s (write 504 if no headers), body phase uses socket
+    // idle timeout (if data stalls after headers, just destroy — headers already went out so we
+    // cannot rewrite status). Without any timeout a wedged api process holds the browser request open
+    // until the outer proxy (Cloudflare) gives up.
+    const CONNECT_TIMEOUT_MS = Number(process.env.API_PROXY_TIMEOUT_MS || 20_000);
+    const BODY_IDLE_MS = Number(process.env.API_PROXY_BODY_IDLE_MS || 60_000);
+    let headersArrived = false;
+    let bodyEnded = false;
     const upstream = httpRequest({ hostname: API.hostname, port: API.port, path: appPath + search, method: req.method, headers }, (up) => {
+      headersArrived = true;
+      // Switch from connect budget to body idle budget: the same socket now carries the response body.
+      upstream.setTimeout(BODY_IDLE_MS);
       // The api knows nothing about the prefix, so its root-relative redirects get it here.
-      const headers = { ...up.headers };
-      if (BASE && typeof headers.location === "string") headers.location = toPublicPath(headers.location, BASE);
-      res.writeHead(up.statusCode ?? 502, headers);
+      const outHeaders = { ...up.headers };
+      if (BASE && typeof outHeaders.location === "string") outHeaders.location = toPublicPath(outHeaders.location, BASE);
+      res.writeHead(up.statusCode ?? 502, outHeaders);
       up.pipe(res);
+      up.on("end", () => {
+        bodyEnded = true;
+        upstream.setTimeout(0);
+      });
+      up.on("aborted", () => { if (!bodyEnded) upstream.destroy(); });
     });
-    upstream.on("error", () => {
-      // The api can reset the socket after the response has started; ending it again would throw inside
-      // the listener, where neither handle()'s catch nor the rejection hook can reach it.
-      if (res.headersSent) return res.destroy();
-      res.statusCode = 502;
+    upstream.setTimeout(CONNECT_TIMEOUT_MS, () => {
+      if (!headersArrived) {
+        // Still in connect phase: we can still write a 504 status.
+        upstream.destroy(new Error("upstream connect timeout"));
+        if (!res.headersSent) {
+          applySecurityHeaders(res);
+          res.writeHead(504, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" });
+          res.end("api timeout");
+        }
+      } else {
+        // Body idle timeout: headers already sent, just tear down the connection.
+        upstream.destroy();
+        res.destroy();
+      }
+    });
+    upstream.on("error", (err) => {
+      if (res.headersSent) { res.destroy(); return; }
+      // The reader went away before we answered: do not log a 500, just close.
+      if (req.socket.destroyed || (err as NodeJS.ErrnoException).code === "ECONNRESET") { res.destroy(); return; }
+      applySecurityHeaders(res);
+      res.writeHead(502, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" });
       res.end("api unavailable");
+    });
+    // Propagate a client disconnect in any phase: if the browser navigates away before the response
+    // fully streams out, destroy the upstream request so we do not keep a loopback connection open.
+    // Use res "close" (not req "close"): for GET requests req emits close as soon as headers are parsed.
+    // Do NOT gate on headersArrived: a client that closes mid-body must also cancel the upstream pipe.
+    res.on("close", () => {
+      if (!res.writableEnded) upstream.destroy();
     });
     return req.pipe(upstream);
   }

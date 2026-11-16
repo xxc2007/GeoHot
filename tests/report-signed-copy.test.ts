@@ -52,7 +52,7 @@ async function item(suffix: string, title: string, category: string | null) {
   // exception of archive material, which is attributed to its own day — tests/archive-paper-rule.test.ts).
   const { articleId, backfill } = await upsertMaterial({
     sourceId: SOURCE, url: `https://example.com/${T}-${suffix}`, title: `Source ${T} ${suffix}`,
-    bodyText: "完整的中文水文公报正文。", bodyStatus: "ok", via: "fetch", publishedAt: INSIDE, discoveredAt: INSIDE,
+    bodyText: "本次水文观测记录了河流断面的水位、流量与含沙量变化。现场人员按规范采样，并核对水文站历史资料，分析了汛期洪峰传播与河道冲淤过程。正文给出具体观测数值与官方通报依据，段落连贯、信息充分，足以支撑成刊选稿，不只是一句话快讯。", bodyStatus: "ok", via: "fetch", publishedAt: INSIDE, discoveredAt: INSIDE,
   });
   assert.equal(backfill, false, "这条夹具落进了回填窗口，成刊层根本不会看它");
   await sql`INSERT INTO analyses (article_id, input_revision, origin, relevance, category, title_zh, summary_zh, score, selected)

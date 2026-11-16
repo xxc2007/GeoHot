@@ -69,7 +69,7 @@ after(async () => {
 /** A published report of one earthquake bulletin, from one source. */
 async function report(sourceId: string, suffix: string, title: string, summary: string, publishedAt = new Date(), discoveredAt = new Date()) {
   const { articleId } = await upsertMaterial({
-    sourceId, url: `https://example.com/${PREFIX}-${suffix}`, title, bodyText: `${title} ${summary}`, bodyStatus: "ok", via: "fetch", publishedAt, discoveredAt,
+    sourceId, url: `https://example.com/${PREFIX}-${suffix}`, title, bodyText: `${title}。${summary}现场团队按规范到达事发地点，使用仪器测量关键参数，并查阅官方通报与历史资料进行交叉核对。正文交代了事件成因、影响范围与后续应对，数据来源可追溯，段落连贯、信息充分，足以支撑归组与热榜排序，不只是一句话快讯。`, bodyStatus: "ok", via: "fetch", publishedAt, discoveredAt,
   });
   await sql`INSERT INTO analyses (article_id, input_revision, origin, relevance, category, title_zh, summary_zh, score, selected, output)
             VALUES (${articleId}, 1, 'rule', 'pass', 'physical', ${title}, ${summary}, 80, false, ${sql.json({ fact: { title, subject: "某机构", action: "测定", object: "震级" } })})`;

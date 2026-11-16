@@ -283,13 +283,21 @@ async function readSick(): Promise<Set<string>> {
           OR a.error LIKE '%购买加量包%'
           OR a.error LIKE '%API 速率限制%')) AS quota_refusal,
                (a.status='failed' AND (a.error LIKE 'HTTP 401:%' OR a.error LIKE 'HTTP 403:%')) AS auth_refusal,
-               -- 确定性配置拒绝：这两类错误对同一成员必然复现（账号/参数/开关问题），不存在"换个时刻
-               -- 就好了"。2026-10-30~31 实测：minimax-code-global 的 HTTP 404「switched off in Magpie」
-               -- 与 workbuddy-cn 的 HTTP 400 code 11150「reasoning effort value is not supported by the
-               -- current model」在 24h 内烧掉约 985 条 translate_body 收据失败——此前只有 10 分钟失败率
-               -- 窗在管它们，窗口一过期就复烧。与 quota/auth 同等对待：最新一次即冷却一小时。
+               -- 确定性配置拒绝：这类错误对同一成员必然复现（账号/参数/开关/整条渠道被停），不存在
+               -- "换个时刻就好了"。2026-10-30~31 实测：minimax-code-global 的 HTTP 404「switched off in
+               -- Magpie」与 workbuddy-cn 的 HTTP 400 code 11150「reasoning effort value is not supported by
+               -- the current model」在 24h 内烧掉约 985 条 translate_body 收据失败。
+               -- 2026-11-16 对齐：这张表的口径必须与 operations/model-cooldown.ts 的 CONFIG 正则同一份集合——
+               -- 此前 overlay 认「request illegal」（workbuddy 3065 整条渠道 403）、「unknown or disabled
+               -- model」（qoder-cn/dfmodel 网关侧下线）、「account is signed out」（minimax-code 两成员），
+               -- 但这里只认前两种。overlay 一小时冷却一过期、或 settings 冷却行丢失后，从账本看这些成员就
+               -- "健康"了，下一轮又被派活、又烧一次确定性拒绝。两边用同一组词。
                (a.status='failed' AND (a.error LIKE '%switched off in Magpie%'
-            OR a.error LIKE '%is not supported by the current model%')) AS config_refusal,
+            OR a.error LIKE '%is not supported by the current model%'
+            OR a.error LIKE '%unknown or disabled model%'
+            OR a.error LIKE '%account is signed out%'
+            OR a.error LIKE '%sign in again%'
+            OR a.error LIKE '%request illegal%')) AS config_refusal,
                (a.status='failed' AND a.billing_status='unbilled' AND a.error LIKE 'connect failed:%') AS connect_refusal,
                row_number() OVER (PARTITION BY a.service, a.model ORDER BY a.started_at DESC, a.id DESC) AS newest
           FROM receipt_attempts a

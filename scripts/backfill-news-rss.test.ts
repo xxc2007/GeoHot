@@ -6,6 +6,7 @@ import { config as runtime } from "../packages/backend/src/config.ts";
 import { sha256, stableJson } from "../packages/backend/src/lib/ids.ts";
 import { fetchArchiveSource, run, options, pages, type ArchiveRule, type Options, type State } from "./backfill-news.ts";
 import type { SourceRow } from "../packages/backend/src/sources/types.ts";
+import { clearRobotsCache } from "../packages/backend/src/sources/robots.ts";
 
 const source: SourceRow = { id: "rss-test", name: "RSS", kind: "rss", config: {}, tier: "T2", first_party: true,
   participation_mode: "editorial", interval_minutes: 240, enabled: true, cursor: null, fail_count: 0 };
@@ -31,6 +32,7 @@ async function withFeed(replies: Array<string | number>, check: (rule: ArchiveRu
   runtime.allowPrivateNetworkFetch = true; runtime.egressProxyUrl = null;
   try {
     const address = server.address() as { port: number };
+    clearRobotsCache();
     await check({ sourceId: source.id, format: "rss", mode: "pages", firstPage: 1,
       urlTemplate: `http://127.0.0.1:${address.port}/feed/?paged={page}`, config: {} }, requests);
   } finally {
@@ -68,7 +70,7 @@ test("RSS dates retain timezone, canonical duplicates do not spend item cap, ful
     const m = memory(); const result = await run(o, [rule], [cachedSource], m.deps, m.state);
     assert.equal(result.errors, 0); assert.equal(result.pages, 2); assert.equal(result.eligible, 1);
     assert.equal(result.limited, false); assert.equal(result.boundaries.length, 1);
-    assert.deepEqual(requests, ["/feed/?paged=1", "/feed/?paged=2"]);
+    assert.deepEqual(requests, ["/robots.txt", "/feed/?paged=1", "/feed/?paged=2"]);
     assert.equal(m.stored[0]!.publishedAt!.toISOString(), "2026-01-03T07:00:00.000Z");
     assert.equal(m.stored[0]!.bodyText, undefined); assert.equal(m.stored[0]!.excerpt, undefined);
     assert.equal(m.queued.length, 1);
@@ -120,7 +122,7 @@ test("RSS page and item caps remain bounded; partial canonical acknowledgements 
     assert.equal(first.limited, true); assert.equal(m.state.completed.length, 0);
     const second = await run(capped, [rule], [source], m.deps, m.state);
     assert.equal(second.eligible, 1); assert.equal(m.stored.length, 2); assert.equal(m.queued.length, 2);
-    assert.equal(requests.length, 2); assert.deepEqual(m.state.partial, {});
+    assert.equal(requests.length, 3); assert.deepEqual(m.state.partial, {});
   });
 });
 
@@ -139,7 +141,7 @@ test("RSS saved older boundary is reread and a wider date range cannot reuse tha
     const m = memory(); await run(o, [rule], [source], m.deps, m.state);
     const again = await run(o, [rule], [source], m.deps, m.state);
     assert.equal(again.boundaries[0]!.reused, true);
-    assert.deepEqual(requests, ["/feed/?paged=1", "/feed/?paged=2", "/feed/?paged=2"]);
+    assert.deepEqual(requests, ["/robots.txt", "/feed/?paged=1", "/feed/?paged=2", "/feed/?paged=2"]);
     const wider = await run({ ...o, from: "2025-12-01" }, [rule], [source], m.deps, m.state);
     assert.equal(wider.eligible, 2); assert.match(wider.boundaries[0]!.url, /paged=3$/);
     assert.equal(Object.keys(m.state.boundaries!).length, 2);

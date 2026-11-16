@@ -3,7 +3,7 @@
   "generatedAt": "2026-10-25T05:56:45.356Z",
   "targetEnabled": 666,
   "targetTotal": 1000,
-  "method": "All entries passed GEOHOT guarded production collector preview without article writes or model calls. Crossref entries are journal metadata, not publisher full text.",
+  "method": "All entries passed GEOHOT guarded production collector preview without article writes or model calls. Crossref entries are journal metadata, not publisher full text. | 2026-11-16 preflight: marked 41 entries as _excludedReason=duplicate-of-active-source; they remain in sources[] as evidence but provision skips them.",
   "sources": [
     {
       "id": "int-nasa-news",
@@ -30,13 +30,9 @@
       "interval_minutes": 360,
       "priority": 95,
       "validation": {
-        "id": "int-nasa-news",
         "ok": true,
-        "url": "https://www.nasa.gov/feed/",
-        "items": 10,
-        "latest": "2026-10-24T04:05:00.000Z",
-        "checkedAt": "2026-10-25T05:49:10.662Z",
-        "method": "GEOHOT guarded collector"
+        "checkedAt": "2026-11-16T13:57:20.869Z",
+        "items": 10
       }
     },
     {
@@ -65,7 +61,8 @@
         "latest": "2026-10-19T15:51:28.000Z",
         "checkedAt": "2026-10-25T05:49:12.547Z",
         "method": "GEOHOT guarded collector"
-      }
+      },
+      "_excludedReason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)"
     },
     {
       "id": "intl-qgis-releases",
@@ -94,7 +91,8 @@
         "latest": "2026-09-28T10:00:05.000Z",
         "checkedAt": "2026-10-25T05:49:11.116Z",
         "method": "GEOHOT guarded collector"
-      }
+      },
+      "_excludedReason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)"
     },
     {
       "id": "intl-worldpoliticsreview",
@@ -125,7 +123,8 @@
         "latest": "2026-10-23T13:15:58.000Z",
         "checkedAt": "2026-10-25T05:49:12.344Z",
         "method": "GEOHOT guarded collector"
-      }
+      },
+      "_excludedReason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)"
     },
     {
       "id": "jr-doj-nordia-journal",
@@ -156,7 +155,8 @@
         "latest": "2026-10-04T21:00:00.000Z",
         "checkedAt": "2026-10-25T05:49:14.866Z",
         "method": "GEOHOT guarded collector"
-      }
+      },
+      "_excludedReason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)"
     },
     {
       "id": "jr-sage-environment-behavior",
@@ -187,7 +187,8 @@
         "latest": "2026-10-12T07:07:42.000Z",
         "checkedAt": "2026-10-25T05:49:13.756Z",
         "method": "GEOHOT guarded collector"
-      }
+      },
+      "_excludedReason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)"
     },
     {
       "id": "jr-sage-environment-planning-a",
@@ -218,7 +219,8 @@
         "latest": "2026-10-14T07:43:59.000Z",
         "checkedAt": "2026-10-25T05:49:13.824Z",
         "method": "GEOHOT guarded collector"
-      }
+      },
+      "_excludedReason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)"
     },
     {
       "id": "jr-sage-environmental-values",
@@ -249,7 +251,8 @@
         "latest": "2026-09-28T03:15:28.000Z",
         "checkedAt": "2026-10-25T05:49:13.874Z",
         "method": "GEOHOT guarded collector"
-      }
+      },
+      "_excludedReason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)"
     },
     {
       "id": "jr-sage-epc",
@@ -280,7 +283,8 @@
         "latest": "2026-10-22T05:19:32.000Z",
         "checkedAt": "2026-10-25T05:49:13.980Z",
         "method": "GEOHOT guarded collector"
-      }
+      },
+      "_excludedReason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)"
     },
     {
       "id": "jr-sage-epd",
@@ -311,7 +315,8 @@
         "latest": "2026-10-19T02:54:41.000Z",
         "checkedAt": "2026-10-25T05:49:14.061Z",
         "method": "GEOHOT guarded collector"
-      }
+      },
+      "_excludedReason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)"
     },
     {
       "id": "jr-tf-polar-geography",
@@ -342,7 +347,8 @@
         "latest": "2026-10-16T03:50:41.000Z",
         "checkedAt": "2026-10-25T05:49:14.268Z",
         "method": "GEOHOT guarded collector"
-      }
+      },
+      "_excludedReason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)"
     },
     {
       "id": "jr-tf-polar-journal",
@@ -373,7 +379,8 @@
         "latest": "2026-10-14T05:27:29.000Z",
         "checkedAt": "2026-10-25T05:49:14.509Z",
         "method": "GEOHOT guarded collector"
-      }
+      },
+      "_excludedReason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)"
     },
     {
       "id": "jr-tf-scottish-geographical-journal",
@@ -404,7 +411,8 @@
         "latest": "2026-10-21T08:03:41.000Z",
         "checkedAt": "2026-10-25T05:49:14.724Z",
         "method": "GEOHOT guarded collector"
-      }
+      },
+      "_excludedReason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)"
     },
     {
       "id": "jr-tf-south-african-geographical-journal",
@@ -435,7 +443,8 @@
         "latest": "2026-10-23T01:35:37.000Z",
         "checkedAt": "2026-10-25T05:49:15.136Z",
         "method": "GEOHOT guarded collector"
-      }
+      },
+      "_excludedReason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)"
     },
     {
       "id": "jr-tf-water-intl-rwin",
@@ -466,7 +475,8 @@
         "latest": "2026-10-07T10:25:51.000Z",
         "checkedAt": "2026-10-25T05:49:15.047Z",
         "method": "GEOHOT guarded collector"
-      }
+      },
+      "_excludedReason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)"
     },
     {
       "id": "no-met-no-alerts-moreogromsdal",
@@ -498,7 +508,8 @@
         "latest": "2026-10-24T10:13:42.000Z",
         "checkedAt": "2026-10-25T05:49:16.417Z",
         "method": "GEOHOT guarded collector"
-      }
+      },
+      "_excludedReason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)"
     },
     {
       "id": "no-met-no-alerts-national",
@@ -529,7 +540,8 @@
         "latest": "2026-10-24T21:40:42.000Z",
         "checkedAt": "2026-10-25T05:49:16.462Z",
         "method": "GEOHOT guarded collector"
-      }
+      },
+      "_excludedReason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)"
     },
     {
       "id": "no-met-no-alerts-rogaland",
@@ -561,7 +573,8 @@
         "latest": "2026-10-23T12:04:12.000Z",
         "checkedAt": "2026-10-25T05:49:17.045Z",
         "method": "GEOHOT guarded collector"
-      }
+      },
+      "_excludedReason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)"
     },
     {
       "id": "rss-agu-newsroom",
@@ -592,7 +605,8 @@
         "latest": "2026-10-22T22:17:22.000Z",
         "checkedAt": "2026-10-25T05:49:16.929Z",
         "method": "GEOHOT guarded collector"
-      }
+      },
+      "_excludedReason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)"
     },
     {
       "id": "rss-ars-usda-gov-rss",
@@ -614,13 +628,9 @@
       "interval_minutes": 720,
       "priority": 80,
       "validation": {
-        "id": "rss-ars-usda-gov-rss",
         "ok": true,
-        "url": "https://www.ars.usda.gov/rss/",
-        "items": 20,
-        "latest": "2026-10-14T17:39:27.000Z",
-        "checkedAt": "2026-10-25T05:49:18.568Z",
-        "method": "GEOHOT guarded collector"
+        "checkedAt": "2026-11-16T13:57:20.869Z",
+        "items": 20
       }
     },
     {
@@ -665,7 +675,8 @@
         "latest": "2026-10-20T00:00:00.000Z",
         "checkedAt": "2026-10-25T05:49:18.725Z",
         "method": "GEOHOT guarded collector"
-      }
+      },
+      "_excludedReason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)"
     },
     {
       "id": "rss-carbon-pulse",
@@ -688,13 +699,9 @@
       "interval_minutes": 720,
       "priority": 80,
       "validation": {
-        "id": "rss-carbon-pulse",
         "ok": true,
-        "url": "https://carbon-pulse.com/feed/",
-        "items": 10,
-        "latest": "2026-10-24T16:46:55.000Z",
-        "checkedAt": "2026-10-25T05:49:20.754Z",
-        "method": "GEOHOT guarded collector"
+        "checkedAt": "2026-11-16T13:57:20.869Z",
+        "items": 10
       }
     },
     {
@@ -795,7 +802,8 @@
         "latest": "2026-10-01T00:00:00.000Z",
         "checkedAt": "2026-10-25T05:49:20.750Z",
         "method": "GEOHOT guarded collector"
-      }
+      },
+      "_excludedReason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)"
     },
     {
       "id": "rss-copernicus-atmosphere",
@@ -827,7 +835,8 @@
         "latest": "2026-10-06T15:03:07.000Z",
         "checkedAt": "2026-10-25T05:49:22.746Z",
         "method": "GEOHOT guarded collector"
-      }
+      },
+      "_excludedReason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)"
     },
     {
       "id": "rss-copernicus-ica-abs",
@@ -872,7 +881,8 @@
         "latest": "2026-09-09T20:22:39.000Z",
         "checkedAt": "2026-10-25T05:49:22.046Z",
         "method": "GEOHOT guarded collector"
-      }
+      },
+      "_excludedReason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)"
     },
     {
       "id": "rss-cybergeo",
@@ -917,7 +927,8 @@
         "latest": "2026-10-16T00:00:00.000Z",
         "checkedAt": "2026-10-25T05:49:22.543Z",
         "method": "GEOHOT guarded collector"
-      }
+      },
+      "_excludedReason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)"
     },
     {
       "id": "rss-dialogue-earth-en-feed",
@@ -939,13 +950,9 @@
       "interval_minutes": 360,
       "priority": 80,
       "validation": {
-        "id": "rss-dialogue-earth-en-feed",
         "ok": true,
-        "url": "https://dialogue.earth/en/feed/",
-        "items": 10,
-        "latest": "2026-10-23T15:54:48.000Z",
-        "checkedAt": "2026-10-25T05:49:22.726Z",
-        "method": "GEOHOT guarded collector"
+        "checkedAt": "2026-11-16T13:57:20.869Z",
+        "items": 10
       }
     },
     {
@@ -969,13 +976,9 @@
       "interval_minutes": 720,
       "priority": 80,
       "validation": {
-        "id": "rss-earthquake-usgs-gov-earthquakes-feed-v1-0-summary-significan",
         "ok": true,
-        "url": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/significant_month.atom",
-        "items": 21,
-        "latest": "2026-10-25T04:13:59.000Z",
-        "checkedAt": "2026-10-25T05:49:23.233Z",
-        "method": "GEOHOT guarded collector"
+        "checkedAt": "2026-11-16T13:57:20.869Z",
+        "items": 6
       }
     },
     {
@@ -1026,13 +1029,9 @@
       "interval_minutes": 360,
       "priority": 80,
       "validation": {
-        "id": "rss-elmundo-es-rss-ciencia-xml",
         "ok": true,
-        "url": "https://www.elmundo.es/rss/ciencia.xml",
-        "items": 49,
-        "latest": "2026-10-23T20:50:14.000Z",
-        "checkedAt": "2026-10-25T05:49:24.077Z",
-        "method": "GEOHOT guarded collector"
+        "checkedAt": "2026-11-16T13:57:20.869Z",
+        "items": 53
       }
     },
     {
@@ -1063,7 +1062,8 @@
         "latest": "2026-09-16T09:00:00.000Z",
         "checkedAt": "2026-10-25T05:49:26.177Z",
         "method": "GEOHOT guarded collector"
-      }
+      },
+      "_excludedReason": "reverify-http_404: non-200"
     },
     {
       "id": "rss-france24-com-en-environment-rss",
@@ -1085,13 +1085,9 @@
       "interval_minutes": 360,
       "priority": 80,
       "validation": {
-        "id": "rss-france24-com-en-environment-rss",
         "ok": true,
-        "url": "https://www.france24.com/en/environment/rss",
-        "items": 30,
-        "latest": "2026-10-21T15:56:42.000Z",
-        "checkedAt": "2026-10-25T05:49:24.356Z",
-        "method": "GEOHOT guarded collector"
+        "checkedAt": "2026-11-16T13:57:20.869Z",
+        "items": 30
       }
     },
     {
@@ -1121,7 +1117,8 @@
         "latest": "2026-10-14T17:17:54.000Z",
         "checkedAt": "2026-10-25T05:49:26.325Z",
         "method": "GEOHOT guarded collector"
-      }
+      },
+      "_excludedReason": "reverify-robots_unreachable: HTTP 403"
     },
     {
       "id": "rss-grist-org-energy-feed",
@@ -1143,13 +1140,9 @@
       "interval_minutes": 360,
       "priority": 80,
       "validation": {
-        "id": "rss-grist-org-energy-feed",
         "ok": true,
-        "url": "https://grist.org/energy/feed/",
-        "items": 20,
-        "latest": "2026-10-22T08:45:00.000Z",
-        "checkedAt": "2026-10-25T05:49:26.774Z",
-        "method": "GEOHOT guarded collector"
+        "checkedAt": "2026-11-16T13:57:20.869Z",
+        "items": 20
       }
     },
     {
@@ -1172,13 +1165,9 @@
       "interval_minutes": 360,
       "priority": 80,
       "validation": {
-        "id": "rss-grist-org-justice-feed",
         "ok": true,
-        "url": "https://grist.org/justice/feed/",
-        "items": 20,
-        "latest": "2026-10-08T08:30:00.000Z",
-        "checkedAt": "2026-10-25T05:49:27.042Z",
-        "method": "GEOHOT guarded collector"
+        "checkedAt": "2026-11-16T13:57:20.869Z",
+        "items": 20
       }
     },
     {
@@ -1201,13 +1190,9 @@
       "interval_minutes": 360,
       "priority": 80,
       "validation": {
-        "id": "rss-grist-org-science-feed",
         "ok": true,
-        "url": "https://grist.org/science/feed/",
-        "items": 20,
-        "latest": "2026-10-23T18:53:14.000Z",
-        "checkedAt": "2026-10-25T05:49:27.195Z",
-        "method": "GEOHOT guarded collector"
+        "checkedAt": "2026-11-16T13:57:20.869Z",
+        "items": 20
       }
     },
     {
@@ -1243,7 +1228,8 @@
         "latest": "2026-10-23T22:18:00.000Z",
         "checkedAt": "2026-10-25T05:49:27.389Z",
         "method": "GEOHOT guarded collector"
-      }
+      },
+      "_excludedReason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)"
     },
     {
       "id": "rss-ijgis-toc",
@@ -1284,7 +1270,8 @@
         "latest": "2026-10-16T06:52:15.000Z",
         "checkedAt": "2026-10-25T05:49:27.719Z",
         "method": "GEOHOT guarded collector"
-      }
+      },
+      "_excludedReason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)"
     },
     {
       "id": "rss-imago-mundi",
@@ -1315,7 +1302,8 @@
         "latest": "2026-09-16T09:41:53.000Z",
         "checkedAt": "2026-10-25T05:49:28.110Z",
         "method": "GEOHOT guarded collector"
-      }
+      },
+      "_excludedReason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)"
     },
     {
       "id": "rss-informea-org-rss-xml",
@@ -1376,7 +1364,8 @@
         "latest": "2026-10-16T09:38:36.000Z",
         "checkedAt": "2026-10-25T05:49:28.770Z",
         "method": "GEOHOT guarded collector"
-      }
+      },
+      "_excludedReason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)"
     },
     {
       "id": "rss-lowy-interpreter",
@@ -1407,7 +1396,8 @@
         "latest": "2026-10-22T13:00:00.000Z",
         "checkedAt": "2026-10-25T05:49:28.980Z",
         "method": "GEOHOT guarded collector"
-      }
+      },
+      "_excludedReason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)"
     },
     {
       "id": "rss-nature-com-natrevearthenviron-rss",
@@ -1430,13 +1420,9 @@
       "interval_minutes": 1440,
       "priority": 80,
       "validation": {
-        "id": "rss-nature-com-natrevearthenviron-rss",
         "ok": true,
-        "url": "https://www.nature.com/natrevearthenviron.rss",
-        "items": 8,
-        "latest": "2026-10-13T00:00:00.000Z",
-        "checkedAt": "2026-10-25T05:49:29.003Z",
-        "method": "GEOHOT guarded collector"
+        "checkedAt": "2026-11-16T13:57:20.869Z",
+        "items": 8
       }
     },
     {
@@ -1460,13 +1446,9 @@
       "interval_minutes": 1440,
       "priority": 80,
       "validation": {
-        "id": "rss-nature-com-subjects-anthropology-rss",
         "ok": true,
-        "url": "https://www.nature.com/subjects/anthropology.rss",
-        "items": 30,
-        "latest": "2026-10-24T00:00:00.000Z",
-        "checkedAt": "2026-10-25T05:49:29.336Z",
-        "method": "GEOHOT guarded collector"
+        "checkedAt": "2026-11-16T13:57:20.869Z",
+        "items": 30
       }
     },
     {
@@ -1490,13 +1472,9 @@
       "interval_minutes": 1440,
       "priority": 80,
       "validation": {
-        "id": "rss-nature-com-subjects-carbon-cycle-rss",
         "ok": true,
-        "url": "https://www.nature.com/subjects/carbon-cycle.rss",
-        "items": 30,
-        "latest": "2026-10-24T00:00:00.000Z",
-        "checkedAt": "2026-10-25T05:49:29.659Z",
-        "method": "GEOHOT guarded collector"
+        "checkedAt": "2026-11-16T13:57:20.869Z",
+        "items": 30
       }
     },
     {
@@ -1520,13 +1498,9 @@
       "interval_minutes": 1440,
       "priority": 80,
       "validation": {
-        "id": "rss-nature-com-subjects-coral-reefs-rss",
         "ok": true,
-        "url": "https://www.nature.com/subjects/coral-reefs.rss",
-        "items": 30,
-        "latest": "2026-05-02T00:00:00.000Z",
-        "checkedAt": "2026-10-25T05:49:29.764Z",
-        "method": "GEOHOT guarded collector"
+        "checkedAt": "2026-11-16T13:57:20.869Z",
+        "items": 30
       }
     },
     {
@@ -1550,13 +1524,9 @@
       "interval_minutes": 1440,
       "priority": 80,
       "validation": {
-        "id": "rss-nature-com-subjects-cryospheric-science-rss",
         "ok": true,
-        "url": "https://www.nature.com/subjects/cryospheric-science.rss",
-        "items": 30,
-        "latest": "2026-10-23T00:00:00.000Z",
-        "checkedAt": "2026-10-25T05:49:30.102Z",
-        "method": "GEOHOT guarded collector"
+        "checkedAt": "2026-11-16T13:57:20.869Z",
+        "items": 30
       }
     },
     {
@@ -1580,13 +1550,9 @@
       "interval_minutes": 1440,
       "priority": 80,
       "validation": {
-        "id": "rss-nature-com-subjects-palaeontology-rss",
         "ok": true,
-        "url": "https://www.nature.com/subjects/palaeontology.rss",
-        "items": 30,
-        "latest": "2026-10-21T00:00:00.000Z",
-        "checkedAt": "2026-10-25T05:49:29.900Z",
-        "method": "GEOHOT guarded collector"
+        "checkedAt": "2026-11-16T13:57:20.869Z",
+        "items": 30
       }
     },
     {
@@ -1610,13 +1576,9 @@
       "interval_minutes": 1440,
       "priority": 80,
       "validation": {
-        "id": "rss-nature-com-subjects-planetary-science-rss",
         "ok": true,
-        "url": "https://www.nature.com/subjects/planetary-science.rss",
-        "items": 30,
-        "latest": "2026-10-23T00:00:00.000Z",
-        "checkedAt": "2026-10-25T05:49:29.910Z",
-        "method": "GEOHOT guarded collector"
+        "checkedAt": "2026-11-16T13:57:20.869Z",
+        "items": 30
       }
     },
     {
@@ -1650,7 +1612,8 @@
         "latest": "2026-10-22T16:55:09.000Z",
         "checkedAt": "2026-10-25T05:49:34.418Z",
         "method": "GEOHOT guarded collector"
-      }
+      },
+      "_excludedReason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)"
     },
     {
       "id": "rss-nzgs-nz-geographer-toc",
@@ -1696,7 +1659,8 @@
         "latest": "2026-10-22T01:14:07.000Z",
         "checkedAt": "2026-10-25T05:49:30.143Z",
         "method": "GEOHOT guarded collector"
-      }
+      },
+      "_excludedReason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)"
     },
     {
       "id": "rss-oe-echogeo",
@@ -1728,7 +1692,8 @@
         "latest": "2026-10-08T00:00:00.000Z",
         "checkedAt": "2026-10-25T05:49:31.303Z",
         "method": "GEOHOT guarded collector"
-      }
+      },
+      "_excludedReason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)"
     },
     {
       "id": "rss-oe-gc",
@@ -1760,7 +1725,8 @@
         "latest": "2026-10-23T00:00:00.000Z",
         "checkedAt": "2026-10-25T05:49:31.746Z",
         "method": "GEOHOT guarded collector"
-      }
+      },
+      "_excludedReason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)"
     },
     {
       "id": "rss-oe-tem",
@@ -1792,7 +1758,8 @@
         "latest": "2026-10-22T00:00:00.000Z",
         "checkedAt": "2026-10-25T05:49:32.190Z",
         "method": "GEOHOT guarded collector"
-      }
+      },
+      "_excludedReason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)"
     },
     {
       "id": "rss-phys-org-climate",
@@ -1815,13 +1782,9 @@
       "interval_minutes": 360,
       "priority": 80,
       "validation": {
-        "id": "rss-phys-org-climate",
         "ok": true,
-        "url": "https://phys.org/rss-feed/earth-news/climate/",
-        "items": 30,
-        "latest": "2026-10-24T13:00:01.000Z",
-        "checkedAt": "2026-10-25T05:49:32.656Z",
-        "method": "GEOHOT guarded collector"
+        "checkedAt": "2026-11-16T13:57:20.869Z",
+        "items": 30
       }
     },
     {
@@ -1844,13 +1807,9 @@
       "interval_minutes": 360,
       "priority": 80,
       "validation": {
-        "id": "rss-phys-org-rss-feed-earth-news-earth-sciences",
         "ok": true,
-        "url": "https://phys.org/rss-feed/earth-news/earth-sciences/",
-        "items": 30,
-        "latest": "2026-10-24T13:00:01.000Z",
-        "checkedAt": "2026-10-25T05:49:32.802Z",
-        "method": "GEOHOT guarded collector"
+        "checkedAt": "2026-11-16T13:57:20.869Z",
+        "items": 30
       }
     },
     {
@@ -1873,13 +1832,9 @@
       "interval_minutes": 360,
       "priority": 80,
       "validation": {
-        "id": "rss-phys-org-rss-feed-earth-news-environment",
         "ok": true,
-        "url": "https://phys.org/rss-feed/earth-news/environment/",
-        "items": 30,
-        "latest": "2026-10-24T13:00:01.000Z",
-        "checkedAt": "2026-10-25T05:49:32.950Z",
-        "method": "GEOHOT guarded collector"
+        "checkedAt": "2026-11-16T13:57:20.869Z",
+        "items": 30
       }
     },
     {
@@ -1902,13 +1857,9 @@
       "interval_minutes": 360,
       "priority": 80,
       "validation": {
-        "id": "rss-phys-org-rss-feed-space-news",
         "ok": true,
-        "url": "https://phys.org/rss-feed/space-news/",
-        "items": 30,
-        "latest": "2026-10-24T18:00:01.000Z",
-        "checkedAt": "2026-10-25T05:49:33.096Z",
-        "method": "GEOHOT guarded collector"
+        "checkedAt": "2026-11-16T13:57:20.869Z",
+        "items": 30
       }
     },
     {
@@ -1953,7 +1904,8 @@
         "latest": "2026-10-20T07:00:00.000Z",
         "checkedAt": "2026-10-25T05:49:33.272Z",
         "method": "GEOHOT guarded collector"
-      }
+      },
+      "_excludedReason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)"
     },
     {
       "id": "rss-preventionweb",
@@ -1976,13 +1928,9 @@
       "interval_minutes": 720,
       "priority": 80,
       "validation": {
-        "id": "rss-preventionweb",
         "ok": true,
-        "url": "https://www.preventionweb.net/rss.xml",
-        "items": 40,
-        "latest": "2026-10-23T15:09:29.000Z",
-        "checkedAt": "2026-10-25T05:49:33.603Z",
-        "method": "GEOHOT guarded collector"
+        "checkedAt": "2026-11-16T13:57:20.869Z",
+        "items": 40
       }
     },
     {
@@ -2012,7 +1960,8 @@
         "latest": "2026-05-15T23:00:00.000Z",
         "checkedAt": "2026-10-25T05:49:33.959Z",
         "method": "GEOHOT guarded collector"
-      }
+      },
+      "_excludedReason": "reverify-http_200: only 1 items (<5)"
     },
     {
       "id": "rss-rga",
@@ -2055,7 +2004,8 @@
         "latest": "2026-09-17T00:00:00.000Z",
         "checkedAt": "2026-10-25T05:49:34.399Z",
         "method": "GEOHOT guarded collector"
-      }
+      },
+      "_excludedReason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)"
     },
     {
       "id": "rss-rss-nytimes-com-services-xml-rss-nyt-climate-xml",
@@ -2077,13 +2027,9 @@
       "interval_minutes": 360,
       "priority": 80,
       "validation": {
-        "id": "rss-rss-nytimes-com-services-xml-rss-nyt-climate-xml",
         "ok": true,
-        "url": "https://rss.nytimes.com/services/xml/rss/nyt/Climate.xml",
-        "items": 37,
-        "latest": "2026-10-25T01:12:45.000Z",
-        "checkedAt": "2026-10-25T05:49:35.207Z",
-        "method": "GEOHOT guarded collector"
+        "checkedAt": "2026-11-16T13:57:20.869Z",
+        "items": 40
       }
     },
     {
@@ -2115,7 +2061,8 @@
         "latest": "2026-10-23T04:55:00.000Z",
         "checkedAt": "2026-10-25T05:49:34.885Z",
         "method": "GEOHOT guarded collector"
-      }
+      },
+      "_excludedReason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)"
     },
     {
       "id": "rss-sciencedaily-climate",
@@ -2170,13 +2117,9 @@
       "interval_minutes": 360,
       "priority": 80,
       "validation": {
-        "id": "rss-sciencedaily-com-rss-matter-energy-xml",
         "ok": true,
-        "url": "https://www.sciencedaily.com/rss/matter_energy.xml",
-        "items": 60,
-        "latest": "2026-10-23T10:22:55.000Z",
-        "checkedAt": "2026-10-25T05:49:36.255Z",
-        "method": "GEOHOT guarded collector"
+        "checkedAt": "2026-11-16T13:57:20.869Z",
+        "items": 60
       }
     },
     {
@@ -2199,13 +2142,9 @@
       "interval_minutes": 360,
       "priority": 80,
       "validation": {
-        "id": "rss-sciencedaily-com-rss-mind-brain-xml",
         "ok": true,
-        "url": "https://www.sciencedaily.com/rss/mind_brain.xml",
-        "items": 60,
-        "latest": "2026-10-24T00:48:21.000Z",
-        "checkedAt": "2026-10-25T05:49:36.444Z",
-        "method": "GEOHOT guarded collector"
+        "checkedAt": "2026-11-16T13:57:20.869Z",
+        "items": 60
       }
     },
     {
@@ -2228,13 +2167,9 @@
       "interval_minutes": 360,
       "priority": 80,
       "validation": {
-        "id": "rss-sciencedaily-com-rss-plants-animals-xml",
         "ok": true,
-        "url": "https://www.sciencedaily.com/rss/plants_animals.xml",
-        "items": 60,
-        "latest": "2026-10-24T12:39:16.000Z",
-        "checkedAt": "2026-10-25T05:49:36.801Z",
-        "method": "GEOHOT guarded collector"
+        "checkedAt": "2026-11-16T13:57:20.869Z",
+        "items": 60
       }
     },
     {
@@ -2257,13 +2192,9 @@
       "interval_minutes": 360,
       "priority": 80,
       "validation": {
-        "id": "rss-sciencedaily-com-rss-strange-offbeat-xml",
         "ok": true,
-        "url": "https://www.sciencedaily.com/rss/strange_offbeat.xml",
-        "items": 60,
-        "latest": "2026-10-24T13:15:00.000Z",
-        "checkedAt": "2026-10-25T05:49:36.969Z",
-        "method": "GEOHOT guarded collector"
+        "checkedAt": "2026-11-16T13:57:20.869Z",
+        "items": 60
       }
     },
     {
@@ -2969,7 +2900,8 @@
         "latest": "2026-10-23T03:00:00.000Z",
         "checkedAt": "2026-10-25T05:49:46.760Z",
         "method": "GEOHOT guarded collector"
-      }
+      },
+      "_excludedReason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)"
     },
     {
       "id": "rss-yaleclimateconnections-org-feed",
@@ -3028,7 +2960,8 @@
         "latest": "2026-09-23T16:00:00.000Z",
         "checkedAt": "2026-10-25T05:49:43.900Z",
         "method": "GEOHOT guarded collector"
-      }
+      },
+      "_excludedReason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)"
     },
     {
       "id": "us-nasa-iotd",
@@ -3059,7 +2992,8 @@
         "latest": "2026-10-23T18:59:00.000Z",
         "checkedAt": "2026-10-25T05:49:43.964Z",
         "method": "GEOHOT guarded collector"
-      }
+      },
+      "_excludedReason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)"
     },
     {
       "id": "us-usgs-eq-all-day",
@@ -3090,7 +3024,8 @@
         "latest": "2026-10-25T05:47:28.000Z",
         "checkedAt": "2026-10-25T05:49:44.468Z",
         "method": "GEOHOT guarded collector"
-      }
+      },
+      "_excludedReason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)"
     },
     {
       "id": "us-usgs-eq-m25-week",
@@ -3121,7 +3056,8 @@
         "latest": "2026-10-25T05:42:22.000Z",
         "checkedAt": "2026-10-25T05:49:44.787Z",
         "method": "GEOHOT guarded collector"
-      }
+      },
+      "_excludedReason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)"
     },
     {
       "id": "reserve-crossref-2072-4292",
@@ -14167,6 +14103,242 @@
         "abstracts": 0,
         "method": "GEOHOT guarded collector"
       }
+    },
+    {
+      "id": "int-nasa-breaking",
+      "name": "NASA · 突发新闻",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.nasa.gov/rss/dyn/breaking_news.rss",
+        "allowUrlPrefixes": [
+          "https://www.nasa.gov/"
+        ]
+      },
+      "tier": "T1",
+      "first_party": true,
+      "tags": [
+        "官方",
+        "英文",
+        "空间科学",
+        "突发"
+      ],
+      "default_category": "physical",
+      "interval_minutes": 120,
+      "priority": 98,
+      "validation": {
+        "ok": true,
+        "checkedAt": "2026-11-16T17:28:10.150Z",
+        "items": 20,
+        "fulltext_available": true,
+        "robots_ok": true
+      }
+    }
+  ],
+  "excluded": [
+    {
+      "id": "intl-crisisgroup",
+      "reason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)",
+      "excludedAt": "2026-11-16T13:35:51.178Z"
+    },
+    {
+      "id": "intl-qgis-releases",
+      "reason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)",
+      "excludedAt": "2026-11-16T13:35:51.178Z"
+    },
+    {
+      "id": "intl-worldpoliticsreview",
+      "reason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)",
+      "excludedAt": "2026-11-16T13:35:51.178Z"
+    },
+    {
+      "id": "jr-doj-nordia-journal",
+      "reason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)",
+      "excludedAt": "2026-11-16T13:35:51.178Z"
+    },
+    {
+      "id": "jr-sage-environment-behavior",
+      "reason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)",
+      "excludedAt": "2026-11-16T13:35:51.178Z"
+    },
+    {
+      "id": "jr-sage-environment-planning-a",
+      "reason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)",
+      "excludedAt": "2026-11-16T13:35:51.178Z"
+    },
+    {
+      "id": "jr-sage-environmental-values",
+      "reason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)",
+      "excludedAt": "2026-11-16T13:35:51.178Z"
+    },
+    {
+      "id": "jr-sage-epc",
+      "reason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)",
+      "excludedAt": "2026-11-16T13:35:51.178Z"
+    },
+    {
+      "id": "jr-sage-epd",
+      "reason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)",
+      "excludedAt": "2026-11-16T13:35:51.178Z"
+    },
+    {
+      "id": "jr-tf-polar-geography",
+      "reason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)",
+      "excludedAt": "2026-11-16T13:35:51.178Z"
+    },
+    {
+      "id": "jr-tf-polar-journal",
+      "reason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)",
+      "excludedAt": "2026-11-16T13:35:51.178Z"
+    },
+    {
+      "id": "jr-tf-scottish-geographical-journal",
+      "reason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)",
+      "excludedAt": "2026-11-16T13:35:51.178Z"
+    },
+    {
+      "id": "jr-tf-south-african-geographical-journal",
+      "reason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)",
+      "excludedAt": "2026-11-16T13:35:51.178Z"
+    },
+    {
+      "id": "jr-tf-water-intl-rwin",
+      "reason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)",
+      "excludedAt": "2026-11-16T13:35:51.178Z"
+    },
+    {
+      "id": "no-met-no-alerts-moreogromsdal",
+      "reason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)",
+      "excludedAt": "2026-11-16T13:35:51.178Z"
+    },
+    {
+      "id": "no-met-no-alerts-national",
+      "reason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)",
+      "excludedAt": "2026-11-16T13:35:51.178Z"
+    },
+    {
+      "id": "no-met-no-alerts-rogaland",
+      "reason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)",
+      "excludedAt": "2026-11-16T13:35:51.178Z"
+    },
+    {
+      "id": "rss-agu-newsroom",
+      "reason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)",
+      "excludedAt": "2026-11-16T13:35:51.178Z"
+    },
+    {
+      "id": "rss-belgeo",
+      "reason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)",
+      "excludedAt": "2026-11-16T13:35:51.178Z"
+    },
+    {
+      "id": "rss-confins",
+      "reason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)",
+      "excludedAt": "2026-11-16T13:35:51.178Z"
+    },
+    {
+      "id": "rss-copernicus-atmosphere",
+      "reason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)",
+      "excludedAt": "2026-11-16T13:35:51.178Z"
+    },
+    {
+      "id": "rss-copernicus-ica-abs",
+      "reason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)",
+      "excludedAt": "2026-11-16T13:35:51.178Z"
+    },
+    {
+      "id": "rss-cybergeo",
+      "reason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)",
+      "excludedAt": "2026-11-16T13:35:51.178Z"
+    },
+    {
+      "id": "rss-ifrc-news",
+      "reason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)",
+      "excludedAt": "2026-11-16T13:35:51.178Z"
+    },
+    {
+      "id": "rss-ijgis-toc",
+      "reason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)",
+      "excludedAt": "2026-11-16T13:35:51.178Z"
+    },
+    {
+      "id": "rss-imago-mundi",
+      "reason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)",
+      "excludedAt": "2026-11-16T13:35:51.178Z"
+    },
+    {
+      "id": "rss-ipbes-news",
+      "reason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)",
+      "excludedAt": "2026-11-16T13:35:51.178Z"
+    },
+    {
+      "id": "rss-lowy-interpreter",
+      "reason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)",
+      "excludedAt": "2026-11-16T13:35:51.178Z"
+    },
+    {
+      "id": "rss-nrcan-quakes",
+      "reason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)",
+      "excludedAt": "2026-11-16T13:35:51.178Z"
+    },
+    {
+      "id": "rss-nzgs-nz-geographer-toc",
+      "reason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)",
+      "excludedAt": "2026-11-16T13:35:51.178Z"
+    },
+    {
+      "id": "rss-oe-echogeo",
+      "reason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)",
+      "excludedAt": "2026-11-16T13:35:51.178Z"
+    },
+    {
+      "id": "rss-oe-gc",
+      "reason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)",
+      "excludedAt": "2026-11-16T13:35:51.178Z"
+    },
+    {
+      "id": "rss-oe-tem",
+      "reason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)",
+      "excludedAt": "2026-11-16T13:35:51.178Z"
+    },
+    {
+      "id": "rss-pnas-toc",
+      "reason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)",
+      "excludedAt": "2026-11-16T13:35:51.178Z"
+    },
+    {
+      "id": "rss-rga",
+      "reason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)",
+      "excludedAt": "2026-11-16T13:35:51.178Z"
+    },
+    {
+      "id": "rss-science-news",
+      "reason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)",
+      "excludedAt": "2026-11-16T13:35:51.178Z"
+    },
+    {
+      "id": "rss-usp-geografia",
+      "reason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)",
+      "excludedAt": "2026-11-16T13:35:51.178Z"
+    },
+    {
+      "id": "uni-tropmet",
+      "reason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)",
+      "excludedAt": "2026-11-16T13:35:51.178Z"
+    },
+    {
+      "id": "us-nasa-iotd",
+      "reason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)",
+      "excludedAt": "2026-11-16T13:35:51.178Z"
+    },
+    {
+      "id": "us-usgs-eq-all-day",
+      "reason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)",
+      "excludedAt": "2026-11-16T13:35:51.178Z"
+    },
+    {
+      "id": "us-usgs-eq-m25-week",
+      "reason": "duplicate-of-active-source (2026-11-16 preflight: id already enabled in sources.json)",
+      "excludedAt": "2026-11-16T13:35:51.178Z"
     }
   ]
 }

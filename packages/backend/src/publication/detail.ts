@@ -27,6 +27,8 @@ interface DetailRow extends ItemRow {
   media: unknown;
   workflow_ready: boolean;
   source_fulltext: boolean;
+  /** Set when the not-ready verdict comes from a body-quality defect (pipeline settled, body dirty). */
+  body_quality_status: string | null;
 }
 
 export type DetailResult =
@@ -80,8 +82,10 @@ async function loadRow(id: string, preparingMedia = false): Promise<DetailRow | 
   const [row] = await sql<DetailRow[]>`
     SELECT ${ITEM_COLUMNS}, ${preparingMedia ? sql`true` : workflowReadyCondition()} AS workflow_ready,
       s.site_fulltext AS source_fulltext,
-      a.revision AS article_revision, a.media AS preparation_media, tr.revision AS tr_revision, a.body_html, a.body_text, a.body_status, tr.body_html AS tr_html, tr.complete AS tr_complete
+      a.revision AS article_revision, a.media AS preparation_media, tr.revision AS tr_revision, a.body_html, a.body_text, a.body_status, tr.body_html AS tr_html, tr.complete AS tr_complete,
+      r.body_quality_status
     ${ITEM_FROM}
+      LEFT JOIN article_workflow_readiness r ON r.article_id = p.article_id
     WHERE p.article_id = ${id} ${preparingMedia ? sql`` : sql`AND ${pageGate(new Date())}`}`;
   return row ?? null;
 }
@@ -129,7 +133,15 @@ async function buildItemDetail(id: string, now: Date, preparingMedia: boolean): 
   // and an empty shell is worse than a 404.
   if (isLabelOnlyCopy(row.title) || isLabelOnlyCopy(row.summary)) return { kind: "not_found" };
   if (!row.workflow_ready) {
-    if (row.source_fulltext || !hasChineseCopy(row.title) || !row.summary?.trim()) return { kind: "not_found" };
+    const canLead = hasChineseCopy(row.title) && !!row.summary?.trim();
+    if (!canLead) return { kind: "not_found" };
+    const bodyDirty = row.body_quality_status === "defect";
+    // Full-text licence but the pipeline has not settled (analysis/translation pending) stays 404:
+    // extraction is not confirmed, the material only lives in the back office.
+    // A body-quality defect (pipeline settled, body is consent-wall / template-shell / too-short / …)
+    // opens the safe-lead restricted page instead: title + summary + source + original link, never the
+    // dirty body, never an error page. This is the 2026-11-16 hotfix grade.
+    if (row.source_fulltext && !bodyDirty) return { kind: "not_found" };
     const detail: ItemDetail = {
       ...summary,
       reason: null,

@@ -126,6 +126,52 @@ export function stripTruncatedShellTail(text: string): string {
   return text.replace(TEMPLATE_PLACEHOLDER_TAIL, "").trim();
 }
 
+/**
+ * 阅读器 UI 碎片：国家统计局 style 的页面顶部/工具栏。
+ * 实测 (stats.gov.cn 类)：正文前后夹着
+ *   "2026-11-16 10:30:00 | 字号：【大 中 小】 | 打印 | 关闭"
+ * 还有 "Aa" 字体切换按钮。这些是控件，不是正文。
+ * 只删独立成段/成段边界的片段，不碰正文里提到的时间或字号。
+ */
+const READER_CHROME_SEGMENT =
+  /(?<!\S)\d{4}[-年]\d{1,2}[-月]\d{1,2}日?\s*\d{1,2}[:：]\d{2}(?:[:：]\d{2})?\s*[|｜]\s*字号[：:][^|｜\n]{0,30}/g
+  .source +
+  "|(?<!\\S)[|｜]\\s*(?:打印|关闭|分享|收藏|字体)\\s*[|｜]?(?!\\S)" +
+  "|(?<!\\S)[大中小]\\s*(?=[|｜])" +
+  "|(?<!\\S)Aa\\s*(?=[|｜\\s])";
+const READER_CHROME_RE = new RegExp(READER_CHROME_SEGMENT, "g");
+
+/** 去除阅读器 UI 碎片（时间戳竖线字号按钮等），保留真实正文。 */
+export function stripReaderChrome(text: string): string {
+  if (!text) return "";
+  return text
+    .replace(READER_CHROME_RE, " ")
+    .replace(/[|｜]{2,}/g, " | ")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
+
+/**
+ * Cookie / 隐私同意墙整块。CGTN 实测：正文还没开始，先弹一屏
+ *   "我们使用 Cookie 来改善您的浏览体验... 点击'我同意'即表示您接受... 隐私政策"
+ * 这一整段不是文章内容。只删整段命中，不碰正文中提到 Cookie 的句子。
+ */
+const CONSENT_WALL_BLOCK =
+  /(?:我们|本站|本网站|This\s+site|We)\s*(?:使用|utilize|use)\s*(?:了\s*)?Cookie[^\n]{0,400}(?:我同意|同意并继续|继续浏览即表示您同意|Accept|I\s+Agree|Accept\s+All|同意\s*$)/i;
+
+/** 去除同意墙整块（如果整段就是同意话术）。 */
+export function stripConsentWall(text: string): string {
+  if (!text) return "";
+  // 只在文本前 600 字符内删（同意墙永远在开头）
+  const head = text.slice(0, 600);
+  const cleanedHead = head.replace(CONSENT_WALL_BLOCK, "").trim();
+  if (cleanedHead.length < 20 && head.length > 200) {
+    // 前 600 字符几乎全是同意墙 → 整块去掉
+    return text.slice(600).trim();
+  }
+  return cleanedHead + text.slice(600);
+}
+
 /** 逐行、再按片段删掉页脚/版权话术和页面外壳，保留正文。 */
 export function stripBoilerplate(text: string): string {
   if (!text) return "";

@@ -1,0 +1,23 @@
+[Unit]
+Description=GEOHOT WorkBuddy CN bridge (127.0.0.1:3066)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=geohot
+WorkingDirectory=/home/geohot/geohot
+Environment=NODE_OPTIONS=--max-old-space-size=128
+Environment=WORKBUDDY_VARIANT=workbuddy-ai
+Environment=WORKBUDDY_CREDENTIAL_JSON=/opt/geohot/workbuddy-cn-credential.json
+Environment=WORKBUDDY_CATALOG_FILE=/opt/geohot/workbuddy-cn-catalog.json
+Environment=WORKBUDDY_BRIDGE_PORT=3066
+ExecStart=/usr/local/bin/node --experimental-strip-types tooling/workbuddy-bridge.ts
+Restart=always
+RestartSec=10
+MemoryHigh=100M
+MemoryMax=150M
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

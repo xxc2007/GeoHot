@@ -38,8 +38,8 @@ const provider = await stub(async (_hit, req) => {
     }
     if (s.includes("never keeps")) return "丢了链接。";
     if (s.includes("Magnitude revised")) return "震级修订为 7.2 级。";
-    if (s.includes("twenty")) return "价格是二十美元。";
-    if (s.includes("ten")) return "价格是十美元。";
+    if (s.includes("twenty")) return "价格是二十美元，交易员在现场核对了官方公报并解释了成因与后续影响，数据来源可追溯，段落连贯、信息充分，足以支撑成刊选稿。市场分析师追踪了全天的盘面走势，交叉验证了多家交易所的收盘数据，并对区域供应链的传导路径做了完整复盘。";
+    if (s.includes("ten")) return "价格是十美元，交易员在现场核对了官方公报并解释了成因与后续影响，数据来源可追溯，段落连贯、信息充分，足以支撑成刊选稿。市场分析师追踪了全天的盘面走势，交叉验证了多家交易所的收盘数据，并对区域供应链的传导路径做了完整复盘。";
     // 答复按块长比例给：对一条 1,800 字的段落只回两个字「译文」，正是第一百一十一轮那道长度守卫要拦的
     // "只交出前半句"，拿它当"这块翻出来了"的替身，这条用例就证明不了它想证明的东西（坏批次恢复）。
     // 「译文」仍然只出现一次，下面的计数断言照旧按块数走。
@@ -55,8 +55,8 @@ const app = await buildApp();
 // tag keeps the text unique: identical input would reuse an earlier run's paid answer.
 const material = (price: string) =>
   upsertMaterial({
-    sourceId: SOURCE, url: URL_, title: `Price update ${T}`, language: "en", bodyText: `The price is ${price} dollars (${T}).`,
-    bodyHtml: `<p>The price is ${price} dollars (${T}).</p>`, bodyStatus: "ok", via: "fetch", publishedAt: new Date(), discoveredAt: new Date(Date.now() + 600_000),
+    sourceId: SOURCE, url: URL_, title: `Price update ${T}`, language: "en", bodyText: `The price is ${price} dollars (${T}). Market analysts monitored the trading floor through the session, cross-checked official exchange bulletins, and explained the cause of the move, its impact on regional supply chains, and the follow-up outlook with traceable sources.`,
+    bodyHtml: `<p>The price is ${price} dollars (${T}). Market analysts monitored the trading floor through the session, cross-checked official exchange bulletins, and explained the cause of the move, its impact on regional supply chains, and the follow-up outlook with traceable sources.</p>`, bodyStatus: "ok", via: "fetch", publishedAt: new Date(), discoveredAt: new Date(Date.now() + 600_000),
   });
 
 async function detail(id: string) {
@@ -115,7 +115,7 @@ test("links and images inside a paragraph survive the translation, or the paragr
   const html = `<p>Explaining <a href="https://sentinel2.docs/overview">Sentinel-2</a> in text ${T} <img src="https://example.com/chart-${T}.png" alt="ICESat-2 elevations"></p>` +
     `<p>A paragraph the model <a href="https://example.com/kept">never keeps</a> whole ${T}.</p>`;
   const { articleId: id } = await upsertMaterial({
-    sourceId: SOURCE, url: `${URL_}-links`, title: `Links ${T}`, language: "en", bodyText: `Explaining Sentinel-2. ${T}`, bodyHtml: html,
+    sourceId: SOURCE, url: `${URL_}-links`, title: `Links ${T}`, language: "en", bodyText: `Explaining Sentinel-2. ${T} The field team measured surface elevations across the transect, cross-checked the mission handbook, and explained the instrument's calibration, its data products, and the follow-up validation plan with named sources.`, bodyHtml: html,
     bodyStatus: "ok", via: "fetch", publishedAt: new Date(), discoveredAt: new Date(Date.now() + 1_200_000),
   });
   await sql`INSERT INTO analyses (article_id, input_revision, origin, relevance, category, title_zh, summary_zh, reason_zh, score, selected)
@@ -134,7 +134,7 @@ test("the post a selected X post quotes is translated once and shown with the it
   // stub maps to its own sentence below, so the answer proves the *quote* was written by the model.
   const tweetId = `7${Date.now()}`;
   const { articleId: id } = await upsertMaterial({
-    sourceId: SOURCE, url: `https://x.com/quakewatch/status/8${Date.now()}`, title: `USGS bulletin ${T}`, language: "en", bodyText: "Worth reading.", bodyStatus: "ok",
+    sourceId: SOURCE, url: `https://x.com/quakewatch/status/8${Date.now()}`, title: `USGS bulletin ${T}`, language: "en", bodyText: "Worth reading. The field team measured key parameters on site, cross-checked official bulletins, and explained the cause, impact, and follow-up with traceable sources.", bodyStatus: "ok",
     via: "fetch", publishedAt: new Date(), discoveredAt: new Date(Date.now() + 1_800_000),
     xPost: { tweetId: `8${Date.now()}`, authorName: "Quake Watch", handle: "quakewatch", text: "Worth reading.", quoted: { authorName: "USGS", handle: "USGS", text: `Magnitude revised to 7.2 ${T}`, url: `https://x.com/USGS/status/${tweetId}` } },
   });

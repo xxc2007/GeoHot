@@ -271,11 +271,9 @@ export async function registerExtractionJobs(boss: PgBoss, concurrency = positiv
       const state = await extractArticleBody(articleId);
       if (state === "deferred") return handBack();
       await queueProcessing(articleId, { step: "analyze" });
-      if (process.env.WORKER_ROLE === "extraction-executor" && process.connected) process.send?.({ type: "geohot:extracted", state });
       return { state };
     } catch (error) {
       if (shutdownSignal.signal.aborted || error instanceof AnalysisInterruptedError) throw error;
-      if (process.env.WORKER_ROLE === "extraction-executor") return handBack();
       const message = String(error instanceof Error ? error.message : error).slice(0, 500);
       if (error instanceof BudgetExceededError || error instanceof ReceiptBusyError) {
         const seconds = error instanceof BudgetExceededError ? error.retryAfterSeconds : 60;

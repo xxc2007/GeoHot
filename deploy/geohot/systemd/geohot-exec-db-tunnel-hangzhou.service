@@ -1,0 +1,20 @@
+[Unit]
+Description=GEOHOT exec DB tunnel to Azure (Hangzhou, 15432->5432)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=geohot
+ExecStart=/usr/bin/ssh -N -T \
+  -o ExitOnForwardFailure=yes -o ServerAliveInterval=20 -o ServerAliveCountMax=3 \
+  -o StrictHostKeyChecking=accept-new -o BatchMode=yes \
+  -i /home/geohot/.ssh/id_ed25519 \
+  -L 127.0.0.1:15432:127.0.0.1:5432 \
+  xxc@20.194.28.128
+Restart=always
+RestartSec=10
+MemoryMax=32M
+
+[Install]
+WantedBy=multi-user.target

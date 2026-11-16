@@ -98,6 +98,9 @@ if [ ! -s "$EXEC_DIR/.env" ]; then
     echo 'JINA_BODY_FALLBACK=false'
     echo 'NODE_ENV=production'
     echo 'GEOHOT_INTAKE_LANES=combined'
+    # 心跳唯一键：三台 exec 都跑 all，不设时全写 heartbeat.worker 互相覆盖。
+    echo "GEOHOT_HEARTBEAT_KEY=heartbeat.content-executor@$(hostname -s)"
+    echo "GEOHOT_HEARTBEAT_LABEL=${HEARTBEAT_LABEL:-杭州·47.97.97.62}"
     # 车道上限跟「最忙的那一档」对齐（夜档 4 槽）；当天实际领几条由 window 单元用
     # Environment=GEOHOT_INTAKE_ANALYSIS_SLOTS / ANALYZE_CONCURRENCY 覆盖（systemd 的 Environment 盖过 EnvironmentFile），
     # 所以这两个数不写在这里 —— 写死会造成「.env 说 4、单元说 2」的两份真相（2026-11-06 踩过）。
@@ -117,19 +120,39 @@ if [ ! -s "$EXEC_DIR/.env" ]; then
 fi
 
 say "6/7 systemd 单元"
-cat > /etc/systemd/system/geohot-exec-tunnel.service <<UNIT
+# 2026-11-16 全服务器自治：Magpie 迁移到杭州，DB 仍走 Azure。
+# 拆成两条隧道：DB→Azure，模型→杭州。
+cat > /etc/systemd/system/geohot-exec-db-tunnel.service <<UNIT
 [Unit]
-Description=geohot: SSH tunnel to the primary database and magpie
+Description=geohot: SSH tunnel to primary postgres (15432->5432)
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 User=geohot
 ExecStart=/usr/bin/ssh -N -T -o ExitOnForwardFailure=yes -o ServerAliveInterval=20 -o ServerAliveCountMax=3 \\
-  -i $PRIMARY_KEY -L 127.0.0.1:15432:127.0.0.1:5432 -L 127.0.0.1:3426:127.0.0.1:3426 $PRIMARY
+  -i $PRIMARY_KEY -L 127.0.0.1:15432:127.0.0.1:5432 $PRIMARY
 Restart=always
 RestartSec=10
-MemoryMax=64M
+MemoryMax=32M
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+cat > /etc/systemd/system/geohot-exec-model-tunnel.service <<UNIT
+[Unit]
+Description=geohot: SSH tunnel to Hangzhou Magpie (3426->3426)
+After=network-online.target geohot-exec-db-tunnel.service
+Wants=network-online.target
+
+[Service]
+User=geohot
+ExecStart=/usr/bin/ssh -N -T -o ExitOnForwardFailure=yes -o ServerAliveInterval=20 -o ServerAliveCountMax=3 \\
+  -i $PRIMARY_KEY -L 127.0.0.1:3426:127.0.0.1:3426 geohot@47.97.97.62
+Restart=always
+RestartSec=10
+MemoryMax=32M
 
 [Install]
 WantedBy=multi-user.target
@@ -138,8 +161,8 @@ UNIT
 cat > /etc/systemd/system/geohot-exec-worker.service <<UNIT
 [Unit]
 Description=geohot content executor (analysis on this node)
-After=geohot-exec-tunnel.service
-Requires=geohot-exec-tunnel.service
+After=geohot-exec-db-tunnel.service geohot-exec-model-tunnel.service
+Requires=geohot-exec-db-tunnel.service geohot-exec-model-tunnel.service
 
 [Service]
 User=geohot
@@ -159,9 +182,9 @@ WantedBy=multi-user.target
 UNIT
 
 systemctl daemon-reload
-systemctl enable --now geohot-exec-tunnel.service geohot-exec-worker.service
+systemctl enable --now geohot-exec-db-tunnel.service geohot-exec-model-tunnel.service geohot-exec-worker.service
 sleep 8
-systemctl is-active geohot-exec-tunnel.service geohot-exec-worker.service
+systemctl is-active geohot-exec-db-tunnel.service geohot-exec-model-tunnel.service geohot-exec-worker.service
 
 say "7/7 两档并发 timer"
 cat > /usr/local/bin/geohot-exec-window.sh <<'WIN'

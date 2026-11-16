@@ -209,13 +209,18 @@ export function MobilePoolPanel({ pool, filters }: { pool: PoolResponse | null; 
           ))}
         </div>
         {error && (
-          <button
-            type="button"
-            onClick={() => { setError(null); prefetchPool(filters); }}
-            className="mx-auto mt-3 flex h-9 items-center rounded-full border border-line-strong bg-surface px-4 text-[13px] text-ink-2"
-          >
-            再试一次
-          </button>
+          <div className="mt-3 flex flex-col items-center gap-2">
+            <button
+              type="button"
+              onClick={() => { setError(null); prefetchPool(filters); }}
+              className="flex h-9 items-center rounded-full border border-line-strong bg-surface px-4 text-[13px] text-ink-2"
+            >
+              再试一次
+            </button>
+            <Link to={listPath("/all", { channel: filters.channel !== "all" ? filters.channel : null, category: filters.category, tag: filters.tag })} className="text-[13px] text-accent hover:underline">
+              去全部列表看看 →
+            </Link>
+          </div>
         )}
       </div>
     );

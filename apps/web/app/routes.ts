@@ -1,4 +1,5 @@
 import { type RouteConfig, index, layout, route } from "@react-router/dev/routes";
+import { FEATURES } from "@aihot/industry/features";
 
 export default [
   index("routes/home.tsx"),
@@ -28,14 +29,21 @@ export default [
   route("more", "routes/more.tsx"),
   route("starred", "routes/starred.tsx"),
   route("agent", "routes/agent.tsx"),
-  layout("routes/leaderboard-boards.tsx", [
-    route("leaderboard", "routes/leaderboard.tsx", { id: "leaderboard" }),
-    route("leaderboard/category/:key", "routes/leaderboard.tsx", { id: "leaderboard-category" }),
-  ]),
-  route("leaderboard/sources", "routes/leaderboard-sources.tsx"),
-  route("leaderboard/sources/:key", "routes/leaderboard-source.tsx"),
-  route("leaderboard/rules", "routes/leaderboard-rules.tsx"),
-  route("leaderboard/:slug", "routes/leaderboard-model.tsx"),
+  // 模型榜是 AI 行业专属模块：FEATURES.leaderboard=false 时不注册路由，对应 chunk 不进构建产物。
+  // 旧链接的公开重定向（/leaderboard/methodology、/leaderboard/category/(aesthetics|writing)）仍在
+  // packages/contracts/src/http-policy.ts 的 REDIRECTS 里保留，不需要页面路由也能工作。
+  ...(FEATURES.leaderboard
+    ? [
+        layout("routes/leaderboard-boards.tsx", [
+          route("leaderboard", "routes/leaderboard.tsx", { id: "leaderboard" }),
+          route("leaderboard/category/:key", "routes/leaderboard.tsx", { id: "leaderboard-category" }),
+        ]),
+        route("leaderboard/sources", "routes/leaderboard-sources.tsx"),
+        route("leaderboard/sources/:key", "routes/leaderboard-source.tsx"),
+        route("leaderboard/rules", "routes/leaderboard-rules.tsx"),
+        route("leaderboard/:slug", "routes/leaderboard-model.tsx"),
+      ]
+    : []),
   route("admin/login", "routes/admin-login.tsx"),
   layout("routes/admin/layout.tsx", { id: "admin-layout" }, [
     route("admin", "routes/admin/index.tsx"),

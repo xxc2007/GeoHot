@@ -5,7 +5,7 @@ import type { z } from "zod";
 import { config, credential } from "../config.ts";
 import { sha256 } from "../lib/ids.ts";
 import { logicalKeyFor, paidRequest, ProviderRejectedError, rejectReceivedResponse, type ReceiptRequest } from "./receipts.ts";
-import { modelCooldown } from "../operations/model-cooldown.ts";
+import { modelCooldown, type CooldownCategory } from "../operations/model-cooldown.ts";
 
 export interface ModelSpec {
   key: string;
@@ -183,19 +183,25 @@ export const MODELS: Record<string, ModelSpec> = {
   // 仍在钟内，cap 先于时钟触发 ⇒ 超出部分落可重试的 `failed`；再往上抬就会变成 abort，落 `unknown`——
   // 花了钱、不自动重试、等人工放行。13 次里 11 次被 34,048 接住，剩下两次是尾部，按设计截断。
   // 算术钉在 tests/workbuddy-headroom.test.ts。
-  // 2026-11-16 站长指令：hy3 一律换成 hy4 flash（上游 id `hy4-flash`，插件
-  // `@magpie-community/opencode-workbuddy-auth` 的模型表里 hy3 / hy3-x / hy4-flash 三把并存）。
-  // 实测当天的门：国际版桥 3065 对每个 id 都回 `HTTP 403 code 11140 request illegal`（整条渠道被拒，
-  // 与模型无关），中国版桥 3066 对 hy3 / hy3-x / hy4-flash 全部 200，magpie 3426 对
-  // `workbuddy/hy4-flash` 200 而对裸 `hy4-flash` 404（裸 id 只在唯一时才被 magpie 认领）。
-  // 所以池子里真正干活的是 `workbuddy-cn-hy4` 与 `workbuddy-desktop-hy4`，本条目留着是因为渠道恢复后
-  // 它第一个该回到池子里；`vision: false` 沿用 hy3 的实测（hy4 flash 未实测视觉，不声明能力）。
+  // 2026-11-16 站长指令：hy3 一律换成 hy4 flash。但 id 用哪一个，必须按回执证据、不能按注释：
+  //   · 四台线上服务器现行 llm.ts（sha256 77f164d3…）跑的是 `hy4-preview-f`，近 24h 的 completed
+  //     回执就挂在这个 id 下——这是唯一有生产回执的拼写。
+  //   · 本地 ec6ec10 曾把它改成 `hy4-flash`（bf5a652），但这扇门从未部署、未在生产回执里出现。
+  //   · 本机 magpie 3425 的 workbuddy 目录暴露的是 `workbuddy/hy4flash-free`——第三种拼写。
+  // 所以这里钉回线上兼容的 `hy4-preview-f`；要切 `hy4-flash`/`hy4flash-free`，先在服务器本机
+  // `GET /v1/models` + 一次 1-token 200 回执核实，再改（recoveryModelsForPurpose 按 model 字符串
+  // 匹配回执，换 id 会把旧的 pending/unknown 收据留在旧身份里，不能贸然换）。
+  // effort（2026-11-16 经 SSH 只读核对服务器 /opt/geohot/workbuddy-cn-catalog.json，不是本机目录）：
+  //   `hy4-preview` 的 reasoning.supportedEfforts 只有 `["high"]`、defaultEffort `high`、常开思考。
+  //   给它发 `max` 就是上游回 HTTP 400 code 11150「reasoning effort value is not supported by the
+  //   current model」那一类确定性拒绝（2026-10-30~31 在 workbuddy-cn 烧掉约 985 条 translate_body）。
+  //   取它广告的顶档 `high`，不是猜 `max`。`vision: false` 沿用 hy3 的实测（hy4 未实测视觉，不声明能力）。
   "workbuddy-hy4": {
-    key: "workbuddy-hy4", service: "workbuddy", model: "hy4-flash",
+    key: "workbuddy-hy4", service: "workbuddy", model: "hy4-preview-f",
     baseUrlEnv: "WORKBUDDY_BASE_URL", apiKeyEnv: "WORKBUDDY_API_KEY",
     // translate_quoted 的 120 s 时钟只容得下 8,192 的余量（ask 4,000 + 8,192 = 12,192 × 8.79 ms = 107 s）；
     // 其余步骤维持 16,000——那是 24 h 里 99.5% 成功率下实际在用的值。
-    extra: { reasoning_effort: "max" }, jsonMode: true, vision: false,
+    extra: { reasoning_effort: "high" }, jsonMode: true, vision: false,
     reasoningHeadroom: { default: 16_000, translate_quoted: 8_192 },
   },
   "workbuddy-deepseek-flash": {
@@ -266,8 +272,9 @@ export const MODELS: Record<string, ModelSpec> = {
   "workbuddy-step5-preview": {
     key: "workbuddy-step5-preview", service: "workbuddy", model: "step-5-preview",
     baseUrlEnv: "WORKBUDDY_BASE_URL", apiKeyEnv: "WORKBUDDY_API_KEY",
-    // Preserve production parameters per operator instruction; long-chain timeout exposure is documented.
-    extra: { reasoning_effort: "max" }, jsonMode: true, vision: true,
+    // step-5-preview（服务器 workbuddy-cn-catalog.json 实测）supportedEfforts=[low,medium,high]，从不列 max。
+    // 发 `max` 是上游没有契约的值，会落 code 11150；取它广告的顶档 `high`，不是静默降档。
+    extra: { reasoning_effort: "high" }, jsonMode: true, vision: true,
     reasoningHeadroom: { default: 16_000, summarize_article: 32_000 },
   },
   // ── The same four models, reached through the *Chinese* WorkBuddy account ────────────────────────────
@@ -302,17 +309,18 @@ export const MODELS: Record<string, ModelSpec> = {
   // 会让长文以 18,048 的 cap 截断（国际版实测 6 次里 4 次空答复）。判据钉在
   // tests/workbuddy-headroom.test.ts，那条用例现在要求两扇门逐字段相等，包括这张表。
   "workbuddy-cn-hy4": {
-    key: "workbuddy-cn-hy4", service: "workbuddy-cn", model: "hy4-flash",
+    key: "workbuddy-cn-hy4", service: "workbuddy-cn", model: "hy4-preview-f",
     baseUrlEnv: "WORKBUDDY_CN_BASE_URL", apiKeyEnv: "WORKBUDDY_CN_API_KEY",
-    extra: { reasoning_effort: "max" }, jsonMode: true, vision: false,
+    // effort 同国际版：服务器 catalog 里 hy4-preview supportedEfforts=[high]，发 `max` 会吃 code 11150。
+    extra: { reasoning_effort: "high" }, jsonMode: true, vision: false,
     // 与国际版同一条上游模型，所以同一张表（translate_quoted 的 120 s 时钟只容得下 8,192）。
     reasoningHeadroom: { default: 16_000, translate_quoted: 8_192 },
   },
   "workbuddy-cn-step5-preview": {
     key: "workbuddy-cn-step5-preview", service: "workbuddy-cn", model: "step-5-preview",
     baseUrlEnv: "WORKBUDDY_CN_BASE_URL", apiKeyEnv: "WORKBUDDY_CN_API_KEY",
-    extra: { reasoning_effort: "max" }, jsonMode: true, vision: true,
-    // Preserve the same existing parameters as the international door.
+    // 同国际版：step-5-preview 顶档是 high，不发它不认识的 max。
+    extra: { reasoning_effort: "high" }, jsonMode: true, vision: true,
     reasoningHeadroom: { default: 16_000, summarize_article: 32_000 },
   },
   // 2026-10-23: remove only domestic 3066 DeepSeek; preserve all other model parameters.
@@ -403,15 +411,17 @@ export const MODELS: Record<string, ModelSpec> = {
   // ⚠️ 与 qoder-cn 两把的关键差别：**这台网关遵守 max_tokens**（16 → length/16 tokens；
   //   4000 → 449 tokens/stop）。所以 reasoningHeadroom 在这里有效，按各模型的隐藏推理量留余量。
   "workbuddy-ai-hy4": {
-    key: "workbuddy-ai-hy4", service: "workbuddy-ai", model: "workbuddy-ai/hy4-flash",
+    key: "workbuddy-ai-hy4", service: "workbuddy-ai", model: "workbuddy-ai/hy4-preview-f",
     baseUrlEnv: "QODER_CN_BASE_URL", apiKeyEnv: "QODER_CN_API_KEY",
-    extra: { reasoning_effort: "max" }, jsonMode: true, vision: false,
+    // hy4 一族目录顶档是 high，不发不认识的 max（code 11150）。
+    extra: { reasoning_effort: "high" }, jsonMode: true, vision: false,
     reasoningHeadroom: { default: 16_000, translate_quoted: 8_192 },
   },
   "workbuddy-ai-step5-preview": {
     key: "workbuddy-ai-step5-preview", service: "workbuddy-ai", model: "workbuddy-ai/step-5-preview",
     baseUrlEnv: "QODER_CN_BASE_URL", apiKeyEnv: "QODER_CN_API_KEY",
-    extra: { reasoning_effort: "max" }, jsonMode: true, vision: true,
+    // step-5-preview 目录顶档是 high。
+    extra: { reasoning_effort: "high" }, jsonMode: true, vision: true,
     reasoningHeadroom: { default: 16_000, summarize_article: 32_000 },
   },
   "workbuddy-ai-deepseek-flash": {
@@ -678,14 +688,14 @@ export const MODELS: Record<string, ModelSpec> = {
     extra: { reasoning_effort: "max" }, jsonMode: true, vision: true,
     reasoningHeadroom: { default: 16_000, summarize_article: 32_000, translate_quoted: 11_264 },
   },
-  // hy4 flash 经由服务器 magpie 的 `workbuddy` 门取同一份桌面订阅（2026-11-16 1-token 探针：
-  // `workbuddy/hy4-flash` 200，裸 `hy4-flash` 404 ⇒ 带 provider 前缀是硬要求）。
-  // 这一条是站长「hy3 换成 hy4 flash」在**中国版**上的落点：3066 桥那把 hy4 也实测 200，
-  // 两条路互为备份，池子里各占一个成员位。
+  // hy4 flash 经由服务器 magpie 的 `workbuddy` 门取同一份桌面订阅。id 钉回线上有回执的
+  // `workbuddy/hy4-preview-f`（带 provider 前缀是硬要求：裸 id 在 magpie 下 404）。
+  // 本地曾改的 `workbuddy/hy4-flash` 未部署、无生产回执；本机目录实际暴露的是 `workbuddy/hy4flash-free`，
+  // 三种拼写未在服务器 magpie 核实前不替换。effort 取目录顶档 `high`。
   "workbuddy-desktop-hy4": {
-    key: "workbuddy-desktop-hy4", service: "workbuddy-desktop", model: "workbuddy/hy4-flash",
+    key: "workbuddy-desktop-hy4", service: "workbuddy-desktop", model: "workbuddy/hy4-preview-f",
     baseUrlEnv: "WORKBUDDY_DESKTOP_BASE_URL", apiKeyEnv: "WORKBUDDY_DESKTOP_API_KEY",
-    extra: { reasoning_effort: "max" }, jsonMode: true, vision: false,
+    extra: { reasoning_effort: "high" }, jsonMode: true, vision: false,
     reasoningHeadroom: { default: 16_000, translate_quoted: 8_192 },
   },
 };
@@ -778,6 +788,88 @@ function isConnectFailure(error: unknown): boolean {
   // 否则这类重置会被当成普通失败，白白消耗一次回执与预算。
   if (code === "ECONNRESET") return cause?.message === "before send" || /before send/i.test(cause?.message ?? "");
   return ["ECONNREFUSED", "ENOTFOUND", "EAI_AGAIN", "UND_ERR_CONNECT_TIMEOUT", "CERT_HAS_EXPIRED"].includes(code ?? "");
+}
+
+/**
+ * 解析上游响应的 `Retry-After` 头：可能是秒数（`30`）也可能是 HTTP-date（`Wed, 21 Oct 2026 07:28:00 GMT`）。
+ * 返回 epoch ms；解析失败或已过期返回 null。不编造时间。
+ */
+function parseRetryAfter(header: string | null): number | null {
+  if (!header) return null;
+  const trimmed = header.trim();
+  const asSeconds = Number(trimmed);
+  if (Number.isFinite(asSeconds) && asSeconds > 0) return Date.now() + asSeconds * 1000;
+  const asDate = Date.parse(trimmed);
+  if (!Number.isNaN(asDate) && asDate > Date.now()) return asDate;
+  return null;
+}
+
+/**
+ * 从错误 body 里窄正则提取 `reset at YYYY-MM-DD HH:MM[:SS] [UTC+8|CST|UTC]` 形态的恢复时间戳。
+ * 只认已观测到的形态；提取不到就返回 null（由调用方走保守默认，不编造）。
+ * 默认按中国时区（CST/UTC+8）解释，因为站点与上游账单都在 +08:00。
+ */
+function parseResetAt(body: string): number | null {
+  const m = /reset at\s+(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}(?::\d{2})?)\s*(UTC([+-]\d+)|CST|UTC)?/i.exec(body);
+  if (!m) return null;
+  const datePart = m[1]!;
+  const timePart = m[2]!.length === 5 ? `${m[2]}:00` : m[2]!;
+  const tz = (m[3] ?? "").toUpperCase();
+  let iso = `${datePart}T${timePart}`;
+  if (tz === "CST" || /^UTC\+?8$/.test(tz)) iso += "+08:00";
+  else if (tz === "UTC") iso += "Z";
+  else {
+    const off = /^UTC([+-])(\d+)$/.exec(tz);
+    if (off) iso += `${off[1]}${off[2]!.padStart(2, "0")}:00`;
+    else iso += "+08:00"; // 未知时区默认按 +08:00
+  }
+  const t = Date.parse(iso);
+  return Number.isNaN(t) ? null : (t > Date.now() ? t : null);
+}
+
+/**
+ * 按 HTTP status 与 body 文本判定冷却分类与是否可安全立即切流。
+ *
+ * 原则（2026-11-16 站长指令）：
+ *   · 400/401/402/403/404/429 是上游明确拒绝请求，没产生 completion → billingStatus=unbilled，
+ *     同次 paidRequest 内立即切到下一个健康成员。
+ *   · 5xx/timeout/连接错误可能已经在服务端产生了结果 → billingStatus=unknown，不重放、不立即切，
+ *     收据落 unknown 等运维；只有 body 明确带账号停用（100003 等）时才按 auth 冷却。
+ *   · 402 + 明确 quota 文案归 quota_day（不是 auth）；100003 即使被包装成 502 也归 auth。
+ */
+function classifyRejection(status: number, body: string): { category: CooldownCategory | null; billingStatus: "unbilled" | "unknown"; resetAt: number | null; resetAssumed: boolean } {
+  // 先看 body 里的 reset 时间戳（日额度恢复时间）
+  const resetAt = parseResetAt(body);
+  if (status === 401 || status === 403) {
+    return { category: "auth", billingStatus: "unbilled", resetAt: null, resetAssumed: false };
+  }
+  if (status === 402) {
+    // 402 + 明确 quota 文案 → quota_day；纯余额不足但无 quota 文案 → auth
+    const quota = /insufficient_quota|exceeded your current quota|FreeTierError|今日文本额度已用完|额度已用[尽完]|购买加量包|insufficient balance|积分余额不足/i.test(body);
+    return { category: quota ? "quota_day" : "auth", billingStatus: "unbilled", resetAt, resetAssumed: !resetAt };
+  }
+  if (status === 400 || status === 404) {
+    // 只有 body 明确带配置拒绝文案才冷却；通用 400（如内容审核 1301）不冷却，只标 unbilled
+    const config = /switched off in Magpie|is not supported by the current model|unknown or disabled model|account is signed out|sign in again|request illegal/i.test(body);
+    return { category: config ? "config" : null, billingStatus: "unbilled", resetAt: null, resetAssumed: false };
+  }
+  if (status === 429) {
+    const quota = /free-models-per-day|insufficient_quota|exceeded your current quota|FreeTierError|今日文本额度已用完|额度已用[尽完]|购买加量包|insufficient balance|积分余额不足/i.test(body);
+    const rate = /usage exceeds frequency limit|usage limit reached|您的使用量已超出频率限制|API 速率限制|too many requests|rate limit/i.test(body);
+    if (quota) return { category: "quota_day", billingStatus: "unbilled", resetAt, resetAssumed: !resetAt };
+    if (rate) return { category: "rate_minute", billingStatus: "unbilled", resetAt, resetAssumed: !resetAt };
+    // 429 但文案不明确：保守归 quota_day，由 1h 冷却兜底
+    return { category: "quota_day", billingStatus: "unbilled", resetAt, resetAssumed: true };
+  }
+  if (status >= 500) {
+    // 5xx：只有 body 明确说账号停用/被封时才按 auth 冷却；否则不进 1h 冷却，billing=unknown
+    if (/100003|account[^\n]{0,40}(suspended|disabled|banned|停用|封禁)|账号[^\n]{0,20}(已被停用|已被封禁|被停)/i.test(body)) {
+      return { category: "auth", billingStatus: "unbilled", resetAt: null, resetAssumed: false };
+    }
+    return { category: null, billingStatus: "unknown", resetAt: null, resetAssumed: false };
+  }
+  // 其他 4xx：不识别的不冷却，只标 unbilled（未产生 completion，不重放但不连坐 1h）
+  return { category: null, billingStatus: "unbilled", resetAt: null, resetAssumed: false };
 }
 
 /** Keep candidate identities and real HTTP requests on the same parameter calculation. */
@@ -875,9 +967,16 @@ export async function chatJson<S extends z.ZodType>(opts: ChatJsonOptions<S>): P
       if (!res.ok) {
         // A cached healthy snapshot must not send every remaining translation shard into a declared wall.
         // This changes only later selection; the failed request keeps its normal ledger/billing outcome.
-        modelCooldown.reject(model.service, model.model, res.status, text);
+        const verdict = classifyRejection(res.status, text);
+        if (verdict.category) {
+          modelCooldown.reject(model.service, model.model, res.status, text, {
+            category: verdict.category,
+            resetAt: verdict.resetAt ?? parseRetryAfter(res.headers.get("retry-after")) ?? undefined,
+            resetAssumed: verdict.resetAssumed && !res.headers.get("retry-after"),
+          });
+        }
         const retryable = res.status === 429 || res.status >= 500;
-        throw new ProviderRejectedError(`HTTP ${res.status}: ${text.slice(0, 500)}`, res.status, retryable, model.key);
+        throw new ProviderRejectedError(`HTTP ${res.status}: ${text.slice(0, 500)}`, res.status, retryable, model.key, verdict.billingStatus);
       }
       let json: Record<string, unknown>;
       try {

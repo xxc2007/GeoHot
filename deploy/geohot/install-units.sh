@@ -86,10 +86,9 @@ ALL_UNITS=(geohot-brain.service geohot-api.service geohot-worker.service geohot-
            # 2026-11-15 补登：InstaBox 免费档 30 分钟没人用就自动暂停，而沙箱里的执行器只往外连
            # （SSH 隧道），平台看不到入向活动 —— 主库每 20 分钟打一次 /wake 记账并把它叫醒。
            geohot-instabox-hold.service
-           # 2026-11-15：执行器昼夜档。白天只采集、夜里开一个分析槽——主库慢盘上任何分析并发
-           # 都会把 io 压到 99%、读者面掉到 5–15 秒。装到执行器上（杭州/武汉/华为/box）。
-           geohot-role-day.service geohot-role-day.timer
-           geohot-role-night.service geohot-role-night.timer
+           # 2026-11-16：执行器昼夜档从主库 ALL_UNITS 移除——role-day/night 调用 /opt/geohot/bin/role-window.sh
+           # 写 /opt/geohot-exec/.env，但执行器节点由 bootstrap/setup-exec.sh 自带 geohot-exec-window.sh 做同样的事。
+           # 主库装这套只会在执行器上产出 203/EXEC failed 单元，不再随主库安装。
            # 2026-11-14 补登：主库只有一块慢盘，页面冷算要 3.5–15 秒，而 nginx 缓存 60 秒一过期，
            # 每一分钟就有一个真实读者替全站付这份钱。预热器把「付钱的人」换成定时器。
            geohot-warm-pages.service geohot-warm-pages.timer

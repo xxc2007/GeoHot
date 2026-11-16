@@ -70,7 +70,7 @@ before(async () => {
   await sql`INSERT INTO sources (id, name, kind, tier, participation_mode, site_fulltext, next_fetch_at, last_ok_at)
             VALUES (${SOURCE}, 'Phase budget', 'rss', 'T1', 'editorial', true, '2100-01-01', now())`;
   const { articleId, backfill } = await upsertMaterial({
-    sourceId: SOURCE, url: `https://example.com/${T}-a`, title: `Source ${T} a`, bodyText: "完整的中文水文公报正文。",
+    sourceId: SOURCE, url: `https://example.com/${T}-a`, title: `Source ${T} a`, bodyText: "本次水文观测记录了河流断面的水位、流量与含沙量变化。现场人员按规范采样，并核对水文站历史资料，分析了汛期洪峰传播与河道冲淤过程。正文给出具体观测数值与官方通报依据，段落连贯、信息充分，足以支撑成刊选稿，不只是一句话快讯。",
     bodyStatus: "ok", via: "fetch", publishedAt: INSIDE, discoveredAt: INSIDE,
   });
   ids.push(articleId); // Cleanup must know the material even if a later setup assertion fails.
