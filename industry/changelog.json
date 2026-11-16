@@ -1,6 +1,22 @@
 {
-  "latestVersion": "2026-11-16T08:45",
+  "latestVersion": "2026-11-16T08:52",
   "releases": [
+    {
+      "date": "2026-11-16",
+      "time": "08:52",
+      "major": false,
+      "title": "模型池里不再留着死模型",
+      "body": [
+        "池子里躺着 11 个 magpie 已经不认的别名（79 个成员位），分派过去先撞一次 404 再换人——一小时里一半的失败是它们。",
+        "拿 1-token 探针逐个实测，把实测 404 的成员从五台机器的池子里摘掉，回执里的 404 会跟着少。",
+        "新增 tooling/model-pool-audit.mjs 与 prune-model-pool.sh：账号重新登进 magpie 后重跑探针即可。"
+      ],
+      "tags": [
+        "models",
+        "routing",
+        "ops"
+      ]
+    },
     {
       "date": "2026-11-16",
       "time": "08:45",

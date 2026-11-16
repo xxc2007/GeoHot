@@ -1,0 +1,18 @@
+# 2026-11-16 用 1-token 探针逐个打过 magpie（127.0.0.1:3426），下面这些别名回 404，
+# 也就是 magpie 现在没有这个模型：账号掉线（qwenwork / minimax-code / codearts /
+# minimax-code-global）或该模型已下架（step-5-preview / dots3-note-prev / auto-hy3 /
+# auto-gemini-3.8-flash / agnes-3.0-flash）。
+#
+# 留在池子里只会让每次分派先撞一次 404 再换人——一小时里 60 次失败里有一半是它们。
+# 清单会随把账号重新登进 magpie 而变短，改完记得再跑一次探针。
+agnes-3.0-flash
+workbuddy-cn-step5-preview
+dots3-note-prev
+codearts-deepseek-v4.1-flash
+minimax-code-m3.1-flash
+qwenwork-pro
+qwenwork-flash
+qwenwork-qwen38-max
+minimax-code-global-m31-flash
+auto-hy3
+auto-gemini-flash
