@@ -153,13 +153,13 @@ test("each article is answered by the member its own id selects", async () => {
 });
 
 test("a pool member that cannot serve is dropped instead of chosen and failed", async () => {
-  // 2026-10-21: `space-bunny-free` 已从注册表删除，这里改用 `workbuddy-cn-hy3`——它在本文件里没有
+  // 2026-10-21: `space-bunny-free` 已从注册表删除，这里改用 `workbuddy-cn-hy4`——它在本文件里没有
   // WORKBUDDY_CN_* 凭据，所以与当初的 space-bunny 是同一种情形：名字在配置里、但这台机器叫不动它。
-  process.env.MODEL_POOL = `${POOL},workbuddy-cn-hy3`;
+  process.env.MODEL_POOL = `${POOL},workbuddy-cn-hy4`;
   invalidateModelCache();
-  for (let i = 0; i < 60; i++) assert.notEqual(await modelFor("digest", `article:${i}`), "workbuddy-cn-hy3");
+  for (let i = 0; i < 60; i++) assert.notEqual(await modelFor("digest", `article:${i}`), "workbuddy-cn-hy4");
   const sources = await modelSources();
-  assert.equal(sources.digest!.model, `${POOL},workbuddy-cn-hy3`, "the configured string stays as configured");
+  assert.equal(sources.digest!.model, `${POOL},workbuddy-cn-hy4`, "the configured string stays as configured");
   assert.equal(sources.digest!.serving, POOL, "the members that can answer are shown separately");
 
   // Names that are not models cannot become members — `constructor` and `__proto__` are truthy lookups on a
@@ -417,9 +417,9 @@ test("判关要够多样本、要真退得比答得多、按模型而不是服�
   // 按服务判会把同一扇门上的兄弟成员一起踢掉。2026-10-21：原来拿 openrouter 的 or-lfm / or-nemotron-super
   // 举这个例子，那两条已从注册表删除；改用 workbuddy 这扇门上的两条——它们共用 `service: "workbuddy"`，
   // 正是这条判据要区分的情形。
-  const hy3Model = MODELS["workbuddy-hy3"]!.model;
+  const hy3Model = MODELS["workbuddy-hy4"]!.model;
   const refused = new Map([[`${hy3Model}|summarize_article`, { refused: 40, accepted: 20 }]]);
-  assert.deepEqual(shedRefusingMembers(["workbuddy-hy3", "workbuddy-step5-preview"], "summarize", refused), ["workbuddy-step5-preview"],
+  assert.deepEqual(shedRefusingMembers(["workbuddy-hy4", "workbuddy-step5-preview"], "summarize", refused), ["workbuddy-step5-preview"],
     "同一个服务的兄弟模型不该跟着被关——判据认模型名");
 });
 

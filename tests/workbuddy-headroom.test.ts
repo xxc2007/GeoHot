@@ -88,10 +88,10 @@ test("every workbuddy preset carries the headroom and the vision verdict the mea
   // deepseek-v4.1-flash's headroom is a per-purpose table, not one number: its summarize prompt measured a
   // 18,809-token chain while understand's 240 s clock caps that step at 16,218 — see the arithmetic test below.
   assert.deepEqual(MODELS["workbuddy-deepseek-flash"]!.reasoningHeadroom, { default: 16_000, summarize_article: 32_000, translate_quoted: 11_264 });
-  assert.deepEqual(MODELS["workbuddy-hy3"]!.reasoningHeadroom, { default: 16_000, translate_quoted: 8_192 });
+  assert.deepEqual(MODELS["workbuddy-hy4"]!.reasoningHeadroom, { default: 16_000, translate_quoted: 8_192 });
   // deepseek-v4.1-flash reads images; hy3 tokenizes one and then answers the wrong colour.
   assert.equal(MODELS["workbuddy-deepseek-flash"]!.vision, true);
-  assert.equal(MODELS["workbuddy-hy3"]!.vision, false);
+  assert.equal(MODELS["workbuddy-hy4"]!.vision, false);
   // step-5-preview 的余量是按步骤给的：summary 那一步的可见答复只有 2,048，却要装下更长的链，
   // 所以它单独写 8,000（其余 4,000）。视觉：3 次里 3 次正确说出了颜色与数字。
   assert.deepEqual(MODELS["workbuddy-step5-preview"]!.reasoningHeadroom, { default: 16_000, summarize_article: 32_000 });
@@ -100,7 +100,7 @@ test("every workbuddy preset carries the headroom and the vision verdict the mea
   // 2026-10-21: `workbuddy-glm-flash` 已从注册表删除（glm 那扇门在本部署上没有 key），这两条改成断言
   // **现存**的两个档位仍然各写各的：deepseek/hy3 是 `max`，step-5-preview 只声明到 `high`。
   assert.deepEqual(MODELS["workbuddy-deepseek-flash"]!.extra, { reasoning_effort: "max" });
-  assert.deepEqual(MODELS["workbuddy-hy3"]!.extra, { reasoning_effort: "max" });
+  assert.deepEqual(MODELS["workbuddy-hy4"]!.extra, { reasoning_effort: "max" });
   assert.deepEqual(MODELS["workbuddy-step5-preview"]!.extra, { reasoning_effort: "max" });
   // The Chinese account reaches the same four ids through 3066. Same model, same dials, same vision verdicts —
   // only `service` and the two env vars differ, and that separation is the whole point (two accounts, two
@@ -111,7 +111,7 @@ test("every workbuddy preset carries the headroom and the vision verdict the mea
   // **两扇门逐字段相等，包括那张按 purpose 的余量表**——服务的门必须带得上它自己的 summarize 表。
   // 2026-10-21: `workbuddy-cn-deepseek-flash` 与 `workbuddy-cn-glm-flash` 已从注册表删除
   // （站长只要中国版的 step 与 hy；deepseek/glm 走国际版那扇）。这里只剩仍在册的两把。
-  const SHARED = ["workbuddy-cn-hy3", "workbuddy-cn-step5-preview"] as const;
+  const SHARED = ["workbuddy-cn-hy4", "workbuddy-cn-step5-preview"] as const;
   for (const cn of SHARED) {
     const intl = cn.replace("workbuddy-cn-", "workbuddy-") as keyof typeof MODELS;
     assert.equal(MODELS[cn]!.model, MODELS[intl]!.model, `${cn} must name the same upstream model as ${intl}`);
@@ -148,9 +148,9 @@ test("every workbuddy preset rides its own service and door, so one account's br
   // 且更值得钉：注册表里的 key 与 service 必须成对，否则 `modelFor` 会拿 A 扇门的成员去扣 B 扇门的熔断。
   for (const [key, service, baseUrlEnv] of [
     ["workbuddy-deepseek-flash", "workbuddy", "WORKBUDDY_BASE_URL"],
-    ["workbuddy-hy3", "workbuddy", "WORKBUDDY_BASE_URL"],
+    ["workbuddy-hy4", "workbuddy", "WORKBUDDY_BASE_URL"],
     ["workbuddy-step5-preview", "workbuddy", "WORKBUDDY_BASE_URL"],
-    ["workbuddy-cn-hy3", "workbuddy-cn", "WORKBUDDY_CN_BASE_URL"],
+    ["workbuddy-cn-hy4", "workbuddy-cn", "WORKBUDDY_CN_BASE_URL"],
     ["workbuddy-cn-step5-preview", "workbuddy-cn", "WORKBUDDY_CN_BASE_URL"],
   ] as const) {
     const spec = MODELS[key];
@@ -289,7 +289,7 @@ test("the headroom clears the chains we measured, and understand's clock clears 
   // widest request the step can make still has to fit inside the step's timeout.
   const MS_PER_TOKEN = 6.72;
   const LONGEST_SUCCESSFUL = { score_article: 7_007, structure_article: 6_760, summarize_article: 7_834 };
-  for (const key of ["workbuddy-deepseek-flash", "workbuddy-hy3", "workbuddy-cn-hy3"]) {
+  for (const key of ["workbuddy-deepseek-flash", "workbuddy-hy4", "workbuddy-cn-hy4"]) {
     const spec = MODELS[key]!;
     for (const [purpose, longest] of Object.entries(LONGEST_SUCCESSFUL)) {
       const headroom = headroomFor(spec, purpose);
@@ -408,6 +408,6 @@ test("only domestic DeepSeek is removed, preserving international doors and dome
  assert.equal(Object.hasOwn(MODELS, "workbuddy-cn-deepseek-flash"), false);
  assert.equal(MODELS["workbuddy-deepseek-flash"]!.baseUrlEnv, "WORKBUDDY_BASE_URL");
  assert.equal(MODELS["workbuddy-ai-deepseek-flash"]!.service, "workbuddy-ai");
- assert.equal(MODELS["workbuddy-cn-hy3"]!.service, "workbuddy-cn");
+ assert.equal(MODELS["workbuddy-cn-hy4"]!.service, "workbuddy-cn");
  assert.equal(MODELS["workbuddy-cn-step5-preview"]!.service, "workbuddy-cn");
 });

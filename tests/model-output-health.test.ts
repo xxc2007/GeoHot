@@ -155,7 +155,7 @@ test("six provider-frequency refusals older than the rate window still bench the
 test("a walled member benches itself, not the healthy siblings sharing its door", async () => {
   const door = "workbuddy";
   const walled = "deepseek-v4.1-flash";
-  const pool = "workbuddy-hy3,workbuddy-deepseek-flash";
+  const pool = "workbuddy-hy4,workbuddy-deepseek-flash";
   const clear = () => sql`DELETE FROM receipt_attempts WHERE service = ${door} AND started_at > now() - interval '6 hours'`;
   const [receipt] = await sql<{ id: number }[]>`
     INSERT INTO receipts (logical_key, service, purpose, status, created_at, updated_at)
@@ -186,7 +186,7 @@ test("a walled member benches itself, not the healthy siblings sharing its door"
     const verdict = await sickServices();
     assert.ok(!verdict.has(door), "被墙的是一个成员，不是整扇门：按门判病会连坐三个正在答话的兄弟");
     assert.ok(verdict.has(`${door}|${walled}`), "记账要落在被墙的那个成员身上");
-    assert.equal((await modelSources()).score!.serving, "workbuddy-hy3", "健康的兄弟照常服务，只有被墙的成员退出");
+    assert.equal((await modelSources()).score!.serving, "workbuddy-hy4", "健康的兄弟照常服务，只有被墙的成员退出");
 
     // 旧账（写这条规则时还没有 model 这一列）不能凭空洗白：无从归属的拒绝仍然算整扇门。
     await walledOut(null);
