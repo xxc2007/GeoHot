@@ -103,10 +103,15 @@ export interface RegistryPolicyView {
  */
 export async function sourceRegistryPolicy(): Promise<RegistryPolicyView> {
   return adminReadOrBusy(async (db) => {
+    // total = 正式池实际 + 备用候选并集（与 listSources/getSourcePoolStats 同事实源），
+    // 不再数所有非 retired sources（含 disabled 历史档案会导致 2001）。
     const [row] = await db<RegistryPolicyView[]>`
       SELECT p.target_enabled, p.enabled_count, p.policy_version, p.target_total,
-             (SELECT count(*)::int FROM sources s
-                WHERE NOT EXISTS(SELECT 1 FROM source_retirements t WHERE t.source_id = s.id)) AS total
+             ((SELECT count(*)::int FROM sources s
+                 WHERE s.enabled=true AND NOT EXISTS(SELECT 1 FROM source_retirements t WHERE t.source_id=s.id))
+              + (SELECT count(*)::int FROM source_reserves r
+                 WHERE NOT EXISTS(SELECT 1 FROM source_retirements t WHERE t.source_id=r.source_id)
+                   AND NOT EXISTS(SELECT 1 FROM sources s2 WHERE s2.id=r.source_id AND s2.enabled=true)))::int AS total
       FROM source_registry_policy p WHERE p.singleton`;
     if (!row) throw new SourceRegistryConflict("Source registry policy missing");
     return row;
