@@ -183,15 +183,15 @@ export const MODELS: Record<string, ModelSpec> = {
   // 仍在钟内，cap 先于时钟触发 ⇒ 超出部分落可重试的 `failed`；再往上抬就会变成 abort，落 `unknown`——
   // 花了钱、不自动重试、等人工放行。13 次里 11 次被 34,048 接住，剩下两次是尾部，按设计截断。
   // 算术钉在 tests/workbuddy-headroom.test.ts。
-  // 2026-11-16 站长指令：hy3 一律换成 hy4 flash（上游 id `hy4-preview-f`，插件
-  // `@magpie-community/opencode-workbuddy-auth` 的模型表里 hy3 / hy3-x / hy4-preview-f 三把并存）。
+  // 2026-11-16 站长指令：hy3 一律换成 hy4 flash（上游 id `hy4-flash`，插件
+  // `@magpie-community/opencode-workbuddy-auth` 的模型表里 hy3 / hy3-x / hy4-flash 三把并存）。
   // 实测当天的门：国际版桥 3065 对每个 id 都回 `HTTP 403 code 11140 request illegal`（整条渠道被拒，
-  // 与模型无关），中国版桥 3066 对 hy3 / hy3-x / hy4-preview-f 全部 200，magpie 3426 对
-  // `workbuddy/hy4-preview-f` 200 而对裸 `hy4-preview-f` 404（裸 id 只在唯一时才被 magpie 认领）。
+  // 与模型无关），中国版桥 3066 对 hy3 / hy3-x / hy4-flash 全部 200，magpie 3426 对
+  // `workbuddy/hy4-flash` 200 而对裸 `hy4-flash` 404（裸 id 只在唯一时才被 magpie 认领）。
   // 所以池子里真正干活的是 `workbuddy-cn-hy4` 与 `workbuddy-desktop-hy4`，本条目留着是因为渠道恢复后
   // 它第一个该回到池子里；`vision: false` 沿用 hy3 的实测（hy4 flash 未实测视觉，不声明能力）。
   "workbuddy-hy4": {
-    key: "workbuddy-hy4", service: "workbuddy", model: "hy4-preview-f",
+    key: "workbuddy-hy4", service: "workbuddy", model: "hy4-flash",
     baseUrlEnv: "WORKBUDDY_BASE_URL", apiKeyEnv: "WORKBUDDY_API_KEY",
     // translate_quoted 的 120 s 时钟只容得下 8,192 的余量（ask 4,000 + 8,192 = 12,192 × 8.79 ms = 107 s）；
     // 其余步骤维持 16,000——那是 24 h 里 99.5% 成功率下实际在用的值。
@@ -302,7 +302,7 @@ export const MODELS: Record<string, ModelSpec> = {
   // 会让长文以 18,048 的 cap 截断（国际版实测 6 次里 4 次空答复）。判据钉在
   // tests/workbuddy-headroom.test.ts，那条用例现在要求两扇门逐字段相等，包括这张表。
   "workbuddy-cn-hy4": {
-    key: "workbuddy-cn-hy4", service: "workbuddy-cn", model: "hy4-preview-f",
+    key: "workbuddy-cn-hy4", service: "workbuddy-cn", model: "hy4-flash",
     baseUrlEnv: "WORKBUDDY_CN_BASE_URL", apiKeyEnv: "WORKBUDDY_CN_API_KEY",
     extra: { reasoning_effort: "max" }, jsonMode: true, vision: false,
     // 与国际版同一条上游模型，所以同一张表（translate_quoted 的 120 s 时钟只容得下 8,192）。
@@ -403,7 +403,7 @@ export const MODELS: Record<string, ModelSpec> = {
   // ⚠️ 与 qoder-cn 两把的关键差别：**这台网关遵守 max_tokens**（16 → length/16 tokens；
   //   4000 → 449 tokens/stop）。所以 reasoningHeadroom 在这里有效，按各模型的隐藏推理量留余量。
   "workbuddy-ai-hy4": {
-    key: "workbuddy-ai-hy4", service: "workbuddy-ai", model: "workbuddy-ai/hy4-preview-f",
+    key: "workbuddy-ai-hy4", service: "workbuddy-ai", model: "workbuddy-ai/hy4-flash",
     baseUrlEnv: "QODER_CN_BASE_URL", apiKeyEnv: "QODER_CN_API_KEY",
     extra: { reasoning_effort: "max" }, jsonMode: true, vision: false,
     reasoningHeadroom: { default: 16_000, translate_quoted: 8_192 },
@@ -564,7 +564,7 @@ export const MODELS: Record<string, ModelSpec> = {
   // 38 个没覆盖。38 个里 23 个是 `copilot/*`（账号是 Education，除 `copilot/gpt-4.1` 外一律
   // `model_not_supported`，且注册表里从来没有 COPILOT_*_URL 这扇门，登记了也只会列在后台下拉框里报错），
   // 实测失败的另一批见下，都不登记。下面九条是**既没覆盖、又实测 200** 的：
-  //   auto/hy3、auto/qfmodel、auto/deepseek-v4.1-flash、auto/deepseek-v4.1-flash-max、auto/glm-5.3-flash、
+  //   auto/qfmodel、auto/deepseek-v4.1-flash、auto/deepseek-v4.1-flash-max、auto/glm-5.3-flash、
   //   auto/gemini-3.8-flash（magpie 自己的按名路由，1.1–5.6 s 出答复）
   //   antigravity/claude-sonnet-4-6、trae-cn/glm-5.3-flashx-max、autoclaw-cn/zai_glm-5.3-flash
   // 未登记（有证据，不是漏了）：`auto/dfmodel` 45 秒超时；`zcode/glm-5.3-flash` 429 `exceed quota limit`、
@@ -574,12 +574,6 @@ export const MODELS: Record<string, ModelSpec> = {
   //
   // `auto/*` 走 MAGPIE_BASE_URL / MAGPIE_API_KEY（服务器 3426 本机地址），service 记 `auto`——熔断器与
   // 拒绝账本按 service 分账，`auto` 哪天被限流不会连坐别的门。
-  "auto-hy3": {
-    key: "auto-hy3", service: "auto", model: "auto/hy3",
-    baseUrlEnv: "MAGPIE_BASE_URL", apiKeyEnv: "MAGPIE_API_KEY",
-    extra: { reasoning_effort: "max" }, jsonMode: true, vision: false,
-    reasoningHeadroom: { default: 16_000, summarize_article: 32_000, translate_quoted: 11_264 },
-  },
   "auto-qfmodel": {
     key: "auto-qfmodel", service: "auto", model: "auto/qfmodel",
     baseUrlEnv: "MAGPIE_BASE_URL", apiKeyEnv: "MAGPIE_API_KEY",
@@ -685,11 +679,11 @@ export const MODELS: Record<string, ModelSpec> = {
     reasoningHeadroom: { default: 16_000, summarize_article: 32_000, translate_quoted: 11_264 },
   },
   // hy4 flash 经由服务器 magpie 的 `workbuddy` 门取同一份桌面订阅（2026-11-16 1-token 探针：
-  // `workbuddy/hy4-preview-f` 200，裸 `hy4-preview-f` 404 ⇒ 带 provider 前缀是硬要求）。
+  // `workbuddy/hy4-flash` 200，裸 `hy4-flash` 404 ⇒ 带 provider 前缀是硬要求）。
   // 这一条是站长「hy3 换成 hy4 flash」在**中国版**上的落点：3066 桥那把 hy4 也实测 200，
   // 两条路互为备份，池子里各占一个成员位。
   "workbuddy-desktop-hy4": {
-    key: "workbuddy-desktop-hy4", service: "workbuddy-desktop", model: "workbuddy/hy4-preview-f",
+    key: "workbuddy-desktop-hy4", service: "workbuddy-desktop", model: "workbuddy/hy4-flash",
     baseUrlEnv: "WORKBUDDY_DESKTOP_BASE_URL", apiKeyEnv: "WORKBUDDY_DESKTOP_API_KEY",
     extra: { reasoning_effort: "max" }, jsonMode: true, vision: false,
     reasoningHeadroom: { default: 16_000, translate_quoted: 8_192 },

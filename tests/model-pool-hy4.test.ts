@@ -8,9 +8,8 @@ import test from "node:test";
 import { MODELS } from "@aihot/backend/providers/llm";
 
 test("hy3 的别名全部退休，池子里只剩 hy4 flash", () => {
-  // `auto-hy3` 不算在内：那是 magpie 自己的路由别名（`auto/hy3`），不归我们命名，
-  // 而且它早已因 404 从五台机器的池子里摘掉（见 tooling/model-pool-dead.txt）。
-  const stale = Object.keys(MODELS).filter((key) => key.includes("hy3") && !key.startsWith("auto-"));
+  // `auto-hy3` 也一并退场：magpie 侧回 `404 group/auto-hy3`，留着只会每天浪费调用。
+  const stale = Object.keys(MODELS).filter((key) => key.includes("hy3"));
   assert.deepEqual(stale, [], "注册表里不该再有 workbuddy 系 hy3 的别名；文书写在 llm.ts 的那段注释里");
 
   const hy4 = Object.keys(MODELS).filter((key) => key.includes("hy4")).sort();
@@ -18,12 +17,12 @@ test("hy3 的别名全部退休，池子里只剩 hy4 flash", () => {
 });
 
 test("每条 hy4 都用上游真实的 id，且带对 provider 前缀", () => {
-  // 2026-11-16 1-token 探针：magpie 3426 认 `workbuddy/hy4-preview-f`，不认裸 `hy4-preview-f`
-  // （`magpie knows no model "hy4-preview-f"`）。3066 桥反过来吃裸 id。两种形状各有出处。
-  assert.equal(MODELS["workbuddy-hy4"]!.model, "hy4-preview-f");
-  assert.equal(MODELS["workbuddy-cn-hy4"]!.model, "hy4-preview-f");
-  assert.equal(MODELS["workbuddy-desktop-hy4"]!.model, "workbuddy/hy4-preview-f");
-  assert.equal(MODELS["workbuddy-ai-hy4"]!.model, "workbuddy-ai/hy4-preview-f");
+  // 2026-11-16 1-token 探针：magpie 3426 认 `workbuddy/hy4-flash`，不认裸 `hy4-flash`
+  // （`magpie knows no model "hy4-flash"`）。3066 桥反过来吃裸 id。两种形状各有出处。
+  assert.equal(MODELS["workbuddy-hy4"]!.model, "hy4-flash");
+  assert.equal(MODELS["workbuddy-cn-hy4"]!.model, "hy4-flash");
+  assert.equal(MODELS["workbuddy-desktop-hy4"]!.model, "workbuddy/hy4-flash");
+  assert.equal(MODELS["workbuddy-ai-hy4"]!.model, "workbuddy-ai/hy4-flash");
 
   assert.equal(MODELS["workbuddy-hy4"]!.service, "workbuddy");
   assert.equal(MODELS["workbuddy-cn-hy4"]!.service, "workbuddy-cn");
