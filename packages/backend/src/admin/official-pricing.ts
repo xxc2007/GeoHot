@@ -1,5 +1,6 @@
 import {CNY_FX} from "@aihot/contracts/cny";
 import type { OfficialRate, OfficialCostReport, CostBounds } from "@aihot/contracts/model-costs";
+import type { Db } from "../db.ts";
 
 // 2026-10-31 全量重核：9 条官方定价页当日实测（8 条 WebFetch + dots 浏览器实测），与下述常量
 // 逐一比对 0 差异；每日闲时由 geohot-pricing-check.timer 复核（deploy/geohot/pricing-check.py）。
@@ -29,6 +30,36 @@ const aliases:Record<string,string>={
   // 也不要拿 hy3 的价冒充 hy4——那会让成本页把两个不同模型的账算成一笔。
   "MiniMax-M3.1-Flash":"minimax","minimax-code/MiniMax-M3.1-Flash":"minimax","dots3-note-prev":"dots",
 };
+/**
+ * 从 pricing_rates 表读最新价卡；表不存在（migration 未跑）或无行时回落 OFFICIAL_RATES 常量。
+ * 不打外网、不阻塞页面；stale 标志透传给前端。
+ */
+export interface PricingRateRow {
+  id: string; name: string; currency: "USD"|"CNY";
+  input: number; cached: number; output: number;
+  billing_kind: "actual"|"subscription"|"free"|"no-price";
+  source_url: string | null; effective_at: string; fetched_at: string | null; stale: boolean; note: string | null;
+}
+export async function loadPricingRates(db: Db): Promise<{ rates: PricingRateRow[]; stale: boolean }> {
+  try {
+    const rows = await db<PricingRateRow[]>`
+      SELECT id, name, currency,
+             input_price::float8 AS input, cached_price::float8 AS cached, output_price::float8 AS output,
+             billing_kind, source_url,
+             effective_at::text AS effective_at, fetched_at::text AS fetched_at, stale, note
+      FROM pricing_rates`;
+    if (!rows.length) return { rates: OFFICIAL_RATES.map(constToRow), stale: true };
+    return { rates: rows, stale: rows.every(r => r.stale) };
+  } catch {
+    // 表不存在或连接失败：常量兜底，标记 stale。
+    return { rates: OFFICIAL_RATES.map(constToRow), stale: true };
+  }
+}
+function constToRow(r: OfficialRate): PricingRateRow {
+  return { id: r.id, name: r.name, currency: r.currency, input: r.input, cached: r.cached, output: r.output,
+           billing_kind: "actual", source_url: r.source, effective_at: "2026-10-31", fetched_at: "2026-10-31", stale: false, note: r.note };
+}
+
 // Cabinet's 2026 holiday notice; weekends remain off-peak, including make-up workdays.
 const holidays=[['01-01','01-03'],['02-15','02-23'],['04-04','04-06'],['05-01','05-05'],['06-19','06-21'],['09-25','09-27'],['10-01','10-07']];
 export function peakFactor(day:string,hour:number):CostBounds {

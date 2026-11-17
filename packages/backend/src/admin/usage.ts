@@ -89,7 +89,11 @@ export async function readUsage(db: Tx, range: UsageRange | "*", service: string
       coalesce(sum(priced_out),0)::float8 AS "pricedOut",coalesce(sum(cached_tokens),0)::float8 AS "cachedTokens",
       coalesce(sum(unknown_cache_in),0)::float8 AS "unknownCacheIn",coalesce(sum(cache_unknown_calls),0)::int AS "cacheUnknownCalls"
     FROM base GROUP BY GROUPING SETS((range_key),(range_key,service,model),(range_key,purpose),(range_key,day),(range_key,dow,hour),(range_key,currency),(range_key,service,model,day,dow,hour))`;
-  if (rows.some(r => r.missingLabels)) throw Object.assign(new Error("statistics label gap"), { code: "MODEL_LABEL_BACKFILL_PENDING" });
+  if (rows.some(r => r.missingLabels)) {
+    // 标签回填未完成不阻塞真实调用数/token/actual cost；只在结果上挂提示。
+    // 后台用量页必须能看到「实际打了多少次模型」，不能因为注册表标签没追上就整页 503。
+    // missingLabels 已聚合到 rows 里，前端可据此显示「标签回填中」。
+  }
   // 汇率单一来源：fx_rates 表最新一行（pricing-check timer 每日落库），无行回落 CNY_FX 常量。
   const [fxRow] = await db<{ rate: number; as_of: string; source_url: string | null }[]>`
     SELECT rate, as_of::text AS as_of, source_url FROM fx_rates WHERE pair = 'USD/CNY' ORDER BY as_of DESC LIMIT 1`;
