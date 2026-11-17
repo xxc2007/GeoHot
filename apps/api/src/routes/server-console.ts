@@ -109,15 +109,14 @@ export async function registerServerConsole(app: FastifyInstance, forward = magp
       return { ...sample, ip: ipFor(String(sample.host ?? "")), stale: Date.now() - Date.parse(sample.checkedAt) > 90_000, nodes };
     } catch { return reply.code(503).send({ unavailable: true }); }
   }));
-  // 2026-11-16：嵌进后台的 Magpie 面板自己就要几十上百个资源——首页 index.html 之后是
-  // boot/theme/omarchy/compat/layout/fonts/i18n/kernel 加各插件的 js，再叠上每秒一次的分流
-  // 追踪轮询。240/分钟是给「普通接口」定的数，面板一开就把桶打满：资源拿不到 429，
-  // 于是 `$ is not defined`、整个面板只剩导航栏（真浏览器实测 19 个 429）。
-  // 这里放宽到 1500/分钟：它仍然是上限（跑飞的循环会撞墙），但一个管理员的浏览器不会。
-  app.route({ method: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"], url: "/api/admin/magpie-proxy/*", config:{rateLimit:{max:1500,timeWindow:'1 minute'}}, handler: guard(async (req, reply, admin) => {
+  // 2026-11-17：静态资源（JS/CSS/字体/图片）走浏览器缓存，不该和 API 调用共享桶。
+  // 之前 1500/分钟仍被 ~30 个并发资源打满（首屏 + 每秒轮询 trace），改为静态资源不限流、
+  // API 面板调用保持 300/分钟上限。静态资源由 Cache-Control 头控制，浏览器不重复请求。
+  const magpieProxyHandler = guard(async (req: import("fastify").FastifyRequest, reply: import("fastify").FastifyReply, admin: { csrf: string }) => {
     const suffix = (req.params as { "*": string })["*"];
     // URL is never supplied by the caller; do not proxy the model gateway or token sign-in routes.
-    const staticResource = /^(?:(?:assets|plugins|fonts)\/)?[a-zA-Z0-9_./-]+\.(?:js|css|svg|png|ico|woff2?|ttf)$/.test(suffix);
+    // 静态资源：根目录 js/css（kernel/start/app）+ assets/plugins/fonts 下任何 js/css/字体/图片。
+    const staticResource = /^(?:[a-zA-Z0-9_-]+\.(?:js|css)|(?:assets|plugins|fonts)\/[a-zA-Z0-9_./-]+\.(?:js|css|svg|png|ico|woff2?|ttf))$/.test(suffix);
     if (suffix && suffix !== "index.html" && !suffix.startsWith("api/") && !staticResource) return reply.code(404).send({ error: "not_found" });
     if (suffix.split('/').some(part => part === '.' || part === '..') || suffix.includes('\\')) return reply.code(400).send({ error: "invalid_path" });
     if (req.headers.origin && req.headers.origin !== new URL(config.siteUrl).origin) return reply.code(403).send({ error: "forbidden" });
@@ -156,5 +155,8 @@ export async function registerServerConsole(app: FastifyInstance, forward = magp
       reply.code(upstream.status).type(contentType);
       return contentType.includes("text/html") ? embedMagpie(bytes.toString("utf8"), magpiePrefix(), admin.csrf) : bytes;
     } catch { return reply.code(503).send({ error: "magpie_unavailable" }); }
-  }) });
+  });
+  // 静态资源（assets/plugins/fonts/下的 js/css/字体/图片）不限流，靠浏览器 Cache-Control。
+  app.route({ method: ["GET", "HEAD"], url: "/api/admin/magpie-proxy/assets/*", config:{rateLimit:{max:0}}, handler: magpieProxyHandler });
+  app.route({ method: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"], url: "/api/admin/magpie-proxy/*", config:{rateLimit:{max:300,timeWindow:'1 minute'}}, handler: magpieProxyHandler });
 }
