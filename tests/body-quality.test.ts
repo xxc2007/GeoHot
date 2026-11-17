@@ -138,3 +138,38 @@ describe("stripConsentWall", () => {
     assert.ok(cleaned.includes("真正的新闻正文"), "real article must survive");
   });
 });
+
+describe("NBS reader chrome contamination", () => {
+  const nbsUrl = "https://www.stats.gov.cn/sj/zxfb/202611/t20261117_1234567.html";
+
+  test("body containing 'Aa / 字体：小 中 大' reader controls is defect, not silently stripped", () => {
+    const html = "<p>Aa / 字体：小 中 大</p><p>2026年11月17日10时30分发布规模以上工业增加值同比增长5.8%。</p>";
+    const text = "Aa / 字体：小 中 大\n2026年11月17日10时30分发布规模以上工业增加值同比增长5.8%。";
+    const r = classifyBodyQuality(nbsUrl, html, text, { title: "规模以上工业增加值同比增长5.8%" });
+    assert.equal(r.status, "defect", `NBS reader chrome must be defect, got: ${JSON.stringify(r)}`);
+    assert.ok(r.reasons.includes("reader-chrome-contamination"), `expected reader-chrome-contamination, got: ${r.reasons}`);
+  });
+
+  test("body with '字体：小 中 大' variant (no Aa) is also defect", () => {
+    const html = "<p>字体：小 中 大</p><p>经初步核算，前三季度国内生产总值同比增长5.2%。</p>";
+    const text = "字体：小 中 大\n经初步核算，前三季度国内生产总值同比增长5.2%。";
+    const r = classifyBodyQuality(nbsUrl, html, text, { title: "前三季度国内生产总值同比增长5.2%" });
+    assert.equal(r.status, "defect", `'字体：小 中 大' must be defect, got: ${JSON.stringify(r)}`);
+  });
+
+  test("short bulletin exemption does NOT cover reader chrome contamination", () => {
+    // Even if the body is short and looks structured, reader chrome means extraction is broken.
+    const html = "<p>Aa / 字体：小 中 大 | 打印 | 关闭</p>";
+    const text = "Aa / 字体：小 中 大 | 打印 | 关闭";
+    const r = classifyBodyQuality(nbsUrl, html, text, { title: "国家统计局发布数据" });
+    assert.equal(r.status, "defect", "short bulletin exemption must not override reader chrome defect");
+    assert.ok(r.reasons.includes("reader-chrome-contamination"));
+  });
+
+  test("normal article without reader chrome stays ok", () => {
+    const html = "<p>经初步核算，前三季度国内生产总值105万亿元，按不变价格计算，同比增长5.2%。分季度看，一季度增长5.3%，二季度增长5.1%，三季度增长5.2%。</p>";
+    const text = "经初步核算，前三季度国内生产总值105万亿元，按不变价格计算，同比增长5.2%。分季度看，一季度增长5.3%，二季度增长5.1%，三季度增长5.2%。";
+    const r = classifyBodyQuality(nbsUrl, html, text, { title: "前三季度国内生产总值同比增长5.2%" });
+    assert.equal(r.status, "ok", `normal article must pass, got: ${JSON.stringify(r)}`);
+  });
+});
