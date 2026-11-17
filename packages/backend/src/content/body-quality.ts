@@ -4,7 +4,15 @@ import { CJK_COPY_PATTERN } from "@aihot/contracts/copy";
 
 const CJK_RE = new RegExp(CJK_COPY_PATTERN);
 
-export const BODY_QUALITY_RULE_VERSION = "2026-11-16.2";
+export const BODY_QUALITY_RULE_VERSION = "2026-11-17.1";
+
+/**
+ * NBS (国家统计局) 等政府站点的阅读器工具栏被误采进正文。
+ * 典型形状: "Aa / 字体：小 中 大"、"2026-11-16 10:30:00 | 字号：【大 中 小】 | 打印 | 关闭"。
+ * 这些是控件不是正文——剥离后放行等于假装提取没坏。检测到即判 defect，
+ * 短公告豁免不得覆盖（提取流程有 bug 时，正文长度再"结构化"也不能发）。
+ */
+const READER_CHROME_CONTAMINATION = /(?:^|\s)Aa\s*[/|｜]\s*字体[：:]|(?:^|\s)字体[：:][\s【]*[小中大][\s】]*[\s】]*[中][\s】]*[小中大]|(?:^|\s)字号[：:][\s【]*[大中小][\s】]*[\s】]*[中][\s】]*[大中小]|\d{4}[-年]\d{1,2}[-月]\d{1,2}日?\s*\d{1,2}[:：]\d{2}\s*[|｜]\s*(?:字号|字体)[：:]/;
 
 export type BodyStatus = "ok" | "defect";
 
@@ -103,6 +111,10 @@ export function classifyBodyQuality(
 
   // 1. Template shell FIRST — even a short skeleton is a skeleton, not a real short bulletin.
   if (rawIsTemplateShell) reasons.push("template-shell");
+
+  // 1b. Reader chrome contamination: NBS 等站点的工具栏被误采进正文。
+  //     必须在短公告豁免之前——提取流程坏了，正文再"短而结构化"也不能发。
+  if (READER_CHROME_CONTAMINATION.test(text)) reasons.push("reader-chrome-contamination");
 
   const realChars = cleaned.replace(/\s+/g, "").length;
 
