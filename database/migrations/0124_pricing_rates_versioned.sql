@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS pricing_rates (
   cached_price  numeric(14,6) NOT NULL,
   output_price  numeric(14,6) NOT NULL,
   billing_kind  text NOT NULL DEFAULT 'actual'
-                CHECK (billing_kind IN ('actual','subscription','free','no-price')),
+                CHECK (billing_kind IN ('actual','subscription','free','no-price','equivalent-public-api','unverified')),
   source_url    text,
   effective_at  timestamptz NOT NULL DEFAULT now(),
   fetched_at    timestamptz,
