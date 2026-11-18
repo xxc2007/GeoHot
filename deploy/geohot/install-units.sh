@@ -77,6 +77,8 @@ ALL_UNITS=(geohot-brain.service geohot-api.service geohot-worker.service geohot-
            geohot-swap-cache.service
            geohot-magpie.service geohot-magpie-update.service geohot-magpie-update.timer
            geohot-pricing-check.service geohot-pricing-check.timer
+           # 2026-11-18：价卡异步保守校验（只核对 seed 数值组合，不改写费率；失败沿用最后成功价并 stale）。
+           geohot-pricing-rates-refresh.service geohot-pricing-rates-refresh.timer
            # 2026-11-09 补登：媒体预热专用进程。原来是部署时在机器上手写的单元，
            # verify-config-drift.sh 因此永远报「装着但仓库里没有同名模板」。
            geohot-media.service

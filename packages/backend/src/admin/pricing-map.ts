@@ -69,9 +69,9 @@ const KIND_MAP: Record<SeedBillingKind, RateBillingKind> = {
   unverified: "unverified",
 };
 
-/** 取基准档位：A 组按 list，否则首档；B 组 tiers 是单档对象。 */
+/** 取基准档位：A 组 tiers 是档位名数组、费率在 rates；优先费率对象，list 档优先，否则首档。 */
 function baseline(entry: SeedEntry): SeedTier | null {
-  const source = entry.tiers ?? entry.rates ?? null;
+  const source = (Array.isArray(entry.tiers) ? entry.rates : entry.tiers ?? entry.rates) ?? null;
   if (!source) return null;
   if (Array.isArray(source) || typeof source !== "object") return null;
   const rec = source as Record<string, SeedTier>;
@@ -163,4 +163,32 @@ export function resolveVersionAt(
   const rows = versionsByRate.get(`${service}::${model}`);
   if (!rows?.length) return null;
   return selectVersionAt(rows, startedAt);
+}
+
+/** 数值在页面文本里的可能写法：0.15 / 0.1500 / 0.6 / 0.60 都算命中。 */
+function priceCandidates(n: number): string[] {
+  const set = new Set<string>([String(n), n.toFixed(2), n.toFixed(4)]);
+  return [...set].filter(Boolean);
+}
+
+/** 独立数字边界匹配：避免整数 1 命中 12、0.1 命中 0.15 这类子串误判。 */
+function appearsAlone(text: string, n: number): boolean {
+  return priceCandidates(n).some((c) => {
+    const escaped = c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`(?<![0-9.])${escaped}(?![0-9])`).test(text);
+  });
+}
+
+/**
+ * 保守校验：页面必须仍包含 seed 基准的 input/output 数值组合（cached 若有也需在）。
+ * 不解析新价、不发现新档位；任一基准值在页面上消失/改版/调价即判不通过，
+ * 由调用方保留最后成功价并标 stale。HTTP 200 本身不构成通过。
+ */
+export function verifySeedPriceCombo(
+  body: string, baseline: { input: number | null; cached: number | null; output: number | null }
+): boolean {
+  if (!body) return false;
+  const text = body.replace(/\s+/g, " ");
+  const has = (n: number | null) => n == null || appearsAlone(text, n);
+  return has(baseline.input) && has(baseline.output) && has(baseline.cached);
 }

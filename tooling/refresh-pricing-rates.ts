@@ -8,26 +8,17 @@
  *  - 失败/无法解析：写 last_error、置 stale=true，保留最后一次成功价卡，不清空费率。
  *  - 订阅/免费/无价/未核实条目无逐 token 公开价，不参与单价校验，保持原 stale 标记。
  *
- * 厂商页解析：parseVendorPrice 是可替换的校验器；当前保守返回 null——
- *  研究 mapping 中稳定结构化来源补齐后，在此接对应解析器；在此之前不把任何条目冒充为已核验。
+ * 厂商页校验：verifySeedPriceCombo 只核对页面是否仍含 seed 基准数值组合；
+ * 不解析新价、不发现新档位。任一基准值消失/改版/调价即判 stale，保留最后成功价。
  */
 import {readFile} from 'node:fs/promises';
 import path from 'node:path';
 import {REPO_ROOT} from '../packages/backend/src/config.ts';
 import {sql} from '../packages/backend/src/db.ts';
-import {parseSeedDoc, type PricingRateRecord} from '../packages/backend/src/admin/pricing-map.ts';
+import {parseSeedDoc, verifySeedPriceCombo, type PricingRateRecord} from '../packages/backend/src/admin/pricing-map.ts';
 
 const SEED_DIR = path.join(REPO_ROOT, 'database', 'seeds', 'pricing');
 const FETCH_TIMEOUT_MS = 10_000;
-
-interface ParsedPrice { input: number; cached_input: number | null; output: number }
-
-/** 厂商页/JSON 校验器：提取不到可信正数单价返回 null（保持 stale，不冒充成功）。 */
-function parseVendorPrice(_url: string, _body: string): ParsedPrice | null {
-  // TODO(pricing-research): 按稳定官方源接入结构化解析（DeepSeek/智谱/腾讯/MiniMax…）。
-  // 缺解析器时一律 null：HTTP 200 不更新 fetched_at，避免把未核验价写成已核验。
-  return null;
-}
 
 async function fetchBody(url: string): Promise<string> {
   const ctrl = new AbortController();
@@ -46,6 +37,11 @@ async function refreshEntry(e: PricingRateRecord): Promise<{ id: string; outcome
     // 非公开 API 通道无逐 token 公开价：保留既有标记，不参与单价校验。
     return { id: e.id, outcome: 'skipped' };
   }
+  // 无基准刊例（费率 null）的条目不参与校验：保持原 stale 标记，不把 null 当 0 去比对。
+  if (e.input == null || e.output == null) {
+    await sql`UPDATE pricing_rates SET last_attempt_at=now(), stale=true WHERE id=${e.id}`;
+    return { id: e.id, outcome: 'stale', reason: 'no baseline quote to verify' };
+  }
   const url = e.sourceUrls[0];
   if (!url) {
     await sql`UPDATE pricing_rates SET last_attempt_at=now(), last_error='no source url', stale=true WHERE id=${e.id}`;
@@ -53,14 +49,15 @@ async function refreshEntry(e: PricingRateRecord): Promise<{ id: string; outcome
   }
   try {
     const body = await fetchBody(url);
-    const parsed = parseVendorPrice(url, body);
-    if (!parsed || !(parsed.input > 0) || !(parsed.output > 0)) {
-      await sql`UPDATE pricing_rates SET last_attempt_at=now(), last_error='price not parseable', stale=true WHERE id=${e.id}`;
-      return { id: e.id, outcome: 'stale', reason: 'price not parseable' };
+    // 保守校验：页面必须仍含 seed 基准的 input/output（及 cached）数值组合。
+    // 校验通过只刷新核验时间戳，不改写费率；不解析、不发现新价，避免把网页报价误当新刊例。
+    const ok = verifySeedPriceCombo(body, { input: e.input, cached: e.cached, output: e.output });
+    if (!ok) {
+      // 改版/调价/数值消失：保留最后成功价，标 stale，不清空费率。
+      await sql`UPDATE pricing_rates SET last_attempt_at=now(), last_error='seed price combo changed or missing', stale=true WHERE id=${e.id}`;
+      return { id: e.id, outcome: 'stale', reason: 'seed price combo changed or missing' };
     }
-    // 解析校验通过才落成功时间；费率以解析结果为准，缓存价缺省 null。
     await sql`UPDATE pricing_rates SET
-      input_price=${parsed.input}, cached_price=${parsed.cached_input}, output_price=${parsed.output},
       fetched_at=now(), last_success_at=now(), last_error=null, stale=false, updated_at=now()
       WHERE id=${e.id}`;
     return { id: e.id, outcome: 'verified' };

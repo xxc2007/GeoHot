@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {normalizeSeedEntry, parseSeedDoc, selectRateAt, INTERNAL_ROUTES, type SeedEntry} from '../packages/backend/src/admin/pricing-map.ts';
+import {normalizeSeedEntry, parseSeedDoc, selectRateAt, verifySeedPriceCombo, INTERNAL_ROUTES, type SeedEntry} from '../packages/backend/src/admin/pricing-map.ts';
 
 function entry(over: Partial<SeedEntry>): SeedEntry {
   return {
@@ -76,8 +76,26 @@ test('repo seed A/B/C totals 47; non-estimate rows never carry a guessed price',
     if (r.billingKind !== 'equivalent-public-api') {
       assert.equal(r.input, null, `${r.id} must have null input`);
       assert.equal(r.output, null, `${r.id} must have null output`);
+    } else {
+      assert.ok(r.input != null && r.output != null, `${r.id} public-api must carry a baseline quote`);
     }
   }
   const kinds = new Set(all.map(r => r.billingKind));
   assert.ok(kinds.has('subscription') && kinds.has('free') && kinds.has('no-price') && kinds.has('unverified'));
+});
+
+test('verifySeedPriceCombo passes only when seed input/output/cached still appear on the page', () => {
+  const baseline = { input: 0.15, cached: 0.015, output: 0.6 };
+  assert.ok(verifySeedPriceCombo('input 0.15 cached 0.015 output 0.6 per million tokens', baseline));
+  // 格式化差异（0.60 / 0.1500）仍算命中。
+  assert.ok(verifySeedPriceCombo('¥0.1500 / 0.60', { input: 0.15, cached: null, output: 0.6 }));
+  // 调价：output 变成 0.9 → 不通过（保留旧价、标 stale）。
+  assert.equal(verifySeedPriceCombo('input 0.15 output 0.9', baseline), false);
+  // 缓存价消失 → 不通过。
+  assert.equal(verifySeedPriceCombo('input 0.15 output 0.6', baseline), false);
+  // 空页/改版 → 不通过。
+  assert.equal(verifySeedPriceCombo('', baseline), false);
+  assert.equal(verifySeedPriceCombo('<html>rebranded pricing</html>', baseline), false);
+  // 边界匹配：整数 1/4 不得命中 12、40 这类子串。
+  assert.equal(verifySeedPriceCombo('input 12 output 40', { input: 1, cached: null, output: 4 }), false);
 });

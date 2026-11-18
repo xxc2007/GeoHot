@@ -23,7 +23,7 @@ export interface UsageMetric {
   billingKind: string | null;
   subscriptionCalls: number; freeCalls: number; noPriceCalls: number; unverifiedCalls: number;
   equivalentCalls: number; unmappedModelCalls: number;
-  reasoningTokens: number | null;
+  reasoningTokens: number | null; reasoningMissing: number;
 }
 
 /** Narrow, trigger-maintained attempt data only; no request/response bodies or model calls. */
@@ -56,6 +56,8 @@ export async function readUsage(db: Tx, range: UsageRange | "*", service: string
         sum(a.tokens_in) FILTER(WHERE a.tokens_out IS NOT NULL) AS priced_in,
         sum(a.tokens_out) FILTER(WHERE a.tokens_in IS NOT NULL) AS priced_out,
         sum(a.tokens_cached) FILTER(WHERE a.tokens_in IS NOT NULL AND a.tokens_out IS NOT NULL) AS cached_tokens,
+        sum(a.tokens_reasoning) AS reasoning_tokens,
+        count(*) FILTER(WHERE a.tokens_reasoning IS NULL)::int AS reasoning_missing,
         sum(a.tokens_in) FILTER(WHERE a.tokens_out IS NOT NULL AND a.tokens_cached IS NULL) AS unknown_cache_in,
         count(*) FILTER(WHERE a.tokens_in IS NOT NULL AND a.tokens_out IS NOT NULL AND a.tokens_cached IS NULL)::int AS cache_unknown_calls,
         count(*) FILTER(WHERE a.tokens_in IS NULL OR a.tokens_out IS NULL)::int AS missing_usage,
@@ -107,6 +109,7 @@ export async function readUsage(db: Tx, range: UsageRange | "*", service: string
       coalesce(sum(missing_labels),0)::int AS "missingLabels",
       coalesce(sum(pricing_calls),0)::int AS "pricedCalls",coalesce(sum(priced_in),0)::float8 AS "pricedIn",
       coalesce(sum(priced_out),0)::float8 AS "pricedOut",coalesce(sum(cached_tokens),0)::float8 AS "cachedTokens",
+      coalesce(sum(reasoning_tokens),0)::float8 AS "reasoningTokens",coalesce(sum(reasoning_missing),0)::int AS "reasoningMissing",
       coalesce(sum(unknown_cache_in),0)::float8 AS "unknownCacheIn",coalesce(sum(cache_unknown_calls),0)::int AS "cacheUnknownCalls"
     FROM base GROUP BY GROUPING SETS((range_key),(range_key,service,model),(range_key,purpose),(range_key,day),(range_key,dow,hour),(range_key,currency),(range_key,service,model,day,dow,hour))`;
   if (rows.some(r => r.missingLabels)) {
@@ -124,7 +127,10 @@ export async function readUsage(db: Tx, range: UsageRange | "*", service: string
   const result: UsageMetric[] = rows.filter(r=>r.kind!=="pricing").map(({ missingLabels: _missing, pricedCalls:_pc,pricedIn:_pi,pricedOut:_po,cachedTokens:_ct,unknownCacheIn:_uc,cacheUnknownCalls:_cc, ...r }) => ({ ...r,kind:r.kind as UsageMetric["kind"],...(r.kind==="total"?{pricing:pricingFor(r.rangeKey)}:{}), tokensIn: r.tokensIn ?? 0, tokensOut: r.tokensOut ?? 0,
     subscriptionCalls: r.subscriptionCalls ?? 0, freeCalls: r.freeCalls ?? 0, noPriceCalls: r.noPriceCalls ?? 0,
     unverifiedCalls: r.unverifiedCalls ?? 0, equivalentCalls: r.equivalentCalls ?? 0, unmappedModelCalls: r.unmappedModelCalls ?? 0,
-    billingKind: r.billingKind ?? null, reasoningTokens: null,
+    billingKind: r.billingKind ?? null,
+    // reasoning 仅展示口径：全部调用都缺 reasoning 字段时保持 null；有值才给和值，不并入 output、不叠加计费。
+    reasoningMissing: r.reasoningMissing ?? 0,
+    reasoningTokens: (r.reasoningMissing ?? 0) === r.calls ? null : (r.reasoningTokens ?? 0),
     // Costs only have meaning within a currency group; never add USD to CNY.
     actualCost: r.kind === "currency" ? r.actualCost : null, estimatedCost: r.kind === "currency" ? r.estimatedCost : null }));
   // An empty successful filtered read is zero; unavailable scans still throw.
@@ -133,7 +139,7 @@ export async function readUsage(db: Tx, range: UsageRange | "*", service: string
 }
 
 function emptyUsage(rangeKey: UsageRange, pricingReady = true, fx?: { usdToCny: number; date: string; source: string }): UsageMetric {
-  return {rangeKey,kind:'total',service:null,model:null,purpose:null,day:null,dow:null,hour:null,currency:null,calls:0,ok:0,failed:0,pending:0,unknown:0,tokensIn:0,tokensOut:0,missingUsage:0,unpriced:0,actualCost:null,estimatedCost:null,latencyMs:null,billingKind:null,subscriptionCalls:0,freeCalls:0,noPriceCalls:0,unverifiedCalls:0,equivalentCalls:0,unmappedModelCalls:0,reasoningTokens:null,pricing:officialCosts([],pricingReady,fx)};
+  return {rangeKey,kind:'total',service:null,model:null,purpose:null,day:null,dow:null,hour:null,currency:null,calls:0,ok:0,failed:0,pending:0,unknown:0,tokensIn:0,tokensOut:0,missingUsage:0,unpriced:0,actualCost:null,estimatedCost:null,latencyMs:null,billingKind:null,subscriptionCalls:0,freeCalls:0,noPriceCalls:0,unverifiedCalls:0,equivalentCalls:0,unmappedModelCalls:0,reasoningTokens:null,reasoningMissing:0,pricing:officialCosts([],pricingReady,fx)};
 }
 
 // The compact metrics table has a eight-second SQL deadline, and ranges share one scan.

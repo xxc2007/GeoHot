@@ -16,9 +16,9 @@ test("usage counts attempts including retries, separates currencies and missing 
     const service=`usage-fixture-${Date.now()}`;
     const [r]=await db`INSERT INTO receipts(logical_key,service,purpose,status,request) VALUES(${service},${service},'score_article','pending','{}') RETURNING id`;
     await db`INSERT INTO receipt_attempts(receipt_id,attempt,service,model,status,usage,cost,currency,cost_basis,started_at)
-      VALUES(${r!.id},1,${service},'hy3','received','{"prompt_tokens":100,"completion_tokens":20,"prompt_tokens_details":{"cached_tokens":40}}',1,'USD','actual','2026-01-01T18:30:00Z'),
+      VALUES(${r!.id},1,${service},'hy3','received','{"prompt_tokens":100,"completion_tokens":20,"completion_tokens_details":{"reasoning_tokens":7},"prompt_tokens_details":{"cached_tokens":40}}',1,'USD','actual','2026-01-01T18:30:00Z'),
       (${r!.id},2,${service},'hy3','failed',NULL,NULL,NULL,NULL,'2026-01-01T18:31:00Z'),
-      (${r!.id},3,${service},'hy3','unknown','{"prompt_tokens":5,"completion_tokens":2,"cached_tokens":8}',2,'CNY','estimated','2026-01-01T18:32:00Z')`;
+      (${r!.id},3,${service},'hy3','unknown','{"prompt_tokens":5,"completion_tokens":2,"cached_tokens":8,"reasoning_tokens":4}',2,'CNY','estimated','2026-01-01T18:32:00Z')`;
     await db`INSERT INTO receipt_attempts(receipt_id,attempt,service,model,status,origin,usage) VALUES(${r!.id},4,${service},'hy3','received','replay','{"prompt_tokens":999}')`;
     const rows=await readUsage(db,"all",service,"");const total=rows.find(r=>r.kind==='total')!;
     assert.equal(total.calls,3);assert.equal(total.ok,1);assert.equal(total.failed,1);assert.equal(total.unknown,1);
@@ -27,8 +27,11 @@ test("usage counts attempts including retries, separates currencies and missing 
     // 缓存未知（attempt3 无 cached_tokens）按缓存命中价单一口径计：区间消失，上下界同值。
     assert.ok(Math.abs(total.pricing!.totals[0]!.list.low-.00015925)<1e-10);
     assert.ok(Math.abs(total.pricing!.totals[0]!.list.high-.00015925)<1e-10);
-    const cache=await db`SELECT tokens_cached,cache_checked FROM admin_model_attempt_metrics WHERE receipt_id=${r!.id} AND origin='live' ORDER BY id`;
+    const cache=await db`SELECT tokens_cached,cache_checked,tokens_reasoning FROM admin_model_attempt_metrics WHERE receipt_id=${r!.id} AND origin='live' ORDER BY id`;
     assert.equal(cache[0]!.tokens_cached,40);assert.equal(cache[2]!.tokens_cached,null);assert.ok(cache.every(r=>r.cache_checked));
+    // reasoning 只派生到读模型：7（completion_tokens_details）+4（顶层 reasoning_tokens）；缺字段保持 NULL。
+    assert.equal(cache[0]!.tokens_reasoning,7);assert.equal(cache[1]!.tokens_reasoning,null);assert.equal(cache[2]!.tokens_reasoning,4);
+    assert.equal(total.reasoningTokens,11);assert.equal(total.reasoningMissing,1);
     assert.equal(total.actualCost,null);assert.equal(total.estimatedCost,null);
     assert.equal(rows.find(r=>r.kind==='currency'&&r.currency==='USD')!.actualCost,1);
     assert.equal(rows.find(r=>r.kind==='currency'&&r.currency==='CNY')!.estimatedCost,2);

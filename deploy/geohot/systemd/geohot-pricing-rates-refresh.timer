@@ -1,0 +1,10 @@
+[Unit]
+Description=Idle daily pricing-rates seed-combo verification (Beijing morning, off peak)
+[Timer]
+# 错开 geohot-pricing-check 的 05:50；RandomizedDelay 各自独立。
+OnCalendar=*-*-* 06:10:00 Asia/Shanghai
+RandomizedDelaySec=5min
+Persistent=true
+Unit=geohot-pricing-rates-refresh.service
+[Install]
+WantedBy=timers.target

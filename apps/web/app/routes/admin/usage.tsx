@@ -17,7 +17,7 @@ interface Metric {
   kind: string; service: string | null; model: string | null; purpose: string | null;
   day: string | null; dow: number | null; hour: number | null; currency: string | null;
   calls: number; ok: number; failed: number; pending: number; unknown: number;
-  tokensIn: number; tokensOut: number; missingUsage: number; unpriced: number;
+  tokensIn: number; tokensOut: number; cachedTokens?: number; reasoningTokens: number | null; reasoningMissing: number; missingUsage: number; unpriced: number;
   actualCost: number | null; estimatedCost: number | null; latencyMs: number | null;
 }
 interface Usage {
@@ -165,7 +165,7 @@ export default function UsagePage({ loaderData }: Route.ComponentProps) {
         <div className="mb-5 grid grid-cols-2 overflow-hidden rounded-panel bg-surface ring-1 ring-line md:grid-cols-3 xl:grid-cols-6">
           {[
             ["请求次数", num(total?.calls ?? 0), `${num(total?.failed ?? 0)} 次失败`],
-            ["已知 Token", compact((total?.tokensIn ?? 0) + (total?.tokensOut ?? 0)), `输入 ${compact(total?.tokensIn ?? 0)} · 输出 ${compact(total?.tokensOut ?? 0)}`],
+            ["已知 Token", compact((total?.tokensIn ?? 0) + (total?.tokensOut ?? 0)), `输入 ${compact(total?.tokensIn ?? 0)} · 输出 ${compact(total?.tokensOut ?? 0)}${total?.reasoningTokens != null ? ` · 思考 ${compact(total.reasoningTokens)}` : ""}`],
             ["成功返回率", `${total?.calls ? ((total.ok / total.calls) * 100).toFixed(1) : "—"}%`, "返回成功不等于内容入选"],
             ["执行中", num(total?.pending ?? 0), "上游结果尚未返回"],
             ["结果未知", num(total?.unknown ?? 0), "保留回执，待核验"],
@@ -177,7 +177,7 @@ export default function UsagePage({ loaderData }: Route.ComponentProps) {
         <Card className="mb-5" title="用量趋势" right={<div className="flex gap-2">{[["tokens", "Token"], ["calls", "请求"]].map(([v, l]) => <button key={v} aria-pressed={mode === v} className={mode === v ? "font-medium text-accent" : "text-ink-4"} onClick={() => setMode(v)}>{l}</button>)}</div>}>
           <div className="mb-3 flex justify-between text-[12px] text-ink-4"><span>{firstDay} — {d.date ?? today}{d.range === "all" ? "（活动图展示最近一年）" : "（仅着色所选范围）"}</span><span>少 ··· 多</span></div>
           <div className="overflow-x-auto pb-2"><div className="grid grid-flow-col grid-rows-7 gap-[4px]" style={{ gridTemplateColumns: `repeat(${cells.length / 7},minmax(10px,1fr))`, minWidth: d.range === "all" ? 650 : undefined, maxWidth: cells.length / 7 * 20 }}>{cells.map((c, i) => c?.selected ? <Cell key={i} n={c.row ? value(c.row, mode) : 0} max={maxDay} label={`${c.day} · ${compact(c.row ? value(c.row, mode) : 0)} ${mode === "tokens" ? "已知 Token" : "次请求"}`} /> : <span key={i} title={c ? `${c.day} · 不在所选范围` : undefined} className="aspect-square rounded-[3px] border border-line-soft" />)}</div></div>
-          <p className="mt-3 text-[12px] text-ink-4">{num(total?.missingUsage ?? 0)} 次请求未返回完整 Token 数据；图表只累计已知值。费用区间与缓存计价规则见上方官方定价估算。</p>
+          <p className="mt-3 text-[12px] text-ink-4">{num(total?.missingUsage ?? 0)} 次请求未返回完整 Token 数据{total && total.reasoningMissing > 0 ? `；${num(total.reasoningMissing)} 次未返回思考 Token` : ""}；图表只累计已知值，思考 Token 单列展示、不并入输出、不重复计费。费用区间与缓存计价规则见上方官方定价估算。</p>
         </Card>
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
           <Card title="模型用量"><Ranking rows={models} mode={mode} kind="model" empty={view.state === "ready-empty"} /></Card>

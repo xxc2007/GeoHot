@@ -1,0 +1,23 @@
+[Unit]
+Description=Async pricing-rates conservative verification (seed combo check, DB-only on page reads)
+After=network-online.target
+[Service]
+Type=oneshot
+Environment=TZ=Asia/Shanghai
+WorkingDirectory=/opt/geohot/app
+EnvironmentFile=/opt/geohot/app/.env
+Environment=HOME=/opt/geohot
+ExecStart=/usr/bin/node tooling/refresh-pricing-rates.ts
+# 沙箱加固：只读系统目录、临时文件走 PrivateTmp、DB 走 TCP，不写本地业务目录。
+NoNewPrivileges=yes
+ProtectSystem=strict
+PrivateTmp=yes
+ProtectHome=read-only
+TimeoutStartSec=10min
+Nice=19
+IOSchedulingClass=idle
+CPUQuota=20%
+CPUWeight=10
+IOWeight=10
+MemoryMax=160M
+UMask=0077
