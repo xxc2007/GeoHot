@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# install-magpie-tunnel.sh.example — 幂等安装 Magpie web 反向隧道（仅 adopted 方向）。
+# 用法：在 exec/杭州节点上，从环境变量或本地未入库的 env 文件读取连接参数，生成 systemd 单元。
+# 密钥与主机信息不写进仓库、不打印到日志；env 文件权限 0600，属主 geohot。
+set -euo pipefail
+
+SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ENV_FILE="/etc/geohot/magpie-tunnel.env"
+UNIT="/etc/systemd/system/geohot-magpie-web-tunnel.service"
+
+: "${REMOTE_HOST:?set REMOTE_HOST (main node public/loopback address)}"
+: "${REMOTE_USER:?set REMOTE_USER}"
+: "${KEY_PATH:?set KEY_PATH (path to a dedicated deploy private key, 0600)}"
+REMOTE_PORT="${REMOTE_PORT:-3430}"
+LOCAL_PORT="${LOCAL_PORT:-3426}"
+
+install -d -m 0700 /etc/geohot
+umask 077
+cat > "$ENV_FILE" <<EOF
+REMOTE_HOST=${REMOTE_HOST}
+REMOTE_USER=${REMOTE_USER}
+KEY_PATH=${KEY_PATH}
+REMOTE_PORT=${REMOTE_PORT}
+LOCAL_PORT=${LOCAL_PORT}
+EOF
+
+install -m 0644 "$SRC/geohot-magpie-web-tunnel.service.example" "$UNIT"
+systemctl daemon-reload
+systemctl enable --now geohot-magpie-web-tunnel.service
+systemctl --no-pager status geohot-magpie-web-tunnel.service || true

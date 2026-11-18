@@ -61,6 +61,11 @@ export function ipFor(host: string, table: Record<string, string> = nodeIps()): 
   return null;
 }
 
+/** 纯函数：判断 Magpie 面板静态资源（根级 js/css + assets/plugins/fonts 下 js/css/字体/图片）。 */
+export function isMagpieStatic(suffix: string): boolean {
+  return /^(?:[a-zA-Z0-9_-]+\.(?:js|css)|(?:assets|plugins|fonts)\/[a-zA-Z0-9_./-]+\.(?:js|css|svg|png|ico|woff2?|ttf))$/.test(suffix);
+}
+
 export async function registerServerConsole(app: FastifyInstance, forward = magpieRequest, authenticate: typeof sessionPrincipal = sessionPrincipal) {
   const guard = (fn: Parameters<typeof adminHandler>[0]) => adminHandler(fn, authenticate);
   if (!app.hasDecorator('rateLimit')) await app.register(rateLimit, { global:true, max:600, timeWindow:'1 minute' });
@@ -113,10 +118,9 @@ export async function registerServerConsole(app: FastifyInstance, forward = magp
   // 之前 1500/分钟仍被 ~30 个并发资源打满（首屏 + 每秒轮询 trace），改为静态资源不限流、
   // API 面板调用保持 300/分钟上限。静态资源由 Cache-Control 头控制，浏览器不重复请求。
   const magpieProxyHandler = guard(async (req: import("fastify").FastifyRequest, reply: import("fastify").FastifyReply, admin: { csrf: string }) => {
-    const suffix = (req.params as { "*": string })["*"];
+    const suffix = (req.params as { "*": string })["*"] ?? (req.params as { file?: string }).file ?? "";
     // URL is never supplied by the caller; do not proxy the model gateway or token sign-in routes.
-    // 静态资源：根目录 js/css（kernel/start/app）+ assets/plugins/fonts 下任何 js/css/字体/图片。
-    const staticResource = /^(?:[a-zA-Z0-9_-]+\.(?:js|css)|(?:assets|plugins|fonts)\/[a-zA-Z0-9_./-]+\.(?:js|css|svg|png|ico|woff2?|ttf))$/.test(suffix);
+    const staticResource = isMagpieStatic(suffix);
     if (suffix && suffix !== "index.html" && !suffix.startsWith("api/") && !staticResource) return reply.code(404).send({ error: "not_found" });
     if (suffix.split('/').some(part => part === '.' || part === '..') || suffix.includes('\\')) return reply.code(400).send({ error: "invalid_path" });
     if (req.headers.origin && req.headers.origin !== new URL(config.siteUrl).origin) return reply.code(403).send({ error: "forbidden" });
@@ -156,7 +160,12 @@ export async function registerServerConsole(app: FastifyInstance, forward = magp
       return contentType.includes("text/html") ? embedMagpie(bytes.toString("utf8"), magpiePrefix(), admin.csrf) : bytes;
     } catch { return reply.code(503).send({ error: "magpie_unavailable" }); }
   });
-  // 静态资源（assets/plugins/fonts/下的 js/css/字体/图片）不限流，靠浏览器 Cache-Control。
-  app.route({ method: ["GET", "HEAD"], url: "/api/admin/magpie-proxy/assets/*", config:{rateLimit:{max:0}}, handler: magpieProxyHandler });
-  app.route({ method: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"], url: "/api/admin/magpie-proxy/*", config:{rateLimit:{max:300,timeWindow:'1 minute'}}, handler: magpieProxyHandler });
+  // 静态资源（根级 kernel/start/app.js、theme.css + assets/plugins/fonts）不限流，靠浏览器 Cache-Control。
+  const staticOpts = { config: { rateLimit: { max: 0 } }, handler: magpieProxyHandler };
+  app.route({ method: ["GET", "HEAD"], url: "/api/admin/magpie-proxy/:file", ...staticOpts });
+  for (const prefix of ["assets", "plugins", "fonts"]) {
+    app.route({ method: ["GET", "HEAD"], url: `/api/admin/magpie-proxy/${prefix}/*`, ...staticOpts });
+  }
+  // 动态 API 面板调用保持 300/分钟上限。
+  app.route({ method: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"], url: "/api/admin/magpie-proxy/*", config: { rateLimit: { max: 300, timeWindow: "1 minute" } }, handler: magpieProxyHandler });
 }

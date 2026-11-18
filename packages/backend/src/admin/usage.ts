@@ -20,16 +20,19 @@ export interface UsageMetric {
   calls: number; ok: number; failed: number; pending: number; unknown: number;
   tokensIn: number; tokensOut: number; missingUsage: number; unpriced: number;
   actualCost: number | null; estimatedCost: number | null; latencyMs: number | null;
+  billingKind: string | null;
+  subscriptionCalls: number; freeCalls: number; noPriceCalls: number; unverifiedCalls: number;
+  equivalentCalls: number; unmappedModelCalls: number;
+  reasoningTokens: number | null;
 }
 
 /** Narrow, trigger-maintained attempt data only; no request/response bodies or model calls. */
 export async function readUsage(db: Tx, range: UsageRange | "*", service: string, model: string, date: string | null = null) {
   if (range === 'date' && !usageDate(date ?? undefined)) throw new Error('Invalid usage date');
+  // 2026-11-18：标签/指标回填状态不再整页阻断。派生 metrics 表若不存在或查询失败，由快照层保留
+  // 上次成功数据并标 unavailable；标签缺口只作为行上的 missingLabels 提示，不抛 MODEL_LABEL_BACKFILL_PENDING。
   const [ready] = await db`SELECT
-    (SELECT value='true'::jsonb FROM settings WHERE key='admin.modelLabelsReady') AND
-    (SELECT value='true'::jsonb FROM settings WHERE key='admin.modelMetricsReady') AS ready,
     (SELECT value='true'::jsonb FROM settings WHERE key='admin.usageCacheReady') AS fees_ready`;
-  if (!ready?.ready) throw Object.assign(new Error("statistics backfill pending"), { code: "MODEL_LABEL_BACKFILL_PENDING" });
   await db`SET LOCAL work_mem='16MB'`;
   // Date and shared reads use the same prepared shape: fold the day bounds for each call.
   await db`SET LOCAL plan_cache_mode='force_custom_plan'`;
@@ -59,13 +62,23 @@ export async function readUsage(db: Tx, range: UsageRange | "*", service: string
         count(*) FILTER(WHERE a.cost IS NULL OR a.currency IS NULL OR a.cost_basis IS NULL)::int AS unpriced,
         sum(a.cost) FILTER(WHERE a.cost_basis='actual' AND a.currency IS NOT NULL) AS actual_cost,
         sum(a.cost) FILTER(WHERE a.cost_basis='estimated' AND a.currency IS NOT NULL) AS estimated_cost,
+        -- 按价卡 billing_kind 分列；actual 只来自回执 cost_basis='actual'，价卡刊例/等值不进 actual。
+        count(*) FILTER(WHERE pr.billing_kind='subscription')::int AS subscription_calls,
+        count(*) FILTER(WHERE pr.billing_kind='free')::int AS free_calls,
+        count(*) FILTER(WHERE pr.billing_kind='no-price')::int AS no_price_calls,
+        count(*) FILTER(WHERE pr.billing_kind='unverified')::int AS unverified_calls,
+        count(*) FILTER(WHERE pr.billing_kind='equivalent-public-api')::int AS equivalent_calls,
+        count(*) FILTER(WHERE pr.id IS NULL)::int AS unmapped_model_calls,
+        pr.billing_kind AS pricing_kind,
         sum(a.latency_ms)::float8 AS latency_sum,count(a.latency_ms)::int AS latency_count,
         count(*) FILTER(WHERE r.receipt_id IS NULL)::int AS missing_labels
-      FROM admin_model_attempt_metrics a LEFT JOIN receipt_model_labels r ON r.receipt_id=a.receipt_id
+      FROM admin_model_attempt_metrics a
+      LEFT JOIN receipt_model_labels r ON r.receipt_id=a.receipt_id
+      LEFT JOIN pricing_rates pr ON pr.id = r.service || '::' || a.model
       WHERE a.origin='live' AND a.model IS NOT NULL
         AND (${range} <> 'date' OR (a.started_at >= (${date}::date::timestamp AT TIME ZONE 'Asia/Shanghai') AND a.started_at < ((${date}::date + 1)::timestamp AT TIME ZONE 'Asia/Shanghai')))
         AND (${service}='' OR r.service=${service}) AND (${model}='' OR a.model=${model})
-      GROUP BY range_mask,r.service,a.model,r.purpose,a.currency,date_trunc('hour',a.started_at)
+      GROUP BY range_mask,r.service,a.model,r.purpose,a.currency,pr.billing_kind,date_trunc('hour',a.started_at)
     ), base AS MATERIALIZED (
       SELECT hourly.*,scope.range_key,(bucket AT TIME ZONE 'Asia/Shanghai')::date::text AS day,
         extract(isodow FROM bucket AT TIME ZONE 'Asia/Shanghai')::int AS dow,
@@ -83,6 +96,13 @@ export async function readUsage(db: Tx, range: UsageRange | "*", service: string
       sum(tokens_in)::float8 AS "tokensIn",sum(tokens_out)::float8 AS "tokensOut",
       coalesce(sum(missing_usage),0)::int AS "missingUsage",coalesce(sum(unpriced),0)::int AS unpriced,
       sum(actual_cost)::float8 AS "actualCost",sum(estimated_cost)::float8 AS "estimatedCost",
+      coalesce(sum(subscription_calls),0)::int AS "subscriptionCalls",
+      coalesce(sum(free_calls),0)::int AS "freeCalls",
+      coalesce(sum(no_price_calls),0)::int AS "noPriceCalls",
+      coalesce(sum(unverified_calls),0)::int AS "unverifiedCalls",
+      coalesce(sum(equivalent_calls),0)::int AS "equivalentCalls",
+      coalesce(sum(unmapped_model_calls),0)::int AS "unmappedModelCalls",
+      max(pricing_kind) AS "billingKind",
       (sum(latency_sum)/nullif(sum(latency_count),0))::float8 AS "latencyMs",
       coalesce(sum(missing_labels),0)::int AS "missingLabels",
       coalesce(sum(pricing_calls),0)::int AS "pricingCalls",coalesce(sum(priced_in),0)::float8 AS "pricedIn",
@@ -100,6 +120,9 @@ export async function readUsage(db: Tx, range: UsageRange | "*", service: string
   const fx = resolveFx(fxRow);
   const pricingFor=(rangeKey:UsageRange)=>officialCosts(rows.filter(r=>r.kind==="pricing"&&r.rangeKey===rangeKey),!!ready.fees_ready,fx);
   const result: UsageMetric[] = rows.filter(r=>r.kind!=="pricing").map(({ missingLabels: _missing, pricingCalls:_pc,pricedIn:_pi,pricedOut:_po,cachedTokens:_ct,unknownCacheIn:_uc,cacheUnknownCalls:_cc, ...r }) => ({ ...r,kind:r.kind as UsageMetric["kind"],...(r.kind==="total"?{pricing:pricingFor(r.rangeKey)}:{}), tokensIn: r.tokensIn ?? 0, tokensOut: r.tokensOut ?? 0,
+    subscriptionCalls: r.subscriptionCalls ?? 0, freeCalls: r.freeCalls ?? 0, noPriceCalls: r.noPriceCalls ?? 0,
+    unverifiedCalls: r.unverifiedCalls ?? 0, equivalentCalls: r.equivalentCalls ?? 0, unmappedModelCalls: r.unmappedModelCalls ?? 0,
+    billingKind: r.billingKind ?? null, reasoningTokens: null,
     // Costs only have meaning within a currency group; never add USD to CNY.
     actualCost: r.kind === "currency" ? r.actualCost : null, estimatedCost: r.kind === "currency" ? r.estimatedCost : null }));
   // An empty successful filtered read is zero; unavailable scans still throw.
@@ -108,7 +131,7 @@ export async function readUsage(db: Tx, range: UsageRange | "*", service: string
 }
 
 function emptyUsage(rangeKey: UsageRange, pricingReady = true, fx?: { usdToCny: number; date: string; source: string }): UsageMetric {
-  return {rangeKey,kind:'total',service:null,model:null,purpose:null,day:null,dow:null,hour:null,currency:null,calls:0,ok:0,failed:0,pending:0,unknown:0,tokensIn:0,tokensOut:0,missingUsage:0,unpriced:0,actualCost:null,estimatedCost:null,latencyMs:null,pricing:officialCosts([],pricingReady,fx)};
+  return {rangeKey,kind:'total',service:null,model:null,purpose:null,day:null,dow:null,hour:null,currency:null,calls:0,ok:0,failed:0,pending:0,unknown:0,tokensIn:0,tokensOut:0,missingUsage:0,unpriced:0,actualCost:null,estimatedCost:null,latencyMs:null,billingKind:null,subscriptionCalls:0,freeCalls:0,noPriceCalls:0,unverifiedCalls:0,equivalentCalls:0,unmappedModelCalls:0,reasoningTokens:null,pricing:officialCosts([],pricingReady,fx)};
 }
 
 // The compact metrics table has a eight-second SQL deadline, and ranges share one scan.

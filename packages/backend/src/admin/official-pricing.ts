@@ -35,29 +35,39 @@ const aliases:Record<string,string>={
  * 不打外网、不阻塞页面；stale 标志透传给前端。
  */
 export interface PricingRateRow {
-  id: string; name: string; currency: "USD"|"CNY";
-  input: number; cached: number; output: number;
-  billing_kind: "actual"|"subscription"|"free"|"no-price";
-  source_url: string | null; effective_at: string; fetched_at: string | null; stale: boolean; note: string | null;
+  id: string; service: string | null; model: string | null; name: string;
+  currency: "USD"|"CNY"|null;
+  input: number | null; cached: number | null; output: number | null;
+  billing_kind: "equivalent-public-api"|"subscription"|"free"|"no-price"|"unverified";
+  source_url: string | null; source_urls: string[];
+  effective_at: string | null; fetched_at: string | null; stale: boolean; note: string | null;
 }
 export async function loadPricingRates(db: Db): Promise<{ rates: PricingRateRow[]; stale: boolean }> {
   try {
     const rows = await db<PricingRateRow[]>`
-      SELECT id, name, currency,
+      SELECT id, service, model, name, currency,
              input_price::float8 AS input, cached_price::float8 AS cached, output_price::float8 AS output,
              billing_kind, source_url,
+             COALESCE(source_urls, '[]'::jsonb)::text AS source_urls,
              effective_at::text AS effective_at, fetched_at::text AS fetched_at, stale, note
       FROM pricing_rates`;
     if (!rows.length) return { rates: OFFICIAL_RATES.map(constToRow), stale: true };
-    return { rates: rows, stale: rows.every(r => r.stale) };
+    return { rates: rows.map(r => ({ ...r, source_urls: parseUrls(r.source_urls) })), stale: rows.every(r => r.stale) };
   } catch {
     // 表不存在或连接失败：常量兜底，标记 stale。
     return { rates: OFFICIAL_RATES.map(constToRow), stale: true };
   }
 }
+function parseUrls(raw: unknown): string[] {
+  if (!raw) return [];
+  try { const v = JSON.parse(raw as string); return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []; }
+  catch { return []; }
+}
 function constToRow(r: OfficialRate): PricingRateRow {
-  return { id: r.id, name: r.name, currency: r.currency, input: r.input, cached: r.cached, output: r.output,
-           billing_kind: "actual", source_url: r.source, effective_at: "2026-10-31", fetched_at: "2026-10-31", stale: false, note: r.note };
+  return { id: r.id, service: null, model: null, name: r.name, currency: r.currency, input: r.input, cached: r.cached, output: r.output,
+           // 常量兜底也是刊例/等值估算，不是回执 actual 账单。
+           billing_kind: "equivalent-public-api", source_url: r.source, source_urls: [r.source],
+           effective_at: "2026-10-31", fetched_at: "2026-10-31", stale: false, note: r.note };
 }
 
 // Cabinet's 2026 holiday notice; weekends remain off-peak, including make-up workdays.

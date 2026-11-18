@@ -18,7 +18,8 @@ test('loadPricingRates marks stale when every row is stale=false is honored', as
   const one = {
     id: 'deepseek', name: 'DeepSeek V4.1 Flash', currency: 'USD',
     input: 0.15, cached: 0.003, output: 0.60,
-    billing_kind: 'actual', source_url: null, effective_at: '2026-10-31', fetched_at: '2026-10-31', stale: false, note: null,
+    billing_kind: 'equivalent-public-api', source_url: null, source_urls: [],
+    effective_at: '2026-10-31', fetched_at: '2026-10-31', stale: false, note: null,
   };
   // tagged template: db`...` 即 db(strings,...values) 返回 Promise<rows>。
   const fakeDb = (() => Promise.resolve([one])) as never;

@@ -42,7 +42,9 @@ test("usage counts attempts including retries, separates currencies and missing 
     assert.equal(shared.find(r=>r.kind==='total'&&r.rangeKey==='all')!.calls,3);
     assert.equal((await db`SELECT status FROM receipts WHERE id=${r!.id}`)[0]!.status,'pending','read does not mutate ledger');
     await db`DELETE FROM receipt_model_labels WHERE receipt_id=${r!.id}`;
-    await assert.rejects(readUsage(db,'all','', 'hy3'),/label gap/);
+    // 2026-11-18：标签缺口不再整页阻断——回执/指标仍可读，调用数不被打回 503。
+    const afterGap = await readUsage(db,'all','', 'hy3');
+    assert.equal(afterGap.find(r=>r.kind==='total')!.calls,3);
     throw new Error('rollback usage fixture');
   }),/rollback usage fixture/);
 });
