@@ -13,18 +13,42 @@ export const magpiePrefix = () => `${deployBase(config.siteUrl)}/api/admin/magpi
 function scriptString(value: string) {
   return JSON.stringify(value).replace(/[<>\u2028\u2029]/g, c => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`);
 }
+/**
+ * Magpie 控制台上游可配置（MAGPIE_WEB_BASE_URL），默认兼容旧的本地 3430。
+ * 只允许 http loopback（127.0.0.1/127.x/localhost/::1），不接受真实公网 IP；
+ * 跨机访问走本机 SSH 隧道端口，不在代理里硬编码对端地址。
+ */
+export function magpieBase(): URL {
+  const raw = process.env.MAGPIE_WEB_BASE_URL || "http://127.0.0.1:3430";
+  const u = new URL(raw);
+  const host = u.hostname;
+  const loopback = host === "localhost" || host === "::1" || /^127\./.test(host);
+  if (u.protocol !== "http:" || !loopback) throw new Error("magpie upstream must be http loopback");
+  return u;
+}
+export function isLoopbackHost(host: string): boolean {
+  return host === "localhost" || host === "::1" || /^127\./.test(host);
+}
+
+/** Cookie 优先取 MAGPIE_WEB_COOKIE，否则读既有 web key 文件；不把密钥回传给浏览器。 */
+async function magpieCookie(): Promise<string> {
+  const envCookie = process.env.MAGPIE_WEB_COOKIE?.trim();
+  if (envCookie) return envCookie;
+  return (await readFile(process.env.MAGPIE_WEB_KEY_FILE || "/etc/geohot/magpie-web-key", "utf8")).trim();
+}
+
 export async function magpieRequest(resource: string, init: {method:string;headers:Record<string,string>;body?:string}):Promise<Response> {
+  const base = magpieBase();
   return new Promise((resolve, reject) => {
-    const target = new URL(resource, 'http://127.0.0.1:3430');
+    const target = new URL(resource, base);
     // Magpie deliberately holds an idle trace poll for 25 seconds. Keep its deadline
     // above that interval, but below the reverse proxy's 60-second read timeout.
-    const idlePoll = target.pathname === '/api/gateway/trace' && target.searchParams.get('wait') === '1';
-    // Keep host/port constants separate from the resource path, including after URL normalization.
-    const call = httpRequest({ hostname:'127.0.0.1', port:3430, path:resource, method:init.method, headers:init.headers }, res => {
+    const idlePoll = target.pathname === "/api/gateway/trace" && target.searchParams.get("wait") === "1";
+    const call = httpRequest({ hostname:base.hostname, port:Number(base.port)||80, path:resource, method:init.method, headers:init.headers }, res => {
       const headers=new Headers();for(const [k,v] of Object.entries(res.headers))if(v!==undefined)headers.set(k,Array.isArray(v)?v.join(','):v);
       resolve(new Response([204,304].includes(res.statusCode??200)?null:Readable.toWeb(res) as never,{status:res.statusCode??502,headers}));
     });
-    call.setTimeout(idlePoll ? 45_000 : 20_000,()=>call.destroy(new Error('Magpie timeout')));call.on('error',reject);call.end(init.body);
+    call.setTimeout(idlePoll ? 45_000 : 20_000,()=>call.destroy(new Error("Magpie timeout")));call.on("error",reject);call.end(init.body);
   });
 }
 /** Rewrite only the trusted, fixed loopback application's own resource URLs. */
@@ -125,12 +149,13 @@ export async function registerServerConsole(app: FastifyInstance, forward = magp
     if (suffix.split('/').some(part => part === '.' || part === '..') || suffix.includes('\\')) return reply.code(400).send({ error: "invalid_path" });
     if (req.headers.origin && req.headers.origin !== new URL(config.siteUrl).origin) return reply.code(403).send({ error: "forbidden" });
     let secret: string;
-    try { secret = (await readFile(process.env.MAGPIE_WEB_KEY_FILE || "/etc/geohot/magpie-web-key", "utf8")).trim(); }
+    try { secret = await magpieCookie(); }
     catch { return reply.code(503).send({ error: "magpie_unavailable" }); }
+    const base = magpieBase();
     const query = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
-    const target = new URL(`/${suffix}${query}`, "http://127.0.0.1:3430");
-    if (target.origin !== "http://127.0.0.1:3430" || target.searchParams.has("k") || target.pathname.startsWith('/v1') || target.pathname.startsWith('/_magpie')) return reply.code(400).send({ error: "invalid_path" });
-    const headers: Record<string, string> = { cookie: `magpie_web_3430=${secret}`, "accept-encoding": "identity", origin: "http://127.0.0.1:3430" };
+    const target = new URL(`/${suffix}${query}`, base);
+    if (!isLoopbackHost(target.hostname) || target.searchParams.has("k") || target.pathname.startsWith('/v1') || target.pathname.startsWith('/_magpie')) return reply.code(400).send({ error: "invalid_path" });
+    const headers: Record<string, string> = { cookie: `magpie_web_3430=${secret}`, "accept-encoding": "identity", origin: base.origin };
     if (req.headers["content-type"]) headers["content-type"] = req.headers["content-type"];
     try {
       const upstream = await forward(target.pathname+target.search, { method: req.method, headers, body: ["GET", "HEAD"].includes(req.method) ? undefined : JSON.stringify(req.body) });
