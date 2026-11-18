@@ -19,6 +19,8 @@ flowchart LR
 | worker | `apps/worker/` | pg-boss 任务队列和定时任务：抓信源、调模型、归组、热度、日报、告警、清理 |
 | web | `apps/web/` | React Router 服务端渲染的网页。只通过 HTTP 读 api，不碰数据库 |
 
+生产按 `WORKER_ROLE` 把 worker 拆到不同节点：读者节点只跑 api/web/数据库，不注册 worker 任务；协调节点跑 coordinator（归组、组刊、调度、通知、发布）；执行节点跑 content-executor（抓取、模型分析、抽取、媒体），可多台横向扩展。角色取值见 `packages/backend/src/jobs/worker-role.ts`。
+
 业务代码都在 `packages/backend/`，前后端共用的类型和常量在 `packages/contracts/`，行业相关的一切在 `industry/`。
 
 ## 几条不变的规则
@@ -37,7 +39,7 @@ flowchart LR
 | 位置 | 内容 |
 |---|---|
 | `industry/` | 行业包：站名文案、分类标签、主题、示范信源、提示词、门槛、品牌、条款页 |
-| `packages/backend/src/sources/` | 六种信源的读取器，抓取调度（`collect.ts`） |
+| `packages/backend/src/sources/` | 各平台信源读取器，抓取调度（`collect.ts`） |
 | `packages/backend/src/content/` | 资料入库、判重、正文提取和清洗 |
 | `packages/backend/src/editorial/` | 判断与写作：`analyze.ts`（流程）、`prompts.ts`（读提示词）、`models.ts`（每一步用哪个模型） |
 | `packages/backend/src/events/` | 事件归组、热度、事件综述 |
@@ -47,7 +49,7 @@ flowchart LR
 | `packages/backend/src/notify/` | 飞书推送 |
 | `packages/backend/src/operations/` | 告警、备份、清理、IndexNow |
 | `packages/backend/src/admin/` | 后台接口 |
-| `packages/backend/src/leaderboard/`、`monitor/` | 模型榜、Codex 重置监控（见 [模型榜与 Codex 重置监控](leaderboard.md)） |
+| `packages/backend/src/leaderboard/`、`monitor/` | 模型榜、Codex 重置监控；这两个模块在 `industry/features.ts` 里处于关闭状态，别再打开 |
 | `apps/web/app/routes/` | 每个页面一个文件，`routes.ts` 是路由表 |
 | `database/migrations/` | 数据库迁移，按编号顺序执行 |
 | `scripts/` | 初始化、迁移、种子数据、评测、检查脚本 |

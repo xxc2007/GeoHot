@@ -1,6 +1,6 @@
 # 给 Agent 的说明
 
-这是一个行业热点网站的框架：采集信源、用模型筛选和写作、归组事件、出日报，并通过网站、RSS、公开 API 和 MCP 对外提供。**本仓库不是那个示例站了**：它是地理垂直领域的站 GEOHOT（中文站名"地理热点"），`industry/` 已经是地理层——`industry/sources.json` 登记的地理信源（条数不在任何文档里抄录：当场数 `node -e "console.log(require('./industry/sources.json').sources.length)"`）、七个分类（自然/人文/区域/政治地理/历史地理/前沿地理/地理信息系统）、地理提示词、地理品牌；只有 npm 包名 `@aihot/*` 和目录名 `industry/` 按决定保留不改。**「板块」那一层已经没有了**：`/boards` 与 `industry/boards.json`、`publication/boards.ts`、`/api/site/boards*` 于 2026-10-04 按站长要求整块删除（判重——主题页与筛选栏的分类做的是同一件事），不要再把它加回来，四个方向的入口在分类层（`/all?category=<key>`）与主题页。先读仓库根的 `README.md`（面向读者的介绍页），操作口径读 `docs/manual.md`（原仓库根 README，本站写的，以它为准），再按任务读 `docs/` 里对应的文档。`docs/` 里那几份上游参考文档若干命令与数字在这台机器上已经不成立（见 `docs/manual.md` 第 9 节的状态列）；**任何门槛、计数、命令都以代码和 `docs/manual.md` 为准，不以上游 `docs/` 为准。**
+这是一个行业热点网站的框架：采集信源、用模型筛选和写作、归组事件、出日报，并通过网站、RSS、公开 API 和 MCP 对外提供。**本仓库不是示例站**：它是地理垂直领域的站 GEOHOT（中文站名"地理热点"），`industry/` 已经是地理层——地理信源、七个分类（自然/人文/区域/政治地理/历史地理/前沿地理/地理信息系统）、地理提示词、地理品牌；只有 npm 包名 `@aihot/*` 和目录名 `industry/` 按决定保留不改。**「板块」那一层已经没有了**：`/boards` 与 `industry/boards.json`、`publication/boards.ts`、`/api/site/boards*` 于 2026-10-04 按站长要求整块删除，不要再加回来；四个方向的入口在分类层（`/all?category=<key>`）与主题页。先读仓库根的 `README.md`（面向读者的介绍页），操作口径读 `docs/manual.md`，再按任务读 `docs/` 里对应的文档。**任何门槛、计数、命令都以代码和本文件为准；文档里的数字一律当场重测，不抄录旧值。**
 
 ## 最常见的任务：改成另一个行业
 
@@ -8,51 +8,175 @@
 
 这些事要问使用者本人，不要替他决定：站名；要盯哪些信源；什么消息重要、什么是噪声；分类怎么分；条款和隐私说明的内容（`industry/pages/` 是模板，上线前需要他本人确认）。
 
-改评分标准时保留原有结构（内容类型、五个维度加权、噪声压制、安全边界），替换的是“什么算重要”“什么算噪声”的例子。门槛要用使用者标注的样本重新校准（方法在 `docs/selection.md`），不要凭感觉改数字。**门槛的现值只写在 `industry/selection.ts` 里**（文件头的注释就是它的算式、依据与"这组数还没被校准"的诚实声明），不要把数字抄进文档再抄回来；`docs/selection.md`、`docs/customize.md` 里那一段是抄录，可能落后于代码（本站门槛在 Wave 4 刚重算过一轮）。`industry/features.ts` 的 `leaderboard`、`codexResetMonitor` 是本站关掉的两个 AI 专属模块，别再打开。
+改评分标准时保留原有结构（内容类型、五个维度加权、噪声压制、安全边界），替换的是"什么算重要""什么算噪声"的例子。门槛要用使用者标注的样本重新校准（方法在 `docs/selection.md`），不要凭感觉改数字。**门槛的现值只写在 `industry/selection.ts` 里**（文件头注释就是它的算式、依据与"这组数还没被校准"的诚实声明），不要把数字抄进文档再抄回来。`industry/features.ts` 的 `leaderboard`、`codexResetMonitor` 是本站关掉的两个 AI 专属模块，别再打开。
 
-## 运行与检查
+## 仓库与远端、GitHub 发布
 
-- Node.js 24 直接运行 TypeScript，后端没有构建步骤。npm workspaces：`apps/*`、`packages/*`、`industry`。
-- **本机跑法见 `docs/manual.md` 第 3 节，不是 `docs/deploy.md`。** 这台机器没有 Docker、没有系统 PostgreSQL、没有管理员权限，仓库只有几个本地提交、没有配远端；`docs/deploy.md` 里 `git clone KKKKhazix/AIHOT`、六个 Docker 容器（db/setup/api/worker/web/caddy）、`pg_dump -U aihot` 都不适用于本交付。Docker 那条路只有在你真的装了 Docker 时才照 `docs/deploy.md` 走。
-- **公网部署已上线（2026-10-01）**：站点跑在 `https://xxc2007.me/geohot/`，与同域名的另外两个站同机不同单元（**2026-10-07 起**：根路径是站长的个人介绍站 `/var/www/intro`，南昌十五中纪念册搬到 `/nc15/` = `/var/www/nc15`），六个常驻单元各带 `MemoryMax`（brain 160 / api 200 / worker 240 / web 320 MB + 两条 workbuddy 桥各 200 MB：3065 国际版 2026-10-11 起、3066 中国版 2026-10-12 起），另有 `geohot-archive.service`/`.timer` 管档案进口，两个邻居站的首页哈希逐字节未变（`verify-deploy.sh` 第 1 节比对的就是这两个 + 根 sitemap）。装法、验证命令、以及部署时踩过的坑都在 `deploy/geohot/DEPLOYMENT.md`；四个已拍板决定（①—④）写在 `docs/manual.md` 第 7 节第 11 条。改 `industry/` 之后要重建 web（`BASE_PATH=/geohot`）才生效——runtime 的 `BASE_PATH` 只影响 basename，资源前缀是构建期写进 bundle 的。
-- **干净克隆的第一步是 `npm run env:init`，不是 `npm ci` 之后直接起栈。** `.env`、`.env.pipeline`、`.env.ports` 全被 `.gitignore` 排除，克隆里一个都没有，而文档里的启动命令写的是 `node --env-file=.env --env-file=.env.pipeline …`——文件不存在时 Node 报 `.env: not found` 并以退出码 9 死掉（独立审计的 BLOCKER）。`scripts/init-env.ts` 从 `.env.example` + `.env.pipeline.example` 写出这两个文件（申请权限 600；这台 Windows 上权限位只是名义的，实测 666，真正的保护是 `.gitignore` 的 `.env`/`.env.*` 规则——别把仓库放进共享目录），为 `ADMIN_PASSWORD`/`SESSION_SECRET`/`IMG_PROXY_SIGN_SECRET`/`POSTGRES_PASSWORD`/`INGEST_TOKEN` 生成真随机值（留空的话后台进不去、投递接口恒 401），并且**拒绝覆盖已存在的文件**（退出码 1）。端口用 `--db-port / --api-port / --web-port / --brain-port`，它会把 `DATABASE_URL`、`SITE_URL`、`API_PORT`、`API_BASE_URL`、`WEB_PORT`、`BRAIN_PORT`、`LLM_BASE_URL` 一次改齐。
-- 起栈（各占一个终端）：
+- 仓库有公开 GitHub 远端；远端地址以 `git remote -v` 现查为准，不在文档里抄写死的 owner/路径。fork 后要把 `industry/site.ts` 的 `repoUrl` 与远端一起改成自己的仓库。
+- 发布走仓库内脚本，不按文件逐个 PUT：
   ```bash
-  npm run env:init                                                         # 干净克隆里先跑这个；端口不同就带 --*-port
-  npm run db:up -- --daemon                                                # embedded PostgreSQL，默认 127.0.0.1:5433；停止 npm run db:down
-  npm run brain                                                            # 编辑大脑 stub，127.0.0.1:3055
-  node --env-file=.env --env-file=.env.pipeline apps/api/src/main.ts       # 接口，API_PORT（默认 3001）
-  node --env-file=.env --env-file=.env.pipeline apps/worker/src/main.ts    # 队列与定时任务
-  npm run dev:web                                                          # http://localhost:3000
+  bash deploy/geohot/publish-to-github.sh --dry-run -m "<本次变更说明>"   # 只算树、只报差异
+  bash deploy/geohot/publish-to-github.sh -m "<本次变更说明>"              # 快进推送 + 当场验收
+  bash deploy/geohot/verify-github-sync.sh                              # 独立复跑逐字节核对
   ```
-  **默认端口在这台机器上保不住过**（本站 api 现在实际跑在 3199；哪一格被谁占着是随时间变的，动手前用 `netstat -ano | grep LISTENING` 现查）。换端口不要改代码：数据库是 `npm run db:up -- --daemon --port=5455`（或 `DEV_DB_PORT`，必须与 `.env` 的 `DATABASE_URL` 一致，不一致 `dev-db` 会打印 WARNING），其余走 `--*-port` 生成的 `.env`，或者第三个 env 文件 `.env.ports`（本机 live 栈就是这么起的：`--env-file=.env --env-file=.env.pipeline --env-file=.env.ports`）。`npm run dev:web` 的 `--port 3000` 写死在 `apps/web/package.json` 里，换 web 端口用 `node --env-file=.env apps/web/server.ts`（注意它读的是构建产物 `apps/web/build/server/index.js`，**干净 clone 上要先 `npm run build -w @aihot/web`**，否则 server 会打印这句提示并以退出码 9 结束）。完整对照表见 `docs/manual.md` 第 3.7 节。
-  `.env.pipeline` 是**一次性**的第二层 env，只用于让管道真跑（打开 `COLLECT_ENABLED`/`MODEL_CALLS_ENABLED`、设 `TZ=Asia/Shanghai`）；`.env` 里六个阀一律 false，**永远不要把 `.env.pipeline` 的内容合并进 `.env`**。跑 migrate/seed 用 `npm run db:migrate`、`node --env-file-if-exists=.env scripts/seed.ts`，语料用 `npm run seed:curated`。
-- 改完至少跑（库名仍以 `_test`/`_ci` 结尾，`tests/setup.ts:10` 会拒）：
+  发布要求工作区干净；是**快进推送**，不 force、不改写线上历史。"发布成功"的定义不是脚本返回 0，而是 `verify-github-sync.sh` 全绿：两边每个 blob 哈希相等、配图从远端取回验签名与尺寸、SVG 过严格 XML 解析、README 的相对引用逐个命中。
+- CI 定义有两份且逐字节同步：发布可写的正本在 `tooling/ci-check.yml`，Actions 实际执行的是 `.github/workflows/check.yml`；改 CI 两处同改。
+- 三端同步规则（本地源码 / GitHub / 服务器部署与网站行为）见 `docs/release-sync-policy.md`。
+
+## 生产拓扑、服务器角色与恢复
+
+### 四节点拓扑（2026-11-17 现状）
+
+生产是四节点，**没有本机 worker、没有本机 Magpie 依赖**：采集、模型处理、队列与定时任务全部在服务器端自治运行（2026-11-16 起本机 Windows 抽取辅助已移除，见 `docs/release-sync-policy.md`）。
+
+| 节点角色 | 运行内容 | 说明 |
+|---|---|---|
+| 读者节点 | PostgreSQL、API、Web | 只服务读者与后台读取；不注册 worker 采集/模型任务。 |
+| 协调 + 执行节点 | `WORKER_ROLE=all`：coordinator + content-executor；Magpie 网关；WorkBuddy 桥；到读者库的 DB 隧道 | Magpie 网关只绑本机回环，不对公网暴露（边界见下节）。 |
+| 执行节点 A | `WORKER_ROLE=content-executor` | 抓取、模型分析、抽取、媒体处理。 |
+| 执行节点 B | `WORKER_ROLE=content-executor` | 同上；与执行节点 A 互备。 |
+
+节点清单、负载与心跳以数据库 `settings` 表为准：心跳键为 `heartbeat.<role>@<host>`（键里必须带主机名，两台执行器 role 相同，只按 role 存会互相覆盖）。后台服务器面板读这张表，**不从主库 SSH 出去，也不要求辅助机开放端口**；公网 IP 由 `GEOHOT_NODE_IPS` 环境变量在 API 侧补上，源码与文档里不写主机 IP。
+
+### 三种部署角色与 `WORKER_ROLE`
+
+`WORKER_ROLE` 取值 `all` / `coordinator` / `content-executor` / `fetcher` / `media`（`packages/backend/src/jobs/worker-role.ts`）。对应到生产拓扑：
+
+1. **读者节点（reader-only）**：只跑 API/Web/PG，不跑 worker；压力上来时用 `deploy/geohot/bin/readers-only.sh` 摘掉 worker 任务。
+2. **协调节点（coordinator）**：事件归并、组刊、定时调度、通知、发布；`all` 角色在同一台机器上兼任。
+3. **内容执行节点（content-executor）**：抓取、模型分析、抽取、媒体处理；可多台横向扩展。`fetcher` / `media` 是把执行面再拆开的细分角色。
+
+### 恢复与保护
+
+- 心跳存活窗口、各节点负载/内存/磁盘由心跳自报；面板 `GET /api/admin/server` 读库呈现，超时判 stale。
+- 资源与排空保护：`deploy/geohot/bin/` 下 `conc-guard`、`worker-window.sh`、`role-window.sh`、`memory-guard.sh`、`liveness`、`reader-recovery-ready.sh`、`r115-reader-gate.sh`；读者公开读取有 deadline 与上一版可读兜底（R115 读者门禁）。
+- 回滚：`deploy/geohot/rollback.sh` 默认是幂等 DRY-RUN，只打印计划；确认后加 `--apply`。数据库默认保留，真删要显式 `--purge-database`，且删前强制 `pg_dump` 一份。
+- 恢复演练与两条迁移路线（干净克隆从零采集 / 迁移包连历史一起搬）见 `docs/migration.md` 与 `deploy/geohot/README-deploy.md`。
+
+## 信源池统计口径（数字不硬编码，实时查询）
+
+**目标值**：正式采集目标 1000+，备用候选目标 1000（`source_registry_policy` 表；目标值只能由后台旋钮改 `target_enabled`，总目标由迁移写死）。**实际可用 / 失败 / 重叠 / 隔离 / 退役 / 备用新鲜度一律当场查，不写进文档。**
+
+- 单一事实源：`packages/backend/src/sources/registry.ts` 的 `getSourcePoolStats()`；后台 `GET /api/admin/sources`（列表 + totals）与 `GET /api/admin/sources/policy`（目标与并集总数）同口径。
+- 口径字段：`enabled_active`（启用且未退役）、`isolated`（启用但 `participation_mode='isolated'`）、`paused`（停用未退役）、`retired`（已退役）；备用侧 `reserve_candidates_total`（未隔离、未退役、不与正式池重叠）、`reserve_fresh`（`eligible=true` 且 7 天内 `validated_at`、未隔离/退役/重叠，即可用子集）、`reserve_stale`、`reserve_quarantined`。
+- 备用可用 = eligible AND 7 天内校验 AND 未归档 AND 不与 active 重叠；正式池与备用候选互斥（同一 id 不能两边都在）。
+- 库内普查（种子文件口径，不等于生产池口径）：`node -e "console.log(require('./industry/sources.json').sources.length)"`；生产池数以管理员接口或 SQL 现查 `sources` / `source_reserves` / `source_retirements` / `source_registry_policy`。
+- 备用池方案、轮换与预检见 `docs/source-reserve-policy.md`、`docs/source-registry-policy.md`、`docs/sources.md`。
+
+## 读者侧发布门禁与正文污染清理
+
+### 发布门禁
+
+读者只能看到已完成适用采集、筛选、当前版分析、完整正文、适用完整译文及必要媒体准备的文章。全部公开出口与人工重发共用 `publication` 门禁；旧规则 `ready=true` 必须经新版本复核。可用性三态：`public` / `summary-only` / `unavailable`（`packages/backend/src/publication/availability.ts`）。禁止字符截断、以导读冒充全文、手动写 complete/ready=true、清除 unknown 回执或提高并发来制造完成。完整规则见 `docs/complete-reader-policy.md`。
+
+### 正文质量（污染清理）
+
+- 分类器：`packages/backend/src/content/body-quality.ts`，输出 `status: ok | defect` 与机器可读 `reasons`。判 defect 的正文在读取层算 `bodyDirty`，只能 summary-only 或 unavailable，不进公开完整正文。
+- 缺陷原因码：`template-shell`（未渲染占位模板）、`reader-chrome-contamination`（阅读器/站点工具栏残留）、`consent-wall-only`（Cookie/隐私同意墙）、`too-short`（清洗后不足 20 字；20–79 字且像结构化短公报可豁免）、`title-body-mismatch`（标题正文跨脚本/不匹配）、`source-feed-teaser`、`source-references-only`（只有参考文献）、`boilerplate-only`（清洗后无真实内容）、`unrestored-protected-token`。
+- 结构化短公报（地震/气象速报，含时间/地点/震级/公告信号）有豁免；Cookie 墙、模板壳、10 字占位不豁免。
+- 修复与回填：`packages/backend/src/publication/body-repair.ts`；脚本 `scripts/repair-body-publication.ts`、`scripts/restore-body-from-backup.ts`、`scripts/strip-body-boilerplate.ts`、`scripts/strip-summary-boilerplate.ts`、`scripts/backfill-body-quality.ts`；修复记录落 `publication_body_repair_log`。修复后要等下游管道重新落定、刷新工作流就绪，才会翻回 public。
+
+## 模型池、回执、额度与限流
+
+### 模型池
+
+- 注册表在 `packages/backend/src/providers/llm.ts`；启用成员由 `MODEL_POOL` 环境变量点名；某扇门缺 key 时该成员自动从池里掉落，不会静默错路由。**门的清单、模型名、档位与实测参数以代码注册表和后台 `GET /api/admin/models` 为准，不在文档里抄成员表。**
+- 每扇门一行预算账；回执、`receipt_attempts`、metrics 历史是账单与审计依据，退休一扇门只删预算行，不动历史行。
+- 本地与 CI 用 `tooling/brain-stub.ts`（零账单、零外发）；生产走池内已配置的门。
+
+### 回执分类与恢复
+
+回执分类（`providers/receipts.ts`、`operations/model-cooldown.ts`）：成功（received/completed）、连接失败/超时（connect，账单记 unknown）、账号停用（auth）、日额度（quota_day）、分钟限流（rate_minute）、配置缺失（config）、pending、unknown。
+
+- **unknown 不盲重放**：结果未知的回执由 `ops.recover` 周期扫描，超过窗口自动放行一次；第二次 unknown 留给后台判。unknown 的 4xx 不按 config 冷却。
+- 冷却按类别区分，带明确恢复时间戳；后台模型页展示冷却状态、证据时间与恢复条件（`GET /api/admin/models`）。
+- 回执按 `logical_key` 缓存：同一 revision 重跑分析不会再打到模型；要真重跑得让正文变 revision、在后台重跑分析（`attemptTag` 才是真新请求）、删对应 receipts 行，或换一扇门（`logicalKeyFor` 第一段是 service，换门即新收据）。
+- 不得通过清除 unknown 回执、绕过读者保护或盲目提高并发制造吞吐。
+
+## Magpie 后台代理边界
+
+- 后台 Magpie 面板只经 API 代理访问：`/api/admin/magpie-proxy/*` 转发到**固定回环** `127.0.0.1:3430`（到协调节点 Magpie 网关的本机 SSH 隧道；网关本身绑回环 `127.0.0.1:3426`）。**Magpie 不对公网暴露，也不允许把网关端口开到公网。**
+- 代理边界（`apps/api/src/routes/server-console.ts`）：
+  - 必须有后台会话 + CSRF；注入上游的 secret cookie 由服务端从 `MAGPIE_WEB_KEY_FILE` 读取，文档与日志里不写 cookie 值。
+  - 屏蔽模型网关 `/v1`、`/_magpie`、登录/换 token 路由、`k` 查询参数、路径穿越、反斜杠、Origin 不一致、跨源跳转。
+  - 静态资源（js/css/字体/图片）走浏览器缓存、不限流；面板 API 调用 300/分钟。
+- 边界理由、隧道与维护脚本见 `docs/server-magpie.md`、`deploy/geohot/CONTENT-EXECUTOR.md`。
+
+## 官方价卡成本口径
+
+- 成本口径实现：`packages/backend/src/admin/official-pricing.ts`；后台 `GET /api/admin/usage`、`GET /api/admin/models`；价格导入脚本 `scripts/import-leaderboard-prices.ts`；定时核对 `deploy/geohot/` 的 pricing-check 单元。
+- **价卡只认官方页面 / 官方手册 / 合同与实际账单**；实际账单（`actual`）优先于挂牌价。公开 API 等值、订阅制、免费、无公开价分列，`billing_kind` 取值 `actual | subscription | free | no-price`；查不到官方价就标 `no-price`，不估算、不套用其他模型的价。
+- 单价按**调用时有效价卡**折算：`pricing_rates` 是版本化表（迁移 0124），`fx_rates` 是汇率单一事实源，缺省回退 `CNY_FX`；DeepSeek 峰谷价在请求时解析。价卡缺标注项（missingLabels）不阻塞出账。
+- 口径细则与核验流程见 `docs/admin-official-pricing.md`。
+
+## 干净克隆、迁移与备份
+
+### 干净克隆（从零起站）
+
+```bash
+git clone <公开仓库地址> geohot && cd geohot
+npm ci
+npm run env:init                       # 从 .env.example 写 .env；已存在则拒绝覆盖（exit 1）
+# 手工：改 SITE_URL 为读者实际访问地址；按 .env.example 键名补齐密钥；决定 COLLECT_ENABLED / MODEL_CALLS_ENABLED 阀门
+npm run db:migrate
+node --env-file-if-exists=.env scripts/seed.ts
+BASE_PATH=/<前缀> npm run build -w @aihot/web
+node scripts/smoke.ts --base https://<站点地址>/<前缀>
+```
+
+- `.env`、`.env.pipeline`、`.env.ports`、TLS 私钥、备份都在仓库目录之外，权限 600；`.gitignore` 兜住 `.env*`、`*.pem`、`*.key`、`secrets*`、`credentials*`。
+- 迁移全过的判据不是退出码 0：`SELECT count(*) FROM schema_migrations` 要等于 `ls database/migrations/*.sql | wc -l`（编号有跳号，跳号不等于漏跑）。
+- 从零开始 = 起一个干净站点重新采集；迁移包 = 连全部历史内容一起搬。条目、事件、精选台账、回执、仓库外凭据与 systemd/nginx 配置只在迁移包里，仓库里没有也不该有。
+
+### 整库搬走与备份
+
+- `pg_dump -Fc` → `pg_restore --no-owner --no-privileges` → 数关键表与旧机对得上 → 起全栈 → smoke → 重发密钥。开发机 embedded bundle 没有 `pg_dump`，这条属于装了 `postgresql-client` 的生产机器。
+- 两份备份（整目录含 `.env`、整库 dump）都要离开本机；每日 `pg_dump | gzip`、每周一次 `-Fc`，推到另一台机 / 对象存储 / 私有仓。`.data/`（反馈截图、图片缓存）不在 dump 里。
+- 搬家时信任边界变了：`SESSION_SECRET`、`ADMIN_PASSWORD`、`IMG_PROXY_SIGN_SECRET`、`INGEST_TOKEN`、数据库口令全部重新签发，一枚都不从旧机器搬过来；MCP 白名单、webhook、IndexNow key 一并重配。逐条清单见 `docs/migration.md`。
+
+## 安全清理
+
+- 退役信源：`scripts/delete-sources.ts`；GDACS 绿色模板通报：`scripts/retire-gdacs-green.ts`。
+- 死模型清理：`deploy/geohot/bin/prune-model-pool.sh`（死模型清单 `deploy/geohot/bin/model-pool-dead.txt`）；只删预算行，保留回执与审计历史。
+- 磁盘与归档：`deploy/geohot/bin/vacuum-maintenance.sh`（定时器）、`deploy/geohot/archive-cycle.sh`（归档周期阀门，样例 `archive-cycle.conf.example`）。
+- 正文清理：见上节"正文质量"脚本族。
+- 红线：**禁止 `docker compose down -v`**（卷里是数据库、上传截图与证书）；回滚删库前强制 dump；不把旧共享工作树整体覆盖远端或生产；不夹带无关未提交改动。
+
+## 更新日志与 tag
+
+- 每一条 changelog（`industry/changelog.json`）按 AIHOT 文风写：短句开头一句讲清读者得到什么；细节用 `- ` 要点列表，一行一个事实；从读者视角说结果，不堆内部术语、不写实现路径（组件名、环境变量、file:line 一律不进正文）；标题 ≤ 20 字、说变化不说动作。重大更新（`major: true`）由站长确认后才打标，展示卡在 `apps/web/app/features/changelog/MajorRelease.tsx` 的 `MAJOR_RELEASES` 里按 `dateTtime` 键写文案。
+- 版本号自动编号，不手写：`packages/backend/src/site/meta.ts` 的 `withVersionNumbers` 按时间顺序扫 releases——每个 major 条目开启一个大版本（2.0.0、3.0.0……），时代内按时间先后递增修订号，里程碑之前的条目从 1.0.0 起算。加新条目不碰这层逻辑；新增 major 后同步 `MAJOR_RELEASES` 卡片文案。
+- 每个版本一个 GitHub tag：新条目合并部署当天，在对应 commit 上补 `v<版本号>` 附注 tag 并 push（同一日期多条按 changelog 的 HH:MM 对齐 commit 时间线；找不到早于发布时间的 commit 时锚到当日前最后一个）。版本清单由 `node scripts/list-release-versions.mjs` 生成，与 `withVersionNumbers` 同一算法。两个大版本在 GitHub Releases 建对应 release 页，后续重大更新照做。
+- 历史条目保留不改写；要记录新事实就加新条目、带新日期。
+
+## 本地开发与验证
+
+- Node.js ≥ 24.11，直接运行 TypeScript，后端没有构建步骤。npm workspaces：`apps/*`、`packages/*`、`industry`。
+- 本机跑法见 `docs/manual.md` 第 3 节：embedded PostgreSQL、本地 stub 大脑；本地与 CI 零账单、零外发。起栈前先 `npm run env:init`，再 `npm run db:up -- --daemon`；开发用 `npm run dev:api`、`npm run dev:worker`、`npm run dev:web`。
+- 改完至少跑（测试库名以 `_test`/`_ci` 结尾，`tests/setup.ts` 会拒）：
+
   ```bash
   npm run typecheck
-  # 本机没有 createdb/psql：embedded-postgres 的 bundle 只有 initdb/pg_ctl/postgres，集群在 5433，用户与库名都是 geohot
-  node --input-type=module -e "import p from 'postgres';const a=p('postgres://geohot:geohot@127.0.0.1:5433/postgres',{max:1});await a.unsafe('CREATE DATABASE geohot_test');await a.end()"
-  DATABASE_URL=postgres://geohot:geohot@127.0.0.1:5433/geohot_test npm run db:migrate
-  DATABASE_URL=postgres://geohot:geohot@127.0.0.1:5433/geohot_test npm test    # 用完 DROP DATABASE geohot_test
+  # 建测试库后：
+  DATABASE_URL=postgres://<用户>:<口令>@127.0.0.1:<端口>/<库名>_test npm run db:migrate
+  DATABASE_URL=postgres://<用户>:<口令>@127.0.0.1:<端口>/<库名>_test npm test
   npm run build -w @aihot/web && node --test apps/web/tests/*.test.ts
-  node scripts/smoke.ts --base http://localhost:3000                           # 站点跑起来以后
+  node scripts/smoke.ts --base http://localhost:<web 端口>
   ```
-  `docs/architecture.md` 第 71-73 行那句 `createdb …5432/<名>_test` 在本机跑不通，按上面这条代替。
+
 - 改了 `industry/prompts/*.md` 之后跑 `npm run brain -- --lint` 与 `--anchors`：stub 靠提示词里的锚点行认出"这一步是谁"，锚点被撞它会直接 400 而不猜。
-- `tests/` 里部分测试用的是示例行业的分类、标签和公司，改了 `industry/taxonomy.ts` 后把这些例子换成地理的对应项。
-- 语料**已经在仓库里**：`scripts/seed-curated.ts` 的默认输入是 `tooling/corpus/curated-materials.jsonl`（受版本控制，`wc -l` 与 dry-run 都是 **117**：`wc -l tooling/corpus/curated-materials.jsonl` → 117，`npm run seed:curated -- --dry-run --enforce-source` → `117 material line(s)`；早先记的"`wc -l` 会给 118、末尾空行造成差一"已经不成立——文件现在以 `}` + 换行结尾，中间没有空行，`node -e` 数 `readFileSync` 的最后两字节是 `125, 10`）。同目录还有分主题语料与三行测试夹具 `tooling/corpus/curated-sample-test.jsonl`。仓库里还有 **8 个** tracked 文件提到仓库外的 `.brief/`（4 处是注释/数据里的引用，4 处是叙述性提及）（`industry/sources.json` 的 `$comment`、`tests/industry-vocabulary.test.ts` 的头两行、`tooling/corpus/README.md`、`tooling/corpus/curated-sample-test.jsonl` 头行；`industry/selection.ts` 与 `industry/brand/logo.svg` 早在 `172babe` 就清了，本轮又清了 `docs/geohot-runbook.md` 与 `docs/selection.md` 两处，`AGENTS.md`/`docs/manual.md`/`docs/known-issues.md`/`scripts/README-ingest.md` 剩下的都是叙述性提及，`.gitignore` 里的 `.brief*/` 是 ignore 规则本身。数一遍别抄：`git grep -l "\.brief/"` → 8 个文件（旧写法 `[.]/brief/` 要的是"点＋斜杠＋brief"，仓库里没有那种写法，所以它永远返回空——2026-10-05 改正，要匹配 `.brief/` 得写 `\.brief/`））：没有任何命令读它们，但清理仓库外的研究产物之前应该先把这些提及改成仓库内表述（逐条工单在交付材料里，`docs/manual.md` 第 7 节第 8 条有清单）。
+- `tests/` 里部分测试用示例行业的分类、标签和公司；改了 `industry/taxonomy.ts` 后把这些例子换成地理的对应项。
+- 开发和测试时保持安全阀关闭：`COLLECT_ENABLED`、`MODEL_CALLS_ENABLED`、`EMBEDDINGS_ENABLED`、`FEISHU_*_ENABLED`、`INDEXNOW_SUBMIT_ENABLED`。`EMBEDDINGS_ENABLED` 缺省是开，但同时要求 `MODEL_CALLS_ENABLED` 和一个 embedding key，关住模型阀就关住这一族。测试不访问任何外部服务。需要真跑管道时叠一个一次性 env 文件，不改 `.env`；测试继承 `.env`，在 `.env` 里开阀就等于让测试去打外部服务。
 
 ## 要守住的规则
 
-- **2026-10-26 运行优先级约束：** 读者页面与服务器信息工作流的持续可用性优先于历史回填、工具升级、诊断和清理。保持现有服务器规格；生产处理、授权运行时、定时更新和恢复不得依赖本机在线。CLI 按需短时执行，不作为常驻服务。先核对实时资源与停止责任，维护安排在低流量且资源充足的窗口，保留在途付费调用的优雅收尾、原版回滚与维护后自动恢复；资源或健康条件不满足时延期。不得通过清除 unknown 回执、绕过读者保护或盲目提高并发制造吞吐。每个大阶段集中验证，只有新变更、实际失败或未解决的问题才增加复测。发布与同步规则见 `docs/release-sync-policy.md`。
-
+- **运行优先级约束（2026-10-26，长期有效）**：读者页面与服务器信息工作流的持续可用性优先于历史回填、工具升级、诊断和清理。保持现有服务器规格；生产处理、授权运行时、定时更新和恢复不得依赖本机在线。CLI 按需短时执行，不作为常驻服务。先核对实时资源与停止责任，维护安排在低流量且资源充足的窗口，保留在途付费调用的优雅收尾、原版回滚与维护后自动恢复；资源或健康条件不满足时延期。不得通过清除 unknown 回执、绕过读者保护或盲目提高并发制造吞吐。每个大阶段集中验证，只有新变更、实际失败或未解决的问题才增加复测。
 - 前端（`apps/web`）只通过 HTTP 读 `apps/api`，数据库、模型调用和密钥只在后端。
 - 所有公开出口都从 `packages/backend/src/publication/` 这一个读取层读，新增公开出口也一样。
 - 读者打开页面不触发模型调用；模型只在 worker 的任务里调用。
-- 付费请求都经过回执（`providers/receipts.ts`）和预算熔断，不要绕开。**生产已接入真模型**（2026-10-06 起：Agnes AI `agnes-3.0-flash`，`LLM_BASE_URL` 指向 `https://apihub.agnes-ai.com/v1`，`MODEL_CALLS_ENABLED=true`，`llm` 预算 8/420/6000，另有第二把门 `agnes-cn` 9/540/12000/12000（`MODEL_POOL`，2026-10-10 实测））；**本机与 CI 仍用** `tooling/brain-stub.ts`（零账单、零外发），`.env` 里六个阀一律 false。两边闸门与回执照走：回执按 `logical_key` 缓存，同一个 revision 重跑分析不会再打到模型——要真重跑得让正文变 revision、在后台重跑分析（`attemptTag` 才是真新请求）、删对应 receipts 行，或**换一扇门**（`logicalKeyFor` 的第一段就是 service，池子换门即新收据）。结果未知的收据由 `ops.recover` 每 10 分钟扫一次、超过 30 分钟**自动放行一次**，第二次 unknown 才留给后台判（`admin/runs.ts` 的 `autoReleaseUnknownReceipts`）。**密钥只在 `.env`，永远不进仓库、文档、日志与本文件。**
-- 开发和测试时保持安全阀关闭：`COLLECT_ENABLED`、`MODEL_CALLS_ENABLED`、`EMBEDDINGS_ENABLED`、`FEISHU_*_ENABLED`、`INDEXNOW_SUBMIT_ENABLED`。`EMBEDDINGS_ENABLED` 缺省是开（`providers/embeddings.ts:31`），但它同时要求 `MODEL_CALLS_ENABLED` 和一个 embedding key，所以关住模型阀就关住了这一族。测试不访问任何外部服务。需要真跑管道时**叠一个一次性 env 文件**（`--env-file=.env --env-file=.env.pipeline`），不改 `.env`；测试继承 `.env`，所以在 `.env` 里开阀就等于让测试去打外部服务。
-- **后台没有免登录后门，别再装回去。** 本机 `.env` 与 `.env.pipeline` 都不含 `DEV_AUTH_ROLE`：`/admin` 未登录 302 到 `/admin/login`，`/api/admin/*` 无会话一律 401，进后台用 `.env` 的 `ADMIN_PASSWORD`（`npm run env:init` 生成并打印一次）。历史上那个开关存在时，后台所有写接口等于不鉴权（`packages/backend/src/admin/auth.ts:166` 发 `csrf:"dev"` 替身、`routes/admin-auth.ts` 的写请求分支只比对那个常量），`docs/manual.md` 与本文件当时写的"本机免登录"因此是错的——本轮已改正。`assertProductionSecrets`（在 `packages/backend/src/config.ts`，行号会漂就不写行号）看的是 **`NODE_ENV`**，而那个替身是否生效看的是 **`AIHOT_ENVIRONMENT`**（默认跟随 `NODE_ENV`）：只把 `AIHOT_ENVIRONMENT=production` 写进 env、`NODE_ENV` 留 `development`，拒启检查根本不会跑；两个都要 production 才是真生产形态。它也不会替你摘掉开关——上线前按 `docs/manual.md` 第 10 节清单做，验证方式用 `docs/manual.md` 第 11 节第 3 条那组 curl 看 401/302，不是"觉得应该没问题"。
-- 站点内容的所有权边界：**判断标准由人定**（分类表、重要性口径、门槛、提示词、信源清单都在 `industry/`，由站长逐条确认），**逐条结论由模型给**（生产用 Agnes，本机与 CI 用 `tooling/brain-stub.ts` 回放 `tooling/fixtures/*.jsonl` 里人工写定的判断）。面向读者的每一句话都要跟实际执行者一致：机器写的摘要不许说成编辑部签署的立场，人写定的判断也不许说成模型当天的想法。宁可少一条精选，不可错一条灾害数据。
+- 付费请求都经过回执（`providers/receipts.ts`）和预算熔断，不要绕开。**密钥只在 `.env`，永远不进仓库、文档、日志与本文件。**
+- **后台没有免登录后门，别再装回去。** `/admin` 未登录 302 到 `/admin/login`，`/api/admin/*` 无会话一律 401。历史上 `DEV_AUTH_ROLE` 开关存在时后台所有写接口等于不鉴权；`assertProductionSecrets` 看 `NODE_ENV`，免登录替身看 `AIHOT_ENVIRONMENT`，两个都要 production 才是真生产形态。上线前用 curl 实测 401/302，不靠"觉得应该没问题"。
+- 站点内容的所有权边界：**判断标准由人定**（分类表、重要性口径、门槛、提示词、信源清单都在 `industry/`，由站长逐条确认），**逐条结论由模型给**（生产走模型池，本机与 CI 用 stub 回放人工写定的判断）。面向读者的每一句话都要跟实际执行者一致：机器写的摘要不许说成编辑部签署的立场，人写定的判断也不许说成模型当天的想法。宁可少一条精选，不可错一条灾害数据。
 - 信源默认只展示摘要和原文链接（`site_fulltext` 关）；只有来源明确允许时才打开全文。
 - 公开内容匿名，管理员和访客看到的一样；后台只允许管理员。
 - 数据库迁移只做向后兼容的增量，新迁移按编号加在 `database/migrations/` 末尾。
@@ -71,26 +195,27 @@
 - 外部 PR 的安装、构建和测试只在不含真实密钥的一次性隔离环境运行；不得在有写权限或密钥的 `pull_request_target` 等特权上下文中 checkout 并执行 fork 代码。
 - 只报告有依据、值得修复的问题，不为凑问题数、测试数或个人风格偏好挑刺；验证范围对应本次改动的重要行为。
 
-## 发布与三端同步要求（2026-10-28）
-
-- 所有正式升级、修复、功能、公开配置、迁移与构建脚本改动必须提交到 GitHub，并在本地源码、GitHub 发布提交、服务器部署文件及网站实际返回之间核验一致；完成前不得宣称整项发布已收尾。
-- 正常顺序为：整理源码与必要测试 → commit/push → PR 与要求的检查通过并合并 → 从明确发布提交部署 → 核对服务器源文件/构建产物与网站实际行为 → 补齐日志和发布记录。影响读者或管理员使用的变化必须更新 industry/changelog.json。仅写补丁、仅改服务器、仅 push 分支或仅服务 active 均不代表三端已同步。
-- 紧急故障可先按已有保护规则部署最小修复，但必须在同一轮任务回收实际源码、必要测试与日志，提交合并 GitHub 并复核；受阻时明确记录差异与未完成状态，不把热修复当作已同步发布。
-- 同步范围是可复现的源码、迁移、部署脚本、依赖锁文件、公开配置、构建来源与发布记录；密钥、.env、账号/授权材料、数据库内容和私有运行日志保留在私有环境。私有配置变化只版本化模板、字段说明及不含值的验证记录。
-- 不把旧共享工作树整体覆盖远端或生产，不夹带无关未提交改动，不 force push 或虚改版本号来制造一致。发布前逐文件审查差异，部署后核对真实 commit、文件哈希、构建指纹、缓存及页面/API；保留可恢复前版。具体执行与报告格式见 docs/release-sync-policy.md。
-
 ## 完整读者内容的强制规则（2026-10-28）
 
-读者只能看到已完成适用采集、筛选、当前版分析、完整正文、适用完整译文及必要媒体准备的文章。仅摘要来源或 summary-only 状态不得作为完整文章公开；不得擅自改变全文许可。全部公开出口和人工重发共用 publication 门禁，旧规则 ready=true 必须经新版本复核。禁止字符截断、以导读冒充全文、手动写 complete/ready=true、清除 unknown 回执或提高并发来制造完成。规则与恢复、资源边界详见 docs/complete-reader-policy.md。
+读者只能看到已完成适用采集、筛选、当前版分析、完整正文、适用完整译文及必要媒体准备的文章。仅摘要来源或 summary-only 状态不得作为完整文章公开；不得擅自改变全文许可。全部公开出口和人工重发共用 publication 门禁，旧规则 ready=true 必须经新版本复核。禁止字符截断、以导读冒充全文、手动写 complete/ready=true、清除 unknown 回执或提高并发来制造完成。规则与恢复、资源边界详见 `docs/complete-reader-policy.md`。
 
 ## 阅读交互与期刊持续恢复（2026-10-29）
 
 正文图片和配图列表共用可缩放查看器，支持按钮、键盘、双击/双指及拖动；控件在窄屏可达，切图重置，关闭恢复焦点与页面滚动。移动导航包含精选、全部、热点、日报、更多。官方定宽气象公报叙述按段落换行，数值网格独立横滑，不得更改预报数字或将真正代码误改为普通叙述。定期复核周报/月报历史引用，保留日周月既有计划与补刊机制，发布前仍须通过统一完整性门禁。
 
-日报、周报、月报的组稿候选也必须经过统一完整工作流门禁。历史引用缺损通过有资源保护的 reports.repair 正常重组，保留旧版、原日期窗口及原回执；区分来源撤回与工作流未完成，不把待核验内容误写成来源要求下架。素材不变不重复组稿，无完整候选不覆盖旧刊，禁止为了消除空缺而杜撰替代事件。
+日报、周报、月报的组稿候选也必须经过统一完整工作流门禁。历史引用缺损通过有资源保护的 `reports.repair` 正常重组，保留旧版、原日期窗口及原回执；区分来源撤回与工作流未完成，不把待核验内容误写成来源要求下架。素材不变不重复组稿，无完整候选不覆盖旧刊，禁止为了消除空缺而杜撰替代事件。
 
-## 更新日志文风与版本号（2026-11-01，长期有效）
+## 日期化历史（保留为背景，不作为现状依据）
 
-- **每一条 changelog（`industry/changelog.json`）都按 AIHOT 文风写**：短句开头一句讲清读者得到什么；细节用 `- ` 要点列表，一行一个事实；从读者视角说结果，不堆内部术语、不写实现路径（组件名、环境变量、file:line 一律不进正文）；标题 ≤ 20 字、说变化不说动作。重大更新（`major: true`）由站长确认后才打标，重大更新的展示卡在 `apps/web/app/features/changelog/MajorRelease.tsx` 的 `MAJOR_RELEASES` 里按 `dateTtime` 键写文案。
-- **版本号自动编号，不手写**：`packages/backend/src/site/meta.ts` 的 `withVersionNumbers` 按时间顺序扫 releases——每个 major 条目开启一个大版本（2.0.0、3.0.0……），时代内按时间先后递增修订号，里程碑之前的条目从 1.0.0 起算。加新条目不碰这层逻辑；新增 major 后记得同步 `MAJOR_RELEASES` 卡片文案。
-- **每个版本一个 GitHub tag**：新条目合并部署当天，在对应 commit 上补 `v<版本号>` 附注 tag 并 push（同一日期多条发布按 changelog 的 HH:MM 对齐 commit 时间线；找不到早于发布时间的 commit 时锚到当日前最后一个）。两个大版本（v2.0.0、v3.0.0）在 GitHub Releases 建对应 release 页，后续重大更新照做。
+- 2026-10-01：站点上线并开源；主站首页逐字节未变。
+- 2026-10-04：「板块」层整块删除；分类层与主题页承接四个方向入口。
+- 2026-10-06：生产首次接入真模型；此前本机与 CI 只跑 stub。
+- 2026-10-13 / 2026-10-15：整库恢复演练与 GitHub-only 干净克隆演练先后跑通；两条迁移路线的边界确定（见 `docs/migration.md`）。
+- 2026-10-21：注册表内无可用凭据、被否决的模型条目彻底清除；历史回执与预算行保留。
+- 2026-10-23 起：成本折算改用官方价卡与版本化单价，不再凭印象估价。
+- 2026-11-16：本机 Windows 抽取辅助移除，worker/队列/模型调用服务器端自治；模型冷却改为按类别、带恢复时间戳。
+- 2026-11-17：正文质量门禁上线（阅读器残留/同意墙/模板壳等判 defect）；价卡订阅/免费/无公开价分列，单价版本化；四节点拓扑定型。
+
+### 已从本文件删除的过期说法
+
+以下内容曾写在旧版 AGENTS.md，现已不成立，不要再复用：本机无远端 / 未配 GitHub；信源 668 等写死条数；六单元 / 六容器拓扑；单一 Agnes 模型、OpenRouter 六成员、hy3 等旧模型池描述；本机参与生产采集与模型协同；`.brief/` 仓库外路径；把本机 3055 stub 当成生产模型路径；旧开发目录与旧端口作为现状引用。
