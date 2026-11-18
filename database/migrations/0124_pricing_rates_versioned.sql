@@ -53,4 +53,4 @@ CREATE INDEX IF NOT EXISTS pricing_rate_versions_rate_eff
   ON pricing_rate_versions(rate_id, effective_at DESC);
 
 -- seed 数据来自仓库 database/seeds/pricing/map-{A,B,C}.json（47 条官方研究映射），
--- 由 tooling/seed-pricing-rates.ts 在部署/启动时 upsert；SQL 这里不内联伪 actual 价。
+-- 由 packages/backend/src/admin/pricing-seed.ts 在 db:migrate 后幂等 upsert；SQL 这里不内联伪 actual 价。

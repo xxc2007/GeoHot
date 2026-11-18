@@ -138,11 +138,15 @@ export async function registerServerConsole(app: FastifyInstance, forward = magp
       return { ...sample, ip: ipFor(String(sample.host ?? "")), stale: Date.now() - Date.parse(sample.checkedAt) > 90_000, nodes };
     } catch { return reply.code(503).send({ unavailable: true }); }
   }));
-  // 2026-11-17：静态资源（JS/CSS/字体/图片）走浏览器缓存，不该和 API 调用共享桶。
-  // 之前 1500/分钟仍被 ~30 个并发资源打满（首屏 + 每秒轮询 trace），改为静态资源不限流、
-  // API 面板调用保持 300/分钟上限。静态资源由 Cache-Control 头控制，浏览器不重复请求。
-  const magpieProxyHandler = guard(async (req: import("fastify").FastifyRequest, reply: import("fastify").FastifyReply, admin: { csrf: string }) => {
-    const suffix = (req.params as { "*": string })["*"] ?? (req.params as { file?: string }).file ?? "";
+  // 静态资源（根级 kernel/start/app.js、theme.css + assets/plugins/fonts）不限流，靠浏览器 Cache-Control。
+  // 注意：max:0 会被限流插件当成直接封锁（429），必须用 rateLimit:false 关闭；否则未认证的根路径
+  // 会先撞限流返回 429，而不是经 guard 返回 401。
+  // routePrefix 用于前缀通配路由：Fastify 只把前缀之后的片段放进 `*`，这里要拼回完整后缀，
+  // 静态判定与上游转发都按完整路径进行。
+  const buildHandler = (routePrefix?: string) => guard(async (req: import("fastify").FastifyRequest, reply: import("fastify").FastifyReply, admin: { csrf: string }) => {
+    const wildcard = (req.params as { "*": string })["*"];
+    const file = (req.params as { file?: string }).file;
+    const suffix = routePrefix ? `${routePrefix}/${wildcard ?? ""}` : (wildcard ?? file ?? "");
     // URL is never supplied by the caller; do not proxy the model gateway or token sign-in routes.
     const staticResource = isMagpieStatic(suffix);
     if (suffix && suffix !== "index.html" && !suffix.startsWith("api/") && !staticResource) return reply.code(404).send({ error: "not_found" });
@@ -186,11 +190,13 @@ export async function registerServerConsole(app: FastifyInstance, forward = magp
     } catch { return reply.code(503).send({ error: "magpie_unavailable" }); }
   });
   // 静态资源（根级 kernel/start/app.js、theme.css + assets/plugins/fonts）不限流，靠浏览器 Cache-Control。
-  const staticOpts = { config: { rateLimit: { max: 0 } }, handler: magpieProxyHandler };
-  app.route({ method: ["GET", "HEAD"], url: "/api/admin/magpie-proxy/:file", ...staticOpts });
+  // 注意：max:0 会被限流插件当成直接封锁（429），必须用 rateLimit:false 关闭；否则未认证的根路径
+  // 会先撞限流返回 429，而不是经 guard 返回 401。
+  const staticOpts = (handler: import("fastify").RouteHandler) => ({ config: { rateLimit: false } as const, handler });
+  app.route({ method: ["GET", "HEAD"], url: "/api/admin/magpie-proxy/:file", ...staticOpts(buildHandler()) });
   for (const prefix of ["assets", "plugins", "fonts"]) {
-    app.route({ method: ["GET", "HEAD"], url: `/api/admin/magpie-proxy/${prefix}/*`, ...staticOpts });
+    app.route({ method: ["GET", "HEAD"], url: `/api/admin/magpie-proxy/${prefix}/*`, ...staticOpts(buildHandler(prefix)) });
   }
-  // 动态 API 面板调用保持 300/分钟上限。
-  app.route({ method: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"], url: "/api/admin/magpie-proxy/*", config: { rateLimit: { max: 300, timeWindow: "1 minute" } }, handler: magpieProxyHandler });
+  // 动态 API 面板调用保持有界上限（静态资源走独立缓存、不限流）。
+  app.route({ method: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"], url: "/api/admin/magpie-proxy/*", config:{rateLimit:{max:1200,timeWindow:'1 minute'}}, handler: buildHandler() });
 }

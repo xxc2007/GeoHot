@@ -1,5 +1,5 @@
 import type { OfficialCostReport } from "@aihot/contracts/model-costs";
-import { officialCosts, resolveFx, type PricingBucket } from "./official-pricing.ts";
+import { officialCosts, resolveFx, loadPricingVersions, type PricingBucket } from "./official-pricing.ts";
 import { type Tx } from "../db.ts";
 import {snapshotReader,snapshotStore} from "./statistic-snapshot.ts";
 import { readResourceSample } from "../operations/resource-budget.ts";
@@ -105,7 +105,7 @@ export async function readUsage(db: Tx, range: UsageRange | "*", service: string
       max(pricing_kind) AS "billingKind",
       (sum(latency_sum)/nullif(sum(latency_count),0))::float8 AS "latencyMs",
       coalesce(sum(missing_labels),0)::int AS "missingLabels",
-      coalesce(sum(pricing_calls),0)::int AS "pricingCalls",coalesce(sum(priced_in),0)::float8 AS "pricedIn",
+      coalesce(sum(pricing_calls),0)::int AS "pricedCalls",coalesce(sum(priced_in),0)::float8 AS "pricedIn",
       coalesce(sum(priced_out),0)::float8 AS "pricedOut",coalesce(sum(cached_tokens),0)::float8 AS "cachedTokens",
       coalesce(sum(unknown_cache_in),0)::float8 AS "unknownCacheIn",coalesce(sum(cache_unknown_calls),0)::int AS "cacheUnknownCalls"
     FROM base GROUP BY GROUPING SETS((range_key),(range_key,service,model),(range_key,purpose),(range_key,day),(range_key,dow,hour),(range_key,currency),(range_key,service,model,day,dow,hour))`;
@@ -118,8 +118,10 @@ export async function readUsage(db: Tx, range: UsageRange | "*", service: string
   const [fxRow] = await db<{ rate: number; as_of: string; source_url: string | null }[]>`
     SELECT rate, as_of::text AS as_of, source_url FROM fx_rates WHERE pair = 'USD/CNY' ORDER BY as_of DESC LIMIT 1`;
   const fx = resolveFx(fxRow);
-  const pricingFor=(rangeKey:UsageRange)=>officialCosts(rows.filter(r=>r.kind==="pricing"&&r.rangeKey===rangeKey),!!ready.fees_ready,fx);
-  const result: UsageMetric[] = rows.filter(r=>r.kind!=="pricing").map(({ missingLabels: _missing, pricingCalls:_pc,pricedIn:_pi,pricedOut:_po,cachedTokens:_ct,unknownCacheIn:_uc,cacheUnknownCalls:_cc, ...r }) => ({ ...r,kind:r.kind as UsageMetric["kind"],...(r.kind==="total"?{pricing:pricingFor(r.rangeKey)}:{}), tokensIn: r.tokensIn ?? 0, tokensOut: r.tokensOut ?? 0,
+  // 历史价卡版本：按调用时点选有效版本；表缺失回落空 Map（officialCosts 再回落常量）。
+  const versionsByRate = await loadPricingVersions(db);
+  const pricingFor=(rangeKey:UsageRange)=>officialCosts(rows.filter(r=>r.kind==="pricing"&&r.rangeKey===rangeKey),!!ready.fees_ready,fx,versionsByRate);
+  const result: UsageMetric[] = rows.filter(r=>r.kind!=="pricing").map(({ missingLabels: _missing, pricedCalls:_pc,pricedIn:_pi,pricedOut:_po,cachedTokens:_ct,unknownCacheIn:_uc,cacheUnknownCalls:_cc, ...r }) => ({ ...r,kind:r.kind as UsageMetric["kind"],...(r.kind==="total"?{pricing:pricingFor(r.rangeKey)}:{}), tokensIn: r.tokensIn ?? 0, tokensOut: r.tokensOut ?? 0,
     subscriptionCalls: r.subscriptionCalls ?? 0, freeCalls: r.freeCalls ?? 0, noPriceCalls: r.noPriceCalls ?? 0,
     unverifiedCalls: r.unverifiedCalls ?? 0, equivalentCalls: r.equivalentCalls ?? 0, unmappedModelCalls: r.unmappedModelCalls ?? 0,
     billingKind: r.billingKind ?? null, reasoningTokens: null,
@@ -139,7 +141,7 @@ function emptyUsage(rangeKey: UsageRange, pricingReady = true, fx?: { usdToCny: 
 function usageHeadroom(){try{const s=readResourceSample();return s.availableMiB>=64&&s.memoryFull<15&&s.ioFull<40&&s.cpuSome<70&&s.diskFreeMiB>=3072;}catch{return false;}}
 const readers = new Map<string, ReturnType<typeof snapshotReader<UsageMetric>>>();
 function usageReader(range:UsageRange,service:string,model:string,date:string|null=null){
-  const key=JSON.stringify(['usage-standard-v4',service,model,range==='date'?date:null]);let read=readers.get(key);
+  const key=JSON.stringify(['usage-standard-v5',service,model,range==='date'?date:null]);let read=readers.get(key);
   if(!read){if(readers.size>=24)readers.delete(readers.keys().next().value!);
     read=snapshotReader(()=>modelStatisticRead(db=>readUsage(db,range==='date'?'date':"*",service,model,date),8_000),snapshotStore<UsageMetric>(key),Date.now,{freshMs:30_000,canRefresh:usageHeadroom});readers.set(key,read);}
   return read;

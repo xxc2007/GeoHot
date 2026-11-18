@@ -124,3 +124,43 @@ export function selectRateAt<T extends { effective_at: string | null }>(
     .sort((a, b) => new Date(b.effective_at!).getTime() - new Date(a.effective_at!).getTime());
   return past[0] ?? null;
 }
+
+export interface PricingVersionRow {
+  rateId: string;
+  service: string;
+  model: string;
+  currency: "USD" | "CNY" | null;
+  input: number | null;
+  cached: number | null;
+  output: number | null;
+  billingKind: RateBillingKind;
+  effectiveAt: string | null;
+  fetchedAt: string | null;
+}
+
+/** 按 bucket 的北京日/小时构造调用时点（bucket 只到小时，取该小时整点）。 */
+export function startedInstant(day: string | null, hour: number | null): string | null {
+  if (!day || hour == null) return null;
+  return `${day}T${String(hour).padStart(2, "0")}:00:00+08:00`;
+}
+
+/** 按 effectiveAt 选历史版本；无当时有效版本返回 null。 */
+export function selectVersionAt(rows: PricingVersionRow[], startedAt: string): PricingVersionRow | null {
+  const past = rows
+    .filter((v) => v.effectiveAt && new Date(v.effectiveAt) <= new Date(startedAt))
+    .sort((a, b) => new Date(b.effectiveAt!).getTime() - new Date(a.effectiveAt!).getTime());
+  return past[0] ?? null;
+}
+
+/**
+ * 选某 service/model 在调用时点有效的价卡版本。
+ * 先按 service::model 精确匹配；无当时有效版本返回 null（不计估算价，不拿最新价倒算）。
+ */
+export function resolveVersionAt(
+  versionsByRate: Map<string, PricingVersionRow[]>, service: string | null, model: string | null, startedAt: string | null
+): PricingVersionRow | null {
+  if (!service || !model || !startedAt) return null;
+  const rows = versionsByRate.get(`${service}::${model}`);
+  if (!rows?.length) return null;
+  return selectVersionAt(rows, startedAt);
+}

@@ -22,7 +22,7 @@ test("resolveFx 有行时取行值，无行/坏行回落 CNY_FX 常量", () => {
 });
 
 test("officialCosts 按传入汇率折算 USD 组（fx_rates 注入路径）", () => {
-  const buckets = [{ service: "llm", model: "MiniMax-M3.1-Flash", day: "2026-10-30", hour: 3, calls: 1, pricingCalls: 1, pricedIn: 1_000_000, pricedOut: 1_000_000, cachedTokens: 0, unknownCacheIn: 0, cacheUnknownCalls: 0 }];
+  const buckets = [{ service: "llm", model: "MiniMax-M3.1-Flash", day: "2026-10-30", hour: 3, calls: 1, pricedCalls: 1, pricedIn: 1_000_000, pricedOut: 1_000_000, cachedTokens: 0, unknownCacheIn: 0, cacheUnknownCalls: 0 }];
   const at665 = officialCosts(buckets, true, { usdToCny: 6.6529, date: "2026-10-30", source: "x" });
   // input 0.15 + output 0.60 = 0.75 USD → ×6.6529 = 4.989675
   assert.ok(Math.abs(at665.totals[0]!.list.low - 4.989675) < 1e-9);
@@ -34,7 +34,7 @@ test("officialCosts 按传入汇率折算 USD 组（fx_rates 注入路径）", (
 
 test("officialCosts 缓存未知单口径：上下界同值（区间消失）", () => {
   // 全部 token 都在 unknownCacheIn 里：低=高=cached 价。
-  const buckets = [{ service: "llm", model: "hy3", day: "2026-10-30", hour: 3, calls: 1, pricingCalls: 1, pricedIn: 1_000_000, pricedOut: 0, cachedTokens: 0, unknownCacheIn: 1_000_000, cacheUnknownCalls: 1 }];
+  const buckets = [{ service: "llm", model: "hy3", day: "2026-10-30", hour: 3, calls: 1, pricedCalls: 1, pricedIn: 1_000_000, pricedOut: 0, cachedTokens: 0, unknownCacheIn: 1_000_000, cacheUnknownCalls: 1 }];
   const r = officialCosts(buckets, true);
   const m = r.models[0]!;
   assert.equal(m.list!.low, m.list!.high);

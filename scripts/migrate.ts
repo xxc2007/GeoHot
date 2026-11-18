@@ -33,4 +33,10 @@ for (const file of readdirSync(dir).filter((f) => f.endsWith(".sql")).sort()) {
   count += 1;
 }
 console.log(count === 0 ? "database is up to date" : `${count} migration(s) applied`);
+
+// 价卡 seed：仓库内版本化 A/B/C 映射幂等落库；clean clone 跑 db:migrate 即有 47 条，无需手工导入。
+// fetched_at 用研究抓取时点，不把部署时刻伪造成重新核价。
+const { seedPricingRates } = await import("../packages/backend/src/admin/pricing-seed.ts");
+const seeded = await seedPricingRates(sql);
+console.log(`pricing seed: ${seeded} rate(s) upserted`);
 await closeDb();
