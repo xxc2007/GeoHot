@@ -1,5 +1,8 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
 import {normalizeSeedEntry, parseSeedDoc, selectRateAt, INTERNAL_ROUTES, type SeedEntry} from '../packages/backend/src/admin/pricing-map.ts';
 
 function entry(over: Partial<SeedEntry>): SeedEntry {
@@ -60,4 +63,21 @@ test('selectRateAt picks the version effective at the call time, latest past win
   assert.equal(selectRateAt(versions, '2026-11-05T12:00:00Z')!.v, 'old');
   assert.equal(selectRateAt(versions, '2026-11-12T12:00:00Z')!.v, 'new');
   assert.equal(selectRateAt(versions, '2026-10-30T12:00:00Z'), null);
+});
+
+test('repo seed A/B/C totals 47; non-estimate rows never carry a guessed price', async () => {
+  const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'database', 'seeds', 'pricing');
+  const all = [];
+  for (const f of ['map-A.json', 'map-B.json', 'map-C.json']) {
+    all.push(...parseSeedDoc(JSON.parse(await readFile(path.join(dir, f), 'utf8'))));
+  }
+  assert.equal(all.length, 47);
+  for (const r of all) {
+    if (r.billingKind !== 'equivalent-public-api') {
+      assert.equal(r.input, null, `${r.id} must have null input`);
+      assert.equal(r.output, null, `${r.id} must have null output`);
+    }
+  }
+  const kinds = new Set(all.map(r => r.billingKind));
+  assert.ok(kinds.has('subscription') && kinds.has('free') && kinds.has('no-price') && kinds.has('unverified'));
 });
