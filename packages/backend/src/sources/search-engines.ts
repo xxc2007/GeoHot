@@ -333,9 +333,11 @@ export const UNSUPPORTED_ENGINES: Array<{ id: string; label: string; why: string
   { id: "yandex", label: "Yandex", why: "未配置 YANDEX_API_KEY 与 yandexFolderId" },
   { id: "yuanbao", label: "腾讯元宝", why: "未配置 TENCENTCLOUD_WSA_APIKEY" },
   { id: "specstream", label: "SpecStream", why: "未配置 SPECSTREAM_API_KEY" },
+  { id: "deepseek-official", label: "DeepSeek Official", why: "模型内置搜索，按次计费；不进入信源发现" },
   { id: "openai", label: "OpenAI", why: "模型内置搜索，按次计费；不进入信源发现" },
   { id: "gemini", label: "Gemini", why: "模型内置搜索，按次计费；不进入信源发现" },
   { id: "claude", label: "Claude", why: "模型内置搜索，按次计费；不进入信源发现" },
+  { id: "zhihu_site", label: "知乎站内", why: "站内 UGC 搜索，不作为信源发现入口" },
   { id: "agy", label: "Antigravity", why: "需要本机 agy CLI，服务器没有" },
 ];
 
