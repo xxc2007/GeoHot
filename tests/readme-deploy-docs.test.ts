@@ -20,8 +20,8 @@ test("后台起库写明要直接调 node 入口，不能 nohup npm", () => {
   assert.match(readme, /nohup npm run db:up/);
 });
 
-test("冒烟之前要构建前端，迁移条数与实际一致", () => {
+test("冒烟之前要构建前端，迁移条数不硬编码", () => {
   assert.match(readme, /npm run build -w @aihot\/web && node --env-file=\.env apps\/web\/server\.ts/);
-  assert.doesNotMatch(readme, /干净库 108 条迁移/);
-  assert.match(readme, /干净库 114 条迁移/);
+  assert.doesNotMatch(readme, /干净库 \d+ 条迁移/);
+  assert.match(readme, /迁移条数以 `ls database\/migrations\/\*\.sql \| wc -l` 现查/);
 });
