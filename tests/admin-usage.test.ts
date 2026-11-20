@@ -2,9 +2,18 @@ import "./setup.ts";
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import { sql,closeDb } from "@aihot/backend/db";
-import { readUsage,usageRange } from "../packages/backend/src/admin/usage.ts";
+import { readUsage,usageRange,usageHeadroomFor } from "../packages/backend/src/admin/usage.ts";
 import { switchModel } from "../packages/backend/src/admin/models.ts";
 after(closeDb);
+
+test("usage snapshot runs under real production pressure but keeps hard memory/disk floors",()=>{
+  const base={availableMiB:132,memoryFull:32,ioFull:22,cpuSome:1,diskFreeMiB:25_000};
+  assert.equal(usageHeadroomFor(base),true,'891MiB 生产机常态压力必须允许首次快照落盘');
+  assert.equal(usageHeadroomFor({...base,availableMiB:63}),false);
+  assert.equal(usageHeadroomFor({...base,memoryFull:40}),false);
+  assert.equal(usageHeadroomFor({...base,ioFull:40}),false);
+  assert.equal(usageHeadroomFor({...base,diskFreeMiB:3_071}),false);
+});
 
 test("usage validates ranges and retired monitor cannot be configured",async()=>{
   assert.equal(usageRange(),"all");assert.equal(usageRange("nonsense"),"all");assert.equal(usageRange("7"),"7");assert.equal(usageRange("all"),"all");

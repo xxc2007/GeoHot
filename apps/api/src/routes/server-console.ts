@@ -176,6 +176,15 @@ export async function registerServerConsole(app: FastifyInstance, forward = magp
         if (!upstream.body) return reply.send();
         return reply.send(Readable.fromWeb(upstream.body as never));
       }
+      // 2026-11-20：Magpie 的 app.js/i18n.js 每个可达 1–2MB，浏览器会并发拉多个；旧路径把
+      // 每个响应完整 Buffer.concat 在 API 堆里，再加 128MiB heap 会直接触发生产 OOM（读者 API
+      // 与后台共用进程）。静态白名单只来自 loopback、扩展名固定，直接流式转发，不再复制整块。
+      // HTML 仍需 embedMagpie 注入 CSRF/基址；动态 API/HTML 保留 8MB 上限。
+      if (staticResource && !contentType.includes("text/html")) {
+        reply.code(upstream.status).type(contentType);
+        if (!upstream.body || req.method === "HEAD") return reply.send();
+        return reply.send(Readable.fromWeb(upstream.body as never));
+      }
       const chunks: Uint8Array[] = []; let size = 0;
       if (upstream.body) {
         const reader = upstream.body.getReader();

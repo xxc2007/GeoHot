@@ -147,7 +147,16 @@ function emptyUsage(rangeKey: UsageRange, pricingReady = true, fx?: { usdToCny: 
 
 // The compact metrics table has a eight-second SQL deadline, and ranges share one scan.
 // Admit this bounded read under ordinary workflow pressure; still defer under severe pressure.
-function usageHeadroom(){try{const s=readResourceSample();return s.availableMiB>=64&&s.memoryFull<15&&s.ioFull<40&&s.cpuSome<70&&s.diskFreeMiB>=3072;}catch{return false;}}
+/**
+ * 2026-11-20：这台 891MiB 的读者机在正常爬虫流量下 memoryFull 实测 20–32、ioFull 18–39；
+ * 旧阈值 memoryFull<15 会让用量快照永远没有第一次成功写盘的机会，页面只能一直显示「正在生成」。
+ * 与 resource-cron 的 <40 口径对齐，同时保留 available/disk 硬底线；快照仍由 aggregateBusy
+ * 全局串行、单次读 30 秒截止，不会因页面轮询并发叠加。
+ */
+export function usageHeadroomFor(s: {availableMiB:number;memoryFull:number;ioFull:number;cpuSome:number;diskFreeMiB:number}){
+  return s.availableMiB>=64&&s.memoryFull<40&&s.ioFull<40&&s.cpuSome<70&&s.diskFreeMiB>=3072;
+}
+function usageHeadroom(){try{return usageHeadroomFor(readResourceSample());}catch{return false;}}
 const readers = new Map<string, ReturnType<typeof snapshotReader<UsageMetric>>>();
 function usageReader(range:UsageRange,service:string,model:string,date:string|null=null){
   const key=JSON.stringify(['usage-standard-v5',service,model,range==='date'?date:null]);let read=readers.get(key);
