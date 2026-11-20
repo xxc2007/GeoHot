@@ -6,13 +6,15 @@ Magpie 以现有管理员会话保护的反代嵌入。上游由 `MAGPIE_WEB_BAS
 
 Magpie 静态资源白名单只覆盖根级 `js/css` 和 `assets/`、`plugins/`、`fonts/`、`icons/` 下的 js/css/svg/png/ico/woff2/ttf；这些请求走浏览器缓存、不占面板 API 额度。面板动态 API 按路由限流 1200/分钟，超限返回 429 与 `Retry-After`。`icons/` 用于供应商图标，缺了会表现为图标 404 而不是脚本加载失败。
 
+白名单内的非 HTML 响应从上游流式转发，不再先 `Buffer.concat` 到 API 堆；只有 HTML 走 `embedMagpie` 注入，动态 API 响应保留 8MB 缓冲上限，SSE 仍按原逻辑直通。上游 `i18n.js` 等单文件可达 1.7MB，缓冲式代理会在小内存机器上放大堆压力，不能退回旧写法。
+
 部署采样器前创建 `/run/geohot-server`，root:geohot 0750；或添加 tmpfiles 规则在重启后重建。安装对应 service/timer。API 用户只需读取 0640 的采样文件及管理密钥，不需 sudo。
 
 Magpie 官方更新由每日 timer 执行，保留更新前二进制，在服务重启后核验网关；健康检查失败恢复旧二进制。固定管理密钥在更新时保持。生产服务停止窗口需容纳正在处理的模型请求，不提高模型预算或并发。只启用一种自动更新编排，避免 GUI 内部自动下载与 systemd 重复更新。
 
 访问稳定性调整：
 
-- 运行在小内存主机上的 Node 接口显式设置 V8 堆上限，让垃圾回收先于 cgroup 内存上限触发，避免进程长期陷入换页。
+- 运行在小内存主机上的 Node 接口显式设置 V8 堆上限，让垃圾回收先于 cgroup 内存上限触发，避免进程长期陷入换页。Azure 读者机 2026-11-20 的实测配置为 `MemoryHigh=288M`、`MemoryMax=320M`、`NODE_OPTIONS=--max-old-space-size=176 --max-semi-space-size=4`；这是容量缓解，不是 OOM 根因的证明，部署后必须读 `systemctl show geohot-api -p MemoryHigh -p MemoryMax -p NRestarts` 和进程 environ 复核，不能只看单元 active。
 - 可选历史归档遵守 R115 冷却和内存/I/O 压力条件，跳过一轮保留游标，不能清除门禁状态或强行恢复实时协调器。
 - 月日历按完整筛选条件合并并发请求，成功缓存 30 秒、失败缓退 2 秒，最多 128 个键；显式测试时间绕过成功缓存，不把失败伪造为空日历。
 - 全部动态的列表和可选日历立刻交给 Promise.all 统一观察，避免在列表失败后继续等待日历才挂接拒绝处理。
