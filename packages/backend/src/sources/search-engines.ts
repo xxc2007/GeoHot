@@ -230,7 +230,9 @@ const ENGINES: EngineDefinition[] = [
   {
     id: "jina", label: "Jina Search", keyEnv: ["GEOHOT_SEARCH_JINA_KEY", "JINA_API_KEY"],
     async search(query, key, opts) {
-      const data = await requestJson(`https://s.jina.ai/?${new URLSearchParams({ q: query })}`, { headers: { authorization: `Bearer ${key}` } });
+      // Jina's first byte is consistently the slowest (measured ~19 s locally, >20 s from the
+      // production host); the default 20 s budget cut it off before any result arrived.
+      const data = await requestJson(`https://s.jina.ai/?${new URLSearchParams({ q: query })}`, { headers: { authorization: `Bearer ${key}` }, timeoutMs: 35_000 });
       return hits("jina", data.data ?? [], (r) => ({ title: r.title, url: r.url, snippet: r.description }), numResults(opts));
     },
   },
