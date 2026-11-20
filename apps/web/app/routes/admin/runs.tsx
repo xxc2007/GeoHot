@@ -14,6 +14,7 @@ interface Runs {
   processesCheckedAt?: string | null;
   queueSnapshot?: Array<{name:string;queued:number;active:number;at:string}> | null;
   stale?: boolean;
+  partial?: boolean;
   processes: Array<{ role: string; pid: number; host: string; release: string; startedAt: string; at: string; alive: boolean }>;
   jobs: Row[];
   timeline: Row[];
@@ -116,7 +117,7 @@ export default function RunsAdmin({ loaderData }: Route.ComponentProps) {
 
   return (
     <AdminPage title="运行" subtitle={<>任务、队列、信源延迟与需要人工核对的回执。每 20 秒自动刷新 · 最近检查 {bj(r.checkedAt)}</>}>
-      {(r.stale || refresh.data?.unavailable) && <p role="status" className="mb-5 rounded-panel border border-line bg-surface p-4 text-[13px] text-ink-2">详细统计暂时显示上方“最近检查”时间的快照；心跳与队列使用各自的检测时间。页面会继续尝试刷新。</p>}
+      {(r.stale || r.partial || refresh.data?.unavailable) && <p role="status" className="mb-5 rounded-panel border border-line bg-surface p-4 text-[13px] text-ink-2">{r.partial ? "详细统计还在生成，先显示实时心跳与队列；任务、回执和失败列表会在快照完成后出现，不代表它们是空的。" : "详细统计暂时显示上方“最近检查”时间的快照；心跳与队列使用各自的检测时间。页面会继续尝试刷新。"}</p>}
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-5">
         <Stat
           label="worker"
