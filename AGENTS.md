@@ -53,6 +53,7 @@
 - 心跳存活窗口、各节点负载/内存/磁盘由心跳自报；面板 `GET /api/admin/server` 读库呈现，超时判 stale。
 - 资源与排空保护：`deploy/geohot/bin/` 下 `conc-guard`、`worker-window.sh`、`role-window.sh`、`memory-guard.sh`、`liveness`、`reader-recovery-ready.sh`、`r115-reader-gate.sh`；读者公开读取有 deadline 与上一版可读兜底（R115 读者门禁）。
 - 回滚：`deploy/geohot/rollback.sh` 默认是幂等 DRY-RUN，只打印计划；确认后加 `--apply`。数据库默认保留，真删要显式 `--purge-database`，且删前强制 `pg_dump` 一份。
+- 读者 API 的连接池由 `/etc/geohot/database-pools-recovery-20261024.env` 下发，**`DATABASE_POOL_MAX` 不得低于 8、`PGBOSS_POOL_MAX` 不得低于 3**。2026-11-21 实测该文件仍是 2：读者面 4 个聚合槽抢 2 条连接，健康探针与后台信源页一起排队（`/api/health` 连续 `query_timeout`、`/admin/sources` 40 秒）；改成 8/3 后 health 1ms、运行页 11ms、信源页 277ms。改完必须逐台读回 `/proc/<api-pid>/environ`，不能只看 `.env`——systemd 的 EnvironmentFile 会覆盖它。
 - 恢复演练与两条迁移路线（干净克隆从零采集 / 迁移包连历史一起搬）见 `docs/migration.md` 与 `deploy/geohot/README-deploy.md`。
 
 ## 信源池统计口径（数字不硬编码，实时查询）
