@@ -115,7 +115,7 @@ try {
       const validation = { ...c.validation, replacedAt: new Date().toISOString() };
       const url = String(c.config.url ?? c.config.feedUrl);
       await tx`INSERT INTO sources(id,name,kind,config,tier,participation_mode,interval_minutes,first_party,tags,enabled,health,default_category,site_fulltext,syndicate_fulltext,canonical_url)
-        VALUES(${c.id},${c.name},${c.kind},${tx.json(c.config)},${c.tier ?? "T1_5"},"editorial",${c.interval_minutes ?? 720},${c.first_party ?? false},${c.tags ?? []},false,'paused',${c.default_category ?? null},false,false,${url})`;
+        VALUES(${c.id},${c.name},${c.kind},${tx.json(c.config)},${c.tier ?? "T1_5"},${"editorial"},${c.interval_minutes ?? 720},${c.first_party ?? false},${c.tags ?? []},false,'paused',${c.default_category ?? null},false,false,${url})`;
       await tx`INSERT INTO source_reserves(source_id,validated_at,validation,eligible,next_check_at,priority)
         VALUES(${c.id},${new Date(c.validation.checkedAt)},${tx.json(validation)},true,now()+make_interval(mins=>${index % 1440}),${c.priority ?? 75})`;
     }
