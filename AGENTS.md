@@ -22,12 +22,12 @@
   发布要求工作区干净；是**快进推送**，不 force、不改写线上历史。"发布成功"的定义不是脚本返回 0，而是 `verify-github-sync.sh` 全绿：两边每个 blob 哈希相等、配图从远端取回验签名与尺寸、SVG 过严格 XML 解析、README 的相对引用逐个命中。
 - CI 定义有两份且逐字节同步：发布可写的正本在 `tooling/ci-check.yml`，Actions 实际执行的是 `.github/workflows/check.yml`；改 CI 两处同改。
 - GitHub `main` 受分支保护：PR 必须先与 `origin/main` 同步，并通过 required checks `check`、`docker`（strict，规则对管理员同样生效）。禁止 `--admin`、跳过检查或 force push `main`；合并后以 merge SHA 为发布对象。
-- 四端同步规则（本地源码 / GitHub / 服务器部署 / 网站行为）见 `docs/release-sync-policy.md`。发布是否成功以逐字节核对、`.release` 标记和线上 health 为准，不凭脚本退出码。
+- 四端同步规则（本地源码 / GitHub / 服务器部署 / 网站行为）见 `docs/release-sync-policy.md`。发布是否成功以逐字节核对、`.release` 标记和线上 health 为准，不凭脚本退出码。以裸 bundle 或 `git archive` 解包部署的节点，工作树 Git HEAD 可能停在旧提交（HZ/WH 已出现过）；必须逐台读 `.release` 的完整 40 位 SHA，不能用 Git HEAD 代替。
 - nginx 配置改动后先 `nginx -t`，通过后 `systemctl reload nginx`；旧 worker 仍沿用旧连接、限流或静态白名单未生效时，按部署手册改为 `systemctl restart nginx`，再复验 429 与静态资源状态。
 
 ## 生产拓扑、服务器角色与恢复
 
-### 四节点拓扑（2026-11-17 现状）
+### 四节点拓扑（2026-11-20 现状）
 
 生产是四节点，**没有本机 worker、没有本机 Magpie 依赖**：采集、模型处理、队列与定时任务全部在服务器端自治运行（2026-11-16 起本机 Windows 抽取辅助已移除，见 `docs/release-sync-policy.md`）。
 
@@ -113,7 +113,7 @@
 - 单价按**调用时有效价卡**折算：`pricing_rates` 是版本化表（迁移 0124），`fx_rates` 是汇率单一事实源，缺省回退 `CNY_FX`；DeepSeek 峰谷价在请求时解析。价卡缺标注项（missingLabels）不阻塞出账。
 - 异步核对：`geohot-pricing-check` 单元管汇率/官方价复核；`geohot-pricing-rates-refresh.{service,timer}` 只校验现有 seed 价组合——`OnCalendar=06:10 Asia/Shanghai`、`Persistent=true`，执行 `/usr/bin/node tooling/refresh-pricing-rates.ts`；任一基准值消失/改版/调价即判 stale 并保留最后成功价，不解析新价、不自动改价。
 - 口径细则与核验流程见 `docs/admin-official-pricing.md`。用量页读私有派生快照，单次统计 SQL 截止 30 秒，后台单并发刷新、失败冷却 30 秒；订阅、免费、无公开价、未核实价卡的调用计入未计价，不估算、不倒算。
-- 2026-11-20 生产加固：891MiB 读者机的 `usageHeadroomFor` 阈值与 resource-cron 对齐（available≥64MiB、memoryFull<40、ioFull<40、cpuSome<70、disk≥3GiB），否则常态压力会让用量快照永远无法首次落盘；Magpie 静态白名单资源走流式转发，只有 HTML 注入 `embedMagpie`、动态响应保留 8MB 缓冲上限。`/api/health` 的 `reason=gate_busy|query_timeout` 是探针自身瞬时压力，不等于数据库宕机；`conn_error|db_unavailable` 才是故障。
+- 2026-11-20 生产加固：891MiB 读者机的 `usageHeadroomFor` 阈值与 resource-cron 对齐（available≥64MiB、memoryFull<40、ioFull<40、cpuSome<70、disk≥3GiB），否则常态压力会让用量快照永远无法首次落盘；Magpie 静态白名单资源走流式转发，只有 HTML 注入 `embedMagpie`、动态响应保留 8MB 缓冲上限。`/api/health` 的 `reason=gate_busy|query_timeout` 是探针自身瞬时压力，不等于数据库宕机；`conn_error|db_unavailable` 才是故障。Azure 读者机同时把 `geohot-api` 调到 `MemoryHigh=288M`、`MemoryMax=320M`、V8 堆 176MiB，但这是容量缓解，OOM 是否消失要在新版本部署后看 `NRestarts`/`MemoryPeak` 和真实请求，不能预先宣称根因已消除。
 
 ## 干净克隆、迁移与备份
 
