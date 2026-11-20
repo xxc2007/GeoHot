@@ -90,6 +90,72 @@ export function LatencyBars() {
   );
 }
 
+const SWAP_STEPS = [
+  ["发现失败", "正式源连续失败至少五次、至少二十四小时没有成功，而且最近六小时确实尝试过采集。"],
+  ["挑同类别", "先找相同分类、一手属性与质量优先级接近的备用源；分类对不上就不强行替换。"],
+  ["切换前再验", "被选中的备用源当场再抓一次：标题、链接和最近四百天内的有效日期都要过。"],
+  ["一停一启", "同一个事务里停旧启新并写审计；失败源进隔离区，不立刻反复回切。"],
+] as const;
+
+export function ReserveSwap() {
+  const [step, setStep] = useState(0);
+  const id = useId();
+  return (
+    <section className="rounded-2xl border border-line-soft bg-bg-sunk/40 p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 className="text-[20px] font-bold text-ink">坏一个，补一个</h3>
+          <p className="mt-2 text-[13px] leading-relaxed text-ink-3">点一步看换源的过程；正式池和备用池始终各留一千条。</p>
+        </div>
+        <span className="num rounded-full border border-line-soft px-3 py-1 text-[12px] text-ink-3">正式 1,000 · 备用 1,000</span>
+      </div>
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4" role="tablist" aria-label="换源步骤">
+        {SWAP_STEPS.map(([title], index) => (
+          <button key={title} type="button" role="tab" id={`${id}-${index}`} aria-selected={step === index}
+            aria-controls={`${id}-panel`} tabIndex={step === index ? 0 : -1} onClick={() => setStep(index)}
+            className={`rounded-xl border px-3 py-2 text-left text-[13px] ${step === index ? "border-accent bg-surface text-ink" : "border-line-soft bg-surface/60 text-ink-3"}`}>
+            <span className="mr-2 text-[11px] font-semibold text-accent">0{index + 1}</span>{title}
+          </button>
+        ))}
+      </div>
+      <div id={`${id}-panel`} role="tabpanel" aria-labelledby={`${id}-${step}`} className="mt-3 rounded-xl bg-surface px-4 py-3 text-[13.5px] leading-relaxed text-ink-2">
+        <span className="mr-2 font-semibold text-accent">0{step + 1}</span>{SWAP_STEPS[step]![1]}
+      </div>
+      <p className="mt-3 text-[12px] text-ink-4">每轮最多换两个，滚动二十四小时最多十二个；失败源达到正式池十分之一时停下等人工。</p>
+    </section>
+  );
+}
+
+const COOLDOWN = [
+  ["账号停用", "auth", "换一扇门或重新授权", "提示账号停用，调用不会重试到同一把钥匙上。"],
+  ["日额度用完", "quota_day", "次日额度恢复", "当天不再打这扇门，回执保留；额度恢复后自动回到池里。"],
+  ["分钟限流", "rate_minute", "下一分钟再试", "只冷却很短一段，不当成配置错误。"],
+  ["连接失败", "connect", "网络或上游恢复", "结果未知的回执不盲重放，超过窗口才放行一次。"],
+] as const;
+
+export function CooldownBoard() {
+  const [open, setOpen] = useState(0);
+  return (
+    <section className="rounded-2xl border border-line-soft bg-bg-sunk/40 p-5">
+      <h3 className="text-[20px] font-bold text-ink">一扇门歇了，池子还在转</h3>
+      <p className="mt-2 text-[13px] leading-relaxed text-ink-3">点一类看它为什么停、什么时候回来；后台把证据时间和恢复条件写在同一个位置。</p>
+      <ul className="mt-4 divide-y divide-line-soft">
+        {COOLDOWN.map(([name, code, recovery, why], index) => (
+          <li key={code}>
+            <button type="button" onClick={() => setOpen(index)} aria-pressed={open === index} className="flex w-full flex-wrap items-baseline justify-between gap-2 py-2 text-left text-[13.5px]">
+              <span className="font-medium text-ink">{name}</span>
+              <span className="font-mono text-[11.5px] text-ink-4">{code}</span>
+              <span className="text-ink-3">{recovery}</span>
+            </button>
+            {open === index && <p className="pb-2 text-[13px] leading-relaxed text-ink-3" aria-live="polite">{why}</p>}
+          </li>
+        ))}
+      </ul>
+      <p className="mt-3 text-[12px] text-ink-4">回执按逻辑请求缓存；同一条内容要重跑，得让正文变版本或在后台重跑，不会偷偷再付一次。</p>
+    </section>
+  );
+}
+
 const FLEET = [
   ["Azure 主库（国际）", "读者面 + 数据库", "—"],
   ["阿里云 杭州", "协调者 + 采集", "3"],
