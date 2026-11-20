@@ -113,6 +113,7 @@
 - 单价按**调用时有效价卡**折算：`pricing_rates` 是版本化表（迁移 0124），`fx_rates` 是汇率单一事实源，缺省回退 `CNY_FX`；DeepSeek 峰谷价在请求时解析。价卡缺标注项（missingLabels）不阻塞出账。
 - 异步核对：`geohot-pricing-check` 单元管汇率/官方价复核；`geohot-pricing-rates-refresh.{service,timer}` 只校验现有 seed 价组合——`OnCalendar=06:10 Asia/Shanghai`、`Persistent=true`，执行 `/usr/bin/node tooling/refresh-pricing-rates.ts`；任一基准值消失/改版/调价即判 stale 并保留最后成功价，不解析新价、不自动改价。
 - 口径细则与核验流程见 `docs/admin-official-pricing.md`。用量页读私有派生快照，单次统计 SQL 截止 30 秒，后台单并发刷新、失败冷却 30 秒；订阅、免费、无公开价、未核实价卡的调用计入未计价，不估算、不倒算。
+- 2026-11-20 生产加固：891MiB 读者机的 `usageHeadroomFor` 阈值与 resource-cron 对齐（available≥64MiB、memoryFull<40、ioFull<40、cpuSome<70、disk≥3GiB），否则常态压力会让用量快照永远无法首次落盘；Magpie 静态白名单资源走流式转发，只有 HTML 注入 `embedMagpie`、动态响应保留 8MB 缓冲上限。`/api/health` 的 `reason=gate_busy|query_timeout` 是探针自身瞬时压力，不等于数据库宕机；`conn_error|db_unavailable` 才是故障。
 
 ## 干净克隆、迁移与备份
 

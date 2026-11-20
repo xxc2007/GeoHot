@@ -42,6 +42,22 @@ test('Magpie stays behind admin authentication and CSRF; fixed server key never 
   assert.equal(calls,6);
  }finally{config.devAdmin=original;globalThis.fetch=oldFetch;if(oldKey===undefined)delete process.env.MAGPIE_WEB_KEY_FILE;else process.env.MAGPIE_WEB_KEY_FILE=oldKey;await app.close();await rm(dir,{recursive:true,force:true});}
 });
+test('large Magpie static assets stream through the proxy instead of buffering past 8MB', async()=>{
+ const dir=await mkdtemp(path.join(os.tmpdir(),'magpie-stream-test-'));
+ const original=config.devAdmin;const oldKey=process.env.MAGPIE_WEB_KEY_FILE;
+ const big='x'.repeat(8_000_001);
+ const app=Fastify();await registerServerConsole(app,async (resource)=>
+   new Response(resource==='/'?'<html><head></head></html>':big,{headers:{'content-type':resource==='/'?'text/html':'text/javascript'}}));
+ try{
+  config.devAdmin={displayName:'isolated test',csrf:'test-dev-token-0123456789'} as never;
+  process.env.MAGPIE_WEB_KEY_FILE=path.join(dir,'key');await writeFile(process.env.MAGPIE_WEB_KEY_FILE,'private-server-test-key');
+  const result=await app.inject('/api/admin/magpie-proxy/plugins/big.js');
+  assert.equal(result.statusCode,200);
+  assert.equal(result.body.length,big.length,'静态资源必须完整流式转发，不能被 8MB 缓冲上限截成 502');
+  assert.match(String(result.headers['cache-control']),/private/);
+ }finally{config.devAdmin=original;if(oldKey===undefined)delete process.env.MAGPIE_WEB_KEY_FILE;else process.env.MAGPIE_WEB_KEY_FILE=oldKey;await app.close();await rm(dir,{recursive:true,force:true});}
+});
+
 test('Magpie resource bootstrap leaves external resources external and includes the deployment prefix',()=>{
  const html=embedMagpie('<html><head></head><body><img src="/icon.svg"><a href="https://vendor.invalid/">vendor</a></body></html>','/geohot/api/admin/magpie-proxy','dev');
  assert.match(html,/src="\/geohot\/api\/admin\/magpie-proxy\/icon.svg"/);assert.match(html,/href="https:\/\/vendor.invalid\/"/);assert.match(html,/x-csrf-token/);
