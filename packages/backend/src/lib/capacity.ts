@@ -79,7 +79,6 @@ export class CapacityGate {
           workPromise,
           new Promise<never>((_, reject) => {
             timer = setTimeout(() => reject(new CapacityTimeout(deadline)), deadline);
-            timer.unref?.();
           }),
         ]);
 
@@ -114,7 +113,6 @@ export class CapacityGate {
           if (i >= 0) this.waiting.splice(i, 1);
           reject(new CapacityTimeout(queueTimeoutMs));
         }, queueTimeoutMs);
-        timer.unref?.();
       }
       this.waiting.push(entry);
     });
