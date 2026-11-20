@@ -4,10 +4,11 @@
 
 ## 成本口径
 
-- **价卡来源只认官方页面 / 官方手册 / 合同与实际账单**；本站不自动抓取网页价格，避免网页结构或单位变化导致错误扣价。查不到官方价就标 `no-price`，不估算、不套用相似名称价格。
-- **实际账单优先**：`billing_kind` 取值 `actual`（实际账单/实测扣费）、`subscription`（订阅制，不单按 token 计价）、`free`（免费）、`no-price`（无公开价）；另保留 `equivalent-public-api`（公开 API 等值参考）与 `unverified`（未核验）作为过渡标记。订阅、免费、无公开价分列展示，不混进 API 单价折算。
+- **价卡来源只认官方页面 / 官方手册 / 合同与实际账单**；本站不自动抓取网页价格，避免网页结构或单位变化导致错误扣价。
+- **`billing_kind` 口径**：价卡表五值——`equivalent-public-api`（公开 API 刊例/等值估算）、`subscription`（订阅制，不单按 token 计价）、`free`（免费）、`no-price`（无公开价）、`unverified`（未核实）；迁移 0124 的 CHECK 另保留 `actual`，共六类。`actual` 只来自回执 `cost_basis='actual'`；价卡侧任何公开 API 价都落 `equivalent-public-api`，绝不写 actual。Seed 侧 `public-api → equivalent-public-api`、`no-public-price → no-price` 由 `packages/backend/src/admin/pricing-map.ts` 归一。订阅、免费、无公开价分列展示，不混进 API 单价折算；查不到官方价标 `no-price`，未核实标 `unverified`，不估算、不套用相似名称价格。
 - **按调用时有效价卡计价**：DeepSeek 峰谷按请求开始时的北京时间规则解析，不还原历史调价；历史用量按所选时间范围内有效单价折算，不是实际账单或订阅扣款。
-- **单价版本化**：`pricing_rates` 表（迁移 0124）存最新价卡行，`OFFICIAL_RATES` 常量只作 seed/兜底；表无行或迁移未跑时回落常量并标记 `stale`。异步 pricing-check timer 复核价卡与汇率并 upsert；页面请求时不打外网。价卡缺标注项（missingLabels）不阻塞出账。
+- **单价版本化**：`pricing_rates` 表（迁移 0124）存最新价卡行，`OFFICIAL_RATES` 常量只作 seed/兜底；表无行或迁移未跑时回落常量并标记 `stale`。价卡 seed 随迁移落库：`scripts/migrate.ts` 自动调 `seedPricingRates`，干净克隆跑 `npm run db:migrate` 即幂等 upsert 仓库内 A/B/C 映射（`database/seeds/pricing/map-{A,B,C}.json`，当前 47 条；条数以 seed 文件与 `pricing_rates` 表现查为准），无需手工导入。
+- **异步核对**：`geohot-pricing-check` 单元复核价卡与汇率并 upsert；`geohot-pricing-rates-refresh.{service,timer}` 只校验现有 seed 价组合——`OnCalendar=06:10 Asia/Shanghai`、`Persistent=true`，执行 `/usr/bin/node tooling/refresh-pricing-rates.ts`；HTTP 200 不算成功，必须解析出正数 input/output 单价才置 `stale=false`；失败/无法解析则写 `last_error`、置 `stale=true`，保留最后成功价卡，不清空费率，也不解析新价、不自动改价。页面请求时不打外网。价卡缺标注项（missingLabels）不阻塞出账。
 - **汇率单一事实源**：优先 `fx_rates` 表最新行，无记录时回落 `CNY_FX` 兜底常量；不在文档里抄写死汇率数值。
 - 费用仅用于展示，不写回 `receipt_attempts.cost` 或预算。
 

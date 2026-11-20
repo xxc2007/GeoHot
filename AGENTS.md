@@ -95,18 +95,21 @@
 
 ## Magpie 后台代理边界
 
-- 后台 Magpie 面板只经 API 代理访问：`/api/admin/magpie-proxy/*` 转发到**固定回环** `127.0.0.1:3430`（到协调节点 Magpie 网关的本机 SSH 隧道；网关本身绑回环 `127.0.0.1:3426`）。**Magpie 不对公网暴露，也不允许把网关端口开到公网。**
+- 后台 Magpie 面板只经 API 代理访问，上游由 `MAGPIE_WEB_BASE_URL` 配置，默认 `http://127.0.0.1:3430`；只允许 http loopback（`localhost`/`::1`/`127.*`），不接受真实公网 IP，跨机访问走本机 SSH 隧道，代理里不硬编码对端地址。**Magpie 不对公网暴露，也不允许把网关端口开到公网。**
+- 生产 Azure 最终方案：读者节点 API 设 `MAGPIE_WEB_BASE_URL=http://127.0.0.1:3431`，本机 3431 经隧道转发到杭州节点网关 `127.0.0.1:3430`；直连 3430 只兼容旧的本地进程。网关模型端口绑回环 `127.0.0.1:3426`。
 - 代理边界（`apps/api/src/routes/server-console.ts`）：
-  - 必须有后台会话 + CSRF；注入上游的 secret cookie 由服务端从 `MAGPIE_WEB_KEY_FILE` 读取，文档与日志里不写 cookie 值。
+  - 必须有后台会话 + CSRF；上游 secret cookie 优先取 `MAGPIE_WEB_COOKIE` 环境变量，否则读 `MAGPIE_WEB_KEY_FILE`（默认 `/etc/geohot/magpie-web-key`），密钥不回传浏览器，文档与日志里不写 cookie 值。
   - 屏蔽模型网关 `/v1`、`/_magpie`、登录/换 token 路由、`k` 查询参数、路径穿越、反斜杠、Origin 不一致、跨源跳转。
   - 静态资源（js/css/字体/图片）走浏览器缓存、不限流；面板 API 调用 300/分钟。
-- 边界理由、隧道与维护脚本见 `docs/server-magpie.md`、`deploy/geohot/CONTENT-EXECUTOR.md`。
+- 线上 Magpie 单元实际名是 `geohot-magpie.service`；仓库另有 `geohot-magpie-hangzhou.service` 模板变体。边界理由、隧道与维护脚本见 `docs/server-magpie.md`、`deploy/geohot/CONTENT-EXECUTOR.md`。
 
 ## 官方价卡成本口径
 
-- 成本口径实现：`packages/backend/src/admin/official-pricing.ts`；后台 `GET /api/admin/usage`、`GET /api/admin/models`；价格导入脚本 `scripts/import-leaderboard-prices.ts`；定时核对 `deploy/geohot/` 的 pricing-check 单元。
-- **价卡只认官方页面 / 官方手册 / 合同与实际账单**；实际账单（`actual`）优先于挂牌价。公开 API 等值、订阅制、免费、无公开价分列，`billing_kind` 取值 `actual | subscription | free | no-price`；查不到官方价就标 `no-price`，不估算、不套用其他模型的价。
+- 成本口径实现：`packages/backend/src/admin/official-pricing.ts`、归一化 `packages/backend/src/admin/pricing-map.ts`；后台 `GET /api/admin/usage`、`GET /api/admin/models`。
+- **价卡只认官方页面 / 官方手册 / 合同与实际账单**。价卡表 `pricing_rates.billing_kind` 五值：`equivalent-public-api`（公开 API 刊例/等值估算）、`subscription`（订阅制）、`free`（免费）、`no-price`（无公开价）、`unverified`（未核实）；迁移 0124 的 CHECK 另保留 `actual`，共六类。`actual` 只来自回执 `cost_basis='actual'`，价卡侧任何公开 API 价都落 `equivalent-public-api`，绝不写 actual；无公开价标 `no-price`，未核实标 `unverified`，不估算、不套用其他模型的价。Seed 侧 `public-api → equivalent-public-api`、`no-public-price → no-price` 由 `pricing-map.ts` 归一。
+- **价卡 seed 随迁移落库**：`scripts/migrate.ts` 自动调 `seedPricingRates`，干净克隆跑 `npm run db:migrate` 即幂等 upsert 仓库内 A/B/C 映射（`database/seeds/pricing/map-{A,B,C}.json`，当前 47 条；条数以 seed 文件与 `pricing_rates` 表现查为准），无需手工导入。
 - 单价按**调用时有效价卡**折算：`pricing_rates` 是版本化表（迁移 0124），`fx_rates` 是汇率单一事实源，缺省回退 `CNY_FX`；DeepSeek 峰谷价在请求时解析。价卡缺标注项（missingLabels）不阻塞出账。
+- 异步核对：`geohot-pricing-check` 单元管汇率/官方价复核；`geohot-pricing-rates-refresh.{service,timer}` 只校验现有 seed 价组合——`OnCalendar=06:10 Asia/Shanghai`、`Persistent=true`，执行 `/usr/bin/node tooling/refresh-pricing-rates.ts`；任一基准值消失/改版/调价即判 stale 并保留最后成功价，不解析新价、不自动改价。
 - 口径细则与核验流程见 `docs/admin-official-pricing.md`。
 
 ## 干净克隆、迁移与备份
