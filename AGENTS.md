@@ -21,7 +21,9 @@
   ```
   发布要求工作区干净；是**快进推送**，不 force、不改写线上历史。"发布成功"的定义不是脚本返回 0，而是 `verify-github-sync.sh` 全绿：两边每个 blob 哈希相等、配图从远端取回验签名与尺寸、SVG 过严格 XML 解析、README 的相对引用逐个命中。
 - CI 定义有两份且逐字节同步：发布可写的正本在 `tooling/ci-check.yml`，Actions 实际执行的是 `.github/workflows/check.yml`；改 CI 两处同改。
-- 三端同步规则（本地源码 / GitHub / 服务器部署与网站行为）见 `docs/release-sync-policy.md`。
+- GitHub `main` 受分支保护：PR 必须先与 `origin/main` 同步，并通过 required checks `check`、`docker`（strict，规则对管理员同样生效）。禁止 `--admin`、跳过检查或 force push `main`；合并后以 merge SHA 为发布对象。
+- 四端同步规则（本地源码 / GitHub / 服务器部署 / 网站行为）见 `docs/release-sync-policy.md`。发布是否成功以逐字节核对、`.release` 标记和线上 health 为准，不凭脚本退出码。
+- nginx 配置改动后先 `nginx -t`，通过后 `systemctl reload nginx`；旧 worker 仍沿用旧连接、限流或静态白名单未生效时，按部署手册改为 `systemctl restart nginx`，再复验 429 与静态资源状态。
 
 ## 生产拓扑、服务器角色与恢复
 
@@ -100,7 +102,7 @@
 - 代理边界（`apps/api/src/routes/server-console.ts`）：
   - 必须有后台会话 + CSRF；上游 secret cookie 优先取 `MAGPIE_WEB_COOKIE` 环境变量，否则读 `MAGPIE_WEB_KEY_FILE`（默认 `/etc/geohot/magpie-web-key`），密钥不回传浏览器，文档与日志里不写 cookie 值。
   - 屏蔽模型网关 `/v1`、`/_magpie`、登录/换 token 路由、`k` 查询参数、路径穿越、反斜杠、Origin 不一致、跨源跳转。
-  - 静态资源（js/css/字体/图片）走浏览器缓存、不限流；面板 API 调用 300/分钟。
+  - 静态资源走浏览器缓存、不限流：根级 `js/css`，以及 `assets/`、`plugins/`、`fonts/`、`icons/` 下的 js/css/svg/png/ico/woff2/ttf。面板动态 API 按路由限流 1200/分钟（`server-console.ts`）；Web 后台 `admin-control` 另有全局 600/分钟，两者不要混写。
 - 线上 Magpie 单元实际名是 `geohot-magpie.service`；仓库另有 `geohot-magpie-hangzhou.service` 模板变体。边界理由、隧道与维护脚本见 `docs/server-magpie.md`、`deploy/geohot/CONTENT-EXECUTOR.md`。
 
 ## 官方价卡成本口径
@@ -110,7 +112,7 @@
 - **价卡 seed 随迁移落库**：`scripts/migrate.ts` 自动调 `seedPricingRates`，干净克隆跑 `npm run db:migrate` 即幂等 upsert 仓库内 A/B/C 映射（`database/seeds/pricing/map-{A,B,C}.json`，当前 47 条；条数以 seed 文件与 `pricing_rates` 表现查为准），无需手工导入。
 - 单价按**调用时有效价卡**折算：`pricing_rates` 是版本化表（迁移 0124），`fx_rates` 是汇率单一事实源，缺省回退 `CNY_FX`；DeepSeek 峰谷价在请求时解析。价卡缺标注项（missingLabels）不阻塞出账。
 - 异步核对：`geohot-pricing-check` 单元管汇率/官方价复核；`geohot-pricing-rates-refresh.{service,timer}` 只校验现有 seed 价组合——`OnCalendar=06:10 Asia/Shanghai`、`Persistent=true`，执行 `/usr/bin/node tooling/refresh-pricing-rates.ts`；任一基准值消失/改版/调价即判 stale 并保留最后成功价，不解析新价、不自动改价。
-- 口径细则与核验流程见 `docs/admin-official-pricing.md`。
+- 口径细则与核验流程见 `docs/admin-official-pricing.md`。用量页读私有派生快照，单次统计 SQL 截止 30 秒，后台单并发刷新、失败冷却 30 秒；订阅、免费、无公开价、未核实价卡的调用计入未计价，不估算、不倒算。
 
 ## 干净克隆、迁移与备份
 
