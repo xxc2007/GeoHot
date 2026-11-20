@@ -4,12 +4,12 @@ export interface OfficialRate {
 }
 export interface CostBounds {low:number;high:number}
 export interface OfficialModelCost {
-  service:string;model:string;name:string;currency:string|null;rateId:string|null;calls:number;pricedCalls:number;
+  service:string;model:string;name:string;currency:string|null;rateId:string|null;billingKind:string|null;calls:number;pricedCalls:number;
   missingUsage:number;cacheUnknownCalls:number;list:CostBounds|null;current:CostBounds|null;reason?:string;
 }
 export interface OfficialCostReport {
   fx:{usdToCny:number;date:string;source:string};
-  state:"ready"|"backfill";verifiedOn:string;policy:string;models:OfficialModelCost[];rates:OfficialRate[];
+  state:"ready"|"backfill";verifiedOn:string|null;policy:string;models:OfficialModelCost[];rates:OfficialRate[];
   totals:Array<{currency:string;list:CostBounds;current:CostBounds}>;
   calls:number;pricedCalls:number;missingUsage:number;unmappedCalls:number;cacheUnknownCalls:number;
 }

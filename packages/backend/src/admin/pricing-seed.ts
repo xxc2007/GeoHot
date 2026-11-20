@@ -42,8 +42,9 @@ export async function upsertPricingSeed(db: Db, records: PricingRateRecord[]): P
         output_price=EXCLUDED.output_price,billing_kind=EXCLUDED.billing_kind,
         source_urls=EXCLUDED.source_urls,source_url=EXCLUDED.source_url,
         effective_at=COALESCE(EXCLUDED.effective_at, pricing_rates.effective_at),
-        fetched_at=EXCLUDED.fetched_at,last_attempt_at=EXCLUDED.fetched_at,
-        last_success_at=EXCLUDED.fetched_at,last_error=null,stale=EXCLUDED.stale,note=EXCLUDED.note,updated_at=now()`;
+        note=EXCLUDED.note,updated_at=now()
+      -- 观测列（fetched_at/last_attempt_at/last_success_at/last_error/stale）属异步刷新结果，
+      -- migrate 重跑不得用 seed 旧值覆盖，否则失败/stale 状态与最近成功时间被重置。`;
     if (changed) {
       await db`INSERT INTO pricing_rate_versions
         (rate_id,service,model,currency,tiers,input_price,cached_price,output_price,billing_kind,effective_at,fetched_at,note)

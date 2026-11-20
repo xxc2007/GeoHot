@@ -25,7 +25,7 @@ test('magpie upstream defaults to loopback 3430 and rejects non-loopback/https',
     assert.equal(magpieBase().origin, 'http://127.0.0.1:3430');
     process.env.MAGPIE_WEB_BASE_URL = 'http://127.0.0.1:3426';
     assert.equal(magpieBase().port, '3426');
-    process.env.MAGPIE_WEB_BASE_URL = 'http://47.97.97.62:3430';
+    process.env.MAGPIE_WEB_BASE_URL = 'http://10.0.0.1:3430';
     assert.throws(() => magpieBase(), /loopback/);
     process.env.MAGPIE_WEB_BASE_URL = 'https://localhost:3430';
     assert.throws(() => magpieBase(), /loopback/);

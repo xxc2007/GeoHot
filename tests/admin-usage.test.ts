@@ -13,12 +13,12 @@ test("usage validates ranges and retired monitor cannot be configured",async()=>
 test("usage counts attempts including retries, separates currencies and missing measurements, uses Shanghai days",async()=>{
   await assert.rejects(sql.begin(async db=>{
     await db`INSERT INTO settings(key,value) VALUES('admin.modelLabelsReady','true'),('admin.modelMetricsReady','true'),('admin.usageCacheReady','true') ON CONFLICT(key) DO UPDATE SET value='true'`;
-    const service=`usage-fixture-${Date.now()}`;
+    const service='workbuddy-cn';
     const [r]=await db`INSERT INTO receipts(logical_key,service,purpose,status,request) VALUES(${service},${service},'score_article','pending','{}') RETURNING id`;
     await db`INSERT INTO receipt_attempts(receipt_id,attempt,service,model,status,usage,cost,currency,cost_basis,started_at)
-      VALUES(${r!.id},1,${service},'hy3','received','{"prompt_tokens":100,"completion_tokens":20,"completion_tokens_details":{"reasoning_tokens":7},"prompt_tokens_details":{"cached_tokens":40}}',1,'USD','actual','2026-01-01T18:30:00Z'),
-      (${r!.id},2,${service},'hy3','failed',NULL,NULL,NULL,NULL,'2026-01-01T18:31:00Z'),
-      (${r!.id},3,${service},'hy3','unknown','{"prompt_tokens":5,"completion_tokens":2,"cached_tokens":8,"reasoning_tokens":4}',2,'CNY','estimated','2026-01-01T18:32:00Z')`;
+      VALUES(${r!.id},1,${service},'hy3','received','{"prompt_tokens":100,"completion_tokens":20,"completion_tokens_details":{"reasoning_tokens":7},"prompt_tokens_details":{"cached_tokens":40}}',1,'USD','actual','2026-11-17T18:30:00Z'),
+      (${r!.id},2,${service},'hy3','failed',NULL,NULL,NULL,NULL,'2026-11-17T18:31:00Z'),
+      (${r!.id},3,${service},'hy3','unknown','{"prompt_tokens":5,"completion_tokens":2,"cached_tokens":8,"reasoning_tokens":4}',2,'CNY','estimated','2026-11-17T18:32:00Z')`;
     await db`INSERT INTO receipt_attempts(receipt_id,attempt,service,model,status,origin,usage) VALUES(${r!.id},4,${service},'hy3','received','replay','{"prompt_tokens":999}')`;
     const rows=await readUsage(db,"all",service,"");const total=rows.find(r=>r.kind==='total')!;
     assert.equal(total.calls,3);assert.equal(total.ok,1);assert.equal(total.failed,1);assert.equal(total.unknown,1);
@@ -35,11 +35,11 @@ test("usage counts attempts including retries, separates currencies and missing 
     assert.equal(total.actualCost,null);assert.equal(total.estimatedCost,null);
     assert.equal(rows.find(r=>r.kind==='currency'&&r.currency==='USD')!.actualCost,1);
     assert.equal(rows.find(r=>r.kind==='currency'&&r.currency==='CNY')!.estimatedCost,2);
-    assert.equal(rows.find(r=>r.kind==='day')!.day,'2026-01-02');
+    assert.equal(rows.find(r=>r.kind==='day')!.day,'2026-11-18');
     assert.equal(rows.find(r=>r.kind==='hour')!.hour,2);
     assert.equal((await readUsage(db,'all',service,'different-model')).find(r=>r.kind==='total')!.calls,0);
-    assert.equal((await readUsage(db,'date',service,'','2026-01-02')).find(r=>r.kind==='total')!.calls,3);
-    assert.equal((await readUsage(db,'date',service,'','2026-01-03')).find(r=>r.kind==='total')!.calls,0);
+    assert.equal((await readUsage(db,'date',service,'','2026-11-18')).find(r=>r.kind==='total')!.calls,3);
+    assert.equal((await readUsage(db,'date',service,'','2026-11-19')).find(r=>r.kind==='total')!.calls,0);
     await assert.rejects(readUsage(db,'date',service,'','invalid'),/Invalid usage date/);
     const shared = await readUsage(db,'*',service,'');
     assert.equal(shared.find(r=>r.kind==='total'&&r.rangeKey==='all')!.calls,3);

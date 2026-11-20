@@ -1,5 +1,5 @@
 import type { OfficialCostReport } from "@aihot/contracts/model-costs";
-import { officialCosts, resolveFx, loadPricingVersions, type PricingBucket } from "./official-pricing.ts";
+import { officialCosts, resolveFx, loadPricingVersions, loadPricingRates, pricingRowsToDetail, type PricingBucket } from "./official-pricing.ts";
 import { type Tx } from "../db.ts";
 import {snapshotReader,snapshotStore} from "./statistic-snapshot.ts";
 import { readResourceSample } from "../operations/resource-budget.ts";
@@ -121,9 +121,12 @@ export async function readUsage(db: Tx, range: UsageRange | "*", service: string
   const [fxRow] = await db<{ rate: number; as_of: string; source_url: string | null }[]>`
     SELECT rate, as_of::text AS as_of, source_url FROM fx_rates WHERE pair = 'USD/CNY' ORDER BY as_of DESC LIMIT 1`;
   const fx = resolveFx(fxRow);
-  // 历史价卡版本：按调用时点选有效版本；表缺失回落空 Map（officialCosts 再回落常量）。
+  // 历史价卡版本：按调用时点选有效版本；表缺失回落空 Map（传入 Map 后不再用常量倒算）。
   const versionsByRate = await loadPricingVersions(db);
-  const pricingFor=(rangeKey:UsageRange)=>officialCosts(rows.filter(r=>r.kind==="pricing"&&r.rangeKey===rangeKey),!!ready.fees_ready,fx,versionsByRate);
+  // 明细价表：只纳 DB 中可计价行；verifiedOn 取最近成功核验/seed 抓取时点，不写死日期。
+  const { rates: rateRows } = await loadPricingRates(db);
+  const pricingDetail = pricingRowsToDetail(rateRows);
+  const pricingFor=(rangeKey:UsageRange)=>officialCosts(rows.filter(r=>r.kind==="pricing"&&r.rangeKey===rangeKey),!!ready.fees_ready,fx,versionsByRate,pricingDetail);
   const result: UsageMetric[] = rows.filter(r=>r.kind!=="pricing").map(({ missingLabels: _missing, pricedCalls:_pc,pricedIn:_pi,pricedOut:_po,cachedTokens:_ct,unknownCacheIn:_uc,cacheUnknownCalls:_cc, ...r }) => ({ ...r,kind:r.kind as UsageMetric["kind"],...(r.kind==="total"?{pricing:pricingFor(r.rangeKey)}:{}), tokensIn: r.tokensIn ?? 0, tokensOut: r.tokensOut ?? 0,
     subscriptionCalls: r.subscriptionCalls ?? 0, freeCalls: r.freeCalls ?? 0, noPriceCalls: r.noPriceCalls ?? 0,
     unverifiedCalls: r.unverifiedCalls ?? 0, equivalentCalls: r.equivalentCalls ?? 0, unmappedModelCalls: r.unmappedModelCalls ?? 0,

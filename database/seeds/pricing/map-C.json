@@ -55,7 +55,7 @@
     },
     {
       "service": "antigravity",
-      "upstream_model": "gemini-3.8-flash",
+      "upstream_model": "antigravity/gemini-3.8-flash",
       "official_provider": "Google",
       "official_model_id": "gemini-3.8-flash",
       "billing_kind": "subscription",
@@ -82,7 +82,7 @@
     },
     {
       "service": "antigravity",
-      "upstream_model": "claude-opus-4-6-thinking",
+      "upstream_model": "antigravity/claude-opus-4-6-thinking",
       "official_provider": "Anthropic",
       "official_model_id": "claude-opus-4-6",
       "billing_kind": "subscription",
@@ -108,7 +108,7 @@
     },
     {
       "service": "antigravity",
-      "upstream_model": "claude-sonnet-4-6",
+      "upstream_model": "antigravity/claude-sonnet-4-6",
       "official_provider": "Anthropic",
       "official_model_id": "claude-sonnet-4-6",
       "billing_kind": "subscription",
@@ -134,7 +134,7 @@
     },
     {
       "service": "raccoon",
-      "upstream_model": "sn-sensenova-6-8-flash",
+      "upstream_model": "raccoon/sn-sensenova-6-8-flash",
       "official_provider": "SenseTime",
       "official_model_id": "sensenova-6.8-flash",
       "billing_kind": "free",
@@ -161,7 +161,7 @@
     },
     {
       "service": "raccoon",
-      "upstream_model": "sn-deepseek-v4-1-flash-1017",
+      "upstream_model": "raccoon/sn-deepseek-v4-1-flash-1017",
       "official_provider": "DeepSeek",
       "official_model_id": "deepseek-flash",
       "billing_kind": "unverified",
@@ -187,7 +187,7 @@
     },
     {
       "service": "raccoon",
-      "upstream_model": "sn-sensenova-6-8-flash-lite",
+      "upstream_model": "raccoon/sn-sensenova-6-8-flash-lite",
       "official_provider": "SenseTime",
       "official_model_id": "sensenova-6.8-flash-lite",
       "billing_kind": "free",
@@ -214,7 +214,7 @@
     },
     {
       "service": "auto",
-      "upstream_model": "deepseek-v4.1-flash",
+      "upstream_model": "auto/deepseek-v4.1-flash",
       "official_provider": "DeepSeek",
       "official_model_id": "deepseek-flash",
       "billing_kind": "unverified",
@@ -239,7 +239,7 @@
     },
     {
       "service": "auto",
-      "upstream_model": "deepseek-v4.1-flash-max",
+      "upstream_model": "auto/deepseek-v4.1-flash-max",
       "official_provider": null,
       "official_model_id": null,
       "billing_kind": "no-public-price",
@@ -262,7 +262,7 @@
     },
     {
       "service": "auto",
-      "upstream_model": "glm-5.3-flash",
+      "upstream_model": "auto/glm-5.3-flash",
       "official_provider": "Zhipu AI",
       "official_model_id": "glm-5.3-flash",
       "billing_kind": "unverified",
@@ -287,7 +287,7 @@
     },
     {
       "service": "auto",
-      "upstream_model": "hy3",
+      "upstream_model": "auto/hy3",
       "official_provider": "Tencent",
       "official_model_id": "hy3",
       "billing_kind": "unverified",
@@ -312,7 +312,7 @@
     },
     {
       "service": "auto",
-      "upstream_model": "gemini-3.8-flash",
+      "upstream_model": "auto/gemini-3.8-flash",
       "official_provider": "Google",
       "official_model_id": "gemini-3.8-flash",
       "billing_kind": "unverified",
@@ -337,7 +337,7 @@
     },
     {
       "service": "auto",
-      "upstream_model": "qfmodel",
+      "upstream_model": "auto/qfmodel",
       "official_provider": null,
       "official_model_id": null,
       "billing_kind": "no-public-price",

@@ -3,8 +3,11 @@
 --   * 只派生到 admin_model_attempt_metrics 派生读模型，不回写回执、不改账单/预算/价卡。
 --   * reasoning tokens 仅展示口径；若上游 completion_tokens 已含 reasoning，成本不叠加、不重复计费。
 --   * 缺 reasoning 字段的行保持 NULL，不计 0；缺失数由用量聚合另行统计。
-SET LOCAL lock_timeout='250ms';
-SET LOCAL statement_timeout='5000ms';
+-- 0125 含历史派生表一次性回填（生产 461k+ 行）：statement_timeout 放宽到 10 分钟，
+-- 避免 5 秒超时把整条迁移事务回滚；这是迁移内的长任务，日志会体现耗时。
+-- lock_timeout 仍保持短值（5s）防长时间等锁，真死锁由 deadlock_timeout 兜底；不再用 250ms 在正常排队上卡死。
+SET LOCAL lock_timeout='5000ms';
+SET LOCAL statement_timeout='600000ms';
 
 ALTER TABLE admin_model_attempt_metrics ADD COLUMN IF NOT EXISTS tokens_reasoning bigint;
 

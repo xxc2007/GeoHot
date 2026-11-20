@@ -41,7 +41,7 @@ export interface PricingRateRow {
   input: number | null; cached: number | null; output: number | null;
   billing_kind: "equivalent-public-api"|"subscription"|"free"|"no-price"|"unverified";
   source_url: string | null; source_urls: string[];
-  effective_at: string | null; fetched_at: string | null; stale: boolean; note: string | null;
+  effective_at: string | null; fetched_at: string | null; last_success_at: string | null; stale: boolean; note: string | null;
 }
 export async function loadPricingRates(db: Db): Promise<{ rates: PricingRateRow[]; stale: boolean }> {
   try {
@@ -50,7 +50,8 @@ export async function loadPricingRates(db: Db): Promise<{ rates: PricingRateRow[
              input_price::float8 AS input, cached_price::float8 AS cached, output_price::float8 AS output,
              billing_kind, source_url,
              COALESCE(source_urls, '[]'::jsonb)::text AS source_urls,
-             effective_at::text AS effective_at, fetched_at::text AS fetched_at, stale, note
+             effective_at::text AS effective_at, fetched_at::text AS fetched_at,
+             last_success_at::text AS last_success_at, stale, note
       FROM pricing_rates`;
     if (!rows.length) return { rates: OFFICIAL_RATES.map(constToRow), stale: true };
     return { rates: rows.map(r => ({ ...r, source_urls: parseUrls(r.source_urls) })), stale: rows.every(r => r.stale) };
@@ -59,8 +60,7 @@ export async function loadPricingRates(db: Db): Promise<{ rates: PricingRateRow[
     return { rates: OFFICIAL_RATES.map(constToRow), stale: true };
   }
 }
-function parseUrls(raw: unknown): string[] {
-  if (!raw) return [];
+function parseUrls(raw: unknown): string[] {  if (!raw) return [];
   try { const v = JSON.parse(raw as string); return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []; }
   catch { return []; }
 }
@@ -68,7 +68,24 @@ function constToRow(r: OfficialRate): PricingRateRow {
   return { id: r.id, service: null, model: null, name: r.name, currency: r.currency, input: r.input, cached: r.cached, output: r.output,
            // 常量兜底也是刊例/等值估算，不是回执 actual 账单。
            billing_kind: "equivalent-public-api", source_url: r.source, source_urls: [r.source],
-           effective_at: "2026-10-31", fetched_at: "2026-10-31", stale: false, note: r.note };
+           effective_at: "2026-10-31", fetched_at: "2026-10-31", last_success_at: "2026-10-31", stale: false, note: r.note };
+}
+
+/**
+ * DB 价卡行 → 报表明细：只纳入有可计价费率（input/output 非空、有币种）的行；
+ * null 价不进明细表，避免 toCny(null*1000) 崩或显示 0。verifiedOn 取最近一次成功核验/seed 抓取时点。
+ */
+export function pricingRowsToDetail(rows: PricingRateRow[]): PricingDetail {
+  const priced = rows.filter((r): r is PricingRateRow & { currency: "USD" | "CNY"; input: number; output: number } =>
+    r.input != null && r.output != null && (r.currency === "USD" || r.currency === "CNY"));
+  const verifiedOn = priced.map((r) => r.last_success_at ?? r.fetched_at).filter((x): x is string => !!x).sort().at(-1) ?? null;
+  const rates: OfficialRate[] = priced.map((r) => ({
+    id: r.id, name: r.name, currency: r.currency,
+    input: r.input, cached: r.cached ?? r.input, output: r.output,
+    currentInput: r.input, currentCached: r.cached ?? r.input, currentOutput: r.output,
+    source: r.source_url ?? r.source_urls[0] ?? "", note: r.note ?? "", verifiedOn: verifiedOn ?? "",
+  }));
+  return { rates, verifiedOn };
 }
 
 /** 加载历史价卡版本（按 rateId 分组，时间升序）；表缺失时返回空 Map，估算回落常量。 */
@@ -95,6 +112,8 @@ export function peakFactor(day:string,hour:number):CostBounds {
   const md=day.slice(5);const holiday=holidays.some(([a,b])=>md>=a&&md<=b);
   return {low:holiday?1:2,high:holiday?1:2};
 }
+/** DeepSeek 峰谷按 bucket 的 service/model 判定：版本行 id 已是 `service::model`，不能再拿旧常量 id 'deepseek' 匹配。 */
+function isDeepseekModel(model:string|null):boolean { return /deepseek/i.test(model ?? ''); }
 export interface PricingBucket {
   service:string|null;model:string|null;day:string|null;hour:number|null;calls:number;pricedCalls:number;
   pricedIn:number;pricedOut:number;cachedTokens:number;unknownCacheIn:number;cacheUnknownCalls:number;
@@ -120,25 +139,31 @@ function constantId(b: PricingBucket): string | undefined {
   return aliases[b.model ?? ''];
 }
 
-export function officialCosts(buckets:PricingBucket[],ready=true,fx:{usdToCny:number;date:string;source:string}=CNY_FX,versionsByRate?:Map<string,PricingVersionRow[]>):OfficialCostReport {
+export interface PricingDetail { rates: OfficialRate[]; verifiedOn: string | null }
+
+export function officialCosts(buckets:PricingBucket[],ready=true,fx:{usdToCny:number;date:string;source:string}=CNY_FX,versionsByRate?:Map<string,PricingVersionRow[]>,detail?:PricingDetail):OfficialCostReport {
   const toCnyAt=(value:number,currency:string|null):number|null=>currency==='CNY'?value:currency==='USD'?value*fx.usdToCny:null;
-  const report:OfficialCostReport={fx,state:ready?"ready":"backfill",verifiedOn,policy:"按调用时点有效的官方标准单价折算所选历史用量；无当时有效价卡的请求计为未计价，不用最新价倒算。不应用限免、赠送或促销价；DeepSeek 按请求开始时的北京时间峰谷规则计价。缓存明细缺失的请求按缓存命中价折算（单一口径），缺少完整 Token 的请求不计金额。美元按 fx_rates 表最新汇率（无记录时按常量兜底）折合人民币；汇总后取整显示，计算保留原始精度。",models:[],rates:OFFICIAL_RATES,totals:[],calls:0,pricedCalls:0,missingUsage:0,unmappedCalls:0,cacheUnknownCalls:0};
+  // 传了 versions Map（含空 Map）就只按调用时点版本计价：无当时有效版本=未计价，不用最新价或常量倒算；
+  // 仅完全不传 versionsByRate 的旧测试/兼容路径才回落 OFFICIAL_RATES 常量。
+  const useVersions = versionsByRate !== undefined;
+  const report:OfficialCostReport={fx,state:ready?"ready":"backfill",verifiedOn:detail?detail.verifiedOn:verifiedOn,policy:"按调用时点有效的官方标准单价折算所选历史用量；无当时有效价卡的请求计为未计价，不用最新价倒算。不应用限免、赠送或促销价；DeepSeek 按请求开始时的北京时间峰谷规则计价。缓存明细缺失的请求按缓存命中价折算（单一口径），缺少完整 Token 的请求不计金额。美元按 fx_rates 表最新汇率（无记录时按常量兜底）折合人民币；汇总后取整显示，计算保留原始精度。",models:[],rates:detail?detail.rates:OFFICIAL_RATES,totals:[],calls:0,pricedCalls:0,missingUsage:0,unmappedCalls:0,cacheUnknownCalls:0};
   const groups=new Map<string,OfficialCostReport['models'][number]>();
   for(const b of buckets){
-    // 历史价：优先取该调用时点有效的版本；无版本再回落常量。订阅/免费/无价/未核实版本费率为 null，不计估算。
+    // 历史价：优先取该调用时点有效的版本；Map 已传入但无版本 → 未计价，不回落常量。
     const instant=startedInstant(b.day,b.hour);
-    const v=versionsByRate?resolveVersionAt(versionsByRate,b.service,b.model,instant):null;
+    const v=useVersions?resolveVersionAt(versionsByRate,b.service,b.model,instant):null;
     let eff:EffRate|null;
     if(v){eff={id:v.rateId,name:v.model,currency:v.currency,input:v.input,cached:v.cached,output:v.output,billingKind:v.billingKind};}
-    else{const r=OFFICIAL_RATES.find(x=>x.id===constantId(b));eff=r?{id:r.id,name:r.name,currency:r.currency,input:r.input,cached:r.cached,output:r.output,billingKind:"equivalent-public-api"}:null;}
+    else if(!useVersions){const r=OFFICIAL_RATES.find(x=>x.id===constantId(b));eff=r?{id:r.id,name:r.name,currency:r.currency,input:r.input,cached:r.cached,output:r.output,billingKind:"equivalent-public-api"}:null;}
+    else{eff=null;}
     const key=JSON.stringify([b.service,b.model]);
-    let m=groups.get(key);if(!m){m={service:b.service??'',model:b.model??'',name:eff?.name??b.model??'',currency:eff?.currency??null,rateId:eff?.id??null,calls:0,pricedCalls:0,missingUsage:0,cacheUnknownCalls:0,list:eff&&ready&&eff.input!=null?{low:0,high:0}:null,current:eff&&ready&&eff.input!=null?{low:0,high:0}:null,...(!eff||eff.input==null?{reason:!eff?"未核验上游型号或官方价格，未计入费用":"该通道为订阅/免费/无价/未核实，无逐 token 公开价，未计入估算"}:{})};groups.set(key,m);}
+    let m=groups.get(key);if(!m){m={service:b.service??'',model:b.model??'',name:eff?.name??b.model??'',currency:eff?.currency??null,rateId:eff?.id??null,billingKind:eff?.billingKind??null,calls:0,pricedCalls:0,missingUsage:0,cacheUnknownCalls:0,list:eff&&ready&&eff.input!=null?{low:0,high:0}:null,current:eff&&ready&&eff.input!=null?{low:0,high:0}:null,...(!eff||eff.input==null?{reason:!eff?"未核验上游型号或官方价格，未计入费用":"该通道为订阅/免费/无价/未核实，无逐 token 公开价，未计入估算"}:{})};groups.set(key,m);}
     m.calls+=b.calls;m.missingUsage+=b.calls-b.pricedCalls;m.cacheUnknownCalls+=b.cacheUnknownCalls;
     report.calls+=b.calls;report.missingUsage+=b.calls-b.pricedCalls;report.cacheUnknownCalls+=b.cacheUnknownCalls;
     if(!eff||eff.input==null||eff.output==null){report.unmappedCalls+=b.calls;continue;}
     m.pricedCalls+=b.pricedCalls;report.pricedCalls+=b.pricedCalls;
     if(!ready)continue;
-    const factor=eff.id==='deepseek'?peakFactor(b.day!,b.hour!):{low:1,high:1};
+    const factor=(eff.id==='deepseek'||isDeepseekModel(b.model))?peakFactor(b.day!,b.hour!):{low:1,high:1};
     const knownMiss=Math.max(0,b.pricedIn-b.cachedTokens-b.unknownCacheIn);
     // 缓存未知按缓存命中价单一口径计：是估计，不是区间。
     const cached=eff.cached??eff.input;

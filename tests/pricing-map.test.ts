@@ -84,18 +84,24 @@ test('repo seed A/B/C totals 47; non-estimate rows never carry a guessed price',
   assert.ok(kinds.has('subscription') && kinds.has('free') && kinds.has('no-price') && kinds.has('unverified'));
 });
 
-test('verifySeedPriceCombo passes only when seed input/output/cached still appear on the page', () => {
+test('verifySeedPriceCombo requires the model identity near the seed price combo', () => {
   const baseline = { input: 0.15, cached: 0.015, output: 0.6 };
-  assert.ok(verifySeedPriceCombo('input 0.15 cached 0.015 output 0.6 per million tokens', baseline));
+  const ids = ['MiniMax-M3.1-Flash', 'minimax-code-global/MiniMax-M3.1-Flash'];
+  assert.ok(verifySeedPriceCombo('MiniMax-M3.1-Flash input 0.15 cached 0.015 output 0.6 per million', ids, baseline));
   // 格式化差异（0.60 / 0.1500）仍算命中。
-  assert.ok(verifySeedPriceCombo('¥0.1500 / 0.60', { input: 0.15, cached: null, output: 0.6 }));
+  assert.ok(verifySeedPriceCombo('MiniMax-M3.1-Flash ¥0.1500 / 0.60', ['MiniMax-M3.1-Flash'], { input: 0.15, cached: null, output: 0.6 }));
+  // 只有数值、没有型号名 → 不通过。
+  assert.equal(verifySeedPriceCombo('input 0.15 cached 0.015 output 0.6', ids, baseline), false);
+  // 数值出现在另一个模型区块（名称窗口之外）→ 不通过。
+  const far = 'Other-Model input 0.15 cached 0.015 output 0.6' + 'x'.repeat(1000) + 'MiniMax-M3.1-Flash details only';
+  assert.equal(verifySeedPriceCombo(far, ids, baseline), false);
   // 调价：output 变成 0.9 → 不通过（保留旧价、标 stale）。
-  assert.equal(verifySeedPriceCombo('input 0.15 output 0.9', baseline), false);
+  assert.equal(verifySeedPriceCombo('MiniMax-M3.1-Flash input 0.15 output 0.9', ids, baseline), false);
   // 缓存价消失 → 不通过。
-  assert.equal(verifySeedPriceCombo('input 0.15 output 0.6', baseline), false);
+  assert.equal(verifySeedPriceCombo('MiniMax-M3.1-Flash input 0.15 output 0.6', ids, baseline), false);
   // 空页/改版 → 不通过。
-  assert.equal(verifySeedPriceCombo('', baseline), false);
-  assert.equal(verifySeedPriceCombo('<html>rebranded pricing</html>', baseline), false);
+  assert.equal(verifySeedPriceCombo('', ids, baseline), false);
+  assert.equal(verifySeedPriceCombo('<html>rebranded pricing</html>', ids, baseline), false);
   // 边界匹配：整数 1/4 不得命中 12、40 这类子串。
-  assert.equal(verifySeedPriceCombo('input 12 output 40', { input: 1, cached: null, output: 4 }), false);
+  assert.equal(verifySeedPriceCombo('M input 12 output 40', ['M'], { input: 1, cached: null, output: 4 }), false);
 });

@@ -37,35 +37,39 @@ async function refreshEntry(e: PricingRateRecord): Promise<{ id: string; outcome
     // 非公开 API 通道无逐 token 公开价：保留既有标记，不参与单价校验。
     return { id: e.id, outcome: 'skipped' };
   }
-  // 无基准刊例（费率 null）的条目不参与校验：保持原 stale 标记，不把 null 当 0 去比对。
+  // 无基准刊例（费率 null）的条目不参与校验：记原因、标 stale，不把 null 当 0 去比对。
   if (e.input == null || e.output == null) {
-    await sql`UPDATE pricing_rates SET last_attempt_at=now(), stale=true WHERE id=${e.id}`;
+    await sql`UPDATE pricing_rates SET last_attempt_at=now(), last_error='no baseline quote to verify', stale=true WHERE id=${e.id}`;
     return { id: e.id, outcome: 'stale', reason: 'no baseline quote to verify' };
   }
-  const url = e.sourceUrls[0];
-  if (!url) {
+  if (!e.sourceUrls.length) {
     await sql`UPDATE pricing_rates SET last_attempt_at=now(), last_error='no source url', stale=true WHERE id=${e.id}`;
     return { id: e.id, outcome: 'stale', reason: 'no source url' };
   }
-  try {
-    const body = await fetchBody(url);
-    // 保守校验：页面必须仍含 seed 基准的 input/output（及 cached）数值组合。
-    // 校验通过只刷新核验时间戳，不改写费率；不解析、不发现新价，避免把网页报价误当新刊例。
-    const ok = verifySeedPriceCombo(body, { input: e.input, cached: e.cached, output: e.output });
-    if (!ok) {
-      // 改版/调价/数值消失：保留最后成功价，标 stale，不清空费率。
-      await sql`UPDATE pricing_rates SET last_attempt_at=now(), last_error='seed price combo changed or missing', stale=true WHERE id=${e.id}`;
-      return { id: e.id, outcome: 'stale', reason: 'seed price combo changed or missing' };
+  const identities = [e.name, e.model, e.model.split('/').pop()].filter((s): s is string => !!s?.trim());
+  const failures: string[] = [];
+  // 逐个官方源尝试，任一源仍含当前 seed 数值组合即核验通过；全部失败才标 stale。
+  for (const url of e.sourceUrls) {
+    try {
+      const body = await fetchBody(url);
+      // 保守校验：模型名附近窗口内必须仍含 seed 基准 input/output（及 cached）数值组合。
+      // 校验通过只刷新核验时间戳，不改写费率；不解析、不发现新价，避免把网页报价误当新刊例。
+      const ok = verifySeedPriceCombo(body, identities, { input: e.input, cached: e.cached, output: e.output });
+      if (ok) {
+        await sql`UPDATE pricing_rates SET
+          fetched_at=now(), last_success_at=now(), last_error=null, stale=false, updated_at=now()
+          WHERE id=${e.id}`;
+        return { id: e.id, outcome: 'verified' };
+      }
+      failures.push(`${url}: seed price combo changed or missing`);
+    } catch (err) {
+      failures.push(`${url}: ${err instanceof Error ? err.message : String(err)}`);
     }
-    await sql`UPDATE pricing_rates SET
-      fetched_at=now(), last_success_at=now(), last_error=null, stale=false, updated_at=now()
-      WHERE id=${e.id}`;
-    return { id: e.id, outcome: 'verified' };
-  } catch (err) {
-    const reason = err instanceof Error ? err.message : String(err);
-    await sql`UPDATE pricing_rates SET last_attempt_at=now(), last_error=${reason.slice(0, 500)}, stale=true WHERE id=${e.id}`;
-    return { id: e.id, outcome: 'stale', reason };
   }
+  // 全部源失败：保留最后成功价与 last_success_at，只记原因、标 stale，不清空费率。
+  const reason = failures.join('; ').slice(0, 500);
+  await sql`UPDATE pricing_rates SET last_attempt_at=now(), last_error=${reason}, stale=true WHERE id=${e.id}`;
+  return { id: e.id, outcome: 'stale', reason };
 }
 
 async function main() {

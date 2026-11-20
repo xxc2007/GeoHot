@@ -2,6 +2,11 @@ import { cnyInteger, toCny } from "@aihot/contracts/cny";
 import type { CostBounds, OfficialCostReport } from "@aihot/contracts/model-costs";
 import { Card } from "./ui";
 
+const KIND_LABEL: Record<string, string> = {
+  subscription: "订阅通道", free: "免费额度", "no-price": "无公开价", unverified: "未核实",
+  "equivalent-public-api": "公开 API 等值",
+};
+
 function bounds(b: CostBounds | null): string {
   if (!b) return "未计价";
   const low = cnyInteger(b.low), high = cnyInteger(b.high);
@@ -9,7 +14,8 @@ function bounds(b: CostBounds | null): string {
 }
 
 export function unpricedModelCount(r: OfficialCostReport | undefined): number {
-  return r ? r.models.filter((m) => !m.rateId).length : 0;
+  // 订阅/免费/无价版本 rateId 存在但 list=null：按「无可计价费率」判未计价，不能只看 rateId。
+  return r ? r.models.filter((m) => !m.list).length : 0;
 }
 
 export function OfficialCosts({ report: r }: { report?: OfficialCostReport }) {
@@ -19,9 +25,9 @@ export function OfficialCosts({ report: r }: { report?: OfficialCostReport }) {
         <p role="status" className="text-ink-3">正在整理缓存用量明细，完成后显示费用。原始用量和实际账单不受影响。</p>
       </Card>
     );
-  const unpricedModels = r.models.filter((m) => !m.rateId);
+  const unpricedModels = r.models.filter((m) => !m.list);
   return (
-    <Card className="mb-5" title="官方标准价费用估算" right={`单价核验 ${r.verifiedOn}`}>
+    <Card className="mb-5" title="官方标准价费用估算" right={r.verifiedOn ? `单价核验 ${r.verifiedOn}` : undefined}>
       <div className="grid grid-cols-1 gap-4">
         {!r.calls && (
           <div className="rounded-control bg-bg-sunk p-4">
@@ -66,7 +72,7 @@ export function OfficialCosts({ report: r }: { report?: OfficialCostReport }) {
                 <td className="max-w-[320px] break-all border-b border-line-soft px-2 py-3">
                   <p>{m.name}</p>
                   <p className="mt-1 text-[11px] text-ink-4">{m.model} · {m.service}</p>
-                  {!m.rateId && <p className="mt-1 text-[11px] text-amber-ink">暂无公开价</p>}
+                  {!m.list && <p className="mt-1 text-[11px] text-amber-ink">{m.billingKind ? KIND_LABEL[m.billingKind] ?? "暂无公开价" : "暂无公开价"}</p>}
                   {m.reason && <p className="mt-1 text-[11px] text-ink-3">{m.reason}</p>}
                 </td>
                 <td className="border-b border-line-soft px-2 py-3">{m.currency ? "元" : "—"}</td>

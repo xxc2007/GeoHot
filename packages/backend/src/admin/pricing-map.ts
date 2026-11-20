@@ -180,15 +180,30 @@ function appearsAlone(text: string, n: number): boolean {
 }
 
 /**
- * 保守校验：页面必须仍包含 seed 基准的 input/output 数值组合（cached 若有也需在）。
- * 不解析新价、不发现新档位；任一基准值在页面上消失/改版/调价即判不通过，
- * 由调用方保留最后成功价并标 stale。HTTP 200 本身不构成通过。
+ * 保守校验：页面必须先出现该条目的模型身份（官方名/上游模型名），且输入/输出/缓存数值
+ * 落在该身份附近 ±windowChars 字符窗口内。不解析新价、不发现新档位；数值出现在别的模型区块、
+ * 只有数字没有型号名、任一基准值消失/改版/调价即判不通过，由调用方保留最后成功价并标 stale。
+ * HTTP 200 本身不构成通过。
  */
 export function verifySeedPriceCombo(
-  body: string, baseline: { input: number | null; cached: number | null; output: number | null }
+  body: string,
+  identities: string[],
+  baseline: { input: number | null; cached: number | null; output: number | null },
+  windowChars = 800
 ): boolean {
   if (!body) return false;
   const text = body.replace(/\s+/g, " ");
-  const has = (n: number | null) => n == null || appearsAlone(text, n);
-  return has(baseline.input) && has(baseline.output) && has(baseline.cached);
+  const names = identities.map((s) => s?.trim()).filter((s): s is string => !!s);
+  if (!names.length) return false;
+  const hasPrice = (segment: string) => {
+    const has = (n: number | null) => n == null || appearsAlone(segment, n);
+    return has(baseline.input) && has(baseline.output) && has(baseline.cached);
+  };
+  for (const name of names) {
+    const idx = text.indexOf(name);
+    if (idx < 0) continue;
+    const segment = text.slice(Math.max(0, idx - windowChars), idx + name.length + windowChars);
+    if (hasPrice(segment)) return true;
+  }
+  return false;
 }
