@@ -1,8 +1,12 @@
 // /api/admin/*: queries are GET, creation POST, edits PATCH, business commands POST.
 // Every route goes through adminHandler (session + CSRF); manual changes are audited in the modules.
 import { readFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import { actorOf } from "@aihot/backend/admin/auth";
+import { actorOf, audit } from "@aihot/backend/admin/auth";
+import { isCategoryKey } from "@aihot/contracts/taxonomy";
+import { engineCatalog, UNSUPPORTED_ENGINES } from "@aihot/backend/sources/search-engines";
+import { runSourceDiscovery, sourceHostQuality, sourceIdForFeed } from "@aihot/backend/sources/discovery-run";
 import { InvalidInput } from "@aihot/backend/admin/invalid";
 import { sharedAdminRead } from "@aihot/backend/admin/read-cache";
 
@@ -79,6 +83,89 @@ export function registerAdmin(app: FastifyInstance) {
     return s ? previewSource(s as never) : notFound(req, reply);
   }));
   app.post("/api/admin/sources/:id/fetch", adminHandler(async (req, reply, admin) => orNotFound(req, reply, await fetchNow(param(req, "id"), actorOf(admin)))));
+
+  // Source discovery: search engines produce candidates, never registry rows.
+  app.get("/api/admin/discovery", adminHandler(async () => {
+    // A run lives in the API process; a restart leaves it running forever. Mark it failed after
+    // the bounded window so the operator can retry instead of waiting on a ghost.
+    await sql`UPDATE source_discovery_runs SET status='failed', finished_at=now(), error='run interrupted or exceeded 20 minutes'
+              WHERE status='running' AND started_at < now() - interval '20 minutes'`.catch(() => {});
+    const runs = await sql`SELECT id, query, category, engines, status, started_at, finished_at, stats, error
+                           FROM source_discovery_runs ORDER BY started_at DESC LIMIT 8`;
+    const candidates = await sql`
+      SELECT c.id, c.run_id, c.address, c.feed_url, c.host, c.name, c.title, c.engines, c.corroboration,
+             c.quality, c.verdict, c.status, c.source_id, c.review_note, c.created_at, r.query, r.category
+      FROM source_discovery_candidates c JOIN source_discovery_runs r ON r.id=c.run_id
+      WHERE c.status='pending' ORDER BY c.quality DESC, c.created_at DESC LIMIT 100`;
+    const [counts] = await sql<{ pending: number; approved: number; rejected: number }[]>`
+      SELECT count(*) FILTER (WHERE status='pending')::int AS pending,
+             count(*) FILTER (WHERE status='approved')::int AS approved,
+             count(*) FILTER (WHERE status='rejected')::int AS rejected
+      FROM source_discovery_candidates`;
+    return { runs, candidates, counts, engines: engineCatalog(), unsupported: UNSUPPORTED_ENGINES };
+  }));
+  app.post("/api/admin/discovery/run", adminHandler(async (req, reply) => {
+    const b = body<{ query?: unknown; category?: unknown; engines?: unknown }>(req);
+    const query = String(b.query ?? "").trim();
+    if (query.length < 2 || query.length > 120) throw new InvalidInput("查询词要有 2–120 个字");
+    const category = typeof b.category === "string" && isCategoryKey(b.category) ? b.category : null;
+    const engines = Array.isArray(b.engines)
+      ? b.engines.filter((id): id is string => typeof id === "string" && /^[a-z0-9-]{2,40}$/.test(id)).slice(0, 8)
+      : [];
+    if (!engines.length) throw new InvalidInput("至少选一个搜索引擎");
+    const [running] = await sql<{ id: string }[]>`
+      SELECT id FROM source_discovery_runs WHERE status='running' AND started_at > now() - interval '10 minutes' LIMIT 1`;
+    if (running) return sendProblem(req, reply, { status: 409, code: "conflict", detail: "已经有一次发现正在运行，等它结束再开始。" });
+    const runId = randomUUID();
+    await sql`INSERT INTO source_discovery_runs(id, query, category, engines, status)
+              VALUES(${runId}, ${query}, ${category}, ${engines}, 'running')`;
+    void runSourceDiscovery({ query, category, engines, runId }).catch((error) => {
+      req.log.warn({ error: String(error), runId }, "source discovery failed");
+    });
+    return { runId, status: "running" as const };
+  }));
+  app.post("/api/admin/discovery/candidates/:id/approve", adminHandler(async (req, reply, admin) => {
+    const id = rowId(req);
+    const [candidate] = await sql<{
+      id: number; feed_url: string | null; host: string; name: string | null; title: string | null;
+      quality: number; engines: unknown; status: string; category: string | null; source_id: string | null;
+    }[]>`
+      SELECT c.id, c.feed_url, c.host, c.name, c.title, c.quality, c.engines, c.status, c.source_id, r.category
+      FROM source_discovery_candidates c JOIN source_discovery_runs r ON r.id=c.run_id WHERE c.id=${id}`;
+    if (!candidate) return notFound(req, reply);
+    if (candidate.status !== "pending") return sendProblem(req, reply, { status: 409, code: "conflict", detail: "这条候选已经审核过了。" });
+    if (!candidate.feed_url) return sendProblem(req, reply, { status: 409, code: "conflict", detail: "这条候选没有通过 feed 实测，不能入池。" });
+    const [capacity] = await sql<{ nonretired: number; target: number | null }[]>`
+      SELECT (SELECT count(*)::int FROM sources s WHERE NOT EXISTS(SELECT 1 FROM source_retirements t WHERE t.source_id=s.id)) AS nonretired,
+             (SELECT target_total FROM source_registry_policy WHERE singleton) AS target`;
+    if (capacity && capacity.target !== null && capacity.nonretired >= capacity.target) {
+      return sendProblem(req, reply, { status: 409, code: "conflict", detail: `信源池已满（${capacity.nonretired}/${capacity.target}），先退役一个源再批准。` });
+    }
+    const [duplicate] = await sql<{ id: string }[]>`
+      SELECT id FROM sources WHERE coalesce(config->>'feedUrl', config->>'url') = ${candidate.feed_url} LIMIT 1`;
+    if (duplicate) return sendProblem(req, reply, { status: 409, code: "conflict", detail: `这个地址已经在信源池里（${duplicate.id}）。` });
+    const sourceId = sourceIdForFeed(candidate.feed_url);
+    const host = sourceHostQuality(candidate.host);
+    await sql.begin(async (tx) => {
+      await tx`INSERT INTO sources(id,name,kind,config,tier,participation_mode,interval_minutes,first_party,tags,enabled,health,default_category,site_fulltext,syndicate_fulltext,canonical_url)
+        VALUES(${sourceId},${candidate.name ?? candidate.host},'rss',${tx.json({ feedUrl: candidate.feed_url })},'T2','editorial',720,${host.kind === "official"},${["discovered", "search"]},false,'paused',${candidate.category},false,false,${candidate.feed_url})`;
+      await tx`UPDATE source_discovery_candidates SET status='approved', source_id=${sourceId}, reviewed_at=now() WHERE id=${id}`;
+      await audit(actorOf(admin), "source.discovery-approve", `source:${sourceId}`,
+        `搜索引擎发现：${candidate.host}，质量分 ${candidate.quality}`, null, { feedUrl: candidate.feed_url, engines: candidate.engines, quality: candidate.quality }, undefined, tx);
+    });
+    return { ok: true, sourceId };
+  }));
+  app.post("/api/admin/discovery/candidates/:id/reject", adminHandler(async (req, reply, admin) => {
+    const id = rowId(req);
+    const note = String(body<{ note?: unknown }>(req).note ?? "").trim().slice(0, 300);
+    if (!note) throw new InvalidInput("拒绝要写一句原因，下次审核才知道为什么");
+    const [row] = await sql<{ source_id: string | null }[]>`
+      UPDATE source_discovery_candidates SET status='rejected', review_note=${note}, reviewed_at=now()
+      WHERE id=${id} AND status='pending' RETURNING source_id`;
+    if (!row) return notFound(req, reply);
+    await audit(actorOf(admin), "source.discovery-reject", `candidate:${id}`, note, null, { candidate: id }, undefined);
+    return { ok: true };
+  }));
 
   // Content and events (F19)
   app.get("/api/admin/content", adminHandler(async (req) => await searchContent(q(req).q ?? "", Number(q(req).limit ?? 60) || 60)));
