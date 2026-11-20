@@ -12,7 +12,8 @@ const topics = await readFile(new URL("../packages/backend/src/publication/topic
 const readBudget = await readFile(new URL("../packages/backend/src/publication/read-budget.ts", import.meta.url), "utf8");
 
 test("非搜索 pool 主查询走 withPublicRead，搜索路径保持 withSearchCapacity", () => {
-  assert.match(pool, /await withPublicRead\(\(db\) => run\(db\)\)/, "非搜索首屏必须收进有界公共读事务");
+  assert.match(pool, /await withPublicRead\(\(db\) => run\(db\),/, "非搜索首屏必须收进有界公共读事务");
+  assert.match(pool, /withPublicRead\([^\n]*signal\)/, "非搜索路径把路由预算 signal 透传给公共读闸");
   assert.match(pool, /await withSearchCapacity\(run\)/, "搜索路径仍走自己的容量闸");
   assert.match(pool, /import \{ withPublicRead \} from "\.\/read-budget\.ts";/);
 });

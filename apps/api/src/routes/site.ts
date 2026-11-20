@@ -282,12 +282,14 @@ export function registerSite(app: FastifyInstance) {
       }
     }
     let data: Awaited<ReturnType<typeof loadPool>>;
+    // 现算最多等 20 秒：再慢就交回底稿/陈旧值，不让一条 2 分钟的查询把后面的请求全堵住。
+    // 旧实现用 Promise.race 只甩掉 JS 承诺，底层查询仍占着连接与闸槽；现在把一个 AbortSignal
+    // 传给取数层：预算到点 abort → 在飞查询被 cancel、事务回滚、连接归还，槽位由闸独立释放，
+    // 不再留挂起连接。
+    const budget = new AbortController();
+    const budgetTimer = setTimeout(() => budget.abort(), 20_000).unref();
     try {
-      // 现算最多等 20 秒：再慢就交回底稿/陈旧值，不让一条 2 分钟的查询把后面的请求全堵住。
-      data = await Promise.race([
-        loadPool(args),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("pool budget exceeded")), 20_000).unref()),
-      ]);
+      data = await loadPool(args, budget.signal);
     } catch (error) {
       const previous = poolStale.get(staleKey);
       if (previous && Date.now() - previous.at <= POOL_STALE_MS) {
@@ -296,6 +298,8 @@ export function registerSite(app: FastifyInstance) {
         return sendJsonWithEtag(req, reply, previous.body, { etagPrefix: "pool-stale", cacheControl: "no-cache" });
       }
       throw error;
+    } finally {
+      clearTimeout(budgetTimer);
     }
     poolCache.write(staleKey, { data });
     poolStale.set(staleKey, { body: data, at: Date.now() });

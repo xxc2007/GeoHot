@@ -4,7 +4,7 @@
 // read: a bare stack across two stderr lines in the journal, or one JSON record naming the component
 // and the reason. Exiting is still correct — after an exception the process state is unknown, and
 // pg-boss will deliver the job again to a fresh worker.
-import { closeDb } from "../db.ts";
+import { closeDb, isPostgresTeardown } from "../db.ts";
 import { modelCooldown } from "./model-cooldown.ts";
 
 export function guardProcessExit(component: string): void {
@@ -13,6 +13,8 @@ export function guardProcessExit(component: string): void {
   let exiting = false;
   const report = (kind: "unhandledRejection" | "uncaughtException") => (error: unknown) => {
     if (exiting) return;
+    // 已被 db 过滤器认领的连接拆除善后错误不致命：请求失败路径在闸/探针层已经接住。
+    if (isPostgresTeardown(error)) return;
     exiting = true;
     const err = error instanceof Error ? error : new Error(String(error));
     console.error(JSON.stringify({ level: "fatal", component, kind, message: err.message, stack: err.stack?.split("\n").slice(0, 8).join(" | ") }));

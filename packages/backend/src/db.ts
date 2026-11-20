@@ -20,6 +20,12 @@ export const sql = postgres(config.databaseUrl, {
   idle_timeout: 120,
   max_lifetime: 30 * 60,
   connect_timeout: 10,
+  // 2026-11-18 事故：进程里一条到 5432 的 ESTAB 静默约 27 小时没被回收——链路上的 NAT/防火墙
+  // 早已丢掉状态，对端既不回数据也不发 FIN/RST，应用层读等待永远等不到 EOF。postgres.js 的
+  // `keep_alive` 直接落到 `socket.setKeepAlive(true, …)`：空闲 30 秒后内核开始发保活探测，
+  // 死链在几个探测周期内被判定断开、连接随 `onclose` 归还/销毁，而不是挂到第二天。取值必须显式
+  // 写在这里，不能依赖驱动默认值（默认 60 秒，且不同部署容易被环境覆盖）。
+  keep_alive: 30,
   onnotice: () => {},
   // Prepared statements keep PostgreSQL's plan cache: planning a detail read took longer than running
   // it. Searches plan every execution instead (withCustomPlans). JIT compilation costs more than
@@ -53,6 +59,41 @@ export function withCustomPlans<T>(fn: (db: Tx) => Promise<T>): Promise<T> {
     return fn(tx);
   }) as Promise<T>;
 }
+
+// postgres.js 3.4.9 边界：`Query.cancel()` 内部那条「取消控制套接字」承诺被逗号表达式丢弃
+// （query.js 的 cancel() 返回 null），对等方 reset/关闭时它会变成 unhandledRejection；Node 24
+// 默认按致命处理，guardProcessExit 会 exit(1)。这类拆除只意味着一条已被放弃的连接/查询在善后，
+// 读者请求的失败路径早已被容量闸与探针接住，不该再拖垮进程。分类刻意收窄：只认驱动层连接
+// 拆除码/报文，业务错误与普通 Error 一律不在其列。
+const TEARDOWN_CODES = new Set([
+  "ECONNRESET", "ECONNREFUSED", "ENOTFOUND", "ETIMEDOUT", "EHOSTUNREACH", "EPIPE",
+  "CONNECTION_CLOSED", "CONNECTION_ERROR", "CONNECT_TIMEOUT", "CONNECTION_DESTROYED", "CONNECTION_ENDED",
+]);
+
+/** True for driver-level socket/connection teardown errors that are benign after an abort or cancel. */
+export function isPostgresTeardown(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const code = (error as { code?: string }).code;
+  if (code && TEARDOWN_CODES.has(code)) return true;
+  const message = String((error as { message?: string }).message ?? "");
+  return /ECONNRESET|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|EHOSTUNREACH|EPIPE|CONNECTION_CLOSED|CONNECTION_ERROR|CONNECT_TIMEOUT|timeout exceeded/i.test(message);
+}
+
+let teardownFilterRegistered = false;
+function registerTeardownRejectionFilter(): void {
+  if (teardownFilterRegistered) return;
+  teardownFilterRegistered = true;
+  process.on("unhandledRejection", (reason) => {
+    if (!isPostgresTeardown(reason)) return;
+    console.warn(JSON.stringify({
+      level: "warn",
+      component: "db",
+      message: "swallowed benign postgres connection teardown rejection",
+      code: (reason as { code?: string } | undefined)?.code,
+    }));
+  });
+}
+registerTeardownRejectionFilter();
 
 export async function closeDb(): Promise<void> {
   await sql.end({ timeout: 5 });

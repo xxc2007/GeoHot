@@ -1,8 +1,7 @@
-// 2026-11-16 复审根因：/api/health 旧探针是 `sql`SELECT 1`` 套一个 2s Promise.race。
-// race 只 reject JS，底层查询要么继续占着连接、要么在饱和池里排队——box 一 wedge，
-// 每个探针都叠上去，探针本身成了第二个泄漏（它本是用来发现慢查询泄漏的）。
-// 这里钉住新实现：探针走独立 gate(1,0)，2s 到点调 query.cancel()——
-// postgres.js 对未派发的查询直接出队（不拿连接），对运行中查询发服务器端 cancel。
+// 2026-11-16 复审根因：/api/health 旧探针是 `sql`SELECT 1`` 套一个 2s Promise.race，
+// 计时器只 reject JS 承诺，底层查询继续占着/排队占着池连接——楔死的机器上探针自己也堆叠，
+// 成了第二个泄漏。2026-11-18 进一步：探针走独立闸（不碰读者闸），失败分类为
+// gate_busy / query_timeout / conn_error / db_unavailable，响应带 reason 与 elapsed。
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
@@ -10,25 +9,40 @@ import { test } from "node:test";
 const app = await readFile(new URL("../apps/api/src/app.ts", import.meta.url), "utf8");
 const readBudget = await readFile(new URL("../packages/backend/src/publication/read-budget.ts", import.meta.url), "utf8");
 
-test("health 路由调用 dbHealthProbe，不再裸跑 SELECT 1 + Promise.race", () => {
+test("health 路由调用 dbHealthProbe，不再裸跑 SELECT 1 + 孤儿 race", () => {
   assert.match(app, /await dbHealthProbe\(\)/, "health 必须走有界探针");
-  assert.match(app, /from "@aihot\/backend\/publication\/read-budget"/, "探针从 read-budget 导入");
+  assert.match(app, /dbHealthProbe, HealthProbeError/, "路由要消费探针的结构化 reason");
   // 旧的孤儿 race 必须消失：不能再有 Promise.race 包住裸 sql`SELECT 1`。
   assert.doesNotMatch(app, /Promise\.race\(\[\s*sql`SELECT 1`/, "health 不能再用孤儿 Promise.race");
-  // 不再从 db 直接导入 sql（探针自己持有取消权）。
-  assert.doesNotMatch(app, /import \{ sql \} from "@aihot\/backend\/db"/, "app.ts 不再直接依赖裸 sql");
 });
 
-test("dbHealthProbe 用独立 gate(1,0) 且 2s 到点 cancel 查询", () => {
-  assert.match(readBudget, /new CapacityGate\(1, 0\)/, "探针独立闸：1 在飞、0 排队");
-  assert.match(readBudget, /const query = sql`SELECT 1`/, "探针只做最轻的 SELECT 1");
-  assert.match(readBudget, /setTimeout\(\(\) => query\.cancel\(\), 2_000\)/, "2s 到点必须真正 cancel，不能只 reject JS");
-  // 关键：不能再用 Promise.race 把查询晾在池里。
-  assert.doesNotMatch(readBudget, /Promise\.race\(\[/, "探针不得用孤儿 Promise.race");
+test("探针用独立 (1,0) 闸，与读者聚合闸隔离", () => {
+  assert.match(readBudget, /const aggregates = new CapacityGate\(4, 8\)/, "读者闸是 4 槽 8 排队");
+  assert.match(readBudget, /const healthGate = new CapacityGate\(1, 0\)/, "探针必须是独立 (1,0) 闸");
 });
 
-test("探针失败一律 503+Retry-After，busy 与真故障不混淆", () => {
-  assert.match(app, /reply\s+\.code\(503\)/, "不可用必须 503");
-  assert.match(app, /Retry-After", "5"/, "503 带 Retry-After: 5");
-  assert.match(app, /code === "57014"/, "57014（含我们自己 cancel）按 busy 处理");
+test("探针受闸截止时间约束，迟到拒绝被兜底，不把查询晾成 unhandled", () => {
+  assert.match(readBudget, /const query = sql`SELECT 1`/);
+  assert.match(readBudget, /timeoutMs: 2_500/, "探针有独立的墙钟截止时间");
+  assert.match(readBudget, /void query\.catch\(/, "迟到的查询拒绝必须被兜底观察");
+  // 探针查询本身不得被孤儿 race 包住；读者层的 race 只允许与 abortPromise 配对。
+  assert.doesNotMatch(readBudget, /Promise\.race\(\[\s*sql`SELECT 1`/, "探针查询不得被孤儿 race 包住");
+  // 不调用驱动 cancel：3.4.9 丢弃其内部取消承诺，reset 时会变成致命 unhandled rejection。
+  const codeOnly = readBudget.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+  assert.doesNotMatch(codeOnly, /query\.cancel\(\)/, "读者/探针路径不得调用驱动 cancel");
+});
+
+test("失败分类：57014 → query_timeout，连接级错误 → conn_error", () => {
+  assert.match(readBudget, /code === "57014"/, "57014 按查询超时归类");
+  assert.match(readBudget, /CONNECTION_CLOSED/, "连接关闭归入 conn_error");
+  assert.match(readBudget, /conn_error/);
+});
+
+test("503 响应保留既有字段并带 reason / elapsed", () => {
+  assert.match(app, /reply\s*\.code\(503\)/);
+  assert.match(app, /header\("Retry-After", "5"\)/);
+  assert.match(app, /db:\s*"unavailable"/);
+  assert.match(app, /reason/, "响应必须带结构化 reason");
+  assert.match(app, /elapsed/, "响应必须带 elapsed");
+  assert.match(app, /ms:/, "既有 ms 字段保留兼容");
 });

@@ -14,10 +14,14 @@ test("pool 的新鲜窗口是五分钟、可用窗口是三十分钟", () => {
   assert.doesNotMatch(source, /POOL_FRESH_MS = 45_000/, "45 秒的窗口已经证明会自激");
 });
 
-test("现算最多等 20 秒，超时抛出来交给底稿", () => {
-  assert.match(source, /Promise\.race\(\[\s*loadPool\(args\),/);
-  assert.match(source, /pool budget exceeded/);
-  assert.match(source, /setTimeout\(\(\) => reject\(/, "预算必须真的挂一个计时器");
+test("现算 20 秒预算走 AbortController：到点 abort 取数层，不再留孤儿 Promise.race", () => {
+  // 旧实现 Promise.race 只甩掉 JS 承诺，底层查询仍占着连接与闸槽。新实现把 signal 传给取数层：
+  // 到点 abort → 在飞查询 cancel、事务回滚、连接归还，槽位由闸独立释放。
+  assert.match(source, /new AbortController\(\)/, "预算必须挂一个 AbortController");
+  assert.match(source, /setTimeout\(\(\) => budget\.abort\(\), 20_000\)/, "20 秒预算真的挂计时器");
+  assert.match(source, /loadPool\(args, budget\.signal\)/, "signal 必须透传给取数层");
+  assert.match(source, /clearTimeout\(budgetTimer\)/, "结束后清理预算计时器，避免泄漏");
+  assert.doesNotMatch(source, /Promise\.race\(\[\s*loadPool\(args\)/, "不得再用孤儿 race 晾着底层查询");
 });
 
 test("缓存头跟着窗口一起放长到 300 秒", () => {

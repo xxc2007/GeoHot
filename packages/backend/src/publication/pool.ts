@@ -202,7 +202,7 @@ export interface PoolQuery extends TimelineFilters {
   now?: Date;
 }
 
-export async function loadPool(query: PoolQuery): Promise<PoolResponse> {
+export async function loadPool(query: PoolQuery, signal?: AbortSignal): Promise<PoolResponse> {
   const now = query.now ?? new Date();
   const page = Math.min(Math.max(query.page ?? 1, 1), POOL_MAX_PAGES);
   const q = query.q?.trim() || null;
@@ -307,7 +307,7 @@ export async function loadPool(query: PoolQuery): Promise<PoolResponse> {
   // 由路由交回底稿/陈旧值。搜索路径本来就有 withSearchCapacity，保持不变。
   const { rows, total } = q
     ? await withSearchCapacity(run)
-    : await withPublicRead((db) => run(db));
+    : await withPublicRead((db) => run(db), 12_000, false, signal);
   const today = beijingDate(now);
   // 表头上那句「今日 N 条」必须与它下面真的分组同一套成员条件（`DayList.tsx` 按 `timelineAt` 分日、
   // 把没有发布时间的行挪去「无发布日期」那一组）：
