@@ -139,8 +139,8 @@ export async function beat(role: string, detail: Record<string, unknown> = {}) {
     slots: Number.isFinite(slots) ? slots : null,
     pid: process.pid,
     host: hostname(),
-    // 机器名（地名 + 公网 IP）由每台机器自己的 .env 给出：面板要按「杭州 · 47.97.97.62」这样的名字认机器，
-    // 而不是 iZbp14vh9sicf5z7law47aZ。主库的 .env 里也写一行，本机那张卡同样显示地名。
+    // 机器名（地名 + 地址）由每台机器自己的 .env（GEOHOT_HEARTBEAT_LABEL）给出：面板要按「地名 · 地址」
+    // 这样的名字认机器，而不是云厂商实例 id；具体生产主机由环境变量提供，不写在源码注释里。
     label: process.env.GEOHOT_HEARTBEAT_LABEL?.trim() || null,
     release: process.env.AIHOT_RELEASE ?? "dev",
     startedAt,

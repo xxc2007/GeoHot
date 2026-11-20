@@ -1,7 +1,7 @@
 # 国内边缘节点（华为云广州）
 
-主库在 Azure（国际），国内读者经 Cloudflare 回源要 1.9–5.1 秒。这台华为云广州的机器
-（`hcss-ecs-6a39`，2 vCPU / 1775 MB）现在同时做两件事：
+主库在境外，国内读者经 Cloudflare 回源要 1.9–5.1 秒。这台华为云广州的边缘机器
+（2 vCPU / 1775 MB）现在同时做两件事：
 
 1. **内容执行器**：`WORKER_ROLE=content-executor`，2 个分析槽，走 SSH 隧道连主库与主库上的 magpie；
 2. **国内边缘**：nginx 缓存反代 → 隧道 `8443` → 主库的 `https://127.0.0.1:443`，HTML 缓存 120 秒，
@@ -11,7 +11,7 @@
 
 | 入口 | 杭州 | 本机（上海） |
 | --- | --- | --- |
-| `http://<华为IP>/geohot/`（边缘） | **0.11 s** | **0.29 s** |
+| `http://<广州边缘主机>/geohot/`（边缘） | **0.11 s** | **0.29 s** |
 | `https://xxc2007.me/geohot/`（CF → Azure） | 2.10 s | 1.9–5.1 s |
 
 > 域名 `xxc200707.me` 目前在公网是 **NXDOMAIN**，所以边缘只能先用 IP 访问；
@@ -49,7 +49,7 @@ sudo bash install-edge.sh edge
 
 因此国内 HTTPS 的正确接法不是新域名，而是 **已备案主域的子域**：
 
-1. 在 DNS 加一条 `cn.xxc2007.me A 113.45.66.100`（**灰云 / DNS only**，不要开橙云，否则又绕回 Cloudflare）；
+1. 在 DNS 加一条 `cn.xxc2007.me A <广州边缘主机>`（**灰云 / DNS only**，不要开橙云，否则又绕回 Cloudflare）；
 2. `certbot --nginx -d cn.xxc2007.me`；
 3. 把本目录 `geohot-domestic.conf` 的 `server_name` 改成 `cn.xxc2007.me`，监听 443 并 301 从 80 跳过来。
 
@@ -59,7 +59,7 @@ sudo bash install-edge.sh edge
 
 ```bash
 CLOUDFLARE_API_TOKEN=*** CLOUDFLARE_ZONE=xxc2007.me \
-EDGE_DOMAIN=cn.xxc2007.me EDGE_IP=113.45.66.100 \
+EDGE_DOMAIN=cn.xxc2007.me EDGE_IP=<广州边缘主机> \
   bash deploy/geohot/edge/set-edge-dns.sh --apply
 ```
 
@@ -74,11 +74,11 @@ Token 只有这一项权限就够，不需要 Global Key；`--apply` 之前是�
 `cn.xxc2007.me` 的 A 记录（灰云）加好之后，`certbot --nginx -d cn.xxc2007.me` 仍然失败：
 
 ```
-Detail: 113.45.66.100: Invalid response from
+Detail: <广州边缘主机>: Invalid response from
 http://cn.xxc2007.me/.well-known/acme-challenge/<token>: 403
 ```
 
-本机 `curl -H "Host: cn.xxc2007.me" http://113.45.66.100/.well-known/acme-challenge/probe` 是 **200**，
+本机 `curl -H "Host: cn.xxc2007.me" http://<广州边缘主机>/.well-known/acme-challenge/probe` 是 **200**，
 但 Let's Encrypt 的校验节点在境外，华为云对境外来源的 80 端口同样按「未备案注册域」拦掉（`Server: ADM/2.1.1`）。
 所以 HTTP-01 这条路在这里是死的，只能用 DNS-01。
 

@@ -1,7 +1,13 @@
 [Unit]
-Description=GEOHOT exec DB tunnel to Azure (Hangzhou, 15432->5432)
+Description=GEOHOT exec DB tunnel to primary (Hangzhou, 15432->5432)
 After=network-online.target
 Wants=network-online.target
+
+# 模板说明：本文件是仓库内的文本模板，SSH 目标不在仓库里写死。
+# 生产实际单元由节点安装脚本（bootstrap2-exec.sh / setup-exec.sh）按环境变量
+# GEOHOT_PRIMARY_HOST（user@<主库主机>）生成；若直接把本模板拷进
+# /etc/systemd/system，必须先把下面的 __GEOHOT_PRIMARY_HOST__ 占位替换成真实主库目标，
+# 不得带占位串启动（BatchMode=yes 下会直接失败退出，不会静默连到错误地址）。
 
 [Service]
 Type=simple
@@ -11,7 +17,7 @@ ExecStart=/usr/bin/ssh -N -T \
   -o StrictHostKeyChecking=accept-new -o BatchMode=yes \
   -i /home/geohot/.ssh/id_ed25519 \
   -L 127.0.0.1:15432:127.0.0.1:5432 \
-  xxc@20.194.28.128
+  __GEOHOT_PRIMARY_HOST__
 Restart=always
 RestartSec=10
 MemoryMax=32M

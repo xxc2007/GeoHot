@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 读者面探针（国内节点 8.148.65.89）：每 5 分钟打一遍公开出口，慢或失败都写进 journal。
+# 读者面探针（国内武汉节点）：每 5 分钟打一遍公开出口，慢或失败都写进 journal。
 # 用 curl 而不是无头浏览器：Cloudflare 的机器人评分会把无头 Chromium 拦成挑战页（实测 /topics 45 秒超时），
 # 而 curl 拿到的是读者真正拿到的 HTML —— 检查的是「站能不能开、有多快」，不是「JS 跑得对不对」。
 set -uo pipefail
