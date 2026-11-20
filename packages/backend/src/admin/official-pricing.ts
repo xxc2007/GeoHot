@@ -158,6 +158,10 @@ export function officialCosts(buckets:PricingBucket[],ready=true,fx:{usdToCny:nu
     else{eff=null;}
     const key=JSON.stringify([b.service,b.model]);
     let m=groups.get(key);if(!m){m={service:b.service??'',model:b.model??'',name:eff?.name??b.model??'',currency:eff?.currency??null,rateId:eff?.id??null,billingKind:eff?.billingKind??null,calls:0,pricedCalls:0,missingUsage:0,cacheUnknownCalls:0,list:eff&&ready&&eff.input!=null?{low:0,high:0}:null,current:eff&&ready&&eff.input!=null?{low:0,high:0}:null,...(!eff||eff.input==null?{reason:!eff?"未核验上游型号或官方价格，未计入费用":"该通道为订阅/免费/无价/未核实，无逐 token 公开价，未计入估算"}:{})};groups.set(key,m);}
+    // 同一服务/型号可能先出现“当时无有效价卡”的桶，再出现“有价卡”的桶：
+    // 组对象创建时 list/current 会是 null；后续桶若拿到有效价格，必须把组升级为可计价，
+    // 否则 line 171 的 m.list!.low 会抛 TypeError，整个用量页退化为 unavailable。
+    else if(!m.list&&eff&&ready&&eff.input!=null){m.list={low:0,high:0};m.current={low:0,high:0};m.currency=eff.currency;m.rateId=eff.id;m.billingKind=eff.billingKind;if(!m.name)m.name=eff.name;}
     m.calls+=b.calls;m.missingUsage+=b.calls-b.pricedCalls;m.cacheUnknownCalls+=b.cacheUnknownCalls;
     report.calls+=b.calls;report.missingUsage+=b.calls-b.pricedCalls;report.cacheUnknownCalls+=b.cacheUnknownCalls;
     if(!eff||eff.input==null||eff.output==null){report.unmappedCalls+=b.calls;continue;}
