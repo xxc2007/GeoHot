@@ -2,30 +2,27 @@
 
 入口：后台 → 用量总览。与时间范围、服务、模型筛选同步，使用 30 秒只读统计快照与后台刷新。统计真实请求尝试，包含重试，不包含回放。
 
-这是按 **2026-10-28 价格快照中的官方标准 API 单价**折算历史 Token 的参考费用，不是历史实际账单。页面不计算优惠价，不应用限免、赠送或促销政策；兼容旧客户端的 current 字段与标准价格相同。WorkBuddy、CodeArts、MiniMax Code 的订阅和网关加价不包含在内。统一折合人民币：采用2026-10-23中国外汇交易中心中间价，1,000美元=6,718元（[官方转载](https://hzf.mofcom.gov.cn/article/zyfw/jrfw/jrfwywzn/jrfwwh/hlfxglzy/202610/8917.html)）。费用保留完整计算精度，汇总后四舍五入到元；正数不足半元显示“＜1元”。页面单价以每十亿Token的人民币整数参考价展示。2026-10-29 的源码回收保留服务器原有价格快照，没有将回收日期冒充重新核价日期。
+## 成本口径
 
-| 型号 | 币种 | 输入 / 缓存输入 / 输出（每百万 Token） | 官方来源 |
-| --- | --- | --- | --- |
-| DeepSeek V4.1 Flash | USD | 谷时 0.15 / 0.003 / 0.60；峰时翻倍 | [DeepSeek 定价](https://api-docs.deepseek.com/quick_start/pricing/) |
-| 腾讯 HY3 | CNY | 1 / 0.25 / 4 | [腾讯 HY3](https://hunyuan.tencent.com/research/hy3?langVersion=zh) |
-| Step 5 Preview | USD | 1 / 0.1 / 2.7（国际 API 参考价） | [StepFun 定价](https://platform.stepfun.ai/docs/en/guides/pricing/details) |
-| MiniMax M3.1 Flash | USD | 0.15 / 0.015 / 0.60 | [MiniMax 发布说明](https://www.minimax.io/blog/minimax-m31f) |
-| Dots3 Note Preview | USD | 0.14 / 0.14 / 0.28 | [Dots 官方文档](https://dots.ai/platform/docs) |
-| Agnes 3.0 Flash 国际版 | USD | 0.05 / 0.005 / 0.15 | [Agnes 国际定价](https://wiki.agnes-ai.com/en/docs/pricing) |
-| Agnes 3.0 Flash 国内版 | CNY | 0.35 / 0.035 / 1 | [Agnes 国内定价](https://www.agnes-ai.cn/zh-Hans/docs/agnes-30-flash) |
-| GLM-5.3-Flash 国内版 | CNY | 0.8 / 0.23 / 2.8 | [智谱定价](https://docs.bigmodel.cn/cn/guide/start/pricing) |
-| GLM-5.3-Flash 国际版 | USD | 0.15 / 0.03 / 0.50 | [Z.AI 定价](https://docs.z.ai/guides/overview/pricing) |
+- **价卡来源只认官方页面 / 官方手册 / 合同与实际账单**；本站不自动抓取网页价格，避免网页结构或单位变化导致错误扣价。
+- **`billing_kind` 口径**：价卡表五值——`equivalent-public-api`（公开 API 刊例/等值估算）、`subscription`（订阅制，不单按 token 计价）、`free`（免费）、`no-price`（无公开价）、`unverified`（未核实）；迁移 0124 的 CHECK 另保留 `actual`，共六类。`actual` 只来自回执 `cost_basis='actual'`；价卡侧任何公开 API 价都落 `equivalent-public-api`，绝不写 actual。Seed 侧 `public-api → equivalent-public-api`、`no-public-price → no-price` 由 `packages/backend/src/admin/pricing-map.ts` 归一。订阅、免费、无公开价分列展示，不混进 API 单价折算；查不到官方价标 `no-price`，未核实标 `unverified`，不估算、不套用相似名称价格。
+- **按调用时有效价卡计价**：DeepSeek 峰谷按请求开始时的北京时间规则解析，不还原历史调价；历史用量按所选时间范围内有效单价折算，不是实际账单或订阅扣款。
+- **单价版本化**：`pricing_rates` 表（迁移 0124）存最新价卡行，`OFFICIAL_RATES` 常量只作 seed/兜底；表无行或迁移未跑时回落常量并标记 `stale`。价卡 seed 随迁移落库：`scripts/migrate.ts` 自动调 `seedPricingRates`，干净克隆跑 `npm run db:migrate` 即幂等 upsert 仓库内 A/B/C 映射（`database/seeds/pricing/map-{A,B,C}.json`，当前 47 条；条数以 seed 文件与 `pricing_rates` 表现查为准），无需手工导入。
+- **异步核对**：`geohot-pricing-check` 单元复核价卡与汇率并 upsert；`geohot-pricing-rates-refresh.{service,timer}` 只校验现有 seed 价组合——`OnCalendar=06:10 Asia/Shanghai`、`Persistent=true`，执行 `/usr/bin/node tooling/refresh-pricing-rates.ts`；HTTP 200 不算成功，必须解析出正数 input/output 单价才置 `stale=false`；失败/无法解析则写 `last_error`、置 `stale=true`，保留最后成功价卡，不清空费率，也不解析新价、不自动改价。页面请求时不打外网。价卡缺标注项（missingLabels）不阻塞出账。
+- **汇率单一事实源**：优先 `fx_rates` 表最新行，无记录时回落 `CNY_FX` 兜底常量；不在文档里抄写死汇率数值。
+- 费用仅用于展示，不写回 `receipt_attempts.cost` 或预算。
 
-DeepSeek 峰时是 UTC 周一至周五 01–04、06–10 时，排除中国法定节假日。本版使用[国务院 2026 年节假日通知](https://www.beijing.gov.cn/cs/gncs/zcwj/202603/t20260327_4568275.html)，非 2026 年工作日峰时因节假日未核验显示谷时至峰时区间。周末不因调休工作日变为峰时。
+## 单价与模型对照
 
-缓存输入包含在总输入 Token 内，仅对命中的部分应用缓存单价。缓存明细缺失时，给出全部命中至全部未命中的价格上下界，不虚构命中率；缺少输入或输出的请求不计金额。Dots 未公布缓存折扣，使用普通输入参考价。国内/国际 Agnes 依接入服务区分。Qoder 等无法核验上游型号的历史别名标注未计价，不套用相似名称价格。显示人民币整数，汇总使用未舍入数值。
+当前各模型的币种、输入/缓存输入/输出单价、`billing_kind`、官方来源链接与核验日期，以后台「用量总览」价卡和 `pricing_rates` 表为准；代码种子常量见 `packages/backend/src/admin/official-pricing.ts` 的 `OFFICIAL_RATES`。文档不另维护一份会过期的价格表。
 
-价格快照维护在 `packages/backend/src/admin/official-pricing.ts`，每次改价需重新核验官方标准价格，再更新核验日期。本站未自动抓取网页价格，避免网页结构或单位变化导致错误扣价。费用仅用于展示，不写回 `receipt_attempts.cost` 或预算。
+- DeepSeek 峰时为 UTC 周一至周五 01–04、06–10 时，排除中国法定节假日；周末不因调休工作日变为峰时。节假日表写在 `peakFactor` 内。
+- 缓存输入包含在总输入 Token 内，仅对命中的部分应用缓存单价。缓存明细缺失时按缓存命中价折算（单一口径，不显示区间）；缺少输入或输出的请求不计金额。未公布缓存折扣的渠道按普通输入参考价。国内/国际 Agnes 依接入服务区分。Qoder 等无法核验上游型号的历史别名标注未计价，不套用相似名称价格。显示人民币整数，汇总使用未舍入数值。
 
-迁移 0089 只扩展轻量统计表与既有维护触发器。上线先迁移，再以单连接运行 `node --env-file=.env scripts/backfill-admin-usage-cache.ts`；脚本只回填派生缓存字段，可断点续跑，受 5 秒语句/250 毫秒锁等待限制。缓存明细就绪标志未完成时，页面不显示部分金额。所有生产调用、unknown 回执、模型池、预算与并发保持原有策略。
+## 统计与回填
 
-## 统计稳定性
+用量和模型统计从私有派生快照读取；HTTP 请求不等待全表聚合。快照过期后后台刷新，同一时刻全站只运行一个重型统计聚合，失败后冷却 30 秒，不排队堆积查询。保留上次成功结果及其真实时间，明确标注正在更新；无成功快照时显示生成中并自动重试，不显示假零。快照按版本、筛选键隔离，最多 32 个文件，权限 700/600，保存于数据目录的 `admin-statistic-snapshots`，最长使用 24 小时。API 重启后可恢复；价格/汇率语义更新时须更新快照版本。模型设置和切换记录仍按当前状态读取。
 
-用量和模型统计均从私有派生快照读取；HTTP请求不等待全表聚合。快照过期后后台刷新，同一时刻全站只运行一个重型统计聚合，失败后冷却30秒，不排队堆积查询。保留上次成功结果及其真实时间，明确标注正在更新；无成功快照时显示生成中并自动重试，不显示假零。快照按版本、筛选键隔离，最多32个文件，权限700/600，保存于数据目录的admin-statistic-snapshots，最长使用24小时。API重启后可恢复，价格/汇率语义更新时须更新快照版本。模型设置和切换记录仍按当前状态读取。
+轻量统计表与维护触发器由迁移扩展；上线先迁移，再以单连接运行 `node --env-file=.env scripts/backfill-admin-usage-cache.ts`。脚本只回填派生缓存字段，可断点续跑，受 5 秒语句 / 250 毫秒锁等待限制。缓存明细就绪标志未完成时，页面不显示部分金额。所有生产调用、unknown 回执、模型池、预算与并发保持原有策略。
 
-SelectBench后台列表、详情、导入API和模型页空卡片已移除；离线人工金标校准脚本与历史表保留，不影响模型工作流。
+SelectBench 后台列表、详情、导入 API 和模型页空卡片已移除；离线人工金标校准脚本与历史表保留，不影响模型工作流。

@@ -1,7 +1,7 @@
 # 第二台服务器：分析执行器 + 备份落地 + 国内探针
 
 主库那台机器只有 **2 vCPU / 891 MiB**，白天一个执行名额就是读者体验的上限（两个名额时首页曾被打到 25 秒）。
-2026-11-06 起多了一台国内的轻量应用服务器（阿里云 `Ubuntu-rfen`，2 vCPU / 1 GiB / 30 GiB，公网 `8.148.65.89`），
+2026-11-06 起多了一台国内的轻量应用服务器（阿里云轻量 · 武汉，2 vCPU / 1 GiB / 30 GiB，公网地址不写进仓库，由部署环境变量给出），
 它不参与读者面，只做三件事：
 
 | 角色 | 做什么 | 为什么放在这台机器上 |
@@ -15,12 +15,14 @@
 不复制数据库，也不开公网 5432。用一条常驻 SSH 隧道（`geohot-exec-tunnel.service`）：
 
 ```
-ssh -N -L 127.0.0.1:15432:127.0.0.1:5432 -L 127.0.0.1:3426:127.0.0.1:3426 xxc@20.194.28.128
+ssh -N -L 127.0.0.1:15432:127.0.0.1:5432 -L 127.0.0.1:3426:127.0.0.1:3426 <主库用户>@<主库主机>
 ```
+
+> 主库 SSH 目标不在仓库里写死：安装脚本从 `GEOHOT_PRIMARY_HOST` 读取（格式 `user@<主库主机>`）。
 
 - `15432` 是主库 Postgres；执行器 `.env` 里的 `DATABASE_URL` 只把端口改成 `15432`。
 - `3426` 是主库上的 magpie 网关，`*_BASE_URL` 因此**不用改写**，模型池与冷却表仍然是同一份。
-- 新机器有自己的 `~/.ssh/id_ed25519` 出站密钥，主库 `authorized_keys` 里按 `from="8.148.65.89"` 限源。
+- 新机器有自己的 `~/.ssh/id_ed25519` 出站密钥，主库 `authorized_keys` 里按 `from="<武汉节点公网地址>"` 限源。
 
 ## 安装顺序
 
@@ -36,14 +38,14 @@ ssh -N -L 127.0.0.1:15432:127.0.0.1:5432 -L 127.0.0.1:3426:127.0.0.1:3426 xxc@20
 
 ```bash
 # 隧道在不在
-ssh root@8.148.65.89 'systemctl is-active geohot-exec-tunnel; ss -ltnp | grep -E "15432|3426"'
+ssh <武汉节点用户>@<武汉节点主机> 'systemctl is-active geohot-exec-tunnel; ss -ltnp | grep -E "15432|3426"'
 # 执行器领没领活（主库上数）
 sudo -u postgres psql -d geohot -tAc \
   "select count(*) from pgboss.job where name='content.analyze' and completed_on > now()-interval '30 min'"
 # 备份有没有落地
-ssh root@8.148.65.89 'ls -lh /var/backups/geohot; journalctl -u geohot-backup -n 5 --no-pager'
+ssh <武汉节点用户>@<武汉节点主机> 'ls -lh /var/backups/geohot; journalctl -u geohot-backup -n 5 --no-pager'
 # 国内读者的实际耗时
-ssh root@8.148.65.89 'journalctl -u geohot-probe -n 8 --no-pager'
+ssh <武汉节点用户>@<武汉节点主机> 'journalctl -u geohot-probe -n 8 --no-pager'
 ```
 
 ## 已知边界

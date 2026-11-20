@@ -1,0 +1,362 @@
+{
+  "generated_at": "2026-11-17T09:47:00+08:00",
+  "window": "30d",
+  "scope": "services=agnes-cn,llm,antigravity,raccoon,auto",
+  "expected_count": 15,
+  "actual_count": 14,
+  "count_note": "Inventory grep matched 14 rows across the 5 requested services; parent brief said 15. All 14 matching rows are included.",
+  "disclaimer": "auto/内部聚合路由及Antigravity订阅不得自动套上游官方API价；rates仅在billing_kind=public-api时填入官方价卡，其余为null。",
+  "entries": [
+    {
+      "service": "agnes-cn",
+      "upstream_model": "agnes-3.0-flash",
+      "official_provider": null,
+      "official_model_id": null,
+      "billing_kind": "no-public-price",
+      "currency": null,
+      "unit": null,
+      "tiers": null,
+      "rates": {
+        "input": null,
+        "cached_input": null,
+        "cached_write": null,
+        "output": null,
+        "reasoning": null,
+        "request": null
+      },
+      "effective_at": null,
+      "fetched_at": "2026-11-17T09:47:00+08:00",
+      "stale": false,
+      "source_urls": [],
+      "notes": "agnes-3.0-flash为内部模型代号，未在任何公开厂商API价卡中出现；火山方舟/Volcengine模型列表仅有doubao-seed系列，无agnes模型。无公开API价格。"
+    },
+    {
+      "service": "llm",
+      "upstream_model": "agnes-3.0-flash",
+      "official_provider": null,
+      "official_model_id": null,
+      "billing_kind": "no-public-price",
+      "currency": null,
+      "unit": null,
+      "tiers": null,
+      "rates": {
+        "input": null,
+        "cached_input": null,
+        "cached_write": null,
+        "output": null,
+        "reasoning": null,
+        "request": null
+      },
+      "effective_at": null,
+      "fetched_at": "2026-11-17T09:47:00+08:00",
+      "stale": false,
+      "source_urls": [],
+      "notes": "同agnes-cn/agnes-3.0-flash；内部模型代号，无公开API价格。"
+    },
+    {
+      "service": "antigravity",
+      "upstream_model": "antigravity/gemini-3.8-flash",
+      "official_provider": "Google",
+      "official_model_id": "gemini-3.8-flash",
+      "billing_kind": "subscription",
+      "currency": null,
+      "unit": null,
+      "tiers": null,
+      "rates": {
+        "input": null,
+        "cached_input": null,
+        "cached_write": null,
+        "output": null,
+        "reasoning": null,
+        "request": null
+      },
+      "effective_at": null,
+      "fetched_at": "2026-11-17T09:47:00+08:00",
+      "stale": false,
+      "source_urls": [
+        "https://antigravity.google/pricing",
+        "https://antigravity.google/blog/gemini-3-7-flash-in-google-antigravity/",
+        "https://ai.google.dev/gemini-api/docs/pricing"
+      ],
+      "notes": "Antigravity为Google订阅制IDE产品：Individual免费档按配额限流，Google AI Pro/Ultra为订阅+credit池；企业Pay-as-you-go档为consumption-based但pricing页未公布逐模型token单价。Antigravity博客曾确认Gemini 3.7 Flash在Antigravity中消费价与Gemini API入门价一致($0.75/$3.75 per MTok)，但3.8 Flash无对应博客确认，且订阅档按credit/配额计费而非逐token。按任务要求不自动套用Gemini API价。Gemini API官方参考价(供对照)：入门价至2026-12-31 input $0.75/M, output $3.75/M, cache $0.075/M；2027-01-01起 input $1.50/M, output $7.50/M, cache $0.15/M。"
+    },
+    {
+      "service": "antigravity",
+      "upstream_model": "antigravity/claude-opus-4-6-thinking",
+      "official_provider": "Anthropic",
+      "official_model_id": "claude-opus-4-6",
+      "billing_kind": "subscription",
+      "currency": null,
+      "unit": null,
+      "tiers": null,
+      "rates": {
+        "input": null,
+        "cached_input": null,
+        "cached_write": null,
+        "output": null,
+        "reasoning": null,
+        "request": null
+      },
+      "effective_at": null,
+      "fetched_at": "2026-11-17T09:47:00+08:00",
+      "stale": false,
+      "source_urls": [
+        "https://antigravity.google/pricing",
+        "https://platform.claude.com/docs/en/about-claude/pricing"
+      ],
+      "notes": "Antigravity订阅产品，pricing页未公布Claude模型在Antigravity内的逐token计费；Antigravity博客仅提及Gemini模型价格，未提及Claude。按任务要求不自动套用Anthropic API价。Anthropic官方API参考价(供对照)：Opus 4.6 input $5/M, output $25/M, cache hit $0.50/M, cache write 5min $6.25/M, 1h $10/M；thinking tokens按output费率计费。"
+    },
+    {
+      "service": "antigravity",
+      "upstream_model": "antigravity/claude-sonnet-4-6",
+      "official_provider": "Anthropic",
+      "official_model_id": "claude-sonnet-4-6",
+      "billing_kind": "subscription",
+      "currency": null,
+      "unit": null,
+      "tiers": null,
+      "rates": {
+        "input": null,
+        "cached_input": null,
+        "cached_write": null,
+        "output": null,
+        "reasoning": null,
+        "request": null
+      },
+      "effective_at": null,
+      "fetched_at": "2026-11-17T09:47:00+08:00",
+      "stale": false,
+      "source_urls": [
+        "https://antigravity.google/pricing",
+        "https://platform.claude.com/docs/en/about-claude/pricing"
+      ],
+      "notes": "同antigravity/claude-opus-4-6-thinking；Antigravity订阅档，未公布Claude逐token价。Anthropic官方API参考价(供对照)：Sonnet 4.6 input $3/M, output $15/M, cache hit $0.30/M, cache write 5min $3.75/M, 1h $6/M。"
+    },
+    {
+      "service": "raccoon",
+      "upstream_model": "raccoon/sn-sensenova-6-8-flash",
+      "official_provider": "SenseTime",
+      "official_model_id": "sensenova-6.8-flash",
+      "billing_kind": "free",
+      "currency": null,
+      "unit": null,
+      "tiers": null,
+      "rates": {
+        "input": null,
+        "cached_input": null,
+        "cached_write": null,
+        "output": null,
+        "reasoning": null,
+        "request": null
+      },
+      "effective_at": "2026-11-13",
+      "fetched_at": "2026-11-17T09:47:00+08:00",
+      "stale": false,
+      "source_urls": [
+        "https://www.sensetime.com/cn/news",
+        "https://www.sensecore.cn/help/docs/model-as-a-service/nova/pricing",
+        "https://www.sensetime.com/cn/faq"
+      ],
+      "notes": "SenseNova 6.8 Flash正式版于2026-11-13发布；sensecore.cn按量后付费价卡仅列至V6.5-Pro，未列6.8 Flash。商汤FAQ显示Token Plan Free公测档0元/月，每模型每5小时1500次调用，Lite/Pro付费档尚未上线。当前为限时免费公测，无逐token公开价。sn-前缀表示经商汤大装置路由。"
+    },
+    {
+      "service": "raccoon",
+      "upstream_model": "raccoon/sn-deepseek-v4-1-flash-1017",
+      "official_provider": "DeepSeek",
+      "official_model_id": "deepseek-flash",
+      "billing_kind": "unverified",
+      "currency": null,
+      "unit": null,
+      "tiers": null,
+      "rates": {
+        "input": null,
+        "cached_input": null,
+        "cached_write": null,
+        "output": null,
+        "reasoning": null,
+        "request": null
+      },
+      "effective_at": null,
+      "fetched_at": "2026-11-17T09:47:00+08:00",
+      "stale": false,
+      "source_urls": [
+        "https://api-docs.deepseek.com/zh-cn/quick_start/pricing/",
+        "https://www.sensecore.cn/help/docs/model-as-a-service/nova/pricing"
+      ],
+      "notes": "sn-前缀表示经商汤大装置(SenseCore)路由至DeepSeek V4.1 Flash 1017；SenseCore价卡未列DeepSeek模型价格，无法确认raccoon经SenseCore的实际计费。DeepSeek官方API参考价(供对照，CNY/M tokens)：高峰时段input(cache miss)2, cache hit 0.04, output 8；空闲时段input 1, cache hit 0.02, output 4。高峰=北京时间工作日9:00-12:00/14:00-18:00。官方调用模型名为deepseek-flash。"
+    },
+    {
+      "service": "raccoon",
+      "upstream_model": "raccoon/sn-sensenova-6-8-flash-lite",
+      "official_provider": "SenseTime",
+      "official_model_id": "sensenova-6.8-flash-lite",
+      "billing_kind": "free",
+      "currency": null,
+      "unit": null,
+      "tiers": null,
+      "rates": {
+        "input": null,
+        "cached_input": null,
+        "cached_write": null,
+        "output": null,
+        "reasoning": null,
+        "request": null
+      },
+      "effective_at": "2026-08-11",
+      "fetched_at": "2026-11-17T09:47:00+08:00",
+      "stale": false,
+      "source_urls": [
+        "https://www.sensetime.com/cn/news/sensenova-6.8-flash-lite-preview",
+        "https://www.sensecore.cn/help/docs/model-as-a-service/nova/pricing",
+        "https://www.sensetime.com/cn/faq"
+      ],
+      "notes": "SenseNova 6.8 Flash Lite Preview于2026-08-11开放体验；正式版即将发布，目前经Token Plan限时免费公测，无逐token公开价。sensecore.cn价卡未列此模型。"
+    },
+    {
+      "service": "auto",
+      "upstream_model": "auto/deepseek-v4.1-flash",
+      "official_provider": "DeepSeek",
+      "official_model_id": "deepseek-flash",
+      "billing_kind": "unverified",
+      "currency": null,
+      "unit": null,
+      "tiers": null,
+      "rates": {
+        "input": null,
+        "cached_input": null,
+        "cached_write": null,
+        "output": null,
+        "reasoning": null,
+        "request": null
+      },
+      "effective_at": null,
+      "fetched_at": "2026-11-17T09:47:00+08:00",
+      "stale": false,
+      "source_urls": [
+        "https://api-docs.deepseek.com/zh-cn/quick_start/pricing/"
+      ],
+      "notes": "auto为内部聚合路由，无官方账单文档说明auto对上游的实际加价/折扣/打包计费。按任务要求不自动套用DeepSeek API价。DeepSeek官方API参考价(供对照，CNY/M tokens)：高峰input(cache miss)2, cache hit 0.04, output 8；空闲input 1, cache hit 0.02, output 4。模型版本DeepSeek-V4.1-Flash-1017，调用名deepseek-flash。"
+    },
+    {
+      "service": "auto",
+      "upstream_model": "auto/deepseek-v4.1-flash-max",
+      "official_provider": null,
+      "official_model_id": null,
+      "billing_kind": "no-public-price",
+      "currency": null,
+      "unit": null,
+      "tiers": null,
+      "rates": {
+        "input": null,
+        "cached_input": null,
+        "cached_write": null,
+        "output": null,
+        "reasoning": null,
+        "request": null
+      },
+      "effective_at": null,
+      "fetched_at": "2026-11-17T09:47:00+08:00",
+      "stale": false,
+      "source_urls": [],
+      "notes": "deepseek-v4.1-flash-max在DeepSeek官方价卡、阿里云百炼、腾讯云TokenHub、火山方舟均未找到对应模型ID；DeepSeek官方仅有deepseek-flash(V4.1-Flash-1017)和deepseek-v4-pro。可能为内部别名或某云厂商变体，无法确认官方identity和计费。"
+    },
+    {
+      "service": "auto",
+      "upstream_model": "auto/glm-5.3-flash",
+      "official_provider": "Zhipu AI",
+      "official_model_id": "glm-5.3-flash",
+      "billing_kind": "unverified",
+      "currency": null,
+      "unit": null,
+      "tiers": null,
+      "rates": {
+        "input": null,
+        "cached_input": null,
+        "cached_write": null,
+        "output": null,
+        "reasoning": null,
+        "request": null
+      },
+      "effective_at": null,
+      "fetched_at": "2026-11-17T09:47:00+08:00",
+      "stale": false,
+      "source_urls": [
+        "https://docs.bigmodel.cn/cn/guide/start/pricing"
+      ],
+      "notes": "auto内部聚合路由，实际计费未验证。智谱官方API参考价(供对照，CNY/M tokens)：GLM-5.3-Flash input 0.8, output 2.8, cache hit 0.23；cache storage限时免费。限时五折promo价input 0.4/output 1.4/cache 0.115，但docs.bigmodel.cn公布的刊例价为0.8/2.8/0.23。"
+    },
+    {
+      "service": "auto",
+      "upstream_model": "auto/hy3",
+      "official_provider": "Tencent",
+      "official_model_id": "hy3",
+      "billing_kind": "unverified",
+      "currency": null,
+      "unit": null,
+      "tiers": null,
+      "rates": {
+        "input": null,
+        "cached_input": null,
+        "cached_write": null,
+        "output": null,
+        "reasoning": null,
+        "request": null
+      },
+      "effective_at": null,
+      "fetched_at": "2026-11-17T09:47:00+08:00",
+      "stale": false,
+      "source_urls": [
+        "https://cloud.tencent.com/document/product/1823/130055"
+      ],
+      "notes": "auto内部聚合路由，实际计费未验证。腾讯云TokenHub官方参考价(供对照，CNY/M tokens)：Hy3 input 1, output 4, cache hit 0.25；Batch 5折input 0.5/output 2/cache 0.125。"
+    },
+    {
+      "service": "auto",
+      "upstream_model": "auto/gemini-3.8-flash",
+      "official_provider": "Google",
+      "official_model_id": "gemini-3.8-flash",
+      "billing_kind": "unverified",
+      "currency": null,
+      "unit": null,
+      "tiers": null,
+      "rates": {
+        "input": null,
+        "cached_input": null,
+        "cached_write": null,
+        "output": null,
+        "reasoning": null,
+        "request": null
+      },
+      "effective_at": null,
+      "fetched_at": "2026-11-17T09:47:00+08:00",
+      "stale": false,
+      "source_urls": [
+        "https://ai.google.dev/gemini-api/docs/pricing"
+      ],
+      "notes": "auto内部聚合路由，实际计费未验证。按任务要求不自动套用Gemini API价。Google官方API参考价(供对照，USD/M tokens)：入门价至2026-12-31 input $0.75, output(含thinking) $3.75, context cache $0.075；2027-01-01起input $1.50, output $7.50, cache $0.15。implicit caching only，无explicit cache write单独定价。"
+    },
+    {
+      "service": "auto",
+      "upstream_model": "auto/qfmodel",
+      "official_provider": null,
+      "official_model_id": null,
+      "billing_kind": "no-public-price",
+      "currency": null,
+      "unit": null,
+      "tiers": null,
+      "rates": {
+        "input": null,
+        "cached_input": null,
+        "cached_write": null,
+        "output": null,
+        "reasoning": null,
+        "request": null
+      },
+      "effective_at": null,
+      "fetched_at": "2026-11-17T09:47:00+08:00",
+      "stale": false,
+      "source_urls": [],
+      "notes": "qfmodel为Qoder(阿里)内部路由别名，对应qoder-cn/qfmodel与qoder-global/qfmodel；Qoder官方仅公布订阅版(个人版/团队版credits)，未公布qfmodel逐token API价卡。无公开API价格。"
+    }
+  ]
+}

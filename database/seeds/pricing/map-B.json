@@ -1,0 +1,548 @@
+{
+  "generated_at": "2026-11-17T09:48:14+08:00",
+  "scope": "GEOHOT production 30d, services: minimax-code, minimax-code-global, qoder-cn, qoder-global, codearts, trae-global, trae-cn, qwenwork, autoclaw-cn",
+  "total_entries": 17,
+  "note": "User stated 16 entries; inventory contains 17 matching rows across the 9 services. Only official API pricing/billing docs used; no cross-assumption between similar model names. Internal dfmodel/qfmodel and subscription coding tools without public per-token pricing marked no-public-price.",
+  "entries": [
+    {
+      "service": "minimax-code",
+      "upstream_model": "minimax-code/MiniMax-M3.1-Flash",
+      "official_provider": "MiniMax",
+      "official_model_id": "MiniMax-M3.1-Flash",
+      "billing_kind": "unverified",
+      "currency": null,
+      "unit": null,
+      "tiers": null,
+      "rates": {
+        "input": null,
+        "cached_input": null,
+        "cached_write": null,
+        "output": null,
+        "reasoning": null,
+        "request": null
+      },
+      "effective_at": null,
+      "fetched_at": "2026-11-17T09:48:14+08:00",
+      "stale": false,
+      "source_urls": [
+        "https://platform.minimaxi.com/docs/guides/pricing-paygo",
+        "https://agent.minimaxi.com/about"
+      ],
+      "notes": "CN pay-as-you-go pricing page (platform.minimaxi.com) lists MiniMax-M3 and older models only; MiniMax-M3.1-Flash not found on CN platform. MiniMax Code product uses subscription billing (Go 49 CNY / Explore 119 CNY / Build 469 CNY per month). Cannot confirm CN per-token rate for M3.1-Flash from official docs."
+    },
+    {
+      "service": "minimax-code-global",
+      "upstream_model": "minimax-code-global/MiniMax-M3.1-Flash",
+      "official_provider": "MiniMax",
+      "official_model_id": "MiniMax-M3.1-Flash",
+      "billing_kind": "public-api",
+      "currency": "USD",
+      "unit": "per 1M tokens",
+      "tiers": [
+        {
+          "tier": "standard",
+          "input": 0.15,
+          "cached_input": 0.015,
+          "cached_write": null,
+          "output": 0.60,
+          "reasoning": null
+        }
+      ],
+      "rates": {
+        "input": 0.15,
+        "cached_input": 0.015,
+        "cached_write": null,
+        "output": 0.60,
+        "reasoning": null,
+        "request": null
+      },
+      "effective_at": "2026-09-07",
+      "fetched_at": "2026-11-17T09:48:14+08:00",
+      "stale": false,
+      "source_urls": [
+        "https://platform.minimax.io/docs/guides/pricing-paygo"
+      ],
+      "notes": "Global MiniMax API lists MiniMax-M3.1-Flash at $0.15/M input, $0.60/M output, $0.015/M cache read. No long-context tier. Confirmed on official platform.minimax.io pricing page."
+    },
+    {
+      "service": "qoder-cn",
+      "upstream_model": "qoder-cn/dfmodel",
+      "official_provider": "Alibaba Qoder CN",
+      "official_model_id": null,
+      "billing_kind": "no-public-price",
+      "currency": null,
+      "unit": null,
+      "tiers": null,
+      "rates": {
+        "input": null,
+        "cached_input": null,
+        "cached_write": null,
+        "output": null,
+        "reasoning": null,
+        "request": null
+      },
+      "effective_at": null,
+      "fetched_at": "2026-11-17T09:48:14+08:00",
+      "stale": false,
+      "source_urls": [
+        "https://help.aliyun.com/zh/lingma/product-overview/product-billing/",
+        "https://www.aliyun.com/product/lingma"
+      ],
+      "notes": "Internal Qoder CN routing model name (dfmodel). Qoder CN uses credit-based subscription (Pro 59 CNY/month, Team 99 CNY/seat/month). No public per-token API price for dfmodel."
+    },
+    {
+      "service": "qoder-cn",
+      "upstream_model": "qoder-cn/qfmodel",
+      "official_provider": "Alibaba Qoder CN",
+      "official_model_id": null,
+      "billing_kind": "no-public-price",
+      "currency": null,
+      "unit": null,
+      "tiers": null,
+      "rates": {
+        "input": null,
+        "cached_input": null,
+        "cached_write": null,
+        "output": null,
+        "reasoning": null,
+        "request": null
+      },
+      "effective_at": null,
+      "fetched_at": "2026-11-17T09:48:14+08:00",
+      "stale": false,
+      "source_urls": [
+        "https://help.aliyun.com/zh/lingma/product-overview/product-billing/"
+      ],
+      "notes": "Internal Qoder CN routing model name (qfmodel). No public per-token API price. Qoder CN subscription-based with credits."
+    },
+    {
+      "service": "qoder-global",
+      "upstream_model": "qoder/qfmodel",
+      "official_provider": "Qoder (global)",
+      "official_model_id": null,
+      "billing_kind": "no-public-price",
+      "currency": null,
+      "unit": null,
+      "tiers": null,
+      "rates": {
+        "input": null,
+        "cached_input": null,
+        "cached_write": null,
+        "output": null,
+        "reasoning": null,
+        "request": null
+      },
+      "effective_at": null,
+      "fetched_at": "2026-11-17T09:48:14+08:00",
+      "stale": false,
+      "source_urls": [
+        "https://docs.qoder.com/account/pricing",
+        "https://docs.qoder.com/qoder/model-selector"
+      ],
+      "notes": "Internal Qoder global routing model name (qfmodel). Qoder global uses credit-based subscription ($10-$200/month personal plans). No public per-token API price."
+    },
+    {
+      "service": "qoder-global",
+      "upstream_model": "qoder/dfmodel",
+      "official_provider": "Qoder (global)",
+      "official_model_id": null,
+      "billing_kind": "no-public-price",
+      "currency": null,
+      "unit": null,
+      "tiers": null,
+      "rates": {
+        "input": null,
+        "cached_input": null,
+        "cached_write": null,
+        "output": null,
+        "reasoning": null,
+        "request": null
+      },
+      "effective_at": null,
+      "fetched_at": "2026-11-17T09:48:14+08:00",
+      "stale": false,
+      "source_urls": [
+        "https://docs.qoder.com/account/pricing"
+      ],
+      "notes": "Internal Qoder global routing model name (dfmodel). No public per-token API price."
+    },
+    {
+      "service": "codearts",
+      "upstream_model": "codearts/deepseek-v4.1-flash-1017",
+      "official_provider": "Huawei Cloud CodeArts Agent",
+      "official_model_id": "DeepSeek-V4.1-Flash-1017",
+      "billing_kind": "subscription",
+      "currency": "CNY",
+      "unit": "credits per request",
+      "tiers": [
+        {
+          "tier": "peak (08:00-20:59)",
+          "credit_coefficient": 0.18
+        },
+        {
+          "tier": "off-peak (21:00-07:59)",
+          "credit_coefficient": 0.12
+        }
+      ],
+      "rates": {
+        "input": null,
+        "cached_input": null,
+        "cached_write": null,
+        "output": null,
+        "reasoning": null,
+        "request": null
+      },
+      "effective_at": "2026-09-05",
+      "fetched_at": "2026-11-17T09:48:14+08:00",
+      "stale": false,
+      "source_urls": [
+        "https://support.huaweicloud.com/price-codeartsagent/codeartsagent_billing_0028.md",
+        "https://codearts.huaweicloud.com/pricing.html"
+      ],
+      "notes": "CodeArts agent uses credit-based subscription (new billing model launched 2026-09-05). DeepSeek-V4.1-Flash-1017 consumes 0.18 credits/request peak, 0.12 credits/request off-peak. Subscription tiers: free trial, personal/enterprise paid plans up to 498 CNY/month (10,000 credits). No per-token API pricing published."
+    },
+    {
+      "service": "codearts",
+      "upstream_model": "codearts/deepseek-v4.1-flash",
+      "official_provider": "Huawei Cloud CodeArts Agent",
+      "official_model_id": "DeepSeek-V4.1-Flash",
+      "billing_kind": "subscription",
+      "currency": "CNY",
+      "unit": "credits per request",
+      "tiers": [
+        {
+          "tier": "peak (08:00-20:59)",
+          "credit_coefficient": 0.18
+        },
+        {
+          "tier": "off-peak (21:00-07:59)",
+          "credit_coefficient": 0.09
+        }
+      ],
+      "rates": {
+        "input": null,
+        "cached_input": null,
+        "cached_write": null,
+        "output": null,
+        "reasoning": null,
+        "request": null
+      },
+      "effective_at": "2026-09-05",
+      "fetched_at": "2026-11-17T09:48:14+08:00",
+      "stale": false,
+      "source_urls": [
+        "https://support.huaweicloud.com/price-codeartsagent/codeartsagent_billing_0028.md"
+      ],
+      "notes": "CodeArts agent credit billing. DeepSeek-V4.1-Flash consumes 0.18 credits/request peak, 0.09 credits/request off-peak. No per-token API pricing."
+    },
+    {
+      "service": "trae-global",
+      "upstream_model": "trae-global/deepseek-v4.1-flash-max",
+      "official_provider": "ByteDance Trae (global)",
+      "official_model_id": "DeepSeek-V4.1-Flash",
+      "billing_kind": "subscription",
+      "currency": "USD",
+      "unit": "per 1M tokens (list price / credit consumption rate)",
+      "tiers": [
+        {
+          "tier": "off-peak",
+          "input": 0.150,
+          "cached_input": 0.015,
+          "cached_write": null,
+          "output": 0.600
+        },
+        {
+          "tier": "peak",
+          "input": 0.300,
+          "cached_input": 0.030,
+          "cached_write": null,
+          "output": 1.200
+        }
+      ],
+      "rates": {
+        "input": 0.150,
+        "cached_input": 0.015,
+        "cached_write": null,
+        "output": 0.600,
+        "reasoning": null,
+        "request": null
+      },
+      "effective_at": "2026-11-09",
+      "fetched_at": "2026-11-17T09:48:14+08:00",
+      "stale": false,
+      "source_urls": [
+        "https://docs.trae.ai/ide/models"
+      ],
+      "notes": "Trae global non-US region list price for DeepSeek-V4.1-Flash. Inventory model name has '-max' suffix which is a Trae internal variant not separately listed on official docs. Trae is subscription-based personal plans ($10-$200/month); per-token rates are internal credit consumption rates, not external standalone API prices. No cached_write listed."
+    },
+    {
+      "service": "trae-cn",
+      "upstream_model": "trae-cn/glm-5.3-flash-max",
+      "official_provider": "ByteDance Trae CN",
+      "official_model_id": null,
+      "billing_kind": "subscription",
+      "currency": "CNY",
+      "unit": null,
+      "tiers": [
+        {
+          "tier": "membership plans",
+          "price": "49 CNY / 99 CNY / 239 CNY / 699 CNY per month",
+          "credits": "2000 / 4000 / 12000 / 40000 per month"
+        }
+      ],
+      "rates": {
+        "input": null,
+        "cached_input": null,
+        "cached_write": null,
+        "output": null,
+        "reasoning": null,
+        "request": null
+      },
+      "effective_at": "2026-11-16",
+      "fetched_at": "2026-11-17T09:48:14+08:00",
+      "stale": false,
+      "source_urls": [
+        "https://docs.trae.cn/ide_plans-and-billing?lang=zh",
+        "https://docs.trae.cn/ide/models"
+      ],
+      "notes": "Trae CN uses credit-based subscription (49-699 CNY/month = 2,000-40,000 credits). CN docs list built-in model names but do NOT publish per-token consumption rates. GLM-5.3 mentioned as having member subsidy but no numeric rate. Inventory '-max' suffix is internal variant. No public per-token API price."
+    },
+    {
+      "service": "trae-cn",
+      "upstream_model": "trae-cn/deepseek-v4.1-flash-max",
+      "official_provider": "ByteDance Trae CN",
+      "official_model_id": null,
+      "billing_kind": "subscription",
+      "currency": "CNY",
+      "unit": null,
+      "tiers": [
+        {
+          "tier": "membership plans",
+          "price": "49 CNY / 99 CNY / 239 CNY / 699 CNY per month",
+          "credits": "2000 / 4000 / 12000 / 40000 per month"
+        }
+      ],
+      "rates": {
+        "input": null,
+        "cached_input": null,
+        "cached_write": null,
+        "output": null,
+        "reasoning": null,
+        "request": null
+      },
+      "effective_at": "2026-11-16",
+      "fetched_at": "2026-11-17T09:48:14+08:00",
+      "stale": false,
+      "source_urls": [
+        "https://docs.trae.cn/ide_plans-and-billing?lang=zh"
+      ],
+      "notes": "Trae CN subscription. DeepSeek mentioned as having member subsidy but per-token rates not published on CN docs. No public per-token API price."
+    },
+    {
+      "service": "trae-cn",
+      "upstream_model": "trae-cn/glm-5.3-flashx-max",
+      "official_provider": "ByteDance Trae CN",
+      "official_model_id": null,
+      "billing_kind": "subscription",
+      "currency": "CNY",
+      "unit": null,
+      "tiers": [
+        {
+          "tier": "membership plans",
+          "price": "49 CNY / 99 CNY / 239 CNY / 699 CNY per month",
+          "credits": "2000 / 4000 / 12000 / 40000 per month"
+        }
+      ],
+      "rates": {
+        "input": null,
+        "cached_input": null,
+        "cached_write": null,
+        "output": null,
+        "reasoning": null,
+        "request": null
+      },
+      "effective_at": "2026-11-16",
+      "fetched_at": "2026-11-17T09:48:14+08:00",
+      "stale": false,
+      "source_urls": [
+        "https://docs.trae.cn/ide_plans-and-billing?lang=zh"
+      ],
+      "notes": "Trae CN subscription. GLM-5.3-FlashX variant not separately detailed on CN docs. Per-token rates not published. No public per-token API price."
+    },
+    {
+      "service": "qwenwork",
+      "upstream_model": "qwenwork/pro",
+      "official_provider": "Alibaba Qoder CN (QwenWork)",
+      "official_model_id": null,
+      "billing_kind": "no-public-price",
+      "currency": null,
+      "unit": null,
+      "tiers": null,
+      "rates": {
+        "input": null,
+        "cached_input": null,
+        "cached_write": null,
+        "output": null,
+        "reasoning": null,
+        "request": null
+      },
+      "effective_at": null,
+      "fetched_at": "2026-11-17T09:48:14+08:00",
+      "stale": false,
+      "source_urls": [
+        "https://help.aliyun.com/zh/lingma/product-overview/product-billing/",
+        "https://docs.qoder.com/qoder/model-selector"
+      ],
+      "notes": "QwenWork is part of Qoder CN All-in-One subscription (single subscription covers Desktop, JetBrains plugin, QoderWork CN, CLI, Mobile). 'pro' is internal model tier name. Qoder uses credit system; consumption multipliers by tier (Auto ~0.5x, Fast ~0.8x, Efficient 0.3x, Ultimate ~2x). No public per-token API price."
+    },
+    {
+      "service": "qwenwork",
+      "upstream_model": "qwenwork/flash",
+      "official_provider": "Alibaba Qoder CN (QwenWork)",
+      "official_model_id": null,
+      "billing_kind": "no-public-price",
+      "currency": null,
+      "unit": null,
+      "tiers": null,
+      "rates": {
+        "input": null,
+        "cached_input": null,
+        "cached_write": null,
+        "output": null,
+        "reasoning": null,
+        "request": null
+      },
+      "effective_at": null,
+      "fetched_at": "2026-11-17T09:48:14+08:00",
+      "stale": false,
+      "source_urls": [
+        "https://help.aliyun.com/zh/lingma/product-overview/product-billing/"
+      ],
+      "notes": "QwenWork internal model tier name (flash). No public per-token API price. Subscription-based with credits."
+    },
+    {
+      "service": "qwenwork",
+      "upstream_model": "qwenwork/qwen3.8-max-preview",
+      "official_provider": "Alibaba Qoder CN (QwenWork)",
+      "official_model_id": null,
+      "billing_kind": "no-public-price",
+      "currency": null,
+      "unit": null,
+      "tiers": null,
+      "rates": {
+        "input": null,
+        "cached_input": null,
+        "cached_write": null,
+        "output": null,
+        "reasoning": null,
+        "request": null
+      },
+      "effective_at": null,
+      "fetched_at": "2026-11-17T09:48:14+08:00",
+      "stale": false,
+      "source_urls": [
+        "https://help.aliyun.com/zh/lingma/product-overview/product-billing/"
+      ],
+      "notes": "QwenWork internal preview model name (qwen3.8-max-preview). No public per-token API price found on official Qoder/Qwen Work docs. Subscription-based."
+    },
+    {
+      "service": "autoclaw-cn",
+      "upstream_model": "autoclaw-cn/zaicoding_glm-5.3",
+      "official_provider": "Zhipu AI AutoClaw",
+      "official_model_id": null,
+      "billing_kind": "no-public-price",
+      "currency": null,
+      "unit": null,
+      "tiers": [
+        {
+          "tier": "team",
+          "price": "129 CNY/seat/month",
+          "credits": "30000 per seat/month"
+        },
+        {
+          "tier": "individual Lite",
+          "price": "49 CNY/month"
+        },
+        {
+          "tier": "individual Pro",
+          "price": "149 CNY/month"
+        },
+        {
+          "tier": "individual Max",
+          "price": "1078 CNY/month"
+        }
+      ],
+      "rates": {
+        "input": null,
+        "cached_input": null,
+        "cached_write": null,
+        "output": null,
+        "reasoning": null,
+        "request": null
+      },
+      "effective_at": null,
+      "fetched_at": "2026-11-17T09:48:14+08:00",
+      "stale": false,
+      "source_urls": [
+        "https://autoclaw.zhipuai.cn/team-purchase/",
+        "https://docs.bigmodel.cn/cn/guide/start/pricing"
+      ],
+      "notes": "AutoClaw (Zhipu) is a subscription coding tool. 'zaicoding_glm-5.3' is internal AutoClaw routing model name, not a public API model ID. No public per-token API price for this specific routing name. Underlying GLM-5.3 has public API price on bigmodel.cn (8 CNY/M input, 28 CNY/M output, 2 CNY/M cache hit) but per instructions cannot cross-assume based on name similarity."
+    },
+    {
+      "service": "autoclaw-cn",
+      "upstream_model": "autoclaw-cn/zai_glm-5.3-flash",
+      "official_provider": "Zhipu AI AutoClaw",
+      "official_model_id": null,
+      "billing_kind": "no-public-price",
+      "currency": null,
+      "unit": null,
+      "tiers": [
+        {
+          "tier": "team",
+          "price": "129 CNY/seat/month",
+          "credits": "30000 per seat/month"
+        }
+      ],
+      "rates": {
+        "input": null,
+        "cached_input": null,
+        "cached_write": null,
+        "output": null,
+        "reasoning": null,
+        "request": null
+      },
+      "effective_at": null,
+      "fetched_at": "2026-11-17T09:48:14+08:00",
+      "stale": false,
+      "source_urls": [
+        "https://autoclaw.zhipuai.cn/team-purchase/",
+        "https://docs.bigmodel.cn/cn/guide/start/pricing"
+      ],
+      "notes": "AutoClaw internal routing model name (zai_glm-5.3-flash). No public per-token API price for this specific routing name. Underlying GLM-5.3-Flash has public API price on bigmodel.cn (0.8 CNY/M input, 2.8 CNY/M output, 0.23 CNY/M cache hit) but per instructions cannot cross-assume."
+    }
+  ],
+  "billing_kind_summary": {
+    "public-api": 1,
+    "subscription": 6,
+    "no-public-price": 9,
+    "unverified": 1,
+    "free": 0
+  },
+  "source_urls_all": [
+    "https://platform.minimaxi.com/docs/guides/pricing-paygo",
+    "https://platform.minimax.io/docs/guides/pricing-paygo",
+    "https://agent.minimaxi.com/about",
+    "https://help.aliyun.com/zh/lingma/product-overview/product-billing/",
+    "https://www.aliyun.com/product/lingma",
+    "https://docs.qoder.com/account/pricing",
+    "https://docs.qoder.com/qoder/model-selector",
+    "https://support.huaweicloud.com/price-codeartsagent/codeartsagent_billing_0028.md",
+    "https://codearts.huaweicloud.com/pricing.html",
+    "https://docs.trae.ai/ide/models",
+    "https://docs.trae.cn/ide_plans-and-billing?lang=zh",
+    "https://docs.trae.cn/ide/models",
+    "https://autoclaw.zhipuai.cn/team-purchase/",
+    "https://docs.bigmodel.cn/cn/guide/start/pricing"
+  ]
+}

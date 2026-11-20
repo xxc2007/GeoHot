@@ -13,18 +13,42 @@ export const magpiePrefix = () => `${deployBase(config.siteUrl)}/api/admin/magpi
 function scriptString(value: string) {
   return JSON.stringify(value).replace(/[<>\u2028\u2029]/g, c => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`);
 }
+/**
+ * Magpie 控制台上游可配置（MAGPIE_WEB_BASE_URL），默认兼容旧的本地 3430。
+ * 只允许 http loopback（127.0.0.1/127.x/localhost/::1），不接受真实公网 IP；
+ * 跨机访问走本机 SSH 隧道端口，不在代理里硬编码对端地址。
+ */
+export function magpieBase(): URL {
+  const raw = process.env.MAGPIE_WEB_BASE_URL || "http://127.0.0.1:3430";
+  const u = new URL(raw);
+  const host = u.hostname;
+  const loopback = host === "localhost" || host === "::1" || /^127\./.test(host);
+  if (u.protocol !== "http:" || !loopback) throw new Error("magpie upstream must be http loopback");
+  return u;
+}
+export function isLoopbackHost(host: string): boolean {
+  return host === "localhost" || host === "::1" || /^127\./.test(host);
+}
+
+/** Cookie 优先取 MAGPIE_WEB_COOKIE，否则读既有 web key 文件；不把密钥回传给浏览器。 */
+async function magpieCookie(): Promise<string> {
+  const envCookie = process.env.MAGPIE_WEB_COOKIE?.trim();
+  if (envCookie) return envCookie;
+  return (await readFile(process.env.MAGPIE_WEB_KEY_FILE || "/etc/geohot/magpie-web-key", "utf8")).trim();
+}
+
 export async function magpieRequest(resource: string, init: {method:string;headers:Record<string,string>;body?:string}):Promise<Response> {
+  const base = magpieBase();
   return new Promise((resolve, reject) => {
-    const target = new URL(resource, 'http://127.0.0.1:3430');
+    const target = new URL(resource, base);
     // Magpie deliberately holds an idle trace poll for 25 seconds. Keep its deadline
     // above that interval, but below the reverse proxy's 60-second read timeout.
-    const idlePoll = target.pathname === '/api/gateway/trace' && target.searchParams.get('wait') === '1';
-    // Keep host/port constants separate from the resource path, including after URL normalization.
-    const call = httpRequest({ hostname:'127.0.0.1', port:3430, path:resource, method:init.method, headers:init.headers }, res => {
+    const idlePoll = target.pathname === "/api/gateway/trace" && target.searchParams.get("wait") === "1";
+    const call = httpRequest({ hostname:base.hostname, port:Number(base.port)||80, path:resource, method:init.method, headers:init.headers }, res => {
       const headers=new Headers();for(const [k,v] of Object.entries(res.headers))if(v!==undefined)headers.set(k,Array.isArray(v)?v.join(','):v);
       resolve(new Response([204,304].includes(res.statusCode??200)?null:Readable.toWeb(res) as never,{status:res.statusCode??502,headers}));
     });
-    call.setTimeout(idlePoll ? 45_000 : 20_000,()=>call.destroy(new Error('Magpie timeout')));call.on('error',reject);call.end(init.body);
+    call.setTimeout(idlePoll ? 45_000 : 20_000,()=>call.destroy(new Error("Magpie timeout")));call.on("error",reject);call.end(init.body);
   });
 }
 /** Rewrite only the trusted, fixed loopback application's own resource URLs. */
@@ -59,6 +83,11 @@ export function nodeIps(raw = process.env.GEOHOT_NODE_IPS): Record<string, strin
 export function ipFor(host: string, table: Record<string, string> = nodeIps()): string | null {
   for (const [prefix, ip] of Object.entries(table)) if (host.startsWith(prefix)) return ip;
   return null;
+}
+
+/** 纯函数：判断 Magpie 面板静态资源（根级 js/css + assets/plugins/fonts 下 js/css/字体/图片）。 */
+export function isMagpieStatic(suffix: string): boolean {
+  return /^(?:[a-zA-Z0-9_-]+\.(?:js|css)|(?:assets|plugins|fonts)\/[a-zA-Z0-9_./-]+\.(?:js|css|svg|png|ico|woff2?|ttf))$/.test(suffix);
 }
 
 export async function registerServerConsole(app: FastifyInstance, forward = magpieRequest, authenticate: typeof sessionPrincipal = sessionPrincipal) {
@@ -109,25 +138,28 @@ export async function registerServerConsole(app: FastifyInstance, forward = magp
       return { ...sample, ip: ipFor(String(sample.host ?? "")), stale: Date.now() - Date.parse(sample.checkedAt) > 90_000, nodes };
     } catch { return reply.code(503).send({ unavailable: true }); }
   }));
-  // 2026-11-16：嵌进后台的 Magpie 面板自己就要几十上百个资源——首页 index.html 之后是
-  // boot/theme/omarchy/compat/layout/fonts/i18n/kernel 加各插件的 js，再叠上每秒一次的分流
-  // 追踪轮询。240/分钟是给「普通接口」定的数，面板一开就把桶打满：资源拿不到 429，
-  // 于是 `$ is not defined`、整个面板只剩导航栏（真浏览器实测 19 个 429）。
-  // 这里放宽到 1500/分钟：它仍然是上限（跑飞的循环会撞墙），但一个管理员的浏览器不会。
-  app.route({ method: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"], url: "/api/admin/magpie-proxy/*", config:{rateLimit:{max:1500,timeWindow:'1 minute'}}, handler: guard(async (req, reply, admin) => {
-    const suffix = (req.params as { "*": string })["*"];
+  // 静态资源（根级 kernel/start/app.js、theme.css + assets/plugins/fonts）不限流，靠浏览器 Cache-Control。
+  // 注意：max:0 会被限流插件当成直接封锁（429），必须用 rateLimit:false 关闭；否则未认证的根路径
+  // 会先撞限流返回 429，而不是经 guard 返回 401。
+  // routePrefix 用于前缀通配路由：Fastify 只把前缀之后的片段放进 `*`，这里要拼回完整后缀，
+  // 静态判定与上游转发都按完整路径进行。
+  const buildHandler = (routePrefix?: string) => guard(async (req: import("fastify").FastifyRequest, reply: import("fastify").FastifyReply, admin: { csrf: string }) => {
+    const wildcard = (req.params as { "*": string })["*"];
+    const file = (req.params as { file?: string }).file;
+    const suffix = routePrefix ? `${routePrefix}/${wildcard ?? ""}` : (wildcard ?? file ?? "");
     // URL is never supplied by the caller; do not proxy the model gateway or token sign-in routes.
-    const staticResource = /^(?:(?:assets|plugins|fonts)\/)?[a-zA-Z0-9_./-]+\.(?:js|css|svg|png|ico|woff2?|ttf)$/.test(suffix);
+    const staticResource = isMagpieStatic(suffix);
     if (suffix && suffix !== "index.html" && !suffix.startsWith("api/") && !staticResource) return reply.code(404).send({ error: "not_found" });
     if (suffix.split('/').some(part => part === '.' || part === '..') || suffix.includes('\\')) return reply.code(400).send({ error: "invalid_path" });
     if (req.headers.origin && req.headers.origin !== new URL(config.siteUrl).origin) return reply.code(403).send({ error: "forbidden" });
     let secret: string;
-    try { secret = (await readFile(process.env.MAGPIE_WEB_KEY_FILE || "/etc/geohot/magpie-web-key", "utf8")).trim(); }
+    try { secret = await magpieCookie(); }
     catch { return reply.code(503).send({ error: "magpie_unavailable" }); }
+    const base = magpieBase();
     const query = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
-    const target = new URL(`/${suffix}${query}`, "http://127.0.0.1:3430");
-    if (target.origin !== "http://127.0.0.1:3430" || target.searchParams.has("k") || target.pathname.startsWith('/v1') || target.pathname.startsWith('/_magpie')) return reply.code(400).send({ error: "invalid_path" });
-    const headers: Record<string, string> = { cookie: `magpie_web_3430=${secret}`, "accept-encoding": "identity", origin: "http://127.0.0.1:3430" };
+    const target = new URL(`/${suffix}${query}`, base);
+    if (!isLoopbackHost(target.hostname) || target.searchParams.has("k") || target.pathname.startsWith('/v1') || target.pathname.startsWith('/_magpie')) return reply.code(400).send({ error: "invalid_path" });
+    const headers: Record<string, string> = { cookie: `magpie_web_3430=${secret}`, "accept-encoding": "identity", origin: base.origin };
     if (req.headers["content-type"]) headers["content-type"] = req.headers["content-type"];
     try {
       const upstream = await forward(target.pathname+target.search, { method: req.method, headers, body: ["GET", "HEAD"].includes(req.method) ? undefined : JSON.stringify(req.body) });
@@ -156,5 +188,15 @@ export async function registerServerConsole(app: FastifyInstance, forward = magp
       reply.code(upstream.status).type(contentType);
       return contentType.includes("text/html") ? embedMagpie(bytes.toString("utf8"), magpiePrefix(), admin.csrf) : bytes;
     } catch { return reply.code(503).send({ error: "magpie_unavailable" }); }
-  }) });
+  });
+  // 静态资源（根级 kernel/start/app.js、theme.css + assets/plugins/fonts）不限流，靠浏览器 Cache-Control。
+  // 注意：max:0 会被限流插件当成直接封锁（429），必须用 rateLimit:false 关闭；否则未认证的根路径
+  // 会先撞限流返回 429，而不是经 guard 返回 401。
+  const staticOpts = (handler: import("fastify").RouteHandler) => ({ config: { rateLimit: false } as const, handler });
+  app.route({ method: ["GET", "HEAD"], url: "/api/admin/magpie-proxy/:file", ...staticOpts(buildHandler()) });
+  for (const prefix of ["assets", "plugins", "fonts"]) {
+    app.route({ method: ["GET", "HEAD"], url: `/api/admin/magpie-proxy/${prefix}/*`, ...staticOpts(buildHandler(prefix)) });
+  }
+  // 动态 API 面板调用保持有界上限（静态资源走独立缓存、不限流）。
+  app.route({ method: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"], url: "/api/admin/magpie-proxy/*", config:{rateLimit:{max:1200,timeWindow:'1 minute'}}, handler: buildHandler() });
 }

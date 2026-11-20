@@ -2,7 +2,7 @@
 
 系统菜单依次是服务器、运行、magpie、用量总览、模型、审计记录、设置。服务器页每 20 秒读取一次轻量系统采样，显示采样时间；采样超过 90 秒明确标记旧数据。采样器不读数据库、密钥、完整环境变量或完整进程参数。
 
-Magpie 以现有管理员会话保护的反代嵌入。固定上游为服务器回环 3430，管理密钥由 API 从 `/etc/geohot/magpie-web-key` 读取，不能放在仓库或 iframe URL 中。代理所有写请求同样检查会话 CSRF 和 Origin。模型推理的 `/v1` 与独立登录路径不经此反代。Magpie 的资源及 fetch URL 适配部署前缀，服务器的 3426/3430 不开放公网监听。
+Magpie 以现有管理员会话保护的反代嵌入。上游由 `MAGPIE_WEB_BASE_URL` 配置，默认 `http://127.0.0.1:3430`，只允许 http loopback（`localhost`/`::1`/`127.*`），不接受真实公网 IP；生产 Azure 方案为本地 3431 经隧道到杭州网关 `127.0.0.1:3430`，直连 3430 只兼容旧本地进程。管理密钥优先取 `MAGPIE_WEB_COOKIE` 环境变量，否则由 API 从 `MAGPIE_WEB_KEY_FILE`（默认 `/etc/geohot/magpie-web-key`）读取，不能放在仓库或 iframe URL 中。代理所有写请求同样检查会话 CSRF 和 Origin。模型推理的 `/v1` 与独立登录路径不经此反代。Magpie 的资源及 fetch URL 适配部署前缀，服务器的 3426/3430 不开放公网监听。
 
 部署采样器前创建 `/run/geohot-server`，root:geohot 0750；或添加 tmpfiles 规则在重启后重建。安装对应 service/timer。API 用户只需读取 0640 的采样文件及管理密钥，不需 sudo。
 

@@ -1,5 +1,7 @@
 import {CNY_FX} from "@aihot/contracts/cny";
 import type { OfficialRate, OfficialCostReport, CostBounds } from "@aihot/contracts/model-costs";
+import type { Db } from "../db.ts";
+import { resolveVersionAt, startedInstant, type PricingVersionRow } from "./pricing-map.ts";
 
 // 2026-10-31 全量重核：9 条官方定价页当日实测（8 条 WebFetch + dots 浏览器实测），与下述常量
 // 逐一比对 0 差异；每日闲时由 geohot-pricing-check.timer 复核（deploy/geohot/pricing-check.py）。
@@ -29,6 +31,78 @@ const aliases:Record<string,string>={
   // 也不要拿 hy3 的价冒充 hy4——那会让成本页把两个不同模型的账算成一笔。
   "MiniMax-M3.1-Flash":"minimax","minimax-code/MiniMax-M3.1-Flash":"minimax","dots3-note-prev":"dots",
 };
+/**
+ * 从 pricing_rates 表读最新价卡；表不存在（migration 未跑）或无行时回落 OFFICIAL_RATES 常量。
+ * 不打外网、不阻塞页面；stale 标志透传给前端。
+ */
+export interface PricingRateRow {
+  id: string; service: string | null; model: string | null; name: string;
+  currency: "USD"|"CNY"|null;
+  input: number | null; cached: number | null; output: number | null;
+  billing_kind: "equivalent-public-api"|"subscription"|"free"|"no-price"|"unverified";
+  source_url: string | null; source_urls: string[];
+  effective_at: string | null; fetched_at: string | null; last_success_at: string | null; stale: boolean; note: string | null;
+}
+export async function loadPricingRates(db: Db): Promise<{ rates: PricingRateRow[]; stale: boolean }> {
+  try {
+    const rows = await db<PricingRateRow[]>`
+      SELECT id, service, model, name, currency,
+             input_price::float8 AS input, cached_price::float8 AS cached, output_price::float8 AS output,
+             billing_kind, source_url,
+             COALESCE(source_urls, '[]'::jsonb)::text AS source_urls,
+             effective_at::text AS effective_at, fetched_at::text AS fetched_at,
+             last_success_at::text AS last_success_at, stale, note
+      FROM pricing_rates`;
+    if (!rows.length) return { rates: OFFICIAL_RATES.map(constToRow), stale: true };
+    return { rates: rows.map(r => ({ ...r, source_urls: parseUrls(r.source_urls) })), stale: rows.every(r => r.stale) };
+  } catch {
+    // 表不存在或连接失败：常量兜底，标记 stale。
+    return { rates: OFFICIAL_RATES.map(constToRow), stale: true };
+  }
+}
+function parseUrls(raw: unknown): string[] {  if (!raw) return [];
+  try { const v = JSON.parse(raw as string); return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []; }
+  catch { return []; }
+}
+function constToRow(r: OfficialRate): PricingRateRow {
+  return { id: r.id, service: null, model: null, name: r.name, currency: r.currency, input: r.input, cached: r.cached, output: r.output,
+           // 常量兜底也是刊例/等值估算，不是回执 actual 账单。
+           billing_kind: "equivalent-public-api", source_url: r.source, source_urls: [r.source],
+           effective_at: "2026-10-31", fetched_at: "2026-10-31", last_success_at: "2026-10-31", stale: false, note: r.note };
+}
+
+/**
+ * DB 价卡行 → 报表明细：只纳入有可计价费率（input/output 非空、有币种）的行；
+ * null 价不进明细表，避免 toCny(null*1000) 崩或显示 0。verifiedOn 取最近一次成功核验/seed 抓取时点。
+ */
+export function pricingRowsToDetail(rows: PricingRateRow[]): PricingDetail {
+  const priced = rows.filter((r): r is PricingRateRow & { currency: "USD" | "CNY"; input: number; output: number } =>
+    r.input != null && r.output != null && (r.currency === "USD" || r.currency === "CNY"));
+  const verifiedOn = priced.map((r) => r.last_success_at ?? r.fetched_at).filter((x): x is string => !!x).sort().at(-1) ?? null;
+  const rates: OfficialRate[] = priced.map((r) => ({
+    id: r.id, name: r.name, currency: r.currency,
+    input: r.input, cached: r.cached ?? r.input, output: r.output,
+    currentInput: r.input, currentCached: r.cached ?? r.input, currentOutput: r.output,
+    source: r.source_url ?? r.source_urls[0] ?? "", note: r.note ?? "", verifiedOn: verifiedOn ?? "",
+  }));
+  return { rates, verifiedOn };
+}
+
+/** 加载历史价卡版本（按 rateId 分组，时间升序）；表缺失时返回空 Map，估算回落常量。 */
+export async function loadPricingVersions(db: Db): Promise<Map<string, PricingVersionRow[]>> {
+  try {
+    const rows = await db<PricingVersionRow[]>`
+      SELECT rate_id AS "rateId", service, model, currency,
+             input_price::float8 AS input, cached_price::float8 AS cached, output_price::float8 AS output,
+             billing_kind AS "billingKind", effective_at::text AS "effectiveAt", fetched_at::text AS "fetchedAt"
+      FROM pricing_rate_versions ORDER BY effective_at ASC`;
+    const map = new Map<string, PricingVersionRow[]>();
+    for (const r of rows) { const arr = map.get(r.rateId) ?? []; arr.push(r); map.set(r.rateId, arr); }
+    return map;
+  } catch {
+    return new Map();
+  }
+}
 // Cabinet's 2026 holiday notice; weekends remain off-peak, including make-up workdays.
 const holidays=[['01-01','01-03'],['02-15','02-23'],['04-04','04-06'],['05-01','05-05'],['06-19','06-21'],['09-25','09-27'],['10-01','10-07']];
 export function peakFactor(day:string,hour:number):CostBounds {
@@ -38,8 +112,10 @@ export function peakFactor(day:string,hour:number):CostBounds {
   const md=day.slice(5);const holiday=holidays.some(([a,b])=>md>=a&&md<=b);
   return {low:holiday?1:2,high:holiday?1:2};
 }
+/** DeepSeek 峰谷按 bucket 的 service/model 判定：版本行 id 已是 `service::model`，不能再拿旧常量 id 'deepseek' 匹配。 */
+function isDeepseekModel(model:string|null):boolean { return /deepseek/i.test(model ?? ''); }
 export interface PricingBucket {
-  service:string|null;model:string|null;day:string|null;hour:number|null;calls:number;pricingCalls:number;
+  service:string|null;model:string|null;day:string|null;hour:number|null;calls:number;pricedCalls:number;
   pricedIn:number;pricedOut:number;cachedTokens:number;unknownCacheIn:number;cacheUnknownCalls:number;
 }
 /**
@@ -54,30 +130,46 @@ export function resolveFx(latest: { rate: number; as_of: string; source_url: str
   return CNY_FX;
 }
 
-export function officialCosts(buckets:PricingBucket[],ready=true,fx:{usdToCny:number;date:string;source:string}=CNY_FX):OfficialCostReport {
+interface EffRate { id:string; name:string; currency:"USD"|"CNY"|null; input:number|null; cached:number|null; output:number|null; billingKind:string }
+
+/** 常量兜底的型号归并；DB 版本优先时不走这里。 */
+function constantId(b: PricingBucket): string | undefined {
+  if (b.model === 'agnes-3.0-flash') return b.service === 'agnes-cn' ? 'agnes-cn' : b.service === 'llm' ? 'agnes' : undefined;
+  if (b.model === 'glm-5.3-flash') return b.service === 'workbuddy-cn' ? 'glm53flash' : (b.service === 'workbuddy' || b.service === 'workbuddy-ai') ? 'glm53flash-intl' : undefined;
+  return aliases[b.model ?? ''];
+}
+
+export interface PricingDetail { rates: OfficialRate[]; verifiedOn: string | null }
+
+export function officialCosts(buckets:PricingBucket[],ready=true,fx:{usdToCny:number;date:string;source:string}=CNY_FX,versionsByRate?:Map<string,PricingVersionRow[]>,detail?:PricingDetail):OfficialCostReport {
   const toCnyAt=(value:number,currency:string|null):number|null=>currency==='CNY'?value:currency==='USD'?value*fx.usdToCny:null;
-  const report:OfficialCostReport={fx,state:ready?"ready":"backfill",verifiedOn,policy:"按最新核验的官方标准单价折算所选历史用量，不应用限免、赠送或促销价；DeepSeek 按请求开始时的北京时间峰谷规则计价，不还原历史调价；不是实际账单或订阅扣款。缓存明细缺失的请求按缓存命中价折算（单一口径，不显示区间），缺少完整 Token 的请求不计金额。美元按 fx_rates 表最新汇率（无记录时按常量兜底）折合人民币；汇总后取整显示，计算保留原始精度。",models:[],rates:OFFICIAL_RATES,totals:[],calls:0,pricedCalls:0,missingUsage:0,unmappedCalls:0,cacheUnknownCalls:0};
+  // 传了 versions Map（含空 Map）就只按调用时点版本计价：无当时有效版本=未计价，不用最新价或常量倒算；
+  // 仅完全不传 versionsByRate 的旧测试/兼容路径才回落 OFFICIAL_RATES 常量。
+  const useVersions = versionsByRate !== undefined;
+  const report:OfficialCostReport={fx,state:ready?"ready":"backfill",verifiedOn:detail?detail.verifiedOn:verifiedOn,policy:"按调用时点有效的官方标准单价折算所选历史用量；无当时有效价卡的请求计为未计价，不用最新价倒算。不应用限免、赠送或促销价；DeepSeek 按请求开始时的北京时间峰谷规则计价。缓存明细缺失的请求按缓存命中价折算（单一口径），缺少完整 Token 的请求不计金额。美元按 fx_rates 表最新汇率（无记录时按常量兜底）折合人民币；汇总后取整显示，计算保留原始精度。",models:[],rates:detail?detail.rates:OFFICIAL_RATES,totals:[],calls:0,pricedCalls:0,missingUsage:0,unmappedCalls:0,cacheUnknownCalls:0};
   const groups=new Map<string,OfficialCostReport['models'][number]>();
   for(const b of buckets){
-    const id=b.model==='agnes-3.0-flash'?(b.service==='agnes-cn'?'agnes-cn':b.service==='llm'?'agnes':undefined):b.model==='glm-5.3-flash'?(b.service==='workbuddy-cn'?'glm53flash':b.service==='workbuddy'||b.service==='workbuddy-ai'?'glm53flash-intl':undefined):aliases[b.model??''];
-    const r=OFFICIAL_RATES.find(r=>r.id===id);const key=JSON.stringify([b.service,b.model]);
-    let m=groups.get(key);if(!m){m={service:b.service??'',model:b.model??'',name:r?.name??b.model??'',currency:r?.currency??null,rateId:r?.id??null,calls:0,pricedCalls:0,missingUsage:0,cacheUnknownCalls:0,list:r&&ready?{low:0,high:0}:null,current:r&&ready?{low:0,high:0}:null,...(!r?{reason:"未核验上游型号或官方价格，未计入费用"}:{})};groups.set(key,m);}
-    m.calls+=b.calls;m.missingUsage+=b.calls-b.pricingCalls;m.cacheUnknownCalls+=b.cacheUnknownCalls;
-    report.calls+=b.calls;report.missingUsage+=b.calls-b.pricingCalls;report.cacheUnknownCalls+=b.cacheUnknownCalls;
-    if(!r){report.unmappedCalls+=b.calls;continue;}
-    m.pricedCalls+=b.pricingCalls;report.pricedCalls+=b.pricingCalls;
+    // 历史价：优先取该调用时点有效的版本；Map 已传入但无版本 → 未计价，不回落常量。
+    const instant=startedInstant(b.day,b.hour);
+    const v=useVersions?resolveVersionAt(versionsByRate,b.service,b.model,instant):null;
+    let eff:EffRate|null;
+    if(v){eff={id:v.rateId,name:v.model,currency:v.currency,input:v.input,cached:v.cached,output:v.output,billingKind:v.billingKind};}
+    else if(!useVersions){const r=OFFICIAL_RATES.find(x=>x.id===constantId(b));eff=r?{id:r.id,name:r.name,currency:r.currency,input:r.input,cached:r.cached,output:r.output,billingKind:"equivalent-public-api"}:null;}
+    else{eff=null;}
+    const key=JSON.stringify([b.service,b.model]);
+    let m=groups.get(key);if(!m){m={service:b.service??'',model:b.model??'',name:eff?.name??b.model??'',currency:eff?.currency??null,rateId:eff?.id??null,billingKind:eff?.billingKind??null,calls:0,pricedCalls:0,missingUsage:0,cacheUnknownCalls:0,list:eff&&ready&&eff.input!=null?{low:0,high:0}:null,current:eff&&ready&&eff.input!=null?{low:0,high:0}:null,...(!eff||eff.input==null?{reason:!eff?"未核验上游型号或官方价格，未计入费用":"该通道为订阅/免费/无价/未核实，无逐 token 公开价，未计入估算"}:{})};groups.set(key,m);}
+    m.calls+=b.calls;m.missingUsage+=b.calls-b.pricedCalls;m.cacheUnknownCalls+=b.cacheUnknownCalls;
+    report.calls+=b.calls;report.missingUsage+=b.calls-b.pricedCalls;report.cacheUnknownCalls+=b.cacheUnknownCalls;
+    if(!eff||eff.input==null||eff.output==null){report.unmappedCalls+=b.calls;continue;}
+    m.pricedCalls+=b.pricedCalls;report.pricedCalls+=b.pricedCalls;
     if(!ready)continue;
-    const factor=r.id==='deepseek'?peakFactor(b.day!,b.hour!):{low:1,high:1};
+    const factor=(eff.id==='deepseek'||isDeepseekModel(b.model))?peakFactor(b.day!,b.hour!):{low:1,high:1};
     const knownMiss=Math.max(0,b.pricedIn-b.cachedTokens-b.unknownCacheIn);
-    // 缓存未知（unknownCacheIn）的请求按缓存命中价单一口径计：它是一个估计，不是区间——上下界
-    // 各取 min/max 价曾把 6.1 万次缓存未知请求撑成 5,443–5,463 元的假区间；按 cached 价（大多数
-    // 提供商对重复前缀给出命中）是这批请求最可能落的档，合计因此显示为单值。
-    for(const type of ['list'] as const){
-      const input=type==='list'?r.input:r.currentInput, cached=type==='list'?r.cached:r.currentCached, output=type==='list'?r.output:r.currentOutput;
-      const base=knownMiss*input+b.cachedTokens*cached+b.pricedOut*output;
-      m[type]!.low+=(base+b.unknownCacheIn*cached)*factor.low/1e6;
-      m[type]!.high+=(base+b.unknownCacheIn*cached)*factor.high/1e6;
-    }
+    // 缓存未知按缓存命中价单一口径计：是估计，不是区间。
+    const cached=eff.cached??eff.input;
+    const base=knownMiss*eff.input+b.cachedTokens*cached+b.pricedOut*eff.output;
+    m.list!.low+=(base+b.unknownCacheIn*cached)*factor.low/1e6;
+    m.list!.high+=(base+b.unknownCacheIn*cached)*factor.high/1e6;
   }
   for(const m of groups.values()){if(!m.currency)continue;for(const type of ['list','current'] as const)if(m[type])m[type]={low:toCnyAt(m[type]!.low,m.currency)!,high:toCnyAt(m[type]!.high,m.currency)!};m.currency='CNY';}
   report.models=[...groups.values()].sort((a,b)=>b.calls-a.calls);

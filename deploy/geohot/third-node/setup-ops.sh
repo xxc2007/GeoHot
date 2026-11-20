@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 第三台机器（阿里云 ECS 杭州）的运维侧安装脚本：备份副本、国内探针、真浏览器回归。
 #
-# 分工与第二台机器（8.148.65.89）的区别：
+# 分工与第二台机器（武汉节点）的区别：
 #   - 第二台内存只有 1 GiB，只做「执行器 + 备份 + curl 探针」；
 #   - 这台 2 GiB / 100 Mbps，多担一件：**用真 Chromium 跑读者面回归**（第二台跑不动）。
 #
@@ -11,8 +11,10 @@
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 
-PRIMARY="xxc@20.194.28.128"
-PRIMARY_KEY="/home/geohot/.ssh/id_ed25519"
+# 主库 SSH 目标不写死在仓库里：从环境变量读取，缺值明确报错退出。
+PRIMARY="${GEOHOT_PRIMARY_HOST:-}"
+: "${PRIMARY:?需要 GEOHOT_PRIMARY_HOST（主库 SSH 目标 user@<主库主机>）}"
+PRIMARY_KEY="${GEOHOT_PRIMARY_IDENTITY:-/home/geohot/.ssh/id_ed25519}"
 APP_DIR="/home/geohot/geohot"
 BACKUP_DIR="/var/backups/geohot"
 KEEP="${KEEP:-7}"
@@ -21,14 +23,22 @@ say() { printf '\n== %s\n' "$*"; }
 
 say "1/4 备份落地（只做副本，主库那份才是第一份）"
 install -d -m 750 -o geohot -g geohot "$BACKUP_DIR"
+
+# 备份目标只写进机器本地的环境文件（640 root:geohot），仓库里不留任何主机地址。
+cat > /etc/geohot-backup-pull.env <<EOF
+PRIMARY=${PRIMARY}
+KEY=${PRIMARY_KEY}
+DIR=${BACKUP_DIR}
+KEEP=${KEEP}
+EOF
+chown root:geohot /etc/geohot-backup-pull.env
+chmod 640 /etc/geohot-backup-pull.env
+
 cat > /usr/local/bin/geohot-backup-pull.sh <<'PULL'
 #!/usr/bin/env bash
 # 从主库现打一份逻辑备份，rsync 回来；只保留最近 KEEP 份。校验大小 > 10MB 才算成功。
 set -euo pipefail
-PRIMARY="xxc@20.194.28.128"
-KEY="/home/geohot/.ssh/id_ed25519"
-DIR="/var/backups/geohot"
-KEEP="${KEEP:-7}"
+. /etc/geohot-backup-pull.env
 stamp=$(date -u +%Y%m%dT%H%M%SZ)
 remote="/tmp/geohot-$stamp.dump"
 ssh -i "$KEY" -o BatchMode=yes "$PRIMARY" "sudo -u postgres pg_dump -Fc -d geohot -f $remote && sudo chmod 644 $remote && ls -l $remote"

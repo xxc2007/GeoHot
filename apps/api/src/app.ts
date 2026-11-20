@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { OAUTH_PROBE_PATHS, resolveRedirect } from "@aihot/contracts/http-policy";
 import { CapacityExceeded } from "@aihot/backend/lib/capacity";
-import { dbHealthProbe, PublicReadBusyError } from "@aihot/backend/publication/read-budget";
+import { dbHealthProbe, HealthProbeError, type HealthReason } from "@aihot/backend/publication/read-budget";
 import { registerSite } from "./routes/site.ts";
 import { registerLeaderboard } from "./routes/leaderboard.ts";
 import { registerOg } from "./routes/og.ts";
@@ -104,24 +104,31 @@ await app.register(rateLimit, {
     // The old probe raced `sql`SELECT 1`` against a 2 s timer, but the timer only rejected
     // JS: the query kept queueing behind a saturated pool or holding a backend, so on a
     // wedged box every probe stacked and the probe itself leaked. dbHealthProbe gates to
-    // (1,0) and calls query.cancel() at 2 s — postgres.js dequeues a not-yet-dispatched
-    // probe outright, or cancels the running statement server-side, so the connection is
-    // always returned. Busy / cancelled both surface as an honest 503.
+    // (1,0) on its OWN gate (never a reader slot) and calls query.cancel() at 2 s —
+    // postgres.js dequeues a not-yet-dispatched probe outright, or cancels the running
+    // statement server-side, so the connection is always returned.
+    //
+    // The 503 body keeps the legacy `ok` / `db` / `ms` / `release` fields and adds `reason`
+    // (gate_busy | query_timeout | conn_error | db_unavailable) plus `elapsed`. gate_busy
+    // and query_timeout are transient pressure on our own gate/query; conn_error and
+    // db_unavailable mean the database itself is unreachable and get a warn log line.
+    let reason: HealthReason = "db_unavailable";
     try {
       await dbHealthProbe();
+      reason = "ok";
     } catch (error) {
-      const busy =
-        error instanceof PublicReadBusyError ||
-        error instanceof CapacityExceeded ||
-        (error as { code?: string }).code === "57014";
-      if (!busy) reply.log.warn({ err: error }, "health probe failed");
+      reason = error instanceof HealthProbeError ? error.reason : "db_unavailable";
+      const busy = reason === "gate_busy" || reason === "query_timeout";
+      if (!busy) reply.log.warn({ err: error, reason }, "health probe failed");
+      const elapsed = Date.now() - started;
       return reply
         .code(503)
         .header("Cache-Control", "no-store")
         .header("Retry-After", "5")
-        .send({ ok: false, db: "unavailable", ms: Date.now() - started, release: releaseId() });
+        .send({ ok: false, db: "unavailable", reason, elapsed, ms: elapsed, release: releaseId() });
     }
-    return reply.header("Cache-Control", "no-store").send({ ok: true, db: "ok", ms: Date.now() - started, release: releaseId() });
+    const elapsed = Date.now() - started;
+    return reply.header("Cache-Control", "no-store").send({ ok: true, db: "ok", reason, elapsed, ms: elapsed, release: releaseId() });
   });
 
   registerSite(app);

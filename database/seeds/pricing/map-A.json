@@ -1,0 +1,344 @@
+{
+  "generated_at": "2026-11-17T09:47:11+08:00",
+  "window": "30d",
+  "scope": "services=workbuddy-ai,workbuddy-cn,workbuddy,workbuddy-desktop,loomy,dots",
+  "total_entries": 16,
+  "priced": 15,
+  "unpriced": 1,
+  "entries": [
+    {
+      "service": "workbuddy-ai",
+      "upstream_model": "workbuddy-ai/deepseek-v4.1-flash",
+      "official_provider": "DeepSeek (深度求索)",
+      "official_model_id": "deepseek-flash (deepseek-v4-flash 路由至 V4.1 Flash)",
+      "billing_kind": "public-api",
+      "currency": "CNY",
+      "unit": "per_1M_tokens",
+      "tiers": ["off-peak", "peak"],
+      "rates": {
+        "off-peak": { "input": 1.0, "cached_input": 0.02, "cached_write": null, "output": 4.0, "reasoning": null, "request": null },
+        "peak": { "input": 2.0, "cached_input": 0.04, "cached_write": null, "output": 8.0, "reasoning": null, "request": null }
+      },
+      "effective_at": "2026-09-10T12:00:00+08:00",
+      "fetched_at": "2026-11-17T09:47:11+08:00",
+      "stale": false,
+      "source_urls": [
+        "https://api-docs.deepseek.com/zh-cn/news/news260910/",
+        "https://api-docs.deepseek.com/zh-cn/quick_start/pricing"
+      ],
+      "notes": "峰谷定价：高峰=工作日(周一至周五)9:00-12:00、14:00-18:00(北京时间)，其余为空闲(含周末)。旧模型名 deepseek-v4-flash 已路由至 V4.1 Flash。WorkBuddy 为腾讯官方合作渠道，但此处采用 DeepSeek 官方公开 API 价。"
+    },
+    {
+      "service": "dots",
+      "upstream_model": "dots3-note-prev",
+      "official_provider": null,
+      "official_model_id": null,
+      "billing_kind": "no-public-price",
+      "currency": null,
+      "unit": null,
+      "tiers": [],
+      "rates": { "input": null, "cached_input": null, "cached_write": null, "output": null, "reasoning": null, "request": null },
+      "effective_at": null,
+      "fetched_at": "2026-11-17T09:47:11+08:00",
+      "stale": false,
+      "source_urls": [],
+      "notes": "dots 为内部/闭源服务路由，未在火山引擎方舟、DeepSeek、智谱、阶跃、腾讯混元、讯飞等任何公开提供商价卡中找到 dots3-note-prev 对应公开模型。无公开 API 价格。"
+    },
+    {
+      "service": "workbuddy-cn",
+      "upstream_model": "hy3",
+      "official_provider": "Tencent Cloud / 腾讯混元 (TokenHub)",
+      "official_model_id": "hy3",
+      "billing_kind": "public-api",
+      "currency": "CNY",
+      "unit": "per_1M_tokens",
+      "tiers": ["list"],
+      "rates": {
+        "list": { "input": 1.0, "cached_input": 0.25, "cached_write": null, "output": 4.0, "reasoning": null, "request": null }
+      },
+      "effective_at": "2026-08-29T00:00:00+08:00",
+      "fetched_at": "2026-11-17T09:47:11+08:00",
+      "stale": false,
+      "source_urls": [
+        "https://cloud.tencent.com/document/product/1823/130055"
+      ],
+      "notes": "腾讯云 TokenHub 在线推理后付费目录价。Hy3 = 腾讯混元第三代。无峰谷，无限时折扣标注。"
+    },
+    {
+      "service": "loomy",
+      "upstream_model": "loomy/DeepSeek-V4.1-Flash",
+      "official_provider": "DeepSeek (深度求索)",
+      "official_model_id": "deepseek-flash (deepseek-v4-flash 路由至 V4.1 Flash)",
+      "billing_kind": "public-api",
+      "currency": "CNY",
+      "unit": "per_1M_tokens",
+      "tiers": ["off-peak", "peak"],
+      "rates": {
+        "off-peak": { "input": 1.0, "cached_input": 0.02, "cached_write": null, "output": 4.0, "reasoning": null, "request": null },
+        "peak": { "input": 2.0, "cached_input": 0.04, "cached_write": null, "output": 8.0, "reasoning": null, "request": null }
+      },
+      "effective_at": "2026-09-10T12:00:00+08:00",
+      "fetched_at": "2026-11-17T09:47:11+08:00",
+      "stale": false,
+      "source_urls": [
+        "https://api-docs.deepseek.com/zh-cn/news/news260910/",
+        "https://api-docs.deepseek.com/zh-cn/quick_start/pricing"
+      ],
+      "notes": "loomy 路由名与 DeepSeek V4.1 Flash 同名，按 DeepSeek 官方公开 API 价计。峰谷规则同条目1。"
+    },
+    {
+      "service": "workbuddy-cn",
+      "upstream_model": "deepseek-v4.1-flash",
+      "official_provider": "DeepSeek (深度求索)",
+      "official_model_id": "deepseek-flash (deepseek-v4-flash 路由至 V4.1 Flash)",
+      "billing_kind": "public-api",
+      "currency": "CNY",
+      "unit": "per_1M_tokens",
+      "tiers": ["off-peak", "peak"],
+      "rates": {
+        "off-peak": { "input": 1.0, "cached_input": 0.02, "cached_write": null, "output": 4.0, "reasoning": null, "request": null },
+        "peak": { "input": 2.0, "cached_input": 0.04, "cached_write": null, "output": 8.0, "reasoning": null, "request": null }
+      },
+      "effective_at": "2026-09-10T12:00:00+08:00",
+      "fetched_at": "2026-11-17T09:47:11+08:00",
+      "stale": false,
+      "source_urls": [
+        "https://api-docs.deepseek.com/zh-cn/news/news260910/",
+        "https://api-docs.deepseek.com/zh-cn/quick_start/pricing"
+      ],
+      "notes": "workbuddy-cn 渠道的 DeepSeek V4.1 Flash，按 DeepSeek 官方公开 API 价计。"
+    },
+    {
+      "service": "workbuddy-ai",
+      "upstream_model": "workbuddy-ai/hy3",
+      "official_provider": "Tencent Cloud / 腾讯混元 (TokenHub)",
+      "official_model_id": "hy3",
+      "billing_kind": "public-api",
+      "currency": "CNY",
+      "unit": "per_1M_tokens",
+      "tiers": ["list"],
+      "rates": {
+        "list": { "input": 1.0, "cached_input": 0.25, "cached_write": null, "output": 4.0, "reasoning": null, "request": null }
+      },
+      "effective_at": "2026-08-29T00:00:00+08:00",
+      "fetched_at": "2026-11-17T09:47:11+08:00",
+      "stale": false,
+      "source_urls": [
+        "https://cloud.tencent.com/document/product/1823/130055"
+      ],
+      "notes": "同条目3，Hy3 目录价。"
+    },
+    {
+      "service": "workbuddy-cn",
+      "upstream_model": "step-5-preview",
+      "official_provider": "StepFun (阶跃星辰)",
+      "official_model_id": "step-5-preview",
+      "billing_kind": "public-api",
+      "currency": "CNY",
+      "unit": "per_1M_tokens",
+      "tiers": ["list"],
+      "rates": {
+        "list": { "input": 7.0, "cached_input": 0.70, "cached_write": null, "output": 20.0, "reasoning": null, "request": null }
+      },
+      "effective_at": "2026-10-14T00:30:00+08:00",
+      "fetched_at": "2026-11-17T09:47:11+08:00",
+      "stale": false,
+      "source_urls": [
+        "https://platform.stepfun.com/docs/zh/guides/pricing/details"
+      ],
+      "notes": "缓存命中价于 2026-10-14 00:30 由 0.35 调整为 0.70 元/百万 tokens；输入未命中 7 元、输出 20 元为现行目录价。"
+    },
+    {
+      "service": "workbuddy-desktop",
+      "upstream_model": "workbuddy/deepseek-v4.1-flash",
+      "official_provider": "DeepSeek (深度求索)",
+      "official_model_id": "deepseek-flash (deepseek-v4-flash 路由至 V4.1 Flash)",
+      "billing_kind": "public-api",
+      "currency": "CNY",
+      "unit": "per_1M_tokens",
+      "tiers": ["off-peak", "peak"],
+      "rates": {
+        "off-peak": { "input": 1.0, "cached_input": 0.02, "cached_write": null, "output": 4.0, "reasoning": null, "request": null },
+        "peak": { "input": 2.0, "cached_input": 0.04, "cached_write": null, "output": 8.0, "reasoning": null, "request": null }
+      },
+      "effective_at": "2026-09-10T12:00:00+08:00",
+      "fetched_at": "2026-11-17T09:47:11+08:00",
+      "stale": false,
+      "source_urls": [
+        "https://api-docs.deepseek.com/zh-cn/news/news260910/",
+        "https://api-docs.deepseek.com/zh-cn/quick_start/pricing"
+      ],
+      "notes": "workbuddy-desktop 渠道的 DeepSeek V4.1 Flash，按 DeepSeek 官方公开 API 价计。"
+    },
+    {
+      "service": "loomy",
+      "upstream_model": "loomy/GLM-5.3-Flash",
+      "official_provider": "Zhipu AI (智谱 / BigModel)",
+      "official_model_id": "GLM-5.3-Flash",
+      "billing_kind": "public-api",
+      "currency": "CNY",
+      "unit": "per_1M_tokens",
+      "tiers": ["list", "promo-50pct"],
+      "rates": {
+        "list": { "input": 0.8, "cached_input": 0.23, "cached_write": null, "output": 2.8, "reasoning": null, "request": null },
+        "promo-50pct": { "input": 0.4, "cached_input": 0.115, "cached_write": null, "output": 1.4, "reasoning": null, "request": null }
+      },
+      "effective_at": "2026-10-17T00:00:00+08:00",
+      "fetched_at": "2026-11-17T09:47:11+08:00",
+      "stale": false,
+      "source_urls": [
+        "https://docs.bigmodel.cn/cn/guide/start/pricing",
+        "https://bigmodel.cn/pricing"
+      ],
+      "notes": "docs.bigmodel.cn 官方账单文档列标准价：输入0.8/输出2.8/缓存命中0.23 元/百万tokens，缓存存储限时免费。bigmodel.cn/pricing 页面同时展示限时五折促销价(输入0.4/输出1.4/缓存命中0.115)；以实际账单为准。"
+    },
+    {
+      "service": "workbuddy",
+      "upstream_model": "hy3",
+      "official_provider": "Tencent Cloud / 腾讯混元 (TokenHub)",
+      "official_model_id": "hy3",
+      "billing_kind": "public-api",
+      "currency": "CNY",
+      "unit": "per_1M_tokens",
+      "tiers": ["list"],
+      "rates": {
+        "list": { "input": 1.0, "cached_input": 0.25, "cached_write": null, "output": 4.0, "reasoning": null, "request": null }
+      },
+      "effective_at": "2026-08-29T00:00:00+08:00",
+      "fetched_at": "2026-11-17T09:47:11+08:00",
+      "stale": false,
+      "source_urls": [
+        "https://cloud.tencent.com/document/product/1823/130055"
+      ],
+      "notes": "同条目3，Hy3 目录价。"
+    },
+    {
+      "service": "workbuddy-ai",
+      "upstream_model": "workbuddy-ai/step-5-preview",
+      "official_provider": "StepFun (阶跃星辰)",
+      "official_model_id": "step-5-preview",
+      "billing_kind": "public-api",
+      "currency": "CNY",
+      "unit": "per_1M_tokens",
+      "tiers": ["list"],
+      "rates": {
+        "list": { "input": 7.0, "cached_input": 0.70, "cached_write": null, "output": 20.0, "reasoning": null, "request": null }
+      },
+      "effective_at": "2026-10-14T00:30:00+08:00",
+      "fetched_at": "2026-11-17T09:47:11+08:00",
+      "stale": false,
+      "source_urls": [
+        "https://platform.stepfun.com/docs/zh/guides/pricing/details"
+      ],
+      "notes": "同条目7，step-5-preview 目录价。"
+    },
+    {
+      "service": "loomy",
+      "upstream_model": "loomy/spark-x2.6",
+      "official_provider": "iFlytek (科大讯飞 / 讯飞星辰 MaaS)",
+      "official_model_id": "spark-x2.6 (Spark-X2.6)",
+      "billing_kind": "public-api",
+      "currency": "CNY",
+      "unit": "per_1M_tokens",
+      "tiers": ["list", "promo-60pct"],
+      "rates": {
+        "list": { "input": 1.5, "cached_input": 0.14, "cached_write": null, "output": 6.0, "reasoning": null, "request": null },
+        "promo-60pct": { "input": 0.9, "cached_input": 0.08, "cached_write": null, "output": 3.6, "reasoning": null, "request": null }
+      },
+      "effective_at": "2026-11-12T00:00:00+08:00",
+      "fetched_at": "2026-11-17T09:47:11+08:00",
+      "stale": false,
+      "source_urls": [
+        "https://maas.xfyun.cn/modelSquare",
+        "https://xinghuo.xfyun.cn/sparkapi"
+      ],
+      "notes": "讯飞星辰 MaaS 官方模型广场：Spark-X2.6 (293B-A30B MoE, 1M 上下文)，目录价输入1.5/输出6/缓存命中0.14；限时6折促销价输入0.9/输出3.6/缓存命中0.08。更新时间 2026-11-12。"
+    },
+    {
+      "service": "workbuddy-ai",
+      "upstream_model": "workbuddy-ai/deepseek-v4.1-flash-sg",
+      "official_provider": "DeepSeek (international / Singapore endpoint)",
+      "official_model_id": "deepseek-flash (V4-Flash 路由至 V4.1 Flash)",
+      "billing_kind": "public-api",
+      "currency": "USD",
+      "unit": "per_1M_tokens",
+      "tiers": ["list"],
+      "rates": {
+        "list": { "input": 0.14, "cached_input": 0.0028, "cached_write": null, "output": 0.28, "reasoning": null, "request": null }
+      },
+      "effective_at": "2026-09-10T12:00:00+08:00",
+      "fetched_at": "2026-11-17T09:47:11+08:00",
+      "stale": true,
+      "source_urls": [
+        "https://www.deepseek.com/en/platform/"
+      ],
+      "notes": "-sg 后缀指向 DeepSeek 国际站。国际站当前展示名为 DeepSeek-V4-Flash(已路由至 V4.1 Flash)，Flat USD 价：输入缓存命中$0.0028/未命中$0.14/输出$0.28。注意：该国际站价(输出$0.28≈2元)与 CN 站 V4.1 峰谷价(空闲输出4元/高峰8元)不一致，国际站页可能未同步 V4.1 新输出价；标 stale=true 待国际站页确认。该行 inventory input/output tokens 为 null。"
+    },
+    {
+      "service": "workbuddy-cn",
+      "upstream_model": "hy4-preview-f",
+      "official_provider": "Tencent Cloud / 腾讯混元 (TokenHub)",
+      "official_model_id": "hy4-preview (hy4-preview-f 别名)",
+      "billing_kind": "public-api",
+      "currency": "CNY",
+      "unit": "per_1M_tokens",
+      "tiers": ["list", "promo-50pct"],
+      "rates": {
+        "list": { "input": 6.0, "cached_input": 0.3, "cached_write": null, "output": 18.0, "reasoning": null, "request": null },
+        "promo-50pct": { "input": 3.0, "cached_input": 0.15, "cached_write": null, "output": 9.0, "reasoning": null, "request": null }
+      },
+      "effective_at": "2026-08-29T00:00:00+08:00",
+      "fetched_at": "2026-11-17T09:47:11+08:00",
+      "stale": false,
+      "source_urls": [
+        "https://cloud.tencent.com/document/product/1823/130055",
+        "https://www.tencent.com/tencent-releases-and-open-sources-tencent-hy4-preview/"
+      ],
+      "notes": "hy4-preview-f 别名映射至腾讯混元 Hy4 preview(770B 总参/49B激活, 1M上下文)。TokenHub 目录价输入6/输出18/缓存命中0.3。Hy4 限时5折至 2026-12-31 23:59(促销价3/9/0.15)。注意：hy4-flash(0.5/2/0.02)于 2026-11-17 当天刚发布，本窗口内历史调用不可能为该 SKU；'-f' 后缀未在公开价卡中作为独立 SKU 出现，按 hy4-preview 计。"
+    },
+    {
+      "service": "workbuddy-desktop",
+      "upstream_model": "workbuddy/hy4-preview-f",
+      "official_provider": "Tencent Cloud / 腾讯混元 (TokenHub)",
+      "official_model_id": "hy4-preview (hy4-preview-f 别名)",
+      "billing_kind": "public-api",
+      "currency": "CNY",
+      "unit": "per_1M_tokens",
+      "tiers": ["list", "promo-50pct"],
+      "rates": {
+        "list": { "input": 6.0, "cached_input": 0.3, "cached_write": null, "output": 18.0, "reasoning": null, "request": null },
+        "promo-50pct": { "input": 3.0, "cached_input": 0.15, "cached_write": null, "output": 9.0, "reasoning": null, "request": null }
+      },
+      "effective_at": "2026-08-29T00:00:00+08:00",
+      "fetched_at": "2026-11-17T09:47:11+08:00",
+      "stale": false,
+      "source_urls": [
+        "https://cloud.tencent.com/document/product/1823/130055",
+        "https://www.tencent.com/tencent-releases-and-open-sources-tencent-hy4-preview/"
+      ],
+      "notes": "同条目14。"
+    },
+    {
+      "service": "workbuddy",
+      "upstream_model": "deepseek-v4.1-flash",
+      "official_provider": "DeepSeek (深度求索)",
+      "official_model_id": "deepseek-flash (deepseek-v4-flash 路由至 V4.1 Flash)",
+      "billing_kind": "public-api",
+      "currency": "CNY",
+      "unit": "per_1M_tokens",
+      "tiers": ["off-peak", "peak"],
+      "rates": {
+        "off-peak": { "input": 1.0, "cached_input": 0.02, "cached_write": null, "output": 4.0, "reasoning": null, "request": null },
+        "peak": { "input": 2.0, "cached_input": 0.04, "cached_write": null, "output": 8.0, "reasoning": null, "request": null }
+      },
+      "effective_at": "2026-09-10T12:00:00+08:00",
+      "fetched_at": "2026-11-17T09:47:11+08:00",
+      "stale": false,
+      "source_urls": [
+        "https://api-docs.deepseek.com/zh-cn/news/news260910/",
+        "https://api-docs.deepseek.com/zh-cn/quick_start/pricing"
+      ],
+      "notes": "workbuddy 渠道的 DeepSeek V4.1 Flash，按 DeepSeek 官方公开 API 价计。"
+    }
+  ]
+}

@@ -4,10 +4,13 @@
 #   sudo bash install-edge.sh tunnel    # 数据库 15432 / magpie 3426 / 主库 https 8443
 #   sudo bash install-edge.sh edge      # nginx 反向代理 + 50 秒保温
 #
-# 目标机器：华为云广州 hcss-ecs-6a39（2 vCPU / 1775 MB），用户 geohot 跑执行器，root 装边缘。
+# 目标机器：国内边缘节点（2 vCPU / 1775 MB），用户 geohot 跑执行器，root 装边缘。
 set -euo pipefail
 
-PRIMARY_HOST="${GEOHOT_PRIMARY_HOST:-xxc@20.194.28.128}"
+# 主库 SSH 目标不写死在仓库里：必须由环境变量给出（user@<主库主机>），缺值明确报错退出，
+# 不静默连到默认地址。示例格式见交付说明（文档保留段地址，非生产主机）。
+PRIMARY_HOST="${GEOHOT_PRIMARY_HOST:-}"
+: "${PRIMARY_HOST:?需要 GEOHOT_PRIMARY_HOST（主库 SSH 目标 user@<主库主机>）}"
 IDENTITY="${GEOHOT_PRIMARY_IDENTITY:-/home/geohot/.ssh/id_ed25519}"
 EDGE_SERVER_NAME="${GEOHOT_EDGE_SERVER_NAME:-xxc200707.me}"
 
@@ -162,7 +165,8 @@ EOF
 install_tls() {
   : "${CLOUDFLARE_API_TOKEN:?需要环境变量 CLOUDFLARE_API_TOKEN（Zone.DNS:Edit，只授权这一条区域）}"
   local domain="${GEOHOT_EDGE_TLS_NAME:-cn.xxc2007.me}"
-  local email="${GEOHOT_EDGE_EMAIL:-xxc20070706@gmail.com}"
+  local email="${GEOHOT_EDGE_EMAIL:-}"
+  : "${email:?需要 GEOHOT_EDGE_EMAIL（certbot 注册邮箱，不写默认值）}"
 
   DEBIAN_FRONTEND=noninteractive apt-get install -y certbot python3-certbot-dns-cloudflare >/dev/null
   printf 'dns_cloudflare_api_token = %s\n' "$CLOUDFLARE_API_TOKEN" > /etc/letsencrypt/cloudflare.ini

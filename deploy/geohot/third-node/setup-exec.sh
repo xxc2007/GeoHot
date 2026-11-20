@@ -13,14 +13,18 @@
 # 用法（在新机器上以 root 跑）：
 #   bash setup-exec.sh
 #
-# 前提：这台机器的 ~/.ssh/id_ed25519.pub 已经被加进主库 xxc@20.194.28.128 的 authorized_keys。
+# 前提：这台机器的 ~/.ssh/id_ed25519.pub 已经被加进主库（<主库主机>）的 authorized_keys。
 # 数据只走 SSH 隧道：不开公网 5432，也不把数据库口令暴露在任何监听端口上。
 
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 
-PRIMARY="xxc@20.194.28.128"
-PRIMARY_KEY="/home/geohot/.ssh/id_ed25519"
+# SSH 目标不写死在仓库里：从环境变量读取，缺值明确报错退出，不静默连到默认地址。
+PRIMARY="${GEOHOT_PRIMARY_HOST:-}"
+MODEL_HOST="${GEOHOT_HANGZHOU_HOST:-}"
+: "${PRIMARY:?需要 GEOHOT_PRIMARY_HOST（主库 SSH 目标 user@<主库主机>）}"
+: "${MODEL_HOST:?需要 GEOHOT_HANGZHOU_HOST（杭州 Magpie SSH 目标 user@<杭州主机>）}"
+PRIMARY_KEY="${GEOHOT_PRIMARY_IDENTITY:-/home/geohot/.ssh/id_ed25519}"
 APP_DIR="/home/geohot/geohot"
 EXEC_DIR="/opt/geohot-exec"
 DEPLOY_PUB="${DEPLOY_PUB:-ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJ4G5jMeTdomI/wgz/vhnt3jTGHUlHSOMZKSoVFV9n8Y geohot-deploy@xxc2007}"
@@ -75,7 +79,7 @@ say "5/7 执行器环境文件"
 install -d -m 750 -o geohot -g geohot "$EXEC_DIR"
 # 2026-11-06 的两次翻车都在这两行上：
 # ① ssh 失败时 `> .env` 已经建出 0 字节文件，`[ ! -f ]` 于是永远为假 —— 脚本「成功」，worker 却读不到
-#    DATABASE_URL，回落 127.0.0.1:5432 无限重启（杭州 iZbp14vh9… 的第一天就是这样）；
+#    DATABASE_URL，回落 127.0.0.1:5432 无限重启（杭州节点上线第一天就是这样）；
 # ② 文件必须 geohot 可读（单元 User=geohot），写成 root:root 600 时 node 报 `.env: not found` 后同样无限重启。
 # 因此：先写临时文件、确认非空再落位；落到 600 之后用 `sudo -u geohot test -r` 亲自验一次可读性。
 if [ ! -s "$EXEC_DIR/.env" ]; then
@@ -100,7 +104,7 @@ if [ ! -s "$EXEC_DIR/.env" ]; then
     echo 'GEOHOT_INTAKE_LANES=combined'
     # 心跳唯一键：三台 exec 都跑 all，不设时全写 heartbeat.worker 互相覆盖。
     echo "GEOHOT_HEARTBEAT_KEY=heartbeat.content-executor@$(hostname -s)"
-    echo "GEOHOT_HEARTBEAT_LABEL=${HEARTBEAT_LABEL:-杭州·47.97.97.62}"
+    echo "GEOHOT_HEARTBEAT_LABEL=${HEARTBEAT_LABEL:-杭州·$(hostname -s)}"
     # 车道上限跟「最忙的那一档」对齐（夜档 4 槽）；当天实际领几条由 window 单元用
     # Environment=GEOHOT_INTAKE_ANALYSIS_SLOTS / ANALYZE_CONCURRENCY 覆盖（systemd 的 Environment 盖过 EnvironmentFile），
     # 所以这两个数不写在这里 —— 写死会造成「.env 说 4、单元说 2」的两份真相（2026-11-06 踩过）。
@@ -149,7 +153,7 @@ Wants=network-online.target
 [Service]
 User=geohot
 ExecStart=/usr/bin/ssh -N -T -o ExitOnForwardFailure=yes -o ServerAliveInterval=20 -o ServerAliveCountMax=3 \\
-  -i $PRIMARY_KEY -L 127.0.0.1:3426:127.0.0.1:3426 geohot@47.97.97.62
+  -i $PRIMARY_KEY -L 127.0.0.1:3426:127.0.0.1:3426 ${MODEL_HOST}
 Restart=always
 RestartSec=10
 MemoryMax=32M

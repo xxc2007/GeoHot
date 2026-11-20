@@ -38,7 +38,7 @@ export function snapshotReader<T>(read:()=>PromiseLike<readonly T[]>,store?:{loa
 /** Private, versioned derived snapshots survive API restarts; no cookies, prompts or credentials. */
 export function snapshotStore<T>(key:string){
   const dir=path.join(config.dataDir,'admin-statistic-snapshots');
-  const version='20261025-cny-swr-v1';const digest=createHash('sha256').update(version+key).digest('hex');
+  const version='20261118-usage-billing-split-v2';const digest=createHash('sha256').update(version+key).digest('hex');
   const file=path.join(dir,digest+'.json');
   return {
     async load():Promise<Saved<T>|null>{

@@ -36,7 +36,10 @@ docker compose up -d --build
 真服务商时，生成完再手工改 `.env` 的 `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` 三行（本机默认指向
 `tooling/brain-stub.ts` 那个本地"编辑大脑"，`LLM_API_KEY=local-brain` 是占位串）。**注意 Docker 容器里跑不到那个
 stub**：`LLM_BASE_URL=http://127.0.0.1:3055/v1` 指的是容器自己的回环，不是宿主机的 3055；要么显式
-`MODEL_CALLS_ENABLED=false`（**抓到的新料一条都不会公开**：`providers/llm.ts:157` 在任何付费步骤前就抛错，`jobs/content.ts` 走重试到 `failed`，永远到不了 `publishArticle`——2026-10-03 在真实代码里复核过，原文写的"只进全部动态、不进精选"是错的），要么在 compose 里另起一个 stub 服务并把地址指过去。生产实际跑的是后者：`MODEL_CALLS_ENABLED=true` + `LLM_BASE_URL=http://127.0.0.1:3055/v1` 指向本机 stub（`systemctl is-active geohot-brain`），所以条目当天就能公开。
+`MODEL_CALLS_ENABLED=false`（**抓到的新料一条都不会公开**：`providers/llm.ts` 在任何付费步骤前就抛错，`jobs/content.ts`
+走重试到 `failed`，永远到不了 `publishArticle`——2026-10-03 在真实代码里复核过，原文写的"只进全部动态、不进精选"是错的），
+要么在 compose 里另起一个 stub 服务并把地址指过去。**生产不跑本机 stub**：模型走服务器端配置的模型池，门清单与启用成员以
+`packages/backend/src/providers/llm.ts` 注册表、`MODEL_POOL` 环境变量和后台 `GET /api/admin/models` 为准；stub 只留给本机开发与 CI。
 
 `.env` 里 `SITE_URL` 这一行在 `NODE_ENV=production`（compose 已写死，`docker-compose.yml:11`）时**不能留空也不能留
 `http://localhost:3000`**：留空时 compose 自己在解析阶段就报 `SITE_URL must be the public address readers use,
@@ -49,7 +52,7 @@ e.g. https://example.com`（`docker-compose.yml:16` 的 `${SITE_URL:?…}`），
 
 机器上没有 Node 的话，把 `.env.example` 复制成 `.env`，自己填 `ADMIN_PASSWORD`（至少 12 位）、`SESSION_SECRET`、`IMG_PROXY_SIGN_SECRET`、`POSTGRES_PASSWORD`（各用 `openssl rand -hex 32` 生成）、`INGEST_TOKEN`、`SITE_URL` 和 `LLM_API_KEY`。这条路只写 `.env` 一份：compose 的 `env_file` 也只读 `.env`，**`.env.pipeline` 在这条路线上根本不会被读到**（它是本机开发用来临时开阀的一次性文件，不属于部署）。
 
-启动后打开 `http://服务器地址:3000`，后台在 `/admin`，用管理员密码登录。**"多久有内容"取决于你上面有没有打开采集阀**：`setup` 容器只做 `scripts/migrate.ts` + `scripts/seed.ts`，也就是建表 + 导入 `industry/sources.json` 里的全部地理信源、43 个主题与分类，**一条材料都还没有**；`COLLECT_ENABLED=true` 之后 worker 才会按各源的间隔去抓，第一次抓回来的东西要等预筛与打分跑完才见得到。人工策划的那份语料（`tooling/corpus/curated-materials.jsonl`，117 行）**不在这条路线上**——它要 `npm run seed:curated`，compose 里没有这一步；不跑它，站上就只有新采回来的材料，而新料没有对应的人工判断，进不了精选（这条设计的来由见 `README.md` 的「编辑大脑」一节）。**而且跑不跑它都还要过模型阀**：干净克隆实测（2026-10-04）——只带 `.env`（`MODEL_CALLS_ENABLED=false`）时，就算跑了 `seed:curated`，库里也是 117 篇材料、`publications=0`、`selected=0`，站点处处空态；把模型阀打开（叠 `.env.pipeline` 或写进 `.env`）后同一套材料变成 113 篇出版物、50 篇入选、81 个事件。想验证站点是否真的活着，用仓库自带的冒烟：`node scripts/smoke.ts --base http://服务器地址:3000`。
+启动后打开 `http://服务器地址:3000`，后台在 `/admin`，用管理员密码登录。**"多久有内容"取决于你上面有没有打开采集阀**：`setup` 容器只做 `scripts/migrate.ts` + `scripts/seed.ts`，也就是建表 + 导入 `industry/sources.json` 里的地理信源、主题与分类（条数当场数 `node -e "console.log(require('./industry/sources.json').sources.length, require('./industry/topics.json').topics.length)"`），**一条材料都还没有**；`COLLECT_ENABLED=true` 之后 worker 才会按各源的间隔去抓，第一次抓回来的东西要等预筛与打分跑完才见得到。人工策划的那份语料（`tooling/corpus/curated-materials.jsonl`，行数 `wc -l` 现查）**不在这条路线上**——它要 `npm run seed:curated`，compose 里没有这一步；不跑它，站上就只有新采回来的材料，而新料没有对应的人工判断，进不了精选（这条设计的来由见 `README.md` 的「编辑大脑」一节）。**而且跑不跑它都还要过模型阀**：`MODEL_CALLS_ENABLED=false` 时抓到的条目一条都不会公开；模型阀打开后同一批材料才会进入出版物与入选池，具体篇数随材料与版本变化，不抄旧实测值。想验证站点是否真的活着，用仓库自带的冒烟：`node scripts/smoke.ts --base http://服务器地址:3000`。
 
 `docker compose` 默认起五个容器：`db`（PostgreSQL 17）、`setup`（每次启动先跑数据库迁移和种子数据，然后退出）、`api`、`worker`（抓取、模型处理、定时任务）、`web`（网页）；带 `--profile https` 时多一个 `caddy`（自动申请并续期证书），共六个。
 
@@ -152,23 +155,7 @@ docker compose logs -f --tail 100 api worker web
 
 ## 花多少钱
 
-先说本站：**线上这一份是要花钱的，本机与 CI 那一份一分不花**。2026-10-06 起生产部署的 `.env` 里
-`LLM_BASE_URL / LLM_API_KEY / LLM_MODEL` 指向第三方服务 Agnes AI（模型 `agnes-3.0-flash`），
-`MODEL_CALLS_ENABLED=true`，预算熔断按**服务**一行（`budgets` 表，迁移 0050–0066 叠出来的现值：
-`llm` 8/420/6000（0036 当年种的是 300/6,000/40,000，8/420/6,000 是后来在服务器上按实测改的、一直没回写——
-0066 补上这段差，因为按 0036 重建库会把这道门静默抬到对端墙的 37 倍）、`agnes-cn` 9/540/12000、
-`dots` 50/3000/30000（0055 建的是 600/6000；0059 按实测抬日额度、0060 抬小时窗、0062 抬到 45/2700、
-0065 抬到 50/3000——0060 抬之前那一小时 599/600 顶死而 1,665 次尝试 0 次失败，卡它的是我们自己那个数字，
-不是对端：`per_minute=20` 本来就允许 1,200/时，对端文档是 RPM 60 / TPM 150 万。而 0059 抬的那天
-`receipts.cost` 合计为 0——这道自设闸保护的不是钱）、`workbuddy` 与 `workbuddy-cn` 各 30/600/12000
-（两个账号两行熔断，0058/0061/0063/0064）、`openrouter` 18/300/600、`opencode` 10/300/3000，
-单位都是 分/时/天；分钟数按对端实际接受的速率取小，OpenRouter 六个成员共用一个账号的免费额度所以只有一行），
-**但 2026-10-14 21:14 起 `openrouter` 与 `opencode` 这两行只是留着的历史闸门：两把 key 已从生产 `.env` 删除、
-它们的成员已全部摘出池子，不要再照这段把它们当现役门**（摘门依据与逐门 24h 实测在 `docs/research/model-pool-slim-2026-10-14.md`）。
-后台「设置 → 预算」可改，填 0 立即停用该服务）。仓库里那个只听 127.0.0.1 的回放器
-`tooling/brain-stub.ts`（`LLM_API_KEY=local-brain` 是占位串）留给本机开发与 CI：同样的闸门与回执，
-零账单、零外发。信源里 `x_search`、`mp_account` 与带 `paid_listing` 的一条都没启用（现值 0），
-所以按次计费采集这一项仍是 0。
+先说本站：**线上这一份是要花钱的，本机与 CI 那一份一分不花**。生产模型调用走服务器端配置的模型池：门注册表在 `packages/backend/src/providers/llm.ts`，启用成员由 `MODEL_POOL` 点名，缺 key 的门自动掉落；现役门、冷却状态与用量在后台 `GET /api/admin/models`、`GET /api/admin/usage` 现查，不在文档里抄成员表或预算行。预算熔断按**服务**一行落在 `budgets` 表（分/时/天三档上限），后台「设置 → 预算」可改，填 0 立即停用该服务；阈值是按实测在服务器上调的，重建库以迁移与后台现值为准。成本折算口径只认官方价卡与实际账单，订阅/免费/无公开价分列，见 [`admin-official-pricing.md`](admin-official-pricing.md)。仓库里那个只听回环的回放器 `tooling/brain-stub.ts`（`LLM_API_KEY=local-brain` 是占位串）留给本机开发与 CI：同样的闸门与回执，零账单、零外发。按次计费的采集渠道（X、公众号、付费列表等）默认不启用，填了 key 才会用；现部署是否启用以后台信源页为准。
 
 下面是上游那份账单口径，**照搬过来会高估本站成本**，留着只因为你真换成服务商就又要面对它：
 

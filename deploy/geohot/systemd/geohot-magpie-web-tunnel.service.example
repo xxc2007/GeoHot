@@ -1,0 +1,26 @@
+# Magpie web console reverse tunnel — generic template (adopted direction: exec node -> main).
+# 部署时由 install-magpie-tunnel.sh 把本文件复制为 /etc/systemd/system/geohot-magpie-web-tunnel.service，
+# 真实主机/用户/私钥路径只写在 EnvironmentFile（/etc/geohot/magpie-tunnel.env，不进仓库）。
+# 本文件不含任何真实公网 IP、用户名或私钥路径。
+[Unit]
+Description=GEOHOT Magpie web console reverse tunnel
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=geohot
+EnvironmentFile=/etc/geohot/magpie-tunnel.env
+# REMOTE_HOST/REMOTE_USER/KEY_PATH/REMOTE_PORT/LOCAL_PORT 由 env 文件提供。
+ExecStart=/usr/bin/ssh -N -T \
+  -o ExitOnForwardFailure=yes -o ServerAliveInterval=20 -o ServerAliveCountMax=3 \
+  -o StrictHostKeyChecking=accept-new -o BatchMode=yes \
+  -i ${KEY_PATH} \
+  -R 127.0.0.1:${REMOTE_PORT}:127.0.0.1:${LOCAL_PORT} \
+  ${REMOTE_USER}@${REMOTE_HOST}
+Restart=always
+RestartSec=10
+MemoryMax=32M
+
+[Install]
+WantedBy=multi-user.target

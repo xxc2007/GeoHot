@@ -3,20 +3,28 @@
 # 备份：在新箱上发起，主库 pg_dump -Fc 写到主库 /tmp，再 rsync 回来 —— 这样 pg_dump 版本永远与主库一致（主库是 PG17，Ubuntu 24.04 自带的客户端是 16）。
 # 探针：每 5 分钟打一次读者面与 /api/health，失败写 journal（systemd 会保留），供事后追溯。
 set -euo pipefail
-PRIMARY_KEY=/home/geohot/.ssh/id_ed25519
-PRIMARY=xxc@20.194.28.128
+PRIMARY_KEY="${GEOHOT_PRIMARY_IDENTITY:-/home/geohot/.ssh/id_ed25519}"
+PRIMARY="${GEOHOT_PRIMARY_HOST:-}"
+: "${PRIMARY:?需要 GEOHOT_PRIMARY_HOST（主库 SSH 目标 user@<主库主机>）}"
 DEST=/var/backups/geohot
 KEEP=5
 
 install -d -m 750 -o root -g root "$DEST"
 
+# 备份目标只写进机器本地的环境文件（640 root:geohot），仓库里不留任何主机地址。
+cat > /etc/geohot-backup.env <<EOF
+PRIMARY=${PRIMARY}
+PRIMARY_KEY=${PRIMARY_KEY}
+DEST=${DEST}
+KEEP=${KEEP}
+EOF
+chown root:geohot /etc/geohot-backup.env
+chmod 640 /etc/geohot-backup.env
+
 cat > /usr/local/bin/geohot-backup.sh <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
-PRIMARY_KEY=/home/geohot/.ssh/id_ed25519
-PRIMARY=xxc@20.194.28.128
-DEST=/var/backups/geohot
-KEEP=5
+. /etc/geohot-backup.env
 SSH="ssh -i $PRIMARY_KEY -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ServerAliveInterval=20"
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
 echo "backup start $STAMP"

@@ -1,0 +1,195 @@
+{
+  "generated_at": "2026-11-17T09:40:00+08:00",
+  "window": "30d",
+  "note": "生产 30d model inventory 的 service/model 静态对照（剥离 calls/token/cost）。seed 必须与本清单 47 个键一一相等，无多余无缺失。",
+  "models": [
+    {
+      "service": "agnes-cn",
+      "model": "agnes-3.0-flash"
+    },
+    {
+      "service": "antigravity",
+      "model": "antigravity/claude-opus-4-6-thinking"
+    },
+    {
+      "service": "antigravity",
+      "model": "antigravity/claude-sonnet-4-6"
+    },
+    {
+      "service": "antigravity",
+      "model": "antigravity/gemini-3.8-flash"
+    },
+    {
+      "service": "auto",
+      "model": "auto/deepseek-v4.1-flash"
+    },
+    {
+      "service": "auto",
+      "model": "auto/deepseek-v4.1-flash-max"
+    },
+    {
+      "service": "auto",
+      "model": "auto/gemini-3.8-flash"
+    },
+    {
+      "service": "auto",
+      "model": "auto/glm-5.3-flash"
+    },
+    {
+      "service": "auto",
+      "model": "auto/hy3"
+    },
+    {
+      "service": "auto",
+      "model": "auto/qfmodel"
+    },
+    {
+      "service": "autoclaw-cn",
+      "model": "autoclaw-cn/zai_glm-5.3-flash"
+    },
+    {
+      "service": "autoclaw-cn",
+      "model": "autoclaw-cn/zaicoding_glm-5.3"
+    },
+    {
+      "service": "codearts",
+      "model": "codearts/deepseek-v4.1-flash"
+    },
+    {
+      "service": "codearts",
+      "model": "codearts/deepseek-v4.1-flash-1017"
+    },
+    {
+      "service": "dots",
+      "model": "dots3-note-prev"
+    },
+    {
+      "service": "llm",
+      "model": "agnes-3.0-flash"
+    },
+    {
+      "service": "loomy",
+      "model": "loomy/DeepSeek-V4.1-Flash"
+    },
+    {
+      "service": "loomy",
+      "model": "loomy/GLM-5.3-Flash"
+    },
+    {
+      "service": "loomy",
+      "model": "loomy/spark-x2.6"
+    },
+    {
+      "service": "minimax-code-global",
+      "model": "minimax-code-global/MiniMax-M3.1-Flash"
+    },
+    {
+      "service": "minimax-code",
+      "model": "minimax-code/MiniMax-M3.1-Flash"
+    },
+    {
+      "service": "qoder-cn",
+      "model": "qoder-cn/dfmodel"
+    },
+    {
+      "service": "qoder-cn",
+      "model": "qoder-cn/qfmodel"
+    },
+    {
+      "service": "qoder-global",
+      "model": "qoder/dfmodel"
+    },
+    {
+      "service": "qoder-global",
+      "model": "qoder/qfmodel"
+    },
+    {
+      "service": "qwenwork",
+      "model": "qwenwork/flash"
+    },
+    {
+      "service": "qwenwork",
+      "model": "qwenwork/pro"
+    },
+    {
+      "service": "qwenwork",
+      "model": "qwenwork/qwen3.8-max-preview"
+    },
+    {
+      "service": "raccoon",
+      "model": "raccoon/sn-deepseek-v4-1-flash-1017"
+    },
+    {
+      "service": "raccoon",
+      "model": "raccoon/sn-sensenova-6-8-flash"
+    },
+    {
+      "service": "raccoon",
+      "model": "raccoon/sn-sensenova-6-8-flash-lite"
+    },
+    {
+      "service": "trae-cn",
+      "model": "trae-cn/deepseek-v4.1-flash-max"
+    },
+    {
+      "service": "trae-cn",
+      "model": "trae-cn/glm-5.3-flash-max"
+    },
+    {
+      "service": "trae-cn",
+      "model": "trae-cn/glm-5.3-flashx-max"
+    },
+    {
+      "service": "trae-global",
+      "model": "trae-global/deepseek-v4.1-flash-max"
+    },
+    {
+      "service": "workbuddy-ai",
+      "model": "workbuddy-ai/deepseek-v4.1-flash"
+    },
+    {
+      "service": "workbuddy-ai",
+      "model": "workbuddy-ai/deepseek-v4.1-flash-sg"
+    },
+    {
+      "service": "workbuddy-ai",
+      "model": "workbuddy-ai/hy3"
+    },
+    {
+      "service": "workbuddy-ai",
+      "model": "workbuddy-ai/step-5-preview"
+    },
+    {
+      "service": "workbuddy-cn",
+      "model": "deepseek-v4.1-flash"
+    },
+    {
+      "service": "workbuddy-cn",
+      "model": "hy3"
+    },
+    {
+      "service": "workbuddy-cn",
+      "model": "hy4-preview-f"
+    },
+    {
+      "service": "workbuddy-cn",
+      "model": "step-5-preview"
+    },
+    {
+      "service": "workbuddy-desktop",
+      "model": "workbuddy/deepseek-v4.1-flash"
+    },
+    {
+      "service": "workbuddy-desktop",
+      "model": "workbuddy/hy4-preview-f"
+    },
+    {
+      "service": "workbuddy",
+      "model": "deepseek-v4.1-flash"
+    },
+    {
+      "service": "workbuddy",
+      "model": "hy3"
+    }
+  ]
+}

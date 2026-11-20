@@ -21,8 +21,8 @@
 
 | 机器 | 角色 | 分析槽 | 合并/车道 | 采集并发 | 备注 |
 | --- | --- | --- | --- | --- | --- |
-| 杭州 `47.97.97.62` | `all`（协调者 + 分析） | 4 | 8 / 4 | 4 | 只有它是协调者：`cron.sources.schedule` 由它注册 |
-| 武汉 `8.148.65.89` | `content-executor` | 3 | 5 / 3 | 2 | |
+| 杭州 `<杭州主机>` | `all`（协调者 + 分析） | 4 | 8 / 4 | 4 | 只有它是协调者：`cron.sources.schedule` 由它注册 |
+| 武汉 `<武汉主机>` | `content-executor` | 3 | 5 / 3 | 2 | |
 | box | `content-executor` | 2 | — | — | 走隧道到主库 5432 |
 | 本机 ThinkBook | `content-executor` | 2 | — | — | 夜间在线；白天 `PAUSED` |
 | 主库 | readers-only | 0 | — | — | `geohot-worker` / `geohot-media` 停着 |

@@ -29,7 +29,7 @@ test("errorHandler 认出 429 并透出为 problem+json，不覆盖插件的 Ret
 });
 
 test("健康检查有 2 秒上界，DB 卡住时回 503 而不是挂死", () => {
-  // 探针走独立 gate + query.cancel()：2s 到点真正取消（出队或服务器端 cancel），
+  // 探针走独立 gate + 墙钟截止：到点独立还槽，迟到查询拒绝被兜底观察，
   // 不再是"reject JS 却把查询晾在池里"的孤儿 Promise.race。
   assert.match(appSource, /await dbHealthProbe\(\)/, "health 必须走有界探针");
   assert.match(appSource, /db:\s*"unavailable"/, "DB 不可用时要如实标记，不得假装 ok");
