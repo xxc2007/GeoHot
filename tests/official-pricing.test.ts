@@ -71,6 +71,26 @@ test('bucket earlier than the first effective version is unpriced, not back-pric
   assert.equal(early.models[0]!.list, null);
 });
 
+test('mixed unpriced-then-priced buckets for one service/model do not throw and upgrade the group', () => {
+  // 线上回归：同一 service/model 先命中无当时有效价卡的桶，组对象 list=null；
+  // 再命中有效价卡的桶时，旧实现直接 m.list!.low += ... 抛 TypeError，用量页永久 unavailable。
+  const versions = new Map<string, PricingVersionRow[]>([['svc::mixed-model', [
+    { rateId: 'svc::mixed-model', service: 'svc', model: 'mixed-model', currency: 'USD', input: 0.1, cached: 0.01, output: 0.5, billingKind: 'equivalent-public-api', effectiveAt: '2026-11-10T00:00:00+08:00', fetchedAt: null },
+  ]]]);
+  const mixed = officialCosts([
+    bucket({ service: 'svc', model: 'mixed-model', day: '2026-11-05', hour: 12, calls: 2, pricedCalls: 0, pricedIn: 0, pricedOut: 0, cachedTokens: 0, unknownCacheIn: 0 }),
+    bucket({ service: 'svc', model: 'mixed-model', day: '2026-11-12', hour: 12, calls: 1, pricedCalls: 1, pricedIn: 1_000_000, pricedOut: 1_000_000, cachedTokens: 0, unknownCacheIn: 0 }),
+  ], true, CNY_FX, versions);
+  assert.equal(mixed.models.length, 1);
+  assert.equal(mixed.unmappedCalls, 2);
+  assert.equal(mixed.pricedCalls, 1);
+  assert.equal(mixed.models[0]!.currency, 'CNY');
+  assert.ok(mixed.models[0]!.list);
+  assert.ok(Math.abs(mixed.models[0]!.list!.low - 0.6 * CNY_FX.usdToCny) < 1e-9);
+  assert.equal(mixed.totals.length, 1);
+  assert.ok(Math.abs(mixed.totals[0]!.list.low - 0.6 * CNY_FX.usdToCny) < 1e-9);
+});
+
 test('pricingRowsToDetail keeps only priced rows and reports the latest verification date', () => {
   const rows: PricingRateRow[] = [
     { id: 'a', service: 's', model: 'm', name: 'A', currency: 'USD', input: 0.15, cached: 0.015, output: 0.6, billing_kind: 'equivalent-public-api', source_url: 'u', source_urls: ['u'], effective_at: null, fetched_at: '2026-11-17T09:00:00+08:00', last_success_at: null, stale: false, note: 'n' },

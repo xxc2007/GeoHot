@@ -152,7 +152,7 @@ const readers = new Map<string, ReturnType<typeof snapshotReader<UsageMetric>>>(
 function usageReader(range:UsageRange,service:string,model:string,date:string|null=null){
   const key=JSON.stringify(['usage-standard-v5',service,model,range==='date'?date:null]);let read=readers.get(key);
   if(!read){if(readers.size>=24)readers.delete(readers.keys().next().value!);
-    read=snapshotReader(()=>modelStatisticRead(db=>readUsage(db,range==='date'?'date':"*",service,model,date),8_000),snapshotStore<UsageMetric>(key),Date.now,{freshMs:30_000,canRefresh:usageHeadroom});readers.set(key,read);}
+    read=snapshotReader(()=>modelStatisticRead(db=>readUsage(db,range==='date'?'date':"*",service,model,date),30_000),snapshotStore<UsageMetric>(key),Date.now,{freshMs:30_000,canRefresh:usageHeadroom});readers.set(key,read);}
   return read;
 }
 export async function primeUsageSnapshot(range:UsageRange){const reader=usageReader(range,'','');await reader.get();await reader.refresh();return reader.get();}

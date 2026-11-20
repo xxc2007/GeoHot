@@ -85,9 +85,9 @@ export function ipFor(host: string, table: Record<string, string> = nodeIps()): 
   return null;
 }
 
-/** 纯函数：判断 Magpie 面板静态资源（根级 js/css + assets/plugins/fonts 下 js/css/字体/图片）。 */
+/** 纯函数：判断 Magpie 面板静态资源（根级 js/css + assets/plugins/fonts/icons 下 js/css/字体/图片）。 */
 export function isMagpieStatic(suffix: string): boolean {
-  return /^(?:[a-zA-Z0-9_-]+\.(?:js|css)|(?:assets|plugins|fonts)\/[a-zA-Z0-9_./-]+\.(?:js|css|svg|png|ico|woff2?|ttf))$/.test(suffix);
+  return /^(?:[a-zA-Z0-9_-]+\.(?:js|css)|(?:assets|plugins|fonts|icons)\/[a-zA-Z0-9_./-]+\.(?:js|css|svg|png|ico|woff2?|ttf))$/.test(suffix);
 }
 
 export async function registerServerConsole(app: FastifyInstance, forward = magpieRequest, authenticate: typeof sessionPrincipal = sessionPrincipal) {
@@ -194,7 +194,7 @@ export async function registerServerConsole(app: FastifyInstance, forward = magp
   // 会先撞限流返回 429，而不是经 guard 返回 401。
   const staticOpts = (handler: import("fastify").RouteHandler) => ({ config: { rateLimit: false } as const, handler });
   app.route({ method: ["GET", "HEAD"], url: "/api/admin/magpie-proxy/:file", ...staticOpts(buildHandler()) });
-  for (const prefix of ["assets", "plugins", "fonts"]) {
+  for (const prefix of ["assets", "plugins", "fonts", "icons"]) {
     app.route({ method: ["GET", "HEAD"], url: `/api/admin/magpie-proxy/${prefix}/*`, ...staticOpts(buildHandler(prefix)) });
   }
   // 动态 API 面板调用保持有界上限（静态资源走独立缓存、不限流）。
