@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import { TerrainCanvas } from "./TerrainCanvas";
-import { FleetGrid, LatencyBars, ReadyGates } from "./major-later";
+import { CooldownBoard, FleetGrid, LatencyBars, ReadyGates, ReserveSwap } from "./major-later";
 import "./major-release.css";
 
 /**
@@ -240,7 +240,49 @@ function MajorSix(): MajorCard {
   };
 }
 
+/** 7.0：信源池——正式一千、备用一千，坏掉的入口由核验过的候选顶上。 */
+function MajorSeven(): MajorCard {
+  return {
+    version: "7.0",
+    title: "两千个信源，坏一个补一个",
+    lead: [
+      "6.0 让五台机器各司其职，这一版把信源池做成一本能自己平账的账：正式采集一千条，备用候选一千条；坏掉的入口不再永远占着位置。",
+      "备用只收公开 RSS 与 JSON 入口；复核是只读探测，不写文章，也不调用模型。",
+    ],
+    sections: [
+      { title: "一千加一千，不是两千个名字", body: "正式池持续采集，备用池只做候选；同一个地址不能同时出现在两边。没有文章引用的旧入口移出运行池，历史归档不冒充可用池。" },
+      { title: "每五分钟，最多复核四个", body: "备用源要有标题、链接和最近四百天内的有效日期；合格的才显示为“备用可用”，隔离或归档的不算进池。" },
+      { title: "换源先看证据", body: "正式源连续失败至少五次、至少二十四小时没有成功、最近六小时确实尝试过，才进入替换；预算、限流与 429 不触发替换。" },
+      { title: "换多少也有闸门", body: "每轮最多换两个，滚动二十四小时最多十二个；失败源达到正式池十分之一就停下等人工。切换在同一事务里一停一启，失败源先进隔离区。" },
+    ],
+    links: [["看信源池", "/admin/sources"], ["看更新日志", "/changelog"], ["了解这个站", "/about"]],
+    body: <ReserveSwap />,
+  };
+}
+
+/** 8.0：模型账本——计费口径、价卡版本、冷却恢复与后台慢查询。 */
+function MajorEight(): MajorCard {
+  return {
+    version: "8.0",
+    title: "每一笔模型调用，都有一本明白账",
+    lead: [
+      "这一版把模型调用和后台状态做成可核对的账：订阅、免费、无公开价与公开 API 刊例分开记；价卡带版本，冷却写清恢复条件。",
+      "后台不再用假的零或永远的“正在生成”掩盖慢查询；旧数据保留，并标明它是什么时候的。",
+    ],
+    sections: [
+      { title: "五种口径，各记各的", body: "公开 API 刊例只做等值估算，订阅、免费、无公开价与未核实分别标出；上游实报只来自回执，不把估算写成 actual，也不把未返回费用当成免费。" },
+      { title: "价卡有版本，汇率每天核对", body: "四十七条映射随迁移落库；每次调用按当时有效的价卡折算。价卡核对放在每天清晨，基准值消失或改版就标记待复核，保留最后成功价，不自动猜新价。" },
+      { title: "冷却不是拉黑", body: "账号停用、日额度、分钟限流、连接失败与配置缺失分开处理，各自写明恢复时间与条件；结果未知的回执不盲重放，超过窗口才放行一次。" },
+      { title: "后台慢，但不装死", body: "运行页先给实时心跳与队列，详细统计在后台补；用量首次生成不再把“不可用”缓存一分钟。读者机内存与后台静态资源单独处理，读者面仍排在前面。" },
+    ],
+    links: [["看用量总览", "/admin/usage"], ["看模型池", "/admin/models"], ["看更新日志", "/changelog"]],
+    body: <CooldownBoard />,
+  };
+}
+
 const CARDS: Record<string, () => MajorCard> = {
+  "2026-11-20T22:40": MajorEight,
+  "2026-11-20T22:30": MajorSeven,
   "2026-11-15T13:00": MajorSix,
   "2026-11-15T12:50": MajorFive,
   "2026-11-15T12:40": MajorFour,

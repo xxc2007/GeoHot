@@ -90,26 +90,12 @@ export default function Sources({ loaderData }: Route.ComponentProps) {
         <Stat label="备用可用" value={num(totals.ready)} tone={totals.ready ? "ok" : "warn"} />
         <Stat label="失败" value={num(totals.failing)} tone={totals.failing ? "bad" : "ok"} />
       </div>
-      <p className="mb-5 text-[12px] text-ink-4">
-        备用可用 = eligible 且未与正式池重叠；备用候选中未达可用 {num(totals.reserve_ineligible ?? 0)} 条待复核，归档/隔离 {num(totals.retired ?? 0)} 条不计入池。
-        目标 {num(loaderData.policy?.target_total ?? 2000)} 为上限，不是实际数。
-      </p>
       {/* 2026-11-15 站长：2000 条信源、1000 正式、1000 备用，且要能自己调。
-          这里只调「正式采集目标」，逐条启停仍在下面每一行做；每次改动都写审计。 */}
+          2026-11-20 站长：上面的统计卡已经写清数量，这里不再重复抄一遍并集和上限；
+          只留调目标的表单，逐条启停仍在下面每一行做，每次改动都写审计。 */}
       {loaderData.policy ? (
-        <Card className="mb-5">
-          <div className="flex flex-wrap items-end gap-x-6 gap-y-2">
-            <div>
-              <div className="text-[12px] text-ink-4">正式采集</div>
-              <div className="text-[22px] font-semibold tabular-nums">
-                {num(loaderData.policy.enabled_count)} / {num(loaderData.policy.target_enabled ?? 0)}
-              </div>
-            </div>
-            <div className="text-[12px] text-ink-4">
-              实际并集 {num(loaderData.policy.total)} 条（正式 {num(loaderData.policy.enabled_count)} + 备用 {num(loaderData.policy.total - loaderData.policy.enabled_count)}），目标上限 {num(loaderData.policy.target_total)}
-            </div>
-          </div>
-          <Form method="post" className="mt-4 flex flex-wrap items-end gap-3">
+        <Card className="mb-5" title="采集目标">
+          <Form method="post" className="flex flex-wrap items-end gap-3">
             <input type="hidden" name="expectedEnabled" value={loaderData.policy.enabled_count} />
             <label className="text-[12px] text-ink-4">
               新的正式采集目标
@@ -123,10 +109,9 @@ export default function Sources({ loaderData }: Route.ComponentProps) {
             {actionData && "error" in actionData && actionData.error ? <span className="text-[12px] text-bad">{actionData.error}</span> : null}
             {actionData && "ok" in actionData && actionData.ok ? <span className="text-[12px] text-ok">{actionData.ok}</span> : null}
           </Form>
-          <p className="mt-2 text-[11px] text-ink-4">目标只是上限；实际采集哪 1000 条由下面列表的启停决定，单条改动一样写审计。</p>
+          <p className="mt-2 text-[11px] text-ink-4">目标只是上限；实际采集由下面列表的启停决定，单条改动同样写审计。</p>
         </Card>
       ) : null}
-      {totals.reserves > 0 && <p className="mb-4 text-sm text-ink-3">备用 {num(totals.reserves)} 个，最近验证可用 {num(totals.ready)} 个；隔离待复核的信源不会自动启用。</p>}
       <Card pad={false}>
         <div className="flex flex-col gap-3 border-b border-line p-3 lg:flex-row lg:items-center lg:justify-between">
           <Form method="get" className="flex w-full max-w-md gap-2" preventScrollReset>

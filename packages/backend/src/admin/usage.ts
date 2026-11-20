@@ -165,6 +165,8 @@ function usageReader(range:UsageRange,service:string,model:string,date:string|nu
   return read;
 }
 export async function primeUsageSnapshot(range:UsageRange){const reader=usageReader(range,'','');await reader.get();await reader.refresh();return reader.get();}
+/** Restart warm-up: start the shared snapshot without blocking the API event loop. */
+export function primeUsageSnapshots(){return usageReader('all','','').refresh();}
 export async function usageOverview(value?:string,service='',model='',dateValue?:string,monthValue?:string){
   const today=beijingToday(), date=usageDate(dateValue,today);
   if(dateValue!==undefined&&!date)throw Object.assign(new Error('日期无效或尚未到来，请选择有效日期。'),{statusCode:400});

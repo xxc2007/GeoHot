@@ -4,6 +4,8 @@ import { startHeartbeat } from "@aihot/backend/operations/heartbeat";
 import { startWorkerWatchdog } from "@aihot/backend/operations/watch";
 import { guardProcessExit } from "@aihot/backend/operations/process-exit";
 import { modelCooldown } from "@aihot/backend/operations/model-cooldown";
+import { primeRunsSnapshot } from "@aihot/backend/admin/runs";
+import { primeUsageSnapshots } from "@aihot/backend/admin/usage";
 import { buildApp } from "./app.ts";
 
 guardProcessExit("api");
@@ -22,6 +24,13 @@ const app = await buildApp();
 await app.listen({ port: config.apiPort, host: process.env.API_HOST || "127.0.0.1" });
 startHeartbeat(`api:${config.apiPort}`);
 startWorkerWatchdog();
+
+// Admin snapshots are lazy, so after every deploy the first operator visit paid for a 12s
+// runs aggregate and a slow usage scan. Build them once in the background, after startup has
+// settled. `snapshotReader` already serialises aggregates, so chain rather than race them.
+setTimeout(() => {
+  void primeRunsSnapshot().finally(() => primeUsageSnapshots());
+}, 20_000).unref();
 
 let stopping = false;
 const shutdown = async () => {

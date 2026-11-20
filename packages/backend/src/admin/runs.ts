@@ -35,22 +35,49 @@ const runsSnapshot = snapshotReader(async () => {
   canRefresh: () => true,
 });
 
+/** Warm the expensive snapshot after a restart without putting it on a reader's request. */
+export function primeRunsSnapshot() {
+  return runsSnapshot.refresh();
+}
+
+const LIVE_READ_DEADLINE_MS = 1_500;
+
 /** Operational scans never sit on the HTTP critical path or repeat for every browser poll. */
 export async function readRunsOverview() {
   const snapshot = await runsSnapshot.get();
   const overview = snapshot.rows[0];
-  if (!overview) return { unavailable: true as const };
   // Fresh, tiny heartbeat reads must not wait for the expensive multi-table statistics snapshot.
-  const fresh = await readLiveRunsState();
+  // The SQL deadline does not cover waiting for a pooled connection, so race it here as well: a
+  // cold snapshot build must not turn the first admin visit into a six-second blank page.
+  const fresh = await Promise.race([
+    readLiveRunsState(),
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), LIVE_READ_DEADLINE_MS).unref()),
+  ]);
   const live = fresh?.processes;
   const now = Date.now();
-  const processes = live ? live.map(h => ({ role: h.key.slice("heartbeat.".length).split("@")[0], ...h.value, at: h.updated_at,
-    alive: now - h.updated_at.getTime() < STALE_HEARTBEAT_MS })) : overview.processes.map(p => ({...p, alive: now - new Date(p.at).getTime() < STALE_HEARTBEAT_MS}));
+  const processes = live
+    ? live.map(h => ({ role: h.key.slice("heartbeat.".length).split("@")[0], ...h.value, at: h.updated_at,
+        alive: now - h.updated_at.getTime() < STALE_HEARTBEAT_MS }))
+    : (overview?.processes ?? []).map(p => ({...p, alive: now - new Date(p.at).getTime() < STALE_HEARTBEAT_MS}));
   // pg-boss maintains this tiny queue metadata table itself. Reading it avoids scanning the job
   // archive just to show whether the live queue is moving; its monitor timestamp remains explicit.
   const queueSnapshot = fresh?.queues;
+  const liveQueue = queueSnapshot?.length && queueSnapshot.every(q => q.at) ? queueSnapshot : null;
+  if (!overview) {
+    if (!fresh) return { unavailable: true as const };
+    // The historical aggregate is still being built (first visit after a restart, or a slow scan).
+    // Show the live heartbeat and queue numbers instead of a blank card; every empty table below
+    // is labelled by the page's partial banner, not presented as "zero backlog".
+    return {
+      checkedAt: new Date(now).toISOString(), stale: true, partial: true,
+      processes, processesCheckedAt: live ? new Date(now).toISOString() : null, queueSnapshot: liveQueue,
+      jobs: [], timeline: [], queues: [], failedJobs: [], lagging: [],
+      receipts: { counts: {}, issues: [], unknownTotal: 0 },
+      errors: [], retrying: { count: 0, next: null }, ingest: [], leaderboard: null,
+    };
+  }
   return { ...overview, processes, processesCheckedAt: live ? new Date(now).toISOString() : null,
-    queueSnapshot: queueSnapshot?.length && queueSnapshot.every(q => q.at) ? queueSnapshot : null,
+    queueSnapshot: liveQueue, partial: false,
     stale: snapshot.status.state !== "ready" };
 }
 
@@ -66,7 +93,10 @@ const failuresSql = sql`CASE WHEN jsonb_typeof(detail->'failed') = 'array'
 export async function runsOverview() {
   return sql.begin(async tx => {
     await tx`SET TRANSACTION READ ONLY`;
-    await tx`SET LOCAL statement_timeout = '4000ms'`;
+    // 4s was measured at 11.8s wall-clock for the whole parallel scan on the 891MiB reader host:
+    // individual statements were close to the edge. The snapshot runs in the background, so a
+    // little more per-statement headroom costs no reader latency and makes the first build stick.
+    await tx`SET LOCAL statement_timeout = '6000ms'`;
     await tx`SET LOCAL lock_timeout = '250ms'`;
     await tx`SET LOCAL max_parallel_workers_per_gather = 0`;
     const [heartbeats, latest, timeline, queues, failedJobs, lagging, receipts, receiptIssues, errors, ingest, leaderboard, unknownTotals] = await Promise.all([

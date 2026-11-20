@@ -146,7 +146,10 @@ export function registerAdmin(app: FastifyInstance) {
   const refreshUsage = (key: string, args: Parameters<typeof usageOverview>) => {
     if (usagePending.has(key)) return usagePending.get(key)!;
     const run = usageOverview(...args)
-      .then((data) => { usageCache.write(key, data); return data; })
+      // "unavailable" is a transient first-run state, not a result. Caching it made every 5s
+      // retry in the browser receive the same answer for a minute while the snapshot was being
+      // built. Keep the expensive ready/stale payloads; let the next poll see the new snapshot.
+      .then((data) => { if (data.status?.state !== "unavailable") usageCache.write(key, data); return data; })
       .finally(() => usagePending.delete(key));
     usagePending.set(key, run);
     return run;
