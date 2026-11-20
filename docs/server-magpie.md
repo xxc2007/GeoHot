@@ -9,7 +9,7 @@ GEOHOT 的网站、数据库、队列、内容执行器和模型网关都部署�
 - 代理边界：
   - 必须有后台会话 + CSRF；上游 secret cookie 优先取 `MAGPIE_WEB_COOKIE` 环境变量，否则读 `MAGPIE_WEB_KEY_FILE`（默认 `/etc/geohot/magpie-web-key`），密钥不回传浏览器，文档与日志不写 cookie 值。
   - 屏蔽模型网关 `/v1`、`/_magpie`、登录/换 token 路由、`k` 查询参数、路径穿越、反斜杠、Origin 不一致与跨源跳转。
-  - 静态资源（js/css/字体/图片）走浏览器缓存、不限流；面板 API 调用 300/分钟。
+  - 静态资源走浏览器缓存、不限流：根级 `js/css`，以及 `assets/`、`plugins/`、`fonts/`、`icons/` 下的 js/css/svg/png/ico/woff2/ttf。面板动态 API 按路由限流 1200/分钟；超限返回 429 与 `Retry-After`，静态脚本不占这个额度。
 - 不要把网关地址改成工作站 IP，不要把旧反向隧道恢复成日常依赖；任何情况下都不把 3426/3430 端口绑到公网网卡。
 
 ## 安装与身份边界

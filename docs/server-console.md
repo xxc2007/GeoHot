@@ -4,6 +4,8 @@
 
 Magpie 以现有管理员会话保护的反代嵌入。上游由 `MAGPIE_WEB_BASE_URL` 配置，默认 `http://127.0.0.1:3430`，只允许 http loopback（`localhost`/`::1`/`127.*`），不接受真实公网 IP；生产 Azure 方案为本地 3431 经隧道到杭州网关 `127.0.0.1:3430`，直连 3430 只兼容旧本地进程。管理密钥优先取 `MAGPIE_WEB_COOKIE` 环境变量，否则由 API 从 `MAGPIE_WEB_KEY_FILE`（默认 `/etc/geohot/magpie-web-key`）读取，不能放在仓库或 iframe URL 中。代理所有写请求同样检查会话 CSRF 和 Origin。模型推理的 `/v1` 与独立登录路径不经此反代。Magpie 的资源及 fetch URL 适配部署前缀，服务器的 3426/3430 不开放公网监听。
 
+Magpie 静态资源白名单只覆盖根级 `js/css` 和 `assets/`、`plugins/`、`fonts/`、`icons/` 下的 js/css/svg/png/ico/woff2/ttf；这些请求走浏览器缓存、不占面板 API 额度。面板动态 API 按路由限流 1200/分钟，超限返回 429 与 `Retry-After`。`icons/` 用于供应商图标，缺了会表现为图标 404 而不是脚本加载失败。
+
 部署采样器前创建 `/run/geohot-server`，root:geohot 0750；或添加 tmpfiles 规则在重启后重建。安装对应 service/timer。API 用户只需读取 0640 的采样文件及管理密钥，不需 sudo。
 
 Magpie 官方更新由每日 timer 执行，保留更新前二进制，在服务重启后核验网关；健康检查失败恢复旧二进制。固定管理密钥在更新时保持。生产服务停止窗口需容纳正在处理的模型请求，不提高模型预算或并发。只启用一种自动更新编排，避免 GUI 内部自动下载与 systemd 重复更新。
