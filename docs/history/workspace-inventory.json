@@ -1,0 +1,344 @@
+[
+  {
+    "path": "README.md",
+    "size": 2559,
+    "files": 1,
+    "modified": "2026-11-20",
+    "kind": "workspace-doc",
+    "evidence": "README.md:7-12 逐目录定义用途；:11 规定 _archive 未确认唯一副本前不得删除；:12 称 _assist 为凭据目录、已不在运行链路；:23 要求密钥不进 Git/日志/文档",
+    "recommendation": "keep"
+  },
+  {
+    "path": "_archive/README.md",
+    "size": 1194,
+    "files": 1,
+    "modified": "2026-11-16",
+    "kind": "retention-policy",
+    "evidence": "_archive/README.md:3-4 声明任何进程都不该再读此目录；:9 标注 evidence-rounds tarball 为唯一副本；:11 标注 stash0-full patch 为唯一副本；:16 要求删前用 tar -tzf 核对条目数",
+    "recommendation": "keep"
+  },
+  {
+    "path": "_archive/evidence-rounds-20261010-13.tar.gz",
+    "size": 185595717,
+    "files": 1,
+    "modified": "2026-11-05",
+    "kind": "cold-archive-tarball",
+    "evidence": "_archive/README.md:9 明确写为唯一副本；tar -tzf 共 5232 条目；内部 .round9/.round10/clone-drill/*/.env 含已填充的本地演练密钥（ADMIN_PASSWORD 16 位、SESSION_SECRET 64 位、POSTGRES_PASSWORD 36 位、INGEST_TOKEN 48 位），但 DATABASE_URL 指向 127.0.0.1:5433/geohot_drill_test、SITE_URL=http://localhost:3499，非生产库",
+    "recommendation": "review"
+  },
+  {
+    "path": "_archive/diag-rounds-r18-r67-20261116.tar.gz",
+    "size": 181735490,
+    "files": 1,
+    "modified": "2026-11-16",
+    "kind": "cold-archive-tarball",
+    "evidence": "_archive/README.md:8 记录为 R18-R67 诊断目录原样打包（5 个目录 174MB）；tar -tzvf 仅 10 条目，因内部嵌套压缩：browser-runs-r21.tar.gz 60.9MB、r59 43.6MB、r67 44.7MB、oneoff-scripts-20261105.tar.gz 5.2MB",
+    "recommendation": "review"
+  },
+  {
+    "path": "_archive/promo-videos/",
+    "size": 23266510,
+    "files": 2,
+    "modified": "2026-10-08",
+    "kind": "media",
+    "evidence": "_archive/README.md:13 写「不用了就能删」，删除条件取决于站长是否还需要这两条宣传片；目录内为 geohot-promo.mp4 与 intro-promo.mp4，审计范围内未见代码引用",
+    "recommendation": "review"
+  },
+  {
+    "path": "_archive/patches-20261030/",
+    "size": 12114188,
+    "files": 11,
+    "modified": "2026-10-31",
+    "kind": "patch-set",
+    "evidence": "_archive/README.md:11 标注 stash0-full-20261030.patch（11.1MB）为唯一副本；11 个 .patch 覆盖 backend/frontend/rss/resource-intake 等改动，是否已合并/放弃未验证",
+    "recommendation": "review"
+  },
+  {
+    "path": "_archive/2026-11-03/",
+    "size": 10900873,
+    "files": 629,
+    "modified": "2026-11-03",
+    "kind": "pre-migration-snapshot",
+    "evidence": "_archive/README.md:12 记录为那次大搬迁前的快照（含嵌套 _archive 子目录）；嵌套 _archive/.modelteam/wb-cn-credential.json 含 accessToken/refreshToken（本机复核：accessToken 1335 字符、refreshToken 700 字符、expiresAt=1794189359496 即 2026-11-09T01:55:59Z），嵌套 .codearts/mock.env 含 CODEARTS_API_KEY 等键；geohot-item-preview 与 geohot-title-fix2 各含一个 symlink 指向 GEOHOT/node_modules（find -type l 已确认），不跟随统计 10,900,873 B，跟随统计 900,315,807 B，差 889,414,934 B",
+    "recommendation": "review"
+  },
+  {
+    "path": "_archive/wip-rescue-20261105/",
+    "size": 4019926,
+    "files": 231,
+    "modified": "2026-11-05",
+    "kind": "rescue-branch-snapshot",
+    "evidence": "SUMMARY.txt:1-7 逐行记录 7 个救援分支的「N status, N copied, 0 skipped」，即从旧工作树搬运内容的清单；含 executor-spec-snapshot、geohot-release-qoder、geohot-runtime-9562bff 等目录",
+    "recommendation": "review"
+  },
+  {
+    "path": "_archive/source-registry-20261120/",
+    "size": 2088923,
+    "files": 4,
+    "modified": "2026-11-21",
+    "kind": "db-dump-and-manifests",
+    "evidence": "geohot-source-registry-20261120.dump 879679B，文件头 PGDMP + geohot + 17.11 (Ubuntu 17.11-1.pgdg22.04+2)，为 PostgreSQL custom-format 全库导出；preflight-report.json 记 total 824 / passed 795；三份 json 的 mtime 为 2026-11-21 00:40，晚于 _archive 目录 mtime 2026-11-20 22:29，违反 _archive/README.md:3-4 的冷档规则",
+    "recommendation": "review"
+  },
+  {
+    "path": "_archive/private/",
+    "size": 335988,
+    "files": 34,
+    "modified": "2026-11-03",
+    "kind": "mixed-private-evidence",
+    "evidence": "含 geohot-assist.json（SSH host/identityFile 参数）、geohot-pr-body-20261101*.md、queue-snapshot.sh、geohot-assist-state/assist-2026-10-30..11-03.log；来源为 C:\\private 搬迁（_archive/README.md:14）",
+    "recommendation": "review"
+  },
+  {
+    "path": "_diag/browser/ (13 个 *-<时间戳>/ 运行目录)",
+    "size": 39303227,
+    "files": 164,
+    "modified": "2026-11-16",
+    "kind": "acceptance-screenshots",
+    "evidence": "13 个 *-<时间戳>/ 运行目录共 164 文件（153 png + 11 json）：r16-2026-11-15T12-00-44 9.47MB、r16-2026-11-16T01-20-51 9.44MB、bsk-20261115 6.09MB、7 个 admin-* 共 14.3MB、3 个 magpie-probe-*；属验收视觉证据，无法从代码重建",
+    "recommendation": "archive"
+  },
+  {
+    "path": "_diag/browser/ (15 个探针脚本 + 1 份日志)",
+    "size": 62817,
+    "files": 16,
+    "modified": "2026-11-16",
+    "kind": "reusable-probe-scripts",
+    "evidence": "cdp-lib.mjs 7631B、verify-r16.mjs 16729B、verify-r16b.mjs 9577B、verify-admin.mjs 5933B、verify-admin-mobile.mjs 1946B、verify-dark.mjs 4068B、check-admin-layout.mjs 1337B、check-admin-paging.mjs 1184B、check-mobile-pool.mjs 1417B、check-magpie.mjs 2513B、mobile-pool-probe.mjs 2488B、mobile-scroll-probe.mjs 1275B、shot-pages.mjs 2043B、tab-probe.mjs 992B、tmp-nodes2.mjs 1154B、r161-run.log 2530B，可重跑",
+    "recommendation": "keep"
+  },
+  {
+    "path": "_diag/browser/older-evidence-20261116.tar.gz",
+    "size": 7979669,
+    "files": 1,
+    "modified": "2026-11-16",
+    "kind": "evidence-tarball",
+    "evidence": "7.98MB 的旧证据打包，位于 browser 目录顶层；_archive/README.md:10 提到过同名类别的 browser-20261115.tar.gz，是否与之重复未解包核对",
+    "recommendation": "archive"
+  },
+  {
+    "path": "_diag/browser/nodes-check-server.png",
+    "size": 983098,
+    "files": 1,
+    "modified": "2026-11-16",
+    "kind": "screenshot",
+    "evidence": "单张 983KB 截图，文件名为 nodes 服务器检查",
+    "recommendation": "archive"
+  },
+  {
+    "path": "_diag/t8/magpie-merge/",
+    "size": 548863,
+    "files": 14,
+    "modified": "2026-11-04",
+    "kind": "credential-store",
+    "evidence": "logins.json 45 条（字段含 auth）；plugin-auth.json 40 条（refresh/access/expires/deviceChat/accountId/uid/email/machineId/deviceToken/deviceRefresh）；caller-keys.json 1 条明文 secret（sk-magpie-key- 前缀）；providers.json 15 个供应商；server-files.tar 102400B 与 server-files.b64 136536B 重复打包同一批 5 个文件",
+    "recommendation": "review"
+  },
+  {
+    "path": "_diag/t8/ (其余部分)",
+    "size": 6214722,
+    "files": 80,
+    "modified": "2026-11-16",
+    "kind": "diagnostic-artifacts",
+    "evidence": "diag-load.sql、diag-io.sql、diag-hb.sql、diag-who.sql、diag-age.sql、idlexact.sql、idx.sql、analyze*.py、audit.md、hygiene.md、magpie.md、local-deploy-r66.md 及移动端截图",
+    "recommendation": "archive"
+  },
+  {
+    "path": "_diag/logs/",
+    "size": 1503327,
+    "files": 110,
+    "modified": "2026-11-05",
+    "kind": "debug-logs",
+    "evidence": "110 个 assist-trial1..N.log（2026-11-04/05 本机协同调试日志），占该目录 99.5%；均为一次性调试输出，无业务数据；同目录另有 8 个 mjs/sh 另立条目",
+    "recommendation": "delete"
+  },
+  {
+    "path": "_diag/logs/ (8 个 mjs/sh 探针)",
+    "size": 7259,
+    "files": 8,
+    "modified": "2026-11-04",
+    "kind": "db-probe-scripts",
+    "evidence": "clone_db.mjs 773B、mktestdb.mjs 719B、mk_scratch.mjs 684B、probe_dbs.mjs 1,015B、probe_heartbeat.mjs 666B、probe_migrations.mjs 1,430B、repro_adminread.mjs 1,009B、wait_and_webtests.sh 963B；均为可重跑的一次性探针，混在日志目录里容易被整目录删除带走",
+    "recommendation": "keep"
+  },
+  {
+    "path": "_diag/cleanup-and-verification-20261120/",
+    "size": 1081351,
+    "files": 19,
+    "modified": "2026-11-20",
+    "kind": "prior-audit-record",
+    "evidence": "cleanup-audit-summary.txt:43-44 指向的 artifacts/cleanup-audit.json 与 artifacts/cleanup-audit-summary.txt 经 [ -e ] 判定均为 ABSENT，此处疑为该次审计唯一存世副本；另含 changelog-draft.json、magpie-models.json、mobile-switch*.json、prod-watch.log、turn*-report.md",
+    "recommendation": "review"
+  },
+  {
+    "path": "_diag/t9/",
+    "size": 799911,
+    "files": 84,
+    "modified": "2026-11-09",
+    "kind": "oneoff-scripts",
+    "evidence": "_remote_h.sh.._remote_k.sh、add-changelog-r8.mjs、add-changelog-topics.mjs、audit-round6.md、audit-mid-batch.md，为单轮远程操作与轮次审计",
+    "recommendation": "archive"
+  },
+  {
+    "path": "_diag/mcp/",
+    "size": 425793,
+    "files": 28,
+    "modified": "2026-11-08",
+    "kind": "probe-scripts",
+    "evidence": "probe.mjs、probe2.mjs、smoke.mjs 三个入口及其余 25 个文件",
+    "recommendation": "archive"
+  },
+  {
+    "path": "_diag/tmp/",
+    "size": 300529,
+    "files": 6,
+    "modified": "2026-11-08",
+    "kind": "temp",
+    "evidence": "目录内只有 _keep/：aboutrss.md 256,171 B（AboutRSS 项目 README 存根，来自 github）、feeds-aboutrss.txt 7,859 B、feeds-r144.txt 1,303 B、geo-feeds.txt 1,931 B、geo-homes.txt 918 B、local-models.json 32,347 B。命名 _keep 表明是刻意保留的调研素材，非垃圾",
+    "recommendation": "review"
+  },
+  {
+    "path": "_diag/archive-20261116/",
+    "size": 282526,
+    "files": 18,
+    "modified": "2026-11-06",
+    "kind": "round-reports",
+    "evidence": "turn3-report.md、turn4-report.md、turn5-report.md、verify-tests.md、commit-review.md、prod-cleanup.md、mv.json/mv2.json、srv-models.json",
+    "recommendation": "archive"
+  },
+  {
+    "path": "_diag/zcode-completion/",
+    "size": 229892,
+    "files": 16,
+    "modified": "2026-11-04",
+    "kind": "scripts-and-ledgers",
+    "evidence": "README.md、build.mjs、queue-ledger.csv、conflict-ledger.csv、open-items.md、proposals.md、prod-queue-raw.txt",
+    "recommendation": "archive"
+  },
+  {
+    "path": "_diag/ (顶层散落 50 个文件)",
+    "size": 266400,
+    "files": 50,
+    "modified": "2026-11-20",
+    "kind": "mixed-artifacts",
+    "evidence": "ls -p _diag | grep -v / 得 50 个文件、合计 266,400 B；其中 loc-by-file.csv 38,539B、GEOHOT-代码规模与优化建议.md 34,962B、sweep-local.md 24,595B、6 份 item(s)-*.html 抓取快照各 19,195-19,610B、probe1..10.mjs、loc-*.mjs（7 个）、smells.mjs、recheck.mjs、nn.mjs、db-rescue.mjs、gen-index.mjs、export-csv.mjs、mk-launchers.mjs、usage-compact.sh、3 份 api-*.json",
+    "recommendation": "archive"
+  },
+  {
+    "path": "_diag/t11/",
+    "size": 75381,
+    "files": 1,
+    "modified": "2026-11-05",
+    "kind": "report",
+    "evidence": "单文件 audit-fanout.txt",
+    "recommendation": "archive"
+  },
+  {
+    "path": "_diag/t12/",
+    "size": 69313,
+    "files": 21,
+    "modified": "2026-11-06",
+    "kind": "cleanup-plan",
+    "evidence": "cleanup-c.md:13 记录 _archive/intro-site 曾为 173.6MB/694 文件、含 4 份“个人展示网站”副本，本轮 ls 确认该路径已不存在；另 evidence.txt、local-deploy-r15/r16/r22.md、pr-deps.md",
+    "recommendation": "archive"
+  },
+  {
+    "path": "_diag/t13/",
+    "size": 33090,
+    "files": 11,
+    "modified": "2026-11-06",
+    "kind": "ops-scripts",
+    "evidence": "acme-exempt.sh、cf-edge-only.sh、cleanup-r18-plan.md、curated-*.sql.sh、audit-r17.md、huashu.mjs",
+    "recommendation": "archive"
+  },
+  {
+    "path": "_diag/browser-audit/",
+    "size": 18063,
+    "files": 2,
+    "modified": "2026-11-04",
+    "kind": "python-scripts",
+    "evidence": "audit.py、sample.py",
+    "recommendation": "keep"
+  },
+  {
+    "path": "_assist/local-executor/",
+    "size": 3292204,
+    "files": 13,
+    "modified": "2026-11-16",
+    "kind": "worker-runtime-with-credentials",
+    "evidence": ".env.local-executor 10222B 含 40+ 供应商 *_API_KEY（LLM/AGNES_CN/DOTS/WORKBUDDY/QODER_CN 等）；worker.log 3260605B 占 99%，末次写入 2026-11-16 06:14；supervise.lock/pid=1723，tasklist //FI \"PID eq 1723\" 返回“没有运行的任务匹配指定标准”；start.ps1/stop.ps1/supervise.sh/window*.vbs 为守护脚本",
+    "recommendation": "review"
+  },
+  {
+    "path": "_assist/newbox/",
+    "size": 52765,
+    "files": 11,
+    "modified": "2026-11-06",
+    "kind": "production-credentials",
+    "evidence": ".env.primary:1 自述“GEOHOT production env — generated on the server by the deploy agent”；SESSION_SECRET 64 位、ADMIN_PASSWORD 11 位、INGEST_TOKEN 64 位、IMG_PROXY_SIGN_SECRET 64 位、DATABASE_URL 88 位（127.0.0.1:5432/geohot），均不含 changeme/your-/example.com 等占位特征；.env.executor 含同一套键；.env.providers 含供应商密钥",
+    "recommendation": "review"
+  },
+  {
+    "path": "_assist/state/",
+    "size": 4680,
+    "files": 25,
+    "modified": "2026-11-06",
+    "kind": "logs-and-stale-locks",
+    "evidence": "22 个 assist-child-*.log（每个约 250B）+ 3 个 extraction-assist.lock.stale-2026110*（锁文件残留，进程已不在）",
+    "recommendation": "delete"
+  },
+  {
+    "path": "_assist/geohot-assist.json",
+    "size": 232,
+    "files": 1,
+    "modified": "2026-11-04",
+    "kind": "ssh-connection-config",
+    "evidence": "字段 host(17 字符)、hostKeyAlias、identityFile(27 字符路径)、localPort、stateDirectory、remoteFreeMiB，为 SSH 跳板参数，指向工作区外的私钥文件",
+    "recommendation": "review"
+  },
+  {
+    "path": "_assist/run-hidden.vbs",
+    "size": 1046,
+    "files": 1,
+    "modified": "2026-11-04",
+    "kind": "hidden-autostart-launcher",
+    "evidence": "内容为 CreateObject(\"WScript.Shell\") + powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"...GEOHOT/scripts/run-workstation-assist.ps1\" -Config \"..._assist/geohot-assist.json\" -SlotCount 2，并以 sh.Run cmd, 0, False 隐藏窗口；目标脚本经 ls 判定为 No such file or directory，链已断",
+    "recommendation": "delete"
+  },
+  {
+    "path": ".mimosa/hook-state/",
+    "size": 188785595,
+    "files": 24040,
+    "modified": "2026-11-21 10:58",
+    "kind": "tooling-cache",
+    "evidence": "22 个 *.baseline/ 目录，每个约 9.4-11MB；24,040 个文件中 23,996 个为 .source，全部 sha256sum 去重后仅 1,091 个不同内容（平均复制 22 份），内容为项目源码快照；初稿 10:16 测得 12 个基线/13,108 文件/102,908,588 B，11:05 复测 22 个基线/24,040 文件/188,785,595 B（+85,877,007 B）；_diag/sweep-local.md:15 记录 2026-11-04 曾把该目录从 880,136 文件清到 0，现又长回 24,040 文件；仍在被运行中的钩子写入，只能按会话清理，不能整目录删",
+    "recommendation": "delete"
+  },
+  {
+    "path": ".mimosa/finding-ledger/",
+    "size": 2857,
+    "files": 2,
+    "modified": "2026-11-20",
+    "kind": "tooling-ledger",
+    "evidence": "v1/events/batch-posttooluse-2fef5cab.json 与 batch-pretooluse-4095e8b9.json",
+    "recommendation": "keep"
+  },
+  {
+    "path": ".mimosa/hook-status/",
+    "size": 1276,
+    "files": 4,
+    "modified": "2026-11-20",
+    "kind": "tooling-state",
+    "evidence": "4 个按 session 哈希命名的状态 JSON（429/426/421/435 B）",
+    "recommendation": "keep"
+  },
+  {
+    "path": ".zcode/workflow-runs/.gitignore",
+    "size": 2,
+    "files": 1,
+    "modified": "2026-10-31",
+    "kind": "placeholder",
+    "evidence": "2 字节占位文件，无实际内容",
+    "recommendation": "keep"
+  }
+]

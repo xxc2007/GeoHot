@@ -15,8 +15,36 @@
 git clone https://github.com/xxc2007/GeoHot.git myhot
 cd myhot
 npm run env:init                       # 写出 .env 与 .env.pipeline，已存在就不覆盖；管理员密码只打印一次
+
+# ② .env 归一化：CI 在起容器之前一定做这一步（.github/workflows/check.yml 的 "Configure a throwaway site"）。
+#    Compose 对「空值 + 行尾注释」的处理与 Node 的 dotenv 不同，所以先用 node:util 的 parseEnv 读一遍，
+#    再按 "K":"V" 逐行重写 .env。SITE_URL 必须由你显式给：它会写进 canonical / OpenGraph / RSS / sitemap /
+#    security.txt，写错**不会**拒启（生产闸门只拒 localhost、127.x 与 ::1），只会把错地址静默发出去。
+#    ↓ 把这一行换成读者实际访问的地址（CI 用 http://web:3000，只因它只起一次性栈、冒烟在 compose 网络里跑）
+export SITE_URL=https://example.com
+node --input-type=module <<'NODE'
+import { readFileSync, writeFileSync } from 'node:fs';
+import { parseEnv } from 'node:util';
+const env = parseEnv(readFileSync('.env', 'utf8'));
+const siteUrl = process.env.SITE_URL;
+if (!siteUrl || !/^https?:\/\/[^/]+/.test(siteUrl)) {
+  console.error('SITE_URL 未设置或不是 http(s) 地址：先 export SITE_URL=https://你的域名');
+  process.exit(1);
+}
+Object.assign(env, { SITE_URL: siteUrl });
+writeFileSync('.env', Object.entries(env).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join('\n') + '\n');
+NODE
+
 docker compose up -d --build
 ```
+
+第 ② 步不是可选的：干净克隆里没有 `.env` 时 compose 在解析阶段就失败；有 `.env` 但到处是行尾注释时，
+Compose 与 Node 读出来的值可能不一样。脚本要求你**显式**给 `SITE_URL`（未设置或不是 http(s) 就直接退出）：
+这个地址会写进 canonical、OpenGraph、RSS、sitemap `<loc>` 与 security.txt，而生产闸门只拦 localhost、127.x 和
+`::1`（`packages/backend/src/config.ts:100,120`）——图省事写 `http://web:3000` 能起来，却会把 `web:3000` 静默发出去。
+CI 用 `http://web:3000` 仅因为它只起一次性栈、冒烟在 compose 网络里跑；**你的机器要写读者实际访问的地址**
+（`https://example.com`），原因见下面「`env:init` 之后先别急着 `up`」那两段。`.env` 里的 `POSTGRES_PASSWORD` 同样必填：
+`docker-compose.yml` 把它直接拼进 `DATABASE_URL`，没有兜底值，缺了就在解析阶段报错。
 
 **克隆地址是 `xxc2007/GeoHot`，不是上游的 `KKKKhazix/AIHOT`。** 上游那个仓库是通用框架（AI 行业示例站），
 它的 `industry/` 里是 AI 信源、AI 提示词和 AIHOT 的品牌；从它克隆会部署成另一个站。本站的地理层——`industry/sources.json` 里的信源（条数唯一口径见 `README.md`）、
