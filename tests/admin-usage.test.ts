@@ -55,8 +55,31 @@ test("usage counts attempts including retries, separates currencies and missing 
     assert.equal((await db`SELECT status FROM receipts WHERE id=${r!.id}`)[0]!.status,'pending','read does not mutate ledger');
     await db`DELETE FROM receipt_model_labels WHERE receipt_id=${r!.id}`;
     // 2026-11-18：标签缺口不再整页阻断——回执/指标仍可读，调用数不被打回 503。
+    // 0127 反规范化口径：missingLabels 变为 a.service IS NULL。删标签行不再让派生行失名——
+    // service/purpose 在派生行写入时冻结（账单/审计口径，历史行不动），缺口只存在于传播前的新行；
+    // 回填脚本跑过后新数据恒 0，属漂移容忍，不为它实现前端提示。
     const afterGap = await readUsage(db,'all','', 'hy3');
     assert.equal(afterGap.find(r=>r.kind==='total')!.calls,3);
+    // 标签先到（0081 对 receipts 的 upsert）→ 0085 派生触发函数写入时按 receipt_id 带出 service/purpose。
+    const [labeled] = await db<{service:string|null;purpose:string|null}[]>`SELECT service,purpose FROM admin_model_attempt_metrics WHERE receipt_id=${r!.id} AND origin='live' ORDER BY id LIMIT 1`;
+    assert.equal(labeled!.service,service);assert.equal(labeled!.purpose,'score_article');
+    // 回归（0127）：回填脚本是直插 receipt_model_labels（不触发 receipts 触发器）。模拟「attempt 先到、
+    // 标签后到」：删标签 → 建 attempt（派生行 service 为 NULL）→ 直插标签 → 传播触发器必须补上派生行。
+    const [r2]=await db`INSERT INTO receipts(logical_key,service,purpose,status,request) VALUES(${`${service}:label-gap`},${service},'score_article','pending','{}') RETURNING id`;
+    await db`DELETE FROM receipt_model_labels WHERE receipt_id=${r2!.id}`;
+    await db`INSERT INTO receipt_attempts(receipt_id,attempt,service,model,status,usage) VALUES(${r2!.id},1,${service},'hy3','received','{"prompt_tokens":10,"completion_tokens":5}')`;
+    let gap = (await db<{service:string|null;purpose:string|null}[]>`SELECT service,purpose FROM admin_model_attempt_metrics WHERE receipt_id=${r2!.id}`)[0]!;
+    assert.equal(gap!.service,null,'标签未到时派生行保持 NULL，等传播触发器补齐');
+    assert.equal(gap!.purpose,null);
+    await db`INSERT INTO receipt_model_labels(receipt_id,purpose,service,prompt_version) VALUES(${r2!.id},'score_article',${service},'v1')`;
+    gap = (await db<{service:string|null;purpose:string|null}[]>`SELECT service,purpose FROM admin_model_attempt_metrics WHERE receipt_id=${r2!.id}`)[0]!;
+    assert.equal(gap!.service,service,'回填直插路径必须经传播触发器落到派生行');
+    assert.equal(gap!.purpose,'score_article');
+    // 删标签行重插同样断言：传播对 INSERT 与 UPDATE 都生效。
+    await db`DELETE FROM receipt_model_labels WHERE receipt_id=${r2!.id}`;
+    await db`INSERT INTO receipt_model_labels(receipt_id,purpose,service,prompt_version) VALUES(${r2!.id},'score_article',${service},'v1')`;
+    gap = (await db<{service:string|null;purpose:string|null}[]>`SELECT service,purpose FROM admin_model_attempt_metrics WHERE receipt_id=${r2!.id}`)[0]!;
+    assert.equal(gap!.service,service,'删标签行重插同样要补上');
     throw new Error('rollback usage fixture');
   }),/rollback usage fixture/);
 });

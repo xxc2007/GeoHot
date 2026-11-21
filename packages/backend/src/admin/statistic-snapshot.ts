@@ -22,7 +22,11 @@ export function snapshotReader<T>(read:()=>PromiseLike<readonly T[]>,store?:{loa
     pending=Promise.resolve().then(read).then(async rows=>{
       saved={at:now(),rows:[...rows]};retryAt=0;
       try{await store?.save(saved);}catch{/* In-memory success remains usable if disk persistence fails. */}
-    },()=>{retryAt=now()+30_000;}).finally(()=>{aggregateBusy=false;pending=undefined;});
+    },error=>{
+      // 对齐 runs.ts:27 的 JSON 形状：usage 快照刷新失败必须进 journal（此前失败只设 30 秒冷却、
+      // 不打日志，故障期间 grep 用量相关恒为 0，后台只见「正在生成统计」而无服务端痕迹）。
+      console.warn(JSON.stringify({level:"warn",msg:"admin snapshot refresh failed",code:String((error as {code?:string})?.code??"unknown")}));
+      retryAt=now()+30_000;}).finally(()=>{aggregateBusy=false;pending=undefined;});
     return pending;
   };
   const get=async():Promise<Snapshot<T>>=>{
@@ -38,7 +42,11 @@ export function snapshotReader<T>(read:()=>PromiseLike<readonly T[]>,store?:{loa
 /** Private, versioned derived snapshots survive API restarts; no cookies, prompts or credentials. */
 export function snapshotStore<T>(key:string){
   const dir=path.join(config.dataDir,'admin-statistic-snapshots');
-  const version='20261118-usage-billing-split-v2';const digest=createHash('sha256').update(version+key).digest('hex');
+  // 0127 反规范化改了 usage 读口径（service/purpose 改读派生行），version bump 让盘上旧快照各重建
+  // 一次。version 在 usage 与 runs 快照间共用：bump 后两边旧文件作废，首次重建受余量闸门影响可能
+  // 偏慢、页面短暂回到「正在生成统计」——由启动预热（primeUsageSnapshots/primeRunsSnapshot）缓解，
+  // 选低流量窗口部署。
+  const version='20261121-metrics-labels-denorm-v1';const digest=createHash('sha256').update(version+key).digest('hex');
   const file=path.join(dir,digest+'.json');
   return {
     async load():Promise<Saved<T>|null>{
