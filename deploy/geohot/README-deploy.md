@@ -32,8 +32,12 @@
 → ④ PostgreSQL 版本与 pg_trgm 预检（同脚本第 6 节）→ ⑤ 建角色与库 + 用 .env 实测连接（第 7 节）
 → ⑥ migrate/seed/seed:curated + 带 BASE_PATH 构建 web（第 8~9 节）
 → ⑦ 贴 nginx 片段：nginx -t 过了才 reload（片段头部那段"生效顺序"，不是尾部）
-→ ⑧ 启动四个 unit（brain/api/worker/web）—— bootstrap 第 10 节只 `enable` 不 `--now`，核对完 .env 再
-      `sudo systemctl start …`；自己贴模板装的那台机器上才用 `systemctl enable --now`
+→ ⑧ 启动常驻 unit：四个核心（brain/api/worker/web）+ 两条 workbuddy 桥（装了才起），共 6 条 `start`
+      （命令与顺序见 §8 的 ⑧）—— bootstrap 第 10 节只 `enable` 不 `--now`，核对完 .env 再
+      `sudo systemctl start …`；`geohot-archive.service` 由 `geohot-archive.timer` 拉起，不手工 start。
+      清单以 `deploy/geohot/systemd/` 与 `install-units.sh` 的 `ALL_UNITS` 为准：模板目录现有 33 个 `.service`
+      + 17 个 `.timer`（共 50 个单元文件），bootstrap 第 10 节按通配全部安装并 enable；`install-units.sh`
+      默认安装的 `ALL_UNITS` 是其中 33 个（22 个 `.service` + 11 个 `.timer`）
 → ⑨ bash verify-deploy.sh 全绿
 → ⑩ 每日备份 cron（§6），并且按 §6.1 当场演练一次恢复
 ```
@@ -89,7 +93,7 @@
 | `MODEL_CALLS_ENABLED` | **决定 1 的两条腿**：留 stub 进程则 `true` 且 `LLM_BASE_URL=http://127.0.0.1:3055/v1`（stub 只听回环、无鉴权，绝不暴露公网，README §4）；不留 stub 进程则 `false`，管道不再问模型，新料只进"全部"不进精选 | 缺省为开（`config.ts:92`）——不显式设 = 拿着 `LLM_API_KEY=local-brain` 占位去调一个可能没人听的端口，然后安静失败。bootstrap 第 5 节按 `GEOHOT_MODEL_CALLS`（默认 `true`）显式写入，`systemd/geohot-brain.service` 保证 true 那一侧真有进程 |
 | `FEISHU_CONTENT_PUSH_ENABLED` `FEISHU_INTERNAL_ENABLED` | `false` | 没接飞书（README §3.5 阀门表） |
 | `INDEXNOW_SUBMIT_ENABLED` | `false` | 前缀部署下 key 文件落 `/geohot/<key>.txt` 的可达性未确认（DEPLOY-PLAN §3） |
-| `TZ` | `Asia/Shanghai` | cron 表已按 tz 注册（`schedules.ts:103`），worker/api 日志与 beijingDate 口径一致；四个 unit 的 `Environment=TZ=` 里也写死 |
+| `TZ` | `Asia/Shanghai` | cron 表已按 tz 注册（`schedules.ts:103`），worker/api 日志与 beijingDate 口径一致；模板目录里 10 个 `.service` 的 `Environment=TZ=` 也写死 |
 | `LLM_API_KEY` | 若走 stub：保持非空占位（如 `local-brain`）并**人工**确认 LLM_BASE_URL 指向回环 | 注意 `local-brain` 不在占位黑名单（11 字符、不匹配 `config.ts:124`），代码拦不住，靠本表核对 |
 
 上线验收口径（README §10.1）：起进程**应该**在密钥没配好时拒绝启动；配好后 `curl -i https://xxc2007.me/geohot/api/admin/sources` 必须 401/403。
@@ -202,10 +206,13 @@ bash bootstrap-server.sh --apply   # 重跑：幂等，已建好的都跳过；�
 sudo -u postgres psql -d geohot -tAc "SELECT similarity('三角洲','河流三角洲')"   # locale 实测
 # ⑦ 贴 nginx 片段 → sudo nginx -t → sudo systemctl reload nginx（片段头部那段"生效顺序"；
 #   前缀必须与 GEOHOT_BASE_PATH 一致，且 :80 与 :443 两个 server 块都要 —— 片段第 3 条）
-# ⑧ 六个常驻单元，顺序 brain→api→worker→web，再补两条 workbuddy 桥；装了桥的机器必须一起 start，
-#    否则桥还是跑着旧的自己（Node 不热更新），而它现在承担大头判定调用。
+# ⑧ 六条常驻 start：四个核心 brain → api → worker → web，再补两条 workbuddy 桥（workbuddy → workbuddy-cn，装了才起）
+#    ——顺序与下面那条命令一致；装了桥的机器必须一起 start，否则桥还是跑着旧的自己（Node 不热更新），
+#    而它现在承担大头判定调用。archive.service 由 geohot-archive.timer 拉起，不手工 start。
 sudo systemctl start geohot-brain geohot-api geohot-worker geohot-web geohot-workbuddy geohot-workbuddy-cn
-bash verify-deploy.sh              # ⑨ 全绿才算上线完成（第 2 节断言四个核心单元 active，另按「装了才要求」断言两条桥与 archive.timer 在岗）
+bash verify-deploy.sh              # ⑨ 全绿才算上线完成（第 2 节断言：api/web 无条件 active；worker 在没标
+                                   #    /etc/geohot/readers-only 的机器上 active；brain 按「enable 了才要求 active」判；
+                                   #    两条桥与 archive.timer 按「装了才要求」判）
                                    #    上线当天日报/热榜为空只记 note；过了第一个 08:00 就要带
                                    #    GEOHOT_DEPLOYED_AT=<上线日> 重跑，那两项会变成硬失败
 node /opt/geohot/app/scripts/smoke.ts --base https://xxc2007.me/geohot

@@ -44,6 +44,8 @@ GEOHOT（中文站名 **地理热点**）建在开源框架 AIHOT 之上，行�
 
 ### 3.2 一次性准备
 
+下面的命令块按 **Git Bash（Windows）/ WSL / POSIX shell（bash、zsh）** 写；PowerShell 里要逐条改写成等价命令（例如 `mv` → `Move-Item`、`VAR=x cmd` → `$env:VAR='x'; cmd`），不要整块粘贴。
+
 ```bash
 npm ci
 
@@ -132,7 +134,7 @@ FEISHU_INTERNAL_ENABLED=false
 INDEXNOW_SUBMIT_ENABLED=false
 ```
 
-**这是故意的，不是忘了开。** 上游 `AGENTS.md` 的开发纪律是"开发和测试时保持安全阀关闭"，而 `npm test` 会继承 `.env`：一旦在这里打开 `COLLECT_ENABLED`，测试就可能真的去访问外部服务。所以真要让管道动（抓信源、跑预筛与打分、出日报）时，用第二个一次性文件 `.env.pipeline`（模板 `.env.pipeline.example` 在仓库里；`npm run env:init` 把它和 `.env` 一起生成，内容只多开了 `COLLECT_ENABLED=true`、`MODEL_CALLS_ENABLED=true`，加上 `TZ=Asia/Shanghai` 与 `FETCH_SCHEDULE_BATCH=1`），像 3.3 那样 `--env-file` 叠两次。**永远不要把 `.env.pipeline` 的内容合并进 `.env`。**
+**这是故意的，不是忘了开。** 上游 `AGENTS.md` 的开发纪律是"开发和测试时保持安全阀关闭"。`npm test` 是 `node --test`（`package.json:30`），**不带 `--env-file`，所以读不到 `.env` 里的任何阀**：它只从 shell 环境取 `DATABASE_URL`，测试库名必须是 `*_test`/`*_ci`，而且要显式传入（`DATABASE_URL=postgres://…/geohot_test npm test`）。这里的 false 防的是用 `--env-file=.env` 起的本机 api/worker 去打外部服务，不是防测试——测试不上外网的机制是"没有一条测试注册 schedules，要模型的测试自己把 `*_BASE_URL` 指向本地 stub"（`.env.example` 的安全阀段落）。所以真要让管道动（抓信源、跑预筛与打分、出日报）时，用第二个一次性文件 `.env.pipeline`（模板 `.env.pipeline.example` 在仓库里；`npm run env:init` 把它和 `.env` 一起生成，内容只多开了 `COLLECT_ENABLED=true`、`MODEL_CALLS_ENABLED=true`，加上 `TZ=Asia/Shanghai` 与 `FETCH_SCHEDULE_BATCH=1`），像 3.3 那样 `--env-file` 叠两次。**永远不要把 `.env.pipeline` 的内容合并进 `.env`。**
 
 采集本身不花钱（免费的 RSS/网页），模型这一步在本站也不花钱（模型是本地 stub，见第 4 节），所以打开这两个阀在本机没有账单风险。
 
@@ -362,7 +364,7 @@ node --input-type=module -e "import p from 'postgres';const d=p('postgres://geoh
 
 ## 8. 检查命令
 
-这四条命令都假设第 3.2 节已经跑过（`npm ci` + `npm run env:init`）。`npm test` 和带 `--env-file-if-exists=.env` 的脚本会读 `.env`：文件不存在时 `--env-file-if-exists` 静默跳过、`npm test` 则只看 shell 里的 `DATABASE_URL`，于是失败信息长得跟真正的原因（缺 env 文件）毫无关系。
+这四条命令都假设第 3.2 节已经跑过（`npm ci` + `npm run env:init`）。带 `--env-file-if-exists=.env` 的脚本会读 `.env`（文件不存在时它静默跳过）；`npm test` 根本不读 `.env`，只看 shell 里的 `DATABASE_URL`。所以缺 env 文件时，这两类命令的失败信息都长得跟真正的原因无关。
 
 ```bash
 npm run typecheck
@@ -383,7 +385,7 @@ DATABASE_URL=postgres://geohot:geohot@127.0.0.1:5433/geohot_test npm test
 # 用完删掉：DROP DATABASE geohot_test
 ```
 
-`npm test` 是 `node --test --test-concurrency=1 --test-timeout=120000 "tests/*.test.ts" "scripts/*.test.ts"`（串行跑，测试之间共享这个库）。第二个 glob 是 2026-11-04 补的：`scripts/backfill-news.test.ts`、`scripts/backfill-news-rss.test.ts`、`scripts/news-archive-expanded.test.ts` 三个文件测的是回填脚本的翻页与断点逻辑，过去只匹配 `tests/` 根，写了却永远没人跑（28 个用例）。它们不读数据库，也不需要 `tests/setup.ts`。测试不访问任何外部服务——前提是 `.env` 里那两个阀是 false（第 11 节第 1 条）。
+`npm test` 是 `node --test --test-concurrency=1 --test-timeout=120000 "tests/*.test.ts" "scripts/*.test.ts"`（串行跑，测试之间共享这个库）。第二个 glob 是 2026-11-04 补的：`scripts/backfill-news.test.ts`、`scripts/backfill-news-rss.test.ts`、`scripts/news-archive-expanded.test.ts` 三个文件测的是回填脚本的翻页与断点逻辑，过去只匹配 `tests/` 根，写了却永远没人跑（28 个用例）。它们不读数据库，也不需要 `tests/setup.ts`。测试不访问任何外部服务：`npm test` 不读 `.env`（见 3.5 节），要模型的测试自己把 `*_BASE_URL` 指向本地 stub。
 
 ```bash
 npm run build -w @aihot/web && node --test apps/web/tests/*.test.ts
@@ -478,7 +480,7 @@ node scripts/smoke.ts --base http://127.0.0.1:3000 # 起 api+web 之后（跑法
 ```bash
 test -f .env && test -f .env.pipeline && echo "env 文件齐" || echo "缺 env 文件：跑 npm run env:init"
 grep -E "^(COLLECT_ENABLED|MODEL_CALLS_ENABLED|FEISHU_CONTENT_PUSH_ENABLED|FEISHU_INTERNAL_ENABLED|INDEXNOW_SUBMIT_ENABLED|EMBEDDINGS_ENABLED)=" .env
-#   期望 .env 里六个全是 false（测试继承 .env，在 .env 里开阀＝让测试去打外部服务）
+#   期望 .env 里六个全是 false（`npm test` 不读 `.env`：它只认 shell 里的 `DATABASE_URL`，测试库名必须是 `*_test`/`*_ci` 并显式传入）
 grep -E "^(COLLECT_ENABLED|MODEL_CALLS_ENABLED|TZ|FETCH_SCHEDULE_BATCH)=" .env.pipeline
 #   期望 COLLECT_ENABLED=true / MODEL_CALLS_ENABLED=true / TZ=Asia/Shanghai / FETCH_SCHEDULE_BATCH=1
 grep -n DEV_AUTH .env .env.pipeline      # 期望：两个文件都没有输出

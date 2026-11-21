@@ -1,0 +1,216 @@
+[
+  {
+    "path": "GEOHOT/apps/web/app/features/monitor/ResetCalendar.tsx",
+    "action": "delete",
+    "reason": "Codex 重置监控模块的孤儿组件：全仓零 importer，且该模块的页面路由已在 35c9a56f 删除，即使把 industry/features.ts:10 的 codexResetMonitor 改回 true 也无处挂载。",
+    "evidence": "git grep -lF \"ResetCalendar\" => 只命中 apps/web/app/features/monitor/ResetCalendar.tsx 自己；grep -n -i \"codex|monitor\" apps/web/app/routes.ts 返回 rc=1（无任何路由）；git log --diff-filter=D -3 -- 'apps/web/app/routes/codex*' => 35c9a56f 删除 apps/web/app/routes/codex-reset.tsx（254 行）与 routes/admin/monitor.tsx（338 行）；git grep -n \"import.meta.glob\" 无输出（无动态加载）；docs/customize.md:97 把该目录列为可删。",
+    "risk": "low",
+    "references": [
+      "apps/web/app/features/monitor/ResetCalendar.tsx:5",
+      "industry/features.ts:10",
+      "industry/features.ts:3",
+      "docs/customize.md:97",
+      "git commit 35c9a56f"
+    ]
+  },
+  {
+    "path": "GEOHOT/apps/web/app/features/monitor/PostCard.tsx",
+    "action": "delete",
+    "reason": "只被同簇的 ResetCalendar.tsx 引用；随 ResetCalendar 一起删除，单独删会先让 import 断掉。",
+    "evidence": "git grep -lF \"PostCard\" => 仅 apps/web/app/features/monitor/PostCard.tsx 与 apps/web/app/features/monitor/ResetCalendar.tsx（:5 import、:266 使用）；无其它 importer。",
+    "risk": "low",
+    "references": [
+      "apps/web/app/features/monitor/ResetCalendar.tsx:5",
+      "apps/web/app/features/monitor/ResetCalendar.tsx:266"
+    ]
+  },
+  {
+    "path": "GEOHOT/apps/web/app/features/monitor/format.ts",
+    "action": "delete",
+    "reason": "同簇第三个文件，唯一消费者是 PostCard.tsx 与 ResetCalendar.tsx；注意与仍然在用的 apps/web/app/lib/format.ts 区分。",
+    "evidence": "git grep -n -F \"features/monitor\" 只命中 docs/customize.md:97（无代码引用）；目录内 from \"./format\" 的命中只有 apps/web/app/features/monitor/PostCard.tsx:7 与 apps/web/app/features/monitor/ResetCalendar.tsx:6。注：按文件名主干统计会得到 refs=131，那是 \"format\" 这个泛化名与 lib/format.ts、各目录 format.ts 的误配，已用精确路径串排除。",
+    "risk": "low",
+    "references": [
+      "apps/web/app/features/monitor/PostCard.tsx:7",
+      "apps/web/app/features/monitor/ResetCalendar.tsx:6"
+    ]
+  },
+  {
+    "path": "GEOHOT/deploy/geohot/systemd/geohot-api-memory.conf",
+    "action": "delete",
+    "reason": "与 geohot-api.service.d/memory-pressure.conf 逐字节相同；它位于 systemd/ 根目录，不在 install-units.sh 的任何拷贝规则内（既不装 unit、也不装 drop-in），因此从未生效。",
+    "evidence": "git hash-object 两者均为 24998690f08bc8a6541ebb7549cc094b90ff8fbe（各 200 B）；git grep -n \"geohot-api-memory\" 返回 rc=1（全仓无任何文本引用）；install-units.sh:116-129 只装 ALL_UNITS，:138-147 只装 systemd/*.service.d/*.conf，:153-161 只额外装 archive-cycle.conf.example。",
+    "risk": "low",
+    "references": [
+      "deploy/geohot/systemd/geohot-api.service.d/memory-pressure.conf",
+      "deploy/geohot/install-units.sh:138",
+      "deploy/geohot/install-units.sh:142"
+    ]
+  },
+  {
+    "path": "GEOHOT/tooling/model-pool-dead.txt",
+    "action": "delete",
+    "reason": "与 deploy/geohot/bin/model-pool-dead.txt 逐字节相同；唯一消费者 prune-model-pool.sh 默认读脚本同目录那份，tooling/ 这份从未被读取，只被两行注释提到（注释与代码不一致）。",
+    "evidence": "diff deploy/geohot/bin/model-pool-dead.txt tooling/model-pool-dead.txt => IDENTICAL；git hash-object 两者均为 d492374907c09145a397c9ccd6a1858f00bcad59（各 770 B）；prune-model-pool.sh:17 dead_file=\"${1:-$here/model-pool-dead.txt}\"；AGENTS.md:147 指定 deploy/geohot/bin/model-pool-dead.txt 为正式清单。风险点：prune-model-pool.sh:8 与 :12 的注释写着默认 tooling 路径，操作员若显式传参会 exit 1（:20）。",
+    "risk": "medium",
+    "references": [
+      "deploy/geohot/bin/prune-model-pool.sh:8",
+      "deploy/geohot/bin/prune-model-pool.sh:12",
+      "deploy/geohot/bin/prune-model-pool.sh:17",
+      "AGENTS.md:147"
+    ]
+  },
+  {
+    "path": "GEOHOT/tooling/import-pricing-map.ts",
+    "action": "delete",
+    "reason": "与 packages/backend/src/admin/pricing-seed.ts 功能重复：读同一批 database/seeds/pricing/map-{A,B,C}.json，做同样的幂等 upsert 与版本历史写入；后者已由 scripts/migrate.ts:39 在每次迁移后自动执行，无需手工导入。",
+    "evidence": "git grep -lF \"import-pricing-map\" => 只命中自己；pricing-seed.ts:1-6 注明「由 scripts/migrate.ts 在迁移后调用，clean clone 跑 db:migrate 即有数据，无需手工导入」；scripts/migrate.ts:39 const { seedPricingRates } = await import(\"../packages/backend/src/admin/pricing-seed.ts\")；两者均 upsert pricing_rates 并在变更时写 pricing_rate_versions。",
+    "risk": "low",
+    "references": [
+      "packages/backend/src/admin/pricing-seed.ts:3",
+      "packages/backend/src/admin/pricing-seed.ts:15",
+      "scripts/migrate.ts:39",
+      "database/migrations/0124_pricing_rates_versioned.sql:56"
+    ]
+  },
+  {
+    "path": "GEOHOT/tooling/backfill-reasoning-tokens.ts",
+    "action": "archive",
+    "reason": "文件头自称一次性回填，对应迁移已落库；全仓零引用，保留价值仅为重跑留痕。",
+    "evidence": "git grep -lF \"backfill-reasoning-tokens\" => 只命中自己；文件第 1 行「一次性回填：把历史回执 usage 里的 reasoning tokens 派生到 admin_model_attempt_metrics」；对应迁移 database/migrations/0125_reasoning_tokens_metrics.sql 存在。",
+    "risk": "low",
+    "references": [
+      "tooling/backfill-reasoning-tokens.ts:1",
+      "database/migrations/0125_reasoning_tokens_metrics.sql"
+    ]
+  },
+  {
+    "path": "GEOHOT/scripts/deploy-reserve-guard.ts",
+    "action": "archive",
+    "reason": "专为迁移 0121 写的一次性前置检查（文件自称 Safe to run at ANY schema state before 0121 is applied），该前置条件早已不存在；全仓零引用。",
+    "evidence": "git grep -lF \"deploy-reserve-guard\" => 只命中自己；文件头 :1「Pre-deployment check for migration 0121 (reserve pool guard)」、:2「Safe to run on production at ANY schema state (before 0121 is applied)」；ls database/migrations 末位为 0126_source_discovery.sql，_diag/cleanup-and-verification-20261120/final-284c766c-verification.txt 记 migrations=120 applied。",
+    "risk": "low",
+    "references": [
+      "scripts/deploy-reserve-guard.ts:1",
+      "database/migrations/0121_reserve_pool_guard.sql",
+      "database/migrations/0126_source_discovery.sql"
+    ]
+  },
+  {
+    "path": "GEOHOT/scripts/refresh-workflow-readiness.ts",
+    "action": "archive",
+    "reason": "13 行 CLI 壳，唯一动作是循环调用 recoverWorkflowReadiness；该函数已在正式调度链路里，壳本身全仓零文本命中。",
+    "evidence": "git grep -lF \"refresh-workflow-readiness\" 返回空（连自己都不命中，因为文件名不在内容里）；文件 13 行，import {recoverWorkflowReadiness} from '../packages/backend/src/operations/recover-workflow-readiness.ts'；apps/worker/src/schedules.ts:3 已 import 同一函数。",
+    "risk": "low",
+    "references": [
+      "scripts/refresh-workflow-readiness.ts:2",
+      "apps/worker/src/schedules.ts:3"
+    ]
+  },
+  {
+    "path": "GEOHOT/scripts/check-reserve-manifest.ts",
+    "action": "archive",
+    "reason": "只读预检 industry/source-reserves.json 的运维脚本，全仓无任何引用；但配套数据仍在用，故只建议归档不建议删除。",
+    "evidence": "git grep -lF \"check-reserve-manifest\" => 只命中自己；文件头 :1-11 自述 READ-ONLY、6 项检查；industry/source-reserves.json 为 437,946 B 的在用清单（docs/source-reserve-policy.md:3）。",
+    "risk": "medium",
+    "references": [
+      "scripts/check-reserve-manifest.ts:1",
+      "industry/source-reserves.json",
+      "docs/source-reserve-policy.md:3"
+    ]
+  },
+  {
+    "path": "GEOHOT/scripts/reverify-reserves.ts",
+    "action": "archive",
+    "reason": "复核备用源可达性的运维脚本，全仓零引用；--write 会改 industry/source-reserves.json，可能仍被临时调用，故 archive 而非 delete。",
+    "evidence": "git grep -lF \"reverify-reserves\" => 只命中自己；文件头 :3-6 列出 dry-run / --write / --limit 用法，:13 写明「Never touches the database」。",
+    "risk": "medium",
+    "references": [
+      "scripts/reverify-reserves.ts:3",
+      "scripts/reverify-reserves.ts:13"
+    ]
+  },
+  {
+    "path": "GEOHOT/scripts/replenish-reserve-candidates.ts",
+    "action": "archive",
+    "reason": "替换失效备用源的运维脚本（默认 dry-run，--apply 才写注册表），全仓零引用；用途真实但调用是手工的。",
+    "evidence": "git grep -lF \"replenish-reserve-candidates\" => 只命中自己；文件头 :1-3 说明 operator-only、默认 dry-run、单事务写入并留审计行与计数校验；:5 给出用法。",
+    "risk": "medium",
+    "references": [
+      "scripts/replenish-reserve-candidates.ts:1",
+      "scripts/replenish-reserve-candidates.ts:5"
+    ]
+  },
+  {
+    "path": "GEOHOT/deploy/geohot/tmp/",
+    "action": "archive",
+    "reason": "17 项未跟踪的一次性部署过渡脚本与 staging 归档（14 个 .sh + 3 个各含 592 KB source.tar.gz 的目录），从未进过索引，.gitignore 自己标明是「部署轮一次性过渡脚本与本机分析 scratch」。",
+    "evidence": "ls -la deploy/geohot/tmp 共 17 项；git log --oneline --all -- deploy/geohot/tmp 为空（从未跟踪）；.gitignore:72 deploy/geohot/tmp/；deploy-0c92837.sh:3 与 deploy-89e251d.sh:2 写死 SHA，git cat-file -t 0c92837 返回 commit（可从历史重建）；du -sh 约 1.8 MB。",
+    "risk": "low",
+    "references": [
+      ".gitignore:72",
+      "deploy/geohot/tmp/deploy-0c92837.sh:3",
+      "deploy/geohot/tmp/deploy-89e251d.sh:2"
+    ]
+  },
+  {
+    "path": "GEOHOT/docs/major-release-20261024/",
+    "action": "archive",
+    "reason": "2026-10-24 单次发布的验收材料（4 文件 6 KB），其中 3 个文件在 1290 个跟踪文件里零引用；属发布证据，宜归档而非删除。",
+    "evidence": "逐个 git grep -lF <basename> 排除自身后：report.md refs=0、contour-20.md refs=0、contour-20-results.json refs=0、browser-results.json refs=1（同目录）；report.md:1「GEOHOT 重大更新：动态与交互验收（2026-10-24）」；contour-20.md:1「GEOHOT 2.0 线条字形调整（2026-10-24）」。",
+    "risk": "low",
+    "references": [
+      "docs/major-release-20261024/report.md:1",
+      "docs/major-release-20261024/contour-20.md:1"
+    ]
+  },
+  {
+    "path": "_diag/items-h8nme0fprk1uf1u8dbhfz53k5.html",
+    "action": "delete",
+    "reason": "_diag 下三份 items-*.html 是同一次抓取的重复落盘，md5 完全相同；保留任意一份即可。",
+    "evidence": "cd D:/地理热点网站/_diag && md5sum items-*.html => 三个文件均为 e072c3feff88be1c32aaba94bceb1283（另两个为 items-lg7ryzsv7jnat2okdam64e8sa.html、items-xqe9q013jnb8f35rimyenn4rm.html）。同目录 item-*.html 三份互不相同，不在候选内。",
+    "risk": "low",
+    "references": [
+      "_diag/items-lg7ryzsv7jnat2okdam64e8sa.html",
+      "_diag/items-xqe9q013jnb8f35rimyenn4rm.html"
+    ]
+  },
+  {
+    "path": "GEOHOT/tooling/ci-check.yml",
+    "action": "keep",
+    "reason": "与 .github/workflows/check.yml 逐字节相同，但这是文档规定的双份：发布 token 无 workflow 作用域，正本放 tooling/，Actions 跑 .github/ 那份，改 CI 两处同改。",
+    "evidence": "diff .github/workflows/check.yml tooling/ci-check.yml => IDENTICAL；AGENTS.md:23 明文规定两份逐字节同步；deploy/geohot/publish-to-github.sh:16-17 解释原因。",
+    "risk": "low",
+    "references": [
+      "AGENTS.md:23",
+      "deploy/geohot/publish-to-github.sh:16",
+      "deploy/geohot/publish-to-github.sh:17"
+    ]
+  },
+  {
+    "path": "GEOHOT/assets/leaderboard-sources/",
+    "action": "keep",
+    "reason": "只服务已关停的模型榜，形式上「与地理热点无关」，但 NOTICE 明确写着这些商标图为「重新启用上游模块」而刻意保留，并承担商标署名；清理须同步改 NOTICE。",
+    "evidence": "git grep -n \"assets/leaderboard-sources\" 仅命中 NOTICE:12-13 与 NOTICE:39；NOTICE:37-41 原文「they are kept so the upstream modules still work if someone re-enables them」。",
+    "risk": "medium",
+    "references": [
+      "NOTICE:12",
+      "NOTICE:37",
+      "NOTICE:39",
+      "industry/features.ts:8"
+    ]
+  },
+  {
+    "path": "GEOHOT/assets/model-providers/",
+    "action": "keep",
+    "reason": "同上：14 个模型/厂商商标只被 NOTICE 引用，属刻意保留的署名资产，不是可清理冗余。",
+    "evidence": "git grep -n \"assets/model-providers\" 仅命中 NOTICE:10-11 与 NOTICE:38；NOTICE:37-41 的保留理由同 leaderboard-sources。",
+    "risk": "medium",
+    "references": [
+      "NOTICE:10",
+      "NOTICE:37",
+      "NOTICE:38",
+      "industry/features.ts:8"
+    ]
+  }
+]

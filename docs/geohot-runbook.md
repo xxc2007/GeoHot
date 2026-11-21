@@ -410,7 +410,7 @@ await a.end();"
 ## 11. 这个站的三条底线（改任何东西之前）
 
 1. **不要绕开裁决层。** 想改"什么算重要"，改 `industry/prompts/selection-score.md` 和 `industry/selection.ts`；不要改 `apps/`、`packages/` 里的评分/聚簇/成刊代码。想改"能不能进精选"，靠 `participation_mode`、`tier` 和 fixture，不要在读取层开后门。
-2. **不要让 `.env` 的四个安全阀变 true。** 一次性验证用 `.env.pipeline`（`docs/manual.md` 第 3.5 节）。测试会继承 `.env`。
+2. **不要让 `.env` 的四个安全阀变 true。** 一次性验证用 `.env.pipeline`（`docs/manual.md` 第 3.5 节）。`npm test` 不读 `.env`：它只认 shell 里的 `DATABASE_URL`，测试库名必须是 `*_test`/`*_ci` 并显式传入。
 3. **不要把机器当作者。** stub 是 fixture；写进站上的每一条判断都得有人署名（fixture 的 `author` 字段）、能被 `__brain/log` 回溯。今天有多少精选，等于有多少人写过判断——这句话是整个项目的诚实之处。
 
 ---
@@ -2623,7 +2623,7 @@ sudo -u geohot /usr/bin/ionice -c3 node --max-old-space-size=192 --env-file=.env
 18:2x 把 `geohot-worker` 整个停掉，首页当场 **200／0.076 s，近 4 分钟 43 个请求 0 条 5xx**，pg 后端 21→10、RSS 合计 2,189→1,278 MB、负载 1.73→0.38。
 
 **结论（与原先的假设相反，必须改口径）**：关阀只停"新进口"，那 1.6 万条已排队的判定作业与 3 路翻译照跑，
-所以**阀门不是负载旋钮，`geohot-worker` 才是**。触发者是叠加：一波外部深页爬虫（单 IP `203.10.99.26` 45 分钟 147 次，
+所以**阀门不是负载旋钮，`geohot-worker` 才是**。触发者是叠加：一波外部深页爬虫（单 IP `<reader-host>` 45 分钟 147 次，
 5xx 路径形状是 items/story/all/data 各来一遍）＋一轮超时未完的归档周期＋我们 4 槽常驻，
 底盘是 **7—21 个空闲 pg 后端各 ~104 MB，物理只有 891 MB ⇒ 页缓存被挤光，冷页读全部落到 P6 盘**（#185 的"应用侧池=10"今天有了硬数字）。
 今天全天本站 5xx=181／8,518（2.1%），其中 17:26 之后占绝大少数；19:01 现读近 30 分钟 5xx=0、首页 200／0.05 s ×3。

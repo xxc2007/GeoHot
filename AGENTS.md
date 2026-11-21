@@ -25,6 +25,15 @@
 - 四端同步规则（本地源码 / GitHub / 服务器部署 / 网站行为）见 `docs/release-sync-policy.md`。发布是否成功以逐字节核对、`.release` 标记和线上 health 为准，不凭脚本退出码。以裸 bundle 或 `git archive` 解包部署的节点，工作树 Git HEAD 可能停在旧提交（HZ/WH 已出现过）；必须逐台读 `.release` 的完整 40 位 SHA，不能用 Git HEAD 代替。
 - nginx 配置改动后先 `nginx -t`，通过后 `systemctl reload nginx`；旧 worker 仍沿用旧连接、限流或静态白名单未生效时，按部署手册改为 `systemctl restart nginx`，再复验 429 与静态资源状态。
 
+## 仓库历史与治理
+
+- 两层账，不要混：**提交台账**逐条记录每个提交（含合并、`sync:` 机械搬运、空 diff），**更新日志** `industry/changelog.json` 只记录读者看得见的变化。截至 2026-11-21 是 1714 个提交对 258 条读者可见的发布记录（已发版 tag 254 个），比例悬殊是正常的，不是漏记；台账齐全也不代表日志齐全。
+- 要回答「这个仓库发生过什么」，读 [`docs/history/README.md`](docs/history/README.md)：`COMMIT-LEDGER.md`（1714 条，与 `git rev-list --count HEAD` 逐条相等）、`ERA-01`–`ERA-04`（按主题切的四段时代史，均以哈希区间为准）、六份审计（日志覆盖 / 可部署性 / 结构 / 三端同步 / 工作区 / 安全）与 `cleanup-candidates.json`。四段区间相加 1711，去重后 1710（`ae778c90` 被两段各数一次），再加根提交与三个接缝提交共 4 个，正好 1714——这些数都能当场用 `git rev-list --count` 复核。
+- 要回答「这个文件该放哪 / 改功能去哪找」，读 [`docs/PROJECT-MAP.md`](docs/PROJECT-MAP.md)：六条职责带（运行时、迁移、发布、运维、历史、归档）与「需求 → 该改哪里」对照表。
+- 治理规则：历史文档**只增不改**，要记新事实就加新条目、带新日期；审计里没跑的检查必须写成「未验证」，不替它升级结论；清理只出清单，删除、移动、凭据轮换都要站长逐条确认后才执行。
+- 两个审计件**故意不进本仓库**：`AUDIT-SECURITY.md` 与 `security-findings.json` 只在工作区 `docs/history/`。本仓库是公开的，把本机凭据文件的位置写进 `docs/` 等于向公网公布它。同理，`COMMIT-LEDGER-SIDE.md` 记录的是另一个仓库，也不要搬进来。
+- 历史文档里的数字会过时。引用前当场重跑：`git rev-list --count HEAD`、`node --test tests/changelog.test.ts`、`git tag --list 'v*' | wc -l`。
+
 ## 生产拓扑、服务器角色与恢复
 
 ### 四节点拓扑（2026-11-20 现状）

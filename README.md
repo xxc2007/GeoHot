@@ -18,7 +18,7 @@
 
 无需注册即可阅读，支持搜索、分类筛选、本地收藏与 RSS 订阅；开发者也可以通过公开 API 和 MCP 接入同一套内容。
 
-[宣传片](#-宣传片展示) · [阅读体验](#阅读体验) · [筛选流程](#信息如何成为精选) · [技术架构](#技术架构) · [开放接口](#站点与开放接口) · [本地运行](#本地运行与二次开发) · [内容边界](#内容边界) · [License](#-license) · [Star History](#star-history)
+[宣传片](#-宣传片展示) · [阅读体验](#阅读体验) · [筛选流程](#信息如何成为精选) · [技术架构](#技术架构) · [目录与历史](#目录与历史) · [开放接口](#站点与开放接口) · [本地运行](#本地运行与二次开发) · [内容边界](#内容边界) · [License](#-license) · [Star History](#star-history)
 
 </div>
 
@@ -97,6 +97,12 @@ GEOHOT 基于开源框架 [AIHOT](https://github.com/KKKKhazix/AIHOT) 构建，�
 
 后续修改可编辑 [`render.mjs`](docs/architecture/render.mjs) 中的双语文字与节点，先运行 `npm ci --prefix docs/architecture` 安装文档导出工具，再运行 `node docs/architecture/render.mjs` 同步生成中英文 SVG 与高清 PNG；[导出说明](docs/architecture/README.md)。
 
+## 目录与历史
+
+目录职责按「生命周期」分成六条带——运行时、迁移、发布、运维、历史、归档——每条带该改什么、不该动什么，以及「我要做 X 该改哪个目录」的对照表，见[仓库目录地图](docs/PROJECT-MAP.md)。
+
+这个仓库到今天有 **1714** 个提交、**258** 条读者可见的发布记录（`industry/changelog.json` 的 `releases` 数组；`git tag --list 'v*'` 是 254 个，差的 4 条是发布当天才补版本号），两者不是同一层：提交台账逐条记录每个提交（含合并与机械搬运），更新日志只记录站长认为读者该知道的变化。完整台账、四段时代史（2026-10-01 起）、结构 / 可部署性 / 同步 / 日志 / 工作区五份审计，以及清理候选清单，都在[`docs/history/`](docs/history/README.md)；安全审计 `AUDIT-SECURITY.md` 与 `security-findings.json` 只在工作区 `docs/history/`（公开仓库不写本机凭据文件位置）。
+
 ## 站点与开放接口
 
 以下路径均相对于线上站点的 `/geohot/` 前缀。
@@ -117,7 +123,9 @@ GEOHOT 基于开源框架 [AIHOT](https://github.com/KKKKhazix/AIHOT) 构建，�
 
 ## 本地运行与二次开发
 
-需要 Node.js 24.11 或更高版本。安装依赖并生成一份本地配置：
+需要 Node.js 24.11 或更高版本。安装依赖并生成一份本地配置。
+
+下面的命令块按 **Git Bash（Windows）/ WSL / POSIX shell（bash、zsh）** 写；PowerShell 里要逐条改写成等价命令（`mv` → `Move-Item`、`VAR=x cmd` → `$env:VAR='x'; cmd`），不要整块粘贴。
 
 ```bash
 npm ci
@@ -173,10 +181,10 @@ DATABASE_URL=postgres://geohot:geohot@127.0.0.1:5455/geohot_test npm test   # �
 四个容易踩的坑：
 
 - `db:up` 的端口**不跟 `env:init` 走**（它读 `--port`、`DEV_DB_PORT`，否则回落 5433）。换过端口就显式写 `--port=5455`；**先起的若是 5433 上的旧库，`db:migrate` 会把全部迁移写到那个库上**（本机若真有线上库，这就是事故）。
-- 本地构建是**域名根**形态：没有 `BASE_PATH`，线上 `/geohot` 前缀由反代与 web 层决定。冒烟用 `node scripts/smoke.ts --base http://127.0.0.1:3099`（不带前缀）；带 `/geohot` 会得到一串 404。
+- 本地构建是**域名根**形态，因为 `BASE_PATH` 是**构建期**变量、本地构建没带它（`deploy/geohot/deploy.sh:20-22`：由 `GEOHOT_BASE_PATH` 传进 `npm run build`，默认 `/geohot`，域名根部署显式传空串）。前缀烧进 bundle，**不是**反代或 web 层在运行期决定的——只改 nginx 变不出 `/geohot`。冒烟用 `node scripts/smoke.ts --base http://127.0.0.1:3099`（不带前缀）；带 `/geohot` 会得到一串 404。
 - `npm run seed:curated -- --enforce-source` 在干净库上可能 **exit 1**：部分语料行属于 `enabled:false` 的信源，脚本会逐条打印未入库行与原因。要它全绿就先启用对应信源，或去掉 `--enforce-source`。
 
-`.env` 里采集、模型调用等外部访问开关一律 `false`（测试也继承这份，开了就会真打外部服务）。需要跑真实管道时叠加独立的 `.env.pipeline` —— 那份里它们是 `true`，两份永不合并。
+`.env` 里采集、模型调用等外部访问开关一律 `false`（`npm test` 不读 `.env`：它只从 shell 取 `DATABASE_URL`，测试库名必须是 `*_test`/`*_ci` 并显式传入）。需要跑真实管道时叠加独立的 `.env.pipeline` —— 那份里它们是 `true`，两份永不合并。
 
 希望用于其他垂直领域，可从 `industry/` 入手配置站名、分类、信源、提示词与品牌。目录职责和迁移步骤见[行业定制指南](docs/customize.md)，实际配置值以代码为准；部署说明见[运行手册](docs/geohot-runbook.md)。
 

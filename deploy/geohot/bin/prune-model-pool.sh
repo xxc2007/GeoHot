@@ -5,11 +5,11 @@
 # 模型会下架。2026-11-16 实测：池子里躺着 11 个别名（79 个成员位）打过去就是 404，
 # 一小时 60 次失败里有一半是它们——每一次都要先撞一次 404 才轮到下一个模型。
 #
-# 判据来自探针实测（tooling/model-pool-dead.txt），不是拿 /v1/models 对表：
+# 判据来自探针实测（deploy/geohot/bin/model-pool-dead.txt），不是拿 /v1/models 对表：
 # magpie 能接受别名与裸 id，对表会造出假死。
 #
 # 用法：prune-model-pool.sh [dead 文件] [env 文件]
-#   dead 文件默认 tooling/model-pool-dead.txt（脚本同目录里的 model-pool-dead.txt）
+#   dead 文件默认 deploy/geohot/bin/model-pool-dead.txt（即脚本同目录）
 #   env 文件默认 /opt/geohot/app/.env；执行器上是 /opt/geohot-exec/.env
 set -uo pipefail
 

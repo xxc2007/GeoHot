@@ -1,0 +1,1729 @@
+# COMMIT-LEDGER — GEOHOT 提交台账
+
+仓库：GEOHOT
+分支：main；HEAD 为 `2e5edf22ceb76548646fe92d20b0dc8fa7ec59b3`
+生成命令：git -c i18n.logOutputEncoding=utf-8 log --reverse --date=short --format='- `%H` · %cd · %an · %s' --output=docs/history/COMMIT-LEDGER.md
+覆盖范围：`git rev-list --count HEAD` 报告的全部 1714 个提交，含 358 个合并提交，按提交时间正序（git log --reverse）
+日期字段：%cd（提交者日期，--date=short 即 YYYY-MM-DD）
+作者字段：%an（作者名，原样）
+标题字段：%s（原始提交标题，未改写、未截断）
+生成日期：2026-11-21
+
+每行格式：减号 空格 反引号 完整 40 位小写哈希 反引号 空格 中点 空格 YYYY-MM-DD 空格 中点 空格 作者 空格 中点 空格 提交标题
+
+---
+
+- `6220fe11ef5fe75f925e194e645480b050c5d782` · 2026-10-01 · xxc2007 · GEOHOT 地理热点：地理垂直领域的热点聚合与每日日报
+- `555d0c246bd23b47edfc858b325ed10c84036860` · 2026-10-01 · XinChen Xiong · docs: the live daily editions are empty — recorded with the repro
+- `6b39bdaf780404fc0d7b8db825a8ad6f83ce2e5c` · 2026-10-01 · XinChen Xiong · docs: the launch-day empty reports were correct behaviour (measured, not guessed)
+- `a5f0f7323f90966d6d95620b3a61268ea9fb993b` · 2026-10-01 · XinChen Xiong · deploy: script that removes the https->http bounce on the bare path
+- `e164d6310412683e83d2404c4ea6bdea21d5e248` · 2026-10-01 · XinChen Xiong · deploy: snippet no longer ships the redirect that caused the bare-path 404
+- `f5d10b77c688bf22d043ee234cddfa461899f92d` · 2026-10-01 · XinChen Xiong · deploy: record the bare-path 404, the diagnosis, and the fix
+- `d722584a66d6212587cf817f162ad4abbf62ae46` · 2026-10-01 · XinChen Xiong · web: home links point at <base>/ so the router can match them
+- `befdf3b16c3fd3b40d0e8ba948b70649e5d9a0eb` · 2026-10-01 · XinChen Xiong · web: home links point at <base>/ so the router can match them
+- `6c883c80fd1d6122251bcab0a44378865d8934ff` · 2026-10-01 · XinChen Xiong · web: home links point at <base>/ so the router can match them
+- `3c958428d75f9c8d25402ae2fad2af8e5586bfbb` · 2026-10-01 · XinChen Xiong · web: home links point at <base>/ so the router can match them
+- `33d15b5b83f20ffc058612feeef068165c392db2` · 2026-10-01 · XinChen Xiong · web: home links point at <base>/ so the router can match them
+- `84d2c4d59de95ecd117257d21ca6e1a968f2af9b` · 2026-10-01 · XinChen Xiong · web: home links point at <base>/ so the router can match them
+- `ef8694fb246ff3b10665c09cf986e573b9e3c5c8` · 2026-10-01 · XinChen Xiong · web: home links point at <base>/ so the router can match them
+- `5b1c830a9941462f5c67e3c1afbdd4ceec4a4c12` · 2026-10-01 · XinChen Xiong · deploy: the script that put the trailing-slash redirect back, targeting https
+- `6c27055a262b4f551cee57ee2199206fa9a44d75` · 2026-10-01 · XinChen Xiong · deploy: record the client-router cause of the returning-home 404
+- `618e3347b5af3e958d7cc4c5f6c99d768e41aa4e` · 2026-10-01 · XinChen Xiong · brand: fix the XML-invalid comment that made GitHub refuse to render the mark
+- `d6216a75514352041e86ac117d04c021ea277775` · 2026-10-01 · XinChen Xiong · README: logo via absolute raw URL, and the footer says it is live
+- `08d4439a18425f2ff80db75b24467539b9640492` · 2026-10-01 · XinChen Xiong · deploy: snippet now matches the verified live config (the trailing-slash redirect is load-bearing)
+- `fc108a781e0613b42623455e687282746c29e9da` · 2026-10-01 · XinChen Xiong · honesty: documents described a site that had not launched yet
+- `411347f9bb5569d9454a33e54e47f2bf57478132` · 2026-10-01 · XinChen Xiong · honesty: drop the placeholder security contact so live security.txt stops advertising it
+- `d9053594036e2fed9a85a7cc999c23a664c95347` · 2026-10-01 · XinChen Xiong · deploy: stop publishing the origin IP and SSH user in a public repo
+- `cc43c95c0691b576243cea9c02e368a300255d63` · 2026-10-01 · XinChen Xiong · docs(manual): the deployment is no longer a to-do
+- `98b02714298b96d1538cd7a981344b1ed4cfcffa` · 2026-10-01 · XinChen Xiong · docs: track the stale .brief references an audit found in 8 published files
+- `ce5917a269d2e6fc0dbec565d5178cead45fc09a` · 2026-10-01 · XinChen Xiong · web: weekly/monthly tabs rendered the daily paper under a sub-path
+- `3db9c756bb33656279d29209ff9547a178cc0b83` · 2026-10-01 · XinChen Xiong · deploy: record the raw-path-check bug class
+- `bd41eba153df73930f6b21a095738052068a833e` · 2026-10-01 · XinChen Xiong · web: home filter chips 404'd — the third instance of the sub-path link bug
+- `57b68978ece50ff3e0ecab43d34c2454e9f4b06a` · 2026-10-01 · XinChen Xiong · web: root-targeting filter tabs get the full public path
+- `9ad7d1a9ac72979af4d8667406140bfb02c104db` · 2026-10-01 · XinChen Xiong · deploy: record how to spot the root+query link bug class
+- `ef38eef32d31b548d1b20d465ea291620260d55d` · 2026-10-01 · XinChen Xiong · web: normalise the bare base in the history API so the sub-path bug class stops recurring
+- `826d79f023428ab2e7dac8b748cac0813aea957e` · 2026-10-01 · XinChen Xiong · web: add the GitHub link the upstream sidebar carries
+- `375799195f09899b19b43239734ac8a56b0c8a9c` · 2026-10-01 · XinChen Xiong · web: add the GitHub link the upstream sidebar carries
+- `d4a4c037f2a50fb448990d9daa08fbde31307cb1` · 2026-10-01 · XinChen Xiong · web: add the GitHub link the upstream sidebar carries
+- `bac11980a15485644b99b48dbc2e6cebccd77ae2` · 2026-10-01 · XinChen Xiong · site: add repoUrl, the field the GitHub button reads
+- `fecdc4b009ee0d6b040b2dc13d178cabcde0c00a` · 2026-10-01 · XinChen Xiong · web: the GitHub link inherits the sidebar colour instead of a white fill
+- `d7606d8caf0ac9911a32d5f49f5082edcebdfff6` · 2026-10-02 · XinChen Xiong · sync: .env.example
+- `ee21d90a0c20369b19dc3a6244f440cfd37b1d5c` · 2026-10-02 · XinChen Xiong · sync: .gitattributes
+- `a9aaa94e45562f4e9a25ca1cb2466633996c3285` · 2026-10-02 · XinChen Xiong · sync: AGENTS.md
+- `7bafca4349dca4f900c57a2f2b008f9b454a1d90` · 2026-10-02 · XinChen Xiong · sync: README.md
+- `d5755a48b946e809ac71395de2dc7658c2a7e2a3` · 2026-10-02 · XinChen Xiong · sync: apps/api/src/app.ts
+- `331373c455dba1ddeb0671f92de9b1e2a9a592d6` · 2026-10-02 · XinChen Xiong · sync: apps/api/src/routes/og.ts
+- `2c04d20539217f7151e33a0de77ccc5a6f54c28b` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/app.css
+- `613747d06796b883eb5644889542d43f27218fea` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/components/icons.tsx
+- `c37698cc6e09afeb9f1808206eaefc26fdb819fa` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/components/shell/Chrome.tsx
+- `7b1876480021b9c1bdbae3b6a73dc347c0cd6eab` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/components/shell/MobileTabBar.tsx
+- `94475ceeb3b0b60e072294790eb2928a56253ab9` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/components/shell/Sidebar.tsx
+- `c9b1c404b6c41258409326d157d6ab03c001af2f` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/components/ui/Score.tsx
+- `efc663ffcff7de8f2f289419c424d9c54c98e382` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/components/ui/Tabs.tsx
+- `7aa14f985b54eb26dab8b08d4ad8eac9ec43b48b` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/features/feed/Filters.tsx
+- `f3dea4ac6b1164c596be51cb6b7544ff609fe6d7` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/features/feed/ReadingGroup.tsx
+- `8b1e827d54b93104c1ab1d93a1ea399af82ce111` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/features/feed/Timeline.tsx
+- `4a37142ef507789a33d90f78a02077cca6d6450f` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/features/report/ReportPaper.tsx
+- `16feb9544ca2e7518760b134d9b8aa855151e603` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/features/report/format.ts
+- `12de1d52e5717818e20e08a08ef9fe52808ec79b` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/lib/format.ts
+- `3d0464714a56fa5a96235ffb6c59872cc0ed06eb` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/root.tsx
+- `5ccf3643607448e0881bc57754c77aac6d52e609` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/routes/about.tsx
+- `0ead01e55f5110567545d7fa9b1e43d6b66b70fd` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/routes/admin-login.tsx
+- `77f36e7a91a816a7e77fd84f224aa973805cd51e` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/routes/admin/content-item.tsx
+- `0f0305a39e79e57437f8be2ebfecb7e5d58be2d0` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/routes/admin/layout.tsx
+- `1f0042f52ea965dcbe6e4f91d01e339bf94d82c9` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/routes/admin/monitor.tsx
+- `61305c4bda9bb2aea19f5fc6e2f48991733af61c` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/routes/agent.tsx
+- `cc63736624add3d8f82478a213cba9e8644f0cda` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/routes/all.tsx
+- `b5a8028ed926baa6da512a1a8f39847c317f5b12` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/routes/feedback.tsx
+- `0aeb1ba9e716a24848e484d6e12400b3121fbec7` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/routes/item.tsx
+- `a59fc2380929246496285403b7e246826800b62c` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/routes/more.tsx
+- `dba544bf56b813aecf57301b6003fa160d8bd4d9` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/routes/starred.tsx
+- `d4ea2354dcc35e2ff378e785d875e1081a010aa5` · 2026-10-02 · XinChen Xiong · sync: apps/web/server.ts
+- `c4a55805efb4515e3068dc3ff19777f8915d6bee` · 2026-10-02 · XinChen Xiong · sync: database/seeds/lb-models-2026-09-29.json
+- `d83b3ea0d895adfa064f863cb2654969e9541113` · 2026-10-02 · XinChen Xiong · sync: database/seeds/lb-official-prices-2026-09-26.json
+- `df0e9315f66a2286ac4fdfc7367f81b129b16b38` · 2026-10-02 · XinChen Xiong · sync: deploy/geohot/DEPLOYMENT.md
+- `6019ef6492ae1e8f771013673bac4ee1e0527453` · 2026-10-02 · XinChen Xiong · sync: deploy/geohot/README-deploy.md
+- `9b099a1454489ef6052365e0bfaabe2947253282` · 2026-10-02 · XinChen Xiong · sync: deploy/geohot/bootstrap-server.sh
+- `f0d8a07ae49da90f5632fdd0847c4665526d7e9d` · 2026-10-02 · XinChen Xiong · sync: deploy/geohot/geohot.nginx.conf片段
+- `ce92db7f8b4d83eb47308f03969033e174d88baf` · 2026-10-02 · XinChen Xiong · sync: deploy/geohot/install-units.sh
+- `d7de5a7cd45479d205df45323e7a3fe03d83b849` · 2026-10-02 · XinChen Xiong · sync: deploy/geohot/rollback.sh
+- `0e1473d3e0c0953aad3a45c409650575b6abd7c4` · 2026-10-02 · XinChen Xiong · sync: deploy/geohot/systemd/geohot-api.service
+- `b2dd704181c292dff222df0200e46521b1083e6d` · 2026-10-02 · XinChen Xiong · sync: deploy/geohot/systemd/geohot-brain.service
+- `d22be1fdc8b877da2762f3c5bd655c295478d956` · 2026-10-02 · XinChen Xiong · sync: deploy/geohot/systemd/geohot-web.service
+- `ef7b4e7c30da979eee873f1179a78e1a3404c493` · 2026-10-02 · XinChen Xiong · sync: deploy/geohot/systemd/geohot-worker.service
+- `00f4213956a3be099c69cb27da1a0d204897afd7` · 2026-10-02 · XinChen Xiong · sync: deploy/geohot/verify-deploy.sh
+- `0e5b9887c30ef1331f5a91bfc6c3570bd58b1ad1` · 2026-10-02 · XinChen Xiong · sync: docs/deploy.md
+- `dad6a428def5ff920897c3a9eccc65d0104cbc20` · 2026-10-02 · XinChen Xiong · sync: docs/known-issues.md
+- `8685215c5787f715499053635ab89c863f16ff75` · 2026-10-02 · XinChen Xiong · sync: docs/manual.md
+- `cbf7758fc34315cd325ec24b8139bda57827f691` · 2026-10-02 · XinChen Xiong · sync: docs/shots/daily-dark.png
+- `8886c38b4dae97023705a364cde9b1597e30104a` · 2026-10-02 · XinChen Xiong · sync: docs/shots/daily-light.png
+- `46d77b003b8f1b62c1786c36d971c127e8cdac5c` · 2026-10-02 · XinChen Xiong · sync: docs/shots/home-dark.png
+- `e95025a7511ed76bc79a566cff4d8664a5f6a408` · 2026-10-02 · XinChen Xiong · sync: docs/shots/home-light.png
+- `6a5c0e4afff8c1fb7ae7cda6fd05059e12d026df` · 2026-10-02 · XinChen Xiong · sync: docs/shots/hot-dark.png
+- `4e5c30fcbc7fa02a5003299778f22c53214d3319` · 2026-10-02 · XinChen Xiong · sync: docs/shots/hot-light.png
+- `ec0e229fbec339881d38612593ed4389287407a4` · 2026-10-02 · XinChen Xiong · sync: docs/shots/mobile-dark.png
+- `e47a68188eb1b755a7da6bccfef49355edd30546` · 2026-10-02 · XinChen Xiong · sync: docs/shots/mobile-light.png
+- `2d7001ab14a7f3e772d62332711ab968184a6078` · 2026-10-02 · XinChen Xiong · sync: docs/shots/topics-dark.png
+- `521441bca0027aacced86a53245dce79cffde133` · 2026-10-02 · XinChen Xiong · sync: docs/shots/topics-light.png
+- `69f664b2b176f0672705b3ce5b510b21ad8678fe` · 2026-10-02 · XinChen Xiong · sync: geohot-api.service
+- `1a19e11df2a58aa8e54eada8b6674a02526b42a5` · 2026-10-02 · XinChen Xiong · sync: geohot-brain.service
+- `549a575c02a4a56bc5e4e4cc581e3ef03b086343` · 2026-10-02 · XinChen Xiong · sync: geohot-web.service
+- `8b043302e3c5d1209cfaf50b891a68774762565b` · 2026-10-02 · XinChen Xiong · sync: geohot-worker.service
+- `5c0fbbf78439b1a91e22496a1ed7e74c73e46a13` · 2026-10-02 · XinChen Xiong · sync: industry/site.ts
+- `93bdadfdaefa6aa156ae5647f007003c3c19bbe5` · 2026-10-02 · XinChen Xiong · sync: industry/taxonomy.ts
+- `55ca6d97a743ee19beef18b9e6a8d1a1761795b3` · 2026-10-02 · XinChen Xiong · sync: packages/backend/src/config.ts
+- `40349f907951e46ab0fc89b0a70ab2be0baf4e81` · 2026-10-02 · XinChen Xiong · sync: packages/backend/src/publication/reports.ts
+- `51fab8b27e55642bcf9b35581fabcb9f5cff50d6` · 2026-10-02 · XinChen Xiong · sync: packages/backend/src/publication/topics.ts
+- `c57f4d95892e27c984935b98cbe9c73adf44d974` · 2026-10-02 · XinChen Xiong · sync: packages/backend/src/reports/compose.ts
+- `a650f9a5e92ca554c304ab002fa609dee18245f1` · 2026-10-02 · XinChen Xiong · sync: scripts/smoke.ts
+- `aaa72781078622d781f914f2a8d431e48e116286` · 2026-10-02 · XinChen Xiong · sync: tooling/corpus/corpus-climate-brain.jsonl
+- `992eda025734143bca28d814ac75b5e72a8989c5` · 2026-10-02 · XinChen Xiong · sync: .env.example
+- `581e2f621aaefebc770bac83865f06bab9e980e0` · 2026-10-02 · XinChen Xiong · sync: AGENTS.md
+- `622a86b743e215c0ffe843b0ce17767b29b7bdf0` · 2026-10-02 · XinChen Xiong · sync: apps/api/src/app.ts
+- `6b693ba4a3bb953bf355072e09ce35f10b5180a9` · 2026-10-02 · XinChen Xiong · sync: apps/api/src/routes/og.ts
+- `891b0bf0f4efaac335b87ff295b5900680e98929` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/app.css
+- `61acfb1355bac3d2c2121b8508d72c00eb23570d` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/components/icons.tsx
+- `21d3ffe6287e64ecda94214f055048b594e12c31` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/components/shell/Chrome.tsx
+- `0bf49087681926b56b70603b672f93c0fda23cc0` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/components/shell/MobileTabBar.tsx
+- `4f2da67b5ae479d3987acfd884116dabc369382a` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/components/shell/Sidebar.tsx
+- `fb97a58e2f31d3184b297c550bf7fdd904db60e2` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/components/ui/Score.tsx
+- `42d76623d4a95bdf5005491cd2cd168766705ec4` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/components/ui/Tabs.tsx
+- `990fc22c0bbddafe7537f04e552bc246ada6200e` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/features/feed/Filters.tsx
+- `aa6b375d3438e15e1b8cf3ff8aac3d52f7ace8e8` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/features/feed/ReadingGroup.tsx
+- `fb95ab1dce7c93791f783d2da2193b5092550410` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/features/feed/Timeline.tsx
+- `5af56ea41b36f65f5426dc75fb9e9e2e5b8c20ec` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/features/report/ReportPaper.tsx
+- `ea94c75caf35bf720786ee13219a404fe763dfeb` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/lib/format.ts
+- `d506217eea5f1116b09e317ef4faa48c377378c6` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/root.tsx
+- `4381de5a33c417be18e5c2e495cf418fabdf020d` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/routes/about.tsx
+- `710c91fb076e513a567d0ba5564139032d985c9e` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/routes/admin-login.tsx
+- `8c1194448028cf72e9f349a65e8dd5466bfb163c` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/routes/admin/content-item.tsx
+- `1684881cff75c2167ba77e9280111017cd526303` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/routes/admin/layout.tsx
+- `d1bd5a712a0259bf279433c0825843183f91b094` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/routes/admin/monitor.tsx
+- `c13e3f5592ea4c0f23f4e68724d411fba671114e` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/routes/agent.tsx
+- `d4cd6429f983477fff0b94ee52a1d26dae84d6e1` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/routes/all.tsx
+- `1c90a89cd5885c693847ea89cffc3a68b2f7e21b` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/routes/feedback.tsx
+- `fa0dcb46a49ca959863e3fecb76eb5eecef25fac` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/routes/item.tsx
+- `49c2fc5ac514aa0ce4e54f616ca1fb63a706d059` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/routes/more.tsx
+- `25ff398b826bc7c980baf41e711277d1a9d1c4e5` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/routes/starred.tsx
+- `5cee74e091cf6d57b76711d6067e38e9b5ba51e9` · 2026-10-02 · XinChen Xiong · sync: apps/web/server.ts
+- `14f2e305f673d5e2cb98965a53cabf2c234af198` · 2026-10-02 · XinChen Xiong · sync: database/seeds/lb-models-2026-09-29.json
+- `95d226d696d6de71ab7df05f498485fb50a4605e` · 2026-10-02 · XinChen Xiong · sync: database/seeds/lb-official-prices-2026-09-26.json
+- `d08d42c269e26fc2bd514aec622f46a57a0a6733` · 2026-10-02 · XinChen Xiong · sync: deploy/geohot/install-units.sh
+- `1ea973bb9880a46483a5897f6a9d07c8f872ba93` · 2026-10-02 · XinChen Xiong · sync: deploy/geohot/verify-deploy.sh
+- `a763e8f6979e536efa84d314b88caaea2cb39980` · 2026-10-02 · XinChen Xiong · sync: docs/deploy.md
+- `e020789bfac8ea63ed8cb750c045ad0fade199dd` · 2026-10-02 · XinChen Xiong · sync: docs/known-issues.md
+- `c001936605d5c9f13327453476bf3a6311789aff` · 2026-10-02 · XinChen Xiong · sync: docs/manual.md
+- `91481b151455b657fda646047fa0138c80649f0a` · 2026-10-02 · XinChen Xiong · sync: industry/site.ts
+- `2225a1511e7ee6e9c542ee89980862b5dcea39ae` · 2026-10-02 · XinChen Xiong · sync: industry/taxonomy.ts
+- `b0f9e057c3224f2ea3050b54e0033cb5a38bd119` · 2026-10-02 · XinChen Xiong · sync: packages/backend/src/config.ts
+- `9ed5a1bd5732fcedcdad0f3462931537d1d80214` · 2026-10-02 · XinChen Xiong · sync: packages/backend/src/publication/reports.ts
+- `1ca820acef71dba565b920f5444b7dbaf5874fd0` · 2026-10-02 · XinChen Xiong · sync: packages/backend/src/publication/topics.ts
+- `c4f1bc70d5fb1b1b8328fd6715d8776b5637c603` · 2026-10-02 · XinChen Xiong · sync: packages/backend/src/reports/compose.ts
+- `72fd965be6b1890e4634dd0f7b11db64ebabf74e` · 2026-10-02 · XinChen Xiong · sync: scripts/smoke.ts
+- `12fb350e87682354583adeadf9139e235f7d6d2a` · 2026-10-02 · XinChen Xiong · sync: drop geohot-api.service
+- `0f3d37b0de8e26e39c021ab3b772f4042874e79b` · 2026-10-02 · XinChen Xiong · sync: drop geohot-brain.service
+- `a91386fff9351709821280e67774ef8f969c0b36` · 2026-10-02 · XinChen Xiong · sync: drop geohot-web.service
+- `32fd004e94946d9894f97922efb674205e4dd9ee` · 2026-10-02 · XinChen Xiong · sync: drop geohot-worker.service
+- `536e7f394ceaf46f210fd84efd4bd859fef328e2` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/features/report/format.ts
+- `f7ba2e19f6e3b44a31b6fc3c0a7d76e47dc18989` · 2026-10-02 · XinChen Xiong · sync: .env.example
+- `6ff36fef95a7d8403dc7d7b485b34738f9d8472b` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/features/monitor/ResetCalendar.tsx
+- `e2d06ffc0da15a9112d70cf86cdd235714208cc4` · 2026-10-02 · XinChen Xiong · sync: apps/web/app/routes/codex-reset.tsx
+- `59b4b4a9111059988919aeaad76ab3494dea59c8` · 2026-10-02 · XinChen Xiong · sync: apps/web/server.ts
+- `c735a11583665836176a7cdd994cd8cbcf1004d2` · 2026-10-02 · XinChen Xiong · sync: deploy/geohot/baseline-main.txt
+- `864307302707885a49c42bc87f7e4662cbaaef56` · 2026-10-02 · XinChen Xiong · sync: deploy/geohot/verify-deploy.sh
+- `ce7e5d90aa7157fa4c36dc61d8bb3cfe4cb76764` · 2026-10-02 · XinChen Xiong · sync: docker-compose.yml
+- `f45ec0e2f67cbfbbd1ccbfb7fcc9cd50c77ac023` · 2026-10-02 · XinChen Xiong · changelog: industry/changelog.json
+- `3c8ff5dc4c2d0c68ce5e6e8eb9c810a43787a6ee` · 2026-10-02 · XinChen Xiong · round 2: apps/api/src/routes/mcp.ts
+- `d781498090a2e404b96b84ba7315a9edc629421b` · 2026-10-02 · XinChen Xiong · round 2: apps/api/src/routes/static.ts
+- `ca43e222d8f455fca9a305613077daf3226b60ad` · 2026-10-02 · XinChen Xiong · round 2: apps/web/app/app.css
+- `d7b261d193b391f052b059717db3b39894f8aa77` · 2026-10-02 · XinChen Xiong · round 2: apps/web/app/features/report/ReportPaper.tsx
+- `49bc554d2c76f769a87d94c0950f629566a002fc` · 2026-10-02 · XinChen Xiong · round 2: apps/web/app/features/story/HeatChart.tsx
+- `01561ab1a76061014272220608ab424945a09414` · 2026-10-02 · XinChen Xiong · round 2: apps/web/app/lib/seo.ts
+- `d20e75bacf8679fcbeb074a8d3557e64b52e59f2` · 2026-10-02 · XinChen Xiong · round 2: apps/web/app/root.tsx
+- `448275f9561f373bf665d76185fca58dd50b0a91` · 2026-10-02 · XinChen Xiong · round 2: apps/web/app/routes/all.tsx
+- `46a5c33bdc1eae683ca9f00f8d189e44a5b15276` · 2026-10-02 · XinChen Xiong · round 2: apps/web/app/routes/feedback.tsx
+- `0249c117c107fe9b58329f77f762237fd979a1b1` · 2026-10-02 · XinChen Xiong · round 2: deploy/geohot/DEPLOYMENT.md
+- `d97699df89c21e74ebdc9a9f10ccb766c93bf289` · 2026-10-02 · XinChen Xiong · round 2: deploy/geohot/README-deploy.md
+- `1485919203e3d54a62f680346ae3795c9afb99a3` · 2026-10-02 · XinChen Xiong · round 2: deploy/geohot/bootstrap-server.sh
+- `d138579dd60fb3199dca835bd0acd59ca30a1c39` · 2026-10-02 · XinChen Xiong · round 2: deploy/geohot/fix-bare-path.sh
+- `20f6922718917d9447e06c1527a5fd7a16cac13a` · 2026-10-02 · XinChen Xiong · round 2: deploy/geohot/geohot.nginx.conf片段
+- `fd635fda173d314106f826589630f35ec0251812` · 2026-10-02 · XinChen Xiong · round 2: deploy/geohot/install-units.sh
+- `5f6d30f1d7ec1942a3f63e0bc4280db9d8f841b4` · 2026-10-02 · XinChen Xiong · round 2: deploy/geohot/rollback.sh
+- `fa68939836c6f6d3cda8582e6b0468862a3969e7` · 2026-10-02 · XinChen Xiong · round 2: deploy/geohot/systemd/geohot-web.service
+- `0955ad7910026db37745db94c95d46625a3f8efd` · 2026-10-02 · XinChen Xiong · round 2: deploy/geohot/verify-deploy.sh
+- `3ef461e08e9d1e23268a0ada8554d507b036df6d` · 2026-10-02 · XinChen Xiong · round 2: docs/deploy.md
+- `39d2bb92b7d99838b91fa4d194fcee039da31af1` · 2026-10-02 · XinChen Xiong · round 2: docs/known-issues.md
+- `9cf79a65f3cf94304eb50878e57d97a269e8774c` · 2026-10-02 · XinChen Xiong · round 2: docs/shots/daily-dark.png
+- `d10182a804a8babd5ffe8548ef013e8b6decd67c` · 2026-10-02 · XinChen Xiong · round 2: docs/shots/daily-light.png
+- `011784a5a408e2dbe46b09b5703a1dea71d7b58c` · 2026-10-02 · XinChen Xiong · round 2: docs/shots/home-dark.png
+- `c3b970c6bf72669326fb57f4b36818cba199dfeb` · 2026-10-02 · XinChen Xiong · round 2: docs/shots/home-light.png
+- `5273ee46496307e03e39bdbebe3aaa3265e631b2` · 2026-10-02 · XinChen Xiong · round 2: docs/shots/hot-dark.png
+- `515130a6d794a7b69ccfb539bf0bc4826d3cf0e2` · 2026-10-02 · XinChen Xiong · round 2: docs/shots/hot-light.png
+- `5f7c3b51b330541f532aadf10ad42814f88c163e` · 2026-10-02 · XinChen Xiong · round 2: docs/shots/mobile-dark.png
+- `1038983459fdd089204f9df02362c27632c859d1` · 2026-10-02 · XinChen Xiong · round 2: docs/shots/mobile-light.png
+- `0fe73f7d2c8f1d8d90fd77511df514598fb7b6f8` · 2026-10-02 · XinChen Xiong · round 2: industry/pages/privacy.md
+- `0c61358874e848ad96297dc0a2cf2a326e14d087` · 2026-10-02 · XinChen Xiong · round 2: scripts/smoke.ts
+- `80016b8fa53043d4eda418662427ca41f055ffb8` · 2026-10-02 · XinChen Xiong · round 2: drop docs/shots/topics-dark.png
+- `c200ec82611f593e3fc538eedf1efaf856514bcf` · 2026-10-02 · XinChen Xiong · publish: docs/shots/daily-dark.png
+- `f43d59f8b01edfbd163fd677cbd78280e3d49988` · 2026-10-02 · XinChen Xiong · publish: docs/shots/daily-light.png
+- `1db70d5f4f6eaabfbf1b90c34552f09dfc2941a8` · 2026-10-02 · XinChen Xiong · publish: docs/shots/home-dark.png
+- `aeb88f22a87a7dd9fd615afc704218e2bf352a84` · 2026-10-02 · XinChen Xiong · publish: docs/shots/home-light.png
+- `486fbd9d4ba1efeb83ab903fed353d2be1ae77a0` · 2026-10-02 · XinChen Xiong · publish: docs/shots/hot-dark.png
+- `51e22d68a8c57ca7ee00cfa73c9a89e30308c98e` · 2026-10-02 · XinChen Xiong · publish: docs/shots/hot-light.png
+- `8c246002f6cf2942e9028bc8d23c5ef0fe045193` · 2026-10-02 · XinChen Xiong · publish: docs/shots/mobile-dark.png
+- `551fd0f6b0932dfd7c488f182e92377786938d5a` · 2026-10-02 · XinChen Xiong · publish: docs/shots/mobile-light.png
+- `02b42e1a9d43e179e098f6260a1d2b74c76bd395` · 2026-10-02 · XinChen Xiong · a11y: the popup takes focus, and the no-JS reader is told what is missing
+- `485da1fc4c98f603c2af1925578990996d24873c` · 2026-10-02 · XinChen Xiong · a11y: the popup takes focus, and the no-JS reader is told what is missing
+- `57a2de16a08e65e37ca742ce47a40c7e3d9b23f8` · 2026-10-02 · 熊鑫晨 · release: review round 4 — the outlets agree, links carry the prefix, words match what runs
+- `112698efdbe597de60fb1c9db499f2ab2886dba8` · 2026-10-02 · 熊鑫晨 · sync: changelog, known-issues, and the GDACS pre-filter (local 54f0a9a)
+- `4ed4649e5887e6d1916f41f9c3325d70ec9660da` · 2026-10-02 · 熊鑫晨 · readme: make the 技术栈 anchor deterministic (local d3eb6a1)
+- `89deec9051ede4d29af7b97e45ea2798d145df5d` · 2026-10-02 · 熊鑫晨 · copy: no reader-facing English; story developments order, Markdown filename, real Markdown parser, ingest validation (local f35da0a)
+- `417b91ac0045eaf15f3a5c29c85816e350da72a4` · 2026-10-02 · 熊鑫晨 · docs: the English leak explained, and the upstream inventory (local 6bdb9fb)
+- `593b4962cb4b4edf91f832ce9db00be740d8c694` · 2026-10-02 · 熊鑫晨 · deploy: restart matrix for hot updates (local f39dd8c)
+- `fa918445b6bdf339299540b4ea69989b056657e1` · 2026-10-02 · 熊鑫晨 · check sweep: compose gate, list gate, digest correction, MCP blank-issue refusal (local 56c28d3)
+- `bb495fdc06a91b82e4b5d91d6cb480392f1e240f` · 2026-10-02 · 熊鑫晨 · docs: sweep record, and the manual's stale lines corrected (local 8a688be)
+- `14ba7a41845d700cf5944b9bb18245c8da28be8b` · 2026-10-02 · 熊鑫晨 · story: distinct sort-control labels (local d033f73)
+- `bbed6caed84b5038af8c8c14d48cf6d9434a9c39` · 2026-10-02 · 熊鑫晨 · seo: clamp metadata, not the body (local 5116603)
+- `48755d9d648da17a85d10c763936ac76bb4806f8` · 2026-10-03 · 熊鑫晨 · 第七轮体检：中文门槛与发布闸门做成结构性的，后台错误面与外发凭据收口
+- `133a15e54b597a2acf040550fd58ff4846396921` · 2026-10-03 · 熊鑫晨 · 第七轮验收：smoke 跨出口检查自我修正，README 配图按线上新拍
+- `ce62504d8211f32af31f32f48f2bc6d8294dc8e6` · 2026-10-03 · 熊鑫晨 · docs(README): 脚本树补上 shoot.ts
+- `186be357f899cc910c95ec184022d83d1560f281` · 2026-10-03 · 熊鑫晨 · weekly: 接口故障不再伪装成「还没有发布」
+- `cfc38cdbbf46b810740733c30e03516ae80d195a` · 2026-10-03 · 熊鑫晨 · a11y: 弹层焦点等 Presence 挂载之后再交出
+- `ecb7789a8c3dbb611490a9097ddee3f7ed40235f` · 2026-10-03 · 熊鑫晨 · sitemap: 修回表别名（每次构建都在抛 42P01）
+- `4ab064f9ffd571700ddf7ff5cefc81802c08e885` · 2026-10-03 · 熊鑫晨 · 第七轮收尾：测试隔离与 robots 前缀修正
+- `23b1d8c3384102908a79e4b401cbd8a7f99e8c7e` · 2026-10-03 · 熊鑫晨 · 第八轮：四个板块与信源扩容
+- `64ded9df5cd7e80428d99da7b68c7f6a05801e78` · 2026-10-03 · 熊鑫晨 · 文档口径清零与主题墙宽屏加列
+- `8bacd94ca6b4e2fb4f4c77b41d0920f74c14719c` · 2026-10-03 · 熊鑫晨 · 审计修复：无日期/板块过滤/后台分类
+- `ab0e0f8d4fd20e642d104192f7976b9e938595f8` · 2026-10-03 · 熊鑫晨 · 修复：事件后续 404 死循环
+- `5ce36cb7f64ac8a819439e80c56d9eb21d241356` · 2026-10-03 · 熊鑫晨 · 上线收尾：配图重拍与部署记录
+- `7891b2f3829c57f265b376e3c0278bf2a99c3193` · 2026-10-03 · 熊鑫晨 · 筛选栏两个区域并成一个：地理信息技术 + 地理信息系统 → 「地理信息系统」
+- `b7717bb46fedc0c93b92d47758bfc808489f88c2` · 2026-10-03 · 熊鑫晨 · 合并之后：首页配图按线上重拍，README 计数与说明重核；changelog JSON 修复与护栏测试
+- `b0914ddfc7163791cab2cdecd63e386d0f437ca4` · 2026-10-03 · 熊鑫晨 · 测试清库修复：purgeTagged 早退、translate 夹具收尾、首页断言按 tag 收窄
+- `237e087a9d9e2324299ae7d672ba1abd22547d36` · 2026-10-03 · 熊鑫晨 · known-issues 补第 12 条：测试清库与首页断言的两处修复记录
+- `e85ad9149570598addae5cdc769f6112c2ca357e` · 2026-10-04 · 熊鑫晨 · 分类换位与删除、主题层清理、编辑大脑代码指纹守卫
+- `bda3a8665d3ef452b18b231a57701f6c391cbf09` · 2026-10-04 · 熊鑫晨 · 九轮：删板块层、当前热点诚实化、出口一致性三处修复、README 加星际历史、DEPLOYMENT 泄露占位符化
+- `4c3250569e984cd83d8435b729c306d7643732ee` · 2026-10-04 · 熊鑫晨 · 热榜空榜不顶掉有事件的榜 + 文档整改收口 + Star History 移到 README 最后
+- `fe8e735949dce7bd5e2a8ece0355356b96410f4c` · 2026-10-04 · 熊鑫晨 · README 在 GitHub 上的三处渲染缺陷修好；信源 85 → 90（加的是会同题报道的综合层）
+- `c28c845470682aa678607b256d403fe79b0d109e` · 2026-10-04 · 熊鑫晨 · 热榜补上中文门槛这一道出口；信源 85 → 87（人民网三条 RSS 实测后退回）
+- `dab20121e3a0bffedef48e795cf014f21d939b9b` · 2026-10-04 · 熊鑫晨 · setext 回归补空行；文档里的信源条数改为指向 README 普查段
+- `fdd459f6a35ff705488f2aaf4a8b9c9c8b123c43` · 2026-10-04 · 熊鑫晨 · 删掉筛选栏「一手」；信源 87 → 90；/hot 空态补出口；配图重拍
+- `0aa25618c7d47079402b64e3623801e804467c00` · 2026-10-04 · 熊鑫晨 · 部署文档补上模型阀；known-issues 记第十轮演练结果
+- `64f893213c9293eb4b1e3055f5a9e7b76b9c8593` · 2026-10-06 · 熊鑫晨 · 第二十六至二十九轮：同步出口的幽灵条目、视频频道撤下、条目页交互健壮性、接入 Agnes 3.0 flash 恢复实时更新、页脚不再当正文
+- `9e7536bb638309e170024f2dbce24dbfde72896f` · 2026-10-06 · 熊鑫晨 · 上线后的真话：更新日志的「线上是旧版」改成已上线；README 本机统计表重算
+- `3ab3603c01f4b1af8a2f55b37085621a8e304694` · 2026-10-06 · 熊鑫晨 · 第三十轮：七条一直失败的信源，逐条重测之后一条修好、五条停用、一条是抖动
+- `282134366e0ddb6ea13563abd69d72bd5ecf9ac5` · 2026-10-06 · 熊鑫晨 · 第三十一轮：热点榜空着的真实原因，是抽取层那 150 个字的下限
+- `6d2ce48c2d60f05b1d394b705a22df5f64b3065d` · 2026-10-06 · 熊鑫晨 · README 改版：把介绍页做成和「青山湖畔的纪念册」同一套展示语言
+- `4a53c4d168884fe187a71be6abe40cfb8e935cc0` · 2026-10-06 · 熊鑫晨 · README 首屏：给一眼数那一排加个小标题
+- `975521121de4803b9a9337d7b51bbd0f23f66876` · 2026-10-06 · 熊鑫晨 · README 图记：三张长说明折进 details，首屏不再被两千字挡住
+- `a51866c5f27b4732b71af837b947677f9cd7ff21` · 2026-10-06 · 熊鑫晨 · 第三十二轮：那 2676 条 unknown 不是模型不行，是它们没被真模型看过
+- `d124b0ef8cba171563605aead3da658725300808` · 2026-10-06 · 熊鑫晨 · 更新日志改成按文件修改时间热读：发一条不用重启进程
+- `4271aea91de2c5477312545f04c4998d86c5e51c` · 2026-10-06 · 熊鑫晨 · 第三十三轮：正文里的页面外壳不再被当作正文（并回滚一次洗坏的批量写）
+- `0239258c2b27ca2ae27ee91b06a46a44f1eb664c` · 2026-10-06 · 熊鑫晨 · 第三十三轮：正文里的页面外壳不再被当作正文（并回滚一次洗坏的批量写）
+- `bb7f9b8069605a6812d1b43f88a27a1ba279988b` · 2026-10-06 · 熊鑫晨 · 第三十三轮：正文里的页面外壳不再被当作正文（含一次被独立复查抓出的过度删除与撤销）
+- `2a0eab4b570101ae93ee3be476ca0f1b1fd9adde` · 2026-10-06 · 熊鑫晨 · 第三十四轮：四个独立评审方向的账——修九处「同一事实两个答案」，驳回两条并写下凭据
+- `9d1114b88f0a2a75a715844ab80df4c64d3a2126` · 2026-10-06 · 熊鑫晨 · 第三十五轮：额度分速率与花费两本账；任务窗口按一次思考调用重算，并让改动真的写进队列库
+- `afda31e796c8f412494915248075854c8ae8af66` · 2026-10-06 · 熊鑫晨 · 第三十五轮记账（补）：上线前后的实测数字
+- `30d8b0123d0cd55d521c1700147b43f42e080e61` · 2026-10-06 · 熊鑫晨 · 第三十六轮：后台翻页补唯一列、receipts 补索引；读者端四处可访问性与计数改正
+- `8d18abd8d36f865f86f76b3cea158603aad6f2aa` · 2026-10-06 · 熊鑫晨 · 第三十六轮记账（补）：上线后的实测数字与一处未证明的边界
+- `274fc876ff7b90f17667b426073d56bda05f72a4` · 2026-10-06 · 熊鑫晨 · README：加上英文版首页（README.en.md），两页结构对齐、数字同一套
+- `70519b60c7cf6f67ef2b55d4397f6e82db0ee00c` · 2026-10-06 · 熊鑫晨 · 第三十七轮：事件提要的署名来源搬进 story_digests（#62 前置），生产回填 2593 行
+- `e6e2159ff2424273ba0cc3395c75f17b0428dae7` · 2026-10-06 · 熊鑫晨 · 第三十八轮：主题页三组名从词表来；README 两处过时的说明更正
+- `8a64e4edc25e84fc7b7a0120a642642a55b49904` · 2026-10-06 · 熊鑫晨 · 第三十九轮：精选薄的原因量清楚了（门槛压在 p95 之上），加只读复算脚本
+- `c90ac653a457d1486d0fd7e09bd2e4748a873808` · 2026-10-06 · 熊鑫晨 · 门槛下移 46/49/52 生效；六条权威信源入列（98→104）；存量重判与账目
+- `c89758f15cb175f5deb58a771f8ff71132989a39` · 2026-10-07 · 熊鑫晨 · 第四十二轮：条目页「更多操作」菜单的键盘行为补完
+- `458deba94cb5c738395e478c0c360f3d7ca61914` · 2026-10-07 · 熊鑫晨 · 第四十二轮记账：门槛现值与文档口径对齐（六份文档 + 两份 README）
+- `f6d259cddb2a55d87511f6e1daa9c266193c1975` · 2026-10-07 · 熊鑫晨 · 第四十二轮记账（补）：出口对账说明
+- `329de001a900b2a8ac3bdaf05f9fe4a295be9692` · 2026-10-07 · 熊鑫晨 · 第四十二轮记账（补二）：MCP 出口实打记录
+- `2a5463d0e5cb33e43465ddf2f4930004b26a4ece` · 2026-10-07 · 熊鑫晨 · 第四十二轮记账（补三）：线上走查记录
+- `a8771158f8895ba544fea7d1c56ea6760d5204c6` · 2026-10-07 · 熊鑫晨 · 第四十三轮：两条旧工单结案——selectbench 校验早已就位，ITEM_COLUMNS 摘掉 eligible/backfill 两列
+- `ad41eb46c3f798000474fbbba47b9dcb9f197c02` · 2026-10-07 · 熊鑫晨 · 第四十四轮：期号落库——「第 N 期」不再数下标（issue_no 迁移 0048 + 发布盖章 + 读层携带）
+- `af95ba59e239517f007be74e1b157db80cf31c12` · 2026-10-07 · 熊鑫晨 · 第四十四轮（补）：api 的 Fastify 弃用选项迁移到 logController
+- `a94618aa64c7acc89f0e08928811ef22930bfc87` · 2026-10-07 · 熊鑫晨 · 第四十四轮记账（补）：api 的 Fastify 弃用修复写进本轮小节
+- `63d4508e9175e48506da5b1895c33612d7660392` · 2026-10-07 · 熊鑫晨 · 第四十四轮（修）：迟到旧刊不占号、0048 重放安全、导航号入测
+- `250887be224e17fd641fe2ef860da95735620372` · 2026-10-07 · 熊鑫晨 · 第四十五轮：运维面评审波——四条、修四条
+- `25f8974c61e3a2a251d1e13009671a96f33751ec` · 2026-10-07 · 熊鑫晨 · 第四十六轮：日报 10-07 成刊验收 + 编辑链路评审波（五条、修五条）
+- `c4b8fa98729e05ad8be6fc41c2efb550244cb10f` · 2026-10-07 · 熊鑫晨 · 第四十七轮：日报归档不再悄悄跳过空刊的三天（未出刊成段、跨空邻居改口上一期）
+- `046d1d3322d12cc41b8266b0a0185003e2e7a1b9` · 2026-10-07 · 熊鑫晨 · 第四十八轮：信源 104 → 113（九条采集机实测）+ 根域名换成介绍站后的三处适配
+- `95400de96fac04aafe683bfc88f9cb0dc7ba58a7` · 2026-10-07 · 熊鑫晨 · docs: README 精简为长期可展示版（311→238 行；抄录数字全部改成端点与文件名，版式对齐纪念册仓库）
+- `1e8b0e8fe72a1b54231e5218e60c7568ce217a1d` · 2026-10-07 · 熊鑫晨 · docs: 采纳独立评审对 README 精简版的三条 BLOCKER——图说明改为描述实拍的空态、行业层归属改成真的成立、修掉被删小节留下的孤儿指针
+- `1741eab6884ddcd281d6e2045a9dbad6e03325fb` · 2026-10-08 · 熊鑫晨 · docs: 添加 Shotcraft 宣传片与作品展示页面
+- `623a92263cf50046da7f564995ce460300eb9373` · 2026-10-08 · 熊鑫晨 · docs: 嵌入 1080p 原生宣传片播放器
+- `09caa68073a78167bcda84c3e3923b99d26fe9a3` · 2026-10-08 · 熊鑫晨 · 第四十九轮：评审波——修十处、驳回三处、把"包改了库里没改"这条路补上
+- `6ea7b6bc5ff09f98d52fdfe103e6e38ced198d37` · 2026-10-08 · 熊鑫晨 · chore: 仅保留最终宣传片与播放所需文件
+- `b4e68fdfc951ff821d707ebfb70b8e228cf4c116` · 2026-10-08 · 熊鑫晨 · 第五十轮：两个分类改用学科本名，花费口径三处合一
+- `02ab6d1f234e9141b98719d76d141fbfc96688db` · 2026-10-09 · 熊鑫晨 · 第五十一轮：Tier-2 清账——预览与采集同一个口径，回滚与验收脚本四处会伤人的毛病
+- `29fe27fd9954eee6af3575854e80a0a2a3052e6a` · 2026-10-09 · 熊鑫晨 · 第五十二轮：把"预览=会入库"这句说过头的话收回来，并给规则项加形状闸门
+- `1289c44106b33b2dd91457a9a40f89933e1b1740` · 2026-10-09 · 熊鑫晨 · 第五十三轮：把"这一期读者翻不翻得开"收成一条判据
+- `9e6cdadc3535549c9965e01136680d3c1207348d` · 2026-10-09 · 熊鑫晨 · 第五十三轮补：报头下面那条指标带也跟着 readable 收
+- `4b1c95e0a46c17f5c42602147c7b8b462dee957b` · 2026-10-09 · 熊鑫晨 · 第五十—五十三轮：分类改用学科本名、Tier-2 清账、空刊判据收成一条（并保留远端宣传片）
+- `06dd1d4b043e2c0326917f4dbc5c31e40ad235c4` · 2026-10-09 · 熊鑫晨 · 第五十五轮：删掉「考研」分类 geoedu——筛选栏回到六格
+- `4764bda1eb63d13fec7ae2f202fbe4759e3a2298` · 2026-10-09 · 熊鑫晨 · 第五十五轮：删掉「考研」分类 geoedu——筛选栏回到六格
+- `af2733d145238601f84570b86cdeac02d5d7a952` · 2026-10-09 · 熊鑫晨 · 第五十五轮补：把线上复验的实测数字补进本轮那段记录
+- `4c2b18cad1ae60fa4d4ad8c2d21a13ee87c18c8c` · 2026-10-09 · 熊鑫晨 · 第五十五轮补：线上复验的实测数字
+- `101d85248fc78e58f25074cbc6b5b7f85795ec3b` · 2026-10-09 · 熊鑫晨 · 第五十六轮 A：新增「前沿地理」分类 frontier，排在地理信息系统之前
+- `ea31aad5e7856b128ed46a7a94312f14aed3e859` · 2026-10-09 · 熊鑫晨 · 第五十六轮 B+C：接入 95 条学术前沿信源，信源包 112 → 207
+- `6f61069293c406debe8f9a81e032572883585312` · 2026-10-09 · 熊鑫晨 · 第五十六轮 D：guardedLookup 双栈先拨 IPv4——这台采集机没有 IPv6 出口
+- `973ee95e2b5a784c96fb647c5fa82c74103d6957` · 2026-10-09 · 熊鑫晨 · 第五十六轮：新增「前沿地理」板块，信源 112 → 207
+- `ed5dad905abc401f618cc642dbf9145ede9705be` · 2026-10-09 · 熊鑫晨 · 第五十七轮：巡检上一轮 95 条 + 再挂 12 条学术信源，信源包 207 → 218
+- `8ee58e606d9c8af9267f695c32f34538246ab240` · 2026-10-09 · 熊鑫晨 · 第五十七轮：「前沿地理」第二批——再接 12 条学术信源，并修掉两处静默空跑
+- `ac09af29b72da62d630a0f09a1f5807b6de50161` · 2026-10-09 · 熊鑫晨 · 第五十七轮补：web_list 的"本页"判据不再丢 query——境内按查询串路由的机构站从此可接
+- `9bc96bd106b88fbe36b2962598cb2197409f424b` · 2026-10-09 · 熊鑫晨 · 第五十七轮补：web_list 的「本页」判据不再丢 query，中国极地研究中心「科技进展」恢复
+- `684ced3b72529a162b9402631b68e0b630a76417` · 2026-10-09 · 熊鑫晨 · 第五十八轮 A：dc:description 从来没被读过——36 条 Wiley 刊源一直在给模型一行卷期号
+- `a1d5476be381a4f548ff9de548062d18f6f6052f` · 2026-10-09 · 熊鑫晨 · 第五十八轮 A：dc:description 从来没被读过——36 条 Wiley 刊源一直在给模型一行卷期号
+- `e7779751f8a9e9abf29bd31abeb8651a8ab5ea7c` · 2026-10-09 · 熊鑫晨 · 第五十八轮 B：第三批学术信源 53 条（218→271），刊名从 feed 自报的 channel 读回来
+- `a9661eb6cf678ed9e4c72b7ef2551c2992422cb0` · 2026-10-09 · 熊鑫晨 · 第五十八轮 B 补：上线首轮抓取把三条源的登记表错处照出来了
+- `837715c190dee64d70fbbea27944c083d20d288b` · 2026-10-09 · 熊鑫晨 · 第五十八轮 C：上线首轮真采集的账落进文档——889 条入库、四条登记表纠错、队列 2060 条的实测带宽
+- `a1de36ed332c29f7ad37ea85f66e9f07fdb4ed40` · 2026-10-09 · 熊鑫晨 · 第五十六—五十八轮：「前沿地理」板块、信源 112 → 271、采集侧三处静默缺陷修掉
+- `cb6b79ca76936c16f57c71e489197704114fc6a9` · 2026-10-09 · 熊鑫晨 · 第五十九轮：条目页「返回精选」在子路径部署下必然 404——这是同一颗坑的第四个调用点
+- `3be427853e0482727c8f0044eab996fd948bb665` · 2026-10-09 · 熊鑫晨 · 第五十九轮收尾：读者端更新日志一条 + 全站功能面核查的实测结果落进 known-issues
+- `058527c0a0a6f7d9e0081b43882c9f0e78744d7b` · 2026-10-09 · 熊鑫晨 · 第五十九轮：条目页返回链接在子路径部署下的 404 修掉，全站功能面核查结果入档
+- `a7e91ed60dfdfc1194648f1b7ec8a2a2bdf0646c` · 2026-10-10 · 熊鑫晨 · 第六十轮 A：一步多模型——池按工作单元哈希分摊，不按轮流
+- `4cb02a3a01a4b7deb6190d4260b080d7865ee293` · 2026-10-10 · 熊鑫晨 · 第六十轮 A 补：MODEL_POOL 一站级开关，代替十一行几乎一样的变量
+- `1e3496bddd18b8332035ce47c5e694eb7b7d9d2e` · 2026-10-10 · 熊鑫晨 · 第六十轮 B：档案回填的三条腿——ISSN 认定、按月份切片续跑、报纸归到自己那一天
+- `913d705763dd82e603ca521f02b945341db39861` · 2026-10-10 · 熊鑫晨 · ISSN 认定加了它自己最需要的东西：进度与超时
+- `7022aa67eac4be0117ab24ce322a061abc1aa587` · 2026-10-10 · 熊鑫晨 · 第六十轮 A/B 复核修正：评审智能体查出四处，两处是会静默吃钱的
+- `a5954b424c65757499147c5849d27ce1bbcc5e35` · 2026-10-10 · 熊鑫晨 · 把站长的宣传片从版本管理里退回去（上一条提交用 git add -A 误收了它）
+- `c86d0c5d8a40633182d75300e2ebdba62c1f64c8` · 2026-10-10 · 熊鑫晨 · 国内端点的熔断按稳态实测改小：40/分钟 → 10/分钟
+- `292a9c5fffcb839d0f2a48bf659cfc2227dd1e69` · 2026-10-10 · 熊鑫晨 · 把 87 条经核实的 ISSN 写进信源包
+- `254a5c1f9f61b88fa1ebd25626a9b48a0afafdd9` · 2026-10-10 · 熊鑫晨 · config 白名单收下 issn：包里的新键要先有读者
+- `ca7d93b62a92d553741a0a05d8a34bf2c286878b` · 2026-10-10 · 熊鑫晨 · 回填默认每页歇 1.2 秒：Crossref 的匿名池 300ms 就 429
+- `8fa810bfb744486c70adef362de90599c2b2ffee` · 2026-10-10 · 熊鑫晨 · 账本里的 no-date/thin/dup 改成每片自己的数，不是累计
+- `22a7a5cba36c8301f4b36af3b5e5473767f852af` · 2026-10-10 · 熊鑫晨 · 文档与代码对账：评审智能体查出 1 处会让操作者当场失败、6 处口径与算术错误
+- `e446bb46f1085d77678e1e63f9574fd4266d4c58` · 2026-10-10 · 熊鑫晨 · docs/sources.md 不再指向仓库外的临时侦察目录（收工就要清）
+- `33e89a43d829986bd0ee8dda8e77d703e361cfe9` · 2026-10-10 · 熊鑫晨 · 试探国内端点速率：熔断从 10 次/分钟抬到 14
+- `70966e6b8bf16e6ee3a4b75fafed67f1a2f91cd4` · 2026-10-10 · 熊鑫晨 · 速率试探的结论是"不行"，按自己写的判据回退：agnes-cn 收在 9 次/分钟
+- `9321b90311c55283d98ecd1b83913e039e0a12f7` · 2026-10-10 · 熊鑫晨 · 日期规则不再猜顺序：07.10.2026 要么由信源声明读法，要么算没有日期
+- `1814ff81826a751dee2ddb68725d201dfc81a78e` · 2026-10-10 · 熊鑫晨 · 池化路由测试不再被生产节奏闸门掐断
+- `bdaa728a6571564e9d575ac4d2072e0c88f8ecab` · 2026-10-10 · 熊鑫晨 · 采集机实测 11 条候选，接了 2 条：法国 IGN 动态与 USGS 科学动态
+- `9a587e0c84df87ef126299132bf8f2d739fccf32` · 2026-10-10 · 熊鑫晨 · 补刊那条链补上最后一环：把已经到手的日子排成日报、周报、月报
+- `a13b78fb4c0a3eea507a839fd7a0dfc4063f81bb` · 2026-10-10 · 熊鑫晨 · 科学网要闻接进来了：给一条源判死刑之前，先把已有的实测记录查完
+- `e33dd7f927fcbcd866fc6206a130b5edbc5c5e97` · 2026-10-10 · 熊鑫晨 · 历史不是一个队列：档案不再排在迟到新闻后面，实时仍然第一
+- `4382d2039d53faa623cda7e88598ede22bf10b56` · 2026-10-10 · 熊鑫晨 · 信源数量口径跟到 274：包内现状、间隔分布、可轮询条数一起改
+- `78d52878c21913fa88571419ae4112f7ba6b610c` · 2026-10-10 · 熊鑫晨 · 两路评审的十条发现：日期那条链又有三条真错，补刊脚本的闸门有两处会咬人
+- `77a6ca62268d22cc19f58e01ad01198be189bee6` · 2026-10-10 · 熊鑫晨 · 把容量的那把尺子交出来：--promote=N 可以给档案开一条闸，默认 0
+- `5819cf382891ad7e85290a5f68acce26508dc066` · 2026-10-10 · 熊鑫晨 · 把份额变成一扇门：档案可以抬进实时档，默认不开，开了也不续杯
+- `95f6f2541d57f043e1b0cb4832dd0de557dc096c` · 2026-10-10 · 熊鑫晨 · 对端说"这一天没了"就关门：60 分钟里 3 次 quota 拒绝之后不再往里发
+- `95ca3046e0e8315b05599be2752d0b72aa93760c` · 2026-10-10 · 熊鑫晨 · 撤掉今天做的两把门：一把会把还在答的对端关掉，一把会把档案插到实时前面
+- `c0bce713fd50939721f16cffc52b31002e2abbbd` · 2026-10-10 · 熊鑫晨 · 把两把门的账写清楚，顺手改掉四处会咬人的文档口径
+- `1c820bcf0d0c80fe0b42db9721b410af90288588` · 2026-10-10 · 熊鑫晨 · 归档页那句话改对：补出的那一期只是不显示期号，不是有「未出刊」标注
+- `b4769386c60b20c2f08508e4046cacc1c9e2ea05` · 2026-10-10 · 熊鑫晨 · 补刊计划器每月多数一个月：1—10 月的月报只排了 01/03/05/07，现在四处窗口口径统一到一处
+- `926339bee1ef99b9f8c95588f3f7ee4f2274daac` · 2026-10-10 · 熊鑫晨 · 包内两处自己打自己：AGU 的分类子源与 C3S 的 45 天规则，采集机重量之后停掉两条
+- `481fac6da4cf7c3c31c1057063335d2ad9d2c669` · 2026-10-10 · 熊鑫晨 · 两处信源计数补上现在是多少、怎么数：停掉两条之后 274/259/251
+- `9fa37779628dc5715ccb45bd776678600215b792` · 2026-10-10 · 熊鑫晨 · 档案第二条门：中文期刊从它自己的过刊页补，1,927 条档案里第一条中文
+- `c9fd719845a4b3c8c7c96b41aac582b853804679` · 2026-10-10 · 熊鑫晨 · 一份没出过的报纸不该被说成撤下了：网址没有期次时四种情形说四句话
+- `a3f4a8e0a67c155586773e1feed0f8e7d6204cec` · 2026-10-10 · 熊鑫晨 · 那条 404 的分诊先前根本没生效：loadOr404 抛的是 data() 对象，不是 Response
+- `f0b11d879fd0b429c0050301cedd4f37255a3935` · 2026-10-10 · 熊鑫晨 · 翻不开的那一期不该被搜索引擎收走：readable=false 补 noindex，并记下第六十三轮的实测
+- `55c3e17b85b416948d50f3902d4f8fe40d275e2a` · 2026-10-10 · 熊鑫晨 · 评审波：一条被上限截断的月份会被永久标成 done，另有三处措辞在说没做过的事
+- `edabfa5f90bcc2fc73830dd09acddd0eb4209efb` · 2026-10-10 · 熊鑫晨 · 第六十四轮：测试这套量具自己的四个洞（工单 #112）
+- `5ef201f75061a48024b99429fda3d434e9c07cdf` · 2026-10-10 · 熊鑫晨 · 第六十四轮（续）：补刊顺序不再只写在注释里（工单 #113）
+- `20f69cb327961fd903d930e5199e0f064ef37af4` · 2026-10-10 · 熊鑫晨 · 第六十四轮（再续）：信源包与调度这两处的旧数改正（工单 #114 结案）
+- `cdf352c8170bb3ac542cf57c4b52506853d253e9` · 2026-10-10 · 熊鑫晨 · 第六十五轮：中文过刊这扇门一次开出七家（自然地理·人文·资源·测绘）
+- `4e74ea692a042a48488e181587c06c1a45506f20` · 2026-10-10 · 熊鑫晨 · 第六十五轮（续）：过刊门补读一次 5xx；测绘学报只接实时目录
+- `3eb4740b7e97cb19e838cd0b0211b265f036eca7` · 2026-10-10 · 熊鑫晨 · 第六十五轮（再续）：档案面实测记录 + 邻居站哈希的正确用法
+- `c1dbabedef194a916e016abcc1622c96a2733871` · 2026-10-10 · 熊鑫晨 · 第六十六轮 A/B：接入 dots 与 OpenRouter 两条通路，修档案门三处实测缺陷
+- `e39504186fb275833366463017dfc253dd9fa121` · 2026-10-10 · 熊鑫晨 · 第六十六轮 C：移动端点击目标 + 一个可复跑的移动端量具
+- `50fae757e6c0e0fca85ffac88acfe534974e0df1` · 2026-10-10 · 熊鑫晨 · 第六十六轮：把审计抓到的四处旧数改正（包计数、测绘学报列、runbook 那句"唯一"）
+- `28d610d95e88d9224eb7a231669ca5a096d37798` · 2026-10-10 · 熊鑫晨 · 第六十至六十六轮：档案回填工作流与七家中文期刊过刊门，全站内容与代码同步
+- `b45ffdc6510f1d4653f3fa3151612e1fa9c7db51` · 2026-10-10 · 熊鑫晨 · 第六十六轮：五路模型门实测、移动端量具、可迁移备份与一次 GitHub 发布（含两条量具踩坑）
+- `de6be4e407422b424a3e3e92ddda4766fc81eb72` · 2026-10-10 · 熊鑫晨 · 池子里正在整体失败的成员会被跳过（第六十六轮）
+- `56ed1f709e2367f17c23a98f6a363d28d865fb1f` · 2026-10-10 · 熊鑫晨 · 胜负率而不是连败：池子跳过"答不出半数"的成员（第六十六轮续）
+- `ed178e980b1ff7f3514ea9074264ccce962a8706` · 2026-10-10 · 熊鑫晨 · OpenRouter 六个免费模型接入池子（第六十六轮续）
+- `3059e48d957426af84890a79d686acd8f378245a` · 2026-10-10 · 熊鑫晨 · 第六十六轮补记：管理 key 签推理 key、六个免费模型接入并生产验证、池子的健康判据
+- `481e7557a9fd96ccea4cb7a68ddb48270dd0241a` · 2026-10-10 · 熊鑫晨 · 模型池：OpenRouter 六个免费模型接入 + 池子跳过正在整体失败的门（第六十六轮）
+- `1e8ee1b7315c7956885f770be799014c841a3256` · 2026-10-10 · 熊鑫晨 · 收回一句错话：档案材料能过门槛（生产实测 3/31 入选），卡的是判定吞吐不是门槛
+- `2a8284a92338f7d6b2504b08a5aa6740315393e6` · 2026-10-10 · 熊鑫晨 · runbook §13：档案带三倍速的三个原因、门槛那句的更正、历史报纸的成刊闸门与验收过的读者面
+- `6563fa3f2042e8caa7d3511880ed338a8045dbed` · 2026-10-10 · 熊鑫晨 · 档案带：过得了门槛（3/31），吞吐三倍；收回一句错话
+- `51f159e3257c964642c37a4b16da707f3920bbcd` · 2026-10-10 · 熊鑫晨 · 移动端第二遍：真点真跳的交互走查（新增 scripts/mobile-flow.ts）
+- `fb764823ff41edc7ac740e5c1a1da6b1c66a2e11` · 2026-10-10 · 熊鑫晨 · 移动端第二遍：真点真跳的交互走查（分类片/条目页返回/更多/页底），两个新量具入仓
+- `e99c33c211c7c84c0ea3984376ddc2b379785b9f` · 2026-10-10 · 熊鑫晨 · 第六十七轮：历史地理与政治地理扩容 13 条（每条都用站点自己的采集器实测过）
+- `a6d981decaeba40d2670a9e013697769edd5cfbf` · 2026-10-10 · 熊鑫晨 · 第六十七轮：历史地理与政治地理补源 13 条的实测表与否决理由（包 281→294，生产首轮入库 364 条）
+- `73cb68add21df108930609e941fc552dc902a37c` · 2026-10-10 · 熊鑫晨 · 第六十七轮：历史地理与政治地理补源 13 条（每条都用站点自己的采集器实测过）
+- `7c9375dad8943853ad5685962c31c80371eef08f` · 2026-10-10 · 熊鑫晨 · 档案门两处：Crossref 截断不再丢页尾，盖章要同时落到 publications（第六十七轮续）
+- `fdc8eb75b8625b6f9bec852a139fd7a88a911af5` · 2026-10-10 · 熊鑫晨 · 第六十七轮补记：审计三路的结果（标题整段、Crossref 丢页尾、盖章投影、层级成规），六条小账留档
+- `c6a07359b96349c777f3fc3f8a7b8161062dd09d` · 2026-10-10 · 熊鑫晨 · catch-up：一期失败不再带走当天余下的期次（审计发现）
+- `c67e4c67ade5e44e4ffb0c99cc9819be70ca13a3` · 2026-10-10 · 熊鑫晨 · 第六十七轮收尾：审计三路的修复（标题整段、Crossref 丢页尾、盖章投影、catch-up 单期失败）+ 历史地理/政治地理 13 条新源
+- `897baa1858a78f1d48fe324f4f8ce3b7de3061cf` · 2026-10-10 · 熊鑫晨 · 两条新源补 titleSelector、两个馆藏博客层级对齐（审计修复落盘）
+- `29d93fe3cedc65ce2e755ee91ca3362d6bf5e3f4` · 2026-10-10 · 熊鑫晨 · 两条新源补 titleSelector、两个馆藏博客层级对齐（审计修复落盘）
+- `a31cc9e20e1cb4432fc82d0bb68ffe1458a6e81c` · 2026-10-10 · 熊鑫晨 · 三个数字参数拒绝非正数；信源包那段自我说明里的旧数改正
+- `f387c2c0f6d3f043a88f22e10ddd74789bdb5572` · 2026-10-10 · 熊鑫晨 · 安全审计的三处小账：发布闸门的 .data/ 漏网、ingest 限速表没有上限、一处占位符
+- `0811b33aa7a408bc842465d9386340504fdee3be` · 2026-10-10 · 熊鑫晨 · 数字参数校验、空页不退休、两个探针脚本的零碎（测试与工具审计的回应）
+- `280226bbde3e63d5d6dfdc6be835272e36c61c81` · 2026-10-10 · 熊鑫晨 · 安全与测试两路审计的回应 + 数字参数校验 + 探针脚本收尾
+- `f38115f64f246ce307789fb68c1cc6640fa5d18c` · 2026-10-10 · 熊鑫晨 · 成刊闸门：new 带分析行的行也算未定（报纸链审计那条，A/B 证过）
+- `eff4472cfcb4d852dd26804839f04b387c9a9a1e` · 2026-10-10 · 熊鑫晨 · 成刊闸门：new 带分析行的行也算未定（报纸链审计那条，A/B 证过）
+- `0e3247ccb083d0984765d4e44a05cbc2c0570a71` · 2026-10-10 · 熊鑫晨 · 第六十八轮：三处内容红线（物种写错/摘要截断/强度升级）的复核与修复记录
+- `bafab1bb6ae79852a1d02b8a13047aaeaf5295c6` · 2026-10-10 · 熊鑫晨 · 第六十八轮：三处内容红线（物种写错/摘要截断/强度升级）的复核与修复记录
+- `99c7ee637300e050fee0141d6b9dda146c0f22e7` · 2026-10-10 · 熊鑫晨 · runbook §13 补充：load 47 事故与并发 15 的实测速率（第六十八轮）
+- `e539355c59eddb38a25612850eeb08fcc833012a` · 2026-10-10 · 熊鑫晨 · 第六十八轮：runbook §13 补充 load 47 事故、并发 15 与实测速率
+- `82dc8132e354a7c0404a25d7d214debdd34c85bd` · 2026-10-10 · 熊鑫晨 · 历史回填闭环：日期与补刊校验、公平轮转、真实新闻候选及移动阅读修复
+- `7492c63fb0b662b874386d2dc4ddb9a6fea779aa` · 2026-10-10 · 熊鑫晨 · 历史重复投递保留已提取正文，周报补刊标签保持稳定
+- `73d68857e72e866995377a58fbaa9f6facb0e0c5` · 2026-10-10 · 熊鑫晨 · 历史新闻扩充与队列公平恢复：精准回执复用、采集退出及手机报刊切换修复
+- `f6f02308af750eb213b890e96b36de924e9bda89` · 2026-10-10 · 熊鑫晨 · 补齐新增国际来源的机构身份与官方发布域映射
+- `8fc980572ed06e51d3df869f16490f7e1216cd07` · 2026-10-10 · 熊鑫晨 · docs: record deployed queue and mobile verification evidence
+- `2363e058092e841e12e71bcdb0c3e85958ed4645` · 2026-10-10 · 熊鑫晨 · fix: retain verified archive stopping boundaries and validate queue capacity
+- `7f2e50fa0a48256b3a490e26cc3018cd28fcdbf0` · 2026-10-10 · 熊鑫晨 · docs: verify expanded migration restore and report real pipeline capacity
+- `bc9279116010473e3a7d574b92884fba716d9a38` · 2026-10-10 · 熊鑫晨 · fix: serialize portable snapshots with archive checkpoints
+- `352d4cef5acccc282f1bcf38f3f9e7404871dfd8` · 2026-10-10 · 熊鑫晨 · docs: record actual publisher archive boundaries and unsettled content
+- `964a2f2167aed78ea753c2fbc867426d1aed20eb` · 2026-10-10 · 熊鑫晨 · fix: dispatch unsent requests within healthy pool budgets
+- `3dcf55fa6ec40902e85167778514d682962a2223` · 2026-10-10 · 熊鑫晨 · docs: verify deployed budget dispatch and LOC archive coverage
+- `eeee73197302b1295c07ccf183240b14eea0d97f` · 2026-10-10 · 熊鑫晨 · docs: record bounded live archive progress and deployed validation
+- `97543e2264cce7bddead2e8788c05642d6cc37da` · 2026-10-10 · 熊鑫晨 · docs: verify locked migration snapshot with a third real restore
+- `8f6f84320aa5deb6c3b6a66dbbec93f308f1fee5` · 2026-10-11 · 熊鑫晨 · feat: backfill verified ITDP RSS history through source filters
+- `146c64adc9fa118ec2f7e632f6e072fab205e699` · 2026-10-11 · 熊鑫晨 · docs: record RSS history ingest and production throughput audit
+- `29ca24d4624f408ecbb9b4ee8eb659819b246e2e` · 2026-10-11 · 熊鑫晨 · fix: bound rejected writing retries and use earliest pool budget retry
+- `c77e7602b7206922ebc82510852773cd48faf651` · 2026-10-11 · 熊鑫晨 · docs: record verified retry repair deployment and queue regressions
+- `14b5970f31de3ae8a4219e06b3e3321267094c0f` · 2026-10-11 · 熊鑫晨 · fix: preserve valid agency identity and report citation destinations
+- `879c6a7c02e3dd7b994af0c32cee773ecc756db2` · 2026-10-11 · 熊鑫晨 · fix(editorial): measure usable outputs without rewriting billing
+- `66b85eca20451ea9edd86a566574096ada848adc` · 2026-10-11 · 熊鑫晨 · perf(worker): revisit budget waits each minute
+- `180582665620d9f28f2892a2db63204864ad8bba` · 2026-10-11 · 熊鑫晨 · docs(research): record archive coverage and settlement blockers
+- `a8f5ad09ac8d062a0704d3bb94a85f248a328b30` · 2026-10-11 · 熊鑫晨 · fix(editorial): retry rejected writing when structure succeeds
+- `7baed26ad0888b471c2e03ddd72883062b4e0be1` · 2026-10-11 · 熊鑫晨 · docs: enforce final-only publication gate and record observed recovery
+- `134ad74248e9781895cddfec2fa98f5d08ac0aa2` · 2026-10-11 · 熊鑫晨 · fix: preserve dots receipt recovery and report actual paper readiness
+- `da6295b799587b6797faf11e72ed43dfeff673b0` · 2026-10-11 · 熊鑫晨 · fix: preserve summary headroom and truthful workflow descriptions
+- `b08dd2c92f56b3a0b3ca340a1cae41118aa3dac2` · 2026-10-11 · 熊鑫晨 · docs: record active archive progress without early publication
+- `e61aba31aa5d9062890a3a1ab12f1d7e7c128c02` · 2026-10-11 · 熊鑫晨 · 模型池记住"整天额度已用完"，不再在空档期把稿子交给关着的门
+- `a80077ce7133fbb9ee21fca1a3ca14483c8297d1` · 2026-10-11 · 熊鑫晨 · 评审波剩余四项：失败期次要看得见、--sleep 不许读成 NaN、缺的两把 key 要写进模板、信源计数不再说谎
+- `c8f9922aa6ca5e5a604cd4ee1668723b2bfddb92` · 2026-10-11 · 熊鑫晨 · 摘要的收尾不再指望上游自觉：挂着的逗号/分号换成句号
+- `ce79c91210daa9f287d6af82ccdba04c0d60c2fd` · 2026-10-11 · 熊鑫晨 · 读者面上的两类半句话与页面骨架：一处规则，四处生效
+- `8a1d6866e17f08623c4615fd38c6641970545211` · 2026-10-11 · 熊鑫晨 · 评审波落地：分类参数三个出口对齐、空刊页不再自称"第一期"、文档里的旧数与旧行号改正
+- `9fd03246677cdb377e9fbfcee05ff65ff5e2638c` · 2026-10-11 · 熊鑫晨 · 部署手册：升级前的整目录备份不再把 .env 打进世界可读的包里
+- `b1358714f53d7f18db1214680344c927f4c001de` · 2026-10-11 · 熊鑫晨 · 新测试要先自己把队列起起来：runsOverview 读的是 pgboss.job，而那张表是第一次连上来才建的
+- `44413d343531f703c938d8e3093ab1fc9df35dcd` · 2026-10-11 · 熊鑫晨 · 预筛拦下的条目要留下「为什么拦」：BLOCK 的理由以前被丢掉
+- `864bb050f23ce4fdb67373bf2ef21a73e9ece4e6` · 2026-10-11 · 熊鑫晨 · 上线前的代码备份：--exclude 写成 ./ 前缀时一条都不生效
+- `ad34f5a30da51430b0c4468f2a979eb0899f378e` · 2026-10-11 · 熊鑫晨 · 模型健康查询要带 service 前缀，否则每分钟全表扫一次 52 MB
+- `c721ca46638ed3a93a4ee635605881eacd676233` · 2026-10-11 · 熊鑫晨 · 三处"话说过头"：未出刊那期、被拦的理由、以及一条可能空转的测试
+- `32108391907d04afcc1aa3c36a31876e6fc1c58e` · 2026-10-11 · 熊鑫晨 · 上一条改错了：健康判定的 service 收口把账本判据缩小了，改用一条部分索引
+- `7c7cfc0577b59c008fb9ff97f08ec433201a6b3c` · 2026-10-11 · 熊鑫晨 · 第七十轮：档案吞吐与读者面诚实态（2026-10-11）
+- `b8c665daf271833b7900211d2d45b298bd0add51` · 2026-10-11 · 熊鑫晨 · 第七十二轮：/all 加日期入口——一月到九月的内容终于翻得到了
+- `d52dc4fab01eabf10af4ae9cdee790b30ade4069` · 2026-10-11 · 熊鑫晨 · 发布：/all 日期入口（月历卡）——一月到九月的内容翻得到了
+- `1b64b4857b18581b862565f1ca3e4d1991aa511b` · 2026-10-11 · 熊鑫晨 · 第七十二轮修复波：日期入口的三处口径与两条"永远不可能同时绿"的判据
+- `0d1ac1935c4915c48d9d916f5d1787efa0db27d2` · 2026-10-11 · 熊鑫晨 · 发布：日期入口的三处口径修正（坏日期不再 5xx、日历跟着筛选走、今日条数不再清零）
+- `50427c9ca59895874bc4dd29279e8b75ee2fd924` · 2026-10-11 · 熊鑫晨 · 档案队列按新闻日期排——不然没有一天能"判完"，历史报纸就一期都出不来
+- `91a2ed4435dafb93abfb00cb944a78cfa10abff6` · 2026-10-11 · 熊鑫晨 · 发布：档案队列按新闻日期排——历史日报第一次有可能真的出刊
+- `00762298a02640cb731d8d2bde799c754c06b008` · 2026-10-11 · 熊鑫晨 · 答不出这一步中文的门，只在这一步跳过它
+- `d1b9956e4edaf7e603b331fe2fc3db36a94b69c6` · 2026-10-11 · 熊鑫晨 · 这条判据的读表：缓存五分钟，并把服务列表交给索引
+- `d519cf82c592437a576f5f52599778e9a08781c8` · 2026-10-11 · 熊鑫晨 · 补上 remainder 那 380 个位置的排序判据——评审指出它只有注释撑着
+- `3d7f254ab94742021f4accde428b8887c2c2e718` · 2026-10-11 · 熊鑫晨 · WorkBuddy 桌面渠道接进模型池：hy3 与 deepseek-v4.1-flash，思考强度写死 max
+- `51709b7e7fc1c751c72bd2f5eb52de716b35d09e` · 2026-10-11 · 熊鑫晨 · 判退回按模型名，不按服务名；并补上评审指出的两条空断言
+- `1799c022d9396e3659795c1f9a348ae2e397c883` · 2026-10-11 · 熊鑫晨 · 写状态的地方一起刷新 updated_at，并加一条扫描式判据
+- `1f59a12dc573b763c33c21e428789c53e838cd85` · 2026-10-11 · 熊鑫晨 · MCP 日报工具与读取层"有没有得读"必须同进退——补上三条刊期的对照用例
+- `6cab76a1c305c481bba66acfc23833c44442c53c` · 2026-10-11 · 熊鑫晨 · ISSN 判回自己家的门：系列名子刊不许被砍成同名的另一本期刊
+- `24f151543a8321fad71f3b9dbba881e778dc8247` · 2026-10-11 · 熊鑫晨 · 给 Sedimentology 补上 Crossref 档案门：这条刊是全包产出率最高却没门的那一本
+- `ce9398f8b01532837e389c8fe3b3ef08ce1fe44f` · 2026-10-11 · 熊鑫晨 · 十七条 Wiley 期刊接上 Crossref 档案门：Jan–Sep 门后约 4,044 篇
+- `76319ef19de62d76b754294b01cd19d2a0c643c6` · 2026-10-11 · 熊鑫晨 · 存量半句话摘要的清洗脚本：判据只写一份，而且要能在数据库里跑红
+- `6320872ac50361c33aee8e7fa822316ad85a66ad` · 2026-10-11 · 熊鑫晨 · 快讯也要记下"这是哪件事"，否则同一事件隔天会以整篇重印
+- `534b492b184046d9325c0e8271401e505d650ecd` · 2026-10-11 · 熊鑫晨 · 出刊要等档案进口收敛，空采集要叫出来：给归档周期补两条判据
+- `f628f352048057688760f450c5a71f6481dbb70a` · 2026-10-11 · 熊鑫晨 · 五条地理向期刊接上档案门；PNAS 与两条 ISPRS 会议丛书按产出证据主动不要
+- `70edba09e6e70fc21003c0b0f2e2667201c1ba8c` · 2026-10-11 · 熊鑫晨 · 清洗脚本自己也要守"判据只写一份"：候选条件不再在两条查询里各抄一遍
+- `2a25a1207a4dc531827375a11dd6386d3143044f` · 2026-10-11 · 熊鑫晨 · 新测试文件补上废库闸门：它连了库就得排在 db 之前导入 setup
+- `5e527b9d77b8d2923f53daf6fc89c881221ce5b8` · 2026-10-11 · 熊鑫晨 · 评审波抓到的四处：出刊成熟度判据会永久挡死出刊、两处 NaN 让写入上限消失、判被我写反
+- `350524dc57ec4ffea2aebc3b1767546d718b31cc` · 2026-10-11 · 熊鑫晨 · 路由的"谁能答这一步"只留一份抄本：后台面板与 modelFor 不再各写一遍过滤
+- `61fe71e062158d27c1a546901a0cb1e71337202e` · 2026-10-12 · 熊鑫晨 · 出刊成熟度判据改为只报不挡：它一拦住出刊，就正好拦住不该拦的那一次
+- `6a5d0abb26f6b7dd217a7b6f6adfe0a8e47df096` · 2026-10-12 · 熊鑫晨 · 存量摘要清洗要先剥页面外壳再收口：骨架不许被点上句号装作说完了
+- `9a0452baddb41890de71e0ce98ffa5859e926559` · 2026-10-12 · 熊鑫晨 · 读者面内容完整性做成一条命令：收尾那一次多智能体验证要有共同判据，不能各写一遍 SQL
+- `d04689816bdbff876436d97aef71c5d2c0648224` · 2026-10-12 · 熊鑫晨 · 档案进度做成一条命令：这一晚同一个"还剩多少、要多久"被手写了四遍，错了三口径
+- `488dcbed9c1596fb42b3078560bb79aa87afa0df` · 2026-10-12 · 熊鑫晨 · 存量摘要清洗要两处一起改：只洗 publications，下一次投影就把半句话写回来
+- `6036e13ddc18f65eea46871fd8464c48df3ceed7` · 2026-10-12 · 熊鑫晨 · 北京日标签收回一处，两台读数工具口径各自对齐：抄本分叉的代价已经用假数字付过一次
+- `c24ae9f2a68ef5d4a978fa3571842e18c84c2c53` · 2026-10-12 · 熊鑫晨 · geohot 的单元清单从"手写四个"改成从 systemd/ 模板数：四个脚本各自漏掉了同一条链路
+- `2aad9725dedea1038a16817c44f8ddeeb3dc015b` · 2026-10-12 · 熊鑫晨 · 池子注释要说准：capabilityForPurpose 收成一处，两条"看着像死代码"的判断各自取证
+- `07917092bb5630bee5ad98a2c3c135c43f896e27` · 2026-10-12 · 熊鑫晨 · 出刊成熟度判据要能说出第三种事实：ripe、还挂着几片、以及"我没读出来"
+- `7247f1fd81b8c815911927b0378181b0cabce3bf` · 2026-10-12 · 熊鑫晨 · 结尾挂着分隔符的摘要要原地收口，不许退回上一句：旧写法会删掉说完了的真内容
+- `6eeb6297e3d443c9db9c00f1dcf22495fe4276bf` · 2026-10-12 · 熊鑫晨 · 收口要紧跟正文：模型写的是「20.4% ；」，分隔符前那个半角空格不能跟着进句号前面
+- `7634ceb298a707e421290e5f9f795025769ec603` · 2026-10-12 · 熊鑫晨 · 发布：档案排空可度量、单元清单收回一处、存量半句话摘要收口（2026-10-12）
+- `ae04986f3f7df11411ec6271e07993472ec13e73` · 2026-10-12 · 熊鑫晨 · 档案进口判据收回一处：五份抄本里有一份问的是"键在不在"，另外几份问"值空不空"
+- `9f03a9b6bf4688a3224a530cb8d6c3eb063bc78e` · 2026-10-12 · 熊鑫晨 · 被截断的列举不能用句号收尾：句号宣称"就这些"，而那 1,667 条明明还有第 2、3 条
+- `a40091c85bc564a20942bc03afe872ac0ad0e9a9` · 2026-10-12 · 熊鑫晨 · 收口规则改过一次，库里那 1,667 条就再也扫不出来了：给脚本加 --repair-from 那一路
+- `425bffac058ac22debf1e9f12c0bccca1d7900b5` · 2026-10-12 · 熊鑫晨 · 发布：列举截断的摘要不再假装完整 + 档案门判据收回一处
+- `d93fd0a8e27e0f90daf4fa5d8c3b77c20c1596a6` · 2026-10-12 · 熊鑫晨 · 被截断的页面骨架不再当散文收口：`{{` 没有闭合括号时也剥掉
+- `bdc440e130058a5059358f8f1eaa4026ef8381ca` · 2026-10-12 · 熊鑫晨 · 修复模式的 --max-apply 之前比的是错的数：它数的是「与预像不同」，不是「与库里此刻不同」
+- `4cc349c4ea0d09475684bd77728014653f473e96` · 2026-10-12 · 熊鑫晨 · 发布：被截断的页面骨架不再当散文收口，修复模式的行数闸门改数对的数
+- `4109e3100ffe3fb4f2f753408f3cd3e8afdb2e8f` · 2026-10-12 · 熊鑫晨 · 未闭合的外壳尾巴从 shared 剥壳里撤出来：sanitize 是逐节点调它的，前提不成立
+- `f08932477de9526ba9881eced09e9782f433faa2` · 2026-10-12 · 熊鑫晨 · 未闭合的外壳尾巴从 shared 剥壳里撤出来：sanitize 是逐节点调它的，前提不成立
+- `617d4f727c0f8ff394f20ff80fa70dfe6bfaa0d3` · 2026-10-12 · 熊鑫晨 · 复核波修的三处：收口只落一边不再算成功、截断外壳不再从运行时漏给读者、抬高的熔断进迁移
+- `34ff4624e6cbf136ffcee60b6527dcfd09b96305` · 2026-10-12 · 熊鑫晨 · 复核波修的三处：收口只落一边不再算成功、截断外壳不再从运行时漏给读者、抬高的熔断进迁移
+- `531ff239107e9f5e1e9bfccd5ae7fe1719ee8d18` · 2026-10-12 · 熊鑫晨 · 回填会把历史期次放大到几百期，先把两处"对读者说错日期"的口子关上
+- `e08a085229f204d38afbbf94ffa9843c2d3c9dcd` · 2026-10-12 · 熊鑫晨 · 周报月报的往期清单不再截到 12 期：补出 40 期周报后第 15 期就点不到了
+- `e5db6e4d8af40cc3d15948a448827e29172be97c` · 2026-10-12 · 熊鑫晨 · dots 的小时窗抬到它自己分钟窗允许的量：排空被我们自己的数字钉住了
+- `fdd8699b771a944028d6668dc139d2ebdeff7209` · 2026-10-12 · 熊鑫晨 · /api/v1 的期次列表加 before 游标：回填约 300 期日报后，最早那 120 期在机器出口上点不到
+- `f1584aa325ec496b9238b3bedd7364ba8892459f` · 2026-10-12 · 熊鑫晨 · ﻿思考链的余量按模型给，understand 的时钟抬到上限之前
+- `4f368bf9fff20b41bf50c2bc9a2b7f395f4a0013` · 2026-10-12 · 熊鑫晨 · 给"日报同步出刊"立一条自己的验收尺子：判完的日子要么有期次、要么当天确实无可刊候选
+- `9f30fce973a30f037bb07d7f369784c3f0c05c5c` · 2026-10-12 · 熊鑫晨 · 接入 Google Gemini 3.8 Flash（思考档取该端点接受的最高一档 high）
+- `c547476a9dcf200b216a6c1de135f42867164b44` · 2026-10-12 · 熊鑫晨 · Gemini 免费档的真实天花板是每天 20 次，不是每天几千：熔断行改成 5/20/20
+- `4b36550952aff677d1982f498b8619f3e5100786` · 2026-10-12 · 熊鑫晨 · 评审波逐条处置：月报的「本月」会在读者面前多谎报一天，另修三处口径
+- `05aeb2359cdbc2cb2f70ccb09566a343ce39d482` · 2026-10-12 · 熊鑫晨 · 线上验证波落地：存版导语不再印会过期的「本周」，RSS 的日期不再说错日子
+- `7c5ea877f7bd248fa6f01d22e90a887b7126c6d1` · 2026-10-12 · 熊鑫晨 · 按站长的话把 Gemini 那扇门退回：一天 20 次不构成容量，不值得多一条门
+- `f783922e3a9960b4e0ff5ae93490e9df349f3963` · 2026-10-12 · 熊鑫晨 · WorkBuddy 日窗按站长授权抬到 12,000（速率不动），并把页脚当摘要的存量清洗补上
+- `e93cbe76c2b2e795975d0358ff54a47c3c7261b5` · 2026-10-12 · 熊鑫晨 · 第八次信源扩容落盘：接一条采集机实测过的中文林草动态门，包内 305 → 306
+- `4e4b5172ee992114d7c730c74a288f1fe02fc73d` · 2026-10-12 · 熊鑫晨 · 抬两扇自己焊死的门：dots 45/分、workbuddy 40/分（agnes-cn 与 llm 是对端墙，不动）
+- `7f02b04fb034badaddcb28ef9f9bff0078ac182f` · 2026-10-12 · 熊鑫晨 · 发布脚本会把只在发布线上长着的文件删掉——现在把它们带回发布树
+- `29244c9c1ea803fdf1f311ea56154a501f969384` · 2026-10-12 · 熊鑫晨 · workbuddy 抬上去 15 分钟就被对端点名，退回实测无拒绝的那一档（0063）
+- `2a56eb7f6017e3b884134efdd27533a31dd161a2` · 2026-10-12 · 熊鑫晨 · 迁移包收不进 $APP 之外的凭据——恢复出来的站是"活着但不判定"的（含空间预检）
+- `dbe337519c2b5230b19fea182d943bf90c0d3d88` · 2026-10-12 · 熊鑫晨 · 验收脚本现在也问 workbuddy 桥：跑的是不是磁盘那份、凭据读不读得到
+- `73d8cde31aa5ae2ca93a2803a56f14b052756900` · 2026-10-12 · 熊鑫晨 · 五把新模型门在报警里是匿名的——补上名字、影响、去处，并加一条不许再长回的判据
+- `dbbfb5fd07ef78e75021934710574b8488a48373` · 2026-10-12 · 熊鑫晨 · /api/mcp 不是网页：把"点开会回 405"这件事在两个入口都说清楚，并订正模型池的成员数
+- `e8ec91084bc9584e2154d0eb592b3c822aeb3ca4` · 2026-10-12 · 熊鑫晨 · 评审智能体打中三条：发布判据依赖机器配置、备份的 .env 解析一种形状两种错、两把键同名会互相盖掉
+- `021722c70e384293d01074af47b46c35ee1b3784` · 2026-10-12 · 熊鑫晨 · 评审第二轮：桥的健康检查不能再"读不到就免检"，llms.txt 那句"只在 POST 上应答"是错的
+- `217c81f4e9e1a9f31173c04a8035d8431a0e1b59` · 2026-10-12 · 熊鑫晨 · 文档里抄死的计数又有三处过期：可轮询信源 82、常驻单元四个、Docker 五个
+- `5f2d0cd121eb1b4366a82ae8a06b2aa30f37b1aa` · 2026-10-12 · 熊鑫晨 · 第八十二～八十四轮：档案进口与出刊链路、熔断按实测重定、发布/备份/验收三处会静默失效的缺陷
+- `bf31f02f870ccd41e8c66d4d1de2ec2c73f1e2ee` · 2026-10-12 · 熊鑫晨 · 备份脚本在我自己加的凭据查找上被 SIGPIPE 打死：RC=141、包根本没生成
+- `784749da67b0d89dd9a6fe6f2b9e6ef25e2fe360` · 2026-10-12 · 熊鑫晨 · 补一发：备份脚本自己被 SIGPIPE 打死、包生成不出来
+- `5100b3accb19c8f50c5bea92bddc4c26f9526411` · 2026-10-12 · 熊鑫晨 · 对端的"频率超限"报文不在额度拒绝的形状表里，那扇门永远不会被板凳 ⇒ 条目被推进 failed
+- `12b66ab7962cb97d2b520643e5b397d6134a1bd4` · 2026-10-12 · 熊鑫晨 · 列表页后来才给日期的一类，过去永远补不上：内容一字未变就早退，published_at 停在 NULL
+- `02f6663c4f8a0c1353d4960840668f68698b8e20` · 2026-10-12 · 熊鑫晨 · 给 spacemapper 的资讯列表补日期规则：它 108 行里 76 行因无日期而永久进不了报纸
+- `dd435282ae402662f5ddc667e7264b8330658078` · 2026-10-12 · 熊鑫晨 · Revert "给 spacemapper 的资讯列表补日期规则：它 108 行里 76 行因无日期而永久进不了报纸"
+- `0db3c34ae5c217ed261afea45d93f414c56de0bf` · 2026-10-12 · 熊鑫晨 · 采集报告有了「多少行没拿到日期」这一格，并把 /about 列进 llms.txt
+- `d2ba63af04d2a96201a684f7ea1de30afddd487b` · 2026-10-12 · 熊鑫晨 · WorkBuddy 桌面渠道再上两扇门：workbuddy-glm-flash（max）与 workbuddy-step5-preview（high）⇒ 四路里 glm 被挡在 understand 与翻译之外，是按实测速率算出来的
+- `083bded7ab5859c0a7afe2cd7270f073264440ae` · 2026-10-12 · 熊鑫晨 · 发布第八十四轮：额度拒绝形状、迟到日期、采集报告的 undated 一格，与 WorkBuddy 两扇新门
+- `8c480c47b745ceebe77458af4d621490f12c5ea1` · 2026-10-12 · 熊鑫晨 · 撤销 12b66ab：那发只写 articles.published_at，会抢掉档案盖章唯一依赖的那道门
+- `da9d5eb70c097f267bbe403d58c8211822be2d5d` · 2026-10-12 · 熊鑫晨 · 撤销 12b66ab（只写 articles.published_at 的补日期分支）并把 undated 计数口径修准
+- `045702f9e9727f5bb64238df7ded4f17046058a3` · 2026-10-12 · 熊鑫晨 · 同步验收把"本机取不回"和"远端字节真的坏了"分开报
+- `d0841f2e162b3f7d0c32361a165ba0e1f86b91f6` · 2026-10-12 · 熊鑫晨 · 审计基线新增一条：有内容却没期号的回填日报期数（回填完成后会被读取层说成空刊）
+- `b72e702a8b5d9a3a75c0ad32ea5fe68938b93453` · 2026-10-12 · 熊鑫晨 · 两发工具修复：同步验收把取不回与真坏了分开报；审计基线新增回填期次不领号却被读成空刊的计数
+- `15fd462c59a75d3dd4e16fafb02c1315fa375ef4` · 2026-10-12 · 熊鑫晨 · WorkBuddy 中国版渠道：第二条桥 + 第二行熔断 + 四把门（把账号级频率墙的备份接上）
+- `0d6bbd1968bcd22747f7dc124cc806d87a6e50f6` · 2026-10-12 · 熊鑫晨 · 关掉第二道桥留下的两个绿色盲区：验收不认它、迁移备份收不到它的配置
+- `861b3308ae9bb9ba923ba474a5200622100348a2` · 2026-10-12 · 熊鑫晨 · 整合回填与判定侧的在制改动：月内分页进口、期次状态与模型健康判据（zcode/codex 的工作，按站长指示代为提交）
+- `caeb6ae9d460e7506d7fb4f7a423fdd58ea18db1` · 2026-10-12 · 熊鑫晨 · 整合读者面：条目卡片带受许可的静帧与主题、灯箱与移动版细节、期次与归档文案（zcode 的 UI 升级，代为提交）
+- `8796fcc94fc6f6b86146b40c9834cd2a0d99ef5a` · 2026-10-12 · 熊鑫晨 · 整合第八十六轮：WorkBuddy 中国版第二道桥与四把门、月内分页进口、读者面卡片带受许可静帧与主题、运维脚本关掉两处绿色盲区
+- `ce30587e87ee5d508b55a1e2a8d1325a8391033f` · 2026-10-12 · 熊鑫晨 · 补上缺了很久的 deploy.sh：把"带前缀构建"和"重启六个单元"写进代码，而不是留在文档里
+- `7d1da424fbca6f9d541fb99ca533da948c81f64c` · 2026-10-12 · 熊鑫晨 · 整合第八十六轮上线：WorkBuddy 中国版第二道桥与四把门、月内分页进口、读者面卡片受许可静帧与主题、运维脚本关掉两处绿色盲区，并补上 deploy.sh
+- `5f0d870fec3b666c390f261535b4d9c995027777` · 2026-10-12 · 熊鑫晨 · 同步验收判 README 引用时看"已推送的树"，不是只看开发线 HEAD
+- `0207d693b71702a762b47926d776552495648105` · 2026-10-12 · 熊鑫晨 · 同步验收判 README 引用时看已推送的树（宣传片只存在于发布线），修掉一天两次的假回滚信号
+- `84760ff31c6a761a2c8c4ccb89baf382e3541902` · 2026-10-12 · 熊鑫晨 · 更新日志补五条：第二道 WorkBuddy 渠道、采集报告的缺日期计数、月内分页进口、条目卡片带图、历史回填进行中
+- `71f91a508d8c3e823cba4fc989e2e0b5db0382fe` · 2026-10-12 · 熊鑫晨 · 更新日志补五条（第二道 WorkBuddy 渠道、缺日期计数、月内分页进口、条目卡片带图、历史回填进行中）
+- `28220192bb90bee578ee93d425ef2b0ac7cd4102` · 2026-10-12 · 熊鑫晨 · dots 分钟窗 45→50、小时窗 2,700→3,000：五扇门峰值分钟都顶满自设窗，只有它同时满足三条判据
+- `8282cd9176bce00ec88746ac8b35f1d5897ff9f1` · 2026-10-12 · 熊鑫晨 · dots 分钟窗 45→50、小时窗 2700→3000：五扇门峰值分钟都顶满自设窗，只有 dots 同时满足顶满+99%应答+对端有余量（迁移 0065，生产已生效）
+- `2400dfda992e85d964366db23672b2d9e9ad2c32` · 2026-10-12 · 熊鑫晨 · 档案月内翻页两条静默丢历史的路径：已确认页不再结束整月，页数截断要出声
+- `ecf6d79ff35bf0550094871d840b47ead942bf3b` · 2026-10-12 · 熊鑫晨 · 档案月内翻页两条静默丢历史的路径：已确认页不再结束整月，页数截断要出声
+- `9ed7b18107408b6d2dddf48785f50b0019b04994` · 2026-10-12 · 熊鑫晨 · 熔断窗与线上现值对齐（0066）；两处运维文字按实测改正
+- `75fadd5d6a4690f232c1ccbf5a6b34c69ce69df5` · 2026-10-12 · 熊鑫晨 · 精选与主题列表改成一路滑到底：翻页自己接上，不再交回"加载更多"
+- `e0e852f4d01d94978f7657c8fe7c7c3791d87f9f` · 2026-10-12 · 熊鑫晨 · 精选与主题列表改成一路滑到底：翻页自己接上，不再交回加载更多；熔断窗与线上现值对齐
+- `a22f3dcd53c9b212eaacecb69836c1430978707e` · 2026-10-12 · 熊鑫晨 · 更新日志：补上「一路滑到底」这条；把月内翻页那条的口径改准——修的是没人在用的走法，不是已丢的历史
+- `64420b5a53ec9fcc933600ac7e46c0ca881866d8` · 2026-10-12 · 熊鑫晨 · 精选与主题列表改成一路滑到底；更新日志补这条并改正月内翻页那条的口径
+- `fc54d72595b3a77ebf96b4d8c0b11959cd146b0a` · 2026-10-13 · 熊鑫晨 · 三路评审波：备份包补收桥的凭据、上线脚本补上它承诺的判据、两处会静默说谎的报表
+- `4cffa9229cb2155ac816bc85b3022e5ce694a27b` · 2026-10-13 · 熊鑫晨 · 出刊层不再静默丢期次：周期掐表改成自己收工，答不出的句子只退句子
+- `884d4d17bd2a92a4480a706218736b734a503d74` · 2026-10-13 · 熊鑫晨 · 第八十九轮：出刊层不再静默丢期次（周期掐表改成自己收工、答不出的句子只退句子）+ 验收脚本按 v1 翻页取满窗口
+- `0277ed2e888c7932bf2258389babc2ed579f90f4` · 2026-10-13 · 熊鑫晨 · 更新日志里那两个数按读者实际能打开的量重写
+- `652b111d79180dec8614576169ab3f443c4310ac` · 2026-10-13 · 熊鑫晨 · 把「unknown 会把一期永久钉死」改成实测的样子：换一扇门就绕得开
+- `1541d14413242fd901a5b7b803cf699f9af13c1a` · 2026-10-13 · 熊鑫晨 · 第八十九轮补正：更新日志按实测改写（换门会绕开 unknown 收据、期数按读者能打开的量、月报条数取版面上的 29）
+- `78b438b2d8c1547d9f1a67ac5b686c15e1af89a2` · 2026-10-13 · 熊鑫晨 · 评审波落地：把「unknown 钉死一期」改成它真正的样子，周报月报补齐到 40 期与 9 期
+- `a151b4a975fcab7500113143165286621c96644a` · 2026-10-13 · 熊鑫晨 · 第八十九轮补正 + 周报月报补齐：unknown 只自动放行一次的机制、文档口径、smoke 五组对照场景进仓库
+- `27b3ab93494e525b02aa7ab8514bd077d2338206` · 2026-10-13 · 熊鑫晨 · 更新日志补最后一格：日报补齐到 269 期，出刊这一段跑完了
+- `bebd5241fa02247753e3f9c6f59348146b1f41ed` · 2026-10-13 · 熊鑫晨 · 更新日志补最后一格：日报补齐到 269 期，出刊这一段跑完了
+- `fce0e8705f227ba147f502df6f7e66810c73cecd` · 2026-10-13 · 熊鑫晨 · 更新日志重写：85 条并到 46 条，每条一句导语加要点；类型筛选改成可分享的链接
+- `1d9503ac1eccd4c377f1971a2c20d9b3c7b1356f` · 2026-10-13 · 熊鑫晨 · 更新日志重写：85 条并到 46 条，类型收敛到 5 种；筛选改成可分享的 ?kind= 链接
+- `674b089cdbbcc9f04c7d5dfcd7d018334af027e4` · 2026-10-13 · 熊鑫晨 · 第四轮信源扩容：接进 5 条（测绘国情、三家中科院所、北师大地理、英国气象局），UNEP 实测不解析后停用
+- `578cd3678df4e252ebd3dbdecae2716bc4152641` · 2026-10-13 · 熊鑫晨 · 第四轮信源扩容：接进 5 条中文权威与英国气象局通报；UNEP 在采集器路径上取回的不是可解析文档，停用留档
+- `e9e80341da0055b10032f4085feab7bc1d3f5e3d` · 2026-10-13 · 熊鑫晨 · 信源包纠正：上一轮自造的 owner_entity_id 归零
+- `69ad1f6dbb006092413bce307755e177b833a5df` · 2026-10-13 · 熊鑫晨 · 第五轮信源扩容：登记 571 条、在采集 493 条，逐条在采集机上实测
+- `0c21fa309598f492a3eeee430e9287f8c0a34fe0` · 2026-10-13 · 熊鑫晨 · 第五轮信源扩容：登记 571 条、在采集 493 条，逐条在采集机上实测
+- `1557c643c9019849b281956863ddc1f726028f9c` · 2026-10-13 · 熊鑫晨 · 更新日志改回站内凝练风格（1097 字压到 426 字）；迁移文档记下这次演练的身份与边界
+- `a3f107e861ef2be84a2e9bdce537a13808f28b93` · 2026-10-13 · 熊鑫晨 · 更新日志改回站内凝练风格；迁移文档记下这次演练的身份与边界
+- `1ebaec380cfa51d948ef4d8ea2727bdff0e83b38` · 2026-10-14 · 熊鑫晨 · 第九十四轮：信源 493→666，新增 173 条取自 487 条过判据候选，删 79 条采不到的、摘 101 条不合格
+- `ded87ec145dd5663a067107f0a47d904fb5f3c4e` · 2026-10-14 · 熊鑫晨 · 第九十四轮：信源 493→666，官方订阅口与中文政务栏目扩容
+- `a41bca58c3470e0d48847929a4dc3c27debfa4c8` · 2026-10-14 · 熊鑫晨 · 第九十四轮文档：过程台账已随收尾清空，去掉两处指向临时文件的说法
+- `f755790a4f1b6cd79c2153f3a2a9f27d2eea7513` · 2026-10-14 · 熊鑫晨 · 第九十四轮文档口径修正：不再指向已清空的过程台账
+- `47cd5603e6ac2f6fd9ee8a85ee19de653940bacf` · 2026-10-14 · 熊鑫晨 · 生产 .env 摘掉 10 扇模型门之后，.env.example 里那三处"生产现值"的说法同步改正
+- `91b0d4c7abaf051a452e59108c7d46db87b03871` · 2026-10-14 · 熊鑫晨 · 第九十五轮记录：摘掉 10 扇模型门的依据、闸门、多维验证与出刊缺口
+- `628f3dd6c01f3275df5d2307b1f740644deadd29` · 2026-10-14 · 熊鑫晨 · 第九十五轮：生产摘掉 10 扇模型门，模板与本轮记录同步
+- `1f15e5611161c816e42d977d4bcde7d8e7957ac4` · 2026-10-14 · 熊鑫晨 · 第九十五轮记录补齐：测试矩阵（546/546、verify-deploy 全绿、鉴权与桥与内存）、当月无缺日、以及顺手查出的两件事（139 条早于窗口的精选、papers 窗口末端写死）
+- `1cda0eee77140c09bc9adb6f96612dcba326c773` · 2026-10-14 · 熊鑫晨 · 第九十五轮：补出 2026-W01 周报并记下周报/月报逐期点数结果（W01 被回填区间下界挡住，report_weekly 也是删门后第一次真跑通）
+- `5f758a5d053652718bfcac6ece92ea3aab3074b0` · 2026-10-14 · 熊鑫晨 · 第九十五轮：补出 2026-W01 周报，记录测试矩阵与两桩顺带发现
+- `ea20f96142c6ee4330cf51aff9a20fd8a0d2f67f` · 2026-10-14 · 熊鑫晨 · 第九十五轮收口：连续性对账改用站点自己的归期键（假缺口 7→2）、周报月报逐kind证活、以及新查出的 136 条 new-无任务这一类
+- `50b6034dcc7b3b69ec89a794e09468e0910c1cde` · 2026-10-14 · 熊鑫晨 · 第九十五轮收口：连续性对账改用站点自己的归期键（假缺口 7→2）、周报月报逐 kind 证活、新查出的 136 条 new-无任务
+- `22e4630312b52948006468384a91649bb08c642c` · 2026-10-14 · 熊鑫晨 · 池子现值那三处旧口径补上日期限定的更正（#161）：历史小节不改写，只标出前提已变与退役的两把 key
+- `273bfa2bc3df74847c43861eae2a028896920b3e` · 2026-10-14 · 熊鑫晨 · 池子现值三处旧口径的日期限定更正（不改写历史，只标前提已变）
+- `6787d243e5e1d794003e7d32076f6f18b03e9e5e` · 2026-10-15 · 熊鑫晨 · 第九十六轮：档案进口的两处实测改动——摘要闸改成可配置（默认不变），sync-source-config 接受 --database-url-env（生产 DSN 不再上命令行，#174）
+- `7cdbbcb2b78c1d1887142b65791ebecdf26aa59a` · 2026-10-15 · 熊鑫晨 · 第九十六轮：档案摘要闸可配置 + 运维脚本不再要求把 DSN 放命令行
+- `ab982f2ba07f84eaca7ecfb77a8ef9ba80b06bc2` · 2026-10-15 · 熊鑫晨 · 第九十六轮记录：历史月薄的三处结构成因（94/666 有历史入口、每轮 6 片、done 退休）与被实测推翻的两个猜测（配额、摘要闸），十月 56% 来自两扇高频门，三面安全走查与四项待站长
+- `cc7cf0fa4e7936eead00fd5f256d4924167fa027` · 2026-10-15 · 熊鑫晨 · 第九十六轮记录：每月厚度的结构成因、已落地的四处改动、三面安全走查
+- `b61621d98e3c2ff4d6753816cba42516700072f8` · 2026-10-15 · 熊鑫晨 · 第九十六轮：给 32 扇已登记门接上历史入口，并把 5 扇门补上实测过的 ISSN
+- `10bb15b96662ec743ceca57714f59109297edb97` · 2026-10-15 · 熊鑫晨 · 第九十六轮 B：翻页形状铺到 50 条规则，并修掉我自己写下的 firstPage 差一格
+- `0580b606fdb30281f2eebb1179385cbbc0567975` · 2026-10-15 · 熊鑫晨 · 第九十六轮 C：三条"纸号空、电子号有货"的 ISSN 换成实测有货的那一个
+- `efd9144b569139f4a63144741d430c07a620e42b` · 2026-10-15 · 熊鑫晨 · 第九十六轮 D：翻页门每轮走访 1→3 扇（50 条规则不再要 12.5 小时一趟），并记下下半场两次 503 的实测根因
+- `88d92b9909028ce5b7958ce1dceecbf3cd3e36cc` · 2026-10-15 · 熊鑫晨 · 第九十六轮 D：历史月改为按存量出货——档案门 94→175、过刊翻页规则 11→50、每轮走访 1→3 扇；两次读者面 503 的实测根因与稳定态（并发 4 + 每轮 40 条）；更新日志与本船记录
+- `3951f26ead5e492f8d41f0960ccf1ef2227c645f` · 2026-10-15 · 熊鑫晨 · 第九十六轮 D 收口读数：三端各自的验收方式（树搬运 88d92b9 快进、contents API 逐文件 SHA-1、投放前后三向哈希门）、权威备份 203537Z、真实浏览器 READY 与内容审计 12 项现值
+- `2adce200a2b490058babac77fc37bc8b17cf87db` · 2026-10-15 · 熊鑫晨 · 第九十六轮 D：历史月改为按存量出货——档案门 94→175、过刊翻页规则 11→50、每轮走访 1→3 扇；两次读者面 503 的实测根因与稳定态（并发 4 + 每轮 40 条）；更新日志与本船记录
+- `5c3b4ce75c2b6af45e4749277e168247cf4bb1b1` · 2026-10-15 · 熊鑫晨 · 第九十七轮：恢复完整性——单元只留一份真相、env 模板补到覆盖生产全部键名、新增配置漂移闸门；迁移 0067 消掉 sweep 的一处全扫
+- `8f82c9a38ecca1a4c678115764cb120051889b98` · 2026-10-15 · 熊鑫晨 · 第九十七轮：恢复完整性——单元只留一份真相、env 模板覆盖生产全部键名、新增配置漂移闸门、迁移 0067 消掉 sweep 的一处全扫
+- `a8db0027419eb2f951a008f3cefcdc76d17dfadd` · 2026-10-15 · 熊鑫晨 · 第九十七轮 B：修我自己写的新闸门两处判读错误（演练抓出来的，不是想出来的）
+- `23f0929b3e13df4f8ed9851772eaca0eb062e985` · 2026-10-15 · 熊鑫晨 · 第九十七轮：恢复完整性——单元只留一份真相、env 模板覆盖生产全部键名、新增配置漂移闸门、迁移 0067 消掉 sweep 的一处全扫
+- `83c4a9c6a0b569bb38f99c41c57d54aed06e450b` · 2026-10-15 · 熊鑫晨 · 第九十七轮 C：按评审意见修我自己这轮写的东西（8 处，含一个永远不会红的闸门）
+- `969f16d5a5de309b8eed5dafc33158ec2354ac7a` · 2026-10-15 · 熊鑫晨 · 第九十七轮：恢复完整性——单元只留一份真相、env 模板覆盖生产全部键名、新增配置漂移闸门、迁移 0067 消掉 sweep 的一处全扫
+- `5af46a8e4b7a66fdb746910a48cc7bd85781ade0` · 2026-10-15 · 熊鑫晨 · 第九十八轮：配置漂移闸门的六条假绿、一条自堵，加上读者面 503 的真实账
+- `7a2d2fdd4bd1fd8cfb66824158b6fb22d9ba24b2` · 2026-10-15 · 熊鑫晨 · 第九十八轮：配置漂移闸门的六条假绿与一条自堵，加上读者面 503 的真实账
+- `c6e5a91d64f3c734267f41001294575be44e8a10` · 2026-10-15 · 熊鑫晨 · 第九十八轮 B：模板补上代码真会读的 12 个键，迁移包里补上机器 crontab
+- `feacf4cc50d23ab7aa46ea2079db9eefa8e71288` · 2026-10-15 · 熊鑫晨 · 第九十八轮：配置漂移闸门的六条假绿与一条自堵、读者面 503 的真实账、模板补 12 个真读键、迁移包补 crontab
+- `a27af31e6de2f841856fde9fc36f26dd602167a3` · 2026-10-15 · 熊鑫晨 · #169 结案：审计那条"英文摘要"改成数报纸真正印出来的那一份
+- `f41cbcadbbd605490a0a9fd4fb1111950015a11b` · 2026-10-15 · 熊鑫晨 · 第九十八轮 C：#169 审计口径改成数报纸真印出来的那一份
+- `391cc0eada41afe37d588cc228e75777f679a4d7` · 2026-10-15 · 熊鑫晨 · 第九十八轮记录补第五节：审计口径改人群（680→0 且非空性证明过）、模板补 12 个真读键、迁移包补 crontab
+- `1a5208a38e06dd41e9c136409e9b5d37f3f02457` · 2026-10-15 · 熊鑫晨 · 第九十八轮 C：#169 审计口径改成数报纸真印出来的那一份
+- `f51905bcc50c0db0e73dabd2682b5aa42f2a22d6` · 2026-10-15 · 熊鑫晨 · 第九十八轮记录补第六节：第三次红的时间线与可复用的恢复手法（重启 web/api/worker 把换出页还回系统）
+- `60c4ec56e90cabba27dbfb669613eac2af451b66` · 2026-10-15 · 熊鑫晨 · 闸门自审抓出的三处：单元名单按调用者目录找（假红）、模板两处注释与源码不符
+- `2331ede748fd10d0388882ffdeccb049fc19b706` · 2026-10-15 · 熊鑫晨 · 第九十八轮 C：#169 审计口径改成数报纸真印出来的那一份
+- `73df2a83275f3bf87f01e838fbc47135ee84b5d0` · 2026-10-15 · 熊鑫晨 · 第九十八轮记录：归档周期保不保有了答案——从干净状态跑一轮只有 2/31 个 5xx，判据是它与 1 GB 级 IO 不能同时跑，恢复站长原配置
+- `04fe9759b30a1517f8df56c49e6469ee85834c8c` · 2026-10-15 · 熊鑫晨 · 记录改正：归档周期从干净状态起跑也会把读者面打到 503（整轮窗口），处置是保持定时器停止并交三条出路给站长
+- `6e75032043a12a96271f9bb35547308c8c28b085` · 2026-10-15 · 熊鑫晨 · 第九十八轮 C：#169 审计口径改成数报纸真印出来的那一份
+- `56dd04866d301c3c53515d32b478ff731deefcac` · 2026-10-15 · 熊鑫晨 · 第九十九轮：读者面提速——内存保护 + 分类芯片预取
+- `9e5b0940733fbcaf37e2e43a62f9cea2449629ac` · 2026-10-15 · 熊鑫晨 · 第九十九轮：读者面提速——内存保护 + 分类芯片预取
+- `0b865edd3f5cfb54a96ed5deac7b5c7eaeaccaee` · 2026-10-16 · 熊鑫晨 · 更新 GEOHOT 宣传片：柔和配乐与最新线上实拍
+- `543d2f7f85bee63a6b13a067649efab09d1189dc` · 2026-10-16 · 熊鑫晨 · 同步既有历史并仅发布 GEOHOT 宣传片资源
+- `031bb3095e0c36a68cd550d30e2691c633957512` · 2026-10-16 · 熊鑫晨 · 更新 README 首页实拍与分类展示，修正旧图说明
+- `9e332c5059e6cfbaec3c7ba264bbaa0721f0d1f9` · 2026-10-16 · 熊鑫晨 · 第九十九轮 B：读者面守护单元——判定并发退化时自动降回 4 并自锁
+- `3d8a9aa21906a168a172afa89a7219531f2b024e` · 2026-10-16 · 熊鑫晨 · 第九十九轮 C：读者面守护改成阈值可调，并逐条证活五个判据分支
+- `358a95ba568c1831cecc47776790ca1642ccee7b` · 2026-10-16 · 熊鑫晨 · 统一 GEOHOT 中英文 README 原生视频播放
+- `1bc4ce99fca646ae564a044e6047cdd893091490` · 2026-10-16 · XinChen Xiong · 发布可匿名播放的 GEOHOT 视频附件
+- `86f5040cfeb9ff6d1ca057658ad87225705328b1` · 2026-10-16 · 熊鑫晨 · 同步英文 README 的公开视频附件
+- `c5e68c2b9e2d850a7c5b60c8cab4a16159231868` · 2026-10-16 · 熊鑫晨 · 重写中英文项目介绍，突出地理阅读体验与技术架构
+- `af7b4c9a1de2a98d884aa3fc0fa2572c0dd25cc0` · 2026-10-16 · 熊鑫晨 · 独立展示 README 许可与上游署名
+- `df6ba5f018db88fc528303851afca40e0b205ca5` · 2026-10-16 · 熊鑫晨 · 给读者真正的正文：按"feed 自带全文"的证据开启 260 道门，并补上渲染上限
+- `3ea21a202b39517107924f10b5ec4945076681bf` · 2026-10-16 · 熊鑫晨 · pgboss.job 只在 worker 首次启动时建，全新迁移库上没有这张表
+- `0f37f198476f530c5b233796f27bdfa999387958` · 2026-10-16 · 熊鑫晨 · 读者正文与渲染上限：260 道 feed 自带全文的门 + capBody + 纯文本正文的翻译腿
+- `3260e5b2dc13238760c9d252517d4a54d1df91a9` · 2026-10-16 · 熊鑫晨 · 待翻窗口 3 天 → 30 天（可配）：英文条目的中文版不能只属于最近 72 小时
+- `7e310b9d109866cac6bf3144e697dc936caa93de` · 2026-10-16 · 熊鑫晨 · 待翻窗口 30 天：英文条目的中文版不再只属于最近 72 小时
+- `2e75f496b761f1b20fbb474fd5c7dd0f4fc3b5aa` · 2026-10-16 · 熊鑫晨 · 翻译腿从"逐条 await"改成 3 路并发：12–24 篇/时不该是天花板
+- `85176bc4cf74dc88e441a10cbb58a6fbbbd3d76d` · 2026-10-16 · 熊鑫晨 · 翻译腿 3 路并发 + 30 天待翻窗口
+- `cddc825c59386479114e487f6c1940bff3b801fd` · 2026-10-16 · 熊鑫晨 · 一批报错不再弃掉整篇译文：付过费的答复必须落到库里
+- `8b25e7d9e11b56e713c04aae9a5c648385f52ce8` · 2026-10-16 · 熊鑫晨 · 译文里两处实测缺陷写进提示词：公司名不许换成形近的另一家、插入语不许把句子切断
+- `eb1046d2dfbe26dc24ae1c959b3fe5a6bf57b7cf` · 2026-10-16 · 熊鑫晨 · 整篇一块都没翻出来时记 failed 而不是 skipped：终态不该由一次坏时段决定
+- `a5278d241e66823b167b0c01495798b4f26808d3` · 2026-10-17 · 熊鑫晨 · 日期与周期按中文读法写：全量筛出来的 7/56 英文月份残留
+- `cb82f8fd723a01e330db64af78778df2c71274d9` · 2026-10-17 · 熊鑫晨 · 期刊记录页的页面外壳不再当正文给读者看（第一百零三轮）
+- `d1ec3c94c52f8cd29395e246b2a11ce4fbe072c0` · 2026-10-17 · 熊鑫晨 · 记录页外壳这一路的 dry-run 要说清它改了什么：body_text 一字不动，例子只能看 HTML 长度
+- `ed9b59cc1c71b4cf35420ea5c27b2566bd35f92a` · 2026-10-17 · 熊鑫晨 · 写库的 DSN 不再上命令行：--database-url-env=DATABASE_URL（与 #174 同一约定）
+- `5f2bfebe2bc6ad688fe8c00fae894b517aaea1cc` · 2026-10-17 · 熊鑫晨 · 读者面守护也管翻译腿：并发高于 3 时一退化就一起降回来
+- `99fd2cd5479fc6846b97bec979c3103595be1ec6` · 2026-10-17 · 熊鑫晨 · 没有源的播放器壳不再当正文给读者看：实测 181 条公开正文带着它的兜底句
+- `d177b4375a1e6999ce719c6246312486ac4dabf0` · 2026-10-17 · 熊鑫晨 · 翻出来一部分不是终点：partial 要能被重新挑起来，缺的那几块才补得上
+- `3f4db11deb87a6b2b7e0e56316821290f2a75206` · 2026-10-17 · 熊鑫晨 · 外壳洗库的候选改由代码决定动不动手：<video> 这一族句子正则抓不到
+- `68121c7dad64f727807ec34f4d383ca4312e0393` · 2026-10-17 · 熊鑫晨 · 写库前逐家看了删的是什么，抓到两处：视频链接不是外壳，序列化差异不该算改动
+- `80e8742a96e9379d2d8ab1136ec9be2636c89274` · 2026-10-17 · 熊鑫晨 · 兜底句还有一种是独立一段；删掉播放器壳之后不能留一段空段落
+- `03b9f5de9e8f503579674084e54ef9f34b409e34` · 2026-10-17 · 熊鑫晨 · 洗库预筛补上两种新形状：独立一段的兜底句、删壳留下的空段（DRY 从 3 条变 12 条）
+- `3087ffb31837eab0a71a669e6f6fcf07cf52b5c3` · 2026-10-17 · 熊鑫晨 · 洗库的判据不能比字节：序列化会变长，真删了 660 字节的行被当成"没改动"
+- `6b12cf8c07a66438c73d2678477c339b5fbc2eda` · 2026-10-17 · 熊鑫晨 · 第一百零五轮：洗库判据加第三把尺，图里嵌套的兜底句与空 figure 不再留给读者
+- `5b7ecc1c0645727ec731628b5d4b5a1ca48d21f9` · 2026-10-17 · 熊鑫晨 · 第一百零六轮：评审波——兜底句规则不再连图一起删，判据与规则共用同一个谓词
+- `4adabd7d77432317c0cfb4c4a862908f814b30e7` · 2026-10-17 · 熊鑫晨 · 第一百零七轮：批次折半以后，答回来的那一半不再被整批扔掉
+- `968053ddac70e6224ae59a217d117dd6e9487ed4` · 2026-10-17 · 熊鑫晨 · 第一百零九轮：译文落地前加一层中文排版（英文单位与直角引号）
+- `8f3769f9de252147bc44ef84107ac355c7affc5a` · 2026-10-17 · 熊鑫晨 · 第一百零九轮 B：译文里被掏空的引用括号按"没翻出来"处理
+- `fc80f02224c0bac5195f635ce38e5c26ed442448` · 2026-10-17 · 熊鑫晨 · 第一百一十一轮：长块被"翻成摘要"要在入库前拦住
+- `c63e65b29b2de875767d164183e9d029f5551fb4` · 2026-10-17 · 熊鑫晨 · 第一百一十一轮：坏批次那条用例的桩答复改成按块长给
+- `9b3edf526f7718e29151fde8469e72b16ec7d7e3` · 2026-10-17 · 熊鑫晨 · 第一百一十一轮：停机用例的桩答复同样按块长给（同一族，理由见 translate.test.ts 那条）
+- `daf3e13b3e373134935a109f91118c13ab5b663b` · 2026-10-17 · 熊鑫晨 · 第一百一十一轮：周报/月报的概览要有能写完的可见预算
+- `3a2f6526a686800d232f2ffb0eddbe7b066f5e0d` · 2026-10-17 · 熊鑫晨 · Revert "第一百一十一轮：周报/月报的概览要有能写完的可见预算"
+- `aec2b6d41c723edc5c9a46a23fbd7a065bd8f7bc` · 2026-10-17 · 熊鑫晨 · 第一百一十二轮：周报/月报缺总述时，「本期导读」那块要说一声
+- `7da36099d8f581abc393a85548739730b81854e1` · 2026-10-17 · 熊鑫晨 · 第一百一十三轮：回填拿到判定槽以后，把速率的真尺换成 analyses 台账
+- `917eb39ebc8c20562c4eba2155539daf7f74c0d1` · 2026-10-17 · 熊鑫晨 · 第一百一十三轮更正三处：归期规则按到稿与发布的较晚者、changelog 不需要重启、关阀时 forced-extract 的孤儿队列
+- `e0f38b733565ad419c3a075249ed646c852db0a3` · 2026-10-17 · 熊鑫晨 · 第一百一十三轮补两条：复位脚本必须枚举本轮停过的每个定时器，failed 带不会自己回来
+- `db1de0d1c4a1c1b9fc9db1dc8ddaf8d39891d5a0` · 2026-10-17 · 熊鑫晨 · 第一百一十三轮撤回一条自造结论，并把复位验证的三把尺换成能满足的
+- `9a1552db3472fdf12c1bf3f4c34ddead919ae5b6` · 2026-10-17 · 熊鑫晨 · 第一百一十三轮三处口径改正：当期期次归 worker、failed 带按族拆、--refresh 是回填可见性的另一半
+- `c6357e90dbcf73b960b2061c7f0566aa26c5499e` · 2026-10-17 · 熊鑫晨 · 第一百一十三轮把复位路径的依赖换成可审计的具名 timer，并撤掉我自己那句急性量具造出的错话
+- `60f97f1c1902c5286de8fd54747cca8d8747b173` · 2026-10-17 · 熊鑫晨 · 第一百一十三轮量出 #110 的真正前置：273 天全卡在"等判完"，--refresh 现在一扇都推不开
+- `feb5e4b2a4b2d54e43db2516002cba0c50fb4ba4` · 2026-10-17 · 熊鑫晨 · 第一百一十三轮把派发顺序那句换成实测证据：pg-boss 内部排序我没核，改判一小时里判完的月份分布
+- `79b76177cc348e8938e7d5e310314c9ee02b7d9c` · 2026-10-17 · 熊鑫晨 · 第一百一十三轮把"读者看得见"落成实测：日页 6/6 命中、时间流第一屏全是今天、期次要重排才变厚
+- `2d1f10cb3ae541656efaf5673639fa3720500a76` · 2026-10-17 · 熊鑫晨 · 第一百一十三轮执行并验证档案队列重排：入队顺序与新闻日期顺序 100 对里 0 对逆序，一月一日只剩 wait=1
+- `2e268eb30e8453f6d3f404617a26ddafdd04ad9c` · 2026-10-17 · 熊鑫晨 · 第一百一十三轮按自主授权重排死门 403 那一族 76 条，并把"重排要按族做"写进 §14
+- `f4f7b3260e26dc8b4dc593f67d2aa761f51aa8ce` · 2026-10-17 · 熊鑫晨 · docs(第113轮): 补上第一次历史期次重排的执行记录与七处量具改正
+- `b4336c069c5b434e0a0287679647134bc4522ccb` · 2026-10-17 · 熊鑫晨 · docs(第113轮): 更正两处会被读成承诺的话
+- `97cbe0aab7c17184d8ad1917f2ab653ce4ed94b5` · 2026-10-17 · 熊鑫晨 · docs(第113轮): 记下已顶到天花板的取证与一次量具错
+- `b1c031995e993eaa846fc3bfc96cacf3ff954b7d` · 2026-10-17 · 熊鑫晨 · docs(第113轮): 按只读核引波改正五处引用，并驳回它一条错的"更正"
+- `9973a4e5fb2ac564e43c74b9b1c4ec09c1f4b2bc` · 2026-10-17 · 熊鑫晨 · docs(第113轮): 补两处量具错并撤回我自己写错的因果
+- `97f2d7f2e49d86ccb989db9b702a3e2b960d8615` · 2026-10-17 · 熊鑫晨 · docs(第113轮): 加"读者面厚度尺"，并把"历史报纸只在整带排空后成批出现"改成按天结算
+- `3ecaa011b9ba50ba0cf1142ece9be925406ac99a` · 2026-10-17 · 熊鑫晨 · docs(第113轮): 记下 16:20 那一趟"所有已判完的那天"——四期重排的 before/after 与三个表面对账
+- `0ad3fde4af60b74c803217c98abf5f2166252634` · 2026-10-17 · 熊鑫晨 · docs(第113轮): 窗口全天逐小时账 + 守护已到地板这一档的取证
+- `1d9d1e3b4a09a18dbc4bc56b69ce2ad4d763379e` · 2026-10-17 · 熊鑫晨 · docs(第113轮): #257 摆平成数——档案带 12,379 条队首已到 01-01，1,380 条迟到新闻带横在早月前面
+- `cda5af3886aeeba0489e979cc367a51e2462f7ec` · 2026-10-17 · 熊鑫晨 · docs+脚本(第113轮): 按源码改正四处口径（独立复核抓出来的）
+- `84e63294ecd59285748524487d861a6876fdeb55` · 2026-10-17 · 熊鑫晨 · 更新日志（第113轮·最终版一条）：判定槽让给档案、四期历史日报重排出厚度、17:32 自动复位
+- `24b7f5d4c0fcded14ee5ae1b34ea8e3137c9547e` · 2026-10-17 · 熊鑫晨 · docs(第113轮): 窗口收口三次读数——17:32 自动复位、缺口 122 条全数抓回、以及"复位后未判完反升 31 条"这句要连着报采集开关
+- `229719371bffa0ad14480b4457928a89a26044ac` · 2026-10-17 · 熊鑫晨 · docs(第113轮): 六个 404 定性完毕（四个是 features.ts 关掉的模块、两个是我猜错 URL），并撤掉 #257 一半的说法
+- `8de1e845257bb326ca3217c37af4d661f9d6a07b` · 2026-10-17 · 熊鑫晨 · docs(第113轮): 额度窗的正确尺子——熔断数的是滚动 24h 已计费尝试，不是日历日 receipts（我 18:37 那版量错，已就地改正并重测）
+- `24303afcacc6d898aa55e36d9b8cb0e16feb485e` · 2026-10-17 · 熊鑫晨 · docs(第114轮): 夜窗已排程（21:30 关采集→04:30 逐期重排→05:30 复位→05:50 复验），依据是今天量到的三条
+- `56db29dad57a3cdc6cd95851be7997a65d9dcafb` · 2026-10-17 · 熊鑫晨 · docs(第113轮): 撤回我自己那句"compose.ts:95 越界"——读完 :95-105 整段才看清它是故意的
+- `7f3d996d1e8d7983db0114eb676264ac455990c4` · 2026-10-17 · 熊鑫晨 · docs(第113轮): 翻译腿 7× 塌陷的机制=每轮只取"最近发现的30条"；顺带把 day 命中的语义写准（换门优先，全池满才让作业退一小时）
+- `e3b85cb6132d166d8f37c983f1f272309f5069f4` · 2026-10-17 · 熊鑫晨 · fix(第113轮): 翻译腿每轮的名额拆成"新鲜 15 + 体积小 15"，别把整轮预算喂给刚进口的过刊长文
+- `b72e0d8b3047f6fddfcf2131d16a2ae0a53656dd` · 2026-10-17 · 熊鑫晨 · fix(第112轮遗留·#246): 把只活在工作树+生产的 deepseek 按步骤思考余量补进 git
+- `fbd2fd255209a43da2a04cbd3ad5d2b2d6a215b0` · 2026-10-17 · 熊鑫晨 · docs(第113轮): #259 换成带谓词的数——public 无分类 12,209、selected 只有 17、分类页上 12,209 全部不可见
+- `67e2bc8b8896b1f8c3d5edddf13344b54a5b97db` · 2026-10-17 · 熊鑫晨 · docs(第114轮): 共享档位净排空实测≈0——19:30 存量 13,854 比 17:24 还高，夜窗从偏好题变算术题
+- `b4ee8fbd84149926fd15325c632c0b069a8b82f9` · 2026-10-17 · 熊鑫晨 · Merge remote-tracking branch 'origin/main'
+- `2ce3ec67dfd620612ea3ac73668f8c8e066da02f` · 2026-10-17 · 熊鑫晨 · docs(第114轮): 三端按内容对齐（GitHub 落后 3 提交实为同内容不同哈希，merge -X ours 后 0/0）+ 取样器假绿已改 + 翻译腿投放后 0×5xx/6,094
+- `19d19852686e63ec136faade585b995666a19484` · 2026-10-17 · 熊鑫晨 · docs(第114轮): 对抗复核抓出夜窗脚本两处静默骗人的 bug（echo 里的 $? 恒 0、0900 按八进制解析成 0）——三层防呆 + 重排进程套 cgroup 与 idle I/O
+- `2adbbb0890707333ff43fccd8a23dd39a994ece3` · 2026-10-17 · 熊鑫晨 · fix(security): 限制反馈与图片资源占用并保留未知回执预算
+- `357c4dfd26591d0e97d9a46019cc04c48bc459bd` · 2026-10-17 · 熊鑫晨 · fix(第114轮·读者面事故): 撤回更新日志里三条站不住的话，并记下我自己把 /geohot 打成 503 的二十分钟
+- `b1d4eee8c3b9b41e3c0898a55cd7968961a1ecf4` · 2026-10-17 · 熊鑫晨 · docs(第114轮): 窗口头 72 分钟判的全是实时带（187 条 0 带），历史带要等 ≈00:40；夜里历史产出因此从 ≈1,100 降到 ≈700，夜窗数区间 13—20
+- `6aeacadab3025695a9f64a0a5f1ab36a5cf1f3a6` · 2026-10-17 · 熊鑫晨 · docs(第114轮): 撤回"拆两段是为了防九月饿死"的错理由（整年一趟实测 8m21s 就跑得完），并修两处行号/表格与一句"可回滚"的注释
+- `4ef87871d2b7a0087e288c53863178a9af27983b` · 2026-10-17 · 熊鑫晨 · Merge branch 'main' into codex/geohot-security-20261017
+- `890b79ee9642a699e23bbb9e54e60be0c309d6f7` · 2026-10-17 · 熊鑫晨 · fix(security): bound public reads and login attempts; enable isolated CI
+- `85497599c2a597ab77923d918f267bb57759c3e6` · 2026-10-17 · 熊鑫晨 · fix(ci): normalize disposable compose environment before boot
+- `d5098f174963b633b9690d8d87ccebe5f29c24d0` · 2026-10-18 · 熊鑫晨 · docs(第114轮): 夜窗中段两条预测的处置——翻译短文半接手成立(5→26行/时)，档案带接手我估的00:40改成实测01:25(实时带尾巴99/123每时)，今夜历史产出下修到≈530
+- `c0b675a52d811c7d95d2c8ae209b1bdb30220f05` · 2026-10-18 · 熊鑫晨 · docs(第114轮): 02:14 实测档案带净排空 178 条/时（实时带清零之后才准），ETA 从 13—20 夜收到 13—16 夜
+- `c3207feb1d73a452fe725c22aceca10631aa40da` · 2026-10-18 · 熊鑫晨 · docs(第114轮): 02:22 量"还能不能更快"的下界——重试倍数 1.005、五扇门平均 33—43 秒、作业内单步 12—67 秒
+- `3fb34d773d7a7e4a5c357f2e3a22ea268296bd11` · 2026-10-18 · 熊鑫晨 · docs(第114轮): 02:33 量"暂停到底损失多少"的基线——同八夜 20:56⇒05:30 中位 ≈2,000 条进口（×13% 入选 ≈260 条），599/666 信源间隔 >2 小时且 435 个已到期
+- `21b1bd954f5cadd9f5a3f5914af5d2bebd9f004a` · 2026-10-18 · 熊鑫晨 · docs(第114轮): 撤回 02:33 那节的"暂停损失 2,000 条"——那是把档案批量进口当成实时进口，按 timeline_at 拆开后真数是 ≈720 条（≈94 条会被选中）
+- `dbc848de9c280db8739fc06d9f91621dd35f1f08` · 2026-10-18 · 熊鑫晨 · fix(第114轮): 撤回线上更新日志里三处站不住的数（独立审计抓到、我逐条核过台账）
+- `f50e02cb0a7fd9c0d5c10a1e516ebc5acfaad008` · 2026-10-18 · 熊鑫晨 · docs+changelog(第114轮): 把独立审计抓到的四处口径问题一次改到底
+- `a56071a85405868e3b969380d7949ad50ff582c5` · 2026-10-18 · 熊鑫晨 · docs+changelog(第114轮): 消掉同一句里"120—173 篇/时"与"上限 ≈112"的自相矛盾，并写下 18 点两把尺的对账
+- `0f0c626e46d11cf5f76c7624f679168349dd3804` · 2026-10-18 · 熊鑫晨 · docs(第114轮): 夜窗是自我熔断的一次性设计——记下怎么把它变成可续、可退役、可一键关，并把每夜代价量出来
+- `f6358f848b9af01a8e80d8aa1bd5221801e4fe78` · 2026-10-18 · 熊鑫晨 · docs(第114轮): 疑似缺陷关阀期间读者面无新鲜度标注量完不成立，记为已核查放行（脉冲点声称的是榜单此刻重算，hot.snapshot 每小时真的在重算）
+- `e666794ec84e9a12f0328bc8fe56aa0c36c7aca4` · 2026-10-18 · 熊鑫晨 · docs(第114轮): 03:01 提前跑仓库自己的只读完整性审计——唯一 HARD 项是 undated 精选涨到 36（按信源分族），两条疑似缺陷量完放行（271 期无号≠被标未出刊，那三个「未出刊」在相邻日期的导航条上）
+- `d6cef9882d50eaa14cd14b96c5f6561be8758e96` · 2026-10-18 · 熊鑫晨 · docs(第114轮): 03:03 读者口径∶库存口径对齐——可读日报 284 ∶ 库存 284（271 期补刊不占号但照常可读）、周报 41、月报 9，零缺口；报完成度别用 issue_no 数期次
+- `c3425698878bb0be250ff0610fb0fce2214d74b6` · 2026-10-18 · 熊鑫晨 · docs(第114轮): 03:1x 审计量具升 v3（og href 改实测、期次键改读读者可见 API、want 形参修正）+ 两把"待判"尺的 1,158 条口径差 + 一夜 ≈850 行改写 ETA 上沿 + 04:30 前置检查全绿
+- `24095fb24f74665c46c63feee14f4ca0579448e2` · 2026-10-18 · 熊鑫晨 · docs(第114轮): 就地更正——阀门键就在 .env 里、名字是 COLLECT_ENABLED，我猜错的是键名前缀不是文件；05:06 读量脚本那格本来没坏
+- `45d4be7b9a488cc0ca531f43736ac1a0a86991f8` · 2026-10-18 · 熊鑫晨 · docs(第114轮): 03:2x 提前跑 05:06 量具——抓到 valve 取第一条造成的假绿(已改 kvLast 并双向实测)、撤回草稿里 10.8→3.9 那句、178 条/时按带拆账改口径、排空账分解(净减372≈判完379)、并把上一节的 850/15 夜就地更正为 745/18 夜
+- `4322ca2912e9f45edfe69973b6c11cda8e88c956` · 2026-10-18 · 熊鑫晨 · docs(第114轮): 03:2x 提前跑通 06:30 整条发布链——抓到两处只有真跑才露的量具缺陷（风格闸门量在填充前=假绿、带数字的占位符被 [A-Z]+ 正则吞掉），DRY 不写盘已双向实测，仓库 sha 未变
+- `22d66f7dc2940a3b62b35bfd2756f8350e7f32ce` · 2026-10-18 · 熊鑫晨 · docs(第114轮): 03:3x 拦下两条差点写进日志的假代价——/all 英文标题全是未精选的过刊行(精选面 0/40、近24h 0.0%)、GROUP BY 序数陷阱；并确认仓库自带 mobile-audit/mobile-flow 可用(冒烟 RC=0、problems 全空)
+- `fdaec6c9e81a04793d823a2a4e217444cd15e8ed` · 2026-10-18 · 熊鑫晨 · docs(第114轮): 03:3x 新增补抓有没有印进本期这条 A/B 判据——差点因为落库 content 用 itemId 而类型写的是 id 变成永远为零的假红；控制组双向验过(A2=29|0、B=28、A=2 平日参照)，整份 after0800 已 03:35 真跑通过
+- `0d2eeea3e1e56d831c6837fc8857a7309287098a` · 2026-10-18 · 熊鑫晨 · docs(第114轮): 03:5x 两路独立对抗审查打到 07:05 审查与 06:30 发布链——七条成立并修（§D 没看状态码、半张绿=全张绿、复位没发生也能 FAIL=0、robots 探到介绍站、5xx 混入邻站、一批 SQL 静默截断、空 id 列表整段消失）；驳回一条（128.7s 是作业墙钟、33—43s 是单门调用，不是矛盾）；夜数与翻译因果两句从读者面删除；我自己的 freshness 断言先写成永远为红、HARD 闸门先写成永久拒绝，都已按基线差/双向实测改正
+- `f3b2747ad983d96c77f6f09142ae9895104d4ed8` · 2026-10-18 · 熊鑫晨 · docs(第114轮): 04:00 收尾次序落成文字（05:06 早查→06:20 终读→完整性复跑→07:05 审查→填数发布→fast-forward 推送→浏览器面→清理→给站长的报告），每步写清工件路径、必需标签、闸门与失败时怎么办，防止上下文被压缩后要凭记忆重推
+- `9d2233bff284277ff268406891373808278bbb6b` · 2026-10-18 · 熊鑫晨 · docs(第114轮): 04:0x 发布链最后一次逐行核对（latestVersion/格式/替换位置/服务端备份与 cb 绕缓存）与 04:30 包装链 rc=0 实测
+- `422845e7d071e1b5b29c9518251b0613d919ba56` · 2026-10-18 · 熊鑫晨 · docs(第114轮): 04:0x 查清'模型门是否闲置'——池成员是模型名、台账是服务名(8 落 5，全在跑且应答≥99%)；budgets 10 条零尝试是摘门留下的熔断行不是漂移；Gemini 无生产凭据故不动池子；真闲置在 embeddings(0 行)+embedding 门 0 尝试 ⇒ 预筛是一次 LLM 往返、4.24 调用/条，本地化可省 ≈35% 单作业时间，已开 #273 等键
+- `9f602842598aa14cf57c2bb34bdffce4c58d86aa` · 2026-10-18 · 熊鑫晨 · docs(第114轮): 04:1x 撤回我自己安错的因果——embeddings 只服务事件归组召回、预筛是设计内调用且 BLOCK 短路，'省 35% 单作业时间'作废；生产是 EMBEDDINGS_ENABLED=false 且无任何 embedding 配置行=主动关闭而非漏配；#273 按事实改写
+- `10dc321a09b038675009e56a52c0fab5b9d1d59f` · 2026-10-18 · 熊鑫晨 · docs(第114轮): 04:2x 查出并修好我自己兜底的跨午夜哑火——heal 的旗标闸门按开始日命名，00:00 起每半小时静默退出(跑了不写字、ExecMainStatus=0)；restore 失败分支承诺的救援当时是空的；修法=补一份今天日期的旗标(不改在跑的脚本)，两侧验(前加0行/后加1行 heal-skipped now=0414)；restore 本体无日期闸门已逐行确认、NEXT 05:30；另记 #274 探针被自己的 140MB 负载闸门在 111MB 时正确拒绝
+- `dbce839b653ac873a48e048c3f0546404023bf6f` · 2026-10-18 · 熊鑫晨 · docs(第114轮): 04:2x 收紧发日志的量具四处——window_req 取错段(21:30 而非 20:56 的真实暂停窗)改成取末条并要求至少两段、judged60 数组改名 JUD60、新增'两把期次尺都为0就拒绝发今夜重写N期'闸门、08:20 跳补 140MB 负载闸门；四处各两侧验，伪工件当场删除
+- `5583f9b6934c321d8317bea59d638fe0dc3a91b5` · 2026-10-18 · 熊鑫晨 · docs(第114轮): 04:3x 只读智能体逐句审更新日志——它纠正我两处(抓回/新发不是包含关系、'源站请求'实为读者面到源、6槽是昨天上午不是昨夜)，它的720也被我用文件纠回(九夜中位是575，它悄悄挑掉10-08;挑样本的中位数会改数);我准备撤回的720反而有据(bandsplit九夜列,与档案列相加=当年整晚总数);现测推翻'白天约100篇'(清晨实测22/时、午后均摊54、100只是12-14点)故改成'白天不是一个数';试点四期归属10-17白天并新增'台账为0拒发';__RESTORE__由写死改为必须现读(冒烟时ExecMainStartTimestamp=n/a正说明危险);1.2万改现量;正文413汉字
+- `55540373fd0b27aecc627512a09b3a2bfde2f89a` · 2026-10-18 · 熊鑫晨 · docs(第114轮): 04:3x 净排尺的口径缺陷——LEFT 不能用复位后现值(开阀即被档案进口污染),改取窗口内 05:15 取样并另印'复位后又涨';补两把尺交叉核对(净排 vs 带内判定,关阀期应同量级,04:0x 实测 529∶529 精确相等⇒档案带确实 00:40 才接手);删 NIGHTS 时漏掉唯一引用处,node --check 查不出 ReferenceError
+- `2452fe4d9af3a0f14b484be8b63c183c585628ae` · 2026-10-18 · 熊鑫晨 · docs(第114轮): 04:37 04:30 两段半年重排跑完(04:30:01→04:33:54 success,台账 44→48 与 reprinted=4 两尺一致)但内容一字未变——判完的历史日仍只有那 4 天,这一遍白付 ≈4 次导语调用,01-11 第三次没写出导读,已开 #276(--refresh 只该打在自上次出刊后有新判完的天);量具两坑:content?'lead' 空串也返回 1(判字段有没有内容要用 length)、report_revisions 无 key 列;正文改成'又重排4期条数与昨天相同这一遍白付'并加闸门:发版时 reprinted!=4 拒发
+- `a9412298b467ee92c95e2e1ef9bd671356d9352b` · 2026-10-18 · 熊鑫晨 · docs(第114轮): 04:41 无人值守复位前把两处推论变实测——(1)全量扫 r114 脚本,只有 heal:13 拿日期当门(已修),stop/restore 的 date +%F 是写旗标不是读门,清理用通配; (2)restore 的 sed -i 会不会把 0600 geohot:geohot 的 .env 改成 root 属主:20:56 的 stop 用的同一命令反向版,改后仍 geohot:geohot mode=600、61 行不缺、worker 20:57:39 正常读到、sudo -u geohot test -r 过 ⇒ 这台机 GNU sed 保留属主,复位那步安全;另记 stop 自带失败回滚(改不成就把阀门改回 true),refresh 下次 10-19 04:30 ⇒ 今早清理必须真删六个单元
+- `70859bcd300667b4bb262b4d6c4c3ae1f4b7a2fe` · 2026-10-18 · 熊鑫晨 · docs(第114轮): 04:45 建好全站路由清单审查(从 apps/web/app/routes.ts 40 条抄出,分读者页25/设计关闭4期望404/后台4期望401-302/features 同一份证明四段),R114_PART=cheap 半跑通 8/8(404×4、后台 302×4、计数器与正文标记都工作);纠掉我自己造的假证据——git show 在多克隆部署树里拿到空文件,e3b0c442… 是空串的 SHA-256,改成本地算 HEAD 那份 f67d2dc6738229ab 与生产逐字节相同 ⇒ 那四个 404 是 features.ts 主动关闭不是部署滞后;另:git hash-object 是 SHA-1 别与 sha256sum 前 16 位互比
+- `40b90f399ce0a717a4aa37bb0e071406a100b4f6` · 2026-10-18 · 熊鑫晨 · docs(第114轮): 04:48 量清'暂停不是中性的'——实时带同口径五夜单源峰值 105—240 条,每夜 2—6 源超 60、1—5 源超 100(10-16 最多:中央气象台 240/日本气象厅 159/中新网 98/USGS 83);collect.ts:200—217 每轮读最新60+游标续60,跑着无碍,暂停 8.6 小时后能追多少受限于该源列表页深度,损失集中在四扇高频门;处置=复位后分源核对回收率(已加进 r114-ship-proof.sh)+必要时多跑几轮用现有续读,不抬全局 MAX_ITEMS_PER_RUN,已开 #278;并记三处自造 SQL 错(别名越界/GROUP BY 数到聚合/WITH 只服务单条语句)
+- `1815c16692554f08b7a195ae4b75dad5550e69e3` · 2026-10-18 · 熊鑫晨 · docs(第114轮): 04:53 发版前加'仓库自己的规矩'闸门(changelog.test.ts 头注就是 10-03 半角引号把 /changelog 打成 503 的事故;类型检查与构建都抓不到)——changelog-repo-gate.cjs 不碰仓库文件拼出替换后的整份并跑同套断言+ASCII引号点名+10-18 只留一条;node --test 可直接跑 TS,发版链填 --write 之后先跑它再提交;新闸门第一版'永远红'(拿 JSON.stringify 扫引号,序列化自带定界符),靠'跑一次看它能否变绿'当场发现,修后三侧验:真草稿绿/全角引号绿/真半角红
+- `be3595ea57ba7547d4bb82cee957c15349e9691f` · 2026-10-18 · 熊鑫晨 · docs(第114轮): 04:59 期次账换成通用尺 r114-reprint-what-changed(对每个 04:00 后重排的历史期次,拿 report_revisions 归档那份比 items+flashes+highlights 条数与 lead 字数,给 touched_total/changed_count;加 key<2026-10-01 过滤免得把 08:00 当期混进来)——实测 changed_count=0,四期连导读字数都一字未改(222/267/0/173),01-11 仍无导读;正文改成'又重排__EDITIONS__期,逐期比归档版本:改动__CHANGED__期',两数由工件算;当场抓到自己三处坑:CTE 漏 select id、prev 用错表别名 rr.、旧闸门文案仍写 reprinted_since_0400 而比的已是工件 ED——改口径必须同时改名字与文案
+- `a6ccd36ff797634a39f93f967380bcc931efa268` · 2026-10-18 · 熊鑫晨 · docs(runbook): 05:0x pre-restore audit of the unattended chain — archive failed(timeout) cause, the stop line that does not exist, verify self-disable trap, APPLY dry-run bit, and the second ETA ruler (269 days / 13,270 items vs sampler 13,326)
+- `8f3beb14163ee6995047ac62a9cc2026d02063ab` · 2026-10-18 · 熊鑫晨 · docs(runbook): 05:1x ship-chain rehearsal caught two silent gates — a refusal pushed after the only exit check (never wired), and stop_flag===1 rejecting my own #275 cross-midnight flag; __SLOW__ replaces the last hardcoded number
+- `ebe93061959befef93ed8d434473bd181edafd86` · 2026-10-18 · 熊鑫晨 · docs(runbook): 05:3x the restore fired by itself (05:30:02 -> 05:31:16) and 366 rows landed in the first 10 minutes; plus two of my own measuring errors (one-column GROUP BY, journald silence for the guard)
+- `6436c56b180e869679429b0d3123924791c9732b` · 2026-10-18 · 熊鑫晨 · docs(runbook): 05:5x adversarial-review adjudication — per-source 83/98/159/240 re-measured on disk (the saved artifact was the broken attempt), reprint summary rulers fixed (missing kind/key filter, lead length now counted), the always-green 'only one 10-18' gate wired, 5.44 was an unread literal, and my own 05:3x intake paragraph corrected
+- `89f3a381c24749eed40cf29631c706a67fced522` · 2026-10-18 · 熊鑫晨 · docs(runbook): 05:58 second reviewer attacked the public text — 4 adopted (pool-vs-band labelling, self-contradicting headline, jargon, bullet length 453→416 han), 3 rejected with reasons; fill-draft gained a round-number refusal and an undated gate that only bites if the text cites it
+- `9ff6d4fed50216c893e144cf2adf0d16f2030433` · 2026-10-18 · 熊鑫晨 · docs(runbook): 06:0x ship-chain smoke run caught a claim that would have shipped false (grep -c double-prints 0 -> entry said the backstop saved us), plus the 06:06 recovery ledger: 389 of ~575 already back, 552 new, still exactly one 5xx
+- `117e5fc25bb5c65b29f9a899aee3fd70e169bd13` · 2026-10-18 · 熊鑫晨 · docs(runbook): 06:09 memory swings 234->81 MB in three minutes once realtime and the archive cycle run together — the pre-503 shape; probe refused again by its own gate; noon recheck armed rather than promised
+- `f3a53112408682ac3c68fc93c9e960d52e24d629` · 2026-10-18 · 熊鑫晨 · fix(scripts): recompose-report 加 --skip-unchanged —— 第 114 轮实测 04:30 那轮重排 4 期、逐期比归档版本一条都没变，白付 4 次导语调用；语料与已出刊逐条对得上时在花钱之前就退出 (#276)
+- `a944af9ac71d85a610e03b18f152d4027866a241` · 2026-10-18 · 熊鑫晨 · fix(scripts): backfill-papers --refresh 不再重排语料未变的期次（#276）—— 今夜 04:30 那轮四期逐条与归档版本相同，白付四次导语调用；集合相同就跳过，强行重排留 --force
+- `bf9c2242c3ee9f3405ba015b57a35b3bc03383d4` · 2026-10-18 · 熊鑫晨 · docs(runbook): 06:1x #276 修完了——但第一版修在没花钱的那把工具上；backfill-papers --refresh 现在跳过语料未变的期次，dry 两侧证活正好命中今夜白花的四期且 report_revisions 仍为 48
+- `3b3bb4e3aae415083e2b9add79f4616e34c6dce5` · 2026-10-18 · 熊鑫晨 · docs(runbook): 06:4x 两路只读评审各打掉四条——暂停时长读错工件会把 8.6 小时写成 23.3（同一标签在关阀前后两份工件里量两件事）、ExecMainStartTimestamp 对 oneshot 永远 n/a 是只会假红的尺、收尾脚本原来是 destructive-by-default
+- `aed1ce6dabde088bc43592ae380a0ba628a37ee7` · 2026-10-18 · 熊鑫晨 · changelog: 第 114 轮最终版一条（夜窗把模型名额让给历史条目，一夜待办净减）
+- `4cbb831aacf43cfe031f0cb14cb22f2960f7e145` · 2026-10-18 · 熊鑫晨 · docs(runbook): 07:1x 更新日志发出去了——发版链自己交出四个缺陷，其中一个会删掉一条已发布的条目（--write 被解析成空串、--ship 带杠没剥、相对路径把 body 落进仓库、空脚本也算 ssh 成功）
+- `9a15b1e19cd09977e0f28cab094811b76a0bbc4c` · 2026-10-18 · 熊鑫晨 · docs(runbook): 08:4x 今天这期 22 条为什么薄（容量+去重，不是漏印；等 425 条判完自动加厚）——并记下我自己那条 OR/AND 少括号把 13,141 量成 16,077 的 SQL bug 与 ETA 的 24 小时但书
+- `d8ced89d02742f18498134900af913b04934acbc` · 2026-10-18 · 熊鑫晨 · docs(runbook): 09:0x 把 08:4x 那句"判完会自动加厚"证伪并改正——catch-up 只补不存在的期次、生产 FINAL_REFRESH 取默认 0、r114-refresh 已被 disable
+- `af4c84ff70c9b355512ab7f9fe22aeb7165c6972` · 2026-10-18 · 熊鑫晨 · docs(runbook): 09:0x 续开夜窗的排程表与那一条命令——从 systemctl cat 与脚本现读，不写设计意图
+- `44a1ade5337065d7e916d4b11cafc25ba3b95d43` · 2026-10-18 · 熊鑫晨 · docs(runbook): 12:0x 白天的进出账（进 171 ∶ 判 22 ∶ 待办 +149，逐条对上）与 11:0x 对"永久缺口"那句的更正
+- `e6a33687daed7ee72de1de7221c40c2cd418898e` · 2026-10-18 · 熊鑫晨 · docs(runbook): 12:1x 清理后机上会故意留一把 r114-sample 定时器（拿它换 ETA 的证据）
+- `a96fc6c085f2bff9284b70877345d5680dfd2657` · 2026-10-18 · 熊鑫晨 · docs(runbook): 12:1x 五个整点把"白天回涨是结构性还是一次性"判掉了——+26.2 条/时 ⇒ 一个昼夜净排 ≈371 ⇒ ≈36 天
+- `f85907357a4546a826b0315a8f5a33f3e51446e8` · 2026-10-18 · 熊鑫晨 · changelog: 第 114 轮最终版一条（夜窗把模型名额让给历史条目，一夜待办净减）
+- `e03a454d8c9770052b2ff798180bd19aaef8eb47` · 2026-10-18 · 熊鑫晨 · docs(runbook): 12:2x 清理执行、当天那条更新日志原地改成最终版、以及我往链子里塞新变量撞的名字冲突
+- `bf44958376bda3017986e65d914a34703a52db6d` · 2026-10-18 · 熊鑫晨 · docs(runbook): 12:2x 机上多了一对常驻单元 geohot-reprint-today——补印这件事不能靠我这一侧的会话活着
+- `236b3a150cb31c980160d6061a6c4df749d149b8` · 2026-10-18 · 熊鑫晨 · docs(runbook): 12:4x 机器自己两道闸门的五条漂移逐条归因，并记下"这两道要以 root 跑、它们是 bash 不是 node"
+- `7df0c4c2d9c24e78cae57503195a869438bab430` · 2026-10-18 · 熊鑫晨 · ops(backfill): 把堵住 2026-10-18 那期的 49 条作业从 −2 带提到 0 带（有凭据、有断言、可逐条回滚）
+- `317ff006f2f97060ff6c0a92baf66c29ff8828c2` · 2026-10-18 · 熊鑫晨 · docs(backfill): 记下 sweep 两支排序饿死"最新日期的档案料"，以及补印闸门与三把坏尺的真相
+- `2b7e4e22ede17a6ae27e3139103207a7b2e99597` · 2026-10-18 · 熊鑫晨 · docs(backfill): 周期刊连贯性核查——周报是周一出上一周，W42 不是缺期；日报五期全 rev=1 的含义与别重排 W40 的理由
+- `7f0acb3c7309f826513aae377afae92701650260` · 2026-10-18 · 熊鑫晨 · docs(backfill): ETA 的分子分母各量一遍——白天历史带只拿到 5% 吞吐，份额才是墙
+- `c278b50714fc1036c41a01165fcc8021e1cd17f9` · 2026-10-18 · 熊鑫晨 · changelog: 第 114 轮最终版一条（夜窗把模型名额让给历史条目，一夜待办净减）
+- `83970487c0fb0137b5b9f1b3feab5182d1aa6d82` · 2026-10-18 · 熊鑫晨 · docs(backfill): 第 114 轮最终版日志已原地替换上线（PROD_MATCHES_LOCAL/REPRINT_PROVED）与两条审计的现值；记两次自己的尺错
+- `c8637e25d10d7c213b007031a64b79d0ef7b5f35` · 2026-10-18 · 熊鑫晨 · runbook: 14:1x 第三轮对抗评审 12 条逐条裁决（9 修 2 驳 1 误伤自记）
+- `1a007685e9ad5b49ea060b2bba0c2fe0edca0022` · 2026-10-18 · 熊鑫晨 · runbook: 取样窗口按日期收紧后复跑真工件，一夜净排 790 未变（收紧量具没有推翻读者面数字）
+- `5416c15b614f6f2cec84a048b85d268cb7bb1270` · 2026-10-18 · 熊鑫晨 · runbook: #257 结案——2,806 条一到九月材料被分在比档案带更低的 -2 带（最老等 84 小时），带三重自保提升到 -1；附一次漏 state 过滤造成的假读数
+- `44790e66258f0f8b44b6aa6591415ada19c599b2` · 2026-10-18 · 熊鑫晨 · runbook: 更正——-2 带是有意分带（10-10 实测 0.8%∶1.9% 入选率），本次是队列尾修不是修 bug；不改代码、会重新积尾、按 0.8% 只多 ≈22 条精选
+- `d9e6dcbbfa75d3e4783e7fdb0fc185a1731cb9ed` · 2026-10-18 · 熊鑫晨 · deploy(night-window): 把只存在于机器上的夜窗关阀/恢复机制接回仓库，带 --selftest 与非 root 拒绝；#270 的续开路径改口为四步
+- `2b4af16e1d0d771034f4b6cd884122a8a9dc9493` · 2026-10-18 · 熊鑫晨 · deploy(night-window): 补 [Install] WantedBy=timers.target——机上 --install 后 is-enabled 报 static，enable 会失败；selftest 同步加两条断言
+- `c173b66b853d11c1205c0cfbd4b4da81f93e9075` · 2026-10-18 · 熊鑫晨 · runbook: 15:1x 交班快照——什么在跑、什么装好未武装、留了哪些证据与回滚件、下一次证据点怎么处理
+- `15292269c84761a1f16f3891575f415819f27720` · 2026-10-18 · 熊鑫晨 · runbook: 更正——发版脚手架已按收尾规矩清空，别把'占位符已接好'读成一行可重发；补印若落地要原地替换只需的两样东西与退路
+- `a8af8bea8b68e3e67eeb0b90309c39b45f6216bb` · 2026-10-18 · 熊鑫晨 · runbook: 15:4x 收口——白天斜率改用最长一段现读窗口(+19.0/时)把 ETA 报成区间 ≈27—36 昼夜；补印七问全 NOT_READY 且不报"还等几条"，v3 把那句 N 抄进日志(判据逐行 diff=0，两侧自测过)
+- `c68a68865381f66c22333153c4394b7afe976a47` · 2026-10-18 · 熊鑫晨 · runbook: 补一处三端假象——机上 docs/ 不在发布管线，那份停在 10-15；'三端同步'过去只对代码与数据成立；并记下'脚本与数据不能共用一条 stdin'
+- `91856acd9e097fc544a380c50c89eedbbbd23a37` · 2026-10-18 · 熊鑫晨 · night-window: 修 #275 与 #269——旗标补一份不带日期的(跨午夜才读得到)且恢复那半真的去读它；restore 不再 disable 自己的 verify 定时器；selftest 加三条断言并当场证明第四条会红
+- `235e4ba3629facddcb9793d21ce0e5c831db373c` · 2026-10-18 · 熊鑫晨 · night-window: 加长窗口开关——关阀支持 R114_FORCE=1（绕开的是'几点'，不绕'停完必须能证明回得来'）；新 install-long-window.sh 装每 30 分钟自问的排空哨兵（排空/读者 5xx/连续两次低内存/最迟期限 四种都恢复），判据与计数器只留一份文件供生产 source，selftest 17 条含相邻数与坏读数两侧证明
+- `8a9d7bb0626c020e507133a07c5eaa49c3a64106` · 2026-10-18 · 熊鑫晨 · long-window: 排空尺改对——analyzed 是判过了不是没排完（旧写法 33,042 条永远不会归零，窗口只能等死期限）；现读判 14,692 ∶ 翻 1,576 合计 16,268，两条腿都算；期限按投影完成时间定到 10-24 06:00 并写明依据；新增 --refresh（窗口开着换判据不碰阀）与 --once（走生产那一份）
+- `ac44a841189f4d936e36361d9a06d8dab825c806` · 2026-10-18 · 熊鑫晨 · runbook: 第 115 轮开长窗口——0/178 的证据说明关进口才是杠杆；关阀代价先量(九成有正文)；与夜窗不同处是档案进口手动开回；排空尺第一次把 analyzed 当成没排完(33,042 永不归零)已改判两条腿 14,692+1,576；哨兵四种恢复与期限依据
+- `9dcd570ce8721383e0ff362a762fe30268eba84f` · 2026-10-18 · 熊鑫晨 · long-window: 加停摆检测（存量连续 6 轮=3 小时不降就自动恢复实时，别静默等到死期限）；夹具当场抓出两个自己的错——计数把存量当计数(+14692 会立刻撤窗)、chk 少转发第 9 个参数让'停摆 5 轮'是假绿；状态文件改存'存量 计数'两列，坏读数保持计数不动
+- `2b0d07dc3e9a93d05edec2c86f0b8372593067b5` · 2026-10-18 · 熊鑫晨 · long-window: 停摆只按判定腿记，不按合计——翻译量会随判定推进合理上涨，用合计会把'正在干活'误读成停摆而在 3 小时撤窗
+- `5c02e302d0e8919370ef45c3afe22cf6f14e452a` · 2026-10-18 · 熊鑫晨 · long-window: 内存地板 90→60 MB、连击 2→3 次——17:22 生产读到 avail=86MB 已在 90 之下，再留着就会因为一次正常抖动把 4.5 天的窗口撤掉；真正该信的是 5xx 预算 0 与读者面守护自己那两道闸。夹具加一条'86 MB 不算低内存'用生产刚读到的值钉住这个决定
+- `bae894aa04071d013e58d73b79b4cf94e9044f65` · 2026-10-18 · 熊鑫晨 · long-window: 排空条件加第三项 archive_ingest 未扫完切片(Jan-Sep 现读 128 片)——只看判定/翻译两条腿会在进口还没扫完时误报'排空'；十月那 119 片不计入(当月门每轮都走)
+- `4a9d7e0141aa46ed92fc40824b4eeaabe913bca9` · 2026-10-18 · 熊鑫晨 · runbook: 115 轮小节挪回文件末尾（先前按锚点插入把它塞进了 15:4x 那节的要点中间）；补 17:3x 三项排空定义、未扫片 128 片与投影改口 ≈4.6—5.3 天、额度侧实测 15.8%、以及'窗口期间不许跑路由走查'这条相互干扰
+- `3dcea90094ef07301b280091422df1776cb090e3` · 2026-10-18 · 熊鑫晨 · long-window: 保命规则排到"读不到存量"之前，5xx 尺改按时刻锚，节奏 30→10 分钟
+- `4ec3960d5f5b32f0f279a278b83ada4322ab7daf` · 2026-10-18 · 熊鑫晨 · long-window: 归档周期的节律跟着窗口走（白天按住、夜里放行）+ --arm-nightly 每晚 21:00 自开一扇
+- `84c20a75d5e284c52b73380fb62ad80ba5856864` · 2026-10-18 · 熊鑫晨 · long-window: 单元模板补上 MAX_WINDOW_SEC 参数位，并断言 ExecStart 必须是脚本路径
+- `6ba472c1f7f49bdbb08643f25eb16d0210e8f290` · 2026-10-18 · 熊鑫晨 · long-window: 读者优先闸门（一红就按停 geohot-worker）＋对抗审计打出来的六处量具缺陷
+- `7b1469efe3a815741e11e3ab82907fe4ac58b3d3` · 2026-10-18 · 熊鑫晨 · long-window: 闸门在判据缺函数时必须硬失败；--gate-on 先重落判据
+- `c6e6e5f05d354d6327659bbeee65f6332e740fef` · 2026-10-18 · 熊鑫晨 · long-window: 闸门每轮都留一行（IDLE 也记），否则"没有新日志"分不清是平静还是死人
+- `980353fd78c514447e386d365065c7cd78f86b85` · 2026-10-18 · 熊鑫晨 · long-window: --start 幂等（窗口已开就跳过，别在 journald 留一条 exit 1 的假事故）
+- `fe6bb55b70a4bb1111163fc94bf0158631532ffb` · 2026-10-18 · 熊鑫晨 · runbook: 19:2x 更正——窗口姿势从「只在夜里」改成「现在起连续开、上限 24 小时」，并写明为什么
+- `8ec5036095b9fdfc1109dbfa2f4e4a733d98b690` · 2026-10-18 · 熊鑫晨 · long-window: 停摆判据改数"有没有判完"，不再数"存量有没有降"
+- `8fc31676b36ee1cad16ef878b0016e4cbbda7334` · 2026-10-18 · 熊鑫晨 · runbook: 20:0x——排空尺自证、优先级阶梯的头两小时、停摆判据打错靶子与修法、128 片是封顶重开、还有一笔没轧平的进口账
+- `f42fcf885b4834020a6588c318ae020b51f07d6e` · 2026-10-18 · 熊鑫晨 · long-window: 判完那把尺分带，死量具算瞎一格，撤窗文案不再说"存量未降"
+- `7f0e6ec2f10af22cf43b0ab94d529d99d0ef5ae6` · 2026-10-18 · 熊鑫晨 · runbook: 20:3x——对抗代理三条打中（判完尺分带、死量具算瞎一格、撤窗文案说谎），一条驳回；第一枪就量到 全部64∶档案0
+- `954566ae93a101ce3c8bba0629e93d3386d04b6b` · 2026-10-18 · 熊鑫晨 · runbook: 20:4x——那笔进口账被自己轧平（窗口该按归档周期切，不是我读数的时刻），并把回家那条路六个点逐条点名验过
+- `39bbbdeea2745ee460c9ca7ba3bdf997f308e96f` · 2026-10-18 · 熊鑫晨 · gated-probe: 把"读数那一枪也要带闸门"从我身上的规矩变成机器会自己拒绝的工具
+- `bdb13c0c7355da97c3ba4c500ec200fa9e792ab8` · 2026-10-18 · 熊鑫晨 · long-window: 每晚开窗那枚 timer 改带 Persistent=true——21:00 那一枪今天静悄悄丢了
+- `d5d1e63890cca725c44dfd58375a88c100fb3d1f` · 2026-10-18 · 熊鑫晨 · night-window: 自测不再碰生产（换成 date/systemctl/touch 三枚桩），并修 reader-gate 与关阀脚本的互相绊倒
+- `91295f0d619d18e2721213648c042b412d9a86cc` · 2026-10-18 · 熊鑫晨 · gated-probe: 内存地板 120→80 MB，用当晚的常态分布定，不是按我希望的数值定
+- `b1b4462c2ce3434ed4fd635ab87d402ae0f37245` · 2026-10-18 · 熊鑫晨 · runbook: 21:0x—21:4x 三个"只有真跑才露"的缺陷＋把 20:5x 那笔归因改正（我确实是浇油，不是点火）
+- `008869264a8ade2f4bc6174a1e127d11a5571561` · 2026-10-18 · 熊鑫晨 · 按只读对抗代理的 2 BLOCKER + 3 MAJOR 修窗口机制：开窗要有时刻闸、自测要能证明没打生产、HELD 要看到期
+- `681f2dadede1c1d78aff4dec1df866192db7cd33` · 2026-10-18 · 熊鑫晨 · runbook: 22:0x—22:4x 接手点用现测分档定到 ≈00:00；对抗代理三处打中我今晚的修复（Persistent 补跑能落到白天、自测还能写 /etc、HELD 不看到期）＋今晚所有 swap=0 读数作废（真值 826/2047 MB）
+- `467c939b351046938dacbb02f3b0d3d9e37db500` · 2026-10-18 · 熊鑫晨 · night-window: 恢复失败语改成点真正的重试者——机上根本没有 heal 定时器
+- `ea96511f8e16dcffc6ec32a7587a5c0eb1830ab6` · 2026-10-18 · 熊鑫晨 · runbook: 23:0x 姿势定稿——一次连续窗口（上限 0 + 摘掉每晚开窗），原来 24h 上限与日级重开会互相抵消成停 24h/放 23.5h
+- `cf5e2143b672e6ffc168a7423fac64c62997868d` · 2026-10-18 · 熊鑫晨 · runbook: 23:11 收窗实录——5xx 是爬虫打的、我自己那枪重查询是共因；恢复手法与'窗口内禁大表扫描'的硬规矩
+- `e5c78a7b8b2216b94b22619b5f1a1a17b000cba4` · 2026-10-18 · 熊鑫晨 · gated-probe: 窗口开着时拒绝含 pgboss.job 的载荷——把'禁大表扫描'从第三次失效的注释变成机器会拒绝的工具
+- `49b9bdb91394f0a2c320147e1cb8711c88ee2d74` · 2026-10-18 · 熊鑫晨 · audit-routes: 把'全站逐路由实测'做成仓库里的审计件（串行 + 三条护栏 + 设计 404 入期望）
+- `61b9d489cfd527a6334c9f1cb6044d38668f3839` · 2026-10-18 · 熊鑫晨 · runbook: 23:2x 的 /geohot 爬虫限速（429 不进 5xx 窗）——做法、实测、一条命令回滚，与'nginx.conf.example 不是快照'的提醒
+- `a800c89fa3a45eb9bc4b8a083aa9d9ccdbc280fa` · 2026-10-18 · 熊鑫晨 · runbook: 顶部加'30 秒看清窗口姿态'——四条读数命令、五条收口、三条回滚，别再从 367 KB 的追加日志里翻当前值
+- `f0b7d817017429ca4c6363c77ecf9cbfbd1b93ee` · 2026-10-18 · 熊鑫晨 · runbook: 写明 CF 后面  是边缘 IP——桶是'爬虫×边缘'共享，别再把它读成'每访客'
+- `b25065b35367fd6738d5ed69f0a4eb561f495557` · 2026-10-19 · 熊鑫晨 · long-window: e5_count 支持跨午夜的 700 秒窗（并更正'样本2行'的真因是 logrotate 而非日期过滤器）
+- `3e6093801703ce3cdbba44cc86e994d0d89466d1` · 2026-10-19 · 熊鑫晨 · long-window: 死期限 10-24→10-29（按 01:20 现读 16,685 件与 −84～−120/时复算）
+- `9fb143e961e7a4729e01613ffb86c27d202c0a53` · 2026-10-19 · 熊鑫晨 · long-window: 兜底再延到 10-30（翻译尾 1,541 条按 24–43/时再算）
+- `75cb9216e7e12f708b83e498c52451863849ddb8` · 2026-10-19 · 熊鑫晨 · long-window: 兜底定 10-31（重开后净 −28/时，扫片进口抵消判定，翻译尾再算）
+- `9c5ecdeb4d3309c0a06efd69725df5f84b6b55ec` · 2026-10-19 · 熊鑫晨 · fix(ops): preserve night-window limits and gate ownership
+- `6f568d5aa7d7c24f131e57fd3285fdf1e017c544` · 2026-10-19 · 熊鑫晨 · fix(billing): preserve attempt charges and require configured budgets
+- `dda72cb82b3c155c2c42d2669e8e6c41838d6032` · 2026-10-19 · 熊鑫晨 · fix(ops): persist recovery intent before stopping worker
+- `d7004c6444c4f8569e25e4ad1d3db35c94e3d70f` · 2026-10-19 · 熊鑫晨 · feat(worker): isolate content execution and preserve extraction recovery
+- `eb1487fffecd7f7854d2da1524ff7f0dcf77fead` · 2026-10-19 · 熊鑫晨 · fix(db): add conservative billing labels without rewriting history
+- `4e306487f0f28d419839338bcb23b12b4e814663` · 2026-10-19 · 熊鑫晨 · fix(worker): drain managed executors when startup loses IPC
+- `1121a44c761852a87960edd99dc8a471d0a00491` · 2026-10-19 · 熊鑫晨 · test(billing): verify conservative metadata-only historical labels
+- `32449e2b9c2ff1917d0bd851a2cfe4294c090964` · 2026-10-19 · 熊鑫晨 · fix(extract): stop before starting a new paid fallback during drain
+- `9bd206a2c907302678f415a8bf3df015cdd86fce` · 2026-10-19 · 熊鑫晨 · fix(llm): preserve production Step summary headroom and receipt recovery
+- `6e5f21d092bc0df46365e3d055349645e7b8e846` · 2026-10-19 · 熊鑫晨 · test(translate): check the current CTE backlog window and limit
+- `b15a36ab80a2fc790269035ce422ec0b908c218a` · 2026-10-19 · 熊鑫晨 · fix(reports): fingerprint composition inputs before skipping refresh
+- `08f3c5b1202c54c974dc1cb14eceab55c063e50f` · 2026-10-19 · 熊鑫晨 · fix(collect): drain unchanged RSS tails before accepting validators
+- `6f0ae262e420f5e5e1ce4223ef34533b134414f2` · 2026-10-19 · 熊鑫晨 · fix(publication): cover historical timeline anchors with custom plans
+- `a468e4be84a038da1fd8ec8b6f3ede4fed04a33e` · 2026-10-19 · 熊鑫晨 · fix(translation): cover historical scope and fairly schedule bodies and quotes
+- `b75e1ff2455f3ad23210fde5a82825ff00b81a76` · 2026-10-19 · 熊鑫晨 · test(translation): verify short work while long bodies remain held
+- `51cf9b9fd2674615cf59f8d3999250e3cd0d4df7` · 2026-10-19 · 熊鑫晨 · merge: integrate security hardening with billing and timeline upgrades
+- `f63d9a1d2980f5078dc91423e939c3c2c827cf6d` · 2026-10-19 · 熊鑫晨 · fix(translation): retain cooperative invocation stop from production
+- `1ae676e35590bdaf6258f510a6df694cabd02d57` · 2026-10-20 · 熊鑫晨 · feat: guard managed source capacity and quarantine unknown deliveries
+- `ed46d26e00874a368fbaefd0dace0f77e08c6ac3` · 2026-10-20 · 熊鑫晨 · fix: bound translation selectors and persist quote retry fairness
+- `9b085c74f412e02d96a5afaaa32d7741288eab61` · 2026-10-20 · 熊鑫晨 · fix: preserve translation attempts on database infrastructure errors
+- `6d16502a17d12495d7c5623719a4023b0d1fec21` · 2026-10-20 · 熊鑫晨 · fix: invalidate stale source approvals and preserve rejected history
+- `131ab414531a6fd86b376d2dbfd37e94469494c8` · 2026-10-20 · 熊鑫晨 · fix: require source evidence for automatic selection
+- `fb4c2c4f85a4ef7ec28580ab3f646a3cc0400611` · 2026-10-20 · 熊鑫晨 · feat: preserve strong material aliases and source observations
+- `ec19a6d93a6b258c3f7838542cb2a3062c63a7c1` · 2026-10-20 · 熊鑫晨 · fix: quarantine conflicting DOI evidence and order canonical batch locks
+- `5eb83170109f235b180a61be527afd2d1623eeed` · 2026-10-20 · lead · feat(models): register qoder-cn gateway presets (dfmodel/qfmodel) with budget row
+- `3a74e92e132a47986c020751f607140310e84879` · 2026-10-20 · 熊鑫晨 · test(models): pin the qoder-cn door's contract, rate arithmetic and budget row
+- `f2e52394c8bc780d4fd41cf787ca9d967044ebba` · 2026-10-20 · 熊鑫晨 · fix: distinguish partial material quarantine in ingest results
+- `b3fb8df36efdea19ae43cd7c826f4bf69e99e829` · 2026-10-20 · 熊鑫晨 · fix(ingest): reject null quarantine counts
+- `f6deb989efbf033e0ff1f8fc9a4f79d50491b149` · 2026-10-20 · 熊鑫晨 · merge: retain parallel Qoder model integration alongside quality fixes
+- `de48f4a47bfe8653d25d8e2ae556f69c4737ce3c` · 2026-10-20 · 熊鑫晨 · fix(topics): keep unrelated disasters out of the volcano topic
+- `5814a9195294daac3762e6bea6b2bc4243367a89` · 2026-10-20 · 熊鑫晨 · fix(sources): identify fourteen official NASA NOAA and USGS feeds
+- `34903a22f2216d90027f732514595d21049b28a7` · 2026-10-20 · 熊鑫晨 · docs: require versioned owner updates for existing sources
+- `782bd3f318a9ee308d50eb1035c2402f94325918` · 2026-10-20 · 熊鑫晨 · fix(translation): resume complete long bodies without repacking legacy receipts
+- `1c57206fa25dc927ccdba615771fe4392794e844` · 2026-10-20 · 熊鑫晨 · fix(translation): polish before restoring immutable source tokens
+- `0b811e5fb47f46ea3531ca37aaef6ae3e647679d` · 2026-10-20 · 熊鑫晨 · fix(translation): resume complete long bodies without repacking legacy receipts
+- `c1868e78b0cc69d4687382a176a79f5da0aef199` · 2026-10-20 · 熊鑫晨 · fix(translation): polish before restoring immutable source tokens
+- `93203e2780c66634469ce663629b21c82716c0d1` · 2026-10-20 · 熊鑫晨 · fix: protect scientific literals in every new translation tail
+- `69757e7c7bd4147ca050b2b9d3bd6b9ae4b47509` · 2026-10-20 · 熊鑫晨 · merge: preserve parallel Qoder headroom migration with verified limits context
+- `22cf9f42a4a7bbf9df45913649d7fb87eaea5083` · 2026-10-20 · 熊鑫晨 · feat(models): 国际版渠道被对端关掉后，三把 WorkBuddy 模型改由中国版承载
+- `fa3023e5699738af6e94b5a9df2c6b8590152d3b` · 2026-10-21 · 熊鑫晨 · docs: 记下 10-20 晚的池子现值与'判定腿零消费者'这个静默故障
+- `2234dbc47d189a4f2be5bd2fefa5f8b5b16673ad` · 2026-10-21 · 熊鑫晨 · fix(workbuddy): 国际版渠道校验要的是会话头三元组，不是 QIMEI 设备指纹
+- `ff6184bcc41012f6d02b152e90479b31b0e2b368` · 2026-10-21 · 熊鑫晨 · docs: 改正 11128 的真因（会话头三元组，不是渠道封禁），并记下池子现值
+- `9562bff69cbddb9ae5eed0e0993fa0c10d666a21` · 2026-10-21 · 熊鑫晨 · feat(models): 清理无凭据的注册表条目，并把在池模型的思考余量提到时钟安全上限
+- `08eaa5f6d38f80a1b43c93d8a73f4a5b758ebf61` · 2026-10-21 · 熊鑫晨 · merge: preserve newly enabled model pool and WorkBuddy integration
+- `6a620f291bc20133bb09f5658f029fcd0fd8bfdc` · 2026-10-21 · 熊鑫晨 · chore: exclude imported transient editor lock
+- `6675a68c7df59b223b3e8950f1f9edea959229fa` · 2026-10-21 · 熊鑫晨 · fix: filter CEMADEN image wrappers and complete five source owners
+- `82d41cb4585df73acdc22f31c595416536ea9f07` · 2026-10-22 · XinChen Xiong · docs: add bilingual architecture flow diagrams (#2)
+- `51fd96949a78e35df22aa0082ae7cd15cbaa098e` · 2026-10-22 · XinChen Xiong · docs: fix diagram label collisions and remove Chinese footers (#3)
+- `e0c42316d4e195eb6771ddb6c3efcfeb735c85ce` · 2026-10-22 · XinChen Xiong · docs: add GeoHot security policy (#4)
+- `aa7ed3f0b5fba446be47a4384059e12618dc3eee` · 2026-10-23 · geohot · fix(runtime): 把 10-22 在生产验证过的七处运行时改动回灌进仓库
+- `0faa207666373b9ef37f3ffbca552aa0bae0544e` · 2026-10-23 · geohot · docs(changelog): 记 10-22/23 这一轮：角色错配、预算查询索引、推理拉满、信源回 666
+- `ad8bd20acf43c0d00e3aa7046cab32935efa1afc` · 2026-10-23 · 熊鑫晨 · fix: integrate translation recovery, bounded readers and security hardening
+- `3baf43a5ab0356f54b44b9244e3a84c40555d5ee` · 2026-10-23 · 熊鑫晨 · fix: remove only domestic WorkBuddy DeepSeek and preserve other model settings
+- `e59bc33e8031908a71ca84e6c92d203b82b36401` · 2026-10-23 · 熊鑫晨 · fix: translate NHC prose bulletins without reopening unrelated work
+- `acd00522a46ca17ca7e653be093d7911e358b69b` · 2026-10-23 · 熊鑫晨 · chore: patch remaining development dependency advisories
+- `4c85357a06dcf0a55b86e8893a46d19f8c2837ea` · 2026-10-23 · 熊鑫晨 · fix: finish recovery flows and drain archive publication safely
+- `d47db90f11b3ed4c2bf45dda47f99fad7939116c` · 2026-10-23 · 熊鑫晨 · fix: instruct bulletin translation to preserve immutable data order
+- `658d43da56ce3a470a8f23244aae940007914e92` · 2026-10-23 · XinChen Xiong · Merge GEOHOT completion fixes, performance improvements and security hardening
+- `abf9824ebe231e8cc4ce2748515faf34fdd28029` · 2026-10-23 · 熊鑫晨 · test: verify concurrent score fallback by logical receipt identity
+- `7ebf248dc2b334bea4d7a269e1875a0cf79793f1` · 2026-10-23 · 熊鑫晨 · test: remove obsolete mixed reply branches from score fixtures
+- `2e95c77bf6a05f87195790203e30fa55011f882c` · 2026-10-23 · 熊鑫晨 · test: order score evidence by attempt tag instead of receipt hash
+- `b1ccc3fd4b9ef7eb98aa93ab96841b7620b69692` · 2026-10-23 · XinChen Xiong · Merge pull request #6 from xxc2007/codex/geohot-ci-order-20261023
+- `d44bfc910ce03b6dc170614734f3b548a19dbd87` · 2026-10-23 · 熊鑫晨 · feat: 在反馈页添加管理反馈快捷入口
+- `806de1d3057ff9c5af23fd650388d53f2dae2555` · 2026-10-23 · XinChen Xiong · Merge pull request #7 from xxc2007/codex/feedback-admin-shortcut-20261023
+- `cca63b784be61fa0d7fe025dedca3206405d4d39` · 2026-10-23 · 熊鑫晨 · fix: 限制后台统计开销并简化更新日志
+- `dedcb2156a1fdb40ba1836ad92e3db8785374e17` · 2026-10-23 · 熊鑫晨 · perf: 使用窄表统计模型用量并避免聚合全部失败输出
+- `8e27f519b6d3413f86be2f07d0ab3b93e97b9590` · 2026-10-23 · 熊鑫晨 · docs: 发布简短更新说明并准确提示配置读取状态
+- `ae778c90f4a027d407f7e09271758a698225a3b5` · 2026-10-23 · XinChen Xiong · Merge pull request #8 from xxc2007/codex/admin-performance-20261023
+- `350655a3481b8ba59e3cd6414e4d450cad16f142` · 2026-10-23 · 熊鑫晨 · fix: 可恢复地建立统计索引并保留后台登录目标
+- `b59aba69782c90c341ea9f274de80893e8dddf52` · 2026-10-23 · 熊鑫晨 · fix(web): 补全后台辅助模块的 Node 导入路径
+- `1a1470324759f82f512277a347f65fe868abe759` · 2026-10-24 · XinChen Xiong · Merge pull request #9 from xxc2007/codex/admin-labels-recovery-20261023
+- `12590ac39a33c1300604334b35504f83575a5604` · 2026-10-24 · 熊鑫晨 · feat: 发布 GEOHOT 重大更新并优化后台统计读取
+- `728ea3e11e91f9d678e13349550fc7a13a6806e5` · 2026-10-24 · 熊鑫晨 · fix: 防止异常模型用量字段干扰回执写入
+- `1739ac9b31febe94754069edcea685272f850565` · 2026-10-24 · 熊鑫晨 · perf: 先筛窄头信息再读取待翻译正文
+- `d0ba137bb75641bdbab68c476c3b28bfc629c57b` · 2026-10-24 · XinChen Xiong · Merge pull request #10 from xxc2007/codex/geohot-major-update-20261024
+- `3bf9328bf827012270599a64991c64e24ea46f09` · 2026-10-24 · 熊鑫晨 · perf(web): reduce home SSR and hydration payload
+- `686ee1b7f05aea7fb4a3e6e2a2a3332695b0704e` · 2026-10-24 · 熊鑫晨 · perf(web): keep home navigation and filters in the router
+- `5951f31db1ff2c6070816b1b63618092f9db464c` · 2026-10-24 · 熊鑫晨 · feat(web): make the pinned major release interactive
+- `9bee612052ed28dbd82312ea7e541e506f15e53c` · 2026-10-24 · 熊鑫晨 · test(web): remove obsolete root document-navigation constraint
+- `b0dfb525e9a0539f36486b4fff89e74871d4bc34` · 2026-10-24 · XinChen Xiong · Merge pull request #11 from xxc2007/codex/geohot-speed-round2-20261024
+- `7c703344f640693dddbb34ae069dd5b0ea636fe6` · 2026-10-24 · 熊鑫晨 · fix(web): keep prefixed home single-fetch URLs inside the app
+- `b1f728114a3e236c6f52853e98f4c6cabcb7c523` · 2026-10-24 · 熊鑫晨 · fix(cache): allow the canonical root navigation data path
+- `074ec18c45b15c7e671ffba0e0dd00e06427f6d4` · 2026-10-24 · XinChen Xiong · Merge pull request #12 from xxc2007/codex/geohot-all-cold-read-20261024
+- `cb9c81f1ee76e21d3beb3f9fb81df5b576e1e3e3` · 2026-10-24 · 熊鑫晨 · fix(web): 用动态横线 2.0 重做置顶重大更新
+- `b4ec91efd1bf1c217df80299ec9f3b50c96b0aff` · 2026-10-24 · XinChen Xiong · Merge pull request #13 from xxc2007/codex/geohot-contour-20
+- `099eb8c7142481a08a19eab9c2365f3d9408ac80` · 2026-10-24 · 熊鑫晨 · fix(admin): 修复运行统计超时与故障恢复
+- `f4d5a11daab87eee107965bcc2c7bffde0d8ff5e` · 2026-10-24 · XinChen Xiong · Merge pull request #14 from xxc2007/codex/geohot-admin-workflow-recovery
+- `d0f1f5647ab2bb70a7b464a8301c25fe90a7634d` · 2026-10-24 · 熊鑫晨 · fix(translation): bound candidate reads before global ranking
+- `84b2a9ca5a7b1edff8259dc599c6767a5f6f3b0c` · 2026-10-24 · 熊鑫晨 · fix(translation): send candidate ranks as structured JSON
+- `81278cad19127e0eba06d56182bc127660e5c369` · 2026-10-24 · 熊鑫晨 · fix(translation): preserve graceful stop during selector paging
+- `a56ca3da95cbf4701c3f965eee9d1fc0442f0937` · 2026-10-24 · XinChen Xiong · Merge pull request #15 from xxc2007/codex/geohot-translation-selector-recovery
+- `4a8b490181ac3c10a8cdf3bbd0acf1e11c9c2433` · 2026-10-24 · 熊鑫晨 · perf(translation): index the narrow quoted-post selector
+- `47590a8213b94a1dea7d879e3e28eb33b11629bc` · 2026-10-24 · XinChen Xiong · Merge pull request #16 from xxc2007/codex/geohot-quote-selector-index
+- `ed2eb54b35551259df90e0b94211c4e8f516e359` · 2026-10-24 · 熊鑫晨 · fix(admin): resume run statistics after transient read failures
+- `db3cfeea2b0a34f26fb999a47760cd83719a527a` · 2026-10-24 · 熊鑫晨 · fix(admin): keep refresh timers stable across parent renders
+- `2d787ff74f6a2c78297b7b3af122f5ffc606f6e8` · 2026-10-24 · XinChen Xiong · Merge pull request #17 from xxc2007/codex/geohot-admin-refresh-recovery
+- `02095b07f9375d52fbd33ba09fda711dc3d8d5e0` · 2026-10-24 · 熊鑫晨 · fix(workflow): recover grouping and route healthy model capacity adaptively
+- `2cfe0767aaf0ba1e30f1e2e9944b7c9bd9217e07` · 2026-10-24 · 熊鑫晨 · fix(routing): keep short and rejected attempts out of performance rewards
+- `ab07c280b15f84ed8c7c869d155cb05cb6b9c400` · 2026-10-25 · XinChen Xiong · Merge pull request #18 from xxc2007/codex/geohot-source-routing-resilience
+- `00483a28014cf122027bdb2f5c067359e7e25b38` · 2026-10-25 · 熊鑫晨 · fix(routing): cool shared gateways only on confirmed unbilled connect failures
+- `f6028b281d723404f98077c60728996676be8141` · 2026-10-25 · XinChen Xiong · Merge pull request #19 from xxc2007/codex/geohot-shared-gateway-cooldown
+- `93a407dc242feb80b9095cdf32f1d4cc02055aae` · 2026-10-25 · 熊鑫晨 · fix(workflow): resume audited grouping deferrals after local budget waits
+- `93c1135f0341c3d637ec4c0e928ae72ecc74bec3` · 2026-10-25 · XinChen Xiong · Merge pull request #20 from xxc2007/codex/geohot-budget-group-recovery
+- `35c9a56fe209c474a900134a13208cf47c5a5a25` · 2026-10-25 · 熊鑫晨 · feat(admin): add live model usage overview and retire Codex reset controls
+- `e0a717d0f315806316b909cc351ee45766e67ea5` · 2026-10-25 · 熊鑫晨 · perf(admin): hash hourly usage aggregates within reader deadlines
+- `2f63eac32a1c3d612379a9cfb9f5ab403e0980b1` · 2026-10-25 · 熊鑫晨 · fix(deploy): preserve existing CodeArts and MiniMax alert guidance
+- `5a39df46f06144d817c0c20650b656f53534cd19` · 2026-10-25 · 熊鑫晨 · test(admin): align gateway label assertion with deployed Magpie name
+- `fe0f044e47c2a6a2491e9a0a5c48e8ccb169dfe7` · 2026-10-25 · XinChen Xiong · Merge pull request #21 from xxc2007/codex/geohot-admin-usage
+- `75172f9360407f6838f1c024f8804cd1829d9932` · 2026-10-25 · 熊鑫晨 · fix(admin): contain usage charts in narrow mobile grid tracks
+- `0187e66a67f7f2aac4f03622eb50f2894801cf0b` · 2026-10-25 · XinChen Xiong · Merge pull request #22 from xxc2007/codex/geohot-usage-mobile
+- `a23247a86f3d995230038d7d8388870e5d41380b` · 2026-10-25 · 熊鑫晨 · perf(admin): avoid JIT compilation on short dashboard reads
+- `ae79488ab7bbcbc30af353cc811817cb752dd8bf` · 2026-10-25 · XinChen Xiong · Merge pull request #23 from xxc2007/codex/geohot-usage-query-jit
+- `e19d5efa56c3e870da987ca6903a3624fe578530` · 2026-10-25 · 熊鑫晨 · feat(admin): 按官方模型定价展示费用估算与缓存区间
+- `b048182053346b4e663f039fc43dd4626bb13240` · 2026-10-25 · XinChen Xiong · Merge pull request #24 from xxc2007/codex/geohot-official-model-costs
+- `f5db5c034bbd4edc805c310694a58d8d9aafea0f` · 2026-10-25 · 熊鑫晨 · fix(admin): 统计后台刷新防止加载失败，费用统一人民币整数
+- `74b77b6bd2affc7c66df9188553444f445ff4223` · 2026-10-25 · 熊鑫晨 · test(admin): 初始化统计快照后验证模型配置实时性
+- `b756a8735d385129680799c7b413a3031ec88727` · 2026-10-25 · XinChen Xiong · Merge pull request #25 from xxc2007/codex/geohot-admin-stability-cny
+- `df863f85245e1df01fc76f643266e9002830e28f` · 2026-10-25 · 熊鑫晨 · fix(admin): 清理已移除评测功能的残留文案
+- `cd417401dff2619ce7f2c9d71818617baa0a7dcb` · 2026-10-25 · 熊鑫晨 · fix(admin): 用量总览默认展示全部历史记录
+- `d6c35826826cb4a135a19acdc8aa8e8cd714c5d0` · 2026-10-25 · 熊鑫晨 · test(admin): 显式隔离临时统计表，避免缓存查询计划串用
+- `d696e9a5bee22a11ed450b1e93a958bbf22c5ce7` · 2026-10-25 · XinChen Xiong · Merge pull request #26 from xxc2007/codex/geohot-model-copy-cleanup
+- `3c090fcaeedc35fad75a9ca2ccee03980646c05a` · 2026-10-25 · 熊鑫晨 · fix(admin): 手动刷新也自动跟进正在生成的统计
+- `00d49bec52c4eed2d6c7936da0d8480a8fcaa454` · 2026-10-25 · XinChen Xiong · Merge pull request #27 from xxc2007/codex/geohot-manual-refresh-completion
+- `1d1713316001f3f3f50d479aa50639bcb16b18a1` · 2026-10-25 · 熊鑫晨 · feat(sources): add verified reserve pool and guarded automatic failover
+- `3abeff66d4ac79f46b4c0de24b6ad343519cfac5` · 2026-10-25 · XinChen Xiong · Merge pull request #28 from xxc2007/codex/source-reserve-failover
+- `0d525d740e15189569d4c00db5e8413f979889ed` · 2026-10-25 · 熊鑫晨 · 运维：将网站模型网关迁至服务器独立运行
+- `23bbdc404cd21e7cdc8829579264ca2e45079b48` · 2026-10-25 · 熊鑫晨 · 运维：补充网关就绪检查和启动顺序
+- `cb0a7d9cac9f8946780e9d3e720f9e44ab26c546` · 2026-10-25 · XinChen Xiong · Merge pull request #29 from xxc2007/codex/server-magpie-20261025
+- `4b5d5f8c556f2414bddfc6113ca83352e93c09d5` · 2026-10-25 · 熊鑫晨 · 修复：隔离后台加载故障并异步更新运行统计
+- `9247862287a547dd9584a1d7b3204bea9f2f5439` · 2026-10-25 · 熊鑫晨 · 修复：刷新失败时保留最近成功快照
+- `f9c70c3db0b0a87c1c924a9a10dd43d50aa243c7` · 2026-10-25 · XinChen Xiong · Merge pull request #30 from xxc2007/codex/admin-stability-20261025
+- `40020e4483eba639b3d7b2097721c5daef88f0a0` · 2026-10-25 · 熊鑫晨 · 修复：保护后台动态界面免受自动翻译改写
+- `d627927fc04da9fa8e42bcecb44058d69c6a4264` · 2026-10-25 · 熊鑫晨 · 修复：兼容发布前已打开的后台轮询页面
+- `7cd11d5fc59620e262e5455a45690383dc01e623` · 2026-10-25 · XinChen Xiong · Merge pull request #31 from xxc2007/codex/admin-no-translate-20261025
+- `6d50053c763272c3bbb9726919a6746c544273dc` · 2026-10-25 · 熊鑫晨 · feat(admin): integrate server and Magpie consoles with reader pressure protection
+- `c0361813eaca3a72dd2c9fbf888f2d8cf9782987` · 2026-10-25 · 熊鑫晨 · fix(admin): bound console requests and harden embedded proxy transport
+- `058fbc7712d79961ac593434fdf4b5c70358f833` · 2026-10-25 · XinChen Xiong · Merge pull request #32 from xxc2007/codex/server-console-mobile-stability
+- `b41ff3ba63d1ab7936573dcb5e14690f9731c5b4` · 2026-10-25 · 熊鑫晨 · fix(admin): 支持 Magpie 插件资源并限制代理响应内存
+- `8766945d981eeba666d5cc550a4186130fe7ebcf` · 2026-10-25 · XinChen Xiong · Merge pull request #33 from xxc2007/codex/magpie-embedded-assets
+- `41e24ccf9459d1c73d219faee1ad29ade5f446ac` · 2026-10-25 · 熊鑫晨 · fix(admin): 稳定 Magpie 入口加载并复用版本化静态资源
+- `e5e799a5a38238cbeed27519d7825b8cf966387b` · 2026-10-25 · XinChen Xiong · Merge pull request #34 from xxc2007/codex/magpie-entry-navigation
+- `ddc9f13645fe24e9c34aa7352be2783ef67726e4` · 2026-10-26 · 熊鑫晨 · fix(admin): isolate control reads and recover embedded Magpie loading
+- `9a91855155d0bd8db9fe4e8a6a30e4073a6ca9e0` · 2026-10-26 · 熊鑫晨 · fix(admin): resolve bound web port for internal control reads
+- `48ced1051c2c5d29ca561a7aa7716936e40e1e86` · 2026-10-26 · 熊鑫晨 · fix(admin): rate limit control authentication before route registration
+- `67926b803ebdb443b668af9c23c6deb33c71e586` · 2026-10-26 · XinChen Xiong · Merge pull request #35 from xxc2007/codex/admin-control-isolation
+- `8acc3d8413f78e2e4da04c28d0b45245d6852a74` · 2026-10-26 · 熊鑫晨 · fix(magpie): allow the normal idle trace long poll to complete
+- `32e280b88704116d69aa7baaa551cf80c4367a59` · 2026-10-26 · 熊鑫晨 · fix(deploy): keep web controls available during API restarts
+- `3a0d5d6da57f7a9aa8ad576a43de47540bc1d1c3` · 2026-10-26 · 熊鑫晨 · fix(admin): retain production startup authentication guards
+- `f8c7fecff3a8d882533f0763662be35807227054` · 2026-10-26 · XinChen Xiong · Merge pull request #36 from xxc2007/codex/magpie-long-poll
+- `3b69f75e543a8cf41b543ec9ebb0e5d8bd30ea82` · 2026-10-28 · XinChen Xiong · docs(changelog): 补齐10月26日至28日已部署更新 (#37)
+- `57a8117bc39bbd0c2b0426a78798d4a9dc108a48` · 2026-10-28 · XinChen Xiong · docs(release): 明确 GitHub 提交与三端同步的发布要求 (#38)
+- `cd140112efc9d3d4565cd70ad2996a95dc97d97a` · 2026-10-28 · XinChen Xiong · docs: export zoomable PNG architecture diagrams
+- `4151070e7ff5497617bf10ea9607536bd426ef7e` · 2026-10-28 · 熊鑫晨 · fix(publication): require complete versioned reader workflow and full article output
+- `382b37446e7036f32e800e51f2b43844b2fc5936` · 2026-10-28 · 熊鑫晨 · docs(changelog): record complete-reader policy rollout at 21:51
+- `d36e2459c83d60d53569bc5fee929853ceba2deb` · 2026-10-28 · 熊鑫晨 · fix(changelog): keep release body in the required line-array format
+- `5b53c28735993bfce6efaa290aab73f9ea31c046` · 2026-10-28 · 熊鑫晨 · fix(reader): reject incomplete source extraction and recover full journal bodies
+- `dcab7dbb6c03f4749b573bb3f32d8636b00d2b3a` · 2026-10-28 · 熊鑫晨 · fix(translation): preserve settled and unresolved retry namespaces
+- `2879a3f7e2e3a4dcbe55ce9f8981cc2fb02c1961` · 2026-10-28 · 熊鑫晨 · fix(translation): reuse completed legacy retry responses
+- `2c9fe4794b4cfaf7b3a91bd91a7213a85c4f8a01` · 2026-10-29 · 熊鑫晨 · fix(reader): parse heading text safely and record production policy release
+- `d3d380fd5daf071f61eb9d7ac8bd44fc1bdd8a8b` · 2026-10-29 · XinChen Xiong · fix(reader): require complete workflow before public release
+- `6db72928a3ff3e7a5985e88f5d8fc6a982202122` · 2026-10-29 · 熊鑫晨 · feat(reader): add image zoom and mobile reading with periodical readiness recovery
+- `8e420e2e4b6dc4615404a57b16b1424112ff90ca` · 2026-10-29 · 熊鑫晨 · chore(deploy): stage off-host reader build with guarded rollback
+- `8a47f8085d5843257731af7d3105845c247cfdec` · 2026-10-29 · 熊鑫晨 · fix(deploy): restore previous build if atomic stage move fails
+- `389a2184156bdcea1e28ed49068c20ed162db21a` · 2026-10-29 · 熊鑫晨 · fix(web): retain admin translation guard markup during responsive recovery
+- `dbb9ac9efc1d863584059e4471af61cf931e6079` · 2026-10-29 · XinChen Xiong · feat(reader): improve image zoom, mobile reading and periodical recovery
+- `e3359d20d0d197729071d4e2db5275842bd8a9bf` · 2026-10-29 · 熊鑫晨 · fix(deploy): wait for reader web readiness before cache switch
+- `35ccacb5cad05b6345bbd3e8f78015c92a62e681` · 2026-10-29 · XinChen Xiong · fix(deploy): wait for reader web readiness before cache switch
+- `41d612101f475f8cbce2f9b345230858787ce671` · 2026-10-29 · 熊鑫晨 · fix(reader): remove intrusive image viewer hint
+- `3bca199978a917ce2be82de6ca575be0d5794c38` · 2026-10-29 · XinChen Xiong · fix(reader): remove intrusive image viewer hint
+- `5b427392a6b1d884e134c8eb81138f4eba937d43` · 2026-10-29 · 熊鑫晨 · fix(reports): require complete workflow and repair historical editions
+- `ca97fce5b1a48769cd3e32aa80bfd5edf3fb51d6` · 2026-10-29 · 熊鑫晨 · fix(reports): retain old edition when repair has no usable entries
+- `981bff73330550747e25b96aec71bd89252c5bf5` · 2026-10-29 · 熊鑫晨 · test(reports): keep coverage fixture JSON serializable
+- `71dde707feca30a95083819e7756520bfe65f3f6` · 2026-10-29 · 熊鑫晨 · fix(reports): include flash citations in bounded recovery
+- `00c95ff7e4a13bdf5adecc72bf284c593a00f4e5` · 2026-10-29 · 熊鑫晨 · fix(reports): recover valid sections from empty model references
+- `9e570f8e8d9562946a5fc67300da7e627896c988` · 2026-10-29 · 熊鑫晨 · test(reports): complete archive and budget input fixtures
+- `71b053d84f891d14d3775184e7a7b1c749d377dc` · 2026-10-29 · XinChen Xiong · fix(reports): require complete workflow and repair historical editions
+- `139fc5d463cc4de1866c5096abed9fdaf9beb824` · 2026-10-29 · 熊鑫晨 · fix(reports): revisit failed editions after receipt cooldown
+- `7e50374dd37d018372cfd91fa0777e7518c8aaff` · 2026-10-29 · XinChen Xiong · Merge pull request #45: prioritize report repair after receipt cooldown
+- `96c6a7953b6971515ccb31cad60a5fa850d8accd` · 2026-10-29 · 熊鑫晨 · feat(models): register verified free raccoon models and reconcile live presets
+- `57a7db200829d9ce3dc20657dc682e12b8abb343` · 2026-10-29 · 熊鑫晨 · fix(models): include reconciled provider budgets and alert labels
+- `99cb9d2354c9729c416961945c48a1614209f15e` · 2026-10-29 · XinChen Xiong · Merge pull request #46: register free Raccoon models and reconcile production presets
+- `7574ce6e9df366b3af429a51e52652b0d595edad` · 2026-10-29 · 熊鑫晨 · fix(web): refresh public feed heads without interrupting reading
+- `26d66baa903207351611518a3427e4067a4f4e05` · 2026-10-29 · XinChen Xiong · Merge pull request #47 from xxc2007/codex/reader-live-sync-20261029
+- `69c8acb047758e657d0b7b2e783ec065d098572b` · 2026-10-29 · 熊鑫晨 · fix(runtime): reconcile live workflow sources and preserve unknown receipt recovery
+- `77e677388d1da466595bb9de2cdb694b319e34bd` · 2026-10-29 · XinChen Xiong · Merge pull request #48 from xxc2007/codex/runtime-source-reconcile-20261029
+- `6d960d9f0812a3a7874d338ceddfd0873e29da64` · 2026-10-29 · 熊鑫晨 · feat(workflow): add guarded finite workstation extraction assist
+- `2673d9f776151ac2a90d6a266d45a9db6adfbed3` · 2026-10-29 · XinChen Xiong · Merge pull request #49 from xxc2007/codex/workstation-assist-20261029
+- `08243ffa12c006b9563ab2f65e5f9027a279aec0` · 2026-10-29 · 熊鑫晨 · fix(models): immediately cool down explicit quota refusals
+- `3384262f3dcf1eae7e31a14616cd0ce354b656a3` · 2026-10-29 · 熊鑫晨 · fix(models): preserve refusal ordering with monotonic tickets
+- `97f91918891f685bb5a757c341d740c21e41155d` · 2026-10-30 · XinChen Xiong · Merge pull request #50 from xxc2007/codex/immediate-model-cooldown-20261029
+- `1667c0ce925babaec06ebe9a0683fd0a1c9fc83d` · 2026-10-30 · 熊鑫晨 · feat(workflow): fence automatic workstation extraction sessions
+- `d51c738fe3c243a1ca06d9642d0b3012b3229f50` · 2026-10-30 · 熊鑫晨 · fix(workflow): preserve live gateway maintenance and foreign owners
+- `28d69026f108f3b55bb4dc595d5e109d54755638` · 2026-10-30 · XinChen Xiong · feat(workflow): add fenced workstation extraction on Windows logon (#51)
+- `5a583bbff59b3460a8f69787792e1c5477017faa` · 2026-10-30 · xxc2007 · feat(models): register 14 magpie doors from workstation sync with max reasoning
+- `5874ccae34ac09947f92470c6ffebf8fd0b6343e` · 2026-10-30 · xxc2007 · fix(alerts): register the eight magpie-pool services in PROVIDERS
+- `7b6b1b9d8638a752c929e7f7a461ea76345eeddb` · 2026-10-30 · XinChen Xiong · Merge pull request #52 from xxc2007/feat/magpie-pool-expansion-20261030
+- `a8868bd085d5d110d9dea0aa99510603fab690b3` · 2026-10-30 · 熊鑫晨 · feat(models): restore minimax-code-global door with six-account budget
+- `eea1d937d491ae422272607169917d423dcdeef9` · 2026-10-30 · XinChen Xiong · Merge pull request #53 from xxc2007/feat/minimax-six-accounts-20261030
+- `95f5fa787dc7b7fb6e9b6cd553b2d2d8393a57ea` · 2026-10-30 · xxc2007 · changelog+verify: 补登 magpie 池扩容发布记录；brain 单元检查改为装了才判
+- `992f47af54e673eb4548942a6118a5b38b103348` · 2026-10-30 · XinChen Xiong · Merge pull request #54 from xxc2007/feat/changelog-magpie-pool-20261030
+- `43e346efcc4f1b99140efe7fa979e9e60aafeecf` · 2026-10-30 · xxc2007 · verify: brain 判据从"装了才判"细化为"自启了才要 active"
+- `6df4cf31bf4afc9576ce06edd738ac7a70fa76a0` · 2026-10-30 · XinChen Xiong · Merge pull request #55 from xxc2007/fix/brain-assert-autoenable-20261030
+- `9de96c2dfa8848fb9783605cd818f765a866e871` · 2026-10-31 · XinChen Xiong · feat: 每日闲时官方价核对 timer + 汇率走官方 refreshFx 落库 (#56)
+- `91d4299814f0a16d66c7978b4ac2ab6f1ecf6048` · 2026-10-31 · 熊鑫晨 · fix: pricing-check 抽取器按生产机实测形状修正 + refreshFx 240s + 写库参数化走 env
+- `47764232f1e31fdb56bde26b5b9fa65c0275ef17` · 2026-10-31 · 熊鑫晨 · fix: extract_prices 键名 in/cached/out→input 归一（恒 None bug）+ node 子进程 process.exit 防连接池挂住
+- `d88af203b07772fe8fe8a880608e18f6f343a333` · 2026-10-31 · 熊鑫晨 · fix: extract_prices 返回形状双通道（in/cached/out 单条与 input 组合正则各按其键归一）
+- `ec2032b51df74cb346656aae67f9df7bc4c37b9d` · 2026-10-31 · 熊鑫晨 · chore: changelog 登记官方价核对跑通（7/9 一致、0 差异、汇率落库）
+- `e7198100b60db309d4204ed7ac79442df35ef77c` · 2026-10-31 · XinChen Xiong · feat: 联系邮箱落真实地址+二维码占位下线；官方费用单值+汇率单一来源；预算退役路径+运行页余量放宽 (#57)
+- `b96222dd7267d687382e1a971f09db07eb2dd215` · 2026-10-31 · XinChen Xiong · fix: pricing-check 退出码分级——diffs>0 才算任务失败(1)，refreshFx 链路故障(2)，页面解析失败只落库不挂 failed (#58)
+- `47aee6b3163f2720a1e80b99837d637d0f683577` · 2026-10-31 · xxc2007 · chore(admin): retire the notification-targets card and its toggle API
+- `5317bb9ad9f891e6294369daf0f77915176b2dd3` · 2026-10-31 · XinChen Xiong · Merge pull request #59 from xxc2007/chore/remove-notify-targets-20261031
+- `c20a7e616c1b5c3bd543b2ffe798c27e61c9fa31` · 2026-10-31 · xxc2007 · feat(feedback): deliver feedback straight to the operator mailbox
+- `92a4a33e52c9c8cb41eb061e9cd4cd1520c248e8` · 2026-10-31 · XinChen Xiong · Merge pull request #60 from xxc2007/feat/feedback-email-20261031
+- `7959d6110ba20585637bf9f2ac90399567e69a8f` · 2026-10-31 · xxc2007 · fix(feedback): emit the subject as one encoded word — QQ mis-decodes folded ones
+- `2e91a30fb3f0de4ca8519bef0321f0fd56f30351` · 2026-10-31 · XinChen Xiong · Merge pull request #61 from xxc2007/fix/mail-subject-encoding-20261031
+- `a2cddf744783327935293f265687d4fb740ad0ce` · 2026-10-31 · xxc2007 · chore(feedback): email is the only operator channel — drop the feishu fallback
+- `9aa840fd09f163226733bf55770a5c000fd0d4e5` · 2026-10-31 · XinChen Xiong · Merge pull request #62 from xxc2007/chore/feedback-email-only-20261031
+- `ce52be5ce477deb9d038f103becc811f3f22efc5` · 2026-10-31 · xxc2007 · fix(ops): backlog resilience — release isolation, shutdown-safe compose, config-refusal bench, repair dedup, priority aging
+- `fa4b4593f0ae00da72ad659dfb9001e3e6f35603` · 2026-10-31 · xxc2007 · fix(feedback): finish the email-only operator channel cleanup (#62 follow-up)
+- `36ed2fee68840dd93aa08611fba14f14749a7983` · 2026-10-31 · XinChen Xiong · Merge pull request #63 from xxc2007/fix/backlog-resilience-20261031
+- `a4011fb182a79e89f1c6ae638e6908e83fee3b9e` · 2026-10-31 · xxc2007 · feat(feedback): show time/IP/location per entry, free-form erase, retire source bans
+- `5b846c4ee3377a03ee66ebf2af31b242be73da1e` · 2026-10-31 · XinChen Xiong · Merge pull request #64 from xxc2007/feat/feedback-admin-ip-20261031
+- `8ddbbe25b9cf764abaeea25895995e99c08cb4ad` · 2026-10-31 · xxc2007 · fix(feedback): center the success view across the whole viewport
+- `9c79e3ad2bcb6be719ee2005dc29b97a4efae59a` · 2026-10-31 · XinChen Xiong · Merge pull request #65 from xxc2007/feat/feedback-success-center-20261031
+- `aec825bc75768f5e41222a2ff5bf6d7360f3f8e9` · 2026-10-31 · xxc2007 · fix(feedback): success view sits directly on the page background
+- `19b2a8d8a8191adfbf2f20e0e68e0923e4138bd0` · 2026-10-31 · XinChen Xiong · Merge pull request #66 from xxc2007/feat/feedback-success-blend-20261031
+- `b7cb0aa0872c3f0639835b871a30aadae33b4685` · 2026-10-31 · xxc2007 · feat(feedback): operator reply from the admin, hard delete, deduped location
+- `c4a824c47355326c650fd49a4c2731081c8c52dc` · 2026-10-31 · XinChen Xiong · Merge pull request #67 from xxc2007/feat/feedback-reply-20261031
+- `2595a080f4474f36f268352f08213cf9783f869b` · 2026-10-31 · xxc2007 · feat(reports): open the issue cover in the same lightbox as article images
+- `8491e5fcf1566cc3265b894b3955205b582bf4eb` · 2026-10-31 · xxc2007 · fix(reports): hoist viewer state into FrontPage scope
+- `21686cb666b06db13b7188ac158ef2aa51ed3a30` · 2026-10-31 · xxc2007 · fix(reports): drop the unused LightboxImage type import
+- `35cc593144d8766436674707f3edf51ab4dc8692` · 2026-10-31 · XinChen Xiong · Merge pull request #68 from xxc2007/feat/report-image-viewer-20261031
+- `45d2954fba271a04757af76c50bf910b738493ab` · 2026-10-31 · xxc2007 · feat(feedback): reader status lookup, Reply-To on forwards; tear out dormant push chain and dead code
+- `c0f698261cf9dd3d4f9de5084662412b8eb3edb8` · 2026-10-31 · XinChen Xiong · Merge pull request #69 from xxc2007/feat/site-patrol-20261031
+- `06335f02173de5fb7fb456f6c4212eb167a9ecdb` · 2026-10-31 · xxc2007 · feat(lightbox): optional fill mode — initial frame widens to the viewport
+- `e058b5426b5ec40812781bdef7928739da1dd9b4` · 2026-10-31 · xxc2007 · fix(reports): pass fill to the cover lightbox
+- `4ed06943890201ff16c9eb201cb8529c4673d3d8` · 2026-10-31 · XinChen Xiong · Merge pull request #70 from xxc2007/fix/lightbox-fullscreen-20261031
+- `9b385e0730a6a1ec507eef92db6faeb7e5c1b05d` · 2026-10-31 · xxc2007 · fix(lightbox): cap the fill initial scale at viewport-wide (max 2x)
+- `9e8826c3b284d831e83410e54690972a498887c8` · 2026-10-31 · XinChen Xiong · Merge pull request #71 from xxc2007/fix/lightbox-crop-fix-20261031
+- `a7b4fcc9192e14e95f9eaf685e3a6827afe46875` · 2026-10-31 · xxc2007 · fix(feedback): status lookup defaults open, textarea tightened to 6 rows
+- `388178fffd779adda4c829a6f94bec18f28f4dd2` · 2026-10-31 · XinChen Xiong · Merge pull request #72 from xxc2007/fix/feedback-status-default-open-20261031
+- `d794b10f8ed1bdbaa93d8b8fe0ef4e0122b020d3` · 2026-10-31 · xxc2007 · fix(reports): every citation title navigates — nav separated from the read gate
+- `04ef653bd4734a46477b7f2c6d61b2da135c1a15` · 2026-10-31 · xxc2007 · test(reports): citation render follows the navigate-always semantics
+- `1c157be302a653caea80128a198767f1170237d1` · 2026-10-31 · XinChen Xiong · Merge pull request #73 from xxc2007/fix/report-title-links-20261031
+- `5fc9745398c6ed5c82f7e473dcd648a11aab1c34` · 2026-10-31 · xxc2007 · fix(reports): correct citation link targets, align story typography with P2
+- `80d09fb929966390bf8395d3691b0b9c4d45cef8` · 2026-10-31 · xxc2007 · test(reports): assertions follow the corrected target selection
+- `24e56ab37d97d5f41963684c07ea97a5e589c5d4` · 2026-10-31 · XinChen Xiong · Merge pull request #74 from xxc2007/fix/report-title-targets-20261031
+- `a878455af6cce761cb9c89637df81f52e53d7058` · 2026-11-01 · xxc2007 · fix(items): summary-licence rows keep a restricted page, not a 404
+- `2fd8eecf1445676cedfdc0cc9ff69c133ce33cf2` · 2026-11-01 · XinChen Xiong · Merge pull request #75 from xxc2007/feat/item-preview-20261031
+- `0662be9b7e7ba97770a6db5c966769e52d32a540` · 2026-11-01 · xxc2007 · feat(workstation-assist): up to 2 single-slot child workers with per-child logs
+- `654e1d4a49b1a75b8950c765cdefcebfa56be77d` · 2026-11-01 · XinChen Xiong · Merge pull request #76 from xxc2007/feat/workstation-assist-2slot-20261101
+- `b6dc9618a89104313626b735d6f5e339f841ac34` · 2026-11-01 · xxc2007 · fix(workstation-assist): pass -SlotCount to the powershell runner, not node's --slots
+- `b8e47251c46f0b2e279eb2a21741c012952fe4b4` · 2026-11-01 · XinChen Xiong · Merge pull request #77 from xxc2007/fix/assist-slotarg-20261101
+- `9acbf362e22e35766b469463175b220ead151c4b` · 2026-11-01 · xxc2007 · fix(workstation-assist): a transient first-sample failure defers instead of crashing
+- `83e9e4e5da7da295ab4ce9e7994fb3747b07aee1` · 2026-11-01 · XinChen Xiong · Merge pull request #78 from xxc2007/fix/assist-first-sample-20261101
+- `429b9b15e9b229eb757bec6071ff0ab325856485` · 2026-11-01 · xxc2007 · feat(workstation-assist): in-process slots 1..4 with rolling child logs
+- `c13029b9313131f100fe9b2a34c0b655e6678b1b` · 2026-11-01 · xxc2007 · test(worker-executor): fixture pools follow the new slots+1 envelope
+- `e67099ba258a7ebbd7806691bec7614829857292` · 2026-11-01 · XinChen Xiong · Merge pull request #79 from xxc2007/fix/assist-maximization-20261101
+- `f1108c8e72fd2fe9ebbc30c442e93c841cb27121` · 2026-11-01 · xxc2007 · fix(contact): unify reader channels on email, route RSS entry to agent page, version the changelog
+- `f12c6d1c8eeca44bfe125f4aa6648fdafb956e25` · 2026-11-01 · XinChen Xiong · Merge pull request #80 from xxc2007/fix/contact-rss-versions-20261101
+- `e869690818673909cab41090dc2de7b55a7f5f95` · 2026-11-01 · xxc2007 · feat(changelog): v3.0.0 major release, multi-era version numbering, repo tagging policy
+- `c19f6e17be5260dec976ecd7bd931cb13ef8363e` · 2026-11-02 · XinChen Xiong · Merge pull request #81 from xxc2007/feat/major-3.0-tags-20261101
+- `ae4b9996e2e8c909a45b1d12d71a74cf1d94efae` · 2026-11-02 · xxc2007 · fix(jobs): bound backlog aging band to 25 so fresh articles surface within one tick
+- `dae35945bc3eff28969254e5732fb350ffdb001d` · 2026-11-02 · XinChen Xiong · Merge pull request #82 from xxc2007/fix/backlog-aging-starvation-20261102
+- `5c8e5549f0ae8290cba42173196668f1209105c9` · 2026-11-02 · xxc2007 · chore(changelog): 2026-11-02 新内容恢复及时上站（backlog aging 有界化，PR #82 随轮部署）
+- `310be097da7929c8d5d1581b35d5b9d85e38c1cb` · 2026-11-02 · XinChen Xiong · Merge pull request #83 from xxc2007/fix/backlog-aging-changelog-20261102
+- `c505b808a38edc053bd3a1a6400bd70648b8aa67` · 2026-11-02 · xxc2007 · fix(jobs): place aging band under the 48h live line so fresh arrivals always outrank it
+- `2b69ae5688de0d03e640181d55ae895265f82e51` · 2026-11-02 · XinChen Xiong · Merge pull request #84 from xxc2007/fix/aging-band-live-line-20261102
+- `0e8fb277f6fd05928da18455907dc024ca96d6a4` · 2026-11-02 · xxc2007 · fix(assist): ioFull gate 30 to 60, dirty-checkout diagnostics instead of silent death
+- `e3671e22cd62f486fc49e088ab0e4ae24be2be72` · 2026-11-02 · xxc2007 · fix(models): bench members whose quota refusal says 额度已用完 (autoclaw wording)
+- `d3bd25bfc47be2a73ef8c4f41f7da64cfd05667d` · 2026-11-02 · xxc2007 · test(assist): ioFull fail-closed boundary follows the 30-to-60 gate widening
+- `53b651d5330309916dd330bee5c72ca4751962ae` · 2026-11-02 · XinChen Xiong · Merge pull request #86 from xxc2007/fix/autoclaw-quota-pattern-20261102
+- `aafdf60b2938190bb9d63e24e61a0de48e413275` · 2026-11-02 · XinChen Xiong · Merge branch 'main' into fix/assist-pools-and-gates-20261102
+- `f925c48b29505eccb150ddefde262d02b699d930` · 2026-11-02 · xxc2007 · feat(changelog): dedicated major-release cards for 1.0/2.0/3.0, AIHOT-style
+- `330f6dec6386ba217aceecedb56db654871e0a01` · 2026-11-02 · XinChen Xiong · Merge pull request #85 from xxc2007/fix/assist-pools-and-gates-20261102
+- `1e32eede72c4526808f6704a87aa817c32dd288d` · 2026-11-02 · XinChen Xiong · Merge branch 'main' into feat/major-cards-1.0-3.0-20261102
+- `af15b99ded1acec6d179b6677341269b213310a0` · 2026-11-02 · XinChen Xiong · Merge pull request #87 from xxc2007/feat/major-cards-1.0-3.0-20261102
+- `ae626d3b765e95b43e526ade6e1b9499e1ce2b5d` · 2026-11-02 · xxc2007 · fix(admin): receipt table stays inside its card on desktop grids
+- `603ee2f2bbd4289e76b9feb27d002fa74e53f9e2` · 2026-11-02 · XinChen Xiong · Merge pull request #88 from xxc2007/fix/admin-table-overflow-20261102
+- `d152834e271e05db104c0855aa7903f26ad36a67` · 2026-11-02 · xxc2007 · fix(changelog): redraw 1.0/3.0 terrain glyphs, pin card order 3.0-2.0-1.0
+- `7ed3a4562123ad026fa7171baa9cf535546f7745` · 2026-11-02 · XinChen Xiong · Merge pull request #89 from xxc2007/fix/glyphs-and-major-order-20261102
+- `98fe52ab54dc0fb4073ca251798177e24353c9cf` · 2026-11-02 · xxc2007 · fix(changelog): terrain glyphs from real font masks, not hand-drawn paths
+- `1adb7d6ddbbceb772be1bfe1ea1c84f554bb2b45` · 2026-11-02 · XinChen Xiong · Merge pull request #90 from xxc2007/fix/terrain-font-mask-20261102
+- `29d878207d3683dc53c59ddda36a9c663c9fd9a9` · 2026-11-02 · xxc2007 · fix(assist): admission decided by the fresh first sample, not re-sampled at each gate
+- `fa0a27a3bf5c6011a994e6e759cd6ec0aecfe016` · 2026-11-02 · XinChen Xiong · Merge pull request #91 from xxc2007/fix/assist-single-shot-admission-20261102
+- `2b806c1994c6816a7f6e60ed0ed647fab0031ed7` · 2026-11-02 · xxc2007 · fix(assist): drop the 60s stabilization window — the real admission blocker
+- `41a7c87b273957a0549c9ad1ef5676f6d076182c` · 2026-11-02 · XinChen Xiong · Merge pull request #92 from xxc2007/fix/assist-stabilization-window-20261102
+- `77aad58bd71bf22ebb5f0cd03248ac9f958bebe5` · 2026-11-02 · xxc2007 · fix(assist): admission-closed logs its actual failure reason
+- `d59177d816beb57a20a834484bd5563189317b25` · 2026-11-02 · XinChen Xiong · Merge pull request #93 from xxc2007/fix/assist-error-log-20261102
+- `8f2ad046cba4be1168901624514568105601bda7` · 2026-11-02 · xxc2007 · fix(assist): serialize the first-sample evidence before writing the lease
+- `fc3a49c16883d991c104270da38737bea7b39a46` · 2026-11-02 · XinChen Xiong · Merge pull request #94 from xxc2007/fix/assist-lease-serialize-20261102
+- `74377c0c38363b179d50635a01e2d42a58f535a0` · 2026-11-02 · xxc2007 · fix(docker): copy the pg patch script before npm ci so postinstall finds it
+- `6a04206d3d2679ce5874d702978aefc659710241` · 2026-11-02 · xxc2007 · fix(dev-db): restore the pg patch script and postinstall entry
+- `ec4bf11b775c53a6922b8ee1d9297be574c849e2` · 2026-11-02 · XinChen Xiong · Merge pull request #96 from xxc2007/fix/pg-patch-docker-order-20261102
+- `c936faa9fed2b955e80778b1b5e3a53e4b81a6cc` · 2026-11-02 · xxc2007 · fix(audit): site-wide review fixes — share cards, calendar, feeds, receipts, model cooldown
+- `e297de7b7322d8aad577300edc84493006354120` · 2026-11-02 · XinChen Xiong · Merge pull request #97 from xxc2007/fix/site-audit-20261102
+- `d28a5eda016b76e7a30bb454fb38d9443438e7fa` · 2026-11-03 · xxc2007 · fix(ops): assist dirty-check scoped to runtime paths; dev-db auto-daemon for headless callers
+- `65c880399c33f26bc4503687663961261c52b874` · 2026-11-03 · xxc2007 · feat(topics): replace two empty regional topics with content-backed institution topics
+- `0a3fff8b94adb00630c13bb2e2d27d770a41a432` · 2026-11-03 · xxc2007 · fix(security): audit fixes — hardening gate, CSRF timing, feedback magic numbers, admin rate limit, safe external hrefs, privacy alignment
+- `55ba8a2e16c8afe29c2b8d6319b5c2d63a16e468` · 2026-11-03 · xxc2007 · ci(tags): auto-sync version tags and releases on changelog updates
+- `9140af63790f985cd1cd36824c130f0de0fe8a02` · 2026-11-03 · xxc2007 · docs(deploy): 回写服务器 snippet 现值并补记安全头/HSTS 注入协议
+- `cb53ced19223a9da3c6c43c9eee7be71274e4f10` · 2026-11-03 · XinChen Xiong · Merge pull request #98 from xxc2007/fix/security-audit-20261102
+- `a2c39a06ca044a9a77003f2b919e5a14d10baf6c` · 2026-11-03 · xxc2007 · fix(topics): mwr 水利部条目全为 summary 型被 workflowReady 门禁排除——换成 ESA 欧洲空间局
+- `4bf1f892a09d3f66019278d68f1fdac9cf39e9f5` · 2026-11-03 · XinChen Xiong · Merge pull request #99 from xxc2007/fix/topics-esa-swap-20261103
+- `abf9af8daa63ca7e860853614d24603f5e579844` · 2026-11-03 · xxc2007 · docs(runbook): 并发两处真值——combined-worker.env 经 drop-in 注入会覆盖 .env，conc-guard 只读写 .env
+- `9818aaa6b73524bd2da49e706ea7c1459697cc16` · 2026-11-03 · XinChen Xiong · Merge pull request #100 from xxc2007/fix/verify-three-20261103
+- `01f82320a7696025c59b4c9a71a513c1a00b39de` · 2026-11-03 · xxc2007 · hardening(systemd): 三单元模板回写服务器沙箱加固决定
+- `1b87c0ffb491926b0e08305e3a845413c8cd5164` · 2026-11-03 · XinChen Xiong · Merge pull request #101 from xxc2007/hardening/systemd-templates-20261103
+- `875c88a7d24afac1960bb84f017a4e333d2f01c7` · 2026-11-03 · xxc2007 · fix(grouping): recoverStalledGrouping 接管非预算失败的 regroup_pending 滞留行
+- `d600010c9205833c684434bb47fcf98026a19cd9` · 2026-11-03 · xxc2007 · fix(admin): 后台读页接数据库侧 statement_timeout（公共包装器 adminRead）
+- `26f8f2957d8507f375c6648dc5fa9215c6e86ee2` · 2026-11-03 · xxc2007 · fix(alerts): worker 崩溃循环不再静音内容告警（settled 之外加 restartedRecently）
+- `37563e8e70fd9e5bd612833a4d768a6f247ad6d5` · 2026-11-03 · xxc2007 · fix(admin): 后台币值折算统一走服务端解析的 fx_rates 汇率
+- `de24d47d2af57b2bad42ed02f087186e893e64d6` · 2026-11-04 · xxc2007 · fix(silence): 崩溃循环的 content.process 告警出声，健康台账读不出来不再静默
+- `620fad3b17588cea6cf2640800fc354f67869f80` · 2026-11-04 · xxc2007 · test(fixtures): 三处夹具跟着实现走
+- `d936fb1187994e90461e11aa73ba87125ed2693a` · 2026-11-04 · xxc2007 · refactor(boilerplate): 页脚判据从三份合成一份，并加漂移守卫
+- `82e447259db55321eba6683497f6c2dff1e60e6c` · 2026-11-04 · xxc2007 · chore(tooling): 复活 step5:e2e、脚本测试纳入 npm test、备份包排除工作流残留
+- `63f2a0f9d57bc932d6438e3cefd2f658ec715108` · 2026-11-04 · XinChen Xiong · Merge pull request #102 from xxc2007/fix/techdebt-20261103
+- `7a39e0a70bcf52c3bb1a1d8040457a4cfa729c15` · 2026-11-04 · xxc2007 · docs(changelog): 2026-11-04 四条（后台超时话术 / 崩溃循环告警 / 判据三合一 / 主题计数更正）
+- `9bb734a7632496b65d32206616862c5fa15d69ab` · 2026-11-04 · XinChen Xiong · Merge pull request #103 from xxc2007/docs/changelog-20261104
+- `45e367a328b0c7a603ea5806f09a482a0d498927` · 2026-11-04 · xxc2007 · chore(deploy): 把线上在跑的单元、drop-in 与闸门脚本收进仓库
+- `255404e052d897802e5cdd90673e040bf1b82080` · 2026-11-04 · XinChen Xiong · Merge pull request #104 from xxc2007/chore/systemd-adopt-20261104
+- `b862d0a6db0eebffed18b1d6438f58464e1048f7` · 2026-11-04 · XinChen Xiong · fix(deploy): 解包不再盖掉这台机器的基线
+- `8cc936129851bbd49a544d22869e26f78c5d5726` · 2026-11-04 · XinChen Xiong · Merge pull request #105 from xxc2007/fix/baseline-preserve-20261104
+- `08800ffe2b7baf1cab31fbec3ffae2577dfc0ecc` · 2026-11-04 · XinChen Xiong · fix(deploy): 漂移核对也认'仓库里有同一份'
+- `ad782a09c6e26bf76b8a00a85a872e459e74af39` · 2026-11-04 · XinChen Xiong · Merge pull request #106 from xxc2007/fix/drift-dropins-20261104
+- `eec82dbe4ec7b7ef6bb4e2871eeec3d7bd342965` · 2026-11-04 · xxc2007 · fix(assist): 陈旧维护锁不再永久挡住本机辅助；阈值改成显式旋钮
+- `4359cb8c8f0a3505c09798e40105054e5b23086e` · 2026-11-04 · xxc2007 · test(assist): 陈旧维护锁的接管有测试；接管逻辑收进 acquire()
+- `2515cf9ba86c90c89804d3a43f75423261d3dd4f` · 2026-11-04 · XinChen Xiong · Merge pull request #107 from xxc2007/feat/assist-admission-20261104
+- `6461066388492db113e566722ec67715a9bd3f17` · 2026-11-04 · xxc2007 · fix(gate): 部署重启攒出的 5xx 不再把 worker 停半小时
+- `b309da2e272a332e283893cd8087d619ca541db6` · 2026-11-04 · XinChen Xiong · Merge pull request #108 from xxc2007/fix/gate-restart-grace
+- `4cfbf03e73a082b1f9b0642e2a9b6f556befaef3` · 2026-11-04 · xxc2007 · fix(assist): 本机辅助只剩一条 SSH 采样会话，启动期不再挤掉自己的连接
+- `027c6e1f32ac6e2012910bc5cef92b5207a53950` · 2026-11-04 · XinChen Xiong · Merge pull request #109 from xxc2007/fix/assist-single-connection-20261104
+- `5566921232b9d2134de41b1937302fad9a967d6a` · 2026-11-04 · xxc2007 · fix(assist): 辅助的远端内存门写进配置，脚本不替机器拍板
+- `2257ad4b4ba81ff10eff947f9d2624b9445c1662` · 2026-11-04 · xxc2007 · fix(assist): 恢复 wrapper 的 UTF-8 BOM
+- `2aa3b67377d8d00b1fcf2aa2a41746ae524156cf` · 2026-11-04 · xxc2007 · feat(worker): 吞吐上限做成旋钮，本机辅助只剩一条 SSH
+- `3b250a1ec0d30cd8b5d61af3337efc3b3fd2a52c` · 2026-11-04 · XinChen Xiong · Merge pull request #111 from xxc2007/perf/intake-knobs-20261104
+- `5890e0221b915a12196375d825881a0814ec6096` · 2026-11-04 · xxc2007 · fix(assist): 采样行先拆 probe 再判资格，死会话的维护锁 15 分钟后接管
+- `b8b71f831783db85cf338282459da16e4adf9ad0` · 2026-11-04 · XinChen Xiong · Merge pull request #112 from xxc2007/fix/assist-probe-unwrap-20261104
+- `9147a490a78e5a3256998747410db4226ed75d44` · 2026-11-04 · xxc2007 · fix(assist): 首检不合格时把刚拿到的维护权还回去
+- `6f932aaa01b855327bbf11746e90c8ab4faaa569` · 2026-11-04 · XinChen Xiong · Merge pull request #113 from xxc2007/fix/assist-release-on-refusal
+- `5541f9aaf0cfd5b080600b2c09ac82b5bbca73f8` · 2026-11-04 · xxc2007 · feat(web): 手机首屏按站长给的版式重排（搜索条 + 精选/全部 切换 + 可折叠日期栏）
+- `485f7e999c2f90404b4a44860101b73e109d4d21` · 2026-11-04 · XinChen Xiong · Merge pull request #114 from xxc2007/feat/mobile-home-20261104
+- `41f3a71b8d086ae14eee473204299ba2a589785f` · 2026-11-04 · xxc2007 · fix(web): 主题页有自己的标签了，从「更多」的高亮路径里去掉
+- `59310113e9c6300f207c189cbb5be5e01d979763` · 2026-11-04 · XinChen Xiong · Merge pull request #115 from xxc2007/fix/mobile-tab-highlight-20261104
+- `97d813717e986d196b7cb31600e430274287620e` · 2026-11-04 · xxc2007 · feat(web): 全部动态页也带上精选/全部 切换，/all 时精选标签亮
+- `b2bcca9695785b153996ede2946594916741b6ff` · 2026-11-04 · XinChen Xiong · Merge pull request #116 from xxc2007/feat/mobile-switch-on-all-20261104
+- `8daa05769daea955656a52e367d1fd1cd33e2911` · 2026-11-04 · xxc2007 · feat(web): 手机端把精选与全部并进同一页，点击即换列表
+- `dba6e2d5aa82a50df81772ed0e9e42134d7f45ae` · 2026-11-04 · xxc2007 · docs(changelog): 手机端精选/全部合屏这条写进更新日志
+- `9c59b46c88d47d258c314a2a14b682f1f7191224` · 2026-11-04 · xxc2007 · fix(web): 收录池读不到时首页不跟着 404，并给 web 测试补上 pool 桩
+- `6e3ae8c7dc802c0f1786becefe02d61c527e6c76` · 2026-11-04 · XinChen Xiong · Merge pull request #117 from xxc2007/feat/mobile-feed-merge-20261104
+- `c2e349b0b3e8bd1918921a9fbd944a83f9316ed0` · 2026-11-04 · xxc2007 · fix(web): 手机「全部」只留 12 张卡，别把 40 条塞进首屏
+- `1a2a6f9ff35c11d2b5638c2121d84a1b39d7a41b` · 2026-11-04 · xxc2007 · fix(security): 审计里的 dev 旁路、OG 原型链、坏链接与双出口
+- `196e0d668ee1b0a5f07aa63696ac4d524f44febd` · 2026-11-04 · XinChen Xiong · Merge pull request #118 from xxc2007/fix/mobile-pool-slice-20261104
+- `eefea21b96307968da28654c85d23f55e57a3300` · 2026-11-04 · XinChen Xiong · Merge branch 'main' into fix/audit-hardening-20261104
+- `8993af5079e1d82be5385687df3e7eb9286cad92` · 2026-11-04 · XinChen Xiong · Merge pull request #119 from xxc2007/fix/audit-hardening-20261104
+- `d38e6d7912fa12025783442d7163608b43f11cc3` · 2026-11-04 · xxc2007 · fix(changelog): 四步那条连线不再拖出「04」右边一截
+- `90a66bfdc2bb1a5f6928d97d8cc460dd35358172` · 2026-11-04 · xxc2007 · fix(web): 手机全部页回到带月历的版式，切换只留在首页那一屏
+- `9bdf3b35f3f37acdb8279dda5c53c3a7474b9acf` · 2026-11-04 · XinChen Xiong · Merge pull request #121 from xxc2007/fix/mobile-all-calendar-20261104
+- `f54c1cb4d650ef64be4d83ffaadde265e2f6aa02` · 2026-11-04 · xxc2007 · fix(assist): 本机辅助的 onAC 在 bootstrap 路上从未赋值，所以每轮都立刻收摊
+- `a3d5ac5b59826400da39fedc3afc59315e3df99c` · 2026-11-04 · xxc2007 · fix(assist): 本地实例锁给一条有界的接管口，崩溃后不再永久停摆
+- `c825bd901fdd5938de4b56bc608e1ac4ac870a9c` · 2026-11-04 · XinChen Xiong · Merge pull request #122 from xxc2007/fix/assist-onac-20261104
+- `3b9403a7d54c15f070f8408087832041d2957798` · 2026-11-04 · xxc2007 · feat(web): 全部动态页改成触底续读，不再有分页器
+- `8a3503da7cf3fef26a9897527c3b791b611467ec` · 2026-11-04 · XinChen Xiong · Merge pull request #123 from xxc2007/feat/all-infinite-scroll-20261104
+- `4d7b5052ce1374ee61fe900c0b1411ff6bbe56de` · 2026-11-04 · XinChen Xiong · Merge branch 'main' into fix/changelog-journey-line-20261104
+- `b3d5b6dfe987f4077090fcb054460a2c04ec7dde` · 2026-11-04 · xxc2007 · fix(web): 触底续读在 1000 条处先停一下，别把 2000 张卡都塞进手机
+- `a4bd1d8101eea4068e31547a1e5e158a8baa0fdf` · 2026-11-04 · XinChen Xiong · Merge pull request #124 from xxc2007/fix/all-scroll-dom-cap-20261104
+- `94be39231c1c6383f2353f4c6c1c90afaee37252` · 2026-11-04 · XinChen Xiong · Merge branch 'main' into fix/changelog-journey-line-20261104
+- `3930654586e52c1e0ec15cbf108faccab0f46138` · 2026-11-04 · XinChen Xiong · Merge pull request #120 from xxc2007/fix/changelog-journey-line-20261104
+- `a048a92fa6b8fef55dd7a47e5307efa3ad78b2f4` · 2026-11-04 · xxc2007 · fix(receipts,grouping,api): 丢失答复不再二次付费、并发不再双挂事件、限流键不再信客户端头
+- `82169ad3b2189e072a10b15f01ca20e00d520abf` · 2026-11-04 · xxc2007 · chore(env): .env.example 补齐生产在用的 42 个键名
+- `386f8b329e14b5e7b0a9bbc82cfe2e6bc72c2677` · 2026-11-04 · XinChen Xiong · Merge pull request #125 from xxc2007/fix/audit-high-20261104
+- `70d2ac35daf8973fda03b49c44dc1021dbee5127` · 2026-11-04 · XinChen Xiong · Merge pull request #126 from xxc2007/chore/env-example-gap-20261104
+- `8a353e7ab01826d2af4fb5e6502f5f387049213b` · 2026-11-04 · xxc2007 · fix(deploy): 部署时落 .release，/api/health 不再自称旧提交
+- `e8bca4cfea863ca4736f31d39c200d74110c44b0` · 2026-11-04 · XinChen Xiong · Merge pull request #127 from xxc2007/fix/release-fingerprint-20261104
+- `d2d9499a310cfe8b22a7c6c6f200a86481e6a95e` · 2026-11-04 · xxc2007 · fix(deploy): .env 里的 AIHOT_RELEASE 跟本次 rev 一起更新
+- `ec0fed7d9be2b7adc87de12d20bff5851419dbce` · 2026-11-04 · XinChen Xiong · Merge pull request #128 from xxc2007/fix/deploy-release-env-20261104
+- `4a0639203b7e6bd25694f2334655f459e5b55dd6` · 2026-11-04 · xxc2007 · fix(deploy): 传解析后的 short rev，别把字面量 HEAD 落进 .env
+- `19811576578f070985060c4dd7b05fa4ea0906ef` · 2026-11-04 · XinChen Xiong · Merge pull request #129 from xxc2007/fix/release-shortrev-20261104
+- `b178c748d2184c0ac3bcf6f54c2d769591a06eba` · 2026-11-04 · xxc2007 · fix(deploy,gate): timer 该在岗就在岗；重启宽限放宽到 600/180
+- `fdfa59f47163b18b399525c2e1625e6e19374eca` · 2026-11-04 · XinChen Xiong · Merge pull request #130 from xxc2007/fix/deploy-timer-and-grace-20261104
+- `52e584c594713d86b2120e67a3f898e31e315259` · 2026-11-04 · xxc2007 · fix(deploy): 验收前等 api/web 连续两次 200，消掉恒定的 smoke 假红
+- `32b255f5316aff8530b1e8906e73dfb21d61e98f` · 2026-11-04 · XinChen Xiong · Merge pull request #131 from xxc2007/fix/deploy-settle-before-verify-20261104
+- `76e76d00f095eda3def9b471702921c191e29133` · 2026-11-04 · xxc2007 · fix(shell): 侧栏不再把 /all 算成精选
+- `02c6b4cd5d99d4b578fec5c57a9d7142b365500a` · 2026-11-04 · XinChen Xiong · Merge pull request #132 from xxc2007/fix/sidebar-double-active-20261104
+- `1b8c7074332ef2dc62620cbae5ca3d96a0a82cdf` · 2026-11-04 · xxc2007 · fix(mobile): 全部页每条的发布时间回来了，与精选同一套行版式
+- `1f37248f6447f525500d100bad50541a17352bab` · 2026-11-04 · XinChen Xiong · Merge pull request #133 from xxc2007/fix/mobile-pool-time-20261104
+- `086cc7079de0f3013c9983db8adf9c5fff33fb76` · 2026-11-04 · xxc2007 · fix(intake): 名额按 lane 算，流水线不再一次只跑一个任务
+- `930cd26124bb0c4014e4eb554203edd23ce99cb9` · 2026-11-04 · XinChen Xiong · Merge pull request #134 from xxc2007/fix/intake-parallel-lanes-20261104
+- `a086e17db3e992d14cf392d559858222b4e1a805` · 2026-11-04 · xxc2007 · fix(intake): 压力阈值做成旋钮，并让部署别再 404 掉旧哈希资源
+- `a77c20bd1fe93413d8af06e0f3b50c34e7dce229` · 2026-11-04 · xxc2007 · fix(intake): 配置数字走 config.positiveInt（守卫测试钉的就是这条）
+- `2c0bf91fbd5f6df9e0b1f87692316b5146470e88` · 2026-11-04 · XinChen Xiong · Merge pull request #135 from xxc2007/fix/intake-pressure-knobs-20261104
+- `711b242f85d95e50814945b72b8a4155cbef7cb0` · 2026-11-04 · xxc2007 · fix(r115): 闸门从"停整个 worker"改成"冻住取任务"
+- `28b9cfc503d4c76bf5163471d2d77f5edecd4fed` · 2026-11-04 · XinChen Xiong · Merge pull request #136 from xxc2007/fix/r115-fence-instead-of-stop-20261104
+- `458cdda91cadacba734e42786438a19a3a21b6cd` · 2026-11-04 · xxc2007 · fix(deploy): 部署顺手把闸门脚本装到 /opt/geohot/bin
+- `1d40b8f340b67b986dcb47ff5a3ad0aed683e1de` · 2026-11-04 · xxc2007 · fix(deploy): 给 worker 加内存硬线，读者优先（实测 15s/503 → 0.3s/200）
+- `0487947c1305d8767740f3e62b9c4f4a5a7d81c0` · 2026-11-04 · xxc2007 · fix(gate): 恢复探针与放行旋钮同源，HTTP 探针降为参考信号
+- `f01ffaea209d53aa19b2e594c085efa02ed59adb` · 2026-11-04 · XinChen Xiong · Merge pull request #138 from xxc2007/fix/worker-memory-cap-20261104
+- `d66b75403acd0e4bb5b2ef381938fab81100f065` · 2026-11-04 · xxc2007 · fix(readers): 读者并发从 2 槽零排队改成 4 槽 8 排队；503 可观测；夜窗切换脚本
+- `a93734a956cd38ab10553a9e650bd31ca36589df` · 2026-11-04 · XinChen Xiong · Merge pull request #139 from xxc2007/fix/reader-capacity-window-20261104
+- `c68ad03db83b4d268763e9501be37d9b3f739ab6` · 2026-11-04 · xxc2007 · fix(web): 构建产物缺失时直接说清下一步，并补进 AGENTS 的本地跑法
+- `f9fa2f02d670c67d45e4217df94fe17f28e698f5` · 2026-11-04 · xxc2007 · fix(audit): 水位被远未来钉子钉死、后台页码无上界、截图保留早于重试窗口
+- `2610478210bdccb3b320a7f7ae11f65efff24964` · 2026-11-04 · xxc2007 · docs(changelog): 21:40 订阅源不再被一条坏数据卡住（含页码与截图保留两处）
+- `d4e299a38d7dbd99e57ed226b9be6f2be531ad49` · 2026-11-04 · XinChen Xiong · Merge pull request #140 from xxc2007/fix/web-build-guard-20261104
+- `6a12113ca74102bd20767705691c664ab6f28d28` · 2026-11-04 · XinChen Xiong · Merge branch 'main' into fix/audit-round7-20261104
+- `8ab096626d5b4488d4b35eec4830090edbdea4e8` · 2026-11-04 · XinChen Xiong · Merge pull request #141 from xxc2007/fix/audit-round7-20261104
+- `99a30323f06f6670ef4ecaf9fb2c7633b54ab232` · 2026-11-04 · xxc2007 · fix(deploy): 夜窗可在白天演练、前导零钟点不再炸、部署后补 daemon-reload
+- `9bf1f7f66fee9bd9af85cc2900d280789f3912d4` · 2026-11-04 · XinChen Xiong · Merge pull request #142 from xxc2007/fix/window-force-20261104
+- `444de0118a0d5742df2e915a2d627738e1389954` · 2026-11-04 · xxc2007 · feat(deploy): 夜窗带上读者护栏，切档后首页两次不过线就自动退回 day
+- `4c8eed87b1951c840cfc02d55f483a16a4980889` · 2026-11-04 · XinChen Xiong · Merge pull request #143 from xxc2007/feat/window-reader-guard-20261104
+- `850a510d48c8df8f55465fcf7fe1b4f697e70aa1` · 2026-11-04 · xxc2007 · fix(deploy): 夜窗降到 2 槽，护栏改成持续观察 3 分钟
+- `6697965b431209f77e5e91d8cb310c59c56c8298` · 2026-11-04 · XinChen Xiong · Merge pull request #144 from xxc2007/fix/window-night-slots-guard-20261104
+- `564e25457c3762a75a7b19388c7ba5b26a9f5bee` · 2026-11-04 · xxc2007 · docs(changelog): v3.0.11 夜里多干活，但不再拿阅读页面去换
+- `c7f4f5588a424527bd87dcdbf261f2d5b11077c9` · 2026-11-04 · XinChen Xiong · Merge pull request #145 from xxc2007/docs/changelog-night-window-20261104
+- `7333bb25d559b0204e8b59d8e7134e6d887e5f5c` · 2026-11-04 · xxc2007 · feat(mobile): 手机「全部」也改成一拉到底，不再让人点「查看全部」
+- `24850cfd972d6b75e48f020063a17ae575489113` · 2026-11-04 · XinChen Xiong · Merge pull request #146 from xxc2007/feat/mobile-pool-infinite-20261104
+- `b85b4c48a8fd259c6c0e6650971e6ea55ab52f1b` · 2026-11-04 · xxc2007 · fix(publication): 两个出口给出同一个答案（索引/页面、页面/.md、折叠、专题卡）
+- `fcf0e411c978611640de7a98d014f953de804c2c` · 2026-11-04 · xxc2007 · feat(topics): 每日主题新鲜度审计（只读、只写日志）
+- `ccb4f5a49373ca8702cf9711d4763c9fafa0c2ba` · 2026-11-04 · xxc2007 · fix(publication): 保留「库里没有的 id 走原文链接」的既有语义
+- `9c20dd4b46be2fb9c098c9bdbc94a4428319823d` · 2026-11-05 · xxc2007 · fix(scripts): 干净 clone 的三处部署阻断
+- `e19ff4c98f391168fe0042ddb3b23d60878a59d5` · 2026-11-05 · XinChen Xiong · Merge pull request #147 from xxc2007/fix/answer-parity-20261104
+- `096429aff5c2ff30155493715c37c136b0c7bd78` · 2026-11-05 · xxc2007 · fix(admin): 后台读取的截止时间对齐读者侧 8 秒
+- `45518d2546f0b22a377455617d09afbaf7049ac5` · 2026-11-05 · xxc2007 · fix(models): 冷却表落库，进程重启不再把已关掉的成员放回轮转
+- `4a59e4f3611e82727dd68717a94f142c49ad553f` · 2026-11-05 · XinChen Xiong · Merge pull request #148 from xxc2007/fix/admin-read-deadline-20261105
+- `4c5db1499c66c3d87f7393ae724c29420ac27980` · 2026-11-05 · XinChen Xiong · Merge branch 'main' into fix/model-cooldown-persist-20261105
+- `9912afc877aea1f8c619172f7757cef59829c362` · 2026-11-05 · XinChen Xiong · Merge pull request #149 from xxc2007/fix/model-cooldown-persist-20261105
+- `3f8e395b126f783998d7e0b65f6edbe8b279c67a` · 2026-11-05 · xxc2007 · chore(repo): 停止跟踪 __pycache__，加入 .gitignore
+- `d277096412465fedc2f05fa797ac85c298291eab` · 2026-11-05 · XinChen Xiong · Merge pull request #150 from xxc2007/chore/hygiene-pycache-20261105
+- `186d796a15844b62019953b6548a368378df838a` · 2026-11-05 · xxc2007 · chore(repo): 停止跟踪 __pycache__，加入 .gitignore
+- `9098328400bf58c3c112a2d974d7365675e01e9a` · 2026-11-05 · xxc2007 · fix(db): 连接在池里只待 2 分钟、寿命 30 分钟
+- `9425a36a7323d8db9e916e55c55bebcbf4c123b8` · 2026-11-05 · XinChen Xiong · Merge pull request #151 from xxc2007/fix/db-conn-recycle-20261105
+- `89258fe1dd145f12d2e831250f454226ec481176` · 2026-11-05 · xxc2007 · fix(window): 白天档再收紧一档内存线（90M/150M/128M）
+- `2f5f86aaaa49996b227f00784d60b31a5112f50e` · 2026-11-05 · XinChen Xiong · Merge pull request #152 from xxc2007/fix/worker-memory-tighten-20261105
+- `3bce4a0a5a0fa22b1a7ecbad37e75f428ede93cb` · 2026-11-05 · xxc2007 · fix(window): 白天档放成 2 槽 2 lane，别让一个 processing 任务堵死整条流水线
+- `c771ca1b8861aab89049acb2cf477ca4c750cd8b` · 2026-11-05 · XinChen Xiong · Merge pull request #153 from xxc2007/fix/day-lanes-20261105
+- `0c6798905b1593cc4c3acc423ab6838cd4fc6fc0` · 2026-11-05 · xxc2007 · fix(systemd): 把 90M/150M/128M 写进基座 drop-in，重启不再退回 120M/200M
+- `c07aeb161dbc7dc6db65016fa182361734ed256e` · 2026-11-05 · xxc2007 · fix(gate): 部署自己的 502 不再触发 r115 TRIP
+- `d8a156a531e262a584b66b4419a7fe0c4e1a9db6` · 2026-11-05 · XinChen Xiong · Merge pull request #154 from xxc2007/fix/base-memory-caps-20261105
+- `90cf1c526348579abbbbe979988d65ce25fb9425` · 2026-11-05 · XinChen Xiong · Merge pull request #155 from xxc2007/fix/deploy-window-20261105
+- `301a1fc56a8abe7d682da05309bf640aa15fad2c` · 2026-11-05 · xxc2007 · fix(deploy): 日常部署也同步单元模板与 drop-in
+- `a80bd6870d68497421babe606a59796d2269b799` · 2026-11-05 · XinChen Xiong · Merge pull request #156 from xxc2007/fix/deploy-sync-units-20261105
+- `1f7081f064ea399a74723c2b683c3bcbde04db78` · 2026-11-05 · xxc2007 · fix: 三处边界答案（缓存/计数/导出）
+- `0af3479325be4c3992b309b8a8e14932f5b1c6cf` · 2026-11-05 · XinChen Xiong · Merge pull request #157 from xxc2007/fix/boundary-answers-20261105
+- `6f00e1e06c2cd8f4d41926212c5228f0c8b75c66` · 2026-11-05 · xxc2007 · fix(reliability): 停机后的队列、抓取重试、就绪度游标与闸门探针
+- `4e2fe799b0964eda76244ae0bdd42922d751f464` · 2026-11-05 · xxc2007 · fix(reliability): 撤回 stopBoss 硬闸门，保留其余四项
+- `c68d0720bedf1e187012ecdc59874243ede31265` · 2026-11-05 · XinChen Xiong · Merge pull request #158 from xxc2007/fix/queue-and-gate-guards-20261105
+- `46f2c31849a6980f0f5d6ba819a7a460591b7bb3` · 2026-11-05 · xxc2007 · fix: 八处并发与参数边界（合并死锁、审计事务、ETag 列表、主题分页）
+- `eca703295441867b9125166b7bf39e9c76781c45` · 2026-11-05 · xxc2007 · chore(security): 忽略 .zcode/.mimosa、发布闸门与 CI 动作固定 SHA
+- `fe5fa20c144c9a906eeda985f8c868d10e33dd28` · 2026-11-05 · XinChen Xiong · Merge pull request #159 from xxc2007/fix/edge-params-and-etags-20261105
+- `ed6b4f748256ecec1149ee5432a46619816484d8` · 2026-11-05 · xxc2007 · fix(deploy,docs): 验收冒烟在重启窗口内重试；README 补齐建库与冒烟口径
+- `5de0566aceed5c8b39f7a5885a3c4e0f09672073` · 2026-11-05 · XinChen Xiong · Merge branch 'main' into chore/security-hygiene-20261105
+- `62a27c10ff239076c262c3bdbddd1af4545c4bae` · 2026-11-05 · xxc2007 · chore: 删掉两个已失效的一次性上线脚本，并订正辅助文档的配置路径
+- `9ce226a8da0e0a129d201f43de0cf221002d2775` · 2026-11-05 · XinChen Xiong · Merge pull request #160 from xxc2007/chore/security-hygiene-20261105
+- `4e106c2deed83ed9b0f9c09149b27cbd903ed80c` · 2026-11-05 · XinChen Xiong · Merge branch 'main' into fix/deploy-smoke-retry-20261105
+- `f52e746553f724c24683661adcc75664cfe6dd67` · 2026-11-05 · XinChen Xiong · Merge branch 'main' into chore/dead-scripts-doc-20261105
+- `0a9b53f37bdf6bb14d72d7aeda59a2bd1fb933c8` · 2026-11-05 · XinChen Xiong · Merge pull request #161 from xxc2007/fix/deploy-smoke-retry-20261105
+- `e79f2bc6224414b006f0f9418730f92fee7b142a` · 2026-11-05 · XinChen Xiong · Merge branch 'main' into chore/dead-scripts-doc-20261105
+- `ae8ec36edfa5a1ea8fcbc5c3e4f68fde18e687a7` · 2026-11-05 · XinChen Xiong · Merge pull request #162 from xxc2007/chore/dead-scripts-doc-20261105
+- `02aa8aece23c8a52320a7e2f7f9c1a1eda926b8a` · 2026-11-05 · xxc2007 · fix(deploy,gate): 部署窗口 writes 到服务器，别再让每次部署自己触发一次冻结
+- `cc520eb9792562b6a7eb7cfed731031f21d7582f` · 2026-11-05 · XinChen Xiong · Merge pull request #163 from xxc2007/fix/deploy-window-on-server-20261105
+- `a4a9b7a4d8842495c9281b032953d8c847cd4ca2` · 2026-11-05 · xxc2007 · fix(gate): 部署进行中的窗口只有开始时间，也要算「还没关」
+- `142c55ec4935060875432a6d2b9e3ad06c12eb89` · 2026-11-05 · XinChen Xiong · Merge pull request #164 from xxc2007/fix/deploy-window-open-20261105
+- `25e236a20d01b5a03621a677e081e363de58a7df` · 2026-11-05 · xxc2007 · fix(web,api,sources): 时钟、长度与坏数据下，页面对着读者说的话还得是真的
+- `1ceec4a6eeeacd48296f83841fa3d30e154047a1` · 2026-11-05 · XinChen Xiong · Merge pull request #165 from xxc2007/fix/reader-truth-edges-20261105
+- `06c1ea9bbbef55a39623e5c3edf7347ec0225d91` · 2026-11-05 · xxc2007 · fix(web,csp): 浏览器替读者说出的两处毛病——更新日志 hydrate 报错、字体被策略挡住
+- `8b69f2093781075de79aa49f34a25e1a7ee4ca86` · 2026-11-05 · xxc2007 · fix(web): 接续请求不能挂着——给它 15 秒，超时说人话
+- `200867436ac9699955326b0b7aea6a22e4036c96` · 2026-11-05 · XinChen Xiong · Merge pull request #166 from xxc2007/fix/hydration-and-csp-20261105
+- `04245a845a6c1a28e4e182b82756624209a22c72` · 2026-11-05 · xxc2007 · feat(intake): 分析链路 60 秒饥饿下限，读者面不再排在便宜活后面
+- `1d4b73d53420b32aa5d754f6f61aa467c4fd8fc3` · 2026-11-05 · XinChen Xiong · Merge pull request #167 from xxc2007/fix/analysis-lane-starvation-20261105
+- `8d22a7a2c32325df8110536c5a409ca9b78f98ad` · 2026-11-05 · xxc2007 · fix: 标签行不再算稿子，后台审计列表不再裸查
+- `cc844a3da4600f123ad03580b6989d81bf5bbc9b` · 2026-11-05 · XinChen Xiong · Merge pull request #169 from xxc2007/fix/label-only-and-admin-audit-20261105
+- `6490cec4d1b37a9d171356fa853565c249a565b4` · 2026-11-05 · xxc2007 · fix(web): 手机「全部」按天分段，日期栏与「精选」同一套
+- `62d7e9b103a3b8a6e615783389ad3e5f8972b644` · 2026-11-05 · XinChen Xiong · Merge pull request #170 from xxc2007/fix/mobile-all-daybar-20261105
+- `d7f3655ee74f6181cec91f5174dd6f0fe68c1b0d` · 2026-11-05 · xxc2007 · fix(web): 手机「全部」不要再画一遍今天的日期栏
+- `91b023d88d3f599b1fd2f6ca954787619170556f` · 2026-11-05 · XinChen Xiong · Merge pull request #171 from xxc2007/fix/mobile-all-daybar-dedup-20261105
+- `cb9418bcfa14c00b49680925d8269e0dd90433af` · 2026-11-05 · xxc2007 · fix(gate,cooldown,web): 部署窗口读到结束行、恢复样本有节律、冷却表按成员分行
+- `123a886934df5f95a307ddfad13336cae4b1a04b` · 2026-11-05 · XinChen Xiong · Merge pull request #172 from xxc2007/fix/runtime-and-window-guards-20261105
+- `3a822deedff8691b422848befd2f8e4d63c73369` · 2026-11-05 · xxc2007 · fix(cooldown): 旧账本升级时铺成一条成员一行，别把还活着的拒绝丢掉
+- `8532808dba2c4a5a298a9af3ecce87b004f7ce04` · 2026-11-05 · XinChen Xiong · Merge pull request #173 from xxc2007/fix/cooldown-ledger-migration-20261105
+- `2272c7c56eebd5f19b169f152d4c473e614b612a` · 2026-11-05 · xxc2007 · fix(deploy): 部署窗口在块开头就打开，盖住迁移与重建 web 的那几分钟
+- `8050a3aa3e1ed26b833bc87a541f7d880c633fc7` · 2026-11-05 · xxc2007 · fix(admin): 尾页装满时不再假装还有下一页；.env.example 的 Qoder 网关端口改回 3426
+- `c7317dd85fa6f25c0c994c808172f95b9cc0cd56` · 2026-11-05 · XinChen Xiong · Merge pull request #174 from xxc2007/fix/deploy-window-earlier-20261105
+- `4c093cbc6f95384e42bc2a60a84ea1d164337f0c` · 2026-11-05 · xxc2007 · merge main into admin pagination
+- `c25e919357210824cdb74ef1ce2bfd4f0a41a074` · 2026-11-05 · XinChen Xiong · Merge pull request #175 from xxc2007/fix/admin-pagination-20261105
+- `9e6a9e77e1db3285ef3d0088c5a2e16b29586b6a` · 2026-11-05 · xxc2007 · perf(intake): 分析链路单独配额，评分与预筛不再吃整篇正文
+- `4bcc17bb67b921be2aca64c554421e219cf71db2` · 2026-11-05 · XinChen Xiong · Merge pull request #176 from xxc2007/perf/analysis-lane-quota-20261105
+- `102619c647668f24d8f8dc4929f3d3e676215eb7` · 2026-11-05 · xxc2007 · fix(intake): 分析车道的并发配额写进窗口环境，白天与夜里都封在 2
+- `2713310e66b0d6e03e0cad25c7d70c0b75c7201a` · 2026-11-05 · XinChen Xiong · Merge pull request #177 from xxc2007/fix/analysis-slots-window-20261105
+- `89c3004182382d4873b4c56bcdf9a918e129eeba` · 2026-11-05 · xxc2007 · fix(editorial): 健康账本读的死线可放宽，隧道那一侧才读得完
+- `4479b46983e5e59b593f949cfbf9e2cc7dbafbd9` · 2026-11-05 · xxc2007 · feat(topics): 全站条目按主题显式归类，主题页读同一份判据
+- `529acc467d567f1171af7b468b3cb0376137701a` · 2026-11-05 · XinChen Xiong · Merge pull request #178 from xxc2007/feat/topic-assignment-20261105
+- `26fb9a1f5d0b1f6b076bf05675b6bf08f20aa8ed` · 2026-11-05 · xxc2007 · feat(topics): 主题每月换班，热起来但没人认领的标签进候选
+- `f7cc118925e0d27fbf0531fd4013ab5c5ad64f1f` · 2026-11-05 · XinChen Xiong · Merge pull request #179 from xxc2007/feat/topic-rotation-20261105
+- `4e6f8d93477662a7cb4fa5abf6c37d929ded4d6f` · 2026-11-05 · lead · fix(worker-window): 白天只留一条分析槽位，先保住读者面的响应
+- `c379ddc9db5ca82abd6b809ea07242fe0dd91208` · 2026-11-05 · xxc2007 · fix(publication): 精选不再只认全文条目；更新日志按 AIHOT 密度精简
+- `83d6b2ac7dc5445a853acf2a1faa8f4446515eb2` · 2026-11-05 · xxc2007 · fix(editorial): 健康结论的过期写回不再覆盖失效后的缓存
+- `293b75714e43315fa53bba46b8d9a1d2946d242f` · 2026-11-05 · XinChen Xiong · Merge pull request #180 from xxc2007/fix/curated-summary-gate-20261105
+- `e52d49b608aa311cc60e1a5b9672a712a4076998` · 2026-11-05 · xxc2007 · fix(web): 网点图的半径不再变成负数
+- `17fbd2bc20e97e0cc2c7074ff56c08b6a7dd29cf` · 2026-11-05 · xxc2007 · fix(publication): 读者面的计数走局部索引，不再读整张表
+- `7823985af5a4755ae23dea5f3739f3b329db1b6d` · 2026-11-05 · XinChen Xiong · Merge pull request #181 from xxc2007/fix/canvas-radius-20261105
+- `d30941f8bd658a7b6c0dbbd309076bfd28453ad9` · 2026-11-05 · XinChen Xiong · Merge pull request #182 from xxc2007/fix/reader-count-indexes-20261105
+- `a89b73174d42b3ed0f998e3fe35bb4dd1ce2dc38` · 2026-11-05 · xxc2007 · fix(topics): 候选只留无人认领的热词，并给运维一个人工扳机
+- `80b9ed74f79c3b1eba2fb0c90be4c7b2ac4ddcc2` · 2026-11-05 · XinChen Xiong · Merge pull request #183 from xxc2007/fix/topic-proposal-triage-20261105
+- `790c35350f8f99d0711fb879ae0e080e6e3f5938` · 2026-11-05 · xxc2007 · fix(deploy): feed 与 sitemap 在重启窗口里允许重试三次
+- `d1f58dd0ed6ec4e684912197133173c3349b8cbf` · 2026-11-05 · XinChen Xiong · Merge pull request #184 from xxc2007/fix/verify-retry-feeds-20261105
+- `c7fc4f72cbd97bf5e5e1c7f3ffea75bae48b0e9c` · 2026-11-05 · xxc2007 · fix(window): 白天只留一个名额——多一个名额换来的吞吐抵不过一次换页
+- `36bc46dfb83a88f937866e214ee8750a1e4096bc` · 2026-11-05 · XinChen Xiong · Merge pull request #185 from xxc2007/fix/day-single-slot-20261105
+- `2373464effc7cd849aff0d6886e09ef616e228dd` · 2026-11-05 · xxc2007 · feat(topics): GDACS 与自然资源部补成正式主题
+- `0b01d1b36dbe52d23e1037d0deeeee98561ea8e1` · 2026-11-05 · XinChen Xiong · Merge pull request #186 from xxc2007/feat/topic-org-additions-20261105
+- `5e57eeaf970fd0d70fd463d7e7aef83fc4fa98b7` · 2026-11-05 · xxc2007 · fix(nginx): 回环不进读者限速桶，并把 admission 片段收进仓库
+- `bf8d7ba87bdb82c8e242fe5c16b876c5ba5f08c8` · 2026-11-05 · XinChen Xiong · Merge pull request #187 from xxc2007/feat/nginx-admission-in-repo-20261105
+- `2e5523f8e77d7daad1bf8cce2c6fe25bc9337730` · 2026-11-05 · xxc2007 · fix(topics): 机构主题只认机构标签，不吞整个领域
+- `a9fa194f106fd3d5eccc969c222d6a901182bca7` · 2026-11-05 · XinChen Xiong · Merge pull request #188 from xxc2007/fix/org-topic-tags-narrow-20261105
+- `25490577841231133e65573591fbaf97f0adfe46` · 2026-11-05 · xxc2007 · fix(web): 历史日期给一天缓存、组合筛选页不进索引——爬虫的笛卡尔积不该由读者内存来付
+- `5b790fa1caabbb27cae1e563fb749b2f834e3dbd` · 2026-11-05 · XinChen Xiong · Merge pull request #189 from xxc2007/fix/faceted-cache-and-bot-crawl-20261105
+- `2651480a99e28d547248d69cefb27c159ed49e8d` · 2026-11-05 · xxc2007 · fix(web): loader 算好的缓存头要真的送出去——补 headers 导出
+- `dc32b52131ccf5c23e61e336b81744bf84ab5148` · 2026-11-05 · XinChen Xiong · Merge pull request #190 from xxc2007/fix/all-headers-passthrough-20261105
+- `499d96842255173ce0a6c7cbc76c246fcae49072` · 2026-11-06 · xxc2007 · fix(publication): 精选只放走完完整工作流的条目
+- `a42f3f73bc7c27c0c4518bfc881c4d4c620f91f0` · 2026-11-06 · XinChen Xiong · Merge pull request #191 from xxc2007/fix/curated-gate-strict-20261106
+- `19dfb56ca11e866e448eed3de498b39d4fcc8d8b` · 2026-11-06 · xxc2007 · feat(queue): 能过读者门禁的活先跑
+- `6fcd8edf043e46aa32d7aeaa56e97aa2832bbd4f` · 2026-11-06 · XinChen Xiong · Merge pull request #192 from xxc2007/fix/publishable-first-20261106
+- `ec69b14b167d452bfc4123f418e693be4fe9e623` · 2026-11-06 · xxc2007 · fix(window): 冷启动的一次探测不该把整夜算力退掉
+- `702933effa82fc76b89f210ffe7c0fbc6026b63c` · 2026-11-06 · XinChen Xiong · Merge pull request #193 from xxc2007/fix/night-guard-warmup-20261106
+- `380ad139c5a8d2a9465c1b6e1b056c783d4aa54a` · 2026-11-06 · xxc2007 · fix(web): 取不到新数据时，把上一份好页面交给读者
+- `2dc5d9b22b18d72120511c472fcb0c909e0101fa` · 2026-11-06 · XinChen Xiong · Merge pull request #194 from xxc2007/fix/last-good-reader-fallback-20261106
+- `4b9e580eb8a46455821ac8edf17a55ef4e44e394` · 2026-11-06 · xxc2007 · fix(gate): 读者面已经健康时，冷却不必关满十分钟
+- `686e381a2592ce6e2d3c20d1915719cae8982e55` · 2026-11-06 · xxc2007 · fix(web): 首屏别为了配菜等满 15 秒
+- `b793bba5c3f8a1e94772c11f5817f2038cadebf6` · 2026-11-06 · XinChen Xiong · Merge pull request #195 from xxc2007/fix/gate-early-release-20261106
+- `b34cf20145386b353a8d3a3bc1405ca5645317a0` · 2026-11-06 · xxc2007 · fix(intake): 压力门的线要跟着这台机器的真实状态走
+- `db6c9909de2d2f64a2d0afa9ee1cb853f1cf201f` · 2026-11-06 · XinChen Xiong · Merge pull request #196 from xxc2007/fix/intake-pressure-thresholds-20261106
+- `c8e4fe84a5a940a0b65a05515585c93629d3fcf1` · 2026-11-06 · xxc2007 · fix(ci,topics): 给 tag 一个身份；六个机构热词补上自己的分类页
+- `50d362ac46443765da82c90cf5336200fe16308c` · 2026-11-06 · XinChen Xiong · Merge pull request #197 from xxc2007/fix/org-topics-and-tag-sync-20261106
+- `7ebe4659550472b870d40bfdd8dfcbccbd71b516` · 2026-11-06 · xxc2007 · feat(topics): 机构名有几种写法，分类页就认几种
+- `d305daceb54d339bd6691b59df87bf9ea13cb9cc` · 2026-11-06 · XinChen Xiong · Merge pull request #198 from xxc2007/fix/topic-org-names-20261106
+- `d2b8b3695506f9b1965fe04ed6a65762e871c2c1` · 2026-11-06 · xxc2007 · fix(topics): 一批写坏了，接着写下一批
+- `099831d51c43fecbfeafb6fde7be346bd871641a` · 2026-11-06 · XinChen Xiong · Merge pull request #199 from xxc2007/fix/topic-assign-resilience-20261106
+- `776911084ad662d11f9b76ae3dbc9a6d2e706250` · 2026-11-06 · xxc2007 · fix(csp): 强制下发的那份片段进了仓库，字体策略补上 font-src
+- `298521044853cdc16aa5222be48f960a65657355` · 2026-11-06 · XinChen Xiong · Merge pull request #200 from xxc2007/fix/csp-font-src-20261106
+- `9fd54df8729c4abc90d27444a1eba7c48026c3b5` · 2026-11-06 · xxc2007 · fix(deploy): 只同步这台机器真的 include 的 nginx 片段
+- `c087ad51290949549d99ca4ac83af4cddaff8380` · 2026-11-06 · XinChen Xiong · Merge pull request #201 from xxc2007/fix/nginx-snippet-guard-20261106
+- `16e3edd7912a4bd7242edfbf5db295f7aa469f6e` · 2026-11-06 · xxc2007 · fix(window): 夜档的页面预算放宽到 8 秒，别让一次冷探测退回白天
+- `3a63fc90ef6b25375a23824c4808dc7b007a7598` · 2026-11-06 · xxc2007 · chore(deps): 把三条 npm 审计告警清到 0（undici 8.12.4 / zod 4.6.7 / fast-uri 3.1.9）
+- `ed071f86a5fbbd2940030ef146d41fc0999ead1f` · 2026-11-06 · XinChen Xiong · Merge pull request #202 from xxc2007/fix/night-guard-budget-20261106
+- `fabac8a262683a1241ce35c9330c2a308f824576` · 2026-11-06 · XinChen Xiong · Merge pull request #203 from xxc2007/fix/dependency-advisories-20261106
+- `f70578114c14119607f33b06f5258f7a01d5e185` · 2026-11-06 · xxc2007 · fix(api): 回环不进全局限速桶，验收不再被自己的 429 挡住
+- `1914e54a4a45fe8c662119078fdd40260cba30be` · 2026-11-06 · XinChen Xiong · Merge pull request #204 from xxc2007/fix/loopback-rate-exempt-20261106
+- `211bad3852c0f7f054cf4ac2d9ad6255ef8afa23` · 2026-11-06 · xxc2007 · fix(r22): 归档主题页、首屏预算、安全头与死模型 id
+- `b9c7e71627e0ef617d32038786f399a6b9286271` · 2026-11-06 · XinChen Xiong · Merge pull request #205 from xxc2007/fix/r22-audit-batch-20261106
+- `151dc52fce84505cc740fa92af4e8e5be2d09aa3` · 2026-11-06 · xxc2007 · fix(ops): 闸门自己停的 worker 要能被恢复链拉起来，切档别替读者面松刹车
+- `eaba587fbeef09989ef0eac182bc6968dd184c25` · 2026-11-06 · XinChen Xiong · Merge pull request #206 from xxc2007/fix/r22-recovery-20261106
+- `087313455046970b4405c536827ecf2b58d330fd` · 2026-11-06 · xxc2007 · fix(deploy): 页面巡检也给三次机会，别把冷启动写成站点坏了
+- `8d8cb1b4ddb2976230aa8ba13eb813e4a94227af` · 2026-11-06 · XinChen Xiong · Merge pull request #207 from xxc2007/fix/verify-page-retry-20261106
+- `96d1d2aa0f4810e606eeae8851fc155ff7c76a22` · 2026-11-06 · xxc2007 · fix(gate): 早释放之后只数释放以来的 5xx，别让同一批旧账再冻一次
+- `de9d0f2cb56a114046d9984c5944347b8ee99398` · 2026-11-06 · XinChen Xiong · Merge pull request #208 from xxc2007/fix/gate-release-clamp-20261106
+- `6fb9da7b5d335013d473b5bb5ef77fdfbb688b3e` · 2026-11-06 · xxc2007 · docs: 按干净 clone 的复验结果修正 README 与 DEPLOYMENT 的计数与坑
+- `e0979cd88a7f6c5f090406b589ec30af97789076` · 2026-11-06 · xxc2007 · fix(gate): 把被并掉的 export 行拆回来，并加一条形状用例
+- `40b443a222a2e098f501570f39ce19b2e6e33503` · 2026-11-06 · XinChen Xiong · Merge pull request #209 from xxc2007/docs/r22-clean-clone-fixes
+- `3bc49e3c5e6162a2db1b0e7e05e6f9570ad6add6` · 2026-11-06 · XinChen Xiong · Merge branch 'main' into fix/gate-line-join-20261106
+- `52786ff36181bb15ddc2f82fe23ed91c17905847` · 2026-11-06 · XinChen Xiong · Merge pull request #210 from xxc2007/fix/gate-line-join-20261106
+- `537f5626351b8f33f0fdfb47441196ac356b5e0f` · 2026-11-06 · xxc2007 · feat(admin): 主题轮换有了看板；健康结论失效后的在飞读盘不再被搭车
+- `6d2a80d1f174c82ab7d27c541ffb1cbc505c2dde` · 2026-11-06 · xxc2007 · fix(worker): 十分钟一次的定时任务不再拿一小时的过期时间；后台补主题轮换文档
+- `2f9125aa3ac913dd702fa7f55e4b5a528084a08c` · 2026-11-06 · xxc2007 · feat(deploy): 第二台服务器接手分析执行器、备份落地与国内探针
+- `1f5f722fd864a5b8d5b458f5c537c8c304b4256d` · 2026-11-06 · XinChen Xiong · Merge pull request #212 from xxc2007/feat/second-node-20261106
+- `546f5a44211891d04796a7b221c56fac7f8a933f` · 2026-11-06 · xxc2007 · feat(deploy): 第三台机器接手第二个执行器、备份副本与真浏览器回归
+- `5381ef1f87b58cfa6c9a36d316318efb814b0214` · 2026-11-06 · xxc2007 · feat(admin,web): 服务器面板列出协同节点；读者面边缘缓存放到 3–5 分钟
+- `d4d900ff8fd50d3e3d47efd551ea790a9dba8aad` · 2026-11-06 · XinChen Xiong · Merge pull request #214 from xxc2007/feat/nodes-and-cache-20261106
+- `f9b16311a38c37c75e603a7e4e45749e4715bfba` · 2026-11-06 · xxc2007 · fix(gate): 早释放只买 5 分钟喘息，不再一睡半小时
+- `d61f74d72ca387d82e606ff57434d95f3addde67` · 2026-11-06 · XinChen Xiong · Merge pull request #215 from xxc2007/fix/gate-cooldown-5min
+- `687ad5e32b6b39403bee7d33b90f34b47e0cf550` · 2026-11-06 · xxc2007 · feat(panel): 远端节点把自己的负载、内存、磁盘报进后台面板
+- `f330f0de65f41e501a8d6698eccb8811ecfbd8f8` · 2026-11-06 · xxc2007 · fix(executors): 分车道配额与停机宽限写进节点脚本
+- `64d3f5c41edc1bb739f37ea7a6b4c792ee1232bb` · 2026-11-06 · XinChen Xiong · Merge pull request #217 from xxc2007/fix/executor-lane-accounting
+- `d416d5551645a2bc107598716e37d3b3d0175e4c` · 2026-11-06 · xxc2007 · fix(panel): 心跳键带上主机名，两台执行器不再互相覆盖
+- `b7a474fc9dadd0c215005f226d4eef44578c54df` · 2026-11-06 · xxc2007 · feat(panel): 远端节点上报 CPU/交换/开机时长/单元状态/端口
+- `d90419d15541f511b2972195b9f5a85009789f87` · 2026-11-06 · xxc2007 · fix(panel): 心跳键改用 GEOHOT_HEARTBEAT_KEY，默认仍是 heartbeat.<role>
+- `55deac4aebb7a68d9d322698c01165173fdea165` · 2026-11-06 · XinChen Xiong · Merge pull request #218 from xxc2007/fix/heartbeat-host-key
+- `731bbeb2f97876e6dcb90e156ce9d400e7ad945d` · 2026-11-06 · xxc2007 · fix(deploy): 迁移与构建前先等机器缓过来，别把 I/O 饥饿写成代码坏了
+- `7d8aae2b7590511d1baa4372fc7b55fb146e01ba` · 2026-11-06 · XinChen Xiong · Merge pull request #219 from xxc2007/fix/deploy-io-wait
+- `2c9e26eb500e4a858354d90920788bc858660eee` · 2026-11-06 · xxc2007 · fix(node): 主库只做读者面，验收与部署都认这个身份
+- `d126eac418e705192dcd7c3a96154b1ff339bbc8` · 2026-11-06 · xxc2007 · fix(db): 会话级 lock_timeout 放宽到 15 秒，让后台的咨询锁真的排队
+- `9f44654b167b9cd69f5c533bc864e489289812ea` · 2026-11-06 · XinChen Xiong · Merge pull request #220 from xxc2007/fix/readers-only-node-20261106
+- `07d31c19591fdba57fb5616379a7482187259961` · 2026-11-06 · xxc2007 · fix(models): 网关侧已经死掉的成员要立刻冷却，别每一轮都白烧一次
+- `8e187323613ab2de0cbc15e2d369894839d0a51f` · 2026-11-06 · XinChen Xiong · Merge pull request #221 from xxc2007/fix/dead-members-cooldown
+- `a635662d10885259c4d492573af75dfc8efec967` · 2026-11-06 · xxc2007 · fix(probe): 探针循环自带四小时寿命，别再漂在后台写满磁盘
+- `6beced14fee32442491156cbe1e9bd910fed71f3` · 2026-11-06 · XinChen Xiong · Merge pull request #222 from xxc2007/fix/probe-loop-lifetime
+- `a86d0085a19bad04e5e9a7478f5eb749d6edf033` · 2026-11-06 · xxc2007 · fix(deploy): readers-only 标记改问服务器，别在本机静默跳过
+- `b00f47fa0ff59560ff9121006a3d44dfa5bd9220` · 2026-11-06 · xxc2007 · fix(db): 读者首屏与领取队列各补一个索引，屏上两句说明文字进 30 秒缓存
+- `4146feac69d07e3be02dc4e9c05859ba3a4eaadc` · 2026-11-06 · XinChen Xiong · Merge pull request #223 from xxc2007/fix/deploy-marker-remote
+- `b9c2f8b0f174a128f3da5b793e3441d43aafeb4d` · 2026-11-06 · XinChen Xiong · Merge branch 'main' into fix/reader-page-index
+- `05d41d8498f3fe807b60e9498ba99ab59db08ed3` · 2026-11-06 · XinChen Xiong · Merge pull request #224 from xxc2007/fix/reader-page-index
+- `1d3b53ba9d4f694381c49f0a16501e05f1ffc4cf` · 2026-11-07 · xxc2007 · fix(deploy): 构建挪到部署机，生产机只收制品
+- `5c817ea9dde943e7e6f530a0ab42c922d73a30cc` · 2026-11-07 · XinChen Xiong · Merge pull request #225 from xxc2007/fix/deploy-prebuilt-web
+- `512c421bbc2b9a5e853bd489c299bcbd7b8db79f` · 2026-11-07 · xxc2007 · fix(deploy): 预构建制品先进 stage，别让 rmdir 卡死整次部署
+- `1fb00b9ca1a118e772c300bb1576cb2eddc7826e` · 2026-11-07 · xxc2007 · fix(worker): 定时任务的过期时间按节奏给，别让 singleton 卡满一小时
+- `65e8bb34308890231786b31490f609a1eff41d18` · 2026-11-07 · XinChen Xiong · Merge pull request #226 from xxc2007/fix/prebuilt-staging
+- `9027dab5552fc89240b87cdeb067005c001d2563` · 2026-11-07 · XinChen Xiong · Merge branch 'main' into fix/cron-expiry
+- `1501e0313e69966a7c92531d8760ba653609f88a` · 2026-11-07 · XinChen Xiong · Merge pull request #227 from xxc2007/fix/cron-expiry
+- `f69d7610e600805d8b7381d06a5974235cf4564e` · 2026-11-07 · XinChen Xiong · fix(window): 夜档切档别再叫醒 readers-only 机器上的 worker
+- `7ceb0237f10aac5536beb6020f129f0c749e1586` · 2026-11-07 · XinChen Xiong · test: 切档用例先剥注释再判位置
+- `73b8017c252951c1b250b5ef9895ddc01928b4b8` · 2026-11-07 · XinChen Xiong · fix(db): 给 /all 补一条不带 eligible 的部分索引
+- `def4a1b654a20b8b7f80157c4c6a07d4cc1fd018` · 2026-11-07 · XinChen Xiong · test: 切档用例改回本地已验证的写法（剥注释后再判位置）
+- `3c441e6f8cc74ab235a7305cf6deaf9c1920d71e` · 2026-11-07 · XinChen Xiong · fix(db): 迁移在事务里跑，索引不能用 concurrently
+- `a8a6a561b6c0fd6e9d715645d635afde7bffb7ed` · 2026-11-07 · XinChen Xiong · Merge pull request #230 from xxc2007/fix/window-readers-only-2
+- `90a576fe53891f67e5f2f1e8c4bb06e835f15a8d` · 2026-11-07 · XinChen Xiong · Merge branch 'main' into fix/all-page-index-2
+- `fb1fad17240f87a2a7578f2eb53b6b1a38f942b8` · 2026-11-07 · XinChen Xiong · Merge pull request #231 from xxc2007/fix/all-page-index-2
+- `afd75d091b8a41591dbe21aea0c2177473cd6fcd` · 2026-11-07 · xxc2007 · fix(executor): 武汉两档都给 8 条，别再被 50-window.conf 覆盖成 2
+- `22f6ffe84aac179577aac2ec800203e169c82669` · 2026-11-07 · XinChen Xiong · Merge pull request #232 from xxc2007/fix/wuhan-slots-20261107
+- `5b3618b41e782756b04346078fe991568b7e0438` · 2026-11-07 · xxc2007 · docs(changelog): 第 155 条——分析队列提速三倍，读者侧不受影响
+- `cce9002461767f3288a5008d76abf1dc62fc2944` · 2026-11-07 · XinChen Xiong · Merge pull request #233 from xxc2007/chore/changelog-155
+- `6722f559c9df48f14a755876a01d582309dedd90` · 2026-11-07 · xxc2007 · fix(deploy): 验收自己的节奏别再撞爬虫桶
+- `34f20624f940e8d592b1466437384186b5ebb083` · 2026-11-07 · xxc2007 · fix(docs): 按干净克隆复验的结果修 README 与 dev-db 收尾
+- `8a131b91ccd86790d8b697ce261a906b97cf98ea` · 2026-11-07 · XinChen Xiong · Merge pull request #234 from xxc2007/fix/verify-pacing
+- `874bdeaa115fb1725f848637bd0b2b2b7d952166` · 2026-11-07 · XinChen Xiong · Merge branch 'main' into fix/local-deploy-verify
+- `d711989991bb786fb4ea53b71bd8bfd47f170ae8` · 2026-11-07 · xxc2007 · fix(smoke): 429 是限速在说话，不是站点坏了
+- `fc83bef1c3d3258bbba8a0968efbf197c2cef164` · 2026-11-07 · xxc2007 · fix(translate): 网络失败退五分钟、上限六次，别让抖一下锁六小时
+- `3333d96e312f3c8305f783da2b3e83c281bcce13` · 2026-11-07 · xxc2007 · fix(schedule): 循环任务名额 1→2，翻译不再被扫描挤掉
+- `2e748a841121d1b6266bdd2179f647250bd4cb7a` · 2026-11-07 · XinChen Xiong · Merge pull request #235 from xxc2007/fix/local-deploy-verify
+- `84f55b90bbf664083994bd95bcd61f78baf667c0` · 2026-11-07 · xxc2007 · fix(media): 取图失败先重试两次，失败要留下是哪张图
+- `10286f154eac55b2987419f3b093dfd828dcaee1` · 2026-11-07 · XinChen Xiong · Merge pull request #236 from xxc2007/fix/media-retry-20261107
+- `f500c8597020c41d2cc82449d5d43237b508d0bf` · 2026-11-07 · xxc2007 · fix(readiness): 缺了结论行的公开文章每十分钟自己补回来
+- `6438a75d879bc94b91ffbf6e0dcfe499f695444c` · 2026-11-07 · XinChen Xiong · Merge pull request #237 from xxc2007/fix/readiness-selfheal-20261107
+- `8c83cdd0f8792cd2ad1ae52d98432c97978de2ab` · 2026-11-07 · xxc2007 · fix(executor): 名额与翻译门写进仓库脚本，重建机器不再退回旧配置
+- `5ca858b5ac0db5b195cda72a06da4f6a12bb3658` · 2026-11-07 · XinChen Xiong · Merge pull request #238 from xxc2007/fix/executor-env-parity-20261107
+- `3da246a2db70a408f0a58cacc4fbc3c803421f0f` · 2026-11-07 · xxc2007 · fix(deploy): 重启后先自己把首页走一遍，别让第一个读者买单
+- `1342099e23d1513b5866627eadc782e53301ebe2` · 2026-11-07 · XinChen Xiong · Merge pull request #239 from xxc2007/fix/deploy-warmup-20261107
+- `1b32c180ac4235ba90ba3ebfe3d4a16dc11ec47e` · 2026-11-07 · xxc2007 · fix(deploy): 预热改成串行、每页取两次，别把名额闸门挤满
+- `37bf3f4c485c1f79e06ae6860aa4c03ab8f7b3cb` · 2026-11-07 · XinChen Xiong · Merge pull request #240 from xxc2007/fix/warmup-serial-20261107
+- `5923b8548ca27c7b8e42b4c5a96dc5fe6192944a` · 2026-11-07 · xxc2007 · perf(pool): 总数缓存按分钟分桶，SSR 不再每次都重算
+- `45f7b9ff85c39fb801a81eb7d4abe1a29dcb0e7d` · 2026-11-07 · XinChen Xiong · Merge pull request #241 from xxc2007/fix/pool-total-bucket
+- `ac25b8d134ceebb311d56b982ef875c8dc58152c` · 2026-11-07 · xxc2007 · fix(admin): 内容页空查询给最近 50 条，不再把整页留白
+- `976930a749af4570b8f21bf8e0287d2fe557ae8e` · 2026-11-07 · XinChen Xiong · Merge pull request #242 from xxc2007/fix/admin-content-default-20261107
+- `b7e2a6be5627056e2b8abf362d4a7fd11e6c4a1c` · 2026-11-07 · xxc2007 · fix(admin): 内容页空查询也取数，不再靠前端短路留白
+- `04fc2fe71f4ce5be2f867ea7a15b9a1b2c59aedf` · 2026-11-07 · XinChen Xiong · Merge pull request #243 from xxc2007/fix/admin-content-page-20261107
+- `b2dcee18c0e214fd5cb3987268bb30349eef82d4` · 2026-11-07 · xxc2007 · fix(admin): 内容页空查询也渲染结果表，标题按有无关键词切换
+- `0916b33f7289e0beedfeb23e04475c79276a623b` · 2026-11-07 · XinChen Xiong · Merge pull request #244 from xxc2007/fix/admin-content-render-20261107
+- `6000b25c2b40f8f7d691d6ce43f35661cea5eb40` · 2026-11-07 · xxc2007 · fix(admin): 运行页快照交给常驻定时任务生成，不再靠页面访问顺手触发
+- `b0427087369baeca5297f423063f21181ccce573` · 2026-11-07 · XinChen Xiong · Merge pull request #245 from xxc2007/fix/runs-snapshot-schedule-20261107
+- `76e8e5cd2137de4b8409eb0b2698fb9c1724fd12` · 2026-11-07 · xxc2007 · fix(admin): 运行页快照不再等机器空闲才生成
+- `fb4c5f06e12aae2cea10027414df71379de21612` · 2026-11-07 · XinChen Xiong · Merge pull request #246 from xxc2007/fix/runs-snapshot-headroom-20261107
+- `e91ff720abfa3952cd9ec323cfe3cc91e4400a35` · 2026-11-07 · xxc2007 · docs(changelog): 记两个空白页的修复
+- `2c9bbe6a840c1fccad129e6a8f0c6aba33009979` · 2026-11-07 · XinChen Xiong · Merge pull request #247 from xxc2007/fix/changelog-admin-pages-20261107
+- `c390943779a52bf93cb278972dfb592e81064674` · 2026-11-07 · xxc2007 · fix(deploy): 预热连接口一起热，别让第一个读者撞上 8 秒的冷查询
+- `708d7a3d4a29edcd969316d37182943576ff088f` · 2026-11-07 · XinChen Xiong · Merge pull request #248 from xxc2007/fix/warmup-api-20261107
+- `9ffe2f134d47fbbc336b9f15f751d3a640d28158` · 2026-11-07 · xxc2007 · fix(deploy): 预热补一次沉降后的探测，用第三下证明页面热了
+- `26dc07b6f54fb88880f00b4af096c8cb25a62292` · 2026-11-07 · XinChen Xiong · Merge pull request #249 from xxc2007/fix/warmup-settle-20261107
+- `32188e2e62ee869c114918a2b5b3ca844d24227d` · 2026-11-07 · xxc2007 · perf(pool): 总数缓存从一分钟桶改成五分钟桶
+- `8098169b2edfb12d9890e8773003a383253c9ac7` · 2026-11-07 · XinChen Xiong · Merge pull request #250 from xxc2007/fix/pool-bucket-5min
+- `362d7fc946397ad806d3d934a9332972293a161e` · 2026-11-07 · xxc2007 · fix(web): 手机切到「全部」时自己补一次收录池请求
+- `5b9c0bea7cfe002447fda39b2003658e5732210a` · 2026-11-07 · XinChen Xiong · Merge pull request #251 from xxc2007/fix/mobile-pool-autoload
+- `d5ee9fd7f32d999c0e6023a743db702c16fc248b` · 2026-11-07 · xxc2007 · fix(publication): 读者冷启动第一次取数给到 12 秒，别把慢判成故障
+- `b44a56d3683c1da40a91b5a18b92c12c863fd845` · 2026-11-07 · xxc2007 · fix(publication): 12 秒预算真的改到位，锚点断言同步
+- `a8d03b197066f7b46ffe21f1ca34345065546f4c` · 2026-11-07 · XinChen Xiong · Merge pull request #252 from xxc2007/fix/read-budget-12s
+- `1a6e726e16fb5006a01214cf93b7d5474dc1ef6b` · 2026-11-07 · xxc2007 · fix(admin): 机器按所在地称呼，「条目」与「最后一条」之间留出间距
+- `1127f8bd10dfedc29f553e0b144d58d23c6a1728` · 2026-11-07 · XinChen Xiong · Merge pull request #253 from xxc2007/fix/admin-naming-spacing
+- `e1b9c8dc1677f48b6565f143e386a9f5738ab173` · 2026-11-07 · xxc2007 · fix(queue): 三天内的稿子每 5 分钟抬到队首，别让上周的存量挡住今天
+- `62511bea1fb92fc9ab05d3e5219aae49a4f9e1be` · 2026-11-07 · XinChen Xiong · Merge pull request #254 from xxc2007/fix/queue-fresh-first
+- `313838caf2002f9179ed8c70b74fafbde0ec4f9d` · 2026-11-07 · xxc2007 · fix(queue): 新鲜度取 published_at 与 discovered_at 的较大者
+- `b4295f71a1d4f205d49b2cefb58b7949360b92b5` · 2026-11-07 · XinChen Xiong · Merge pull request #255 from xxc2007/fix/queue-freshness-floor
+- `6eab5f80c85c48dca2e84ac7dd42b9a1c4cb5b30` · 2026-11-07 · xxc2007 · fix(readiness): 未就绪且十分钟没动过的行也要重算
+- `2e9f996381ebba0e65070d2f06be53b4d5a2bd9f` · 2026-11-07 · XinChen Xiong · Merge pull request #256 from xxc2007/fix/readiness-recompute
+- `4711a094123033b6084588609278a68bd16c6e68` · 2026-11-07 · xxc2007 · fix(publication): 精选在就绪之后重算一次，非全文条目不再占位
+- `d5d3ef054c03d94e6e0f9393725bb20fda277b89` · 2026-11-07 · XinChen Xiong · Merge pull request #257 from xxc2007/fix/selection-refresh
+- `8e95fe30e2ae786abb6db6887808b640bfd5e011` · 2026-11-07 · xxc2007 · fix(translate): 候选扫描先按近三十天限量，别把预算耗在找活上
+- `c43fbbca45107d0dec9696517c2a244df6feb72c` · 2026-11-07 · XinChen Xiong · Merge pull request #258 from xxc2007/fix/translate-candidate-scan
+- `1f5bb55deefab789ae350d4f3c48e625ab408f75` · 2026-11-07 · xxc2007 · fix(translate): 扫描只取近千篇，任务改三分钟一拍、预算 150 秒
+- `e1d55c979666a66c08d1a18b113034b52c967757` · 2026-11-07 · XinChen Xiong · Merge pull request #259 from xxc2007/fix/translate-budget
+- `2afb3e36880d90421edea4eb3fcc1302a144f3fe` · 2026-11-07 · xxc2007 · fix(receipts): 超过一天仍未定的回执再放行一次，别把产线锁死
+- `bd1a1fa9ad6690ad64e9f70cf359320d9ec13e84` · 2026-11-07 · XinChen Xiong · Merge pull request #260 from xxc2007/fix/receipt-second-release
+- `bba4d565ce19cf90b9bef46451d0c9fee0192213` · 2026-11-07 · xxc2007 · fix(web): 手机「全部」进站即可见，月历不再依赖 URL
+- `944809383e3e9527f08540e966794b8a8e7d5e74` · 2026-11-07 · xxc2007 · test(web): 手机 UA 首屏也取收录池，判据跟着改
+- `8c8f99e65d1a8f4741eb89a9d34979f03bc4fb7e` · 2026-11-07 · xxc2007 · test(web): 放宽判据窗口到注释块之后
+- `74ab37e7b9833e9efdae23483d639c777d9a6cbe` · 2026-11-07 · xxc2007 · test(web): 收录池判据改成按行比较，容纳手机 UA 首屏预取
+- `b2f0d7586f474789adc2c2efd9a464d992cab81f` · 2026-11-07 · XinChen Xiong · Merge pull request #261 from xxc2007/fix/mobile-all-instant
+- `0f097e609d08bbb44c82aa54e38e8d33b7965d14` · 2026-11-07 · XinChen Xiong · feat(admin): 最近入库改成按页加载，滚到底自动加 60 条
+- `c80cea037f4de0c89a20849ca15260d6898a7077` · 2026-11-07 · XinChen Xiong · Merge pull request #262 from xxc2007/feat/admin-content-infinite
+- `0fe6d46e29979ac2b12dd7df3476a6aa28400db7` · 2026-11-08 · XinChen Xiong · feat(admin): 页头吸顶、宽表更宽、卡片与表格留白统一
+- `b554db60869a29fc9b651044d2f7d3f5d7c392fb` · 2026-11-08 · XinChen Xiong · Merge pull request #263 from xxc2007/feat/admin-layout
+- `71d71b6d9b962ae29557a06d598e0e49185f56a7` · 2026-11-08 · XinChen Xiong · fix(routing): 池首成员被静默饿死时保留一个探针位
+- `24b04335a885f3b967d070d15e57e6bf1139c0f6` · 2026-11-08 · XinChen Xiong · Merge pull request #264 from xxc2007/fix/routing-starved-head
+- `d13bf99f63facb8640adf2bc6a2660a67f6bdc61` · 2026-11-08 · XinChen Xiong · fix(routing): 池首成员稳定拿到一半额度
+- `bb0655e6e9f25316b23be0aafdafcb92712e03a1` · 2026-11-08 · XinChen Xiong · fix(routing): 池首按配置顺序取，并每个进程打一行池子快照
+- `4cd9fcd54a36c0da32a288438a45d115acdf39a1` · 2026-11-08 · XinChen Xiong · fix(routing): 配置里的池首始终进服务集
+- `30fb5556a661fcc8800568064d23d618d24d4783` · 2026-11-08 · XinChen Xiong · Merge pull request #265 from xxc2007/fix/routing-head-share
+- `0108e8a6b43f2825c48ac0d139c59b008447ad67` · 2026-11-08 · XinChen Xiong · fix(routing): 讯飞 Loomy 的预算行还停在每分钟两次
+- `c0cc3c90ce6a80f3d3fb8547a7de0729adcb41ec` · 2026-11-08 · XinChen Xiong · fix(routing): 讯飞 Loomy 的预算行还停在每分钟两次
+- `7016221e8144fb8acb189f863542684cd1b2da70` · 2026-11-08 · XinChen Xiong · fix(routing): 讯飞 Loomy 的预算行还停在每分钟两次
+- `523e88ce4d752f107512119eaa4427f36775575e` · 2026-11-08 · XinChen Xiong · Merge pull request #266 from xxc2007/fix/loomy-budget
+- `05392a3a6650563f154fe7a5acf9273a1c8e5bea` · 2026-11-08 · XinChen Xiong · feat(sources): 发现候选信源的体检门槛与审核脚本
+- `02e6996b8913637bb591dccf6459434cc16aaff1` · 2026-11-08 · XinChen Xiong · Merge pull request #267 from xxc2007/feat/source-discovery
+- `e4389d8cc2224b84400f7958fbc67e0bea588335` · 2026-11-08 · XinChen Xiong · fix(receipts): 收据排队限时三秒并抬信源上限到两千
+- `cf81a02d0f3879bc43a011160c77b7a8aed83e37` · 2026-11-08 · xxc2007 · fix(migrations): 0116 只在原来就是 666 时抬上限
+- `587915386cfcd855be9ff50242ffa6ae9b223c52` · 2026-11-08 · xxc2007 · fix(receipts): 只把真正的锁超时折成「稍后再来」
+- `505d7e77f12780b2c33ee66cbe137679c2a5bafb` · 2026-11-08 · xxc2007 · test(receipts): claim 用例补 setup 闸门
+- `5087c0b20730fea167e5b76ee1bc5bc9e70e9714` · 2026-11-08 · XinChen Xiong · Merge pull request #268 from xxc2007/fix/receipt-queue-bound
+- `261084a82b729ecb321d82888e3d7f82ece018e0` · 2026-11-08 · xxc2007 · fix(site): 首页时间线读不出来时给上一次的
+- `a5a44238ca0a6e3ff69b28f3221c06bd54c933cf` · 2026-11-08 · XinChen Xiong · Merge pull request #269 from xxc2007/fix/home-stale-fallback
+- `e325fedd3a1a38aaae30b7d493f51ed0a63ce7d9` · 2026-11-08 · xxc2007 · fix(site): 列表页也给上一次的
+- `87cc35d592641fd7a6cdbbf6b8caef26a56ed9f3` · 2026-11-08 · XinChen Xiong · Merge pull request #270 from xxc2007/fix/all-stale-fallback
+- `6e3be239c3b83b481947e9fb58c05830c75f59a7` · 2026-11-08 · xxc2007 · fix(discovery): 探测请求带上自己的 UA
+- `d3dc354d1462275678fe3a6b9932ddb83598ddba` · 2026-11-08 · XinChen Xiong · Merge pull request #271 from xxc2007/fix/discovery-ua
+- `ebb7f32b03f4f8b1471e6a2eaad1f6dbe2d28246` · 2026-11-08 · xxc2007 · fix(discovery): 探测 feed 时把 UA 塞进信源 headers
+- `2a10ce9a06cbbaafcce8820ea5cf5a606b36ffa4` · 2026-11-08 · xxc2007 · feat(discovery): 反爬站点单独记 blocked；信源口径改 1000 采集 / 2000 总量
+- `5ae6a12c8d610c700db87c275007770f3560e119` · 2026-11-08 · xxc2007 · feat(sources): --revive 走复核再复活退役信源
+- `d7dd46cf87d75fb372e5ae55d5b14d2c13fef37a` · 2026-11-08 · XinChen Xiong · Merge pull request #273 from xxc2007/feat/discovery-blocked
+- `e71002a4f898818d59dffd9dc12cdd6469baacc8` · 2026-11-08 · xxc2007 · deploy d7dd46c
+- `7a51a8c750c8ca263babe538703302057436ccdb` · 2026-11-08 · XinChen Xiong · fix(sources): --revive 写 health 时用字符串字面量
+- `4cf1e9b813bde6b01a4824e4401c4489719bd513` · 2026-11-08 · XinChen Xiong · Merge pull request #274 from xxc2007/fix/revive-health-literal
+- `9e8db04f8542b2c55b319c1fdcafec42f46a04f5` · 2026-11-08 · xxc2007 · fix(receipts): 预算锁按分片排队，读者面不再被单一模型锁拖住
+- `c02e5991acf998503bdde0ca1bd6ccf184c1e033` · 2026-11-08 · XinChen Xiong · Merge branch 'main' into fix/budget-lock-shard
+- `16ff6f9a196ea79bf2948fba8eb3c211369a36fe` · 2026-11-08 · XinChen Xiong · Merge pull request #275 from xxc2007/fix/budget-lock-shard
+- `34f11ebee0bd798040395018b87ede3ae1f4a86b` · 2026-11-08 · xxc2007 · fix(admin): Magpie 面板先占位全局 magpie，插件 i18n 不再 ReferenceError
+- `d86141cca792b007eb9b8c65b8a22d72f82d97f4` · 2026-11-08 · XinChen Xiong · Merge pull request #276 from xxc2007/fix/magpie-global
+- `910e96149b89f0ff7cb4eae4ef49993548a8891e` · 2026-11-08 · xxc2007 · fix(admin): magpie 占位改成可调用空壳，插件在核心脚本前注册不再 TypeError
+- `ea4fa398b40194491a47870cf14075d8830c4997` · 2026-11-08 · XinChen Xiong · Merge pull request #277 from xxc2007/fix/magpie-global-2
+- `eb8ee138d1bb2a35d9371fb6f22c1175092f61bd` · 2026-11-08 · xxc2007 · perf(api): 列表接口给自己留一份 45 秒缓存
+- `2e7adb0c6e2ec73a784a8e124f12d40056883d5e` · 2026-11-08 · xxc2007 · test(api): 池子兜底判据跟着新分支形状走
+- `112d25f929b53af4fc7b5420920ed00e5f7ed413` · 2026-11-08 · XinChen Xiong · Merge pull request #278 from xxc2007/feat/pool-micro-cache-20261108
+- `e003f8aa8786d20e2049324cb5ae0dc324295386` · 2026-11-08 · lead · perf(receipts): 结清回执一周后清空正文，主库不再被 2.7 GB 表拖住
+- `2cd02db98242d2e09728de7c1fb7b738ae1f4dbf` · 2026-11-08 · XinChen Xiong · perf(receipts): 结清回执一周后清空正文，主库不再被 2.7 GB 表拖住 (#279)
+- `e684c460c7fad4f17f986b0d2356cf38096983a4` · 2026-11-08 · lead · fix(worker): 起队列失败退避重试，不再一次连接超时就 exit
+- `ea7be1280497a5bb88940d82ba26d6c2cf257f12` · 2026-11-08 · XinChen Xiong · fix(worker): 起队列失败退避重试 (#280)
+- `4a82a862fd9aae62149838a5a3b8bbf8993afbdf` · 2026-11-08 · lead · perf(receipts): 正文清理按 id 分段，不再每批全表扫
+- `858095875b91b54117600adb650a70dc8624af18` · 2026-11-08 · XinChen Xiong · perf(receipts): 正文清理按 id 分段，不再每批全表扫 (#281)
+- `b5a5a1562c931bc5a6de48a148d66b7ebd25334c` · 2026-11-08 · xxc2007 · fix(readiness): 正文抽完就地判语言，译文节拍跟着资源走
+- `4d71dfdd6e40ac4ed22549d883f597875b159fd2` · 2026-11-08 · XinChen Xiong · Merge pull request #282 from xxc2007/fix/language-inference-20261108
+- `141e80c9eafb679450a101b8d7f6ad43b221fac0` · 2026-11-08 · lead · fix(sweep): 扫稿先取最近一天的稿子，读者面不再被陈稿堵住
+- `aa4dd2c892065fea4cb9fbbe4225a94fbb4fef4a` · 2026-11-08 · XinChen Xiong · Merge pull request #283 from xxc2007/fix/sweep-fresh-band-20261108
+- `247d105669fbc03cddb6c8ba73b99b5d96a4064e` · 2026-11-08 · lead · perf(receipts): 结清回执只留一天；feat(worker): 新增 fetcher 采集角色
+- `8d435ecad123afa6a1174d0ec921eecc62fa92f6` · 2026-11-08 · lead · fix(reader): 译文与媒体不再把稿子关在门外，后台保留离线机器
+- `df5752b6afa6f388cc26a0122d6f610b42cfa50a` · 2026-11-08 · lead · fix(media): 实体解码改成一次扫描，避免二次反转义
+- `5beee98a4987eeb9ce893a90d509bc965fadb623` · 2026-11-08 · lead · fix(translate): 撤掉改批宽与输出上限的改动，回执按请求内容记账
+- `dde1730012e7fb4bbcbafaf5c3a5925646a38f4d` · 2026-11-08 · lead · feat(media): 取图超时按机器可调、摘图兜底默认关闭、取图单独一路
+- `b9a5b7008352281594b701752e430a3498698ddd` · 2026-11-08 · XinChen Xiong · Merge pull request #285 from xxc2007/fix/reader-pipeline-and-nodes-20261108
+- `221c8d2afce2e37d82efc8df262e428ba3972bc6` · 2026-11-08 · XinChen Xiong · fix(media): 源站明确拒绝的图跳过，可恢复失败继续严格重试
+- `c50bb0d2311e230588c9b9ce6d9a10792b6b6d83` · 2026-11-08 · XinChen Xiong · Merge pull request #286 from xxc2007/fix/media-refused-20261108
+- `a2db12ca2eeebb12c45e44faa998f2d154e5dce2` · 2026-11-09 · XinChen Xiong · fix(nginx): 读库卡顿时给读者上一版页面，而不是错误页
+- `aaafd722208485cf8dfb16ab1c026568b24650f4` · 2026-11-09 · XinChen Xiong · Merge pull request #287 from xxc2007/fix/page-stale-20261109
+- `45098993f51e8540aae56ad281570f5a788f3cf3` · 2026-11-09 · lead · fix(pool): 聚合查询限并发并带语句超时，超时退回上一次的数字
+- `0ab53918a6e8d8cd50c66c16a24b188dec9fe209` · 2026-11-09 · lead · fix(pool): SET 用 unsafe 拼常量，聚合失败不再 503
+- `82ae9f39d36f63ac09c9a4f40551ccfccb6bbc4a` · 2026-11-09 · XinChen Xiong · Merge pull request #288 from xxc2007/fix/aggregate-budget-20261109
+- `d82d4c167a686c314b50459a108ca5588a21fc97` · 2026-11-09 · lead · chore(deploy): 把媒体预热单元登记进仓库
+- `3668f15cebb8a490f5b35039235e56e904f44a15` · 2026-11-09 · XinChen Xiong · Merge pull request #289 from xxc2007/fix/media-unit-template-20261109
+- `9ac479b07c60fa674e8d2f9ffe5f9acbe0f682f1` · 2026-11-14 · lead · fix(reader): 手机不再等收录池，重启后也有底稿
+- `89b98dec15eb968f5c5950b8a1ea1f94014f132d` · 2026-11-14 · lead · test(pool): 缓存接线改成盯 refreshPool，仍然断言读者不等刷新
+- `9a2dccb50fe9e3dc6588c9de64b68d4217d718bb` · 2026-11-14 · XinChen Xiong · Merge pull request #290 from xxc2007/fix/pool-snapshot-skeleton-20261114
+- `a6cfe488caba599796635e9a612581c57542cbaf` · 2026-11-14 · xxc2007 · fix(deploy): 包校验用 if 而不是 grep -q && { }，否则无匹配时脚本静默退出
+- `ce5188bfbfd79d012eaba04ce8fe7c57bef4308c` · 2026-11-14 · XinChen Xiong · Merge pull request #291 from xxc2007/fix/deploy-guard-20261114
+- `b799bed26f5b8d27487919e37c316d584b7b254e` · 2026-11-14 · lead · fix(deploy): 两处 set -e 地雷改用 if，避免静默退出
+- `7148d364cf1f85ea8cbb1ad6367213ff551a09c0` · 2026-11-14 · XinChen Xiong · Merge pull request #292 from xxc2007/fix/deploy-sete-20261114
+- `9375a5c140d26032185f6d46d24124e065512f19` · 2026-11-14 · lead · fix(worker): 协调节点不再漏领采集/归组/发布/定时作业
+- `48c85612057e498ebf59b62f2497ea88ea9f4083` · 2026-11-14 · XinChen Xiong · Merge pull request #293 from xxc2007/fix/coordinator-job-groups-20261114
+- `a6dfe5e2550cf7d112a26b4575b53e4e7fb0217b` · 2026-11-14 · lead · chore(deploy): box 保活脚本与单元进仓库，部署时连 *.mjs 一起同步
+- `d47e19e629f9c992a4f062935844e41c8b3a8397` · 2026-11-14 · lead · fix(selection): 补选精选时一并写 visible_after，否则门禁永远不放行
+- `c47a82fd3125050ddab427cafb6f48ec06018aca` · 2026-11-14 · XinChen Xiong · Merge pull request #294 from xxc2007/chore/box-hold-in-repo-20261114
+- `bc6552f238e742f648af562ee4764754490d3804` · 2026-11-14 · lead · perf(timeline): 快照保鲜 5 秒改 30 秒，首页不再每五秒冷算一次
+- `a471e062171ea8bccf90610d2141e6736469e923` · 2026-11-14 · XinChen Xiong · Merge pull request #295 from xxc2007/fix/selected-visible-after-20261114
+- `14722cf442c8d7adfff19390ee3d3c684b8b3838` · 2026-11-14 · lead · perf(reader): 时间线也留落盘底稿，重启后首屏不再等数据库
+- `f3844fef6c8584d8071295a100185df9ed7b38ce` · 2026-11-14 · lead · test(reader): 时间线内存回落的切片刻到 catch 里，避免与落盘底稿抢同一个标记
+- `f6022e117f2fdfcd9d3340f01eb749bac08f16d6` · 2026-11-14 · lead · feat(reader): 页面缓存由定时器预热，读者不再替全站等冷算
+- `e5f3b456620a81c0b214acf18c5297c5761d274d` · 2026-11-14 · XinChen Xiong · Merge pull request #296 from xxc2007/fix/timeline-snapshot-20261114
+- `f8c08c4500b11ab97ce14242c5cdeedd27a92938` · 2026-11-14 · lead · fix(nginx): 订阅源单独一层缓存，限连接对回环豁免
+- `e39286def80f4e3c51c2d14b62f35411d4dd590e` · 2026-11-14 · XinChen Xiong · Merge pull request #297 from xxc2007/fix/nginx-feed-cache-20261114
+- `c6d77149bd2101cb987749db21497f8d55054a54` · 2026-11-14 · lead · perf(feeds): 订阅源进程内缓存十分钟，过期先给旧的再后台换新
+- `f3887f577fc34e0f058ea72ac48d01db75ed848c` · 2026-11-14 · lead · feat(web): 主题页改成触底续读，不再需要按下一页
+- `9961485fb477e72cef2d4c6e331385b544f7d0b9` · 2026-11-14 · lead · fix(api): 订阅源缓存改由 GEOHOT_FEED_TTL_MS 控制，测试里关掉
+- `2cd192c699f94616e41160bb5ed957ce5d74bfb8` · 2026-11-14 · XinChen Xiong · Merge pull request #298 from xxc2007/fix/feed-cache-20261114
+- `69a4affadbb265ad4b7da0943bc7a042a19a27f6` · 2026-11-14 · XinChen Xiong · Merge branch 'main' into feat/topic-infinite-20261114
+- `25b3d3d3b3eb594904aa7e89f2e5f99759af946f` · 2026-11-14 · XinChen Xiong · Merge pull request #299 from xxc2007/feat/topic-infinite-20261114
+- `6191e5187c66cba80f5fc3fc69a15b6f6b2e9026` · 2026-11-15 · lead · feat(web): 后台三个列表改成滚到底续读，删掉 Pager
+- `19dba089fd7b7abeb7d6d0bd90e99dbf6f44ecbe` · 2026-11-15 · XinChen Xiong · Merge pull request #300 from xxc2007/feat/admin-infinite-20261115
+- `1de00a5d71b07fed725d62fba1e2fa0fb623726d` · 2026-11-15 · lead · perf(api): 收录池窗口放到 5/30 分钟，现算加 20 秒预算，预热器改两分钟
+- `31339977026f3f99c763a80e37ee7dfea89496a0` · 2026-11-15 · lead · test: 陈旧窗口放到 30 分钟后同步改断言
+- `7b89a8bd065a03c80e5f29c20124d2bd7749e529` · 2026-11-15 · XinChen Xiong · Merge pull request #301 from xxc2007/fix/pool-budget-20261115
+- `b87efd9679d1894670ee613da2f386461bb16316` · 2026-11-15 · lead · fix(deploy): 只还原进来时在岗的定时器；验收前等 I/O，等不到跳过巡检
+- `f0fba4f0026482f82e1cd4ae0a3cdaea8c3a8699` · 2026-11-15 · XinChen Xiong · Merge pull request #302 from xxc2007/fix/deploy-restore-and-io-guard-20261115
+- `50c2078a925ca5bd92b9596323efa8179cd746d2` · 2026-11-15 · lead · fix(backup): 夜间 pg_dump 让路给读者（ionice idle + 日志表不导数据）
+- `cfba50653a8e1f06a14e673326a8e1da89f193d7` · 2026-11-15 · XinChen Xiong · Merge pull request #303 from xxc2007/fix/backup-io-polite-20261115
+- `3a28079396f36662432b88f38c5e0c119e8157d4` · 2026-11-15 · lead · perf(reader): 首页与「全部」单独 60 秒预热带
+- `6f6e72c66213b04352c40a200873ea957fce0065` · 2026-11-15 · XinChen Xiong · Merge pull request #304 from xxc2007/fix/warm-hot-pages-20261115
+- `8d6091e85f78a7e43caf7841e28ade962d1a2498` · 2026-11-15 · lead · feat(models): 把 magpie 里实测能答话的九扇门登记进注册表并补进池
+- `8afde0dde1e5aa52817ce166c179041f5f33e521` · 2026-11-15 · lead · fix(models): auto 路由补上熔断行与报警去处登记
+- `ae03c87cd716f31e549291d3d805a26771e59df3` · 2026-11-15 · XinChen Xiong · Merge pull request #305 from xxc2007/feat/magpie-models-20261115
+- `e56e1acf48aad53ca03d7b98434e592fc734bdb1` · 2026-11-15 · lead · docs(env): 补上 MAGPIE_BASE_URL / MAGPIE_API_KEY 两个生产键
+- `f0ec79d22febea5c4221b945ad4f732969d5ff02` · 2026-11-15 · lead · docs(ops): 读者优先的吞吐配比与调参口径
+- `7986e713fea8ae765f2d676b5d0a091abe08821f` · 2026-11-15 · XinChen Xiong · Merge pull request #306 from xxc2007/fix/env-magpie-keys
+- `0c59dcd1b605e0d5459030b458eb7e5cb527aabe` · 2026-11-15 · XinChen Xiong · Merge pull request #307 from xxc2007/docs/reader-first-throughput
+- `3311d3faa7f6218ec51dafbd7ac888d4fa368dac` · 2026-11-15 · lead · feat(edge): 华为云广州做国内边缘，缓存反代 + 保温定时器
+- `f48d6ae532fbe741ed75483360af6cd693af412a` · 2026-11-15 · lead · docs(changelog): 补齐 4.0/5.0/6.0 三个重大更新，沿用 1.0–3.0 的专题卡写法
+- `394cb0e9076272b5ab7238db1e6fafc060a482e3` · 2026-11-15 · XinChen Xiong · Merge pull request #309 from xxc2007/feat/major-4-5-6-20261115
+- `32d85cf660cbeb6f5ebc710cd0184e7ddf744c02` · 2026-11-15 · lead · docs(edge): 记录华为云对未备案域名的拦截与已备案子域的正确接法
+- `76d2edf1b5c1f0c26374284bda7a6e883875b066` · 2026-11-15 · lead · feat(edge): 一条命令完成国内子域 A 记录与证书签发
+- `302343db34574b36b3cbe7c81e4986f4ef99e773` · 2026-11-15 · lead · feat(admin): 服务器面板按地名+公网 IP 认机器，不再显示实例 id
+- `9773fe17bf6a0daa941fb71d14976a1e3bc5fc2a` · 2026-11-15 · lead · test(web): 面板机器名断言不拼正则，避开 CodeQL 的不完整转义
+- `a1d84ad1e8512f5c9a382f3a951967c4115ffbab` · 2026-11-15 · XinChen Xiong · Merge pull request #312 from xxc2007/feat/node-labels-20261115
+- `abf336ce3f7f83fcdf10bfe05c83d8ec53a98655` · 2026-11-15 · lead · fix(admin): 本机那张卡也按地名显示，不再只给主机名
+- `99db9e74868658da85d502af1855e23bfd51d001` · 2026-11-15 · XinChen Xiong · Merge pull request #313 from xxc2007/fix/local-card-place
+- `6dd462fe45bd91c0fd12306c13b75612e53fa2bf` · 2026-11-15 · lead · fix(admin): 机器名与 IP 用分隔号连起来，box 的主机名 main 也认作 box 沙箱
+- `315cc4601d2a59aa75ccdc0db5bb7a2b1ba7e602` · 2026-11-15 · XinChen Xiong · Merge pull request #314 from xxc2007/fix/node-labels-polish
+- `50b28fe76ea3518501eed5b1d0110ae82cf678b7` · 2026-11-15 · lead · feat(deploy): 执行器昼夜档进仓库，白天只采集、夜里一个分析槽
+- `3aca55acf3d47a5c9015ee11e06ae092c46d5425` · 2026-11-15 · lead · feat(admin): 信源页加『正式采集目标』旋钮，只改政策上限并写审计
+- `40c0152829fd4562fb06a473bc4667567bb22c62` · 2026-11-15 · XinChen Xiong · Merge pull request #315 from xxc2007/feat/role-window-20261115
+- `d4dbda9aa50a9031ac70c6c02c4845ebf377ac0e` · 2026-11-15 · XinChen Xiong · Merge branch 'main' into feat/source-policy-20261115
+- `db478cd76edee2ded414b114f83281675502f7b2` · 2026-11-15 · XinChen Xiong · Merge pull request #316 from xxc2007/feat/source-policy-20261115
+- `f5570f9ee9d7a0752e94558b9d20f6892aa77dc6` · 2026-11-15 · lead · chore(deploy): 刷新邻居站基线到 2026-11-15（介绍站/sitemap/纪念册已改）
+- `1a26ceb6baa4d552a4ba28ac93582fc3b3f60d81` · 2026-11-15 · XinChen Xiong · Merge pull request #317 from xxc2007/chore/baseline-20261115
+- `5612788a7a4468a33514bee5dae73dd76655a91c` · 2026-11-15 · lead · fix(admin): 后台读超时后重试一次，第二次给到 12 秒
+- `e1c4418e75b1d83cf445c33810bcc69154be4d03` · 2026-11-15 · lead · fix(admin): 重试改成可关闭的第二次机会，deadline 用例只试一次
+- `b746b16d19bd922e654e203434f249762c69c22f` · 2026-11-15 · XinChen Xiong · Merge pull request #318 from xxc2007/fix/admin-read-retry-20261115
+- `231f5f1a00a5e4a7f96b1547c2be51e55ec8306c` · 2026-11-15 · lead · fix(role-window): 白天只关分析，别把正文提取一起关掉
+- `79d13983d2726c977c93af91b4ddf246b92b386d` · 2026-11-15 · XinChen Xiong · Merge pull request #319 from xxc2007/fix/role-window-extraction-20261115
+- `05cd8f82409a19626b37786ea172c7dcb456784d` · 2026-11-15 · lead · feat(role-window): 夜里 2 槽、三台执行器都挂昼夜档
+- `d7c548e9e1f5b5ef9ed7a698215db6278662e934` · 2026-11-15 · XinChen Xiong · Merge pull request #320 from xxc2007/feat/night-slots-20261115
+- `c08c87e7232afecdbcd3031b29044929a45dcb82` · 2026-11-15 · lead · docs: 补上干净 clone 复验暴露的三处部署缺口，并加守卫测试
+- `dce4c45965492c6e8aec2cb24dc8af199c709316` · 2026-11-15 · XinChen Xiong · Merge pull request #321 from xxc2007/docs/local-deploy-gaps-20261115
+- `1e95af449bce92d66845fefff324eaf3dbf92ce8` · 2026-11-15 · lead · test: 预算测试按「剩余正好 N」重设，去掉分钟边界带来的假失败
+- `c39d6e004a1271fe4717f8638e0c02de9acddcb2` · 2026-11-15 · XinChen Xiong · Merge pull request #322 from xxc2007/fix/model-pool-flake-20261115
+- `d06fc1ac395bdeae220b6dcd8d27311192439ac7` · 2026-11-15 · lead · fix(box): 保活改指数退避，钱包为空时不再每 16 秒刷一条 reconnect
+- `7fff8c455b7e69f8ebaccd413cc09f2b24cb5e10` · 2026-11-15 · XinChen Xiong · Merge pull request #323 from xxc2007/fix/box-hold-backoff-20261115
+- `1a18e0340306bfc2ff7fcb19143222bda1f0c012` · 2026-11-15 · lead · fix(ops): 收据表回收挪到 04:10 窗口，autovacuum 不再在白天把慢盘打满
+- `ee8b26a6e311c5575ed1457b7384a17cedf313ee` · 2026-11-15 · XinChen Xiong · Merge pull request #324 from xxc2007/fix/autovacuum-window-20261115
+- `94fef81b83ca195942af44d3455e7c0e4ea3769a` · 2026-11-15 · lead · feat(edge): cn.xxc2007.me 用 DNS-01 签证书；服务器面板认得 InstaBox
+- `4572144eef15c5079a0b22d08db8279c4ca74c33` · 2026-11-15 · lead · feat(fleet): InstaBox 接成第五个执行器，主库每 20 分钟打一次 /wake 保活
+- `5d99f7594afaa4b04bc6da328e6b937c4506e4a2` · 2026-11-15 · XinChen Xiong · Merge pull request #325 from xxc2007/feat/edge-tls-dns01-20261115
+- `578d681ccaa34efec9c3c591ff568a67c13f013f` · 2026-11-16 · lead · fix(fleet): 沙箱保活改 5 分钟入向活动 + /start 唤醒 + /data 自举
+- `7ed73882465cb83005175e06fd1e316dde4fa682` · 2026-11-16 · lead · perf(reader): 时间线快照放到十分钟；部署快照只留最近三个
+- `0c8efb1d56aed6c82d45416555324e19f4c1a47c` · 2026-11-16 · lead · perf(admin): 用量总览加进程内缓存与旧值回退，后台不再等到超时
+- `c4d9b7a0b7648ea5bcfaea6b233287bf42044c36` · 2026-11-16 · XinChen Xiong · Merge pull request #326 from xxc2007/main-local
+- `2bb6dfe0f571ce4278c822e34ca7dd982328358d` · 2026-11-16 · lead · perf(admin): 设置/模型/主题轮换/审计/用量共用一层页面缓存，慢盘上先给旧值
+- `9123b54c8d9af5681db615f1d60e8ba204469ad2` · 2026-11-16 · XinChen Xiong · Merge pull request #327 from xxc2007/fix/admin-page-cache-20261116
+- `8e1dbcd6858cb763964e858e5f9800525d644ed7` · 2026-11-16 · lead · perf(auth): 会话校验进程内缓存 30 秒，慢盘上后台不再卡在登录
+- `8f69e231478d4f0b358af6361de14aedde4799fa` · 2026-11-16 · lead · fix(ops): 凌晨回收加 io 护栏与成本参数，别再把盘读死
+- `c13336393136bdecc889cc4817dae74f0b50376f` · 2026-11-16 · XinChen Xiong · Merge pull request #328 from xxc2007/fix/session-cache-20261116
+- `953e9a5abb801c3ffd03c9075e1b15a56c3fdd5c` · 2026-11-16 · XinChen Xiong · Merge branch 'main' into fix/vacuum-io-guard-20261116
+- `2be960e309b012ece45da4952a247639a2028cc4` · 2026-11-16 · XinChen Xiong · Merge pull request #329 from xxc2007/fix/vacuum-io-guard-20261116
+- `c72ec1c0a4f6b061b2aebb1720717bc94fd22c37` · 2026-11-16 · lead · fix(web): 外观过渡被作废时补做一次应用，选择不再丢
+- `dc8db2a6b9881c4c4c947b90e098d5e206f89aef` · 2026-11-16 · XinChen Xiong · Merge pull request #332 from xxc2007/fix/theme-transition-abort-20261116
+- `f8ee990cfd66b7249b1669cd27e4a01dee68faf0` · 2026-11-16 · lead · security(admin): 面板的机器地址改由环境变量下发，仓库里不再写死
+- `5d235cce60bbfcb2990117dd03499346c9d4e642` · 2026-11-16 · XinChen Xiong · Merge pull request #331 from xxc2007/security/node-ips-env-20261116
+- `45d3b6c3b954331e9c9e2b199821ea72032e0750` · 2026-11-16 · xxc2007 · test(deploy): 快照判据在 Windows 上不再假红
+- `6d30a5230141109851deccb25d31c460d2b746a6` · 2026-11-16 · XinChen Xiong · Merge pull request #333 from xxc2007/test/snapshot-crlf-20261116
+- `4f2b5369eacd1de7584e23e4adbc13fa48e41025` · 2026-11-16 · lead · perf(topics): 主题计数缓存与页面缓存同频（1 分钟 → 5 分钟）
+- `7d001b14b9b17af450dca9e68546e3a31d883ac3` · 2026-11-16 · xxc2007 · security(sources): fast-xml-parser 5.11.1 → 5.12.0
+- `6f865197032329c2e32f355009d2784e42dddf80` · 2026-11-16 · XinChen Xiong · Merge pull request #335 from xxc2007/batch/topics-fxp-20261116
+- `702265f78bb5c499876cc1b47038f5bd0ae9bf25` · 2026-11-16 · xxc2007 · fix(ops): 白天不再整天停机——收敛执行器的三套昼夜机制
+- `3b57a53bb73d3037140515c412adb9455118fc03` · 2026-11-16 · xxc2007 · fix(routing): 模型池里摘掉 magpie 已经不认的 11 个别名
+- `7cffc34ec096254e0a5e30939f1815441cb53bc0` · 2026-11-16 · xxc2007 · fix(retention): 停在半路的回执也在一周后丢掉正文
+- `b66d866c49ca4a865a34b28d519e9bea67723c3f` · 2026-11-16 · xxc2007 · test(ops): 白天的分析槽从 0 改成 1，旧断言跟着改
+- `2733b15cf85e3a7619056de688feaa73c5de7ed2` · 2026-11-16 · XinChen Xiong · Merge pull request #336 from xxc2007/ops/executor-day-window-20261116
+- `1ca137816a7b4566498ca02848d913fabcc8f765` · 2026-11-16 · xxc2007 · fix(admin): 后台里的 Magpie 面板不再被自己的限速打空
+- `9fb328cc8f512430d77ec4edcb5c3d63714ae644` · 2026-11-16 · XinChen Xiong · Merge pull request #337 from xxc2007/fix/magpie-panel-rate-limit
+- `5d26bec7d04bfe2fdc57d599895b2deefa78276d` · 2026-11-16 · xxc2007 · fix(ops): 四台分析器把慢盘写死之后，白天只留一台做分析
+- `a1b43c81ef27f6f682af1b402f6fbc6dedda147a` · 2026-11-16 · XinChen Xiong · Merge pull request #338 from xxc2007/fix/day-one-analyzer-20261116
+- `516752a87237ed89bf1a454e40e93d1168da02de` · 2026-11-16 · lead · feat(sources): 备用池补齐工具 + 开发库窗口静默
+- `15aa061f52a42845e091a1bfefb02c1ef8c20efa` · 2026-11-16 · xxc2007 · fix(ops): 主库换页到线就重启读者面进程
+- `0a46796ded1a66299d324724be0954fafc2fcda8` · 2026-11-16 · XinChen Xiong · Merge pull request #339 from xxc2007/feat/reserve-backfill-20261116
+- `fd144c6c91cba3a2770d33f5c8b9a6df2522d1e9` · 2026-11-16 · xxc2007 · perf(db): 把取作业的索引留在仓库里
+- `62c485085ed0f1d75fa7ac28d5c4db2499b6caa2` · 2026-11-16 · xxc2007 · fix(tooling): 备用补齐的每一次写库都能重来
+- `a8114706b39f38142f113663461362e2488fa7af` · 2026-11-16 · xxc2007 · perf(ops): 预热在机器被压住时让路
+- `74794ecaba9d204a07a1d2221a2fb5214f779e11` · 2026-11-16 · xxc2007 · fix(db): 迁移在全新库上先问 schema 在不在
+- `fe839bb752a8ab96515b16c72d0af4c7234e690c` · 2026-11-16 · xxc2007 · fix(scripts): 开发库黑框回归——补丁要打到每一处 spawn，不只是 initdb
+- `89204af5d28d4c3b0abd1b256f6cb02da95dd7da` · 2026-11-16 · XinChen Xiong · Merge pull request #340 from xxc2007/ops/memory-guard-20261116
+- `a832a2da7257267d5f2576f69c95b43b156f0d0c` · 2026-11-16 · xxc2007 · fix(deploy): postgres 调优片段进仓库——机器上那行 cost_delay=200 让数据库重启时起不来
+- `1f0278683658749f1896469c61244951a7204e31` · 2026-11-16 · xxc2007 · docs(changelog): 数据库调优不再自己踩雷
+- `7a95cacd1dd4ae74280dc5eeb2092acdb1241049` · 2026-11-16 · XinChen Xiong · Merge pull request #341 from xxc2007/fix/pg-conf-range-20261116
+- `8ad6a4a3ad8655bc05c1e7bf74d926ad8c8a1793` · 2026-11-16 · xxc2007 · feat(models): hy3 全部换成 hy4 flash，agnes 提到最强推理档
+- `f51062193c2c305c04f5f70ad92c7db57695f682` · 2026-11-16 · XinChen Xiong · Merge pull request #342 from xxc2007/feat/hy4-flash-agnes-max
+- `bf5a6528fd70ff2f53bdfc3391befccb66c46180` · 2026-11-16 · xxc2007 · fix(models): 池子里的 hy4 改用上游真正的 hy4-flash，并摘掉早已 404 的 auto-hy3
+- `ec6ec10da5cf67db8f7fa6c70f3c8c6e96035808` · 2026-11-16 · XinChen Xiong · Merge pull request #343 from xxc2007/fix/hy4-flash-id-20261116
+- `92e23e6ec5817e3bbe56b7304662b9d0090a427c` · 2026-11-16 · xxc2007 · fix(server-autonomy-reader-recovery): body-quality guard, public-read deadline, reserve pool mutex, source stats
+- `475d10cdf0d88530c791043c3d8a5680831087ef` · 2026-11-16 · xxc2007 · fix(body-quality): exempt structured short bulletins, keep cookie/template/placeholder hard defects
+- `72d4e713313aa4a677dad29ef540b2b75d1b19f8` · 2026-11-16 · xxc2007 · fix(model-cooldown): category-aware cooldown with explicit reset timestamp
+- `2f69ed9a200a27d7663b1f83a98c97604a3e2ed6` · 2026-11-16 · xxc2007 · feat(admin/models): show cooldown states with evidence time and recovery conditions
+- `d7de83537f1abf2b6a445730dc21f31bb49add74` · 2026-11-16 · xxc2007 · test(body-quality): replace short placeholder bodies with coherent ~150-char fixtures and update reason-code assertions
+- `9f8ad7f1aec0c9979cc76aa1b8586f41d3785b7d` · 2026-11-17 · xxc2007 · fix(body-quality): skip cross-script title mismatch, restore policy lower bound, fix hyphen reason queries
+- `1a1d524167216082406b73e03e31f8dbd54e42fb` · 2026-11-17 · xxc2007 · test(body-quality): lengthen followups and publication translation fixtures
+- `9a1b0bab398f78985573057d054de9848718da7f` · 2026-11-17 · xxc2007 · test(translate): lengthen English source bodies and mock Chinese translations past body-quality threshold
+- `462489b057db767d2cf66ed1f7d98b052e8d49d0` · 2026-11-17 · xxc2007 · fix(model-cooldown): unknown 4xx not cooled as config; update tests for same-call 429 fallback
+- `294d5de48fd3c3de06afc2cfe65a275387dc1ebb` · 2026-11-17 · xxc2007 · test(fixtures): align reader-gate, extraction-shutdown, og-cache, translate with body-quality gate
+- `06be881574e557564e878a087fac236525ae73a6` · 2026-11-17 · xxc2007 · fix(exec): point bootstrap2 at db+model tunnel units, ignore deploy/geohot/tmp and tooling scratch
+- `48d818a2908ef440055d22aec4b9854dae3adac9` · 2026-11-17 · xxc2007 · feat(reserves): POST search discriminator + preflight dry-run + int-nasa-breaking
+- `c4919bbb5169f15ce1abe1119b832e10b7aa470e` · 2026-11-17 · xxc2007 · fix(reserves): nested bodyJson discriminator + preflight octal escape
+- `489216803a536459c91a09b564e74dad967c41a3` · 2026-11-17 · xxc2007 · test(translate-long-body): also reset eligible when isolating target article
+- `b79c259dad72d0bf4dfde99d40fdb5e30ca943d1` · 2026-11-17 · xxc2007 · fix(admin/sources): policy total = active+reserve union, not all non-retired sources
+- `797c85e995858cf2924094a375051c863d1315f4` · 2026-11-17 · xxc2007 · fix(sources.schedule): honor FETCH_SCHEDULE_BATCH in balanced mode
+- `89e251dcf50587ec0de994cfa9aeb7afee6c71f8` · 2026-11-17 · XinChen Xiong · Merge pull request #344 from xxc2007/fix/server-autonomy-reader-recovery-20261116
+- `67a3f6c15bc5dcfafd2a2e99cb22f61686eba18f` · 2026-11-17 · xxc2007 · fix(body-quality): flag NBS reader chrome contamination as defect
+- `0c9283723debfa12d355d07a824eb78ddb298baf` · 2026-11-17 · XinChen Xiong · Merge pull request #345 from xxc2007/fix/nbs-body-quality-20261117
+- `b20ab06b2a5e747a7e6486406940d87e7a44d0ce` · 2026-11-17 · xxc2007 · feat(admin/usage): versioned pricing_rates + missingLabels non-blocking
+- `0d35fa2449590bdde8a6648bed0e5a9d10ed538e` · 2026-11-17 · xxc2007 · fix(magpie-proxy): static assets bypass rate limit + pricing map importer
+- `c6f65f8c86155e8ae078c7e3c5149e36fbcaa63f` · 2026-11-17 · xxc2007 · feat(pricing): merge A/B/C mapping, subscription/free/no-rate separated
+- `cd8d53f414d96b0810c5cadb598b0f5a182a8cbe` · 2026-11-18 · xxc2007 · feat(admin/usage): split billing kinds, versioned pricing seed, non-blocking labels
+- `c45c7e0e93a69f0e643df627e90fd10aaaa94030` · 2026-11-18 · 熊鑫晨 · fix(admin/usage-magpie): explicit loading/ready/stale/error states, bounded timeout, no fake zeros
+- `0c3997593e5b56e54be357747668a52ba27ffc90` · 2026-11-18 · xxc2007 · test(pricing): seed integrity — 47 mappings, non-estimate rows carry null price
+- `909479420f9c569ccfc3f37988d84e4aa41b3399` · 2026-11-18 · xxc2007 · feat(magpie-proxy): configurable loopback upstream via MAGPIE_WEB_BASE_URL
+- `0e262629a62f78ac431e0651ff8a8421c496529f` · 2026-11-18 · xxc2007 · test(snapshot): unavailable no fake zero, last-good kept, single in-flight refresh
+- `6f8936da67d4c6ce830f59e1f8231be4b076032e` · 2026-11-18 · xxc2007 · feat(admin/usage-pricing): reproducible seed, call-time rate versions, async refresh, snapshot v2, proxy limit split
+- `511af0cf50d7e452deff6989aa8882743162f404` · 2026-11-18 · xxc2007 · feat(admin/usage-pricing): derive reasoning tokens, conservative pricing refresh timer, fix public-api baseline rates
+- `e8c56cf7138032e20387eac0ff1878f78bd64370` · 2026-11-20 · xxc2007 · fix(admin/usage-pricing): align 12 seed keys to production inventory, call-time peak factor, no constant fallback
+- `7fbde37f732afbe76918cf54d59fa5c2d5249f7f` · 2026-11-20 · xxc2007 · docs(admin-usage): sync agent/ops docs to four-node model-pool state
+- `ced27b88e7f31dbc96c6f550043b1ea3a88410d1` · 2026-11-20 · xxc2007 · docs(admin-usage): align pricing kinds/seed/refresh and Magpie proxy facts with final code
+- `f4039d0b8331e6e7551731586c4a2bbcbc7c1e7d` · 2026-11-20 · xxc2007 · chore(security): remove hardcoded production hosts from deploy scripts and docs
+- `03eb88fa91f0a53bc1c078fe8a0b1fd08c6b80b9` · 2026-11-20 · xxc2007 · fix(reader-capacity): release gate slots on wall-clock deadline; isolate health probe
+- `08f56a3afcd49ea886f4a12a70ae6db268c0784c` · 2026-11-20 · xxc2007 · fix(reader-capacity): keep gate deadline timers ref'd so wall-clock release always fires
+- `0ec277eb6451377cbc0b8a547e0306ead81dda5f` · 2026-11-20 · xxc2007 · test(docs): assert migration count is queried, not hardcoded
+- `74fb2f22886c87f14312b79b359e98d28a6f07a0` · 2026-11-20 · XinChen Xiong · Merge pull request #347 from xxc2007/fix/admin-usage-magpie-20261117
+- `533c17b81e276a281b9db6c319bdc6481682076e` · 2026-11-20 · xxc2007 · fix(admin): harden usage pricing aggregation and Magpie icons
+- `9c6d381e4dea2999a7ed6101a156610b76b30414` · 2026-11-20 · XinChen Xiong · Merge pull request #348 from xxc2007/fix/admin-usage-pricing-null
+- `55e815dad5bf42c87b702429fedb3f7a95b6d67c` · 2026-11-20 · xxc2007 · docs: align agent notes with admin usage and Magpie facts
+- `20670a5e1b0ba47ed751c5ee11fba81497bed5eb` · 2026-11-20 · XinChen Xiong · Merge pull request #349 from xxc2007/docs/final-agent-notes-20261120
+- `bbde6a25db2a31eda0e73b270d3979ef6d574b55` · 2026-11-20 · xxc2007 · fix: keep admin snapshots usable under production pressure
+- `b0a66fb5d9ccf6460ce493a560f63f8a5b85c49b` · 2026-11-20 · XinChen Xiong · Merge pull request #350 from xxc2007/fix/admin-resilience-20261120
+- `6bcf5d6e7df9cac9912a73ae501c140b3b703987` · 2026-11-20 · xxc2007 · docs: consolidate 2026-11-20 production hardening
+- `de12cb5ee944d5dfd0ff49541d5d9d0366d92f5a` · 2026-11-20 · xxc2007 · docs: keep changelog entry within reader limits
+- `284c766ce8565fcb24a38060932de25140d11f5d` · 2026-11-20 · XinChen Xiong · Merge pull request #351 from xxc2007/docs/consolidate-20261120
+- `e6e588b0c8f23f6841f061d50125b8cbfb518722` · 2026-11-20 · xxc2007 · fix(admin): warm snapshots and stop caching unavailable usage
+- `88ac8e45e920ee924886cd1c652cd8549262b602` · 2026-11-20 · xxc2007 · feat(changelog): publish 7.0 source pool and 8.0 model ledger cards
+- `3ae5c0c285855b26ce7cfa888ce2ca10bef9d70c` · 2026-11-20 · xxc2007 · docs(changelog): keep 7.0/8.0 bodies within the three-line scan limit
+- `4100ec48453f69bd5bd3b689b8d21d83f7c7546a` · 2026-11-20 · XinChen Xiong · Merge pull request #352 from xxc2007/fix/admin-snapshot-sources-20261120
+- `574fa15854b4f986193ece9ead03daa6e43a33af` · 2026-11-20 · xxc2007 · fix(reserves): bind participation mode instead of quoting it as a column
+- `c73a63891e22cd3fc8f5bc0c4a4472b990252684` · 2026-11-20 · XinChen Xiong · Merge pull request #353 from xxc2007/fix/reserve-replenish-quoting-20261120
+- `ec0ec1746347ffabaa13f23094bf37626efe213f` · 2026-11-21 · xxc2007 · docs: record the reader API pool floor and the systemd override trap
+- `7489e4ca0ce03217352d0c13fe91aae3df9de50a` · 2026-11-21 · XinChen Xiong · Merge pull request #354 from xxc2007/docs/db-pool-20261121
+- `41533a386d28a6df12ed18f238f0ab82818f2825` · 2026-11-21 · xxc2007 · feat(sources): multi-engine discovery with quality gate and review queue
+- `6e446c1186b7960c3194c604484a5029dd27a502` · 2026-11-21 · XinChen Xiong · Merge pull request #355 from xxc2007/feat/source-discovery-engines-20261121
+- `8b4d04c20fe143130143e4480815503e21822a64` · 2026-11-21 · xxc2007 · fix(discovery): give Jina search the measured 35s budget
+- `8310405bbfd26d67ed3f6e185b475d5d8d862059` · 2026-11-21 · xxc2007 · docs(discovery): list the two remaining DSH engines and why they stay out
+- `2e5edf22ceb76548646fe92d20b0dc8fa7ec59b3` · 2026-11-21 · XinChen Xiong · Merge pull request #356 from xxc2007/fix/jina-timeout-20261121
