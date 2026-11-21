@@ -256,9 +256,12 @@ if [ -d "$APP_ROOT/deploy/geohot/systemd" ]; then
 # 2026-11-16 事故：机器上手写的 /etc/postgresql/17/main/conf.d/zz-geohot-vacuum.conf 里
 # autovacuum_vacuum_cost_delay = 200 超出 PG17 上限（-1..100），重启数据库直接起不来。
 # 调优片段因此进仓库、由部署同步，并由 tests/postgres-conf-range.test.ts 守范围。
-if [ -d /etc/postgresql/17/main/conf.d ] && [ -f "$here/postgres/zz-geohot-vacuum.conf" ]; then
-  if ! cmp -s "$here/postgres/zz-geohot-vacuum.conf" /etc/postgresql/17/main/conf.d/zz-geohot-vacuum.conf; then
-    sudo install -m 644 "$here/postgres/zz-geohot-vacuum.conf" /etc/postgresql/17/main/conf.d/zz-geohot-vacuum.conf
+if [ -d /etc/postgresql/17/main/conf.d ] && [ -f "$APP_ROOT/deploy/geohot/postgres/zz-geohot-vacuum.conf" ]; then
+  # "$here" 在远端 heredoc 里从未定义（本地脚本才有 here）：set -u 下引用即崩，
+  # 2026-11-21 18:4x 现场远端序列死在这一行（bin/systemd 已同步、迁移未跑）。
+  # 解包后的树里该文件在 $APP_ROOT/deploy/geohot/postgres/，与 nginx 块同一取径。
+  if ! cmp -s "$APP_ROOT/deploy/geohot/postgres/zz-geohot-vacuum.conf" /etc/postgresql/17/main/conf.d/zz-geohot-vacuum.conf; then
+    sudo install -m 644 "$APP_ROOT/deploy/geohot/postgres/zz-geohot-vacuum.conf" /etc/postgresql/17/main/conf.d/zz-geohot-vacuum.conf
     echo "postgres: 调优片段已同步（reload 生效，需重启数据库时它不会再挡住启动）"
   fi
 fi
