@@ -18,7 +18,7 @@ An earthquake, a changing city, a new satellite image: geography takes shape in 
 
 Read without an account, search and filter by category, save local bookmarks or subscribe through RSS. Public APIs and MCP give developers access to the same published content. The website’s reading interface and editorial output are in Chinese.
 
-[Film](#-product-film) · [Reading experience](#reading-experience) · [Selection](#how-material-becomes-a-selected-story) · [Architecture](#architecture) · [Open interfaces](#pages-and-open-interfaces) · [Run locally](#local-development-and-adaptation) · [Content boundaries](#content-boundaries) · [License](#-license) · [Star History](#star-history)
+[Film](#-product-film) · [Reading experience](#reading-experience) · [Selection](#how-material-becomes-a-selected-story) · [Architecture](#architecture) · [Open interfaces](#pages-and-open-interfaces) · [Usage snapshots](#usage-snapshots) · [Reliability](#reliability-and-observability) · [Run locally](#local-development-and-adaptation) · [Content boundaries](#content-boundaries) · [License](#-license) · [Star History](#star-history)
 
 </div>
 
@@ -115,6 +115,24 @@ Paths below are relative to the live site’s `/geohot/` prefix.
 - **Agent integration:** MCP at `/api/mcp`, alongside `/llms.txt`; see the [integration page](https://xxc2007.me/geohot/agent).
 - **Current figures:** consult [site statistics](https://xxc2007.me/geohot/api/site/stats) and the public website for source and content totals.
 
+## Usage snapshots
+
+The admin usage overview and per-day views read pre-computed snapshots, and the page refreshes its figures every 30 seconds:
+
+- The five ranges (today, 7, 30, 90 days and all) share one aggregation; each single date builds its own snapshot.
+- Snapshots persist on disk for 24 hours; recomputation runs one aggregate at a time in the background, only while the server has headroom, never recomputes the same snapshot within a few minutes, and backs off automatically after a failure.
+- Since 21 November 2026 the overview and day views usually return immediately, and the previous waits of ten seconds and more are gone; while a snapshot is stale the page keeps the last successful figures with their update time and replaces them once the background recompute finishes. Before any data exists, the page says so plainly rather than showing a zero.
+- If some historical calls temporarily lack their service and purpose grouping (a transitional state while labels are backfilled), call counts, tokens and actual cost stay visible, no data is lost and nothing is blocked.
+
+The accounting rules behind the usage pages are detailed in the [backend cost notes](docs/admin-official-pricing.md).
+
+## Reliability and observability
+
+- **Health probe:** `/api/health` is public, and its `reason` field separates two cases — `gate_busy` and `query_timeout` mean the probe itself hit transient pressure (queuing or timeout) and recovers on its own; `conn_error` and `db_unavailable` are a real database-level failure.
+- **Snapshot refresh failures:** the service log keeps an `admin snapshot refresh failed` line (with an error code) while the page retains the last successful figures; if a statistics page stays outdated, search the service log for that marker.
+- **Connection pools:** the reader-facing pool floors (database pool ≥ 8, queue pool ≥ 3) are distributed by a server-side environment file that overrides the app's `.env`; confirm a change by reading the environment back from the running process — editing the file alone is not a completed change.
+- **Operating priority:** reader-facing availability comes before backfills, cleanups and diagnostics; maintenance avoids reader peak hours; throughput is never manufactured by clearing unknown receipts or raising concurrency.
+
 ## Local development and adaptation
 
 Node.js 24.11 or later is required. Install dependencies, then initialise local configuration:
@@ -125,6 +143,16 @@ npm run env:init
 ```
 
 The initialiser creates local environment files and random secrets, and refuses to overwrite existing configuration. Database, API, worker and web startup order, ports and verification commands are documented in the [operations and development handbook](docs/manual.md). The repository provides a local model stub and fixed fixtures for development and CI verification.
+
+Running the test suite needs its own throwaway database named with a `_test` or `_ci` suffix — the suite writes rows and refuses any other name. Create it, migrate it, then run the suite (the embedded dev cluster's defaults are user/password `geohot` on port 5433; substitute whatever your `.env` says):
+
+```bash
+node --input-type=module -e "import postgres from 'postgres'; const s = postgres('postgres://geohot:geohot@127.0.0.1:5433/postgres'); await s.unsafe('CREATE DATABASE geohot_test'); await s.end();"
+DATABASE_URL=postgres://geohot:geohot@127.0.0.1:5433/geohot_test npm run db:migrate
+DATABASE_URL=postgres://geohot:geohot@127.0.0.1:5433/geohot_test npm test
+```
+
+The suite takes `DATABASE_URL` from the shell only — never point it at the development database, and do not layer the app's env files on top, or their external-access switches would override the test defaults.
 
 Keep collection, model calls and other external-access switches off by default. Run the real pipeline with a separate configuration layer as described in the handbook, preserving the separation from development and tests.
 
