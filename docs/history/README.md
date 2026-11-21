@@ -44,7 +44,7 @@ flowchart LR
 | 文件 | 条数 | 覆盖对象 | 位置 |
 | --- | --- | --- | --- |
 | [`COMMIT-LEDGER.md`](COMMIT-LEDGER.md) | 1714 | 本仓库 `main` 的 HEAD 全部提交 | 本目录（1729 行：头部说明 + 分隔线 + 1714 行条目） |
-| `COMMIT-LEDGER-SIDE.md` | 10 | **不是本仓库**，见下方说明 | 工作区 `docs/history/`（仓库外） |
+| [`COMMIT-LEDGER-SIDE.md`](COMMIT-LEDGER-SIDE.md) | 35 | 本仓库侧分支/远端 ref 上、不在 `main` 历史上的提交 | 本目录 |
 
 `COMMIT-LEDGER.md` 的口径（照该文件头部）：
 
@@ -53,7 +53,7 @@ flowchart LR
 - 日期用 `%cd`（提交者日期），标题用 `%s` 原样保留，未改写、未截断
 - 按提交时间正序，第一行是根提交 `6220fe11ef5fe75f925e194e645480b050c5d782`（2026-10-01）
 
-> **`COMMIT-LEDGER-SIDE.md` 的适用范围必须标明。** 该文件头写的是「被记录的仓库：`D:\个人展示网站`」，`git rev-list HEAD --count` = 112，HEAD = `09d221ee`——它记录的是**隔壁的个人展示站仓库**，不是 GEOHOT。GEOHOT 自己的侧分支提交是另一个数：本次实测 `git rev-list --all --not HEAD --count` = **35**（含 1 个合并提交），且本仓库有 505 个 ref。所以「10 条侧分支提交」这个数字**不能**当作 GEOHOT 的侧分支覆盖结论；本仓库的侧分支提交目前**没有逐条台账**。这条偏差在此登记，未做补录。
+> **`COMMIT-LEDGER-SIDE.md` 的口径。** 它覆盖 GEOHOT 自己的 `git log --all --not HEAD`：本次实测 35 个提交（含 1 个合并提交），带 ref 装饰，因此能看到这些提交当时挂在哪条分支/远端 ref 上。它不并入 ERA-01…04 的正文，因为里面多数是并行实验分支与机械同步；HEAD 台账与侧分支台账合计 1749 个提交，等于 `git rev-list --all --count`。另一个仓库（`D:\个人展示网站`）的提交不属于本仓库，不在本文件里。
 
 ---
 
@@ -92,7 +92,7 @@ flowchart LR
 | [`AUDIT-WORKSPACE.md`](AUDIT-WORKSPACE.md) | `D:\地理热点网站` 顶层（不含 `GEOHOT/`）的体积、类型与用途 | 工作区 672,387,256 B ≈ 641.2 MiB / 25,649 个文件；本轮 **0 删除 / 0 移动** | 本目录与工作区 `docs/history/` 各存一份，`md5sum` 相同（`5f21faac…`） |
 | `AUDIT-SECURITY.md` | 仓库与工作区的敏感信息与泄露面 | 代码仓库这一侧干净（1290 个跟踪文件里只有两个 `.example` 模板；1749 次提交全量扫描 8 类密钥样式 0 命中）；风险全部落在仓库之外的工作区明文堆，21 组 | 只在工作区 `docs/history/`，**刻意不放本仓库**：`GEOHOT` 是公开仓库，把凭据文件的位置写进 `docs/` 等于向公网公布它 |
 
-**为什么有两份在仓库外。** `AUDIT-SECURITY.md` 的文件头明确写了这个理由（公开仓库不公布本机凭据位置），`COMMIT-LEDGER-SIDE.md` 则是记录另一个仓库的提交。这两份只存在于 `D:\地理热点网站\docs\history\`，克隆本仓库的人看不到。
+**为什么安全审计在仓库外。** `AUDIT-SECURITY.md` 与 `security-findings.json` 刻意只放在 `D:\地理热点网站\docs\history\`：这是公开仓库，把本机凭据文件的位置写进 `docs/` 等于向公网公布它们。仓库内只保留这份索引与不含位置细节的结论；克隆者看不到具体凭据路径，这是有意设计。
 
 ---
 
@@ -100,16 +100,17 @@ flowchart LR
 
 | 文件 | 内容 | 状态 |
 | --- | --- | --- |
-| [`cleanup-candidates.json`](cleanup-candidates.json) | 18 条候选，字段 `path / action / reason / evidence / risk / references` | 已有 |
-| `CLEANUP-PLAN-20261121.md`、`cleanup-plan.json` | 逐条拍板的执行计划 | **尚未生成**（截至本文件撰写时） |
+| [`cleanup-candidates.json`](cleanup-candidates.json) | 18 条结构审计候选，字段 `path / action / reason / evidence / risk / references` | 已有 |
+| [`CLEANUP-PLAN-20261121.md`](CLEANUP-PLAN-20261121.md)、[`cleanup-plan.json`](cleanup-plan.json) | 41 条逐条拍板的执行计划（含安全/工作区项） | 已生成 |
+| [`CLEANUP-EXECUTED.md`](CLEANUP-EXECUTED.md) | 实际执行/跳过的记录 | 已执行 auto 项；manual/keep 保留 |
 
-候选分布（从 `cleanup-candidates.json` 统计）：`delete` 7 条、`archive` 8 条、`keep` 3 条；风险 `low` 12 条、`medium` 6 条。
+计划分布（从 `cleanup-plan.json` 统计）：`delete` 13 条、`archive` 10 条、`keep` 18 条；其中 `requiresManual=true` 22 条。**只执行了两轮复核通过的 auto 项**；manual/keep 没有删除或移动。高风险明文凭据副本已移入 `D:\GEOHOT-SECURE-VAULT\20261121` 并收紧 ACL，轮换/撤销仍需站长在服务商侧完成。
 
 读这张清单要注意两件事：
 
-- `path` 是**相对工作区根** `D:\地理热点网站` 写的，所以仓库内文件带 `GEOHOT/` 前缀（如 `GEOHOT/apps/web/app/features/monitor/ResetCalendar.tsx`），工作区文件不带（如 `_diag/...`）。别把它当成本仓库的仓库相对路径。
+- `cleanup-candidates.json` 的 `path` 是**相对工作区根** `D:\地理热点网站` 写的，仓库内文件带 `GEOHOT/` 前缀；`cleanup-plan.json` 已归一化为 `scope=repo|workspace`，执行脚本按 scope 解析，不再混用前缀。
 - `keep` 的 3 条也是结论的一部分：`assets/leaderboard-sources/`、`assets/model-providers/` 属于已关停模块，但 `NOTICE:35-41` 大意是「保留以便上游模块被重新启用」，不是遗漏。
-- 本轮只出清单，**没有删除、没有移动任何文件**。删除要等逐条复核与站长确认。
+- 自动项已经执行：仓库内跟踪文件删除可从 git 历史取回；工作区删除项先移入 quarantine，跑过 typecheck/构建/测试后随最终清理删除；manual/keep 原样保留。
 
 ---
 
@@ -118,6 +119,7 @@ flowchart LR
 | 文件 | 由谁产出 | 形状 |
 | --- | --- | --- |
 | [`cleanup-candidates.json`](cleanup-candidates.json) | `AUDIT-STRUCTURE.md` | 数组，18 项 |
+| [`cleanup-plan.json`](cleanup-plan.json) | `CLEANUP-PLAN-20261121.md` | 数组，41 项；字段 `path, scope, action, reason, evidence, risk, requiresManual` |
 | [`workspace-inventory.json`](workspace-inventory.json) | `AUDIT-WORKSPACE.md` | 数组，字段 `path, size, kind, evidence, recommendation`（取值 keep / archive / delete / review） |
 | `security-findings.json` | `AUDIT-SECURITY.md` | 数组，字段 `where, kind, evidence, tracked`；**不含任何秘密值**，只到键名与长度 |
 
