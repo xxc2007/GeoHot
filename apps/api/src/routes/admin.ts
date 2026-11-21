@@ -270,6 +270,8 @@ export function registerAdmin(app: FastifyInstance) {
 
   // Attention counts for the navigation. The monitor column is gated like the routes above: counting
   // rows in a module this site does not run would light up a badge the operator cannot clear.
+  // 重聚合窗口里 1 秒截止会偶发 57014/55P03（2026-11-21 15:27:41 实测 500）：先给上次角标值、后台重算，
+  // 与 settings 缓存的「过期旧值先给」同哲学；错误只在此窗口内兜底，其余错误照常抛出。
   const readNavCounts = sharedAdminRead(10_000, () => sql.begin(async tx => {
     await tx`SET TRANSACTION READ ONLY`;
     await tx`SET LOCAL statement_timeout = '1000ms'`;
@@ -281,7 +283,11 @@ export function registerAdmin(app: FastifyInstance) {
              (SELECT count(*)::int FROM receipts WHERE status = 'unknown') AS runs,
              0 AS monitor`;
     return c;
-  }));
+  }), {
+    staleIfErrorMs: 600_000,
+    canUseStale: (error) => ["57014", "55P03"].includes((error as { code?: string })?.code ?? ""),
+    markStale: (value) => value,
+  });
   app.get("/api/admin/nav-counts", adminHandler(async () => readNavCounts()));
 
   // Audit trail

@@ -48,7 +48,7 @@ export async function readUsage(db: Tx, range: UsageRange | "*", service: string
         + CASE WHEN a.started_at >= now()-interval '7 days' THEN 2 ELSE 0 END
         + CASE WHEN a.started_at >= now()-interval '30 days' THEN 4 ELSE 0 END
         + CASE WHEN a.started_at >= now()-interval '90 days' THEN 8 ELSE 0 END) AS range_mask,
-        r.service,a.model,r.purpose,a.currency,date_trunc('hour',a.started_at) AS bucket,
+        a.service,a.model,a.purpose,a.currency,date_trunc('hour',a.started_at) AS bucket,
         count(*)::int AS calls,count(*) FILTER(WHERE a.status='received')::int AS ok,
         count(*) FILTER(WHERE a.status='failed')::int AS failed,count(*) FILTER(WHERE a.status='pending')::int AS pending,
         count(*) FILTER(WHERE a.status='unknown')::int AS unknown,sum(a.tokens_in) AS tokens_in,sum(a.tokens_out) AS tokens_out,
@@ -73,14 +73,17 @@ export async function readUsage(db: Tx, range: UsageRange | "*", service: string
         count(*) FILTER(WHERE pr.id IS NULL)::int AS unmapped_model_calls,
         pr.billing_kind AS pricing_kind,
         sum(a.latency_ms)::float8 AS latency_sum,count(a.latency_ms)::int AS latency_count,
-        count(*) FILTER(WHERE r.receipt_id IS NULL)::int AS missing_labels
+        -- 0127 反规范化：service/purpose 冻结在派生行里，读侧不再 LEFT JOIN 整张标签表
+        -- （日期读因此从「索引扫 a + 整表 Seq Scan 38.9 万行」变成纯索引扫描）。
+        -- missingLabels 口径 = a.service IS NULL：标签还没传播到派生行（历史缺口靠回填脚本、
+        -- 新写入靠 0127 传播触发器补齐），只作内部提示，不阻断读。
+        count(*) FILTER(WHERE a.service IS NULL)::int AS missing_labels
       FROM admin_model_attempt_metrics a
-      LEFT JOIN receipt_model_labels r ON r.receipt_id=a.receipt_id
-      LEFT JOIN pricing_rates pr ON pr.id = r.service || '::' || a.model
+      LEFT JOIN pricing_rates pr ON pr.id = a.service || '::' || a.model
       WHERE a.origin='live' AND a.model IS NOT NULL
         AND (${range} <> 'date' OR (a.started_at >= (${date}::date::timestamp AT TIME ZONE 'Asia/Shanghai') AND a.started_at < ((${date}::date + 1)::timestamp AT TIME ZONE 'Asia/Shanghai')))
-        AND (${service}='' OR r.service=${service}) AND (${model}='' OR a.model=${model})
-      GROUP BY range_mask,r.service,a.model,r.purpose,a.currency,pr.billing_kind,date_trunc('hour',a.started_at)
+        AND (${service}='' OR a.service=${service}) AND (${model}='' OR a.model=${model})
+      GROUP BY range_mask,a.service,a.model,a.purpose,a.currency,pr.billing_kind,date_trunc('hour',a.started_at)
     ), base AS MATERIALIZED (
       SELECT hourly.*,scope.range_key,(bucket AT TIME ZONE 'Asia/Shanghai')::date::text AS day,
         extract(isodow FROM bucket AT TIME ZONE 'Asia/Shanghai')::int AS dow,
@@ -112,11 +115,9 @@ export async function readUsage(db: Tx, range: UsageRange | "*", service: string
       coalesce(sum(reasoning_tokens),0)::float8 AS "reasoningTokens",coalesce(sum(reasoning_missing),0)::int AS "reasoningMissing",
       coalesce(sum(unknown_cache_in),0)::float8 AS "unknownCacheIn",coalesce(sum(cache_unknown_calls),0)::int AS "cacheUnknownCalls"
     FROM base GROUP BY GROUPING SETS((range_key),(range_key,service,model),(range_key,purpose),(range_key,day),(range_key,dow,hour),(range_key,currency),(range_key,service,model,day,dow,hour))`;
-  if (rows.some(r => r.missingLabels)) {
-    // 标签回填未完成不阻塞真实调用数/token/actual cost；只在结果上挂提示。
-    // 后台用量页必须能看到「实际打了多少次模型」，不能因为注册表标签没追上就整页 503。
-    // missingLabels 已聚合到 rows 里，前端可据此显示「标签回填中」。
-  }
+  // 标签缺口（missingLabels>0，即 a.service IS NULL 的行）从不整页阻断：回执数/token/actual cost
+  // 照常读出。0127 之后派生行在写入时冻结标签、缺口由传播触发器+回填脚本补齐，缺口只是过渡态；
+  // 「标签回填中」的前端提示从未实现（missingLabels 在下方 map 里剥除、前端拿不到），要做请单独立 PR。
   // 汇率单一来源：fx_rates 表最新一行（pricing-check timer 每日落库），无行回落 CNY_FX 常量。
   const [fxRow] = await db<{ rate: number; as_of: string; source_url: string | null }[]>`
     SELECT rate, as_of::text AS as_of, source_url FROM fx_rates WHERE pair = 'USD/CNY' ORDER BY as_of DESC LIMIT 1`;
@@ -161,7 +162,10 @@ const readers = new Map<string, ReturnType<typeof snapshotReader<UsageMetric>>>(
 function usageReader(range:UsageRange,service:string,model:string,date:string|null=null){
   const key=JSON.stringify(['usage-standard-v5',service,model,range==='date'?date:null]);let read=readers.get(key);
   if(!read){if(readers.size>=24)readers.delete(readers.keys().next().value!);
-    read=snapshotReader(()=>modelStatisticRead(db=>readUsage(db,range==='date'?'date':"*",service,model,date),30_000),snapshotStore<UsageMetric>(key),Date.now,{freshMs:30_000,canRefresh:usageHeadroom});readers.set(key,read);}
+    // fresh 窗口与 runs.ts 同为 300 秒：页面每 30 秒轮询一次，旧值 30 秒过期意味着每次轮询都可能把
+    // 一次 10 秒级大聚合排进 aggregateBusy 串行槽。HTTP 层已有 60 秒 fresh 的 MicroCache 兜底展示，
+    // 观感不变；快照层 5 分钟才重算一次大聚合。
+    read=snapshotReader(()=>modelStatisticRead(db=>readUsage(db,range==='date'?'date':"*",service,model,date),30_000),snapshotStore<UsageMetric>(key),Date.now,{freshMs:300_000,canRefresh:usageHeadroom});readers.set(key,read);}
   return read;
 }
 export async function primeUsageSnapshot(range:UsageRange){const reader=usageReader(range,'','');await reader.get();await reader.refresh();return reader.get();}
