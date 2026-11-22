@@ -1,20 +1,27 @@
 // Moving between reports: the archive column on desktop, a tab row and recent-issue chips on phones.
+// 页签、往期栏与手机 chip 的说法随页面语言走（lib/i18n/report.ts）；期次标题是动态内容，保持原样。
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import type { ReportNavigationEntry, ReportKind } from "@aihot/contracts/site";
 import { PillTabs } from "../../components/ui/Tabs";
 import { IconChevronRight } from "../../components/icons";
 import { publicPath } from "../../lib/public-path";
-import { KINDS, KIND_LABEL, KIND_PATH, archiveGroups, archiveMark, chipLabel, reportPath } from "./format";
+import { localeAppPath, localePath, useLocale } from "../../lib/i18n";
+import { copy } from "../../lib/i18n/report";
+import { KINDS, KIND_PATH, archiveGroups, archiveMark, chipLabel, reportPath } from "./format";
 
-/** 日报 / 周报 / 月报 as the site's pill switch, spread across the column. */
+/** 日报 / 周报 / 月报 as the site's pill switch, spread across the column. 页签去处随页面语言带前缀。 */
 function KindSwitch({ kind }: { kind: ReportKind }) {
-  return <PillTabs fill layoutId="report-kind" label="切换日报、周报、月报" active={kind} items={KINDS.map((k) => ({ key: k, label: KIND_LABEL[k], to: KIND_PATH[k] }))} />;
+  const locale = useLocale();
+  const c = copy[locale];
+  return <PillTabs fill layoutId="report-kind" label={c.switchAria} active={kind} items={KINDS.map((k) => ({ key: k, label: c.kind[k], to: localeAppPath(KIND_PATH[k], locale) }))} />;
 }
 
 /** Desktop archive column: every issue of this kind, grouped, the current one highlighted. */
 export function ReportArchive({ kind, index, current }: { kind: ReportKind; index: ReportNavigationEntry[]; current: string | null }) {
-  const groups = archiveGroups(kind, index);
+  const locale = useLocale();
+  const c = copy[locale];
+  const groups = archiveGroups(kind, index, locale);
   const openId = groups.find((g) => g.entries.some((e) => e.key === current))?.id ?? groups[0]?.id;
   return (
     // xl, not lg: 280px of rail on a 1024px laptop left a 484px single-column paper (ReportLayout). Below
@@ -25,15 +32,15 @@ export function ReportArchive({ kind, index, current }: { kind: ReportKind; inde
       <div className="pb-4 pt-8">
         <KindSwitch kind={kind} />
       </div>
-      <div className="border-b border-line-strong pb-2 pl-1 text-[11.5px] font-semibold tracking-[0.3em] text-ink">往期</div>
-      <nav aria-label={`${KIND_LABEL[kind]}历史`} className="scrollbar-thin -mr-3 flex-1 overflow-y-auto pb-6 pr-3">
+      <div className="border-b border-line-strong pb-2 pl-1 text-[11.5px] font-semibold tracking-[0.3em] text-ink">{c.pastIssues}</div>
+      <nav aria-label={c.historyAria(kind)} className="scrollbar-thin -mr-3 flex-1 overflow-y-auto pb-6 pr-3">
         {groups.map((g) => (
           <ArchiveGroup key={g.id} g={g} kind={kind} current={current} initiallyOpen={g.id === openId} />
         ))}
       </nav>
       {kind === "daily" && (
-        <Link to="/daily/archive" className="flex h-12 shrink-0 items-center justify-between border-t border-line pl-1 pr-1.5 text-[12.5px] font-medium text-ink-2 transition-colors hover:text-accent">
-          日报合订本 <IconChevronRight size={14} />
+        <Link to={localeAppPath("/daily/archive", locale)} className="flex h-12 shrink-0 items-center justify-between border-t border-line pl-1 pr-1.5 text-[12.5px] font-medium text-ink-2 transition-colors hover:text-accent">
+          {c.boundLink} <IconChevronRight size={14} />
         </Link>
       )}
     </aside>
@@ -44,6 +51,8 @@ export function ReportArchive({ kind, index, current }: { kind: ReportKind; inde
 function ArchiveGroup({ g, kind, current, initiallyOpen }: {
   g: ReturnType<typeof archiveGroups>[number]; kind: ReportKind; current: string | null; initiallyOpen: boolean;
 }) {
+  const locale = useLocale();
+  const c = copy[locale];
   const [open, setOpen] = useState(initiallyOpen);
   useEffect(() => setOpen(initiallyOpen), [initiallyOpen]);
   const [loaded, setLoaded] = useState<ReportNavigationEntry[] | null>(null);
@@ -63,7 +72,7 @@ function ArchiveGroup({ g, kind, current, initiallyOpen }: {
     return () => controller.abort();
   }, [open, kind, g.id, loaded, attempt]);
   const entries = loaded ?? g.entries;
-  const mark = (key: string) => archiveMark(kind, key);
+  const mark = (key: string) => archiveMark(kind, key, locale);
   return (
     <details open={open} onToggle={(event) => setOpen(event.currentTarget.open)} className="disclosure group/month border-b border-line">
       <summary className="flex h-11 items-center gap-1.5 pl-1 pr-1.5 text-ui text-ink transition-colors hover:text-accent">
@@ -78,7 +87,7 @@ function ArchiveGroup({ g, kind, current, initiallyOpen }: {
           // on the button itself would replace its `button` role and cost the retry affordance.
           <div role="alert">
             <button type="button" onClick={() => setAttempt((a) => a + 1)} className="mb-2 ml-2.5 py-2 text-meta text-hot-ink hover:underline">
-              往期标题暂时无法加载，点此重试
+              {c.navRetryFailed}
             </button>
           </div>
         ) : (
@@ -88,7 +97,7 @@ function ArchiveGroup({ g, kind, current, initiallyOpen }: {
               return (
                 <li key={e.key}>
                   <Link
-                    to={reportPath(kind, e.key)}
+                    to={reportPath(kind, e.key, locale)}
                     aria-current={on ? "page" : undefined}
                     title={e.title ?? undefined}
                     prefetch="intent"
@@ -98,7 +107,7 @@ function ArchiveGroup({ g, kind, current, initiallyOpen }: {
                       <span className={`num text-title font-black leading-none tracking-[-0.03em] ${on ? "text-accent" : "text-ink"}`}>{mark(e.key).big}</span>
                       {mark(e.key).small && <span className="mt-1 whitespace-nowrap text-micro leading-none text-ink-4">{mark(e.key).small}</span>}
                     </span>
-                    <span className={`line-clamp-2 min-w-0 text-meta leading-[18px] transition-colors ${on ? "font-semibold text-ink" : "text-ink-2 group-hover:text-ink"}`}>{e.title ?? `${KIND_LABEL[kind]} ${e.key}`}</span>
+                    <span className={`line-clamp-2 min-w-0 text-meta leading-[18px] transition-colors ${on ? "font-semibold text-ink" : "text-ink-2 group-hover:text-ink"}`}>{e.title ?? c.entryFallback(kind, e.key)}</span>
                   </Link>
                 </li>
               );
@@ -106,35 +115,37 @@ function ArchiveGroup({ g, kind, current, initiallyOpen }: {
           </ul>
         )
       ) : null}
-      {kind === "daily" && !open && <noscript><a href={publicPath("/daily/archive")}>查看完整日报归档</a></noscript>}
+      {kind === "daily" && !open && <noscript><a href={localePath("/daily/archive", locale)}>{c.viewArchive}</a></noscript>}
     </details>
   );
 }
 
 /** Issue switcher above the page: kind tabs, then the three latest issues and a way further back. */
 export function ReportPhoneNav({ kind, index, current, today, now }: { kind: ReportKind; index: ReportNavigationEntry[]; current: string | null; today: string; now?: number }) {
+  const locale = useLocale();
+  const c = copy[locale];
   const recent = index.slice(0, 3);
-  const earlier = kind === "daily" ? "/daily/archive" : "#report-history";
+  const earlier = kind === "daily" ? localeAppPath("/daily/archive", locale) : "#report-history";
   const chip = "inline-flex h-9 shrink-0 items-center rounded-full border px-4 text-ui transition-colors";
   return (
     // To xl now, not to lg: with the archive column starting at xl, a 961–1279px window needs this row as
     // its only way between issues. `lg:max-w-[560px]` keeps the `fill` track from spreading three pills
     // across a whole broadsheet column.
     <div className="pt-3 xl:hidden lg:max-w-[560px]">
-      <PillTabs fill layoutId="report-kind-phone" label="切换日报、周报、月报" active={kind} items={KINDS.map((k) => ({ key: k, label: KIND_LABEL[k], to: KIND_PATH[k] }))} />
+      <PillTabs fill layoutId="report-kind-phone" label={c.switchAria} active={kind} items={KINDS.map((k) => ({ key: k, label: c.kind[k], to: localeAppPath(KIND_PATH[k], locale) }))} />
       {recent.length > 0 && (
         <div className="scrollbar-none -mx-4 mt-3 flex gap-2 overflow-x-auto px-4 pb-1">
           {recent.map((e) => {
             const on = e.key === current;
             return (
-              <Link key={e.key} to={reportPath(kind, e.key)} aria-current={on ? "page" : undefined} className={`${chip} ${on ? "border-ink bg-ink font-semibold text-bg" : "border-line-strong bg-surface text-ink-2 active:bg-bg-sunk"}`}>
-                {chipLabel(kind, e.key, index, today, now)}
+              <Link key={e.key} to={reportPath(kind, e.key, locale)} aria-current={on ? "page" : undefined} className={`${chip} ${on ? "border-ink bg-ink font-semibold text-bg" : "border-line-strong bg-surface text-ink-2 active:bg-bg-sunk"}`}>
+                {chipLabel(kind, e.key, index, today, now, locale)}
               </Link>
             );
           })}
           {index.length > 3 && (
             <Link to={earlier} className={`${chip} border-line-strong bg-surface text-ink-2 active:bg-bg-sunk`}>
-              更早
+              {c.earlier}
             </Link>
           )}
         </div>

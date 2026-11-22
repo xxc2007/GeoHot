@@ -1,7 +1,9 @@
 import { useId, useMemo, useState } from "react";
 import type { HeatPoint } from "@aihot/contracts/site";
-import { monthDayTime } from "../../lib/format";
+import { beijingTime, monthDay, monthDayTime } from "../../lib/format";
 import { useEntrance } from "../../lib/hydration";
+import { useLocale } from "../../lib/i18n";
+import { copy } from "../../lib/i18n/heat";
 
 const HOUR = 3600 * 1000;
 const W = 742;
@@ -19,6 +21,8 @@ function niceStep(max: number): number {
  * instead of being drawn as zero; with fewer than three observed hours there is no chart.
  */
 export function HeatChart({ points }: { points: HeatPoint[] }) {
+  const locale = useLocale();
+  const t = copy[locale];
   const hintId = useId();
   const [active, setActive] = useState<number | null>(null);
   const entrance = useEntrance();
@@ -72,7 +76,7 @@ export function HeatChart({ points }: { points: HeatPoint[] }) {
     return { seen, last, peak, change, ticks, x, y, base, line, area, labels };
   }, [series]);
   if (!geometry) {
-    return <p className="rounded-tile bg-bg-sunk px-4 py-8 text-center text-[13px] text-ink-4">还没有足够的连续观测数据，暂不绘制趋势。</p>;
+    return <p className="rounded-tile bg-bg-sunk px-4 py-8 text-center text-[13px] text-ink-4">{t.noData}</p>;
   }
   const { seen, last, peak, change, ticks, x, y, base, line, area, labels } = geometry;
   const cur = active !== null ? seen[active] : null;
@@ -88,23 +92,23 @@ export function HeatChart({ points }: { points: HeatPoint[] }) {
   return (
     <div>
       <p className="text-[12.5px] text-ink-3">
-        当前热度 <b className="num font-semibold text-ink">{Math.round(last.p!.heat)}</b>
+        {t.current} <b className="num font-semibold text-ink">{Math.round(last.p!.heat)}</b>
         <span className="mx-1.5 text-ink-4">·</span>
-        可比范围峰值 <b className="num font-semibold text-ink">{Math.round(peak.p!.heat)}</b>
-        <span className="num text-ink-4">（{monthDayTime(new Date(peak.t).toISOString())}）</span>
+        {t.peak} <b className="num font-semibold text-ink">{Math.round(peak.p!.heat)}</b>
+        <span className="num text-ink-4">{t.peakDate(monthDayTime(new Date(peak.t).toISOString(), locale))}</span>
         <span className="mx-1.5 text-ink-4">·</span>
-        近 24 小时可比范围变化{" "}
+        {t.change}{" "}
         <b className={`num font-semibold ${change === null ? "text-ink-4" : change > 0 ? "text-hot" : "text-ink"}`}>
           {change === null ? "–" : `${change > 0 ? "+" : ""}${change}%`}
         </b>
       </p>
       <div className="relative mt-4">
-        <p id={hintId} className="sr-only">这张热度走势图可以用键盘操作：左右方向键逐点查看，Esc 退出。</p>
+        <p id={hintId} className="sr-only">{t.hint}</p>
         <svg
           viewBox={`0 0 ${W} ${H}`}
           className="block h-auto w-full touch-pan-y select-none rounded-tile focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           role="group"
-          aria-label={`热度走势：当前 ${Math.round(last.p!.heat)}，峰值 ${Math.round(peak.p!.heat)}`}
+          aria-label={t.chartAria(Math.round(last.p!.heat), Math.round(peak.p!.heat))}
           aria-describedby={hintId}
           tabIndex={0}
           onKeyDown={(e) => {
@@ -150,13 +154,15 @@ export function HeatChart({ points }: { points: HeatPoint[] }) {
               <circle cx={x(cur.t)} cy={y(cur.p!.heat)} r="5" fill="var(--surface)" stroke="var(--accent)" strokeWidth="2" />
             </g>
           )}
-          {labels.map((t, i) => {
-            const [d, hm] = monthDayTime(new Date(t).toISOString()).split(" ");
+          {labels.map((t2, i) => {
+            // 轴标签拆成「日期 + 时刻」两行：中文「9月24日 / 10:51」、英文「Sep 24 / 10:51」。
+            // 不用 monthDayTime(...).split(" ")——英文的日期自带空格，拆出来会把 "Sep" 和 "24" 分到两行。
+            const iso = new Date(t2).toISOString();
             return (
-              <text key={t} x={x(t)} y={base + 18} textAnchor={i === 0 ? "start" : i === labels.length - 1 ? "end" : "middle"} fontSize="11" fill="var(--ink-4)" className="mono">
-                <tspan x={x(t)}>{d}</tspan>
-                <tspan x={x(t)} dy="14">
-                  {hm}
+              <text key={t2} x={x(t2)} y={base + 18} textAnchor={i === 0 ? "start" : i === labels.length - 1 ? "end" : "middle"} fontSize="11" fill="var(--ink-4)" className="mono">
+                <tspan x={x(t2)}>{monthDay(iso, undefined, locale)}</tspan>
+                <tspan x={x(t2)} dy="14">
+                  {beijingTime(iso)}
                 </tspan>
               </text>
             );
@@ -167,17 +173,17 @@ export function HeatChart({ points }: { points: HeatPoint[] }) {
             className="pointer-events-none absolute top-1 z-10 -translate-x-1/2 whitespace-nowrap rounded-control border border-line bg-raised px-2.5 py-1.5 text-[12px] shadow-[var(--shadow-pop)]"
             style={{ left: `${Math.min(88, Math.max(12, (x(cur.t) / W) * 100))}%` }}
           >
-            <div className="num text-ink-4">{monthDayTime(new Date(cur.t).toISOString())}</div>
+            <div className="num text-ink-4">{monthDayTime(new Date(cur.t).toISOString(), locale)}</div>
             <div className="text-ink-2">
-              热度 <b className="num font-semibold text-ink">{cur.p!.heat.toFixed(1)}</b>
+              {t.heat} <b className="num font-semibold text-ink">{cur.p!.heat.toFixed(1)}</b>
               <span className="mx-1 text-ink-4">·</span>
-              <span className="num">{cur.p!.participants}</span> 位参与者
+              <span className="num">{cur.p!.participants}</span>{t.participantsPost}
             </div>
           </div>
         )}
       </div>
       <p className="mt-3 text-[12px] leading-relaxed text-ink-4">
-        趋势仅比较持续完整观测到的相同主体，范围可能小于当前热度统计。移动指针或点击图表查看每小时热度；键盘可用左右方向键切换。
+        {t.footnote}
       </p>
     </div>
   );

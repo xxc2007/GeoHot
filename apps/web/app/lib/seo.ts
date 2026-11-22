@@ -1,8 +1,9 @@
-// Page metadata from one place: title template, canonical address, OG images, robots. The site's name
-// and wording come from the industry pack (industry/site.ts); its address from SITE_URL.
+// Page metadata from one place: title template, canonical address, OG images, robots, hreflang. The
+// site's name and wording come from the industry pack (industry/site.ts); its address from SITE_URL.
 import type { MetaDescriptor } from "react-router";
-import { SITE } from "@aihot/industry/site";
+import { SITE, SITE_EN } from "@aihot/industry/site";
 import { basePath } from "./public-path";
+import { EN_OG_LOCALE, localeAppPath, type Locale } from "./i18n";
 
 /**
  * The site's address — one value, decided by the server and read back by the browser.
@@ -45,6 +46,13 @@ export interface PageMetaInput {
   nofollow?: boolean;
   type?: "website" | "article";
   jsonLd?: Record<string, unknown> | Array<Record<string, unknown>>;
+  /**
+   * The language the page was asked for (`localeFromPath(meta args location.pathname)`). Chinese pages
+   * may omit it. It decides the title/description fallbacks (`SITE_EN` for English) and writes the
+   * `/en` prefix into canonical/og:url; the hreflang group below is emitted for both languages either
+   * way, so every page carries the mutual link (中文页同样输出互链).
+   */
+  locale?: Locale;
 }
 
 /**
@@ -74,26 +82,38 @@ const clampMeta = (s: string, max: number) => (s.length <= max ? s : `${s.slice(
 
 export function pageMeta(input: PageMetaInput): MetaDescriptor[] {
   const base = siteUrl();
-  const title = input.title ? (input.rawTitle ? clampMeta(input.title, 60) : titled(clampMeta(input.title, 60))) : HOME_TITLE;
-  const description = clampMeta(input.description ?? SITE_DESCRIPTION, 160);
-  const url = `${base}${input.path}`;
+  const locale = input.locale ?? "zh";
+  const defaultTitle = locale === "en" ? SITE_EN.homeTitle : HOME_TITLE;
+  const defaultDescription = locale === "en" ? SITE_EN.description : SITE_DESCRIPTION;
+  const title = input.title ? (input.rawTitle ? clampMeta(input.title, 60) : titled(clampMeta(input.title, 60))) : defaultTitle;
+  const description = clampMeta(input.description ?? defaultDescription, 160);
+  // The canonical/og:url path carries the language prefix: `/en/hot` on English pages, the given path
+  // unchanged on Chinese ones. Pure app path — `siteUrl()` already contains the deployment prefix
+  // (`https://host/geohot` on prefix deployments), so adding `basePath` here would double it.
+  const path = localeAppPath(input.path, locale);
+  const url = `${base}${path}`;
   const image = input.image ? (input.image.startsWith("http") ? input.image : `${base}${input.image}`) : `${base}/og/site.png`;
   const tags: MetaDescriptor[] = [
     { title },
     { name: "description", content: description },
     { tagName: "link", rel: "canonical", href: url },
+    // hreflang 互链，每页输出（中文页也指向自己的 /en 副本，反向同样）：x-default 落中文页。
+    // 与 canonical 同一约定——siteUrl 带前缀，这里用不带 basePath 的 app 路径拼。
+    { tagName: "link", rel: "alternate", hrefLang: "zh-Hans", href: `${base}${localeAppPath(input.path, "zh")}` },
+    { tagName: "link", rel: "alternate", hrefLang: "en", href: `${base}${localeAppPath(input.path, "en")}` },
+    { tagName: "link", rel: "alternate", hrefLang: "x-default", href: `${base}${localeAppPath(input.path, "zh")}` },
     { property: "og:site_name", content: SITE.name },
     { property: "og:type", content: input.type ?? "website" },
-    { property: "og:title", content: clampMeta(input.title ?? HOME_TITLE, 60) },
+    { property: "og:title", content: clampMeta(input.title ?? defaultTitle, 60) },
     { property: "og:description", content: description },
     { property: "og:url", content: url },
     { property: "og:image", content: image },
-    { property: "og:image:alt", content: clampMeta(`${input.title ?? HOME_TITLE} — ${SITE.name}`, 120) },
+    { property: "og:image:alt", content: clampMeta(`${input.title ?? defaultTitle} — ${SITE.name}`, 120) },
     { property: "og:image:width", content: "1200" },
     { property: "og:image:height", content: "630" },
-    { property: "og:locale", content: SITE.locale.replace("-", "_") },
+    { property: "og:locale", content: locale === "en" ? EN_OG_LOCALE : SITE.locale.replace("-", "_") },
     { name: "twitter:card", content: "summary_large_image" },
-    { name: "twitter:title", content: input.title ?? HOME_TITLE },
+    { name: "twitter:title", content: input.title ?? defaultTitle },
     { name: "twitter:description", content: description },
     { name: "twitter:image", content: image },
   ];

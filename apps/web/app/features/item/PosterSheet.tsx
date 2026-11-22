@@ -6,8 +6,12 @@ import { Presence } from "../../components/ui/Presence";
 import { IconClose, IconDownload, IconShare } from "../../components/icons";
 import { publicPath } from "../../lib/public-path.ts";
 import { focusWhenReady, returnFocus } from "../../lib/focus-when-ready.ts";
+import { useLocale } from "../../lib/i18n";
+import { copy } from "../../lib/i18n/item-ui";
 
 export default function PosterSheet({ id, title, open, onClose }: { id: string; title: string; open: boolean; onClose: () => void }) {
+  // 海报文案随页面语言（lib/i18n/item-ui.ts 的 poster 段）；条目标题本身是内容，不翻。
+  const t = copy[useLocale()].poster;
   // One address, three uses (<img src>, the download <a href>, the blob fetch behind 分享). It is
   // root-absolute, so it has to carry the deployment prefix — bare /og/… is not this app's path.
   const src = publicPath(`/og/posters/${id}.png`);
@@ -82,51 +86,51 @@ export default function PosterSheet({ id, title, open, onClose }: { id: string; 
   return (
     <Presence show={open} enter="anim-fade-in" exit="anim-fade-out" duration={220}>
       <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
-        <button type="button" aria-label="关闭" className="absolute inset-0 bg-[rgba(8,14,15,0.55)] backdrop-blur-[3px]" onClick={onClose} />
+        <button type="button" aria-label={t.close} className="absolute inset-0 bg-[rgba(8,14,15,0.55)] backdrop-blur-[3px]" onClick={onClose} />
         <div
           ref={dialog}
           role="dialog"
           aria-modal="true"
-          aria-label="分享海报"
+          aria-label={t.dialogAria}
           className="poster-sheet anim-sheet-in relative flex max-h-[92dvh] w-full flex-col items-center rounded-t-sheet bg-surface px-5 pb-[max(20px,env(safe-area-inset-bottom))] pt-3 shadow-[0_-12px_40px_rgba(0,0,0,0.18)] sm:w-auto sm:rounded-sheet sm:px-7 sm:pb-6 sm:pt-5"
         >
           <span className="mb-3 h-1 w-10 rounded-full bg-line-strong sm:hidden" aria-hidden="true" />
           <div className="mb-3 flex w-full items-center justify-between">
-            <span className="text-[14px] font-semibold text-ink">分享海报</span>
-            <button ref={closeButton} type="button" onClick={onClose} className="grid size-8 place-items-center rounded-full text-ink-3 transition-colors hover:bg-bg-sunk hover:text-ink" aria-label="关闭">
+            <span className="text-[14px] font-semibold text-ink">{t.title}</span>
+            <button ref={closeButton} type="button" onClick={onClose} className="grid size-8 place-items-center rounded-full text-ink-3 transition-colors hover:bg-bg-sunk hover:text-ink" aria-label={t.close}>
               <IconClose size={16} />
             </button>
           </div>
           <div className="relative aspect-[3/4] w-full max-w-[min(360px,calc((92dvh-190px)*0.75))] overflow-hidden rounded-card border border-line bg-bg-sunk">
             {!loaded && !failed && <div className="absolute inset-0 animate-pulse bg-[linear-gradient(110deg,transparent_30%,rgba(255,255,255,0.35)_50%,transparent_70%)] bg-[length:200%_100%]" />}
             {failed ? (
-              <p className="absolute inset-0 grid place-items-center px-6 text-center text-[13px] text-ink-3">海报生成失败，请稍后再试。</p>
+              <p className="absolute inset-0 grid place-items-center px-6 text-center text-[13px] text-ink-3">{t.failed}</p>
             ) : (
               <img
                 src={src}
-                alt={`${title} · 分享海报`}
+                alt={t.imageAlt(title)}
                 className={`size-full object-contain transition-[opacity,transform] duration-[250ms] ${loaded ? "scale-100 opacity-100" : "scale-[0.985] opacity-0"}`}
                 onLoad={() => setLoaded(true)}
                 onError={() => setFailed(true)}
               />
             )}
           </div>
-          <p className="mt-3 text-[12.5px] text-ink-3">长按图片可保存或发送给朋友</p>
+          <p className="mt-3 text-[12.5px] text-ink-3">{t.saveHint}</p>
           <div className="mt-3 flex w-full max-w-[360px] gap-2">
             <a
               href={src}
               download={`${SITE.mcpPrefix}-${id}.png`}
               className="inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-full bg-accent text-[13.5px] font-medium text-accent-contrast transition-colors hover:bg-accent-ink"
             >
-              <IconDownload size={15} /> 保存图片
+              <IconDownload size={15} /> {t.save}
             </a>
             {canShareFile && (
               <button type="button" onClick={share} className="inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-full border border-line-strong bg-surface text-[13.5px] font-medium text-ink transition-colors hover:border-ink-4">
-                <IconShare size={15} /> 分享
+                <IconShare size={15} /> {t.share}
               </button>
             )}
           </div>
-          {shareFailed && <p role="status" className="mt-2 text-center text-[12.5px] text-ink-3">分享没有成功，可以先「保存图片」再发给朋友。</p>}
+          {shareFailed && <p role="status" className="mt-2 text-center text-[12.5px] text-ink-3">{t.shareFailed}</p>}
         </div>
       </div>
     </Presence>

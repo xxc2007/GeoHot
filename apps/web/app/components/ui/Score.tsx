@@ -1,7 +1,11 @@
 /**
  * The AI score as a small pill, tinted by tier instead of drawn as a bar: strong picks (85+) in a wash of
- * warm red, solid ones (70+) in the accent, the rest as quiet text. The score itself is unchanged.
+ * warm red, solid ones (70+) in the accent, the rest as quiet text. The score itself is unchanged;
+ * the 「AI 评分」 label follows the page language（lib/i18n/ui.ts）.
  */
+import { useLocale } from "../../lib/i18n";
+import { copy } from "../../lib/i18n/ui";
+
 const TIERS = [
   { min: 85, className: "bg-hot/10 text-hot-ink ring-hot/25" },
   { min: 70, className: "bg-accent-soft text-accent ring-accent/20" },
@@ -23,6 +27,7 @@ export function ScoreLabel({ score, compact = false }: { score: number | null; c
   // the same answer as `null`, rather than a pill reading 「AI 评分 NaN」.
   if (score === null || typeof score !== "number" || !Number.isFinite(score)) return null;
   const value = Math.round(score);
+  const w = copy[useLocale()];
   // …and an out-of-range one (a negative score from a bad write) still has to land somewhere: the last
   // tier is the quiet one. `TIERS.find(...)!` returned undefined for anything below its final `min: 0`
   // and the non-null assertion then threw on `.className`, which PageBoundary turned into
@@ -31,13 +36,13 @@ export function ScoreLabel({ score, compact = false }: { score: number | null; c
   return (
     <span
       role="img"
-      title={`AI 评分 ${value}/100`}
-      aria-label={`AI 评分 ${value} 分`}
+      title={w.scoreTitle(value)}
+      aria-label={w.scoreAria(value)}
       className={`inline-flex h-[20px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2 ring-1 ring-inset ${tier.className}`}
     >
       {!compact && (
         <>
-          <span className="text-label font-medium leading-none">AI 评分</span>
+          <span className="text-label font-medium leading-none">{w.scoreLabel}</span>
           <span className="h-2.5 w-px bg-current opacity-25" aria-hidden="true" />
         </>
       )}

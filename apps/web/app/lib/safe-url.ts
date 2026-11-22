@@ -52,3 +52,20 @@ export function isSafeSitePath(value: string): boolean {
   }
   return value.startsWith("/") || value.startsWith("#") || value.startsWith("?");
 }
+
+/**
+ * 本页 `URL.createObjectURL(file)` 产出的预览地址：只认 `blob:`，别的 scheme（`javascript:`、`data:`…）
+ * 一律 `null`。反馈页的截图预览是唯一调用点——那个值只可能来自本页，但这一模块的规矩是不假设上游
+ * （见文件头），而 `<img src>` 是浏览器要照做的地址；顺带让 CodeQL 的 `js/xss-through-dom`
+ * （"DOM text reinterpreted as HTML"，2026-11-22 alert #88）在 scheme 白名单这里被挡掉。
+ */
+export function safeBlobSrc(value: string | null | undefined): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed || hasHiddenChars(trimmed)) return null;
+  try {
+    return new URL(trimmed).protocol === "blob:" ? trimmed : null;
+  } catch {
+    return null;
+  }
+}

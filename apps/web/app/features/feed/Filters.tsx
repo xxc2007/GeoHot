@@ -1,9 +1,11 @@
 // Feed filters: the channel and category row, and search.
 import { useEffect, useRef, useState } from "react";
 import { Form, Link, useNavigation, useSearchParams } from "react-router";
-import { CATEGORY_KEYS, CATEGORY_LABELS, type CategoryKey, type ChannelKey } from "@aihot/contracts/taxonomy";
+import { CATEGORY_KEYS, type CategoryKey, type ChannelKey } from "@aihot/contracts/taxonomy";
 import { IconClose, IconSearch } from "../../components/icons";
 import { PillTabs } from "../../components/ui/Tabs";
+import { localeAppPath, useLocale } from "../../lib/i18n";
+import { copy } from "../../lib/i18n/feed";
 
 /** Same page with some query parameters changed (paging state dropped). */
 export function hrefWith(base: string, params: URLSearchParams, patch: Record<string, string | null>) {
@@ -30,18 +32,22 @@ export function hrefWith(base: string, params: URLSearchParams, patch: Record<st
  */
 export function CategoryTabs({ base, category, channel = "all", layoutId, size = "md", className = "" }: { base: string; category: CategoryKey | null; channel?: ChannelKey; layoutId: string; size?: "md" | "sm"; className?: string }) {
   const [params] = useSearchParams();
+  const locale = useLocale();
+  const c = copy[locale];
   // Home and /all both use router navigation so filtering keeps the shell and loaded modules.
+  // base 随页面语言折算：/en 页的 chips 若不带前缀，一点就落回中文列表（2026-11-22 第 2 轮验收同族）。
+  const localizedBase = localeAppPath(base, locale);
   const at = (patch: Record<string, string | null>) => ({
-    to: hrefWith(base, params, patch), prefetch: "intent" as const,
+    to: hrefWith(localizedBase, params, patch), prefetch: "intent" as const,
   });
   const items = [
-    { key: "all", label: "全部", ...at({ category: null, channel: null }) },
-    ...CATEGORY_KEYS.map((k) => ({ key: k, label: CATEGORY_LABELS[k], ...at({ category: k, channel: null }) })),
+    { key: "all", label: c.allChip, ...at({ category: null, channel: null }) },
+    ...CATEGORY_KEYS.map((k) => ({ key: k, label: c.category[k], ...at({ category: k, channel: null }) })),
   ];
   // 全部 is the row's only neutral chip, so a legacy `?channel=news|x` link lights it while the list
   // keeps filtering — the same "row cannot express this" case the removed 一手 chip used to cover.
   const active = channel === "all" ? (category ?? "all") : "all";
-  return <PillTabs items={items} active={active} layoutId={layoutId} label="筛选" size={size} className={className} />;
+  return <PillTabs items={items} active={active} layoutId={layoutId} label={c.filterAria} size={size} className={className} />;
 }
 
 function useSlashFocus(ref: React.RefObject<HTMLInputElement | null>) {
@@ -69,51 +75,55 @@ function useSlashFocus(ref: React.RefObject<HTMLInputElement | null>) {
 export function SearchField({ action = "/all", defaultValue = "", keep = {}, variant = "track", autoFocus = false }: { action?: string; defaultValue?: string; keep?: Record<string, string | null>; variant?: "track" | "bar"; autoFocus?: boolean }) {
   const [value, setValue] = useState(defaultValue);
   const navigation = useNavigation();
+  const locale = useLocale();
+  const c = copy[locale];
+  // 提交目标随页面语言折算（GET 表单不经过 Link）：/en 页搜索提交若落 /all，读者就被换到中文页。
+  const target = localeAppPath(action, locale);
   const inputRef = useRef<HTMLInputElement>(null);
   useEffect(() => setValue(defaultValue), [defaultValue]);
   useSlashFocus(inputRef);
   useEffect(() => {
     if (autoFocus) inputRef.current?.focus();
   }, [autoFocus]);
-  const searching = navigation.state === "loading" && navigation.location?.pathname === action && !!new URLSearchParams(navigation.location.search).get("q");
+  const searching = navigation.state === "loading" && navigation.location?.pathname === target && !!new URLSearchParams(navigation.location.search).get("q");
   const hidden = Object.entries(keep).map(([k, v]) => (v ? <input key={k} type="hidden" name={k} value={v} /> : null));
 
   if (variant === "bar") {
     return (
-      <Form method="get" action={action} role="search" className="flex gap-2">
+      <Form method="get" action={target} role="search" className="flex gap-2">
         {hidden}
         <label className="relative flex-1">
-          <span className="sr-only">搜索标题、摘要与正文</span>
+          <span className="sr-only">{c.searchHint}</span>
           <IconSearch size={17} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-4" />
           <input
             ref={inputRef}
             name="q"
             value={value}
             onChange={(e) => setValue(e.target.value)}
-            placeholder="搜索标题、摘要…"
+            placeholder={c.searchPlaceholder}
             maxLength={200}
             autoComplete="off"
             enterKeyHint="search"
             className="h-11 w-full rounded-full border border-line-strong bg-surface pl-10 pr-9 text-[15px] text-ink outline-none transition-[border-color,box-shadow] placeholder:text-ink-4 focus:border-accent focus:ring-2 focus:ring-inset focus:ring-accent focus:shadow-[0_0_0_3px_var(--accent-soft)]"
           />
           {value && (
-            <button type="button" aria-label="清空" onClick={() => { setValue(""); inputRef.current?.focus(); }} className="absolute right-2.5 top-1/2 grid size-7 -translate-y-1/2 place-items-center rounded-full text-ink-4">
+            <button type="button" aria-label={c.searchClear} onClick={() => { setValue(""); inputRef.current?.focus(); }} className="absolute right-2.5 top-1/2 grid size-7 -translate-y-1/2 place-items-center rounded-full text-ink-4">
               <IconClose size={15} />
             </button>
           )}
         </label>
         <button type="submit" className={`h-11 shrink-0 rounded-full bg-accent px-5 text-[14.5px] font-semibold text-accent-contrast transition-[background-color,transform] active:scale-[0.98] ${searching ? "opacity-60" : ""}`}>
-          搜索
+          {c.searchSubmit}
         </button>
       </Form>
     );
   }
 
   return (
-    <Form method="get" action={action} role="search" className="group relative w-full shrink-0 lg:w-60">
+    <Form method="get" action={target} role="search" className="group relative w-full shrink-0 lg:w-60">
       {hidden}
       <label htmlFor="site-search" className="sr-only">
-        搜索标题、摘要与正文
+        {c.searchHint}
       </label>
       <IconSearch size={16} className={`pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${searching ? "text-accent" : "text-ink-4 group-focus-within:text-ink-3"}`} />
       <input
@@ -122,7 +132,7 @@ export function SearchField({ action = "/all", defaultValue = "", keep = {}, var
         name="q"
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        placeholder="搜索标题、摘要…"
+        placeholder={c.searchPlaceholder}
         maxLength={200}
         autoComplete="off"
         className="h-[42px] w-full rounded-full bg-bg-sunk pl-10 pr-10 text-[14px] text-ink outline-none ring-1 ring-inset ring-line-soft transition-[background-color,box-shadow] placeholder:text-ink-4 hover:ring-line-strong focus:bg-surface focus:shadow-[0_0_0_3px_var(--accent-soft)] focus:ring-2 focus:ring-accent dark:bg-bg-muted/60 dark:focus:bg-surface"
@@ -130,7 +140,7 @@ export function SearchField({ action = "/all", defaultValue = "", keep = {}, var
       {value ? (
         <button
           type="button"
-          aria-label="清空"
+          aria-label={c.searchClear}
           onClick={() => {
             setValue("");
             inputRef.current?.focus();
@@ -148,8 +158,9 @@ export function SearchField({ action = "/all", defaultValue = "", keep = {}, var
 
 /** Mobile home: the search icon at the end of the category row opens search on 全部动态. */
 export function SearchIconLink() {
+  const locale = useLocale();
   return (
-    <Link to="/all?search=1" aria-label="搜索" className="flex size-11 shrink-0 items-center justify-center rounded-full text-ink-3 transition-colors hover:bg-bg-sunk hover:text-ink">
+    <Link to={localeAppPath("/all?search=1", locale)} aria-label={copy[locale].searchIconAria} className="flex size-11 shrink-0 items-center justify-center rounded-full text-ink-3 transition-colors hover:bg-bg-sunk hover:text-ink">
       <IconSearch size={19} />
     </Link>
   );

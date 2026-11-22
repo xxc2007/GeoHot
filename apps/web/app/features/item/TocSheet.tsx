@@ -14,11 +14,15 @@ import type { OutlineEntry } from "@aihot/contracts/site";
 import { Presence } from "../../components/ui/Presence.tsx";
 import { focusWhenReady, returnFocus } from "../../lib/focus-when-ready.ts";
 import { IconClose } from "../../components/icons";
+import { useLocale } from "../../lib/i18n";
+import { copy } from "../../lib/i18n/item-ui";
 
 /** 遮罩退场的时长，和 app.css 里 `.anim-fade-out` 的默认 `--anim-ms` 对齐。 */
 const CLOSE_MS = 220;
 
 export default function TocSheet({ outline, open, onClose }: { outline: OutlineEntry[]; open: boolean; onClose: () => void }) {
+  // 抽屉文案随页面语言（lib/i18n/item-ui.ts 的 toc 段）；小节名来自正文，是内容。
+  const t = copy[useLocale()].toc;
   const dialog = useRef<HTMLDivElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
   /** 读者选中的那一节：关抽屉后要跳到它，而不是回到打开前的位置。 */
@@ -88,21 +92,21 @@ export default function TocSheet({ outline, open, onClose }: { outline: OutlineE
   return (
     <Presence show={open} enter="anim-fade-in" exit="anim-fade-out" duration={CLOSE_MS}>
       <div className="fixed inset-0 z-50 flex items-end justify-center">
-        <button type="button" aria-label="关闭" className="absolute inset-0 bg-[rgba(8,14,15,0.5)] backdrop-blur-[2px]" onClick={onClose} />
+        <button type="button" aria-label={t.close} className="absolute inset-0 bg-[rgba(8,14,15,0.5)] backdrop-blur-[2px]" onClick={onClose} />
         <div
           ref={dialog}
           role="dialog"
           aria-modal="true"
-          aria-label="本文目录"
+          aria-label={t.dialogAria}
           className="anim-sheet-in relative flex max-h-[78dvh] w-full flex-col rounded-t-sheet bg-surface shadow-[0_-12px_40px_rgba(0,0,0,0.18)]"
         >
           <span className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-line-strong" aria-hidden="true" />
           <div className="flex shrink-0 items-center justify-between px-5 pb-2 pt-1">
-            <span className="text-[14px] font-semibold text-ink">本文目录</span>
+            <span className="text-[14px] font-semibold text-ink">{t.title}</span>
             <button
               ref={closeButton}
               type="button"
-              aria-label="关闭目录"
+              aria-label={t.closeAria}
               onClick={onClose}
               className="grid size-8 place-items-center rounded-full text-ink-3 transition-colors hover:bg-bg-sunk hover:text-ink"
             >
@@ -127,7 +131,7 @@ export default function TocSheet({ outline, open, onClose }: { outline: OutlineE
               </li>
             ))}
           </ol>
-          <p className="shrink-0 border-t border-line-soft px-5 py-2.5 text-[12px] text-ink-4">共 {outline.length} 节 · 点一条跳到正文对应位置</p>
+          <p className="shrink-0 border-t border-line-soft px-5 py-2.5 text-[12px] text-ink-4">{t.footer(outline.length)}</p>
         </div>
       </div>
     </Presence>

@@ -17,3 +17,10 @@ test("没有视图过渡或用户要求减少动画时直接应用", () => {
   assert.match(source, /\n      apply\(\);\n      return;\n    \}/);
   assert.doesNotMatch(source, /doc\.startViewTransition\(apply\);/);
 });
+
+test("startViewTransition 摘成局部引用后必须绑回 document", () => {
+  // startViewTransition 挂在 Document.prototype 上，解绑直调在真实浏览器抛 TypeError: Illegal
+  // invocation，apply 一次都不执行——2026-11-22 本地验收点「深色」主题不动、aihot-theme 始终为 null。
+  assert.match(source, /\.startViewTransition\?\.bind\(document\)/);
+  assert.doesNotMatch(source, /\}\)\.startViewTransition;/);
+});

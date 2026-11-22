@@ -1,12 +1,17 @@
 import { SITE } from "@aihot/industry/site";
 import { useEffect } from "react";
 import { Link, useLoaderData } from "react-router";
+import type { Route } from "./+types/changelog";
 import { loadOr404 } from "../lib/api.server";
 import { pageMeta } from "../lib/seo";
+import { beijingWeekday } from "../lib/format";
+import { localeAppPath, localeFromPath, useLocale } from "../lib/i18n";
+import { copy } from "../lib/i18n/pages/changelog";
 import { setChangelogSeen } from "../lib/local-state";
 import { AsideCard, ReadingLayout } from "../components/ui/Page";
+import { ChineseNotice } from "../components/ui/ChineseNotice";
 import { IconChevronRight } from "../components/icons";
-import { Inline, dateHeading } from "../features/changelog/text";
+import { Inline } from "../features/changelog/text";
 import { MajorRelease } from "../features/changelog/MajorRelease";
 
 /** Shared caches may keep this page for five minutes. */
@@ -38,8 +43,15 @@ export async function loader({ request }: { request: Request }) {
   return { ...data, kind: new URL(request.url).searchParams.get("kind") };
 }
 
-export function meta() {
-  return pageMeta({ title: "更新日志", description: `${SITE.name} 的功能更新、优化、公告与下线记录。`, path: "/changelog", image: "/og/pages/changelog.png" });
+export function meta({ location }: Route.MetaArgs) {
+  const locale = localeFromPath(location.pathname);
+  return pageMeta({
+    title: copy[locale].metaTitle,
+    description: copy[locale].metaDescription(SITE.name),
+    path: "/changelog",
+    image: "/og/pages/changelog.png",
+    locale,
+  });
 }
 
 /**
@@ -93,10 +105,16 @@ function ReleaseBody({ lines }: { lines: string[] }) {
 
 export default function ChangelogPage() {
   const data = useLoaderData<typeof loader>();
+  const locale = useLocale();
+  const c = copy[locale];
   useEffect(() => setChangelogSeen(data.latestVersion), [data.latestVersion]);
   // The filter offers the kinds the file actually contains, newest first: adding a new kind to
   // `industry/changelog.json` then needs no code change to be colour-marked and filterable.
-  const kinds = [...new Set(data.releases.map((r) => r.kind))];
+  // 没写 kind 的条目不进这张表：2026-11-05 起的一批条目漏了 kind 字段，不过滤的话 Set 里会
+  // 混进一个 undefined，与手写的 null 一样落进下面 `k ?? "all"` 的键里，侧栏也跟着多出一颗
+  // 同计数的「全部」假行。这类条目仍照常出现在时间线里（灰点，与「认不出的类型」同一口径），
+  // 只是不设单独的类型行——补齐 kind 是数据侧的事，页面不该为它长出第二颗「全部」。
+  const kinds = [...new Set(data.releases.map((r) => r.kind).filter((k): k is string => !!k))];
   const kind = data.kind && kinds.includes(data.kind) ? data.kind : null;
   // 一个已经不存在的类型（旧书签、别人转过来的老链接）不静默退回"全部"：那一屏看起来像"这一类没有更新"，
   // 而真相是这一类被并掉了。说清楚，并给回全部的路。
@@ -118,8 +136,8 @@ export default function ChangelogPage() {
 
   const aside = (
     <>
-      <AsideCard title="按类型看" className="hidden lg:block">
-        <nav aria-label="按类型看" className="-mx-2 -mb-1">
+      <AsideCard title={c.byKind} className="hidden lg:block">
+        <nav aria-label={c.byKind} className="-mx-2 -mb-1">
           {[null, ...kinds].map((k) => (
             <Link
               key={k ?? "all"}
@@ -128,28 +146,28 @@ export default function ChangelogPage() {
               className={`flex w-full items-center gap-2.5 rounded-control px-2 py-2 text-left text-[13.5px] transition-colors ${kind === k ? "bg-bg-sunk font-medium text-ink dark:bg-bg-muted/60" : "text-ink-2 hover:bg-bg-sunk hover:text-ink"}`}
             >
               <span className={`size-1.5 rounded-full ${k ? kindDot(k) : "bg-ink-2"}`} aria-hidden="true" />
-              <span className="flex-1">{k ?? "全部"}</span>
+              <span className="flex-1">{k ? (c.kindLabels[k] ?? k) : c.all}</span>
               <span className="num text-[12px] text-ink-4">{k ? data.releases.filter((r) => r.kind === k).length : data.releases.length}</span>
             </Link>
           ))}
         </nav>
       </AsideCard>
-      <AsideCard title="按月份" className="hidden lg:block">
-        <nav aria-label="按月份" className="-mx-2 -mb-1">
+      <AsideCard title={c.byMonth} className="hidden lg:block">
+        <nav aria-label={c.byMonth} className="-mx-2 -mb-1">
           {[...months.entries()].map(([month, m]) => {
             const [y, mo] = month.split("-").map(Number) as [number, number];
             return (
               <a key={month} href={`#d-${m.first}`} className="flex items-center justify-between rounded-control px-2 py-2 text-[13.5px] text-ink-2 transition-colors hover:bg-bg-sunk hover:text-ink">
-                {y} 年 {mo} 月<span className="num text-[12px] text-ink-4">{m.count} 条</span>
+                {c.monthLabel(String(y), String(mo))}<span className="num text-[12px] text-ink-4">{c.monthCount(String(m.count))}</span>
               </a>
             );
           })}
         </nav>
       </AsideCard>
-      <AsideCard title="有想法或遇到问题">
-        <p className="text-[13px] leading-[1.75] text-ink-3">想要的功能、用着不顺的地方，都可以在反馈页告诉我们。</p>
-        <Link to="/feedback" prefetch="intent" className="mt-3 inline-flex items-center gap-1 text-[13px] font-medium text-accent hover:underline">
-          去反馈 <IconChevronRight size={14} />
+      <AsideCard title={c.feedbackTitle}>
+        <p className="text-[13px] leading-[1.75] text-ink-3">{c.feedbackBody}</p>
+        <Link to={localeAppPath("/feedback", locale)} prefetch="intent" className="mt-3 inline-flex items-center gap-1 text-[13px] font-medium text-accent hover:underline">
+          {c.feedbackCta} <IconChevronRight size={14} />
         </Link>
       </AsideCard>
     </>
@@ -158,23 +176,27 @@ export default function ChangelogPage() {
   return (
     <ReadingLayout aside={aside}>
       <header className="pb-6">
-        <h1 className="text-[26px] font-bold leading-[1.3] text-ink">更新日志</h1>
-        <p className="mt-2 text-[14px] text-ink-3">新功能、调整与修复，都写在这里。</p>
+        <h1 className="text-[26px] font-bold leading-[1.3] text-ink">{c.headline}</h1>
+        <p className="mt-2 text-[14px] text-ink-3">{c.intro}</p>
       </header>
+      {/* 英文页的一行说明：时间线里的更新标题、正文与专题卡仍是中文。中文页渲染为空。 */}
+      <ChineseNotice className="mt-1" />
       {/* 三个大版本的专题卡，固定 3.0 → 2.0 → 1.0（最新在最前）：3.0/2.0 来自 changelog 的
           major 条目（groups 本就按日期倒序），1.0 是建站回顾、时代开启点在站内首条，固定排最后。 */}
       {majors.map((major) => <div key={`${major.date}-${major.time}`} className="mb-6 scroll-mt-6"><MajorRelease date={major.date} time={major.time} /></div>)}
       <div className="mb-6 scroll-mt-6"><MajorRelease date="2026-10-01" time="22:40" /></div>
       {retired && (
         <p className="mb-5 rounded-control bg-bg-sunk px-4 py-3 text-[13px] leading-[1.7] text-ink-2">
-          「{retired}」这一类已经并到现在的五种类型里，所以下面按全部给你看。
+          {c.retiredNotice(retired)}
         </p>
       )}
       <div className="space-y-4">
         {[...groups.entries()].map(([date, releases]) => {
           const remaining = releases.filter(release => !majors.includes(release));
           if (!remaining.length) return null;
-          const h = dateHeading(date);
+          // 日期标题：中文沿用 dateHeading 的输出，词进字典（星期以 beijingWeekday 的中文输出为键）。
+          const [y, m, d] = date.split("-").map(Number) as [number, number, number];
+          const h = { label: c.dateLabel(String(y), String(m), String(d)), weekday: c.weekdayNames[beijingWeekday(date)] };
           return (
             <section key={date} id={`d-${date}`} className="scroll-mt-6 space-y-4">
               <div className="card px-5 sm:px-7">
@@ -186,12 +208,15 @@ export default function ChangelogPage() {
               </h2>
               <ol>
                 {remaining.map((r) => (
-                  <li key={`${r.date}-${r.time}-${r.title}`} className="grid gap-x-8 gap-y-3 border-b border-line-soft py-6 last:border-b-0 sm:grid-cols-[88px_minmax(0,1fr)]">
+                  // key 里带上 version（API 按发布顺序注入的序号）：数据里存在整条重复的条目
+                  // （2026-11-15 17:40「后台读超时再试一次」逐字写了两遍，只有 6.0.4/6.0.5 之分），
+                  // date+time+title 撞车，React 报 duplicate key。去重是数据侧的决定，页面先保证键唯一。
+                  <li key={`${r.date}-${r.time}-${r.title}-${r.version ?? ""}`} className="grid gap-x-8 gap-y-3 border-b border-line-soft py-6 last:border-b-0 sm:grid-cols-[88px_minmax(0,1fr)]">
                     <div className="flex items-center gap-3 sm:block">
                       <span className="mono block text-[12.5px] text-ink-3">{r.time}</span>
                       <span className="inline-flex items-center gap-1.5 text-[11.5px] text-ink-4 sm:mt-1.5">
                         <span className={`size-1.5 rounded-full ${kindDot(r.kind)}`} aria-hidden="true" />
-                        {r.kind}
+                        {c.kindLabels[r.kind] ?? r.kind}
                       </span>
                     </div>
                     <article className="min-w-0 sm:border-l sm:border-line sm:pl-8">

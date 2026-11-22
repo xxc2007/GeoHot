@@ -36,12 +36,16 @@ test("反馈页渲染出「查询处理状态」折叠卡标题（展开后的�
 });
 
 test("成功视图整屏居中、状态徽标恒为已收到、带编号查询提示（hydrate 后由 done 状态渲染；SSR 源码断言）", async () => {
-  // SSR 初始状态是 idle，done 视图只在客户端出现——这里直接钉源码里的三个特征，
-  // 防止将来把成功页又塞回左对齐阅读栏或删掉状态徽标。
+  // SSR 初始状态是 idle，done 视图只在客户端出现——这里直接钉源码里的特征，防止将来把成功页又塞回
+  // 左对齐阅读栏或删掉状态徽标。文案自 i18n 改造起移进字典：页面钉渲染接线（done 视图仍输出徽标
+  // 与提示），中文原文钉在字典的 zh 条目上。
   const { readFileSync } = await import("node:fs");
   const source = readFileSync(path.resolve(import.meta.dirname, "../app/routes/feedback.tsx"), "utf8");
+  const dict = readFileSync(path.resolve(import.meta.dirname, "../app/lib/i18n/pages/feedback.ts"), "utf8");
   assert.ok(source.includes("min-h-[calc(100dvh-9rem)] w-full flex-col items-center justify-center"), "done 视图不再整屏居中");
-  assert.ok(source.includes("当前状态：已收到"), "done 视图状态徽标缺失或不再是「已收到」");
-  assert.ok(source.includes("本页下方查询处理进度"), "编号查询提示缺失");
+  assert.ok(source.includes("{c.doneStatus}"), "done 视图状态徽标缺失");
+  assert.ok(dict.includes("当前状态：已收到"), "状态徽标文案不再是「已收到」");
+  assert.ok(source.includes("{c.doneHint}"), "done 视图的编号查询提示缺失");
+  assert.ok(dict.includes("本页下方查询处理进度"), "字典里的编号查询提示缺失");
   assert.ok(source.includes("api/site/feedback-status"), "查询卡没有指向状态接口");
 });

@@ -8,9 +8,10 @@
 // 点的大小是**信息不是装饰**：一天几条和一天上百条不该画成同一个点（`dotTier`）。
 // 没有内容的日子不给链接——不画一个点了不会动的东西（与空白期次不进任何出口是同一条规矩）。
 import { Link } from "react-router";
-import { beijingWeekday } from "../../lib/format";
+import { useLocale } from "../../lib/i18n";
+import { copy } from "../../lib/i18n/feed";
 import { Halftone } from "../report/Halftone";
-import { WEEKDAYS, calendarCells, dotTier, shiftMonth } from "./grid";
+import { calendarCells, dotTier, shiftMonth } from "./grid";
 
 export interface CalendarDay {
   date: string;
@@ -23,7 +24,7 @@ export interface CalendarDay {
 // 断点用 `lg:` 而不是 `@[760px]:`：容器查询只对**祖先**声明了 `container-type` 的元素生效，而这张卡挂在
 // `/all` 的正文流里，那里没有 `@container`（全站只有 `ReportPaper` 和日报档案页自己声明）。写成容器查询
 // 会得到一张"桌面端永远是手机版"的卡——1440 实测两栏叠成一栏、选中圈被拉成 214×44 的胶囊。
-const MONTH_CN = ["一月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "十一月", "十二月"];
+// 界面文字（月份行、星期表头、格子读屏名与上/下月箭头）随页面语言走，词表在 lib/i18n/feed.ts。
 /** 三档点径 + 第 0 档（空位）由调用方单独画。 */
 const DOT_SIZE = ["", "h-1.5 w-1.5", "h-2 w-2", "h-2.5 w-2.5"];
 const CELL = "grid h-11 place-items-center lg:h-9";
@@ -41,8 +42,9 @@ export function DateCalendar({ month, days, selected, today, dayHref, monthHref,
   today: string;
   dayHref: (date: string) => string;
   monthHref: (month: string) => string;
-  className?: string;
+  className: string;
 }) {
+  const c = copy[useLocale()];
   const byDate = new Map(days.filter((d) => d.items > 0 || d.issue !== null).map((d) => [d.date, d]));
   const [year, number] = month.split("-").map(Number);
   const thisMonth = today.slice(0, 7);
@@ -58,24 +60,24 @@ export function DateCalendar({ month, days, selected, today, dayHref, monthHref,
       </Link>);
 
   return (
-    <nav aria-label="按日期浏览" className={`well flex max-w-[720px] flex-col items-stretch rounded-panel p-3 lg:flex-row lg:p-0 ${className}`}>
+    <nav aria-label={c.calendarAria} className={`well flex max-w-[720px] flex-col items-stretch rounded-panel p-3 lg:flex-row lg:p-0 ${className}`}>
       <div className="flex shrink-0 flex-col items-center justify-center gap-1 border-b border-line pb-3 text-center lg:w-[152px] lg:border-b-0 lg:px-3 lg:py-4">
         {focusDay?.issue
-          ? <span className="text-label tracking-[0.2em] text-ink-4">第 {focusDay.issue} 期</span>
-          : <span className="text-label tracking-[0.2em] text-ink-4">{focus ? `${Number(focus.slice(8, 10))} 日` : "本月"}</span>}
+          ? <span className="text-label tracking-[0.2em] text-ink-4">{c.issue(focusDay.issue)}</span>
+          : <span className="text-label tracking-[0.2em] text-ink-4">{focus ? c.dayFoot(Number(focus.slice(8, 10))) : c.monthFoot}</span>}
         {focus && (
           <Halftone seed={`calendar-${focus}`} className="num whitespace-nowrap text-[40px] font-black leading-[0.95] tracking-[-0.04em] text-ink lg:text-[54px]">
             {String(Number(focus.slice(8, 10)))}
           </Halftone>
         )}
-        <p className="text-[11.5px] text-ink-2">{year} 年 {number} 月{focus ? ` · ${beijingWeekday(focus)}` : ""}</p>
-        {focusDay?.items ? <p className="text-[11.5px] text-ink-4">当天 <span className="num">{focusDay.items}</span> 条</p> : null}
+        <p className="text-[11.5px] text-ink-2">{c.monthLine(String(year), number, focus ? c.weekdayName(focus) : null)}</p>
+        {focusDay?.items ? <p className="text-[11.5px] text-ink-4">{c.focusDayCountPre}<span className="num">{focusDay.items}</span>{c.focusDayCountPost}</p> : null}
         <div className="mt-1 flex items-center gap-0.5">
-          {nav(shiftMonth(month, -1), "上一个月", "‹", false)}
-          {nav(shiftMonth(month, 1), "下一个月", "›", month >= thisMonth)}
+          {nav(shiftMonth(month, -1), c.prevMonth, "‹", false)}
+          {nav(shiftMonth(month, 1), c.nextMonth, "›", month >= thisMonth)}
           {month !== thisMonth && (
             <Link to={monthHref(thisMonth)} className="ml-1 grid h-11 min-w-9 place-items-center rounded-full px-2 text-[11.5px] text-ink-3 transition-colors hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent lg:h-9">
-              回到本月
+              {c.thisMonth}
             </Link>
           )}
         </div>
@@ -83,11 +85,11 @@ export function DateCalendar({ month, days, selected, today, dayHref, monthHref,
 
       <div className="min-w-0 flex-1 pt-3 lg:border-l lg:border-line lg:px-4 lg:py-3">
         <div className="flex items-baseline justify-between gap-3">
-          <span className="text-[13px] font-semibold tracking-[0.2em] text-ink">{MONTH_CN[number - 1]}</span>
-          <span className="text-[11.5px] text-ink-4">本月 <span className="num">{total}</span> 条</span>
+          <span className="text-[13px] font-semibold tracking-[0.2em] text-ink">{c.monthName(number)}</span>
+          <span className="text-[11.5px] text-ink-4">{c.monthCountPre}<span className="num">{total}</span>{c.monthCountPost}</span>
         </div>
         <ul className="mt-1 grid grid-cols-7 text-center text-[10.5px] text-ink-4">
-          {WEEKDAYS.map((w) => <li key={w} aria-hidden="true">{w}</li>)}
+          {c.weekdayHead.map((w) => <li key={w} aria-hidden="true">{w}</li>)}
         </ul>
         <ul className="mt-0.5 grid grid-cols-7">
           {calendarCells(month).map((cell, i) => {
@@ -97,7 +99,7 @@ export function DateCalendar({ month, days, selected, today, dayHref, monthHref,
             const isSelected = cell.date === selected;
             // aria-current 只认 page/step/location/date/time——"today" 不是合法值（类型检查会拒）。
             // 日历里"今天"和"正在看的那一天"都用 date：前者是日历的当前日，后者靠文字说清楚。
-            const label = `${number} 月 ${cell.day} 日 · ${mark ? `${mark.items ? `${mark.items} 条` : "没有可列条目"}${mark.issue ? ` · 第 ${mark.issue} 期` : ""}` : "没有内容"}${isSelected ? "（正在看这一天）" : isToday ? "（今天）" : ""}`;
+            const label = `${c.cellDate(number, cell.day!)} · ${mark ? `${mark.items ? c.cellCount(mark.items) : c.cellNoListable}${mark.issue ? ` · ${c.issue(mark.issue)}` : ""}` : c.cellNoContent}${isSelected ? c.cellViewing : isToday ? c.cellToday : ""}`;
             if (!mark) {
               // 空位画一颗更淡的小点：整张月历的"哪天没东西"要看得出来，但它不是链接。
               return (

@@ -33,7 +33,7 @@ test("日报说「导语」、周报月报说「总述」，两种版面不能�
 
 test("总述缺失时那一块照样渲染，走的是一元运算符的另一边", () => {
   assert.match(PAPER, /\{dek \? \(/, "有导读走这一边");
-  assert.match(PAPER, /\)\s*:\s*\(\s*\n?\s*<p[^>]*>\{leadAbsentNote\(report\.kind\)\}<\/p>/, "没导读要把诚实句子印出来");
+  assert.match(PAPER, /\)\s*:\s*\(\s*\n?\s*<p[^>]*>\{leadAbsentNote\(report\.kind, locale\)\}<\/p>/, "没导读要把诚实句子印出来");
   // 旧的写法是 `{dek && (…)}`：缺导读时整块不渲染，读者面上看不出区别。
   assert.doesNotMatch(PAPER, /\{dek && \(/);
 });
@@ -46,7 +46,7 @@ test("非横图的配图不住在导读的条件里，缺导读不能把图一�
   const end = PAPER.indexOf("\n        </div>", open.index);
   assert.ok(end > open.index, "这块的收尾 div 找得到");
   const block = PAPER.slice(open.index, end);
-  const noteAt = block.indexOf("{leadAbsentNote(report.kind)}");
+  const noteAt = block.indexOf("{leadAbsentNote(report.kind, locale)}");
   const picAt = block.indexOf("{cover && !wide && <LeadPicture");
   assert.ok(noteAt >= 0 && picAt >= 0, "块里既有诚实句子也有那张非横图");
   assert.ok(noteAt < picAt, "配图排在导读/诚实句子之后，两者是并列的兄弟");

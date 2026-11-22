@@ -4,6 +4,8 @@ import { useMemo } from "react";
 import { Link } from "react-router";
 import type { FeedItemSummary } from "@aihot/contracts/site";
 import { IconChevronRight } from "../../components/icons";
+import { useLocale } from "../../lib/i18n";
+import { copy } from "../../lib/i18n/feed";
 import { beijingDate, dayLabel } from "../../lib/format";
 import { markRead, useReadSet } from "../../lib/local-state";
 import { DayHeader, TimelineSlot } from "./Timeline";
@@ -12,6 +14,8 @@ import { FeedItem } from "./FeedItem";
 /** `today` comes from the api answer's own clock, not the browser's: the「今天」header and its server-counted
  *  `todayCount` have to be the same day, and a page rendered at 23:59:59.9 must not hydrate into two answers. */
 export function DayList({ items, today, todayCount = null, showTags = true, animate = false }: { items: FeedItemSummary[]; today: string; todayCount?: number | null; showTags?: boolean; animate?: boolean }) {
+  const locale = useLocale();
+  const c = copy[locale];
   const readSet = useReadSet();
   const { days, undated } = useMemo(() => {
     const out: Array<{ day: string; items: FeedItemSummary[] }> = [];
@@ -35,7 +39,7 @@ export function DayList({ items, today, todayCount = null, showTags = true, anim
   return (
     <div>
       {days.map(({ day, items: list }) => (
-        <section key={day} aria-label={dayLabel(day, today)}>
+        <section key={day} aria-label={dayLabel(day, today, locale)}>
           <DayHeader day={day} today={today} count={day === today ? todayCount : null} />
           <ol className="lg:pt-1">
             {list.map((it) => (
@@ -47,10 +51,10 @@ export function DayList({ items, today, todayCount = null, showTags = true, anim
         </section>
       ))}
       {undated.length > 0 && (
-        <section aria-label="无发布日期" className="pt-7">
+        <section aria-label={c.undatedAria} className="pt-7">
           <div className="flex h-9 flex-wrap items-baseline gap-x-2">
-            <span className="text-[14px] font-bold text-ink">无发布日期</span>
-            <span className="text-[12.5px] text-ink-4">来源没有给出发布时间，按本站找到它的先后排列</span>
+            <span className="text-[14px] font-bold text-ink">{c.undatedTitle}</span>
+            <span className="text-[12.5px] text-ink-4">{c.undatedBody}</span>
           </div>
           <ol className="lg:pt-1">
             {undated.map((it) => (
@@ -67,14 +71,15 @@ export function DayList({ items, today, todayCount = null, showTags = true, anim
 
 /** Numbered pages (the list stays crawlable), with previous / next at the ends. */
 export function Pagination({ page, pageCount, href }: { page: number; pageCount: number; href: (p: number) => string }) {
+  const c = copy[useLocale()];
   if (pageCount <= 1) return null;
   const pages = [...new Set([1, pageCount, page - 2, page - 1, page, page + 1, page + 2].filter((p) => p >= 1 && p <= pageCount))].sort((a, b) => a - b);
   const btn = "inline-flex h-9 min-w-9 items-center justify-center rounded-full px-2.5 text-[13px] transition-colors";
   return (
-    <nav aria-label="分页" className="mt-6 flex flex-wrap items-center justify-center gap-1">
+    <nav aria-label={c.pageAria} className="mt-6 flex flex-wrap items-center justify-center gap-1">
       {page > 1 && (
         <Link to={href(page - 1)} className={`${btn} border border-line-strong bg-surface px-3 text-ink-3 hover:border-ink-4 hover:text-ink`}>
-          上一页
+          {c.pagePrev}
         </Link>
       )}
       {pages.map((p, i) => (
@@ -91,7 +96,7 @@ export function Pagination({ page, pageCount, href }: { page: number; pageCount:
       ))}
       {page < pageCount && (
         <Link to={href(page + 1)} className={`${btn} gap-0.5 border border-line-strong bg-surface px-3 text-ink-3 hover:border-ink-4 hover:text-ink`}>
-          下一页 <IconChevronRight size={14} />
+          {c.pageNext} <IconChevronRight size={14} />
         </Link>
       )}
     </nav>

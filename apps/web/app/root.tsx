@@ -16,6 +16,8 @@ import { buttonClass } from "./components/ui/Controls";
 import { THEME_BOOT_SCRIPT } from "./lib/local-state";
 import { apiGet } from "./lib/api.server";
 import { appPath, basePath, publicPath } from "./lib/public-path";
+import { localeAppPath, localeFromPath, useLocale } from "./lib/i18n";
+import { copy as shellCopy } from "./lib/i18n/shell";
 import { useHydratedFlag } from "./lib/hydration";
 import { isNetworkRouteError } from "./lib/route-error";
 
@@ -28,7 +30,8 @@ import { isNetworkRouteError } from "./lib/route-error";
 const THEME_COLORS = { light: "#faf9f6", dark: "#13191c" } as const;
 
 /**
- * The `<noscript>` notice as raw markup.
+ * The `<noscript>` notice as raw markup. The sentence itself follows the page language
+ * (`shell.noscriptNotice` in lib/i18n/shell.ts); only the styled wrapper lives here.
  *
  * React treats `<noscript>` as a text host (`shouldSetTextContent`,
  * react-dom-client.development.js:23891 — which is also why `dangerouslySetInnerHTML` is safe there), and
@@ -39,7 +42,8 @@ const THEME_COLORS = { light: "#faf9f6", dark: "#13191c" } as const;
  * served string and the parsed text node are the same bytes, and there is nothing left to reconcile. The
  * cost is that this one paragraph is a string rather than JSX.
  */
-const NOSCRIPT_NOTICE = `<p class="mt-3 rounded-control border border-line bg-raised p-3 text-[12.5px] leading-relaxed text-ink-2">当前浏览器未启用 JavaScript：正文、日报、事件页与全部链接照常可读，但卡片上的「另有 N 家信源报道」「展开 N 条进展」这类按需加载的列表、筛选控件与走势图无法使用。</p>`;
+const noscriptNoticeHtml = (text: string) =>
+  `<p class="mt-3 rounded-control border border-line bg-raised p-3 text-[12.5px] leading-relaxed text-ink-2">${text}</p>`;
 
 /**
  * React Router resolves a root target under a basename to the *bare* base — `to="/"` or `/?category=x`
@@ -81,7 +85,8 @@ export const links: Route.LinksFunction = () => [
   { rel: "icon", type: "image/png", href: publicPath("/icon.png") },
   { rel: "apple-touch-icon", href: publicPath("/apple-icon.png") },
   { rel: "manifest", href: publicPath("/manifest.webmanifest") },
-  { rel: "alternate", type: "application/rss+xml", title: `${SITE.name} — 精选`, href: publicPath("/feed.xml") },
+  // RSS alternate 不在这里：links() 是模块级的，拿不到页面语言，title 只能硬编码中文。它挪到
+  // Layout 的 <head> 里按 locale 渲染（shell.rssAlternateTitle），/en 的 <head> 不再有中文。
 ];
 
 interface SiteMeta {
@@ -126,8 +131,13 @@ function isAdminPath(pathname: string): boolean {
 export function Layout({ children }: { children: React.ReactNode }) {
   // Handed to `lib/seo.ts` `siteUrl()` on the browser side: the address is decided once, by the server.
   const root = useRouteLoaderData<typeof loader>("root");
+  // `<html lang>` follows the page language: the `/en` chrome reads as `en`, everything else (the
+  // Chinese pages and the admin) keeps `SITE.locale`. Both sides derive it from the router's location,
+  // so the server and the hydration pass answer identically.
+  const locale = localeFromPath(useLocation().pathname);
+  const lang = locale === "en" ? "en" : SITE.locale;
   return (
-    <html lang={SITE.locale} data-site-url={root?.siteUrl} suppressHydrationWarning>
+    <html lang={lang} data-site-url={root?.siteUrl} suppressHydrationWarning>
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -136,6 +146,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
         <Meta />
         <Links />
+        {/* RSS alternate 的标题随页面语言（shell.rssAlternateTitle）：feed 是同一份中文源，/en 页
+            的 head 里不能留着「精选」两个字。放这里而不是模块级 links()，是因为 links() 读不到 location。 */}
+        <link rel="alternate" type="application/rss+xml" title={shellCopy[locale].rssAlternateTitle} href={publicPath("/feed.xml")} />
       </head>
       <body>
         {children}
@@ -147,16 +160,18 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 /** Only a page nobody matched falls back to this; every page names itself. */
-export function meta({ error }: Route.MetaArgs) {
+export function meta({ error, location }: Route.MetaArgs) {
   if (!error) return [];
+  const e = shellCopy[localeFromPath(location.pathname)].error;
   const notFound = isRouteErrorResponse(error) && error.status === 404;
-  return [{ title: titled(notFound ? "页面不存在" : "暂时无法加载") }, { name: "robots", content: "noindex" }];
+  return [{ title: titled(notFound ? e.metaNotFound : e.metaUnavailable) }, { name: "robots", content: "noindex" }];
 }
 
 /** Sidebar, main column and phone tab bar around a page (or an error). */
 function SiteShell({ changelogVersion, children }: { changelogVersion: string | null; children: ReactNode }) {
   const navigation = useNavigation();
   const { pathname } = useLocation();
+  const shell = shellCopy[useLocale()];
   // A client-side navigation removes the link the reader just activated, so focus falls back to
   // <body>: the next Tab restarts at the skip link and walks the whole sidebar again, on every page
   // change. Moving focus to the main region is also what makes "跳到正文" actually land somewhere —
@@ -174,7 +189,7 @@ function SiteShell({ changelogVersion, children }: { changelogVersion: string | 
     <div className="flex min-h-dvh">
       <NavigationProgress active={navigation.state === "loading"} />
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[70] focus:rounded-control focus:bg-surface focus:px-3 focus:py-2">
-        跳到正文
+        {shell.skipToMain}
       </a>
       <Sidebar changelogVersion={changelogVersion} />
       {/* Mobile shell (≤ 960px): one centred column, the tab bar below. Desktop: the page fills the main area
@@ -189,7 +204,7 @@ function SiteShell({ changelogVersion, children }: { changelogVersion: string | 
             It lives inside <main>, not beside it: the shell's wrapper is `flex`, and a flex item is
             blockified into its own *column*, so a sibling <noscript> sat to the left of the whole page. */}
         <div className="mx-auto w-full max-w-[640px] px-4 lg:max-w-[var(--page-max-wide)] lg:px-0">
-          <noscript dangerouslySetInnerHTML={{ __html: NOSCRIPT_NOTICE }} />
+          <noscript dangerouslySetInnerHTML={{ __html: noscriptNoticeHtml(shell.noscriptNotice) }} />
           <PageBoundary resetKey={pathname}>{children}</PageBoundary>
         </div>
       </main>
@@ -217,6 +232,9 @@ export function ErrorBoundary() {
   const error = useRouteError();
   const site = useRouteLoaderData<typeof loader>("root");
   const { pathname, search, hash } = useLocation();
+  // 错误页也说页面自己的语言：文案与两个出口链接（/、/all）都跟着 locale 走。
+  const locale = useLocale();
+  const e = shellCopy[locale].error;
   const connectionError = isNetworkRouteError(error);
   const status = isRouteErrorResponse(error) ? error.status : connectionError ? 503 : 500;
   const notFound = status === 404;
@@ -225,21 +243,21 @@ export function ErrorBoundary() {
       <div className="max-w-sm text-center">
         <RingMark className="mx-auto mb-5 size-10 text-accent" />
         <div className="mono text-[12px] text-ink-4">{status}</div>
-        <h1 className="mt-1.5 text-[20px] font-bold text-ink">{notFound ? "这里没有内容" : connectionError ? "连接暂时中断" : "暂时无法加载"}</h1>
+        <h1 className="mt-1.5 text-[20px] font-bold text-ink">{notFound ? e.notFoundTitle : connectionError ? e.connectionTitle : e.unavailableTitle}</h1>
         <p className="mt-2 text-[13.5px] leading-relaxed text-ink-3">
-          {notFound ? "你访问的页面不存在，或内容已不再公开。" : connectionError ? "未能连接到页面服务，请检查网络后重新加载。已经加载过的内容不受影响。" : "服务暂时繁忙，请稍后再试。已经加载过的内容不受影响。"}
+          {notFound ? e.notFoundBody : connectionError ? e.connectionBody : e.unavailableBody}
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-2.5">
           {!notFound && (
             <Link to={{ pathname, search, hash }} reloadDocument className={buttonClass("primary")}>
-              重新加载当前页
+              {e.reload}
             </Link>
           )}
-          <Link to="/" reloadDocument className={buttonClass("primary")}>
-            回到精选
+          <Link to={localeAppPath("/", locale)} reloadDocument className={buttonClass("primary")}>
+            {e.backHome}
           </Link>
-          <Link to="/all" className={buttonClass("secondary")}>
-            浏览全部动态
+          <Link to={localeAppPath("/all", locale)} className={buttonClass("secondary")}>
+            {e.browseAll}
           </Link>
         </div>
       </div>

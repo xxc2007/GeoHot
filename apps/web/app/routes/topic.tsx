@@ -4,6 +4,8 @@ import type { Route } from "./+types/topic";
 import type { FeedItemSummary } from "@aihot/contracts/site";
 import { loadOr404 } from "../lib/api.server";
 import { breadcrumbLd, pageMeta, titled } from "../lib/seo";
+import { localeAppPath, localeFromPath, useLocale } from "../lib/i18n";
+import { copy } from "../lib/i18n/pages/topic";
 import { Pagination } from "../features/feed/DayList";
 import { InfiniteTopicList } from "../features/topics/InfiniteTopicList";
 import { todayOf } from "../lib/format";
@@ -32,25 +34,30 @@ export async function loader({ params, request }: Route.LoaderArgs) {
   return { data };
 }
 
-export function meta({ loaderData }: Route.MetaArgs) {
-  if (!loaderData) return [{ title: titled("主题不存在") }, { name: "robots", content: "noindex" }];
+export function meta({ loaderData, location }: Route.MetaArgs) {
+  const locale = localeFromPath(location.pathname);
+  const c = copy[locale];
+  if (!loaderData) return [{ title: titled(c.notFoundTitle) }, { name: "robots", content: "noindex" }];
   const { topic, page } = loaderData.data;
   const path = page > 1 ? `/topics/${topic.slug}/page/${page}` : `/topics/${topic.slug}`;
   return pageMeta({
-    title: page > 1 ? `${topic.name} · 第 ${page} 页` : topic.name,
+    title: page > 1 ? `${topic.name}${c.metaPageSuffix(String(page))}` : topic.name,
     description: topic.definition,
     path,
     image: `/og/topics/${topic.slug}.png`,
     noindex: !topic.indexable,
-    jsonLd: breadcrumbLd([{ name: SITE.name, path: "/" }, { name: "主题", path: "/topics" }, { name: topic.name, path: `/topics/${topic.slug}` }]),
+    locale,
+    jsonLd: breadcrumbLd([{ name: SITE.name, path: "/" }, { name: c.breadcrumbTopics, path: "/topics" }, { name: topic.name, path: `/topics/${topic.slug}` }]),
   });
 }
 
 export default function TopicPage() {
   const { data: initial } = useLoaderData<typeof loader>();
+  const locale = useLocale();
+  const c = copy[locale];
   const data = useLivePublicData(initial, initial.page === 1 ? `/api/site/topics/${encodeURIComponent(initial.topic.slug)}?page=1` : null);
   const { topic, items, page, pageCount } = data;
-  const href = (p: number) => (p <= 1 ? `/topics/${topic.slug}` : `/topics/${topic.slug}/page/${p}`);
+  const href = (p: number) => (p <= 1 ? localeAppPath(`/topics/${topic.slug}`, locale) : localeAppPath(`/topics/${topic.slug}/page/${p}`, locale));
   const first = (page - 1) * 20 + 1;
   const last = first + items.length - 1;
   return (
@@ -59,19 +66,19 @@ export default function TopicPage() {
         <div className="flex items-start justify-between gap-4">
           <h1 className="text-[22px] font-bold leading-[1.35] text-ink">{topic.name}</h1>
           <span className="hidden pt-2 lg:block">
-            <MoreLink to="/topics">全部主题</MoreLink>
+            <MoreLink to={localeAppPath("/topics", locale)}>{c.allTopics}</MoreLink>
           </span>
         </div>
         <p className="mt-1 max-w-[640px] text-[13px] leading-relaxed text-ink-3">{topic.definition}</p>
         <div className="mt-3 flex flex-wrap items-baseline gap-x-5 gap-y-1">
           <span className="text-[12.5px] text-ink-4">
-            <span className="num mr-1 text-[20px] font-bold text-ink">{topic.total.toLocaleString("zh-CN")}</span>条精选
+            <span className="num mr-1 text-[20px] font-bold text-ink">{topic.total.toLocaleString("zh-CN")}</span>{c.selectedUnit}
           </span>
           {topic.related.length > 0 && (
             <span className="flex flex-wrap items-center gap-1.5 text-[12.5px]">
-              <span className="text-ink-4">相关主题</span>
+              <span className="text-ink-4">{c.relatedLabel}</span>
               {topic.related.map((r) => (
-                <Link key={r.slug} to={`/topics/${r.slug}`} className="chip">
+                <Link key={r.slug} to={localeAppPath(`/topics/${r.slug}`, locale)} className="chip">
                   {r.name}
                 </Link>
               ))}
@@ -79,12 +86,15 @@ export default function TopicPage() {
           )}
         </div>
       </header>
+      {/* 英文页的一行说明：主题名与定义仍是词表里的中文，条目标题按信源原语种显示、AI 摘要仍为中文
+          （行卡片在 FeedItem 里按此渲染）。中文页渲染为空——字典键中英两版都有，zh 版只是文档。 */}
+      {locale === "en" && <p className={`text-[12.5px] text-ink-4 mt-1`}>{c.chineseNotice}</p>}
 
       <div className="mb-1 mt-2 flex items-baseline justify-between">
-        <h2 className="text-[18px] font-bold text-ink">最新精选</h2>
+        <h2 className="text-[18px] font-bold text-ink">{c.latestHeading}</h2>
         {items.length > 0 && (
           <span className="num text-[12px] text-ink-4">
-            第 {first}–{last} 条 · 共 {topic.total.toLocaleString("zh-CN")} 条
+            {c.rangePre}{first}–{last}{c.rangeMid}{topic.total.toLocaleString("zh-CN")}{c.rangePost}
           </span>
         )}
       </div>
@@ -95,20 +105,20 @@ export default function TopicPage() {
           {page > 1 ? (
             <EmptyState
               as="h2"
-              title={`第 ${page} 页没有内容`}
-              action={<Link to={`/topics/${topic.slug}`} className="text-[13px] font-medium text-accent hover:underline">回到第 1 页</Link>}
+              title={c.emptyPageTitle(String(page))}
+              action={<Link to={localeAppPath(`/topics/${topic.slug}`, locale)} className="text-[13px] font-medium text-accent hover:underline">{c.emptyPageAction}</Link>}
             >
-              这个主题共有 {topic.total.toLocaleString("zh-CN")} 条精选，分 {pageCount} 页。
+              {c.emptyPageBody(topic.total.toLocaleString("zh-CN"), String(pageCount))}
             </EmptyState>
           ) : (
             // 空手而归要给出路：这一页的「精选」是全部存量，没有时间窗口（读取层就是这样查的），
             // 所以不能说「最近 30 天」——那句话在页面上与同一屏的「0 条精选」互相打脸（10-03 复核 /topics/ipcc）。
             <EmptyState
               as="h2"
-              title="这个主题还没有入选的精选"
-              action={<Link to="/all" className="text-[13px] font-medium text-accent hover:underline">去全部动态里找找</Link>}
+              title={c.emptyTitle}
+              action={<Link to={localeAppPath("/all", locale)} className="text-[13px] font-medium text-accent hover:underline">{c.emptyAction}</Link>}
             >
-              主题页只列入选精选的条目；其它信源原文仍在「全部动态」里，按分类筛就能收到同一批。
+              {c.emptyBody}
             </EmptyState>
           )}
         </div>

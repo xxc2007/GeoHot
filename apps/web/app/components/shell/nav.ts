@@ -3,6 +3,7 @@ import { withSubject } from "@aihot/industry/site";
 import { FEATURES } from "@aihot/industry/features";
 import type { ReactNode } from "react";
 import { publicPath } from "../../lib/public-path";
+import type { Locale } from "../../lib/i18n";
 import {
   IconApps, IconBolt, IconBookmark, IconChart, IconDoc, IconFlame, IconGrid, IconHeart, IconHistory, IconList, IconMessage, IconPlug,
 } from "../icons";
@@ -10,11 +11,18 @@ import {
 export interface NavItem {
   to: string;
   label: string;
+  /** English label for the `/en` pages (平行映射：中文页照旧读 label）。 */
+  labelEn: string;
   icon: (p: { size?: number }) => ReactNode;
   /** Match the path exactly (the home page). */
   end?: boolean;
   /** Shows the unread dot while the changelog has news. */
   changelog?: boolean;
+}
+
+/** The label of a nav item in the page's language. */
+export function navLabel(item: NavItem, locale: Locale): string {
+  return locale === "en" ? item.labelEn : item.label;
 }
 
 /**
@@ -32,43 +40,45 @@ export function homeHref(): string {
 
 /** Paths of the optional AI-only modules, so a closed module is absent from the nav, not a 404. */
 const OPTIONAL_ITEMS: NavItem[] = [
-  ...(FEATURES.leaderboard ? [{ to: "/leaderboard", label: "模型榜", icon: IconChart }] : []),
-  ...(FEATURES.codexResetMonitor ? [{ to: "/codex-reset", label: "Tibo重置监控", icon: IconHistory }] : []),
+  ...(FEATURES.leaderboard ? [{ to: "/leaderboard", label: "模型榜", labelEn: "Leaderboard", icon: IconChart }] : []),
+  ...(FEATURES.codexResetMonitor ? [{ to: "/codex-reset", label: "Tibo重置监控", labelEn: "Tibo reset monitor", icon: IconHistory }] : []),
 ];
 
 const OPTIONAL_PATHS = OPTIONAL_ITEMS.map((item) => item.to);
 
-export const SIDEBAR: Array<{ title: string; items: NavItem[] }> = [
+export const SIDEBAR: Array<{ title: string; titleEn: string; items: NavItem[] }> = [
   {
     title: "内容",
+    titleEn: "Content",
     items: [
-      { to: "/", label: "精选", icon: IconBolt, end: true },
-      { to: "/all", label: `全部${withSubject("动态")}`, icon: IconList },
-      { to: "/hot", label: "热点榜", icon: IconFlame },
-      { to: "/daily", label: withSubject("日报"), icon: IconDoc },
-      { to: "/topics", label: "主题", icon: IconGrid },
-      { to: "/starred", label: "收藏", icon: IconBookmark },
+      { to: "/", label: "精选", labelEn: "Selected", icon: IconBolt, end: true },
+      { to: "/all", label: `全部${withSubject("动态")}`, labelEn: "All updates", icon: IconList },
+      { to: "/hot", label: "热点榜", labelEn: "Trending", icon: IconFlame },
+      { to: "/daily", label: withSubject("日报"), labelEn: "Daily brief", icon: IconDoc },
+      { to: "/topics", label: "主题", labelEn: "Topics", icon: IconGrid },
+      { to: "/starred", label: "收藏", labelEn: "Saved", icon: IconBookmark },
     ],
   },
   // The optional AI-only modules (industry/features.ts), listed from the same flag test as MORE_PATHS.
-  ...(OPTIONAL_ITEMS.length ? [{ title: "模型", items: OPTIONAL_ITEMS }] : []),
+  ...(OPTIONAL_ITEMS.length ? [{ title: "模型", titleEn: "Models", items: OPTIONAL_ITEMS }] : []),
   {
     title: "更多",
+    titleEn: "More",
     items: [
-      { to: "/agent", label: "Agent 接入", icon: IconPlug },
-      { to: "/about", label: "关于", icon: IconHeart },
-      { to: "/changelog", label: "更新日志", icon: IconHistory, changelog: true },
-      { to: "/feedback", label: "反馈", icon: IconMessage },
+      { to: "/agent", label: "Agent 接入", labelEn: "Agent access", icon: IconPlug },
+      { to: "/about", label: "关于", labelEn: "About", icon: IconHeart },
+      { to: "/changelog", label: "更新日志", labelEn: "Changelog", icon: IconHistory, changelog: true },
+      { to: "/feedback", label: "反馈", labelEn: "Feedback", icon: IconMessage },
     ],
   },
 ];
 
 export const TABBAR: NavItem[] = [
-  { to: "/", label: "精选", icon: IconBolt, end: true },
-  { to: "/hot", label: "热点", icon: IconFlame },
-  { to: "/daily", label: "日报", icon: IconDoc },
-  { to: "/topics", label: "主题", icon: IconGrid },
-  { to: "/more", label: "更多", icon: IconApps, changelog: true },
+  { to: "/", label: "精选", labelEn: "Selected", icon: IconBolt, end: true },
+  { to: "/hot", label: "热点", labelEn: "Trending", icon: IconFlame },
+  { to: "/daily", label: "日报", labelEn: "Daily brief", icon: IconDoc },
+  { to: "/topics", label: "主题", labelEn: "Topics", icon: IconGrid },
+  { to: "/more", label: "更多", labelEn: "More", icon: IconApps, changelog: true },
 ];
 
 /** Pages reached from the mobile "更多" tab keep that tab highlighted. Closed modules are absent. */

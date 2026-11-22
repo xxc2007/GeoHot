@@ -3,11 +3,14 @@ import { createPortal } from "react-dom";
 import { Presence } from "./Presence";
 import { IconArrowLeft, IconArrowRight, IconClose } from "../icons.tsx";
 import { focusWhenReady, returnFocus } from "../../lib/focus-when-ready.ts";
+import { useLocale } from "../../lib/i18n";
+import { copy } from "../../lib/i18n/item-ui";
 export interface LightboxImage { src: string; alt?: string | null }
 type Pose = { scale: number; x: number; y: number };
 const FIT: Pose = { scale: 1, x: 0, y: 0 };
 /** Image zoom has its own viewport; controls stay fixed and the page behind never moves. */
 export function Lightbox({ images, index, onIndex, onClose, fill = false }: { images: LightboxImage[]; index: number | null; onIndex: (i: number) => void; onClose: () => void; /** 横图在宽视口下 contain 会留大边：fill 让初始帧放大到宽满（期刊头版图用），P1 的 contain 语义不变。 */ fill?: boolean }) {
+ const t = copy[useLocale()].lightbox;
  const open = index !== null && !!images[index];
  const dialog=useRef<HTMLDivElement>(null), viewport=useRef<HTMLDivElement>(null), picture=useRef<HTMLImageElement>(null), close=useRef<HTMLButtonElement>(null);
  const state=useRef({index,images,onIndex,onClose,fill});state.current={index,images,onIndex,onClose,fill};
@@ -61,17 +64,17 @@ const paint=(next:Pose)=>{
  const current=open?images[index!]:null,button='grid min-h-11 min-w-11 place-items-center rounded-full px-3 text-white hover:bg-white/20 focus-visible:outline-2 focus-visible:outline-white disabled:opacity-35';
  if(typeof document==='undefined')return null;
  return createPortal(<Presence show={open} enter="anim-fade-in" exit="anim-fade-out" duration={160}>
-  <div ref={dialog} role="dialog" aria-modal="true" aria-label={`图片查看器 ${index!==null?index+1:0} / ${images.length}`} className="fixed inset-0 z-[80] overflow-hidden bg-black/90 text-white">
+  <div ref={dialog} role="dialog" aria-modal="true" aria-label={t.dialogAria(index!==null?index+1:0, images.length)} className="fixed inset-0 z-[80] overflow-hidden bg-black/90 text-white">
    <div className="absolute inset-x-2 top-[max(12px,env(safe-area-inset-top))] z-20 flex items-center justify-between gap-1">
     <span className="hidden shrink-0 rounded-full bg-black/60 px-2 py-2 text-xs min-[360px]:block">{index!==null?index+1:0} / {images.length}</span>
-    <div role="toolbar" aria-label="图片缩放" className="flex items-center rounded-full bg-black/70">
-     <button type="button" aria-label="缩小图片" disabled={scale<=1} className={button} onClick={()=>zoom(scale/1.5)}>−</button>
+    <div role="toolbar" aria-label={t.zoomGroup} className="flex items-center rounded-full bg-black/70">
+     <button type="button" aria-label={t.zoomOut} disabled={scale<=1} className={button} onClick={()=>zoom(scale/1.5)}>−</button>
      <span className="min-w-10 text-center text-xs tabular-nums" aria-live="polite">{Math.round(scale*100)}%</span>
-     <button type="button" aria-label="放大图片" disabled={scale>=maxZoom()} className={button} onClick={()=>zoom(scale*1.5)}>＋</button>
-     <button type="button" aria-label="适应窗口" className={`${button} text-xs`} onClick={()=>paint(FIT)}>适应</button>
-     <button type="button" aria-label="原始尺寸" className={`${button} text-xs`} onClick={()=>{const img=picture.current;if(img)zoom(Math.max(1,img.naturalWidth/img.clientWidth));}}>1:1</button>
+     <button type="button" aria-label={t.zoomIn} disabled={scale>=maxZoom()} className={button} onClick={()=>zoom(scale*1.5)}>＋</button>
+     <button type="button" aria-label={t.fitWindow} className={`${button} text-xs`} onClick={()=>paint(FIT)}>{t.fit}</button>
+     <button type="button" aria-label={t.actualSize} className={`${button} text-xs`} onClick={()=>{const img=picture.current;if(img)zoom(Math.max(1,img.naturalWidth/img.clientWidth));}}>1:1</button>
     </div>
-    <button ref={close} type="button" aria-label="关闭" className={`${button} shrink-0 bg-black/60`} onClick={onClose}><IconClose size={20}/></button>
+    <button ref={close} type="button" aria-label={t.close} className={`${button} shrink-0 bg-black/60`} onClick={onClose}><IconClose size={20}/></button>
    </div>
    <div ref={viewport} className="absolute inset-x-3 bottom-16 top-20 grid touch-none place-items-center overflow-hidden sm:inset-x-16" style={{cursor:scale>1?'grab':'zoom-in'}}
     onPointerDown={e=>{if(e.pointerType==='mouse'&&e.button!==0)return;points.current.set(e.pointerId,{x:e.clientX,y:e.clientY});if(points.current.size>1){multi.current=true;lastTap.current=0;}e.currentTarget.setPointerCapture(e.pointerId);begin();}}
@@ -91,7 +94,7 @@ const paint=(next:Pose)=>{
     }} onPointerCancel={e=>{points.current.delete(e.pointerId);if(!points.current.size)multi.current=false;begin();}} onDoubleClick={()=>{if(Date.now()-lastTouch.current>500)zoom(pose.current.scale>1?1:2.5);}}>
     {current&&<img key={current.src} ref={picture} src={current.src} alt={current.alt??''} draggable={false} decoding="async" onLoad={()=>paint(initialPose())} className="max-h-full max-w-full select-none object-contain shadow-2xl" style={{transformOrigin:'center',willChange:'transform'}}/>}
    </div>
-   {images.length>1&&<><button type="button" aria-label="上一张" className={`${button} absolute bottom-3 left-4 bg-black/60 sm:bottom-1/2`} onClick={()=>step(-1)}><IconArrowLeft size={20}/></button><button type="button" aria-label="下一张" className={`${button} absolute bottom-3 right-4 bg-black/60 sm:bottom-1/2`} onClick={()=>step(1)}><IconArrowRight size={20}/></button></>}
+   {images.length>1&&<><button type="button" aria-label={t.prev} className={`${button} absolute bottom-3 left-4 bg-black/60 sm:bottom-1/2`} onClick={()=>step(-1)}><IconArrowLeft size={20}/></button><button type="button" aria-label={t.next} className={`${button} absolute bottom-3 right-4 bg-black/60 sm:bottom-1/2`} onClick={()=>step(1)}><IconArrowRight size={20}/></button></>}
   </div>
  </Presence>,document.body);
 }

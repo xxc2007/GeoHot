@@ -67,6 +67,13 @@ export interface ItemSummary {
 export interface FeedItemSummary extends Pick<ItemSummary, "id" | "title" | "summary" | "reason" | "publishedAt" | "timelineAt" | "category" | "tags" | "score" | "selected" | "channel"> {
   source: Pick<SourceRef, "name">;
   /**
+   * The source's own headline as collected — English for most international sources, the original
+   * wording when the model paraphrased or translated it into the Chinese `title`. Null when the
+   * published title already is the source headline verbatim (a Chinese source adopted as-is).
+   * English list pages prefer it over the model-written Chinese `title`; Chinese pages never read it.
+   */
+  originalTitle: string | null;
+  /**
    * The same licence {@link ItemDetail.media} lends under: only a video source's own still, at most
    * three and sized for the list, with `fullUrl` for a lightbox. A text source lends its summary, not
    * its photographs; an X post keeps its media in `x.media` and adds none here.

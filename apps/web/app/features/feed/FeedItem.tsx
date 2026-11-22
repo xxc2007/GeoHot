@@ -4,9 +4,11 @@ import { memo } from "react";
 import { Link } from "react-router";
 import { IntentLink } from "../../components/ui/IntentLink";
 import type { GroupInfo, FeedItemSummary, TimelineFilters } from "@aihot/contracts/site";
-import { CATEGORY_LABELS } from "@aihot/contracts/taxonomy";
+import { hasChineseCopy } from "@aihot/contracts/copy";
 import { SelectedBadge } from "../../components/ui/Badge";
 import { ScoreLabel } from "../../components/ui/Score";
+import { localeAppPath, useLocale } from "../../lib/i18n";
+import { copy as feedCopy } from "../../lib/i18n/feed";
 import { MediaThumbs, SourceLine, StarButton } from "./parts";
 import { GroupDevelopments, GroupSources, LatestDevelopment } from "./ReadingGroup";
 import { QuotedLine } from "../item/QuotedPost";
@@ -24,6 +26,15 @@ export interface FeedItemProps {
 export const FeedItem = memo(function FeedItem({ item, group, filters, read = false, onOpen, showTags = false }: FeedItemProps) {
   const isX = item.channel === "x" && !!item.x;
   const open = () => onOpen?.(item.id);
+  // 英文页的标题行优先显示信源原题（originalTitle，多为国际信源的英文原题）；没有原题的条目
+  // （中文信源）回退到模型写的中文标题——同一屏两种标题混排是数据事实，如实呈现。中文页
+  // 一律用中文标题，逐字不变。类别角标同属界面，说法随语言走（feed.ts 词表）。
+  const locale = useLocale();
+  const title = locale === "en" && item.originalTitle ? item.originalTitle : item.title;
+  // 英文页的 <html lang="en"> 下会混进中文内容：没有原题的条目回退到模型写的中文标题，摘要与
+  // 推荐理由也一律中文（发布闸门 chineseCopyCondition 只收中文稿）。这些内容按自己的语种标注，
+  // 读屏才不会拿英语音去念整句中文（WCAG 3.1.2）；中文页 <html lang="zh-CN">，不必逐条再标。
+  const contentLang = (text: string | null) => (locale === "en" && text && hasChineseCopy(text) ? "zh" : undefined);
   const showSources = !!group && (group.additionalSourceCount > 0 || (group.developmentCount <= 1 && group.reportCount > 1));
   const showDevelopments = !!group?.story && group.developmentCount > 1;
   const tags = showTags ? item.tags.slice(0, 3) : [];
@@ -32,7 +43,7 @@ export const FeedItem = memo(function FeedItem({ item, group, filters, read = fa
     <article className="relative min-w-0 lg:card lg:card-hover lg:px-[18px] lg:pb-[14px] lg:pt-[15px]" data-item-id={item.id}>
       <header className="flex min-h-[18px] items-center gap-2 text-[12.5px] leading-[18px] text-ink-4">
         <SourceLine item={item} className="text-ink-4" />
-        {item.category && <Link to={`/all?category=${item.category}`} className="relative z-10 shrink-0 text-ink-3 transition-colors hover:text-accent">{CATEGORY_LABELS[item.category]}</Link>}
+        {item.category && <Link to={localeAppPath(`/all?category=${item.category}`, locale)} className="relative z-10 shrink-0 text-ink-3 transition-colors hover:text-accent">{feedCopy[locale].category[item.category]}</Link>}
         {item.selected && (
           <span className="hidden lg:inline-flex">
             <SelectedBadge />
@@ -52,9 +63,9 @@ export const FeedItem = memo(function FeedItem({ item, group, filters, read = fa
       </header>
 
       {isX ? (
-        <p className={`measure mt-2 whitespace-pre-line text-lead leading-[1.75] line-clamp-5 lg:line-clamp-4 ${read ? "text-ink-4" : "text-ink"}`}>
-          <IntentLink to={`/items/${item.id}`} onClick={open} className="after:absolute after:inset-0 after:content-['']">
-            {item.summary ?? item.title}
+        <p lang={contentLang(item.summary ?? title)} className={`measure mt-2 whitespace-pre-line text-lead leading-[1.75] line-clamp-5 lg:line-clamp-4 ${read ? "text-ink-4" : "text-ink"}`}>
+          <IntentLink to={localeAppPath(`/items/${item.id}`, locale)} onClick={open} className="after:absolute after:inset-0 after:content-['']">
+            {item.summary ?? title}
           </IntentLink>
         </p>
       ) : (
@@ -66,12 +77,12 @@ export const FeedItem = memo(function FeedItem({ item, group, filters, read = fa
         // at 15px or 34 at the 17px title; a measure cap has to be taken at one size, and under 42
         // everywhere is the point. The card, its rule and the time rail keep the full width.
         <div className="measure min-w-0">
-          <h3 className={`mt-2 line-clamp-2 text-subhead font-bold leading-[1.55] lg:line-clamp-none lg:font-[650] ${read ? "text-ink-4" : "text-ink"}`}>
-            <IntentLink to={`/items/${item.id}`} onClick={open} className="after:absolute after:inset-0 after:content-['']">
-              {item.title}
+          <h3 lang={contentLang(title)} className={`mt-2 line-clamp-2 text-subhead font-bold leading-[1.55] lg:line-clamp-none lg:font-[650] ${read ? "text-ink-4" : "text-ink"}`}>
+            <IntentLink to={localeAppPath(`/items/${item.id}`, locale)} onClick={open} className="after:absolute after:inset-0 after:content-['']">
+              {title}
             </IntentLink>
           </h3>
-          {item.summary && <p className="mt-1.5 line-clamp-2 text-[14.5px] leading-[1.75] text-ink-3 lg:mt-2 lg:line-clamp-3 lg:text-lead">{item.summary}</p>}
+          {item.summary && <p lang={contentLang(item.summary)} className="mt-1.5 line-clamp-2 text-[14.5px] leading-[1.75] text-ink-3 lg:mt-2 lg:line-clamp-3 lg:text-lead">{item.summary}</p>}
         </div>
       )}
 
@@ -82,7 +93,7 @@ export const FeedItem = memo(function FeedItem({ item, group, filters, read = fa
       {tags.length > 0 && (
         <div className="relative z-10 mt-2 hidden flex-wrap gap-x-2.5 gap-y-1 text-[12px] text-ink-4 lg:flex">
           {tags.map((t) => (
-            <Link key={t} to={`/all?tag=${encodeURIComponent(t)}`} className="hover:text-accent">
+            <Link key={t} to={localeAppPath(`/all?tag=${encodeURIComponent(t)}`, locale)} className="hover:text-accent">
               #{t}
             </Link>
           ))}
@@ -100,7 +111,7 @@ export const FeedItem = memo(function FeedItem({ item, group, filters, read = fa
       {item.reason && (
         // The same measure as the title column above, so the desktop rule over it ends where its text does.
         <div className="measure mt-2.5 rounded-control bg-bg-sunk px-3 py-2 dark:bg-bg-muted/60 lg:mt-3 lg:rounded-none lg:border-t lg:border-line-soft lg:bg-transparent lg:px-0 lg:pb-0 lg:pt-3 lg:dark:bg-transparent">
-          <p className="line-clamp-2 text-[13px] leading-[1.65] text-ink-3 lg:line-clamp-none lg:leading-[1.75] lg:text-note">推荐理由：{item.reason}</p>
+          <p lang={contentLang(item.reason)} className="line-clamp-2 text-[13px] leading-[1.65] text-ink-3 lg:line-clamp-none lg:leading-[1.75] lg:text-note">{feedCopy[locale].reasonLabel}{item.reason}</p>
         </div>
       )}
     </article>

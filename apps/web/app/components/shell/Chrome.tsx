@@ -2,7 +2,8 @@ import { Component, useEffect, useRef, useState, type ReactNode } from "react";
 import { useRevalidator } from "react-router";
 import { IconArrowUp, IconInfo } from "../icons";
 import { buttonClass } from "../ui/Controls";
-import { homeHref } from "./nav";
+import { localePath, useLocale } from "../../lib/i18n";
+import { copy } from "../../lib/i18n/shell";
 
 /** A thin accent line while a navigation is in flight (shown only if it takes a moment). */
 export function NavigationProgress({ active }: { active: boolean }) {
@@ -44,7 +45,7 @@ export function BackToTop() {
   return (
     <button
       type="button"
-      aria-label="回到顶部"
+      aria-label={copy[useLocale()].backToTop}
       data-print="hide"
       tabIndex={shown ? 0 : -1}
       onClick={() => window.scrollTo({ top: 0, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" })}
@@ -91,12 +92,14 @@ export class PageBoundary extends Component<{ children: ReactNode; resetKey: str
 function BoundaryFallback({ onRetry }: { onRetry: () => void }) {
   const revalidator = useRevalidator();
   const retrying = revalidator.state === "loading";
+  const locale = useLocale();
+  const e = copy[locale].boundary;
   return (
     <div role="alert" className="flex min-h-[45vh] flex-col items-center justify-center px-2 py-16 text-center">
       <IconInfo size={26} className="mb-3 text-ink-4" />
-      <h1 className="text-[18px] font-bold text-ink">这一页没能显示出来</h1>
+      <h1 className="text-[18px] font-bold text-ink">{e.title}</h1>
       <p className="mt-2 max-w-sm text-[13.5px] leading-relaxed text-ink-3">
-        网站导航与其余内容照常工作。可以重试这一页，或者去精选看看。
+        {e.body}
       </p>
       <div className="mt-6 flex flex-wrap justify-center gap-2.5">
         <button
@@ -108,10 +111,11 @@ function BoundaryFallback({ onRetry }: { onRetry: () => void }) {
             revalidator.revalidate();
           }}
         >
-          {retrying ? "正在重试…" : "重试这一页"}
+          {retrying ? e.retrying : e.retry}
         </button>
-        <a href={homeHref()} className={buttonClass("secondary")}>
-          回到精选
+        {/* 出口也随语言走：/en 的错误页不该把读者送回中文首页。zh 下 localePath 与 homeHref 同值。 */}
+        <a href={localePath("/", locale)} className={buttonClass("secondary")}>
+          {e.backSelected}
         </a>
       </div>
     </div>
