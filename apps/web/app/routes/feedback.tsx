@@ -8,6 +8,7 @@ import { copy } from "../lib/i18n/pages/feedback";
 import { ChineseNotice } from "../components/ui/ChineseNotice";
 import { KEYS } from "../lib/local-state";
 import { publicPath } from "../lib/public-path";
+import { safeBlobSrc } from "../lib/safe-url.ts";
 import { IconCheck, IconClose, IconImage, IconUsers } from "../components/icons";
 import { buttonClass } from "../components/ui/Controls";
 import { RingMark } from "../components/Logo";
@@ -84,6 +85,9 @@ export default function FeedbackPage() {
   const [state, setState] = useState<{ kind: "idle" | "sending" | "done" | "error"; message?: string; id?: number }>({ kind: "idle" });
   const [dragging, setDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  // 预览地址交给 <img src> 前先过 scheme 白名单（只认本页 createObjectURL 的 blob:，见 lib/safe-url.ts）。
+  // 值虽然只来自上面那次 createObjectURL，但这一层不假设上游——也是 CodeQL js/xss-through-dom 的出口。
+  const shotSrc = safeBlobSrc(shot?.url);
 
   useEffect(() => {
     const saved = readDraft();
@@ -235,7 +239,7 @@ export default function FeedbackPage() {
             </span>
             {shot ? (
               <div className="flex items-center gap-4 well rounded-card p-3">
-                <img src={shot.url} alt={c.shotPreviewAlt} className="h-16 w-24 shrink-0 rounded-control border border-line bg-surface object-cover" />
+                {shotSrc && <img src={shotSrc} alt={c.shotPreviewAlt} className="h-16 w-24 shrink-0 rounded-control border border-line bg-surface object-cover" />}
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-[13px] font-medium text-ink-2">{shot.file.name}</div>
                   <div className="mono mt-0.5 text-[11.5px] text-ink-4">{(shot.file.size / 1024 / 1024).toFixed(2)} MB</div>
