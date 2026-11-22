@@ -1,7 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { IconCheck, IconCopy } from "./icons";
+import { useLocale } from "../lib/i18n";
+import { copy } from "../lib/i18n/ui";
 
-export function CopyButton({ text, label = "复制", className = "" }: { text: string; label?: string; className?: string }) {
+/**
+ * Copy button; `label` overrides the idle word when the page wants its own phrasing（agent 页的 RSS
+ * 行），缺省时随页面语言取词（lib/i18n/ui.ts）——否则 /en 的代码块会印着「复制」。
+ */
+export function CopyButton({ text, label, className = "" }: { text: string; label?: string; className?: string }) {
+  const w = copy[useLocale()];
   const [status, setStatus] = useState<"idle" | "copied" | "failed">("idle");
   // The "已复制" reset is a timer, and a timer an unmount never cancels fires `setStatus` on a component
   // that is gone (React 19 drops it, but it also meant a navigation inside 1.5s kept a hidden page alive
@@ -29,12 +36,12 @@ export function CopyButton({ text, label = "复制", className = "" }: { text: s
         if (ok) reset.current = setTimeout(() => setStatus("idle"), 1500);
       }}
       className={`inline-flex h-7 items-center gap-1 rounded-mark border border-line bg-surface px-2 text-[12px] transition-colors ${status === "copied" ? "text-ok" : status === "failed" ? "text-ink-2" : "text-ink-3 hover:border-line-strong hover:text-ink"} ${className}`}
-      aria-label={status === "copied" ? "已复制" : status === "failed" ? "复制失败" : label}
+      aria-label={status === "copied" ? w.copyDone : status === "failed" ? w.copyFailed : (label ?? w.copyIdle)}
     >
       <span key={status} className={status === "copied" ? "anim-swap-in" : ""}>
         {status === "copied" ? <IconCheck size={14} /> : <IconCopy size={14} />}
       </span>
-      {status === "copied" ? "已复制" : status === "failed" ? "复制失败" : label}
+      {status === "copied" ? w.copyDone : status === "failed" ? w.copyFailed : (label ?? w.copyIdle)}
     </button>
   );
 }

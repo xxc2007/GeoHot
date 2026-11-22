@@ -1,15 +1,21 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useLoaderData, useNavigate, useSearchParams } from "react-router";
 import type { Route } from "./+types/agent";
-import { SITE, withSubject } from "@aihot/industry/site";
+import { SITE } from "@aihot/industry/site";
 import { FEATURES } from "@aihot/industry/features";
 import { CATEGORY_KEYS } from "@aihot/contracts/taxonomy";
 import { MCP_TOOL_NAMES as T } from "@aihot/contracts/mcp";
 import { listPath, pageMeta, siteUrl } from "../lib/seo";
+import { localeAppPath, localeFromPath, useLocale } from "../lib/i18n";
+import { copy } from "../lib/i18n/pages/agent";
 import { publicPath } from "../lib/public-path";
 import { CodeBlock, CopyButton } from "../components/CodeBlock";
 import { IconArrowUpRight, IconChevronRight } from "../components/icons";
 import { AsideCard, ReadingLayout } from "../components/ui/Page";
+
+/** 字典里按键取文案的两张小表（订阅、端点），键集以中文为准、英文同形。 */
+type FeedKey = keyof typeof copy.zh.rss.feeds;
+type EndpointKey = keyof typeof copy.zh.api.endpoints;
 
 /** Shared caches may keep this page for five minutes. */
 export function headers() {
@@ -19,17 +25,18 @@ export function headers() {
 const MCP_VERSION = "2.0.0";
 /** Counted, never written out: this page told agents about five tools while the server answered with seven. */
 const TOOL_COUNT = Object.keys(T).length;
-/** The machine-readable entry points, with what each one is for. */
-const RESOURCES: Array<[label: string, href: string, note: string]> = [
-  ["llms.txt", "/llms.txt", "给大模型读的站点说明"],
-  ["MCP Server", "/api/mcp", "MCP 客户端填的连接地址（不是网页，浏览器直接打开回 405）"],
-  ["OpenAPI 3.1", "/openapi-v1.json", "REST API v1 的完整定义"],
+/** The machine-readable entry points, with what each one is for. 资源名是文件与协议名不译，说明在字典（copy.resources）。 */
+const RESOURCES: Array<[label: string, href: string, noteKey: "llms" | "mcp" | "openapi"]> = [
+  ["llms.txt", "/llms.txt", "llms"],
+  ["MCP Server", "/api/mcp", "mcp"],
+  ["OpenAPI 3.1", "/openapi-v1.json", "openapi"],
 ];
 
+/** 接入方式的标签（MCP/RSS/REST API）不随语言变；说明与适用对象在字典（copy.tabs）。 */
 const TABS = [
-  { key: "mcp", label: "MCP", note: "填一个地址，让 Agent 直接查询", hint: "适合 Agent 与开发工具" },
-  { key: "rss", label: "RSS", note: "复制订阅地址，更新自动送达", hint: "适合阅读器与自动化" },
-  { key: "api", label: "REST API", note: "用匿名 GET 请求，自由组合内容", hint: "适合自己写程序" },
+  { key: "mcp", label: "MCP" },
+  { key: "rss", label: "RSS" },
+  { key: "api", label: "REST API" },
 ] as const;
 type TabKey = (typeof TABS)[number]["key"];
 
@@ -46,10 +53,12 @@ export async function loader({ request }: Route.LoaderArgs) {
   return { tab: (TABS.some((t) => t.key === tab) ? tab : "mcp") as TabKey, healthy, base: siteUrl() };
 }
 
-export function meta({ loaderData }: Route.MetaArgs) {
+export function meta({ loaderData, location }: Route.MetaArgs) {
+  const locale = localeFromPath(location.pathname);
+  const c = copy[locale];
   // Only the tab is part of the address (mcp is the default and not written).
   const path = listPath("/agent", { tab: loaderData && loaderData.tab !== "mcp" ? loaderData.tab : null });
-  return pageMeta({ title: "Agent 接入", description: `让 Agent 直接使用 ${SITE.name}：MCP、RSS、REST API v1，匿名只读。`, path, image: "/og/pages/agent.png" });
+  return pageMeta({ title: c.metaTitle, description: c.metaDescription, path, image: "/og/pages/agent.png", locale });
 }
 
 function Section({ title, children, id }: { title: string; children: ReactNode; id?: string }) {
@@ -76,35 +85,38 @@ function Mono({ children }: { children: ReactNode }) {
 }
 
 function McpTab({ base }: { base: string }) {
+  const locale = useLocale();
+  const c = copy[locale];
   const url = `${base}/api/mcp`;
   const name = SITE.mcpPrefix;
   return (
     <>
-      <h2 className="text-[20px] font-bold text-ink">加一个地址，Agent 直接调用 {TOOL_COUNT} 个工具</h2>
-      <p className="mt-2 text-[14.5px] text-ink-3">适合支持远程 MCP 的 Agent 与开发工具。标准 Streamable HTTP，匿名只读，不需要 token；工具返回简洁文字与同一份结构化数据。</p>
+      <h2 className="text-[20px] font-bold text-ink">{c.mcp.headline(String(TOOL_COUNT))}</h2>
+      <p className="mt-2 text-[14.5px] text-ink-3">{c.mcp.lead}</p>
       <div className="mt-6 flex items-center gap-2 rounded-card border border-line bg-surface p-3">
         <code className="min-w-0 flex-1 truncate font-mono text-[13px] text-ink">{url}</code>
         <CopyButton text={url} className="!text-ink-3" />
       </div>
-      <CodeBlock title="通用 MCP 配置" lang="json" code={JSON.stringify({ mcpServers: { [name]: { type: "http", url } } }, null, 2)} />
+      <CodeBlock title={c.mcp.configTitle} lang="json" code={JSON.stringify({ mcpServers: { [name]: { type: "http", url } } }, null, 2)} />
       <CodeBlock lang="bash" code={`# Claude Code\nclaude mcp add --transport http ${name} '${url}'\n# Codex\ncodex mcp add ${name} --url '${url}'`} />
-      <Section title={`连上后应看到这 ${TOOL_COUNT} 个工具`}>
+      <Section title={c.mcp.toolsTitle(String(TOOL_COUNT))}>
+        {/* 工具名是代码标识符，用 <Mono> 包好；连接符与说明跟在字典里。 */}
         <Bullets items={[
-          <><Mono>{T.latest}</Mono>：过去 24 小时或最近 7 天的精选／全部资讯</>,
-          <><Mono>{T.search}</Mono>：搜索最近 7 天的公司、产品、人物或话题</>,
-          <><Mono>{T.hot}</Mono>：当前热点榜与事件排名</>,
-          <><Mono>{T.story}</Mono>：一个热点事件的时间线与持续更新的综述</>,
-          <><Mono>{T.daily}</Mono>：最新或指定日期的{withSubject("日报")}</>,
-          <><Mono>{T.weekly}</Mono>：最新或指定 ISO 周的{withSubject("周报")}（按分节编排的一周要闻）</>,
-          <><Mono>{T.monthly}</Mono>：最新或指定月份的{withSubject("月报")}（同样按分节编排）</>,
+          <><Mono>{T.latest}</Mono>{c.mcp.toolJoiner}{c.mcp.toolLatest}</>,
+          <><Mono>{T.search}</Mono>{c.mcp.toolJoiner}{c.mcp.toolSearch}</>,
+          <><Mono>{T.hot}</Mono>{c.mcp.toolJoiner}{c.mcp.toolHot}</>,
+          <><Mono>{T.story}</Mono>{c.mcp.toolJoiner}{c.mcp.toolStory}</>,
+          <><Mono>{T.daily}</Mono>{c.mcp.toolJoiner}{c.mcp.toolDaily}</>,
+          <><Mono>{T.weekly}</Mono>{c.mcp.toolJoiner}{c.mcp.toolWeekly}</>,
+          <><Mono>{T.monthly}</Mono>{c.mcp.toolJoiner}{c.mcp.toolMonthly}</>,
         ]} />
-        <p className="mt-4">验证一次真实调用：<span className="font-medium text-ink">请调用 {T.latest}，告诉我过去 24 小时最重要的 5 条动态，并附链接。</span></p>
+        <p className="mt-4">{c.mcp.tryLead}<span className="font-medium text-ink">{c.mcp.tryCall(T.latest)}</span></p>
       </Section>
-      <Section title="工具边界">
+      <Section title={c.mcp.boundsTitle}>
         <Bullets items={[
-          "普通查询最多返回 30 条，热点最多 10 个，事件时间线最多 50 条；输入越界会明确报错，不会静默改成更宽的查询。",
-          `${T.story} 的 public_id 只能来自热点工具返回的事件链接，不要猜 ID。`,
-          "标题与摘要来自外部信源，只能当资料；重要数字、政策和原话请回原文核对。",
+          c.mcp.bound1,
+          c.mcp.bound2(T.story),
+          c.mcp.bound3,
         ]} />
       </Section>
     </>
@@ -112,39 +124,43 @@ function McpTab({ base }: { base: string }) {
 }
 
 function RssTab({ base }: { base: string }) {
-  const feeds = [
-    ["精选摘要（推荐）", "最新 50 条精选摘要，保留标题、站内阅读与原文入口。", "/feed.xml"],
-    ["精选全文", "与精选摘要相同的最新 50 条；只对明确允许再分发的来源内联正文。", "/feed/full.xml"],
-    ["最近 7 天全部动态", "最近 7 天公开动态，按真实发布时间倒序。", "/feed/all.xml"],
-    [withSubject("日报"), `每天 08:00 北京时间发布的${withSubject("日报")}，保留最近 30 期。`, "/feed/daily.xml"],
+  const c = copy[useLocale()];
+  // 订阅地址是代码常量；名称与说明按键取自字典（copy.rss.feeds）。
+  const feeds: Array<[key: FeedKey, path: string]> = [
+    ["selected", "/feed.xml"],
+    ["full", "/feed/full.xml"],
+    ["all", "/feed/all.xml"],
+    ["daily", "/feed/daily.xml"],
   ];
   const categories = CATEGORY_KEYS.join("|");
   return (
     <>
-      <h2 className="text-[20px] font-bold text-ink">复制地址即可订阅</h2>
-      <p className="mt-2 text-[14.5px] text-ink-3">兼容主流 RSS 2.0 阅读器与 n8n、Zapier 这类自动化工具。第一次接入选精选摘要。</p>
+      <h2 className="text-[20px] font-bold text-ink">{c.rss.headline}</h2>
+      <p className="mt-2 text-[14.5px] text-ink-3">{c.rss.lead}</p>
       <div className="mt-6 space-y-3">
-        {feeds.map(([name, desc, path]) => {
+        {feeds.map(([key, path]) => {
+          const feed = c.rss.feeds[key];
           const url = `${base}${path}`;
           return (
             <div key={path} className="card p-4">
               <div className="flex items-center justify-between gap-3">
-                <span className="text-[15px] font-semibold text-ink">{name}</span>
-                <CopyButton text={url} label="复制地址" className="!text-ink-3" />
+                <span className="text-[15px] font-semibold text-ink">{feed.name}</span>
+                <CopyButton text={url} label={c.rss.copyLabel} className="!text-ink-3" />
               </div>
-              <p className="mt-1 text-[13px] leading-relaxed text-ink-3">{desc}</p>
+              <p className="mt-1 text-[13px] leading-relaxed text-ink-3">{feed.desc}</p>
               <code className="mt-2 block truncate font-mono text-[12.5px] text-ink-4">{url}</code>
             </div>
           );
         })}
       </div>
-      <Section title="给阅读器和 Agent 的约定">
+      <Section title={c.rss.rulesTitle}>
+        {/* 末两条的地址模板是代码常量，跟在字典文案后面。 */}
         <Bullets items={[
-          "支持 ETag 条件请求，未变化时返回 304；建议每 30 分钟或更慢轮询。",
-          "条目 link 指向站内阅读页，第三方原文在 description 中。",
-          "全文是白名单：只有明确允许再分发的来源内联 content:encoded，其余一律只给摘要。",
-          <>分类订阅 <Mono>{`/feed/category/{${categories}}.xml`}</Mono></>,
-          <>分类全文 <Mono>{`/feed/full/category/{${categories}}.xml`}</Mono></>,
+          c.rss.rule1,
+          c.rss.rule2,
+          c.rss.rule3,
+          <>{c.rss.rule4} <Mono>{`/feed/category/{${categories}}.xml`}</Mono></>,
+          <>{c.rss.rule5} <Mono>{`/feed/full/category/{${categories}}.xml`}</Mono></>,
         ]} />
       </Section>
     </>
@@ -152,56 +168,59 @@ function RssTab({ base }: { base: string }) {
 }
 
 function ApiTab({ base }: { base: string }) {
-  const endpoints: Array<[string, string]> = [
-    ["/api/v1/items", "精选或最近 7 天公开动态；支持分类、时间和关键词"],
+  const c = copy[useLocale()];
+  // 端点路径是代码常量；说明按键取自字典（copy.api.endpoints）。
+  const endpoints: Array<[path: string, descKey: EndpointKey]> = [
+    ["/api/v1/items", "items"],
     ...(FEATURES.codexResetMonitor
       ? ([
-          ["/api/v1/codex-resets/recent", "Codex 重置监控（轮询用）：最近 7 天与尚未落地的预告"],
-          ["/api/v1/codex-resets", "Codex 重置与发卡的完整历史"],
-        ] as Array<[string, string]>)
+          ["/api/v1/codex-resets/recent", "codexRecent"],
+          ["/api/v1/codex-resets", "codexAll"],
+        ] as Array<[string, EndpointKey]>)
       : []),
-    ["/api/v1/hot-topics", "当前热点榜与事件排名"],
-    ["/api/v1/stories/{publicId}", "事件详情：报道时间线、综述与关联事件"],
-    ["/api/v1/dailies", `${withSubject("日报")}日期索引`],
-    ["/api/v1/dailies/latest", `最新${withSubject("日报")}`],
-    ["/api/v1/dailies/{date}", `指定日期的${withSubject("日报")}`],
-    ["/api/v1/selected/snapshot", "当前全部精选；首次完整同步（分页）"],
-    ["/api/v1/selected/changes", "精选的新增、修改和撤选；之后只取变化"],
+    ["/api/v1/hot-topics", "hotTopics"],
+    ["/api/v1/stories/{publicId}", "story"],
+    ["/api/v1/dailies", "dailies"],
+    ["/api/v1/dailies/latest", "dailiesLatest"],
+    ["/api/v1/dailies/{date}", "dailiesDate"],
+    ["/api/v1/selected/snapshot", "snapshot"],
+    ["/api/v1/selected/changes", "changes"],
   ];
   return (
     <>
-      <h2 className="text-[20px] font-bold text-ink">匿名 GET，不需要 token</h2>
-      <p className="mt-2 text-[14.5px] text-ink-3">浏览器跨域、curl 和默认 HTTP SDK 都可以直接用。临时查最近内容用 items；长期维护全部精选用一次快照加增量游标。字段与错误码以 <a href={publicPath("/openapi-v1.json")} className="text-accent hover:underline">OpenAPI 3.1</a> 为准。</p>
-      <CodeBlock title="第一个请求" lang="bash" code={`curl '${base}/api/v1/items?mode=selected&window=24h&limit=20'`} />
+      <h2 className="text-[20px] font-bold text-ink">{c.api.headline}</h2>
+      {/* "以 OpenAPI 3.1 为准"一句夹着链接，拆成字典的前后两段（链接文字是协议名，不随语言变）。 */}
+      <p className="mt-2 text-[14.5px] text-ink-3">{c.api.lead}{c.api.specPre}<a href={publicPath("/openapi-v1.json")} className="text-accent hover:underline">OpenAPI 3.1</a>{c.api.specPost}</p>
+      <CodeBlock title={c.api.firstRequestTitle} lang="bash" code={`curl '${base}/api/v1/items?mode=selected&window=24h&limit=20'`} />
       <div className="overflow-x-auto rounded-card border border-line bg-surface">
         <table className="w-full min-w-[560px] text-left text-[13.5px]">
-          <thead className="bg-bg-sunk text-ink-3"><tr><th className="px-3 py-2 font-medium">方法</th><th className="px-3 py-2 font-medium">路径</th><th className="px-3 py-2 font-medium">说明</th></tr></thead>
+          <thead className="bg-bg-sunk text-ink-3"><tr><th className="px-3 py-2 font-medium">{c.api.colMethod}</th><th className="px-3 py-2 font-medium">{c.api.colPath}</th><th className="px-3 py-2 font-medium">{c.api.colDesc}</th></tr></thead>
           <tbody className="divide-y divide-line">
             {endpoints.map(([p, d]) => (
-              <tr key={p}><td className="px-3 py-2 font-mono text-[12px] text-ok">GET</td><td className="px-3 py-2 font-mono text-[12.5px] text-ink">{p}</td><td className="px-3 py-2 text-ink-2">{d}</td></tr>
+              <tr key={p}><td className="px-3 py-2 font-mono text-[12px] text-ok">GET</td><td className="px-3 py-2 font-mono text-[12.5px] text-ink">{p}</td><td className="px-3 py-2 text-ink-2">{c.api.endpoints[d]}</td></tr>
             ))}
           </tbody>
         </table>
       </div>
-      <Section title="先知道这几件事">
+      <Section title={c.api.notesTitle}>
         <Bullets items={[
-          "不传 mode 等同 selected（精选）；只有明确需要全部公开动态才用 all。",
-          "完整精选不限 7 天：snapshot 首次拿全，changes 只取变化；items 只看最近 7 天。",
-          "items 不带正文：返回摘要、推荐理由、站内阅读页与原文链接。",
-          "没有推送通道：按响应的 s-maxage 带 If-None-Match 轮询，没变化时是 304。",
-          "错误是 Problem JSON；反馈时附上 requestId 即可定位。",
+          c.api.note1,
+          c.api.note2,
+          c.api.note3,
+          c.api.note4,
+          c.api.note5,
         ]} />
       </Section>
-      <Section title="维护全部精选：一次快照，之后只拉变化">
-        <CodeBlock lang="bash" code={`# 首次：分页拿当前全部精选，保存第一页响应里的 cursor（逐页相同）\ncurl '${base}/api/v1/selected/snapshot?fields=minimal&limit=500'\n# hasMore 为 true 就带 nextPage 继续翻\ncurl '${base}/api/v1/selected/snapshot?fields=minimal&limit=500&page=<上一页的 nextPage>'\n# 翻完之后：原样回传 cursor，只拿新增、修改和撤选\ncurl '${base}/api/v1/selected/changes?cursor=<第一页响应的 cursor>&limit=100'`} />
-        <p>每页成功应用后再保存新 cursor。返回 409 snapshot_required 时重新取一次快照即可，接口不会静默漏数。</p>
+      <Section title={c.api.snapshotTitle}>
+        <CodeBlock lang="bash" code={c.api.snapshotCode(base)} />
+        <p>{c.api.snapshotNote}</p>
       </Section>
-      <Section title="错误与恢复" id="agent-api-recovery">
+      <Section title={c.api.errorsTitle} id="agent-api-recovery">
         <Bullets items={[
-          "400：参数不合法；按 OpenAPI 修正，不要自动改成更宽的查询。",
-          "409 snapshot_required：增量游标无法安全续传，重新取一次完整快照。",
-          "429：遵守 Retry-After，不要增加并发重试。",
-          "5xx：指数退避，并使用上次成功的缓存。",
+          c.api.error1,
+          c.api.error2,
+          c.api.error3,
+          c.api.error4,
         ]} />
       </Section>
     </>
@@ -210,6 +229,8 @@ function ApiTab({ base }: { base: string }) {
 
 export default function AgentPage() {
   const { tab: initialTab, healthy: healthyAtLoad, base } = useLoaderData<typeof loader>();
+  const locale = useLocale();
+  const c = copy[locale];
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const [tab, setTab] = useState<TabKey>(initialTab);
@@ -244,23 +265,23 @@ export default function AgentPage() {
   const pill = "inline-flex h-6 items-center rounded-mark border border-line bg-surface px-2 text-[11.5px] text-ink-3";
   const aside = (
     <>
-      <AsideCard title="接入资源" className="hidden lg:block">
-        <nav aria-label="接入资源" className="-mx-2 -mb-1">
-          {RESOURCES.map(([l, h, note]) => (
+      <AsideCard title={c.resources.title} className="hidden lg:block">
+        <nav aria-label={c.resources.title} className="-mx-2 -mb-1">
+          {RESOURCES.map(([l, h, noteKey]) => (
             <a key={h} href={publicPath(h)} className="group flex items-start gap-2 rounded-control px-2 py-2 transition-colors hover:bg-bg-sunk">
               <span className="min-w-0 flex-1">
                 <span className="block text-[13.5px] text-ink-2 group-hover:text-ink">{l}</span>
-                <span className="mt-0.5 block text-[12px] text-ink-4">{note}</span>
+                <span className="mt-0.5 block text-[12px] text-ink-4">{c.resources[noteKey]}</span>
               </span>
               <IconArrowUpRight size={13} className="mt-1 shrink-0 text-ink-4" />
             </a>
           ))}
         </nav>
       </AsideCard>
-      <AsideCard title="没接上？">
-        <p className="text-[13px] leading-[1.75] text-ink-3">把客户端、版本和报错写在反馈页，别发 token 或本地文件。</p>
-        <Link to="/feedback" prefetch="intent" className="mt-3 inline-flex items-center gap-1 text-[13px] font-medium text-accent hover:underline">
-          去反馈 <IconChevronRight size={14} />
+      <AsideCard title={c.troubleshoot.title}>
+        <p className="text-[13px] leading-[1.75] text-ink-3">{c.troubleshoot.body}</p>
+        <Link to={localeAppPath("/feedback", locale)} prefetch="intent" className="mt-3 inline-flex items-center gap-1 text-[13px] font-medium text-accent hover:underline">
+          {c.troubleshoot.go} <IconChevronRight size={14} />
         </Link>
       </AsideCard>
     </>
@@ -268,16 +289,16 @@ export default function AgentPage() {
   return (
     <ReadingLayout aside={aside}>
       <header>
-        <p className="mb-3 text-[12px] font-semibold tracking-[0.16em] text-accent">Agent 接入</p>
-        <h1 className="text-[28px] font-bold leading-[1.35] text-ink sm:text-[34px]">把 {SITE.name} 接进你的 Agent</h1>
-        <p className="measure mt-4 text-[15px] leading-[1.9] text-ink-3">精选、热点、日报、周报和月报，都能在你熟悉的工具里读。MCP、RSS、API 读取同一份公开内容，按使用方式选一种就行。</p>
+        <p className="mb-3 text-[12px] font-semibold tracking-[0.16em] text-accent">{c.kicker}</p>
+        <h1 className="text-[28px] font-bold leading-[1.35] text-ink sm:text-[34px]">{c.headline}</h1>
+        <p className="measure mt-4 text-[15px] leading-[1.9] text-ink-3">{c.lead}</p>
         <div className="mt-3.5 flex flex-wrap items-center gap-1.5">
-          <span className={pill}>匿名只读</span>
+          <span className={pill}>{c.pillAnonymous}</span>
           <span className={`${pill} mono`}>API v1</span>
           <span className={`${pill} mono`}>MCP {MCP_VERSION}</span>
-          <span className={`${pill} gap-1.5 ${healthy ? "text-ok" : "text-hot"}`} title="读这一页时在浏览器里查的 /api/health；不支持脚本的浏览器看到的就是打开这一页时的结果">
+          <span className={`${pill} gap-1.5 ${healthy ? "text-ok" : "text-hot"}`} title={c.statusTitle}>
             <span className={`size-1.5 rounded-full ${healthy ? "bg-ok" : "bg-hot"}`} />
-            {healthy ? "服务正常" : "服务异常"}
+            {healthy ? c.statusOk : c.statusDown}
           </span>
         </div>
       </header>
@@ -290,18 +311,18 @@ export default function AgentPage() {
         ))}
       </div>
 
-      <nav aria-label="接入方式" className="my-8 grid gap-3 sm:grid-cols-3">
+      <nav aria-label={c.tabsAria} className="my-8 grid gap-3 sm:grid-cols-3">
         {TABS.map(t => <button key={t.key} type="button" onClick={() => select(t.key)} aria-pressed={tab === t.key}
           className={`rounded-card border p-5 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent ${tab === t.key ? "border-accent bg-accent/5" : "border-line bg-surface hover:border-accent/50"}`}>
-          <span className="block text-[12px] text-ink-4">{t.hint}</span>
+          <span className="block text-[12px] text-ink-4">{c.tabs[t.key].hint}</span>
           <span className="mt-2 block text-[19px] font-bold text-ink">{t.label}</span>
-          <span className="mt-2 block text-[13px] leading-[1.75] text-ink-3">{t.note}</span>
+          <span className="mt-2 block text-[13px] leading-[1.75] text-ink-3">{c.tabs[t.key].note}</span>
         </button>)}
       </nav>
 
       {/* Not role=tabpanel: the switch above is a radiogroup, and a tabpanel without a tab is a
           contract nothing satisfies. A named region carries the same "where am I" for a reader. */}
-      <div className="border-t border-line pt-7" role="region" aria-label="接入方式说明">
+      <div className="border-t border-line pt-7" role="region" aria-label={c.regionAria}>
         {tab === "mcp" && <McpTab base={base} />}
         {tab === "rss" && <RssTab base={base} />}
         {tab === "api" && <ApiTab base={base} />}

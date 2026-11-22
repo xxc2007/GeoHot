@@ -7,7 +7,8 @@
 import { useEffect, useMemo, useRef } from "react";
 import { Link } from "react-router";
 import type { ReportNavigationEntry, ReportKind } from "@aihot/contracts/site";
-import { KIND_PATH, periodGrid } from "./format";
+import { useLocale } from "../../lib/i18n";
+import { reportPath, periodGrid } from "./format";
 
 const ROW = 20;
 const TAU = Math.PI * 2;
@@ -15,7 +16,9 @@ const INTRO_MS = 700;
 const easeOutBack = (p: number) => 1 + 2.2 * (p - 1) ** 3 + 1.2 * (p - 1) ** 2;
 
 export function IssueDots({ kind, reportKey, index, className = "" }: { kind: ReportKind; reportKey: string; index: ReportNavigationEntry[]; className?: string }) {
-  const grid = useMemo(() => periodGrid(kind, reportKey, index), [kind, reportKey, index]);
+  // 点阵的悬停与读屏名（月份标题、表头、格名与「未出刊/第 N 期」后缀）随页面语言走。
+  const locale = useLocale();
+  const grid = useMemo(() => periodGrid(kind, reportKey, index, locale), [kind, reportKey, index, locale]);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // Pointer tracking lives on the box that holds both the canvas and the links over it: an event that
   // lands on a link never reaches the canvas underneath, so listening on the canvas left the dots dead
@@ -182,7 +185,7 @@ export function IssueDots({ kind, reportKey, index, className = "" }: { kind: Re
             // Every cell gets an element: auto-placement in the grid is positional, and a cell that
             // rendered nothing would pull the anchors after it one dot to the left.
             c.state === "issue" && c.key ? (
-              <Link key={i} to={`${KIND_PATH[kind]}/${c.key}`} aria-label={c.label} title={c.label} className="rounded-tile outline-offset-[-2px]" />
+              <Link key={i} to={reportPath(kind, c.key, locale)} aria-label={c.label} title={c.label} className="rounded-tile outline-offset-[-2px]" />
             ) : c.state === "current" ? (
               <span key={i} aria-current="page" className="grid place-items-center" title={c.label}>
                 <span className="sr-only">{c.label}</span>

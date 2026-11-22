@@ -10,7 +10,9 @@ import { FeedItem } from "./FeedItem";
 import { IconChevronDown } from "../../components/icons";
 import { RingMark } from "../../components/Logo";
 import { EmptyState } from "../../components/ui/Page";
-import { beijingDate, beijingTime, beijingWeekday, dayLabel, todayOf } from "../../lib/format";
+import { useLocale } from "../../lib/i18n";
+import { copy } from "../../lib/i18n/feed";
+import { beijingDate, beijingTime, dayLabel, monthDay, todayOf, weekdayName, weekdayShort } from "../../lib/format";
 import { publicPath } from "../../lib/public-path";
 import { atQuietPageHead } from "../../lib/live-refresh";
 import { markRead, useReadSet } from "../../lib/local-state";
@@ -41,19 +43,18 @@ function fromResponse(r: TimelineResponse): ListState {
   return { cards: r.cards, nextCursor: r.nextCursor, dayCounts: r.dayCounts, collapsed: [] };
 }
 
-const WEEKDAY_SHORT = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
-
-/** Sticky day header: a quiet row on desktop, a grey full-width bar on phones. */
+/** Sticky day header: a quiet row on desktop, a grey full-width bar on phones. 日期写法随页面语言走。 */
 export function DayHeader({ day, today, count, collapsed, onToggle }: { day: string; today: string; count: number | null; collapsed?: boolean; onToggle?: () => void }) {
-  const [, m, d] = day.split("-").map(Number) as [number, number, number];
-  const date = `${m}月${d}日`;
-  const weekday = beijingWeekday(day);
-  const short = WEEKDAY_SHORT[new Date(`${day}T12:00:00+08:00`).getUTCDay()] ?? "";
+  const locale = useLocale();
+  const c = copy[locale];
+  const date = monthDay(day, undefined, locale);
+  const weekday = weekdayName(day, locale);
+  const short = weekdayShort(day, locale);
   return (
     <div className="sticky top-0 z-20 -mx-4 bg-daybar px-4 lg:mx-0 lg:bg-bg lg:px-0">
       {/* Phones: a full-width day bar. */}
       <div className="flex h-9 items-center gap-2 lg:hidden">
-        <span className="text-[14px] font-bold text-ink">{day === today ? "今天" : date}</span>
+        <span className="text-[14px] font-bold text-ink">{day === today ? c.todayWord : date}</span>
         {day === today && <span className="text-[12.5px] text-ink-4">{date}</span>}
         <span className="text-[12.5px] text-ink-4">{short}</span>
       </div>
@@ -73,7 +74,7 @@ export function DayHeader({ day, today, count, collapsed, onToggle }: { day: str
             type="button"
             onClick={onToggle}
             aria-expanded={!collapsed}
-            aria-label={collapsed ? `展开${date}` : `收起${date}`}
+            aria-label={collapsed ? c.expandDay(date) : c.collapseDay(date)}
             className="grid size-6 place-items-center justify-self-center rounded-full text-ink-4 outline-accent transition-colors hover:bg-bg-sunk hover:text-ink"
           >
             <IconChevronDown size={14} className={`transition-transform duration-200 ${collapsed ? "-rotate-90" : ""}`} />
@@ -86,7 +87,7 @@ export function DayHeader({ day, today, count, collapsed, onToggle }: { day: str
           {count !== null && (
             <>
               {" · "}
-              <span className="num">{count}</span> 条
+              <span className="num">{count}</span> {c.dayCountPost}
             </>
           )}
         </span>
@@ -313,11 +314,13 @@ export function Timeline({ initial, filters }: { initial: TimelineResponse; filt
     setState((s) => ({ ...s, collapsed: s.collapsed.includes(day) ? s.collapsed.filter((d) => d !== day) : [...s.collapsed, day] }));
 
   let order = 0;
+  const locale = useLocale();
+  const c = copy[locale];
   return (
     <div className="relative">
       {days.length === 0 && (
         <div className="lg:card">
-          <EmptyState title="这个筛选下还没有精选内容">换个类别看看，或者去全部动态里找找。</EmptyState>
+          <EmptyState title={c.timelineEmptyTitle}>{c.timelineEmptyBody}</EmptyState>
         </div>
       )}
 
@@ -325,7 +328,7 @@ export function Timeline({ initial, filters }: { initial: TimelineResponse; filt
         const collapsed = state.collapsed.includes(day);
         const count = state.dayCounts[day] ?? cards.length;
         return (
-          <section key={day} aria-label={dayLabel(day, today)} className="lg:mb-3">
+          <section key={day} aria-label={dayLabel(day, today, locale)} className="lg:mb-3">
             <DayHeader day={day} today={today} count={count} collapsed={collapsed} onToggle={() => toggleDay(day)} />
             <Collapse open={!collapsed}>
                 <ol className="lg:pt-1">
@@ -356,6 +359,7 @@ export function Timeline({ initial, filters }: { initial: TimelineResponse; filt
  * new so the chain stopped, or the list has ended.
  */
 export function FeedEnd({ loading, error, stalled, hasMore, empty, loaded, onMore }: { loading: boolean; error: boolean; stalled: boolean; hasMore: boolean; empty: boolean; loaded: number; onMore: () => void }) {
+  const c = copy[useLocale()];
   // A live region, because these states can arrive on their own: the automatic pages fire when the
   // sentinel scrolls into view, and a reader who is parked at the bottom of the list hears nothing about
   // "正在加载" / "加载失败" without it (WCAG 4.1.3). `aria-atomic` is off so only the state that changed
@@ -366,20 +370,20 @@ export function FeedEnd({ loading, error, stalled, hasMore, empty, loaded, onMor
     <div aria-live="polite" aria-atomic="false" className="flex justify-center py-6">
       {loading ? (
         <span className="inline-flex items-center gap-2 text-[12.5px] text-ink-4">
-          <RingMark className="size-4 text-accent" spinning /> 正在加载
+          <RingMark className="size-4 text-accent" spinning /> {c.feedLoading}
         </span>
       ) : error ? (
         <button type="button" onClick={onMore} className="h-9 rounded-full border border-hot/30 px-4 text-[13px] text-hot-ink hover:bg-hot-soft">
-          加载失败，点此重试
+          {c.feedRetry}
         </button>
       ) : hasMore ? (
         stalled && (
           <button type="button" onClick={onMore} className="h-9 rounded-full border border-line-strong bg-surface px-5 text-[13px] font-medium text-ink-2 transition-colors hover:border-ink-4 hover:text-ink">
-            继续加载
+            {c.feedContinue}
           </button>
         )
       ) : (
-        !empty && <span className="text-[12px] text-ink-4">已经到底了 · 共 {loaded} 条</span>
+        !empty && <span className="text-[12px] text-ink-4">{c.feedEnd(loaded)}</span>
       )}
     </div>
   );

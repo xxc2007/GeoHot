@@ -29,6 +29,35 @@ export default [
   route("more", "routes/more.tsx"),
   route("starred", "routes/starred.tsx"),
   route("agent", "routes/agent.tsx"),
+  // 英文界面框架：读者面每条路由的 /en 前缀副本，同一组件文件、id 加 `en-` 前缀。组件里的界面串
+  // 按 `lib/i18n.ts` 从路径判定语言后取字典；文章标题、摘要与日报正文仍是中文动态内容（页面自行
+  // 标注）。admin 与 leaderboard 不注册——leaderboard 本就由 FEATURES.leaderboard 关闭（见上），
+  // admin 保持中文 chrome，不进英文界面。
+  route("en", "routes/home.tsx", { id: "en-home", index: true }),
+  route("en/all", "routes/all.tsx", { id: "en-all" }),
+  route("en/all/search-busy", "routes/search-busy.tsx", { id: "en-all-search-busy" }),
+  route("en/items/:id", "routes/item.tsx", { id: "en-items" }),
+  route("en/items/:id/original", "routes/item-original.tsx", { id: "en-item-original" }),
+  route("en/hot", "routes/hot.tsx", { id: "en-hot" }),
+  route("en/story/:publicId", "routes/story.tsx", { id: "en-story" }),
+  route("en/daily", "routes/report-latest.tsx", { id: "en-daily-latest" }),
+  route("en/daily/archive", "routes/daily-archive.tsx", { id: "en-daily-archive" }),
+  route("en/daily/:key", "routes/report-detail.tsx", { id: "en-daily-detail" }),
+  route("en/weekly", "routes/report-latest.tsx", { id: "en-weekly-latest" }),
+  route("en/weekly/:key", "routes/report-detail.tsx", { id: "en-weekly-detail" }),
+  route("en/monthly", "routes/report-latest.tsx", { id: "en-monthly-latest" }),
+  route("en/monthly/:key", "routes/report-detail.tsx", { id: "en-monthly-detail" }),
+  route("en/topics", "routes/topics.tsx", { id: "en-topics" }),
+  route("en/topics/:slug", "routes/topic.tsx", { id: "en-topic" }),
+  route("en/topics/:slug/page/:page", "routes/topic.tsx", { id: "en-topic-page" }),
+  route("en/about", "routes/about.tsx", { id: "en-about" }),
+  route("en/terms", "routes/terms.tsx", { id: "en-terms" }),
+  route("en/privacy", "routes/privacy.tsx", { id: "en-privacy" }),
+  route("en/changelog", "routes/changelog.tsx", { id: "en-changelog" }),
+  route("en/feedback", "routes/feedback.tsx", { id: "en-feedback" }),
+  route("en/more", "routes/more.tsx", { id: "en-more" }),
+  route("en/starred", "routes/starred.tsx", { id: "en-starred" }),
+  route("en/agent", "routes/agent.tsx", { id: "en-agent" }),
   // 模型榜是 AI 行业专属模块：FEATURES.leaderboard=false 时不注册路由，对应 chunk 不进构建产物。
   // 旧链接的公开重定向（/leaderboard/methodology、/leaderboard/category/(aesthetics|writing)）仍在
   // packages/contracts/src/http-policy.ts 的 REDIRECTS 里保留，不需要页面路由也能工作。

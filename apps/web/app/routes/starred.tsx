@@ -1,8 +1,12 @@
 import { SITE } from "@aihot/industry/site";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
+import type { Route } from "./+types/starred";
 import { Presence } from "../components/ui/Presence";
 import { pageMeta } from "../lib/seo";
+import { localeAppPath, localeFromPath, useLocale, type Locale } from "../lib/i18n";
+import { copy } from "../lib/i18n/pages/starred";
+import { ChineseNotice } from "../components/ui/ChineseNotice";
 import { exportBundle, importBundle, removeStar, useStarred, type ImportReport } from "../lib/local-state";
 import { fullDateTime, shortSourceName } from "../lib/format";
 import { publicPath } from "../lib/public-path";
@@ -13,20 +17,26 @@ export function headers() {
   return { "Cache-Control": "public, max-age=0, s-maxage=300, stale-while-revalidate=600" };
 }
 
-export function meta() {
-  return pageMeta({ title: "我的收藏", description: `保存在这台设备上的 ${SITE.name} 收藏。`, path: "/starred", noindex: true });
+export function meta({ location }: Route.MetaArgs) {
+  const locale = localeFromPath(location.pathname);
+  const c = copy[locale];
+  return pageMeta({ title: c.metaTitle, description: c.metaDescription, path: "/starred", noindex: true, locale });
 }
 
-function reportText(r: ImportReport): string {
-  const parts = [`新增收藏 ${r.starredAdded} 条`, `已读记录 ${r.readAdded} 条`];
-  if (r.starredSkipped || r.readSkipped) parts.push(`超出上限或格式不对而跳过 ${r.starredSkipped + r.readSkipped} 条`);
-  if (r.themeApplied) parts.push("已沿用导入的主题");
-  if (r.readFailed) parts.push("已读记录没能保存（浏览器存储已满或不可用）");
-  return parts.join("，");
+/** 导入结果拼成一句话：各段文案在字典里（copy.report），数字是运行时才知道的。 */
+function reportText(r: ImportReport, locale: Locale): string {
+  const c = copy[locale].report;
+  const parts = [c.starredAdded(String(r.starredAdded)), c.readAdded(String(r.readAdded))];
+  if (r.starredSkipped || r.readSkipped) parts.push(c.skipped(String(r.starredSkipped + r.readSkipped)));
+  if (r.themeApplied) parts.push(c.themeApplied);
+  if (r.readFailed) parts.push(c.readFailed);
+  return parts.join(copy[locale].reportJoiner);
 }
 
 
 export default function StarredPage() {
+  const locale = useLocale();
+  const c = copy[locale];
   const starred = useStarred();
   const [mounted, setMounted] = useState(false);
   const [availability, setAvailability] = useState<Record<string, string>>({});
@@ -73,9 +83,9 @@ export default function StarredPage() {
     if (!file) return;
     try {
       const report = await importBundle(await file.text());
-      setNotice({ kind: report.readFailed ? "error" : "ok", text: `导入完成：${reportText(report)}` });
+      setNotice({ kind: report.readFailed ? "error" : "ok", text: c.importDone(reportText(report, locale)) });
     } catch (e) {
-      setNotice({ kind: "error", text: e instanceof Error ? e.message : "导入失败" });
+      setNotice({ kind: "error", text: e instanceof Error ? e.message : c.importFailed });
     }
   };
 
@@ -84,29 +94,31 @@ export default function StarredPage() {
     <div className="pb-12">
       <header className="flex flex-col gap-2 pb-4 pt-5 sm:flex-row sm:items-start sm:justify-between lg:pt-1">
         <div>
-          <h1 className="text-[24px] font-semibold leading-[1.3] text-ink">收藏</h1>
-          <p className="mt-1.5 text-[13px] text-ink-3">本机收藏的 {SITE.name} 内容，适合稍后阅读和回看。</p>
+          <h1 className="text-[24px] font-semibold leading-[1.3] text-ink">{c.title}</h1>
+          <p className="mt-1.5 text-[13px] text-ink-3">{c.lead}</p>
         </div>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 sm:pt-1.5">
           <button type="button" onClick={() => fileRef.current?.click()} className={action}>
-            导入文件
+            {c.importFile}
           </button>
           {mounted && starred.length > 0 && (
             <button type="button" onClick={doExport} className={`${action} inline-flex items-center gap-1`}>
-              <IconDownload size={13} /> 导出
+              <IconDownload size={13} /> {c.exportLabel}
             </button>
           )}
           <input ref={fileRef} type="file" accept="application/json,.json" className="sr-only" onChange={(e) => doImport(e.target.files?.[0])} />
         </div>
       </header>
-      <p className="rounded-tile border border-line bg-surface px-4 py-2.5 text-[12.5px] text-ink-3">收藏只保存在当前浏览器；清除浏览器数据或换设备后不会同步。</p>
+      <p className="rounded-tile border border-line bg-surface px-4 py-2.5 text-[12.5px] text-ink-3">{c.storageNotice}</p>
+      {/* 英文页的一行说明：收藏的标题与摘要仍是数据里的中文。中文页渲染为空。 */}
+      <ChineseNotice className="mt-1" />
       <Presence show={!!notice} enter="anim-notice-in" exit="anim-fade-out" duration={160}>
         <div
           role="status"
           className={`mt-3 flex items-start justify-between gap-3 rounded-tile px-4 py-2.5 text-[13px] ${notice?.kind === "ok" ? "bg-accent-soft text-accent-ink dark:text-accent" : "bg-hot-soft text-hot"}`}
         >
           {notice?.text}
-          <button type="button" aria-label="关闭" onClick={() => setNotice(null)} className="shrink-0 opacity-70 hover:opacity-100">
+          <button type="button" aria-label={c.closeAria} onClick={() => setNotice(null)} className="shrink-0 opacity-70 hover:opacity-100">
             <IconClose size={14} />
           </button>
         </div>
@@ -114,9 +126,9 @@ export default function StarredPage() {
       {!mounted ? null : starred.length === 0 ? (
         <div className="mt-3 flex flex-col items-center rounded-card border border-dashed border-line-strong px-6 py-12 text-center">
           <IconBookmark size={20} className="text-ink-4" />
-          <p className="mt-3 text-[13px] text-ink-3">还没有收藏内容。点开任意一条内容，在详情页点击收藏即可添加。</p>
-          <Link to="/" reloadDocument className="mt-4 text-[12.5px] font-medium text-accent hover:text-accent-ink">
-            去看精选 →
+          <p className="mt-3 text-[13px] text-ink-3">{c.emptyBody}</p>
+          <Link to={localeAppPath("/", locale)} reloadDocument className="mt-4 text-[12.5px] font-medium text-accent hover:text-accent-ink">
+            {c.emptyCta}
           </Link>
         </div>
       ) : (
@@ -130,9 +142,9 @@ export default function StarredPage() {
                   <span className="min-w-0 truncate text-ink-3">{shortSourceName(s.sourceName)}</span>
                   {s.publishedAt && <span className="num shrink-0">· {fullDateTime(s.publishedAt)}</span>}
                   <span className="ml-auto hidden shrink-0 sm:inline">
-                    收藏于 <span className="num">{fullDateTime(s.savedAt)}</span>
+                    {c.savedAtPrefix}<span className="num">{fullDateTime(s.savedAt)}</span>
                   </span>
-                  <button type="button" aria-label="取消收藏" title="取消收藏" onClick={() => { void removeStar(s.id); }} className="relative z-10 -my-1 ml-auto grid size-7 shrink-0 place-items-center rounded-full text-ink-4 transition-colors hover:bg-bg-sunk hover:text-ink sm:ml-0">
+                  <button type="button" aria-label={c.removeStar} title={c.removeStar} onClick={() => { void removeStar(s.id); }} className="relative z-10 -my-1 ml-auto grid size-7 shrink-0 place-items-center rounded-full text-ink-4 transition-colors hover:bg-bg-sunk hover:text-ink sm:ml-0">
                     <IconClose size={14} />
                   </button>
                 </div>
@@ -140,14 +152,14 @@ export default function StarredPage() {
                   {unavailable ? (
                     s.title
                   ) : (
-                    <Link to={`/items/${s.id}`} className="transition-colors after:absolute after:inset-0 after:content-[''] hover:text-accent">
+                    <Link to={localeAppPath(`/items/${s.id}`, locale)} className="transition-colors after:absolute after:inset-0 after:content-[''] hover:text-accent">
                       {s.title}
                     </Link>
                   )}
                 </h2>
                 {s.summary && <p className="mt-1.5 line-clamp-2 text-[14px] leading-[1.75] text-ink-3">{s.summary}</p>}
-                {unavailable && <p className="mt-2 text-[12.5px] text-hot">这条内容已不再公开，收藏会保留直到你手动移除。</p>}
-                {status === "summary-only" && <p className="mt-2 text-[12.5px] text-amber-ink">应来源方要求，这条内容现在只提供摘要。</p>}
+                {unavailable && <p className="mt-2 text-[12.5px] text-hot">{c.unavailableNote}</p>}
+                {status === "summary-only" && <p className="mt-2 text-[12.5px] text-amber-ink">{c.summaryOnlyNote}</p>}
               </li>
             );
           })}

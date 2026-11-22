@@ -55,7 +55,11 @@ async function build(readAt = new Date()): Promise<string> {
   // 查询已经这么用（见下），stories 曾用 `now`（= latestItem.t，最新精选条的过去时刻）——
   // visible_after 落在两者之间的故事页这轮构建不列，下一轮才列，双钟口径归一。
   const now = latestItem?.t ?? new Date();
-  entries.push(
+  // 英文界面框架（apps/web routes.ts 的 /en 前缀副本路由）与这十三页一一对应，lastmod/changefreq/
+  // priority 同参：en 页只是界面 chrome 换了语言，页面内容与中文页同一份。期刊、主题、故事与条目
+  // 的 en 路由是同一份中文内容的界面换壳——靠每页输出的 hreflang 互链（lib/seo.ts）暴露给爬虫，
+  // 不在这里翻倍列一遍：stories + items 的名额受 MAX_URLS 约束，中文内容页优先。
+  const staticPages: Entry[] = [
     { loc: "/", lastmod: now, changefreq: "hourly", priority: 1 },
     { loc: "/all", lastmod: now, changefreq: "hourly", priority: 0.9 },
     { loc: "/daily", lastmod: latestDaily?.t, changefreq: "daily", priority: 0.9 },
@@ -69,7 +73,8 @@ async function build(readAt = new Date()): Promise<string> {
     { loc: "/terms", changefreq: "monthly", priority: 0.4 },
     { loc: "/privacy", changefreq: "monthly", priority: 0.4 },
     { loc: "/changelog", lastmod: now, changefreq: "weekly", priority: 0.5 },
-  );
+  ];
+  entries.push(...staticPages, ...staticPages.map((e) => ({ ...e, loc: e.loc === "/" ? "/en" : `/en${e.loc}` })));
   if (FEATURES.leaderboard) {
     entries.push(
       { loc: "/leaderboard", changefreq: "daily", priority: 0.8 },

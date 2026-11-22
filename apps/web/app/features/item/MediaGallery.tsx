@@ -2,6 +2,8 @@ import { useState } from "react";
 import type { MediaView } from "@aihot/contracts/site";
 import { Lightbox } from "../../components/ui/Lightbox";
 import { safeExternalHref } from "../../lib/safe-url.ts";
+import { useLocale } from "../../lib/i18n";
+import { copy } from "../../lib/i18n/item-ui";
 
 /** A round play mark over a video's still. */
 function PlayMark() {
@@ -21,6 +23,7 @@ function PlayMark() {
  * a viewer that steps through them; videos are only a still in our data, so they open the original post.
  */
 export function MediaGallery({ media, postUrl, videoLabel }: { media: MediaView[]; postUrl: string; videoLabel: string }) {
+  const t = copy[useLocale()].gallery;
   const [open, setOpen] = useState<number | null>(null);
   // 帖子地址来自采集链，只有 http(s) 才配成为视频块的链接（lib/safe-url.ts）；不安全时视频块
   // 仍显示画面与播放标记，只是不再是可以点开的链接。
@@ -31,7 +34,7 @@ export function MediaGallery({ media, postUrl, videoLabel }: { media: MediaView[
   // which one it is instead of claiming there is nothing to say. A video tile's still is decoration —
   // its link label already says what it opens.
   const altOf = (m: MediaView) =>
-    m.alt ?? (m.kind === "video" ? "" : `配图${images.length > 1 ? ` ${images.indexOf(m) + 1}/${images.length}` : ""}（来源未提供说明）`);
+    m.alt ?? (m.kind === "video" ? "" : t.fallbackAlt(images.indexOf(m) + 1, images.length));
   const single = shown.length === 1;
   const tile = `group relative overflow-hidden rounded-tile border border-line-soft bg-bg-sunk ${single ? "max-w-[420px]" : "aspect-[16/10]"}`;
   return (
@@ -66,7 +69,7 @@ export function MediaGallery({ media, postUrl, videoLabel }: { media: MediaView[
               </div>
             )
           ) : (
-            <button key={m.url} type="button" onClick={() => setOpen(images.indexOf(m))} aria-label={`查看大图：${alt}`} className={`${tile} cursor-zoom-in`}>
+            <button key={m.url} type="button" onClick={() => setOpen(images.indexOf(m))} aria-label={t.enlarge(alt)} className={`${tile} cursor-zoom-in`}>
               {img}
             </button>
           );

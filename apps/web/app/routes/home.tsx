@@ -1,10 +1,12 @@
-import { SITE, withSubject } from "@aihot/industry/site";
 import { data as withHeaders, Link, redirect, useLoaderData } from "react-router";
 import type { Route } from "./+types/home";
 import type { PoolResponse, TimelineResponse } from "@aihot/contracts/site";
-import { CATEGORY_LABELS, CHANNEL_LABELS, isCategoryKey, isChannelKey } from "@aihot/contracts/taxonomy";
+import { isCategoryKey, isChannelKey } from "@aihot/contracts/taxonomy";
 import { loadOr404, queryString, releaseBoundCache } from "../lib/api.server";
 import { listPath, organizationLd, pageMeta } from "../lib/seo";
+import { localeAppPath, localeFromPath, useLocale, type Locale } from "../lib/i18n";
+import { copy } from "../lib/i18n/pages/home";
+import { copy as feedCopy } from "../lib/i18n/feed";
 import { Timeline } from "../features/feed/Timeline";
 import { useEffect, useState } from "react";
 import { MobileDaySection, MobileHomeTop, MobilePoolPanel, type FeedTab } from "../features/feed/MobileHome";
@@ -29,8 +31,11 @@ function isMobileRequest(request: Request): boolean {
 export async function loader({ request }: Route.LoaderArgs) {
   const url = new URL(request.url);
   const q = url.searchParams.get("q");
-  // Search lives on /all; keep the parameters so old links still land on results.
-  if (q && q.trim()) throw redirect(`/all${url.search}`);
+  // Search lives on /all; keep the parameters so old links still land on results. The redirect target
+  // stays in the requested language (bare app path — the server rewrites the prefix for document
+  // redirects, React Router resolves it under the basename for client navigation).
+  const searchLocale = localeFromPath(url.pathname);
+  if (q && q.trim()) throw redirect(searchLocale === "en" ? `/en/all${url.search}` : `/all${url.search}`);
   const channelParam = url.searchParams.get("channel") ?? "all";
   const categoryParam = url.searchParams.get("category");
   const channel = isChannelKey(channelParam) ? channelParam : "all";
@@ -66,9 +71,10 @@ export async function loader({ request }: Route.LoaderArgs) {
   // 展示仍在更新的收录池；其中部分条目未达精选标准。精选恢复后这一块自动消失。
   const newest = data.cards[0]?.anchorAt ? Date.parse(data.cards[0].anchorAt) : 0;
   const stale = newest > 0 && newest < Date.now() - 3 * 86400_000;
-  // The fallback shows eight headlines. Do not serialize 40 summaries, scores and tags into hydration.
-  const live = stale && pool ? { total: pool.total, items: pool.items.slice(0, 8).map(({ id, title, timelineAt, publishedAt, source }) => ({
-    id, title, timelineAt, publishedAt, source: { name: source.name },
+  // The fallback shows eight headlines. Do not serialize 40 summaries, scores and tags into hydration;
+  // the headline keeps its originalTitle so English pages can prefer it (one short string per row).
+  const live = stale && pool ? { total: pool.total, items: pool.items.slice(0, 8).map(({ id, title, originalTitle, timelineAt, publishedAt, source }) => ({
+    id, title, originalTitle, timelineAt, publishedAt, source: { name: source.name },
   })) } : null;
   return withHeaders({ data, pool, calendar, month, tab, live, filters: { channel, category, tag, topic: null } }, { headers: releaseBoundCache(data.refreshAt, 180, Date.now(), upstream) });
 }
@@ -79,23 +85,27 @@ export async function loader({ request }: Route.LoaderArgs) {
  * 都是首页。标题、`og:title`、`twitter:title` 同源（`pageMeta` 只读 `title` 这一个入参），
  * 所以改这一处三者一起跟上，canonical 与 og 不会各说各话。
  */
-function filterLabel(f: { channel: string; category: string | null; tag: string | null } | undefined): string | null {
+function filterLabel(f: { channel: string; category: string | null; tag: string | null } | undefined, locale: Locale): string | null {
   if (!f) return null;
-  const what = f.tag ? `#${f.tag}` : f.category && isCategoryKey(f.category) ? CATEGORY_LABELS[f.category] : null;
-  const where = f.channel !== "all" && isChannelKey(f.channel) ? CHANNEL_LABELS[f.channel] : null;
+  // 类别与频道的说法随语言走（feed.ts 的词表与筛选 chips 同源），英文页不再漏出中文类别名。
+  const what = f.tag ? `#${f.tag}` : f.category && isCategoryKey(f.category) ? feedCopy[locale].category[f.category] : null;
+  const where = f.channel !== "all" && isChannelKey(f.channel) ? feedCopy[locale].channel[f.channel] : null;
   const parts = [what, where].filter(Boolean);
-  return parts.length ? `${parts.join(" · ")}精选` : null;
+  return parts.length ? `${parts.join(" · ")}${copy[locale].filterSuffix}` : null;
 }
 
-export function meta({ loaderData }: Route.MetaArgs) {
+export function meta({ loaderData, location }: Route.MetaArgs) {
+  const locale = localeFromPath(location.pathname);
+  const c = copy[locale];
   const f = loaderData?.filters;
   const path = listPath("/", { channel: f && f.channel !== "all" ? f.channel : null, category: f?.category, tag: f?.tag });
-  const label = filterLabel(f);
+  const label = filterLabel(f, locale);
   return pageMeta({
     title: label,
-    description: label ? `${SITE.name} 的${label}：按这一筛选的精选与时间线。` : undefined,
+    description: label ? c.metaDescription(label) : undefined,
     path,
     jsonLd: path === "/" ? organizationLd() : undefined,
+    locale,
   });
 }
 
@@ -106,6 +116,8 @@ export function headers({ loaderHeaders }: Route.HeadersArgs) {
 
 export default function Home() {
   const { data: initial, pool, calendar, month, tab: initialTab, live, filters } = useLoaderData<typeof loader>();
+  const locale = useLocale();
+  const c = copy[locale];
   // 手机上的「精选 / 全部」是一屏里的两段：点一下只换列表，不再过一次加载。
   // 地址栏跟着写 `?tab=all`（replaceState，不触发导航），这样分享出去的链接还能落在同一段；
   // 前进/后退时 loader 重新给 `initialTab`，下面的 effect 把状态拉回去。
@@ -124,7 +136,7 @@ export default function Home() {
   if (filters.category) params.set("category", filters.category);
   if (filters.tag) params.set("tag", filters.tag);
   const data = useLivePublicData(initial, `/api/site/timeline?${params}`);
-  const title = filters.tag ? `#${filters.tag}` : "精选";
+  const title = filters.tag ? `#${filters.tag}` : c.title;
   // 日期栏右侧那个"N 条"是当天的时间线总条数，来自响应里的 `dayCounts`（服务端按北京日期分桶），
   // 不是这一屏已经渲染的 12 张卡——否则读者会看到"12 条"，然后往下滚还有几十张。
   const todayCount = data.dayCounts[todayOf(data.generatedAt)] ?? null;
@@ -135,7 +147,8 @@ export default function Home() {
       if (v) sp.set(k, v);
     }
     const qs = sp.toString();
-    return qs ? `/all?${qs}` : "/all";
+    const base = localeAppPath("/all", locale);
+    return qs ? `${base}?${qs}` : base;
   };
   const dayHref = (d: string) => allHref({ date: d, month: d.slice(0, 7) });
   const monthHref = (m: string) => allHref({ date: null, month: m });
@@ -146,6 +159,10 @@ export default function Home() {
       {/* One h1 at every width: on phones it is read but not drawn (the brand bar and 最新精选 already own that
           space), from lg it is the visible page title, exactly as before. Only the desktop filter row is hidden. */}
       <h1 className="sr-only text-[24px] font-semibold leading-[1.3] text-ink lg:not-sr-only">{title}</h1>
+      {/* 英文页的一行说明：条目标题按信源原语种显示；热点榜的事件标题与 AI 摘要仍为中文
+          （热点条的数据模型不随这次改动扩，那里说中文是真话）。中文页渲染为空——
+          字典键中英两版都有，zh 版只是文档，永不输出，中文页行为一个字符都不变。 */}
+      {locale === "en" && <p className={`text-[12.5px] text-ink-4 mt-2 lg:mt-0`}>{c.chineseNotice}</p>}
       <div className="hidden lg:block">
         <div className="mb-5 mt-4 flex items-center justify-between gap-4">
           <CategoryTabs base="/" category={filters.category} channel={filters.channel} layoutId="home-cat-desk" className="min-w-0" />
@@ -160,18 +177,19 @@ export default function Home() {
           <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b border-line-soft pb-2">
             <h2 id="live-title" className="flex items-center gap-2 text-[15px] font-bold text-ink">
               <span aria-hidden="true" className="size-1.5 rounded-full bg-accent" />
-              最新收录
+              {c.liveTitle}
             </h2>
-            <span className="text-[12px] text-ink-4">按收录时间排列，部分条目未达精选标准</span>
+            <span className="text-[12px] text-ink-4">{c.liveHint}</span>
           </div>
           <ul className="divide-y divide-line-soft">
             {live.items.map((it) => {
               const at = it.timelineAt ?? it.publishedAt;
               return (
                 <li key={it.id} className="flex items-baseline gap-3 py-2">
-                  <span className="mono w-[86px] shrink-0 text-[12px] tabular-nums text-ink-4">{at ? monthDayTime(at) : "未注明"}</span>
-                  <Link to={`/items/${it.id}`} className="min-w-0 flex-1 text-[14px] leading-[1.65] text-ink transition-colors hover:text-accent">
-                    {it.title}
+                  <span className="mono w-[86px] shrink-0 text-[12px] tabular-nums text-ink-4">{at ? monthDayTime(at, locale) : c.noTime}</span>
+                  <Link to={localeAppPath(`/items/${it.id}`, locale)} className="min-w-0 flex-1 text-[14px] leading-[1.65] text-ink transition-colors hover:text-accent">
+                    {/* 与 FeedItem 同一条规则：英文页优先信源原题，没有原题回退中文标题。 */}
+                    {locale === "en" && it.originalTitle ? it.originalTitle : it.title}
                   </Link>
                   <span className="hidden w-[104px] shrink-0 truncate text-right text-[12px] text-ink-4 sm:block">{shortSourceName(it.source.name)}</span>
                 </li>
@@ -182,10 +200,10 @@ export default function Home() {
               `/?category=physical` 上印着「查看全部 245 条」而链接指向裸 /all（未筛 2000+ 条），
               读者点过去看到的条数比标题大一个数量级。canonical 早就用 `listPath` 带上了筛选。 */}
           <Link
-            to={listPath("/all", { channel: filters.channel !== "all" ? filters.channel : null, category: filters.category, tag: filters.tag })}
+            to={localeAppPath(listPath("/all", { channel: filters.channel !== "all" ? filters.channel : null, category: filters.category, tag: filters.tag }), locale)}
             className="mt-2 inline-flex text-[13px] text-accent hover:underline"
           >
-            查看全部 {live.total.toLocaleString("zh-CN")} 条{withSubject("动态")} →
+            {c.viewAll(live.total.toLocaleString("zh-CN"))}
           </Link>
         </section>
       )}

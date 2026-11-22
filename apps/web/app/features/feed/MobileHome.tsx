@@ -12,7 +12,9 @@ import type { FeedItemSummary, PoolResponse, TimelineFilters } from "@aihot/cont
 import { Wordmark } from "../../components/Logo";
 import { IconChevronDown, IconClock, IconSearch } from "../../components/icons";
 import { PillTabs } from "../../components/ui/Tabs";
-import { beijingDate, beijingWeekday } from "../../lib/format";
+import { localeAppPath, useLocale, type Locale } from "../../lib/i18n";
+import { copy } from "../../lib/i18n/pages/home";
+import { beijingDate, monthDay, weekdayShort } from "../../lib/format";
 import { listPath } from "../../lib/seo";
 import { publicPath } from "../../lib/public-path";
 import { FeedItem } from "./FeedItem";
@@ -23,17 +25,18 @@ export type FeedTab = "selected" | "all";
 
 /** 精选 / 全部 两段切换：受控组件，切换不导航（两边的数据都在首屏 loader 里）。 */
 export function MobileFeedSwitch({ value, onChange }: { value: FeedTab; onChange: (next: FeedTab) => void }) {
+  const c = copy[useLocale()];
   return (
     <PillTabs
       items={[
-        { key: "selected", label: "精选" },
-        { key: "all", label: "全部" },
+        { key: "selected", label: c.mobileSelected },
+        { key: "all", label: c.mobileAll },
       ]}
       active={value}
       onSelect={(key) => onChange(key === "all" ? "all" : "selected")}
       layoutId="mobile-feed-switch"
       size="sm"
-      label="列表"
+      label={c.mobileSwitchAria}
     />
   );
 }
@@ -45,6 +48,8 @@ export function MobileFeedSwitch({ value, onChange }: { value: FeedTab; onChange
  * 屏幕阅读器的 `role="search"` 和浏览器的"后退保留输入"都跟桌面一致，不另写一套。
  */
 export function MobileHomeTop({ category, channel, tab, onTab }: { category: string | null; channel: string; tab: FeedTab; onTab: (next: FeedTab) => void }) {
+  const locale = useLocale();
+  const c = copy[locale];
   return (
     <div className="lg:hidden">
       <div className="pt-1">
@@ -55,15 +60,15 @@ export function MobileHomeTop({ category, channel, tab, onTab }: { category: str
         <MobileFeedSwitch value={tab} onChange={onTab} />
         <div className="flex shrink-0 items-center gap-1">
           <Link
-            to="/daily"
-            aria-label="日报"
+            to={localeAppPath("/daily", locale)}
+            aria-label={c.mobileDailyAria}
             className="grid size-9 place-items-center rounded-full text-ink-3 transition-colors hover:bg-bg-sunk hover:text-ink"
           >
             <IconClock size={18} />
           </Link>
           <Link
-            to="/all?search=1"
-            aria-label="搜索"
+            to={localeAppPath("/all?search=1", locale)}
+            aria-label={c.mobileSearchAria}
             className="grid size-9 place-items-center rounded-full text-ink-3 transition-colors hover:bg-bg-sunk hover:text-ink"
           >
             <IconSearch size={18} />
@@ -74,10 +79,10 @@ export function MobileHomeTop({ category, channel, tab, onTab }: { category: str
   );
 }
 
-function todayLabel(now: number): string {
+/** 日期栏的「今天 · 11月22日 周日」；写法随页面语言走（英文 "Today · Nov 22 Sat"）。 */
+function todayLabel(now: number, locale: Locale): string {
   const today = beijingDate(now);
-  const [, m, d] = today.split("-").map(Number) as [number, number, number];
-  return `今天 · ${m}月${d}日 ${beijingWeekday(today).replace("星期", "周")}`;
+  return `${copy[locale].mobileTodayPre}${monthDay(today, undefined, locale)} ${weekdayShort(today, locale)}`;
 }
 
 /**
@@ -86,9 +91,11 @@ function todayLabel(now: number): string {
  * 一个空的页面。
  */
 export function MobileDaySection({ count, children }: { count: number | null; children: ReactNode }) {
+  const locale = useLocale();
+  const c = copy[locale];
   const [open, setOpen] = useState(true);
   return (
-    <section aria-label="今天的条目">
+    <section aria-label={c.mobileTodayAria}>
       {/* 只在手机上出现的日期栏；桌面的同一块正文照旧不带这条栏，也不受它折叠影响。 */}
       <button
         type="button"
@@ -98,10 +105,10 @@ export function MobileDaySection({ count, children }: { count: number | null; ch
         className="mt-5 flex w-full items-center justify-between border-b border-line-soft pb-2 text-left lg:hidden"
       >
         <span className="text-[13px] font-semibold text-ink-2" suppressHydrationWarning>
-          {todayLabel(Date.now())}
+          {todayLabel(Date.now(), locale)}
         </span>
         <span className="flex items-center gap-2 text-[12px] text-ink-4">
-          {count === null ? "—" : `${count} 条`}
+          {count === null ? "—" : c.mobileCount(count)}
           <IconChevronDown
             size={15}
             className={`transition-transform duration-200 ${open ? "" : "-rotate-90"}`}
@@ -173,6 +180,8 @@ function prefetchPool(filters: TimelineFilters): void {
 }
 
 export function MobilePoolPanel({ pool, filters }: { pool: PoolResponse | null; filters: TimelineFilters }) {
+  const locale = useLocale();
+  const c = copy[locale];
   const key = poolQuery(filters, 1);
   const [fetched, setFetched] = useState<PoolResponse | null>(() => poolPrefetch.get(key) ?? null);
   const [error, setError] = useState<string | null>(null);
@@ -186,17 +195,17 @@ export function MobilePoolPanel({ pool, filters }: { pool: PoolResponse | null; 
       const body = await (poolInflight.get(key) ?? Promise.resolve(null));
       if (!live) return;
       if (body) { setFetched(body); setError(null); }
-      else setError("这次没取到");
+      else setError(c.poolMiss);
     })();
     return () => { live = false; };
-  }, [pool, key, filters]);
+  }, [pool, key, filters, c.poolMiss]);
   const view = pool ?? fetched;
   if (!view) {
     // 站长 2026-11-14：「正在取收录池…」这几个字一出现，这一屏就像卡住了。
     // 换成与真实列表同形状的骨架（左侧时间格 + 右侧两行），页面立刻有结构，
     // 数据到了原地换掉——观感与 AIHOT 的即时出屏一致，也不再有"等待字样"。
     return (
-      <div className="lg:hidden" aria-busy="true" aria-label={error ? `收录池这一会儿读不到（${error}）` : "正在载入收录池"}>
+      <div className="lg:hidden" aria-busy="true" aria-label={error ? c.poolErrorAria(error) : c.poolLoadingAria}>
         <div className="mt-4 animate-pulse lg:pt-1">
           {Array.from({ length: 6 }, (_, index) => (
             <div key={index} className="flex items-start gap-3 border-b border-line-soft py-3 last:border-b-0">
@@ -215,10 +224,10 @@ export function MobilePoolPanel({ pool, filters }: { pool: PoolResponse | null; 
               onClick={() => { setError(null); prefetchPool(filters); }}
               className="flex h-9 items-center rounded-full border border-line-strong bg-surface px-4 text-[13px] text-ink-2"
             >
-              再试一次
+              {c.poolRetry}
             </button>
-            <Link to={listPath("/all", { channel: filters.channel !== "all" ? filters.channel : null, category: filters.category, tag: filters.tag })} className="text-[13px] text-accent hover:underline">
-              去全部列表看看 →
+            <Link to={localeAppPath(listPath("/all", { channel: filters.channel !== "all" ? filters.channel : null, category: filters.category, tag: filters.tag }), locale)} className="text-[13px] text-accent hover:underline">
+              {c.poolGoAll}
             </Link>
           </div>
         )}
@@ -229,7 +238,9 @@ export function MobilePoolPanel({ pool, filters }: { pool: PoolResponse | null; 
 }
 
 export function MobilePoolList({ pool, filters }: { pool: PoolResponse | null; filters: TimelineFilters }) {
-  const more = listPath("/all", { channel: filters.channel !== "all" ? filters.channel : null, category: filters.category, tag: filters.tag });
+  const locale = useLocale();
+  const c = copy[locale];
+  const more = localeAppPath(listPath("/all", { channel: filters.channel !== "all" ? filters.channel : null, category: filters.category, tag: filters.tag }), locale);
   const [items, setItems] = useState<FeedItemSummary[]>(() => pool?.items ?? []);
   const [page, setPage] = useState(pool?.page ?? 1);
   const [loading, setLoading] = useState(false);
@@ -260,12 +271,12 @@ export function MobilePoolList({ pool, filters }: { pool: PoolResponse | null; f
       if (body.page >= Math.min(body.pageCount, MAX_PAGE) || body.items.length === 0) setDone(true);
     } catch (error) {
       const name = (error as Error)?.name;
-      setFailed(name === "TimeoutError" || name === "AbortError" ? "这次取超时了，再滑一下试试" : ((error as Error)?.message ?? "加载失败"));
+      setFailed(name === "TimeoutError" || name === "AbortError" ? c.poolTimeout : ((error as Error)?.message ?? c.poolFailed));
     } finally {
       inflight.current = false;
       setLoading(false);
     }
-  }, [filters, page, pool]);
+  }, [filters, page, pool, c.poolTimeout, c.poolFailed]);
 
   useEffect(() => {
     const node = sentinel.current;
@@ -280,8 +291,8 @@ export function MobilePoolList({ pool, filters }: { pool: PoolResponse | null; f
   if (!pool) {
     return (
       <div className="lg:hidden">
-        <p className="py-8 text-center text-[14px] text-ink-3">收录池这一会儿读不到，</p>
-        <Link to={more} className="mx-auto block w-fit text-[13px] text-accent hover:underline">去全部列表看看 →</Link>
+        <p className="py-8 text-center text-[14px] text-ink-3">{c.poolUnreachable}</p>
+        <Link to={more} className="mx-auto block w-fit text-[13px] text-accent hover:underline">{c.poolGoAll}</Link>
       </div>
     );
   }
@@ -330,25 +341,25 @@ export function MobilePoolList({ pool, filters }: { pool: PoolResponse | null; f
         )}
       </div>
       {items.length === 0 && (
-        <p className="py-8 text-center text-[14px] text-ink-3">这一筛选下还没有收录内容。</p>
+        <p className="py-8 text-center text-[14px] text-ink-3">{c.poolEmpty}</p>
       )}
       <div ref={sentinel} aria-hidden="true" className="h-px" />
       <div className="mt-4 flex flex-col items-center gap-2 text-[12.5px] text-ink-4">
         {loading && (
           <span className="inline-flex items-center gap-2" role="status">
             <span aria-hidden="true" className="size-3.5 animate-spin rounded-full border-2 border-line-strong border-t-accent" />
-            正在接着取…
+            {c.poolLoadingMore}
           </span>
         )}
         {!loading && failed && (
           <>
-            <span role="alert">这一屏没取到（{failed}）</span>
-            <button type="button" onClick={() => void load()} className="inline-flex h-9 items-center rounded-full border border-line-strong bg-surface px-4 text-[13px] text-ink-2">再试一次</button>
+            <span role="alert">{c.poolChunkFailed(failed)}</span>
+            <button type="button" onClick={() => void load()} className="inline-flex h-9 items-center rounded-full border border-line-strong bg-surface px-4 text-[13px] text-ink-2">{c.poolRetry}</button>
           </>
         )}
-        {!loading && !failed && done && <span>{page >= MAX_PAGE ? "最多提供 50 页；更早的日子请用上面的日历挑一天。" : "已经到底了。"}</span>}
+        {!loading && !failed && done && <span>{page >= MAX_PAGE ? c.poolCap : c.poolEnd}</span>}
         {!loading && !failed && !done && (
-          <button type="button" onClick={() => void load()} className="inline-flex h-9 items-center rounded-full border border-line-strong bg-surface px-4 text-[13px] text-ink-2">加载更多</button>
+          <button type="button" onClick={() => void load()} className="inline-flex h-9 items-center rounded-full border border-line-strong bg-surface px-4 text-[13px] text-ink-2">{c.poolLoadMore}</button>
         )}
       </div>
     </div>

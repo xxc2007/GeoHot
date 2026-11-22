@@ -62,6 +62,19 @@ export const SITE = {
   crawlerName: "GEOHOTBot",
 } as const;
 
+/**
+ * 英文界面（/en 前缀页）的站点文案。品牌仍叫 GEOHOT；上面的中文导出一律不动。
+ * description 是如实概括，五个事实一个不少：盯守信源、按空间显著性两次打分、同一事件多方报道
+ * 并成一个事件、标题与摘要保持中文、每天早上出一份日报——英文页不给读者"内容也是英文"的错觉。
+ * 长度以 seo.ts 的 160 字符截断为上限写的，别超过。
+ */
+export const SITE_EN = {
+  homeTitle: "GEOHOT — Geography news worth watching",
+  description:
+    "GEOHOT: watched sources, events scored twice by spatial salience, multiple reports merged into one, daily briefs. Titles and summaries are written in Chinese.",
+  tagline: "Geography news worth watching",
+} as const;
+
 /** 关于页的文案。数字（信源数、收录数、精选数、日报期数）来自站内实时统计，不用写在这里。 */
 export const ABOUT = {
   kicker: `关于 ${SITE.name}`,

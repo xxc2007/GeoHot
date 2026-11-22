@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router";
+import { localeAppPath, useLocale, type Locale } from "../../lib/i18n";
 import { TerrainCanvas } from "./TerrainCanvas";
 import { CooldownBoard, FleetGrid, LatencyBars, ReadyGates, ReserveSwap } from "./major-later";
 import "./major-release.css";
@@ -280,7 +281,56 @@ function MajorEight(): MajorCard {
   };
 }
 
+/** 9.0 的可交互演示：同一块界面切一次语言，看看中英两版各是什么读法。示例文字仅作演示，不指向真实事件。 */
+function LangDemo() {
+  const [en, setEn] = useState(false);
+  return (
+    <section className="rounded-2xl border border-line-soft bg-bg-sunk/40 p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 className="text-[20px] font-bold text-ink">一块界面，两种读法</h3>
+          <p className="mt-2 text-[13px] leading-relaxed text-ink-3">点一下语言胶囊，看看站点切换成英文后是什么样。</p>
+        </div>
+        <div className="flex gap-2" role="group" aria-label="切换中英文演示">
+          <button type="button" aria-pressed={!en} onClick={() => setEn(false)} className="rounded-full border border-line-soft px-3 py-1 text-[13px]">中文</button>
+          <button type="button" aria-pressed={en} onClick={() => setEn(true)} className="rounded-full border border-line-soft px-3 py-1 text-[13px]">English</button>
+        </div>
+      </div>
+      <div className="mt-4 rounded-xl border border-line-soft bg-bg p-4" aria-live="polite">
+        <p className="text-[11px] tracking-[0.2em] text-ink-4">{en ? "GEOHOT · ENGLISH EDITION" : "GEOHOT · 中文界面"}</p>
+        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[12.5px] font-medium text-ink-2">
+          {(en ? ["Featured", "All", "Daily", "More"] : ["精选", "全部", "日报", "更多"]).map(label => <span key={label}>{label}</span>)}
+        </div>
+        <p className="mt-3 text-[15px] font-semibold text-ink">{en ? "M6.4 earthquake strikes off the coast of …" : "近海发生 6.4 级地震（整理标题示例）"}</p>
+        <p className="mt-2 text-[13px] leading-relaxed text-ink-3">{en ? "The headline is shown as the source published it." : "英文页优先显示信源原题与原文正文。"}</p>
+      </div>
+      <p className="mt-3 text-[12px] text-ink-4">示例文字仅作演示，不指向真实事件；AI 摘要与日报在英文版里仍为中文，页面会如实标注。</p>
+    </section>
+  );
+}
+
+/** 9.0：英文版界面框架上线——整站可切中英文，英文页优先显示信源原题与原文正文。 */
+function MajorNine(): MajorCard {
+  return {
+    version: "9.0",
+    title: "英文版界面上线，站点能切换中英文",
+    lead: [
+      "地理消息不分语言。站点现在有了英文版：导航、按钮与页面说明都能切换成英文；读国际机构的通报，英文页优先显示信源原题与原文正文。",
+      "英文版还在起步：AI 摘要与日报暂时仍是中文，页面会如实标注；覆盖进度以更新日志为准。",
+    ],
+    sections: [
+      { title: "一处开关，随时切换语言", body: "侧边栏与「更多」页各有一枚语言开关，一键在中英文之间互换；英文页面挂在 /en 前缀下，熟悉的地址前面加上 /en 就能直达。" },
+      { title: "英文页，先读原题与原文", body: "国际信源的通报多以外文写成：英文版优先显示信源原题与原文正文，少一层转述；没有原题的条目仍显示整理标题。" },
+      { title: "中文内容，如实标注", body: "AI 摘要与日报由中文整理生成，在英文版里保持中文并明确标注；界面是英文的，内容是哪种语言就说是哪种。" },
+      { title: "同一份数据，两种读法", body: "英文版与中文版读同一份公开内容：精选、动态、日报、专题与反馈入口一一对齐，切换语言不打断你正在读的页面。" },
+    ],
+    links: [["浏览全部动态", "/all"], ["去英文版首页", "/en"], ["看更新日志", "/changelog"]],
+    body: <LangDemo />,
+  };
+}
+
 const CARDS: Record<string, () => MajorCard> = {
+  "2026-11-22T18:05": MajorNine,
   "2026-11-20T22:40": MajorEight,
   "2026-11-20T22:30": MajorSeven,
   "2026-11-15T13:00": MajorSix,
@@ -298,7 +348,17 @@ export function MajorRelease({ date, time }: { date: string; time: string }) {
   return <MajorCardView card={card} date={date} time={time} />;
 }
 
-function MajorCardView({ card, date, time }: { card: MajorCard; date: string; time: string }) {
+/**
+ * A card entry's target. `"/admin"` has no `/en` twin (the admin keeps Chinese), and `"/en"` is the
+ * card's own "go to the English home" entry — an explicit language switch, not a page of the current
+ * language. `localeAppPath("/en", "zh")` would fold it to `/` (the Chinese home), so both stay as written.
+ */
+function cardHref(to: string, locale: Locale): string {
+  if (to.startsWith("/admin") || to === "/en") return to;
+  return localeAppPath(to, locale);
+}
+
+function MajorCardView({ card, date, time }: { card: MajorCard; date: string; time: string }) {  const locale = useLocale();
   const article = useRef<HTMLElement>(null);
   const id = useId();
   useEffect(() => {
@@ -326,7 +386,10 @@ function MajorCardView({ card, date, time }: { card: MajorCard; date: string; ti
         <h3 className="text-[20px] font-bold text-ink"><span className="mr-2 text-[14px] font-medium text-accent">{String(i + 1).padStart(2, "0")}</span>{s.title}</h3>
         <p className="measure mt-3 text-[14px] leading-[1.9] text-ink-3">{s.body}</p>
       </section>)}
-      <footer className="flex flex-wrap gap-x-6 gap-y-3 border-t border-line-soft pt-6 text-[14px] font-medium text-accent">{card.links.map(([label, to]) => <Link key={label} to={to}>{label}</Link>)}</footer>
+      {/* 卡片的入口链接文案是发布说明内容（随卡片保持中文），但站内去处随页面语言带前缀，
+          /en 读者点「浏览全部动态」不落到中文页；/admin 没有 /en 路由、"/en" 是显式语言入口
+          （见 cardHref），两者都保持原样。 */}
+      <footer className="flex flex-wrap gap-x-6 gap-y-3 border-t border-line-soft pt-6 text-[14px] font-medium text-accent">{card.links.map(([label, to]) => <Link key={label} to={cardHref(to, locale)}>{label}</Link>)}</footer>
     </div>
   </article>;
 }

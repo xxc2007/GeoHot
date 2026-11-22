@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import { useLocale } from "../../lib/i18n";
+import { copy } from "../../lib/i18n/ui";
 
 type Tone = "selected" | "accent" | "amber" | "hot" | "ok" | "neutral";
 
@@ -24,11 +26,11 @@ export function Badge({ tone = "neutral", dot = false, children, className = "",
   );
 }
 
-/** The "精选" mark on a report. */
+/** The "精选" mark on a report; the word follows the page language（ui.ts 词表）. */
 export function SelectedBadge() {
   return (
     <Badge tone="selected" dot>
-      精选
+      {copy[useLocale()].selectedBadge}
     </Badge>
   );
 }

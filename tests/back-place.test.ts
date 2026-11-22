@@ -30,6 +30,14 @@ test("其余页面留在客户端路由里（hard=false），查询串原样带�
   assert.equal(backPlace("/changelog")?.name, "更新日志");
 });
 
+test("英文站的来路认得：剥 /en 前缀认页面，去处保留 /en 回英文页", () => {
+  // 2026-11-22 本地验收：/en/hot 进条目页再点 Back，落在中文首页。前缀只影响认页面，不影响去处。
+  assert.deepEqual(backPlace("/en/hot"), { name: "热点榜", to: "/en/hot", hard: false });
+  assert.deepEqual(backPlace("/en/all?category=geopolitics"), { name: "全部动态", to: "/en/all?category=geopolitics", hard: false });
+  assert.deepEqual(backPlace("/en"), { name: "精选", to: "/en", hard: false }, "/en 这一格客户端路由解得开，不需要 hard");
+  assert.equal(backPlace("/en/items/x"), null, "条目页不在 PLACES 里，英文来路同样不猜");
+});
+
 test("站外与看不懂的来路不成链接：宁可留一个中性的「返回」", () => {
   assert.equal(backPlace(null), null);
   assert.equal(backPlace(""), null);

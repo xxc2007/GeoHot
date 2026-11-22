@@ -26,17 +26,23 @@ const PLACES: Array<readonly [RegExp, string]> = [
  * 会跳到同域名上的另一个站（`docs/known-issues.md`「子路径链接退化」）。查询串原样保留，所以从
  * `/all?tag=…` 进来就回到那个筛选结果，不是回到裸 `/all`。
  *
+ * 英文站的来路（`/en`、`/en/hot`…）同样认：剥掉 `/en` 前缀去匹配同一张 PLACES 表，名字还是中文的
+ * （英文页由 item/story 的字典对译，词条见 `lib/i18n/pages/item.ts` 的 BACK_PLACE_EN），而 `to`
+ * 保留原前缀，读者回到的是英文页而不是中文页。
+ *
  * `hard` 只对首页为真：`root.tsx` 顶上记着，React Router 在 basename 部署下把 `to="/"` 解析成裸的
  * `/geohot`，而它自己的匹配器认不出这个串——读者落在 404 页上，地址栏却是对的。首页筛选 chip 已经
  * 因为同一个原因改成真导航（`features/feed/Filters.tsx` 的 `hard`），条目页/事件页的返回链接是这条
  * 规则剩下的那个调用点。**只有根需要这样**：`/all`、`/hot` 这些带一段路径的串客户端解得开，
- * 把它们也降级成整页刷新只是白白丢掉单页应用的过渡与缓存。
+ * 把它们也降级成整页刷新只是白白丢掉单页应用的过渡与缓存；`/en` 这一格同样走得开客户端路由。
  */
 export function backPlace(value: string | null): { name: string; to: string; hard: boolean } | null {
   if (!value?.startsWith("/") || value.startsWith("//")) return null;
   const cut = value.indexOf("?");
   const pathname = appPath(cut < 0 ? value : value.slice(0, cut)).replace(/(.)\/+$/, "$1");
-  const hit = PLACES.find(([re]) => re.test(pathname));
+  // /en 前缀只影响认页面，不影响去处：`/en/hot` 认成热点榜，回 `/en/hot`。
+  const bare = pathname === "/en" ? "/" : pathname.startsWith("/en/") ? pathname.slice(3) : pathname;
+  const hit = PLACES.find(([re]) => re.test(bare));
   if (!hit) return null;
   return { name: hit[1], to: cut < 0 ? pathname : `${pathname}${value.slice(cut)}`, hard: pathname === "/" };
 }

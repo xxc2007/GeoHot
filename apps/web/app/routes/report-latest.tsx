@@ -1,14 +1,17 @@
-import { SITE, withSubject } from "@aihot/industry/site";
 import { data as withHeaders, useLoaderData, useLocation, useRevalidator } from "react-router";
 import type { Route } from "./+types/report-latest";
 import type { ReportDetail, ReportNavigationEntry } from "@aihot/contracts/site";
 import { apiGet, ApiError, loadOr404 } from "../lib/api.server";
 import { pageMeta, titled } from "../lib/seo";
+import { localeFromPath, useLocale } from "../lib/i18n";
+import { copy } from "../lib/i18n/pages/report-latest";
+import { ChineseNotice } from "../components/ui/ChineseNotice";
 import { beijingDate } from "../lib/format";
 import { EmptyState } from "../components/ui/Page";
 import { ReportLayout } from "../features/report/ReportLayout";
 import { ReportPaper } from "../features/report/ReportPaper";
-import { KIND_LABEL, kindFromPath } from "../features/report/format";
+// KIND_LABEL（日报/周报/月报）进了字典（copy[].metaTitle 等），页面不再直接用它拼用户可见的句子。
+import { kindFromPath } from "../features/report/format";
 
 export async function loader({ request }: Route.LoaderArgs) {
   const kind = kindFromPath(new URL(request.url).pathname);
@@ -50,12 +53,15 @@ export async function loader({ request }: Route.LoaderArgs) {
 export function meta({ loaderData, location }: Route.MetaArgs) {
   // 没有数据（loader 抛错）时也从网址认出是哪一种报纸：页签不能把打不开的周报、月报写成日报。
   const kind = loaderData?.kind ?? kindFromPath(location.pathname);
-  if (!loaderData) return [{ title: titled(withSubject(KIND_LABEL[kind])) }, { name: "robots", content: "noindex" }];
+  const locale = localeFromPath(location.pathname);
+  const c = copy[locale];
+  if (!loaderData) return [{ title: titled(c.metaTitle(kind)) }, { name: "robots", content: "noindex" }];
   return pageMeta({
-    title: withSubject(KIND_LABEL[kind]),
-    description: kind === "daily" ? `${SITE.name} 每天 08:00（北京时间）发布的${withSubject("日报")}。` : kind === "weekly" ? `每周一期，回顾一周的${withSubject("动态")}。` : `每月一期，盘点当月的${withSubject("动态")}。`,
+    title: c.metaTitle(kind),
+    description: c.metaDescription(kind),
     path: location.pathname,
     image: `/og/pages/${kind}.png`,
+    locale,
   });
 }
 
@@ -67,10 +73,13 @@ export function headers({ loaderHeaders }: Route.HeadersArgs) {
 
 export default function ReportLatestPage() {
   const { kind, report, index, today, now } = useLoaderData<typeof loader>();
+  const c = copy[useLocale()];
   return (
     <ReportLayout kind={kind} index={index} current={report?.key ?? null} today={today} now={now}>
+      {/* 英文页的一行说明：报纸的标题与正文仍是模型写的中文。中文页渲染为空。 */}
+      <ChineseNotice className="mb-2" />
       {/* 「还没有发布」只说没有出刊的那件事：一条报纸都没读过到，走下面的 ErrorBoundary，不说这句话。 */}
-      {report ? <ReportPaper report={report} index={index} now={now} /> : <EmptyState as="h1" title={`还没有发布${withSubject(KIND_LABEL[kind])}`}>第一期发布后会出现在这里。</EmptyState>}
+      {report ? <ReportPaper report={report} index={index} now={now} /> : <EmptyState as="h1" title={c.notPublished(kind)}>{c.emptyBody}</EmptyState>}
     </ReportLayout>
   );
 }
@@ -80,7 +89,9 @@ export default function ReportLatestPage() {
  * 这一页和「还没有出刊」的区别是这里的数据不支持任何结论，所以既不编一期报纸，也不说没有。
  */
 export function ErrorBoundary() {
-  const kind = kindFromPath(useLocation().pathname);
+  const { pathname } = useLocation();
+  const kind = kindFromPath(pathname);
+  const c = copy[localeFromPath(pathname)];
   const { revalidate, state } = useRevalidator();
   return (
     // 这一页没有往期栏（index 是空数组），today 谁也读不到，所以写空串而不是 Date.now()：组件渲染时
@@ -88,14 +99,14 @@ export function ErrorBoundary() {
     <ReportLayout kind={kind} index={[]} current={null} today="">
       <EmptyState
         as="h1"
-        title={`暂时读不到${withSubject(KIND_LABEL[kind])}`}
+        title={c.unreadableTitle(kind)}
         action={
           <button type="button" onClick={() => revalidate()} disabled={state === "loading"} className="inline-flex h-9 items-center rounded-full bg-accent px-4 text-[13.5px] font-medium text-accent-contrast hover:bg-accent-ink disabled:opacity-60">
-            {state === "loading" ? "正在重试…" : "重试"}
+            {state === "loading" ? c.retrying : c.retry}
           </button>
         }
       >
-        服务没有给出这一页要用的数据，所以现在还不能说今天这一期出刊了没有。稍等几秒再试一次。
+        {c.errorBody}
       </EmptyState>
     </ReportLayout>
   );

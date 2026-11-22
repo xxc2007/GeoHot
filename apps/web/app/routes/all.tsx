@@ -1,4 +1,3 @@
-import { SITE, withSubject } from "@aihot/industry/site";
 import { useMemo } from "react";
 import { data as routeData, Link, useLoaderData, useNavigation, useSearchParams } from "react-router";
 import type { Route } from "./+types/all";
@@ -7,6 +6,8 @@ import { isCategoryKey, isChannelKey } from "@aihot/contracts/taxonomy";
 import { beijingDate, isDay, isMonth } from "@aihot/contracts/time";
 import { loadOr404, queryString } from "../lib/api.server";
 import { listPath, pageMeta } from "../lib/seo";
+import { localeAppPath, localeFromPath, useLocale } from "../lib/i18n";
+import { copy } from "../lib/i18n/pages/all";
 import { CategoryTabs, SearchField } from "../features/feed/Filters";
 import { PillTabs } from "../components/ui/Tabs";
 import { Pagination } from "../features/feed/DayList";
@@ -43,7 +44,9 @@ export async function loader({ request }: Route.LoaderArgs) {
   const [data, calendar] = await Promise.all([
     loadOr404<PoolResponse>(
       `/api/site/pool${queryString({ channel: channel === "all" ? null : channel, category, tag, q, tab, page: page > 1 ? page : null, date })}`,
-      { signal: request.signal, busyRedirect: "/all/search-busy" },
+      // 排队页跟着这一页的语言：`/en/all` 的搜索撞上 503 不能被送到中文繁忙页。redirect() 收的是
+      // 应用路径（React Router 自己拼 basename），所以 /en 前缀留在这里，不是 publicPath。
+      { signal: request.signal, busyRedirect: localeFromPath(url.pathname) === "en" ? "/en/all/search-busy" : "/all/search-busy" },
     ),
     // 日历的数据必须跟着这一屏的筛选走：卡片数的是"这些条件下哪几天有东西"，
     // 拿全站的条数去解释一份分类筛选下面的空列表，就是给同一个事实两个答案
@@ -70,22 +73,25 @@ export async function loader({ request }: Route.LoaderArgs) {
   return routeData({ data, calendar, date, month }, { headers });
 }
 
-export function meta({ loaderData }: Route.MetaArgs) {
+export function meta({ loaderData, location }: Route.MetaArgs) {
+  const locale = localeFromPath(location.pathname);
+  const c = copy[locale];
   const f = loaderData?.data.filters;
   const q = f?.q;
   const page = loaderData?.data.page ?? 1;
   return pageMeta({
     // The <h1> says `#tag` when a tag filtered the list (line 74); the tab title did not, so a tag page
     // announced itself as 「全部地理动态」 to tabs and search engines alike (real-browser pass, 2026-10-04).
-    title: q ? `搜索“${q}”` : f?.tag ? `#${f.tag}` : `全部${withSubject("动态")}`,
-    description: `${SITE.name} 收录的全部${withSubject("动态")}，可按类别与标签筛选，支持中英文搜索。`,
+    title: q ? c.searchTitle(q) : f?.tag ? c.tagTitle(f.tag) : c.title,
+    description: c.metaDescription,
     path: listPath("/all", { channel: f && f.channel !== "all" ? f.channel : null, category: f?.category, tag: f?.tag, q, tab: f?.tab === "relevance" ? "relevance" : null, page: page > 1 ? page : null, date: loaderData?.date ?? null }),
     image: "/og/pages/all.png",
     noindex: !!q,
+    locale,
   });
 }
 
-function pageHref(params: URLSearchParams, page: number) {
+function pageHref(params: URLSearchParams, page: number, locale: "zh" | "en") {
   const sp = new URLSearchParams(params);
   sp.delete("deep");
   sp.delete("anchorAt");
@@ -93,11 +99,15 @@ function pageHref(params: URLSearchParams, page: number) {
   if (page <= 1) sp.delete("page");
   else sp.set("page", String(page));
   const s = sp.toString();
-  return s ? `/all?${s}` : "/all";
+  // noscript 分页的去处也随页面语言：/en/all 的无脚本读者不能被翻到中文列表。
+  const base = localeAppPath("/all", locale);
+  return s ? `${base}?${s}` : base;
 }
 
 export default function AllPage() {
   const { data: initial, calendar: initialCalendar, date, month } = useLoaderData<typeof loader>();
+  const locale = useLocale();
+  const c = copy[locale];
   const [params] = useSearchParams();
   const bundle = useMemo(() => [initial, initialCalendar] as const, [initial, initialCalendar]);
   const calendarParams = new URLSearchParams({ month });
@@ -128,19 +138,23 @@ export default function AllPage() {
       if (v) sp.set(k, v);
     }
     const q = sp.toString();
-    return q ? `/all?${q}` : "/all";
+    // 日历与"看全部日期"的去处随页面语言带前缀（locale 由页面传入 DateCalendar 的 href 闭包）。
+    const base = localeAppPath("/all", locale);
+    return q ? `${base}?${q}` : base;
   };
   const dayHref = (d: string) => listHref({ date: d, month: d.slice(0, 7) });
   const monthHref = (m: string) => listHref({ date: null, month: m });
-  const cnDate = (d: string) => `${Number(d.slice(0, 4))} 年 ${Number(d.slice(5, 7))} 月 ${Number(d.slice(8, 10))} 日`;
+  // 日期的界面写法随语言走：中文「2026 年 2 月 3 日」，英文「February 3, 2026」；词在字典里（copy.dayLabel）。
+  const cnDate = (d: string) => c.dayLabel(String(Number(d.slice(0, 4))), String(Number(d.slice(5, 7))), String(Number(d.slice(8, 10))));
   const searchTabHref = (tab: "time" | "relevance") => {
     const sp = new URLSearchParams(params);
     sp.delete("page");
     if (tab === "relevance") sp.set("tab", "relevance");
     else sp.delete("tab");
-    return `/all?${sp}`;
+    // 排序切换片与空态里的「试试相关度」都走这里：/en/all 的搜索结果不能被带回中文列表。
+    return `${localeAppPath("/all", locale)}?${sp}`;
   };
-  const title = f.q ? `搜索“${f.q}”` : f.tag ? `#${f.tag}` : null;
+  const title = f.q ? c.searchTitle(f.q) : f.tag ? c.tagTitle(f.tag) : null;
   // The same clock the rest of the site prints times with (`/hot` shows 16:31 for this same concept);
   // `toLocaleTimeString("zh-CN")` rendered it as 下午04:31 here and nowhere else.
   const updated = beijingTime(data.freshness);
@@ -149,7 +163,7 @@ export default function AllPage() {
     <div className="pb-6">
       {/* Desktop, as on 精选: the title, then one filter row with the search field aligned on the right. */}
       <div className="hidden lg:block">
-        <h1 className="text-[24px] font-semibold leading-[1.3] text-ink">{title ?? `全部${withSubject("动态")}`}</h1>
+        <h1 className="text-[24px] font-semibold leading-[1.3] text-ink">{title ?? c.title}</h1>
         <div className="mb-5 mt-4 flex items-center justify-between gap-4">
           <CategoryTabs base="/all" category={f.category} channel={f.channel} layoutId="all-cat-desk" className="min-w-0" />
           <SearchField variant="track" defaultValue={f.q ?? ""} keep={keep} />
@@ -159,10 +173,12 @@ export default function AllPage() {
       {/* Phones: title with today's count, the search bar, then the same filter row as 精选. */}
       <div className="lg:hidden">
         <div className="flex items-baseline justify-between pb-3 pt-5">
-          <h1 className="text-[22px] font-bold text-ink">{title ?? `全部${withSubject("动态")}`}</h1>
+          <h1 className="text-[22px] font-bold text-ink">{title ?? c.title}</h1>
           {!f.q && (
             <span className="text-[12.5px] text-ink-4">
-              今日 <span className="num">{data.todayCount}</span> 条
+              {c.todayPre}
+              <span className="num">{data.todayCount}</span>
+              {c.todayPost}
             </span>
           )}
         </div>
@@ -180,12 +196,15 @@ export default function AllPage() {
           <PillTabs
             size="xs"
             layoutId="all-search-sort"
-            label="搜索排序"
+            label={c.searchSortLabel}
             active={f.tab}
-            items={(["time", "relevance"] as const).map((t) => ({ key: t, label: t === "time" ? "最新（标题与摘要）" : "全文相关", to: searchTabHref(t) }))}
+            items={(["time", "relevance"] as const).map((t) => ({ key: t, label: t === "time" ? c.sortTime : c.sortRelevance, to: searchTabHref(t) }))}
           />
           <span className="text-[12px] text-ink-4">
-            找到 <span className="num">{data.total >= 2000 ? "2000+" : data.total}</span> 条 · 更新于 <span className="num">{updated}</span>
+            {c.foundPre}
+            <span className="num">{data.total >= 2000 ? "2000+" : data.total}</span>
+            {c.foundMid}
+            <span className="num">{updated}</span>
           </span>
         </div>
       )}
@@ -195,8 +214,10 @@ export default function AllPage() {
       )}
       {date && (
         <p className="-mt-1 mb-3 text-[12px] text-ink-4">
-          正在只看 {cnDate(date)} 那一天 ·
-          <Link to={listHref({ date: null, month: null })} className="ml-1 inline-flex min-h-9 items-center font-medium text-accent hover:underline">看全部日期</Link>
+          {c.viewingDayPre}
+          {cnDate(date)}
+          {c.viewingDayPost}
+          <Link to={listHref({ date: null, month: null })} className="ml-1 inline-flex min-h-9 items-center font-medium text-accent hover:underline">{c.viewAllDates}</Link>
         </p>
       )}
 
@@ -205,21 +226,25 @@ export default function AllPage() {
           top of <h3>, which Lighthouse reads as a skipped level (the heading-order audit) and a screen
           reader reading by headings reads as "no list section". Hidden, because the design has no label
           at this spot — the page title above already says what the list is. */}
-      <h2 className="sr-only">{f.q ? "搜索结果" : "全部动态"}</h2>
+      {/* 英文页的一行说明：条目标题按信源原语种显示，AI 摘要仍为中文（FeedItem 里已按此渲染）。
+          中文页渲染为空——字典键中英两版都有，zh 版只是文档，永不输出。 */}
+      {locale === "en" && <p className={`text-[12.5px] text-ink-4 mt-1`}>{c.chineseNotice}</p>}
+
+      <h2 className="sr-only">{f.q ? c.listHeadingSearch : c.listHeadingAll}</h2>
       <div className={`transition-opacity duration-200 ${busy ? "opacity-50" : ""}`}>
         {data.items.length === 0 ? (
           <div className="mt-2 lg:card">
             <EmptyState
-              title="没有找到相关内容"
+              title={c.emptyTitle}
               action={
                 f.q && f.tab === "time" ? (
                   <Link to={searchTabHref("relevance")} className="text-[13px] font-medium text-accent hover:underline">
-                    试试“全文相关”，连正文一起搜
+                    {c.emptyTryRelevance}
                   </Link>
                 ) : undefined
               }
             >
-              {f.q ? "换个说法，或者去掉筛选再试。" : date ? "这一屏的筛选下，那一天没有可列出的条目——换个日子，或者去掉筛选再看看。" : "这个筛选下暂时没有内容。"}
+              {f.q ? c.emptySearch : date ? c.emptyDay : c.emptyDefault}
             </EmptyState>
           </div>
         ) : (
@@ -237,22 +262,26 @@ export default function AllPage() {
         )}
       </div>
       <noscript>
-        <Pagination page={data.page} pageCount={data.pageCount} href={(p) => pageHref(params, p)} />
-        {data.page >= 50 && <p className="mt-4 text-center text-[12px] text-ink-4">{calendar ? "最多提供 50 页；更早的日子请用上面这张日历挑一天，或者用搜索、主题页。" : "最多提供 50 页；更早的内容请去掉搜索词后用日期入口挑一天，或者用主题页。"}</p>}
+        <Pagination page={data.page} pageCount={data.pageCount} href={(p) => pageHref(params, p, locale)} />
+        {data.page >= 50 && <p className="mt-4 text-center text-[12px] text-ink-4">{calendar ? c.pageCapWithCalendar : c.pageCapWithoutCalendar}</p>}
       </noscript>
     </div>
   );
 }
 
 export function SearchBusy() {
+  // 这个导出已无调用点（忙碌页已迁到 routes/search-busy.tsx）；保留时也按页面语言折算去处，
+  // 免得日后有人复用时把 /en 读者送去中文列表。
+  const locale = useLocale();
+  const c = copy[locale];
   return (
     <div className="mx-auto max-w-sm py-24 text-center">
       <RingMark className="mx-auto mb-5 size-10 text-accent" spinning />
-      <h1 className="text-[20px] font-bold text-ink">搜索有点忙</h1>
-      <p className="mt-2 text-[14px] leading-relaxed text-ink-3">现在搜索的人比较多，请稍等几秒再试。列表浏览不受影响。</p>
+      <h1 className="text-[20px] font-bold text-ink">{c.busyTitle}</h1>
+      <p className="mt-2 text-[14px] leading-relaxed text-ink-3">{c.busyBody}</p>
       <div className="mt-6 flex justify-center gap-2.5">
-        <Link to="/all" className="inline-flex h-9 items-center rounded-full bg-accent px-4 text-[13.5px] font-medium text-accent-contrast hover:bg-accent-ink">浏览全部动态</Link>
-        <Link to="/" reloadDocument className="inline-flex h-9 items-center rounded-full border border-line-strong bg-surface px-4 text-[13.5px] text-ink-2 hover:border-ink-4">回到精选</Link>
+        <Link to={localeAppPath("/all", locale)} className="inline-flex h-9 items-center rounded-full bg-accent px-4 text-[13.5px] font-medium text-accent-contrast hover:bg-accent-ink">{c.busyBrowseAll}</Link>
+        <Link to={localeAppPath("/", locale)} reloadDocument className="inline-flex h-9 items-center rounded-full border border-line-strong bg-surface px-4 text-[13.5px] text-ink-2 hover:border-ink-4">{c.busyBackSelected}</Link>
       </div>
     </div>
   );

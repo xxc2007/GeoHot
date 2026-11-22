@@ -303,11 +303,15 @@ export function toItemSummary(row: ItemRow): ItemSummary {
   };
 }
 
-/** Project the shared public article into the exact fields a site card renders. */
+/**
+ * Project the shared public article into the exact fields a site card renders. `originalTitle` rides
+ * along (toItemSummary already read it from the same row): English list cards prefer the source's own
+ * headline, and no extra query is needed to hand it to them.
+ */
 export function toFeedItemSummary(row: ItemRow): FeedItemSummary {
   const item = toItemSummary(row);
   return {
-    id: item.id, title: item.title, summary: item.summary, reason: item.reason,
+    id: item.id, title: item.title, originalTitle: item.originalTitle, summary: item.summary, reason: item.reason,
     source: { name: item.source.name }, publishedAt: item.publishedAt, timelineAt: item.timelineAt,
     category: item.category, tags: item.tags, score: item.score, selected: item.selected, channel: item.channel,
     // Only a news row lends stills here; an X post's media already sits in x.media and would render twice.

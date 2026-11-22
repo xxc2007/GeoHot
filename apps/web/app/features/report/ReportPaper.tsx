@@ -5,12 +5,14 @@
 // Rules are hairlines in two weights: line-strong closes the masthead and underlines a page's heading
 // and the neighbours; line parts stories, columns and list rows. Nothing is set in solid ink. Stories
 // sit in rows of two whose rules run across the page, each story as tall as its neighbour.
-import { SITE, withSubject } from "@aihot/industry/site";
+import { SITE } from "@aihot/industry/site";
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import type { ReportCitation, ReportDetail, ReportKind, ReportNavigationEntry } from "@aihot/contracts/site";
 import { shortSourceName } from "../../lib/format";
 import { safeExternalHref } from "../../lib/safe-url.ts";
+import { useLocale } from "../../lib/i18n";
+import { copy } from "../../lib/i18n/report";
 import { Badge } from "../../components/ui/Badge";
 import { Lightbox } from "../../components/ui/Lightbox";
 import { IconArrowLeft, IconArrowRight, IconArrowUpRight } from "../../components/icons";
@@ -19,7 +21,8 @@ import { SourceAvatar } from "../../components/ui/SourceAvatar";
 import { Halftone } from "./Halftone";
 import { Nameplate } from "./Nameplate";
 import { IssueDots } from "./IssueDots";
-import { EDITION, KIND_LABEL, MOTTO, dateLine, dateMark, headline, isDue, issueNumber, leadAbsentNote, leadCountLine, metricItems, neighbourLabel, reportPath, sectionHeading, shortDay } from "./format";
+import { dateLine, dateMark, headline, isDue, issueNumber, leadAbsentNote, leadCountLine, metricItems, neighbourLabel, reportPath, sectionHeading, shortDay } from "./format";
+import { localeAppPath } from "../../lib/i18n";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 /**
@@ -34,7 +37,8 @@ const pad = (n: number) => String(n).padStart(2, "0");
  * 那是安全方向；取长则是当着读者说假话。
  */
 const GRACE_DAYS: Record<ReportKind, number> = { daily: 1, weekly: 7, monthly: 28 };
-export function periodWord(kind: ReportKind, windowStart: string, windowEnd: string, now: number): string {
+/** 返回值是 lib/i18n/report.ts highlightsKicker 的键，字面量联合而不是 string。 */
+export function periodWord(kind: ReportKind, windowStart: string, windowEnd: string, now: number): "本期" | "今日" | "本周" | "本月" {
   const open = Date.parse(windowStart);
   const close = Date.parse(windowEnd);
   if (!Number.isFinite(open) || !Number.isFinite(close) || close > now) return "本期";
@@ -46,8 +50,10 @@ const anchorOf = (c: ReportCitation) => (c.itemId ? `r-${c.itemId}` : null);
 const LINK = "tap-hit inline-flex min-h-7 items-center gap-0.5 font-medium transition-colors hover:text-accent";
 
 function Masthead({ report, index, now }: { report: ReportDetail; index: ReportNavigationEntry[]; now: number }) {
+  const locale = useLocale();
+  const c = copy[locale];
   const issue = issueNumber(index, report.key);
-  const mark = dateMark(report.kind, report.key);
+  const mark = dateMark(report.kind, report.key, locale);
   // 一份窗口还没合上的期只是稿样：报头不写它什么时候出，只写它还没出。
   // 同一句话也不能对一份读者翻不开的期说「每天 08:00 出刊」——归档把那一天叫「未出刊」，
   // 这一格就不能给它的承诺背书（`readable` 与读取层那道门是同一个判据）。
@@ -59,16 +65,16 @@ function Masthead({ report, index, now }: { report: ReportDetail; index: ReportN
   return (
     <header className="pt-5 lg:pt-0">
       <div className="flex items-center justify-between gap-4 text-caption text-ink-4">
-        <span className="num">{dateLine(report.kind, report.key)}</span>
-        <span className="hidden tracking-[0.3em] @[640px]:inline">{MOTTO[report.kind]}</span>
-        <span>{due && report.readable ? EDITION[report.kind] : "本期未出刊"}</span>
+        <span className="num">{dateLine(report.kind, report.key, locale)}</span>
+        <span className="hidden tracking-[0.3em] @[640px]:inline">{c.motto[report.kind]}</span>
+        <span>{due && report.readable ? c.edition[report.kind] : c.notOut}</span>
       </div>
 
       <div className="flex items-stretch justify-between gap-5 py-6 @[760px]:gap-10 @[760px]:py-8">
         <div className="flex min-w-0 flex-col justify-center">
           <h1 id="report-start">
             <span className="sr-only">
-              {withSubject(KIND_LABEL[report.kind])} · {dateLine(report.kind, report.key)}
+              {c.kindSubject[report.kind]} · {dateLine(report.kind, report.key, locale)}
             </span>
             <Nameplate which={report.kind} className="block h-[54px] w-auto max-w-full @[520px]:h-[74px] @[760px]:h-[98px] @[1040px]:h-[112px]" />
           </h1>
@@ -78,7 +84,7 @@ function Masthead({ report, index, now }: { report: ReportDetail; index: ReportN
             nameplate's dots, and on wider paper the issue calendar beside them. */}
         <div className="flex shrink-0 items-stretch well rounded-panel">
           <div className="flex w-[112px] flex-col items-center justify-center px-2 py-3 text-center @[760px]:w-[150px] @[760px]:py-4">
-            {issue && <span className="text-label tracking-[0.2em] text-ink-4">第 {issue} 期</span>}
+            {issue && <span className="text-label tracking-[0.2em] text-ink-4">{c.issueNo(issue)}</span>}
             <Halftone seed={`${report.kind}-${report.key}-date`} className="num mt-2 whitespace-nowrap text-[44px] font-black leading-[0.95] tracking-[-0.04em] text-ink @[760px]:text-[64px]">
               {mark.figure}
             </Halftone>
@@ -94,13 +100,13 @@ function Masthead({ report, index, now }: { report: ReportDetail; index: ReportN
           约 4 分钟读完」——同一页两个答案，而且第二个是永远修不掉的旧数。 */}
       {report.readable && (
         <div className="flex flex-wrap items-baseline gap-x-8 gap-y-1.5 border-y border-line-strong py-3">
-          {metricItems(report.metrics).map((m) => (
+          {metricItems(report.metrics, locale).map((m) => (
             <span key={m.unit} className="inline-flex items-baseline gap-1.5 whitespace-nowrap">
               <span className="num text-[22px] font-bold leading-none tracking-[-0.02em] text-ink @[760px]:text-heading">{m.value}</span>
               <span className="text-caption text-ink-4">{m.unit}</span>
             </span>
           ))}
-          {report.readingMinutes > 0 && <span className="ml-auto whitespace-nowrap text-caption text-ink-4">约 {report.readingMinutes} 分钟读完</span>}
+          {report.readingMinutes > 0 && <span className="ml-auto whitespace-nowrap text-caption text-ink-4">{c.minutesRead(report.readingMinutes)}</span>}
         </div>
       )}
     </header>
@@ -109,11 +115,12 @@ function Masthead({ report, index, now }: { report: ReportDetail; index: ReportN
 
 /** Source face and name, and the site's 一手 mark when first-hand. */
 function Source({ c, size = 16 }: { c: ReportCitation; size?: number }) {
+  const w = copy[useLocale()];
   return (
     <span className="inline-flex min-w-0 items-center gap-1.5">
       <SourceAvatar name={c.sourceName} iconUrl={c.sourceIconUrl} iconSrcSet={c.sourceIconSrcSet} size={size} />
       <span className="truncate">{shortSourceName(c.sourceName)}</span>
-      {c.firstParty && <Badge tone="accent">一手</Badge>}
+      {c.firstParty && <Badge tone="accent">{w.firstHand}</Badge>}
     </span>
   );
 }
@@ -123,34 +130,39 @@ function Source({ c, size = 16 }: { c: ReportCitation; size?: number }) {
  * chose: first-hand first, then the best scored), so there is one place to go.
  */
 function Original({ c, className = "" }: { c: ReportCitation; className?: string }) {
+  const w = copy[useLocale()];
   // 引文的来源地址来自采集链，只有 http(s) 才配成为链接（lib/safe-url.ts）；不安全时按纯文本显示。
   const sourceHref = safeExternalHref(c.sourceUrl);
   if (!sourceHref) return c.sourceUrl ? (
-    <span title="原文地址不是 http(s) 地址，只作文字显示" className={`${LINK} text-meta text-ink-4 ${className}`}>
-      原文
+    <span title={w.originalNotHttp} className={`${LINK} text-meta text-ink-4 ${className}`}>
+      {w.original}
     </span>
   ) : null;
   return (
-    <a href={sourceHref} target="_blank" rel="noopener noreferrer" aria-label={`阅读${shortSourceName(c.sourceName)}原文：${c.title}（新标签页）`} className={`${LINK} text-meta text-ink-3 ${className}`}>
-      原文 <IconArrowUpRight size={12} />
+    <a href={sourceHref} target="_blank" rel="noopener noreferrer" aria-label={w.originalAria(shortSourceName(c.sourceName), c.title)} className={`${LINK} text-meta text-ink-3 ${className}`}>
+      {w.original} <IconArrowUpRight size={12} />
     </a>
   );
 }
 
 /** Imported citations keep their published copy even when their item page is absent locally. */
 function CitationTitle({ c, children, anchor, className = "transition-colors hover:text-accent" }: { c: ReportCitation; children: ReactNode; anchor?: string; className?: string }) {
+  const locale = useLocale();
+  const w = copy[locale];
   if (anchor) return <Link to={anchor} className={className}>{children}</Link>;
   // 目标选择（2026-10-31 二修）：有公开条目页 → 站内页；条目存在但读者页不可得
   // （hasPage=false：来源仅准摘要等）→ 原文，绝不送读者去 404；两者皆无 → 纯文本。
   // 原文那一格同样只认 http(s)（lib/safe-url.ts）：不安全的地址按纯文本，不写进 href。
+  // 站内页带语言前缀：英文页点标题若落回 /items 会整页换成中文 chrome（2026-11-22 第 2 轮验收）。
   const sourceHref = safeExternalHref(c.sourceUrl);
-  if (c.itemId && c.hasPage !== false) return <Link to={`/items/${c.itemId}`} prefetch="intent" className={className}>{children}</Link>;
-  if (sourceHref) return <a href={sourceHref} target="_blank" rel="noopener noreferrer" className={className} aria-label={`阅读原文：${c.title}（新标签页）`}>{children}</a>;
+  if (c.itemId && c.hasPage !== false) return <Link to={localeAppPath(`/items/${c.itemId}`, locale)} prefetch="intent" className={className}>{children}</Link>;
+  if (sourceHref) return <a href={sourceHref} target="_blank" rel="noopener noreferrer" className={className} aria-label={w.originalPlainAria(c.title)}>{children}</a>;
   return <span className={className}>{children}</span>;
 }
 
 /** One story: source, headline, at most four lines of summary, and the original at the foot. */
 function Story({ c, dated, className = "" }: { c: ReportCitation; dated: boolean; className?: string }) {
+  const w = copy[useLocale()];
   return (
     <article id={anchorOf(c) ?? undefined} className={`flex min-w-0 scroll-mt-6 flex-col py-6 ${className}`}>
       <div className="flex items-center gap-2 text-caption text-ink-3">
@@ -174,7 +186,7 @@ function Story({ c, dated, className = "" }: { c: ReportCitation; dated: boolean
           <CitationTitle c={c}>
             <span className={c.unavailableReason === "withdrawn" ? "line-through" : undefined}>{c.title}</span>
           </CitationTitle>
-          {c.unavailableReason === "source-restricted" ? " · 原报道暂不具备站内全文展示条件。" : c.unavailableReason === "workflow-pending" ? " · 正文、译文或配图尚在核验。" : " · 该报道当前不可公开阅读。"}
+          {c.unavailableReason === "source-restricted" ? w.unavailable.sourceRestricted : c.unavailableReason === "workflow-pending" ? w.unavailable.workflowPending : w.unavailable.other}
           {c.sourceUrl && <span className="ml-2 inline-block"><Original c={c} /></span>}
         </p>
       )}
@@ -240,6 +252,7 @@ function pagesOf(report: ReportDetail, leadStory: ReportCitation | null): Page[]
  * the lead's own (a weekly or monthly's, from its first highlight) is captioned with its story.
  */
 function LeadPicture({ cover, title, onError, priority = false, className = "", onOpen }: { cover: NonNullable<ReportDetail["cover"]>; title: string; onError: () => void; priority?: boolean; className?: string; onOpen: () => void }) {
+  const w = copy[useLocale()];
   const ratio = cover.width && cover.height ? cover.width / cover.height : 16 / 9;
   const shown = ratio >= 1.25 ? Math.min(2, Math.max(1.6, ratio)) : Math.max(0.8, ratio);
   return (
@@ -248,17 +261,18 @@ function LeadPicture({ cover, title, onError, priority = false, className = "", 
         <img src={cover.url} srcSet={cover.srcSet}
           sizes={priority ? "(min-width: 1700px) 780px, (min-width: 1580px) calc(100vw - 920px), (min-width: 1420px) calc(100vw - 880px), (min-width: 1024px) calc(100vw - 540px), (min-width: 640px) 608px, calc(100vw - 32px)" : "auto, (min-width: 1180px) 300px, (min-width: 640px) 608px, calc(100vw - 32px)"}
           width={cover.width ?? undefined} height={cover.height ?? undefined}
-          alt={cover.caption ? "" : `《${title}》的配图`} loading={priority ? "eager" : "lazy"} fetchPriority={priority ? "high" : "auto"} decoding="async" onError={onError} onClick={onOpen}
+          alt={cover.caption ? "" : w.pictureAlt(title)} loading={priority ? "eager" : "lazy"} fetchPriority={priority ? "high" : "auto"} decoding="async" onError={onError} onClick={onOpen}
           className="size-full cursor-zoom-in object-cover transition-opacity hover:opacity-95" />
       </div>
-      {cover.caption && <figcaption className="mt-2.5 line-clamp-2 text-[12.5px] leading-[1.6] text-ink-4">图 · {cover.caption}</figcaption>}
+      {cover.caption && <figcaption className="mt-2.5 line-clamp-2 text-[12.5px] leading-[1.6] text-ink-4">{w.captionPre}{cover.caption}</figcaption>}
     </figure>
   );
 }
 
 /** The front page: the lead beside a column of the issue's highlights and the index of pages. */
 function FrontPage({ report, pages, leadStory, count, now }: { report: ReportDetail; pages: Page[]; leadStory: ReportCitation | null; count: number; now: number }) {
-  const daily = report.kind === "daily";
+  const locale = useLocale();
+  const w = copy[locale];
   // 期刊图与 P1 文章图共用同一只查看器：点击放大、滚轮/双击缩放、键盘与拖动（2026-10-31 站长要求）。
   const [viewing, setViewing] = useState(false);
   // A picture that fails to load is dropped, and the lead is set as if it had none.
@@ -266,19 +280,19 @@ function FrontPage({ report, pages, leadStory, count, now }: { report: ReportDet
   const cover = report.cover && report.cover.url !== broken ? report.cover : null;
   // A landscape picture opens the lead above its headline; a squarer one sits beside the paragraph.
   const wide = !cover?.width || !cover.height || cover.width / cover.height >= 1.25;
-  const title = report.lead?.title ?? leadStory?.title ?? headline(report.kind, report.key, count);
+  const title = report.lead?.title ?? leadStory?.title ?? headline(report.kind, report.key, count, locale);
   // 导语自己报的条数要和这一版排出来的一样多；对不上时改写那句（leadCountLine）。
   const rawDek = report.lead?.leadParagraph ?? leadStory?.summary ?? report.overview;
   const dek = rawDek ? leadCountLine(rawDek, count) : rawDek;
   const highlights = report.highlights.filter((h) => !leadStory || keyOf(h) !== keyOf(leadStory)).slice(0, 3);
   const inPage = new Set(pages.flatMap((p) => p.items.map((c) => c.itemId)).filter(Boolean));
   const period = periodWord(report.kind, report.windowStart, report.windowEnd, now);
-  const index = [...pages.map((p) => ({ id: p.id, label: p.label, n: `${p.items.length} 件` })), ...(report.flashes.length > 0 ? [{ id: "s-flash", label: "快讯", n: `${report.flashes.length} 条` }] : [])];
+  const index = [...pages.map((p) => ({ id: p.id, label: p.label, n: w.itemsCount(p.items.length) })), ...(report.flashes.length > 0 ? [{ id: "s-flash", label: w.flashesKicker, n: w.flashesCount(report.flashes.length) }] : [])];
 
   return (
-    <section aria-label="头版" className="grid @[880px]:grid-cols-[minmax(0,1fr)_300px] @[1040px]:grid-cols-[minmax(0,1fr)_340px]">
+    <section aria-label={w.frontPageAria} className="grid @[880px]:grid-cols-[minmax(0,1fr)_300px] @[1040px]:grid-cols-[minmax(0,1fr)_340px]">
       <div id={leadStory ? (anchorOf(leadStory) ?? undefined) : undefined} className="min-w-0 scroll-mt-6 py-7 @[880px]:border-r @[880px]:border-line @[880px]:py-10 @[880px]:pr-10">
-        <Kicker>{daily ? "头条" : "本期导读"}</Kicker>
+        <Kicker>{w.kickerLead(report.kind)}</Kicker>
         {cover && wide && <LeadPicture cover={cover} title={title} onError={() => setBroken(cover.url)} onOpen={() => setViewing(true)} priority className="mt-5" />}
         <h2 className="mt-4 text-display font-display font-black leading-[1.28] tracking-[-0.03em] text-ink [text-wrap:balance] @[520px]:text-display-lg @[1040px]:text-display-xl @[1040px]:leading-[1.22]">
           {leadStory ? <CitationTitle c={leadStory}>{title}</CitationTitle> : title}
@@ -287,7 +301,7 @@ function FrontPage({ report, pages, leadStory, count, now }: { report: ReportDet
           {dek ? (
             <p className={`text-[16.5px] leading-[1.9] text-ink-2 @[880px]:text-[17.5px] ${cover && !wide ? "" : "mt-6 @[560px]:text-justify @[880px]:mt-7"}`}>{dek}</p>
           ) : (
-            <p className="mt-5 text-[13.5px] leading-[1.8] text-ink-3 @[880px]:mt-6">{leadAbsentNote(report.kind)}</p>
+            <p className="mt-5 text-[13.5px] leading-[1.8] text-ink-3 @[880px]:mt-6">{leadAbsentNote(report.kind, locale)}</p>
           )}
           {cover && !wide && <LeadPicture cover={cover} title={title} onError={() => setBroken(cover.url)} onOpen={() => setViewing(true)} />}
         </div>
@@ -302,7 +316,7 @@ function FrontPage({ report, pages, leadStory, count, now }: { report: ReportDet
       <aside className="min-w-0 border-t border-line py-7 @[880px]:border-t-0 @[880px]:py-10 @[880px]:pl-8">
         {highlights.length > 0 && (
           <>
-            <Kicker>{period}看点</Kicker>
+            <Kicker>{w.highlightsKicker[period]}</Kicker>
             <ol className="mt-2">
               {highlights.map((h, i) => {
                 const anchor = anchorOf(h);
@@ -323,8 +337,8 @@ function FrontPage({ report, pages, leadStory, count, now }: { report: ReportDet
           </>
         )}
         {index.length > 0 && (
-          <nav aria-label="本期版面" className={highlights.length > 0 ? "mt-8" : ""}>
-            <Kicker>本期版面</Kicker>
+          <nav aria-label={w.pagesKicker} className={highlights.length > 0 ? "mt-8" : ""}>
+            <Kicker>{w.pagesKicker}</Kicker>
             <ol className="mt-3">
               {index.map((p, i) => (
                 <li key={p.id}>
@@ -363,15 +377,17 @@ export function SectionPage({ id, no, label, children }: { id: string; no?: numb
 const COLUMNS = "@[760px]:columns-2 @[760px]:gap-x-12 @[760px]:[column-rule:1px_solid_var(--line)]";
 
 function Neighbours({ report, index }: { report: ReportDetail; index: ReportNavigationEntry[] }) {
-  const titleOf = (key: string) => index.find((e) => e.key === key)?.title ?? `${withSubject(KIND_LABEL[report.kind])} · ${key}`;
+  const locale = useLocale();
+  const w = copy[locale];
+  const titleOf = (key: string) => index.find((e) => e.key === key)?.title ?? w.titleFallback(report.kind, key);
   const cell = "group flex min-w-0 flex-col py-6";
   const title = "mt-2.5 line-clamp-2 text-[16px] font-display font-bold leading-[1.5] text-ink transition-colors group-hover:text-accent @[760px]:text-[18px]";
   return (
-    <nav aria-label={report.kind === "daily" ? "前后日报" : "前后各期"} className="mt-16 grid grid-cols-2 border-y border-line-strong">
+    <nav aria-label={w.neighboursAria(report.kind)} className="mt-16 grid grid-cols-2 border-y border-line-strong">
       {report.prev ? (
-        <Link to={reportPath(report.kind, report.prev)} className={`${cell} pr-5 @[760px]:pr-10`}>
+        <Link to={reportPath(report.kind, report.prev, locale)} className={`${cell} pr-5 @[760px]:pr-10`}>
           <span className="inline-flex items-center gap-1 text-caption text-ink-4">
-            <IconArrowLeft size={13} /> {neighbourLabel(report.kind, report.key, report.prev, "prev")}
+            <IconArrowLeft size={13} /> {neighbourLabel(report.kind, report.key, report.prev, "prev", locale)}
           </span>
           <span className={title}>{titleOf(report.prev)}</span>
         </Link>
@@ -379,9 +395,9 @@ function Neighbours({ report, index }: { report: ReportDetail; index: ReportNavi
         <span />
       )}
       {report.next ? (
-        <Link to={reportPath(report.kind, report.next)} className={`${cell} items-end border-l border-line pl-5 text-right @[760px]:pl-10`}>
+        <Link to={reportPath(report.kind, report.next, locale)} className={`${cell} items-end border-l border-line pl-5 text-right @[760px]:pl-10`}>
           <span className="inline-flex items-center gap-1 text-caption text-ink-4">
-            {neighbourLabel(report.kind, report.key, report.next, "next")} <IconArrowRight size={13} />
+            {neighbourLabel(report.kind, report.key, report.next, "next", locale)} <IconArrowRight size={13} />
           </span>
           <span className={title}>{titleOf(report.next)}</span>
         </Link>
@@ -396,17 +412,19 @@ function History({ report, index }: { report: ReportDetail; index: ReportNavigat
   // 这一格只对周报与月报渲染（`hasHistory`）：日报有 `/daily/archive` 那一整页可去，而周报月报**没有归档页**，
   // 手机上的「更早」就是从这一格往下走（`ReportPhoneNav` 把它们指向 `#report-history`）。
   // 补刊会补出约 40 期周报：原先截到 12 期，等于把后面 25 期对读者藏起来，所以这里不截断。
+  const locale = useLocale();
+  const w = copy[locale];
   const others = index.filter((e) => e.key !== report.key);
   if (others.length === 0) return null;
   return (
     <section id="report-history" className="scroll-mt-6 pt-12">
-      <Kicker>往期{withSubject(KIND_LABEL[report.kind])}</Kicker>
+      <Kicker>{w.historyKicker(report.kind)}</Kicker>
       <ul className="mt-3">
         {others.map((e) => (
           <li key={e.key}>
-            <Link to={reportPath(report.kind, e.key)} className="group flex items-baseline gap-4 border-b border-line py-3">
+            <Link to={reportPath(report.kind, e.key, locale)} className="group flex items-baseline gap-4 border-b border-line py-3">
               <span className="num w-[76px] shrink-0 text-[12.5px] text-ink-4">{e.key}</span>
-              <span className="min-w-0 flex-1 truncate text-[14px] text-ink-2 transition-colors group-hover:text-accent">{e.title ?? `${SITE.name} ${KIND_LABEL[report.kind]} · ${e.key}`}</span>
+              <span className="min-w-0 flex-1 truncate text-[14px] text-ink-2 transition-colors group-hover:text-accent">{e.title ?? w.historyFallback(report.kind, e.key)}</span>
             </Link>
           </li>
         ))}
@@ -416,6 +434,8 @@ function History({ report, index }: { report: ReportDetail; index: ReportNavigat
 }
 
 export function ReportPaper({ report, index, now }: { report: ReportDetail; index: ReportNavigationEntry[]; now: number }) {
+  const locale = useLocale();
+  const c = copy[locale];
   const daily = report.kind === "daily";
   const leadStory = leadStoryOf(report);
   const pages = pagesOf(report, leadStory);
@@ -433,8 +453,8 @@ export function ReportPaper({ report, index, now }: { report: ReportDetail; inde
       {!report.readable ? (
         <p className="py-16 text-center text-body text-ink-4">
           {report.sections.some((s) => s.items.length > 0) || report.flashes.length > 0
-            ? "这一期当时选中的条目已全部下架，现在没有可读的内容了。"
-            : "本期没有入选内容。"}
+            ? c.emptyWithdrawn
+            : c.emptyNoContent}
         </p>
       ) : (
         <FrontPage report={report} pages={pages} leadStory={leadStory} count={count} now={now} />
@@ -444,7 +464,7 @@ export function ReportPaper({ report, index, now }: { report: ReportDetail; inde
         <SectionPage key={p.id} id={p.id} no={i + 1} label={p.label}>
           {p.summary && (
             <p className="border-b border-line py-5 text-[15.5px] leading-[1.9] text-ink-2 @[560px]:text-justify">
-              <span className="mr-2 font-semibold text-accent">本版导读</span>
+              <span className="mr-2 font-semibold text-accent">{c.sectionBrief}</span>
               {p.summary}
             </p>
           )}
@@ -453,7 +473,7 @@ export function ReportPaper({ report, index, now }: { report: ReportDetail; inde
       ))}
 
       {report.readable && report.flashes.length > 0 && (
-        <SectionPage id="s-flash" no={pages.length + 1} label="快讯">
+        <SectionPage id="s-flash" no={pages.length + 1} label={c.flashesKicker}>
           <ul className={`${COLUMNS} @[1040px]:columns-3`}>
             {report.flashes.map((f, i) => (
               <li key={`${keyOf(f)}-${i}`} className="flex break-inside-avoid gap-2.5 border-b border-line py-3 text-[14.5px] leading-[1.65]">
@@ -471,22 +491,22 @@ export function ReportPaper({ report, index, now }: { report: ReportDetail; inde
       <Neighbours report={report} index={index} />
       {hasHistory && <History report={report} index={index} />}
       <footer className="py-10 text-center">
-        <div className="text-ui font-semibold tracking-[0.6em] text-ink-4">{report.readable ? "（本期完）" : "（本期未出刊）"}</div>
+        <div className="text-ui font-semibold tracking-[0.6em] text-ink-4">{report.readable ? c.endMark : c.endNotOut}</div>
         <p className="mt-3 text-caption text-ink-4">
-          {SITE.name} {KIND_LABEL[report.kind]}由编辑系统按编辑部写定的标准从公开来源筛选编排
-          {report.readable ? "，每条均附原文" : ""}
+          {c.colophon(report.kind)}
+          {report.readable ? c.colophonReadable : ""}
           {daily || hasHistory ? (
             <>
               {" · "}
-              <Link to={daily ? "/daily/archive" : "#report-history"} className="inline-flex min-h-6 items-center font-medium text-ink-3 transition-colors hover:text-accent">
-                {daily ? "日报合订本" : `往期${KIND_LABEL[report.kind]}`}
+              <Link to={daily ? localeAppPath("/daily/archive", locale) : "#report-history"} className="inline-flex min-h-6 items-center font-medium text-ink-3 transition-colors hover:text-accent">
+                {daily ? c.boundLink : c.pastIssues}
               </Link>
             </>
           ) : report.readable ? (
             // 这一期还没有往期：不写一个点了不会动的锚点。
             <>
               {" · "}
-              <span className="text-ink-4">这是{KIND_LABEL[report.kind]}的第一期</span>
+              <span className="text-ink-4">{c.firstIssue(report.kind)}</span>
             </>
           ) : null}
         </p>
