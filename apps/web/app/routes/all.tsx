@@ -4,7 +4,7 @@ import type { Route } from "./+types/all";
 import type { PoolResponse } from "@aihot/contracts/site";
 import { isCategoryKey, isChannelKey } from "@aihot/contracts/taxonomy";
 import { beijingDate, isDay, isMonth } from "@aihot/contracts/time";
-import { loadOr404, queryString } from "../lib/api.server";
+import { loadOr404, queryString, withLang } from "../lib/api.server";
 import { listPath, pageMeta } from "../lib/seo";
 import { localeAppPath, localeFromPath, useLocale } from "../lib/i18n";
 import { copy } from "../lib/i18n/pages/all";
@@ -41,12 +41,13 @@ export async function loader({ request }: Route.LoaderArgs) {
   const month = (monthParam && isMonth(monthParam) ? monthParam : null) ?? date?.slice(0, 7) ?? beijingDate(Date.now()).slice(0, 7);
   // Legacy deep-paging parameters (deep, anchorAt) still open a normal page.
   const page = Math.min(Math.max(Number.parseInt(url.searchParams.get("page") ?? "1", 10) || 1, 1), 50);
+  const locale = localeFromPath(url.pathname);
   const [data, calendar] = await Promise.all([
     loadOr404<PoolResponse>(
-      `/api/site/pool${queryString({ channel: channel === "all" ? null : channel, category, tag, q, tab, page: page > 1 ? page : null, date })}`,
+      withLang(`/api/site/pool${queryString({ channel: channel === "all" ? null : channel, category, tag, q, tab, page: page > 1 ? page : null, date })}`, locale),
       // 排队页跟着这一页的语言：`/en/all` 的搜索撞上 503 不能被送到中文繁忙页。redirect() 收的是
       // 应用路径（React Router 自己拼 basename），所以 /en 前缀留在这里，不是 publicPath。
-      { signal: request.signal, busyRedirect: localeFromPath(url.pathname) === "en" ? "/en/all/search-busy" : "/all/search-busy" },
+      { signal: request.signal, busyRedirect: locale === "en" ? "/en/all/search-busy" : "/all/search-busy" },
     ),
     // 日历的数据必须跟着这一屏的筛选走：卡片数的是"这些条件下哪几天有东西"，
     // 拿全站的条数去解释一份分类筛选下面的空列表，就是给同一个事实两个答案
@@ -55,7 +56,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     // 拿不到也不画——一张"本月 0 条"的空卡排在满屏结果上面，比没有卡更糟。
     q ? null
       : loadOr404<{ month: string; days: CalendarDay[] }>(
-          `/api/site/calendar${queryString({ month, channel: channel === "all" ? null : channel, category, tag })}`,
+          withLang(`/api/site/calendar${queryString({ month, channel: channel === "all" ? null : channel, category, tag })}`, locale),
           { signal: request.signal },
         ).catch(() => null),
   ]);
@@ -114,8 +115,12 @@ export default function AllPage() {
   if (initial.filters.channel !== "all") calendarParams.set("channel", initial.filters.channel);
   if (initial.filters.category) calendarParams.set("category", initial.filters.category);
   if (initial.filters.tag) calendarParams.set("tag", initial.filters.tag);
+  // 轮询也是 /en 的一路数据：不带上语言，60 秒后这一屏会静默变回中文投影。
+  if (locale === "en") calendarParams.set("lang", "en");
+  const poolParams = new URLSearchParams(params);
+  if (locale === "en") poolParams.set("lang", "en");
   const [data, calendar] = useLivePublicData(bundle, initial.page === 1 && !initial.filters.q && !date
-    ? [`/api/site/pool?${params}`, `/api/site/calendar?${calendarParams}`] : null);
+    ? [`/api/site/pool?${poolParams}`, `/api/site/calendar?${calendarParams}`] : null);
   const navigation = useNavigation();
   const f = data.filters;
   const busy = navigation.state === "loading" && navigation.location?.pathname === "/all";
@@ -129,6 +134,8 @@ export default function AllPage() {
     sp.delete("deep");
     sp.delete("anchorAt");
     sp.delete("search");
+    // 触底续读同样要英文投影，否则往下滚几屏又变成中文标题。
+    if (locale === "en") sp.set("lang", "en");
     return sp.toString();
   })();
   // 日历的两种走法：点某一天 = 带着当前筛选去看那一天；换月份 = 只看那一月的日历，不留在旧的那一天上。
@@ -178,7 +185,7 @@ export default function AllPage() {
             <span className="text-[12.5px] text-ink-4">
               {c.todayPre}
               <span className="num">{data.todayCount}</span>
-              {c.todayPost}
+              {c.todayPost(data.todayCount)}
             </span>
           )}
         </div>
@@ -203,7 +210,7 @@ export default function AllPage() {
           <span className="text-[12px] text-ink-4">
             {c.foundPre}
             <span className="num">{data.total >= 2000 ? "2000+" : data.total}</span>
-            {c.foundMid}
+            {c.foundMid(data.total)}
             <span className="num">{updated}</span>
           </span>
         </div>
@@ -226,9 +233,8 @@ export default function AllPage() {
           top of <h3>, which Lighthouse reads as a skipped level (the heading-order audit) and a screen
           reader reading by headings reads as "no list section". Hidden, because the design has no label
           at this spot — the page title above already says what the list is. */}
-      {/* 英文页的一行说明：条目标题按信源原语种显示，AI 摘要仍为中文（FeedItem 里已按此渲染）。
-          中文页渲染为空——字典键中英两版都有，zh 版只是文档，永不输出。 */}
-      {locale === "en" && <p className={`text-[12.5px] text-ink-4 mt-1`}>{c.chineseNotice}</p>}
+      {/* 读取层已经投影过英文字段；只有这一屏真有条目回退中文时才说这一句。中文页永不渲染。 */}
+      {locale === "en" && data.items.some((item) => item.textLocale !== "en") && <p className={`text-[12.5px] text-ink-4 mt-1`}>{c.chineseNotice}</p>}
 
       <h2 className="sr-only">{f.q ? c.listHeadingSearch : c.listHeadingAll}</h2>
       <div className={`transition-opacity duration-200 ${busy ? "opacity-50" : ""}`}>
@@ -250,7 +256,11 @@ export default function AllPage() {
         ) : (
           // 2026-11-04：站长要求"像精选页一样一直往下拉"，分页器换成触底自动续。
           // 首屏仍是 SSG/SSR 出来的这一页，追加只在浏览器里发生；<noscript> 里保留分页链接。
+          // key 绑在查询串上：客户端路由换 q/分类/日期时组件会被重新挂载，
+          // 不能把上一屏的条目留在 state 里——2026-11-23 验收里 /en/all?q=earthquake
+          // 页头写 Found 1、列表还画着上一屏的 2 张卡，就是这份残留。
           <InfiniteDayList
+            key={listQuery}
             initialItems={data.items}
             initialPage={data.page}
             pageCount={data.pageCount}

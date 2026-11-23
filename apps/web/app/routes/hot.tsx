@@ -1,7 +1,8 @@
 import { Link, useLoaderData } from "react-router";
 import type { Route } from "./+types/hot";
 import type { HotEntryView, HotResponse } from "@aihot/contracts/site";
-import { loadOr404 } from "../lib/api.server";
+import { loadOr404, withLang } from "../lib/api.server";
+import { hasChineseCopy } from "@aihot/contracts/copy";
 import { pageMeta } from "../lib/seo";
 import { localeAppPath, localeFromPath, useLocale } from "../lib/i18n";
 import { copy } from "../lib/i18n/pages/hot";
@@ -15,7 +16,8 @@ import { Delta } from "../features/hot/Delta";
 import { useLivePublicData } from "../lib/use-live-public-data";
 
 export async function loader({ request }: { request: Request }) {
-  return { hot: await loadOr404<HotResponse>("/api/site/hot", { signal: request.signal }) };
+  const locale = localeFromPath(new URL(request.url).pathname);
+  return { hot: await loadOr404<HotResponse>(withLang("/api/site/hot", locale), { signal: request.signal }) };
 }
 
 export function meta({ loaderData, location }: Route.MetaArgs) {
@@ -54,7 +56,7 @@ const pad = (rank: number) => String(rank).padStart(2, "0");
 function Voices({ e }: { e: HotEntryView }) {
   const locale = useLocale();
   const c = copy[locale].voices;
-  const names = e.sourceNames.slice(0, 2).map(shortSourceName);
+  const names = (locale === "en" && e.sourceNamesEn?.length ? e.sourceNamesEn : e.sourceNames).slice(0, 2).map(shortSourceName);
   const shown = names.join(c.nameJoiner);
   return (
     <span className="min-w-0 text-[12.5px] leading-snug text-ink-4">
@@ -88,7 +90,7 @@ function StoryLink({ e, className }: { e: HotEntryView; className: string }) {
   const locale = useLocale();
   return (
     <Link to={localeAppPath(`/story/${e.story.publicId}`, locale)} prefetch="intent" className={`transition-colors after:absolute after:inset-0 after:content-[''] ${className}`}>
-      {e.story.title}
+      <span lang={locale === "en" && hasChineseCopy(e.story.title) ? "zh-Hans" : undefined}>{e.story.title}</span>
     </Link>
   );
 }
@@ -255,7 +257,7 @@ export default function HotPage() {
   const { hot: initial } = useLoaderData<typeof loader>();
   const locale = useLocale();
   const c = copy[locale];
-  const hot = useLivePublicData(initial, "/api/site/hot");
+  const hot = useLivePublicData(initial, locale === "en" ? "/api/site/hot?lang=en" : "/api/site/hot");
   const [lead, ...rest] = hot.entries;
   const runners = rest.slice(0, 2);
   const others = rest.slice(2);
@@ -292,9 +294,8 @@ export default function HotPage() {
           </p>
         )}
       </header>
-      {/* 英文页的一行说明：榜上的事件标题与 AI 摘要仍为中文——热点条的数据模型（HotEntryView）
-          不带信源原题，那里说中文是真话。中文页渲染为空——字典键中英两版都有，zh 版只是文档。 */}
-      {locale === "en" && <p className={`text-[12.5px] text-ink-4 mt-1`}>{c.chineseNotice}</p>}
+      {/* 读取层已按 /en 投影事件标题/摘要/进展；只有榜上真有条目回退中文时才标注。 */}
+      {locale === "en" && hot.entries.some((e) => e.textLocale !== "en") && <p className={`text-[12.5px] text-ink-4 mt-1`}>{c.chineseNotice}</p>}
 
       {!lead ? (
         <div className="card rounded-sheet">

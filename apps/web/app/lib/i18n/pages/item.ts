@@ -64,12 +64,24 @@ const zh = {
   bodyPlain: "正文",
   bodyOriginal: "正文 · 原文",
   bodyAiTranslation: "正文 · AI 翻译",
+  /** 英文页正文页签的「English」；zh 页永不输出，只为两套键锁步。 */
+  bodyEnglish: "英文",
   bodyLangLabel: "正文语言",
   langZh: "中文",
   translationIncomplete: "译文尚不完整，完整内容请切换到原文。",
   /** 英文页的正文说明：正文本来就是中文原创（zhKind === "original"）时，如实说清这一篇没有其他
       语言的正文可切。中文页不渲染这一条，键随 `en: typeof zh` 锁进两套。 */
   bodyZhOriginalNotice: "这篇正文本来就是中文原创，本页没有其他语言的正文。",
+  /** 英文页正文只有中文时的说明；zh 页永不渲染，只为两套键锁步。 */
+  bodyNoEnglishNotice: "这一条还没有英文正文：以下为中文正文。",
+  noEnDraftNotice: "这一条还没有英文版：以下标题与提要为中文。",
+  /** /en 回退中文条目的浏览器标题与描述：meta 里不能把中文塞进 <title>/og:description。 */
+  metaNoEnglishTitle: "这条内容还没有英文版",
+  metaNoEnglishDescription: "这条内容目前只有中文版，尚无英文标题与英文摘要。",
+  /** strict /en 的 200 回退页：不印中文标题/摘要，只留英文说明与原站入口。 */
+  fallbackTitle: "中文条目",
+  fallbackNotice: "这条内容还没有英文版。原文为中文，可打开原站阅读；本页不把中文标题或摘要当作英文内容展示。",
+  fallbackSummaryNotice: "这条内容还没有英文摘要。摘要为中文，可打开原站阅读；本页不把中文摘要当作英文内容展示。",
   /** 长文只贴前段的说明：页面算好「万字」数（一位小数）传进来。 */
   truncateNotice: (total: string, shown: string) =>
     `这篇原文很长（约 ${total} 万字），站内只贴前 ${shown} 万字，后面的部分请打开原文阅读。`,
@@ -145,10 +157,18 @@ const en: typeof zh = {
   bodyPlain: "Body",
   bodyOriginal: "Body · original",
   bodyAiTranslation: "Body · AI translation",
+  bodyEnglish: "English",
   bodyLangLabel: "Body language",
   langZh: "Chinese",
   translationIncomplete: "The translation is incomplete — switch to the original for the full text.",
   bodyZhOriginalNotice: "This article was originally written in Chinese — the body below is that original text, and no translated body is available for it.",
+  bodyNoEnglishNotice: "This article has no English body yet — the Chinese text is shown below.",
+  noEnDraftNotice: "This item has no English version yet — the title and summary below are in Chinese.",
+  metaNoEnglishTitle: "This item has no English edition yet",
+  metaNoEnglishDescription: "This item is currently published in Chinese only; no English title or summary is available.",
+  fallbackTitle: "Chinese-language item",
+  fallbackNotice: "This item has no English edition yet. Its source text is in Chinese — open the original to read it; this page does not present Chinese copy as English.",
+  fallbackSummaryNotice: "This item has no English summary yet. The summary is in Chinese — open the original to read it; this page does not present Chinese copy as English.",
   truncateNotice: (total: string, shown: string) =>
     `This source article is very long (about ${wanToK(total)} characters) — only the first ${wanToK(shown)} are included here; open the original to read the rest.`,
 

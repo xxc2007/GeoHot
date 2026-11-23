@@ -38,7 +38,7 @@ const en: typeof zh = {
   cardCta: (total: string) => `See ${total} curated picks`,
 
   /** This index page shows topic cards only — no item rows, so the line describes just the wordlist content. */
-  chineseNotice: "Topic names, group names and descriptions are written in Chinese.",
+  chineseNotice: "Some topic names, group names and descriptions have no English version yet and are shown in Chinese.",
 };
 
 export const copy = { zh, en } as const;

@@ -6,10 +6,10 @@ import { positiveInt } from "../config.ts";
 
 const CONTROLLED = new Set([
   "content.analyze", "content.extract-body", "events.group", "events.digest", "sources.fetch", "sources.fetch-x",
-  "sources.mp", "media.prepare", "publication.republish-source", "cron.content.translate",
+  "sources.mp", "media.prepare", "publication.republish-source", "cron.content.translate", "content.english",
 ]);
 const FETCH_LANE = new Set(["sources.fetch", "sources.fetch-x", "sources.mp"]);
-const INITIAL_ORDER = ["media.prepare", "events.digest", "events.group", "cron.content.translate", "sources.fetch", "content.extract-body", "sources.fetch-x", "sources.mp"];
+const INITIAL_ORDER = ["media.prepare", "events.digest", "events.group", "cron.content.translate", "sources.fetch", "content.extract-body", "sources.fetch-x", "sources.mp", "content.english"];
 const OFFER_TTL_MS = 15_000;
 const EMPTY_TTL_MS = 10_000;
 // Longer than a 5 s poll plus scheduler jitter: a fast poller must not expire a slow poller's
@@ -21,7 +21,18 @@ const SHORT_BURST_JOBS = 3;
 // 正好跟得上线上新进量（1496 条/24 小时），又不会把抓取与配图挤到饿死。
 // 读在调用点上，而不是模块加载时：运维改旋钮（或测试改环境）不必重启进程。
 const analysisStarveMs = () => positiveInt(process.env.GEOHOT_INTAKE_ANALYSIS_STARVE_MS, "GEOHOT_INTAKE_ANALYSIS_STARVE_MS", 60_000);
-const intakeLane = (name: string, combined: boolean) => FETCH_LANE.has(name) || combined && name === "content.extract-body" ? "fetch" : combined && name === "content.analyze" ? "analysis" : "processing";
+// 英文腿独占一条车道：它不参与组合名额，也不和中文分析/翻译抢槽。默认 0 = 本机不领英文任务
+// （读者机/生产主库），回填节点显式设 1（与 ENGLISH_CONCURRENCY 一起）。
+const englishSlots = () => {
+  const raw = process.env.GEOHOT_INTAKE_ENGLISH_SLOTS;
+  const n = raw === undefined || raw === "" ? 0 : Number(raw);
+  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
+};
+const intakeLane = (name: string, combined: boolean) =>
+  name === "content.english" ? "english"
+    : FETCH_LANE.has(name) || combined && name === "content.extract-body" ? "fetch"
+      : combined && name === "content.analyze" ? "analysis"
+        : "processing";
 const shortKind = (name: string, combined: boolean): "fetch" | "media" | undefined => intakeLane(name, combined) === "fetch" ? "fetch" : name === "media.prepare" ? "media" : undefined;
 
 // 2026-11-04：生产（891MB）实测每小时只完成 21 条 analyze / 22 条 extract，而单任务 p50 是
@@ -49,11 +60,15 @@ export function intakeAvailableLanes(work: Array<{ name: string; count: number }
   const controlled = work.filter(w => CONTROLLED.has(w.name));
   const totalLimit = combined ? (COMBINED_OVERRIDE || combinedLimit) : 2;
   const analysisUsed = combined ? controlled.filter(w => intakeLane(w.name, combined) === "analysis").reduce((n, w) => n + w.count, 0) : 0;
-  const otherUsed = controlled.reduce((n, w) => n + w.count, 0) - analysisUsed;
+  // 英文腿自己一份名额，不从组合名额里扣：否则一个回填节点会把中文的 2 个槽各占掉一个。
+  const englishUsed = controlled.filter(w => intakeLane(w.name, combined) === "english").reduce((n, w) => n + w.count, 0);
+  const otherUsed = controlled.reduce((n, w) => n + w.count, 0) - analysisUsed - englishUsed;
   const occupied = new Set(controlled.filter(w => w.count >= LANE_LIMIT).map(w => intakeLane(w.name, combined)));
   const analysisRoom = analysisUsed < analysisSlots();
+  const englishRoom = englishUsed < englishSlots();
   const othersRoom = otherUsed < totalLimit;
-  return new Set([...CONTROLLED].map(name => intakeLane(name, combined)).filter(lane => lane === "analysis" ? analysisRoom : othersRoom && !occupied.has(lane)));
+  return new Set([...CONTROLLED].map(name => intakeLane(name, combined))
+    .filter(lane => lane === "analysis" ? analysisRoom : lane === "english" ? englishRoom : othersRoom && !occupied.has(lane)));
 }
 
 /**
@@ -83,9 +98,13 @@ export function intakeActive(queue: string, work: Array<{ name: string; count: n
   const total = controlled.reduce((n, w) => n + w.count, 0);
   const lane = controlled.filter(w => kind(w.name) === kind(queue)).reduce((n, w) => n + w.count, 0);
   const totalLimit = combined ? (COMBINED_OVERRIDE || combinedLimit) : 2;
+  // 英文腿的名额是独立的：0 = 本机不领（读者机），1 = 回填节点。它既不算进组合名额，也不受 LANE_LIMIT
+  // 之外的组合名额约束——否则一条 240 秒的英文稿会把中文分析挤到等待。
+  if (kind(queue) === "english") return lane >= englishSlots() ? 1 : 0;
   if (combined && kind(queue) === "analysis") return lane >= analysisSlots() ? 1 : 0;
   const analysisUsed = combined ? controlled.filter(w => kind(w.name) === "analysis").reduce((n, w) => n + w.count, 0) : 0;
-  return total - analysisUsed >= totalLimit || lane >= LANE_LIMIT ? 1 : 0;
+  const englishUsed = controlled.filter(w => kind(w.name) === "english").reduce((n, w) => n + w.count, 0);
+  return total - analysisUsed - englishUsed >= totalLimit || lane >= LANE_LIMIT ? 1 : 0;
 }
 
 // pg-boss's public Db adapter is wrapped before start. Only its dequeue statement is admitted here;

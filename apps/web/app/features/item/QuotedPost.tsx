@@ -1,6 +1,7 @@
 // The post an X item quotes, as X shows it under the post: who wrote it, what they said and a way to
 // it. The item's own text and translation often only make sense next to it.
 import type { XPostView } from "@aihot/contracts/site";
+import { hasChineseCopy } from "@aihot/contracts/copy";
 import { IconArrowUpRight } from "../../components/icons";
 import { safeExternalHref } from "../../lib/safe-url.ts";
 import { useLocale } from "../../lib/i18n";
@@ -22,7 +23,10 @@ function Author({ quoted }: { quoted: Pick<Quoted, "authorName" | "handle"> }) {
 /** Item page: the whole quoted post, in Chinese with the original a tap away (the original view shows the original). */
 export function QuotedPost({ quoted, original = false }: { quoted: Quoted; original?: boolean }) {
   const t = copy[useLocale()].quoted;
+  const en = useLocale() === "en";
   const zh = original ? null : quoted.translation;
+  // /en 只读英文译文或本来就是英文的原文；中文原文不在这里展示（可点原帖）。
+  const shown = en ? (quoted.translation ?? (hasChineseCopy(quoted.text) ? "" : quoted.text)) : (zh ?? quoted.text);
   // 采集链给的地址只有 http(s) 才配成为链接（lib/safe-url.ts）；不安全时不渲染这个入口。
   const quotedHref = safeExternalHref(quoted.url);
   return (
@@ -30,8 +34,8 @@ export function QuotedPost({ quoted, original = false }: { quoted: Quoted; origi
       <figcaption className="flex flex-wrap items-baseline gap-x-1.5 text-[13px]">
         <Author quoted={quoted} />
       </figcaption>
-      <blockquote className="mt-2 whitespace-pre-line text-[15px] leading-[1.75] text-ink-2">{zh ?? quoted.text}</blockquote>
-      {zh && (
+      {shown && <blockquote className="mt-2 whitespace-pre-line text-[15px] leading-[1.75] text-ink-2">{shown}</blockquote>}
+      {!en && zh && (
         <details className="mt-2 text-[13px] text-ink-4">
           <summary className="cursor-pointer select-none hover:text-ink-3">{t.original}</summary>
           <p className="mt-1.5 whitespace-pre-line text-[14px] leading-[1.7] text-ink-3">{quoted.text}</p>
@@ -48,12 +52,14 @@ export function QuotedPost({ quoted, original = false }: { quoted: Quoted; origi
 
 /** Feed card: who is quoted and the start of what they said (the card itself opens the item). */
 export function QuotedLine({ quoted }: { quoted: Omit<Quoted, "url"> }) {
+  const en = useLocale() === "en";
+  const shown = en ? (quoted.translation ?? (hasChineseCopy(quoted.text) ? "" : quoted.text)) : (quoted.translation ?? quoted.text);
   return (
     <div className="mt-2.5 rounded-tile border border-line-soft px-3 py-2 text-[13px] leading-[1.6]">
       <div className="flex flex-wrap items-baseline gap-x-1.5">
         <Author quoted={quoted} />
       </div>
-      <p className="mt-0.5 line-clamp-2 text-ink-3">{quoted.translation ?? quoted.text}</p>
+      {shown && <p className="mt-0.5 line-clamp-2 text-ink-3">{shown}</p>}
     </div>
   );
 }

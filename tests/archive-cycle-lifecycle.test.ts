@@ -66,7 +66,7 @@ test("TERM and INT drain one in-flight paper without starting the next period", 
     const bindings = {
       process: fakeProcess, console: { log() {}, error() {} },
       parseArgs: () => ({ values: { from: "2021-04-15", to: "2021-04-16", kinds: "daily", apply: true, "database-url-env": "DATABASE_URL" } }),
-      writeFile: async () => {}, closeDb: async () => { closed = true; }, sql: async () => [{ n: 0 }],
+      writeFile: async () => {}, closeDb: async () => { closed = true; }, stopBoss: async () => {}, sql: async () => [{ n: 0 }],
       addDays: (key: string, amount: number) => date(Number(midnight(key)) + amount * 86400_000),
       beijingDate: date, beijingMidnight: midnight, isoWeekLabel: () => "unused", isoWeekRange: () => null, isValidDate: () => true,
       candidates: async () => [{}], composeDaily: compose, composeMonthly: compose, composeWeekly: compose,

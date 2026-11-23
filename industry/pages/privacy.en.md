@@ -8,7 +8,7 @@
 
 **Status**: This site has been running publicly since 2026-10-01. This revision brings the text up to date with current facts: feedback and contact channels have been consolidated into direct email to xxc200707@qq.com, the Feishu collaboration and Feishu sign-in channels have been retired, and the site no longer depends on Feishu in any way. The uses of reader data are unchanged.
 
-页首说明：
+Page header note:
 
 > Reading GEOHOT requires no registration, no sign-in, and the site never sets any Cookie on you. We only process what is needed to keep the site working and to handle feedback you choose to submit; we do not sell or share personal information, and we run no third-party analytics or advertising tracking. Every statement below corresponds to what the site's code actually does.
 
@@ -64,7 +64,7 @@ Images on an item are not fetched by your browser straight from the origin site:
 - Pages reference this site's own signed address (`/api/img-proxy`); the signature is HMAC-SHA256 with a server-side key and carries an expiry (about two days, aligned on day boundaries so caches can be reused); the address contains nothing that identifies you.
 - The image is fetched by this site's server, scaled proportionally, cached on the server and then handed to you; cached files older than 30 days are deleted by the daily cleanup job and regenerated when needed.
 - Therefore, **when you view an image, the origin site sees only this site's server fetching its own copy — not your IP, your browser, or which item you are reading**. To the origin, the fetch presents this site's crawler identity.
-- The single exception is when you deliberately click "open original" (the button labeled 原文 on phones) and jump to the other site — their privacy policy then applies, see section 6.
+- The single exception is when you deliberately click "Open original" (the "Original" button on phones) and jump to the other site — their privacy policy then applies, see section 6.
 
 ## 6. Third-party content and external links
 

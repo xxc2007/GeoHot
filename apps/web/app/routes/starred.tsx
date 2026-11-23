@@ -6,7 +6,7 @@ import { Presence } from "../components/ui/Presence";
 import { pageMeta } from "../lib/seo";
 import { localeAppPath, localeFromPath, useLocale, type Locale } from "../lib/i18n";
 import { copy } from "../lib/i18n/pages/starred";
-import { ChineseNotice } from "../components/ui/ChineseNotice";
+import { MissingEnglishNotice } from "../components/ui/ChineseNotice";
 import { exportBundle, importBundle, removeStar, useStarred, type ImportReport } from "../lib/local-state";
 import { fullDateTime, shortSourceName } from "../lib/format";
 import { publicPath } from "../lib/public-path";
@@ -110,8 +110,8 @@ export default function StarredPage() {
         </div>
       </header>
       <p className="rounded-tile border border-line bg-surface px-4 py-2.5 text-[12.5px] text-ink-3">{c.storageNotice}</p>
-      {/* 英文页的一行说明：收藏的标题与摘要仍是数据里的中文。中文页渲染为空。 */}
-      <ChineseNotice className="mt-1" />
+      {/* 收藏是浏览器里的旧快照（标题与摘要都是收藏当时的中文数据），没有英文字段可读。 */}
+      <MissingEnglishNotice className="mt-1" message="Saved items keep the titles and summaries recorded when you saved them; they are shown in Chinese." />
       <Presence show={!!notice} enter="anim-notice-in" exit="anim-fade-out" duration={160}>
         <div
           role="status"

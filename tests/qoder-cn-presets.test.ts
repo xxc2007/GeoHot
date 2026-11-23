@@ -123,16 +123,17 @@ test("this door can serve every step, including the three the slow glm door had 
 });
 
 test("every capability this door can serve is one whose output the editorial steps can parse", () => {
-  // `usable()` rejects a `jsonMode: false` preset for the ten JSON capabilities and keeps it only for the
+  // `usable()` rejects a `jsonMode: false` preset for the eleven JSON capabilities and keeps it only for the
   // free-text one (summarize — its answer is prose, not a schema). Translate is *not* free text: it returns
-  // `{body_html, body_text}` and is parsed. This door answers JSON, so declaring jsonMode true keeps it usable
-  // for both kinds; declaring false would silently bench it from ten of the eleven steps.
+  // `{body_html, body_text}` and is parsed. The English leg (write_english, translate_*_en, story_digest_en,
+  // report_*_en) is JSON too. This door answers JSON, so declaring jsonMode true keeps it usable for both
+  // kinds; declaring false would silently bench it from eleven of the twelve steps.
   const FREE_TEXT = Object.entries(CAPABILITIES).filter(([, c]) => "freeText" in c && c.freeText).map(([k]) => k);
   assert.deepEqual(FREE_TEXT, ["summarize"], "the free-text capability set moved; re-read usable()");
   const KEYED = Object.entries(CAPABILITIES).filter(([, c]) => "freeText" in c && c.freeText).length;
-  assert.equal(Object.keys(CAPABILITIES).length - KEYED, 10, "ten of the eleven capabilities demand parseable JSON");
+  assert.equal(Object.keys(CAPABILITIES).length - KEYED, 11, "eleven of the twelve capabilities demand parseable JSON");
   for (const key of ["qoder-cn-dfmodel", "qoder-cn-qfmodel"] as const) {
-    assert.notEqual(MODELS[key]!.jsonMode, false, `${key} answers JSON, so it must stay usable for those ten steps`);
+    assert.notEqual(MODELS[key]!.jsonMode, false, `${key} answers JSON, so it must stay usable for those eleven steps`);
   }
 });
 

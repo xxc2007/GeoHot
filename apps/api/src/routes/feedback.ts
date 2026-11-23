@@ -1,6 +1,6 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import { admitFeedback, FeedbackRejected, feedbackStatus, submitFeedback, type FeedbackInput } from "@aihot/backend/operations/feedback";
-import { sendProblem } from "../http/respond.ts";
+import { sendProblem, looseQuery } from "../http/respond.ts";
 
 type FeedbackBody = Pick<FeedbackInput, "content" | "email" | "pageUrl" | "screenshot">;
 
@@ -20,6 +20,23 @@ function admitLookup(ip: string): boolean {
 
 /** 状态以中文展示给读者（后台仍是英文枚举，二者各自唯一）。 */
 const STATUS_ZH: Record<string, string> = { new: "已收到", triaged: "处理中", replied: "已回复", resolved: "已解决", spam: "已收到" };
+/** `/en` 的状态词；未知状态原样透出，不编一个新词。 */
+const STATUS_EN: Record<string, string> = { new: "Received", triaged: "In progress", replied: "Replied", resolved: "Resolved", spam: "Received" };
+
+function feedbackLang(req: FastifyRequest): "zh" | "en" {
+  return looseQuery(req).lang === "en" ? "en" : "zh";
+}
+
+/**
+ * 错误的英文文案按 code 走；中文保持 operations 层写好的具体句子（旧字段语义不变）。
+ * 前端拿 code 也能自行出词，`detail` 只是兜底。
+ */
+function detailFor(code: string, zh: string, lang: "zh" | "en"): string {
+  if (lang !== "en") return zh;
+  if (code === "rate_limited") return "Too many requests; please try again later.";
+  if (code === "temporarily_unavailable") return "Feedback is temporarily unavailable; please try again later.";
+  return "Please check the submitted content and try again.";
+}
 
 async function readBody(raw: unknown, contentType: string): Promise<FeedbackBody> {
   if (Buffer.isBuffer(raw)) {
@@ -69,7 +86,7 @@ export function registerFeedback(app: FastifyInstance, uploadDeadlineMs = 15_000
       }
       catch (error) {
         if (!(error instanceof FeedbackRejected)) throw error;
-        return sendProblem(req, reply, { status: error.status, code: error.code, detail: error.message, retryAfter: error.retryAfter });
+        return sendProblem(req, reply, { status: error.status, code: error.code, detail: detailFor(error.code, error.message, feedbackLang(req)), retryAfter: error.retryAfter });
       }
     },
     preValidation: async (req) => { clearDeadline(req); },
@@ -87,9 +104,9 @@ export function registerFeedback(app: FastifyInstance, uploadDeadlineMs = 15_000
       const result = await submitFeedback({ ...body, ip, userAgent: String(req.headers["user-agent"] ?? "") }, admitted.get(req)?.ticket);
       return reply.header("Cache-Control", "no-store").code(201).send(result);
     } catch (error) {
-      if (error instanceof FeedbackRejected) return sendProblem(req, reply, { status: error.status, code: error.code, detail: error.message, retryAfter: error.retryAfter });
+      if (error instanceof FeedbackRejected) return sendProblem(req, reply, { status: error.status, code: error.code, detail: detailFor(error.code, error.message, feedbackLang(req)), retryAfter: error.retryAfter });
       req.log.error({ err: error }, "feedback failed");
-      return sendProblem(req, reply, { status: 503, code: "temporarily_unavailable", detail: "暂时无法提交，请稍后再试。", retryAfter: 30 });
+      return sendProblem(req, reply, { status: 503, code: "temporarily_unavailable", detail: detailFor("temporarily_unavailable", "暂时无法提交，请稍后再试。", feedbackLang(req)), retryAfter: 30 });
     }
   });
 
@@ -102,8 +119,14 @@ export function registerFeedback(app: FastifyInstance, uploadDeadlineMs = 15_000
     const id = Number(q.id);
     const email = (q.email ?? "").trim() || null;
     if (!Number.isInteger(id) || id <= 0 || id > 2_147_483_647) return reply.header("Cache-Control", "no-store").code(404).send({ status: null });
-    if (!admitLookup(ip)) return sendProblem(req, reply, { status: 429, code: "rate_limited", detail: "查询太频繁，请稍后再试。", retryAfter: 60 });
+    if (!admitLookup(ip)) return sendProblem(req, reply, { status: 429, code: "rate_limited", detail: detailFor("rate_limited", "查询太频繁，请稍后再试。", feedbackLang(req)), retryAfter: 60 });
     const result = await feedbackStatus(id, email);
-    return reply.header("Cache-Control", "no-store").send({ status: result ? (STATUS_ZH[result.status] ?? result.status) : null });
+    const lang = feedbackLang(req);
+    const words = lang === "en" ? STATUS_EN : STATUS_ZH;
+    return reply.header("Cache-Control", "no-store").send({
+      status: result ? (words[result.status] ?? result.status) : null,
+      // 机器可读的状态码（后台英文枚举）；前端按自己的字典出词，`status` 只是兜底文案。
+      code: result?.status ?? null,
+    });
   });
 }

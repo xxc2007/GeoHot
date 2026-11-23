@@ -332,17 +332,23 @@ export interface ImportReport {
   readFailed: boolean;
 }
 
+/** 本地数据导入的读者可见错误：按页面语言取句（中文页逐字不变）。 */
+function importError(zh: string, en: string): Error {
+  const english = typeof document !== "undefined" && document.documentElement.lang.startsWith("en");
+  return new Error(english ? en : zh);
+}
+
 /** Merge: existing stars are not overwritten, read ids are unioned, theme only if unset. */
 export async function importBundle(text: string): Promise<ImportReport> {
-  if (text.length > IMPORT_MAX_CHARS) throw new Error("文件过大（上限 2,000,000 字符）");
+  if (text.length > IMPORT_MAX_CHARS) throw importError("文件过大（上限 2,000,000 字符）", "That file is too large (2,000,000 characters max)");
   let data: unknown;
   try {
     data = JSON.parse(text);
   } catch {
-    throw new Error("不是有效的 JSON 文件");
+    throw importError("不是有效的 JSON 文件", "That is not a valid JSON file");
   }
   const d = data as Partial<ExportBundle>;
-  if (!d || typeof d !== "object" || d.version !== 1) throw new Error("文件格式不对（需要 version: 1）");
+  if (!d || typeof d !== "object" || d.version !== 1) throw importError("文件格式不对（需要 version: 1）", "That file has the wrong format (version: 1 required)");
   return mergeLocalData({
     starred: Array.isArray(d.starred) ? d.starred : [],
     read: Array.isArray(d.read) ? d.read : [],

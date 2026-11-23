@@ -1,5 +1,5 @@
 import { UUID_PATTERN } from "@aihot/contracts/taxonomy";
-import type { StoryFollowupsResponse } from "@aihot/contracts/site";
+import type { SiteLang, StoryFollowupsResponse } from "@aihot/contracts/site";
 import { sql } from "../db.ts";
 import { loadDevelopments } from "./groups.ts";
 
@@ -13,8 +13,8 @@ import { loadDevelopments } from "./groups.ts";
  * with a story showed 「事件后续暂时无法加载，点击重试」 forever. So: a missing story stays not-found
  * (null → 404); a story with nothing published yet answers an empty list (200).
  */
-export async function loadStoryFollowups(storyPublicId: string): Promise<StoryFollowupsResponse | null> {
-  const result = await loadDevelopments({ storyPublicId, channel: "all", category: null, tag: null, topicTags: null, cursor: null, revision: null, take: 8 });
+export async function loadStoryFollowups(storyPublicId: string, lang: SiteLang = "zh"): Promise<StoryFollowupsResponse | null> {
+  const result = await loadDevelopments({ storyPublicId, channel: "all", category: null, tag: null, topicTags: null, cursor: null, revision: null, take: 8, lang });
   if (result.kind === "not_found") {
     if (!UUID_PATTERN.test(storyPublicId)) return null;
     const [story] = await sql<{ id: number }[]>`SELECT id FROM stories WHERE public_id = ${storyPublicId} AND merged_into IS NULL`;

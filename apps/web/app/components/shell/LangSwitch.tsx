@@ -5,6 +5,7 @@
 // browser plugins ignore the container but still expand text nodes — nc15 measured them widening
 // 「简体中文」 into 「English 英语」 until the capsule burst, so the names never travel bare.
 import { useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link, useLocation } from "react-router";
 import { localeAppPath, useLocale, type Locale } from "../../lib/i18n";
 import { copy as chrome } from "../../lib/i18n/shell";
@@ -21,7 +22,7 @@ const MENU_W = 172;
 /** Generous height estimate of the two-item menu, for the flip-up decision before it is rendered. */
 const MENU_H = 104;
 
-export function LangSwitch({ className = "" }: { className?: string }) {
+export function LangSwitch({ className = "", compact = false }: { className?: string; compact?: boolean }) {
   const locale = useLocale();
   const { pathname, search, hash } = useLocation();
   const chromeC = chrome[locale];
@@ -56,7 +57,10 @@ export function LangSwitch({ className = "" }: { className?: string }) {
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      // 菜单在 portal 里（见下方 createPortal），不在 wrapRef 的子树内：两处都要判，
+      // 否则点菜单项的那一下会被当成"点外面"，mousedown 先把菜单卸掉、click 落空。
+      if (wrapRef.current && !wrapRef.current.contains(target) && !menuRef.current?.contains(target)) setOpen(false);
     };
     const onScroll = () => setOpen(false);
     document.addEventListener("mousedown", onDown);
@@ -109,6 +113,9 @@ export function LangSwitch({ className = "" }: { className?: string }) {
     } else if (e.key === "End") {
       e.preventDefault();
       items[items.length - 1]?.focus();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      close(true);
     }
     // Escape is handled on the wrapper (it also fires here by bubbling); Tab is left to the browser —
     // focus then leaves the wrapper and onBlur folds the menu.
@@ -128,7 +135,9 @@ export function LangSwitch({ className = "" }: { className?: string }) {
       }}
       // Tab out of the component folds the menu; React's onFocus/onBlur bubble (focusout semantics).
       onBlur={(e) => {
-        if (!wrapRef.current?.contains(e.relatedTarget as Node)) setOpen(false);
+        const next = e.relatedTarget as Node | null;
+        // 菜单在 portal 里，焦点从按钮移到菜单项时 wrapRef 本身会先收到 blur——把菜单也算作"里面"。
+        if (!wrapRef.current?.contains(next) && !menuRef.current?.contains(next)) setOpen(false);
       }}
     >
       <button
@@ -141,23 +150,34 @@ export function LangSwitch({ className = "" }: { className?: string }) {
         aria-label={chromeC.langAria}
         onClick={() => (open ? close(false) : openMenu())}
         onKeyDown={onButtonKeyDown}
-        className="flex h-[34px] w-full items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 text-[12.5px] font-medium text-ink-2 transition-colors duration-150 hover:bg-bg-sunk hover:text-ink"
+        // compact 是手机标签栏那一格：竖排图标 + 语言缩写，尺寸与相邻五个链接同一档。
+        // 桌面侧栏与「更多」页仍用完整胶囊（语言全名 + 展开箭头）。
+        className={compact
+          ? "relative flex h-full w-full flex-col items-center justify-center gap-[3px] text-[11px] text-ink-3 transition-colors active:text-ink"
+          : "flex h-[34px] w-full items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 text-[12.5px] font-medium text-ink-2 transition-colors duration-150 hover:bg-bg-sunk hover:text-ink"}
       >
-        <span className="shrink-0 text-ink-4" aria-hidden="true">
-          <IconGlobe size={14} />
+        <span className={compact ? "" : "shrink-0 text-ink-4"} aria-hidden="true">
+          <IconGlobe size={compact ? 21 : 14} />
         </span>
-        <span className="min-w-0 flex-1 truncate text-left notranslate" translate="no">
-          {LANGUAGES.find((l) => l.key === locale)?.name}
+        <span className={`notranslate ${compact ? "" : "min-w-0 flex-1 truncate text-left"}`} translate="no">
+          {compact ? (locale === "en" ? "EN" : "中文") : LANGUAGES.find((l) => l.key === locale)?.name}
         </span>
-        <IconChevronDown size={13} className={`shrink-0 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+        {!compact && <IconChevronDown size={13} className={`shrink-0 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />}
       </button>
-      {open && pos && (
+      {/* 菜单挂到 body：手机标签栏带 backdrop-blur，backdrop-filter 会成为 fixed 后代的包含块，
+          于是 top 按按钮的文档位置叠加、菜单落到视口外面（2026-11-23 第 2 轮实测这里 y≈1474）。
+          Portal 之后桌面侧栏与手机标签栏用同一套坐标。 */}
+      {open && pos && typeof document !== "undefined" && createPortal(
         <div
           ref={menuRef}
           id={menuId}
           role="menu"
           aria-labelledby={btnId}
           onKeyDown={onMenuKeyDown}
+          onBlur={(e) => {
+            const next = e.relatedTarget as Node | null;
+            if (!menuRef.current?.contains(next) && !wrapRef.current?.contains(next)) setOpen(false);
+          }}
           className="fixed z-[60] w-[172px] rounded-card border border-line bg-surface p-1.5 shadow-[var(--shadow-card)]"
           style={{ top: pos.top, left: pos.left }}
         >
@@ -184,7 +204,8 @@ export function LangSwitch({ className = "" }: { className?: string }) {
               </Link>
             );
           })}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

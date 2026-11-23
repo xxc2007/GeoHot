@@ -249,10 +249,12 @@ export default function AgentPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch(publicPath("/api/health"), { signal: controller.signal, cache: "no-store" })
+    // 与 loader 同一个 3 秒上界：读者面的健康探针不能把页面挂住。没有上界时，API 正在重启的那几秒
+    // 里这一条 fetch 会一直 pending，浏览器（和 Playwright 的 networkidle）就永远等不到空闲。
+    fetch(publicPath("/api/health"), { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(3_000)]), cache: "no-store" })
       .then((res) => setHealthy(res.ok))
       .catch(() => {
-        // 查不动（被取消、离线）：留在页面加载时的那个判断上，不编一个新的。
+        // 查不动（被取消、离线、3 秒超时）：留在页面加载时的那个判断上，不编一个新的。
       });
     return () => controller.abort();
   }, []);

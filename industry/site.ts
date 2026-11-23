@@ -71,7 +71,7 @@ export const SITE = {
 export const SITE_EN = {
   homeTitle: "GEOHOT — Geography news worth watching",
   description:
-    "GEOHOT: watched sources, events scored twice by spatial salience, multiple reports merged into one, daily briefs. Titles and summaries are written in Chinese.",
+    "GEOHOT: watched geographic sources, events scored twice by spatial salience, multiple reports merged into one, and daily briefs. The English edition reads the same public record as the Chinese site.",
   tagline: "Geography news worth watching",
 } as const;
 

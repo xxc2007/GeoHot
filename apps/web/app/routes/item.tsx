@@ -5,14 +5,14 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react"
 import { Link, useLoaderData, useNavigate, useSearchParams } from "react-router";
 import type { Route } from "./+types/item";
 import type { SiteItemDetail } from "@aihot/contracts/site";
-import { loadOr404 } from "../lib/api.server";
-import { breadcrumbLd, pageMeta, siteUrl, titled } from "../lib/seo";
+import { apiGet, loadOr404, withLang } from "../lib/api.server";
+import { breadcrumbLd, pageMeta, siteUrl, strictEnglish, titled } from "../lib/seo";
 import { fullDateTime, relativeTime } from "../lib/format";
 import { markRead } from "../lib/local-state";
 import { publicPath } from "../lib/public-path";
-import { localeAppPath, localeFromPath, useLocale } from "../lib/i18n";
+import { localeAppPath, localeFromPath, useLocale, type Locale } from "../lib/i18n";
 import { copy } from "../lib/i18n/pages/item";
-import { ChineseNotice } from "../components/ui/ChineseNotice";
+import { MissingEnglishNotice } from "../components/ui/ChineseNotice";
 import { safeExternalHref } from "../lib/safe-url.ts";
 import { backPlace } from "../lib/back-place";
 import { SelectedBadge } from "../components/ui/Badge";
@@ -33,8 +33,13 @@ const PosterSheet = lazy(() => import("../features/item/PosterSheet"));
 const TocSheet = lazy(() => import("../features/item/TocSheet"));
 
 export async function loader({ params, request }: Route.LoaderArgs) {
-  const item = await loadOr404<SiteItemDetail>(`/api/site/items/${encodeURIComponent(params.id)}`, { signal: request.signal });
-  return { item };
+  const locale = localeFromPath(new URL(request.url).pathname);
+  const loaded = await loadOr404<SiteItemDetail>(withLang(`/api/site/items/${encodeURIComponent(params.id)}`, locale), { signal: request.signal });
+  // 条目详情带出的主题名是词表身份；/en 用同一份主题索引的 nameEn 投影，缺英文时如实回退中文。
+  if (locale !== "en" || !loaded.topics?.length) return { item: loaded };
+  const index = await apiGet<{ topics: Array<{ slug: string; nameEn?: string | null }> }>(withLang("/api/site/topics", locale), { signal: request.signal }).catch(() => null);
+  const names = new Map((index?.topics ?? []).map((t) => [t.slug, t.nameEn ?? null]));
+  return { item: { ...loaded, topics: loaded.topics.map((t) => ({ ...t, name: names.get(t.slug) ?? t.name })) } };
 }
 
 export function meta({ loaderData, location }: Route.MetaArgs) {
@@ -42,20 +47,25 @@ export function meta({ loaderData, location }: Route.MetaArgs) {
   const c = copy[locale];
   if (!loaderData) return [{ title: titled(c.notFoundTitle) }, { name: "robots", content: "noindex" }];
   const { item } = loaderData;
-  // 英文页的 SEO 文案优先信源原题（国际信源登记的常是英文原题），缺席再退回中文标题与摘要；中文页不变。
-  const enOriginalTitle = locale === "en" && item.originalTitle ? item.originalTitle : null;
+  // `/en` 的 title/summary 已由读取层投影（title 优先英文稿，缺英文时退回信源原题或中文）；
+  // 中文页一字不动。SEO 也只读这两个投影字段，不再自己挑 originalTitle。
+  // fallback 模式下真回退中文的条目，head 里要用英文兜底句：`<title>`/og:description 不能印中文。
+  const noEnglish = locale === "en" && item.textLocale !== "en";
   return pageMeta({
-    title: enOriginalTitle ?? item.title,
-    description: enOriginalTitle ?? item.summary ?? undefined,
+    title: noEnglish ? c.metaNoEnglishTitle : item.title,
+    description: noEnglish ? c.metaNoEnglishDescription : item.summary ?? undefined,
     path: `/items/${item.id}`,
     image: `/og/items/${item.id}.png`,
     type: "article",
-    noindex: !item.indexable,
+    // 英文页真的有英文稿时才承诺 hreflang=en；fallback 模式下也不把只有中文回退的 /en 页
+    // 当成英文版。noindex 只在 strict 模式下追加，fallback 模式不突然把已上线的 /en 页 deindex。
+    enAvailable: item.textLocale === "en",
+    noindex: !item.indexable || (locale === "en" && strictEnglish() && item.textLocale !== "en"),
     locale,
     jsonLd: breadcrumbLd([
       { name: SITE.name, path: "/" },
       { name: item.selected ? c.crumbSelected : c.crumbAll, path: item.selected ? "/" : "/all" },
-      { name: item.title, path: `/items/${item.id}` },
+      { name: noEnglish ? c.metaNoEnglishTitle : item.title, path: `/items/${item.id}` },
     ]),
   });
 }
@@ -97,8 +107,8 @@ function hostOf(url: string): string {
   }
 }
 
-async function shareOrCopy(item: Pick<SiteItemDetail, "id" | "title">): Promise<"shared" | "copied" | "cancelled" | "failed"> {
-  const url = `${siteUrl()}/items/${item.id}`;
+async function shareOrCopy(item: Pick<SiteItemDetail, "id" | "title">, locale: Locale): Promise<"shared" | "copied" | "cancelled" | "failed"> {
+  const url = `${siteUrl()}${localeAppPath(`/items/${item.id}`, locale)}`;
   try {
     if (navigator.share && matchMedia("(pointer: coarse)").matches) {
       await navigator.share({ title: item.title, url });
@@ -150,11 +160,9 @@ export default function ItemPage() {
   const c = copy[locale];
   const navigate = useNavigate();
   const hasTranslation = item.hasTranslation;
-  const lang = item.bodyLanguage;
-  // 英文页默认读原文：原文正文在场（body.original 非空）时，正文块与引用帖都按原文渲染，切换片
-  // 停在原文上，「中文」那一片仍指回中文页。中文页与原路由页维持读取层给的 bodyLanguage。
-  const enOriginalFirst = locale === "en" && !!item.body?.original;
-  const contentLang: "zh" | "original" = enOriginalFirst ? "original" : lang;
+  // 读取层已经按 /en 选好了正文语言（英文译文 → en，源文本身英文 → original，两者都无才回退 zh）。
+  // 页面不再自己猜「原文优先」：fallback 模式下正文可能确实是中文，下面按 bodyLanguage 如实标注。
+  const contentLang: "zh" | "en" | "original" = item.bodyLanguage;
   const [posterRequested, setPosterRequested] = useState(false);
   const [posterOpen, setPosterOpen] = useState(false);
   const [tocRequested, setTocRequested] = useState(false);
@@ -180,12 +188,12 @@ export default function ItemPage() {
     setTocOpen(true);
   };
   const share = async () => {
-    const r = await shareOrCopy(item);
+    const r = await shareOrCopy(item, locale);
     if (r === "copied") setToast(c.toastCopied);
     else if (r === "failed") setToast(c.shareFailed);
   };
 
-  const bodyHtml = contentLang === "zh" ? (item.body?.zh ?? item.body?.original) : (item.body?.original ?? item.body?.zh);
+  const bodyHtml = contentLang === "zh" ? item.body?.zh : contentLang === "en" ? item.body?.en : item.body?.original;
   // `zhKind === null` is a foreign article with no Chinese draft yet: the block below is the original text,
   // so it must not be labelled the plain 「正文」 a Chinese article gets. AIHOT's own wording is 正文 · 原文.
   const bodyLabel = !item.body ? null : item.body.zhKind === null ? c.bodyOriginal
@@ -200,16 +208,26 @@ export default function ItemPage() {
   const isX = item.channel === "x" && !!item.x;
   const publishedIso = item.publishedAt ?? item.discoveredAt;
   const summaryOnly = item.readingMode !== "full";
+  // strict /en 的 200 回退页：条目没有英文稿时，正文区只留英文说明与原站入口。
+  // 中文标题/摘要/信源名不在这里当"英文内容"印出来（2026-11-23 第 3 轮：条目页 0 汉字）。
+  const englishFallback = locale === "en" && strictEnglish() && (item.textLocale !== "en" || hasChineseCopy(item.title) || (!!item.summary && hasChineseCopy(item.summary)));
+  const displayTitle = locale === "en" && strictEnglish() && hasChineseCopy(item.title) ? c.fallbackTitle : item.title;
+  const displaySummary = englishFallback && item.summary && hasChineseCopy(item.summary) ? null : item.summary;
+  const displaySource = englishFallback ? hostOf(item.links.original) : (isX ? item.x!.authorName : item.source.name);
+  const displayAuthor = englishFallback ? null : item.author;
+  // 中文页的主题名来自 topics.name（中文），不能过滤；只有 /en 才过滤缺英文名的主题。
+  const displayTopics = locale === "en" ? (item.topics ?? []).filter((t) => !hasChineseCopy(t.name)) : (item.topics ?? []);
   const showOutline = item.outline.length >= 3;
-  // 英文页把信源原题抬成 H1（lang 跟着条目登记的语种走，读屏才不会用中文音念原题），中文标题降为
-  // 次行；原题缺席、或原题本身就是中文（中文信源改过标题）时 H1 落在中文上，标题下要有一行说明。
-  // 中文页恒走 else 分支，标题结构逐字不变。
-  const enH1Original = locale === "en" ? item.originalTitle : null;
-  const enH1IsChinese = locale === "en" && (!item.originalTitle || hasChineseCopy(item.originalTitle));
-  // 导读标签：英文页注明摘要与导读都是中文写的（仅准摘要与 AI 导读都一样），中文页用词不变。
+  // H1 用读取层投影后的 title：/en 有英文稿时就是英文，缺英文时回退信源原题或中文。
+  // 原题降为副题：只在 title 缺失或仍是中文（真回退）时显示，不再用它盖住投影后的标题。
+  // 中文页维持原结构：中文标题 + 原题副题，逐字不变。
+  const showOriginalTitle = !englishFallback && !!item.originalTitle && item.originalTitle !== item.title && (locale === "zh" || !item.title || hasChineseCopy(item.title));
+  // 标题本身是中文时，strict /en 用英文回退标题（见上）；中文页不受影响。
+  // 摘要/导读标签按实际发出的语言取词：英文页只有回退中文时才注明“in Chinese”。
+  const summaryInChinese = !!displaySummary && hasChineseCopy(displaySummary);
   const digestTag = summaryOnly
-    ? (locale === "en" ? c.summaryZhTag : c.summaryTag)
-    : (locale === "en" ? c.aiDigestZhTag : c.aiDigestTag);
+    ? (locale === "en" && summaryInChinese ? c.summaryZhTag : c.summaryTag)
+    : (locale === "en" && summaryInChinese ? c.aiDigestZhTag : c.aiDigestTag);
   const originalLabel = isX ? c.viewOnX : c.openOriginal;
   // 原文地址来自采集链，前端不假设上游已经筛过 scheme（lib/safe-url.ts）：只有 http(s) 才成为
   // 链接，其余按纯文本显示，绝不把别的 scheme 写进 href。
@@ -219,7 +237,7 @@ export default function ItemPage() {
   // 使用规则第 3 条（/terms#s4）对全站一体适用，但灾害与预警类条目要在读者决定行动的那一段话下面指回去一次。
   const riskNotice = RISK_NOTICE_CATEGORIES.includes(item.category ?? "") || item.tags.some((t) => RISK_NOTICE_TAGS.includes(t));
 
-  const related = item.relatedStories.filter((s) => s.publicId !== item.story?.publicId);
+  const related = item.relatedStories.filter((s) => s.publicId !== item.story?.publicId).filter((s) => !englishFallback || !hasChineseCopy(s.title));
 
   const backTarget = useBackTarget(item.selected);
   const backLabel = backTarget.name === null ? c.back : c.backTo(backTarget.name);
@@ -259,7 +277,7 @@ export default function ItemPage() {
             onSelect={async () => {
               close();
               try {
-                await navigator.clipboard.writeText(`${siteUrl()}/items/${item.id}`);
+                await navigator.clipboard.writeText(`${siteUrl()}${localeAppPath(`/items/${item.id}`, locale)}`);
                 setToast(c.toastCopied);
               } catch {
                 setToast(c.copyFailed);
@@ -325,9 +343,9 @@ export default function ItemPage() {
   // under the facts (or under the notes when only the right rail shows).
   const facts = (
     <RailSection title={c.sourcesTitle}>
-      <div className="text-[14px] font-semibold leading-snug text-ink">{isX ? item.x!.authorName : item.source.name}</div>
+      <div className="text-[14px] font-semibold leading-snug text-ink">{displaySource}</div>
       <div className="mt-1 text-[12.5px] leading-relaxed text-ink-3">
-        {isX ? `@${item.x!.handle} · X` : item.author ?? hostOf(item.links.original)}
+        {isX ? `@${item.x!.handle} · X` : displayAuthor ?? hostOf(item.links.original)}
       </div>
       <div className="mt-3 text-[12px] text-ink-4">{c.publishedLabel}</div>
       <time dateTime={publishedIso} className="mono mt-0.5 block text-[12.5px] text-ink-2">
@@ -355,7 +373,7 @@ export default function ItemPage() {
   );
   const notes = (
     <>
-      {item.reason && !summaryOnly ? (
+      {item.reason && !summaryOnly && !englishFallback ? (
         <RailSection title={c.reasonTitle}>
           {verdict && <div className="mb-3">{verdict}</div>}
           <p className="text-[13.5px] leading-[1.8] text-ink-2">{item.reason}</p>
@@ -363,10 +381,10 @@ export default function ItemPage() {
       ) : (
         verdict && <RailSection title={c.aiScoreTitle}>{verdict}</RailSection>
       )}
-      {item.topics?.length ? (
+      {displayTopics.length ? (
         <RailSection title={c.topicsTitle}>
           <div className="flex flex-wrap gap-1.5">
-            {item.topics.slice(0, 8).map((t) => (
+            {displayTopics.slice(0, 8).map((t) => (
               <Link key={t.slug} to={localeAppPath(`/topics/${t.slug}`, locale)} className="chip">
                 {t.name}
               </Link>
@@ -374,7 +392,7 @@ export default function ItemPage() {
           </div>
         </RailSection>
       ) : null}
-      {item.tags.length > 0 && (
+      {item.tags.length > 0 && !englishFallback && (
         <RailSection title={c.tagsTitle}>
           <div className="flex flex-wrap gap-1.5">
             {item.tags.slice(0, 8).map((t) => (
@@ -445,9 +463,9 @@ export default function ItemPage() {
         <div className="hidden lg:block 2xl:hidden">{backButton}</div>
         <article className="pb-6 pt-6 lg:pt-2 2xl:pt-1">
           <div className={`flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[13px] text-ink-3 2xl:hidden ${isX ? "" : "mb-3"}`}>
-            <span className="font-semibold text-ink-2">{isX ? item.x!.authorName : item.source.name}</span>
+            <span className="font-semibold text-ink-2">{displaySource}</span>
             {isX && <span>· @{item.x!.handle} · X</span>}
-            {item.author && !isX && <span>· {item.author}</span>}
+            {displayAuthor && !isX && <span>· {displayAuthor}</span>}
             <span>·</span>
             <time dateTime={publishedIso} className="mono">{fullDateTime(publishedIso)}</time>
             <span suppressHydrationWarning>· {relativeTime(publishedIso, locale)}</span>
@@ -462,53 +480,39 @@ export default function ItemPage() {
               </span>
             )}
           </div>
-          {/* 没有中文稿的条目不再出现在列表与日报里（读取层闸门），但它自己的页面还留着 —— 藏起真内容
-              比少几条更糟。这里如实说清为什么它不在别处，以及标题与提要就是原文。 */}
-          {!isX && !hasChineseCopy(item.title) && (
+          {/* 中文页维持原条件与原句（没有中文稿的条目）。英文页没有英文稿时只留英文回退说明：
+              中文标题/摘要不在这里当英文内容出现（2026-11-23 第 3 轮：条目页 0 汉字）。 */}
+          {locale === "zh" && !isX && !hasChineseCopy(item.title) && (
             <p className="mb-3 rounded-control border border-line bg-raised px-3 py-2 text-[12.5px] leading-relaxed text-ink-3">
               {c.noZhDraftNotice}
             </p>
           )}
-          {/* 标题区。英文页把信源原题抬成 H1（lang 跟着条目登记的语种走，读屏才不会用中文读音去念
-              一整条英文标题，WCAG 3.1.2），中文标题降为次行；中文页维持中文 H1、原题作次行，逐字不变。 */}
-          {!isX && (enH1Original ? (
+          {englishFallback && (
+            <p className="mb-3 rounded-control border border-line bg-raised px-3 py-2 text-[12.5px] leading-relaxed text-ink-3">
+              {item.textLocale === "zh" || hasChineseCopy(item.title) ? c.fallbackNotice : c.fallbackSummaryNotice}
+            </p>
+          )}
+          {/* 标题区用读取层投影后的 title：/en 有英文稿就是英文；没有英文稿时用英文回退标题。
+              H1 的 lang 只标真实回退的中文，读屏才不会拿英语音去念整句中文（WCAG 3.1.2）。
+              中文页维持中文 H1、原题作次行，逐字不变。 */}
+          {!isX && (
             <>
-              <h1 lang={item.language ?? undefined} className={H1_CLASS}>{enH1Original}</h1>
-              {enH1Original !== item.title && (
-                <p className="mt-2.5 text-[14px] leading-relaxed text-ink-4">{item.title}</p>
+              <h1 lang={locale === "en" ? (hasChineseCopy(displayTitle) ? "zh-Hans" : undefined) : undefined} className={H1_CLASS}>{displayTitle}</h1>
+              {showOriginalTitle && (
+                <p lang={locale === "zh" ? item.language ?? undefined : hasChineseCopy(item.originalTitle!) ? "zh-Hans" : item.language ?? undefined} className="mt-2.5 text-[14px] leading-relaxed text-ink-4">{item.originalTitle}</p>
               )}
             </>
-          ) : (
-            <>
-              <h1 className={H1_CLASS}>{item.title}</h1>
-              {/* 原文标题不是中文（这一页整体是 zh-CN），把语种写在它自己身上，读屏才不会用中文读音去念
-                  一整条英文标题（WCAG 3.1.2）。语种就是条目登记的那一个，不猜。 */}
-              {item.originalTitle && item.originalTitle !== item.title && (
-                <p lang={item.language ?? undefined} className="mt-2.5 text-[14px] leading-relaxed text-ink-4">{item.originalTitle}</p>
-              )}
-            </>
-          ))}
+          )}
           {/* A post page has no visual headline (the post card is the page), but a reader on a screen reader
-              still needs one level-one heading to navigate by: name it after the same line the lists show —
-              on the English page after the source's original title, with the Chinese title kept as a
-              hidden supplement. */}
-          {isX && (enH1Original && enH1Original !== item.title ? (
-            <>
-              <h1 className="sr-only" lang={item.language ?? undefined}>{enH1Original}</h1>
-              <p className="sr-only">{item.title}</p>
-            </>
-          ) : (
-            <h1 className="sr-only">{item.title}</h1>
-          ))}
-          {/* 英文页的 H1 落在中文上（没有原题，或原题本身就是中文）才需要这一行说明：说明放在标题
-              下面，而不是像从前那样一刀切挂在页首。标题本身是原题时内容语言如实可见，不再重复。
-              中文页渲染为空。 */}
-          {enH1IsChinese && <ChineseNotice className="mt-2.5" />}
+              still needs one level-one heading to navigate by: the same projected title the lists show. */}
+          {isX && <h1 className="sr-only" lang={locale === "en" ? (hasChineseCopy(displayTitle) ? "zh-Hans" : undefined) : undefined}>{displayTitle}</h1>}
+          {/* fallback 模式仍会显示中文；这一句只在非 strict 的 /en 出现，strict 用上面的 fallbackNotice。 */}
+          {locale === "en" && !strictEnglish() && item.textLocale !== "en" && <MissingEnglishNotice className="mt-2.5" />}
 
-          {item.summary && (
+          {displaySummary && (
             <section className={isX ? "mt-4" : "mt-7 xl:mt-8"}>
               <div className="mb-2 text-[12px] font-semibold text-accent">{digestTag}</div>
-              <p className="text-[18px] leading-[1.7] text-ink xl:text-[20px] xl:leading-[1.7]">{item.summary}</p>
+              <p className="text-[18px] leading-[1.7] text-ink xl:text-[20px] xl:leading-[1.7]">{displaySummary}</p>
             </section>
           )}
 
@@ -520,20 +524,20 @@ export default function ItemPage() {
             </p>
           )}
 
-          {item.reason && !summaryOnly && (
+          {item.reason && !summaryOnly && !englishFallback && (
             <section className="mt-6 border-t border-line pt-4 lg:hidden">
               <div className="mb-1 text-[12px] font-semibold text-ink-3">{c.reasonTitle}</div>
               <p className="text-[15px] leading-[1.75] text-ink-2">{item.reason}</p>
             </section>
           )}
 
-          {item.group && item.group.reportCount > 1 && (
+          {item.group && item.group.reportCount > 1 && !englishFallback && (
             <div className="mt-5">
               <GroupSources group={item.group} parentId={item.id} />
             </div>
           )}
 
-          {summaryOnly && (
+          {summaryOnly && !englishFallback && (
             <p className="mt-7 rounded-control bg-bg-sunk px-4 py-3 text-[13.5px] leading-relaxed text-ink-3">
               {c.summaryOnlyNotice}
             </p>
@@ -543,32 +547,31 @@ export default function ItemPage() {
             <section className="mt-9 border-t border-line pt-4 xl:mt-10">
               <div className="mb-6 flex items-center justify-between gap-3">
                 <span className="text-[12px] text-ink-4">{bodyLabel}</span>
-                {hasTranslation && (
+                {/* 页签：/en 有英文正文时固定 [English, Chinese]，Chinese 有意回到中文页
+                    （英文界面里没有中文正文的孪生地址）；中文页维持 [中文, 原文]。 */}
+                {(locale === "en" ? contentLang !== "zh" : hasTranslation) && (
                   <PillTabs
                     size="xs"
                     layoutId="item-body-lang"
                     label={c.bodyLangLabel}
-                    active={contentLang}
-                    items={[
-                      // 「中文」这一片有意回中文页：英文页的正文块默认排原文（enOriginalFirst），
-                      // 要读中文正文就得换到那一页；它不随 locale 加前缀。
+                    active={locale === "en" ? "en" : contentLang}
+                    items={locale === "en" ? [
+                      { key: "en", label: c.bodyEnglish, prefetch: "intent", replace: true, to: localeAppPath(`/items/${item.id}`, locale) },
                       { key: "zh", label: c.langZh, prefetch: "intent", replace: true, to: `/items/${item.id}` },
-                      // 「原文」这一片留在英文界面：/en/items/:id/original 已注册（routes.ts），
-                      // 不加前缀会把 /en 读者送到中文壳（2026-11-22 审查）。
+                    ] : [
+                      { key: "zh", label: c.langZh, prefetch: "intent", replace: true, to: `/items/${item.id}` },
+                      // 「原文」这一片留在英文界面：/en/items/:id/original 已注册（routes.ts）。
                       { key: "original", label: c.original, prefetch: "intent", replace: true, to: localeAppPath(`/items/${item.id}/original`, locale) },
                     ]}
                   />
                 )}
               </div>
-              {/* 英文页正文落在中文上的两种如实说明：只有中文译文（原文正文没抓到）时用通用的
-                  ChineseNotice；正文本来就是中文原创（zhKind === "original"）的，说明得更直白——
-                  这一篇没有其他语言的正文可切。正文按原文渲染时不出现。中文页渲染为空。 */}
-              {locale === "en" && item.body.zhKind === "original" ? (
-                <p className="mb-5 rounded-control bg-bg-sunk px-3 py-2 text-[13px] leading-relaxed text-ink-3">{c.bodyZhOriginalNotice}</p>
-              ) : locale === "en" && !item.body.original ? (
-                <ChineseNotice className="mb-5" />
-              ) : null}
-              {hasTranslation && contentLang === "zh" && !item.body.complete && (
+              {/* /en 的正文只有中文（英文稿还没写）时如实标注：不出现「英文正文」的假象。
+                  中文页永不渲染。 */}
+              {locale === "en" && contentLang === "zh" && (
+                <p className="mb-5 rounded-control bg-bg-sunk px-3 py-2 text-[13px] leading-relaxed text-ink-3">{c.bodyNoEnglishNotice}</p>
+              )}
+              {((contentLang === "zh" && hasTranslation) || (locale === "en" && contentLang === "en")) && !item.body.complete && (
                 <p className="mb-5 rounded-control bg-bg-sunk px-3 py-2 text-[13px] text-ink-3">{c.translationIncomplete}</p>
               )}
               {/* 长文只贴前段时必须说清楚贴了多少：一篇期刊全文可以有几十万字，页面在半句话处停住
@@ -610,20 +613,20 @@ export default function ItemPage() {
             {c.sourceLabel}
             {originalHref ? (
               <a href={originalHref} target="_blank" rel="noopener noreferrer" className="text-ink-3 hover:text-accent">
-                {isX ? item.x!.authorName : item.source.name}
+                {displaySource}
               </a>
             ) : (
               <span title={c.originalNotHttp} className="text-ink-4">
-                {isX ? item.x!.authorName : item.source.name}
+                {displaySource}
               </span>
             )}
-            <span> · {hostOf(item.links.original)}</span>
+            {!englishFallback && <span> · {hostOf(item.links.original)}</span>}
           </p>
 
           {/* 手机上右侧栏不渲染，主题/标签照桌面右栏的顺序在这里收尾（主题在上，标签在下）。 */}
-          {item.topics?.length ? (
+          {displayTopics.length ? (
             <div className="mt-4 flex flex-wrap gap-1.5 lg:hidden">
-              {item.topics.slice(0, 8).map((t) => (
+              {displayTopics.slice(0, 8).map((t) => (
                 <Link key={t.slug} to={localeAppPath(`/topics/${t.slug}`, locale)} className="chip">
                   {t.name}
                 </Link>
@@ -631,7 +634,7 @@ export default function ItemPage() {
             </div>
           ) : null}
 
-          {item.tags.length > 0 && (
+          {item.tags.length > 0 && !englishFallback && (
             <div className="mt-4 flex flex-wrap gap-1.5 lg:hidden">
               {item.tags.slice(0, 6).map((t) => (
                 <Link key={t} to={localeAppPath(`/all?tag=${encodeURIComponent(t)}`, locale)} className="chip">
@@ -641,7 +644,7 @@ export default function ItemPage() {
             </div>
           )}
 
-          {item.story && <StoryFollowups story={item.story} currentId={item.id} />}
+          {item.story && !englishFallback && <StoryFollowups story={item.story} currentId={item.id} />}
 
           {related.length > 0 && (
             <section className="mt-8">

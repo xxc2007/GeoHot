@@ -20,7 +20,7 @@ import { readableReports } from "./reports.ts";
 import type { PoolQuery } from "./pool.ts";
 
 /** 与 `/api/site/pool` 同一组可作用在条目上的筛选；不给就等于不筛。 */
-export type DayMarkFilters = Partial<Pick<PoolQuery, "channel" | "category" | "tag" | "topicTags">>;
+export type DayMarkFilters = Partial<Pick<PoolQuery, "channel" | "category" | "tag" | "topicTags" | "lang">>;
 
 /** 一个月的第一天与最后一天（含），按北京日历。 */
 export function monthSpan(month: string): { first: string; last: string } {
@@ -57,7 +57,7 @@ const recentMonths = new Map<string, { until: number; days?: DayMark[]; error?: 
 export async function monthMarks(
   month: string, filters: DayMarkFilters = {}, now?: Date,
 ): Promise<DayMark[]> {
-  const key = JSON.stringify([month, filters.channel ?? null, filters.category ?? null, filters.tag ?? null, [...(filters.topicTags ?? [])].sort(), now?.toISOString() ?? null]);
+  const key = JSON.stringify([month, filters.channel ?? null, filters.category ?? null, filters.tag ?? null, [...(filters.topicTags ?? [])].sort(), filters.lang ?? "zh", now?.toISOString() ?? null]);
   const recent = now ? undefined : recentMonths.get(key);
   if (recent && recent.until > Date.now()) {
     if (recent.error) throw recent.error;
@@ -95,7 +95,7 @@ async function queryMonthMarks(
       WITH days AS (
         SELECT to_char(p.timeline_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD') AS date, count(*)::int AS items
           FROM publications p
-         WHERE ${listedCondition(now)} AND p.eligible AND p.published_at IS NOT NULL ${scoped}
+         WHERE ${listedCondition(now, filters.lang ?? "zh")} AND p.eligible AND p.published_at IS NOT NULL ${scoped}
            AND p.timeline_at >= ${from} AND p.timeline_at < ${to}
          GROUP BY 1),
       issues AS (

@@ -1,20 +1,29 @@
 // Share images only need public title/summary metadata. Keep the same page visibility rule without
 // loading bodies, translations, related stories or signed media that never appear on these cards.
 import type { CategoryKey } from '@aihot/contracts/taxonomy';
+import type { SiteLang } from '@aihot/contracts/site';
 import { sql } from '../db.ts';
 import { itemHasPage } from './rules.ts';
 import { workflowReadyCondition } from './readiness.ts';
 import { CJK_COPY_PATTERN, isLabelOnlyCopy } from '@aihot/contracts/copy';
+import { englishPolicy, englishTextMode } from './english-policy.ts';
+import { englishCopyCondition } from './items.ts';
+import { englishReadyCondition } from './readiness-en.ts';
+import { sourceNameFor } from './source-name.ts';
 
-export async function loadItemShare(id: string, now = new Date()) {
+export async function loadItemShare(id: string, now = new Date(), lang: SiteLang = "zh") {
+  const needEnglishReady = lang === "en" && englishTextMode() === "strict" && englishPolicy().membership === "english";
   const [row] = await sql<{
-    id: string; title: string; summary: string | null; category: CategoryKey | null; selected: boolean;
-    score: number | null; timeline_at: Date; source_name: string; source_mode: string; visibility: string;
+    id: string; title: string; title_en: string | null; summary: string | null; summary_en: string | null; category: CategoryKey | null; selected: boolean;
+    score: number | null; timeline_at: Date; source_name: string; source_name_en: string | null; url: string; source_mode: string; visibility: string;
     visible_after: Date | null; workflow_ready: boolean; source_fulltext: boolean; has_copy: boolean;
-  }[]>`SELECT p.article_id AS id, p.title, p.summary, p.category, p.selected, p.score, p.timeline_at,
-      s.name AS source_name, s.participation_mode AS source_mode, p.visibility, p.visible_after,
+    english_copy_ready: boolean; english_ready: boolean;
+  }[]>`SELECT p.article_id AS id, p.title, p.title_en, p.summary, p.summary_en, p.category, p.selected, p.score, p.timeline_at,
+      s.name AS source_name, s.name_en AS source_name_en, p.url, s.participation_mode AS source_mode, p.visibility, p.visible_after,
       ${workflowReadyCondition()} AS workflow_ready, s.site_fulltext AS source_fulltext,
-      (p.title ~ ${CJK_COPY_PATTERN} AND nullif(btrim(p.summary), '') IS NOT NULL) AS has_copy
+      (p.title ~ ${CJK_COPY_PATTERN} AND nullif(btrim(p.summary), '') IS NOT NULL) AS has_copy,
+      (CASE WHEN ${englishCopyCondition()} THEN true ELSE false END) AS english_copy_ready,
+      (CASE WHEN ${needEnglishReady ? englishReadyCondition(now) : sql`false`} THEN true ELSE false END) AS english_ready
     FROM publications p JOIN sources s ON s.id = p.source_id
     WHERE p.article_id = ${id} AND p.visibility = 'public' AND s.participation_mode = 'editorial'
       AND (NOT p.selected OR p.visible_after <= ${now})`;
@@ -24,15 +33,22 @@ export async function loadItemShare(id: string, now = new Date()) {
   // daily already quotes its title and summary, and the card shows exactly those, nothing more. A row
   // with nothing to show (unsummarised, no Chinese copy) has neither page nor card.
   if (!row || !itemHasPage({ visibility: row.visibility, sourceMode: row.source_mode, selected: row.selected, visibleAfter: row.visible_after }, now)) return null;
+  if (lang === "en" && englishTextMode() === "strict") {
+    const ok = englishPolicy().membership === "english" ? row.english_ready : row.english_copy_ready;
+    if (!ok) return null;
+  }
+  const title = lang === "en" && row.title_en?.trim() && !isLabelOnlyCopy(row.title_en) ? row.title_en : row.title;
+  const summary = lang === "en" && row.summary_en?.trim() && !isLabelOnlyCopy(row.summary_en) ? row.summary_en : row.summary;
   // 条目页对 label-only 行回 404（detail.ts 的同一条规则）：卡片若照发，就是把一张 404 页面的
   // 分享卡递给爬虫——标题里只有 `title_zh:` 这类字段标签、没有可看的词。
-  if (isLabelOnlyCopy(row.title) || isLabelOnlyCopy(row.summary)) return null;
+  if (isLabelOnlyCopy(title) || isLabelOnlyCopy(summary)) return null;
   // The same grades the detail page answers with: a summary-licence row with copy keeps its card —
   // exactly the citation facts the daily printed; a full-licence row still being verified, or a row
   // with nothing to show, has neither page nor card.
-  if (!row.source_fulltext && !row.workflow_ready && !row.has_copy) return null;
-  if (row.source_fulltext && !row.workflow_ready) return null;
-  return { id: row.id, title: row.title, summary: row.summary, category: row.category, selected: row.selected,
+  const ready = lang === "en" && englishTextMode() === "strict" && englishPolicy().membership === "english" ? row.english_ready : row.workflow_ready;
+  if (!row.source_fulltext && !ready && !row.has_copy) return null;
+  if (row.source_fulltext && !ready) return null;
+  return { id: row.id, title, summary, category: row.category, selected: row.selected,
     score: row.score === null ? null : Math.round(Number(row.score)), timelineAt: row.timeline_at.toISOString(),
-    source: { name: row.source_name } };
+    source: { name: sourceNameFor(lang, row.source_name, row.source_name_en, row.url) } };
 }

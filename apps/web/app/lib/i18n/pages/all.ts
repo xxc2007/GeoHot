@@ -12,14 +12,14 @@ const zh = {
 
   /** 手机标题右侧的当日计数（数字由页面用 `<span class="num">` 包好）。 */
   todayPre: "今日 ",
-  todayPost: " 条",
+  todayPost: (_n: number) => " 条",
 
   /** 搜索结果行的排序开关与计数行（两个数字都由页面用 `<span class="num">` 包好）。 */
   searchSortLabel: "搜索排序",
   sortTime: "最新（标题与摘要）",
   sortRelevance: "全文相关",
   foundPre: "找到 ",
-  foundMid: " 条 · 更新于 ",
+  foundMid: (_n: number) => " 条 · 更新于 ",
 
   /** 日期筛选那一行（日期由页面按语言格式化后传入；"·" 后面接"看全部日期"链接）。 */
   viewingDayPre: "正在只看 ",
@@ -66,13 +66,13 @@ const en: typeof zh = {
   metaDescription: `Every geography update ${SITE.name} has collected, filterable by category and tag; search works in Chinese and English.`,
 
   todayPre: "",
-  todayPost: " items today",
+  todayPost: (n: number) => (n === 1 ? " item today" : " items today"),
 
   searchSortLabel: "Search results order",
   sortTime: "Latest (title & summary)",
   sortRelevance: "Best match",
   foundPre: "Found ",
-  foundMid: " results · updated ",
+  foundMid: (n: number) => (n === 1 ? " result · updated " : " results · updated "),
 
   viewingDayPre: "Showing only ",
   viewingDayPost: " ·",
@@ -97,7 +97,7 @@ const en: typeof zh = {
   busyBackSelected: "Back to Selected",
 
   /** Rows without an original title are Chinese sources whose published title already is the source headline — the sentence holds for the fallback too. */
-  chineseNotice: "Titles appear in their original language. AI summaries are in Chinese.",
+  chineseNotice: "Some items have no English title or summary yet and are shown in Chinese.",
 };
 
 export const copy = { zh, en } as const;

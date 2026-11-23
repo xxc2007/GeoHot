@@ -133,12 +133,14 @@ export function MobileDaySection({ count, children }: { count: number | null; ch
  */
 const MAX_PAGE = 50;
 
-function poolQuery(filters: TimelineFilters, page: number): string {
+function poolQuery(filters: TimelineFilters, page: number, locale: Locale): string {
   const sp = new URLSearchParams();
   if (filters.channel && filters.channel !== "all") sp.set("channel", filters.channel);
   if (filters.category) sp.set("category", filters.category);
   if (filters.tag) sp.set("tag", filters.tag);
   if (page > 1) sp.set("page", String(page));
+  // /en 的收录池续读也走英文投影；中文页的查询串不变。
+  if (locale === "en") sp.set("lang", "en");
   const q = sp.toString();
   return `/api/site/pool${q ? `?${q}` : ""}`;
 }
@@ -160,8 +162,8 @@ function poolQuery(filters: TimelineFilters, page: number): string {
 const poolPrefetch = new Map<string, PoolResponse>();
 const poolInflight = new Map<string, Promise<PoolResponse | null>>();
 
-function prefetchPool(filters: TimelineFilters): void {
-  const key = poolQuery(filters, 1);
+function prefetchPool(filters: TimelineFilters, locale: Locale): void {
+  const key = poolQuery(filters, 1, locale);
   if (poolPrefetch.has(key) || poolInflight.has(key)) return;
   const run = (async () => {
     try {
@@ -182,7 +184,7 @@ function prefetchPool(filters: TimelineFilters): void {
 export function MobilePoolPanel({ pool, filters }: { pool: PoolResponse | null; filters: TimelineFilters }) {
   const locale = useLocale();
   const c = copy[locale];
-  const key = poolQuery(filters, 1);
+  const key = poolQuery(filters, 1, locale);
   const [fetched, setFetched] = useState<PoolResponse | null>(() => poolPrefetch.get(key) ?? null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
@@ -190,7 +192,7 @@ export function MobilePoolPanel({ pool, filters }: { pool: PoolResponse | null; 
     const cached = poolPrefetch.get(key);
     if (cached) { setFetched(cached); return; }
     let live = true;
-    prefetchPool(filters);
+    prefetchPool(filters, locale);
     void (async () => {
       const body = await (poolInflight.get(key) ?? Promise.resolve(null));
       if (!live) return;
@@ -198,7 +200,7 @@ export function MobilePoolPanel({ pool, filters }: { pool: PoolResponse | null; 
       else setError(c.poolMiss);
     })();
     return () => { live = false; };
-  }, [pool, key, filters, c.poolMiss]);
+  }, [pool, key, filters, c.poolMiss, locale]);
   const view = pool ?? fetched;
   if (!view) {
     // 站长 2026-11-14：「正在取收录池…」这几个字一出现，这一屏就像卡住了。
@@ -221,7 +223,7 @@ export function MobilePoolPanel({ pool, filters }: { pool: PoolResponse | null; 
           <div className="mt-3 flex flex-col items-center gap-2">
             <button
               type="button"
-              onClick={() => { setError(null); prefetchPool(filters); }}
+              onClick={() => { setError(null); prefetchPool(filters, locale); }}
               className="flex h-9 items-center rounded-full border border-line-strong bg-surface px-4 text-[13px] text-ink-2"
             >
               {c.poolRetry}
@@ -261,7 +263,7 @@ export function MobilePoolList({ pool, filters }: { pool: PoolResponse | null; f
       // 同 InfiniteDayList：给接续请求一个 15 秒上限。没有它，被中间层挂住的请求会让
       // 「正在接着取…」永远转下去 —— 2026-11-05 用真实 Edge 复测时亲眼见到这个状态
       // 卡了 10 秒以上（同一秒另一次刷新 92ms 就回来了）。
-      const res = await fetch(publicPath(poolQuery(filters, page + 1)), { headers: { accept: "application/json" }, signal: AbortSignal.timeout(15_000) });
+      const res = await fetch(publicPath(poolQuery(filters, page + 1, locale)), { headers: { accept: "application/json" }, signal: AbortSignal.timeout(15_000) });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const body = (await res.json()) as PoolResponse;
       const fresh = body.items.filter((item) => !seen.current.has(item.id));
@@ -276,7 +278,7 @@ export function MobilePoolList({ pool, filters }: { pool: PoolResponse | null; f
       inflight.current = false;
       setLoading(false);
     }
-  }, [filters, page, pool, c.poolTimeout, c.poolFailed]);
+  }, [filters, page, pool, c.poolTimeout, c.poolFailed, locale]);
 
   useEffect(() => {
     const node = sentinel.current;
@@ -333,7 +335,7 @@ export function MobilePoolList({ pool, filters }: { pool: PoolResponse | null; f
           ) : (
             // 更早的日子用同一根日期栏（手机上是整宽的灰条："11月4日 周三"）。条数只在今天给，
             // 因为翻页里的"这一天还剩多少"我并不知道，写个加载到一半的数字比不写更糟。
-            <section key={group.day} aria-label={group.day + " 的条目"}>
+            <section key={group.day} aria-label={c.mobileDayAria(group.day)}>
               <DayHeader day={group.day} today={today} count={null} />
               {slots(group.items)}
             </section>

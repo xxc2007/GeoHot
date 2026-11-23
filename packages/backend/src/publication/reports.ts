@@ -1,15 +1,19 @@
 import { workflowReadyCondition } from "./readiness.ts";
 // Reports through the public read layer: website DTOs and the v1 shapes. Only real reports are
 // listed; a missing date is a 404, never another day. Withdrawn citations are marked, not shown.
-import type { ReportCitation, ReportDetail, ReportIndexEntry, ReportNavigationEntry, ReportKind } from "@aihot/contracts/site";
+import type { ReportCitation, ReportDetail, ReportIndexEntry, ReportNavigationEntry, ReportKind, SiteLang } from "@aihot/contracts/site";
+import type { ReportCitationSnapshot, ReportEnglishContent } from "@aihot/contracts/english";
 import { sql } from "../db.ts";
 import { cached, type Cached } from "../lib/cache.ts";
 import { proxiedImage, proxiedImageSet } from "../media/imgproxy.ts";
-import { listedCondition } from "./items.ts";
+import { listedCondition, englishCopyCondition } from "./items.ts";
 import { itemHasPage } from "./rules.ts";
-import { CJK_COPY_PATTERN } from "@aihot/contracts/copy";
+import { CJK_COPY_PATTERN, hasChineseCopy } from "@aihot/contracts/copy";
 import { dailyUrl, itemUrl, reportUrl, siteUrl } from "./links.ts";
 import { SITE, withSubject } from "@aihot/industry/site";
+import { englishPolicy, englishTextMode, textLocaleOf } from "./english-policy.ts";
+import { englishReadyCondition } from "./readiness-en.ts";
+import { sourceNameFor } from "./source-name.ts";
 
 export type { ReportKind };
 
@@ -19,8 +23,10 @@ interface ReportRow {
   window_start: Date;
   window_end: Date;
   content: Record<string, any>;
-  generated_at: Date;
+  content_en: ReportEnglishContent | null;
   revision: number;
+  revision_en: number | null;
+  generated_at: Date;
 }
 
 interface Availability {
@@ -35,29 +41,58 @@ interface Availability {
   publishedAt: Date | null;
 }
 
+/** 英文刊面只在 `revision_en = revision` 时采用；旧刊的引用文字只认自己的写时快照。 */
+function englishContentOf(r: { content_en: ReportEnglishContent | null; revision_en: number | null; revision: number }): ReportEnglishContent | null {
+  return r.content_en && r.revision_en === r.revision ? r.content_en : null;
+}
+
+/**
+ * 一整期在 `/en` 上是不是真的英文：散文覆盖层在，且写时引用快照的标题/摘要都没有汉字。
+ * `listReports` 的索引、前后导航与 latest 都走这一条；否则侧栏会列出一期点进去仍是中文的报纸。
+ */
+function englishReportReady(en: ReportEnglishContent | null): boolean {
+  if (!en) return false;
+  // 与 `loadReport` 的 `proseEnglish` 同一条：daily 的 sections 标签不算散文，lead 被身份守卫删掉时
+  // 这一期就不该被索引先列出来（2026-11-23 独立审查）。
+  const prose = !!(en.lead || en.headline?.trim() || en.overview?.trim());
+  const citations = en.citations ?? [];
+  return prose && citations.length > 0 && citations.every((c) => (c.title ?? "").trim() !== "" && !hasChineseCopy(c.title) && (!c.summary || !hasChineseCopy(c.summary)));
+}
+
+function snapshotMap(content: ReportEnglishContent | null): Map<string, ReportCitationSnapshot> {
+  return new Map((content?.citations ?? []).map((c) => [c.itemId, c]));
+}
+
 /** The same rule the item page itself answers with, at its two grades: a full page or a restricted
  *  preview (summary-licence source, workflow still running) both open — so a paper never strikes
  *  through a title that opens, and never links one that does not. `unavailableReason` is only set
  *  for rows with no page at all. */
-async function availability(ids: string[], now = new Date()): Promise<Map<string, Availability>> {
+async function availability(ids: string[], now = new Date(), lang: SiteLang = "zh"): Promise<Map<string, Availability>> {
   const out = new Map<string, Availability>();
   if (ids.length === 0) return out;
+  const needEnglishReady = lang === "en" && englishTextMode() === "strict" && englishPolicy().membership === "english";
   const rows = await sql<{ id: string; visibility: string; source_mode: string; selected: boolean; visible_after: Date | null; workflow_ready: boolean;
-    source_fulltext: boolean; has_copy: boolean; first_party: boolean; source_id: string; icon_url: string | null; story_public_id: string | null; at: Date | null }[]>`
+    source_fulltext: boolean; has_copy: boolean; has_any_copy: boolean; english_copy_ready: boolean; english_ready: boolean; first_party: boolean; source_id: string; icon_url: string | null; story_public_id: string | null; at: Date | null }[]>`
     SELECT ${workflowReadyCondition()} AS workflow_ready, p.article_id AS id, p.visibility, s.participation_mode AS source_mode, p.selected, p.visible_after,
       s.site_fulltext AS source_fulltext, (p.title ~ ${CJK_COPY_PATTERN} AND nullif(btrim(p.summary), '') IS NOT NULL) AS has_copy,
+      (nullif(btrim(p.title), '') IS NOT NULL AND nullif(btrim(p.summary), '') IS NOT NULL) AS has_any_copy,
+      (CASE WHEN ${englishCopyCondition()} THEN true ELSE false END) AS english_copy_ready,
+      (CASE WHEN ${needEnglishReady ? englishReadyCondition(now) : sql`false`} THEN true ELSE false END) AS english_ready,
       p.first_party, p.source_id, s.icon_url, st.public_id::text AS story_public_id,
       coalesce(p.published_at, p.discovered_at) AS at
     FROM publications p LEFT JOIN sources s ON s.id = p.source_id LEFT JOIN stories st ON st.id = p.story_id
     WHERE p.article_id IN ${sql(ids)}`;
+  const enStrict = lang === "en" && englishTextMode() === "strict";
   for (const r of rows) {
     // The page's own gate (detail.ts), both grades: a full page, or the summary-licence restricted
-    // page (public, released, Chinese copy — the source lends no full text). A full-licence row whose
-    // workflow is still running, an admin's summary-only pull and a row with nothing to show stay off,
-    // exactly as the page 404s them.
+    // page (public, released, title+summary — the source lends no full text or English is missing).
+    // In strict /en the restricted page is also the fallback page for a row without English copy, so
+    // availability must not disagree with the 200 the item route serves (2026-11-23 独立审查).
+    const ready = enStrict && englishPolicy().membership === "english" ? r.english_ready : r.workflow_ready;
+    const canLead = enStrict ? r.has_any_copy : r.has_copy;
     const hasPage = itemHasPage({ visibility: r.visibility, sourceMode: r.source_mode, selected: r.selected, visibleAfter: r.visible_after }, now)
       && r.visibility !== "summary-only"
-      && (r.workflow_ready || (!r.source_fulltext && !!r.has_copy));
+      && (ready || ((!r.source_fulltext || enStrict) && !!canLead));
     out.set(r.id, {
       available: hasPage,
       unavailableReason: !hasPage
@@ -81,11 +116,11 @@ async function availability(ids: string[], now = new Date()): Promise<Map<string
  * cited as published (an imported issue quotes items older than the imported window), but nothing links a
  * page that does not exist — see `tocHtml`, which falls back to the original article for those.
  */
-async function pageSets(ids: string[], now = new Date()): Promise<{ withPage: Set<string>; withoutPage: Set<string> }> {
+async function pageSets(ids: string[], now = new Date(), lang: SiteLang = "zh"): Promise<{ withPage: Set<string>; withoutPage: Set<string> }> {
   const withPage = new Set<string>();
   const withoutPage = new Set<string>();
   if (ids.length === 0) return { withPage, withoutPage };
-  const avail = await availability([...new Set(ids.filter(Boolean))], now);
+  const avail = await availability([...new Set(ids.filter(Boolean))], now, lang);
   for (const [id, a] of avail) (a.available ? withPage : withoutPage).add(id);
   return { withPage, withoutPage };
 }
@@ -105,8 +140,8 @@ export async function reportIndexRows(kind: ReportKind, limit: number) {
   const groupedKey = kind === "daily" ? "sections" : "themes";
   const labelKey = kind === "daily" ? "label" : "heading";
   const itemsKey = kind === "daily" ? "items" : "storyRefs";
-  return sql<{ key: string; content: Record<string, any>; generated_at: Date; window_end: Date; issue_no: number | null }[]>`
-    SELECT key, generated_at, window_end, issue_no, jsonb_build_object(
+  return sql<{ key: string; content: Record<string, any>; content_en: ReportEnglishContent | null; revision_en: number | null; revision: number; generated_at: Date; window_end: Date; issue_no: number | null }[]>`
+    SELECT key, generated_at, window_end, issue_no, content_en, revision_en, revision, jsonb_build_object(
       'lead', content->'lead', 'headline', content->'headline', 'title', content->'title',
       'overview', content->'overview', 'periodStart', content->'periodStart', 'periodEnd', content->'periodEnd',
       ${groupedKey}::text,
@@ -128,8 +163,19 @@ export async function reportIndexRows(kind: ReportKind, limit: number) {
 /**
  * A report's headline for indexes and feeds: its lead, else the first cited item that is still public.
  * `gone` must cover withdrawn candidates before the first public title (see {@link unavailableHeadlineIds}).
+ * `lang='en'` reads the write-time English snapshot (`content_en`) and falls back to Chinese.
  */
-export function reportHeadline(content: Record<string, any>, kind: "daily" | "periodic", gone: Set<string>): string | null {
+export function reportHeadline(content: Record<string, any>, kind: "daily" | "periodic", gone: Set<string>, lang: SiteLang = "zh", enContent?: ReportEnglishContent | null): string | null {
+  if (lang === "en" && enContent) {
+    if (kind === "daily" && enContent.lead?.title) return String(enContent.lead.title);
+    const own = kind === "periodic" ? (enContent.headline?.trim() ? enContent.headline : null) : null;
+    if (own) return own;
+    const snaps = snapshotMap(enContent);
+    const items: Array<Record<string, any>> = kind === "daily" ? (content.sections ?? []).flatMap((s: any) => s.items ?? []) : (content.themes ?? []).flatMap((t: any) => t.storyRefs ?? []);
+    const first = items.find((i) => !i.itemId || !gone.has(i.itemId));
+    const snap = first?.itemId ? snaps.get(String(first.itemId)) : undefined;
+    if (snap?.title) return snap.title;
+  }
   if (kind === "daily" && content.lead?.title) return String(content.lead.title);
   const own = kind === "periodic" ? periodicHeadline(content) : null;
   if (own) return own;
@@ -162,9 +208,19 @@ export async function unavailableHeadlineIds(rows: Array<{ content: Record<strin
   }
 }
 
-function citationFrom(raw: Record<string, any>, avail: Map<string, Availability>): ReportCitation {
+function citationFrom(raw: Record<string, any>, avail: Map<string, Availability>, lang: SiteLang = "zh", snaps: Map<string, ReportCitationSnapshot> = new Map()): ReportCitation {
   const id = raw.itemId ?? null;
   const a = id ? avail.get(id) : undefined;
+  // 引用文字只认成刊时的英文快照；缺快照才回退 `content` 的中文，并用 textLocale 标记。
+  const snap = lang === "en" && id ? snaps.get(id) : undefined;
+  const title = snap?.title?.trim() ? snap.title : String(raw.title ?? "");
+  const summary = snap ? snap.summary : (raw.summary ?? null);
+  const sourceUrl = String(raw.sourceUrl ?? raw.links?.original ?? "");
+  const rawSourceName = String(raw.sourceName ?? raw.source?.name ?? "");
+  // 写时快照优先；没有快照时英文页用英文名或域名，不把中文信源名印在英文刊面上。
+  const sourceName = snap?.sourceName?.trim() ? snap.sourceName : sourceNameFor(lang, rawSourceName, null, sourceUrl);
+  const role = snap ? snap.role : (raw.role ?? null);
+  const textLocale = textLocaleOf(title, summary);
   // Items absent from this database (older than the imported window) stay cited as they were published.
   const available = id ? (a ? a.available : true) : true;
   if (!available) {
@@ -175,29 +231,31 @@ function citationFrom(raw: Record<string, any>, avail: Map<string, Availability>
     //    still has to say where the claim came from, so title, source name and original address stay.
     const struck = a?.public === false;
     return {
-      itemId: id, title: String(raw.title ?? ""), summary: null, unavailableReason: a?.unavailableReason,
-      sourceName: struck ? "" : String(raw.sourceName ?? raw.source?.name ?? ""),
-      sourceUrl: struck ? "" : String(raw.sourceUrl ?? raw.links?.original ?? ""),
+      itemId: id, title, summary: null, unavailableReason: a?.unavailableReason,
+      sourceName: struck ? "" : sourceName,
+      sourceUrl: struck ? "" : sourceUrl,
       sourceId: struck ? null : raw.sourceId ?? a?.sourceId ?? null, sourceIconUrl: null,
-      firstParty: struck ? false : raw.firstParty ?? a?.firstParty ?? false, role: raw.role ?? null,
+      firstParty: struck ? false : raw.firstParty ?? a?.firstParty ?? false, role,
       storyPublicId: null, publishedAt: struck ? null : a?.publishedAt?.toISOString() ?? null, available: false, hasPage: false,
+      textLocale,
     };
   }
   return {
     itemId: id,
-    title: String(raw.title ?? ""),
-    summary: raw.summary ?? null,
-    sourceName: String(raw.sourceName ?? raw.source?.name ?? ""),
-    sourceUrl: String(raw.sourceUrl ?? raw.links?.original ?? ""),
+    title,
+    summary,
+    sourceName,
+    sourceUrl,
     sourceId: raw.sourceId ?? a?.sourceId ?? null,
     sourceIconUrl: a?.sourceIcon ? proxiedImage(a.sourceIcon, "avatar") : null,
     ...(a?.sourceIcon && proxiedImageSet(a.sourceIcon, "avatar") ? { sourceIconSrcSet: proxiedImageSet(a.sourceIcon, "avatar")! } : {}),
     firstParty: raw.firstParty ?? a?.firstParty ?? false,
-    role: raw.role ?? null,
+    role,
     storyPublicId: raw.storyPublicId ?? a?.storyPublicId ?? null,
     publishedAt: a?.publishedAt?.toISOString() ?? null,
     available,
     hasPage: a?.available ?? false,
+    textLocale,
   };
 }
 
@@ -260,28 +318,46 @@ function readingMinutes(text: string): number {
  * 10月1日」 pointing at one of those, while the archive listed a single issue. Blank editions stay reachable
  * by their own URL (they say so honestly), they just stop being advertised as neighbouring pages.
  */
-async function neighbors(kind: ReportKind, key: string): Promise<{ prev: string | null; next: string | null }> {
-  const entries = await listReports(kind); // newest first
+async function neighbors(kind: ReportKind, key: string, lang: SiteLang = "zh"): Promise<{ prev: string | null; next: string | null }> {
+  const entries = await listReports(kind, undefined, lang); // newest first
   const older = entries.filter((e) => e.key < key);   // descending, so [0] is the closest older edition
   const newer = entries.filter((e) => e.key > key);   // descending, so the last one is the closest newer
   return { prev: older[0]?.key ?? null, next: newer[newer.length - 1]?.key ?? null };
 }
 
-export async function loadReport(kind: ReportKind, key: string): Promise<ReportDetail | null> {
-  const [r] = await sql<ReportRow[]>`SELECT kind, key, window_start, window_end, content, generated_at, revision FROM reports WHERE kind = ${kind} AND key = ${key}`;
+export async function loadReport(kind: ReportKind, key: string, lang: SiteLang = "zh"): Promise<ReportDetail | null> {
+  const [r] = await sql<ReportRow[]>`SELECT kind, key, window_start, window_end, content, content_en, revision, revision_en, generated_at FROM reports WHERE kind = ${kind} AND key = ${key}`;
   if (!r) return null;
+  const en = lang === "en" ? englishContentOf(r) : null;
+  const snaps = snapshotMap(en);
   const c = r.content;
   const rawItems: Array<Record<string, any>> = [
     ...(c.sections ?? []).flatMap((s: any) => s.items ?? []),
     ...(c.flashes ?? []),
     ...(c.themes ?? []).flatMap((t: any) => t.storyRefs ?? []),
   ];
-  const avail = await availability([...new Set(rawItems.map((i) => i.itemId).filter(Boolean))]);
-  const cite = (raw: Record<string, any>) => citationFrom(raw, avail);
+  const avail = await availability([...new Set(rawItems.map((i) => i.itemId).filter(Boolean))], new Date(), lang);
+  const cite = (raw: Record<string, any>) => citationFrom(raw, avail, lang, snaps);
 
+  // 英文覆盖层只按位置覆盖散文（标签/摘要），成员与顺序仍从 `content` 读；
+  // 引用文字只认 `content_en.citations` 的写时快照，不在读时按条目现名投影。
   const sections = kind === "daily"
-    ? (c.sections ?? []).map((s: any) => ({ label: String(s.label), summary: null, items: (s.items ?? []).map(cite) }))
-    : (c.themes ?? []).map((t: any) => ({ label: String(t.heading), summary: t.summary ?? null, items: (t.storyRefs ?? []).map(cite) }));
+    ? (c.sections ?? []).map((s: any, i: number) => {
+      const overlay = en?.sections?.[i];
+      return {
+        label: overlay?.label?.trim() ? String(overlay.label) : String(s.label),
+        summary: overlay?.summary ?? null,
+        items: (s.items ?? []).map(cite),
+      };
+    })
+    : (c.themes ?? []).map((t: any, i: number) => {
+      const overlay = en?.themes?.[i];
+      return {
+        label: overlay?.heading?.trim() ? String(overlay.heading) : String(t.heading),
+        summary: overlay?.summary ?? t.summary ?? null,
+        items: (t.storyRefs ?? []).map(cite),
+      };
+    });
   const labelled: Array<ReportCitation & { label: string }> = sections.flatMap((s: { label: string; items: ReportCitation[] }) => s.items.map((i) => ({ ...i, label: s.label })));
   // Weekly and monthly reports carry the editor's reading order across themes.
   const order: string[] = Array.isArray(c.storyOrder) ? c.storyOrder : [];
@@ -290,41 +366,62 @@ export async function loadReport(kind: ReportKind, key: string): Promise<ReportD
     ? [...labelled].sort((a, b) => (rank.get(a.itemId ?? "") ?? order.length) - (rank.get(b.itemId ?? "") ?? order.length))
     : labelled;
   const all: ReportCitation[] = labelled;
+  // 快讯也印在版面上：与 sections 一样要有写时英文快照，也要参与语种判定。
+  const flashes = (c.flashes ?? []).map(cite);
+  const cited = [...all, ...flashes];
   const highlightIds: string[] = c.highlights ?? [];
   const highlights = highlightIds.length
     ? highlightIds.map((id) => all.find((x: ReportCitation) => x.itemId === id)).filter((x): x is ReportCitation => !!x)
     : all.slice(0, 3);
-  const text = [c.lead?.leadParagraph ?? "", c.overview ?? "", ...all.map((i: ReportCitation) => `${i.title}${i.summary ?? ""}`)].join("");
+  const headline = kind === "daily" ? null : (en?.headline?.trim() ? String(en.headline) : (lang === "en" ? null : periodicHeadline(c)));
+  // /en 的导语与总述不拿中文兜底：缺英文时整期由 strict 门挡下，fallback 模式下也宁可不写这段。
+  const lead = c.lead ? (en?.lead ?? (lang === "en" ? null : c.lead)) : null;
+  const overview = en?.overview?.trim() ? en.overview : (lang === "en" ? null : (c.overview ?? null));
+  const text = [lead?.leadParagraph ?? "", overview ?? "", ...cited.map((i: ReportCitation) => `${i.title}${i.summary ?? ""}`)].join("");
   // A weekly or monthly's picture comes from its first highlight and is captioned with that story.
-  const leadItem = kind === "daily" ? leadItemOf(c.lead?.title, highlights, all) : (highlights[0] ?? all[0]);
-  const [{ prev, next }, picture] = await Promise.all([neighbors(kind, key), leadItem?.itemId && leadItem.available ? leadCover(leadItem.itemId) : null]);
+  const leadItem = kind === "daily" ? leadItemOf(lead?.title, highlights, all) : (highlights[0] ?? all[0]);
+  // 前后导航只跟随本语言能读到的期次：/en 的往期里不能再出现只有中文的报纸。
+  const [{ prev, next }, picture] = await Promise.all([neighbors(kind, key, lang), leadItem?.itemId && leadItem.available ? leadCover(leadItem.itemId) : null]);
   const cover = picture && leadItem ? { ...picture, caption: kind === "daily" ? null : leadItem.title } : null;
-  const headline = kind === "daily" ? null : periodicHeadline(c);
   // The same question `readableRows` asks of an index row, answered from the citations this page already
   // resolved: `all` is exactly that row's cited set (a daily's section items, a weekly's story refs — never
   // its flashes), and `available` is the same `itemHasPage` the index's `withoutPage` set is built from.
   const readable = all.some((i: ReportCitation) => i.itemId && i.available);
-  const title = kind === "daily" ? `${withSubject("日报")} · ${key}` : String(c.title ?? (kind === "weekly" ? `${SITE.name} 周报 · ${key}` : `${SITE.name} 月报 · ${key}`));
+  const title = kind === "daily"
+    ? (lang === "en" ? `Daily · ${key}` : `${withSubject("日报")} · ${key}`)
+    : (lang === "en"
+      // 英文页没有英文大标题时用期名，不拿 content.title（「GEOHOT 月报 · 2026-10」）当中文兜底。
+      ? (en?.headline?.trim() ? String(en.headline) : `${kind === "weekly" ? "Weekly" : "Monthly"} · ${key}`)
+      : String(c.title ?? (kind === "weekly" ? `${SITE.name} 周报 · ${key}` : `${SITE.name} 月报 · ${key}`)));
+  const proseEnglish = !!(en && (lead || overview || headline));
+  const textLocale = lang === "en"
+    ? (proseEnglish && cited.every((i) => i.textLocale === "en") ? "en" : "mixed")
+    : "zh";
+  // strict 的 /en 不把中文报纸当英文版承诺给读者：整期不到英文就按「这一期不存在」回答。
+  // 返回 null 由站点 API 交 404、由 latest-page 交空态（页面 chrome 仍全是英文）。
+  if (lang === "en" && englishTextMode() === "strict" && textLocale !== "en") return null;
   return {
     kind,
     key,
     title,
+    textLocale,
     windowStart: r.window_start.toISOString(),
     windowEnd: r.window_end.toISOString(),
     generatedAt: r.generated_at.toISOString(),
     revision: r.revision,
     readable,
-    lead: c.lead ?? (headline ? { title: headline, leadParagraph: String(c.overview ?? "") } : null),
-    overview: c.overview ?? null,
+    lead: lead ?? (headline ? { title: headline, leadParagraph: String(overview ?? "") } : null),
+    overview,
     highlights,
     sections,
     stories,
-    flashes: (c.flashes ?? []).map(cite),
+    flashes,
     cover,
     metrics: c.metrics ?? {},
     readingMinutes: readingMinutes(text),
     prev,
     next,
+    lang,
   };
 }
 
@@ -400,21 +497,33 @@ function readableRows(index: ReportIndex, shape: "daily" | "periodic", limit: nu
     .slice(0, limit);
 }
 
-export async function listReports(kind: ReportKind, limit = INDEX_LIMIT): Promise<ReportIndexEntry[]> {
+export async function listReports(kind: ReportKind, limit = INDEX_LIMIT, lang: SiteLang = "zh"): Promise<ReportIndexEntry[]> {
   const index = await reportIndex(kind);
   const shape = kind === "daily" ? "daily" : "periodic";
-  const entries = readableRows(index, shape, limit).map((r) => ({
-    key: r.key,
-    title: reportHeadline(r.content, shape, index.gone),
-    generatedAt: r.generated_at.toISOString(),
-    // 「本期 N 件大事」= 这份报纸真的排出来多少条：`pagesOf` 按 key 去重（头条与分栏里的同一条只算一次），
-    // 并且条目页面没了也仍然印着（划掉的那一行）。以前这里筛掉 withoutPage、又不查重，
-    // 于是同一期在归档里和在报头上可能是两个数（今天数据恰好一致：29 = 29）。
-    count: new Set(citedItemIds(r.content, shape)).size,
-    // The issue's own number, stamped at publication (migration 0048). Not derived from position:
-    // past the newest-400 window a position stops meaning anything, and a number must never move.
-    no: r.issue_no ?? null,
-  }));
+  const entries = readableRows(index, shape, limit)
+    // strict 的 /en 索引只列真有英文刊面的期次，与 `loadReport` 那道门同一条判据。
+    .filter((r) => lang !== "en" || englishTextMode() !== "strict" || englishReportReady(englishContentOf(r)))
+    .map((r) => {
+      const en = lang === "en" ? englishContentOf(r) : null;
+      const headline = reportHeadline(r.content, shape, index.gone, lang, en);
+      // 期次标题是动态内容；缺英文时用「Daily · 2026-09-30」这种期名，不把中文 lead 标题印进 /en 的侧栏。
+      const title = lang === "en" && (!headline || hasChineseCopy(headline))
+        ? `${shape === "daily" ? "Daily" : kind === "weekly" ? "Weekly" : "Monthly"} · ${r.key}`
+        : headline;
+      return {
+        key: r.key,
+        title,
+        generatedAt: r.generated_at.toISOString(),
+        // 「本期 N 件大事」= 这份报纸真的排出来多少条：`pagesOf` 按 key 去重（头条与分栏里的同一条只算一次），
+        // 并且条目页面没了也仍然印着（划掉的那一行）。以前这里筛掉 withoutPage、又不查重，
+        // 于是同一期在归档里和在报头上可能是两个数（今天数据恰好一致：29 = 29）。
+        count: new Set(citedItemIds(r.content, shape)).size,
+        // The issue's own number, stamped at publication (migration 0048). Not derived from position:
+        // past the newest-400 window a position stops meaning anything, and a number must never move.
+        no: r.issue_no ?? null,
+        textLocale: textLocaleOf(title, null),
+      };
+    });
   return entries;
 }
 
@@ -533,7 +642,7 @@ export async function v1Report(kind: ReportKind, key: string): Promise<V1DailyBo
   const wanted = key === "latest" ? (await listReports(kind, 1))[0]?.key ?? null : key;
   if (!wanted) return null;
   const [r] = await sql<ReportRow[]>`
-    SELECT kind, key, window_start, window_end, content, generated_at, revision FROM reports WHERE kind = ${kind} AND key = ${wanted}`;
+    SELECT kind, key, window_start, window_end, content, content_en, revision, revision_en, generated_at FROM reports WHERE kind = ${kind} AND key = ${wanted}`;
   if (!r) return null;
   // A *named* blank issue answers with an honest empty state (200 + 「本期没有入选内容」的版面), not 404 and
   // never a 500 — that is a deliberate choice from the round that added these routes (tests/publication.test.ts
@@ -627,10 +736,10 @@ export function reportNavigation(kind: ReportKind, index: ReportIndexEntry[], ke
   }));
 }
 
-export async function loadReportNavigation(kind: ReportKind, key: string) {
-  return reportNavigation(kind, await listReports(kind), key);
+export async function loadReportNavigation(kind: ReportKind, key: string, lang: SiteLang = "zh") {
+  return reportNavigation(kind, await listReports(kind, INDEX_LIMIT, lang), key);
 }
 
-export async function loadReportMonth(kind: ReportKind, month: string) {
-  return (await listReports(kind)).filter((e) => e.key.startsWith(month)).map(({ key, title }) => ({ key, title }));
+export async function loadReportMonth(kind: ReportKind, month: string, lang: SiteLang = "zh") {
+  return (await listReports(kind, INDEX_LIMIT, lang)).filter((e) => e.key.startsWith(month)).map(({ key, title, textLocale }) => ({ key, title, ...(textLocale ? { textLocale } : {}) }));
 }

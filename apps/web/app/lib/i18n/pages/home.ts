@@ -44,6 +44,8 @@ const zh = {
   mobileTodayPre: "今天 · ",
   mobileTodayAria: "今天的条目",
   mobileCount: (n: number) => `${n} 条`,
+  /** 手机「全部」里更早日期那一段的读屏名。 */
+  mobileDayAria: (day: string) => `${day} 的条目`,
   poolLoadingAria: "正在载入收录池",
   poolErrorAria: (why: string) => `收录池这一会儿读不到（${why}）`,
   poolMiss: "这次没取到",
@@ -69,7 +71,7 @@ const en: typeof zh = {
   noTime: "no time",
   viewAll: (n: string) => `View all ${n} updates →`,
   /** The trending strip above keeps Chinese story titles (its data model carries no original title), so the line names it honestly. */
-  chineseNotice: "Titles appear in their original language. Trending story titles and the AI summaries are in Chinese.",
+  chineseNotice: "Some titles and summaries have no English version yet and are shown in Chinese.",
 
   hotTitle: "Trending now",
   hotAsOf: (t) => `as of ${t}`,
@@ -90,7 +92,8 @@ const en: typeof zh = {
   mobileSearchAria: "Search",
   mobileTodayPre: "Today · ",
   mobileTodayAria: "Today's items",
-  mobileCount: (n) => `${n} items`,
+  mobileCount: (n) => `${n} ${n === 1 ? "item" : "items"}`,
+  mobileDayAria: (day) => `${day} items`,
   poolLoadingAria: "Loading the collection pool",
   poolErrorAria: (why) => `The collection pool cannot be read right now (${why})`,
   poolMiss: "nothing came back",

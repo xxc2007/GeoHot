@@ -1,11 +1,11 @@
 import { data as withHeaders, useLoaderData, useLocation, useRevalidator } from "react-router";
 import type { Route } from "./+types/report-latest";
 import type { ReportDetail, ReportNavigationEntry } from "@aihot/contracts/site";
-import { apiGet, ApiError, loadOr404 } from "../lib/api.server";
+import { apiGet, ApiError, loadOr404, withLang } from "../lib/api.server";
 import { pageMeta, titled } from "../lib/seo";
 import { localeFromPath, useLocale } from "../lib/i18n";
 import { copy } from "../lib/i18n/pages/report-latest";
-import { ChineseNotice } from "../components/ui/ChineseNotice";
+import { MissingEnglishNotice } from "../components/ui/ChineseNotice";
 import { beijingDate } from "../lib/format";
 import { EmptyState } from "../components/ui/Page";
 import { ReportLayout } from "../features/report/ReportLayout";
@@ -14,9 +14,11 @@ import { ReportPaper } from "../features/report/ReportPaper";
 import { kindFromPath } from "../features/report/format";
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const kind = kindFromPath(new URL(request.url).pathname);
+  const url = new URL(request.url);
+  const kind = kindFromPath(url.pathname);
+  const locale = localeFromPath(url.pathname);
   const now = Date.now();
-  const { index, report } = await loadOr404<{ index: ReportNavigationEntry[]; report: ReportDetail | null }>(`/api/site/reports/${kind}/latest-page`, { signal: request.signal });
+  const { index, report } = await loadOr404<{ index: ReportNavigationEntry[]; report: ReportDetail | null }>(withLang(`/api/site/reports/${kind}/latest-page`, locale), { signal: request.signal });
   // 最新的一期未必是出刊的一期：窗口还没合上的那一期只是一份稿样，读者的这一版仍是最近一期收口的。
   // 它照常留在往期栏和自己的网址里，只是不当作今天出的报纸。
   let latest = report;
@@ -28,7 +30,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     let unreadable = false;
     for (const e of index.filter((x) => x.key !== proof).slice(0, 4)) {
       try {
-        const older = await apiGet<ReportDetail>(`/api/site/reports/${kind}/${e.key}`, { signal: request.signal });
+        const older = await apiGet<ReportDetail>(withLang(`/api/site/reports/${kind}/${e.key}`, locale), { signal: request.signal });
         if (older && Date.parse(older.windowEnd) <= now) {
           latest = older;
           break;
@@ -76,8 +78,8 @@ export default function ReportLatestPage() {
   const c = copy[useLocale()];
   return (
     <ReportLayout kind={kind} index={index} current={report?.key ?? null} today={today} now={now}>
-      {/* 英文页的一行说明：报纸的标题与正文仍是模型写的中文。中文页渲染为空。 */}
-      <ChineseNotice className="mb-2" />
+      {/* 只有这一期真的回退中文时才说明；有英文刊面时不再自称中文。中文页永不渲染。 */}
+      {report && report.textLocale !== "en" && <MissingEnglishNotice className="mb-2" />}
       {/* 「还没有发布」只说没有出刊的那件事：一条报纸都没读过到，走下面的 ErrorBoundary，不说这句话。 */}
       {report ? <ReportPaper report={report} index={index} now={now} /> : <EmptyState as="h1" title={c.notPublished(kind)}>{c.emptyBody}</EmptyState>}
     </ReportLayout>

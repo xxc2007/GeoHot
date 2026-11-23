@@ -169,7 +169,8 @@ const surfaceVariants = (texts: Array<string | undefined>) => {
   return [...exact, ...exact.map((t) => t.replace(/\b(gpt|glm)\s+(?=[o\d])/gi, "$1-"))];
 };
 
-function publisherEntityId(url?: string): string | null {
+/** 文档发布域对应的机构 id。英文稿的身份守卫要用同一张域名表，所以公开导出（行为未改）。 */
+export function publisherEntityId(url?: string): string | null {
   let host: string;
   try {
     host = new URL(url ?? "").hostname.toLowerCase();

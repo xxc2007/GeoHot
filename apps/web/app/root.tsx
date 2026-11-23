@@ -96,14 +96,17 @@ interface SiteMeta {
 /** The api's shell metadata plus the address this document was served from (see `lib/seo.ts` `siteUrl`). */
 interface RootData extends SiteMeta {
   siteUrl: string;
+  /** `ENGLISH_TEXT` 的当前档位：客户端 meta() 读不到 process.env，靠 <html data-english-text> 传下去。 */
+  englishText: "strict" | "fallback";
 }
 
 export async function loader({ request }: Route.LoaderArgs): Promise<RootData> {
   const siteUrl = serverSiteUrl();
+  const englishText = process.env.ENGLISH_TEXT === "fallback" ? "fallback" : "strict";
   try {
-    return { ...(await apiGet<SiteMeta>("/api/site/meta", { signal: request.signal })), siteUrl };
+    return { ...(await apiGet<SiteMeta>("/api/site/meta", { signal: request.signal })), siteUrl, englishText };
   } catch {
-    return { changelogVersion: null, siteUrl };
+    return { changelogVersion: null, siteUrl, englishText };
   }
 }
 
@@ -137,7 +140,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const locale = localeFromPath(useLocation().pathname);
   const lang = locale === "en" ? "en" : SITE.locale;
   return (
-    <html lang={lang} data-site-url={root?.siteUrl} suppressHydrationWarning>
+    <html lang={lang} data-site-url={root?.siteUrl} data-english-text={root?.englishText ?? "fallback"} suppressHydrationWarning>
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />

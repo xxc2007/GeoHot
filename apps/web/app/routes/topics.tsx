@@ -1,6 +1,6 @@
 import { Link, useLoaderData } from "react-router";
 import type { Route } from "./+types/topics";
-import { loadOr404 } from "../lib/api.server";
+import { loadOr404, withLang } from "../lib/api.server";
 import { pageMeta } from "../lib/seo";
 import { localeAppPath, localeFromPath, useLocale } from "../lib/i18n";
 import { copy } from "../lib/i18n/pages/topics";
@@ -8,8 +8,10 @@ import { copy } from "../lib/i18n/pages/topics";
 interface TopicSummary {
   slug: string;
   name: string;
+  nameEn?: string | null;
   group: "company" | "field" | "genre";
   definition: string;
+  definitionEn?: string | null;
   total: number;
   recent: number;
   indexable: boolean;
@@ -17,8 +19,13 @@ interface TopicSummary {
 }
 
 export async function loader({ request }: { request: Request }) {
+  const locale = localeFromPath(new URL(request.url).pathname);
   // 接口的 5xx 走 loadOr404 的约定（503 + 不缓存），别让一次读不到变成页面 500。
-  return loadOr404<{ topics: TopicSummary[]; groups: Array<{ key: string; name: string; blurb: string }> }>("/api/site/topics", { signal: request.signal });
+  // 中英字段都随包发（见 backend/publication/topics.ts 的 listTopicSummariesFor），页面按 locale 取。
+  return loadOr404<{ topics: TopicSummary[]; groups: Array<{ key: string; name: string; nameEn?: string | null; blurb: string; blurbEn?: string | null }> }>(
+    withLang("/api/site/topics", locale),
+    { signal: request.signal },
+  );
 }
 
 export function meta({ location }: Route.MetaArgs) {
@@ -35,10 +42,14 @@ export default function TopicsPage() {
   const { topics, groups } = useLoaderData<typeof loader>();
   const locale = useLocale();
   const c = copy[locale];
-  // 引导语拆成前后两段，中间那段是主题数——主题随行业包增减，由数据自己数（这句曾写死 45，
-  // 加一个主题就过期）；数字套上 `.num`（等宽、可对齐）。分组名是词表里的动态内容，保持中文，
-  // 页面只用字典里的连接符把名字拼成串。
-  const groupsJoined = groups.map((g) => g.name).join(c.groupJoiner);
+  // 英文页取英文字段，缺英文时如实回退中文；分组名同理（接口随包发 nameEn/blurbEn）。
+  const topicName = (t: TopicSummary) => (locale === "en" ? t.nameEn ?? t.name : t.name);
+  const topicDefinition = (t: TopicSummary) => (locale === "en" ? t.definitionEn ?? t.definition : t.definition);
+  const groupName = (g: { name: string; nameEn?: string | null }) => (locale === "en" ? g.nameEn ?? g.name : g.name);
+  const groupBlurb = (g: { blurb: string; blurbEn?: string | null }) => (locale === "en" ? g.blurbEn ?? g.blurb : g.blurb);
+  const groupsJoined = groups.map(groupName).join(c.groupJoiner);
+  // 只有真回退成中文的主题/分组才标注一句；全都有英文时这一页不再说「内容是中文」。
+  const missingEnglish = locale === "en" && (topics.some((t) => !t.nameEn || !t.definitionEn) || groups.some((g) => !g.nameEn || !g.blurbEn));
   return (
     <div className="pb-10">
       <header className="pb-2 pt-5 lg:pt-1">
@@ -49,16 +60,15 @@ export default function TopicsPage() {
           {c.leadPost(groupsJoined)}
         </p>
       </header>
-      {/* 英文页的一行说明：分组名、主题词与释义仍是词表里的中文——这一页只有主题卡，没有条目行，
-          不说「标题按原语种显示」那种在这里没有对应物的话。中文页渲染为空。 */}
-      {locale === "en" && <p className={`text-[12.5px] text-ink-4 mt-1`}>{c.chineseNotice}</p>}
+      {/* 分组名、主题词与释义已按 /en 取英文字段；只有缺英文回退的那几条要说明。 */}
+      {missingEnglish && <p className={`text-[12.5px] text-ink-4 mt-1`}>{c.chineseNotice}</p>}
       {groups.map((g) => (
         <section key={g.key} aria-labelledby={`topics-${g.key}`} className="pt-8">
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
             <h2 id={`topics-${g.key}`} className="text-[15px] font-bold text-ink">
-              {g.name}
+              {groupName(g)}
             </h2>
-            <p className="text-[12px] text-ink-4">{g.blurb}</p>
+            <p className="text-[12px] text-ink-4">{groupBlurb(g)}</p>
           </div>
           {/* 宽屏（≥1536）从四列到五列：45 张卡在 1440 上要滚 11 行，多一列不藏任何信息、只是把空出来的右侧用上。 */}
           <ul className="mt-3.5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
@@ -69,11 +79,11 @@ export default function TopicsPage() {
                   <Link
                     to={localeAppPath(`/topics/${t.slug}`, locale)}
                     prefetch="intent"
-                    aria-label={c.cardAria(t.name)}
+                    aria-label={c.cardAria(topicName(t))}
                     className="card card-hover group flex h-full flex-col px-5 py-[18px]"
                   >
-                    <span className="text-[15px] font-bold text-ink transition-colors group-hover:text-accent">{t.name}</span>
-                    <span className="mt-1.5 line-clamp-2 flex-1 text-[12.5px] leading-[1.7] text-ink-3">{t.definition}</span>
+                    <span className="text-[15px] font-bold text-ink transition-colors group-hover:text-accent">{topicName(t)}</span>
+                    <span className="mt-1.5 line-clamp-2 flex-1 text-[12.5px] leading-[1.7] text-ink-3">{topicDefinition(t)}</span>
                     <span className="mono mt-3 text-[11.5px] text-accent">
                       {c.cardCta(String(t.total))} <span className="inline-block transition-transform duration-200 group-hover:translate-x-0.5">→</span>
                     </span>

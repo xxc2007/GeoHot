@@ -49,10 +49,21 @@ export interface PageMetaInput {
   /**
    * The language the page was asked for (`localeFromPath(meta args location.pathname)`). Chinese pages
    * may omit it. It decides the title/description fallbacks (`SITE_EN` for English) and writes the
-   * `/en` prefix into canonical/og:url; the hreflang group below is emitted for both languages either
-   * way, so every page carries the mutual link (中文页同样输出互链).
+   * `/en` prefix into canonical/og:url; the hreflang group below is emitted for both languages.
    */
   locale?: Locale;
+  /**
+   * Whether this page's `/en` twin really carries English. False on an item/story/issue that only has a
+   * Chinese fallback: that page exists, but a crawler must not be promised an English alternate
+   * (`hreflang=en` would point at a page whose content is Chinese). Defaults to true.
+   */
+  enAvailable?: boolean;
+}
+
+/** `ENGLISH_TEXT=fallback` 才允许英文缺失时回退中文；默认 strict（与 `publication/english-policy.ts` 同一口径）。 */
+export function strictEnglish(): boolean {
+  if (typeof document !== "undefined") return document.documentElement.dataset.englishText !== "fallback";
+  return process.env.ENGLISH_TEXT !== "fallback";
 }
 
 /**
@@ -92,15 +103,19 @@ export function pageMeta(input: PageMetaInput): MetaDescriptor[] {
   // (`https://host/geohot` on prefix deployments), so adding `basePath` here would double it.
   const path = localeAppPath(input.path, locale);
   const url = `${base}${path}`;
-  const image = input.image ? (input.image.startsWith("http") ? input.image : `${base}${input.image}`) : `${base}/og/site.png`;
+  const image = input.image
+    ? `${input.image.startsWith("http") ? input.image : `${base}${input.image}`}${locale === "en" ? (input.image.includes("?") ? "&lang=en" : "?lang=en") : ""}`
+    : `${base}/og/site.png`;
   const tags: MetaDescriptor[] = [
     { title },
     { name: "description", content: description },
     { tagName: "link", rel: "canonical", href: url },
-    // hreflang 互链，每页输出（中文页也指向自己的 /en 副本，反向同样）：x-default 落中文页。
-    // 与 canonical 同一约定——siteUrl 带前缀，这里用不带 basePath 的 app 路径拼。
+    // hreflang 互链：zh-Hans 与 x-default 永远指中文页；`hreflang="en"` 只在这一页真有英文版时输出，
+// 否则一个只有中文回退的 /en 地址不该被承诺给爬虫。中文页同样按 `enAvailable` 决定。
     { tagName: "link", rel: "alternate", hrefLang: "zh-Hans", href: `${base}${localeAppPath(input.path, "zh")}` },
-    { tagName: "link", rel: "alternate", hrefLang: "en", href: `${base}${localeAppPath(input.path, "en")}` },
+    ...(input.enAvailable !== false
+      ? [{ tagName: "link" as const, rel: "alternate", hrefLang: "en", href: `${base}${localeAppPath(input.path, "en")}` }]
+      : []),
     { tagName: "link", rel: "alternate", hrefLang: "x-default", href: `${base}${localeAppPath(input.path, "zh")}` },
     { property: "og:site_name", content: SITE.name },
     { property: "og:type", content: input.type ?? "website" },

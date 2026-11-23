@@ -67,6 +67,25 @@ const zh = {
   sourceUnit: " 个来源",
   participantUnit: " 位参与者",
   rankAria: (n: string) => `热度排名第 ${n} 位`,
+  /** 头像堆与名单弹层的读屏名、分组词与「另有 N 位」；名字本身来自数据。 */
+  faces: {
+    aria: (total: string) => `${total} 位参与者，查看名单`,
+    dialogAria: "参与讨论的来源",
+    editorial: "精选组",
+    signal: "氛围组",
+    more: (n: string) => `另有 ${n} 位未列出`,
+    nameJoiner: "、",
+  },
+  /** 趋势徽标：标题与可见词。 */
+  delta: {
+    unknownTitle: "部分信源的采集暂时落后，先不和 6 小时前比较",
+    unknown: "暂不比较",
+    newLabel: "新上榜",
+    flatTitle: "较 6 小时前",
+    flat: "持平",
+    upTitle: "较 6 小时前",
+    downTitle: "较 6 小时前",
+  },
 
   topThree: "热度前三",
   moreHot: "其余热点",
@@ -134,6 +153,23 @@ const en: typeof zh = {
   sourceUnit: " sources",
   participantUnit: " participants",
   rankAria: (n: string) => `Ranked No. ${n} by heat`,
+  faces: {
+    aria: (total: string) => `${total} participants — view the list`,
+    dialogAria: "Sources in the discussion",
+    editorial: "Editorial picks",
+    signal: "Ambient sources",
+    more: (n: string) => `${n} more participants not listed`,
+    nameJoiner: ", ",
+  },
+  delta: {
+    unknownTitle: "Some sources are behind on collection; no comparison against 6 hours ago yet",
+    unknown: "Not compared",
+    newLabel: "New",
+    flatTitle: "vs. 6 hours ago",
+    flat: "Flat",
+    upTitle: "vs. 6 hours ago",
+    downTitle: "vs. 6 hours ago",
+  },
 
   topThree: "Top three",
   moreHot: "More trending",
@@ -147,7 +183,7 @@ const en: typeof zh = {
   how2: "The board covers the past 48 hours. Trends compare the same set of sources across sustained coverage; they reflect our monitoring scope, not the whole web. Without comparable history, no trend line is drawn.",
   how3: "The source list shows publicly readable reporting only; discussion participants also include accounts and outlets counted for heat alone. Several channels of one outlet may be merged, so participants can be fewer than sources. Open an event to read every side's reports and viewpoints.",
 
-  chineseNotice: "Story titles and AI summaries are in Chinese.",
+  chineseNotice: "Some story titles and summaries have no English version yet and appear in Chinese.",
 };
 
 export const copy = { zh, en } as const;

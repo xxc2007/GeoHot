@@ -5,7 +5,7 @@ import { Presence } from "../components/ui/Presence";
 import { pageMeta } from "../lib/seo";
 import { localeAppPath, localeFromPath, useLocale } from "../lib/i18n";
 import { copy } from "../lib/i18n/pages/feedback";
-import { ChineseNotice } from "../components/ui/ChineseNotice";
+import { ChineseContentNotice } from "../components/ui/ChineseNotice";
 import { KEYS } from "../lib/local-state";
 import { publicPath } from "../lib/public-path";
 import { safeBlobSrc } from "../lib/safe-url.ts";
@@ -349,7 +349,7 @@ function StatusLookup({ field }: { field: string }) {
         <form onSubmit={lookup} className="space-y-4 border-t border-line-soft px-5 pb-5 pt-4 sm:px-6">
           {/* 本页唯一的数据库动态内容是查询结果里的状态词（接口返回中文，保持原样）：英文页在这段
               动态内容之前放一行说明。中文页渲染为空。 */}
-          <ChineseNotice />
+          <ChineseContentNotice />
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label htmlFor="fb-lookup-id" className="mb-2 block text-[13px] font-semibold text-ink">{c.lookupIdLabel}</label>

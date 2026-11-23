@@ -31,6 +31,9 @@ import { closeDb, sql } from "@aihot/backend/db";
 import { addDays, beijingDate, beijingMidnight, isoWeekLabel, isoWeekRange, isValidDate } from "@aihot/contracts/time";
 import { candidates, composeDaily, composeMonthly, composeWeekly, dailyWindow, editionsAhead, monthlyWindow, reportInput, reportInputUnchanged } from "@aihot/backend/reports/compose";
 import { loadReport } from "@aihot/backend/publication/reports";
+// `composeDaily` 落库后会 enqueue 英文腿（reports/compose.ts:313）。脚本不关队列，
+// pg-boss 的连接会让进程永远不退出——2026-11-23 的 report-input-fingerprint 测试就是这么超时的。
+import { stopBoss } from "@aihot/backend/jobs/queue";
 
 const { values } = parseArgs({
   options: {
@@ -282,6 +285,7 @@ if (stopRequested) {
 }
 if (values["verify-complete"]) console.log(`\n报刊层验收：${blockers.length ? "未通过" : "通过"}；阻断 ${blockers.length} 期。该结果不验证来源覆盖、failed/unknown 处置、最终重排新鲜度或整个目标。`);
 else if (!values.apply) console.log("\n默认只做计划不写库。确认后用 --apply --database-url-env=DATABASE_URL 跑。");
+await stopBoss();
 await closeDb();
 process.off("SIGTERM", requestStop);
 process.off("SIGINT", requestStop);

@@ -2,7 +2,7 @@ import { SITE } from "@aihot/industry/site";
 import { Link, redirect, useLoaderData } from "react-router";
 import type { Route } from "./+types/topic";
 import type { FeedItemSummary } from "@aihot/contracts/site";
-import { loadOr404 } from "../lib/api.server";
+import { loadOr404, withLang } from "../lib/api.server";
 import { breadcrumbLd, pageMeta, titled } from "../lib/seo";
 import { localeAppPath, localeFromPath, useLocale } from "../lib/i18n";
 import { copy } from "../lib/i18n/pages/topic";
@@ -18,7 +18,17 @@ export function headers() {
 }
 
 interface TopicPageData {
-  topic: { slug: string; name: string; group: string; definition: string; total: number; indexable: boolean; related: Array<{ slug: string; name: string }> };
+  topic: {
+    slug: string;
+    name: string;
+    nameEn?: string | null;
+    group: string;
+    definition: string;
+    definitionEn?: string | null;
+    total: number;
+    indexable: boolean;
+    related: Array<{ slug: string; name: string; nameEn?: string | null }>;
+  };
   items: FeedItemSummary[];
   page: number;
   pageCount: number;
@@ -27,10 +37,11 @@ interface TopicPageData {
 
 export async function loader({ params, request }: Route.LoaderArgs) {
   const page = params.page ? Number(params.page) : 1;
+  const locale = localeFromPath(new URL(request.url).pathname);
   if (params.page !== undefined && (!/^\d+$/.test(params.page) || page < 1)) throw new Response("Not found", { status: 404 });
-  // Page 1 lives at the topic's own address (308).
-  if (params.page === "1") throw redirect(`/topics/${params.slug}`, 308);
-  const data = await loadOr404<TopicPageData>(`/api/site/topics/${encodeURIComponent(params.slug)}?page=${page}`, { signal: request.signal });
+  // Page 1 lives at the topic's own address (308)；英文页的跳转也留在 /en，不能把读者送回中文壳。
+  if (params.page === "1") throw redirect(locale === "en" ? `/en/topics/${params.slug}` : `/topics/${params.slug}`, 308);
+  const data = await loadOr404<TopicPageData>(withLang(`/api/site/topics/${encodeURIComponent(params.slug)}?page=${page}`, locale), { signal: request.signal });
   return { data };
 }
 
@@ -55,7 +66,7 @@ export default function TopicPage() {
   const { data: initial } = useLoaderData<typeof loader>();
   const locale = useLocale();
   const c = copy[locale];
-  const data = useLivePublicData(initial, initial.page === 1 ? `/api/site/topics/${encodeURIComponent(initial.topic.slug)}?page=1` : null);
+  const data = useLivePublicData(initial, initial.page === 1 ? `/api/site/topics/${encodeURIComponent(initial.topic.slug)}?page=1${locale === "en" ? "&lang=en" : ""}` : null);
   const { topic, items, page, pageCount } = data;
   const href = (p: number) => (p <= 1 ? localeAppPath(`/topics/${topic.slug}`, locale) : localeAppPath(`/topics/${topic.slug}/page/${p}`, locale));
   const first = (page - 1) * 20 + 1;
@@ -72,7 +83,7 @@ export default function TopicPage() {
         <p className="mt-1 max-w-[640px] text-[13px] leading-relaxed text-ink-3">{topic.definition}</p>
         <div className="mt-3 flex flex-wrap items-baseline gap-x-5 gap-y-1">
           <span className="text-[12.5px] text-ink-4">
-            <span className="num mr-1 text-[20px] font-bold text-ink">{topic.total.toLocaleString("zh-CN")}</span>{c.selectedUnit}
+            <span className="num mr-1 text-[20px] font-bold text-ink">{topic.total.toLocaleString(locale === "en" ? "en-US" : "zh-CN")}</span>{c.selectedUnit}
           </span>
           {topic.related.length > 0 && (
             <span className="flex flex-wrap items-center gap-1.5 text-[12.5px]">
@@ -86,15 +97,14 @@ export default function TopicPage() {
           )}
         </div>
       </header>
-      {/* 英文页的一行说明：主题名与定义仍是词表里的中文，条目标题按信源原语种显示、AI 摘要仍为中文
-          （行卡片在 FeedItem 里按此渲染）。中文页渲染为空——字典键中英两版都有，zh 版只是文档。 */}
-      {locale === "en" && <p className={`text-[12.5px] text-ink-4 mt-1`}>{c.chineseNotice}</p>}
+      {/* 主题名/定义或条目真有回退中文时才标注；有英文字段就不该自称中文。 */}
+      {locale === "en" && (!topic.nameEn || !topic.definitionEn || items.some((item) => item.textLocale !== "en")) && <p className={`text-[12.5px] text-ink-4 mt-1`}>{c.chineseNotice}</p>}
 
       <div className="mb-1 mt-2 flex items-baseline justify-between">
         <h2 className="text-[18px] font-bold text-ink">{c.latestHeading}</h2>
         {items.length > 0 && (
           <span className="num text-[12px] text-ink-4">
-            {c.rangePre}{first}–{last}{c.rangeMid}{topic.total.toLocaleString("zh-CN")}{c.rangePost}
+            {c.rangePre}{first}–{last}{c.rangeMid}{topic.total.toLocaleString(locale === "en" ? "en-US" : "zh-CN")}{c.rangePost}
           </span>
         )}
       </div>

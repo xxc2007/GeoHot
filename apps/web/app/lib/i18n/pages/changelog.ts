@@ -26,6 +26,10 @@ const zh = {
     优化: "优化",
     公告: "公告",
     修复: "修复",
+    // 2026-11-23：数据里还有两条早期类型（改进/调整）；中文照录，英文页要有对应词，
+    // 否则 /en 的侧栏与条目角标记回退中文。
+    改进: "改进",
+    调整: "调整",
   } as Record<string, string>,
 
   /** 侧栏月份行的两段（数字由页面传成字符串）。 */
@@ -68,6 +72,8 @@ const en: typeof zh = {
     优化: "Improved",
     公告: "Notice",
     修复: "Fix",
+    改进: "Improved",
+    调整: "Adjusted",
   } as Record<string, string>,
 
   monthLabel: (y: string, mo: string) => `${MONTHS[Number(mo) - 1]} ${y}`,

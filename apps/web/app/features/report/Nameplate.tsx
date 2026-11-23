@@ -10,6 +10,7 @@ import weekly from "@aihot/industry/brand/nameplates/weekly.svg?raw";
 import monthly from "@aihot/industry/brand/nameplates/monthly.svg?raw";
 import archive from "@aihot/industry/brand/nameplates/archive.svg?raw";
 import viewBoxes from "@aihot/industry/brand/nameplates/index.json";
+import { useLocale } from "../../lib/i18n";
 import { nameplatePath } from "./nameplate-paths";
 
 const NAMEPLATES = {
@@ -19,7 +20,27 @@ const NAMEPLATES = {
   archive: { accent: nameplatePath(archive, "accent"), ink: nameplatePath(archive, "ink"), viewBox: viewBoxes.archive },
 } as const;
 
+/** 英文刊头用同一套 display 字体的文字，不复用中文报名的 SVG：那两条 path 画的是「地理日报」，
+ *  放进 /en 就是一整块中文（2026-11-23 验收按 SVG 节点把四个刊头都算成了中文）。 */
+const NAMEPLATE_EN: Record<keyof typeof NAMEPLATES, string> = {
+  daily: "DAILY",
+  weekly: "WEEKLY",
+  monthly: "MONTHLY",
+  archive: "ARCHIVE",
+};
+
 export function Nameplate({ which, className = "" }: { which: keyof typeof NAMEPLATES; className?: string }) {
+  const locale = useLocale();
+  if (locale === "en") {
+    return (
+      <span className={`flex items-center ${className}`} aria-hidden="true">
+        <span className="whitespace-nowrap font-display font-black leading-none tracking-[-0.03em]">
+          <span className="text-[22px] text-accent @[520px]:text-[30px] @[760px]:text-[42px] @[1040px]:text-[50px]">GEOHOT</span>{" "}
+          <span className="text-[26px] @[520px]:text-[34px] @[760px]:text-[48px] @[1040px]:text-[56px] text-ink">{NAMEPLATE_EN[which]}</span>
+        </span>
+      </span>
+    );
+  }
   const n = NAMEPLATES[which];
   return (
     <svg viewBox={n.viewBox} className={className} aria-hidden="true" focusable="false">

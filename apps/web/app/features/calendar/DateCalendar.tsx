@@ -71,7 +71,7 @@ export function DateCalendar({ month, days, selected, today, dayHref, monthHref,
           </Halftone>
         )}
         <p className="text-[11.5px] text-ink-2">{c.monthLine(String(year), number, focus ? c.weekdayName(focus) : null)}</p>
-        {focusDay?.items ? <p className="text-[11.5px] text-ink-4">{c.focusDayCountPre}<span className="num">{focusDay.items}</span>{c.focusDayCountPost}</p> : null}
+        {focusDay?.items ? <p className="text-[11.5px] text-ink-4">{c.focusDayCountPre}<span className="num">{focusDay.items}</span>{c.focusDayCountPost(focusDay.items)}</p> : null}
         <div className="mt-1 flex items-center gap-0.5">
           {nav(shiftMonth(month, -1), c.prevMonth, "‹", false)}
           {nav(shiftMonth(month, 1), c.nextMonth, "›", month >= thisMonth)}
@@ -86,7 +86,7 @@ export function DateCalendar({ month, days, selected, today, dayHref, monthHref,
       <div className="min-w-0 flex-1 pt-3 lg:border-l lg:border-line lg:px-4 lg:py-3">
         <div className="flex items-baseline justify-between gap-3">
           <span className="text-[13px] font-semibold tracking-[0.2em] text-ink">{c.monthName(number)}</span>
-          <span className="text-[11.5px] text-ink-4">{c.monthCountPre}<span className="num">{total}</span>{c.monthCountPost}</span>
+          <span className="text-[11.5px] text-ink-4">{c.monthCountPre}<span className="num">{total}</span>{c.monthCountPost(total)}</span>
         </div>
         <ul className="mt-1 grid grid-cols-7 text-center text-[10.5px] text-ink-4">
           {c.weekdayHead.map((w) => <li key={w} aria-hidden="true">{w}</li>)}

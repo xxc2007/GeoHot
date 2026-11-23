@@ -181,7 +181,7 @@ export function GroupSources({ group, filters, parentId }: { group: ItemDetailGr
   const panelId = `${ids}-src-p`;
   const { open, setOpen, state, load } = useGroupState<GroupReport>(
     `sources|${group.factId}|${parentId}`,
-    (cursor) => groupReportsUrl(publicPath, group.factId, filters, cursor),
+    (cursor) => groupReportsUrl(publicPath, group.factId, filters, cursor, locale),
     (b) => b.reports as GroupReport[],
   );
   const others = state.items.filter((r) => r.id !== parentId);
@@ -236,7 +236,7 @@ export function GroupDevelopments({ group, filters, parentId }: { group: GroupIn
   const panelId = `${ids}-dev-p`;
   const { open, setOpen, state, load } = useGroupState<Development>(
     `developments|${group.story.publicId}|${parentId}`,
-    (cursor) => storyDevelopmentsUrl(publicPath, group.story.publicId, filters, cursor),
+    (cursor) => storyDevelopmentsUrl(publicPath, group.story.publicId, filters, cursor, locale),
     (b) => b.developments as Development[],
   );
   return (

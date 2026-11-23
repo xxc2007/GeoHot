@@ -1,13 +1,13 @@
 import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useLoaderData } from "react-router";
 import type { SiteStats } from "@aihot/contracts/site";
-import { apiGet } from "../lib/api.server";
+import { apiGet, withLang } from "../lib/api.server";
 import { shortSourceName } from "../lib/format";
 import { ABOUT } from "@aihot/industry/site";
 import { organizationLd, pageMeta } from "../lib/seo";
 import { localeAppPath, localeFromPath, useLocale, type Locale } from "../lib/i18n";
 import { copy } from "../lib/i18n/pages/about";
-import { ChineseNotice } from "../components/ui/ChineseNotice";
+import { MissingEnglishNotice } from "../components/ui/ChineseNotice";
 import { Kicker } from "../components/ui/Kicker";
 import { buttonClass } from "../components/ui/Controls";
 import { IconArrowRight } from "../components/icons";
@@ -26,11 +26,12 @@ interface ContactSettings {
 }
 
 export async function loader({ request }: { request: Request }) {
+  const locale = localeFromPath(new URL(request.url).pathname);
   // 这两个都是装饰，读不到不能带走整页（所以不是 loadOr404）。但"读不到"和"没有"是两件事：
   // 数字的位置空着会被读成"这个站没有内容"，所以把失败单独记下来，由页面自己说明。
   const [contact, stats] = await Promise.all([
     apiGet<ContactSettings>("/api/site/contact", { signal: request.signal }).catch((): ContactSettings => ({ makerAvatar: null })),
-    apiGet<SiteStats>("/api/site/stats", { signal: request.signal }).catch(() => null),
+    apiGet<SiteStats>(withLang("/api/site/stats", locale), { signal: request.signal }).catch(() => null),
   ]);
   return { contact, stats, statsFailed: stats === null };
 }
@@ -48,7 +49,7 @@ export function meta({ location }: Route.MetaArgs) {
   });
 }
 
-const NO_SOURCES: RiverSource[] = [];
+const NO_SOURCES: SiteStats["sampleSources"] = [];
 
 /** 3.6 万 from ten thousand up, digits with separators below; English counts the same range in k（与 item.ts 字典的 wanToK 同一换算）. */
 function figure(n: number, locale: Locale): { value: string; unit: string } {
@@ -133,26 +134,27 @@ function stagesOf(stats: SiteStats | null, locale: Locale): Stage[] {
 }
 
 /** The maker's round avatar before the greeting; it steps aside if the image fails. */
-function MakerFace({ src }: { src: string }) {
+function MakerFace({ src, name }: { src: string; name: string }) {
   const [failed, setFailed] = useState(false);
   const c = copy[useLocale()];
   if (failed) return null;
-  return <img src={src} alt={c.avatarAlt(ABOUT.maker?.name ?? "")} width={48} height={48} onError={() => setFailed(true)} className="size-11 shrink-0 rounded-full bg-bg-sunk object-cover ring-1 ring-line xl:size-12" />;
+  return <img src={src} alt={c.avatarAlt(name)} width={48} height={48} onError={() => setFailed(true)} className="size-11 shrink-0 rounded-full bg-bg-sunk object-cover ring-1 ring-line xl:size-12" />;
 }
 
 /** The optional maker block (ABOUT.maker): the greeting; contact moved to the feedback page (QR codes retired 2026-10-31). */
 function Maker({ maker }: { maker: NonNullable<typeof ABOUT.maker> }) {
   const locale = useLocale();
   const c = copy[locale];
+  const name = locale === "en" ? c.makerNameEn : maker.name;
   return (
     <section aria-labelledby="maker" className="mt-20 grid gap-10 xl:mt-28 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-16">
       <div>
         <Kicker>{c.makerKicker}</Kicker>
         <h2 id="maker" className="mt-4 flex items-center gap-3.5 text-[26px] font-black leading-[1.3] tracking-[-0.02em] text-ink xl:gap-4 xl:text-[34px]">
-          <MakerFace src={publicPath("/images/maker-xinchen.jpg")} />
+          <MakerFace src={publicPath("/images/maker-xinchen.jpg")} name={name} />
           <span>
             {c.makerHi}
-            <span className="whitespace-nowrap text-accent">{maker.name}</span>
+            <span lang={locale === "zh" ? "zh-Hans" : undefined} className="whitespace-nowrap text-accent">{name}</span>
           </span>
         </h2>
         <div className="mt-5 space-y-4 text-[15.5px] leading-[1.9] text-ink-2 xl:text-[16.5px]">
@@ -181,12 +183,14 @@ function Latest({ item, className = "" }: { item: SiteStats["latest"][number] | 
   const locale = useLocale();
   const c = copy[locale];
   if (!item) return null;
+  const title = locale === "en" ? item.titleEn ?? item.title : item.title;
+  const source = locale === "en" ? item.sourceNameEn ?? item.source : item.source;
   return (
     <Link to={localeAppPath(`/items/${item.id}`, locale)} prefetch="intent" className={`group block ${className}`}>
       <span className="text-[11px] font-semibold tracking-[0.2em] text-accent">{c.latestSelected}</span>
       <span key={item.id} className="animate-fade-up mt-1.5 block">
-        <span className="line-clamp-2 text-[13.5px] font-semibold leading-[1.55] text-ink transition-colors group-hover:text-accent">{item.title}</span>
-        <span className="mt-1 block truncate text-[12px] text-ink-4">{shortSourceName(item.source)}</span>
+        <span className="line-clamp-2 text-[13.5px] font-semibold leading-[1.55] text-ink transition-colors group-hover:text-accent">{title}</span>
+        <span className="mt-1 block truncate text-[12px] text-ink-4">{shortSourceName(source)}</span>
       </span>
     </Link>
   );
@@ -199,7 +203,10 @@ export default function AboutPage() {
   const [focus, setFocus] = useState<number | null>(null);
   const [at, setAt] = useState(0);
   const shown = useRef(0);
-  const sources = useMemo(() => stats?.sampleSources ?? NO_SOURCES, [stats]);
+  const sources = useMemo(
+    () => (stats?.sampleSources ?? NO_SOURCES).map(({ name, nameEn, kind, heatOnly }): RiverSource => ({ name: locale === "en" ? nameEn ?? name : name, kind, heatOnly })),
+    [stats, locale],
+  );
   const stages = useMemo(() => stagesOf(stats, locale), [stats, locale]);
   const latest = stats?.latest ?? [];
   // A pulse reaches the paper every second or so; the headline under it changes at most every 2.8s.
@@ -238,8 +245,8 @@ export default function AboutPage() {
           </Link>
         </div>
       </header>
-      {/* 英文页的一行说明：界面已英文化，信源河带出的条目标题仍是模型写的中文。中文页渲染为空。 */}
-      <ChineseNotice className="mt-1" />
+      {/* 信源河带出的标题与信源名：有英文字段就用英文；仍有缺英文的条目时才标注。中文页永不渲染。 */}
+      {locale === "en" && stats && (stats.latest.some((i) => !i.titleEn || !i.sourceNameEn) || stats.sampleSources.some((s) => !s.nameEn)) && <MissingEnglishNotice className="mt-1" />}
 
       <section aria-labelledby="how" className="mt-10 xl:mt-14">
         <h2 id="how" className="sr-only">

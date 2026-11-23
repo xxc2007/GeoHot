@@ -17,6 +17,8 @@ import { parseArgs } from "node:util";
 import { hasChineseCopy } from "@aihot/contracts/copy";
 import { closeDb, sql } from "@aihot/backend/db";
 import { composeDaily, composeMonthly, composeWeekly, editionsAhead, reportInput, reportInputUnchanged } from "@aihot/backend/reports/compose";
+// 重排一期也会 enqueue 英文腿（reports/compose.ts:313）；不关队列，脚本跑完不退出。
+import { stopBoss } from "@aihot/backend/jobs/queue";
 
 const { values } = parseArgs({
   options: {
@@ -72,4 +74,5 @@ if (!values.apply) {
   const res = kind === "daily" ? await composeDaily(key, "copy-refresh", skipUnchanged) : kind === "weekly" ? await composeWeekly(key, "copy-refresh", skipUnchanged) : await composeMonthly(key, "copy-refresh", skipUnchanged);
   console.log(`已重排：${JSON.stringify(res)}`);
 }
+await stopBoss();
 await closeDb();

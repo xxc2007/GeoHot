@@ -25,13 +25,16 @@ function runTranslation() {
     import { translatePending } from '@aihot/backend/editorial/translate';
     import { shutdownSignal } from '@aihot/backend/jobs/queue';
     import { closeDb } from '@aihot/backend/db';
+    import { stopBoss } from '@aihot/backend/jobs/queue';
     // A deploy signal is SIGTERM; Windows cannot deliver one to a spawned child, so the test drives the
     // identical handler over IPC there. Everything after abort() is the real shutdown path either way.
     const stop = () => { shutdownSignal.abort(); process.send({ stopped: true }); };
     process.on('SIGTERM', stop);
     process.on('message', (m) => { if (m && m.deploy) stop(); });
+    // translate.ts 现在在中文译文落库后 enqueue 英文正文；pg-boss 的连接会把这个独立子进程留在
+    // 事件循环里，只关库不退。生产执行器由自身的关机流程停队列，这个子进程也要走同一步。
     try { process.send({ result: await translatePending({ limit: 1 }) }); }
-    finally { await closeDb(); process.disconnect(); }
+    finally { await stopBoss(); await closeDb(); process.disconnect(); }
   `;
   const child = spawn(process.execPath, ['--input-type=module', '-e', script], {
     cwd: process.cwd(), env: { ...process.env, MODEL_CALLS_ENABLED: 'true', TRANSLATE_MODEL: 'deepseek-flash', LLM_BASE_URL: `${provider.url}/v1`, LLM_API_KEY: 'test-key', AIHOT_CREDENTIALS_DIR: '/nonexistent-test-credentials' },

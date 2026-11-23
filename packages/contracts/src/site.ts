@@ -4,6 +4,11 @@ import type { CategoryKey, ChannelKey } from "./taxonomy.ts";
 
 export type SourceKind = "rss" | "web_list" | "json_list" | "x_search" | "mp_account" | "external";
 
+/** 站点读取语言：显式 `?lang=en`，缺省 zh。 */
+export type SiteLang = "zh" | "en";
+/** 一段读者文本的实际语言：标题与摘要都英文才是 en，任一中文/回退是 mixed。 */
+export type TextLocale = "zh" | "en" | "mixed";
+
 export interface SourceRef {
   id: string;
   name: string;
@@ -11,6 +16,8 @@ export interface SourceRef {
   firstParty: boolean;
   iconUrl: string | null;
   iconSrcSet?: string;
+  /** 信源名 `name` 实际来自哪个语言列；英文缺失而回退中文时为 zh。 */
+  nameLocale?: "zh" | "en";
 }
 
 export interface MediaView {
@@ -61,11 +68,13 @@ export interface ItemSummary {
   channel: "news" | "x";
   story: StoryRef | null;
   x: XPostView | null;
+  /** 这条卡片实际发出的是英文、中文，还是中英混合（英文缺失时的回退）。 */
+  textLocale?: TextLocale;
 }
 
 /** The fields rendered by a site feed card; full original text lives in the item detail. */
-export interface FeedItemSummary extends Pick<ItemSummary, "id" | "title" | "summary" | "reason" | "publishedAt" | "timelineAt" | "category" | "tags" | "score" | "selected" | "channel"> {
-  source: Pick<SourceRef, "name">;
+export interface FeedItemSummary extends Pick<ItemSummary, "id" | "title" | "summary" | "reason" | "publishedAt" | "timelineAt" | "category" | "tags" | "score" | "selected" | "channel" | "textLocale"> {
+  source: Pick<SourceRef, "name" | "nameLocale">;
   /**
    * The source's own headline as collected — English for most international sources, the original
    * wording when the model paraphrased or translated it into the Chinese `title`. Null when the
@@ -121,6 +130,7 @@ export interface HotStripEntry {
   itemId: string | null;
   participants: HotParticipant[];
   participantCount: number;
+  textLocale?: TextLocale;
 }
 
 export interface TimelineFilters {
@@ -128,6 +138,8 @@ export interface TimelineFilters {
   category: CategoryKey | null;
   tag: string | null;
   topic?: string | null;
+  /** 读取语言；缺省按 zh。 */
+  lang?: SiteLang;
 }
 
 export interface TimelineResponse {
@@ -141,6 +153,8 @@ export interface TimelineResponse {
   hotAsOf: string | null;
   dayCounts: Record<string, number>;
   generatedAt: string;
+  /** 实际读取语言（显式 `?lang=en`，缺省 zh）。 */
+  lang?: SiteLang;
 }
 
 export interface PoolResponse {
@@ -152,6 +166,7 @@ export interface PoolResponse {
   todayCount: number;
   freshness: string;
   generatedAt: string;
+  lang?: SiteLang;
 }
 
 export interface OutlineEntry {
@@ -178,6 +193,8 @@ export interface ItemDetail extends ItemSummary {
    */
   body: {
     zh: string | null; original: string | null; zhKind: "translation" | "original" | null; complete: boolean;
+    /** 当前 revision 的英文正文（`translations.lang='en'`）；源文本身是英文时英文在 `original`。 */
+    en?: string | null;
     truncated?: boolean; shownChars?: number; totalChars?: number;
   } | null;
   outline: OutlineEntry[];
@@ -208,6 +225,8 @@ export interface GroupReport {
   timelineAt: string;
   originalUrl: string;
   selected: boolean;
+  /** 标题/摘要/信源名实际发出的语言。 */
+  textLocale?: TextLocale;
 }
 
 export interface GroupReportsResponse {
@@ -215,6 +234,7 @@ export interface GroupReportsResponse {
   revision: string;
   reports: GroupReport[];
   nextCursor: string | null;
+  lang?: SiteLang;
 }
 
 export interface Development {
@@ -223,6 +243,7 @@ export interface Development {
   occurredAt: string | null;
   representative: ItemSummary;
   reportCount: number;
+  textLocale?: TextLocale;
 }
 
 export interface DevelopmentsResponse {
@@ -230,6 +251,7 @@ export interface DevelopmentsResponse {
   revision: string;
   developments: Development[];
   nextCursor: string | null;
+  lang?: SiteLang;
 }
 
 // ---------------------------------------------------------------------------
@@ -242,6 +264,8 @@ export interface HotParticipant {
   /** The source's icon, or for an X account its latest collected avatar (proxied). */
   iconUrl: string | null;
   iconSrcSet?: string;
+  /** 英文信源名；旧快照没有英文时缺省，`name` 保持中文回退。 */
+  nameEn?: string;
 }
 
 
@@ -257,6 +281,8 @@ export interface HotEntryView {
   signalCount: number;
   reportCount: number;
   sourceNames: string[];
+  /** 英文信源名，按 `sourceNames` 顺序；`lang=en` 时 `sourceNames` 也按它投影。 */
+  sourceNamesEn?: string[];
   latestAt: string;
   firstReportAt: string;
   representative: { id: string; url: string; sourceName: string } | null;
@@ -269,6 +295,8 @@ export interface HotEntryView {
   latest: string | null;
   /** A picture from the story's public reports (the representative first), for the leading cards. */
   cover: { url: string; srcSet?: string; width: number | null; height: number | null } | null;
+  /** 标题/摘要/最新进展实际发出的语言。 */
+  textLocale?: TextLocale;
 }
 
 export interface HotResponse {
@@ -276,6 +304,7 @@ export interface HotResponse {
   ruleVersion: string | null;
   windowHours: number;
   entries: HotEntryView[];
+  lang?: SiteLang;
 }
 
 export interface HeatPoint {
@@ -293,6 +322,7 @@ export interface StoryReportView {
   originalUrl: string;
   selected: boolean;
   factId: string;
+  textLocale?: TextLocale;
 }
 
 export interface StoryFactView {
@@ -302,11 +332,14 @@ export interface StoryFactView {
   firstReportAt: string;
   reportCount: number;
   representative: StoryReportView;
+  textLocale?: TextLocale;
 }
 
 export interface StoryDetail {
   publicId: string;
   title: string;
+  textLocale?: TextLocale;
+  lang?: SiteLang;
   /**
    * Whether this page makes a promise a crawler can keep: the event's own title is Chinese, i.e. someone
    * wrote this event up. An event whose title is still the source's original language keeps its page (the
@@ -366,6 +399,8 @@ export interface ReportCitation {
   unavailableReason?: "withdrawn" | "source-restricted" | "workflow-pending" | "not-public";
   /** False for preserved citations with no reader-facing item page; link to sourceUrl instead. */
   hasPage?: boolean;
+  /** 这条引用实际发出的标题/摘要/来源名是英文、中文还是混合。 */
+  textLocale?: TextLocale;
 }
 
 export interface ReportDetail {
@@ -401,6 +436,9 @@ export interface ReportDetail {
   readingMinutes: number;
   prev: string | null;
   next: string | null;
+  /** 刊面散文实际发出的语言。 */
+  textLocale?: TextLocale;
+  lang?: SiteLang;
 }
 
 export interface ReportIndexEntry {
@@ -411,6 +449,7 @@ export interface ReportIndexEntry {
   /** 「第 N 期」: stamped at publication (`reports.issue_no`). Null for a blank issue — one with no
    *  citations never consumed a number — and for a row composed before the column existed. */
   no: number | null;
+  textLocale?: TextLocale;
 }
 
 /** Figures and samples for the about page (site-only; not part of v1). */
@@ -428,16 +467,18 @@ export interface SiteStats {
   /** The last 24 hours: items found (heat-only sources included), and items that made 精选 (by their place on the timeline). */
   day: { collected: number; selected: number };
   /** Enabled sources in a daily shuffle, for the about page's river: one line per source. */
-  sampleSources: Array<{ name: string; kind: string; heatOnly: boolean }>;
+  sampleSources: Array<{ name: string; kind: string; heatOnly: boolean; nameEn?: string }>;
   /** The latest 精选, newest first. */
-  latest: Array<{ id: string; title: string; source: string }>;
+  latest: Array<{ id: string; title: string; source: string; titleEn?: string; sourceNameEn?: string }>;
+  lang?: SiteLang;
 }
 
 /** A reading page transfers one language; the canonical item retains both for exports. */
 export interface SiteItemDetail extends Omit<ItemDetail, "x"> {
   x: Omit<XPostView, "text" | "translation"> | null;
   hasTranslation: boolean;
-  bodyLanguage: "zh" | "original";
+  bodyLanguage: "zh" | "en" | "original";
+  lang?: SiteLang;
 }
 
 export interface StoryFollowup {

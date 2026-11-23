@@ -12,6 +12,7 @@ import { FEATURES } from "@aihot/industry/features";
 import { config } from "@aihot/backend/config";
 import { ogEtag, renderOg, type OgCard } from "../og/render.ts";
 import { posterEtag, renderPoster, type Poster } from "../og/poster.ts";
+import { looseQuery } from "../http/respond.ts";
 
 const S = SITE.subject;
 const PAGES: Record<string, OgCard> = {
@@ -31,6 +32,29 @@ const PAGES: Record<string, OgCard> = {
   feedback: { kicker: "反馈", title: "告诉我们哪里可以更好", subtitle: "内容、功能、接入，或来源方的更正与下架请求。" },
   agent: { kicker: "Agent 接入", title: `让 Agent 直接使用 ${SITE.name}`, subtitle: "MCP、RSS 与 REST API v1，匿名只读。" },
 };
+
+/** `/en` 静态分享卡的英文文案；业务内容卡（条目/刊/主题/事件）由读取层按 lang 投影。 */
+const PAGES_EN: Record<string, OgCard> = {
+  site: { kicker: SITE.name, title: "Geography news worth watching", subtitle: "Watched sources, events grouped, daily briefs written up." },
+  all: { kicker: "All updates", title: "Every watched source in one timeline", subtitle: "Newest first, filterable by category and tag." },
+  hot: { kicker: "Hot board", title: "What people discussed in the past 48 hours", subtitle: "Heat index, trend, and the public sources behind it.", accent: "hot" },
+  daily: { kicker: "Daily", title: "One brief, every morning at 08:00", subtitle: "The geography stories worth reading from the day before." },
+  weekly: { kicker: "Weekly", title: "A week in one read", subtitle: "The week's main line, major releases and discussions worth revisiting." },
+  monthly: { kicker: "Monthly", title: "A month of change", subtitle: "Monthly main lines and key events reviewed." },
+  topics: { kicker: "Topics", title: "Directions worth following", subtitle: "Grouped by region and institution, field, and format." },
+  leaderboard: { kicker: `${SITE.name} leaderboard`, title: "Consensus rankings across public evaluations", subtitle: "Overall, coding, reasoning, knowledge and professional work; missing tests are never zero-filled." },
+  "codex-reset": { kicker: "Tibo reset monitor", title: "When the Codex quota reset lands", subtitle: "The estimated window, scope, and Tibo's own words.", accent: "amber" },
+  about: { kicker: "About", title: `About ${SITE.name}`, subtitle: "A geography news aggregator: watched sources, scored events, daily briefs." },
+  terms: { kicker: "Terms", title: `${SITE.name} terms of use`, subtitle: "Scope of the website, API, RSS and MCP." },
+  privacy: { kicker: "Privacy", title: `${SITE.name} privacy notice`, subtitle: "How access logs, browser-local data and feedback are handled." },
+  changelog: { kicker: "Changelog", title: `${SITE.name} changelog`, subtitle: "Features, fixes, announcements and removals." },
+  feedback: { kicker: "Feedback", title: "Tell us what could be better", subtitle: "Content, features, access, or a source's correction or takedown request." },
+  agent: { kicker: "Agent access", title: `Use ${SITE.name} from an agent`, subtitle: "MCP, RSS and REST API v1; anonymous and read-only." },
+};
+
+function langOf(req: FastifyRequest): "zh" | "en" {
+  return looseQuery(req).lang === "en" ? "en" : "zh";
+}
 
 /**
  * Cards that carry editorial text — an article's title and summary, an event's heading and latest
@@ -67,12 +91,13 @@ function notFound(reply: FastifyReply) {
 const REPORT_NAMES: Record<ReportKind, string> = { daily: withSubject("日报"), weekly: withSubject("周报"), monthly: withSubject("月报") };
 
 export function registerOg(app: FastifyInstance) {
-  app.get("/og/site.png", (req, reply) => send(req, reply, PAGES.site!, STATIC_IMAGE_CACHE));
+  app.get("/og/site.png", (req, reply) => send(req, reply, (langOf(req) === "en" ? PAGES_EN : PAGES).site!, STATIC_IMAGE_CACHE));
 
   app.get("/og/pages/:file", async (req, reply) => {
     const name = (req.params as { file: string }).file.replace(/\.png$/, "");
     // `PAGES["__proto__"]` 命中的是 Object.prototype（truthy），旧守卫会放它进渲染器再抛 TypeError。
-    const card = Object.hasOwn(PAGES, name) ? PAGES[name] : undefined;
+    const source = langOf(req) === "en" ? PAGES_EN : PAGES;
+    const card = Object.hasOwn(source, name) ? source[name] : undefined;
     if ((name === "leaderboard" && !FEATURES.leaderboard) || (name === "codex-reset" && !FEATURES.codexResetMonitor)) return notFound(reply);
     if (!card || typeof card.title !== "string" || !(req.params as { file: string }).file.endsWith(".png")) return notFound(reply);
     return send(req, reply, card, STATIC_IMAGE_CACHE);
@@ -81,15 +106,16 @@ export function registerOg(app: FastifyInstance) {
   app.get("/og/items/:file", async (req, reply) => {
     const file = (req.params as { file: string }).file;
     if (!file.endsWith(".png")) return notFound(reply);
-    const d = await loadItemShare(file.slice(0, -4));
+    const lang = langOf(req);
+    const d = await loadItemShare(file.slice(0, -4), new Date(), lang);
     if (!d) return notFound(reply);
     reply.header("X-Accel-Expires", ARTICLE_IMAGE_ORIGIN_SECONDS);
     return send(req, reply, {
-      kicker: d.category ? CATEGORY_LABELS[d.category] : withSubject("动态"),
+      kicker: d.category ? CATEGORY_LABELS[d.category] : (lang === "en" ? "Update" : withSubject("动态")),
       title: d.title,
       subtitle: d.summary,
       meta: `${d.source.name.replace(/（[^）]*）\s*$/, "")} · ${beijingDate(d.timelineAt)}`,
-      badge: d.selected && d.score !== null ? { value: String(Math.round(d.score)), label: "精选评分" } : null,
+      badge: d.selected && d.score !== null ? { value: String(Math.round(d.score)), label: lang === "en" ? "Selected" : "精选评分" } : null,
     }, EDITORIAL_IMAGE_CACHE);
   });
 
@@ -97,11 +123,12 @@ export function registerOg(app: FastifyInstance) {
   app.get("/og/posters/:file", async (req, reply) => {
     const file = (req.params as { file: string }).file;
     if (!file.endsWith(".png")) return notFound(reply);
-    const d = await loadItemShare(file.slice(0, -4));
+    const lang = langOf(req);
+    const d = await loadItemShare(file.slice(0, -4), new Date(), lang);
     if (!d) return notFound(reply);
     const poster: Poster = {
       url: `${config.siteUrl}/items/${d.id}`,
-      kicker: d.category ? CATEGORY_LABELS[d.category] : withSubject("动态"),
+      kicker: d.category ? CATEGORY_LABELS[d.category] : (lang === "en" ? "Update" : withSubject("动态")),
       title: d.title,
       summary: d.summary,
       source: d.source.name.replace(/（[^）]*）\s*$/, ""),
@@ -117,13 +144,19 @@ export function registerOg(app: FastifyInstance) {
   app.get("/og/reports/:kind/:file", async (req, reply) => {
     const { kind, file } = req.params as { kind: string; file: string };
     if (!["daily", "weekly", "monthly"].includes(kind) || !file.endsWith(".png")) return notFound(reply);
-    const r = await loadReport(kind as ReportKind, file.slice(0, -4));
+    const lang = langOf(req);
+    const r = await loadReport(kind as ReportKind, file.slice(0, -4), lang);
     if (!r) return notFound(reply);
+    const names = lang === "en"
+      ? { daily: "Daily", weekly: "Weekly", monthly: "Monthly" }
+      : REPORT_NAMES;
     return send(req, reply, {
-      kicker: `${REPORT_NAMES[r.kind]} · ${r.key}`,
+      kicker: `${names[r.kind]} · ${r.key}`,
       title: r.lead?.title ?? r.title,
       subtitle: r.lead?.leadParagraph ?? r.overview,
-      meta: `${r.stories.length} 件大事${r.readingMinutes > 0 ? ` · 约 ${r.readingMinutes} 分钟读完` : ""}`,
+      meta: lang === "en"
+        ? `${r.stories.length} ${r.stories.length === 1 ? "story" : "stories"}${r.readingMinutes > 0 ? ` · about ${r.readingMinutes} min read` : ""}`
+        : `${r.stories.length} 件大事${r.readingMinutes > 0 ? ` · 约 ${r.readingMinutes} 分钟读完` : ""}`,
     }, EDITORIAL_IMAGE_CACHE);
   });
 
@@ -131,7 +164,12 @@ export function registerOg(app: FastifyInstance) {
     const file = (req.params as { file: string }).file;
     const t = file.endsWith(".png") ? await loadTopic(file.slice(0, -4)) : null;
     if (!t) return notFound(reply);
-    return send(req, reply, { kicker: "主题", title: t.name, subtitle: t.definition }, STATIC_IMAGE_CACHE);
+    const lang = langOf(req);
+    return send(req, reply, {
+      kicker: lang === "en" ? "Topic" : "主题",
+      title: lang === "en" && t.name_en?.trim() ? t.name_en : t.name,
+      subtitle: lang === "en" && t.definition_en?.trim() ? t.definition_en : t.definition,
+    }, STATIC_IMAGE_CACHE);
   });
 
   app.get("/og/stories/:file", async (req, reply) => {
@@ -139,13 +177,14 @@ export function registerOg(app: FastifyInstance) {
     if (!file.endsWith(".png")) return notFound(reply);
     const found = await resolveStory(file.slice(0, -4));
     if (found.kind !== "found") return notFound(reply);
-    const s = await loadStoryDetail(found.storyId);
+    const lang = langOf(req);
+    const s = await loadStoryDetail(found.storyId, new Date(), lang);
     if (!s) return notFound(reply);
     return send(req, reply, {
-      kicker: s.whyHot.rank ? `热点第 ${s.whyHot.rank} · 事件` : "事件",
+      kicker: s.whyHot.rank ? (lang === "en" ? `Hot #${s.whyHot.rank} · Event` : `热点第 ${s.whyHot.rank} · 事件`) : (lang === "en" ? "Event" : "事件"),
       title: s.title,
       subtitle: s.latest ?? s.digest,
-      meta: `${s.sourceCount} 个来源 · ${s.reportCount} 篇报道`,
+      meta: lang === "en" ? `${s.sourceCount} sources · ${s.reportCount} reports` : `${s.sourceCount} 个来源 · ${s.reportCount} 篇报道`,
       accent: s.whyHot.rank ? "hot" : "teal",
     }, EDITORIAL_IMAGE_CACHE);
   });

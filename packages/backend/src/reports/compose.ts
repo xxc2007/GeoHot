@@ -23,7 +23,7 @@ import { addDays, beijingDate, beijingMidnight, isoWeekLabel, isoWeekRange } fro
 import { sql, type Tx } from "../db.ts";
 import { chatJson, ModelOutputError } from "../providers/llm.ts";
 import { completeReceipt } from "../providers/receipts.ts";
-import { shutdownSignal } from "../jobs/queue.ts";
+import { enqueue, QUEUES, shutdownSignal } from "../jobs/queue.ts";
 import { chineseCopyCondition } from "../publication/items.ts";
 import { workflowReadyCondition } from "../publication/readiness.ts";
 import { sha256, stableJson } from "../lib/ids.ts";
@@ -309,6 +309,8 @@ async function saveReport(kind: "daily" | "weekly" | "monthly", key: string, sta
                VALUES (${kind}, ${key}, ${start}, ${end}, ${tx.json(content as never)}, now(), ${model}, 'model', ${no})`;
     }
   });
+  // 成刊提交后排英文版：写时引用快照冻结在 content_en.citations 里，读时不再按 publications.title_en 投影。
+  await enqueue(QUEUES.english, { kind: "report", reportKind: kind, key }, { singletonKey: `en-report:${kind}:${key}` });
 }
 
 /** The window a daily for `date` gathers: [D-1 08:00, D 08:00) Beijing, closed at D 08:00. */

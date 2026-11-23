@@ -8,6 +8,7 @@ import { FEATURES } from "@aihot/industry/features";
 import { isCollectEnabled } from "@aihot/backend/config";
 import { ensureQueue, recordRun } from "@aihot/backend/jobs/queue";
 import { ageStaleLiveJobs, sweepUnprocessed } from "@aihot/backend/jobs/content";
+import { sweepEnglish } from "@aihot/backend/jobs/english";
 import { translatePending } from "@aihot/backend/editorial/translate";
 import { adaptIntervals, scheduleBatchLimit, scheduleDueSources } from "@aihot/backend/sources/collect";
 import { maintainReserves } from "@aihot/backend/sources/reserves";
@@ -66,6 +67,9 @@ export const SCHEDULES: Scheduled[] = [
   // 而旧节拍（每 3 分钟 8 篇）在资源宽裕时也只有 160 篇/小时的上限。宽裕时提到每 2 分钟 24 篇，
   // 紧张时仍退回原来的 8 篇——闸门不变，只是不把「机器闲着」也当成紧张。
   { name: "content.translate", cron: "*/2 * * * *", expire: 300, run: () => translatePending(balancedResources() ? { limit: 24, budgetMs: 110_000, deadlineAt: Date.now() + 120_000 } : { limit: 8, budgetMs: 150_000, deadlineAt: Date.now() + 180_000 }) },
+  // 英文腿的兜底：只入队、不调模型。五组有界查询各取 40 条（条目、正文、事件、事实标题、报刊），
+  // 覆盖补选、旧稿、失败重试与新进展 fact；真正花钱的是 content.english 队列，它默认 0 并发。
+  { name: "content.english-sweep", cron: "*/10 * * * *", expire: 300, run: () => sweepEnglish() },
   { name: "hot.rank", cron: "*/5 * * * *", expire: 300, run: () => computeHotRanking() },
   // 就绪行自愈：缺行的公开文章对读者永远不可见，而且页面上看不出异常（2026-11-07 丢了 404 篇）。
   // 每十分钟挑最新 40 篇重算一次，幂等、只写事实表、不发模型调用。

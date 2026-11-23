@@ -9,7 +9,7 @@ import { localeAppPath, localeFromPath, useLocale } from "../lib/i18n";
 import { copy } from "../lib/i18n/pages/changelog";
 import { setChangelogSeen } from "../lib/local-state";
 import { AsideCard, ReadingLayout } from "../components/ui/Page";
-import { ChineseNotice } from "../components/ui/ChineseNotice";
+import { MissingEnglishNotice } from "../components/ui/ChineseNotice";
 import { IconChevronRight } from "../components/icons";
 import { Inline } from "../features/changelog/text";
 import { MajorRelease } from "../features/changelog/MajorRelease";
@@ -30,6 +30,8 @@ interface Release {
   kind: string;
   title: string;
   body: string[];
+  /** 英文版标题与正文（可选）；/en 有就用，缺了回退中文并由页面标注。 */
+  en?: { title: string; body: string[] };
   major?: boolean;
   /** 按发布顺序编号的站点版本（2.0.0 = 2026-10-24 重大更新），API 层注入。 */
   version?: string;
@@ -179,8 +181,8 @@ export default function ChangelogPage() {
         <h1 className="text-[26px] font-bold leading-[1.3] text-ink">{c.headline}</h1>
         <p className="mt-2 text-[14px] text-ink-3">{c.intro}</p>
       </header>
-      {/* 英文页的一行说明：时间线里的更新标题、正文与专题卡仍是中文。中文页渲染为空。 */}
-      <ChineseNotice className="mt-1" />
+      {/* 更新条目有英文版时渲染英文；只有缺英文的条目回退中文时才标注。中文页永不渲染。 */}
+      {data.releases.some((r) => !r.en) && <MissingEnglishNotice className="mt-1" />}
       {/* 三个大版本的专题卡，固定 3.0 → 2.0 → 1.0（最新在最前）：3.0/2.0 来自 changelog 的
           major 条目（groups 本就按日期倒序），1.0 是建站回顾、时代开启点在站内首条，固定排最后。 */}
       {majors.map((major) => <div key={`${major.date}-${major.time}`} className="mb-6 scroll-mt-6"><MajorRelease date={major.date} time={major.time} /></div>)}
@@ -221,10 +223,10 @@ export default function ChangelogPage() {
                     </div>
                     <article className="min-w-0 sm:border-l sm:border-line sm:pl-8">
                       <h3 className="text-[16px] font-bold leading-[1.5] text-ink sm:text-[17px]">
-                        {r.title}
+                        {locale === "en" && r.en ? r.en.title : r.title}
                         {r.version && <span className="mono ml-2 align-middle text-[12px] font-normal text-ink-4">v{r.version}</span>}
                       </h3>
-                      <ReleaseBody lines={r.body} />
+                      <ReleaseBody lines={locale === "en" && r.en ? r.en.body : r.body} />
                     </article>
                   </li>
                 ))}
