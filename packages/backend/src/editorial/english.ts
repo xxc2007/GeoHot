@@ -412,15 +412,14 @@ async function recordEnglishAttempt(
   sourceRevision: string,
   outcome: EnglishAttemptOutcome,
   reason: string,
-  partial = false,
+  countAttempt = false,
   db = sql,
 ): Promise<void> {
   await db`
-    INSERT INTO english_attempts (kind, subject, source_revision, attempts, partial_attempts, outcome, reason, updated_at)
-    VALUES (${kind}, ${subject}, ${sourceRevision}, ${outcome === "failed" ? 1 : 0}, ${partial ? 1 : 0}, ${outcome}, ${reason.slice(0, 300)}, now())
+    INSERT INTO english_attempts (kind, subject, source_revision, attempts, outcome, reason, updated_at)
+    VALUES (${kind}, ${subject}, ${sourceRevision}, ${outcome === "failed" || countAttempt ? 1 : 0}, ${outcome}, ${reason.slice(0, 300)}, now())
     ON CONFLICT (kind, subject, source_revision) DO UPDATE SET
-      attempts = english_attempts.attempts + CASE WHEN EXCLUDED.outcome = 'failed' THEN 1 ELSE 0 END,
-      partial_attempts = english_attempts.partial_attempts + CASE WHEN ${partial} THEN 1 ELSE 0 END,
+      attempts = english_attempts.attempts + CASE WHEN EXCLUDED.outcome = 'failed' OR ${countAttempt} THEN 1 ELSE 0 END,
       outcome = EXCLUDED.outcome, reason = EXCLUDED.reason, updated_at = now()`;
 }
 
@@ -795,16 +794,16 @@ export async function translateArticleBodyEn(articleId: string): Promise<English
   if (written === "stale") {
     // 旧 revision 的答复不能留着复用：下一次同名请求会读到它，却和新正文对不上。
     await rejectReceivedResponse(receiptId, "article revision changed before the English body was stored");
-    await recordEnglishAttempt("body", articleId, revision, "stale", "article-revision-changed");
+    await recordEnglishAttempt("body", articleId, revision, "stale", "article-revision-changed", true);
     return { outcome: "stale", reason: "article-revision-changed" };
   }
   const reason = complete
     ? "stored"
     : `partial: ${translated} of ${missing.length} blocks${problem ? ` (answer refused: ${problem})` : ""}`;
   if (!complete) await rejectReceivedResponse(receiptId, reason);
-  // 分批没写完记 stale，不记 failed：failed 会消耗 attempts，长文（>3 批）永远到不了 complete；
-  // stale 另记 partial_attempts（见 0132），sweep 按一个宽上限停排——块结构对不上时 priorBlocks
-  // 会整篇重排，若不设上限就会每 10 分钟重复付费。
+  // 分批没写完记 stale，不记 failed：failed 会消耗 attempts，长文（>3 批）永远到不了 complete。
+  // 但每次部分成功也计一次 body 尝试（countAttempt=true），sweep 用 body 自己的上限停排——
+  // 块结构对不上时 priorBlocks 会整篇重排，不计 attempts 就会每 10 分钟重复付费。
   await recordEnglishAttempt("body", articleId, revision, complete ? "translated" : "stale", reason, !complete);
   return { outcome: complete ? "translated" : "stale", reason, receiptId };
 }

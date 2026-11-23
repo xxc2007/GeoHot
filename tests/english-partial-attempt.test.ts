@@ -1,5 +1,6 @@
-// 正文分批翻译“部分成功”要记 partial_attempts（迁移 0132）：条数对、有一块坏答案时仍然只丢
-// 那一块，但整篇没完成必须以 stale 记一笔 partial，sweep 才能按上限停排，而不是每 10 分钟无限重试。
+// 正文分批翻译“部分成功”也要消耗尝试预算：条数对、有一块坏答案时仍然只丢那一块，但整篇没完成
+// 必须以 stale 记一次 attempts，sweep 才能按 MAX_BODY_ATTEMPTS 停排，而不是每 10 分钟无限重试。
+// （不新增列，CI 只跑已跟踪的迁移，这条路径必须只依赖 0129 的既有 attempts 列。）
 import { purgeTagged, stub, tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
@@ -46,7 +47,7 @@ after(async () => {
   await closeDb();
 });
 
-test("一块坏答案只丢自己，整篇未完成记 stale 并累加 partial_attempts", async () => {
+test("一块坏答案只丢自己，整篇未完成记 stale 并消耗一次正文尝试", async () => {
   const material = await upsertMaterial({
     sourceId: SOURCE,
     url: `https://example.org/${T}/partial`,
@@ -65,10 +66,9 @@ test("一块坏答案只丢自己，整篇未完成记 stale 并累加 partial_a
   assert.equal(result.outcome, "stale", `部分成功应记 stale，实际：${result.outcome} / ${result.reason}`);
   assert.match(result.reason ?? "", /partial: 1 of 2 blocks/);
 
-  const [attempt] = await sql<{ attempts: number; partial_attempts: number; outcome: string }[]>`
-    SELECT attempts, partial_attempts, outcome FROM english_attempts WHERE kind = 'body' AND subject = ${articleId}`;
+  const [attempt] = await sql<{ attempts: number; outcome: string }[]>`
+    SELECT attempts, outcome FROM english_attempts WHERE kind = 'body' AND subject = ${articleId}`;
   assert.ok(attempt, "应留下一条正文翻译记账");
   assert.equal(attempt.outcome, "stale");
-  assert.equal(attempt.attempts, 0, "stale 不应消耗 failed 的 3 次预算");
-  assert.equal(attempt.partial_attempts, 1, "部分成功要单独计数");
+  assert.equal(attempt.attempts, 1, "部分成功也要消耗一次正文尝试，否则 sweep 永远重排");
 });

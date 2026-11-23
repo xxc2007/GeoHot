@@ -1,5 +1,5 @@
 // Seeds a fresh site from the industry pack: the topics (industry/topics.json, updated in place), the
-// demo sources (industry/sources.json, only the ones not there yet, so admin edits are never undone) and,
+// demo sources (industry/sources.json, including each row's `nameEn`, only the ones not there yet, so admin edits are never undone) and,
 // with the leaderboard on, its model directory (only models and names not there yet).
 // Re-runnable:  node --env-file=.env scripts/seed.ts   (--topics-only: just the topics, as the tests use)
 import { readFileSync } from "node:fs";
@@ -16,6 +16,8 @@ import { registryChange } from "@aihot/backend/sources/registry";
 interface SeedSource {
   id: string;
   name: string;
+  /** English display name from the pack; `/en` falls back to the host when this is missing. */
+  nameEn?: string;
   kind: "rss" | "web_list" | "json_list" | "x_search" | "mp_account" | "external";
   config: Record<string, unknown>;
   tier?: string;
@@ -50,8 +52,8 @@ for (const s of sources) {
   if ((await tx`SELECT 1 FROM source_retirements WHERE source_id=${s.id}`).length || (capacity?.target_total != null && capacity.actual >= capacity.target_total)) return [];
   const enabled = policy.target_enabled === null && (s.enabled ?? true);
   const result = await tx`
-    INSERT INTO sources (id, name, kind, config, tier, first_party, owner_entity_id, participation_mode, interval_minutes, tags, site_fulltext, syndicate_fulltext, enabled, next_fetch_at, default_category)
-    VALUES (${s.id}, ${s.name}, ${s.kind}, ${tx.json(s.config as never)}, ${s.tier ?? "T2"}, ${s.first_party ?? false}, ${s.owner_entity_id ?? null},
+    INSERT INTO sources (id, name, name_en, kind, config, tier, first_party, owner_entity_id, participation_mode, interval_minutes, tags, site_fulltext, syndicate_fulltext, enabled, next_fetch_at, default_category)
+    VALUES (${s.id}, ${s.name}, ${s.nameEn?.trim() || null}, ${s.kind}, ${tx.json(s.config as never)}, ${s.tier ?? "T2"}, ${s.first_party ?? false}, ${s.owner_entity_id ?? null},
             ${s.participation_mode ?? "editorial"}, ${s.interval_minutes ?? 60}, ${s.tags ?? []}, ${s.site_fulltext ?? false}, ${s.syndicate_fulltext ?? false},
             ${enabled}, now(), ${s.defaultCategory ?? null})
     ON CONFLICT (id) DO NOTHING RETURNING id`;

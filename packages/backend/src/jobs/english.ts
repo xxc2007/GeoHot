@@ -34,13 +34,14 @@ export type EnglishJob =
 /** 队列积压上限：没有英文节点消费时，sweep 不能无限往队里堆作业。 */
 const MAX_ENGLISH_BACKLOG = 2_000;
 const SWEEP_LIMIT = 40;
-/** 失败答案最多重排几次；正文的“部分成功”（stale + 已写入若干块）另按 {@link MAX_PARTIAL_SWEEPS} 计。 */
+/** 失败答案最多重排几次；正文另有自己的尝试上限（见 {@link MAX_BODY_ATTEMPTS}）。 */
 const MAX_SWEEP_ATTEMPTS = 3;
 /**
- * 正文没译完但每轮都有块落库时的上限。60k 正文按 6k/批最少 10 轮；30 轮给模型异常留 3 倍余量。
- * 超过就停排：块结构对不上时 priorBlocks 会让整篇重新进 missing，不设上限等于无限付费重试。
+ * 正文的尝试上限：60k 正文按 6k/批最少 10 轮，部分成功每轮也计一次 attempts；30 轮给模型异常
+ * 留 3 倍余量。达到上限就停排——块结构对不上时 priorBlocks 会让整篇重新进 missing，不设上限
+ * 等于每 10 分钟无限付费重试。正文的 failed 与 stale 共用这个预算，其余 kind 仍是 3 次。
  */
-const MAX_PARTIAL_SWEEPS = 30;
+const MAX_BODY_ATTEMPTS = 30;
 
 async function run(job: EnglishJob): Promise<EnglishWriteResult> {
   switch (job.kind) {
@@ -119,8 +120,8 @@ export async function sweepEnglish(): Promise<SweepReport> {
      WHERE p.visibility = 'public' AND p.body_mode = 'full'
        AND (tr.article_id IS NULL OR tr.complete IS NOT TRUE)
        AND (ea.outcome IS NULL
-         OR (ea.outcome = 'stale' AND ea.partial_attempts < ${MAX_PARTIAL_SWEEPS})
-         OR (ea.outcome = 'failed' AND ea.attempts < ${MAX_SWEEP_ATTEMPTS}))
+         OR (ea.outcome = 'stale' AND ea.attempts < ${MAX_BODY_ATTEMPTS})
+         OR (ea.outcome = 'failed' AND ea.attempts < ${MAX_BODY_ATTEMPTS}))
      ORDER BY p.timeline_at DESC, a.id
      LIMIT ${SWEEP_LIMIT}`;
   for (const row of bodies) {
