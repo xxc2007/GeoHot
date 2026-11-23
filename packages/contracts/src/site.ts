@@ -39,8 +39,11 @@ export interface XPostView {
   avatarSrcSet?: string;
   text: string;
   translation: string | null;
-  /** translation: Chinese translation of the quoted post, when it is in another language. */
-  quoted: { authorName: string; handle: string; text: string; url: string; translation: string | null } | null;
+  /**
+   * translation: 被引用帖的译文，与原文不同才给。`translationLocale` 说明它的实际语言：
+   * `/en` 优先 `quote_translations_en`，缺英文改用中文译文时标记为 `zh`（回退，不是英文）。
+   */
+  quoted: { authorName: string; handle: string; text: string; url: string; translation: string | null; translationLocale?: "zh" | "en" } | null;
   media: MediaView[];
 }
 

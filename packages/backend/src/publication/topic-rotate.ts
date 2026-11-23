@@ -39,7 +39,10 @@ export async function rotateTopics(now = new Date()): Promise<RotationResult> {
         FROM publication_topics pt JOIN listed l ON l.article_id = pt.article_id
       UNION ALL
       SELECT t.slug, l.article_id, l.timeline_at
-        FROM topics t JOIN listed l ON l.tags && t.tags
+        FROM topics t JOIN listed l
+          ON l.tags && (CASE WHEN t.entity_id IS NOT NULL
+               THEN ARRAY['entity:' || t.entity_id] || coalesce(t.org_names, ARRAY[]::text[])
+               ELSE t.tags END)
     ), counted AS (
       SELECT slug, count(DISTINCT article_id)::int AS recent FROM matched GROUP BY slug
     )

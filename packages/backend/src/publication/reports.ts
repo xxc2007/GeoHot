@@ -47,16 +47,42 @@ function englishContentOf(r: { content_en: ReportEnglishContent | null; revision
 }
 
 /**
- * 一整期在 `/en` 上是不是真的英文：散文覆盖层在，且写时引用快照的标题/摘要都没有汉字。
- * `listReports` 的索引、前后导航与 latest 都走这一条；否则侧栏会列出一期点进去仍是中文的报纸。
+ * 一整期在 `/en` 上是不是真的英文：散文覆盖层在，且版面上每一条引用都印着英文。
+ * `listReports` 的索引、前后导航与 latest 都走这一条；`loadReport` 用同一对判据回答详情门，
+ * 索引先列出一期点进去又是 404 的口径从此只有一处（2026-11-23 独立审查）。
  */
-function englishReportReady(en: ReportEnglishContent | null): boolean {
+function englishReportReady(kind: ReportKind, content: Record<string, any>, en: ReportEnglishContent | null): boolean {
   if (!en) return false;
-  // 与 `loadReport` 的 `proseEnglish` 同一条：daily 的 sections 标签不算散文，lead 被身份守卫删掉时
-  // 这一期就不该被索引先列出来（2026-11-23 独立审查）。
-  const prose = !!(en.lead || en.headline?.trim() || en.overview?.trim());
-  const citations = en.citations ?? [];
-  return prose && citations.length > 0 && citations.every((c) => (c.title ?? "").trim() !== "" && !hasChineseCopy(c.title) && (!c.summary || !hasChineseCopy(c.summary)));
+  // 与 `loadReport` 的 `proseEnglish` 逐字同一条：daily 的 sections 标签不算散文，lead 被身份守卫
+  // 删掉时这一期就不该被索引先列出来；周/月报的大标题与总述同理。
+  const lead = content.lead ? en.lead ?? null : null;
+  const headline = kind === "daily" ? null : (en.headline?.trim() ? en.headline : null);
+  const overview = en.overview?.trim() ? en.overview : null;
+  if (!lead && !headline && !overview) return false;
+  const snaps = snapshotMap(en);
+  // 引用快照必须覆盖版面上印出来的全部条目（日报含快讯）；旧刊少一条快照就按「还没有英文版」回答，
+  // 读层不会为它伪造英文，索引也不该把会 404 的期次交给读者。
+  return printedCitations(kind, content).every((raw) => {
+    const id = raw.itemId ?? null;
+    const copy = citationCopy(raw, id ? snaps.get(id) : undefined);
+    return textLocaleOf(copy.title, copy.summary) === "en";
+  });
+}
+
+/** 版面上真正印出来的引用：日报的分栏条目 + 快讯，周/月报的主题条目；顺序与成刊一致。 */
+function printedCitations(kind: ReportKind, content: Record<string, any>): Array<Record<string, any>> {
+  const grouped: Array<Record<string, any>> = kind === "daily"
+    ? (content.sections ?? []).flatMap((s: any) => s.items ?? [])
+    : (content.themes ?? []).flatMap((t: any) => t.storyRefs ?? []);
+  return [...grouped, ...(content.flashes ?? [])];
+}
+
+/** 引用文字的取值：成刊时的英文快照优先，缺快照才用刊物自己的行文（`citationFrom` 与英文门共用）。 */
+function citationCopy(raw: Record<string, any>, snap: ReportCitationSnapshot | undefined): { title: string; summary: string | null } {
+  return {
+    title: snap?.title?.trim() ? snap.title : String(raw.title ?? ""),
+    summary: snap ? snap.summary : (raw.summary ?? null),
+  };
 }
 
 function snapshotMap(content: ReportEnglishContent | null): Map<string, ReportCitationSnapshot> {
@@ -131,7 +157,7 @@ export async function unavailableIds(ids: string[]): Promise<Set<string>> {
 }
 
 /** Directory/feed metadata and original citation links; full report prose stays in the detail read. */
-export async function reportIndexRows(kind: ReportKind, limit: number) {
+export async function reportIndexRows(kind: ReportKind, limit: number, englishOnly = false) {
   // The three names below used to be one CASE-per-use inside a hand-nested jsonb expression whose
   // parenthesis count I got wrong twice while adding the weekly shape — the aggregate's ORDER BY landed
   // outside the call and every periodic read answered 503. Naming them once, and writing the aggregation
@@ -140,10 +166,15 @@ export async function reportIndexRows(kind: ReportKind, limit: number) {
   const groupedKey = kind === "daily" ? "sections" : "themes";
   const labelKey = kind === "daily" ? "label" : "heading";
   const itemsKey = kind === "daily" ? "items" : "storyRefs";
+  // 英文索引的 400 期名额只数“真有英文稿”的期次，而不是先取最新 400 期再过滤：否则英文期较稀时，
+  // 更早的英文刊面会被中文期次挤出窗口，永远进不了 /en 索引、导航、latest 与 sitemap。
+  const englishOnlyFilter = englishOnly ? sql`AND content_en IS NOT NULL AND revision_en = revision` : sql``;
   return sql<{ key: string; content: Record<string, any>; content_en: ReportEnglishContent | null; revision_en: number | null; revision: number; generated_at: Date; window_end: Date; issue_no: number | null }[]>`
     SELECT key, generated_at, window_end, issue_no, content_en, revision_en, revision, jsonb_build_object(
       'lead', content->'lead', 'headline', content->'headline', 'title', content->'title',
       'overview', content->'overview', 'periodStart', content->'periodStart', 'periodEnd', content->'periodEnd',
+      -- 快讯也印在版面上：英文就绪门要与详情门同口径，索引投影里不能少了这一栏。
+      'flashes', coalesce(content->'flashes', '[]'::jsonb),
       ${groupedKey}::text,
       coalesce((
         SELECT jsonb_agg(jsonb_build_object(
@@ -157,7 +188,7 @@ export async function reportIndexRows(kind: ReportKind, limit: number) {
         FROM jsonb_array_elements(coalesce(content -> ${groupedKey}::text, '[]'::jsonb)) WITH ORDINALITY AS grouped(grp, grp_ord)
       ), '[]'::jsonb)
     ) AS content
-    FROM reports WHERE kind = ${kind} ORDER BY key DESC LIMIT ${limit}`;
+    FROM reports WHERE kind = ${kind} ${englishOnlyFilter} ORDER BY key DESC LIMIT ${limit}`;
 }
 
 /**
@@ -213,8 +244,7 @@ function citationFrom(raw: Record<string, any>, avail: Map<string, Availability>
   const a = id ? avail.get(id) : undefined;
   // 引用文字只认成刊时的英文快照；缺快照才回退 `content` 的中文，并用 textLocale 标记。
   const snap = lang === "en" && id ? snaps.get(id) : undefined;
-  const title = snap?.title?.trim() ? snap.title : String(raw.title ?? "");
-  const summary = snap ? snap.summary : (raw.summary ?? null);
+  const { title, summary } = citationCopy(raw, snap);
   const sourceUrl = String(raw.sourceUrl ?? raw.links?.original ?? "");
   const rawSourceName = String(raw.sourceName ?? raw.source?.name ?? "");
   // 写时快照优先；没有快照时英文页用英文名或域名，不把中文信源名印在英文刊面上。
@@ -393,9 +423,9 @@ export async function loadReport(kind: ReportKind, key: string, lang: SiteLang =
       // 英文页没有英文大标题时用期名，不拿 content.title（「GEOHOT 月报 · 2026-10」）当中文兜底。
       ? (en?.headline?.trim() ? String(en.headline) : `${kind === "weekly" ? "Weekly" : "Monthly"} · ${key}`)
       : String(c.title ?? (kind === "weekly" ? `${SITE.name} 周报 · ${key}` : `${SITE.name} 月报 · ${key}`)));
-  const proseEnglish = !!(en && (lead || overview || headline));
+  // 语种判定与索引门共用 `englishReportReady`：同一期在索引里能读到，点进来就不能是 404。
   const textLocale = lang === "en"
-    ? (proseEnglish && cited.every((i) => i.textLocale === "en") ? "en" : "mixed")
+    ? (englishReportReady(kind, c, en) ? "en" : "mixed")
     : "zh";
   // strict 的 /en 不把中文报纸当英文版承诺给读者：整期不到英文就按「这一期不存在」回答。
   // 返回 null 由站点 API 交 404、由 latest-page 交空态（页面 chrome 仍全是英文）。
@@ -434,7 +464,7 @@ export async function loadReport(kind: ReportKind, key: string, lang: SiteLang =
  * a report page used to ask it on every view (and again in `neighbors`, which reads this same index).
  */
 const INDEX_LIMIT = 400;
-const indexes = new Map<ReportKind, Cached<ReportIndex>>();
+const indexes = new Map<string, Cached<ReportIndex>>();
 interface ReportIndex {
   rows: Awaited<ReturnType<typeof reportIndexRows>>;
   gone: Set<string>;
@@ -442,15 +472,16 @@ interface ReportIndex {
   withPage: Set<string>;
   withoutPage: Set<string>;
 }
-export function reportIndex(kind: ReportKind) {
-  let entry = indexes.get(kind);
+export function reportIndex(kind: ReportKind, englishOnly = false) {
+  const cacheKey = `${kind}:${englishOnly ? "en" : "all"}`;
+  let entry = indexes.get(cacheKey);
   if (!entry) {
     entry = cached(async (): Promise<ReportIndex> => {
-      const rows = await reportIndexRows(kind, INDEX_LIMIT);
+      const rows = await reportIndexRows(kind, INDEX_LIMIT, englishOnly);
       const pages = await pageSets(rows.flatMap((r) => citedItemIds(r.content, kind === "daily" ? "daily" : "periodic")));
       return { rows, gone: await unavailableHeadlineIds(rows, kind === "daily" ? "daily" : "periodic"), ...pages };
     }, { freshMs: 60_000, maxStaleMs: 10 * 60_000 });
-    indexes.set(kind, entry);
+    indexes.set(cacheKey, entry);
   }
   return entry.get();
 }
@@ -482,7 +513,7 @@ export async function readableReports(kind: ReportKind, limit: number, before?: 
  * the neighbouring-page links. A *named* blank issue is still served as its own honest empty state
  * (`v1Report`/`loadReport`), it just is never advertised.
  */
-function readableRows(index: ReportIndex, shape: "daily" | "periodic", limit: number, before?: string | null) {
+function readableRows(index: ReportIndex, shape: "daily" | "periodic", limit: number, before?: string | null, accept: (r: ReportIndex["rows"][number]) => boolean = () => true) {
   // `before` is a cursor over the period key, applied **before** the slice: with ~300 dailies behind a
   // 180-row list, filtering after the slice would answer "no such issue" for every date the client had
   // already seen, which is the opposite of paging. Keys are fixed-width and zero-padded per kind, so
@@ -493,16 +524,20 @@ function readableRows(index: ReportIndex, shape: "daily" | "periodic", limit: nu
     // 「an id this database has no row for is offered its original article」）。索引要排除的是
     // `withoutPage` 那一类——**本库有这一行、但页面按发布/工作流闸门拒绝放行**的条目。
     .filter((r) => citedItemIds(r.content, shape).some((id) => !index.withoutPage.has(id)))
+    // 语言门也要在 slice 之前：先截 400 期再筛英文，英文期稀疏时更早的英文刊面永远进不了索引。
+    .filter(accept)
     .filter((r) => !before || r.key < before)
     .slice(0, limit);
 }
 
 export async function listReports(kind: ReportKind, limit = INDEX_LIMIT, lang: SiteLang = "zh"): Promise<ReportIndexEntry[]> {
-  const index = await reportIndex(kind);
+  const strictEn = lang === "en" && englishTextMode() === "strict";
+  // 英文索引从「有英文稿的期次」里取 400，而不是从全部期次里取 400 再过滤。
+  const index = await reportIndex(kind, strictEn);
   const shape = kind === "daily" ? "daily" : "periodic";
-  const entries = readableRows(index, shape, limit)
-    // strict 的 /en 索引只列真有英文刊面的期次，与 `loadReport` 那道门同一条判据。
-    .filter((r) => lang !== "en" || englishTextMode() !== "strict" || englishReportReady(englishContentOf(r)))
+  const entries = readableRows(index, shape, limit, undefined,
+    // strict 的 /en 索引只列真有英文刊面的期次，与 `loadReport` 那道门是同一个函数。
+    (r) => !strictEn || englishReportReady(kind, r.content, englishContentOf(r)))
     .map((r) => {
       const en = lang === "en" ? englishContentOf(r) : null;
       const headline = reportHeadline(r.content, shape, index.gone, lang, en);

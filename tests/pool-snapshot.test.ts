@@ -59,3 +59,34 @@ test("缺目录时读是 null，写不抛", async () => {
     await rm(empty, { recursive: true, force: true });
   }
 });
+
+// 2026-11-23 验收现场：为验证中文卡片的诚实标注，另起了 `ENGLISH_TEXT=fallback` 的栈；它写下的
+// `lang=en` 底稿被 strict 栈以 `x-aihot-cache: snapshot` 读出来，英文页短暂出现了中文卡。底稿键
+// 必须带上读取口径，模式切换后旧底稿不得命中（12 小时有效期内都不行）。
+test("英文底稿按 ENGLISH_TEXT / ENGLISH_MEMBERSHIP 分键，不从另一个口径的答案里读", async () => {
+  const previousText = process.env.ENGLISH_TEXT;
+  const previousMembership = process.env.ENGLISH_MEMBERSHIP;
+  const key = "/api/site/pool?lang=en&channel=all";
+  try {
+    process.env.ENGLISH_TEXT = "fallback";
+    process.env.ENGLISH_MEMBERSHIP = "parity";
+    await writePoolSnapshot(key, BODY);
+
+    process.env.ENGLISH_TEXT = "strict";
+    assert.equal(await readPoolSnapshot(key), null, "strict 不能读到 fallback 写下的中文回退底稿");
+
+    process.env.ENGLISH_TEXT = "fallback";
+    process.env.ENGLISH_MEMBERSHIP = "english";
+    assert.equal(await readPoolSnapshot(key), null, "membership 不同也不能共用同一份底稿");
+
+    process.env.ENGLISH_TEXT = "fallback";
+    process.env.ENGLISH_MEMBERSHIP = "parity";
+    const hit = await readPoolSnapshot<typeof BODY>(key);
+    assert.deepEqual(hit?.body, BODY, "同一口径仍然读得到自己写的那份");
+  } finally {
+    if (previousText === undefined) delete process.env.ENGLISH_TEXT;
+    else process.env.ENGLISH_TEXT = previousText;
+    if (previousMembership === undefined) delete process.env.ENGLISH_MEMBERSHIP;
+    else process.env.ENGLISH_MEMBERSHIP = previousMembership;
+  }
+});

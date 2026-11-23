@@ -78,9 +78,22 @@ function lastGoodFor<T>(path: string): T | null {
   return hit.body as T;
 }
 
+interface ApiReadOptions {
+  signal?: AbortSignal;
+  headers?: Record<string, string>;
+  responseHeaders?: Headers;
+  redirect?: RequestRedirect;
+  /**
+   * 这次读的等待预算（毫秒）。缺省按接口路径取（`ssrBudgetMs`）；同一个接口在不同页面上
+   * 角色不同（`/api/site/pool` 是 `/all` 的主数据、却是首页手机段的配菜），主页面用它
+   * 把「这一趟值得等多久」说明白，而不是让路径前缀替它猜。
+   */
+  budgetMs?: number;
+}
+
 export async function apiGet<T>(
   path: string,
-  init?: { signal?: AbortSignal; headers?: Record<string, string>; responseHeaders?: Headers; redirect?: RequestRedirect },
+  init?: ApiReadOptions,
 ): Promise<T> {
   try {
     const body = await apiGetFresh<T>(path, init);
@@ -98,29 +111,35 @@ export async function apiGet<T>(
  * 每一屏数据的等待预算。
  *
  * 2026-11-06 02:2x 现场：夜档开着、分析在跑，首页 11 秒才出——15 秒的兜底等于「读者先干等」。 
- * 首屏真正要紧的是那一条时间线（决定这一屏说什么），其余是配菜：收录池、日历、热点、
- * 主题计数都只影响侧栏与筛选条，晚半分钟不如立刻用上一份。预算按路径给，底稿兜底照旧。
+ * 首屏真正要紧的是决定这一屏说什么的那一条读；配菜（日历、首页手机段的收录池）晚半分钟
+ * 不如立刻空着。预算默认按接口路径给，页面上角色不同的那一条读用 `budgetMs` 自己说明。
  */
 // 2026-11-06 复核：8 秒的预算本身就是「读者先干等 8 秒」的许可；首页正常 0.4–1.6 秒、
 // 忙时 2–4 秒。首屏 3.5 秒、配菜 1.5 秒，超时交给上一份好答案（lastGood）。
-const SSR_BUDGET_MS = 3_500;
+export const SSR_BUDGET_MS = 3_500;
 const SSR_AUX_BUDGET_MS = 1_500;
-const AUX_PATHS = ["/api/site/pool", "/api/site/calendar", "/api/site/hot", "/api/site/topics"];
+// 只有「取不到也不该让整页失败」的配菜在这里。主题与热点曾经也列在这里，但它们是各自
+// 页面的主数据：`/api/site/topics` 的前缀还一并吞掉了 `/api/site/topics/<slug>`，于是主题详情页
+// 拿到 1.5 秒预算，接口稍慢就整站 503（2026-11-23 验收实测 6 个 slug 全灭）。主数据用 3.5 秒。
+// 收录池是首页手机段的配菜，却是 /all 的主数据——`all.tsx` 自己传入 `budgetMs: SSR_BUDGET_MS`。
+const AUX_PATHS = ["/api/site/pool", "/api/site/calendar"];
 
-function ssrBudgetMs(path: string): number {
-  return AUX_PATHS.some((prefix) => path.startsWith(prefix)) ? SSR_AUX_BUDGET_MS : SSR_BUDGET_MS;
+/** 一次读默认的等待预算：配菜 1.5 秒，主数据 3.5 秒。导出以便测试钉住「主题详情不是配菜」。 */
+export function ssrBudgetMs(path: string): number {
+  const pathname = path.split("?")[0] ?? path;
+  return AUX_PATHS.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)) ? SSR_AUX_BUDGET_MS : SSR_BUDGET_MS;
 }
 
 async function apiGetFresh<T>(
   path: string,
-  init?: { signal?: AbortSignal; headers?: Record<string, string>; responseHeaders?: Headers; redirect?: RequestRedirect },
+  init?: ApiReadOptions,
 ): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: { accept: "application/json", "x-aihot-ssr": "1", ...init?.headers },
     redirect: init?.redirect ?? "follow",
     signal: init?.signal
-      ? AbortSignal.any([init.signal, AbortSignal.timeout(ssrBudgetMs(path))])
-      : AbortSignal.timeout(ssrBudgetMs(path)),
+      ? AbortSignal.any([init.signal, AbortSignal.timeout(init?.budgetMs ?? ssrBudgetMs(path))])
+      : AbortSignal.timeout(init?.budgetMs ?? ssrBudgetMs(path)),
   });
   if (res.status >= 300 && res.status < 400) {
     // 只有明确要 manual 的调用才会走到这里；默认还是浏览器那条跟随跳转的路。
@@ -155,10 +174,10 @@ async function apiGetFresh<T>(
 /** Maps API failures to route responses: real 404s, search-busy page, otherwise 503. */
 export async function loadOr404<T>(
   path: string,
-  opts: { busyRedirect?: string; responseHeaders?: Headers; signal?: AbortSignal; redirect?: RequestRedirect } = {},
+  opts: { busyRedirect?: string; responseHeaders?: Headers; signal?: AbortSignal; redirect?: RequestRedirect; budgetMs?: number } = {},
 ): Promise<T> {
   try {
-    return await apiGet<T>(path, { responseHeaders: opts.responseHeaders, signal: opts.signal, redirect: opts.redirect });
+    return await apiGet<T>(path, { responseHeaders: opts.responseHeaders, signal: opts.signal, redirect: opts.redirect, budgetMs: opts.budgetMs });
   } catch (error) {
     if (opts.signal?.aborted) throw error;
     // 跳转不是故障：调用方（要 manual 的那一个）自己决定跳去哪。

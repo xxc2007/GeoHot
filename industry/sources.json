@@ -3,6 +3,7 @@
     {
       "id": "json-usgs-quake-m45",
       "name": "USGS 全球地震目录 M4.5+（近一周）",
+      "nameEn": "USGS Global Earthquake Catalog M4.5+ (Past Week)",
       "kind": "json_list",
       "config": {
         "url": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_week.geojson",
@@ -41,6 +42,7 @@
     {
       "id": "json-ceic-earthquake",
       "name": "中国地震台网中心 CENC 地震速报目录",
+      "nameEn": "China Earthquake Networks Center (CENC) — Earthquake Rapid Reports",
       "kind": "json_list",
       "config": {
         "url": "https://www.ceic.ac.cn/data/data.json",
@@ -77,6 +79,7 @@
     {
       "id": "json-nmc-weather-alarm",
       "name": "中央气象台 气象灾害预警",
+      "nameEn": "National Meteorological Center (CMA) — Meteorological Disaster Warnings",
       "kind": "json_list",
       "config": {
         "url": "https://www.nmc.cn/rest/findAlarm?pageNo=1&pageSize=40&signaltype=&signallevel=&province=",
@@ -113,6 +116,7 @@
     {
       "id": "rss-gdacs-alerts",
       "name": "GDACS 多灾种预警",
+      "nameEn": "GDACS Multi-Hazard Alerts",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.gdacs.org/xml/rss.xml",
@@ -144,6 +148,7 @@
     {
       "id": "rss-noaa-news",
       "name": "NOAA 美国国家海洋和大气管理局",
+      "nameEn": "NOAA — National Oceanic and Atmospheric Administration",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.noaa.gov/rss.xml",
@@ -170,6 +175,7 @@
     {
       "id": "rss-esa-earth-observation",
       "name": "ESA 对地观测",
+      "nameEn": "ESA Earth Observation",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.esa.int/rssfeed/Our_Activities/Observing_the_Earth",
@@ -195,6 +201,7 @@
     {
       "id": "rss-copernicus-c3s",
       "name": "哥白尼气候变化服务 C3S",
+      "nameEn": "Copernicus Climate Change Service (C3S)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://climate.copernicus.eu/rss.xml",
@@ -221,6 +228,7 @@
     {
       "id": "rss-gsc-europa",
       "name": "欧洲 GNSS 服务中心 GSC（Galileo 官方新闻与性能报告）",
+      "nameEn": "European GNSS Service Centre (GSC) — Galileo News and Performance Reports",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.gsc-europa.eu/rss.xml",
@@ -257,6 +265,7 @@
     {
       "id": "rss-nasa-news-releases",
       "name": "NASA 新闻发布（地球观测向）",
+      "nameEn": "NASA News Releases (Earth Observation)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.nasa.gov/news-release/feed/",
@@ -298,6 +307,7 @@
     {
       "id": "web-stats-latest",
       "name": "国家统计局 最新发布",
+      "nameEn": "National Bureau of Statistics of China — Latest Releases",
       "kind": "web_list",
       "config": {
         "url": "https://www.stats.gov.cn/sj/zxfb/",
@@ -332,6 +342,7 @@
     {
       "id": "web-mwr-data",
       "name": "水利部 数据（水资源公报 / 三峡工程公报 / 水旱灾害）",
+      "nameEn": "Ministry of Water Resources — Data (Water Resources Bulletin / Three Gorges Bulletin / Flood and Drought)",
       "kind": "web_list",
       "config": {
         "url": "http://www.mwr.gov.cn/sj/",
@@ -366,6 +377,7 @@
     {
       "id": "web-mwr-news",
       "name": "水利部 水利要闻（水旱灾害防御与汛情动态）",
+      "nameEn": "Ministry of Water Resources — Water News (Flood and Drought Defense)",
       "kind": "web_list",
       "config": {
         "url": "http://www.mwr.gov.cn/xw/slyw/",
@@ -400,6 +412,7 @@
     {
       "id": "web-mem-press",
       "name": "应急管理部 新闻发布会",
+      "nameEn": "Ministry of Emergency Management — Press Conferences",
       "kind": "web_list",
       "config": {
         "url": "https://www.mem.gov.cn/xw/xwfbh/",
@@ -431,6 +444,7 @@
     {
       "id": "rss-science-news",
       "name": "Science · 最新消息",
+      "nameEn": "Science · Latest News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.science.org/rss/news_current.xml",
@@ -455,6 +469,7 @@
     {
       "id": "rss-eos-org",
       "name": "Eos（AGU 会刊·科普与观点）",
+      "nameEn": "Eos (AGU) — Features and Opinion",
       "kind": "rss",
       "config": {
         "feedUrl": "https://eos.org/feed",
@@ -480,6 +495,7 @@
     {
       "id": "rss-agu-newsroom",
       "name": "AGU Newsroom 美国地球物理联合会",
+      "nameEn": "AGU Newsroom — American Geophysical Union",
       "kind": "rss",
       "config": {
         "feedUrl": "https://news.agu.org/feed/",
@@ -505,6 +521,7 @@
     {
       "id": "rss-nature-geoscience",
       "name": "Nature Geoscience · 当期目录",
+      "nameEn": "Nature Geoscience · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.nature.com/ngeo.rss",
@@ -543,6 +560,7 @@
     {
       "id": "rss-nature-comm-earth-environment",
       "name": "Communications Earth & Environment",
+      "nameEn": "Communications Earth & Environment · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.nature.com/commsenv.rss",
@@ -582,6 +600,7 @@
     {
       "id": "rss-nature-climate-change",
       "name": "Nature Climate Change · 当期目录",
+      "nameEn": "Nature Climate Change · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.nature.com/nclimate.rss",
@@ -621,6 +640,7 @@
     {
       "id": "rss-nature-cities",
       "name": "Nature Cities · 当期目录",
+      "nameEn": "Nature Cities · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.nature.com/natcities.rss",
@@ -660,6 +680,7 @@
     {
       "id": "rss-sciencedaily-earth-climate",
       "name": "ScienceDaily · 地球与气候",
+      "nameEn": "ScienceDaily · Earth and Climate",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.sciencedaily.com/rss/earth_climate.xml",
@@ -688,6 +709,7 @@
     {
       "id": "rss-carbon-brief",
       "name": "Carbon Brief（分析·问答·图解）",
+      "nameEn": "Carbon Brief (Analysis, Q&A, Explainers)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.carbonbrief.org/feed/",
@@ -712,6 +734,7 @@
     {
       "id": "rss-inside-climate-news",
       "name": "Inside Climate News 深度调查",
+      "nameEn": "Inside Climate News — Investigative Reporting",
       "kind": "rss",
       "config": {
         "feedUrl": "https://insideclimatenews.org/feed/",
@@ -737,6 +760,7 @@
     {
       "id": "rss-mongabay",
       "name": "Mongabay 热带与生态前线报道",
+      "nameEn": "Mongabay — Tropical and Conservation Reporting",
       "kind": "rss",
       "config": {
         "feedUrl": "https://news.mongabay.com/feed/",
@@ -766,6 +790,7 @@
     {
       "id": "rss-phys-org-earth",
       "name": "Phys.org · 地球科学",
+      "nameEn": "Phys.org · Earth Sciences",
       "kind": "rss",
       "config": {
         "feedUrl": "https://phys.org/rss-feed/earth-news/",
@@ -795,6 +820,7 @@
     {
       "id": "rss-guardian-environment",
       "name": "The Guardian · 环境",
+      "nameEn": "The Guardian · Environment",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.theguardian.com/environment/rss",
@@ -821,6 +847,7 @@
     {
       "id": "rss-grist",
       "name": "Grist 气候与城市",
+      "nameEn": "Grist — Climate and Cities",
       "kind": "rss",
       "config": {
         "feedUrl": "https://grist.org/feed/",
@@ -847,6 +874,7 @@
     {
       "id": "rss-new-scientist",
       "name": "New Scientist",
+      "nameEn": "New Scientist",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.newscientist.com/rss/",
@@ -875,6 +903,7 @@
     {
       "id": "rss-mit-tech-review-climate",
       "name": "MIT Technology Review · 气候",
+      "nameEn": "MIT Technology Review · Climate",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.technologyreview.com/topic/climate-change/feed",
@@ -903,6 +932,7 @@
     {
       "id": "rss-geographical",
       "name": "Geographical（英国皇家地理学会会刊）",
+      "nameEn": "Geographical (Royal Geographical Society Magazine)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://geographical.co.uk/feed",
@@ -932,6 +962,7 @@
     {
       "id": "web-thepaper-topnews",
       "name": "澎湃新闻·滚动新闻",
+      "nameEn": "The Paper · Rolling News",
       "kind": "web_list",
       "config": {
         "url": "https://m.thepaper.cn/",
@@ -968,6 +999,7 @@
     {
       "id": "web-dlyj-toc",
       "name": "地理研究 当期目录",
+      "nameEn": "Geographical Research · Current Issue",
       "kind": "web_list",
       "config": {
         "url": "https://www.dlyj.ac.cn/CN/1000-0585/home.shtml",
@@ -1002,6 +1034,7 @@
     {
       "id": "web-geog-toc",
       "name": "地理学报 当期目录",
+      "nameEn": "Acta Geographica Sinica · Current Issue",
       "kind": "web_list",
       "config": {
         "url": "https://www.geog.com.cn/CN/0375-5444/home.shtml",
@@ -1037,6 +1070,7 @@
     {
       "id": "web-resci-toc",
       "name": "资源科学 当期目录",
+      "nameEn": "Resources Science · Current Issue",
       "kind": "web_list",
       "config": {
         "url": "https://www.resci.cn/CN/1007-7588/home.shtml",
@@ -1071,6 +1105,7 @@
     {
       "id": "web-dqxxkx-toc",
       "name": "地球信息科学学报 当期目录",
+      "nameEn": "Journal of Geo-information Science · Current Issue",
       "kind": "web_list",
       "config": {
         "url": "https://www.dqxxkx.cn/CN/1560-8999/home.shtml",
@@ -1105,6 +1140,7 @@
     {
       "id": "web-rwdl-toc",
       "name": "人文地理 当期目录",
+      "nameEn": "Human Geography · Current Issue",
       "kind": "web_list",
       "config": {
         "url": "http://rwdl.xisu.edu.cn/CN/1003-2398/home.shtml",
@@ -1139,6 +1175,7 @@
     {
       "id": "web-jnr-toc",
       "name": "自然资源学报 当期目录",
+      "nameEn": "Journal of Natural Resources · Current Issue",
       "kind": "web_list",
       "config": {
         "url": "https://www.jnr.ac.cn/CN/1000-3037/home.shtml",
@@ -1173,6 +1210,7 @@
     {
       "id": "web-rddl-toc",
       "name": "热带地理 当期目录",
+      "nameEn": "Tropical Geography · Current Issue",
       "kind": "web_list",
       "config": {
         "url": "https://www.rddl.com.cn/CN/1001-5221/home.shtml",
@@ -1207,6 +1245,7 @@
     {
       "id": "web-chxb-toc",
       "name": "测绘学报 当期目录",
+      "nameEn": "Acta Geodaetica et Cartographica Sinica · Current Issue",
       "kind": "web_list",
       "config": {
         "url": "http://xb.chinasmp.com/CN/1001-1595/home.shtml",
@@ -1238,6 +1277,7 @@
     {
       "id": "atom-gdal-releases",
       "name": "GDAL 版本发布（OSGeo GitHub Releases）",
+      "nameEn": "GDAL Releases (OSGeo GitHub)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://github.com/OSGeo/gdal/releases.atom",
@@ -1266,6 +1306,7 @@
     {
       "id": "rss-qgis-blog",
       "name": "QGIS 官方博客",
+      "nameEn": "QGIS Official Blog",
       "kind": "rss",
       "config": {
         "feedUrl": "https://blog.qgis.org/index.xml",
@@ -1294,6 +1335,7 @@
     {
       "id": "rss-osm-blog",
       "name": "OpenStreetMap 基金会博客",
+      "nameEn": "OpenStreetMap Foundation Blog",
       "kind": "rss",
       "config": {
         "feedUrl": "https://blog.openstreetmap.org/feed/",
@@ -1323,6 +1365,7 @@
     {
       "id": "web-spacemapper-news",
       "name": "SpaceMapper 资讯（中文航天与对地观测转载层）",
+      "nameEn": "SpaceMapper — Space and Earth Observation News (Chinese, Syndicated)",
       "kind": "web_list",
       "config": {
         "url": "https://spacemapper.cn/zh-cn/info/news/",
@@ -1354,6 +1397,7 @@
     {
       "id": "ext-12379-alerts",
       "name": "国家预警信息发布中心 12379（人工投递 · 切 editorial 前不公开）",
+      "nameEn": "National Early Warning Information Release Center (12379)",
       "kind": "external",
       "config": {},
       "tier": "T2",
@@ -1375,6 +1419,7 @@
     {
       "id": "ext-mca-division-changes",
       "name": "民政部 县级以上行政区划变更公告（人工投递 · 切 editorial 前不公开）",
+      "nameEn": "Ministry of Civil Affairs — Administrative Division Changes at County Level and Above",
       "kind": "external",
       "config": {},
       "tier": "T2",
@@ -1397,6 +1442,7 @@
     {
       "id": "ext-mnr-news",
       "name": "自然资源部 新闻发布与地质灾害通报（人工投递 · 切 editorial 前不公开）",
+      "nameEn": "Ministry of Natural Resources — News and Geological Disaster Bulletins",
       "kind": "external",
       "config": {},
       "tier": "T2",
@@ -1419,6 +1465,7 @@
     {
       "id": "ext-acta-geographica-toc",
       "name": "地理学报 当期目录（人工投递 · 切 editorial 前不公开）",
+      "nameEn": "Acta Geographica Sinica · Current Issue",
       "kind": "external",
       "config": {},
       "tier": "T1_5",
@@ -1441,6 +1488,7 @@
     {
       "id": "ext-geodata-releases",
       "name": "国家地球系统科学数据中心 数据发布（人工投递 · 切 editorial 前不公开）",
+      "nameEn": "National Earth System Science Data Center — Data Releases",
       "kind": "external",
       "config": {},
       "tier": "T2",
@@ -1462,6 +1510,7 @@
     {
       "id": "ext-cng-dili360",
       "name": "《中国国家地理》dili360 编辑部精选（人工投递 · 切 editorial 前不公开）",
+      "nameEn": "Chinese National Geography (dili360) — Editors' Picks",
       "kind": "external",
       "config": {},
       "tier": "T2",
@@ -1483,6 +1532,7 @@
     {
       "id": "ext-qtp-expedition",
       "name": "第二次青藏高原综合科学考察 队站与航次记录（人工投递 · 切 editorial 前不公开）",
+      "nameEn": "Second Tibetan Plateau Scientific Expedition — Station and Voyage Records",
       "kind": "external",
       "config": {},
       "tier": "T1",
@@ -1507,6 +1557,7 @@
     {
       "id": "ext-polar-voyage",
       "name": "中国极地考察 雪龙航次与站区观测记录（人工投递 · 切 editorial 前不公开）",
+      "nameEn": "Chinese Polar Expedition — Xuelong Voyages and Station Observations",
       "kind": "external",
       "config": {},
       "tier": "T1",
@@ -1531,6 +1582,7 @@
     {
       "id": "intl-ogc-blog",
       "name": "OGC 开放地理空间联盟（新闻与标准动态）",
+      "nameEn": "Open Geospatial Consortium (OGC) — News and Standards",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.ogc.org/feed/"
@@ -1555,6 +1607,7 @@
     {
       "id": "intl-qgis-releases",
       "name": "QGIS 版本发布（官方 Atom）",
+      "nameEn": "QGIS Releases (Official Atom)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://github.com/qgis/QGIS/releases.atom"
@@ -1579,6 +1632,7 @@
     {
       "id": "cn-chinanews-scroll",
       "name": "中新网·即时新闻",
+      "nameEn": "China News Service · Breaking News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.chinanews.com.cn/rss/scroll-news.xml"
@@ -1603,6 +1657,7 @@
     {
       "id": "intl-bbc-zhongwen",
       "name": "BBC 中文（简体）",
+      "nameEn": "BBC Chinese (Simplified)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://feeds.bbci.co.uk/zhongwen/simp/rss.xml"
@@ -1625,6 +1680,7 @@
     {
       "id": "intl-thediplomat",
       "name": "The Diplomat（亚太地缘与安全）",
+      "nameEn": "The Diplomat (Asia-Pacific Geopolitics and Security)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://thediplomat.com/feed/"
@@ -1648,6 +1704,7 @@
     {
       "id": "intl-worldpoliticsreview",
       "name": "World Politics Review（地缘与数据权力）",
+      "nameEn": "World Politics Review (Geopolitics and Data Power)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.worldpoliticsreview.com/feed/",
@@ -1674,6 +1731,7 @@
     {
       "id": "intl-ign-actualites",
       "name": "法国国家地理与地理信息院（IGN）· 动态",
+      "nameEn": "French National Institute of Geographic and Forest Information (IGN) · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.ign.fr/actualites/rss.xml",
@@ -1703,6 +1761,7 @@
     {
       "id": "intl-usgs-science-news",
       "name": "美国地质调查局（USGS）· 科学动态",
+      "nameEn": "U.S. Geological Survey (USGS) · Science News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.usgs.gov/feed",
@@ -1731,6 +1790,7 @@
     {
       "id": "cn-sciencenet-news",
       "name": "科学网（中国科学报）· 要闻",
+      "nameEn": "ScienceNet.cn (China Science Daily) · Top News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.sciencenet.cn/xml/news-0.aspx?di=3",
@@ -1757,6 +1817,7 @@
     {
       "id": "intl-foreignaffairs",
       "name": "Foreign Affairs（外交事务）",
+      "nameEn": "Foreign Affairs",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.foreignaffairs.com/rss.xml"
@@ -1780,6 +1841,7 @@
     {
       "id": "intl-crisisgroup",
       "name": "International Crisis Group（冲突预警）",
+      "nameEn": "International Crisis Group (Conflict Watch)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.crisisgroup.org/rss.xml"
@@ -1803,6 +1865,7 @@
     {
       "id": "intl-chinadialogue-zh",
       "name": "对话地球 China Dialogue（中文版）",
+      "nameEn": "China Dialogue (Chinese Edition)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://chinadialogue.net/zh/feed/"
@@ -1827,6 +1890,7 @@
     {
       "id": "intl-theconversation-env",
       "name": "The Conversation（环境话题 · 逐条 CC 许可）",
+      "nameEn": "The Conversation · Environment (CC-Licensed)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://theconversation.com/uk/environment/articles.atom"
@@ -1851,6 +1915,7 @@
     {
       "id": "intl-nasa-science",
       "name": "NASA Science（地球与行星科学）",
+      "nameEn": "NASA Science (Earth and Planetary Science)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://science.nasa.gov/feed/"
@@ -1874,6 +1939,7 @@
     {
       "id": "intl-loc-worlds-revealed",
       "name": "Library of Congress · Worlds Revealed（地图部博客）",
+      "nameEn": "Library of Congress · Worlds Revealed (Map Division Blog)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://blogs.loc.gov/maps/feed/"
@@ -1898,6 +1964,7 @@
     {
       "id": "intl-publicdomainreview",
       "name": "The Public Domain Review（明写可自由分享）",
+      "nameEn": "The Public Domain Review",
       "kind": "rss",
       "config": {
         "feedUrl": "https://publicdomainreview.org/feed/"
@@ -1921,6 +1988,7 @@
     {
       "id": "intl-eseh",
       "name": "欧洲环境史学会 ESEH（新闻与征稿）",
+      "nameEn": "European Society for Environmental History (ESEH) — News and Calls",
       "kind": "rss",
       "config": {
         "feedUrl": "https://eseh.org/rss"
@@ -1944,6 +2012,7 @@
     {
       "id": "rss-undrr",
       "name": "联合国减灾办公室 UNDRR（新闻与减灾治理动态）",
+      "nameEn": "UNDRR — UN Office for Disaster Risk Reduction (News and Governance)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.undrr.org/rss.xml",
@@ -1971,6 +2040,7 @@
     {
       "id": "rss-ipcc",
       "name": "IPCC 政府间气候变化专门委员会（评估进程与会议动态）",
+      "nameEn": "IPCC — Intergovernmental Panel on Climate Change (Assessments and Meetings)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.ipcc.ch/feed/",
@@ -1998,6 +2068,7 @@
     {
       "id": "rss-fao-newsroom",
       "name": "联合国粮农组织 FAO（新闻发布）",
+      "nameEn": "FAO — Food and Agriculture Organization of the United Nations (Newsroom)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.fao.org/feeds/fao-newsroom-rss",
@@ -2025,6 +2096,7 @@
     {
       "id": "rss-jrc-news",
       "name": "欧盟委员会联合研究中心 JRC（新闻）",
+      "nameEn": "JRC — European Commission Joint Research Centre (News)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://joint-research-centre.ec.europa.eu/node/2/rss_en",
@@ -2052,6 +2124,7 @@
     {
       "id": "rss-noaa-ncei",
       "name": "NOAA 国家环境信息中心 NCEI（新闻）",
+      "nameEn": "NOAA NCEI — National Centers for Environmental Information (News)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.ncei.noaa.gov/news.xml",
@@ -2079,6 +2152,7 @@
     {
       "id": "rss-nasa-earth-observatory",
       "name": "NASA 地球观测站（Earth Observatory 影像与解读）",
+      "nameEn": "NASA Earth Observatory (Images and Stories)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://earthobservatory.nasa.gov/feeds/earth-observatory.rss",
@@ -2106,6 +2180,7 @@
     {
       "id": "rss-weeklyosm",
       "name": "weeklyOSM（OpenStreetMap 社区周报）",
+      "nameEn": "weeklyOSM (OpenStreetMap Community Weekly)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://weeklyosm.eu/feed/",
@@ -2133,6 +2208,7 @@
     {
       "id": "rss-mrc-mekong",
       "name": "湄公河委员会 MRC（流域治理动态）",
+      "nameEn": "Mekong River Commission (MRC) — Basin Governance News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.mrcmekong.org/feed/",
@@ -2160,6 +2236,7 @@
     {
       "id": "rss-icimod",
       "name": "国际山地综合发展中心 ICIMOD（兴都库什—喜马拉雅）",
+      "nameEn": "ICIMOD — International Centre for Integrated Mountain Development (Hindu Kush Himalaya)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.icimod.org/feed/",
@@ -2187,6 +2264,7 @@
     {
       "id": "rss-ingv-news",
       "name": "意大利国家地球物理与火山学研究所 INGV（新闻室）",
+      "nameEn": "INGV — National Institute of Geophysics and Volcanology, Italy (Newsroom)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.ingv.it/stampa-urp/ufficio-stampa/news?format=feed&type=rss",
@@ -2214,6 +2292,7 @@
     {
       "id": "rss-nrcan-quakes",
       "name": "加拿大地震局（显著地震事件 Atom 源）",
+      "nameEn": "Earthquakes Canada (Significant Events Atom Feed)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://earthquakescanada.nrcan.gc.ca/cache/earthquakes/zone-canada-en.atom",
@@ -2242,6 +2321,7 @@
     {
       "id": "rss-nsidc-news",
       "name": "美国国家冰雪数据中心 NSIDC（新闻与解读）",
+      "nameEn": "NSIDC — National Snow and Ice Data Center (News and Analysis)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://nsidc.org/news/feed",
@@ -2269,6 +2349,7 @@
     {
       "id": "web-cgs-ddyw",
       "name": "中国地质调查局 地质调查动态",
+      "nameEn": "China Geological Survey (CGS) — Survey News",
       "kind": "web_list",
       "config": {
         "url": "https://www.cgs.gov.cn/ywdt/ddyw/",
@@ -2302,6 +2383,7 @@
     {
       "id": "web-mee-xwfb",
       "name": "生态环境部 新闻发布",
+      "nameEn": "Ministry of Ecology and Environment — Press Releases",
       "kind": "web_list",
       "config": {
         "url": "https://www.mee.gov.cn/ywdt/xwfb/",
@@ -2335,6 +2417,7 @@
     {
       "id": "web-forestry-lcdt",
       "name": "国家林业和草原局 林草动态",
+      "nameEn": "National Forestry and Grassland Administration — Forestry and Grassland News",
       "kind": "web_list",
       "config": {
         "url": "https://www.forestry.gov.cn/c/www/lcdt.jhtml",
@@ -2369,6 +2452,7 @@
     {
       "id": "web-mem-yjglbgzdt",
       "name": "应急管理部 工作动态",
+      "nameEn": "Ministry of Emergency Management — Work Updates",
       "kind": "web_list",
       "config": {
         "url": "https://www.mem.gov.cn/xw/yjglbgzdt/",
@@ -2402,6 +2486,7 @@
     {
       "id": "web-mwr-sjzs",
       "name": "水利部 司局直属单位动态（七大流域委员会）",
+      "nameEn": "Ministry of Water Resources — Departments and River Basin Commissions",
       "kind": "web_list",
       "config": {
         "url": "http://www.mwr.gov.cn/xw/sjzs/",
@@ -2435,6 +2520,7 @@
     {
       "id": "web-yrcc-hhyw",
       "name": "黄河水利委员会 黄河要闻",
+      "nameEn": "Yellow River Conservancy Commission — Yellow River News",
       "kind": "web_list",
       "config": {
         "url": "http://www.yrcc.gov.cn/xwdt/hhyw/",
@@ -2468,6 +2554,7 @@
     {
       "id": "web-ncc-wid100",
       "name": "国家气候中心 全球灾害简讯（中文）",
+      "nameEn": "National Climate Center — Global Disaster Briefs (Chinese)",
       "kind": "web_list",
       "config": {
         "url": "https://www.ncc-cma.net/channel/index/wid/100",
@@ -2512,6 +2599,7 @@
     {
       "id": "web-ecmwf-news",
       "name": "欧洲中期天气预报中心 ECMWF（新闻）",
+      "nameEn": "ECMWF — European Centre for Medium-Range Weather Forecasts (News)",
       "kind": "web_list",
       "config": {
         "url": "https://www.ecmwf.int/en/about/media-centre/news",
@@ -2546,6 +2634,7 @@
     {
       "id": "web-igsnrr-zhxw",
       "name": "中科院地理科学与资源研究所 综合新闻",
+      "nameEn": "Institute of Geographic Sciences and Natural Resources Research, CAS — News",
       "kind": "web_list",
       "config": {
         "url": "https://igsnrr.cas.cn/news/zhxw/",
@@ -2579,6 +2668,7 @@
     {
       "id": "web-igsnrr-kyjz",
       "name": "中科院地理科学与资源研究所 科研进展",
+      "nameEn": "Institute of Geographic Sciences and Natural Resources Research, CAS — Research Highlights",
       "kind": "web_list",
       "config": {
         "url": "https://igsnrr.cas.cn/news/kyjz/",
@@ -2612,6 +2702,7 @@
     {
       "id": "web-wmo-news",
       "name": "世界气象组织 WMO（新闻）",
+      "nameEn": "WMO — World Meteorological Organization (News)",
       "kind": "web_list",
       "config": {
         "url": "https://wmo.int/news",
@@ -2646,6 +2737,7 @@
     {
       "id": "web-pric-news",
       "name": "中国极地研究中心 · 科技进展",
+      "nameEn": "Polar Research Institute of China — Science and Technology Progress",
       "kind": "web_list",
       "config": {
         "url": "https://www.pric.org.cn/index.php?c=category&id=89",
@@ -2682,6 +2774,7 @@
     {
       "id": "cn-web-moe-xwfb",
       "name": "教育部·新闻发布",
+      "nameEn": "Ministry of Education · Press Releases",
       "kind": "web_list",
       "config": {
         "url": "http://www.moe.gov.cn/jyb_xwfb/",
@@ -2719,6 +2812,7 @@
     {
       "id": "cn-web-stdaily",
       "name": "中国科技网（科技日报）要闻",
+      "nameEn": "China Science and Technology Network (Science and Technology Daily) — Top News",
       "kind": "web_list",
       "config": {
         "url": "https://www.stdaily.com/",
@@ -2757,6 +2851,7 @@
     {
       "id": "cn-web-ndrc-xwdt",
       "name": "国家发展改革委·新闻动态",
+      "nameEn": "National Development and Reform Commission · News",
       "kind": "web_list",
       "config": {
         "url": "https://www.ndrc.gov.cn/xwdt/",
@@ -2793,6 +2888,7 @@
     {
       "id": "rss-igu-online",
       "name": "国际地理联合会（IGU）· 新闻",
+      "nameEn": "International Geographical Union (IGU) · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://igu-online.org/feed/",
@@ -2819,6 +2915,7 @@
     {
       "id": "rss-aag-news",
       "name": "美国地理学家协会（AAG）· 新闻",
+      "nameEn": "American Association of Geographers (AAG) · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.aag.org/feed/",
@@ -2845,6 +2942,7 @@
     {
       "id": "rss-ica-carto",
       "name": "国际制图协会（ICA）· 新闻",
+      "nameEn": "International Cartographic Association (ICA) · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://icaci.org/feed/",
@@ -2871,6 +2969,7 @@
     {
       "id": "rss-ipbes-news",
       "name": "IPBES（生物多样性与生态系统服务政府间科学政策平台）· 新闻",
+      "nameEn": "IPBES — Intergovernmental Science-Policy Platform on Biodiversity and Ecosystem Services · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.ipbes.net/rss.xml",
@@ -2899,6 +2998,7 @@
     {
       "id": "rss-isc-science",
       "name": "国际科学理事会（ISC）· 新闻",
+      "nameEn": "International Science Council (ISC) · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://council.science/feed/",
@@ -2925,6 +3025,7 @@
     {
       "id": "rss-unhabitat-news",
       "name": "联合国人居署（UN-Habitat）· 新闻",
+      "nameEn": "UN-Habitat · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://unhabitat.org/rss.xml",
@@ -2953,6 +3054,7 @@
     {
       "id": "rss-eumetsat-news",
       "name": "EUMETSAT 欧洲气象卫星组织（新闻与影像）",
+      "nameEn": "EUMETSAT — European Organisation for the Exploitation of Meteorological Satellites (News and Imagery)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.eumetsat.int/rss.xml",
@@ -2980,6 +3082,7 @@
     {
       "id": "rss-copernicus-atmosphere",
       "name": "哥白尼大气监测服务 CAMS（新闻）",
+      "nameEn": "Copernicus Atmosphere Monitoring Service (CAMS) · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://atmosphere.copernicus.eu/rss.xml",
@@ -3007,6 +3110,7 @@
     {
       "id": "rss-nature-water",
       "name": "Nature Water · 当期目录",
+      "nameEn": "Nature Water · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.nature.com/natwater.rss",
@@ -3047,6 +3151,7 @@
     {
       "id": "rss-nature-sustainability",
       "name": "Nature Sustainability · 当期目录",
+      "nameEn": "Nature Sustainability · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.nature.com/natsustain.rss",
@@ -3087,6 +3192,7 @@
     {
       "id": "rss-nature-food",
       "name": "Nature Food · 当期目录",
+      "nameEn": "Nature Food · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.nature.com/natfood.rss",
@@ -3127,6 +3233,7 @@
     {
       "id": "rss-pnas-toc",
       "name": "PNAS · 当期目录（美国国家科学院院刊）",
+      "nameEn": "PNAS · Current Issue (Proceedings of the National Academy of Sciences)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.pnas.org/action/showFeed?type=etoc&feed=rss&jc=pnas",
@@ -3164,6 +3271,7 @@
     {
       "id": "rss-ifrc-news",
       "name": "国际红十字与红新月运动 IFRC（新闻与声明）",
+      "nameEn": "IFRC — International Federation of Red Cross and Red Crescent Societies (News and Statements)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.ifrc.org/rss.xml",
@@ -3193,6 +3301,7 @@
     {
       "id": "rss-cms-bonn",
       "name": "迁徙物种公约 CMS（UNEP 波恩）· 新闻",
+      "nameEn": "Convention on Migratory Species (CMS), UNEP Bonn · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.cms.int/rss.xml",
@@ -3220,6 +3329,7 @@
     {
       "id": "web-cas-syky",
       "name": "中国科学院 科研进展",
+      "nameEn": "Chinese Academy of Sciences — Research Highlights",
       "kind": "web_list",
       "config": {
         "url": "https://www.cas.cn/syky/",
@@ -3253,6 +3363,7 @@
     {
       "id": "rss-nature-comm-toc",
       "name": "Nature Communications · 当期目录",
+      "nameEn": "Nature Communications · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.nature.com/ncomms.rss",
@@ -3291,6 +3402,7 @@
     {
       "id": "rss-sci-reports-geoscience",
       "name": "Scientific Reports · 当期目录",
+      "nameEn": "Scientific Reports · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.nature.com/srep.rss",
@@ -3329,6 +3441,7 @@
     {
       "id": "rss-npj-climate-atmos-sci",
       "name": "npj Climate and Atmospheric Science · 当期目录",
+      "nameEn": "npj Climate and Atmospheric Science · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.nature.com/npjclimatsci.rss",
@@ -3367,6 +3480,7 @@
     {
       "id": "rss-nature-energy",
       "name": "Nature Energy · 当期目录",
+      "nameEn": "Nature Energy · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.nature.com/nenergy.rss",
@@ -3405,6 +3519,7 @@
     {
       "id": "rss-npj-climate-action",
       "name": "npj Climate Action · 当期目录",
+      "nameEn": "npj Climate Action · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.nature.com/npjclimataction.rss",
@@ -3443,6 +3558,7 @@
     {
       "id": "rss-palcomms-hss",
       "name": "Humanities and Social Sciences Communications · 当期目录",
+      "nameEn": "Humanities and Social Sciences Communications · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.nature.com/palcomms.rss",
@@ -3481,6 +3597,7 @@
     {
       "id": "rss-grl-toc",
       "name": "Geophysical Research Letters · 当期目录",
+      "nameEn": "Geophysical Research Letters · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/19448007/most-recent",
@@ -3521,6 +3638,7 @@
     {
       "id": "rss-jgr-solid-earth-toc",
       "name": "JGR: Solid Earth · 当期目录",
+      "nameEn": "JGR: Solid Earth · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/21699356/most-recent",
@@ -3561,6 +3679,7 @@
     {
       "id": "rss-jgr-atmospheres-toc",
       "name": "JGR: Atmospheres · 当期目录",
+      "nameEn": "JGR: Atmospheres · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/21698996/most-recent",
@@ -3601,6 +3720,7 @@
     {
       "id": "rss-jgr-oceans-toc",
       "name": "JGR: Oceans · 当期目录",
+      "nameEn": "JGR: Oceans · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/21699291/most-recent",
@@ -3641,6 +3761,7 @@
     {
       "id": "rss-jgr-biogeosciences-toc",
       "name": "JGR: Biogeosciences · 当期目录",
+      "nameEn": "JGR: Biogeosciences · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/21698961/most-recent",
@@ -3681,6 +3802,7 @@
     {
       "id": "rss-jgr-earth-surface-toc",
       "name": "JGR: Earth Surface · 当期目录",
+      "nameEn": "JGR: Earth Surface · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/21699011/most-recent",
@@ -3721,6 +3843,7 @@
     {
       "id": "rss-jgr-space-physics-toc",
       "name": "JGR: Space Physics · 当期目录",
+      "nameEn": "JGR: Space Physics · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/21699402/most-recent",
@@ -3761,6 +3884,7 @@
     {
       "id": "rss-jgr-ml-comp-toc",
       "name": "JGR: Machine Learning and Computation · 当期目录",
+      "nameEn": "JGR: Machine Learning and Computation · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/29935210/most-recent",
@@ -3801,6 +3925,7 @@
     {
       "id": "rss-g3-toc",
       "name": "Geochemistry, Geophysics, Geosystems (G3) · 当期目录",
+      "nameEn": "Geochemistry, Geophysics, Geosystems (G3) · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/15252027/most-recent",
@@ -3841,6 +3966,7 @@
     {
       "id": "rss-wrr-toc",
       "name": "Water Resources Research · 当期目录",
+      "nameEn": "Water Resources Research · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/19447973/most-recent",
@@ -3881,6 +4007,7 @@
     {
       "id": "rss-paleocean-paleoclim-toc",
       "name": "Paleoceanography and Paleoclimatology · 当期目录",
+      "nameEn": "Paleoceanography and Paleoclimatology · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/25724525/most-recent",
@@ -3921,6 +4048,7 @@
     {
       "id": "rss-tectonics-toc",
       "name": "Tectonics · 当期目录",
+      "nameEn": "Tectonics · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/19449194/most-recent",
@@ -3961,6 +4089,7 @@
     {
       "id": "rss-space-weather-toc",
       "name": "Space Weather · 当期目录",
+      "nameEn": "Space Weather · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/15427390/most-recent",
@@ -4001,6 +4130,7 @@
     {
       "id": "rss-reviews-geophysics-toc",
       "name": "Reviews of Geophysics · 当期目录",
+      "nameEn": "Reviews of Geophysics · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/19449208/most-recent",
@@ -4041,6 +4171,7 @@
     {
       "id": "rss-earths-future-toc",
       "name": "Earth's Future · 当期目录",
+      "nameEn": "Earth's Future · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/23284277/most-recent",
@@ -4081,6 +4212,7 @@
     {
       "id": "rss-agu-advances-toc",
       "name": "AGU Advances · 当期目录",
+      "nameEn": "AGU Advances · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/2576604x/most-recent",
@@ -4121,6 +4253,7 @@
     {
       "id": "rss-james-toc",
       "name": "Journal of Advances in Modeling Earth Systems · 当期目录",
+      "nameEn": "Journal of Advances in Modeling Earth Systems · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/19422466/most-recent",
@@ -4161,6 +4294,7 @@
     {
       "id": "rss-eos-editors-highlights",
       "name": "Eos（AGU）· 编辑精选",
+      "nameEn": "Eos (AGU) · Editors' Highlights",
       "kind": "rss",
       "config": {
         "feedUrl": "https://eos.org/editor-highlights/feed",
@@ -4187,6 +4321,7 @@
     {
       "id": "rss-ess-toc",
       "name": "Earth and Space Science · 当期目录",
+      "nameEn": "Earth and Space Science · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/23335084/most-recent",
@@ -4227,6 +4362,7 @@
     {
       "id": "rss-geohealth-toc",
       "name": "GeoHealth · 当期目录",
+      "nameEn": "GeoHealth · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/24711403/most-recent",
@@ -4267,6 +4403,7 @@
     {
       "id": "rss-gbc-toc",
       "name": "Global Biogeochemical Cycles · 当期目录",
+      "nameEn": "Global Biogeochemical Cycles · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/19449224/most-recent",
@@ -4307,6 +4444,7 @@
     {
       "id": "rss-radio-science-toc",
       "name": "Radio Science · 当期目录",
+      "nameEn": "Radio Science · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/1944799x/most-recent",
@@ -4347,6 +4485,7 @@
     {
       "id": "rss-pass-toc",
       "name": "Perspectives of Earth and Space Scientists · 当期目录",
+      "nameEn": "Perspectives of Earth and Space Scientists · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/26376989/most-recent",
@@ -4387,6 +4526,7 @@
     {
       "id": "rss-community-science-toc",
       "name": "Community Science · 当期目录",
+      "nameEn": "Community Science · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/26929430/most-recent",
@@ -4427,6 +4567,7 @@
     {
       "id": "rss-eos-research-spotlights",
       "name": "Eos（AGU）· 研究聚焦",
+      "nameEn": "Eos (AGU) · Research Spotlights",
       "kind": "rss",
       "config": {
         "feedUrl": "https://eos.org/research-spotlights/feed",
@@ -4453,6 +4594,7 @@
     {
       "id": "rss-eos-landslide-blog",
       "name": "Eos（AGU）· 滑坡博客",
+      "nameEn": "Eos (AGU) · Landslide Blog",
       "kind": "rss",
       "config": {
         "feedUrl": "https://eos.org/thelandslideblog/feed",
@@ -4479,6 +4621,7 @@
     {
       "id": "rss-copernicus-tc",
       "name": "The Cryosphere · 当期目录",
+      "nameEn": "The Cryosphere · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://tc.copernicus.org/xml/rss2_0.xml",
@@ -4513,6 +4656,7 @@
     {
       "id": "rss-copernicus-bg",
       "name": "Biogeosciences · 当期目录",
+      "nameEn": "Biogeosciences · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://bg.copernicus.org/xml/rss2_0.xml",
@@ -4547,6 +4691,7 @@
     {
       "id": "rss-copernicus-hess",
       "name": "Hydrology and Earth System Sciences · 当期目录",
+      "nameEn": "Hydrology and Earth System Sciences · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://hess.copernicus.org/xml/rss2_0.xml",
@@ -4581,6 +4726,7 @@
     {
       "id": "rss-copernicus-se",
       "name": "Solid Earth · 当期目录",
+      "nameEn": "Solid Earth · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://se.copernicus.org/xml/rss2_0.xml",
@@ -4615,6 +4761,7 @@
     {
       "id": "rss-copernicus-os",
       "name": "Ocean Science · 当期目录",
+      "nameEn": "Ocean Science · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://os.copernicus.org/xml/rss2_0.xml",
@@ -4649,6 +4796,7 @@
     {
       "id": "rss-copernicus-acp",
       "name": "Atmospheric Chemistry and Physics · 当期目录",
+      "nameEn": "Atmospheric Chemistry and Physics · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://acp.copernicus.org/xml/rss2_0.xml",
@@ -4683,6 +4831,7 @@
     {
       "id": "rss-copernicus-nhess",
       "name": "Natural Hazards and Earth System Sciences · 当期目录",
+      "nameEn": "Natural Hazards and Earth System Sciences · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://nhess.copernicus.org/xml/rss2_0.xml",
@@ -4717,6 +4866,7 @@
     {
       "id": "rss-copernicus-gmd",
       "name": "Geoscientific Model Development · 当期目录",
+      "nameEn": "Geoscientific Model Development · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://gmd.copernicus.org/xml/rss2_0.xml",
@@ -4751,6 +4901,7 @@
     {
       "id": "rss-copernicus-cp",
       "name": "Climate of the Past · 当期目录",
+      "nameEn": "Climate of the Past · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://cp.copernicus.org/xml/rss2_0.xml",
@@ -4785,6 +4936,7 @@
     {
       "id": "rss-copernicus-essd",
       "name": "Earth System Science Data · 当期目录",
+      "nameEn": "Earth System Science Data · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://essd.copernicus.org/xml/rss2_0.xml",
@@ -4819,6 +4971,7 @@
     {
       "id": "rss-egusphere",
       "name": "EGUsphere（EGU 预印本与讨论稿）",
+      "nameEn": "EGUsphere (EGU Preprints and Discussions)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://egusphere.copernicus.org/xml/rss2_0.xml",
@@ -4851,6 +5004,7 @@
     {
       "id": "rss-egu-announcements",
       "name": "EGU · 公告与分会消息",
+      "nameEn": "EGU · Announcements and Division News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.egu.eu/news/announcements/rss/",
@@ -4877,6 +5031,7 @@
     {
       "id": "rss-egu-highlight-articles",
       "name": "EGU · 各刊主编精选研究",
+      "nameEn": "EGU · Journal Editors' Highlights",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.egu.eu/news/highlight-articles/rss/",
@@ -4903,6 +5058,7 @@
     {
       "id": "rss-egu-blogs",
       "name": "EGU · 研究者博客（Divastar）",
+      "nameEn": "EGU · Researcher Blogs (Divastar)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.egu.eu/news/blogs/rss/",
@@ -4929,6 +5085,7 @@
     {
       "id": "rss-arxiv-ao-ph",
       "name": "arXiv · 大气与海洋物理（physics.ao-ph）",
+      "nameEn": "arXiv · Atmospheric and Oceanic Physics (physics.ao-ph)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://rss.arxiv.org/rss/physics.ao-ph",
@@ -4958,6 +5115,7 @@
     {
       "id": "rss-arxiv-geo-ph",
       "name": "arXiv · 地球与行星物理（physics.geo-ph）",
+      "nameEn": "arXiv · Geophysics (physics.geo-ph)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://rss.arxiv.org/rss/physics.geo-ph",
@@ -4987,6 +5145,7 @@
     {
       "id": "rss-arxiv-space-ph",
       "name": "arXiv · 空间物理（physics.space-ph）",
+      "nameEn": "arXiv · Space Physics (physics.space-ph)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://rss.arxiv.org/rss/physics.space-ph",
@@ -5016,6 +5175,7 @@
     {
       "id": "rss-eartharxiv-preprints",
       "name": "EarthArXiv · 地球科学预印本",
+      "nameEn": "EarthArXiv · Earth Science Preprints",
       "kind": "rss",
       "config": {
         "feedUrl": "https://eartharxiv.org/rss/preprints/",
@@ -5042,6 +5202,7 @@
     {
       "id": "rss-rgs-geographical-journal-toc",
       "name": "The Geographical Journal（RGS-IBG 会刊）· 当期目录",
+      "nameEn": "The Geographical Journal (RGS-IBG) · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/14754959/most-recent",
@@ -5082,6 +5243,7 @@
     {
       "id": "rss-rgs-tibg-toc",
       "name": "Transactions of the IBG（RGS-IBG 会刊）· 当期目录",
+      "nameEn": "Transactions of the Institute of British Geographers (RGS-IBG) · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/14755661/most-recent",
@@ -5122,6 +5284,7 @@
     {
       "id": "rss-rgs-area-toc",
       "name": "Area（RGS-IBG 会刊）· 当期目录",
+      "nameEn": "Area (RGS-IBG) · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/14754762/most-recent",
@@ -5162,6 +5325,7 @@
     {
       "id": "rss-rgs-geo-toc",
       "name": "Geo: Geography and Environment（RGS-IBG OA 会刊）· 当期目录",
+      "nameEn": "Geo: Geography and Environment (RGS-IBG) · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/20544049/most-recent",
@@ -5202,6 +5366,7 @@
     {
       "id": "rss-cag-canadian-geographies-toc",
       "name": "Canadian Geographies / Géographies canadiennes（CAG 会刊）· 当期目录",
+      "nameEn": "Canadian Geographies / Géographies canadiennes (CAG) · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/30690595/most-recent",
@@ -5242,6 +5407,7 @@
     {
       "id": "rss-nzgs-nz-geographer-toc",
       "name": "New Zealand Geographer（NZGS 会刊）· 当期目录",
+      "nameEn": "New Zealand Geographer (NZGS) · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/17457939a/most-recent",
@@ -5282,6 +5448,7 @@
     {
       "id": "rss-kngg-jehg-toc",
       "name": "J. of Economic and Human Geography（KNGG/NAGI 会刊）· 当期目录",
+      "nameEn": "Journal of Economic and Human Geography (KNGG/NAGI) · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/14679663/most-recent",
@@ -5322,6 +5489,7 @@
     {
       "id": "rss-rgs-wires-climate-change-toc",
       "name": "WIREs Climate Change（综述刊）· 当期目录",
+      "nameEn": "WIREs Climate Change · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/17577799/most-recent",
@@ -5362,6 +5530,7 @@
     {
       "id": "rss-nsf-news",
       "name": "美国国家科学基金会 NSF · 新闻",
+      "nameEn": "U.S. National Science Foundation (NSF) · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.nsf.gov/rss/rss_www_news.xml",
@@ -5388,6 +5557,7 @@
     {
       "id": "rss-gfz-newsroom",
       "name": "德国地球科学研究中心 GFZ · 新闻室",
+      "nameEn": "GFZ Helmholtz Centre for Geosciences · Newsroom",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.gfz.de/en/feed/news.rss",
@@ -5414,6 +5584,7 @@
     {
       "id": "rss-geomar-news",
       "name": "GEOMAR 亥姆霍兹基尔 · 科研动态",
+      "nameEn": "GEOMAR Helmholtz Centre for Ocean Research Kiel · Research News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.geomar.de/en/feed/recent",
@@ -5440,6 +5611,7 @@
     {
       "id": "rss-bgs-news",
       "name": "英国地质调查局 BGS · 新闻",
+      "nameEn": "British Geological Survey (BGS) · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.bgs.ac.uk/feed/",
@@ -5466,6 +5638,7 @@
     {
       "id": "rss-eth-zurich-news",
       "name": "苏黎世联邦理工学院 ETH · 新闻",
+      "nameEn": "ETH Zurich · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.ethz.ch/en/news-und-veranstaltungen/eth-news/news/_jcr_content.feed.html",
@@ -5492,6 +5665,7 @@
     {
       "id": "rss-fmi-articles",
       "name": "芬兰气象研究所 FMI · 文章（芬兰语）",
+      "nameEn": "Finnish Meteorological Institute (FMI) · Articles (Finnish)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://ilmatieteenlaitos.fi/ajankohtaista/rss",
@@ -5518,6 +5692,7 @@
     {
       "id": "rss-ecmwf-science-blog",
       "name": "ECMWF · 科学博客",
+      "nameEn": "ECMWF · Science Blog",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.ecmwf.int/rss.xml",
@@ -5544,6 +5719,7 @@
     {
       "id": "rss-camgeog-news",
       "name": "剑桥大学地理系 · 科研新闻",
+      "nameEn": "Department of Geography, University of Cambridge · Research News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.geog.cam.ac.uk/news/feed.rss",
@@ -5570,6 +5746,7 @@
     {
       "id": "rss-exeter-geog-news",
       "name": "埃克塞特大学环境科学与经济系 · 地理新闻",
+      "nameEn": "University of Exeter · Geography News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://news.exeter.ac.uk/category/faculty-of-environment-science-and-economy/geography/feed/",
@@ -5596,6 +5773,7 @@
     {
       "id": "rss-scripps-news",
       "name": "斯克里普斯海洋研究所 Scripps · 新闻",
+      "nameEn": "Scripps Institution of Oceanography · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://scripps.ucsd.edu/news/feed",
@@ -5622,6 +5800,7 @@
     {
       "id": "rss-byrd-polar-news",
       "name": "俄亥俄州立大学 Byrd 极地与气候研究中心 · 新闻",
+      "nameEn": "Byrd Polar and Climate Research Center, Ohio State University · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://byrd.osu.edu/rss.xml",
@@ -5648,6 +5827,7 @@
     {
       "id": "rss-mcgill-geog-news",
       "name": "麦吉尔大学地理系 · 科研新闻",
+      "nameEn": "Department of Geography, McGill University · Research News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.mcgill.ca/geography/channels_item/3/rss",
@@ -5674,6 +5854,7 @@
     {
       "id": "rss-psu-news",
       "name": "宾夕法尼亚州立大学 · 科研新闻",
+      "nameEn": "Penn State University · Research News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.psu.edu/news/rss/rss.xml",
@@ -5700,6 +5881,7 @@
     {
       "id": "rss-oxford-sge-sitefeed",
       "name": "牛津大学地理与环境系 · 新闻",
+      "nameEn": "School of Geography and the Environment, University of Oxford · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.geog.ox.ac.uk/rss.xml",
@@ -5726,6 +5908,7 @@
     {
       "id": "rss-whoi-news",
       "name": "伍兹霍尔海洋研究所 WHOI · 新闻",
+      "nameEn": "Woods Hole Oceanographic Institution (WHOI) · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.whoi.edu/feed/",
@@ -5752,6 +5935,7 @@
     {
       "id": "rss-mbari-news",
       "name": "蒙特雷湾水族馆研究所 MBARI · 新闻",
+      "nameEn": "Monterey Bay Aquarium Research Institute (MBARI) · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.mbari.org/feed/",
@@ -5778,6 +5962,7 @@
     {
       "id": "rss-scar-news",
       "name": "南极研究科学委员会 SCAR · 新闻",
+      "nameEn": "Scientific Committee on Antarctic Research (SCAR) · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://scar.org/feed/",
@@ -5804,6 +5989,7 @@
     {
       "id": "rss-imos-news",
       "name": "澳洲海洋观测系统 IMOS · 新闻",
+      "nameEn": "Integrated Marine Observing System (IMOS), Australia · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://imos.org.au/feed/",
@@ -5830,6 +6016,7 @@
     {
       "id": "rss-grss-news",
       "name": "IEEE 地球科学与遥感学会 GRSS · 新闻",
+      "nameEn": "IEEE Geoscience and Remote Sensing Society (GRSS) · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.grss-ieee.org/feed/",
@@ -5856,6 +6043,7 @@
     {
       "id": "rss-earthscope-news",
       "name": "EarthScope Consortium（原 IRIS）· 新闻",
+      "nameEn": "EarthScope Consortium (formerly IRIS) · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://earthscope.org/feed/",
@@ -5882,6 +6070,7 @@
     {
       "id": "rss-sciencenews-earth",
       "name": "Science News · 地球板块",
+      "nameEn": "Science News · Earth",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.sciencenews.org/topic/earth/feed/",
@@ -5908,6 +6097,7 @@
     {
       "id": "rss-theconversation-geology",
       "name": "The Conversation · 地质学话题",
+      "nameEn": "The Conversation · Geology",
       "kind": "rss",
       "config": {
         "feedUrl": "https://theconversation.com/uk/topics/geology-348/articles.atom",
@@ -5933,6 +6123,7 @@
     {
       "id": "rss-theconversation-climate-science",
       "name": "The Conversation · 气候科学话题",
+      "nameEn": "The Conversation · Climate Science",
       "kind": "rss",
       "config": {
         "feedUrl": "https://theconversation.com/uk/topics/climate-science-5941/articles.atom",
@@ -5958,6 +6149,7 @@
     {
       "id": "rss-newswise-scinews",
       "name": "Newswise · 科学新闻稿（转载层）",
+      "nameEn": "Newswise · Science News Releases (Syndicated)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.newswise.com/legacy/rss/scinews.rss",
@@ -5983,6 +6175,7 @@
     {
       "id": "rss-sciencedaily-fossils-ruins",
       "name": "ScienceDaily · 古生物与遗址（转载层）",
+      "nameEn": "ScienceDaily · Fossils and Ruins (Syndicated)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.sciencedaily.com/rss/fossils_ruins.xml",
@@ -6008,6 +6201,7 @@
     {
       "id": "rss-sciencedaily-space-time",
       "name": "ScienceDaily · 空间与时间（转载层）",
+      "nameEn": "ScienceDaily · Space and Time (Syndicated)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.sciencedaily.com/rss/space_time.xml",
@@ -6033,6 +6227,7 @@
     {
       "id": "rss-phys-org-planetary-sciences",
       "name": "Phys.org · 行星科学（转载层）",
+      "nameEn": "Phys.org · Planetary Sciences (Syndicated)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://phys.org/rss-feed/space-news/planetary-sciences/",
@@ -6058,6 +6253,7 @@
     {
       "id": "rss-earthsky-news",
       "name": "EarthSky · 天文与地球新闻",
+      "nameEn": "EarthSky · Astronomy and Earth News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://earthsky.org/feed/",
@@ -6083,6 +6279,7 @@
     {
       "id": "rss-yale-climate-connections",
       "name": "Yale Climate Connections · 气候研究报道",
+      "nameEn": "Yale Climate Connections · Climate Reporting",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.yaleclimateconnections.org/feed/",
@@ -6108,6 +6305,7 @@
     {
       "id": "rss-geb-toc",
       "name": "Global Ecology and Biogeography · 当期目录",
+      "nameEn": "Global Ecology and Biogeography · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/14668238/most-recent",
@@ -6148,6 +6346,7 @@
     {
       "id": "rss-ijc-toc",
       "name": "International Journal of Climatology · 当期目录",
+      "nameEn": "International Journal of Climatology · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/10970088/most-recent",
@@ -6188,6 +6387,7 @@
     {
       "id": "rss-tgis-wiley-toc",
       "name": "Transactions in GIS · 当期目录",
+      "nameEn": "Transactions in GIS · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/14679671/most-recent",
@@ -6228,6 +6428,7 @@
     {
       "id": "rss-gcb-toc",
       "name": "Global Change Biology · 当期目录",
+      "nameEn": "Global Change Biology · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/13652486/most-recent",
@@ -6268,6 +6469,7 @@
     {
       "id": "rss-phg-toc",
       "name": "Progress in Human Geography · 当期目录",
+      "nameEn": "Progress in Human Geography · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://journals.sagepub.com/action/showFeed?type=etoc&feed=rss&jc=phg",
@@ -6303,6 +6505,7 @@
     {
       "id": "rss-ppg-toc",
       "name": "Progress in Physical Geography: Earth and Environment · 当期目录",
+      "nameEn": "Progress in Physical Geography: Earth and Environment · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://journals.sagepub.com/action/showFeed?type=etoc&feed=rss&jc=ppg",
@@ -6338,6 +6541,7 @@
     {
       "id": "rss-ijgis-toc",
       "name": "International Journal of Geographical Information Science · 当期目录",
+      "nameEn": "International Journal of Geographical Information Science · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.tandfonline.com/feed/rss/tgis20",
@@ -6373,6 +6577,7 @@
     {
       "id": "rss-wwa-attribution",
       "name": "World Weather Attribution · 事件归因研究发布",
+      "nameEn": "World Weather Attribution · Event Attribution Studies",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.worldweatherattribution.org/feed/",
@@ -6404,6 +6609,7 @@
     {
       "id": "rss-mercator-news",
       "name": "Mercator Ocean International · 海洋与气候新闻",
+      "nameEn": "Mercator Ocean International · Ocean and Climate News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.mercator-ocean.fr/feed/",
@@ -6433,6 +6639,7 @@
     {
       "id": "rss-wcrp-climate-news",
       "name": "WCRP 世界气候研究计划 · Climate News",
+      "nameEn": "World Climate Research Programme (WCRP) · Climate News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://feeds.feedburner.com/WCRP-Climate-News",
@@ -6463,6 +6670,7 @@
     {
       "id": "rss-jawra-toc",
       "name": "JAWRA（美国水资源协会会刊）· 当期目录",
+      "nameEn": "JAWRA — Journal of the American Water Resources Association · Current Issue",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/17521688/most-recent",
         "allowUrlPrefixes": [
@@ -6503,6 +6711,7 @@
     {
       "id": "rss-geobiology-toc",
       "name": "Geobiology（古生物×地球化学交叉刊）· 当期目录",
+      "nameEn": "Geobiology · Current Issue",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/14724669/most-recent",
         "allowUrlPrefixes": [
@@ -6543,6 +6752,7 @@
     {
       "id": "rss-palaeontology-toc",
       "name": "Palaeontology（英国古生物学会会刊）· 当期目录",
+      "nameEn": "Palaeontology (Palaeontological Association) · Current Issue",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/14754983/most-recent",
         "allowUrlPrefixes": [
@@ -6583,6 +6793,7 @@
     {
       "id": "rss-sedimentology-toc",
       "name": "Sedimentology（国际沉积学家协会会刊）· 当期目录",
+      "nameEn": "Sedimentology (International Association of Sedimentologists) · Current Issue",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/13653091/most-recent",
         "allowUrlPrefixes": [
@@ -6623,6 +6834,7 @@
     {
       "id": "rss-terranova-toc",
       "name": "Terra Nova（构造地质与地球动力学）· 当期目录",
+      "nameEn": "Terra Nova · Current Issue",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/13653121/most-recent",
         "allowUrlPrefixes": [
@@ -6663,6 +6875,7 @@
     {
       "id": "rss-antipode-toc",
       "name": "Antipode（批判地理学与政治地理学刊）· 当期目录",
+      "nameEn": "Antipode · Current Issue",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/14678330/most-recent",
         "allowUrlPrefixes": [
@@ -6703,6 +6916,7 @@
     {
       "id": "rss-piahs-articles",
       "name": "PIAH（国际水文科学学会会议论文集）· 近期文章",
+      "nameEn": "PIAHS — Proceedings of the International Association of Hydrological Sciences · Recent Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://piahs.copernicus.org/xml/rss2_0.xml",
@@ -6742,6 +6956,7 @@
     {
       "id": "rss-epb-toc",
       "name": "Environment and Planning B: Urban Analytics and City Science（SAGE）· 当期目录",
+      "nameEn": "Environment and Planning B: Urban Analytics and City Science (SAGE) · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://journals.sagepub.com/action/showFeed?type=etoc&feed=rss&jc=epb",
@@ -6785,6 +7000,7 @@
     {
       "id": "rss-dhg-toc",
       "name": "Dialogues in Human Geography（SAGE）· 当期目录",
+      "nameEn": "Dialogues in Human Geography (SAGE) · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://journals.sagepub.com/action/showFeed?type=etoc&feed=rss&jc=dhg",
@@ -6827,6 +7043,7 @@
     {
       "id": "rss-copernicus-esd",
       "name": "Earth System Dynamics（ESD 地球系统动力学）· 近期论文",
+      "nameEn": "Earth System Dynamics · Recent Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://esd.copernicus.org/xml/rss2_0.xml",
@@ -6867,6 +7084,7 @@
     {
       "id": "rss-copernicus-ls",
       "name": "Land Systems · 近期论文",
+      "nameEn": "Land Systems · Recent Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://ls.copernicus.org/xml/rss2_0.xml",
@@ -6905,6 +7123,7 @@
     {
       "id": "rss-copernicus-gc",
       "name": "Geoscience Communication · 近期论文",
+      "nameEn": "Geoscience Communication · Recent Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://gc.copernicus.org/xml/rss2_0.xml",
@@ -6942,6 +7161,7 @@
     {
       "id": "rss-copernicus-gchron",
       "name": "Geochronology · 近期论文",
+      "nameEn": "Geochronology · Recent Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://gchron.copernicus.org/xml/rss2_0.xml",
@@ -6980,6 +7200,7 @@
     {
       "id": "rss-copernicus-hgss",
       "name": "History of Geo- and Space Sciences · 近期论文",
+      "nameEn": "History of Geo- and Space Sciences · Recent Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://hgss.copernicus.org/xml/rss2_0.xml",
@@ -7018,6 +7239,7 @@
     {
       "id": "rss-copernicus-angeo",
       "name": "Annales Geophysicae · 近期论文",
+      "nameEn": "Annales Geophysicae · Recent Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://angeo.copernicus.org/xml/rss2_0.xml",
@@ -7056,6 +7278,7 @@
     {
       "id": "rss-copernicus-amt",
       "name": "Atmospheric Measurement Techniques · 近期论文",
+      "nameEn": "Atmospheric Measurement Techniques · Recent Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://amt.copernicus.org/xml/rss2_0.xml",
@@ -7095,6 +7318,7 @@
     {
       "id": "rss-copernicus-ar",
       "name": "Aerosol Research（AR 气溶胶研究）· 近期论文",
+      "nameEn": "Aerosol Research · Recent Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://ar.copernicus.org/xml/rss2_0.xml",
@@ -7134,6 +7358,7 @@
     {
       "id": "rss-copernicus-soil",
       "name": "SOIL（土壤科学） · 近期论文",
+      "nameEn": "SOIL · Recent Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://soil.copernicus.org/xml/rss2_0.xml",
@@ -7172,6 +7397,7 @@
     {
       "id": "rss-copernicus-wcd",
       "name": "Weather and Climate Dynamics · 近期论文",
+      "nameEn": "Weather and Climate Dynamics · Recent Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://wcd.copernicus.org/xml/rss2_0.xml",
@@ -7210,6 +7436,7 @@
     {
       "id": "rss-copernicus-wes",
       "name": "Wind Energy Science · 近期论文",
+      "nameEn": "Wind Energy Science · Recent Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://wes.copernicus.org/xml/rss2_0.xml",
@@ -7248,6 +7475,7 @@
     {
       "id": "rss-copernicus-eo",
       "name": "Earth Observation（EO 对地观测）· 近期论文",
+      "nameEn": "Earth Observation · Recent Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://eo.copernicus.org/xml/rss2_0.xml",
@@ -7288,6 +7516,7 @@
     {
       "id": "rss-copernicus-npg",
       "name": "Nonlinear Processes in Geophysics · 近期论文",
+      "nameEn": "Nonlinear Processes in Geophysics · Recent Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://npg.copernicus.org/xml/rss2_0.xml",
@@ -7326,6 +7555,7 @@
     {
       "id": "rss-copernicus-sp",
       "name": "State of the Planet（SP 地球状态）· 近期论文",
+      "nameEn": "State of the Planet · Recent Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://sp.copernicus.org/xml/rss2_0.xml",
@@ -7366,6 +7596,7 @@
     {
       "id": "rss-copernicus-ascmo",
       "name": "Advances in Statistical Climatology, Meteorology and Oceanography · 近期论文",
+      "nameEn": "Advances in Statistical Climatology, Meteorology and Oceanography · Recent Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://ascmo.copernicus.org/xml/rss2_0.xml",
@@ -7404,6 +7635,7 @@
     {
       "id": "rss-copernicus-isprs-annals",
       "name": "ISPRS Annals of the Photogrammetry · 近期论文",
+      "nameEn": "ISPRS Annals of the Photogrammetry, Remote Sensing and Spatial Information Sciences · Recent Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://isprs-annals.copernicus.org/xml/rss2_0.xml",
@@ -7442,6 +7674,7 @@
     {
       "id": "rss-copernicus-isprs-archives",
       "name": "ISPRS Archives · 近期论文",
+      "nameEn": "ISPRS Archives · Recent Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://isprs-archives.copernicus.org/xml/rss2_0.xml",
@@ -7479,6 +7712,7 @@
     {
       "id": "rss-copernicus-egqsj",
       "name": "Quaternary Science Journal（EG&QSJ 第四纪科学期刊）· 近期文章",
+      "nameEn": "E&G Quaternary Science Journal · Recent Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://egqsj.copernicus.org/xml/rss2_0.xml",
@@ -7518,6 +7752,7 @@
     {
       "id": "rss-frontiers-remote-sensing",
       "name": "Frontiers in Remote Sensing · 最新文稿",
+      "nameEn": "Frontiers in Remote Sensing · Latest Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.frontiersin.org/journals/remote-sensing/rss",
@@ -7560,6 +7795,7 @@
     {
       "id": "rss-frontiers-climate",
       "name": "Frontiers in Climate · 最新文稿",
+      "nameEn": "Frontiers in Climate · Latest Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.frontiersin.org/journals/climate/rss",
@@ -7601,6 +7837,7 @@
     {
       "id": "rss-frontiers-earth-science",
       "name": "Frontiers in Earth Science · 最新文稿",
+      "nameEn": "Frontiers in Earth Science · Latest Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.frontiersin.org/journals/earth-science/rss",
@@ -7643,6 +7880,7 @@
     {
       "id": "rss-frontiers-marine-science",
       "name": "Frontiers in Marine Science · 最新文稿",
+      "nameEn": "Frontiers in Marine Science · Latest Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.frontiersin.org/journals/marine-science/rss",
@@ -7684,6 +7922,7 @@
     {
       "id": "rss-frontiers-environmental-science",
       "name": "Frontiers in Environmental Science · 最新文稿",
+      "nameEn": "Frontiers in Environmental Science · Latest Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.frontiersin.org/journals/environmental-science/rss",
@@ -7726,6 +7965,7 @@
     {
       "id": "rss-frontiers-sustainable-cities",
       "name": "Frontiers in Sustainable Cities · 最新文稿",
+      "nameEn": "Frontiers in Sustainable Cities · Latest Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.frontiersin.org/journals/sustainable-cities/rss",
@@ -7769,6 +8009,7 @@
     {
       "id": "rss-plos-climate",
       "name": "PLOS Climate · 最新文稿",
+      "nameEn": "PLOS Climate · Latest Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://journals.plos.org/climate/feed/atom",
@@ -7811,6 +8052,7 @@
     {
       "id": "rss-plos-sustainability",
       "name": "PLOS Sustainability and Transformation · 最新文稿",
+      "nameEn": "PLOS Sustainability and Transformation · Latest Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://journals.plos.org/sustainabilitytransformation/feed/atom",
@@ -7854,6 +8096,7 @@
     {
       "id": "rss-plos-ecosystems",
       "name": "PLOS Ecosystems · 最新文稿",
+      "nameEn": "PLOS Ecosystems · Latest Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://journals.plos.org/ecosystems/feed/atom",
@@ -7896,6 +8139,7 @@
     {
       "id": "rss-plos-water",
       "name": "PLOS Water · 最新文稿",
+      "nameEn": "PLOS Water · Latest Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://journals.plos.org/water/feed/atom",
@@ -7939,6 +8183,7 @@
     {
       "id": "rss-pensoft-oneecosystem",
       "name": "One Ecosystem（Pensoft） · 近期文章",
+      "nameEn": "One Ecosystem (Pensoft) · Recent Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://oneecosystem.pensoft.net/rss",
@@ -7981,6 +8226,7 @@
     {
       "id": "rss-pensoft-natureconservation",
       "name": "Nature Conservation（Pensoft） · 近期文章",
+      "nameEn": "Nature Conservation (Pensoft) · Recent Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://natureconservation.pensoft.net/rss",
@@ -8023,6 +8269,7 @@
     {
       "id": "rss-pensoft-bdj",
       "name": "Biodiversity Data Journal（Pensoft） · 近期文章",
+      "nameEn": "Biodiversity Data Journal (Pensoft) · Recent Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://bdj.pensoft.net/rss",
@@ -8065,6 +8312,7 @@
     {
       "id": "rss-ecsociety",
       "name": "Ecology & Society（加拿大生态与社会学会）· 最新文稿",
+      "nameEn": "Ecology & Society · Latest Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://ecologyandsociety.org/feed/",
@@ -8108,6 +8356,7 @@
     {
       "id": "rss-polar-research",
       "name": "Polar Research（国际极地研究期刊）· 当期目录",
+      "nameEn": "Polar Research · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://polarresearch.net/index.php/polar/gateway/plugin/WebFeedGatewayPlugin/rss2",
@@ -8150,6 +8399,7 @@
     {
       "id": "rss-arctic-portal",
       "name": "Arctic Portal · 新闻与文献动态",
+      "nameEn": "Arctic Portal · News and Literature",
       "kind": "rss",
       "config": {
         "feedUrl": "https://arcticportal.org/ap-library/news?format=feed&type=rss",
@@ -8192,6 +8442,7 @@
     {
       "id": "rss-aad-news",
       "name": "澳大利亚南极局 AAD · 新闻",
+      "nameEn": "Australian Antarctic Division (AAD) · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.antarctica.gov.au/news/rss/",
@@ -8233,6 +8484,7 @@
     {
       "id": "rss-erdkunde",
       "name": "Erdkunde（德国波恩地理学会刊） · 近期文章",
+      "nameEn": "Erdkunde · Recent Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.erdkunde.uni-bonn.de/gateway/plugin/WebFeedGatewayPlugin/rss2",
@@ -8272,6 +8524,7 @@
     {
       "id": "rss-cybergeo",
       "name": "Cybergeo（欧洲地理学刊） · 近期文章",
+      "nameEn": "Cybergeo: European Journal of Geography · Recent Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://journals.openedition.org/cybergeo/backend?format=rssdocuments",
@@ -8311,6 +8564,7 @@
     {
       "id": "rss-belgeo",
       "name": "Belgeo（比利时皇家地理学会） · 近期文章",
+      "nameEn": "Belgeo: Belgian Journal of Geography · Recent Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://journals.openedition.org/belgeo/backend?format=rssdocuments",
@@ -8349,6 +8603,7 @@
     {
       "id": "rss-rga",
       "name": "Revista Geográfica de Algarve · 近期文章",
+      "nameEn": "Journal of Alpine Research | Revue de géographie alpine · Recent Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://journals.openedition.org/rga/backend?format=rssdocuments",
@@ -8386,6 +8641,7 @@
     {
       "id": "rss-confins",
       "name": "Confins（巴西地理评论） · 近期文章",
+      "nameEn": "Confins: Revista Franco-Brasileira de Geografia · Recent Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://journals.openedition.org/confins/backend?format=rssdocuments",
@@ -8424,6 +8680,7 @@
     {
       "id": "rss-ijg-ugm",
       "name": "Indonesian Journal of Geography（UGM） · 近期文章",
+      "nameEn": "Indonesian Journal of Geography (UGM) · Recent Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://journal.ugm.ac.id/ijg/gateway/plugin/WebFeedGatewayPlugin/atom",
@@ -8462,6 +8719,7 @@
     {
       "id": "rss-usp-geografia",
       "name": "Revista do Departamento de Geografia（圣保罗大学） · 近期文章",
+      "nameEn": "Revista do Departamento de Geografia, Universidade de São Paulo · Recent Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://revistas.usp.br/rdg/pt_BR/gateway/plugin/WebFeedGatewayPlugin/atom",
@@ -8502,6 +8760,7 @@
     {
       "id": "rss-hal-geography",
       "name": "HAL 开放科学库 · 地理学最新提交",
+      "nameEn": "HAL Open Science · Latest Geography Submissions",
       "kind": "rss",
       "config": {
         "feedUrl": "https://api.archives-ouvertes.fr/search/?q=geography&wt=rss&rows=40&sort=producedDate_s%20desc",
@@ -8541,6 +8800,7 @@
     {
       "id": "rss-copernicus-esurf",
       "name": "Earth Surface Dynamics（地表过程动力学）· 近期论文",
+      "nameEn": "Earth Surface Dynamics · Recent Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://esurf.copernicus.org/xml/rss2_0.xml",
@@ -8581,6 +8841,7 @@
     {
       "id": "rss-copernicus-gi",
       "name": "Geoscientific Instrumentation, Methods and Data Systems（地学仪器与数据系统）· 近期论文",
+      "nameEn": "Geoscientific Instrumentation, Methods and Data Systems · Recent Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://gi.copernicus.org/xml/rss2_0.xml",
@@ -8620,6 +8881,7 @@
     {
       "id": "rss-copernicus-gh",
       "name": "Geographica Helvetica（瑞士地理学会刊）· 近期文章",
+      "nameEn": "Geographica Helvetica · Recent Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://gh.copernicus.org/xml/rss2_0.xml",
@@ -8660,6 +8922,7 @@
     {
       "id": "rss-copernicus-ejm",
       "name": "European Journal of Mineralogy（欧洲矿物学期刊）· 近期文章",
+      "nameEn": "European Journal of Mineralogy · Recent Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://ejm.copernicus.org/xml/rss2_0.xml",
@@ -8698,6 +8961,7 @@
     {
       "id": "rss-copernicus-jm",
       "name": "Journal of Micropalaeontology（微体古生物学杂志）· 近期文章",
+      "nameEn": "Journal of Micropalaeontology · Recent Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://jm.copernicus.org/xml/rss2_0.xml",
@@ -8738,6 +9002,7 @@
     {
       "id": "rss-copernicus-sd",
       "name": "Scientific Drilling（科学钻探）· 近期文章",
+      "nameEn": "Scientific Drilling · Recent Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://sd.copernicus.org/xml/rss2_0.xml",
@@ -8777,6 +9042,7 @@
     {
       "id": "rss-copernicus-we",
       "name": "Web Ecology（网络生态学期刊）· 近期文章",
+      "nameEn": "Web Ecology · Recent Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://we.copernicus.org/xml/rss2_0.xml",
@@ -8816,6 +9082,7 @@
     {
       "id": "rss-copernicus-asr",
       "name": "Advances in Science and Research（科学与研究进展）· 近期文章",
+      "nameEn": "Advances in Science and Research · Recent Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://asr.copernicus.org/xml/rss2_0.xml",
@@ -8856,6 +9123,7 @@
     {
       "id": "rss-copernicus-ica-abs",
       "name": "ICA Abstracts（国际制图学会·图集与地理可视化）· 近期文章",
+      "nameEn": "ICA Abstracts (International Cartographic Association — Atlases and Geovisualization) · Recent Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://ica-abs.copernicus.org/xml/rss2_0.xml",
@@ -8901,6 +9169,7 @@
       "enabled": true,
       "id": "rss-niche-canada",
       "name": "加拿大环境史网络 NiCHE",
+      "nameEn": "NiCHE — Network in Canadian History and Environment",
       "kind": "rss",
       "config": {
         "feedUrl": "https://niche-canada.org/feed/",
@@ -8927,6 +9196,7 @@
       "enabled": true,
       "id": "rss-bodleian-maps",
       "name": "牛津大学博德利图书馆 地图室博客",
+      "nameEn": "Bodleian Libraries Map Room Blog, University of Oxford",
       "kind": "rss",
       "config": {
         "feedUrl": "https://blogs.bodleian.ox.ac.uk/maps/feed/",
@@ -8953,6 +9223,7 @@
       "enabled": true,
       "id": "rss-leventhal-maps",
       "name": "波士顿公共图书馆 Leventhal 地图与教育中心",
+      "nameEn": "Leventhal Map and Education Center, Boston Public Library",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.leventhalmap.org/articles/rss.xml",
@@ -8979,6 +9250,7 @@
       "enabled": true,
       "id": "rss-imago-mundi",
       "name": "Imago Mundi 国际地图史杂志 目录",
+      "nameEn": "Imago Mundi: The International Journal for the History of Cartography · Contents",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.tandfonline.com/feed/rss/rimu20",
@@ -9005,6 +9277,7 @@
       "enabled": true,
       "id": "web-ihns-news",
       "name": "中科院自然科学史研究所 综合新闻",
+      "nameEn": "Institute for the History of Natural Sciences, CAS · News",
       "kind": "web_list",
       "config": {
         "url": "http://www.ihns.cas.cn/xwdt/zhxw/",
@@ -9039,6 +9312,7 @@
       "enabled": true,
       "id": "web-dpm-lectures",
       "name": "故宫博物院 学术资讯",
+      "nameEn": "The Palace Museum · Academic News",
       "kind": "web_list",
       "config": {
         "url": "https://www.dpm.org.cn/learning/dynamic.html",
@@ -9072,6 +9346,7 @@
       "enabled": true,
       "id": "web-heshan-news",
       "name": "陕西师范大学 西北历史环境与经济社会发展研究院 动态",
+      "nameEn": "Northwest Institute of Historical Environment and Socio-Economic Development, Shaanxi Normal University · News",
       "kind": "web_list",
       "config": {
         "url": "https://heshan.snnu.edu.cn/yjydt.htm",
@@ -9106,6 +9381,7 @@
       "enabled": true,
       "id": "rss-lowy-interpreter",
       "name": "洛伊研究所 The Interpreter",
+      "nameEn": "Lowy Institute · The Interpreter",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.lowyinstitute.org/rss",
@@ -9132,6 +9408,7 @@
       "enabled": true,
       "id": "rss-aspi-strategist",
       "name": "澳大利亚战略政策研究所 The Strategist",
+      "nameEn": "Australian Strategic Policy Institute · The Strategist",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.aspistrategist.org.au/feed/",
@@ -9158,6 +9435,7 @@
       "enabled": true,
       "id": "rss-swp-publications",
       "name": "德国国际与安全事务研究所 SWP 出版物",
+      "nameEn": "German Institute for International and Security Affairs (SWP) · Publications",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.swp-berlin.org/en/SWPPublications.xml",
@@ -9184,6 +9462,7 @@
       "enabled": true,
       "id": "rss-merics",
       "name": "墨卡托中国研究中心 MERICS",
+      "nameEn": "Mercator Institute for China Studies (MERICS)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://merics.org/en/rss",
@@ -9209,6 +9488,7 @@
       "enabled": true,
       "id": "web-ciis-news",
       "name": "中国国际问题研究院 新闻动态",
+      "nameEn": "China Institute of International Studies (CIIS) · News",
       "kind": "web_list",
       "config": {
         "url": "https://www.ciis.org.cn/xwzx/xwdt/",
@@ -9242,6 +9522,7 @@
       "enabled": true,
       "id": "rss-uarctic",
       "name": "北极大学联盟 UArctic 新闻",
+      "nameEn": "University of the Arctic (UArctic) · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.uarctic.org/news/rssfeed",
@@ -9262,6 +9543,7 @@
     {
       "id": "cn-web-nda-news",
       "name": "国家数据局 新闻发布",
+      "nameEn": "National Data Administration · Press Releases",
       "kind": "web_list",
       "config": {
         "url": "https://www.nda.gov.cn/sjj/swdt/xwfb/list/index_pc_1.html",
@@ -9301,6 +9583,7 @@
     {
       "id": "cn-web-beijing-departments",
       "name": "北京市政府 部门动态",
+      "nameEn": "Beijing Municipal Government · Department News",
       "kind": "web_list",
       "config": {
         "url": "https://www.beijing.gov.cn/ywdt/gzdt/",
@@ -9337,6 +9620,7 @@
     {
       "id": "cn-web-shanghai-news",
       "name": "上海市政府 上海要闻",
+      "nameEn": "Shanghai Municipal Government · Shanghai News",
       "kind": "web_list",
       "config": {
         "url": "https://www.shanghai.gov.cn/nw4411/index.html",
@@ -9373,6 +9657,7 @@
     {
       "id": "cn-web-guangzhou-government",
       "name": "广州市政府 政务联播",
+      "nameEn": "Guangzhou Municipal Government · Government News",
       "kind": "web_list",
       "config": {
         "url": "https://www.gz.gov.cn/xw/zwlb/index.html",
@@ -9409,6 +9694,7 @@
     {
       "id": "cn-web-shanghai-statistics",
       "name": "上海市统计局 数据信息",
+      "nameEn": "Shanghai Municipal Bureau of Statistics · Data Releases",
       "kind": "web_list",
       "config": {
         "url": "https://tjj.sh.gov.cn/sjxx/index.html",
@@ -9445,6 +9731,7 @@
     {
       "id": "web-unfpa-news",
       "name": "联合国人口基金 UNFPA · 新闻",
+      "nameEn": "UNFPA — United Nations Population Fund · News",
       "kind": "web_list",
       "config": {
         "url": "https://www.unfpa.org/news",
@@ -9478,6 +9765,7 @@
     {
       "id": "web-iom-news",
       "name": "国际移民组织 IOM · 新闻",
+      "nameEn": "IOM — International Organization for Migration · News",
       "kind": "web_list",
       "config": {
         "url": "https://www.iom.int/news",
@@ -9512,6 +9800,7 @@
     {
       "id": "web-adb-news",
       "name": "亚洲开发银行 ADB · 新闻",
+      "nameEn": "Asian Development Bank (ADB) · News",
       "kind": "web_list",
       "config": {
         "url": "https://www.adb.org/news/releases",
@@ -9550,6 +9839,7 @@
     {
       "id": "web-eclac-news",
       "name": "联合国拉美经委会 ECLAC · 新闻",
+      "nameEn": "ECLAC — Economic Commission for Latin America and the Caribbean · News",
       "kind": "web_list",
       "config": {
         "url": "https://www.cepal.org/en/list/cepal_pr",
@@ -9585,6 +9875,7 @@
     {
       "id": "rss-itdp-news",
       "name": "交通与发展政策研究所 ITDP · 新闻",
+      "nameEn": "Institute for Transportation and Development Policy (ITDP) · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.itdp.org/feed/",
@@ -9614,6 +9905,7 @@
     {
       "id": "web-forestry-dt",
       "name": "国家林草局 林草动态",
+      "nameEn": "National Forestry and Grassland Administration · Forestry and Grassland News",
       "kind": "web_list",
       "config": {
         "url": "https://www.forestry.gov.cn/lyj/1/sdgjdt.html",
@@ -9647,6 +9939,7 @@
     {
       "id": "web-ngcc-xwzx",
       "name": "国家基础地理信息中心 新闻中心",
+      "nameEn": "National Geomatics Center of China · News",
       "kind": "web_list",
       "config": {
         "url": "http://www.ngcc.cn/xwzx/",
@@ -9681,6 +9974,7 @@
     {
       "id": "web-iap-kyjz",
       "name": "中国科学院大气物理研究所 科研进展",
+      "nameEn": "Institute of Atmospheric Physics, CAS · Research Highlights",
       "kind": "web_list",
       "config": {
         "url": "https://iap.cas.cn/gb/xwdt/kyjz/",
@@ -9715,6 +10009,7 @@
     {
       "id": "web-bnu-geo-xwzx",
       "name": "北京师范大学地理科学学部 新闻中心",
+      "nameEn": "Faculty of Geographical Science, Beijing Normal University · News",
       "kind": "web_list",
       "config": {
         "url": "https://geo.bnu.edu.cn/xwzx/index.html",
@@ -9748,6 +10043,7 @@
     {
       "id": "web-igg-xwzx",
       "name": "中国科学院地质与地球物理研究所 新闻",
+      "nameEn": "Institute of Geology and Geophysics, CAS · News",
       "kind": "web_list",
       "config": {
         "url": "https://igg.cas.cn/xwzx/",
@@ -9782,6 +10078,7 @@
     {
       "id": "atom-metoffice-govuk",
       "name": "英国气象局（GOV.UK 通报）",
+      "nameEn": "Met Office (UK) · GOV.UK Updates",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.gov.uk/government/organisations/met-office.atom",
@@ -9808,6 +10105,7 @@
     {
       "id": "web-zrzyt-fj-xwdt",
       "name": "福建省自然资源厅 新闻动态",
+      "nameEn": "Department of Natural Resources of Fujian Province · News",
       "kind": "web_list",
       "config": {
         "url": "https://zrzyt.fujian.gov.cn/zwgk/xwdt/",
@@ -9840,6 +10138,7 @@
     {
       "id": "web-zrzyt-hlj-home",
       "name": "黑龙江省自然资源厅 首页要闻",
+      "nameEn": "Department of Natural Resources of Heilongjiang Province · Top News",
       "kind": "web_list",
       "config": {
         "url": "https://zrzyt.hlj.gov.cn/",
@@ -9872,6 +10171,7 @@
     {
       "id": "web-zrzyt-xj-gzdt",
       "name": "新疆维吾尔自治区自然资源厅 工作动态",
+      "nameEn": "Department of Natural Resources of Xinjiang Uygur Autonomous Region · Work Updates",
       "kind": "web_list",
       "config": {
         "url": "https://zrzyt.xinjiang.gov.cn/xjgtzy/gzdt/common_list.shtml",
@@ -9904,6 +10204,7 @@
     {
       "id": "web-dzj-xj-quake",
       "name": "新疆地震局 通知通告",
+      "nameEn": "Xinjiang Earthquake Agency · Notices",
       "kind": "web_list",
       "config": {
         "url": "https://www.xjdzj.gov.cn/inform/index.html",
@@ -9936,6 +10237,7 @@
     {
       "id": "web-dzj-gs-kp",
       "name": "甘肃省地震局 科普宣传",
+      "nameEn": "Gansu Earthquake Agency · Public Science Education",
       "kind": "web_list",
       "config": {
         "url": "https://www.gsdzj.gov.cn/kpxc.htm",
@@ -9968,6 +10270,7 @@
     {
       "id": "web-cgs-xa-dwdt",
       "name": "西安地调中心 单位动态",
+      "nameEn": "Xi'an Center, China Geological Survey · Updates",
       "kind": "web_list",
       "config": {
         "url": "http://www.xian.cgs.gov.cn/gzdt_3725/dwdt_3727/",
@@ -10000,6 +10303,7 @@
     {
       "id": "web-cgs-zz-tz",
       "name": "中国地质调查局自然资源综合调查指挥中心 通知公告",
+      "nameEn": "Command Center for Comprehensive Survey of Natural Resources, CGS · Notices",
       "kind": "web_list",
       "config": {
         "url": "http://www.zhzx.cgs.gov.cn/xxfw02/tzgg/",
@@ -10032,6 +10336,7 @@
     {
       "id": "web-cgs-drc-gg",
       "name": "中国地质调查局发展研究中心 公告栏",
+      "nameEn": "Development and Research Center, China Geological Survey · Announcements",
       "kind": "web_list",
       "config": {
         "url": "http://www.drc.cgs.gov.cn/ggl/",
@@ -10064,6 +10369,7 @@
     {
       "id": "web-cgs-imr-xw",
       "name": "中国地质科学院矿产资源研究所 单位动态",
+      "nameEn": "Institute of Mineral Resources, Chinese Academy of Geological Sciences · Updates",
       "kind": "web_list",
       "config": {
         "url": "http://www.imr.cgs.gov.cn/ywjx_2708/yjsxw_2709/",
@@ -10096,6 +10402,7 @@
     {
       "id": "web-cgs-igge-jryw",
       "name": "中国地质科学院地球物理地球化学勘查研究所 单位动态",
+      "nameEn": "Institute of Geophysical and Geochemical Exploration, CAGS · Updates",
       "kind": "web_list",
       "config": {
         "url": "http://www.igge.cgs.gov.cn/jryw_3584/",
@@ -10128,6 +10435,7 @@
     {
       "id": "web-cgs-qimg-tp",
       "name": "中国地质调查局青岛海洋地质研究所 图片新闻",
+      "nameEn": "Qingdao Institute of Marine Geology, CGS · Photo News",
       "kind": "web_list",
       "config": {
         "url": "http://www.qimg.cgs.gov.cn/tpxw/",
@@ -10160,6 +10468,7 @@
     {
       "id": "web-cgs-gmgs-news",
       "name": "广州海洋地质调查局 通知公告",
+      "nameEn": "Guangzhou Marine Geological Survey · Notices",
       "kind": "web_list",
       "config": {
         "url": "http://www.gmgs.cgs.gov.cn/tzgg_4377/",
@@ -10192,6 +10501,7 @@
     {
       "id": "web-cgs-ogs-dwdt",
       "name": "中国地质调查局油气资源调查中心 单位动态",
+      "nameEn": "Oil and Gas Resources Survey Center, CGS · Updates",
       "kind": "web_list",
       "config": {
         "url": "http://www.ogs.cgs.gov.cn/yqdt/yqdt_dwdt/",
@@ -10224,6 +10534,7 @@
     {
       "id": "web-cgs-hbgs-tz",
       "name": "中国地质调查局水文地质环境地质调查中心 通知公告",
+      "nameEn": "Center for Hydrogeology and Environmental Geology Survey, CGS · Notices",
       "kind": "web_list",
       "config": {
         "url": "http://www.chegs.cgs.gov.cn/gzdt_4611/tzgg_4614/",
@@ -10256,6 +10567,7 @@
     {
       "id": "web-cgs-caggs-tp",
       "name": "中国地质调查局国土资源航空物探遥感中心 单位动态",
+      "nameEn": "China Aero Geophysical Survey and Remote Sensing Center for Natural Resources · Updates",
       "kind": "web_list",
       "config": {
         "url": "http://www.agrs.cgs.gov.cn/jryw/zxyw/",
@@ -10288,6 +10600,7 @@
     {
       "id": "web-cgs-igeo-dwdt",
       "name": "中国地质科学院地质研究所 单位动态",
+      "nameEn": "Institute of Geology, Chinese Academy of Geological Sciences · Updates",
       "kind": "web_list",
       "config": {
         "url": "http://www.igeo.cgs.gov.cn/ywjx/gzdt_2782/",
@@ -10320,6 +10633,7 @@
     {
       "id": "web-hwcc-slyw",
       "name": "水利部海河水利委员会 水利要闻",
+      "nameEn": "Haihe River Water Conservancy Commission · Water News",
       "kind": "web_list",
       "config": {
         "url": "http://www.hwcc.gov.cn/wwgj/slyw/",
@@ -10352,6 +10666,7 @@
     {
       "id": "web-hwcc-lysl",
       "name": "水利部海河水利委员会 流域水事",
+      "nameEn": "Haihe River Water Conservancy Commission · Basin Affairs",
       "kind": "web_list",
       "config": {
         "url": "http://www.hwcc.gov.cn/wwgj/lysl/",
@@ -10384,6 +10699,7 @@
     {
       "id": "rss-oe-echogeo",
       "name": "《回声地理》EchoGéo 期刊目录",
+      "nameEn": "EchoGéo · Contents",
       "kind": "rss",
       "config": {
         "feedUrl": "https://journals.openedition.org/echogeo/backend?format=rssdocuments",
@@ -10411,6 +10727,7 @@
     {
       "id": "rss-oe-tem",
       "name": "《流动领土》地理与规划学报目录",
+      "nameEn": "Territoire en mouvement (Journal of Geography and Planning) · Contents",
       "kind": "rss",
       "config": {
         "feedUrl": "https://journals.openedition.org/tem/backend?format=rssdocuments",
@@ -10438,6 +10755,7 @@
     {
       "id": "rss-oe-gc",
       "name": "《地理与文化》期刊目录",
+      "nameEn": "Géographie et cultures · Contents",
       "kind": "rss",
       "config": {
         "feedUrl": "https://journals.openedition.org/gc/backend?format=rssdocuments",
@@ -10465,6 +10783,7 @@
     {
       "id": "rss-geoweeknews",
       "name": "Geo Week News 地理周报",
+      "nameEn": "Geo Week News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.geoweeknews.com/feed/",
@@ -10493,6 +10812,7 @@
     {
       "id": "rss-sciencenet-di5",
       "name": "科学网 通知公告",
+      "nameEn": "ScienceNet.cn · Notices",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.sciencenet.cn/xml/news-0.aspx?di=5",
@@ -10519,6 +10839,7 @@
     {
       "id": "rss-huanqiukexue",
       "name": "环球科学（科学美国人中文版）",
+      "nameEn": "Global Science (Scientific American Chinese Edition)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.huanqiukexue.com/?feed=rss2",
@@ -10545,6 +10866,7 @@
     {
       "id": "rss-youtube-nasa",
       "name": "美国国家航空航天局 视频频道",
+      "nameEn": "NASA · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCLA_DiR1FfKNvjuUpBHmylQ",
@@ -10572,6 +10894,7 @@
     {
       "id": "rss-youtube-usgs",
       "name": "美国地质调查局 视频频道",
+      "nameEn": "U.S. Geological Survey · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCeXH8GZyV3sVqAr45AvupOA",
@@ -10599,6 +10922,7 @@
     {
       "id": "rss-youtube-noaa",
       "name": "美国国家海洋和大气管理局 视频频道",
+      "nameEn": "NOAA · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCe9IxQeBttZIYl5c43ycf9g",
@@ -10626,6 +10950,7 @@
     {
       "id": "rss-youtube-noaa-research",
       "name": "NOAA 研究部 视频频道",
+      "nameEn": "NOAA Research · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCRRxIPuwYd7eCvlA1f5wc6g",
@@ -10653,6 +10978,7 @@
     {
       "id": "rss-youtube-nasa-goddard",
       "name": "NASA 戈达德太空飞行中心 视频频道",
+      "nameEn": "NASA Goddard Space Flight Center · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCAY-SMFNfynqz1bdoaV8BeQ",
@@ -10679,6 +11005,7 @@
     {
       "id": "rss-youtube-esa",
       "name": "欧洲空间局 视频频道",
+      "nameEn": "European Space Agency · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCIBaDdAbGlFDeS33shmlD0A",
@@ -10705,6 +11032,7 @@
     {
       "id": "rss-youtube-ecmwf",
       "name": "欧洲中期天气预报中心 视频频道",
+      "nameEn": "ECMWF · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UChpGvNdQPdI7EI75z6oelTw",
@@ -10732,6 +11060,7 @@
     {
       "id": "rss-youtube-metoffice",
       "name": "英国气象局 视频频道",
+      "nameEn": "Met Office (UK) · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UC40Tw2tFuMzK305mi7nj8rg",
@@ -10758,6 +11087,7 @@
     {
       "id": "rss-youtube-smhi",
       "name": "瑞典气象水文局 视频频道",
+      "nameEn": "Swedish Meteorological and Hydrological Institute (SMHI) · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCbOsB0lnm6N7KW377KUkOlg",
@@ -10785,6 +11115,7 @@
     {
       "id": "rss-youtube-bom",
       "name": "澳大利亚气象局 视频频道",
+      "nameEn": "Australian Bureau of Meteorology · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCNOlLwBZQLUPYUs31hVFeSA",
@@ -10812,6 +11143,7 @@
     {
       "id": "rss-youtube-geoscience-au",
       "name": "澳大利亚地质调查局 视频频道",
+      "nameEn": "Geoscience Australia · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCgglOEaXbvCJCrIj6R2EIBw",
@@ -10838,6 +11170,7 @@
     {
       "id": "rss-youtube-whoi",
       "name": "伍兹霍尔海洋研究所 视频频道",
+      "nameEn": "Woods Hole Oceanographic Institution · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCfxsF5U3pXBZFuXc9vY9nPw",
@@ -10865,6 +11198,7 @@
     {
       "id": "rss-youtube-schmidt-ocean",
       "name": "施密特海洋研究所 视频频道",
+      "nameEn": "Schmidt Ocean Institute · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UC1m5LdKP0m64n8nY3NhK6Zg",
@@ -10892,6 +11226,7 @@
     {
       "id": "rss-youtube-parks-canada",
       "name": "加拿大公园管理局 视频频道",
+      "nameEn": "Parks Canada · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCzJRhTw3KVtDlcdNz33eDMQ",
@@ -10918,6 +11253,7 @@
     {
       "id": "rss-youtube-us-nps",
       "name": "美国国家公园管理局 视频频道",
+      "nameEn": "U.S. National Park Service · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCj_0DU9KRP_bQp_cOL4Ljbg",
@@ -10944,6 +11280,7 @@
     {
       "id": "rss-youtube-natgeo",
       "name": "国家地理 视频频道",
+      "nameEn": "National Geographic · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCpVm7bg6pXKo1Pr6k5kxG9A",
@@ -10970,6 +11307,7 @@
     {
       "id": "rss-youtube-natgeo-society",
       "name": "国家地理学会 视频频道",
+      "nameEn": "National Geographic Society · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCLmU6mzQAUkQFmSWukexcTg",
@@ -10996,6 +11334,7 @@
     {
       "id": "rss-youtube-smithsonian",
       "name": "史密森尼学会 视频频道",
+      "nameEn": "Smithsonian Institution · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCYm9MWccmz9n2yyMx9vRrXg",
@@ -11023,6 +11362,7 @@
     {
       "id": "rss-youtube-csiro",
       "name": "澳大利亚联邦科学与工业研究组织 视频频道",
+      "nameEn": "CSIRO — Commonwealth Scientific and Industrial Research Organisation · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCak3NZxjNnWip327vYL8RLA",
@@ -11049,6 +11389,7 @@
     {
       "id": "rss-youtube-google-earth",
       "name": "Google 地球 视频频道",
+      "nameEn": "Google Earth · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UC2zHjOF9Womes-SEjdzTleA",
@@ -11076,6 +11417,7 @@
     {
       "id": "rss-youtube-planet",
       "name": "Planet 卫星影像公司 视频频道",
+      "nameEn": "Planet Labs · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCiyS6coRsDQ17b3Kj9bl8jw",
@@ -11102,6 +11444,7 @@
     {
       "id": "rss-youtube-reallifelore",
       "name": "RealLifeLore 地理科普频道",
+      "nameEn": "RealLifeLore · Geography Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCP5tjEmvPItGyLhmjdwP7Ww",
@@ -11129,6 +11472,7 @@
     {
       "id": "rss-youtube-wendover",
       "name": "Wendover Productions 交通地理频道",
+      "nameEn": "Wendover Productions · Transport Geography Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UC9RM-iSvTu1uPJb8X5yp3EQ",
@@ -11156,6 +11500,7 @@
     {
       "id": "rss-youtube-caspian-report",
       "name": "里海报告 地缘政治频道",
+      "nameEn": "Caspian Report · Geopolitics Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCwnKziETDbHJtx78nIkfYug",
@@ -11182,6 +11527,7 @@
     {
       "id": "rss-gtk-news",
       "name": "芬兰地质调查局 新闻",
+      "nameEn": "Geological Survey of Finland (GTK) · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.gtk.fi/feed/",
@@ -11208,6 +11554,7 @@
     {
       "id": "rss-ingv-terremoti",
       "name": "意大利地球物理与火山学研究所 地震播报",
+      "nameEn": "INGV — National Institute of Geophysics and Volcanology · Earthquake Bulletins",
       "kind": "rss",
       "config": {
         "feedUrl": "https://ingvterremoti.com/feed/",
@@ -11234,6 +11581,7 @@
     {
       "id": "web-geosphere-austria",
       "name": "奥地利气象与地球科学中心 新闻",
+      "nameEn": "GeoSphere Austria · News",
       "kind": "web_list",
       "config": {
         "url": "https://www.geosphere.at/en",
@@ -11266,6 +11614,7 @@
     {
       "id": "web-rob-seismology",
       "name": "比利时皇家天文台 地震台",
+      "nameEn": "Royal Observatory of Belgium · Seismology",
       "kind": "web_list",
       "config": {
         "url": "https://seismologie.be/en",
@@ -11298,6 +11647,7 @@
     {
       "id": "rss-uk-govuk-envagency",
       "name": "英国环境署 政府公告",
+      "nameEn": "Environment Agency (UK) · GOV.UK Announcements",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.gov.uk/government/organisations/environment-agency.atom",
@@ -11325,6 +11675,7 @@
     {
       "id": "rss-jp-jma-eqvol",
       "name": "日本气象厅 地震火山播报",
+      "nameEn": "Japan Meteorological Agency · Earthquake and Volcano Bulletins",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.data.jma.go.jp/developer/xml/feed/eqvol.xml",
@@ -11352,6 +11703,7 @@
     {
       "id": "web-global-eumetsat-news",
       "name": "欧洲气象卫星组织 新闻",
+      "nameEn": "EUMETSAT · News",
       "kind": "web_list",
       "config": {
         "url": "https://www.eumetsat.int/news",
@@ -11384,6 +11736,7 @@
     {
       "id": "rss-gislounge",
       "name": "GIS Lounge 地理信息问答",
+      "nameEn": "GIS Lounge",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.gislounge.com/feed/",
@@ -11410,6 +11763,7 @@
     {
       "id": "rss-geogarage",
       "name": "GeoGarage 海洋地理博客",
+      "nameEn": "GeoGarage · Marine Geography Blog",
       "kind": "rss",
       "config": {
         "feedUrl": "https://geogarage.blogspot.com/feeds/posts/default",
@@ -11436,6 +11790,7 @@
     {
       "id": "web-cartoblog",
       "name": "CARTO 博客",
+      "nameEn": "CARTO Blog",
       "kind": "web_list",
       "config": {
         "url": "https://carto.com/blog/",
@@ -11468,6 +11823,7 @@
     {
       "id": "web-feltblog",
       "name": "Felt 博客",
+      "nameEn": "Felt Blog",
       "kind": "web_list",
       "config": {
         "url": "https://felt.com/blog",
@@ -11499,6 +11855,7 @@
     {
       "id": "web-synspective",
       "name": "Synspective 雷达到公司 新闻",
+      "nameEn": "Synspective · News",
       "kind": "web_list",
       "config": {
         "url": "https://synspective.com/news",
@@ -11530,6 +11887,7 @@
     {
       "id": "web-fig-news",
       "name": "Fig 新闻",
+      "nameEn": "FIG — International Federation of Surveyors · News",
       "kind": "web_list",
       "config": {
         "url": "https://www.fig.net/news",
@@ -11562,6 +11920,7 @@
     {
       "id": "rss-berkeleyearth",
       "name": "Berkeley Earth 温度研究更新",
+      "nameEn": "Berkeley Earth · Temperature Research Updates",
       "kind": "rss",
       "config": {
         "feedUrl": "https://berkeleyearth.org/feed/",
@@ -11588,6 +11947,7 @@
     {
       "id": "web-bellingcat",
       "name": "Bellingcat 开源调查",
+      "nameEn": "Bellingcat · Open-Source Investigation",
       "kind": "web_list",
       "config": {
         "url": "https://www.bellingcat.com/news/",
@@ -11618,6 +11978,7 @@
     {
       "id": "web-supermap",
       "name": "超图软件 新闻",
+      "nameEn": "SuperMap Software · News",
       "kind": "web_list",
       "config": {
         "url": "https://www.supermap.com/zh-cn/a/news/",
@@ -11650,6 +12011,7 @@
     {
       "id": "rss-berkeley-news",
       "name": "加州大学伯克利分校 新闻",
+      "nameEn": "UC Berkeley · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://news.berkeley.edu/feed/",
@@ -11676,6 +12038,7 @@
     {
       "id": "rss-uw-college-env",
       "name": "华盛顿大学环境学院 新闻",
+      "nameEn": "College of the Environment, University of Washington · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://environment.uw.edu/feed/",
@@ -11702,6 +12065,7 @@
     {
       "id": "rss-michigan-news",
       "name": "密歇根大学 新闻",
+      "nameEn": "University of Michigan · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://news.umich.edu/feed/",
@@ -11727,6 +12091,7 @@
     {
       "id": "rss-wisconsin-news",
       "name": "威斯康星大学麦迪逊分校 新闻",
+      "nameEn": "University of Wisconsin–Madison · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://news.wisc.edu/feed/",
@@ -11752,6 +12117,7 @@
     {
       "id": "rss-cu-boulder-lasp",
       "name": "科罗拉多大学大气与空间物理实验室 新闻",
+      "nameEn": "Laboratory for Atmospheric and Space Physics (LASP), University of Colorado Boulder · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://lasp.colorado.edu/home/feed/",
@@ -11778,6 +12144,7 @@
     {
       "id": "web-bigelow-news",
       "name": "比格洛海洋科学实验室 新闻",
+      "nameEn": "Bigelow Laboratory for Ocean Sciences · News",
       "kind": "web_list",
       "config": {
         "url": "https://www.bigelow.org/news/",
@@ -11809,6 +12176,7 @@
     {
       "id": "rss-ncsu-news",
       "name": "北卡罗来纳州立大学 新闻",
+      "nameEn": "North Carolina State University · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://news.ncsu.edu/feed/",
@@ -11834,6 +12202,7 @@
     {
       "id": "web-gatech-news",
       "name": "佐治亚理工学院 新闻中心",
+      "nameEn": "Georgia Institute of Technology · News Center",
       "kind": "web_list",
       "config": {
         "url": "https://news.gatech.edu/",
@@ -11865,6 +12234,7 @@
     {
       "id": "web-harvard-gazette",
       "name": "哈佛公报",
+      "nameEn": "Harvard Gazette",
       "kind": "web_list",
       "config": {
         "url": "https://news.harvard.edu/gazette/",
@@ -11896,6 +12266,7 @@
     {
       "id": "web-gmu-science-news",
       "name": "乔治梅森大学科学学院 新闻",
+      "nameEn": "College of Science, George Mason University · News",
       "kind": "web_list",
       "config": {
         "url": "https://science.gmu.edu/news",
@@ -11928,6 +12299,7 @@
     {
       "id": "web-dalhausie-news",
       "name": "戴尔豪斯大学 新闻",
+      "nameEn": "Dalhousie University · News",
       "kind": "web_list",
       "config": {
         "url": "https://www.dal.ca/news.html",
@@ -11959,6 +12331,7 @@
     {
       "id": "rss-jornal-usp",
       "name": "圣保罗大学新闻",
+      "nameEn": "Jornal da USP (University of São Paulo) · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://jornal.usp.br/feed/",
@@ -11984,6 +12357,7 @@
     {
       "id": "web-insu-cnrs-news",
       "name": "法国国家科学中心 地球与系统研究所 新闻",
+      "nameEn": "CNRS INSU — National Institute for Earth Sciences and Astronomy · News",
       "kind": "web_list",
       "config": {
         "url": "https://insu.cnrs.fr/fr/actualites",
@@ -12016,6 +12390,7 @@
     {
       "id": "web-uct-news",
       "name": "开普敦大学 新闻",
+      "nameEn": "University of Cape Town · News",
       "kind": "web_list",
       "config": {
         "url": "https://news.uct.ac.za/",
@@ -12046,6 +12421,7 @@
     {
       "id": "web-unep-wcmc-news",
       "name": "联合国环境署世界保护监测中心 新闻",
+      "nameEn": "UNEP-WCMC — UN Environment Programme World Conservation Monitoring Centre · News",
       "kind": "web_list",
       "config": {
         "url": "https://www.unep-wcmc.org/en/news",
@@ -12079,6 +12455,7 @@
     {
       "id": "web-iucn-press",
       "name": "世界自然保护联盟 新闻稿",
+      "nameEn": "IUCN — International Union for Conservation of Nature · Press Releases",
       "kind": "web_list",
       "config": {
         "url": "https://iucn.org/press",
@@ -12111,6 +12488,7 @@
     {
       "id": "web-iucn-blog",
       "name": "世界自然保护联盟 博客",
+      "nameEn": "IUCN — International Union for Conservation of Nature · Blog",
       "kind": "web_list",
       "config": {
         "url": "https://iucn.org/blog",
@@ -12142,6 +12520,7 @@
     {
       "id": "web-iucn-publications",
       "name": "世界自然保护联盟 出版物",
+      "nameEn": "IUCN — International Union for Conservation of Nature · Publications",
       "kind": "web_list",
       "config": {
         "url": "https://iucn.org/resources",
@@ -12174,6 +12553,7 @@
     {
       "id": "rss-birdlife-news",
       "name": "国际鸟盟 新闻",
+      "nameEn": "BirdLife International · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.birdlife.org/feed",
@@ -12199,6 +12579,7 @@
     {
       "id": "rss-wetlands-intl-news",
       "name": "湿地国际 新闻",
+      "nameEn": "Wetlands International · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.wetlands.org/feed",
@@ -12225,6 +12606,7 @@
     {
       "id": "web-cimmyt-news",
       "name": "国际玉米小麦改良中心 新闻",
+      "nameEn": "CIMMYT — International Maize and Wheat Improvement Center · News",
       "kind": "web_list",
       "config": {
         "url": "https://www.cimmyt.org/news",
@@ -12257,6 +12639,7 @@
     {
       "id": "web-cabi-news",
       "name": "CAB 农业与生物科学 新闻",
+      "nameEn": "CABI · News",
       "kind": "web_list",
       "config": {
         "url": "https://www.cabi.org/news",
@@ -12289,6 +12672,7 @@
     {
       "id": "rss-nautilus-feed",
       "name": "Nautilus 科学杂志",
+      "nameEn": "Nautilus",
       "kind": "rss",
       "config": {
         "feedUrl": "https://nautil.us/feed",
@@ -12314,6 +12698,7 @@
     {
       "id": "rss-quanta-feed",
       "name": "Quanta 科学杂志",
+      "nameEn": "Quanta Magazine",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.quantamagazine.org/feed",
@@ -12340,6 +12725,7 @@
     {
       "id": "rss-dw-world-news",
       "name": "德国之声 世界新闻",
+      "nameEn": "Deutsche Welle (DW) · World News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://rss.dw.com/xml/rss-en-all",
@@ -12365,6 +12751,7 @@
     {
       "id": "rss-bbc-science-env",
       "name": "BBC 科学与环境",
+      "nameEn": "BBC Science & Environment",
       "kind": "rss",
       "config": {
         "feedUrl": "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
@@ -12391,6 +12778,7 @@
     {
       "id": "rss-aljazeera-all",
       "name": "半岛电视台 全部新闻",
+      "nameEn": "Al Jazeera · All News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.aljazeera.com/xml/rss/all.xml",
@@ -12416,6 +12804,7 @@
     {
       "id": "web-eurotopics-press",
       "name": "Eurotopics 欧洲媒体综述",
+      "nameEn": "Eurotopics · European Press Review",
       "kind": "web_list",
       "config": {
         "url": "https://www.eurotopics.net/en/",
@@ -12447,6 +12836,7 @@
     {
       "id": "rss-politico-eu-feed",
       "name": "Politico 欧洲版",
+      "nameEn": "Politico Europe",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.politico.eu/feed",
@@ -12472,6 +12862,7 @@
     {
       "id": "rss-tc-canada-edition",
       "name": "The Conversation 加拿大版",
+      "nameEn": "The Conversation Canada",
       "kind": "rss",
       "config": {
         "feedUrl": "https://theconversation.com/ca/articles.atom",
@@ -12497,6 +12888,7 @@
     {
       "id": "rss-tc-uk-edition",
       "name": "The Conversation 英国版",
+      "nameEn": "The Conversation UK",
       "kind": "rss",
       "config": {
         "feedUrl": "https://theconversation.com/uk/articles.atom",
@@ -12522,6 +12914,7 @@
     {
       "id": "rss-cgs-sa-news",
       "name": "南非地质科学委员会 新闻",
+      "nameEn": "Council for Geoscience (South Africa) · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.geoscience.org.za/feed/",
@@ -12548,6 +12941,7 @@
     {
       "id": "rss-ispra-news",
       "name": "意大利国家环保研究所 新闻",
+      "nameEn": "ISPRA — Italian Institute for Environmental Protection and Research · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.isprambiente.gov.it/en/news/index/rss.xml",
@@ -12574,6 +12968,7 @@
     {
       "id": "web-brgm-news",
       "name": "法国地质矿产局 新闻",
+      "nameEn": "BRGM — French Geological Survey · News",
       "kind": "web_list",
       "config": {
         "url": "https://www.brgm.fr/actualites",
@@ -12606,6 +13001,7 @@
     {
       "id": "web-igp-peru-news",
       "name": "秘鲁地球物理研究所 新闻",
+      "nameEn": "Instituto Geofísico del Perú · News",
       "kind": "web_list",
       "config": {
         "url": "https://www.igp.gob.pe/",
@@ -12638,6 +13034,7 @@
     {
       "id": "f1-nga-rss",
       "name": "美国国家地理空间情报局 新闻",
+      "nameEn": "National Geospatial-Intelligence Agency (NGA) · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.nga.mil/feed.xml",
@@ -12664,6 +13061,7 @@
     {
       "id": "rss-aemet-news",
       "name": "西班牙气象局 新闻",
+      "nameEn": "AEMET — Spanish State Meteorological Agency · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.aemet.es/en/rss/noticias.rss",
@@ -12690,6 +13088,7 @@
     {
       "id": "rss-meteofrance-news",
       "name": "法国气象局 新闻",
+      "nameEn": "Météo-France · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://meteofrance.com/rss.xml",
@@ -12716,6 +13115,7 @@
     {
       "id": "rss-imgw-news",
       "name": "波兰气象局 新闻",
+      "nameEn": "IMGW-PIB — Institute of Meteorology and Water Management, Poland · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://imgw.pl/en/feed/",
@@ -12742,6 +13142,7 @@
     {
       "id": "web-dmi-news",
       "name": "丹麦气象研究所 新闻",
+      "nameEn": "Danish Meteorological Institute (DMI) · News",
       "kind": "web_list",
       "config": {
         "url": "https://www.dmi.dk/presse-og-medier",
@@ -12773,6 +13174,7 @@
     {
       "id": "rss-asi-news",
       "name": "意大利航天局 新闻",
+      "nameEn": "Italian Space Agency (ASI) · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.asi.it/en/feed/",
@@ -12799,6 +13201,7 @@
     {
       "id": "rss-sansa-news",
       "name": "南非空间局 新闻",
+      "nameEn": "South African National Space Agency (SANSA) · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.sansa.org.za/feed/",
@@ -12825,6 +13228,7 @@
     {
       "id": "web-worldbank-news",
       "name": "世界银行 新闻",
+      "nameEn": "World Bank · News",
       "kind": "web_list",
       "config": {
         "url": "https://www.worldbank.org/en/news",
@@ -12857,6 +13261,7 @@
     {
       "id": "rss-isa-news",
       "name": "国际海底管理局 新闻",
+      "nameEn": "International Seabed Authority · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://isa.org.jm/feed/",
@@ -12883,6 +13288,7 @@
     {
       "id": "rss-untourism-news",
       "name": "联合国旅游组织 新闻",
+      "nameEn": "UN Tourism · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.unwto.org/rss.xml",
@@ -12908,6 +13314,7 @@
     {
       "id": "web-un-press",
       "name": "联合国会议纪要与新闻稿",
+      "nameEn": "United Nations · Press Releases and Meeting Summaries",
       "kind": "web_list",
       "config": {
         "url": "https://press.un.org/en",
@@ -12939,6 +13346,7 @@
     {
       "id": "rss-ukri-news",
       "name": "英国研究与创新署 新闻",
+      "nameEn": "UK Research and Innovation (UKRI) · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.ukri.org/news/feed/",
@@ -12964,6 +13372,7 @@
     {
       "id": "rss-noc-news",
       "name": "英国国家海洋学中心 新闻",
+      "nameEn": "National Oceanography Centre (UK) · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.noc.ac.uk/rss.xml",
@@ -12990,6 +13399,7 @@
     {
       "id": "rss-nature-ca-news",
       "name": "加拿大自然博物馆 新闻",
+      "nameEn": "Canadian Museum of Nature · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://nature.ca/en/feed/",
@@ -13015,6 +13425,7 @@
     {
       "id": "web-norsar-news",
       "name": "NORSAR 地震监测中心 新闻",
+      "nameEn": "NORSAR · News",
       "kind": "web_list",
       "config": {
         "url": "https://www.norsar.no/news/",
@@ -13047,6 +13458,7 @@
     {
       "id": "rss-youtube-jpl",
       "name": "NASA 喷气推进实验室 视频频道",
+      "nameEn": "NASA Jet Propulsion Laboratory · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCryGec9PdUCLjpJW2mgCuLw",
@@ -13073,6 +13485,7 @@
     {
       "id": "rss-youtube-unooa",
       "name": "联合国太空事务办公室 视频频道",
+      "nameEn": "UN Office for Outer Space Affairs · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCFm-a8e8DZW97u6FL9jpCNA",
@@ -13099,6 +13512,7 @@
     {
       "id": "rss-youtube-arcgis",
       "name": "ArcGIS 视频频道",
+      "nameEn": "ArcGIS · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCgGDPs8cte-VLJbgpaK4GPw",
@@ -13125,6 +13539,7 @@
     {
       "id": "rss-youtube-spatialthoughts",
       "name": "Spatial Thoughts 地理信息频道",
+      "nameEn": "Spatial Thoughts · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCuZLOgQwRum8Zsy2gSZvMwA",
@@ -13151,6 +13566,7 @@
     {
       "id": "rss-youtube-bgs",
       "name": "英国地质调查局 视频频道",
+      "nameEn": "British Geological Survey · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UC0JCbQti3FlTIzrJGZqzh3Q",
@@ -13177,6 +13593,7 @@
     {
       "id": "rss-youtube-gsi",
       "name": "印度地质调查局 视频频道",
+      "nameEn": "Geological Survey of India · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCoFiGeQoYPP-mJzRPgAwsfw",
@@ -13203,6 +13620,7 @@
     {
       "id": "rss-youtube-esrnz",
       "name": "新西兰地球科学 视频频道",
+      "nameEn": "Earth Sciences New Zealand · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCTL_U_K1eP4T885-JL3rVgw",
@@ -13229,6 +13647,7 @@
     {
       "id": "rss-youtube-geonet",
       "name": "新西兰 GeoNet 灾害监测 视频频道",
+      "nameEn": "GeoNet — New Zealand Hazard Monitoring · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCnkclQ98rmtd80o4hgTGomA",
@@ -13255,6 +13674,7 @@
     {
       "id": "rss-youtube-ingv",
       "name": "意大利地球物理与火山学研究所 视频频道",
+      "nameEn": "INGV — National Institute of Geophysics and Volcanology · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCE7BtTDjg44FvWaclo3uakA",
@@ -13281,6 +13701,7 @@
     {
       "id": "rss-youtube-bas",
       "name": "英国南极调查局 视频频道",
+      "nameEn": "British Antarctic Survey · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCLRaKJeCPEe362Z_rLaEnag",
@@ -13307,6 +13728,7 @@
     {
       "id": "rss-youtube-ldeo",
       "name": "哥伦比亚大学拉蒙特-多森地球观测台 视频频道",
+      "nameEn": "Lamont-Doherty Earth Observatory, Columbia University · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCfmqyDo5E0LKVw9OmOvXUGw",
@@ -13334,6 +13756,7 @@
     {
       "id": "rss-youtube-byrd",
       "name": "俄亥俄州立大学 Byrd 极地研究中心 视频频道",
+      "nameEn": "Byrd Polar and Climate Research Center, Ohio State University · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCTuIJ0jr6IuO2pAfca85HJg",
@@ -13360,6 +13783,7 @@
     {
       "id": "rss-youtube-nmnh",
       "name": "史密森尼国家自然历史博物馆 视频频道",
+      "nameEn": "Smithsonian National Museum of Natural History · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCyCwfDOKjkm2VLWRxa7Ayhw",
@@ -13386,6 +13810,7 @@
     {
       "id": "rss-youtube-mbari",
       "name": "蒙特雷湾水族馆研究所 视频频道",
+      "nameEn": "Monterey Bay Aquarium Research Institute · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCf41OFz8Rrzur538auIF2LQ",
@@ -13412,6 +13837,7 @@
     {
       "id": "rss-youtube-pml",
       "name": "普利茅斯海洋实验室 视频频道",
+      "nameEn": "Plymouth Marine Laboratory · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCfsYrcvGOp-JJm5owSJN8OA",
@@ -13438,6 +13864,7 @@
     {
       "id": "rss-youtube-nws",
       "name": "美国国家气象局 视频频道",
+      "nameEn": "U.S. National Weather Service · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UC9hQvMjzSxurMirYDgOMezw",
@@ -13464,6 +13891,7 @@
     {
       "id": "rss-youtube-meteofrance",
       "name": "法国气象局 视频频道",
+      "nameEn": "Météo-France · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCnBToLuuyq7Qn5j7e5BRhaw",
@@ -13490,6 +13918,7 @@
     {
       "id": "rss-youtube-jma",
       "name": "日本气象厅 视频频道",
+      "nameEn": "Japan Meteorological Agency · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCajQ4ZQJrgwSxkF6xaCfrRw",
@@ -13516,6 +13945,7 @@
     {
       "id": "rss-youtube-eccc",
       "name": "加拿大环境与气候变化部 视频频道",
+      "nameEn": "Environment and Climate Change Canada · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCdPRKH8tJ1VTsTdDc8c8fGg",
@@ -13542,6 +13972,7 @@
     {
       "id": "rss-youtube-oxforterrscience",
       "name": "牛津大学地球科学系 视频频道",
+      "nameEn": "Department of Earth Sciences, University of Oxford · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCyvkd84sTcvJVIvf13j6YlA",
@@ -13568,6 +13999,7 @@
     {
       "id": "rss-youtube-yellowstone",
       "name": "黄石国家公园 视频频道",
+      "nameEn": "Yellowstone National Park · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCaiMu1oDfXlgIkzQwR04aYg",
@@ -13594,6 +14026,7 @@
     {
       "id": "rss-youtube-grandcanyon",
       "name": "大峡谷国家公园 视频频道",
+      "nameEn": "Grand Canyon National Park · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UC8jf0seie_pM_rsPp27aBgA",
@@ -13620,6 +14053,7 @@
     {
       "id": "rss-youtube-glacier",
       "name": "冰川国家公园 视频频道",
+      "nameEn": "Glacier National Park · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UC1iwWIR-ahlaWdyeN30neuQ",
@@ -13646,6 +14080,7 @@
     {
       "id": "rss-youtube-polymatter",
       "name": "PolyMatter 地缘科普频道",
+      "nameEn": "PolyMatter · Explainer Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCgNg3vwj3xt7QOrcIDaHdFg",
@@ -13672,6 +14107,7 @@
     {
       "id": "rss-reddit-geography",
       "name": "Reddit 地理学版最新帖",
+      "nameEn": "Reddit r/geography · Latest Posts",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.reddit.com/r/geography/new.rss",
@@ -13698,6 +14134,7 @@
     {
       "id": "web-cas-neigae-kydt",
       "name": "中国科学院东北地理与农业生态研究所 科研动态",
+      "nameEn": "Northeast Institute of Geography and Agroecology, CAS · Research News",
       "kind": "web_list",
       "config": {
         "url": "https://neigae.cas.cn/news/research/",
@@ -13733,6 +14170,7 @@
     {
       "id": "web-cas-xtbg-xw",
       "name": "中国科学院西双版纳热带植物园 新闻动态",
+      "nameEn": "Xishuangbanna Tropical Botanical Garden, CAS · News",
       "kind": "web_list",
       "config": {
         "url": "https://www.xtbg.ac.cn/2022/xinwen/zhxw/",
@@ -13767,6 +14205,7 @@
     {
       "id": "web-cas-iae-kyjz",
       "name": "中国科学院沈阳应用生态研究所 科研进展",
+      "nameEn": "Institute of Applied Ecology, CAS · Research Highlights",
       "kind": "web_list",
       "config": {
         "url": "https://iae.cas.cn/gb2019/xwzx_156509/kyjz/",
@@ -13802,6 +14241,7 @@
     {
       "id": "web-cas-aircas-rdxw",
       "name": "中国科学院空天信息创新研究院 热点新闻",
+      "nameEn": "Aerospace Information Research Institute, CAS · Top News",
       "kind": "web_list",
       "config": {
         "url": "https://www.aircas.ac.cn/dtxw/rdxw/",
@@ -13837,6 +14277,7 @@
     {
       "id": "web-cas-egi-kydt",
       "name": "中国科学院新疆生态与地理研究所 科研动态",
+      "nameEn": "Xinjiang Institute of Ecology and Geography, CAS · Research News",
       "kind": "web_list",
       "config": {
         "url": "https://egi.cas.cn/xwdt/kydt_163364/index.html",
@@ -13872,6 +14313,7 @@
     {
       "id": "web-cas-scbg-kyjz",
       "name": "中国科学院华南植物园 科研进展",
+      "nameEn": "South China Botanical Garden, CAS · Research Highlights",
       "kind": "web_list",
       "config": {
         "url": "https://www.scbg.ac.cn/kx/kyjz/",
@@ -13907,6 +14349,7 @@
     {
       "id": "web-cas-idsse-tzgg",
       "name": "中国科学院深海科学与工程研究所 通知公告",
+      "nameEn": "Institute of Deep-sea Science and Engineering, CAS · Notices",
       "kind": "web_list",
       "config": {
         "url": "https://www.idsse.ac.cn/xwdt/tzgg/",
@@ -13942,6 +14385,7 @@
     {
       "id": "web-cas-rcees-gzdt",
       "name": "中国科学院生态环境研究中心 工作动态",
+      "nameEn": "Research Center for Eco-Environmental Sciences, CAS · Work Updates",
       "kind": "web_list",
       "config": {
         "url": "https://www.rcees.ac.cn/dqyd/gzdt/",
@@ -13977,6 +14421,7 @@
     {
       "id": "web-cugb-bdxw",
       "name": "中国地质大学（北京） 北地新闻",
+      "nameEn": "China University of Geosciences (Beijing) · Campus News",
       "kind": "web_list",
       "config": {
         "url": "https://www.cugb.edu.cn/bdxw.jhtml",
@@ -14011,6 +14456,7 @@
     {
       "id": "web-jssnu-dili-xw",
       "name": "江苏师范大学地理学院 新闻",
+      "nameEn": "School of Geography, Jiangsu Normal University · News",
       "kind": "web_list",
       "config": {
         "url": "https://dili.jssnu.edu.cn/",
@@ -14046,6 +14492,7 @@
     {
       "id": "web-ahnu-geo-xw",
       "name": "安徽师范大学地理与旅游学院 新闻资讯",
+      "nameEn": "School of Geography and Tourism, Anhui Normal University · News",
       "kind": "web_list",
       "config": {
         "url": "https://geography.ahnu.edu.cn/xwyzx.htm",
@@ -14080,6 +14527,7 @@
     {
       "id": "web-nwu-env-xw",
       "name": "西北大学城市与环境学院 新闻",
+      "nameEn": "College of Urban and Environmental Sciences, Northwest University · News",
       "kind": "web_list",
       "config": {
         "url": "https://env.nwu.edu.cn/index.htm",
@@ -14114,6 +14562,7 @@
     {
       "id": "rss-youtube-asi",
       "name": "意大利航天局 视频频道",
+      "nameEn": "Italian Space Agency (ASI) · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCTXeYvzv6B7gHT4Z9QceL9A",
@@ -14140,6 +14589,7 @@
     {
       "id": "rss-youtube-cnes",
       "name": "法国国家空间研究中心 视频频道",
+      "nameEn": "CNES — French National Centre for Space Studies · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCOixknKUV8AaCA5uaaBY0Bw",
@@ -14166,6 +14616,7 @@
     {
       "id": "rss-youtube-copernicus",
       "name": "哥白尼计划 视频频道",
+      "nameEn": "Copernicus Programme · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCpuwnbuwGG20enAdE50g6TA",
@@ -14192,6 +14643,7 @@
     {
       "id": "rss-youtube-csa",
       "name": "加拿大航天局 视频频道",
+      "nameEn": "Canadian Space Agency · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCdNtqpHlU1pCaVy2wlzxHKQ",
@@ -14218,6 +14670,7 @@
     {
       "id": "rss-youtube-eth",
       "name": "苏黎世联邦理工学院 视频频道",
+      "nameEn": "ETH Zurich · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCRNo2gqj3GiHlmT_OnqkouA",
@@ -14244,6 +14697,7 @@
     {
       "id": "rss-youtube-eumetsat",
       "name": "欧洲气象卫星组织 视频频道",
+      "nameEn": "EUMETSAT · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCiN59j5b1fAGnXVzIYFpaMw",
@@ -14270,6 +14724,7 @@
     {
       "id": "rss-youtube-jaxa",
       "name": "日本宇宙航空研究开发机构 视频频道",
+      "nameEn": "JAXA — Japan Aerospace Exploration Agency · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCfMIdADo6FQayQCOkLYGhrQ",
@@ -14296,6 +14751,7 @@
     {
       "id": "rss-youtube-noaa-ocean-exploration",
       "name": "NOAA 海洋探索 视频频道",
+      "nameEn": "NOAA Ocean Exploration · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCe_3CoEeinvPMze2u_aENBg",
@@ -14322,6 +14778,7 @@
     {
       "id": "rss-youtube-stockholmresilience",
       "name": "斯德哥尔摩韧性中心 视频频道",
+      "nameEn": "Stockholm Resilience Centre · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCG0QUKa0MTBzBKiW18AZfTg",
@@ -14348,6 +14805,7 @@
     {
       "id": "rss-youtube-arcticcouncil",
       "name": "北极理事会 视频频道",
+      "nameEn": "Arctic Council · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCaajRo85ciV-PiNvKZdoArA",
@@ -14374,6 +14832,7 @@
     {
       "id": "rss-youtube-johnnyharris",
       "name": "Johnny Harris 地缘图文频道",
+      "nameEn": "Johnny Harris · Geopolitics Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCmGSJVG3mCRXVOP4yZrU1Dw",
@@ -14400,6 +14859,7 @@
     {
       "id": "rss-youtube-unosat",
       "name": "联合国卫星应用项目 视频频道",
+      "nameEn": "UNOSAT · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCks87-v0xvtTAx55-2FgWfA",
@@ -14426,6 +14886,7 @@
     {
       "id": "rss-youtube-carto",
       "name": "CARTO 视频频道",
+      "nameEn": "CARTO · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UC8p3ZhwdRiGrjUdY6bigB3Q",
@@ -14452,6 +14913,7 @@
     {
       "id": "rss-youtube-esri",
       "name": "Esri 视频频道",
+      "nameEn": "Esri · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCJ203R9PsZn6wF_zYfsp1SA",
@@ -14478,6 +14940,7 @@
     {
       "id": "rss-youtube-grass",
       "name": "GRASS GIS 视频频道",
+      "nameEn": "GRASS GIS · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCfe-8-BM_PAsG59-_ejxCjA",
@@ -14504,6 +14967,7 @@
     {
       "id": "rss-youtube-hot",
       "name": "人道开放地图团队 视频频道",
+      "nameEn": "Humanitarian OpenStreetMap Team · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UC0C055kpMy82mdE8YHORnfw",
@@ -14530,6 +14994,7 @@
     {
       "id": "rss-youtube-mapbox",
       "name": "Mapbox 视频频道",
+      "nameEn": "Mapbox · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCIHl9sd2brgvjBlSETKYDcg",
@@ -14556,6 +15021,7 @@
     {
       "id": "rss-youtube-ogc",
       "name": "开放地理空间联盟 视频频道",
+      "nameEn": "Open Geospatial Consortium · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCR5YGb1pVBBFV-XNA6mA0gg",
@@ -14582,6 +15048,7 @@
     {
       "id": "rss-youtube-qgis",
       "name": "QGIS 视频频道",
+      "nameEn": "QGIS · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCGS162t4hkOA0b35ucf1yng",
@@ -14608,6 +15075,7 @@
     {
       "id": "rss-youtube-sotm",
       "name": "State of the Map 大会 视频频道",
+      "nameEn": "State of the Map Conference · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCLqJsr_5PfdvDFbgv1qp2aQ",
@@ -14634,6 +15102,7 @@
     {
       "id": "rss-youtube-britishlibrary",
       "name": "大英图书馆 馆藏地图视频",
+      "nameEn": "British Library · Map Collections Videos",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UC-75_Zh-CLF7hN8dM4EGEGA",
@@ -14660,6 +15129,7 @@
     {
       "id": "rss-youtube-loc",
       "name": "美国国会图书馆 馆藏视频",
+      "nameEn": "Library of Congress · Collections Videos",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCbObxjfi3W9YKnDS0PgadNA",
@@ -14686,6 +15156,7 @@
     {
       "id": "rss-youtube-mapmen",
       "name": "Map Men 制图趣谈",
+      "nameEn": "Map Men · Cartography Explainers",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCbbQalJ4OaC0oQ0AqRaOJ9g",
@@ -14712,6 +15183,7 @@
     {
       "id": "rss-youtube-rgs",
       "name": "英国皇家地理学会 视频频道",
+      "nameEn": "Royal Geographical Society · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCGdL1D-WfrXFdlcmnC7EfEg",
@@ -14738,6 +15210,7 @@
     {
       "id": "rss-youtube-cambridge",
       "name": "剑桥大学 视频频道",
+      "nameEn": "University of Cambridge · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCc5vZEM1MLUzCrg_aZIJdeA",
@@ -14764,6 +15237,7 @@
     {
       "id": "rss-youtube-fao",
       "name": "联合国粮农组织 视频频道",
+      "nameEn": "FAO — Food and Agriculture Organization of the United Nations · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCtu8MkufmVgxS8_Ocl7mMig",
@@ -14790,6 +15264,7 @@
     {
       "id": "rss-youtube-fema",
       "name": "美国联邦应急管理署 视频频道",
+      "nameEn": "U.S. Federal Emergency Management Agency (FEMA) · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCVrYey5SZMid_VZk9D8tYmA",
@@ -14816,6 +15291,7 @@
     {
       "id": "rss-youtube-ifrc",
       "name": "国际红十字与红新月运动 视频频道",
+      "nameEn": "IFRC — International Federation of Red Cross and Red Crescent Societies · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCZ8xf9ZrTOv7SeYK7U5eKVg",
@@ -14842,6 +15318,7 @@
     {
       "id": "rss-youtube-undrr",
       "name": "联合国减灾办公室 视频频道",
+      "nameEn": "UNDRR — UN Office for Disaster Risk Reduction · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCUw0G3AdE_0EDhcDPlJtJyA",
@@ -14868,6 +15345,7 @@
     {
       "id": "rss-youtube-unep",
       "name": "联合国环境规划署 视频频道",
+      "nameEn": "UNEP — UN Environment Programme · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UC9V3x9HelwEk3Z6EknB_1Cg",
@@ -14894,6 +15372,7 @@
     {
       "id": "rss-youtube-utokyo",
       "name": "东京大学 视频频道",
+      "nameEn": "University of Tokyo · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCYI6VqtL5HFWdVhfD4oFPoA",
@@ -14920,6 +15399,7 @@
     {
       "id": "rss-youtube-wageningen",
       "name": "瓦赫宁根大学 视频频道",
+      "nameEn": "Wageningen University & Research · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCXaytnClAXlaqIngyQh-pWg",
@@ -14946,6 +15426,7 @@
     {
       "id": "rss-youtube-aemet",
       "name": "西班牙气象局 视频频道",
+      "nameEn": "AEMET — Spanish State Meteorological Agency · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCd-ceYPisAtCmmoZa26I-5g",
@@ -14972,6 +15453,7 @@
     {
       "id": "rss-youtube-avo",
       "name": "阿拉斯加火山观测台 视频频道",
+      "nameEn": "Alaska Volcano Observatory · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UC3qyStK264kP-23h7nl1Aqg",
@@ -14998,6 +15480,7 @@
     {
       "id": "rss-youtube-awi",
       "name": "阿尔弗雷德·韦格纳与勃伦哈德研究所 视频频道",
+      "nameEn": "Alfred Wegener Institute, Helmholtz Centre for Polar and Marine Research · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCANsLK2kHR1w5q4dhDGE8vQ",
@@ -15024,6 +15507,7 @@
     {
       "id": "rss-youtube-dwd",
       "name": "德国气象局 视频频道",
+      "nameEn": "Deutscher Wetterdienst (DWD) — German Meteorological Service · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCOQYlLhP9aXKrAecE7oNUAA",
@@ -15050,6 +15534,7 @@
     {
       "id": "rss-youtube-emsc",
       "name": "欧洲地中海地震中心 视频频道",
+      "nameEn": "European-Mediterranean Seismological Centre · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UC_DwbHPMKSU41Qn9HgbNIJg",
@@ -15076,6 +15561,7 @@
     {
       "id": "rss-youtube-gfz",
       "name": "德国地学研究中心 视频频道",
+      "nameEn": "GFZ Helmholtz Centre for Geosciences · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UC15OtI1dmABaje6UQwbC5yA",
@@ -15102,6 +15588,7 @@
     {
       "id": "rss-youtube-globalnaturewatch",
       "name": "全球自然观察 视频频道",
+      "nameEn": "Global Nature Watch · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCAsamYre1KLulf4FD-xJfLA",
@@ -15128,6 +15615,7 @@
     {
       "id": "rss-youtube-imd",
       "name": "印度气象局 视频频道",
+      "nameEn": "India Meteorological Department (IMD) · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UC_qxTReoq07UVARm87CuyQw",
@@ -15154,6 +15642,7 @@
     {
       "id": "rss-youtube-ipma",
       "name": "葡萄牙海洋与大气研究所 视频频道",
+      "nameEn": "IPMA — Portuguese Institute for Sea and Atmosphere · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCqCr5LBZHI13S5eJF5HX2jw",
@@ -15180,6 +15669,7 @@
     {
       "id": "rss-youtube-knmi",
       "name": "荷兰皇家气象研究所 视频频道",
+      "nameEn": "KNMI — Royal Netherlands Meteorological Institute · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCqQtmDbRgKOoJ_lPv_mU9nQ",
@@ -15206,6 +15696,7 @@
     {
       "id": "rss-youtube-meteireann",
       "name": "爱尔兰气象局 视频频道",
+      "nameEn": "Met Éireann — Irish Meteorological Service · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UC67dRUD00xsU-hH93bqIQ_g",
@@ -15232,6 +15723,7 @@
     {
       "id": "rss-youtube-meteoswiss",
       "name": "瑞士联邦气象与气候局 视频频道",
+      "nameEn": "MeteoSwiss — Federal Office of Meteorology and Climatology · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UC_Vs_cE9l-RBw0_w86pDoGg",
@@ -15258,6 +15750,7 @@
     {
       "id": "rss-youtube-nhc",
       "name": "美国国家飓风中心 视频频道",
+      "nameEn": "U.S. National Hurricane Center · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCv0qlvvLtEuCxAoEitAuoFg",
@@ -15284,6 +15777,7 @@
     {
       "id": "rss-youtube-nsidc",
       "name": "美国国家冰雪数据中心 视频频道",
+      "nameEn": "NSIDC — National Snow and Ice Data Center · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCQxQlcjXuh32ctfX3QHiyRg",
@@ -15310,6 +15804,7 @@
     {
       "id": "rss-youtube-wmo",
       "name": "世界气象组织 视频频道",
+      "nameEn": "WMO — World Meteorological Organization · YouTube Channel",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCMCDaG2oNwzEZLTk4ZJiWjg",
@@ -15336,6 +15831,7 @@
     {
       "id": "jr-doj-revistas-planejamento-rs-gov",
       "name": "《地理通报》·当期目录",
+      "nameEn": "Boletim Geográfico do Rio Grande do Sul · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "http://revistas.planejamento.rs.gov.br/index.php/boletim-geografico-rs/gateway/plugin/WebFeedGatewayPlugin/atom",
@@ -15362,6 +15858,7 @@
     {
       "id": "jr-doj-revistas-ecosur",
       "name": "《社会与环境》·当期目录",
+      "nameEn": "Sociedad y Ambiente · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://revistas.ecosur.mx/sociedadyambiente/index.php/sya/gateway/plugin/WebFeedGatewayPlugin/atom",
@@ -15388,6 +15885,7 @@
     {
       "id": "jr-doj-revistas-uniandes-edu",
       "name": "《自然与社会》·当期目录",
+      "nameEn": "Naturaleza y Sociedad: Desafíos Medioambientales · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://revistas.uniandes.edu.co/index.php/nys/gateway/plugin/WebFeedGatewayPlugin/atom",
@@ -15414,6 +15912,7 @@
     {
       "id": "jr-doj-pjaec",
       "name": "《环境化学》·当期目录",
+      "nameEn": "Pakistan Journal of Analytical & Environmental Chemistry · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://pjaec.pk/index.php/pjaec/gateway/plugin/WebFeedGatewayPlugin/atom",
@@ -15440,6 +15939,7 @@
     {
       "id": "jr-doj-journal-unnes-ac",
       "name": "环境科学教育·当期目录",
+      "nameEn": "Journal of Environmental and Science Education · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://journal.unnes.ac.id/journals/jese/gateway/plugin/WebFeedGatewayPlugin/atom",
@@ -15466,6 +15966,7 @@
     {
       "id": "jr-doj-ejurnal-ung-ac",
       "name": "《地理教育刊》·当期目录",
+      "nameEn": "Jambura Geo Education Journal · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://ejurnal.ung.ac.id/index.php/JGEJ/gateway/plugin/WebFeedGatewayPlugin/atom",
@@ -15493,6 +15994,7 @@
     {
       "id": "jr-doj-rbciamb-com",
       "name": "巴西环境科学·当期目录",
+      "nameEn": "Revista Brasileira de Ciências Ambientais · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.rbciamb.com.br/Publicacoes_RBCIAMB/gateway/plugin/WebFeedGatewayPlugin/atom",
@@ -15520,6 +16022,7 @@
     {
       "id": "jr-doj-journals-uclpress-co",
       "name": "《UCL Open Environment》· 当期目录",
+      "nameEn": "UCL Open Environment · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://journals.uclpress.co.uk/ucloe/feed/",
@@ -15546,6 +16049,7 @@
     {
       "id": "jr-doj-e-journal-unair-ac",
       "name": "《渔业与海洋》·当期目录",
+      "nameEn": "Jurnal Ilmiah Perikanan dan Kelautan · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://e-journal.unair.ac.id/JIPK/gateway/plugin/WebFeedGatewayPlugin/atom",
@@ -15572,6 +16076,7 @@
     {
       "id": "jr-doj-periodicos-ufrn",
       "name": "巴西东北地理·当期目录",
+      "nameEn": "Revista de Geociências do Nordeste · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://periodicos.ufrn.br/revistadoregne/gateway/plugin/WebFeedGatewayPlugin/atom",
@@ -15598,6 +16103,7 @@
     {
       "id": "jr-doj-journals-rudn",
       "name": "RUDN 生态与安全公告",
+      "nameEn": "RUDN Journal of Ecology and Life Safety · Announcements",
       "kind": "rss",
       "config": {
         "feedUrl": "https://journals.rudn.ru/ecology/gateway/plugin/AnnouncementFeedGatewayPlugin/atom",
@@ -15624,6 +16130,7 @@
     {
       "id": "jr-doj-journals-umcs",
       "name": "《UMCS地理》·当期目录",
+      "nameEn": "Annales UMCS, Sectio B: Geographia, Geologia, Mineralogia et Petrographia · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://journals.umcs.pl/b/gateway/plugin/WebFeedGatewayPlugin/atom",
@@ -15650,6 +16157,7 @@
     {
       "id": "jr-doj-periodicos-furg",
       "name": "《环境教育》·当期目录",
+      "nameEn": "Ambiente & Educação: Revista de Educação Ambiental · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://periodicos.furg.br/ambeduc/gateway/plugin/WebFeedGatewayPlugin/atom",
@@ -15676,6 +16184,7 @@
     {
       "id": "jr-doj-ecoconference-kpi",
       "name": "基辅理工 生态会议文集",
+      "nameEn": "International Conference \"Ecology. Human. Society.\" Proceedings (Kyiv Polytechnic Institute)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://ecoconference.kpi.ua/gateway/plugin/WebFeedGatewayPlugin/atom",
@@ -15702,6 +16211,7 @@
     {
       "id": "jr-doj-geospatialhealth",
       "name": "地理空间健康·当期目录",
+      "nameEn": "Geospatial Health · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.geospatialhealth.net/gh/gateway/plugin/WebFeedGatewayPlugin/atom",
@@ -15728,6 +16238,7 @@
     {
       "id": "jr-doj-hemeroteca-unad-edu",
       "name": "农业与环境研究·当期目录",
+      "nameEn": "Revista de Investigación Agraria y Ambiental · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://hemeroteca.unad.edu.co/index.php/riaa/gateway/plugin/WebFeedGatewayPlugin/atom",
@@ -15754,6 +16265,7 @@
     {
       "id": "jr-doj-ph02-tci-thaijo",
       "name": "《BUILT Environment》· 当期目录",
+      "nameEn": "International Journal of Building, Urban, Interior and Landscape Technology (BUILT) · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://ph02.tci-thaijo.org/index.php/BUILT/gateway/plugin/WebFeedGatewayPlugin/atom",
@@ -15780,6 +16292,7 @@
     {
       "id": "jr-doj-eurogeojournal",
       "name": "《欧洲地理》·当期目录",
+      "nameEn": "European Journal of Geography · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://eurogeojournal.eu/index.php/egj/gateway/plugin/WebFeedGatewayPlugin/atom",
@@ -15806,6 +16319,7 @@
     {
       "id": "jr-doj-environmentalsmoke-com",
       "name": "《控烟与环境》·当期目录",
+      "nameEn": "Environmental Smoke · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://environmentalsmoke.com.br/EnvSmoke/en/gateway/plugin/WebFeedGatewayPlugin/atom",
@@ -15832,6 +16346,7 @@
     {
       "id": "jr-doj-editoraessentia-iff-edu",
       "name": "环境观察通报·当期目录",
+      "nameEn": "Boletim do Observatório Ambiental Alberto Ribeiro Lamego · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://editoraessentia.iff.edu.br/index.php/boletim/gateway/plugin/WebFeedGatewayPlugin/atom",
@@ -15858,6 +16373,7 @@
     {
       "id": "jr-doj-jbgs-arphahub",
       "name": "保加利亚地理刊·当期目录",
+      "nameEn": "Journal of the Bulgarian Geographical Society · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://jbgs.arphahub.com/rss",
@@ -15884,6 +16400,7 @@
     {
       "id": "jr-doj-journals-um",
       "name": "《地理学刊》·当期目录",
+      "nameEn": "Journal for Geography (University of Maribor) · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://journals.um.si/index.php/geography/en/gateway/plugin/WebFeedGatewayPlugin/atom",
@@ -15910,6 +16427,7 @@
     {
       "id": "jr-doj-periodicos-uffs-edu",
       "name": "管理与可持续·当期目录",
+      "nameEn": "Management and Sustainability (RGES, UFFS) · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://periodicos.uffs.edu.br/index.php/RGES/gateway/plugin/WebFeedGatewayPlugin/atom",
@@ -15936,6 +16454,7 @@
     {
       "id": "jr-doj-ejournal-foundae",
       "name": "地理空间科学·当期目录",
+      "nameEn": "Journal of Geospatial Science and Analytics · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://ejournal.foundae.com/index.php/jgsa/gateway/plugin/WebFeedGatewayPlugin/atom",
@@ -15962,6 +16481,7 @@
     {
       "id": "jr-doj-nje-org",
       "name": "《Namibian J. Environment》· 当期目录",
+      "nameEn": "Namibian Journal of Environment · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://nje.org.na/index.php/nje/gateway/plugin/WebFeedGatewayPlugin/atom",
@@ -15988,6 +16508,7 @@
     {
       "id": "jr-doj-periodicos-unc",
       "name": "《区域发展》·当期目录",
+      "nameEn": "DRd — Desenvolvimento Regional em Debate · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.periodicos.unc.br/index.php/drd/gateway/plugin/WebFeedGatewayPlugin/atom",
@@ -16015,6 +16536,7 @@
     {
       "id": "jr-doj-revista-unitins",
       "name": "农业环境科学·当期目录",
+      "nameEn": "Agri-Environmental Sciences · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://revista.unitins.br/index.php/agri-environmental-sciences/gateway/plugin/WebFeedGatewayPlugin/atom",
@@ -16041,6 +16563,7 @@
     {
       "id": "jr-doj-revistas-univalle-edu",
       "name": "《地理环境》·当期目录",
+      "nameEn": "Entorno Geográfico · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://entornogeografico.univalle.edu.co/index.php/entornogeografico/gateway/plugin/WebFeedGatewayPlugin/atom",
@@ -16067,6 +16590,7 @@
     {
       "id": "jr-doj-halacsolcha",
       "name": "HALAC 环境史·当期目录",
+      "nameEn": "Historia Ambiental Latinoamericana y Caribeña (HALAC) · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.halacsolcha.org/index.php/halac/gateway/plugin/WebFeedGatewayPlugin/atom",
@@ -16094,6 +16618,7 @@
     {
       "id": "jr-doj-upjournals-up-ac",
       "name": "非洲地理教育·当期目录",
+      "nameEn": "Journal of Geography Education in Africa (JoGEA) · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://upjournals.up.ac.za/index.php/jogea/gateway/plugin/WebFeedGatewayPlugin/atom",
@@ -16120,6 +16645,7 @@
     {
       "id": "jr-doj-nordia-journal",
       "name": "《Nordia地理》·当期目录",
+      "nameEn": "Nordia Geographical Publications · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://nordia.journal.fi/gateway/plugin/WebFeedGatewayPlugin/atom",
@@ -16146,6 +16672,7 @@
     {
       "id": "us-usgs-eq-all-day",
       "name": "USGS 全球地震（日报）",
+      "nameEn": "USGS Global Earthquakes (Daily)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.atom",
@@ -16172,6 +16699,7 @@
     {
       "id": "us-usgs-eq-m25-week",
       "name": "USGS M2.5+地震（周报）",
+      "nameEn": "USGS M2.5+ Earthquakes (Weekly)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_week.atom",
@@ -16198,6 +16726,7 @@
     {
       "id": "us-nasa-iotd",
       "name": "NASA 今日图像",
+      "nameEn": "NASA Image of the Day",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.nasa.gov/feeds/iotd-feed/",
@@ -16224,6 +16753,7 @@
     {
       "id": "us-nasa-center-hq",
       "name": "NASA · 总部动态",
+      "nameEn": "NASA · Headquarters News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.nasa.gov/centers-and-facilities/hq/feed/",
@@ -16250,6 +16780,7 @@
     {
       "id": "us-nasa-center-glenn",
       "name": "NASA · 格伦中心",
+      "nameEn": "NASA · Glenn Research Center",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.nasa.gov/centers-and-facilities/glenn/feed/",
@@ -16276,6 +16807,7 @@
     {
       "id": "us-nasa-center-jpl",
       "name": "NASA · 喷气推进实验室",
+      "nameEn": "NASA · Jet Propulsion Laboratory",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.nasa.gov/centers-and-facilities/jpl/feed/",
@@ -16302,6 +16834,7 @@
     {
       "id": "us-nasa-center-ames",
       "name": "NASA · 埃姆斯中心",
+      "nameEn": "NASA · Ames Research Center",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.nasa.gov/centers-and-facilities/ames/feed/",
@@ -16328,6 +16861,7 @@
     {
       "id": "us-nasa-center-kennedy",
       "name": "NASA · 肯尼迪中心",
+      "nameEn": "NASA · Kennedy Space Center",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.nasa.gov/centers-and-facilities/kennedy/feed/",
@@ -16354,6 +16888,7 @@
     {
       "id": "us-noaa-nhc-index-ep",
       "name": "NHC · 东太平洋",
+      "nameEn": "NHC · Eastern Pacific",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.nhc.noaa.gov/index-ep.xml",
@@ -16380,6 +16915,7 @@
     {
       "id": "us-noaa-nhc-gis-ep",
       "name": "NHC · 东太平洋GIS",
+      "nameEn": "NHC · Eastern Pacific GIS",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.nhc.noaa.gov/gis-ep.xml",
@@ -16406,6 +16942,7 @@
     {
       "id": "us-noaa-nhc-index-ep-sp",
       "name": "美国飓风中心 · 东太平洋",
+      "nameEn": "National Hurricane Center · Eastern Pacific (Spanish)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.nhc.noaa.gov/index-ep-sp.xml",
@@ -16432,6 +16969,7 @@
     {
       "id": "us-noaa-aoml-home",
       "name": "NOAA · 大西洋海洋实验室",
+      "nameEn": "NOAA · Atlantic Oceanographic and Meteorological Laboratory",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.aoml.noaa.gov/feed/",
@@ -16458,6 +16996,7 @@
     {
       "id": "us-noaa-spc-home",
       "name": "美国强风暴中心 · 预报",
+      "nameEn": "NOAA Storm Prediction Center · Forecasts",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.spc.noaa.gov/products/spcrss.xml",
@@ -16484,6 +17023,7 @@
     {
       "id": "us-loc-in-custodia-legis",
       "name": "国会图书馆 · 法律史博客",
+      "nameEn": "Library of Congress · In Custodia Legis (Law Library Blog)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://blogs.loc.gov/law/feed/",
@@ -16510,6 +17050,7 @@
     {
       "id": "us-nsf-events",
       "name": "美国国家科学基金会 · 活动",
+      "nameEn": "U.S. National Science Foundation · Events",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.nsf.gov/rss/rss_www_events.xml",
@@ -16536,6 +17077,7 @@
     {
       "id": "us-loc-folklife",
       "name": "国会图书馆 · 民俗生活",
+      "nameEn": "Library of Congress · Folklife",
       "kind": "rss",
       "config": {
         "feedUrl": "https://blogs.loc.gov/folklife/feed/",
@@ -16562,6 +17104,7 @@
     {
       "id": "int-who-news-zh",
       "name": "世界卫生组织 中文新闻",
+      "nameEn": "World Health Organization · News (Chinese)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.who.int/rss-feeds/news-chinese.xml",
@@ -16588,6 +17131,7 @@
     {
       "id": "int-unaids-news",
       "name": "联合国 · 艾滋病规划署",
+      "nameEn": "UNAIDS · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.unaids.org/en/rss.xml",
@@ -16614,6 +17158,7 @@
     {
       "id": "int-idlo-news",
       "name": "国际发展法组织",
+      "nameEn": "International Development Law Organization (IDLO) · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.idlo.int/rss.xml",
@@ -16640,6 +17185,7 @@
     {
       "id": "int-eea-publications",
       "name": "欧洲环境署 出版物",
+      "nameEn": "European Environment Agency · Publications",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.eea.europa.eu/en/newsroom/rss-feeds/publications-rss/rss.xml",
@@ -16666,6 +17212,7 @@
     {
       "id": "int-eea-maps-charts",
       "name": "欧洲环境署 图件",
+      "nameEn": "European Environment Agency · Maps and Charts",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.eea.europa.eu/en/newsroom/rss-feeds/maps-and-charts/rss.xml",
@@ -16692,6 +17239,7 @@
     {
       "id": "int-itu-news",
       "name": "国际电信联盟 · 新闻",
+      "nameEn": "International Telecommunication Union (ITU) · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.itu.int/hub/feed/",
@@ -16718,6 +17266,7 @@
     {
       "id": "int-ec-digital-strategy",
       "name": "欧盟委员会 · 数字战略",
+      "nameEn": "European Commission · Digital Strategy",
       "kind": "rss",
       "config": {
         "feedUrl": "https://digital-strategy.ec.europa.eu/en/rss.xml",
@@ -16744,6 +17293,7 @@
     {
       "id": "int-esa-human-flight",
       "name": "欧洲空间局 · 载人探测",
+      "nameEn": "ESA · Human Spaceflight",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.esa.int/rssfeed/Our_Activities/Human_Spaceflight",
@@ -16770,6 +17320,7 @@
     {
       "id": "int-esa-science",
       "name": "欧洲空间局 · 空间科学",
+      "nameEn": "ESA · Space Science",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.esa.int/rssfeed/Our_Activities/Space_Science",
@@ -16796,6 +17347,7 @@
     {
       "id": "int-esa-navigation",
       "name": "欧洲空间局 · 卫星导航",
+      "nameEn": "ESA · Satellite Navigation",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.esa.int/rssfeed/Our_Activities/Navigation",
@@ -16822,6 +17374,7 @@
     {
       "id": "int-cmms-news",
       "name": "哥白尼海洋服务 动态",
+      "nameEn": "Copernicus Marine Service · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://marine.copernicus.eu/news/rss.xml",
@@ -16848,6 +17401,7 @@
     {
       "id": "int-istat-news",
       "name": "意大利统计局 · 新闻",
+      "nameEn": "Istat — Italian National Institute of Statistics · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.istat.it/feed/",
@@ -16874,6 +17428,7 @@
     {
       "id": "jr-tf-polar-geography",
       "name": "《极地地理》",
+      "nameEn": "Polar Geography · Latest Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.tandfonline.com/feed/rss/tpog20",
@@ -16900,6 +17455,7 @@
     {
       "id": "jr-tf-polar-journal",
       "name": "《极地学刊》",
+      "nameEn": "The Polar Journal · Latest Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.tandfonline.com/feed/rss/rpol20",
@@ -16926,6 +17482,7 @@
     {
       "id": "jr-tf-scottish-geographical-journal",
       "name": "《苏格兰地理杂志》",
+      "nameEn": "Scottish Geographical Journal · Latest Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.tandfonline.com/feed/rss/rsgj20",
@@ -16952,6 +17509,7 @@
     {
       "id": "jr-tf-water-intl-rwin",
       "name": "《国际水资源》",
+      "nameEn": "International Journal of Water Resources Development · Latest Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.tandfonline.com/feed/rss/rwin20",
@@ -16978,6 +17536,7 @@
     {
       "id": "jr-tf-south-african-geographical-journal",
       "name": "《南非地理杂志》",
+      "nameEn": "South African Geographical Journal · Latest Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.tandfonline.com/feed/rss/rsag20",
@@ -17004,6 +17563,7 @@
     {
       "id": "jr-wiley-aquatic-conservation",
       "name": "《水生保护·海洋与淡水生态系统》",
+      "nameEn": "Aquatic Conservation: Marine and Freshwater Ecosystems · Latest Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/10990755/most-recent",
@@ -17030,6 +17590,7 @@
     {
       "id": "jr-wiley-boreas",
       "name": "《博里阿斯·第四纪地质与地理》",
+      "nameEn": "Boreas · Latest Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/15023885/most-recent",
@@ -17056,6 +17617,7 @@
     {
       "id": "jr-wiley-ecography",
       "name": "《生态地理学》",
+      "nameEn": "Ecography · Latest Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/16000587/most-recent",
@@ -17083,6 +17645,7 @@
     {
       "id": "jr-wiley-ecology",
       "name": "《生态学》",
+      "nameEn": "Ecology · Latest Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/19399170/most-recent",
@@ -17109,6 +17672,7 @@
     {
       "id": "jr-wiley-ecology-evolution",
       "name": "《生态与演化》",
+      "nameEn": "Ecology and Evolution · Latest Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/20457758/most-recent",
@@ -17135,6 +17699,7 @@
     {
       "id": "jr-wiley-limnology-oceanography",
       "name": "《湖沼学与海洋学》",
+      "nameEn": "Limnology and Oceanography · Latest Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/19395590/most-recent",
@@ -17161,6 +17726,7 @@
     {
       "id": "jr-wiley-meteorological-applications",
       "name": "《气象应用》",
+      "nameEn": "Meteorological Applications · Latest Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/14698080/most-recent",
@@ -17187,6 +17753,7 @@
     {
       "id": "jr-wiley-qjrms",
       "name": "《英国皇家气象学会学报》",
+      "nameEn": "Quarterly Journal of the Royal Meteorological Society · Latest Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://onlinelibrary.wiley.com/feed/1477870x/most-recent",
@@ -17213,6 +17780,7 @@
     {
       "id": "gt-cems-mapping-news",
       "name": "哥白尼应急 · 按需制图",
+      "nameEn": "Copernicus EMS · On-Demand Mapping",
       "kind": "rss",
       "config": {
         "feedUrl": "https://mapping.emergency.copernicus.eu/latest/feed/",
@@ -17239,6 +17807,7 @@
     {
       "id": "gt-esa-eo-news",
       "name": "欧洲空间局 · 对地观测",
+      "nameEn": "ESA · Earth Observation",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.esa.int/rssfeed/Applications/Observing_the_Earth",
@@ -17265,6 +17834,7 @@
     {
       "id": "gt-esa-set",
       "name": "欧洲空间局 · 空间工程",
+      "nameEn": "ESA · Space Engineering and Technology",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.esa.int/rssfeed/Enabling_Support/Space_Engineering_Technology",
@@ -17291,6 +17861,7 @@
     {
       "id": "gt-cds-news",
       "name": "哥白尼数据空间 动态",
+      "nameEn": "Copernicus Data Space Ecosystem · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://dataspace.copernicus.eu/rss.xml",
@@ -17317,6 +17888,7 @@
     {
       "id": "gt-euspa-news",
       "name": "欧盟空间计划署 · 新闻",
+      "nameEn": "European Union Agency for the Space Programme (EUSPA) · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.euspa.europa.eu/newsroom-events/news/rss.xml",
@@ -17343,6 +17915,7 @@
     {
       "id": "jr-mausam",
       "name": "《MAUSAM气象》·当期目录",
+      "nameEn": "MAUSAM (IMD Journal of Meteorology) · Current Issue",
       "kind": "rss",
       "config": {
         "feedUrl": "https://mausamjournal.imd.gov.in/index.php/MAUSAM/gateway/plugin/WebFeedGatewayPlugin/atom",
@@ -17370,6 +17943,7 @@
     {
       "id": "gt-hm-land-registry",
       "name": "英国土地注册局 · 动态",
+      "nameEn": "HM Land Registry (UK) · Updates",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.gov.uk/government/organisations/land-registry.atom",
@@ -17396,6 +17970,7 @@
     {
       "id": "gt-shom",
       "name": "法国海军水文局 · 动态",
+      "nameEn": "SHOM — French Hydrographic and Oceanographic Service · Updates",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.shom.fr/rss.xml",
@@ -17422,6 +17997,7 @@
     {
       "id": "gt-nls-fi-news",
       "name": "芬兰国家测绘局 · 动态",
+      "nameEn": "National Land Survey of Finland · Updates",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.maanmittauslaitos.fi/rss",
@@ -17448,6 +18024,7 @@
     {
       "id": "fr-brgm-geoscience-topic-feed",
       "name": "法国地质矿产局 地球科学",
+      "nameEn": "BRGM · Geoscience",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.brgm.fr/fr/rss/term/comprendre-sciences-terre",
@@ -17474,6 +18051,7 @@
     {
       "id": "fr-brgm-events-feed",
       "name": "法国国家地质矿产调查局 BRGM · 活动与会议",
+      "nameEn": "BRGM — French Geological Survey · Events and Conferences",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.brgm.fr/fr/rss/event",
@@ -17500,6 +18078,7 @@
     {
       "id": "no-met-no-alerts-national",
       "name": "挪威气象局 全国预警",
+      "nameEn": "Norwegian Meteorological Institute · National Warnings",
       "kind": "rss",
       "config": {
         "feedUrl": "https://api.met.no/weatherapi/metalerts/2.0/current.rss?lang=en",
@@ -17526,6 +18105,7 @@
     {
       "id": "fr-ipgp-actualites-feed",
       "name": "巴黎地球物理研究院 · 动态",
+      "nameEn": "Institut de Physique du Globe de Paris (IPGP) · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.ipgp.fr/feed/",
@@ -17552,6 +18132,7 @@
     {
       "id": "eu-esa-copernicus-feed",
       "name": "欧洲空间局 · 哥白尼",
+      "nameEn": "ESA · Copernicus",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.esa.int/rssfeed/Our_Activities/Observing_the_Earth/Copernicus",
@@ -17578,6 +18159,7 @@
     {
       "id": "br-cemaden-rss",
       "name": "CEMADEN · 灾害预警",
+      "nameEn": "CEMADEN · Disaster Warnings",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.gov.br/cemaden/rss.xml",
@@ -17605,6 +18187,7 @@
     {
       "id": "br-inmet-avisos-rss",
       "name": "巴西气象局 灾害预警",
+      "nameEn": "INMET — Brazilian National Institute of Meteorology · Warnings",
       "kind": "rss",
       "config": {
         "feedUrl": "https://apiprevmet3.inmet.gov.br/avisos/rss",
@@ -17631,6 +18214,7 @@
     {
       "id": "esa-our-activities-telecommunications-integr",
       "name": "欧洲空间局 · 安全通信",
+      "nameEn": "ESA · Secure Communications",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.esa.int/rssfeed/Our_Activities/Telecommunications_Integrated_Applications",
@@ -17657,6 +18241,7 @@
     {
       "id": "esa-our-activities-operations",
       "name": "欧洲空间局 · 任务运行",
+      "nameEn": "ESA · Operations",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.esa.int/rssfeed/Our_Activities/Operations",
@@ -17683,6 +18268,7 @@
     {
       "id": "nasa-sci-missions",
       "name": "NASA 每日天文一图",
+      "nameEn": "NASA Astronomy Picture of the Day (APOD)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://science.nasa.gov/feed/apod-basic/",
@@ -17709,6 +18295,7 @@
     {
       "id": "nasa-gov-general",
       "name": "NASA · 综合动态",
+      "nameEn": "NASA · General News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.nasa.gov/general/feed/",
@@ -17735,6 +18322,7 @@
     {
       "id": "cn-cgs-cags-yw",
       "name": "中国地质科学院 业务要闻",
+      "nameEn": "Chinese Academy of Geological Sciences · Operational News",
       "kind": "web_list",
       "config": {
         "url": "http://www.cags.cgs.gov.cn/ywjx_4645/",
@@ -17767,6 +18355,7 @@
     {
       "id": "cn-cgs-chengdu-gzdt",
       "name": "中国地质调查局成都地质调查中心 工作动态",
+      "nameEn": "Chengdu Center, China Geological Survey · Work Updates",
       "kind": "web_list",
       "config": {
         "url": "http://www.chengdu.cgs.gov.cn/gzdt_4932/",
@@ -17799,6 +18388,7 @@
     {
       "id": "cn-cgs-cniet-snyw",
       "name": "中国地质调查局勘探技术研究所 所内要闻",
+      "nameEn": "Institute of Exploration Techniques, CGS · Institute News",
       "kind": "web_list",
       "config": {
         "url": "http://www.cniet.cgs.gov.cn/snyw/",
@@ -17831,6 +18421,7 @@
     {
       "id": "cn-cgs-bjiee-yw",
       "name": "中国地质调查局探矿工程研究所 所内要闻",
+      "nameEn": "Institute of Exploration Engineering, CGS · Institute News",
       "kind": "web_list",
       "config": {
         "url": "http://www.bjiee.cgs.gov.cn/jryw/",
@@ -17863,6 +18454,7 @@
     {
       "id": "cn-cgs-cigem-dwdt",
       "name": "中国地质环境监测院 单位动态",
+      "nameEn": "China Institute of Geo-Environment Monitoring · Updates",
       "kind": "web_list",
       "config": {
         "url": "http://www.cigem.cgs.gov.cn/gzdt_4839/dwdt_4861/",
@@ -17895,6 +18487,7 @@
     {
       "id": "cn-cgs-cdly-dwdt",
       "name": "中国地质科学院成都矿产综合利用研究所 单位动态",
+      "nameEn": "Institute of Multipurpose Utilization of Mineral Resources, CAGS · Updates",
       "kind": "rss",
       "config": {
         "feedUrl": "http://www.imumr.cgs.gov.cn/rss/",
@@ -17920,6 +18513,7 @@
     {
       "id": "cn-cgs-hagsnrc-dwdt",
       "name": "中国地质调查局哈尔滨自然资源综合调查中心 单位动态",
+      "nameEn": "Harbin Comprehensive Survey of Natural Resources Center, CGS · Updates",
       "kind": "web_list",
       "config": {
         "url": "http://www.hagsnrc.cgs.gov.cn/gzdt/dwdt/",
@@ -17952,6 +18546,7 @@
     {
       "id": "cn-dzj-gd-xwzx",
       "name": "广东省地震局 新闻中心",
+      "nameEn": "Guangdong Earthquake Agency · News Center",
       "kind": "web_list",
       "config": {
         "url": "http://www.gddzj.gov.cn/gddzj/xwzx95/index.html",
@@ -17986,6 +18581,7 @@
     {
       "id": "cn-nmemc-gzdt",
       "name": "国家海洋环境监测中心 工作动态",
+      "nameEn": "National Marine Environmental Monitoring Center · Work Updates",
       "kind": "web_list",
       "config": {
         "url": "http://www.nmemc.org.cn/gzdt/",
@@ -18018,6 +18614,7 @@
     {
       "id": "cn-cas-qdio-kyjz",
       "name": "中国科学院海洋研究所 科研进展",
+      "nameEn": "Institute of Oceanology, CAS · Research Highlights",
       "kind": "web_list",
       "config": {
         "url": "https://qdio.cas.cn/2019Ver/News/kyjz/",
@@ -18050,6 +18647,7 @@
     {
       "id": "cn-lasac-zxdt",
       "name": "自然资源部国土卫星遥感应用中心 最新动态",
+      "nameEn": "Land Satellite Remote Sensing Application Center, MNR · Latest News",
       "kind": "web_list",
       "config": {
         "url": "http://www.lasac.cn/xwfbsy/zxdt/index.html",
@@ -18083,6 +18681,7 @@
     {
       "id": "cn-comra-gnxw",
       "name": "中国大洋矿产资源研究开发协会 国内新闻动态",
+      "nameEn": "China Ocean Mineral Resources R&D Association (COMRA) · Domestic News",
       "kind": "web_list",
       "config": {
         "url": "http://www.comra.org/node_539533.htm",
@@ -18114,6 +18713,7 @@
     {
       "id": "hg-whc-session-41st",
       "name": "第41届世界遗产委员会会议",
+      "nameEn": "41st Session of the World Heritage Committee",
       "kind": "rss",
       "config": {
         "feedUrl": "https://whc.unesco.org/en/news/rss",
@@ -18140,6 +18740,7 @@
     {
       "id": "hg-iccrom-news",
       "name": "国际文化遗产保护与修复研究中心",
+      "nameEn": "ICCROM — International Centre for the Study of the Preservation and Restoration of Cultural Property · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.iccrom.org/feed",
@@ -18166,6 +18767,7 @@
     {
       "id": "hg-raa-nyheter",
       "name": "瑞典国家遗产委员会 新闻",
+      "nameEn": "Swedish National Heritage Board · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.raa.se/feed/",
@@ -18192,6 +18794,7 @@
     {
       "id": "hg-nac-poland",
       "name": "波兰国家档案馆 动态",
+      "nameEn": "Polish National Archives · Updates",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.nac.gov.pl/feed/",
@@ -18218,6 +18821,7 @@
     {
       "id": "gp-mca",
       "name": "英国海事与海岸警卫署",
+      "nameEn": "UK Maritime and Coastguard Agency",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.gov.uk/government/organisations/maritime-and-coastguard-agency.atom",
@@ -18243,6 +18847,7 @@
     {
       "id": "gp-scotland-office",
       "name": "英国内阁办公室苏格兰事务厅",
+      "nameEn": "Scotland Office, UK Cabinet Office",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.gov.uk/government/organisations/scotland-office.atom",
@@ -18268,6 +18873,7 @@
     {
       "id": "gp-northern-ireland-office",
       "name": "英国内阁办公室北爱尔兰事务厅",
+      "nameEn": "Northern Ireland Office, UK Cabinet Office",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.gov.uk/government/organisations/northern-ireland-office.atom",
@@ -18293,6 +18899,7 @@
     {
       "id": "gp-eesc-press",
       "name": "欧洲经济与社会委员会 新闻稿",
+      "nameEn": "European Economic and Social Committee · Press Releases",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.eesc.europa.eu/en/news-media/press-releases.rss",
@@ -18318,6 +18925,7 @@
     {
       "id": "gp-eea-media",
       "name": "欧洲环境署 新闻中心",
+      "nameEn": "European Environment Agency · Newsroom",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.eea.europa.eu/en/newsroom/rss-feeds/eeas-press-releases-rss/rss.xml",
@@ -18343,6 +18951,7 @@
     {
       "id": "st-natural-england",
       "name": "英格兰自然署",
+      "nameEn": "Natural England",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.gov.uk/government/organisations/natural-england.atom",
@@ -18368,6 +18977,7 @@
     {
       "id": "st-scb-statistiknyheter",
       "name": "瑞典统计局 统计新闻",
+      "nameEn": "Statistics Sweden · Statistical News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.scb.se/feed/statistiknyheter",
@@ -18394,6 +19004,7 @@
     {
       "id": "st-destatis-press",
       "name": "德国联邦统计局 新闻稿",
+      "nameEn": "Destatis — Federal Statistical Office of Germany · Press Releases",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.destatis.de/SiteGlobals/Functions/RSSFeed/DE/RSSNewsfeed/Aktuell.xml",
@@ -18420,6 +19031,7 @@
     {
       "id": "gb-govuk-marine-management-organisation-atom",
       "name": "英国海洋管理局 动态",
+      "nameEn": "Marine Management Organisation (UK) · Updates",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.gov.uk/government/organisations/marine-management-organisation.atom",
@@ -18445,6 +19057,7 @@
     {
       "id": "gb-govuk-defra-atom",
       "name": "英国环境食品与乡村事务部 动态",
+      "nameEn": "Department for Environment, Food & Rural Affairs (Defra) · Updates",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.gov.uk/government/organisations/department-for-environment-food-rural-affairs.atom",
@@ -18470,6 +19083,7 @@
     {
       "id": "hr-dhmz-news-feed",
       "name": "克罗地亚国家水文气象局 新闻",
+      "nameEn": "Croatian Meteorological and Hydrological Service (DHMZ) · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://meteo.hr/rss.xml",
@@ -18495,6 +19109,7 @@
     {
       "id": "jp-jma-info-feed",
       "name": "日本气象厅 防灾信息发布",
+      "nameEn": "Japan Meteorological Agency · Disaster Information",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.data.jma.go.jp/developer/xml/feed/extra.xml",
@@ -18520,6 +19135,7 @@
     {
       "id": "ph-pagasa-publicalert-feed",
       "name": "菲律宾大气地球物理天文服务管理局 公共警报",
+      "nameEn": "PAGASA — Philippine Atmospheric, Geophysical and Astronomical Services Administration · Public Alerts",
       "kind": "rss",
       "config": {
         "feedUrl": "https://publicalert.pagasa.dost.gov.ph/feeds/",
@@ -18547,6 +19163,7 @@
     {
       "id": "lt-lhmt-news-feed",
       "name": "立陶宛水文气象局 新闻",
+      "nameEn": "Lithuanian Hydrometeorological Service · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.meteo.lt/feed/",
@@ -18572,6 +19189,7 @@
     {
       "id": "cl-csn-earthquake-news-feed",
       "name": "智利大学国家地震中心 通报",
+      "nameEn": "National Seismological Center, University of Chile · Bulletins",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.csn.uchile.cl/feed/",
@@ -18599,6 +19217,7 @@
     {
       "id": "int-unidir-news-feed",
       "name": "联合国裁军研究所 新闻",
+      "nameEn": "UNIDIR — United Nations Institute for Disarmament Research · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://unidir.org/feed/",
@@ -18624,6 +19243,7 @@
     {
       "id": "de-gfz-press-news-feed",
       "name": "德国地球科学研究中心GFZ 新闻",
+      "nameEn": "GFZ Helmholtz Centre for Geosciences · Press News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.gfz.de/en/press/news/all-news.atom",
@@ -18649,6 +19269,7 @@
     {
       "id": "uni-penn-earth",
       "name": "宾夕法尼亚大学地球环境系 · 新闻",
+      "nameEn": "Department of Earth and Environmental Science, University of Pennsylvania · News",
       "kind": "web_list",
       "config": {
         "url": "https://earth.sas.upenn.edu/news",
@@ -18680,6 +19301,7 @@
     {
       "id": "uni-uw-cig",
       "name": "华盛顿大学气候影响组 · 动态",
+      "nameEn": "Climate Impacts Group, University of Washington · Updates",
       "kind": "rss",
       "config": {
         "feedUrl": "https://climate.uw.edu/feed/",
@@ -18705,6 +19327,7 @@
     {
       "id": "uni-dri-a",
       "name": "美国沙漠研究所 · 新闻",
+      "nameEn": "Desert Research Institute · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.dri.edu/feed/",
@@ -18730,6 +19353,7 @@
     {
       "id": "uni-umd-essic",
       "name": "马里兰大地球系统中心 · 新闻",
+      "nameEn": "Earth System Science Interdisciplinary Center (ESSIC), University of Maryland · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://essic.umd.edu/feed/",
@@ -18755,6 +19379,7 @@
     {
       "id": "uni-mcgill-earth",
       "name": "麦吉尔大学地球环境 · 新闻",
+      "nameEn": "Department of Earth and Planetary Sciences, McGill University · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.mcgill.ca/newsroom/channels_item/19/rss",
@@ -18780,6 +19405,7 @@
     {
       "id": "uni-waterloo-env",
       "name": "滑铁卢大学环境学院 · 新闻",
+      "nameEn": "Faculty of Environment, University of Waterloo · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://uwaterloo.ca/environment/news/news.xml",
@@ -18805,6 +19431,7 @@
     {
       "id": "uni-uvic-seos",
       "name": "维多利亚大学海洋地球科学 · 新闻",
+      "nameEn": "School of Earth and Ocean Sciences, University of Victoria · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://news.uvic.ca/feed/",
@@ -18830,6 +19457,7 @@
     {
       "id": "uni-inrs-h",
       "name": "魁北克科学研究院 · 动态",
+      "nameEn": "Institut national de la recherche scientifique (INRS), Quebec · Updates",
       "kind": "rss",
       "config": {
         "feedUrl": "https://inrs.ca/en/feed/",
@@ -18855,6 +19483,7 @@
     {
       "id": "uni-brown-ibes",
       "name": "布朗大学环境社会研究所 · 新闻",
+      "nameEn": "Institute at Brown for Environment and Society · News",
       "kind": "web_list",
       "config": {
         "url": "https://ibes.brown.edu/news",
@@ -18886,6 +19515,7 @@
     {
       "id": "uni-mbl",
       "name": "海洋生物实验室 · 新闻",
+      "nameEn": "Marine Biological Laboratory · News",
       "kind": "web_list",
       "config": {
         "url": "https://www.mbl.edu/news",
@@ -18918,6 +19548,7 @@
     {
       "id": "uni-manchester-geog",
       "name": "曼彻斯特大学地理系 · 科研动态",
+      "nameEn": "Department of Geography, University of Manchester · Research News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.manchester.ac.uk/about/news/tagfeed/en/tags/headlines",
@@ -18943,6 +19574,7 @@
     {
       "id": "uni-sussex-geog",
       "name": "萨塞克斯大学地理系 · 科研动态",
+      "nameEn": "Department of Geography, University of Sussex · Research News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.sussex.ac.uk/broadcast/feed/news/research-at-sussex.rss",
@@ -18968,6 +19600,7 @@
     {
       "id": "uni-tyndall",
       "name": "廷德尔气候研究中心 · 新闻",
+      "nameEn": "Tyndall Centre for Climate Change Research · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://tyndall.ac.uk/feed/",
@@ -18993,6 +19626,7 @@
     {
       "id": "uni-epoc",
       "name": "波尔多大学海洋古环境所 · 新闻",
+      "nameEn": "EPOC — Oceanic and Continental Environments and Paleoenvironments, University of Bordeaux · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://epoc-umr.fr/feed/",
@@ -19018,6 +19652,7 @@
     {
       "id": "uni-obspm",
       "name": "巴黎天文台 · 科研动态",
+      "nameEn": "Paris Observatory · Research News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://observatoiredeparis.psl.eu/spip.php?page=backend&id_rubrique=7",
@@ -19043,6 +19678,7 @@
     {
       "id": "uni-anr-a",
       "name": "法国国家研究署 (ANR) 通讯简报",
+      "nameEn": "French National Research Agency (ANR) · Newsletter",
       "kind": "rss",
       "config": {
         "feedUrl": "https://anr.fr/rss/?news&amp;aap",
@@ -19068,6 +19704,7 @@
     {
       "id": "uni-fraunhofer-press",
       "name": "弗劳恩霍夫协会 · 新闻稿",
+      "nameEn": "Fraunhofer-Gesellschaft · Press Releases",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.fraunhofer.de/en/rss/press.rss",
@@ -19093,6 +19730,7 @@
     {
       "id": "uni-mps-news",
       "name": "马普太阳系研究所 · 新闻稿",
+      "nameEn": "Max Planck Institute for Solar System Research · Press Releases",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.mps.mpg.de/feeds/news_publications.rss",
@@ -19118,6 +19756,7 @@
     {
       "id": "uni-fu-geo",
       "name": "柏林自由大学地球科学系 · 新闻",
+      "nameEn": "Department of Earth Sciences, Freie Universität Berlin · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.geo.fu-berlin.de/en/news_gesamtliste/index.rss?format=rss",
@@ -19143,6 +19782,7 @@
     {
       "id": "uni-rob-h",
       "name": "比利时皇家天文台 · 地震监测",
+      "nameEn": "Royal Observatory of Belgium · Seismic Monitoring",
       "kind": "web_list",
       "config": {
         "url": "https://seismology.be/en",
@@ -19177,6 +19817,7 @@
     {
       "id": "uni-u-tokyo-eps",
       "name": "东大地球行星科学系 · 动态",
+      "nameEn": "Department of Earth and Planetary Science, University of Tokyo · Updates",
       "kind": "web_list",
       "config": {
         "url": "https://www.eps.s.u-tokyo.ac.jp/en/",
@@ -19208,6 +19849,7 @@
     {
       "id": "uni-hku-geog",
       "name": "港大地理系 · 动态",
+      "nameEn": "Department of Geography, University of Hong Kong · Updates",
       "kind": "rss",
       "config": {
         "feedUrl": "https://geog.hku.hk/blog-feed.xml",
@@ -19233,6 +19875,7 @@
     {
       "id": "uni-ceaza-news",
       "name": "智利干旱区研究中心 · 动态",
+      "nameEn": "CEAZA — Center for Advanced Studies in Arid Zones, Chile · Updates",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.ceaza.cl/feed/",
@@ -19258,6 +19901,7 @@
     {
       "id": "uni-cr2-cl",
       "name": "智利气候韧性中心 · 动态",
+      "nameEn": "CR2 — Center for Climate and Resilience Research, Chile · Updates",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.cr2.cl/feed/",
@@ -19283,6 +19927,7 @@
     {
       "id": "uni-kigam-h2",
       "name": "韩国地质资源研究院 · 动态",
+      "nameEn": "Korea Institute of Geoscience and Mineral Resources (KIGAM) · Updates",
       "kind": "web_list",
       "config": {
         "url": "https://www.kigam.re.kr/",
@@ -19314,6 +19959,7 @@
     {
       "id": "uni-kordi-h2",
       "name": "韩国海洋科学技术院 · 动态",
+      "nameEn": "Korea Institute of Ocean Science and Technology (KIOST) · Updates",
       "kind": "web_list",
       "config": {
         "url": "https://www.kordi.re.kr/",
@@ -19345,6 +19991,7 @@
     {
       "id": "uni-aori-h",
       "name": "东大大气海洋研究所 · 动态",
+      "nameEn": "Atmosphere and Ocean Research Institute (AORI), University of Tokyo · Updates",
       "kind": "web_list",
       "config": {
         "url": "https://www.aori.u-tokyo.ac.jp/",
@@ -19377,6 +20024,7 @@
     {
       "id": "uni-nies-h2",
       "name": "日本国立环境研究所 · 动态",
+      "nameEn": "National Institute for Environmental Studies (NIES), Japan · Updates",
       "kind": "web_list",
       "config": {
         "url": "https://www.nies.go.jp/",
@@ -19409,6 +20057,7 @@
     {
       "id": "uni-kaiyodai-h",
       "name": "东京海洋大学 · 动态",
+      "nameEn": "Tokyo University of Marine Science and Technology · Updates",
       "kind": "web_list",
       "config": {
         "url": "https://www.kaiyodai.ac.jp/",
@@ -19441,6 +20090,7 @@
     {
       "id": "uni-tropmet",
       "name": "印度热带气象研究所 · 动态",
+      "nameEn": "Indian Institute of Tropical Meteorology (IITM) · Updates",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.tropmet.res.in/-rss_fedd_news",
@@ -19466,6 +20116,7 @@
     {
       "id": "uni-auckland-news",
       "name": "奥克兰大学 · 新闻",
+      "nameEn": "University of Auckland · News",
       "kind": "web_list",
       "config": {
         "url": "https://www.auckland.ac.nz/en/news.html",
@@ -19497,6 +20148,7 @@
     {
       "id": "uni-cnr-isac",
       "name": "意利CNR大气气候所 · 新闻",
+      "nameEn": "Institute of Atmospheric Sciences and Climate (ISAC), National Research Council of Italy (CNR) · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.isac.cnr.it/feed/",
@@ -19522,6 +20174,7 @@
     {
       "id": "uni-cmcc-h",
       "name": "地中海气候中心 · 动态",
+      "nameEn": "Euro-Mediterranean Center on Climate Change (CMCC) · Updates",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.cmcc.it/feed",
@@ -19547,6 +20200,7 @@
     {
       "id": "fr-brgm-climate-topic-feed",
       "name": "法国地质矿业调查局 气候专题",
+      "nameEn": "BRGM · Climate",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.brgm.fr/fr/rss/term/changement-climatique",
@@ -19572,6 +20226,7 @@
     {
       "id": "no-met-no-alerts-rogaland",
       "name": "挪威气象研究所 罗加兰郡预警存档",
+      "nameEn": "Norwegian Meteorological Institute · Rogaland County Warning Archive",
       "kind": "rss",
       "config": {
         "feedUrl": "https://api.met.no/weatherapi/metalerts/2.0/all.rss?county=11",
@@ -19599,6 +20254,7 @@
     {
       "id": "no-met-no-alerts-moreogromsdal",
       "name": "挪威气象研究所 默勒-鲁姆斯达尔郡预警存档",
+      "nameEn": "Norwegian Meteorological Institute · Møre og Romsdal County Warning Archive",
       "kind": "rss",
       "config": {
         "feedUrl": "https://api.met.no/weatherapi/metalerts/2.0/all.rss?county=15",
@@ -19626,6 +20282,7 @@
     {
       "id": "fi-fmi-ajankohtaista-feed",
       "name": "芬兰气象研究所 要闻",
+      "nameEn": "Finnish Meteorological Institute · News",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.ilmatieteenlaitos.fi/api/news/uutinen/rss",
@@ -19651,6 +20308,7 @@
     {
       "id": "jr-sage-environment-planning-a",
       "name": "《环境与规划A：经济与空间》",
+      "nameEn": "Environment and Planning A: Economy and Space · Latest Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://journals.sagepub.com/action/showFeed?type=etoc&feed=rss&jc=epn",
@@ -19677,6 +20335,7 @@
     {
       "id": "jr-sage-environment-behavior",
       "name": "《环境与行为》",
+      "nameEn": "Environment and Behavior · Latest Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://journals.sagepub.com/action/showFeed?type=etoc&feed=rss&jc=eab",
@@ -19703,6 +20362,7 @@
     {
       "id": "jr-sage-environmental-values",
       "name": "《环境价值》",
+      "nameEn": "Environmental Values · Latest Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://journals.sagepub.com/action/showFeed?type=etoc&feed=rss&jc=env",
@@ -19729,6 +20389,7 @@
     {
       "id": "jr-sage-epc",
       "name": "《环境与规划C：政治与空间》",
+      "nameEn": "Environment and Planning C: Politics and Space · Latest Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://journals.sagepub.com/action/showFeed?type=etoc&feed=rss&jc=epc",
@@ -19755,6 +20416,7 @@
     {
       "id": "jr-sage-epd",
       "name": "《环境与规划D：社会与空间》",
+      "nameEn": "Environment and Planning D: Society and Space · Latest Articles",
       "kind": "rss",
       "config": {
         "feedUrl": "https://journals.sagepub.com/action/showFeed?type=etoc&feed=rss&jc=epd",
@@ -19781,6 +20443,7 @@
     {
       "id": "gb-govuk-flood-forecasting-centre",
       "name": "英国洪水预报中心",
+      "nameEn": "Flood Forecasting Centre (UK)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.gov.uk/government/organisations/flood-forecasting-centre.atom",
@@ -19808,6 +20471,7 @@
     {
       "id": "us-noaa-ncei",
       "name": "美国国家环境信息中心",
+      "nameEn": "NOAA National Centers for Environmental Information (NCEI)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.ncei.noaa.gov/rss",
@@ -19833,6 +20497,7 @@
     {
       "id": "fi-gtk",
       "name": "芬兰地质调查局",
+      "nameEn": "Geological Survey of Finland (GTK)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.gtk.fi/rss",
@@ -19858,6 +20523,7 @@
     {
       "id": "de-pik",
       "name": "波茨坦气候影响研究所",
+      "nameEn": "Potsdam Institute for Climate Impact Research (PIK)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.pik-potsdam.de/rss.xml",
@@ -19883,6 +20549,7 @@
     {
       "id": "it-ismar",
       "name": "意大利国家研究海洋科学所",
+      "nameEn": "Institute of Marine Sciences (ISMAR), National Research Council of Italy (CNR)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.ismar.cnr.it/feed/",
@@ -19908,6 +20575,7 @@
     {
       "id": "us-noaa",
       "name": "美国国家海洋和大气管理局",
+      "nameEn": "National Oceanic and Atmospheric Administration (NOAA)",
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.noaa.gov/feed.xml",

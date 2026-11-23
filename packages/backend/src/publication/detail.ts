@@ -341,7 +341,16 @@ export async function exportMarkdown(id: string, lang: SiteLang = "zh"): Promise
     if (!en && row.zh_text) lines.push("## 中文译文", "", row.zh_text, "");
     const q = row.x_post.quoted as { handle?: string; text?: string; url?: string } | null | undefined;
     if (q?.text) lines.push(`## ${en ? "Quoted" : "引用"} @${q.handle ?? ""}`, "", ...String(q.text).split("\n").map((l) => `> ${l}`), "", ...(q.url ? [q.url, ""] : []));
+    // 引用译文也要出现在导出里：/en 读 quote_translations_en，只有 fallback 模式才回退中文；中文页照旧只读中文译文。
+    const quotedTranslation = en
+      ? (row.quoted_en?.trim() ? row.quoted_en : (englishTextMode() === "fallback" ? row.quoted_zh : null))
+      : row.quoted_zh;
+    // 中文译文在 fallback 模式下也会进英文导出，但标题必须说清楚它是中文，不能只写 “Quoted translation”。
+    const quotedTranslationIsZh = en && !row.quoted_en?.trim();
     if (!en && q?.text && row.quoted_zh) lines.push("### 引用中文译文", "", ...row.quoted_zh.split("\n").map((l) => `> ${l}`), "");
+    else if (en && q?.text && quotedTranslation && quotedTranslation.trim() !== String(q.text).trim()) {
+      lines.push(`### ${quotedTranslationIsZh ? "Quoted translation (Chinese)" : "Quoted translation"}`, "", ...quotedTranslation.split("\n").map((l) => `> ${l}`), "");
+    }
   } else if (row.body_mode === "full" && (row.body_html || row.body_text)) {
     // The same question the page asks (`loadRow`'s reading projection above), spelled once
     // (`contracts/copy.ts`): a declared language wins over a sample, and a declared `en` is an English

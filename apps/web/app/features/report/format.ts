@@ -96,6 +96,9 @@ const SECTION_HEADINGS: Record<string, string> = Object.fromEntries(
 const SECTION_HEADINGS_EN: Record<string, string> = {
   "学科": "Earth & human geography",
   "技术": "Geospatial technology",
+  // 成刊时没有分类的条目落在这一节（reports/compose.ts 的 DEFAULT_SECTION）。它是网站印的
+  // 版面词，不是编辑自写的主题标题——漏了这一行，英文日报的分节标题就混着一个「未归类」。
+  "未归类": "Uncategorised",
 };
 export function sectionHeading(label: string, locale: Locale = "zh"): string {
   // 英文页：版面分节名是网站自己印的 chrome，随语言取词；编辑自写的主题标题原样保留。

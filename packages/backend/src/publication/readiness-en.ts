@@ -6,7 +6,7 @@
 // englishCopyCondition（英文文案只是本站的投影，不改变成员集）。
 import { sql } from "../db.ts";
 import { bodyMediaReadyCondition } from "./media-readiness.ts";
-import { englishCopyCondition, releaseGateCondition } from "./items.ts";
+import { englishCopyCondition, releaseGateCondition, selectedReleaseGateCondition } from "./items.ts";
 
 /**
  * 英文正文就绪（不含公开与放行门，供「下一批过闸时间」这类未来集合复用）：
@@ -41,6 +41,6 @@ export function englishReadyBaseCondition() {
 }
 
 /** 公开 + 已放行 + 英文正文就绪：strict + english 下真正服务 /en 的成员条件。 */
-export function englishReadyCondition(now: Date = new Date()) {
-  return sql`p.visibility = 'public' AND ${releaseGateCondition(now)} AND ${englishReadyBaseCondition()}`;
+export function englishReadyCondition(now: Date = new Date(), selected = false) {
+  return sql`p.visibility = 'public' AND ${selected ? selectedReleaseGateCondition(now) : releaseGateCondition(now)} AND ${englishReadyBaseCondition()}`;
 }

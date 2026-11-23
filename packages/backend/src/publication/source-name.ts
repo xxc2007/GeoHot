@@ -1,9 +1,11 @@
 // A source's display name in one reader language.
 //
-// `sources.name_en` (migration 0128) is the only English name the database has, and it is empty for
-// almost every source (industry/sources.json carries no nameEn). The English edition must not print a
-// Chinese publisher name on a card; when there is no English name, the original host is the honest
-// English identifier (`theguardian.com` instead of `The Guardian · 环境`). Chinese pages keep `name`.
+// `sources.name_en` (migration 0128) is the only English name the database has. The industry pack now
+// carries `nameEn` for every source, and both `scripts/seed.ts` (new rows) and
+// `scripts/sync-source-config.ts` (existing rows) copy it into the column; a row that has not been
+// synced yet still has no English name. The English edition must not print a Chinese publisher name on
+// a card; when there is no English name, the original host is the honest English identifier
+// (`theguardian.com` instead of `The Guardian · 环境`). Chinese pages keep `name`.
 import { hasChineseCopy } from "@aihot/contracts/copy";
 import type { SiteLang } from "@aihot/contracts/site";
 

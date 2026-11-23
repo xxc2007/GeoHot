@@ -83,6 +83,9 @@ export function titled(title: string): string {
   return `${title} · ${SITE.name}`;
 }
 
+/** /en 页结构化数据里的机构创始人名（与 industry 包的中文署名一一对应，中文页不读它）。 */
+const FOUNDER_NAME_EN = "GEOHOT Editorial";
+
 /**
  * Metadata is display, and some of what feeds it comes from material rather than from us: one ingested
  * item's "title" is an entire lead paragraph, and it was going into `<title>`, `og:title` and the share
@@ -137,16 +140,19 @@ export function pageMeta(input: PageMetaInput): MetaDescriptor[] {
   return tags;
 }
 
-export function organizationLd() {
+export function organizationLd(locale: Locale = "zh") {
   const base = siteUrl();
   const founder = SITE.organization.founder;
+  // /en 的结构化数据不能出现中文职务名（搜索引擎会把 founder.name 当英文实体读）；
+  // 站点尚未署名个人，英文页用机构名，中文页仍是 industry 包里的「地理热点编辑部」，一字不改。
+  const founderName = locale === "en" ? FOUNDER_NAME_EN : founder?.name;
   return {
     "@context": "https://schema.org",
     "@type": "Organization",
     name: SITE.organization.name,
     url: base,
     logo: `${base}/icon.png`,
-    ...(founder ? { founder: { "@type": "Person", name: founder.name, ...(founder.description ? { description: founder.description } : {}), ...(founder.url ? { sameAs: [founder.url] } : {}) } } : {}),
+    ...(founder ? { founder: { "@type": "Person", name: founderName, ...(founder.description ? { description: founder.description } : {}), ...(founder.url ? { sameAs: [founder.url] } : {}) } } : {}),
   };
 }
 

@@ -102,8 +102,13 @@ export const API_ITEM_COLUMNS = sql`
 export const API_ITEM_FROM = sql`FROM publications p JOIN sources s ON s.id = p.source_id`;
 
 /** A translation of an older revision is left out: the original changed after it (the worker translates it again). */
-export const ITEM_FROM = sql`
-  FROM publications p
+/**
+ * The joins every item listing adds on top of `publications p`. Kept separately from {@link ITEM_FROM}
+ * so a caller that already computed a page of ids (the topic page) can put that page first —
+ * `FROM page JOIN publications p … ${ITEM_JOINS}` — instead of `WHERE p.article_id IN (page)`, which
+ * lets the planner hash the whole 133k-row table and only then ask which 20 ids it needed.
+ */
+export const ITEM_JOINS = sql`
   JOIN sources s ON s.id = p.source_id
   JOIN articles a ON a.id = p.article_id
   LEFT JOIN stories st ON st.id = p.story_id AND st.merged_into IS NULL
@@ -111,6 +116,8 @@ export const ITEM_FROM = sql`
   LEFT JOIN translations tr_en ON tr_en.article_id = p.article_id AND tr_en.lang = 'en' AND tr_en.revision >= a.revision
   LEFT JOIN quote_translations qt ON p.channel = 'x' AND qt.tweet_id = substring(a.x_post->'quoted'->>'url' from '/status/([0-9]+)')
   LEFT JOIN quote_translations_en qte ON p.channel = 'x' AND qte.tweet_id = substring(a.x_post->'quoted'->>'url' from '/status/([0-9]+)')`;
+
+export const ITEM_FROM = sql`FROM publications p ${ITEM_JOINS}`;
 
 /**
  * The Chinese-copy gate, written once (2026-10-02: 351 legacy rows built by an echoing brain stub showed
@@ -153,8 +160,21 @@ export function englishCopyCondition() {
 export function releaseGateCondition(now: Date) {
   return sql`(NOT p.selected OR p.visible_after <= ${now})`;
 }
-export function releasedCondition(now: Date) {
-  return sql`${releaseGateCondition(now)} AND ${workflowReadyCondition()}`;
+/**
+ * 精选语境里的放行条件：调用处已经要求 `p.selected`，`NOT p.selected OR visible_after <= now`
+ * 因此等价于 `visible_after <= now`。分开写不是为了另一种语义，是为了让**部分索引的谓词可证明**：
+ * `publications_selected_gate_idx`（0131）的谓词带 `selected`，规划器只有在查询里看到
+ * `selected AND visible_after <= $1` 时才认得出这条索引；带着 OR 的写法会退回旧索引逐行回表。
+ * 2026-11-23：/topics/<slug> 的 16–27 秒里，前半段正是这条 OR 让门扫回表 1.6 万行。
+ */
+export function selectedReleaseGateCondition(now: Date) {
+  return sql`p.visible_after <= ${now}`;
+}
+/**
+ * @param selected 已经由调用处要求 `p.selected` 时传 true，放行条件用等价的化简式（见上）。
+ */
+export function releasedCondition(now: Date, selected = false) {
+  return sql`${selected ? selectedReleaseGateCondition(now) : releaseGateCondition(now)} AND ${workflowReadyCondition()}`;
 }
 
 /**
@@ -168,11 +188,12 @@ export function releasedCondition(now: Date) {
 function englishListGate(now: Date, selected: boolean) {
   if (englishTextMode() !== "strict") return null;
   const selectedClause = selected ? sql`p.selected AND` : sql``;
+  const release = selected ? selectedReleaseGateCondition(now) : releaseGateCondition(now);
   const { membership } = englishPolicy();
   if (membership === "english") {
-    return sql`p.visibility = 'public' AND ${selectedClause} ${releaseGateCondition(now)} AND ${englishReadyCondition(now)}`;
+    return sql`p.visibility = 'public' AND ${selectedClause} ${release} AND ${englishReadyCondition(now, selected)}`;
   }
-  return sql`p.visibility = 'public' AND ${selectedClause} ${releasedCondition(now)} AND ${chineseCopyCondition()} AND ${englishCopyCondition()}`;
+  return sql`p.visibility = 'public' AND ${selectedClause} ${releasedCondition(now, selected)} AND ${chineseCopyCondition()} AND ${englishCopyCondition()}`;
 }
 
 /**
@@ -198,7 +219,7 @@ export function selectedCondition(now: Date, lang: SiteLang = "zh") {
   // 经过完整工作流。口子已收回，空着就空着：那是链路还没追上，不是门该放宽。
   const english = lang === "en" ? englishListGate(now, true) : null;
   if (english) return english;
-  return sql`p.visibility = 'public' AND p.selected AND ${releaseGateCondition(now)} AND ${chineseCopyCondition()} AND ${workflowReadyCondition()}`;
+  return sql`p.visibility = 'public' AND p.selected AND ${selectedReleaseGateCondition(now)} AND ${chineseCopyCondition()} AND ${workflowReadyCondition()}`;
 }
 
 /**
@@ -313,11 +334,20 @@ export function cardMedia(media: unknown): MediaView[] {
 export function xView(row: Pick<ItemRow, "x_post" | "zh_text"> & Partial<Pick<ItemRow, "quoted_zh" | "quoted_en">>, compact = false, responsive = compact, lang: SiteLang = "zh"): XPostView | null {
   const x = row.x_post;
   if (!x) return null;
-  const quotedTranslation = lang === "en" ? row.quoted_en : row.quoted_zh;
-  const quoted = x.quoted && typeof x.quoted === "object"
+  // 引用译文与正文译文同样是读取投影：/en 先读 quote_translations_en（迁移 0128 的英文层），
+  // 只有在允许回退的模式（ENGLISH_TEXT=fallback）才借用中文译文，并用 translationLocale 标出这是回退；
+  // strict 下不把中文译文当作英文页的引用译文。
+  const quotedRaw = x.quoted && typeof x.quoted === "object" ? x.quoted : null;
+  const quotedOriginal = String(quotedRaw?.text ?? "");
+  const quotedTranslation = quotedRaw
+    ? (lang === "en" ? (row.quoted_en?.trim() ? row.quoted_en : (englishTextMode() === "fallback" ? row.quoted_zh : null)) : row.quoted_zh)
+    : null;
+  const quotedShown = quotedTranslation && quotedTranslation.trim() !== quotedOriginal.trim() ? quotedTranslation : null;
+  const quoted = quotedRaw
     ? {
-      authorName: String(x.quoted.authorName ?? ""), handle: String(x.quoted.handle ?? ""), text: String(x.quoted.text ?? ""), url: String(x.quoted.url ?? ""),
-      translation: quotedTranslation && quotedTranslation.trim() !== String(x.quoted.text ?? "").trim() ? quotedTranslation : null,
+      authorName: String(quotedRaw.authorName ?? ""), handle: String(quotedRaw.handle ?? ""), text: String(quotedRaw.text ?? ""), url: String(quotedRaw.url ?? ""),
+      translation: quotedShown,
+      ...(lang === "en" && quotedShown ? { translationLocale: row.quoted_en?.trim() ? "en" as const : "zh" as const } : {}),
     }
     : null;
   const media = ((x.media ?? []) as Array<Record<string, any>>)
@@ -405,7 +435,7 @@ export function toFeedItemSummary(row: ItemRow, lang: SiteLang = "zh"): FeedItem
     x: item.x ? {
       authorName: item.x.authorName, handle: item.x.handle, avatarUrl: item.x.avatarUrl,
       ...(item.x.avatarSrcSet ? { avatarSrcSet: item.x.avatarSrcSet } : {}), media: item.x.media,
-      quoted: item.x.quoted ? { authorName: item.x.quoted.authorName, handle: item.x.quoted.handle, text: item.x.quoted.text, translation: item.x.quoted.translation } : null,
+      quoted: item.x.quoted ? { authorName: item.x.quoted.authorName, handle: item.x.quoted.handle, text: item.x.quoted.text, translation: item.x.quoted.translation, ...(item.x.quoted.translationLocale ? { translationLocale: item.x.quoted.translationLocale } : {}) } : null,
     } : null,
   };
 }

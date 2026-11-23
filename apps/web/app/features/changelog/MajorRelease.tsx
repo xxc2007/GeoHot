@@ -323,7 +323,7 @@ function LangDemo() {
         <p className="mt-3 text-[15px] font-semibold text-ink">{en ? "M6.4 earthquake strikes off the coast of …" : "近海发生 6.4 级地震（整理标题示例）"}</p>
         <p className="mt-2 text-[13px] leading-relaxed text-ink-3">{en ? "The headline is shown as the source published it." : "英文页优先显示信源原题与原文正文。"}</p>
       </div>
-      <p className="mt-3 text-[12px] text-ink-4">{pageEn ? "Sample text is for demonstration only and points to no real event; an item with no English copy is labelled as such." : "示例文字仅作演示，不指向真实事件；AI 摘要与日报在英文版里仍为中文，页面会如实标注。"}</p>
+      <p className="mt-3 text-[12px] text-ink-4">{pageEn ? "Sample text is for demonstration only and points to no real event." : "示例文字仅作演示，不指向真实事件。"}</p>
     </section>
   );
 }
@@ -335,12 +335,12 @@ function MajorNine(): MajorCard {
     title: "英文版界面上线，站点能切换中英文",
     lead: [
       "地理消息不分语言。站点现在有了英文版：导航、按钮与页面说明都能切换成英文；读国际机构的通报，英文页优先显示信源原题与原文正文。",
-      "英文版还在起步：AI 摘要与日报暂时仍是中文，页面会如实标注；覆盖进度以更新日志为准。",
+      "英文版上线时还在起步：AI 摘要与日报当时仍是中文，页面会如实标注；覆盖进度以更新日志为准。",
     ],
     sections: [
       { title: "一处开关，随时切换语言", body: "侧边栏与「更多」页各有一枚语言开关，一键在中英文之间互换；英文页面挂在 /en 前缀下，熟悉的地址前面加上 /en 就能直达。" },
       { title: "英文页，先读原题与原文", body: "国际信源的通报多以外文写成：英文版优先显示信源原题与原文正文，少一层转述；没有原题的条目仍显示整理标题。" },
-      { title: "中文内容，如实标注", body: "AI 摘要与日报由中文整理生成，在英文版里保持中文并明确标注；界面是英文的，内容是哪种语言就说是哪种。" },
+      { title: "中文内容，当时如实标注", body: "英文版上线时，AI 摘要与日报由中文整理生成，在英文版里保持中文并明确标注；界面是英文的，内容是哪种语言就说是哪种。" },
       { title: "同一份数据，两种读法", body: "英文版与中文版读同一份公开内容：精选、动态、日报、专题与反馈入口一一对齐，切换语言不打断你正在读的页面。" },
     ],
     links: [["浏览全部动态", "/all"], ["去英文版首页", "/en"], ["看更新日志", "/changelog"]],

@@ -54,8 +54,12 @@ export function englishConcurrency(raw: string | undefined = process.env.ENGLISH
   return Number.isFinite(n) && n >= 1 ? Math.min(1, Math.floor(n)) : 0;
 }
 
-/** 英文正文一次的批次上限：块数与字符数都设上界，超出部分留给 sweep 的下一轮。 */
-const BODY_BATCH_BLOCKS = 8;
+/**
+ * 英文正文一次的批次上限：块数与字符数都设上界，超出部分留给 sweep 的下一轮。
+ * 字符上限才是 token 与 180 秒超时的预算；块数只是编排上限——短段落的长文过去被 8 块卡住，
+ * 一轮只译几百到两千多字，60k 字的正文要排二十多轮。短块不增加字符量，所以提到 16 块不改内存与预算。
+ */
+const BODY_BATCH_BLOCKS = 16;
 const BODY_BATCH_CHARS = 6_000;
 const BODY_TEXT_LIMIT = 60_000;
 const FACT_TITLE_BATCH = 60;
@@ -193,17 +197,36 @@ function englishLineUsable(text: string, min: number, max: number): string | nul
 }
 
 /**
+ * 一块译文里允许留下的汉字原字：默认零容忍。只有已经成篇的正文段落（≥40 个英文词）才容得下至多两个
+ * 原字，给确无通行罗马化的专名；短块（标题、表头、图注、单元格）一个都不许——那里最容易让一整句
+ * 未译的中文混过去。整段未译的正文会先被下方的词数比例挡下。
+ *
+ * **与 `industry/prompts/translate-body-en.md` 的地名条款同一口径**：改这里就改那一行，否则模型会
+ * 按一套写、闸门按另一套拒，长文永远到不了 complete（2026-11-23 审查）。
+ */
+const RESIDUAL_HAN_MAX = 2;
+const RESIDUAL_HAN_MIN_LATIN = 40;
+
+function residualHanOk(outputHtml: string): boolean {
+  const han = cjkCount(stripTags(outputHtml));
+  if (han === 0) return true;
+  if (han > RESIDUAL_HAN_MAX) return false;
+  return wordBreakdown(outputHtml).latin >= RESIDUAL_HAN_MIN_LATIN;
+}
+
+/**
  * Body-block guard. The source's main language picks the ruler:
  *  · Chinese source: English words against Han characters in 0.18–1.6. A faithful translation runs
  *    around 0.3 (100 Han characters ≈ 30–40 English words); a half answer (one sentence of three)
  *    falls under 0.18 and is still refused.
  *  · Latin source: words against words in 0.6–1.8, as before.
- * Whichever ruler, no Han character may appear in the answer, and a long enough block has to end on a
- * sentence. (The old single 0.6–1.8 scale counted Han characters as words and therefore refused every
- * complete Chinese→English block — the English backfill could never store a body.)
+ * Whichever ruler, a short block must be wholly English and a long one may keep at most two original
+ * characters ({@link residualHanOk}); a long enough block has to end on a sentence. (The old single
+ * 0.6–1.8 scale counted Han characters as words and therefore refused every complete Chinese→English
+ * block — the English backfill could never store a body.)
  */
 export function englishBodyRatioOk(sourceHtml: string, outputHtml: string): boolean {
-  if (hasChineseCopy(stripTags(outputHtml))) return false;
+  if (!residualHanOk(outputHtml)) return false;
   const source = wordBreakdown(sourceHtml);
   const output = wordBreakdown(outputHtml);
   const outputWords = output.han + output.latin;
@@ -238,7 +261,7 @@ function blocksUsable(data: BlocksAnswer, expected: number): string | null {
   for (const block of data.blocks) {
     const text = stripTags(block).trim();
     if (!text) return "an empty block";
-    if (hasChineseCopy(text)) return "a block is not English";
+    if (!residualHanOk(block)) return "a block is not English";
   }
   return null;
 }
@@ -389,13 +412,15 @@ async function recordEnglishAttempt(
   sourceRevision: string,
   outcome: EnglishAttemptOutcome,
   reason: string,
+  partial = false,
   db = sql,
 ): Promise<void> {
   await db`
-    INSERT INTO english_attempts (kind, subject, source_revision, attempts, outcome, reason, updated_at)
-    VALUES (${kind}, ${subject}, ${sourceRevision}, ${outcome === "failed" ? 1 : 0}, ${outcome}, ${reason.slice(0, 300)}, now())
+    INSERT INTO english_attempts (kind, subject, source_revision, attempts, partial_attempts, outcome, reason, updated_at)
+    VALUES (${kind}, ${subject}, ${sourceRevision}, ${outcome === "failed" ? 1 : 0}, ${partial ? 1 : 0}, ${outcome}, ${reason.slice(0, 300)}, now())
     ON CONFLICT (kind, subject, source_revision) DO UPDATE SET
       attempts = english_attempts.attempts + CASE WHEN EXCLUDED.outcome = 'failed' THEN 1 ELSE 0 END,
+      partial_attempts = english_attempts.partial_attempts + CASE WHEN ${partial} THEN 1 ELSE 0 END,
       outcome = EXCLUDED.outcome, reason = EXCLUDED.reason, updated_at = now()`;
 }
 
@@ -668,7 +693,9 @@ export async function translateArticleBodyEn(articleId: string): Promise<English
   for (let i = 0; i < blocks.length; i += 1) {
     const own = $(blocks[i]!).html() ?? "";
     const previous = priorBlocks.length === blocks.length ? prior!(priorBlocks[i]!).text() : "";
-    if (previous.trim().length > 0 && !hasChineseCopy(previous)) {
+    // 与写回闸同一口径：上一轮存下的块只要符合 `residualHanOk` 就算译完，否则每次都会被重新排进
+    // `missing`，长文永远到不了 complete。
+    if (previous.trim().length > 0 && residualHanOk(previous)) {
       $(blocks[i]!).html(prior!(priorBlocks[i]!).html() ?? "");
       continue;
     }
@@ -719,15 +746,21 @@ export async function translateArticleBodyEn(articleId: string): Promise<English
     await recordEnglishAttempt("body", articleId, revision, "failed", reason);
     return { outcome: "failed", reason };
   }
+  // 条数相等时才允许按位置写回：schema 里的 blocks 没有 id，少答/多答一块后 `answer.blocks[i]`
+  // 就不再对应 `batch[i]`，相邻段落会被永久错位存进 translations，而比例闸只看长度、认不出错位。
+  // 条数相等时，个别坏块（空块、残留汉字、比例不合）仍只丢自己，不连累同批能过闸的译文。
   const problem = blocksUsable(answer, batchTexts.length);
-  if (problem) {
-    await recordEnglishAttempt("body", articleId, revision, "failed", problem);
-    return { outcome: "failed", reason: problem };
+  if (answer.blocks.length !== batchTexts.length) {
+    const reason = problem ?? `answered ${answer.blocks.length} of ${batchTexts.length} blocks`;
+    await rejectReceivedResponse(receiptId, reason);
+    await recordEnglishAttempt("body", articleId, revision, "failed", reason);
+    return { outcome: "failed", reason };
   }
 
   let translated = 0;
   answer.blocks.forEach((translatedHtml, i) => {
-    const item = batch[i]!;
+    const item = batch[i];
+    if (!item) return; // 多答的块没有对应的原文
     const restored = unshield(translatedHtml, item.shielded);
     if (!restored || !englishBodyRatioOk(item.html, restored)) return;
     $(blocks[item.index]!).html(restored);
@@ -737,8 +770,9 @@ export async function translateArticleBodyEn(articleId: string): Promise<English
     // 回执必须一起拒：这道比例闸在 `chatJson` 之后，`usable` 只查形状，形状对了的坏答案会一直
     // 以 `received` 被复用，重试永远拿同一份短译（2026-11-23 验收的 "no block translated" 就是这个循环）。
     await rejectReceivedResponse(receiptId, "no body block passed the English translation guard");
-    await recordEnglishAttempt("body", articleId, revision, "failed", "no block translated");
-    return { outcome: "failed", reason: "no block translated" };
+    const reason = problem ? `no block translated: ${problem}` : "no block translated";
+    await recordEnglishAttempt("body", articleId, revision, "failed", reason);
+    return { outcome: "failed", reason };
   }
 
   const html = sanitizeBody($.html());
@@ -764,11 +798,14 @@ export async function translateArticleBodyEn(articleId: string): Promise<English
     await recordEnglishAttempt("body", articleId, revision, "stale", "article-revision-changed");
     return { outcome: "stale", reason: "article-revision-changed" };
   }
-  const reason = complete ? "stored" : `partial: ${translated} of ${missing.length} blocks`;
+  const reason = complete
+    ? "stored"
+    : `partial: ${translated} of ${missing.length} blocks${problem ? ` (answer refused: ${problem})` : ""}`;
   if (!complete) await rejectReceivedResponse(receiptId, reason);
   // 分批没写完记 stale，不记 failed：failed 会消耗 attempts，长文（>3 批）永远到不了 complete；
-  // stale 不增计数，sweep 下一轮继续问剩下的块（2026-11-23 独立审查）。
-  await recordEnglishAttempt("body", articleId, revision, complete ? "translated" : "stale", reason);
+  // stale 另记 partial_attempts（见 0132），sweep 按一个宽上限停排——块结构对不上时 priorBlocks
+  // 会整篇重排，若不设上限就会每 10 分钟重复付费。
+  await recordEnglishAttempt("body", articleId, revision, complete ? "translated" : "stale", reason, !complete);
   return { outcome: complete ? "translated" : "stale", reason, receiptId };
 }
 
@@ -1265,10 +1302,10 @@ export async function writeReportEnglish(kind: ReportKind, key: string): Promise
   // 引用快照是成刊时冻结的，之后不会因为条目补了英文而自动刷新（0128 的设计）。
   // 所以只要有一条引用的标题/摘要是中文，这一期就不能写成英文刊面：否则 content_en 会被记成
   // "已有英文"，而读层看到快照里的中文又把它藏起来，这一期再也不会重排。
-  // 记为 failed（不是 skipped）：等条目英文补齐后，sweep 还有重试的机会。
   if (!citations.every((c) => !hasChineseCopy(c.title) && (!c.summary || !hasChineseCopy(c.summary)))) {
     const reason = "citations-not-english";
-    // stale 而不是 failed：引用条目补上英文后 sweep 还会再排；failed 三次后这一期就永久没有英文版。
+    // stale 而不是 failed/skipped：引用条目补上英文后 sweep 还会再排；failed 三次后这一期就永久没有
+    // 英文版（sweep 只重排 stale 与未达上限的 failed，见 jobs/english.ts）。
     await recordEnglishAttempt("report", `${kind}:${key}`, revision, "stale", reason);
     return { outcome: "stale", reason };
   }

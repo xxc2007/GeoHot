@@ -96,6 +96,10 @@ const zh = {
 
   /** 卡片上「推荐理由：」这一格（FeedItem；理由本身是模型写的中文，不进词表）。 */
   reasonLabel: "推荐理由：",
+  /** 英文列表卡片的逐卡语言标注（中文页永不渲染，此值只是文档）：AI 摘要仍是中文。 */
+  aiDigestZh: "AI 摘要为中文",
+  /** 英文列表卡片只有标题回退中文时的标注（同上）。 */
+  titleZh: "标题为中文",
 
   /** 卡片上的折叠块（ReadingGroup）：信源列表、进展列表、最新进展与它们的加载状态。 */
   group: {
@@ -186,6 +190,10 @@ const en: typeof zh = {
   pageNext: "Next",
 
   reasonLabel: "Why we picked this: ",
+  // 英文页每张卡片自己的语言标注：与条目详情页的 `AI digest, in Chinese` 同一句话。
+  // 顶部那一行只说明「有的条目是中文」，读者扫卡片时仍要逐条认得出，不能靠一句总说明。
+  aiDigestZh: "AI digest, in Chinese",
+  titleZh: "Title in Chinese",
 
   group: {
     additionalSources: (n) => `${n} more sources covering this`,

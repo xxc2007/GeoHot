@@ -12,7 +12,8 @@ test("归档主题仍能打开自己的页面，列表仍然不列它", () => {
   assert.match(source, /export async function listTopicSummaries\(now\?: Date, includeDormant = false\)/);
   assert.match(source, /topics\.filter\(\(t\) => includeDormant \|\| !t\.dormant_at\)/);
   // 页面必须能拿到归档主题，否则 0104 的「列表里没有、页面还在」就成了 404。
-  assert.match(source, /const topics = await listTopicSummaries\(now, true\);/);
+  // 2026-11-23：zh/en 各读自己语言桶的计数后，这行不再叫 `topics`，行为不变（includeDormant=true）。
+  assert.match(source, /await listTopicSummaries\(now, true\)/);
 });
 
 test("首屏预算不再许给读者八秒的空白", () => {

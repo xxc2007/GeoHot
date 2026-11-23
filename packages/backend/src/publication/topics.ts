@@ -5,7 +5,7 @@ import { REPO_ROOT } from "../config.ts";
 import { sql } from "../db.ts";
 import { cached } from "../lib/cache.ts";
 import { withPublicRead } from "./read-budget.ts";
-import { ITEM_COLUMNS, ITEM_FROM, pendingReadyCondition, selectedCondition, toFeedItemSummary, type ItemRow } from "./items.ts";
+import { ITEM_COLUMNS, ITEM_JOINS, pendingReadyCondition, selectedCondition, toFeedItemSummary, type ItemRow } from "./items.ts";
 
 export interface TopicRow {
   slug: string;
@@ -66,7 +66,7 @@ async function loadCounts(now: Date, lang: SiteLang): Promise<CountsSnapshot> {
   const { rows, gate } = await sql.begin(async (tx) => {
     await tx.unsafe(`SET LOCAL statement_timeout = 15000`);
     const rows = await tx<{ slug: string; total: number; recent: number; latest: Date | null }[]>`
-      WITH listed AS (
+      WITH listed AS MATERIALIZED (
         SELECT p.article_id, p.timeline_at, p.tags
         FROM publications p
         WHERE ${selectedCondition(now, lang)}
@@ -76,7 +76,10 @@ async function loadCounts(now: Date, lang: SiteLang): Promise<CountsSnapshot> {
           FROM publication_topics pt JOIN listed l ON l.article_id = pt.article_id
          UNION ALL
         SELECT t.slug, l.article_id, l.timeline_at
-          FROM topics t JOIN listed l ON l.tags && t.tags
+          FROM topics t JOIN listed l
+            ON l.tags && (CASE WHEN t.entity_id IS NOT NULL
+                 THEN ARRAY['entity:' || t.entity_id] || coalesce(t.org_names, ARRAY[]::text[])
+                 ELSE t.tags END)
       ),
       counted AS (
         SELECT slug,
@@ -252,26 +255,88 @@ export interface TopicPage {
 }
 
 /**
- * One topic page. `now` is optional: with a fixed clock the counts and this page's items are read at that
- * same instant (a test, a replay); without one the counts come from the held copy, which never outlives the
- * next release.
+ * One topic's counts, read at one instant with the same membership as {@link loadCounts}:
+ * the explicit assignments of `publication_topics` plus the topic's own tags (`topics.tags`).
+ * `loadCounts` answers all 43 topics at once and is held for the topic list; a detail page only
+ * needs its own number, and paying for the other 42 was most of the 2026-11-23 cold read
+ * (5–7 s): the all-topics assignment join probes `publication_topics` once per selected row.
+ * The single-topic form uses `publication_topics_slug_idx` (slug, article_id) instead.
+ */
+async function loadTopicCounts(row: TopicRow, now: Date, lang: SiteLang): Promise<{ total: number; recent: number; latest: Date | null }> {
+  const windowStart = new Date(now.getTime() - RECENT_WINDOW_MS);
+  const [counts] = await withPublicRead<Array<{ total: number; recent: number; latest: Date | null }>>((db) => db`
+    WITH listed AS MATERIALIZED (
+      SELECT p.article_id, p.timeline_at, p.tags
+      FROM publications p
+      WHERE ${selectedCondition(now, lang)}
+    ), tagged AS (
+      SELECT l.article_id, l.timeline_at
+      FROM listed l
+      WHERE l.tags && ${topicMatchTags(row)}::text[]
+    ), assigned AS (
+      SELECT l.article_id, l.timeline_at
+      FROM publication_topics pt JOIN listed l ON l.article_id = pt.article_id
+      WHERE pt.slug = ${row.slug}
+    ), matched AS (
+      SELECT article_id, timeline_at FROM tagged
+      UNION
+      SELECT article_id, timeline_at FROM assigned
+    )
+    SELECT count(*)::int AS total,
+           count(*) FILTER (WHERE timeline_at > ${windowStart})::int AS recent,
+           max(timeline_at) AS latest
+    FROM matched`);
+  return counts ?? { total: 0, recent: 0, latest: null };
+}
+
+/**
+ * One topic page. With a fixed clock (`now`) the counts come from the same full snapshot as
+ * `topicPageCounts(now)` and the items are read at that same instant (a test, a replay); without one,
+ * the page counts only its own topic at the read instant (see loadTopicCounts) and reads items at that
+ * same instant. The all-topics snapshot stays with the topic list, which actually needs 43 numbers.
  */
 export async function loadTopicPage(slug: string, page: number, now?: Date, lang: SiteLang = "zh"): Promise<TopicPage | null> {
   const at = now ?? new Date();
   const row = await loadTopic(slug);
   if (!row || page < 1) return null;
-  const topics = await listTopicSummaries(now, true);
-  // en 页需要按英文名单读计数；zh 仍走上面这条（同一份缓存）。
-  const effectiveTopics = lang === "en" ? await listTopicSummariesFor(now, true, lang) : topics;
-  const found = effectiveTopics.find((t) => t.slug === slug);
-  if (!found) return null;
-  // `/en` 页面用英文字段（缺英文回退中文）；计数与分页按 lang 的名单读（见 topicPageCounts）。
-  const topic: TopicSummary = lang === "en"
-    ? { ...found, name: found.nameEn ?? found.name, definition: found.definitionEn ?? found.definition }
-    : found;
+  // 固定时钟（测试/回放）：沿用与 `topicPageCounts(now)` 同一份全量计数，保证两边在同一瞬间、
+  // 同一份名单上逐主题一致。生产路径只算本主题（见 loadTopicCounts）：一条详情页不需要为
+  // 其余 42 个主题付全量计数——2026-11-23 冷缓存时那一步 5–7 秒，而页面只需要自己的
+  // total/recent/latest 与 related 的名字（名字直接来自 topics 目录，不带计数）。
+  const allTopics = now
+    ? (lang === "en" ? await listTopicSummariesFor(now, true, lang) : await listTopicSummaries(now, true))
+    : null;
+  let topic: TopicSummary;
+  if (allTopics) {
+    const found = allTopics.find((t) => t.slug === slug);
+    if (!found) return null;
+    // `/en` 页面用英文字段（缺英文回退中文）；计数与分页按 lang 的名单读（见 topicPageCounts）。
+    topic = lang === "en"
+      ? { ...found, name: found.nameEn ?? found.name, definition: found.definitionEn ?? found.definition }
+      : found;
+  } else {
+    const counts = await loadTopicCounts(row, at, lang);
+    const built: TopicSummary = {
+      slug: row.slug, name: row.name,
+      ...(row.name_en ? { nameEn: row.name_en } : {}),
+      ...(row.definition_en ? { definitionEn: row.definition_en } : {}),
+      group: row.grp, definition: row.definition,
+      total: counts.total, recent: counts.recent,
+      indexable: counts.total >= 50 || (counts.total >= 20 && counts.recent > 0),
+      latestAt: counts.latest?.toISOString() ?? null,
+    };
+    topic = lang === "en"
+      ? { ...built, name: built.nameEn ?? built.name, definition: built.definitionEn ?? built.definition }
+      : built;
+  }
   const pageCount = Math.max(1, Math.ceil(topic.total / TOPIC_PAGE_SIZE));
-  const topicName = (t: TopicSummary) => (lang === "en" ? t.nameEn ?? t.name : t.name);
-  const related = row.related.map((r) => effectiveTopics.find((t) => t.slug === r)).filter((t): t is TopicSummary => !!t).map((t) => ({ slug: t.slug, name: topicName(t) }));
+  const relatedSource = allTopics
+    ? allTopics.map((t) => ({ slug: t.slug, name: t.name, nameEn: t.nameEn ?? null }))
+    : (await listTopics()).map((t) => ({ slug: t.slug, name: t.name, nameEn: t.name_en ?? null }));
+  const related = row.related
+    .map((r) => relatedSource.find((t) => t.slug === r))
+    .filter((t): t is { slug: string; name: string; nameEn: string | null } => !!t)
+    .map((t) => ({ slug: t.slug, name: lang === "en" ? t.nameEn ?? t.name : t.name }));
   // `page > pageCount` 不是"主题不存在"：2026-11-05 复核，越界页原先返回 null，
   // 路由把它写成 404「topic page not found」，读者看到的是"这个主题没了"。
   // 主题在、页码越界，就该给一页空列表（连同真实 pageCount），页面自己说"没有更多了"。
@@ -280,16 +345,38 @@ export async function loadTopicPage(slug: string, page: number, now?: Date, lang
   // 2026-11-16：这条原来跑在裸连接上、无 statement_timeout；主库 io.full=95% 时它在 pg_stat_activity
   // 里挂住，连接不归还，主题页跟着 503。收进 withPublicRead：服务端 12 秒取消、连接必归还，
   // 失败由路由层按 503/降级处理。
+  //
+  // 2026-11-23：主库上这条查询每个主题要 7–13 秒，主题详情页整站 503。原来的写法把
+  // `EXISTS (publication_topics …) OR p.tags && $tags` 和整条成员门放在同一个 WHERE 里，
+  // 规划器只能在「按 timeline 走索引、逐行探 EXISTS」与「位图并集后再排序」之间猜，实际每次
+  // 都把门逐行算一遍。现在先把成员门物化成 `listed`（一次性算完，与主题计数那条读同形），
+  // 主题归属再从这张小表上取：`publication_topics` 是显式分配表（0102），标签只是它的兜底
+  // 旧路径，两条都只和 `listed` 做连接，不再在 300 MB 的 `publications` 上逐行 OR。
+  //
+  // 2026-11-24：第二处更贵——外层原来是 `WHERE p.article_id IN (SELECT … page)`。半连接不能交换
+  // 内外侧，规划器只能把 133k 行的 `publications`（再连 articles/translations/stories）放在外侧做
+  // 哈希半连接，再回头问哪 20 个 id 要 (实测 10–16 s、24 MB 临时文件)。改成 `FROM page pg JOIN
+  // publications p` 让 20 行先当外侧，外侧只剩 20 次主键连接；分页结果与排序键都不变。
   const rows = await withPublicRead<ItemRow[]>((db) => db`
-    WITH page AS (
-      SELECT p.article_id FROM publications p
+    WITH listed AS MATERIALIZED (
+      SELECT p.article_id, p.timeline_at, p.tags
+      FROM publications p
       WHERE ${selectedCondition(at, lang)}
-        AND (EXISTS (SELECT 1 FROM publication_topics pt WHERE pt.article_id = p.article_id AND pt.slug = ${row.slug})
-             OR p.tags && ${topicMatchTags(row)}::text[])
-      ORDER BY p.timeline_at DESC, p.article_id DESC
+    ), matched AS (
+      SELECT pt.article_id
+      FROM publication_topics pt
+      WHERE pt.slug = ${row.slug}
+      UNION
+      SELECT l.article_id FROM listed l WHERE l.tags && ${topicMatchTags(row)}::text[]
+    ), page AS (
+      SELECT l.article_id, l.timeline_at
+      FROM listed l JOIN matched m ON m.article_id = l.article_id
+      ORDER BY l.timeline_at DESC, l.article_id DESC
       LIMIT ${TOPIC_PAGE_SIZE} OFFSET ${(page - 1) * TOPIC_PAGE_SIZE})
-    SELECT ${ITEM_COLUMNS} ${ITEM_FROM} WHERE p.article_id IN (SELECT article_id FROM page)
-    ORDER BY p.timeline_at DESC, p.article_id DESC`);
+    SELECT ${ITEM_COLUMNS} FROM page pg
+    JOIN publications p ON p.article_id = pg.article_id
+    ${ITEM_JOINS}
+    ORDER BY pg.timeline_at DESC, pg.article_id DESC`);
   return { topic: { ...topic, related }, items: rows.map((r) => toFeedItemSummary(r, lang)), page, pageCount, generatedAt: at.toISOString(), lang };
 }
 
@@ -322,7 +409,9 @@ export async function topicFreshness(days = 14, now = new Date()): Promise<Topic
       SELECT t.slug, p.discovered_at
         FROM topics t JOIN publications p
           ON p.discovered_at >= ${windowStart}
-         AND p.tags && (CASE WHEN t.entity_id IS NOT NULL THEN ARRAY['entity:' || t.entity_id] ELSE t.tags END)
+         AND p.tags && (CASE WHEN t.entity_id IS NOT NULL
+                       THEN ARRAY['entity:' || t.entity_id] || coalesce(t.org_names, ARRAY[]::text[])
+                       ELSE t.tags END)
     )
     SELECT t.slug,
            t.name,

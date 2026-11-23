@@ -21,7 +21,8 @@ const zh = {
    * 不能写 JSX）。中文两段拼起来与 i18n 之前的字符串逐字相同。
    */
   leadFilledPre: (hours: string) => `过去 ${hours} 小时，讨论最多的 `,
-  leadFilledPost: (hours: string) => ` 个${withSubject("事件")}`,
+  /** 中文不随数字变形；计数仍单独由页面包一层 `.num`，这里只出量词。 */
+  leadFilledPost: (_count: string, hours: string) => ` 个${withSubject("事件")}`,
   leadEmpty: (hours: string) => `过去 ${hours} 小时还没有讨论够热的${withSubject("事件")}`,
   /** 更新时间行的前后两段（时间由页面用 `<span class="num">` 包好）。 */
   updatedPre: "",
@@ -63,9 +64,9 @@ const zh = {
     /** 一个名字都没展示：`4 个来源`。 */
     sourcesPlain: (total: string) => `${total} 个来源`,
   },
-  /** 数字后面直接拼的单位（数字由页面用 `<span class="num">` 包好）。 */
-  sourceUnit: " 个来源",
-  participantUnit: " 位参与者",
+  /** 数字后面直接拼的单位（数字由页面用 `<span class="num">` 包好）。中文不随数字变形。 */
+  sourceUnit: (_n: string) => " 个来源",
+  participantUnit: (_n: string) => " 位参与者",
   rankAria: (n: string) => `热度排名第 ${n} 位`,
   /** 头像堆与名单弹层的读屏名、分组词与「另有 N 位」；名字本身来自数据。 */
   faces: {
@@ -99,6 +100,8 @@ const zh = {
   how2: "榜单统计过去 48 小时。趋势只比较持续覆盖的同一组信源；它反映我们的监测范围，不代表全网人数。缺少可比历史时，不展示趋势线。",
   how3: "信源名单只展示可公开阅读的报道来源；讨论参与者还包括只计入热度的账号与机构。同一机构的多个渠道可能合并计数，因此参与者不一定多于信源数。点击事件可查看各方报道与观点。",
 
+  /** 英文页的逐卡语言标注（中文页永不渲染，此值只是文档）：事件摘要仍是中文。 */
+  aiDigestZh: "AI 摘要为中文",
   /** 英文页的一行说明（zh 页永不渲染，此值只是文档）：热点条（HotEntryView）不带信源原题，事件标题与 AI 摘要仍是中文。 */
   chineseNotice: "界面已英文化：事件标题与 AI 摘要仍为中文。",
 };
@@ -106,13 +109,14 @@ const zh = {
 const en: typeof zh = {
   metaTitle: "Trending",
   metaWithEntries: (count: string, hours: string) =>
-    `The ${count} events most discussed in the past ${hours} hours: heat index, trend and the public sources behind the heat.`,
+    `The ${count} ${count === "1" ? "event" : "events"} most discussed in the past ${hours} hours: heat index, trend and the public sources behind the heat.`,
   metaEmpty: (hours: string) => `Trending in the past ${hours} hours: not enough independent sources are covering the same events yet.`,
 
   kicker: "Live heat",
   headline: "Trending",
   leadFilledPre: (hours: string) => `The `,
-  leadFilledPost: (hours: string) => ` events most discussed in the past ${hours} hours`,
+  /** 1 个事件说 "The 1 event"，不是 "The 1 events"（2026-11-23 验收实测）。 */
+  leadFilledPost: (count: string, hours: string) => ` ${count === "1" ? "event" : "events"} most discussed in the past ${hours} hours`,
   leadEmpty: (hours: string) => `In the past ${hours} hours, no event has drawn enough discussion yet`,
   updatedPre: "Updated ",
   updatedPost: " · ranked by discussion heat",
@@ -146,19 +150,19 @@ const en: typeof zh = {
 
   voices: {
     nameJoiner: ", ",
-    sourcesAmong: (total: string) => ` among ${total} sources`,
+    sourcesAmong: (total: string) => ` among ${total} ${total === "1" ? "source" : "sources"}`,
     sourcesReported: " reported",
-    sourcesPlain: (total: string) => `${total} sources`,
+    sourcesPlain: (total: string) => `${total} ${total === "1" ? "source" : "sources"}`,
   },
-  sourceUnit: " sources",
-  participantUnit: " participants",
+  sourceUnit: (n: string) => (n === "1" ? " source" : " sources"),
+  participantUnit: (n: string) => (n === "1" ? " participant" : " participants"),
   rankAria: (n: string) => `Ranked No. ${n} by heat`,
   faces: {
-    aria: (total: string) => `${total} participants — view the list`,
+    aria: (total: string) => `${total} ${total === "1" ? "participant" : "participants"} — view the list`,
     dialogAria: "Sources in the discussion",
     editorial: "Editorial picks",
     signal: "Ambient sources",
-    more: (n: string) => `${n} more participants not listed`,
+    more: (n: string) => `${n} more ${n === "1" ? "participant" : "participants"} not listed`,
     nameJoiner: ", ",
   },
   delta: {
@@ -183,6 +187,8 @@ const en: typeof zh = {
   how2: "The board covers the past 48 hours. Trends compare the same set of sources across sustained coverage; they reflect our monitoring scope, not the whole web. Without comparable history, no trend line is drawn.",
   how3: "The source list shows publicly readable reporting only; discussion participants also include accounts and outlets counted for heat alone. Several channels of one outlet may be merged, so participants can be fewer than sources. Open an event to read every side's reports and viewpoints.",
 
+  // 与列表卡片同一条规矩：页面顶部那句只说明整屏，逐卡再由摘要自己报名。
+  aiDigestZh: "AI digest, in Chinese",
   chineseNotice: "Some story titles and summaries have no English version yet and appear in Chinese.",
 };
 
