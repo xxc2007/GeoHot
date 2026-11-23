@@ -245,20 +245,12 @@ const blockMinute = async (service: string) => {
   await sql`UPDATE budgets SET per_minute = ${row!.used} WHERE service = ${service}`;
 };
 const resetMinutes = async () => sql`UPDATE budgets SET per_minute = 100000 WHERE service IN ('llm','agnes-cn')`;
-// 2026-11-15: 预算按「当前分钟的已用次数 + N」设，跨分钟边界时 used 归零、剩余变成 used+N（比 N 多），
-// 断言就随机失败（CI 见过连续三次 score 都放行、a=3）。这里重设到「剩余正好 extra」为止，最多三次。
-const pinRemaining = async (service: string, extra: number) => {
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const [row] = await sql<{ used: number }[]>`SELECT count(*)::int AS used FROM receipt_attempts
-      WHERE service = ${service} AND origin = 'live' AND started_at > now() - interval '1 minute'`;
-    await sql`UPDATE budgets SET per_minute = ${row!.used + extra} WHERE service = ${service}`;
-    const [after] = await sql<{ used: number; per: number }[]>`SELECT
-      (SELECT count(*)::int FROM receipt_attempts WHERE service = ${service} AND origin = 'live'
-        AND started_at > now() - interval '1 minute') AS used,
-      (SELECT per_minute FROM budgets WHERE service = ${service}) AS per`;
-    if (after!.per - after!.used === extra) return;
-  }
-  assert.fail(`could not pin ${extra} remaining ${service} calls: the minute window kept rolling`);
+// 预算按整个共享 `_test` 库的 receipt_attempts 计数，前一个测试文件在同一分钟留下的行会把
+// 「used + N」的算术挤歪（CI 实测 22 !== 21）。这两个用例只关心自己打出的调用：先清掉本分钟
+// 窗口里 llm/agnes-cn 的行，再设一个绝对 per_minute，窗口就不再依赖别的文件或删除时机。
+const isolateMinute = async () => {
+  await sql`DELETE FROM receipt_attempts
+    WHERE service IN ('llm','agnes-cn') AND origin = 'live' AND started_at > now() - interval '1 minute'`;
 };
 // 2026-11-06: 健康结论是每秒都可能变的窗口统计。种完失败后不等它可见就去发请求，
 // 断言失败时看到的是「Missing expected rejection」——把真因埋掉。这里显式等它可见，失败也说得清楚。
@@ -450,6 +442,10 @@ test("all locally blocked candidates wait for the earliest real budget window", 
 });
 
 test("real selection run reports actual score providers across partial-chain budget fallback", async () => {
+  const oldPrefilter = process.env.PREFILTER_MODEL;
+  // 固定 prefilter 只走 default：它先吃掉 llm 窗口的一次，两个 score 才会在绝对 per_minute=2 下
+  // 稳定地一个走 llm、一个回退 agnes；不让模型池的路由权重决定这一条。
+  process.env.PREFILTER_MODEL = "default";
   let id = "";
   for (let i = 0; i < 100; i++) {
     const candidate = `score-meta-${unique()}-${i}`;
@@ -459,12 +455,12 @@ test("real selection run reports actual score providers across partial-chain bud
   const input: AnalyzeInputArticle = { id, revision: 1, title: "A geographic dataset release", url: "https://example.com/meta",
     author: null, publishedAt: new Date("2026-02-01T00:00:00Z"), bodyText: "A geographic dataset release. ".repeat(30),
     bodyStatus: "ok", excerpt: null, xPost: null, media: [], source: { name: "local fixture", kind: "rss", tier: "T1", firstParty: true } };
-  const [row] = await sql<{ used: number }[]>`SELECT count(*)::int AS used FROM receipt_attempts
-    WHERE service='llm' AND origin='live' AND started_at > now()-interval '1 minute'`;
-  await sql`UPDATE budgets SET per_minute=${row!.used + 2} WHERE service='llm'`;
+  await isolateMinute();
+  await resetMinutes();
+  await sql`UPDATE budgets SET per_minute=2 WHERE service='llm'`;
   analysisAnswers = true;
   try {
-    const result = await runAnalysis(input, { stages: "selection" });
+    const result = await runAnalysis(input, { stages: "selection", scoreModel: "default" });
     assert.deepEqual(result.scores!.values, [80,80]);
     const rows = await sql<{ id: number; service: string; logical_key: string }[]>`SELECT id, service, logical_key FROM receipts
       WHERE id=ANY(${result.scores!.receiptIds}::bigint[])`;
@@ -473,12 +469,21 @@ test("real selection run reports actual score providers across partial-chain bud
     assert.ok(scoreRows[0]!.logical_key.endsWith(":score-1"));
     assert.ok(scoreRows[1]!.logical_key.endsWith(":score-2"));
     assert.equal(result.scores!.model, scoreRows.map(row => row.service === "llm" ? "default" : "agnes-3.0-flash-cn").join(","));
-    const beforeA = a.hits(), beforeB = b.hits();
-    const replay = await runAnalysis(input, { stages: "selection" });
+    const [beforeAttempts] = await sql<{ n: number }[]>`
+      SELECT count(*)::int AS n FROM receipt_attempts ra JOIN receipts r ON r.id = ra.receipt_id
+       WHERE r.subject = ${`article:${id}@1`} AND ra.origin = 'live'`;
+    const replay = await runAnalysis(input, { stages: "selection", scoreModel: "default" });
     assert.deepEqual(replay.scores!.receiptIds, result.scores!.receiptIds);
     assert.equal(replay.scores!.model, result.scores!.model);
-    assert.equal(a.hits(), beforeA); assert.equal(b.hits(), beforeB);
-  } finally { analysisAnswers=false; await resetMinutes(); }
+    const [afterAttempts] = await sql<{ n: number }[]>`
+      SELECT count(*)::int AS n FROM receipt_attempts ra JOIN receipts r ON r.id = ra.receipt_id
+       WHERE r.subject = ${`article:${id}@1`} AND ra.origin = 'live'`;
+    assert.equal(afterAttempts!.n, beforeAttempts!.n, "replay must reuse receipts without new paid attempts");
+  } finally {
+    analysisAnswers = false;
+    process.env.PREFILTER_MODEL = oldPrefilter ?? "default,agnes-3.0-flash-cn";
+    await resetMinutes();
+  }
 });
 
 test("an unhealthy pool member is not used merely because its local budget has room", async () => {
@@ -527,7 +532,7 @@ test("fallback score refusals report the actual provider and never try a third p
   const names = ["DOTS_BASE_URL","DOTS_API_KEY","DOTS_MODEL"];
   const old = Object.fromEntries(names.map((name)=>[name,process.env[name]]));
   process.env.DOTS_BASE_URL=`${third.url}/v1`; process.env.DOTS_API_KEY="stub-only"; process.env.DOTS_MODEL="stub-third";
-  process.env.PREFILTER_MODEL="default,agnes-3.0-flash-cn,dots3-note-prev";
+  process.env.PREFILTER_MODEL="default";
   process.env.SCORE_MODEL="default,agnes-3.0-flash-cn,dots3-note-prev";
   analysisAnswers=true;
   try {
@@ -541,10 +546,14 @@ test("fallback score refusals report the actual provider and never try a third p
       const input:AnalyzeInputArticle={id,revision:1,title:`A geographic dataset release ${id}`,url:"https://example.com/refusal",
         author:null,publishedAt:new Date("2026-02-01T00:00:00Z"),bodyText:`A geographic dataset release ${id}. `.repeat(30),
         bodyStatus:"ok",excerpt:null,xPost:null,media:[],source:{name:"local refusal",kind:"rss",tier:"T1",firstParty:true}};
-      await pinRemaining('llm', refusedAt);
+      // 绝对 per_minute：prefilter 先吃掉一次，剩下的 llm 次数正好是 refusedAt；窗口先清空，
+      // 不再受前一文件或本文件上一轮留在同一分钟里的行影响。
+      await isolateMinute();
+      await resetMinutes();
+      await sql`UPDATE budgets SET per_minute=${refusedAt} WHERE service='llm'`;
       refuseFallbackScore=true; scoreCalls=0;
       const beforeA=a.hits(),beforeB=b.hits();
-      const result=await runAnalysis(input,{stages:"selection"});
+      const result=await runAnalysis(input,{stages:"selection",scoreModel:"default"});
       assert.equal(result.scores!.refused,true,JSON.stringify({scores:result.scores,scoreCalls,a:a.hits()-beforeA,b:b.hits()-beforeB,third:third.hits()}));
       const scoreRows=await sql<{id:number;service:string;status:string;logical_key:string}[]>`SELECT id,service,status,logical_key FROM receipts
         WHERE subject=${`article:${id}@1`} AND purpose='score_article'
@@ -559,7 +568,16 @@ test("fallback score refusals report the actual provider and never try a third p
       const models=scoreRows.slice(0,firstRefusal+1).map(row=>row.service==='llm'?'default':'agnes-3.0-flash-cn');
       assert.equal(result.scores!.model,[...new Set(models)].join(','));
       assert.ok(scoreRows.filter(row=>row.status==='failed').every(row=>row.service==='agnes-cn'),"only the refusing fallback is recorded as failed");
-      assert.equal(a.hits(),beforeA+refusedAt); assert.equal(b.hits(),beforeB+3-refusedAt); assert.equal(third.hits(),0);
+      // 用本条目自己的 attempts 计数，而不是全文件共享的 stub 计数器：前一个用例的迟到请求不能再
+      // 把 a.hits() 多加一次（CI 的 22 !== 21）。prefilter + 两次 score 一共 3 次。
+      const [calls]=await sql<{llm:number;agnes:number}[]>`
+        SELECT count(*) FILTER (WHERE ra.service='llm')::int AS llm,
+               count(*) FILTER (WHERE ra.service='agnes-cn')::int AS agnes
+          FROM receipt_attempts ra JOIN receipts r ON r.id=ra.receipt_id
+         WHERE r.subject=${`article:${id}@1`} AND ra.origin='live'`;
+      assert.equal(calls.llm,refusedAt,"llm 只应被调用 refusedAt 次");
+      assert.equal(calls.agnes,3-refusedAt,"agnes 只应补上剩下的次数");
+      assert.equal(third.hits(),0);
       const [refusal]=await sql<{service:string;status:string}[]>`SELECT service,status FROM receipts
         WHERE subject=${`article:${id}@1`} AND purpose='score_article' AND status='failed'`;
       assert.equal(refusal!.service,"agnes-cn"); assert.equal(refusal!.status,"failed");
