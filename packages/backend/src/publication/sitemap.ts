@@ -17,6 +17,8 @@ import { releasedCondition, selectedCondition } from "./items.ts";
 import { listReports } from "./reports.ts";
 import { leaderboardUrls } from "../leaderboard/read.ts";
 import { topicPageCounts } from "./topics.ts";
+import { englishTextMode } from "./english-policy.ts";
+import { englishReadyCondition } from "./readiness-en.ts";
 
 async function leaderboardDetailUrls(): Promise<string[]> {
   const fixed = new Set(["/leaderboard", "/leaderboard/sources", "/leaderboard/rules"]);
@@ -24,6 +26,8 @@ async function leaderboardDetailUrls(): Promise<string[]> {
 }
 
 const MAX_URLS = 45_000;
+/** 英文内容页的单独名额：不挤占中文名额（中文内容页永远优先）。 */
+const MAX_EN_URLS = 5_000;
 const TTL_MS = 5 * 60 * 1000;
 const CACHE_FILE = path.join(config.dataDir, "sitemap-last.xml");
 
@@ -56,9 +60,9 @@ async function build(readAt = new Date()): Promise<string> {
   // visible_after 落在两者之间的故事页这轮构建不列，下一轮才列，双钟口径归一。
   const now = latestItem?.t ?? new Date();
   // 英文界面框架（apps/web routes.ts 的 /en 前缀副本路由）与这十三页一一对应，lastmod/changefreq/
-  // priority 同参：en 页只是界面 chrome 换了语言，页面内容与中文页同一份。期刊、主题、故事与条目
-  // 的 en 路由是同一份中文内容的界面换壳——靠每页输出的 hreflang 互链（lib/seo.ts）暴露给爬虫，
-  // 不在这里翻倍列一遍：stories + items 的名额受 MAX_URLS 约束，中文内容页优先。
+  // priority 同参：这些页是界面 chrome 的英文版，始终列出。
+  // 英文内容页（条目/事件/主题/日报）只在 `ENGLISH_TEXT=strict` 时另列，并且用单独名额
+  // （`MAX_EN_URLS`）——`fallback` 模式的中文回退页不能当英文页承诺给爬虫。
   const staticPages: Entry[] = [
     { loc: "/", lastmod: now, changefreq: "hourly", priority: 1 },
     { loc: "/all", lastmod: now, changefreq: "hourly", priority: 0.9 },
@@ -123,8 +127,54 @@ async function build(readAt = new Date()): Promise<string> {
     WHERE p.visibility = 'public' AND p.indexable AND ${releasedCondition(readAt)} AND ${chineseCopyCondition()} ORDER BY p.timeline_at DESC LIMIT ${room}`;
   for (const it of items) entries.push({ loc: `/items/${it.id}`, lastmod: it.t, changefreq: "monthly", priority: 0.5 });
 
+  // 英文内容页：只有 strict 才列。每条都按英文门验证，回退中文的页面不承诺。
+  if (englishTextMode() === "strict") {
+    const en: Entry[] = [];
+    const enItemGate = englishReadyCondition(readAt);
+    const enItems = await sql<{ id: string; t: Date }[]>`
+      SELECT p.article_id AS id, p.updated_at AS t FROM publications p
+      WHERE p.visibility = 'public' AND p.indexable AND ${enItemGate} ORDER BY p.timeline_at DESC LIMIT ${MAX_EN_URLS}`;
+    for (const it of enItems) en.push({ loc: `/en/items/${it.id}`, lastmod: it.t, changefreq: "monthly", priority: 0.4 });
+    const enStories = await sql<{ public_id: string; latest_at: Date | null }[]>`
+      SELECT public_id::text, latest_at FROM stories
+      WHERE merged_into IS NULL AND nullif(btrim(title_en), '') IS NOT NULL AND title_en !~ ${CJK_COPY_PATTERN} AND EXISTS (
+        SELECT 1 FROM facts f JOIN fact_articles fa ON fa.fact_id = f.id JOIN publications p ON p.article_id = fa.article_id
+        WHERE f.story_id = stories.id AND fa.role = ANY(${FACT_MEMBER_ROLES}) AND p.visibility = 'public' AND p.eligible
+          AND ${releasedCondition(readAt)})
+      ORDER BY latest_at DESC NULLS LAST LIMIT ${Math.max(0, MAX_EN_URLS - en.length)}`;
+    for (const s of enStories) en.push({ loc: `/en/story/${s.public_id}`, lastmod: s.latest_at, changefreq: "daily", priority: 0.4 });
+    // 英文主题页只在主题名有英文时列；计数用 en 名单（与页面同一套成员门）。
+    const enCounts = new Map((await topicPageCounts(readAt, "en")).map((t) => [t.slug, t]));
+    const enTopics = await sql<{ slug: string; name_en: string | null; dormant_at: Date | null }[]>`
+      SELECT slug, name_en, dormant_at FROM topics WHERE nullif(btrim(name_en), '') IS NOT NULL AND dormant_at IS NULL ORDER BY position`;
+    for (const t of enTopics) {
+      const c = enCounts.get(t.slug);
+      if (!c?.indexable) continue;
+      en.push({ loc: `/en/topics/${t.slug}`, lastmod: c.latest, changefreq: "daily", priority: 0.4 });
+      for (let p = 2; p <= c.pages; p++) en.push({ loc: `/en/topics/${t.slug}/page/${p}`, lastmod: c.latest, changefreq: "weekly", priority: 0.2 });
+    }
+    // 英文刊面：content_en 必须与当前 revision 同步，散文覆盖层在、引用快照非空——
+    // 与 `englishReportReady`/`loadReport` 同一组条件；只查 content_en 非空会把 detail 会 404 的期列进 sitemap。
+    const enReportKeys = new Map((await sql<{ kind: string; key: string }[]>`
+      SELECT kind, key FROM reports
+       WHERE revision_en = revision AND content_en IS NOT NULL
+         AND jsonb_array_length(coalesce(content_en->'citations', '[]'::jsonb)) > 0
+         AND (
+           coalesce(btrim(content_en->>'overview'), '') <> ''
+           OR coalesce(btrim(content_en->>'headline'), '') <> ''
+           OR (content_en->'lead' IS NOT NULL AND content_en->'lead' <> 'null'::jsonb)
+         )`).map((r) => [`${r.kind}:${r.key}`, true]));
+    for (const [kind, index] of [["daily", dailyIndex], ["weekly", weeklyIndex], ["monthly", monthlyIndex]] as const) {
+      for (const r of index) {
+        if (!enReportKeys.has(`${kind}:${r.key}`)) continue;
+        en.push({ loc: `/en/${kind}/${r.key}`, lastmod: new Date(r.generatedAt), changefreq: kind === "daily" ? "never" : "monthly", priority: 0.4 });
+      }
+    }
+    entries.push(...en.slice(0, MAX_EN_URLS));
+  }
+
   const body = entries
-    .slice(0, MAX_URLS)
+    .slice(0, MAX_URLS + MAX_EN_URLS)
     .map((e) => {
       const parts = [`<loc>${escapeXml(siteUrl(e.loc))}</loc>`];
       if (e.lastmod) parts.push(`<lastmod>${e.lastmod.toISOString()}</lastmod>`);

@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import { localeAppPath, useLocale, type Locale } from "../../lib/i18n";
+import { majorReleaseCopy } from "../../lib/i18n/pages/major-release";
 import { TerrainCanvas } from "./TerrainCanvas";
 import { CooldownBoard, FleetGrid, LatencyBars, ReadyGates, ReserveSwap } from "./major-later";
 import "./major-release.css";
@@ -19,62 +20,73 @@ const TWO_STAGES = [
   ["接入", "在你的工具里继续读", "网站、RSS、API、MCP，读取同一份公开内容。在阅读器或自己的程序里，也能继续追踪。"],
 ] as const;
 
-function Journey({ stages }: { stages: typeof TWO_STAGES }) {
+const TWO_STAGES_EN = [
+  ["Collect", "Find the geographic lead", "Public notices from agencies, stations, journals and media. Every lead keeps its source entrance so you can trace the evidence."],
+  ["Select", "Place and evidence first", "Around spatial impact and information value, a model writes the Chinese title and summary. Reading a page never triggers a model call."],
+  ["Group", "Join the threads", "Reports of one event share one timeline. You can move from a single report to the event and keep reading other sources."],
+  ["Read", "From one update to a daily edition", "Picks, full translations and the daily edition give browsing and looking back their own entrances. Translation and backfill progress are stated on the page."],
+  ["Integrate", "Keep reading in your tools", "Website, RSS, API and MCP read the same public content. Follow it in a reader or your own program."],
+] as const;
+
+function Journey({ stages }: { stages: ReadonlyArray<readonly [string, string, string]> }) {
+  const en = useLocale() === "en";
+  const list = en ? TWO_STAGES_EN : stages;
   const [stage, setStage] = useState(0);
   const id = useId();
   // 站数由 stages 决定：2.0 是五站、3.0 是四步。列数写死 5 时四步那组会左对齐剩下半列，
   // 连线又固定画到 90% 宽，于是「04」右边拖出一截没有站点的线；连线只从首站中心画到末站中心。
-  const count = stages.length;
+  const count = list.length;
   const first = 1000 / (count * 2);
   const flowPath = `M${first} 20H${1000 - first}`;
   return <section className="major-journey">
-    <h3 className="text-[20px] font-bold text-ink">一条消息，走过五站</h3>
-    <p className="mt-2 text-[13px] leading-relaxed text-ink-3">点选一站，看看线索如何变成可阅读的内容。</p>
-    <div className="major-stations" style={{ gridTemplateColumns: `repeat(${count}, minmax(0, 1fr))` }} role="tablist" aria-label={`消息的 ${count} 个阶段`} onKeyDown={event => {
+    <h3 className="text-[20px] font-bold text-ink">{en ? "One report, five stations" : "一条消息，走过五站"}</h3>
+    <p className="mt-2 text-[13px] leading-relaxed text-ink-3">{en ? "Pick a station to see how a lead becomes readable content." : "点选一站，看看线索如何变成可阅读的内容。"}</p>
+    <div className="major-stations" style={{ gridTemplateColumns: `repeat(${count}, minmax(0, 1fr))` }} role="tablist" aria-label={en ? `The ${count} stages a report goes through` : `消息的 ${count} 个阶段`} onKeyDown={event => {
       const delta = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
       if (!delta && !["Home", "End"].includes(event.key)) return;
       event.preventDefault();
-      const next = event.key === "Home" ? 0 : event.key === "End" ? 4 : (stage + delta + 5) % 5;
+      const next = event.key === "Home" ? 0 : event.key === "End" ? count - 1 : (stage + delta + count) % count;
       setStage(next); document.getElementById(`${id}-stage-${next}`)?.focus();
     }}>
       <svg viewBox="0 0 1000 40" preserveAspectRatio="none" aria-hidden="true" className="major-flow"><path d={flowPath} className="major-flow-track" /><path d={flowPath} className="major-flow-pulse" /></svg>
-      {stages.map(([title], index) => <button key={title} type="button" role="tab" id={`${id}-stage-${index}`} aria-controls={`${id}-panel`} aria-selected={stage === index} tabIndex={stage === index ? 0 : -1} onClick={() => setStage(index)}>
+      {list.map(([title], index) => <button key={title} type="button" role="tab" id={`${id}-stage-${index}`} aria-controls={`${id}-panel`} aria-selected={stage === index} tabIndex={stage === index ? 0 : -1} onClick={() => setStage(index)}>
         <span className="major-station-number">0{index + 1}</span><span>{title}</span>
       </button>)}
     </div>
     <div id={`${id}-panel`} role="tabpanel" aria-labelledby={`${id}-stage-${stage}`} tabIndex={0} className="major-stage-panel">
       <span className="major-panel-index" aria-hidden="true">0{stage + 1}</span>
-      <div><h4>{stages[stage]![1]}</h4><p>{stages[stage]![2]}</p></div>
+      <div><h4>{list[stage]![1]}</h4><p>{list[stage]![2]}</p></div>
     </div>
-    <noscript><ol>{stages.map(([title, sub, body]) => <li key={title}>{title} · {sub}：{body}</li>)}</ol></noscript>
+    <noscript><ol>{list.map(([title, sub, body]) => <li key={title}>{title} · {sub}{en ? ": " : "："}{body}</li>)}</ol></noscript>
   </section>;
 }
 
 function PayloadComparison() {
+  const en = useLocale() === "en";
   const [tab, setTab] = useState<"payload" | "batch">("payload");
   const [after, setAfter] = useState(true);
   const [more, setMore] = useState(false);
   const id = useId();
   return <section className="major-comparison">
-    <div className="major-comparison-heading"><div><h3>读到第一屏，更轻一点</h3><p>这次优化的实际载荷，放在一起看。</p></div><span className="major-snapshot">本地测量快照</span></div>
-    <div className="major-compare-tabs" role="tablist" aria-label="提速变化" onKeyDown={event => {
+    <div className="major-comparison-heading"><div><h3>{en ? "Lighter on the first screen" : "读到第一屏，更轻一点"}</h3><p>{en ? "The measured payloads from this optimisation, side by side." : "这次优化的实际载荷，放在一起看。"}</p></div><span className="major-snapshot">{en ? "Local measurement snapshot" : "本地测量快照"}</span></div>
+    <div className="major-compare-tabs" role="tablist" aria-label={en ? "Speed changes" : "提速变化"} onKeyDown={event => {
       if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
       event.preventDefault(); const next = event.key === "Home" ? "payload" : event.key === "End" ? "batch" : tab === "payload" ? "batch" : "payload";
       setTab(next); document.getElementById(`${id}-${next}`)?.focus();
     }}>
-      {([["payload", "首页载荷"], ["batch", "分批浏览"]] as const).map(([key, label]) => <button key={key} type="button" role="tab" id={`${id}-${key}`} aria-controls={`${id}-comparison`} aria-selected={tab === key} tabIndex={tab === key ? 0 : -1} onClick={() => setTab(key)}>{label}</button>)}
+      {([["payload", en ? "Home payload" : "首页载荷"], ["batch", en ? "Batched browsing" : "分批浏览"]] as const).map(([key, label]) => <button key={key} type="button" role="tab" id={`${id}-${key}`} aria-controls={`${id}-comparison`} aria-selected={tab === key} tabIndex={tab === key ? 0 : -1} onClick={() => setTab(key)}>{label}</button>)}
     </div>
     <div role="tabpanel" id={`${id}-comparison`} aria-labelledby={`${id}-${tab}`} tabIndex={0}>
       {tab === "payload" ? <div className="major-payload">
-        <div className="major-measure-switch" role="group" aria-label="切换优化前后载荷"><button type="button" aria-pressed={!after} onClick={() => setAfter(false)}>优化前 <strong>54,210 B</strong></button><button type="button" aria-pressed={after} onClick={() => setAfter(true)}>优化后 <strong>20,027 B</strong></button></div>
+        <div className="major-measure-switch" role="group" aria-label={en ? "Switch payload before and after" : "切换优化前后载荷"}><button type="button" aria-pressed={!after} onClick={() => setAfter(false)}>{en ? "Before" : "优化前"} <strong>54,210 B</strong></button><button type="button" aria-pressed={after} onClick={() => setAfter(true)}>{en ? "After" : "优化后"} <strong>20,027 B</strong></button></div>
         <div className="major-bar-track" aria-hidden="true"><div className="major-bar" style={{ width: `${(after ? 20027 / 54210 : 1) * 100}%` }} /></div>
-        <p className="major-measure-result" aria-live="polite">首页 HTML gzip <strong>{after ? "20,027" : "54,210"} B</strong>{after && <span>减少 63.1%</span>}</p>
-        <p className="major-measure-note">同一受控后备数据条件下的首页压缩体积快照；不是服务器耗时，也不是国内 / 国际线路测速。</p>
+        <p className="major-measure-result" aria-live="polite">{en ? "Home page HTML gzip" : "首页 HTML gzip"} <strong>{after ? "20,027" : "54,210"} B</strong>{after && <span>{en ? "−63.1%" : "减少 63.1%"}</span>}</p>
+        <p className="major-measure-note">{en ? "A snapshot of the home page's compressed size under the same controlled fallback data; not server time, and not a China/international network speed test." : "同一受控后备数据条件下的首页压缩体积快照；不是服务器耗时，也不是国内 / 国际线路测速。"}</p>
       </div> : <div className="major-batch">
-        <div className="major-batch-heading"><p>先呈现 <strong>12</strong> 条，继续浏览时再取 <strong>40</strong> 条。</p><button type="button" aria-pressed={more} onClick={() => setMore(value => !value)}>{more ? "回到首批" : "演示继续浏览"}</button></div>
+        <div className="major-batch-heading"><p>{en ? <>Show <strong>12</strong> first, then fetch <strong>40</strong> more as you keep reading.</> : <>先呈现 <strong>12</strong> 条，继续浏览时再取 <strong>40</strong> 条。</>}</p><button type="button" aria-pressed={more} onClick={() => setMore(value => !value)}>{more ? (en ? "Back to the first batch" : "回到首批") : (en ? "Demo loading more" : "演示继续浏览")}</button></div>
         <div className="major-batch-dots" aria-hidden="true">{Array.from({ length: 52 }, (_, index) => <span key={index} data-loaded={index < 12 || more} data-first={index < 12} />)}</div>
-        <p aria-live="polite" className="major-measure-result">{more ? "12 条首批 + 40 条后续" : "12 条首批内容"}</p>
-        <p className="major-measure-note">分批方式交互示意，不在这里请求新闻或模拟响应耗时；实际内容仍从浏览页继续读取。</p>
+        <p aria-live="polite" className="major-measure-result">{more ? (en ? "12 first + 40 later" : "12 条首批 + 40 条后续") : (en ? "12 items in the first batch" : "12 条首批内容")}</p>
+        <p className="major-measure-note">{en ? "An illustration of batching; it does not request news or simulate response time here — content still comes from the browsing page." : "分批方式交互示意，不在这里请求新闻或模拟响应耗时；实际内容仍从浏览页继续读取。"}</p>
       </div>}
     </div>
   </section>;
@@ -82,7 +94,13 @@ function PayloadComparison() {
 
 /** 3.0 的可交互演示：一封反馈的旅程（提交 → 直达邮箱 → 可查进度 → 回信直达）。 */
 function ReplyJourney() {
-  const STAGES = [
+  const en = useLocale() === "en";
+  const STAGES = en ? [
+    ["Submit", "Write what you want to say", "Submit text and screenshots on the feedback page and leave an email; no sign-up or login needed."],
+    ["Deliver", "Straight into the editor's mailbox", "Each feedback item with its screenshots goes into the editor's QQ mailbox in real time; failed sends retry for a week, so nothing is lost."],
+    ["Track", "Check progress any time", "With the feedback number or the email you left, look up how far your item has got on the feedback page."],
+    ["Reply", "The answer reaches your inbox", "The editor replies from the mailbox after handling it; the reply carries your address, so replying continues the conversation."],
+  ] as const : [
     ["提交", "写下想说的话", "反馈页提交正文和截图，留个邮箱；不需要注册，也不需要登录。"],
     ["直达", "实时投进站长邮箱", "每条反馈连同截图实时投进站长的 QQ 邮箱；发送失败自动重试一周，不丢反馈。"],
     ["可查", "随时看处理进度", "凭反馈编号或提交时留的邮箱，在反馈页查询这一条到了哪一步。"],
@@ -96,13 +114,13 @@ function ReplyJourney() {
   const first = 1000 / (count * 2);
   const flowPath = `M${first} 20H${1000 - first}`;
   return <section className="major-journey">
-    <h3 className="text-[20px] font-bold text-ink">一条反馈，走完这四步</h3>
-    <p className="mt-2 text-[13px] leading-relaxed text-ink-3">点选一步，看看你的反馈怎么走、怎么回。</p>
-    <div className="major-stations" style={{ gridTemplateColumns: `repeat(${count}, minmax(0, 1fr))` }} role="tablist" aria-label={`反馈的 ${count} 个阶段`} onKeyDown={event => {
+    <h3 className="text-[20px] font-bold text-ink">{en ? "One piece of feedback, four steps" : "一条反馈，走完这四步"}</h3>
+    <p className="mt-2 text-[13px] leading-relaxed text-ink-3">{en ? "Pick a step to see how your feedback travels and comes back." : "点选一步，看看你的反馈怎么走、怎么回。"}</p>
+    <div className="major-stations" style={{ gridTemplateColumns: `repeat(${count}, minmax(0, 1fr))` }} role="tablist" aria-label={en ? `The ${count} stages of feedback` : `反馈的 ${count} 个阶段`} onKeyDown={event => {
       const delta = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
       if (!delta && !["Home", "End"].includes(event.key)) return;
       event.preventDefault();
-      const next = event.key === "Home" ? 0 : event.key === "End" ? 3 : (stage + delta + 4) % 4;
+      const next = event.key === "Home" ? 0 : event.key === "End" ? count - 1 : (stage + delta + count) % count;
       setStage(next); document.getElementById(`${id}-stage-${next}`)?.focus();
     }}>
       <svg viewBox="0 0 1000 40" preserveAspectRatio="none" aria-hidden="true" className="major-flow"><path d={flowPath} className="major-flow-track" /><path d={flowPath} className="major-flow-pulse" /></svg>
@@ -114,7 +132,7 @@ function ReplyJourney() {
       <span className="major-panel-index" aria-hidden="true">0{stage + 1}</span>
       <div><h4>{STAGES[stage]![1]}</h4><p>{STAGES[stage]![2]}</p></div>
     </div>
-    <noscript><ol>{STAGES.map(([title, sub, body]) => <li key={title}>{title} · {sub}：{body}</li>)}</ol></noscript>
+    <noscript><ol>{STAGES.map(([title, sub, body]) => <li key={title}>{title} · {sub}{en ? ": " : "："}{body}</li>)}</ol></noscript>
   </section>;
 }
 
@@ -283,16 +301,17 @@ function MajorEight(): MajorCard {
 
 /** 9.0 的可交互演示：同一块界面切一次语言，看看中英两版各是什么读法。示例文字仅作演示，不指向真实事件。 */
 function LangDemo() {
-  const [en, setEn] = useState(false);
+  const pageEn = useLocale() === "en";
+  const [en, setEn] = useState(pageEn);
   return (
     <section className="rounded-2xl border border-line-soft bg-bg-sunk/40 p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h3 className="text-[20px] font-bold text-ink">一块界面，两种读法</h3>
-          <p className="mt-2 text-[13px] leading-relaxed text-ink-3">点一下语言胶囊，看看站点切换成英文后是什么样。</p>
+          <h3 className="text-[20px] font-bold text-ink">{pageEn ? "One interface, two readings" : "一块界面，两种读法"}</h3>
+          <p className="mt-2 text-[13px] leading-relaxed text-ink-3">{pageEn ? "Click a language pill to see the site after switching to English." : "点一下语言胶囊，看看站点切换成英文后是什么样。"}</p>
         </div>
-        <div className="flex gap-2" role="group" aria-label="切换中英文演示">
-          <button type="button" aria-pressed={!en} onClick={() => setEn(false)} className="rounded-full border border-line-soft px-3 py-1 text-[13px]">中文</button>
+        <div className="flex gap-2" role="group" aria-label={pageEn ? "Chinese/English demo switch" : "切换中英文演示"}>
+          <button type="button" aria-pressed={!en} onClick={() => setEn(false)} className="rounded-full border border-line-soft px-3 py-1 text-[13px]">{pageEn ? "Chinese" : "中文"}</button>
           <button type="button" aria-pressed={en} onClick={() => setEn(true)} className="rounded-full border border-line-soft px-3 py-1 text-[13px]">English</button>
         </div>
       </div>
@@ -304,7 +323,7 @@ function LangDemo() {
         <p className="mt-3 text-[15px] font-semibold text-ink">{en ? "M6.4 earthquake strikes off the coast of …" : "近海发生 6.4 级地震（整理标题示例）"}</p>
         <p className="mt-2 text-[13px] leading-relaxed text-ink-3">{en ? "The headline is shown as the source published it." : "英文页优先显示信源原题与原文正文。"}</p>
       </div>
-      <p className="mt-3 text-[12px] text-ink-4">示例文字仅作演示，不指向真实事件；AI 摘要与日报在英文版里仍为中文，页面会如实标注。</p>
+      <p className="mt-3 text-[12px] text-ink-4">{pageEn ? "Sample text is for demonstration only and points to no real event; an item with no English copy is labelled as such." : "示例文字仅作演示，不指向真实事件；AI 摘要与日报在英文版里仍为中文，页面会如实标注。"}</p>
     </section>
   );
 }
@@ -344,7 +363,12 @@ const CARDS: Record<string, () => MajorCard> = {
 };
 
 export function MajorRelease({ date, time }: { date: string; time: string }) {
-  const card = (CARDS[`${date}T${time}`] ?? MajorTwo)();
+  const locale = useLocale();
+  const base = (CARDS[`${date}T${time}`] ?? MajorTwo)();
+  // /en：标题、导语、章节与入口链接取字典里的英文；交互演示仍是那张卡的中文版式（顶部已注明）。
+  // 字典缺这张卡（未来新增的 major）时整张保留中文并由 changelog 页的 MissingEnglishNotice 说明。
+  const english = majorReleaseCopy(locale)?.cards[`${date}T${time}`];
+  const card = english ? { ...base, ...english } : base;
   return <MajorCardView card={card} date={date} time={time} />;
 }
 
@@ -358,7 +382,9 @@ function cardHref(to: string, locale: Locale): string {
   return localeAppPath(to, locale);
 }
 
-function MajorCardView({ card, date, time }: { card: MajorCard; date: string; time: string }) {  const locale = useLocale();
+function MajorCardView({ card, date, time }: { card: MajorCard; date: string; time: string }) {
+  const locale = useLocale();
+  const chrome = majorReleaseCopy(locale)?.chrome ?? null;
   const article = useRef<HTMLElement>(null);
   const id = useId();
   useEffect(() => {
@@ -373,10 +399,10 @@ function MajorCardView({ card, date, time }: { card: MajorCard; date: string; ti
   return <article ref={article} className="major-release card overflow-hidden" aria-labelledby={`${id}-title`}>
     <header className="bg-accent/5 px-5 pb-7 pt-6 sm:px-8 sm:pb-9">
       <div className="flex flex-wrap items-center justify-between gap-3 text-[12px]">
-        <span className="font-semibold tracking-[0.2em] text-accent">重大更新 · v{card.version} · 置顶</span>
+        <span className="font-semibold tracking-[0.2em] text-accent">{chrome ? chrome.kicker(card.version) : `重大更新 · v${card.version} · 置顶`}</span>
         <time dateTime={`${date}T${time}:00+08:00`} className="text-ink-3">{date.replaceAll("-", " / ")} · {time}</time>
       </div>
-      <TerrainCanvas version={card.version} />
+      <TerrainCanvas version={card.version} label={chrome ? `GEOHOT ${card.version} animated contour map` : undefined} />
       <h2 id={`${id}-title`} className="text-[23px] font-bold leading-[1.45] text-ink sm:text-[28px]">{card.title}</h2>
       {card.lead.map((p, i) => <p key={i} className={`measure ${i === 0 ? "mt-5 text-[15px] leading-[1.9] text-ink-2" : "mt-3 text-[14px] leading-[1.9] text-ink-3"}`}>{p}</p>)}
     </header>
@@ -386,9 +412,8 @@ function MajorCardView({ card, date, time }: { card: MajorCard; date: string; ti
         <h3 className="text-[20px] font-bold text-ink"><span className="mr-2 text-[14px] font-medium text-accent">{String(i + 1).padStart(2, "0")}</span>{s.title}</h3>
         <p className="measure mt-3 text-[14px] leading-[1.9] text-ink-3">{s.body}</p>
       </section>)}
-      {/* 卡片的入口链接文案是发布说明内容（随卡片保持中文），但站内去处随页面语言带前缀，
-          /en 读者点「浏览全部动态」不落到中文页；/admin 没有 /en 路由、"/en" 是显式语言入口
-          （见 cardHref），两者都保持原样。 */}
+      {/* 卡片的入口链接文案随卡片语言（/en 用字典里译好的标签），站内去处随页面语言带前缀；
+          /admin 没有 /en 路由、"/en" 是显式语言入口（见 cardHref），两者都保持原样。 */}
       <footer className="flex flex-wrap gap-x-6 gap-y-3 border-t border-line-soft pt-6 text-[14px] font-medium text-accent">{card.links.map(([label, to]) => <Link key={label} to={cardHref(to, locale)}>{label}</Link>)}</footer>
     </div>
   </article>;

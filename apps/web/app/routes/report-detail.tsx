@@ -1,12 +1,12 @@
 import { data as withHeaders, isRouteErrorResponse, Link, useLoaderData, useLocation, useRouteError } from "react-router";
 import type { Route } from "./+types/report-detail";
 import type { ReportDetail, ReportNavigationEntry, ReportKind } from "@aihot/contracts/site";
-import { apiGet, ApiError, ApiRedirect } from "../lib/api.server";
-import { pageMeta, titled } from "../lib/seo";
+import { apiGet, ApiError, ApiRedirect, withLang } from "../lib/api.server";
+import { pageMeta, strictEnglish, titled } from "../lib/seo";
 import { beijingDate } from "../lib/format";
 import { localeAppPath, localeFromPath, useLocale } from "../lib/i18n";
 import { copy } from "../lib/i18n/pages/report-detail";
-import { ChineseNotice } from "../components/ui/ChineseNotice";
+import { MissingEnglishNotice } from "../components/ui/ChineseNotice";
 import { EmptyState } from "../components/ui/Page";
 import { ReportLayout } from "../features/report/ReportLayout";
 import { ReportPaper } from "../features/report/ReportPaper";
@@ -23,7 +23,9 @@ interface ReportAbsent {
 const reportAbsent = (reason: AbsentReason, kind: ReportKind, key: string) => withHeaders<ReportAbsent>({ message: "report_absent", reason, kind, key }, { status: 404 });
 
 export async function loader({ request, params }: Route.LoaderArgs) {
-  const kind = kindFromPath(new URL(request.url).pathname);
+  const url = new URL(request.url);
+  const kind = kindFromPath(url.pathname);
+  const locale = localeFromPath(url.pathname);
   const key = params.key ?? "";
   const now = Date.now();
   const absentReason = reportAbsentReason(kind, key, now);
@@ -33,7 +35,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   // 所以这一条自己抓 apiGet：404 按 absentReason 分诊，400 与其余故障照 loadOr404 的原样给状态码。
   const fetchReport = async (): Promise<ReportDetail> => {
     try {
-      return await apiGet<ReportDetail>(`/api/site/reports/${kind}/${key}`, { signal: request.signal });
+      return await apiGet<ReportDetail>(withLang(`/api/site/reports/${kind}/${key}`, locale), { signal: request.signal });
     } catch (error) {
       if (request.signal.aborted || error instanceof ApiRedirect) throw error;
       if (error instanceof ApiError && error.status === 404) throw reportAbsent(absentReason, kind, key);
@@ -46,7 +48,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   // 所以把这件事记下来，由页面自己说一句实话，而不是沉默地留一个空栏。
   const [report, nav] = await Promise.all([
     fetchReport(),
-    apiGet<{ items: ReportNavigationEntry[] }>(`/api/site/reports/${kind}/navigation/${key}`, { signal: request.signal }).catch((error: unknown) => {
+    apiGet<{ items: ReportNavigationEntry[] }>(withLang(`/api/site/reports/${kind}/navigation/${key}`, locale), { signal: request.signal }).catch((error: unknown) => {
       if (request.signal.aborted) throw error;
       return null;
     }),
@@ -76,17 +78,20 @@ export function meta({ loaderData, location }: Route.MetaArgs) {
   const c = copy[locale];
   if (!loaderData) return [{ title: titled(c.metaNotFound) }, { name: "robots", content: "noindex" }];
   const r = loaderData.report;
+  const noEnglish = locale === "en" && r.textLocale !== "en";
   const meta = pageMeta({
     title: `${c.kindLabel[r.kind]} ${r.key}`,
-    // 导语与总述是动态内容，保持中文；两个都没有时的那句兜底是界面文案，进字典。
-    description: r.lead?.leadParagraph ?? r.overview?.slice(0, 150) ?? c.metaFallbackDescription(r.key, c.kindLabel[r.kind]),
+    // 导语与总述是动态内容，保持原文；英文页真回退中文时换成英文兜底句，不把中文写进 <title>/og。
+    description: noEnglish ? c.metaNoEnglishDescription(r.key, c.kindLabel[r.kind]) : r.lead?.leadParagraph ?? r.overview?.slice(0, 150) ?? c.metaFallbackDescription(r.key, c.kindLabel[r.kind]),
     path: `/${r.kind}/${r.key}`,
     image: `/og/reports/${r.kind}/${r.key}.png`,
     type: "article",
     locale,
+    // 刊面真有英文时才承诺 hreflang=en；strict 模式下只有中文稿的 /en 期次不再被索引。
+    enAvailable: r.textLocale === "en",
+    noindex: !r.readable || (locale === "en" && strictEnglish() && r.textLocale !== "en"),
   });
-  // 一页翻不开的报纸不该被搜索引擎当成一条内容收走：归档与报眼都管它叫「未出刊」，站外也不该有它的一格。
-  return r.readable ? meta : [...meta, { name: "robots", content: "noindex" }];
+  return meta;
 }
 
 export function headers({ loaderHeaders }: Route.HeadersArgs) {
@@ -104,8 +109,8 @@ export default function ReportDetailPage() {
           {c.navFailed}
         </p>
       )}
-      {/* 英文页的一行说明：这一版报纸的正文、标题与摘要都是模型写的中文，界面才是英文。中文页渲染为空。 */}
-      <ChineseNotice className="mb-3" />
+      {/* 只有这一期真的回退中文时才说明。中文页永不渲染。 */}
+      {report.textLocale !== "en" && <MissingEnglishNotice className="mb-3" />}
       <ReportPaper report={report} index={index} now={now} />
     </ReportLayout>
   );

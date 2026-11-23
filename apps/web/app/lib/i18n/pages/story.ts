@@ -14,6 +14,9 @@ const zh = {
   /** 事件不存在时的标题；正文标题来自事件本身（动态内容），不进字典。 */
   notFoundTitle: "事件不存在",
   metaDesc: (sources: string, reports: string) => `${sources} 个报道来源 ${reports} 篇报道，完整时间线与最新进展。`,
+  /** /en 回退中文事件时 meta 的英文兜底；中文页永不使用。 */
+  metaNoEnglishTitle: "这条事件还没有英文版",
+  metaNoEnglishDescription: "这条事件目前只有中文版，尚无英文标题与英文综述。",
   /** 面包屑结构化数据里指向热点榜的那一级。 */
   crumbHot: "热点榜",
 
@@ -142,6 +145,8 @@ const zh = {
 const en: typeof zh = {
   notFoundTitle: "Event not found",
   metaDesc: (sources: string, reports: string) => `${sources} sources, ${reports} reports — the full timeline and the latest developments.`,
+  metaNoEnglishTitle: "This event has no English edition yet",
+  metaNoEnglishDescription: "This event is currently published in Chinese only; no English title or digest is available.",
   crumbHot: "Trending",
 
   backNames: {
@@ -172,7 +177,7 @@ const en: typeof zh = {
     settled: "Historical",
   },
 
-  untranslatedNote: "This event has no in-house Chinese write-up yet: the title above and the reports below are quoted verbatim.",
+  untranslatedNote: "This event has no English write-up yet: the title above and the reports below are shown in their original language.",
   untranslatedLink: "See trending events with Chinese coverage",
 
   reportUnit: " reports",
@@ -239,7 +244,7 @@ const en: typeof zh = {
   latestUpdateLabel: "Last update",
   recordsNote: "Reports on this event are collected here; new developments will keep coming in.",
 
-  chineseNotice: "Story titles and AI summaries are in Chinese.",
+  chineseNotice: "This story has no English version yet and is shown in Chinese.",
 
   relJustNow: "just now",
   relMinutes: (n: string) => `${n} min ago`,

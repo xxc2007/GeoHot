@@ -20,6 +20,8 @@ const zh = {
 
   /** 导语与总述都没有时的 meta 描述兜底（label 由页面按 kind 从 kindLabel 里取）。 */
   metaFallbackDescription: (key: string, label: string) => `${SITE.name} ${key} 的${label}。`,
+  /** /en 回退中文刊面时 meta 的英文兜底；中文页永不使用。 */
+  metaNoEnglishDescription: (key: string, label: string) => `The ${label.toLowerCase()} for ${key} is currently published in Chinese only.`,
 
   /** 往期栏没读到时页面顶部的那一行实话。 */
   navFailed: "往期列表这一次没有读到，左栏因此是空的——这不代表没有往期，这一期报纸本身照常可读。",
@@ -61,6 +63,7 @@ const en: typeof zh = {
     monthly: "Monthly roundup",
   },
   metaFallbackDescription: (key: string, label: string) => `${SITE.name} ${label.toLowerCase()} for ${key}.`,
+  metaNoEnglishDescription: (key: string, label: string) => `The ${label.toLowerCase()} for ${key} is currently published in Chinese only.`,
 
   navFailed: "The past-issues list did not load this time, so the sidebar is empty — that does not mean there are no past issues. This issue itself reads as usual.",
 

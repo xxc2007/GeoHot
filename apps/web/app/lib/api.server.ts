@@ -1,8 +1,23 @@
 // Server-side HTTP client for route loaders. The web process never touches the database;
 // SSR reads the api over loopback with keep-alive, one or two requests per page.
 import { data, redirect } from "react-router";
+import type { Locale } from "./i18n.ts";
 
 const API_BASE = process.env.API_BASE_URL || "http://127.0.0.1:3001";
+
+/**
+ * /en 的数据请求带 `lang=en`：读取层按它投影 `title/summary/source.name` 等字段并标注
+ * `textLocale`。只在英文页追加，中文页的查询串（含顺序）逐字不变——共享缓存也不会被两种
+ * 语言串味（api 的 lang 只认显式参数，见 `parseLang`）。
+ */
+export function withLang(path: string, locale: Locale): string {
+  if (locale !== "en") return path;
+  const [rawPath, rawQuery = ""] = path.split("?");
+  const sp = new URLSearchParams(rawQuery);
+  sp.set("lang", "en");
+  const qs = sp.toString();
+  return qs ? `${rawPath}?${qs}` : `${rawPath}?lang=en`;
+}
 
 export class ApiError extends Error {
   readonly status: number;

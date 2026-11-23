@@ -1,16 +1,18 @@
-import { workflowReadyCondition } from "./readiness.ts";
-import type { FeedItemSummary } from "@aihot/contracts/site";
+import type { FeedItemSummary, SiteLang } from "@aihot/contracts/site";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { REPO_ROOT } from "../config.ts";
 import { sql } from "../db.ts";
 import { cached } from "../lib/cache.ts";
 import { withPublicRead } from "./read-budget.ts";
-import { ITEM_COLUMNS, ITEM_FROM, chineseCopyCondition, selectedCondition, toFeedItemSummary, type ItemRow } from "./items.ts";
+import { ITEM_COLUMNS, ITEM_FROM, pendingReadyCondition, selectedCondition, toFeedItemSummary, type ItemRow } from "./items.ts";
 
 export interface TopicRow {
   slug: string;
   name: string;
+  /** 英文主题名/说明（迁移 0128 的可空列）；缺失时 `/en` 回退中文。 */
+  name_en?: string | null;
+  definition_en?: string | null;
   grp: "company" | "field" | "genre";
   entity_id: string | null;
   tags: string[];
@@ -26,7 +28,7 @@ export interface TopicRow {
 
 type TopicCount = { slug: string; total: number; recent: number; pages: number; indexable: boolean; latest: Date | null };
 const topicsCache = cached(
-  () => sql<TopicRow[]>`SELECT slug, name, grp, entity_id, tags, keywords, org_names, definition, related, position, dormant_at FROM topics ORDER BY position`,
+  () => sql<TopicRow[]>`SELECT slug, name, name_en, definition_en, grp, entity_id, tags, keywords, org_names, definition, related, position, dormant_at FROM topics ORDER BY position`,
   { freshMs: 60_000, maxStaleMs: 10 * 60_000 },
 );
 
@@ -47,15 +49,16 @@ const COUNTS_MIN_HOLD_MS = 5_000;
  * can ask for the counts and the items at that same instant instead of two different ones.
  */
 interface CountsSnapshot { readAt: number; until: number; counts: TopicCount[] }
-let countsSnapshot: CountsSnapshot | null = null;
-let countsPending: Promise<CountsSnapshot> | null = null;
+// 计数按语言分桶：en 页的成员门与中文页不同时，数字不能共用（旧缓存只有 zh）。
+const countsSnapshots = new Map<SiteLang, CountsSnapshot>();
+const countsPending = new Map<SiteLang, Promise<CountsSnapshot>>();
 
 function clearTopicCounts() {
-  countsSnapshot = null;
-  countsPending = null;
+  countsSnapshots.clear();
+  countsPending.clear();
 }
 
-async function loadCounts(now: Date): Promise<CountsSnapshot> {
+async function loadCounts(now: Date, lang: SiteLang): Promise<CountsSnapshot> {
   const windowStart = new Date(now.getTime() - RECENT_WINDOW_MS);
   // 计数 CTE 与「下一批过闸时间」必须在同一条 15 秒有界事务里跑：原来 gate 那条是裸 sql，
   // io.full=95% 时它会自己挂住（计数那条已被 15s 取消），Promise.all 永不 resolve，
@@ -66,7 +69,7 @@ async function loadCounts(now: Date): Promise<CountsSnapshot> {
       WITH listed AS (
         SELECT p.article_id, p.timeline_at, p.tags
         FROM publications p
-        WHERE ${selectedCondition(now)}
+        WHERE ${selectedCondition(now, lang)}
       ),
       matched AS (
         SELECT pt.slug, l.article_id, l.timeline_at
@@ -87,7 +90,7 @@ async function loadCounts(now: Date): Promise<CountsSnapshot> {
       ORDER BY t.position`;
     const [gate] = await tx<{ t: Date | null }[]>`
       SELECT min(p.visible_after) AS t FROM publications p
-      WHERE p.visibility = 'public' AND p.selected AND p.visible_after > ${now} AND ${workflowReadyCondition()} AND ${chineseCopyCondition()}`;
+      WHERE p.visibility = 'public' AND p.selected AND p.visible_after > ${now} AND ${pendingReadyCondition(lang)}`;
     return { rows, gate };
   });
   const counts = rows.map((r) => ({
@@ -100,24 +103,26 @@ async function loadCounts(now: Date): Promise<CountsSnapshot> {
   return { readAt, until: Math.max(readAt + COUNTS_MIN_HOLD_MS, Math.min(readAt + COUNTS_FRESH_MS, releasing)), counts };
 }
 
-async function countsHeld(now: Date | undefined): Promise<CountsSnapshot> {
+async function countsHeld(now: Date | undefined, lang: SiteLang): Promise<CountsSnapshot> {
   // An explicit clock bypasses the held copy: the caller wants these numbers at the same instant as its items.
-  if (now) return loadCounts(now);
-  if (countsSnapshot && Date.now() < countsSnapshot.until) return countsSnapshot;
-  if (countsPending) return countsPending;
+  if (now) return loadCounts(now, lang);
+  const held = countsSnapshots.get(lang);
+  if (held && Date.now() < held.until) return held;
+  const pending = countsPending.get(lang);
+  if (pending) return pending;
   // 2026-11-16：计数 CTE 在 io.full=95% 时挂过 178 秒，原来直接把整个主题页拖成 503。
   // 读不出来就把上一份计数（哪怕已过期）再交一次：页面仍渲染，数字旧几分钟，until 已过
   // 下一个请求会自动重试；一次都没成功过才真抛。
-  const load = loadCounts(new Date()).catch((err: unknown) => {
-    if (countsSnapshot) return countsSnapshot;
+  const load = loadCounts(new Date(), lang).catch((err: unknown) => {
+    if (held) return held;
     throw err;
   });
-  countsPending = load;
+  countsPending.set(lang, load);
   try {
     const snap = await load;
-    countsSnapshot = snap;
+    countsSnapshots.set(lang, snap);
     return snap;
-  } finally { countsPending = null; }
+  } finally { countsPending.delete(lang); }
 }
 
 /**
@@ -126,14 +131,15 @@ async function countsHeld(now: Date | undefined): Promise<CountsSnapshot> {
  */
 export async function seedTopics(): Promise<number> {
   const data = JSON.parse(readFileSync(path.join(REPO_ROOT, "industry/topics.json"), "utf8")) as {
-    topics: Array<{ slug: string; name: string; group: string; entityId?: string | null; tags: string[]; definition: string; related?: string[] }>;
+    topics: Array<{ slug: string; name: string; nameEn?: string; definition: string; definitionEn?: string; group: string; entityId?: string | null; tags: string[]; related?: string[] }>;
   };
   let position = 0;
   for (const t of data.topics) {
     await sql`
-      INSERT INTO topics (slug, name, grp, entity_id, tags, definition, related, position)
-      VALUES (${t.slug}, ${t.name}, ${t.group}, ${t.entityId ?? null}, ${t.tags}, ${t.definition}, ${t.related ?? []}, ${position++})
-      ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name, grp = EXCLUDED.grp, entity_id = EXCLUDED.entity_id,
+      INSERT INTO topics (slug, name, name_en, definition_en, grp, entity_id, tags, definition, related, position)
+      VALUES (${t.slug}, ${t.name}, ${t.nameEn ?? null}, ${t.definitionEn ?? null}, ${t.group}, ${t.entityId ?? null}, ${t.tags}, ${t.definition}, ${t.related ?? []}, ${position++})
+      ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name, name_en = EXCLUDED.name_en, definition_en = EXCLUDED.definition_en,
+        grp = EXCLUDED.grp, entity_id = EXCLUDED.entity_id,
         tags = EXCLUDED.tags, definition = EXCLUDED.definition, related = EXCLUDED.related, position = EXCLUDED.position`;
   }
   topicsCache.clear();
@@ -152,11 +158,12 @@ export function listTopics(): Promise<TopicRow[]> {
  * 页面上还是旧字（这类"两处各写一份"在本仓库有过先例，见 `docs/known-issues.md` 里那些"唯一出处"）。
  * 现在由这里读出、经 `/api/site/topics` 发给网页，页面不再自带一份。
  */
-export function topicGroups(): Array<{ key: string; name: string; blurb: string }> {
+export function topicGroups(): Array<{ key: string; name: string; blurb: string; nameEn: string | null; blurbEn: string | null }> {
   const data = JSON.parse(readFileSync(path.join(REPO_ROOT, "industry/topics.json"), "utf8")) as {
-    groups: Array<{ key: string; name: string; blurb: string }>;
+    groups: Array<{ key: string; name: string; blurb: string; nameEn?: string; blurbEn?: string }>;
   };
-  return data.groups;
+  // 组名/说明的英文与主题行一样是可选列：词表还没补英文时 `/en` 回退中文，不伪造译文。
+  return data.groups.map((g) => ({ key: g.key, name: g.name, blurb: g.blurb, nameEn: g.nameEn ?? null, blurbEn: g.blurbEn ?? null }));
 }
 
 export async function loadTopic(slug: string): Promise<TopicRow | null> {
@@ -186,8 +193,8 @@ export const TOPIC_PAGE_SIZE = 20;
  * Topic pages exist for every topic; only topics with enough content are listed and indexed.
  * `now` is the instant to count at: pass it when the counts must match items read at the same instant.
  */
-export async function topicPageCounts(now?: Date): Promise<TopicCount[]> {
-  return (await countsHeld(now)).counts;
+export async function topicPageCounts(now?: Date, lang: SiteLang = "zh"): Promise<TopicCount[]> {
+  return (await countsHeld(now, lang)).counts;
 }
 
 /**
@@ -200,6 +207,9 @@ export async function topicPageCounts(now?: Date): Promise<TopicCount[]> {
 export interface TopicSummary {
   slug: string;
   name: string;
+  /** 英文展示名/说明；`/en` 优先，缺英文回退中文并保留这两个字段供页面判断。 */
+  nameEn?: string | null;
+  definitionEn?: string | null;
   group: "company" | "field" | "genre";
   definition: string;
   total: number;
@@ -209,13 +219,25 @@ export interface TopicSummary {
 }
 
 export async function listTopicSummaries(now?: Date, includeDormant = false): Promise<TopicSummary[]> {
+  return listTopicSummariesFor(now, includeDormant, "zh");
+}
+
+/** 带读取语言的版本：en 的计数按 /en 名单读，中英字段都随包发。 */
+export async function listTopicSummariesFor(now: Date | undefined, includeDormant: boolean, lang: SiteLang): Promise<TopicSummary[]> {
   const topics = await listTopics();
-  const counts = new Map((await topicPageCounts(now)).map((c) => [c.slug, c]));
+  const counts = new Map((await topicPageCounts(now, lang)).map((c) => [c.slug, c]));
   // 0104 的契约：归档主题不再出现在列表与导航里，页 仍可访问。页面要拿到归档主题的
   // 计数与相关主题，列表接口则保持过滤，所以过滤交给调用方决定。
   return topics.filter((t) => includeDormant || !t.dormant_at).map((t) => {
     const c = counts.get(t.slug);
-    return { slug: t.slug, name: t.name, group: t.grp, definition: t.definition, total: c?.total ?? 0, recent: c?.recent ?? 0, indexable: c?.indexable ?? false, latestAt: c?.latest?.toISOString() ?? null };
+    return {
+      slug: t.slug,
+      // 中文 `name/definition` 保持原义；`/en` 由调用方按 locale 选 `nameEn ?? name`。
+      name: t.name,
+      ...(t.name_en ? { nameEn: t.name_en } : {}),
+      ...(t.definition_en ? { definitionEn: t.definition_en } : {}),
+      group: t.grp, definition: t.definition, total: c?.total ?? 0, recent: c?.recent ?? 0, indexable: c?.indexable ?? false, latestAt: c?.latest?.toISOString() ?? null,
+    };
   });
 }
 
@@ -226,6 +248,7 @@ export interface TopicPage {
   pageCount: number;
   /** The clock this page was read at: the day headers ask the same instant which day is「今天」. */
   generatedAt: string;
+  lang?: SiteLang;
 }
 
 /**
@@ -233,19 +256,26 @@ export interface TopicPage {
  * same instant (a test, a replay); without one the counts come from the held copy, which never outlives the
  * next release.
  */
-export async function loadTopicPage(slug: string, page: number, now?: Date): Promise<TopicPage | null> {
+export async function loadTopicPage(slug: string, page: number, now?: Date, lang: SiteLang = "zh"): Promise<TopicPage | null> {
   const at = now ?? new Date();
   const row = await loadTopic(slug);
   if (!row || page < 1) return null;
   const topics = await listTopicSummaries(now, true);
-  const topic = topics.find((t) => t.slug === slug);
-  if (!topic) return null;
+  // en 页需要按英文名单读计数；zh 仍走上面这条（同一份缓存）。
+  const effectiveTopics = lang === "en" ? await listTopicSummariesFor(now, true, lang) : topics;
+  const found = effectiveTopics.find((t) => t.slug === slug);
+  if (!found) return null;
+  // `/en` 页面用英文字段（缺英文回退中文）；计数与分页按 lang 的名单读（见 topicPageCounts）。
+  const topic: TopicSummary = lang === "en"
+    ? { ...found, name: found.nameEn ?? found.name, definition: found.definitionEn ?? found.definition }
+    : found;
   const pageCount = Math.max(1, Math.ceil(topic.total / TOPIC_PAGE_SIZE));
-  const related = row.related.map((r) => topics.find((t) => t.slug === r)).filter((t): t is TopicSummary => !!t).map((t) => ({ slug: t.slug, name: t.name }));
+  const topicName = (t: TopicSummary) => (lang === "en" ? t.nameEn ?? t.name : t.name);
+  const related = row.related.map((r) => effectiveTopics.find((t) => t.slug === r)).filter((t): t is TopicSummary => !!t).map((t) => ({ slug: t.slug, name: topicName(t) }));
   // `page > pageCount` 不是"主题不存在"：2026-11-05 复核，越界页原先返回 null，
   // 路由把它写成 404「topic page not found」，读者看到的是"这个主题没了"。
   // 主题在、页码越界，就该给一页空列表（连同真实 pageCount），页面自己说"没有更多了"。
-  if (page > pageCount) return { topic: { ...topic, related }, items: [], page, pageCount, generatedAt: at.toISOString() };
+  if (page > pageCount) return { topic: { ...topic, related }, items: [], page, pageCount, generatedAt: at.toISOString(), lang };
   // Page ids from the selected set first, then the joins for those rows only.
   // 2026-11-16：这条原来跑在裸连接上、无 statement_timeout；主库 io.full=95% 时它在 pg_stat_activity
   // 里挂住，连接不归还，主题页跟着 503。收进 withPublicRead：服务端 12 秒取消、连接必归还，
@@ -253,14 +283,14 @@ export async function loadTopicPage(slug: string, page: number, now?: Date): Pro
   const rows = await withPublicRead<ItemRow[]>((db) => db`
     WITH page AS (
       SELECT p.article_id FROM publications p
-      WHERE ${selectedCondition(at)}
+      WHERE ${selectedCondition(at, lang)}
         AND (EXISTS (SELECT 1 FROM publication_topics pt WHERE pt.article_id = p.article_id AND pt.slug = ${row.slug})
              OR p.tags && ${topicMatchTags(row)}::text[])
       ORDER BY p.timeline_at DESC, p.article_id DESC
       LIMIT ${TOPIC_PAGE_SIZE} OFFSET ${(page - 1) * TOPIC_PAGE_SIZE})
     SELECT ${ITEM_COLUMNS} ${ITEM_FROM} WHERE p.article_id IN (SELECT article_id FROM page)
     ORDER BY p.timeline_at DESC, p.article_id DESC`);
-  return { topic: { ...topic, related }, items: rows.map(toFeedItemSummary), page, pageCount, generatedAt: at.toISOString() };
+  return { topic: { ...topic, related }, items: rows.map((r) => toFeedItemSummary(r, lang)), page, pageCount, generatedAt: at.toISOString(), lang };
 }
 
 export interface TopicFreshness {

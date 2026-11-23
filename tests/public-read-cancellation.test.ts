@@ -31,7 +31,10 @@ test("withPublicRead 仍钉住服务端 statement_timeout / lock_timeout / 不�
 test("主题主页查询走 withPublicRead，计数冷读失败退回上一份", () => {
   assert.match(topics, /await withPublicRead<ItemRow\[\]>\(\(db\) => db`/, "主题主页必须有界");
   assert.match(topics, /SET LOCAL statement_timeout = 15000/, "计数 CTE 有 15 秒上界");
-  assert.match(topics, /if \(countsSnapshot\) return countsSnapshot/, "计数失败时用上一份，而不是整页 503");
+  // 计数快照按语言分桶（`countsSnapshots: Map<SiteLang, CountsSnapshot>`），不再是单个
+  // `countsSnapshot` 变量；回退仍是同一件：命中未过期的 held 就交它，冷读失败也交它。
+  assert.match(topics, /const held = countsSnapshots\.get\(lang\);[\s\S]{0,80}if \(held && Date\.now\(\) < held\.until\) return held/, "计数失败时用上一份，而不是整页 503");
+  assert.match(topics, /if \(held\) return held;/, "冷读失败退回上一份");
 });
 
 test("主题计数 gate 查询与 CTE 在同一 15s 事务，不再裸 Promise.all 挂住回退", () => {

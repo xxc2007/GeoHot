@@ -1,9 +1,11 @@
 // Reading the latest published hot ranking. The web shows heat values; machine exits only ranks.
-import type { HotParticipant, HotStripEntry } from "@aihot/contracts/site";
+import type { HotParticipant, HotStripEntry, SiteLang } from "@aihot/contracts/site";
 import { workflowReadyCondition } from "../publication/readiness.ts";
 import { sql } from "../db.ts";
 import { CJK_COPY_PATTERN } from "@aihot/contracts/copy";
 import { proxiedImage, proxiedImageSet } from "../media/imgproxy.ts";
+import { englishTextMode, textLocaleOf } from "../publication/english-policy.ts";
+import { sourceNameFor } from "../publication/source-name.ts";
 
 export interface HotEntry {
   rank: number;
@@ -45,7 +47,7 @@ export interface HotRanking {
   coverage: Record<string, unknown> | null;
 }
 
-let rankingPending: Promise<HotRanking | null> | null = null;
+const rankingPending = new Map<SiteLang, Promise<HotRanking | null>>();
 
 /**
  * How old a board may be and still be shown as 当前热点. The job recomputes every five minutes
@@ -59,12 +61,16 @@ let rankingPending: Promise<HotRanking | null> | null = null;
  */
 const MAX_BOARD_AGE_HOURS = 24;
 
-export function latestHotRanking(): Promise<HotRanking | null> {
-  rankingPending ??= queryLatestHotRanking().finally(() => { rankingPending = null; });
-  return rankingPending;
+export function latestHotRanking(lang: SiteLang = "zh"): Promise<HotRanking | null> {
+  let pending = rankingPending.get(lang);
+  if (!pending) {
+    pending = queryLatestHotRanking(lang).finally(() => { rankingPending.delete(lang); });
+    rankingPending.set(lang, pending);
+  }
+  return pending;
 }
 
-async function queryLatestHotRanking(): Promise<HotRanking | null> {
+async function queryLatestHotRanking(lang: SiteLang): Promise<HotRanking | null> {
   const [row] = await sql<{ id: number; computed_at: Date; rule_version: string; entries: HotEntry[]; evidence: Record<string, unknown> | null }[]>`
     SELECT id, computed_at, rule_version, entries, evidence FROM hot_rankings
     WHERE published AND jsonb_array_length(entries) > 0
@@ -75,7 +81,7 @@ async function queryLatestHotRanking(): Promise<HotRanking | null> {
   // published before that — otherwise the newest empty row would hide the last board with events in it.
   // Then drop the entries the board can no longer stand behind: an event merged into another one (the group
   // step rewrites `stories.merged_into`), one whose page is gone, and one whose heading never got Chinese.
-  const live = await publishableStories(row.entries.map((e) => e.storyId));
+  const live = await publishableStories(row.entries.map((e) => e.storyId), lang);
   const ids = row.entries.flatMap(e => e.representativeItemId ? [e.representativeItemId] : []);
   const ready = new Set(ids.length ? (await sql<{ article_id: string }[]>`SELECT p.article_id FROM publications p WHERE p.article_id = ANY(${ids}::text[]) AND p.visibility = 'public' AND ${workflowReadyCondition()}`).map(r => r.article_id) : []);
   const entries = row.entries.filter((e) => live.has(e.storyId)).map((e, i) => ({
@@ -98,10 +104,14 @@ async function queryLatestHotRanking(): Promise<HotRanking | null> {
  * a board is exactly the surface where one would embarrass the site most, because it is the only place an
  * event title is printed at 15px on the home page.
  */
-async function publishableStories(storyIds: number[]): Promise<Set<number>> {
+async function publishableStories(storyIds: number[], lang: SiteLang = "zh"): Promise<Set<number>> {
   if (storyIds.length === 0) return new Set();
+  // strict 的 /en 要求事件标题真有英文；fallback 与今天同集（CJK 标题 + 中文回退）。
+  const titleGate = lang === "en" && englishTextMode() === "strict"
+    ? sql`nullif(btrim(title_en), '') IS NOT NULL AND title_en !~ ${CJK_COPY_PATTERN}`
+    : sql`title ~ ${CJK_COPY_PATTERN}`;
   const rows = await sql<{ id: number }[]>`
-    SELECT id FROM stories WHERE id = ANY(${storyIds}::bigint[]) AND merged_into IS NULL AND title ~ ${CJK_COPY_PATTERN} AND EXISTS (
+    SELECT id FROM stories WHERE id = ANY(${storyIds}::bigint[]) AND merged_into IS NULL AND ${titleGate} AND EXISTS (
       SELECT 1 FROM facts ready_f JOIN fact_articles ready_fa ON ready_fa.fact_id = ready_f.id
       JOIN publications p ON p.article_id = ready_fa.article_id JOIN sources ready_source ON ready_source.id = p.source_id
       WHERE ready_f.story_id = stories.id AND p.visibility <> 'withdrawn' AND ready_source.participation_mode = 'editorial'
@@ -112,8 +122,8 @@ async function publishableStories(storyIds: number[]): Promise<Set<number>> {
 
 // Faces and words change only with the ranking, so they are read once per ranking.
 interface Extras {
-  faces: Map<string, string | null>;
-  texts: Map<number, { summary: string | null; latest: string | null }>;
+  faces: Map<string, { icon: string | null; nameEn: string | null; canonicalUrl: string | null }>;
+  texts: Map<number, { title: string; titleEn: string | null; summary: string | null; summaryEn: string | null; latest: string | null; latestEn: string | null }>;
 }
 let extrasCache: { rankingId: number; extras: Extras } | null = null;
 const extrasPending = new Map<number, Promise<Extras>>();
@@ -132,18 +142,25 @@ async function queryExtras(ranking: HotRanking): Promise<Extras> {
   const ids = ranking.entries.map((e) => e.storyId);
   const [faces, texts] = await Promise.all([
     // A participant's face: the source's icon, else the avatar on that account's latest post in the story.
-    sql<{ name: string; icon_url: string | null; avatar: string | null }[]>`
-      SELECT DISTINCT ON (s.id) s.name, s.icon_url, a.x_post->>'avatarUrl' AS avatar
+    sql<{ name: string; name_en: string | null; canonical_url: string | null; icon_url: string | null; avatar: string | null }[]>`
+      SELECT DISTINCT ON (s.id) s.name, s.name_en, s.canonical_url, s.icon_url, a.x_post->>'avatarUrl' AS avatar
       FROM story_signals ss JOIN sources s ON s.id = ss.source_id
       LEFT JOIN articles a ON a.id = ss.article_id AND a.x_post ? 'avatarUrl'
       WHERE ss.story_id = ANY(${ids}::bigint[])
       ORDER BY s.id, (a.id IS NULL), a.discovered_at DESC`,
-    sql<{ id: number; digest: string | null; summary: string | null; latest: string | null }[]>`
-      SELECT id, digest, summary, latest FROM stories WHERE id = ANY(${ids}::bigint[])`,
+    sql<{ id: number; title: string; title_en: string | null; digest: string | null; digest_en: string | null; summary: string | null; summary_en: string | null; latest: string | null; latest_en: string | null }[]>`
+      SELECT id, title, title_en, digest, digest_en, summary, summary_en, latest, latest_en FROM stories WHERE id = ANY(${ids}::bigint[])`,
   ]);
   const extras: Extras = {
-    faces: new Map(faces.map((f) => [f.name, f.icon_url ?? f.avatar])),
-    texts: new Map(texts.map((t) => [Number(t.id), { summary: t.digest ?? t.summary, latest: t.latest }])),
+    faces: new Map(faces.map((f) => [f.name, { icon: f.icon_url ?? f.avatar, nameEn: f.name_en?.trim() ? f.name_en : null, canonicalUrl: f.canonical_url }])),
+    texts: new Map(texts.map((t) => [Number(t.id), {
+      title: t.title,
+      titleEn: t.title_en?.trim() ? t.title_en : null,
+      summary: t.digest ?? t.summary,
+      summaryEn: t.digest_en?.trim() ? t.digest_en : (t.summary_en?.trim() ? t.summary_en : null),
+      latest: t.latest,
+      latestEn: t.latest_en?.trim() ? t.latest_en : null,
+    }])),
   };
   extrasCache = { rankingId: ranking.id, extras };
   return extras;
@@ -153,22 +170,37 @@ async function queryExtras(ranking: HotRanking): Promise<Extras> {
  * What the web adds to a ranking entry: participants with proxied faces in the order Faces shows them
  * (精选组 by tier, a real face before an initial within a tier, then 氛围组), the digest and the latest turn.
  */
-export async function rankingExtras(ranking: HotRanking) {
+export async function rankingExtras(ranking: HotRanking, lang: SiteLang = "zh") {
   const { faces, texts } = await readExtras(ranking);
+  const en = lang === "en";
   return {
     participants: (e: HotEntry): HotParticipant[] => {
       const people = e.participants
-        .map((p, i) => ({ p, i, icon: faces.get(p.name) ?? null }))
-        .sort((x, y) => Number(y.p.kind === "editorial") - Number(x.p.kind === "editorial") || tierRank(x.p.tier) - tierRank(y.p.tier) || Number(!!y.icon) - Number(!!x.icon) || x.i - y.i);
+        .map((p, i) => ({ p, i, face: faces.get(p.name) ?? null }))
+        .sort((x, y) => Number(y.p.kind === "editorial") - Number(x.p.kind === "editorial") || tierRank(x.p.tier) - tierRank(y.p.tier) || Number(!!y.face?.icon) - Number(!!x.face?.icon) || x.i - y.i);
       // Every name stays for the tooltip; only visible Faces need srcSet.
-      return people.map(({ p, icon }, i): HotParticipant => {
-        const person: HotParticipant = { name: p.name, kind: p.kind, iconUrl: proxiedImage(icon, "avatar") };
-        const srcSet = p.kind === "editorial" && i < MAX_FACES ? proxiedImageSet(icon, "avatar") : undefined;
+      return people.map(({ p, face }, i): HotParticipant => {
+        const person: HotParticipant = {
+          name: sourceNameFor(en ? "en" : "zh", p.name, face?.nameEn, face?.canonicalUrl),
+          kind: p.kind,
+          iconUrl: proxiedImage(face?.icon ?? null, "avatar"),
+          ...(face?.nameEn ? { nameEn: face.nameEn } : {}),
+        };
+        const srcSet = p.kind === "editorial" && i < MAX_FACES ? proxiedImageSet(face?.icon ?? null, "avatar") : undefined;
         if (srcSet) person.iconSrcSet = srcSet;
         return person;
       });
     },
-    text: (e: HotEntry) => texts.get(e.storyId) ?? { summary: null, latest: null },
+    text: (e: HotEntry) => {
+      const t = texts.get(e.storyId);
+      const title = en ? (t?.titleEn ?? e.title) : e.title;
+      const summary = t ? (en ? t.summaryEn ?? t.summary : t.summary) : null;
+      const latest = t ? (en ? t.latestEn ?? t.latest : t.latest) : null;
+      return { title, summary, latest, textLocale: textLocaleOf(title, summary) };
+    },
+    sourceNames: (e: HotEntry): string[] => e.sourceNames.map((name) => sourceNameFor(lang, name, faces.get(name)?.nameEn, faces.get(name)?.canonicalUrl)),
+    sourceNamesEn: (e: HotEntry): string[] => e.sourceNames.map((name) => sourceNameFor("en", name, faces.get(name)?.nameEn, faces.get(name)?.canonicalUrl)),
+    sourceName: (name: string): string => sourceNameFor(lang, name, faces.get(name)?.nameEn, faces.get(name)?.canonicalUrl),
   };
 }
 
@@ -179,25 +211,29 @@ export async function rankingExtras(ranking: HotRanking) {
  * database with no ranking rows at all returns null, because that is a different, worse state: the block
  * must not read as "nothing is hot" when it is really "the ranking has never run here".
  */
-export async function loadHotStrip(): Promise<{ entries: HotStripEntry[]; asOf: string | null } | null> {
-  const ranking = await latestHotRanking();
+export async function loadHotStrip(lang: SiteLang = "zh"): Promise<{ entries: HotStripEntry[]; asOf: string | null } | null> {
+  const ranking = await latestHotRanking(lang);
   if (!ranking) {
     const [{ any }] = await sql<{ any: boolean }[]>`SELECT EXISTS (SELECT 1 FROM hot_rankings) AS any`;
     if (!any) return null;
     return { entries: [], asOf: null };
   }
-  const extras = await rankingExtras(ranking);
+  const extras = await rankingExtras(ranking, lang);
   return {
     asOf: ranking.computedAt,
-    entries: ranking.entries.slice(0, 5).map((e) => ({
-      rank: e.rank,
-      title: e.title,
-      heat: e.heat,
-      trend: e.trend,
-      storyPublicId: e.storyPublicId,
-      itemId: e.representativeItemId,
-      participants: extras.participants(e),
-      participantCount: e.participantCount,
-    })),
+    entries: ranking.entries.slice(0, 5).map((e) => {
+      const text = extras.text(e);
+      return {
+        rank: e.rank,
+        title: text.title,
+        heat: e.heat,
+        trend: e.trend,
+        storyPublicId: e.storyPublicId,
+        itemId: e.representativeItemId,
+        participants: extras.participants(e),
+        participantCount: e.participantCount,
+        textLocale: text.textLocale,
+      };
+    }),
   };
 }

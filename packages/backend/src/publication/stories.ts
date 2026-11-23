@@ -1,6 +1,6 @@
 // Stories (events) and the hot ranking through the public read layer. The website sees heat values;
 // v1 / MCP / Skill only see ranks and counts.
-import type { HeatPoint, HotResponse, StoryDetail, StoryReportView } from "@aihot/contracts/site";
+import type { HeatPoint, HotResponse, SiteLang, StoryDetail, StoryReportView } from "@aihot/contracts/site";
 import { sql } from "../db.ts";
 import { proxiedImage, proxiedImageSet } from "../media/imgproxy.ts";
 import { latestHotRanking, rankingExtras } from "../events/hot-read.ts";
@@ -10,6 +10,8 @@ import { storyStatusFor } from "../events/digest.ts";
 import { itemUrl, storyApiUrl, storyUrl } from "./links.ts";
 import { hasChineseCopy } from "@aihot/contracts/copy";
 import { releasedCondition } from "./items.ts";
+import { englishTextMode, textLocaleOf } from "./english-policy.ts";
+import { sourceNameFor } from "./source-name.ts";
 import { SITE } from "@aihot/industry/site";
 import { UUID_PATTERN } from "@aihot/contracts/taxonomy";
 
@@ -39,16 +41,24 @@ export async function resolveStory(publicId: string): Promise<StoryLookup> {
 }
 
 /** The page's own shape for one report; the query behind it is shared with the worker (see `storyContent`). */
-function reportView(r: StoryReport): StoryReportView {
+function reportView(r: StoryReport, lang: SiteLang = "zh"): StoryReportView {
+  const en = lang === "en";
+  // /en 的报道标题：有英文稿用英文稿，否则用信源原题（若原题本来不是中文）；两者都没有就留空，
+  // 由 loadStoryDetail 从英文时间线里过滤掉，不拿中文整理标题兜底。
+  const title = en ? (r.titleEn?.trim() || (r.originalTitle && !hasChineseCopy(r.originalTitle) ? r.originalTitle.trim() : "")) : r.title;
+  // 英文页没有英文摘要就不显示摘要：中文回退只属于 fallback 模式，strict 下这条报道不该在英文时间线里夹中文。
+  const summary = en ? (r.summaryEn?.trim() ? r.summaryEn : null) : r.summary;
+  const sourceName = sourceNameFor(lang, r.sourceName, r.sourceNameEn, r.url);
   return {
     id: r.id,
-    title: r.title,
-    summary: r.summary,
-    source: { id: r.sourceId, name: r.sourceName, kind: r.sourceKind as never, firstParty: r.firstParty, iconUrl: proxiedImage(r.iconUrl, "avatar") },
+    title,
+    summary,
+    source: { id: r.sourceId, name: sourceName, kind: r.sourceKind as never, firstParty: r.firstParty, iconUrl: proxiedImage(r.iconUrl, "avatar"), nameLocale: en ? "en" : "zh" },
     publishedAt: r.at.toISOString(),
     originalUrl: r.url,
     selected: r.selected,
     factId: r.factPublicId,
+    textLocale: textLocaleOf(title, summary),
   };
 }
 
@@ -58,9 +68,11 @@ function reportView(r: StoryReport): StoryReportView {
  * the ranking and on the share card is one number. It arrives oldest first (the order a digest is written
  * in); the page reads it newest first.
  */
-async function storyContent(storyId: number, now: Date) {
-  const [s] = await sql<{ public_id: string; title: string; summary: string | null; first_report_at: Date | null; latest_at: Date | null; digest: string | null; digest_updated_at: Date | null; latest: string | null }[]>`
-    SELECT public_id::text, title, summary, first_report_at, latest_at, digest, digest_updated_at, latest FROM stories WHERE id = ${storyId}`;
+async function storyContent(storyId: number, now: Date, lang: SiteLang = "zh") {
+  const en = lang === "en";
+  const [s] = await sql<{ public_id: string; title: string; title_en: string | null; summary: string | null; summary_en: string | null; first_report_at: Date | null; latest_at: Date | null; digest: string | null; digest_en: string | null; digest_updated_at: Date | null; latest: string | null; latest_en: string | null }[]>`
+    SELECT public_id::text, title, title_en, summary, summary_en, first_report_at, latest_at, digest, digest_en, digest_updated_at, latest, latest_en
+      FROM stories WHERE id = ${storyId}`;
   if (!s) return null;
   const reports = await storyReports(storyId, now);
   if (reports.length === 0) return null;
@@ -68,29 +80,39 @@ async function storyContent(storyId: number, now: Date) {
 
   const byFact = new Map<number, StoryReport[]>();
   for (const r of reports) byFact.set(r.factId, [...(byFact.get(r.factId) ?? []), r]);
-  const facts = await sql<{ id: number; public_id: string; title: string; occurred_at: Date | null; created_at: Date }[]>`
-    SELECT id, public_id, title, occurred_at, created_at FROM facts WHERE story_id = ${storyId}`;
-  const developments = facts
+  const facts = await sql<{ id: number; public_id: string; title: string; title_en: string | null; occurred_at: Date | null; created_at: Date }[]>`
+    SELECT id, public_id, title, title_en, occurred_at, created_at FROM facts WHERE story_id = ${storyId}`;
+const developments = facts
     .filter((f) => byFact.has(f.id))
     .map((f) => {
       const members = byFact.get(f.id)!;
       const rep = [...members].sort((a, b) => Number(b.firstParty) - Number(a.firstParty) || Number(b.selected) - Number(a.selected) || a.at.getTime() - b.at.getTime())[0]!;
       const first = members.reduce((m, r) => (r.at < m ? r.at : m), members[0]!.at);
-      return { factId: f.public_id, title: f.title, occurredAt: f.occurred_at?.toISOString() ?? null, firstReportAt: first.toISOString(), reportCount: members.length, representative: rep };
+      const title = en && f.title_en?.trim() ? f.title_en : f.title;
+      return { factId: f.public_id, title, occurredAt: f.occurred_at?.toISOString() ?? null, firstReportAt: first.toISOString(), reportCount: members.length, representative: rep };
     })
+    // 英文页只列有英文标题的进展；没有英文的进展留在时间线里（报道本身还有英文标题），
+    // 但不在「事件进展」那一栏夹一行中文。
+    .filter((d) => !en || !hasChineseCopy(d.title))
     .sort((a, b) => Date.parse(b.firstReportAt) - Date.parse(a.firstReportAt));
 
-  return { s, reports, developments };
+  return { s: {
+    ...s,
+    title: en && s.title_en?.trim() ? s.title_en : s.title,
+    summary: en ? (s.summary_en?.trim() ? s.summary_en : null) : s.summary,
+    digest: en ? (s.digest_en?.trim() ? s.digest_en : s.digest) : s.digest,
+    latest: en ? (s.latest_en?.trim() ? s.latest_en : null) : s.latest,
+  }, reports, developments };
 }
 
-async function relatedStories(storyId: number) {
-  return sql<{ public_id: string; title: string; relation: "storyline" | "related"; latest_at: Date | null }[]>`
-    SELECT st.public_id::text, st.title, l.relation, st.latest_at FROM story_links l JOIN stories st ON st.id = l.other_id
+async function relatedStories(storyId: number, lang: SiteLang = "zh") {
+  return sql<{ public_id: string; title: string; title_en: string | null; relation: "storyline" | "related"; latest_at: Date | null }[]>`
+    SELECT st.public_id::text, st.title, st.title_en, l.relation, st.latest_at FROM story_links l JOIN stories st ON st.id = l.other_id
     WHERE l.story_id = ${storyId} AND st.merged_into IS NULL ORDER BY st.latest_at DESC NULLS LAST LIMIT 8`;
 }
 
-export async function loadStoryDetail(storyId: number, now = new Date()): Promise<StoryDetail | null> {
-  const content = await storyContent(storyId, now);
+export async function loadStoryDetail(storyId: number, now = new Date(), lang: SiteLang = "zh"): Promise<StoryDetail | null> {
+  const content = await storyContent(storyId, now, lang);
   if (!content) return null;
   const { s, reports, developments } = content;
   const [why] = await sql<{ p48: number; p6: number; r24: number }[]>`
@@ -110,23 +132,41 @@ export async function loadStoryDetail(storyId: number, now = new Date()): Promis
     ? await sql<{ n: number }[]>`SELECT count(*)::int AS n FROM story_signals WHERE story_id = ${storyId} AND source_id = ANY(${behind}::text[])
                                   AND observed_at > ${now}::timestamptz - interval '48 hours' AND observed_at <= ${now}`
     : [{ n: 0 }];
-  const related = await relatedStories(storyId);
-  const latestAt = s.latest_at ?? reports[0]!.at;
+  const related = await relatedStories(storyId, lang);
+  const en = lang === "en";
+  // /en 的时间线只列有英文标题的报道；中文整理标题不再兜底（没有英文的报道仍可在中文页看到）。
+  const visibleReports = en ? reports.filter((r) => !!reportView(r, lang).title) : reports;
+  const visibleViews = visibleReports.map((r) => reportView(r, lang));
+  const latestAt = s.latest_at ?? visibleReports[0]?.at ?? reports[0]!.at;
+  const storyLocale = textLocaleOf(s.title, s.digest?.trim() ? s.digest : s.summary ?? null);
+  // strict 的 /en 只把真有英文标题与英文综述的事件当英文页；否则读者看到的会是一条中文事件
+  // 挂着英文 chrome（2026-11-23 验收：/en/story/… 全英文正文上仍说「这一页还没有英文版」）。
+  if (en && englishTextMode() === "strict" && storyLocale !== "en") return null;
   // Without a digest or a summary of its own, the story opens with its first development's representative report.
   const origin = developments[developments.length - 1]?.representative;
+  const visibleDevelopments = developments.filter((d) => !en || !!reportView(d.representative, lang).title);
+  const excerptText = origin ? (en ? (origin.summaryEn?.trim() || (origin.summary && !hasChineseCopy(origin.summary) ? origin.summary : null)) : origin.summary) : null;
   return {
     publicId: s.public_id,
     title: s.title,
-    indexable: hasChineseCopy(s.title),
+    textLocale: storyLocale,
+    lang,
+    // 中文页仍用中文标题作索引承诺；`/en` 看英文标题是否真的存在。
+    indexable: en ? !!s.title_en?.trim() && !hasChineseCopy(s.title_en) : hasChineseCopy(s.title),
     status: storyStatusFor(latestAt, now.getTime()),
-    reportCount: reports.length,
-    sourceCount: new Set(reports.map((r) => r.sourceId)).size,
-    firstReportAt: (s.first_report_at ?? reports[reports.length - 1]!.at).toISOString(),
+    reportCount: visibleReports.length,
+    sourceCount: new Set(visibleReports.map((r) => r.sourceId)).size,
+    firstReportAt: (s.first_report_at ?? visibleReports[visibleReports.length - 1]?.at ?? reports[reports.length - 1]!.at).toISOString(),
     latestAt: latestAt.toISOString(),
     digest: s.digest,
     digestUpdatedAt: s.digest_updated_at?.toISOString() ?? null,
     summary: s.summary,
-    excerpt: !s.digest && !s.summary && origin?.summary ? { text: origin.summary, sourceName: origin.sourceName } : null,
+    excerpt: !s.digest && !s.summary && excerptText && origin
+      ? {
+        text: excerptText,
+        sourceName: sourceNameFor(lang, origin.sourceName, origin.sourceNameEn, origin.url),
+      }
+      : null,
     latest: s.latest,
     whyHot: {
       participants48h: Number(why?.p48 ?? 0),
@@ -136,11 +176,13 @@ export async function loadStoryDetail(storyId: number, now = new Date()): Promis
       rank: entry?.rank ?? null,
       heat: entry?.heat ?? null,
     },
-    developments: developments.map((d) => ({ ...d, representative: reportView(d.representative) })),
-    officialReports: reports.filter((r) => r.firstParty).slice(0, 12).map(reportView),
-    timeline: reports.slice(0, 100).map(reportView),
+    developments: visibleDevelopments.map((d) => ({ ...d, textLocale: textLocaleOf(d.title, null), representative: reportView(d.representative, lang) })),
+    officialReports: visibleReports.filter((r) => r.firstParty).slice(0, 12).map((r) => reportView(r, lang)),
+    timeline: visibleViews.slice(0, 100),
     heat: heat.map((h): HeatPoint => ({ hour: h.hour.toISOString(), heat: Number(h.heat), participants: h.participants })),
-    related: related.map((r) => ({ publicId: r.public_id, title: r.title, relation: r.relation, latestAt: r.latest_at?.toISOString() ?? null })),
+    related: related.map((r) => ({ publicId: r.public_id, title: lang === "en" && r.title_en?.trim() ? r.title_en : r.title, relation: r.relation, latestAt: r.latest_at?.toISOString() ?? null }))
+      // 相关事件没有英文标题就不在英文页露出来（中文页照旧）。
+      .filter((r) => lang !== "en" || !hasChineseCopy(r.title)),
   };
 }
 
@@ -200,14 +242,14 @@ async function queryHotCovers(entries: Array<{ storyId: number; representativeIt
   return covers;
 }
 
-export async function loadHot(): Promise<HotResponse> {
-  const ranking = await latestHotRanking();
+export async function loadHot(lang: SiteLang = "zh"): Promise<HotResponse> {
+  const ranking = await latestHotRanking(lang);
   if (!ranking) {
     // A successful empty computation still has a cut-off time. Do not publish stale entries,
     // and do not turn an empty result into the indistinguishable "never computed" state.
     const [latest] = await sql<{ computed_at: Date; rule_version: string }[]>`
       SELECT computed_at, rule_version FROM hot_rankings ORDER BY computed_at DESC LIMIT 1`;
-    return { computedAt: latest?.computed_at.toISOString() ?? null, ruleVersion: latest?.rule_version ?? null, windowHours: 48, entries: [] };
+    return { computedAt: latest?.computed_at.toISOString() ?? null, ruleVersion: latest?.rule_version ?? null, windowHours: 48, entries: [], lang };
   }
   const at = new Date(ranking.computedAt);
   const [sparks, covers, extras] = await Promise.all([
@@ -216,7 +258,7 @@ export async function loadHot(): Promise<HotResponse> {
       at,
     ),
     hotCovers(ranking.id, ranking.entries, at),
-    rankingExtras(ranking),
+    rankingExtras(ranking, lang),
   ]);
   return {
     computedAt: ranking.computedAt,
@@ -228,7 +270,7 @@ export async function loadHot(): Promise<HotResponse> {
       const text = extras.text(e);
       return {
         rank: e.rank,
-        story: { publicId: e.storyPublicId, title: e.title },
+        story: { publicId: e.storyPublicId, title: text.title },
         heat: e.heat,
         trend: e.trend,
         trendPct: e.trendPct,
@@ -237,17 +279,20 @@ export async function loadHot(): Promise<HotResponse> {
         sourceCount: e.sourceCount,
         signalCount: e.signalCount,
         reportCount: e.reportCount,
-        sourceNames: e.sourceNames,
+        sourceNames: extras.sourceNames(e),
+        sourceNamesEn: extras.sourceNamesEn(e),
         latestAt: e.latestAt,
         firstReportAt: e.firstReportAt,
-        representative: e.representativeItemId ? { id: e.representativeItemId, url: e.representativeUrl ?? "", sourceName: e.representativeSource ?? "" } : null,
+        representative: e.representativeItemId ? { id: e.representativeItemId, url: e.representativeUrl ?? "", sourceName: extras.sourceName(e.representativeSource ?? "") } : null,
         participants: extras.participants(e),
         spark: sparks.get(e.storyId) ?? [],
         summary: text.summary,
         latest: text.latest,
         cover: picture && coverUrl ? { url: coverUrl, srcSet: proxiedImageSet(picture.url, "hero") ?? undefined, width: picture.width, height: picture.height } : null,
+        textLocale: text.textLocale,
       };
     }),
+    lang,
   };
 }
 

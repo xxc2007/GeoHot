@@ -62,7 +62,7 @@ function ArchiveGroup({ g, kind, current, initiallyOpen }: {
     if (!open || loaded || kind !== "daily" || !g.entries.some((e) => e.title === undefined)) return;
     const controller = new AbortController();
     setFailed(false);
-    fetch(publicPath(`/api/site/reports/daily/months/${g.id}`), { signal: controller.signal })
+    fetch(publicPath(`/api/site/reports/daily/months/${g.id}${locale === "en" ? "?lang=en" : ""}`), { signal: controller.signal })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then((data: { items: ReportNavigationEntry[] }) => { if (!controller.signal.aborted) setLoaded(data.items); })
       // A month that will not load used to be swallowed (`.catch(() => {})`), and the column carried on

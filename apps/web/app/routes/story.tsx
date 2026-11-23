@@ -4,11 +4,12 @@ import { Link, redirect, useLoaderData, useSearchParams } from "react-router";
 import type { Route } from "./+types/story";
 import type { StoryDetail, StoryReportView } from "@aihot/contracts/site";
 import { hasChineseCopy } from "@aihot/contracts/copy";
-import { ApiRedirect, loadOr404 } from "../lib/api.server";
-import { breadcrumbLd, pageMeta, titled } from "../lib/seo";
+import { ApiRedirect, loadOr404, withLang } from "../lib/api.server";
+import { breadcrumbLd, pageMeta, strictEnglish, titled } from "../lib/seo";
 import { beijingDate, beijingTime, monthDayTime, shortSourceName } from "../lib/format";
 import { localeAppPath, localeFromPath, useLocale, type Locale } from "../lib/i18n";
 import { copy } from "../lib/i18n/pages/story";
+import { MissingEnglishNotice } from "../components/ui/ChineseNotice";
 import { backPlace } from "../lib/back-place";
 import { publicPath } from "../lib/public-path";
 import { getTimelineOrder, setTimelineOrder, type TimelineOrder } from "../lib/local-state";
@@ -19,14 +20,15 @@ import { Select } from "../components/ui/Controls";
 import { IconArrowLeft, IconChevronRight, IconClock, IconDoc, IconUsers } from "../components/icons";
 
 export async function loader({ params, request }: Route.LoaderArgs) {
-  const path = `/api/site/stories/${encodeURIComponent(params.publicId)}`;
+  const locale = localeFromPath(new URL(request.url).pathname);
+  const path = withLang(`/api/site/stories/${encodeURIComponent(params.publicId)}`, locale);
   try {
     // 404/503 的口径由 loadOr404 定（和其他页面同一套），这一页只多管一件事：已合并的事件要跳过去。
     return { story: await loadOr404<StoryDetail>(path, { signal: request.signal, redirect: "manual" }) };
   } catch (error) {
     if (error instanceof ApiRedirect && error.status === 308) {
       const target = (error.body as { mergedInto?: string } | null)?.mergedInto;
-      if (target) throw redirect(`/story/${encodeURIComponent(target)}`, 308);
+      if (target) throw redirect(`${locale === "en" ? "/en" : ""}/story/${encodeURIComponent(target)}`, 308);
     }
     throw error;
   }
@@ -37,15 +39,19 @@ export function meta({ loaderData, location }: Route.MetaArgs) {
   const c = copy[locale];
   if (!loaderData) return [{ title: titled(c.notFoundTitle) }, { name: "robots", content: "noindex" }];
   const s = loaderData.story;
+  // fallback 模式下真回退中文的事件：head 里用英文兜底句，不把中文塞进 <title>/og:description。
+  const noEnglish = locale === "en" && s.textLocale !== "en";
   return pageMeta({
-    title: s.title,
-    description: (s.digest ?? s.summary)?.slice(0, 150) ?? c.metaDesc(String(s.sourceCount), String(s.reportCount)),
+    title: noEnglish ? c.metaNoEnglishTitle : s.title,
+    description: noEnglish ? c.metaNoEnglishDescription : (s.digest ?? s.summary)?.slice(0, 150) ?? c.metaDesc(String(s.sourceCount), String(s.reportCount)),
     path: `/story/${s.publicId}`,
     image: `/og/stories/${s.publicId}.png`,
-    noindex: !s.indexable,
+    // 标题、摘要/导读与最新进展都已由读取层按 /en 投影；真实回退中文时才把语种标在节点上。
+    noindex: !s.indexable || (locale === "en" && strictEnglish() && s.textLocale !== "en"),
+    enAvailable: s.textLocale === "en",
     type: "article",
     locale,
-    jsonLd: breadcrumbLd([{ name: SITE.name, path: "/" }, { name: c.crumbHot, path: "/hot" }, { name: s.title, path: `/story/${s.publicId}` }]),
+    jsonLd: breadcrumbLd([{ name: SITE.name, path: "/" }, { name: c.crumbHot, path: "/hot" }, { name: noEnglish ? c.metaNoEnglishTitle : s.title, path: `/story/${s.publicId}` }]),
   });
 }
 
@@ -316,9 +322,9 @@ export default function StoryPage() {
         </div>
       </header>
 
-      {/* 英文页的一行说明：事件标题、提要与下面的报道仍为中文——报道行（StoryReportView）与
-          事件（StoryRef）都不带信源原题，维持现状，那里说中文是真话。中文页渲染为空。 */}
-      {locale === "en" && <p className={`text-[12.5px] text-ink-4 mt-1`}>{c.chineseNotice}</p>}
+      {/* 事件标题、提要与报道标题已按 /en 投影；只有整条事件仍回退中文时才标注。
+          中文页永不渲染。 */}
+      {locale === "en" && story.textLocale !== "en" && <MissingEnglishNotice className="mt-1" />}
 
       <div className="sticky top-0 z-20 -mx-4 mt-5 bg-bg/90 px-4 py-2 backdrop-blur-md lg:mx-0 lg:px-0">
         <PillTabs

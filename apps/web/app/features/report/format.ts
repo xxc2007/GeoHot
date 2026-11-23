@@ -93,7 +93,13 @@ const SECTION_HEADINGS: Record<string, string> = Object.fromEntries(
   }),
 );
 /** A section's page head; a weekly or monthly theme heading is the editor's own words and stays as it is. */
-export function sectionHeading(label: string): string {
+const SECTION_HEADINGS_EN: Record<string, string> = {
+  "学科": "Earth & human geography",
+  "技术": "Geospatial technology",
+};
+export function sectionHeading(label: string, locale: Locale = "zh"): string {
+  // 英文页：版面分节名是网站自己印的 chrome，随语言取词；编辑自写的主题标题原样保留。
+  if (locale === "en") return SECTION_HEADINGS_EN[label] ?? label;
   return SECTION_HEADINGS[label] ?? label;
 }
 
@@ -304,9 +310,22 @@ export type AbsentReason = "bad_key" | "no_edition" | "not_yet" | "unreadable";
  * mistyped issue key. No publication times are quoted here on purpose: those live in the worker's cron and in
  * `EDITION`, and a third copy of a clock is how wording starts to disagree.
  */
-export function absentCopy(kind: ReportKind, key: string, reason: AbsentReason): { title: string; body: string } {
+export function absentCopy(kind: ReportKind, key: string, reason: AbsentReason, locale: Locale = "zh"): { title: string; body: string } {
   // 这几句话与「最近一期」「报告详情」的错误页说的是同一件事，报纸的名字要拼上行业词（地理日报），
-  // 不能一边写「暂时读不到地理日报」一边写「暂时读不到这一期日报」。
+  // 不能一边写「暂时读不到地理日报」一边写「暂时读不到这一期日报」。英文四句逐句对应。
+  if (locale === "en") {
+    const label = words("en").kindSubject[kind].toLowerCase();
+    if (reason === "not_yet") {
+      return { title: `“${key}” is not due out yet`, body: `The period this issue would cover has not ended, so no such edition of the ${label} exists here yet. The latest published edition is linked below.` };
+    }
+    if (reason === "no_edition") {
+      return { title: `No edition for ${key}`, body: `This site published no ${label} for ${key} — not one taken down afterwards; the archive never had this issue. Try another date, or start from the latest edition.` };
+    }
+    if (reason === "bad_key") {
+      return { title: "This issue key is not one we recognize", body: "Daily issue keys look like 2026-10-09, weekly keys like 2026-W40 and monthly keys like 2026-09. The segment in this address matches none of them — pick an issue from the archive page." };
+    }
+    return { title: `This edition of the ${label} cannot be read right now`, body: "The service did not return the data this page needs, so we cannot yet tell whether this issue was published. Try again in a few seconds." };
+  }
   const label = withSubject(KIND_LABEL[kind]);
   if (reason === "not_yet") {
     return { title: `「${key}」还没到出刊时间`, body: `这一期要收录的那段时间还没有走完，所以本站没有${label}的这一版。已经出的那一期在这里。` };

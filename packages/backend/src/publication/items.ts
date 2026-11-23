@@ -2,11 +2,14 @@
 // items through these functions; visibility, release gate and body licences are applied here.
 import type { CategoryKey, ChannelKey } from "@aihot/contracts/taxonomy";
 import { CJK_COPY_PATTERN, LABEL_ONLY_COPY_PATTERN, isLabelOnlyCopy } from "@aihot/contracts/copy";
-import type { FeedItemSummary, ItemSummary, MediaView, SourceKind, XPostView } from "@aihot/contracts/site";
+import type { FeedItemSummary, ItemSummary, MediaView, SiteLang, SourceKind, XPostView } from "@aihot/contracts/site";
 import { sql } from "../db.ts";
 import { proxiedImage, proxiedImageSet } from "../media/imgproxy.ts";
 import { workflowReadyCondition } from "./readiness.ts";
+import { englishReadyBaseCondition, englishReadyCondition } from "./readiness-en.ts";
+import { englishPolicy, englishTextMode, tagLabelEn, textLocaleOf } from "./english-policy.ts";
 import { displayTags } from "./rules.ts";
+import { sourceNameFor } from "./source-name.ts";
 
 export interface ItemRow {
   id: string;
@@ -47,9 +50,23 @@ export interface ItemRow {
   media: unknown;
   story_public_id: string | null;
   story_title: string | null;
+  /** 事件标题的英文版；`lang=en` 时优先。 */
+  story_title_en: string | null;
+  /** 英文读取层（迁移 0128）：这些列可空，缺英文时由 `lang` 投影决定是否回退中文。 */
+  title_en: string | null;
+  summary_en: string | null;
+  reason_en: string | null;
+  source_name_en: string | null;
+  english_source_revision: number | null;
+  en_body_html: string | null;
+  en_body_text: string | null;
+  en_body_complete: boolean | null;
+  en_body_revision: number | null;
   zh_text: string | null;
   /** Chinese translation of the post an X post quotes. */
   quoted_zh: string | null;
+  /** English translation of the quoted post (0128 `quote_translations_en`); `/en` reads this first. */
+  quoted_en: string | null;
 }
 
 /**
@@ -71,8 +88,11 @@ export const ITEM_COLUMNS = sql`
     WHERE m->>'kind' = 'video' AND m->>'poster' IS NOT NULL
     ORDER BY ord LIMIT 3
   ) slice) AS media,
-  st.public_id::text AS story_public_id, st.title AS story_title,
-  CASE WHEN p.channel = 'x' THEN tr.body_text END AS zh_text, qt.text_zh AS quoted_zh`;
+  st.public_id::text AS story_public_id, st.title AS story_title, st.title_en AS story_title_en,
+  p.title_en, p.summary_en, p.reason_en, p.english_source_revision, s.name_en AS source_name_en,
+  tr_en.body_html AS en_body_html, tr_en.body_text AS en_body_text, tr_en.complete AS en_body_complete,
+  tr_en.revision AS en_body_revision,
+  CASE WHEN p.channel = 'x' THEN tr.body_text END AS zh_text, qt.text_zh AS quoted_zh, qte.text_en AS quoted_en`;
 
 /** Public API listings never render article bodies, X media or story metadata. */
 export type ApiItemRow = Pick<ItemRow, "id" | "title" | "original_title" | "summary" | "source_name" | "url" | "published_at" | "discovered_at" | "category" | "score" | "selected" | "reason">;
@@ -88,7 +108,9 @@ export const ITEM_FROM = sql`
   JOIN articles a ON a.id = p.article_id
   LEFT JOIN stories st ON st.id = p.story_id AND st.merged_into IS NULL
   LEFT JOIN translations tr ON tr.article_id = p.article_id AND tr.lang = 'zh' AND tr.revision >= a.revision
-  LEFT JOIN quote_translations qt ON p.channel = 'x' AND qt.tweet_id = substring(a.x_post->'quoted'->>'url' from '/status/([0-9]+)')`;
+  LEFT JOIN translations tr_en ON tr_en.article_id = p.article_id AND tr_en.lang = 'en' AND tr_en.revision >= a.revision
+  LEFT JOIN quote_translations qt ON p.channel = 'x' AND qt.tweet_id = substring(a.x_post->'quoted'->>'url' from '/status/([0-9]+)')
+  LEFT JOIN quote_translations_en qte ON p.channel = 'x' AND qte.tweet_id = substring(a.x_post->'quoted'->>'url' from '/status/([0-9]+)')`;
 
 /**
  * The Chinese-copy gate, written once (2026-10-02: 351 legacy rows built by an echoing brain stub showed
@@ -108,6 +130,17 @@ export function chineseCopyCondition() {
     AND btrim(p.title) !~ ${LABEL_ONLY_COPY_PATTERN}
     AND (p.summary IS NULL OR btrim(p.summary) !~ ${LABEL_ONLY_COPY_PATTERN})`;
 }
+
+/**
+ * 英文文案的采用条件，与 {@link chineseCopyCondition} 并列但**互不替代**：
+ * 英文标题、英文摘要都非空，且英文是在当前 `publications.revision` 上写的。
+ * `english_at` 只审计，不参与判断（迁移 0128 的注释）。中文门的每一处调用都原样保留。
+ */
+export function englishCopyCondition() {
+  return sql`nullif(btrim(p.title_en), '') IS NOT NULL
+    AND nullif(btrim(p.summary_en), '') IS NOT NULL
+    AND p.english_source_revision = p.revision`;
+}
 /**
  * The release gate, spelled once: a selected item reaches the public only once `visible_after` has
  * passed (~180 s after it met the selection conditions, so a grouping decision can settle first).
@@ -125,10 +158,30 @@ export function releasedCondition(now: Date) {
 }
 
 /**
- * Listed items: public, released, and with a Chinese title. See {@link chineseCopyCondition} and
- * {@link releasedCondition}.
+ * 英文成员门的两种语义，只由环境变量决定（`english-policy.ts`）：
+ *  · `fallback`：不追加任何门，/en 与今天同一批（有中文回退）；
+ *  · `strict + parity`：与中文名单同集，再要求英文文案当前（只换文字、不换成员）；
+ *  · `strict + english`：/en 单独服务英文源条目——公开、已放行、英文正文就绪，
+ *    **不要求中文译文**（`readiness-en.ts` 的第二条成员门）。
+ * zh 分支永远是原来的 chineseCopyCondition + workflowReadyCondition，一个字符不变。
  */
-export function listedCondition(now: Date) {
+function englishListGate(now: Date, selected: boolean) {
+  if (englishTextMode() !== "strict") return null;
+  const selectedClause = selected ? sql`p.selected AND` : sql``;
+  const { membership } = englishPolicy();
+  if (membership === "english") {
+    return sql`p.visibility = 'public' AND ${selectedClause} ${releaseGateCondition(now)} AND ${englishReadyCondition(now)}`;
+  }
+  return sql`p.visibility = 'public' AND ${selectedClause} ${releasedCondition(now)} AND ${chineseCopyCondition()} AND ${englishCopyCondition()}`;
+}
+
+/**
+ * Listed items: public, released, and with a Chinese title. See {@link chineseCopyCondition} and
+ * {@link releasedCondition}. `lang='en'` applies the deploy-time English membership policy above.
+ */
+export function listedCondition(now: Date, lang: SiteLang = "zh") {
+  const english = lang === "en" ? englishListGate(now, false) : null;
+  if (english) return english;
   return sql`p.visibility = 'public' AND ${releasedCondition(now)} AND ${chineseCopyCondition()}`;
 }
 
@@ -138,12 +191,27 @@ export function listedCondition(now: Date) {
  * (2026-10-02 left 11 released selected items with no CJK character listing on the home timeline while
  * /all hid them).
  */
-export function selectedCondition(now: Date) {
+export function selectedCondition(now: Date, lang: SiteLang = "zh") {
   // 精选与首页只放「走完全流程」的那一条：适用采集、筛选、当前版分析、完整正文、适用译文与媒体
   // 准备都落定。2026-11-05 我曾为了让「精选」当天不为空，在这里给「来源不提供全文」的摘要条目开了
   // 一个口子；站长当天指出这违反 AGENTS.md 的「完整读者内容强制规则」——读者面看到的每一条都必须
   // 经过完整工作流。口子已收回，空着就空着：那是链路还没追上，不是门该放宽。
+  const english = lang === "en" ? englishListGate(now, true) : null;
+  if (english) return english;
   return sql`p.visibility = 'public' AND p.selected AND ${releaseGateCondition(now)} AND ${chineseCopyCondition()} AND ${workflowReadyCondition()}`;
+}
+
+/**
+ * 还在发布门后面的行，将来过闸时要满足的成员条件（不含 visible_after 判定本身）。
+ * 时间线/主题计数用它回答「下一批什么时候出现」，必须与 `lang` 下真正的名单门同口径，
+ * 否则页面会为一个永远不会如期出现的数字刷新。
+ */
+export function pendingReadyCondition(lang: SiteLang = "zh") {
+  if (lang === "en" && englishTextMode() === "strict") {
+    if (englishPolicy().membership === "english") return englishReadyBaseCondition();
+    return sql`${workflowReadyCondition()} AND ${chineseCopyCondition()} AND ${englishCopyCondition()}`;
+  }
+  return sql`${workflowReadyCondition()} AND ${chineseCopyCondition()}`;
 }
 
 export function channelCondition(channel: ChannelKey | null | undefined) {
@@ -242,13 +310,14 @@ export function cardMedia(media: unknown): MediaView[] {
   return out;
 }
 
-export function xView(row: Pick<ItemRow, "x_post" | "zh_text"> & Partial<Pick<ItemRow, "quoted_zh">>, compact = false, responsive = compact): XPostView | null {
+export function xView(row: Pick<ItemRow, "x_post" | "zh_text"> & Partial<Pick<ItemRow, "quoted_zh" | "quoted_en">>, compact = false, responsive = compact, lang: SiteLang = "zh"): XPostView | null {
   const x = row.x_post;
   if (!x) return null;
+  const quotedTranslation = lang === "en" ? row.quoted_en : row.quoted_zh;
   const quoted = x.quoted && typeof x.quoted === "object"
     ? {
       authorName: String(x.quoted.authorName ?? ""), handle: String(x.quoted.handle ?? ""), text: String(x.quoted.text ?? ""), url: String(x.quoted.url ?? ""),
-      translation: row.quoted_zh && row.quoted_zh.trim() !== String(x.quoted.text ?? "").trim() ? row.quoted_zh : null,
+      translation: quotedTranslation && quotedTranslation.trim() !== String(x.quoted.text ?? "").trim() ? quotedTranslation : null,
     }
     : null;
   const media = ((x.media ?? []) as Array<Record<string, any>>)
@@ -268,8 +337,19 @@ export function xView(row: Pick<ItemRow, "x_post" | "zh_text"> & Partial<Pick<It
   };
 }
 
-export function toItemSummary(row: ItemRow): ItemSummary {
-  const x = row.channel === "x" ? xView(row, true) : null;
+export function toItemSummary(row: ItemRow, lang: SiteLang = "zh"): ItemSummary {
+  const x = row.channel === "x" ? xView(row, true, true, lang) : null;
+  // 英文投影：标题/摘要优先英文列，缺英文时回退原文/中文（`fallback` 模式的行为，与今天 /en 一致）；
+  // 推荐理由不回退中文（英文页不夹中文理由）；标签与信源名同理，未知标签原样保留。
+  const englishFresh = row.english_source_revision === row.revision;
+  const englishTitle = lang === "en" && englishFresh && row.title_en?.trim() && !isLabelOnlyCopy(row.title_en) ? row.title_en : null;
+  const zhTitle = isLabelOnlyCopy(row.title) ? (row.original_title ?? row.title) : row.title;
+  const title = englishTitle ?? (lang === "en" && row.original_title?.trim() ? row.original_title : zhTitle);
+  const englishSummary = lang === "en" && englishFresh && row.summary_en?.trim() && !isLabelOnlyCopy(row.summary_en) ? row.summary_en : null;
+  const zhSummary = isLabelOnlyCopy(row.summary) ? null : row.summary;
+  const summary = englishSummary ?? zhSummary;
+  const sourceName = sourceNameFor(lang, row.source_name, row.source_name_en, row.url);
+  const tags = lang === "en" ? displayTags(row.tags).map(tagLabelEn) : displayTags(row.tags);
   return {
     id: row.id,
     revision: row.revision,
@@ -277,29 +357,33 @@ export function toItemSummary(row: ItemRow): ItemSummary {
     // carry the machine's own label as its headline: `title_zh:` with nothing after it — 446 rows of them
     // in the dev corpus. The item page says "以下标题与提要是原文" when there is no Chinese draft, so print
     // the source's own title rather than the label, and no phantom 摘要 either.
-    title: isLabelOnlyCopy(row.title) ? (row.original_title ?? row.title) : row.title,
+    title,
     originalTitle: row.original_title,
-    summary: isLabelOnlyCopy(row.summary) ? null : row.summary,
-    reason: row.selected ? row.reason : null,
+    summary,
+    reason: lang === "en" ? (row.selected && englishFresh && row.reason_en?.trim() ? row.reason_en : null) : (row.selected ? row.reason : null),
     source: {
       id: row.source_id,
-      name: row.source_name,
+      name: sourceName,
       kind: row.source_kind,
       firstParty: row.first_party,
       iconUrl: proxiedImage(row.source_icon, "avatar"),
       ...(proxiedImageSet(row.source_icon, "avatar") ? { iconSrcSet: proxiedImageSet(row.source_icon, "avatar")! } : {}),
+      nameLocale: lang === "en" ? "en" : "zh",
     },
     links: { aihot: `/items/${row.id}`, original: row.url },
     publishedAt: row.published_at?.toISOString() ?? null,
     discoveredAt: row.discovered_at.toISOString(),
     timelineAt: row.timeline_at.toISOString(),
     category: (row.category as CategoryKey | null) ?? null,
-    tags: displayTags(row.tags),
+    tags,
     score: row.score === null ? null : Math.round(Number(row.score)),
     selected: row.selected,
     channel: row.channel,
-    story: row.story_public_id ? { publicId: row.story_public_id, title: row.story_title ?? "" } : null,
+    story: row.story_public_id
+      ? { publicId: row.story_public_id, title: (lang === "en" ? row.story_title_en ?? row.story_title : row.story_title) ?? "" }
+      : null,
     x,
+    textLocale: textLocaleOf(title, summary),
   };
 }
 
@@ -308,12 +392,14 @@ export function toItemSummary(row: ItemRow): ItemSummary {
  * along (toItemSummary already read it from the same row): English list cards prefer the source's own
  * headline, and no extra query is needed to hand it to them.
  */
-export function toFeedItemSummary(row: ItemRow): FeedItemSummary {
-  const item = toItemSummary(row);
+export function toFeedItemSummary(row: ItemRow, lang: SiteLang = "zh"): FeedItemSummary {
+  const item = toItemSummary(row, lang);
   return {
     id: item.id, title: item.title, originalTitle: item.originalTitle, summary: item.summary, reason: item.reason,
-    source: { name: item.source.name }, publishedAt: item.publishedAt, timelineAt: item.timelineAt,
+    source: { name: item.source.name, ...(item.source.nameLocale ? { nameLocale: item.source.nameLocale } : {}) },
+    publishedAt: item.publishedAt, timelineAt: item.timelineAt,
     category: item.category, tags: item.tags, score: item.score, selected: item.selected, channel: item.channel,
+    textLocale: item.textLocale,
     // Only a news row lends stills here; an X post's media already sits in x.media and would render twice.
     ...(row.channel === "x" ? null : { media: cardMedia(row.media) }),
     x: item.x ? {

@@ -6,21 +6,23 @@
 import type { TimelineFilters } from "@aihot/contracts/site";
 
 /** The filters the list was drawn under, plus the page to continue from. */
-export function groupQuery(filters: TimelineFilters | undefined, cursor: string | null): URLSearchParams {
+export function groupQuery(filters: TimelineFilters | undefined, cursor: string | null, locale: "zh" | "en" = "zh"): URLSearchParams {
   const sp = new URLSearchParams();
   if (filters?.channel && filters.channel !== "all") sp.set("channel", filters.channel);
   if (filters?.category) sp.set("category", filters.category);
   if (filters?.tag) sp.set("tag", filters.tag);
   if (cursor) sp.set("cursor", cursor);
+  // 展开块也是 /en 的一路数据：缺 lang 会展开成中文投影。
+  if (locale === "en") sp.set("lang", "en");
   return sp;
 }
 
 /** The other public reports of one fact. */
-export function groupReportsUrl(publicPath: (path: string) => string, factId: string, filters?: TimelineFilters, cursor: string | null = null): string {
-  return publicPath(`/api/site/groups/${encodeURIComponent(factId)}/reports?${groupQuery(filters, cursor)}`);
+export function groupReportsUrl(publicPath: (path: string) => string, factId: string, filters?: TimelineFilters, cursor: string | null = null, locale: "zh" | "en" = "zh"): string {
+  return publicPath(`/api/site/groups/${encodeURIComponent(factId)}/reports?${groupQuery(filters, cursor, locale)}`);
 }
 
 /** The other developments of one event, newest first. */
-export function storyDevelopmentsUrl(publicPath: (path: string) => string, storyPublicId: string, filters?: TimelineFilters, cursor: string | null = null): string {
-  return publicPath(`/api/site/stories/${encodeURIComponent(storyPublicId)}/developments?${groupQuery(filters, cursor)}`);
+export function storyDevelopmentsUrl(publicPath: (path: string) => string, storyPublicId: string, filters?: TimelineFilters, cursor: string | null = null, locale: "zh" | "en" = "zh"): string {
+  return publicPath(`/api/site/stories/${encodeURIComponent(storyPublicId)}/developments?${groupQuery(filters, cursor, locale)}`);
 }

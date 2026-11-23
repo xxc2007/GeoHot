@@ -19,6 +19,8 @@ export const QUEUES = {
 
   republishSource: "publication.republish-source",
   prepareMedia: "media.prepare",
+  // 英文腿独占一条队列：读者机上并发是 0，作业由回填节点/夜间窗口消费。
+  english: "content.english",
 } as const;
 
 type QueueOptions = NonNullable<Parameters<PgBoss["createQueue"]>[1]>;
@@ -45,6 +47,10 @@ export const QUEUE_OPTIONS: Record<string, QueueOptions> = {
   [QUEUES.republishSource]: { policy: "short", retryLimit: 2, retryDelay: 60, expireInSeconds: 3600 },
 
   [QUEUES.prepareMedia]: { policy: "short", retryLimit: 1, retryDelay: 120, expireInSeconds: 600 },
+  // 英文腿每次调用最多一次付费调用或一批正文，最长 240 秒（开了思考的模型）；3600 秒留足一次重排。
+  // 失败不由 pg-boss 重试（内容失败已记在 english_attempts，sweep 按 attempts<3 重排），所以 retryLimit 只
+  // 覆盖基础设施故障；退避 120 秒与翻译腿的节拍一致。
+  [QUEUES.english]: { policy: "short", retryLimit: 3, retryDelay: 120, expireInSeconds: 3600 },
 };
 
 const ensured = new Set<string>();

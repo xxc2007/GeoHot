@@ -1,4 +1,8 @@
 import { sql } from "../db.ts";
+import { enqueue, QUEUES } from "../jobs/queue.ts";
+
+/** 补选每天最多几十条：一次只给前 40 条排英文稿，其余交给 content.english-sweep。 */
+const ENGLISH_ENQUEUE_LIMIT = 40;
 
 /**
  * 精选标记的例行重算。
@@ -51,5 +55,9 @@ export async function refreshSelection(windowHours = 36): Promise<SelectionRefre
        and p.timeline_at >= now() - (${windowHours} || ' hours')::interval
     returning p.article_id`;
 
+  // 这条 UPDATE 绕过 publish.ts，所以它自己给新补选的条目排英文稿；有界，其余由 sweep 兜底。
+  for (const row of promoted.slice(0, ENGLISH_ENQUEUE_LIMIT)) {
+    await enqueue(QUEUES.english, { kind: "copy", articleId: row.article_id }, { singletonKey: `en-copy:${row.article_id}` });
+  }
   return { promoted: promoted.length, demoted: demoted.length };
 }

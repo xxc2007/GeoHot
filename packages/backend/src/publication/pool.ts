@@ -1,5 +1,5 @@
 // Public pool (/all) with numeric pages, and search in its two orderings.
-import type { PoolResponse, TimelineFilters } from "@aihot/contracts/site";
+import type { PoolResponse, SiteLang, TimelineFilters } from "@aihot/contracts/site";
 import { addDays, beijingDate, beijingMidnight, isDay } from "@aihot/contracts/time";
 import { positiveInt } from "../config.ts";
 import { one, sql, withCustomPlans, type Db } from "../db.ts";
@@ -81,9 +81,17 @@ export function searchTerms(q: string): string[] {
 }
 
 /** Default search: subject, title or summary match (search_text), newest first. */
-export function directMatchCondition(terms: string[]) {
+export function directMatchCondition(terms: string[], lang: SiteLang = "zh") {
   if (terms.length === 0) return sql``;
+  // 英文搜索走自己的列：`pool_search` 由 publish.ts 用中文 searchText 写入，英文走它永远匹配中文。
+  if (lang === "en") return directMatchConditionEn(terms);
   return terms.reduce((acc, t) => sql`${acc} AND p.search_text LIKE ${"%" + t + "%"}`, sql``);
+}
+
+/** 英文列表搜索：每个词都出现在 `publications.search_text_en`（迁移 0129 的 trigram 索引）。 */
+export function directMatchConditionEn(terms: string[]) {
+  if (terms.length === 0) return sql``;
+  return terms.reduce((acc, t) => sql`${acc} AND p.search_text_en LIKE ${"%" + t + "%"}`, sql``);
 }
 
 /**
@@ -204,6 +212,7 @@ export interface PoolQuery extends TimelineFilters {
 
 export async function loadPool(query: PoolQuery, signal?: AbortSignal): Promise<PoolResponse> {
   const now = query.now ?? new Date();
+  const lang: SiteLang = query.lang === "en" ? "en" : "zh";
   const page = Math.min(Math.max(query.page ?? 1, 1), POOL_MAX_PAGES);
   const q = query.q?.trim() || null;
   const tab = q && query.tab === "relevance" ? "relevance" : "time";
@@ -231,7 +240,7 @@ export async function loadPool(query: PoolQuery, signal?: AbortSignal): Promise<
   // 读者量不大时，等于每分钟第一个访客仍要吃整笔成本。改成五分钟桶，代价只是「今日总数最久
   // 迟到五分钟」，换掉每分钟一次的整表计数。
   const clockBucket = query.now ? Math.floor(query.now.getTime() / 300_000) : "live";
-  const filterKey = JSON.stringify([query.channel, query.category, query.tag, query.topicTags ?? null, date, clockBucket]);
+  const filterKey = JSON.stringify([query.channel, query.category, query.tag, query.topicTags ?? null, date, clockBucket, lang]);
 
   // Searches go through pool_search (eligible items only): trigram indexes for longer terms, a small
   // table to scan for one- and two-character ones.
@@ -241,12 +250,12 @@ export async function loadPool(query: PoolQuery, signal?: AbortSignal): Promise<
       // Page ids from the timeline index first, then the joins for those rows only.
       const rows = await db<ItemRow[]>`
         WITH page AS (
-          SELECT p.article_id FROM publications p WHERE ${listedCondition(now)} AND p.eligible ${filters}
+          SELECT p.article_id FROM publications p WHERE ${listedCondition(now, lang)} AND p.eligible ${filters}
           ORDER BY p.timeline_at DESC, p.article_id DESC LIMIT ${POOL_PAGE_SIZE} OFFSET ${offset})
         SELECT ${ITEM_COLUMNS} ${ITEM_FROM} WHERE p.article_id IN (SELECT article_id FROM page)
         ORDER BY p.timeline_at DESC, p.article_id DESC`;
       return { rows, total: await poolCount(filterKey, (client) => client<{ n: number }[]>`
-        SELECT count(*) AS n FROM (SELECT 1 FROM publications p WHERE ${listedCondition(now)} AND p.eligible ${filters} LIMIT ${cap}) t`) };
+        SELECT count(*) AS n FROM (SELECT 1 FROM publications p WHERE ${listedCondition(now, lang)} AND p.eligible ${filters} LIMIT ${cap}) t`) };
     }
     if (tab === "relevance") {
       // Rank narrow rows first: no article bodies or translations enter the sort/count. The public
@@ -254,6 +263,30 @@ export async function loadPool(query: PoolQuery, signal?: AbortSignal): Promise<
       // For an unfiltered trigram search, match each indexed field separately. OR across fields
       // can make PostgreSQL scan every toasted body instead. Keep other searches inline so short
       // terms, additional terms and selective publication filters retain their existing plans.
+      if (lang === "en") {
+        // 英文相关度：只读 `search_text_en` 与 `title_en`，不碰 `pool_search`（那里只有中文）。
+        const partScoreEn = terms.reduce(
+          (acc, t) => sql`${acc} + (CASE WHEN ${like(sql`p.search_text_en`, t)} THEN 3 ELSE 0 END)`,
+          sql`0`,
+        );
+        const titleScoreEn = terms.reduce((acc, t) => sql`${acc} + (CASE WHEN ${like(sql`lower(p.title_en)`, t)} THEN 6 ELSE 0 END)`, sql`0`);
+        const anyMatchEn = terms.reduce((acc, t) => sql`${acc} AND ${like(sql`p.search_text_en`, t)}`, sql`TRUE`);
+        type RankedRow = Omit<ItemRow, "id"> & { id: string | null; rel: number; total: number };
+        const result = await db<RankedRow[]>`
+          WITH scored AS MATERIALIZED (
+            SELECT p.article_id, p.timeline_at, (${partScoreEn}) + (${titleScoreEn}) AS rel
+            FROM publications p JOIN sources s ON s.id = p.source_id
+            WHERE ${listedCondition(now, "en")} AND p.eligible ${filters} AND ${anyMatchEn}
+          ), page AS MATERIALIZED (
+            SELECT article_id, rel FROM scored ORDER BY rel DESC, timeline_at DESC, article_id DESC
+            LIMIT ${POOL_PAGE_SIZE} OFFSET ${offset}
+          ), total AS (SELECT count(*) AS n FROM (SELECT 1 FROM scored LIMIT ${cap}) capped)
+          SELECT hydrated.*, total.n AS total FROM total LEFT JOIN LATERAL (
+            SELECT ${ITEM_COLUMNS}, page.rel ${ITEM_FROM} JOIN page ON page.article_id = p.article_id
+          ) hydrated ON true ORDER BY hydrated.rel DESC, hydrated.timeline_at DESC, hydrated.id DESC`;
+        const rows = result.filter((r): r is ItemRow & { rel: number; total: number } => r.id !== null);
+        return { rows, total: Number(result[0]!.total) };
+      }
       const splitFields = terms.length === 1 && /[\p{L}\p{N}]{3}/u.test(terms[0]!)
         && (!query.channel || query.channel === "all") && !query.category && !query.tag && !query.topicTags?.length;
       const partScore = terms.reduce(
@@ -273,7 +306,7 @@ export async function loadPool(query: PoolQuery, signal?: AbortSignal): Promise<
         WITH matches AS ${splitFields ? sql`MATERIALIZED` : sql`NOT MATERIALIZED`} (${matches}), scored AS MATERIALIZED (
           SELECT p.article_id, p.timeline_at, matches.part + (${titleScore}) AS rel
           FROM matches JOIN publications p ON p.article_id = matches.article_id JOIN sources s ON s.id = p.source_id
-          WHERE ${listedCondition(now)} AND p.eligible ${filters}
+          WHERE ${listedCondition(now, lang)} AND p.eligible ${filters}
         ), page AS MATERIALIZED (
           SELECT article_id, rel FROM scored ORDER BY rel DESC, timeline_at DESC, article_id DESC
           LIMIT ${POOL_PAGE_SIZE} OFFSET ${offset}
@@ -288,10 +321,17 @@ export async function loadPool(query: PoolQuery, signal?: AbortSignal): Promise<
     // search rows, where one- and two-character terms scan a small table instead of every item.
     const rows = await db<ItemRow[]>`
       WITH page AS (
-        SELECT p.article_id FROM publications p WHERE ${listedCondition(now)} AND p.eligible ${filters} ${directMatchCondition(terms)}
+        SELECT p.article_id FROM publications p WHERE ${listedCondition(now, lang)} AND p.eligible ${filters} ${directMatchCondition(terms, lang)}
         ORDER BY p.timeline_at DESC, p.article_id DESC LIMIT ${POOL_PAGE_SIZE} OFFSET ${offset})
       SELECT ${ITEM_COLUMNS} ${ITEM_FROM} WHERE p.article_id IN (SELECT article_id FROM page)
       ORDER BY p.timeline_at DESC, p.article_id DESC`;
+    if (lang === "en") {
+      // 英文默认搜索的「找到 N 条」直接数英文列，不再 join `pool_search`。
+      const { n } = one(await db<{ n: number }[]>`
+        SELECT count(*) AS n FROM (SELECT 1 FROM publications p
+          WHERE ${listedCondition(now, "en")} AND p.eligible ${filters} ${directMatchConditionEn(terms)} LIMIT ${cap}) t`);
+      return { rows, total: Number(n) };
+    }
     const direct = terms.reduce((acc, t) => sql`${acc} AND ${like(sql`ps.direct`, t)}`, sql``);
     const { n } = one(await db<{ n: number }[]>`
       SELECT count(*) AS n FROM (SELECT 1 FROM pool_search ps JOIN publications p ON p.article_id = ps.article_id
@@ -323,9 +363,9 @@ export async function loadPool(query: PoolQuery, signal?: AbortSignal): Promise<
   // 屏上的两句说明文字（「今日 N 条」「更新于」），30 秒的陈旧完全看不出来 —— 与下面的 `poolCount` 同一把尺子。
   const loadMeta = (client: typeof sql) => client<{ today_count: number; updated_at: Date | null }[]>`
     SELECT (SELECT count(*) FROM publications p
-      WHERE ${listedCondition(now)} AND p.eligible AND p.published_at IS NOT NULL AND p.timeline_at >= ${beijingMidnight(today)} ${scoped}) AS today_count,
+      WHERE ${listedCondition(now, lang)} AND p.eligible AND p.published_at IS NOT NULL AND p.timeline_at >= ${beijingMidnight(today)} ${scoped}) AS today_count,
       (SELECT max(p.updated_at) FROM publications p
-        WHERE ${listedCondition(now)} AND p.eligible ${filters}) AS updated_at`;
+        WHERE ${listedCondition(now, lang)} AND p.eligible ${filters}) AS updated_at`;
   // 「今日 N 条」「更新于」两句话失败不该让整页 503：拿不到就写 0 条与当前时刻。
   const meta = await cachedMeta(filterKey === null ? null : `${filterKey}|${today}`, loadMeta)
     .then((rows) => one(rows))
@@ -333,12 +373,13 @@ export async function loadPool(query: PoolQuery, signal?: AbortSignal): Promise<
 
   return {
     filters: { channel: query.channel, category: query.category, tag: query.tag, topic: query.topic ?? null, q, tab },
-    items: rows.map(toFeedItemSummary),
+    items: rows.map((row) => toFeedItemSummary(row, lang)),
     page,
     pageCount: Math.min(POOL_MAX_PAGES, Math.max(1, Math.ceil(total / POOL_PAGE_SIZE))),
     total,
     todayCount: Number(meta.today_count),
     freshness: (meta.updated_at ?? now).toISOString(),
     generatedAt: now.toISOString(),
+    lang,
   };
 }

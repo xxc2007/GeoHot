@@ -2,11 +2,11 @@ import { SITE } from "@aihot/industry/site";
 import { Link, useLoaderData } from "react-router";
 import type { Route } from "./+types/daily-archive";
 import type { ReportIndexEntry, ReportNavigationEntry } from "@aihot/contracts/site";
-import { loadOr404 } from "../lib/api.server";
+import { loadOr404, withLang } from "../lib/api.server";
 import { pageMeta } from "../lib/seo";
 import { localeAppPath, localeFromPath, useLocale } from "../lib/i18n";
 import { copy } from "../lib/i18n/pages/daily-archive";
-import { ChineseNotice } from "../components/ui/ChineseNotice";
+import { MissingEnglishNotice } from "../components/ui/ChineseNotice";
 import { beijingDate, beijingWeekday } from "../lib/format";
 import { EmptyState } from "../components/ui/Page";
 import { ReportLayout } from "../features/report/ReportLayout";
@@ -20,8 +20,10 @@ type ArchiveRow = { issue: Issue } | { gap: MissingRun };
 const rowKey = (row: ArchiveRow) => ("issue" in row ? row.issue.key : row.gap.from);
 
 export async function loader({ request }: { request: Request }) {
+  const locale = localeFromPath(new URL(request.url).pathname);
   // loadOr404 而不是裸 apiGet：接口 5xx 要按约定的 503 说话，不是把加载器抛出一个未捕获异常变成 500。
-  const { items: index } = await loadOr404<{ items: ReportIndexEntry[] }>("/api/site/reports/daily", { signal: request.signal });
+  // /en 的归档也要英文期次标题（缺英文回退中文，页面标注）。
+  const { items: index } = await loadOr404<{ items: ReportIndexEntry[] }>(withLang("/api/site/reports/daily", locale), { signal: request.signal });
   return { index, today: beijingDate(Date.now()) };
 }
 
@@ -39,7 +41,7 @@ export default function DailyArchive() {
   const { index, today } = useLoaderData<typeof loader>();
   const locale = useLocale();
   const c = copy[locale];
-  const months = archiveGroups("daily", index);
+  const months = archiveGroups("daily", index, locale);
   const gaps = missingRuns(index);
   const byMonth = new Map<string, MissingRun[]>();
   for (const run of gaps) byMonth.set(run.month, [...(byMonth.get(run.month) ?? []), run]);
@@ -72,8 +74,8 @@ export default function DailyArchive() {
           </div>
           <div aria-hidden="true" className="border-t border-line-strong" />
         </header>
-        {/* 英文页的一行说明：各期的标题与条目数仍是接口给的中文。中文页渲染为空。 */}
-        <ChineseNotice className="mt-1" />
+        {/* 只有归档里真的还有中文期次标题时才标注。中文页永不渲染。 */}
+        {index.some((e) => e.textLocale !== "en") && <MissingEnglishNotice className="mt-1" />}
         {/* 空档是这份报纸的事实，不是排版留白：读者两次把「归档跳过三天」读成同步坏了，所以这里自己说明。
             这一行不是链接——空刊照既有决定不进任何出口（`readableRows` 挡在索引层），按地址直达时才给
             200 的诚实空态。这里说的是"那天没出刊"这件事，不是"那天有一期你可以去翻"。 */}

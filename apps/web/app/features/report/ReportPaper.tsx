@@ -11,7 +11,7 @@ import { Link } from "react-router";
 import type { ReportCitation, ReportDetail, ReportKind, ReportNavigationEntry } from "@aihot/contracts/site";
 import { shortSourceName } from "../../lib/format";
 import { safeExternalHref } from "../../lib/safe-url.ts";
-import { useLocale } from "../../lib/i18n";
+import { useLocale, type Locale } from "../../lib/i18n";
 import { copy } from "../../lib/i18n/report";
 import { Badge } from "../../components/ui/Badge";
 import { Lightbox } from "../../components/ui/Lightbox";
@@ -229,12 +229,12 @@ function leadStoryOf(report: ReportDetail): ReportCitation | null {
  * Sections as pages. A story cited twice appears once, and
  * the story leading the front page is not repeated inside.
  */
-function pagesOf(report: ReportDetail, leadStory: ReportCitation | null): Page[] {
+function pagesOf(report: ReportDetail, leadStory: ReportCitation | null, locale: Locale): Page[] {
   const seen = new Set<string>(leadStory ? [keyOf(leadStory)] : []);
   return report.sections
     .map((s, i) => ({
       id: `s-${i + 1}`,
-      label: sectionHeading(s.label),
+      label: sectionHeading(s.label, locale),
       summary: s.summary,
       items: s.items
         .filter((c) => {
@@ -438,7 +438,7 @@ export function ReportPaper({ report, index, now }: { report: ReportDetail; inde
   const c = copy[locale];
   const daily = report.kind === "daily";
   const leadStory = leadStoryOf(report);
-  const pages = pagesOf(report, leadStory);
+  const pages = pagesOf(report, leadStory, locale);
   const count = pages.reduce((sum, p) => sum + p.items.length, 0) + (leadStory ? 1 : 0);
   // `History` renders only when the index holds an issue other than this one; the colophon's link points
   // at its anchor, so it has to appear on the same condition. It used to appear always, and on the first

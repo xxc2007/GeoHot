@@ -12,7 +12,18 @@
         "- 新增英文版入口，英文页面带 /en 前缀；侧边栏与「更多」页都能切换语言。",
         "- 英文版优先显示信源原题与原文正文；AI 摘要与日报仍为中文。"
       ],
-      "tags": ["web", "i18n"]
+      "en": {
+        "title": "English interface is live, and the site can switch languages",
+        "body": [
+          "The site now has an English edition, and the whole interface can switch to English.",
+          "- A new English entry point: English pages use the /en prefix, and the sidebar and the More page can both switch languages.",
+          "- English pages show the source's original headline and article body first; AI summaries and the daily report stay in Chinese."
+        ]
+      },
+      "tags": [
+        "web",
+        "i18n"
+      ]
     },
     {
       "date": "2026-11-21",
@@ -25,7 +36,18 @@
         "每笔调用的服务与用途随流水一并落行：事后改标签会同步补到历史行，翻旧账不再读到旧口径。",
         "重聚合窗口里角标偶发超时会先沿用上一次数值再自动重算，不再整页报错；读者页面与账单不受影响。"
       ],
-      "tags": ["admin", "usage"]
+      "en": {
+        "title": "Admin usage figures load faster; occasional badge errors end",
+        "body": [
+          "The admin usage overview and day-by-day lookups no longer scan the whole tag table, so the ten-second-plus wait is mostly gone.",
+          "Each call's service and purpose are stored in the same row as its ledger entry: tag edits made later are backfilled onto historical rows, so old records no longer show the old wording.",
+          "During a re-aggregation window, a badge timeout now falls back to the previous value and recomputes automatically instead of erroring the whole page; reader pages and billing are unaffected."
+        ]
+      },
+      "tags": [
+        "admin",
+        "usage"
+      ]
     },
     {
       "date": "2026-11-21",
@@ -38,7 +60,18 @@
         "清理候选与安全复核只出清单：删除、搬移与凭据轮换都等站长逐条确认后再动。",
         "这一条只补文档，站点功能、采集与发布流程都没有变化。"
       ],
-      "tags": ["docs", "ops"]
+      "en": {
+        "title": "Commit ledger, era history, and a project map",
+        "body": [
+          "All 1714 commits in the repository are recorded one by one in a ledger, with a thematic history in four periods and a project map that explains what each part does.",
+          "Cleanup candidates and the security review produced lists only: deletions, moves, and credential rotation wait for the site owner to confirm each item.",
+          "This entry adds documents only; site features, collection, and publishing are unchanged."
+        ]
+      },
+      "tags": [
+        "docs",
+        "ops"
+      ]
     },
     {
       "date": "2026-11-21",
@@ -51,7 +84,19 @@
         "候选不会直接进正式池：管理员批准才写入，默认暂停；拒绝要写原因，每条都留着引擎证据。",
         "不写文章、不调用模型、不产生费用；池满时先退役一个源，再批准。"
       ],
-      "tags": ["sources", "admin", "discovery"]
+      "en": {
+        "title": "A source-discovery page for the admin",
+        "body": [
+          "The admin has a new Source Discovery page: several search APIs look for candidates in parallel, results are cross-checked on the same site, then the feed is fetched live; only sources that pass the quality gate enter the review queue.",
+          "Candidates never enter the main pool directly: an admin must approve them, and approved sources start paused. A rejection needs a reason, and every entry keeps the engine evidence.",
+          "It writes no articles, calls no models, and costs nothing. When the pool is full, a source retires before another is approved."
+        ]
+      },
+      "tags": [
+        "sources",
+        "admin",
+        "discovery"
+      ]
     },
     {
       "date": "2026-11-21",
@@ -63,7 +108,17 @@
         "读者 API 的连接池从 2 调到 8、调度队列的连接 3：健康探针不再超时，信源页从 40 秒回到 277 毫秒。",
         "改完要逐台读回进程的真实环境变量，不能只看 .env——systemd 的配置文件会覆盖它。"
       ],
-      "tags": ["admin", "ops"]
+      "en": {
+        "title": "Admin no longer queues for connections",
+        "body": [
+          "The reader API connection pool went from 2 to 8, and the scheduler queue has 3 connections: health probes no longer time out, and the sources page went from 40 seconds to 277 milliseconds.",
+          "Each machine's real process environment has to be read back after the change; the .env file alone is not enough, because the systemd config file overrides it."
+        ]
+      },
+      "tags": [
+        "admin",
+        "ops"
+      ]
     },
     {
       "date": "2026-11-20",
@@ -75,7 +130,17 @@
         "7.0 的补位脚本把参与方式当列名写进插入语句，候选转正时那一行写不进库。",
         "改成按值绑定后，替换仍在同一事务里一停一启，失败源先进隔离区，再由已核验的候选顶上。"
       ],
-      "tags": ["sources", "fix"]
+      "en": {
+        "title": "Source replacement writes to the database again",
+        "body": [
+          "The 7.0 replacement script wrote the participation mode as a column name in its INSERT, so the row could not be saved when a candidate was promoted.",
+          "Now bound by value, replacement still stops and starts inside one transaction: a failed source enters quarantine first, then a verified candidate takes its place."
+        ]
+      },
+      "tags": [
+        "sources",
+        "fix"
+      ]
     },
     {
       "date": "2026-11-20",
@@ -88,7 +153,19 @@
         "模型冷却按账号停用、日额度、分钟限流与连接失败分开处理，后台写明恢复条件。",
         "用量首次统计不再显示假的零；旧数据保留并标明时间，后台忙时也不装死。"
       ],
-      "tags": ["models", "admin", "ops"]
+      "en": {
+        "title": "Every model call now has a ledger that adds up",
+        "body": [
+          "Subscription, free, no-public-price, and public API list prices are recorded separately; price cards carry versions, and exchange rates and official prices are checked daily.",
+          "Model cooldowns are split by account suspension, daily quota, per-minute rate limit, and connection failure, and the admin states the recovery condition for each.",
+          "First usage totals no longer show a fake zero; old data is kept with its timestamp, and the admin no longer freezes when it is busy."
+        ]
+      },
+      "tags": [
+        "models",
+        "admin",
+        "ops"
+      ]
     },
     {
       "date": "2026-11-20",
@@ -101,7 +178,19 @@
         "备用只收公开 RSS 与 JSON 入口，复核不写文章、不调用模型，也不产生费用。",
         "连续失败、长时间没有成功的正式源才替换；每轮最多两个，切换一停一启并写审计。"
       ],
-      "tags": ["sources", "workflow", "admin"]
+      "en": {
+        "title": "Two thousand sources, a thousand live and a thousand spare",
+        "body": [
+          "1,000 active collection sources and 1,000 backup candidates; backups are reviewed on a schedule, and a broken entry is replaced by a verified candidate in the same category.",
+          "Backups take only public RSS and JSON feeds; a review writes no articles, calls no models, and costs nothing.",
+          "Only active sources that fail repeatedly or go a long time without success are replaced; at most two per round, each switched with a stop and start and recorded in the audit log."
+        ]
+      },
+      "tags": [
+        "sources",
+        "workflow",
+        "admin"
+      ]
     },
     {
       "date": "2026-11-20",
@@ -113,6 +202,14 @@
         "Magpie 白名单静态资源改为流式转发，供应商图标目录补全，大脚本不再整包缓冲进 API 堆。",
         "读者机 API 内存上限与 V8 堆单独设置；是否彻底消除 OOM 仍看部署后的重启计数与真实请求。"
       ],
+      "en": {
+        "title": "Usage recovery and streamed Magpie assets",
+        "body": [
+          "The condition for the first usage snapshot now matches the resource check, so the 891MiB reader machine no longer sits forever at \"Generating statistics\" under constant memory pressure.",
+          "Allowlisted Magpie static assets are streamed instead of buffered; the vendor icon directory is complete, and large scripts no longer land whole in the API heap.",
+          "The reader machine's API memory limit and V8 heap are set separately; whether OOM is truly gone still depends on restart counts and real requests after deployment."
+        ]
+      },
       "tags": [
         "admin",
         "models",
@@ -130,6 +227,14 @@
         "单次统计读取截止放宽到 30 秒，后台快照异步刷新；Magpie 静态白名单补供应商图标目录，脚本加载不占 API 限流。",
         "运维文档同步面板 API 1200 次/分钟、必需检查与 nginx 改配置后的生效步骤。"
       ],
+      "en": {
+        "title": "Admin usage and Magpie panel gaps closed",
+        "body": [
+          "Usage aggregation no longer stops when one model has some hours without a valid price card and some with one; today, this month, and filtered results keep generating.",
+          "The timeout for a single statistics read is now 30 seconds, and the admin snapshot refreshes asynchronously; the Magpie static allowlist gained the vendor icon directory, and script loads no longer use the API rate limit.",
+          "The ops docs now record the panel API's 1200 requests per minute, the required checks, and the steps to make an nginx config change take effect."
+        ]
+      },
       "tags": [
         "admin",
         "models",
@@ -146,6 +251,14 @@
         "价卡改为版本化记录，汇率取最新落库值；缺标注项不阻塞出账。",
         "查不到官方价就标无公开价，不估算，也不套用相似模型的价。"
       ],
+      "en": {
+        "title": "Cost conversion separates subscription, free, and no-public-price",
+        "body": [
+          "The admin usage page converts costs with official price cards and puts actual bills first; subscription, free, and no-public-price models are listed separately and no longer mixed into API unit prices.",
+          "Price cards are now versioned records, and the exchange rate uses the latest stored value; a missing annotation does not block billing.",
+          "When no official price is found, the model is marked no public price; nothing is estimated, and no similar model's price is borrowed."
+        ]
+      },
       "tags": [
         "admin",
         "models",
@@ -161,6 +274,13 @@
         "正文若只剩同意墙、模板壳、站点工具栏残渣或参考文献，会先判为有缺陷，读者只看到摘要，不进完整正文。",
         "地震、气象这类结构化短公报不受影响，仍按速报展示；修复并重新过完工作流后才翻回公开。"
       ],
+      "en": {
+        "title": "Bodies with leftover junk stay out of public full text",
+        "body": [
+          "If an article body is only a consent wall, a template shell, site toolbar debris, or references, it is marked defective; readers see the summary only, not the full text.",
+          "Structured short bulletins such as earthquake and weather reports are not affected and still appear as flash reports; a body returns to public only after repair and a full workflow rerun."
+        ]
+      },
       "tags": [
         "workflow",
         "sources",
@@ -176,6 +296,13 @@
         "后台信源页的池总数改为正式启用与备用候选的并集，两边不再重复计数。",
         "备用候选单列新鲜度：7 天内校验过的可用，过期或隔离的分开标注。"
       ],
+      "en": {
+        "title": "Source pool count is now the active-plus-backup union",
+        "body": [
+          "The pool total on the admin sources page is now the union of active and backup candidates, so neither side is counted twice.",
+          "Backup candidates show freshness separately: those checked within 7 days are usable, while expired or quarantined ones are labeled apart."
+        ]
+      },
       "tags": [
         "admin",
         "sources"
@@ -191,6 +318,14 @@
         "每条冷却带上证据时间与恢复条件；未知结果不盲目重放，第二次未知留给后台判断。",
         "配置缺失类错误不再把普通 4xx 一并冷却。"
       ],
+      "en": {
+        "title": "Model cooldowns state evidence time and recovery condition",
+        "body": [
+          "The admin model page splits cooldowns by failure: connection timeout, account suspension, daily quota, per-minute rate limit, pending, and unknown.",
+          "Each cooldown carries the evidence time and recovery condition; an unknown result is not blindly replayed, and a second unknown is left to the admin.",
+          "Configuration-missing errors no longer put ordinary 4xx responses into cooldown as well."
+        ]
+      },
       "tags": [
         "admin",
         "models",
@@ -207,6 +342,14 @@
         "注册表与五台机器的池子都改成 hy4-flash，国际版桥实测仍被渠道拒绝，中国版与 magpie 都答话。",
         "顺手把早就 404 的 auto-hy3 摘掉，免得它每天继续白占一个成员位。"
       ],
+      "en": {
+        "title": "The pool's hy4 is now the real free-tier model",
+        "body": [
+          "The site owner pointed out that the upstream free-tier model is called hy4 flash, not the internal codename with preview.",
+          "The registry and the pools on five machines now use hy4-flash; the international bridge is still rejected by the channel in tests, while the China version and magpie both answer.",
+          "auto-hy3, which had long returned 404, was also removed so it stops wasting a member slot every day."
+        ]
+      },
       "tags": [
         "models",
         "workflow"
@@ -222,6 +365,14 @@
         "两条路都实测过 1-token 请求能答话；国际版桥当天对每个模型都回渠道拒绝，暂时留在池外。",
         "旧别名同时退休，避免工作流继续点名一个已经不在上游的模型。"
       ],
+      "en": {
+        "title": "hy3 retires and hy4 flash takes over",
+        "body": [
+          "Every hy3 in the model pool is replaced with hy4 flash: the China-version bridge and the server magpie each hold one member slot.",
+          "Both paths answered a 1-token test request; the international bridge returned a channel rejection for every model that day, so it stays out of the pool for now.",
+          "The old aliases retired at the same time, so workflows stop naming a model that is no longer upstream."
+        ]
+      },
       "tags": [
         "models",
         "workflow"
@@ -237,6 +388,14 @@
         "同一个问题实测隐藏推理量 low 183 < high 196 < max 203 token，档位确实被上游采纳。",
         "模型本身已经是两家端点当时最新的一代（agnes-3.0-flash），并写进 .env.example 便于迁移。"
       ],
+      "en": {
+        "title": "agnes moved to its strongest reasoning setting",
+        "body": [
+          "The two agnes gateways, for the international and domestic sites, moved reasoning effort from high to max.",
+          "On the same question, measured hidden reasoning was low 183 < high 196 < max 203 tokens, so upstream does honor the setting.",
+          "The model itself was already the newest generation at both endpoints at the time (agnes-3.0-flash), and it is now in .env.example to ease migration."
+        ]
+      },
       "tags": [
         "models",
         "workflow"
@@ -252,6 +411,14 @@
         "重启数据库会直接起不来。这段配置搬进仓库由部署同步，",
         "并加了范围测试，下次重启前就能拦住。"
       ],
+      "en": {
+        "title": "Database tuning no longer sets its own trap",
+        "body": [
+          "The vacuum delay written by hand on the machine was outside the range PostgreSQL allows,",
+          "so a database restart would fail to start. The setting moved into the repository and deploys sync it,",
+          "and a range test now catches the problem before the next restart."
+        ]
+      },
       "tags": [
         "运维"
       ]
@@ -266,6 +433,14 @@
         "现在 io 或内存压力到线就跳过，读者面照旧吃 stale 缓存。",
         "阈值 60/40，可用 GEOHOT_WARM_MAX_IO 与 GEOHOT_WARM_MAX_MEM 调。"
       ],
+      "en": {
+        "title": "Warmup no longer piles on during a crisis",
+        "body": [
+          "When the machine was pinned by swapping, the warmup timer still warmed the cold cache once a minute.",
+          "Now it skips once io or memory pressure hits the line, and readers still get the stale cache.",
+          "The thresholds are 60/40, and they can be tuned with GEOHOT_WARM_MAX_IO and GEOHOT_WARM_MAX_MEM."
+        ]
+      },
       "tags": [
         "运维",
         "性能"
@@ -281,6 +456,14 @@
         "现场实测：io some avg10 从 98.57 掉到 7.02，健康检查从 17.6 秒回到 5 毫秒。",
         "阈值 40/60、两次动手至少隔 30 分钟，只碰这两个单元。"
       ],
+      "en": {
+        "title": "Restart when the primary starts swapping",
+        "body": [
+          "When memory pressure hits the line, api and web restart and take back their swapped-out pages.",
+          "Measured on the machine: io some avg10 fell from 98.57 to 7.02, and the health check went from 17.6 seconds back to 5 milliseconds.",
+          "The thresholds are 40/60, actions are at least 30 minutes apart, and only these two units are touched."
+        ]
+      },
       "tags": [
         "运维"
       ]
@@ -295,6 +478,14 @@
         "新增补齐工具：逐条真抓一次，能用就登记为可用，不能用也登记为隔离并写明原因，跑完页面显示的就是真数。",
         "顺手把开发库那个 postgres 控制台窗口藏掉，本地起数据库不再在桌面留一个黑框。"
       ],
+      "en": {
+        "title": "Backup sources are no longer a blank ledger",
+        "body": [
+          "The Backup column in the admin reads the backup registry, but 1,064 disabled sources in the pool had never been registered, so the page stayed at 330.",
+          "A new backfill tool fetches each source for real: usable ones are registered as usable, unusable ones as quarantined with a reason, and after a run the page shows the real number.",
+          "The postgres console window for the dev database was also hidden, so starting the database locally no longer leaves a black box on the desktop."
+        ]
+      },
       "tags": [
         "sources",
         "admin",
@@ -311,6 +502,14 @@
         "白天改成只留离主库最近的一台做分析，另外三台照样采集、照样提取正文，分析槽写 0（这条车道单独计数，不影响别的活）。",
         "夜里十一点照旧全开；真要提升吞吐，先把盘换成能扛住四个分析器的。"
       ],
+      "en": {
+        "title": "Only one machine runs analysis in the daytime",
+        "body": [
+          "After four executors each opened one analysis slot in the daytime, io on the primary's slow disk hit 99%, admin logins began returning 504, and the health check took 464 seconds.",
+          "Daytime now leaves only the machine nearest the primary doing analysis; the other three still collect and extract body text, with their analysis slot set to 0 (this lane is counted separately and does not affect other work).",
+          "At 11 pm all of them open as before; to really raise throughput, the disk has to be replaced with one that can carry four analyzers."
+        ]
+      },
       "tags": [
         "ops",
         "perf",
@@ -327,6 +526,14 @@
         "后台与接口路径不再进这个桶，她们在服务端有自己的预算与会话校验；静态资源与真实读者照旧各自计数。",
         "入口限制的片段同时收进仓库，部署会连 conf.d 里的同名副本一起对齐，改仓库不再出现线上不变。"
       ],
+      "en": {
+        "title": "Admin panel no longer fights readers for the rate-limit bucket",
+        "body": [
+          "The Magpie panel fetches forty or fifty assets at once; when it shared the readers' 2-requests-per-second bucket, half its requests got a 429 and only the navigation bar was left.",
+          "Admin and API paths no longer enter that bucket; they have their own budget and session checks on the server. Static assets and real readers are still counted separately.",
+          "The entry-limit snippet is also kept in the repository now, and deploys align the copy of the same name in conf.d, so a repository edit no longer leaves production unchanged."
+        ]
+      },
       "tags": [
         "admin",
         "ops",
@@ -343,6 +550,14 @@
         "资源拿到 429、脚本缺件，面板只剩导航栏；真浏览器实测一次加载里有 19 个 429。",
         "代理这条路由的上限按面板的真实用量重定（仍是上限，只是不再卡住一个管理员的浏览器）。"
       ],
+      "en": {
+        "title": "The admin Magpie panel is no longer emptied by rate limits",
+        "body": [
+          "The Magpie panel embedded in the admin pulls dozens to a hundred assets at once, plus a once-per-second traffic-split poll; the 240-per-minute bucket fills the moment it opens.",
+          "Assets got 429s and scripts went missing, leaving only the navigation bar; a real-browser test recorded 19 429s in a single load.",
+          "The proxy route's limit was reset to the panel's real usage (still a cap, just no longer choking one admin's browser)."
+        ]
+      },
       "tags": [
         "admin",
         "perf",
@@ -359,6 +574,14 @@
         "结清的回执照旧一天丢正文；半路的给一周宽限，之后同样丢——行留着给统计，正文不留。",
         "tests/receipts-payload-retention.test.ts 补一条：八天前的半路回执被清、一天内的还在。"
       ],
+      "en": {
+        "title": "Receipts nobody settles no longer keep their bodies",
+        "body": [
+          "62,402 receipts are still sitting at received on the primary: recovery marked them unknown long ago, but their bodies kept bloating the table.",
+          "Settled receipts still lose their bodies after one day; in-flight ones get a one-week grace and then lose them too: the row stays for statistics, the body does not.",
+          "tests/receipts-payload-retention.test.ts adds a case: an eight-day-old in-flight receipt is cleared, while one less than a day old remains."
+        ]
+      },
       "tags": [
         "ops",
         "db"
@@ -374,6 +597,14 @@
         "拿 1-token 探针逐个实测，把实测 404 的成员从五台机器的池子里摘掉，回执里的 404 会跟着少。",
         "新增 tooling/model-pool-audit.mjs 与 prune-model-pool.sh：账号重新登进 magpie 后重跑探针即可。"
       ],
+      "en": {
+        "title": "Dead models are gone from the pool",
+        "body": [
+          "The pool held 11 aliases magpie no longer recognizes (79 member slots); a dispatch would hit a 404 before switching, and they caused half the failures in an hour.",
+          "A 1-token probe tested each one; members that returned 404 were removed from the pools on five machines, so receipts carry fewer 404s.",
+          "New tooling/model-pool-audit.mjs and prune-model-pool.sh: rerun the probe after the account logs back into magpie."
+        ]
+      },
       "tags": [
         "models",
         "routing",
@@ -390,6 +621,14 @@
         "于是白天没有任何分析在跑，积压堆到 2,163 条。现在只留一套：白天采集、正文提取加一个分析槽，夜里两个。",
         "setup-executor-window.sh 负责装好脚本、关掉旧机制。"
       ],
+      "en": {
+        "title": "Daytime operation no longer shuts down all day",
+        "body": [
+          "The Hangzhou and Wuhan machines each carried three day/night setups at once; one of them stopped the whole worker at 7 every day, and the script the newest one needed was not installed.",
+          "So no analysis ran during the day, and the backlog reached 2,163. Now only one mechanism remains: daytime collection, body extraction, and one analysis slot; two at night.",
+          "setup-executor-window.sh installs the script and turns off the old mechanisms."
+        ]
+      },
       "tags": [
         "ops",
         "executors",
@@ -406,6 +645,14 @@
         "fast-xml-parser 从 5.11.1 补到 5.12.0，修掉未闭合标签让 CPU 平方级增长的那个洞（Dependabot #62）。",
         "四十条订阅/XHTML/长文用例复跑通过。"
       ],
+      "en": {
+        "title": "Feed parser bumped to 5.12",
+        "body": [
+          "The XML from thousands of feeds is foreign input, so the parser itself has to survive malformed data.",
+          "fast-xml-parser moved from 5.11.1 to 5.12.0, closing the hole where unclosed tags made CPU use grow quadratically (Dependabot #62).",
+          "Forty feed, XHTML, and long-form test cases passed on a rerun."
+        ]
+      },
       "tags": [
         "security",
         "sources",
@@ -421,6 +668,13 @@
         "外观切换用的是浏览器的视图过渡：第二次点击会把第一次的过渡作废，被作废那次的选择原本跟着没了——点了深色，界面还留在浅色。",
         "现在过渡被作废时补做一次应用，并接住 ready 与 finished 两个拒绝，控制台也不再冒出 InvalidStateError。"
       ],
+      "en": {
+        "title": "Two quick appearance clicks should not lose the choice",
+        "body": [
+          "The appearance switcher uses the browser's View Transition API: a second click cancels the first transition, and the choice from the cancelled one was lost with it. You picked dark, and the interface stayed light.",
+          "Now a cancelled transition still applies the change, both the ready and finished rejections are caught, and the console no longer prints InvalidStateError."
+        ]
+      },
       "tags": [
         "web",
         "theme",
@@ -441,7 +695,15 @@
         "security",
         "admin",
         "config"
-      ]
+      ],
+      "en": {
+        "title": "The panel no longer lists machine addresses for attackers",
+        "body": [
+          "The public address the admin Servers page needs now comes from the server's env var, no longer hardcoded in the repo.",
+          "Each machine is still known by place name; the address column still shows, but is no longer published with the code.",
+          "A new guard fails the tests if any dial address appears on that page or in its API."
+        ]
+      }
     },
     {
       "date": "2026-11-16",
@@ -457,7 +719,15 @@
         "perf",
         "topics",
         "backend"
-      ]
+      ],
+      "en": {
+        "title": "Topic pages stop recomputing every time",
+        "body": [
+          "The topic page count cache goes from 1 to 5 minutes, matching the page's own cache.",
+          "On a slow disk each recompute scans over 100,000 rows; the more readers, the worse it gets.",
+          "The explicit-clock bypass stays for tests, and the decision behaviour is unchanged."
+        ]
+      }
     },
     {
       "date": "2026-11-16",
@@ -473,7 +743,15 @@
         "ops",
         "database",
         "performance"
-      ]
+      ],
+      "en": {
+        "title": "The small-hours vacuum no longer pins the disk",
+        "body": [
+          "Before vacuuming a large table it checks disk pressure; if the disk is busy it skips to the next window.",
+          "The vacuum now yields to other I/O and carries a 30-minute cap, instead of reading at full speed for hours.",
+          "Yesterday the 04:10 window pushed an 891 MB machine to load 30+, and the reader side fell to 10 seconds."
+        ]
+      }
     },
     {
       "date": "2026-11-16",
@@ -489,7 +767,15 @@
         "admin",
         "auth",
         "performance"
-      ]
+      ],
+      "en": {
+        "title": "Admin login stops stalling on disk",
+        "body": [
+          "Session checks are cached in-process for 30 seconds, so each admin endpoint no longer reads the session table.",
+          "When the disk is saturated, pages open after login without waiting a dozen seconds for data.",
+          "Logout clears this process's cache at once; other processes may honour the session for up to 30 more seconds."
+        ]
+      }
     },
     {
       "date": "2026-11-16",
@@ -504,7 +790,15 @@
       "tags": [
         "admin",
         "performance"
-      ]
+      ],
+      "en": {
+        "title": "Admin pages stop spinning one after another",
+        "body": [
+          "Settings, models, topic rotation, audit and usage now serve values 30–120 s old and recompute behind the scenes.",
+          "When the disk filled, these pages used to return 503; now they lag one beat at most and no longer wait for a timeout.",
+          "Concurrent requests for the same cache key hit the database once."
+        ]
+      }
     },
     {
       "date": "2026-11-16",
@@ -519,7 +813,15 @@
       "tags": [
         "admin",
         "performance"
-      ]
+      ],
+      "en": {
+        "title": "Admin overview stops waiting for a timeout",
+        "body": [
+          "The usage overview runs a few daily aggregates, tens of seconds each on a slow disk, and the page refreshes every 30 s.",
+          "Results cache in-process 60 s: hits at once; stale values while a recompute runs behind; old values stay if it fails.",
+          "A response header x-admin-cache (fresh / stale / miss / stale-error) shows at a glance which path served it."
+        ]
+      }
     },
     {
       "date": "2026-11-16",
@@ -534,7 +836,15 @@
       "tags": [
         "performance",
         "ops"
-      ]
+      ],
+      "en": {
+        "title": "No more self-harm on a slow disk",
+        "body": [
+          "Timeline snapshot: 30 s → 10 min. One aggregate scans 100,000+ rows; a 30 s recompute was a joke at readers' expense.",
+          "Deploy snapshots keep only the latest 3 (each deploy used to leave a 187 MB bundle; one night piled up 198).",
+          "Tests pin both changes so nobody turns them back."
+        ]
+      }
     },
     {
       "date": "2026-11-16",
@@ -549,7 +859,15 @@
       "tags": [
         "infra",
         "fleet"
-      ]
+      ],
+      "en": {
+        "title": "The sandbox stops dropping every half hour",
+        "body": [
+          "InstaBox's free tier pauses after 30 idle minutes, and the sandbox only connects outward, so the platform sees no use.",
+          "The primary sends inbound activity every 5 min; a paused machine gets /start at once and its executor back from /data.",
+          "Along the way: /wake returns 409 for an already-paused machine; /start is what actually rescues it."
+        ]
+      }
     },
     {
       "date": "2026-11-15",
@@ -564,7 +882,15 @@
       "tags": [
         "infra",
         "fleet"
-      ]
+      ],
+      "en": {
+        "title": "A fifth machine joins the fleet",
+        "body": [
+          "InstaBox sandbox (4 cores / 8 GB) is now the fifth executor: 2 analysis slots; heartbeat: InstaBox on admin Servers.",
+          "Free tier pauses after 30 idle minutes, so the primary sends /wake every 20 min to keep the tunnel and executor awake.",
+          "The panel's place-name table now lists the InstaBox sandbox instead of showing its bare hostname."
+        ]
+      }
     },
     {
       "date": "2026-11-15",
@@ -579,7 +905,15 @@
       "tags": [
         "infra",
         "edge"
-      ]
+      ],
+      "en": {
+        "title": "The China entry gets a proper domain",
+        "body": [
+          "cn.xxc2007.me is live: grey-cloud A record at the Huawei Cloud edge; cert via DNS-01 (HTTP-01 blocked by ICP filing).",
+          "From China: 0.35–0.64 s in Hangzhou, 0.04–0.11 s in Shanghai on an edge hit, against 1.25–9.8 s via Cloudflare.",
+          "Certificate renewal is automatic through the cloudflare plugin; the install script gains a tls subcommand."
+        ]
+      }
     },
     {
       "date": "2026-11-15",
@@ -594,7 +928,15 @@
       "tags": [
         "ops",
         "db"
-      ]
+      ],
+      "en": {
+        "title": "Receipts vacuum moves to the small hours",
+        "body": [
+          "receipts: 2.8 GB, 80,000+ dead tuples. An afternoon autovacuum drove the slow disk to io 98.6 and reader pages to 5 s.",
+          "Autovacuum thresholds and cost limits are loosened; the real vacuum runs daily at 04:10 (SKIP_LOCKED, idle I/O).",
+          "After cancelling that autovacuum, io fell from 98.6 to 2.76 and the health check returned to 0 ms."
+        ]
+      }
     },
     {
       "date": "2026-11-15",
@@ -609,7 +951,15 @@
       "tags": [
         "ops",
         "box"
-      ]
+      ],
+      "en": {
+        "title": "An empty wallet shouldn't flood the logs",
+        "body": [
+          "With the box wallet at 0, wake kept returning 409; keepalive retried every 15 s and logged a reconnect every 16 s.",
+          "It now backs off 15→30→60→120→300 seconds and logs a line only when the failure reason changes.",
+          "No restart is needed after a top-up; the process returns to its normal 60-second cadence on the next cycle."
+        ]
+      }
     },
     {
       "date": "2026-11-15",
@@ -624,7 +974,15 @@
       "tags": [
         "tests",
         "ci"
-      ]
+      ],
+      "en": {
+        "title": "The budget test stops tripping on minute boundaries",
+        "body": [
+          "The test treated 'used this minute + N' as the remaining quota; CI saw three passes in a row.",
+          "At a minute boundary used reset to 0 and the remainder became used + N, so the assertion failed at random.",
+          "It resets until the remainder is exactly N, three tries at most; reports 'the minute window keeps rolling'. Test-only."
+        ]
+      }
     },
     {
       "date": "2026-11-15",
@@ -639,7 +997,15 @@
       "tags": [
         "docs",
         "deploy"
-      ]
+      ],
+      "en": {
+        "title": "The docs get you running locally",
+        "body": [
+          "Clean clone surfaced three fixes: background DB start calls the node entry directly (nohup npm hangs in Git Bash).",
+          "Smoke gains an npm alias and a build-frontend note; migration count goes 108 → 114; smoke URL takes no /geohot prefix.",
+          "New tests/readme-deploy-docs.test.ts pins these commands so they cannot regress."
+        ]
+      }
     },
     {
       "date": "2026-11-15",
@@ -654,7 +1020,15 @@
       "tags": [
         "worker",
         "throughput"
-      ]
+      ],
+      "en": {
+        "title": "Twice the concurrency at night",
+        "body": [
+          "All three executors get a day/night profile: 0 analysis slots by day, 2 each from 23:00, withdrawn at 07:00.",
+          "By day they fetch and extract body text only (540 items/hour measured, queue at zero); analysis waits for the night.",
+          "The reader side leans on the edge cache and on-disk drafts; on 5xx the R115 gate still protects readers first."
+        ]
+      }
     },
     {
       "date": "2026-11-15",
@@ -669,7 +1043,15 @@
       "tags": [
         "worker",
         "reliability"
-      ]
+      ],
+      "en": {
+        "title": "Don't switch off body extraction by day",
+        "body": [
+          "Day profile used to set WORKER_ROLE=fetcher, which also switched off body extraction; 6 hours, 420 title-only drafts.",
+          "Now it turns off analysis only (0 slots); fetching and body extraction keep running, with ANALYZE_CONCURRENCY always 1.",
+          "A 0 there is invalid and falls back to 6. Nights still get 1 analysis slot; the reader side comes first."
+        ]
+      }
     },
     {
       "date": "2026-11-15",
@@ -684,7 +1066,15 @@
       "tags": [
         "admin",
         "reliability"
-      ]
+      ],
+      "en": {
+        "title": "Admin reads retry once on timeout",
+        "body": [
+          "Real-browser sweep: 3 of 14 admin checks got 503; one disk hiccup and /admin/settings and /admin/audit said 'try later'.",
+          "Admin reads retry once after a statement timeout, at 12 s on the retry; the old message returns only if both time out.",
+          "This touches admin reads only; reader-side budgets and concurrency are unchanged."
+        ]
+      }
     },
     {
       "date": "2026-11-15",
@@ -699,7 +1089,15 @@
       "tags": [
         "admin",
         "reliability"
-      ]
+      ],
+      "en": {
+        "title": "Admin reads retry once on timeout",
+        "body": [
+          "Real-browser sweep: 3 of 14 admin checks got 503; one disk hiccup and /admin/settings and /admin/audit said 'try later'.",
+          "Admin reads retry once after a statement timeout, at 12 s on the retry; the old message returns only if both time out.",
+          "This touches admin reads only; reader-side budgets and concurrency are unchanged."
+        ]
+      }
     },
     {
       "date": "2026-11-15",
@@ -714,7 +1112,15 @@
       "tags": [
         "admin",
         "sources"
-      ]
+      ],
+      "en": {
+        "title": "The official source target is now adjustable",
+        "body": [
+          "Admin Sources gains a dial: set the official fetch target from 1,000 to whatever you pick, give a reason, save.",
+          "It changes only the policy ceiling, not any source; per-source on/off still happens in the list, and both go to audit.",
+          "The overall target of 2,000 comes from the migration; the page shows it next to how many spares are still missing."
+        ]
+      }
     },
     {
       "date": "2026-11-15",
@@ -729,7 +1135,15 @@
       "tags": [
         "deploy",
         "pipeline"
-      ]
+      ],
+      "en": {
+        "title": "Executors fetch only by day",
+        "body": [
+          "Analysis concurrency drove the primary's slow disk to io 99% and the reader side to 5–15 seconds.",
+          "From 07:00 executors fetch only; one analysis slot opens at 23:00.",
+          "Both timers run on Beijing time, ship with the repo, and can be changed at any time."
+        ]
+      }
     },
     {
       "date": "2026-11-15",
@@ -743,7 +1157,15 @@
       ],
       "tags": [
         "admin"
-      ]
+      ],
+      "en": {
+        "title": "The servers panel knows machines by place name",
+        "body": [
+          "Each heartbeat now carries place name + public IP; the admin no longer shows instance ids.",
+          "Hangzhou <Hangzhou host>, Wuhan <Wuhan host>, Huawei Cloud Guangzhou <Guangzhou edge host>, primary <primary host>.",
+          "When an old machine reports no place name, it falls back to the hostname prefix table."
+        ]
+      }
     },
     {
       "date": "2026-11-15",
@@ -753,7 +1175,14 @@
       "title": "五台机器，一条流水线",
       "body": [
         "Azure 主库管读者面，杭州、武汉、box、广州四台按角色领活，白天收着跑、夜里放开跑，坏了自己回来。"
-      ]
+      ],
+      "en": {
+        "title": "Five machines, one pipeline",
+        "body": [
+          "The Azure primary serves readers; the four machines in Hangzhou, Wuhan, box and Guangzhou take work by role.",
+          "They run restrained by day and open up at night, and come back on their own when they fail."
+        ]
+      }
     },
     {
       "date": "2026-11-15",
@@ -763,7 +1192,14 @@
       "title": "毫秒级：读者先看到，机器慢慢算",
       "body": [
         "缓存铺到五层，首页与全部每 50 秒保温，国内读者走广州边缘；同一分钟：境外 2.10 秒、国内 0.11 秒、命中 0.0003 秒。"
-      ]
+      ],
+      "en": {
+        "title": "Milliseconds: readers see it first, machines catch up",
+        "body": [
+          "Cache now runs five layers; home and All are warmed every 50 s, and readers in China go through the Guangzhou edge.",
+          "In the same minute: 2.10 s from abroad, 0.11 s in China, 0.0003 s on a hit."
+        ]
+      }
     },
     {
       "date": "2026-11-15",
@@ -773,7 +1209,15 @@
       "title": "今天的内容，今天就能读到",
       "body": [
         "来源授权、正文、中文文案、相关度、发布门五道全过才上线；补选不再被隐形条件卡住，手机与桌面一直往下拉。"
-      ]
+      ],
+      "en": {
+        "title": "Today's content, readable today",
+        "body": [
+          "Five gates must all pass: source authorisation, body text, Chinese copy, relevance and the publish gate.",
+          "Backfill picks no longer get stuck on invisible conditions.",
+          "Mobile and desktop scroll on without end."
+        ]
+      }
     },
     {
       "version": "v3.0.111",
@@ -784,7 +1228,15 @@
         "edge: 华为云广州做国内缓存反代，隧道 8443 回源主库 https，HTML 缓存 120 秒。",
         "warm: 边缘每 50 秒自热六个常用地址，缓存永不过期，实测杭州 0.11 秒、本机 0.29 秒。",
         "exec: 同一台机器兼第二内容执行器（2 槽），与其余四机一起 1,276 条/小时。"
-      ]
+      ],
+      "en": {
+        "title": "Readers in China get their own edge",
+        "body": [
+          "edge: Huawei Cloud Guangzhou runs the China cache reverse proxy; 8443 tunnel fetches primary https, HTML cached 120 s.",
+          "warm: the edge warms six common URLs every 50 s, cache never expires; measured 0.11 s in Hangzhou, 0.29 s locally.",
+          "exec: same machine doubles as the second content executor (2 slots); with the other four, 1,276 items/hour."
+        ]
+      }
     },
     {
       "version": "v3.0.110",
@@ -795,7 +1247,15 @@
         "pool: 补登记 auto 系六扇门与 antigravity/trae-cn/autoclaw 各一扇，实测 1-token 200 才登记。",
         "ops: 三台执行器与本机各补 MAGPIE_BASE_URL，box 与本地隧道新增 3426 转发。",
         "why: 目录 57 个模型里 19 个有门，其余失败的五扇有证据，见 providers/llm.ts 注释。"
-      ]
+      ],
+      "en": {
+        "title": "Every answering gate in magpie joins the model pool",
+        "body": [
+          "pool: added six auto gates and one each for antigravity, trae-cn, autoclaw; only a 1-token 200 got a gate listed.",
+          "ops: added MAGPIE_BASE_URL on three executors and this machine, plus a 3426 forward on box and the local tunnel.",
+          "why: of 57 models in the catalog, 19 have a gate; evidence for the five failed gates is in providers/llm.ts comments."
+        ]
+      }
     },
     {
       "version": "v3.0.109",
@@ -806,7 +1266,15 @@
         "web: 首页与「全部」单独一条 60 秒预热带，其余四屏仍 2 分钟。",
         "ops: 预热带走 idle I/O，后台繁忙时也不抢前台的盘。",
         "why: 缓存 60 秒过期，冷算要 2.4–4.2 秒，读者每分钟撞一次。"
-      ]
+      ],
+      "en": {
+        "title": "Someone precomputes the home page every minute",
+        "body": [
+          "web: home and All get their own 60-second warm band; the other four screens stay at 2 minutes.",
+          "ops: the warm band runs at idle I/O and does not take the front end's disk when the system is busy.",
+          "why: the cache expires after 60 seconds, a cold compute takes 2.4–4.2 s, and readers hit one every minute."
+        ]
+      }
     },
     {
       "version": "v3.0.108",
@@ -817,7 +1285,15 @@
         "ops: 夜间 pg_dump 改用 ionice idle + nice 19，永远排在读者后面。",
         "ops: receipts 与 receipt_attempts 只导结构，dump 体积与读盘量砍半。",
         "why: 一次全量备份能把主库打到 99%，首页 3.5 秒。"
-      ]
+      ],
+      "en": {
+        "title": "Backups stop taking the readers' disk",
+        "body": [
+          "ops: the nightly pg_dump now runs under ionice idle + nice 19, always behind readers.",
+          "ops: receipts and receipt_attempts are schema-only, halving dump size and disk reads.",
+          "why: one full backup could push the primary to 99% and the home page to 3.5 seconds."
+        ]
+      }
     },
     {
       "version": "v3.0.107",
@@ -828,7 +1304,15 @@
         "monitor: 验收前先等磁盘安静，等不到就跳过巡检并提示手工复跑。",
         "deploy: 只还原进来时在岗的定时器，不再复活人手工停掉的那几个。",
         "why: 凌晨三次上线被 000/503 判红，还顺手把指纹还原成旧提交。"
-      ]
+      ],
+      "en": {
+        "title": "Deploys stop counting a slow disk as failure",
+        "body": [
+          "monitor: before acceptance it waits for the disk to settle; if not, it skips the inspection and asks for a manual rerun.",
+          "deploy: it restores only the timers that were running on entry, and no longer revives ones a person stopped by hand.",
+          "why: three overnight releases were marked red on 000/503, and it also restored the fingerprint to an old commit."
+        ]
+      }
     },
     {
       "version": "v3.0.106",
@@ -839,7 +1323,15 @@
         "一份收录池原来 45 秒就过期，机器跟不上时会自己堆成雪崩",
         "现在五分钟新鲜、半小时可用，现算最多等二十秒",
         "预热器从二十秒一轮改成两分钟一轮"
-      ]
+      ],
+      "en": {
+        "title": "Pool rebuilds no longer pile up",
+        "body": [
+          "A pool copy expired after 45 seconds, and a machine that couldn't keep up piled rebuilds into an avalanche.",
+          "It is now fresh for five minutes and usable for half an hour; an on-demand build waits at most 20 seconds.",
+          "The warmer runs every two minutes instead of every 20 seconds."
+        ]
+      }
     },
     {
       "version": "v3.0.105",
@@ -850,7 +1342,15 @@
         "审计、反馈、信源三个列表滚到底就自动续读",
         "不再有上一页／下一页的按钮，也不用记住页码",
         "取不到时给一次「再试一次」，不做无限重试"
-      ]
+      ],
+      "en": {
+        "title": "The back office scrolls too",
+        "body": [
+          "The audit, feedback and sources lists load more when you reach the bottom.",
+          "No previous/next buttons, and no page numbers to remember.",
+          "When a fetch fails there is one “Try again”, not an endless retry."
+        ]
+      }
     },
     {
       "version": "v3.0.104",
@@ -861,7 +1361,15 @@
         "主题页原来是每页二十条，读完要按一下「下一页」。",
         "现在滚到底就自动接着取，和精选、全部是同一个手感。",
         "没有脚本的读者仍有分页链接，爬虫照旧能翻。"
-      ]
+      ],
+      "en": {
+        "title": "Topic pages scroll too",
+        "body": [
+          "Topic pages used to show 20 items per page, with a “Next page” click at the end.",
+          "Now they load more at the bottom, the same feel as Picks and All updates.",
+          "Readers without scripts still get pagination links, and crawlers can still page through."
+        ]
+      }
     },
     {
       "version": "v3.0.103",
@@ -872,7 +1380,15 @@
         "一条订阅源生成要两分钟，期间全站的读都被它挤着。",
         "现在进程内留十分钟，过期先给旧的再后台换新。",
         "并发请求也只在飞一次，不再把慢查询叠起来。"
-      ]
+      ],
+      "en": {
+        "title": "Feeds are built once every ten minutes",
+        "body": [
+          "Building one feed takes two minutes, and during that time it crowds every other read on the site.",
+          "A feed now stays in memory for ten minutes; on expiry the old copy goes out while a new one builds behind.",
+          "Concurrent requests share a single build in flight instead of stacking slow queries."
+        ]
+      }
     },
     {
       "version": "v3.0.102",
@@ -883,7 +1399,15 @@
         "一条订阅源要生成两分钟，它把读者读书的位置也占了。",
         "现在它们各走一层十分钟缓存，生成一次全站共用。",
         "顺带把限连接也按回环豁免，部署验收不再自己限死自己。"
-      ]
+      ],
+      "en": {
+        "title": "Feeds and report pages get their own cache",
+        "body": [
+          "Building one feed takes two minutes and also takes the slot readers need.",
+          "Both now sit behind a ten-minute cache, built once and shared across the site.",
+          "Connection limits now exempt loopback, so deploy checks no longer throttle themselves."
+        ]
+      }
     },
     {
       "version": "v3.0.101",
@@ -894,7 +1418,15 @@
         "缓存六十秒一过期，每分钟都有一位读者替全站等冷算。",
         "现在每二十秒由定时器把五个页面算一遍，读者总是命中。",
         "源站实测首屏从三到十五秒降到六到十一毫秒。"
-      ]
+      ],
+      "en": {
+        "title": "A timer warms the page cache",
+        "body": [
+          "The cache expired every 60 seconds, so once a minute a reader waited out a cold build for the whole site.",
+          "A timer now rebuilds five pages every 20 seconds, so readers always hit a warm copy.",
+          "Measured on the origin, first paint fell from 3–15 s to 6–11 ms."
+        ]
+      }
     },
     {
       "version": "v3.0.100",
@@ -905,7 +1437,15 @@
         "时间线以前只存在内存里，进程一重启就得现算。",
         "主库忙的时候这一屏要十几秒，读者看到的是空白。",
         "现在上一份落盘，重启后读本地文件就能出屏。"
-      ]
+      ],
+      "en": {
+        "title": "The home page no longer waits on the database after a restart",
+        "body": [
+          "The timeline used to live only in memory, so every restart meant building it from scratch.",
+          "With the primary busy, that screen took over ten seconds and readers saw a blank.",
+          "The last copy is now on disk; after a restart the local file paints the screen."
+        ]
+      }
     },
     {
       "version": "v3.0.99",
@@ -916,7 +1456,15 @@
         "时间线快照只留了五秒，主库一忙就变成一直在冷算。",
         "手机首屏因此在三点五到七点七秒之间打转。",
         "现在留三十秒，仍以下一条精选发布时刻为准。"
-      ]
+      ],
+      "en": {
+        "title": "The home page no longer rebuilds every five seconds",
+        "body": [
+          "The timeline snapshot lived for five seconds; once the primary was busy, every read was a cold build.",
+          "Phone first paint therefore sat between 3.5 and 7.7 seconds.",
+          "It now lives for 30 seconds, still timed to the next Pick's publish moment."
+        ]
+      }
     },
     {
       "version": "v3.0.98",
@@ -927,7 +1475,15 @@
         "精选巡检补选的条目没写放行时间。",
         "读者门禁当成「未到时间」，一条都不出现。",
         "现在补选即放行，历史 248 条一并补上。"
-      ]
+      ],
+      "en": {
+        "title": "Backfilled Picks are no longer stuck at the gate",
+        "body": [
+          "Rows added by the Picks check had no release time.",
+          "The reader gate read that as “not yet due”, so none of them appeared.",
+          "Backfilled rows now go live on selection, and 248 older items were backfilled too."
+        ]
+      }
     },
     {
       "version": "v3.0.97",
@@ -938,7 +1494,15 @@
         "box 保活进程和它的单元不再是机器上的孤本",
         "部署时连 *.mjs 一起同步到 /opt/geohot/bin",
         "配置漂移从此归零"
-      ]
+      ],
+      "en": {
+        "title": "Keep-alive script and unit move into the repo",
+        "body": [
+          "The box keep-alive process and its unit are no longer a lone copy living on one machine.",
+          "Deploys now sync *.mjs to /opt/geohot/bin as well.",
+          "Configuration drift drops to zero."
+        ]
+      }
     },
     {
       "version": "v3.0.96",
@@ -949,7 +1513,15 @@
         "角色与作业分组写成纯函数，单测钉住",
         "采集、归组、发布、定时不再被漏注册",
         "现场：采集队列涨到 784 条没人领"
-      ]
+      ],
+      "en": {
+        "title": "The coordinator no longer misses job claims",
+        "body": [
+          "Roles and job grouping are pure functions pinned by unit tests.",
+          "Collection, grouping, publishing and scheduling are no longer left unregistered.",
+          "The evidence: the collection queue grew to 784 jobs and no one claimed them."
+        ]
+      }
     },
     {
       "version": "v3.0.95",
@@ -960,7 +1532,15 @@
         "手机切到「全部」时先画出列表的形状，数据到了原地换掉，不再停在一行等待文字上。",
         "每一页成功的收录池答案都落一份到磁盘，重启后第一个读者也直接看到上一份。",
         "主库忙的时候先给这一份，后台再去换新的。"
-      ]
+      ],
+      "en": {
+        "title": "Phones no longer wait on the pool",
+        "body": [
+          "On a phone, switching to All draws the list shape first and swaps in data as it arrives, instead of a waiting line.",
+          "Every successful pool response is written to disk, so the first reader after a restart sees the previous copy.",
+          "When the primary is busy, that copy goes out first and a new one is fetched behind."
+        ]
+      }
     },
     {
       "version": "v3.0.94",
@@ -971,7 +1551,15 @@
         "媒体预热原来只在服务器上有一条手写单元，仓库里没有，漂移检查因此永远报一处差异。",
         "现在它有自己的模板：一次只准备一篇、单张图给一分钟、磁盘优先级最低。",
         "想要严格模式就让它跑，想要省磁盘就停掉它，稿件的图会一直停在未就绪。"
-      ]
+      ],
+      "en": {
+        "title": "The image fetcher moves into the repo",
+        "body": [
+          "Media warm-up was a hand-written unit on the server only; with none in the repo, drift checks always flagged one gap.",
+          "It now has its own template: one article at a time, one minute per image, lowest disk priority.",
+          "Turn it on for strict mode, off to save disk; the article's images remain not ready."
+        ]
+      }
     },
     {
       "version": "v3.0.93",
@@ -982,7 +1570,15 @@
         "「今日几条」「共几条」这两句只是说明文字，却要扫一遍全表，忙的时候一次要几分钟。",
         "现在同时最多两条，每条十五秒就放手，超时就把上一次的数字再写一遍。",
         "读者看到的页面不会因为这两句话而卡住，数字最多旧十分钟。"
-      ]
+      ],
+      "en": {
+        "title": "Counting no longer avalanches",
+        "body": [
+          "“Today's count” and “total count” are captions, yet each scanned the whole table: minutes apiece on a busy machine.",
+          "At most two now run at once, each lets go after 15 seconds, and on timeout the previous numbers are written again.",
+          "The page no longer stalls on those two lines, and the numbers are at most ten minutes old."
+        ]
+      }
     },
     {
       "version": "v3.0.92",
@@ -993,7 +1589,15 @@
         "数据库一时跟不上，就让读者看到一分钟前的这一页，而不是一个错误页。",
         "后台照常去取新的一页，取到了下一个人就能看到。",
         "只在出错、超时、正在刷新时使用旧页，正常情况仍然按原样刷新。"
-      ]
+      ],
+      "en": {
+        "title": "When a page stalls, serve the previous copy",
+        "body": [
+          "When the database can't keep up, readers see this page from a minute ago instead of an error page.",
+          "The background still fetches a fresh page, so the next reader sees it.",
+          "The old page is used only on error, timeout or a refresh in progress; normal reads still refresh as before."
+        ]
+      }
     },
     {
       "version": "v3.0.91",
@@ -1004,7 +1608,15 @@
         "源站自己回 403/404/410 的图跳过它、其余真图照发：这种图谁都取不到，读者打开也是坏的。",
         "超时、连接被掐这类可恢复的失败仍然严格重试，一张都不跳。",
         "取图这一路单独跑在网站那台机器上，慢慢取，不和分析与翻译抢并发。"
-      ]
+      ],
+      "en": {
+        "title": "Only refused images are skipped",
+        "body": [
+          "Images the origin answers 403/404/410 are skipped; other real images still ship, since nobody could fetch those anyway.",
+          "Recoverable failures such as timeouts and dropped connections are still retried strictly, with no image skipped.",
+          "The image path runs on its own on the site machine, taking its time and not competing with analysis and translation."
+        ]
+      }
     },
     {
       "version": "v3.0.90",
@@ -1015,7 +1627,15 @@
         "取图超时按机器可调（默认 20 秒）：欧洲机构图站从国内要 28–31 秒，原上限把它们全判成失败。",
         "「取不到的图就摘掉再发布」默认关闭，按严格模式处理：取不到就重试，不拿没图的稿子换读者。",
         "取图单独一路，可以在网站那台机器上单开一个进程慢慢取。"
-      ]
+      ],
+      "en": {
+        "title": "Images come back slowly",
+        "body": [
+          "Image timeout is per machine (20 s default): European agency image sites need 28–31 s from China, failing the old cap.",
+          "“Strip unfetchable images and publish” stays off; strict mode retries rather than ship an article without images.",
+          "Images have their own path and can run as a separate process on the site machine, taking their time."
+        ]
+      }
     },
     {
       "version": "v3.0.89",
@@ -1025,7 +1645,14 @@
       "body": [
         "服务器页现在给每台上报过心跳的机器都留一块：机器掉线时压暗并写明最后一次心跳，而不是只剩表格里一行。",
         "box 也按地名显示，与杭州、武汉一致。"
-      ]
+      ],
+      "en": {
+        "title": "The back office no longer hides offline machines",
+        "body": [
+          "The servers page keeps a block per machine that sent a heartbeat; offline ones dim and show their last heartbeat.",
+          "box is now shown by place name too, in line with Hangzhou and Wuhan."
+        ]
+      }
     },
     {
       "version": "v3.0.88",
@@ -1037,6 +1664,14 @@
         "译文一批从 3500 字降到 1800 字、输出上限加倍：模型答复被截断时段数对不上，整批会被丢弃。",
         "正文里的图一张都取不到时，把这几张死图从正文和中文译文里摘掉再判就绪，而不是整篇永远不发。"
       ],
+      "en": {
+        "title": "Translation and media no longer lock articles out",
+        "body": [
+          "Selection read timeout goes from 2 to 4 s with one retry after a statement timeout; a timeout used to void the round.",
+          "Batches drop from 3,500 to 1,800 characters, output limit doubles: truncated replies broke the count and lost the batch.",
+          "When no body image can be fetched, the dead ones are removed from the body and Chinese translation before readiness."
+        ]
+      },
       "lines": [
         "选稿读超时从 2 秒放到 4 秒，并在语句超时后重试一次：过去一次超时就让整轮译文作废。",
         "翻译请求的批量与输出上限保持原样：回执按请求内容记账，改一个字段就要把历史已付的批次重买一次。",
@@ -1052,7 +1687,15 @@
         "结清的回执正文从留一周改成留一天：账单与成本都在用量列上，正文只在几分钟内重试时有用。",
         "新增 fetcher 角色：一台机器可以只负责出网抓取。杭州到 BBC 等主力源常年超时，交给海外出口去抓。",
         "两处都只是把浪费关掉，不改读者面能看到什么。"
-      ]
+      ],
+      "en": {
+        "title": "Receipts kept one day; fetching gets its own path",
+        "body": [
+          "Settled receipts keep payloads a day, not a week: billing lives in the usage columns; retries in minutes need the body.",
+          "A new fetcher role does outbound only; Hangzhou times out on BBC and main sources, so an overseas egress takes them.",
+          "Both changes only turn waste off; neither changes what readers can see."
+        ]
+      }
     },
     {
       "version": "v3.0.86",
@@ -1063,7 +1706,15 @@
         "扫稿的次序改了：最近一天的稿子按「越新越前」先走，更老的仍从旧到新，补录和回填不会饿死。",
         "先前新稿在待处理里排两小时以上，读者面五个半小时没出现一条新的——不是分析慢，是队伍排错了方向。",
         "改的只是每轮取哪一批，不动优先级，也不多花一次调用。"
-      ]
+      ],
+      "en": {
+        "title": "New articles take the field first",
+        "body": [
+          "Scan order changed: articles from the last day go newest first, older ones still oldest first, backfill never starves.",
+          "New articles waited over two hours; the reader side went five and a half hours with nothing new — wrong queue order.",
+          "Only which batch each round takes has changed; priorities are untouched and no extra call is spent."
+        ]
+      }
     },
     {
       "version": "v3.0.85",
@@ -1074,7 +1725,15 @@
         "信源没写语言时，正文本身就是证据：抽完正文就地判一次，中文稿当天就能上架。",
         "先前四百四十一篇未就绪里，有四百四十篇只差一份译文——不是内容不好，是没人问过它是什么语言。",
         "译文节拍也从每三分钟八篇提到机器宽裕时每两分钟二十四篇，紧张的机器仍按老节奏走。"
-      ]
+      ],
+      "en": {
+        "title": "New articles no longer all wait for translation",
+        "body": [
+          "With no language on the source, the body is the evidence: judged after extraction, Chinese articles go up the same day.",
+          "Of 441 articles not ready, 440 were missing only a translation — not bad content, just no one had checked its language.",
+          "Translation rises from 8 every three minutes to 24 every two minutes when machines have room; tight ones keep the pace."
+        ]
+      }
     },
     {
       "version": "v3.0.84",
@@ -1085,7 +1744,15 @@
         "昨晚的写法每一批都要把整张两万多兆的表扫一遍，机器顶不住。",
         "现在按主键编号分成一万号一段，一段一次提交，读的是索引不是全表。",
         "记账与保留规则没有变，只是同一件事换个不做无用功的做法。"
-      ]
+      ],
+      "en": {
+        "title": "Receipt cleanup now works in ID ranges",
+        "body": [
+          "Last night's version scanned the whole table — over 20,000 MB — for every batch, and the machine couldn't take it.",
+          "It now splits on the primary key into 10,000-ID chunks, one commit each, reading the index rather than the whole table.",
+          "Billing and retention rules are unchanged; the same job, done without wasted work."
+        ]
+      }
     },
     {
       "version": "v3.0.83",
@@ -1096,7 +1763,15 @@
         "数据库一时忙不过来时，排队服务会以连接超时抛出，执行器过去会直接退出。",
         "现在它在原地等一等再试，最多八次；停机信号照旧打断所有等待。",
         "机器重启仍然兜底，但当天的重启风暴就是重启自己加重了磁盘压力。"
-      ]
+      ],
+      "en": {
+        "title": "One connection timeout no longer kills the executor",
+        "body": [
+          "When the database is briefly overloaded, the queue service throws a connection timeout; the executor used to just exit.",
+          "It now waits in place and retries, up to eight times; a shutdown signal still interrupts every wait.",
+          "Reboots still backstop it, but that day's reboot storm was reboots themselves adding disk pressure."
+        ]
+      }
     },
     {
       "version": "v3.0.82",
@@ -1107,7 +1782,15 @@
         "每次付费调用的完整请求与响应都在回执里，一周前的正文对记账没有用处。",
         "每日维护现在把结清回执的正文清空，状态、模型、用量与费用全部保留。",
         "失败与未知的回执不动——那两类正是运维要逐条读的。"
-      ]
+      ],
+      "en": {
+        "title": "Receipts no longer inflate the table to 2.7 GB",
+        "body": [
+          "Each paid call kept its full request and response in the receipt; a week-old payload is useless for billing.",
+          "Daily maintenance now clears the payload of settled receipts and keeps status, model, usage and cost.",
+          "Failed and unknown receipts are left alone — those are exactly what operations reads line by line."
+        ]
+      }
     },
     {
       "version": "v3.0.81",
@@ -1118,7 +1801,15 @@
         "同一页列表 45 秒内直接给缓存，3 分钟内先给旧的再后台刷新。",
         "数据库里那一页要扫两万多行，读者等的是这半秒到一秒。",
         "只改列表接口的读法，筛选、分页与内容口径一字未动。"
-      ]
+      ],
+      "en": {
+        "title": "List pages no longer hit the database every time",
+        "body": [
+          "The same list page comes from cache for 45 seconds; up to 3 minutes it gets the old copy first, with a refresh behind.",
+          "That page scans over 20,000 rows in the database; readers were waiting that half second to a second.",
+          "Only how the list API reads has changed; filters, paging and what counts as content are untouched."
+        ]
+      }
     },
     {
       "version": "v3.0.80",
@@ -1129,7 +1820,15 @@
         "Magpie 面板的插件读了一个没定义的全局变量。",
         "我们在页面里先放了一个空壳，插件就能跑起来。",
         "只影响面板渲染，接口与模型调用都没有改动。"
-      ]
+      ],
+      "en": {
+        "title": "The admin panel no longer goes blank",
+        "body": [
+          "A plugin in the Magpie panel read a global that was never defined.",
+          "We put an empty shell in the page first, and the plugin could run.",
+          "Only panel rendering was affected; the API and model calls are unchanged."
+        ]
+      }
     },
     {
       "version": "v3.0.79",
@@ -1140,7 +1839,15 @@
         "同一个模型的请求不再挤一把锁排队。",
         "锁按请求分开，预算仍按整个服务算。",
         "最坏只多放几条，读者面先顺畅起来。"
-      ]
+      ],
+      "en": {
+        "title": "The budget lock splits into eight queues",
+        "body": [
+          "Requests for the same model no longer queue on a single lock.",
+          "The lock is now per request; the budget is still counted for the whole service.",
+          "At worst a few extra requests go through; the reader side gets moving first."
+        ]
+      }
     },
     {
       "version": "v3.0.78",
@@ -1152,7 +1859,15 @@
         "「全部」那一屏在后台忙的时候要一秒六，最差和首页一样会报错。",
         "现在它也有上一次成功的那份，十分钟内读不出来就直接给，响应头标明是旧的。",
         "首页与列表走同一条规矩：旧的总比空白强。"
-      ]
+      ],
+      "en": {
+        "title": "List pages don't wait empty either",
+        "body": [
+          "The All screen took 1.6 seconds when the back end was busy, and at worst errored like the home page.",
+          "It now keeps its last successful copy: a failed read within ten minutes gets it, marked stale in a response header.",
+          "Home and lists follow one rule: an old copy beats a blank."
+        ]
+      }
     },
     {
       "version": "v3.0.77",
@@ -1164,7 +1879,15 @@
         "首页时间线偶尔要等后台两秒多，最差的时候直接空页——读者不该为后台的排队买单。",
         "现在 api 把最近一次成功的首页留十分钟，读不出来就直接给它，并在响应头里标明这是旧的。",
         "没有旧的可给时照旧报错，不把失败说成正常。"
-      ]
+      ],
+      "en": {
+        "title": "Serve the last good copy when reads fail",
+        "body": [
+          "The home timeline sometimes waits over two seconds and can show an empty page; readers shouldn't pay for the queue.",
+          "The API keeps the last good home page for ten minutes and serves it on a failed read, marked stale in a response header.",
+          "With no old copy to serve, it still returns an error instead of passing a failure off as success."
+        ]
+      }
     },
     {
       "version": "v3.0.76",
@@ -1176,7 +1899,15 @@
         "收据预算锁的排队原来是无限等：一个事务卡住，同 service 的选路与读者查询一起排。",
         "给这次排队加三秒事务级上界，超时按既有的「稍后再来」重试，账本语义不动。",
         "另把信源上限抬到两千——只抬政策，不启用任何一行。"
-      ]
+      ],
+      "en": {
+        "title": "Queueing gives way to readers",
+        "body": [
+          "Receipt budget lock could wait forever: one stalled transaction blocked routing and reader queries in the same service.",
+          "Each transaction now waits at most three seconds; a timeout retries later as before, and the ledger keeps its meaning.",
+          "The source cap also rises to 2,000, a policy change only, with no row enabled."
+        ]
+      }
     },
     {
       "version": "v3.0.75",
@@ -1188,7 +1919,15 @@
         "候选订阅不是「能解析」就算数：至少五条，且最新一条在三十天内。",
         "验证读数写进 review_note——条数、最新日期、HTTP 状态；先按 enabled=false 灰度。",
         "审核脚本按发现来源列出候选，--enable 才放行，拒收要写理由。"
-      ]
+      ],
+      "en": {
+        "title": "Source check: five items, thirty days",
+        "body": [
+          "A candidate feed must do more than parse: at least five items, with the newest one within thirty days.",
+          "The check writes its readings to review_note (item count, latest date, HTTP status) and starts with enabled=false.",
+          "Review script lists candidates by discovery source; only --enable admits one, and a rejection needs a written reason."
+        ]
+      }
     },
     {
       "version": "v3.0.74",
@@ -1200,7 +1939,15 @@
         "PREFILTER 与 SCORE 的第一位写的是讯飞 DeepSeek V4.1 Flash，收据里却一条都没有。",
         "那一行预算还停在每分钟两次，一上来就打满，兜底随即换成别家。",
         "扩到每分钟四十次后，三分钟窗口 45 条、占七成。"
-      ]
+      ],
+      "en": {
+        "title": "The top-ranked model gets no budget",
+        "body": [
+          "PREFILTER and SCORE both listed iFlytek DeepSeek V4.1 Flash first, yet no receipt came from it.",
+          "Its budget line still stood at two calls per minute, so it was used up at once and the fallback switched providers.",
+          "Raised to forty calls per minute, it produced 45 receipts in a three-minute window, about 70% of the total."
+        ]
+      }
     },
     {
       "version": "v3.0.73",
@@ -1211,7 +1958,14 @@
       "body": [
         "探针位只能让它偶尔被点到一次。实测排在首位的讯飞 DeepSeek V4.1 Flash 在十分钟里只拿到八十六分之一。",
         "现在池首直接补到与其余成员总量相当的份额，稳定拿到一半；其余成员照旧按健康度分剩下的额度。"
-      ]
+      ],
+      "en": {
+        "title": "The top-ranked model gets half the budget",
+        "body": [
+          "A probe slot rarely picked it. In a ten-minute test, the top iFlytek DeepSeek V4.1 Flash got just 1/86 of the calls.",
+          "The head now gets a share equal to all other members combined, a steady half; the rest split the remainder by health."
+        ]
+      }
     },
     {
       "version": "v3.0.72",
@@ -1222,7 +1976,14 @@
       "body": [
         "智能路由会把配置里排第一的成员静默跳过：它没有失败记录，却一次也拿不到活儿。",
         "现在这种成员保留一个探针位，占一席权重；有失败证据的成员照旧被跳过，不拿钱撞墙。"
-      ]
+      ],
+      "en": {
+        "title": "The head of the pool is no longer starved",
+        "body": [
+          "Smart routing silently skipped the member listed first in the config: it had no failures, yet never got a call.",
+          "Such a member now keeps a probe slot and one unit of weight; failed members are skipped, not funded into a wall."
+        ]
+      }
     },
     {
       "version": "v3.0.71",
@@ -1234,7 +1995,15 @@
         "后台页头在桌面端吸顶，往下滚长表时标题和操作不消失。",
         "内容诊断、运行、服务器、审计四页改用更宽的版式，表格不再挤成两行。",
         "卡片留白与表格首尾列对齐，长表加斑马纹。"
-      ]
+      ],
+      "en": {
+        "title": "Admin layout tidied, wide tables wider",
+        "body": [
+          "The admin header now sticks to the top on desktop, so titles and actions stay visible while scrolling a long table.",
+          "Content diagnostics, Runtime, Servers and Audit get a wider layout, so table rows no longer squeeze into two lines.",
+          "Card padding lines up with the first and last table columns, and long tables gain zebra stripes."
+        ]
+      }
     },
     {
       "version": "v3.0.70",
@@ -1246,7 +2015,15 @@
         "内容诊断的「最近入库」过去只给最近 50 条，看到一半就断了。",
         "现在页大小由页面递增着要，滚到底就自动加 60 条，最多到 600 条。",
         "页面加页不发新的历史项，也不会把操作者弹回顶部。"
-      ]
+      ],
+      "en": {
+        "title": "Recent ingests in admin keep loading",
+        "body": [
+          "The Recent ingests list in Content diagnostics used to stop at the latest 50, cutting off halfway.",
+          "The page now asks for growing page sizes, adding 60 items as you scroll, up to 600.",
+          "Loading more adds no new history entries and never bounces the operator back to the top."
+        ]
+      }
     },
     {
       "version": "v3.0.65",
@@ -1258,7 +2035,15 @@
         "手机切精选/全部只换一块列表，收录池却要现场取一次，冷的时候一秒到五秒——那就是截图里的「正在取收录池…」。",
         "手机首屏现在带上「全部」那一份（桌面不付这份钱），切过去直接有内容；取过一次的也留在内存里。",
         "「全部」的月历改回常取：之前它只在 URL 带 tab=all 时才有数据，客户端切换永远画不出来。"
-      ]
+      ],
+      "en": {
+        "title": "Switching to All shouldn't wait on the network",
+        "body": [
+          "On mobile, Selected/All swaps one list, but the pool was fetched live, 1-5 seconds cold; the screenshot's loading text.",
+          "The first screen now carries All too (desktop doesn't pay), so switching is instant; a fetched list stays in memory.",
+          "The All calendar is fetched normally again: it had data only with tab=all in the URL, so client switches never drew it."
+        ]
+      }
     },
     {
       "version": "v3.0.64",
@@ -1270,7 +2055,15 @@
         "模型调用结果未知的回执，系统会自动放行一次；第二次再落成未知，就只能等人工——结果 95 条停在未知状态，最老的卡了八天。",
         "译文与分析的每一轮碰到它们就退回，白跑一趟；译文产能因此一直上不去。",
         "超过一天仍然未知的，再放行一次（笔记与第一次不同，只会多这一次），之后仍归人工。"
-      ]
+      ],
+      "en": {
+        "title": "A one-release rule locked receipts for eight days",
+        "body": [
+          "Unknown model-call receipts got one automatic release; a second unknown went to a human. 95 stayed, oldest eight days.",
+          "Every translation and analysis round bounced off them and wasted a run; translation throughput stayed low.",
+          "Still unknown after a day, it gets one more release (a different note, and only this once); after that it is manual."
+        ]
+      }
     },
     {
       "version": "v3.0.63",
@@ -1282,7 +2075,15 @@
         "译文任务每分钟触发一次，只有六十秒预算；而「先找候选」要几十次重查询，扫描就把预算花光了，真正翻译的时间几乎没有。",
         "候选扫描缩到最近一千篇、任务改成三分钟一拍、预算一百五十秒，一次能把八篇排进队列。",
         "实测并发放开到六路后，十五分钟译完四篇并全部完成，今天的可读条目从五条涨到八条。"
-      ]
+      ],
+      "en": {
+        "title": "A one-minute tick meant recounting everything every minute",
+        "body": [
+          "Translation ran each minute on 60 seconds; candidate scans used them on heavy queries, leaving little time to translate.",
+          "The scan covers the latest 1,000 items; the task ticks every three minutes with 150 seconds and queues eight a run.",
+          "Six-way concurrency finished four pieces in fifteen minutes, all complete; readable items rose from five to eight today."
+        ]
+      }
     },
     {
       "version": "v3.0.62",
@@ -1294,7 +2095,15 @@
         "译文从早上九点四十六分起一条没出：每四分钟的任务都在「先列出全部候选」这一步把时间用完，然后按「本次没活」正常结束。",
         "候选扫描改成只近三十天、最多四千篇，先拿到候选再谈翻译。",
         "实测同一函数立刻译出两篇（2 段与 7 段，全部完成）。"
-      ]
+      ],
+      "en": {
+        "title": "Translation stalled for ten hours because candidate search used the budget",
+        "body": [
+          "No translation after 09:46: each four-minute task spent its time listing all candidates, then ended as 'no work'.",
+          "The candidate scan now covers only the last thirty days, at most 4,000 items, before translation starts.",
+          "A test of the same function translated two pieces at once (2 and 7 blocks, both complete)."
+        ]
+      }
     },
     {
       "version": "v3.0.61",
@@ -1306,7 +2115,15 @@
         "精选一直是发布那一刻定下的：那时还没分析，于是「只准摘要」的条目被选中，而真正可读的全文条目永远不会被重新选中。",
         "新增每十分钟一次的精选重算：全文且已就绪的近期条目补选，非全文的自动选中撤下。",
         "只动从未被裁定过的条目，后台人工调整过的精选不受影响。"
-      ]
+      ],
+      "en": {
+        "title": "Selection is not a verdict from publish time",
+        "body": [
+          "Selection was fixed at publish time, before analysis ran: summary-only items won, readable full-text items never did.",
+          "A recompute every ten minutes selects ready recent full-text items and withdraws auto-selected ones without full text.",
+          "It touches only items never adjudicated; selections adjusted by hand in admin are left alone."
+        ]
+      }
     },
     {
       "date": "2026-11-07",
@@ -1317,7 +2134,15 @@
         "后台的内容页与运行页一进去是空白：一个把空关键词当成没有内容，一个要等快照生成才肯显示。",
         "内容页改为默认列出最近 50 条；运行页补上常驻的快照生产者，第一次请求就能算出来并落盘。",
         "两处都只动后台的读取路径，读者面不受影响。"
-      ]
+      ],
+      "en": {
+        "title": "Two blank pages, both treating 'none' as nothing",
+        "body": [
+          "Admin content and Runtime opened blank: one treated an empty keyword as no content, the other waited for a snapshot.",
+          "Content lists the latest 50 by default; Runtime got a resident producer, so the first request computes and saves one.",
+          "Both change only admin read paths; readers are unaffected."
+        ]
+      }
     },
     {
       "date": "2026-11-07",
@@ -1327,7 +2152,15 @@
       "body": [
         "白天十二个名额、夜里两个名额这种写法，本意是让读者优先；实际效果是每天清晨把整台机器的产能砍成四分之一。",
         "现在名额由机器决定，时段只决定什么时候重启。翻译指定的门、调度档位也一并写进仓库脚本，重建机器不会退回旧配置。"
-      ]
+      ],
+      "en": {
+        "title": "Changing a time window shouldn't change the slots",
+        "body": [
+          "Twelve slots by day and two at night was meant to favor readers; in practice it cut capacity to a quarter each morning.",
+          "Slots now belong to the machine, and the time window only sets when it restarts.",
+          "The translation gate and scheduling tier now live in the repo script, so a rebuild cannot fall back to old settings."
+        ]
+      }
     },
     {
       "date": "2026-11-07",
@@ -1337,7 +2170,15 @@
       "body": [
         "每篇公开文章都有一行「可以给读者看了吗」的结论；那行被一次改动删掉之后，没有人重新算，它就一直缺着。",
         "读者看到的是空白，日志里看到的是安静。现在每十分钟自动挑最新的缺行文章重算一次，缺多少也会写进日志。"
-      ]
+      ],
+      "en": {
+        "title": "Invisible articles must find their way back",
+        "body": [
+          "Each public article had a 'can readers see this?' row; one change deleted it, nobody recomputed it, it stayed missing.",
+          "Readers saw blank pages and the logs stayed quiet.",
+          "Now every ten minutes, the newest articles missing that row are recomputed, and the log records how many are missing."
+        ]
+      }
     },
     {
       "date": "2026-11-07",
@@ -1347,7 +2188,14 @@
       "body": [
         "图片抓取失败一次就放弃的话，那篇文章对读者永远是空的。现在每张图最多试三次。",
         "失败会记下是哪张图、哪个尺寸，不再是查不到出处的一句「1 rendition failure(s)」。"
-      ]
+      ],
+      "en": {
+        "title": "A failed image fetch deserves another try",
+        "body": [
+          "Giving up after one failed image fetch left that article forever empty. Each image now gets up to three attempts.",
+          "A failure records which image and which size, instead of an untraceable '1 rendition failure(s)'."
+        ]
+      }
     },
     {
       "date": "2026-11-07",
@@ -1358,7 +2206,15 @@
         "翻译重试原来三次封顶、一进六小时冷却，网络一抖就把好稿锁住；现在网络类失败只退五分钟，上限放宽到六次。",
         "排期的病根也找到了：那台机器只有一个循环任务名额，翻译几乎每次都被扫描任务挤掉，名额现在给到两个。",
         "读者看到的仍然只有走完整条流水线的条目，这次只是让它们别在半路上被误会。"
-      ]
+      ],
+      "en": {
+        "title": "A network blip shouldn't park a story for six hours",
+        "body": [
+          "A network blip used to lock a good story: retries capped at three, then a six-hour cooldown.",
+          "Network failures now wait five minutes, up to six attempts; the scheduling cause was also found.",
+          "One loop slot let scans squeeze translation out; there are two now, and readers still see only fully processed items."
+        ]
+      }
     },
     {
       "date": "2026-11-07",
@@ -1369,7 +2225,15 @@
         "三台机器分工落定：主服务器只负责读者页面，杭州和武汉两台分担内容分析，合计二十个名额。",
         "同一批积压的消化速度从每小时两百多条提到八百条以上，读者首页仍然保持在零点一秒以内。",
         "顺手修了一个沉默很久的问题：有台辅助机的名额一直被系统配置覆盖成两条，改配置文件也不会生效——现在只有一处地方定义名额，改哪一处都看得见。"
-      ]
+      ],
+      "en": {
+        "title": "Analysis queue three times faster, readers unaffected",
+        "body": [
+          "Three machines have fixed roles: a reader-only main server; Hangzhou and Wuhan share analysis with twenty slots.",
+          "The backlog now clears at over 800 items an hour, up from just over 200, while the home page stays under 0.1 second.",
+          "Silent problem: config forced a spare machine to two slots and editing it did nothing; slots now have one definition."
+        ]
+      }
     },
     {
       "date": "2026-11-07",
@@ -1378,7 +2242,15 @@
       "body": [
         "每分钟排期信源的那条 cron 认领它的进程一重启，singleton 队列就整整一小时不再跑——今天凌晨它僵了 57 分钟，那一小时没有任何新信源被排期。",
         "过期时间改成按节奏给：分钟级的活 240 秒、五分钟级 300 秒，默认从一小时压到十五分钟。"
-      ]
+      ],
+      "en": {
+        "title": "Scheduled jobs can stall too, for a whole hour",
+        "body": [
+          "When the process claiming the per-minute source cron restarts, that singleton queue stops for a full hour.",
+          "This morning it froze for 57 minutes, and no new sources were scheduled in that hour.",
+          "Expiry follows cadence: 240 seconds for minute jobs, 300 for five-minute, default drops from an hour to fifteen minutes."
+        ]
+      }
     },
     {
       "date": "2026-11-07",
@@ -1387,7 +2259,15 @@
       "body": [
         "部署脚本原先在服务器上现跑 vite 构建；891MB 的主库跑到 load 31，首页直接 503，部署超时中断，六个单元一个都没重启。",
         "现在默认带 --web-prebuilt：构建在部署机上完成，只把 build 目录当制品传过去，服务器只负责解包与重启。"
-      ]
+      ],
+      "en": {
+        "title": "Don't build on the busiest machine",
+        "body": [
+          "The deploy script used to run the vite build on the server: the 891MB box hit load 31 and the home page returned 503.",
+          "The deploy timed out and none of the six units restarted.",
+          "The default is now --web-prebuilt: build on the deploy machine, ship the build output; the server unpacks and restarts."
+        ]
+      }
     },
     {
       "date": "2026-11-06",
@@ -1396,7 +2276,15 @@
       "body": [
         "部署脚本判断「这台机器只做读者面」时，原先在本机找标记文件；在 Windows 上那行直接是命令不存在，过滤被静默跳过，worker 又被拉起来一次。",
         "现在改成先连上服务器问一句，问到才跳过 geohot-worker。"
-      ]
+      ],
+      "en": {
+        "title": "Ask the server for the marker, not yourself",
+        "body": [
+          "To decide 'this machine serves readers only', the deploy script looked for a marker file locally.",
+          "On Windows that line hit a missing command, the filter was skipped silently, and the worker started again.",
+          "It now asks the server first and skips geohot-worker only when the answer comes back."
+        ]
+      }
     },
     {
       "date": "2026-11-06",
@@ -1405,7 +2293,15 @@
       "body": [
         "给服务器做体检的那条循环现在自带四小时的寿命上限：到点打印一行 expired 就退出，不再留在后台。",
         "今天线上那台 891 MB 的机器被一条两天前漂出来的旧循环写掉 66 GB 磁盘，读者页一度 503；这次把它收进仓库，也把上限写进测试。"
-      ]
+      ],
+      "en": {
+        "title": "A probe that packs up on its own",
+        "body": [
+          "The health-check loop now has a four-hour lifetime: it prints one line, expired, and exits instead of lingering.",
+          "Today a loop that drifted out two days earlier wrote 66 GB on the 891 MB production box, and reader pages returned 503.",
+          "This loop now lives in the repo, and a test pins the lifetime cap."
+        ]
+      }
     },
     {
       "date": "2026-11-06",
@@ -1414,7 +2310,15 @@
       "body": [
         "后台那些必须一个接一个做的步骤（预算判定、同批素材归并）不再被两秒的行锁上限打断：会话级放宽到十五秒，队列真的排下去。",
         "读者那条路保持不变，等不到锁仍然一秒半就走，页面不会因此变慢。"
-      ]
+      ],
+      "en": {
+        "title": "Queued work shouldn't be treated as a timeout",
+        "body": [
+          "Admin one-at-a-time steps (budget decisions, merging a batch of material) no longer hit a two-second row-lock limit.",
+          "The session-level cap is fifteen seconds, so the queue actually proceeds.",
+          "The reader path is unchanged: it still gives up after 1.5 seconds without a lock, so pages don't slow down."
+        ]
+      }
     },
     {
       "date": "2026-11-06",
@@ -1423,7 +2327,14 @@
       "body": [
         "主库只做读者面：api 与 web 常驻，抓取和分析交给杭州、武汉两台常驻执行器。",
         "验收与部署现在都认这个身份，不再要求主库跑 worker，也不会每次部署都把它拉起来。"
-      ]
+      ],
+      "en": {
+        "title": "The reader-first machine states its role",
+        "body": [
+          "Main box serves readers only: api and web stay resident; ingest and analysis go to runners in Hangzhou and Wuhan.",
+          "Acceptance and deploy now respect that role: the main box runs no worker, and deploys no longer start one there."
+        ]
+      }
     },
     {
       "date": "2026-11-06",
@@ -1432,7 +2343,15 @@
       "body": [
         "首页与列表的边缘缓存从 1 分钟放到 3–5 分钟，重复打开不必再等一次冷渲染。",
         "服务器面板多了一张「协同节点」：阿里云那两台和本机的心跳都在上面，离线三分钟即标出。"
-      ]
+      ],
+      "en": {
+        "title": "Readers and helpers should both be visible",
+        "body": [
+          "Edge caching for the home page and lists goes from 1 to 3–5 minutes, so repeat visits no longer wait for a cold render.",
+          "The server panel gains a Collaborator nodes card with heartbeats from the two Alibaba Cloud machines and the local box.",
+          "A node that stays offline for three minutes is marked down."
+        ]
+      }
     },
     {
       "date": "2026-11-06",
@@ -1441,7 +2360,14 @@
       "body": [
         "后台「主题轮换」页能看到每个主题近 30 天的条目、最后一条时间、谁被归档、候选里还排着谁。",
         "健康结论失效之后，正在飞的那次读盘不再被后来者搭车——判死的门立刻生效。"
-      ]
+      ],
+      "en": {
+        "title": "Topic rotation gets a board; stale verdicts stop blocking new judgments",
+        "body": [
+          "Admin's Topic rotation page shows each topic's last-30-day items, latest item time, archived topics, and the candidates.",
+          "Once a health verdict expires, later callers can no longer ride an in-flight read; a gate ruled dead applies at once."
+        ]
+      }
     },
     {
       "date": "2026-11-06",
@@ -1450,7 +2376,14 @@
       "body": [
         "编辑时把两行并成一行，闸门每分钟都在 unbound variable 上退出，谁也没发现。",
         "现在有用例钉住那两行的形状——脚本坏了，测试先说。"
-      ]
+      ],
+      "en": {
+        "title": "One merged line stopped the gate",
+        "body": [
+          "An edit merged two lines into one, the gate exited every minute on an unbound variable, and nobody noticed.",
+          "A test now pins the shape of those two lines: if the script breaks, the test speaks first."
+        ]
+      }
     },
     {
       "date": "2026-11-06",
@@ -1459,7 +2392,14 @@
       "body": [
         "早释放说明读者面已经连续健康；窗口里那批 5xx 不该在下一轮把 worker 又冻 30 分钟。",
         "释放时刻之后的新 5xx 照样计数——真正的事故仍有刹车。"
-      ]
+      ],
+      "en": {
+        "title": "A released gate shouldn't be closed by the same old errors",
+        "body": [
+          "An early release means readers have been healthy; the window's 5xx batch shouldn't freeze the worker another 30 minutes.",
+          "New 5xx after the release still count, so a real incident can still hit the brake."
+        ]
+      }
     },
     {
       "date": "2026-11-06",
@@ -1468,7 +2408,14 @@
       "body": [
         "冷却期里 worker 是闸门自己停的，恢复路径不该把它当成「操作者正在维护」。",
         "切档遇到刹车时不重启进程，观察窗也不再被 90 秒的默认超时腰斩。"
-      ]
+      ],
+      "en": {
+        "title": "A machine the gate stopped needs someone to restart it",
+        "body": [
+          "The gate itself stopped the worker for the cooldown; recovery should not treat that as operator maintenance.",
+          "Tier switches that hit the brake no longer restart the process; the 90-second default no longer cuts the watch window."
+        ]
+      }
     },
     {
       "date": "2026-11-06",
@@ -1478,7 +2425,15 @@
         "主题归档后从列表里消失，但它的页面要说“这个主题还在”，不是 404。",
         "首屏预算从八秒收到 3.5 秒：读者等不来内容时，先给上一份好答案。",
         "HTML 与错误页补上 nosniff、Referrer 与禁嵌套；池里那条 deepseek 改成 3426 上真有的 -sg。"
-      ]
+      ],
+      "en": {
+        "title": "Archived topics still open; no more eight-second blank first screen",
+        "body": [
+          "An archived topic leaves the list, but its page should say 'this topic is still here', not 404.",
+          "The first-screen budget drops from 8 seconds to 3.5: if content will not arrive, readers get the last good answer.",
+          "HTML and error pages add nosniff, Referrer and frame blocking; the deepseek entry points at the -sg that exists on 3426."
+        ]
+      }
     },
     {
       "date": "2026-11-06",
@@ -1487,7 +2442,14 @@
       "body": [
         "回环上连取十几个页面，每个页面的 SSR 又各打若干 API，600/min 一下就打满。",
         "回环放行；真实读者仍按每 IP 上限记账。"
-      ]
+      ],
+      "en": {
+        "title": "Acceptance checks should not be blocked by their own rate limit",
+        "body": [
+          "Fetching a dozen pages over loopback, each SSR calling several APIs, fills the 600/min limit at once.",
+          "Loopback is exempt; real readers still count against the per-IP cap."
+        ]
+      }
     },
     {
       "date": "2026-11-06",
@@ -1496,7 +2458,14 @@
       "body": [
         "切档后第一次探测撞上冷页面，4 秒的门槛把整夜退回白天档。",
         "夜间读者很少：页面预算放宽到 8 秒、热身 30 秒，白天仍按 4 秒。"
-      ]
+      ],
+      "en": {
+        "title": "One cold probe should not send night capacity back",
+        "body": [
+          "The first probe after a tier switch hit a cold page, and the 4-second threshold sent the whole night back to day mode.",
+          "Night readers are few: the page budget opens to 8 seconds with a 30-second warm-up; day stays at 4 seconds."
+        ]
+      }
     },
     {
       "date": "2026-11-06",
@@ -1505,7 +2474,14 @@
       "body": [
         "强制下发 CSP 的那份 nginx 片段只活在服务器上，仓库里改的是另一份。",
         "现在片段进了仓库，部署会同步它、nginx -t 不过就还原；策略补上 font-src 'self' data:。"
-      ]
+      ],
+      "en": {
+        "title": "The patch landed in a file nobody deploys",
+        "body": [
+          "The nginx snippet that enforces CSP lived only on the server; the repo changed a different one.",
+          "The snippet is now in the repo: deploys sync it, roll back if nginx -t fails. The policy adds font-src 'self' data:."
+        ]
+      }
     },
     {
       "date": "2026-11-06",
@@ -1514,7 +2490,14 @@
       "body": [
         "主题分配按批写入，连接被服务端收起时整轮抛错，排队守卫以为它还在跑。",
         "现在坏了一批就重写一次，再不行只记数、接着下一批；十分钟后还会再算。"
-      ]
+      ],
+      "en": {
+        "title": "One bad batch should not stall the whole round for three hours",
+        "body": [
+          "Topic assignment writes in batches; a dropped connection throws the round while the queue guard thinks it is running.",
+          "A bad batch is now rewritten once; if that fails, it records the count, moves on, and retries ten minutes later."
+        ]
+      }
     },
     {
       "date": "2026-11-06",
@@ -1523,7 +2506,14 @@
       "body": [
         "机构主题以前只认「这家机构是来源」的文章，标签里写着哥白尼、粮农组织的进不来。",
         "现在机构名单独一列，各种写法都算；体裁词仍留给字段与体裁主题。"
-      ]
+      ],
+      "en": {
+        "title": "Category pages now accept every spelling of an agency name",
+        "body": [
+          "Entity topics used to accept only articles whose source was the agency; those tagged Copernicus or FAO were left out.",
+          "Agency names now have their own column, and every spelling counts; genre words stay with fields and genre topics."
+        ]
+      }
     },
     {
       "date": "2026-11-06",
@@ -1532,7 +2522,15 @@
       "body": [
         "NASA、哥白尼、GDACS、欧空局、自然资源部、粮农组织的文章，之前有一半挂不上主题：标签写法不同，主题只认自己那一个名字。",
         "现在按机构名对齐（欧空局补了新主题），候选表里不该再出现它们。"
-      ]
+      ],
+      "en": {
+        "title": "Six agency names get their own category pages",
+        "body": [
+          "Half the articles from NASA, Copernicus, GDACS, ESA, the Ministry of Natural Resources and FAO had no topic.",
+          "Tag spellings varied, and each topic recognized only one name.",
+          "Now they align by agency name (ESA got a new topic), and they should no longer appear in the candidate list."
+        ]
+      }
     },
     {
       "date": "2026-11-06",
@@ -1541,7 +2539,14 @@
       "body": [
         "闸门关掉的是整条流水线：一次冻结十分钟，队列里七千多条一条不动。",
         "读者面已经连续健康时就提前放行，最少也等三分钟再判断，避免抖动。"
-      ]
+      ],
+      "en": {
+        "title": "A cooldown should not mean a full ten-minute shutdown",
+        "body": [
+          "The gate shut down the whole pipeline: one ten-minute freeze left more than 7,000 queued items untouched.",
+          "When the reader side stays healthy it releases early, waiting at least three minutes before deciding, to avoid flapping."
+        ]
+      }
     },
     {
       "date": "2026-11-05",
@@ -1550,7 +2555,14 @@
       "body": [
         "只准摘要的来源、还没走完正文与就绪凭据的条目，不再出现在精选。",
         "空着就空着：那是链路还没追上，不是门该放松。"
-      ]
+      ],
+      "en": {
+        "title": "Selected admits only items that finished the pipeline",
+        "body": [
+          "Items from summary-only sources, or items still missing body and readiness proof, no longer appear in Selected.",
+          "An empty page stays empty: the pipeline has not caught up, and that is no reason to loosen the gate."
+        ]
+      }
     },
     {
       "date": "2026-11-05",
@@ -1559,7 +2571,14 @@
       "body": [
         "历史日期的列表页给一天的缓存：那些内容不会再变。",
         "组合筛选页不再进索引。"
-      ]
+      ],
+      "en": {
+        "title": "Crawlers' Cartesian products should not cost readers memory",
+        "body": [
+          "List pages for past dates are cached for a day: that content will not change.",
+          "Combined filter pages are no longer indexed."
+        ]
+      }
     },
     {
       "date": "2026-11-05",
@@ -1569,7 +2588,14 @@
       "body": [
         "GDACS 与自然资源部此前只有标签、没有主题，180 条与 128 条记录因此无处归类。",
         "现在它们和气象局、USGS 一样有自己的计数与分类页。"
-      ]
+      ],
+      "en": {
+        "title": "Two more agencies get their own category pages",
+        "body": [
+          "GDACS and the Ministry of Natural Resources had tags but no topic, leaving 180 and 128 records with no category.",
+          "They now have their own counts and category pages, like the China Meteorological Administration and USGS."
+        ]
+      }
     },
     {
       "date": "2026-11-05",
@@ -1579,7 +2605,14 @@
       "body": [
         "891MB 的机器上，两个并行分析把公网首页拖到 25 秒 000；收到一个名额，首页回到 1.7 秒。",
         "夜里再放开到两个。"
-      ]
+      ],
+      "en": {
+        "title": "One slot during the day",
+        "body": [
+          "On an 891MB machine, two parallel analyses took the public homepage to 25 seconds and HTTP 000.",
+          "Cutting to one slot brought it back to 1.7 seconds; at night it opens back up to two."
+        ]
+      }
     },
     {
       "date": "2026-11-05",
@@ -1589,7 +2622,14 @@
       "body": [
         "部署验收紧跟重启，feed 与 sitemap 是现算的：冷缓存那一下会回转 000，隔 20 秒再取却是 200。",
         "给这两条各三次机会，其余页面仍是一次定生死。"
-      ]
+      ],
+      "en": {
+        "title": "Warm-up fetches are not failures",
+        "body": [
+          "Deploy checks follow a restart; feed and sitemap are live: a cold cache returns 000, then 200 after 20 seconds.",
+          "Those two get three tries each; every other page still lives or dies on one."
+        ]
+      }
     },
     {
       "date": "2026-11-05",
@@ -1599,7 +2639,15 @@
       "body": [
         "换班候选第一次跑出十四个词，其中「评论/解读」「非地理/通用」「机构/动态」是体裁不是兴趣点；",
         "「中国气象局」这类名字也早被机构主题认领，只因认领走的是 entity 键才漏算。两处都收口，候选表只留真正无人认领的热词。"
-      ]
+      ],
+      "en": {
+        "title": "No miscellany or stale names among the candidates",
+        "body": [
+          "The rotation run yielded 14 terms: Comment/Analysis, Non-geographic/General, Agency/Updates are genres, not interests.",
+          "Names like China Meteorological Administration were already claimed by entity topics.",
+          "They slipped through because claims used the entity key; both leaks are closed, and only unclaimed hot terms remain."
+        ]
+      }
     },
     {
       "date": "2026-11-05",
@@ -1609,7 +2657,14 @@
       "body": [
         "同一屏的「找到 N 条」要数一遍公开条目，而公开条目有十万行、正文列很大：冷缓存下一次要 17–20 秒。",
         "补了三个只带 article_id 的窄局部索引，计数改走 index-only；同一条 SQL 现在 120 毫秒。"
-      ]
+      ],
+      "en": {
+        "title": "Counting should not scan the whole table",
+        "body": [
+          "The “N results found” line counted public items: 100,000 rows with a large body column took 17–20 seconds cold.",
+          "Three narrow partial indexes on article_id alone let the count go index-only; the same SQL now takes 120 milliseconds."
+        ]
+      }
     },
     {
       "date": "2026-11-05",
@@ -1619,7 +2674,14 @@
       "body": [
         "日报的网点图在入场动画里用缓动函数算半径，浮点误差能让它落到 -3.5e-16，画布直接抛 IndexSizeError。",
         "真浏览器在 /daily 抓到这条报错。半径现在按 0 兜底，两处画布都改了。"
-      ]
+      ],
+      "en": {
+        "title": "The radius came out negative",
+        "body": [
+          "The daily dot graphic computes radius with an easing function; floating-point error can push it to -3.5e-16.",
+          "The canvas then throws IndexSizeError. A real browser caught it on /daily; radius now falls back to 0 in both canvases."
+        ]
+      }
     },
     {
       "date": "2026-11-05",
@@ -1629,7 +2691,15 @@
       "body": [
         "模型健康结论缓存一分钟。若失效恰好发生在一次读盘在飞时，那次读盘会把「失效前」的结论写回缓存，紧接着的请求就用了过时的健康判断。",
         "现在读盘认代数：失效之后回来的结果直接丢弃。CI 上偶发的一条池子用例正是撞在这个时序上。"
-      ]
+      ],
+      "en": {
+        "title": "After expiry, do not write the old verdict back to cache",
+        "body": [
+          "The model health verdict is cached for one minute; if expiry lands mid-read, the read writes the old verdict back.",
+          "The next request then uses a stale judgement. Disk reads now check the generation and discard results that return late.",
+          "A flaky pool test on CI was hitting exactly this timing."
+        ]
+      }
     },
     {
       "date": "2026-11-05",
@@ -1639,7 +2709,15 @@
       "body": [
         "今天被选中的 8 条里，有 7 条来自本来就不提供全文的来源，全被「要有全文就绪凭据」这道门挡在外面。",
         "现在摘要条目只要来源确实不给全文、摘要有内容，就能进精选；能取全文的来源退化成摘要仍然要等就绪。"
-      ]
+      ],
+      "en": {
+        "title": "Selected was blank because the gate only accepted full text",
+        "body": [
+          "Of the 8 items selected today, 7 came from sources that never provide full text; the readiness-proof gate kept them out.",
+          "Summary items now enter Selected when the source truly withholds full text and the summary has content.",
+          "Sources that can provide full text still wait for readiness if they fall back to a summary."
+        ]
+      }
     },
     {
       "date": "2026-11-05",
@@ -1647,7 +2725,14 @@
       "title": "主题该定期换班",
       "body": [
         "主题栏里挂着一个月没有新条目的板块，读者点进去只看到去年的稿子——这不是内容少，是我们没让它换班。"
-      ]
+      ],
+      "en": {
+        "title": "Topics need to rotate on a schedule",
+        "body": [
+          "The topic rail carried a section with no new items for a month; readers who clicked found last year's stories.",
+          "That was not a lack of content; we had failed to rotate it."
+        ]
+      }
     },
     {
       "date": "2026-11-05",
@@ -1655,7 +2740,13 @@
       "title": "判精选的那条链路，该有自己的一条车道",
       "body": [
         "线上读到的事实：24 小时里分析链路新进 1,497 条、只跑完 362 条，而同一时间全流水线跑完了 9,142 条。"
-      ]
+      ],
+      "en": {
+        "title": "The Selected verdict needs a lane of its own",
+        "body": [
+          "In production, the analysis lane took in 1,497 items in 24 hours and finished 362, while the pipeline finished 9,142."
+        ]
+      }
     },
     {
       "date": "2026-11-05",
@@ -1664,7 +2755,14 @@
       "body": [
         "后台的「下一页」原来靠“这一页满 100 条”来猜还有没有下一页。",
         "尾页正好装满时，按钮还在，点进去是一张空表：操作者会以为记录丢了，其实是自己翻过头了。"
-      ]
+      ],
+      "en": {
+        "title": "A full last page should not lead to an empty next page",
+        "body": [
+          "The admin's Next page button used to guess whether another page existed from whether this page held 100 rows.",
+          "A full last page kept the button; clicking it opened an empty table, so operators thought records were lost."
+        ]
+      }
     },
     {
       "date": "2026-11-05",
@@ -1674,7 +2772,14 @@
       "body": [
         "闸门的部署窗口是两个 epoch 两行，而它只读第一行——结束时间从来没被看见，部署之后二十分钟内的 5xx 全被当成自家重启排掉。",
         "现在按行读。"
-      ]
+      ],
+      "en": {
+        "title": "The deploy wrote its own window",
+        "body": [
+          "The gate's deploy window was two epochs on two lines, but it read only the first; the end time was never seen.",
+          "Every 5xx in the twenty minutes after a deploy was dismissed as our own restart. It now reads every line."
+        ]
+      }
     },
     {
       "date": "2026-11-05",
@@ -1683,7 +2788,14 @@
       "title": "审计与它记录的那笔写入，不该是两件事",
       "body": [
         "换模型、删反馈、回复读者、导入评测、调整预算：审计行和真正的写入现在在同一个事务里。"
-      ]
+      ],
+      "en": {
+        "title": "The audit and the write it records should be one thing",
+        "body": [
+          "Model switches, feedback deletes, reader replies, evaluation imports and budget changes now share one transaction.",
+          "The audit row and the actual write are no longer two separate things."
+        ]
+      }
     },
     {
       "date": "2026-11-05",
@@ -1692,7 +2804,13 @@
       "title": "标签行不是稿子，审计列表也不该裸着查",
       "body": [
         "摘要只写着 summary_zh： 这种东西，以前能进列表、RSS、搜索和站点地图，点进去却是 404。"
-      ]
+      ],
+      "en": {
+        "title": "Tag rows are not articles, and the audit list should not read raw rows",
+        "body": [
+          "Rows whose summary was just “summary_zh: …” reached lists, RSS, search and the sitemap, then returned 404 when clicked."
+        ]
+      }
     },
     {
       "date": "2026-11-05",
@@ -1701,7 +2819,14 @@
       "title": "判「精选」的那条链路不该排在便宜活后面",
       "body": [
         "分析链路 24 小时新进 1496 条、只跑完 493 条，而同一段时间里整条流水线完成了 9142 条 —— 名额被抓取探测、摘要、配图这些几秒钟的活占满"
-      ]
+      ],
+      "en": {
+        "title": "The Selected lane should not queue behind cheap work",
+        "body": [
+          "In 24 hours the analysis lane took in 1496 items and finished 493, while the whole pipeline completed 9142.",
+          "Its slots were filled by crawl probes, summaries and artwork, jobs that take seconds."
+        ]
+      }
     },
     {
       "date": "2026-11-05",
@@ -1710,7 +2835,14 @@
       "title": "真实浏览器把这些话说出来了",
       "body": [
         "这轮第一次用真实 Edge（`--headless=old` + CDP）打开线上站点逐页操作，页面本身是好的，但浏览器控制台在说话 —— 两件事都修了。"
-      ]
+      ],
+      "en": {
+        "title": "A real browser said it out loud",
+        "body": [
+          "This round used real Edge (`--headless=old` + CDP) to open the live site and walk every page for the first time.",
+          "The pages themselves were fine, but the browser console had things to say; both were fixed."
+        ]
+      }
     },
     {
       "date": "2026-11-05",
@@ -1719,7 +2851,13 @@
       "title": "每一条边界问的都是同一件事",
       "body": [
         "这轮修的是「数据脏了或时钟不准时，页面向读者说了什么」，五处。"
-      ]
+      ],
+      "en": {
+        "title": "Every edge case asks the same question",
+        "body": [
+          "This round fixed what pages tell readers when data is dirty or clocks are off: five places."
+        ]
+      }
     },
     {
       "date": "2026-11-05",
@@ -1728,7 +2866,13 @@
       "title": "同一个故事被两个方向同时合并时",
       "body": [
         "这一轮都是「并发或参数写错时会发生什么」，共八处，读者面与后台都沾一点。"
-      ]
+      ],
+      "en": {
+        "title": "When one story is merged from both directions at once",
+        "body": [
+          "This round covered what happens under concurrency or a bad parameter: eight places, touching the reader side and admin."
+        ]
+      }
     },
     {
       "date": "2026-11-05",
@@ -1737,7 +2881,13 @@
       "title": "停机之后不该再开队",
       "body": [
         "这一轮改的是「出错时会发生什么」，读者看不见，但决定后台还能不能自己爬起来。"
-      ]
+      ],
+      "en": {
+        "title": "After a stop, the queue should not reopen",
+        "body": [
+          "This round changed what happens on errors. Readers will not see it, but it decides whether the backend can get back up."
+        ]
+      }
     },
     {
       "date": "2026-11-05",
@@ -1746,7 +2896,13 @@
       "title": "签名过期、还没出刊、名单装满——三处边界",
       "body": [
         "这一轮改的都是「只在边界上出现」的小毛病，平时看不见，撞上了就是一个坏答案。"
-      ]
+      ],
+      "en": {
+        "title": "Expired signatures, unpublished issues, a full roster: three edges",
+        "body": [
+          "Three small faults that appear only at the edges. You never see them normally; when you hit one, you get a wrong answer."
+        ]
+      }
     },
     {
       "date": "2026-11-05",
@@ -1755,7 +2911,13 @@
       "title": "一条已经断掉的数据库连接",
       "body": [
         "凌晨两点零九分，后台任务进程直接退出重启了一次。"
-      ]
+      ],
+      "en": {
+        "title": "A database connection that had already dropped",
+        "body": [
+          "At 2:09 a.m., the background job process exited and restarted once."
+        ]
+      }
     },
     {
       "date": "2026-11-05",
@@ -1764,7 +2926,13 @@
       "title": "后台页面不再因为一分钟的忙被当成坏了",
       "body": [
         "凌晨一点十七分，机器正在跑一批分析任务，`/admin/sources` 打开后是一句「后台读取暂时超时」。"
-      ]
+      ],
+      "en": {
+        "title": "Admin pages no longer look broken after a minute of load",
+        "body": [
+          "At 1:17 a.m., with a batch of analysis jobs running, `/admin/sources` opened to one line: “backend read timed out.”"
+        ]
+      }
     },
     {
       "date": "2026-11-04",
@@ -1773,7 +2941,13 @@
       "title": "每天看一眼：哪个主题没跟上最近的新闻",
       "body": [
         "站点有 43 个主题，其中有几个只靠一两条信源。"
-      ]
+      ],
+      "en": {
+        "title": "A daily look: which topics have not kept up with the news",
+        "body": [
+          "The site has 43 topics, and a few of them rest on only one or two sources."
+        ]
+      }
     },
     {
       "date": "2026-11-04",
@@ -1782,7 +2956,14 @@
       "title": "同一条内容，两个出口不再给出相反的答案",
       "body": [
         "这一批修的是「同一件事在两个地方说法不一样」：日报索引说能读、点进去是 404；条目页说没有正文、`.md` 却照发一份；手机上收起的内容，把窗口拉宽之后再"
-      ]
+      ],
+      "en": {
+        "title": "One item, two exits: no more opposite answers",
+        "body": [
+          "This batch fixes two-answer bugs: the daily index says an item is readable, but clicking it gives a 404.",
+          "Its page says there is no body, yet the `.md` is still served; collapsed mobile content, after the window is widened …"
+        ]
+      }
     },
     {
       "date": "2026-11-04",
@@ -1791,7 +2972,13 @@
       "title": "夜里多干活，但不再拿阅读页面去换",
       "body": [
         "站点的信息流水线在凌晨会拿到更多资源，好把积压消化得快一些。"
-      ]
+      ],
+      "en": {
+        "title": "More work at night, without trading away the reading page",
+        "body": [
+          "The site's information pipeline gets more resources overnight, so the backlog clears faster."
+        ]
+      }
     },
     {
       "date": "2026-11-04",
@@ -1800,7 +2987,13 @@
       "title": "订阅源不再被一条坏数据卡住",
       "body": [
         "一处坏数据不再让订阅源整段停更：以前只要有一条记录的放行时间被写成很远的将来，订阅源的水位就会永久停在它前面，后面所有新内容都出不去。"
-      ]
+      ],
+      "en": {
+        "title": "A feed is no longer stuck on one bad record",
+        "body": [
+          "One bad record no longer stalls a feed: a far-future release time froze the watermark and blocked every new item."
+        ]
+      }
     },
     {
       "date": "2026-11-04",
@@ -1809,7 +3002,13 @@
       "title": "手机上精选和全部合成一屏",
       "body": [
         "手机上「精选」和「全部」不再是两个页面：点一下，列表当场换，地址栏只多出一个 `?tab=all`，转发出去的链接还落在同一段。"
-      ]
+      ],
+      "en": {
+        "title": "On mobile, Selected and All share one screen",
+        "body": [
+          "Selected and All are one screen: a tap swaps the list, the URL only adds `?tab=all`, and shared links still land there."
+        ]
+      }
     },
     {
       "date": "2026-11-04",
@@ -1818,7 +3017,13 @@
       "title": "主题计数的一处更正",
       "body": [
         "11 月 3 日那条写的是「全部 43 个主题都有真实条目支撑」，实测是 42/43。"
-      ]
+      ],
+      "en": {
+        "title": "A correction to the topic count",
+        "body": [
+          "The November 3 entry said all 43 topics had real items behind them. The measured figure is 42 of 43."
+        ]
+      }
     },
     {
       "date": "2026-11-04",
@@ -1827,7 +3032,14 @@
       "title": "页脚清洗的判据只剩一份",
       "body": [
         "抽取、入库、喂模型、中文兜底四处共读 `lib/text.ts` 里的同一套规则；两个清洗脚本不再各自手抄一份正则。"
-      ]
+      ],
+      "en": {
+        "title": "One copy of the footer-cleaning rules",
+        "body": [
+          "Extraction, ingest, model input and Chinese fallback all read one set of rules in `lib/text.ts`.",
+          "The two cleanup scripts no longer keep hand-copied regexes."
+        ]
+      }
     },
     {
       "date": "2026-11-04",
@@ -1836,7 +3048,13 @@
       "title": "worker 反复重启时",
       "body": [
         "原判据是「本轮结算过才告警」，于是一个活不过二十分钟、反复重启的 worker 会让内容告警一直不出声。"
-      ]
+      ],
+      "en": {
+        "title": "When a worker keeps restarting",
+        "body": [
+          "The old rule fired only after a round settled, so a worker dying inside twenty minutes silenced content alerts."
+        ]
+      }
     },
     {
       "date": "2026-11-04",
@@ -1845,7 +3063,14 @@
       "title": "后台读取卡住时给一句话",
       "body": [
         "后台的内容、信源、模型、用量、反馈几个读取页都挂上了数据库侧的语句超时（5 秒，只读事务）。"
-      ]
+      ],
+      "en": {
+        "title": "One line when an admin read hangs",
+        "body": [
+          "Admin reads for content, sources, models, usage and feedback now have a database statement timeout.",
+          "It is 5 seconds, and these are read-only transactions."
+        ]
+      }
     },
     {
       "date": "2026-11-03",
@@ -1854,7 +3079,14 @@
       "title": "主题页换上真正有内容的主题",
       "body": [
         "「中东与北非干旱区」「东部沿海城市群」两个区域主题自上线起就没有匹配到一条内容（词表产不出只属于这两个区域的标签写法，一直空着）。"
-      ]
+      ],
+      "en": {
+        "title": "Topic pages now use topics with actual content",
+        "body": [
+          "Two regional topics had no content since launch: Middle East and North Africa Drylands, Eastern Coastal City Clusters.",
+          "The vocabulary could not produce tags unique to these regions, so both pages stayed empty."
+        ]
+      }
     },
     {
       "date": "2026-11-02",
@@ -1863,7 +3095,13 @@
       "title": "隐私说明对齐实际行为",
       "body": [
         "隐私说明更新到与站内实际行为逐条一致，补上了此前没写全的截图、备份与服务器日志三类事实。"
-      ]
+      ],
+      "en": {
+        "title": "Privacy notice aligned with actual behavior",
+        "body": [
+          "The privacy notice now matches actual behavior and adds three missing facts: screenshots, backups and server logs."
+        ]
+      }
     },
     {
       "date": "2026-11-02",
@@ -1872,7 +3110,13 @@
       "title": "全站例行体检",
       "body": [
         "本轮全站体检修掉了 11 处读者可能撞上的小问题，多数平时看不见，撞上时却很奇怪。"
-      ]
+      ],
+      "en": {
+        "title": "Routine site-wide checkup",
+        "body": [
+          "This round fixed 11 small problems readers could hit. Most stay invisible; when you hit one, it feels odd."
+        ]
+      }
     },
     {
       "date": "2026-11-02",
@@ -1881,7 +3125,13 @@
       "title": "新内容恢复及时上站",
       "body": [
         "后台排队攒了几千条历史文章待处理时，新到的文章会被排队的旧任务成批插到前面，读者看到的最新内容一度落后约 40 小时。"
-      ]
+      ],
+      "en": {
+        "title": "New content reaches the site on time again",
+        "body": [
+          "With thousands of old articles queued, old jobs jumped ahead of new ones; the newest content once lagged about 40 hours."
+        ]
+      }
     },
     {
       "date": "2026-11-01",
@@ -1891,7 +3141,15 @@
       "title": "从读到回信：站点有了完整的读者服务闭环",
       "body": [
         "2.0 把地理消息串成了读得懂的线索；这一个月，我们把「读」延伸成「能对话」——你提交的每条反馈都直达站长邮箱，处理进度随时可查，答复直接回进你的邮箱。"
-      ]
+      ],
+      "en": {
+        "title": "From reading to replies: a complete reader-service loop",
+        "body": [
+          "Version 2.0 turned geographic news into threads you can follow.",
+          "This month we extended reading into conversation: every feedback reaches the site owner's inbox.",
+          "You can check its status at any time, and replies come straight back to your inbox."
+        ]
+      }
     },
     {
       "date": "2026-11-01",
@@ -1900,7 +3158,14 @@
       "title": "全站联系渠道统一为邮箱",
       "body": [
         "全站检查并移除了旧协作工具（飞书）的最后一处读者可见痕迹：介绍页「成刊」一段改为 RSS、API、MCP 订阅口径。"
-      ]
+      ],
+      "en": {
+        "title": "All site contact channels now use email",
+        "body": [
+          "The site removed the last reader-visible trace of its old collaboration tool (Feishu).",
+          "The intro page's Publish section now describes RSS, API and MCP subscriptions."
+        ]
+      }
     },
     {
       "date": "2026-11-01",
@@ -1911,7 +3176,15 @@
         "后台抽取正文时，每一步都留下可查的日志，出了问题能立刻找到原因。",
         "- 抽取支持多路并行，队列消化更快。",
         "- 服务器吃紧时辅助自动让路，读者页面不受影响。"
-      ]
+      ],
+      "en": {
+        "title": "Body extraction is steadier and faster",
+        "body": [
+          "Every extraction step in the backend now leaves a searchable log, so a failure can be traced at once.",
+          "- Extraction runs in parallel lanes, so the queue drains faster.",
+          "- Under server pressure the auxiliary work yields automatically; reader pages are unaffected."
+        ]
+      }
     },
     {
       "date": "2026-11-01",
@@ -1921,7 +3194,14 @@
       "body": [
         "日报里「来源仅准摘要」的条目，点击标题不再落空。",
         "- 现在会打开一个受限页：标题、导读、来源与原文入口都在，站内全文按来源许可提供。"
-      ]
+      ],
+      "en": {
+        "title": "Every daily entry can be read",
+        "body": [
+          "For daily items whose source allows only a summary, clicking the title no longer leads nowhere.",
+          "- They open a restricted page with title, summary, source and original link; full text follows the source license."
+        ]
+      }
     },
     {
       "date": "2026-10-31",
@@ -1931,7 +3211,14 @@
       "body": [
         "上一版部分条目点击后落了 404，这一版把每个标题都指到真正存在的页面。",
         "- 期刊条目的排版也向文章页看齐，标题与摘要的字号行距一致。"
-      ]
+      ],
+      "en": {
+        "title": "Daily entry links fixed",
+        "body": [
+          "In the last version some entries landed on a 404; every title now points to a page that actually exists.",
+          "- Journal entries now match article pages: same font size and line spacing for titles and summaries."
+        ]
+      }
     },
     {
       "date": "2026-10-31",
@@ -1941,7 +3228,14 @@
       "body": [
         "日报、周报、月报里此前不可点的标题，现在都能点了。",
         "- 有站内页的跳站内页，没有的跳原文；仅来源撤回的保持纯文本。"
-      ]
+      ],
+      "en": {
+        "title": "All daily headlines are clickable",
+        "body": [
+          "Titles in the daily, weekly and monthly reports that could not be clicked now can be.",
+          "- Those with a page on the site open it; others open the original; source-retracted items stay plain text."
+        ]
+      }
     },
     {
       "date": "2026-10-31",
@@ -1951,7 +3245,14 @@
       "body": [
         "「查询处理状态」默认展开，编号、邮箱、查询按钮一屏可见。",
         "- 正文输入区收紧，提交按钮不用再滚动找。"
-      ]
+      ],
+      "en": {
+        "title": "A more usable feedback page",
+        "body": [
+          "“Check status” is open by default: ticket number, email and the check button fit on one screen.",
+          "- The message box is tighter, so the submit button no longer needs scrolling."
+        ]
+      }
     },
     {
       "date": "2026-10-31",
@@ -1960,7 +3261,13 @@
       "title": "期刊图片不再裁切",
       "body": [
         "期刊配图的查看器初始放大有了上限，图片上下不再被裁掉一截。"
-      ]
+      ],
+      "en": {
+        "title": "Journal images are no longer cropped",
+        "body": [
+          "The viewer for journal images now caps its initial zoom, so the top and bottom are no longer cut off."
+        ]
+      }
     },
     {
       "date": "2026-10-31",
@@ -1969,7 +3276,13 @@
       "title": "期刊图片默认看得更全",
       "body": [
         "期刊图片打开时默认放大到满宽，和文章页的观感一致。"
-      ]
+      ],
+      "en": {
+        "title": "Journal images show more by default",
+        "body": [
+          "Journal images now open zoomed to full width by default, matching the article page."
+        ]
+      }
     },
     {
       "date": "2026-10-31",
@@ -1980,7 +3293,15 @@
         "反馈页新增「查询处理状态」：留了邮箱的反馈，处理后能收到回信。",
         "- 转发邮件带上你的回复地址，直接回信就能到达。",
         "- 撤下了从未启用的旧推送链路，站点更轻。"
-      ]
+      ],
+      "en": {
+        "title": "Feedback status, with a slimmer push chain",
+        "body": [
+          "The feedback page adds “Check status”: if you leave an email, you get a reply once your feedback is handled.",
+          "- Forwarded mail now carries your reply address, so replying reaches you directly.",
+          "- We removed an old push chain that was never enabled, making the site lighter."
+        ]
+      }
     },
     {
       "date": "2026-10-31",
@@ -1989,7 +3310,13 @@
       "title": "日报图片支持缩放查看",
       "body": [
         "日报、周报、月报里的图片接上了全功能查看器：点开可放大、拖动、双指缩放。"
-      ]
+      ],
+      "en": {
+        "title": "Report images support zoom and pan",
+        "body": [
+          "Images in the daily, weekly and monthly reports now open in the full viewer: zoom, pan and pinch-to-zoom."
+        ]
+      }
     },
     {
       "date": "2026-10-31",
@@ -1999,7 +3326,14 @@
       "body": [
         "后台可以直接回复读者了，回信从站长邮箱发出。",
         "- 删除反馈改为整条消失，不留残余。"
-      ]
+      ],
+      "en": {
+        "title": "Feedback replies go straight to email",
+        "body": [
+          "The admin can now reply to readers directly, with replies sent from the site owner's inbox.",
+          "- Deleting feedback now removes the whole record, leaving nothing behind."
+        ]
+      }
     },
     {
       "date": "2026-10-31",
@@ -2008,7 +3342,13 @@
       "title": "反馈提交更有仪式感",
       "body": [
         "反馈提交成功后是一整屏的居中庆祝卡，不再是一行小字。"
-      ]
+      ],
+      "en": {
+        "title": "Feedback submission gets a full-screen celebration",
+        "body": [
+          "After a feedback submission, a centered celebration card fills the screen instead of a single line of small text."
+        ]
+      }
     },
     {
       "date": "2026-10-31",
@@ -2018,7 +3358,14 @@
       "body": [
         "后台能看到反馈来源的所在地，方便识别重复与滥用。",
         "- 删除反馈不再需要填原因，少一步。"
-      ]
+      ],
+      "en": {
+        "title": "Feedback admin shows where each report came from",
+        "body": [
+          "The admin panel now shows the location behind each feedback item, so duplicates and abuse are easier to spot.",
+          "- Deleting feedback no longer asks for a reason, one step less."
+        ]
+      }
     },
     {
       "date": "2026-10-31",
@@ -2028,7 +3375,14 @@
       "body": [
         "反馈转发收束为邮箱直发这一条通道，旧渠道的入口与残留全部移除。",
         "- 全站不再出现旧协作工具的痕迹。"
-      ]
+      ],
+      "en": {
+        "title": "Feedback now goes through email only",
+        "body": [
+          "Feedback forwarding now has one channel: direct email. The old channel's entry points and leftovers are removed.",
+          "- No trace of the old collaboration tool is left anywhere on the site."
+        ]
+      }
     },
     {
       "date": "2026-10-31",
@@ -2038,7 +3392,14 @@
       "body": [
         "每一条反馈连同截图，实时投进站长的 QQ 邮箱。",
         "- 失败自动重试一周，不丢反馈。"
-      ]
+      ],
+      "en": {
+        "title": "Feedback reaches the site owner's QQ mailbox",
+        "body": [
+          "Every feedback item, screenshots included, goes straight to the site owner's QQ mailbox in real time.",
+          "- Failed sends retry automatically for a week, so feedback is not lost."
+        ]
+      }
     },
     {
       "date": "2026-10-31",
@@ -2047,7 +3408,15 @@
       "title": "后台「通知目的地」板块下线",
       "body": [
         "后台设置页的通知目的地列表（飞书内容主群/镜像群的启用开关与投递统计）整块移除：站内没有飞书，两条目的地从未启用、内容推送阀关闭、7 天投递为 0，启用入口"
-      ]
+      ],
+      "en": {
+        "title": "Admin notification destinations section removed",
+        "body": [
+          "The notification destinations list in admin settings is removed: Feishu main/mirror group switches and delivery stats.",
+          "No Feishu here: neither destination was ever enabled, the content push valve is closed, 7-day deliveries are 0.",
+          "The enable entry..."
+        ]
+      }
     },
     {
       "date": "2026-10-31",
@@ -2056,7 +3425,14 @@
       "title": "联系方式换真邮箱",
       "body": [
         "安全联系邮箱填入真实 QQ 邮箱，security.txt、llms.txt 与后台回复提示随之自动更新；关于页的公众号与飞书群二维码上传入口整块下线——页"
-      ]
+      ],
+      "en": {
+        "title": "Contact email switched to the real mailbox",
+        "body": [
+          "The security contact now uses a real QQ mailbox, and security.txt, llms.txt and the admin reply hint update with it.",
+          "The upload entries for the About page's WeChat account and Feishu group QR codes are gone too: the page..."
+        ]
+      }
     },
     {
       "date": "2026-10-31",
@@ -2065,7 +3441,15 @@
       "title": "官方价核对跑通",
       "body": [
         "首轮自动核对照出三处脚本自身问题并逐一修掉：解析结果键名归一（单条与组合正则各按其键返回）、汇率刷新子进程不再被连接池挂住、写库值全部走参数绑定。"
-      ]
+      ],
+      "en": {
+        "title": "Official price check runs end to end",
+        "body": [
+          "The first automatic check found three bugs in the script, all fixed.",
+          "Result keys are normalized: single and bundled regexes each return by their own key.",
+          "The exchange-rate refresh child process no longer hangs on the connection pool; database writes use parameter binding."
+        ]
+      }
     },
     {
       "date": "2026-10-31",
@@ -2074,7 +3458,14 @@
       "title": "每日闲时官方价核对上线",
       "body": [
         "新开一条 05:50（北京时间，随机五分钟）的闲时核对：把九条模型官方价（DeepSeek、腾讯混元、智谱双版、Step、MiniMax、Dots、Agne"
-      ]
+      ],
+      "en": {
+        "title": "Daily off-peak official price check goes live",
+        "body": [
+          "A new off-peak check runs at 05:50 Beijing time, inside a random five-minute window.",
+          "Nine models' official prices: DeepSeek, Tencent Hunyuan, Zhipu (two versions), Step, MiniMax, Dots, Agne..."
+        ]
+      }
     },
     {
       "date": "2026-10-30",
@@ -2083,7 +3474,14 @@
       "title": "恢复 MiniMax 全球门并接入六账号",
       "body": [
         "把本机重新登录的六个 MiniMax Code（Global）账号凭据同步到服务器网关，恢复该门可用，并把这一扇以六账号轮询的额度接回模型池各步骤；同步保留"
-      ]
+      ],
+      "en": {
+        "title": "MiniMax global gate restored with six accounts",
+        "body": [
+          "Credentials for six re-logged-in MiniMax Code (Global) accounts went to the server gateway, restoring the gate.",
+          "Its quota now rotates across the six accounts and feeds model-pool steps again; the sync keeps..."
+        ]
+      }
     },
     {
       "date": "2026-10-30",
@@ -2092,7 +3490,14 @@
       "title": "模型池扩容：注册 14 扇 magpie",
       "body": [
         "本机 magpie 同步把服务器网关扩到 66 个模型，其中 14 扇核验过的门（qwenwork、antigravity、trae-cn、qoder、lo"
-      ]
+      ],
+      "en": {
+        "title": "Model pool grows by 14 magpie gates",
+        "body": [
+          "A local magpie sync took the server gateway to 66 models, 14 of them verified gates.",
+          "The verified gates include qwenwork, antigravity, trae-cn, qoder, lo..."
+        ]
+      }
     },
     {
       "date": "2026-10-30",
@@ -2102,7 +3507,15 @@
       "body": [
         "补充服务器端独占维护登记和普通用户计划任务工具。",
         "资源与版本检查通过后，本机可用单槽分担公开网页正文抽取；每轮限时运行，离线不影响服务器完整工作流。"
-      ]
+      ],
+      "en": {
+        "title": "Local helper gets a maintenance lock and limited work after login",
+        "body": [
+          "Added an exclusive maintenance registration on the server side and scheduled-task tools for regular users.",
+          "After resource and version checks pass, the local machine can share public web body extraction on a single slot.",
+          "Each run is time-boxed, and going offline does not affect the server's full workflow."
+        ]
+      }
     },
     {
       "date": "2026-10-29",
@@ -2111,7 +3524,14 @@
       "title": "额度耗尽后立即避开对应模型成员",
       "body": [
         "模型明确返回额度耗尽或认证拒绝时，后续分段任务立即采用池内其他有效成员，不再等待一分钟健康缓存刷新。"
-      ]
+      ],
+      "en": {
+        "title": "Skip exhausted model members at once",
+        "body": [
+          "If a model reports an exhausted quota or an auth rejection, later segments use another valid pool member at once.",
+          "They no longer wait a minute for the health cache to refresh."
+        ]
+      }
     },
     {
       "date": "2026-10-29",
@@ -2121,7 +3541,15 @@
       "body": [
         "增加仅处理公开网页正文的单槽辅助角色，保留服务器独立工作流。",
         "辅助抽取失败时交回服务器继续兜底，不提前分析或发布；电源、资源、版本和维护条件不符时停止新领取。"
-      ]
+      ],
+      "en": {
+        "title": "Controlled local helper for body extraction",
+        "body": [
+          "Added a single-slot helper that handles only public web body text, while the server keeps its own workflow.",
+          "If the helper fails, the server takes the job back and finishes it, with no early analysis or publishing.",
+          "It stops claiming new work when power, resources, version or maintenance conditions do not fit."
+        ]
+      }
     },
     {
       "date": "2026-10-29",
@@ -2130,7 +3558,14 @@
       "title": "统一运行源码并恢复结果未知回执的专门处理",
       "body": [
         "将服务器实际使用的资源调度、用量日历与标准费用口径、长文分析预算及图片恢复逻辑补齐至仓库。"
-      ]
+      ],
+      "en": {
+        "title": "Runtime source unified; unknown-result receipts get their own path",
+        "body": [
+          "The repo now matches what the server actually runs: resource scheduling, the usage calendar and standard cost basis.",
+          "Long-form analysis budget and image recovery logic are included too."
+        ]
+      }
     },
     {
       "date": "2026-10-29",
@@ -2139,7 +3574,14 @@
       "title": "现有精选与动态页面支持静默更新",
       "body": [
         "精选、全部动态首页、热点榜和主题首页在前台停留顶部时每分钟读取已完成工作流的最新公开内容，保持现有入口和布局。"
-      ]
+      ],
+      "en": {
+        "title": "Selected and feed pages refresh silently",
+        "body": [
+          "Selected, the All feed home, the hot list and the topics home refresh once a minute while the tab stays at the top.",
+          "They pull the latest public content from finished workflows, keeping the current entry points and layout."
+        ]
+      }
     },
     {
       "date": "2026-10-29",
@@ -2148,7 +3590,14 @@
       "title": "补齐模型配置版本与小浣熊免费模型注册",
       "body": [
         "回收已在线使用的 CodeArts-1017、Qoder 国际版和 MiniMax 模型注册配置；新增小浣熊三个免费模型，采用最高思考参数并声明已验证的图片"
-      ]
+      ],
+      "en": {
+        "title": "Model config versions filled in; Xiaohuanxiong free models registered",
+        "body": [
+          "Retired the registration configs for CodeArts-1017, Qoder International and MiniMax that were already in online use.",
+          "Added three free Xiaohuanxiong models, with the highest thinking parameters and declared verified images..."
+        ]
+      }
     },
     {
       "date": "2026-10-29",
@@ -2157,7 +3606,14 @@
       "title": "报刊引用状态与历史内容修复",
       "body": [
         "日报、周报、月报组稿共用完整工作流门禁，区分来源撤回、全文限制和材料待核验。"
-      ]
+      ],
+      "en": {
+        "title": "Report citation status and historical content fixed",
+        "body": [
+          "Daily, weekly and monthly reports now share the full workflow gate.",
+          "It separates source retractions, full-text limits and material still under verification."
+        ]
+      }
     },
     {
       "date": "2026-10-29",
@@ -2166,7 +3622,13 @@
       "title": "精简图片查看器提示",
       "body": [
         "移除图片查看器底部的操作提示，保留缩放按钮、拖动和手势功能。"
-      ]
+      ],
+      "en": {
+        "title": "Image viewer hints trimmed",
+        "body": [
+          "Removed the operation hint at the bottom of the image viewer; zoom buttons, dragging and gestures stay."
+        ]
+      }
     },
     {
       "date": "2026-10-29",
@@ -2175,7 +3637,14 @@
       "title": "图片细节缩放、移动阅读与历史期刊恢复",
       "body": [
         "图片查看器增加放大、缩小、适应窗口、原始尺寸和拖动，支持双击、双指与键盘，切图后重置视图。"
-      ]
+      ],
+      "en": {
+        "title": "Image zoom, mobile reading and historical issues recovered",
+        "body": [
+          "The image viewer gains zoom in, zoom out, fit to window, original size and drag.",
+          "Double-click, two fingers and the keyboard work, and the view resets when you switch images."
+        ]
+      }
     },
     {
       "date": "2026-10-28",
@@ -2184,7 +3653,13 @@
       "title": "补强源正文完整性核验与论文提取",
       "body": [
         "拦截明确截断摘要和仅含参考文献的论文正文。"
-      ]
+      ],
+      "en": {
+        "title": "Stronger source body completeness checks and paper extraction",
+        "body": [
+          "Blocks abstracts that are clearly truncated and paper bodies that contain only references."
+        ]
+      }
     },
     {
       "date": "2026-10-28",
@@ -2194,7 +3669,15 @@
       "body": [
         "取消仅摘要来源和摘要模式的文章放行例外。",
         "当前版本分析、完整正文、适用完整译文及正文媒体就绪后才提供阅读页，旧放行结果按新规则有界复核。"
-      ]
+      ],
+      "en": {
+        "title": "Articles go public only after the full workflow passes",
+        "body": [
+          "Removed the exception that let abstract-only sources and abstract-mode articles go public.",
+          "A reading page now waits for current-version analysis, full body, applicable full translation and body media.",
+          "Earlier releases are rechecked under the new rule within bounds."
+        ]
+      }
     },
     {
       "date": "2026-10-28",
@@ -2203,7 +3686,13 @@
       "title": "开源仓库流程图支持查看高清 PNG",
       "body": [
         "中英文说明中的架构流程图改用 3600 像素宽的 PNG，点击后直接打开图片，可按原尺寸放大阅读。"
-      ]
+      ],
+      "en": {
+        "title": "Repo flow diagrams open as high-resolution PNGs",
+        "body": [
+          "Architecture diagrams in the Chinese and English READMEs are now 3600 px wide PNGs that open directly at full size."
+        ]
+      }
     },
     {
       "date": "2026-10-28",
@@ -2212,7 +3701,14 @@
       "title": "在现有服务器上兼顾新内容与历史待办",
       "body": [
         "调整后台任务分配，让新内容继续优先处理，同时为较早的待办保留执行机会；没有扩容服务器或提高总体并发。"
-      ]
+      ],
+      "en": {
+        "title": "New content and old backlog share the existing server",
+        "body": [
+          "Background job allocation is rebalanced: new content still goes first, and older backlog keeps a chance to run.",
+          "No servers were added and overall concurrency did not rise."
+        ]
+      }
     },
     {
       "date": "2026-10-28",
@@ -2221,7 +3717,14 @@
       "title": "用量总览增加日历",
       "body": [
         "用量总览新增按北京时间选日的月历，可查看某一天的请求、Token、模型与任务用量，并继续使用服务和模型筛选。"
-      ]
+      ],
+      "en": {
+        "title": "Calendar added to usage overview",
+        "body": [
+          "The usage overview now has a monthly calendar for picking a day in Beijing time.",
+          "It shows that day's requests, tokens, models and tasks, with the service and model filters still in place."
+        ]
+      }
     },
     {
       "date": "2026-10-28",
@@ -2230,7 +3733,14 @@
       "title": "网站工作流同步 CodeArts Dee",
       "body": [
         "将网站 CodeArts 通道的实际模型同步到 Magpie 中已选用的 DeepSeek V4.1 Flash 1017，保留既有最高思考强度设置。"
-      ]
+      ],
+      "en": {
+        "title": "Site workflow syncs CodeArts Dee",
+        "body": [
+          "The site's CodeArts channel now runs the DeepSeek V4.1 Flash 1017 model already selected in Magpie.",
+          "The existing highest thinking setting stays."
+        ]
+      }
     },
     {
       "date": "2026-10-27",
@@ -2239,7 +3749,14 @@
       "title": "内容通过完整性校验后再公开",
       "body": [
         "公开阅读入口按当前版本的原文、译文和必要媒体检查就绪状态，避免把尚未完成处理的内容作为完整文章呈现；就绪后再由正常工作流恢复公开。"
-      ]
+      ],
+      "en": {
+        "title": "Content goes public after completeness checks",
+        "body": [
+          "Public reading entries now check that the current version's original text, translation and required media are ready.",
+          "Unfinished content is no longer shown as a complete article; once ready, the normal workflow restores publication."
+        ]
+      }
     },
     {
       "date": "2026-10-27",
@@ -2248,7 +3765,15 @@
       "title": "识别正文节选",
       "body": [
         "改善 RSS 节选识别与正文提取，修复已确认的部分期刊、Mongabay 和 DW 图片地址问题，并将确认缺失的历史正文交回正常工作流重提取。"
-      ]
+      ],
+      "en": {
+        "title": "Body excerpts are now detected",
+        "body": [
+          "Improved RSS excerpt detection and body extraction.",
+          "Fixed confirmed image URL problems at some journals, Mongabay and DW.",
+          "Historical bodies confirmed missing go back to the normal workflow for re-extraction."
+        ]
+      }
     },
     {
       "date": "2026-10-27",
@@ -2257,7 +3782,14 @@
       "title": "修复用量总览长期停留在旧统计的问题",
       "body": [
         "今天、7 天、30 天、90 天和全部范围改为协调更新统计快照，修复各范围长期停留在不同旧时间的问题。"
-      ]
+      ],
+      "en": {
+        "title": "Usage overview no longer sticks to old stats",
+        "body": [
+          "Today, 7 days, 30 days, 90 days and All now refresh their stats snapshots together.",
+          "This fixes ranges that had long sat on different old times."
+        ]
+      }
     },
     {
       "date": "2026-10-26",
@@ -2266,7 +3798,15 @@
       "title": "改善现有低内存服务器的后台调度与恢复",
       "body": [
         "减少重复常驻进程和后台争抢，完善资源压力下的退让、正常停机与自动恢复，让网页访问与内容处理共享现有服务器资源。"
-      ]
+      ],
+      "en": {
+        "title": "Better background scheduling and recovery on the low-memory server",
+        "body": [
+          "Fewer duplicate resident processes and less background contention.",
+          "Added better yielding under resource pressure, graceful shutdown and automatic recovery.",
+          "Web requests and content processing share the existing server."
+        ]
+      }
     },
     {
       "date": "2026-10-24",
@@ -2276,7 +3816,13 @@
       "title": "把世界的地理变化，串成每天读得懂的线索",
       "body": [
         "从地理信源到中文阅读、事件追踪和日报，回顾 GEOHOT 建站以来的主要变化。"
-      ]
+      ],
+      "en": {
+        "title": "Turning the world's geographic change into threads you can read each day",
+        "body": [
+          "From geographic sources to Chinese reading, events and the daily brief: the main changes since GEOHOT launched."
+        ]
+      }
     },
     {
       "date": "2026-10-23",
@@ -2286,7 +3832,14 @@
       "body": [
         "后台统计分开读取，避免一次慢查询拖住整个页面。",
         "- 更新日志改用简短说明，保留每次更新的日期和主要变化。"
-      ]
+      ],
+      "en": {
+        "title": "Lighter back office, clearer changelog",
+        "body": [
+          "Back-office stats now load separately, so one slow query no longer stalls the whole page.",
+          "- Changelog entries now use short notes, keeping each release's date and main changes."
+        ]
+      }
     },
     {
       "date": "2026-10-23",
@@ -2296,7 +3849,14 @@
       "body": [
         "修复后台处理繁忙时页面难以打开的问题，改善公开页面的访问稳定性。",
         "- 完善长文分段翻译，补充对官方公报正文的支持，并更新安全防护。"
-      ]
+      ],
+      "en": {
+        "title": "Page access restored, long-form translation improved",
+        "body": [
+          "Fixed pages that were hard to open while the back office was busy, improving stability on public pages.",
+          "- Improved chunked translation for long articles, added official bulletin support and updated security protections."
+        ]
+      }
     },
     {
       "date": "2026-10-23",
@@ -2306,7 +3866,14 @@
       "body": [
         "修复历史内容处理停滞的问题，减少待整理与待翻译条目。",
         "- 补充微信公众号全文和新闻搜索来源，并恢复部分被误停的信源。"
-      ]
+      ],
+      "en": {
+        "title": "Faster archive processing, site access restored",
+        "body": [
+          "Fixed stalled processing of historical content, reducing the items waiting to be organised and translated.",
+          "- Added full-text WeChat official account sources and news search sources; sources stopped by mistake were restored."
+        ]
+      }
     },
     {
       "date": "2026-10-18",
@@ -2316,7 +3883,14 @@
       "body": [
         "优先整理历史条目，进一步减少待办，并持续补充中文译文。",
         "- 本轮曾暂停实时采集约 8.6 小时，恢复后已抓回部分暂停期间发布的内容。"
-      ]
+      ],
+      "en": {
+        "title": "More historical items and Chinese translations",
+        "body": [
+          "Prioritised historical items, further cut the backlog and kept adding Chinese translations.",
+          "- Live collection paused for about 8.6 hours; after resuming, some content published during the pause was collected."
+        ]
+      }
     },
     {
       "date": "2026-10-17",
@@ -2326,7 +3900,14 @@
       "body": [
         "按新闻日期整理历史资料，四期历史日报补入更多要闻，旧版仍可查阅。",
         "- 调整译文处理顺序，兼顾新内容与较短正文。"
-      ]
+      ],
+      "en": {
+        "title": "Four backfilled daily briefs gain more top stories",
+        "body": [
+          "Four backfilled daily briefs gained more stories after material was sorted by news date; old versions remain readable.",
+          "- Translation work was reordered to cover both new content and shorter articles."
+        ]
+      }
     },
     {
       "date": "2026-10-17",
@@ -2336,7 +3917,14 @@
       "body": [
         "为精选英文全文条目补充中文译文，已生成 244 篇，其中 227 篇完整。",
         "- 改善分段翻译，拦截把长文缩成摘要的结果，并清除混入正文的网页杂项。"
-      ]
+      ],
+      "en": {
+        "title": "Chinese text now available for English items",
+        "body": [
+          "Added Chinese translations to selected English full-text items: 244 generated, 227 of them complete.",
+          "- Chunked translation improved; results that shrank long articles into summaries are rejected and page clutter removed."
+        ]
+      }
     },
     {
       "date": "2026-10-15",
@@ -2346,7 +3934,14 @@
       "body": [
         "优化后台查询，减少重复读取，并加强运行安全防护。",
         "- 补齐站点恢复所需配置，提高故障后重新搭建的可靠性。"
-      ]
+      ],
+      "en": {
+        "title": "Faster page loads, stronger site recovery",
+        "body": [
+          "Optimised back-office queries, cut duplicate reads and hardened runtime security.",
+          "- Added the configuration needed to restore the site, making a rebuild after a failure more reliable."
+        ]
+      }
     },
     {
       "date": "2026-10-15",
@@ -2356,7 +3951,14 @@
       "body": [
         "增加历史资料入口与过刊翻页支持，补充今年各月的地理资讯。",
         "- 部分期刊未提供摘要，仍会限制可用内容的数量。"
-      ]
+      ],
+      "en": {
+        "title": "Wider historical archive, better back-issue collection",
+        "body": [
+          "Added a historical archive entrance and back-issue paging, filling in geographic news for each month of this year.",
+          "- Some journals provide no abstracts, which still limits how much content is usable."
+        ]
+      }
     },
     {
       "date": "2026-10-14",
@@ -2366,7 +3968,14 @@
       "body": [
         "新增 173 条信源，覆盖机构政务信息与期刊当期目录，在采集信源增至 666 条。",
         "- 移除无法采集的来源，并排除重复、无有效日期或与地理无关的候选。"
-      ]
+      ],
+      "en": {
+        "title": "New institutional, government and journal sources",
+        "body": [
+          "Added 173 sources covering institutional, government and current journal contents; sources in collection rose to 666.",
+          "- Removed sources that could not be collected, and excluded duplicates, undated or non-geographic candidates."
+        ]
+      }
     },
     {
       "date": "2026-10-13",
@@ -2376,7 +3985,14 @@
       "body": [
         "新增国内自然资源、地震、地调、水利等官方信息来源，扩展国际机构与学术资讯。",
         "- 接入 96 个官方 YouTube 频道，并核对频道身份。"
-      ]
+      ],
+      "en": {
+        "title": "More official and video sources in China and abroad",
+        "body": [
+          "Added official Chinese sources on natural resources, earthquakes, geology and water, plus international academic news.",
+          "- Connected 96 official YouTube channels and checked each channel's identity."
+        ]
+      }
     },
     {
       "date": "2026-10-13",
@@ -2386,7 +4002,14 @@
       "body": [
         "补充今年以来的历史刊物，可翻阅日报增至 279 期，另有 40 期周报和 9 期月报。",
         "- 修复有资料却未出刊及部分刊物内容为空的问题。"
-      ]
+      ],
+      "en": {
+        "title": "Daily, weekly and monthly briefs join the archive",
+        "body": [
+          "Added this year's back issues: browsable daily briefs rose to 279, plus 40 weekly and 9 monthly briefs.",
+          "- Fixed issues that had material but were never published, and some issues that came out empty."
+        ]
+      }
     },
     {
       "date": "2026-10-13",
@@ -2396,7 +4019,14 @@
       "body": [
         "将资料范围扩展至今年 1 月以来，1—9 月每月已收集约千条历史材料。",
         "- 历史材料仍按原有标准筛选，后续继续整理、翻译与出刊。"
-      ]
+      ],
+      "en": {
+        "title": "More historical material from this year",
+        "body": [
+          "Coverage now reaches back to January; each month from January to September holds about a thousand historical items.",
+          "- Historical material is still filtered by the existing standard; organising, translation and publishing continue."
+        ]
+      }
     },
     {
       "date": "2026-10-13",
@@ -2406,7 +4036,14 @@
       "body": [
         "改善出刊中断后的接续处理，减少刊物反复等待的问题。",
         "- 总述或大标题生成失败时，仍保留已选出的条目与栏目。"
-      ]
+      ],
+      "en": {
+        "title": "Fewer gaps in weekly and monthly briefs",
+        "body": [
+          "Improved how publishing resumes after an interruption, so issues no longer wait over and over.",
+          "- When the overview or main headline fails to generate, the selected items and sections are kept."
+        ]
+      }
     },
     {
       "date": "2026-10-12",
@@ -2416,7 +4053,14 @@
       "body": [
         "精选和主题列表滚到末尾会自动加载下一页，无需反复点击。",
         "- 遇到无法继续加载的情况会提供提示；列表失效时会返回第一页。"
-      ]
+      ],
+      "en": {
+        "title": "Selected and topic lists scroll on without clicking",
+        "body": [
+          "The Selected and topic lists now load the next page at the bottom, with no repeated clicking.",
+          "- A message appears when loading cannot continue; if the list goes stale, it returns to the first page."
+        ]
+      }
     },
     {
       "date": "2026-10-12",
@@ -2426,7 +4070,14 @@
       "body": [
         "增加内容处理渠道，减少单一渠道受限时对资讯整理的影响。",
         "- 关于页与使用说明同步写明：标题、摘要和逐条判断由模型生成，标准由站长制定并可抽查更正。"
-      ]
+      ],
+      "en": {
+        "title": "Steadier automated processing, updated content notes",
+        "body": [
+          "Added a second content processing channel, so limits on one channel no longer hold up the news pipeline.",
+          "- The About page and usage notes say titles, summaries and calls are model-generated; the site owner sets the standard."
+        ]
+      }
     },
     {
       "date": "2026-10-12",
@@ -2436,7 +4087,14 @@
       "body": [
         "改善按月采集历史资料的翻页规则，避免遇到空页后停止处理后续内容。",
         "- 修复带参数的文章链接被误认为栏目页的问题，恢复极地研究中心科研进展采集。"
-      ]
+      ],
+      "en": {
+        "title": "Fixed archive paging and missed section collection",
+        "body": [
+          "Fixed the paging rules for month-by-month archive collection, so an empty page no longer stops later content.",
+          "- Fixed article links with parameters being read as section pages, restoring Polar Research Institute of China updates."
+        ]
+      }
     },
     {
       "date": "2026-10-12",
@@ -2446,7 +4104,14 @@
       "body": [
         "视频来源卡片可查看最多三张封面静帧，点击可放大。",
         "- 「全部动态」新增月历，可按日期浏览更早内容，数量随分类与标签变化。"
-      ]
+      ],
+      "en": {
+        "title": "Video cards show stills; All updates gets a calendar",
+        "body": [
+          "Cards from video sources now show up to three cover stills, and clicking one enlarges it.",
+          "- All updates now has a calendar to browse earlier content by date; counts follow the chosen category and tags."
+        ]
+      }
     },
     {
       "date": "2026-10-10",
@@ -2457,7 +4122,15 @@
         "按来源指定的日期格式读取，减少日、月顺序混淆。",
         "- 无法可靠识别的日期保留为空，不猜测填写。",
         "- 采集报告新增日期缺失提示，便于发现异常来源。"
-      ]
+      ],
+      "en": {
+        "title": "Better publication-date detection",
+        "body": [
+          "Dates are read using each source's specified format, reducing confusion between day and month order.",
+          "- Dates that cannot be read reliably are left blank instead of being guessed.",
+          "- Collection reports now flag missing dates, making problem sources easier to spot."
+        ]
+      }
     },
     {
       "date": "2026-10-10",
@@ -2467,7 +4140,14 @@
       "body": [
         "分两批接入 12 条来源，包括法国地理院、卫星与大气机构、期刊目录及科研动态。",
         "- 只接入可实际获取内容的来源；返回空白、无有效正文或无法访问的候选暂不收录。"
-      ]
+      ],
+      "en": {
+        "title": "New sources: France's IGN, satellites and atmosphere",
+        "body": [
+          "Added 12 sources in two batches: France's IGN, satellite and atmosphere agencies, journal contents and research updates.",
+          "- Only sources with content that can be fetched are connected; blank, unusable or unreachable candidates are left out."
+        ]
+      }
     },
     {
       "date": "2026-10-09",
@@ -2477,7 +4157,14 @@
       "body": [
         "修复从条目页返回分类精选时错误显示 404 的问题。",
         "- 「更多操作」菜单支持方向键及 Home、End，关闭后按操作方式恢复焦点。"
-      ]
+      ],
+      "en": {
+        "title": "Back to Selected fixed, keyboard menu improved",
+        "body": [
+          "Fixed a 404 shown when returning from an item page to a category's Selected list.",
+          "- The More actions menu now supports the arrow keys and Home/End, and returns focus the way it was opened."
+        ]
+      }
     },
     {
       "date": "2026-10-09",
@@ -2487,7 +4174,14 @@
       "body": [
         "新增两批共 65 条学术与研究动态来源，覆盖更多地理相关期刊。",
         "- 按期刊官方目录核对名称，纠正缩写混淆，并移除重复来源。"
-      ]
+      ],
+      "en": {
+        "title": "More geography research sources",
+        "body": [
+          "Added 65 academic and research-update sources in two batches, covering more geography-related journals.",
+          "- Names were checked against each journal's official contents, mixed-up abbreviations fixed, duplicates removed."
+        ]
+      }
     },
     {
       "date": "2026-10-09",
@@ -2497,7 +4191,14 @@
       "body": [
         "扩充地理期刊、预印本、研究机构与高校科研动态，支持浏览更多前沿成果。",
         "- 修复部分期刊目录链接与标题解析问题。"
-      ]
+      ],
+      "en": {
+        "title": "95 new frontier research sources",
+        "body": [
+          "Expanded coverage of geography journals, preprints, research institutes and university research updates.",
+          "- Fixed contents links and title parsing for some journals."
+        ]
+      }
     },
     {
       "date": "2026-10-09",
@@ -2507,7 +4208,14 @@
       "body": [
         "新增「前沿地理」，收录新证据、新方法、新数据与研究进展。",
         "- 移除「考研」分类，将「地理与政治」「地理与历史」改为「政治地理」「历史地理」。"
-      ]
+      ],
+      "en": {
+        "title": "Frontier Geography added; category names revised",
+        "body": [
+          "Added Frontier Geography, covering new evidence, methods, data and research progress.",
+          "- Removed the postgraduate exam category; politics and history now read Political Geography and Historical Geography."
+        ]
+      }
     },
     {
       "date": "2026-10-08",
@@ -2517,7 +4225,14 @@
       "body": [
         "归档会标出没有刊物的日期，空刊不再计入当月期数。",
         "- 期号在出版时确定，重排不改号，后补的旧刊不打乱已有编号。"
-      ]
+      ],
+      "en": {
+        "title": "Archive marks days with no issue; issue numbers fixed",
+        "body": [
+          "The archive now marks dates with no issue, and empty issues no longer count toward the month's total.",
+          "- Issue numbers are set at publication and stay fixed when issues are reordered; later backfills leave them alone."
+        ]
+      }
     },
     {
       "date": "2026-10-06",
@@ -2527,7 +4242,14 @@
       "body": [
         "根据实际评分结果下调入选门槛，让更多符合标准的内容进入精选。",
         "- 按已有分析重新判定后，精选从 59 条增至 77 条，日报自次日起恢复。"
-      ]
+      ],
+      "en": {
+        "title": "Selection bar lowered; daily brief publishing resumes",
+        "body": [
+          "Lowered the selection threshold to match actual scores, so more content that meets the standard enters Selected.",
+          "- After re-judging with existing analyses, Selected grew from 59 items to 77, and the daily brief resumed the next day."
+        ]
+      }
     },
     {
       "date": "2026-10-06",
@@ -2537,7 +4259,15 @@
       "body": [
         "接入国际地理联合会、美国地理学家协会、国际制图协会、IPBES、国际科学理事会与联合国人居署。",
         "- 六家来源已采集到内容，无法正常获取的候选暂未接入。"
-      ]
+      ],
+      "en": {
+        "title": "Six leading geography and science bodies added",
+        "body": [
+          "Connected the International Geographical Union and the American Association of Geographers.",
+          "Added the International Cartographic Association, IPBES, the International Science Council and UN-Habitat.",
+          "- All six sources have yielded content; candidates that could not be fetched were not connected for now."
+        ]
+      }
     },
     {
       "date": "2026-10-06",
@@ -2547,7 +4277,14 @@
       "body": [
         "检查发现入选门槛与实际评分分布不匹配，导致精选较少，连续三期日报为空。",
         "- 本轮仅确认原因，门槛调整见后续更新。"
-      ]
+      ],
+      "en": {
+        "title": "Why Selected was thin and three daily briefs empty",
+        "body": [
+          "An audit found the selection threshold did not match actual scores, leaving Selected thin and three daily briefs empty.",
+          "- This round only confirmed the cause; the threshold change follows in a later update."
+        ]
+      }
     },
     {
       "date": "2026-10-06",
@@ -2557,7 +4294,14 @@
       "body": [
         "改善内容处理的等待与重试，减少任务因超时而反复中断。",
         "- 摘要会持续保留人工或自动生成的标记，避免历史记录清理后误判作者来源。"
-      ]
+      ],
+      "en": {
+        "title": "Fewer processing stalls; summary origin labels kept",
+        "body": [
+          "Improved waiting and retries in content processing, so tasks stop breaking off on timeouts.",
+          "- Summaries keep their manual or auto-generated label, so clearing old records no longer misattributes authorship."
+        ]
+      }
     },
     {
       "date": "2026-10-06",
@@ -2567,7 +4311,14 @@
       "body": [
         "关于页和归档只统计真正可阅读的刊物，报道来源数量与展开列表保持一致。",
         "- 修复部分已完成分析的内容未能发布，以及暂缓任务未能继续处理的问题。"
-      ]
+      ],
+      "en": {
+        "title": "Consistent figures for editions, sources and public content",
+        "body": [
+          "The About page and the archive now count only editions that can actually be read, and a report's source count matches its expanded list.",
+          "- Fixed some analysed content that never reached publication, and jobs that had stalled instead of continuing."
+        ]
+      }
     },
     {
       "date": "2026-10-06",
@@ -2578,7 +4329,15 @@
         "改善正文提取，去除版权页脚、字号按钮、发稿信息和独立编辑署名等杂项。",
         "- 本轮误清的有效正文已按备份恢复并重新处理。",
         "- 公开页面仍以摘要和原文链接为主。"
-      ]
+      ],
+      "en": {
+        "title": "Page footers and web controls removed from article bodies",
+        "body": [
+          "Body extraction now strips copyright footers, font-size buttons, publication notices and standalone editor bylines.",
+          "- Valid text removed by this round was restored from backup and processed again.",
+          "- Public pages still lead with the summary and a link to the original."
+        ]
+      }
     },
     {
       "date": "2026-10-06",
@@ -2588,7 +4347,14 @@
       "body": [
         "较短的官方预警可按有效内容识别，减少被误判为无正文的情况。",
         "- 修复中文摘要为空的问题，并修复或停用无法正常采集的信源。"
-      ]
+      ],
+      "en": {
+        "title": "Short alerts recognised; Chinese summaries no longer come out empty",
+        "body": [
+          "Short official alerts are judged by their actual content instead of being mistaken for a body-less page.",
+          "- Fixed empty Chinese summaries, and repaired or paused sources that could not be collected."
+        ]
+      }
     },
     {
       "date": "2026-10-06",
@@ -2598,7 +4364,14 @@
       "body": [
         "模型开始承担地理相关性判断、中文写作、评分与事件归并。",
         "- 分类、信源与入选标准仍由站长制定，读者可反馈错误。"
-      ]
+      ],
+      "en": {
+        "title": "Models now write Chinese titles and summaries and give the score",
+        "body": [
+          "Models now handle geographic relevance, Chinese writing, scoring and event grouping.",
+          "- Categories, sources and selection standards remain the editor's; readers can report mistakes."
+        ]
+      }
     },
     {
       "date": "2026-10-05",
@@ -2609,7 +4382,15 @@
         "登记八家机构的官方 X 账号，等待采集条件具备后启用。",
         "- 本轮试接的视频频道已撤下，尚未作为持续信源提供。",
         "- 公开列表同时改为只提供仍可正常打开的条目。"
-      ]
+      ],
+      "en": {
+        "title": "Official X accounts registered, collection not yet switched on",
+        "body": [
+          "Eight agencies' official X accounts are registered and will start once their collection conditions are met.",
+          "- The video channels tried this round were withdrawn and are not offered as standing sources.",
+          "- Public lists now include only items whose page still opens."
+        ]
+      }
     },
     {
       "date": "2026-10-05",
@@ -2619,7 +4400,14 @@
       "body": [
         "旧条目误用内部标签作标题时，改为显示来源原标题，并留空不可用摘要。",
         "- 刊物条数、筛选后的更新时间与主题列表采用一致规则。"
-      ]
+      ],
+      "en": {
+        "title": "Old item titles corrected; lists and the archive explain themselves the same way",
+        "body": [
+          "When an old item used an internal label as its title, the site now shows the source's own headline and leaves an unusable summary empty.",
+          "- Edition counts, filtered update times and topic lists now follow one rule."
+        ]
+      }
     },
     {
       "date": "2026-10-05",
@@ -2629,7 +4417,14 @@
       "body": [
         "不可用的事件综述、日报导语和刊物总述可重新生成。",
         "- 没有中文标题的精选不再自动进入站点索引。"
-      ]
+      ],
+      "en": {
+        "title": "Better overview generation and image display",
+        "body": [
+          "Unusable event digests, daily leads and report overviews can be regenerated.",
+          "- Picks without a Chinese title no longer enter the site index automatically."
+        ]
+      }
     },
     {
       "date": "2026-10-05",
@@ -2640,7 +4435,15 @@
         "后台新增带理由的事件综述重写入口，修复重复取回已拒绝文本的问题。",
         "- 推荐理由与标题、摘要采用相同的身份与中文检查。",
         "- 旧的规则拼接综述可重新生成。"
-      ]
+      ],
+      "en": {
+        "title": "Event digests can be rewritten again; selection reasons are checked",
+        "body": [
+          "The back office now has a rewrite entry for an event digest with a reason, and no longer fetches an already-rejected text a second time.",
+          "- Selection reasons go through the same identity and Chinese checks as titles and summaries.",
+          "- Old rule-built digests can be regenerated."
+        ]
+      }
     },
     {
       "date": "2026-10-05",
@@ -2650,7 +4453,14 @@
       "body": [
         "收藏超过 500 条时会分批检查完整清单，减少后续收藏未被查询的问题。",
         "- 统一报道来源数量与列表规则，搜索繁忙时提供实际等待提示。"
-      ]
+      ],
+      "en": {
+        "title": "Fixed a check that missed large saved lists",
+        "body": [
+          "Once a reader saves more than 500 items, the full list is checked in batches, so later saves are no longer skipped.",
+          "- Report source counts and list rules now agree, and a busy search says how long the wait is."
+        ]
+      }
     },
     {
       "date": "2026-10-05",
@@ -2660,7 +4470,14 @@
       "body": [
         "尚无中文稿的事件页会说明标题与报道按原文显示，并保留原始报道入口。",
         "- 移除未由编辑撰写的旧导语，日报保留条目，周报、月报使用通用期名。"
-      ]
+      ],
+      "en": {
+        "title": "Event pages say plainly when there is no Chinese draft",
+        "body": [
+          "An event page with no Chinese draft now explains that titles and reports are shown as published, and keeps the original report entrances.",
+          "- Removed old leads the editors did not write; the daily keeps its items, and the weekly and monthly use a plain issue name."
+        ]
+      }
     },
     {
       "date": "2026-10-04",
@@ -2670,7 +4487,14 @@
       "body": [
         "分两批接入中新网、BBC 中文、教育部、中国科技网与发改委动态。",
         "- 未持续更新或在采集端无法获取的候选暂未启用。"
-      ]
+      ],
+      "en": {
+        "title": "New Chinese official and news sources",
+        "body": [
+          "China News Service, BBC Chinese, the Ministry of Education, China Science and Technology Network and NDRC updates were added in two batches.",
+          "- Candidates that do not update steadily, or cannot be fetched, stay off."
+        ]
+      }
     },
     {
       "date": "2026-10-04",
@@ -2680,7 +4504,14 @@
       "body": [
         "移除与「全部」高度重合的「一手」筛选项，保留分类筛选。",
         "- 事件页的「官方一手」筛选与来源标记继续提供，旧渠道链接仍可打开。"
-      ]
+      ],
+      "en": {
+        "title": "A simpler filter row on the home page",
+        "body": [
+          "Removed the “first-hand” filter, which overlapped almost entirely with “All”, and kept the category filters.",
+          "- The event page's official/first-hand filter and source marks stay, and old channel links still open."
+        ]
+      }
     },
     {
       "date": "2026-10-04",
@@ -2691,7 +4522,15 @@
         "本轮没有合格事件时，首页展示最近一张有内容的榜单，并注明截至时间。",
         "- 榜单超过一天会显示说明，并提供「全部动态」入口。",
         "- 热点入选条件保持不变。"
-      ]
+      ],
+      "en": {
+        "title": "The trending board keeps the last ranking with content",
+        "body": [
+          "When a round has no qualifying event, the home page shows the last ranking that had entries and states its cut-off time.",
+          "- A ranking older than a day says so and offers the All updates entrance.",
+          "- The conditions for entering the board are unchanged."
+        ]
+      }
     },
     {
       "date": "2026-10-04",
@@ -2702,7 +4541,15 @@
         "撤下与分类、主题功能重合的四个板块页，原板块地址停止提供。",
         "- 条目与分类继续保留，读者可通过分类列表浏览。",
         "- 本轮新增的 14 条信源继续采集。"
-      ]
+      ],
+      "en": {
+        "title": "Duplicate board pages removed, category entrances kept",
+        "body": [
+          "The four board pages that duplicated categories and topics were removed, and their old addresses stop being served.",
+          "- Items and categories remain; readers browse through the category lists.",
+          "- The 14 sources added this round keep collecting."
+        ]
+      }
     },
     {
       "date": "2026-10-04",
@@ -2712,7 +4559,14 @@
       "body": [
         "恢复内容处理更新，所有公开出口统一执行中文标题要求。",
         "- 改善错误输入提示，修复地震列表未继续读取较旧记录的问题。"
-      ]
+      ],
+      "en": {
+        "title": "Fixed Chinese content publication and a gap in earthquake collection",
+        "body": [
+          "Content processing updates again, and every public exit applies the Chinese-title requirement the same way.",
+          "- Better messages for bad input, and the earthquake list now keeps reading older records."
+        ]
+      }
     },
     {
       "date": "2026-10-04",
@@ -2723,7 +4577,15 @@
         "窄屏分类栏增加可横向滚动的提示，方便找到右侧分类。",
         "- 改善键盘焦点提示与评分文字对比度。",
         "- 相对时间改为向下取整，减少过早显示「两分钟前」的情况。"
-      ]
+      ],
+      "en": {
+        "title": "Better narrow-screen filters and keyboard reading",
+        "body": [
+          "The category row on narrow screens now hints that it scrolls, so the categories on the right can be found.",
+          "- Clearer keyboard focus and higher contrast on the score text.",
+          "- Relative times now round down, so “two minutes ago” no longer appears too early."
+        ]
+      }
     },
     {
       "date": "2026-10-04",
@@ -2733,7 +4595,14 @@
       "body": [
         "合并「地理信息技术」与「地理信息系统」，统一为「地理信息系统」。",
         "- 移除「野外与考察」「观点与解读」分类及同名主题，原条目按内容重新归类。"
-      ]
+      ],
+      "en": {
+        "title": "Duplicate categories merged, redundant topics removed",
+        "body": [
+          "“Geographic information technology” and “Geographic information systems” are merged into “Geographic information systems”.",
+          "- The “Fieldwork and expeditions” and “Opinion and analysis” categories and their same-named topics were removed; their items were reclassified by content."
+        ]
+      }
     },
     {
       "date": "2026-10-03",
@@ -2744,7 +4613,15 @@
         "没有后续报道的事件显示空列表，不再误报「事件后续暂时无法加载」。",
         "- 页面只在断网或服务异常时提供重试。",
         "- 无发布日期的条目单独列出，不再归入「今天」。"
-      ]
+      ],
+      "en": {
+        "title": "Fixed event follow-ups that would not load",
+        "body": [
+          "An event with no follow-up reports shows an empty list instead of the false “event follow-ups could not be loaded”.",
+          "- The page offers a retry only when the network or the service actually fails.",
+          "- Items without a publication date are listed separately instead of under “today”."
+        ]
+      }
     },
     {
       "date": "2026-10-02",
@@ -2754,7 +4631,14 @@
       "body": [
         "当时已显示的 12 条英文卡片补上中文标题与摘要，并更正一处地震震级表述。",
         "- 尚无中文稿的条目暂不进入公开列表，原页面保留并说明原因。"
-      ]
+      ],
+      "en": {
+        "title": "English cards fixed, Chinese content added",
+        "body": [
+          "The 12 English cards shown at the time received Chinese titles and summaries, and one earthquake magnitude was corrected.",
+          "- Items without a Chinese draft no longer enter public lists; their page stays and explains why."
+        ]
+      }
     },
     {
       "date": "2026-10-02",
@@ -2764,7 +4648,14 @@
       "body": [
         "事件进展新增「最新在前／最早在前」，方便从头了解事件。",
         "- 导出文件使用本站名称，相关文字统一为「事件提要」等表述。"
-      ]
+      ],
+      "en": {
+        "title": "Event developments can be reordered; exported names are clearer",
+        "body": [
+          "Event developments can now be ordered “newest first” or “oldest first”, to follow an event from the start.",
+          "- Exported files use this site's own name, and the wording is unified around “event digest”."
+        ]
+      }
     },
     {
       "date": "2026-10-02",
@@ -2774,7 +4665,14 @@
       "body": [
         "没有内容的刊物不再进入归档、月份网格、前后导航与「最新一期」。",
         "- 旧地址仍可打开并说明没有入选内容，零字数刊物不再显示虚构的阅读时长。"
-      ]
+      ],
+      "en": {
+        "title": "Empty editions no longer enter the archive or subscription lists",
+        "body": [
+          "An edition with no content no longer enters the archive, the month grid, the neighbour links or “latest issue”.",
+          "- Its old address still opens and says there was no selected content; a zero-word edition no longer shows a made-up reading time."
+        ]
+      }
     },
     {
       "date": "2026-10-02",
@@ -2784,7 +4682,14 @@
       "body": [
         "新增周报、月报的往期列表、最新一期与指定期查询，并支持 MCP 读取。",
         "- RSS 新增周报与月报订阅，各保留最近 12 期，附总述和栏目目录。"
-      ]
+      ],
+      "en": {
+        "title": "Weekly and monthly reports now read through RSS, the API and assistants",
+        "body": [
+          "Added past-issue lists, the latest issue and per-issue queries for weekly and monthly reports, readable through MCP.",
+          "- RSS gained weekly and monthly subscriptions, each keeping the last 12 issues with the overview and a page index."
+        ]
+      }
     },
     {
       "date": "2026-10-02",
@@ -2794,7 +4699,14 @@
       "body": [
         "修复多处站内链接跳出 GEOHOT 路径的问题，改善返回与功能入口。",
         "- 核对介绍页配图、链接和发布文件，减少图片缺失或内容不一致。"
-      ]
+      ],
+      "en": {
+        "title": "Fixed on-site links and About-page images",
+        "body": [
+          "Fixed several on-site links that left the GEOHOT path, and improved the back links and feature entrances.",
+          "- Checked the About page's images, links and published files, reducing missing images and inconsistent copy."
+        ]
+      }
     },
     {
       "date": "2026-10-02",
@@ -2804,7 +4716,14 @@
       "body": [
         "改善信源名单展开后的焦点移动与读屏提示，增大部分小按钮的点击范围。",
         "- 修正页面规范地址，并说明关闭 JavaScript 后可用与受限的功能。"
-      ]
+      ],
+      "en": {
+        "title": "Better keyboard, screen-reader and no-script reading",
+        "body": [
+          "Improved focus movement and screen-reader notes after a source list expands, and enlarged some small buttons' tap areas.",
+          "- Corrected the canonical page address and explained which features work without JavaScript and which are limited."
+        ]
+      }
     },
     {
       "date": "2026-10-01",
@@ -2814,7 +4733,14 @@
       "body": [
         "网站上线 xxc2007.me/geohot/，源码以 MIT 协议公开。",
         "- 桌面侧栏与手机「更多」页新增开源仓库入口。"
-      ]
+      ],
+      "en": {
+        "title": "GEOHOT is live and open source",
+        "body": [
+          "The site opened at xxc2007.me/geohot/, and the source is public under the MIT licence.",
+          "- The desktop sidebar and the phone's More page gained an entrance to the open-source repository."
+        ]
+      }
     },
     {
       "date": "2026-09-29",
@@ -2824,7 +4750,14 @@
       "body": [
         "站名启用 GEOHOT（地理热点），内容转向地理领域。",
         "- 资讯摘要着重说明地点、影响范围与消息来源，面向泛读者解释术语。"
-      ]
+      ],
+      "en": {
+        "title": "GEOHOT goes live",
+        "body": [
+          "The site takes the name GEOHOT (Geography Hotspots) and turns to geography.",
+          "- Summaries now state place, reach and source, and explain technical terms for general readers."
+        ]
+      }
     },
     {
       "date": "2026-09-29",
@@ -2834,7 +4767,14 @@
       "body": [
         "精选改从影响范围、新意、证据等维度判断，信源转向台网、机构、期刊与研究者。",
         "- 减少旅游营销、招生推广与未经核实传闻。"
-      ]
+      ],
+      "en": {
+        "title": "Selecting geographic news by spatial impact and evidence",
+        "body": [
+          "Selection now judges reach, novelty and evidence, and sources turn to station networks, agencies, journals and researchers.",
+          "- Less travel marketing, study-tour promotion and unverified rumour."
+        ]
+      }
     },
     {
       "date": "2026-09-29",
@@ -2844,7 +4784,14 @@
       "body": [
         "日报按空间影响组织头条，导语交代地点、范围、时间与消息来源。",
         "- 日报、周报和月报按北京时间排期发布。"
-      ]
+      ],
+      "en": {
+        "title": "The daily brief leads with place, scale and impact",
+        "body": [
+          "The daily orders its lead by spatial impact, and its opening states place, reach, time and source.",
+          "- Daily, weekly and monthly editions are scheduled in Beijing time."
+        ]
+      }
     }
   ]
 }

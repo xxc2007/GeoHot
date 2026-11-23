@@ -8,6 +8,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FeedItemSummary } from "@aihot/contracts/site";
 import { publicPath } from "../../lib/public-path";
+import { useLocale } from "../../lib/i18n";
+import { copy as feedCopy } from "../../lib/i18n/feed";
 import { DayList } from "../feed/DayList";
 
 const MAX_PAGE = 50;
@@ -26,6 +28,8 @@ export function InfiniteTopicList({ slug, initialItems, initialPage, pageCount, 
   today: string;
   showTags?: boolean;
 }) {
+  const locale = useLocale();
+  const t = feedCopy[locale];
   const [items, setItems] = useState(initialItems);
   const [page, setPage] = useState(initialPage);
   const [loading, setLoading] = useState(false);
@@ -46,7 +50,7 @@ export function InfiniteTopicList({ slug, initialItems, initialPage, pageCount, 
     setFailed(null);
     try {
       const next = page + 1;
-      const res = await fetch(publicPath(`/api/site/topics/${encodeURIComponent(slug)}?page=${next}`), {
+      const res = await fetch(publicPath(`/api/site/topics/${encodeURIComponent(slug)}?page=${next}${locale === "en" ? "&lang=en" : ""}`), {
         headers: { accept: "application/json" },
         signal: AbortSignal.timeout(15_000),
       });
@@ -59,12 +63,12 @@ export function InfiniteTopicList({ slug, initialItems, initialPage, pageCount, 
       if (body.page >= Math.min(body.pageCount, MAX_PAGE) || body.items.length === 0) setDone(true);
     } catch (error) {
       const name = (error as Error)?.name;
-      setFailed(name === "TimeoutError" || name === "AbortError" ? "这次取超时了，再滑一下试试" : ((error as Error)?.message ?? "加载失败"));
+      setFailed(name === "TimeoutError" || name === "AbortError" ? t.feedTimeout : ((error as Error)?.message ?? t.feedLoadFailed));
     } finally {
       inflight.current = false;
       setLoading(false);
     }
-  }, [lastPage, page, slug]);
+  }, [lastPage, page, slug, locale, t.feedTimeout, t.feedLoadFailed]);
 
   useEffect(() => {
     const node = sentinel.current;
@@ -84,23 +88,23 @@ export function InfiniteTopicList({ slug, initialItems, initialPage, pageCount, 
         {loading && (
           <span className="inline-flex items-center gap-2" role="status">
             <span aria-hidden="true" className="size-3.5 animate-spin rounded-full border-2 border-line-strong border-t-accent" />
-            正在接着取…
+            {t.feedLoadingMore}
           </span>
         )}
         {!loading && failed && (
           <>
-            <span role="alert">这一屏没取到（{failed}）</span>
+            <span role="alert">{t.feedChunkFailed(failed)}</span>
             <button type="button" onClick={() => void load()} className="inline-flex h-9 items-center rounded-full border border-line-strong bg-surface px-4 text-[13px] text-ink-2 hover:border-ink-4 hover:text-ink">
-              再试一次
+              {t.feedRetryAction}
             </button>
           </>
         )}
         {!loading && !failed && done && (
-          <span>{page >= MAX_PAGE ? "最多提供 50 页；更早的内容请用主题页顶部的说明或搜索。" : "已经到底了。"}</span>
+          <span>{page >= MAX_PAGE ? t.feedTopicPageCap : t.feedListEnd}</span>
         )}
         {!loading && !failed && !done && (
           <button type="button" onClick={() => void load()} className="inline-flex h-9 items-center rounded-full border border-line-strong bg-surface px-4 text-[13px] text-ink-2 hover:border-ink-4 hover:text-ink">
-            加载更多
+            {t.feedLoadMore}
           </button>
         )}
       </div>

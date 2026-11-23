@@ -29,12 +29,14 @@ interface ListState {
   collapsed: string[];
 }
 
-function filterQuery(f: TimelineFilters, extra: Record<string, string | number | null | undefined> = {}) {
+function filterQuery(f: TimelineFilters, locale: "zh" | "en", extra: Record<string, string | number | null | undefined> = {}) {
   const sp = new URLSearchParams();
   if (f.channel !== "all") sp.set("channel", f.channel);
   if (f.category) sp.set("category", f.category);
   if (f.tag) sp.set("tag", f.tag);
   if (f.topic) sp.set("topic", f.topic);
+  // 续读与换头都留在这一页的语言：不带上 lang，60 秒后的静默刷新会换回中文投影。
+  if (locale === "en") sp.set("lang", "en");
   for (const [k, v] of Object.entries(extra)) if (v !== null && v !== undefined && v !== "") sp.set(k, String(v));
   return sp.toString();
 }
@@ -87,7 +89,7 @@ export function DayHeader({ day, today, count, collapsed, onToggle }: { day: str
           {count !== null && (
             <>
               {" · "}
-              <span className="num">{count}</span> {c.dayCountPost}
+              <span className="num">{count}</span> {c.dayCountPost(count)}
             </>
           )}
         </span>
@@ -122,6 +124,7 @@ export function TimelineSlot({ at, children, fresh = false, delay = 0, dataKey }
 export function Timeline({ initial, filters }: { initial: TimelineResponse; filters: TimelineFilters }) {
   const location = useLocation();
   const navigation = useNavigation();
+  const locale = useLocale();
   const readSet = useReadSet();
   const historyKey = location.key;
 
@@ -148,7 +151,7 @@ export function Timeline({ initial, filters }: { initial: TimelineResponse; filt
   // Filters (i.e. the loader data) changed. A page still loading for the old filters is cancelled, and a
   // response that arrives anyway is dropped (it belongs to another list and cursor). Back or forward to a
   // filter already visited restores what that history entry had loaded and folded; a new one starts over.
-  const filterKey = filterQuery(filters);
+  const filterKey = filterQuery(filters, locale);
   const lastFilterKey = useRef(filterKey);
   const lastInitial = useRef(initial);
   const pageRequest = useRef<AbortController | null>(null);
@@ -224,7 +227,7 @@ export function Timeline({ initial, filters }: { initial: TimelineResponse; filt
   const loadMore = useCallback(async () => {
     const s = stateRef.current;
     if (!s.nextCursor || pageRequest.current) return;
-    const key = filterQuery(filters);
+    const key = filterQuery(filters, locale);
     const controller = new AbortController();
     pageRequest.current = controller;
     const current = () => lastFilterKey.current === key && !controller.signal.aborted;
@@ -232,7 +235,7 @@ export function Timeline({ initial, filters }: { initial: TimelineResponse; filt
     setLoadError(false);
     setStalled(false);
     try {
-      const res = await fetch(publicPath(`/api/site/timeline?${filterQuery(filters, { cursor: s.nextCursor, limit: PAGE_LIMIT })}`), { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]) });
+      const res = await fetch(publicPath(`/api/site/timeline?${filterQuery(filters, locale, { cursor: s.nextCursor, limit: PAGE_LIMIT })}`), { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]) });
       if (res.status === 400) {
         // Cursor no longer fits: start over from the head. The head can fail too (offline, 500, the same
         // timeout), and until now it simply returned — the scroll looked like it was loading but did
@@ -314,7 +317,6 @@ export function Timeline({ initial, filters }: { initial: TimelineResponse; filt
     setState((s) => ({ ...s, collapsed: s.collapsed.includes(day) ? s.collapsed.filter((d) => d !== day) : [...s.collapsed, day] }));
 
   let order = 0;
-  const locale = useLocale();
   const c = copy[locale];
   return (
     <div className="relative">

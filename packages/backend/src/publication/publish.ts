@@ -312,6 +312,14 @@ export async function publishArticleTx(tx: Tx, articleId: string, options: Publi
     if (!media?.ready) await enqueue(QUEUES.prepareMedia, { articleId }, { singletonKey: `media:${articleId}` }, tx);
   }
 
+  // 英文条目稿与中文投影同一事务入队：读者页永远不会因为缺英文而现场调模型，队列没跑时只是保持
+  // `english_source_revision IS DISTINCT FROM revision` 这一「还没有英文」的信号。
+  // 中文重发只动 revision，en 列不在下面的 INSERT/ON CONFLICT 元组里，所以英文稿不会被重置成 null，
+  // 也不会因为英文变化让中文 revision 上涨。
+  if (visibility === "public" && next.title && summary) {
+    await enqueue(QUEUES.english, { kind: "copy", articleId }, { singletonKey: `en-copy:${articleId}` }, tx);
+  }
+
   // Selected sync ledger: the public selected set is (selected AND visibility = public AND a Chinese
   // title). The third condition is the same gate every list applies — `chineseCopyCondition`'s own pattern,
   // read through `hasChineseCopy`, which replaced the hand-typed copy of it that used to sit here. Leaving

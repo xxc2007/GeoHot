@@ -59,7 +59,7 @@ const en: typeof zh = {
   emptyAction: "Browse all updates",
   emptyBody: `Topic pages list selected items only; the remaining source posts stay in “All updates” — filter by category and the same batch shows up.`,
 
-  chineseNotice: "Topic names and definitions stay in Chinese. Item titles appear in their original language; AI summaries are in Chinese.",
+  chineseNotice: "Some topic names, definitions and summaries have no English version yet and are shown in Chinese.",
 };
 
 export const copy = { zh, en } as const;

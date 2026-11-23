@@ -26,15 +26,15 @@ export interface FeedItemProps {
 export const FeedItem = memo(function FeedItem({ item, group, filters, read = false, onOpen, showTags = false }: FeedItemProps) {
   const isX = item.channel === "x" && !!item.x;
   const open = () => onOpen?.(item.id);
-  // 英文页的标题行优先显示信源原题（originalTitle，多为国际信源的英文原题）；没有原题的条目
-  // （中文信源）回退到模型写的中文标题——同一屏两种标题混排是数据事实，如实呈现。中文页
-  // 一律用中文标题，逐字不变。类别角标同属界面，说法随语言走（feed.ts 词表）。
+  // /en 的 title/summary/reason/source.name/tags 都由读取层按 lang=en 投影过（有英文用英文，
+  // 缺英文回退中文并带 textLocale）；页面不再自己拿 originalTitle 盖住 title。
+  // originalTitle 只当副题：英文页在主标题缺失或仍是中文时，把信源原题放在标题下面（它是信源自己的话）。
   const locale = useLocale();
-  const title = locale === "en" && item.originalTitle ? item.originalTitle : item.title;
-  // 英文页的 <html lang="en"> 下会混进中文内容：没有原题的条目回退到模型写的中文标题，摘要与
-  // 推荐理由也一律中文（发布闸门 chineseCopyCondition 只收中文稿）。这些内容按自己的语种标注，
+  const title = item.title;
+  const originalAsSub = locale === "en" && (!title || hasChineseCopy(title)) && !!item.originalTitle && item.originalTitle !== title;
+  // 英文页的 <html lang="en"> 下会混进回退的中文：按每段文字自己的语种标注，
   // 读屏才不会拿英语音去念整句中文（WCAG 3.1.2）；中文页 <html lang="zh-CN">，不必逐条再标。
-  const contentLang = (text: string | null) => (locale === "en" && text && hasChineseCopy(text) ? "zh" : undefined);
+  const contentLang = (text: string | null | undefined) => (locale === "en" && text && hasChineseCopy(text) ? "zh-Hans" : undefined);
   const showSources = !!group && (group.additionalSourceCount > 0 || (group.developmentCount <= 1 && group.reportCount > 1));
   const showDevelopments = !!group?.story && group.developmentCount > 1;
   const tags = showTags ? item.tags.slice(0, 3) : [];
@@ -82,6 +82,7 @@ export const FeedItem = memo(function FeedItem({ item, group, filters, read = fa
               {title}
             </IntentLink>
           </h3>
+          {originalAsSub && <p lang={hasChineseCopy(item.originalTitle!) ? "zh-Hans" : undefined} className="mt-1 line-clamp-2 text-[13px] leading-[1.6] text-ink-4">{item.originalTitle}</p>}
           {item.summary && <p lang={contentLang(item.summary)} className="mt-1.5 line-clamp-2 text-[14.5px] leading-[1.75] text-ink-3 lg:mt-2 lg:line-clamp-3 lg:text-lead">{item.summary}</p>}
         </div>
       )}

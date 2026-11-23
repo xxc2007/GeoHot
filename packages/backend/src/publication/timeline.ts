@@ -1,4 +1,3 @@
-import { workflowReadyCondition } from "./readiness.ts";
 import { withPublicRead } from "./read-budget.ts";
 // Home timeline: selected items folded into reading groups (reference SELECTED_READING):
 // one card per story, per fact outside a story, or per standalone article. A card sits at its latest
@@ -9,7 +8,7 @@ import { beijingDate } from "@aihot/contracts/time";
 import { sql } from "../db.ts";
 import { decodeCursor, encodeCursor, InvalidCursorError, queryBinding } from "../lib/cursor.ts";
 import {
-  ITEM_COLUMNS, ITEM_FROM, categoryCondition, channelCondition, chineseCopyCondition, releasedCondition, selectedCondition, tagCondition, toFeedItemSummary, topicCondition,
+  ITEM_COLUMNS, ITEM_FROM, categoryCondition, channelCondition, listedCondition, pendingReadyCondition, selectedCondition, tagCondition, toFeedItemSummary, topicCondition,
   type ItemRow,
 } from "./items.ts";
 import { FACT_MEMBER_ROLES } from "./rules.ts";
@@ -31,7 +30,8 @@ function filterSql(q: TimelineQuery) {
 }
 
 function binding(q: TimelineQuery): string {
-  return queryBinding({ c: q.channel, k: q.category, t: q.tag, p: q.topic ?? null });
+  // 游标只在 en 下带语言：旧的中文游标继续有效；同一筛选的 en 页有自己的缓存桶。
+  return queryBinding({ c: q.channel, k: q.category, t: q.tag, p: q.topic ?? null, ...(q.lang === "en" ? { l: "en" } : {}) });
 }
 
 /** Representative preference: first-party, full text, higher score, earliest. */
@@ -61,7 +61,7 @@ async function groupPool(q: TimelineQuery, now: Date, storyIds: number[], factId
     FROM facts f JOIN fact_articles fa ON fa.fact_id = f.id JOIN publications p ON p.article_id = fa.article_id
     WHERE (f.story_id IN ${sql(storyIds.length ? storyIds : [0])} OR f.id IN ${sql(factIds.length ? factIds : [0])})
       AND fa.role = ANY(${FACT_MEMBER_ROLES})
-      AND p.visibility = 'public' AND p.eligible AND ${releasedCondition(now)} AND ${chineseCopyCondition()} ${filterSql(q)}`;
+      AND p.eligible AND ${listedCondition(now, q.lang)} ${filterSql(q)}`;
 }
 
 /**
@@ -110,11 +110,11 @@ async function queryGroupedAnchors(q: TimelineQuery, now: Date): Promise<Grouped
     WITH base AS (
       SELECT p.sort_at, coalesce('s' || p.story_id::text, 'f' || p.fact_id::text, 'a' || p.article_id) AS gk
       FROM publications p
-      WHERE ${selectedCondition(now)} ${filterSql(q)}
+      WHERE ${selectedCondition(now, q.lang)} ${filterSql(q)}
     ),
     waiting AS (
       SELECT min(p.visible_after) AS t FROM publications p
-      WHERE p.visibility = 'public' AND p.selected AND p.visible_after > ${now} AND ${workflowReadyCondition()} AND ${chineseCopyCondition()} ${filterSql(q)}
+      WHERE p.visibility = 'public' AND p.selected AND p.visible_after > ${now} AND ${pendingReadyCondition(q.lang)} ${filterSql(q)}
     )
     SELECT g.gk, g.anchor_at, waiting.t AS pending_at
     FROM waiting LEFT JOIN (SELECT gk, max(sort_at) AS anchor_at FROM base GROUP BY gk) g ON true
@@ -164,13 +164,13 @@ export async function loadTimeline(q: TimelineQuery): Promise<Omit<TimelineRespo
       ? sql<Member[]>`
         SELECT p.story_id, p.fact_id, p.article_id AS id, p.first_party, p.body_mode, p.score, p.timeline_at, p.sort_at FROM publications p
         WHERE (p.story_id IN ${sql(storyIds.length ? storyIds : [0])} OR (p.story_id IS NULL AND p.fact_id IN ${sql(factIds.length ? factIds : [0])}))
-          AND ${selectedCondition(now)} ${filterSql(q)}`
+          AND ${selectedCondition(now, q.lang)} ${filterSql(q)}`
       : Promise.resolve([] as Member[]),
     groupPool(q, now, storyIds, factIds),
   ]);
   const groupFactIds = [...new Set([...members.map((m) => m.fact_id), ...pool.map((r) => r.fact_id)])];
   const factInfo = new Map(
-    groupFactIds.length ? (await sql<{ id: number; public_id: string; title: string }[]>`SELECT id, public_id, title FROM facts WHERE id IN ${sql(groupFactIds)}`).map((f) => [f.id, f]) : [],
+    groupFactIds.length ? (await sql<{ id: number; public_id: string; title: string; title_en: string | null }[]>`SELECT id, public_id, title, title_en FROM facts WHERE id IN ${sql(groupFactIds)}`).map((f) => [f.id, f]) : [],
   );
   const firstSeen = (list: Member[]) => Math.min(...list.map((r) => (r.sort_at ?? r.timeline_at).getTime()));
 
@@ -206,7 +206,13 @@ export async function loadTimeline(q: TimelineQuery): Promise<Omit<TimelineRespo
       // Reports of the facts that have a selected report (the developments), counted once each.
       reportCount: new Set(reports.filter((r) => byFact.has(r.fact_id)).map((r) => r.article_id)).size,
       developmentCount: byFact.size,
-      latestDevelopment: newest ? { factId: newest.public_id, title: newest.title, at: new Date(firstSeen(newestRows)).toISOString() } : null,
+      latestDevelopment: newest && (q.lang !== "en" || !!newest.title_en?.trim())
+        ? {
+          factId: newest.public_id,
+          title: q.lang === "en" ? newest.title_en!.trim() : newest.title,
+          at: new Date(firstSeen(newestRows)).toISOString(),
+        }
+        : null,
     };
     const showGroup = group.reportCount > 1 || group.developmentCount > 1;
     planned.push({ key: g.gk, anchorAt: g.anchor_at.toISOString(), id: rep.id, group: showGroup ? group : null });
@@ -215,12 +221,14 @@ export async function loadTimeline(q: TimelineQuery): Promise<Omit<TimelineRespo
   // Recheck scope when hydrating: a withdrawal may commit after the narrow representative read.
   const rows = new Map(planned.length ? (await sql<ItemRow[]>`
     SELECT ${ITEM_COLUMNS} ${ITEM_FROM} WHERE p.article_id IN ${sql(planned.map((p) => p.id))}
-      AND ${selectedCondition(now)} ${filterSql(q)}`).map((row) => [row.id, row]) : []);
+      AND ${selectedCondition(now, q.lang)} ${filterSql(q)}`).map((row) => [row.id, row]) : []);
   const cards: TimelineCard[] = planned.flatMap(({ id, key, anchorAt, group }) => {
     const row = rows.get(id);
     if (!row) return [];
-    if (group) group.story = row.story_public_id ? { publicId: row.story_public_id, title: row.story_title ?? "" } : null;
-    return [{ key, anchorAt, item: toFeedItemSummary(row), group }];
+    if (group) group.story = row.story_public_id
+      ? { publicId: row.story_public_id, title: (q.lang === "en" ? row.story_title_en ?? row.story_title : row.story_title) ?? "" }
+      : null;
+    return [{ key, anchorAt, item: toFeedItemSummary(row, q.lang), group }];
   });
 
   // Day header counts for the days on this page, over the full grouped set.
@@ -235,5 +243,5 @@ export async function loadTimeline(q: TimelineQuery): Promise<Omit<TimelineRespo
 
   const last = page[page.length - 1];
   const nextCursor = hasMore && last ? encodeCursor("tl1", { a: last.anchor_at.getTime(), g: last.gk, b: bind }) : null;
-  return { filters: { channel: q.channel, category: q.category, tag: q.tag, topic: q.topic ?? null }, cards, nextCursor, refreshAt: snapshot.refreshAt, dayCounts };
+  return { filters: { channel: q.channel, category: q.category, tag: q.tag, topic: q.topic ?? null }, cards, nextCursor, refreshAt: snapshot.refreshAt, dayCounts, lang: q.lang ?? "zh" };
 }

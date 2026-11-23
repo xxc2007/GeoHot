@@ -70,6 +70,31 @@ const zh = {
   /** 信源河上/下带出的最新一条精选的名字。 */
   latestSelected: "最近精选",
 
+  /** 英文页作者署名；中文页仍用 ABOUT.maker.name（熊鑫晨）。 */
+  makerNameEn: "Xinchen Xiong",
+
+  /** 信源河（SignalRiver）画布上的悬停词：版式固定，说法随页面语言。 */
+  river: {
+    daily: withSubject("日报"),
+    edition: "每天 08:00 出刊",
+    sourceFallback: "信源",
+    singleSource: "一个信源",
+    heatOnly: (kind: string) => `${kind} · 只计入热度`,
+    sameEvent: "同一件事",
+    bundle: (n: number) => `${n} 个来源的报道合成一条`,
+    selected: "进了精选",
+    selectedWhy: "有信息量，分数也够",
+    notSelected: "没进精选",
+    notSelectedWhy: "信息不够、重复或只是营销",
+    kinds: {
+      x_search: "X 账号",
+      rss: "RSS",
+      web_list: "网页",
+      mp_account: "公众号",
+      json_list: "接口",
+    } as Record<string, string>,
+  },
+
   ctaSelected: "看今天的精选",
   ctaBrief: `读最新${withSubject("日报")}`,
 
@@ -141,6 +166,27 @@ const en: typeof zh = {
   madeChangesPost: " is where to tell me.",
 
   latestSelected: "Latest selected",
+  makerNameEn: "Xinchen Xiong",
+  river: {
+    daily: "Daily brief",
+    edition: "Published daily at 08:00",
+    sourceFallback: "Source",
+    singleSource: "A single source",
+    heatOnly: (kind) => `${kind} · heat only`,
+    sameEvent: "The same event",
+    bundle: (n) => `${n} sources' reports merged into one`,
+    selected: "Selected",
+    selectedWhy: "Informative, and the score cleared the bar",
+    notSelected: "Not selected",
+    notSelectedWhy: "Not enough information, duplicate, or marketing",
+    kinds: {
+      x_search: "X account",
+      rss: "RSS",
+      web_list: "Web pages",
+      mp_account: "WeChat accounts",
+      json_list: "APIs",
+    },
+  },
 
   ctaSelected: "See today's picks",
   ctaBrief: "Read the latest daily brief",

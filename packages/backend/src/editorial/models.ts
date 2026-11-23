@@ -37,6 +37,14 @@ export const CAPABILITIES = {
   report: { label: "日报、周报、月报", env: "REPORT_MODEL", default: "default", purposes: ["report_lead", "report_daily", "report_weekly", "report_monthly"] },
   translate: { label: "精选全文翻译（含引用帖）", env: "TRANSLATE_MODEL", default: "default", purposes: ["translate_body", "translate_quoted"] },
   monitor: { label: "Codex 重置公告识别", env: "MONITOR_MODEL", default: "default", purposes: ["monitor.recognize", "monitor.context"] },
+  // 英文腿：条目稿、正文、事件综述、事实标题、日报导语、周/月报综述、引用帖。它有自己的环境变量，
+  // 运维可以把英文成本与中文生产分到不同成员/服务；留空仍走 MODEL_POOL，与其余步骤共享预算熔断。
+  english: {
+    label: "英文稿（条目、正文、事件、事实标题、日报）",
+    env: "ENGLISH_MODEL",
+    default: "default",
+    purposes: ["write_english", "translate_body_en", "translate_fact_titles_en", "translate_post_en", "story_digest_en", "report_lead_en", "report_period_en"],
+  },
 } satisfies Record<string, Capability>;
 
 export type CapabilityKey = keyof typeof CAPABILITIES;

@@ -2,7 +2,7 @@ import { data as withHeaders, Link, redirect, useLoaderData } from "react-router
 import type { Route } from "./+types/home";
 import type { PoolResponse, TimelineResponse } from "@aihot/contracts/site";
 import { isCategoryKey, isChannelKey } from "@aihot/contracts/taxonomy";
-import { loadOr404, queryString, releaseBoundCache } from "../lib/api.server";
+import { loadOr404, queryString, releaseBoundCache, withLang } from "../lib/api.server";
 import { listPath, organizationLd, pageMeta } from "../lib/seo";
 import { localeAppPath, localeFromPath, useLocale, type Locale } from "../lib/i18n";
 import { copy } from "../lib/i18n/pages/home";
@@ -34,8 +34,8 @@ export async function loader({ request }: Route.LoaderArgs) {
   // Search lives on /all; keep the parameters so old links still land on results. The redirect target
   // stays in the requested language (bare app path — the server rewrites the prefix for document
   // redirects, React Router resolves it under the basename for client navigation).
-  const searchLocale = localeFromPath(url.pathname);
-  if (q && q.trim()) throw redirect(searchLocale === "en" ? `/en/all${url.search}` : `/all${url.search}`);
+  const locale = localeFromPath(url.pathname);
+  if (q && q.trim()) throw redirect(locale === "en" ? `/en/all${url.search}` : `/all${url.search}`);
   const channelParam = url.searchParams.get("channel") ?? "all";
   const categoryParam = url.searchParams.get("category");
   const channel = isChannelKey(channelParam) ? channelParam : "all";
@@ -53,19 +53,19 @@ export async function loader({ request }: Route.LoaderArgs) {
   // 精选那一段不多付一次接口。取不到就只是不画，不把整页变成 404。
   const month = beijingDate(Date.now()).slice(0, 7);
   const [data, pool, calendar] = await Promise.all([
-    loadOr404<TimelineResponse>(`/api/site/timeline${queryString({ ...scope, limit: 12 })}`, { responseHeaders: upstream, signal: request.signal }),
+    loadOr404<TimelineResponse>(withLang(`/api/site/timeline${queryString({ ...scope, limit: 12 })}`, locale), { responseHeaders: upstream, signal: request.signal }),
     // 手机「全部」那一段是首页的增强项：它读不到就退回只有精选，不该把整页变成 404。
     // 这个接口的页大小固定 40（`POOL_PAGE_SIZE`）。以前这里截到 12 张卡、剩下的靠
     // 「查看全部 N 条」跳到 /all；站长 2026-11-04 明确不要那个"点一下才能继续读"，
     // 所以整页交给客户端的触底续读（`MobilePoolList`），这一页原样保留 40 条。
     // 精选那一段不渲染收录池（手机「全部」才用）：别让首字节替看不到的东西等一趟。
     tab === "all" || isMobileRequest(request)
-      ? loadOr404<PoolResponse>(`/api/site/pool${queryString(scope)}`, { signal: request.signal }).catch(() => null)
+      ? loadOr404<PoolResponse>(withLang(`/api/site/pool${queryString(scope)}`, locale), { signal: request.signal }).catch(() => null)
       : Promise.resolve(null),
     // 月历常取：手机切「全部」是客户端换一块列表（`replaceState`），不走网络，
     // 所以 loader 里不取就永远画不出来 —— 站长 2026-11-07 报的就是「日历不见了」。
     // 这张卡本身按分钟缓存（`/api/site/calendar` 那条 60 秒），多付的不是每访客一次查询。
-    loadOr404<{ month: string; days: CalendarDay[] }>(`/api/site/calendar${queryString({ month, ...scope })}`, { signal: request.signal }).catch(() => null),
+    loadOr404<{ month: string; days: CalendarDay[] }>(withLang(`/api/site/calendar${queryString({ month, ...scope })}`, locale), { signal: request.signal }).catch(() => null),
   ]);
   // 精选按站长制定的标准由模型筛选，也可在后台更正。精选超过三天没有更新时，
   // 展示仍在更新的收录池；其中部分条目未达精选标准。精选恢复后这一块自动消失。
@@ -135,6 +135,7 @@ export default function Home() {
   if (filters.channel !== "all") params.set("channel", filters.channel);
   if (filters.category) params.set("category", filters.category);
   if (filters.tag) params.set("tag", filters.tag);
+  if (locale === "en") params.set("lang", "en");
   const data = useLivePublicData(initial, `/api/site/timeline?${params}`);
   const title = filters.tag ? `#${filters.tag}` : c.title;
   // 日期栏右侧那个"N 条"是当天的时间线总条数，来自响应里的 `dayCounts`（服务端按北京日期分桶），
@@ -159,10 +160,11 @@ export default function Home() {
       {/* One h1 at every width: on phones it is read but not drawn (the brand bar and 最新精选 already own that
           space), from lg it is the visible page title, exactly as before. Only the desktop filter row is hidden. */}
       <h1 className="sr-only text-[24px] font-semibold leading-[1.3] text-ink lg:not-sr-only">{title}</h1>
-      {/* 英文页的一行说明：条目标题按信源原语种显示；热点榜的事件标题与 AI 摘要仍为中文
-          （热点条的数据模型不随这次改动扩，那里说中文是真话）。中文页渲染为空——
-          字典键中英两版都有，zh 版只是文档，永不输出，中文页行为一个字符都不变。 */}
-      {locale === "en" && <p className={`text-[12.5px] text-ink-4 mt-2 lg:mt-0`}>{c.chineseNotice}</p>}
+      {/* 英文页只在真有内容回退中文时说这一句：读取层已把可用的英文字段投影进 title/summary，
+          缺英文的条目 textLocale 仍是 zh。中文页永不渲染。 */}
+      {locale === "en" && (data.cards.some((card) => card.item.textLocale !== "en") || (data.hot ?? []).some((h) => h.textLocale !== "en") || (pool?.items ?? []).some((i) => i.textLocale !== "en")) && (
+        <p className={`text-[12.5px] text-ink-4 mt-2 lg:mt-0`}>{c.chineseNotice}</p>
+      )}
       <div className="hidden lg:block">
         <div className="mb-5 mt-4 flex items-center justify-between gap-4">
           <CategoryTabs base="/" category={filters.category} channel={filters.channel} layoutId="home-cat-desk" className="min-w-0" />
@@ -188,8 +190,8 @@ export default function Home() {
                 <li key={it.id} className="flex items-baseline gap-3 py-2">
                   <span className="mono w-[86px] shrink-0 text-[12px] tabular-nums text-ink-4">{at ? monthDayTime(at, locale) : c.noTime}</span>
                   <Link to={localeAppPath(`/items/${it.id}`, locale)} className="min-w-0 flex-1 text-[14px] leading-[1.65] text-ink transition-colors hover:text-accent">
-                    {/* 与 FeedItem 同一条规则：英文页优先信源原题，没有原题回退中文标题。 */}
-                    {locale === "en" && it.originalTitle ? it.originalTitle : it.title}
+                    {/* 读取层在 /en 已把英文标题投影进 title；originalTitle 只在这一格退回去才显示。 */}
+                    {it.title}
                   </Link>
                   <span className="hidden w-[104px] shrink-0 truncate text-right text-[12px] text-ink-4 sm:block">{shortSourceName(it.source.name)}</span>
                 </li>
@@ -203,7 +205,7 @@ export default function Home() {
             to={localeAppPath(listPath("/all", { channel: filters.channel !== "all" ? filters.channel : null, category: filters.category, tag: filters.tag }), locale)}
             className="mt-2 inline-flex text-[13px] text-accent hover:underline"
           >
-            {c.viewAll(live.total.toLocaleString("zh-CN"))}
+            {c.viewAll(live.total.toLocaleString(locale === "en" ? "en-US" : "zh-CN"))}
           </Link>
         </section>
       )}

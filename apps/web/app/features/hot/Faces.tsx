@@ -2,7 +2,14 @@ import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { HotParticipant } from "@aihot/contracts/site";
 import { shortSourceName } from "../../lib/format";
+import { useLocale } from "../../lib/i18n";
+import { copy } from "../../lib/i18n/pages/hot";
 import { SourceAvatar } from "../../components/ui/SourceAvatar";
+
+/** 头像下显示与名单里的名字：/en 用信源英文名，缺英文时如实回退中文。 */
+function displayName(p: HotParticipant, locale: "zh" | "en"): string {
+  return shortSourceName(locale === "en" ? p.nameEn ?? p.name : p.name);
+}
 
 /**
  * Who is talking about a hot story: overlapping faces of the 精选组 sources in the order the server
@@ -11,16 +18,18 @@ import { SourceAvatar } from "../../components/ui/SourceAvatar";
  * list's <details> did, so phones and keyboards reach it too.
  */
 export function Faces({ participants, total, size = 24, max = 6, interactive = true }: { participants: HotParticipant[]; total: number; size?: number; max?: number; interactive?: boolean }) {
+  const locale = useLocale();
+  const c = copy[locale].faces;
   const shown = participants.filter((p) => p.kind === "editorial").slice(0, max);
   const rest = total - shown.length;
-  const names = participants.map((p) => shortSourceName(p.name)).join("、");
+  const names = participants.map((p) => displayName(p, locale)).join(c.nameJoiner);
   const faces = (
     <>
       {shown.map((p, i) => (
         // 4px of overlap, not 6: at 20-22px a favicon is already only a few glyphs wide, and the tighter
         // stack made two logos read as one smudged mark (measured in the 2026-10-03 screenshots).
-        <span key={p.name} className={`rounded-full ring-2 ring-surface ${i ? "-ml-1" : ""}`}>
-          <SourceAvatar name={p.name} iconUrl={p.iconUrl} iconSrcSet={p.iconSrcSet} size={size} />
+        <span key={`${p.name}-${i}`} className={`rounded-full ring-2 ring-surface ${i ? "-ml-1" : ""}`}>
+          <SourceAvatar name={displayName(p, locale)} iconUrl={p.iconUrl} iconSrcSet={p.iconSrcSet} size={size} />
         </span>
       ))}
       {rest > 0 && (
@@ -41,6 +50,8 @@ export function Faces({ participants, total, size = 24, max = 6, interactive = t
 }
 
 function FacesButton({ participants, total, names, children }: { participants: HotParticipant[]; total: number; names: string; children: React.ReactNode }) {
+  const locale = useLocale();
+  const c = copy[locale].faces;
   // Where the list opens: under the faces, kept on screen; fixed, so a card's clipping never hides it.
   const [at, setAt] = useState<{ top: number; left: number } | null>(null);
   const open = at !== null;
@@ -90,7 +101,7 @@ function FacesButton({ participants, total, names, children }: { participants: H
         title={names}
         aria-expanded={open}
         aria-controls={id}
-        aria-label={`${total} 位参与者，查看名单`}
+        aria-label={c.aria(String(total))}
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -107,7 +118,7 @@ function FacesButton({ participants, total, names, children }: { participants: H
         // tabIndex makes it focusable (the dialog above) and reachable by Tab while it scrolls (WCAG 2.1.1:
         // a scrollable region must be keyboard operable, and a name list can overflow on a short screen).
         <span
-          ref={popup} id={id} role="dialog" aria-label="参与讨论的来源" tabIndex={-1} style={at}
+          ref={popup} id={id} role="dialog" aria-label={c.dialogAria} tabIndex={-1} style={at}
           onKeyDown={(e) => {
             if (e.key === "Tab") { e.preventDefault(); root.current?.querySelector<HTMLButtonElement>("button")?.focus(); }
           }}
@@ -115,17 +126,17 @@ function FacesButton({ participants, total, names, children }: { participants: H
         >
           {editorial.length > 0 && (
             <>
-              <span className="block text-[11.5px] font-semibold text-ink-4">精选组</span>
-              <span className="mt-0.5 block">{editorial.map((p) => shortSourceName(p.name)).join("、")}</span>
+              <span className="block text-[11.5px] font-semibold text-ink-4">{c.editorial}</span>
+              <span className="mt-0.5 block">{editorial.map((p) => displayName(p, locale)).join(c.nameJoiner)}</span>
             </>
           )}
           {signal.length > 0 && (
             <>
-              <span className={`block text-[11.5px] font-semibold text-ink-4 ${editorial.length ? "mt-2" : ""}`}>氛围组</span>
-              <span className="mt-0.5 block">{signal.map((p) => shortSourceName(p.name)).join("、")}</span>
+              <span className={`block text-[11.5px] font-semibold text-ink-4 ${editorial.length ? "mt-2" : ""}`}>{c.signal}</span>
+              <span className="mt-0.5 block">{signal.map((p) => displayName(p, locale)).join(c.nameJoiner)}</span>
             </>
           )}
-          {more > 0 && <span className="mt-2 block text-[11.5px] text-ink-4">另有 {more} 位未列出</span>}
+          {more > 0 && <span className="mt-2 block text-[11.5px] text-ink-4">{c.more(String(more))}</span>}
         </span>, document.body
       )}
     </span>

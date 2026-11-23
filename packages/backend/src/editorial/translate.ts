@@ -25,7 +25,7 @@ import { modelFor } from "./models.ts";
 import { translateNhcWindProbability } from "../content/nhc-wind-probability.ts";
 import { looksZh } from "./writing.ts";
 import { isImmutablePhotoCredit } from "./photo-credit.ts";
-import { shutdownSignal } from "../jobs/queue.ts";
+import { enqueue, QUEUES, shutdownSignal } from "../jobs/queue.ts";
 import { promptText, promptVersion } from "./prompts.ts";
 import { ReceiptBusyError, ReceiptUnknownError } from "../providers/receipts.ts";
 import { fairTranslationOrder, translationScope, translateWindowDays as windowDays } from "./translation-scheduling.ts";
@@ -514,6 +514,9 @@ async function store(articleId: string, revision: number, title: string, html: s
     // One transaction: a successful translation and its public sync announcement commit together.
     if (complete) await publishArticleTx(tx, articleId, { refreshSelected: true });
   });
+  // 中文译文提交之后再排英文正文：入队失败只让这一轮记 failed（重试会复用已付的回执），
+  // 绝不会回滚已经提交、读者已经可见的中文译文。
+  await enqueue(QUEUES.english, { kind: "body", articleId }, { singletonKey: `en-body:${articleId}` });
 }
 
 /** A quoted post worth translating: at least a few letters beyond its links, and not already Chinese. */
@@ -607,6 +610,8 @@ export async function translateQuotes(opts: { days?: number; from?: Date; limit?
       ON CONFLICT (tweet_id) DO UPDATE SET text_hash = EXCLUDED.text_hash, text_zh = EXCLUDED.text_zh, origin = EXCLUDED.origin, created_at = now()`;
     await quoteAttempt(r.tweet_id,hash,"translated","stored",tx);
     });
+    // 引用帖的英文译文按 tweet 记账，排在中文提交之后；入队失败不回滚已经提交的中文引用块。
+    await enqueue(QUEUES.english, { kind: "quote", tweetId: r.tweet_id }, { singletonKey: `en-quote:${r.tweet_id}` });
     stored += 1;
   }
   return stored;

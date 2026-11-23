@@ -10,6 +10,7 @@ import { z } from "zod";
 import { modelFor } from "../editorial/models.ts";
 import { beijingDate, beijingTime } from "@aihot/contracts/time";
 import { sql } from "../db.ts";
+import { enqueue, QUEUES } from "../jobs/queue.ts";
 import { chatJson } from "../providers/llm.ts";
 import { completeReceipt } from "../providers/receipts.ts";
 import { sha256, stableJson } from "../lib/ids.ts";
@@ -178,6 +179,12 @@ export async function composeStoryDigest(
              WHERE id = ${storyId}`;
     return { updated: true, version };
   });
+  // 英文综述与事实标题在中文综述提交之后入队。facts 不跟 stories.version 走（新进展只 INSERT facts），
+  // 所以事实标题单独一条作业；sweep 还会按 `facts.title_en IS NULL` 兜底。
+  if (written.updated) {
+    await enqueue(QUEUES.english, { kind: "story", storyId }, { singletonKey: `en-story:${storyId}` });
+    await enqueue(QUEUES.english, { kind: "fact-titles", storyId }, { singletonKey: `en-facts:${storyId}` });
+  }
   return written;
 }
 

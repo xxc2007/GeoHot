@@ -1,11 +1,16 @@
-// English pages carry one quiet line saying the article content is Chinese: the i18n plan translates
-// the interface chrome only — titles, summaries and report bodies are model-written Chinese and stay
-// as they are. It renders nothing on Chinese pages (the locale test keeps the call sites unconditional),
-// so a page can drop this in once and let the language decide.
+// /en 缺英文稿时的一句标注：只在英文页渲染，中文页永不出现（locale 由路径判定）。
+// 内容本身按读取层投影——有英文就显示英文，只有真回退中文时才调用这一句，不把中文说成英文。
 import { useLocale } from "../../lib/i18n";
 
-export function ChineseNotice({ className = "" }: { className?: string }) {
+export function MissingEnglishNotice({ className = "", message = "This page has no English version yet — the content below is shown in Chinese." }: { className?: string; message?: string }) {
   const locale = useLocale();
   if (locale !== "en") return null;
-  return <p className={`text-[12.5px] text-ink-4 ${className}`}>Article titles, summaries and reports are published in Chinese.</p>;
+  return <p className={`text-[12.5px] text-ink-4 ${className}`}>{message}</p>;
+}
+
+/** 反馈查询结果这类只有中文状态词的小块：说明本段内容是中文，不冒充英文。 */
+export function ChineseContentNotice({ className = "", message = "This status text is published in Chinese." }: { className?: string; message?: string }) {
+  const locale = useLocale();
+  if (locale !== "en") return null;
+  return <p className={`text-[12.5px] text-ink-4 ${className}`}>{message}</p>;
 }

@@ -35,7 +35,13 @@ export interface StoryReport {
   id: string;
   url: string;
   title: string;
+  /** 信源原题（采集时的标题）；`titleEn` 缺省时 /en 用它，而不是中文整理标题。 */
+  originalTitle: string | null;
   summary: string | null;
+  /** 英文标题/摘要/信源名（0128）；`lang=en` 的读者出口优先，缺省回退中文。 */
+  titleEn: string | null;
+  summaryEn: string | null;
+  sourceNameEn: string | null;
   sourceId: string;
   sourceName: string;
   sourceKind: string;
@@ -55,12 +61,16 @@ interface ReportRow {
   id: string;
   url: string;
   title: string;
+  title_en: string | null;
+  original_title: string | null;
   summary: string | null;
+  summary_en: string | null;
   first_party: boolean;
   selected: boolean;
   score: number | null;
   source_id: string;
   source_name: string;
+  source_name_en: string | null;
   source_kind: string;
   icon_url: string | null;
   fact_id: number;
@@ -71,8 +81,8 @@ interface ReportRow {
 /** This story's reader-openable reports, oldest first (the order a digest and a timeline are written in). */
 export async function storyReports(storyId: number, at = new Date()): Promise<StoryReport[]> {
   const rows = await sql<ReportRow[]>`
-    SELECT DISTINCT ON (p.article_id) p.article_id AS id, p.url, p.title, p.summary, p.first_party, p.selected, p.score,
-           s.id AS source_id, s.name AS source_name, s.kind AS source_kind, s.icon_url,
+    SELECT DISTINCT ON (p.article_id) p.article_id AS id, p.url, p.title, p.title_en, p.original_title, p.summary, p.summary_en, p.first_party, p.selected, p.score,
+           s.id AS source_id, s.name AS source_name, s.name_en AS source_name_en, s.kind AS source_kind, s.icon_url,
            f.id AS fact_id, f.public_id AS fact_public_id,
            coalesce(p.published_at, p.discovered_at) AS at
     FROM facts f JOIN fact_articles fa ON fa.fact_id = f.id JOIN publications p ON p.article_id = fa.article_id
@@ -85,7 +95,11 @@ export async function storyReports(storyId: number, at = new Date()): Promise<St
       id: r.id,
       url: r.url,
       title: r.title,
+      originalTitle: r.original_title,
       summary: r.summary,
+      titleEn: r.title_en,
+      summaryEn: r.summary_en,
+      sourceNameEn: r.source_name_en,
       sourceId: r.source_id,
       sourceName: r.source_name,
       sourceKind: r.source_kind,

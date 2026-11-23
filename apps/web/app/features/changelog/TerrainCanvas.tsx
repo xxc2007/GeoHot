@@ -34,7 +34,7 @@ function StillContours({ version }: { version: string }) {
 }
 
 /** 版本大字的动态等高线地形画：地形由该版本号的字体掩膜生成（1.0 / 2.0 / 3.0 …通用）。 */
-export function TerrainCanvas({ version = "2.0" }: { version?: string }) {
+export function TerrainCanvas({ version = "2.0", label }: { version?: string; label?: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -55,7 +55,11 @@ export function TerrainCanvas({ version = "2.0" }: { version?: string }) {
     const pointer = { x: 700, y: 120, strength: 0, target: 0 };
     const draw = () => {
       context.clearRect(0, 0, width, height);
-      const color = getComputedStyle(canvas).color;
+      // 客户端换页时 ResizeObserver 可能在 canvas 已经脱离文档、或被 display:none 的那一帧触发：
+      // 此时 getComputedStyle(color) 是空串，addColorStop 会抛 SyntaxError（2026-11-23 浏览器验收
+      // 在 /en/changelog → /changelog 的客户端切换里量到 9 条）。脱离文档就不画，空值落一个实色。
+      if (!canvas.isConnected || width < 2 || height < 2) return;
+      const color = getComputedStyle(canvas).color.trim() || "#1f1e1d";
       const fade = context.createLinearGradient(0, 0, width, 0);
       fade.addColorStop(0, "transparent"); fade.addColorStop(.04, color); fade.addColorStop(.96, color); fade.addColorStop(1, "transparent");
       for (let row = 0; row < ROWS; row++) {
@@ -135,7 +139,7 @@ export function TerrainCanvas({ version = "2.0" }: { version?: string }) {
   }, [version]);
   return <div className="major-terrain-wrap"><div className="major-terrain">
     <StillContours version={version} />
-    <canvas ref={canvasRef} tabIndex={0} role="img" aria-label={`GEOHOT ${version} 动态等高线`} />
+    <canvas ref={canvasRef} tabIndex={0} role="img" aria-label={label ?? `GEOHOT ${version} 动态等高线`} />
     <span className="major-terrain-word" aria-hidden="true">GEOHOT</span>
   </div></div>;
 }
