@@ -1,6 +1,31 @@
 {
-  "latestVersion": "2026-11-22T18:05",
+  "latestVersion": "2026-11-24T04:00",
   "releases": [
+    {
+      "date": "2026-11-24",
+      "time": "04:00",
+      "major": false,
+      "kind": "修复",
+      "title": "英文页标注与主题页超时一并修好",
+      "body": [
+        "英文页的引用译文只印英文；没有英文译文时明确标注这是中文，条目、列表卡片与导出同一口径。",
+        "英文列表与热点页每张卡片自己标注 AI 摘要的语言，1 个事件不再写成复数。",
+        "英文刊面不再出现索引里能点、点进去 404 的期次；主题页十几秒的等待与 503 一并消失。"
+      ],
+      "en": {
+        "title": "English page labels fixed, topic pages stop timing out",
+        "body": [
+          "English pages print a quoted post's translation only when it is English, and label it as Chinese when that is all there is — on the item, the feed card and the export alike.",
+          "Every card on the English feed and trending page states which language its AI summary is in, and a single event now reads 1 event.",
+          "The English report index no longer lists issues that open to a 404, and topic pages are back: the ten-second waits and the 503s are gone."
+        ]
+      },
+      "tags": [
+        "web",
+        "i18n",
+        "topics"
+      ]
+    },
     {
       "date": "2026-11-22",
       "time": "18:05",
