@@ -5,7 +5,7 @@ import { Link } from "react-router";
 import { IntentLink } from "../../components/ui/IntentLink";
 import type { GroupInfo, FeedItemSummary, TimelineFilters } from "@aihot/contracts/site";
 import { hasChineseCopy } from "@aihot/contracts/copy";
-import { SelectedBadge } from "../../components/ui/Badge";
+import { Badge, SelectedBadge } from "../../components/ui/Badge";
 import { ScoreLabel } from "../../components/ui/Score";
 import { localeAppPath, useLocale } from "../../lib/i18n";
 import { copy as feedCopy } from "../../lib/i18n/feed";
@@ -38,6 +38,12 @@ export const FeedItem = memo(function FeedItem({ item, group, filters, read = fa
   const showSources = !!group && (group.additionalSourceCount > 0 || (group.developmentCount <= 1 && group.reportCount > 1));
   const showDevelopments = !!group?.story && group.developmentCount > 1;
   const tags = showTags ? item.tags.slice(0, 3) : [];
+  // 英文页的逐卡语言标注：页面顶部那一句只说明「有的条目是中文」，读者扫卡片时要能逐条
+  // 分得清哪一段不是英文。AI 摘要（summary）回退中文时说摘要；只有标题回退中文时才说标题。
+  // 与条目详情页的 `AI digest, in Chinese` 同一句话；中文页永不渲染。
+  const aiDigestZh = locale === "en" && !!item.summary && hasChineseCopy(item.summary);
+  const titleZh = locale === "en" && !!title && hasChineseCopy(title);
+  const zhLabel = aiDigestZh ? feedCopy[locale].aiDigestZh : titleZh ? feedCopy[locale].titleZh : null;
 
   return (
     <article className="relative min-w-0 lg:card lg:card-hover lg:px-[18px] lg:pb-[14px] lg:pt-[15px]" data-item-id={item.id}>
@@ -63,11 +69,14 @@ export const FeedItem = memo(function FeedItem({ item, group, filters, read = fa
       </header>
 
       {isX ? (
-        <p lang={contentLang(item.summary ?? title)} className={`measure mt-2 whitespace-pre-line text-lead leading-[1.75] line-clamp-5 lg:line-clamp-4 ${read ? "text-ink-4" : "text-ink"}`}>
-          <IntentLink to={localeAppPath(`/items/${item.id}`, locale)} onClick={open} className="after:absolute after:inset-0 after:content-['']">
-            {item.summary ?? title}
-          </IntentLink>
-        </p>
+        <>
+          {zhLabel && <div className="mt-2 flex"><Badge tone="neutral">{zhLabel}</Badge></div>}
+          <p lang={contentLang(item.summary ?? title)} className={`measure ${zhLabel ? "mt-1.5" : "mt-2"} whitespace-pre-line text-lead leading-[1.75] line-clamp-5 lg:line-clamp-4 ${read ? "text-ink-4" : "text-ink"}`}>
+            <IntentLink to={localeAppPath(`/items/${item.id}`, locale)} onClick={open} className="after:absolute after:inset-0 after:content-['']">
+              {item.summary ?? title}
+            </IntentLink>
+          </p>
+        </>
       ) : (
         // The card's text column, capped at the site's own prose measure (`--measure-cjk`, 42 characters a
         // line). The desktop feed runs as wide as `--page-max-wide` — 1200px at the floor, and it grows
@@ -83,7 +92,8 @@ export const FeedItem = memo(function FeedItem({ item, group, filters, read = fa
             </IntentLink>
           </h3>
           {originalAsSub && <p lang={hasChineseCopy(item.originalTitle!) ? "zh-Hans" : undefined} className="mt-1 line-clamp-2 text-[13px] leading-[1.6] text-ink-4">{item.originalTitle}</p>}
-          {item.summary && <p lang={contentLang(item.summary)} className="mt-1.5 line-clamp-2 text-[14.5px] leading-[1.75] text-ink-3 lg:mt-2 lg:line-clamp-3 lg:text-lead">{item.summary}</p>}
+          {zhLabel && <div className="mt-1.5 flex"><Badge tone="neutral">{zhLabel}</Badge></div>}
+          {item.summary && <p lang={contentLang(item.summary)} className={`${zhLabel ? "mt-1 lg:mt-1.5" : "mt-1.5 lg:mt-2"} line-clamp-2 text-[14.5px] leading-[1.75] text-ink-3 lg:line-clamp-3 lg:text-lead`}>{item.summary}</p>}
         </div>
       )}
 

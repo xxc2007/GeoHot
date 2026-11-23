@@ -1,4 +1,4 @@
-// 把信源包里已经改过的 config / tier / interval / defaultCategory / site_fulltext 推到库里去。
+// 把信源包里已经改过的 config / nameEn / tier / interval / defaultCategory / site_fulltext 推到库里去。
 //
 // 为什么需要它：`scripts/seed.ts` 是 `ON CONFLICT (id) DO NOTHING`——**只增不改**，那是有意的
 // （后台里人工改过的东西不能被一次 seed 抹掉）。后果是包里的 config 改了、生产库不会跟着变：
@@ -59,6 +59,7 @@ if (!options.apply) {
 interface PackSource {
   id: string;
   kind: string;
+  nameEn?: string;
   config: Record<string, unknown>;
   tier?: string;
   interval_minutes?: number;
@@ -80,10 +81,10 @@ function canonical(value: unknown): string {
 }
 
 const pack: PackSource[] = JSON.parse(readFileSync(path.join(REPO_ROOT, "industry/sources.json"), "utf8")).sources;
-const wanted = new Map(pack.filter((s) => s.kind !== "external").map((s) => [s.id, s]));
+const wanted = new Map(pack.map((s) => [s.id, s]));
 
-const rows = await sql<{ id: string; kind: string; config: Record<string, unknown>; tier: string; interval_minutes: number; default_category: string | null; site_fulltext: boolean }[]>`
-  SELECT id, kind, config, tier, interval_minutes, default_category, site_fulltext FROM sources`;
+const rows = await sql<{ id: string; kind: string; name_en: string | null; config: Record<string, unknown>; tier: string; interval_minutes: number; default_category: string | null; site_fulltext: boolean }[]>`
+  SELECT id, kind, name_en, config, tier, interval_minutes, default_category, site_fulltext FROM sources`;
 const byId = new Map(rows.map((r) => [r.id, r]));
 
 let changed = 0;
@@ -91,6 +92,17 @@ for (const [id, s] of wanted) {
   if (only && !only.has(id)) continue;
   const row = byId.get(id);
   if (!row) { console.log(`· ${id}：库里没有这一条（seed.ts 会补，本脚本不建）`); continue; }
+  // 英文信源名是这一轮新增的读者面数据（`/en` 的卡片与信源名单）：包里声明了就推；
+  // 包里没有时保留库里的值（可能来自旧数据或人工补写），不反手清空。
+  const nextNameEn = s.nameEn?.trim() ? s.nameEn.trim() : row.name_en;
+  // external 条目没有 config/tier 这类字段可同步（seed 也不管它们的结构），只补英文展示名。
+  if (s.kind === "external") {
+    if (nextNameEn === row.name_en) continue;
+    changed++;
+    console.log(`${options.apply ? "写入" : "将改"} ${id}: name_en ${row.name_en ?? "null"} → ${nextNameEn ?? "null"}`);
+    if (options.apply) await sql`UPDATE sources SET name_en = ${nextNameEn}, updated_at = now() WHERE id = ${id}`;
+    continue;
+  }
   assertSupportedConfig(row.kind as never, s.config);
   const diff: string[] = [];
   if (canonical(row.config ?? {}) !== canonical(s.config)) {
@@ -100,6 +112,7 @@ for (const [id, s] of wanted) {
     diff.push(`config: ${moved.join(", ")}`);
   }
   if (row.tier !== (s.tier ?? "T2")) diff.push(`tier ${row.tier} → ${s.tier ?? "T2"}`);
+  if (nextNameEn !== row.name_en) diff.push(`name_en ${row.name_en ?? "null"} → ${nextNameEn ?? "null"}`);
   if (row.default_category !== (s.defaultCategory ?? null)) {
     // 包里没声明、库里却有值：那多半是后台里人工选的默认分类，**不清空**（seed.ts 的"只增不改"
     // 守的就是这件事）。要真的取消一个默认分类，去后台改，别用这个脚本反着推。
@@ -121,7 +134,7 @@ for (const [id, s] of wanted) {
   changed++;
   console.log(`${options.apply ? "写入" : "将改"} ${id}: ${diff.join(", ")}`);
   if (options.apply) {
-    await sql`UPDATE sources SET config = ${sql.json(s.config as never)}, tier = ${s.tier ?? "T2"},
+    await sql`UPDATE sources SET config = ${sql.json(s.config as never)}, name_en = ${nextNameEn}, tier = ${s.tier ?? "T2"},
                  default_category = ${s.defaultCategory ?? row.default_category},
                  site_fulltext = ${row.site_fulltext || s.site_fulltext === true},
                  interval_minutes = ${locked ? (s.interval_minutes ?? row.interval_minutes) : row.interval_minutes},

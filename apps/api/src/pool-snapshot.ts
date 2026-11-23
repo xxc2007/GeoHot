@@ -12,25 +12,38 @@ import { createHash } from "node:crypto";
 import { mkdir, readdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { config } from "@aihot/backend/config";
+import { englishPolicy } from "@aihot/backend/publication/english-policy";
 
 const DIR = path.join(config.dataDir, "pool-snapshot");
 const MAX_FILES = 48;
 const MAX_AGE_MS = 12 * 3600_000;
 
-function fileFor(key: string): string {
-  return path.join(DIR, `${createHash("sha1").update(key).digest("hex")}.json`);
+/**
+ * 底稿按英文读取口径分键：同一个 `lang=en` 的 key 在 `ENGLISH_TEXT=fallback` 与 `strict`（以及两种
+ * `ENGLISH_MEMBERSHIP`）下是不同内容。2026-11-23 验收实测过串味：fallback 栈写下的中文回退底稿，
+ * 被 strict 栈以 `x-aihot-cache: snapshot` 读出来当英文版发出。模式切换后旧底稿不再命中——宁可
+ * 冷读一次数据库，也不把另一种口径的答案当成当前口径（12 小时的有效期内原本都可能被读到）。
+ */
+function scopedKey(key: string): string {
+  const { text, membership } = englishPolicy();
+  return `${text}:${membership}:${key}`;
+}
+
+function fileFor(scoped: string): string {
+  return path.join(DIR, `${createHash("sha1").update(scoped).digest("hex")}.json`);
 }
 
 export type PoolSnapshot<T> = { body: T; at: number };
 
 /** 读一份底稿；没有、过期、读坏了都返回 null（调用方照常去查库）。 */
 export async function readPoolSnapshot<T>(key: string, now = Date.now()): Promise<PoolSnapshot<T> | null> {
-  const file = fileFor(key);
+  const scoped = scopedKey(key);
+  const file = fileFor(scoped);
   try {
     const info = await stat(file);
     if (now - info.mtimeMs > MAX_AGE_MS) return null;
     const parsed = JSON.parse(await readFile(file, "utf8")) as { key?: string; body?: T };
-    if (parsed?.key !== key || parsed.body === undefined) return null;
+    if (parsed?.key !== scoped || parsed.body === undefined) return null;
     return { body: parsed.body, at: info.mtimeMs };
   } catch {
     return null;
@@ -39,11 +52,12 @@ export async function readPoolSnapshot<T>(key: string, now = Date.now()): Promis
 
 /** 写一份底稿。失败只影响「下次冷启动快不快」，不影响这次回答，所以调用方不需要处理异常。 */
 export async function writePoolSnapshot(key: string, body: unknown): Promise<void> {
-  const file = fileFor(key);
+  const scoped = scopedKey(key);
+  const file = fileFor(scoped);
   const temp = `${file}.${process.pid}.tmp`;
   try {
     await mkdir(DIR, { recursive: true });
-    await writeFile(temp, JSON.stringify({ key, body }), "utf8");
+    await writeFile(temp, JSON.stringify({ key: scoped, body }), "utf8");
     await rename(temp, file);
     void prune();
   } catch {

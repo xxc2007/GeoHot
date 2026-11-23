@@ -118,6 +118,12 @@ test("an item no one has written up in Chinese is on no list, and keeps its own 
   assert.deepEqual(page!.items.map((i) => i.id), [chinese], "the topic page lists only the item with Chinese copy");
   const counts = (await topicPageCounts(now)).find((c) => c.slug === TOPIC);
   assert.equal(counts?.total, 1, "topic counts cover exactly the items a topic page can list");
+  // 生产路径没有固定时钟：页面按主题单独计数（topics.tags + publication_topics），不再等全量快照。
+  // 这里钉住它与上面那条全量计数是同一口径、同一批条目。
+  const pageNow = await loadTopicPage(TOPIC, 1);
+  assert.ok(pageNow, "the page also opens without a fixed clock");
+  assert.deepEqual(pageNow!.items.map((i) => i.id), [chinese], "the per-topic count path lists the same item");
+  assert.equal(pageNow!.topic.total, 1, "the per-topic count path counts the same set");
 
   // v1: both modes, and the site's own pool page.
   const query = { window: "7d" as const, by: "timeline" as const, category: null, q: null, limit: 100, cursor: null };

@@ -23,12 +23,12 @@ const en: { chrome: { kicker: (version: string) => string; pinned: string }; car
       title: "The English interface is live — the site now switches between Chinese and English",
       lead: [
         "Geography news does not stop at one language. The site now has an English edition: navigation, buttons and page notes all switch to English, and on items from international agencies the English pages lead with the source's own headline and original body.",
-        "The English edition is still young: AI summaries and briefs remain in Chinese for now and say so on the page; coverage follows the changelog.",
+        "The English edition was young at launch: AI summaries and briefs were still in Chinese then and said so on the page; coverage follows the changelog.",
       ],
       sections: [
         { title: "One switch, either language", body: "A language switch sits in the sidebar and on the More page; English pages live under the /en prefix, so the address you know plus /en opens them directly." },
         { title: "English pages read the original first", body: "International agencies publish in their own language: the English edition prefers the source's headline and original body, one paraphrase less. Items without an original title still show the edited title." },
-        { title: "Chinese content labelled honestly", body: "AI summaries and briefs are written in Chinese; in the English edition they stay Chinese and are marked as such. The interface is English; the content says which language it is in." },
+        { title: "Chinese content was labelled honestly at launch", body: "At launch, AI summaries and briefs were written in Chinese; in the English edition they stayed Chinese and were marked as such. The interface was English; the content said which language it was in." },
         { title: "One dataset, two ways to read it", body: "The English and Chinese editions read the same public content: picks, updates, briefs, topics and the feedback entrance line up one to one, and switching language does not interrupt the page you are on." },
       ],
       links: [["Browse all updates", "/all"], ["Open the English home", "/en"], ["Read the changelog", "/changelog"]],

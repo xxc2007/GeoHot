@@ -65,6 +65,10 @@ const zh = {
     quote: "引用",
     original: "原文",
     viewOnX: "在 X 查看被引用的帖子",
+    /** 英文页缺英文引用译文时的一句说明；中文页不渲染，只为两套键锁步。 */
+    zhOnly: "被引用的帖子目前只有中文原文。",
+    /** fallback 模式下英文页拿到的是中文译文：逐条标明，不把它当英文。 */
+    zhTranslation: "引用译文为中文",
   },
 
   /** 事件后续块。 */
@@ -131,6 +135,8 @@ const en: typeof zh = {
     quote: "Quoted",
     original: "Original",
     viewOnX: "View the quoted post on X",
+    zhOnly: "The quoted post is in Chinese only.",
+    zhTranslation: "Quoted translation in Chinese",
   },
 
   followups: {

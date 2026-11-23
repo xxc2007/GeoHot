@@ -12,6 +12,7 @@ import { noiseFiltered } from "@aihot/backend/sources/collect";
 interface PackSource {
   id: string;
   name: string;
+  nameEn?: string;
   kind: "rss" | "web_list" | "json_list" | "x_search" | "mp_account" | "external";
   config: Record<string, unknown>;
   owner_entity_id?: string | null;
@@ -25,6 +26,15 @@ const sources = (JSON.parse(readFileSync(new URL("../industry/sources.json", imp
 
 test("every registered config is one its kind actually implements", () => {
   for (const s of sources) assertSupportedConfig(s.kind, s.config);
+});
+
+test("every source carries an English display name the readers can use", () => {
+  // seed.ts 与 sync-source-config.ts 都只从这里取 `nameEn`；缺一条，/en 的信源名就会回退成域名，
+  // 而那不是“翻译缺失”，是这条数据根本没有入库路径。英文名里也不该再出现汉字。
+  for (const s of sources) {
+    assert.ok(s.nameEn?.trim(), `${s.id}: missing nameEn`);
+    assert.ok(!/[\u4e00-\u9fff]/.test(s.nameEn!), `${s.id}: nameEn still contains Chinese characters`);
+  }
 });
 
 test("every default category names a real section", () => {

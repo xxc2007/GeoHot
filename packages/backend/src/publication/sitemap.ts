@@ -153,17 +153,18 @@ async function build(readAt = new Date()): Promise<string> {
       en.push({ loc: `/en/topics/${t.slug}`, lastmod: c.latest, changefreq: "daily", priority: 0.4 });
       for (let p = 2; p <= c.pages; p++) en.push({ loc: `/en/topics/${t.slug}/page/${p}`, lastmod: c.latest, changefreq: "weekly", priority: 0.2 });
     }
-    // 英文刊面：content_en 必须与当前 revision 同步，散文覆盖层在、引用快照非空——
-    // 与 `englishReportReady`/`loadReport` 同一组条件；只查 content_en 非空会把 detail 会 404 的期列进 sitemap。
-    const enReportKeys = new Map((await sql<{ kind: string; key: string }[]>`
-      SELECT kind, key FROM reports
-       WHERE revision_en = revision AND content_en IS NOT NULL
-         AND jsonb_array_length(coalesce(content_en->'citations', '[]'::jsonb)) > 0
-         AND (
-           coalesce(btrim(content_en->>'overview'), '') <> ''
-           OR coalesce(btrim(content_en->>'headline'), '') <> ''
-           OR (content_en->'lead' IS NOT NULL AND content_en->'lead' <> 'null'::jsonb)
-         )`).map((r) => [`${r.kind}:${r.key}`, true]));
+    // 英文刊面直接取 `/en` 索引的门（`listReports(..., 'en')`）：它与 `loadReport` 共用同一对判据。
+    // 以前这里另写一条 SQL，只查散文与快照数量；引用快照没覆盖全的旧刊会既进 sitemap 又在详情页 404。
+    const [enDailies, enWeeklies, enMonthlies] = await Promise.all([
+      listReports("daily", undefined, "en"),
+      listReports("weekly", undefined, "en"),
+      listReports("monthly", undefined, "en"),
+    ]);
+    const enReportKeys = new Set([
+      ...enDailies.map((r) => `daily:${r.key}`),
+      ...enWeeklies.map((r) => `weekly:${r.key}`),
+      ...enMonthlies.map((r) => `monthly:${r.key}`),
+    ]);
     for (const [kind, index] of [["daily", dailyIndex], ["weekly", weeklyIndex], ["monthly", monthlyIndex]] as const) {
       for (const r of index) {
         if (!enReportKeys.has(`${kind}:${r.key}`)) continue;

@@ -10,14 +10,14 @@
       "body": [
         "站点有了英文版，界面能整体切换成英文了。",
         "- 新增英文版入口，英文页面带 /en 前缀；侧边栏与「更多」页都能切换语言。",
-        "- 英文版优先显示信源原题与原文正文；AI 摘要与日报仍为中文。"
+        "- 英文版优先显示信源原题与原文正文；AI 摘要与日报刚上线时仍为中文。"
       ],
       "en": {
         "title": "English interface is live, and the site can switch languages",
         "body": [
           "The site now has an English edition, and the whole interface can switch to English.",
           "- A new English entry point: English pages use the /en prefix, and the sidebar and the More page can both switch languages.",
-          "- English pages show the source's original headline and article body first; AI summaries and the daily report stay in Chinese."
+          "- English pages show the source's original headline and article body first; at launch, AI summaries and the daily report were still in Chinese."
         ]
       },
       "tags": [

@@ -4,7 +4,7 @@ import type { Route } from "./+types/all";
 import type { PoolResponse } from "@aihot/contracts/site";
 import { isCategoryKey, isChannelKey } from "@aihot/contracts/taxonomy";
 import { beijingDate, isDay, isMonth } from "@aihot/contracts/time";
-import { loadOr404, queryString, withLang } from "../lib/api.server";
+import { loadOr404, queryString, SSR_BUDGET_MS, withLang } from "../lib/api.server";
 import { listPath, pageMeta } from "../lib/seo";
 import { localeAppPath, localeFromPath, useLocale } from "../lib/i18n";
 import { copy } from "../lib/i18n/pages/all";
@@ -47,7 +47,9 @@ export async function loader({ request }: Route.LoaderArgs) {
       withLang(`/api/site/pool${queryString({ channel: channel === "all" ? null : channel, category, tag, q, tab, page: page > 1 ? page : null, date })}`, locale),
       // 排队页跟着这一页的语言：`/en/all` 的搜索撞上 503 不能被送到中文繁忙页。redirect() 收的是
       // 应用路径（React Router 自己拼 basename），所以 /en 前缀留在这里，不是 publicPath。
-      { signal: request.signal, busyRedirect: locale === "en" ? "/en/all/search-busy" : "/all/search-busy" },
+      // 收录池是这一页的主数据（首页那边才是配菜）：按首屏预算等它，别让 1.5 秒的配菜预算
+      // 把一次冷读判成「暂时不可用」。
+      { signal: request.signal, busyRedirect: locale === "en" ? "/en/all/search-busy" : "/all/search-busy", budgetMs: SSR_BUDGET_MS },
     ),
     // 日历的数据必须跟着这一屏的筛选走：卡片数的是"这些条件下哪几天有东西"，
     // 拿全站的条数去解释一份分类筛选下面的空列表，就是给同一个事实两个答案

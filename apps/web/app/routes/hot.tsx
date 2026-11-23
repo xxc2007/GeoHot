@@ -59,9 +59,11 @@ function Voices({ e }: { e: HotEntryView }) {
   const names = (locale === "en" && e.sourceNamesEn?.length ? e.sourceNamesEn : e.sourceNames).slice(0, 2).map(shortSourceName);
   const shown = names.join(c.nameJoiner);
   return (
-    <span className="min-w-0 text-[12.5px] leading-snug text-ink-4">
-      {/* Lines break between the phrases, never inside one. */}
-      <span className="whitespace-nowrap">
+    <span className="min-w-0 flex-1 text-[12.5px] leading-snug text-ink-4">
+      {/* 名字串可以在空格处折行：390px 下「两个长信源名 + reported」比卡面还宽，nowrap 会让
+          后半截连同 « · 2 participants» 一起被卡片的 overflow-hidden 切掉（2026-11-23 验收实测）。
+          只有「数字 + 单位」保持不断行。 */}
+      <span className="break-words">
         {names.length > 0 && <span className="text-ink-3">{shown}</span>}
         {e.sourceCount > names.length
           ? c.sourcesAmong(String(e.sourceCount))
@@ -70,7 +72,7 @@ function Voices({ e }: { e: HotEntryView }) {
       <span className="mx-1.5 text-line-strong">·</span>
       <span className="whitespace-nowrap">
         <span className="num">{e.participantCount}</span>
-        {copy[locale].participantUnit}
+        {copy[locale].participantUnit(String(e.participantCount))}
       </span>
     </span>
   );
@@ -83,6 +85,12 @@ function Badges({ e }: { e: HotEntryView }) {
       {c[b].label}
     </Badge>
   ));
+}
+
+/** 英文页的逐卡语言标注：与条目列表的 FeedItem 同一条规矩，摘要回退中文时卡片自己报名。 */
+function DigestTag({ label, className = "mt-1.5" }: { label: string | null; className?: string }) {
+  if (!label) return null;
+  return <div className={`${className} flex`}><Badge tone="neutral">{label}</Badge></div>;
 }
 
 /** The whole card opens the event; the title carries the link and stretches over the card. */
@@ -128,6 +136,7 @@ function Lead({ e }: { e: HotEntryView }) {
   const locale = useLocale();
   const c = copy[locale];
   const panel = !e.cover && e.spark.filter((v) => v !== null).length >= 3;
+  const zhLabel = locale === "en" && !!e.summary && hasChineseCopy(e.summary) ? c.aiDigestZh : null;
   return (
     <article className="card card-hover group relative flex flex-col overflow-hidden p-5 sm:p-6">
       <div className="flex items-center gap-2.5">
@@ -140,7 +149,8 @@ function Lead({ e }: { e: HotEntryView }) {
           <h2 className="text-[21px] font-bold leading-[1.4] tracking-[-0.01em] text-ink sm:text-[23px] lg:text-[25px] lg:leading-[1.38]">
             <StoryLink e={e} className="group-hover:text-accent" />
           </h2>
-          {e.summary && <p className="mt-3 line-clamp-3 text-[14px] leading-[1.75] text-ink-3">{e.summary}</p>}
+          <DigestTag label={zhLabel} className="mt-3" />
+          {e.summary && <p className={`${zhLabel ? "mt-1.5" : "mt-3"} line-clamp-3 text-[14px] leading-[1.75] text-ink-3`}>{e.summary}</p>}
         </div>
         {e.cover ? (
           <div className="order-first overflow-hidden well rounded-panel xl:order-none">
@@ -160,7 +170,7 @@ function Lead({ e }: { e: HotEntryView }) {
               {e.latest}
             </p>
           )}
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <Faces participants={e.participants} total={e.participantCount} size={24} />
             <Voices e={e} />
           </div>
@@ -181,6 +191,7 @@ function Lead({ e }: { e: HotEntryView }) {
 function Runner({ e }: { e: HotEntryView }) {
   const locale = useLocale();
   const c = copy[locale];
+  const zhLabel = locale === "en" && !!e.summary && hasChineseCopy(e.summary) ? c.aiDigestZh : null;
   return (
     <article className="card card-hover group relative flex flex-col px-5 py-4">
       <div className="flex items-center gap-2.5">
@@ -191,13 +202,14 @@ function Runner({ e }: { e: HotEntryView }) {
       <h2 className="mt-2.5 line-clamp-2 text-[16px] font-[650] leading-[1.5] text-ink">
         <StoryLink e={e} className="group-hover:text-accent" />
       </h2>
-      {e.summary && <p className="mt-1.5 line-clamp-2 text-[13px] leading-[1.7] text-ink-3 lg:line-clamp-1">{e.summary}</p>}
+      <DigestTag label={zhLabel} />
+      {e.summary && <p className={`${zhLabel ? "mt-1" : "mt-1.5"} line-clamp-2 text-[13px] leading-[1.7] text-ink-3 lg:line-clamp-1`}>{e.summary}</p>}
       <div className="mt-auto flex items-end justify-between gap-4 pt-3">
         <div className="flex min-w-0 flex-col gap-1.5">
           <Faces participants={e.participants} total={e.participantCount} size={20} />
           <span className="text-[12px] text-ink-4">
-            <span className="whitespace-nowrap"><span className="num">{e.sourceCount}</span>{c.sourceUnit}</span> ·{" "}
-            <span className="whitespace-nowrap"><span className="num">{e.participantCount}</span>{c.participantUnit}</span>
+            <span className="whitespace-nowrap"><span className="num">{e.sourceCount}</span>{c.sourceUnit(String(e.sourceCount))}</span> ·{" "}
+            <span className="whitespace-nowrap"><span className="num">{e.participantCount}</span>{c.participantUnit(String(e.participantCount))}</span>
           </span>
         </div>
         <div className="flex items-end gap-3">
@@ -213,6 +225,7 @@ function Runner({ e }: { e: HotEntryView }) {
 function Row({ e }: { e: HotEntryView }) {
   const locale = useLocale();
   const c = copy[locale];
+  const zhLabel = locale === "en" && !!e.summary && hasChineseCopy(e.summary) ? c.aiDigestZh : null;
   return (
     <li className="group relative grid grid-cols-[30px_minmax(0,1fr)] items-start gap-x-3 px-4 py-3 transition-colors hover:bg-bg-sunk/70 sm:px-5 lg:grid-cols-[44px_minmax(0,1fr)_auto_104px_76px] lg:items-center lg:gap-x-6 lg:px-6 lg:py-3.5 dark:hover:bg-bg-muted/40">
       {/* 名次那两个字是给眼睛看的简写；`role="img"` 让这个 span 可以被命名（generic 角色不允许带
@@ -229,11 +242,12 @@ function Row({ e }: { e: HotEntryView }) {
             </span>
           )}
         </h3>
+        <DigestTag label={zhLabel} className="mt-1" />
         {e.summary && <p className="mt-0.5 line-clamp-2 text-[13px] leading-[1.65] text-ink-4 lg:line-clamp-1">{e.summary}</p>}
         <div className="mt-2 flex items-center gap-2.5 lg:hidden">
           <Faces participants={e.participants} total={e.participantCount} size={20} />
           <span className="text-[12px] text-ink-4">
-            <span className="num">{e.sourceCount}</span>{c.sourceUnit}
+            <span className="num">{e.sourceCount}</span>{c.sourceUnit(String(e.sourceCount))}
           </span>
           <span className="ml-auto flex items-center gap-2">
             <span className="mono text-[17px] font-semibold leading-none text-ink">{Math.round(e.heat)}</span>
@@ -279,7 +293,7 @@ export default function HotPage() {
               <>
                 {c.leadFilledPre(String(hot.windowHours))}
                 <span className="num">{hot.entries.length}</span>
-                {c.leadFilledPost(String(hot.windowHours))}
+                {c.leadFilledPost(String(hot.entries.length), String(hot.windowHours))}
               </>
             ) : (
               c.leadEmpty(String(hot.windowHours))

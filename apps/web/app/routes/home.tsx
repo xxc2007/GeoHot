@@ -104,7 +104,7 @@ export function meta({ loaderData, location }: Route.MetaArgs) {
     title: label,
     description: label ? c.metaDescription(label) : undefined,
     path,
-    jsonLd: path === "/" ? organizationLd() : undefined,
+    jsonLd: path === "/" ? organizationLd(locale) : undefined,
     locale,
   });
 }

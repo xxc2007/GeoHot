@@ -44,7 +44,7 @@ export function meta({ location }: Route.MetaArgs) {
     description: c.metaDescription,
     path: "/about",
     image: "/og/pages/about.png",
-    jsonLd: organizationLd(),
+    jsonLd: organizationLd(locale),
     locale,
   });
 }
