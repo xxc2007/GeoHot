@@ -1,0 +1,5 @@
+// tooling/fixtures/translate_post_en.jsonl — 引用帖的英文译文。
+// 契约：{"text":"一条帖子的英文译文"}。保留 @handle、#话题、网址与 emoji；
+// 没有署名的 fixture 时调用方不写 quote_translations_en（中文引用块继续用中文译文）。
+{"id":"translate-post-en-yarlung","capability":"translate_post_en","what":"地质学家引用帖：中文评论 + 近似坐标 + 话题标签","match":{"includes":["雅鲁藏布江"]},"reply":{"text":"The surface rupture near the Yarlung Tsangpo suture is visible in Sentinel-2 imagery from 22 November; coordinates 29.4N 87.1E are approximate. #Tibet #earthquake"},"author":"英文编辑（GEOHOT 英文腿，2026-11-23 核过中文稿与原文）"}
+{"id":"translate-post-en-nhc","capability":"translate_post_en","what":"转发 NHC 公报的引用帖","match":{"includes":["国家飓风中心"]},"reply":{"text":"The National Hurricane Center's 11:00 advisory keeps the hurricane warning in place for the Lesser Antilles, with the center expected to pass east of the islands tomorrow. @NHC_Atlantic"},"author":"英文编辑（GEOHOT 英文腿，2026-11-23 核过中文稿与原文）"}

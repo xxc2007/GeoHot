@@ -207,6 +207,65 @@ const CAPS: Record<string, Cap> = {
     readerCopy: true,
     copyFields: ["t"],
   },
+  // ── 英文腿（editorial/english.ts 的七个 purpose）────────────────────────────────────────────
+  // 每条都必须有署名 fixture：没有人工英文稿时调用方收不到可用答复，英文列保持 NULL，读取层回退中文。
+  // `fields` 只说这一步的请求里真实带着什么，lint 会拒绝一个永远匹配不上的键。
+  write_english: {
+    prompts: ["write-english"],
+    contract: '{ "title": "1-120", "summary": "40-1200", "reason": "≤400" }',
+    note: "条目英文稿，读者可见。title/summary/reason 三段都要过英文守卫：无汉字、非 label-only、句末完整。",
+    fields: { title: true, body: true, sourceName: true },
+    readerCopy: true,
+    copyFields: ["title", "summary", "reason"],
+  },
+  translate_body_en: {
+    prompts: ["translate-body-en"],
+    contract: '{ "blocks": ["每个片段一句英文译文"] }',
+    note: "blocks 的长度必须等于请求 blocks 的长度；默认空数组（不回显原文），调用方按「没有一块译出来」记失败。",
+    fields: { body: true },
+    readerCopy: true,
+    copyFields: ["blocks[]"],
+  },
+  translate_fact_titles_en: {
+    prompts: ["translate-fact-titles-en"],
+    contract: '{ "titles": [{"id": "f…", "title": "1-110"}] }',
+    note: "必须覆盖请求里的每条 fact、id 照抄；调用方逐条按 (id, title) 做 CAS 写回。",
+    fields: { title: true, body: true },
+    readerCopy: true,
+    copyFields: ["titles[].title"],
+  },
+  translate_post_en: {
+    prompts: ["translate-post-en"],
+    contract: '{ "text": "一条帖子的英文译文" }',
+    note: "引用帖英文译文；默认空文本（不回显），调用方不写 quote_translations_en。",
+    fields: { body: true },
+    readerCopy: true,
+    copyFields: ["text"],
+  },
+  story_digest_en: {
+    prompts: ["story-digest-en"],
+    contract: '{ "title": "≤120", "digest": "150-350 词", "latest": "≤60 词" }',
+    note: "事件页英文标题、综述与最新进展，读者可见。没有署名 fixture 时不写、也不推进 english_source_version。",
+    fields: { title: true, body: true, sourceName: true },
+    readerCopy: true,
+    copyFields: ["title", "digest", "latest"],
+  },
+  report_lead_en: {
+    prompts: ["report-daily-lead-en"],
+    contract: '{ "title": "≤120", "leadParagraph": "40-600", "sections": [{"label": "≤60", "summary": "≤300"}] }',
+    note: "日报英文导语与版块标签。sections 必须与中文版块同序、同长；调用方按数量整条拒收。",
+    fields: { title: true, body: true },
+    readerCopy: true,
+    copyFields: ["title", "leadParagraph", "sections[].label", "sections[].summary"],
+  },
+  report_period_en: {
+    prompts: ["report-period-en"],
+    contract: '{ "headline": "≤60", "overview": "150-400 词", "themes": [{"heading": "≤60", "summary": "≤800"}] }',
+    note: "周报/月报英文大标题、总述与主题。themes.length 必须等于中文 content.themes.length，否则整条拒收。",
+    fields: { title: true, body: true },
+    readerCopy: true,
+    copyFields: ["headline", "overview", "themes[].heading", "themes[].summary"],
+  },
 };
 
 interface Cap {
@@ -408,6 +467,31 @@ function segmentsOf(user: string): string[] | null {
   } catch {
     return null;
   }
+}
+
+/** The English leg sends a JSON object (`{blocks}` / `{facts}` / `{post}`); other caps send text. */
+function jsonUser(user: string): Record<string, unknown> {
+  const t = user.trim();
+  if (!t.startsWith("{")) return {};
+  try {
+    const parsed = JSON.parse(t) as unknown;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
+}
+function requestedBlocks(user: string): string[] {
+  const blocks = jsonUser(user).blocks;
+  return Array.isArray(blocks) ? blocks.map((b) => String(b ?? "")) : [];
+}
+function requestedFacts(user: string): Array<{ id: string; title: string }> {
+  const facts = jsonUser(user).facts;
+  if (!Array.isArray(facts)) return [];
+  return facts.flatMap((f) => {
+    if (!f || typeof f !== "object") return [];
+    const row = f as Record<string, unknown>;
+    return row.id == null ? [] : [{ id: String(row.id), title: String(row.title ?? "") }];
+  });
 }
 /** The numbered entry list the report prompts are built from (compose.ts writeLead / periodPrompt). */
 function entryLines(user: string): Array<{ n: number; section: string; title: string; summary: string }> {
@@ -685,6 +769,37 @@ const buildReply: Record<string, (reply: Record<string, unknown>, ctx: Ctx) => R
   }),
   translate_body: (r, ctx) => ({ t: translateArray(r, ctx) }),
   translate_post: (r, ctx) => ({ t: translateArray(r, ctx) }),
+  // 英文腿：人工稿按 blockMap（按片段文本）或 factMap（按中文事实标题）匹配；没有匹配的块**留空**，
+  // 不回显原文——回显会让调用方把中文当成英文译文存进库。
+  write_english: (r) => ({
+    title: clampStr(r.title ?? "", 120),
+    summary: clampStr(r.summary ?? "", 1200),
+    reason: clampStr(r.reason ?? "", 400),
+  }),
+  translate_body_en: (r, ctx) => ({ blocks: englishBlocks(r, ctx) }),
+  translate_fact_titles_en: (r, ctx) => ({ titles: resolveFactTitles(r, ctx) }),
+  translate_post_en: (r) => ({ text: clampStr(r.text ?? "", 4000) }),
+  story_digest_en: (r) => ({
+    title: clampStr(r.title ?? "", 120),
+    digest: clampStr(r.digest ?? "", 2000),
+    latest: clampStr(r.latest ?? "", 300),
+  }),
+  report_lead_en: (r) => ({
+    title: clampStr(r.title ?? "", 120),
+    leadParagraph: clampStr(r.leadParagraph ?? "", 600),
+    sections: arrOf(r.sections, 12).map((s) => {
+      const section = (s ?? {}) as Record<string, unknown>;
+      return { label: clampStr(section.label ?? "", 60), summary: clampStr(section.summary ?? "", 300) };
+    }),
+  }),
+  report_period_en: (r) => ({
+    headline: clampStr(r.headline ?? "", 60),
+    overview: clampStr(r.overview ?? "", 1500),
+    themes: arrOf(r.themes, 12).map((t) => {
+      const theme = (t ?? {}) as Record<string, unknown>;
+      return { heading: clampStr(theme.heading ?? "", 60), summary: clampStr(theme.summary ?? "", 800) };
+    }),
+  }),
 };
 
 function arrOf(value: unknown, max: number): unknown[] {
@@ -702,6 +817,34 @@ function translateArray(reply: Record<string, unknown>, ctx: Ctx): string[] {
     if (fixed && fixed.length === segments.length) return fixed[i]!;
     if (fixed && fixed[i] != null) return fixed[i]!;
     return segment;
+  });
+}
+
+/** English body blocks: authored `blockMap` rules first, then a whole `blocks` array of the right length. */
+function englishBlocks(reply: Record<string, unknown>, ctx: Ctx): string[] {
+  const segments = requestedBlocks(ctx.user);
+  const map = Array.isArray(reply.blockMap) ? (reply.blockMap as Array<Record<string, unknown>>) : [];
+  const fixed = Array.isArray(reply.blocks) ? reply.blocks.map(String) : null;
+  return segments.map((segment, i) => {
+    const rule = map.find((m) => listToArray((m.includes ?? m.blockIncludes) as string | string[]).map(norm).filter(Boolean).every((needle) => norm(segment).includes(needle)));
+    if (rule?.en != null) return String(rule.en);
+    if (fixed && fixed.length === segments.length && fixed[i] != null) return fixed[i]!;
+    // 没有人工译文就留空：调用方按形状拒收，不会把原文当英文存下来。
+    return "";
+  });
+}
+
+/** Fact titles keyed by id first, then by a substring of the Chinese fact title. */
+function resolveFactTitles(reply: Record<string, unknown>, ctx: Ctx): Array<{ id: string; title: string }> {
+  const facts = requestedFacts(ctx.user);
+  const authored = Array.isArray(reply.titles) ? (reply.titles as Array<Record<string, unknown>>) : [];
+  const map = Array.isArray(reply.factMap) ? (reply.factMap as Array<Record<string, unknown>>) : [];
+  return facts.map((fact) => {
+    const byId = authored.find((t) => t.id != null && String(t.id) === fact.id);
+    const byIncludes = authored.find((t) => listToArray(t.titleIncludes as string | string[]).map(norm).filter(Boolean).every((needle) => norm(fact.title).includes(needle)));
+    const byMap = map.find((m) => listToArray(m.includes as string | string[]).map(norm).filter(Boolean).every((needle) => norm(fact.title).includes(needle)));
+    const rule = byId ?? byIncludes ?? byMap;
+    return { id: fact.id, title: clampStr(rule?.title ?? "", 110) };
   });
 }
 
@@ -786,6 +929,15 @@ const buildDefault: Record<string, (ctx: Ctx) => { reply: Record<string, unknown
   },
   translate_body: (ctx) => ({ reply: {}, rule: "rule:passthrough" }),
   translate_post: (ctx) => ({ reply: {}, rule: "rule:passthrough" }),
+  // 英文腿的默认值一律是「没有署名稿」：英文列留 NULL，中文与回退信号都不动。翻译两条也不回显——
+  // 把中文原文当英文存下来正是这道闸门要防的事（红线：不要伪造署名）。
+  write_english: () => ({ reply: { title: "", summary: "", reason: "" }, rule: "rule:no-signed-copy(write_english)" }),
+  translate_body_en: () => ({ reply: { blocks: [] }, rule: "rule:no-signed-copy(translate_body_en)" }),
+  translate_fact_titles_en: () => ({ reply: { titles: [] }, rule: "rule:no-signed-copy(translate_fact_titles_en)" }),
+  translate_post_en: () => ({ reply: { text: "" }, rule: "rule:no-signed-copy(translate_post_en)" }),
+  story_digest_en: () => ({ reply: { title: "", digest: "", latest: "" }, rule: "rule:no-signed-copy(story_digest_en)" }),
+  report_lead_en: () => ({ reply: { title: "", leadParagraph: "", sections: [] }, rule: "rule:no-signed-copy(report_lead_en)" }),
+  report_period_en: () => ({ reply: { headline: "", overview: "", themes: [] }, rule: "rule:no-signed-copy(report_period_en)" }),
 };
 
 class Unsupported extends Error {}
