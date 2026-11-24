@@ -52,15 +52,21 @@ export function textWorkflowReadyCondition() { return rawWorkflowReadyCondition(
  * existing public row while leaving policy_version=3 in place, so the new API can roll out before the
  * worker backfills policy=4 rows and old-policy rows with quality=ok stay public. New writes stamp
  * policy_version=4; a row at policy=3 with quality=ok is still public here.
+ *
+ * `perRowProbe`（2026-11-24）：只在「按时间取前 N 条」的分页读里传 true。默认的 EXISTS 会被
+ * 规划器去相关成哈希连接——先把 `publications` 里所有过门的行都连上 readiness（生产 2.8 万行、
+ * 9,598 次探针），再排序取 40 条，LIMIT 停不下来；EXISTS 里带 `OFFSET 0` 后规划器不能去相关，
+ * 只能逐行走索引探针，配合 0132 的 covering 索引沿 timeline 顺序取满 40 条就停（生产实测
+ * 37.6 ms → 1.9 ms）。`publicMatchCondition` 用同一个写法挡过同样的去相关。
  */
-export function workflowReadyCondition() {
+export function workflowReadyCondition(perRowProbe = false) {
   return sql`p.visibility = 'public' AND p.body_mode = 'full'
     AND EXISTS (SELECT 1 FROM sources policy_source WHERE policy_source.id=p.source_id AND policy_source.site_fulltext)
     AND EXISTS (SELECT 1 FROM article_workflow_readiness ready_workflow
     WHERE ready_workflow.article_id=p.article_id AND ready_workflow.revision=p.revision
       AND ready_workflow.analysis_id=p.analysis_id AND ready_workflow.ready
       AND ready_workflow.body_quality_status='ok'
-      AND ready_workflow.policy_version >= 3)`;
+      AND ready_workflow.policy_version >= 3${perRowProbe ? sql` OFFSET 0` : sql``})`;
 }
 
 /**

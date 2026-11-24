@@ -172,9 +172,11 @@ export function selectedReleaseGateCondition(now: Date) {
 }
 /**
  * @param selected 已经由调用处要求 `p.selected` 时传 true，放行条件用等价的化简式（见上）。
+ * @param perRowProbe 分页读传 true：readiness 探针逐行执行，配合索引顺序让 LIMIT 提前收工
+ *   （见 `workflowReadyCondition` 的说明）；整表计数/导出必须留在 false，否则哈希连接才是对的。
  */
-export function releasedCondition(now: Date, selected = false) {
-  return sql`${selected ? selectedReleaseGateCondition(now) : releaseGateCondition(now)} AND ${workflowReadyCondition()}`;
+export function releasedCondition(now: Date, selected = false, perRowProbe = false) {
+  return sql`${selected ? selectedReleaseGateCondition(now) : releaseGateCondition(now)} AND ${workflowReadyCondition(perRowProbe)}`;
 }
 
 /**
@@ -185,7 +187,7 @@ export function releasedCondition(now: Date, selected = false) {
  *    **不要求中文译文**（`readiness-en.ts` 的第二条成员门）。
  * zh 分支永远是原来的 chineseCopyCondition + workflowReadyCondition，一个字符不变。
  */
-function englishListGate(now: Date, selected: boolean) {
+function englishListGate(now: Date, selected: boolean, perRowProbe = false) {
   if (englishTextMode() !== "strict") return null;
   const selectedClause = selected ? sql`p.selected AND` : sql``;
   const release = selected ? selectedReleaseGateCondition(now) : releaseGateCondition(now);
@@ -193,17 +195,21 @@ function englishListGate(now: Date, selected: boolean) {
   if (membership === "english") {
     return sql`p.visibility = 'public' AND ${selectedClause} ${release} AND ${englishReadyCondition(now, selected)}`;
   }
-  return sql`p.visibility = 'public' AND ${selectedClause} ${releasedCondition(now, selected)} AND ${chineseCopyCondition()} AND ${englishCopyCondition()}`;
+  return sql`p.visibility = 'public' AND ${selectedClause} ${releasedCondition(now, selected, perRowProbe)} AND ${chineseCopyCondition()} AND ${englishCopyCondition()}`;
 }
 
 /**
  * Listed items: public, released, and with a Chinese title. See {@link chineseCopyCondition} and
  * {@link releasedCondition}. `lang='en'` applies the deploy-time English membership policy above.
+ *
+ * `perRowProbe` 只给「按 timeline 顺序翻页」的调用（/api/site/pool 的 page CTE）传 true：它把
+ * readiness 探针钉成逐行，规划器才能沿 0132 的 covering 索引走、取满 40 条就停；计数与全量导出
+ * 仍用默认的哈希连接。
  */
-export function listedCondition(now: Date, lang: SiteLang = "zh") {
-  const english = lang === "en" ? englishListGate(now, false) : null;
+export function listedCondition(now: Date, lang: SiteLang = "zh", perRowProbe = false) {
+  const english = lang === "en" ? englishListGate(now, false, perRowProbe) : null;
   if (english) return english;
-  return sql`p.visibility = 'public' AND ${releasedCondition(now)} AND ${chineseCopyCondition()}`;
+  return sql`p.visibility = 'public' AND ${releasedCondition(now, false, perRowProbe)} AND ${chineseCopyCondition()}`;
 }
 
 /**

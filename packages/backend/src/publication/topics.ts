@@ -256,7 +256,9 @@ export interface TopicPage {
 
 /**
  * One topic's counts, read at one instant with the same membership as {@link loadCounts}:
- * the explicit assignments of `publication_topics` plus the topic's own tags (`topics.tags`).
+ * the explicit assignments of `publication_topics` plus the keys of {@link topicMatchTags}
+ * （机构主题认 `entity:<id>` 与 `org_names`，其余主题认自己的 `tags`；若照 `topics.tags` 单算，
+ * 机构主题的计数就会与页面实际列出的条目对不上）。
  * `loadCounts` answers all 43 topics at once and is held for the topic list; a detail page only
  * needs its own number, and paying for the other 42 was most of the 2026-11-23 cold read
  * (5–7 s): the all-topics assignment join probes `publication_topics` once per selected row.

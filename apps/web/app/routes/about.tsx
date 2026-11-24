@@ -7,7 +7,6 @@ import { ABOUT } from "@aihot/industry/site";
 import { organizationLd, pageMeta } from "../lib/seo";
 import { localeAppPath, localeFromPath, useLocale, type Locale } from "../lib/i18n";
 import { copy } from "../lib/i18n/pages/about";
-import { MissingEnglishNotice } from "../components/ui/ChineseNotice";
 import { Kicker } from "../components/ui/Kicker";
 import { buttonClass } from "../components/ui/Controls";
 import { IconArrowRight } from "../components/icons";
@@ -208,7 +207,12 @@ export default function AboutPage() {
     [stats, locale],
   );
   const stages = useMemo(() => stagesOf(stats, locale), [stats, locale]);
-  const latest = stats?.latest ?? [];
+  // 英文页的最新精选只轮播真有英文标题的条目：ENGLISH_TEXT=fallback 时名单里混着中文条目，
+  // 拿中文标题顶上会让读者以为这条精选的英文版就是这样，所以宁可少显示几条。
+  const latest = useMemo(
+    () => (stats?.latest ?? []).filter((i) => (locale === "en" ? Boolean(i.titleEn?.trim()) : true)),
+    [stats, locale],
+  );
   // A pulse reaches the paper every second or so; the headline under it changes at most every 2.8s.
   const onArrive = useCallback(() => {
     const now = Date.now();
@@ -230,7 +234,7 @@ export default function AboutPage() {
           <p className="mt-5 max-w-[36em] text-[15.5px] leading-[1.85] text-ink-3 xl:text-[17px]">
             {c.aboutLead.split("{sources}").map((part, i) => (
               <span key={i}>
-                {i > 0 && (stats ? <span className="num font-semibold text-ink">{stats.sources}</span> : c.leadSourcesFallback)}
+                {i > 0 && (stats ? <span className="num font-semibold text-ink">{locale === "en" ? stats.sources.toLocaleString("en-US") : stats.sources}</span> : c.leadSourcesFallback)}
                 {part}
               </span>
             ))}
@@ -245,8 +249,8 @@ export default function AboutPage() {
           </Link>
         </div>
       </header>
-      {/* 信源河带出的标题与信源名：有英文字段就用英文；仍有缺英文的条目时才标注。中文页永不渲染。 */}
-      {locale === "en" && stats && (stats.latest.some((i) => !i.titleEn || !i.sourceNameEn) || stats.sampleSources.some((s) => !s.nameEn)) && <MissingEnglishNotice className="mt-1" />}
+      {/* 这里不再放「本页没有英文版」的标注：本页正文、栏目标题和单位都取自字典的 en 一侧，
+          最新精选也已只留英文标题。信源名是发布者的专名（多半是域名），按原名显示即可，不是中文正文。 */}
 
       <section aria-labelledby="how" className="mt-10 xl:mt-14">
         <h2 id="how" className="sr-only">

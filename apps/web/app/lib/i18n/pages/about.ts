@@ -127,7 +127,7 @@ const en: typeof zh = {
       "Each day's daily brief goes out at 08:00, the weekly on Mondays, the monthly on the 1st; items are ranked by heat and every entry keeps its original link, so you can go back and check. To receive them first, subscribe via RSS, API or MCP.",
   },
   aboutGreeting: [
-    "Every day this site takes one pass over the geography-related movement: which station has released data, which river's course has a new account, which plan has landed on which tract of land.",
+    "Every day this site makes one pass over what is moving in geography: which station has released data, which river has a new account of its course, which plan has landed on which stretch of land.",
     "To be written up, an item has to say where it happened, how large the impact is and who reported it first — ideally with figures and maps. The original link stays under every entry; for important numbers, go back to the source and look.",
   ],
   aboutCopyright: `${SITE.name} is an aggregation of digests and a reading index; the copyright of the originals belongs to the station networks, agencies, journals and media that published them. If you are a source and want a correction, a takedown or a change in how something is shown, reach us through the`,

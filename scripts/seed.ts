@@ -1,5 +1,6 @@
 // Seeds a fresh site from the industry pack: the topics (industry/topics.json, updated in place), the
-// demo sources (industry/sources.json, including each row's `nameEn`, only the ones not there yet, so admin edits are never undone) and,
+// demo sources (industry/sources.json; rows absent from the table are inserted whole, rows already there
+// only get their `name_en` backfilled — every other column stays as the operator left it) and,
 // with the leaderboard on, its model directory (only models and names not there yet).
 // Re-runnable:  node --env-file=.env scripts/seed.ts   (--topics-only: just the topics, as the tests use)
 import { readFileSync } from "node:fs";
@@ -56,9 +57,20 @@ for (const s of sources) {
     VALUES (${s.id}, ${s.name}, ${s.nameEn?.trim() || null}, ${s.kind}, ${tx.json(s.config as never)}, ${s.tier ?? "T2"}, ${s.first_party ?? false}, ${s.owner_entity_id ?? null},
             ${s.participation_mode ?? "editorial"}, ${s.interval_minutes ?? 60}, ${s.tags ?? []}, ${s.site_fulltext ?? false}, ${s.syndicate_fulltext ?? false},
             ${enabled}, now(), ${s.defaultCategory ?? null})
-    ON CONFLICT (id) DO NOTHING RETURNING id`;
-  if (policy.target_enabled !== null) candidates += result.length;
-  return result;
+    -- 冲突时只补英文名这一列。「ON CONFLICT DO NOTHING」对老行等于"英文名永远补不上"——生产库
+    -- 668 条信源的 name_en 全空、而包里 668 条都有 nameEn，差别就出在这一句。name / config / tier /
+    -- enabled 这些后台可能人工改过的列仍然"只增不改"（改配置是 scripts/sync-source-config.ts 的事）。
+    -- 包里没给 nameEn 时保留库里的值（可能来自人工补写），不反手清空。
+    ON CONFLICT (id) DO UPDATE
+      SET name_en = coalesce(EXCLUDED.name_en, sources.name_en),
+          updated_at = CASE WHEN sources.name_en IS NOT DISTINCT FROM coalesce(EXCLUDED.name_en, sources.name_en)
+                            THEN sources.updated_at ELSE now() END
+    RETURNING id, (xmax = 0) AS inserted`;
+  // 冲突更新同样会 RETURNING，所以不能直接用结果行数：`xmax = 0` 只对真正新插进去的行成立。
+  // 不区分的话 "N added" 与容量候选（candidates）都会跟着虚增。
+  const rows = result.filter((r) => r.inserted);
+  if (policy.target_enabled !== null) candidates += rows.length;
+  return rows;
   });
   added += inserted.length;
 }

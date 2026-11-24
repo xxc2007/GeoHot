@@ -5,7 +5,7 @@ import { positiveInt } from "../config.ts";
 import { one, sql, withCustomPlans, type Db } from "../db.ts";
 import { withPublicRead } from "./read-budget.ts";
 import {
-  categoryCondition, channelCondition, ITEM_COLUMNS, ITEM_FROM, listedCondition, tagCondition, toFeedItemSummary, topicCondition,
+  categoryCondition, channelCondition, ITEM_COLUMNS, ITEM_FROM, ITEM_JOINS, listedCondition, tagCondition, toFeedItemSummary, topicCondition,
   type ItemRow,
 } from "./items.ts";
 
@@ -140,6 +140,10 @@ async function budgetedAggregate<T>(build: (client: typeof sql) => Promise<T>): 
       // `SET` 不吃绑定参数（`SET LOCAL x = $1` 直接语法错误，2026-11-09 CI 上把 `/all` 打成 503），
       // 值是我们自己的常量，用 unsafe 拼进去才是对的写法。
       await tx.unsafe(`SET LOCAL statement_timeout = ${AGGREGATE_TIMEOUT_MS}`);
+      // 计数与「今日 N 条」带着中文文案 regex 的绑定参数：generic plan 同样证明不了 0132 的部分
+      // 索引谓词，会退回 0113 的 bitmap 扫（2026-11-24 生产实测 1.1 s / 2.2 s）。custom plan 下
+      // 谓词可证明，两条聚合改走 covering 索引（EXPLAIN ANALYZE 实测 11.4 ms / 59.1 ms）。
+      await tx.unsafe(`SET LOCAL plan_cache_mode = force_custom_plan`);
       return build(tx as unknown as typeof sql);
     }) as T;
   } finally {
@@ -248,11 +252,16 @@ export async function loadPool(query: PoolQuery, signal?: AbortSignal): Promise<
   const run = async (db: Db) => {
     if (!q) {
       // Page ids from the timeline index first, then the joins for those rows only.
+      // 2026-11-24：外层原来是 `WHERE p.article_id IN (SELECT article_id FROM page)`。半连接不能
+      // 交换内外侧，规划器把 133k 行的 publications（再连 articles/translations/stories）放在外侧做
+      // 哈希半连接，最后只取 40 个 id —— 生产 EXPLAIN 实测这一半 8.6–11 秒、24 MB 临时文件，
+      // 而页面本身（page CTE）只要 2.4 秒。改成 `FROM page pg JOIN publications p` 让 40 行先当
+      // 外侧，外侧只剩 40 次主键连接；分页结果与排序键都不变（与 topics.ts 的 loadTopicPage 同形）。
       const rows = await db<ItemRow[]>`
         WITH page AS (
-          SELECT p.article_id FROM publications p WHERE ${listedCondition(now, lang)} AND p.eligible ${filters}
+          SELECT p.article_id FROM publications p WHERE ${listedCondition(now, lang, true)} AND p.eligible ${filters}
           ORDER BY p.timeline_at DESC, p.article_id DESC LIMIT ${POOL_PAGE_SIZE} OFFSET ${offset})
-        SELECT ${ITEM_COLUMNS} ${ITEM_FROM} WHERE p.article_id IN (SELECT article_id FROM page)
+        SELECT ${ITEM_COLUMNS} FROM page pg JOIN publications p ON p.article_id = pg.article_id ${ITEM_JOINS}
         ORDER BY p.timeline_at DESC, p.article_id DESC`;
       return { rows, total: await poolCount(filterKey, (client) => client<{ n: number }[]>`
         SELECT count(*) AS n FROM (SELECT 1 FROM publications p WHERE ${listedCondition(now, lang)} AND p.eligible ${filters} LIMIT ${cap}) t`) };
@@ -323,7 +332,7 @@ export async function loadPool(query: PoolQuery, signal?: AbortSignal): Promise<
       WITH page AS (
         SELECT p.article_id FROM publications p WHERE ${listedCondition(now, lang)} AND p.eligible ${filters} ${directMatchCondition(terms, lang)}
         ORDER BY p.timeline_at DESC, p.article_id DESC LIMIT ${POOL_PAGE_SIZE} OFFSET ${offset})
-      SELECT ${ITEM_COLUMNS} ${ITEM_FROM} WHERE p.article_id IN (SELECT article_id FROM page)
+      SELECT ${ITEM_COLUMNS} FROM page pg JOIN publications p ON p.article_id = pg.article_id ${ITEM_JOINS}
       ORDER BY p.timeline_at DESC, p.article_id DESC`;
     if (lang === "en") {
       // 英文默认搜索的「找到 N 条」直接数英文列，不再 join `pool_search`。
@@ -345,9 +354,17 @@ export async function loadPool(query: PoolQuery, signal?: AbortSignal): Promise<
   // load 32+、io.full 95%）。现在把它收进 withPublicRead：服务端 12 秒 statement_timeout 到点
   // 主动取消并回滚事务，连接必归还；4 槽 + 8 队列给并发一个有界上限，超出的走 PublicReadBusyError
   // 由路由交回底稿/陈旧值。搜索路径本来就有 withSearchCapacity，保持不变。
+  //
+  // 2026-11-24：最后一个参数 false → true（custom plan）。列表页的成员门里带着中文文案正则
+  // （`chineseCopyCondition`），它们在 SQL 里是绑定参数；预编译的 generic plan 无法证明
+  // `title ~ $n` 蕴含部分索引谓词里的 `title ~ '[一-鿿]'`，于是规划器看不见 0132 的
+  // `publications_listed_page_idx`，退回 0113 的 bitmap + 1.2 万页堆读（生产实测 2.4 秒）。
+  // 改用实际值生成的 custom plan（与时间线的 groupedSnapshot 同一做法），谓词可证明后
+  // 走 covering 索引的 index-only scan（实测 38 ms；page CTE 再带上 `listedCondition(…, true)`
+  // 的逐行探针后 1.85 ms）。
   const { rows, total } = q
     ? await withSearchCapacity(run)
-    : await withPublicRead((db) => run(db), 12_000, false, signal);
+    : await withPublicRead((db) => run(db), 12_000, true, signal);
   const today = beijingDate(now);
   // 表头上那句「今日 N 条」必须与它下面真的分组同一套成员条件（`DayList.tsx` 按 `timelineAt` 分日、
   // 把没有发布时间的行挪去「无发布日期」那一组）：
