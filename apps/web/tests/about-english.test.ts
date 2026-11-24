@@ -49,7 +49,7 @@ const CONTACT = { makerAvatar: null };
 
 /** 只看读者可见的文字：hydration 的 loader 数据会把整份 stats（含中文标题）塞进 <script>。 */
 function visible(html: string): string {
-  return html.replace(/<script[\s\S]*?<\/script>/g, " ").replace(/<style[\s\S]*?<\/style>/g, " ").replace(/<[^>]+>/g, " ");
+  return html.replace(/<script[\s\S]*?<\/script[^>]*>/gi, " ").replace(/<style[\s\S]*?<\/style[^>]*>/gi, " ").replace(/<[^>]+>/g, " ");
 }
 
 async function render(pathname: string): Promise<string> {
