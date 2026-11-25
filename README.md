@@ -26,9 +26,9 @@
 </div>
 
 <p align="center">
-  <a href="https://xxc2007.me/geohot/"><img src="docs/shots/home-light.png?v=5f0d9fbb01ca" alt="GEOHOT 精选首页：七个分类、搜索、当前热点与按时间排列的资讯卡片" width="820"></a>
+  <a href="https://xxc2007.me/geohot/"><img src="docs/shots/home-light.png?v=e2d57f52f8" alt="GEOHOT 精选首页：七个分类、搜索、当前热点与按时间排列的资讯卡片" width="820"></a>
 </p>
-<p align="center"><sub>精选首页 · 学科分类、当前热点与时间线资讯流 · 同步提供亮色纸感与深色遥测双主题</sub></p>
+<p align="center"><sub>精选首页 · 学科分类、当前热点与时间线资讯流 · 2026 年 11 月 25 日线上实拍 · 同步提供亮色纸感与深色遥测双主题</sub></p>
 
 ## 🎬 宣传片展示
 
