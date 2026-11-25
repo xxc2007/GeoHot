@@ -8,213 +8,152 @@
 
 **每天把地理读一遍。**
 
-从一场地震、一座城市的变化，到一幅新的遥感影像，世界的变化每天都在留下新的地理线索。GEOHOT 持续采集公开信源，以空间显著性组织精选资讯，将同一事件的多方报道汇集起来，再编成便于回顾的地理日报。
+> 一场地震的震波、一座城市的边界微调、一幅刚刚回传的遥感影像——大地每天都在写下新的注脚。<br>
+> GEOHOT 持续巡检全球 **1,000** 个公开地理信源，以**空间显著性**为尺，把同一事件的多方报道归并成脉络清晰的事件综述，在每个清晨编成一份便于回望的地理日报。
 
 **读到要点，看到证据，也能回到原文。**
 
 [![线上访问](https://img.shields.io/badge/线上访问-xxc2007.me%2Fgeohot-D97757)](https://xxc2007.me/geohot/)
+[![English](https://img.shields.io/badge/English-xxc2007.me%2Fgeohot%2Fen-176B75)](https://xxc2007.me/geohot/en/)
 [![技术栈](https://img.shields.io/badge/技术栈-TypeScript_·_React_·_PostgreSQL-1F1E1D)](#技术架构)
 [![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-无需注册即可阅读，支持搜索、分类筛选、本地收藏与 RSS 订阅；开发者也可以通过公开 API 和 MCP 接入同一套内容。
+免费、免注册即读，现已全面支持**中英双语原生界面**（[中文版](https://xxc2007.me/geohot/) · [English](https://xxc2007.me/geohot/en/)），<br>
+提供全文检索、学科筛选、本地收藏与 RSS 订阅；开发者与 AI Agent 可通过公开 API 与 **MCP** 接入同一套数据口径。
 
-[宣传片](#-宣传片展示) · [阅读体验](#阅读体验) · [筛选流程](#信息如何成为精选) · [技术架构](#技术架构) · [目录与历史](#目录与历史) · [开放接口](#站点与开放接口) · [后台统计](#后台统计快照) · [可靠运行](#可靠性与观测) · [本地运行](#本地运行与二次开发) · [内容边界](#内容边界) · [License](#-license) · [Star History](#star-history)
+[宣传片](#-宣传片展示) · [阅读体验](#阅读体验) · [筛选流程](#信息如何成为精选) · [技术架构](#技术架构) · [开放接口](#站点与开放接口) · [可靠性与观测](#可靠性与观测) · [本地运行](#本地运行与二次开发) · [License](#-license) · [Star History](#star-history)
 
 </div>
 
 <p align="center">
   <a href="https://xxc2007.me/geohot/"><img src="docs/shots/home-light.png?v=5f0d9fbb01ca" alt="GEOHOT 精选首页：七个分类、搜索、当前热点与按时间排列的资讯卡片" width="820"></a>
 </p>
-<p align="center"><sub>精选首页 · 分类、热点与信息流 · 2026 年 10 月 16 日线上截图</sub></p>
+<p align="center"><sub>精选首页 · 学科分类、当前热点与时间线资讯流 · 同步提供亮色纸感与深色遥测双主题</sub></p>
 
 ## 🎬 宣传片展示
 
-用 42 秒走过 GEOHOT 的主要阅读路径：浏览精选、按分类寻找内容、进入事件综述与报道时间线，再打开地理日报和主题页。画面取自真实网站，配以柔和钢琴与自然转场。
+全新 **72 秒 · 1080p 60fps** 官方宣传片（同步提供中文版与原生英文界面版）：以九幕高密度动态图形走完 GEOHOT 的完整脉络——从「经纬之交」标志亮相、3D 经纬球与全球信源网出发，进入真实官网 3D 镜头巡游、深色遥测空间显著性评分引擎、多源事件归并与 24h 半衰期热度曲线、早八点地理日报与主题墙，最后抵达 RSS / API / AI Agent MCP 全出口生态。配以原创 124 BPM 立体声配乐与帧级卡点音效。
 
-点击下方播放器即可在本页观看。
+点击下方播放器即可在本页观看：
 
-https://github.com/user-attachments/assets/d85128b8-810d-48b8-a6eb-3e032e81011a
+https://github.com/user-attachments/assets/513b0a5a-def1-49a8-96c2-74c2d2497ffb
 
-[▶ 打开 1080p 高清播放器](https://xxc2007.me/assets/promo/geohot/?v=20261016) · [直接打开 MP4](https://raw.githubusercontent.com/xxc2007/GeoHot/main/docs/promo/geohot-promo.mp4?v=20261016)
+[▶ 打开 1080p 高清播放器](https://xxc2007.me/assets/promo/geohot/?v=20261016) · [直接打开中文版 MP4](https://raw.githubusercontent.com/xxc2007/GeoHot/main/docs/promo/geohot-promo.mp4) · [英文版 MP4](https://raw.githubusercontent.com/xxc2007/GeoHot/main/docs/promo/geohot-promo-en.mp4)
 
-<sub>影片为 1920 × 1080，使用 Video Shotcraft 制作。截图与影片中的资讯为拍摄时的内容快照，最新动态请以网站为准。</sub>
+<sub>影片规格 1920 × 1080 · 60fps · 立体声 AAC。片中资讯为制作时的真实站点快照，最新动态请以线上页面为准。</sub>
 
 ## 阅读体验
 
-### 从一条消息，读到一个事件
+### 从一条消息，读到一个完整事件
 
-资讯卡片提供中文标题、摘要、推荐理由、来源与评分，便于先判断是否值得展开。同一事件的相关报道会归并到事件页，通过综述与时间线连接起来，让后续进展有迹可循。原文链接始终保留，方便进一步阅读和核对。
+信息流中的每一张卡片都提供标题、摘要、推荐理由、信源出处与入选评分，让你在点开之前先判断价值。多方机构围绕同一场灾害、公报或发现持续发声时，系统将其归并至独立的**事件页**，以综述与报道时间线串联脉络；每一条线索底部始终保留原始链接，方便回到源头核对。
 
-### 用分类找到方向，用日报形成回顾
+### 中英双语，以学科定方向、以日报作回望
 
-首页精选适合快速浏览，「全部动态」提供更完整的检索入口；热点榜展示满足参与条件的事件，主题页帮助持续追踪。每日 08:00（Asia/Shanghai）排期生成地理日报，另提供周报、月报与存档。
+除中文主站（`/geohot/`）外，站内已上线完整的**原生英文阅读版**（`/geohot/en/`），覆盖精选流、热点榜、主题页、关于页与双语成刊管线。每日 **08:00（Asia/Shanghai）** 准时出版地理日报，同步归档周报与月报（已累计出版 **320+** 期日报、收录 **134,000+** 条地理材料、精选 **7,190+** 条）。
 
-| 分类 | 关注内容 |
+| 分类 | 关注疆域 |
 |---|---|
-| 自然地理 | 地貌、气候、水文、土壤、植被与灾害事件 |
-| 人文地理 | 人口、城市、产业、交通与城乡发展 |
-| 区域地理 | 流域、极地、高原、三角洲与城市群的综合变化 |
-| 政治地理 | 边界、领土、战略通道与海洋权益 |
-| 历史地理 | 河道与海岸变迁、政区沿革、历史城址与古地图 |
-| 前沿地理 | 新的研究证据、方法、成果与学术进展 |
-| 地理信息系统 | 遥感、导航定位、空间数据、GIS 软件与开源生态 |
+| **自然地理** | 地貌、气候、水文、土壤、植被与自然灾害事件 |
+| **人文地理** | 人口、城市、产业、交通区位与城乡区域发展 |
+| **区域地理** | 流域、极地、高原、三角洲与城市群的综合演变 |
+| **政治地理** | 边界、领土、战略通道与海洋权益的空间格局 |
+| **历史地理** | 河道与海岸变迁、政区沿革、历史城址与古地图考证 |
+| **前沿地理** | 地理学与地球系统科学的新证据、新方法与学术突破 |
+| **地理信息系统** | 遥感影像、导航定位、空间数据、GIS 平台与开源生态 |
 
-分类定义集中在 [`industry/taxonomy.ts`](industry/taxonomy.ts)。收藏保存在当前设备的浏览器中；RSS、公开 API 与 MCP 则让内容可以进入个人订阅和自动化阅读流程。
+完整分类词表与归类规范见 [`industry/taxonomy.ts`](industry/taxonomy.ts)。本地收藏仅存于当前浏览器；RSS、公开 API 与 MCP 让这套内容无缝融入订阅器与自动化工作流。
 
 ## 信息如何成为精选
 
-**采集与判重 → 地理预筛 → 两次评分 → 分级门槛 → 事件归并 → 热度计算 → 定时成刊**
+**采集与判重 → 地理预筛 → 两次独立评分 → 分级门槛 → 事件归并 → 热度计算 → 定时成刊**
 
-| 环节 | 处理方式 |
+| 环节 | 运行机制 |
 |---|---|
-| 信源与预筛 | 从登记的公开信源采集材料，规范化 URL 判重，再判断地理相关性与信息含量。信源配置见 [`industry/sources.json`](industry/sources.json)，预筛标准见 [`prefilter.md`](industry/prompts/prefilter.md)。 |
-| 评分与入选 | 依据统一标准进行两次评分，以两次分数之和判断是否达到对应信源等级的入选门槛；卡片展示平均分。门槛与计算说明集中在 [`industry/selection.ts`](industry/selection.ts)。 |
-| 事件与热点 | 将同一事件的多方报道归并；热度按独立来源覆盖与时间衰减计算，未满足参与条件时保留空榜。 |
-| 写作与发布 | 生成中文标题、摘要及推荐理由，组织事件综述与定期刊物。公开内容统一经 [`publication/`](packages/backend/src/publication/) 读取。 |
+| **信源与预筛** | 持续采集已登记的 1,000 个公开信源（RSS / Web / JSON），规范化 URL 判重后先检验地理相关性与信息密度，拦截文旅软文与招生通稿。详见 [`industry/sources.json`](industry/sources.json) 与 [`prefilter.md`](industry/prompts/prefilter.md)。 |
+| **评分与入选** | 依据统一空间显著性标准进行**两次独立评分**，以两次分数之和对比对应信源等级的入选门槛（官方一手宽容，媒体与个人更严），卡片展示平均分。细则见 [`industry/selection.ts`](industry/selection.ts)。 |
+| **事件与热度** | 自动将同一事件的多方报道归并成章；热度依据独立信源覆盖与时间衰减（48 小时窗口、24 小时半衰期）计算，未达条件时宁可留白，绝不凑数。 |
+| **写作与发布** | 生成双语标题、摘要、推荐理由、事件综述及定期刊物。所有对外出口统一经 [`publication/`](packages/backend/src/publication/) 读取，确保多端口径一致。 |
 
-**标准由人制定，逐条分析由模型执行。** 分类、信源、提示词与筛选规则保存在 [`industry/`](industry/)；后台支持抽查与修正，读者也可通过反馈入口指出问题。评分用于内容筛选，不表示事实正确的概率；现行门槛仍是经验参数，尚未通过人工标注集完成校准。
+> **标准由人制定，逐条分析由模型执行。** 分类、信源、提示词与门槛沉淀在 [`industry/`](industry/) 目录中；后台支持人工抽查与修正，读者也可随时反馈纠偏。评分仅用于筛选排序，不表示事实真伪概率。
 
 ## 技术架构
 
-GEOHOT 基于开源框架 [AIHOT](https://github.com/KKKKhazix/AIHOT) 构建，以地理行业配置组织内容。应用与通用处理逻辑位于 `apps/`、`packages/`，地理相关的分类、信源、提示词、品牌和页面配置集中在 `industry/`。
+GEOHOT 基于开源框架 [AIHOT](https://github.com/KKKKhazix/AIHOT) 构建，并将全部地理学科逻辑抽离至独立的行业配置层：`apps/` 与 `packages/` 负责通用应用与管线，`industry/` 集中存放地理分类、信源、提示词、品牌与页面文案。
 
-| 层面 | 选型与职责 |
+| 层面 | 技术选型与职责 |
 |---|---|
-| 运行时与组织 | Node.js 24 直接执行后端 TypeScript，npm workspaces 管理应用、共享包与行业配置。版本要求见 [`package.json`](package.json)。 |
-| 页面 | React Router 服务端渲染、React 与 Tailwind CSS，提供信息流、事件、刊物与主题页面。 |
-| 接口 | Fastify 提供公开只读接口与需要认证的管理接口。前端通过 HTTP 访问后端。 |
-| 数据与任务 | PostgreSQL 存储条目、事件、刊物与会话；pg-boss 复用数据库管理队列与定时任务。 |
-| 模型处理 | worker 执行分析与写作任务，调用经过[回执与预算控制](packages/backend/src/providers/receipts.ts)；公开页面读取已生成内容，阅读本身不触发模型调用。 |
-| 一致性 | 网页、RSS、API 与 MCP 共享发布读取层，减少不同出口的内容口径差异。 |
+| **运行时与组织** | Node.js 24 原生执行后端 TypeScript，npm workspaces 统筹应用、共享包与行业配置（[`package.json`](package.json)）。 |
+| **前端页面** | React Router 服务端渲染（SSR）+ React + Tailwind CSS，支持中英双语与亮暗双主题。 |
+| **服务接口** | Fastify 提供公开只读 API 与需认证的管理接口，前后端经 HTTP 清晰解耦。 |
+| **数据与队列** | PostgreSQL 存储条目、事件、刊物与会话，pg-boss 复用数据库管理异步任务与定时调度。 |
+| **模型管线** | Worker 异步执行理解、翻译与写作，调用受[回执与预算护栏](packages/backend/src/providers/receipts.ts)约束；公开页面只读已生成内容，读者访问零模型开销。 |
+| **出口一致性** | 网页、RSS、公开 API 与 MCP 共享统一发布读取层，消除多端内容口径偏差。 |
 
 ### 底层原理与运行流程
 
-上半部分沿着一条材料展开采集、预筛、评分与公开条件的分支，下半部分说明已生成结果如何经统一读取层到达不同出口。橙色表示拦截、等待或控制条件，绿色表示公开结果。图中不固化信源数量、模型名称或评分门槛，避免把运行配置变成过时的架构说明。
-
 [![GEOHOT · 从公开信源到读者](docs/architecture/flow.zh.16901a4b8fe5.png)](https://raw.githubusercontent.com/xxc2007/GeoHot/main/docs/architecture/flow.zh.16901a4b8fe5.png)
 
-点击图片直接打开 3600 像素宽的 PNG 原图，再次点击可按原尺寸放大查看。[可编辑 SVG 源文件](docs/architecture/flow.zh.svg)。实现依据：[apps/worker/src/main.ts](apps/worker/src/main.ts) · [packages/backend/src/editorial/analyze.ts](packages/backend/src/editorial/analyze.ts) · [packages/backend/src/providers/receipts.ts](packages/backend/src/providers/receipts.ts) · [packages/backend/src/publication/rules.ts](packages/backend/src/publication/rules.ts) · [packages/backend/src/publication/](packages/backend/src/publication/) · [industry/selection.ts](industry/selection.ts) · [apps/web/server.ts](apps/web/server.ts)。
-
-后续修改可编辑 [`render.mjs`](docs/architecture/render.mjs) 中的双语文字与节点，先运行 `npm ci --prefix docs/architecture` 安装文档导出工具，再运行 `node docs/architecture/render.mjs` 同步生成中英文 SVG 与高清 PNG；[导出说明](docs/architecture/README.md)。
-
-## 目录与历史
-
-目录职责按「生命周期」分成六条带——运行时、迁移、发布、运维、历史、归档——每条带该改什么、不该动什么，以及「我要做 X 该改哪个目录」的对照表，见[仓库目录地图](docs/PROJECT-MAP.md)。
-
-这个仓库到今天有 **1714** 个提交、**258** 条读者可见的发布记录（`industry/changelog.json` 的 `releases` 数组；`git tag --list 'v*'` 是 254 个，差的 4 条是发布当天才补版本号），两者不是同一层：提交台账逐条记录每个提交（含合并与机械搬运），更新日志只记录站长认为读者该知道的变化。完整台账、四段时代史（2026-10-01 起）、结构 / 可部署性 / 同步 / 日志 / 工作区五份审计，以及清理候选清单，都在[`docs/history/`](docs/history/README.md)；安全审计 `AUDIT-SECURITY.md` 与 `security-findings.json` 只在工作区 `docs/history/`（公开仓库不写本机凭据文件位置）。
+<sub>点击打开 3600px 高清原图 · [可编辑 SVG 源文件](docs/architecture/flow.zh.svg) · 目录地图见 [PROJECT-MAP.md](docs/PROJECT-MAP.md)，演进史与审计台账见 [docs/history/](docs/history/README.md)。</sub>
 
 ## 站点与开放接口
 
-以下路径均相对于线上站点的 `/geohot/` 前缀。
+以下路径相对于线上前缀 `/geohot/`（英文版位于 `/geohot/en/`）：
 
 | 入口 | 用途 |
 |---|---|
-| `/` · `/all` | 精选与全部动态，支持搜索和分类筛选 |
-| `/story/:publicId` · `/items/:id` | 事件综述、报道时间线与单条资讯 |
-| `/hot` · `/topics` | 事件热点榜与主题追踪 |
-| `/daily` · `/weekly` · `/monthly` | 日报、周报、月报及对应存档 |
-| `/starred` | 当前浏览器中的本地收藏 |
-| `/agent` · `/feedback` | 开发者接入说明与读者反馈 |
+| `/` · `/en/` · `/all` | 中英双语精选信息流与全部动态，支持搜索与学科筛选 |
+| `/story/:publicId` · `/items/:id` | 事件综述、多源报道时间线与单条资讯详情 |
+| `/hot` · `/topics` | 实时热点榜与地理主题追踪页 |
+| `/daily` · `/weekly` · `/monthly` | 地理日报、周报、月报与完整历史存档 |
+| `/starred` · `/agent` · `/feedback` | 浏览器本地收藏、开发者 / MCP 接入说明与读者反馈 |
 
-- **RSS**：精选摘要 [`/feed.xml`](https://xxc2007.me/geohot/feed.xml)、全部动态 `/feed/all.xml`、日报 `/feed/daily.xml`，另有周报、月报及分类订阅。
-- **公开 API**：只读端点位于 `/api/v1/`，接口规范见 [`openapi-v1.json`](https://xxc2007.me/geohot/openapi-v1.json)。
-- **Agent 接入**：MCP 端点 `/api/mcp`，配套 `/llms.txt`；使用说明见[接入页面](https://xxc2007.me/geohot/agent)。
-- **当前数据**：信源与内容规模以[站点统计](https://xxc2007.me/geohot/api/site/stats)及线上页面为准。
-
-## 后台统计快照
-
-后台用量总览与逐日统计读的是预先生成的统计快照，页面每 30 秒自动刷新读数：
-
-- 今天、近 7 天、近 30 天、近 90 天与全部五档共用一次聚合；单个日期各自建独立快照。
-- 快照落盘保留 24 小时，重算在后台单并发排队、只在服务器有余量时进行，同一份快照几分钟内不重复重算，失败自动退避重试。
-- 2026-11-21 起，总览与逐日点击通常即时出数，此前十几秒级的等待基本消失；快照过期时先显示上次成功统计并标注更新时间，后台重算完成后自动替换。尚未取得数据时页面会明示「不代表用量为零」。
-- 若个别历史调用暂缺「服务」「用途」分组（标签补录期间的过渡状态），调用数、token 与实际成本照常可见，数据不丢、不阻断。
-
-后台用量与费用折算的口径细则见[后台官方费用折算](docs/admin-official-pricing.md)。
+- **RSS**：精选 [`/feed.xml`](https://xxc2007.me/geohot/feed.xml)、全部 `/feed/all.xml`、日报 `/feed/daily.xml` 及分类订阅。
+- **公开 API**：只读端点 `/api/v1/`，规范见 [`openapi-v1.json`](https://xxc2007.me/geohot/openapi-v1.json)。
+- **AI Agent 接入**：原生 MCP 端点 `/api/mcp` 配套 `/llms.txt`，详见[接入页面](https://xxc2007.me/geohot/agent)；实时规模见[站点统计](https://xxc2007.me/geohot/api/site/stats)。
 
 ## 可靠性与观测
 
-- **健康探针**：`/api/health` 公开可查，`reason` 字段分两类——`gate_busy`、`query_timeout` 是探针自身遇到瞬时压力（排队或超时），稍后自行恢复；`conn_error`、`db_unavailable` 才是数据库层面的真故障。
-- **后台统计刷新失败**：服务日志会留下一行 `admin snapshot refresh failed`（附错误码），页面此时保留上次成功统计；后台统计长期不更新时，按这个关键字检索服务日志即可自助定位。
-- **连接池改了没生效**：读者面连接池下限（数据库池 ≥ 8、队列池 ≥ 3）由服务器环境文件统一下发、会覆盖应用目录的 `.env`，改完是否生效以从运行中的服务进程读回的环境为准——只改文件不算改完。
-- **运行优先级**：读者页面的可用性优先于历史回填、清理与诊断；维护安排避开读者高峰；不靠清除 unknown 回执或提高并发来制造吞吐。
+- **预计算统计快照**：后台用量总览与逐日统计基于 24 小时落盘快照每 30 秒自动刷新，避免重复重算，过期时先展示上次成功读数并后台平滑更新（口径见[官方费用折算](docs/admin-official-pricing.md)）。
+- **公开健康探针**：`/api/health` 区分瞬时压力（`gate_busy` / `query_timeout`）与真实库故障（`conn_error` / `db_unavailable`）。
+- **读者优先原则**：读者面连接池下限（DB ≥ 8、队列 ≥ 3）由服务器环境文件统一下发；读者可用性始终高于回填、清理与诊断任务。
 
 ## 本地运行与二次开发
 
-需要 Node.js 24.11 或更高版本。安装依赖并生成一份本地配置。
-
-下面的命令块按 **Git Bash（Windows）/ WSL / POSIX shell（bash、zsh）** 写；PowerShell 里要逐条改写成等价命令（`mv` → `Move-Item`、`VAR=x cmd` → `$env:VAR='x'; cmd`），不要整块粘贴。
+需 **Node.js 24.11+**（以下以 Git Bash / WSL / POSIX shell 为准，完整手册见 [`docs/manual.md`](docs/manual.md)）：
 
 ```bash
 npm ci
-# 带四个 --xxx-port 就会换端口（避开本机已在跑的栈）；不换端口就直接用默认值跑下一条。
-# env:init 拒绝覆盖已有配置（避免把线上 .env 洗掉），所以要重新生成必须先把它挪开——
-# 不挪就会 exit 1（原文：`.env 和 .env.pipeline 已经存在，没有覆盖`）。
 mv .env .env.bak 2>/dev/null; mv .env.pipeline .env.pipeline.bak 2>/dev/null
 npm run env:init -- --db-port=5455 --api-port=3299 --web-port=3099 --brain-port=3065
-```
 
-它会把这些值写进 `.env` 的每一处（`DATABASE_URL`、`API_PORT`、`WEB_PORT`、`BRAIN_PORT`），随机密钥一并生成。端口对照表与故障排查见[运营与开发手册](docs/manual.md) 第 3.7 节。
-
-本地跑起来的最短路径（八条命令，另开几个终端更清楚）：
-
-```bash
-# 端口必须和上一步 --db-port 一致：db:up 只认 --port / DEV_DB_PORT，不读 .env，
-# 写着 5455 却连 5433 的话，下一条迁移会写进那台已经在跑的库。
 npm run db:up -- --foreground --port=5455
-npm run db:migrate                          # 建表；迁移条数以 `ls database/migrations/*.sql | wc -l` 现查
-node --env-file-if-exists=.env scripts/seed.ts                     # 主题/信源条数当场数：`node -e "console.log(require('./industry/sources.json').sources.length, require('./industry/topics.json').topics.length)"`
-node --env-file=.env --env-file=.env.pipeline tooling/brain-stub.ts                 # 本地模型 stub，BRAIN_PORT=3065
-node --env-file=.env --env-file=.env.pipeline apps/api/src/main.ts                  # 接口，API_PORT=3299
-node --env-file=.env --env-file=.env.pipeline apps/worker/src/main.ts               # 队列与定时任务
-npm run build -w @aihot/web && node --env-file=.env apps/web/server.ts              # 网页，WEB_PORT=3099
-npm run smoke -- --base http://127.0.0.1:3099                                      # 冒烟（不带 /geohot 前缀）
+npm run db:migrate
+node --env-file-if-exists=.env scripts/seed.ts
+node --env-file=.env --env-file=.env.pipeline tooling/brain-stub.ts
+node --env-file=.env --env-file=.env.pipeline apps/api/src/main.ts
+node --env-file=.env --env-file=.env.pipeline apps/worker/src/main.ts
+npm run build -w @aihot/web && node --env-file=.env apps/web/server.ts
+npm run smoke -- --base http://127.0.0.1:3099
 ```
 
-前两条是**长驻**的：`db:up --foreground` 和 web 的 `node apps/web/server.ts` 都会占用终端直到 Ctrl-C，别给它们套 `timeout`——到点会把整组子进程一起 SIGTERM，留下的 postgres 后台进程会占住端口（`dev-db.ts` 现在会自己补一刀 `pg_ctl stop -m immediate` 收尾）。
-
-**要放到后台跑**（脚本、CI、自动化 shell）时不要 `nohup npm run db:up` —— Git Bash 里的 `npm` 是 `.cmd` 壳，`nohup` 会报 `%1 is not a valid Win32 application`。直接调 node 入口：
-
-```bash
-node scripts/dev-db.ts --daemon --port=5455     # 起库后立刻返回，日志在 %TEMP%/geohot-dev-db.log
-```
-
-仓库不自带 `psql`/`pg_isready`，判断库有没有就绪用 TCP 探测（`node -e "require('net').connect(5455,'127.0.0.1')…"`）或看上面那份日志里的 `ready to accept connections`。
-
-
-`.env.pipeline` 里 `LLM_BASE_URL` 指向 `http://127.0.0.1:3065/v1`：**不启 brain stub 时分析类作业会全部失败**（页面上表现为条目迟迟不进精选）。
-
-跑测试（要一个独立库，别指 `.env` 里的开发库）：
-
-> 库名必须以 `_test` 或 `_ci` 结尾：`tests/setup.ts:10` 会拒绝在别的库上写行（`Invariant tests write rows: point DATABASE_URL at a throwaway database named *_test or *_ci`）。名字取 `geohot_test` 就好，别取 `geohot_test_r22` 这种。
+跑测试请使用以 `_test` 或 `_ci` 结尾的独立临时库，并仅传入 `DATABASE_URL`（勿叠加 `.env`）：
 
 ```bash
 node --input-type=module -e "import postgres from 'postgres'; const s = postgres('postgres://geohot:geohot@127.0.0.1:5455/postgres'); await s.unsafe('CREATE DATABASE geohot_test'); await s.end();"
 DATABASE_URL=postgres://geohot:geohot@127.0.0.1:5455/geohot_test npm run db:migrate
-DATABASE_URL=postgres://geohot:geohot@127.0.0.1:5455/geohot_test npm test   # 冷库耗时随机器变化，超时给足
+DATABASE_URL=postgres://geohot:geohot@127.0.0.1:5455/geohot_test npm test
 ```
 
-只传 `DATABASE_URL` 一个变量：再叠 `--env-file=.env` 会用配置里的阀门顶掉测试默认值（`MODEL_CALLS_ENABLED` 一旦为 true，测试会真的打外部模型）。
+> 如需迁移至其他垂直领域，从 `industry/` 入手配置站名、分类、信源与提示词即可（见[行业定制指南](docs/customize.md)与[运行手册](docs/geohot-runbook.md)）。
 
-四个容易踩的坑：
+## 内容边界与开源许可
 
-- `db:up` 的端口**不跟 `env:init` 走**（它读 `--port`、`DEV_DB_PORT`，否则回落 5433）。换过端口就显式写 `--port=5455`；**先起的若是 5433 上的旧库，`db:migrate` 会把全部迁移写到那个库上**（本机若真有线上库，这就是事故）。
-- 本地构建是**域名根**形态，因为 `BASE_PATH` 是**构建期**变量、本地构建没带它（`deploy/geohot/deploy.sh:20-22`：由 `GEOHOT_BASE_PATH` 传进 `npm run build`，默认 `/geohot`，域名根部署显式传空串）。前缀烧进 bundle，**不是**反代或 web 层在运行期决定的——只改 nginx 变不出 `/geohot`。冒烟用 `node scripts/smoke.ts --base http://127.0.0.1:3099`（不带前缀）；带 `/geohot` 会得到一串 404。
-- `npm run seed:curated -- --enforce-source` 在干净库上可能 **exit 1**：部分语料行属于 `enabled:false` 的信源，脚本会逐条打印未入库行与原因。要它全绿就先启用对应信源，或去掉 `--enforce-source`。
-
-`.env` 里采集、模型调用等外部访问开关一律 `false`（`npm test` 不读 `.env`：它只从 shell 取 `DATABASE_URL`，测试库名必须是 `*_test`/`*_ci` 并显式传入）。需要跑真实管道时叠加独立的 `.env.pipeline` —— 那份里它们是 `true`，两份永不合并。
-
-希望用于其他垂直领域，可从 `industry/` 入手配置站名、分类、信源、提示词与品牌。目录职责和迁移步骤见[行业定制指南](docs/customize.md)，实际配置值以代码为准；部署说明见[运行手册](docs/geohot-runbook.md)。
-
-## 内容边界
-
-摘要、评分和事件综述用于辅助阅读，重要信息仍应核对原始来源。涉及灾害与预警的内容不构成预警发布或行动依据。信源默认展示摘要与原文链接，全文展示须遵循来源授权。
+摘要、评分与事件综述仅作辅助阅读，重要数据请核对原始出处；灾害类内容不构成官方预警依据。
 
 ## 📄 License
 
-[MIT](LICENSE) © 2026 数字生命卡兹克（上游框架）· GEOHOT 地理配置与品牌维护：熊鑫晨。
-
-保留上游版权及 [NOTICE](NOTICE) 中的衍生说明。GEOHOT 使用自己的站名与标志，上游名称和标志不随代码许可一并授权；第三方素材与信源内容遵循各自条款。完整说明见站内条款与隐私页面。
+[MIT](LICENSE) © 2026 数字生命卡兹克（上游框架）· GEOHOT 地理配置、双语演进与品牌维护：熊鑫晨。保留上游版权及 [NOTICE](NOTICE) 衍生说明。
 
 ## Star History
 
@@ -225,5 +164,5 @@ DATABASE_URL=postgres://geohot:geohot@127.0.0.1:5455/geohot_test npm test   # �
 ---
 
 <div align="center">
-  <sub>从消息出发，回到地理。<br>编辑标准与代码 · 熊鑫晨 · <a href="https://xxc2007.me/geohot/">在线阅读</a></sub>
+  <sub>从一条消息出发，回到真实的大地。<br>编辑标准与代码 · 熊鑫晨 · <a href="https://xxc2007.me/geohot/">中文版</a> · <a href="https://xxc2007.me/geohot/en/">English</a></sub>
 </div>

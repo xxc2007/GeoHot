@@ -1,150 +1,133 @@
-<sub>🌐 <a href="README.md">中文</a> · <b>English</b> · <a href="docs/manual.md">Operations and development handbook</a></sub>
+<sub>🌐 <a href="README.md">中文</a> · <b>English</b> · <a href="docs/manual.md">Operations &amp; Development Handbook</a></sub>
 
 <div align="center">
 
 <img src="https://raw.githubusercontent.com/xxc2007/GeoHot/main/industry/brand/logo.svg?v=2" alt="GEOHOT mark: a teal hotspot at the intersection of latitude and longitude" width="72">
 
-# GEOHOT · Geography in focus
+# GEOHOT · Geography in Focus
 
 **A daily reading of a changing world.**
 
-An earthquake, a changing city, a new satellite image: geography takes shape in the news every day. GEOHOT follows public sources, selects material for its spatial significance, brings related reporting into a shared event, and turns it into geography editions you can revisit.
+> The tremor of an earthquake, the shifting edge of a city, a fresh pass from an Earth-observation satellite—every day, the planet leaves new geographic traces.<br>
+> GEOHOT watches **1,000** public geography sources continuously, weighs each report by its **spatial significance**, gathers related coverage into unified events, and composes daily geography editions built to be revisited.
 
-**Read the essentials, follow the evidence, return to the source.**
+**Read the essentials. Follow the evidence. Return to the source.**
 
-[![Read online](https://img.shields.io/badge/Read_online-xxc2007.me%2Fgeohot-D97757)](https://xxc2007.me/geohot/)
+[![Read online](https://img.shields.io/badge/Read_online-xxc2007.me%2Fgeohot%2Fen-D97757)](https://xxc2007.me/geohot/en/)
+[![中文版](https://img.shields.io/badge/中文版-xxc2007.me%2Fgeohot-176B75)](https://xxc2007.me/geohot/)
 [![Stack](https://img.shields.io/badge/Stack-TypeScript_·_React_·_PostgreSQL-1F1E1D)](#architecture)
 [![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-Read without an account, search and filter by category, save local bookmarks or subscribe through RSS. Public APIs and MCP give developers access to the same published content. The website’s reading interface and editorial output are in Chinese.
+Free to read with no account required—now featuring a **native English reading edition** ([`/geohot/en/`](https://xxc2007.me/geohot/en/)) alongside Chinese,<br>
+complete with full-text search, discipline filters, local bookmarks, RSS, Public REST API, and AI Agent **MCP**.
 
-[Film](#-product-film) · [Reading experience](#reading-experience) · [Selection](#how-material-becomes-a-selected-story) · [Architecture](#architecture) · [Open interfaces](#pages-and-open-interfaces) · [Usage snapshots](#usage-snapshots) · [Reliability](#reliability-and-observability) · [Run locally](#local-development-and-adaptation) · [Content boundaries](#content-boundaries) · [License](#-license) · [Star History](#star-history)
+[Film](#-product-film) · [Reading Experience](#reading-experience) · [Selection Pipeline](#how-material-becomes-a-selected-story) · [Architecture](#architecture) · [Open Interfaces](#pages-and-open-interfaces) · [Reliability](#reliability-and-observability) · [Run Locally](#local-development-and-adaptation) · [License](#-license) · [Star History](#star-history)
 
 </div>
 
 <p align="center">
-  <a href="https://xxc2007.me/geohot/"><img src="docs/shots/home-light.png?v=5f0d9fbb01ca" alt="GEOHOT selected feed with seven categories, search, current hot events and chronological story cards" width="820"></a>
+  <a href="https://xxc2007.me/geohot/en/"><img src="docs/shots/home-light.png?v=5f0d9fbb01ca" alt="GEOHOT selected feed with seven categories, search, trending events, and chronological story cards" width="820"></a>
 </p>
-<p align="center"><sub>Selected feed · categories, events and stories · captured from the live site on 16 October 2026</sub></p>
+<p align="center"><sub>Selected feed · disciplines, trending events, and chronological stream · available in warm paper light &amp; dark telemetry themes</sub></p>
 
-## 🎬 Product film
+## 🎬 Product Film
 
-A 42-second journey through GEOHOT: browse selected stories, explore categories, follow an event summary and reporting timeline, then open the geography editions and topic pages. Real website captures are paired with a soft piano score and gentle transitions. On-screen titles are in Chinese.
+Our new **72-second · 1080p 60fps** official launch film (available in both English and Chinese editions): nine kinetic motion-graphics acts walking through the graticule mark, a rotating 3D globe of global public sources, a 3D perspective sweep of the native English `/geohot/en/` reading interface, the dark-telemetry spatial-salience scoring engine, multi-source event merging with 24h half-life heat decay, the 08:00 daily brief, and open RSS / API / MCP outputs—scored to an original 124 BPM stereo soundtrack and frame-synced foley.
 
-Play it directly below.
+Play directly below:
 
-https://github.com/user-attachments/assets/d85128b8-810d-48b8-a6eb-3e032e81011a
+https://github.com/user-attachments/assets/eaa7ba7b-ebf7-4cea-b89d-944dca303d94
 
-[▶ Watch in the 1080p player](https://xxc2007.me/assets/promo/geohot/?v=20261016) · [Open MP4](https://raw.githubusercontent.com/xxc2007/GeoHot/main/docs/promo/geohot-promo.mp4?v=20261016)
+[▶ Watch in the 1080p player](https://xxc2007.me/assets/promo/geohot/?v=20261016) · [Open English MP4](https://raw.githubusercontent.com/xxc2007/GeoHot/main/docs/promo/geohot-promo-en.mp4) · [Chinese MP4](https://raw.githubusercontent.com/xxc2007/GeoHot/main/docs/promo/geohot-promo.mp4)
 
-<sub>1920 × 1080, made with Video Shotcraft. Screenshots and footage preserve the news available at capture time; visit the site for current coverage.</sub>
+<sub>1920 × 1080 · 60fps · Stereo AAC. Footage reflects live site snapshots at capture time; visit the site for current coverage.</sub>
 
-## Reading experience
+## Reading Experience
 
-### Follow the story beyond a single report
+### Follow the story beyond a single dispatch
 
-Each card presents a Chinese headline, summary, recommendation, source and score, helping readers decide what to explore. Related reporting is grouped into an event page, where a summary and timeline connect the developments. Original links remain available for further reading and verification.
+Every card surfaces a concise headline, summary, editorial rationale, source attribution, and selection score so you can judge what merits a deeper read. When multiple observatories, agencies, or journals report on the same development, GEOHOT merges them into one **event page** with a synthesis and chronological timeline—always preserving original source links for direct verification.
 
-### Find a direction, then build a broader view
+### Native bilingual coverage, oriented by discipline and edition
 
-The selected feed offers a quick entry point; All updates supports wider searching and filtering. The hot-events page lists events that meet its participation criteria, while topics support ongoing reading. A geography daily is scheduled for 08:00 Asia/Shanghai, alongside weekly and monthly editions and archives.
+Alongside the Chinese edition (`/geohot/`), GEOHOT now serves a **native English interface** (`/geohot/en/`) covering the Selected feed, Trending events, Topics, About page, and bilingual publication pipeline. A **Daily Edition** publishes every morning at **08:00 Asia/Shanghai** alongside weekly and monthly archives (**320+** daily editions published, **134,000+** items collected, **7,190+** selected).
 
-| Category | Coverage |
+| Category | Scope |
 |---|---|
-| Physical geography | Landforms, climate, hydrology, soils, vegetation and hazards |
-| Human geography | Population, cities, industry, transport and urban–rural development |
-| Regional geography | Integrated change across basins, polar regions, plateaus, deltas and city clusters |
-| Political geography | Boundaries, territory, strategic passages and maritime rights |
-| Historical geography | Rivers and coasts, administrative boundaries, historic settlements and maps |
-| Frontier geography | New research evidence, methods, findings and academic developments |
-| Geographic information systems | Remote sensing, positioning, spatial data, GIS software and open-source ecosystems |
+| **Physical Geography** | Landforms, climate, hydrology, soils, vegetation, and natural hazards |
+| **Human Geography** | Population, cities, industry, transport corridors, and urban–rural change |
+| **Regional Geography** | Integrated transformations across basins, polar zones, plateaus, deltas, and city clusters |
+| **Political Geography** | Borders, territory, strategic passages, and maritime rights |
+| **Historical Geography** | Shifting rivers and coastlines, administrative evolution, historic settlements, and archival maps |
+| **Frontier Research** | New scientific evidence, methods, datasets, and breakthroughs in Earth system research |
+| **GIS** | Remote sensing, positioning, spatial data standards, GIS platforms, and open-source tooling |
 
-Definitions live in [`industry/taxonomy.ts`](industry/taxonomy.ts). Bookmarks stay in the current browser; RSS, public APIs and MCP support personal subscriptions and automated reading workflows.
+Full taxonomy definitions live in [`industry/taxonomy.ts`](industry/taxonomy.ts). Bookmarks stay purely in your local browser; RSS, public APIs, and MCP carry the same content into personal readers and automated workflows.
 
-## How material becomes a selected story
+## How Material Becomes a Selected Story
 
-**Collect and deduplicate → pre-filter → score twice → apply source-tier thresholds → group events → calculate heat → publish editions**
+**Collect & deduplicate → Pre-filter → Two independent scores → Tiered thresholds → Event grouping → Heat decay → Scheduled editions**
 
-| Stage | Approach |
+| Stage | How It Works |
 |---|---|
-| Sources and pre-filtering | Collect from registered public sources, deduplicate by normalized URL, then assess geography relevance and information content. See [`industry/sources.json`](industry/sources.json) and the [pre-filter standard](industry/prompts/prefilter.md). |
-| Scoring and selection | Two scoring passes use the same standard. Their sum is checked against the source tier’s admission threshold; cards display the average score. Values and calculation notes live in [`industry/selection.ts`](industry/selection.ts). |
-| Events and heat | Group reporting about the same event. Heat reflects independent-source coverage and time decay; the page remains empty when participation criteria are unmet. |
-| Writing and publication | Produce Chinese headlines, summaries, recommendations, event overviews and periodical editions. Public content is read through [`publication/`](packages/backend/src/publication/). |
+| **Sources & Pre-filtering** | Polls 1,000 registered public sources (RSS / Web / JSON), deduplicates by normalized URL, and screens for genuine geographic relevance—blocking tourism promos and boilerplate ([`sources.json`](industry/sources.json), [`prefilter.md`](industry/prompts/prefilter.md)). |
+| **Scoring & Admission** | Runs **two independent scoring passes** against a spatial-significance rubric. Their sum is checked against source-tier gates (more forgiving for primary agencies, stricter for media); cards display the average ([`selection.ts`](industry/selection.ts)). |
+| **Events & Heat** | Consolidates multi-source coverage into shared events. Heat weighs independent-source breadth against time decay (48h window, 24h half-life); if nothing qualifies, the board stays honestly empty. |
+| **Writing & Publication** | Produces bilingual headlines, summaries, rationales, event syntheses, and editions. All public channels read through [`publication/`](packages/backend/src/publication/) for strict consistency. |
 
-**People define the standard; models analyse individual items.** Taxonomy, sources, prompts and selection rules live in [`industry/`](industry/). The admin interface supports review and correction, and readers can report errors. Scores support selection and do not express a probability of factual accuracy. Current thresholds are empirical and have not been calibrated against a human-labelled evaluation set.
+> **Humans set the editorial standard; models evaluate individual items.** Taxonomy, sources, prompts, and thresholds live cleanly in [`industry/`](industry/). Scores guide triage rather than expressing factual probability.
 
 ## Architecture
 
-GEOHOT is built on the open-source [AIHOT](https://github.com/KKKKhazix/AIHOT) framework, adapted through a geography-specific configuration layer. Applications and shared processing live in `apps/` and `packages/`; taxonomy, sources, prompts, branding and page configuration are concentrated in `industry/`.
+Built on the open-source [AIHOT](https://github.com/KKKKhazix/AIHOT) framework, GEOHOT isolates all geography domain knowledge in `industry/`, while core applications and shared packages reside in `apps/` and `packages/`.
 
-| Layer | Choice and responsibility |
+| Layer | Choice & Responsibility |
 |---|---|
-| Runtime and organisation | Node.js 24 executes backend TypeScript directly; npm workspaces manages apps, shared packages and field configuration. Requirements: [`package.json`](package.json). |
-| Pages | React Router server rendering, React and Tailwind CSS for feeds, events, editions and topics. |
-| API | Fastify serves public read endpoints and authenticated management endpoints. The frontend reaches the backend over HTTP. |
-| Data and jobs | PostgreSQL stores items, events, editions and sessions; pg-boss uses the same database for queues and schedules. |
-| Model processing | The worker runs analysis and writing through [receipts and budget controls](packages/backend/src/providers/receipts.ts). Public pages read generated content; reading does not trigger model calls. |
-| Consistency | Web pages, RSS, APIs and MCP share a publication read layer to keep their content aligned. |
+| **Runtime & Workspace** | Node.js 24 runs backend TypeScript natively; npm workspaces coordinates apps, packages, and domain config ([`package.json`](package.json)). |
+| **Web Frontend** | React Router SSR, React, and Tailwind CSS powering native bilingual feeds, events, editions, and themes. |
+| **HTTP API** | Fastify serves public read-only endpoints and authenticated management routes over HTTP. |
+| **Data & Queues** | PostgreSQL stores items, events, editions, and sessions; `pg-boss` manages async queues and schedules. |
+| **Model Pipeline** | Background workers execute analysis, translation, and writing under [receipt & budget guardrails](packages/backend/src/providers/receipts.ts); public reading never triggers model calls. |
+| **Output Consistency** | Web, RSS, REST API, and MCP share one unified publication read layer. |
 
-### How it works
-
-The upper half follows an item through collection, prefiltering, scoring and publication decisions. The lower half shows how stored results reach each public interface through a shared read layer. Amber marks blocking, waiting or control conditions; green marks public results. Source counts, model names and numeric thresholds remain in configuration rather than being frozen into the diagram.
+### How It Works
 
 [![GEOHOT · From public sources to readers](docs/architecture/flow.en.630ca94064fa.png)](https://raw.githubusercontent.com/xxc2007/GeoHot/main/docs/architecture/flow.en.630ca94064fa.png)
 
-Click the image to open the 3600 px PNG directly, then click again to view it at its original size. [Editable SVG source](docs/architecture/flow.en.svg). Source references: [apps/worker/src/main.ts](apps/worker/src/main.ts) · [packages/backend/src/editorial/analyze.ts](packages/backend/src/editorial/analyze.ts) · [packages/backend/src/providers/receipts.ts](packages/backend/src/providers/receipts.ts) · [packages/backend/src/publication/rules.ts](packages/backend/src/publication/rules.ts) · [packages/backend/src/publication/](packages/backend/src/publication/) · [industry/selection.ts](industry/selection.ts) · [apps/web/server.ts](apps/web/server.ts).
+<sub>Click for 3600 px PNG · [Editable SVG source](docs/architecture/flow.en.svg) · Architecture &amp; directory map in [PROJECT-MAP.md](docs/PROJECT-MAP.md).</sub>
 
-To update both diagrams, install the documentation tool with `npm ci --prefix docs/architecture`, edit the bilingual labels in [`render.mjs`](docs/architecture/render.mjs), and run `node docs/architecture/render.mjs` to regenerate the SVG sources and high-resolution PNGs. See the [export notes](docs/architecture/README.md).
+## Pages and Open Interfaces
 
-## Pages and open interfaces
+Paths below are relative to `/geohot/` (English routes under `/geohot/en/`):
 
-Paths below are relative to the live site’s `/geohot/` prefix.
-
-| Entry | Purpose |
+| Route | Purpose |
 |---|---|
-| `/` · `/all` | Selected feed and all updates, with search and category filters |
-| `/story/:publicId` · `/items/:id` | Event overviews, reporting timelines and individual items |
-| `/hot` · `/topics` | Hot events and topic tracking |
-| `/daily` · `/weekly` · `/monthly` | Periodical editions and their archives |
-| `/starred` | Bookmarks stored in the current browser |
-| `/agent` · `/feedback` | Integration guidance and reader feedback |
+| `/` · `/en/` · `/all` | Bilingual Selected feed and searchable All Updates archive |
+| `/story/:publicId` · `/items/:id` | Event overviews, reporting timelines, and individual dispatches |
+| `/hot` · `/topics` | Live trending events and ongoing geographic topic hubs |
+| `/daily` · `/weekly` · `/monthly` | Daily, weekly, and monthly editions plus full archives |
+| `/starred` · `/agent` · `/feedback` | Local browser bookmarks, developer / MCP docs, and reader feedback |
 
-- **RSS:** selected summaries at [`/feed.xml`](https://xxc2007.me/geohot/feed.xml), all updates at `/feed/all.xml`, daily editions at `/feed/daily.xml`, plus weekly, monthly and category feeds.
-- **Public API:** read endpoints under `/api/v1/`, documented in [`openapi-v1.json`](https://xxc2007.me/geohot/openapi-v1.json).
-- **Agent integration:** MCP at `/api/mcp`, alongside `/llms.txt`; see the [integration page](https://xxc2007.me/geohot/agent).
-- **Current figures:** consult [site statistics](https://xxc2007.me/geohot/api/site/stats) and the public website for source and content totals.
+- **RSS**: Selected [`/feed.xml`](https://xxc2007.me/geohot/feed.xml), all updates `/feed/all.xml`, daily `/feed/daily.xml`, plus category feeds.
+- **Public API**: Read-only JSON under `/api/v1/` ([`openapi-v1.json`](https://xxc2007.me/geohot/openapi-v1.json)).
+- **AI Agent MCP**: Native MCP endpoint `/api/mcp` with `/llms.txt` ([integration page](https://xxc2007.me/geohot/agent)); live counts at [site statistics](https://xxc2007.me/geohot/api/site/stats).
 
-## Usage snapshots
+## Reliability and Observability
 
-The admin usage overview and per-day views read pre-computed snapshots, and the page refreshes its figures every 30 seconds:
+- **Pre-Computed Usage Snapshots**: Admin usage overviews read 24-hour disk-cached snapshots refreshing every 30s, serving instant figures with graceful stale fallback ([cost accounting notes](docs/admin-official-pricing.md)).
+- **Public Health Probe**: `/api/health` cleanly separates transient load (`gate_busy`, `query_timeout`) from real database faults (`conn_error`, `db_unavailable`).
+- **Reader-First Priority**: Reader-facing pool floors (DB ≥ 8, queue ≥ 3) are enforced at the server environment layer; reader availability always outranks backfills and diagnostics.
 
-- The five ranges (today, 7, 30, 90 days and all) share one aggregation; each single date builds its own snapshot.
-- Snapshots persist on disk for 24 hours; recomputation runs one aggregate at a time in the background, only while the server has headroom, never recomputes the same snapshot within a few minutes, and backs off automatically after a failure.
-- Since 21 November 2026 the overview and day views usually return immediately, and the previous waits of ten seconds and more are gone; while a snapshot is stale the page keeps the last successful figures with their update time and replaces them once the background recompute finishes. Before any data exists, the page says so plainly rather than showing a zero.
-- If some historical calls temporarily lack their service and purpose grouping (a transitional state while labels are backfilled), call counts, tokens and actual cost stay visible, no data is lost and nothing is blocked.
+## Local Development and Adaptation
 
-The accounting rules behind the usage pages are detailed in the [backend cost notes](docs/admin-official-pricing.md).
-
-## Reliability and observability
-
-- **Health probe:** `/api/health` is public, and its `reason` field separates two cases — `gate_busy` and `query_timeout` mean the probe itself hit transient pressure (queuing or timeout) and recovers on its own; `conn_error` and `db_unavailable` are a real database-level failure.
-- **Snapshot refresh failures:** the service log keeps an `admin snapshot refresh failed` line (with an error code) while the page retains the last successful figures; if a statistics page stays outdated, search the service log for that marker.
-- **Connection pools:** the reader-facing pool floors (database pool ≥ 8, queue pool ≥ 3) are distributed by a server-side environment file that overrides the app's `.env`; confirm a change by reading the environment back from the running process — editing the file alone is not a completed change.
-- **Operating priority:** reader-facing availability comes before backfills, cleanups and diagnostics; maintenance avoids reader peak hours; throughput is never manufactured by clearing unknown receipts or raising concurrency.
-
-## Local development and adaptation
-
-Node.js 24.11 or later is required. Install dependencies, then initialise local configuration:
+Requires **Node.js 24.11+** (full runbook in [`docs/manual.md`](docs/manual.md)):
 
 ```bash
 npm ci
 npm run env:init
 ```
 
-The initialiser creates local environment files and random secrets, and refuses to overwrite existing configuration. Database, API, worker and web startup order, ports and verification commands are documented in the [operations and development handbook](docs/manual.md). The repository provides a local model stub and fixed fixtures for development and CI verification.
-
-Running the test suite needs its own throwaway database named with a `_test` or `_ci` suffix — the suite writes rows and refuses any other name. Create it, migrate it, then run the suite (the embedded dev cluster's defaults are user/password `geohot` on port 5433; substitute whatever your `.env` says):
+Run tests against an isolated throwaway database ending in `_test` or `_ci` (pass `DATABASE_URL` via shell only, never layer `.env`):
 
 ```bash
 node --input-type=module -e "import postgres from 'postgres'; const s = postgres('postgres://geohot:geohot@127.0.0.1:5433/postgres'); await s.unsafe('CREATE DATABASE geohot_test'); await s.end();"
@@ -152,21 +135,15 @@ DATABASE_URL=postgres://geohot:geohot@127.0.0.1:5433/geohot_test npm run db:migr
 DATABASE_URL=postgres://geohot:geohot@127.0.0.1:5433/geohot_test npm test
 ```
 
-The suite takes `DATABASE_URL` from the shell only — never point it at the development database, and do not layer the app's env files on top, or their external-access switches would override the test defaults.
+Adapt to another domain by customizing `industry/` (see [customisation guide](docs/customize.md) & [runbook](docs/geohot-runbook.md)).
 
-Keep collection, model calls and other external-access switches off by default. Run the real pipeline with a separate configuration layer as described in the handbook, preserving the separation from development and tests.
+## Content Boundaries & License
 
-To adapt the project to another field, start with `industry/`: site identity, taxonomy, sources, prompts and branding. See the [customisation guide](docs/customize.md) for the process, and use the code for current configuration values. Operational guidance is in the [runbook](docs/geohot-runbook.md).
-
-## Content boundaries
-
-Summaries, scores and event overviews support reading; verify important information against the original sources. Hazard and warning coverage is not an official alert or a basis for emergency decisions. Sources show summaries and original links by default; full-text display depends on the publisher’s permission.
+Summaries, scores, and syntheses are reading aids; always verify critical figures against original sources. Hazard coverage is never an official emergency alert.
 
 ## 📄 License
 
-[MIT](LICENSE) © 2026 数字生命卡兹克 (upstream framework). Geography configuration and brand maintained by Xiong Xinchen (熊鑫晨).
-
-Upstream copyright and the derivative notice are preserved in [NOTICE](NOTICE). GEOHOT uses its own name and mark; upstream names and logos are not included in the code licence. Third-party assets and source content retain their respective terms. Full policies are available on the site’s terms and privacy pages.
+[MIT](LICENSE) © 2026 数字生命卡兹克 (upstream framework). Geography domain configuration, bilingual runtime, and brand maintained by Xiong Xinchen (熊鑫晨). Upstream copyright preserved in [NOTICE](NOTICE).
 
 ## Star History
 
@@ -177,5 +154,5 @@ Upstream copyright and the derivative notice are preserved in [NOTICE](NOTICE). 
 ---
 
 <div align="center">
-  <sub>Follow the news. See the geography.<br>Editorial standards and code · Xiong Xinchen · <a href="https://xxc2007.me/geohot/">Read online</a></sub>
+  <sub>Follow the news. Return to the earth.<br>Editorial standards &amp; code · Xiong Xinchen · <a href="https://xxc2007.me/geohot/en/">English</a> · <a href="https://xxc2007.me/geohot/">中文</a></sub>
 </div>
