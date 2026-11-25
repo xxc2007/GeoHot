@@ -21,7 +21,7 @@
 Free to read with no account required—now featuring a **native English reading edition** ([`/geohot/en/`](https://xxc2007.me/geohot/en/)) alongside Chinese,<br>
 complete with full-text search, discipline filters, local bookmarks, RSS, Public REST API, and AI Agent **MCP**.
 
-[Film](#-product-film) · [Reading Experience](#reading-experience) · [Selection Pipeline](#how-material-becomes-a-selected-story) · [Architecture](#architecture) · [Open Interfaces](#pages-and-open-interfaces) · [Reliability](#reliability-and-observability) · [Run Locally](#local-development-and-adaptation) · [License](#-license) · [Star History](#star-history)
+[Film](#-product-film) · [Reading Experience](#reading-experience) · [Selection Pipeline](#how-material-becomes-a-selected-story) · [Architecture](#architecture) · [Open Interfaces](#pages-and-open-interfaces) · [Reliability](#reliability-and-observability) · [Run Locally](#local-development-and-adaptation) · [Content Boundaries](#content-boundaries--license) · [License](#-license) · [Star History](#star-history)
 
 </div>
 
