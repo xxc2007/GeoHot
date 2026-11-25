@@ -132,7 +132,9 @@ const zh = {
 };
 
 const en: typeof zh = {
-  kind: { daily: "Daily brief", weekly: "Weekly brief", monthly: "Monthly brief" },
+  // 切换条上的短标签：这一列只有 ~200px，写全 "Daily brief / Weekly brief / Monthly brief" 放不下
+  // （选项是 whitespace-nowrap，会溢出重叠，2026-11-25 线上实测）。全称留给 kindSubject。
+  kind: { daily: "Daily", weekly: "Weekly", monthly: "Monthly" },
   // 报纸全称（进 sr-only 名、兜底标题）：与 report-detail.ts 字典的 kindLabel 同一批词。
   kindSubject: { daily: "Daily brief", weekly: "Weekly review", monthly: "Monthly roundup" },
 

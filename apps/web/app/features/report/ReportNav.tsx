@@ -14,7 +14,10 @@ import { KINDS, KIND_PATH, archiveGroups, archiveMark, chipLabel, reportPath } f
 function KindSwitch({ kind }: { kind: ReportKind }) {
   const locale = useLocale();
   const c = copy[locale];
-  return <PillTabs fill layoutId="report-kind" label={c.switchAria} active={kind} items={KINDS.map((k) => ({ key: k, label: c.kind[k], to: localeAppPath(KIND_PATH[k], locale) }))} />;
+  // 不用 fill：这一列只有 ~200px，三个英文标签（Daily/Weekly/Monthly brief）均分放不下，
+  // 而 PillTabs 的选项是 whitespace-nowrap + shrink-0，会溢出盖住相邻标签（2026-11-25 线上实测）。
+  // 不 fill 时容器是 inline-flex w-max + overflow-x-auto，放不下就横向滚动，不会重叠。
+  return <PillTabs layoutId="report-kind" label={c.switchAria} active={kind} items={KINDS.map((k) => ({ key: k, label: c.kind[k], to: localeAppPath(KIND_PATH[k], locale) }))} />;
 }
 
 /** Desktop archive column: every issue of this kind, grouped, the current one highlighted. */
@@ -132,7 +135,7 @@ export function ReportPhoneNav({ kind, index, current, today, now }: { kind: Rep
     // its only way between issues. `lg:max-w-[560px]` keeps the `fill` track from spreading three pills
     // across a whole broadsheet column.
     <div className="pt-3 xl:hidden lg:max-w-[560px]">
-      <PillTabs fill layoutId="report-kind-phone" label={c.switchAria} active={kind} items={KINDS.map((k) => ({ key: k, label: c.kind[k], to: localeAppPath(KIND_PATH[k], locale) }))} />
+      <PillTabs layoutId="report-kind-phone" label={c.switchAria} active={kind} items={KINDS.map((k) => ({ key: k, label: c.kind[k], to: localeAppPath(KIND_PATH[k], locale) }))} />
       {recent.length > 0 && (
         <div className="scrollbar-none -mx-4 mt-3 flex gap-2 overflow-x-auto px-4 pb-1">
           {recent.map((e) => {
