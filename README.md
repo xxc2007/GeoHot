@@ -137,6 +137,10 @@ npm run build -w @aihot/web && node --env-file=.env apps/web/server.ts
 npm run smoke -- --base http://127.0.0.1:3099
 ```
 
+> **后台起库（脚本 / Git Bash 自动化）**：不要用 `nohup npm run db:up`——Git Bash 里的 `npm` 是 `.cmd` 壳，`nohup` 会直接报错退出；请直接调 node 入口 `node scripts/dev-db.ts --daemon --port=5455`，日志位于 `%TEMP%/geohot-dev-db.log`，看到 `ready to accept connections` 或 TCP 探测通畅即表示就绪。`db:up --foreground` 与 `apps/web/server.ts` 是常驻前台进程，切勿套 `timeout`。
+
+> **迁移条数以 `ls database/migrations/*.sql | wc -l` 现查**，不在文档里抄录固定数字；同理，门槛、信源数与命令一律以代码为准。
+
 跑测试请使用以 `_test` 或 `_ci` 结尾的独立临时库，并仅传入 `DATABASE_URL`（勿叠加 `.env`）：
 
 ```bash
