@@ -21,7 +21,7 @@
 Free to read with no account required—now featuring a **native English reading edition** ([`/geohot/en/`](https://xxc2007.me/geohot/en/)) alongside Chinese,<br>
 complete with full-text search, discipline filters, local bookmarks, RSS, Public REST API, and AI Agent **MCP**.
 
-[Film](#-product-film) · [Reading Experience](#reading-experience) · [Selection Pipeline](#how-material-becomes-a-selected-story) · [Architecture](#architecture) · [Open Interfaces](#pages-and-open-interfaces) · [Reliability](#reliability-and-observability) · [Run Locally](#local-development-and-adaptation) · [Content Boundaries](#content-boundaries--license) · [License](#-license) · [Star History](#star-history)
+[Film](#product-film) · [Reading Experience](#reading-experience) · [Selection Pipeline](#how-material-becomes-a-selected-story) · [Architecture](#architecture) · [Open Interfaces](#pages-and-open-interfaces) · [Reliability](#reliability-and-observability) · [Run Locally](#local-development-and-adaptation) · [Content Boundaries](#content-boundaries--license) · [License](#license) · [Star History](#star-history)
 
 </div>
 
@@ -30,7 +30,7 @@ complete with full-text search, discipline filters, local bookmarks, RSS, Public
 </p>
 <p align="center"><sub>English edition · disciplines, trending events, and chronological stream · captured live on 25 November 2026 · also available in warm paper light &amp; dark telemetry themes</sub></p>
 
-## 🎬 Product Film
+## Product Film
 
 Our new **72-second · 1080p 60fps** official launch film (available in both English and Chinese editions): nine kinetic motion-graphics acts walking through the graticule mark, a rotating 3D globe of global public sources, a 3D perspective sweep of the native English `/geohot/en/` reading interface, the dark-telemetry spatial-salience scoring engine, multi-source event merging with 24h half-life heat decay, the 08:00 daily brief, and open RSS / API / MCP outputs—scored to an original 124 BPM stereo soundtrack and frame-synced foley.
 
@@ -141,7 +141,7 @@ Adapt to another domain by customizing `industry/` (see [customisation guide](do
 
 Summaries, scores, and syntheses are reading aids; always verify critical figures against original sources. Hazard coverage is never an official emergency alert.
 
-## 📄 License
+## License
 
 [MIT](LICENSE) © 2026 数字生命卡兹克 (upstream framework). Geography domain configuration, bilingual runtime, and brand maintained by Xiong Xinchen (熊鑫晨). Upstream copyright preserved in [NOTICE](NOTICE).
 
