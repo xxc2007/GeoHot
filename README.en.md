@@ -26,9 +26,9 @@ complete with full-text search, discipline filters, local bookmarks, RSS, Public
 </div>
 
 <p align="center">
-  <a href="https://xxc2007.me/geohot/en/"><img src="docs/shots/home-light.png?v=5f0d9fbb01ca" alt="GEOHOT selected feed with seven categories, search, trending events, and chronological story cards" width="820"></a>
+  <a href="https://xxc2007.me/geohot/en/"><img src="docs/shots/home-light-en.png?v=ad7c3aee14" alt="GEOHOT English edition selected feed: seven categories, search, trending events, and chronological story cards" width="820"></a>
 </p>
-<p align="center"><sub>Selected feed · disciplines, trending events, and chronological stream · available in warm paper light &amp; dark telemetry themes</sub></p>
+<p align="center"><sub>English edition · disciplines, trending events, and chronological stream · captured live on 25 November 2026 · also available in warm paper light &amp; dark telemetry themes</sub></p>
 
 ## 🎬 Product Film
 
