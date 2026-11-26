@@ -86,7 +86,13 @@ interface SweepReport {
 /**
  * Every ten minutes: five bounded reads, one enqueue each for rows that still need English. Ordering is
  * newest-first (the same order readers see), so a fresh site's visible items are covered first.
+ *
+ * 2026-11-27：五条读放进**一个只读事务**，每条都有 `statement_timeout` 预算。执行器连的库在读者机上
+ * （2 vCPU / 250 IOPS / 891MB），实测「缺英文正文」那条查询挂了 156 秒，读者页当场 503。
+ * 预算用完就跳过这一轮：回填慢一轮，好过换读者一次超时。
  */
+const SWEEP_STATEMENT_TIMEOUT = "6s";
+
 export async function sweepEnglish(): Promise<SweepReport> {
   const empty: SweepReport = { copy: 0, body: 0, story: 0, fact: 0, report: 0 };
   const [backlog] = await sql<{ n: number }[]>`
@@ -96,84 +102,112 @@ export async function sweepEnglish(): Promise<SweepReport> {
     return { ...empty, deferred: true, reason: `english backlog ${backlog?.n}` };
   }
 
-  const copies = await sql<{ article_id: string }[]>`
-    SELECT p.article_id
-      FROM publications p
-      LEFT JOIN english_attempts ea
-        ON ea.kind = 'copy' AND ea.subject = p.article_id AND ea.source_revision = p.revision::text
-     WHERE p.visibility = 'public'
-       AND p.english_source_revision IS DISTINCT FROM p.revision
-       AND coalesce(p.title, '') <> '' AND coalesce(p.summary, '') <> ''
-       AND (ea.outcome IS NULL OR ea.outcome = 'stale' OR (ea.outcome = 'failed' AND ea.attempts < ${MAX_SWEEP_ATTEMPTS}))
-     ORDER BY p.timeline_at DESC, p.article_id
-     LIMIT ${SWEEP_LIMIT}`;
-  for (const row of copies) {
+  let found: {
+    copies: { article_id: string }[];
+    bodies: { id: string }[];
+    stories: { id: string }[];
+    facts: { id: string }[];
+    reports: { kind: "daily" | "weekly" | "monthly"; key: string }[];
+  };
+  try {
+    found = await sql.begin(async (tx) => {
+      await tx`SET TRANSACTION READ ONLY`;
+      await tx`SELECT set_config('statement_timeout', ${SWEEP_STATEMENT_TIMEOUT}, true), set_config('lock_timeout', '250ms', true)`;
+
+      const copies = await tx<{ article_id: string }[]>`
+        SELECT p.article_id
+          FROM publications p
+          LEFT JOIN english_attempts ea
+            ON ea.kind = 'copy' AND ea.subject = p.article_id AND ea.source_revision = p.revision::text
+         WHERE p.visibility = 'public'
+           AND p.english_source_revision IS DISTINCT FROM p.revision
+           AND coalesce(p.title, '') <> '' AND coalesce(p.summary, '') <> ''
+           AND (ea.outcome IS NULL OR ea.outcome = 'stale' OR (ea.outcome = 'failed' AND ea.attempts < ${MAX_SWEEP_ATTEMPTS}))
+         ORDER BY p.timeline_at DESC, p.article_id
+         LIMIT ${SWEEP_LIMIT}`;
+
+      const bodies = await tx<{ id: string }[]>`
+        SELECT a.id
+          FROM articles a JOIN publications p ON p.article_id = a.id
+          LEFT JOIN translations tr ON tr.article_id = a.id AND tr.lang = 'en' AND tr.revision = a.revision
+          LEFT JOIN english_attempts ea
+            ON ea.kind = 'body' AND ea.subject = a.id AND ea.source_revision = a.revision::text
+         WHERE p.visibility = 'public' AND p.body_mode = 'full'
+           AND (tr.article_id IS NULL OR tr.complete IS NOT TRUE)
+           AND (ea.outcome IS NULL
+             OR (ea.outcome = 'stale' AND ea.attempts < ${MAX_BODY_ATTEMPTS})
+             OR (ea.outcome = 'failed' AND ea.attempts < ${MAX_BODY_ATTEMPTS}))
+         ORDER BY p.timeline_at DESC, a.id
+         LIMIT ${SWEEP_LIMIT}`;
+
+      const stories = await tx<{ id: string }[]>`
+        SELECT s.id::text AS id
+          FROM stories s
+          LEFT JOIN english_attempts ea
+            ON ea.kind = 'story' AND ea.subject = s.id::text AND ea.source_revision = s.version::text
+         WHERE s.merged_into IS NULL AND coalesce(s.digest, '') <> ''
+           AND s.english_source_version IS DISTINCT FROM s.version
+           AND (ea.outcome IS NULL OR ea.outcome = 'stale' OR (ea.outcome = 'failed' AND ea.attempts < ${MAX_SWEEP_ATTEMPTS}))
+         ORDER BY s.latest_at DESC NULLS LAST, s.id
+         LIMIT ${SWEEP_LIMIT}`;
+
+      // facts 没有可用的版本列：用 `f<条数>:<最大 id>` 作为这批事实的 revision，写回与 sweep 同一个公式。
+      const facts = await tx<{ id: string }[]>`
+        WITH factsets AS (
+          SELECT story_id, count(*)::int AS n, max(id)::text AS max_id
+            FROM facts WHERE story_id IS NOT NULL GROUP BY story_id
+        )
+        SELECT fs.story_id::text AS id
+          FROM factsets fs
+          JOIN stories s ON s.id = fs.story_id AND s.merged_into IS NULL
+          LEFT JOIN english_attempts ea
+            ON ea.kind = 'fact' AND ea.subject = fs.story_id::text
+           AND ea.source_revision = 'f' || fs.n::text || ':' || coalesce(fs.max_id, '0')
+         WHERE EXISTS (SELECT 1 FROM facts f WHERE f.story_id = fs.story_id AND f.title_en IS NULL)
+           AND (ea.outcome IS NULL OR ea.outcome = 'stale' OR (ea.outcome = 'failed' AND ea.attempts < ${MAX_SWEEP_ATTEMPTS}))
+         ORDER BY s.latest_at DESC NULLS LAST, fs.story_id
+         LIMIT ${SWEEP_LIMIT}`;
+
+      const reports = await tx<{ kind: "daily" | "weekly" | "monthly"; key: string }[]>`
+        SELECT r.kind, r.key
+          FROM reports r
+          LEFT JOIN english_attempts ea
+            ON ea.kind = 'report' AND ea.subject = r.kind || ':' || r.key AND ea.source_revision = r.revision::text
+         WHERE (r.revision_en IS DISTINCT FROM r.revision OR r.content_en IS NULL)
+           AND (ea.outcome IS NULL OR ea.outcome = 'stale' OR (ea.outcome = 'failed' AND ea.attempts < ${MAX_SWEEP_ATTEMPTS}))
+         ORDER BY r.generated_at DESC, r.kind, r.key
+         LIMIT ${SWEEP_LIMIT}`;
+
+      return { copies, bodies, stories, facts, reports };
+    });
+  } catch (error) {
+    // 57014 = statement_timeout。回填让路，别把读者的查询一起拖死。
+    if ((error as { code?: string }).code === "57014") return { ...empty, deferred: true, reason: "sweep budget exhausted" };
+    throw error;
+  }
+
+  // 入队放在事务外：读有预算，写不该被同一份预算截断。
+  for (const row of found.copies) {
     await enqueue(QUEUES.english, { kind: "copy", articleId: row.article_id }, { singletonKey: `en-copy:${row.article_id}` });
   }
-
-  const bodies = await sql<{ id: string }[]>`
-    SELECT a.id
-      FROM articles a JOIN publications p ON p.article_id = a.id
-      LEFT JOIN translations tr ON tr.article_id = a.id AND tr.lang = 'en' AND tr.revision = a.revision
-      LEFT JOIN english_attempts ea
-        ON ea.kind = 'body' AND ea.subject = a.id AND ea.source_revision = a.revision::text
-     WHERE p.visibility = 'public' AND p.body_mode = 'full'
-       AND (tr.article_id IS NULL OR tr.complete IS NOT TRUE)
-       AND (ea.outcome IS NULL
-         OR (ea.outcome = 'stale' AND ea.attempts < ${MAX_BODY_ATTEMPTS})
-         OR (ea.outcome = 'failed' AND ea.attempts < ${MAX_BODY_ATTEMPTS}))
-     ORDER BY p.timeline_at DESC, a.id
-     LIMIT ${SWEEP_LIMIT}`;
-  for (const row of bodies) {
+  for (const row of found.bodies) {
     await enqueue(QUEUES.english, { kind: "body", articleId: row.id }, { singletonKey: `en-body:${row.id}` });
   }
-
-  const stories = await sql<{ id: string }[]>`
-    SELECT s.id::text AS id
-      FROM stories s
-      LEFT JOIN english_attempts ea
-        ON ea.kind = 'story' AND ea.subject = s.id::text AND ea.source_revision = s.version::text
-     WHERE s.merged_into IS NULL AND coalesce(s.digest, '') <> ''
-       AND s.english_source_version IS DISTINCT FROM s.version
-       AND (ea.outcome IS NULL OR ea.outcome = 'stale' OR (ea.outcome = 'failed' AND ea.attempts < ${MAX_SWEEP_ATTEMPTS}))
-     ORDER BY s.latest_at DESC NULLS LAST, s.id
-     LIMIT ${SWEEP_LIMIT}`;
-  for (const row of stories) {
+  for (const row of found.stories) {
     await enqueue(QUEUES.english, { kind: "story", storyId: Number(row.id) }, { singletonKey: `en-story:${row.id}` });
   }
-
-  // facts 没有可用的版本列：用 `f<条数>:<最大 id>` 作为这批事实的 revision，写回与 sweep 同一个公式。
-  const facts = await sql<{ id: string }[]>`
-    WITH factsets AS (
-      SELECT story_id, count(*)::int AS n, max(id)::text AS max_id
-        FROM facts WHERE story_id IS NOT NULL GROUP BY story_id
-    )
-    SELECT fs.story_id::text AS id
-      FROM factsets fs
-      JOIN stories s ON s.id = fs.story_id AND s.merged_into IS NULL
-      LEFT JOIN english_attempts ea
-        ON ea.kind = 'fact' AND ea.subject = fs.story_id::text
-       AND ea.source_revision = 'f' || fs.n::text || ':' || coalesce(fs.max_id, '0')
-     WHERE EXISTS (SELECT 1 FROM facts f WHERE f.story_id = fs.story_id AND f.title_en IS NULL)
-       AND (ea.outcome IS NULL OR ea.outcome = 'stale' OR (ea.outcome = 'failed' AND ea.attempts < ${MAX_SWEEP_ATTEMPTS}))
-     ORDER BY s.latest_at DESC NULLS LAST, fs.story_id
-     LIMIT ${SWEEP_LIMIT}`;
-  for (const row of facts) {
+  for (const row of found.facts) {
     await enqueue(QUEUES.english, { kind: "fact-titles", storyId: Number(row.id) }, { singletonKey: `en-facts:${row.id}` });
   }
-
-  const reports = await sql<{ kind: "daily" | "weekly" | "monthly"; key: string }[]>`
-    SELECT r.kind, r.key
-      FROM reports r
-      LEFT JOIN english_attempts ea
-        ON ea.kind = 'report' AND ea.subject = r.kind || ':' || r.key AND ea.source_revision = r.revision::text
-     WHERE (r.revision_en IS DISTINCT FROM r.revision OR r.content_en IS NULL)
-       AND (ea.outcome IS NULL OR ea.outcome = 'stale' OR (ea.outcome = 'failed' AND ea.attempts < ${MAX_SWEEP_ATTEMPTS}))
-     ORDER BY r.generated_at DESC, r.kind, r.key
-     LIMIT ${SWEEP_LIMIT}`;
-  for (const row of reports) {
+  for (const row of found.reports) {
     await enqueue(QUEUES.english, { kind: "report", reportKind: row.kind, key: row.key }, { singletonKey: `en-report:${row.kind}:${row.key}` });
   }
 
-  return { copy: copies.length, body: bodies.length, story: stories.length, fact: facts.length, report: reports.length };
+  return {
+    copy: found.copies.length,
+    body: found.bodies.length,
+    story: found.stories.length,
+    fact: found.facts.length,
+    report: found.reports.length,
+  };
 }
