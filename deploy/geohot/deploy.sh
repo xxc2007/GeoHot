@@ -150,6 +150,11 @@ if [ "$APP_ROOT" != "/opt/geohot/app" ] && [ "${ALLOW_ALT_APP_ROOT:-0}" != "1" ]
 fi
 umask 077
 [[ "$UPLOAD_DIR" =~ ^/tmp/geohot-upload\.[A-Za-z0-9]+$ ]] || exit 1
+# 失败的重试会在 /tmp 留下上传目录与暂存目录：每次约 59MB，2026-11-27 实测积到 22 个、1.2G
+# （SSH 连接超时时 scp 已传完、远端脚本没跑，清理那几行就到不了）。每次部署先把旧的收掉；
+# 本轮刚 mktemp 出来的两个按名字排除，不会误删。
+find /tmp -maxdepth 1 -type d \( -name 'geohot-upload.*' -o -name 'geohot-upload-*' -o -name 'geohot-root-stage.*' \) \
+  ! -name "$(basename "$UPLOAD_DIR")" -exec rm -rf {} + 2>/dev/null || true
 stage="$(mktemp -d /tmp/geohot-root-stage.XXXXXXXX)" || exit 1
 PKG="$stage/bundle.tar.gz"
 WEB_PKG="$stage/web-build.tar.gz"
