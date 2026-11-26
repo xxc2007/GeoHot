@@ -36,6 +36,7 @@ export interface OpsStage {
   serving: string;
   source: "admin" | "env" | "default";
   pool: string[];
+  poolFor: string;
   queued: number;
   active: number;
   retry: number;
@@ -237,7 +238,7 @@ function StageRow({ stage, now, defaultModel, muted }: { stage: OpsStage; now: n
         <div className="flex flex-wrap items-center gap-1.5">
           {/* 池读的是**这台服务器**的环境变量；真正派发的可能是别的执行器（instabox 的
               /opt/geohot-exec/.env 与这里不同），所以措辞写清「本机」，别让人误当成全网配置。 */}
-          <span className="text-[11.5px] text-ink-4">本机配置的模型池（左为首选，来源 {stage.source === "admin" ? "后台覆盖" : stage.source === "env" ? "本机环境变量" : "代码默认"}；实际派发可能在其他执行器）：</span>
+          <span className="text-[11.5px] text-ink-4">本机配置的模型池{stage.poolFor ? ` · ${stage.poolFor}` : ""}（左为首选，来源 {stage.source === "admin" ? "后台覆盖" : stage.source === "env" ? "本机环境变量" : "代码默认"}；实际派发可能在其他执行器）：</span>
           {stage.pool.length === 0
             ? <span className="text-[11.5px] text-ink-4">（不经过模型）</span>
             : <>
@@ -258,7 +259,7 @@ function StageRow({ stage, now, defaultModel, muted }: { stage: OpsStage; now: n
             rows={stage.models}
             rowKey={(m) => `${m.service}|${m.model}`}
             columns={[
-              { key: "rank", label: "本机池", className: "whitespace-nowrap", render: (m) => (m.poolRank ? `#${m.poolRank}` : <span className="text-ink-4" title="不在本机配置的池里：可能由其他执行器的环境变量派发">—</span>) },
+              { key: "rank", label: "本机池", className: "whitespace-nowrap", render: (m) => (m.poolRank ? `#${m.poolRank}` : <span className="text-ink-4" title="不在本机配置的任何池里：可能由其他执行器按自己的环境变量派发">—</span>) },
               { key: "m", label: "模型", className: "whitespace-nowrap", render: (m) => <span className="font-mono text-[12px]">{blankLabel(m.model)}<span className="text-ink-4"> · {blankLabel(m.service)}</span></span> },
               { key: "calls", label: "调用", align: "right", render: (m) => <span className="whitespace-nowrap">{num(m.calls)}</span> },
               { key: "rate", label: "成功率", align: "right", render: (m) => <Badge tone={m.bad === 0 ? "ok" : rate(m.ok, m.calls) < 0.5 ? "bad" : "warn"}>{pct(m.ok, m.calls)}</Badge> },
