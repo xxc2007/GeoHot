@@ -98,10 +98,8 @@ export default function OpsBoard({ loaderData }: Route.ComponentProps) {
   const tokens = o.models.reduce((s, m) => s + m.tokens, 0);
 
   return (
-    <AdminPage
-      title="模型运行看板"
+    <AdminPage wide title="模型运行看板"
       subtitle={`近 ${o.windowMinutes} 分钟 · 每 5 秒自动刷新 · 最近更新 ${bj(o.at)}`}
-      wide
       actions={<Button tone="ghost" onClick={() => refresh.revalidate()}>立即刷新</Button>}
     >
       {!r && (
