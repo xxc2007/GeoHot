@@ -31,7 +31,15 @@ export const FeedItem = memo(function FeedItem({ item, group, filters, read = fa
   // originalTitle 只当副题：英文页在主标题缺失或仍是中文时，把信源原题放在标题下面（它是信源自己的话）。
   const locale = useLocale();
   const title = item.title;
-  const originalAsSub = locale === "en" && (!title || hasChineseCopy(title)) && !!item.originalTitle && item.originalTitle !== title;
+  const titleZh = locale === "en" && !!title && hasChineseCopy(title);
+  // 2026-11-27：英文页缺 AI 英文稿时，读取层回退中文标题。此时若信源原题本身就是英文，就把
+  // **原题提到主标题位**、中文 AI 稿降为副题——英文读者先读到英文，而不是先读到中文
+  // 再在下一行找英文（站长反馈的「英文页面还是有的时候会显示出中文」正是这一屏）。
+  const englishOriginal = item.originalTitle && !hasChineseCopy(item.originalTitle) ? item.originalTitle : null;
+  const swapToOriginal = !!titleZh && !!englishOriginal && englishOriginal !== title;
+  const head = swapToOriginal ? englishOriginal! : title;
+  const subZh = swapToOriginal ? title : null;
+  const originalAsSub = !swapToOriginal && locale === "en" && (!title || titleZh) && !!item.originalTitle && item.originalTitle !== title;
   // 英文页的 <html lang="en"> 下会混进回退的中文：按每段文字自己的语种标注，
   // 读屏才不会拿英语音去念整句中文（WCAG 3.1.2）；中文页 <html lang="zh-CN">，不必逐条再标。
   const contentLang = (text: string | null | undefined) => (locale === "en" && text && hasChineseCopy(text) ? "zh-Hans" : undefined);
@@ -39,10 +47,9 @@ export const FeedItem = memo(function FeedItem({ item, group, filters, read = fa
   const showDevelopments = !!group?.story && group.developmentCount > 1;
   const tags = showTags ? item.tags.slice(0, 3) : [];
   // 英文页的逐卡语言标注：页面顶部那一句只说明「有的条目是中文」，读者扫卡片时要能逐条
-  // 分得清哪一段不是英文。AI 摘要（summary）回退中文时说摘要；只有标题回退中文时才说标题。
+  // 分得清哪一段不是英文。AI 摘要（summary）回退中文时说摘要；只有标题那一层是中文时才说标题。
   // 与条目详情页的 `AI digest, in Chinese` 同一句话；中文页永不渲染。
   const aiDigestZh = locale === "en" && !!item.summary && hasChineseCopy(item.summary);
-  const titleZh = locale === "en" && !!title && hasChineseCopy(title);
   const zhLabel = aiDigestZh ? feedCopy[locale].aiDigestZh : titleZh ? feedCopy[locale].titleZh : null;
 
   return (
@@ -86,11 +93,12 @@ export const FeedItem = memo(function FeedItem({ item, group, filters, read = fa
         // at 15px or 34 at the 17px title; a measure cap has to be taken at one size, and under 42
         // everywhere is the point. The card, its rule and the time rail keep the full width.
         <div className="measure min-w-0">
-          <h3 lang={contentLang(title)} className={`mt-2 line-clamp-2 text-subhead font-bold leading-[1.55] lg:line-clamp-none lg:font-[650] ${read ? "text-ink-4" : "text-ink"}`}>
+          <h3 lang={contentLang(head)} className={`mt-2 line-clamp-2 text-subhead font-bold leading-[1.55] lg:line-clamp-none lg:font-[650] ${read ? "text-ink-4" : "text-ink"}`}>
             <IntentLink to={localeAppPath(`/items/${item.id}`, locale)} onClick={open} className="after:absolute after:inset-0 after:content-['']">
-              {title}
+              {head}
             </IntentLink>
           </h3>
+          {subZh && <p lang="zh-Hans" className="mt-1 line-clamp-2 text-[13px] leading-[1.6] text-ink-4">{subZh}</p>}
           {originalAsSub && <p lang={hasChineseCopy(item.originalTitle!) ? "zh-Hans" : undefined} className="mt-1 line-clamp-2 text-[13px] leading-[1.6] text-ink-4">{item.originalTitle}</p>}
           {zhLabel && <div className="mt-1.5 flex"><Badge tone="neutral">{zhLabel}</Badge></div>}
           {item.summary && <p lang={contentLang(item.summary)} className={`${zhLabel ? "mt-1 lg:mt-1.5" : "mt-1.5 lg:mt-2"} line-clamp-2 text-[14.5px] leading-[1.75] text-ink-3 lg:line-clamp-3 lg:text-lead`}>{item.summary}</p>}

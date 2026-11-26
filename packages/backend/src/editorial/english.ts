@@ -156,24 +156,46 @@ export function endsEnglishSentence(text: string): boolean {
  * The structural copy gate: 1–120 title, 40–1200 summary, ≤400 reason, no CJK, not a label-only line,
  * and summary/reason end on a sentence. One test, asked in two places — `chatJson` refuses the receipt so
  * the same unusable answer is not replayed for free, and the writer refuses to store it.
+ *
+ * 标题与理由留一条软上限（160 / 460）：模型偶尔多写两三个词，整条英文稿不该因此作废。
+ * 超过软上限仍判不合格（那是失控的答复），落库前由 {@link clampEnglishLine} 收进 120 / 400。
+ * 2026-11-27 实测：`title is 121 chars` 一天废掉 9 条本可用的稿子。
  */
+export const TITLE_HARD_MAX = 160;
+export const TITLE_STORE_MAX = 120;
+export const REASON_HARD_MAX = 460;
+export const REASON_STORE_MAX = 400;
+
 export function englishCopyUsable(copy: { title: string; summary: string; reason: string }): string | null {
   const title = copy.title?.trim() ?? "";
   const summary = copy.summary?.trim() ?? "";
   const reason = copy.reason?.trim() ?? "";
   if (!title) return "title is empty";
-  if (cpLen(title) > 120) return `title is ${cpLen(title)} chars (max 120)`;
+  if (cpLen(title) > TITLE_HARD_MAX) return `title is ${cpLen(title)} chars (max ${TITLE_HARD_MAX})`;
   if (LABEL_ONLY.test(title) || hasChineseCopy(title)) return "title is a label or not English";
   if (!summary) return "summary is empty";
   if (cpLen(summary) < 40 || cpLen(summary) > 1200) return `summary is ${cpLen(summary)} chars (40-1200)`;
   if (LABEL_ONLY.test(summary) || hasChineseCopy(summary)) return "summary is a label or not English";
   if (!endsEnglishSentence(summary)) return "summary does not end on a sentence";
   if (reason) {
-    if (cpLen(reason) > 400) return `reason is ${cpLen(reason)} chars (max 400)`;
+    if (cpLen(reason) > REASON_HARD_MAX) return `reason is ${cpLen(reason)} chars (max ${REASON_HARD_MAX})`;
     if (LABEL_ONLY.test(reason) || hasChineseCopy(reason)) return "reason is a label or not English";
     if (!endsEnglishSentence(reason)) return "reason does not end on a sentence";
   }
   return null;
+}
+
+/**
+ * 截到 `max` 个码位、收在词边界上，必要时补一个句号（标题与理由本来就是一句话）。
+ * 只在上限被超出时动手；没超就原样返回，不做任何改写。
+ */
+export function clampEnglishLine(text: string, max: number): string {
+  const t = text.trim();
+  if (cpLen(t) <= max) return t;
+  const cut = [...t].slice(0, max).join("");
+  const at = cut.lastIndexOf(" ");
+  const out = (at >= Math.floor(max * 0.6) ? cut.slice(0, at) : cut).replace(/[\s,;:，、；：-]+$/u, "");
+  return endsEnglishSentence(out) ? out : `${out}.`;
 }
 
 /** A prose field of any English shape (digest, lead, overview, theme summary). */
@@ -393,9 +415,10 @@ export function finalizeEnglishCopy(
   copy: ArticleAnswer,
   evidence: EnglishEvidence,
 ): { title: string; summary: string; reason: string; identityGuard: EnglishIdentityGuard } {
-  const title = copy.title.trim().replace(/\s*\n+\s*/g, " ");
+  // 长度在闸门里只拦失控答复（软上限），这里按可发布上限收口——多写的几个词不该让整条稿作废。
+  const title = clampEnglishLine(copy.title.trim().replace(/\s*\n+\s*/g, " "), TITLE_STORE_MAX);
   const summary = closeEnglishSentence(copy.summary.trim().replace(/\s*\n+\s*/g, " "));
-  const reason = copy.reason.trim().replace(/\s*\n+\s*/g, " ");
+  const reason = clampEnglishLine(copy.reason.trim().replace(/\s*\n+\s*/g, " "), REASON_STORE_MAX);
   return enforceEnglishIdentity(evidence, { title, summary, reason });
 }
 

@@ -3,7 +3,7 @@ import type { Route } from "./+types/home";
 import type { PoolResponse, TimelineResponse } from "@aihot/contracts/site";
 import { isCategoryKey, isChannelKey } from "@aihot/contracts/taxonomy";
 import { loadOr404, queryString, releaseBoundCache, withLang } from "../lib/api.server";
-import { listPath, organizationLd, pageMeta } from "../lib/seo";
+import { listPath, organizationLd, pageMeta, strictEnglish } from "../lib/seo";
 import { localeAppPath, localeFromPath, useLocale, type Locale } from "../lib/i18n";
 import { copy } from "../lib/i18n/pages/home";
 import { copy as feedCopy } from "../lib/i18n/feed";
@@ -161,8 +161,9 @@ export default function Home() {
           space), from lg it is the visible page title, exactly as before. Only the desktop filter row is hidden. */}
       <h1 className="sr-only text-[24px] font-semibold leading-[1.3] text-ink lg:not-sr-only">{title}</h1>
       {/* 英文页只在真有内容回退中文时说这一句：读取层已把可用的英文字段投影进 title/summary，
-          缺英文的条目 textLocale 仍是 zh。中文页永不渲染。 */}
-      {locale === "en" && (data.cards.some((card) => card.item.textLocale !== "en") || (data.hot ?? []).some((h) => h.textLocale !== "en") || (pool?.items ?? []).some((i) => i.textLocale !== "en")) && (
+          缺英文的条目 textLocale 仍是 zh。中文页永不渲染；strict 下读取层不把中文条目放进来，
+          这句话也只属于 `ENGLISH_TEXT=fallback` 的部署。 */}
+      {locale === "en" && !strictEnglish() && (data.cards.some((card) => card.item.textLocale !== "en") || (data.hot ?? []).some((h) => h.textLocale !== "en") || (pool?.items ?? []).some((i) => i.textLocale !== "en")) && (
         <p className={`text-[12.5px] text-ink-4 mt-2 lg:mt-0`}>{c.chineseNotice}</p>
       )}
       <div className="hidden lg:block">
