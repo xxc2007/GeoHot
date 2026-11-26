@@ -18,9 +18,22 @@ interface Ops {
   capabilities: Array<{ key: string; label: string; source: "admin" | "env" | "default"; members: string[] }>;
 }
 
+/** 运行页原有的负载；本页合并了两页，所以一次取两份数据、一页回答两个问题。 */
+interface Runs {
+  checkedAt: string;
+  queueSnapshot?: Array<{ name: string; queued: number; active: number; at: string }> | null;
+  jobs: Array<{ job: string; started_at: string | null; finished_at: string | null; failed_24h: number; runs_24h: number; status?: string | null }>;
+  receipts: { counts: Record<string, number>; unknownTotal: number };
+  failedJobs: Array<{ name: string; failed: number; last: string; last_output: string | null }>;
+}
+
 export async function loader({ request }: Route.LoaderArgs) {
   const window = new URL(request.url).searchParams.get("window") ?? "60";
-  return adminGet<Ops>(request, `/api/admin/model-ops?window=${encodeURIComponent(window)}`);
+  const [ops, runs] = await Promise.all([
+    adminGet<Ops>(request, `/api/admin/model-ops?window=${encodeURIComponent(window)}`),
+    adminGet<Runs>(request, "/api/admin/runs", 25_000).catch(() => null),
+  ]);
+  return { ops, runs };
 }
 
 export const meta: Route.MetaFunction = () => [{ title: `模型运行看板 · ${SITE.name} 后台` }];
@@ -63,7 +76,9 @@ function Spark({ series }: { series: Ops["series"] }) {
   );
 }
 
-export default function OpsBoard({ loaderData: o }: Route.ComponentProps) {
+export default function OpsBoard({ loaderData }: Route.ComponentProps) {
+  const o = loaderData.ops;
+  const r = loaderData.runs;
   const refresh = useRevalidator();
   useEffect(() => {
     const id = setInterval(() => {
@@ -158,6 +173,71 @@ export default function OpsBoard({ loaderData: o }: Route.ComponentProps) {
           </div>
         )}
       </Card>
+
+      <div className="grid gap-5 xl:grid-cols-2">
+        <Card title="各队列排队量" pad={false}>
+          {r?.queueSnapshot?.length ? (
+            <DataTable
+              dense
+              rows={r.queueSnapshot}
+              rowKey={(q) => q.name}
+              columns={[
+                { key: "n", label: "队列", render: (q) => <span className="font-mono text-[12.5px]">{q.name}</span> },
+                { key: "q", label: "排队及重试", align: "right", render: (q) => num(q.queued) },
+                { key: "a", label: "执行中", align: "right", render: (q) => num(q.active) },
+              ]}
+            />
+          ) : (
+            <Empty>队列快照暂不可用（数据库繁忙时会跳过这一项）。</Empty>
+          )}
+        </Card>
+
+        <Card title="定时任务" pad={false}>
+          {r?.jobs?.length ? (
+            <DataTable
+              dense
+              rows={r.jobs}
+              rowKey={(j) => j.job}
+              columns={[
+                { key: "j", label: "任务", render: (j) => <span className="font-mono text-[12.5px]">{j.job}</span> },
+                { key: "s", label: "上次", render: (j) => <Badge tone={j.status === "failed" ? "bad" : j.status === "running" ? "warn" : "ok"}>{j.status === "failed" ? "失败" : j.status === "running" ? "运行中" : "成功"}</Badge> },
+                { key: "at", label: "时间", render: (j) => <span className="num whitespace-nowrap text-[12px]">{j.started_at ? ago(j.started_at) : "—"}</span> },
+                { key: "d", label: "耗时", align: "right", render: (j) => (j.started_at && j.finished_at ? secs(new Date(j.finished_at).getTime() - new Date(j.started_at).getTime()) : "—") },
+                { key: "f", label: "24h 失败", align: "right", render: (j) => (j.failed_24h ? <span className="text-hot">{j.failed_24h}/{j.runs_24h}</span> : `0/${j.runs_24h}`) },
+              ]}
+            />
+          ) : (
+            <Empty>没有定时任务的运行记录。</Empty>
+          )}
+        </Card>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Card>
+          <div className="text-[12px] text-ink-3">回执结果未知</div>
+          <div className="num mt-1 text-[20px] font-semibold">{r ? num(r.receipts.unknownTotal) : "—"}</div>
+        </Card>
+        <Card>
+          <div className="text-[12px] text-ink-3">24h 内失败的队列任务</div>
+          <div className="num mt-1 text-[20px] font-semibold">{r ? num(r.failedJobs.reduce((s, f) => s + f.failed, 0)) : "—"}</div>
+        </Card>
+      </div>
+
+      {r && r.failedJobs.length > 0 && (
+        <Card title="24 小时内失败的队列任务" pad={false}>
+          <DataTable
+            dense
+            rows={r.failedJobs}
+            rowKey={(j) => j.name}
+            columns={[
+              { key: "n", label: "队列", render: (j) => <span className="font-mono text-[12.5px]">{j.name}</span> },
+              { key: "c", label: "失败", align: "right", render: (j) => num(j.failed) },
+              { key: "l", label: "最近", render: (j) => <span className="num whitespace-nowrap text-[12px]">{ago(j.last)}</span> },
+              { key: "o", label: "最近错误", render: (j) => <span className="line-clamp-2 font-mono text-[11.5px] text-ink-3">{j.last_output ?? "—"}</span> },
+            ]}
+          />
+        </Card>
+      )}
 
       <ReasonDialog
         open={!!edit}
