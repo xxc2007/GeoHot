@@ -466,12 +466,16 @@ function buildStages(
   const queueByName = new Map(queues.map((q) => [q.name, q]));
   const cooling = new Map(cooldowns.map((c) => [c.model, CATEGORY_LABEL[c.category] ?? c.category]));
   const claimed = new Set<string>();
-  const defaultModel = String(MODELS.default?.model ?? "");
-  // 池里写 `default` 时，回执记的是它解析出的真实模型名：两边都要能对上，否则「池内位次」永远是 —。
+  // 池里写的是注册表 key，回执记的是上游模型名（`loomy-deepseek-v41-flash` ↔ `loomy/DeepSeek-V4.1-Flash`、
+  // `default` ↔ `agnes-3.0-flash`）。按 key 精确匹配几乎全部落空，所以先把每个成员解析成真实模型名再比。
   const rankOf = (pool: string[], r: StatRow) => {
     const exact = pool.indexOf(r.model);
     if (exact >= 0) return exact + 1;
-    if (defaultModel && r.model === defaultModel && pool.includes("default")) return pool.indexOf("default") + 1;
+    const wanted = r.model.toLowerCase();
+    for (let i = 0; i < pool.length; i++) {
+      const resolved = String(MODELS[pool[i]!]?.model ?? "").toLowerCase();
+      if (resolved && resolved === wanted) return i + 1;
+    }
     return null;
   };
 
