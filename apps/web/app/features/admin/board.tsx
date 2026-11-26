@@ -118,7 +118,10 @@ function StackedChart({ ops }: { ops: Ops }) {
   const step = Math.max(1, Math.ceil(ops.series.length / 12));
   return (
     <div>
-      <div className="flex h-44 items-end gap-[3px]" role="img" aria-label={`${ops.bucketMinutes} 分钟一格的调用量堆叠图`}>
+      {/* items-stretch 是承重的：每列被拉到 176px 高，柱子写 height:N% 才有参照。
+          用 items-end（列高 auto）时百分比按 auto 解析，实测整排柱子渲染成 0 高——
+          图表看着有、其实是空的（2026-11-27 生产实测）。 */}
+      <div className="flex h-44 items-stretch gap-[3px]" role="img" aria-label={`${ops.bucketMinutes} 分钟一格的调用量堆叠图`}>
         {ops.series.map((bucket) => {
           const total = bucket.parts.reduce((s, p) => s + p.calls, 0);
           return (
