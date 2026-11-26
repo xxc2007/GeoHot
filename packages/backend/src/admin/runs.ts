@@ -269,22 +269,43 @@ const AUTO_RELEASE_NOTE = "自动放行：结果未知超过 30 分钟，未核�
  * Every 10 minutes (ops.recover): unknown receipts older than half an hour are released
  * without checking the provider's bill. A lost answer costs at most one repeat: a request released this
  * way once and unknown again stays for the admin (the daily ops digest lists it).
+ *
+ * 2026-11-27 实测：`status='unknown'` + 相关子查询在这台 2.8GB 的 receipts 上跑过 **290 秒**，把
+ * 读者查询一起拖进 IO 等待（同期 `/en` 503）。这两条只是运维便利：跑不完就跳过一轮，下一轮再来。
+ * 因此给它们 5 秒预算，超时（57014）当空结果处理并在日志里留一句说明。
  */
+const RELEASE_SCAN_BUDGET = "5s";
+
 export async function autoReleaseUnknownReceipts(now = Date.now()) {
   const rows: { id: number; note: string }[] = [];
-  const first = await sql<{ id: number }[]>`
+  const bounded = async <T>(fallback: T, read: (db: typeof sql) => Promise<T>): Promise<T> => {
+    try {
+      const value = await sql.begin(async (tx) => {
+        await tx`SELECT set_config('statement_timeout', ${RELEASE_SCAN_BUDGET}, true)`;
+        return read(tx as unknown as typeof sql);
+      });
+      return value as unknown as T;
+    } catch (error) {
+      if ((error as { code?: string }).code === "57014") {
+        console.warn(JSON.stringify({ level: "warn", msg: "unknown-receipt scan skipped: budget exhausted", budget: RELEASE_SCAN_BUDGET }));
+        return fallback;
+      }
+      throw error;
+    }
+  };
+  const first = await bounded<{ id: number }[]>([], (db) => db`
     SELECT r.id FROM receipts r
     WHERE r.status = 'unknown' AND r.updated_at < ${new Date(now - AUTO_RELEASE_AFTER_MS)}
       AND NOT EXISTS (SELECT 1 FROM receipt_attempts a WHERE a.receipt_id = r.id AND a.error LIKE ${AUTO_RELEASE_NOTE + "%"})
-    ORDER BY r.id LIMIT 200`;
+    ORDER BY r.id LIMIT 200`);
   rows.push(...first.map(row => ({ id: row.id, note: AUTO_RELEASE_NOTE })));
   // 第二次、最后一次：一天之后仍然未知的，再放行一次，避免「一次放行」的守卫把它们永久锁死。
-  const second = await sql<{ id: number }[]>`
+  const second = await bounded<{ id: number }[]>([], (db) => db`
     SELECT r.id FROM receipts r
     WHERE r.status = 'unknown' AND r.updated_at < ${new Date(now - SECOND_RELEASE_AFTER_MS)}
       AND EXISTS (SELECT 1 FROM receipt_attempts a WHERE a.receipt_id = r.id AND a.error LIKE ${AUTO_RELEASE_NOTE + "%"})
       AND NOT EXISTS (SELECT 1 FROM receipt_attempts a WHERE a.receipt_id = r.id AND a.error LIKE ${SECOND_AUTO_RELEASE_NOTE + "%"})
-    ORDER BY r.id LIMIT 100`;
+    ORDER BY r.id LIMIT 100`);
   rows.push(...second.map(row => ({ id: row.id, note: SECOND_AUTO_RELEASE_NOTE })));
   let released = 0;
   let requeued = 0;

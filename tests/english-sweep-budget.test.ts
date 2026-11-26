@@ -28,3 +28,12 @@ test("入队不在只读事务里：读有预算，写不该被同一份预算�
   assert.match(after, /enqueue\(QUEUES\.english/, "入队发生在事务之后");
   assert.doesNotMatch(before, /enqueue\(QUEUES\.english/, "事务里不能有写操作");
 });
+
+// 同一类病：运营便利的扫描也不能把读者拖死。2026-11-27 实测 ops.recover 的 unknown 回执扫描
+// 跑了 474 秒（2.8GB receipts + 相关子查询），同期 /en 503。它现在带 5 秒预算、超时跳过一轮。
+test("unknown 回执扫描带 5 秒预算，超时就跳过这一轮", () => {
+  const runs = readFileSync(new URL("../packages/backend/src/admin/runs.ts", import.meta.url), "utf8");
+  assert.match(runs, /const RELEASE_SCAN_BUDGET = "5s"/, "预算要写在一处");
+  assert.match(runs, /set_config\('statement_timeout', \$\{RELEASE_SCAN_BUDGET\}, true\)/, "扫描要在带预算的事务里");
+  assert.match(runs, /unknown-receipt scan skipped: budget exhausted/, "跳过要在日志里留一句");
+});
