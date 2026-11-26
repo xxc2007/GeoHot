@@ -2,6 +2,7 @@
 // 2026-11-27 现场：英文腿的池首被写成 agnes-3.0-flash-cn，流量却全落在主 agnes 上——
 // `readOverrides()` 当时用 `known(value)` 只认单个注册表名，逗号列表被整条忽略，
 // 后台显示的顺序与真实派发从来不是一回事。这里把「池顺序真的被读到」钉成一条测试。
+import "./setup.ts";
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import { closeDb, sql } from "@aihot/backend/db";
