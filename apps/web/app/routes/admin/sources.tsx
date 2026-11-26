@@ -6,6 +6,8 @@ import { num } from "../../features/admin/format";
 import { HEALTH_LABEL, KIND_LABEL, MODE_LABEL } from "../../features/admin/labels";
 import { AdminPage, Badge, Button, ButtonLink, Card, DataTable, Dot, FilterChips, healthTone, Input, Select, Stat, Time } from "../../features/admin/ui";
 import { LoadMore, useInfiniteRows } from "../../features/admin/infinite";
+import { DiscoveryPanel, type DiscoveryData } from "../../features/admin/panels/discovery";
+import { loadDiscovery } from "../../features/admin/panels/discovery.server";
 
 interface SourceRow {
   id: string;
@@ -42,15 +44,21 @@ interface SourcesData {
   totals: { total: number; enabled: number; failing: number; degraded: number; reserves: number; ready: number; reserve_ineligible?: number; retired?: number };
   policy: RegistryPolicy | null;
 }
+type ListData = SourcesData & { tab: "list" };
 
+// 2026-11-26：信源发现并入本页（?tab=discover）。发现是往同一个池子里加信源的第一步，
+// 两页合一后「批准候选 → 去列表启用」不再需要换页面找入口。
 export async function loader({ request }: Route.LoaderArgs) {
   const url = new URL(request.url);
+  if (url.searchParams.get("tab") === "discover") {
+    return { tab: "discover" as const, discovery: await loadDiscovery(request) };
+  }
   // policy 与列表并行取：任何一个失败都不该让整页打不开（policy 只影响一个卡片）。
   const [list, policy] = await Promise.all([
     adminGet<Omit<SourcesData, "policy">>(request, `/api/admin/sources${url.search}`),
     adminGet<RegistryPolicy>(request, "/api/admin/sources/policy").catch(() => null),
   ]);
-  return { ...list, policy };
+  return { tab: "list" as const, ...list, policy };
 }
 
 /** 「正式采集目标」的旋钮：只改 policy，不动任何信源；版本变了就提示重新加载。 */
@@ -73,17 +81,46 @@ export async function action({ request }: Route.ActionArgs) {
 export const meta: Route.MetaFunction = () => [{ title: `信源 · ${SITE.name} 后台` }];
 
 export default function Sources({ loaderData }: Route.ComponentProps) {
+  const tab = loaderData.tab;
   const [sp] = useSearchParams();
-  const actionData = useActionData<typeof action>();
-  const { rows, totals, hasMore, loading, error, loadMore } = { ...loaderData, ...useInfiniteRows<SourceRow>("/api/admin/sources", loaderData, sp.toString()) };
-  const navigate = useNavigate();
+  const hrefFor = (next: "list" | "discover") => {
+    const q = new URLSearchParams(sp);
+    q.set("tab", next);
+    // 切到发现时丢掉列表的筛选，免得地址栏里留着用不上的参数；切回列表则原样保留。
+    if (next === "discover") for (const k of ["q", "kind", "health", "mode", "page"]) q.delete(k);
+    return `?${q}`;
+  };
   return (
     <AdminPage
       title="信源"
-      subtitle="正式信源持续采集；备用信源定期复核，持续失败时自动替换。历史来源档案不计入可用池。"
-      actions={<ButtonLink to="/admin/sources/new" tone="primary">新建信源</ButtonLink>}
+      subtitle={tab === "discover"
+        ? "多引擎搜索 → 同站交叉验证 → 现场抓 feed → 人工批准。候选不会直接进正式池。"
+        : "正式信源持续采集；备用信源定期复核，持续失败时自动替换。历史来源档案不计入可用池。"}
+      actions={tab === "list" ? <ButtonLink to="/admin/sources/new" tone="primary">新建信源</ButtonLink> : undefined}
     >
-      <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-5">
+      <nav aria-label="信源分栏" className="-mt-1 flex flex-wrap gap-1 border-b border-line pb-2">
+        {([["list", "信源列表"], ["discover", "发现新信源"]] as const).map(([key, label]) => (
+          <Link key={key} to={hrefFor(key)} preventScrollReset aria-current={tab === key ? "page" : undefined}
+            className={`rounded-control px-3 py-1.5 text-[13px] transition-colors ${tab === key ? "bg-ink text-bg" : "text-ink-3 hover:bg-bg-sunk hover:text-ink"}`}>
+            {label}
+          </Link>
+        ))}
+      </nav>
+      {tab === "discover" ? <DiscoveryPanel data={(loaderData as { discovery: DiscoveryData }).discovery} /> : <SourceList data={loaderData as ListData} />}
+    </AdminPage>
+  );
+}
+
+function SourceList({ data }: { data: ListData }) {
+  const [sp] = useSearchParams();
+  const actionData = useActionData<typeof action>();
+  const query = new URLSearchParams(sp);
+  query.delete("tab");
+  const { rows, totals, hasMore, loading, error, loadMore } = { ...data, ...useInfiniteRows<SourceRow>("/api/admin/sources", data, query.toString()) };
+  const navigate = useNavigate();
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         <Stat label="全部（实际）" value={num(totals.total)} />
         <Stat label="正式采集" value={num(totals.enabled)} />
         <Stat label="备用候选" value={num(totals.reserves)} />
@@ -93,13 +130,13 @@ export default function Sources({ loaderData }: Route.ComponentProps) {
       {/* 2026-11-15 站长：2000 条信源、1000 正式、1000 备用，且要能自己调。
           2026-11-20 站长：上面的统计卡已经写清数量，这里不再重复抄一遍并集和上限；
           只留调目标的表单，逐条启停仍在下面每一行做，每次改动都写审计。 */}
-      {loaderData.policy ? (
-        <Card className="mb-5" title="采集目标">
+      {data.policy ? (
+        <Card title="采集目标">
           <Form method="post" className="flex flex-wrap items-end gap-3">
-            <input type="hidden" name="expectedEnabled" value={loaderData.policy.enabled_count} />
+            <input type="hidden" name="expectedEnabled" value={data.policy.enabled_count} />
             <label className="text-[12px] text-ink-4">
               新的正式采集目标
-              <Input name="target" type="number" min={0} step={1} defaultValue={loaderData.policy.target_enabled ?? 1000} className="mt-1 w-[120px]" />
+              <Input name="target" type="number" min={0} step={1} defaultValue={data.policy.target_enabled ?? 1000} className="mt-1 w-[120px]" />
             </label>
             <label className="text-[12px] text-ink-4">
               原因（写进审计）
@@ -115,6 +152,7 @@ export default function Sources({ loaderData }: Route.ComponentProps) {
       <Card pad={false}>
         <div className="flex flex-col gap-3 border-b border-line p-3 lg:flex-row lg:items-center lg:justify-between">
           <Form method="get" className="flex w-full max-w-md gap-2" preventScrollReset>
+            <input type="hidden" name="tab" value="list" />
             {["kind", "health", "mode"].map((k) => sp.get(k) && <input key={k} type="hidden" name={k} value={sp.get(k)!} />)}
             <Input name="q" defaultValue={sp.get("q") ?? ""} placeholder="名称、ID 或地址" aria-label="搜索信源" />
           </Form>
@@ -153,7 +191,7 @@ export default function Sources({ loaderData }: Route.ComponentProps) {
                     {r.name}
                   </Link>
                   <div className="font-mono text-[11.5px] text-ink-4">{r.id}</div>
-                  {r.health === "failing" && r.last_error && <div className="mt-1 line-clamp-1 text-[12px] text-hot">{r.last_error}</div>}
+                  {r.health === "failing" && r.last_error && <div className="mt-1 line-clamp-1 text-[12px] text-hot-ink">{r.last_error}</div>}
                 </div>
               ),
             },
@@ -188,6 +226,6 @@ export default function Sources({ loaderData }: Route.ComponentProps) {
         />
       </Card>
       <LoadMore hasMore={hasMore} loading={loading} error={error} onLoad={loadMore} empty="没有更多了" />
-    </AdminPage>
+    </>
   );
 }

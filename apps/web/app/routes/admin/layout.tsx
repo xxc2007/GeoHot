@@ -33,8 +33,8 @@ const NAV: Array<{ group: string; items: Array<{ to: string; label: string; coun
     group: "内容",
     items: [
       { to: "/admin/content", label: "内容诊断" },
+      // 2026-11-26：信源发现并入信源（?tab=discover），两个页面说的是一件事的两步。
       { to: "/admin/sources", label: "信源", count: "sources", tone: "bad" },
-      { to: "/admin/discovery", label: "信源发现" },
       { to: "/admin/feedback", label: "反馈", count: "feedback", tone: "accent" },
     ],
   },
@@ -42,12 +42,10 @@ const NAV: Array<{ group: string; items: Array<{ to: string; label: string; coun
     group: "系统",
     items: [
       { to: "/admin/server", label: "服务器" },
+      // 2026-11-26：运行看板 / 用量 / 模型 / 审计 / magpie 合并为「运行看板」的分页签，
+      // 侧栏只留一个入口——五个入口指向同一批数据，读者面之外不需要五条路。
       { to: "/admin/ops", label: "运行看板", count: "runs", tone: "bad" },
-      { to: "/admin/magpie", label: "magpie" },
-      { to: "/admin/usage", label: "用量总览" },
-      { to: "/admin/models", label: "模型" },
       { to: "/admin/topics", label: "主题轮换" },
-      { to: "/admin/audit", label: "审计记录" },
       { to: "/admin/settings", label: "设置" },
     ],
   },

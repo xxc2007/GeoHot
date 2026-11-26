@@ -269,6 +269,7 @@ export function ReasonDialog({
   onClose,
   onSubmit,
   busy,
+  wide,
 }: {
   open: boolean;
   title: ReactNode;
@@ -280,6 +281,8 @@ export function ReasonDialog({
   onClose: () => void;
   onSubmit: (reason: string) => Promise<boolean | void> | boolean | void;
   busy?: boolean;
+  /** 内容较多的对话框（例如一次排出几十个模型）用宽档。 */
+  wide?: boolean;
 }) {
   const [reason, setReason] = useState("");
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -332,7 +335,7 @@ export function ReasonDialog({
             animate={{ y: 0, scale: 1, opacity: 1 }}
             exit={{ y: 10, scale: 0.98, opacity: 0 }}
             transition={{ duration: 0.22, ease: [0.25, 1, 0.5, 1] }}
-            className="relative w-full max-w-lg rounded-sheet bg-raised p-5 shadow-2xl ring-1 ring-line-strong"
+            className={`relative flex max-h-[calc(100dvh-1.5rem)] w-full flex-col rounded-sheet bg-raised p-5 shadow-2xl ring-1 ring-line-strong ${wide ? "max-w-2xl" : "max-w-lg"}`}
             onSubmit={async (e) => {
               e.preventDefault();
               if (requireReason && !reason.trim()) return;
@@ -340,15 +343,17 @@ export function ReasonDialog({
               if (closed !== false) onClose();
             }}
           >
-            <h2 id={titleId} className="text-[16px] font-semibold text-ink">{title}</h2>
-            {description && <div className="mt-1.5 text-[13px] leading-relaxed text-ink-3">{description}</div>}
-            {children && <div className="mt-4 space-y-3">{children}</div>}
-            <div className="mt-4">
+            <h2 id={titleId} className="shrink-0 text-[16px] font-semibold text-ink">{title}</h2>
+            {description && <div className="mt-1.5 shrink-0 text-[13px] leading-relaxed text-ink-3">{description}</div>}
+            {/* 内容区自己滚：模型池可能一次排出几十行，对话框整体不能长出视口之外
+                （2026-11-26 现场：37 个模型排到屏幕外，底部的「保存顺序」点不到）。 */}
+            {children && <div className="-mx-1 mt-4 min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-1">{children}</div>}
+            <div className="mt-4 shrink-0">
               <Field label={requireReason ? "原因（写进审计记录）" : "备注（可选）"}>
                 <Textarea ref={ref} value={reason} onChange={(e) => setReason(e.target.value)} placeholder={requireReason ? "为什么做这个改动" : ""} rows={2} />
               </Field>
             </div>
-            <div className="mt-5 flex justify-end gap-2">
+            <div className="mt-5 flex shrink-0 justify-end gap-2">
               <Button tone="ghost" onClick={onClose}>取消</Button>
               <Button type="submit" tone={danger ? "danger" : "primary"} busy={busy} disabled={requireReason && !reason.trim()}>
                 {confirmLabel}

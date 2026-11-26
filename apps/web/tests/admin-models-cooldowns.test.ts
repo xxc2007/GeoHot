@@ -1,9 +1,10 @@
-// 后台模型页：冷却状态展示的 UI 映射与页面结构测试（源码级断言，与现有 web 测试同风格）。
+// 后台模型面板：冷却状态展示的 UI 映射与页面结构测试（源码级断言，与现有 web 测试同风格）。
+// 2026-11-26：模型页并入运行看板（features/admin/panels/models.tsx），断言跟着文件走。
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-const page = readFileSync(new URL("../app/routes/admin/models.tsx", import.meta.url), "utf8");
+const page = readFileSync(new URL("../app/features/admin/panels/models.tsx", import.meta.url), "utf8");
 const statusMod = readFileSync(new URL("../app/features/admin/cooldown-status.ts", import.meta.url), "utf8");
 
 test("页面包含冷却中的模型区块", () => {
