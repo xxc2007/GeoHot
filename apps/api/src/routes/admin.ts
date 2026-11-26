@@ -272,9 +272,19 @@ export function registerAdmin(app: FastifyInstance) {
   // Live ops board: the model layer as it behaves right now (calls per model, failures, latency, tokens,
   // queue depth, heartbeats) plus the pool each capability is drawing from. Read-only apart from the
   // pool-order write below, which goes through the same audit trail as a single-model switch.
-  app.get("/api/admin/model-ops", adminHandler(async (req) => loadModelOps(Number(q(req).window) || 60)));
+  // A five-second in-process copy matches the page's refresh beat: several admin tabs polling at once
+  // must not each scan the receipts window on this disk.
+  let opsCache: { at: number; windowMinutes: number; data: Awaited<ReturnType<typeof loadModelOps>> } | null = null;
+  app.get("/api/admin/model-ops", adminHandler(async (req) => {
+    const window = Number(q(req).window) || 60;
+    if (opsCache && opsCache.windowMinutes === window && Date.now() - opsCache.at < 5_000) return opsCache.data;
+    const data = await loadModelOps(window);
+    opsCache = { at: Date.now(), windowMinutes: window, data };
+    return data;
+  }));
   app.post("/api/admin/model-ops/pool", adminHandler(async (req, _reply, admin) => {
     const b = body<{ capability: string; members: string[]; reason: string }>(req);
+    opsCache = null;
     return setCapabilityPool(String(b.capability ?? ""), Array.isArray(b.members) ? b.members : [], String(b.reason ?? ""), actorOf(admin));
   }));
 
