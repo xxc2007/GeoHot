@@ -68,6 +68,8 @@ export interface Ops {
   catalog: Array<{ key: string; service: string; vision: boolean; jsonMode: boolean }>;
   workflow: { stages: OpsStage[]; unmapped: OpsStage | null };
   cooldowns: Array<{ model: string; service: string; category: string; until: number }>;
+  /** 注册表 `default` 解析出的真实模型名（池里写 default，回执记的是这个名字）。 */
+  defaultModel: string;
 }
 
 type Dimension = "model" | "service" | "purpose";
@@ -134,6 +136,9 @@ const purposeLabel = (key: string) => PURPOSE_LABEL[key] ?? key;
 const blankLabel = (key: string) => (key === "-" ? "未标注" : key);
 const partLabel = (key: string, dimension: Dimension) =>
   key === "其它" ? "其它" : dimension === "purpose" ? purposeLabel(key) : blankLabel(key);
+/** 池里写的是注册表 key（`default`），读者要看的是它此刻解析成的模型名。 */
+const modelLabel = (key: string, defaultModel: string) =>
+  key === "default" && defaultModel ? `default（${defaultModel}）` : key;
 
 type SortKey = "calls" | "rate" | "avgMs" | "speed" | "cache" | "tokens" | "cost";
 
@@ -199,7 +204,7 @@ function Metric({ label, value, sub, tone }: { label: string; value: React.React
  * 站长 2026-11-27 要的是「实时看到每个环节和它调的模型」——所以两半放在同一行的展开里，
  * 而不是又拆成两张表让人自己对。
  */
-function StageRow({ stage, now, muted }: { stage: OpsStage; now: number | null; muted?: boolean }) {
+function StageRow({ stage, now, defaultModel, muted }: { stage: OpsStage; now: number | null; defaultModel: string; muted?: boolean }) {
   const t = stage.totals;
   const backlog = stage.queued > 1000 ? "text-hot-ink" : stage.queued > 200 ? "text-amber-ink" : "text-ink-2";
   return (
@@ -227,7 +232,7 @@ function StageRow({ stage, now, muted }: { stage: OpsStage; now: number | null; 
             ? <span className="text-[11.5px] text-ink-4">（不经过模型）</span>
             : <>
               {stage.pool.slice(0, 6).map((m, i) => (
-                <Badge key={`${stage.key}-${m}`} tone={i === 0 ? "ok" : "muted"} title={m}>{i + 1}. {m}</Badge>
+                <Badge key={`${stage.key}-${m}`} tone={i === 0 ? "ok" : "muted"} title={m}>{i + 1}. {modelLabel(m, defaultModel)}</Badge>
               ))}
               {stage.pool.length > 6 && <span className="text-[11.5px] text-ink-4">等 {stage.pool.length} 个</span>}
             </>}
@@ -413,8 +418,8 @@ export function BoardPanel({ ops, runs }: { ops: Ops; runs: Runs | null }) {
       <Card title="信息工作流（每个环节的实时状态）"
         right={<span className="text-[11.5px]">队列数来自 pg-boss，调用数按用途统计 · 点开看该环节用到的每个模型</span>}>
         <div className="space-y-0.5">
-          {ops.workflow.stages.map((s) => <StageRow key={s.key} stage={s} now={now} />)}
-          {ops.workflow.unmapped && <StageRow stage={ops.workflow.unmapped} now={now} muted />}
+          {ops.workflow.stages.map((s) => <StageRow key={s.key} stage={s} now={now} defaultModel={ops.defaultModel} />)}
+          {ops.workflow.unmapped && <StageRow stage={ops.workflow.unmapped} now={now} defaultModel={ops.defaultModel} muted />}
         </div>
       </Card>
 
@@ -429,7 +434,7 @@ export function BoardPanel({ ops, runs }: { ops: Ops; runs: Runs | null }) {
               <div className="flex flex-wrap items-center gap-1.5">
                 {c.members.length === 0 ? <span className="text-[12px] text-ink-4">（继承全局 MODEL_POOL）</span> : <>
                   {c.members.slice(0, 4).map((m, i) => (
-                    <Badge key={`${c.key}-${m}-${i}`} tone={i === 0 ? "ok" : "muted"}>{i + 1}. {m}</Badge>
+                    <Badge key={`${c.key}-${m}-${i}`} tone={i === 0 ? "ok" : "muted"} title={m}>{i + 1}. {modelLabel(m, ops.defaultModel)}</Badge>
                   ))}
                   {/* 继承的池可能有几十个成员：这里只列前四个，其余折成计数，否则十二个步骤各排一整屏。 */}
                   {c.members.length > 4 && <span className="text-[11.5px] text-ink-4">等 {c.members.length} 个</span>}
