@@ -131,7 +131,7 @@ fi
 #      在仓库里没有对应路径，带删除会当场杀掉承担大头判定的那道门。
 #   2) `tar` 的 --owner/--group 对解包不生效，所以 chown -R 是承重的，不是例行公事。
 #   3) 构建前显式把 BASE_PATH 传进去（这次事故的第 ① 条），重启覆盖六个单元（第 ② 条）。
-ssh "${ssh_opts[@]}" "$SSH_TARGET" "sudo BASE_PATH='$BASE_PATH' PKG_SHA='$pkg_sha' REV='$sha' UPLOAD_DIR='$upload_dir' APP_ROOT='$APP_ROOT' WEB_PREBUILT='$([[ -n "$web_pkg" ]] && echo 1 || echo 0)' UNITS='$(unit_list)' bash -s" <<'REMOTE'
+ssh "${ssh_opts[@]}" "$SSH_TARGET" "sudo BASE_PATH='$BASE_PATH' PKG_SHA='$pkg_sha' REV='$sha' UPLOAD_DIR='$upload_dir' APP_ROOT='$APP_ROOT' WEB_PREBUILT='$([[ -n "$web_pkg" ]] && echo 1 || echo 0)' GEOHOT_HOST_HANGZHOU='${GEOHOT_HOST_HANGZHOU:-0}' UNITS='$(unit_list)' bash -s" <<'REMOTE'
 set -uo pipefail
 cd "$APP_ROOT" || { echo "ABORT: $APP_ROOT 不存在"; exit 1; }
 
@@ -258,13 +258,22 @@ fi
 # 只覆盖同名文件、不删机器上多出来的，也不动 enable 状态。
 if [ -d "$APP_ROOT/deploy/geohot/systemd" ]; then
   installed=0
+  skipped_foreign=0
   while IFS= read -r -d '' f; do
     rel="${f#"$APP_ROOT"/deploy/geohot/systemd/}"
+    # 仓库是几台机器共用的一份：`*-hangzhou.*` 是杭州那台的变体（安装根 /opt/geohot-exec、
+    # 自己的 node 路径、自己的 EnvironmentFile）。盲拷会在本机装出一批永远起不来的单元，
+    # 验收的漂移核对随即替别人的路径报红——2026-11-27 实测：本机固定剩 2 条，全是这三份。
+    # 要在那台机器上装它们，部署时带 GEOHOT_HOST_HANGZHOU=1。
+    case "$rel" in
+      *-hangzhou.service|*-hangzhou.timer|*-hangzhou.service.d/*)
+        if [ "${GEOHOT_HOST_HANGZHOU:-0}" != "1" ]; then skipped_foreign=$((skipped_foreign + 1)); continue; fi ;;
+    esac
     install -D -m 644 "$f" "/etc/systemd/system/$rel"
     installed=$((installed + 1))
   done < <(find "$APP_ROOT/deploy/geohot/systemd" -type f \( -name '*.service' -o -name '*.timer' -o -name '*.conf' \) -print0)
   systemctl daemon-reload
-  echo "systemd: 已同步 $installed 个单元模板与 drop-in 到 /etc/systemd/system"
+  echo "systemd: 已同步 $installed 个单元模板与 drop-in 到 /etc/systemd/system$([ "$skipped_foreign" -gt 0 ] && echo "（跳过 $skipped_foreign 个属别的机器的模板）")"
 
 # 2026-11-16 事故：机器上手写的 /etc/postgresql/17/main/conf.d/zz-geohot-vacuum.conf 里
 # autovacuum_vacuum_cost_delay = 200 超出 PG17 上限（-1..100），重启数据库直接起不来。
