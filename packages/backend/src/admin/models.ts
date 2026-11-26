@@ -173,14 +173,28 @@ export async function switchModel(capability: string, model: string | null, reas
  * (`modelFor` reads the head from the configured order, not from the reordered serving list). Every
  * member gets the same validation as a single switch: a pool that quietly carries a model which cannot
  * do the step would fail every other call at runtime.
+ *
+ * `reset` deletes the admin override so the capability falls back to its env pool or MODEL_POOL. That is
+ * the only way back: an inherited pool can be longer than the eight-member write limit, so "save what is
+ * displayed" is not a valid reset for it.
  */
-export async function setCapabilityPool(capability: string, members: string[], reason: string, actor: string) {
+export async function setCapabilityPool(capability: string, members: string[], reason: string, actor: string, reset = false) {
   const c = (CAPABILITIES as Record<string, Capability>)[capability];
   if (!c || capability === "monitor") throw Object.assign(new Error("unknown capability"), { statusCode: 400 });
+  if (!reason.trim()) throw Object.assign(new Error("a reason is required"), { statusCode: 400 });
+  if (reset) {
+    const before = (await modelSources())[capability];
+    await sql.begin(async (tx) => {
+      await tx`DELETE FROM settings WHERE key = ${`models.${capability}`}`;
+      await audit(actor, "models.pool", `capability:${capability}`, reason, before ?? null, { model: null }, undefined, tx);
+    });
+    invalidateModelCache();
+    const after = (await modelSources())[capability];
+    return { capability, before, after, reset: true };
+  }
   if (!Array.isArray(members) || members.length === 0) throw Object.assign(new Error("a pool needs at least one model"), { statusCode: 400 });
   if (members.length > 8) throw Object.assign(new Error("a pool holds at most 8 models"), { statusCode: 400 });
   if (new Set(members).size !== members.length) throw Object.assign(new Error("duplicate model in pool"), { statusCode: 400 });
-  if (!reason.trim()) throw Object.assign(new Error("a reason is required"), { statusCode: 400 });
   for (const m of members) {
     if (!Object.hasOwn(MODELS, m)) throw Object.assign(new Error(`unknown model: ${m}`), { statusCode: 400 });
     const spec = MODELS[m]!;

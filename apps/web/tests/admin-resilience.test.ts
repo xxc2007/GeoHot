@@ -4,7 +4,16 @@ import { createMemoryRouter, createRequestHandler, type RouterState } from "reac
 
 const build = await import(new URL("../build/server/index.js", import.meta.url).href);
 const prefix = String(build.basename).replace(/\/+$/, "");
-const emptyOps = { at: "2026-10-25T00:00:00Z", windowMinutes: 60, models: [], series: [], queue: [], active: [], heartbeats: [], capabilities: [] };
+const emptyOps = {
+  at: "2026-10-25T00:00:00Z",
+  windowMinutes: 60,
+  filters: { purpose: "", service: "", model: "", status: "", dimension: "model" as const },
+  bucketMinutes: 5,
+  totals: { calls: 0, ok: 0, bad: 0, pending: 0, unknown: 0, avgMs: 0, tokensIn: 0, tokensOut: 0, tokensCached: 0, tokensReasoning: 0, speed: null, cacheHit: null, cacheCalls: 0, cost: null, costCalls: 0 },
+  models: [], series: [], seriesKeys: [],
+  options: { purposes: [], services: [], models: [], statuses: ["received", "failed", "pending", "unknown"] },
+  queue: [], active: [], heartbeats: [], capabilities: [], catalog: [],
+};
 const emptyRuns = { checkedAt: "2026-10-25T00:00:00Z", processes: [], jobs: [], timeline: [], queues: [], failedJobs: [], lagging: [], receipts: { counts: {}, issues: [], unknownTotal: 0 }, deliveries: [], errors: [], retrying: { count: 0, next: null }, ingest: [], leaderboard: null };
 
 async function withApi<T>(api: (url: URL) => Response | Promise<Response>, fn: () => Promise<T>) {
@@ -32,7 +41,7 @@ test("identity outage stays inside the admin frame without protected content", a
   const r = await render(url => url.pathname.endsWith("/me") ? Response.json({}, { status: 503 }) : api(url));
   assert.equal(r.status, 503);
   assert.match(r.html, /后台连接暂时不可用/);
-  assert.match(r.html, /审计记录/);
+  assert.match(r.html, /运行看板/);
   assert.match(r.html, /translate="no" class="notranslate /);
   assert.doesNotMatch(r.html, /回到精选|队列积压|测试管理员/);
 });
@@ -48,7 +57,7 @@ test("statistics outage returns an explicit retry state rather than throwing or 
   const r = await render(url => url.pathname.endsWith("/runs") ? Response.json({}, { status: 503 }) : api(url));
   assert.equal(r.status, 200);
   assert.match(r.html, /不代表队列为空或工作流停止/);
-  assert.match(r.html, /审计记录/);
+  assert.match(r.html, /运行看板/);
   assert.doesNotMatch(r.html, /回到精选|队列积压/);
 });
 

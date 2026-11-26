@@ -274,18 +274,33 @@ export function registerAdmin(app: FastifyInstance) {
   // pool-order write below, which goes through the same audit trail as a single-model switch.
   // A five-second in-process copy matches the page's refresh beat: several admin tabs polling at once
   // must not each scan the receipts window on this disk.
-  let opsCache: { at: number; windowMinutes: number; data: Awaited<ReturnType<typeof loadModelOps>> } | null = null;
+  // The cache is keyed by the whole query, not just the window: the board now filters by 用途 / 供应商 /
+  // 模型 / 状态 and regroups the chart by dimension, so two operators on two filter sets must not read
+  // each other's aggregate.
+  const opsCache = new Map<string, { at: number; data: Awaited<ReturnType<typeof loadModelOps>> }>();
   app.get("/api/admin/model-ops", adminHandler(async (req) => {
-    const window = Number(q(req).window) || 60;
-    if (opsCache && opsCache.windowMinutes === window && Date.now() - opsCache.at < 5_000) return opsCache.data;
-    const data = await loadModelOps(window);
-    opsCache = { at: Date.now(), windowMinutes: window, data };
+    const params = q(req);
+    const window = Number(params.window) || 60;
+    const filters = {
+      purpose: params.purpose ?? "",
+      service: params.service ?? "",
+      model: params.model ?? "",
+      status: params.status ?? "",
+      dimension: (params.dimension === "service" || params.dimension === "purpose" ? params.dimension : "model") as "model" | "service" | "purpose",
+    };
+    const key = JSON.stringify([window, filters]);
+    const hit = opsCache.get(key);
+    if (hit && Date.now() - hit.at < 5_000) return hit.data;
+    const data = await loadModelOps(window, filters);
+    opsCache.set(key, { at: Date.now(), data });
+    // Bounded: a dozen filter combinations × 5 s covers one operator and cannot grow without end.
+    if (opsCache.size > 12) opsCache.delete(opsCache.keys().next().value!);
     return data;
   }));
   app.post("/api/admin/model-ops/pool", adminHandler(async (req, _reply, admin) => {
-    const b = body<{ capability: string; members: string[]; reason: string }>(req);
-    opsCache = null;
-    return setCapabilityPool(String(b.capability ?? ""), Array.isArray(b.members) ? b.members : [], String(b.reason ?? ""), actorOf(admin));
+    const b = body<{ capability: string; members: string[]; reason: string; reset?: boolean }>(req);
+    opsCache.clear();
+    return setCapabilityPool(String(b.capability ?? ""), Array.isArray(b.members) ? b.members : [], String(b.reason ?? ""), actorOf(admin), b.reset === true);
   }));
 
   // Attention counts for the navigation. The monitor column is gated like the routes above: counting
