@@ -226,6 +226,19 @@ if [ -n "$KEEP_BASELINE" ]; then
 fi
 chown -R geohot:geohot "$APP_ROOT"
 
+# 部署树里的 .git 是**旧**的：包只带工作树，不动 .git，于是 HEAD 一直停在某次 clone 的提交上。
+# 验收第 9 节（配置漂移）在有 git 时以 `git show HEAD:<path>` 为准，结果就是——仓库里明明有的新单元
+# 被判"仓库里没有"，每次部署都多出几条假漂移（2026-11-26 实测：reader-guard/warm-keys 四个单元）。
+# 这里把 HEAD 挪到本次部署的提交：仓库是公开的，fetch 一个提交就够，不需要凭据。
+if [ -d "$APP_ROOT/.git" ]; then
+  if git -C "$APP_ROOT" -c "safe.directory=$APP_ROOT" fetch --quiet --depth=1 https://github.com/xxc2007/GeoHot.git "$REV" 2>/dev/null; then
+    git -C "$APP_ROOT" -c "safe.directory=$APP_ROOT" update-ref --no-deref HEAD "$REV" \
+      && echo "git: 部署树的 HEAD 已对齐本次 rev（漂移核对以它为准）"
+  else
+    echo "git: 没能从 GitHub 取到 $REV —— 验收的漂移核对会拿旧 HEAD 比，可能多报几条假漂移"
+  fi
+fi
+
 # 闸门脚本住在 /opt/geohot/bin，而 tar 只铺 $APP_ROOT ⇒ 仓库里改了脚本，机器上那份不动。
 # 2026-11-04 现场：PR #136 已合并且部署，`/opt/geohot/bin/r115-reader-gate.sh` 里仍没有
 # `R115_ACTION`，闸门继续按 stop 模式停 worker —— 正是 PR #108 记过的同一条坑（那次是
