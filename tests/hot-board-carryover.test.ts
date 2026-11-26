@@ -135,7 +135,9 @@ test("英文页的热榜只放真有英文标题的事件，中文页不受影�
   const zhOnly = await addStory(`热榜英文口径测试${T}中文事件`);
   const enStory = await addStory(`Hot board English policy ${T}`);
   await sql`UPDATE stories SET title_en = ${`Hot board English policy ${T}`} WHERE id = ${enStory.id}`;
-  await saveBoard(AHEAD, [entryOf(zhOnly, 1), entryOf(enStory, 2)]);
+  // 本文件所有榜都写在同一时刻，`ORDER BY computed_at DESC LIMIT 1` 遇到并列会随机挑一张；
+  // 这张榜单独晚一分钟，读到的才是它自己。
+  await saveBoard(new Date(AHEAD.getTime() + 60_000), [entryOf(zhOnly, 1), entryOf(enStory, 2)]);
 
   const hotEn = await loadHot("en");
   assert.deepEqual(hotEn.entries.map((e) => e.story.publicId), [enStory.publicId], "没有英文标题的事件不能出现在 /en/hot");
