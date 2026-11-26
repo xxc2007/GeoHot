@@ -51,7 +51,9 @@ export function AuditPanel({ data }: { data: { page: number; rows: AuditRow[]; h
             { key: "a", label: "操作", className: "whitespace-nowrap", render: (r) => <span className="font-mono text-[12.5px] text-ink">{r.action}</span> },
             { key: "s", label: "对象", className: "whitespace-nowrap", render: (r) => subjectLink(r.subject) },
             { key: "who", label: "操作人", className: "whitespace-nowrap", render: (r) => r.actor },
-            { key: "r", label: "原因", render: (r) => <span className="text-ink-2">{r.reason}</span> },
+            {/* 原因 是唯一允许换行的列，得给它一个下限：其余列 nowrap 之后，它会先被压成一字一行
+                （1024 宽实测："Requ eu onc e a gro upi ng…"）。表格本来就横向滚动。 */}
+            { key: "r", label: "原因", className: "min-w-[260px]", render: (r) => <span className="text-ink-2">{r.reason}</span> },
             { key: "d", label: "变化", className: "whitespace-nowrap", render: (r) => (r.before || r.after ? <Json value={{ before: r.before, after: r.after }} label="前后" /> : null) },
           ]}
         />
