@@ -45,12 +45,14 @@ export function AuditPanel({ data }: { data: { page: number; rows: AuditRow[]; h
           rowKey={(r) => r.id}
           empty="没有记录"
           columns={[
-            { key: "t", label: "时间", render: (r) => <span className="num whitespace-nowrap">{bj(r.created_at, true)}</span> },
-            { key: "a", label: "操作", render: (r) => <span className="font-mono text-[12.5px] text-ink">{r.action}</span> },
-            { key: "s", label: "对象", render: (r) => subjectLink(r.subject) },
-            { key: "who", label: "操作人", render: (r) => r.actor },
+            { key: "t", label: "时间", className: "whitespace-nowrap", render: (r) => <span className="num whitespace-nowrap">{bj(r.created_at, true)}</span> },
+            // 操作名与对象 id 都是不间断的长串：允许换行会把每个字挤成一列（1024 宽的屏上实测），
+            // 让它们各自占一行、表格横向滚动，比竖排好读。
+            { key: "a", label: "操作", className: "whitespace-nowrap", render: (r) => <span className="font-mono text-[12.5px] text-ink">{r.action}</span> },
+            { key: "s", label: "对象", className: "whitespace-nowrap", render: (r) => subjectLink(r.subject) },
+            { key: "who", label: "操作人", className: "whitespace-nowrap", render: (r) => r.actor },
             { key: "r", label: "原因", render: (r) => <span className="text-ink-2">{r.reason}</span> },
-            { key: "d", label: "变化", render: (r) => (r.before || r.after ? <Json value={{ before: r.before, after: r.after }} label="前后" /> : null) },
+            { key: "d", label: "变化", className: "whitespace-nowrap", render: (r) => (r.before || r.after ? <Json value={{ before: r.before, after: r.after }} label="前后" /> : null) },
           ]}
         />
       </Card>

@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRevalidator, useSearchParams } from "react-router";
 import { useAdminAction } from "./action";
-import { ago as agoLabel, bj, num } from "./format";
+import { bj, num } from "./format";
 import { Badge, Button, Card, DataTable, Empty, Input, ReasonDialog, Select } from "./ui";
 
 export interface OpsRow {
@@ -90,6 +90,17 @@ const compact = (n: number) => new Intl.NumberFormat("zh-CN", { notation: "compa
 const pct = (part: number, all: number, digits = 0) => (all > 0 ? `${((part / all) * 100).toFixed(digits)}%` : "—");
 const secs = (ms: number | null | undefined) => (!ms ? "—" : ms >= 10_000 ? `${Math.round(ms / 1000)} s` : `${(ms / 1000).toFixed(1)} s`);
 const rate = (ok: number, calls: number) => (calls ? ok / calls : 0);
+/**
+ * 相对时间只在水合之后算：SSR 与浏览器各算一次「几分钟前」，跨过整分钟时文案不同，
+ * React 会报 hydration mismatch（#418）。`now === null` 表示还没上屏，先给 —。
+ */
+function rel(iso: string | null, now: number | null) {
+  if (!iso || now === null) return "—";
+  const s = Math.max(0, Math.round((now - new Date(iso).getTime()) / 1000));
+  if (s < 90) return `${s} 秒前`;
+  if (s < 5400) return `${Math.round(s / 60)} 分钟前`;
+  return `${(s / 3600).toFixed(1)} 小时前`;
+}
 const purposeLabel = (key: string) => PURPOSE_LABEL[key] ?? key;
 /** 派生行里 model/service 为空时按 `-` 分组；界面要说人话，不能让人去猜一个连字符。 */
 const blankLabel = (key: string) => (key === "-" ? "未标注" : key);
@@ -157,6 +168,13 @@ export function BoardPanel({ ops, runs }: { ops: Ops; runs: Runs | null }) {
   const { run, pending } = useAdminAction();
   const [edit, setEdit] = useState<{ key: string; label: string; members: string[]; source: string; vision: boolean } | null>(null);
   const [sort, setSort] = useState<{ key: SortKey; desc: boolean }>({ key: "calls", desc: true });
+  // 相对时间要等水合完成再算（见文件顶部 rel 的说明），顺便每 30 秒走一格。
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => {
+    setNow(Date.now());
+    const id = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -173,7 +191,7 @@ export function BoardPanel({ ops, runs }: { ops: Ops; runs: Runs | null }) {
 
   const t = ops.totals;
   const worker = ops.heartbeats.find((h) => h.key === "heartbeat.worker");
-  const workerFresh = worker?.at ? Date.now() - new Date(worker.at).getTime() < 180_000 : false;
+  const workerFresh = worker?.at && now !== null ? now - new Date(worker.at).getTime() < 180_000 : false;
 
   const rows = useMemo(() => {
     const speed = (r: OpsRow) => (r.avgMs > 0 && r.tokensOut > 0 ? r.tokensOut / (r.avgMs / 1000) : 0);
@@ -219,7 +237,7 @@ export function BoardPanel({ ops, runs }: { ops: Ops; runs: Runs | null }) {
               ))}
             </div>
             <span className="ml-auto flex items-center gap-2 text-[12px] text-ink-4">
-              <Badge tone={workerFresh ? "ok" : "warn"}>{worker ? `worker ${agoLabel(worker.at)}` : "worker 无心跳"}</Badge>
+              <Badge tone={workerFresh ? "ok" : "warn"}>{worker ? `worker ${rel(worker.at, now)}` : "worker 无心跳"}</Badge>
               <span>更新 {bj(ops.at)}</span>
               <Button size="sm" tone="ghost" disabled={refresh.state !== "idle"} onClick={() => refresh.revalidate()}>刷新</Button>
             </span>
@@ -339,7 +357,7 @@ export function BoardPanel({ ops, runs }: { ops: Ops; runs: Runs | null }) {
               {runs.failedJobs.slice(0, 4).map((f) => (
                 <div key={f.name} className="flex items-start justify-between gap-2 py-0.5 text-[12px]">
                   <span className="font-mono text-ink-2">{f.name}</span>
-                  <span className="num shrink-0 text-ink-4">{f.failed} 次 · {agoLabel(f.last)}</span>
+                  <span className="num shrink-0 text-ink-4">{f.failed} 次 · {rel(f.last, now)}</span>
                 </div>
               ))}
             </div>
@@ -351,7 +369,7 @@ export function BoardPanel({ ops, runs }: { ops: Ops; runs: Runs | null }) {
             {ops.heartbeats.map((h) => (
               <div key={h.key} className="flex items-center justify-between gap-2 px-4 py-2 text-[12.5px]">
                 <span className="min-w-0 truncate font-mono text-ink-2">{h.key.replace(/^heartbeat\./, "")}</span>
-                <span className="shrink-0 text-ink-4">{agoLabel(h.at)}{h.load !== null ? ` · load ${h.load}` : ""}</span>
+                <span className="shrink-0 text-ink-4">{rel(h.at, now)}{h.load !== null ? ` · load ${h.load}` : ""}</span>
               </div>
             ))}
           </div>
@@ -373,7 +391,7 @@ export function BoardPanel({ ops, runs }: { ops: Ops; runs: Runs | null }) {
             <DataTable dense rows={runs.jobs} rowKey={(j) => j.job} columns={[
               { key: "j", label: "任务", render: (j) => <span className="font-mono text-[12.5px]">{j.job}</span> },
               { key: "s", label: "上次", render: (j) => <Badge tone={j.status === "failed" ? "bad" : j.status === "running" ? "warn" : "ok"}>{j.status === "failed" ? "失败" : j.status === "running" ? "运行中" : "成功"}</Badge> },
-              { key: "at", label: "时间", render: (j) => <span className="num whitespace-nowrap text-[12px]">{j.started_at ? agoLabel(j.started_at) : "—"}</span> },
+              { key: "at", label: "时间", render: (j) => <span className="num whitespace-nowrap text-[12px]">{rel(j.started_at, now)}</span> },
               { key: "d", label: "耗时", align: "right", render: (j) => (j.started_at && j.finished_at ? secs(new Date(j.finished_at).getTime() - new Date(j.started_at).getTime()) : "—") },
               { key: "f", label: "24h 失败", align: "right", render: (j) => (j.failed_24h ? <span className="text-hot-ink">{j.failed_24h}/{j.runs_24h}</span> : `0/${j.runs_24h}`) },
             ]} />
@@ -481,9 +499,9 @@ function PoolDialog({ edit, catalog, busy, onClose, onSave }: {
             )}
           </div>
           <div>
-            <div className="mb-1.5 flex items-center justify-between gap-2">
-              <span className="text-[12px] text-ink-4">候选模型（{pickable.length} 个{edit.vision ? "，只看视觉模型" : ""}）</span>
-              <Input className="h-7 w-[180px] text-[12px]" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜模型名或供应商" aria-label="搜索候选模型" />
+            <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+              <span className="whitespace-nowrap text-[12px] text-ink-4">候选模型（{pickable.length} 个{edit.vision ? "，只看视觉模型" : ""}）</span>
+              <Input className="h-7 w-[170px] shrink-0 text-[12px]" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜模型名或供应商" aria-label="搜索候选模型" />
             </div>
             <div className="max-h-[26vh] overflow-y-auto rounded-control border border-line-soft">
               {pickable.filter((c) => !members.includes(c.key)).length === 0 && <div className="px-3 py-3 text-[12.5px] text-ink-4">没有可加的模型。</div>}
