@@ -28,6 +28,25 @@ export interface OpsRow {
   costCalls: number;
 }
 
+export interface OpsStage {
+  key: string;
+  label: string;
+  queue: string | null;
+  purposes: string[];
+  serving: string;
+  source: "admin" | "env" | "default";
+  pool: string[];
+  queued: number;
+  active: number;
+  retry: number;
+  done: number;
+  failed24h: number;
+  lastDone: string | null;
+  lastFailed: string | null;
+  totals: Ops["totals"];
+  models: Array<OpsRow & { poolRank: number | null; cooling: string | null }>;
+}
+
 export interface Ops {
   at: string;
   windowMinutes: number;
@@ -47,6 +66,8 @@ export interface Ops {
   heartbeats: Array<{ key: string; role: string; at: string | null; load: number | null }>;
   capabilities: Array<{ key: string; label: string; source: "admin" | "env" | "default"; members: string[]; vision: boolean }>;
   catalog: Array<{ key: string; service: string; vision: boolean; jsonMode: boolean }>;
+  workflow: { stages: OpsStage[]; unmapped: OpsStage | null };
+  cooldowns: Array<{ model: string; service: string; category: string; until: number }>;
 }
 
 type Dimension = "model" | "service" | "purpose";
@@ -169,6 +190,74 @@ function Metric({ label, value, sub, tone }: { label: string; value: React.React
       <div className={`num mt-1 truncate text-[21px] font-semibold tracking-tight ${color}`}>{value}</div>
       {sub && <div className="mt-1 truncate text-[11.5px] text-ink-4">{sub}</div>}
     </div>
+  );
+}
+
+/**
+ * 一个工作流环节：摘要行给「队列那一侧」的数字（排队/执行中/窗口完成/24h 失败/最近成功与失败），
+ * 展开给「模型那一侧」的明细（池内位次、冷却、调用、成功率、耗时、速度、缓存、Token、费用、最近调用）。
+ * 站长 2026-11-27 要的是「实时看到每个环节和它调的模型」——所以两半放在同一行的展开里，
+ * 而不是又拆成两张表让人自己对。
+ */
+function StageRow({ stage, now, muted }: { stage: OpsStage; now: number | null; muted?: boolean }) {
+  const t = stage.totals;
+  const backlog = stage.queued > 1000 ? "text-hot-ink" : stage.queued > 200 ? "text-amber-ink" : "text-ink-2";
+  return (
+    <details className="group border-b border-line/60 py-2 last:border-0">
+      <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 [&::-webkit-details-marker]:hidden">
+        <span className={`min-w-[220px] flex-1 text-[13px] font-medium ${muted ? "text-ink-3" : "text-ink"}`}>
+          <span aria-hidden className="mr-1 inline-block text-ink-4 transition-transform group-open:rotate-90">▸</span>
+          {stage.label}
+        </span>
+        {stage.queue
+          ? <span className="num whitespace-nowrap text-[12px] text-ink-3">排队 <b className={backlog}>{num(stage.queued)}</b> · 执行中 {num(stage.active)}{stage.retry ? ` · 重试 ${num(stage.retry)}` : ""}</span>
+          : <span className="whitespace-nowrap text-[12px] text-ink-4">无队列（定时触发）</span>}
+        <span className="num whitespace-nowrap text-[12px] text-ink-4">窗口完成 {num(stage.done)} · 24h 失败 {num(stage.failed24h)}</span>
+        <span className="whitespace-nowrap text-[12px] text-ink-4">
+          最近成功 {rel(stage.lastDone, now)}{stage.lastFailed ? ` · 最近失败 ${rel(stage.lastFailed, now)}` : ""}
+        </span>
+        <span className="num whitespace-nowrap text-[12px] text-ink-2">
+          调用 {num(t.calls)} · 成功 {pct(t.ok, t.calls)} · {secs(t.avgMs)}{t.speed !== null ? ` · ${t.speed.toFixed(1)} tok/s` : ""}
+        </span>
+      </summary>
+      <div className="mt-2 space-y-2 pl-4">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[11.5px] text-ink-4">当前模型池（左为首选，来源 {stage.source === "admin" ? "后台设置" : stage.source === "env" ? "环境变量" : "代码默认"}）：</span>
+          {stage.pool.length === 0
+            ? <span className="text-[11.5px] text-ink-4">（不经过模型）</span>
+            : <>
+              {stage.pool.slice(0, 6).map((m, i) => (
+                <Badge key={`${stage.key}-${m}`} tone={i === 0 ? "ok" : "muted"} title={m}>{i + 1}. {m}</Badge>
+              ))}
+              {stage.pool.length > 6 && <span className="text-[11.5px] text-ink-4">等 {stage.pool.length} 个</span>}
+            </>}
+        </div>
+        {stage.purposes.length > 0 && (
+          <div className="text-[11.5px] text-ink-4">用途：{stage.purposes.map((p) => `${purposeLabel(p)}（${p}）`).join(" · ")}</div>
+        )}
+        {stage.models.length === 0 ? (
+          <div className="text-[12px] text-ink-4">窗口内这个环节没有模型调用。</div>
+        ) : (
+          <DataTable
+            dense
+            rows={stage.models}
+            rowKey={(m) => `${m.service}|${m.model}`}
+            columns={[
+              { key: "rank", label: "池内", className: "whitespace-nowrap", render: (m) => (m.poolRank ? `#${m.poolRank}` : <span className="text-ink-4">—</span>) },
+              { key: "m", label: "模型", className: "whitespace-nowrap", render: (m) => <span className="font-mono text-[12px]">{blankLabel(m.model)}<span className="text-ink-4"> · {blankLabel(m.service)}</span></span> },
+              { key: "calls", label: "调用", align: "right", render: (m) => <span className="whitespace-nowrap">{num(m.calls)}</span> },
+              { key: "rate", label: "成功率", align: "right", render: (m) => <Badge tone={m.bad === 0 ? "ok" : rate(m.ok, m.calls) < 0.5 ? "bad" : "warn"}>{pct(m.ok, m.calls)}</Badge> },
+              { key: "avg", label: "平均耗时", align: "right", render: (m) => <span className="whitespace-nowrap">{secs(m.avgMs)}</span> },
+              { key: "speed", label: "输出速度", align: "right", render: (m) => <span className="whitespace-nowrap">{m.speedMs > 0 ? `${modelSpeed(m).toFixed(1)} tok/s` : "—"}</span> },
+              { key: "cache", label: "缓存", align: "right", render: (m) => <span className="whitespace-nowrap">{m.tokensIn > 0 ? pct(m.tokensCached, m.tokensIn) : "—"}</span> },
+              { key: "tok", label: "Token", align: "right", render: (m) => <span className="whitespace-nowrap" title={`输入 ${num(m.tokensIn)} · 输出 ${num(m.tokensOut)}`}>{compact(m.tokensIn + m.tokensOut)}</span> },
+              { key: "cost", label: "费用", align: "right", render: (m) => (m.cost ? <span className="whitespace-nowrap">{m.cost.toFixed(3)} 元</span> : <span className="text-ink-4">未返回</span>) },
+              { key: "state", label: "状态", render: (m) => (m.cooling ? <Badge tone="warn">冷却：{m.cooling}</Badge> : <span className="text-ink-4">正常</span>) },
+            ]}
+          />
+        )}
+      </div>
+    </details>
   );
 }
 
@@ -319,6 +408,14 @@ export function BoardPanel({ ops, runs }: { ops: Ops; runs: Runs | null }) {
             ]}
           />
         )}
+      </Card>
+
+      <Card title="信息工作流（每个环节的实时状态）"
+        right={<span className="text-[11.5px]">队列数来自 pg-boss，调用数按用途统计 · 点开看该环节用到的每个模型</span>}>
+        <div className="space-y-0.5">
+          {ops.workflow.stages.map((s) => <StageRow key={s.key} stage={s} now={now} />)}
+          {ops.workflow.unmapped && <StageRow stage={ops.workflow.unmapped} now={now} muted />}
+        </div>
       </Card>
 
       <Card title="各步骤的模型池（顺序即优先级，第一名为首选）" right={<span>写入即审计 · 只影响之后的新任务</span>}>
