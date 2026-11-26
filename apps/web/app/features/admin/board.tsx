@@ -22,6 +22,8 @@ export interface OpsRow {
   tokensOut: number;
   tokensCached: number;
   tokensReasoning: number;
+  speedOut: number;
+  speedMs: number;
   cost: number;
   costCalls: number;
 }
@@ -90,6 +92,11 @@ const compact = (n: number) => new Intl.NumberFormat("zh-CN", { notation: "compa
 const pct = (part: number, all: number, digits = 0) => (all > 0 ? `${((part / all) * 100).toFixed(digits)}%` : "—");
 const secs = (ms: number | null | undefined) => (!ms ? "—" : ms >= 10_000 ? `${Math.round(ms / 1000)} s` : `${(ms / 1000).toFixed(1)} s`);
 const rate = (ok: number, calls: number) => (calls ? ok / calls : 0);
+/**
+ * 输出速度 = 已知输出 token 合计 / 已知耗时合计（token/秒）。
+ * 不能用「总 token ÷ 平均耗时」——那会把上千次调用摊成一次，算出几万 tok/s 的假数。
+ */
+const modelSpeed = (r: { speedOut: number; speedMs: number }) => (r.speedMs > 0 ? r.speedOut / (r.speedMs / 1000) : 0);
 /**
  * 相对时间只在水合之后算：SSR 与浏览器各算一次「几分钟前」，跨过整分钟时文案不同，
  * React 会报 hydration mismatch（#418）。`now === null` 表示还没上屏，先给 —。
@@ -197,14 +204,12 @@ export function BoardPanel({ ops, runs }: { ops: Ops; runs: Runs | null }) {
   const workerFresh = worker?.at && now !== null ? now - new Date(worker.at).getTime() < 180_000 : false;
 
   const rows = useMemo(() => {
-    const speed = (r: OpsRow) => (r.avgMs > 0 && r.tokensOut > 0 ? r.tokensOut / (r.avgMs / 1000) : 0);
-    const cache = (r: OpsRow) => (r.tokensIn > 0 ? r.tokensCached / r.tokensIn : 0);
     const value: Record<SortKey, (r: OpsRow) => number> = {
       calls: (r) => r.calls,
       rate: (r) => rate(r.ok, r.calls),
       avgMs: (r) => r.avgMs,
-      speed,
-      cache,
+      speed: modelSpeed,
+      cache: (r) => (r.tokensIn > 0 ? r.tokensCached / r.tokensIn : 0),
       tokens: (r) => r.tokensIn + r.tokensOut,
       cost: (r) => r.cost,
     };
@@ -303,14 +308,14 @@ export function BoardPanel({ ops, runs }: { ops: Ops; runs: Runs | null }) {
             rowKey={(r) => `${r.service}|${r.model}`}
             columns={[
               { key: "m", label: "模型", render: (r) => <span className="whitespace-nowrap font-mono text-[12px]">{blankLabel(r.model)}<span className="text-ink-4"> · {blankLabel(r.service)}</span></span> },
-              { key: "calls", ...head("calls", "请求"), align: "right", render: (r) => num(r.calls) },
+              { key: "calls", ...head("calls", "请求"), align: "right", render: (r) => <span className="whitespace-nowrap">{num(r.calls)}</span> },
               { key: "rate", ...head("rate", "成功率"), align: "right", render: (r) => <Badge tone={r.bad === 0 ? "ok" : rate(r.ok, r.calls) < 0.5 ? "bad" : "warn"}>{pct(r.ok, r.calls)}</Badge> },
               { key: "avg", ...head("avgMs", "平均耗时"), align: "right", render: (r) => <span className="whitespace-nowrap">{secs(r.avgMs)}</span> },
-              { key: "speed", ...head("speed", "输出速度"), align: "right", render: (r) => <span className="whitespace-nowrap">{r.avgMs > 0 && r.tokensOut > 0 ? `${(r.tokensOut / (r.avgMs / 1000)).toFixed(1)} tok/s` : "—"}</span> },
+              { key: "speed", ...head("speed", "输出速度"), align: "right", render: (r) => <span className="whitespace-nowrap">{r.speedMs > 0 ? `${modelSpeed(r).toFixed(1)} tok/s` : "—"}</span> },
               { key: "cache", ...head("cache", "缓存"), align: "right", render: (r) => <span className="whitespace-nowrap">{r.tokensIn > 0 ? pct(r.tokensCached, r.tokensIn) : "—"}</span> },
               { key: "tok", ...head("tokens", "Token"), align: "right", render: (r) => <span className="num whitespace-nowrap" title={`输入 ${num(r.tokensIn)} · 输出 ${num(r.tokensOut)}`}>{compact(r.tokensIn + r.tokensOut)}</span> },
               { key: "cost", ...head("cost", "费用"), align: "right", render: (r) => (r.cost ? `${r.cost.toFixed(3)} 元` : <span className="text-ink-4">未返回</span>) },
-              { key: "bad", label: "失败", align: "right", render: (r) => (r.bad ? <span className="text-hot-ink">{num(r.bad)}</span> : <span className="text-ink-4">0</span>) },
+              { key: "bad", label: "失败", align: "right", render: (r) => <span className="whitespace-nowrap">{r.bad ? <span className="text-hot-ink">{num(r.bad)}</span> : <span className="text-ink-4">0</span>}</span> },
             ]}
           />
         )}

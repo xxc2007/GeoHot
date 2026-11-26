@@ -23,6 +23,9 @@ export type ModelOpsRow = {
   tokensOut: number;
   tokensCached: number;
   tokensReasoning: number;
+  /** 输出速度的分子/分母（token / 毫秒），只累计两者都已知的调用。 */
+  speedOut: number;
+  speedMs: number;
   cost: number;
   costCalls: number;
 };
@@ -136,6 +139,10 @@ export async function loadModelOps(windowMinutes = 60, filters: OpsFilters = {})
            coalesce(sum(tokens_out), 0)::float8 AS "tokensOut",
            coalesce(sum(tokens_cached), 0)::float8 AS "tokensCached",
            coalesce(sum(tokens_reasoning), 0)::float8 AS "tokensReasoning",
+           -- 速度必须用「输出 token 和 / 耗时和」：拿总 token 除以平均耗时会把上千次调用
+           -- 摊成一次，算出几万 tok/s 的假数（2026-11-27 看板上一眼看出的错）。
+           coalesce(sum(tokens_out) FILTER (WHERE latency_ms IS NOT NULL AND tokens_out IS NOT NULL), 0)::float8 AS "speedOut",
+           coalesce(sum(latency_ms) FILTER (WHERE latency_ms IS NOT NULL AND tokens_out IS NOT NULL), 0)::float8 AS "speedMs",
            coalesce(sum(cost) FILTER (WHERE cost_basis = 'actual'), 0)::float8 AS cost,
            count(cost)::int AS "costCalls"
       FROM admin_model_attempt_metrics
