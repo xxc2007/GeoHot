@@ -42,8 +42,7 @@ const NAV: Array<{ group: string; items: Array<{ to: string; label: string; coun
     group: "系统",
     items: [
       { to: "/admin/server", label: "服务器" },
-      { to: "/admin/runs", label: "运行", count: "runs", tone: "bad" },
-      { to: "/admin/ops", label: "运行看板" },
+      { to: "/admin/ops", label: "运行看板", count: "runs", tone: "bad" },
       { to: "/admin/magpie", label: "magpie" },
       { to: "/admin/usage", label: "用量总览" },
       { to: "/admin/models", label: "模型" },

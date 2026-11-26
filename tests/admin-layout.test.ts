@@ -20,7 +20,8 @@ test("卡片与表格留白一致，长表可扫读", () => {
 });
 
 test("宽表页真的用了宽档", () => {
-  for (const f of ["content", "runs", "server", "audit"]) {
+  // 2026-11-26：「运行」并入「运行看板」后，宽档的持有者是 ops；runs 只剩一个跳转，不再有页面。
+  for (const f of ["content", "ops", "server", "audit"]) {
     const page = readFileSync(`apps/web/app/routes/admin/${f}.tsx`, "utf8");
     assert.ok(page.includes("<AdminPage wide title="), `${f} 页要用宽档`);
   }
