@@ -104,6 +104,15 @@ export default function OpsBoard({ loaderData }: Route.ComponentProps) {
       wide
       actions={<Button tone="ghost" onClick={() => refresh.revalidate()}>立即刷新</Button>}
     >
+      {!r && (
+        <Card>
+          <p role="status" className="text-[13.5px] text-ink-2">
+            运行统计正在生成或连接暂时不可用，页面会自动更新；尚未取得数据，<b>不代表队列为空或工作流停止</b>。
+          </p>
+          <div className="mt-3"><Button disabled={refresh.state !== "idle"} onClick={() => refresh.revalidate()}>重新加载</Button></div>
+        </Card>
+      )}
+
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <Card>
           <div className="text-[12px] text-ink-3">worker 心跳</div>

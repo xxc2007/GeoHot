@@ -4,6 +4,7 @@ import { createMemoryRouter, createRequestHandler, type RouterState } from "reac
 
 const build = await import(new URL("../build/server/index.js", import.meta.url).href);
 const prefix = String(build.basename).replace(/\/+$/, "");
+const emptyOps = { at: "2026-10-25T00:00:00Z", windowMinutes: 60, models: [], series: [], queue: [], active: [], heartbeats: [], capabilities: [] };
 const emptyRuns = { checkedAt: "2026-10-25T00:00:00Z", processes: [], jobs: [], timeline: [], queues: [], failedJobs: [], lagging: [], receipts: { counts: {}, issues: [], unknownTotal: 0 }, deliveries: [], errors: [], retrying: { count: 0, next: null }, ingest: [], leaderboard: null };
 
 async function withApi<T>(api: (url: URL) => Response | Promise<Response>, fn: () => Promise<T>) {
@@ -14,6 +15,7 @@ async function withApi<T>(api: (url: URL) => Response | Promise<Response>, fn: (
 function api(url: URL) {
   if (url.pathname.endsWith("/me")) return Response.json({ name: "测试管理员", csrf: "test", dev: false });
   if (url.pathname.endsWith("/nav-counts")) return Response.json({});
+  if (url.pathname.endsWith("/model-ops")) return Response.json(emptyOps);
   if (url.pathname.endsWith("/runs")) return Response.json(emptyRuns);
   if (url.pathname.endsWith("/content")) return Response.json({ rows: [] });
   if (url.pathname.endsWith("/meta")) return Response.json({ changelogVersion: null });
@@ -21,7 +23,7 @@ function api(url: URL) {
 }
 async function render(override: (url: URL) => Response | Promise<Response>) {
   return withApi(override, async () => {
-    const r = await createRequestHandler(build, "production")(new Request(`https://example.test${prefix}/admin/runs`));
+    const r = await createRequestHandler(build, "production")(new Request(`https://example.test${prefix}/admin/ops`));
     return { status: r.status, html: await r.text(), headers: r.headers };
   });
 }
@@ -57,13 +59,15 @@ test("expired sessions still redirect to sign-in", async () => {
   assert.doesNotMatch(r.html, /测试管理员/);
 });
 
-test("successful polls remain compatible with the flat data shape used by already-open tabs", async () => {
+test("the merged board keeps the flat runs payload an already-open tab expects", async () => {
   await withApi(api, async () => {
-    const value = await build.routes["routes/admin/runs"].module.loader({ request: new Request('https://example.test/admin/runs'), params: {}, context: {} });
-    assert.deepEqual(value.queues, []);
-    assert.deepEqual(value.jobs, []);
-    assert.deepEqual(value.overview?.queues, []);
-    assert.equal(value.unavailable, false);
+    const value = await build.routes["routes/admin/ops"].module.loader({ request: new Request('https://example.test/admin/ops'), params: {}, context: {} });
+    // The board owns the live model half; the queue/schedule half is the same `runs` payload as before,
+    // so a tab opened before the merge still gets the shape it was written against.
+    assert.deepEqual(value.runs?.queues, []);
+    assert.deepEqual(value.runs?.jobs, []);
+    assert.deepEqual(value.ops?.models, []);
+    assert.deepEqual(value.ops?.capabilities, []);
   });
 });
 
@@ -73,9 +77,9 @@ test("ordinary admin navigation reuses identity while explicit retry and actions
     const shell = build.routes["admin-layout"].module;
     const router = createMemoryRouter([{ id: "admin-layout", path: "/admin", loader: shell.loader, shouldRevalidate: shell.shouldRevalidate,
       children: [
-        { path: "runs", loader: build.routes["routes/admin/runs"].module.loader },
+        { path: "ops", loader: build.routes["routes/admin/ops"].module.loader },
         { path: "content", loader: build.routes["routes/admin/content"].module.loader },
-      ] }], { initialEntries: ["/admin/runs"] });
+      ] }], { initialEntries: ["/admin/ops"] });
     const idle = async () => {
       const ready = (s: RouterState) => s.initialized && s.navigation.state === "idle" && s.revalidation === "idle";
       if (ready(router.state)) return;
@@ -89,7 +93,7 @@ test("ordinary admin navigation reuses identity while explicit retry and actions
       assert.equal(identities, 1);
       await router.revalidate(); await idle();
       assert.equal(identities, 2);
-      assert.equal(shell.shouldRevalidate({ formMethod: "POST", defaultShouldRevalidate: true, currentUrl: new URL('http://x/admin/runs'), nextUrl: new URL('http://x/admin/content') }), true);
+      assert.equal(shell.shouldRevalidate({ formMethod: "POST", defaultShouldRevalidate: true, currentUrl: new URL('http://x/admin/ops'), nextUrl: new URL('http://x/admin/content') }), true);
     } finally { router.dispose(); }
   });
 });
