@@ -146,7 +146,9 @@ test("英文页的热榜只放真有英文标题的事件，中文页不受影�
   assert.deepEqual(hotEn.entries.map((e) => e.rank), [1], "剔掉之后名次从 1 重新连着排");
 
   const hotZh = await loadHot("zh");
-  assert.deepEqual(hotZh.entries.map((e) => e.story.publicId), [zhOnly.publicId, enStory.publicId], "中文页照旧两条都在");
+  // 中文页的成员门要求事件名带中文（`publishableStories` 的 zh 口径），所以只留中文那条；
+  // 英文事件不在中文榜上，这条与 `/en` 只留英文是同一对口径。
+  assert.deepEqual(hotZh.entries.map((e) => e.story.publicId), [zhOnly.publicId], "中文页照旧只放中文事件");
 
   const stripEn = await loadHotStrip("en");
   assert.deepEqual(stripEn!.entries.map((e) => e.storyPublicId), [enStory.publicId], "首页热点条同样只放英文事件");
