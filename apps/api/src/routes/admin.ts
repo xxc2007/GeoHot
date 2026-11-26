@@ -12,7 +12,8 @@ import { sharedAdminRead } from "@aihot/backend/admin/read-cache";
 
 import { cachePage } from "@aihot/backend/admin/page-cache";
 import { MicroCache } from "@aihot/backend/lib/micro-cache";
-import { modelsOverview, switchModel } from "@aihot/backend/admin/models";
+import { modelsOverview, setCapabilityPool, switchModel } from "@aihot/backend/admin/models";
+import { loadModelOps } from "@aihot/backend/admin/model-ops";
 import { usageOverview } from "@aihot/backend/admin/usage";
 
 import { contentChain, detachFromFact, mergeStories, overrideFields, rerun, rewriteStoryDigest, searchContent, setSeoIndexed, setVisibility } from "@aihot/backend/admin/content";
@@ -266,6 +267,15 @@ export function registerAdmin(app: FastifyInstance) {
   app.post("/api/admin/models/:capability", adminHandler(async (req, _reply, admin) => {
     const b = body<{ model: string | null; reason: string }>(req);
     return switchModel(param(req, "capability"), b.model ?? null, String(b.reason ?? ""), actorOf(admin));
+  }));
+
+  // Live ops board: the model layer as it behaves right now (calls per model, failures, latency, tokens,
+  // queue depth, heartbeats) plus the pool each capability is drawing from. Read-only apart from the
+  // pool-order write below, which goes through the same audit trail as a single-model switch.
+  app.get("/api/admin/model-ops", adminHandler(async (req) => loadModelOps(Number(q(req).window) || 60)));
+  app.post("/api/admin/model-ops/pool", adminHandler(async (req, _reply, admin) => {
+    const b = body<{ capability: string; members: string[]; reason: string }>(req);
+    return setCapabilityPool(String(b.capability ?? ""), Array.isArray(b.members) ? b.members : [], String(b.reason ?? ""), actorOf(admin));
   }));
 
   // Attention counts for the navigation. The monitor column is gated like the routes above: counting

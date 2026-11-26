@@ -84,6 +84,7 @@ export default [
     route("admin/discovery", "routes/admin/discovery.tsx"),
     route("admin/feedback", "routes/admin/feedback.tsx"),
     route("admin/runs", "routes/admin/runs.tsx"),
+    route("admin/ops", "routes/admin/ops.tsx"),
     route("admin/server", "routes/admin/server.tsx"),
     route("admin/magpie", "routes/admin/magpie.tsx"),
     route("admin/models", "routes/admin/models.tsx"),
