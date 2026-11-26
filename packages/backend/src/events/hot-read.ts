@@ -193,6 +193,11 @@ export async function rankingExtras(ranking: HotRanking, lang: SiteLang = "zh") 
     },
     text: (e: HotEntry) => {
       const t = texts.get(e.storyId);
+      // 英文页的严格口径：没有英文标题的事件**不回退中文**（`title` 给空串，由调用方过滤）。
+      // 2026-11-27 站长截图：/en 的 Trending 与 /en/hot 里排着中文事件名——当时 228 个事件里
+      // 222 个没有 title_en，而这里写的是 `t?.titleEn ?? e.title`，于是每一行都退回中文。
+      // `ENGLISH_TEXT=fallback` 仍按旧行为回退。
+      if (en && englishTextMode() === "strict" && !t?.titleEn) return { title: "", summary: null, latest: null, textLocale: "zh" as const };
       const title = en ? (t?.titleEn ?? e.title) : e.title;
       const summary = t ? (en ? t.summaryEn ?? t.summary : t.summary) : null;
       const latest = t ? (en ? t.latestEn ?? t.latest : t.latest) : null;
@@ -219,9 +224,13 @@ export async function loadHotStrip(lang: SiteLang = "zh"): Promise<{ entries: Ho
     return { entries: [], asOf: null };
   }
   const extras = await rankingExtras(ranking, lang);
+  const picked = lang === "en" && englishTextMode() === "strict"
+    // 英文页只放真有英文事件名的行（先过滤再取前 5，否则前 5 条恰好都缺英文时整块会空掉）。
+    ? ranking.entries.filter((e) => extras.text(e).title).slice(0, 5)
+    : ranking.entries.slice(0, 5);
   return {
     asOf: ranking.computedAt,
-    entries: ranking.entries.slice(0, 5).map((e) => {
+    entries: picked.map((e) => {
       const text = extras.text(e);
       return {
         rank: e.rank,

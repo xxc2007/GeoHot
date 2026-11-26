@@ -127,3 +127,30 @@ test("读侧的两条口径写在源码里：空榜跳过与 24 小时截止", (
   const write = readFileSync(new URL("../packages/backend/src/events/hot.ts", import.meta.url), "utf8");
   assert.ok(write.includes("${entries.length > 0})"), "hot.ts 又无条件发布空榜了：空榜不该顶掉有事件的榜");
 });
+
+// 2026-11-27 站长截图：/en 的 Trending 与 /en/hot 里排着中文事件名。当时 228 个事件里 222 个
+// 没有 title_en，而 `rankingExtras.text()` 写的是 `t?.titleEn ?? e.title`——英文页每一行都退回中文。
+// 现在 strict 的 /en 在 hot / hot-strip 两处都只保留真有英文标题的事件；中文页照旧。
+test("英文页的热榜只放真有英文标题的事件，中文页不受影响", async () => {
+  const zhOnly = await addStory(`热榜英文口径测试${T}中文事件`);
+  const enStory = await addStory(`Hot board English policy ${T}`);
+  await sql`UPDATE stories SET title_en = ${`Hot board English policy ${T}`} WHERE id = ${enStory.id}`;
+  // 本文件所有榜都写在同一时刻，`ORDER BY computed_at DESC LIMIT 1` 遇到并列会随机挑一张；
+  // 这张榜单独晚一分钟，读到的才是它自己。
+  await saveBoard(new Date(AHEAD.getTime() + 60_000), [entryOf(zhOnly, 1), entryOf(enStory, 2)]);
+
+  const hotEn = await loadHot("en");
+  assert.deepEqual(hotEn.entries.map((e) => e.story.publicId), [enStory.publicId], "没有英文标题的事件不能出现在 /en/hot");
+  assert.equal(JSON.stringify(hotEn.entries).includes("中文事件"), false, "/en/hot 的载荷里不该出现中文事件名");
+  // 榜单读侧（`publishableStories`）先剔掉缺英文的事件，名次接着排——与本文件另一条「名次要连着排」同口径。
+  assert.deepEqual(hotEn.entries.map((e) => e.rank), [1], "剔掉之后名次从 1 重新连着排");
+
+  const hotZh = await loadHot("zh");
+  // 中文页的成员门要求事件名带中文（`publishableStories` 的 zh 口径），所以只留中文那条；
+  // 英文事件不在中文榜上，这条与 `/en` 只留英文是同一对口径。
+  assert.deepEqual(hotZh.entries.map((e) => e.story.publicId), [zhOnly.publicId], "中文页照旧只放中文事件");
+
+  const stripEn = await loadHotStrip("en");
+  assert.deepEqual(stripEn!.entries.map((e) => e.storyPublicId), [enStory.publicId], "首页热点条同样只放英文事件");
+  assert.equal(JSON.stringify(stripEn!.entries).includes("中文事件"), false, "首页英文板上不能混进中文事件名");
+});

@@ -211,7 +211,10 @@ export default function ItemPage() {
   // strict /en 的 200 回退页：条目没有英文稿时，正文区只留英文说明与原站入口。
   // 中文标题/摘要/信源名不在这里当"英文内容"印出来（2026-11-23 第 3 轮：条目页 0 汉字）。
   const englishFallback = locale === "en" && strictEnglish() && (item.textLocale !== "en" || hasChineseCopy(item.title) || (!!item.summary && hasChineseCopy(item.summary)));
-  const displayTitle = locale === "en" && strictEnglish() && hasChineseCopy(item.title) ? c.fallbackTitle : item.title;
+  // 英文页在 strict 下不摆中文：标题先看信源原题（若它本身是英文），再退到中性的「Chinese-language item」。
+  // 原题是信源自己的话，对英文读者比一个占位标题有用得多（2026-11-27 站长要求英文页零中文）。
+  const englishOriginalTitle = item.originalTitle && !hasChineseCopy(item.originalTitle) ? item.originalTitle : null;
+  const displayTitle = locale === "en" && strictEnglish() && hasChineseCopy(item.title) ? (englishOriginalTitle ?? c.fallbackTitle) : item.title;
   const displaySummary = englishFallback && item.summary && hasChineseCopy(item.summary) ? null : item.summary;
   const displaySource = englishFallback ? hostOf(item.links.original) : (isX ? item.x!.authorName : item.source.name);
   const displayAuthor = englishFallback ? null : item.author;

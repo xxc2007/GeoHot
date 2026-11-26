@@ -264,7 +264,13 @@ export async function loadHot(lang: SiteLang = "zh"): Promise<HotResponse> {
     computedAt: ranking.computedAt,
     ruleVersion: ranking.ruleVersion,
     windowHours: 48,
-    entries: ranking.entries.map((e) => {
+    entries: ranking.entries
+      // 英文页（strict）只保留真有英文事件名的行：缺英文的事件会退回中文标题——2026-11-27 站长
+      // 截图里 /en 的 Trending 与 /en/hot 就是这样混进中文的。榜单读侧（`publishableStories`）
+      // 已经先剔掉一轮（名次接着排），这里是第二道：extras 里没有英文标题的行同样不放行。
+      // `ENGLISH_TEXT=fallback` 时保持旧行为（回退中文），那是这个开关本来的意义。
+      .filter((e) => lang !== "en" || englishTextMode() !== "strict" || !!extras.text(e).title)
+      .map((e) => {
       const picture = covers.get(e.storyId);
       const coverUrl = picture ? proxiedImage(picture.url, "full") : null;
       const text = extras.text(e);
