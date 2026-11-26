@@ -224,10 +224,20 @@ function StageRow({ stage, now, defaultModel, muted }: { stage: OpsStage; now: n
         <span className="num whitespace-nowrap text-[12px] text-ink-2">
           调用 {num(t.calls)} · 成功 {pct(t.ok, t.calls)} · {secs(t.avgMs)}{t.speed !== null ? ` · ${t.speed.toFixed(1)} tok/s` : ""}
         </span>
+        {/* 「配置里的首选」和「实际在跑的」经常不是同一个（各执行器的 env 不同），
+            所以摘要行直接把窗口内调用最多的那个模型写出来——这才是读者要看的真相。 */}
+        {stage.models.length > 0 && (
+          <span className="whitespace-nowrap text-[12px] text-ink-3">
+            实际主力 <b className="font-mono">{blankLabel(stage.models[0]!.model)}</b>
+            <span className="text-ink-4">（{num(stage.models[0]!.calls)} 次{stage.models.length > 1 ? `，共 ${stage.models.length} 个模型` : ""}）</span>
+          </span>
+        )}
       </summary>
       <div className="mt-2 space-y-2 pl-4">
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[11.5px] text-ink-4">当前模型池（左为首选，来源 {stage.source === "admin" ? "后台设置" : stage.source === "env" ? "环境变量" : "代码默认"}）：</span>
+          {/* 池读的是**这台服务器**的环境变量；真正派发的可能是别的执行器（instabox 的
+              /opt/geohot-exec/.env 与这里不同），所以措辞写清「本机」，别让人误当成全网配置。 */}
+          <span className="text-[11.5px] text-ink-4">本机配置的模型池（左为首选，来源 {stage.source === "admin" ? "后台覆盖" : stage.source === "env" ? "本机环境变量" : "代码默认"}；实际派发可能在其他执行器）：</span>
           {stage.pool.length === 0
             ? <span className="text-[11.5px] text-ink-4">（不经过模型）</span>
             : <>
@@ -248,7 +258,7 @@ function StageRow({ stage, now, defaultModel, muted }: { stage: OpsStage; now: n
             rows={stage.models}
             rowKey={(m) => `${m.service}|${m.model}`}
             columns={[
-              { key: "rank", label: "池内", className: "whitespace-nowrap", render: (m) => (m.poolRank ? `#${m.poolRank}` : <span className="text-ink-4">—</span>) },
+              { key: "rank", label: "本机池", className: "whitespace-nowrap", render: (m) => (m.poolRank ? `#${m.poolRank}` : <span className="text-ink-4" title="不在本机配置的池里：可能由其他执行器的环境变量派发">—</span>) },
               { key: "m", label: "模型", className: "whitespace-nowrap", render: (m) => <span className="font-mono text-[12px]">{blankLabel(m.model)}<span className="text-ink-4"> · {blankLabel(m.service)}</span></span> },
               { key: "calls", label: "调用", align: "right", render: (m) => <span className="whitespace-nowrap">{num(m.calls)}</span> },
               { key: "rate", label: "成功率", align: "right", render: (m) => <Badge tone={m.bad === 0 ? "ok" : rate(m.ok, m.calls) < 0.5 ? "bad" : "warn"}>{pct(m.ok, m.calls)}</Badge> },
@@ -423,7 +433,7 @@ export function BoardPanel({ ops, runs }: { ops: Ops; runs: Runs | null }) {
         </div>
       </Card>
 
-      <Card title="各步骤的模型池（顺序即优先级，第一名为首选）" right={<span>写入即审计 · 只影响之后的新任务</span>}>
+      <Card title="各步骤的模型池（顺序即优先级，第一名为首选）" right={<span>按本机环境变量显示；后台覆盖对所有执行器生效 · 写入即审计</span>}>
         <div className="space-y-2">
           {ops.capabilities.map((c) => (
             <div key={c.key} className="flex flex-wrap items-center gap-2 border-b border-line/60 pb-2 last:border-0">
