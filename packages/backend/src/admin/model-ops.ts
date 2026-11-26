@@ -86,6 +86,8 @@ export type OpsStage = {
   serving: string;
   source: "admin" | "env" | "default";
   pool: string[];
+  /** 上面这个池属于哪个能力（一个环节可能覆盖多个，这里给首个；明细里的位次跨全部池取最靠前）。 */
+  poolFor: string;
   queued: number;
   active: number;
   retry: number;
@@ -468,15 +470,22 @@ function buildStages(
   const claimed = new Set<string>();
   // 池里写的是注册表 key，回执记的是上游模型名（`loomy-deepseek-v41-flash` ↔ `loomy/DeepSeek-V4.1-Flash`、
   // `default` ↔ `agnes-3.0-flash`）。按 key 精确匹配几乎全部落空，所以先把每个成员解析成真实模型名再比。
-  const rankOf = (pool: string[], r: StatRow) => {
-    const exact = pool.indexOf(r.model);
-    if (exact >= 0) return exact + 1;
+  // 一个环节通常覆盖多个能力（分析 = 预筛/评分/理解/结构/摘要），各有各的池：在任一池里出现就算在池内，
+  // 取最靠前的那个位次——只查首个能力的池会让别的能力的成员全都显示「—」。
+  const rankOf = (pools: string[][], r: StatRow) => {
     const wanted = r.model.toLowerCase();
-    for (let i = 0; i < pool.length; i++) {
-      const resolved = String(MODELS[pool[i]!]?.model ?? "").toLowerCase();
-      if (resolved && resolved === wanted) return i + 1;
+    let best: number | null = null;
+    for (const pool of pools) {
+      const exact = pool.indexOf(r.model);
+      let rank: number | null = exact >= 0 ? exact + 1 : null;
+      if (rank === null) {
+        for (let i = 0; i < pool.length; i++) {
+          if (String(MODELS[pool[i]!]?.model ?? "").toLowerCase() === wanted) { rank = i + 1; break; }
+        }
+      }
+      if (rank !== null && (best === null || rank < best)) best = rank;
     }
-    return null;
+    return best;
   };
 
   const stages: OpsStage[] = PIPELINE.map((stage) => {
@@ -488,6 +497,9 @@ function buildStages(
     const mine = rows.filter((r) => r.purpose && purposes.includes(r.purpose));
     const cap = capabilities.find((c) => c.key === stage.capabilities[0]);
     const pool = cap?.members ?? [];
+    const pools = stage.capabilities
+      .map((key) => capabilities.find((c) => c.key === key)?.members)
+      .filter((p): p is string[] => Array.isArray(p) && p.length > 0);
     const q = stage.queue ? queueByName.get(stage.queue) : undefined;
 
     const totals = emptyTotals();
@@ -531,6 +543,7 @@ function buildStages(
       serving: pool[0] ?? "—",
       source: cap?.source ?? "default",
       pool,
+      poolFor: stage.capabilities[0] ?? "",
       queued: q?.queued ?? 0,
       active: q?.active ?? 0,
       retry: q?.retry ?? 0,
@@ -558,7 +571,7 @@ function buildStages(
           speedMs: r.speedMs,
           cost: r.cost,
           costCalls: r.costCalls,
-          poolRank: rankOf(pool, r),
+          poolRank: rankOf(pools, r),
           cooling: cooling.get(r.model) ?? null,
         }))
         .sort((a, b) => b.calls - a.calls),
@@ -574,7 +587,7 @@ function buildStages(
     label: "未归类的调用（历史遗留用途 / 未标注）",
     queue: null,
     purposes: [...new Set(leftovers.map((r) => r.purpose ?? "未标注"))].sort(),
-    serving: "—", source: "default", pool: [],
+    serving: "—", source: "default", pool: [], poolFor: "",
     queued: 0, active: 0, retry: 0, done: 0, failed24h: 0, lastDone: null, lastFailed: null,
     totals: unmappedTotals,
     models: leftovers.map((r) => ({
