@@ -132,11 +132,14 @@ async function readOverrides(): Promise<Record<string, string>> {
   try {
   const rows = await healthRead(db => db<{ key: string; value: { model?: string } }[]>`SELECT key, value FROM settings WHERE key LIKE 'models.%'`);
   const map: Record<string, string> = {};
-  // The admin stores one model per capability (switchModel rejects a comma list), so anything else in the
-  // settings table is not ours to interpret and is ignored rather than half-applied.
+  // 这里同时承载两种写法：单模型切换（`switchModel`）与**池顺序**（`setCapabilityPool`，逗号列表）。
+  // 2026-11-27 之前这里写的是 `known(value)`——只认单个注册表名，于是后台"调整池顺序"写进去的
+  // 逗号列表被整条忽略，运行期继续走 env / MODEL_POOL：后台显示的顺序与真实派发从来就不是一回事
+  // （英文腿实测：池首写 agnes-3.0-flash-cn，流量全在主 agnes 上）。
+  // 现在按 `poolOf` 解析：每个成员都要是注册表里的名字，认不出的单个成员被丢掉；一个都不认得才整条不认。
   for (const r of rows) {
-    const value = r.value?.model ?? "";
-    if (known(value)) map[r.key.slice("models.".length)] = value;
+    const members = poolOf(String(r.value?.model ?? ""));
+    if (members.length > 0) map[r.key.slice("models.".length)] = members.join(",");
   }
   cache = { at: Date.now(), overrides: map };
   return map;
