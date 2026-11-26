@@ -142,7 +142,8 @@ test("英文页的热榜只放真有英文标题的事件，中文页不受影�
   const hotEn = await loadHot("en");
   assert.deepEqual(hotEn.entries.map((e) => e.story.publicId), [enStory.publicId], "没有英文标题的事件不能出现在 /en/hot");
   assert.equal(JSON.stringify(hotEn.entries).includes("中文事件"), false, "/en/hot 的载荷里不该出现中文事件名");
-  assert.deepEqual(hotEn.entries.map((e) => e.rank), [2], "名次保留榜单原值，看得出第 1 名被略过");
+  // 榜单读侧（`publishableStories`）先剔掉缺英文的事件，名次接着排——与本文件另一条「名次要连着排」同口径。
+  assert.deepEqual(hotEn.entries.map((e) => e.rank), [1], "剔掉之后名次从 1 重新连着排");
 
   const hotZh = await loadHot("zh");
   assert.deepEqual(hotZh.entries.map((e) => e.story.publicId), [zhOnly.publicId, enStory.publicId], "中文页照旧两条都在");
