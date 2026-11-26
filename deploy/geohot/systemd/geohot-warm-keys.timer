@@ -1,0 +1,11 @@
+[Unit]
+Description=Warm GEOHOT reader keys every 10 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=10min
+AccuracySec=30s
+Unit=geohot-warm-keys.service
+
+[Install]
+WantedBy=timers.target

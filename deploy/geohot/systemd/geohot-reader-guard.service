@@ -1,0 +1,7 @@
+[Unit]
+Description=GEOHOT reader guard (kill >60s English backfill scans)
+
+[Service]
+Type=oneshot
+ExecStart=/opt/geohot/bin/reader-guard.sh
+Nice=5

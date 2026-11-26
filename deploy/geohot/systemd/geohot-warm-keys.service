@@ -1,0 +1,10 @@
+[Unit]
+Description=GEOHOT warm reader keys (keeps API caches and disk snapshots hot)
+
+[Service]
+Type=oneshot
+ExecStart=/opt/geohot/bin/warm-reader-keys.sh
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+TimeoutStartSec=900

@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the reader guard every 2 minutes
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=2min
+AccuracySec=15s
+Unit=geohot-reader-guard.service
+
+[Install]
+WantedBy=timers.target
