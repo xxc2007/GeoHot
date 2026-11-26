@@ -70,6 +70,11 @@ export type ModelOps = {
   workflow: { stages: OpsStage[]; unmapped: OpsStage | null };
   /** 进程内冷却账本快照（上游拒绝后的短时冷却），按 model 索引到环节里。 */
   cooldowns: Array<{ model: string; service: string; category: string; until: number }>;
+  /**
+   * 注册表里 `default` 那一条解析出来的真实模型名。池里写的是注册表 key（`default`），
+   * 回执记的是上游模型名（`agnes-3.0-flash`）——不把两者对上，环节表会显示「池内 —」。
+   */
+  defaultModel: string;
 };
 
 /** 一个工作流环节的实时数据：队列那一侧 + 模型那一侧。 */
@@ -429,6 +434,7 @@ export async function loadModelOps(windowMinutes = 60, filters: OpsFilters = {})
       cooldownSnapshot,
     ),
     cooldowns: cooldownSnapshot,
+    defaultModel: String(MODELS.default?.model ?? ""),
   };
 }
 
@@ -460,6 +466,14 @@ function buildStages(
   const queueByName = new Map(queues.map((q) => [q.name, q]));
   const cooling = new Map(cooldowns.map((c) => [c.model, CATEGORY_LABEL[c.category] ?? c.category]));
   const claimed = new Set<string>();
+  const defaultModel = String(MODELS.default?.model ?? "");
+  // 池里写 `default` 时，回执记的是它解析出的真实模型名：两边都要能对上，否则「池内位次」永远是 —。
+  const rankOf = (pool: string[], r: StatRow) => {
+    const exact = pool.indexOf(r.model);
+    if (exact >= 0) return exact + 1;
+    if (defaultModel && r.model === defaultModel && pool.includes("default")) return pool.indexOf("default") + 1;
+    return null;
+  };
 
   const stages: OpsStage[] = PIPELINE.map((stage) => {
     const caps = stage.capabilities
@@ -540,7 +554,7 @@ function buildStages(
           speedMs: r.speedMs,
           cost: r.cost,
           costCalls: r.costCalls,
-          poolRank: pool.indexOf(r.model) >= 0 ? pool.indexOf(r.model) + 1 : null,
+          poolRank: rankOf(pool, r),
           cooling: cooling.get(r.model) ?? null,
         }))
         .sort((a, b) => b.calls - a.calls),

@@ -15,6 +15,7 @@ const emptyOps = {
   queue: [], active: [], heartbeats: [], capabilities: [], catalog: [],
   workflow: { stages: [], unmapped: null },
   cooldowns: [],
+  defaultModel: "",
 };
 const emptyRuns = { checkedAt: "2026-10-25T00:00:00Z", processes: [], jobs: [], timeline: [], queues: [], failedJobs: [], lagging: [], receipts: { counts: {}, issues: [], unknownTotal: 0 }, deliveries: [], errors: [], retrying: { count: 0, next: null }, ingest: [], leaderboard: null };
 
