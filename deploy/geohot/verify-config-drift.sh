@@ -173,7 +173,12 @@ echo "=== 3. 单元引用的 EnvironmentFile：存在？在仓库里，还是登
 # MISSING! 是硬失败（单元没写 `-` 前缀，systemd 没这个文件就起不来）；
 # MISSING? 对应 `EnvironmentFile=-…`（可选），只登记不报红。
 # 仓库模板与机器上装着的两份都扫：模板改了、/etc 里还是旧的，缺的文件可能只出现在其中一边。
+# 但只扫**这台机器装了**的单元（与第 1 节同一口径）。仓库里有为别的机器准备的模板
+# （geohot-worker-hangzhou.service 之类，它的 /opt/geohot-exec 与 node 路径只在那台机器上存在），
+# 不装在本机的模板没有"机器上那份"可比，拿它报红等于让每台机器替别人的路径背书
+# （2026-11-27 实测：本机验收永远剩 2 条，全是杭州那三份模板）。装到那台机器上时它照样被核对。
 sec3=$(for u in "${UNIT_NAMES[@]}"; do
+  [ -f "$UNITS_DIR/$u" ] || continue
   for f in "$APP/deploy/geohot/systemd/$u" "$UNITS_DIR/$u"; do
     [ -f "$f" ] || continue
     grep -E '^EnvironmentFile=' "$f" | while IFS= read -r line; do
@@ -208,7 +213,9 @@ done | sort -u)
 
 echo "=== 4. ExecStart 指向的代码入口在不在树里 ==="
 # 相对路径是相对**该单元自己的 WorkingDirectory**，不是应用根：geohot-web 的 wd 是 apps/web。
+# 与第 3 节同理：只看这台机器装了的单元，别拿给别的机器准备的模板报本机的红。
 sec4=$(for u in "${UNIT_NAMES[@]}"; do
+  [ -f "$UNITS_DIR/$u" ] || continue
   f="$APP/deploy/geohot/systemd/$u"
   [ -f "$f" ] || continue
   wd=$(grep -m1 -E '^WorkingDirectory=' "$f" | cut -d= -f2-)
