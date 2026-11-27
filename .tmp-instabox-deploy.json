@@ -1,0 +1,1 @@
+{"cmd":"cd /data/geohot-src/geohot && git fetch --quiet origin main && git checkout -q 8c61fd0a && git rev-parse --short HEAD && nohup env GEOHOT_SSH_TARGET=xxc@20.194.28.128 GEOHOT_SSH_KEY=/home/user/.ssh/id_ed25519 bash deploy/geohot/deploy.sh --apply --rev=8c61fd0a > /tmp/deploy-395.log 2>&1 & sleep 2; echo STARTED"}
