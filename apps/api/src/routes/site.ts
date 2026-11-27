@@ -229,7 +229,23 @@ export function registerSite(app: FastifyInstance) {
     try {
       [data, strip] = await Promise.all([
         loadTimeline({ ...filters, cursor: q.cursor || null, limit }),
-        unfiltered ? loadHotStrip(lang) : null,
+        // 热度条是首页的「配菜」，时间线才是正文。原先它在 Promise.all 里与时间线同权：热度条那几条读
+        // 不过闸、也没有 statement_timeout（events/hot-read.ts 直接走裸 sql），只要它慢，整个
+        // /api/site/timeline 就跟着慢，而 SSR 3.5 秒就放弃了——时间线明明早算完，读者拿到的还是 503。
+        // 这里把它降成 best-effort：只吞「这一次读没抢到」那一类，其它错误至少留一行日志，
+        // 不把编程错误也静默掉。读不出来就少一条热度条（页面本来就支持 hot=null）。
+        unfiltered ? loadHotStrip(lang).catch((error: unknown) => {
+          const code = (error as { code?: string } | undefined)?.code;
+          if (!(error instanceof PublicReadBusyError) && code !== "57014" && code !== "55P03") {
+            console.warn(JSON.stringify({
+              level: "warn",
+              msg: "hot strip failed",
+              route: "/api/site/timeline",
+              error: String((error as Error)?.message ?? error).slice(0, 300),
+            }));
+          }
+          return null;
+        }) : null,
       ]);
     } catch (error) {
       const hit = timelineStale.get(staleKey);

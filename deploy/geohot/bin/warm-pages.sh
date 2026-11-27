@@ -11,6 +11,17 @@
 set -u
 
 HOST="xxc2007.me"
+# 预热打的是哪个 scheme，决定它热的是哪把缓存键：public-cache-location.conf:3 的
+# proxy_cache_key 是 `report-workflow-v1:$scheme$host$request_uri`。docs/known-issues.md:30 记着
+# 「Cloudflare 回源是明文 80（CF↔源站是 http）」；如果线上仍是这样，而这里一直用 https 预热，
+# 那热的是 https 那把键，真实读者经 CF 读的是 http 那把 —— 预热等于白做（这也解释了为什么中文屏
+# 常常只是 STALE 而不是 HIT）。所以把 scheme 做成旋钮，并在改动前先按下面这段核实：
+#   curl -sI -H 'Host: xxc2007.me' http://127.0.0.1/geohot/   | grep -i x-geohot-public-cache
+#   curl -skI -H 'Host: xxc2007.me' https://127.0.0.1/geohot/ | grep -i x-geohot-public-cache
+# 两边的 Age/状态不同就说明两把键是分开的；确认 CF 走 80 之后在 unit 里写 GEOHOT_WARM_SCHEME=http。
+# 反过来，如果 80 上只回 301 到 https，那说明 80 不是 CF 的回源口（也就没走 80 的缓存），
+# 这时 curl 拿不到 x-geohot-public-cache、日志里会出现 code=301 —— 别把它当成预热失败去调阈值。
+SCHEME="${GEOHOT_WARM_SCHEME:-https}"
 # 2026-11-15：读者面最贵的是首页与「全部」两屏（时间线 + 收录池要现算）。后台流水线一开，
 # 冷请求 2.5–5 秒；nginx 缓存 60 秒一过期，每一分钟就有一个真读者替全站付这笔钱。
 # 于是把这两屏单独交给一个 60 秒的高频预热带（geohot-warm-hot.timer），其余四屏仍走 2 分钟。
@@ -18,8 +29,17 @@ HOST="xxc2007.me"
 if [ -n "${GEOHOT_WARM_PATHS:-}" ]; then
   read -r -a PATHS <<<"${GEOHOT_WARM_PATHS}"
 else
-  PATHS=(
-    "/geohot/"
+  PATHS=("/geohot/")
+  # 2026-11-27：/en 此前既不在缓存路由表里、也不在任何预热带里，每一屏都是源站冷渲染，且失败时没有
+  # proxy_cache_use_stale 兜底（中文屏同刻靠 STALE 200 顶着）。缓存路由已经补上（public-cache.conf），
+  # 但预热**要等 scheme 核实过才加**：scheme 没核实之前，这条新路径写进的是没人读的那把键，
+  # 等于每 2 分钟在 2 vCPU 的机器上白买一次冷渲染。所以只有 GEOHOT_WARM_SCHEME 被显式设置
+  # （= 有人按上面的两条 curl 确认过）才把它排进来。排在第二位是给 TimeoutStartSec=180 留余量
+  # （每条最多 -m 25 秒，六条正好 150 秒，库慢时被截断的是队尾）。
+  if [ -n "${GEOHOT_WARM_SCHEME:-}" ]; then
+    PATHS+=("/geohot/en")
+  fi
+  PATHS+=(
     "/geohot/all?tab=all"
     "/geohot/hot"
     "/geohot/daily"
@@ -51,12 +71,22 @@ fi
 
 warm() {
   local path="$1"
-  curl -k -sS -o /dev/null -m 25 \
-    --resolve "${HOST}:443:127.0.0.1" \
-    -H "accept: text/html" \
-    -H "user-agent: geohot-warm/1" \
-    -w "%{http_code} %{time_total} %{header_json}" \
-    "https://${HOST}${path}" 2>/dev/null | head -c 400
+  # scheme 与端口必须和「真实读者到达源站时用的那把缓存键」一致，见文件头部的说明。
+  if [ "$SCHEME" = "http" ]; then
+    curl -sS -o /dev/null -m 25 \
+      --resolve "${HOST}:80:127.0.0.1" \
+      -H "accept: text/html" \
+      -H "user-agent: geohot-warm/1" \
+      -w "%{http_code} %{time_total} %{header_json}" \
+      "http://${HOST}${path}" 2>/dev/null | head -c 400
+  else
+    curl -k -sS -o /dev/null -m 25 \
+      --resolve "${HOST}:443:127.0.0.1" \
+      -H "accept: text/html" \
+      -H "user-agent: geohot-warm/1" \
+      -w "%{http_code} %{time_total} %{header_json}" \
+      "https://${HOST}${path}" 2>/dev/null | head -c 400
+  fi
 }
 
 for path in "${PATHS[@]}"; do

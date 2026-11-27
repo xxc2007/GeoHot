@@ -28,6 +28,15 @@ const englishSlots = () => {
   const n = raw === undefined || raw === "" ? 0 : Number(raw);
   return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
 };
+/**
+ * 只读探针：启动期用它检查「开了英文并发、却没给 intake 名额」这种死配置。
+ *
+ * 2026-11-27 现场（InstaBox）：`ENGLISH_CONCURRENCY` 还是 0，而 `GEOHOT_INTAKE_ENGLISH_SLOTS` 这个键
+ * 根本不存在（默认 0）。只要有人把并发开成 1，节点就会注册 content.english 的 handler，然后每一次
+ * 领取都被 {@link intakeActive} 判成忙（`lane >= englishSlots()` 在 slots=0 时恒真）并静默返回空——
+ * worker 像在岗，队列一条也不动，日志里一个字都没有。两个旋钮必须一起给，所以在这里留一个出口。
+ */
+export const intakeEnglishSlots = () => englishSlots();
 const intakeLane = (name: string, combined: boolean) =>
   name === "content.english" ? "english"
     : FETCH_LANE.has(name) || combined && name === "content.extract-body" ? "fetch"

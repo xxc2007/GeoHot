@@ -298,14 +298,43 @@ export const providerName = (service: string) => PROVIDERS[service]?.name ?? ser
 export const providerStops = (service: string) => PROVIDERS[service]?.stops ?? "相关功能停了";
 export const providerConsole = (service: string) => PROVIDERS[service]?.where ?? `${service} 后台`;
 
-/** Paid services that refuse us (no balance, a dead key), and daily budgets used up. */
+/**
+ * Paid services that refuse us (no balance, a dead key), and daily budgets used up.
+ *
+ * 2026-11-27：这两条聚合读的是 receipt_attempts（生产 56.6 万行 / 636MB），`providerFindings` 由
+ * `ops.alerts` 每 10 分钟调一次，而它既没有 statement_timeout 也没有事务包裹——裸连接上跑到天荒地老，
+ * 把同一块 250 IOPS 的盘和读者面一起占住。它们只是告警素材：跑不完就这一轮不出这类告警，下一轮再来，
+ * 好过让一条运维读把读者页拖成 503。
+ */
+const PROVIDER_SCAN_BUDGET = "5s";
+
+/** 一条读一个带预算的事务；57014 当这一条没查到，并留一行日志。 */
+async function boundedProviderScan<T>(fallback: T, read: (db: typeof sql) => Promise<T>): Promise<T> {
+  try {
+    return await sql.begin(async (tx) => {
+      await tx`SELECT set_config('statement_timeout', ${PROVIDER_SCAN_BUDGET}, true)`;
+      return read(tx as unknown as typeof sql) as Promise<T>;
+    }) as T;
+  } catch (error) {
+    if ((error as { code?: string }).code === "57014") {
+      console.warn(JSON.stringify({
+        level: "warn",
+        msg: "provider alert scan skipped: budget exhausted",
+        budget: PROVIDER_SCAN_BUDGET,
+      }));
+      return fallback;
+    }
+    throw error;
+  }
+}
+
 async function providerFindings(): Promise<Finding[]> {
   const out: Finding[] = [];
-  const refused = await sql<{ service: string; n: number; last: string }[]>`
+  const refused = await boundedProviderScan<{ service: string; n: number; last: string }[]>([], (db) => db`
     SELECT service, count(*)::int AS n, (array_agg(left(error, 200) ORDER BY started_at DESC))[1] AS last FROM receipt_attempts
     WHERE status = 'failed' AND started_at > now() - interval '1 hour'
       AND error ~* '(HTTP 40[123]\\M|insufficient|balance|arrear|good standing|欠费|余额)'
-    GROUP BY 1 HAVING count(*) >= 3`;
+    GROUP BY 1 HAVING count(*) >= 3`);
   for (const p of refused) {
     out.push({
       key: `provider.refused.${p.service}`,
@@ -320,10 +349,10 @@ async function providerFindings(): Promise<Finding[]> {
   // 与熔断器同一个花费口径：只数真产生（或可能产生）账单的尝试。以前这里数全部尝试，
   // 一次代理故障就能让告警报「额度用完」，而 paidRequest 其实还在放行——运维按告警去充值，
   // 真相是那条链一条中文稿都没产出。
-  const capped = await sql<{ service: string; per_day: number; used: number }[]>`
+  const capped = await boundedProviderScan<{ service: string; per_day: number; used: number }[]>([], (db) => db`
     SELECT b.service, b.per_day, count(a.id) FILTER (WHERE NOT ${unbilledAttempt()})::int AS used FROM budgets b
     JOIN receipt_attempts a ON a.service = b.service AND a.origin = 'live' AND a.started_at > now() - interval '1 day'
-    WHERE b.per_day > 0 GROUP BY 1, 2 HAVING count(a.id) FILTER (WHERE NOT ${unbilledAttempt()}) >= b.per_day`;
+    WHERE b.per_day > 0 GROUP BY 1, 2 HAVING count(a.id) FILTER (WHERE NOT ${unbilledAttempt()}) >= b.per_day`);
   for (const c of capped) {
     out.push({
       key: `budget.day.${c.service}`,

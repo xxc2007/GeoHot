@@ -8,7 +8,17 @@ LOG=/var/log/geohot-warm-en.log
 exec >>"$LOG" 2>&1
 B=http://127.0.0.1:3001
 echo "=== $(date -Is) warm start ==="
+# 2026-11-27：首页请求的是 `limit=12`（apps/web/app/routes/home.tsx:56 的 `queryString({...scope, limit: 12})`），
+# 而这里一直只热 `limit=40` —— `/api/site/timeline` 的落盘底稿键含 limit（apps/api/src/routes/site.ts:213 的
+# staleKey），两把键不相等，所以定时器从来没有为首页写过 `tl:` 底稿。
+# 收益要说准：内存里锚点聚合快照的键是 `binding(q)`、不含 limit（packages/backend/src/publication/timeline.ts:32-35，
+# 缓存用键在 :90），所以 limit=40 的预热确实已经替首页热到了锚点聚合这一段，不是全冷。
+# 真正缺的是按 limit 取页的那截——members/pool/facts/水合（timeline.ts:160-169）——以及进程重启后
+# 「先读落盘底稿直出」那条快路径（site.ts:219-227）：没有 limit=12 的 `tl:` 键，重启后首页只能现算。
+# 首页那两把键因此要一起热。
 for p in \
+  "timeline?lang=en&limit=12" \
+  "timeline?lang=zh&limit=12" \
   "timeline?lang=en&limit=40" \
   "pool?lang=en&page=1" \
   "topics?lang=en" \

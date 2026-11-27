@@ -81,17 +81,48 @@ interface SweepReport {
   report: number;
   deferred?: true;
   reason?: string;
+  /**
+   * 这一轮因为 6 秒预算被 57014 打断的组名。`deferred:true` 只会把 job_runs 记成 status='skipped'
+   * （jobs/queue.ts:181），detail 里每组的数字看起来和「本来没活」一模一样；把组名放进返回值，
+   * 运维才能在 /admin/runs 里分清「这组超时了」和「这组本来就没活」。
+   */
+  skippedGroups?: string[];
 }
 
 /**
  * Every ten minutes: five bounded reads, one enqueue each for rows that still need English. Ordering is
  * newest-first (the same order readers see), so a fresh site's visible items are covered first.
  *
- * 2026-11-27：五条读放进**一个只读事务**，每条都有 `statement_timeout` 预算。执行器连的库在读者机上
- * （2 vCPU / 250 IOPS / 891MB），实测「缺英文正文」那条查询挂了 156 秒，读者页当场 503。
- * 预算用完就跳过这一轮：回填慢一轮，好过换读者一次超时。
+ * 2026-11-27：每条读各自一个**只读事务**、各自一份 `statement_timeout` 预算。执行器连的库在读者机上
+ * （2 vCPU / 250 IOPS / 891MB），实测「缺英文正文」那条查询挂了 156 秒，读者页当场 503——所以要有预算。
+ *
+ * 但五条读共用一个事务也不行：只要其中一条撞上预算，57014 会把已经查出来的另外四组一起回滚。
+ * 生产现场正是这样——`content.english` 从 08:09 起 4.5 小时里 30 多轮 sweep 全部
+ * `{"deferred":true,"reason":"sweep budget exhausted"}`，`created` 只涨不消，失败作业也一次都没被重排。
+ * 五组互不依赖，所以改成「一组超时只丢这一组」：本轮仍然把其它组入队，报告里写明被跳过的组。
  */
 const SWEEP_STATEMENT_TIMEOUT = "6s";
+
+/**
+ * 一组读 = 一个只读事务 = 一份预算。超时（57014）就把这一组的名字记进 `skipped` 并返回 null，
+ * 让调用方跳过它、继续跑其余几组。
+ */
+async function sweepGroup<T>(name: string, read: (db: typeof sql) => Promise<T>, skipped: string[]): Promise<T | null> {
+  try {
+    return await sql.begin(async (tx) => {
+      await tx`SET TRANSACTION READ ONLY`;
+      await tx`SELECT set_config('statement_timeout', ${SWEEP_STATEMENT_TIMEOUT}, true), set_config('lock_timeout', '250ms', true)`;
+      return read(tx as unknown as typeof sql) as Promise<T>;
+    }) as T;
+  } catch (error) {
+    // 57014 = statement_timeout。回填让路，别把读者的查询一起拖死；这一组下一轮再来。
+    if ((error as { code?: string }).code === "57014") {
+      skipped.push(name);
+      return null;
+    }
+    throw error;
+  }
+}
 
 export async function sweepEnglish(): Promise<SweepReport> {
   const empty: SweepReport = { copy: 0, body: 0, story: 0, fact: 0, report: 0 };
@@ -102,19 +133,8 @@ export async function sweepEnglish(): Promise<SweepReport> {
     return { ...empty, deferred: true, reason: `english backlog ${backlog?.n}` };
   }
 
-  let found: {
-    copies: { article_id: string }[];
-    bodies: { id: string }[];
-    stories: { id: string }[];
-    facts: { id: string }[];
-    reports: { kind: "daily" | "weekly" | "monthly"; key: string }[];
-  };
-  try {
-    found = await sql.begin(async (tx) => {
-      await tx`SET TRANSACTION READ ONLY`;
-      await tx`SELECT set_config('statement_timeout', ${SWEEP_STATEMENT_TIMEOUT}, true), set_config('lock_timeout', '250ms', true)`;
-
-      const copies = await tx<{ article_id: string }[]>`
+  const skipped: string[] = [];
+  const copies = await sweepGroup<{ article_id: string }[]>("copy", (db) => db`
         SELECT p.article_id
           FROM publications p
           LEFT JOIN english_attempts ea
@@ -124,9 +144,9 @@ export async function sweepEnglish(): Promise<SweepReport> {
            AND coalesce(p.title, '') <> '' AND coalesce(p.summary, '') <> ''
            AND (ea.outcome IS NULL OR ea.outcome = 'stale' OR (ea.outcome = 'failed' AND ea.attempts < ${MAX_SWEEP_ATTEMPTS}))
          ORDER BY p.timeline_at DESC, p.article_id
-         LIMIT ${SWEEP_LIMIT}`;
+         LIMIT ${SWEEP_LIMIT}`, skipped) ?? [];
 
-      const bodies = await tx<{ id: string }[]>`
+  const bodies = await sweepGroup<{ id: string }[]>("body", (db) => db`
         SELECT a.id
           FROM articles a JOIN publications p ON p.article_id = a.id
           LEFT JOIN translations tr ON tr.article_id = a.id AND tr.lang = 'en' AND tr.revision = a.revision
@@ -138,9 +158,9 @@ export async function sweepEnglish(): Promise<SweepReport> {
              OR (ea.outcome = 'stale' AND ea.attempts < ${MAX_BODY_ATTEMPTS})
              OR (ea.outcome = 'failed' AND ea.attempts < ${MAX_BODY_ATTEMPTS}))
          ORDER BY p.timeline_at DESC, a.id
-         LIMIT ${SWEEP_LIMIT}`;
+         LIMIT ${SWEEP_LIMIT}`, skipped) ?? [];
 
-      const stories = await tx<{ id: string }[]>`
+  const stories = await sweepGroup<{ id: string }[]>("story", (db) => db`
         SELECT s.id::text AS id
           FROM stories s
           LEFT JOIN english_attempts ea
@@ -149,10 +169,10 @@ export async function sweepEnglish(): Promise<SweepReport> {
            AND s.english_source_version IS DISTINCT FROM s.version
            AND (ea.outcome IS NULL OR ea.outcome = 'stale' OR (ea.outcome = 'failed' AND ea.attempts < ${MAX_SWEEP_ATTEMPTS}))
          ORDER BY s.latest_at DESC NULLS LAST, s.id
-         LIMIT ${SWEEP_LIMIT}`;
+         LIMIT ${SWEEP_LIMIT}`, skipped) ?? [];
 
-      // facts 没有可用的版本列：用 `f<条数>:<最大 id>` 作为这批事实的 revision，写回与 sweep 同一个公式。
-      const facts = await tx<{ id: string }[]>`
+  // facts 没有可用的版本列：用 `f<条数>:<最大 id>` 作为这批事实的 revision，写回与 sweep 同一个公式。
+  const facts = await sweepGroup<{ id: string }[]>("fact-titles", (db) => db`
         WITH factsets AS (
           SELECT story_id, count(*)::int AS n, max(id)::text AS max_id
             FROM facts WHERE story_id IS NOT NULL GROUP BY story_id
@@ -166,9 +186,9 @@ export async function sweepEnglish(): Promise<SweepReport> {
          WHERE EXISTS (SELECT 1 FROM facts f WHERE f.story_id = fs.story_id AND f.title_en IS NULL)
            AND (ea.outcome IS NULL OR ea.outcome = 'stale' OR (ea.outcome = 'failed' AND ea.attempts < ${MAX_SWEEP_ATTEMPTS}))
          ORDER BY s.latest_at DESC NULLS LAST, fs.story_id
-         LIMIT ${SWEEP_LIMIT}`;
+         LIMIT ${SWEEP_LIMIT}`, skipped) ?? [];
 
-      const reports = await tx<{ kind: "daily" | "weekly" | "monthly"; key: string }[]>`
+  const reports = await sweepGroup<{ kind: "daily" | "weekly" | "monthly"; key: string }[]>("report", (db) => db`
         SELECT r.kind, r.key
           FROM reports r
           LEFT JOIN english_attempts ea
@@ -176,14 +196,17 @@ export async function sweepEnglish(): Promise<SweepReport> {
          WHERE (r.revision_en IS DISTINCT FROM r.revision OR r.content_en IS NULL)
            AND (ea.outcome IS NULL OR ea.outcome = 'stale' OR (ea.outcome = 'failed' AND ea.attempts < ${MAX_SWEEP_ATTEMPTS}))
          ORDER BY r.generated_at DESC, r.kind, r.key
-         LIMIT ${SWEEP_LIMIT}`;
+         LIMIT ${SWEEP_LIMIT}`, skipped) ?? [];
 
-      return { copies, bodies, stories, facts, reports };
-    });
-  } catch (error) {
-    // 57014 = statement_timeout。回填让路，别把读者的查询一起拖死。
-    if ((error as { code?: string }).code === "57014") return { ...empty, deferred: true, reason: "sweep budget exhausted" };
-    throw error;
+  // 五组各自结算：超时的那几组这一轮没有结果，其余照常入队。
+  const found = { copies, bodies, stories, facts, reports };
+  if (skipped.length > 0) {
+    console.log(JSON.stringify({
+      level: "warn",
+      msg: "english sweep groups skipped: budget exhausted",
+      groups: skipped,
+      budget: SWEEP_STATEMENT_TIMEOUT,
+    }));
   }
 
   // 入队放在事务外：读有预算，写不该被同一份预算截断。
@@ -203,11 +226,16 @@ export async function sweepEnglish(): Promise<SweepReport> {
     await enqueue(QUEUES.english, { kind: "report", reportKind: row.kind, key: row.key }, { singletonKey: `en-report:${row.kind}:${row.key}` });
   }
 
-  return {
+  const counts = {
     copy: found.copies.length,
     body: found.bodies.length,
     story: found.stories.length,
     fact: found.facts.length,
     report: found.reports.length,
   };
+  // 有组被跳过时仍然让这一轮在 job_runs 里显示成 skipped（operator 才知道该看下一轮），
+  // 但已经入队的那几组照常生效——这是这次改动与「整轮回滚」的唯一区别。
+  // `skippedGroups` 一起进 detail：否则 detail 里被跳过的组显示 0，和「本来没活」分不开。
+  if (skipped.length === 0) return { ...counts, skippedGroups: [] };
+  return { ...counts, deferred: true, reason: "sweep budget exhausted", skippedGroups: skipped };
 }
