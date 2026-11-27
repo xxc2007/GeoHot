@@ -1,0 +1,10 @@
+[Unit]
+Description=Keep the InstaBox sandbox awake (every 10 minutes)
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=10min
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target
