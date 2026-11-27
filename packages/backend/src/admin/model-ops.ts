@@ -9,6 +9,9 @@ import { sql } from "../db.ts";
 import { CAPABILITIES } from "../editorial/models.ts";
 import { MODELS } from "../providers/llm.ts";
 import { modelCooldown } from "../operations/model-cooldown.ts";
+import { normalizeWindow, windowSpec, type OpsWindow } from "./ops-window.ts";
+
+export type { OpsWindow };
 
 export type ModelOpsRow = {
   service: string;
@@ -53,6 +56,9 @@ export type ModelOpsTotals = {
 
 export type ModelOps = {
   at: string;
+  /** 当前口径（今天 / 7 天 / 全部），前端高亮用的就是它。 */
+  windowKey: OpsWindow;
+  /** 该口径折成的分钟数：「今天」是从零点到现在，「全部」是 0（无下界）。 */
   windowMinutes: number;
   filters: { purpose: string; service: string; model: string; status: string; dimension: Dimension };
   bucketMinutes: number;
@@ -206,29 +212,24 @@ async function capabilityPools() {
   });
 }
 
-/** Bucket width for the stacked chart: fine for a live hour, coarse for a week. */
-function bucketFor(windowMinutes: number) {
-  if (windowMinutes <= 90) return 5;
-  if (windowMinutes <= 360) return 15;
-  if (windowMinutes <= 1440) return 60;
-  return 1440;
-}
-
+/** Bucket width for the stacked chart lives in `windowSpec`: one bar per hour today, per 6h for a week. */
 const DIMENSION_COLUMN: Record<Dimension, "model" | "service" | "purpose"> = {
   model: "model",
   service: "service",
   purpose: "purpose",
 };
 
-export async function loadModelOps(windowMinutes = 60, filters: OpsFilters = {}): Promise<ModelOps> {
-  const window = Math.max(10, Math.min(10_080, Math.floor(windowMinutes)));
-  const since = new Date(Date.now() - window * 60_000);
+export async function loadModelOps(windowKey: string | number = "today", filters: OpsFilters = {}): Promise<ModelOps> {
+  const key = normalizeWindow(windowKey);
+  const spec = windowSpec(key);
+  const since = spec.since;
+  const window = spec.minutes;
   const purpose = (filters.purpose ?? "").slice(0, 80);
   const service = (filters.service ?? "").slice(0, 80);
   const model = (filters.model ?? "").slice(0, 200);
   const status = (filters.status ?? "").slice(0, 40);
   const dimension: Dimension = filters.dimension === "service" || filters.dimension === "purpose" ? filters.dimension : "model";
-  const bucketMinutes = bucketFor(window);
+  const bucketMinutes = spec.bucket;
   const bucketInterval = `${bucketMinutes} minutes`;
 
   // One scope predicate, applied identically to every read so the cards, the chart and the table agree.
@@ -384,6 +385,7 @@ export async function loadModelOps(windowMinutes = 60, filters: OpsFilters = {})
 
   return {
     at: new Date().toISOString(),
+    windowKey: key,
     windowMinutes: window,
     filters: { purpose, service, model, status, dimension },
     bucketMinutes,

@@ -58,7 +58,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 
   const p = url.searchParams;
   const qs = new URLSearchParams();
-  qs.set("window", p.get("window") ?? "60");
+  qs.set("window", p.get("window") ?? "today");
   for (const k of ["purpose", "service", "model", "status"]) if (p.get(k)) qs.set(k, p.get(k)!);
   const dimension = p.get("dimension");
   qs.set("dimension", dimension === "service" || dimension === "purpose" ? dimension : "model");

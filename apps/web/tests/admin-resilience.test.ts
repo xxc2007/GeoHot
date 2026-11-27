@@ -6,6 +6,7 @@ const build = await import(new URL("../build/server/index.js", import.meta.url).
 const prefix = String(build.basename).replace(/\/+$/, "");
 const emptyOps = {
   at: "2026-10-25T00:00:00Z",
+  windowKey: "today" as const,
   windowMinutes: 60,
   filters: { purpose: "", service: "", model: "", status: "", dimension: "model" as const },
   bucketMinutes: 5,

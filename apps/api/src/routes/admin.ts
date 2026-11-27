@@ -280,7 +280,8 @@ export function registerAdmin(app: FastifyInstance) {
   const opsCache = new Map<string, { at: number; data: Awaited<ReturnType<typeof loadModelOps>> }>();
   app.get("/api/admin/model-ops", adminHandler(async (req) => {
     const params = q(req);
-    const window = Number(params.window) || 60;
+    // 三档口径（today / 7d / all）由 loadModelOps 统一归一化：旧链接里的分钟数也会落到最接近的一档。
+    const window = params.window ?? "today";
     const filters = {
       purpose: params.purpose ?? "",
       service: params.service ?? "",
