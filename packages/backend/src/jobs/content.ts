@@ -121,17 +121,32 @@ export function agingBandPriority(water: number): number {
 export async function ageStaleLiveJobs(now = Date.now(), limit = 25): Promise<{ lifted: number }> {
   const water = realTimePriority({ historical: false, archive: false, signal: false, observedAt: now }, now);
   const band = agingBandPriority(water);
-  const rows = await sql<{ id: string }[]>`
-    UPDATE pgboss.job SET priority = ${band}
-    WHERE id IN (
-      SELECT id FROM pgboss.job
-      WHERE name IN (${QUEUES.analyze}, ${QUEUES.extractBody})
-        AND state = 'created' AND priority > 0 AND priority < ${band}
-        AND created_on < now() - interval '2 hours'
-      ORDER BY created_on
-      LIMIT ${limit}
-    ) RETURNING id`;
-  return { lifted: rows.length };
+  // 2026-11-28 现场：这条 UPDATE 过去没有预算。`content.analyze` 积压到 4k+ 时，`name IN (...) AND
+  // state='created' AND priority > 0 AND priority < band AND created_on < ...` 没有可用的复合索引，
+  // 实测单条跑 112 秒（wait_event=DataFileRead），每 10 分钟一次，把 2 vCPU / 250 IOPS 的读者机按在地上。
+  // 它只是运营便利：抬 25 条老任务的优先级，读者不靠它出页。超预算就整轮跳过（下轮再来）。
+  try {
+    const rows = await sql.begin(async (tx) => {
+      await tx`SELECT set_config('statement_timeout', '5s', true)`;
+      return tx<{ id: string }[]>`
+        UPDATE pgboss.job SET priority = ${band}
+        WHERE id IN (
+          SELECT id FROM pgboss.job
+          WHERE name IN (${QUEUES.analyze}, ${QUEUES.extractBody})
+            AND state = 'created' AND priority > 0 AND priority < ${band}
+            AND created_on < now() - interval '2 hours'
+          ORDER BY created_on
+          LIMIT ${limit}
+        ) RETURNING id`;
+    });
+    return { lifted: rows.length };
+  } catch (error) {
+    if ((error as { code?: string }).code === "57014") {
+      console.warn(JSON.stringify({ level: "warn", msg: "queue aging skipped: budget exhausted", budget: "5s" }));
+      return { lifted: 0 };
+    }
+    throw error;
+  }
 }
 
 export async function queueProcessing(articleId: string, opts: { step?: Step; attemptTag?: string; serverOnlyExtraction?: boolean; db?: Db } = {}): Promise<string | null> {
