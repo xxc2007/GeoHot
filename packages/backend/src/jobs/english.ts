@@ -210,20 +210,26 @@ export async function sweepEnglish(): Promise<SweepReport> {
   }
 
   // 入队放在事务外：读有预算，写不该被同一份预算截断。
+  //
+  // 优先级（2026-11-27）：队列是 FIFO，而 body 是最长的那一类（一篇正文最多 180 秒、还要分批），
+  // 生产现场队列头是 8 小时前的 body，copy 排在后面 7 小时都轮不到——英文页的标题/摘要因此一直
+  // 停在"没有英文版"。copy/story/fact/report 都是几十秒的小活、又直接决定英文页能不能读，
+  // 给它们高优先级插到队头；body 保持 0，让它在没有别的活时才跑。
+  const READY_PRIORITY = 1_000_000;
   for (const row of found.copies) {
-    await enqueue(QUEUES.english, { kind: "copy", articleId: row.article_id }, { singletonKey: `en-copy:${row.article_id}` });
+    await enqueue(QUEUES.english, { kind: "copy", articleId: row.article_id }, { singletonKey: `en-copy:${row.article_id}`, priority: READY_PRIORITY });
   }
   for (const row of found.bodies) {
     await enqueue(QUEUES.english, { kind: "body", articleId: row.id }, { singletonKey: `en-body:${row.id}` });
   }
   for (const row of found.stories) {
-    await enqueue(QUEUES.english, { kind: "story", storyId: Number(row.id) }, { singletonKey: `en-story:${row.id}` });
+    await enqueue(QUEUES.english, { kind: "story", storyId: Number(row.id) }, { singletonKey: `en-story:${row.id}`, priority: READY_PRIORITY });
   }
   for (const row of found.facts) {
-    await enqueue(QUEUES.english, { kind: "fact-titles", storyId: Number(row.id) }, { singletonKey: `en-facts:${row.id}` });
+    await enqueue(QUEUES.english, { kind: "fact-titles", storyId: Number(row.id) }, { singletonKey: `en-facts:${row.id}`, priority: READY_PRIORITY });
   }
   for (const row of found.reports) {
-    await enqueue(QUEUES.english, { kind: "report", reportKind: row.kind, key: row.key }, { singletonKey: `en-report:${row.kind}:${row.key}` });
+    await enqueue(QUEUES.english, { kind: "report", reportKind: row.kind, key: row.key }, { singletonKey: `en-report:${row.kind}:${row.key}`, priority: READY_PRIORITY });
   }
 
   const counts = {
