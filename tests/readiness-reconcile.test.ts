@@ -34,6 +34,11 @@ test("定时任务每十分钟跑一次，过期上限与其它分钟级任务�
 
 test("缺口清零时巡检不出声，有缺口才写日志", async () => {
   const text = await source("packages/backend/src/publication/readiness-reconcile.ts");
-  assert.match(text, /if \(refreshed > 0 \|\| failed > 0 \|\| count > 0\) \{/);
-  assert.match(text, /missingAfter: count/);
+  // 2026-11-28：计数超预算时 missingAfter 落 -1（未知），日志条件跟着用缺失数而不是局部变量。
+  assert.match(text, /if \(refreshed > 0 \|\| failed > 0 \|\| missingAfter > 0\) \{/);
+  assert.match(text, /const report = \{ scanned: rows\.length, refreshed, failed, missingAfter \}/);
+  // 三条全表扫描都必须带预算：挑选 3s、计数 2s、重算循环 4s 墙钟。
+  assert.match(text, /set_config\('statement_timeout', '3s', true\)/);
+  assert.match(text, /set_config\('statement_timeout', '2s', true\)/);
+  assert.match(text, /const deadline = Date\.now\(\) \+ 4_000;/);
 });
