@@ -20,7 +20,11 @@ const stats = new Map<SiteLang, Cached<SiteStats>>();
 export function loadSiteStats(lang: SiteLang = "zh"): Promise<SiteStats> {
   let entry = stats.get(lang);
   if (!entry) {
-    entry = cached(() => querySiteStats(new Date(), lang), { freshMs: 10 * 60_000, maxStaleMs: 60 * 60_000 });
+    // 2026-11-27 生产实测：预热脚本每 10 分钟打一次 stats，而缓存 freshMs 也是 10 分钟，
+    // 于是每一轮预热都要把这条 6 个 count(*) 的查询（items/collected 是全表扫，实测 36–90 秒）
+    // 在 250 IOPS 的盘上重跑一遍 —— 它自己就是那把 IO 打满的扫帚之一。新鲜期改成 1 小时、
+    // 允许陈旧 6 小时：/about 不是读者主路径，数字晚一小时可接受，每 10 分钟一次全表扫不可接受。
+    entry = cached(() => querySiteStats(new Date(), lang), { freshMs: 60 * 60_000, maxStaleMs: 6 * 60 * 60_000 });
     stats.set(lang, entry);
   }
   return entry.get();
