@@ -31,4 +31,15 @@ for p in \
   code=$(curl -s -o /dev/null -w "%{http_code} %{time_total}s" --max-time 300 "$B/api/site/$p")
   echo "$p -> $code"
 done
+# 2026-11-27 现场：这里过去只热 API 快照，nginx 的 HTML 公共缓存没人填。库一忙、页面又恰好
+# 过了 inactive，下一个读者撞上的就是冷渲染 503（/geohot/en/all 当场复现）。
+# 现在把两语的读者页也过一遍 nginx（走 Host 头，命中公共缓存 zone）：条目页太多不逐个热，
+# 但首页/全部/热榜/日报/主题/关于这几屏是每天的主入口，值得每 10 分钟填一次。
+W=http://127.0.0.1
+for p in \
+  "/geohot/" "/geohot/all" "/geohot/hot" "/geohot/daily" "/geohot/topics" "/geohot/about" \
+  "/geohot/en" "/geohot/en/all" "/geohot/en/hot" "/geohot/en/daily" "/geohot/en/topics" "/geohot/en/about" ; do
+  code=$(curl -s -o /dev/null -w "%{http_code} %{time_total}s" --max-time 120 -H "Host: ${GEOHOT_PUBLIC_HOST:-xxc2007.me}" "$W$p")
+  echo "page $p -> $code"
+done
 echo "=== $(date -Is) warm done ==="
