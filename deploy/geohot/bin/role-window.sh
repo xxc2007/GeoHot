@@ -11,9 +11,13 @@
 #   night → WORKER_ROLE=all，分析槽 2（四台执行器各 2 槽：夜里 8 个并发）
 #
 # 槽位可用环境变量调：GEOHOT_ROLE_DAY_SLOTS（默认 1）、GEOHOT_ROLE_NIGHT_SLOTS（默认 2）。
+# 英文腿同理：GEOHOT_ROLE_ENGLISH_SLOTS（默认 0）——只有回填节点设 1，且只在夜间档生效，白天一律 0。
 # 2026-11-16 起白天从 0 改成 1：当天实测主库 io some avg10 只有 5.9、load 0.9，
 # 而积压里躺着 2,163 条 content.analyze；把白天压成 0 是旧的保守值，
 # 现在的账是「一台机器一个分析槽，主库压力仍低一个数量级」。
+#
+# 注意（别删）：systemd 的 `Environment=` **优先于** `EnvironmentFile=`。本脚本写的是 .env，
+# 一旦 drop-in 里有同名 ENGLISH_* 覆盖，这里写下去的值会被静默盖掉（脚本会先扫一遍并打 warn）。
 #
 # 为什么白天也写 WORKER_ROLE=all：`extraction` 在 worker-role.ts 里是
 # `role !== coordinator && role !== fetcher && role !== media` —— 写成 fetcher 会把
@@ -50,6 +54,22 @@ fi
 # 先备份再改：这几个键曾经被 systemd drop-in 盖掉过，出问题时能一眼对比回来。
 cp -p "$env_file" "$env_file.bak-role-$(date +%H%M%S)"
 
+# 约束（别删）：systemd 的 `Environment=` **优先于** `EnvironmentFile=`。本脚本写的是 .env（默认 /opt/geohot-exec/.env），
+# 一旦有人给 geohot-exec-worker 加一条 `Environment=ENGLISH_CONCURRENCY=1` 的 drop-in，窗口脚本就再也关不掉它，
+# 「早上写回 0」会静默失效——上面那句「这几个键曾经被 systemd drop-in 盖掉过」记的就是同一类旧伤。
+# 发现同名覆盖就喊一声（连命中的文件:行一起打出来），让人先看见再决定。
+for u in geohot-exec-worker geohot-worker; do
+  unit_dir="/etc/systemd/system/${u}.service.d"
+  [ -d "$unit_dir" ] || continue
+  hits="$(grep -rnsE '^[[:space:]]*Environment=.*ENGLISH_' "$unit_dir" 2>/dev/null)"
+  if [ -n "$hits" ]; then
+    msg="WARN: ${unit_dir} 里有 Environment= 覆盖 ENGLISH_*；systemd 的 Environment= 优先于 EnvironmentFile=，窗口脚本写 .env 不会生效"
+    logger -t geohot-role "$msg"
+    echo "$msg" >&2
+    printf '%s\n' "$hits" >&2
+  fi
+done
+
 set_key() {
   local key="$1" value="$2"
   if grep -q "^${key}=" "$env_file"; then
@@ -64,8 +84,20 @@ set_key WORKER_ROLE "$role"
 set_key ANALYZE_CONCURRENCY "1"
 set_key GEOHOT_INTAKE_ANALYSIS_SLOTS "$slots"
 
-logger -t geohot-role "mode=$mode role=$role slots=$slots file=$env_file"
+# 英文腿：只有被点名的回填节点在夜间开（GEOHOT_ROLE_ENGLISH_SLOTS=1），其余节点与白天一律 0。
+#
+# 2026-11-27：这两个键此前没有任何执行器侧的窗口脚本会写——worker-window.sh（:53/:62）只对主库的
+# geohot-worker 生效，而执行器跑的是本脚本（setup-executor-window.sh 装的就是它）。于是「夜里自动开
+# 英文」在执行器上并不存在，反过来手工改了 .env 也没有任何东西会在早上把它关掉，正是 hcss 08:13 之后
+# 一直 ENGLISH_CONCURRENCY=0、InstaBox 连 GEOHOT_INTAKE_ENGLISH_SLOTS 都没有的那种漂移。
+# 两个键与 ENGLISH_CONCURRENCY 门必须成套：只有并发没有 intake 名额 = 每次领取都被判忙且零日志。
+english=${GEOHOT_ROLE_ENGLISH_SLOTS:-0}
+if [ "$mode" = "day" ]; then english=0; fi
+set_key GEOHOT_INTAKE_ENGLISH_SLOTS "$english"
+set_key ENGLISH_CONCURRENCY "$english"
+
+logger -t geohot-role "mode=$mode role=$role slots=$slots english=$english file=$env_file"
 
 # worker 要重启才会读到新的 role（job 分组在启动时决定）。
 systemctl restart --no-block geohot-exec-worker 2>/dev/null || systemctl restart --no-block geohot-worker 2>/dev/null || true
-echo "mode=$mode role=$role slots=$slots"
+echo "mode=$mode role=$role slots=$slots english=$english"

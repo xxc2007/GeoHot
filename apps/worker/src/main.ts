@@ -5,6 +5,8 @@ import { closeDb, sql } from "@aihot/backend/db";
 import { getBoss, shutdownSignal, stopBoss } from "@aihot/backend/jobs/queue";
 import { registerContentJobs, registerExtractionJobs } from "@aihot/backend/jobs/content";
 import { registerEnglishJobs } from "@aihot/backend/jobs/english";
+import { englishConcurrency } from "@aihot/backend/editorial/english";
+import { intakeEnglishSlots } from "@aihot/backend/operations/resource-intake";
 import { jobGroups, workerPlan } from "@aihot/backend/jobs/worker-role";
 import { ensureFetchIndex } from "@aihot/backend/jobs/fetch-index";
 import { registerSourceJobs } from "@aihot/backend/jobs/sources";
@@ -98,6 +100,25 @@ if (groups.content) await initialized(registerContentJobs(boss, plan.coordinator
 // 英文腿与 content 组并列、单独注册：它读自己的 ENGLISH_CONCURRENCY（0 = 本机不领英文作业），
 // 不能塞进 registerContentJobs 里继承 ANALYZE_CONCURRENCY 与同一个队列。
 if (groups.content) await initialized(registerEnglishJobs(boss));
+// 2026-11-27 现场（InstaBox）：`GEOHOT_INTAKE_ENGLISH_SLOTS` 这个键在机器上根本不存在（默认 0）。
+// 那样即使把 ENGLISH_CONCURRENCY 开成 1，intake 也会把每一次领取判成忙并静默返回空：worker 看起来
+// 在岗，content.english 一条都不会被领取，日志里没有任何线索。两个旋钮必须一起给，缺一个就喊出来。
+// 不看 groups.content：协调节点（WORKER_ROLE=coordinator）上开了英文并发是另一种静默——它根本不注册
+// 英文 handler，配了也白配，同样值得一行日志。
+if (englishConcurrency() >= 1 && intakeEnglishSlots() < 1) {
+  console.warn(JSON.stringify({
+    level: "warn",
+    msg: "ENGLISH_CONCURRENCY is on but GEOHOT_INTAKE_ENGLISH_SLOTS is 0: content.english will never be admitted on this node",
+    hint: "set GEOHOT_INTAKE_ENGLISH_SLOTS=1 (same node, same restart) or turn ENGLISH_CONCURRENCY back to 0",
+  }));
+}
+if (!groups.content && englishConcurrency() >= 1) {
+  console.warn(JSON.stringify({
+    level: "warn",
+    msg: "ENGLISH_CONCURRENCY is set on a node that does not register content jobs: it will consume nothing",
+    role: plan.role,
+  }));
+}
 if (groups.extraction && !groups.media) {
   // COLLECT_ENABLED preserves waitsForPage semantics; the fetcher/media roles never register extraction.
   await initialized(registerExtractionJobs(boss, positiveInt(process.env.EXTRACT_CONCURRENCY, "EXTRACT_CONCURRENCY", 2)));

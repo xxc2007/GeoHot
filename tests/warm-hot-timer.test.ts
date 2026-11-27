@@ -9,13 +9,16 @@ import { REPO_ROOT } from "@aihot/backend/config";
 
 const read = (rel: string) => readFileSync(path.join(REPO_ROOT, rel), "utf8");
 
-test("预热脚本支持 GEOHOT_WARM_PATHS 覆盖，默认仍是五屏", () => {
+test("预热脚本支持 GEOHOT_WARM_PATHS 覆盖；/geohot/en 只在 scheme 核实过之后才加入", () => {
   const script = read("deploy/geohot/bin/warm-pages.sh");
   assert.match(script, /GEOHOT_WARM_PATHS/);
   assert.match(script, /read -r -a PATHS/);
   for (const p of ["/geohot/", "/geohot/all?tab=all", "/geohot/hot", "/geohot/daily", "/geohot/topics"]) {
     assert.ok(script.includes(`"${p}"`), `默认路径缺 ${p}`);
   }
+  // 缓存键含 $scheme（public-cache-location.conf:3），而 docs/known-issues.md:30 记着 CF 回源是明文 80。
+  // 在 scheme 核实之前给 /en 加预热，写的是没人读的那把键 —— 净增负载、没有收益。
+  assert.match(script, /if \[ -n "\$\{GEOHOT_WARM_SCHEME:-\}" \]; then\s*\n\s*PATHS\+=\("\/geohot\/en"\)/, "/geohot/en 必须挂在 GEOHOT_WARM_SCHEME 的显式设置之下");
 });
 
 test("首页与「全部」有 60 秒一轮的独立预热带", () => {
