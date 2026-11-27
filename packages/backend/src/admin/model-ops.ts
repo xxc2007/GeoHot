@@ -11,6 +11,7 @@ import { MODELS } from "../providers/llm.ts";
 import { modelCooldown } from "../operations/model-cooldown.ts";
 import { normalizeWindow, windowSpec, type OpsWindow } from "./ops-window.ts";
 
+export { normalizeWindow };
 export type { OpsWindow };
 
 export type ModelOpsRow = {

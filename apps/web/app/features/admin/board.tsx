@@ -294,11 +294,14 @@ export function BoardPanel({ ops, runs }: { ops: Ops; runs: Runs | null }) {
   }, []);
 
   useEffect(() => {
+    // 「今天」5 秒一刷是实时看板的本分；7 天/全部要扫几十万行（实测单条聚合 ~1 秒），
+    // 再用 5 秒去重取就是把读者机的 IO 当免费资源。窗口越宽，刷新越慢。
+    const pollMs = ops.windowKey === "today" ? 5_000 : ops.windowKey === "7d" ? 30_000 : 60_000;
     const id = setInterval(() => {
       if (document.visibilityState === "visible" && refresh.state === "idle") refresh.revalidate();
-    }, 5000);
+    }, pollMs);
     return () => clearInterval(id);
-  }, [refresh.state, refresh.revalidate]);
+  }, [refresh.state, refresh.revalidate, ops.windowKey]);
 
   const setParam = (updates: Record<string, string>) => {
     const next = new URLSearchParams(params);
