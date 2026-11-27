@@ -13,7 +13,7 @@ import { sharedAdminRead } from "@aihot/backend/admin/read-cache";
 import { cachePage } from "@aihot/backend/admin/page-cache";
 import { MicroCache } from "@aihot/backend/lib/micro-cache";
 import { modelsOverview, setCapabilityPool, switchModel } from "@aihot/backend/admin/models";
-import { loadModelOps } from "@aihot/backend/admin/model-ops";
+import { loadModelOps, normalizeWindow } from "@aihot/backend/admin/model-ops";
 import { usageOverview } from "@aihot/backend/admin/usage";
 
 import { contentChain, detachFromFact, mergeStories, overrideFields, rerun, rewriteStoryDigest, searchContent, setSeoIndexed, setVisibility } from "@aihot/backend/admin/content";
@@ -280,7 +280,12 @@ export function registerAdmin(app: FastifyInstance) {
   const opsCache = new Map<string, { at: number; data: Awaited<ReturnType<typeof loadModelOps>> }>();
   app.get("/api/admin/model-ops", adminHandler(async (req) => {
     const params = q(req);
-    const window = Number(params.window) || 60;
+    // 三档口径（today / 7d / all）由 loadModelOps 统一归一化：旧链接里的分钟数也会落到最接近的一档。
+    const window = params.window ?? "today";
+    // 页面在可见时按窗口节奏重取；「全部」要扫 57 万行（实测单条聚合 ~1 秒），
+    // 不能让重取把读者机的 IO 吃满 —— 窗口越宽，进程内缓存越久。
+    const widened = normalizeWindow(window);
+    const ttl = widened === "today" ? 5_000 : widened === "7d" ? 30_000 : 60_000;
     const filters = {
       purpose: params.purpose ?? "",
       service: params.service ?? "",
@@ -290,10 +295,10 @@ export function registerAdmin(app: FastifyInstance) {
     };
     const key = JSON.stringify([window, filters]);
     const hit = opsCache.get(key);
-    if (hit && Date.now() - hit.at < 5_000) return hit.data;
+    if (hit && Date.now() - hit.at < ttl) return hit.data;
     const data = await loadModelOps(window, filters);
     opsCache.set(key, { at: Date.now(), data });
-    // Bounded: a dozen filter combinations × 5 s covers one operator and cannot grow without end.
+    // Bounded: a dozen filter combinations covers one operator and cannot grow without end.
     if (opsCache.size > 12) opsCache.delete(opsCache.keys().next().value!);
     return data;
   }));

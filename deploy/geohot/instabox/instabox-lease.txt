@@ -1,0 +1,38 @@
+#!/bin/bash
+# InstaBox 沙箱保活 + 自愈。为什么需要它：免费沙箱 30 分钟「无外部活动」就挂起，
+# 挂起时进程被冻结、不再领队列（2026-11-27 实测冻了 8.7 小时，cron 触发堆了 841 条）。
+# activity-lease 的语义就是「有任务在做」：每 10 分钟续一次、TTL 1 小时，空闲计时永远不会开始。
+# 四步：续租（顺带唤醒）→ 被手动停掉就 start → tunnel/worker 不在岗就拉起来 → 打一行结果。
+set -u
+KEY_FILE=${KEY_FILE:-/opt/geohot-exec/instabox.key}
+MACHINE=m_agq566xboeglgwufg5qvn7qxle
+LEASE=geohot-worker
+BASE="https://api.instabox.sh/v1/machines/$MACHINE"
+[ -r "$KEY_FILE" ] || { echo "missing $KEY_FILE"; exit 1; }
+KEY=$(tr -d '\r\n' < "$KEY_FILE")
+AUTH_HEADER="X-API-Key: $KEY"
+
+code=$(curl -sS -o /tmp/ib-lease.out -w '%{http_code}' --max-time 20 \
+  -X PUT -H "$AUTH_HEADER" -H 'Content-Type: application/json' \
+  -d '{"ttlSeconds":3600}' "$BASE/activity-leases/$LEASE")
+if [ "$code" != "200" ]; then
+  echo "lease failed http=$code $(head -c 200 /tmp/ib-lease.out)"
+  exit 1
+fi
+
+state=$(curl -sS --max-time 20 -H "$AUTH_HEADER" "$BASE" \
+  | tr ',' '\n' | sed -n 's/.*"state":"\([a-z]*\)".*/\1/p' | head -1)
+if [ "$state" != "running" ]; then
+  curl -sS -o /tmp/ib-start.out --max-time 40 -X POST -H "$AUTH_HEADER" \
+    -H 'Content-Type: application/json' -d '{}' "$BASE/start" || true
+  echo "machine was ${state:-unknown}; start requested"
+fi
+
+body=$(curl -sS --max-time 60 -X POST -H "$AUTH_HEADER" -H 'Content-Type: application/json' \
+  -d '{"argv":["sudo","-n","bash","-lc","systemctl is-active --quiet geohot-exec-tunnel || systemctl start geohot-exec-tunnel; systemctl is-active --quiet geohot-exec-worker || systemctl start geohot-exec-worker; echo worker=$(systemctl is-active geohot-exec-worker) tunnel=$(systemctl is-active geohot-exec-tunnel)"]}' \
+  "$BASE/exec")
+case "$body" in
+  *'"exitCode":0'*) ;;
+  *) echo "exec failed: $(printf %.200s "$body")" ;;
+esac
+echo "lease ok $(date -u +%H:%M:%SZ) state=${state:-?} $(printf %.120s "$body" | grep -o 'worker=[a-z]* tunnel=[a-z]*' | head -1)"

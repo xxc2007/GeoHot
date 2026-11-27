@@ -50,6 +50,8 @@ export interface OpsStage {
 
 export interface Ops {
   at: string;
+  /** 三档口径：今天（北京时间零点起）/ 7 天 / 全部。 */
+  windowKey: "today" | "7d" | "all";
   windowMinutes: number;
   filters: { purpose: string; service: string; model: string; status: string; dimension: Dimension };
   bucketMinutes: number;
@@ -83,12 +85,12 @@ export interface Runs {
   failedJobs: Array<{ name: string; failed: number; last: string; last_output: string | null }>;
 }
 
+// 站长 2026-11-27：口径改成「今天 / 7 天 / 全部」。15 分钟到 24 小时那五档只够盯抖动，
+// 看不到「今天用得怎么样」，更答不了「这个月一共花了多少」。
 const WINDOWS = [
-  { value: "15", label: "15 分钟" },
-  { value: "60", label: "1 小时" },
-  { value: "360", label: "6 小时" },
-  { value: "1440", label: "24 小时" },
-  { value: "10080", label: "7 天" },
+  { value: "today", label: "今天" },
+  { value: "7d", label: "7 天" },
+  { value: "all", label: "全部" },
 ] as const;
 
 const DIMENSIONS: Array<{ value: Dimension; label: string }> = [
@@ -292,11 +294,14 @@ export function BoardPanel({ ops, runs }: { ops: Ops; runs: Runs | null }) {
   }, []);
 
   useEffect(() => {
+    // 「今天」5 秒一刷是实时看板的本分；7 天/全部要扫几十万行（实测单条聚合 ~1 秒），
+    // 再用 5 秒去重取就是把读者机的 IO 当免费资源。窗口越宽，刷新越慢。
+    const pollMs = ops.windowKey === "today" ? 5_000 : ops.windowKey === "7d" ? 30_000 : 60_000;
     const id = setInterval(() => {
       if (document.visibilityState === "visible" && refresh.state === "idle") refresh.revalidate();
-    }, 5000);
+    }, pollMs);
     return () => clearInterval(id);
-  }, [refresh.state, refresh.revalidate]);
+  }, [refresh.state, refresh.revalidate, ops.windowKey]);
 
   const setParam = (updates: Record<string, string>) => {
     const next = new URLSearchParams(params);
@@ -339,8 +344,8 @@ export function BoardPanel({ ops, runs }: { ops: Ops; runs: Runs | null }) {
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex flex-wrap gap-1 rounded-control bg-bg-sunk p-1">
               {WINDOWS.map((w) => (
-                <button key={w.value} type="button" aria-pressed={String(ops.windowMinutes) === w.value} onClick={() => setParam({ window: w.value })}
-                  className={`rounded-control px-2.5 py-1 text-[12.5px] ${String(ops.windowMinutes) === w.value ? "bg-surface text-ink shadow-sm" : "text-ink-3"}`}>{w.label}</button>
+                <button key={w.value} type="button" aria-pressed={ops.windowKey === w.value} onClick={() => setParam({ window: w.value })}
+                  className={`rounded-control px-2.5 py-1 text-[12.5px] ${ops.windowKey === w.value ? "bg-surface text-ink shadow-sm" : "text-ink-3"}`}>{w.label}</button>
               ))}
             </div>
             <div className="flex flex-wrap gap-1 rounded-control bg-bg-sunk p-1">
@@ -550,6 +555,10 @@ function PoolDialog({ edit, catalog, busy, onClose, onSave }: {
   const [picked, setPicked] = useState(true);
   const [query, setQuery] = useState("");
   const [mode, setMode] = useState<"custom" | "reset">("custom");
+  // 拖动排序：手指/鼠标按住行首把手拖到目标位置。↑↓ 按钮保留——触屏没有 HTML5 拖放、
+  // 键盘用户也需要一条不依赖鼠标的路。
+  const [dragFrom, setDragFrom] = useState<number | null>(null);
+  const [dragOver, setDragOver] = useState<number | null>(null);
 
   useEffect(() => {
     if (!edit) return;
@@ -571,6 +580,15 @@ function PoolDialog({ edit, catalog, busy, onClose, onSave }: {
   });
   const remove = (i: number) => setMembers((m) => m.filter((_, k) => k !== i));
   const add = (key: string) => setMembers((m) => (m.includes(key) || m.length >= limit ? m : [...m, key]));
+  /** 拖动落点：把 from 那一行插到 to 的位置（池里允许同一个模型出现两次做加权，所以按位次搬，不按名字）。 */
+  const reorder = (from: number, to: number) => setMembers((m) => {
+    if (from === to || from < 0 || to < 0 || from >= m.length || to >= m.length) return m;
+    const next = [...m];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved!);
+    return next;
+  });
+  const endDrag = () => { setDragFrom(null); setDragOver(null); };
   const pickable = catalog
     .filter((c) => (edit.vision ? c.vision : !c.vision || c.vision))
     .filter((c) => (query ? c.key.toLowerCase().includes(query.toLowerCase()) || c.service.toLowerCase().includes(query.toLowerCase()) : true))
@@ -600,14 +618,37 @@ function PoolDialog({ edit, catalog, busy, onClose, onSave }: {
         <>
           <div>
             <div className="mb-1.5 flex items-center justify-between text-[12px] text-ink-4">
-              <span>已选 {members.length} / {limit}（从上到下次序即优先级）</span>
+              <span>已选 {members.length} / {limit}（从上到下次序即优先级，可拖动排序）</span>
               <button type="button" className="text-ink-3 hover:text-ink" onClick={() => setPicked((v) => !v)}>{picked ? "收起" : "展开"}</button>
             </div>
             {picked && (
               <div className="max-h-[38vh] overflow-y-auto rounded-control border border-line-soft">
                 {members.length === 0 && <div className="px-3 py-3 text-[12.5px] text-ink-4">还没有选模型。从下面添加。</div>}
                 {members.map((m, i) => (
-                  <div key={m} className="flex items-center gap-1.5 border-b border-line-soft px-2 py-1 last:border-0">
+                  <div
+                    key={`${m}-${i}`}
+                    draggable
+                    onDragStart={(e) => {
+                      setDragFrom(i);
+                      e.dataTransfer.effectAllowed = "move";
+                      e.dataTransfer.setData("text/plain", String(i));
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = "move";
+                      if (dragOver !== i) setDragOver(i);
+                    }}
+                    onDragLeave={() => setDragOver((v) => (v === i ? null : v))}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const from = dragFrom ?? Number(e.dataTransfer.getData("text/plain"));
+                      if (Number.isInteger(from)) reorder(from, i);
+                      endDrag();
+                    }}
+                    onDragEnd={endDrag}
+                    className={`flex items-center gap-1.5 border-b border-line-soft px-2 py-1 last:border-0 ${dragFrom === i ? "opacity-40" : ""} ${dragOver === i && dragFrom !== i ? "bg-bg-sunk ring-1 ring-inset ring-line-strong" : ""}`}
+                  >
+                    <span aria-hidden="true" title="拖动排序" className="cursor-grab select-none px-0.5 text-[13px] leading-none text-ink-4 active:cursor-grabbing">⠿</span>
                     <span className="num w-5 shrink-0 text-[11.5px] text-ink-4">{i + 1}</span>
                     <span className="min-w-0 flex-1 truncate font-mono text-[12px]" title={m}>{m}</span>
                     {i === 0 && <Badge tone="ok">首选</Badge>}
