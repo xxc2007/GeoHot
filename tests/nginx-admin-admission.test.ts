@@ -21,14 +21,20 @@ test("真实读者与静态资源仍然按访客计数，回环豁免没被改�
   assert.match(conf, /default \$binary_remote_addr;/);
   assert.match(conf, /geo \$geohot_reader_exempt \{/);
   assert.match(conf, /127\.0\.0\.1\/32 1;/);
-  assert.match(conf, /limit_req_zone \$geohot_reader_key zone=geohot_reader_rate:1m rate=2r\/s;/);
+  // 2026-11-28：2r/s 对「一个读者 + 列表 prefetch」太紧，正常浏览会被自己的数据请求打回 429。
+  assert.match(conf, /limit_req_zone \$geohot_reader_key zone=geohot_reader_rate:1m rate=10r\/s;/);
 });
 
-test("入口限制的片段进了仓库，读者侧仍是 2r/s + burst 12", () => {
+test("读者数据接口与 .data 不占 HTML 的桶（prefetch 不该把自己限速）", () => {
+  assert.match(conf, /~?\^?\(GET\|HEAD\):\/geohot\/api\/site\/\(timeline\|pool\|hot\|calendar\|meta\|stats\|changelog\|topics\)\(/);
+  assert.match(conf, /~?\^?\(GET\|HEAD\):\/geohot\/\.\*\\\.data\$/);
+});
+
+test("入口限制的片段进了仓库，读者侧是 10r/s + burst 30", () => {
   assert.ok(existsSync(snippetUrl), "deploy/geohot/nginx/geohot-public-admission.conf 应当在仓库里");
   const snippet = readFileSync(snippetUrl, "utf8");
-  assert.match(snippet, /limit_conn geohot_dynamic_conns 6;/);
-  assert.match(snippet, /limit_req zone=geohot_reader_rate burst=12 nodelay;/);
+  assert.match(snippet, /limit_conn geohot_dynamic_conns 16;/);
+  assert.match(snippet, /limit_req zone=geohot_reader_rate burst=30 nodelay;/);
 });
 
 test("conf.d 里的同名副本也要跟着仓库走，否则改仓库线上不变", () => {
