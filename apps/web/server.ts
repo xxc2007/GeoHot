@@ -158,10 +158,13 @@ function pageCache(req: import("node:http").IncomingMessage, res: import("node:h
       res.setHeader("Date", now.toUTCString());
       res.setHeader("X-Accel-Expires", seconds > 0 ? expires : "0");
       // Reuse intent-prefetched data in the browser within the same shared-cache deadline (capped).
-      // Never serve it beyond that deadline, including while revalidating or on an error.
+      // 2026-11-28 现场：这里过去追加 `must-revalidate`，于是 s-maxage 一过，nginx 就必须**阻塞**
+      // 等源站重新渲染（实测 /geohot/en/all 移动端 TTFB 16.5s），`proxy_cache_background_update`
+      // 和 `stale-while-revalidate` 全被这一条作废。改成 stale-while-revalidate：读者永远先拿到
+      // 上一版，刷新在后台做；stale-if-error 再把 5xx 兜成旧内容。
       const directives = cc.split(",").map((value) => value.trim()).filter((value) => !/^(?:max-age|s-maxage|stale-while-revalidate|stale-if-error|must-revalidate)(?:=|$)/i.test(value));
       res.setHeader("Cache-Control", seconds > 0
-        ? `${directives.join(", ")}, max-age=${Math.min(seconds, BROWSER_MAX_SECONDS)}, s-maxage=${seconds}, must-revalidate`
+        ? `${directives.join(", ")}, max-age=${Math.min(seconds, BROWSER_MAX_SECONDS)}, s-maxage=${seconds}, stale-while-revalidate=${Math.max(60, Math.min(600, seconds))}, stale-if-error=86400`
         : "no-cache");
     }
     applySecurityHeaders(res);
