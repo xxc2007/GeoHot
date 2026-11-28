@@ -130,7 +130,10 @@ test("public route subsets produce the same complete navigation data; filters st
     assert.equal(res.status, 200);
     assert.match(res.headers.get("Cache-Control")!, /^public,/);
     assert.equal(res.headers.get("X-Accel-Expires"), `@${deadline}`);
-    assert.doesNotMatch(res.headers.get("Cache-Control")!, /stale/);
+    // 2026-11-28：不再用 must-revalidate（它让 nginx 过期后阻塞等源站），改成
+    // stale-while-revalidate + stale-if-error：读者先拿旧内容、后台再刷新。
+    assert.match(res.headers.get("Cache-Control")!, /stale-while-revalidate=\d+/);
+    assert.match(res.headers.get("Cache-Control")!, /stale-if-error=\d+/);
     const body = await res.text();
     assert.ok(body.includes("root") && body.includes("routes/home"));
     return body;
@@ -152,7 +155,7 @@ test("HTML and navigation share freshness; cookies do not personalize public res
   const signedIn = await fetch(`${origin}/about.data?_routes=root`, { headers: { cookie: "admin_session=private; aihot_vid=reader" } });
   assert.match(plain.headers.get("Cache-Control")!, /^public,/);
   assert.match(plain.headers.get("X-Accel-Expires")!, /^@\d+$/);
-  assert.equal(plain.headers.get("Cache-Control"), "public, max-age=300, s-maxage=300, must-revalidate");
+  assert.equal(plain.headers.get("Cache-Control"), "public, max-age=300, s-maxage=300, stale-while-revalidate=300, stale-if-error=86400");
   assert.equal(Date.parse(plain.headers.get("Date")!) / 1000 + 300, Number(plain.headers.get("X-Accel-Expires")!.slice(1)));
   assert.equal(signedIn.headers.get("Set-Cookie"), null);
   assert.equal(await signedIn.text(), await plain.text());
@@ -223,8 +226,9 @@ test("browser freshness shares the selected deadline, including slow sibling loa
       assert.ok(browser > 0 && browser === shared);
       assert.ok(Date.parse(res.headers.get("Date")!) / 1000 + browser <= deadline);
       assert.equal(res.headers.get("X-Accel-Expires"), `@${deadline}`);
-      assert.match(cc, /must-revalidate/);
-      assert.doesNotMatch(cc, /stale/);
+      assert.doesNotMatch(cc, /must-revalidate/);
+      assert.match(cc, /stale-while-revalidate=/);
+      assert.match(cc, /stale-if-error=/);
       await res.text();
     }
     // The selected loader initially grants a positive TTL, but root metadata finishes after it.
@@ -248,7 +252,7 @@ test("browser freshness shares the selected deadline, including slow sibling loa
 test("the edge may keep a page longer than browsers, which a withdrawal purge cannot reach", async () => {
   const res = await fetch(`${origin}/items/long-lived.data`);
   assert.equal(res.status, 200);
-  assert.equal(res.headers.get("Cache-Control"), "public, max-age=300, s-maxage=600, must-revalidate");
+  assert.equal(res.headers.get("Cache-Control"), "public, max-age=300, s-maxage=600, stale-while-revalidate=600, stale-if-error=86400");
   await res.text();
 });
 
@@ -256,7 +260,7 @@ test("browser caching preserves noindex and private sign-in responses", async ()
   const feedback = await fetch(origin + "/feedback");
   assert.equal(feedback.status, 200);
   assert.match(await feedback.text(), /name="robots" content="noindex/);
-  assert.equal(feedback.headers.get("Cache-Control"), "public, max-age=300, s-maxage=300, must-revalidate");
+  assert.equal(feedback.headers.get("Cache-Control"), "public, max-age=300, s-maxage=300, stale-while-revalidate=300, stale-if-error=86400");
   const login = await fetch(origin + "/admin/login");
   assert.equal(login.status, 200);
   assert.equal(login.headers.get("Cache-Control"), "private, no-store");
